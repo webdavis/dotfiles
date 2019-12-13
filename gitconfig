@@ -7,7 +7,7 @@
 	editor = nvim
 	autocrlf = input
 	excludesfile = ~/.gitignore_global
-        pager = "less -eFRX"
+        pager = less -eFRX
 
         # Treat spaces before tabs and all kinds of trailing whitespace as an error
 	# [default] trailing-space: looks for spaces at the end of a line
@@ -28,7 +28,7 @@
 	tool = nvimdiff
 
 [difftool "nvimdiff"]
-	cmd = "/usr/local/bin/nvim.appimage -d -u ~/.vimrc \"$LOCAL\" \"$REMOTE\""
+	cmd = /usr/local/bin/nvim.appimage -d -u ~/.vimrc \"$LOCAL\" \"$REMOTE\"
 
 [log]
 	showSignature = false
@@ -37,9 +37,9 @@
 	enabled = true
 
 [color "status"]
-	added = "#5f87af"
-	changed = "#5f87af"
-	untracked = "#af5f5f"
+	added = "#19cb00"
+	changed = "#1d99f3"
+	untracked = "#f2201f"
 	remote = "#dfaf5f"
 
 [color "diff"]
@@ -48,9 +48,12 @@
 	old = "#af5f5f"
 	frag = "#dfaf5f"
 	context = "#bcbcbc"
-	func = "#bcbcbc" bold
+	func = "#bcbcbc bold"
 
 [merge]
 	conflictstyle = diff3
 [color]
 	ui = auto
+[filesystem "Oracle Corporation|11.0.5|/dev/mapper/volgroup-home"]
+	timestampResolution = 7000 nanoseconds
+	minRacyThreshold = 17718 microseconds
