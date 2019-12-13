@@ -6,12 +6,7 @@
 # default.
 umask 077
 
-# Append to PATH. Take from /etc/profile source. {{{1
-#
-# Sample usage:
-#
-#   path_append ~/bin
-#
+# Append to PATH. {{{1
 path_append() {
     case "${PATH}:" in
 	*":${1}:"* ) : ;;
@@ -19,7 +14,7 @@ path_append() {
     esac
 }
 
-# Prepend to PATH. Addapted from path_append() and used the same way.
+# Prepend to PATH.
 path_prepend() {
     case ":${PATH}" in
 	*":${1}:"* ) : ;;
@@ -98,18 +93,18 @@ export WEECHAT_HOME="${HOME}/.config/weechat"
 # AWS default profile.
 export AWS_PROFILE='default'
 
-shopt -s force_fignore	# Files with suffix from FIGNORE are ignored.
-shopt -s extglob        # Pattern matching during pathname expansion enabled.
-shopt -s globstar       # ** match files during pathname expansion.
-shopt -s dotglob        # Pathname expansion inlcudes hidden files.
-shopt -s nocaseglob	# Provides case insensitive pattern matching during pathname expansion.
-shopt -s dirspell       # Corrects directory spelling during expansion.
-shopt -s cdspell        # Autocorrects typos in path names when using `cd`.
-shopt -s checkjobs      # List job state before exiting shell.
+shopt -s  force_fignore # Files with suffix from FIGNORE are ignored.
+shopt -s        extglob # Pattern matching during pathname expansion enabled.
+shopt -s       globstar # ** match files during pathname expansion.
+shopt -s        dotglob # Pathname expansion inlcudes hidden files.
+shopt -s     nocaseglob # Provides case insensitive pattern matching during pathname expansion.
+shopt -s       dirspell # Corrects directory spelling during expansion.
+shopt -s        cdspell # Autocorrects typos in path names when using `cd`.
+shopt -s      checkjobs # List job state before exiting shell.
 shopt -s expand_aliases # Aliases are expanded using TAB.
-shopt -s cmdhist        # Lists multiline commands as one line in history.
-shopt -s histappend  	# Append to .bash_history.
-shopt -s hostcomplete	# Attempt hostname completion.
+shopt -s        cmdhist # Lists multiline commands as one line in history.
+shopt -s     histappend # Append to .bash_history.
+shopt -s   hostcomplete # Attempt hostname completion.
 
 # redraw when the consoles window size changes.
 [[ -n "$DISPLAY" ]] && shopt -s checkwinsize
