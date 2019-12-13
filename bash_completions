@@ -1,0 +1,20 @@
+# vi: set filetype=sh:
+
+# HashiCorp's Vault.
+complete -C /usr/local/bin/vault vault
+
+
+# Java completions. {{{1
+
+# _java_completion()
+# {
+#     declare -a words=($(find . -maxdepth 1 -type f -name '*.class'))
+#     for w in ${words[@]}; do
+#         COMPREPLY+=($(compgen -W "$(basename ${w%.*})" -- "${COMP_WORDS[1]}"))
+#     done
+#     unset -v w
+# }
+# complete -F _java_completion java
+#
+# # Java compiler completion.
+# complete -f -X '!*.java' javac

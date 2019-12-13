@@ -1,0 +1,340 @@
+set $alt Mod1
+
+# Mod4 is the Windows key. (Super is mapped to the Tab and Backslash keys on my home laptop.)
+set $super Mod4
+
+# Sets the font for window titles. Also used by the bar unless a different font is used in
+# the bar {} block below.
+font pango:RobotoMono Nerd Font Mono, fontawesome-webfont 8
+
+# Disables the cursor so that only the keyboard or mouse clicks control the focused window.
+focus_follows_mouse no
+
+# Removes the titlebar on windows and sets tiny borders.
+for_window [class=".*"] border pixel 5
+new_window pixel 5
+gaps inner 8
+gaps outer 0
+smart_gaps on
+smart_borders on
+
+# Launches the following programs as floating windows/
+for_window [class="YubiKey Personalization Tool"] floating enable
+
+# Focus KeePassXC window.
+bindsym $super+p [class="keepassxc"] focus
+
+bindsym $super+g [instance="termite"] focus
+
+# Sets some scratchpads for quick toggling.
+bindsym F8 exec --no-startup-id "scratchpad.bash -p 'signal-desktop' -i 'signal'"
+bindsym F9 exec --no-startup-id "scratchpad.bash -p 'chromium --new-window http://twmilli.github.io/pomodoro/' -w 'browser' -t 'Pomodoro Timer'"
+bindsym F10 exec --no-startup-id "scratchpad.bash -p 'chromium --new-window https://calendar.google.com/calendar/r' -w 'browser' -t 'Google Calendar'"
+bindsym F11 exec --no-startup-id "scratchpad.bash -p 'chromium --new-window https://airtable.com/tblIWyybfrLhEZouz/' -w 'browser' -t 'Education Roadmap'"
+
+# Makes sure the following programs always launch at startup as a scratchpad.
+for_window [instance="SpiderOakONE"] move scratchpad
+exec --no-startup-id "SpiderOakONE"
+bindsym $super+o [instance="SpiderOakONE"] scratchpad show
+for_window [instance="konsole"] move scratchpad
+exec --no-startup-id "konsole"
+bindsym $super+z [instance="konsole"] scratchpad show
+
+# Starts a terminal.
+bindsym $super+Return exec "i3-sensible-terminal"
+
+# Starts Eclipse IDE
+bindsym $super+$alt+Return exec "~/workspaces/tools/eclipse-jee-2019-09_R_4.13.0-linux-gtk-x86_64/eclipse"
+
+# Start Eclipse Modeling Tools.
+bindsym $super+$alt+u exec "~/workspaces/tools/eclipse-modeling-2019-09_R_4.13.0-linux-gtk-x86_64/eclipse"
+
+# Most annoying things EVER.
+bindsym $super+q nop
+bindsym $alt+q nop
+
+# Kills focused window.
+bindsym $super+$alt+q kill
+
+# Starts Rofi (a program launcher). Note: i3 doesn't like commas in the exec command;
+# "#" can be used instead.
+bindsym $super+d exec "rofi -show drun -modi 'drun#run'"
+
+# Starts rofi-calc: https://github.com/svenstaro/rofi-calc
+bindsym $super+c exec --no-startup-id "rofi -show calc -modi 'calc' -no-show-match -no-sort -eh 2 -no-fixed-num-lines -calc-command 'echo {result} | xclip'"
+
+# Launch browsers.
+bindsym Control+$alt+f exec "firefox-developer-edition"
+bindsym Control+$alt+c exec "chromium"
+
+# Shows all open windows in Rofi.
+bindsym $super+semicolon exec "rofi -show window"
+
+# Changes container focus.
+bindsym $super+h focus left
+bindsym $super+j focus down
+bindsym $super+k focus up
+bindsym $super+l focus right
+
+# Moves focused window.
+bindsym $super+$alt+h move left
+bindsym $super+$alt+j move down
+bindsym $super+$alt+k move up
+bindsym $super+$alt+l move right
+
+# Vertical split.
+bindsym $super+u split v
+
+# Horizontal split.
+bindsym $super+i split h
+
+# Enters fullscreen mode for the focused container.
+bindsym $super+f fullscreen toggle
+
+# Moves the current workspace.
+bindsym $super+bracketleft move workspace to output left
+bindsym $super+bracketright move workspace to output right
+bindsym $super+minus move workspace to output up
+bindsym $super+plus move workspace to output down
+
+# Changes the container layout:
+# - default/split
+# - tabbed
+# - stacked
+bindsym $super+e layout default
+bindsym $super+w layout tabbed
+bindsym $super+s layout stacking
+
+# Toggles tiling / floating.
+bindsym $super+b floating toggle
+
+# Changes focus between tiling / floating windows.
+bindsym $super+$alt+b focus mode_toggle
+
+# Uses Mouse+$super to drag floating windows to their wanted position.
+floating_modifier $super
+
+# Container focus.
+bindsym $super+a focus parent
+bindsym $super+Control+a focus child
+
+# Defines names for default workspaces for which we configure key bindings later on.
+# Variables are used to avoid repeating the names in multiple places.
+set $ws1 " 1  private "
+set $ws2 " 2  to-sort "
+set $ws3 " 3  usaf "
+set $ws4 " 4  IT "
+set $ws5 " 5  python "
+set $ws6 " 6  sql "
+set $ws7 " 7  javascript "
+set $ws8 " 8  java-1 "
+set $ws9 " 9  java-2 "
+set $ws10 " 10 "
+set $ws11 " 11 "
+set $ws12 " 12 "
+set $ws13 " 13 "
+set $ws14 " 14 "
+set $ws15 " 15 "
+set $ws16 " 16 "
+set $ws17 " 17 "
+set $ws18 " 18 "
+set $ws19 " 19 "
+set $ws20 " 20 "
+
+# Switch to previous or next workspace.
+bindsym $super+comma workspace prev
+bindsym $super+period workspace next
+
+# Workspaces from 1-10.
+bindsym $super+1 workspace $ws1
+bindsym $super+2 workspace $ws2
+bindsym $super+3 workspace $ws3
+bindsym $super+4 workspace $ws4
+bindsym $super+5 workspace $ws5
+bindsym $super+6 workspace $ws6
+bindsym $super+7 workspace $ws7
+bindsym $super+8 workspace $ws8
+bindsym $super+9 workspace $ws9
+bindsym $super+0 workspace $ws10
+
+# Moves container to workspaces 1-10.
+bindsym $super+$alt+1 move container to workspace $ws1
+bindsym $super+$alt+2 move container to workspace $ws2
+bindsym $super+$alt+3 move container to workspace $ws3
+bindsym $super+$alt+4 move container to workspace $ws4
+bindsym $super+$alt+5 move container to workspace $ws5
+bindsym $super+$alt+6 move container to workspace $ws6
+bindsym $super+$alt+7 move container to workspace $ws7
+bindsym $super+$alt+8 move container to workspace $ws8
+bindsym $super+$alt+9 move container to workspace $ws9
+bindsym $super+$alt+0 move container to workspace $ws10
+
+# Workspaces from 11-20.
+bindsym $super+F1 workspace $ws11
+bindsym $super+F2 workspace $ws12
+bindsym $super+F3 workspace $ws13
+bindsym $super+F4 workspace $ws14
+bindsym $super+F5 workspace $ws15
+bindsym $super+F6 workspace $ws16
+bindsym $super+F7 workspace $ws17
+bindsym $super+F8 workspace $ws18
+bindsym $super+F9 workspace $ws19
+bindsym $super+F10 workspace $ws20
+
+# Moves container to workspaces 11-20.
+bindsym $super+$alt+F1 move container to workspace $ws11
+bindsym $super+$alt+F2 move container to workspace $ws12
+bindsym $super+$alt+F3 move container to workspace $ws13
+bindsym $super+$alt+F4 move container to workspace $ws14
+bindsym $super+$alt+F5 move container to workspace $ws15
+bindsym $super+$alt+F6 move container to workspace $ws16
+bindsym $super+$alt+F7 move container to workspace $ws17
+bindsym $super+$alt+F8 move container to workspace $ws18
+bindsym $super+$alt+F9 move container to workspace $ws19
+bindsym $super+$alt+F10 move container to workspace $ws20
+
+# Press current workspace key to toggle between current and previous workspace.
+workspace_auto_back_and_forth yes
+
+# Reloads the configuration file.
+bindsym $alt+Control+r reload
+
+# Restarts i3 inplace (preserves your layout/session, can be used to upgrade i3).
+bindsym $super+$alt+r restart
+
+# Changes volume or toggle mute.
+# Dependencies: alsamixer
+bindsym F2 exec "amixer -q sset Master 2%- && pkill -RTMIN+10 i3blocks"
+bindsym F3 exec "amixer -q sset Master 2%+ && pkill -RTMIN+10 i3blocks"
+bindsym F1 exec "pactl set-sink-mute 2 toggle && pkill -RTMIN+10 i3blocks"
+
+# Adjusts the screen brightness.
+# Dependencies: light (install using the PKGBUILD from https://github.com/haikarainen/light).
+bindsym $super+$alt+Left exec "light -U 10"
+bindsym $super+$alt+Right exec "light -A 10"
+bindsym $super+$alt+Down exec "light -S 0"
+
+# Toggles laptop TouchPad on and off.
+# Dependencies: xorg-xinput
+bindsym $super+$alt+m exec "~/bin/touchpad.bash"
+
+# Resizes the window.
+mode "resize" {
+    bindsym h resize shrink width 6 px or 6 ppt
+    bindsym j resize grow height 6 px or 6 ppt
+    bindsym k resize shrink height 6 px or 6 ppt
+    bindsym l resize grow width 6 px or 6 ppt
+
+    # Same bindings, but for the arrow keys.
+    bindsym Left resize shrink width 6 px or 6 ppt
+    bindsym Down resize grow height 6 px or 6 ppt
+    bindsym Up resize shrink height 6 px or 6 ppt
+    bindsym Right resize grow width 6 px or 6 ppt
+
+    # Return to normal mode using Enter, Escape, or $super+n.
+    bindsym Return mode "default"
+    bindsym Escape mode "default"
+    bindsym $super+n mode "default"
+}
+bindsym $super+r mode "resize"
+
+# Launches xfce4-notifyd. xfce4-notifyd is a notification server that displays libnotify
+# messages. xfce4-notifyd honors `notify-send --expire-time` whereas many notifaction
+# servers don't and a timeout cannot be set.
+# Dependencies: xfce4-notifyd
+exec --no-startup-id "systemctl --user start xfc4-notifyd"
+
+# Reinitialize the keyboard. See the following files to checkout what's going on here:
+# - /etc/systemd/system/xcape@.service
+# - ~/bin/keyboard-init
+exec_always --no-startup-id "/bin/bash \"${HOME}/bin/keyboard-init\""
+
+# Compton. (Note: "exec_always" forces Compton to restart with i3.)
+# Dependencies: compton
+exec --no-startup-id "killall -q compton; compton --config ~/.config/compton.conf"
+
+# Flashfocus (the configuration file is located at ~/.config/flashfocus/flashfocus.yml). See:
+# GitHub page: https://github.com/fennerm/flashfocus.
+# Dependencies: compton, virtualenv, flashfocus, openbsd-netcat (optional - for 4x faster implementation)
+exec_always --no-startup-id "killall -q flashfocus; . ~/.virtualenvs/venv-flashfocus/bin/activate && flashfocus"
+# bindsym $super+$alt+Return exec --no-startup-id "~/.virtualenvs/venv-flashfocus/bin/nc_flash_window"
+
+# class                 border  backgr. text    indica. child_border
+client.focused          #4c7899 #298edb #ffffff #298edb #298edb
+client.focused_inactive #333333 #298edb #ffffff #484e50 #5f676a
+client.unfocused        #333333 #222222 #888888 #292d2e #222222
+client.urgent           #2f343a #900000 #ffffff #900000 #900000
+client.placeholder      #000000 #0c0c0c #ffffff #000000 #0c0c0c
+client.background       #ffffff
+
+# Starts i3bar to display a workspace bar (plus the system information i3status finds out,
+# if available)
+bar {
+    font pango:robotomono nerd font mono bold, fontawesome-webfont 8
+    status_command i3blocks
+    position top
+    mode dock
+    hidden_state hide
+    workspace_buttons yes
+    separator_symbol █
+    tray_output	primary
+    tray_output	eDP-1-1
+    height 27
+
+    colors {
+	statusline #ffffff
+	background #222222ee
+	separator  #222222ee
+
+	# These colors match i3's default theme.
+	focused_workspace  #4c7899 #4c7899 #eeeeee
+	active_workspace   #28774bee #28774bee #ffffff
+	inactive_workspace #222222ee #222222ee #cecece
+	urgent_workspace   #77282dee #77282dee #ffffff
+    }
+}
+bindsym $alt+grave bar mode toggle
+
+# Uses Rofi to switch displays. (Always run before undocking when going mobile.) Adds a
+# fallback for laptop monitor when I forget to run this before undocking.
+# Dependencies: xorg-xrandr, xorg-setxkbmap, xcape.
+bindsym $super+backslash exec "${HOME}/bin/display-mode.bash -x 'rofi -eh 1 -no-fixed-num-lines -width 20 -dmenu -i -p Display\ Mode:'"
+bindsym $super+$alt+backslash exec "${HOME}/bin/display-mode.bash -m"
+
+# Locks i3 inplace (`sleep 1` adds a small delay to prevent possible race conditions with
+# suspend).
+bindsym Control+$alt+Delete exec "i3lock --ignore-empty-password --show-failed-attempts --tiling --color=0c2624 && sleep 1"
+
+# Autolocks X after 15 minutes.
+# exec xautolock -detectsleep -time 30 -locker "i3lock --ignore-empty-password --show-failed-attempts --tiling --color=0c2624 && sleep 1"
+
+# Use Rofi to manage system power. The options are:
+# - Suspend System
+# - Hibernate System
+# - Reboot System
+# - Power-off System
+# - Exit Window Manager
+# Dependencies: rofi.
+bindsym $super+$alt+Delete exec --no-startup-id "${HOME}/bin/systemctl-rofi.bash -e 'i3-msg exit' -x 'rofi -eh 2 -no-fixed-num-lines -width 20 -dmenu -i -p System\ Command:' -l 'i3lock --ignore-empty-password --show-failed-attempts --tiling --color=0c2624 && sleep 1'"
+
+# Uses Rofi to take screenshots.
+# - Capture Fullscreen
+# - Capture Window (remove border)
+# - Capture Window (include border)
+# - Capture Area (uses mouse to select area)
+# Dependencies: gnome-screenshot, rofi.
+bindsym $super+Print exec "${HOME}/bin/screenshot.bash -x 'rofi -eh 2 -no-fixed-num-lines -dmenu -i -p Screenshot:'"
+
+# Uses Rofi to switch audio devices.
+# Dependencies: libpulse.
+bindsym $super+v exec --no-startup-id "${HOME}/bin/streamsink.bash -x 'rofi -eh 2 -no-fixed-num-lines -width 30 -dmenu -i -p Streamsink:'"
+
+# Auto start an applet to manage Network Manager.
+exec_always --no-startup-id nm-applet &
+
+# Autostart an applet to manage bluetooth.
+exec_always --no-startup-id blueman-applet &
+
+# Prevents my computer from automatically sleeping for 2 hours.
+exec_always --no-startup-id "xset s 7200"
+exec_always --no-startup-id "xset -dpms"

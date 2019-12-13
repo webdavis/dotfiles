@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+
+# Exit immediately if a "simple" command, a "compound" command, a list, or the last
+# command in a pipeline exits with a non-zero exit status.
+set -e
+
+# Treat unset variables as errors, exiting when detected.
+set -u
+
+nvm_dir="${HOME}/workspaces/tools/nvm"
+(
+    cd "$nvm_dir"
+    git fetch --tags origin
+    git checkout `git describe --abbrev=0 --tags --match "v[0-9]*" $(git rev-list --tags --max-count=1)`
+) && \. "$nvm_dir/nvm.sh"

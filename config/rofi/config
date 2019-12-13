@@ -1,0 +1,162 @@
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Look and feel.
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+rofi.width: 40
+rofi.sidebar-mode: false
+rofi.font: RobotoMono Nerd Font 9
+rofi.show-icons: true
+
+! The display name of the browser modes.
+rofi.display-window: "win"
+rofi.display-windowcd: "cwin"
+rofi.display-run: run
+rofi.display-ssh: ssh
+rofi.display-drun: drun
+
+! My custom built color theme.
+rofi.theme: ~/.config/rofi/themes/i3float.rasi
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Settings.
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+! Enabled modes.
+rofi.modi: ssh,window,drun,run
+
+rofi.case-sensitive: false
+rofi.disable-history: false
+rofi.sort: true
+
+! Terminal to use when running commands from Rofi.
+rofi.terminal: rofi-sensible-terminal
+
+! Desktop entry fields to match in drun.
+rofi.drun-match-fields: name,generic,exec,categories
+
+! Set the matching algorithm (options: normal, regex, glob, fuzzy).
+rofi.matching: fuzzy
+
+! Use levenshtein sorting also for fuzzy matching.
+rofi.levenshtein-sort: true
+
+! Cycle through the results list.
+rofi.cycle: true
+
+! Set the modi to combine in combi mode.
+rofi.combi-modi: window,drun,ssh
+
+! Show on monitor with focused window.
+!rofi.m: primary
+
+! Click outside the window to exit.
+rofi.click-to-exit: true
+
+! Indicate the search match by underlining it.
+rofi.show-match: true
+
+! Hide the prefix on the combi view.
+rofi.combi-hide-mode-prefix: false
+
+! This can be ssh, mosh, dropbear, and et cetera.
+rofi.ssh-client: ssh
+
+! Parse hosts file for ssh mode.
+rofi.parse-hosts: true
+
+! Parse known_hosts file for ssh mode.
+rofi.parse-known-hosts: true
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Key bindings.
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+! Paste primary selection.
+rofi.kb-primary-paste: Control+V,Shift+Insert
+
+! Paste clipboard.
+rofi.kb-secondary-paste: Control+v,Insert
+
+! Clear input line.
+rofi.kb-clear-line: Control+w
+
+! Beginning of line.
+rofi.kb-move-front: Control+i
+
+! End of line.
+rofi.kb-move-end: Control+e
+
+! Move back one word.
+rofi.kb-move-word-back: Alt+b
+
+! Move forward one word.
+rofi.kb-move-word-forward: Alt+f
+
+! Move back one char.
+rofi.kb-move-char-back: Left,Control+b
+
+! Move forward one char.
+rofi.kb-move-char-forward: Right,Control+f
+
+! Delete previous word.
+rofi.kb-remove-word-back: Control+BackSpace
+
+! Delete next word.
+rofi.kb-remove-word-forward: Control+Alt+d
+
+! Delete next char.
+rofi.kb-remove-char-forward: Delete,Control+d
+
+! Delete previous char.
+rofi.kb-remove-char-back: BackSpace
+
+! Delete till the end of line.
+rofi.kb-remove-to-eol: Control+k
+
+! Delete till the start of line.
+rofi.kb-remove-to-sol: Control+u
+
+! Accept entry.
+rofi.kb-accept-entry: Control+m,Return,KP_Enter
+
+! Switch to the next mode.
+rofi.kb-mode-next: Shift+Right,Control+l
+
+! Switch to the previous mode.
+rofi.kb-mode-previous: Shift+Left,Control+h
+
+! Select previous entry.
+rofi.kb-row-up: Up,Control+p,ISO_Left_Tab
+
+! Select next entry.
+rofi.kb-row-down: Down,Control+n
+
+! Go to next row, if one left, accept it, if no left next mode.
+rofi.kb-row-tab: Tab
+
+! Go to the previous page.
+rofi.kb-page-prev: Page_Up
+
+! Go to the next page.
+rofi.kb-page-next: Page_Down
+
+! Go to the first entry.
+rofi.kb-row-first: Home,KP_Home
+
+! Go to the last entry.
+rofi.kb-row-last: End,KP_End
+
+! Set selected item as input text.
+rofi.kb-row-select: Control+space
+
+! Take a screenshot of the rofi window.
+rofi.kb-screenshot: Alt+S
+
+! Toggle case sensitivity.
+rofi.kb-toggle-case-sensitivity: grave,dead_grave
+
+! Toggle sort by pressing "Alt+~".
+rofi.kb-toggle-sort: Alt+grave
+
+! Quit rofi.
+rofi.kb-cancel: Escape,Control+g,Control+bracketleft

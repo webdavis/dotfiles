@@ -1,0 +1,130 @@
+# To apply changes run: i3-msg restart
+# The "command" property is executed with `sh -c`
+
+# Global properties. The top properties below are applied to every block, but can be
+# overridden. Each block command defaults to the script name to avoid boilerplate.
+command=/usr/local/libexec/i3blocks/$BLOCK_NAME
+separator=true
+separator_block_width=20
+border_top=0
+border_left=0
+border_right=0
+border_bottom=3
+markup=none
+
+# Show focused window.
+[focused_window]
+command=xtitle -s -t 60
+interval=persist
+border=#ffb52a
+
+# System uptime indicator.
+#[system_uptime]
+#command=~/bin/system-uptime.bash
+#interval=1
+#border=#ff005f
+#markup=pango
+
+# Docker machine indicator. Show the number of running Docker containers and the latest
+# created containers IP address.
+[docker]
+command=~/bin/docker.bash
+label=Docker:
+interval=5
+border=#0db7ed
+
+# Disk usage indicator. The directory defaults to $HOME if the instance is not specified.
+# The script may be called with an optional argument to set the alert.
+[disk]
+command=~/bin/partition-space.bash -p /
+label=
+interval=3
+border=#ff005f
+markup=pango
+
+#[disk]
+#command=~/bin/partition-space.bash -p /home/stephenadavis
+#interval=3
+#label=
+#markup=pango
+
+# Memory usage indicator.
+[memory]
+command=~/bin/memory.bash
+label=M
+border=#1bc089
+interval=5
+
+# Arch Linux package updates indicator.
+[updates]
+command=~/bin/pacman-updates.bash
+border=#ff005f
+interval=3600
+markup=pango
+
+# GPU load indicator.
+#[nvidia-gpu-load]
+#command=~/bin/nvidia-gpu-load.bash
+#interval=5
+#markup=pango
+
+# Temperature indicator. Supports multiple chips using lm-sensors.
+# See temperature.bash for details:
+# - the "-w" parameter sets the warning temperature threshold.
+# - the "-c" parameter sets the critical temperature threshold.
+[temperature]
+command=~/bin/temperature.bash
+interval=5
+border=#ff005f
+markup=pango
+
+# Battery indicator. The battery instance defaults to 0. Since this is so finicky, all
+# error messages are passed to i3bar for easier debugging.
+[battery]
+command=~/bin/battery.bash
+interval=10
+markup=pango
+
+# OpenVPN support.
+#[openvpn]
+#interval=20
+
+# Network interface indicator. If the instance is not specified, use the interface used
+# for default route.
+# See iface.bash for details:
+# - the "-4" parameter force reads the IPv4 address.
+# - the "-6" parameter force reads the IPv6 address.
+# - the "-L" parameter prepends the interface label to the block.
+[iface]
+command=~/bin/iface.bash -L
+interval=3
+border=#1bc089
+markup=pango
+
+# WiFi quality indicator.
+[wifi]
+command=~/bin/wifi.bash
+interval=30
+border=#ff005f
+markup=pango
+
+# Volume indicator. See volume.bash for details:
+# - the "-s" parameter sets the step (and units to display).
+# - the "-m" parameter overrides the mixer selection (e.g. hw:2).
+# - the "-c" parameter overrides the control selection (e.g. Master or Headphone).
+[volume]
+command=~/bin/volume.bash
+label=
+border=#1bc089
+interval=once
+signal=10
+
+# Date Time indicator.
+[time]
+command=date '+%e %b    %H:%M:%S    %Z'
+border=#0087ff
+interval=1
+
+[filler]
+command=echo " "
+interval=once

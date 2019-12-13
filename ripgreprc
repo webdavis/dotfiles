@@ -1,0 +1,19 @@
+--max-columns=150
+
+# 'web' type.
+--type-add
+web:*.{html,css,js}*
+
+# Using glob patterns to include/exclude files or folders
+--glob=!git/*
+
+# Searches case insensitively if the pattern is all lowercase, and case sensitively
+# otherwise.
+--smart-case
+
+# Prints stats about search at end of results (e.g. number of matches).
+--stats
+
+# This is a convenience alias for '--color always --heading --line-number'. This is
+# useful when piping ripgrep output, such as: 'rg -p foo | less -R'.
+--pretty

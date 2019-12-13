@@ -1,0 +1,56 @@
+[user]
+	name = Stephen A. Davis
+	email = stephen@webdavis.io
+	signingKey = FF758CFF54C3146A
+
+[core]
+	editor = nvim
+	autocrlf = input
+	excludesfile = ~/.gitignore_global
+        pager = "less -eFRX"
+
+        # Treat spaces before tabs and all kinds of trailing whitespace as an error
+	# [default] trailing-space: looks for spaces at the end of a line
+	# [default] space-before-tab: looks for spaces before tabs at the beginning of a line
+	whitespace = space-before-tab,-indent-with-non-tab,trailing-space
+
+[commit]
+	gpgSign = true
+
+[push]
+	gpgSign = if-asked
+
+[status]
+	submodulesummary = true
+
+[diff]
+	submodule = log
+	tool = nvimdiff
+
+[difftool "nvimdiff"]
+	cmd = "/usr/local/bin/nvim.appimage -d -u ~/.vimrc \"$LOCAL\" \"$REMOTE\""
+
+[log]
+	showSignature = false
+
+[rerere]
+	enabled = true
+
+[color "status"]
+	added = "#5f87af"
+	changed = "#5f87af"
+	untracked = "#af5f5f"
+	remote = "#dfaf5f"
+
+[color "diff"]
+	meta = "#87d7d7"
+	new = "#87af87"
+	old = "#af5f5f"
+	frag = "#dfaf5f"
+	context = "#bcbcbc"
+	func = "#bcbcbc" bold
+
+[merge]
+	conflictstyle = diff3
+[color]
+	ui = auto

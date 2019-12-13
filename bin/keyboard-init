@@ -1,0 +1,112 @@
+#!/usr/bin/env bash
+
+# Credit: Adapted from Ethan Schoonover's script.
+# Location: https://github.com/altercation/dotfiles-tilingwm/blob/master/bin/wm/init-Keyboard
+
+# ----------------------------------------------------------------------------------------
+# Reference.
+# ----------------------------------------------------------------------------------------
+# Compose key in this setup is Shift + RAlt, release, then hit dead key and live key:
+# e.g. shift+ralt, ', e = é
+
+# Both shifts simultaneously switches between first and second group (en and gr).
+
+# Add a udev rule by creating the file /etc/udev/rules.d/00-keyboard.rules with the
+# contents:
+#
+# ACTION=="add", SUBSYSTEM=="input", ENV{DISPLAY}=":0", \
+#     ENV{XAUTHORITY}="/home/stephen/.Xauthority", \
+#     OWNER="stephen", GROUP="stephen", \
+#     RUN+="/usr/bin/su stephen -c /usr/local/bin/initialize-keyboard"
+
+# Add the following systemd user instance by creating the file
+# /etc/systemd/system/xcape@.service with the contents:
+#
+# [Unit]
+# Description=Xcape Daemon
+#
+# [Service]
+# Type=forking
+# User=%i
+# WorkingDirectory=/home/%i
+# Environment=DISPLAY=:0
+# ExecStartPre=/bin/bash ./bin/keyboard-init
+# ExecStart=/usr/bin/xcape -e "Hyper_L=Tab;Hyper_R=backslash"
+# Restart=always
+# RestartSec=1
+
+# Then run the following command:
+#
+#   sudo systemctl enable xcape@$USER.service
+#
+
+# Exit if the current namespace has already created an xkb setup.
+for directory in $(find /tmp/xkb.*/symbols 2>/dev/null); do
+    if [[ $(stat -c '%U' "$directory") == "$USER" ]]; then
+        instance="${directory/\/symbols*/}"
+    fi
+done
+
+# If a xkb userspace instance exists then assign it. If it doesn't then create it.
+if [[ -d "$instance" ]]; then
+    xkbdir="$instance"
+else
+    xkbdir="$(mktemp --tmpdir='/tmp' --directory 'xkb.XXXXX')";
+    mkdir -- ${xkbdir}/{keymap,symbols} ;
+
+    # The following is generated first from a setxkbmap command similar to:
+    #
+    #     setxkbmap -layout "us,gr(polytonic)" -option "ctrl:nocaps,grp:shifts_toggle,misc:typo,shift:break_caps,lv3:alt_switch"
+    #
+    # and then:
+    #
+    #     setxkbmap -print
+    #
+    # The final tweak being the addition of the "+custom(hypers)" to use my local
+    # customizations.
+
+    # lv3:ralt_switch_multikey
+    # level3(alt_switch)
+    # level3(ralt_switch_multikey)
+
+    # Rather than dump these to a file, I could keep them in static files at ~/.config/xkb
+    # or ~/.xkb, but I prefer this method as it centralizes the configuration data to just
+    # this file.
+    cat > "${xkbdir}/keymap/custom.xkb" << EOF
+xkb_keymap {
+    xkb_keycodes  { include "evdev+aliases(qwerty)" };
+    xkb_types     { include "complete"  };
+    xkb_compat    { include "complete"  };
+    xkb_symbols   { include "pc+us+gr(polytonic):2+inet(evdev)+group(shifts_toggle)+level3(ralt_switch_multikey)+ctrl(nocaps)+typo(base):1+typo(base):2+custom(hypers)" };
+    xkb_geometry  { include "pc(pc104)" };
+};
+EOF
+
+cat > "${xkbdir}/symbols/custom" << EOF
+default partial
+xkb_symbols "hypers" {
+    key  <TAB> { [ Hyper_L, Hyper_L ] };
+    key <HOME> { [ Hyper_R, Hyper_R ] };
+    key <RALT> { [ Alt_R, Alt_R ] };
+    key <CAPS> { [ Control_L, Control_L ]};
+    key <I252> { [ Tab, ISO_Left_Tab ] };
+    modifier_map Mod4 { Super_L, Super_R, Hyper_L, Hyper_R };
+};
+EOF
+fi
+
+# Adjust keyboard speed with xset if it's installed.
+command -v xset &>/dev/null && xset r rate 200 60
+
+# Grab the user-id.
+userid="$(id -u "$USER")"
+
+export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/${userid}/bus"
+notify-send -u low 'Keyboard initialized'
+
+# Reinitialize the keyboard.
+export DISPLAY=':0'
+xkbcomp -synch -w3 -I${xkbdir} "${xkbdir}/keymap/custom.xkb" "$DISPLAY" &>/dev/null
+
+# Xcape gets restarted by the xcape systemd user service.
+(exec killall -q xcape) &

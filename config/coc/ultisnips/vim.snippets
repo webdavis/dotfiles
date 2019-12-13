@@ -1,0 +1,88 @@
+# A valid snippet should starts with:
+#
+#		snippet trigger_word [ "description" [ options ] ]
+#
+# and end with:
+#
+#		endsnippet
+#
+# Snippet options:
+#
+#		b - Beginning of line.
+#		i - In-word expansion.
+#		w - Word boundary.
+#		r - Regular expression
+#		e - Custom context snippet
+#		A - Snippet will be triggered automatically, when condition matches.
+#
+# Basic example:
+#
+#		snippet emitter "emitter properties" b
+#		private readonly ${1} = new Emitter<$2>()
+#		public readonly ${1/^_(.*)/$1/}: Event<$2> = this.$1.event
+#		endsnippet
+#
+# Online reference: https://github.com/SirVer/ultisnips/blob/master/doc/UltiSnips.txt
+
+snippet a "autocmd"
+autocmd${1:!} ${2:WinEnter} ${3:*} ${4:cmd}
+endsnippet
+
+
+snippet au "augroup" b
+augroup ${1:group_name}
+	autocmd!
+	autocmd ${2:WinEnter} ${3:*} ${4:cmd}
+augroup END$0
+endsnippet
+
+
+snippet p "Plug"
+Plug '${1:repo/plugin}'
+endsnippet
+
+
+snippet if "if" bms
+if ${1:1}
+	${2:echom 'inside if'}
+endif
+endsnippet
+
+
+snippet ef "elsei[f]" bms
+elseif ${1:1}
+	${2:echom 'inside elseif'}
+endsnippet
+
+
+snippet el "else" bms
+else
+	${1:echom 'inside else'}
+endsnippet
+
+
+snippet f "function" bms
+function! ${1:Name}($2) abort
+	${3:execute}
+endfunction
+endsnippet
+
+
+snippet 'nno?r?e?m?a?p?' "nnoremap" br
+nnoremap ${1:lhs} ${2::<C-u>${3:execute}<CR>}
+endsnippet
+
+
+snippet nnl "nnoremap" b
+nnoremap <Leader>${1:lhs} ${2::<C-u>${3:execute}<CR>}
+endsnippet
+
+
+snippet 'vno?r?e?m?a?p?' "vnoremap" br
+vnoremap ${1:lhs} :<C-u>${2:execute}<CR>
+endsnippet
+
+
+snippet 'ino?r?e?m?a?p?' "inoremap" br
+inoremap ${1:<C-x>${2:lhs}} ${3:<C-o>:<C-u>${4:execute}}<CR>
+endsnippet

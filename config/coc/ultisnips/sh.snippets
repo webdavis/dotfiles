@@ -1,0 +1,80 @@
+# vi:foldmethod=marker foldlevel=0 textwidth=90 shiftwidth=4 tabstop=4 softtabstop=4:
+
+# hashbangs {{{1
+
+# hashbang {bash} {{{2
+snippet "hbb?" "hashbang {bash}" br
+#!/usr/bin/env bash
+endsnippet
+
+# hashbang {sh} {{{2
+snippet hbs "hashbang {sh}" b
+#!/usr/bin/env bash
+endsnippet
+
+
+# control flow statements {{{1
+
+snippet if "if" b
+if ${1:[[ ${2:condition} ]]}; then
+	$3
+fi
+endsnippet
+
+
+snippet iff "if {one line}"
+if ${1:[[ ${2:condition} ]]}; then $3; fi$0
+endsnippet
+
+snippet ie "if {else}" b
+if ${1:[[ ${2:condition} ]]}; then
+	$3
+else
+	$4
+fi$0
+endsnippet
+
+snippet w "while {[[ condition ]]}" b
+while ${1:[[ ${2:condition} ]]}; do
+	$3
+done
+endsnippet
+
+
+snippet wc "while {case}" b
+while ${1:[[ ${2:condition} ]]}; do
+	case ${3:word} in
+		${4:pattern} ) ${5:exec} ;;
+	esac
+done${6:
+unset -v $3}$0
+endsnippet
+
+
+snippet p "case {pattern)}" ib
+${1:pattern} ) ${2:exec} ;;$0
+endsnippet
+
+
+snippet wt "while {true}" b
+while true; do
+	$1
+done
+endsnippet
+
+
+snippet wtc "while {true case}" b
+while true; do
+	case ${1:word} in
+		${2:pattern} ) ${3:exec} ;;
+	esac
+done${4:
+unset -v $1}$0
+endsnippet
+
+
+# functions {{{1
+
+snippet pr "printf" i
+printf "${1:%s\\\n}" "${1:message}"
+endsnippet

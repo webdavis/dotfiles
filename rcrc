@@ -1,0 +1,13 @@
+##
+# Specifies the configuration settings for rcm.
+# See: https://robots.thoughtbot.com/rcm-for-rc-files-in-dotfiles-repos
+##
+
+# The source directories for dotfiles. The first in the list is the default.
+DOTFILES_DIRS="/home/stephen/.dotfiles-webdavis.git"
+
+# The files to exclude when reading dotfiles repos.
+EXCLUDES="LICENSE README*.md"
+
+# The items in this lists will be symlinked without a leading dot.
+UNDOTTED="bin"

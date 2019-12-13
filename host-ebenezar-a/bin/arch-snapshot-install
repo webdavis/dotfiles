@@ -1,0 +1,123 @@
+#!/usr/bin/env bash
+
+# Exit immediately if a "simple" command, a "compound" command, a list, or the last
+# command in a pipeline exits with a non-zero exit status.
+set -e
+
+# Treat unset variables as errors, exiting when detected.
+set -u
+
+# Fail if any command in a pipeline chain returns with a non-zero exit status.
+set -o pipefail
+
+# The name of this script.
+script="${BASH_SOURCE[0]##*/}"
+
+# Colors.
+red="$(tput bold && tput setaf 1)"
+green="$(tput bold && tput setaf 2)"
+white="$(tput bold)"
+reset="$(tput sgr0)"
+
+# Reminder that things have been added to the filesystem. Removing things seems like a
+# poor choice.
+reminders() {
+    if [[ -d "${versioned_package_path:-}" ]]; then
+	printf "%s\\n" "${red}Reminder: the directory ${versioned_package_path} exists.${reset}"
+    elif [[ -d "${package_path:-}" ]]; then
+	printf "%s\\n" "${red}Reminder: the directory ${package_path} exists.${reset}"
+    fi
+}
+
+# This function logs useful error messages.
+error() {
+    local exit_code="${2:-${?}}"
+    local message="${1:-unknown}"
+    printf "%s\\n" "${script}: ${message}." 2>&1
+
+    reminders
+    exit "$exit_code"
+}
+
+# Trap any errors, calling error() when they're caught.
+trap 'error "error on or near line ${LINENO}"' ERR
+
+# This function logs user interruptions.
+interrupt() {
+    local exit_code="$?"
+    trap '' EXIT
+    printf "%s\\n" "${script}: received interrupt signal from user. The last command finished with exit status ${exit_code}."
+    reminders
+
+    exit "$exit_code"
+}
+
+# Trap any user interruptions, calling interrupt() when they're caught.
+trap interrupt INT
+trap interrupt QUIT
+trap interrupt TERM
+
+# Package link.
+url="${1:-}"
+
+# Package snapshot url (argument 1).
+if [[ -z "$url" ]]; then
+    error 'please provide the url of the package snapshot as an argument'
+fi
+
+# Package name.
+package="$(basename "$url" '.tar.gz')"
+
+# Append this to the packages so that no package downloads get destroyed.
+timestamp="$(date --iso-8601=seconds)-${RANDOM}"
+timestamped_package="${package}-${timestamp}"
+
+# Build location (argument 2).
+path="${2:-"${HOME}/workspaces/tools"}"
+
+# The base package directory (before the version can be read).
+package_path="${path}/${package}"
+timestamped_package_path="${path}/${timestamped_package}"
+
+# Make the build directory if it doesn't exist.
+[[ -d "$path" ]] || mkdir --parents "$path"
+
+# Check for network connection.
+if ! ping -q -c 1 -W 3 8.8.8.8 >/dev/null; then
+    error 'no network connection. Terminating'
+fi
+
+# Download and install. Only GNU tar provides `--strip-components`. See the discussion at:
+# https://unix.stackexchange.com/questions/11018.
+wget -qO- "$url" |
+    tar -xzv -C "$path" \
+	--keep-old-files \
+	--one-top-level="$timestamped_package" \
+	--strip-components=1 &>/dev/null
+
+# Append the "package version" to the package directory.
+package_version="$(grep 'pkgver' "${timestamped_package_path}/PKGBUILD" | awk 'NR==1 { gsub(/pkgver=/, ""); print $1 }')"
+versioned_package_path="${package_path}-${package_version}"
+
+# Idempotent usage of cp. This interesting use of `cp` is documented here:
+# https://unix.stackexchange.com/questions/228597.
+cp --recursive --update "${timestamped_package_path}/." "$versioned_package_path"
+rm -rf "$timestamped_package_path"
+
+# Visually check the contents of the PKGBUILD for malicious content prior to building.
+printf "%s\\n" "${white}${versioned_package_path##*/}/PKGBUILD${green}"
+cat "${versioned_package_path}/PKGBUILD"
+echo "$reset"
+
+# Confirm the contents of the package build.
+while true; do
+    read -p "Do you want to install "${versioned_package_path##*/}"? (Y/N): " answer
+    case "$answer" in
+        'Y' | 'YES' ) break ;;
+        'N' | 'NO' ) reminders; exit 1 ;;
+        * ) printf "%s\\n" "Please answer [Y]ES or [N]O (case sensitive)." ;;
+    esac
+done
+
+# Build the package using pacman.
+( cd "$versioned_package_path"; makepkg --syncdeps --rmdeps --clean --install PKGBUILD )

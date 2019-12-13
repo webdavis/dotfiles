@@ -1,0 +1,68 @@
+[options]
+allow_bold = true
+bold_is_bright = true
+clickable_url = true
+urgent_on_bell = true
+hyperlinks = false
+cursor_blink = on
+
+# Hides the mouse when you start typing.
+mouse_autohide = on
+
+# This has to be set, otherwise icons won't display.
+icon_name = terminal
+
+font = RobotoMono Nerd Font,9
+
+# Setting to a negative value means "infinite scrollback".
+scrollback_lines = -1
+
+# Options include: block, underline, or ibeam.
+cursor_shape = block
+
+# Hide links that are no longer valid in url select overlay mode.
+filter_unmatched_urls = true
+
+# Emit escape sequences for extra modified keys.
+modify_other_keys = false
+
+# Set size hints for the window.
+size_hints = false
+
+# Options include: off, left, or right
+scrollbar = off
+
+[colors]
+# If both of these are unset, cursor falls back to the foreground color, and
+# the cursor_foreground falls back to the background color.
+#cursor = #dcdccc
+#cursor_foreground = #dcdccc
+
+foreground = #bcbcbc
+foreground_bold = #bcbcbc
+
+# The last argument sets the background transparency (requires a compositor).
+background = rgba(88, 88, 88, 1)
+
+# If unset, will reverse foreground and background
+highlight = #2f2f2f
+
+# Colors from color0 to color254 can be set
+color0 = #303030
+color1 = #af5f5f
+color2 = #5f875f
+color3 = #ffdf5f
+color4 = #5f87af
+color5 = #9b59b6
+color6 = #5f8787
+color7 = #6c6c6c
+color8 = #585858
+color9 = #ff5f87
+color10 = #87af87
+color11 = #dfaf5f
+color12 = #87d7ff
+color13 = #bd93f9
+color14 = #5fafaf
+color15 = #bcbcbc
+
+# vim: ft=dosini cms=#%s:

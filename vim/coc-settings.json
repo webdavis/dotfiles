@@ -1,0 +1,62 @@
+{
+  "codeLens.enable": true,
+  "list.insertMappings": {
+    "<C-t>": "action:tabe",
+    "<C-x>": "action:split",
+    "<C-v>": "action:vsplit",
+    "<C-k>": "command:wincmd k",
+    "<C-y>": "action:yank"
+  },
+  "coc.preferences.colorSupport": true,
+  "coc.preferences.currentFunctionSymbolAutoUpdate": true,
+  "coc.preferences.enableFloatHighlight": true,
+  "coc.preferences.formatOnType": true,
+  "coc.preferences.jumpCommand": "tab drop",
+  "diagnostic.checkCurrentLine": true,
+  "diagnostic.errorSign": "",
+  "diagnostic.highlightOffset": 200,
+  "diagnostic.hintSign": "",
+  "diagnostic.infoSign": " ",
+  "diagnostic.messageTarget": "echo",
+  "diagnostic.signOffset": 200,
+  "diagnostic.virtualText": true,
+  "diagnostic.virtualTextPrefix": "● ",
+  "diagnostic.warningSign": "",
+  "highlight.document.enable": true,
+  "java.codeGeneration.generateComments": true,
+  "project.rootPatterns": [
+      ".project",
+      ".projections.json"
+  ],
+  "java.codeGeneration.useBlocks": false,
+  "java.completion.guessMethodArguments": true,
+  "java.errors.incompleteClasspath.severity": "ignore",
+  "java.format.onType.enabled": true,
+  "java.format.comments.enabled": true,
+  "java.implementationsCodeLens.enabled": true,
+  "java.maven.downloadSources": true,
+  "java.referencesCodeLens.enabled": true,
+  "java.signatureHelp.enabled": true,
+  "list.nextKeymap": "<C-n>",
+  "list.previousKeymap": "<C-p>",
+  "yank.highlight.duration": 200,
+  "languageserver": {
+    "bash": {
+      "command": "/home/stephen/workspaces/tools/nvm/versions/node/v11.13.0/bin/bash-language-server",
+      "args": ["start"],
+      "filetypes": ["sh"],
+      "ignoredRootPaths": ["~"]
+    }
+  },
+  "java.format.settings.url": "/home/stephen/.config/coc/extensions/node_modules/redhat.java/eclipse-formatter.xml",
+  "python.linting.pylintEnabled": false,
+  "python.linting.pylintArgs": ["--max-line-length=90"],
+  "python.jediEnabled": false,
+  "python.linting.flake8Enabled": true,
+  "python.linting.flake8Args": ["--max-line-length=90"],
+  "python.formatting.provider": "black",
+  "python.formatting.blackArgs": ["--line-length=90"],
+  "prettier.printWidth": 90,
+  "explorer.icon.enableNerdfont": true,
+  "explorer.file.showHiddenFiles": true
+}

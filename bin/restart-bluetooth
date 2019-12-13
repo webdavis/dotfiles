@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+
+# Terminal if any command fails.
+set -e
+
+# Kill pulseaudio.
+pulseaudio --kill
+
+# Start pulseaudio.
+start-pulseaudio-x11
+
+# Load the module that enables bluetooth discovery.
+sudo pactl load-module module-bluetooth-discover

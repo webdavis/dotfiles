@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+
+# Exit immediately if a "simple" command, a "compound" command, a list, or the last
+# command in a pipeline exits with a non-zero exit status.
+set -e
+
+# Fail if any command in a pipeline chain returns with a non-zero exit status.
+set -o pipefail
+
+# Default output is 12 digits.
+declare -i digits=12
+optstring=':s:'
+while getopts "$optstring" option; do
+    case "$option" in
+        s ) digits="$OPTARG" ;;
+        * ) exit 1 ;;
+    esac
+done
+
+number=$(("$(date +%s)" * RANDOM))
+
+while ((${#number} < $digits)); do
+    number="${number}${RANDOM}"
+done
+
+printf "%s\\n" "${number:0:${digits}}"

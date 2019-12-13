@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+
+# Exit immediately on error.
+set -e
+
+# Manually install Yarn via tarball.
+home="$(builtin eval echo ~)"
+dir="${home}/workspaces/tools"
+cd "$dir"
+
+# Download the tarball.
+wget https://yarnpkg.com/latest.tar.gz
+
+# Verify the tarball using GPG. Look for "Good signature from 'Yarn Packaging'" in the
+# output.
+wget -qO- https://dl.yarnpkg.com/debian/pubkey.gpg | gpg --import
+wget https://yarnpkg.com/latest.tar.gz.asc
+gpg --verify latest.tar.gz.asc
+
+# Unpack the tarball.
+tar zvxf latest.tar.gz
+
+# Clean up.
+rm -f latest.tar.gz
+rm -f latest.tar.gz.asc

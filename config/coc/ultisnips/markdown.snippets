@@ -1,0 +1,166 @@
+# A valid snippet should starts with:
+#
+#		snippet trigger_word [ "description" [ options ] ]
+#
+# and end with:
+#
+#		endsnippet
+#
+# Snippet options:
+#
+#		b - Beginning of line.
+#		i - In-word expansion.
+#		w - Word boundary.
+#		r - Regular expression
+#		e - Custom context snippet
+#		A - Snippet will be triggered automatically, when condition matches.
+#
+# Basic example:
+#
+#		snippet emitter "emitter properties" b
+#		private readonly ${1} = new Emitter<$2>()
+#		public readonly ${1/^_(.*)/$1/}: Event<$2> = this.$1.event
+#		endsnippet
+#
+# Online reference: https://github.com/SirVer/ultisnips/blob/master/doc/UltiSnips.txt
+
+global !p
+def regex_sub(dict, text):
+	import re
+	regex = re.compile("(%s)" % "|".join(map(re.escape, dict.keys())))
+	return regex.sub(lambda mo: dict[mo.string[mo.start():mo.end()]], text)
+endglobal
+
+
+snippet ht "header {datetime}" b
+# `!p d = {
+	"-": " ",
+	"0": "",
+	"1": "",
+	"2": "",
+	"3": "",
+	"4": "",
+	"5": "",
+	"6": "",
+	"7": "",
+	"8": "",
+	"9": ""};
+snip.rv = "".join(map(str, [" " + c if c.isupper() else c for c in regex_sub(d, snip.basename)])).strip()` `date '+%Y-%m-%d, %R:%S %Z'`
+
+$0
+endsnippet
+
+
+snippet sr "header {datetime}" b
+# SPACED REPETITION: `!p snip.rv = "".join(map(str, [" " + c if c.isupper() else c for c in re.sub(r'-', ' ', snip.basename)])).strip()`
+
+$0
+endsnippet
+
+
+snippet hd "header {with date}" b
+### `date '+%F, %A'`
+
+$0
+endsnippet
+
+
+snippet com "comment"
+<!-- ${1:comment} -->
+endsnippet
+
+
+snippet todo "comment {TODO}"
+<!-- TODO: ${1:description} `!v strftime('%Y-%m-%d, %a %T %z')` -->
+endsnippet
+
+
+snippet "sour?c?e?s?" "SOURCES" br
+<!-- ####  SOURCES  ################################################################## -->
+
+endsnippet
+
+
+snippet "[Aa]ns?w?e?r?" "comment {Answer}" r
+<!-- Answer:
+$1
+-->
+endsnippet
+
+
+snippet # "Title" b
+# `!p snip.rv = re.sub(r'-', ' ', snip.basename)`
+endsnippet
+
+
+snippet l "list {number}" b
+1. $0
+endsnippet
+
+
+snippet ln "list {number indented}" b
+	1. $0
+endsnippet
+
+
+snippet - "list {sublist}" b
+	- $0
+endsnippet
+
+
+snippet cb "code block" b
+\`\`\`
+$1
+\`\`\`
+endsnippet
+
+
+snippet "pyt?h?o?n?" "code block python" br
+\`\`\`python
+$1
+\`\`\`
+endsnippet
+
+
+snippet "jav?a?" "code block java" br
+\`\`\`java
+$1
+\`\`\`
+endsnippet
+
+
+snippet "bas?h?" "code block bash" br
+\`\`\`bash
+$1
+\`\`\`
+endsnippet
+
+
+snippet "vim?" "code block vim" br
+\`\`\`vim
+$1
+\`\`\`
+endsnippet
+
+
+snippet "sql?" "code block sql" br
+\`\`\`sql
+$1
+\`\`\`
+endsnippet
+
+
+snippet w "WRONG"
+**WRONG**
+endsnippet
+
+
+snippet p "(Page ##)"
+(Page ${1:##})$0
+endsnippet
+
+
+snippet ex "Explanation:" b
+Explanation:
+$0
+endsnippet

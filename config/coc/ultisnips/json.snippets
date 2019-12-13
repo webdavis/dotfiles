@@ -1,0 +1,14 @@
+snippet 'java projection' "alternates" br
+{
+  "src/main/java/$1*.java": {
+    "type": "source",
+    "alternate": "src/test/java/$1{}Test.java"
+  },
+  "src/test/java/$1*Test.java": {
+    "type": "test",
+    "alternate": "src/main/java/$1{}.java"
+  },
+  "*.java": {"dispatch": "${2:java} {file}"},
+  "*": {"make": "mvn package"}
+}
+endsnippet

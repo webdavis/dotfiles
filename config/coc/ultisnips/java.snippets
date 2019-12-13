@@ -1,0 +1,1018 @@
+# vi:foldmethod=marker foldlevel=0 textwidth=90
+# A valid snippet should starts with:
+#
+#       snippet trigger_word [ "description" [ options ] ]
+#
+# and end with:
+#
+#       endsnippet
+#
+# Snippet options:
+#
+#       b - Beginning of line.
+#       i - In-word expansion.
+#       w - Word boundary.
+#       r - Regular expression
+#       e - Custom context snippet
+#       A - Snippet will be triggered automatically, when condition matches.
+#
+# Basic example:
+#
+#       snippet emitter "emitter properties" b
+#       private readonly ${1} = new Emitter<$2>()
+#       public readonly ${1/^_(.*)/$1/}: Event<$2> = this.$1.event
+#       endsnippet
+#
+# Online reference: https://github.com/SirVer/ultisnips/blob/master/doc/UltiSnips.txt
+
+
+# Globals {{{1
+
+global !p
+def getArgs(group):
+        word = re.compile('[a-zA-Z0-9><.]+ \w+')
+        return [i.split(" ") for i in word.findall(group)]
+
+# Prevent the block from expanding if a parentheses or semicolon already exists.
+def not_closed(snip, r):
+    regex1 = '.*' + r + '\)(\s{)?$'
+    regex2 = '.*' + r + ';$'
+    line = snip.buffer[snip.line]
+    if re.match(regex1, line) is not None and re.match(regex2, line) is None:
+        return False
+    if re.match(regex1, line) is None and re.match(regex2, line) is not None:
+        return False
+    return True
+
+
+# Auto-close text.
+def close_operator(m1, m2):
+        if re.match('.*;', m1) is not None:
+                return m1 + m2 + ')'
+        else:
+                return m1 + m2 + ';'
+
+
+# Find and return class name of class above cursor.
+def get_class(snip, linenumber, trigger):
+    buffer = snip.buffer
+    snip.buffer[snip.line] = ''
+    last_class = ''
+    for line in range(len(buffer)):
+        m = re.match('.*class\ (\w+)\ .*{?$', buffer[line])
+        if line + 1 <= linenumber:
+            if m is not None:
+                last_class = m.group(1)
+    if last_class:
+        constructor = '\t' + last_class + '($1) {\n\t\t$2\n\t}'
+        snip.expand_anon(constructor)
+    else:
+        snip.expand_anon(trigger + '$1')
+
+
+# Provides completion options for snippets.
+def complete(t, opts):
+    if t:
+        opts = [m[len(t):] for m in opts if m.startswith(t) ]
+    if len(opts) == 1:
+        return opts[0]
+    return '(' + '|'.join(opts) + ')'
+endglobal
+
+
+# Prompt completion example {{{1
+# snippet '^ st' "status {complete}" r
+# status $1`!p snip.rv = complete(t[1], ['new', 'incomplete', 'invalid'])`
+# endsnippet
+
+
+# package {{{1
+snippet "^pa" "package" "True" bAre
+package ${1:`!v
+substitute(substitute(substitute(expand('%:p:h'), '.*/src/\(main\|test\)/java', '', 'g'), '^/', '', ""), '/', '.', 'g')
+`};
+endsnippet
+
+
+# import util {{{1
+snippet imu "import" b
+import java.util.${1:*};
+endsnippet
+
+
+# import awt {{{1
+snippet ima "import" b
+import java.awt.${1:*};
+endsnippet
+
+
+# import io {{{1
+snippet imi "import" b
+import java.io.${1:*};
+endsnippet
+
+
+# import swing {{{1
+snippet ims "import" b
+import javax.swing.${1:*};
+endsnippet
+
+
+# import lang {{{1
+snippet iml "import" b
+import java.lang.${1:*};
+endsnippet
+
+
+# import junit Test {{{1
+snippet imjt "import {junit, Test}"  b
+import org.junit.jupiter.api.Test;
+endsnippet
+
+
+# import junit Assertions.* {{{1
+snippet imja "import {junit, Assertions.*}"  b
+import org.junit.jupiter.api.Assertions.*;
+endsnippet
+
+
+# static import {{{1
+snippet sim "import" b
+import static ${1:${2:java}.${3:util}.${4:Class}}.${5:member};
+endsnippet
+
+
+# static import junit Assertions.member {{{1
+snippet simjm "import static org.junit.jupiter.api.Assertions.${1:member};"  b
+import static org.junit.jupiter.api.Assertions.${1:member};
+endsnippet
+
+
+# static import junit Assertions.* {{{1
+snippet simja "import static org.junit.jupiter.api.Assertions.*;"  b
+import static org.junit.jupiter.api.Assertions.*;
+endsnippet
+
+
+# interface {{{1
+snippet in "interface" b
+${1:public }interface ${2:`!p snip.rv = snip.basename or "Untitled"`}${3: extends ${4:Parent}} {
+	$5
+}$0
+endsnippet
+
+
+# extends {{{1
+snippet ex "extends"
+extends ${1:Class}
+endsnippet
+
+
+# extends {and implements} {{{1
+snippet exi "extends {Class} implements {Interface}"
+extends ${1:Class} implements ${2:Interface}
+endsnippet
+
+
+# enum {{{1
+snippet enum "enum" b
+public enum `!p snip.rv = snip.basename or "Untitled"` {
+	${1:TYPE};
+}
+endsnippet
+
+
+# auto: close increment/decrement {{{1
+snippet '(.*\w)(--|\+\+)' "close increment/decrement" "not_closed(snip, '(--|\+\+)')" Are
+`!p snip.rv = close_operator(match.group(1), match.group(2))`
+endsnippet
+
+
+# generator: class {constructor, fields, getters, setters} {{{1
+snippet CCF "class {constructor, fields, getters, setters}" b
+package ${1:`!v
+substitute(substitute(substitute(expand('%:p:h'), '.*/\(src\|test\)/main/java', '', 'g'), '^/', '', ""), '/', '.', 'g')
+`};
+
+/**
+ * ${2:Description}.
+ */
+final class `!p
+snip.rv = snip.basename or 'Untitled'` {
+`!p
+args = getArgs(t[3])
+if len(args) == 0: snip.rv = ''
+for i in args:
+	snip.rv += "\n\tprivate " + str(i[0]) + ' ' + str(i[1]) + ';'
+if len(args) > 0:
+	snip.rv += "\n"`
+	`!p snip.rv = snip.basename or "Untitled"`($3) {`!p
+args = getArgs(t[3])
+for i in args:
+	snip.rv += "\n\t\tthis." + str(i[1]) + ' = ' + str(i[1]) + ';'
+if len(args) == 0:
+	snip.rv += "\n"`
+	}
+`!p
+args = getArgs(t[3])
+if len(args) == 0: snip.rv = ""
+for i in args:
+	if str(i[1]).isupper():
+		newArg = str(i[1])
+	else:
+		newArg = str(i[1]).title()
+	snip.rv += "\n\tpublic void set" + newArg + "(" + str(i[0]) + " " + str(i[1]) + ") {\n" \
+		+ " \t\tthis." + str(i[1]) + " = " + str(i[1]) + ";\n\t}\n"
+	snip.rv += "\n\tpublic " + str(i[0]) + " get" + newArg + "() {\n" \
+		+ "\t\treturn " + str(i[1]) + ";\n\t}"
+	if i != args[len(args) - 1]:
+		snip.rv += '\n'`$0
+}
+endsnippet
+
+
+# generator: class {constructor, fields} {{{1
+snippet CC "class {constructor, fields}" b
+package ${1:`!v
+substitute(substitute(substitute(expand('%:p:h'), '.*/\(src\|test\)/main/java', '', 'g'), '^/', '', ""), '/', '.', 'g')
+`};
+
+/**
+ * ${2:Description}.
+ */
+final class `!p
+snip.rv = snip.basename or 'Untitled'` {
+`!p
+args = getArgs(t[3])
+if len(args) == 0: snip.rv = ''
+for i in args:
+	snip.rv += "\n\tprivate " + str(i[0]) + ' ' + str(i[1]) + ';'
+if len(args) > 0:
+	snip.rv += "\n"`
+	`!p snip.rv = snip.basename or "Untitled"`($3) {`!p
+args = getArgs(t[3])
+for i in args:
+	snip.rv += "\n\t\tthis." + str(i[1]) + ' = ' + str(i[1]) + ';'
+if len(args) == 0:
+	snip.rv += "\n"`
+	}$0
+}
+endsnippet
+
+
+# generator: constructor {fields} {{{1
+snippet CF "constructor {fields}" bms
+`!p
+args = getArgs(t[1])
+if len(args) == 0: snip.rv = ''
+for i in args:
+    snip.rv += "\n\tprivate " + str(i[0]) + ' ' + str(i[1]) + ';'
+if len(args) > 0:
+    snip.rv += "\n"`
+    `!p snip.rv = snip.basename or "Untitled"`($1) {`!p
+args = getArgs(t[1])
+for i in args:
+    snip.rv += "\n\t\tthis." + str(i[1]).replace("_", "") + ' = ' + str(i[1]).replace("_", "") + ';'
+if len(args) == 0:
+    snip.rv += "\n\t"`
+    }$0
+endsnippet
+
+
+# class {{{1
+
+# class {{{2
+snippet c "class" bms
+${1:final} class ${2:`!p snip.rv = snip.basename or "Untitled"`} {
+	${3:private static final long serialVersionUID = 1L;}$0
+}
+endsnippet
+
+
+# class {constructor} {{{2
+snippet cc "class {constructor}" bm
+/**
+ * ${1:`!p snip.rv = snip.basename or "Untitled"`}
+ */
+${2:final} class ${3:`!p snip.rv = snip.basename or "Untitled"`} {${4:
+    ${5:vars}
+}
+	$2 $3 ($6) {
+		$7
+	}$0
+}
+endsnippet
+
+
+# class {constructor, main} {{{2
+snippet ccm "class {constructor, main}" bm
+/**
+ * ${1:`!p snip.rv = snip.basename or "Untitled"`}
+ */
+${2:final} class ${3:`!p snip.rv = snip.basename or "Untitled"`} {${4:
+    ${5:vars}
+}
+	$2 $3 ($6) {
+		$7
+	}$0
+
+	public static void main(String[] args) {
+		$8
+	}
+}
+endsnippet
+
+
+# classes {main} {{{2
+snippet cm "class {main}" b
+/**
+ * ${1:NewClass}
+ */
+${2:final} class $1 {
+	public static void main(String[] args) {
+		$3
+	}
+}
+endsnippet
+
+# constructor {{{1
+pre_expand "get_class(snip, snip.line, 'cn')"
+snippet cn "constructor" b
+endsnippet
+
+
+# this {{{1
+snippet t "this"
+this.$0
+endsnippet
+
+
+# this {=} {{{1
+snippet th "this {=}"
+this.${1:val} = ${2:$1};
+endsnippet
+
+
+# control flow statements {{{1
+
+# if {{{2
+snippet if "if" b
+if (${1:condition}) {
+	$2
+}
+endsnippet
+
+
+# if {elseif} {{{2
+snippet el "if {elseif}"
+else if (${1}) {
+	$2
+}
+endsnippet
+
+
+# if {else} {{{2
+snippet e "if {else}"
+else {
+	$1
+}
+endsnippet
+
+
+# for {{{2
+snippet for "for"
+for ($1;$2;$3) {
+	$4
+}
+endsnippet
+
+
+snippet fori "for {int}" b
+for (int ${1:i} = ${2:0}; $1 ${3:<} ${4:10}; $1`!p snip.rv = '--' if t[3] == '>' else '++'`) {
+	$5
+}
+endsnippet
+
+
+# for (type var : array) {{{2
+snippet fore "for (type var : array)" b
+for (${1:type var} : ${2:Array}) {
+	$3
+}
+endsnippet
+
+
+# while {{{2
+snippet 'whi?l?e?' "while" br
+while (${1:condition}) {
+	$2
+}
+endsnippet
+
+
+# do while {{{2
+snippet do "do while" b
+do {
+	$2
+} while (${1:condition});
+endsnippet
+
+
+# do while {{{2
+snippet "swi?t?c?h?" "switch" br
+switch (${1:expression}) {
+case ${2:value}:
+	${3:statement(s);}
+default:
+	${4:throw new RuntimeException("${5:Error}");}
+}
+endsnippet
+
+
+# try catch {{{2
+snippet try "try/catch" b
+try {
+	$1${VISUAL}
+} catch(${2:Exception} ${3:e}) {
+	${4:e.printStackTrace();}
+}
+endsnippet
+
+
+# try catch {with} {{{2
+snippet tryw "try/catch {with}" b
+try ($1) {
+	$2${VISUAL}
+} catch(${3:Exception} ${4:e}) {
+	${5:e.printStackTrace();}
+}
+endsnippet
+
+
+# methods {{{1
+
+# method {basic} {{{2
+snippet m "method {basic}" bm
+${1:void} ${2:method}(${3}) {
+	$4
+}$0
+endsnippet
+
+
+# public method {basic} {{{2
+snippet pm "method {basic}" bm
+public ${1:void} ${2:method}(${3}) {
+	$4
+}$0
+endsnippet
+
+
+# private method {basic} {{{2
+snippet Pm "method {basic}" bm
+private ${1:void} ${2:method}(${3}) {
+	$4
+}$0
+endsnippet
+
+
+snippet md "Method With javadoc" bm
+/**
+ * ${7:Short Description}`!p
+for i in getArgs(t[4]):
+	snip.rv += "\n\t * @param " + i[1] + " usage..."`
+ *`!p
+if "throws" in t[5]:
+	snip.rv = "\n\t * @throws " + t[6]
+else:
+	snip.rv = ""``!p
+if not "void" in t[2]:
+	snip.rv = "\n\t * @return object"
+else:
+	snip.rv = ""`
+ **/
+${1:public} ${2:void} ${3:method}($4) ${5:throws $6 }{
+	$0
+}
+endsnippet
+
+
+# method {static} {{{2
+snippet sm "static method" bm
+${1:public }static ${2:void} ${3:method}(${4}) {
+	$5
+}$0
+endsnippet
+
+
+# method {get} {{{2
+snippet get "method {get}" bm
+${1:String} get`!p snip.rv = t[2].replace("_", "").capitalize()`() {
+	return this.${2:var};
+}$0
+endsnippet
+
+
+# method {set} {{{2
+snippet set "method {set}" bm
+void set`!p snip.rv = t[2].replace("_", "").capitalize()`(${3:String} `!p snip.rv = t[2].replace("_", "")`) {
+	this.${2:var} = `!p snip.rv = t[2].replace("_", "")`;
+}$0
+endsnippet
+
+
+# method {main} {{{2
+snippet ma "public static void main(String[] args]) {}" b
+public static void main(String${2:[]} args) {
+	$1
+}
+endsnippet
+
+
+# JUnit methods {{{1
+
+# JUnit {@Test} {{{2
+snippet '@[Tt]es?t?' "JUnit {@Test}" rm
+@Test
+public void ${1:basicTest}() {
+    $2
+}
+
+endsnippet
+
+
+# JUnit {@BeforeEach} {{{2
+snippet '(@?[Bb]efore[Ee]a?c?h?)|(be)' "JUnit {@BeforeEach}" rm
+@BeforeEach
+public void ${1:beforeEach}($2) {
+    $3
+}
+
+endsnippet
+
+
+# JUnit {@AfterEach} {{{2
+snippet '(@?[Aa]fter[Ee]a?c?h?)|(ae)' "JUnit {@AfterEach}" rm
+@AfterEach
+public void ${1:afterEach}($2) {
+    $3
+}
+
+endsnippet
+
+
+# JUnit {@BeforeAll} {{{2
+snippet '(@?[Bb]efore[Aa]l?l?)|(ba)' "JUnit {@BeforeAll}" rm
+@BeforeAll
+public static void ${1:beforeAll}($2) {
+    $3
+}
+
+endsnippet
+
+
+# JUnit {@AfterAll} {{{2
+snippet '(@?[Aa]fter[Aa]l?l?)|(aa)' "JUnit {@AfterAll}" rm
+@AfterAll
+public static void ${1:afterAll}($2) {
+    $3
+}
+
+endsnippet
+
+
+# annotations {{{1
+
+# annotation {@Override} {{{2
+snippet '@[Oo]v?e?r?r?i?d?e?' "annotation {@Override}" r
+@Override$0
+endsnippet
+
+
+# annotation {@Deprecated} {{{2
+snippet '@[Dd]ep?r?e?c?a?t?e?d?' "annotation {@Deprecated}" r
+@Deprecated$0
+endsnippet
+
+
+# annotation {@SuppressWarnings} {{{2
+snippet '@[Ss]upr?e?s?s?[Ww]?a?r?n?i?n?g?s?' "annotation {@SuppressWarnings}" r
+@SuppressWarnings$0
+endsnippet
+
+
+# annotation {@Retention} {{{2
+snippet '@[Rr]ete?n?t?i?o?n?' "annotation {@Retention}" r
+@Retention$0
+endsnippet
+
+
+# annotation {@Documented} {{{2
+snippet '@[Dd]oc?u?m?e?n?t?e?d?' "annotation {@Documented}" r
+@Documented$0
+endsnippet
+
+
+# annotation {@Target} {{{2
+snippet '@[Tt]ar?g?e?t?' "annotation {@Target}" r
+@Target$0
+endsnippet
+
+
+# annotation {@Inherited} {{{2
+snippet '@[Ii]n?h?e?r?i?t?e?d?' "annotation {@Inherited}" r
+@Inherited$0
+endsnippet
+
+
+# annotation {@SafeVarargs} {{{2
+snippet '@[Ss]a?f?e?' "annotation {@SafeVarargs}" r
+@SafeVarargs$0
+endsnippet
+
+
+# annotation {@FunctionalInterface} {{{2
+snippet '@[Ff]u?n?c?t?i?o?n?a?l?[Ii]?n?t?e?r?f?a?c?e?' "annotation {@FunctionalInterface}" r
+@FunctionalInterface$0
+endsnippet
+
+
+# annotation {@Repeatable} {{{2
+snippet '@[Rr]epe?a?t?a?b?l?e?' "annotation {@Repeatable}" r
+@Repeatable$0
+endsnippet
+
+
+# annotation {@SuiteClasses} {{{2
+snippet '@[Ss]uit?e?[Cc]?l?a?(s+)?e?s?' "annotation {@SuiteClasses}" r
+@SuiteClasses$0
+endsnippet
+
+
+# comments {{{1
+
+# comment {oneline} {{{2
+snippet '/\*|com' "comment {oneline}" br
+/* $1 */
+endsnippet
+
+
+# comment {multiline} {{{2
+snippet '/\*\*|mcom' "comment {multiline}" br
+/**
+ * $1
+ */
+endsnippet
+
+
+# comment {todo} {{{2
+snippet '(\/\/\ |\*\ )?todo\ ' "TODO" bAr
+// TODO: $0
+endsnippet
+
+
+# comments: Javadocs {{{2
+
+# comment: Javadoc {structure, param, return} {{{3
+snippet doc "comment {param, return}" b
+/**
+ * ${1:Description}.
+ *
+ * @param ${2:args}
+ *
+ * @return $3
+ */
+endsnippet
+
+
+# comment: Javadoc {@param} {{{3
+snippet '@pa?r?a?m?' "Javadoc {@param}" "re.match('^\s+.*\*', snip.buffer[snip.line])" re
+@param ${0:arg}
+endsnippet
+
+
+# comment: Javadoc {@return} {{{3
+snippet '@re?t?u?r?n?' "Javadoc {@return}" "re.match('^\s+.*\*', snip.buffer[snip.line])" re
+@return ${0:value}
+endsnippet
+
+
+# comment: Javadoc {@link} {{{3
+snippet '@li?n?k?' "Javadoc {@link}" "re.match('^\s+.*\*', snip.buffer[snip.line])" re
+{@link ${1:`!p snip.rv = snip.basename or "Untitled"`}}
+endsnippet
+
+
+# comment: Javadoc {@author} {{{3
+snippet '@au?t?h?o?r?' "Javadoc {@author}" "re.match('^\s+.*\*', snip.buffer[snip.line])" re
+@author ${1:webdavis}
+endsnippet
+
+
+# comment: Javadoc {@version} {{{3
+snippet '@ve?r?s?i?o?n?' "Javadoc {@version}" "re.match('^\s+.*\*', snip.buffer[snip.line])" re
+@author ${1:0.0.1}
+endsnippet
+
+
+# comment: Javadoc {@code} {{{3
+snippet '@co?d?e?' "Javadoc {@code}" "re.match('^\s+.*\*', snip.buffer[snip.line])" re
+{@code ${1:`!p snip.rv = snip.basename or "Untitled"`}}
+endsnippet
+
+
+# comment: Javadoc {@deprecated} {{{3
+snippet '@de?p?r?e?c?a?t?e?d?' "Javadoc {@deprecated}" "re.match('^\s+.*\*', snip.buffer[snip.line])" re
+@deprecated
+endsnippet
+
+
+# comment: Javadoc {@linkplain} {{{3
+snippet '@lp|@linkpl?a?i?n?' "Javadoc {@linkplain}" "re.match('^\s+.*\*', snip.buffer[snip.line])" re
+{@linkplain ${1:`!p snip.rv = snip.basename or "Untitled"`}}
+endsnippet
+
+
+# Variable declaration {{{1
+
+# constant {{{2
+
+# constant: {private} modifier {{{3
+snippet pr "modifier {private}" i
+private
+endsnippet
+
+
+# constant: {final} String var {{{3
+snippet fs "final String var"
+final String ${1:result}${2: = ${3:null}};
+endsnippet
+
+
+# constant: {final} char var {{{3
+snippet fc "final char var"
+final char ${1:result}${2: = ${3:'&'}};
+endsnippet
+
+
+# constant: {final} double var {{{3
+snippet fd "final double var"
+final double ${1:result}${2: = ${3:0.0}};
+endsnippet
+
+
+# constant: {final} int var {{{3
+snippet fi "final int var"
+final int ${1:result}${2: = ${3:0}};
+endsnippet
+
+
+# constant: {final} byte var {{{3
+snippet fby "final byte var"
+final byte ${1:result}${2: = ${3:0}};
+endsnippet
+
+
+# constant: {final} boolean var {{{3
+snippet fb "final boolean var"
+final boolean ${1:result}${2: = ${3:false}};
+endsnippet
+
+
+# constant: {final} Object var {{{3
+snippet fo "final Object var"
+final ${1:Object1} ${2:obj}${3: = new $1()};
+endsnippet
+
+
+# constant: {public} static final String {{{3
+snippet psfs "public static final String"
+public static final String ${1:var}${2: = ${3:null}};
+endsnippet
+
+
+# constant: {private} static final String {{{3
+snippet Psfs "private static final String"
+private static final String ${1:var}${2: = ${3:null}};
+endsnippet
+
+
+# constant: {public} static final char {{{3
+snippet psfc "public static final char"
+public static final char ${1:ch}${2: = ${3:'&'}};
+endsnippet
+
+
+# constant: {private} static final char {{{3
+snippet Psfc "private static final char"
+private static final char ${1:ch}${2: = ${3:'&'}};
+endsnippet
+
+
+# constant: {public} static final int {{{3
+snippet psfi "public static final int"
+public static final int ${1:i}${2: = ${3:0}};
+endsnippet
+
+
+# constant: {private} static final int {{{3
+snippet Psfi "private static final int"
+private static final int ${1:i}${2: = ${3:0}};
+endsnippet
+
+
+# constant: {public} static final double {{{3
+snippet psfd "public static final double"
+public static final double ${1:var}${2: = ${3:0.0}};
+endsnippet
+
+
+# constant: {private} static final double {{{3
+snippet Psfd "private static final double"
+private static final double ${1:var}${2: = ${3:0.0}};
+endsnippet
+
+
+# constant: {public} static final byte {{{3
+snippet psfby "public static final byte"
+public static final byte ${1:by}${2: = ${3:0}};
+endsnippet
+
+
+# constant: {private} static final byte {{{3
+snippet Psfby "private static final byte"
+private static final byte ${1:by}${2: = ${3:0}};
+endsnippet
+
+
+# constant: {public} static final boolean {{{3
+snippet psfb "public static final boolean"
+public static final boolean ${1:result}${2: = ${3:false}};
+endsnippet
+
+
+# constant: {private} static final boolean {{{3
+snippet Psfb "private static final boolean"
+private static final boolean ${1:result}${2: = ${3:false}};
+endsnippet
+
+
+# constant: {public} static final Object {{{3
+snippet psfo "public static final Object"
+public static final ${1:Object} ${2:obj}${3: = new $1()};
+endsnippet
+
+
+# constant: {private} static final Object {{{3
+snippet Psfo "private static final Object"
+private static final ${1:Object} ${2:obj}${3: = new $1()};
+endsnippet
+
+
+# double {{{2
+snippet d "double type"
+double ${1:d}${2: = ${3:0.0}};
+endsnippet
+
+
+# Double {wrapper class} {{{2
+snippet D "Double {wrapper class}"
+Double ${1:d}${2: = ${3:0.0}};
+endsnippet
+
+
+# char {{{2
+snippet ch "char"
+char ${1:ch}${2: = ${3:'&'}};
+endsnippet
+
+
+# Character {wrapper class} { {{{2
+snippet C "Character {wrapper class}"
+Character ${1:ch}${2: = ${3:'&'}};
+endsnippet
+
+
+# int {{{2
+snippet i "int"
+int ${1:i}${2: = ${3:0}};
+endsnippet
+
+
+# Integer {wrapper class} {{{2
+snippet I "Integer {wrapper class}"
+Integer ${1:i}${2: = ${3:0}};
+endsnippet
+
+
+# byte {{{2
+snippet by "byte"
+byte ${1:b}${2: = ${3:0}};
+endsnippet
+
+
+# Byte {wrapper class} {{{2
+snippet B "Byte {wrapper class}"
+Byte ${1:b}${2: = ${3:0}};
+endsnippet
+
+
+# boolean {{{2
+snippet bo "boolean"
+boolean ${1:b}${2: = ${3:false}};
+endsnippet
+
+
+# Boolean {wrapper class} {{{2
+snippet Bo "Boolean {wrapper class}"
+Boolean ${1:b}${2: = ${3:false}};
+endsnippet
+
+
+# String {{{2
+snippet "[Ss]t" "String" r
+String ${1:result}${2: = ${3:null}};
+endsnippet
+
+
+# new Object {{{2
+snippet new "new object"
+${1:Object} ${2:obj} = new $1($3);
+endsnippet
+
+
+# return result {{{1
+snippet re "return result"
+return ${1:result};
+endsnippet
+
+
+# return {{{1
+snippet r "return"
+return;
+endsnippet
+
+
+# break {{{1
+snippet b "return"
+break;
+endsnippet
+
+
+# print {{{1
+snippet p "System.out.print()"
+System.out.print(${1:"Hello, World!"});
+endsnippet
+
+
+# println {{{1
+snippet pl "System.out.println()"
+System.out.println(${1:"Hello, World!"});
+endsnippet
+
+
+# Debugging {{{1
+
+# debug {compare objects} {{{2
+snippet det "debug: {compare objects}" b
+System.out.println("${1:ob1} (" + $1.toString() + ") = ${2:ob2} (" + $2.toString() + "): " + $1.equals($2));
+endsnippet
+
+
+# debug {instanceof} {{{2
+snippet dio "debug {instanceof}" b
+System.out.println("$1 instanceof $2: " + (${1:object} instanceof ${2:Reference}));
+endsnippet
+
+
+# super {{{1
+
+# super(param) {{{2
+snippet su "super(param);" b
+super(${1:parentConstructor});
+endsnippet
+
+
+# super.method() {{{2
+snippet sum "super.parentMethod(param);" b
+super.${1:parentMethod}($2);
+endsnippet
+
+
+# VISUAL {{{1
+
+# Surround with try catch block
+snippet vt "try { (selection) }"
+try {
+	${0:${VISUAL}}
+} catch (${1:Exception} ${2:e}) {
+	${3:$2.printStackTrace();}
+}
+endsnippet
+
+
+# Surround with method.
+snippet vm "try { (selection) }"
+${1:void} ${2:routine}(${3}) {
+	${0:${VISUAL}}
+}
+endsnippet

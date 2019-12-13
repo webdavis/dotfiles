@@ -1,0 +1,253 @@
+# vi:foldmethod=marker foldlevel=0 textwidth=90 shiftwidth=4 tabstop=4 softtabstop=4:
+
+# Globals {{{1
+global !p
+def call_method(name):
+    import re
+    vim.command('normal G')
+    parameters = re.search('\((.*)\)', snip.buffer[snip.line - 1]).group(1)
+    parameters = parameters.split(',')
+    arguments = '('
+    keyword_regex = re.compile('\w+=\w+')
+    n = 1
+    for p in parameters[:]:
+        save = p
+        p = p.strip()
+        if keyword_regex.match(p) is not None:
+            k, v = p.split('=')
+            arguments = arguments + '${' + str(n) + ':${' \
+                + str(n + 1) + ':' + str(k) + '}=}${' \
+                + str(n + 2) + ':' + str(v) + '}'
+            n += 2
+        else:
+            arguments = arguments + '${' + str(n) + ':' + str(p) + '}'
+        if save != parameters[len(parameters) - 1]:
+            arguments = arguments + ', '
+        n += 1
+    arguments = arguments + ')\n'
+    snip.expand_anon(name + arguments)
+endglobal
+
+
+# Hashbang {{{1
+
+# hashbang {python3} (default) {{{2
+snippet "hb3?" "hashbang {python3 (default)}" br
+#!/usr/bin/env python3
+
+
+endsnippet
+
+
+# hashbang {python2} {{{2
+snippet hb2 "hashbang {python2}" b
+#!/usr/bin/env python2
+
+
+endsnippet
+
+
+# Imports {{{1
+
+# import {{{2
+snippet i "import" b
+import ${1:unittest}
+
+endsnippet
+
+
+# import {module} as {name} {{{2
+snippet ia "import {module} as {name}" b
+import ${1:dataclasses} as ${2:dc}
+
+endsnippet
+
+
+# from {class} import {module} {{{2
+snippet fri "from {class} import {module}" b
+from ${1:unittest.mock} import ${2:patch}
+
+endsnippet
+
+
+# from {class} import {module} as {name} {{{2
+snippet fria "from {class} import {module} as {name}" b
+from ${1:pprint} import ${2:pprint} as ${3:pp}
+
+endsnippet
+
+
+# Docstrings {{{1
+
+# docstring {multiline} {{{2
+snippet dsm "docstring {empty}" b
+"""
+$1
+"""
+endsnippet
+
+
+# docstring {singleline} {{{2
+snippet ds "docstring {empty}" b
+"""$1"""
+endsnippet
+
+
+# Statements {{{1
+
+# if "__main__" == __name__ {{{2
+snippet ifm "if '__main__' == __name__" b
+if "__main__" == __name__:
+	$0
+endsnippet
+
+
+# for-in (multiline) {{{2
+snippet f "for-in (multiline)" b
+for ${1:i} in ${2:list}:
+	${3:print($1)}
+endsnippet
+
+
+# for-in (singleline) {{{2
+snippet fi "for-in (singleline)" b
+for ${1:i} in ${2:list}: ${3:print($1)}
+endsnippet
+
+
+# Class {{{1
+
+snippet c "class" b
+class ${1:Point}(${2:object}):
+	"""
+	$3
+	"""
+	$0
+endsnippet
+
+
+# Methods {{{1
+
+# De: move visually selected text to the end of the file and wrap it in a function. {{{2
+pre_expand "del snip.buffer[snip.line]; snip.buffer.append(''); snip.cursor.set(len(snip.buffer) - 1, 0)"
+snippet De
+def $1():
+	${2:${VISUAL}}
+endsnippet
+
+
+# D: create a function and call it at the end of the file. {{{2
+post_jump "if snip.tabstop == 0: snip.buffer.append(''); call_method(snip.tabstops[1].current_text)"
+snippet D "method declaration" b
+def ${1:method}($2):
+	${3:...}
+endsnippet
+
+
+# def __init__(self, a) {{{2
+snippet init "def __init__(self, a)" bm
+def __init__(self${1:, ${2:a}}):
+	${3:...}
+endsnippet
+
+
+# def __iter__(self) {{{2
+snippet iter "def __iter__(self)" b
+def __iter__(self):
+	${1:${2:return} ${3:iter(self)}}
+endsnippet
+
+
+# def __next__(self) {{{2
+snippet next "def __next__(self)" b
+def __next__(self):
+	${1:${2:return} ${3:value}}
+endsnippet
+
+
+snippet repr "def __repr__(self)" b
+def __repr__(self):
+	${1:${2:return} ${3:f"${4}"}}
+endsnippet
+
+
+snippet str "def __str__(self)" b
+def __str__(self):
+	${1:${2:return} ${3:f"${4}"}}
+endsnippet
+
+
+# def function(x) {{{2
+snippet "def?" "regular function" br
+def ${1:function}(${2:x}):
+	${3:...}
+endsnippet
+
+
+# @property
+snippet "prop?e?r?t?y?" "@property function" br
+@property
+def ${1:function}(${2:self}):
+	${3:...}
+endsnippet
+# Functions {{{1
+
+# threading.lock() {{{2
+snippet tl "thread lock" b
+lock = threading.lock()
+endsnippet
+
+
+# print(value) {{{2
+snippet p "print(value)"
+print(${1:f"${2}"})
+endsnippet
+
+
+# print(next(iterator)) {{{2
+snippet pn "print(next(iterator))"
+print(next(${1:iterator}))
+endsnippet
+
+
+# f-strings {{{2
+snippet f "f-string"
+f"$1"
+endsnippet
+
+# Debugging {{{1
+
+# pdb {{{2
+snippet "pdb?" "import pdb; pdb.set_trace()" br
+import pdb; pdb.set_trace()
+endsnippet
+
+
+# breakpoint {{{2
+snippet b "breakpoint()" b
+breakpoint()
+endsnippet
+
+
+# return {{{2
+snippet "re?t?u?r?n?" "return" br
+return ${1:value}
+endsnippet
+
+
+# VISUAL {{{1
+
+# Surround with if statement.
+snippet vif "surround with if statement" b
+if $1:
+	${0:${VISUAL}}
+endsnippet
+
+
+# Surround with if else statement.
+snippet vife "surround with if else statement" b
+if $1:
+	${2:${VISUAL}}
+else:
+	$0
+endsnippet
