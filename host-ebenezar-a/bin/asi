@@ -110,12 +110,13 @@ cat "${versioned_package_path}/PKGBUILD"
 echo "$reset"
 
 # Confirm the contents of the package build.
+shopt -s nocasematch
 while true; do
-    read -p "Do you want to install "${versioned_package_path##*/}"? (Y/N): " answer
+    read -p "Do you want to install "${versioned_package_path##*/}"? [Y/n]: " answer
     case "$answer" in
-        'Y' | 'YES' ) break ;;
-        'N' | 'NO' ) reminders; exit 1 ;;
-        * ) printf "%s\\n" "Please answer [Y]ES or [N]O (case sensitive)." ;;
+        'y' | 'yes' ) break ;;
+        'n' | 'no' ) reminders; exit 1 ;;
+        * ) printf "%s\\n" "Please answer [Y/y]es or [N/n]o." ;;
     esac
 done
 
