@@ -154,8 +154,8 @@ open_last_committed_files() {
     # $EDITOR -O "${files[*]}"
 }
 
-mcd() {
+mkd() {
     [[ $# -gt 1 || -d $1 ]] && return 1
-    mkdir -p "$1"
-    cd "$1"
+    mkdir -p "$@"
+    cd -- "$@"
 }
