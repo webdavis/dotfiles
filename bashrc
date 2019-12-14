@@ -7,28 +7,13 @@
 umask 077
 
 # Append to PATH. {{{1
-path_append() {
-    case "${PATH}:" in
-	*":${1}:"* ) : ;;
-	* ) PATH="${PATH}:${1}" && export PATH ;;
-    esac
-}
+path_append() { case ":${PATH:=$1}:" in *:${1}:* ) : ;; * ) export PATH="${PATH}:${1}" ;; esac; }
 
-# Prepend to PATH.
-path_prepend() {
-    case ":${PATH}" in
-	*":${1}:"* ) : ;;
-	* ) PATH="${1}:${PATH}" && export PATH ;;
-    esac
-}
+# Prepend to PATH. (Used to override system binaries.)
+path_prepend() { case ":${PATH:=$1}:" in *:${1}:* ) : ;; * ) export PATH="${1}:${PATH}" ;; esac; }
 
-# Custom tools -- only the files that are executable will be able to be run. Tmux is among
-# the included commands. See https://github.com/tmux/tmux/releases for updates.
+# Custom tools.
 path_prepend "${HOME}/bin"
-
-# Add local Anki to PATH.
-export ANKI_NOHIGHDPI=1
-path_append "${HOME}/workspaces/tools/anki-2.1.15-linux-amd64/bin"
 
 # If not running interactively, exit. {{{2
 # This has to be after PATH additions so that i3 can use custom PATH.
@@ -37,13 +22,8 @@ path_append "${HOME}/workspaces/tools/anki-2.1.15-linux-amd64/bin"
 
 # Colors. {{{1
 
-darkcolor() {
-    tput sgr0 && tput setaf "$@"
-}
-
-brightcolor() {
-    tput sgr0 && tput setaf "$@"
-}
+darkcolor() { tput sgr0 && tput setaf "$@"; }
+brightcolor() { tput sgr0 && tput setaf "$@"; }
 
 reset="$(tput sgr0)"
 bold="$(tput bold)"
@@ -93,6 +73,10 @@ export WEECHAT_HOME="${HOME}/.config/weechat"
 # AWS default profile.
 export AWS_PROFILE='default'
 
+# Add local Anki to PATH.
+export ANKI_NOHIGHDPI=1
+path_append "${HOME}/workspaces/tools/anki-2.1.15-linux-amd64/bin"
+
 shopt -s  force_fignore # Files with suffix from FIGNORE are ignored.
 shopt -s        extglob # Pattern matching during pathname expansion enabled.
 shopt -s       globstar # ** match files during pathname expansion.
@@ -106,7 +90,7 @@ shopt -s        cmdhist # Lists multiline commands as one line in history.
 shopt -s     histappend # Append to .bash_history.
 shopt -s   hostcomplete # Attempt hostname completion.
 
-# redraw when the consoles window size changes.
+# Redraw when the consoles window size changes.
 [[ -n "$DISPLAY" ]] && shopt -s checkwinsize
 
 # Disable flow-control. For example, Ctrl+s suspends flow-control, and Ctrl+q resumes
@@ -128,9 +112,7 @@ set -o noclobber
 
 # Launch gpg-agent. {{{2
 GPG_TTY="$(tty)" && export GPG_TTY
-[[ -z "$SSH_AUTH_SOCK" ]] &&
-    SSH_AUTH_SOCK="$(gpgconf --list-dirs agent-ssh-socket)" &&
-    export SSH_AUTH_SOCK
+[[ -z "$SSH_AUTH_SOCK" ]] && SSH_AUTH_SOCK="$(gpgconf --list-dirs agent-ssh-socket)" && export SSH_AUTH_SOCK
 gpgconf --launch gpg-agent
 
 
@@ -163,8 +145,7 @@ export GIT_PS1_DESCRIBE_STYLE='branch'
 
 
 # Haskell's Stack, a Haskell version installer. {{{2
-[[ -d "${HOME}/workspaces/tools/stack-1.9.3-linux-x86_64" ]] &&
-    path_prepend "${HOME}/workspaces/tools/stack-1.9.3-linux-x86_64"
+[[ -d "${HOME}/workspaces/tools/stack-1.9.3-linux-x86_64" ]] && path_prepend "${HOME}/workspaces/tools/stack-1.9.3-linux-x86_64"
 
 
 # Rust's Cargo, a Rust package manager. {{{2
@@ -224,13 +205,6 @@ path_prepend "${HOME}/.local/bin"
 
 # Place Python projects in project directories.
 export PIPENV_VENV_IN_PROJECT=1
-
-
-# _pip_completion {{{2
-_pip_completion() {
-    COMPREPLY=("$(COMP_WORDS="${COMP_WORDS[*]}" COMP_CWORD=${COMP_CWORD} PIP_AUTO_COMPLETE=1 ${1})")
-}
-complete -o default -F _pip_completion pip
 
 
 # jobcount {{{2
@@ -313,9 +287,7 @@ path_append "${HOME}/.gem/ruby/2.6.0/bin"
 # PS1 {{{1
 
 # Append history lines from current session to the history file. {{{2
-append_history() {
-    history -a
-}
+append_history() { history -a; }
 
 
 # PROMPT_COMMAND executes as a command prior to issuing each primary prompt. {{{2
@@ -351,40 +323,39 @@ PS1+="${MachineColor}\\W\\[\\033[00m\\]]"
 PS1+="\\n\\[\\033[00m\\]\\$ "
 export PS1
 
+
 # Sources {{{1
 
 # Displays the active Python virtual environment in the terminal prompt.
 [[ -x "${HOME}/.local/bin/pew" ]] && \. "$(pew shell_config)"
 
 # Called by the DEBUG signal to set the terminal title as the previously executed command.
-terminal_title() {
-    history 1 | awk '{ $1=$2=$3=$4=""; gsub(/^[[:space:]]*/, ""); print }'
-}
+terminal_title() { history 1 | awk '{ $1=$2=$3=$4=""; gsub(/^[[:space:]]*/, ""); print }'; }
 
 # Add rvm to path for scripting. Make sure this is the last path variable change.
 # path_append "${HOME}/.rvm/bin"
 
-# functrace ensures calls to DEBUG are inherited by subshells, however, it breaks rvm.
+# functrace ensures calls to DEBUG are inherited by subshells. However, it breaks rvm.
 #set -o functrace
 trap 'echo -ne "\\033]0;"$(terminal_title)"\\007";' DEBUG
 
-# Abstract out functions to a separate file for easier management.
+# Useful functions.
 [[ -s "${HOME}/.bash_functions" ]] && \. "${HOME}/.bash_functions"
 
-# Abstract out aliases to a separate file for easier management.
+# Functions that spin up docker machines.
+[[ -s "${HOME}/.bash_functions" ]] && \. "${HOME}/.bash_functions"
+
 [[ -s "${HOME}/.bash_aliases" ]] && \. "${HOME}/.bash_aliases"
 
 [[ -s "${HOME}/.bash_completions" ]] && \. "${HOME}/.bash_completions"
 
-# The next line updates PATH for the Google Cloud SDK.
-[[ -f "${HOME}/workspaces/tools/google-cloud-sdk/path.bash.inc" ]] &&
-    \. "${HOME}/workspaces/tools/google-cloud-sdk/path.bash.inc"
+# Add Google Cloud SDK to PATH.
+[[ -f "${HOME}/workspaces/tools/google-cloud-sdk/path.bash.inc" ]] && \. "${HOME}/workspaces/tools/google-cloud-sdk/path.bash.inc"
 
-# The next line enables shell command completion for gcloud.
-[[ -f "${HOME}/workspaces/tools/google-cloud-sdk/completion.bash.inc" ]] &&
-    \. "${HOME}/workspaces/tools/google-cloud-sdk/completion.bash.inc"
+# `gcloud` autocompletion.
+[[ -f "${HOME}/workspaces/tools/google-cloud-sdk/completion.bash.inc" ]] && \. "${HOME}/workspaces/tools/google-cloud-sdk/completion.bash.inc"
 
-# heroku autocomplete setup
+# `heroku` autocomplete.
 HEROKU_AC_BASH_SETUP_PATH=/home/stephen/.cache/heroku/autocomplete/bash_setup &&
     test -f $HEROKU_AC_BASH_SETUP_PATH && source $HEROKU_AC_BASH_SETUP_PATH;
 
