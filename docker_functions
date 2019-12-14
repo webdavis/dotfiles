@@ -1,0 +1,12 @@
+#
+# ~/.docker_functions
+#
+
+grip() {
+    docker run -ti --rm \
+        -v ${HOME}/.grip:/root/.grip:ro \
+        -v ${PWD}:/root \
+        -p 6419:6419 \
+        --name grip webdavis/grip:latest \
+        "root/${@}" 0.0.0.0:6419
+}
