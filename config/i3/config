@@ -24,6 +24,9 @@ for_window [class="YubiKey Personalization Tool"] floating enable
 # Focus KeePassXC window.
 bindsym $super+p [class="KeePassXC" instance="keepassxc"] focus
 
+# Focus the last used Alacritty terminal.
+bindsym $super+t [class="Alacritty" instance="Alacritty"] focus
+
 # Sets some scratchpads for quick toggling.
 bindsym F8 exec --no-startup-id "scratchpad.bash -p 'signal-desktop' -i 'signal'"
 bindsym F9 exec --no-startup-id "scratchpad.bash -p 'chromium --new-window http://twmilli.github.io/pomodoro/' -w 'browser' -t 'Pomodoro Timer'"
