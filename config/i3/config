@@ -22,9 +22,7 @@ smart_borders on
 for_window [class="YubiKey Personalization Tool"] floating enable
 
 # Focus KeePassXC window.
-bindsym $super+p [class="keepassxc"] focus
-
-bindsym $super+g [instance="termite"] focus
+bindsym $super+p [class="KeePassXC" instance="keepassxc"] focus
 
 # Sets some scratchpads for quick toggling.
 bindsym F8 exec --no-startup-id "scratchpad.bash -p 'signal-desktop' -i 'signal'"
