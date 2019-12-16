@@ -37,19 +37,10 @@ set cpoptions+=n
 " Set the fileformat so that Vim will be written without CR and ^M characters.
 set fileformat=unix
 
-" Auto-wrap text using textwidth.
-set formatoptions+=t
-
-" Turn off comment insertion after typing 'o' or 'O'.
+" See :help fo-table
+set formatoptions+=tn
 set formatoptions-=o
-
-" When formatting text, recognize numbered lists.
-set formatoptions+=n
-
-" Delete comment character when joining commented lines.
-if v:version > 703 || v:version == 703 && has('patch541')
-    set formatoptions+=j
-endif
+if v:version > 703 || v:version == 703 && has('patch541') | set formatoptions+=j | endif
 
 set tags+=tags;/
 
@@ -105,7 +96,10 @@ set smartcase
 let g:vim_indent_cont = &shiftwidth
 
 " Automatically set indent using C-style standards.
-set autoindent smartindent
+set autoindent
+filetype plugin indent on
+" See https://stackoverflow.com/questions/2063175/ (fixes annoying start-of-line commenting behavior).
+inoremap # X#
 
 " Do not wrap lines by default.
 " Wrapped lines will be indented the same amount as the beginning of that line.
