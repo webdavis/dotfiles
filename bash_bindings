@@ -1,0 +1,158 @@
+# vi: set filetype=sh:
+
+builtin bind -m emacs           '"\C-j": vi-editing-mode'
+builtin bind -m vi-insert    'Control-a: beginning-of-line'
+builtin bind -m vi-insert    'Control-e: end-of-line'
+builtin bind -m vi-insert    'Control-b: backward-char'
+builtin bind -m vi-insert    'Control-f: forward-char'
+builtin bind -m vi-insert       '"\M-k": kill-line'
+builtin bind -m vi-insert      '"\C-x0": kill-whole-line'
+builtin bind -m vi-insert    'Control-l: clear-screen'
+builtin bind -m vi-command   'Control-l: clear-screen'
+builtin bind -m emacs      '"Control-o": redraw-current-line'
+builtin bind -m vi-insert  '"Control-o": redraw-current-line'
+builtin bind -m vi-command      '"\C-o": redraw-current-line'
+builtin bind -m vi-insert       '"\M-o": magic-space'
+builtin bind -m vi-command      '"\M-o": magic-space'
+builtin bind -m vi-insert       '"\C-n": next-history'
+builtin bind -m vi-command      '"\C-n": next-history'
+builtin bind -m vi-insert       '"\C-p": previous-history'
+builtin bind -m vi-command      '"\C-p": previous-history'
+builtin bind -m vi-insert    'Control-u: unix-line-discard'
+builtin bind -m vi-command   'Control-u: unix-line-discard'
+builtin bind -m vi-insert       '"\M-m": menu-complete'
+builtin bind -m vi-insert  '"Control-w": unix-filename-rubout'
+builtin bind -m vi-command      '"\C-w": unix-filename-rubout'
+builtin bind -m vi-insert       '"\M-u": capitalize-word'
+builtin bind -m vi-command      '"\M-u": capitalize-word'
+
+builtin bind '"\C-x1": magic-space'         # Performs history expansion and inserts a space.
+builtin bind '"\C-x2": redraw-current-line' # Refreshes the current line.
+
+
+# Insert "sudo " at the beginning of the command.
+builtin bind -m vi-insert '"\C-s": "\C-asudo "'
+builtin bind -m vi-command '"\C-s": "i\C-asudo "'
+
+
+# ls key-binding.
+builtin bind -x '"\C-_a": "ls --color=auto -AFhl"'
+builtin bind -m vi-insert '"\M-l": "\C-x0\C-_a\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\M-l": "i\C-x0\C-_a\C-x1\C-x2\015"'
+builtin bind -m vi-insert '"\M-L": "\C-x0ls --color=auto -AFhl "'
+builtin bind -m vi-command '"\M-L": "i\C-x0ls --color=auto -AFhl "'
+
+
+# List directories.
+builtin bind -x '"\C-_b": "ls --color=auto -lhd */"'
+builtin bind -m vi-insert '"\M-d": "\C-x0\C-_b\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\M-d": "i\C-x0\C-_b\C-x1\C-x2\015"'
+builtin bind -m vi-insert '"\M-D": "\C-x0ls --color=auto -Alhd "'
+builtin bind -m vi-command '"\M-D": "i\C-x0ls --color=auto -Alhd "'
+
+
+# List files sorted by time.
+builtin bind -x '"\C-_c": "ls --color=auto -AFhlt"'
+builtin bind -m vi-insert '"\C-x\C-t": "\C-x0\C-_c\C-x1\C-x2\015"'
+builtin bind -m vi-insert '"\C-x\C-t": "\C-x0\C-_c\C-x1\C-x2\015"'
+builtin bind -m vi-insert '"\C-xt": "\C-x0ls --color=auto -AFhlt "'
+builtin bind -m vi-insert '"\C-xt": "i\C-x0ls --color=auto -AFhlt "'
+
+
+# git log key-binding.
+builtin bind -x '"\C-_d": "git log --oneline"'
+builtin bind -m vi-insert '"\C-g": "\C-x0\C-_d\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\C-g": "i\C-x0\C-_d\C-x1\C-x2\015"'
+
+
+# tree key-binding.
+builtin bind -x '"\C-_e": "tree"'
+builtin bind -m vi-insert '"\M-t": "\C-x0\C-_e\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\M-t": "i\C-x0\C-_e\C-x1\C-x2\015"'
+
+
+# tree with detailed file info.
+builtin bind -x '"\C-_f": "tree -Cghpue -I .git"'
+builtin bind -m vi-insert '"\C-x\C-u": "\C-x0\C-_f\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\C-x\C-u": "i\C-x0\C-_f\C-x1\C-x2\015"'
+builtin bind -m vi-insert '"\C-xu": "\C-x0tree -Cghpua -I .git" '
+builtin bind -m vi-command '"\C-xu": "i\C-x0tree -Cghpua -I .git" '
+
+
+# Ping Google's DNS server.
+builtin bind -x '"\C-_g": "ping -c 3 8.8.8.8"'
+builtin bind -m vi-insert '"\C-x\C-p": "\C-x0\C-_g\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\C-x\C-p": "i\C-x0\C-_g\C-x1\C-x2\015"'
+builtin bind -m vi-insert '"\C-xp": "\C-x0ping -c 3 "'
+builtin bind -m vi-command '"\C-xp": "i\C-x0ping -c 3 "'
+
+
+# Source ~/.bashrc
+builtin bind -x '"\C-_h": "source ~/.bashrc"'
+builtin bind -m vi-insert '"\C-x\C-s": "\C-x0\C-_h\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\C-x\C-s": "i\C-x0\C-_h\C-x1\C-x2\015"'
+
+
+# Go to a projects root directory. The respective keyboard binding is in ~/.inputrc.
+__projectrt() {
+    path="$(dirname "$(pwd)")"
+    # To add support for other version control systems, add their respective directories to the regex.
+    while [[ ! "$(find "$path" -maxdepth 1 -regextype egrep -regex ".*/\\.(git|svn)")" ]]; do
+	if [[ $path == '/' ]]; then
+	    printf "%s\\n" 'No project root found.' 2>&1
+	    return 1
+	fi
+	path="$(dirname "$path")"
+    done
+    builtin cd "$path"
+    pwd
+}
+builtin bind -x '"\C-_i": __projectrt'
+builtin bind -m vi-insert '"\M-s": "\C-x0\C-_i\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\M-s": "i\C-x0\C-_i\C-x1\C-x2\015"'
+
+
+# This is automated with a udev rule; however, YubiKey 5's are a PITA to get out of the port.
+__reset_yubikey() {
+    local agent agents
+    declare -a agents=('ssh-agent' 'gpg-agent')
+    for agent in ${agents[@]}; do
+        if pgrep "$agent" &>/dev/null; then
+            pkill --signal SIGKILL "$agent" || {
+                local status=$?;
+                echo "Failure: could not kill gpg-agent." "Exit status: ${status}";
+                return $?;
+            }
+            printf "%s\\n" "Killed ${agent}."
+        fi
+    done
+
+    # Remove the keygrips that are associated with the previous YubiKey serial number. Add
+    # keys to keyid array as they are imported.
+    keyid=( \
+        'E7F7292F2E275D50' \
+    )
+
+    local key keystub
+    for key in ${keyid[@]}; do
+        while read -r keystub; do
+            if [[ -e "${keystub}.key" ]]; then
+                rm "${GNUPGHOME}/private-keys-v1.d/${keystub}.key"
+                printf "%s\\n" "Removing secret key ${keystub}.key"
+            fi
+        done < <(gpg --with-keygrip --list-secret-keys "$key" | grep 'Keygrip' | awk '{ print $3 }')
+    done
+
+    # Restart gpg-agent.
+    gpgconf --launch gpg-agent || {
+        local status=$?;
+        echo "Failure: could not launch gpg-agent." "Exit status: ${status}";
+        return $?;
+    }
+
+    printf "%s\\n" "Started gpg-agent"
+    printf "%s\\n" "SSH Public Key Fingerprint: $(ssh-add -l)"
+}
+builtin bind -x '"\C-_j": __reset_yubikey'
+builtin bind -m vi-insert '"\M-Y": "\C-x0\C-_j\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\M-Y": "i\C-x0\C-_j\C-x1\C-x2\015"'
