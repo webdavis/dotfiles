@@ -217,7 +217,7 @@ bindsym $super+$alt+Down exec "light -S 0"
 
 # Toggles laptop TouchPad on and off.
 # Dependencies: xorg-xinput
-bindsym $super+$alt+m exec "~/bin/touchpad.bash"
+bindsym $super+$alt+m exec "~/bin/touchpad-toggle.bash"
 
 # Resizes the window.
 mode "resize" {
