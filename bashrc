@@ -339,15 +339,11 @@ terminal_title() { history 1 | awk '{ $1=$2=$3=$4=""; gsub(/^[[:space:]]*/, "");
 #set -o functrace
 trap 'echo -ne "\\033]0;"$(terminal_title)"\\007";' DEBUG
 
-# Useful functions.
-[[ -s "${HOME}/.bash_functions" ]] && \. "${HOME}/.bash_functions"
-
-# Functions that spin up docker machines.
-[[ -s "${HOME}/.bash_functions" ]] && \. "${HOME}/.bash_functions"
-
-[[ -s "${HOME}/.bash_aliases" ]] && \. "${HOME}/.bash_aliases"
-
-[[ -s "${HOME}/.bash_completions" ]] && \. "${HOME}/.bash_completions"
+[[ -s "${HOME}/.bash_functions"   ]] && \. "${HOME}/.bash_functions"   # Useful functions.
+[[ -s "${HOME}/.bash_bindings"    ]] && \. "${HOME}/.bash_bindings"    # Keyboard shortcuts.
+[[ -s "${HOME}/.bash_aliases"     ]] && \. "${HOME}/.bash_aliases"     # Command aliases.
+[[ -s "${HOME}/.bash_completions" ]] && \. "${HOME}/.bash_completions" # Command completion scripts.
+[[ -s "${HOME}/.docker_functions" ]] && \. "${HOME}/.docker_functions" # Functions that spin up docker machines.
 
 # Add Google Cloud SDK to PATH.
 [[ -f "${HOME}/workspaces/tools/google-cloud-sdk/path.bash.inc" ]] && \. "${HOME}/workspaces/tools/google-cloud-sdk/path.bash.inc"
