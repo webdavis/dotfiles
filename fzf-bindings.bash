@@ -1,14 +1,10 @@
 # vi: set filetype=sh:
 
-# kill-whole-line: used to clear the entire line before redrawing the line and executing the command.
-# magic-space: performs history expansion and inserts a space.
-# redraw-current-line: refreshes the current line.
-builtin bind '"\C-x0": kill-whole-line'
-builtin bind '"\C-x1": magic-space'
-builtin bind '"\C-x2": redraw-current-line'
+builtin bind '"\C-x0": kill-whole-line'     # Clears the entire line.
+builtin bind '"\C-x1": magic-space'         # Performs history expansion and inserts a space.
+builtin bind '"\C-x2": redraw-current-line' # Refreshes the current line.
 
-# When a command is provided as an argument to __ehc, __ehc prints the command to the
-# command-line so that command-line history is logged.
+# Prints the command to the command-line so that command-line history is logged.
 __ehc() {
     READLINE_LINE="${READLINE_LINE:+${READLINE_LINE:0:READLINE_POINT}}${1}${READLINE_LINE:+${READLINE_LINE:READLINE_POINT}}"
     READLINE_POINT="$((READLINE_POINT + ${#1}))"
@@ -56,40 +52,40 @@ __build_edit_command() {
 	    fi
 	    ;;
 	'ctrl-o' )
-        if [[ -n "$OPENER" ]]; then
-            _command="${OPENER} $file"
-        else
-            # Attempt to determine open-utility on the fly.
-            local os kernel_name
-            kernel_name="$(command uname -s)"
-            case "${kernel_name}" in
-                'Linux' | 'GNU'* )
-                    os='linux' ;;
-                'Darwin' )
-                    os="$(command sw_vers -productname)" ;;
-                *'BSD' )
-                    os='bsd' ;;
-                'CYGWIN'* | 'MSYS'* | 'MINGW'* )
-                    os='windows' ;;
-                'SunOS' )
-                    os='solaris' ;;
-                * )
-                    os='unknown'
-                    ;;
-            esac
-            case "${os}" in
-                'linux' | 'bsd' )
-                    _command="xdg-open $file" ;;
-                'Mac OS X' )
-                    _command="open $file" ;;
-                'windows' )
-                    _command="start $file" ;;
-                * )
-                    printf "%s\\n" "Unknown Operating System detected: \"${kernel_name}\". Terminating." 1>&2
-                    return 1
-            esac
-	    fi
-	    ;;
+            if [[ -n "$OPENER" ]]; then
+                _command="${OPENER} $file"
+            else
+                # Attempt to determine open-utility on the fly.
+                local os kernel_name
+                kernel_name="$(command uname -s)"
+                case "${kernel_name}" in
+                    'Linux' | 'GNU'* )
+                        os='linux' ;;
+                    'Darwin' )
+                        os="$(command sw_vers -productname)" ;;
+                    *'BSD' )
+                        os='bsd' ;;
+                    'CYGWIN'* | 'MSYS'* | 'MINGW'* )
+                        os='windows' ;;
+                    'SunOS' )
+                        os='solaris' ;;
+                    * )
+                        os='unknown'
+                        ;;
+                esac
+                case "${os}" in
+                    'linux' | 'bsd' )
+                        _command="xdg-open $file" ;;
+                    'Mac OS X' )
+                        _command="open $file" ;;
+                    'windows' )
+                        _command="start $file" ;;
+                    * )
+                        printf "%s\\n" "Unknown Operating System detected: \"${kernel_name}\". Terminating." 1>&2
+                        return 1
+                esac
+            fi
+            ;;
 	'ctrl-s' )
 	    _command="sudo ${_command}"
 	    ;;
@@ -142,7 +138,7 @@ __fzf_file_open() {
     __ehc "$_command"
 }
 
-# Press Ctrl-x + Ctrl-x (double tap) to open a file.
+# Press "Ctrl-x + Ctrl-x" (double tap) to open a file.
 builtin bind -x '"\C-x3": __fzf_file_open'
 builtin bind '"\C-x\C-x": "\C-x0\C-x3\C-x1\C-x2\015"'
 
@@ -181,7 +177,7 @@ __fzf_project_open() {
     trap '' ERR INT TERM QUIT
 }
 
-# Press Ctrl-x + x (double tap) to open a file.
+# Press "Ctrl-x + x" to open a file.
 builtin bind -x '"\C-_5": __fzf_project_open'
 builtin bind '"\C-xx": "\C-x0\C-_5\C-x1\C-x2\015"'
 
@@ -212,7 +208,7 @@ __fzf_checkout_commit() {
     __ehc "$_command"
 }
 
-# Press Ctrl-x + c to checkout to a commit.
+# Press "Ctrl-x + c" to checkout to a commit.
 builtin bind -x '"\C-_4": __fzf_checkout_commit'
 builtin bind '"\C-xc": "\C-x0\C-_4\C-x1\C-x2\015"'
 
@@ -285,7 +281,7 @@ __fzf_open_file_at_commit() {
     __ehc "$_command"
 }
 
-# Press Ctrl-x + C to open one of the previously committed files.
+# Press "Ctrl-x + C" to open one of the previously committed files.
 builtin bind -x '"\C-_3": __fzf_open_file_at_commit'
 builtin bind '"\C-xC": "\C-x0\C-_3\C-x1\C-x2\015"'
 
@@ -314,7 +310,7 @@ __fzf_file_open_home() {
     trap '' ERR INT TERM QUIT
 }
 
-# Press Ctrl-x + Ctrl-n to call __fzf_file_open_home() and cd to the selection.
+# Press "Ctrl-x + Ctrl-n" to call __fzf_file_open_home() and cd to the selection.
 builtin bind -x '"\C-_0": __fzf_file_open_home'
 builtin bind '"\C-x\C-N": "\C-x0\C-_0\C-x1\C-x2\015"'
 
@@ -342,7 +338,7 @@ __fzf_file_open_root() {
     trap '' ERR INT TERM QUIT
 }
 
-# Press Ctrl-x + / to call __fzf_file_open_root() and open the selection.
+# Press "Ctrl-x + /" to call __fzf_file_open_root() and open the selection.
 builtin bind -x '"\C-_1": __fzf_file_open_root'
 builtin bind '"\C-x/": "\C-x0\C-_1\C-x1\C-x2\015"'
 
@@ -390,7 +386,7 @@ __fzf_grep() {
     trap '' ERR INT TERM QUIT
 }
 
-# Press Ctrl-x + Ctrl-f to call __fzf_grep() and open the file of the selected line, at
+# Press "Ctrl-x + Ctrl-f" to call __fzf_grep() and open the file of the selected line, at
 # that line.
 builtin bind -x '"\C-x4": __fzf_grep'
 builtin bind '"\C-x\C-f": "\C-x0\C-x4\C-x1\C-x2\015"'
@@ -552,7 +548,7 @@ bookmark() {
     __ehc "$_command"
 }
 
-# Press Ctrl-x + Ctrl-b to call bookmark() on the current working directory.
+# Press "Ctrl-x + Ctrl-b" to bookmark the current working directory.
 builtin bind -x '"\C-x8": bookmark'
 builtin bind '"\C-x\C-b": "\C-x0\C-x8\C-x1\C-x2\015"'
 
@@ -583,6 +579,6 @@ __fzf_goto_bookmark() {
     trap '' ERR INT TERM QUIT
 }
 
-# Press Ctrl-x + Ctrl-g to call __fzf_goto_bookmark and cd to the selection.
+# Press "Ctrl-x + Ctrl-g" to pull up a listing of the currently bookmarked directories to navigate to.
 builtin bind -x '"\C-x9": __fzf_goto_bookmark'
 builtin bind '"\C-x\C-g": "\C-x0\C-x9\C-x1\C-x2\015"'
