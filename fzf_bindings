@@ -1,8 +1,77 @@
 # vi: set filetype=sh:
 
+# The Fzf project hosted at https://github.com/junegunn/fzf/tree/master/shell.
+[ -f ~/.fzf.bash ] && source ~/.fzf.bash
+
+[[ -d "${HOME}/workspaces/tools/fzf/bin" ]] && path_append "${HOME}/workspaces/tools/fzf/bin"
+
+# Fzf must be installed either in the local user path or system-wide.
+if [[ -x "${HOME}/workspaces/tools/fzf/bin/fzf" ]]; then
+    fzf_rootpath="${HOME}/workspaces/tools/fzf"
+elif [[ -x '/usr/bin/fzf' ]]; then
+    fzf_rootpath="/usr/share/fzf"
+else
+    return 1
+fi
+
+[[ -s "${fzf_rootpath}/shell/completion.bash" ]] && \. "${fzf_rootpath}/shell/completion.bash"
+[[ -s "${fzf_rootpath}/shell/key-bindings.bash" ]] && \. "${fzf_rootpath}/shell/key-bindings.bash"
+
+if [[ -x "${HOME}/workspaces/tools/ripgrep-0.10.0/target/release/rg" ]]; then
+    # FZF_DEFAULT_COMMAND='(rg --files --no-ignore --hidden --follow --glob "!.git/" 2>/dev/null)'
+    FZF_DEFAULT_COMMAND='rg --files --no-ignore --hidden --follow --glob "!.git/" 2>/dev/null'
+elif [[ -x "/usr/bin/ag" ]]; then
+    FZF_DEFAULT_COMMAND='ag -u --hidden --ignore ".git" -l -g ""'
+else
+    FZF_DEFAULT_COMMAND='find . -path "*/\.*" -prune -o -type f -print -o -type l -print | sed s/^..// 2>/dev/null'
+fi
+export FZF_CTRL_T_COMMAND="$FZF_DEFAULT_COMMAND"
+
+# Command history with short descriptions.
+export FZF_CTRL_R_OPTS="--preview='echo {} | cut -d"'" "'" -f3 | xargs whatis' --preview-window=down:5"
+
+FZF_DEFAULT_OPTS='--reverse '
+FZF_DEFAULT_OPTS+='-m '
+FZF_DEFAULT_OPTS+='--cycle '
+# bat provides syntax highlighting.
+FZF_DEFAULT_OPTS+="--preview='(file --mime {} | grep --quiet --no-messages empty && echo \$(basename {}): is empty.) ||
+    (file --mime {} | grep --quiet --no-messages binary && echo \$(basename {}): is a binary file.) ||
+    (bat --style=numbers --color=always {} | head -150)' "
+FZF_DEFAULT_OPTS+='--preview-window="right:50%:hidden" '
+
+# Keyboard mappings.
+FZF_DEFAULT_OPTS+='--bind="?:toggle-preview" '
+FZF_DEFAULT_OPTS+='--bind="ctrl-n:down" '
+FZF_DEFAULT_OPTS+='--bind="ctrl-p:up" '
+FZF_DEFAULT_OPTS+='--bind="ctrl-alt-p:page-up" '
+FZF_DEFAULT_OPTS+='--bind="ctrl-alt-n:page-down" '
+FZF_DEFAULT_OPTS+='--bind="change:top" '
+FZF_DEFAULT_OPTS+='--bind="ctrl-r:toggle-sort" '
+FZF_DEFAULT_OPTS+='--bind="ctrl-g:kill-line" '
+
+# Set aside the keys that can be used to perform special actions when pressed during Fzf.
+# FZF_DEFAULT_OPTS+="--expect='ctrl-o,ctrl-e,ctrl-v,ctrl-x "
+#
+# # Colorscheme.
+FZF_DEFAULT_OPTS+='--color="bg+:#434748,bg:#2f3334,spinner:#af5f5f,hl:#ffdf5f" '
+FZF_DEFAULT_OPTS+='--color="fg:#a8a8a8,header:1,info:#af5f5f,pointer:15" '
+FZF_DEFAULT_OPTS+='--color="marker:#af875f,fg+:15,prompt:14,hl+:#50b6eb" '
+FZF_DEFAULT_OPTS+='--color="border:15" '
+export FZF_DEFAULT_OPTS
+
+export FZF_COMPLETION_OPTS="--height='40%'"
+
+# The command that opens default applications depending on the mime type of the file.
+[[ "$(command -v xdg-open)" == '/usr/bin/xdg-open' ]] && export OPENER='xdg-open'
+
+# Used in fzf_bindings to search the contents of files.
+export FINDER='rg --line-number --hidden --ignore-file /home/stephen/.gitignore_global .'
+
+
 builtin bind '"\C-x0": kill-whole-line'     # Clears the entire line.
 builtin bind '"\C-x1": magic-space'         # Performs history expansion and inserts a space.
 builtin bind '"\C-x2": redraw-current-line' # Refreshes the current line.
+
 
 # Prints the command to the command-line so that command-line history is logged.
 __ehc() {
@@ -25,7 +94,7 @@ __build_edit_command() {
             f ) file="${OPTARG}" ;;
             l ) line="+${OPTARG}" ;;
             c ) checkout="git checkout ${OPTARG};" ;;
-            * ) builtin printf "%s\\n" "fzf-bindings: flag '$OPTARG' doesn't exist. Terminating."; return 1 ;;
+            * ) builtin printf "%s\\n" "fzf_bindings: flag '$OPTARG' doesn't exist. Terminating."; return 1 ;;
         esac
     done
 
@@ -90,15 +159,15 @@ __build_edit_command() {
 	    _command="sudo ${_command}"
 	    ;;
 	'ctrl-x' )
-	    [[ -n "$TMUX" ]] || { builtin printf "%s\\n" 'fzf-bindings: Tmux session not detected. Terminating.' 2>&1; return 1; }
+	    [[ -n "$TMUX" ]] || { builtin printf "%s\\n" 'fzf_bindings: Tmux session not detected. Terminating.' 2>&1; return 1; }
 	    _command="tmux split-window -v \"${_command}; exec bash\""
 	    ;;
 	'ctrl-v' )
-	    [[ -n "$TMUX" ]] || { builtin printf "%s\\n" 'fzf-bindings: Tmux session not detected. Terminating.' 2>&1; return 1; }
+	    [[ -n "$TMUX" ]] || { builtin printf "%s\\n" 'fzf_bindings: Tmux session not detected. Terminating.' 2>&1; return 1; }
 	    _command="tmux split-window -h \"${_command}; exec bash\""
 	    ;;
 	'ctrl-t' )
-	    [[ -n "$TMUX" ]] || { builtin printf "%s\\n" 'fzf-bindings: Tmux session not detected. Terminating.' 2>&1; return 1; }
+	    [[ -n "$TMUX" ]] || { builtin printf "%s\\n" 'fzf_bindings: Tmux session not detected. Terminating.' 2>&1; return 1; }
 	    _command="tmux new-window \"${_command}; exec bash\""
 	    ;;
     esac
@@ -115,7 +184,8 @@ __catch_interrupt() {
     return
 }
 
-# Directly open a file.
+
+# Press "Ctrl-x + Ctrl-x" to open a file below the current filepath.
 __fzf_file_open() {
     local selection key file
     selection=("$(FZF_DEFAULT_COMMAND="${FZF_DEFAULT_COMMAND}" \
@@ -137,12 +207,12 @@ __fzf_file_open() {
     [[ $? -eq 1 ]] && return 1
     __ehc "$_command"
 }
+builtin bind -x '"\C-xz": __fzf_file_open'
+builtin bind -m vi-insert '"\C-x\C-x": "\C-x0\C-xz\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\C-x\C-x": "i\C-x0\C-xz\C-x1\C-x2\015"'
 
-# Press "Ctrl-x + Ctrl-x" (double tap) to open a file.
-builtin bind -x '"\C-x3": __fzf_file_open'
-builtin bind '"\C-x\C-x": "\C-x0\C-x3\C-x1\C-x2\015"'
 
-# Directly open a file in the project.
+# Press "Ctrl-x + x" to open any project file.
 __fzf_project_open() {
     local cwd
     cwd="$(pwd)"
@@ -176,11 +246,12 @@ __fzf_project_open() {
     [[ $key != 'alt-c' ]] && cd -- "$cwd"
     trap '' ERR INT TERM QUIT
 }
-
-# Press "Ctrl-x + x" to open a file.
 builtin bind -x '"\C-_5": __fzf_project_open'
-builtin bind '"\C-xx": "\C-x0\C-_5\C-x1\C-x2\015"'
+builtin bind -m vi-insert '"\C-xx": "\C-x0\C-_5\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\C-xx": "i\C-x0\C-_5\C-x1\C-x2\015"'
 
+
+# Press "Ctrl-x + c" to `git checkout` a commit.
 __fzf_checkout_commit() {
     if git rev-parse --show-toplevel &>/dev/null; then
         local path
@@ -207,12 +278,12 @@ __fzf_checkout_commit() {
     [[ $? -eq 1 ]] && return 1
     __ehc "$_command"
 }
-
-# Press "Ctrl-x + c" to checkout to a commit.
 builtin bind -x '"\C-_4": __fzf_checkout_commit'
-builtin bind '"\C-xc": "\C-x0\C-_4\C-x1\C-x2\015"'
+builtin bind -m vi-insert '"\C-xc": "\C-x0\C-_4\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\C-xc": "i\C-x0\C-_4\C-x1\C-x2\015"'
 
-# Open file attached to previous commit.
+
+# Press "Ctrl-x + C" to open a file from the previous commit.
 __fzf_open_file_at_commit() {
     if git rev-parse --show-toplevel &>/dev/null; then
         local path
@@ -280,12 +351,12 @@ __fzf_open_file_at_commit() {
     [[ $? -eq 1 ]] && return 1
     __ehc "$_command"
 }
-
-# Press "Ctrl-x + C" to open one of the previously committed files.
 builtin bind -x '"\C-_3": __fzf_open_file_at_commit'
-builtin bind '"\C-xC": "\C-x0\C-_3\C-x1\C-x2\015"'
+builtin bind -m vi-insert '"\C-xC": "\C-x0\C-_3\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\C-xC": "i\C-x0\C-_3\C-x1\C-x2\015"'
 
-# Open a file, listing all files below the Home directory.
+
+# Press "Ctrl-x + Ctrl-n" to open a file below the user HOME directory.
 __fzf_file_open_home() {
     local cwd home
     cwd="$(pwd)"
@@ -309,12 +380,12 @@ __fzf_file_open_home() {
     [[ $key != 'alt-c' ]] && cd -- "$cwd"
     trap '' ERR INT TERM QUIT
 }
-
-# Press "Ctrl-x + Ctrl-n" to call __fzf_file_open_home() and cd to the selection.
 builtin bind -x '"\C-_0": __fzf_file_open_home'
-builtin bind '"\C-x\C-N": "\C-x0\C-_0\C-x1\C-x2\015"'
+builtin bind -m vi-insert '"\C-x\C-n": "\C-x0\C-_0\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\C-x\C-n": "i\C-x0\C-_0\C-x1\C-x2\015"'
 
-# Open a file, listing all files below the root directory.
+
+# Press "Ctrl-x + /" and open a file below the root directory.
 __fzf_file_open_root() {
     local cwd
     cwd="$(pwd)"
@@ -337,13 +408,12 @@ __fzf_file_open_root() {
     [[ $key != 'alt-c' ]] && cd -- "$cwd"
     trap '' ERR INT TERM QUIT
 }
-
-# Press "Ctrl-x + /" to call __fzf_file_open_root() and open the selection.
 builtin bind -x '"\C-_1": __fzf_file_open_root'
-builtin bind '"\C-x/": "\C-x0\C-_1\C-x1\C-x2\015"'
+builtin bind -m vi-insert '"\C-x/": "\C-x0\C-_1\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\C-x/": "i\C-x0\C-_1\C-x1\C-x2\015"'
 
-# Recursively search the contents of files using Ripgrep and then open the file(s) to the
-# selected line.
+
+# Press "Ctrl-x + Ctrl-f" to search file contents and open a file at the selected line.
 __fzf_grep() {
     local cwd
     cwd="$(pwd)"
@@ -366,7 +436,7 @@ __fzf_grep() {
 
     local file line
     builtin read -r file line <<< "$(command head -2 <<< "$tokens" | command tail -1)"
-    [[ $line =~ ^[0-9]+$ ]] || { builtin printf "%s\\n" "fzf-bindings: detected wrong line number format. Terminating."; return 1; }
+    [[ $line =~ ^[0-9]+$ ]] || { builtin printf "%s\\n" "fzf_bindings: detected wrong line number format. Terminating."; return 1; }
 
     local path
     if [[ -n "$dir" ]]; then
@@ -385,11 +455,10 @@ __fzf_grep() {
     [[ $key != 'alt-c' ]] && cd -- "$cwd"
     trap '' ERR INT TERM QUIT
 }
-
-# Press "Ctrl-x + Ctrl-f" to call __fzf_grep() and open the file of the selected line, at
-# that line.
 builtin bind -x '"\C-x4": __fzf_grep'
-builtin bind '"\C-x\C-f": "\C-x0\C-x4\C-x1\C-x2\015"'
+builtin bind -m vi-insert '"\C-x\C-f": "\C-x0\C-x4\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\C-x\C-f": "i\C-x0\C-x4\C-x1\C-x2\015"'
+
 
 __build_cd_comand() {
     local key directory
@@ -409,7 +478,8 @@ __build_cd_comand() {
     builtin echo "$executable"
 }
 
-# Lists all of the directories inside of a Git project.
+
+# When inside a Git project, press Alt-g to jump to any directory in the project.
 __fzf_cd_git() {
     trap '__catch_interrupt' ERR INT TERM QUIT
     if git rev-parse --show-toplevel &>/dev/null; then
@@ -440,13 +510,12 @@ __fzf_cd_git() {
 
     trap '' ERR INT TERM QUIT
 }
-
-# When inside a Git project, press Alt-g to call __fzf_cd_git() and cd to the selection.
 builtin bind -x '"\C-x5": __fzf_cd_git'
-builtin bind '"\M-g": "\C-x0\C-x5\C-x1\C-x2\015"'
+builtin bind -m vi-insert '"\M-g": "\C-x0\C-x5\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\M-g": "i\C-x0\C-x5\C-x1\C-x2\015"'
 
-# Like Fzf's Alt-c default, this searches all directories from the current working
-# directory recursively. The only difference is that this includes hidden directories.
+
+# Press Alt-C to jump to any directory below the current working directory, including hidden directories.
 __fzf_cd_all() {
     trap '__catch_interrupt' ERR INT TERM QUIT
     local selection key dir
@@ -468,12 +537,12 @@ __fzf_cd_all() {
 
     trap '' ERR INT TERM QUIT
 }
-
-# Press Alt-c to call __fzf_cd_all() and cd to the selection.
 builtin bind -x '"\C-_2": __fzf_cd_all'
-builtin bind '"\M-C": "\C-x0\C-_2\C-x1\C-x2\015"'
+builtin bind -m vi-insert '"\M-C": "\C-x0\C-_2\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\M-C": "i\C-x0\C-_2\C-x1\C-x2\015"'
 
-# Lists all of the directories inside of the filesystem.
+
+# Press Alt-r to jump to any direcotry below the root directory.
 __fzf_cd_root() {
     trap '__catch_interrupt' ERR INT TERM QUIT
     local selection key dir
@@ -493,12 +562,12 @@ __fzf_cd_root() {
 
     trap '' ERR INT TERM QUIT
 }
-
-# Press Alt-r to call __fzf_cd_root() and cd to the selection.
 builtin bind -x '"\C-x6": __fzf_cd_root'
-builtin bind '"\M-r": "\C-x0\C-x6\C-x1\C-x2\015"'
+builtin bind -m vi-insert '"\M-r": "\C-x0\C-x6\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\M-r": "i\C-x0\C-x6\C-x1\C-x2\015"'
 
-# cd to one of the selected parent directories from the working path.
+
+# Press Alt-p to jump a parent directory.
 __fzf_cd_parent() {
     trap '__catch_interrupt' ERR INT TERM QUIT
     declare directories=()
@@ -528,12 +597,12 @@ __fzf_cd_parent() {
 
     trap '' ERR INT TERM QUIT
 }
-
-# Press Alt-p to call __fzf_cd_parent() and cd to the selection.
 builtin bind -x '"\C-x7": __fzf_cd_parent'
-builtin bind '"\M-p": "\C-x0\C-x7\C-x1\C-x2\015"'
+builtin bind -m vi-insert '"\M-p": "\C-x0\C-x7\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\M-p": "i\C-x0\C-x7\C-x1\C-x2\015"'
 
-# Bookmark directories using pushd. Each terminal session will have it's own set of bookmarks.
+
+# Press "Ctrl-x + Ctrl-b" to bookmark the current working directory (not stateful across terminals).
 bookmark() {
     # Return if the directory has already been bookmarked.
     if builtin dirs -v | command grep -v " 0" | command grep --quiet --no-messages "$(command pwd)"; then return 1; fi
@@ -547,12 +616,12 @@ bookmark() {
 
     __ehc "$_command"
 }
-
-# Press "Ctrl-x + Ctrl-b" to bookmark the current working directory.
 builtin bind -x '"\C-x8": bookmark'
-builtin bind '"\C-x\C-b": "\C-x0\C-x8\C-x1\C-x2\015"'
+builtin bind -m vi-insert '"\C-x\C-b": "\C-x0\C-x8\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\C-x\C-b": "i\C-x0\C-x8\C-x1\C-x2\015"'
 
-# Lists all of the bookmarked directories to jump to.
+
+# Press "Ctrl-x + Ctrl-g" to navigate to a bookmarked directory.
 __fzf_goto_bookmark() {
     trap '__catch_interrupt' ERR INT TERM QUIT
     local awkcommand
@@ -578,7 +647,6 @@ __fzf_goto_bookmark() {
 
     trap '' ERR INT TERM QUIT
 }
-
-# Press "Ctrl-x + Ctrl-g" to pull up a listing of the currently bookmarked directories to navigate to.
 builtin bind -x '"\C-x9": __fzf_goto_bookmark'
-builtin bind '"\C-x\C-g": "\C-x0\C-x9\C-x1\C-x2\015"'
+builtin bind -m vi-insert '"\C-x\C-g": "\C-x0\C-x9\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\C-x\C-g": "i\C-x0\C-x9\C-x1\C-x2\015"'
