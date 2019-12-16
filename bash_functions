@@ -71,68 +71,9 @@ fzf_setup() {
 
     # A plugin full of useful Fzf mappings.
     [[ -s "${HOME}/.fzf-bindings.bash" ]] && \. "${HOME}/.fzf-bindings.bash"
-
 }
+fzf_setup # Quick on/off switch.
 
-# Go to a projects root directory. The respective keyboard binding is in ~/.inputrc.
-__projectrt() {
-    path="$(dirname "$(pwd)")"
-    # To add support for other version control systems, add their respective directories to the regex.
-    while [[ ! "$(find "$path" -maxdepth 1 -regextype egrep -regex ".*/\\.(git|svn)")" ]]; do
-	if [[ $path == '/' ]]; then
-	    printf "%s\\n" 'No project root found.' 2>&1
-	    return 1
-	fi
-	path="$(dirname "$path")"
-    done
-    builtin cd "$path"
-    pwd
-}
-
-# There's alot going on here so it's nice to be able to quickly comment/uncomment this.
-fzf_setup
-
-# This is automated with a udev rule; however, YubiKey 5's are a PITA to get out of the port.
-reset_yubikey() {
-    local agent
-    local declare -a agents=('ssh-agent' 'gpg-agent')
-    for agent in ${agents[@]}; do
-        if pgrep "$agent" &>/dev/null; then
-            pkill --signal SIGKILL "$agent" || {
-                local status=$?;
-                echo "Failure - could not launch gpg-agent." "Exit status: ${status}";
-                return $?;
-            }
-            printf "%s\\n" "Killed $agent."
-        fi
-    done
-
-    # Remove the keygrips that are associated with the previous YubiKey serial number. Add
-    # keys to keyid array as they are imported.
-    keyid=( \
-        'E7F7292F2E275D50' \
-    )
-
-    local key keystub
-    for key in ${keyid[@]}; do
-        while read -r keystub; do
-            if [[ -e "${keystub}.key" ]]; then
-                rm "${GNUPGHOME}/private-keys-v1.d/${keystub}.key"
-                printf "%s\\n" "Removing secret key ${keystub}.key"
-            fi
-        done < <(gpg --with-keygrip --list-secret-keys "$key" | grep 'Keygrip' | awk '{ print $3 }')
-    done
-
-    # Restart gpg-agent.
-    gpgconf --launch gpg-agent || {
-        local status=$?;
-        echo "Failure - could not launch gpg-agent." "Exit status: ${status}";
-        return $?;
-    }
-
-    printf "%s\\n" "Started gpg-agent."
-    printf "%s\\n" "SSH Public Key Fingerprint: $(ssh-add -l)"
-}
 
 # Start an HTTP server from a directory, optionally specifying the port. Credit:
 # https://github.com/jessfraz/dotfiles/blob/master/.functions
@@ -144,15 +85,17 @@ server() {
 	python2.7 -c $'import SimpleHTTPServer;\nmap = SimpleHTTPServer.SimpleHTTPRequestHandler.extensions_map;\nmap[""] = "text/plain";\nfor key, value in map.items():\n\tmap[key] = value + ";charset=UTF-8";\nSimpleHTTPServer.test();' "$port"
 }
 
+
 open_last_committed_files() {
     # You must be in a directory relative to the Git path.
-    orig_files=($(git diff-tree --no-commit-id --name-only -r HEAD))
+    files=($(git diff-tree --no-commit-id --name-only -r HEAD))
     for file in ${files[@]}; do
         echo ${file##*/}
-        # files+=($(echo "${file}" | sed "s/${}//g"))
+        files+=($(echo "${file}" | sed "s/${}//g"))
     done
-    # $EDITOR -O "${files[*]}"
+    $EDITOR -O "${files[*]}"
 }
+
 
 mkd() {
     [[ $# -gt 1 || -d $1 ]] && return 1
@@ -160,13 +103,18 @@ mkd() {
     cd -- "$@"
 }
 
+
 # Make a temporary directory and enter it
 tmpd() {
     local dir
-    if [[ $# -eq 0 ]]; then
-        dir=$(mktemp -d)
-    else
-        dir=$(mktemp -d -t "${1}.XXXXXXXXXX")
-    fi
+    if [[ $# -eq 0 ]]; then dir=$(mktemp -d); else dir=$(mktemp -d -t "${1}.XXXXXXXXXX"); fi
     cd -- "$dir" || return 1
+}
+
+
+# Get the size of a file or the total size of a directory.
+fs() {
+    local arg
+    if du -b /dev/null > /dev/null 2>&1; then arg=-sbh; else arg=-sh; fi;
+    if [[ -n "$@" ]]; then du $arg -- "$@"; else du $arg -- .[^.]* *; fi;
 }
