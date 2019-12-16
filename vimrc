@@ -281,6 +281,7 @@ call plug#begin('~/.vim/plugged')
     Plug 'junegunn/gv.vim'
     Plug 'KabbAmine/zeavim.vim'
     " Plug 'christoomey/vim-system-copy'                     " Copy and paste from the system clipboard.
+    Plug 'LnL7/vim-nix'                                    " Nix syntax and filetype detection.
     Plug 'tpope/vim-eunuch'                                " Provides UNIX Shell commands such as :Mkdir, Delete, Move, etc.
     Plug 'tpope/vim-rhubarb'                               " Provides GitHub support using `hub`. Requires `curl`.
     Plug 'tpope/vim-surround'                              " Provides enclosure mappings such as ci)] and ysiw<strong>.
