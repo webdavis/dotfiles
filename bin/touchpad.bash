@@ -1,26 +1,49 @@
 #!/usr/bin/env bash
 
-# Exit immediately if a "simple" command, a "compound" command, a list, or the last
-# command in a pipeline exits with a non-zero exit status.
-set -e
+set -e # Exit immediately when there is an error.
+set -u # Treat unset variables as errors, exiting when detected.
+set -o pipefail # Fail if any command in a pipeline chain returns an error.
 
-# Treat unset variables as errors, exiting when detected.
-set -u
+alert()
+{
+    notify-send --urgency=low --expire-time=2000 --icon="$1" 'Touchpad' "$2"
+}
 
-# Fail if any command in a pipeline chain returns with a non-zero exit status.
-set -o pipefail
+[[ -x "$(builtin command -v xinput)" ]] || {
+    alert 'dialog-error' 'xinput: command not found. Is xorg-xinput installed?';
+    exit 1;
+}
 
-[[ -x "$(builtin command -v xinput)" ]] ||
-    notify-send --urgency=low --expire-time 3000 --icon=dialog-error \
-	'Synaptics TouchPad' 'xinput: command not found. Is xorg-xinput installed?'
+touchpad_grep_template()
+{
+    local device='SynPS/2 Synaptics TouchPad'
+    xinput list-props "$device" >/dev/null 2>&1 || {
+        alert 'dialog-error' 'Device Disabled';
+        exit 1;
+    }
+    xinput list-props "$device" | grep -Eo "Device\sEnabled.*[${1}]$"
+}
 
-# The device property (172), may be different. Run `xinput list-props 'SynPS/2 Synaptics
-# TouchPad'` to see what device property the TouchPad has and adjust this script
-# accordingly.
-if xinput list-props 'SynPS/2 Synaptics TouchPad' | grep -Eo "Device\sEnabled.*[1]$" >/dev/null 2>&1; then
-    xinput set-prop 'SynPS/2 Synaptics TouchPad' 136 0
-    notify-send --urgency=low --expire-time=2000 --icon=input-mouse 'TouchPad' 'Off'
+device_property="$(touchpad_grep_template '01' | grep -o '(.*)' | tr -d '(|)|\n')"
+
+set_touchpad()
+{
+    xinput set-prop 'SynPS/2 Synaptics TouchPad' "$device_property" $1
+}
+
+is_touchpad_enabled()
+{
+    if touchpad_grep_template '1'; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+if is_touchpad_enabled; then
+    set_touchpad 0
+    alert 'input-mouse' 'Off'
 else
-    xinput set-prop 'SynPS/2 Synaptics TouchPad' 136 1
-    notify-send --urgency=low --expire-time=2000 --icon=input-mouse 'TouchPad' 'On'
+    set_touchpad 1
+    alert 'input-mouse' 'On'
 fi
