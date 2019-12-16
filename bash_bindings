@@ -72,7 +72,7 @@ builtin bind -m vi-command '"\M-t": "i\C-x0\C-_e\C-x1\C-x2\015"'
 
 
 # tree with detailed file info.
-builtin bind -x '"\C-_f": "tree -Cghpue -I .git"'
+builtin bind -x '"\C-_f": "tree -Cghpu -I .git"'
 builtin bind -m vi-insert '"\C-x\C-u": "\C-x0\C-_f\C-x1\C-x2\015"'
 builtin bind -m vi-command '"\C-x\C-u": "i\C-x0\C-_f\C-x1\C-x2\015"'
 builtin bind -m vi-insert '"\C-xu": "\C-x0tree -Cghpua -I .git" '
