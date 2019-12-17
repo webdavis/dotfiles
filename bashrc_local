@@ -1,0 +1,34 @@
+export EDITOR="$(which nvim)"
+export SUDOEDITOR='/usr/bin/rvim'
+export TERMINAL='/usr/bin/alacritty'
+export ANKI_NOHIGHDPI=1
+export BROWSER='/usr/bin/firefox-developer-edition'
+
+# nvm (Node Version Manager)
+# Manages Node.js versions/installs. Recommend installing via:
+# https://github.com/creationix/nvm#manual-install
+#
+# I Couldn't get "nvm.sh --no-use" to work so implemented this work around for lazy loading.
+# For an in depth discussion checkout: https://github.com/creationix/nvm/issues/782
+NVM_DIR="${HOME}/workspaces/tools/nvm"
+if [[ -s "${NVM_DIR}/nvm.sh" ]] && [[ ! $(type -t _nvm_load) == 'function' ]]; then
+    export NVM_DIR
+    # Put all Node tools here.
+    declare -a tools=('nvm' 'node' 'npm' 'yarn')
+
+    nvm_load() {
+	for executable in "${tools[@]}"; do
+	    unalias "$executable"
+	done
+
+	[[ -s "${NVM_DIR}/nvm.sh" ]] && \. "${NVM_DIR}/nvm.sh"
+	[[ -r "${NVM_DIR}/bash_completion" ]] && \. "${NVM_DIR}/bash_completion"
+
+	unset tools
+	unset -f nvm_load
+    }
+
+    for executable in "${tools[@]}"; do
+	alias "$executable"="nvm_load && "$executable""
+    done
+fi

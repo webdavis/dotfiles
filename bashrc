@@ -45,12 +45,10 @@ lightcyan="$(brightcolor 14 14 14)"
 lightgray="$(brightcolor 15 15 15)"
 separator="$reset"
 
+# Source host specific settings.
+[[ -s "${HOME}/.bashrc_local" ]] && \. "${HOME}/.bashrc_local"
 
 # Environment variables. {{{1
-export BROWSER='/usr/bin/firefox-developer-edition'
-# Just a security precaution.
-export EDITOR="$(which nvim)"
-export SUDOEDITOR='/usr/bin/rvim'
 export FIGNORE='.o'
 export HISTCONTROL='ignoredups:ignoreboth'
 export HISTFILESIZE='-1'
@@ -60,7 +58,6 @@ export HISTTIMEFORMAT='%F %T %z '
 export LANG='en_US.UTF-8'
 export LC_ALL='en_US.UTF-8'
 export MANPAGER="$(which nvim) -c 'set ft=man' -"
-export TERMINAL='/usr/bin/alacritty'
 export TERM=screen-256color
 export XDG_CONFIG_HOME="${HOME}/.config"
 export XDG_DATA_HOME="${HOME}/.local/share"
@@ -74,7 +71,6 @@ export WEECHAT_HOME="${HOME}/.config/weechat"
 export AWS_PROFILE='default'
 
 # Add local Anki to PATH.
-export ANKI_NOHIGHDPI=1
 path_append "${HOME}/workspaces/tools/anki-2.1.15-linux-amd64/bin"
 
 shopt -s  force_fignore # Files with suffix from FIGNORE are ignored.
@@ -223,36 +219,6 @@ jobcount() {
 # https://yarnpkg.com/lang/en/docs/install/#alternatives-stable
 YARN_DIR="$HOME/workspaces/tools/yarn-v1.15.2/bin"
 [[ -d "$YARN_DIR" ]] && export YARN_DIR && path_prepend "$YARN_DIR"
-
-
-# nvm (Node Version Manager) {{{2
-# Manages Node.js versions/installs. Recommend installing via:
-# https://github.com/creationix/nvm#manual-install
-#
-# I Couldn't get "nvm.sh --no-use" to work so implemented this work around for lazy loading.
-# For an in depth discussion checkout: https://github.com/creationix/nvm/issues/782
-NVM_DIR="${HOME}/workspaces/tools/nvm"
-if [[ -s "${NVM_DIR}/nvm.sh" ]] && [[ ! $(type -t _nvm_load) == 'function' ]]; then
-    export NVM_DIR
-    # Put all Node tools here.
-    declare -a tools=('nvm' 'node' 'npm' 'yarn')
-
-    nvm_load() {
-	for executable in "${tools[@]}"; do
-	    unalias "$executable"
-	done
-
-	[[ -s "${NVM_DIR}/nvm.sh" ]] && \. "${NVM_DIR}/nvm.sh"
-	[[ -r "${NVM_DIR}/bash_completion" ]] && \. "${NVM_DIR}/bash_completion"
-
-	unset tools
-	unset -f nvm_load
-    }
-
-    for executable in "${tools[@]}"; do
-	alias "$executable"="nvm_load && "$executable""
-    done
-fi
 
 # Displays the active Node version: "(node/version)".
 node_prompt() {
