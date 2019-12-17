@@ -13,7 +13,7 @@ path_append() { case ":${PATH:=$1}:" in *:${1}:* ) : ;; * ) export PATH="${PATH}
 path_prepend() { case ":${PATH:=$1}:" in *:${1}:* ) : ;; * ) export PATH="${1}:${PATH}" ;; esac; }
 
 # Custom tools.
-path_prepend "~/bin"
+path_prepend "${HOME}/bin"
 
 # If not running interactively, exit. {{{2
 # This has to be after PATH additions so that i3 can use custom PATH.
@@ -46,7 +46,7 @@ lightgray="$(brightcolor 15 15 15)"
 separator="$reset"
 
 # Source host specific settings.
-[[ -s "~/.bashrc_local" ]] && \. "~/.bashrc_local"
+[[ -s ~/.bashrc_local ]] && \. ~/.bashrc_local
 
 # Environment variables. {{{1
 export FIGNORE='.o'
@@ -60,16 +60,16 @@ export LC_ALL='en_US.UTF-8'
 export MANPAGER="$(which nvim) -c 'set ft=man' -"
 export TERM=screen-256color
 export IGNOREOF=1
-export TMUXP_CONFIGDIR="~/.tmuxp"
+export TMUXP_CONFIGDIR="${HOME}/.tmuxp"
 
 # Move WeeChat home out of home directory. There's too much going on there.
-export WEECHAT_HOME="~/.config/weechat"
+export WEECHAT_HOME="${HOME}/.config/weechat"
 
 # AWS default profile.
 export AWS_PROFILE='default'
 
 # Add local Anki to PATH.
-path_append "~/workspaces/tools/anki-2.1.15-linux-amd64/bin"
+path_append "${HOME}/workspaces/tools/anki-2.1.15-linux-amd64/bin"
 
 shopt -s  force_fignore # Files with suffix from FIGNORE are ignored.
 shopt -s        extglob # Pattern matching during pathname expansion enabled.
@@ -139,29 +139,29 @@ export GIT_PS1_DESCRIBE_STYLE='branch'
 
 
 # Haskell's Stack, a Haskell version installer. {{{2
-[[ -d "~/workspaces/tools/stack-1.9.3-linux-x86_64" ]] && path_prepend "~/workspaces/tools/stack-1.9.3-linux-x86_64"
+[[ -d ~/workspaces/tools/stack-1.9.3-linux-x86_64 ]] && path_prepend "${HOME}/workspaces/tools/stack-1.9.3-linux-x86_64"
 
 
 # Rust's Cargo, a Rust package manager. {{{2
-[[ -d "~/.cargo/bin" ]] && path_prepend "~/.cargo/bin"
+[[ -d ~/.cargo/bin ]] && path_prepend "${HOME}/.cargo/bin"
 
 
 # Ripgrep, a Rust powered grep like search tool. {{{2
-path_prepend "~/workspaces/tools/ripgrep/target/release"
+path_prepend "${HOME}/workspaces/tools/ripgrep/target/release"
 
 
 # Java configuration. {{{2
-export JAVA_HOME="~/workspaces/tools/jdk-11.0.2"
+export JAVA_HOME="${HOME}/workspaces/tools/jdk-11.0.2"
 path_append "${JAVA_HOME}/bin"
 
 # Path to JetBrains` Intellij IDEA IDE.
-path_append "~/workspaces/tools/idea-IC-191.6707.61/bin"
+path_append "${HOME}/workspaces/tools/idea-IC-191.6707.61/bin"
 
 # Configure default jshell editor.
 export JSHELLEDITOR="$(which nvim)"
 
 # Spring Boot CLI {{{2
-spring_boot_cli="~/workspaces/tools/spring-2.2.1.RELEASE"
+spring_boot_cli="${HOME}/workspaces/tools/spring-2.2.1.RELEASE"
 path_append "${spring_boot_cli}/bin"
 
 [[ -f "${spring_boot_cli}/shell-completion/bash/spring" ]] && \. "${spring_boot_cli}/shell-completion/bash/spring"
@@ -171,26 +171,26 @@ path_append "${spring_boot_cli}/bin"
 
 # Connects to a running a JVM process and exports a map file which can be used by perf to
 # generate the stack trace with the actual Java method names.
-path_append "~/workspaces/tools/perf-map-agent/bin"
+path_append "${HOME}/workspaces/tools/perf-map-agent/bin"
 
-path_append "~/workspaces/tools/FlameGraph/"
+path_append "${HOME}/workspaces/tools/FlameGraph/"
 
 
 # Apache Maven configuration. {{{2
 export MAVEN_OPTS='-Xmx1024m'
-path_append "~/workspaces/tools/apache-maven-3.6.0/bin"
-[[ -f "~/workspaces/tools/maven-bash-completion/bash_completion.bash" ]] &&
-    \. "~/workspaces/tools/maven-bash-completion/bash_completion.bash"
+path_append "${HOME}/workspaces/tools/apache-maven-3.6.0/bin"
+[[ -f ~/workspaces/tools/maven-bash-completion/bash_completion.bash ]] &&
+    \. ~/workspaces/tools/maven-bash-completion/bash_completion.bash
 
 
 # Gradle configuration. {{{2
-path_append "~/workspaces/tools/gradle-5.3.1"
+path_append "${HOME}/workspaces/tools/gradle-5.3.1"
 
 
 # Python's Pew {{{2
 
 # virtualenv location.
-path_prepend "~/.local/bin"
+path_prepend "${HOME}/.local/bin"
 
 # Place Python projects in project directories.
 export PIPENV_VENV_IN_PROJECT=1
@@ -211,8 +211,10 @@ jobcount() {
 # Yarn manages Node/JavaScript packages.
 # Recommend installing using the "Manual Install via tarball" instructions at:
 # https://yarnpkg.com/lang/en/docs/install/#alternatives-stable
-YARN_DIR="~/workspaces/tools/yarn-v1.15.2/bin"
-[[ -d "$YARN_DIR" ]] && export YARN_DIR && path_prepend "$YARN_DIR"
+YARN_DIR="${HOME}/workspaces/tools/yarn-v1.15.2/bin"
+[[ -d "$YARN_DIR" ]] &&
+    export YARN_DIR &&
+    path_prepend "$YARN_DIR"
 
 # Displays the active Node version: "(node/version)".
 node_prompt() {
@@ -225,11 +227,11 @@ node_prompt() {
 # rvm {{{2
 
 # Load rvm into a shell session *as a function*
-# [[ -s "~/.rvm/scripts/rvm" ]] && \. "~/.rvm/scripts/rvm"
-# path_prepend "~/.rvm/gems/ruby-2.4.1/bin"
+# [[ -s ~/.rvm/scripts/rvm ]] && \. ~/.rvm/scripts/rvm
+# path_prepend "${HOME}/.rvm/gems/ruby-2.4.1/bin"
 
 # Load rvm command completion. (This must be sourced after ~/.rvm/scripts/rvm.
-# [[ -n "$rvm_path" && -r "~/.rvm/scripts/completion" ]] && \. "~/.rvm/scripts/completion"
+# [[ -n "$rvm_path" && -r ~/.rvm/scripts/completion ]] && \. ~/.rvm/scripts/completion
 
 # Call from the prompt to display the active rvm Gem set in the prompt.
 # This slows down the bash prompt significantly.
@@ -240,7 +242,7 @@ node_prompt() {
 # }
 
 # Add gems to path.
-path_append "~/.gem/ruby/2.6.0/bin"
+path_append "${HOME}/.gem/ruby/2.6.0/bin"
 
 
 # PS1 {{{1
@@ -286,30 +288,30 @@ export PS1
 # Sources {{{1
 
 # Displays the active Python virtual environment in the terminal prompt.
-[[ -x "~/.local/bin/pew" ]] && \. "$(pew shell_config)"
+[[ -x ~/.local/bin/pew ]] && \. "$(pew shell_config)"
 
 # Called by the DEBUG signal to set the terminal title as the previously executed command.
 terminal_title() { history 1 | awk '{ $1=$2=$3=$4=""; gsub(/^[[:space:]]*/, ""); print }'; }
 
 # Add rvm to path for scripting. Make sure this is the last path variable change.
-# path_append "~/.rvm/bin"
+# path_append "${HOME}/.rvm/bin"
 
 # functrace ensures calls to DEBUG are inherited by subshells. However, it breaks rvm.
 #set -o functrace
 trap 'echo -ne "\\033]0;"$(terminal_title)"\\007";' DEBUG
 
-[[ -s "~/.bash_functions"   ]] && \. "~/.bash_functions"   # Useful functions.
-[[ -s "~/.bash_bindings"    ]] && \. "~/.bash_bindings"    # Keyboard shortcuts.
-[[ -s "~/.bash_aliases"     ]] && \. "~/.bash_aliases"     # Command aliases.
-[[ -s "~/.bash_completions" ]] && \. "~/.bash_completions" # Command completion scripts.
-[[ -s "~/.fzf_bindings"     ]] && \. "~/.fzf_bindings"     # Powerful Fzf bindings.
-[[ -s "~/.docker_functions" ]] && \. "~/.docker_functions" # Functions that spin up docker machines.
+[[ -s ~/.bash_functions   ]] && \. ~/.bash_functions   # Useful functions.
+[[ -s ~/.bash_bindings    ]] && \. ~/.bash_bindings    # Keyboard shortcuts.
+[[ -s ~/.bash_aliases     ]] && \. ~/.bash_aliases     # Command aliases.
+[[ -s ~/.bash_completions ]] && \. ~/.bash_completions # Command completion scripts.
+[[ -s ~/.fzf_bindings     ]] && \. ~/.fzf_bindings     # Powerful Fzf bindings.
+[[ -s ~/.docker_functions ]] && \. ~/.docker_functions # Functions that spin up docker machines.
 
 # Add Google Cloud SDK to PATH.
-[[ -f "~/workspaces/tools/google-cloud-sdk/path.bash.inc" ]] && \. "~/workspaces/tools/google-cloud-sdk/path.bash.inc"
+[[ -f ~/workspaces/tools/google-cloud-sdk/path.bash.inc ]] && \. ~/workspaces/tools/google-cloud-sdk/path.bash.inc
 
 # `gcloud` autocompletion.
-[[ -f "~/workspaces/tools/google-cloud-sdk/completion.bash.inc" ]] && \. "~/workspaces/tools/google-cloud-sdk/completion.bash.inc"
+[[ -f ~/workspaces/tools/google-cloud-sdk/completion.bash.inc ]] && \. ~/workspaces/tools/google-cloud-sdk/completion.bash.inc
 
 # `heroku` autocomplete.
 HEROKU_AC_BASH_SETUP_PATH=/home/stephen/.cache/heroku/autocomplete/bash_setup &&
