@@ -49,7 +49,7 @@ separator="$reset"
 # Environment variables. {{{1
 export BROWSER='/usr/bin/firefox-developer-edition'
 # Just a security precaution.
-[[ "$(command -v nvim.appimage)" == '/usr/local/bin/nvim.appimage' ]] && export EDITOR='nvim.appimage'
+export EDITOR="$(which nvim)"
 export SUDOEDITOR='/usr/bin/rvim'
 export FIGNORE='.o'
 export HISTCONTROL='ignoredups:ignoreboth'
