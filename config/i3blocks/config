@@ -57,7 +57,7 @@ interval=5
 
 # Arch Linux package updates indicator.
 [updates]
-command=~/bin/pacman-updates.bash
+command=~/bin/package-updates.bash
 border=#ff005f
 interval=3600
 markup=pango
