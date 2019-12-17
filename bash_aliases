@@ -28,6 +28,7 @@ alias evrc='"${EDITOR}" ~/.dotfiles-webdavis.git/vimrc'
 alias en='"${EDITOR}" ~/.dotfiles-webdavis.git/config/nvim/init.vim'
 alias et='"${EDITOR}" ~/.dotfiles-webdavis.git/tmux.conf'
 alias eg='"${EDITOR}" ~/.dotfiles-webdavis.git/gitconfig'
+alias eclipse="~/workspaces/tools/eclipse-jee-2019-09_R_4.13.0-linux-gtk-x86_64/eclipse"
 alias o='xdg-open'
 alias p='python'
 alias g='git'

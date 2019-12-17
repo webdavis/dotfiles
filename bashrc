@@ -59,8 +59,6 @@ export LANG='en_US.UTF-8'
 export LC_ALL='en_US.UTF-8'
 export MANPAGER="$(which nvim) -c 'set ft=man' -"
 export TERM=screen-256color
-export XDG_CONFIG_HOME="~/.config"
-export XDG_DATA_HOME="~/.local/share"
 export IGNOREOF=1
 export TMUXP_CONFIGDIR="~/.tmuxp"
 
@@ -158,9 +156,6 @@ path_append "${JAVA_HOME}/bin"
 
 # Path to JetBrains` Intellij IDEA IDE.
 path_append "~/workspaces/tools/idea-IC-191.6707.61/bin"
-
-# Path to Eclipse IDE.
-# path_append "~/workspaces/tools/eclipse-jee-2019-09_R_4.13.0-linux-gtk-x86_64/"
 
 # Configure default jshell editor.
 export JSHELLEDITOR="$(which nvim)"

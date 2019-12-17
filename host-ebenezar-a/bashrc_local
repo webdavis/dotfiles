@@ -1,5 +1,9 @@
+# vi: set filetype=sh:
+
 export EDITOR="$(which nvim)"
 export SUDOEDITOR='/usr/bin/rvim'
+export XDG_CONFIG_HOME="~/.config"
+export XDG_DATA_HOME="~/.local/share"
 export TERMINAL='/usr/bin/alacritty'
 export ANKI_NOHIGHDPI=1
 export BROWSER='/usr/bin/firefox-developer-edition'
