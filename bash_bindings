@@ -179,7 +179,7 @@ builtin bind -m vi-insert '"\C-gp": "\C-x0\C-_o\C-x1\C-x2\015"'
 builtin bind -m vi-command '"\C-gp": "i\C-x0\C-_o\C-x1\C-x2\015"'
 
 
-builtin bind -x '"\C-_p": "git browse"'
+builtin bind -x '"\C-_p": "hub browse"'
 builtin bind -m vi-insert '"\C-gb": "\C-x0\C-_p\C-x1\C-x2\015"'
 builtin bind -m vi-command '"\C-gb": "i\C-x0\C-_p\C-x1\C-x2\015"'
 
