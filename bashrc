@@ -153,7 +153,6 @@ path_prepend "~/workspaces/tools/ripgrep/target/release"
 
 
 # Java configuration. {{{2
-# export JAVA_HOME="~/workspaces/tools/jdk1.8.0_202"
 export JAVA_HOME="~/workspaces/tools/jdk-11.0.2"
 path_append "${JAVA_HOME}/bin"
 
