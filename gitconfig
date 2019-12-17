@@ -39,7 +39,7 @@
         h = !git init && git create
 
         # Save work in a rush.
-        S = !"git add --all && git commit -m 'Initial commit' && git push --set-upstream origin master"
+        u = !"git add --all && git commit -m 'Quick save' && git push --set-upstream origin master"
 
         p = !git push origin $(git rev-parse --abbrev-ref HEAD)
 
