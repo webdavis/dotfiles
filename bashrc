@@ -211,7 +211,7 @@ jobcount() {
 # Yarn manages Node/JavaScript packages.
 # Recommend installing using the "Manual Install via tarball" instructions at:
 # https://yarnpkg.com/lang/en/docs/install/#alternatives-stable
-YARN_DIR="$HOME/workspaces/tools/yarn-v1.15.2/bin"
+YARN_DIR="~/workspaces/tools/yarn-v1.15.2/bin"
 [[ -d "$YARN_DIR" ]] && export YARN_DIR && path_prepend "$YARN_DIR"
 
 # Displays the active Node version: "(node/version)".
@@ -225,7 +225,7 @@ node_prompt() {
 # rvm {{{2
 
 # Load rvm into a shell session *as a function*
-# [[ -s "~/.rvm/scripts/rvm" ]] && \. "$HOME/.rvm/scripts/rvm"
+# [[ -s "~/.rvm/scripts/rvm" ]] && \. "~/.rvm/scripts/rvm"
 # path_prepend "~/.rvm/gems/ruby-2.4.1/bin"
 
 # Load rvm command completion. (This must be sourced after ~/.rvm/scripts/rvm.
