@@ -336,6 +336,9 @@ exec_always --no-startup-id nm-applet &
 # Autostart an applet to manage bluetooth.
 exec_always --no-startup-id blueman-applet &
 
+# Autostart CopyQ.
+exec_always --no-startup-id copyq &
+
 # Prevents my computer from automatically sleeping for 2 hours.
 exec_always --no-startup-id "xset s 7200"
 exec_always --no-startup-id "xset -dpms"
