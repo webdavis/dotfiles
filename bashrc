@@ -6,10 +6,16 @@
 umask 077
 
 # Append to PATH. {{{1
-path_append() { case ":${PATH:=$1}:" in *:${1}:* ) : ;; * ) export PATH="${PATH}:${1}" ;; esac; }
+path_append() {
+    [[ -d "$1" ]] || return 1
+    case ":${PATH:=$1}:" in *:${1}:* ) : ;; * ) export PATH="${PATH}:${1}" ;; esac;
+}
 
 # Prepend to PATH. (Used to override system binaries.)
-path_prepend() { case ":${PATH:=$1}:" in *:${1}:* ) : ;; * ) export PATH="${1}:${PATH}" ;; esac; }
+path_prepend() {
+    [[ -d "$1" ]] || return 1
+    case ":${PATH:=$1}:" in *:${1}:* ) : ;; * ) export PATH="${1}:${PATH}" ;; esac;
+}
 
 # Custom tools.
 path_prepend "${HOME}/bin"
