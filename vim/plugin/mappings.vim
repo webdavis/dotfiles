@@ -137,6 +137,15 @@ autocmd! VimEnter - set nohlsearch
 xnoremap . :<C-u>norm .<CR>
 
 
+" FIXME this doesn't really work yet... fix it when I get some time.
+function! DiffAgainstFileOnDisk()
+    :w! /tmp/working_copy
+    execute "!diff /tmp/working_copy %"
+endfunction
+
+command! DiffAgainstFileOnDisk call DiffAgainstFileOnDisk()
+
+
 " Visual-mode mappings {{{1
 
 " Sort visually selected lines. {{{2
@@ -384,11 +393,11 @@ function! s:ToggleList(bufname, pfx)
 endfunction
 
 nmap <Leader>l :call <SID>ToggleList("Location List", 'l')<CR>
-nmap <Leader><C-q> :call <SID>ToggleList("Quickfix List", 'c')<CR>
+nmap <Leader>q :call <SID>ToggleList("Quickfix List", 'c')<CR>
 
 " Press <C-w> + p to jump to the quickfix window, or back to the previous window if
 " already in the quickfix window.
-nnoremap <silent> <expr><C-w>p &filetype ==# 'qf' ? '<C-w>p' : '<C-w>b'
+nnoremap <silent> <expr><C-w><C-q> &filetype ==# 'qf' ? '<C-w>p' : '<C-w>b'
 
 
 " Nvim Terminal Mode. {{{1
@@ -744,25 +753,38 @@ inoremap <expr> <M-l> fzf#vim#complete(fzf#wrap({
 " Fugitive commands {{{1
 nnoremap <Leader>gb :<C-U>Git branch -v<CR>
 nnoremap <Leader>gc :<C-U>Gcommit %<CR>
-nnoremap <Leader>gC :execute "let a = ' '"<CR>:Git checkout<C-R>=a<CR>
-nnoremap <Leader>gd :<C-U>Gdiff<CR>
-nnoremap <Leader>gD :<C-U>Gdelete %<CR>
-nnoremap <Leader>gg :execute "let a = ' '"<CR>:Git<C-R>=a<CR>
-nnoremap <Leader>gh :<C-U>Gbrowse<CR>
-nnoremap <Leader>gH :<C-U>Git rev-parse --short origin/master<CR>
+nnoremap <Leader>GC :<C-U>execute "let a = ' '"<CR>:Git checkout<C-R>=a<CR>
+nnoremap <Leader>gd :<C-U>Gdiffsplit<CR>
+nnoremap <Leader>Gd :<C-U>execute "let a = ' '"<CR>:Gdiffsplit<C-R>=a<CR>
+nnoremap <Leader>gD :<C-u>Gdiff master<CR>
+nnoremap <Leader>gr :<C-U>Gdelete %<CR>
+nnoremap <Leader>Gr :<C-U>execute "let a = ' '"<CR>:Gdelete<C-R>=a<CR>
+nnoremap <Leader>gg :<C-U>execute "let a = ' '"<CR>:Git<C-R>=a<CR>
+nnoremap <Leader>gB :<C-U>Gbrowse<CR>
+nnoremap <Leader>gh :<C-U>Git rev-parse --short origin/master<CR>
 nnoremap <Leader>gl :<C-U>0Glog<CR>
 nnoremap <Leader>gL :<C-U>Glog --<CR>
-nnoremap <Leader>gm :execute "let a = ' '"<CR>:Gmove<C-R>=a<CR>
+nnoremap <Leader>gv :<C-U>GV<CR>
+nnoremap <Leader>Gm :<C-U>execute "let a = ' '"<CR>:Gmove<C-R>=a<CR>
 nnoremap <Leader>gp :<C-U>Gpush<CR>
-nnoremap <Leader>gP :execute "let a = ' '"<CR>:Gpush<C-R>=a<CR>
-nnoremap <Leader>GP :execute "let a = ' '"<CR>:Gpush --set-upstream origin master<C-R>=a<CR>
-nnoremap <Leader>gr :execute "let a = ' '"<CR>:Grebase<C-R>=a<CR>
+nnoremap <Leader>Gp :<C-U>execute "let a = ' '"<CR>:Gpush<C-R>=a<CR>
+nnoremap <Leader>gP :<C-U>:Gpush --set-upstream origin master<CR>
+nnoremap <Leader>Ge :<C-U>execute "let a = ' '"<CR>:Grebase<C-R>=a<CR>
 nnoremap <Leader>gs :<C-U>Gstatus<CR>
 nnoremap <Leader>ga :<C-U>Gwrite<CR>
 
+
+" vim-gdiff {{{2
+if exists('g:loaded_fugitive')
+    nnoremap ]r :cnext<CR>:Gdiffsplit master<CR>
+    nnoremap [r :cprevious<CR>:Gdiffsplit master<CR>
+    nnoremap ]R :clast<CR>:Gdiffsplit master<CR>
+    nnoremap [R :cfirst<CR>:Gdiffsplit master<CR>
+endif
+
+
 " cosco {{{1
 autocmd FileType * nmap <silent> <Leader>; <Plug>(cosco-commaOrSemiColon)
-autocmd FileType * xnoremap <silent> <Leader>; <Plug>(cosco-commaOrSemiColon)
 autocmd FileType * imap <silent> <C-x>; <c-o><Plug>(cosco-commaOrSemiColon)
 
 
@@ -771,8 +793,8 @@ function! s:CloseWindow()
     let l:close = winnr('$') >? 1 ? 'close' : 'quit'
     execute l:close
 endfunction
-nnoremap <silent> <C-G> :<C-U>call <SID>CloseWindow()<CR>
-nnoremap <silent> <Leader><C-G> :<C-U>quitall!<CR>
+nnoremap <silent> <C-g> :<C-U>call <SID>CloseWindow()<CR>
+nnoremap <silent> <Leader><C-g> :<C-U>quitall!<CR>
 
 " TODO: plugin that prompts you for save type based on file owner/permissions.
 " Save the buffer.
@@ -780,6 +802,7 @@ nnoremap <Leader>u :<C-U>update<CR>
 " Save all buffers.
 nnoremap <Leader>wa :<C-U>confirm wall<CR>
 nnoremap <Leader>wq :<C-U>confirm wqall<CR>
-nnoremap <Leader>qa :<C-U>confirm qall<CR>
+nnoremap <Leader>Q :<C-U>confirm qall<CR>
+
 
 " vi:foldmethod=marker foldlevel=0 textwidth=90 shiftwidth=4 tabstop=4 softtabstop=4:

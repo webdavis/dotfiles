@@ -278,12 +278,13 @@ call plug#begin('~/.vim/plugged')
     Plug 'tpope/vim-characterize'                          " Press 'ga' to print the unicode value of the character under the cursor.
     Plug 'tpope/vim-tbone'                                 " Provides access to Tmux from Vim-cli.
     Plug 'tpope/vim-fugitive'                              " Provides Git support.
-    Plug 'junegunn/gv.vim'
-    Plug 'KabbAmine/zeavim.vim'
+    Plug 'oguzbilgic/vim-gdiff'
+    Plug 'junegunn/gv.vim'                                 " Provides the :GV command for opening all Git commits in a new tab.
+    Plug 'KabbAmine/zeavim.vim'                            " Zeal is a desktop application that provides access to many different code libraries; use <Leader>z to search within Zeal.
     Plug 'LnL7/vim-nix'                                    " Nix syntax and filetype detection.
     Plug 'tpope/vim-eunuch'                                " Provides UNIX Shell commands such as :Mkdir, Delete, Move, etc.
     Plug 'tpope/vim-rhubarb'                               " Provides GitHub support using `hub`. Requires `curl`.
-    Plug 'tpope/vim-surround'                              " Provides enclosure mappings such as ci)] and ysiw<strong>.
+    Plug 'tpope/vim-surround'                              " Provides enclosure mappings such as ci)] and ysiw<!-- <strong> -->.
     Plug 'tpope/vim-unimpaired'                            " Provides some useful mappings for things like option toggling with yo[character].
     Plug 'tpope/vim-projectionist'                         " Provides granular project configuration.
     Plug 'tpope/vim-dispatch'                              " https://vimeo.com/63116209 ...this is how all software should be introduced.
@@ -299,7 +300,7 @@ call plug#begin('~/.vim/plugged')
     Plug 'Vimjas/vim-python-pep8-indent'                   " Provides PEP8 compliant indentation.
     Plug 'heavenshell/vim-pydocstring'                     " Generates Python docstrings: put the cursor on a method and run Pydocstring.
     Plug 'webdavis/vim-xapprentice'                        " A super version of the Apprentice colorscheme.
-    Plug 'webdavis/vim-setswitch'                          " Provides user extensible buffer local capabilites for all Vim options.
+    Plug 'webdavis/vim-setswitch'                          " Provides user extensible buffer local capabilities for all Vim options.
     Plug 'AndrewRadev/splitjoin.vim'                       " Provides the gS and gJ mappings for splitting or joining code constructs.
     Plug 'wellle/targets.vim'                              " Provides advanced text object selection.
     Plug 'dhruvasagar/vim-table-mode'                      " Provides an automatic table creator.
@@ -307,7 +308,7 @@ call plug#begin('~/.vim/plugged')
     Plug 'honza/vim-snippets'                              " Snippet databases.
     Plug 'tomtom/tcomment_vim'                             " Enables easy comment toggling with gcc mappings.
     Plug 'Shougo/neco-vim'                                 " Adds VimL completion support.
-    Plug 'neoclide/coc-neco'                               " Adds VimL completion support.
+    Plug 'neoclide/coc-neco'                               " Access neco-vim using coc.nvim.
     if has('nvim') | Plug 'neoclide/coc.nvim', {'do': 'yarn install --frozen-lockfile'} | endif
     Plug 'ludovicchabant/vim-gutentags' | Plug 'skywind3000/gutentags_plus' " Automated tag generation and syntax highlighting in Vim.
     Plug 'majutsushi/tagbar'                               " Provides ctags and psuedo tags for code.
