@@ -24,12 +24,10 @@ path_prepend "${HOME}/bin"
 
 
 # Environment variables {{{1
-export EDITOR="$(which nvim)"
 export SUDOEDITOR='/usr/bin/rvim'
+export EDITOR="$(which nvim)"
 export XDG_CONFIG_HOME="${HOME}/.config"
 export XDG_DATA_HOME="${HOME}/.local/share"
-export ANKI_NOHIGHDPI=1
-export BROWSER='/usr/bin/firefox-developer-edition'
 export FIGNORE='.o'
 export HISTCONTROL='ignoredups:ignoreboth'
 export HISTFILESIZE='-1'
@@ -40,8 +38,11 @@ export LANG='en_US.UTF-8'
 export LC_ALL='en_US.UTF-8'
 export MANPAGER="$(which nvim) -c 'set ft=man' -"
 export TERM=screen-256color
+export TERMINAL="$(which alacritty)"
 export IGNOREOF=1
 export TMUXP_CONFIGDIR="${HOME}/.tmuxp"
+export BROWSER='/usr/bin/firefox-developer-edition'
+export ANKI_NOHIGHDPI=1
 
 # AWS default profile.
 export AWS_PROFILE='default'
