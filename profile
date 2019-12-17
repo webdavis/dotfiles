@@ -2,10 +2,10 @@
 # ~/.profile
 #
 
-[[ -f "${HOME}/.bashrc" ]] && \. ~/.bashrc
+[[ -f "~/.bashrc" ]] && \. ~/.bashrc
 
 # Set i3 default to Alacritty.
-export TERMINAL='/usr/bin/alacritty'
+export TERMINAL="$(which alacritty)"
 
 # Autoload pyenv.
 eval "$(pyenv init -)"
