@@ -1,23 +1,76 @@
 # vi: set filetype=sh:
 
-export EDITOR="$(which nvim)"
-export SUDOEDITOR='/usr/bin/rvim'
-export XDG_CONFIG_HOME="~/.config"
-export XDG_DATA_HOME="~/.local/share"
-export TERMINAL='/usr/bin/alacritty'
-export ANKI_NOHIGHDPI=1
-export BROWSER='/usr/bin/firefox-developer-edition'
+# Git auto completion. Download from https://github.com/git/git/tree/master/contrib/completion.
+[[ -s '/usr/share/git/completion/git-completion.bash' ]] && \. '/usr/share/git/completion/git-completion.bash'
 
-# nvm (Node Version Manager)
-# Manages Node.js versions/installs. Recommend installing via:
-# https://github.com/creationix/nvm#manual-install
+
+# Anki {{{1
+path_append "${HOME}/workspaces/tools/anki-2.1.15-linux-amd64/bin"
+
+
+# Java configuration. {{{1
+export JAVA_HOME="${HOME}/workspaces/tools/jdk-11.0.2"
+path_append "${JAVA_HOME}/bin"
+
+
+# Apache Maven configuration. {{{1
+path_append "${HOME}/workspaces/tools/apache-maven-3.6.0/bin"
+
+[[ -f ~/workspaces/tools/maven-bash-completion/bash_completion.bash ]] &&
+    \. ~/workspaces/tools/maven-bash-completion/bash_completion.bash
+
+
+# Gradle configuration. {{{1
+path_append "${HOME}/workspaces/tools/gradle-5.3.1"
+
+
+# JetBrains` Intellij IDEA IDE {{{1
+path_append "${HOME}/workspaces/tools/idea-IC-191.6707.61/bin"
+
+
+# Spring Boot CLI {{{1
+spring_boot_cli="${HOME}/workspaces/tools/spring-2.2.1.RELEASE"
+path_append "${spring_boot_cli}/bin"
+[[ -f "${spring_boot_cli}/shell-completion/bash/spring" ]] && \. "${spring_boot_cli}/shell-completion/bash/spring"
+
+
+# FlameGraph configuration. {{{1
+# Connects to a running a JVM process and exports a map file which can be used by perf to
+# generate the stack trace with the actual Java method names.
+path_append "${HOME}/workspaces/tools/perf-map-agent/bin"
+path_append "${HOME}/workspaces/tools/FlameGraph/"
+
+
+# Stack (A Haskell version manager.) {{{1
+[[ -d ~/workspaces/tools/stack-1.9.3-linux-x86_64 ]] && path_prepend "${HOME}/workspaces/tools/stack-1.9.3-linux-x86_64"
+
+
+# Cargo (A Rust package manager.) {{{1
+[[ -d ~/.cargo/bin ]] && path_prepend "${HOME}/.cargo/bin"
+
+
+# Ripgrep (A Rust powered grep-like search tool.) {{{1
+path_prepend "${HOME}/workspaces/tools/ripgrep/target/release"
+
+
+# Yarn (Manages Node/JavaScript packages.) {{{1
+# Recommend installing using the "Manual Install via tarball" instructions at:
+# https://yarnpkg.com/lang/en/docs/install/#alternatives-stable
+YARN_DIR="${HOME}/workspaces/tools/yarn-v1.15.2/bin"
+[[ -d "$YARN_DIR" ]] &&
+    export YARN_DIR &&
+    path_prepend "$YARN_DIR"
+
+
+# nvm (Node Version Manager) {{{1
+# Recommend installing via: https://github.com/creationix/nvm#manual-install
 #
 # I Couldn't get "nvm.sh --no-use" to work so implemented this work around for lazy loading.
 # For an in depth discussion checkout: https://github.com/creationix/nvm/issues/782
-NVM_DIR="~/workspaces/tools/nvm"
+NVM_DIR="${HOME}/workspaces/tools/nvm"
 if [[ -s "${NVM_DIR}/nvm.sh" ]] && [[ ! $(type -t _nvm_load) == 'function' ]]; then
     export NVM_DIR
-    # Put all Node tools here.
+    # Put all Node in this array.
     declare -a tools=('nvm' 'node' 'npm' 'yarn')
 
     nvm_load() {
@@ -36,3 +89,16 @@ if [[ -s "${NVM_DIR}/nvm.sh" ]] && [[ ! $(type -t _nvm_load) == 'function' ]]; t
 	alias "$executable"="nvm_load && "$executable""
     done
 fi
+
+
+# virtualenv location {{{1
+path_prepend "${HOME}/.local/bin"
+
+
+# rvm (Ruby Version Manager) {{{1
+[[ -s "$HOME/.rvm/scripts/rvm" ]] && source "$HOME/.rvm/scripts/rvm" # Load RVM into a shell session *as a function*
+
+path_append "${HOME}/.gem/ruby/2.6.0/bin"
+
+# Add rvm to path for scripting. Make sure this is the last path variable change.
+path_append "${HOME}/.rvm/bin"
