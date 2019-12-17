@@ -15,7 +15,6 @@ alias .v='cd ~/Videos'
 alias .n='cd ~/Documents/notes'
 alias .df='cd ~/.dotfiles-webdavis.git'
 alias path='echo "${PATH}" | sed "s/:/\\n/g"'
-alias nvim="$(which nvim.appimage)"
 alias ebrc='nvim ~/.dotfiles-webdavis.git/bashrc'
 alias sbrc='\. ~/.bashrc'
 alias eba='nvim ~/.dotfiles-webdavis.git/bash_aliases'
