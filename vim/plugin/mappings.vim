@@ -70,11 +70,11 @@ inoremap <M-O> <C-o>O
 cnoremap <C-r><C-l> <C-r>=substitute(getline('.'), '^\s*', '', '')<CR>
 
 " Open a new tab.
-nnoremap <silent> <Leader>cc :<c-u>tabedit<cr>
+nnoremap <silent> <Leader>C :<c-u>tabedit<cr>
 
-" Quickly switch tabs.
-nnoremap <C-n> gt
-nnoremap <C-p> gT
+" Move tabs.
+nnoremap <silent> <M-PageUp> :execute 'silent! tabmove ' . (tabpagenr()-2)<CR>
+nnoremap <silent> <M-PageDown> :execute 'silent! tabmove ' . (tabpagenr()+1)<CR>
 
 " Pipe "diffsplit " to the command line.
 nnoremap <Leader>ds :execute "let a = ' '"<CR>:diffsplit<C-r>=a<CR>
