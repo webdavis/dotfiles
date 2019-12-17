@@ -43,8 +43,8 @@ inoremap <expr> <CR> pumvisible() ? "\<c-y>\<cr>" : "\<CR>"
 autocmd! CompleteDone * if pumvisible() == 0 | pclose | endif
 
 " Pulls up Linux manual pages.
-nnoremap <Leader>m :execute "let a = ' '"<CR>:Man<C-r>=a<CR>
-nnoremap <silent> M :<C-u>execute "Man " . expand("<cWORD>")<CR>
+nnoremap <Leader>m :<C-u>execute "Man " . expand("<cWORD>")<CR>
+nnoremap <Leader>M :execute "let a = ' '"<CR>:Man<C-r>=a<CR>
 
 " Opens the command-line with ':help ' already populated.
 nnoremap <Leader>k :execute "let a = ' '"<CR>:help<C-r>=a<CR>
