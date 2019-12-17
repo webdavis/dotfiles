@@ -69,7 +69,7 @@ alias man=' \
     LESS_TERMCAP_us="$(printf "\E[38;5;36m")" \
     LESS_TERMCAP_ue="$(printf "\E[0m")" \
 	man "${@}" \
-'
+    '
 
 # Toggle debugging.
 alias d='set -o nounset; set -o xtrace'
