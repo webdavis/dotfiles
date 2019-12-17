@@ -280,7 +280,6 @@ call plug#begin('~/.vim/plugged')
     Plug 'tpope/vim-fugitive'                              " Provides Git support.
     Plug 'junegunn/gv.vim'
     Plug 'KabbAmine/zeavim.vim'
-    " Plug 'christoomey/vim-system-copy'                     " Copy and paste from the system clipboard.
     Plug 'LnL7/vim-nix'                                    " Nix syntax and filetype detection.
     Plug 'tpope/vim-eunuch'                                " Provides UNIX Shell commands such as :Mkdir, Delete, Move, etc.
     Plug 'tpope/vim-rhubarb'                               " Provides GitHub support using `hub`. Requires `curl`.
@@ -288,7 +287,6 @@ call plug#begin('~/.vim/plugged')
     Plug 'tpope/vim-unimpaired'                            " Provides some useful mappings for things like option toggling with yo[character].
     Plug 'tpope/vim-projectionist'                         " Provides granular project configuration.
     Plug 'tpope/vim-dispatch'                              " https://vimeo.com/63116209 ...this is how all software should be introduced.
-    " Plug 'neomake/neomake'                                 " Provides an extra layer of makers, in favor of the built-in `:make` command.
     Plug 'janko/vim-test'                                  " Provides strategies for program execution.
     Plug 'w0rp/ale'                                        " Enables an asynchronous linting engine.
     Plug 'mhinz/vim-grepper'                               " Provides help with Vim's grep, and adds support for most grep-like tools.
@@ -556,26 +554,6 @@ let g:projectionist_heuristics = {
         \       }
         \ },
 \ }
-
-
-" neomake/neomake {{{2
-" let g:neomake_open_list = 0
-" let g:neomake_verbose = 1
-"
-" function! MyOnBattery()
-"     if has('macunix')
-"         return match(system('pmset -g batt'), "Now drawing from 'Battery Power'") != -1
-"     elseif has('unix')
-"         return readfile('/sys/class/power_supply/AC/online') == ['0']
-"     endif
-"     return 0
-" endfunction
-" "
-" if MyOnBattery()
-" 	call neomake#configure#automake('w')
-" else
-" 	call neomake#configure#automake('nw', 0)
-" endif
 
 
 " KabbAmine/zeavim.vim {{{2
