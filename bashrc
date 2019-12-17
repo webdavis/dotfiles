@@ -307,7 +307,7 @@ trap 'echo -ne "\\033]0;"$(terminal_title)"\\007";' DEBUG
 [[ -s "~/.bash_bindings"    ]] && \. "~/.bash_bindings"    # Keyboard shortcuts.
 [[ -s "~/.bash_aliases"     ]] && \. "~/.bash_aliases"     # Command aliases.
 [[ -s "~/.bash_completions" ]] && \. "~/.bash_completions" # Command completion scripts.
-[[ -s "~/.fzf_bindings"     ]] && \. "~/.fzf_bindings"         # Powerful Fzf bindings.
+[[ -s "~/.fzf_bindings"     ]] && \. "~/.fzf_bindings"     # Powerful Fzf bindings.
 [[ -s "~/.docker_functions" ]] && \. "~/.docker_functions" # Functions that spin up docker machines.
 
 # Add Google Cloud SDK to PATH.
