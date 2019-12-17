@@ -426,17 +426,6 @@ if has('nvim')
 endif
 
 
-" markdown-preview {{{1
-
-" Normal mode.
-nnoremap <M-m> :<C-u>MarkdownPreview<CR>
-nnoremap <M-M> :<C-u>MarkdownPreviewStop<CR>
-
-" Insert mode.
-inoremap <M-m> <C-o>:<C-u>MarkdownPreview<CR>
-inoremap <M-M> <C-o>:<C-u>MarkdownPreviewStop<CR>
-
-
 " ALE. {{{1
 
 " Toggles showing errors detected by ALE.
