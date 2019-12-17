@@ -1,0 +1,97 @@
+#!/usr/bin/env bash
+
+# Description: run this script to restart gpg-agent when switching yubikey cards. All
+# events are logged in ~/.gnupg/gpg.log, and errors will be reported by libnotify when a
+# display is present.
+
+# WARNING: Do not run this script unless backups of ~/.gnupg/private-keys-v1.d/
+# have been made! Exit when unset parameters are expanded.
+
+set -e # Exit immediately when there is an error.
+set -o pipefail # Fail if any command in a pipeline chain returns an error.
+
+export XAUTHORITY="/home/stephen/.Xauthority"
+export DISPLAY=":0"
+export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/1000/bus"
+
+# Script name.
+this_script="${BASH_SOURCE[0]##*/}"
+
+# GPG log.
+GNUPGHOME="/home/stephen/.gnupg"
+log="${GNUPGHOME}/gpg.log"
+exec 1>>"$log" 2>&1
+
+# Log timestamp.
+timestamp()
+{
+    date +"%F %T %z:"
+}
+
+# Print error messages.
+error()
+{
+    status=${3:-$?}
+    message="$(timestamp) ERROR: line ${1}: ${2}. Exiting with status ${status}."
+
+    printf "%s\\n" "$message" 2>&1
+    if [[ -n "$DISPLAY" ]]; then
+	notify-send \
+	    --urgency=critical \
+	    --expire-time=5000 \
+	    --icon="/home/stephen/Pictures/icons/yubikey.png" \
+	    "$this_script" "$message"
+    fi
+
+    exit $status
+}
+
+# Trap any errors, calling error() when they're caught.
+trap 'error "${LINENO}" "unknown"' ERR
+
+(($EUID > 0)) || error "$LINENO" "permission denied. This script should not be run as root" "3"
+
+# Ensure gpg-agent uses the current tty device.
+GPG_TTY="$(tty)" && export GPG_TTY
+
+# Enable ssh-agent support and tell SSH about it.
+unset SSH_AGENT_PID
+if (("${gnupg_SSH_AUTH_SOCK_by:-0}" != $$)); then
+    SSH_AUTH_SOCK="$(gpgconf --list-dirs agent-ssh-socket)" && export SSH_AUTH_SOCK
+fi
+
+declare -a agents=('ssh-agent' 'gpg-agent')
+for agent in ${agents[@]}; do
+    if pgrep "$agent" &>/dev/null; then
+	pkill --signal SIGKILL "$agent" || error "$LINENO" "could not kill $agent" "3"
+	printf "%s\\n" "$(timestamp) Killed $agent."
+    fi
+done
+
+# Remove the keygrips that are associated with the previous YubiKey serial number. Add
+# keys to keyid array as they are imported.
+keyid=('E7F7292F2E275D50')
+for key in ${keyid[@]}; do
+    while read -r keystub; do
+	if [[ -e "${keystub}.key" ]]; then
+	    rm "${GNUPGHOME}/private-keys-v1.d/${keystub}.key"
+	    printf "%s\\n" "$(timestamp) Removing secret key ${keystub}.key"
+	fi
+    done < <(gpg --with-keygrip --list-secret-keys "$key" | grep 'Keygrip' | awk '{print $3}')
+done
+
+# Show the contents of the card status. --no-tty must be used to run this from i3,
+# otherwise gpg will complain that it cannot connect to a tty device.
+while read -r line; do
+    printf "%s\\n" "$(timestamp) $line"
+done < <(gpg --no-tty --card-status)
+printf "%s" "$(timestamp) "
+gpg --check-sigs >/dev/null
+
+# Restart gpg-agent.
+gpgconf --launch gpg-agent || error "$LINENO" "could not launch gpg-agent" "$?"
+printf "%s\\n" "$(timestamp) Started gpg-agent."
+printf "%s\\n" "$(timestamp) SSH Public Key Fingerprint: $(ssh-add -l)"
+
+# Sometimes it needs to wait in order to connect.
+sleep 5
