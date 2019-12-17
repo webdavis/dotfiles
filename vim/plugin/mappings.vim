@@ -481,6 +481,20 @@ nnoremap <silent> <M-s> :<C-u>CocList --interactive symbols<CR>
 " Fuzzy search symbols in current file.
 nnoremap <silent> <M-o> :<C-u>CocList --auto-preview outline<CR>
 
+" Multicursors. {{{2
+function! s:SelectCurrentWord()
+    if !get(g:, 'coc_cursors_activated', 0)
+        return "\<Plug>(coc-cursors-word)"
+    endif
+    return "*\<Plug>(coc-cursors-word):nohlsearch\<CR>"
+endfunction
+nmap <expr> <silent> <M-w> <SID>SelectCurrentWord()
+nmap        <silent> <M-W> <Plug>(coc-cursors-word)
+
+nmap <silent> <M-m> <Plug>(coc-cursors-position)
+xmap <silent> <M-m> <Plug>(coc-cursors-range)
+
+
 " Format code in file.
 nmap <M-f> :<C-u>call CocAction('format')<CR>
 xmap <M-q> <Plug>(coc-format-selected)
