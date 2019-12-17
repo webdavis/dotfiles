@@ -179,50 +179,55 @@ builtin bind -m vi-insert '"\C-gp": "\C-x0\C-_o\C-x1\C-x2\015"'
 builtin bind -m vi-command '"\C-gp": "i\C-x0\C-_o\C-x1\C-x2\015"'
 
 
+builtin bind -x '"\C-_p": "git browse"'
+builtin bind -m vi-insert '"\C-gb": "\C-x0\C-_p\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\C-gb": "i\C-x0\C-_p\C-x1\C-x2\015"'
+
+
 # Goto bindings {{{1
-builtin bind -x '"\C-_p": "cd ${HOME}/.config"'
-builtin bind -m vi-insert '"\C-xdc": "\C-x0\C-_p\C-x1\C-x2\015"'
-builtin bind -m vi-command '"\C-xdc": "i\C-x0\C-_p\C-x1\C-x2\015"'
+builtin bind -x '"\C-_q": "cd ${HOME}/.config"'
+builtin bind -m vi-insert '"\C-xdc": "\C-x0\C-_q\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\C-xdc": "i\C-x0\C-_q\C-x1\C-x2\015"'
 
 
-builtin bind -x '"\C-_q": "cd ${HOME}/.dotfiles-webdavis.git"'
-builtin bind -m vi-insert '"\C-xdf": "\C-x0\C-_q\C-x1\C-x2\015"'
-builtin bind -m vi-command '"\C-xdf": "i\C-x0\C-_q\C-x1\C-x2\015"'
+builtin bind -x '"\C-_r": "cd ${HOME}/.dotfiles-webdavis.git"'
+builtin bind -m vi-insert '"\C-xdf": "\C-x0\C-_r\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\C-xdf": "i\C-x0\C-_r\C-x1\C-x2\015"'
 
 
-builtin bind -x '"\C-_r": "cd ${HOME}/Documents"'
-builtin bind -m vi-insert '"\C-xdd": "\C-x0\C-_r\C-x1\C-x2\015"'
-builtin bind -m vi-command '"\C-xdd": "i\C-x0\C-_r\C-x1\C-x2\015"'
+builtin bind -x '"\C-_s": "cd ${HOME}/Documents"'
+builtin bind -m vi-insert '"\C-xdd": "\C-x0\C-_s\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\C-xdd": "i\C-x0\C-_s\C-x1\C-x2\015"'
 
 
-builtin bind -x '"\C-_s": "cd ${HOME}/Documents/notes"'
-builtin bind -m vi-insert '"\C-xdn": "\C-x0\C-_s\C-x1\C-x2\015"'
-builtin bind -m vi-command '"\C-xdn": "i\C-x0\C-_s\C-x1\C-x2\015"'
+builtin bind -x '"\C-_t": "cd ${HOME}/Documents/notes"'
+builtin bind -m vi-insert '"\C-xdn": "\C-x0\C-_t\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\C-xdn": "i\C-x0\C-_t\C-x1\C-x2\015"'
 
 
-builtin bind -x '"\C-_t": "cd ${HOME}/Downloads"'
-builtin bind -m vi-insert '"\C-xdD": "\C-x0\C-_t\C-x1\C-x2\015"'
-builtin bind -m vi-command '"\C-xdD": "i\C-x0\C-_t\C-x1\C-x2\015"'
+builtin bind -x '"\C-_u": "cd ${HOME}/Downloads"'
+builtin bind -m vi-insert '"\C-xdD": "\C-x0\C-_u\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\C-xdD": "i\C-x0\C-_u\C-x1\C-x2\015"'
 
 
-builtin bind -x '"\C-_u": "cd ${HOME}/Videos"'
-builtin bind -m vi-insert '"\C-xdv": "\C-x0\C-_u\C-x1\C-x2\015"'
-builtin bind -m vi-command '"\C-xdv": "i\C-x0\C-_u\C-x1\C-x2\015"'
+builtin bind -x '"\C-_v": "cd ${HOME}/Videos"'
+builtin bind -m vi-insert '"\C-xdv": "\C-x0\C-_v\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\C-xdv": "i\C-x0\C-_v\C-x1\C-x2\015"'
 
 
-builtin bind -x '"\C-_v": "cd ${HOME}/workspaces/projects"'
-builtin bind -m vi-insert '"\C-xdp": "\C-x0\C-_v\C-x1\C-x2\015"'
-builtin bind -m vi-command '"\C-xdp": "i\C-x0\C-_v\C-x1\C-x2\015"'
+builtin bind -x '"\C-_w": "cd ${HOME}/workspaces/projects"'
+builtin bind -m vi-insert '"\C-xdp": "\C-x0\C-_w\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\C-xdp": "i\C-x0\C-_w\C-x1\C-x2\015"'
 
 
-builtin bind -x '"\C-_w": "cd ${HOME}/workspaces/tools"'
-builtin bind -m vi-insert '"\C-xdt": "\C-x0\C-_w\C-x1\C-x2\015"'
-builtin bind -m vi-command '"\C-xdt": "i\C-x0\C-_w\C-x1\C-x2\015"'
+builtin bind -x '"\C-_x": "cd ${HOME}/workspaces/tools"'
+builtin bind -m vi-insert '"\C-xdt": "\C-x0\C-_x\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\C-xdt": "i\C-x0\C-_x\C-x1\C-x2\015"'
 
 
-builtin bind -x '"\C-_x": "cd ${HOME}/workspaces/test"'
-builtin bind -m vi-insert '"\C-xdT": "\C-x0\C-_x\C-x1\C-x2\015"'
-builtin bind -m vi-command '"\C-xdT": "i\C-x0\C-_x\C-x1\C-x2\015"'
+builtin bind -x '"\C-_y": "cd ${HOME}/workspaces/test"'
+builtin bind -m vi-insert '"\C-xdT": "\C-x0\C-_y\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\C-xdT": "i\C-x0\C-_y\C-x1\C-x2\015"'
 
 
 
@@ -240,6 +245,6 @@ __projectrt() {
     builtin cd "$path"
     pwd
 }
-builtin bind -x '"\C-_y": __projectrt'
-builtin bind -m vi-insert '"\C-xdr": "\C-x0\C-_y\C-x1\C-x2\015"'
+builtin bind -x '"\C-_z": __projectrt'
+builtin bind -m vi-insert '"\C-xdr": "\C-x0\C-_z\C-x1\C-x2\015"'
 builtin bind -m vi-command '"\C-xdr": "i\C-x0\C-_y\C-x1\C-x2\015"'
