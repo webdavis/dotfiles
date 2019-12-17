@@ -37,7 +37,7 @@ builtin bind -m vi-insert '"\C-s": "\C-asudo "'
 builtin bind -m vi-command '"\C-s": "i\C-asudo "'
 
 
-# ls
+# ls {{{1
 builtin bind -x '"\C-_a": "ls --color=auto -AFhl"'
 builtin bind -m vi-insert '"\M-l": "\C-x0\C-_a\C-x1\C-x2\015"'
 builtin bind -m vi-command '"\M-l": "i\C-x0\C-_a\C-x1\C-x2\015"'
@@ -59,9 +59,10 @@ builtin bind -m vi-insert '"\C-x\C-t": "\C-x0\C-_c\C-x1\C-x2\015"'
 builtin bind -m vi-insert '"\C-x\C-t": "\C-x0\C-_c\C-x1\C-x2\015"'
 builtin bind -m vi-insert '"\C-xt": "\C-x0ls --color=auto -AFhlt "'
 builtin bind -m vi-insert '"\C-xt": "i\C-x0ls --color=auto -AFhlt "'
+# }}}
 
 
-# tree
+# tree {{{1
 builtin bind -x '"\C-_d": "tree"'
 builtin bind -m vi-insert '"\M-t": "\C-x0\C-_d\C-x1\C-x2\015"'
 builtin bind -m vi-command '"\M-t": "i\C-x0\C-_d\C-x1\C-x2\015"'
@@ -73,6 +74,7 @@ builtin bind -m vi-insert '"\C-x\C-u": "\C-x0\C-_e\C-x1\C-x2\015"'
 builtin bind -m vi-command '"\C-x\C-u": "i\C-x0\C-_e\C-x1\C-x2\015"'
 builtin bind -m vi-insert '"\C-xu": "\C-x0tree -Cghpua -I .git" '
 builtin bind -m vi-command '"\C-xu": "i\C-x0tree -Cghpua -I .git" '
+# }}}
 
 
 # Ping Google's DNS server.
@@ -87,25 +89,6 @@ builtin bind -m vi-command '"\C-xp": "i\C-x0ping -c 3 "'
 builtin bind -x '"\C-_g": "source ~/.bashrc"'
 builtin bind -m vi-insert '"\C-x\C-s": "\C-x0\C-_g\C-x1\C-x2\015"'
 builtin bind -m vi-command '"\C-x\C-s": "i\C-x0\C-_g\C-x1\C-x2\015"'
-
-
-# Go to a projects root directory. The respective keyboard binding is in ~/.inputrc.
-__projectrt() {
-    path="$(dirname "$(pwd)")"
-    # To add support for other version control systems, add their respective directories to the regex.
-    while [[ ! "$(find "$path" -maxdepth 1 -regextype egrep -regex ".*/\\.(git|svn)")" ]]; do
-	if [[ $path == '/' ]]; then
-	    printf "%s\\n" 'No project root found.' 2>&1
-	    return 1
-	fi
-	path="$(dirname "$path")"
-    done
-    builtin cd "$path"
-    pwd
-}
-builtin bind -x '"\C-_h": __projectrt'
-builtin bind -m vi-insert '"\M-s": "\C-x0\C-_h\C-x1\C-x2\015"'
-builtin bind -m vi-command '"\M-s": "i\C-x0\C-_h\C-x1\C-x2\015"'
 
 
 # This is automated with a udev rule; however, YubiKey 5's are a PITA to get out of the port.
@@ -149,42 +132,109 @@ __reset_yubikey() {
     printf "%s\\n" "Started gpg-agent"
     printf "%s\\n" "SSH Public Key Fingerprint: $(ssh-add -l)"
 }
-builtin bind -x '"\C-_i": __reset_yubikey'
-builtin bind -m vi-insert '"\M-Y": "\C-x0\C-_i\C-x1\C-x2\015"'
-builtin bind -m vi-command '"\M-Y": "i\C-x0\C-_i\C-x1\C-x2\015"'
+builtin bind -x '"\C-_h": __reset_yubikey'
+builtin bind -m vi-insert '"\M-Y": "\C-x0\C-_h\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\M-Y": "i\C-x0\C-_h\C-x1\C-x2\015"'
 
 
+# Git bindings {{{1
 # git status
-builtin bind -x '"\C-_j": "git status"'
-builtin bind -m vi-insert '"\C-gs": "\C-x0\C-_j\C-x1\C-x2\015"'
-builtin bind -m vi-command '"\C-gs": "i\C-x0\C-_j\C-x1\C-x2\015"'
+builtin bind -x '"\C-_i": "git status"'
+builtin bind -m vi-insert '"\C-gs": "\C-x0\C-_i\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\C-gs": "i\C-x0\C-_i\C-x1\C-x2\015"'
 
 
 # git log
-builtin bind -x '"\C-_k": "git log --oneline"'
-builtin bind -m vi-insert '"\C-gl": "\C-x0\C-_k\C-x1\C-x2\015"'
-builtin bind -m vi-command '"\C-gl": "i\C-x0\C-_k\C-x1\C-x2\015"'
+builtin bind -x '"\C-_j": "git log --oneline"'
+builtin bind -m vi-insert '"\C-gl": "\C-x0\C-_j\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\C-gl": "i\C-x0\C-_j\C-x1\C-x2\015"'
 
 
 # git diff
-builtin bind -x '"\C-_l": "git diff-index --quiet HEAD -- || clear; git --no-pager diff --patch-with-stat"'
-builtin bind -m vi-insert '"\C-gd": "\C-x0\C-_l\C-x1\C-x2\015"'
-builtin bind -m vi-command '"\C-gd": "i\C-x0\C-_l\C-x1\C-x2\015"'
+builtin bind -x '"\C-_k": "git diff-index --quiet HEAD -- || clear; git --no-pager diff --patch-with-stat"'
+builtin bind -m vi-insert '"\C-gd": "\C-x0\C-_k\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\C-gd": "i\C-x0\C-_k\C-x1\C-x2\015"'
 
 
 # git checkout master
-builtin bind -x '"\C-_m": "git checkout master"'
-builtin bind -m vi-insert '"\C-gC": "\C-x0\C-_m\C-x1\C-x2\015"'
-builtin bind -m vi-command '"\C-gC": "i\C-x0\C-_m\C-x1\C-x2\015"'
+builtin bind -x '"\C-_l": "git checkout master"'
+builtin bind -m vi-insert '"\C-gC": "\C-x0\C-_l\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\C-gC": "i\C-x0\C-_l\C-x1\C-x2\015"'
 
 
 # git commit
-builtin bind -x '"\C-_n": "git commit"'
-builtin bind -m vi-insert '"\C-gc": "\C-x0\C-_n\C-x1\C-x2\015"'
-builtin bind -m vi-command '"\C-gc": "i\C-x0\C-_n\C-x1\C-x2\015"'
+builtin bind -x '"\C-_m": "git commit"'
+builtin bind -m vi-insert '"\C-gc": "\C-x0\C-_m\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\C-gc": "i\C-x0\C-_m\C-x1\C-x2\015"'
 
 
 # git init && hub create
-builtin bind -x '"\C-_o": "git init && git create"'
-builtin bind -m vi-insert '"\C-gh": "\C-x0\C-_o\C-x1\C-x2\015"'
-builtin bind -m vi-command '"\C-gh": "i\C-x0\C-_o\C-x1\C-x2\015"'
+builtin bind -x '"\C-_n": "git init && git create"'
+builtin bind -m vi-insert '"\C-gh": "\C-x0\C-_n\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\C-gh": "i\C-x0\C-_n\C-x1\C-x2\015"'
+
+
+# Goto bindings {{{1
+builtin bind -x '"\C-_o": "cd ${HOME}/.config"'
+builtin bind -m vi-insert '"\C-xdc": "\C-x0\C-_o\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\C-xdc": "i\C-x0\C-_o\C-x1\C-x2\015"'
+
+
+builtin bind -x '"\C-_p": "cd ${HOME}/.dotfiles-webdavis.git"'
+builtin bind -m vi-insert '"\C-xdf": "\C-x0\C-_p\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\C-xdf": "i\C-x0\C-_p\C-x1\C-x2\015"'
+
+
+builtin bind -x '"\C-_q": "cd ${HOME}/Documents"'
+builtin bind -m vi-insert '"\C-xdd": "\C-x0\C-_q\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\C-xdd": "i\C-x0\C-_q\C-x1\C-x2\015"'
+
+
+builtin bind -x '"\C-_r": "cd ${HOME}/Documents/notes"'
+builtin bind -m vi-insert '"\C-xdn": "\C-x0\C-_r\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\C-xdn": "i\C-x0\C-_r\C-x1\C-x2\015"'
+
+
+builtin bind -x '"\C-_s": "cd ${HOME}/Downloads"'
+builtin bind -m vi-insert '"\C-xdD": "\C-x0\C-_s\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\C-xdD": "i\C-x0\C-_s\C-x1\C-x2\015"'
+
+
+builtin bind -x '"\C-_t": "cd ${HOME}/Videos"'
+builtin bind -m vi-insert '"\C-xdv": "\C-x0\C-_t\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\C-xdv": "i\C-x0\C-_t\C-x1\C-x2\015"'
+
+
+builtin bind -x '"\C-_u": "cd ${HOME}/workspaces/projects"'
+builtin bind -m vi-insert '"\C-xdp": "\C-x0\C-_u\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\C-xdp": "i\C-x0\C-_u\C-x1\C-x2\015"'
+
+
+builtin bind -x '"\C-_v": "cd ${HOME}/workspaces/tools"'
+builtin bind -m vi-insert '"\C-xdt": "\C-x0\C-_v\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\C-xdt": "i\C-x0\C-_v\C-x1\C-x2\015"'
+
+
+builtin bind -x '"\C-_w": "cd ${HOME}/workspaces/test"'
+builtin bind -m vi-insert '"\C-xdT": "\C-x0\C-_w\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\C-xdT": "i\C-x0\C-_w\C-x1\C-x2\015"'
+
+
+
+# Go to a projects root directory. The respective keyboard binding is in ~/.inputrc.
+__projectrt() {
+    path="$(dirname "$(pwd)")"
+    # To add support for other version control systems, add their respective directories to the regex.
+    while [[ ! "$(find "$path" -maxdepth 1 -regextype egrep -regex ".*/\\.(git|svn)")" ]]; do
+	if [[ $path == '/' ]]; then
+	    printf "%s\\n" 'No project root found.' 2>&1
+	    return 1
+	fi
+	path="$(dirname "$path")"
+    done
+    builtin cd "$path"
+    pwd
+}
+builtin bind -x '"\C-_x": __projectrt'
+builtin bind -m vi-insert '"\C-xdr": "\C-x0\C-_x\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\C-xdr": "i\C-x0\C-_x\C-x1\C-x2\015"'
