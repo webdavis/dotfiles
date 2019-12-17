@@ -59,7 +59,7 @@ export HISTSIZE=-1
 export HISTTIMEFORMAT='%F %T %z '
 export LANG='en_US.UTF-8'
 export LC_ALL='en_US.UTF-8'
-export MANPAGER="/usr/local/bin/nvim.appimage -c 'set ft=man' -"
+export MANPAGER="$(which nvim) -c 'set ft=man' -"
 export TERMINAL='/usr/bin/alacritty'
 export TERM=screen-256color
 export XDG_CONFIG_HOME="${HOME}/.config"
@@ -168,8 +168,7 @@ path_append "${HOME}/workspaces/tools/idea-IC-191.6707.61/bin"
 # path_append "~/workspaces/tools/eclipse-jee-2019-09_R_4.13.0-linux-gtk-x86_64/"
 
 # Configure default jshell editor.
-export JSHELLEDITOR='/usr/local/bin/nvim.appimage'
-
+export JSHELLEDITOR="$(which nvim)"
 
 # Spring Boot CLI {{{2
 spring_boot_cli="${HOME}/workspaces/tools/spring-2.2.1.RELEASE"
