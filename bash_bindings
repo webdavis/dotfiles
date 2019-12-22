@@ -32,7 +32,7 @@ builtin bind '"\C-x1": magic-space'         # Performs history expansion and ins
 builtin bind '"\C-x2": redraw-current-line' # Refreshes the current line.
 
 
-# Insert "sudo " at the beginning of the command.
+# Insert "sudo " at the beginning of a command.
 builtin bind -m vi-insert '"\C-s": "\C-asudo "'
 builtin bind -m vi-command '"\C-s": "i\C-asudo "'
 
@@ -91,7 +91,8 @@ builtin bind -m vi-insert '"\C-x\C-s": "\C-x0\C-_g\C-x1\C-x2\015"'
 builtin bind -m vi-command '"\C-x\C-s": "i\C-x0\C-_g\C-x1\C-x2\015"'
 
 
-# This is automated with a udev rule; however, YubiKey 5's are a PITA to get out of the port.
+# Reset Yubikey {{{1
+# This is automated with a udev rule; however, YubiKey 5 Nano's are a PITA to get out of the port.
 __reset_yubikey() {
     local agent agents
     declare -a agents=('ssh-agent' 'gpg-agent')
@@ -106,14 +107,13 @@ __reset_yubikey() {
         fi
     done
 
-    # Remove the keygrips that are associated with the previous YubiKey serial number. Add
-    # keys to keyid array as they are imported.
-    keyid=( \
+    # Add keys to keyid array as they are imported.
+    keyids=( \
         'E7F7292F2E275D50' \
     )
 
     local key keystub
-    for key in ${keyid[@]}; do
+    for key in ${keyids[@]}; do
         while read -r keystub; do
             if [[ -e "${keystub}.key" ]]; then
                 rm "${GNUPGHOME}/private-keys-v1.d/${keystub}.key"
