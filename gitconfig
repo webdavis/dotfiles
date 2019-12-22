@@ -16,6 +16,8 @@
 
 [alias]
 
+        a = "!f() { git add $@; }; f"
+
         # Jump back to master branch.
         cm = checkout master
 
