@@ -771,7 +771,7 @@ nnoremap <Leader>Gd :<C-U>execute "let a = ' '"<CR>:Gdiffsplit<C-R>=a<CR>
 nnoremap <Leader>gD :<C-u>Gdiff master<CR>
 nnoremap <Leader>gr :<C-U>Gdelete %<CR>
 nnoremap <Leader>Gr :<C-U>execute "let a = ' '"<CR>:Gdelete<C-R>=a<CR>
-nnoremap <Leader>gg :<C-U>execute "let a = ' '"<CR>:Git<C-R>=a<CR>
+nnoremap <Leader>Gg :<C-U>execute "let a = ' '"<CR>:Git<C-R>=a<CR>
 nnoremap <Leader>gB :<C-U>Gbrowse<CR>
 nnoremap <Leader>gh :<C-U>Git rev-parse --short origin/master<CR>
 nnoremap <Leader>gl :<C-U>0Glog<CR>
