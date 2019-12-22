@@ -146,6 +146,15 @@ endfunction
 command! DiffAgainstFileOnDisk call DiffAgainstFileOnDisk()
 
 
+" Grep word under cursor, opening the output in a new tab.
+function! s:GrepUnderCursor(word) abort
+    execute 'tabnew'
+    setlocal buftype=nofile bufhidden=hide noswapfile
+    execute 'read !grep -Hnr "'.a:word.'"'
+endfunction
+nnoremap <Leader>tg :<C-u>call <SID>GrepUnderCursor(expand("<cword>"))<CR>
+
+
 " Visual-mode mappings {{{1
 
 " Sort visually selected lines. {{{2
