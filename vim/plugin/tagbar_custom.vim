@@ -7,9 +7,6 @@ let g:tagbar_show_linenumbers=2
 " Open Tagbar on the left-hand side.
 " let g:tagbar_left = 1
 
-" Always open Tagbar if the file is supported.
-" autocmd VimEnter,TabEnter * nested :call tagbar#autoopen(0)
-
 " If editing a markdown file call vim-markdown's Toc (table of contents), otherwise call Tagbar.
 function! s:ExtendedTagbarToggle() abort
     if &filetype !~? 'markdown\|qf'
