@@ -18,6 +18,8 @@
 
         a = "!f() { git add $@; }; f"
 
+        c = "!d() { git commit -m \"${@}\"; }; d"
+
         # Jump back to master branch.
         cm = checkout master
 
