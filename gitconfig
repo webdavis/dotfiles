@@ -20,6 +20,10 @@
 
         c = "!d() { git commit -m \"${@}\"; }; d"
 
+        # Add all unstaged changes in the working directory to the previous commit,
+        # and then amend it.
+        caa = commit -a --amend -C HEAD
+
         # Jump back to master branch.
         cm = checkout master
 
