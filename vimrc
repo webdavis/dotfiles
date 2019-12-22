@@ -208,7 +208,8 @@ set statusline=\ %{fugitive#statusline()}\ %<%f\ \ \|\sw=%{&sw}\ ts=%{&ts}%h%m%r
 " If only 2 windows left, NERDTree and Tag_List, close vim or current tab
 function! s:CloseAddons()
     for w in range(1, winnr('$'))
-        if bufname(winbufnr(w)) !~? 'Tagbar\|NERD_tree_\|coc-explorer' && getbufvar(winbufnr(w), "&buftype") !=? "quickfix"
+        if bufname(winbufnr(w)) !~# '__Tagbar\|NERD_tree_\|coc-explorer'
+                \ && getbufvar(winbufnr(w), "&buftype") !=? "quickfix"
             return
         endif
     endfor
@@ -451,6 +452,26 @@ let g:setswitch_hooks = ['cursorline', 'cursorcolumn', 'relativenumber', 'wrap',
 " janko/vim-test {{{2
 
 " Make test commands execute using tpope's vim-dispatch.
+let test#enabled_runners = [
+        \ 'python#pytest',
+        \ 'python#pyunit',
+        \ 'python#djangotest',
+        \ 'java#maventest',
+        \ 'java#gradletest',
+        \ 'clojure#fireplacetest',
+        \ 'javascript#mocha',
+        \ 'javascript#jest',
+        \ 'javascript#jest',
+        \ 'javascript#ava',
+        \ 'javascript#karma',
+        \ 'javascript#jasmine',
+        \ 'javascript#cypress',
+        \ 'javascript#reactscripts',
+        \ 'javascript#cucumberjs',
+        \ 'haskell#stacktest',
+        \ 'rust#cargotest',
+        \ 'shell#bats',
+        \ ]
 let test#strategy = 'dispatch_background'
 
 " Automatically run tests when the buffer is written.
