@@ -304,7 +304,7 @@ bindsym $super+$alt+backslash exec "${HOME}/bin/display-mode.bash -m"
 
 # Locks i3 inplace (`sleep 1` adds a small delay to prevent possible race conditions with
 # suspend).
-bindsym Control+$alt+Delete exec "i3lock --ignore-empty-password --show-failed-attempts --tiling --color=0c2624 && sleep 1"
+bindsym Control+$alt+l exec "i3lock --ignore-empty-password --show-failed-attempts --tiling --color=0c2624 && sleep 1"
 
 # Autolocks X after 15 minutes.
 # exec xautolock -detectsleep -time 30 -locker "i3lock --ignore-empty-password --show-failed-attempts --tiling --color=0c2624 && sleep 1"
@@ -316,7 +316,7 @@ bindsym Control+$alt+Delete exec "i3lock --ignore-empty-password --show-failed-a
 # - Power-off System
 # - Exit Window Manager
 # Dependencies: rofi.
-bindsym $super+$alt+Delete exec --no-startup-id "${HOME}/bin/systemctl-rofi.bash -e 'i3-msg exit' -x 'rofi -eh 2 -no-fixed-num-lines -width 20 -dmenu -i -p System\ Command:' -l 'i3lock --ignore-empty-password --show-failed-attempts --tiling --color=0c2624 && sleep 1'"
+bindsym Control+$alt+Delete exec --no-startup-id "${HOME}/bin/systemctl-rofi.bash -e 'i3-msg exit' -x 'rofi -eh 2 -no-fixed-num-lines -width 20 -dmenu -i -p System\ Command:' -l 'i3lock --ignore-empty-password --show-failed-attempts --tiling --color=0c2624 && sleep 1'"
 
 # Uses Rofi to take screenshots.
 # - Capture Fullscreen
