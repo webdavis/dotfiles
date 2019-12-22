@@ -612,19 +612,19 @@ nnoremap <silent> <C-w><C-f> :CocCommand explorer --reveal --toggle<CR>
 
 " Compiler setttings.
 
-function! s:ShowTests() abort
+function! s:ShowQuickfix() abort
 	if &filetype ==# 'qf'
-		execute 'cclose'
-	else
-		execute 'Copen'
-		execute 'MaximizerToggle'
+        execute 'cclose'
+    else
+        execute 'Copen'
+        execute 'MaximizerToggle'
     endif
 endfunction
 
 augroup custom_dispatch
     autocmd!
     autocmd BufReadPost quickfix nnoremap <buffer> R :Copen<CR>G
-    autocmd QuickFixCmdPost * nnoremap <silent> <F5> :<C-u>call <SID>ShowTests()<CR>
+    autocmd QuickFixCmdPost * nnoremap <silent> <F5> :<C-u>call <SID>ShowQuickfix()<CR>
 augroup END
 
 " Triggers.
