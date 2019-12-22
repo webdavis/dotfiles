@@ -6,6 +6,7 @@
 
 export DOCKER_REPO_PREFIX='webdavis'
 
+
 grip() {
     docker run -ti --rm \
         -v ~/.grip:/root/.grip:ro \
@@ -15,9 +16,20 @@ grip() {
         "root/${@}" 0.0.0.0:6419
 }
 
+
 ubuntu() {
-    sudo docker run -it --init \
+    sudo docker run -it \
+        --init \
         --hostname ubuntu \
-        --name ubuntu_18.04 \
-        ${DOCKER_REPO_PREFIX}/ubuntu:18.04 /bin/bash -l
+        --name ubuntu \
+        ${DOCKER_REPO_PREFIX}/ubuntu:latest /bin/bash -l
+}
+
+
+alpine() {
+    sudo docker run -it \
+        --init \
+        --hostname alpine \
+        --name alpine \
+        ${DOCKER_REPO_PREFIX}/alpine:latest /bin/sh -l
 }
