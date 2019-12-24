@@ -1,6 +1,9 @@
 #
 # ~/.bashrc
 #
+# This file is triggered when bash is started as a non-login shell in interactive mode.
+# Only Bash specific settings should go in this file.
+#
 
 # Disallows third parties from accessing files and directories by default.
 umask 077

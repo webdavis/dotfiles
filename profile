@@ -1,6 +1,10 @@
 #
 # ~/.profile
 #
+# This file works that same way that ~/.bash_profile does, except that it is not shell
+# specific. Also, if ~/.bash_profile is not present in the users home directory, then this
+# file will be sourced.
+#
 
 [[ -f ~/.bashrc ]] && \. ~/.bashrc
 
