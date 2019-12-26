@@ -158,7 +158,8 @@ nnoremap <Leader>tg :<C-u>call <SID>GrepUnderCursor(expand("<cword>"))<CR>
 " Visual-mode mappings {{{1
 
 " Sort visually selected lines. {{{2
-xnoremap <Leader>s :!sort<CR>
+xnoremap <Leader>Sq :!sort<CR>
+xnoremap <Leader>Su :!sort -u<CR>
 
 " Searches for visually selected text. {{{2
 function! s:getSelectedText()
