@@ -6,4 +6,4 @@
 # should go in this file.
 #
 
-[[ -f ~/.profile ]] && \. ~/.profile
+[[ -f ~/.bashrc ]] && \. ~/.bashrc
