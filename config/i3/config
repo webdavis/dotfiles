@@ -52,7 +52,6 @@ bindsym $super+$alt+u exec "~/workspaces/tools/eclipse-modeling-2019-09_R_4.13.0
 
 # Most annoying things EVER.
 bindsym $super+q nop
-bindsym $alt+q nop
 
 # Kills focused window.
 bindsym $super+$alt+q kill
