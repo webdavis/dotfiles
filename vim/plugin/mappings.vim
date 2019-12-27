@@ -198,8 +198,8 @@ function! Del_word_delims()
    let res = substitute(res, '\\n'           , '\n', 'g')
    return res
 endfunction
-inoremap <silent> <C-R>/ <C-R>=Del_word_delims()<CR>
-cnoremap          <C-R>/ <C-R>=Del_word_delims()<CR>
+inoremap <silent> <C-r>/ <C-r>=Del_word_delims()<CR>
+cnoremap          <C-r>/ <C-r>=Del_word_delims()<CR>
 
 
 " Delete to the end of the line. {{{1
@@ -359,7 +359,7 @@ nnoremap <C-e> <C-e><C-e><C-e>
 nnoremap <C-y> <C-y><C-y><C-y>
 
 " Resize the window.
-nnoremap <M-J> <C-W>-<C-W>-<C-w>-
+nnoremap <M-J> <C-w>-<C-w>-<C-w>-
 nnoremap <M-K> <C-w>+<C-w>+<C-w>+
 nnoremap <M-H> <C-w><<C-w><<C-w><<C-w><<C-w><<C-w><<C-w><<C-w><<C-w><<C-w><<C-w><
 nnoremap <M-L> <C-w>><C-w>><C-w>><C-w>><C-w>><C-w>><C-w>><C-w>><C-w>><C-w>><C-w>>
@@ -731,27 +731,27 @@ endfunction
 
 
 " Mappings.
-nnoremap <C-t><C-t> :<C-U>Files<CR>
-nnoremap <C-t><C-n> :<C-U>Files ~<CR>
-nnoremap <C-t><C-w> :<C-U>Files ~/workspaces/projects<CR>
-nnoremap <C-t><C-p> :<C-U>execute "Files " . <SID>GitRootDir('~/workspaces/projects')<CR>
-nnoremap <C-t>0     :<C-U>Files /<CR>
-nnoremap <C-t>,     :<C-U>Buffers<CR>
-nnoremap <C-t>;     :<C-U>Windows<CR>
-nnoremap <C-t><C-u> :<C-U>History<CR>
-nnoremap <C-t>l     :<C-U>BLines<CR>
-nnoremap <C-t><C-l> :<C-U>Lines<CR>
-nnoremap <C-t>]     :<C-U>BTags<CR>
-nnoremap <C-t><C-]> :<C-U>Tags<CR>
-nnoremap <C-t><C-r> :<C-U>History:<CR>
-nnoremap <C-t>/     :<C-U>History/<CR>
-nnoremap <C-t>C     :<C-U>Commits<CR>
-nnoremap <C-t>c     :<C-U>BCommits<CR>
-nnoremap <C-t>g     :<C-U>GFiles?<CR>
-nnoremap <C-t><C-g> :<C-U>GFiles<CR>
-nnoremap <C-t><C-f> :<C-U>Rg<CR>
-nnoremap <C-t><C-m> :<C-U>Marks<CR>
-nnoremap <C-t>m     :<C-U>Maps<CR>
+nnoremap <C-t><C-t> :<C-u>Files<CR>
+nnoremap <C-t><C-n> :<C-u>Files ~<CR>
+nnoremap <C-t><C-w> :<C-u>Files ~/workspaces/projects<CR>
+nnoremap <C-t><C-p> :<C-u>execute "Files " . <SID>GitRootDir('~/workspaces/projects')<CR>
+nnoremap <C-t>0     :<C-u>Files /<CR>
+nnoremap <C-t>,     :<C-u>Buffers<CR>
+nnoremap <C-t>;     :<C-u>Windows<CR>
+nnoremap <C-t><C-u> :<C-u>History<CR>
+nnoremap <C-t>l     :<C-u>BLines<CR>
+nnoremap <C-t><C-l> :<C-u>Lines<CR>
+nnoremap <C-t>]     :<C-u>BTags<CR>
+nnoremap <C-t><C-]> :<C-u>Tags<CR>
+nnoremap <C-t><C-r> :<C-u>History:<CR>
+nnoremap <C-t>/     :<C-u>History/<CR>
+nnoremap <C-t>C     :<C-u>Commits<CR>
+nnoremap <C-t>c     :<C-u>BCommits<CR>
+nnoremap <C-t>g     :<C-u>GFiles?<CR>
+nnoremap <C-t><C-g> :<C-u>GFiles<CR>
+nnoremap <C-t><C-f> :<C-u>Rg<CR>
+nnoremap <C-t><C-m> :<C-u>Marks<CR>
+nnoremap <C-t>m     :<C-u>Maps<CR>
 
 
 " Global line completion with Ripgrep (not just open buffers).
@@ -763,27 +763,27 @@ inoremap <expr> <M-l> fzf#vim#complete(fzf#wrap({
 
 
 " Fugitive commands {{{1
-nnoremap <Leader>gb :<C-U>Git branch -v<CR>
-nnoremap <Leader>gc :<C-U>Gcommit %<CR>
-nnoremap <Leader>GC :<C-U>execute "let a = ' '"<CR>:Git checkout<C-R>=a<CR>
-nnoremap <Leader>gd :<C-U>Gdiffsplit<CR>
-nnoremap <Leader>Gd :<C-U>execute "let a = ' '"<CR>:Gdiffsplit<C-R>=a<CR>
+nnoremap <Leader>gb :<C-u>Git branch -v<CR>
+nnoremap <Leader>gc :<C-u>Gcommit %<CR>
+nnoremap <Leader>GC :<C-u>execute "let a = ' '"<CR>:Git checkout<C-r>=a<CR>
+nnoremap <Leader>gd :<C-u>Gdiffsplit<CR>
+nnoremap <Leader>Gd :<C-u>execute "let a = ' '"<CR>:Gdiffsplit<C-r>=a<CR>
 nnoremap <Leader>gD :<C-u>Gdiff master<CR>
-nnoremap <Leader>gr :<C-U>Gdelete %<CR>
-nnoremap <Leader>Gr :<C-U>execute "let a = ' '"<CR>:Gdelete<C-R>=a<CR>
-nnoremap <Leader>Gg :<C-U>execute "let a = ' '"<CR>:Git<C-R>=a<CR>
-nnoremap <Leader>gB :<C-U>Gbrowse<CR>
-nnoremap <Leader>gh :<C-U>Git rev-parse --short origin/master<CR>
-nnoremap <Leader>gl :<C-U>0Glog<CR>
-nnoremap <Leader>gL :<C-U>Glog --<CR>
-nnoremap <Leader>gv :<C-U>GV<CR>
-nnoremap <Leader>Gm :<C-U>execute "let a = ' '"<CR>:Gmove<C-R>=a<CR>
-nnoremap <Leader>gp :<C-U>Gpush<CR>
-nnoremap <Leader>Gp :<C-U>execute "let a = ' '"<CR>:Gpush<C-R>=a<CR>
-nnoremap <Leader>gP :<C-U>:Gpush --set-upstream origin master<CR>
-nnoremap <Leader>Ge :<C-U>execute "let a = ' '"<CR>:Grebase<C-R>=a<CR>
-nnoremap <Leader>gs :<C-U>Gstatus<CR>
-nnoremap <Leader>ga :<C-U>Gwrite<CR>
+nnoremap <Leader>gr :<C-u>Gdelete %<CR>
+nnoremap <Leader>Gr :<C-u>execute "let a = ' '"<CR>:Gdelete<C-r>=a<CR>
+nnoremap <Leader>Gg :<C-u>execute "let a = ' '"<CR>:Git<C-r>=a<CR>
+nnoremap <Leader>gB :<C-u>Gbrowse<CR>
+nnoremap <Leader>gh :<C-u>Git rev-parse --short origin/master<CR>
+nnoremap <Leader>gl :<C-u>0Glog<CR>
+nnoremap <Leader>gL :<C-u>Glog --<CR>
+nnoremap <Leader>gv :<C-u>GV<CR>
+nnoremap <Leader>Gm :<C-u>execute "let a = ' '"<CR>:Gmove<C-r>=a<CR>
+nnoremap <Leader>gp :<C-u>Gpush<CR>
+nnoremap <Leader>Gp :<C-u>execute "let a = ' '"<CR>:Gpush<C-r>=a<CR>
+nnoremap <Leader>gP :<C-u>:Gpush --set-upstream origin master<CR>
+nnoremap <Leader>Ge :<C-u>execute "let a = ' '"<CR>:Grebase<C-r>=a<CR>
+nnoremap <Leader>gs :<C-u>Gstatus<CR>
+nnoremap <Leader>ga :<C-u>Gwrite<CR>
 
 
 " vim-gdiff {{{2
@@ -805,16 +805,16 @@ function! s:CloseWindow()
     let l:close = winnr('$') >? 1 ? 'close' : 'quit'
     execute l:close
 endfunction
-nnoremap <silent> <C-q> :<C-U>call <SID>CloseWindow()<CR>
+nnoremap <silent> <C-q> :<C-u>call <SID>CloseWindow()<CR>
 
 " TODO: plugin that prompts you for save type based on file owner/permissions.
 " Save the buffer.
-nnoremap Zu :<C-U>update<CR>
+nnoremap Zu :<C-u>update<CR>
 " Save all buffers.
-nnoremap Zwa :<C-U>confirm wall<CR>
-nnoremap Zwq :<C-U>confirm wqall<CR>
-nnoremap Zqa :<C-U>confirm qall<CR>
-nnoremap <silent> ZqA :<C-U>quitall!<CR>
+nnoremap Zwa :<C-u>confirm wall<CR>
+nnoremap Zwq :<C-u>confirm wqall<CR>
+nnoremap Zqa :<C-u>confirm qall<CR>
+nnoremap <silent> ZqA :<C-u>quitall!<CR>
 
 
 " vi:foldmethod=marker foldlevel=0 textwidth=90 shiftwidth=4 tabstop=4 softtabstop=4:

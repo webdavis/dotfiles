@@ -26,5 +26,5 @@ function! s:ExtendedTagbarToggle() abort
 endfunction
 
 " Toggle and open the Tagbar.
-nnoremap yoT :<C-U>call <SID>ExtendedTagbarToggle()<CR>
+nnoremap yoT :<C-u>call <SID>ExtendedTagbarToggle()<CR>
 nnoremap yot :execute "TagbarOpen fj"<CR>

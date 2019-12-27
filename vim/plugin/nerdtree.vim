@@ -56,4 +56,4 @@ function! s:Fnameescape(file)
 endfunction
 
 " Browse the file directory using '_' like in vim-vinegar.
-nnoremap <silent> - :<C-U>silent edit <C-R>=empty(<SID>Fnameescape(expand('%'))) ? '.' : <SID>Fnameescape(fnamemodify(expand('%'), ':p:h'))<CR><CR>
+nnoremap <silent> - :<C-u>silent edit <C-r>=empty(<SID>Fnameescape(expand('%'))) ? '.' : <SID>Fnameescape(fnamemodify(expand('%'), ':p:h'))<CR><CR>
