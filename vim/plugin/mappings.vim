@@ -402,12 +402,12 @@ function! s:ToggleList(bufname, pfx)
     endif
 endfunction
 
-nmap <Leader>l :call <SID>ToggleList("Location List", 'l')<CR>
-nmap <Leader>q :call <SID>ToggleList("Quickfix List", 'c')<CR>
+nmap yoL :call <SID>ToggleList("Location List", 'l')<CR>
+nmap yoq :call <SID>ToggleList("Quickfix List", 'c')<CR>
 
 " Press <C-w> + p to jump to the quickfix window, or back to the previous window if
 " already in the quickfix window.
-nnoremap <silent> <expr><C-w><C-q> &filetype ==# 'qf' ? '<C-w>p' : '<C-w>b'
+nnoremap <silent> <expr><C-w>b &filetype ==# 'qf' ? '<C-w>p' : '<C-w>b'
 
 
 " Nvim Terminal Mode. {{{1
@@ -422,8 +422,7 @@ if has('nvim')
 	function! s:CloseWindow()
 		execute winnr('$') >? 1 ? 'close' : 'quit'
 	endfunction
-	tnoremap <silent> <C-g> <C-\><C-n>:<C-u>call <SID>CloseWindow()<CR>
-	tnoremap <silent> <M-l> <C-l>
+	tnoremap <silent> <C-q> <C-\><C-n>:<C-u>call <SID>CloseWindow()<CR>
 	tnoremap <M-[> <Esc>
     tnoremap <Esc> <C-\><C-n>
 
@@ -506,7 +505,7 @@ xmap <silent> <M-m> <Plug>(coc-cursors-range)
 
 
 " Format code in file.
-nmap <M-f> :<C-u>call CocAction('format')<CR>
+nmap <M-q> :<C-u>call CocAction('format')<CR>
 xmap <M-q> <Plug>(coc-format-selected)
 
 " Do codeAction on selected region.
@@ -525,7 +524,7 @@ nmap <silent> ]g <Plug>(coc-diagnostic-next)
 nmap <M-r> <Plug>(coc-rename)
 
 " Fix problem of current line.
-nmap <M-q> <Plug>(coc-fix-current)
+nmap <M-f> <Plug>(coc-fix-current)
 
 " Open yank list.
 nmap <M-y> :<C-u>CocList -A yank<CR>
@@ -636,7 +635,7 @@ nnoremap c<CR> :<C-u>Console<CR>
 nnoremap f<CR> :<C-u>write<BAR>Start!<CR>
 nnoremap g<CR> :<C-u>write<BAR>Spawn!<CR>
 
-nmap <silent> <C-q> :call <SID>ToggleList("Quickfix List", 'C')<CR>
+nmap <silent> yoQ :call <SID>ToggleList("Quickfix List", 'C')<CR>
 
 " Force the quickfix window to open whether Make is successful or not.
 setlocal errorformat+=%+G%.%#
@@ -806,16 +805,16 @@ function! s:CloseWindow()
     let l:close = winnr('$') >? 1 ? 'close' : 'quit'
     execute l:close
 endfunction
-nnoremap <silent> <C-g> :<C-U>call <SID>CloseWindow()<CR>
-nnoremap <silent> <Leader><C-g> :<C-U>quitall!<CR>
+nnoremap <silent> <C-q> :<C-U>call <SID>CloseWindow()<CR>
 
 " TODO: plugin that prompts you for save type based on file owner/permissions.
 " Save the buffer.
-nnoremap <Leader>u :<C-U>update<CR>
+nnoremap Zu :<C-U>update<CR>
 " Save all buffers.
-nnoremap <Leader>wa :<C-U>confirm wall<CR>
-nnoremap <Leader>wq :<C-U>confirm wqall<CR>
-nnoremap <Leader>Q :<C-U>confirm qall<CR>
+nnoremap Zwa :<C-U>confirm wall<CR>
+nnoremap Zwq :<C-U>confirm wqall<CR>
+nnoremap Zqa :<C-U>confirm qall<CR>
+nnoremap <silent> ZqA :<C-U>quitall!<CR>
 
 
 " vi:foldmethod=marker foldlevel=0 textwidth=90 shiftwidth=4 tabstop=4 softtabstop=4:
