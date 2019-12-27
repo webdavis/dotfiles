@@ -43,11 +43,11 @@ inoremap <expr> <CR> pumvisible() ? "\<c-y>\<cr>" : "\<CR>"
 autocmd! CompleteDone * if pumvisible() == 0 | pclose | endif
 
 " Pulls up Linux manual pages.
-nnoremap <Leader>m :<C-u>execute "Man " . expand("<cWORD>")<CR>
-nnoremap <Leader>M :execute "let a = ' '"<CR>:Man<C-r>=a<CR>
+nnoremap <Leader>M :<C-u>execute "Man " . expand("<cWORD>")<CR>
+nnoremap <Leader>:M :execute "let a = ' '"<CR>:Man<C-r>=a<CR>
 
 " Opens the command-line with ':help ' already populated.
-nnoremap <Leader>k :execute "let a = ' '"<CR>:help<C-r>=a<CR>
+nnoremap <Leader>:K :execute "let a = ' '"<CR>:help<C-r>=a<CR>
 
 " Shift line in insert mode.
 inoremap <M-<> <C-o><<
@@ -77,14 +77,16 @@ nnoremap <silent> <M-PageUp> :execute 'silent! tabmove ' . (tabpagenr()-2)<CR>
 nnoremap <silent> <M-PageDown> :execute 'silent! tabmove ' . (tabpagenr()+1)<CR>
 
 " Pipe "diffsplit " to the command line.
-nnoremap <Leader>ds :execute "let a = ' '"<CR>:diffsplit<C-r>=a<CR>
+nnoremap <Leader>:ds :execute "let a = ' '"<CR>:diffsplit<C-r>=a<CR>
 " Pipe "vert diffsplit " to the command line.
-nnoremap <Leader>dv :execute "let a = ' '"<CR>:vert diffsplit<C-r>=a<CR>
+nnoremap <Leader>:dv :execute "let a = ' '"<CR>:vert diffsplit<C-r>=a<CR>
 
 " These change the working directory and print it out.
 nnoremap <Leader>cl :<C-u>lcd %:p:h<CR>:pwd<CR>
 nnoremap <Leader>cp :<C-u>cd %:p:h<CR>:pwd<CR>
-nnoremap <Leader>cP :<C-u>execute "let a = expand('%:p:h')"<CR>:cd <C-r>=a<CR>
+nnoremap <Leader>:cp :<C-u>execute "let a = expand('%:p:h')"<CR>:cd <C-r>=a<CR>
+nnoremap <Leader>cr :<C-u>execute 'cd '.fnamemodify(resolve(expand("%:p")), ":h")<CR>:pwd<CR>
+nnoremap <Leader>:cr :<C-u>execute 'let a = fnamemodify(resolve(expand("%:p")), ":h")'<CR>:cd <C-r>=a<CR>
 
 " Makes a session file.
 nnoremap <Leader>S :<C-u>wall<BAR>execute "mksession! " . v:this_session<CR>
@@ -259,38 +261,38 @@ nnoremap <Leader>Va gg<s-v>G
 
 " Edit important files. {{{1
 
-nnoremap <silent> <Leader>ev :<C-u>execute "edit ~/.vimrc"<CR>
-nnoremap <silent> <Leader>sv :<C-u>execute "split ~/.vimrc"<CR>
-nnoremap <silent> <Leader>vv :<C-u>execute "vsplit ~/.vimrc"<CR>
-nnoremap <silent> <Leader>tv :<C-u>execute "tabedit ~/.vimrc"<CR>
-nnoremap <silent> <Leader>em :<C-u>execute "edit ~/.vim/plugin/mappings.vim"<CR>
-nnoremap <silent> <Leader>sm :<C-u>execute "split ~/.vim/plugin/mappings.vim"<CR>
-nnoremap <silent> <Leader>vm :<C-u>execute "vsplit ~/.vim/plugin/mappings.vim"<CR>
-nnoremap <silent> <Leader>tm :<C-u>execute "tabedit ~/.vim/plugin/mappings.vim"<CR>
-nnoremap <silent> <Leader>ei :<C-u>execute "edit ~/.config/i3/config"<CR>
-nnoremap <silent> <Leader>si :<C-u>execute "split ~/.config/i3/config"<CR>
-nnoremap <silent> <Leader>vi :<C-u>execute "vsplit ~/.config/i3/config"<CR>
-nnoremap <silent> <Leader>ti :<C-u>execute "tabedit ~/.config/i3/config"<CR>
-nnoremap <silent> <Leader>eb :<C-u>execute "edit ~/.bashrc"<CR>
-nnoremap <silent> <Leader>sb :<C-u>execute "split ~/.bashrc"<CR>
-nnoremap <silent> <Leader>vb :<C-u>execute "vsplit ~/.bashrc"<CR>
-nnoremap <silent> <Leader>tb :<C-u>execute "tabedit ~/.bashrc"<CR>
-nnoremap <silent> <Leader>ee :<C-u>execute "edit ~/.bash_aliases"<CR>
-nnoremap <silent> <Leader>se :<C-u>execute "split ~/.bash_aliases"<CR>
-nnoremap <silent> <Leader>ve :<C-u>execute "vsplit ~/.bash_aliases"<CR>
-nnoremap <silent> <Leader>te :<C-u>execute "tabedit ~/.bash_aliases"<CR>
-nnoremap <silent> <Leader>et :<C-u>execute "edit ~/.tmux.conf"<CR>
-nnoremap <silent> <Leader>st :<C-u>execute "split ~/.tmux.conf"<CR>
-nnoremap <silent> <Leader>vt :<C-u>execute "vsplit ~/.tmux.conf"<CR>
-nnoremap <silent> <Leader>tt :<C-u>execute "tabedit ~/.tmux.conf"<CR>
-nnoremap <silent> <Leader>ec :<C-u>execute "edit ~/.vim/coc-settings.json"<CR>
-nnoremap <silent> <Leader>sc :<C-u>execute "split ~/.vim/coc-settings.json"<CR>
-nnoremap <silent> <Leader>vc :<C-u>execute "vsplit ~/.vim/coc-settings.json"<CR>
-nnoremap <silent> <Leader>tc :<C-u>execute "tabedit ~/.vim/coc-settings.json"<CR>
-nnoremap <silent> <Leader>eA :<C-u>execute "edit ~/.vim/after/plugin/abolish.vim"<CR>
-nnoremap <silent> <Leader>sA :<C-u>execute "split ~/.vim/after/plugin/abolish.vim"<CR>
-nnoremap <silent> <Leader>vA :<C-u>execute "vsplit ~/.vim/after/plugin/abolish.vim"<CR>
-nnoremap <silent> <Leader>tA :<C-u>execute "tabedit ~/.vim/after/plugin/abolish.vim"<CR>
+nnoremap <silent> <Leader>ev :<C-u>execute 'edit '.resolve(fnamemodify("~/.vimrc", ':p'))<CR>
+nnoremap <silent> <Leader>sv :<C-u>execute 'split '.resolve(fnamemodify("~/.vimrc", ':p'))<CR>
+nnoremap <silent> <Leader>vv :<C-u>execute 'vsplit '.resolve(fnamemodify("~/.vimrc", ':p'))<CR>
+nnoremap <silent> <Leader>tv :<C-u>execute 'tabedit '.resolve(fnamemodify("~/.vimrc", ':p'))<CR>
+nnoremap <silent> <Leader>em :<C-u>execute 'edit '.resolve(fnamemodify("~/.vim/plugin/mappings.vim", ':p'))<CR>
+nnoremap <silent> <Leader>sm :<C-u>execute 'split '.resolve(fnamemodify("~/.vim/plugin/mappings.vim", ':p'))<CR>
+nnoremap <silent> <Leader>vm :<C-u>execute 'vsplit '.resolve(fnamemodify("~/.vim/plugin/mappings.vim", ':p'))<CR>
+nnoremap <silent> <Leader>tm :<C-u>execute 'tabedit '.resolve(fnamemodify("~/.vim/plugin/mappings.vim", ':p'))<CR>
+nnoremap <silent> <Leader>ei :<C-u>execute 'edit '.resolve(fnamemodify("~/.config/i3/config", ':p'))<CR>
+nnoremap <silent> <Leader>si :<C-u>execute 'split '.resolve(fnamemodify("~/.config/i3/config", ':p'))<CR>
+nnoremap <silent> <Leader>vi :<C-u>execute 'vsplit '.resolve(fnamemodify("~/.config/i3/config", ':p'))<CR>
+nnoremap <silent> <Leader>ti :<C-u>execute 'tabedit '.resolve(fnamemodify("~/.config/i3/config", ':p'))<CR>
+nnoremap <silent> <Leader>eb :<C-u>execute 'edit '.resolve(fnamemodify("~/.bashrc", ':p'))<CR>
+nnoremap <silent> <Leader>sb :<C-u>execute 'split '.resolve(fnamemodify("~/.bashrc", ':p'))<CR>
+nnoremap <silent> <Leader>vb :<C-u>execute 'vsplit '.resolve(fnamemodify("~/.bashrc", ':p'))<CR>
+nnoremap <silent> <Leader>tb :<C-u>execute 'tabedit '.resolve(fnamemodify("~/.bashrc", ':p'))<CR>
+nnoremap <silent> <Leader>ee :<C-u>execute 'edit '.resolve(fnamemodify("~/.bash_aliases", ':p'))<CR>
+nnoremap <silent> <Leader>se :<C-u>execute 'split '.resolve(fnamemodify("~/.bash_aliases", ':p'))<CR>
+nnoremap <silent> <Leader>ve :<C-u>execute 'vsplit '.resolve(fnamemodify("~/.bash_aliases", ':p'))<CR>
+nnoremap <silent> <Leader>te :<C-u>execute 'tabedit '.resolve(fnamemodify("~/.bash_aliases", ':p'))<CR>
+nnoremap <silent> <Leader>et :<C-u>execute 'edit '.resolve(fnamemodify("~/.tmux.conf", ':p'))<CR>
+nnoremap <silent> <Leader>st :<C-u>execute 'split '.resolve(fnamemodify("~/.tmux.conf", ':p'))<CR>
+nnoremap <silent> <Leader>vt :<C-u>execute 'vsplit '.resolve(fnamemodify("~/.tmux.conf", ':p'))<CR>
+nnoremap <silent> <Leader>tt :<C-u>execute 'tabedit '.resolve(fnamemodify("~/.tmux.conf", ':p'))<CR>
+nnoremap <silent> <Leader>ec :<C-u>execute 'edit '.resolve(fnamemodify("~/.vim/coc-settings.json", ':p'))<CR>
+nnoremap <silent> <Leader>sc :<C-u>execute 'split '.resolve(fnamemodify("~/.vim/coc-settings.json", ':p'))<CR>
+nnoremap <silent> <Leader>vc :<C-u>execute 'vsplit '.resolve(fnamemodify("~/.vim/coc-settings.json", ':p'))<CR>
+nnoremap <silent> <Leader>tc :<C-u>execute 'tabedit '.resolve(fnamemodify("~/.vim/coc-settings.json", ':p'))<CR>
+nnoremap <silent> <Leader>eA :<C-u>execute 'edit '.resolve(fnamemodify("~/.vim/after/plugin/abolish.vim", ':p'))<CR>
+nnoremap <silent> <Leader>sA :<C-u>execute 'split '.resolve(fnamemodify("~/.vim/after/plugin/abolish.vim", ':p'))<CR>
+nnoremap <silent> <Leader>vA :<C-u>execute 'vsplit '.resolve(fnamemodify("~/.vim/after/plugin/abolish.vim", ':p'))<CR>
+nnoremap <silent> <Leader>tA :<C-u>execute 'tabedit '.resolve(fnamemodify("~/.vim/after/plugin/abolish.vim", ':p'))<CR>
 
 
 " Snippets {{{2
@@ -402,8 +404,8 @@ function! s:ToggleList(bufname, pfx)
     endif
 endfunction
 
-nmap yoL :call <SID>ToggleList("Location List", 'l')<CR>
-nmap yoq :call <SID>ToggleList("Quickfix List", 'c')<CR>
+nmap <silent> yoL :call <SID>ToggleList("Location List", 'l')<CR>
+nmap <silent> yoq :call <SID>ToggleList("Quickfix List", 'c')<CR>
 
 " Press <C-w> + p to jump to the quickfix window, or back to the previous window if
 " already in the quickfix window.
@@ -763,27 +765,29 @@ inoremap <expr> <M-l> fzf#vim#complete(fzf#wrap({
 
 
 " Fugitive commands {{{1
-nnoremap <Leader>gb :<C-u>Git branch -v<CR>
-nnoremap <Leader>gc :<C-u>Gcommit %<CR>
-nnoremap <Leader>GC :<C-u>execute "let a = ' '"<CR>:Git checkout<C-r>=a<CR>
-nnoremap <Leader>gd :<C-u>Gdiffsplit<CR>
-nnoremap <Leader>Gd :<C-u>execute "let a = ' '"<CR>:Gdiffsplit<C-r>=a<CR>
-nnoremap <Leader>gD :<C-u>Gdiff master<CR>
-nnoremap <Leader>gr :<C-u>Gdelete %<CR>
-nnoremap <Leader>Gr :<C-u>execute "let a = ' '"<CR>:Gdelete<C-r>=a<CR>
-nnoremap <Leader>Gg :<C-u>execute "let a = ' '"<CR>:Git<C-r>=a<CR>
-nnoremap <Leader>gB :<C-u>Gbrowse<CR>
-nnoremap <Leader>gh :<C-u>Git rev-parse --short origin/master<CR>
-nnoremap <Leader>gl :<C-u>0Glog<CR>
-nnoremap <Leader>gL :<C-u>Glog --<CR>
-nnoremap <Leader>gv :<C-u>GV<CR>
-nnoremap <Leader>Gm :<C-u>execute "let a = ' '"<CR>:Gmove<C-r>=a<CR>
-nnoremap <Leader>gp :<C-u>Gpush<CR>
-nnoremap <Leader>Gp :<C-u>execute "let a = ' '"<CR>:Gpush<C-r>=a<CR>
-nnoremap <Leader>gP :<C-u>:Gpush --set-upstream origin master<CR>
-nnoremap <Leader>Ge :<C-u>execute "let a = ' '"<CR>:Grebase<C-r>=a<CR>
-nnoremap <Leader>gs :<C-u>Gstatus<CR>
-nnoremap <Leader>ga :<C-u>Gwrite<CR>
+nnoremap <C-g>b  :<C-u>Git branch -v<CR>
+nnoremap <C-g>c  :<C-u>Gcommit %<CR>
+nnoremap <C-g>C  :<C-u>Git checkout master<CR>
+nnoremap <C-g>:C :<C-u>execute "let a = ' '"<CR>:Git checkout<C-r>=a<CR>
+nnoremap <C-g>d  :<C-u>Gdiffsplit<CR>
+nnoremap <C-g>:d :<C-u>execute "let a = ' '"<CR>:Gdiffsplit<C-r>=a<CR>
+nnoremap <C-g>D  :<C-u>Gdiff master<CR>
+nnoremap <C-g>r  :<C-u>Gdelete %<CR>
+nnoremap <C-g>:r :<C-u>execute "let a = ' '"<CR>:Gdelete<C-r>=a<CR>
+nnoremap <C-g>:g :<C-u>execute "let a = ' '"<CR>:Git<C-r>=a<CR>
+nnoremap <C-g>B  :<C-u>Gbrowse<CR>
+nnoremap <C-g>h  :<C-u>Git rev-parse --short origin/master<CR>
+nnoremap <C-g>l  :<C-u>0Glog<CR>
+nnoremap <C-g>L  :<C-u>Glog --<CR>
+nnoremap <C-g>v  :<C-u>GV<CR>
+nnoremap <C-g>V  :<C-u>GV!<CR>
+nnoremap <C-g>:m :<C-u>execute "let a = ' '"<CR>:Gmove<C-r>=a<CR>
+nnoremap <C-g>p  :<C-u>Gpush<CR>
+nnoremap <C-g>:p :<C-u>execute "let a = ' '"<CR>:Gpush<C-r>=a<CR>
+nnoremap <C-g>P  :<C-u>Gpush --set-upstream origin master<CR>
+nnoremap <C-g>:R :<C-u>execute "let a = ' '"<CR>:Grebase<C-r>=a<CR>
+nnoremap <C-g>s  :<C-u>Gstatus<CR>
+nnoremap <C-g>a  :<C-u>Gwrite<CR>
 
 
 " vim-gdiff {{{2
