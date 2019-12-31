@@ -12,11 +12,15 @@ set completion-map-case off
 # Display possible completions using colors taken from LS_COLORS.
 set colored-stats on
 
+# Readline displays the common prefix of the set of possible completions using a different
+# color.
+set colored-completion-prefix on
+
 # Show files type when autocompleting.
 set visible-stats on
 
 # Determines when the user is queried about viewing the number of possible completions.
-# set completion-query-items 16
+set completion-query-items 30
 
 # Convert Escape to the Meta prefix.
 set convert-meta on
@@ -33,7 +37,7 @@ set horizontal-scroll-mode off
 set keyseq-timeout 1000
 
 # Expand the tilde (often the abbrev for $HOME).
-set expand-tilde on
+set expand-tilde off
 
 # Completed directory names append a slash.
 set mark-directories on
