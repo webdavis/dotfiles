@@ -324,7 +324,7 @@ nnoremap <silent> <Leader>ta :<C-u>AT<CR>
 " nnoremap <silent> <Leader>sr :<C-u>execute 'split ' . <SID>MostRecentlyModifiedFile()<CR>
 
 
-Letter Case Toggle. {{{1
+" Letter Case Toggle. {{{1
 function! s:InsertCaseToggle()
     if col('.') ==? col('$')-1
         execute 'normal! mmg~iw`mmm'
