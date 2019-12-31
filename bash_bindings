@@ -2,7 +2,7 @@
 
 # This file contains key-bindings for bash commands so that I can be all kinds of lazy.
 
-builtin bind -m emacs           '"\M-j": vi-editing-mode'
+builtin bind -m emacs        '"\M-\C-j": vi-editing-mode'
 builtin bind -m vi-insert    'Control-a: beginning-of-line'
 builtin bind -m vi-insert    'Control-e: end-of-line'
 builtin bind -m vi-insert    'Control-b: backward-char'
@@ -29,8 +29,8 @@ builtin bind -m vi-insert       '"\M-u": capitalize-word'
 builtin bind -m vi-command      '"\M-u": capitalize-word'
 builtin bind -m vi-insert       '"\C-d": delete-char'
 builtin bind -m vi-command      '"\C-d": delete-char'
-builtin bind -m vi-insert       '"\C-]": character-search'
-builtin bind -m vi-insert       '"\C-[": character-search-backward'
+builtin bind -m vi-insert       '"\M-]": character-search'
+builtin bind -m vi-insert       '"\M-[": character-search-backward'
 
 # Unbind Ctrl-w from werase in stty. See https://stackoverflow.com/questions/10980575/
 stty werase undef
