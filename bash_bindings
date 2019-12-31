@@ -2,7 +2,7 @@
 
 # This file contains key-bindings for bash commands so that I can be all kinds of lazy.
 
-builtin bind -m emacs           '"\C-j": vi-editing-mode'
+builtin bind -m emacs           '"\M-j": vi-editing-mode'
 builtin bind -m vi-insert    'Control-a: beginning-of-line'
 builtin bind -m vi-insert    'Control-e: end-of-line'
 builtin bind -m vi-insert    'Control-b: backward-char'
@@ -12,7 +12,7 @@ builtin bind -m vi-insert      '"\C-x0": kill-whole-line'
 builtin bind -m vi-insert    'Control-l: clear-screen'
 builtin bind -m vi-command   'Control-l: clear-screen'
 builtin bind -m emacs      '"Control-o": redraw-current-line'
-builtin bind -m vi-insert  '"Control-o": redraw-current-line'
+builtin bind -m vi-insert       '"\C-o": redraw-current-line'
 builtin bind -m vi-command      '"\C-o": redraw-current-line'
 builtin bind -m vi-insert       '"\M-o": magic-space'
 builtin bind -m vi-command      '"\M-o": magic-space'
@@ -23,17 +23,27 @@ builtin bind -m vi-command      '"\C-p": previous-history'
 builtin bind -m vi-insert    'Control-u: unix-line-discard'
 builtin bind -m vi-command   'Control-u: unix-line-discard'
 builtin bind -m vi-insert       '"\M-m": menu-complete'
-builtin bind -m vi-insert  '"Control-w": unix-filename-rubout'
-builtin bind -m vi-command      '"\C-w": unix-filename-rubout'
+builtin bind -m vi-insert       '"\M-w": unix-filename-rubout'
+builtin bind -m vi-command      '"\M-w": unix-filename-rubout'
 builtin bind -m vi-insert       '"\M-u": capitalize-word'
 builtin bind -m vi-command      '"\M-u": capitalize-word'
+builtin bind -m vi-insert       '"\C-d": delete-char'
+builtin bind -m vi-command      '"\C-d": delete-char'
+builtin bind -m vi-insert       '"\C-]": character-search'
+builtin bind -m vi-insert       '"\C-[": character-search-backward'
+
+# Unbind Ctrl-w from werase in stty. See https://stackoverflow.com/questions/10980575/
+stty werase undef
+builtin bind -m emacs      '"Control-w": unix-word-rubout'
+builtin bind -m vi-insert       '"\C-w": unix-word-rubout'
+builtin bind -m vi-command      '"\C-w": unix-word-rubout'
 
 builtin bind '"\C-x1": magic-space'         # Performs history expansion and inserts a space.
 builtin bind '"\C-x2": redraw-current-line' # Refreshes the current line.
 
 
 # Insert "sudo " at the beginning of a command.
-builtin bind -m vi-insert '"\C-s": "\C-asudo "'
+builtin bind -m vi-insert  '"\C-s": "\C-asudo "'
 builtin bind -m vi-command '"\C-s": "i\C-asudo "'
 
 
