@@ -43,11 +43,8 @@ inoremap <expr> <CR> pumvisible() ? "\<c-y>\<cr>" : "\<CR>"
 autocmd! CompleteDone * if pumvisible() == 0 | pclose | endif
 
 " Pulls up Linux manual pages.
-nnoremap <Leader>M :<C-u>execute "Man " . expand("<cWORD>")<CR>
-nnoremap <Leader>:M :execute "let a = ' '"<CR>:Man<C-r>=a<CR>
-
-" Opens the command-line with ':help ' already populated.
-nnoremap <Leader>:K :execute "let a = ' '"<CR>:help<C-r>=a<CR>
+nnoremap M :<C-u>execute "Man " . expand("<cWORD>")<CR>
+nnoremap <Leader>m :execute "let a = ' '"<CR>:Man<C-r>=a<CR>
 
 " Shift line in insert mode.
 inoremap <M-<> <C-o><<
@@ -327,7 +324,7 @@ nnoremap <silent> <Leader>ta :<C-u>AT<CR>
 " nnoremap <silent> <Leader>sr :<C-u>execute 'split ' . <SID>MostRecentlyModifiedFile()<CR>
 
 
-" Letter Case Toggle. {{{1
+Letter Case Toggle. {{{1
 function! s:InsertCaseToggle()
     if col('.') ==? col('$')-1
         execute 'normal! mmg~iw`mmm'
@@ -627,20 +624,37 @@ augroup custom_dispatch
     autocmd!
     autocmd BufReadPost quickfix nnoremap <buffer> R :Copen<CR>G
     autocmd QuickFixCmdPost * nnoremap <silent> <F5> :<C-u>call <SID>ShowQuickfix()<CR>
+    autocmd QuickFixCmdPost * nmap <silent> <F4> :call <SID>ToggleList("Quickfix List", 'C')<CR>
 augroup END
-
-" Triggers.
-nmap <silent> m<CR> :<C-u>write<BAR>Make!<CR>
-nmap <silent> M<CR> :<C-u>write<BAR>Make<CR>
-nnoremap d<CR> :<C-u>write<BAR>Dispatch!<CR>
-nnoremap c<CR> :<C-u>Console<CR>
-nnoremap f<CR> :<C-u>write<BAR>Start!<CR>
-nnoremap g<CR> :<C-u>write<BAR>Spawn!<CR>
-
-nmap <silent> yoQ :call <SID>ToggleList("Quickfix List", 'C')<CR>
 
 " Force the quickfix window to open whether Make is successful or not.
 setlocal errorformat+=%+G%.%#
+
+" Turn Tmux strategy off.
+let g:dispatch_no_tmux_dispatch = 1
+
+" Triggers.
+nnoremap <C-s>\     :<C-u>write<BAR>Make<CR>
+nnoremap <C-s><C-m> :<C-u>write<BAR>Make!<CR>
+nnoremap <C-s>m     :<C-u>execute "let a = ' '"<CR>:Make<C-r>=a<CR>
+nnoremap <C-s>n     :<C-u>execute "let a = ' '"<CR>:Make!<C-r>=a<CR>
+
+nnoremap <C-s><C-f> :<C-u>write<BAR>Dispatch<CR>
+nnoremap <C-s><C-d> :<C-u>write<BAR>Dispatch!<CR>
+nnoremap <C-s>;     :<C-u>execute "let a = ' '"<CR>:Dispatch<C-r>=a<CR>
+nnoremap <C-s>d     :<C-u>execute "let a = ' '"<CR>:Dispatch!<C-r>=a<CR>
+
+nnoremap <C-s>'     :<C-u>write<BAR>Start<CR>
+nnoremap <C-s><C-s> :<C-u>write<BAR>Start!<CR>
+nnoremap <C-s>s     :<C-u>execute "let a = ' '"<CR>:Start<C-r>=a<CR>
+nnoremap <C-s>t     :<C-u>execute "let a = ' '"<CR>:Start!<C-r>=a<CR>
+
+nnoremap <C-s><C-g> :<C-u>write<BAR>Spawn<CR>
+nnoremap <C-s><C-p> :<C-u>write<BAR>Spawn!<CR>
+nnoremap <C-s>g     :<C-u>execute "let a = ' '"<CR>:Spawn<C-r>=a<CR>
+nnoremap <C-s>p     :<C-u>execute "let a = ' '"<CR>:Spawn!<C-r>=a<CR>
+
+nnoremap <C-s>c     :<C-u>Console<CR>
 
 
 " vim-test {{{1
