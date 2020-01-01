@@ -6,4 +6,4 @@
 # should go in this file.
 #
 
-[[ -f ~/.bashrc ]] && \. ~/.bashrc
+[[ -f $HOME/.bashrc ]] && \. $HOME/.bashrc

@@ -96,7 +96,7 @@ builtin bind -m vi-command '"\C-xp": "i\C-x0ping -c 3 "'
 
 
 # Source ~/.bashrc
-builtin bind -x '"\C-_g": "source ~/.bashrc"'
+builtin bind -x '"\C-_g": "source $HOME/.bashrc"'
 builtin bind -m vi-insert '"\C-x\C-s": "\C-x0\C-_g\C-x1\C-x2\015"'
 builtin bind -m vi-command '"\C-x\C-s": "i\C-x0\C-_g\C-x1\C-x2\015"'
 

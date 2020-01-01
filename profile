@@ -6,7 +6,7 @@
 # file will be sourced.
 #
 
-[[ -f ~/.bashrc ]] && \. ~/.bashrc
+[[ -f $HOME/.bashrc ]] && \. $HOME/.bashrc
 
 # Set i3 default to Alacritty.
 export TERMINAL="$(which alacritty)"

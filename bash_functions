@@ -43,3 +43,11 @@ fs() {
     if du -b /dev/null > /dev/null 2>&1; then arg=-sbh; else arg=-sh; fi;
     if [[ -n "$@" ]]; then du $arg -- "$@"; else du $arg -- .[^.]* *; fi;
 }
+
+# fkill - kill process
+# Credit: https://github.com/atweiden/fzf-extras/blob/master/fzf-extras.sh
+fkill() {
+    local pid
+    pid="$(ps -ef | sed 1d | fzf -m | awk '{print $2}')" || return
+    kill -"${1:-9}" "$pid"
+}

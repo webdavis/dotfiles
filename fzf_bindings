@@ -1,12 +1,12 @@
 # vi: set filetype=sh:
 
 # The Fzf project hosted at https://github.com/junegunn/fzf/tree/master/shell.
-[ -f ~/.fzf.bash ] && source ~/.fzf.bash
+[ -f $HOME/.fzf.bash ] && source $HOME/.fzf.bash
 
-[[ -d ~/workspaces/tools/fzf/bin ]] && path_append "${HOME}/workspaces/tools/fzf/bin"
+[[ -d $HOME/workspaces/tools/fzf/bin ]] && path_append "${HOME}/workspaces/tools/fzf/bin"
 
 # Fzf must be installed either in the local user path or system-wide.
-if [[ -x ~/workspaces/tools/fzf/bin/fzf ]]; then
+if [[ -x $HOME/workspaces/tools/fzf/bin/fzf ]]; then
     fzf_rootpath="${HOME}/workspaces/tools/fzf"
 elif [[ -x '/usr/bin/fzf' ]]; then
     fzf_rootpath="/usr/share/fzf"
@@ -17,7 +17,7 @@ fi
 [[ -s "${fzf_rootpath}/shell/completion.bash" ]] && \. "${fzf_rootpath}/shell/completion.bash"
 [[ -s "${fzf_rootpath}/shell/key-bindings.bash" ]] && \. "${fzf_rootpath}/shell/key-bindings.bash"
 
-if [[ -x ~/workspaces/tools/ripgrep-0.10.0/target/release/rg ]]; then
+if [[ -x $HOME/workspaces/tools/ripgrep-0.10.0/target/release/rg ]]; then
     # FZF_DEFAULT_COMMAND='(rg --files --no-ignore --hidden --follow --glob "!.git/" 2>/dev/null)'
     FZF_DEFAULT_COMMAND='rg --files --no-ignore --hidden --follow --glob "!.git/" 2>/dev/null'
 elif [[ -x "/usr/bin/ag" ]]; then

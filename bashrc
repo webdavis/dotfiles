@@ -29,7 +29,7 @@ path_prepend "${HOME}/bin"
 
 
 # bashrc_local (Source host specific settings.) {{{1
-[[ -s ~/.bashrc_local ]] && \. ~/.bashrc_local
+[[ -s $HOME/.bashrc_local ]] && \. $HOME/.bashrc_local
 
 
 # Environment variables {{{1
@@ -180,7 +180,7 @@ export PS1
 
 
 # Git prompt {{{2
-if [[ -f ~/.bash-git-prompt/gitprompt.sh ]]; then
+if [[ -f $HOME/.bash-git-prompt/gitprompt.sh ]]; then
     PS1_BEGINNING="${reset}\${asciinema_status}[+\${SHLVL}\$(jobcount) \\u:${MachineColor}\\W${reset}]"
     GIT_PROMPT_ONLY_IN_REPO=1
     GIT_PROMPT_WITH_USERNAME_AND_REPO=1
@@ -194,7 +194,7 @@ if [[ -f ~/.bash-git-prompt/gitprompt.sh ]]; then
     GIT_PROMPT_END_USER="\n${ResetColor}$ "
     GIT_PROMPT_END_ROOT="\n${ResetColor}# "
     GIT_PROMPT_SHOW_CHANGED_FILES_COUNT=1
-    GIT_PROMPT_THEME_FILE=~/.git-prompt-colors.sh
+    GIT_PROMPT_THEME_FILE=$HOME/.git-prompt-colors.sh
 
     source $HOME/.bash-git-prompt/gitprompt.sh
 fi
@@ -210,23 +210,23 @@ trap 'echo -ne "\\033]0;"$(terminal_title)"\\007";' DEBUG
 
 
 # Sources {{{1
-[[ -s ~/.bash_functions   ]] && \. ~/.bash_functions   # Useful functions.
-[[ -s ~/.bash_bindings    ]] && \. ~/.bash_bindings    # Keyboard shortcuts.
-[[ -s ~/.bash_aliases     ]] && \. ~/.bash_aliases     # Command aliases.
-[[ -s ~/.bash_completions ]] && \. ~/.bash_completions # Command completion scripts.
-[[ -s ~/.fzf_bindings     ]] && \. ~/.fzf_bindings     # Powerful Fzf bindings.
-[[ -s ~/.docker_functions ]] && \. ~/.docker_functions # Functions that spin up docker machines.
+[[ -s $HOME/.bash_functions   ]] && \. $HOME/.bash_functions   # Useful functions.
+[[ -s $HOME/.bash_bindings    ]] && \. $HOME/.bash_bindings    # Keyboard shortcuts.
+[[ -s $HOME/.bash_aliases     ]] && \. $HOME/.bash_aliases     # Command aliases.
+[[ -s $HOME/.bash_completions ]] && \. $HOME/.bash_completions # Command completion scripts.
+[[ -s $HOME/.fzf_bindings     ]] && \. $HOME/.fzf_bindings     # Powerful Fzf bindings.
+[[ -s $HOME/.docker_functions ]] && \. $HOME/.docker_functions # Functions that spin up docker machines.
 
 # Add Google Cloud SDK to PATH.
-[[ -f ~/workspaces/tools/google-cloud-sdk/path.bash.inc ]] &&
-    \. ~/workspaces/tools/google-cloud-sdk/path.bash.inc
+[[ -f $HOME/workspaces/tools/google-cloud-sdk/path.bash.inc ]] &&
+    \. $HOME/workspaces/tools/google-cloud-sdk/path.bash.inc
 
 # `gcloud` autocompletion.
-[[ -f ~/workspaces/tools/google-cloud-sdk/completion.bash.inc ]] &&
-    \. ~/workspaces/tools/google-cloud-sdk/completion.bash.inc
+[[ -f $HOME/workspaces/tools/google-cloud-sdk/completion.bash.inc ]] &&
+    \. $HOME/workspaces/tools/google-cloud-sdk/completion.bash.inc
 
 # `heroku` autocomplete.
 HEROKU_AC_BASH_SETUP_PATH=/home/stephen/.cache/heroku/autocomplete/bash_setup &&
     test -f $HEROKU_AC_BASH_SETUP_PATH && source $HEROKU_AC_BASH_SETUP_PATH;
 
-[ -f ~/.fzf.bash ] && source ~/.fzf.bash
+[ -f $HOME/.fzf.bash ] && source ~/.fzf.bash
