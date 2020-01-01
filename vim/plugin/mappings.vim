@@ -74,16 +74,16 @@ nnoremap <silent> <M-PageUp> :execute 'silent! tabmove ' . (tabpagenr()-2)<CR>
 nnoremap <silent> <M-PageDown> :execute 'silent! tabmove ' . (tabpagenr()+1)<CR>
 
 " Pipe "diffsplit " to the command line.
-nnoremap <Leader>:ds :execute "let a = ' '"<CR>:diffsplit<C-r>=a<CR>
+nnoremap <Leader>;ds :execute "let a = ' '"<CR>:diffsplit<C-r>=a<CR>
 " Pipe "vert diffsplit " to the command line.
-nnoremap <Leader>:dv :execute "let a = ' '"<CR>:vert diffsplit<C-r>=a<CR>
+nnoremap <Leader>;dv :execute "let a = ' '"<CR>:vert diffsplit<C-r>=a<CR>
 
 " These change the working directory and print it out.
 nnoremap <Leader>cl :<C-u>lcd %:p:h<CR>:pwd<CR>
 nnoremap <Leader>cp :<C-u>cd %:p:h<CR>:pwd<CR>
-nnoremap <Leader>:cp :<C-u>execute "let a = expand('%:p:h')"<CR>:cd <C-r>=a<CR>
+nnoremap <Leader>;cp :<C-u>execute "let a = expand('%:p:h')"<CR>:cd <C-r>=a<CR>
 nnoremap <Leader>cr :<C-u>execute 'cd '.fnamemodify(resolve(expand("%:p")), ":h")<CR>:pwd<CR>
-nnoremap <Leader>:cr :<C-u>execute 'let a = fnamemodify(resolve(expand("%:p")), ":h")'<CR>:cd <C-r>=a<CR>
+nnoremap <Leader>;cr :<C-u>execute 'let a = fnamemodify(resolve(expand("%:p")), ":h")'<CR>:cd <C-r>=a<CR>
 
 " Makes a session file.
 nnoremap <Leader>S :<C-u>wall<BAR>execute "mksession! " . v:this_session<CR>
@@ -780,28 +780,32 @@ inoremap <expr> <M-l> fzf#vim#complete(fzf#wrap({
 
 " Fugitive commands {{{1
 nnoremap <C-g>b  :<C-u>Git branch -v<CR>
-nnoremap <C-g>c  :<C-u>Gcommit %<CR>
+nnoremap <C-g>cc :<C-u>Gcommit %<CR>
+nnoremap <C-g>ca :<C-u>Gcommit --amend %<CR>
 nnoremap <C-g>C  :<C-u>Git checkout master<CR>
-nnoremap <C-g>:C :<C-u>execute "let a = ' '"<CR>:Git checkout<C-r>=a<CR>
+nnoremap <C-g>;C :<C-u>execute "let a = ' '"<CR>:Git checkout<C-r>=a<CR>
 nnoremap <C-g>d  :<C-u>Gdiffsplit<CR>
-nnoremap <C-g>:d :<C-u>execute "let a = ' '"<CR>:Gdiffsplit<C-r>=a<CR>
+nnoremap <C-g>;d :<C-u>execute "let a = ' '"<CR>:Gdiffsplit<C-r>=a<CR>
 nnoremap <C-g>D  :<C-u>Gdiff master<CR>
 nnoremap <C-g>r  :<C-u>Gdelete %<CR>
-nnoremap <C-g>:r :<C-u>execute "let a = ' '"<CR>:Gdelete<C-r>=a<CR>
-nnoremap <C-g>:g :<C-u>execute "let a = ' '"<CR>:Git<C-r>=a<CR>
+nnoremap <C-g>;r :<C-u>execute "let a = ' '"<CR>:Gdelete<C-r>=a<CR>
+nnoremap <C-g>;g :<C-u>execute "let a = ' '"<CR>:Git<C-r>=a<CR>
 nnoremap <C-g>B  :<C-u>Gbrowse<CR>
 nnoremap <C-g>h  :<C-u>Git rev-parse --short origin/master<CR>
 nnoremap <C-g>l  :<C-u>0Glog<CR>
 nnoremap <C-g>L  :<C-u>Glog --<CR>
 nnoremap <C-g>v  :<C-u>GV<CR>
 nnoremap <C-g>V  :<C-u>GV!<CR>
-nnoremap <C-g>:m :<C-u>execute "let a = ' '"<CR>:Gmove<C-r>=a<CR>
+nnoremap <C-g>;m :<C-u>execute "let a = ' '"<CR>:Gmove<C-r>=a<CR>
 nnoremap <C-g>p  :<C-u>Gpush<CR>
-nnoremap <C-g>:p :<C-u>execute "let a = ' '"<CR>:Gpush<C-r>=a<CR>
+nnoremap <C-g>;p :<C-u>execute "let a = ' '"<CR>:Gpush<C-r>=a<CR>
 nnoremap <C-g>P  :<C-u>Gpush --set-upstream origin master<CR>
-nnoremap <C-g>:R :<C-u>execute "let a = ' '"<CR>:Grebase<C-r>=a<CR>
+nnoremap <C-g>;R :<C-u>execute "let a = ' '"<CR>:Grebase<C-r>=a<CR>
 nnoremap <C-g>s  :<C-u>Gstatus<CR>
 nnoremap <C-g>a  :<C-u>Gwrite<CR>
+
+" Remap original Ctrl-g mapping.
+nmap <C-g><G-g> <G-g>
 
 
 " vim-gdiff {{{2
