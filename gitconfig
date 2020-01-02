@@ -53,6 +53,8 @@
 
         pu = git push --set-upstream origin master
 
+        ts = git tag --list --sort=v:refname
+
 [commit]
 	gpgSign = true
 
