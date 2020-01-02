@@ -218,15 +218,12 @@ trap 'echo -ne "\\033]0;"$(terminal_title)"\\007";' DEBUG
 [[ -s $HOME/.docker_functions ]] && \. $HOME/.docker_functions # Functions that spin up docker machines.
 
 # Add Google Cloud SDK to PATH.
-[[ -f $HOME/workspaces/tools/google-cloud-sdk/path.bash.inc ]] &&
-    \. $HOME/workspaces/tools/google-cloud-sdk/path.bash.inc
+[[ -f $HOME/workspaces/tools/google-cloud-sdk/path.bash.inc ]] && \. $HOME/workspaces/tools/google-cloud-sdk/path.bash.inc
 
 # `gcloud` autocompletion.
-[[ -f $HOME/workspaces/tools/google-cloud-sdk/completion.bash.inc ]] &&
-    \. $HOME/workspaces/tools/google-cloud-sdk/completion.bash.inc
+[[ -f $HOME/workspaces/tools/google-cloud-sdk/completion.bash.inc ]] && \. $HOME/workspaces/tools/google-cloud-sdk/completion.bash.inc
 
 # `heroku` autocomplete.
-HEROKU_AC_BASH_SETUP_PATH=/home/stephen/.cache/heroku/autocomplete/bash_setup &&
-    test -f $HEROKU_AC_BASH_SETUP_PATH && source $HEROKU_AC_BASH_SETUP_PATH;
+HEROKU_AC_BASH_SETUP_PATH=/home/stephen/.cache/heroku/autocomplete/bash_setup && test -f $HEROKU_AC_BASH_SETUP_PATH && source $HEROKU_AC_BASH_SETUP_PATH;
 
 [ -f $HOME/.fzf.bash ] && source $HOME/.fzf.bash
