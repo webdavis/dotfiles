@@ -547,13 +547,6 @@ let g:projectionist_heuristics = {
         \           "start": "mvn verify"
         \       }
         \ },
-        \ "*.java": {
-        \       "*.java": {"dispatch": "java {basename}",
-        \           "make": "javac {file}",
-        \           "console": "jshell",
-        \           "start": "/bin/bash"
-        \       }
-        \ },
         \ "*.py": {
         \       "*.py": {"dispatch": "python {file}",
         \           "make": "python {file}",
