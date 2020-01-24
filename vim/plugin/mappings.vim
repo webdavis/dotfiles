@@ -42,10 +42,6 @@ inoremap <expr> <CR> pumvisible() ? "\<c-y>\<cr>" : "\<CR>"
 " Auto close preview window when completion is done.
 autocmd! CompleteDone * if pumvisible() == 0 | pclose | endif
 
-" Pulls up Linux manual pages.
-nnoremap M :<C-u>execute "Man " . expand("<cWORD>")<CR>
-nnoremap <Leader>m :execute "let a = ' '"<CR>:Man<C-r>=a<CR>
-
 " Shift line in insert mode.
 inoremap <M-<> <C-o><<
 inoremap <M->> <C-o>>>
@@ -669,6 +665,10 @@ nnoremap <silent> t<C-v> :TestVisit<CR>
 nmap <Leader>z <Plug>Zeavim
 xnoremap <Leader>z <Plug>ZVVisSelection
 nnoremap <Leader>Z <Plug>ZVKeyDocset
+
+nnoremap M :<C-u>execute "Man " . expand("<cWORD>")<CR>
+nnoremap <Leader>m :execute "let a = ' '"<CR>:Man<C-r>=a<CR>
+nnoremap <Leader>k :execute "let a = ' '"<CR>:help<C-r>=a<CR>
 
 
 " junegunn/fzf {{{1
