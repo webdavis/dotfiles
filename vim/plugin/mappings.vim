@@ -162,6 +162,21 @@ if has('mouse')
     nnoremap <silent> <Leader>M :<C-u>call <SID>MouseToggle()<CR>
 endif
 
+function! s:ToggleAutoSave() abort
+    if exists('#AutoSave#CursorHold')
+        echom 'Unset autosave'
+        augroup AutoSave
+            autocmd!
+        augroup END
+    else
+        echom 'Set autosave'
+        augroup AutoSave
+            autocmd!
+            autocmd CursorHold * silent! execute 'update'
+        augroup END
+    endif
+endfunction
+nnoremap yoz :<C-u>call <SID>ToggleAutoSave()<CR>
 
 " Visual-mode mappings {{{1
 
