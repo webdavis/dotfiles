@@ -498,21 +498,28 @@ nnoremap <silent> <Leader>X :<C-u>XBackground<CR>
 
 " Coc Commands {{{2
 
-" Show all Error, Warning, Info, and Hint diagnostics.
 nnoremap <silent> <M-d> :<C-u>CocList diagnostics<CR>
-
-" Show all Coc commands.
 nnoremap <silent> <M-c> :<C-u>CocList commands<CR>
-
-" Powerful project search.
 nnoremap <silent> <M-/> :<C-u>CocSearch <C-r><C-w><CR>
-" nnoremap <Leader>% :%s/\<<C-r><C-w>\>//g<Left><Left>
-
-" Fuzzy search workspace symbols.
 nnoremap <silent> <M-s> :<C-u>CocList --interactive symbols<CR>
-
-" Fuzzy search symbols in current file.
 nnoremap <silent> <M-o> :<C-u>CocList --auto-preview outline<CR>
+
+nmap <Leader>ca <Plug>(coc-codeaction)
+nmap <Leader>cs <Plug>(coc-codeaction-selected)
+xmap <Leader>ca <Plug>(coc-codeaction-selected)
+nmap <Leader>gi :<C-u>CocList gitignore<CR>
+nmap <Leader>re <Plug>(coc-refactor)
+nmap <M-a> <Plug>(coc-codelens-action)
+nmap <M-f> <Plug>(coc-fix-current)
+nmap <M-O> <Plug>(coc-openlink)
+nmap <M-q> :<C-u>call CocAction('format')<CR>
+xmap <M-q> <Plug>(coc-format-selected)
+nmap <M-r> <Plug>(coc-rename)
+nmap <M-y> :<C-u>CocList -A yank<CR>
+nmap <silent> ]g <Plug>(coc-diagnostic-next)
+nmap <silent> [g <Plug>(coc-diagnostic-prev)
+nnoremap <M-g> :<C-u>:CocListResume<CR>
+nnoremap <M-t> :<C-u>execute 'CocCommand terminal.Toggle'<CR>
 
 " Multicursors. {{{2
 function! s:SelectCurrentWord()
@@ -523,44 +530,10 @@ function! s:SelectCurrentWord()
 endfunction
 nmap <expr> <silent> <M-w> <SID>SelectCurrentWord()
 nmap        <silent> <M-W> <Plug>(coc-cursors-word)
-
 nmap <silent> <M-m> <Plug>(coc-cursors-position)
 xmap <silent> <M-m> <Plug>(coc-cursors-range)
-
-
-" Format code in file.
-nmap <M-q> :<C-u>call CocAction('format')<CR>
-xmap <M-q> <Plug>(coc-format-selected)
-
-" Do codeAction on selected region.
-xmap <M-a> <Plug>(coc-codeaction-selected)
-nmap <M-a> <Plug>(coc-codeaction-selected)
-" Do codeAction on current line.
-nmap <Leader>ca <Plug>(coc-codeaction)
-nmap <M-A> <Plug>(coc-codelens-action)
-nmap <M-R> <Plug>(coc-refactor)
-
-" Use `[g` and `]g` to navigate diagnostics.
-nmap <silent> [g <Plug>(coc-diagnostic-prev)
-nmap <silent> ]g <Plug>(coc-diagnostic-next)
-
-" Object based rename.
-nmap <M-r> <Plug>(coc-rename)
-
-" Fix problem of current line.
-nmap <M-f> <Plug>(coc-fix-current)
-
-" Open yank list.
-nmap <M-y> :<C-u>CocList -A yank<CR>
-
-" Open gitignore list.
-nmap <Leader>gi :<C-u>CocList gitignore<CR>
 " }}}
 
-nnoremap <M-g> :<C-u>:CocListResume<CR>
-
-" coc-terminal: toggles the terminal.
-nnoremap <M-t> :<C-u>execute 'CocCommand terminal.Toggle'<CR>
 
 " Trigger completion.
 inoremap <silent><expr> <C-space> coc#refresh()
