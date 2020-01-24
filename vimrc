@@ -292,9 +292,8 @@ call plug#begin('~/.vim/plugged')
     Plug 'janko/vim-test'                                  " Provides strategies for program execution.
     Plug 'w0rp/ale'                                        " Enables an asynchronous linting engine.
     Plug 'mhinz/vim-grepper'                               " Provides help with Vim's grep, and adds support for most grep-like tools.
-    " Plug 'lervag/vimtex'                                   " Provides enhanced LaTeX features like continuous mode for auto compile.
+    Plug 'lervag/vimtex'                                   " Provides enhanced LaTeX features like continuous mode for auto compile.
     Plug 'lfilho/cosco.vim'                                " Vim colon and semicolon insertion bliss.
-    Plug 'othree/xml.vim'                                  " Adds some useful stuff for editing .xml files.
     Plug 'godlygeek/tabular'                               " Required by plasticboy/vim-markdown.
     Plug 'plasticboy/vim-markdown', { 'for': 'markdown'}   " Tabular provides a mapping to align text. vim-markdown provides better markdown editing.
     Plug 'iamcco/markdown-preview.nvim', { 'do': { -> mkdp#util#install() } } " Markdown live preview.
@@ -313,6 +312,7 @@ call plug#begin('~/.vim/plugged')
     if has('nvim') | Plug 'neoclide/coc.nvim', {'do': 'yarn install --frozen-lockfile'} | endif
     Plug 'ludovicchabant/vim-gutentags' | Plug 'skywind3000/gutentags_plus' " Automated tag generation and syntax highlighting in Vim.
     Plug 'majutsushi/tagbar'                               " Provides ctags and psuedo tags for code.
+    Plug 'othree/xml.vim'                                  " Adds some useful stuff for editing .xml files.
 call plug#end()
 if !has('nvim') | runtime macros/matchit.vim | endif       " Provides mapping for jumping between enclosure characters (builtin to Neovim).
 
@@ -585,6 +585,14 @@ let g:zv_file_types = {
 	\ 'tex': 'latex',
 	\ 'py': 'python_3',
 	\ }
+
+
+" lervag/vimtex {{{2
+let g:vimtex_view_automatic = 0
+augroup vimrc_vimtext_autocompile
+    autocmd!
+    autocmd BufWrite tex VimtexCompile
+augroup END
 
 
 " vi:fdm=marker fdl=0 tw=90 sw=4 ts=4 sts=4:
