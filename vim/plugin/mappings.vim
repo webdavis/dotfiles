@@ -825,6 +825,12 @@ autocmd FileType * nmap <silent> g; <Plug>(cosco-commaOrSemiColon)
 autocmd FileType * imap <silent> <C-x>; <c-o><Plug>(cosco-commaOrSemiColon)
 
 
+" lervag/vimtex {{{1
+" Overwrites default mapping at <F7>.
+nmap <LocalLeader>c <Plug>(vimtex-cmd-create)
+imap <C-x>c <Plug>(vimtex-cmd-create)
+
+
 " TODO: plugin that prompts you to forcefully quit or save and quit. {{{1
 function! s:CloseWindow()
     let l:close = winnr('$') >? 1 ? 'close' : 'quit'
