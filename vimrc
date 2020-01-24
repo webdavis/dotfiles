@@ -201,7 +201,7 @@ if &t_Co > 1 || has('gui_running')
 endif
 
 " Add support for Git to the statusline.
-set statusline=\ %{fugitive#statusline()}\ %<%f\ \ \|\sw=%{&sw}\ ts=%{&ts}%h%m%r%=%-2.(%l,%c%V%)\ \|\ %P\
+set statusline=\ %{fugitive#statusline()}\ %<%f\ \ \|\ft=%{&ft}\ sw=%{&sw}\ ts=%{&ts}%h%m%r%=%-2.(%l,%c%V%)\ \|\ %P\
 
 " Autocommands {{{1
 
