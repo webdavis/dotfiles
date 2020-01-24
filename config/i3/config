@@ -28,6 +28,7 @@ bindsym $super+p [class="KeePassXC" instance="keepassxc"] focus
 bindsym $super+t [class="Alacritty" instance="Alacritty"] focus
 
 # Sets some scratchpads for quick toggling.
+bindsym F7 exec --no-startup-id "scratchpad.bash -p 'riot-desktop' -i 'riot' -t 'Riot' -w 'browser-window'"
 bindsym F8 exec --no-startup-id "scratchpad.bash -p 'signal-desktop' -i 'signal' -t 'Signal' -w 'browser-window'"
 bindsym F9 exec --no-startup-id "scratchpad.bash -p 'chromium --new-window http://twmilli.github.io/pomodoro/' -w 'browser' -t 'Pomodoro Timer'"
 bindsym F10 exec --no-startup-id "scratchpad.bash -p 'chromium --new-window https://calendar.google.com/calendar/r' -w 'browser' -t 'Google Calendar'"
