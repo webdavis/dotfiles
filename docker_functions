@@ -8,7 +8,7 @@ export DOCKER_REPO_PREFIX='webdavis'
 
 
 grip() {
-    docker run -ti --rm \
+    sudo docker run -ti --rm \
         -v $HOME/.grip:/root/.grip:ro \
         -v ${PWD}:/root \
         -p 6419:6419 \
