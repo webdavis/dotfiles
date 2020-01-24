@@ -116,12 +116,10 @@ nnoremap <Leader>? /\(^\s*\)\@<!\s\s\w<CR>
 
 " Print the highlight group of the word under the cursor.
 function! s:SynStack() abort
-    if !exists("*synstack")
-        return
-    endif
+    if !exists("*synstack") | return | endif
     echo map(synstack(line('.'), col('.')), 'synIDattr(v:val, "name")')
 endfunction
-nnoremap <special> <F7> :<C-u>call <SID>SynStack()<CR>
+nnoremap <special> <Leader>sy :<C-u>call <SID>SynStack()<CR>
 
 " Sources vimrc and resets Vim.
 " Credit: tpope
