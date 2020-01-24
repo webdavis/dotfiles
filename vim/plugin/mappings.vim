@@ -256,6 +256,7 @@ nnoremap <Leader>PP "+P^
 
 " Copy to end of line.
 nnoremap Y yg_
+nnoremap gY "+yg_
 
 " Copy entire buffer to Vim register.
 nnoremap <Leader>ya mmggyG`mmm
