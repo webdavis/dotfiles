@@ -144,7 +144,7 @@ jobcount() {
     local processes
     processes="$(jobs -p | wc -l | tr -d 0)"
     if [[ $processes =~ [1-9] ]]; then
-	printf "%s\\n" "${reset}:${lightyellow}${processes}${reset}"
+	printf "%s\\n" "${reset}:${lightred}${processes}${reset}"
     fi
 }
 
