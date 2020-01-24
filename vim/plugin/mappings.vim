@@ -821,7 +821,7 @@ endif
 
 
 " cosco {{{1
-autocmd FileType * nmap <silent> <Leader>; <Plug>(cosco-commaOrSemiColon)
+autocmd FileType * nmap <silent> g; <Plug>(cosco-commaOrSemiColon)
 autocmd FileType * imap <silent> <C-x>; <c-o><Plug>(cosco-commaOrSemiColon)
 
 
