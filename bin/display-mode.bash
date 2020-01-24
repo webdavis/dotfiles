@@ -46,20 +46,20 @@ To select the display mode with Rofi, run the following command
 (Hint: bind this so an i3 keyboard shortcut.)"
 }
 
-declare -a launcher_options=("Mobile (eDP-1-1)" \
-			     "Mobile Plus (eDP-1-1, DP-3)" \
+declare -a launcher_options=("Mobile (eDP1)" \
+			     "Mobile Plus (eDP1, DP-3)" \
 			     "Docked (DP-2, DP-0.1)" \
-			     "Docked Mobile (DP-2, DP-0.1, eDP-1-1)")
+			     "Docked Mobile (DP-2, DP-0.1, eDP1)")
 launcher=""
 xrandrcommand="Mobile (eDP-1-1)"
 optstring=':x:smMdDh'
 while getopts "$optstring" option; do
     case "$option" in
 	x ) launcher="$OPTARG" ;;
-	m ) xrandrcommand='Mobile (eDP-1-1)' ;;
-	M ) xrandrcommand='Mobile Plus (eDP-1-1, DP-3)' ;;
+	m ) xrandrcommand='Mobile (eDP1)' ;;
+	M ) xrandrcommand='Mobile Plus (eDP1, DP-3)' ;;
 	d ) xrandrcommand='Docked (DP-2, DP-0.1)' ;;
-	D ) xrandrcommand='Docked Mobile (DP-2, DP-0.1, eDP-1-1)' ;;
+	D ) xrandrcommand='Docked Mobile (DP-2, DP-0.1, eDP1)' ;;
 	h ) help_message; exit 0 ;;
 	* ) help_message; exit 1 ;;
     esac
@@ -78,7 +78,7 @@ keyboard_map() {
 #
 #   Workspaces: All
 #   +------------------+
-#   | Primary eDP-1-1  |
+#   | Primary eDP1  |
 #   | 3840x2160 60Hz   |
 #   | ThinkPad P51 15" |
 #   +------------------+
@@ -89,7 +89,7 @@ keyboard_map() {
 #
 #   Workspaces: n=2k+1   Workspaces: n=2k
 #   +------------------+ +------------------+
-#   | Primary eDP-1-1  | | DP-3             |
+#   | Primary eDP1  | | DP-3             |
 #   | 3840x2160 60Hz   | | 1920x1080 60Hz   |
 #   | ThinkPad P51 15" | | GeChic 15"       |
 #   +------------------+ +------------------+
@@ -124,7 +124,7 @@ keyboard_map() {
 #                        |                                |
 #   Workspaces: None     |      DP-0.1                    |
 #   +------------------+ |      3840x2160 60Hz            |
-#   | eDP-1-1          | |      ASUS PA32Q 32" 4K/UHD     |
+#   | eDP1          | |      ASUS PA32Q 32" 4K/UHD     |
 #   | ThinkPad P51 15" | |                                |
 #   +------------------+ +----- key=${OP}-----------------+
 #                        Workspaces: n=2k+1
@@ -159,8 +159,8 @@ fi
 # ASUS PA32Q 32" + LG 38&C99-W 38" (Docked)
 # ASUS PA32Q 32" + LG 38&C99-W 38" + ThinkPad P51 15" (Docked Mobile)
 # The sleep command is necessary to give the monitors time to connect when docking.
-if [[ $xrandrcommand == 'Mobile (eDP-1-1)' ]]; then
-    xrandr --output 'eDP-1-1' --auto --mode 2560x1440 --rotate normal \
+if [[ $xrandrcommand == 'Mobile (eDP1)' ]]; then
+    xrandr --output 'eDP1' --auto --mode 2560x1440 --rotate normal \
 	--output 'DP-0.1' --off \
 	--output 'DP-5' --off \
 	--output 'DP-4' --off \
@@ -168,19 +168,19 @@ if [[ $xrandrcommand == 'Mobile (eDP-1-1)' ]]; then
 	--output 'DP-2' --off \
 	--output 'DP-1' --off \
 	--output 'DP-1' --off
-elif [[ $xrandrcommand == 'Mobile Plus (eDP-1-1, DP-3)' ]]; then
-    xrandr --output 'eDP-1-1' --auto --primary --mode 2560x1440 --rotate normal \
+elif [[ $xrandrcommand == 'Mobile Plus (eDP1, DP-3)' ]]; then
+    xrandr --output 'eDP1' --auto --primary --mode 2560x1440 --rotate normal \
 	--output 'DP-0.1' --off \
 	--output 'DP-5' --off \
 	--output 'DP-4' --off \
-	--output 'DP-3' --auto --mode 1920x1080 --rate '60.00' --right-of 'eDP-1-1' --rotate normal \
+	--output 'DP-3' --auto --mode 1920x1080 --rate '60.00' --right-of 'eDP1' --rotate normal \
 	--output 'DP-2' --off \
 	--output 'DP-1' --off \
 	--output 'DP-0' --off
     keyboard_map
-    arrange_workspaces 'eDP-1-1' 'DP-3'
+    arrange_workspaces 'eDP1' 'DP-3'
 elif [[ $xrandrcommand == 'Docked (DP-2, DP-0.1)' ]]; then
-    xrandr --output 'eDP-1-1' --off \
+    xrandr --output 'eDP1' --off \
 	--output 'DP-0.1' --auto --mode 3840x2160 --rate '60.00' --rotate normal \
 	--output 'DP-5' --off \
 	--output 'DP-4' --off \
@@ -191,8 +191,8 @@ elif [[ $xrandrcommand == 'Docked (DP-2, DP-0.1)' ]]; then
     sleep 2
     keyboard_map
     arrange_workspaces 'DP-2' 'DP-0.1'
-elif [[ $xrandrcommand == 'Docked Mobile (DP-2, DP-0.1, eDP-1-1)' ]]; then
-    xrandr --output 'eDP-1-1' --auto --mode 2560x1440 --left-of 'DP-0.1' --rotate normal \
+elif [[ $xrandrcommand == 'Docked Mobile (DP-2, DP-0.1, eDP1)' ]]; then
+    xrandr --output 'eDP1' --auto --mode 2560x1440 --left-of 'DP-0.1' --rotate normal \
 	--output 'DP-0.1' --auto --mode 3840x2160 --above 'DP-2' --rate '60.00' --rotate normal \
 	--output 'DP-5' --off \
 	--output 'DP-4' --off \
