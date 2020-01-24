@@ -226,4 +226,4 @@ trap 'echo -ne "\\033]0;"$(terminal_title)"\\007";' DEBUG
 # `heroku` autocomplete.
 HEROKU_AC_BASH_SETUP_PATH=/home/stephen/.cache/heroku/autocomplete/bash_setup && test -f $HEROKU_AC_BASH_SETUP_PATH && source $HEROKU_AC_BASH_SETUP_PATH;
 
-[ -f $HOME/.fzf.bash ] && source $HOME/.fzf.bash
+[ -f ~/.fzf.bash ] && source ~/.fzf.bash
