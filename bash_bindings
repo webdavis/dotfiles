@@ -232,39 +232,45 @@ builtin bind -m vi-command '"\C-glo": "i\C-x0\C-_u\C-x1\C-x2\015"'
 
 
 # git diff
-builtin bind -x '"\C-_u": "git diff-index --quiet HEAD -- || clear; git --no-pager diff --patch-with-stat"'
-builtin bind -m vi-insert '"\C-gd": "\C-x0\C-_u\C-x1\C-x2\015"'
-builtin bind -m vi-command '"\C-gd": "i\C-x0\C-_u\C-x1\C-x2\015"'
+builtin bind -x '"\C-_v": "git diff-index --quiet HEAD -- || clear; git --no-pager diff --patch-with-stat"'
+builtin bind -m vi-insert '"\C-gd": "\C-x0\C-_v\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\C-gd": "i\C-x0\C-_v\C-x1\C-x2\015"'
 
 
 # git checkout master
-builtin bind -x '"\C-_v": "git checkout master"'
-builtin bind -m vi-insert '"\C-gC": "\C-x0\C-_v\C-x1\C-x2\015"'
-builtin bind -m vi-command '"\C-gC": "i\C-x0\C-_v\C-x1\C-x2\015"'
+builtin bind -x '"\C-_w": "git checkout master"'
+builtin bind -m vi-insert '"\C-gC": "\C-x0\C-_w\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\C-gC": "i\C-x0\C-_w\C-x1\C-x2\015"'
 
 
 # git commit
-builtin bind -x '"\C-_w": "git commit"'
-builtin bind -m vi-insert '"\C-gc": "\C-x0\C-_w\C-x1\C-x2\015"'
-builtin bind -m vi-command '"\C-gc": "i\C-x0\C-_w\C-x1\C-x2\015"'
+builtin bind -x '"\C-_x": "git commit"'
+builtin bind -m vi-insert '"\C-gc": "\C-x0\C-_x\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\C-gc": "i\C-x0\C-_x\C-x1\C-x2\015"'
 
 
 # git init && hub create
-builtin bind -x '"\C-_x": "git init && git create"'
-builtin bind -m vi-insert '"\C-gh": "\C-x0\C-_x\C-x1\C-x2\015"'
-builtin bind -m vi-command '"\C-gh": "i\C-x0\C-_x\C-x1\C-x2\015"'
+builtin bind -x '"\C-_y": "git init && git create"'
+builtin bind -m vi-insert '"\C-gh": "\C-x0\C-_y\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\C-gh": "i\C-x0\C-_y\C-x1\C-x2\015"'
 
 
-builtin bind -x '"\C-_y": "git push"'
-builtin bind -m vi-insert '"\C-gp": "\C-x0\C-_y\C-x1\C-x2\015"'
-builtin bind -m vi-command '"\C-gp": "i\C-x0\C-_y\C-x1\C-x2\015"'
+builtin bind -x '"\C-_z": "git push"'
+builtin bind -m vi-insert '"\C-gp": "\C-x0\C-_z\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\C-gp": "i\C-x0\C-_z\C-x1\C-x2\015"'
 
 
-builtin bind -x '"\C-_z": "hub browse"'
-builtin bind -m vi-insert '"\C-gb": "\C-x0\C-_z\C-x1\C-x2\015"'
-builtin bind -m vi-command '"\C-gb": "i\C-x0\C-_z\C-x1\C-x2\015"'
+builtin bind -x '"\C-_A": "hub browse"'
+builtin bind -m vi-insert '"\C-gb": "\C-x0\C-_A\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\C-gb": "i\C-x0\C-_A\C-x1\C-x2\015"'
 
 
-builtin bind -x '"\C-_A": "git tag --list --sort=v:refname"'
-builtin bind -m vi-insert '"\C-glt": "\C-x0\C-_A\C-x1\C-x2\015"'
-builtin bind -m vi-command '"\C-glt": "i\C-x0\C-_A\C-x1\C-x2\015"'
+builtin bind -x '"\C-_B": "git tag --list --sort=v:refname"'
+builtin bind -m vi-insert '"\C-gtl": "\C-x0\C-_B\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\C-gtl": "i\C-x0\C-_B\C-x1\C-x2\015"'
+
+
+# nvm use default
+builtin bind -x '"\C-_C": "nvm use default"'
+builtin bind -m vi-insert '"\C-xnu": "\C-x0\C-_C\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\C-xnu": "i\C-x0\C-_C\C-x1\C-x2\015"'
