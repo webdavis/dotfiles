@@ -831,12 +831,17 @@ nmap <LocalLeader>c <Plug>(vimtex-cmd-create)
 imap <C-x>c <Plug>(vimtex-cmd-create)
 
 
+" heavenshell/vim-pydocstring {{{1
+nmap <silent> <LocalLeader>ds <Plug>(pydocstring)
+
+
 " TODO: plugin that prompts you to forcefully quit or save and quit. {{{1
 function! s:CloseWindow()
     let l:close = winnr('$') >? 1 ? 'close' : 'quit'
     execute l:close
 endfunction
 nnoremap <silent> <C-q> :<C-u>call <SID>CloseWindow()<CR>
+
 
 " TODO: plugin that prompts you for save type based on file owner/permissions.
 " Save the buffer.
