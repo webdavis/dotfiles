@@ -121,7 +121,7 @@ signal=10
 
 # Date Time indicator.
 [time]
-command=date '+%e %b    %H:%M:%S    %Z'
+command=date '+%e %b %a    %H:%M:%S    %Z'
 border=#0087ff
 interval=1
 
