@@ -148,6 +148,21 @@ endfunction
 nnoremap <Leader>tg :<C-u>call <SID>GrepUnderCursor(expand("<cword>"))<CR>
 
 
+if has('mouse')
+    function! s:MouseToggle()
+        if &mouse ==? ''
+            execute 'set mouse=ar'
+            echom 'Mouse on'
+        else
+            execute 'set mouse='
+            echom 'Mouse off'
+        endif
+    endfunction
+
+    nnoremap <silent> <Leader>M :<C-u>call <SID>MouseToggle()<CR>
+endif
+
+
 " Visual-mode mappings {{{1
 
 " Sort visually selected lines. {{{2
