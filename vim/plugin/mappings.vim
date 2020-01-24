@@ -540,6 +540,7 @@ inoremap <silent><expr> <C-space> coc#refresh()
 
 " Remap keys for gotos.
 nmap <silent> <Leader>jd <Plug>(coc-definition)
+nmap <silent> <Leader>jD <Plug>(coc-declaration)
 nmap <silent> <Leader>jt <Plug>(coc-type-definition)
 nmap <silent> <Leader>ji <Plug>(coc-implementation)
 nmap <silent> <Leader>jr <Plug>(coc-references)
