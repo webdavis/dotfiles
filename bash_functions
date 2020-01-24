@@ -22,7 +22,7 @@ open_last_committed_files() {
 }
 
 
-mkd() {
+mcd() {
     [[ $# -gt 1 || -d $1 ]] && return 1
     mkdir -p "$@"
     cd -- "$@"
