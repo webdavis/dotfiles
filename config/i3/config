@@ -65,8 +65,8 @@ bindsym $super+d exec "rofi -show drun -modi 'drun#run'"
 bindsym $super+c exec --no-startup-id "rofi -show calc -modi 'calc' -no-show-match -no-sort -eh 2 -no-fixed-num-lines -calc-command 'echo {result} | xclip'"
 
 # Launch browsers.
-bindsym Control+$alt+f exec "firefox-developer-edition"
-bindsym Control+$alt+c exec "chromium"
+bindsym $super+$alt+f exec "firefox-developer-edition"
+bindsym $super+$alt+c exec "chromium"
 
 # Shows all open windows in Rofi.
 bindsym $super+semicolon exec "rofi -show window"
