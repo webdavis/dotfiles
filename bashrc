@@ -45,7 +45,7 @@ export HISTSIZE=-1
 export HISTTIMEFORMAT='%F %T %z '
 export LANG='en_US.UTF-8'
 export LC_ALL='en_US.UTF-8'
-export MANPAGER="$(which nvim) -c 'set ft=man' -"
+export MANPAGER="nvim +Man!"
 export TERM=screen-256color
 export TERMINAL="$(which alacritty)"
 export IGNOREOF=1
