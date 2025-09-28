@@ -1,0 +1,2 @@
+# Ensure Bash secret files can never be committed no matter what.
+*bash_secret*
