@@ -156,50 +156,6 @@ builtin bind -m vi-command '"\C-x\C-s": "i\C-x0\C-_g\C-x1\C-x2\b"'
 #builtin bind -m vi-insert '"\M-Y": "\C-x0\C-_h\C-x1\C-x2\b"'
 #builtin bind -m vi-command '"\M-Y": "i\C-x0\C-_h\C-x1\C-x2\b"'
 
-# Switch colorscheme {{{1
-#__rotate_alacritty_colorscheme() {
-#  if grep --quiet --no-message "colors: \*sonokai" ~/.config/alacritty/alacritty.yml; then
-#    sed -i "s/colors: \*sonokai/colors: \*edge_light/g" ~/.config/alacritty/alacritty.yml
-#    if [[ -n "$TMUX" ]]; then
-#      tmux set-option -g status "on"
-#      tmux set-option -g status-fg "colour240"
-#      tmux set-option -g status-bg "colour254"
-#      tmux set-option -g display-panes-colour "colour240"
-#      tmux set-option -g display-panes-active-colour "colour68"
-#      tmux set-option -g message-style bg="colour217",fg="colour238"
-#      tmux set-option -g status-justify "left"
-#      tmux set-option -g status-left "#[fg=colour240,bg=colour254]{#{pid}} [#S] #[fg=colour26,bg=colour254,bold]#P:#{pane_current_command} "
-#      tmux set-option -g status-left-length "100"
-#      tmux set-option -g status-right "#{prefix_highlight}"
-#      tmux set-option -g status-right-length "100"
-#      tmux set-window-option -g window-status-separator ""
-#      tmux set-window-option -g window-status-format "#[fg=colour232,bg=colour254] #I:#W #F "
-#      tmux set-window-option -g window-status-current-format "#[fg=colour255,bg=colour68,bold] #I:#W #F "
-#    fi
-#  else
-#    sed -i "s/colors: \*edge_light/colors: \*sonokai/g" ~/.config/alacritty/alacritty.yml
-#    if [[ -n "$TMUX" ]]; then
-#      tmux set-option -g status "on"
-#      tmux set-option -g status-fg "#e2e2e3"
-#      tmux set-option -g status-bg "#363944"
-#      tmux set-option -g display-panes-colour "#e2e2e3"
-#      tmux set-option -g display-panes-active-colour "#a7df78"
-#      tmux set-option -g message-style bg="#ff6077",fg="#2c2e34"
-#      tmux set-option -g status-justify "left"
-#      tmux set-option -g status-left "#[fg=#e2e2e3,bg=#363944]{#{pid}} [#S] #[fg=#a7df78,bg=#363944,bold]#P:#{pane_current_command} "
-#      tmux set-option -g status-left-length "100"
-#      tmux set-option -g status-right "#{prefix_highlight}"
-#      tmux set-option -g status-right-length "100"
-#      tmux set-window-option -g window-status-separator ""
-#      tmux set-window-option -g window-status-format "#[fg=#e2e2e3,bg=#363944] #I:#W #F "
-#      tmux set-window-option -g window-status-current-format "#[fg=#2c2e34,bg=#a7df78,bold] #I:#W #F "
-#    fi
-#  fi
-#}
-#builtin bind -x '"\C-_i": __rotate_alacritty_colorscheme'
-#builtin bind -m vi-insert '"\M-\\": "\C-x0\C-_i\C-x1\C-x2\b"'
-#builtin bind -m vi-command '"\M-\\": "i\C-x0\C-_i\C-x1\C-x2\b"'
-
 # Go-to bindings {{{1
 builtin bind -x '"\C-_h": "cd ${HOME}/.config"'
 builtin bind -m vi-insert '"\M-dc": "\C-x0\C-_h\C-x1\C-x2\015"'
