@@ -12,10 +12,17 @@
 # Exit immediately if a command fails.
 set -e
 
+# Settings:
 TMUXINATOR_PRESETS_DIR="${HOME}/.config/tmuxinator"
 TMUX_RESURRECT_DIR="${HOME}/.tmux/resurrect"
 TMUX_RESURRECT_LAST_FILE="${TMUX_RESURRECT_DIR}/last"
 TMUX_RESURRECT_DATA_FILES="${TMUX_RESURRECT_DIR}/tmux-resurrect*"
+
+# Print colors:
+export GREEN="\033[0;32m"
+export CYAN="\033[0;36m"
+export RED="\033[0;31m"
+export RESET="\033[0m"
 
 help_message() {
   local bold normal
@@ -121,7 +128,7 @@ if_no_flags_activate_all() {
 kill_tmux_sessions() {
   # Description: Kills all existing Tmux sessions.
 
-  echo "Killing all existing tmux sessions..."
+  echo -e "${RED}Killing all existing tmux sessions...${RESET}"
 
   local session
 
@@ -134,7 +141,7 @@ purge_tmux_resurrect_data() {
   # Description: Deletes Tmux session data tracked by tmux_resurrect.
   # Ref: https://github.com/tmux-plugins/tmux-resurrect
 
-  echo "Purging all tmux-resurrect data..."
+  echo -e "${RED}Purging all tmux-resurrect data...${RESET}"
   rm -f "$TMUX_RESURRECT_LAST_FILE"
   rm -f "$TMUX_RESURRECT_DATA_FILES"
 }
@@ -146,16 +153,12 @@ launch_tmux_session() {
   local project="$1"
   local file="$2"
 
-  echo -en "\nStarting ${project}..." >&2
+  echo -en "\n${CYAN}Starting ${project}...${RESET}"
+  # echo -en "Starting ${project}..."
 
-  tmuxinator start "$project" --config "$file" --no-attach &
-
-  if [[ $? -eq 0 ]]; then
-    echo " Done."
+  if tmuxinator start "$project" --config "$file" --no-attach; then
+    echo -e "${GREEN} Done.${RESET}"
   fi
-
-  # Optional: Wait for all sessions to finish launching.
-  wait
 }
 
 get_tmuxinator_projects() {
@@ -177,11 +180,9 @@ get_tmuxinator_projects() {
 launch_all_tmux_sessions() {
   # Description: Iterates over all Tmuxinator preset files and launches each session.
 
-  local project file
-
-  while IFS=':' read -r project file; do
-    launch_tmux_session "$project" "$file"
-  done < <(get_tmuxinator_projects)
+  # Export the function for parallel.
+  export -f launch_tmux_session
+  get_tmuxinator_projects | parallel --colsep ':' --group launch_tmux_session '{1}' '{2}'
 }
 
 perform_actions() {
