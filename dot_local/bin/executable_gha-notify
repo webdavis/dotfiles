@@ -1,0 +1,108 @@
+#!/usr/bin/env bash
+
+# Exit immediately if a command fails.
+set -e
+
+script_name="${BASH_SOURCE[0]##*/}"
+
+bold=$(tput bold)
+normal=$(tput sgr0)
+
+help_message() {
+    printf "%s\\n" "\
+
+${bold}DESCRIPTION${normal}
+   This script generates a Banner/Alert on your macOS machine whenever your most recent GitHub
+   Actions Workflow completes.
+
+${bold}USAGE${normal}
+   ${script_name} [-be]
+
+${bold}OPTIONS${normal}
+   -b   Displays the branch name of the most recent workflow (e.g. main: Success)
+   -e   Replaces the 'Success' or 'Failure' status with an emoji.
+   -h   Prints this help text.
+
+${bold}EXAMPLES${normal}
+   $ gha-notify
+   $ gha-notify -b
+   $ gha-notify -e
+   $ gha-notify -be"
+}
+
+use_emoji='false'
+show_branch='false'
+optstring=':beh'
+while getopts "$optstring" option; do
+  case "$option" in
+    b ) show_branch='true' ;;
+    e ) use_emoji='true' ;;
+    h ) help_message; exit 0 ;;
+    * ) echo "Error: invalid option '$OPTARG'"; exit 1 ;;
+  esac
+done
+unset -v option
+
+# Check if GitHub CLI has been installed.
+if [[ ! -x "$(builtin command -v gh)" ]]; then
+  printf "%s\n\n" "\
+Error: cannot find GitHub's CLI tool on this system
+
+To install it, follow the instructions at https://cli.github.com/
+
+Alternatively, you can install it using Homebrew:
+
+    $ brew install gh" 2>&1
+
+  exit 1
+fi
+
+# Check if in Git project.
+if ! git status --short &>/dev/null; then
+  printf "%s\n\n" "\
+Oops! It looks like you aren't in a git project.
+
+Please change to a git managed project to use this tool." 2>&1
+
+  exit 1
+fi
+
+(
+
+run_osascript() {
+  osascript -e "display notification \"${2}\" with title \"${1}\""
+}
+
+most_recent_id="$(gh run list -L 1 --json databaseId --jq '.[].databaseId')"
+
+if [[ -z $most_recent_id ]]; then
+  error_message="No GitHub Action workflows detected for this project"
+  run_osascript "$script_name" "$error_message"
+  exit 1
+fi
+
+gh run watch "$most_recent_id" | tee &>/dev/null &
+
+# Wait for the previous background process to finish.
+wait
+
+most_recent_branch="$(gh run list -L 1 --json headBranch --jq '.[].headBranch')"
+most_recent_name="$(gh run list -L 1 --json name --jq '.[].name')"
+most_recent_status="$(gh run list -L 1 --json conclusion --jq '.[].conclusion')"
+
+if [[ $use_emoji == 'true' ]]; then
+  if [[ $most_recent_status == 's'* ]]; then
+    status_formatted='✅'
+  else
+    status_formatted='❌'
+  fi
+else
+  status_formatted="$(tr '[:lower:]' '[:upper:]' <<< ${most_recent_status:0:1})${most_recent_status:1}"
+fi
+
+if [[ $show_branch == 'true' ]]; then
+  run_osascript "GitHub Action - $most_recent_name" "$most_recent_branch: $status_formatted"
+else
+  run_osascript "GitHub Action - $most_recent_name" "$status_formatted"
+fi
+) &

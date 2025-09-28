@@ -1,0 +1,7 @@
+---
+name: docker-s6-overlay
+root: "~/workspaces/webdavis/projects/docker-s6-overlay"
+
+windows:
+  - main:
+      layout: main-vertical

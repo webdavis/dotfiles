@@ -1,0 +1,7 @@
+[[search_dirs]]
+path = "/Users/stephen/.config"
+depth = 10
+
+[[search_dirs]]
+path = "/Users/stephen/workspaces"
+depth = 10

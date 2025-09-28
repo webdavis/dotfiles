@@ -1,0 +1,7 @@
+---
+name: Webdavis-GitHub
+root: "~/workspaces/webdavis/projects/webdavis"
+
+windows:
+  - main:
+      layout: main-vertical

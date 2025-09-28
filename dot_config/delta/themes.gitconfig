@@ -1,0 +1,55 @@
+# To use this theme, first include this file in the gitconfig file:
+#
+# [include]
+#     path = PATH/TO/delta/themes.gitconfig
+#
+# Then, also in the gitconfig file, activate the chosen theme:
+#
+# [delta]
+#    features = custom
+#
+# Instructions:
+#
+#  - Use `delta --show-config` to list all the style settings that are active in
+#    your current delta environment, but only include settings in your theme
+#    that are essential to its appearance.
+# 
+#  - Include either `dark = true` or `light = true` according to whether it is
+#    designed for a light or dark terminal background.
+#    (This marks a feature as a "theme", causing it to be picked up by `delta --show-themes`).
+
+[delta "custom"]
+    dark                          = true
+    side-by-side                  = true
+    navigate                      = true  # Use n and N to move between diff sections.
+    true-color                    = auto
+    hyperlinks                    = false
+    file-style                    = blue bold italic
+    file-added-label              = added:
+    file-copied-label             = copied:
+    file-modified-label           = modified:
+    file-removed-label            = removed:
+    file-renamed-label            = renamed:
+    grep-file-style               = blue bold italic
+    grep-line-number-style        = lightblue
+    hunk-header-style             = syntax
+    inspect-raw-lines             = true
+    keep-plus-minus-markers       = false
+    line-numbers                  = true
+    line-fill-method              = ansi
+    line-numbers-left-style       = lightgray
+    line-numbers-right-style      = gray
+    whitespace-error-style        = reverse purple
+    zero-style                    = syntax
+
+    minus-style                   = syntax "#37222c"
+    minus-non-emph-style          = syntax "#37222c"
+    minus-emph-style              = syntax "#713137"
+    minus-empty-line-marker-style = syntax "#37222c"
+    line-numbers-minus-style      = "#b2555b"
+    plus-style                    = syntax "#20303b"
+    plus-non-emph-style           = syntax "#20303b"
+    plus-emph-style               = syntax "#2c5a66"
+    plus-empty-line-marker-style  = syntax "#20303b"
+    line-numbers-plus-style       = "#266d6a"
+    line-numbers-zero-style       = "#3b4261"

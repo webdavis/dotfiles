@@ -1,0 +1,5 @@
+# shellcheck disable=SC1019
+
+[[ -n "$BASH_VERSION" && -f "${HOME}/.bashrc" ]] && . "${HOME}/.bashrc"
+
+XDG_CONFIG_HOME="~/.config"

@@ -1,0 +1,84 @@
+# This file controls readline bindings in bash. The name of the file is determined by the
+# INPUTRC env_var. If that isn't set then it defaults to ~/.inputrc, and then
+# /etc/inputrc.
+
+# Tab autocomplete case-insensitive
+set completion-ignore-case on
+
+# If completion-ignore-case is 'on' this will treat hyphens (-) and underscores (_) as
+# equivalent if it's set to 'on'.
+set completion-map-case off
+
+# Display possible completions using colors taken from LS_COLORS.
+set colored-stats on
+
+# Readline displays the common prefix of the set of possible completions using a different
+# color.
+set colored-completion-prefix on
+
+# Show files type when autocompleting.
+set visible-stats on
+
+# Determines when the user is queried about viewing the number of possible completions.
+set completion-query-items 30
+
+# Convert Escape to the Meta prefix.
+set convert-meta on
+
+# If set to "on", prevents pasted characters from being interpreted as editing commands.
+set enable-bracketed-paste off
+
+# If set to 'on' makes readline use a single line for display and will scroll horizontally
+# if the command becomes longer than the screen.
+set horizontal-scroll-mode off
+
+# Specifies the duration readline will wait for a character when reading an ambiguous key
+# sequence in milliseconds.
+set keyseq-timeout 1000
+
+# Expand the tilde (often the abbrev for $HOME).
+set expand-tilde off
+
+# Completed directory names append a slash.
+set mark-directories on
+set mark-symlinked-directories on
+
+# Mark modified history commands with an asterisk (*).
+set mark-modified-lines on
+
+# If set to "on", menu-completion displays the common prefix of the list of possible
+# completions (which may be empty) before cycling through the list.
+set menu-complete-display-prefix on
+
+# If set to On, readline will display completions with matches sorted horizontally in
+# alphabetical order, rather than down the screen.
+set print-completions-horizontally on
+
+# Match hidden files prepended with.
+set match-hidden-files on
+
+# List words that have more than one possible match.
+set show-all-if-ambiguous on
+
+# If set to On, add a character to the beginning of the prompt indicating the editing
+# mode: emacs, Vi command, or Vi insertion.  The mode strings are user-settable.
+set show-mode-in-prompt on
+
+# Show all possible completions at once.
+set page-completions off
+
+# Vi command line behavior.
+set editing-mode vi
+
+# Be more intelligent about autocompleting when in the middle of a string.
+set skip-completed-text on
+
+# If set to On (the default), readline attempts to bind the control characters treated
+# specially by the kernel's terminal driver to their readline equivalents.
+set bind-tty-special-chars on
+
+# Show mode in prompt (@ for Emacs, : for Vi command mode, + for Vi insert mode).
+set show-mode-in-prompt on
+set emacs-mode-string @
+set vi-ins-mode-string +
+set vi-cmd-mode-string :

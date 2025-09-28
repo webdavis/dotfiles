@@ -1,0 +1,7 @@
+---
+name: essential-feed-case-study
+root: "~/workspaces/webdavis/projects/essential-feed-case-study"
+
+windows:
+  - main:
+      layout: main-vertical

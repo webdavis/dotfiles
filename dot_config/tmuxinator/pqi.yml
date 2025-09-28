@@ -1,0 +1,7 @@
+---
+name: pqi
+root: "~/workspaces/activated-insights/surveys"
+
+windows:
+  - main:
+      layout: main-vertical

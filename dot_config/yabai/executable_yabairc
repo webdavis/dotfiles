@@ -1,0 +1,99 @@
+#!/usr/bin/env sh
+
+# The scripting-addition must be loaded manually if
+# you are running yabai on Mac OS Big Sur. Uncomment
+# the following line to have the injection performed
+# when the config is executed during startup.
+#
+# For this to work you must configure sudo such that
+# it will be able to run the command without password
+#
+# See this wiki page for information:
+#  - https://github.com/koekeishiya/yabai/wiki/Installing-yabai-(latest-release)
+#
+#yabai -m signal --add event=dock_did_restart action="sudo yabai --load-sa"
+#sudo yabai --load-sa
+
+# Global settings
+yabai -m config mouse_follows_focus          off
+yabai -m config focus_follows_mouse          off
+yabai -m config window_placement             second_child
+yabai -m config window_topmost               off
+yabai -m config window_shadow                float
+yabai -m config window_opacity               off
+yabai -m config window_opacity_duration      0.0
+yabai -m config active_window_opacity        1.0
+
+# This doesn't work if SIP (System Integrity Protection) is on; which cannot be enabled on M1
+# macs at this time.
+yabai -m config window_border                off
+yabai -m config window_border_width          6
+yabai -m config active_window_border_color   0xff775759
+yabai -m config normal_window_border_color   0xff555555
+yabai -m config insert_feedback_color        0xffd75f5f
+yabai -m config split_ratio                  0.50
+yabai -m config auto_balance                 off
+yabai -m config mouse_modifier               fn
+yabai -m config mouse_action1                move
+yabai -m config mouse_action2                resize
+yabai -m config mouse_drop_action            swap
+
+# General space settings
+yabai -m config layout                       bsp
+yabai -m config top_padding                  2
+yabai -m config bottom_padding               2
+yabai -m config left_padding                 2
+yabai -m config right_padding                2
+yabai -m config window_gap                   06
+
+# Window manager rules for specific applications
+yabai -m rule --add app=".*" layer=normal
+yabai -m rule --add app="Alfred Preferences"   manage=off sticky=off
+yabai -m rule --add app="Anki"                 manage=off sticky=on
+yabai -m rule --add app="App Store"            manage=off sticky=off
+yabai -m rule --add app="Calendar"             manage=off sticky=on
+yabai -m rule --add app="Dash"                 manage=off sticky=on
+yabai -m rule --add app="Discord"              manage=off sticky=off
+yabai -m rule --add app="Drafts"               manage=off sticky=off
+yabai -m rule --add app="FaceTime"             manage=off sticky=on
+yabai -m rule --add app="Fantastical"          manage=off sticky=on
+yabai -m rule --add app="Finder"               manage=off sticky=on
+yabai -m rule --add app="Google Drive"         manage=off sticky=on
+yabai -m rule --add app="KeePassXC"            manage=off sticky=on
+yabai -m rule --add app="Marvin"               manage=off sticky=on
+yabai -m rule --add app="Messages"             manage=off sticky=on
+yabai -m rule --add app="Music"                manage=off sticky=off
+yabai -m rule --add app="Notes"                manage=off sticky=on
+yabai -m rule --add app="Photos"               manage=off sticky=off
+yabai -m rule --add app="Preview"              manage=on  sticky=off
+yabai -m rule --add app="Raindrop.io"          manage=off sticky=on
+yabai -m rule --add app="Reminders"            manage=off sticky=on
+yabai -m rule --add app="Rise"                 manage=off sticky=on
+yabai -m rule --add app="Rocket"               manage=off sticky=off
+yabai -m rule --add app="Shortcuts"            manage=off sticky=on
+yabai -m rule --add app="Sider"                manage=off sticky=on
+yabai -m rule --add app="Signal"               manage=off sticky=on
+yabai -m rule --add app="Simulator"            manage=off sticky=on
+yabai -m rule --add app="Skype"                manage=off sticky=off
+yabai -m rule --add app="Slack"                manage=off sticky=on
+yabai -m rule --add app="Spotify"              manage=off sticky=off
+yabai -m rule --add app="Strongbox"            manage=off sticky=on
+yabai -m rule --add app="Telegram"             manage=off sticky=on
+yabai -m rule --add app="Todoist"              manage=off sticky=on
+yabai -m rule --add app="^Authy Desktop$"      manage=off sticky=on
+yabai -m rule --add app="^System Settings$"    manage=off sticky=on
+yabai -m rule --add app="zoom"                 manage=off sticky=on
+
+# Labels for workspaces
+#yabai -m space 1 --label one
+#yabai -m space 2 --label two
+#yabai -m space 3 --label three
+#yabai -m space 4 --label four
+#yabai -m space 5 --label five
+#yabai -m space 6 --label six
+#yabai -m space 7 --label seven
+#yabai -m space 8 --label eight
+#yabai -m space 9 --label nine
+#yabai -m space 10 --label ten
+
+echo "yabai configuration loaded.."

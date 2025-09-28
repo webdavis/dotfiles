@@ -1,0 +1,7 @@
+---
+name: Ivy
+root: "~/workspaces/Ivy"
+
+windows:
+  - main:
+      layout: main-vertical

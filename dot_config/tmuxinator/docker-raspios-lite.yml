@@ -1,0 +1,7 @@
+---
+name: docker-raspios-lite
+root: "~/workspaces/webdavis/projects/docker-raspios-lite"
+
+windows:
+  - main:
+      layout: main-vertical

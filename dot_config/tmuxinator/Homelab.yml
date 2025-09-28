@@ -1,0 +1,7 @@
+---
+name: Homelab
+root: "~/workspaces/webdavis/projects/Homelab"
+
+windows:
+  - main:
+      layout: main-vertical

@@ -1,0 +1,7 @@
+---
+name: Maeve
+root: "~/workspaces/webdavis/projects/Maeve"
+
+windows:
+  - main:
+      layout: main-vertical

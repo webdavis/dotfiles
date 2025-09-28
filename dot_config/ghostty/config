@@ -1,0 +1,42 @@
+# ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+# ┃    Ghostty Configuration    ┃
+# ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+# Config Paths
+# =============
+#
+#  → System Config: ~/Library/Application Support/com.mitchellh.ghostty/config
+#  ----------------------------------------------------------------------------
+#
+#  → User Config:   $XDG_CONFIG_HOME/.config/ghostty/config (a.k.a. ~/.config/ghostty/config)
+#  -------------------------------------------------------------------------------------------
+
+# ⚠ Note
+# =============
+# The System Config always overrides the User Config. To use your User Config, delete
+# the System Config with the following command:
+#
+#   $ rm ~/Library/Application\ Support/com.mitchellh.ghostty/config
+#   -----------------------------------------------------------------
+
+# Font
+# =============
+font-family   = Menlo
+font-size     = 13
+font-thicken  = true
+font-feature  = -liga
+
+# Appearance
+# =============
+theme            = "GitHub Dark Dimmed"
+link-url         = true
+link-previews    = true
+# window-padding-x = 2 # Optional padding (uncomment to enable)
+
+# Behavior
+# =============
+quit-after-last-window-closed = true
+
+# Keybindings
+# =============
+keybind = global:ctrl+grave_accent=toggle_quick_terminal

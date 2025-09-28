@@ -1,0 +1,534 @@
+# vi: set filetype=sh:
+
+# This file contains key-bindings for bash commands so that I can be all kinds of lazy.
+# Source this from your ~/.bashrc, like so:
+#
+#  [[ -s $HOME/.bash_bindings ]] && \. $HOME/.bash_bindings
+
+builtin bind -m emacs           '"\M-e": vi-editing-mode'
+builtin bind -m vi-insert       '"\M-e": emacs-editing-mode'
+builtin bind -m vi-command      '"\M-e": emacs-editing-mode'
+builtin bind -m vi-insert    'Control-a: beginning-of-line'
+builtin bind -m vi-insert    'Control-e: end-of-line'
+builtin bind -m vi-insert    'Control-b: backward-char'
+builtin bind -m vi-insert    'Control-f: forward-char'
+builtin bind -m vi-insert       '"\M-k": kill-line'
+builtin bind -m vi-insert    'Control-l: clear-screen'
+builtin bind -m vi-command '"Control-l": clear-screen'
+builtin bind -m emacs      '"Control-o": redraw-current-line'
+builtin bind -m vi-insert       '"\C-o": redraw-current-line'
+builtin bind -m vi-command      '"\C-o": redraw-current-line'
+builtin bind -m vi-insert       '"\M-o": magic-space'
+builtin bind -m vi-command      '"\M-o": magic-space'
+builtin bind -m vi-insert       '"\C-n": next-history'
+builtin bind -m vi-command      '"\C-n": next-history'
+builtin bind -m vi-insert       '"\C-p": previous-history'
+builtin bind -m vi-command      '"\C-p": previous-history'
+builtin bind -m vi-insert    'Control-u: unix-line-discard'
+builtin bind -m vi-command   'Control-u: unix-line-discard'
+builtin bind -m vi-insert       '"\M-m": menu-complete'
+builtin bind -m vi-insert       '"\M-w": unix-filename-rubout'
+builtin bind -m vi-command      '"\M-w": unix-filename-rubout'
+builtin bind -m vi-insert       '"\M-u": capitalize-word'
+builtin bind -m vi-command      '"\M-u": capitalize-word'
+builtin bind -m vi-insert       '"\C-d": delete-char'
+builtin bind -m vi-command      '"\C-d": delete-char'
+builtin bind -m vi-insert       '"\M-]": character-search'
+builtin bind -m vi-insert       '"\M-[": character-search-backward'
+
+
+# Unbind Ctrl-w from werase in stty. See https://stackoverflow.com/questions/10980575/
+stty werase undef
+builtin bind -m emacs      '"Control-w": unix-word-rubout'
+builtin bind -m vi-insert       '"\C-w": unix-word-rubout'
+builtin bind -m vi-command      '"\C-w": unix-word-rubout'
+
+builtin bind '"\C-x0": kill-whole-line'     # Clears the entire line.
+builtin bind '"\C-x1": magic-space'         # Performs history expansion and inserts a space.
+builtin bind '"\C-x2": redraw-current-line' # Refreshes the current line.
+
+# Tab completion of commands that cycles through possible options.
+builtin bind -x '"\t": menu-complete'
+builtin bind -m vi-insert '"\t": menu-complete'
+builtin bind -m vi-command '"\t": menu-complete'
+
+builtin bind -x '"\e[Z": menu-complete-backward'
+builtin bind -m vi-insert '"\e[Z": menu-complete-backward'
+builtin bind -m vi-command '"\e[Z": menu-complete-backward'
+
+
+# Insert "sudo " at the beginning of a command.
+builtin bind -x '"\C-s": "\C-sudo "'
+builtin bind -m vi-insert  '"\C-s": "\C-sudo "'
+builtin bind -m vi-command '"\C-s": "i\C-sudo "'
+builtin bind -m vi-insert  '"\C-s": "\C-sudo "'
+builtin bind -m vi-command '"\C-s": "i\C-sudo "'
+
+
+# ls {{{1
+builtin bind -x '"\C-_a": "eza -ahlrs date"'
+builtin bind -m vi-insert '"\M-l": "\C-x0\C-_a\C-x1\C-x2\b"'
+builtin bind -m vi-command '"\M-l": "i\C-x0\C-_a\C-x1\C-x2\b"'
+builtin bind -m vi-insert '"\M-L": "\C-x0eza -ahlrs date "'
+builtin bind -m vi-command '"\M-L": "i\C-x0eza -ahlrs date "'
+
+# List directories.
+builtin bind -x '"\C-_b": "eza -alD"'
+builtin bind -m vi-insert '"\M-i": "\C-x0\C-_b\C-x1\C-x2\b"'
+builtin bind -m vi-command '"\M-i": "i\C-x0\C-_b\C-x1\C-x2\b"'
+builtin bind -m vi-insert '"\M-I": "\C-x0eza -alD "'
+builtin bind -m vi-command '"\M-I": "i\C-x1eza -alD "'
+
+
+# List files sorted by time.
+builtin bind -x '"\C-_c": "eza -hl --sort=age"'
+builtin bind -m vi-insert '"\C-x\C-t": "\C-x0\C-_c\C-x1\C-x2\b"'
+builtin bind -m vi-insert '"\C-x\C-t": "\C-x0\C-_c\C-x1\C-x2\b"'
+builtin bind -m vi-insert '"\C-xt": "\C-x0eza -ahl --sort=age "'
+builtin bind -m vi-insert '"\C-xt": "i\C-x0eza -ahl --sort=age "'
+# }}}
+
+
+# eza tree {{{1
+builtin bind -x '"\C-_d": "eza -lT"'
+builtin bind -m vi-insert '"\M-t": "\C-x0\C-_d\C-x1\C-x2\b"'
+builtin bind -m vi-command '"\M-t": "i\C-x0\C-_d\C-x1\C-x2\b"'
+builtin bind -m vi-insert '"\M-T": "\C-x0eza -lT "'
+builtin bind -m vi-command '"\M-T": "i\C-x0eza -lT "'
+
+
+# tree with detailed file info.
+builtin bind -x '"\C-_e": "eza –-tree -–color=always –-header –-group –-links –-bytes –-long –-ignore-glob=.git"'
+builtin bind -m vi-insert '"\C-xu": "\C-x0\C-_e\C-x1\C-x2\b"'
+builtin bind -m vi-command '"\C-xu": "i\C-x0\C-_e\C-x1\C-x2\b"'
+builtin bind -m vi-insert '"\C-x\C-u": "\C-x0eza -lThgB --color=always -I .git "'
+builtin bind -m vi-command '"\C-x\C-u": "i\C-x0eza -lThgB --color=always -I .git "'
+# }}}
+
+
+# Ping Google's DNS server.
+builtin bind -x '"\C-_f": "ping -c 3 8.8.8.8"'
+builtin bind -m vi-insert '"\C-x\C-p": "\C-x0\C-_f\C-x1\C-x2\b"'
+builtin bind -m vi-command '"\C-x\C-p": "i\C-x0\C-_f\C-x1\C-x2\b"'
+builtin bind -m vi-insert '"\C-xp": "\C-x0ping -c 3 "'
+builtin bind -m vi-command '"\C-xp": "i\C-x0ping -c 3 "'
+
+
+# Source ~/.bashrc
+builtin bind -x '"\C-_g": "source $HOME/.bashrc"'
+builtin bind -m vi-insert '"\C-x\C-s": "\C-x0\C-_g\C-x1\C-x2\b"'
+builtin bind -m vi-command '"\C-x\C-s": "i\C-x0\C-_g\C-x1\C-x2\b"'
+
+
+# Reset Yubikey {{{1
+# This is automated with a udev rule; however, YubiKey 5 Nano's are a PITA to get out of the port.
+#__reset_yubikey() {
+#  local agent agents
+#  declare -a agents=('ssh-agent' 'gpg-agent')
+#  for agent in ${agents[@]}; do
+#    if pgrep "$agent" &>/dev/null; then
+#      pkill --signal SIGKILL "$agent" || {
+#        local status=$?;
+#              echo "Failure: could not kill gpg-agent." "Exit status: ${status}";
+#              return $?;
+#            }
+#          printf "%s\\n" "Killed ${agent}."
+#    fi
+#  done
+#
+#  # Add keys to keyid array as they are imported.
+#  keyids=( \
+#    'E7F7292F2E275D50' \
+#  )
+#
+#  local key keystub
+#  for key in ${keyids[@]}; do
+#    while read -r keystub; do
+#      if [[ -e "${keystub}.key" ]]; then
+#        rm "${GNUPGHOME}/private-keys-v1.d/${keystub}.key"
+#        printf "%s\\n" "Removing secret key ${keystub}.key"
+#      fi
+#    done < <(gpg --with-keygrip --list-secret-keys "$key" | grep 'Keygrip' | awk '{ print $3 }')
+#  done
+#
+#  # Restart gpg-agent.
+#  gpgconf --launch gpg-agent || {
+#    local status=$?;
+#    echo "Failure: could not launch gpg-agent." "Exit status: ${status}";
+#    return $?;
+#  }
+#
+#  printf "%s\\n" "Started gpg-agent"
+#  printf "%s\\n" "SSH Public Key Fingerprint: $(ssh-add -l)"
+#}
+#builtin bind -x '"\C-_h": __reset_yubikey'
+#builtin bind -m vi-insert '"\M-Y": "\C-x0\C-_h\C-x1\C-x2\b"'
+#builtin bind -m vi-command '"\M-Y": "i\C-x0\C-_h\C-x1\C-x2\b"'
+
+
+# Switch colorscheme {{{1
+#__rotate_alacritty_colorscheme() {
+#  if grep --quiet --no-message "colors: \*sonokai" ~/.config/alacritty/alacritty.yml; then
+#    sed -i "s/colors: \*sonokai/colors: \*edge_light/g" ~/.config/alacritty/alacritty.yml
+#    if [[ -n "$TMUX" ]]; then
+#      tmux set-option -g status "on"
+#      tmux set-option -g status-fg "colour240"
+#      tmux set-option -g status-bg "colour254"
+#      tmux set-option -g display-panes-colour "colour240"
+#      tmux set-option -g display-panes-active-colour "colour68"
+#      tmux set-option -g message-style bg="colour217",fg="colour238"
+#      tmux set-option -g status-justify "left"
+#      tmux set-option -g status-left "#[fg=colour240,bg=colour254]{#{pid}} [#S] #[fg=colour26,bg=colour254,bold]#P:#{pane_current_command} "
+#      tmux set-option -g status-left-length "100"
+#      tmux set-option -g status-right "#{prefix_highlight}"
+#      tmux set-option -g status-right-length "100"
+#      tmux set-window-option -g window-status-separator ""
+#      tmux set-window-option -g window-status-format "#[fg=colour232,bg=colour254] #I:#W #F "
+#      tmux set-window-option -g window-status-current-format "#[fg=colour255,bg=colour68,bold] #I:#W #F "
+#    fi
+#  else
+#    sed -i "s/colors: \*edge_light/colors: \*sonokai/g" ~/.config/alacritty/alacritty.yml
+#    if [[ -n "$TMUX" ]]; then
+#      tmux set-option -g status "on"
+#      tmux set-option -g status-fg "#e2e2e3"
+#      tmux set-option -g status-bg "#363944"
+#      tmux set-option -g display-panes-colour "#e2e2e3"
+#      tmux set-option -g display-panes-active-colour "#a7df78"
+#      tmux set-option -g message-style bg="#ff6077",fg="#2c2e34"
+#      tmux set-option -g status-justify "left"
+#      tmux set-option -g status-left "#[fg=#e2e2e3,bg=#363944]{#{pid}} [#S] #[fg=#a7df78,bg=#363944,bold]#P:#{pane_current_command} "
+#      tmux set-option -g status-left-length "100"
+#      tmux set-option -g status-right "#{prefix_highlight}"
+#      tmux set-option -g status-right-length "100"
+#      tmux set-window-option -g window-status-separator ""
+#      tmux set-window-option -g window-status-format "#[fg=#e2e2e3,bg=#363944] #I:#W #F "
+#      tmux set-window-option -g window-status-current-format "#[fg=#2c2e34,bg=#a7df78,bold] #I:#W #F "
+#    fi
+#  fi
+#}
+#builtin bind -x '"\C-_i": __rotate_alacritty_colorscheme'
+#builtin bind -m vi-insert '"\M-\\": "\C-x0\C-_i\C-x1\C-x2\b"'
+#builtin bind -m vi-command '"\M-\\": "i\C-x0\C-_i\C-x1\C-x2\b"'
+
+
+# Goto bindings {{{1
+builtin bind -x '"\C-_h": "cd ${HOME}/.config"'
+builtin bind -m vi-insert '"\M-dc": "\C-x0\C-_h\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\M-dc": "i\C-x0\C-_h\C-x1\C-x2\015"'
+
+
+builtin bind -x '"\C-_i": "cd ${HOME}/.dotfiles-webdavis.git"'
+builtin bind -m vi-insert '"\M-df": "\C-x0\C-_i\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\M-df": "i\C-x0\C-_i\C-x1\C-x2\015"'
+
+
+builtin bind -x '"\C-_j": "cd ${HOME}/Documents"'
+builtin bind -m vi-insert '"\M-dd": "\C-x0\C-_j\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\M-dd": "i\C-x0\C-_j\C-x1\C-x2\015"'
+
+
+builtin bind -x '"\C-_k": "cd ${HOME}/Downloads"'
+builtin bind -m vi-insert '"\M-dD": "\C-x0\C-_k\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\M-dD": "i\C-x0\C-_k\C-x1\C-x2\015"'
+
+
+builtin bind -x '"\C-_l": "cd ${HOME}/.config/nvim"'
+builtin bind -m vi-insert '"\M-dn": "\C-x0\C-_l\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\M-dn": "i\C-x0\C-_l\C-x1\C-x2\015"'
+
+
+builtin bind -x '"\C-_m": "cd ${HOME}/Pictures/screenshots"'
+builtin bind -m vi-insert '"\M-dss": "\C-x0\C-_m\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\M-dss": "i\C-x0\C-_m\C-x1\C-x2\015"'
+
+
+builtin bind -x '"\C-_n": "cd ${HOME}/workspaces/webdavis/projects"'
+builtin bind -m vi-insert '"\M-dp": "\C-x0\C-_n\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\M-dp": "i\C-x0\C-_n\C-x1\C-x2\015"'
+
+
+builtin bind -x '"\C-_o": "cd ${HOME}/workspaces/tools"'
+builtin bind -m vi-insert '"\M-dt": "\C-x0\C-_o\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\M-dt": "i\C-x0\C-_o\C-x1\C-x2\015"'
+
+
+builtin bind -x '"\C-_p": "cd ${HOME}/workspaces/test"'
+builtin bind -m vi-insert '"\M-dT": "\C-x0\C-_p\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\M-dT": "i\C-x0\C-_p\C-x1\C-x2\015"'
+
+
+
+# Go to a projects root directory. The respective keyboard binding is in ~/.inputrc.
+__go_to_project_root() {
+  path="$(dirname "$(pwd)")"
+  # To add support for other version control systems, add their respective directories to the regex.
+  while [[ ! "$(find "$path" -maxdepth 1 -regextype egrep -regex ".*/\\.(root|git|svn|hg|bzr|build.xml|project|projections.json|tasks|root)")" ]]; do
+    if [[ $path == '/' ]]; then
+      printf "%s\\n" 'No project root found.' 2>&1
+      return 1
+    fi
+    path="$(dirname "$path")"
+  done
+  builtin cd "$path" || return
+  pwd
+}
+builtin bind -x '"\C-_q": __go_to_project_root'
+builtin bind -m vi-insert '"\M-dr": "\C-x0\C-_q\C-x1\C-x2\b"'
+builtin bind -m vi-command '"\M-dr": "i\C-x0\C-_q\C-x1\C-x2\b"'
+
+
+# Git bindings {{{1
+# git --version
+builtin bind -x '"\C-_r": "git --version"'
+builtin bind -m vi-insert '"\C-gv": "\C-x0\C-_r\C-x1\C-x2\b"'
+builtin bind -m vi-command '"\C-gv": "i\C-x0\C-_r\C-x1\C-x2\b"'
+
+# git status
+builtin bind -x '"\C-_s": "git status"'
+builtin bind -m vi-insert '"\C-gs": "\C-x0\C-_s\C-x1\C-x2\b"'
+builtin bind -m vi-command '"\C-gs": "i\C-x0\C-_s\C-x1\C-x2\b"'
+
+
+# git log
+builtin bind -x '"\C-_t": "git log"'
+builtin bind -m vi-insert '"\C-gll": "\C-x0\C-_t\C-x1\C-x2\b"'
+builtin bind -m vi-command '"\C-gll": "i\C-x0\C-_t\C-x1\C-x2\b"'
+
+
+# git log --oneline
+builtin bind -x '"\C-_u": "git log --oneline"'
+builtin bind -m vi-insert '"\C-glo": "\C-x0\C-_u\C-x1\C-x2\b"'
+builtin bind -m vi-command '"\C-glo": "i\C-x0\C-_u\C-x1\C-x2\b"'
+
+
+# Print the current git working diff.
+builtin bind -x '"\C-_v": "git diff"'
+builtin bind -m vi-insert '"\C-gdd": "\C-x0\C-_v\C-x1\C-x2\b"'
+builtin bind -m vi-command '"\C-gdd": "i\C-x0\C-_v\C-x1\C-x2\b"'
+
+
+# Print the current git diff of the latest commit.
+builtin bind -x '"\C-_w": "git diff HEAD^"'
+builtin bind -m vi-insert '"\C-gdh": "\C-x0\C-_w\C-x1\C-x2\b"'
+builtin bind -m vi-command '"\C-gdh": "i\C-x0\C-_w\C-x1\C-x2\b"'
+
+
+# Print the diff of the current and previous commit.
+builtin bind -x '"\C-_x": "git diff-index --quiet HEAD -- || clear; git --no-pager diff --patch-with-stat"'
+builtin bind -m vi-insert '"\C-gD": "\C-x0\C-_x\C-x1\C-x2\b"'
+builtin bind -m vi-command '"\C-gD": "i\C-x0\C-_x\C-x1\C-x2\b"'
+
+
+# git diff --cached
+builtin bind -x '"\C-_y": "git diff --cached"'
+builtin bind -m vi-insert '"\C-gdc": "\C-x0\C-_y\C-x1\C-x2\b"'
+builtin bind -m vi-command '"\C-gdc": "i\C-x0\C-_y\C-x1\C-x2\b"'
+
+
+# `git checkout `
+builtin bind -m vi-insert '"\C-gcH": "\C-x0git checkout "'
+builtin bind -m vi-command '"\C-gcH": "i\C-x0git checkout "'
+
+
+# `git checkout -b `
+builtin bind -m vi-insert '"\C-gcB": "\C-x0git checkout -b "'
+builtin bind -m vi-command '"\C-gcB": "i\C-x0git checkout -b "'
+
+
+# git checkout -
+builtin bind -x '"\C-_z": "git checkout -"'
+builtin bind -m vi-insert '"\C-gc-": "\C-x0\C-_z\C-x1\C-x2\b"'
+builtin bind -m vi-command '"\C-gc-": "i\C-x0\C-_z\C-x1\C-x2\b"'
+
+
+# git checkout master
+builtin bind -x '"\C-_A": "git checkout master"'
+builtin bind -m vi-insert '"\C-gcm": "\C-x0\C-_A\C-x1\C-x2\b"'
+builtin bind -m vi-command '"\C-gcm": "i\C-x0\C-_A\C-x1\C-x2\b"'
+
+
+# git commit -v
+builtin bind -x '"\C-_B": "git commit --verbose"'
+builtin bind -m vi-insert '"\C-gcc": "\C-x0\C-_B\C-x1\C-x2\b"'
+builtin bind -m vi-command '"\C-gcc": "i\C-x0\C-_B\C-x1\C-x2\b"'
+
+
+# git commit -av
+builtin bind -x '"\C-_C": "git commit -av"'
+builtin bind -m vi-insert '"\C-gcv": "\C-x0\C-_C\C-x1\C-x2\b"'
+builtin bind -m vi-command '"\C-gcv": "i\C-x0\C-_C\C-x1\C-x2\b"'
+
+
+# git commit -v (no Enter)
+builtin bind -m vi-insert '"\C-gco": "\C-x0git commit -v "'
+builtin bind -m vi-command '"\C-gco": "i\C-x0git commit -v "'
+
+
+# git commit -m '' (no Enter)
+builtin bind -m vi-insert "\"\C-gcm\": \"\C-x0git commit -m ''\e[D\""
+builtin bind -m vi-command "\"\C-gcm\": \"i\C-x0git commit -m ''\e[D\""
+
+
+# git commit -v --amend
+builtin bind -x '"\C-_D": "git commit -v --amend"'
+builtin bind -m vi-insert '"\C-gca": "\C-x0\C-_D\C-x1\C-x2\b"'
+builtin bind -m vi-command '"\C-gca": "i\C-x0\C-_D\C-x1\C-x2\b"'
+builtin bind -m vi-insert '"\C-gcA": "\C-x0git commit -v --amend "'
+builtin bind -m vi-command '"\C-gcA": "i\C-x0git commit -v --amend "'
+
+
+# git commit --amend --no-edit
+builtin bind -x '"\C-_E": "git commit --amend --no-edit"'
+builtin bind -m vi-insert '"\C-gcn": "\C-x0\C-_E\C-x1\C-x2\b"'
+builtin bind -m vi-command '"\C-gcn": "i\C-x0\C-_E\C-x1\C-x2\b"'
+builtin bind -m vi-insert '"\C-gcN": "\C-x0git commit --amend --no-edit "'
+builtin bind -m vi-command '"\C-gcN": "i\C-x0git commit --amend --no-edit "'
+
+
+# git init
+builtin bind -x '"\C-_F": "git init"'
+builtin bind -m vi-insert '"\C-gi": "\C-x0\C-_F\C-x1\C-x2\b"'
+builtin bind -m vi-command '"\C-gi": "i\C-x0\C-_F\C-x1\C-x2\b"'
+
+
+# git init && hub create
+builtin bind -x '"\C-_G": "if [[ ! -d '.git' ]]; then git init && hub create; else hub create; fi;"'
+builtin bind -m vi-insert '"\C-ghc": "\C-x0\C-_G\C-x1\C-x2\b"'
+builtin bind -m vi-command '"\C-ghc": "i\C-x0\C-_G\C-x1\C-x2\b"'
+
+
+# git push
+builtin bind -x '"\C-_H": "git push"'
+builtin bind -m vi-insert '"\C-gpp": "\C-x0\C-_H\C-x1\C-x2\b"'
+builtin bind -m vi-command '"\C-gpp": "i\C-x0\C-_H\C-x1\C-x2\b"'
+
+
+# Delete remote_branch branch from the origin remote.
+# `git push origin :remote_branch`
+builtin bind -m vi-insert '"\C-gpr": "\C-x0git push origin :"'
+builtin bind -m vi-command '"\C-gpr": "i\C-x0git push origin :"'
+
+
+# hub browse
+builtin bind -x '"\C-_I": "hub browse"'
+builtin bind -m vi-insert '"\C-gO": "\C-x0\C-_I\C-x1\C-x2\b"'
+builtin bind -m vi-command '"\C-gO": "i\C-x0\C-_I\C-x1\C-x2\b"'
+
+
+# hub browse --copy
+builtin bind -x '"\C-_J": "hub browse --copy"'
+builtin bind -m vi-insert '"\C-gyy": "\C-x0\C-_J\C-x1\C-x2\b"'
+builtin bind -m vi-command '"\C-gyy": "i\C-x0\C-_J\C-x1\C-x2\b"'
+
+
+# hub browse -- issues
+builtin bind -x '"\C-_K": "hub browse -- issues"'
+builtin bind -m vi-insert '"\C-goi": "\C-x0\C-_K\C-x1\C-x2\b"'
+builtin bind -m vi-command '"\C-goi": "i\C-x0\C-_K\C-x1\C-x2\b"'
+
+
+# git tag --list --list --sort=v:refname
+builtin bind -x '"\C-_L": "git tag --list --sort=v:refname"'
+builtin bind -m vi-insert '"\C-gtl": "\C-x0\C-_L\C-x1\C-x2\b"'
+builtin bind -m vi-command '"\C-gtl": "i\C-x0\C-_L\C-x1\C-x2\b"'
+
+
+# `git add `
+builtin bind -m vi-insert '"\C-gaa": "\C-x0git add "'
+builtin bind -m vi-command '"\C-gaa": "i\C-x0git add "'
+
+# `git add .`
+builtin bind -x '"\C-_Q": "git add ."'
+builtin bind -m vi-insert '"\C-ga.": "\C-x0\C-_Q\C-x1\C-x2\b"'
+builtin bind -m vi-command '"\C-ga.": "i\C-x0\C-_Q\C-x1\C-x2\b"'
+
+# `git branch `
+builtin bind -m vi-insert '"\C-gbb": "\C-x0git branch "'
+builtin bind -m vi-command '"\C-gbb": "i\C-x0git branch "'
+
+
+# git branch -vv
+builtin bind -x '"\C-_M": "git branch -vv"'
+builtin bind -m vi-insert '"\C-gbv": "\C-x0\C-_M\C-x1\C-x2\b"'
+builtin bind -m vi-command '"\C-gbv": "i\C-x0\C-_M\C-x1\C-x2\b"'
+
+
+# `git reset --hard HEAD~ -- `
+builtin bind -m vi-insert '"\C-grh": "\C-x0git reset --hard HEAD~ -- "'
+builtin bind -m vi-command '"\C-grh": "i\C-x0git reset --hard HEAD~ -- "'
+
+
+# `git reset --soft HEAD~ -- `
+builtin bind -m vi-insert '"\C-grs": "\C-x0git reset --soft HEAD~ -- "'
+builtin bind -m vi-command '"\C-grs": "i\C-x0git reset --soft HEAD~ -- "'
+# }}}
+
+
+# nvm use default
+builtin bind -x '"\C-_N": "nvm use default"'
+builtin bind -m vi-insert '"\C-xnu": "\C-x0\C-_N\C-x1\C-x2\b"'
+builtin bind -m vi-command '"\C-xnu": "i\C-x0\C-_N\C-x1\C-x2\b"'
+
+
+# Package manager update {{{1
+__update_package_manager() {
+  local os distro command
+  case "$OSTYPE" in
+    solaris*) os='solaris' ;;
+    darwin*)  os='osx'; command -v brew &>/dev/null || return ;;
+    linux*)   os='linux' ;;
+    bsd*)     os='bsd' ;;
+    msys*)    os='windows' ;;
+    *)        printf "%s\\n" "Cannot update. Unknown operating system detected: \"${OSTYPE}\"." 1>&2
+      return 1
+      ;;
+  esac
+
+  case "${os}" in
+    'linux')
+      if [[ -f '/etc/os-release' ]]; then
+        distro="$(cat /etc/os-release | grep '^NAME=' | sed -e's/NAME="\(.*\)"/\1/g')"
+      fi
+      ;;
+    'osx')
+        distro="osx"
+      ;;
+    *)
+      printf "%s\\n" "Cannot update. Unknown distro detected." 1>&2
+      return 1
+      ;;
+  esac
+
+  case "${distro}" in
+    'osx')
+      command='brew upgrade' ;;
+    'Arch Linux')
+      command='sudo pacman --noconfirm --sync --refresh --sysupgrade' ;;
+      'Ubuntu')
+      command='sudo apt update && sudo apt upgrade --yes' ;;
+  esac
+  $command
+}
+builtin bind -x '"\C-_O": __update_package_manager'
+builtin bind -m vi-insert '"\C-xou": "\C-x0\C-_O\C-x1\C-x2\b"'
+builtin bind -m vi-command '"\C-xou": "i\C-x0\C-_O\C-x1\C-x2\b"'
+
+# `brew search `
+builtin bind -m vi-insert '"\C-xos": "\C-x0brew search "'
+builtin bind -m vi-command '"\C-xos": "i\C-x0brew search "'
+
+# `brew install `
+builtin bind -m vi-insert '"\C-xoi": "\C-x0brew install "'
+builtin bind -m vi-command '"\C-xoi": "i\C-x0brew install "'
+
+# Function to redraw the prompt
+redraw_prompt() {
+  tput rc      # Restore cursor position
+  tput ed      # Clear to end of screen
+  tput sc      # Save cursor position
+}
+
+# `cd -`
+builtin bind -x '"\C-_P": "builtin cd -"'
+builtin bind -m vi-insert '"\C-x-": "\C-x0\C-_P\C-x1\C-x2\b\r"'
+builtin bind -m vi-command '"\C-x-": "i\C-x0\C-_P\C-x1\C-x2\b\r"'

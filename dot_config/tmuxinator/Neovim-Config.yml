@@ -1,0 +1,7 @@
+---
+name: Neovim-Config
+root: "~/.config/nvim"
+
+windows:
+  - main:
+      layout: main-vertical

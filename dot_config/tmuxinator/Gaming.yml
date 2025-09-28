@@ -1,0 +1,7 @@
+---
+name: Gaming
+root: "~/workspaces/webdavis/projects/gaming"
+
+windows:
+  - main:
+      layout: main-vertical

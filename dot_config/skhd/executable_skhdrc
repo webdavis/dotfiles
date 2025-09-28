@@ -1,0 +1,85 @@
+# Restart yabai in-place (preserves your layout/session)
+cmd + ctrl + alt - r : launchctl kickstart -k "gui/${UID}/homebrew.mxcl.yabai"
+
+# Focus window
+hyper - h : yabai -m window --focus west
+hyper - j : yabai -m window --focus south
+hyper - k : yabai -m window --focus north
+hyper - l : yabai -m window --focus east
+
+# Swap window
+ctrl + alt - h : yabai -m window --swap west
+ctrl + alt - j : yabai -m window --swap south
+ctrl + alt - k : yabai -m window --swap north
+ctrl + alt - l : yabai -m window --swap east
+
+# Warp window
+ctrl + shift - h : yabai -m window --warp west
+ctrl + shift - j : yabai -m window --warp south
+ctrl + shift - k : yabai -m window --warp north
+ctrl + shift - l : yabai -m window --warp east
+
+# Stack windows
+hyper - s : yabai -m window --stack south
+hyper - p : yabai -m window --focus stack.prev
+hyper - n : yabai -m window --focus stack.next
+
+# Resize window
+ctrl + shift - y : yabai -m window --resize left:-50:0  ; yabai -m window --resize right:-50:0
+ctrl + shift - u : yabai -m window --resize bottom:0:50 ; yabai -m window --resize top:0:50
+ctrl + shift - i : yabai -m window --resize top:0:-50   ; yabai -m window --resize bottom:0:-50
+ctrl + shift - o : yabai -m window --resize right:50:0  ; yabai -m window --resize left:50:0
+
+# Set insertion point for focused container
+hyper - u : yabai -m window --insert south
+hyper - i : yabai -m window --insert east
+
+# Rotate windows
+hyper - r : ~/bin/yabai-cycle-windows-clockwise
+hyper - e : ~/bin/yabai-cycle-windows-counterclockwise
+
+# Toggle window fullscreen
+hyper - f : yabai -m window --toggle zoom-fullscreen
+
+# Toggle floating window
+ctrl + alt - space : yabai -m window --toggle float
+
+# Toggle desktop
+hyper - d : yabai -m space --toggle show-desktop
+
+# Open terminal
+hyper - return : /Applications/Ghostty.app/Contents/MacOS/ghostty
+
+# Open new chrome window
+hyper - b : /Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome --new-window
+
+
+# The following shortcuts won't work until Yabai supports M1 Macbooks.
+######################################################################
+
+# Fast focus desktop
+cmd + ctrl - l : yabai -m space --focus last  # doesn't work for some reason
+
+# Send window to desktop
+ctrl + alt - b : yabai -m window --space recent
+ctrl + alt - 1 : yabai -m window --space 1
+ctrl + alt - 2 : yabai -m window --space 2
+ctrl + alt - 3 : yabai -m window --space 3
+ctrl + alt - 4 : yabai -m window --space 4
+ctrl + alt - 5 : yabai -m window --space 5
+ctrl + alt - 6 : yabai -m window --space 6
+ctrl + alt - 7 : yabai -m window --space 7
+ctrl + alt - 8 : yabai -m window --space 8
+ctrl + alt - 9 : yabai -m window --space 9
+ctrl + alt - 0 : yabai -m window --space 10
+
+# Create desktop and follow focus
+#cmd + ctrl - o : yabai -m space --create \
+#  && index="$(yabai -m query --spaces --display | jq 'map(select(."native-fullscreen" == 0))[-1].index')" \
+#  && yabai -m space --focus "${index}"
+
+# create desktop, move window and follow focus
+#cmd + ctrl - m : yabai -m space --create \
+#  && index="$(yabai -m query --spaces --display | jq 'map(select(."native-fullscreen" == 0))[-1].index')" \
+#  && yabai -m window --space "${index}" \
+#  && yabai -m space --focus "${index}"
