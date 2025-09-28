@@ -1,0 +1,24 @@
+name: Lint
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install ShellCheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+
+      - name: Find and lint shell scripts
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Find all shell scripts and dotfiles and lint safely
+          find . -type f \( -name "*.sh" -o -name "*.bash" -o -name "dot_bash*" ! -name "*.tmpl" -o -name "dot_profile" \) -print0 \
+            | xargs -0 -I{} sh -c 'echo "Linting {}"; shellcheck "{}"'

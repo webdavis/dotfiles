@@ -9,7 +9,7 @@ bold=$(tput bold)
 normal=$(tput sgr0)
 
 help_message() {
-    printf "%s\\n" "\
+  printf "%s\\n" "\
 
 ${bold}DESCRIPTION${normal}
    This script generates a Banner/Alert on your macOS machine whenever your most recent GitHub
@@ -35,10 +35,16 @@ show_branch='false'
 optstring=':beh'
 while getopts "$optstring" option; do
   case "$option" in
-    b ) show_branch='true' ;;
-    e ) use_emoji='true' ;;
-    h ) help_message; exit 0 ;;
-    * ) echo "Error: invalid option '$OPTARG'"; exit 1 ;;
+  b) show_branch='true' ;;
+  e) use_emoji='true' ;;
+  h)
+    help_message
+    exit 0
+    ;;
+  *)
+    echo "Error: invalid option '$OPTARG'"
+    exit 1
+    ;;
   esac
 done
 unset -v option
@@ -69,40 +75,40 @@ fi
 
 (
 
-run_osascript() {
-  osascript -e "display notification \"${2}\" with title \"${1}\""
-}
+  run_osascript() {
+    osascript -e "display notification \"${2}\" with title \"${1}\""
+  }
 
-most_recent_id="$(gh run list -L 1 --json databaseId --jq '.[].databaseId')"
+  most_recent_id="$(gh run list -L 1 --json databaseId --jq '.[].databaseId')"
 
-if [[ -z $most_recent_id ]]; then
-  error_message="No GitHub Action workflows detected for this project"
-  run_osascript "$script_name" "$error_message"
-  exit 1
-fi
-
-gh run watch "$most_recent_id" | tee &>/dev/null &
-
-# Wait for the previous background process to finish.
-wait
-
-most_recent_branch="$(gh run list -L 1 --json headBranch --jq '.[].headBranch')"
-most_recent_name="$(gh run list -L 1 --json name --jq '.[].name')"
-most_recent_status="$(gh run list -L 1 --json conclusion --jq '.[].conclusion')"
-
-if [[ $use_emoji == 'true' ]]; then
-  if [[ $most_recent_status == 's'* ]]; then
-    status_formatted='✅'
-  else
-    status_formatted='❌'
+  if [[ -z $most_recent_id ]]; then
+    error_message="No GitHub Action workflows detected for this project"
+    run_osascript "$script_name" "$error_message"
+    exit 1
   fi
-else
-  status_formatted="$(tr '[:lower:]' '[:upper:]' <<< ${most_recent_status:0:1})${most_recent_status:1}"
-fi
 
-if [[ $show_branch == 'true' ]]; then
-  run_osascript "GitHub Action - $most_recent_name" "$most_recent_branch: $status_formatted"
-else
-  run_osascript "GitHub Action - $most_recent_name" "$status_formatted"
-fi
+  gh run watch "$most_recent_id" | tee &>/dev/null &
+
+  # Wait for the previous background process to finish.
+  wait
+
+  most_recent_branch="$(gh run list -L 1 --json headBranch --jq '.[].headBranch')"
+  most_recent_name="$(gh run list -L 1 --json name --jq '.[].name')"
+  most_recent_status="$(gh run list -L 1 --json conclusion --jq '.[].conclusion')"
+
+  if [[ $use_emoji == 'true' ]]; then
+    if [[ $most_recent_status == 's'* ]]; then
+      status_formatted='✅'
+    else
+      status_formatted='❌'
+    fi
+  else
+    status_formatted="$(tr '[:lower:]' '[:upper:]' <<<"${most_recent_status:0:1}")${most_recent_status:1}"
+  fi
+
+  if [[ $show_branch == 'true' ]]; then
+    run_osascript "GitHub Action - $most_recent_name" "$most_recent_branch: $status_formatted"
+  else
+    run_osascript "GitHub Action - $most_recent_name" "$status_formatted"
+  fi
 ) &

@@ -1,3 +1,4 @@
-# shellcheck disable=SC1019
+# shellcheck shell=bash
+# vi:filetype=sh shiftwidth=2 softtabstop=2 tabstop=8:
 
 [[ -n "$BASH_VERSION" && -f "${HOME}/.bashrc" ]] && . "${HOME}/.bashrc"

@@ -1,0 +1,2 @@
+# Ignore warnings about non-constant or missing sourced files (SC1090, SC1091)
+disable=SC1091,SC1090
