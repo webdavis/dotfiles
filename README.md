@@ -1,5 +1,7 @@
 # Dotfiles
 
+[![Lint](https://github.com/webdavis/dotfiles/actions/workflows/lint.yml/badge.svg)](https://github.com/webdavis/dotfiles/actions/workflows/lint.yml)
+
 This repository contains my personal configuration files, managed with [Chezmoi](https://www.chezmoi.io/).
 
 ## Prerequisites
