@@ -1,4 +1,4 @@
-# Dotfiles
+# ![dotfiles logo](./assets/logo.svg) Dotfiles
 
 [![Lint](https://github.com/webdavis/dotfiles/actions/workflows/lint.yml/badge.svg)](https://github.com/webdavis/dotfiles/actions/workflows/lint.yml)
 
