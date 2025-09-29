@@ -88,6 +88,10 @@ eval "$(starship init bash)"
 # Cargo environment setup.
 . "$HOME/.cargo/env"
 
+# TMS (Tmux Sessionizer)
+# ————————————————————————
+TMS_CONFIG_FILE="$HOME/tms/config.toml"
+
 # ┏━━━━━━━━━━━━━━━━━━━━┓
 # ┃    Python Stuff    ┃
 # ┗━━━━━━━━━━━━━━━━━━━━┛
