@@ -6,9 +6,14 @@ depth = 10
 path = "/Users/stephen/workspaces"
 depth = 10
 
+[[search_dirs]]
+path = "/Users/stephen/workspaces/webdavis/projects"
+depth = 10
+
 [marks]
 0 = "/Users/stephen/.config/nvim"
 1 = "/Users/stephen/workspaces/webdavis/projects/Homelab"
-2 = "/Users/stephen/workspaces/webdavis/projects/essential-feed-case-study"
-3 = "/Users/stephen/workspaces/webdavis/projects/Maeve"
-5 = "/Users/stephen/workspaces/activated-insights/surveys"
+2 = "/Users/stephen/workspaces/webdavis/projects/docker-raspios-lite"
+3 = "/Users/stephen/workspaces/webdavis/projects/essential-feed-case-study"
+4 = "/Users/stephen/workspaces/webdavis/projects/Maeve"
+5 = "/Users/stephen/workspaces/Ivy"
