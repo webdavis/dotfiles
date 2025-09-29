@@ -1,4 +1,8 @@
-# ![dotfiles logo](./assets/logo.svg) Dotfiles
+<p align="center">
+  <img src="./assets/logo.png" />
+</p>
+
+# Dotfiles
 
 [![Lint](https://github.com/webdavis/dotfiles/actions/workflows/lint.yml/badge.svg)](https://github.com/webdavis/dotfiles/actions/workflows/lint.yml)
 
