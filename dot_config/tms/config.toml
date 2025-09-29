@@ -12,8 +12,10 @@ depth = 2
 
 [marks]
 0 = "/Users/stephen/.config/nvim"
-1 = "/Users/stephen/workspaces/webdavis/projects/Homelab"
-2 = "/Users/stephen/workspaces/webdavis/projects/docker-raspios-lite"
-3 = "/Users/stephen/workspaces/webdavis/projects/essential-feed-case-study"
-4 = "/Users/stephen/workspaces/webdavis/projects/Maeve"
-5 = "/Users/stephen/workspaces/Ivy"
+1 = "/Users/stephen/.local/share/chezmoi"
+2 = "/Users/stephen/workspaces/webdavis/projects/Homelab"
+3 = "/Users/stephen/workspaces/webdavis/projects/docker-raspios-lite"
+4 = "/Users/stephen/workspaces/webdavis/projects/essential-feed-case-study"
+5 = "/Users/stephen/workspaces/webdavis/projects/Maeve"
+6 = "/Users/stephen/workspaces/Ivy"
+7 = "/Users/stephen/workspaces/activated-insights/surveys"

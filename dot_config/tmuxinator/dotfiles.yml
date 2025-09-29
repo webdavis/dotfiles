@@ -1,0 +1,7 @@
+---
+name: chezmoi
+root: "~/.local/share/chezmoi"
+
+windows:
+  - main:
+      layout: main-vertical
