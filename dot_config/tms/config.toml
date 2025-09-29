@@ -1,14 +1,14 @@
 [[search_dirs]]
 path = "/Users/stephen/.config"
-depth = 10
+depth = 2
 
 [[search_dirs]]
 path = "/Users/stephen/workspaces"
-depth = 10
+depth = 2
 
 [[search_dirs]]
 path = "/Users/stephen/workspaces/webdavis/projects"
-depth = 10
+depth = 2
 
 [marks]
 0 = "/Users/stephen/.config/nvim"
