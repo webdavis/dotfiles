@@ -5,3 +5,10 @@ depth = 10
 [[search_dirs]]
 path = "/Users/stephen/workspaces"
 depth = 10
+
+[marks]
+0 = "/Users/stephen/.config/nvim"
+1 = "/Users/stephen/workspaces/webdavis/projects/Homelab"
+2 = "/Users/stephen/workspaces/webdavis/projects/essential-feed-case-study"
+3 = "/Users/stephen/workspaces/webdavis/projects/Maeve"
+5 = "/Users/stephen/workspaces/activated-insights/surveys"
