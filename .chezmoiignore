@@ -5,3 +5,11 @@ assets/
 scripts/
 
 .envrc
+
+*_darwin
+*_linux
+
+{{- if ne .chezmoi.os "linux" -}}
+dot_Brewfile
+dot_config/yabai
+{{- end -}}
