@@ -72,23 +72,23 @@ launch_all_tmux_sessions_flag=false
 optstring=':kpth'
 while getopts "$optstring" option; do
   case "$option" in
-  k)
-    kill_sessions_flag=true
-    ;;
-  p)
-    purge_tmux_resurrect_data_flag=true
-    ;;
-  t)
-    launch_all_tmux_sessions_flag=true
-    ;;
-  h)
-    help_message
-    exit 0
-    ;;
-  *)
-    echo "Error: invalid option '$OPTARG'"
-    exit 1
-    ;;
+    k)
+      kill_sessions_flag=true
+      ;;
+    p)
+      purge_tmux_resurrect_data_flag=true
+      ;;
+    t)
+      launch_all_tmux_sessions_flag=true
+      ;;
+    h)
+      help_message
+      exit 0
+      ;;
+    *)
+      echo "Error: invalid option '$OPTARG'"
+      exit 1
+      ;;
   esac
 done
 unset -v option
