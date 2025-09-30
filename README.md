@@ -40,3 +40,22 @@ brew install chezmoi
 ```bash
 sh -c "$(curl -fsLS get.chezmoi.io)" -- init --apply webdavis
 ```
+
+## Development Environment
+
+The following tools are recommended for working on this project:
+
+- [Direnv](https://direnv.net/)
+
+When on macOS, `direnv` automatically adjusts your `PATH` so that Homebrew-installed binaries
+take priority whenever you `cd` into this project.
+
+```bash
+brew install direnv
+```
+
+After installation, run
+
+```bash
+direnv apply
+```
