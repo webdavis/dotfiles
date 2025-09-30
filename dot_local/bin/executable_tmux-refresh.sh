@@ -102,17 +102,26 @@ Oops! Looks like you don't have ${tool} installed.
 
 Please install it and then try again (e.g. brew install ${tool})" 2>&1
 
-    exit 1
+    return 1
   fi
+  return 0
 }
 
 verify_required_tools() {
-  local required_tools=(tmux tmuxinator)
+  local required_tools=("$@")
+
   local tool
+  local missing_tool=false
 
   for tool in "${required_tools[@]}"; do
-    verify_tool "$tool"
+    if ! verify_tool "$tool"; then
+      missing_tool=true
+    fi
   done
+
+  if $missing_tool; then
+    exit 1
+  fi
 }
 
 if_no_flags_activate_all() {
@@ -192,7 +201,7 @@ perform_actions() {
 }
 
 main() {
-  verify_required_tools
+  verify_required_tools tmux tmuxinator
   if_no_flags_activate_all
   perform_actions
 }
