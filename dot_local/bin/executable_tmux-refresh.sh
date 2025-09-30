@@ -12,17 +12,26 @@
 # Exit immediately if a command fails.
 set -e
 
-# Settings:
-TMUXINATOR_PRESETS_DIR="${HOME}/.config/tmuxinator"
-TMUX_RESURRECT_DIR="${HOME}/.tmux/resurrect"
-TMUX_RESURRECT_LAST_FILE="${TMUX_RESURRECT_DIR}/last"
-TMUX_RESURRECT_DATA_FILES="${TMUX_RESURRECT_DIR}/tmux-resurrect*"
+declare_globals() {
+  declare -g \
+    TMUXINATOR_PRESETS_DIR \
+    TMUX_RESURRECT_DIR \
+    TMUX_RESURRECT_LAST_FILE \
+    TMUX_RESURRECT_DATA_FILES
 
-# Print colors:
-export GREEN="\033[0;32m"
-export CYAN="\033[0;36m"
-export RED="\033[0;31m"
-export RESET="\033[0m"
+  # Settings:
+  TMUXINATOR_PRESETS_DIR="${HOME}/.config/tmuxinator"
+  TMUX_RESURRECT_DIR="${HOME}/.tmux/resurrect"
+  TMUX_RESURRECT_LAST_FILE="${TMUX_RESURRECT_DIR}/last"
+  TMUX_RESURRECT_DATA_FILES="${TMUX_RESURRECT_DIR}/tmux-resurrect*"
+
+  # Print colors:
+  GREEN="\033[0;32m"
+  CYAN="\033[0;36m"
+  RED="\033[0;31m"
+  RESET="\033[0m"
+  declare -g GREEN CYAN RED RESET
+}
 
 help_message() {
   local bold normal
@@ -201,6 +210,7 @@ perform_actions() {
 }
 
 main() {
+  declare_globals
   verify_required_tools tmux tmuxinator
   if_no_flags_activate_all
   perform_actions
