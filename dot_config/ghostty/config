@@ -19,6 +19,20 @@
 #   $ rm ~/Library/Application\ Support/com.mitchellh.ghostty/config
 #   -----------------------------------------------------------------
 
+# Launch Bash via /usr/bin/env to ensure:
+# 1. Ghostty picks the first `bash` in the PATH (so Homebrew Bash is used if present).
+# 2. Ghostty's environment variables, like GHOSTTY_RESOURCES_DIR, are preserved.
+# 3. The -i flag runs Bash interactively, sourcing ~/.bashrc for PATH changes,
+#    aliases, completions, and shell integration.
+#
+# We use /usr/bin/env instead of a direct path to ensure Ghostty's shell integration
+# works correctly. Ghostty sets environment variables (e.g., GHOSTTY_RESOURCES_DIR)
+# that must exist before Bash starts. This approach preserves those variables and
+# is recommended in the discussion below.
+# Discussion: https://github.com/ghostty-org/ghostty/discussions/7931#discussioncomment-13746978
+# Ghostty `command` ref: https://ghostty.org/docs/config/reference#command
+command = "/usr/bin/env bash -i"
+
 # Font
 # =============
 font-family   = Menlo
@@ -28,9 +42,11 @@ font-feature  = -liga
 
 # Appearance
 # =============
-theme            = "GitHub Dark Dimmed"
-link-url         = true
-link-previews    = true
+theme             = "GitHub Dark Dimmed"
+link-url          = true
+link-previews     = true
+cursor-style      = block
+window-colorspace = "display-p3"
 # window-padding-x = 2 # Optional padding (uncomment to enable)
 
 # Behavior
