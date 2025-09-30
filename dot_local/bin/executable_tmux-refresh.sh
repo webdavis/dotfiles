@@ -49,10 +49,11 @@ ${bold}DESCRIPTION${normal}
    All session presets can be found in ${TMUXINATOR_PRESETS_DIR}
 
 ${bold}USAGE${normal}
-   ${script_name} [-hkpt] [any combination]
+   ${script_name} [-skpth] [any combination]
 
 ${bold}OPTIONS${normal}
    -k   Kill all existing Tmux sessions before starting new ones.
+   -s   Kill Tmux server.
    -p   Purge all tmux-resurrect data before starting sessions.
    -t   Start all Tmux sessions via Tmuxinator using presets located in ${TMUXINATOR_PRESETS_DIR} (default behavior)
    -h   Prints this help text.
@@ -67,6 +68,7 @@ ${bold}EXAMPLES${normal}
    ${script_name}            (Default) Kill, purge, and start all sessions
    ${script_name} -t         Start all tmux sessions
    ${script_name} -k         Kill all tmux sessions
+   ${script_name} -s         Kill tmux server
    ${script_name} -p         Purge all tmux-resurrect data
    ${script_name} -k -p      Kill sessions and purge tmux-resurrect data
    ${script_name} -k -t      Kill existing sessions, then start new ones (preserves tmux-resurrect data)
@@ -75,14 +77,18 @@ ${bold}EXAMPLES${normal}
 }
 
 kill_sessions_flag=false
+kill_server_flag=false
 purge_tmux_resurrect_data_flag=false
 launch_all_tmux_sessions_flag=false
 
-optstring=':kpth'
+optstring=':kspth'
 while getopts "$optstring" option; do
   case "$option" in
     k)
       kill_sessions_flag=true
+      ;;
+    s)
+      kill_server_flag=true
       ;;
     p)
       purge_tmux_resurrect_data_flag=true
@@ -136,7 +142,8 @@ verify_required_tools() {
 if_no_flags_activate_all() {
   # Default behavior: If no flags are provided, do everything by default.
 
-  if ! $kill_sessions_flag && ! $purge_tmux_resurrect_data_flag && ! $launch_all_tmux_sessions_flag; then
+  if ! $kill_server_flag && ! $kill_sessions_flag && ! $purge_tmux_resurrect_data_flag && ! $launch_all_tmux_sessions_flag; then
+    kill_server_flag=true
     kill_sessions_flag=true
     purge_tmux_resurrect_data_flag=true
     launch_all_tmux_sessions_flag=true
@@ -146,13 +153,26 @@ if_no_flags_activate_all() {
 kill_tmux_sessions() {
   # Description: Kills all existing Tmux sessions.
 
-  echo -e "${RED}Killing all existing tmux sessions...${RESET}"
+  if tmux ls >/dev/null 2>&1; then
+    echo -e "${RED}Killing all existing tmux sessions...${RESET}"
 
-  local session
+    local session
+    while IFS= read -r session; do
+      tmux kill-session -t "$session"
+    done < <(tmux list-sessions -F "#{session_name}" 2>/dev/null)
+  fi
+}
 
-  while IFS= read -r session; do
-    tmux kill-session -t "$session"
-  done < <(tmux list-sessions -F "#{session_name}" 2>/dev/null)
+kill_tmux_server() {
+  if tmux ls >/dev/null 2>&1; then
+    echo -en "${RED}Killing tmux server...${RESET}"
+    tmux kill-server
+    echo -e "${GREEN} Done.${RESET}"
+  else
+    echo "No tmux server running."
+  fi
+
+  rm -rf /tmp/tmux-"$(id -u)"/*
 }
 
 purge_tmux_resurrect_data() {
@@ -205,6 +225,7 @@ launch_all_tmux_sessions() {
 
 perform_actions() {
   $kill_sessions_flag && kill_tmux_sessions
+  $kill_server_flag && kill_tmux_server
   $purge_tmux_resurrect_data_flag && purge_tmux_resurrect_data
   $launch_all_tmux_sessions_flag && launch_all_tmux_sessions
 }
