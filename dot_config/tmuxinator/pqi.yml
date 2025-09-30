@@ -1,6 +1,6 @@
 ---
-name: surveys
-root: "~/workspaces/activated-insights/surveys"
+name: pqi
+root: "~/workspaces/pqi"
 
 windows:
   - main:
