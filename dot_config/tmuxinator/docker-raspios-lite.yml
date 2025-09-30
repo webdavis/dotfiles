@@ -2,6 +2,8 @@
 name: docker-raspios-lite
 root: "~/workspaces/webdavis/projects/docker-raspios-lite"
 
+pre_window: tmux -C attach -c ~/workspaces/webdavis/projects/docker-raspios-lite -t docker-raspios-lite </dev/null >/dev/null; clear
+
 windows:
   - main:
       layout: main-vertical

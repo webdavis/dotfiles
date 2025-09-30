@@ -1,6 +1,8 @@
 ---
-name: gaming
-root: "~/workspaces/webdavis/projects/gaming"
+name: Gaming
+root: "~/workspaces/webdavis/projects/Gaming"
+
+pre_window: tmux -C attach -c ~/workspaces/webdavis/projects/Gaming -t Gaming </dev/null >/dev/null; clear
 
 windows:
   - main:

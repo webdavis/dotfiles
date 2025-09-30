@@ -2,6 +2,8 @@
 name: Ivy
 root: "~/workspaces/Ivy"
 
+pre_window: tmux -C attach -c ~/workspaces/Ivy -t Ivy </dev/null >/dev/null; clear
+
 windows:
   - main:
       layout: main-vertical

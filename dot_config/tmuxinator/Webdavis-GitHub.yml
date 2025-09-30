@@ -1,6 +1,8 @@
 ---
-name: Webdavis-GitHub
+name: webdavis
 root: "~/workspaces/webdavis/projects/webdavis"
+
+pre_window: tmux -C attach -c ~/workspaces/webdavis/projects/webdavis -t webdavis </dev/null >/dev/null; clear
 
 windows:
   - main:

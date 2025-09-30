@@ -2,6 +2,8 @@
 name: docker-s6-overlay
 root: "~/workspaces/webdavis/projects/docker-s6-overlay"
 
+pre_window: tmux -C attach -c ~/workspaces/webdavis/projects/docker-s6-overlay -t docker-s6-overlay </dev/null >/dev/null; clear
+
 windows:
   - main:
       layout: main-vertical

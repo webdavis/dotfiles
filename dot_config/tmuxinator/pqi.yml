@@ -2,6 +2,8 @@
 name: pqi
 root: "~/workspaces/pqi"
 
+pre_window: tmux -C attach -c ~/workspaces/pqi -t pqi </dev/null >/dev/null; clear
+
 windows:
   - main:
       layout: main-vertical
