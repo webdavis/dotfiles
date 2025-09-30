@@ -14,11 +14,13 @@
 # export PATH
 #
 function path_prepend() {
-  test -d "$1" || return 1
+  local dir="$1"
 
-  case ":${PATH:=$1}:" in
-  *:$1:*) ;;
-  *) PATH="$1:$PATH" ;;
+  test -d "$dir" || return 1
+
+  case ":${PATH}:" in
+    *:"$dir":*) ;;
+    *) PATH="$dir:$PATH" ;;
   esac
 }
 
