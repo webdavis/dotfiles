@@ -1,175 +1,170 @@
 [user]
-        name = Stephen A. Davis
-        email = {{ (keepassxc "Git").UserName }}
-        signingkey = {{ keepassxcAttribute "GPG - Webdavis on GitHub (Signing)" "Public Signing Subkey ID" }}
+  name = Stephen A. Davis
+  email = {{ (keepassxc "Git").UserName }}
+  signingkey = {{ keepassxcAttribute "GPG - Webdavis on GitHub (Signing)" "Public Signing Subkey ID" }}
 
 [init]
-	defaultBranch = main
+  defaultBranch = main
 
 [core]
-        editor = nvim
-	autocrlf = input
-        excludesfile = ~/.gitignore_global
-        pager = delta
+  editor = nvim
+  autocrlf = input
+  excludesfile = ~/.gitignore_global
+  pager = delta
 
-        # Treat spaces before tabs and all kinds of trailing whitespace as an error
-        # [default] trailing-space: looks for spaces at the end of a line
-        # [default] space-before-tab: looks for spaces before tabs at the beginning of a line
-        whitespace = space-before-tab,-indent-with-non-tab,trailing-space
+  # Treat spaces before tabs and all kinds of trailing whitespace as an error.
+  # (default) trailing-space: looks for spaces at the end of a line (default)
+  # (default) space-before-tab: looks for spaces before tabs at the beginning of a line (default)
+  whitespace = space-before-tab,-indent-with-non-tab,trailing-space
 
 [interactive]
-        diffFilter = delta --color-only
+  diffFilter = delta --color-only
 
 [include]
-        path = ~/.config/delta/themes.gitconfig
+  path = ~/.config/delta/themes.gitconfig
 
 [delta]
-        features = custom
+  features = custom
 
 [apply]
-
-        # Detect whitespace erros when applying a patch.
-        whitespace = fix
+  # Detect whitespace errors when applying a patch.
+  whitespace = fix
 
 [alias]
+  a = "!f() { git add $@; }; f"
 
-        a = "!f() { git add $@; }; f"
+  c = "!d() { git commit -m \"${@}\"; }; d"
 
-        c = "!d() { git commit -m \"${@}\"; }; d"
+  # Add all unstaged changes in the working directory to the previous commit, and then amend it.
+  ca = commit -a --amend -C HEAD --
 
-        # Add all unstaged changes in the working directory to the previous commit, and then amend it.
-        ca = commit -a --amend -C HEAD --
+  can = commit --amend --no-edit
 
-        can = commit --amend --no-edit
+  acp = "!acp() { git add ${@} && git commit --amend --no-edit && git push --force; }; acp"
 
-        acp = "!acp() { git add ${@} && git commit --amend --no-edit && git push --force; }; acp"
+  # Amend the currently staged files to the latest commit.
+  # Reference: https://github.com/jessfraz/dotfiles/blob/30c4d026bfc71df60f7b05d0bdbb3cc34049c017/.gitconfig#L38
+  amend = commit --amend --reuse-message=HEAD
 
-        # Amend the currently staged files to the latest commit.
-        # From Jess Frazelle https://github.com/jessfraz/dotfiles/blob/30c4d026bfc71df60f7b05d0bdbb3cc34049c017/.gitconfig#L38
-        amend = commit --amend --reuse-message=HEAD
+  # Credit an author on the latest commit.
+  # Reference: https://github.com/jessfraz/dotfiles/blob/30c4d026bfc71df60f7b05d0bdbb3cc34049c017/.gitconfig#L41
+  credit = "!f() { git commit --amend --author \"$1 <$2>\" -C HEAD; }; f"
 
-        # Credit an author on the latest commit.
-        # From Jess Frazelle https://github.com/jessfraz/dotfiles/blob/30c4d026bfc71df60f7b05d0bdbb3cc34049c017/.gitconfig#L41
-        credit = "!f() { git commit --amend --author \"$1 <$2>\" -C HEAD; }; f"
+  # Jump back to master branch.
+  cm = checkout master
 
-        # Jump back to master branch.
-        cm = checkout master
+  # View abbreviated SHA, description, and history graph of the latest 20 commits.
+  # Reference: https://github.com/jessfraz/dotfiles/blob/30c4d026bfc71df60f7b05d0bdbb3cc34049c017/.gitconfig#L66
+  lg = log --pretty=oneline -n 20 --graph --abbrev-commit
 
-        # View abbreviated SHA, description, and history graph of the latest 20 commits
-        # From Jess Frazelle https://github.com/jessfraz/dotfiles/blob/30c4d026bfc71df60f7b05d0bdbb3cc34049c017/.gitconfig#L66
-        lg = log --pretty=oneline -n 20 --graph --abbrev-commit
+  # View the current working tree status using the short format.
+  s = status -s
 
-        # View the current working tree status using the short format
-        s = status -s
+  # View the full git status output.
+  sf = status
 
-        # View the full git status output.
-        sf = status
+  # Show the diff between the latest commit and the current state.
+  d = !"git diff-index --quiet HEAD -- || clear; git --no-pager diff --patch-with-stat"
 
-        # Show the diff between the latest commit and the current state
-        d = !"git diff-index --quiet HEAD -- || clear; git --no-pager diff --patch-with-stat"
+  # `git di $number` shows the diff between the state `$number` revisions ago and the current state.
+  di = !"d() { git diff --patch-with-stat HEAD~$1; }; git diff-index --quiet HEAD -- || clear; d"
 
-        # `git di $number` shows the diff between the state `$number` revisions ago and the current state
-        di = !"d() { git diff --patch-with-stat HEAD~$1; }; git diff-index --quiet HEAD -- || clear; d"
+  # Initialize a new repo on GitHub.
+  h = !git init && gh repo create $(basename $PWD)
 
-        # Initialize a new repo on GitHub.
-        h = !git init && gh repo create $(basename $PWD)
+  # Save work in a rush.
+  u = !"git add --all && git commit -m 'Quick save' && git push --set-upstream origin master"
 
-        # Save work in a rush.
-        u = !"git add --all && git commit -m 'Quick save' && git push --set-upstream origin master"
+  p = !git push origin $(git rev-parse --abbrev-ref HEAD --)
 
-        p = !git push origin $(git rev-parse --abbrev-ref HEAD --)
+  pu = push --set-upstream origin master
 
-        pu = push --set-upstream origin master
+  ts = tag --list --sort=v:refname
 
-        ts = tag --list --sort=v:refname
+  mm = merge origin/master
 
-        mm = merge origin/master
-
-        # From trevor bramble https://twitter.com/TrevorBramble/status/774292970681937920
-        alias=!git config -l | grep ^alias | cut -c 7- | sort
+  # Reference: https://twitter.com/TrevorBramble/status/774292970681937920
+  alias=!git config -l | grep ^alias | cut -c 7- | sort
 
 [status]
-        submodulesummary = true
+  submodulesummary = true
 
 [difftool "nvimdiff"]
-        cmd = /opt/homebrew/bin/nvim -d -u ~/.config/nvim/init.lua \"$LOCAL\" \"$REMOTE\"
+  cmd = /opt/homebrew/bin/nvim -d -u ~/.config/nvim/init.lua \"$LOCAL\" \"$REMOTE\"
 
 [diff]
-        submodule = log
-        tool = nvimdiff
-        colorMoved = default
+  submodule = log
+  tool = nvimdiff
+  colorMoved = default
 
 [merge]
-        conflictstyle = diff3
-	tool = /opt/homebrew/bin/nvim -d -u ~/.config/nvim/init.lua \"$LOCAL\" \"$REMOTE\"
+  conflictstyle = diff3
+  tool = /opt/homebrew/bin/nvim -d -u ~/.config/nvim/init.lua \"$LOCAL\" \"$REMOTE\"
 
 [log]
-        showSignature = false
+  showSignature = false
 
 [rerere]
-        enabled = true
+  enabled = true
 
 [color "branch"]
-	current = "#8787d7"
-	upstream = "#ff8700"
+  current = "#8787d7"
+  upstream = "#ff8700"
 
 [color "status"]
-        added = "#00c96d"
-        changed = "#33a3f4"
-        untracked = "#ff657a"
-        remote = "#ff8700"
+  added = "#00c96d"
+  changed = "#33a3f4"
+  untracked = "#ff657a"
+  remote = "#ff8700"
 
 [color "diff"]
-        meta = "#87d7d7"
-        new = "#87af87"
-        old = "#af5f5f"
-        frag = "#8787af"
-        context = "#bcbcbc"
-        func = "#bcbcbc bold"
-	commit = "#e2b76f"
+  meta = "#87d7d7"
+  new = "#87af87"
+  old = "#af5f5f"
+  frag = "#8787af"
+  context = "#bcbcbc"
+  func = "#bcbcbc bold"
+  commit = "#e2b76f"
 
 [color]
-        ui = auto
+  ui = auto
 
 [filesystem "Oracle Corporation|11.0.5|/dev/mapper/volgroup-home"]
-        timestampResolution = 7000 nanoseconds
-        minRacyThreshold = 17718 microseconds
+  timestampResolution = 7000 nanoseconds
+  minRacyThreshold = 17718 microseconds
 
-# From Jess Frazelle https://github.com/jessfraz/dotfiles/blob/30c4d026bfc71df60f7b05d0bdbb3cc34049c017/.gitconfig#L159
+# Reference: https://github.com/jessfraz/dotfiles/blob/30c4d026bfc71df60f7b05d0bdbb3cc34049c017/.gitconfig#L159
 [url "git@github.com:github"]
-
-        insteadOf = "https://github.com/github"
-        insteadOf = "github:github"
-        insteadOf = "git://github.com/github"
+  insteadOf = "https://github.com/github"
+  insteadOf = "github:github"
+  insteadOf = "git://github.com/github"
 
 [url "git@github.com:"]
-
-        pushInsteadOf = "https://github.com/"
-        pushInsteadOf = "github:"
-        pushInsteadOf = "git://github.com/"
+  pushInsteadOf = "https://github.com/"
+  pushInsteadOf = "github:"
+  pushInsteadOf = "git://github.com/"
 
 [url "git://github.com/"]
-
-        insteadOf = "github:"
+  insteadOf = "github:"
 
 [url "git@gist.github.com:"]
-
-        insteadOf = "gst:"
-        pushInsteadOf = "gist:"
-        pushInsteadOf = "git://gist.github.com/"
+  insteadOf = "gst:"
+  pushInsteadOf = "gist:"
+  pushInsteadOf = "git://gist.github.com/"
 
 [url "git://gist.github.com/"]
-
-        insteadOf = "gist:"
+  insteadOf = "gist:"
 
 [rebase]
-	autosquash = true
+  autosquash = true
+
 [filter "lfs"]
-	clean = git-lfs clean -- %f
-	smudge = git-lfs smudge -- %f
-	process = git-lfs filter-process
-	required = true
+  clean = git-lfs clean -- %f
+  smudge = git-lfs smudge -- %f
+  process = git-lfs filter-process
+  required = true
 [commit]
-	gpgsign = true
+  gpgsign = true
+
 [tag]
-	gpgSign = true
+  gpgSign = true
