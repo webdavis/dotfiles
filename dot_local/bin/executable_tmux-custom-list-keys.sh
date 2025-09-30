@@ -4,16 +4,17 @@
 set -e
 
 declare_globals() {
+  declare -g \
+    TMUX_PREFIX_KEY \
+    TMUX_SESSIONIZER_MODE_PREFIX \
+    TMUX_RESIZE_MODE_PREFIX
+
   # Tmux Mode Prefix Keys:
-  declare -g TMUX_PREFIX_KEY
   TMUX_PREFIX_KEY="$(tmux show-option -gqv prefix)"
-
-  declare -g TMUX_SESSIONIZER_MODE_PREFIX
   TMUX_SESSIONIZER_MODE_PREFIX='C-o'
-
-  declare -g TMUX_RESIZE_MODE_PREFIX
   TMUX_RESIZE_MODE_PREFIX='r'
 
+  # Tmux Key-tables used by `tmux list-keys -T <table>`.
   declare -Ag TMUX_KEY_TABLES
   TMUX_KEY_TABLES=(
     [root]="0:"
