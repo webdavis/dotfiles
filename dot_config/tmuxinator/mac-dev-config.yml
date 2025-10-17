@@ -1,0 +1,9 @@
+---
+name: mac-dev-config
+root: "~/workspaces/webdavis/projects/mac-dev-config"
+
+pre_window: tmux -C attach -c ~/workspaces/webdavis/projects/mac-dev-config -t mac-dev-config </dev/null >/dev/null; clear
+
+windows:
+  - main:
+      layout: main-vertical
