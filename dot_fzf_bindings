@@ -61,120 +61,115 @@ __ehc() {
 }
 
 __build_edit_command() {
-  local key tool file line checkout optstring option
-  key='default'
-  tool=""
-  file=""
-  line=""
-  checkout=""
-  optstring=':k:t:f:l:c:'
+  local key='default'
+  local tool=""
+  local file=""
+  local line=""
+  local checkout=""
+
+  local optstring=':k:t:f:l:c:' option
   while getopts "$optstring" option; do
     case $option in
-    k) key="${OPTARG}" ;;
-    t) tool="${OPTARG}" ;;
-    f) file="${OPTARG}" ;;
-    l) line="+${OPTARG}" ;;
-    c) checkout="git checkout ${OPTARG};" ;;
-    *)
-      builtin printf "%s\\n" "fzf_bindings: flag '$OPTARG' doesn't exist. Terminating."
-      return 1
-      ;;
+      c) checkout="git checkout ${OPTARG};" ;;
+      f) file="${OPTARG}" ;;
+      k) key="${OPTARG}" ;;
+      l) line="+${OPTARG}" ;;
+      t) tool="${OPTARG}" ;;
+      *)
+        builtin printf '%s\n' "Error: Unknown fzf_bindings flag '$OPTARG'. Terminating!"
+        return 1
+        ;;
     esac
   done
 
-  # Allocate the command namespace.
-  local _command=""
+  # Build the command:
+  local cmd=""
+  [[ -n $tool ]] && cmd="$tool"
+  [[ -n $file ]] && cmd="${cmd} ${file}"
+  [[ -n $checkout ]] && cmd="${checkout} ${cmd}"
+  [[ -n $line ]] && cmd="${cmd} ${line}"
 
-  [[ -n "$tool" ]] && _command="$tool"
-
-  # Build the command.
-  [[ -n "$file" ]] && _command="${_command} ${file}"
-
-  if [[ -n "$checkout" ]]; then
-    _command="${checkout} ${_command}"
-  fi
-
-  [[ -n "$line" ]] && _command="${_command} ${line}"
+  local tmux_error_msg="Error: Tmux session not detected. Terminating fzf_bindings!"
 
   # Choose the operation.
   case $key in
-  'alt-c')
-    _command="builtin cd ${file%/*}"
-    if [[ -n $checkout ]]; then
-      _command="${checkout} ${_command}"
-    fi
-    ;;
-  'ctrl-o')
-    if [[ -n "$OPENER" ]]; then
-      _command="${OPENER} '$file'"
-    else
-      # Attempt to determine open-utility on the fly.
-      local os kernel_name
-      kernel_name="$(command uname -s)"
-      case "${kernel_name}" in
-      'Linux' | 'GNU'*)
-        os='linux'
-        ;;
-      'Darwin')
-        os="$(command sw_vers -productName)"
-        ;;
-      *'BSD')
-        os='bsd'
-        ;;
-      'CYGWIN'* | 'MSYS'* | 'MINGW'*)
-        os='windows'
-        ;;
-      'SunOS')
-        os='solaris'
-        ;;
-      *)
-        os='unknown'
-        ;;
-      esac
-      case "${os}" in
-      'linux' | 'bsd')
-        _command="xdg-open '$file'"
-        ;;
-      'macOS')
-        _command="open \"$file\""
-        ;;
-      'windows')
-        _command="start '$file'"
-        ;;
-      *)
-        printf "%s\\n" "Unknown Operating System detected: \"${kernel_name}\". Terminating." 1>&2
+    'alt-c')
+      cmd="builtin cd ${file%/*}"
+      if [[ -n $checkout ]]; then
+        cmd="${checkout} ${cmd}"
+      fi
+      ;;
+    'ctrl-o')
+      if [[ -n $OPENER ]]; then
+        cmd="${OPENER} '$file'"
+      else
+        # Attempt to determine open-utility on the fly.
+        local os kernel_name
+        kernel_name="$(command uname -s)"
+        case "${kernel_name}" in
+          'Linux' | 'GNU'*)
+            os='linux'
+            ;;
+          'Darwin')
+            os="$(command sw_vers -productName)"
+            ;;
+          *'BSD')
+            os='bsd'
+            ;;
+          'CYGWIN'* | 'MSYS'* | 'MINGW'*)
+            os='windows'
+            ;;
+          'SunOS')
+            os='solaris'
+            ;;
+          *)
+            os='unknown'
+            ;;
+        esac
+        case "${os}" in
+          'linux' | 'bsd')
+            cmd="xdg-open '$file'"
+            ;;
+          'macOS')
+            cmd="open \"$file\""
+            ;;
+          'windows')
+            cmd="start '$file'"
+            ;;
+          *)
+            printf '%s\n' "Error: Unknown Operating System detected: \"${kernel_name}\". Terminating fzf_bindings!" 1>&2
+            return 1
+            ;;
+        esac
+      fi
+      ;;
+    'ctrl-s')
+      cmd="sudo ${cmd}"
+      ;;
+    'ctrl-x')
+      if [[ -z $TMUX ]]; then
+        builtin printf '%s\n' "$tmux_error_msg" 2>&1
         return 1
-        ;;
-      esac
-    fi
-    ;;
-  'ctrl-s')
-    _command="sudo ${_command}"
-    ;;
-  'ctrl-x')
-    [[ -n "$TMUX" ]] || {
-      builtin printf "%s\\n" 'fzf_bindings: Tmux session not detected. Terminating.' 2>&1
-      return 1
-    }
-    _command="tmux split-window -v \"${_command}; exec bash\""
-    ;;
-  'ctrl-v')
-    [[ -n "$TMUX" ]] || {
-      builtin printf "%s\\n" 'fzf_bindings: Tmux session not detected. Terminating.' 2>&1
-      return 1
-    }
-    _command="tmux split-window -h \"${_command}; exec bash\""
-    ;;
-  'ctrl-t')
-    [[ -n "$TMUX" ]] || {
-      builtin printf "%s\\n" 'fzf_bindings: Tmux session not detected. Terminating.' 2>&1
-      return 1
-    }
-    _command="tmux new-window \"${_command}; exec bash\""
-    ;;
+      fi
+      cmd="tmux split-window -v \"${cmd}; exec bash\""
+      ;;
+    'ctrl-v')
+      if [[ -z $TMUX ]]; then
+        builtin printf '%s\n' "$tmux_error_msg" 2>&1
+        return 1
+      fi
+      cmd="tmux split-window -h \"${cmd}; exec bash\""
+      ;;
+    'ctrl-t')
+      [[ -n $TMUX ]] || {
+        builtin printf '%s\n' "$tmux_error_msg" 2>&1
+        return 1
+      }
+      cmd="tmux new-window \"${cmd}; exec bash\""
+      ;;
   esac
 
-  builtin echo "$_command"
+  builtin echo "$cmd"
 }
 
 __catch_interrupt() {
