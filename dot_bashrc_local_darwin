@@ -56,6 +56,4 @@ path_prepend "$HOME/.pyenv/versions/3.12.0/bin"
 # | Ref         | https://mise.jdx.dev/getting-started.html#quickstart                |
 # |-------------|---------------------------------------------------------------------|
 
-if [[ -f "mise.toml" ]]; then
-  eval "$("${HOME}/.local/bin/mise" activate bash)"
-fi
+eval "$("${HOME}/.local/bin/mise" activate bash)"
