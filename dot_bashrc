@@ -16,12 +16,13 @@
 function path_prepend() {
   local dir="$1"
 
-  test -d "$dir" || return 1
-
-  case ":${PATH}:" in
-    *:"$dir":*) ;;
-    *) PATH="$dir:$PATH" ;;
-  esac
+  if [[ -d "$dir" ]]; then
+    # Prepend the directory to PATH.
+    PATH="$dir:$PATH"
+  else
+    echo "Directory $dir does not exist."
+    return 1
+  fi
 }
 
 # ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
