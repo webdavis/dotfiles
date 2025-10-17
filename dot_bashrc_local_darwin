@@ -43,15 +43,3 @@ path_prepend "${HOMEBREW_PREFIX}/opt/gnu-getopt/bin/"
 # Note: Order matters! This ensures Pyenv Python takes priority, then Homebrew binaries in PATH.
 path_prepend "${HOMEBREW_PREFIX}/bin"
 path_prepend "$HOME/.pyenv/versions/3.12.0/bin"
-
-# ┌ mise-en-place ───────────────────────────────────────────────────────────────────┐
-# │                                                                                  │
-# │ Description: Language-agnostic development environment manager.                  │
-# │              It's similar to Poetry or PDM, but works across multiple languages. │
-# │                                                                                  │
-# │ Example: "My project uses Python and Rust... Oh, I you could use Mise!"          │
-# │                                                                                  │
-# │ Ref: https://mise.jdx.dev/getting-started.html#quickstart                        │
-# └──────────────────────────────────────────────────────────────────────────────────┘
-
-# eval "$("${HOME}/.local/bin/mise" activate bash)"
