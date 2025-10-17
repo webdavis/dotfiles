@@ -33,6 +33,7 @@ export BASH_SILENCE_DEPRECATION_WARNING=1
 export MANPAGER="nvim +Man!"
 export TERM='screen-256color'
 export COLORTERM=truecolor
+export XDG_DATA_HOME="$HOME/.local/share"
 export XDG_CONFIG_HOME="$HOME/.config"
 
 # Disable flow control. For example, Ctrl+s suspends flow-control, and Ctrl+q resumes
