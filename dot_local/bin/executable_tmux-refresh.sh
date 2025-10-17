@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 
-# ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-# ┃    Required Tools                                  ┃
-# ┃     ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅                                  ┃
+# ┏Requirements (tools)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+# ┃                                                    ┃
 # ┃  ∙ https://github.com/tmux/tmux                    ┃
 # ┃  ∙ https://github.com/tmuxinator/tmuxinator        ┃
 # ┃  ∙ https://github.com/tmux-plugins/tmux-resurrect  ┃
