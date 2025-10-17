@@ -193,7 +193,11 @@ launch_tmux_session() {
   echo -en "\n${CYAN}Starting ${project}...${RESET}"
   # echo -en "Starting ${project}..."
 
-  if tmuxinator start "$project" --config "$file" --no-attach; then
+  export HOME="$HOME"
+  export XDG_DATA_HOME="$HOME/.local/share"
+  export XDG_CONFIG_HOME="$HOME/.config"
+  TMUX_ENV_CMD="env HOME=$HOME XDG_DATA_HOME=$HOME/.local/share XDG_CONFIG_HOME=$HOME/.config"
+  if $TMUX_ENV_CMD tmuxinator start "$project" --config "$file" --no-attach; then
     echo -e "${GREEN} Done.${RESET}"
   fi
 }
@@ -217,9 +221,15 @@ get_tmuxinator_projects() {
 launch_all_tmux_sessions() {
   # Description: Iterates over all Tmuxinator preset files and launches each session.
 
-  # Export the function for parallel.
-  export -f launch_tmux_session
-  get_tmuxinator_projects | parallel --colsep ':' --group launch_tmux_session '{1}' '{2}'
+  local entry entries project file
+
+  mapfile -t entries < <(get_tmuxinator_projects)
+
+  for entry in "${entries[@]}"; do
+    project="${entry%%:*}"
+    file="${entry##*:}"
+    launch_tmux_session "$project" "$file"
+  done
 }
 
 perform_actions() {
