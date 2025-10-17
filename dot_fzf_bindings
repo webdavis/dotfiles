@@ -46,6 +46,10 @@ export FZF_COMPLETION_OPTS="--height='40%'"
 # The command that opens default applications depending on the mime type of the file.
 export OPENER="$([ $(uname -s) == 'Darwin' ] && command -v open || command -v xdg-open)"
 
+if [[ $EDITOR =~ homebrew ]]; then
+  EDITOR_CMD="nvim"
+fi
+
 builtin bind '"\C-x0": kill-whole-line'     # Clears the entire line.
 builtin bind '"\C-x1": magic-space'         # Performs history expansion and inserts a space.
 builtin bind '"\C-x2": redraw-current-line' # Refreshes the current line.
@@ -262,6 +266,52 @@ __fzf_git_project_file_open() {
 builtin bind -x '"\C-_01": __fzf_git_project_file_open'
 builtin bind -m vi-insert '"\C-xx": "\C-x0\C-_01\C-x1\C-x2\015"'
 builtin bind -m vi-command '"\C-xx": "i\C-x0\C-_01\C-x1\C-x2\015"'
+
+# Press "Ctrl-g + f" to fzf-open any git-tracked file in the project.
+__fzf_git_file_open() {
+  trap '__catch_interrupt "$cwd"' ERR INT TERM QUIT
+
+  local project_root
+  if ! project_root="$(git rev-parse --show-toplevel 2>/dev/null)"; then
+    builtin printf '%s\n' "__fzf_git_file_open: Not in a git-tracked project" 2>&1
+    return 1
+  fi
+
+  local -r fzf_keys="ctrl-o,ctrl-x,ctrl-v,ctrl-t,ctrl-s,alt-c,ctrl-c"
+  local fzf_height_40="40%"
+  local -a selection
+  mapfile -t selection < <(
+    FZF_DEFAULT_COMMAND="${FZF_DEFAULT_COMMAND}" \
+      command git -C "$project_root" ls-files |
+      command fzf --height="$fzf_height_40" -0 --expect="$fzf_keys"
+  )
+
+  local key="${selection[0]}"
+  [[ $key == 'ctrl-c' ]] && return 127
+
+  local file="${selection[1]}"
+  [[ -z $file ]] && return 1
+
+  local path="${project_root}/${file}"
+  local -r realpath_cmd=$(
+    if command -v realpath &>/dev/null && command realpath --version &>/dev/null 2>&1; then
+      command -v realpath
+    else
+      command -v grealpath || :
+    fi
+  )
+  [[ -n $realpath_cmd ]] && path="$($realpath_cmd --relative-to="$(pwd)" "$path")"
+  [[ -f $path ]] || return 1
+
+  local cmd
+  cmd="$(__build_edit_command -k "$key" -t "$EDITOR_CMD" -f "$path")" || return 1
+  __ehc "$cmd"
+
+  trap - ERR INT TERM QUIT
+}
+builtin bind -x '"\C-_15": __fzf_git_file_open'
+builtin bind -m vi-insert '"\C-gf": "\C-x0\C-_15\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\C-gf": "i\C-x0\C-_15\C-x1\C-x2\015"'
 
 # Press "Ctrl-g + H" to search for and select a git commit hash.
 __fzf_search_git_hashes() {
