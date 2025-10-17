@@ -43,3 +43,11 @@ path_prepend "${HOMEBREW_PREFIX}/opt/gnu-getopt/bin/"
 # Note: Order matters! This ensures Pyenv Python takes priority, then Homebrew binaries in PATH.
 path_prepend "${HOMEBREW_PREFIX}/bin"
 path_prepend "$HOME/.pyenv/versions/3.12.0/bin"
+
+# ┌ Nix ───────────────────────────────────────────────────────┐
+# │                                                            │
+# │  Ref: https://github.com/DeterminateSystems/nix-installer  │
+# │                                                            │
+# └────────────────────────────────────────────────────────────┘
+nix_daemon='/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh' 
+[[ -e "$nix_daemon" ]] && . "$nix_daemon" 
