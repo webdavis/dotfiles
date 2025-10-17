@@ -232,7 +232,7 @@ perform_actions() {
 
 main() {
   declare_globals
-  verify_required_tools tmux tmuxinator
+  verify_required_tools "tmux" "tmuxinator"
   if_no_flags_activate_all
   perform_actions
 }
