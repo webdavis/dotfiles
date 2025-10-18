@@ -143,7 +143,6 @@ cask "firefox"
 cask "font-fira-code"
 cask "font-fira-code-nerd-font"
 cask "ghostty"
-# cask "google-chrome", args: { appdir: "/Applications" }
 cask "karabiner-elements", args: { appdir: "/Applications" }
 cask "keepassxc", args: { appdir: "/Applications" }
 cask "lunar"
