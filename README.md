@@ -6,7 +6,7 @@
 
 [![Lint](https://github.com/webdavis/dotfiles/actions/workflows/lint.yml/badge.svg)](https://github.com/webdavis/dotfiles/actions/workflows/lint.yml)
 
-This repository contains my personal configuration files, managed with [Chezmoi](https://www.chezmoi.io/).
+This repository contains the dotfiles for my personal computer, managed with [Chezmoi](https://www.chezmoi.io/).
 
 ## Prerequisites
 
@@ -29,7 +29,7 @@ To use these dotfiles on your system:
 
 Follow the instructions for your platform: [https://www.chezmoi.io/install/](https://www.chezmoi.io/install/)
 
-macOS example:
+`macOS` example:
 
 ```bash
 brew install chezmoi
