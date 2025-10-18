@@ -38,7 +38,7 @@ brew install chezmoi
 2. **Initialize Chezmoi with this repository**
 
 ```bash
-sh -c "$(curl -fsLS get.chezmoi.io)" -- init --apply webdavis
+chezmoi init --apply webdavis
 ```
 
 ## Development Environment
