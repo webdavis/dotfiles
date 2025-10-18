@@ -1,7 +1,13 @@
 [user]
   name = Stephen A. Davis
-  email = {{ (keepassxc "Git").UserName }}
+  email = 23553256+webdavis@users.noreply.github.com
   signingkey = {{ keepassxcAttribute "GPG - Webdavis on GitHub (Signing)" "Public Signing Subkey ID" }}
+
+[commit]
+  gpgSign = true
+
+[tag]
+  gpgSign = true
 
 [init]
   defaultBranch = main
@@ -163,8 +169,3 @@
   smudge = git-lfs smudge -- %f
   process = git-lfs filter-process
   required = true
-[commit]
-  gpgsign = true
-
-[tag]
-  gpgSign = true
