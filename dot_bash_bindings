@@ -450,3 +450,32 @@ redraw_prompt() {
 builtin bind -x '"\C-_P": "builtin cd -"'
 builtin bind -m vi-insert '"\C-x-": "\C-x0\C-_P\C-x1\C-x2\b\r"'
 builtin bind -m vi-command '"\C-x-": "i\C-x0\C-_P\C-x1\C-x2\b\r"'
+
+# List git files with last modified:
+__git_ls_files_with_last_modified() {
+  # Header
+  printf "\n%-25s %-10s %s\n" "Last Modified" "Commit" "File"
+  printf "%-25s %-10s %s\n" " ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅" " ̅ ̅ ̅ ̅ ̅ ̅ ̅" " ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅"
+
+  # ANSI color codes
+  local blue='\033[34m'
+  local yellow='\033[33m'
+  local reset='\033[0m'
+
+  local file last_commit_info date commit_hash
+
+  while read -r file; do
+    last_commit_info=$(git log -1 --format="%ci|%h" -- "$file")
+    date="${last_commit_info%%|*}"
+    commit_hash="${last_commit_info##*|}"
+
+    printf "%b%-25s%b %b%-6s%b %s\n" \
+      "$blue" "$date" "$reset" \
+      "$yellow" "$commit_hash" "$reset" \
+      "$file"
+  done < <(git ls-files)
+}
+
+builtin bind -x '"\C-_Q": "__git_ls_files_with_last_modified"'
+builtin bind -m vi-insert '"\C-xl": "\C-x0\C-_Q\C-x1\C-x2\b"'
+builtin bind -m vi-command '"\C-xl": "i\C-x0\C-_Q\C-x1\C-x2\b"'
