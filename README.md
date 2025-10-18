@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="./assets/logo.png" />
+  <img src="./assets/logo.png" alt="Dotfiles Icon" width="300" height="300" />
 </p>
 
 # Dotfiles
