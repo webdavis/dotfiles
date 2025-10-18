@@ -212,8 +212,9 @@ builtin bind -x '"\C-_00": __fzf_file_open'
 builtin bind -m vi-insert '"\C-x\C-x": "\C-x0\C-_00\C-x1\C-x2\015"'
 builtin bind -m vi-command '"\C-x\C-x": "i\C-x0\C-_00\C-x1\C-x2\015"'
 
-# Press "Ctrl-x + x" to open any file under the root folder in a git-tracked project.
-__fzf_git_project_file_open() {
+# Press "Ctrl-x + x" to fzf-open any file under the project root, regardless of whether it's
+# tracked or not, from any directory in the project.
+__fzf_open_any_file_under_project_root() {
   local cwd
   cwd="$(pwd)"
   trap '__catch_interrupt "$cwd"' ERR INT TERM QUIT
@@ -222,7 +223,7 @@ __fzf_git_project_file_open() {
     dir="$(git rev-parse --show-toplevel)"
     builtin cd -- "$dir"
   else
-    builtin printf "%s\\n" "__fzf_git_project_file_open: Not in a git-tracked project" 2>&1
+    builtin printf "%s\n" "__fzf_project_file_open: Not in a git-tracked project" 2>&1
     return 1
   fi
 
@@ -258,7 +259,7 @@ __fzf_git_project_file_open() {
   [[ $key != 'alt-c' ]] && builtin cd -- "$cwd"
   trap '' ERR INT TERM QUIT
 }
-builtin bind -x '"\C-_01": __fzf_git_project_file_open'
+builtin bind -x '"\C-_01": __fzf_open_any_file_under_project_root'
 builtin bind -m vi-insert '"\C-xx": "\C-x0\C-_01\C-x1\C-x2\015"'
 builtin bind -m vi-command '"\C-xx": "i\C-x0\C-_01\C-x1\C-x2\015"'
 
