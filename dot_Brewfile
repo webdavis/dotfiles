@@ -146,7 +146,6 @@ cask "ghostty"
 # cask "google-chrome", args: { appdir: "/Applications" }
 cask "karabiner-elements", args: { appdir: "/Applications" }
 cask "keepassxc", args: { appdir: "/Applications" }
-cask "kitty", args: { appdir: "/Applications" }
 cask "lunar"
 cask "microsoft-auto-update"
 cask "microsoft-office"
