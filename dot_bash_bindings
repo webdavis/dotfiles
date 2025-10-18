@@ -68,7 +68,7 @@ builtin bind -m vi-command '"\C-s": "i\C-sudo "'
 builtin bind -m vi-insert '"\C-s": "\C-sudo "'
 builtin bind -m vi-command '"\C-s": "i\C-sudo "'
 
-# ls {{{1
+# ls/eza {{{1
 builtin bind -x '"\C-_a": "eza -ahlrs date"'
 builtin bind -m vi-insert '"\M-l": "\C-x0\C-_a\C-x1\C-x2\b"'
 builtin bind -m vi-command '"\M-l": "i\C-x0\C-_a\C-x1\C-x2\b"'
