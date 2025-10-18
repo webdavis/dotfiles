@@ -4,7 +4,6 @@ brew "mas"
 
 # Taps.
 tap "bradyjoslin/sharewifi"
-tap "buo/cask-upgrade"
 tap "koekeishiya/formulae"
 tap "morantron/tmux-fingers"
 tap "owenthereal/upterm"
