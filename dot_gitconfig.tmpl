@@ -19,78 +19,16 @@
   pager = delta
 
   # Treat spaces before tabs and all kinds of trailing whitespace as an error.
-  # (default) trailing-space: looks for spaces at the end of a line (default)
-  # (default) space-before-tab: looks for spaces before tabs at the beginning of a line (default)
+  # ---------------------------------------------------------------------------------------
+  # trailing-space       : warns about spaces at the end of a line. (default)
+  # -indent-with-non-tab : turn off warning for lines indented with spaces.
+  # space-before-tab     : warns about spaces that appear before a tab character. (default)
+  # ---------------------------------------------------------------------------------------
   whitespace = space-before-tab,-indent-with-non-tab,trailing-space
-
-[interactive]
-  diffFilter = delta --color-only
-
-[include]
-  path = ~/.config/delta/themes.gitconfig
-
-[delta]
-  features = custom
 
 [apply]
   # Detect whitespace errors when applying a patch.
   whitespace = fix
-
-[alias]
-  a = "!f() { git add $@; }; f"
-
-  c = "!d() { git commit -m \"${@}\"; }; d"
-
-  # Add all unstaged changes in the working directory to the previous commit, and then amend it.
-  ca = commit -a --amend -C HEAD --
-
-  can = commit --amend --no-edit
-
-  acp = "!acp() { git add ${@} && git commit --amend --no-edit && git push --force; }; acp"
-
-  # Amend the currently staged files to the latest commit.
-  # Reference: https://github.com/jessfraz/dotfiles/blob/30c4d026bfc71df60f7b05d0bdbb3cc34049c017/.gitconfig#L38
-  amend = commit --amend --reuse-message=HEAD
-
-  # Credit an author on the latest commit.
-  # Reference: https://github.com/jessfraz/dotfiles/blob/30c4d026bfc71df60f7b05d0bdbb3cc34049c017/.gitconfig#L41
-  credit = "!f() { git commit --amend --author \"$1 <$2>\" -C HEAD; }; f"
-
-  # Jump back to master branch.
-  cm = checkout master
-
-  # View abbreviated SHA, description, and history graph of the latest 20 commits.
-  # Reference: https://github.com/jessfraz/dotfiles/blob/30c4d026bfc71df60f7b05d0bdbb3cc34049c017/.gitconfig#L66
-  lg = log --pretty=oneline -n 20 --graph --abbrev-commit
-
-  # View the current working tree status using the short format.
-  s = status -s
-
-  # View the full git status output.
-  sf = status
-
-  # Show the diff between the latest commit and the current state.
-  d = !"git diff-index --quiet HEAD -- || clear; git --no-pager diff --patch-with-stat"
-
-  # `git di $number` shows the diff between the state `$number` revisions ago and the current state.
-  di = !"d() { git diff --patch-with-stat HEAD~$1; }; git diff-index --quiet HEAD -- || clear; d"
-
-  # Initialize a new repo on GitHub.
-  h = !git init && gh repo create $(basename $PWD)
-
-  # Save work in a rush.
-  u = !"git add --all && git commit -m 'Quick save' && git push --set-upstream origin master"
-
-  p = !git push origin $(git rev-parse --abbrev-ref HEAD --)
-
-  pu = push --set-upstream origin master
-
-  ts = tag --list --sort=v:refname
-
-  mm = merge origin/master
-
-  # Reference: https://twitter.com/TrevorBramble/status/774292970681937920
-  alias=!git config -l | grep ^alias | cut -c 7- | sort
 
 [status]
   submodulesummary = true
@@ -110,30 +48,17 @@
 [log]
   showSignature = false
 
+[rebase]
+  autosquash = true
+
 [rerere]
   enabled = true
 
-[color "branch"]
-  current = "#8787d7"
-  upstream = "#ff8700"
-
-[color "status"]
-  added = "#00c96d"
-  changed = "#33a3f4"
-  untracked = "#ff657a"
-  remote = "#ff8700"
-
-[color "diff"]
-  meta = "#87d7d7"
-  new = "#87af87"
-  old = "#af5f5f"
-  frag = "#8787af"
-  context = "#bcbcbc"
-  func = "#bcbcbc bold"
-  commit = "#e2b76f"
-
-[color]
-  ui = auto
+[filter "lfs"]
+  clean = git-lfs clean -- %f
+  smudge = git-lfs smudge -- %f
+  process = git-lfs filter-process
+  required = true
 
 [filesystem "Oracle Corporation|11.0.5|/dev/mapper/volgroup-home"]
   timestampResolution = 7000 nanoseconds
@@ -161,11 +86,86 @@
 [url "git://gist.github.com/"]
   insteadOf = "gist:"
 
-[rebase]
-  autosquash = true
+[include]
+  path = ~/.config/delta/themes.gitconfig
 
-[filter "lfs"]
-  clean = git-lfs clean -- %f
-  smudge = git-lfs smudge -- %f
-  process = git-lfs filter-process
-  required = true
+[interactive]
+  diffFilter = delta --color-only
+
+[delta]
+  features = custom
+
+[color "branch"]
+  current = "#8787d7"
+  upstream = "#ff8700"
+
+[color "status"]
+  added = "#00c96d"
+  changed = "#33a3f4"
+  untracked = "#ff657a"
+  remote = "#ff8700"
+
+[color "diff"]
+  meta = "#87d7d7"
+  new = "#87af87"
+  old = "#af5f5f"
+  frag = "#8787af"
+  context = "#bcbcbc"
+  func = "#bcbcbc bold"
+  commit = "#e2b76f"
+
+[color]
+  ui = auto
+
+[alias]
+  # Reference: https://twitter.com/TrevorBramble/status/774292970681937920
+  alias=!git config -l | grep ^alias | cut -c 7- | sort
+
+  a = "!f() { git add $@; }; f"
+  acp = "!acp() { git add ${@} && git commit --amend --no-edit && git push --force; }; acp"
+
+  # Checkout main branch.
+  cm = checkout main
+
+  c = "!d() { git commit -m \"${@}\"; }; d"
+
+  # Add all unstaged changes in the working directory to the previous commit, and then amend it.
+  ca = commit -a --amend -C HEAD --
+
+  can = commit --amend --no-edit
+
+  # Amend the currently staged files to the latest commit.
+  # Reference: https://github.com/jessfraz/dotfiles/blob/30c4d026bfc71df60f7b05d0bdbb3cc34049c017/.gitconfig#L38
+  amend = commit --amend --reuse-message=HEAD
+
+  # Credit an author on the latest commit.
+  # Reference: https://github.com/jessfraz/dotfiles/blob/30c4d026bfc71df60f7b05d0bdbb3cc34049c017/.gitconfig#L41
+  credit = "!f() { git commit --amend --author \"$1 <$2>\" -C HEAD; }; f"
+
+  # Show the diff between the latest commit and the current state.
+  d = !"git diff-index --quiet HEAD -- || clear; git --no-pager diff --patch-with-stat"
+
+  # `git di $number` shows the diff between the state `$number` revisions ago and the current state.
+  di = !"d() { git diff --patch-with-stat HEAD~$1; }; git diff-index --quiet HEAD -- || clear; d"
+
+  # Initialize a new repo on GitHub.
+  h = !git init && gh repo create $(basename $PWD)
+
+  # View abbreviated SHA, description, and history graph of the latest 20 commits.
+  # Reference: https://github.com/jessfraz/dotfiles/blob/30c4d026bfc71df60f7b05d0bdbb3cc34049c017/.gitconfig#L66
+  lg = log --pretty=oneline -n 20 --graph --abbrev-commit
+
+  mm = merge origin/main
+  p = !git push origin $(git rev-parse --abbrev-ref HEAD --)
+  pu = push --set-upstream origin main
+
+  # View the current working tree status using the short format.
+  s = status -s
+
+  # View the full git status output.
+  sf = status
+
+  ts = tag --list --sort=v:refname
+
+  # Save work in a rush!
+  u = !"git add --all && git commit -m 'Quick save' && git push --set-upstream origin main"
