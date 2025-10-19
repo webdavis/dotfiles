@@ -31,7 +31,7 @@ export SHELL="${HOMEBREW_PREFIX}/bin/bash"
 # General Bash completions.
 [[ -r "${HOMEBREW_PREFIX}/opt/bash-completion@2/etc/profile.d/bash_completion.sh" ]] && . "${HOMEBREW_PREFIX}/opt/bash-completion@2/etc/profile.d/bash_completion.sh"
 
-# Configure updated curl for Mac OS.
+# Configure updated curl for macOS.
 path_prepend "${HOMEBREW_PREFIX}/opt/curl/bin"
 
 # Configure Homebrew system administrator tools.
