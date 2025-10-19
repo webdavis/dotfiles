@@ -20,6 +20,9 @@ vendor/**
 .vendor/**
 .bundle/
 
+# Don't track project justfile.
+justfile
+
 {{- if eq .chezmoi.os "linux" -}}
 .Brewfile
 .config/yabai
