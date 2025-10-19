@@ -19,7 +19,7 @@ change_to_project_root() {
   fi
 
   if ! cd "$project_root"; then
-    echo "Error: could not change into project root directory (${project_root##*/})" >&2
+    echo "Error: could not change into project root directory (${project_root})" >&2
     exit 1
   fi
 }
