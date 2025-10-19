@@ -9,7 +9,7 @@ scripts/
 .bashrc_local_darwin
 .bashrc_local_linux
 
-{{- if ne .chezmoi.os "linux" -}}
-dot_Brewfile
-dot_config/yabai
+{{- if eq .chezmoi.os "linux" -}}
+.Brewfile
+.config/yabai
 {{- end -}}
