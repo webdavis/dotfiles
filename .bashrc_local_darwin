@@ -44,6 +44,8 @@ path_prepend "${HOMEBREW_PREFIX}/opt/gnu-getopt/bin/"
 path_prepend "${HOMEBREW_PREFIX}/bin"
 path_prepend "$HOME/.pyenv/versions/3.12.0/bin"
 
+export MANPATH="${HOMEBREW_PREFIX}/share/man:${MANPATH}"
+
 # ┌ Nix ───────────────────────────────────────────────────────┐
 # │                                                            │
 # │  Ref: https://github.com/DeterminateSystems/nix-installer  │
