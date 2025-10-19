@@ -6,8 +6,8 @@ scripts/
 
 .envrc
 
-*_darwin
-*_linux
+.bashrc_local_darwin
+.bashrc_local_linux
 
 {{- if ne .chezmoi.os "linux" -}}
 dot_Brewfile
