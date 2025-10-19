@@ -9,6 +9,17 @@ scripts/
 .bashrc_local_darwin
 .bashrc_local_linux
 
+# Ignore Nix flake files:
+flake.nix
+flake.lock
+
+# Ignore Ruby stuff:
+Gemfile
+Gemfile.lock
+vendor/**
+.vendor/**
+.bundle/
+
 {{- if eq .chezmoi.os "linux" -}}
 .Brewfile
 .config/yabai
