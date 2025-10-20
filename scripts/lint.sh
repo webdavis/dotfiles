@@ -24,12 +24,12 @@ change_to_project_root() {
   local project_root="${1:-}"
 
   if [[ -z ${project_root:-} ]]; then
-    echo "Error: could not determine project root directory (are you in a Git repository?)" >&2
+    printf "%s\n" "Error: could not determine project root directory (are you in a Git repository?)" >&2
     exit 1
   fi
 
   if ! cd "$project_root"; then
-    echo "Error: could not change into project root directory (${project_root})" >&2
+    printf "%s\n" "Error: could not change into project root directory (${project_root})" >&2
     exit 1
   fi
 }
@@ -86,7 +86,7 @@ assert_files_found() {
   local files=("$@")
 
   if [[ ${#files[@]} -eq 0 ]]; then
-    echo "⚠️ No files were found for $tool - skipping." >&2
+    printf "%s\n" "⚠️ No files were found for $tool - skipping." >&2
     return 1
   fi
   return 0
@@ -97,8 +97,8 @@ print_runner_header() {
   shift 1
   local files=("$@")
 
-  echo " 🛠️ Checking ${#files[@]} file(s) with $tool"
-  echo "———————————————————————————————————————————"
+  printf "%s\n" " 🛠️ Checking ${#files[@]} file(s) with $tool"
+  printf "%s\n" "———————————————————————————————————————————"
 }
 
 execute_runner() {
@@ -118,10 +118,10 @@ execute_runner() {
 
   local file
   for file in "${files[@]}"; do
-    echo "Processing ${tool}: ${file}"
+    printf "%s\n" "Processing ${tool}: ${file}"
     "${runner[@]}" "$file" || ((status = status == 0 ? $? : status))
   done
-  echo
+  printf "\n"
 
   ((status)) && EXIT_CODES[$tool]="$status"
 
@@ -161,13 +161,13 @@ parse_cli_options() {
       S) pco_runners+=("run_shfmt") ;;
       c) ci_mode=true ;;
       *)
-        echo "Error: invalid option '$OPTARG'" >&2
+        printf "%s\n" "Error: invalid option '$OPTARG'" >&2
         exit 1
         ;;
     esac
   done
 
-  echo "$ci_mode"
+  printf "%b" "$ci_mode"
 }
 
 execute_runners() {
@@ -244,25 +244,21 @@ summarize_in_console() {
 }
 
 write_to_github_step_summary() {
-  echo "test 3"
   local summary="${1:-}"
   {
-    echo "### 📝 Lint／Format Summary"
-    echo ""
+    printf "%s\n" "### 📝 Lint／Format Summary"
+    printf "\n"
     printf "%b" "$summary"
   } >>"${GITHUB_STEP_SUMMARY:-}"
-  echo "test 4"
 }
 
 summarize_in_ci() {
-  echo "test"
   local -n si_ci_fields="$1"
   local -n si_ci_results="$2"
 
   local format="| %s | %s |"
   local divider="| --- | --- |"
   write_to_github_step_summary "$(build_summary "si_ci_fields" "si_ci_results" "$format" "$divider")"
-  echo "test 2"
 }
 
 summarize_results() {
