@@ -85,36 +85,42 @@ run_shellcheck() {
 }
 
 parse_cli_options() {
-  local -n pco_tasks="$1"
+  local -n pco_runners="$1"
   shift 1
   local cli_options=("$@")
 
   local optstring=":s"
   while getopts "$optstring" option "${cli_options[@]}"; do
     case "$option" in
-      s) pco_tasks+=("run_shellcheck") ;;
+      s) pco_runners+=("run_shellcheck") ;;
       *) echo "Error: invalid option '$OPTARG'" >&2; exit 1 ;;
     esac
   done
 }
 
-execute_tasks() {
-  local -n et_tasks="$1"
+execute_runners() {
+  local -n er_runners="$1"
 
-  local task
-  for task in "${et_tasks[@]}"; do
-    $task
+  local runner
+  for runner in "${er_runners[@]}"; do
+    $runner
   done
+}
+
+get_all_runners() {
+  declare -F | awk '{print $3}' | grep '^run_'
 }
 
 main() {
   change_to_project_root "$(get_project_root)"
   assert_in_nix_shell_or_exit "$(get_script_path)"
 
-  local -a tasks
-  parse_cli_options "tasks" "$@"
+  local -a runners=()
+  parse_cli_options "runners" "$@"
 
-  execute_tasks "tasks"
+  (( ${#runners[@]} == 0 )) && mapfile -t runners < <(get_all_runners)
+
+  execute_runners "runners"
 }
 
 main "$@"
