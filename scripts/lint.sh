@@ -12,7 +12,7 @@ get_project_root() {
 change_to_project_root() {
   # Ensure this script runs from the project root.
 
-  local project_root="$1"
+  local project_root="${1:-}"
 
   if [[ -z ${project_root:-} ]]; then
     echo "Error: could not determine project root directory (are you in a Git repository?)" >&2
@@ -38,7 +38,7 @@ get_script_path() {
 }
 
 print_nix_shell_error() {
-  local script_name="$1"
+  local script_name="${1:-}"
 
   local message="${script_name} must be run inside a Nix flake development shell.
 
@@ -53,7 +53,7 @@ Alternatively, you can run this script ad hoc without entering the shell:
 }
 
 assert_in_nix_shell_or_exit() {
-  local script_name="$1"
+  local script_name="${1:-}"
 
   in_nix_dev_shell && return 0
 
@@ -64,6 +64,7 @@ assert_in_nix_shell_or_exit() {
 
 run_shellcheck() {
   # Store all shell scripts and shell-based dotfiles in an array.
+  local -a files=()
   mapfile -d '' files < <(find . -type f \( -name "*.sh" -o -name "*.bash" -o -name "dot_bash*" ! -name "*.tmpl" -o -name "dot_profile" \) -print0)
 
   if [[ ${#files[@]} -eq 0 ]]; then
@@ -85,7 +86,7 @@ run_shellcheck() {
 }
 
 parse_cli_options() {
-  local -n pco_runners="$1"
+  local -n pco_runners="${1:-runners}"
   shift 1
   local cli_options=("$@")
 
@@ -99,9 +100,9 @@ parse_cli_options() {
 }
 
 execute_runners() {
-  local -n er_runners="$1"
+  local -n er_runners="${1:-runners}"
 
-  local runner
+  local runner=""
   for runner in "${er_runners[@]}"; do
     $runner
   done
