@@ -15,6 +15,7 @@ track_runner_exit_codes() {
   EXIT_CODES=(
     [shellcheck]=0
     [shfmt]=0
+    [rubocop]=0
   )
 }
 
@@ -145,6 +146,27 @@ run_10_shfmt() {
 
 run_20_shellcheck() {
   execute_runner find_shell_files shellcheck || return "$?"
+}
+
+find_ruby_files() {
+  printf "%b" "dot_Brewfile"
+}
+
+rubocop_runner() {
+  local file="$1"
+
+  local ignore_message="Source locally installed gems"
+
+  bundle exec rubocop \
+    --display-time \
+    --autocorrect \
+    --fail-level autocorrect \
+    -- "$file" \
+    2> >(grep -v "$ignore_message" >&2) || return "$?"
+}
+
+run_30_rubocop() {
+  execute_runner find_ruby_files rubocop_runner || return "$?"
 }
 
 parse_cli_options() {

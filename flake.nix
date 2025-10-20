@@ -49,11 +49,18 @@
           # are installed into the project-local './vendor/bundle' directory, but we enforce it
           # here as a fail-safe.
           shellHook = ''
+            export BUNDLE_IGNORE_STD_LIB_WARNINGS=1
+            export BUNDLE_IGNORE_STUBS=1
+            unset RBENV_VERSION
+            unset RBENV_ROOT
+            PATH=$(echo "$PATH" | tr ':' '\n' | grep -v 'rbenv' | tr '\n' ':' )
             bundle config set --local path '.vendor/bundle'
+            export PATH
 
-            if [ ! -d vendor/bundle ] || ! bundle check > /dev/null 2>&1; then
+            if [ ! -d .vendor/bundle ] || ! bundle check > /dev/null 2>&1; then
               echo "Installing gems..."
               bundle install --jobs 4 --retry 3
+              bundle pristine
               echo
             fi
 
