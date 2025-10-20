@@ -40,7 +40,7 @@ get_script_path() {
 print_nix_shell_error() {
   local script_name="${1:-}"
 
-  local message="${script_name} must be run inside a Nix flake development shell.
+  local message="Error: ${script_name} must be run inside a Nix flake development shell.
 
 To enter the flake shell, run:
   $ nix develop
@@ -68,8 +68,8 @@ run_shellcheck() {
   mapfile -d '' files < <(find . -type f \( -name "*.sh" -o -name "*.bash" -o -name "dot_bash*" ! -name "*.tmpl" -o -name "dot_profile" \) -print0)
 
   if [[ ${#files[@]} -eq 0 ]]; then
-    echo "No shell scripts or shell-based dotfiles found."
-    exit 0
+    echo "Terminating: No shell scripts or shell-based dotfiles found!" >&2
+    exit 1
   fi
 
   echo "✅ Found ${#files[@]} file(s) to lint"
