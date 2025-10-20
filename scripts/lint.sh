@@ -72,10 +72,12 @@ run_shellcheck() {
     exit 0
   fi
 
-  echo "✅ Found ${#files[@]} file(s) to lint:"
+  echo "✅ Found ${#files[@]} file(s) to lint"
+  echo "———————————————————————————————"
     for f in "${files[@]}"; do
       echo "$f"
     done
+  echo
 
   # Run shellcheck on all files.
   for file in "${files[@]}"; do
