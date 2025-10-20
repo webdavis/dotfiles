@@ -40,7 +40,7 @@ help_message() {
   local script_name
   script_name="${BASH_SOURCE[0]##*/}"
 
-  printf "%s\\n" "\
+  printf '%s\n' "\
 
 ${bold}DESCRIPTION${normal}
    This script can kill all of existing Tmux sessions, purge their tmux-resurrect data, and then recreate them using tmuxinator presets, all in one command.

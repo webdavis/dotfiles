@@ -38,7 +38,7 @@ help_message() {
     done < <(get_sorted_key_tables)
   )
 
-  printf "%s\\n" "\
+  printf '%s\n' "\
 
 ${bold}DESCRIPTION${normal}
    This script lists all Tmux key-table bindings with their exact bindings paths.
@@ -87,7 +87,7 @@ parse_command_line_arguments() {
 print_key_table() {
   local table="$1"
   local prefix="${TMUX_KEY_TABLES[$table]#*:}"
-  [[ -n "$prefix" ]] && prefix="$prefix "
+  [[ -n $prefix ]] && prefix="$prefix "
   echo -e "\n=== $table ==="
   tmux list-keys -Na -P "$prefix" -T "$table"
 }

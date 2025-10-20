@@ -9,7 +9,7 @@ bold=$(tput bold)
 normal=$(tput sgr0)
 
 help_message() {
-  printf "%s\\n" "\
+  printf '%s\n' "\
 
 ${bold}DESCRIPTION${normal}
    This script generates a Banner/Alert on your macOS machine whenever your most recent GitHub
@@ -35,16 +35,16 @@ show_branch='false'
 optstring=':beh'
 while getopts "$optstring" option; do
   case "$option" in
-  b) show_branch='true' ;;
-  e) use_emoji='true' ;;
-  h)
-    help_message
-    exit 0
-    ;;
-  *)
-    echo "Error: invalid option '$OPTARG'"
-    exit 1
-    ;;
+    b) show_branch='true' ;;
+    e) use_emoji='true' ;;
+    h)
+      help_message
+      exit 0
+      ;;
+    *)
+      echo "Error: invalid option '$OPTARG'"
+      exit 1
+      ;;
   esac
 done
 unset -v option
