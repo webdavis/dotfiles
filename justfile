@@ -4,4 +4,4 @@ default:
 alias l := lint
 
 lint:
-  nix develop .#adhoc --command ./scripts/lint.sh -s
+  nix develop .#adhoc --command ./scripts/lint.sh
