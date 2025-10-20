@@ -2,8 +2,8 @@
 # Prevent Shellcheck from complaining about named references:
 # shellcheck disable=SC2034
 
-# Exit immediately if any command fails (including compound commands).
-set -euo pipefail
+# Exit immediately if any variables are empty.
+set -u
 
 get_project_root() {
   git rev-parse --show-toplevel
@@ -82,15 +82,37 @@ run_shellcheck() {
   done
 }
 
+run_shfmt() {
+  # Store all shell scripts and shell-based dotfiles in an array.
+  local -a files=()
+  mapfile -d '' files < <(find . -type f \( -name "*.sh" -o -name "*.bash" -o -name "dot_bash*" ! -name "*.tmpl" -o -name "dot_profile" \) -print0)
+
+  if [[ ${#files[@]} -eq 0 ]]; then
+    echo "Terminating: No shell scripts or shell-based dotfiles found!" >&2
+    exit 1
+  fi
+
+  echo "✅ Found ${#files[@]} file(s) to format:"
+  echo "———————————————————————————————"
+
+  for file in "${files[@]}"; do
+    echo "Formatting: $file"
+
+    shfmt -i 2 -ci -s --diff "$file"
+    shfmt -i 2 -ci -s --write "$file"
+  done
+}
+
 parse_cli_options() {
   local -n pco_runners="${1:-runners}"
   shift 1
   local cli_options=("$@")
 
-  local optstring=":s"
+  local optstring=":sS"
   while getopts "$optstring" option "${cli_options[@]}"; do
     case "$option" in
       s) pco_runners+=("run_shellcheck") ;;
+      S) pco_runners+=("run_shfmt") ;;
       *) echo "Error: invalid option '$OPTARG'" >&2; exit 1 ;;
     esac
   done
