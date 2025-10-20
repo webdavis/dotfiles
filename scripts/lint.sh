@@ -62,45 +62,71 @@ assert_in_nix_shell_or_exit() {
   exit 1
 }
 
-run_shellcheck() {
-  # Store all shell scripts and shell-based dotfiles in an array.
-  local -a files=()
-  mapfile -d '' files < <(find . -type f \( -name "*.sh" -o -name "*.bash" -o -name "dot_bash*" ! -name "*.tmpl" -o -name "dot_profile" \) -print0)
+find_shell_files() {
+  find . -type f \( \
+    -name "*.sh" \
+    -o -name "*.bash" \
+    -o -name "dot_bash*" ! -name "*.tmpl" \
+    -o -name "dot_profile" \
+  \) -print0
+}
+
+assert_files_found() {
+  local tool="$1"; shift 1
+  local files=("$@")
 
   if [[ ${#files[@]} -eq 0 ]]; then
-    echo "Terminating: No shell scripts or shell-based dotfiles found!" >&2
-    exit 1
+    echo "⚠️ No files were found for $tool - skipping." >&2
+    return 1
   fi
+  return 0
+}
 
-  echo "✅ Found ${#files[@]} file(s) to lint"
-  echo "———————————————————————————————"
+print_runner_header() {
+  local tool="${1:-}"
+  shift 1
+  local files=("$@")
 
+  echo " 🛠️ Checking ${#files[@]} file(s) with $tool"
+  echo "———————————————————————————————————————————"
+}
+
+execute_runner() {
+  local finder="$1"; shift 1
+  local runner=("$@")
+
+  local -a files=()
+  mapfile -d '' files < <("$finder")
+
+  local tool="${runner[0]%%_*}"
+  assert_files_found "$tool" "${files[@]}" || return 1
+
+  local status=0
+
+  print_runner_header "$tool" "${files[@]}"
+
+  local file
   for file in "${files[@]}"; do
-    echo "Linting: $file"
-
-    shellcheck "$file"
+    echo "Processing ${tool}: ${file}"
+    "${runner[@]}" "$file" || ((status=status==0 ? $? : status))
   done
+  echo
+
+  return "$status"
+}
+
+run_shellcheck() {
+  execute_runner find_shell_files shellcheck || return "$?"
+}
+
+shfmt_runner() {
+  local file="$1"
+  shfmt -i 2 -ci -s --diff "$file"
+  shfmt -i 2 -ci -s --write "$file"
 }
 
 run_shfmt() {
-  # Store all shell scripts and shell-based dotfiles in an array.
-  local -a files=()
-  mapfile -d '' files < <(find . -type f \( -name "*.sh" -o -name "*.bash" -o -name "dot_bash*" ! -name "*.tmpl" -o -name "dot_profile" \) -print0)
-
-  if [[ ${#files[@]} -eq 0 ]]; then
-    echo "Terminating: No shell scripts or shell-based dotfiles found!" >&2
-    exit 1
-  fi
-
-  echo "✅ Found ${#files[@]} file(s) to format:"
-  echo "———————————————————————————————"
-
-  for file in "${files[@]}"; do
-    echo "Formatting: $file"
-
-    shfmt -i 2 -ci -s --diff "$file"
-    shfmt -i 2 -ci -s --write "$file"
-  done
+  execute_runner find_shell_files shfmt_runner || return "$?"
 }
 
 parse_cli_options() {
@@ -121,10 +147,13 @@ parse_cli_options() {
 execute_runners() {
   local -n er_runners="${1:-runners}"
 
-  local runner=""
+  local status=0
+  local runner
   for runner in "${er_runners[@]}"; do
-    $runner
+    $runner || ((status=status==0 ? $? : status))
   done
+
+  return "$status"
 }
 
 get_all_runners() {
@@ -140,7 +169,7 @@ main() {
 
   (( ${#runners[@]} == 0 )) && mapfile -t runners < <(get_all_runners)
 
-  execute_runners "runners"
+  execute_runners "runners" || return "$?"
 }
 
 main "$@"
