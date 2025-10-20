@@ -128,10 +128,6 @@ execute_runner() {
   return "$status"
 }
 
-run_shellcheck() {
-  execute_runner find_shell_files shellcheck || return "$?"
-}
-
 shfmt_runner() {
   local file="$1"
 
@@ -143,8 +139,12 @@ shfmt_runner() {
   return "$status"
 }
 
-run_shfmt() {
+run_10_shfmt() {
   execute_runner find_shell_files shfmt_runner || return "$?"
+}
+
+run_20_shellcheck() {
+  execute_runner find_shell_files shellcheck || return "$?"
 }
 
 parse_cli_options() {
@@ -182,8 +182,9 @@ execute_runners() {
   return "$status"
 }
 
-get_all_runners() {
-  declare -F | awk '{print $3}' | grep '^run_'
+get_all_runners_by_priority() {
+  # List all functions starting with "run_##" and sort by priority.
+  declare -F | awk '{print $3}' | grep '^run_[0-9][0-9]_' | sort
 }
 
 build_tool_results() {
@@ -287,7 +288,7 @@ main() {
   local ci_mode
   ci_mode="$(parse_cli_options "runners" "$@")"
 
-  ((${#runners[@]} == 0)) && mapfile -t runners < <(get_all_runners)
+  ((${#runners[@]} == 0)) && mapfile -t runners < <(get_all_runners_by_priority)
 
   local status=0
   execute_runners "runners" || status="$?"
