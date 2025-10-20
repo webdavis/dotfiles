@@ -74,12 +74,7 @@ run_shellcheck() {
 
   echo "✅ Found ${#files[@]} file(s) to lint"
   echo "———————————————————————————————"
-    for f in "${files[@]}"; do
-      echo "$f"
-    done
-  echo
 
-  # Run shellcheck on all files.
   for file in "${files[@]}"; do
     echo "Linting: $file"
 
