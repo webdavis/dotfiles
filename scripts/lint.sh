@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Prevent Shellcheck from complaining about named references:
+# shellcheck disable=SC2034
 
 # Exit immediately if any command fails (including compound commands).
 set -euo pipefail
@@ -82,10 +84,37 @@ run_shellcheck() {
   done
 }
 
+parse_cli_options() {
+  local -n pco_tasks="$1"
+  shift 1
+  local cli_options=("$@")
+
+  local optstring=":s"
+  while getopts "$optstring" option "${cli_options[@]}"; do
+    case "$option" in
+      s) pco_tasks+=("run_shellcheck") ;;
+      *) echo "Error: invalid option '$OPTARG'" >&2; exit 1 ;;
+    esac
+  done
+}
+
+execute_tasks() {
+  local -n et_tasks="$1"
+
+  local task
+  for task in "${et_tasks[@]}"; do
+    $task
+  done
+}
+
 main() {
   change_to_project_root "$(get_project_root)"
   assert_in_nix_shell_or_exit "$(get_script_path)"
-  run_shellcheck
+
+  local -a tasks
+  parse_cli_options "tasks" "$@"
+
+  execute_tasks "tasks"
 }
 
 main "$@"
