@@ -199,9 +199,9 @@ builtin bind -m vi-command '"\M-dT": "i\C-x0\C-_p\C-x1\C-x2\015"'
 __go_to_project_root() {
   path="$(dirname "$(pwd)")"
   # To add support for other version control systems, add their respective directories to the regex.
-  while [[ ! "$(find "$path" -maxdepth 1 -regextype egrep -regex ".*/\\.(root|git|svn|hg|bzr|build.xml|project|projections.json|tasks|root)")" ]]; do
+  while [[ ! "$(find "$path" -maxdepth 1 -regextype egrep -regex '.*/\.(root|git|svn|hg|bzr|build.xml|project|projections.json|tasks|root)')" ]]; do
     if [[ $path == '/' ]]; then
-      printf "%s\\n" 'No project root found.' 2>&1
+      printf '%s\n' 'No project root found.' 2>&1
       return 1
     fi
     path="$(dirname "$path")"
@@ -385,45 +385,45 @@ builtin bind -m vi-command '"\C-xnu": "i\C-x0\C-_N\C-x1\C-x2\b"'
 __update_package_manager() {
   local os distro command
   case "$OSTYPE" in
-  solaris*) os='solaris' ;;
-  darwin*)
-    os='osx'
-    command -v brew &>/dev/null || return
-    ;;
-  linux*) os='linux' ;;
-  bsd*) os='bsd' ;;
-  msys*) os='windows' ;;
-  *)
-    printf "%s\\n" "Cannot update. Unknown operating system detected: \"${OSTYPE}\"." 1>&2
-    return 1
-    ;;
+    solaris*) os='solaris' ;;
+    darwin*)
+      os='osx'
+      command -v brew &>/dev/null || return
+      ;;
+    linux*) os='linux' ;;
+    bsd*) os='bsd' ;;
+    msys*) os='windows' ;;
+    *)
+      printf '%s\n' "Cannot update. Unknown operating system detected: \"${OSTYPE}\"." 1>&2
+      return 1
+      ;;
   esac
 
   case "${os}" in
-  'linux')
-    if [[ -f '/etc/os-release' ]]; then
-      distro="$(grep '^NAME=' /etc/os-release | sed -e's/NAME="\(.*\)"/\1/g')"
-    fi
-    ;;
-  'osx')
-    distro="osx"
-    ;;
-  *)
-    printf "%s\\n" "Cannot update. Unknown distro detected." 1>&2
-    return 1
-    ;;
+    'linux')
+      if [[ -f '/etc/os-release' ]]; then
+        distro="$(grep '^NAME=' /etc/os-release | sed -e's/NAME="\(.*\)"/\1/g')"
+      fi
+      ;;
+    'osx')
+      distro="osx"
+      ;;
+    *)
+      printf '%s\n' "Cannot update. Unknown distro detected." 1>&2
+      return 1
+      ;;
   esac
 
   case "${distro}" in
-  'osx')
-    command='brew upgrade'
-    ;;
-  'Arch Linux')
-    command='sudo pacman --noconfirm --sync --refresh --sysupgrade'
-    ;;
-  'Ubuntu')
-    command='sudo apt update && sudo apt upgrade --yes'
-    ;;
+    'osx')
+      command='brew upgrade'
+      ;;
+    'Arch Linux')
+      command='sudo pacman --noconfirm --sync --refresh --sysupgrade'
+      ;;
+    'Ubuntu')
+      command='sudo apt update && sudo apt upgrade --yes'
+      ;;
   esac
   $command
 }
