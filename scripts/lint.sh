@@ -4,7 +4,6 @@
 set -euo pipefail
 
 get_project_root() {
-  # Change to project root.
   git rev-parse --show-toplevel
 }
 
