@@ -98,7 +98,11 @@ print_runner_header() {
   shift 1
   local files=("$@")
 
-  printf "%s\n" " 🛠️ Checking ${#files[@]} file(s) with $tool"
+  local yellow="\e[33m"
+  local bold="\e[1m"
+  local reset="\e[0m"
+
+  printf "\n%s%b%s%b\n" " 🛠️ Checking ${#files[@]} file(s) with " "${yellow}" "$tool" "$reset"
   printf "%s\n" "———————————————————————————————————————————"
 }
 
@@ -253,6 +257,17 @@ build_summary() {
 
 print_to_console() {
   local summary="${1:-}"
+
+  local blue="\e[34m"
+  local bold="\e[1m"
+  local reset="\e[0m"
+  local header="
+╭─────────────────╮
+│     SUMMARY     │
+╰─────────────────╯
+"
+  printf "%b%b%s%b\n" "${bold}" "${blue}" "$header" "$reset"
+
   printf "%b\n" "$summary" | column -t -s $'\t' -c 200
 }
 
