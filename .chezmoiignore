@@ -4,6 +4,8 @@ assets/
 
 scripts/
 
+docs/
+
 .envrc
 
 .bashrc_local_darwin
