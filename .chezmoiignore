@@ -1,5 +1,6 @@
 # Ignore GitHub/repo metadata:
 README.md
+LICENSE
 .gitignore
 assets/
 docs/
