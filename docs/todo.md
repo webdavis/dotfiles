@@ -21,6 +21,8 @@
   for it, integrate that too
 - [ ] Homebrew auto-installs! Configure Chezmoi to run `brew bundle <subcommand>` (or something
   like that) when it detects changes to `dot_Brewfile`
+- [ ] Turn off **Automatically rearrange Spaces based on most recent use** using
+  `defaults write com.apple.dock workspaces-auto-swoosh -bool NO && killall dock`
 - [ ] Automate installation of [claude-code](https://www.anthropic.com/claude-code) via
   `npm install -g @anthropic-ai/claude-code`
 - [ ] Automate installation of [kulala-ls](https://github.com/mistweaverco/kulala-ls) via
