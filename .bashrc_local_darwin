@@ -1,10 +1,9 @@
 # shellcheck shell=bash
 # vi:filetype=sh shiftwidth=2 softtabstop=2 tabstop=8:
 
-# ┏━━━━━━━━━━━━━━━━━━━━┓
-# ┃    Bash Aliases    ┃
-# ┗━━━━━━━━━━━━━━━━━━━━┛
-
+# ┌──────────────────┐
+# │   Bash Aliases   │
+# └──────────────────┘
 alias ping='ping --apple-time'
 alias bu='brew upgrade --formula'
 alias ls='ls -G'
@@ -32,6 +31,11 @@ alias fman='compgen -c | fzf | xargs man'
 # └──────────────────────────────────────────────────────────┘
 eval "$(rbenv init - --no-rehash bash)"
 
+# ┌ Homebrew ───────────────┐
+# │                         │
+# │  Ref: https://brew.sh/  │
+# │                         │
+# └─────────────────────────┘
 HOMEBREW_PREFIX='/opt/homebrew'
 
 export SHELL="${HOMEBREW_PREFIX}/bin/bash"
