@@ -21,3 +21,8 @@
   for it, integrate that too
 - [ ] Homebrew auto-installs! Configure Chezmoi to run `brew bundle <subcommand>` (or something
   like that) when it detects changes to `dot_Brewfile`
+- [ ] Automate installation of [claude-code](https://www.anthropic.com/claude-code) via
+  `npm install -g @anthropic-ai/claude-code`
+- [ ] Automate installation of [kulala-ls](https://github.com/mistweaverco/kulala-ls) via
+  `npm install -g @mistweaverco/kulala-ls`
+- [ ] Automate installation of [meiji163/gh-notify](https://github.com/meiji163/gh-notify)
