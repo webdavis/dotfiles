@@ -47,7 +47,7 @@ This project's development environment is managed using
 [Nix Flakes](https://wiki.nixos.org/wiki/Flakes), and is defined in the
 [`flake.nix`](./flake.nix) file.
 
-### Setup
+### Install
 
 Install Nix using the
 [Nix Installer from Determinate Systems](https://github.com/DeterminateSystems/nix-installer):
