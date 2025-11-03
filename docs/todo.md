@@ -16,7 +16,7 @@
   - [ ] `dot_bash_profile`
   - [ ] `dot_bash_bindings`
   - [ ] `dot_fzf_bindings`
-  - [ ] *`dot_bash_secrets`*
+  - [ ] `dot_bash_secrets`
 - [ ] Install [Yazi](https://yazi-rs.github.io/) with Homebrew, and if there's a Neovim plugin
   for it, integrate that too
 - [ ] Homebrew auto-installs! Configure Chezmoi to run `brew bundle <subcommand>` (or something
