@@ -29,3 +29,6 @@
   `npm install -g @mistweaverco/kulala-ls`
 - [ ] Automate installation of [meiji163/gh-notify](https://github.com/meiji163/gh-notify)
   (Version: `556df2e`) extension for `gh`
+- [ ] Replace [Nix Installer from Determinate Systems](https://github.com/DeterminateSystems/nix-installer)
+  with [DeterminateSystems/nix-installer-action](https://github.com/DeterminateSystems/nix-installer-action)
+  (The default Determinate Nix branch no longer supports upstream installs)
