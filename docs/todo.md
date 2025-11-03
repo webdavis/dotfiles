@@ -28,3 +28,4 @@
 - [ ] Automate installation of [kulala-ls](https://github.com/mistweaverco/kulala-ls) via
   `npm install -g @mistweaverco/kulala-ls`
 - [ ] Automate installation of [meiji163/gh-notify](https://github.com/meiji163/gh-notify)
+  (Version: `556df2e`) extension for `gh`
