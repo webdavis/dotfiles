@@ -8,6 +8,18 @@
 
 This repository contains the dotfiles for my personal computer, managed with [Chezmoi](https://www.chezmoi.io/).
 
+<!-- table-of-contents GFM -->
+
+- [Prerequisites](#prerequisites)
+- [Setup](#setup)
+- [Development Environment](#development-environment)
+  - [Install](#install)
+  - [Usage](#usage)
+    - [1. Enter the Dev Shell](#1-enter-the-dev-shell)
+    - [2. Run Commands Adhoc](#2-run-commands-adhoc)
+
+<!-- table-of-contents -->
+
 ## Prerequisites
 
 - [KeePassXC](https://keepassxc.org/)
