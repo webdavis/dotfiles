@@ -24,6 +24,14 @@ alias fman='compgen -c | fzf | xargs man'
 # ┗━━━━━━━━━━━━━━━━┛
 # Ref: https://brew.sh/
 
+# ┌ Ruby ────────────────────────────────────────────────────┐
+# │                                                          │
+# │  Ref: https://github.com/rbenv/rbenv                     │
+# │  Added by `rbenv init` on: Sun, 2025-10-19 13:37:56 MDT  │
+# │                                                          │
+# └──────────────────────────────────────────────────────────┘
+eval "$(rbenv init - --no-rehash bash)"
+
 HOMEBREW_PREFIX='/opt/homebrew'
 
 export SHELL="${HOMEBREW_PREFIX}/bin/bash"
@@ -45,14 +53,6 @@ path_prepend "${HOMEBREW_PREFIX}/bin"
 path_prepend "$HOME/.pyenv/versions/3.12.0/bin"
 
 export MANPATH="${HOMEBREW_PREFIX}/share/man:${MANPATH}"
-
-# ┌ Ruby ────────────────────────────────────────────────────┐
-# │                                                          │
-# │  Ref: https://github.com/rbenv/rbenv                     │
-# │  Added by `rbenv init` on: Sun, 2025-10-19 13:37:56 MDT  │
-# │                                                          │
-# └──────────────────────────────────────────────────────────┘
-eval "$(rbenv init - --no-rehash bash)"
 
 # ┌ Nix ───────────────────────────────────────────────────────┐
 # │                                                            │
