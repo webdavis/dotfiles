@@ -176,6 +176,7 @@ fi
 
 # Source local bash files.
 [[ -s "$HOME/.bash_bindings" ]] && . "$HOME/.bash_bindings"
+[[ -s "$HOME/.bash_completions" ]] && . "$HOME/.bash_completions"
 [[ -s "$HOME/.fzf.bash" ]] && . "$HOME/.fzf.bash" # Fzf is hosted at https://github.com/junegunn/fzf/tree/master/shell.
 [[ -s "$HOME/.fzf_bindings" ]] && . "$HOME/.fzf_bindings"
 
