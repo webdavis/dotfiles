@@ -17,8 +17,8 @@
   - [ ] `dot_bash_bindings`
   - [ ] `dot_fzf_bindings`
   - [ ] `dot_bash_secrets`
-- [ ] Install [Yazi](https://yazi-rs.github.io/) with Homebrew, and if there's a Neovim plugin
-  for it, integrate that too
+- [x] Install [Yazi](https://yazi-rs.github.io/) with Homebrew, and if there's a Neovim plugin
+  for it, integrate that too <!-- completed: 2025-11-03 -->
 - [ ] Homebrew auto-installs! Configure Chezmoi to run `brew bundle <subcommand>` (or something
   like that) when it detects changes to `dot_Brewfile`
 - [ ] Turn off **Automatically rearrange Spaces based on most recent use** using
