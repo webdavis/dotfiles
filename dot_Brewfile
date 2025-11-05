@@ -146,16 +146,13 @@ brew 'font-symbols-only-nerd-font'
 # └─────────────────────────────┘
 cask 'alcove'
 cask 'anki'
-cask 'anydesk'
 cask 'apple-juice'
 cask 'balenaetcher'
 cask 'brave-browser'
 cask 'cardhop'
-cask 'dash'
 cask 'discord', args: { appdir: '/Applications' }
 cask 'docker-desktop'
 cask 'dropbox'
-cask 'element'
 cask 'espanso'
 cask 'fantastical'
 cask 'firefox'
@@ -168,21 +165,16 @@ cask 'lunar'
 cask 'microsoft-auto-update'
 cask 'microsoft-office'
 cask 'mitmproxy'
-cask 'mu-editor'
 cask 'obs'
 cask 'obsidian'
 cask 'openemu'
-cask 'postman'
 cask 'raspberry-pi-imager'
 cask 'raycast'
 cask 'retroarch-metal'
-cask 'rocket'
 cask 'signal', args: { appdir: '/Applications' }
-cask 'slack', args: { appdir: '/Applications' }
 cask 'steam'
 cask 'tor-browser'
 cask 'torguard'
-cask 'vanilla'
 cask 'zen'
 cask 'zoom', args: { appdir: '/Applications' }
 
@@ -192,11 +184,9 @@ cask 'zoom', args: { appdir: '/Applications' }
 mas 'Actions', id: 1_586_435_171
 mas 'Drafts', id: 1_435_957_248
 mas 'Dropover', id: 1_355_679_052
-mas 'Flighty', id: 1_358_823_008
 mas 'Session', id: 1_521_432_881
 mas 'Strongbox', id: 897_283_731
 mas 'TestFlight', id: 899_247_664
-mas 'Transporter', id: 1_450_874_784
 mas 'Xcode', id: 497_799_835
 
 # ┌──────────────┐
