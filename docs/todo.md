@@ -2,11 +2,6 @@
 
 - [ ] Refactor `dot_fzf_bindings` and `dot_bash_bindings` and solve all Shellcheck
   diagnostics
-- [ ] Figure out what the difference between `cspell` and `codespell` (if there is one), and
-  then configure Neovim (via Mason or none-ls) to handle its installation and integration
-  automatically
-- [ ] Fix Neovim `lsp-format` config (currently, it's mucking up my code every time the
-  auto-formatter runs, which is every time I save)
 - [ ] Huge migration! Replace Bash with Nu Shell. This requires rewrites of the following
   configs:
   - [ ] `dot_bashrc`
