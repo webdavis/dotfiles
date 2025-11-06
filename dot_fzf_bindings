@@ -463,7 +463,7 @@ builtin bind -m vi-insert '"\C-gcb": "\C-x0\C-_04\C-x1\C-x2\015"'
 builtin bind -m vi-command '"\C-gcb": "i\C-x0\C-_04\C-x1\C-x2\015"'
 
 # "<C-g>cf" - open a file from the previous commit.
-__fzf_open_file_at_commit() {
+__fzf_git_open_file_at_commit() {
   if git rev-parse --show-toplevel &>/dev/null; then
     local path
     path="$(git rev-parse --show-toplevel)"
@@ -545,7 +545,7 @@ __fzf_open_file_at_commit() {
   [[ $? -eq 1 ]] && return 1
   __insert_text_at_cursor "$_command"
 }
-builtin bind -x '"\C-_05": __fzf_open_file_at_commit'
+builtin bind -x '"\C-_05": __fzf_git_open_file_at_commit'
 builtin bind -m vi-insert '"\C-gcf": "\C-x0\C-_05\C-x1\C-x2\015"'
 builtin bind -m vi-command '"\C-gcf": "i\C-x0\C-_05\C-x1\C-x2\015"'
 
