@@ -451,7 +451,7 @@ __fzf_git_checkout_branch() {
   }
 
   local cmd
-  cmd="$(__build_edit_command -k "$key" -c "${selection[0]}")" || {
+  cmd="$(__build_edit_command -k "$key" -c "${selection[1]}")" || {
     __fzf_bindings_set_exit_code 1
     return
   }
