@@ -179,11 +179,7 @@ __build_edit_command() {
 
 __catch_interrupt() {
   trap '' ERR INT TERM QUIT
-
-  if [[ -n $1 ]]; then
-    builtin cd -- "$1"
-  fi
-  return
+  [[ -n $1 ]] && builtin cd -- "$1" || return "$?"
 }
 
 # "<C-x><C-x>" open a file below the <cwd>.
@@ -204,8 +200,7 @@ __fzf_file_open() {
   fi
 
   [[ -f $path ]] || {
-    builtin cd -- "$cwd"
-    return 1
+    builtin cd -- "$cwd" || return "$?"
   }
 
   local _command
@@ -225,7 +220,7 @@ __fzf_open_any_file_under_project_root() {
   local dir=""
   if git rev-parse --show-toplevel &>/dev/null; then
     dir="$(git rev-parse --show-toplevel)"
-    builtin cd -- "$dir"
+    builtin cd -- "$dir" || return "$?"
   else
     builtin printf "%s\n" "__fzf_project_file_open: Not in a git-tracked project" 2>&1
     return 1
@@ -236,8 +231,7 @@ __fzf_open_any_file_under_project_root() {
     command fzf --height="40%" -0 --expect="ctrl-o,ctrl-x,ctrl-v,ctrl-t,ctrl-s,alt-c,ctrl-c")")
   key="$(command head -1 <<<"$selection")"
   if [[ $key == "ctrl-c" ]]; then
-    builtin cd -- "$cwd"
-    return 127
+    builtin cd -- "$cwd" || return 127
   fi
   file="$(command head -2 <<<"$selection" | command tail -1)"
 
@@ -249,8 +243,7 @@ __fzf_open_any_file_under_project_root() {
   fi
 
   [[ -f $path ]] || {
-    builtin cd -- "$cwd"
-    return 1
+    builtin cd -- "$cwd" || return "$?"
   }
 
   local _command
@@ -258,9 +251,9 @@ __fzf_open_any_file_under_project_root() {
   [[ $? -eq 1 ]] && return 1
   __insert_text_at_cursor "$_command"
 
-  builtin cd -- "$cwd"
+  builtin cd -- "$cwd" || return "$?"
 
-  [[ $key != "alt-c" ]] && builtin cd -- "$cwd"
+  [[ $key != "alt-c" ]] && builtin cd -- "$cwd" || return "$?"
   trap '' ERR INT TERM QUIT
 }
 builtin bind -x '"\C-_01": __fzf_open_any_file_under_project_root'
@@ -504,21 +497,19 @@ __fzf_file_open_home() {
   cwd="$(pwd)"
   trap '__catch_interrupt "$cwd"' ERR INT TERM QUIT
   home="$(builtin eval echo ~)"
-  builtin cd -- "$home"
+  builtin cd -- "$home" || return "$?"
 
   local selection key file
   selection=("$(FZF_DEFAULT_COMMAND="${FZF_DEFAULT_COMMAND}" \
     command fzf --height="40%" -0 --expect="ctrl-o,ctrl-x,ctrl-v,ctrl-t,ctrl-s,alt-c,ctrl-c")")
   key="$(command head -1 <<<"$selection")"
   if [[ $key == "ctrl-c" ]]; then
-    builtin cd -- "$cwd"
-    return 127
+    builtin cd -- "$cwd" || return 127
   fi
   file="${home}/$(command head -2 <<<"$selection" | command tail -1)"
 
   [[ -d $file || ! -f $file ]] && {
-    builtin cd -- "$cwd"
-    return 1
+    builtin cd -- "$cwd" || return "$?"
   }
 
   local _command
@@ -526,9 +517,9 @@ __fzf_file_open_home() {
   [[ $? -eq 1 ]] && return 1
   __insert_text_at_cursor "$_command"
 
-  builtin cd -- "$cwd"
+  builtin cd -- "$cwd" || return "$?"
 
-  [[ $key != "alt-c" ]] && builtin cd -- "$cwd"
+  [[ $key != "alt-c" ]] && builtin cd -- "$cwd" || return "$?"
   trap '' ERR INT TERM QUIT
 }
 builtin bind -x '"\C-_06": __fzf_file_open_home'
@@ -540,21 +531,19 @@ __fzf_file_open_root() {
   local cwd
   cwd="$(pwd)"
   trap '__catch_interrupt "$cwd"' ERR INT TERM QUIT
-  builtin cd -- '/'
+  builtin cd -- '/' || return "$?"
 
   local selection key file
   selection=("$(FZF_DEFAULT_COMMAND="${FZF_DEFAULT_COMMAND}" \
     command fzf --height="40%" -0 --expect="ctrl-o,ctrl-x,ctrl-v,ctrl-t,ctrl-s,alt-c,ctrl-c")")
   key="$(command head -1 <<<"$selection")"
   if [[ $key == "ctrl-c" ]]; then
-    builtin cd -- "$cwd"
-    return 127
+    builtin cd -- "$cwd" || return 127
   fi
   file="/$(command head -2 <<<"$selection" | command tail -1)"
 
   [[ -d $file || ! -f $file ]] && {
-    builtin cd -- "$cwd"
-    return 1
+    builtin cd -- "$cwd" || return "$?"
   }
 
   local _command
@@ -562,9 +551,9 @@ __fzf_file_open_root() {
   [[ $? -eq 1 ]] && return 1
   __insert_text_at_cursor "$_command"
 
-  builtin cd -- "$cwd"
+  builtin cd -- "$cwd" || return "$?"
 
-  [[ $key != "alt-c" ]] && builtin cd -- "$cwd"
+  [[ $key != "alt-c" ]] && builtin cd -- "$cwd" || return "$?"
   trap '' ERR INT TERM QUIT
 }
 builtin bind -x '"\C-_07": __fzf_file_open_root'
@@ -579,7 +568,7 @@ __fzf_grep() {
   local dir=""
   if git rev-parse --show-toplevel &>/dev/null; then
     dir="$(git rev-parse --show-toplevel)"
-    builtin cd -- "$dir"
+    builtin cd -- "$dir" || return "$?"
   fi
 
   local selection key
@@ -609,8 +598,7 @@ __fzf_grep() {
   fi
 
   [[ -f $path ]] || {
-    builtin cd -- "$cwd"
-    return 1
+    builtin cd -- "$cwd" || return "$?"
   }
 
   local _command
@@ -618,7 +606,7 @@ __fzf_grep() {
   [[ $? -eq 1 ]] && return 1
   __insert_text_at_cursor "$_command"
 
-  [[ $key != "alt-c" ]] && builtin cd -- "$cwd"
+  [[ $key != "alt-c" ]] && builtin cd -- "$cwd" || return "$?"
   trap '' ERR INT TERM QUIT
 }
 builtin bind -x '"\C-_08": __fzf_grep'
