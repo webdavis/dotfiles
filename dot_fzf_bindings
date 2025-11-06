@@ -59,7 +59,7 @@ builtin bind '"\C-x0": kill-whole-line'     # Clears the entire line.
 builtin bind '"\C-x1": magic-space'         # Performs history expansion and inserts a space.
 builtin bind '"\C-x2": redraw-current-line' # Refreshes the current line.
 
-# Prints the command to the command-line so that command-line history is logged.
+# Prints the command to the console so it’s recorded in .bash_history.
 __insert_text_at_cursor() {
   READLINE_LINE="${READLINE_LINE:+${READLINE_LINE:0:READLINE_POINT}}${1}${READLINE_LINE:+${READLINE_LINE:READLINE_POINT}}"
   READLINE_POINT="$((READLINE_POINT + ${#1}))"
