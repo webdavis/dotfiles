@@ -186,7 +186,7 @@ __catch_interrupt() {
   return
 }
 
-# Press "Ctrl-x + Ctrl-x" to open a file below the current filepath.
+# "<C-x><C-x>" open a file below the <cwd>.
 __fzf_file_open() {
   local cwd selection key file
   cwd="$(pwd)"
@@ -217,8 +217,7 @@ builtin bind -x '"\C-_00": __fzf_file_open'
 builtin bind -m vi-insert '"\C-x\C-x": "\C-x0\C-_00\C-x1\C-x2\015"'
 builtin bind -m vi-command '"\C-x\C-x": "i\C-x0\C-_00\C-x1\C-x2\015"'
 
-# Press "Ctrl-x + x" to fzf-open any file under the project root, regardless of whether it's
-# tracked or not, from any directory in the project.
+# "<C-x>x" - open any *file* under the project root.
 __fzf_open_any_file_under_project_root() {
   local cwd
   cwd="$(pwd)"
@@ -268,7 +267,7 @@ builtin bind -x '"\C-_01": __fzf_open_any_file_under_project_root'
 builtin bind -m vi-insert '"\C-xx": "\C-x0\C-_01\C-x1\C-x2\015"'
 builtin bind -m vi-command '"\C-xx": "i\C-x0\C-_01\C-x1\C-x2\015"'
 
-# Press "Ctrl-g + f" to fzf-open any git-tracked file in the project.
+# "<C-g>f" - open any git-tracked file in the project.
 __fzf_git_file_open() {
   trap '__catch_interrupt "$cwd"' ERR INT TERM QUIT
 
@@ -314,7 +313,7 @@ builtin bind -x '"\C-_15": __fzf_git_file_open'
 builtin bind -m vi-insert '"\C-gf": "\C-x0\C-_15\C-x1\C-x2\015"'
 builtin bind -m vi-command '"\C-gf": "i\C-x0\C-_15\C-x1\C-x2\015"'
 
-# Press "Ctrl-g + H" to search for and select a git commit hash.
+# "<C-g>H" - search and select a git commit hash.
 __fzf_search_git_hashes() {
   if git rev-parse --show-toplevel &>/dev/null; then
     local path
@@ -346,7 +345,7 @@ builtin bind -x '"\C-_02": __fzf_search_git_hashes'
 builtin bind -m vi-insert '"\C-gH": "\C-_02"'
 builtin bind -m vi-command '"\C-gH": "i\C-_02"'
 
-# Press "Ctrl-g + ch" to `git checkout` a commit.
+# "<C-g>ch" - `git checkout` a commit.
 __fzf_checkout_commit() {
   if git rev-parse --show-toplevel &>/dev/null; then
     local path
@@ -379,7 +378,7 @@ builtin bind -x '"\C-_03": __fzf_checkout_commit'
 builtin bind -m vi-insert '"\C-gch": "\C-x0\C-_03\C-x1\C-x2\015"'
 builtin bind -m vi-command '"\C-gch": "i\C-x0\C-_03\C-x1\C-x2\015"'
 
-# Press "Ctrl-g + cb" to `git checkout` a branch.
+# "<C-g>cb" - `git checkout <branch>`
 __fzf_checkout_branch() {
   if git rev-parse --show-toplevel &>/dev/null; then
     local path
@@ -412,7 +411,7 @@ builtin bind -x '"\C-_04": __fzf_checkout_branch'
 builtin bind -m vi-insert '"\C-gcb": "\C-x0\C-_04\C-x1\C-x2\015"'
 builtin bind -m vi-command '"\C-gcb": "i\C-x0\C-_04\C-x1\C-x2\015"'
 
-# Press "Ctrl-g + cf" to open a file from the previous commit.
+# "<C-g>cf" - open a file from the previous commit.
 __fzf_open_file_at_commit() {
   if git rev-parse --show-toplevel &>/dev/null; then
     local path
@@ -499,7 +498,7 @@ builtin bind -x '"\C-_05": __fzf_open_file_at_commit'
 builtin bind -m vi-insert '"\C-gcf": "\C-x0\C-_05\C-x1\C-x2\015"'
 builtin bind -m vi-command '"\C-gcf": "i\C-x0\C-_05\C-x1\C-x2\015"'
 
-# Press "Ctrl-x + h" to open a file below the user HOME directory.
+# "<C-x>h" - open a file below the home (~) directory.
 __fzf_file_open_home() {
   local cwd home
   cwd="$(pwd)"
@@ -536,7 +535,7 @@ builtin bind -x '"\C-_06": __fzf_file_open_home'
 builtin bind -m vi-insert '"\C-xh": "\C-x0\C-_06\C-x1\C-x2\015"'
 builtin bind -m vi-command '"\C-xh": "i\C-x0\C-_06\C-x1\C-x2\015"'
 
-# Press "Ctrl-x + /" and open a file below the root directory.
+# "<C-x>/" - open a file below the root (/) directory.
 __fzf_file_open_root() {
   local cwd
   cwd="$(pwd)"
@@ -572,7 +571,7 @@ builtin bind -x '"\C-_07": __fzf_file_open_root'
 builtin bind -m vi-insert '"\C-x/": "\C-x0\C-_07\C-x1\C-x2\015"'
 builtin bind -m vi-command '"\C-x/": "i\C-x0\C-_07\C-x1\C-x2\015"'
 
-# Press "Ctrl-x + Ctrl-f" to search file contents and open a file at the selected line.
+# "<C-x><C-f>" - open file at the selected line.
 __fzf_grep() {
   local cwd
   cwd="$(pwd)"
@@ -648,7 +647,7 @@ __build_cd_command() {
   builtin echo "$executable"
 }
 
-# When inside a Git project, press Alt-g to jump to any directory in the project.
+# "<M-g>" - change to any directory in the project.
 __fzf_cd_git() {
   trap '__catch_interrupt' ERR INT TERM QUIT
   if git rev-parse --show-toplevel &>/dev/null; then
@@ -685,7 +684,7 @@ builtin bind -x '"\C-_09": __fzf_cd_git'
 builtin bind -m vi-insert '"\M-g": "\C-x0\C-_09\C-x1\C-x2\015"'
 builtin bind -m vi-command '"\M-g": "i\C-x0\C-_09\C-x1\C-x2\015"'
 
-# Press Alt-h to jump to any directory below the current working directory, including hidden directories.
+# "<M-h>" - change to directory below the <cwd> (including hidden directories).
 __fzf_cd_all() {
   trap '__catch_interrupt' ERR INT TERM QUIT
   local selection key dir
@@ -713,7 +712,7 @@ builtin bind -x '"\C-_10": __fzf_cd_all'
 builtin bind -m vi-insert '"\M-h": "\C-x0\C-_10\C-x1\C-x2\015"'
 builtin bind -m vi-command '"\M-h": "i\C-x0\C-_10\C-x1\C-x2\015"'
 
-# Press Alt-r to jump to any directory below the root directory.
+# "<M-r>" - change to directory below the root directory.
 __fzf_cd_root() {
   trap '__catch_interrupt' ERR INT TERM QUIT
   local selection key dir
@@ -739,7 +738,7 @@ builtin bind -x '"\C-_11": __fzf_cd_root'
 builtin bind -m vi-insert '"\M-r": "\C-x0\C-_11\C-x1\C-x2\015"'
 builtin bind -m vi-command '"\M-r": "i\C-x0\C-_11\C-x1\C-x2\015"'
 
-# Press Alt-p to jump a parent directory.
+# "<M-p>" - change to a parent directory.
 __fzf_cd_parent() {
   trap '__catch_interrupt' ERR INT TERM QUIT
   declare directories=()
@@ -775,7 +774,7 @@ builtin bind -x '"\C-_12": __fzf_cd_parent'
 builtin bind -m vi-insert '"\M-P": "\C-x0\C-_12\C-x1\C-x2\015"'
 builtin bind -m vi-command '"\M-P": "i\C-x0\C-_12\C-x1\C-x2\015"'
 
-# Press "Alt-b" to bookmark the current working directory (not stateful across terminals).
+# "<M-b>" - bookmark the <cwd> (not stateful across shell sessions).
 __bookmark() {
   # Return if the directory has already been bookmarked.
   if builtin dirs -v | command grep -v " 0" | command grep -q -s "$(command pwd)"; then
@@ -790,7 +789,7 @@ builtin bind -x '"\C-_13": __bookmark'
 builtin bind -m vi-insert '"\M-b": "\C-x0\C-_13\C-x1\C-x2\015"'
 builtin bind -m vi-command '"\M-b": "i\C-x0\C-_13\C-x1\C-x2\015"'
 
-# Press Alt-k to navigate to a bookmarked directory.
+# "<M-k>" - navigate to a bookmarked directory.
 __fzf_goto_bookmark() {
   trap '__catch_interrupt' ERR INT TERM QUIT
   local awkcommand
