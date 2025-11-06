@@ -476,86 +476,79 @@ builtin bind -m vi-command '"\C-gcb": "i\C-x0\C-_04\C-x1\C-x2\015"'
 
 # "<C-g>cf" - open a file from the previous commit.
 __fzf_git_open_file_at_commit() {
-  if git rev-parse --show-toplevel &>/dev/null; then
-    local path
-    path="$(git rev-parse --show-toplevel)"
-  else
-    builtin printf "%s\n" "__fzf_open_file_at_commit: Git project not detected." 2>&1
-    return 1
-  fi
+  local project_root
+  project_root="$(__fzf_bindings_get_git_root)" || return
 
-  # Get number of commits.
+  # Get number of commits:
   local commit_count
   commit_count="$(git rev-list --no-merges --count HEAD --)"
-  commit_count=$((commit_count - 1))
+  ((commit_count--))
 
-  # Build array of file diffs paired with their respective commit hashes.
-  local selections hash_regex commit_file _hash message
-  hash_regex='(^[0-9a-f]{7,40})\ (.*)'
-  while read -r commit_file; do
-    if [[ $commit_file =~ $hash_regex ]]; then
-      _hash="${BASH_REMATCH[1]}"
-      message="${BASH_REMATCH[2]}"
-    else
-      selections+=("$_hash - $message: $commit_file")
-    fi
-  done < <(git --no-pager show --stat --oneline --name-only HEAD~${commit_count}..HEAD --)
+  local -r fzf_keys="ctrl-o,ctrl-x,ctrl-v,ctrl-t,ctrl-s,alt-c,ctrl-c"
 
-  local fzf_output key selection commit_hash file file_path
-  fzf_output=("$(printf "%s\n" "${selections[@]}" | fzf --height="40%" -0 --expect="ctrl-o,ctrl-x,ctrl-v,ctrl-t,ctrl-s,alt-c,ctrl-c")")
-  key="$(command head -1 <<<"$fzf_output")"
-  [[ -z $key ]] && key="default"
-  if [[ $key == "ctrl-c" ]]; then return 127; fi
-  selection="$(command head -2 <<<"$fzf_output" | command tail -1)"
-  commit_hash="$(echo "$selection" | awk '{ print $1 }')"
-  file="$(echo "$selection" | awk '{ print $NF }')"
-  file_path="${path}/${file}"
+  local -a selection
+  mapfile -t selection < <(
+    git log --pretty=format:"%h|%s" --name-only HEAD~"$commit_count"..HEAD |
+      awk -F'|' '/^[0-9a-f]{7,}\|/ { commit=$1; msg=$2; next } NF { print commit "  ╎" "|" $0 "|" "╎  " msg }' |
+      column -t -s '|' |
+      fzf --height="$FZF_BINDINGS_HEIGHT" -0 --expect="$fzf_keys"
+  )
 
-  # Turn off case-sensitivity for the following prompt.
-  shopt -s nocasematch
+  local key="${selection[0]}"
+  __fzf_bindings_check_interrupt "$key" || return
 
-  local answer checkout="false"
+  local checkout=false
+  local confirmation
+
+  shopt -s nocasematch # Turn off case-sensitivity for the following prompt:
   while true; do
-    # This fails without the '-n' flag.
-    read -r -p "Do you want to checkout this commit_hash? (y/n): " -n 1 answer
-    case "${answer}" in
-      "y")
-        echo "$answer"
-        checkout="true"
+    read -r -p "Do you want to checkout this git commit? (y/n): " -n 1 confirmation
+    echo
+    case "${confirmation}" in
+      y)
+        checkout=true
         break
         ;;
-      "n")
-        echo "$answer"
+      n)
         break
         ;;
       *)
-        echo "$answer"
         printf "%s\n" "Please answer [Y]es or [N]o (case insensitive)."
         ;;
     esac
   done
-  # Turn case-sensitivity back on.
-  shopt -u nocasematch
+  shopt -u nocasematch # Turn case-sensitivity back on.
 
-  local tool build_arguments
-  if [[ $checkout == "true" ]]; then
-    tool="$EDITOR_CMD"
-    build_arguments='-k "$key" -t "$tool" -f "$file_path" -c "$commit_hash"'
+  local commit_hash file
+  IFS='╎' read -r commit_hash file <<<"${selection[1]}"
+
+  # Strip leading/trailing whitespace from each
+  commit_hash="${commit_hash#"${commit_hash%%[![:space:]]*}"}"
+  commit_hash="${commit_hash%"${commit_hash##*[![:space:]]}"}"
+
+  file="${file#"${file%%[![:space:]]*}"}"
+  file="${file%"${file##*[![:space:]]}"}"
+
+  local file_path="${project_root}/${file_path}"
+
+  local -a build_args
+
+  if ((checkout)); then
+    build_args=(-k "$key" -t "$EDITOR_CMD" -f "$file_path" -c "$commit_hash")
   else
     # Fail gracefully if file doesn't exist in current branch.
-    [[ -f $file ]] || {
-      printf "%s\n" "${file} doesn't exist in the working branch." 2>&1
-      return 1
-    }
+    __fzf_verify_file_exists "$file_path" || return
 
-    tool="git difftool --no-prompt ${commit_hash}"
-    build_arguments='-k "$key" -t "$tool" -f "$file"'
+    build_args=(-k "$key" -t "git difftool --no-prompt ${commit_hash}" -f "$file_path")
   fi
 
-  local _command
-  _command="$(eval __build_edit_command "$build_arguments")"
-  [[ $? -eq 1 ]] && return 1
-  __insert_text_at_cursor "$_command"
+  local cmd
+  cmd="$(__build_edit_command "${build_args[@]}")" || {
+    __fzf_bindings_set_exit_code 1
+    return
+  }
+
+  __insert_text_at_cursor "$cmd"
 }
 builtin bind -x '"\C-_05": __fzf_git_open_file_at_commit'
 builtin bind -m vi-insert '"\C-gcf": "\C-x0\C-_05\C-x1\C-x2\015"'
