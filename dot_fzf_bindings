@@ -327,6 +327,7 @@ __fzf_search_git_hashes() {
   mapfile -t selection < <(
     git log --oneline -n "$FZF_BINDINGS_GIT_LOG_LIMIT" |
       fzf \
+        --multi \
         --height="$fzf_height_60" \
         --preview "$fzf_preview_implementation" \
         --preview-window="$fzf_preview_window" \
@@ -340,18 +341,22 @@ __fzf_search_git_hashes() {
     return $FZF_BINDINGS_LAST_STATUS
   fi
 
-  local commit_hash="${selection[1]%% *}"
+  local -a commit_hashes
+  local -r hash_regex='^[0-9a-f]{7,40}'
+  local line
+  for line in "${selection[@]:1}"; do
+    if [[ $line =~ $hash_regex ]]; then
+      commit_hashes+=("${BASH_REMATCH[0]}")
+    fi
+  done
 
   # Verify the commit hash:
-  local -r hash_regex='^[0-9a-f]{7,40}'
-  if [[ $commit_hash =~ $hash_regex ]]; then
-    commit_hash="${BASH_REMATCH[0]}"
-  else
+  if [[ ${#commit_hashes[@]} -eq 0 ]]; then
     FZF_BINDINGS_LAST_STATUS=1
     return $FZF_BINDINGS_LAST_STATUS
   fi
 
-  __insert_text_at_cursor "$commit_hash"
+  __insert_text_at_cursor "${commit_hashes[*]}"
 }
 builtin bind -x '"\C-_02": __fzf_search_git_hashes'
 builtin bind -m vi-insert '"\C-gH": "\C-_02"'
