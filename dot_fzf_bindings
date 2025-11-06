@@ -60,7 +60,7 @@ builtin bind '"\C-x1": magic-space'         # Performs history expansion and ins
 builtin bind '"\C-x2": redraw-current-line' # Refreshes the current line.
 
 # Prints the command to the command-line so that command-line history is logged.
-__ehc() {
+__insert_text_at_cursor() {
   READLINE_LINE="${READLINE_LINE:+${READLINE_LINE:0:READLINE_POINT}}${1}${READLINE_LINE:+${READLINE_LINE:READLINE_POINT}}"
   READLINE_POINT="$((READLINE_POINT + ${#1}))"
 }
@@ -211,7 +211,7 @@ __fzf_file_open() {
   local _command
   _command="$(__build_edit_command -k "$key" -t "$EDITOR_CMD" -f "$path")"
   [[ $? -eq 1 ]] && return 1
-  __ehc "$_command"
+  __insert_text_at_cursor "$_command"
 }
 builtin bind -x '"\C-_00": __fzf_file_open'
 builtin bind -m vi-insert '"\C-x\C-x": "\C-x0\C-_00\C-x1\C-x2\015"'
@@ -256,7 +256,7 @@ __fzf_open_any_file_under_project_root() {
   local _command
   _command="$(__build_edit_command -k "$key" -t "$EDITOR_CMD" -f "$path")"
   [[ $? -eq 1 ]] && return 1
-  __ehc "$_command"
+  __insert_text_at_cursor "$_command"
 
   builtin cd -- "$cwd"
 
@@ -305,7 +305,7 @@ __fzf_git_file_open() {
 
   local cmd
   cmd="$(__build_edit_command -k "$key" -t "$EDITOR_CMD" -f "$path")" || return 1
-  __ehc "$cmd"
+  __insert_text_at_cursor "$cmd"
 
   trap - ERR INT TERM QUIT
 }
@@ -339,7 +339,7 @@ __fzf_search_git_hashes() {
     commit_hash="${BASH_REMATCH[@]}"
   fi
 
-  __ehc "$commit_hash"
+  __insert_text_at_cursor "$commit_hash"
 }
 builtin bind -x '"\C-_02": __fzf_search_git_hashes'
 builtin bind -m vi-insert '"\C-gH": "\C-_02"'
@@ -372,7 +372,7 @@ __fzf_checkout_commit() {
   local _command
   _command="$(__build_edit_command -k "$key" -c "$commit_hash")"
   [[ $? -eq 1 ]] && return 1
-  __ehc "$_command"
+  __insert_text_at_cursor "$_command"
 }
 builtin bind -x '"\C-_03": __fzf_checkout_commit'
 builtin bind -m vi-insert '"\C-gch": "\C-x0\C-_03\C-x1\C-x2\015"'
@@ -405,7 +405,7 @@ __fzf_checkout_branch() {
   local _command
   _command="$(__build_edit_command -k "$key" -c "$commit_hash")"
   [[ $? -eq 1 ]] && return 1
-  __ehc "$_command"
+  __insert_text_at_cursor "$_command"
 }
 builtin bind -x '"\C-_04": __fzf_checkout_branch'
 builtin bind -m vi-insert '"\C-gcb": "\C-x0\C-_04\C-x1\C-x2\015"'
@@ -492,7 +492,7 @@ __fzf_open_file_at_commit() {
   local _command
   _command="$(eval __build_edit_command "$build_arguments")"
   [[ $? -eq 1 ]] && return 1
-  __ehc "$_command"
+  __insert_text_at_cursor "$_command"
 }
 builtin bind -x '"\C-_05": __fzf_open_file_at_commit'
 builtin bind -m vi-insert '"\C-gcf": "\C-x0\C-_05\C-x1\C-x2\015"'
@@ -524,7 +524,7 @@ __fzf_file_open_home() {
   local _command
   _command="$(__build_edit_command -k "$key" -t "$EDITOR_CMD" -f "$file")"
   [[ $? -eq 1 ]] && return 1
-  __ehc "$_command"
+  __insert_text_at_cursor "$_command"
 
   builtin cd -- "$cwd"
 
@@ -560,7 +560,7 @@ __fzf_file_open_root() {
   local _command
   _command="$(__build_edit_command -k "$key" -t "$EDITOR_CMD" -f "$file")"
   [[ $? -eq 1 ]] && return 1
-  __ehc "$_command"
+  __insert_text_at_cursor "$_command"
 
   builtin cd -- "$cwd"
 
@@ -616,7 +616,7 @@ __fzf_grep() {
   local _command
   _command="$(__build_edit_command -k "$key" -t "$EDITOR_CMD" -f "$path" -l "$line")"
   [[ $? -eq 1 ]] && return 1
-  __ehc "$_command"
+  __insert_text_at_cursor "$_command"
 
   [[ $key != "alt-c" ]] && builtin cd -- "$cwd"
   trap '' ERR INT TERM QUIT
@@ -676,7 +676,7 @@ __fzf_cd_git() {
   local _command
   _command="$(__build_cd_command "$key" "$path")"
   [[ $? -eq 1 ]] && return 1
-  __ehc "$_command"
+  __insert_text_at_cursor "$_command"
 
   trap '' ERR INT TERM QUIT
 }
@@ -704,7 +704,7 @@ __fzf_cd_all() {
   local _command
   _command="$(__build_cd_command "$key" "$path")"
   [[ $? -eq 1 ]] && return 1
-  __ehc "$_command"
+  __insert_text_at_cursor "$_command"
 
   trap '' ERR INT TERM QUIT
 }
@@ -730,7 +730,7 @@ __fzf_cd_root() {
   local _command
   _command="$(__build_cd_command "$key" "$dir")"
   [[ $? -eq 1 ]] && return 1
-  __ehc "$_command"
+  __insert_text_at_cursor "$_command"
 
   trap '' ERR INT TERM QUIT
 }
@@ -766,7 +766,7 @@ __fzf_cd_parent() {
   local _command
   _command="$(__build_cd_command "$key" "$directory")"
   [[ $? -eq 1 ]] && return 1
-  __ehc "$_command"
+  __insert_text_at_cursor "$_command"
 
   trap '' ERR INT TERM QUIT
 }
@@ -783,7 +783,7 @@ __bookmark() {
 
   _command="builtin pushd . 2>/dev/null"
 
-  __ehc "$_command"
+  __insert_text_at_cursor "$_command"
 }
 builtin bind -x '"\C-_13": __bookmark'
 builtin bind -m vi-insert '"\M-b": "\C-x0\C-_13\C-x1\C-x2\015"'
@@ -812,7 +812,7 @@ __fzf_goto_bookmark() {
   local _command
   _command="$(__build_cd_command "$key" "$directory")"
   [[ $? -eq 1 ]] && return 1
-  __ehc "$_command"
+  __insert_text_at_cursor "$_command"
 
   trap '' ERR INT TERM QUIT
 }
