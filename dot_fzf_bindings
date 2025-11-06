@@ -375,7 +375,6 @@ __fzf_search_git_commit_hashes() {
     fi
   done
 
-  # Verify the commit hash:
   if [[ ${#commit_hashes[@]} -eq 0 ]]; then
     __fzf_bindings_set_exit_code 1
     return
