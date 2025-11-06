@@ -2,7 +2,7 @@
 # shellcheck disable=SC1090
 # vi: set filetype=sh:
 
-export FZF_BINDINGS_LAST_STATUS=0
+export FZF_BINDINGS_EXIT_CODE=0
 export FZF_BINDINGS_GIT_LOG_LIMIT=500
 
 if [[ -x "$(builtin command -v rg)" ]]; then
@@ -264,8 +264,8 @@ builtin bind -m vi-insert '"\C-xx": "\C-x0\C-_01\C-x1\C-x2\015"'
 builtin bind -m vi-command '"\C-xx": "i\C-x0\C-_01\C-x1\C-x2\015"'
 
 __fzf_bindings_set_exit_code() {
-  FZF_BINDINGS_LAST_STATUS=$1
-  return "$FZF_BINDINGS_LAST_STATUS"
+  FZF_BINDINGS_EXIT_CODE=$1
+  return "$FZF_BINDINGS_EXIT_CODE"
 }
 
 __fzf_bindings_get_git_root() {
