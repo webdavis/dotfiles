@@ -411,6 +411,11 @@ __fzf_git_checkout_commit() {
 
   local commit_hash="${BASH_REMATCH[0]}"
 
+  cd "$project_root" || {
+    __fzf_bindings_set_exit_code "$?"
+    return
+  }
+
   local cmd
   cmd="$(__build_edit_command -k "$key" -c "$commit_hash")" || {
     __fzf_bindings_set_exit_code 1
