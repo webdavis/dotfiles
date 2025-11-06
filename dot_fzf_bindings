@@ -310,7 +310,7 @@ builtin bind -m vi-insert '"\C-gf": "\C-x0\C-_15\C-x1\C-x2\015"'
 builtin bind -m vi-command '"\C-gf": "i\C-x0\C-_15\C-x1\C-x2\015"'
 
 # "<C-g>H" - search and select a git commit hash.
-__fzf_search_git_hashes() {
+__fzf_search_git_commit_hashes() {
   local project_root
   if ! git rev-parse --show-toplevel &>/dev/null; then
     printf "Warning: '%s' couldn't detect a Git project.\n" "${FUNCNAME[0]}" >&2
@@ -358,7 +358,7 @@ __fzf_search_git_hashes() {
 
   __insert_text_at_cursor "${commit_hashes[*]}"
 }
-builtin bind -x '"\C-_02": __fzf_search_git_hashes'
+builtin bind -x '"\C-_02": __fzf_search_git_commit_hashes'
 builtin bind -m vi-insert '"\C-gH": "\C-_02"'
 builtin bind -m vi-command '"\C-gH": "i\C-_02"'
 
