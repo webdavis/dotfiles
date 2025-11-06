@@ -2,7 +2,7 @@
 # shellcheck disable=SC1090
 # vi: set filetype=sh:
 
-export FZF_BINDINGS_LAST_STATUS=127
+export FZF_BINDINGS_LAST_STATUS=0
 export FZF_BINDINGS_GIT_LOG_LIMIT=500
 
 if [[ -x "$(builtin command -v rg)" ]]; then
