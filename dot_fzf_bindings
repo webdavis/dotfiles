@@ -4,6 +4,7 @@
 
 export FZF_BINDINGS_EXIT_CODE=0
 export FZF_BINDINGS_GIT_LOG_LIMIT=500
+export FZF_BINDINGS_GIT_HASH_REGEX='^[0-9A-F]{7,40}'
 
 if [[ -x "$(builtin command -v rg)" ]]; then
   FZF_DEFAULT_COMMAND='rg --files --no-ignore -L -g "!.git/" 2>/dev/null'
@@ -367,10 +368,9 @@ __fzf_search_git_commit_hashes() {
   __fzf_bindings_check_interrupt "${selection[0]}" || return
 
   local -a commit_hashes
-  local -r hash_regex='^[0-9a-f]{7,40}'
   local line
   for line in "${selection[@]:1}"; do
-    if [[ $line =~ $hash_regex ]]; then
+    if [[ $line =~ $FZF_BINDINGS_GIT_HASH_REGEX ]]; then
       commit_hashes+=("${BASH_REMATCH[0]}")
     fi
   done
@@ -403,8 +403,7 @@ __fzf_git_checkout_commit() {
   local key="${selection[0]}"
   __fzf_bindings_check_interrupt "$key" || return
 
-  local -r hash_regex='^[0-9a-f]{7,40}'
-  [[ "${selection[1]}" =~ $hash_regex ]] || {
+  [[ "${selection[1]}" =~ $FZF_BINDINGS_GIT_HASH_REGEX ]] || {
     __fzf_bindings_set_exit_code 1
     return
   }
@@ -446,8 +445,7 @@ __fzf_git_checkout_branch() {
   local key="${selection[0]}"
   __fzf_bindings_check_interrupt "$key" || return
 
-  local -r hash_regex='^[0-9a-f]{7,40}'
-  [[ "${selection[1]}" =~ $hash_regex ]] || {
+  [[ "${selection[1]}" =~ $FZF_BINDINGS_GIT_HASH_REGEX ]] || {
     __fzf_bindings_set_exit_code 1
     return
   }
