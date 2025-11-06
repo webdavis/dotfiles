@@ -345,7 +345,7 @@ builtin bind -m vi-insert '"\C-gf": "\C-x0\C-_15\C-x1\C-x2\015"'
 builtin bind -m vi-command '"\C-gf": "i\C-x0\C-_15\C-x1\C-x2\015"'
 
 # "<C-g>H" - search and select a git commit hash.
-__fzf_search_git_commit_hashes() {
+__fzf_git_select_commit_hashes() {
   __fzf_bindings_get_git_root || return
 
   local -r fzf_keys="ctrl-c"
@@ -382,7 +382,7 @@ __fzf_search_git_commit_hashes() {
 
   __insert_text_at_cursor "${commit_hashes[*]}"
 }
-builtin bind -x '"\C-_02": __fzf_search_git_commit_hashes'
+builtin bind -x '"\C-_02": __fzf_git_select_commit_hashes'
 builtin bind -m vi-insert '"\C-gH": "\C-_02"'
 builtin bind -m vi-command '"\C-gH": "i\C-_02"'
 
@@ -445,20 +445,13 @@ __fzf_git_checkout_branch() {
   local key="${selection[0]}"
   __fzf_bindings_check_interrupt "$key" || return
 
-  [[ "${selection[1]}" =~ $FZF_BINDINGS_GIT_HASH_REGEX ]] || {
-    __fzf_bindings_set_exit_code 1
-    return
-  }
-
-  local commit_hash="${BASH_REMATCH[0]}"
-
   cd "$project_root" || {
     __fzf_bindings_set_exit_code "$?"
     return
   }
 
   local cmd
-  cmd="$(__build_edit_command -k "$key" -c "$commit_hash")" || {
+  cmd="$(__build_edit_command -k "$key" -c "${selection[0]}")" || {
     __fzf_bindings_set_exit_code 1
     return
   }
