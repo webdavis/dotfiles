@@ -294,6 +294,24 @@ __fzf_bindings_check_interrupt() {
   return 0
 }
 
+__fzf_verify_file_exists() {
+  local file="$1"
+  # Fail gracefully if file doesn't exist in current branch.
+
+  local exit_code=1
+
+  [[ -f $file ]] || {
+    printf "Warning: %s selected file '%s', which doesn't exist in the working branch" \
+      "${FUNCNAME[1]}" \
+      "$file" >&2
+
+    __fzf_bindings_set_exit_code "$exit_code"
+    return "$exit_code"
+  }
+
+  return 0
+}
+
 # "<C-g>f" - open any git-tracked file in the project.
 __fzf_git_file_open() {
   local project_root
@@ -324,16 +342,13 @@ __fzf_git_file_open() {
     realpath_cmd="$(command -v grealpath || true)"
   fi
 
-  local path="${project_root}/${file}"
-  [[ -n $realpath_cmd ]] && path="$($realpath_cmd --relative-to="$(pwd)" "$path")"
+  local file_path="${project_root}/${file}"
+  [[ -n $realpath_cmd ]] && file_path="$($realpath_cmd --relative-to="$(pwd)" "$file_path")"
 
-  if [[ ! -f "$path" ]]; then
-    __fzf_bindings_set_exit_code 1
-    return
-  fi
+  __fzf_verify_file_exists "$file_path" || return
 
   local cmd
-  cmd="$(__build_edit_command -k "$key" -t "$EDITOR_CMD" -f "$path")" || {
+  cmd="$(__build_edit_command -k "$key" -t "$EDITOR_CMD" -f "$file_path")" || {
     __fzf_bindings_set_exit_code 1
     return
   }
