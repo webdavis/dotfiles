@@ -387,7 +387,7 @@ builtin bind -m vi-insert '"\C-gH": "\C-_02"'
 builtin bind -m vi-command '"\C-gH": "i\C-_02"'
 
 # "<C-g>ch" - `git checkout` a commit.
-__fzf_checkout_commit() {
+__fzf_git_checkout_commit() {
   if git rev-parse --show-toplevel &>/dev/null; then
     local path
     path="$(git rev-parse --show-toplevel)"
@@ -415,7 +415,7 @@ __fzf_checkout_commit() {
   [[ $? -eq 1 ]] && return 1
   __insert_text_at_cursor "$_command"
 }
-builtin bind -x '"\C-_03": __fzf_checkout_commit'
+builtin bind -x '"\C-_03": __fzf_git_checkout_commit'
 builtin bind -m vi-insert '"\C-gch": "\C-x0\C-_03\C-x1\C-x2\015"'
 builtin bind -m vi-command '"\C-gch": "i\C-x0\C-_03\C-x1\C-x2\015"'
 
