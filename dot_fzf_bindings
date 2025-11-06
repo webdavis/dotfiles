@@ -2,6 +2,9 @@
 # shellcheck disable=SC1090
 # vi: set filetype=sh:
 
+export FZF_BINDINGS_LAST_STATUS=127
+export FZF_BINDINGS_GIT_LOG_LIMIT=500
+
 if [[ -x "$(builtin command -v rg)" ]]; then
   FZF_DEFAULT_COMMAND='rg --files --no-ignore -L -g "!.git/" 2>/dev/null'
 elif [[ -x "$(builtin command -v ag)" ]]; then
@@ -308,28 +311,44 @@ builtin bind -m vi-command '"\C-gf": "i\C-x0\C-_15\C-x1\C-x2\015"'
 
 # "<C-g>H" - search and select a git commit hash.
 __fzf_search_git_hashes() {
-  if git rev-parse --show-toplevel &>/dev/null; then
-    local path
-    path="$(git rev-parse --show-toplevel)"
-  else
-    builtin printf "%s\n" "__fzf_search_git_hashes: Git project not detected." 2>&1
-    return 1
+  local project_root
+  if ! git rev-parse --show-toplevel &>/dev/null; then
+    printf "Warning: '%s' couldn't detect a Git project.\n" "${FUNCNAME[0]}" >&2
+    FZF_BINDINGS_LAST_STATUS=1
+    return $FZF_BINDINGS_LAST_STATUS
   fi
 
-  local fzf_output key selection commit_hash file file_path
-  fzf_output=("$(git log --oneline | fzf --height="60%" --preview 'echo \"Commit: {1}\" && echo && git show --color=always --format=fuller --stat {1}' --preview-window=down:50%:wrap -0 --expect="ctrl-x,ctrl-v,ctrl-t,ctrl-c")")
+  local -r fzf_keys="ctrl-c"
+  local -r fzf_height_60="60%"
+  local -r fzf_preview_implementation='echo "Commit: {1}" && echo && git show --color=always --format=fuller --stat {1}'
+  local -r fzf_preview_window="down:50%:wrap"
 
-  # fzf_output=("$(git log --oneline | fzf --height="40%" -0 --expect="ctrl-x,ctrl-v,ctrl-t,ctrl-c")")
-  key="$(command head -1 <<<"$fzf_output")"
-  if [[ $key == "ctrl-c" ]]; then return 127; fi
-  [[ -z $key ]] && key="default"
-  selection="$(command head -2 <<<"$fzf_output" | command tail -1)"
-  commit_hash="$(echo "$selection" | awk '{ print $1 }')"
+  local -a selection
+  mapfile -t selection < <(
+    git log --oneline -n "$FZF_BINDINGS_GIT_LOG_LIMIT" |
+      fzf \
+        --height="$fzf_height_60" \
+        --preview "$fzf_preview_implementation" \
+        --preview-window="$fzf_preview_window" \
+        -0 \
+        --expect="$fzf_keys"
+  )
 
-  # Verify the commit hash.
-  local hash_regex='^[0-9a-f]{7,40}'
+  local -r key="${selection[0]}"
+  if [[ "$key" == "ctrl-c" ]]; then
+    FZF_BINDINGS_LAST_STATUS=127
+    return $FZF_BINDINGS_LAST_STATUS
+  fi
+
+  local commit_hash="${selection[1]%% *}"
+
+  # Verify the commit hash:
+  local -r hash_regex='^[0-9a-f]{7,40}'
   if [[ $commit_hash =~ $hash_regex ]]; then
-    commit_hash="${BASH_REMATCH[@]}"
+    commit_hash="${BASH_REMATCH[0]}"
+  else
+    FZF_BINDINGS_LAST_STATUS=1
+    return $FZF_BINDINGS_LAST_STATUS
   fi
 
   __insert_text_at_cursor "$commit_hash"
