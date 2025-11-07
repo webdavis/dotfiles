@@ -216,15 +216,15 @@ parse_cli_options() {
 
   local ci_mode=false
 
-  local optstring=":sSrmn"
+  local optstring=":csSrmn"
   while getopts "$optstring" option "${cli_options[@]}"; do
     case "$option" in
+      c) ci_mode=true ;;
       s) pco_runners+=("run_10_shellcheck") ;;
       S) pco_runners+=("run_20_shfmt") ;;
       r) pco_runners+=("run_30_rubocop") ;;
       m) pco_runners+=("run_40_mdformat") ;;
       n) pco_runners+=("run_50_nixfmt") ;;
-      c) ci_mode=true ;;
       *)
         printf "%s\n" "Error: invalid option '$OPTARG'" >&2
         exit 1
