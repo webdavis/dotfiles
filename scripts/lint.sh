@@ -16,6 +16,7 @@ track_runner_exit_codes() {
     [shellcheck]=0
     [shfmt]=0
     [rubocop]=0
+    [mdformat]=0
   )
 }
 
@@ -38,8 +39,8 @@ change_to_project_root() {
 in_nix_dev_shell() {
   # The IN_NIX_SHELL environment variable is only present in Nix flake dev shells.
   case "${IN_NIX_SHELL:-}" in
-    pure | impure) return 0 ;;
-    *) return 1 ;;
+  pure | impure) return 0 ;;
+  *) return 1 ;;
   esac
 }
 
@@ -173,6 +174,27 @@ run_30_rubocop() {
   execute_runner find_ruby_files rubocop_runner || return "$?"
 }
 
+find_markdown_files() {
+  find . \
+    -type d \( -name ".git" -o -regex ".*/\.?vendor" \) -prune \
+    -o -type f -name "*.md" \
+    -print0
+}
+
+mdformat_runner() {
+  local file="$1"
+  local status=0
+
+  mdformat --check "$file" || status="$?"
+  mdformat "$file"
+
+  return "$status"
+}
+
+run_40_mdformat() {
+  execute_runner find_markdown_files mdformat_runner || return "$?"
+}
+
 parse_cli_options() {
   local -n pco_runners="${1:-runners}"
   shift 1
@@ -180,16 +202,18 @@ parse_cli_options() {
 
   local ci_mode=false
 
-  local optstring=":sSr"
+  local optstring=":sSrm"
   while getopts "$optstring" option "${cli_options[@]}"; do
     case "$option" in
     s) pco_runners+=("run_10_shellcheck") ;;
     S) pco_runners+=("run_20_shfmt") ;;
     r) pco_runners+=("run_30_rubocop") ;;
-      *)
-        printf "%s\n" "Error: invalid option '$OPTARG'" >&2
-        exit 1
-        ;;
+    m) pco_runners+=("run_40_mdformat") ;;
+    c) ci_mode=true ;;
+    *)
+      printf "%s\n" "Error: invalid option '$OPTARG'" >&2
+      exit 1
+      ;;
     esac
   done
 
