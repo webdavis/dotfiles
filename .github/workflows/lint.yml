@@ -2,18 +2,18 @@ name: Lint
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - "main"
   pull_request:
 
 jobs:
   lint:
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install ShellCheck
-        run: sudo apt-get update && sudo apt-get install -y shellcheck
+      - name: Install Upstream Nix using the Nix Installer from Determinate Systems
+        uses: DeterminateSystems/nix-installer-action@main
 
-      - name: Find and lint shell scripts
-        run: ./scripts/lint.sh
-        shell: bash
+      - name: Lint project files
+        run: nix develop .#adhoc --command ./scripts/lint.sh -c

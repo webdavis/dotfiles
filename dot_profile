@@ -1,5 +1,5 @@
 # shellcheck shell=bash
 
-[[ -n "$BASH_VERSION" && -f "${HOME}/.bashrc" ]] && . "${HOME}/.bashrc"
+[[ -n $BASH_VERSION && -f "${HOME}/.bashrc" ]] && . "${HOME}/.bashrc"
 
 export XDG_CONFIG_HOME="${HOME}/.config"

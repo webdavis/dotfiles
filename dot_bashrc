@@ -16,7 +16,7 @@
 function path_prepend() {
   local dir="$1"
 
-  if [[ -d "$dir" ]]; then
+  if [[ -d $dir ]]; then
     # Prepend the directory to PATH.
     PATH="$dir:$PATH"
   else
@@ -106,7 +106,7 @@ export TMS_CONFIG_FILE="$HOME/.config/tms/config.toml"
 # Load pyenv (Python Environment Manager) shims into shell path.
 export PYENV_ROOT="$HOME/.pyenv"
 PYENV_BIN="$PYENV_ROOT/bin"
-[[ -d "$PYENV_BIN" ]] && path_prepend "$PYENV_BIN"
+[[ -d $PYENV_BIN ]] && path_prepend "$PYENV_BIN"
 eval "$(pyenv init -)"
 
 # Poetry
@@ -138,7 +138,7 @@ export HISTCONTROL=ignoredups:erasedups:ignorespace
 
 # Load secret bash settings from a separate file, which is NOT tracked in Git.
 bash_secrets="$HOME/.bash_secrets"
-[[ -s "$bash_secrets" ]] && . "$bash_secrets"
+[[ -s $bash_secrets ]] && . "$bash_secrets"
 
 # ┏━━━━━━━━━━━━━━┓
 # ┃    SDKMan    ┃
@@ -148,10 +148,10 @@ bash_secrets="$HOME/.bash_secrets"
 # ⚠️ THIS MUST BE NEAR THE END OF THE FILE FOR SDKMAN TO WORK!!!
 export SDKMAN_DIR="$HOME/.sdkman"
 sdkman_init="$SDKMAN_DIR/bin/sdkman-init.sh"
-if [[ ! -s "$sdkman_init" ]]; then
+if [[ ! -s $sdkman_init ]]; then
   curl -s "https://get.sdkman.io" | bash
 fi
-[[ -s "$sdkman_init" ]] && . "$sdkman_init"
+[[ -s $sdkman_init ]] && . "$sdkman_init"
 
 # ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 # ┃    NVM (Node Version Manager)    ┃
@@ -176,6 +176,7 @@ fi
 
 # Source local bash files.
 [[ -s "$HOME/.bash_bindings" ]] && . "$HOME/.bash_bindings"
+[[ -s "$HOME/.bash_completions" ]] && . "$HOME/.bash_completions"
 [[ -s "$HOME/.fzf.bash" ]] && . "$HOME/.fzf.bash" # Fzf is hosted at https://github.com/junegunn/fzf/tree/master/shell.
 [[ -s "$HOME/.fzf_bindings" ]] && . "$HOME/.fzf_bindings"
 
