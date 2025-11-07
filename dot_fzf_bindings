@@ -60,9 +60,8 @@ else
 fi
 export OPENER
 
-if [[ $EDITOR =~ homebrew ]]; then
-  EDITOR_CMD="nvim"
-fi
+EDITOR_CMD="${EDITOR_CMD:-$EDITOR}"
+[[ $EDITOR =~ homebrew ]] && EDITOR_CMD="nvim"
 
 builtin bind '"\C-x0": kill-whole-line'     # Clears the entire line.
 builtin bind '"\C-x1": magic-space'         # Performs history expansion and inserts a space.
