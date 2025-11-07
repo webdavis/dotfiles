@@ -332,7 +332,7 @@ __fzf_bindings_verify_directory_exists() {
 }
 
 # "<C-g>f" - open any git-tracked file in the project.
-__fzf_git_file_open() {
+__fzf_git_open_file() {
   local project_root
   project_root="$(__fzf_bindings_get_git_root)" || return
 
@@ -369,7 +369,7 @@ __fzf_git_file_open() {
 
   __insert_text_at_cursor "$cmd"
 }
-builtin bind -x '"\C-_15": __fzf_git_file_open'
+builtin bind -x '"\C-_15": __fzf_git_open_file'
 builtin bind -m vi-insert '"\C-gf": "\C-x0\C-_15\C-x1\C-x2\015"'
 builtin bind -m vi-command '"\C-gf": "i\C-x0\C-_15\C-x1\C-x2\015"'
 
