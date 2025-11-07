@@ -302,7 +302,7 @@ __fzf_verify_file_exists() {
   local exit_code=1
 
   [[ -f $file ]] || {
-    printf "Warning: %s selected file '%s', which doesn't exist in the working branch" \
+    printf "Warning: %s selected file '%s', which doesn't exist (in the working branch)" \
       "${FUNCNAME[1]}" \
       "$file" >&2
 
