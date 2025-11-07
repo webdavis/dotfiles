@@ -623,120 +623,18 @@ __build_cd_command_helper() {
   printf "%s" "$executable"
 }
 
-# "<M-g>" - change to any directory in the project.
-__fzf_cd_to_git_dir() {
-  local project_root
-  project_root="$(__fzf_bindings_get_git_root)" || return
+__fzf_bindings_cd_helper() {
+  local reverse_order="${1:-false}"
+  shift
 
+  local directories=("$@") # an array of directory paths
   local -a selection
+
+  local fzf_opts=("-0" "--height=${FZF_BINDINGS_HEIGHT}" "--no-multi" "--expect=${FZF_BINDINGS_KEYS_CD}")
+  ((reverse_order)) && fzf_opts+=("--tac")
+
   mapfile -t selection < <(
-    find -L "$project_root" \( -path '*/\.git' -o -fstype dev -o -fstype proc \) -prune \
-      -o -type d -print 2>/dev/null |
-      command sed "s#${project_root}/##" |
-      command sed '1d; s#^\./##' |
-      fzf --height="$FZF_BINDINGS_HEIGHT" -0 --no-multi --expect="$FZF_BINDINGS_KEYS_CD"
-  )
-
-  local key="${selection[0]}"
-  __fzf_bindings_check_interrupt "$key" || return
-
-  local directory="${selection[1]}"
-
-  local directory_path
-  directory_path="${project_root}/${dir}"
-  __fzf_bindings_verify_directory_exists "$directory_path" || return
-
-  local cmd
-  cmd="$(__build_cd_command_helper "$key" "$directory_path")" || {
-    __fzf_bindings_set_exit_code 1
-    return
-  }
-
-  __insert_text_at_cursor "$cmd"
-}
-builtin bind -x '"\C-_09": __fzf_cd_to_git_dir'
-builtin bind -m vi-insert '"\M-g": "\C-x0\C-_09\C-x1\C-x2\015"'
-builtin bind -m vi-command '"\M-g": "i\C-x0\C-_09\C-x1\C-x2\015"'
-
-# "<M-h>" - change to directory below the <cwd> (including hidden directories).
-__fzf_cd_below_cwd_including_hidden() {
-  local -a selection
-  mapfile -t selection < <(
-    find -L . \( -fstype dev -o -fstype proc \) -prune -o -type d -print 2>/dev/null |
-      command sed '1d; s#^\./##' |
-      fzf --height="$FZF_BINDINGS_HEIGHT" -0 --no-multi --expect="$FZF_BINDINGS_KEYS_CD"
-  )
-
-  local key="${selection[0]}"
-  __fzf_bindings_check_interrupt "$key" || return
-
-  local directory="${selection[1]}"
-  directory_path="$(pwd)/${directory}"
-  __fzf_bindings_verify_directory_exists "$directory_path" || return
-
-  local cmd
-  cmd="$(__build_cd_command_helper "$key" "$directory_path")" || {
-    __fzf_bindings_set_exit_code 1
-    return
-  }
-
-  __insert_text_at_cursor "$cmd"
-}
-builtin bind -x '"\C-_10": __fzf_cd_below_cwd_including_hidden'
-builtin bind -m vi-insert '"\M-h": "\C-x0\C-_10\C-x1\C-x2\015"'
-builtin bind -m vi-command '"\M-h": "i\C-x0\C-_10\C-x1\C-x2\015"'
-
-# "<M-r>" - change to directory below the root directory.
-__fzf_cd_from_root() {
-  local -a selection
-  mapfile -t selection < <(
-    find -L / \( -fstype dev -o -fstype proc \) -prune -o -type d -print 2>/dev/null |
-      command sed '1d; s#^\./##' |
-      fzf --height="40%" -0 --no-multi --expect="$FZF_BINDINGS_KEYS_CD"
-  )
-
-  local key="${selection[0]}"
-  __fzf_bindings_check_interrupt "$key" || return
-
-  local directory="${selection[1]}"
-  directory_path="$(pwd)/${directory}"
-  __fzf_bindings_verify_directory_exists "$directory_path" || return
-
-  local cmd
-  cmd="$(__build_cd_command_helper "$key" "$directory_path")" || {
-    __fzf_bindings_set_exit_code 1
-    return
-  }
-
-  __insert_text_at_cursor "$cmd"
-}
-builtin bind -x '"\C-_11": __fzf_cd_from_root'
-builtin bind -m vi-insert '"\M-r": "\C-x0\C-_11\C-x1\C-x2\015"'
-builtin bind -m vi-command '"\M-r": "i\C-x0\C-_11\C-x1\C-x2\015"'
-
-# "<M-p>" - change to a parent directory.
-__fzf_cd_to_parent_dir() {
-  local -a directories=()
-
-  get_parent_directories() {
-    local dir="$1"
-
-    [[ -d "$dir" ]] || return 1
-
-    directories+=("$dir")
-
-    if [[ "$dir" == '/' ]]; then
-      local d
-      for d in "${directories[@]}"; do printf "%b\n" "$d"; done
-    else
-      get_parent_directories "$(dirname "$dir")"
-    fi
-  }
-
-  local -a selection
-  mapfile -t selection < <(
-    get_parent_directories "$(realpath "${1:-$PWD}")" |
-      fzf --height="$FZF_BINDINGS_HEIGHT" -0 --tac --no-multi --expect="$FZF_BINDINGS_KEYS_CD"
+    printf '%s\n' "${directories[@]}" | fzf "${fzf_opts[@]}"
   )
 
   local key="${selection[0]}"
@@ -753,6 +651,74 @@ __fzf_cd_to_parent_dir() {
 
   __insert_text_at_cursor "$cmd"
 }
+
+# "<M-g>" - change to any directory in the project.
+__fzf_cd_to_git_dir() {
+  local project_root
+  project_root="$(__fzf_bindings_get_git_root)" || return
+
+  local -a directories
+  mapfile -t directories < <(
+    find -L "$project_root" \
+      \( -path '*/\.git' -o -fstype dev -o -fstype proc \) -prune \
+      -o -type d \
+      -print 2>/dev/null
+  )
+
+  __fzf_bindings_cd_helper false "${directories[@]}"
+}
+builtin bind -x '"\C-_09": __fzf_cd_to_git_dir'
+builtin bind -m vi-insert '"\M-g": "\C-x0\C-_09\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\M-g": "i\C-x0\C-_09\C-x1\C-x2\015"'
+
+# "<M-h>" - change to directory below the <cwd> (including hidden directories).
+__fzf_cd_below_cwd_including_hidden() {
+  local -a directories
+  mapfile -t directories < <(
+    find -L . \
+      \( -fstype dev -o -fstype proc \) -prune \
+      -o -type d \
+      -print 2>/dev/null |
+      sed '1d; s#^\./##'
+  )
+
+  __fzf_bindings_cd_helper false "${directories[@]}"
+}
+builtin bind -x '"\C-_10": __fzf_cd_below_cwd_including_hidden'
+builtin bind -m vi-insert '"\M-h": "\C-x0\C-_10\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\M-h": "i\C-x0\C-_10\C-x1\C-x2\015"'
+
+# "<M-r>" - change to directory below the root directory.
+__fzf_cd_from_root() {
+  local -a directories
+  mapfile -t directories < <(
+    find -L / \
+      \( -fstype dev -o -fstype proc \) -prune \
+      -o -type d -print 2>/dev/null |
+      sed '1d; s#^\./##'
+  )
+
+  __fzf_bindings_cd_helper false "${directories[@]}"
+}
+builtin bind -x '"\C-_11": __fzf_cd_from_root'
+builtin bind -m vi-insert '"\M-r": "\C-x0\C-_11\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\M-r": "i\C-x0\C-_11\C-x1\C-x2\015"'
+
+# "<M-p>" - change to a parent directory.
+__fzf_cd_to_parent_dir() {
+  local dir
+  dir="$(realpath "${1:-$PWD}")"
+  local directories=()
+
+  while [[ "$dir" != "/" ]]; do
+    directories+=("$dir")
+    dir="$(dirname "$dir")"
+  done
+  directories+=("/")
+
+  __fzf_bindings_cd_helper true "${directories[@]}"
+}
+
 builtin bind -x '"\C-_12": __fzf_cd_to_parent_dir'
 builtin bind -m vi-insert '"\M-P": "\C-x0\C-_12\C-x1\C-x2\015"'
 builtin bind -m vi-command '"\M-P": "i\C-x0\C-_12\C-x1\C-x2\015"'
@@ -785,26 +751,14 @@ __fzf_cd_to_bookmarked_dir() {
   local home
   home="$(builtin eval echo ~)"
 
-  mapfile -t selection < <(
+  local -a directories
+  mapfile -t directories < <(
     builtin dirs -v |
       grep -v " 0" |
-      command $awkcommand "{ gsub(/~/, \"${home}\"); print \$2 }" |
-      fzf --height="$FZF_BINDINGS_HEIGHT" -0 --no-multi --expect="$FZF_BINDINGS_KEYS_CD"
+      command $awkcommand "{ gsub(/~/, \"${home}\"); print \$2 }"
   )
 
-  local key="${selection[0]}"
-  __fzf_bindings_check_interrupt "$key" || return
-
-  local directory_path="${selection[1]}"
-  __fzf_bindings_verify_directory_exists "$directory_path" || return
-
-  local cmd
-  cmd="$(__build_cd_command_helper "$key" "$directory_path")" || {
-    __fzf_bindings_set_exit_code 1
-    return
-  }
-
-  __insert_text_at_cursor "$cmd"
+  __fzf_bindings_cd_helper false "${directories[@]}"
 }
 builtin bind -x '"\C-_14": __fzf_cd_to_bookmarked_dir'
 builtin bind -m vi-insert '"\M-k": "\C-x0\C-_14\C-x1\C-x2\015"'
