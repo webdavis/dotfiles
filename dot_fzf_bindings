@@ -257,10 +257,25 @@ __fzf_bindings_verify_directory_exists() {
   return 0
 }
 
-# "<C-x><C-x>" open a file below the <cwd>.
-__fzf_open_file() {
+__fzf_bindings_select_file() {
+  local dir="${1:-$PWD}"
+  local preview="${2:-}"
+
+  # Build the find command if not using current directory files
+  local find_cmd=("find" "$dir" "-maxdepth" "1" "-type" "f")
+  if [[ -n "$preview" ]]; then
+    # Include hidden files
+    find_cmd+=("-name" ".*" "-o" "-type" "f" "-print")
+  fi
+
   local -a selection
-  mapfile -t selection < <(fzf --height="$FZF_BINDINGS_HEIGHT" -0 --expect="$FZF_BINDINGS_KEYS_OPEN")
+  mapfile -t selection < <(
+    "${find_cmd[@]}" |
+      fzf -0 \
+        --height="$FZF_BINDINGS_HEIGHT" \
+        --expect="$FZF_BINDINGS_KEYS_OPEN" \
+        ${preview:+--preview="$preview"}
+  )
 
   local key="${selection[0]}"
   __fzf_bindings_check_interrupt "$key" || return
@@ -274,6 +289,11 @@ __fzf_open_file() {
   }
 
   __insert_text_at_cursor "$cmd"
+}
+
+# "<C-x><C-x>" open a file below the <cwd>.
+__fzf_open_file() {
+  __fzf_select_file "$PWD"
 }
 builtin bind -x '"\C-_00": __fzf_open_file'
 builtin bind -m vi-insert '"\C-x\C-x": "\C-x0\C-_00\C-x1\C-x2\015"'
@@ -281,38 +301,9 @@ builtin bind -m vi-command '"\C-x\C-x": "i\C-x0\C-_00\C-x1\C-x2\015"'
 
 # "<C-x>h" - open a file below the home (~) directory.
 __fzf_open_home_file() {
-  local cwd
-  cwd="$(pwd)"
-
   local home
   home="$(builtin eval echo ~)"
-  builtin cd -- "$home" || {
-    __fzf_bindings_set_exit_code 1
-    return
-  }
-
-  local -a selection
-  mapfile -t selection < <(
-    fzf --height="$FZF_BINDINGS_HEIGHT" -0 --expect="$FZF_BINDINGS_KEYS_OPEN"
-  )
-
-  local key="${selection[0]}"
-  __fzf_bindings_check_interrupt "$key" || return
-
-  local file="${selection[1]}"
-
-  local cmd
-  cmd="$(__build_edit_command -k "$key" -t "$EDITOR_CMD" -f "$file")" || {
-    __fzf_bindings_set_exit_code 1
-    return
-  }
-
-  __insert_text_at_cursor "$cmd"
-
-  builtin cd -- "$cwd" || {
-    __fzf_bindings_set_exit_code 1
-    return
-  }
+  __fzf_select_file "$HOME" 'head -n 20 {}'
 }
 builtin bind -x '"\C-_06": __fzf_open_home_files'
 builtin bind -m vi-insert '"\C-xh": "\C-x0\C-_06\C-x1\C-x2\015"'
@@ -320,36 +311,7 @@ builtin bind -m vi-command '"\C-xh": "i\C-x0\C-_06\C-x1\C-x2\015"'
 
 # "<C-x>/" - open a file below the root (/) directory.
 __fzf_open_root_file() {
-  local cwd
-  cwd="$(pwd)"
-
-  builtin cd -- '/' || {
-    __fzf_bindings_set_exit_code 1
-    return
-  }
-
-  local -a selection
-  mapfile -t selection < <(
-    fzf --height="$FZF_BINDINGS_HEIGHT" -0 --expect="$FZF_BINDINGS_KEYS_OPEN"
-  )
-
-  local key="${selection[0]}"
-  __fzf_bindings_check_interrupt "$key" || return
-
-  local file="${selection[1]}"
-
-  local cmd
-  cmd="$(__build_edit_command -k "$key" -t "$EDITOR_CMD" -f "$file")" || {
-    __fzf_bindings_set_exit_code 1
-    return
-  }
-
-  __insert_text_at_cursor "$cmd"
-
-  builtin cd -- "$cwd" || {
-    __fzf_bindings_set_exit_code 1
-    return
-  }
+  __fzf_select_file "/" 'head -n 20 {}'
 }
 builtin bind -x '"\C-_07": __fzf_open_root_file'
 builtin bind -m vi-insert '"\C-x/": "\C-x0\C-_07\C-x1\C-x2\015"'
