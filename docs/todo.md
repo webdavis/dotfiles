@@ -1,7 +1,7 @@
 # Task List
 
-- [ ] Refactor `dot_fzf_bindings` and `dot_bash_bindings` and solve all Shellcheck
-  diagnostics
+- [x] Refactor `dot_fzf_bindings` and `dot_bash_bindings` and solve all Shellcheck
+  diagnostics <!-- completed: 2025-11-06 -->
 - [ ] Huge migration! Replace Bash with Nu Shell. This requires rewrites of the following
   configs:
   - [ ] `dot_bashrc`
