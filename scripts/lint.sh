@@ -17,6 +17,7 @@ track_runner_exit_codes() {
     [shfmt]=0
     [rubocop]=0
     [mdformat]=0
+    [nixfmt]=0
   )
 }
 
@@ -195,6 +196,19 @@ run_40_mdformat() {
   execute_runner find_markdown_files mdformat_runner || return "$?"
 }
 
+find_nix_files() {
+  printf "%b" "flake.nix"
+}
+
+nixfmt_runner() {
+  local file="$1"
+  nix fmt -- --ci --quiet "$file" || return "$?"
+}
+
+run_50_nixfmt() {
+  execute_runner find_nix_files nixfmt_runner || return "$?"
+}
+
 parse_cli_options() {
   local -n pco_runners="${1:-runners}"
   shift 1
@@ -202,13 +216,14 @@ parse_cli_options() {
 
   local ci_mode=false
 
-  local optstring=":sSrm"
+  local optstring=":sSrmn"
   while getopts "$optstring" option "${cli_options[@]}"; do
     case "$option" in
     s) pco_runners+=("run_10_shellcheck") ;;
     S) pco_runners+=("run_20_shfmt") ;;
     r) pco_runners+=("run_30_rubocop") ;;
     m) pco_runners+=("run_40_mdformat") ;;
+    n) pco_runners+=("run_50_nixfmt") ;;
     c) ci_mode=true ;;
     *)
       printf "%s\n" "Error: invalid option '$OPTARG'" >&2
