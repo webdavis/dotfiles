@@ -117,51 +117,6 @@ builtin bind -x '"\C-_g": "source $HOME/.bashrc"'
 builtin bind -m vi-insert '"\C-x\C-s": "\C-x0\C-_g\C-x1\C-x2\b"'
 builtin bind -m vi-command '"\C-x\C-s": "i\C-x0\C-_g\C-x1\C-x2\b"'
 
-# Reset Yubikey {{{1
-# This is automated with a udev rule; however, YubiKey 5 Nano's are a PITA to get out of the port.
-#__reset_yubikey() {
-#  local agent agents
-#  declare -a agents=('ssh-agent' 'gpg-agent')
-#  for agent in ${agents[@]}; do
-#    if pgrep "$agent" &>/dev/null; then
-#      pkill --signal SIGKILL "$agent" || {
-#        local status=$?;
-#              echo "Failure: could not kill gpg-agent." "Exit status: ${status}";
-#              return $?;
-#            }
-#          printf "%s\\n" "Killed ${agent}."
-#    fi
-#  done
-#
-#  # Add keys to keyid array as they are imported.
-#  keyids=( \
-#    'E7F7292F2E275D50' \
-#  )
-#
-#  local key keystub
-#  for key in ${keyids[@]}; do
-#    while read -r keystub; do
-#      if [[ -e "${keystub}.key" ]]; then
-#        rm "${GNUPGHOME}/private-keys-v1.d/${keystub}.key"
-#        printf "%s\\n" "Removing secret key ${keystub}.key"
-#      fi
-#    done < <(gpg --with-keygrip --list-secret-keys "$key" | grep 'Keygrip' | awk '{ print $3 }')
-#  done
-#
-#  # Restart gpg-agent.
-#  gpgconf --launch gpg-agent || {
-#    local status=$?;
-#    echo "Failure: could not launch gpg-agent." "Exit status: ${status}";
-#    return $?;
-#  }
-#
-#  printf "%s\\n" "Started gpg-agent"
-#  printf "%s\\n" "SSH Public Key Fingerprint: $(ssh-add -l)"
-#}
-#builtin bind -x '"\C-_h": __reset_yubikey'
-#builtin bind -m vi-insert '"\M-Y": "\C-x0\C-_h\C-x1\C-x2\b"'
-#builtin bind -m vi-command '"\M-Y": "i\C-x0\C-_h\C-x1\C-x2\b"'
-
 # Go-to bindings {{{1
 builtin bind -x '"\C-_h": "cd ${HOME}/.config"'
 builtin bind -m vi-insert '"\M-dc": "\C-x0\C-_h\C-x1\C-x2\015"'
@@ -201,12 +156,12 @@ __go_to_project_root() {
   # To add support for other version control systems, add their respective directories to the regex.
   while [[ ! "$(find "$path" -maxdepth 1 -regextype egrep -regex '.*/\.(root|git|svn|hg|bzr|build.xml|project|projections.json|tasks|root)')" ]]; do
     if [[ $path == '/' ]]; then
-      printf '%s\n' 'No project root found.' 2>&1
+      printf 'Warning[%s]: No project root found.\n' "${FUNCNAME[0]}" >&2
       return 1
     fi
     path="$(dirname "$path")"
   done
-  builtin cd "$path" || return
+  builtin cd "$path" || return 1
   pwd
 }
 builtin bind -x '"\C-_q": __go_to_project_root'
@@ -394,7 +349,8 @@ __update_package_manager() {
     bsd*) os='bsd' ;;
     msys*) os='windows' ;;
     *)
-      printf '%s\n' "Cannot update. Unknown operating system detected: \"${OSTYPE}\"." 1>&2
+      printf "Warning [%s]: Cannot update. Unknown operating system detected: '%s'\n." \
+        "${FUNCNAME[0]}" "${OSTYPE}" >&2
       return 1
       ;;
   esac
