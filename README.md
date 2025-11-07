@@ -2,34 +2,32 @@
   <img src="./assets/logo.png" alt="Dotfiles Icon" width="200" height="200" />
 </p>
 
-# Dotfiles
+# Dotfiles for Webdavis
 
 [![Lint](https://github.com/webdavis/dotfiles/actions/workflows/lint.yml/badge.svg)](https://github.com/webdavis/dotfiles/actions/workflows/lint.yml)
 
-This repository contains the dotfiles for my personal computer, managed with
+This repository contains the settings/configs for my computers, managed using
 [Chezmoi](https://www.chezmoi.io/).
 
 <!-- table-of-contents GFM -->
 
 - [Prerequisites](#prerequisites)
 - [Setup](#setup)
+- [Managing Files Using Chezmoi](#managing-files-using-chezmoi)
 - [Development Environment](#development-environment)
   - [Install](#install)
   - [Usage](#usage)
     - [1. Enter the Dev Shell](#1-enter-the-dev-shell)
     - [2. Run Commands Adhoc](#2-run-commands-adhoc)
+  - [Bonus: justfile](#bonus-justfile)
 
 <!-- table-of-contents -->
 
 ## Prerequisites
 
-- [KeePassXC](https://keepassxc.org/)
-
-I use Chezmoi's
-[`keepassxc-cli` password manager](https://www.chezmoi.io/user-guide/password-managers/keepassxc/) to
-manage secrets in my dotfiles.
-
-Before applying them, make sure it's installed:
+I use Chezmoi's [`keepassxc-cli`](https://www.chezmoi.io/user-guide/password-managers/keepassxc/)
+password manager to manage my dotfile secrets, which means this project requires
+[KeePassXC](https://keepassxc.org/):
 
 ```bash
 brew install --cask keepassxc
@@ -41,19 +39,44 @@ To use these dotfiles on your system:
 
 1. **Install Chezmoi**
 
-Follow the instructions for your platform:
-[https://www.chezmoi.io/install/](https://www.chezmoi.io/install/)
+   Follow the instructions for your platform:
+   [https://www.chezmoi.io/install/](https://www.chezmoi.io/install/)
 
-`macOS` example:
+   `macOS` example:
+
+   ```bash
+   brew install chezmoi
+   ```
+
+1. **Initialize this setup**
+
+   ```bash
+   chezmoi init --apply webdavis
+   ```
+
+   This will automatically find and clone `webdavis/dotfiles` from GitHub to the local path
+   `~/.local/share/chezmoi/`.
+
+## Managing Files Using Chezmoi
+
+These are the bread and butter:
 
 ```bash
-brew install chezmoi
+$ chezmoi status
+$ chezmoi diff
+$ chezmoi apply
 ```
 
-2. **Initialize Chezmoi with this repository**
+Add files like so:
 
 ```bash
-chezmoi init --apply webdavis
+chezmoi add <FILE>
+```
+
+Chezmoi supports templating using Golang templates. Always edit template files using this abstraction:
+
+```bash
+chezmoi edit <FILE>
 ```
 
 ## Development Environment
@@ -108,3 +131,12 @@ nix develop .#adhoc --command ./scripts/lint.sh
 >
 > You can replace `./scripts/lint.sh` with any command you want to execute inside the development
 > environment (e.g. `bundle exec rubocop dot_Brewfile`).
+
+### Bonus: justfile
+
+This repo provides a [`justfile`](./justfile) for quick command execution. To execute the linter within
+the Nix flake shell ad-hoc style simply run:
+
+```bash
+just l
+```
