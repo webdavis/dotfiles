@@ -11,9 +11,9 @@ export FZF_BINDINGS_KEYS_OPEN="ctrl-o,ctrl-x,ctrl-v,ctrl-t,ctrl-s,alt-c,ctrl-c"
 export FZF_BINDINGS_KEYS_CD="ctrl-o,ctrl-x,ctrl-v,ctrl-t,ctrl-c"
 export FZF_BINDINGS_KEYS_INTERRUPT="ctrl-c"
 
-if [[ -x "$(builtin command -v rg)" ]]; then
+if command -v rg >/dev/null 2>&1; then
   FZF_DEFAULT_COMMAND='rg --files --no-ignore -L -g "!.git/" 2>/dev/null'
-elif [[ -x "$(builtin command -v ag)" ]]; then
+elif command -v ag >/dev/null 2>&1; then
   FZF_DEFAULT_COMMAND='ag -u --ignore ".git" -l -g ""'
 else
   FZF_DEFAULT_COMMAND='find . -path "*/\.*" -prune -o -type f -print -o -type l -print | sed s/^..// 2>/dev/null'
