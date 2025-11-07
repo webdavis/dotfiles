@@ -264,8 +264,8 @@ builtin bind -x '"\C-_F": "git init"'
 builtin bind -m vi-insert '"\C-gi": "\C-x0\C-_F\C-x1\C-x2\b"'
 builtin bind -m vi-command '"\C-gi": "i\C-x0\C-_F\C-x1\C-x2\b"'
 
-# git init && hub create
-builtin bind -x '"\C-_G": "if [[ ! -d '.git' ]]; then git init && hub create; else hub create; fi;"'
+# git init && gh repo create
+builtin bind -x '"\C-_G": "if [[ ! -d '.git' ]]; then git init && gh repo create; else gh repo create; fi;"'
 builtin bind -m vi-insert '"\C-ghc": "\C-x0\C-_G\C-x1\C-x2\b"'
 builtin bind -m vi-command '"\C-ghc": "i\C-x0\C-_G\C-x1\C-x2\b"'
 
@@ -284,18 +284,13 @@ builtin bind -m vi-command '"\C-gpf": "i\C-x0\C-_H\C-x1\C-x2\b"'
 builtin bind -m vi-insert '"\C-gpr": "\C-x0git push origin :"'
 builtin bind -m vi-command '"\C-gpr": "i\C-x0git push origin :"'
 
-# hub browse
-builtin bind -x '"\C-_I": "hub browse"'
+# gh browse
+builtin bind -x '"\C-_I": "gh browse"'
 builtin bind -m vi-insert '"\C-gO": "\C-x0\C-_I\C-x1\C-x2\b"'
 builtin bind -m vi-command '"\C-gO": "i\C-x0\C-_I\C-x1\C-x2\b"'
 
-# hub browse --copy
-builtin bind -x '"\C-_J": "hub browse --copy"'
-builtin bind -m vi-insert '"\C-gyy": "\C-x0\C-_J\C-x1\C-x2\b"'
-builtin bind -m vi-command '"\C-gyy": "i\C-x0\C-_J\C-x1\C-x2\b"'
-
-# hub browse -- issues
-builtin bind -x '"\C-_K": "hub browse -- issues"'
+# gh issue list --web
+builtin bind -x '"\C-_K": "gh issue list --web"'
 builtin bind -m vi-insert '"\C-goi": "\C-x0\C-_K\C-x1\C-x2\b"'
 builtin bind -m vi-command '"\C-goi": "i\C-x0\C-_K\C-x1\C-x2\b"'
 
