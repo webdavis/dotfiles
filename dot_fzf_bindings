@@ -187,11 +187,6 @@ __build_edit_command() {
   printf "%s\n" "$cmd"
 }
 
-__catch_interrupt() {
-  trap '' ERR INT TERM QUIT
-  [[ -n $1 ]] && builtin cd -- "$1" || return "$?"
-}
-
 __fzf_bindings_set_exit_code() {
   FZF_BINDINGS_EXIT_CODE=$1
   return "$FZF_BINDINGS_EXIT_CODE"
