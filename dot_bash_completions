@@ -10,7 +10,7 @@ _complete_ssh_hosts() {
   if [[ -f "${HOME}/.ssh/config" ]]; then
     while read -r host; do
       # Skip wildcards:
-      [[ "$host" == *[\*\?]* ]] && continue
+      [[ $host == *[\*\?]* ]] && continue
       hosts+=("$host")
     done < <(awk '/^Host / {for(i=2;i<=NF;i++) print $i}' "${HOME}/.ssh/config")
   fi
@@ -19,8 +19,8 @@ _complete_ssh_hosts() {
   if [[ -f "${HOME}/.ssh/known_hosts" ]]; then
     while read -r host; do
       # Skip comments and hashed entries:
-      [[ "$host" == \#* ]] && continue
-      [[ "$host" == '|'* ]] && continue
+      [[ $host == \#* ]] && continue
+      [[ $host == '|'* ]] && continue
       # Only take the part before comma
       host="${host%%,*}"
       hosts+=("$host")
