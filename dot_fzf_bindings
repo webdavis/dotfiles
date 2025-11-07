@@ -277,6 +277,117 @@ builtin bind -x '"\C-_00": __fzf_open_file'
 builtin bind -m vi-insert '"\C-x\C-x": "\C-x0\C-_00\C-x1\C-x2\015"'
 builtin bind -m vi-command '"\C-x\C-x": "i\C-x0\C-_00\C-x1\C-x2\015"'
 
+# "<C-x>h" - open a file below the home (~) directory.
+__fzf_open_home_file() {
+  local cwd
+  cwd="$(pwd)"
+
+  local home
+  home="$(builtin eval echo ~)"
+  builtin cd -- "$home" || {
+    __fzf_bindings_set_exit_code 1
+    return
+  }
+
+  local -a selection
+  mapfile -t selection < <(fzf --height="$FZF_BINDINGS_HEIGHT" -0 --expect="$fzf_keys")
+
+  local key="${selection[0]}"
+  __fzf_bindings_check_interrupt "$key" || return
+
+  local file="${selection[1]}"
+
+  local cmd
+  cmd="$(__build_edit_command -k "$key" -t "$EDITOR_CMD" -f "$file")" || {
+    __fzf_bindings_set_exit_code 1
+    return
+  }
+
+  __insert_text_at_cursor "$cmd"
+
+  builtin cd -- "$cwd" || {
+    __fzf_bindings_set_exit_code 1
+    return
+  }
+}
+builtin bind -x '"\C-_06": __fzf_open_home_files'
+builtin bind -m vi-insert '"\C-xh": "\C-x0\C-_06\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\C-xh": "i\C-x0\C-_06\C-x1\C-x2\015"'
+
+# "<C-x>/" - open a file below the root (/) directory.
+__fzf_open_root_file() {
+  local cwd
+  cwd="$(pwd)"
+
+  builtin cd -- '/' || {
+    __fzf_bindings_set_exit_code 1
+    return
+  }
+
+  local -a selection
+  mapfile -t selection < <(fzf --height="$FZF_BINDINGS_HEIGHT" -0 --expect="$fzf_keys")
+
+  local key="${selection[0]}"
+  __fzf_bindings_check_interrupt "$key" || return
+
+  local file="${selection[1]}"
+
+  local cmd
+  cmd="$(__build_edit_command -k "$key" -t "$EDITOR_CMD" -f "$file")" || {
+    __fzf_bindings_set_exit_code 1
+    return
+  }
+
+  __insert_text_at_cursor "$cmd"
+
+  builtin cd -- "$cwd" || {
+    __fzf_bindings_set_exit_code 1
+    return
+  }
+}
+builtin bind -x '"\C-_07": __fzf_open_root_file'
+builtin bind -m vi-insert '"\C-x/": "\C-x0\C-_07\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\C-x/": "i\C-x0\C-_07\C-x1\C-x2\015"'
+
+# "<C-g><C-f>" - open file at the selected line.
+__fzf_git_open_file_at_line() {
+  local project_root
+  project_root="$(__fzf_bindings_get_git_root)" || return
+
+  local -r fzf_keys="ctrl-o,ctrl-x,ctrl-v,ctrl-t,ctrl-s,alt-c,ctrl-c"
+
+  local -a selection
+  mapfile -t selection < <(
+    git -C "$project_root" ls-files -z |
+      xargs -0 rg -n -L --hidden --ignore-file "${project_root}/.gitignore" . 2>/dev/null |
+      fzf --height="$FZF_BINDINGS_HEIGHT" -0 --expect="$fzf_keys"
+  )
+
+  local key="${selection[0]}"
+  __fzf_bindings_check_interrupt "$key" || return
+
+  local file line_number
+  IFS=: read -r file line_number _ <<<"${selection[1]}"
+
+  [[ "$line_number" =~ ^[0-9]+$ ]] || {
+    printf "Error [%s]: Invalid line number '%s'. Must be a numeric value. Aborting.\n" \
+      "${FUNCNAME[0]}" "$line_number"
+    __fzf_bindings_set_exit_code 1
+    return
+  }
+
+  local cmd
+  cmd="$(__build_edit_command -k "$key" -t "$EDITOR_CMD" -f "$file" -l "$line_number")" || {
+    __fzf_bindings_set_exit_code 1
+    return
+  }
+
+  __insert_text_at_cursor "$cmd"
+}
+builtin bind -x '"\C-_08": __fzf_git_open_file_at_line'
+builtin bind -m vi-insert '"\C-g\C-f": "\C-x0\C-_08\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\C-g\C-f": "i\C-x0\C-_08\C-x1\C-x2\015"'
+
 # "<C-g>f" - open any git-tracked file in the project.
 __fzf_git_open_tracked_file() {
   local project_root
@@ -555,128 +666,6 @@ __fzf_git_open_file_at_commit() {
 builtin bind -x '"\C-_05": __fzf_git_open_file_at_commit'
 builtin bind -m vi-insert '"\C-gcf": "\C-x0\C-_05\C-x1\C-x2\015"'
 builtin bind -m vi-command '"\C-gcf": "i\C-x0\C-_05\C-x1\C-x2\015"'
-
-# "<C-x>h" - open a file below the home (~) directory.
-__fzf_file_open_home() {
-  local cwd home
-  cwd="$(pwd)"
-  trap '__catch_interrupt "$cwd"' ERR INT TERM QUIT
-  home="$(builtin eval echo ~)"
-  builtin cd -- "$home" || return "$?"
-
-  local selection key file
-  selection=("$(FZF_DEFAULT_COMMAND="${FZF_DEFAULT_COMMAND}" \
-    command fzf --height="40%" -0 --expect="ctrl-o,ctrl-x,ctrl-v,ctrl-t,ctrl-s,alt-c,ctrl-c")")
-  key="$(command head -1 <<<"$selection")"
-  if [[ $key == "ctrl-c" ]]; then
-    builtin cd -- "$cwd" || return 127
-  fi
-  file="${home}/$(command head -2 <<<"$selection" | command tail -1)"
-
-  [[ -d $file || ! -f $file ]] && {
-    builtin cd -- "$cwd" || return "$?"
-  }
-
-  local _command
-  _command="$(__build_edit_command -k "$key" -t "$EDITOR_CMD" -f "$file")"
-  [[ $? -eq 1 ]] && return 1
-  __insert_text_at_cursor "$_command"
-
-  builtin cd -- "$cwd" || return "$?"
-
-  [[ $key != "alt-c" ]] && builtin cd -- "$cwd" || return "$?"
-  trap '' ERR INT TERM QUIT
-}
-builtin bind -x '"\C-_06": __fzf_file_open_home'
-builtin bind -m vi-insert '"\C-xh": "\C-x0\C-_06\C-x1\C-x2\015"'
-builtin bind -m vi-command '"\C-xh": "i\C-x0\C-_06\C-x1\C-x2\015"'
-
-# "<C-x>/" - open a file below the root (/) directory.
-__fzf_file_open_root() {
-  local cwd
-  cwd="$(pwd)"
-  trap '__catch_interrupt "$cwd"' ERR INT TERM QUIT
-  builtin cd -- '/' || return "$?"
-
-  local selection key file
-  selection=("$(FZF_DEFAULT_COMMAND="${FZF_DEFAULT_COMMAND}" \
-    command fzf --height="40%" -0 --expect="ctrl-o,ctrl-x,ctrl-v,ctrl-t,ctrl-s,alt-c,ctrl-c")")
-  key="$(command head -1 <<<"$selection")"
-  if [[ $key == "ctrl-c" ]]; then
-    builtin cd -- "$cwd" || return 127
-  fi
-  file="/$(command head -2 <<<"$selection" | command tail -1)"
-
-  [[ -d $file || ! -f $file ]] && {
-    builtin cd -- "$cwd" || return "$?"
-  }
-
-  local _command
-  _command="$(__build_edit_command -k "$key" -t "$EDITOR_CMD" -f "$file")"
-  [[ $? -eq 1 ]] && return 1
-  __insert_text_at_cursor "$_command"
-
-  builtin cd -- "$cwd" || return "$?"
-
-  [[ $key != "alt-c" ]] && builtin cd -- "$cwd" || return "$?"
-  trap '' ERR INT TERM QUIT
-}
-builtin bind -x '"\C-_07": __fzf_file_open_root'
-builtin bind -m vi-insert '"\C-x/": "\C-x0\C-_07\C-x1\C-x2\015"'
-builtin bind -m vi-command '"\C-x/": "i\C-x0\C-_07\C-x1\C-x2\015"'
-
-# "<C-x><C-f>" - open file at the selected line.
-__fzf_grep() {
-  local cwd
-  cwd="$(pwd)"
-  trap '__catch_interrupt "$cwd"' ERR INT TERM QUIT
-  local dir=""
-  if git rev-parse --show-toplevel &>/dev/null; then
-    dir="$(git rev-parse --show-toplevel)"
-    builtin cd -- "$dir" || return "$?"
-  fi
-
-  local selection key
-  selection=("$(command rg -n -L --ignore-file $(builtin eval echo ~)/.gitignore_global . 2>/dev/null |
-    command fzf --height="40%" -0 --expect="ctrl-o,ctrl-x,ctrl-v,ctrl-t,ctrl-s,alt-c,ctrl-c")")
-  key="$(command head -1 <<<"$selection")"
-  if [[ $key == "ctrl-c" ]]; then return 127; fi
-
-  local awkcommand
-  if command -v gawk &>/dev/null; then awkcommand="gawk"; else awkcommand="awk"; fi
-
-  local tokens
-  tokens="$(builtin echo "${selection[@]}" | command $awkcommand -F: '{ print $1, $2}')"
-
-  local file line
-  builtin read -r file line <<<"$(command head -2 <<<"$tokens" | command tail -1)"
-  [[ $line =~ ^[0-9]+$ ]] || {
-    builtin printf "%s\n" "fzf_bindings: detected wrong line number format. Terminating."
-    return 1
-  }
-
-  local path
-  if [[ -n $dir ]]; then
-    path="${dir}/${file}"
-  else
-    path="${file}"
-  fi
-
-  [[ -f $path ]] || {
-    builtin cd -- "$cwd" || return "$?"
-  }
-
-  local _command
-  _command="$(__build_edit_command -k "$key" -t "$EDITOR_CMD" -f "$path" -l "$line")"
-  [[ $? -eq 1 ]] && return 1
-  __insert_text_at_cursor "$_command"
-
-  [[ $key != "alt-c" ]] && builtin cd -- "$cwd" || return "$?"
-  trap '' ERR INT TERM QUIT
-}
-builtin bind -x '"\C-_08": __fzf_grep'
-builtin bind -m vi-insert '"\C-x\C-f": "\C-x0\C-_08\C-x1\C-x2\015"'
-builtin bind -m vi-command '"\C-x\C-f": "i\C-x0\C-_08\C-x1\C-x2\015"'
 
 __build_cd_command_helper() {
   local key directory
