@@ -40,8 +40,8 @@ change_to_project_root() {
 in_nix_dev_shell() {
   # The IN_NIX_SHELL environment variable is only present in Nix flake dev shells.
   case "${IN_NIX_SHELL:-}" in
-  pure | impure) return 0 ;;
-  *) return 1 ;;
+    pure | impure) return 0 ;;
+    *) return 1 ;;
   esac
 }
 
@@ -219,16 +219,16 @@ parse_cli_options() {
   local optstring=":csSrmn"
   while getopts "$optstring" option "${cli_options[@]}"; do
     case "$option" in
-    c) ci_mode=true ;;
-    s) pco_runners+=("run_10_shellcheck") ;;
-    S) pco_runners+=("run_20_shfmt") ;;
-    r) pco_runners+=("run_30_rubocop") ;;
-    m) pco_runners+=("run_40_mdformat") ;;
-    n) pco_runners+=("run_50_nixfmt") ;;
-    *)
-      printf "%s\n" "Error: invalid option '$OPTARG'" >&2
-      exit 1
-      ;;
+      c) ci_mode=true ;;
+      s) pco_runners+=("run_10_shellcheck") ;;
+      S) pco_runners+=("run_20_shfmt") ;;
+      r) pco_runners+=("run_30_rubocop") ;;
+      m) pco_runners+=("run_40_mdformat") ;;
+      n) pco_runners+=("run_50_nixfmt") ;;
+      *)
+        printf "%s\n" "Error: invalid option '$OPTARG'" >&2
+        exit 1
+        ;;
     esac
   done
 
