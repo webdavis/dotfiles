@@ -272,14 +272,14 @@ __fzf_bindings_select_file() {
   )
 
   local key="${selection[0]}"
-  __fzf_bindings_check_interrupt "$key" || return
+  __fzf_bindings_check_interrupt "$key" || return 1
 
   local file="${selection[1]}"
 
   local cmd
   cmd="$(__build_edit_command -k "$key" -t "$EDITOR_CMD" -f "$file")" || {
     __fzf_bindings_set_exit_code 1
-    return
+    return 1
   }
 
   __insert_text_at_cursor "$cmd"
@@ -314,7 +314,7 @@ builtin bind -m vi-command '"\C-x/": "i\C-x0\C-_07\C-x1\C-x2\015"'
 # "<C-g><C-f>" - open file at the selected line.
 __fzf_git_open_file_at_line() {
   local project_root
-  project_root="$(__fzf_bindings_get_git_root)" || return
+  project_root="$(__fzf_bindings_get_git_root)" || return 1
 
   local -a selection
   mapfile -t selection < <(
@@ -324,7 +324,7 @@ __fzf_git_open_file_at_line() {
   )
 
   local key="${selection[0]}"
-  __fzf_bindings_check_interrupt "$key" || return
+  __fzf_bindings_check_interrupt "$key" || return 1
 
   local file line_number
   IFS=: read -r file line_number _ <<<"${selection[1]}"
@@ -333,13 +333,13 @@ __fzf_git_open_file_at_line() {
     printf "Error [%s]: Invalid line number '%s'. Must be a numeric value. Aborting.\n" \
       "${FUNCNAME[0]}" "$line_number" >&2
     __fzf_bindings_set_exit_code 1
-    return
+    return 1
   }
 
   local cmd
   cmd="$(__build_edit_command -k "$key" -t "$EDITOR_CMD" -f "$file" -l "$line_number")" || {
     __fzf_bindings_set_exit_code 1
-    return
+    return 1
   }
 
   __insert_text_at_cursor "$cmd"
@@ -352,7 +352,7 @@ __fzf_bindings_select_git_file() {
   local ls_files_args=("$@")
 
   local project_root
-  project_root="$(__fzf_bindings_get_git_root)" || return
+  project_root="$(__fzf_bindings_get_git_root)" || return 1
 
   local -a selection
   mapfile -t selection < <(
@@ -364,7 +364,7 @@ __fzf_bindings_select_git_file() {
   )
 
   local key="${selection[0]}"
-  __fzf_bindings_check_interrupt "$key" || return
+  __fzf_bindings_check_interrupt "$key" || return 1
 
   local file="${selection[1]}"
 
@@ -378,12 +378,12 @@ __fzf_bindings_select_git_file() {
   local file_path="${project_root}/${file}"
   [[ -n $realpath_cmd ]] && file_path="$($realpath_cmd --relative-to="$(pwd)" "$file_path")"
 
-  __fzf_bindings_verify_file_exists "$file_path" || return
+  __fzf_bindings_verify_file_exists "$file_path" || return 1
 
   local cmd
   cmd="$(__build_edit_command -k "$key" -t "$EDITOR_CMD" -f "$file_path")" || {
     __fzf_bindings_set_exit_code 1
-    return
+    return 1
   }
 
   __insert_text_at_cursor "$cmd"
@@ -408,7 +408,7 @@ builtin bind -m vi-command '"\C-gF": "i\C-x0\C-_01\C-x1\C-x2\015"'
 
 # "<C-g>H" - search and select a git commit hash.
 __fzf_git_select_commit_hashes() {
-  __fzf_bindings_get_git_root || return
+  __fzf_bindings_get_git_root || return 1
 
   local -r fzf_preview_implementation='echo "Commit: {1}" && echo && git show --color=always --format=fuller --stat {1}'
   local -r fzf_preview_window="down:50%:wrap"
@@ -425,7 +425,7 @@ __fzf_git_select_commit_hashes() {
         --expect="$FZF_BINDINGS_KEYS_INTERRUPT"
   )
 
-  __fzf_bindings_check_interrupt "${selection[0]}" || return
+  __fzf_bindings_check_interrupt "${selection[0]}" || return 1
 
   local -a commit_hashes
   local line
@@ -437,7 +437,7 @@ __fzf_git_select_commit_hashes() {
 
   if [[ ${#commit_hashes[@]} -eq 0 ]]; then
     __fzf_bindings_set_exit_code 1
-    return
+    return 1
   fi
 
   __insert_text_at_cursor "${commit_hashes[*]}"
@@ -449,7 +449,7 @@ builtin bind -m vi-command '"\C-gH": "i\C-_02"'
 # "<C-g>ch" - `git checkout` a commit.
 __fzf_git_checkout_commit() {
   local project_root
-  project_root="$(__fzf_bindings_get_git_root)" || return
+  project_root="$(__fzf_bindings_get_git_root)" || return 1
 
   local -a selection
   mapfile -t selection < <(
@@ -458,24 +458,24 @@ __fzf_git_checkout_commit() {
   )
 
   local key="${selection[0]}"
-  __fzf_bindings_check_interrupt "$key" || return
+  __fzf_bindings_check_interrupt "$key" || return 1
 
   [[ "${selection[1]}" =~ $FZF_BINDINGS_GIT_HASH_REGEX ]] || {
     __fzf_bindings_set_exit_code 1
-    return
+    return 1
   }
 
   local commit_hash="${BASH_REMATCH[0]}"
 
   cd "$project_root" || {
     __fzf_bindings_set_exit_code "$?"
-    return
+    return 1
   }
 
   local cmd
   cmd="$(__build_edit_command -k "$key" -c "$commit_hash")" || {
     __fzf_bindings_set_exit_code 1
-    return
+    return 1
   }
 
   __insert_text_at_cursor "$cmd"
@@ -487,7 +487,7 @@ builtin bind -m vi-command '"\C-gch": "i\C-x0\C-_03\C-x1\C-x2\015"'
 # "<C-g>cb" - `git checkout <branch>`
 __fzf_git_checkout_branch() {
   local project_root
-  project_root="$(__fzf_bindings_get_git_root)" || return
+  project_root="$(__fzf_bindings_get_git_root)" || return 1
 
   local -a selection
   mapfile -t selection < <(
@@ -497,17 +497,17 @@ __fzf_git_checkout_branch() {
   )
 
   local key="${selection[0]}"
-  __fzf_bindings_check_interrupt "$key" || return
+  __fzf_bindings_check_interrupt "$key" || return 1
 
   cd "$project_root" || {
     __fzf_bindings_set_exit_code "$?"
-    return
+    return 1
   }
 
   local cmd
   cmd="$(__build_edit_command -k "$key" -c "${selection[1]}")" || {
     __fzf_bindings_set_exit_code 1
-    return
+    return 1
   }
 
   __insert_text_at_cursor "$cmd"
@@ -519,7 +519,7 @@ builtin bind -m vi-command '"\C-gcb": "i\C-x0\C-_04\C-x1\C-x2\015"'
 # "<C-g>cf" - open a file from the previous commit.
 __fzf_git_open_file_at_commit() {
   local project_root
-  project_root="$(__fzf_bindings_get_git_root)" || return
+  project_root="$(__fzf_bindings_get_git_root)" || return 1
 
   # Get number of commits:
   local commit_count
@@ -535,7 +535,7 @@ __fzf_git_open_file_at_commit() {
   )
 
   local key="${selection[0]}"
-  __fzf_bindings_check_interrupt "$key" || return
+  __fzf_bindings_check_interrupt "$key" || return 1
 
   local checkout=false
   local confirmation
@@ -577,7 +577,7 @@ __fzf_git_open_file_at_commit() {
     build_args=(-k "$key" -t "$EDITOR_CMD" -f "$file_path" -c "$commit_hash")
   else
     # Fail gracefully if file doesn't exist in current branch.
-    __fzf_bindings_verify_file_exists "$file_path" || return
+    __fzf_bindings_verify_file_exists "$file_path" || return 1
 
     build_args=(-k "$key" -t "git difftool --no-prompt ${commit_hash}" -f "$file_path")
   fi
@@ -585,7 +585,7 @@ __fzf_git_open_file_at_commit() {
   local cmd
   cmd="$(__build_edit_command "${build_args[@]}")" || {
     __fzf_bindings_set_exit_code 1
-    return
+    return 1
   }
 
   __insert_text_at_cursor "$cmd"
@@ -632,15 +632,15 @@ __fzf_bindings_cd_helper() {
   )
 
   local key="${selection[0]}"
-  __fzf_bindings_check_interrupt "$key" || return
+  __fzf_bindings_check_interrupt "$key" || return 1
 
   local directory_path="${selection[1]}"
-  __fzf_bindings_verify_directory_exists "$directory_path" || return
+  __fzf_bindings_verify_directory_exists "$directory_path" || return 1
 
   local cmd
   cmd="$(__build_cd_command_helper "$key" "$directory_path")" || {
     __fzf_bindings_set_exit_code 1
-    return
+    return 1
   }
 
   __insert_text_at_cursor "$cmd"
@@ -649,7 +649,7 @@ __fzf_bindings_cd_helper() {
 # "<M-g>" - change to any directory in the project.
 __fzf_cd_to_git_dir() {
   local project_root
-  project_root="$(__fzf_bindings_get_git_root)" || return
+  project_root="$(__fzf_bindings_get_git_root)" || return 1
 
   local -a directories
   mapfile -t directories < <(
@@ -724,7 +724,7 @@ __bookmark_cwd() {
 
   # Return if the directory has already been bookmarked.
   if builtin dirs -p | tail -n +2 | grep -Fxq -- "$cwd"; then
-    __fzf_bindings_set_exit_code || return
+    __fzf_bindings_set_exit_code || return 1
   fi
 
   __insert_text_at_cursor "builtin pushd . 2>/dev/null"
