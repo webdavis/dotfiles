@@ -2,9 +2,18 @@
 # shellcheck disable=SC1090
 # vi: set filetype=sh:
 
-if [[ -x "$(builtin command -v rg)" ]]; then
+export FZF_BINDINGS_EXIT_CODE=0
+export FZF_BINDINGS_GIT_LOG_LIMIT=500
+export FZF_BINDINGS_GIT_HASH_REGEX='^[0-9A-F]{7,40}'
+export FZF_BINDINGS_HEIGHT='40%'
+export FZF_BINDINGS_KEYS_GIT_CHECKOUT="ctrl-x,ctrl-v,ctrl-t,ctrl-c"
+export FZF_BINDINGS_KEYS_OPEN="ctrl-o,ctrl-x,ctrl-v,ctrl-t,ctrl-s,alt-c,ctrl-c"
+export FZF_BINDINGS_KEYS_CD="ctrl-o,ctrl-x,ctrl-v,ctrl-t,ctrl-c"
+export FZF_BINDINGS_KEYS_INTERRUPT="ctrl-c"
+
+if command -v rg >/dev/null 2>&1; then
   FZF_DEFAULT_COMMAND='rg --files --no-ignore -L -g "!.git/" 2>/dev/null'
-elif [[ -x "$(builtin command -v ag)" ]]; then
+elif command -v ag >/dev/null 2>&1; then
   FZF_DEFAULT_COMMAND='ag -u --ignore ".git" -l -g ""'
 else
   FZF_DEFAULT_COMMAND='find . -path "*/\.*" -prune -o -type f -print -o -type l -print | sed s/^..// 2>/dev/null'
@@ -51,16 +60,15 @@ else
 fi
 export OPENER
 
-if [[ $EDITOR =~ homebrew ]]; then
-  EDITOR_CMD="nvim"
-fi
+EDITOR_CMD="${EDITOR_CMD:-$EDITOR}"
+[[ $EDITOR =~ homebrew ]] && EDITOR_CMD="nvim"
 
 builtin bind '"\C-x0": kill-whole-line'     # Clears the entire line.
 builtin bind '"\C-x1": magic-space'         # Performs history expansion and inserts a space.
 builtin bind '"\C-x2": redraw-current-line' # Refreshes the current line.
 
-# Prints the command to the command-line so that command-line history is logged.
-__ehc() {
+# Prints the command to the console so it’s recorded in .bash_history.
+__insert_text_at_cursor() {
   READLINE_LINE="${READLINE_LINE:+${READLINE_LINE:0:READLINE_POINT}}${1}${READLINE_LINE:+${READLINE_LINE:READLINE_POINT}}"
   READLINE_POINT="$((READLINE_POINT + ${#1}))"
 }
@@ -81,7 +89,7 @@ __build_edit_command() {
       l) line="+${OPTARG}" ;;
       t) tool="${OPTARG}" ;;
       *)
-        builtin printf "%s\n" "Error: Unknown fzf_bindings flag '$OPTARG'. Terminating!"
+        printf "Error: Unknown fzf_bindings flag '%s'. Terminating!\n" "$OPTARG" >&2
         return 1
         ;;
     esac
@@ -142,7 +150,8 @@ __build_edit_command() {
             cmd="start '$file'"
             ;;
           *)
-            printf "%s\n" "Error: Unknown Operating System detected: '${kernel_name}'. Terminating fzf_bindings!" 1>&2
+            printf "Error [%s]: Unknown Operating System detected: '${kernel_name}'." \
+              "${FUNCNAME[1]}" "$kernel_name" >&2
             return 1
             ;;
         esac
@@ -153,670 +162,598 @@ __build_edit_command() {
       ;;
     "ctrl-x")
       if [[ -z $TMUX ]]; then
-        builtin printf "%s\n" "$tmux_error_msg" 2>&1
+        printf "%s\n" "$tmux_error_msg" >&2
         return 1
       fi
       cmd="tmux split-window -v \"${cmd}; exec bash\""
       ;;
     "ctrl-v")
       if [[ -z $TMUX ]]; then
-        builtin printf "%s\n" "$tmux_error_msg" 2>&1
+        printf "%s\n" "$tmux_error_msg" >&2
         return 1
       fi
       cmd="tmux split-window -h \"${cmd}; exec bash\""
       ;;
     "ctrl-t")
       [[ -n $TMUX ]] || {
-        builtin printf "%s\n" "$tmux_error_msg" 2>&1
+        printf "%s\n" "$tmux_error_msg" >&2
         return 1
       }
       cmd="tmux new-window \"${cmd}; exec bash\""
       ;;
   esac
 
-  builtin printf "%s\n" "$cmd"
+  printf "%s\n" "$cmd"
 }
 
-__catch_interrupt() {
-  trap '' ERR INT TERM QUIT
-
-  if [[ -n $1 ]]; then
-    builtin cd -- "$1"
-  fi
-  return
+__fzf_bindings_set_exit_code() {
+  FZF_BINDINGS_EXIT_CODE=$1
+  return "$FZF_BINDINGS_EXIT_CODE"
 }
 
-# Press "Ctrl-x + Ctrl-x" to open a file below the current filepath.
-__fzf_file_open() {
-  local cwd selection key file
-  cwd="$(pwd)"
-  selection=("$(FZF_DEFAULT_COMMAND="${FZF_DEFAULT_COMMAND}" \
-    command fzf --height="40%" -0 --expect="ctrl-o,ctrl-x,ctrl-v,ctrl-t,ctrl-s,alt-c,ctrl-c")")
-  key="$(command head -1 <<<"$selection")"
-  if [[ $key == "ctrl-c" ]]; then return 127; fi
-  file="$(command head -2 <<<"$selection" | command tail -1)"
+__fzf_bindings_get_git_root() {
+  local root
+  local exit_code=1
 
-  local path
-  if [[ -n $dir ]]; then
-    path="${dir}/${file}"
-  else
-    path="${file}"
+  if ! root="$(git rev-parse --show-toplevel 2>/dev/null)"; then
+    printf "Warning [%s]: Couldn't detect a Git project.\n" "${FUNCNAME[1]}" >&2
+    __fzf_bindings_set_exit_code "$exit_code"
+    return "$exit_code"
   fi
 
-  [[ -f $path ]] || {
-    builtin cd -- "$cwd"
-    return 1
+  printf "%s" "$root"
+}
+
+__fzf_bindings_check_interrupt() {
+  local key="$1"
+
+  local interrupt_code=127
+
+  if [[ "$key" == "ctrl-c" ]]; then
+    __fzf_bindings_set_exit_code "$interrupt_code"
+    return "$interrupt_code"
+  fi
+
+  return 0
+}
+
+__fzf_bindings_verify_file_exists() {
+  local file="$1"
+  # Fail gracefully if file doesn't exist in current branch.
+
+  local exit_code=1
+
+  [[ -f $file ]] || {
+    printf "Warning [%s]: Selected file '%s', which doesn't exist (in the working branch)" \
+      "${FUNCNAME[1]}" "$file" >&2
+
+    __fzf_bindings_set_exit_code "$exit_code"
+    return "$exit_code"
   }
 
-  local _command
-  _command="$(__build_edit_command -k "$key" -t "$EDITOR_CMD" -f "$path")"
-  [[ $? -eq 1 ]] && return 1
-  __ehc "$_command"
+  return 0
 }
-builtin bind -x '"\C-_00": __fzf_file_open'
-builtin bind -m vi-insert '"\C-x\C-x": "\C-x0\C-_00\C-x1\C-x2\015"'
-builtin bind -m vi-command '"\C-x\C-x": "i\C-x0\C-_00\C-x1\C-x2\015"'
 
-# Press "Ctrl-x + x" to fzf-open any file under the project root, regardless of whether it's
-# tracked or not, from any directory in the project.
-__fzf_open_any_file_under_project_root() {
-  local cwd
-  cwd="$(pwd)"
-  trap '__catch_interrupt "$cwd"' ERR INT TERM QUIT
-  local dir=""
-  if git rev-parse --show-toplevel &>/dev/null; then
-    dir="$(git rev-parse --show-toplevel)"
-    builtin cd -- "$dir"
-  else
-    builtin printf "%s\n" "__fzf_project_file_open: Not in a git-tracked project" 2>&1
-    return 1
-  fi
+__fzf_bindings_verify_directory_exists() {
+  local directory="$1"
+  # Fail gracefully if file doesn't exist in current branch.
 
-  local selection key file
-  selection=("$(FZF_DEFAULT_COMMAND="${FZF_DEFAULT_COMMAND}" \
-    command fzf --height="40%" -0 --expect="ctrl-o,ctrl-x,ctrl-v,ctrl-t,ctrl-s,alt-c,ctrl-c")")
-  key="$(command head -1 <<<"$selection")"
-  if [[ $key == "ctrl-c" ]]; then
-    builtin cd -- "$cwd"
-    return 127
-  fi
-  file="$(command head -2 <<<"$selection" | command tail -1)"
+  local exit_code=1
 
-  local path
-  if [[ -n $dir ]]; then
-    path="${dir}/${file}"
-  else
-    path="${file}"
-  fi
+  [[ -d $directory ]] || {
+    printf "Warning [%s]: selected directory '%s', which doesn't exist" \
+      "${FUNCNAME[1]}" "$directory" >&2
 
-  [[ -f $path ]] || {
-    builtin cd -- "$cwd"
-    return 1
+    __fzf_bindings_set_exit_code "$exit_code"
+    return "$exit_code"
   }
 
-  local _command
-  _command="$(__build_edit_command -k "$key" -t "$EDITOR_CMD" -f "$path")"
-  [[ $? -eq 1 ]] && return 1
-  __ehc "$_command"
-
-  builtin cd -- "$cwd"
-
-  [[ $key != "alt-c" ]] && builtin cd -- "$cwd"
-  trap '' ERR INT TERM QUIT
+  return 0
 }
-builtin bind -x '"\C-_01": __fzf_open_any_file_under_project_root'
-builtin bind -m vi-insert '"\C-xx": "\C-x0\C-_01\C-x1\C-x2\015"'
-builtin bind -m vi-command '"\C-xx": "i\C-x0\C-_01\C-x1\C-x2\015"'
 
-# Press "Ctrl-g + f" to fzf-open any git-tracked file in the project.
-__fzf_git_file_open() {
-  trap '__catch_interrupt "$cwd"' ERR INT TERM QUIT
+__fzf_bindings_select_file() {
+  local dir="${1:-$PWD}"
+  local preview="${2:-}"
 
-  local project_root
-  if ! project_root="$(git rev-parse --show-toplevel 2>/dev/null)"; then
-    builtin printf "%s\n" "__fzf_git_file_open: Not in a git-tracked project" 2>&1
-    return 1
+  # Build the find command if not using current directory files
+  local find_cmd=("find" "$dir" "-maxdepth" "1" "-type" "f")
+  if [[ -n "$preview" ]]; then
+    # Include hidden files
+    find_cmd+=("-name" ".*" "-o" "-type" "f" "-print")
   fi
 
-  local -r fzf_keys="ctrl-o,ctrl-x,ctrl-v,ctrl-t,ctrl-s,alt-c,ctrl-c"
-  local fzf_height_40="40%"
   local -a selection
   mapfile -t selection < <(
-    FZF_DEFAULT_COMMAND="${FZF_DEFAULT_COMMAND}" \
-      command git -C "$project_root" ls-files |
-      command fzf --height="$fzf_height_40" -0 --expect="$fzf_keys"
+    "${find_cmd[@]}" |
+      fzf -0 \
+        --height="$FZF_BINDINGS_HEIGHT" \
+        --expect="$FZF_BINDINGS_KEYS_OPEN" \
+        ${preview:+--preview="$preview"}
   )
 
   local key="${selection[0]}"
-  [[ $key == "ctrl-c" ]] && return 127
+  __fzf_bindings_check_interrupt "$key" || return 1
 
   local file="${selection[1]}"
-  [[ -z $file ]] && return 1
-
-  local path="${project_root}/${file}"
-  local -r realpath_cmd=$(
-    if command -v realpath &>/dev/null && command realpath --version &>/dev/null 2>&1; then
-      command -v realpath
-    else
-      command -v grealpath || :
-    fi
-  )
-  [[ -n $realpath_cmd ]] && path="$($realpath_cmd --relative-to="$(pwd)" "$path")"
-  [[ -f $path ]] || return 1
 
   local cmd
-  cmd="$(__build_edit_command -k "$key" -t "$EDITOR_CMD" -f "$path")" || return 1
-  __ehc "$cmd"
+  cmd="$(__build_edit_command -k "$key" -t "$EDITOR_CMD" -f "$file")" || {
+    __fzf_bindings_set_exit_code 1
+    return 1
+  }
 
-  trap - ERR INT TERM QUIT
+  __insert_text_at_cursor "$cmd"
 }
-builtin bind -x '"\C-_15": __fzf_git_file_open'
+
+# "<C-x><C-x>" open a file below the <cwd>.
+__fzf_open_file() {
+  __fzf_select_file "$PWD"
+}
+builtin bind -x '"\C-_00": __fzf_open_file'
+builtin bind -m vi-insert '"\C-x\C-x": "\C-x0\C-_00\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\C-x\C-x": "i\C-x0\C-_00\C-x1\C-x2\015"'
+
+# "<C-x>h" - open a file below the home (~) directory.
+__fzf_open_home_file() {
+  local home
+  home="$(builtin eval echo ~)"
+  __fzf_select_file "$HOME" 'head -n 20 {}'
+}
+builtin bind -x '"\C-_06": __fzf_open_home_files'
+builtin bind -m vi-insert '"\C-xh": "\C-x0\C-_06\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\C-xh": "i\C-x0\C-_06\C-x1\C-x2\015"'
+
+# "<C-x>/" - open a file below the root (/) directory.
+__fzf_open_root_file() {
+  __fzf_select_file "/" 'head -n 20 {}'
+}
+builtin bind -x '"\C-_07": __fzf_open_root_file'
+builtin bind -m vi-insert '"\C-x/": "\C-x0\C-_07\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\C-x/": "i\C-x0\C-_07\C-x1\C-x2\015"'
+
+# "<C-g><C-f>" - open file at the selected line.
+__fzf_git_open_file_at_line() {
+  local project_root
+  project_root="$(__fzf_bindings_get_git_root)" || return 1
+
+  local -a selection
+  mapfile -t selection < <(
+    git -C "$project_root" ls-files -z |
+      xargs -0 rg -n -L --hidden --ignore-file "${project_root}/.gitignore" . 2>/dev/null |
+      fzf --height="$FZF_BINDINGS_HEIGHT" -0 --expect="$FZF_BINDINGS_KEYS_OPEN"
+  )
+
+  local key="${selection[0]}"
+  __fzf_bindings_check_interrupt "$key" || return 1
+
+  local file line_number
+  IFS=: read -r file line_number _ <<<"${selection[1]}"
+
+  [[ "$line_number" =~ ^[0-9]+$ ]] || {
+    printf "Error [%s]: Invalid line number '%s'. Must be a numeric value. Aborting.\n" \
+      "${FUNCNAME[0]}" "$line_number" >&2
+    __fzf_bindings_set_exit_code 1
+    return 1
+  }
+
+  local cmd
+  cmd="$(__build_edit_command -k "$key" -t "$EDITOR_CMD" -f "$file" -l "$line_number")" || {
+    __fzf_bindings_set_exit_code 1
+    return 1
+  }
+
+  __insert_text_at_cursor "$cmd"
+}
+builtin bind -x '"\C-_08": __fzf_git_open_file_at_line'
+builtin bind -m vi-insert '"\C-g\C-f": "\C-x0\C-_08\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\C-g\C-f": "i\C-x0\C-_08\C-x1\C-x2\015"'
+
+__fzf_bindings_select_git_file() {
+  local ls_files_args=("$@")
+
+  local project_root
+  project_root="$(__fzf_bindings_get_git_root)" || return 1
+
+  local -a selection
+  mapfile -t selection < <(
+    git -C "$project_root" ls-files "${ls_files_args[@]}" |
+      fzf -0 \
+        --height="$FZF_BINDINGS_HEIGHT" \
+        --expect="$FZF_BINDINGS_KEYS_OPEN" \
+        --preview='head -n 20 {}'
+  )
+
+  local key="${selection[0]}"
+  __fzf_bindings_check_interrupt "$key" || return 1
+
+  local file="${selection[1]}"
+
+  local realpath_cmd
+  if command realpath --version &>/dev/null 2>&1; then
+    realpath_cmd="$(command -v realpath)"
+  else
+    realpath_cmd="$(command -v grealpath || true)"
+  fi
+
+  local file_path="${project_root}/${file}"
+  [[ -n $realpath_cmd ]] && file_path="$($realpath_cmd --relative-to="$(pwd)" "$file_path")"
+
+  __fzf_bindings_verify_file_exists "$file_path" || return 1
+
+  local cmd
+  cmd="$(__build_edit_command -k "$key" -t "$EDITOR_CMD" -f "$file_path")" || {
+    __fzf_bindings_set_exit_code 1
+    return 1
+  }
+
+  __insert_text_at_cursor "$cmd"
+}
+
+# "<C-g>f" - open any git-tracked file in the project.
+__fzf_git_open_tracked_file() {
+  __fzf_bindings_select_git_file
+}
+builtin bind -x '"\C-_15": __fzf_git_open_tracked_file'
 builtin bind -m vi-insert '"\C-gf": "\C-x0\C-_15\C-x1\C-x2\015"'
 builtin bind -m vi-command '"\C-gf": "i\C-x0\C-_15\C-x1\C-x2\015"'
 
-# Press "Ctrl-g + H" to search for and select a git commit hash.
-__fzf_search_git_hashes() {
-  if git rev-parse --show-toplevel &>/dev/null; then
-    local path
-    path="$(git rev-parse --show-toplevel)"
-  else
-    builtin printf "%s\n" "__fzf_search_git_hashes: Git project not detected." 2>&1
+# "<C-g>F" - open *any* file in a git project (tracked + untracked + ignored).
+__fzf_git_open_any_file() {
+  local git_ls_file_args=("--cached" "--others" "--exclude-standard=false")
+  __fzf_bindings_select_git_file "${git_ls_file_args[@]}"
+}
+builtin bind -x '"\C-_01": __fzf_git_open_any_file'
+builtin bind -m vi-insert '"\C-gF": "\C-x0\C-_01\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\C-gF": "i\C-x0\C-_01\C-x1\C-x2\015"'
+
+# "<C-g>H" - search and select a git commit hash.
+__fzf_git_select_commit_hashes() {
+  __fzf_bindings_get_git_root || return 1
+
+  local -r fzf_preview_implementation='echo "Commit: {1}" && echo && git show --color=always --format=fuller --stat {1}'
+  local -r fzf_preview_window="down:50%:wrap"
+
+  local -a selection
+  mapfile -t selection < <(
+    git log --oneline -n "$FZF_BINDINGS_GIT_LOG_LIMIT" |
+      fzf \
+        --multi \
+        --height="$FZF_BINDINGS_HEIGHT" \
+        --preview "$fzf_preview_implementation" \
+        --preview-window="$fzf_preview_window" \
+        -0 \
+        --expect="$FZF_BINDINGS_KEYS_INTERRUPT"
+  )
+
+  __fzf_bindings_check_interrupt "${selection[0]}" || return 1
+
+  local -a commit_hashes
+  local line
+  for line in "${selection[@]:1}"; do
+    if [[ $line =~ $FZF_BINDINGS_GIT_HASH_REGEX ]]; then
+      commit_hashes+=("${BASH_REMATCH[0]}")
+    fi
+  done
+
+  if [[ ${#commit_hashes[@]} -eq 0 ]]; then
+    __fzf_bindings_set_exit_code 1
     return 1
   fi
 
-  local fzf_output key selection commit_hash file file_path
-  fzf_output=("$(git log --oneline | fzf --height="60%" --preview 'echo \"Commit: {1}\" && echo && git show --color=always --format=fuller --stat {1}' --preview-window=down:50%:wrap -0 --expect="ctrl-x,ctrl-v,ctrl-t,ctrl-c")")
-
-  # fzf_output=("$(git log --oneline | fzf --height="40%" -0 --expect="ctrl-x,ctrl-v,ctrl-t,ctrl-c")")
-  key="$(command head -1 <<<"$fzf_output")"
-  if [[ $key == "ctrl-c" ]]; then return 127; fi
-  [[ -z $key ]] && key="default"
-  selection="$(command head -2 <<<"$fzf_output" | command tail -1)"
-  commit_hash="$(echo "$selection" | awk '{ print $1 }')"
-
-  # Verify the commit hash.
-  local hash_regex='^[0-9a-f]{7,40}'
-  if [[ $commit_hash =~ $hash_regex ]]; then
-    commit_hash="${BASH_REMATCH[@]}"
-  fi
-
-  __ehc "$commit_hash"
+  __insert_text_at_cursor "${commit_hashes[*]}"
 }
-builtin bind -x '"\C-_02": __fzf_search_git_hashes'
+builtin bind -x '"\C-_02": __fzf_git_select_commit_hashes'
 builtin bind -m vi-insert '"\C-gH": "\C-_02"'
 builtin bind -m vi-command '"\C-gH": "i\C-_02"'
 
-# Press "Ctrl-g + ch" to `git checkout` a commit.
-__fzf_checkout_commit() {
-  if git rev-parse --show-toplevel &>/dev/null; then
-    local path
-    path="$(git rev-parse --show-toplevel)"
-  else
-    builtin printf "%s\n" "__fzf_checkout_commit: Git project not detected." 2>&1
+# "<C-g>ch" - `git checkout` a commit.
+__fzf_git_checkout_commit() {
+  local project_root
+  project_root="$(__fzf_bindings_get_git_root)" || return 1
+
+  local -a selection
+  mapfile -t selection < <(
+    git log --oneline |
+      fzf --height="$FZF_BINDINGS_HEIGHT" -0 --expect="$FZF_BINDINGS_KEYS_GIT_CHECKOUT"
+  )
+
+  local key="${selection[0]}"
+  __fzf_bindings_check_interrupt "$key" || return 1
+
+  [[ "${selection[1]}" =~ $FZF_BINDINGS_GIT_HASH_REGEX ]] || {
+    __fzf_bindings_set_exit_code 1
     return 1
-  fi
+  }
 
-  local fzf_output key selection commit_hash file file_path
-  fzf_output=("$(git log --oneline | fzf --height="40%" -0 --expect="ctrl-x,ctrl-v,ctrl-t,ctrl-c")")
-  key="$(command head -1 <<<"$fzf_output")"
-  if [[ $key == "ctrl-c" ]]; then return 127; fi
-  [[ -z $key ]] && key="default"
-  selection="$(command head -2 <<<"$fzf_output" | command tail -1)"
-  commit_hash="$(echo "$selection" | awk '{ print $1 }')"
+  local commit_hash="${BASH_REMATCH[0]}"
 
-  # Verify the commit hash.
-  local hash_regex='^[0-9a-f]{7,40}'
-  if [[ $commit_hash =~ $hash_regex ]]; then
-    commit_hash="${BASH_REMATCH[@]}"
-  fi
+  cd "$project_root" || {
+    __fzf_bindings_set_exit_code "$?"
+    return 1
+  }
 
-  local _command
-  _command="$(__build_edit_command -k "$key" -c "$commit_hash")"
-  [[ $? -eq 1 ]] && return 1
-  __ehc "$_command"
+  local cmd
+  cmd="$(__build_edit_command -k "$key" -c "$commit_hash")" || {
+    __fzf_bindings_set_exit_code 1
+    return 1
+  }
+
+  __insert_text_at_cursor "$cmd"
 }
-builtin bind -x '"\C-_03": __fzf_checkout_commit'
+builtin bind -x '"\C-_03": __fzf_git_checkout_commit'
 builtin bind -m vi-insert '"\C-gch": "\C-x0\C-_03\C-x1\C-x2\015"'
 builtin bind -m vi-command '"\C-gch": "i\C-x0\C-_03\C-x1\C-x2\015"'
 
-# Press "Ctrl-g + cb" to `git checkout` a branch.
-__fzf_checkout_branch() {
-  if git rev-parse --show-toplevel &>/dev/null; then
-    local path
-    path="$(git rev-parse --show-toplevel)"
-  else
-    builtin printf "%s\n" "Git project not detected." 2>&1
+# "<C-g>cb" - `git checkout <branch>`
+__fzf_git_checkout_branch() {
+  local project_root
+  project_root="$(__fzf_bindings_get_git_root)" || return 1
+
+  local -a selection
+  mapfile -t selection < <(
+    git branch |
+      fzf --height="$FZF_BINDINGS_HEIGHT" -0 --expect="$FZF_BINDINGS_KEYS_GIT_CHECKOUT" |
+      tr -d "[:space:]"
+  )
+
+  local key="${selection[0]}"
+  __fzf_bindings_check_interrupt "$key" || return 1
+
+  cd "$project_root" || {
+    __fzf_bindings_set_exit_code "$?"
     return 1
-  fi
+  }
 
-  local fzf_output key selection commit_hash file file_path
-  fzf_output=("$(git branch | fzf --height="40%" -0 --expect="ctrl-x,ctrl-v,ctrl-t,ctrl-c" | tr -d "[:space:]")")
-  key="$(command head -1 <<<"$fzf_output")"
-  if [[ $key == "ctrl-c" ]]; then return 127; fi
-  [[ -z $key ]] && key="default"
-  selection="$(command head -2 <<<"$fzf_output" | command tail -1)"
-  commit_hash="$(echo "$selection" | awk '{ print $1 }')"
+  local cmd
+  cmd="$(__build_edit_command -k "$key" -c "${selection[1]}")" || {
+    __fzf_bindings_set_exit_code 1
+    return 1
+  }
 
-  # Verify the commit hash.
-  local hash_regex='^[0-9a-f]{7,40}'
-  if [[ $commit_hash =~ $hash_regex ]]; then
-    commit_hash="${BASH_REMATCH[@]}"
-  fi
-
-  local _command
-  _command="$(__build_edit_command -k "$key" -c "$commit_hash")"
-  [[ $? -eq 1 ]] && return 1
-  __ehc "$_command"
+  __insert_text_at_cursor "$cmd"
 }
-builtin bind -x '"\C-_04": __fzf_checkout_branch'
+builtin bind -x '"\C-_04": __fzf_git_checkout_branch'
 builtin bind -m vi-insert '"\C-gcb": "\C-x0\C-_04\C-x1\C-x2\015"'
 builtin bind -m vi-command '"\C-gcb": "i\C-x0\C-_04\C-x1\C-x2\015"'
 
-# Press "Ctrl-g + cf" to open a file from the previous commit.
-__fzf_open_file_at_commit() {
-  if git rev-parse --show-toplevel &>/dev/null; then
-    local path
-    path="$(git rev-parse --show-toplevel)"
-  else
-    builtin printf "%s\n" "__fzf_open_file_at_commit: Git project not detected." 2>&1
-    return 1
-  fi
+# "<C-g>cf" - open a file from the previous commit.
+__fzf_git_open_file_at_commit() {
+  local project_root
+  project_root="$(__fzf_bindings_get_git_root)" || return 1
 
-  # Get number of commits.
+  # Get number of commits:
   local commit_count
   commit_count="$(git rev-list --no-merges --count HEAD --)"
-  commit_count=$((commit_count - 1))
+  ((commit_count--))
 
-  # Build array of file diffs paired with their respective commit hashes.
-  local selections hash_regex commit_file _hash message
-  hash_regex='(^[0-9a-f]{7,40})\ (.*)'
-  while read -r commit_file; do
-    if [[ $commit_file =~ $hash_regex ]]; then
-      _hash="${BASH_REMATCH[1]}"
-      message="${BASH_REMATCH[2]}"
-    else
-      selections+=("$_hash - $message: $commit_file")
-    fi
-  done < <(git --no-pager show --stat --oneline --name-only HEAD~${commit_count}..HEAD --)
+  local -a selection
+  mapfile -t selection < <(
+    git log --pretty=format:"%h|%s" --name-only HEAD~"$commit_count"..HEAD |
+      awk -F'|' '/^[0-9a-f]{7,}\|/ { commit=$1; msg=$2; next } NF { print commit "  ╎" "|" $0 "|" "╎  " msg }' |
+      column -t -s '|' |
+      fzf --height="$FZF_BINDINGS_HEIGHT" -0 --expect="$FZF_BINDINGS_KEYS_OPEN"
+  )
 
-  local fzf_output key selection commit_hash file file_path
-  fzf_output=("$(printf "%s\n" "${selections[@]}" | fzf --height="40%" -0 --expect="ctrl-o,ctrl-x,ctrl-v,ctrl-t,ctrl-s,alt-c,ctrl-c")")
-  key="$(command head -1 <<<"$fzf_output")"
-  [[ -z $key ]] && key="default"
-  if [[ $key == "ctrl-c" ]]; then return 127; fi
-  selection="$(command head -2 <<<"$fzf_output" | command tail -1)"
-  commit_hash="$(echo "$selection" | awk '{ print $1 }')"
-  file="$(echo "$selection" | awk '{ print $NF }')"
-  file_path="${path}/${file}"
+  local key="${selection[0]}"
+  __fzf_bindings_check_interrupt "$key" || return 1
 
-  # Turn off case-sensitivity for the following prompt.
-  shopt -s nocasematch
+  local checkout=false
+  local confirmation
 
-  local answer checkout="false"
+  shopt -s nocasematch # Turn off case-sensitivity for the following prompt:
   while true; do
-    # This fails without the '-n' flag.
-    read -r -p "Do you want to checkout this commit_hash? (y/n): " -n 1 answer
-    case "${answer}" in
-      "y")
-        echo "$answer"
-        checkout="true"
+    read -r -p "Do you want to checkout this git commit? (y/n): " -n 1 confirmation
+    echo
+    case "${confirmation}" in
+      y)
+        checkout=true
         break
         ;;
-      "n")
-        echo "$answer"
+      n)
         break
         ;;
       *)
-        echo "$answer"
         printf "%s\n" "Please answer [Y]es or [N]o (case insensitive)."
         ;;
     esac
   done
-  # Turn case-sensitivity back on.
-  shopt -u nocasematch
+  shopt -u nocasematch # Turn case-sensitivity back on.
 
-  local tool build_arguments
-  if [[ $checkout == "true" ]]; then
-    tool="$EDITOR_CMD"
-    build_arguments='-k "$key" -t "$tool" -f "$file_path" -c "$commit_hash"'
+  local commit_hash file
+  IFS='╎' read -r commit_hash file <<<"${selection[1]}"
+
+  # Strip leading/trailing whitespace from each
+  commit_hash="${commit_hash#"${commit_hash%%[![:space:]]*}"}"
+  commit_hash="${commit_hash%"${commit_hash##*[![:space:]]}"}"
+
+  file="${file#"${file%%[![:space:]]*}"}"
+  file="${file%"${file##*[![:space:]]}"}"
+
+  local file_path="${project_root}/${file_path}"
+
+  local -a build_args
+
+  if ((checkout)); then
+    build_args=(-k "$key" -t "$EDITOR_CMD" -f "$file_path" -c "$commit_hash")
   else
     # Fail gracefully if file doesn't exist in current branch.
-    [[ -f $file ]] || {
-      printf "%s\n" "${file} doesn't exist in the working branch." 2>&1
-      return 1
-    }
+    __fzf_bindings_verify_file_exists "$file_path" || return 1
 
-    tool="git difftool --no-prompt ${commit_hash}"
-    build_arguments='-k "$key" -t "$tool" -f "$file"'
+    build_args=(-k "$key" -t "git difftool --no-prompt ${commit_hash}" -f "$file_path")
   fi
 
-  local _command
-  _command="$(eval __build_edit_command "$build_arguments")"
-  [[ $? -eq 1 ]] && return 1
-  __ehc "$_command"
+  local cmd
+  cmd="$(__build_edit_command "${build_args[@]}")" || {
+    __fzf_bindings_set_exit_code 1
+    return 1
+  }
+
+  __insert_text_at_cursor "$cmd"
 }
-builtin bind -x '"\C-_05": __fzf_open_file_at_commit'
+builtin bind -x '"\C-_05": __fzf_git_open_file_at_commit'
 builtin bind -m vi-insert '"\C-gcf": "\C-x0\C-_05\C-x1\C-x2\015"'
 builtin bind -m vi-command '"\C-gcf": "i\C-x0\C-_05\C-x1\C-x2\015"'
 
-# Press "Ctrl-x + h" to open a file below the user HOME directory.
-__fzf_file_open_home() {
-  local cwd home
-  cwd="$(pwd)"
-  trap '__catch_interrupt "$cwd"' ERR INT TERM QUIT
-  home="$(builtin eval echo ~)"
-  builtin cd -- "$home"
-
-  local selection key file
-  selection=("$(FZF_DEFAULT_COMMAND="${FZF_DEFAULT_COMMAND}" \
-    command fzf --height="40%" -0 --expect="ctrl-o,ctrl-x,ctrl-v,ctrl-t,ctrl-s,alt-c,ctrl-c")")
-  key="$(command head -1 <<<"$selection")"
-  if [[ $key == "ctrl-c" ]]; then
-    builtin cd -- "$cwd"
-    return 127
-  fi
-  file="${home}/$(command head -2 <<<"$selection" | command tail -1)"
-
-  [[ -d $file || ! -f $file ]] && {
-    builtin cd -- "$cwd"
-    return 1
-  }
-
-  local _command
-  _command="$(__build_edit_command -k "$key" -t "$EDITOR_CMD" -f "$file")"
-  [[ $? -eq 1 ]] && return 1
-  __ehc "$_command"
-
-  builtin cd -- "$cwd"
-
-  [[ $key != "alt-c" ]] && builtin cd -- "$cwd"
-  trap '' ERR INT TERM QUIT
-}
-builtin bind -x '"\C-_06": __fzf_file_open_home'
-builtin bind -m vi-insert '"\C-xh": "\C-x0\C-_06\C-x1\C-x2\015"'
-builtin bind -m vi-command '"\C-xh": "i\C-x0\C-_06\C-x1\C-x2\015"'
-
-# Press "Ctrl-x + /" and open a file below the root directory.
-__fzf_file_open_root() {
-  local cwd
-  cwd="$(pwd)"
-  trap '__catch_interrupt "$cwd"' ERR INT TERM QUIT
-  builtin cd -- '/'
-
-  local selection key file
-  selection=("$(FZF_DEFAULT_COMMAND="${FZF_DEFAULT_COMMAND}" \
-    command fzf --height="40%" -0 --expect="ctrl-o,ctrl-x,ctrl-v,ctrl-t,ctrl-s,alt-c,ctrl-c")")
-  key="$(command head -1 <<<"$selection")"
-  if [[ $key == "ctrl-c" ]]; then
-    builtin cd -- "$cwd"
-    return 127
-  fi
-  file="/$(command head -2 <<<"$selection" | command tail -1)"
-
-  [[ -d $file || ! -f $file ]] && {
-    builtin cd -- "$cwd"
-    return 1
-  }
-
-  local _command
-  _command="$(__build_edit_command -k "$key" -t "$EDITOR_CMD" -f "$file")"
-  [[ $? -eq 1 ]] && return 1
-  __ehc "$_command"
-
-  builtin cd -- "$cwd"
-
-  [[ $key != "alt-c" ]] && builtin cd -- "$cwd"
-  trap '' ERR INT TERM QUIT
-}
-builtin bind -x '"\C-_07": __fzf_file_open_root'
-builtin bind -m vi-insert '"\C-x/": "\C-x0\C-_07\C-x1\C-x2\015"'
-builtin bind -m vi-command '"\C-x/": "i\C-x0\C-_07\C-x1\C-x2\015"'
-
-# Press "Ctrl-x + Ctrl-f" to search file contents and open a file at the selected line.
-__fzf_grep() {
-  local cwd
-  cwd="$(pwd)"
-  trap '__catch_interrupt "$cwd"' ERR INT TERM QUIT
-  local dir=""
-  if git rev-parse --show-toplevel &>/dev/null; then
-    dir="$(git rev-parse --show-toplevel)"
-    builtin cd -- "$dir"
-  fi
-
-  local selection key
-  selection=("$(command rg -n -L --ignore-file $(builtin eval echo ~)/.gitignore_global . 2>/dev/null |
-    command fzf --height="40%" -0 --expect="ctrl-o,ctrl-x,ctrl-v,ctrl-t,ctrl-s,alt-c,ctrl-c")")
-  key="$(command head -1 <<<"$selection")"
-  if [[ $key == "ctrl-c" ]]; then return 127; fi
-
-  local awkcommand
-  if command -v gawk &>/dev/null; then awkcommand="gawk"; else awkcommand="awk"; fi
-
-  local tokens
-  tokens="$(builtin echo "${selection[@]}" | command $awkcommand -F: '{ print $1, $2}')"
-
-  local file line
-  builtin read -r file line <<<"$(command head -2 <<<"$tokens" | command tail -1)"
-  [[ $line =~ ^[0-9]+$ ]] || {
-    builtin printf "%s\n" "fzf_bindings: detected wrong line number format. Terminating."
-    return 1
-  }
-
-  local path
-  if [[ -n $dir ]]; then
-    path="${dir}/${file}"
-  else
-    path="${file}"
-  fi
-
-  [[ -f $path ]] || {
-    builtin cd -- "$cwd"
-    return 1
-  }
-
-  local _command
-  _command="$(__build_edit_command -k "$key" -t "$EDITOR_CMD" -f "$path" -l "$line")"
-  [[ $? -eq 1 ]] && return 1
-  __ehc "$_command"
-
-  [[ $key != "alt-c" ]] && builtin cd -- "$cwd"
-  trap '' ERR INT TERM QUIT
-}
-builtin bind -x '"\C-_08": __fzf_grep'
-builtin bind -m vi-insert '"\C-x\C-f": "\C-x0\C-_08\C-x1\C-x2\015"'
-builtin bind -m vi-command '"\C-x\C-f": "i\C-x0\C-_08\C-x1\C-x2\015"'
-
-__build_cd_command() {
+__build_cd_command_helper() {
   local key directory
   key="$1"
   directory="$2"
 
-  local executable _return=0
+  local executable exit_code=0
   case $key in
     "ctrl-o") executable="${OPENER} ${directory} &" ;;
-    "ctrl-x") if [[ -n $TMUX ]]; then executable="tmux split-window -v -c ${directory}"; else _return=1; fi ;;
-    "ctrl-v") if [[ -n $TMUX ]]; then executable="tmux split-window -h -c ${directory}"; else _return=1; fi ;;
-    "ctrl-t") if [[ -n $TMUX ]]; then executable="tmux new-window -c ${directory}"; else _return=1; fi ;;
-    *) executable="builtin cd -- ${directory}" ;;
+    "ctrl-x") if [[ -n $TMUX ]]; then executable="tmux split-window -v -c ${directory}"; else exit_code=1; fi ;;
+    "ctrl-v") if [[ -n $TMUX ]]; then executable="tmux split-window -h -c ${directory}"; else exit_code=1; fi ;;
+    "ctrl-t") if [[ -n $TMUX ]]; then executable="tmux new-window -c ${directory}"; else exit_code=1; fi ;;
+    *) executable="builtin cd -- \"${directory}\"" ;;
 
   esac
 
-  [[ $_return -eq 1 ]] && {
-    builtin printf "%s\n" "tmux: Tmux session not detected." 2>&1
+  ((exit_code)) && {
+    printf "%s\n" "Error [tmux]: Session not detected." >&2
     return 1
   }
-  builtin echo "$executable"
+
+  printf "%s" "$executable"
 }
 
-# When inside a Git project, press Alt-g to jump to any directory in the project.
-__fzf_cd_git() {
-  trap '__catch_interrupt' ERR INT TERM QUIT
-  if git rev-parse --show-toplevel &>/dev/null; then
-    local proot
-    proot="$(git rev-parse --show-toplevel)"
-  else
-    builtin printf "%s\n" "Git project not detected." 2>&1
+__fzf_bindings_cd_helper() {
+  local reverse_order="${1:-false}"
+  shift
+
+  local directories=("$@") # an array of directory paths
+  local -a selection
+
+  local fzf_opts=("-0" "--height=${FZF_BINDINGS_HEIGHT}" "--no-multi" "--expect=${FZF_BINDINGS_KEYS_CD}")
+  ((reverse_order)) && fzf_opts+=("--tac")
+
+  mapfile -t selection < <(
+    printf '%s\n' "${directories[@]}" | fzf "${fzf_opts[@]}"
+  )
+
+  local key="${selection[0]}"
+  __fzf_bindings_check_interrupt "$key" || return 1
+
+  local directory_path="${selection[1]}"
+  __fzf_bindings_verify_directory_exists "$directory_path" || return 1
+
+  local cmd
+  cmd="$(__build_cd_command_helper "$key" "$directory_path")" || {
+    __fzf_bindings_set_exit_code 1
     return 1
-  fi
+  }
 
-  local selection key dir
-  selection=("$(command find -L "$proot" \( -path '*/\.git' -o -fstype dev -o -fstype proc \) -prune \
-    -o -type d -print 2>/dev/null |
-    command sed "s#${proot}/##" |
-    command sed '1d; s#^\./##' |
-    command fzf --height="40%" -0 --no-multi --expect="ctrl-o,ctrl-x,ctrl-v,ctrl-t,ctrl-c")")
-  [[ -n $selection ]] || return 1
-  key="$(command head -1 <<<"$selection")"
-  if [[ $key == "ctrl-c" ]]; then return 127; fi
-  dir="$(command head -2 <<<"$selection" | command tail -1)"
-
-  local path
-  path="${proot}/${dir}"
-  [[ -d $path ]] || return 1
-
-  local _command
-  _command="$(__build_cd_command "$key" "$path")"
-  [[ $? -eq 1 ]] && return 1
-  __ehc "$_command"
-
-  trap '' ERR INT TERM QUIT
+  __insert_text_at_cursor "$cmd"
 }
-builtin bind -x '"\C-_09": __fzf_cd_git'
+
+# "<M-g>" - change to any directory in the project.
+__fzf_cd_to_git_dir() {
+  local project_root
+  project_root="$(__fzf_bindings_get_git_root)" || return 1
+
+  local -a directories
+  mapfile -t directories < <(
+    find -L "$project_root" \
+      \( -path '*/\.git' -o -fstype dev -o -fstype proc \) -prune \
+      -o -type d \
+      -print 2>/dev/null
+  )
+
+  __fzf_bindings_cd_helper false "${directories[@]}"
+}
+builtin bind -x '"\C-_09": __fzf_cd_to_git_dir'
 builtin bind -m vi-insert '"\M-g": "\C-x0\C-_09\C-x1\C-x2\015"'
 builtin bind -m vi-command '"\M-g": "i\C-x0\C-_09\C-x1\C-x2\015"'
 
-# Press Alt-h to jump to any directory below the current working directory, including hidden directories.
-__fzf_cd_all() {
-  trap '__catch_interrupt' ERR INT TERM QUIT
-  local selection key dir
+# "<M-h>" - change to directory below the <cwd> (including hidden directories).
+__fzf_cd_below_cwd_including_hidden() {
+  local -a directories
+  mapfile -t directories < <(
+    find -L . \
+      \( -fstype dev -o -fstype proc \) -prune \
+      -o -type d \
+      -print 2>/dev/null |
+      sed '1d; s#^\./##'
+  )
 
-  selection=("$(command find -L . \( -fstype dev -o -fstype proc \) -prune \
-    -o -type d -print 2>/dev/null |
-    command sed '1d; s#^\./##' |
-    command fzf --height="40%" -0 --no-multi --expect="ctrl-o,ctrl-x,ctrl-v,ctrl-t,ctrl-c")")
-  [[ -n $selection ]] || return 1
-  key="$(command head -1 <<<"$selection")"
-  if [[ $key == "ctrl-c" ]]; then return 127; fi
-  dir="$(command head -2 <<<"$selection" | command tail -1)"
-
-  path="$(pwd)/${dir}"
-  [[ -d $path ]] || return 1
-
-  local _command
-  _command="$(__build_cd_command "$key" "$path")"
-  [[ $? -eq 1 ]] && return 1
-  __ehc "$_command"
-
-  trap '' ERR INT TERM QUIT
+  __fzf_bindings_cd_helper false "${directories[@]}"
 }
-builtin bind -x '"\C-_10": __fzf_cd_all'
+builtin bind -x '"\C-_10": __fzf_cd_below_cwd_including_hidden'
 builtin bind -m vi-insert '"\M-h": "\C-x0\C-_10\C-x1\C-x2\015"'
 builtin bind -m vi-command '"\M-h": "i\C-x0\C-_10\C-x1\C-x2\015"'
 
-# Press Alt-r to jump to any directory below the root directory.
-__fzf_cd_root() {
-  trap '__catch_interrupt' ERR INT TERM QUIT
-  local selection key dir
-  selection=("$(command find -L / \( -fstype dev -o -fstype proc \) -prune \
-    -o -type d -print 2>/dev/null |
-    command sed '1d; s#^\./##' |
-    command fzf --height="40%" -0 --no-multi --expect="ctrl-o,ctrl-x,ctrl-v,ctrl-t,ctrl-c")")
-  [[ -n $selection ]] || return 1
-  key="$(command head -1 <<<"$selection")"
-  if [[ $key == "ctrl-c" ]]; then return 127; fi
-  dir="$(command head -2 <<<"$selection" | command tail -1)"
+# "<M-r>" - change to directory below the root directory.
+__fzf_cd_from_root() {
+  local -a directories
+  mapfile -t directories < <(
+    find -L / \
+      \( -fstype dev -o -fstype proc \) -prune \
+      -o -type d -print 2>/dev/null |
+      sed '1d; s#^\./##'
+  )
 
-  [[ -d $dir ]] || return 1
-
-  local _command
-  _command="$(__build_cd_command "$key" "$dir")"
-  [[ $? -eq 1 ]] && return 1
-  __ehc "$_command"
-
-  trap '' ERR INT TERM QUIT
+  __fzf_bindings_cd_helper false "${directories[@]}"
 }
-builtin bind -x '"\C-_11": __fzf_cd_root'
+builtin bind -x '"\C-_11": __fzf_cd_from_root'
 builtin bind -m vi-insert '"\M-r": "\C-x0\C-_11\C-x1\C-x2\015"'
 builtin bind -m vi-command '"\M-r": "i\C-x0\C-_11\C-x1\C-x2\015"'
 
-# Press Alt-p to jump a parent directory.
-__fzf_cd_parent() {
-  trap '__catch_interrupt' ERR INT TERM QUIT
-  declare directories=()
-  get_parent_directories() {
-    if [[ -d $1 ]]; then directories+=("$1"); else return 1; fi
+# "<M-p>" - change to a parent directory.
+__fzf_cd_to_parent_dir() {
+  local dir
+  dir="$(realpath "${1:-$PWD}")"
+  local directories=()
 
-    if [[ $1 == '/' ]]; then
-      local directory
-      for directory in "${directories[@]}"; do builtin echo "$directory"; done
-    else
-      get_parent_directories "$(dirname "$1")"
-    fi
-  }
+  while [[ "$dir" != "/" ]]; do
+    directories+=("$dir")
+    dir="$(dirname "$dir")"
+  done
+  directories+=("/")
 
-  local selection key directory
-  selection=("$(get_parent_directories "$(realpath "${1:-$PWD}")" |
-    command fzf --height="40%" -0 --tac --no-multi --expect="ctrl-o,ctrl-x,ctrl-v,ctrl-t,ctrl-c")")
-  [[ -n $selection ]] || return 1
-  key="$(command head -1 <<<"$selection")"
-  if [[ $key == "ctrl-c" ]]; then return 127; fi
-  directory="$(command head -2 <<<"$selection" | command tail -1)"
-
-  [[ -d $directory ]] || return 1
-
-  local _command
-  _command="$(__build_cd_command "$key" "$directory")"
-  [[ $? -eq 1 ]] && return 1
-  __ehc "$_command"
-
-  trap '' ERR INT TERM QUIT
+  __fzf_bindings_cd_helper true "${directories[@]}"
 }
-builtin bind -x '"\C-_12": __fzf_cd_parent'
+
+builtin bind -x '"\C-_12": __fzf_cd_to_parent_dir'
 builtin bind -m vi-insert '"\M-P": "\C-x0\C-_12\C-x1\C-x2\015"'
 builtin bind -m vi-command '"\M-P": "i\C-x0\C-_12\C-x1\C-x2\015"'
 
-# Press "Alt-b" to bookmark the current working directory (not stateful across terminals).
-__bookmark() {
+# "<M-b>" - bookmark the <cwd> (not stateful across shell sessions).
+__bookmark_cwd() {
+  local cwd
+  cwd="$(pwd)"
+
   # Return if the directory has already been bookmarked.
-  if builtin dirs -v | command grep -v " 0" | command grep -q -s "$(command pwd)"; then
-    return 1
+  if builtin dirs -p | tail -n +2 | grep -Fxq -- "$cwd"; then
+    __fzf_bindings_set_exit_code || return 1
   fi
 
-  _command="builtin pushd . 2>/dev/null"
-
-  __ehc "$_command"
+  __insert_text_at_cursor "builtin pushd . 2>/dev/null"
 }
-builtin bind -x '"\C-_13": __bookmark'
+builtin bind -x '"\C-_13": __bookmark_cwd'
 builtin bind -m vi-insert '"\M-b": "\C-x0\C-_13\C-x1\C-x2\015"'
 builtin bind -m vi-command '"\M-b": "i\C-x0\C-_13\C-x1\C-x2\015"'
 
-# Press Alt-k to navigate to a bookmarked directory.
-__fzf_goto_bookmark() {
-  trap '__catch_interrupt' ERR INT TERM QUIT
+# "<M-k>" - navigate to a bookmarked directory.
+__fzf_cd_to_bookmarked_dir() {
   local awkcommand
-  if command -v gawk &>/dev/null; then awkcommand="gawk"; else awkcommand="awk"; fi
+  if command -v gawk &>/dev/null; then
+    awkcommand="gawk"
+  else
+    awkcommand="awk"
+  fi
 
-  local selection home
+  local home
   home="$(builtin eval echo ~)"
-  selection=("$(builtin dirs -v |
-    grep -v " 0" |
-    command $awkcommand "{ gsub(/~/, \"${home}\"); print \$2 }" |
-    command fzf --height="40%" -0 --no-multi --expect="ctrl-o,ctrl-x,ctrl-v,ctrl-t,ctrl-c")")
-  [[ -n $selection ]] || return 1
-  local key directory
-  key="$(command head -1 <<<"$selection")"
-  if [[ $key == "ctrl-c" ]]; then return 127; fi
-  directory="$(command head -2 <<<"$selection" | command tail -1)"
 
-  [[ -d $directory ]] || return 1
+  local -a directories
+  mapfile -t directories < <(
+    builtin dirs -v |
+      grep -v " 0" |
+      command $awkcommand "{ gsub(/~/, \"${home}\"); print \$2 }"
+  )
 
-  local _command
-  _command="$(__build_cd_command "$key" "$directory")"
-  [[ $? -eq 1 ]] && return 1
-  __ehc "$_command"
-
-  trap '' ERR INT TERM QUIT
+  __fzf_bindings_cd_helper false "${directories[@]}"
 }
-builtin bind -x '"\C-_14": __fzf_goto_bookmark'
+builtin bind -x '"\C-_14": __fzf_cd_to_bookmarked_dir'
 builtin bind -m vi-insert '"\M-k": "\C-x0\C-_14\C-x1\C-x2\015"'
 builtin bind -m vi-command '"\M-k": "i\C-x0\C-_14\C-x1\C-x2\015"'
