@@ -165,6 +165,7 @@ rubocop_runner() {
 
   bundle exec rubocop \
     --display-time \
+    --extra-details \
     --autocorrect \
     --fail-level autocorrect \
     -- "$file" \
