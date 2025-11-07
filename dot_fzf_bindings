@@ -295,7 +295,7 @@ __fzf_bindings_check_interrupt() {
   return 0
 }
 
-__fzf_verify_file_exists() {
+__fzf_bindings_verify_file_exists() {
   local file="$1"
   # Fail gracefully if file doesn't exist in current branch.
 
@@ -313,7 +313,7 @@ __fzf_verify_file_exists() {
   return 0
 }
 
-__fzf_verify_directory_exists() {
+__fzf_bindings_verify_directory_exists() {
   local directory="$1"
   # Fail gracefully if file doesn't exist in current branch.
 
@@ -359,7 +359,7 @@ __fzf_git_file_open() {
   local file_path="${project_root}/${file}"
   [[ -n $realpath_cmd ]] && file_path="$($realpath_cmd --relative-to="$(pwd)" "$file_path")"
 
-  __fzf_verify_file_exists "$file_path" || return
+  __fzf_bindings_verify_file_exists "$file_path" || return
 
   local cmd
   cmd="$(__build_edit_command -k "$key" -t "$EDITOR_CMD" -f "$file_path")" || {
@@ -551,7 +551,7 @@ __fzf_git_open_file_at_commit() {
     build_args=(-k "$key" -t "$EDITOR_CMD" -f "$file_path" -c "$commit_hash")
   else
     # Fail gracefully if file doesn't exist in current branch.
-    __fzf_verify_file_exists "$file_path" || return
+    __fzf_bindings_verify_file_exists "$file_path" || return
 
     build_args=(-k "$key" -t "git difftool --no-prompt ${commit_hash}" -f "$file_path")
   fi
@@ -735,7 +735,7 @@ __fzf_cd_to_git_dir() {
 
   local directory_path
   directory_path="${project_root}/${dir}"
-  __fzf_verify_directory_exists "$directory_path" || return
+  __fzf_bindings_verify_directory_exists "$directory_path" || return
 
   local cmd
   cmd="$(__build_cd_command_helper "$key" "$directory_path")" || {
@@ -765,7 +765,7 @@ __fzf_cd_below_cwd_including_hidden() {
 
   local directory="${selection[1]}"
   directory_path="$(pwd)/${directory}"
-  __fzf_verify_directory_exists "$directory_path" || return
+  __fzf_bindings_verify_directory_exists "$directory_path" || return
 
   local cmd
   cmd="$(__build_cd_command_helper "$key" "$directory_path")" || {
@@ -795,7 +795,7 @@ __fzf_cd_from_root() {
 
   local directory="${selection[1]}"
   directory_path="$(pwd)/${directory}"
-  __fzf_verify_directory_exists "$directory_path" || return
+  __fzf_bindings_verify_directory_exists "$directory_path" || return
 
   local cmd
   cmd="$(__build_cd_command_helper "$key" "$directory_path")" || {
@@ -840,7 +840,7 @@ __fzf_cd_to_parent_dir() {
   __fzf_bindings_check_interrupt "$key" || return
 
   local directory_path="${selection[1]}"
-  __fzf_verify_directory_exists "$directory_path" || return
+  __fzf_bindings_verify_directory_exists "$directory_path" || return
 
   local cmd
   cmd="$(__build_cd_command_helper "$key" "$directory_path")" || {
@@ -895,7 +895,7 @@ __fzf_cd_to_bookmarked_dir() {
   __fzf_bindings_check_interrupt "$key" || return
 
   local directory_path="${selection[1]}"
-  __fzf_verify_directory_exists "$directory_path" || return
+  __fzf_bindings_verify_directory_exists "$directory_path" || return
 
   local cmd
   cmd="$(__build_cd_command_helper "$key" "$directory_path")" || {
