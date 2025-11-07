@@ -313,6 +313,24 @@ __fzf_verify_file_exists() {
   return 0
 }
 
+__fzf_verify_directory_exists() {
+  local directory="$1"
+  # Fail gracefully if file doesn't exist in current branch.
+
+  local exit_code=1
+
+  [[ -d $directory ]] || {
+    printf "Warning: %s selected directory '%s', which doesn't exist" \
+      "${FUNCNAME[1]}" \
+      "$directory" >&2
+
+    __fzf_bindings_set_exit_code "$exit_code"
+    return "$exit_code"
+  }
+
+  return 0
+}
+
 # "<C-g>f" - open any git-tracked file in the project.
 __fzf_git_file_open() {
   local project_root
@@ -695,173 +713,197 @@ __build_cd_command_helper() {
 }
 
 # "<M-g>" - change to any directory in the project.
-__fzf_cd_git() {
-  trap '__catch_interrupt' ERR INT TERM QUIT
-  if git rev-parse --show-toplevel &>/dev/null; then
-    local proot
-    proot="$(git rev-parse --show-toplevel)"
-  else
-    builtin printf "%s\n" "Git project not detected." 2>&1
-    return 1
-  fi
+__fzf_cd_to_git_dir() {
+  local project_root
+  project_root="$(__fzf_bindings_get_git_root)" || return
 
-  local selection key dir
-  selection=("$(command find -L "$proot" \( -path '*/\.git' -o -fstype dev -o -fstype proc \) -prune \
-    -o -type d -print 2>/dev/null |
-    command sed "s#${proot}/##" |
-    command sed '1d; s#^\./##' |
-    command fzf --height="40%" -0 --no-multi --expect="ctrl-o,ctrl-x,ctrl-v,ctrl-t,ctrl-c")")
-  [[ -n $selection ]] || return 1
-  key="$(command head -1 <<<"$selection")"
-  if [[ $key == "ctrl-c" ]]; then return 127; fi
-  dir="$(command head -2 <<<"$selection" | command tail -1)"
+  local -r fzf_keys="ctrl-o,ctrl-x,ctrl-v,ctrl-t,ctrl-c"
 
-  local path
-  path="${proot}/${dir}"
-  [[ -d $path ]] || return 1
+  local -a selection
+  mapfile -t selection < <(
+    find -L "$project_root" \( -path '*/\.git' -o -fstype dev -o -fstype proc \) -prune \
+      -o -type d -print 2>/dev/null |
+      command sed "s#${project_root}/##" |
+      command sed '1d; s#^\./##' |
+      fzf --height="$FZF_BINDINGS_HEIGHT" -0 --no-multi --expect="$fzf_keys"
+  )
 
-  local _command
-  _command="$(__build_cd_command_helper "$key" "$path")"
-  [[ $? -eq 1 ]] && return 1
-  __insert_text_at_cursor "$_command"
+  local key="${selection[0]}"
+  __fzf_bindings_check_interrupt "$key" || return
 
-  trap '' ERR INT TERM QUIT
+  local directory="${selection[1]}"
+
+  local directory_path
+  directory_path="${project_root}/${dir}"
+  __fzf_verify_directory_exists "$directory_path" || return
+
+  local cmd
+  cmd="$(__build_cd_command_helper "$key" "$directory_path")" || {
+    __fzf_bindings_set_exit_code 1
+    return
+  }
+
+  __insert_text_at_cursor "$cmd"
 }
-builtin bind -x '"\C-_09": __fzf_cd_git'
+builtin bind -x '"\C-_09": __fzf_cd_to_git_dir'
 builtin bind -m vi-insert '"\M-g": "\C-x0\C-_09\C-x1\C-x2\015"'
 builtin bind -m vi-command '"\M-g": "i\C-x0\C-_09\C-x1\C-x2\015"'
 
 # "<M-h>" - change to directory below the <cwd> (including hidden directories).
-__fzf_cd_all() {
-  trap '__catch_interrupt' ERR INT TERM QUIT
-  local selection key dir
+__fzf_cd_below_cwd_including_hidden() {
+  local -r fzf_keys="ctrl-o,ctrl-x,ctrl-v,ctrl-t,ctrl-c"
 
-  selection=("$(command find -L . \( -fstype dev -o -fstype proc \) -prune \
-    -o -type d -print 2>/dev/null |
-    command sed '1d; s#^\./##' |
-    command fzf --height="40%" -0 --no-multi --expect="ctrl-o,ctrl-x,ctrl-v,ctrl-t,ctrl-c")")
-  [[ -n $selection ]] || return 1
-  key="$(command head -1 <<<"$selection")"
-  if [[ $key == "ctrl-c" ]]; then return 127; fi
-  dir="$(command head -2 <<<"$selection" | command tail -1)"
+  local -a selection
+  mapfile -t selection < <(
+    find -L . \( -fstype dev -o -fstype proc \) -prune -o -type d -print 2>/dev/null |
+      command sed '1d; s#^\./##' |
+      fzf --height="$FZF_BINDINGS_HEIGHT" -0 --no-multi --expect="$fzf_keys"
+  )
 
-  path="$(pwd)/${dir}"
-  [[ -d $path ]] || return 1
+  local key="${selection[0]}"
+  __fzf_bindings_check_interrupt "$key" || return
 
-  local _command
-  _command="$(__build_cd_command_helper "$key" "$path")"
-  [[ $? -eq 1 ]] && return 1
-  __insert_text_at_cursor "$_command"
+  local directory="${selection[1]}"
+  directory_path="$(pwd)/${directory}"
+  __fzf_verify_directory_exists "$directory_path" || return
 
-  trap '' ERR INT TERM QUIT
+  local cmd
+  cmd="$(__build_cd_command_helper "$key" "$directory_path")" || {
+    __fzf_bindings_set_exit_code 1
+    return
+  }
+
+  __insert_text_at_cursor "$cmd"
 }
-builtin bind -x '"\C-_10": __fzf_cd_all'
+builtin bind -x '"\C-_10": __fzf_cd_below_cwd_including_hidden'
 builtin bind -m vi-insert '"\M-h": "\C-x0\C-_10\C-x1\C-x2\015"'
 builtin bind -m vi-command '"\M-h": "i\C-x0\C-_10\C-x1\C-x2\015"'
 
 # "<M-r>" - change to directory below the root directory.
-__fzf_cd_root() {
-  trap '__catch_interrupt' ERR INT TERM QUIT
-  local selection key dir
-  selection=("$(command find -L / \( -fstype dev -o -fstype proc \) -prune \
-    -o -type d -print 2>/dev/null |
-    command sed '1d; s#^\./##' |
-    command fzf --height="40%" -0 --no-multi --expect="ctrl-o,ctrl-x,ctrl-v,ctrl-t,ctrl-c")")
-  [[ -n $selection ]] || return 1
-  key="$(command head -1 <<<"$selection")"
-  if [[ $key == "ctrl-c" ]]; then return 127; fi
-  dir="$(command head -2 <<<"$selection" | command tail -1)"
+__fzf_cd_from_root() {
+  local -r fzf_keys="ctrl-o,ctrl-x,ctrl-v,ctrl-t,ctrl-c"
 
-  [[ -d $dir ]] || return 1
+  local -a selection
+  mapfile -t selection < <(
+    find -L / \( -fstype dev -o -fstype proc \) -prune -o -type d -print 2>/dev/null |
+      command sed '1d; s#^\./##' |
+      fzf --height="40%" -0 --no-multi --expect="ctrl-o,ctrl-x,ctrl-v,ctrl-t,ctrl-c"
+  )
 
-  local _command
-  _command="$(__build_cd_command_helper "$key" "$dir")"
-  [[ $? -eq 1 ]] && return 1
-  __insert_text_at_cursor "$_command"
+  local key="${selection[0]}"
+  __fzf_bindings_check_interrupt "$key" || return
 
-  trap '' ERR INT TERM QUIT
+  local directory="${selection[1]}"
+  directory_path="$(pwd)/${directory}"
+  __fzf_verify_directory_exists "$directory_path" || return
+
+  local cmd
+  cmd="$(__build_cd_command_helper "$key" "$directory_path")" || {
+    __fzf_bindings_set_exit_code 1
+    return
+  }
+
+  __insert_text_at_cursor "$cmd"
 }
-builtin bind -x '"\C-_11": __fzf_cd_root'
+builtin bind -x '"\C-_11": __fzf_cd_from_root'
 builtin bind -m vi-insert '"\M-r": "\C-x0\C-_11\C-x1\C-x2\015"'
 builtin bind -m vi-command '"\M-r": "i\C-x0\C-_11\C-x1\C-x2\015"'
 
 # "<M-p>" - change to a parent directory.
-__fzf_cd_parent() {
-  trap '__catch_interrupt' ERR INT TERM QUIT
-  declare directories=()
-  get_parent_directories() {
-    if [[ -d $1 ]]; then directories+=("$1"); else return 1; fi
+__fzf_cd_to_parent_dir() {
+  local -a directories=()
 
-    if [[ $1 == '/' ]]; then
-      local directory
-      for directory in "${directories[@]}"; do builtin echo "$directory"; done
+  get_parent_directories() {
+    local dir="$1"
+
+    [[ -d "$dir" ]] || return 1
+
+    directories+=("$dir")
+
+    if [[ "$dir" == '/' ]]; then
+      local d
+      for d in "${directories[@]}"; do printf "%b\n" "$d"; done
     else
-      get_parent_directories "$(dirname "$1")"
+      get_parent_directories "$(dirname "$dir")"
     fi
   }
 
-  local selection key directory
-  selection=("$(get_parent_directories "$(realpath "${1:-$PWD}")" |
-    command fzf --height="40%" -0 --tac --no-multi --expect="ctrl-o,ctrl-x,ctrl-v,ctrl-t,ctrl-c")")
-  [[ -n $selection ]] || return 1
-  key="$(command head -1 <<<"$selection")"
-  if [[ $key == "ctrl-c" ]]; then return 127; fi
-  directory="$(command head -2 <<<"$selection" | command tail -1)"
+  local -r fzf_keys="ctrl-o,ctrl-x,ctrl-v,ctrl-t,ctrl-c"
 
-  [[ -d $directory ]] || return 1
+  local -a selection
+  mapfile -t selection < <(
+    get_parent_directories "$(realpath "${1:-$PWD}")" |
+      fzf --height="$FZF_BINDINGS_HEIGHT" -0 --tac --no-multi --expect="$fzf_keys"
+  )
 
-  local _command
-  _command="$(__build_cd_command_helper "$key" "$directory")"
-  [[ $? -eq 1 ]] && return 1
-  __insert_text_at_cursor "$_command"
+  local key="${selection[0]}"
+  __fzf_bindings_check_interrupt "$key" || return
 
-  trap '' ERR INT TERM QUIT
+  local directory_path="${selection[1]}"
+  __fzf_verify_directory_exists "$directory_path" || return
+
+  local cmd
+  cmd="$(__build_cd_command_helper "$key" "$directory_path")" || {
+    __fzf_bindings_set_exit_code 1
+    return
+  }
+
+  __insert_text_at_cursor "$cmd"
 }
-builtin bind -x '"\C-_12": __fzf_cd_parent'
+builtin bind -x '"\C-_12": __fzf_cd_to_parent_dir'
 builtin bind -m vi-insert '"\M-P": "\C-x0\C-_12\C-x1\C-x2\015"'
 builtin bind -m vi-command '"\M-P": "i\C-x0\C-_12\C-x1\C-x2\015"'
 
 # "<M-b>" - bookmark the <cwd> (not stateful across shell sessions).
-__bookmark() {
+__bookmark_cwd() {
+  local cwd
+  cwd="$(pwd)"
+
   # Return if the directory has already been bookmarked.
-  if builtin dirs -v | command grep -v " 0" | command grep -q -s "$(command pwd)"; then
-    return 1
+  if builtin dirs -p | tail -n +2 | grep -Fxq -- "$cwd"; then
+    __fzf_bindings_set_exit_code || return
   fi
 
-  _command="builtin pushd . 2>/dev/null"
-
-  __insert_text_at_cursor "$_command"
+  __insert_text_at_cursor "builtin pushd . 2>/dev/null"
 }
-builtin bind -x '"\C-_13": __bookmark'
+builtin bind -x '"\C-_13": __bookmark_cwd'
 builtin bind -m vi-insert '"\M-b": "\C-x0\C-_13\C-x1\C-x2\015"'
 builtin bind -m vi-command '"\M-b": "i\C-x0\C-_13\C-x1\C-x2\015"'
 
 # "<M-k>" - navigate to a bookmarked directory.
 __fzf_cd_to_bookmarked_dir() {
-  trap '__catch_interrupt' ERR INT TERM QUIT
   local awkcommand
-  if command -v gawk &>/dev/null; then awkcommand="gawk"; else awkcommand="awk"; fi
+  if command -v gawk &>/dev/null; then
+    awkcommand="gawk"
+  else
+    awkcommand="awk"
+  fi
 
-  local selection home
+  local home
   home="$(builtin eval echo ~)"
-  selection=("$(builtin dirs -v |
-    grep -v " 0" |
-    command $awkcommand "{ gsub(/~/, \"${home}\"); print \$2 }" |
-    command fzf --height="40%" -0 --no-multi --expect="ctrl-o,ctrl-x,ctrl-v,ctrl-t,ctrl-c")")
-  [[ -n $selection ]] || return 1
-  local key directory
-  key="$(command head -1 <<<"$selection")"
-  if [[ $key == "ctrl-c" ]]; then return 127; fi
-  directory="$(command head -2 <<<"$selection" | command tail -1)"
 
-  [[ -d $directory ]] || return 1
+  local -r fzf_keys="ctrl-o,ctrl-x,ctrl-v,ctrl-t,ctrl-c"
 
-  local _command
-  _command="$(__build_cd_command_helper "$key" "$directory")"
-  [[ $? -eq 1 ]] && return 1
-  __insert_text_at_cursor "$_command"
+  mapfile -t selection < <(
+    builtin dirs -v |
+      grep -v " 0" |
+      command $awkcommand "{ gsub(/~/, \"${home}\"); print \$2 }" |
+      fzf --height="$FZF_BINDINGS_HEIGHT" -0 --no-multi --expect="$fzf_keys"
+  )
 
-  trap '' ERR INT TERM QUIT
+  local key="${selection[0]}"
+  __fzf_bindings_check_interrupt "$key" || return
+
+  local directory_path="${selection[1]}"
+  __fzf_verify_directory_exists "$directory_path" || return
+
+  local cmd
+  cmd="$(__build_cd_command_helper "$key" "$directory_path")" || {
+    __fzf_bindings_set_exit_code 1
+    return
+  }
+
+  __insert_text_at_cursor "$cmd"
 }
 builtin bind -x '"\C-_14": __fzf_cd_to_bookmarked_dir'
 builtin bind -m vi-insert '"\M-k": "\C-x0\C-_14\C-x1\C-x2\015"'
