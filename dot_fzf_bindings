@@ -330,10 +330,6 @@ __fzf_git_file_open() {
   __fzf_bindings_check_interrupt "$key" || return
 
   local file="${selection[1]}"
-  if [[ -z "$file" ]]; then
-    __fzf_bindings_set_exit_code 1
-    return
-  fi
 
   local realpath_cmd
   if command realpath --version &>/dev/null 2>&1; then
