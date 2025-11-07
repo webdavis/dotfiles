@@ -615,7 +615,7 @@ __build_cd_command_helper() {
 
   esac
 
-  (($exit_code)) && {
+  ((exit_code)) && {
     printf "%s\n" "Error [tmux]: Session not detected." >&2
     return 1
   }
