@@ -1,0 +1,11 @@
+root = true
+
+[dot_fzf*]
+indent_style = space
+indent_size = 2
+switch_case_indent = true
+
+[dot_bash*]
+indent_style = space
+indent_size = 2
+switch_case_indent = true

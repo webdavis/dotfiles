@@ -13,6 +13,7 @@ scripts/
 
 # Ignore formatter/linter configs:
 .shellcheckrc
+.editorconfig # shfmt uses EditorConfig as its rc file (so to speak).
 
 # Nix flake files:
 flake.nix
