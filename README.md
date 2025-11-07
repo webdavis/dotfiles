@@ -18,7 +18,7 @@ This repository contains the settings/configs for my computers, managed using
   - [Install](#install)
   - [Usage](#usage)
     - [Enter the Dev Shell](#enter-the-dev-shell)
-    - [Run Commands Adhoc](#run-commands-adhoc)
+    - [Run Commands Ad Hoc](#run-commands-ad-hoc)
   - [Bonus: justfile](#bonus-justfile)
 
 <!-- table-of-contents -->
@@ -119,7 +119,7 @@ For example, once inside this shell you can lint the project's [`dot_Brewfile`](
 bundle exec rubocop dot_Brewfile
 ```
 
-#### Run Commands Adhoc
+#### Run Commands Ad Hoc
 
 Run a single command in a temporary environment without entering the shell:
 
