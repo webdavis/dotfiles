@@ -90,7 +90,7 @@ __build_edit_command() {
       l) line="+${OPTARG}" ;;
       t) tool="${OPTARG}" ;;
       *)
-        builtin printf "%s\n" "Error: Unknown fzf_bindings flag '$OPTARG'. Terminating!"
+        printf "Error: Unknown fzf_bindings flag '%s'. Terminating!\n" "$OPTARG" >&2
         return 1
         ;;
     esac
@@ -151,7 +151,8 @@ __build_edit_command() {
             cmd="start '$file'"
             ;;
           *)
-            printf "%s\n" "Error: Unknown Operating System detected: '${kernel_name}'. Terminating fzf_bindings!" 1>&2
+            printf "Error [%s]: Unknown Operating System detected: '${kernel_name}'." \
+              "${FUNCNAME[1]}" "$kernel_name" >&2
             return 1
             ;;
         esac
@@ -162,28 +163,28 @@ __build_edit_command() {
       ;;
     "ctrl-x")
       if [[ -z $TMUX ]]; then
-        builtin printf "%s\n" "$tmux_error_msg" 2>&1
+        printf "%s\n" "$tmux_error_msg" >&2
         return 1
       fi
       cmd="tmux split-window -v \"${cmd}; exec bash\""
       ;;
     "ctrl-v")
       if [[ -z $TMUX ]]; then
-        builtin printf "%s\n" "$tmux_error_msg" 2>&1
+        printf "%s\n" "$tmux_error_msg" >&2
         return 1
       fi
       cmd="tmux split-window -h \"${cmd}; exec bash\""
       ;;
     "ctrl-t")
       [[ -n $TMUX ]] || {
-        builtin printf "%s\n" "$tmux_error_msg" 2>&1
+        printf "%s\n" "$tmux_error_msg" >&2
         return 1
       }
       cmd="tmux new-window \"${cmd}; exec bash\""
       ;;
   esac
 
-  builtin printf "%s\n" "$cmd"
+  printf "%s\n" "$cmd"
 }
 
 __catch_interrupt() {
@@ -201,11 +202,12 @@ __fzf_bindings_get_git_root() {
   local exit_code=1
 
   if ! root="$(git rev-parse --show-toplevel 2>/dev/null)"; then
-    printf "Warning: '%s' couldn't detect a Git project.\n" "${FUNCNAME[1]}" >&2
-    __fzf_bindings_set_exit_code "$exit_code" || return "$exit_code"
+    printf "Warning [%s]: Couldn't detect a Git project.\n" "${FUNCNAME[1]}" >&2
+    __fzf_bindings_set_exit_code "$exit_code"
+    return "$exit_code"
   fi
 
-  printf '%s' "$root"
+  printf "%s" "$root"
 }
 
 __fzf_bindings_check_interrupt() {
@@ -228,9 +230,8 @@ __fzf_bindings_verify_file_exists() {
   local exit_code=1
 
   [[ -f $file ]] || {
-    printf "Warning: %s selected file '%s', which doesn't exist (in the working branch)" \
-      "${FUNCNAME[1]}" \
-      "$file" >&2
+    printf "Warning [%s]: Selected file '%s', which doesn't exist (in the working branch)" \
+      "${FUNCNAME[1]}" "$file" >&2
 
     __fzf_bindings_set_exit_code "$exit_code"
     return "$exit_code"
@@ -246,9 +247,8 @@ __fzf_bindings_verify_directory_exists() {
   local exit_code=1
 
   [[ -d $directory ]] || {
-    printf "Warning: %s selected directory '%s', which doesn't exist" \
-      "${FUNCNAME[1]}" \
-      "$directory" >&2
+    printf "Warning [%s]: selected directory '%s', which doesn't exist" \
+      "${FUNCNAME[1]}" "$directory" >&2
 
     __fzf_bindings_set_exit_code "$exit_code"
     return "$exit_code"
@@ -375,7 +375,7 @@ __fzf_git_open_file_at_line() {
 
   [[ "$line_number" =~ ^[0-9]+$ ]] || {
     printf "Error [%s]: Invalid line number '%s'. Must be a numeric value. Aborting.\n" \
-      "${FUNCNAME[0]}" "$line_number"
+      "${FUNCNAME[0]}" "$line_number" >&2
     __fzf_bindings_set_exit_code 1
     return
   }
@@ -665,21 +665,22 @@ __build_cd_command_helper() {
   key="$1"
   directory="$2"
 
-  local executable _return=0
+  local executable exit_code=0
   case $key in
     "ctrl-o") executable="${OPENER} ${directory} &" ;;
-    "ctrl-x") if [[ -n $TMUX ]]; then executable="tmux split-window -v -c ${directory}"; else _return=1; fi ;;
-    "ctrl-v") if [[ -n $TMUX ]]; then executable="tmux split-window -h -c ${directory}"; else _return=1; fi ;;
-    "ctrl-t") if [[ -n $TMUX ]]; then executable="tmux new-window -c ${directory}"; else _return=1; fi ;;
-    *) executable="builtin cd -- ${directory}" ;;
+    "ctrl-x") if [[ -n $TMUX ]]; then executable="tmux split-window -v -c ${directory}"; else exit_code=1; fi ;;
+    "ctrl-v") if [[ -n $TMUX ]]; then executable="tmux split-window -h -c ${directory}"; else exit_code=1; fi ;;
+    "ctrl-t") if [[ -n $TMUX ]]; then executable="tmux new-window -c ${directory}"; else exit_code=1; fi ;;
+    *) executable="builtin cd -- \"${directory}\"" ;;
 
   esac
 
-  [[ $_return -eq 1 ]] && {
-    builtin printf "%s\n" "tmux: Tmux session not detected." 2>&1
+  (($exit_code)) && {
+    printf "%s\n" "Error [tmux]: Session not detected." >&2
     return 1
   }
-  builtin echo "$executable"
+
+  printf "%s" "$executable"
 }
 
 # "<M-g>" - change to any directory in the project.
