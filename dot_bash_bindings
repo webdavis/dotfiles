@@ -286,8 +286,8 @@ builtin bind -m vi-command '"\C-gpr": "i\C-x0git push origin :"'
 
 # gh browse
 builtin bind -x '"\C-_I": "gh browse"'
-builtin bind -m vi-insert '"\C-gO": "\C-x0\C-_I\C-x1\C-x2\b"'
-builtin bind -m vi-command '"\C-gO": "i\C-x0\C-_I\C-x1\C-x2\b"'
+builtin bind -m vi-insert '"\C-goo": "\C-x0\C-_I\C-x1\C-x2\b"'
+builtin bind -m vi-command '"\C-goo": "i\C-x0\C-_I\C-x1\C-x2\b"'
 
 # gh issue list --web
 builtin bind -x '"\C-_K": "gh issue list --web"'
