@@ -144,11 +144,11 @@ shfmt_runner() {
   return "$status"
 }
 
-run_10_shfmt() {
+run_20_shfmt() {
   execute_runner find_shell_files shfmt_runner || return "$?"
 }
 
-run_20_shellcheck() {
+run_10_shellcheck() {
   execute_runner find_shell_files shellcheck || return "$?"
 }
 
@@ -183,8 +183,8 @@ parse_cli_options() {
   local optstring=":sS"
   while getopts "$optstring" option "${cli_options[@]}"; do
     case "$option" in
-      s) pco_runners+=("run_shellcheck") ;;
-      S) pco_runners+=("run_shfmt") ;;
+    s) pco_runners+=("run_10_shellcheck") ;;
+    S) pco_runners+=("run_20_shfmt") ;;
       c) ci_mode=true ;;
       *)
         printf "%s\n" "Error: invalid option '$OPTARG'" >&2
