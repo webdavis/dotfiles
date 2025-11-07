@@ -17,8 +17,8 @@ This repository contains the settings/configs for my computers, managed using
 - [Development Environment](#development-environment)
   - [Install](#install)
   - [Usage](#usage)
-    - [1. Enter the Dev Shell](#1-enter-the-dev-shell)
-    - [2. Run Commands Adhoc](#2-run-commands-adhoc)
+    - [Enter the Dev Shell](#enter-the-dev-shell)
+    - [Run Commands Adhoc](#run-commands-adhoc)
   - [Bonus: justfile](#bonus-justfile)
 
 <!-- table-of-contents -->
@@ -104,7 +104,7 @@ curl -fsSL https://install.determinate.systems/nix | sh -s -- install
 
 You have two options for using the flake environment:
 
-#### 1. Enter the Dev Shell
+#### Enter the Dev Shell
 
 Drop into a persistent development shell with all tools provisioned by the flake:
 
@@ -119,7 +119,7 @@ For example, once inside this shell you can lint the project's [`dot_Brewfile`](
 bundle exec rubocop dot_Brewfile
 ```
 
-#### 2. Run Commands Adhoc
+#### Run Commands Adhoc
 
 Run a single command in a temporary environment without entering the shell:
 
