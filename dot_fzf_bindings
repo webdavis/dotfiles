@@ -251,7 +251,7 @@ __fzf_bindings_verify_directory_exists() {
   return 0
 }
 
-__fzf_bindings_select_file() {
+__fzf_bindings_open_file() {
   local dir="${1:-$PWD}"
   local preview="${2:-}"
 
@@ -287,7 +287,7 @@ __fzf_bindings_select_file() {
 
 # "<C-x><C-x>" open a file below the <cwd>.
 __fzf_open_file() {
-  __fzf_bindings_select_file "$PWD"
+  __fzf_bindings_open_file
 }
 builtin bind -x '"\C-_00": __fzf_open_file'
 builtin bind -m vi-insert '"\C-x\C-x": "\C-x0\C-_00\C-x1\C-x2\015"'
@@ -297,7 +297,7 @@ builtin bind -m vi-command '"\C-x\C-x": "i\C-x0\C-_00\C-x1\C-x2\015"'
 __fzf_open_home_file() {
   local home
   home="$(builtin eval echo ~)"
-  __fzf_bindings_select_file "$HOME" 'head -n 20 {}'
+  __fzf_bindings_open_file "$home"
 }
 builtin bind -x '"\C-_06": __fzf_open_home_file'
 builtin bind -m vi-insert '"\C-xh": "\C-x0\C-_06\C-x1\C-x2\015"'
@@ -305,7 +305,7 @@ builtin bind -m vi-command '"\C-xh": "i\C-x0\C-_06\C-x1\C-x2\015"'
 
 # "<C-x>/" - open a file below the root (/) directory.
 __fzf_open_root_file() {
-  __fzf_bindings_select_file "/" 'head -n 20 {}'
+  __fzf_bindings_open_file "/"
 }
 builtin bind -x '"\C-_07": __fzf_open_root_file'
 builtin bind -m vi-insert '"\C-x/": "\C-x0\C-_07\C-x1\C-x2\015"'
