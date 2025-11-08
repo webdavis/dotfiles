@@ -4,3 +4,4 @@
 ## Ignore Ruby project dependencies.
 vendor/**
 .vendor/**
+.ruby-lsp/**
