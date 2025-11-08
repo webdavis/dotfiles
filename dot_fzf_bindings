@@ -252,19 +252,20 @@ __fzf_bindings_verify_directory_exists() {
 }
 
 __fzf_bindings_open_file() {
-  local dir="${1:-$PWD}"
-  local preview="${2:-}"
+  local starting_directory="${1:-.}"
+  local hidden=${2:-true}
+  local preview="${3:-head -n 20 {}}"
 
-  # Build the find command if not using current directory files
-  local find_cmd=("find" "$dir" "-maxdepth" "1" "-type" "f")
-  if [[ -n "$preview" ]]; then
-    # Include hidden files
-    find_cmd+=("-name" ".*" "-o" "-type" "f" "-print")
-  fi
+  local -a find_cmd=("find" "$starting_directory" "-type" "f")
+
+  [[ $hidden == true ]] && find_cmd+=("-name" ".*" "-print")
+
+  case "$starting_directory" in / | "$HOME") find_cmd+=("-maxdepth" "2") ;; esac
 
   local -a selection
   mapfile -t selection < <(
     "${find_cmd[@]}" |
+      sed 's|^\./||' |
       fzf -0 \
         --height="$FZF_BINDINGS_HEIGHT" \
         --expect="$FZF_BINDINGS_KEYS_OPEN" \
