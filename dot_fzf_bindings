@@ -698,10 +698,11 @@ builtin bind -m vi-command '"\M-h": "i\C-x0\C-_10\C-x1\C-x2\015"'
 __fzf_cd_from_root() {
   local -a directories
   mapfile -t directories < <(
-    find -L / \
+    find / \
       \( -fstype dev -o -fstype proc \) -prune \
-      -o -type d -print 2>/dev/null |
-      sed '1d; s#^\./##'
+      -o -type d -print \
+      -maxdepth 3 \
+      2>/dev/null
   )
 
   __fzf_bindings_cd_helper false "${directories[@]}"
