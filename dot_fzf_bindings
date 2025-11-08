@@ -400,7 +400,7 @@ builtin bind -m vi-command '"\C-gf": "i\C-x0\C-_15\C-x1\C-x2\015"'
 
 # "<C-g>F" - open *any* file in a git project (tracked + untracked + ignored).
 __fzf_git_open_any_file() {
-  local git_ls_file_args=("--cached" "--others" "--exclude-standard=false")
+  local git_ls_file_args=("--cached" "--others" "--exclude-standard")
   __fzf_bindings_select_git_file "${git_ls_file_args[@]}"
 }
 builtin bind -x '"\C-_01": __fzf_git_open_any_file'
