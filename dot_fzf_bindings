@@ -209,7 +209,7 @@ __fzf_bindings_check_interrupt() {
 
   local interrupt_code=127
 
-  if [[ "$key" == "ctrl-c" ]]; then
+  if [[ $key == "ctrl-c" ]]; then
     __fzf_bindings_set_exit_code "$interrupt_code"
     return "$interrupt_code"
   fi
@@ -329,7 +329,7 @@ __fzf_git_open_file_at_line() {
   local file line_number
   IFS=: read -r file line_number _ <<<"${selection[1]}"
 
-  [[ "$line_number" =~ ^[0-9]+$ ]] || {
+  [[ $line_number =~ ^[0-9]+$ ]] || {
     printf "Error [%s]: Invalid line number '%s'. Must be a numeric value. Aborting.\n" \
       "${FUNCNAME[0]}" "$line_number" >&2
     __fzf_bindings_set_exit_code 1
@@ -460,7 +460,7 @@ __fzf_git_checkout_commit() {
   local key="${selection[0]}"
   __fzf_bindings_check_interrupt "$key" || return 1
 
-  [[ "${selection[1]}" =~ $FZF_BINDINGS_GIT_HASH_REGEX ]] || {
+  [[ ${selection[1]} =~ $FZF_BINDINGS_GIT_HASH_REGEX ]] || {
     __fzf_bindings_set_exit_code 1
     return 1
   }
@@ -704,7 +704,7 @@ __fzf_cd_to_parent_dir() {
   dir="$(realpath "${1:-$PWD}")"
   local directories=()
 
-  while [[ "$dir" != "/" ]]; do
+  while [[ $dir != "/" ]]; do
     directories+=("$dir")
     dir="$(dirname "$dir")"
   done
