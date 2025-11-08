@@ -186,6 +186,15 @@ __build_edit_command() {
   printf "%s\n" "$cmd"
 }
 
+__fzf_bindings_trim_whitespace() {
+  local var="$1"
+
+  var="${var#"${var%%[![:space:]]*}"}" # Remove leading whitespace.
+  var="${var%"${var##*[![:space:]]}"}" # Remove trailing whitespace.
+
+  printf '%s' "$var"
+}
+
 __fzf_bindings_set_exit_code() {
   FZF_BINDINGS_EXIT_CODE=$1
   return "$FZF_BINDINGS_EXIT_CODE"
@@ -493,8 +502,7 @@ __fzf_git_checkout_branch() {
   local -a selection
   mapfile -t selection < <(
     git branch |
-      fzf --height="$FZF_BINDINGS_HEIGHT" -0 --expect="$FZF_BINDINGS_KEYS_GIT_CHECKOUT" |
-      tr -d "[:space:]"
+      fzf --height="$FZF_BINDINGS_HEIGHT" -0 --expect="$FZF_BINDINGS_KEYS_GIT_CHECKOUT"
   )
 
   local key="${selection[0]}"
@@ -505,8 +513,11 @@ __fzf_git_checkout_branch() {
     return 1
   }
 
+  local git_branch
+  git_branch="$(__fzf_bindings_trim_whitespace "${selection[1]}")"
+
   local cmd
-  cmd="$(__build_edit_command -k "$key" -c "${selection[1]}")" || {
+  cmd="$(__build_edit_command -k "$key" -c "$git_branch")" || {
     __fzf_bindings_set_exit_code 1
     return 1
   }
