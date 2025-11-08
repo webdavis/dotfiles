@@ -717,11 +717,20 @@ __fzf_cd_to_parent_dir() {
   dir="$(realpath "${1:-$PWD}")"
   local directories=()
 
-  while [[ $dir != "/" ]]; do
-    directories+=("$dir")
-    dir="$(dirname "$dir")"
-  done
-  directories+=("/")
+  collect_parent_directories() {
+    local current="$1"
+
+    current="$(dirname "$current")"
+    while [[ $current != "/" ]]; do
+      echo "$current"
+      current="$(dirname "$current")"
+    done
+    echo "/"
+  }
+
+  IFS=$'\n' read -r -d '' -a directories < <(collect_parent_directories "$dir")
+
+  [[ ${#directories[@]} -eq 0 ]] && return 0
 
   __fzf_bindings_cd_helper true "${directories[@]}"
 }
