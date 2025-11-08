@@ -4,7 +4,7 @@
 
 export FZF_BINDINGS_EXIT_CODE=0
 export FZF_BINDINGS_GIT_LOG_LIMIT=500
-export FZF_BINDINGS_GIT_HASH_REGEX='^[0-9A-F]{7,40}'
+export FZF_BINDINGS_GIT_HASH_REGEX='^[0-9a-f]{7,40}'
 export FZF_BINDINGS_HEIGHT='40%'
 export FZF_BINDINGS_KEYS_GIT_CHECKOUT="ctrl-x,ctrl-v,ctrl-t,ctrl-c"
 export FZF_BINDINGS_KEYS_OPEN="ctrl-o,ctrl-x,ctrl-v,ctrl-t,ctrl-s,alt-c,ctrl-c"
