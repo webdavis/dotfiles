@@ -1,18 +1,13 @@
 # shellcheck shell=bash
 # vi:filetype=sh shiftwidth=2 softtabstop=2 tabstop=8:
 
-# ┏━━━━━━━━━━━━━━━━━━━━━━━━┓
-# ┃    Helper Functions    ┃
-# ┗━━━━━━━━━━━━━━━━━━━━━━━━┛
+# ┏━━━━━━━━━━━━━━━━━━━━┓
+# ┃  Helper Functions  ┃
+# ┗━━━━━━━━━━━━━━━━━━━━┛
 
-# This function can be called to prepend things to the path. Taken from here:
-# https://unix.stackexchange.com/a/124447.
-#
-# Sample usage:
-#
-# path_prepend ~/foo/bin
-# export PATH
-#
+# Usage:
+#    $ path_prepend ~/foo/bin
+#    $ export PATH
 function path_prepend() {
   local dir="$1"
 
@@ -25,10 +20,9 @@ function path_prepend() {
   fi
 }
 
-# ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-# ┃    Global Environment Variables & Settings    ┃
-# ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-
+# ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+# ┃  Global Environment Variables & Settings  ┃
+# ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 EDITOR="$(which nvim)" && export EDITOR
 export BASH_SILENCE_DEPRECATION_WARNING=1
 export MANPAGER="nvim +Man!"
@@ -41,92 +35,56 @@ export XDG_CONFIG_HOME="$HOME/.config"
 # flow control. (A detailed explanation can be found at https://stackoverflow.com/questions/791765
 stty -ixon
 
-# ┏━━━━━━━━━━━━━━━━━━━━━━━━┓
-# ┃   3rd Party Tooling    ┃
-# ┗━━━━━━━━━━━━━━━━━━━━━━━━┛
+# ┏━━━━━━━━━━━━━━━━━━━━━┓
+# ┃  3rd Party Tooling  ┃
+# ┗━━━━━━━━━━━━━━━━━━━━━┛
 
-# Direnv
-# ————————————————
-# Ref: https://github.com/direnv/direnv
+# Direnv - [Ref: https://github.com/direnv/direnv]
+eval "$(direnv hook bash)" # Sets the Direvn hook.
 
-# Set the Direvn hook
-eval "$(direnv hook bash)"
-
-# Just
-# ————————————————————
-# Ref: https://github.com/casey/just
-
-# Just completions setup.
-# Ref: https://github.com/casey/just?tab=readme-ov-file#shell-alias
+# Just - [Ref: https://github.com/casey/just]
 [[ -s "$HOME/.bash_just_completions" ]] && . "$HOME/.bash_just_completions"
+# Ref: https://github.com/casey/just?tab=readme-ov-file#shell-alias
 alias j='just'
 complete -F _just -o bashdefault -o default j
 
 # Git & GitHub stuff
-# ————————————————————
-# Git client completions.
 [[ -s "$HOME/.git-completion.bash" ]] && . "$HOME/.git-completion.bash"
 
-# GitHub CLI: enable completions for interacting with GitHub
-eval "$(gh completion -s bash)"
+eval "$(gh completion -s bash)" # GitHub CLI
 
-# Kitty (terminal)
-# ————————————————————
-# Ref: https://github.com/kovidgoyal/kitty
-
-# BEGIN_KITTY_SHELL_INTEGRATION
-if test -n "$KITTY_INSTALLATION_DIR" -a -e "$KITTY_INSTALLATION_DIR/shell-integration/bash/kitty.bash"; then source "$KITTY_INSTALLATION_DIR/shell-integration/bash/kitty.bash"; fi
-# END_KITTY_SHELL_INTEGRATION
-
-# Starship
-# ————————————————————
-# Ref: https://starship.rs/
-
-# Enable the Starship prompt.
+# Starship - [Ref: https://starship.rs/]
 eval "$(starship init bash)"
 
-# Cargo
-# ————————————————————
-# Ref: https://github.com/rust-lang/cargo
-
-# Cargo environment setup.
+# Cargo - [Ref: https://github.com/rust-lang/cargo]
 . "$HOME/.cargo/env"
 
-# TMS (Tmux Sessionizer)
-# ————————————————————————
-export TMS_CONFIG_FILE="$HOME/.config/tms/config.toml"
+# Zoxide - [Ref: https://github.com/ajeetdsouza/zoxide]
+eval "$(zoxide init bash)"
+alias cd='z'
 
-# ┏━━━━━━━━━━━━━━━━━━━━┓
-# ┃    Python Stuff    ┃
-# ┗━━━━━━━━━━━━━━━━━━━━┛
+##
+# NVM (Node Version Manager)
+# ———————————————————————————
+# Credit: https://www.newline.co/@Adele/how-to-install-nodejs-and-npm-on-macos--22782681#3-using-nvm-to-install-and-update-nodejs-recommended
+# Troubleshooting: https://github.com/nvm-sh/nvm#macos-troubleshooting
+#
+# Usage:
+#    $ nvm use node                 # → initialize Node
+#    $ nvm exec 4.2 node --version  # → Run node on a specific version
+##
+[ -s "$HOME/.nvm/nvm.sh" ] && \. "$HOME/.nvm/nvm.sh"
+[ -s "$HOME/.nvm/bash_completion" ] && \. "$HOME/.nvm/bash_completion"
 
-# Pyenv
-# ————————————————————
-# Ref: https://github.com/pyenv/pyenv
-# Load pyenv (Python Environment Manager) shims into shell path.
-export PYENV_ROOT="$HOME/.pyenv"
-PYENV_BIN="$PYENV_ROOT/bin"
-[[ -d $PYENV_BIN ]] && path_prepend "$PYENV_BIN"
-eval "$(pyenv init -)"
+# SKDMan - [Ref: https://sdkman.io/]
+export SDKMAN_DIR="$HOME/.sdkman"
+sdkman_init="$SDKMAN_DIR/bin/sdkman-init.sh"
+[[ -s $sdkman_init ]] || curl -s "https://get.sdkman.io" | bash
+. "$sdkman_init"
 
-# Poetry
-# ————————————————————
-# Ref: https://github.com/python-poetry/poetry
-# Set Poetry configuration. See https://python-poetry.org/docs/configuration
-export POETRY_VIRTUALENVS_IN_PROJECT=true
-
-# ┏━━━━━━━━━━━━┓
-# ┃    Tmux    ┃
-# ┗━━━━━━━━━━━━┛
-# Ref: https://github.com/tmux/tmux
-
-path_prepend "$HOME/.tmux/plugins/tmuxifier/bin"
-eval "$(tmuxifier init -)"
-
-# ┏━━━━━━━━━━━━━━━━━━━━┓
-# ┃    Bash History    ┃
-# ┗━━━━━━━━━━━━━━━━━━━━┛
-
+# ┏━━━━━━━━━━━━━━━━┓
+# ┃  Bash History  ┃
+# ┗━━━━━━━━━━━━━━━━┛
 # After each command, save and reload history.
 export PROMPT_COMMAND="history -a; history -c; history -r; ${PROMPT_COMMAND}"
 
@@ -140,60 +98,51 @@ export HISTCONTROL=ignoredups:erasedups:ignorespace
 bash_secrets="$HOME/.bash_secrets"
 [[ -s $bash_secrets ]] && . "$bash_secrets"
 
-# ┏━━━━━━━━━━━━━━┓
-# ┃    SDKMan    ┃
-# ┗━━━━━━━━━━━━━━┛
-# Ref: https://sdkman.io/
-
-# ⚠️ THIS MUST BE NEAR THE END OF THE FILE FOR SDKMAN TO WORK!!!
-export SDKMAN_DIR="$HOME/.sdkman"
-sdkman_init="$SDKMAN_DIR/bin/sdkman-init.sh"
-if [[ ! -s $sdkman_init ]]; then
-  curl -s "https://get.sdkman.io" | bash
-fi
-[[ -s $sdkman_init ]] && . "$sdkman_init"
-
-# ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-# ┃    NVM (Node Version Manager)    ┃
-# ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-# Credit: https://www.newline.co/@Adele/how-to-install-nodejs-and-npm-on-macos--22782681#3-using-nvm-to-install-and-update-nodejs-recommended
-# Troubleshooting: https://github.com/nvm-sh/nvm#macos-troubleshooting
-
-# Usage
-# ————————————————————
-#  $ nvm use node                 # → initialize Node
-#  $ nvm exec 4.2 node --version  # → Run node on a specific version
-
-# Load NVM
-[ -s "$HOME/.nvm/nvm.sh" ] && \. "$HOME/.nvm/nvm.sh"
-
-# Load NVM Bash completions
-[ -s "$HOME/.nvm/bash_completion" ] && \. "$HOME/.nvm/bash_completion"
-
-# ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-# ┃    Local & User Configs    ┃
-# ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-
-# Source local bash files.
+# ┏━━━━━━━━━━━━━━━━━━━━━━━━┓
+# ┃  Local & User Configs  ┃
+# ┗━━━━━━━━━━━━━━━━━━━━━━━━┛
 [[ -s "$HOME/.bash_bindings" ]] && . "$HOME/.bash_bindings"
 [[ -s "$HOME/.bash_completions" ]] && . "$HOME/.bash_completions"
 [[ -s "$HOME/.fzf.bash" ]] && . "$HOME/.fzf.bash" # Fzf is hosted at https://github.com/junegunn/fzf/tree/master/shell.
 [[ -s "$HOME/.fzf_bindings" ]] && . "$HOME/.fzf_bindings"
-
-# Depending on the OS, different bashrc_local files will be used (managed by rcup).
 [[ -s "$HOME/.bashrc_local" ]] && . "$HOME/.bashrc_local"
 
-# Local (user-level) scripts.
-# Order matters! These .local/bin tools should always take precedence in my environment.
+# Order matters! These local (user-level) tools should always take precedence in my environment.
 path_prepend "$HOME/.local/bin"
 
-# Zoxide
-# ————————————————————
-# Ref: https://github.com/ajeetdsouza/zoxide
-
-# Enable `z` as an intelligent `cd` replacement.
-eval "$(zoxide init bash)"
-
-# ⚠️ Keep this as the last line. Updates the PATH in the shell environment!!!
-# Write updated PATH to shell environment.
+# ⚠️ Keep this as the last line. Writes the updated PATH to the Bash `env`.
 export PATH
+
+# ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+# ┃  Tmux: Config / Auto-start Session(s)  ┃
+# ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+# TMS (Tmux Sessionizer) - [Ref: https://github.com/jrmoulton/tmux-sessionizer]
+export TMS_CONFIG_FILE="$HOME/.config/tms/config.toml"
+
+case $- in
+  *i*) ;;      # interactive terminal session, continue
+  *) return ;; # non-interactive terminal session, exit
+esac
+
+# Skip if tmux isn't installed or already in a session.
+command -v tmux >/dev/null 2>&1 || return
+[[ -n $TMUX ]] && return
+
+# Do not interfere with non-interactive remote commands (ssh host 'cmd').
+[[ -n ${SSH_ORIGINAL_COMMAND:-} ]] && return
+
+# Skip tmux for VS Code Remote SSH connections (prevents OOM from multiple background sessions).
+[[ -n ${VSCODE_INJECTION:-} ]] && return
+
+# Skip tmux for VS Code integrated terminals.
+[[ ${TERM_PROGRAM:-} == "vscode" ]] && return
+
+# Restore last tmux session or start
+tmux_resurrect_data="$HOME/.tmux/resurrect/last"
+tmux_refresh="$HOME/.local/bin/tmux-refresh.sh"
+if [[ -f $tmux_resurrect_data ]]; then
+  tmux source-file "$tmux_resurrect_data"
+elif [[ -f $tmux_refresh ]]; then
+  "$tmux_refresh"
+fi
