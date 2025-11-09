@@ -6,6 +6,9 @@
 # └──────────────────┘
 alias ping='ping --apple-time'
 alias bu='brew upgrade --formula'
+alias cp='cp -i'
+alias mv='mv -i'
+alias rm='trash'
 alias ls='ls -G'
 alias bat='bat --color=always'
 alias tree='tree -C'
@@ -14,7 +17,6 @@ alias tmux-purge-resurrect-session-data='rm -f .tmux/resurrect/last .tmux/resurr
 alias p='python3'
 alias git-weekly='git diff --name-status "@{7 days ago}" | sort -u | grep -v "Templates" > weekly-review-files.md'
 alias path='echo $PATH | tr ":" "\n"'
-alias cd='z'
 alias t='tmuxinator Homelab'
 alias fman='compgen -c | fzf | xargs man'
 
