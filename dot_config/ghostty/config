@@ -42,7 +42,7 @@ font-feature  = -liga
 
 # Appearance
 # =============
-theme             = "GitHub Dark Dimmed"
+theme             = "dark:GitHub Dark Dimmed,light:GitHub Light Default"
 link-url          = true
 link-previews     = true
 cursor-style      = block
