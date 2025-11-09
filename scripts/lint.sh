@@ -15,7 +15,6 @@ track_runner_exit_codes() {
   EXIT_CODES=(
     [shellcheck]=0
     [shfmt]=0
-    [rubocop]=0
     [mdformat]=0
     [nixfmt]=0
   )
@@ -169,28 +168,6 @@ run_20_shfmt() {
   execute_runner find_shell_files shfmt_runner || return "$?"
 }
 
-find_ruby_files() {
-  printf "%b" "dot_Brewfile"
-}
-
-rubocop_runner() {
-  local file="$1"
-
-  local ignore_message="Source locally installed gems"
-
-  bundle exec rubocop \
-    --display-time \
-    --extra-details \
-    --autocorrect \
-    --fail-level autocorrect \
-    -- "$file" \
-    2> >(grep -v "$ignore_message" >&2) || return "$?"
-}
-
-run_30_rubocop() {
-  execute_runner find_ruby_files rubocop_runner || return "$?"
-}
-
 find_markdown_files() {
   find . \
     -type d \( -name ".git" -o -regex ".*/\.?vendor" \) -prune \
@@ -238,7 +215,6 @@ parse_cli_options() {
       c) ci_mode=true ;;
       s) pco_runners+=("run_10_shellcheck" "run_11_shellcheck_templates") ;;
       S) pco_runners+=("run_20_shfmt") ;;
-      r) pco_runners+=("run_30_rubocop") ;;
       m) pco_runners+=("run_40_mdformat") ;;
       n) pco_runners+=("run_50_nixfmt") ;;
       *)
