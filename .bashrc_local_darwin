@@ -18,15 +18,6 @@ alias cd='z'
 alias t='tmuxinator Homelab'
 alias fman='compgen -c | fzf | xargs man'
 
-function y() {
-  local tmp cwd
-  tmp="$(mktemp -t "yazi-cwd.XXXXXX")"
-  yazi "$@" --cwd-file="$tmp"
-  IFS= read -r -d '' cwd <"$tmp"
-  [[ -n "$cwd" ]] && [[ "$cwd" != "$PWD" ]] && builtin cd -- "$cwd" || return 1
-  rm -f -- "$tmp"
-}
-
 # ┌ Ruby ────────────────────────────────────────────────────┐
 # │                                                          │
 # │  Ref: https://github.com/rbenv/rbenv                     │
