@@ -21,17 +21,13 @@ alias t='tmuxinator Homelab'
 alias fman='compgen -c | fzf | xargs man'
 
 # ┌ Ruby ────────────────────────────────────────────────────┐
-# │                                                          │
 # │  Ref: https://github.com/rbenv/rbenv                     │
 # │  Added by `rbenv init` on: Sun, 2025-10-19 13:37:56 MDT  │
-# │                                                          │
 # └──────────────────────────────────────────────────────────┘
 eval "$(rbenv init - --no-rehash bash)"
 
 # ┌ Homebrew ───────────────┐
-# │                         │
 # │  Ref: https://brew.sh/  │
-# │                         │
 # └─────────────────────────┘
 HOMEBREW_PREFIX='/opt/homebrew'
 
@@ -39,7 +35,7 @@ export SHELL="${HOMEBREW_PREFIX}/bin/bash"
 
 # General Bash completions.
 bash_completion="${HOMEBREW_PREFIX}/opt/bash-completion@2/etc/profile.d/bash_completion.sh"
-[[ -r "$bash_completion" ]] && . "$bash_completion"
+[[ -r $bash_completion ]] && . "$bash_completion"
 
 # Configure updated curl for macOS.
 path_prepend "${HOMEBREW_PREFIX}/opt/curl/bin"
@@ -57,9 +53,7 @@ path_prepend "$HOME/.pyenv/versions/3.12.0/bin"
 export MANPATH="${HOMEBREW_PREFIX}/share/man:${MANPATH}"
 
 # ┌ Nix ───────────────────────────────────────────────────────┐
-# │                                                            │
 # │  Ref: https://github.com/DeterminateSystems/nix-installer  │
-# │                                                            │
 # └────────────────────────────────────────────────────────────┘
 nix_daemon='/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh'
-[[ -e "$nix_daemon" ]] && . "$nix_daemon"
+[[ -e $nix_daemon ]] && . "$nix_daemon"
