@@ -15,5 +15,8 @@ jobs:
       - name: Install Upstream Nix using the Nix Installer from Determinate Systems
         uses: DeterminateSystems/nix-installer-action@main
 
+      - name: Run Nix flake checks for all platforms
+        run: nix flake check --all-systems
+
       - name: Lint project files
         run: nix develop .#adhoc --command ./scripts/lint.sh -c
