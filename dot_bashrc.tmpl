@@ -102,11 +102,14 @@ eval "$(starship init bash)"
 # Ruby: https://github.com/rbenv/rbenv, Added: Sun, 2025-10-19 13:37:56 MDT
 eval "$(rbenv init - --no-rehash bash)"
 
-# SKDMan - [Ref: https://sdkman.io/]
-export SDKMAN_DIR="$HOME/.sdkman"
-sdkman_init="$SDKMAN_DIR/bin/sdkman-init.sh"
-[[ -s $sdkman_init ]] || curl -s "https://get.sdkman.io" | bash
-. "$sdkman_init"
+# Java via SKDMan: https://sdkman.io/]
+JAVA_HOME="$HOME/.sdkman/candidates/java/current"
+# Attempt to install if it isn't present. (TODO: this should probably be moved somewhere else.)
+[[ -d $JAVA_HOME ]] || curl -s "https://get.sdkman.io" | bash
+if [[ -d $JAVA_HOME ]]; then
+  export JAVA_HOME
+  path_prepend "$JAVA_HOME/bin"
+fi
 
 # Just: https://github.com/casey/just
 [[ -s "$HOME/.bash_just_completions" ]] && . "$HOME/.bash_just_completions"
