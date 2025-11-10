@@ -30,6 +30,7 @@
         baseShell = pkgs.mkShell {
           buildInputs = [
             nixfmt
+            pkgs.chezmoi
             (pkgs.python312.withPackages (
               ps: with ps; [
                 mdformat
