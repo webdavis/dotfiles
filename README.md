@@ -73,7 +73,8 @@ Add files like so:
 chezmoi add <FILE>
 ```
 
-Chezmoi supports templating using Golang templates. Always edit template files using this abstraction:
+Chezmoi supports templating using Golang [text/templates](https://pkg.go.dev/text/template). Always edit
+template files using this abstraction:
 
 ```bash
 chezmoi edit <FILE>
@@ -112,11 +113,11 @@ Drop into a persistent development shell with all tools provisioned by the flake
 nix develop
 ```
 
-For example, once inside this shell you can lint the project's [`dot_Brewfile`](./dot_Brewfile) with
-[RuboCop](https://github.com/rubocop/rubocop) by running Bundler directly:
+For example, once inside this shell you can lint this README by running
+[Mdformat](https://github.com/hukkin/mdformat) directly:
 
 ```bash
-bundle exec rubocop dot_Brewfile
+mdformat README.md
 ```
 
 #### Run Commands Ad Hoc
@@ -130,7 +131,7 @@ nix develop .#adhoc --command ./scripts/lint.sh
 > [!TIP]
 >
 > You can replace `./scripts/lint.sh` with any command you want to execute inside the development
-> environment (e.g. `bundle exec rubocop dot_Brewfile`).
+> environment (e.g. `mdformat README.md`).
 
 ### Bonus: justfile
 

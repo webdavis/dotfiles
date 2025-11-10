@@ -15,7 +15,6 @@ track_runner_exit_codes() {
   EXIT_CODES=(
     [shellcheck]=0
     [shfmt]=0
-    [rubocop]=0
     [mdformat]=0
     [nixfmt]=0
   )
@@ -74,15 +73,6 @@ assert_in_nix_shell_or_exit() {
   exit 1
 }
 
-find_shell_files() {
-  find . -type f \( \
-    -name "*.sh" \
-    -o -name "*.bash" \
-    -o -name "dot_bash*" ! -name "*.tmpl" \
-    -o -name "dot_profile" \
-    \) -print0
-}
-
 assert_files_found() {
   local tool="$1"
   shift 1
@@ -135,8 +125,32 @@ execute_runner() {
   return "$status"
 }
 
+find_shell_files() {
+  find . -type f \( \
+    -name "*.sh" \
+    -o -name "*.bash" \
+    -o -name "dot_bash*" ! -name "*.tmpl" \
+    -o -name "dot_profile" \
+    \) -print0
+}
+
 run_10_shellcheck() {
   execute_runner find_shell_files shellcheck || return "$?"
+}
+
+find_shell_templates() {
+  find . -type f \( \
+    -name "dot_bashrc.tmpl" \
+    \) -print0
+}
+
+shellcheck_rendered_template_runner() {
+  local template_file="$1"
+  chezmoi execute-template <"$template_file" | shellcheck - || return "$?"
+}
+
+run_11_shellcheck_templates() {
+  execute_runner find_shell_templates shellcheck_rendered_template_runner || return "$?"
 }
 
 shfmt_runner() {
@@ -152,28 +166,6 @@ shfmt_runner() {
 
 run_20_shfmt() {
   execute_runner find_shell_files shfmt_runner || return "$?"
-}
-
-find_ruby_files() {
-  printf "%b" "dot_Brewfile"
-}
-
-rubocop_runner() {
-  local file="$1"
-
-  local ignore_message="Source locally installed gems"
-
-  bundle exec rubocop \
-    --display-time \
-    --extra-details \
-    --autocorrect \
-    --fail-level autocorrect \
-    -- "$file" \
-    2> >(grep -v "$ignore_message" >&2) || return "$?"
-}
-
-run_30_rubocop() {
-  execute_runner find_ruby_files rubocop_runner || return "$?"
 }
 
 find_markdown_files() {
@@ -221,9 +213,8 @@ parse_cli_options() {
   while getopts "$optstring" option "${cli_options[@]}"; do
     case "$option" in
       c) ci_mode=true ;;
-      s) pco_runners+=("run_10_shellcheck") ;;
+      s) pco_runners+=("run_10_shellcheck" "run_11_shellcheck_templates") ;;
       S) pco_runners+=("run_20_shfmt") ;;
-      r) pco_runners+=("run_30_rubocop") ;;
       m) pco_runners+=("run_40_mdformat") ;;
       n) pco_runners+=("run_50_nixfmt") ;;
       *)

@@ -4,10 +4,6 @@
 
     Provides:
       - Separate interactive and ad-hoc dev shells
-      - Ruby 3.4 with Bundler
-      - Project-local gem installation in ./vendor/bundle
-      - RuboCop linting (ensures consistent Ruby style in the dot_Brewfile)
-        ↪ Ref: https://github.com/rubocop/rubocop
       - Nixfmt for formatting Nix expressions
         ↪ Ref: https://github.com/NixOS/nixfmt?tab=readme-ov-file#nix-fmt-experimental
   '';
@@ -33,8 +29,8 @@
 
         baseShell = pkgs.mkShell {
           buildInputs = [
-            pkgs.ruby_3_4 # This comes with Bundler included.
             nixfmt
+            pkgs.chezmoi
             (pkgs.python312.withPackages (
               ps: with ps; [
                 mdformat
@@ -45,25 +41,7 @@
             pkgs.shfmt
           ];
 
-          # Note: This project already tracks the ./bundle/config file, which the ensures that gems
-          # are installed into the project-local './vendor/bundle' directory, but we enforce it
-          # here as a fail-safe.
           shellHook = ''
-            export BUNDLE_IGNORE_STD_LIB_WARNINGS=1
-            export BUNDLE_IGNORE_STUBS=1
-            unset RBENV_VERSION
-            unset RBENV_ROOT
-            PATH=$(echo "$PATH" | tr ':' '\n' | grep -v 'rbenv' | tr '\n' ':' )
-            bundle config set --local path '.vendor/bundle'
-            export PATH
-
-            if [ ! -d .vendor/bundle ] || ! bundle check > /dev/null 2>&1; then
-              echo "Installing gems..."
-              bundle install --jobs 4 --retry 3
-              bundle pristine
-              echo
-            fi
-
             shfmt() {
               command shfmt -i 2 -ci -s "$@"
             }
@@ -87,9 +65,6 @@
 
             echo -e "''${bold}Nix version:''${reset} ''${red}$(nix --version | cut -d' ' -f2-)''${reset}"
             echo -e "''${bold}Nix fmt version:''${reset} ''${red}$(nix fmt -- --version)''${reset}"
-
-            echo -e "''${bold}Ruby version:''${reset} ''${red}${pkgs.ruby_3_4.version}''${reset}"
-            echo -e "''${bold}Rubocop version:''${reset} ''${red}$(bundle exec rubocop -v)''${reset}"
 
             echo -e "''${bold}Python version:''${reset} ''${red}$(python --version | awk '{print $2}')''${reset}"
             echo -e "''${bold}mdformat version:''${reset} ''${red}$(mdformat --version | cut -d' ' -f2-)''${reset}"
