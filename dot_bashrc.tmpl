@@ -53,6 +53,30 @@ export HISTCONTROL=ignoredups:erasedups:ignorespace
 bash_secrets="$HOME/.bash_secrets"
 [[ -s $bash_secrets ]] && . "$bash_secrets"
 
+# ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+# ┃  Hombrew: https://brew.sh/  ┃
+# ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+HOMEBREW_PREFIX='/opt/homebrew'
+
+# Configure hombrew_prefix/bin tools.
+eval "$(${HOMEBREW_PREFIX}/bin/brew shellenv)"
+
+# Configure Homebrew system administrator tools.
+path_prepend "${HOMEBREW_PREFIX}/sbin"
+
+export SHELL="${HOMEBREW_PREFIX}/bin/bash"
+
+# General Homebrew-Bash completions.
+bash_completion="${HOMEBREW_PREFIX}/opt/bash-completion@2/etc/profile.d/bash_completion.sh"
+[[ -r $bash_completion ]] && . "$bash_completion"
+
+# Configure updated curl.
+path_prepend "${HOMEBREW_PREFIX}/opt/curl/bin"
+
+path_prepend "${HOMEBREW_PREFIX}/opt/gnu-getopt/bin/"
+
+export MANPATH="${HOMEBREW_PREFIX}/share/man:${MANPATH}"
+
 # ┏━━━━━━━━━━━━━━━━━━━━━┓
 # ┃  3rd Party Tooling  ┃
 # ┗━━━━━━━━━━━━━━━━━━━━━┛
@@ -97,29 +121,6 @@ complete -F _just -o bashdefault -o default j
 #    $ nvm exec 4.2 node --version  # Run node on a specific version
 [ -s "$HOME/.nvm/nvm.sh" ] && \. "$HOME/.nvm/nvm.sh"
 [ -s "$HOME/.nvm/bash_completion" ] && \. "$HOME/.nvm/bash_completion"
-
-# Ruby: https://github.com/rbenv/rbenv, Added: Sun, 2025-10-19 13:37:56 MDT
-eval "$(rbenv init - --no-rehash bash)"
-
-# Homebrew: https://brew.sh/
-# ───────────────────────────
-HOMEBREW_PREFIX='/opt/homebrew'
-
-export SHELL="${HOMEBREW_PREFIX}/bin/bash"
-
-# General Homebrew-Bash completions.
-bash_completion="${HOMEBREW_PREFIX}/opt/bash-completion@2/etc/profile.d/bash_completion.sh"
-[[ -r $bash_completion ]] && . "$bash_completion"
-
-# Configure updated curl.
-path_prepend "${HOMEBREW_PREFIX}/opt/curl/bin"
-
-# Configure Homebrew system administrator tools.
-path_prepend "${HOMEBREW_PREFIX}/sbin"
-
-path_prepend "${HOMEBREW_PREFIX}/opt/gnu-getopt/bin/"
-
-export MANPATH="${HOMEBREW_PREFIX}/share/man:${MANPATH}"
 
 # Nix: https://github.com/DeterminateSystems/nix-installer
 nix_daemon='/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh'
