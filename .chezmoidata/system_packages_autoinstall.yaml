@@ -6,12 +6,13 @@ packages:
         - domt4/autoupdate # Automatic Upgrades.
         - koekeishiya/formulae
         - morantron/tmux-fingers
-        - openhue/cli
+        - owenthereal/upterm
       formulae:
         - act
         - age
         - bash
         - bash-completion@2
+        - pinentry-mac
         - bat
         - bore-cli
         - brightness
@@ -27,7 +28,6 @@ packages:
         - eza
         - fd
         - ffmpeg
-        - font-symbols-only-nerd-font
         - fzf
         - gawk
         - gh
@@ -39,6 +39,7 @@ packages:
         - gnu-getopt
         - gnu-sed
         - gnupg
+        - curl
         - grpcurl
         - httpie
         - hub
@@ -88,6 +89,7 @@ packages:
         - yq
         - zoxide
       casks:
+        - chatgpt
         - apple-juice
         - brave-browser
         - cardhop
@@ -98,8 +100,9 @@ packages:
         - firefox
         - font-fira-code
         - font-fira-code-nerd-font
+        - font-symbols-only-nerd-font
         - ghostty
-        - karabiner-element
+        - karabiner-elements
         - keepassxc
         - lunar
         - microsoft-auto-update
@@ -108,7 +111,7 @@ packages:
         - obs
         - obsidian
         - openemu
-        - owenthereal/upterm/upterm
+        - upterm
         - raspberry-pi-imager
         - raycast
         - retroarch-metal
@@ -118,10 +121,17 @@ packages:
         - zen
         - zoom
       mas:
-        - Actions: 1_586_435_171
-        - Drafts: 1_435_957_248
-        - Dropover: 1_355_679_052
-        - Session: 1_521_432_881
-        - Strongbox: 897_283_731
-        - TestFlight: 899_247_664
-        - Xcode: 497_799_835
+        - name: Actions
+          id: "1_586_435_171"
+        - name: Drafts
+          id: "1_435_957_248"
+        - name: Dropover
+          id: "1_355_679_052"
+        - name: Session
+          id: "1_521_432_881"
+        - name: Strongbox
+          id: "897_283_731"
+        - name: TestFlight
+          id: "899_247_664"
+        - name: Xcode
+          id: "497_799_835"

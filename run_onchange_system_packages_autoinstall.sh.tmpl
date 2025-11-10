@@ -2,7 +2,7 @@
 
 {{ if eq .chezmoi.os "darwin" -}}
 # Use `brew bundle ...` to install all taps, formulae, casks, and macOS App Store apps.
-brew bundle --file=/dev/stdin <<EOF
+/opt/homebrew/bin/brew bundle --cleanup --file=/dev/stdin <<EOF
 {{ range .packages.macos.homebrew.taps -}}
 tap {{ . | quote }}
 {{ end -}}
@@ -12,27 +12,8 @@ brew {{ . | quote }}
 {{ range .packages.macos.homebrew.casks -}}
 cask {{ . | quote }}
 {{ end -}}
-# Assigns the current key and value to the variables $app and $id in each iteration.
-{{ range $app, $id := .packages.macos.homebrew.mas -}}
-mas {{ $app | quote }}, id: {{ $id }}
-{{ end -}}
-EOF
-
-# Now, use `brew bundle cleanup --force` to remove any packages not tracked in chezmoidata to
-# ensure system is in sync with this repo.
-brew bundle cleanup --force --file=/dev/stdin <<EOF
-{{ range .packages.macos.homebrew.taps -}}
-tap {{ . | quote }}
-{{ end -}}
-{{ range .packages.macos.homebrew.formulae -}}
-brew {{ . | quote }}
-{{ end -}}
-{{ range .packages.macos.homebrew.casks -}}
-cask {{ . | quote }}
-{{ end -}}
-# Assigns the current key and value to the variables $app and $id in each iteration.
-{{ range $app, $id := .packages.macos.homebrew.mas -}}
-mas {{ $app | quote }}, id: {{ $id }}
+{{ range .packages.macos.homebrew.mas -}}
+mas {{ .name | quote }}, id: {{ .id }}
 {{ end -}}
 EOF
 
