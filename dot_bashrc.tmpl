@@ -89,15 +89,18 @@ eval "$(gh completion -s bash)" # GitHub CLI
 # Direnv: https://github.com/direnv/direnv
 eval "$(direnv hook bash)" # Sets the Direvn hook.
 
-# Cargo: https://github.com/rust-lang/cargo
-. "$HOME/.cargo/env"
-
 # Zoxide: https://github.com/ajeetdsouza/zoxide
 eval "$(zoxide init bash)"
 alias cd='z'
 
 # Starship: https://starship.rs/
 eval "$(starship init bash)"
+
+# Cargo: https://github.com/rust-lang/cargo
+. "$HOME/.cargo/env"
+
+# Ruby: https://github.com/rbenv/rbenv, Added: Sun, 2025-10-19 13:37:56 MDT
+eval "$(rbenv init - --no-rehash bash)"
 
 # SKDMan - [Ref: https://sdkman.io/]
 export SDKMAN_DIR="$HOME/.sdkman"
