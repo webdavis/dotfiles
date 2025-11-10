@@ -73,7 +73,8 @@ Add files like so:
 chezmoi add <FILE>
 ```
 
-Chezmoi supports templating using Golang templates. Always edit template files using this abstraction:
+Chezmoi supports templating using Golang [text/templates](https://pkg.go.dev/text/template). Always edit
+template files using this abstraction:
 
 ```bash
 chezmoi edit <FILE>
