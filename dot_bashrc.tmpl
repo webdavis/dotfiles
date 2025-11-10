@@ -1,0 +1,204 @@
+# shellcheck shell=bash
+# vi:filetype=sh shiftwidth=2 softtabstop=2 tabstop=8:
+
+# ┏━━━━━━━━━━━━━━━━━━━━┓
+# ┃  Helper Functions  ┃
+# ┗━━━━━━━━━━━━━━━━━━━━┛
+
+# Prepend a directory to PATH.
+# Usage:
+#    $ path_prepend ~/foo/bin
+#    $ export PATH
+function path_prepend() {
+  local dir="$1"
+
+  if [[ -d $dir ]]; then
+    PATH="$dir:$PATH"
+  else
+    echo "Directory $dir does not exist."
+    return 1
+  fi
+}
+
+# ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+# ┃  Global Environment Variables & Settings  ┃
+# ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+EDITOR="$(which nvim)" && export EDITOR
+export BASH_SILENCE_DEPRECATION_WARNING=1
+export MANPAGER="nvim +Man!"
+export TERM='screen-256color'
+export COLORTERM=truecolor
+export XDG_DATA_HOME="$HOME/.local/share"
+export XDG_CONFIG_HOME="$HOME/.config"
+
+# Disable flow control. For example, Ctrl+s suspends flow-control, and Ctrl+q resumes flow
+# control. (A detailed explanation can be found at https://stackoverflow.com/questions/791765
+stty -ixon
+
+# Bash History
+# ─────────────
+# After each command, save and reload history.
+export PROMPT_COMMAND="history -a; history -c; history -r; ${PROMPT_COMMAND}"
+
+# Append history entries.
+shopt -s histappend
+
+# Ignore consecutive duplicates, remove older duplicates, and skip commands starting with a space.
+export HISTCONTROL=ignoredups:erasedups:ignorespace
+
+# Load secret bash settings from a file that is NOT tracked by Git (~/.bash_secrets).
+# Useful for excluding secrets or commands (e.g., passwords) from ~/.bash_history.
+# Example:
+#    export HISTIGNORE="$HISTIGNORE:*password*"
+bash_secrets="$HOME/.bash_secrets"
+[[ -s $bash_secrets ]] && . "$bash_secrets"
+
+# ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+# ┃  Hombrew: https://brew.sh/  ┃
+# ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+HOMEBREW_PREFIX='/opt/homebrew'
+
+# Configure hombrew_prefix/bin tools.
+eval "$(${HOMEBREW_PREFIX}/bin/brew shellenv)"
+
+# Configure Homebrew system administrator tools.
+path_prepend "${HOMEBREW_PREFIX}/sbin"
+
+export SHELL="${HOMEBREW_PREFIX}/bin/bash"
+
+# General Homebrew-Bash completions.
+bash_completion="${HOMEBREW_PREFIX}/opt/bash-completion@2/etc/profile.d/bash_completion.sh"
+[[ -r $bash_completion ]] && . "$bash_completion"
+
+# Configure updated curl.
+path_prepend "${HOMEBREW_PREFIX}/opt/curl/bin"
+
+path_prepend "${HOMEBREW_PREFIX}/opt/gnu-getopt/bin/"
+
+export MANPATH="${HOMEBREW_PREFIX}/share/man:${MANPATH}"
+
+# ┏━━━━━━━━━━━━━━━━━━━━━┓
+# ┃  3rd Party Tooling  ┃
+# ┗━━━━━━━━━━━━━━━━━━━━━┛
+
+# Git & GitHub stuff
+[[ -s "$HOME/.git-completion.bash" ]] && . "$HOME/.git-completion.bash"
+
+eval "$(gh completion -s bash)" # GitHub CLI
+
+# Direnv: https://github.com/direnv/direnv
+eval "$(direnv hook bash)" # Sets the Direvn hook.
+
+# Zoxide: https://github.com/ajeetdsouza/zoxide
+eval "$(zoxide init bash)"
+alias cd='z'
+
+# Starship: https://starship.rs/
+eval "$(starship init bash)"
+
+# Cargo: https://github.com/rust-lang/cargo
+. "$HOME/.cargo/env"
+
+# Ruby: https://github.com/rbenv/rbenv, Added: Sun, 2025-10-19 13:37:56 MDT
+eval "$(rbenv init - --no-rehash bash)"
+
+# Java via SKDMan: https://sdkman.io/]
+JAVA_HOME="$HOME/.sdkman/candidates/java/current"
+# Attempt to install if it isn't present. (TODO: this should probably be moved somewhere else.)
+[[ -d $JAVA_HOME ]] || curl -s "https://get.sdkman.io" | bash
+if [[ -d $JAVA_HOME ]]; then
+  export JAVA_HOME
+  path_prepend "$JAVA_HOME/bin"
+fi
+
+# Just: https://github.com/casey/just
+[[ -s "$HOME/.bash_just_completions" ]] && . "$HOME/.bash_just_completions"
+# Ref: https://github.com/casey/just?tab=readme-ov-file#shell-alias
+alias j='just'
+complete -F _just -o bashdefault -o default j
+
+# NVM (Node Version Manager)
+# ───────────────────────────
+# ∙ Credit: https://www.newline.co/@Adele/how-to-install-nodejs-and-npm-on-macos--22782681
+#   Section: "Using nvm to install and update Node.js (recommended)"
+# ∙ Troubleshooting: https://github.com/nvm-sh/nvm#macos-troubleshooting
+# ∙ Usage:
+#    $ nvm use node                 # Initialize Node
+#    $ nvm exec 4.2 node --version  # Run node on a specific version
+[ -s "$HOME/.nvm/nvm.sh" ] && \. "$HOME/.nvm/nvm.sh"
+[ -s "$HOME/.nvm/bash_completion" ] && \. "$HOME/.nvm/bash_completion"
+
+# Nix: https://github.com/DeterminateSystems/nix-installer
+nix_daemon='/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh'
+[[ -e $nix_daemon ]] && . "$nix_daemon"
+
+# ┏━━━━━━━━━━━━━━━━┓
+# ┃  Bash Aliases  ┃
+# ┗━━━━━━━━━━━━━━━━┛
+alias ls='ls -G'
+alias cp='cp -i'
+alias mv='mv -i'
+alias bat='bat --color=always'
+alias tree='tree -C'
+alias grep='grep --color=always'
+alias tmux-purge-resurrect-session-data='rm -f .tmux/resurrect/last .tmux/resurrect/tmux_resurrect*'
+alias p='python3'
+alias git-weekly='git diff --name-status "@{7 days ago}" | sort -u | grep -v "Templates" > weekly-review-files.md'
+alias path='echo $PATH | tr ":" "\n"'
+alias t='tmuxinator Homelab'
+alias fman='compgen -c | fzf | xargs man'
+{{ if eq .chezmoi.os "darwin" -}}
+alias ping='ping --apple-time'
+alias bu='brew upgrade --formula'
+alias rm='trash'
+{{ end }}
+# ┏━━━━━━━━━━━━━━━━━━━━━━━━┓
+# ┃  Local & User Configs  ┃
+# ┗━━━━━━━━━━━━━━━━━━━━━━━━┛
+[[ -s "$HOME/.bash_bindings" ]] && . "$HOME/.bash_bindings"
+[[ -s "$HOME/.bash_completions" ]] && . "$HOME/.bash_completions"
+[[ -s "$HOME/.fzf.bash" ]] && . "$HOME/.fzf.bash" # Fzf is hosted at https://github.com/junegunn/fzf/tree/master/shell.
+[[ -s "$HOME/.fzf_bindings" ]] && . "$HOME/.fzf_bindings"
+
+# Order matters! These local (user-level) tools should always take precedence in my environment.
+path_prepend "$HOME/.local/bin"
+
+# ⚠️ Keep this as the last line. Writes the updated PATH to the Bash `env`.
+export PATH
+
+# ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+# ┃  Tmux: Config / Auto-start Session(s)  ┃
+# ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+# TMS (Tmux Sessionizer) - [Ref: https://github.com/jrmoulton/tmux-sessionizer]
+export TMS_CONFIG_FILE="$HOME/.config/tms/config.toml"
+
+case $- in
+  *i*) ;;      # interactive terminal session, continue
+  *) return ;; # non-interactive terminal session, exit
+esac
+
+# Skip if tmux isn't installed or already in a session.
+command -v tmux >/dev/null 2>&1 || return
+[[ -n $TMUX ]] && return
+
+# Do not interfere with non-interactive remote commands (ssh host 'cmd').
+[[ -n ${SSH_ORIGINAL_COMMAND:-} ]] && return
+
+# Skip tmux for VS Code Remote SSH connections (prevents OOM from multiple background sessions).
+[[ -n ${VSCODE_INJECTION:-} ]] && return
+
+# Skip tmux for VS Code integrated terminals.
+[[ ${TERM_PROGRAM:-} == "vscode" ]] && return
+
+# Bail if Tmux server/session is already running.
+if ! sh -c 'tmux ls >/dev/null 2>&1'; then
+  # Restore last tmux session or start
+  tmux_resurrect_data="$HOME/.tmux/resurrect/last"
+  tmux_refresh="$HOME/.local/bin/tmux-refresh.sh"
+  if [[ -f $tmux_resurrect_data ]]; then
+    tmux source-file "$tmux_resurrect_data"
+  elif [[ -f $tmux_refresh ]]; then
+    "$tmux_refresh"
+  fi
+fi

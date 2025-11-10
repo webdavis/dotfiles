@@ -4,7 +4,6 @@ default:
 alias l := lint
 alias s := lint-shell
 alias S := format-shell
-alias r := lint-ruby
 alias m := format-markdown
 alias n := format-nix
 
@@ -16,9 +15,6 @@ lint-shell:
 
 format-shell:
   nix develop .#adhoc --command ./scripts/lint.sh -S
-
-lint-ruby:
-  nix develop .#adhoc --command ./scripts/lint.sh -r
 
 format-markdown:
   nix develop .#adhoc --command ./scripts/lint.sh -m
