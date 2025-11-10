@@ -192,7 +192,7 @@ command -v tmux >/dev/null 2>&1 || return
 [[ ${TERM_PROGRAM:-} == "vscode" ]] && return
 
 # Bail if Tmux server/session is already running.
-if ! tmux ls >/dev/null 2>&1; then
+if ! sh -c 'tmux ls >/dev/null 2>&1'; then
   # Restore last tmux session or start
   tmux_resurrect_data="$HOME/.tmux/resurrect/last"
   tmux_refresh="$HOME/.local/bin/tmux-refresh.sh"
