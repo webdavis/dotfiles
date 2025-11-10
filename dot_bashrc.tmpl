@@ -185,11 +185,14 @@ command -v tmux >/dev/null 2>&1 || return
 # Skip tmux for VS Code integrated terminals.
 [[ ${TERM_PROGRAM:-} == "vscode" ]] && return
 
-# Restore last tmux session or start
-tmux_resurrect_data="$HOME/.tmux/resurrect/last"
-tmux_refresh="$HOME/.local/bin/tmux-refresh.sh"
-if [[ -f $tmux_resurrect_data ]]; then
-  tmux source-file "$tmux_resurrect_data"
-elif [[ -f $tmux_refresh ]]; then
-  "$tmux_refresh"
+# Bail if Tmux server/session is already running.
+if ! tmux ls >/dev/null 2>&1; then
+  # Restore last tmux session or start
+  tmux_resurrect_data="$HOME/.tmux/resurrect/last"
+  tmux_refresh="$HOME/.local/bin/tmux-refresh.sh"
+  if [[ -f $tmux_resurrect_data ]]; then
+    tmux source-file "$tmux_resurrect_data"
+  elif [[ -f $tmux_refresh ]]; then
+    "$tmux_refresh"
+  fi
 fi
