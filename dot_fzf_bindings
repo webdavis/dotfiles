@@ -2,6 +2,9 @@
 # shellcheck disable=SC1090
 # vi: set filetype=sh:
 
+# ╭────────────╮
+# │   Globals  │
+# ╰────────────╯
 export FZF_BINDINGS_EXIT_CODE=0
 export FZF_BINDINGS_GIT_LOG_LIMIT=500
 export FZF_BINDINGS_GIT_HASH_REGEX='^[0-9a-f]{7,40}'
@@ -62,6 +65,10 @@ export OPENER
 
 EDITOR_CMD="${EDITOR_CMD:-$EDITOR}"
 [[ $EDITOR =~ homebrew ]] && EDITOR_CMD="nvim"
+
+# ╭─────────────────────╮
+# │   Helper Functions  │
+# ╰─────────────────────╯
 
 builtin bind '"\C-x0": kill-whole-line'     # Clears the entire line.
 builtin bind '"\C-x1": magic-space'         # Performs history expansion and inserts a space.
@@ -294,6 +301,10 @@ __fzf_bindings_open_file() {
 
   __insert_text_at_cursor "$cmd"
 }
+
+# ╭──────────────────╮
+# │   Key Bindings   │
+# ╰──────────────────╯
 
 # "<C-x><C-x>" open a file below the <cwd>.
 __fzf_open_file() {
