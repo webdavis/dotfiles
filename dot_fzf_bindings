@@ -270,7 +270,8 @@ __fzf_bindings_verify_directory_exists() {
 __fzf_bindings_open_file() {
   local starting_directory="${1:-.}"
   local hidden=${2:-true}
-  local preview="${3:-head -n 20 {}}"
+  local preview="${3:-bat --color=always --wrap=auto {}}"
+  local preview_window="${4:-right:60%:wrap}"
 
   local -a find_cmd=("find" "$starting_directory" "-type" "f")
 
@@ -283,9 +284,9 @@ __fzf_bindings_open_file() {
     "${find_cmd[@]}" |
       sed 's|^\./||' |
       fzf -0 \
-        --height="$FZF_BINDINGS_HEIGHT" \
         --expect="$FZF_BINDINGS_KEYS_OPEN" \
-        ${preview:+--preview="$preview"}
+        ${preview:+--preview="$preview"} \
+        ${preview_window:+--preview-window="$preview_window"}
   )
 
   local key="${selection[0]}"
