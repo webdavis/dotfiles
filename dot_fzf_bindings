@@ -518,28 +518,48 @@ __fzf_git_checkout_branch() {
   local project_root
   project_root="$(__fzf_bindings_get_git_root)" || return 1
 
-  local -a selection
-  mapfile -t selection < <(
-    git branch |
-      fzf --height="$FZF_BINDINGS_HEIGHT" -0 --expect="$FZF_BINDINGS_KEYS_GIT_CHECKOUT"
-  )
-
-  local key="${selection[0]}"
-  __fzf_bindings_check_interrupt "$key" || return 1
-
-  cd "$project_root" || {
-    __fzf_bindings_set_exit_code "$?"
-    return 1
+  local branches exit_code
+  branches=$(
+    git --no-pager branch --all \
+      --format="%(if)%(HEAD)%(then)%(else)%(if:equals=HEAD)%(refname:strip=3)%(then)%(else)%1B[0;34;1mbranch%09%1B[m%(refname:short)%(end)%(end)" |
+      sed '/^$/d'
+  ) || {
+    exit_code="$?"
+    __fzf_bindings_set_exit_code "$exit_code"
+    return "$exit_code"
   }
 
-  local git_branch
-  git_branch="$(__fzf_bindings_trim_whitespace "${selection[1]}")"
-
-  local cmd
-  cmd="$(__build_edit_command -k "$key" -c "$git_branch")" || {
-    __fzf_bindings_set_exit_code 1
-    return 1
+  local tags
+  tags=$(
+    git --no-pager tag |
+      awk '{print "\x1b[35;1mtag\x1b[m\t" $1}'
+  ) || {
+    exit_code="$?"
+    __fzf_bindings_set_exit_code "$exit_code"
+    return "$exit_code"
   }
+
+  local target
+  target=$(
+    (
+      echo "$branches"
+      echo "$tags"
+    ) |
+      fzf --no-hscroll --no-multi -n 2 \
+        --ansi \
+        --preview="git --no-pager log -150 --pretty=format:%s '..{2}'" \
+        --height="$FZF_BINDINGS_HEIGHT"
+  ) || {
+    exit_code="$?"
+    echo "$exit_code"
+    __fzf_bindings_set_exit_code "$exit_code"
+    return "$exit_code"
+  }
+
+  local branch
+  branch="$(awk '{print $2}' <<<"$target")"
+
+  local cmd="git checkout ${branch}"
 
   __insert_text_at_cursor "$cmd"
 }
