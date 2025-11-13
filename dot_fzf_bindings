@@ -34,7 +34,7 @@ FZF_DEFAULT_OPTS+="--cycle "
 FZF_DEFAULT_OPTS+="--preview='(file --mime {} | grep -q -s empty && echo \$(basename {}): is empty.) ||
     (file --mime {} | grep -q -s binary && echo \$(basename {}): is a binary file.) ||
     (bat --style=numbers --color=always {} | head -500)' "
-FZF_DEFAULT_OPTS+='--preview-window="down:50%:hidden" '
+FZF_DEFAULT_OPTS+='--preview-window="down:50%" '
 
 # Keyboard mappings.
 FZF_DEFAULT_OPTS+='--bind="?:toggle-preview" '
