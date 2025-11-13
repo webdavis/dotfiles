@@ -261,13 +261,13 @@ builtin bind -m vi-command '"\C-gcN": "i\C-x0git commit --amend --no-edit "'
 
 # git init
 builtin bind -x '"\C-_F": "git init"'
-builtin bind -m vi-insert '"\C-gi": "\C-x0\C-_F\C-x1\C-x2\b"'
-builtin bind -m vi-command '"\C-gi": "i\C-x0\C-_F\C-x1\C-x2\b"'
+builtin bind -m vi-insert '"\C-gii": "\C-x0\C-_F\C-x1\C-x2\b"'
+builtin bind -m vi-command '"\C-gii": "i\C-x0\C-_F\C-x1\C-x2\b"'
 
 # git init && gh repo create
 builtin bind -x '"\C-_G": "if [[ ! -d '.git' ]]; then git init && gh repo create; else gh repo create; fi;"'
-builtin bind -m vi-insert '"\C-ghc": "\C-x0\C-_G\C-x1\C-x2\b"'
-builtin bind -m vi-command '"\C-ghc": "i\C-x0\C-_G\C-x1\C-x2\b"'
+builtin bind -m vi-insert '"\C-gic": "\C-x0\C-_G\C-x1\C-x2\b"'
+builtin bind -m vi-command '"\C-gic": "i\C-x0\C-_G\C-x1\C-x2\b"'
 
 # git push
 builtin bind -x '"\C-_H": "git push"'
