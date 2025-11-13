@@ -308,11 +308,19 @@ __fzf_bindings_open_file() {
 
 # "<C-t>f" - open a file below the <cwd>.
 __fzf_open_file() {
-  __fzf_bindings_open_file
+  __fzf_bindings_open_file '.' false
 }
 builtin bind -x '"\C-_00": __fzf_open_file'
 builtin bind -m vi-insert '"\C-tf": "\C-x0\C-_00\C-x1\C-x2\015"'
 builtin bind -m vi-command '"\C-tf": "i\C-x0\C-_00\C-x1\C-x2\015"'
+
+# "<C-t>f" - open a file below the <cwd>.
+__fzf_open_file_hidden() {
+  __fzf_bindings_open_file
+}
+builtin bind -x '"\C-_16": __fzf_open_file_hidden'
+builtin bind -m vi-insert '"\C-tF": "\C-x0\C-_16\C-x1\C-x2\015"'
+builtin bind -m vi-command '"\C-tF": "i\C-x0\C-_16\C-x1\C-x2\015"'
 
 # "<C-t>h" - open a file below the home (~) directory.
 __fzf_open_home_file() {
