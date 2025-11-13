@@ -437,21 +437,24 @@ builtin bind -m vi-command '"\C-gF": "i\C-x0\C-_01\C-x1\C-x2\015"'
 
 # "<C-g>h" - search and select a git commit hash.
 __fzf_git_select_commit_hashes() {
-  __fzf_bindings_get_git_root || return 1
+  __fzf_bindings_get_git_root &>/dev/null || return 1
 
-  local -r fzf_preview_implementation='echo "Commit: {1}" && echo && git show --color=always --format=fuller --stat {1}'
-  local -r fzf_preview_window="down:50%:wrap"
+  local -r git_log_line_to_hash="printf '%s' {} | grep -o '[a-f0-9]\{7\}' | head -1"
+  local -r view_git_log_line="$git_log_line_to_hash | xargs -I % sh -c 'git show --color=always % | diff-so-fancy'"
+  local -r fzf_preview_implementation="$view_git_log_line"
+  local -r fzf_preview_window="right:50%:wrap"
 
   local -a selection
   mapfile -t selection < <(
-    git log --oneline -n "$FZF_BINDINGS_GIT_LOG_LIMIT" |
-      fzf \
-        --multi \
-        --height="$FZF_BINDINGS_HEIGHT" \
-        --preview "$fzf_preview_implementation" \
+    git log --color=always --format="%C(auto)%h%d %s %C(black)%C(bold)%cr% C(auto)%an" |
+      fzf --no-sort --tiebreak=index --multi \
+        --ansi --preview "$fzf_preview_implementation" \
         --preview-window="$fzf_preview_window" \
-        -0 \
-        --expect="$FZF_BINDINGS_KEYS_INTERRUPT"
+        --header "TAB: select multiple, Enter: confirm selection, Alt-y: copy hash to clipboard, Alt-i: inspect commit using PAGER" \
+        --bind "alt-i:execute:$view_git_log_line | bat" \
+        --bind "alt-y:execute:$git_log_line_to_hash | tr -d '\n' | pbcopy" \
+        --expect="$FZF_BINDINGS_KEYS_INTERRUPT" \
+        -0
   )
 
   __fzf_bindings_check_interrupt "${selection[0]}" || return 1

@@ -23,6 +23,7 @@ packages:
         - cmake-docs
         - coreutils
         - croc
+        - diff-so-fancy
         - direnv
         - dust
         - eza
