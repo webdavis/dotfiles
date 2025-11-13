@@ -53,7 +53,6 @@ packages:
         - just
         - koekeishiya/formulae/yabai
         - librsvg
-        - macos-trash
         - mas
         - morantron/tmux-fingers/tmux-fingers
         - mtr
@@ -79,6 +78,7 @@ packages:
         - tmux
         - tmuxinator
         - tokei
+        - trash-cli
         - tree
         - uv
         - vapor
