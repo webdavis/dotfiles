@@ -24,7 +24,9 @@ fi
 export FZF_CTRL_T_COMMAND="$FZF_DEFAULT_COMMAND"
 
 # Show command history with short command descriptions in the preview window.
-export FZF_CTRL_R_OPTS="--preview='echo {} | cut -d"'" "'" -f3 | xargs whatis' --preview-window=down:5"
+export FZF_CTRL_R_OPTS="--ansi \
+  --preview=\"echo {} | awk '{print \$2}' | xargs tldr --color always\" \
+  --preview-window=right:50%"
 
 FZF_DEFAULT_OPTS="--reverse "
 FZF_DEFAULT_OPTS+="-m "
