@@ -24,6 +24,7 @@ skhd --restart-service
 HOMBREW_BIN="${HOMEBREW_PREFIX:-/opt/homebrew}/bin/brew"
 
 # Workaround to reset the startup timestamp for `domt4/autoupdate` daemon.
+echo "Restarting domt4/autoupdate [stop → delete → start]..."
 "$HOMBREW_BIN" autoupdate stop
 "$HOMBREW_BIN" autoupdate delete
 "$HOMBREW_BIN" autoupdate start 86400 --upgrade --cleanup --immediate --sudo
