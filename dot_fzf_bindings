@@ -32,7 +32,7 @@ FZF_DEFAULT_OPTS="--reverse "
 FZF_DEFAULT_OPTS+="-m "
 FZF_DEFAULT_OPTS+="--cycle "
 
-# Note: bat provides syntax highlighting.
+# Note: `bat` provides syntax highlighting.
 FZF_DEFAULT_OPTS+="--preview='(file --mime {} | grep -q -s empty && echo \$(basename {}): is empty.) ||
     (file --mime {} | grep -q -s binary && echo \$(basename {}): is a binary file.) ||
     (bat --style=numbers --color=always {} | head -500)' "
