@@ -7,11 +7,13 @@ packages:
         - koekeishiya/formulae
         - morantron/tmux-fingers
         - owenthereal/upterm
+        - oven-sh/bun
       formulae:
         - act
         - age
         - bash
         - bash-completion@2
+        - oven-sh/bun/bun
         - pinentry-mac
         - bat
         - bore-cli
