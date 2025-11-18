@@ -84,10 +84,10 @@ builtin bind -m vi-command '"\M-I": "i\C-x1eza -alD "'
 
 # List files sorted by time.
 builtin bind -x '"\C-_c": "eza -hl --sort=age"'
-builtin bind -m vi-insert '"\C-x\C-t": "\C-x0\C-_c\C-x1\C-x2\b"'
-builtin bind -m vi-insert '"\C-x\C-t": "\C-x0\C-_c\C-x1\C-x2\b"'
-builtin bind -m vi-insert '"\C-xt": "\C-x0eza -ahl --sort=age "'
-builtin bind -m vi-insert '"\C-xt": "i\C-x0eza -ahl --sort=age "'
+builtin bind -m vi-insert '"\C-xt": "\C-x0\C-_c\C-x1\C-x2\b"'
+builtin bind -m vi-insert '"\C-xt": "\C-x0\C-_c\C-x1\C-x2\b"'
+builtin bind -m vi-insert '"\C-xT": "\C-x0eza -ahl --sort=age "'
+builtin bind -m vi-insert '"\C-xT": "i\C-x0eza -ahl --sort=age "'
 # }}}
 
 # eza tree {{{1
