@@ -150,21 +150,35 @@ builtin bind -m vi-command '"\M-dT": "i\C-x0\C-_p\C-x1\C-x2\015"'
 
 # Go-to a projects root directory. The respective keyboard binding is in ~/.inputrc.
 __go_to_project_root() {
-  path="$(dirname "$(pwd)")"
-  # To add support for other version control systems, add their respective directories to the regex.
-  while [[ ! "$(find "$path" -maxdepth 1 -regextype egrep -regex '.*/\.(root|git|svn|hg|bzr|build.xml|project|projections.json|tasks|root)')" ]]; do
-    if [[ $path == '/' ]]; then
-      printf 'Warning[%s]: No project root found.\n' "${FUNCNAME[0]}" >&2
+  local path
+  path="$(pwd)"
+
+  # Add VCS root indicators (or project markers) to the 'markers' array.
+  local markers=(.git .hg .svn .bzr .build.xml .project .projections.json .root .tasks)
+
+  while :; do
+    local marker
+    for marker in "${markers[@]}"; do
+      if [[ -e "${path}/${marker}" || -d "${path}/${marker}" ]]; then
+        builtin cd "$path" || return 1
+        pwd
+        return 0
+      fi
+    done
+
+    if [[ $path == "/" ]]; then
+      local yellow reset
+      yellow="$(tput setaf 3)"
+      reset="$(tput sgr0)"
+      printf "${yellow}Warning[%s]: No project root found.${reset}\n" "${FUNCNAME[0]}" >&2
       return 1
     fi
     path="$(dirname "$path")"
   done
-  builtin cd "$path" || return 1
-  pwd
 }
 builtin bind -x '"\C-_q": __go_to_project_root'
-builtin bind -m vi-insert '"\M-dr": "\C-x0\C-_q\C-x1\C-x2\b"'
-builtin bind -m vi-command '"\M-dr": "i\C-x0\C-_q\C-x1\C-x2\b"'
+builtin bind -m vi-insert '"\C-xr": "\C-x0\C-_q\C-x1\C-x2\b"'
+builtin bind -m vi-command '"\C-xr": "i\C-x0\C-_q\C-x1\C-x2\b"'
 
 # git --version
 builtin bind -x '"\C-_r": "git --version"'
