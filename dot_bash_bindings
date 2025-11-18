@@ -314,7 +314,7 @@ builtin bind -m vi-command '"\C-gtl": "i\C-x0\C-_L\C-x1\C-x2\b"'
 builtin bind -m vi-insert '"\C-gaa": "\C-x0git add "'
 builtin bind -m vi-command '"\C-gaa": "i\C-x0git add "'
 
-# `git add .`
+# git add .
 builtin bind -x '"\C-_Q": "git add ."'
 builtin bind -m vi-insert '"\C-ga.": "\C-x0\C-_Q\C-x1\C-x2\b"'
 builtin bind -m vi-command '"\C-ga.": "i\C-x0\C-_Q\C-x1\C-x2\b"'
