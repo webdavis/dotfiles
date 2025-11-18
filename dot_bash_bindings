@@ -233,8 +233,8 @@ builtin bind -x '"\C-_z": "git checkout -"'
 builtin bind -m vi-insert '"\C-gc-": "\C-x0\C-_z\C-x1\C-x2\b"'
 builtin bind -m vi-command '"\C-gc-": "i\C-x0\C-_z\C-x1\C-x2\b"'
 
-# git checkout master
-builtin bind -x '"\C-_A": "git checkout master"'
+# git checkout main
+builtin bind -x '"\C-_A": "git checkout main"'
 builtin bind -m vi-insert '"\C-gcm": "\C-x0\C-_A\C-x1\C-x2\b"'
 builtin bind -m vi-command '"\C-gcm": "i\C-x0\C-_A\C-x1\C-x2\b"'
 
