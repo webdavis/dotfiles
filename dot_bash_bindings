@@ -91,7 +91,7 @@ builtin bind -m vi-insert '"\C-xT": "i\C-x0eza -ahl --sort=age "'
 # }}}
 
 # eza tree {{{1
-builtin bind -x '"\C-_d": "eza -lT"'
+builtin bind -x '"\C-_d": "eza --tree"'
 builtin bind -m vi-insert '"\M-t": "\C-x0\C-_d\C-x1\C-x2\b"'
 builtin bind -m vi-command '"\M-t": "i\C-x0\C-_d\C-x1\C-x2\b"'
 builtin bind -m vi-insert '"\M-T": "\C-x0eza -lT "'
