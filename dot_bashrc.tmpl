@@ -200,7 +200,7 @@ if ! sh -c 'tmux ls >/dev/null 2>&1'; then
   tmux_resurrect_data="$HOME/.tmux/resurrect/last"
   tmux_refresh="$HOME/.local/bin/tmux-refresh.sh"
   if [[ -f $tmux_resurrect_data ]]; then
-    tmux source-file "$tmux_resurrect_data"
+    tmux
   elif [[ -f $tmux_refresh ]]; then
     "$tmux_refresh"
   fi
