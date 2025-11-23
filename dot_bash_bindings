@@ -416,7 +416,7 @@ builtin bind -m vi-command '"\C-x-": "i\C-x0\C-_P\C-x1\C-x2\b\r"'
 __git_ls_files_with_last_modified() {
   # Header
   printf "\n%-25s %-10s %s\n" "Last Modified" "Commit" "File"
-  printf "%-25s %-10s %s\n" " ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ���� ̅" " ̅ ̅ ̅ ̅ ̅ ̅ ̅" " ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅"
+  printf "%-25s %-10s %s\n" " ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅" " ̅ ̅ ̅ ̅ ̅ ̅ ̅" " ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅"
 
   # ANSI color codes
   local blue='\033[34m'
