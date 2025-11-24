@@ -2,6 +2,34 @@
 # shellcheck disable=SC1090
 # vi: set filetype=sh:
 
+# ╭─────────────────────────────────────╮
+# │   Overwrite Default FZF Binding(s)  │
+# ╰─────────────────────────────────────╯
+bind -m vi-command '"\C-z": emacs-editing-mode'
+bind -m vi-insert '"\C-z": emacs-editing-mode'
+bind -m emacs-standard '"\C-z": vi-editing-mode'
+
+FZF_BASH="${HOME}/.fzf.bash"
+[[ -f $FZF_BASH ]] && source "$FZF_BASH"
+
+if ((BASH_VERSINFO[0] < 4)); then
+  # CTRL-T - Paste the selected file path into the command line
+  if [[ ${FZF_CTRL_T_COMMAND-x} != "" ]]; then
+    # shellcheck disable=SC2016
+    bind -m emacs-standard '"\C-t\C-t": " \C-b\C-k \C-u`__fzf_select__`\e\C-e\er\C-a\C-y\C-h\C-e\e \C-y\ey\C-x\C-x\C-f\C-y\ey\C-_"'
+    bind -m vi-command '"\C-t\C-t": "\C-z\C-t\C-z"'
+    bind -m vi-insert '"\C-t\C-t": "\C-z\C-t\C-z"'
+  fi
+else
+  # CTRL-T - Paste the selected file path into the command line
+  if [[ ${FZF_CTRL_T_COMMAND-x} != "" ]]; then
+    bind -m emacs-standard -x '"\C-t\C-t": fzf-file-widget'
+    bind -m vi-command -x '"\C-t\C-t": fzf-file-widget'
+    bind -m vi-insert -x '"\C-t\C-t": fzf-file-widget'
+  fi
+fi
+builtin bind -x '"\C-t\C-t": fzf-file-widget'
+
 # ╭────────────╮
 # │   Globals  │
 # ╰────────────╯
