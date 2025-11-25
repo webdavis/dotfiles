@@ -1,6 +1,6 @@
 ---
-name: Ivy
-root: "~/workspaces/Ivy"
+name: justdavis-ansible
+root: "~/workspaces/webdavis/projects/justdavis-ansible"
 
 pre_window: tmux -C attach -c ~/workspaces/Ivy -t Ivy </dev/null >/dev/null; clear
 
