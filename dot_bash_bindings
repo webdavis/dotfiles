@@ -295,15 +295,102 @@ builtin bind -m vi-command '"\C-gpf": "i\C-x0\C-_H\C-x1\C-x2\b"'
 builtin bind -m vi-insert '"\C-gpr": "\C-x0git push origin :"'
 builtin bind -m vi-command '"\C-gpr": "i\C-x0git push origin :"'
 
-# gh browse
-builtin bind -x '"\C-_I": "gh browse"'
-builtin bind -m vi-insert '"\C-goo": "\C-x0\C-_I\C-x1\C-x2\b"'
-builtin bind -m vi-command '"\C-goo": "i\C-x0\C-_I\C-x1\C-x2\b"'
+__bash_bindings_helper_get_open_cmd() {
+  command -v open 2>/dev/null && return 0
+  command -v xdg-open 2>/dev/null && return 0
 
-# gh issue list --web
-builtin bind -x '"\C-_K": "gh issue list --web"'
+  printf "Error [%s]: Cannot determine open command for operating sysem: %s\n" \
+    "${FUNCNAME[*]}" \
+    "$OSTYPE" \
+    >&2
+  return 1
+}
+
+__bash_bindings_open_github_page() {
+  local url_suffix="${1:-}"
+  local page_desc="${2:-$1}"
+  page_desc="${page_desc^}"
+
+  local repo json_field jq_filter
+  local url="https://github.com"
+
+  case "$url_suffix" in
+    "feed") ;;
+    "profile") json_field="owner" jq_filter="owner.login" url_suffix="" ;;
+    *) json_field="nameWithOwner" jq_filter="nameWithOwner" ;;
+  esac
+
+  local IFS=":"
+  if [[ -n $json_field ]]; then
+    repo="$(gh repo view --json ${json_field} --jq ."${jq_filter}" 2>/dev/null)" || {
+      printf "Error [%s]: Could not determine GitHub repository. Are you in a git repo with a GitHub remote?\n" "${FUNCNAME[0]}" >&2
+      return 1
+    }
+
+    url="${url}/${repo}/${url_suffix}"
+  fi
+
+  local open_cmd
+  open_cmd="$(__bash_bindings_helper_get_open_cmd)" || return 1
+
+  printf "Opening GitHub%s page%s in browser.\n" "${page_desc:+ $page_desc}" "${repo:+ for $repo}"
+  "$open_cmd" "$url"
+}
+
+# Open GitHub Feed (https://github.com) in browser.
+builtin bind -x '"\C-_I": "__bash_bindings_open_github_page '\''feed'\''"'
+builtin bind -m vi-insert '"\C-gof": "\C-x0\C-_I\C-x1\C-x2\b"'
+builtin bind -m vi-command '"\C-gof": "i\C-x0\C-_I\C-x1\C-x2\b"'
+
+# Open repo's GitHub Home page in browser.
+builtin bind -x '"\C-_J": "__bash_bindings_open_github_page '\'''\'' '\''Home'\''"'
+builtin bind -m vi-insert '"\C-goo": "\C-x0\C-_J\C-x1\C-x2\b"'
+builtin bind -m vi-command '"\C-goo": "i\C-x0\C-_J\C-x1\C-x2\b"'
+
+# Open repo's GitHub Issues page in browser.
+builtin bind -x '"\C-_K": "__bash_bindings_open_github_page '\''issues'\''"'
 builtin bind -m vi-insert '"\C-goi": "\C-x0\C-_K\C-x1\C-x2\b"'
 builtin bind -m vi-command '"\C-goi": "i\C-x0\C-_K\C-x1\C-x2\b"'
+
+# Open repo's GitHub Pull Requests page in browser.
+builtin bind -x '"\C-_R": "__bash_bindings_open_github_page '\''pulls'\'' '\''Pull Requests'\''"'
+builtin bind -m vi-insert '"\C-gop": "\C-x0\C-_R\C-x1\C-x2\b"'
+builtin bind -m vi-command '"\C-gop": "i\C-x0\C-_R\C-x1\C-x2\b"'
+
+# Open repo's GitHub Actions page in browser.
+builtin bind -x '"\C-_S": "__bash_bindings_open_github_page '\''actions'\''"'
+builtin bind -m vi-insert '"\C-goa": "\C-x0\C-_S\C-x1\C-x2\b"'
+builtin bind -m vi-command '"\C-goa": "i\C-x0\C-_S\C-x1\C-x2\b"'
+
+# Open repo's GitHub Projects page in browser.
+builtin bind -x '"\C-_T": "__bash_bindings_open_github_page '\''projects'\''"'
+builtin bind -m vi-insert '"\C-goP": "\C-x0\C-_T\C-x1\C-x2\b"'
+builtin bind -m vi-command '"\C-goP": "i\C-x0\C-_T\C-x1\C-x2\b"'
+
+# Open repo's GitHub Wiki page in browser.
+builtin bind -x '"\C-_U": "__bash_bindings_open_github_page '\''wiki'\''"'
+builtin bind -m vi-insert '"\C-gow": "\C-x0\C-_U\C-x1\C-x2\b"'
+builtin bind -m vi-command '"\C-gow": "i\C-x0\C-_U\C-x1\C-x2\b"'
+
+# Open repo's GitHub Security page in browser.
+builtin bind -x '"\C-_V": "__bash_bindings_open_github_page '\''security'\''"'
+builtin bind -m vi-insert '"\C-goS": "\C-x0\C-_V\C-x1\C-x2\b"'
+builtin bind -m vi-command '"\C-goS": "i\C-x0\C-_V\C-x1\C-x2\b"'
+
+# Open repo's GitHub Insights page in browser.
+builtin bind -x '"\C-_W": "__bash_bindings_open_github_page '\''pulse'\'' '\''Insights'\''"'
+builtin bind -m vi-insert '"\C-goI": "\C-x0\C-_W\C-x1\C-x2\b"'
+builtin bind -m vi-command '"\C-goI": "i\C-x0\C-_W\C-x1\C-x2\b"'
+
+# Open repo's GitHub Settings page in browser.
+builtin bind -x '"\C-_X": "__bash_bindings_open_github_page '\''settings'\''"'
+builtin bind -m vi-insert '"\C-gos": "\C-x0\C-_X\C-x1\C-x2\b"'
+builtin bind -m vi-command '"\C-gos": "i\C-x0\C-_X\C-x1\C-x2\b"'
+
+# Open My GitHub Profile in browser.
+builtin bind -x '"\C-_Y": "__bash_bindings_open_github_page '\''profile'\''"'
+builtin bind -m vi-insert '"\C-go.": "\C-x0\C-_Y\C-x1\C-x2\b"'
+builtin bind -m vi-command '"\C-go.": "i\C-x0\C-_Y\C-x1\C-x2\b"'
 
 __git_list_tags() {
   git tag --list --sort='v:refname'
