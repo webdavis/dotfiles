@@ -1,9 +1,6 @@
----
 name: nvim
 root: "~/.config/nvim"
-
-pre_window: tmux -C attach -c ~/.config/nvim -t nvim </dev/null >/dev/null; clear
-
+pre_window: " sleep 0.5; clear"
 windows:
   - main:
       layout: main-vertical

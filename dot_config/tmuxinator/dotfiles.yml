@@ -1,9 +1,6 @@
----
 name: chezmoi
 root: "~/.local/share/chezmoi"
-
-pre_window: tmux -C attach -c ~/.local/share/chezmoi -t chezmoi </dev/null >/dev/null; clear
-
+pre_window: " sleep 0.5; clear"
 windows:
   - main:
       layout: main-vertical

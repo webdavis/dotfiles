@@ -1,9 +1,6 @@
----
 name: essential-feed-case-study
 root: "~/workspaces/webdavis/projects/essential-feed-case-study"
-
-pre_window: tmux -C attach -c ~/workspaces/webdavis/projects/essential-feed-case-study -t essential-feed-case-study </dev/null >/dev/null; clear
-
+pre_window: " sleep 0.5; clear"
 windows:
   - main:
       layout: main-vertical
