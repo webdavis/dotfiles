@@ -1,9 +1,6 @@
----
 name: Maeve
 root: "~/workspaces/webdavis/projects/Maeve"
-
-pre_window: tmux -C attach -c ~/workspaces/webdavis/projects/Maeve -t Maeve </dev/null >/dev/null; clear
-
+pre_window: " sleep 0.5; clear"
 windows:
   - main:
       layout: main-vertical

@@ -1,9 +1,6 @@
----
 name: sierras-macOS-backup
 root: "~/workspaces/webdavis/projects/sierras-macOS-backup"
-
-pre_window: tmux -C attach -c ~/workspaces/webdavis/projects/sierras-macOS-backup -t sierras-macOS-backup </dev/null >/dev/null; clear
-
+pre_window: " sleep 0.5; clear"
 windows:
   - main:
       layout: main-vertical

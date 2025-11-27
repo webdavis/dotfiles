@@ -1,9 +1,6 @@
----
 name: Gaming
 root: "~/workspaces/webdavis/projects/Gaming"
-
-pre_window: tmux -C attach -c ~/workspaces/webdavis/projects/Gaming -t Gaming </dev/null >/dev/null; clear
-
+pre_window: " sleep 0.5; clear"
 windows:
   - main:
       layout: main-vertical

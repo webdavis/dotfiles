@@ -1,9 +1,6 @@
----
 name: Homelab
 root: "~/workspaces/webdavis/projects/Homelab"
-
-pre_window: tmux -C attach -c ~/workspaces/webdavis/projects/Homelab -t Homelab </dev/null >/dev/null; clear
-
+pre_window: " sleep 0.5; clear"
 windows:
   - main:
       layout: main-vertical

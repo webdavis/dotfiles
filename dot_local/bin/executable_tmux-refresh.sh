@@ -1,35 +1,104 @@
 #!/usr/bin/env bash
 
-# ┏Requirements (tools)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+# ┏ Requirements (tools) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 # ┃                                                    ┃
 # ┃  ∙ https://github.com/tmux/tmux                    ┃
 # ┃  ∙ https://github.com/tmuxinator/tmuxinator        ┃
 # ┃  ∙ https://github.com/tmux-plugins/tmux-resurrect  ┃
-# ┃                                                    ┃
 # ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 
 # Exit immediately if a command fails.
 set -e
 
 declare_globals() {
-  declare -g \
-    TMUXINATOR_PRESETS_DIR \
-    TMUX_RESURRECT_DIR \
-    TMUX_RESURRECT_LAST_FILE \
-    TMUX_RESURRECT_DATA_FILES
-
   # Settings:
+  declare -g TMUXINATOR_PRESETS_DIR TMUX_RESURRECT_DIR
   TMUXINATOR_PRESETS_DIR="${HOME}/.config/tmuxinator"
   TMUX_RESURRECT_DIR="${HOME}/.tmux/resurrect"
-  TMUX_RESURRECT_LAST_FILE="${TMUX_RESURRECT_DIR}/last"
-  TMUX_RESURRECT_DATA_FILES="${TMUX_RESURRECT_DIR}/tmux-resurrect*"
+}
 
-  # Print colors:
-  GREEN="\033[0;32m"
-  CYAN="\033[0;36m"
-  RED="\033[0;31m"
-  RESET="\033[0m"
-  declare -g GREEN CYAN RED RESET
+trap_error() {
+  local lineno=${1:-?}    # Line number where the error occurred
+  local cmd=${2:-?}       # Command that triggered the error
+  local exit_code=${3:-1} # Exit code of the command
+
+  print_process "critical" "Error: Command '${cmd}' failed with exit code ${exit_code} at line ${lineno}" true true
+  exit "$exit_code"
+}
+
+trap_interrupt() {
+  print_process "warning" "Interrupt received (Ctrl-C). Exiting gracefully..." true true
+  exit 130 # 130 is the standard exit code for script terminated by Ctrl-C
+}
+
+trap_init() {
+  trap 'trap_error ${LINENO} "$BASH_COMMAND" $?' ERR
+  trap 'trap_interrupt' SIGINT
+}
+
+print_process_helper() {
+  local message="$1"
+  local newline="${2:-true}"
+  local color="${3:-}"
+  local stderr="${4:-false}"
+  local reset="\033[0m"
+
+  # Select the output stream
+  local fd=1 # default stdout
+  $stderr && fd=2
+
+  message="${color}${message}${reset}"
+
+  if $newline; then
+    printf "%b\n" "$message" >&$fd
+  else
+    printf "%b" "$message" >&$fd
+  fi
+}
+
+print_process() {
+  local type="${1:-}"
+  local message="${2:-}"
+  local newline="${3:-true}"
+  local stderr="${4:-false}"
+
+  local cyan="\033[0;36m"
+  local green="\033[0;32m"
+  local yellow="\033[0;33m"
+  local red="\033[0;31m"
+
+  case "$type" in
+    success) print_process_helper "$message" "$newline" "$green" ;;
+    warning) print_process_helper "$message" "$newline" "$yellow" ;;
+    critical) print_process_helper "$message" "$newline" "$red" "$stderr" ;;
+    error)
+      print_process_helper "Error: $message" "$newline" "$red" "$stderr"
+      exit 1
+      ;;
+    info) print_process_helper "$message" "$newline" "$cyan" ;;
+    *) print_process_helper "$message" "$newline" ;;
+  esac
+}
+
+print_process_start_indicator() {
+  local message="$1"
+  local newline="${2:-true}"
+  local red="\033[0;31m"
+  print_process_helper "$message" "$newline" "$red"
+}
+
+print_process_finished_indicator() {
+  local message="$1"
+  local newline="${2:-true}"
+  local green="\033[0;32m"
+  print_process_helper "$message" "$newline" "$green"
+}
+
+print_process_info_indicator() {
+  local message="$1"
+  local newline="${2:-true}"
+  local cyan="\033[0;36m"
+  print_process_helper "$message" "$newline" "$cyan"
 }
 
 help_message() {
@@ -52,7 +121,6 @@ ${bold}USAGE${normal}
 
 ${bold}OPTIONS${normal}
    -k   Kill all existing Tmux sessions before starting new ones.
-   -s   Kill Tmux server.
    -p   Purge all tmux-resurrect data before starting sessions.
    -t   Start all Tmux sessions via Tmuxinator using presets located in ${TMUXINATOR_PRESETS_DIR} (default behavior)
    -h   Prints this help text.
@@ -67,7 +135,6 @@ ${bold}EXAMPLES${normal}
    ${script_name}            (Default) Kill, purge, and start all sessions
    ${script_name} -t         Start all tmux sessions
    ${script_name} -k         Kill all tmux sessions
-   ${script_name} -s         Kill tmux server
    ${script_name} -p         Purge all tmux-resurrect data
    ${script_name} -k -p      Kill sessions and purge tmux-resurrect data
    ${script_name} -k -t      Kill existing sessions, then start new ones (preserves tmux-resurrect data)
@@ -76,18 +143,14 @@ ${bold}EXAMPLES${normal}
 }
 
 kill_sessions_flag=false
-kill_server_flag=false
 purge_tmux_resurrect_data_flag=false
 launch_all_tmux_sessions_flag=false
 
-optstring=':kspth'
+optstring=':kpth'
 while getopts "$optstring" option; do
   case "$option" in
     k)
       kill_sessions_flag=true
-      ;;
-    s)
-      kill_server_flag=true
       ;;
     p)
       purge_tmux_resurrect_data_flag=true
@@ -100,8 +163,7 @@ while getopts "$optstring" option; do
       exit 0
       ;;
     *)
-      echo "Error: invalid option '$OPTARG'"
-      exit 1
+      print_process "error" "invalid option '${OPTARG}'" true true
       ;;
   esac
 done
@@ -111,11 +173,10 @@ verify_tool() {
   local tool="$1"
 
   if [[ ! -x "$(builtin command -v "$tool")" ]]; then
-    printf "%s\n\n" "\
+    print_process "warning" "\
 Oops! Looks like you don't have ${tool} installed.
 
-Please install it and then try again (e.g. brew install ${tool})" 2>&1
-
+Please install it and then try again (e.g. brew install ${tool})" "true"
     return 1
   fi
   return 0
@@ -141,8 +202,7 @@ verify_required_tools() {
 if_no_flags_activate_all() {
   # Default behavior: If no flags are provided, do everything by default.
 
-  if ! $kill_server_flag && ! $kill_sessions_flag && ! $purge_tmux_resurrect_data_flag && ! $launch_all_tmux_sessions_flag; then
-    kill_server_flag=true
+  if ! $kill_sessions_flag && ! $purge_tmux_resurrect_data_flag && ! $launch_all_tmux_sessions_flag; then
     kill_sessions_flag=true
     purge_tmux_resurrect_data_flag=true
     launch_all_tmux_sessions_flag=true
@@ -153,34 +213,41 @@ kill_tmux_sessions() {
   # Description: Kills all existing Tmux sessions.
 
   if tmux ls >/dev/null 2>&1; then
-    echo -e "${RED}Killing all existing tmux sessions...${RESET}"
+    print_process "critical" "Killing all existing tmux sessions..." false
 
     local session
     while IFS= read -r session; do
       tmux kill-session -t "$session"
     done < <(tmux list-sessions -F "#{session_name}" 2>/dev/null)
+    while tmux list-sessions &>/dev/null; do
+      sleep 0.1
+    done
+    rm -rf /tmp/tmux-"$(id -u)"/*
+    print_process "success" " Done."
+  else
+    print_process "warning" "No tmux server running."
   fi
 }
 
-kill_tmux_server() {
-  if tmux ls >/dev/null 2>&1; then
-    echo -en "${RED}Killing tmux server...${RESET}"
-    tmux kill-server
-    echo -e "${GREEN} Done.${RESET}"
-  else
-    echo "No tmux server running."
-  fi
-
-  rm -rf /tmp/tmux-"$(id -u)"/*
+wait_for_resurrect_session_and_data_removal() {
+  # Enable nullglob so the glob expands to empty if there are no files.
+  shopt -s nullglob
+  local files
+  while true; do
+    files=("${TMUX_RESURRECT_DIR}"/*)
+    [[ ${#files[@]} -eq 0 ]] && break
+    sleep 0.1
+  done
+  shopt -u nullglob
 }
 
 purge_tmux_resurrect_data() {
   # Description: Deletes Tmux session data tracked by tmux_resurrect.
   # Ref: https://github.com/tmux-plugins/tmux-resurrect
-
-  echo -e "${RED}Purging all tmux-resurrect data...${RESET}"
-  rm -f "$TMUX_RESURRECT_LAST_FILE"
-  rm -f "$TMUX_RESURRECT_DATA_FILES"
+  print_process "critical" "Purging all tmux-resurrect data..." false
+  rm -rf "${TMUX_RESURRECT_DIR:?}"/*
+  wait_for_resurrect_session_and_data_removal
+  print_process "success" " Done."
 }
 
 launch_tmux_session() {
@@ -190,32 +257,41 @@ launch_tmux_session() {
   local project="$1"
   local file="$2"
 
-  echo -en "\n${CYAN}Starting ${project}...${RESET}"
-  # echo -en "Starting ${project}..."
+  print_process "info" "Starting ${project}..." false
 
   export HOME="$HOME"
   export XDG_DATA_HOME="$HOME/.local/share"
   export XDG_CONFIG_HOME="$HOME/.config"
   TMUX_ENV_CMD="env HOME=$HOME XDG_DATA_HOME=$HOME/.local/share XDG_CONFIG_HOME=$HOME/.config"
+
+  $purge_tmux_resurrect_data_flag && wait_for_resurrect_session_and_data_removal
+
   if $TMUX_ENV_CMD tmuxinator start "$project" --config "$file" --no-attach; then
-    echo -e "${GREEN} Done.${RESET}"
+    print_process_finished_indicator " Done."
   fi
 }
 
 get_tmuxinator_projects() {
   local files=("$TMUXINATOR_PRESETS_DIR"/*)
-
   local project file
+  local found=false
 
   for file in "${files[@]}"; do
+    [[ -f $file ]] || continue
+    found=true
+
     # Strip path.
     project="${file##*/}"
 
     # Strips file extension.
     project="${project%%.*}"
 
-    echo "$project:$file"
+    printf "%s:%s\n" "$project" "$file"
   done
+
+  if ! $found; then
+    print_process "error" "Could not find any tmuxinator config files in ${TMUXINATOR_PRESETS_DIR}" true true
+  fi
 }
 
 launch_all_tmux_sessions() {
@@ -234,12 +310,12 @@ launch_all_tmux_sessions() {
 
 perform_actions() {
   $kill_sessions_flag && kill_tmux_sessions
-  $kill_server_flag && kill_tmux_server
   $purge_tmux_resurrect_data_flag && purge_tmux_resurrect_data
   $launch_all_tmux_sessions_flag && launch_all_tmux_sessions
 }
 
 main() {
+  trap_init
   declare_globals
   verify_required_tools "tmux" "tmuxinator"
   if_no_flags_activate_all
