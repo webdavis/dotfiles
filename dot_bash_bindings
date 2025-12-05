@@ -422,6 +422,10 @@ builtin bind -x '"\C-_M": "git branch -vv"'
 builtin bind -m vi-insert '"\C-gbv": "\C-x0\C-_M\C-x1\C-x2\b"'
 builtin bind -m vi-command '"\C-gbv": "i\C-x0\C-_M\C-x1\C-x2\b"'
 
+# git branch -m
+builtin bind -m vi-insert '"\C-gbm": "\C-x0git branch -m "'
+builtin bind -m vi-command '"\C-gbm": "i\C-x0git branch -m "'
+
 # `git reset --hard HEAD~ -- `
 builtin bind -m vi-insert '"\C-grh": "\C-x0git reset --hard HEAD~ -- "'
 builtin bind -m vi-command '"\C-grh": "i\C-x0git reset --hard HEAD~ -- "'
