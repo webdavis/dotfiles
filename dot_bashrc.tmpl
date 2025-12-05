@@ -48,12 +48,8 @@ shopt -s histappend
 # Ignore consecutive duplicates, remove older duplicates, and skip commands starting with a space.
 export HISTCONTROL=ignoredups:erasedups:ignorespace
 
-# Load secret bash settings from a file that is NOT tracked by Git (~/.bash_secrets).
-# Useful for excluding secrets or commands (e.g., passwords) from ~/.bash_history.
-# Example:
-#    export HISTIGNORE="$HISTIGNORE:*password*"
-bash_secrets="$HOME/.bash_secrets"
-[[ -s $bash_secrets ]] && . "$bash_secrets"
+# Exclude any commands matching the specified regex pattern from Bash command history.
+export HISTIGNORE="$HISTIGNORE:{{ (keepassxc "dotfiles - bashrc - HISTIGNORE - Regex").Password }}"
 
 # ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 # ┃  Hombrew: https://brew.sh/  ┃
