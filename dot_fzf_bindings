@@ -507,8 +507,8 @@ __fzf_git_select_commit_hashes() {
   __insert_text_at_cursor "${commit_hashes[*]}"
 }
 builtin bind -x '"\C-_02": __fzf_git_select_commit_hashes'
-builtin bind -m vi-insert '"\C-gh": "\C-_02"'
-builtin bind -m vi-command '"\C-gh": "i\C-_02"'
+builtin bind -m vi-insert '"\C-gch": "\C-_02"'
+builtin bind -m vi-command '"\C-gch": "i\C-_02"'
 
 # "<C-g>CC" - `git checkout` a commit.
 __fzf_git_checkout_commit() {
