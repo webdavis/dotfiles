@@ -71,84 +71,69 @@ sudo_insert() {
 bind -x '"\C-s": sudo_insert'
 
 # ls/eza
-builtin bind -x '"\C-_a": "eza -ahlrs date"'
-builtin bind -m vi-insert '"\M-l": "\C-x0\C-_a\C-x1\C-x2\b"'
-builtin bind -m vi-command '"\M-l": "i\C-x0\C-_a\C-x1\C-x2\b"'
+builtin bind -m vi-insert '"\M-l": "\C-x0eza -ahlrs date\r"'
+builtin bind -m vi-command '"\M-l": "i\C-x0eza -ahlrs date\r"'
 builtin bind -m vi-insert '"\M-L": "\C-x0eza -ahlrs date "'
 builtin bind -m vi-command '"\M-L": "i\C-x0eza -ahlrs date "'
 
 # List directories.
-builtin bind -x '"\C-_b": "eza -alD"'
-builtin bind -m vi-insert '"\M-i": "\C-x0\C-_b\C-x1\C-x2\b"'
-builtin bind -m vi-command '"\M-i": "i\C-x0\C-_b\C-x1\C-x2\b"'
+builtin bind -m vi-insert '"\M-i": "\C-x0eza -alD\r"'
+builtin bind -m vi-command '"\M-i": "i\C-x0eza -alD\r"'
 builtin bind -m vi-insert '"\M-I": "\C-x0eza -alD "'
 builtin bind -m vi-command '"\M-I": "i\C-x1eza -alD "'
 
 # List files sorted by time.
-builtin bind -x '"\C-_c": "eza -hl --sort=age"'
-builtin bind -m vi-insert '"\C-xt": "\C-x0\C-_c\C-x1\C-x2\b"'
-builtin bind -m vi-insert '"\C-xt": "\C-x0\C-_c\C-x1\C-x2\b"'
+builtin bind -m vi-insert '"\C-xt": "\C-x0eza -hl --sort=age\r"'
+builtin bind -m vi-insert '"\C-xt": "\C-x0eza -hl --sort=age\r"'
 builtin bind -m vi-insert '"\C-xT": "\C-x0eza -ahl --sort=age "'
 builtin bind -m vi-insert '"\C-xT": "i\C-x0eza -ahl --sort=age "'
 
 # eza tree
-builtin bind -x '"\C-_d": "eza --tree"'
-builtin bind -m vi-insert '"\M-t": "\C-x0\C-_d\C-x1\C-x2\b"'
-builtin bind -m vi-command '"\M-t": "i\C-x0\C-_d\C-x1\C-x2\b"'
+builtin bind -m vi-insert '"\M-t": "\C-x0eza --tree\r"'
+builtin bind -m vi-command '"\M-t": "i\C-x0eza --tree\r"'
 builtin bind -m vi-insert '"\M-T": "\C-x0eza -lT "'
 builtin bind -m vi-command '"\M-T": "i\C-x0eza -lT "'
 
-# eza tree with detailed file info.
-builtin bind -x '"\C-_e": "eza –-tree -–color=always –-header –-group –-links –-bytes –-long –-ignore-glob=.git"'
-builtin bind -m vi-insert '"\C-xu": "\C-x0\C-_e\C-x1\C-x2\b"'
-builtin bind -m vi-command '"\C-xu": "i\C-x0\C-_e\C-x1\C-x2\b"'
+# `eza tree` with detailed file info.
+builtin bind -m vi-insert '"\C-xu": "\C-x0eza –-tree -–color=always –-header –-group –-links –-bytes –-long –-ignore-glob=.git\r"'
+builtin bind -m vi-command '"\C-xu": "i\C-x0eza –-tree -–color=always –-header –-group –-links –-bytes –-long –-ignore-glob=.git\r"'
 builtin bind -m vi-insert '"\C-x\C-u": "\C-x0eza -lThgB --color=always -I .git "'
 builtin bind -m vi-command '"\C-x\C-u": "i\C-x0eza -lThgB --color=always -I .git "'
 
 # Ping Google's DNS server.
-builtin bind -x '"\C-_f": "ping -c 3 8.8.8.8"'
-builtin bind -m vi-insert '"\C-x\C-p": "\C-x0\C-_f\C-x1\C-x2\b"'
-builtin bind -m vi-command '"\C-x\C-p": "i\C-x0\C-_f\C-x1\C-x2\b"'
-builtin bind -m vi-insert '"\C-xp": "\C-x0ping -c 3 "'
-builtin bind -m vi-command '"\C-xp": "i\C-x0ping -c 3 "'
+builtin bind -m vi-insert '"\C-xp": "\C-x0ping -c 3 8.8.8.8\r"'
+builtin bind -m vi-command '"\C-xp": "i\C-x0ping -c 3 8.8.8.8\r"'
+builtin bind -m vi-insert '"\C-xP": "\C-x0ping -c 3 8.8.8.8 "'
+builtin bind -m vi-command '"\C-xP": "i\C-x0ping -c 3 8.8.8.8 "'
 
 # Source ~/.bashrc
-builtin bind -x '"\C-_g": "source $HOME/.bashrc"'
-builtin bind -m vi-insert '"\C-x\C-s": "\C-x0\C-_g\C-x1\C-x2\b"'
-builtin bind -m vi-command '"\C-x\C-s": "i\C-x0\C-_g\C-x1\C-x2\b"'
+builtin bind -m vi-insert '"\C-x\C-s": "\C-x0source ~/.bashrc\r"'
+builtin bind -m vi-command '"\C-x\C-s": "i\C-x0source ~/.bashrc\r"'
 
-# Go-to bindings
-builtin bind -x '"\C-_h": "cd ${HOME}/.config"'
-builtin bind -m vi-insert '"\M-dc": "\C-x0\C-_h\C-x1\C-x2\015"'
-builtin bind -m vi-command '"\M-dc": "i\C-x0\C-_h\C-x1\C-x2\015"'
+# Go-to bindings:
+builtin bind -m vi-insert '"\M-dc": "\C-x0cd ~/.config\r"'
+builtin bind -m vi-command '"\M-dc": "i\C-x0cd ~/.config\r"'
 
-builtin bind -x '"\C-_j": "cd ${HOME}/Documents"'
-builtin bind -m vi-insert '"\M-dd": "\C-x0\C-_j\C-x1\C-x2\015"'
-builtin bind -m vi-command '"\M-dd": "i\C-x0\C-_j\C-x1\C-x2\015"'
+builtin bind -m vi-insert '"\M-dd": "\C-x0cd ~/Documents\r"'
+builtin bind -m vi-command '"\M-dd": "i\C-x0cd ~/Documents\r"'
 
-builtin bind -x '"\C-_k": "cd ${HOME}/Downloads"'
-builtin bind -m vi-insert '"\M-dD": "\C-x0\C-_k\C-x1\C-x2\015"'
-builtin bind -m vi-command '"\M-dD": "i\C-x0\C-_k\C-x1\C-x2\015"'
+builtin bind -m vi-insert '"\M-dD": "\C-x0cd ~/Downloads\r"'
+builtin bind -m vi-command '"\M-dD": "i\C-x0cd ~/Downloads\r"'
 
-builtin bind -x '"\C-_l": "cd ${HOME}/.config/nvim"'
-builtin bind -m vi-insert '"\M-dn": "\C-x0\C-_l\C-x1\C-x2\015"'
-builtin bind -m vi-command '"\M-dn": "i\C-x0\C-_l\C-x1\C-x2\015"'
+builtin bind -m vi-insert '"\M-dn": "\C-x0cd ~/.config/nvim\r"'
+builtin bind -m vi-command '"\M-dn": "i\C-x0cd ~/.config/nvim\r"'
 
-builtin bind -x '"\C-_m": "cd ${HOME}/Pictures/screenshots"'
-builtin bind -m vi-insert '"\M-dss": "\C-x0\C-_m\C-x1\C-x2\015"'
-builtin bind -m vi-command '"\M-dss": "i\C-x0\C-_m\C-x1\C-x2\015"'
+builtin bind -m vi-insert '"\M-ds": "\C-x0cd ~/Pictures/screenshots\r"'
+builtin bind -m vi-command '"\M-ds": "i\C-x0cd ~/Pictures/screenshots\r"'
 
-builtin bind -x '"\C-_n": "cd ${HOME}/workspaces/webdavis/projects"'
-builtin bind -m vi-insert '"\M-dp": "\C-x0\C-_n\C-x1\C-x2\015"'
-builtin bind -m vi-command '"\M-dp": "i\C-x0\C-_n\C-x1\C-x2\015"'
+builtin bind -m vi-insert '"\M-dp": "\C-x0cd ~/workspaces/webdavis/projects\r"'
+builtin bind -m vi-command '"\M-dp": "i\C-x0cd ~/workspaces/webdavis/projects\r"'
 
-builtin bind -x '"\C-_o": "cd ${HOME}/workspaces/tools"'
-builtin bind -m vi-insert '"\M-dt": "\C-x0\C-_o\C-x1\C-x2\015"'
-builtin bind -m vi-command '"\M-dt": "i\C-x0\C-_o\C-x1\C-x2\015"'
+builtin bind -m vi-insert '"\M-dt": "\C-x0cd ~/workspaces/tools\r"'
+builtin bind -m vi-command '"\M-dt": "i\C-x0cd ~/workspaces/tools\r"'
 
-builtin bind -x '"\C-_p": "cd ${HOME}/workspaces/test"'
-builtin bind -m vi-insert '"\M-dT": "\C-x0\C-_p\C-x1\C-x2\015"'
-builtin bind -m vi-command '"\M-dT": "i\C-x0\C-_p\C-x1\C-x2\015"'
+builtin bind -m vi-insert '"\M-dT": "\C-x0cd ~/workspaces/test\r"'
+builtin bind -m vi-command '"\M-dT": "i\C-x0cd ~/workspaces/test\r"'
 
 # Go-to a projects root directory. The respective keyboard binding is in ~/.inputrc.
 __go_to_project_root() {
@@ -178,122 +163,96 @@ __go_to_project_root() {
     path="$(dirname "$path")"
   done
 }
-builtin bind -x '"\C-_q": __go_to_project_root'
-builtin bind -m vi-insert '"\C-xr": "\C-x0\C-_q\C-x1\C-x2\b"'
-builtin bind -m vi-command '"\C-xr": "i\C-x0\C-_q\C-x1\C-x2\b"'
+builtin bind -m vi-insert '"\C-gdr": "\C-x0__go_to_project_root\r"'
+builtin bind -m vi-command '"\C-gdr": "i\C-x0__go_to_project_root\r"'
 
 # git --version
-builtin bind -x '"\C-_r": "git --version"'
-builtin bind -m vi-insert '"\C-gv": "\C-x0\C-_r\C-x1\C-x2\b"'
-builtin bind -m vi-command '"\C-gv": "i\C-x0\C-_r\C-x1\C-x2\b"'
+builtin bind -m vi-insert '"\C-gv": "\C-x0git --version\r"'
+builtin bind -m vi-command '"\C-gv": "i\C-x0git --version\r"'
 
 # git status
-builtin bind -x '"\C-_s": "git status"'
-builtin bind -m vi-insert '"\C-gs": "\C-x0\C-_s\C-x1\C-x2\b"'
-builtin bind -m vi-command '"\C-gs": "i\C-x0\C-_s\C-x1\C-x2\b"'
+builtin bind -m vi-insert '"\C-gs": "\C-x0git status\r"'
+builtin bind -m vi-command '"\C-gs": "i\C-x0git status\r"'
 
 # git log
-builtin bind -x '"\C-_t": "git log"'
-builtin bind -m vi-insert '"\C-gll": "\C-x0\C-_t\C-x1\C-x2\b"'
-builtin bind -m vi-command '"\C-gll": "i\C-x0\C-_t\C-x1\C-x2\b"'
+builtin bind -m vi-insert '"\C-gll": "\C-x0git log\r"'
+builtin bind -m vi-command '"\C-gll": "i\C-x0git log\r"'
 
 # git log --oneline
-builtin bind -x '"\C-_u": "git log --oneline"'
-builtin bind -m vi-insert '"\C-glo": "\C-x0\C-_u\C-x1\C-x2\b"'
-builtin bind -m vi-command '"\C-glo": "i\C-x0\C-_u\C-x1\C-x2\b"'
+builtin bind -m vi-insert '"\C-glo": "\C-x0git log --oneline\r"'
+builtin bind -m vi-command '"\C-glo": "i\C-x0git log --oneline\r"'
 
 # Print the current git working diff.
-builtin bind -x '"\C-_v": "git diff"'
-builtin bind -m vi-insert '"\C-gdd": "\C-x0\C-_v\C-x1\C-x2\b"'
-builtin bind -m vi-command '"\C-gdd": "i\C-x0\C-_v\C-x1\C-x2\b"'
+builtin bind -m vi-insert '"\C-gdd": "\C-x0git diff\r"'
+builtin bind -m vi-command '"\C-gdd": "i\C-x0git diff\r"'
 
 # Print the current git diff of the latest commit.
-builtin bind -x '"\C-_w": "git diff HEAD^"'
-builtin bind -m vi-insert '"\C-gdh": "\C-x0\C-_w\C-x1\C-x2\b"'
-builtin bind -m vi-command '"\C-gdh": "i\C-x0\C-_w\C-x1\C-x2\b"'
+builtin bind -m vi-insert '"\C-gdl": "\C-x0git diff HEAD^\r"'
+builtin bind -m vi-command '"\C-gdl": "i\C-x0git diff HEAD^\r"'
 
 # Print the diff of the current and previous commit.
-builtin bind -x '"\C-_x": "git diff-index --quiet HEAD -- || clear; git --no-pager diff --patch-with-stat"'
-builtin bind -m vi-insert '"\C-gD": "\C-x0\C-_x\C-x1\C-x2\b"'
-builtin bind -m vi-command '"\C-gD": "i\C-x0\C-_x\C-x1\C-x2\b"'
+builtin bind -m vi-insert '"\C-gdp": "\C-x0git diff-index --quiet HEAD -- || clear; git --no-pager diff --patch-with-stat\r"'
+builtin bind -m vi-command '"\C-gdp": "i\C-x0git diff-index --quiet HEAD -- || clear; git --no-pager diff --patch-with-stat\r"'
 
 # git diff --cached
-builtin bind -x '"\C-_y": "git diff --cached"'
-builtin bind -m vi-insert '"\C-gdc": "\C-x0\C-_y\C-x1\C-x2\b"'
-builtin bind -m vi-command '"\C-gdc": "i\C-x0\C-_y\C-x1\C-x2\b"'
+builtin bind -m vi-insert '"\C-gdc": "\C-x0git diff --cached\r"'
+builtin bind -m vi-command '"\C-gdc": "i\C-x0git diff --cached\r"'
 
 # `git checkout `
-builtin bind -m vi-insert '"\C-gcH": "\C-x0git checkout "'
-builtin bind -m vi-command '"\C-gcH": "i\C-x0git checkout "'
+builtin bind -m vi-insert '"\C-gCC": "\C-x0git checkout "'
+builtin bind -m vi-command '"\C-gCC": "i\C-x0git checkout "'
 
 # `git checkout -b `
-builtin bind -m vi-insert '"\C-gcB": "\C-x0git checkout -b "'
-builtin bind -m vi-command '"\C-gcB": "i\C-x0git checkout -b "'
+builtin bind -m vi-insert '"\C-gCb": "\C-x0git checkout -b "'
+builtin bind -m vi-command '"\C-gCb": "i\C-x0git checkout -b "'
 
 # git checkout -
-builtin bind -x '"\C-_z": "git checkout -"'
-builtin bind -m vi-insert '"\C-gc-": "\C-x0\C-_z\C-x1\C-x2\b"'
-builtin bind -m vi-command '"\C-gc-": "i\C-x0\C-_z\C-x1\C-x2\b"'
+builtin bind -m vi-insert '"\C-gC-": "\C-x0git checkout -\r"'
+builtin bind -m vi-command '"\C-gC-": "i\C-x0git checkout -\r"'
 
 # git checkout main
-builtin bind -x '"\C-_A": "git checkout main"'
-builtin bind -m vi-insert '"\C-gcm": "\C-x0\C-_A\C-x1\C-x2\b"'
-builtin bind -m vi-command '"\C-gcm": "i\C-x0\C-_A\C-x1\C-x2\b"'
+builtin bind -m vi-insert '"\C-gCm": "\C-x0git checkout main\r"'
+builtin bind -m vi-command '"\C-gCm": "i\C-x0git checkout main\r"'
 
-# git commit -v
-builtin bind -x '"\C-_B": "git commit --verbose"'
-builtin bind -m vi-insert '"\C-gcc": "\C-x0\C-_B\C-x1\C-x2\b"'
-builtin bind -m vi-command '"\C-gcc": "i\C-x0\C-_B\C-x1\C-x2\b"'
+# git commit --verbose
+builtin bind -m vi-insert '"\C-gcc": "\C-x0git commit --verbose\r"'
+builtin bind -m vi-command '"\C-gcc": "i\C-x0git commit --verbose\r"'
 
-# git commit -av
-builtin bind -x '"\C-_C": "git commit -av"'
-builtin bind -m vi-insert '"\C-gcv": "\C-x0\C-_C\C-x1\C-x2\b"'
-builtin bind -m vi-command '"\C-gcv": "i\C-x0\C-_C\C-x1\C-x2\b"'
+# git commit --verbose -m '<cursor>'
+builtin bind -m vi-insert "\"\C-gcm\": \"\C-x0git commit --verbose -m ''\e[D\""
+builtin bind -m vi-command "\"\C-gcm\": \"i\C-x0git commit --verbose -m ''\e[D\""
 
-# git commit -v (no Enter)
-builtin bind -m vi-insert '"\C-gco": "\C-x0git commit -v "'
-builtin bind -m vi-command '"\C-gco": "i\C-x0git commit -v "'
+# git commit --verbose --amend
+builtin bind -m vi-insert '"\C-gca": "\C-x0git commit --verbose --amend\r"'
+builtin bind -m vi-command '"\C-gca": "i\C-x0git commit --verbose --amend\r"'
 
-# git commit -m '' (no Enter)
-builtin bind -m vi-insert "\"\C-gcm\": \"\C-x0git commit -m ''\e[D\""
-builtin bind -m vi-command "\"\C-gcm\": \"i\C-x0git commit -m ''\e[D\""
-
-# git commit -v --amend
-builtin bind -x '"\C-_D": "git commit -v --amend"'
-builtin bind -m vi-insert '"\C-gca": "\C-x0\C-_D\C-x1\C-x2\b"'
-builtin bind -m vi-command '"\C-gca": "i\C-x0\C-_D\C-x1\C-x2\b"'
-builtin bind -m vi-insert '"\C-gcA": "\C-x0git commit -v --amend "'
-builtin bind -m vi-command '"\C-gcA": "i\C-x0git commit -v --amend "'
+# git commit --verbose --all
+builtin bind -m vi-insert '"\C-gcA": "\C-x0git commit --verbose --all\r"'
+builtin bind -m vi-command '"\C-gcA": "i\C-x0git commit --verbose --all\r"'
 
 # git commit --amend --no-edit
-builtin bind -x '"\C-_E": "git commit --amend --no-edit"'
-builtin bind -m vi-insert '"\C-gcn": "\C-x0\C-_E\C-x1\C-x2\b"'
-builtin bind -m vi-command '"\C-gcn": "i\C-x0\C-_E\C-x1\C-x2\b"'
+builtin bind -m vi-insert '"\C-gcn": "\C-x0git commit --amend --no-edit\r"'
+builtin bind -m vi-command '"\C-gcn": "i\C-x0git commit --amend --no-edit\r"'
 
 # git commit --amend --no-edit --all
-builtin bind -x '"\C-_Z": "git commit --amend --no-edit --all"'
-builtin bind -m vi-insert '"\C-gcN": "\C-x0\C-_Z\C-x1\C-x2\b"'
-builtin bind -m vi-command '"\C-gcN": "i\C-x0\C-_Z\C-x1\C-x2\b"'
+builtin bind -m vi-insert '"\C-gcN": "\C-x0git commit --amend --no-edit --all\r"'
+builtin bind -m vi-command '"\C-gcN": "i\C-x0git commit --amend --no-edit --all\r"'
 
 # git init
-builtin bind -x '"\C-_F": "git init"'
-builtin bind -m vi-insert '"\C-gii": "\C-x0\C-_F\C-x1\C-x2\b"'
-builtin bind -m vi-command '"\C-gii": "i\C-x0\C-_F\C-x1\C-x2\b"'
+builtin bind -m vi-insert '"\C-gii": "\C-x0git init\r"'
+builtin bind -m vi-command '"\C-gii": "i\C-xgit init\r"'
 
 # git init && gh repo create
-builtin bind -x '"\C-_G": "if [[ ! -d '.git' ]]; then git init && gh repo create; else gh repo create; fi;"'
-builtin bind -m vi-insert '"\C-gic": "\C-x0\C-_G\C-x1\C-x2\b"'
-builtin bind -m vi-command '"\C-gic": "i\C-x0\C-_G\C-x1\C-x2\b"'
+builtin bind -m vi-insert '"\C-gic": "\C-x0git rev-parse --is-inside-work-tree &>/dev/null || git init; gh repo create\r"'
+builtin bind -m vi-command '"\C-gic": "i\C-x0git rev-parse --is-inside-work-tree &>/dev/null || git init; gh repo create\r"'
 
 # git push
-builtin bind -x '"\C-_H": "git push"'
-builtin bind -m vi-insert '"\C-gpp": "\C-x0\C-_H\C-x1\C-x2\b"'
-builtin bind -m vi-command '"\C-gpp": "i\C-x0\C-_H\C-x1\C-x2\b"'
+builtin bind -m vi-insert '"\C-gpp": "\C-x0git push\r"'
+builtin bind -m vi-command '"\C-gpp": "i\C-x0git push\r"'
 
 # git push --force
-builtin bind -x '"\C-_H": "git push --force"'
-builtin bind -m vi-insert '"\C-gpf": "\C-x0\C-_H\C-x1\C-x2\b"'
-builtin bind -m vi-command '"\C-gpf": "i\C-x0\C-_H\C-x1\C-x2\b"'
+builtin bind -m vi-insert '"\C-gpf": "\C-x0git push --force\r"'
+builtin bind -m vi-command '"\C-gpf": "i\C-x0git push --force\r"'
 
 # Delete remote_branch branch from the origin remote.
 # `git push origin :remote_branch`
@@ -402,27 +361,24 @@ __git_list_tags() {
 }
 
 # git tag --list --sort=v:refname
-builtin bind -x '"\C-_L": "__git_list_tags"'
-builtin bind -m vi-insert '"\C-gtl": "\C-x0\C-_L\C-x1\C-x2\b"'
-builtin bind -m vi-command '"\C-gtl": "i\C-x0\C-_L\C-x1\C-x2\b"'
+builtin bind -m vi-insert '"\C-gtl": "\C-x0__git_list_tags\r"'
+builtin bind -m vi-command '"\C-gtl": "i\C-x0__git_list_tags\r"'
 
 # `git add `
 builtin bind -m vi-insert '"\C-gaa": "\C-x0git add "'
 builtin bind -m vi-command '"\C-gaa": "i\C-x0git add "'
 
 # git add .
-builtin bind -x '"\C-_Q": "git add ."'
-builtin bind -m vi-insert '"\C-ga.": "\C-x0\C-_Q\C-x1\C-x2\b"'
-builtin bind -m vi-command '"\C-ga.": "i\C-x0\C-_Q\C-x1\C-x2\b"'
+builtin bind -m vi-insert '"\C-ga.": "\C-x0git add .\r"'
+builtin bind -m vi-command '"\C-ga.": "i\C-x0git add .\r"'
 
 # `git branch `
 builtin bind -m vi-insert '"\C-gbb": "\C-x0git branch "'
 builtin bind -m vi-command '"\C-gbb": "i\C-x0git branch "'
 
 # git branch -vv
-builtin bind -x '"\C-_M": "git branch -vv"'
-builtin bind -m vi-insert '"\C-gbv": "\C-x0\C-_M\C-x1\C-x2\b"'
-builtin bind -m vi-command '"\C-gbv": "i\C-x0\C-_M\C-x1\C-x2\b"'
+builtin bind -m vi-insert '"\C-gbv": "\C-x0git branch -vv\r"'
+builtin bind -m vi-command '"\C-gbv": "i\C-x0git branch -vv\r"'
 
 # git branch -m
 builtin bind -m vi-insert '"\C-gbm": "\C-x0git branch -m "'
@@ -445,9 +401,8 @@ builtin bind -m vi-insert '"\C-ghp": "\C-x0gh pr list\r"'
 builtin bind -m vi-command '"\C-ghp": "i\C-x0gh pr list\r"'
 
 # nvm use default
-builtin bind -x '"\C-_N": "nvm use default"'
-builtin bind -m vi-insert '"\C-xnu": "\C-x0\C-_N\C-x1\C-x2\b"'
-builtin bind -m vi-command '"\C-xnu": "i\C-x0\C-_N\C-x1\C-x2\b"'
+builtin bind -m vi-insert '"\C-xnu": "\C-x0nvm use default\r"'
+builtin bind -m vi-command '"\C-xnu": "i\C-x0nvm use default\r"'
 
 # Package manager update
 __update_package_manager() {
@@ -496,9 +451,8 @@ __update_package_manager() {
   esac
   $command
 }
-builtin bind -x '"\C-_O": __update_package_manager'
-builtin bind -m vi-insert '"\C-xou": "\C-x0\C-_O\C-x1\C-x2\b"'
-builtin bind -m vi-command '"\C-xou": "i\C-x0\C-_O\C-x1\C-x2\b"'
+builtin bind -m vi-insert '"\C-xou": "\C-x0__update_package_manager\r"'
+builtin bind -m vi-command '"\C-xou": "i\C-x0__update_package_manager\r"'
 
 # `brew search `
 builtin bind -m vi-insert '"\C-xos": "\C-x0brew search "'
@@ -516,9 +470,8 @@ redraw_prompt() {
 }
 
 # `cd -`
-builtin bind -x '"\C-_P": "builtin cd -"'
-builtin bind -m vi-insert '"\C-x-": "\C-x0\C-_P\C-x1\C-x2\b\r"'
-builtin bind -m vi-command '"\C-x-": "i\C-x0\C-_P\C-x1\C-x2\b\r"'
+builtin bind -m vi-insert '"\C-x-": "\C-x0cd -\r"'
+builtin bind -m vi-command '"\C-x-": "i\C-x0cd -\r"'
 
 # List git files with last modified:
 __git_ls_files_with_last_modified() {
@@ -545,6 +498,5 @@ __git_ls_files_with_last_modified() {
   done < <(git ls-files)
 }
 
-builtin bind -x '"\C-_Q": "__git_ls_files_with_last_modified"'
-builtin bind -m vi-insert '"\C-xl": "\C-x0\C-_Q\C-x1\C-x2\b"'
-builtin bind -m vi-command '"\C-xl": "i\C-x0\C-_Q\C-x1\C-x2\b"'
+builtin bind -m vi-insert '"\C-xl": "\C-x0__git_ls_files_with_last_modified\r"'
+builtin bind -m vi-command '"\C-xl": "i\C-x0__git_ls_files_with_last_modified\r"'
