@@ -434,6 +434,14 @@ builtin bind -m vi-command '"\C-grh": "i\C-x0git reset --hard HEAD~ -- "'
 builtin bind -m vi-insert '"\C-grs": "\C-x0git reset --soft HEAD~ -- "'
 builtin bind -m vi-command '"\C-grs": "i\C-x0git reset --soft HEAD~ -- "'
 
+# gh issue list
+builtin bind -m vi-insert '"\C-ghi": "\C-x0gh issue list\r"'
+builtin bind -m vi-command '"\C-ghi": "i\C-x0gh issue list\r"'
+
+# gh pr list
+builtin bind -m vi-insert '"\C-ghp": "\C-x0gh pr list\r"'
+builtin bind -m vi-command '"\C-ghp": "i\C-x0gh pr list\r"'
+
 # nvm use default
 builtin bind -x '"\C-_N": "nvm use default"'
 builtin bind -m vi-insert '"\C-xnu": "\C-x0\C-_N\C-x1\C-x2\b"'
