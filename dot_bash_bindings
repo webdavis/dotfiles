@@ -61,12 +61,14 @@ builtin bind -x '"\e[Z": menu-complete-backward'
 builtin bind -m vi-insert '"\e[Z": menu-complete-backward'
 builtin bind -m vi-command '"\e[Z": menu-complete-backward'
 
-# Insert "sudo " at the beginning of a command.
-builtin bind -x '"\C-s": "\C-sudo "'
-builtin bind -m vi-insert '"\C-s": "\C-sudo "'
-builtin bind -m vi-command '"\C-s": "i\C-sudo "'
-builtin bind -m vi-insert '"\C-s": "\C-sudo "'
-builtin bind -m vi-command '"\C-s": "i\C-sudo "'
+# Define a function to prepend 'sudo ' to the current command
+sudo_insert() {
+  READLINE_LINE="sudo $READLINE_LINE"
+  READLINE_POINT=${#READLINE_LINE} # Move cursor to the end
+}
+
+# Insert 'sudo ' at the beginning of a command.
+bind -x '"\C-s": sudo_insert'
 
 # ls/eza
 builtin bind -x '"\C-_a": "eza -ahlrs date"'
