@@ -33,10 +33,6 @@ export XDG_CONFIG_HOME="$HOME/.config"
 export LC_ALL=en_US.UTF-8
 export LANG=en_US.UTF-8
 
-# Disable flow control. For example, Ctrl+s suspends flow-control, and Ctrl+q resumes flow
-# control. (A detailed explanation can be found at https://stackoverflow.com/questions/791765
-stty -ixon
-
 # Bash History
 # ─────────────
 # After each command, save and reload history.
@@ -92,7 +88,6 @@ eval "$(direnv hook bash)" # Sets the Direvn hook.
 
 # Zoxide: https://github.com/ajeetdsouza/zoxide
 eval "$(zoxide init bash)"
-alias cd='z'
 
 # Starship: https://starship.rs/
 eval "$(starship init bash)"
@@ -133,33 +128,49 @@ complete -F _just -o bashdefault -o default j
 nix_daemon='/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh'
 [[ -e $nix_daemon ]] && . "$nix_daemon"
 
-# ┏━━━━━━━━━━━━━━━━┓
-# ┃  Bash Aliases  ┃
-# ┗━━━━━━━━━━━━━━━━┛
-alias ls='ls -G'
-alias cp='cp -i'
-alias mv='mv -i'
-alias bat='bat --color=always'
-alias tree='tree -C'
-alias grep='grep --color=always'
-alias tmux-purge-resurrect-session-data='rm -f .tmux/resurrect/last .tmux/resurrect/tmux_resurrect*'
-alias p='python3'
-alias git-weekly='git diff --name-status "@{7 days ago}" | sort -u | grep -v "Templates" > weekly-review-files.md'
-alias path='echo $PATH | tr ":" "\n"'
-alias t='tmuxinator Homelab'
-alias fman='compgen -c | fzf | xargs man'
-{{ if eq .chezmoi.os "darwin" -}}
-alias ping='ping --apple-time'
-alias bu='brew upgrade --formula'
-alias rm='echo "Boooo: use '\''trash-put'\'' instead!"; false'
-{{ end }}
 # ┏━━━━━━━━━━━━━━━━━━━━━━━━┓
 # ┃  Local & User Configs  ┃
 # ┗━━━━━━━━━━━━━━━━━━━━━━━━┛
-[[ -s "$HOME/.bash_bindings" ]] && . "$HOME/.bash_bindings"
+# My custom Bash completions.
 [[ -s "$HOME/.bash_completions" ]] && . "$HOME/.bash_completions"
-[[ -s "$HOME/.fzf.bash" ]] && . "$HOME/.fzf.bash" # Fzf is hosted at https://github.com/junegunn/fzf/tree/master/shell.
-[[ -s "$HOME/.fzf_bindings" ]] && . "$HOME/.fzf_bindings"
+
+# Fzf is hosted at https://github.com/junegunn/fzf/tree/master/shell.
+[[ -s "$HOME/.fzf.bash" ]] && . "$HOME/.fzf.bash"
+
+# ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+# ┃  Interactive-only features  ┃
+# ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+if [[ $- == *i* ]]; then
+  # Zoxide alias.
+  alias cd='z'
+
+  # Bash aliases:
+  alias ls='ls -G'
+  alias cp='cp -i'
+  alias mv='mv -i'
+  alias bat='bat --color=always'
+  alias tree='tree -C'
+  alias grep='grep --color=always'
+  alias tmux-purge-resurrect-session-data='rm -f .tmux/resurrect/last .tmux/resurrect/tmux_resurrect*'
+  alias p='python3'
+  alias git-weekly='git diff --name-status "@{7 days ago}" | sort -u | grep -v "Templates" > weekly-review-files.md'
+  alias path='echo $PATH | tr ":" "\n"'
+  alias t='tmuxinator Homelab'
+  alias fman='compgen -c | fzf | xargs man'
+  {{ if eq .chezmoi.os "darwin" -}}
+  alias ping='ping --apple-time'
+  alias bu='brew upgrade --formula'
+  alias rm='echo "Boooo: use '\''trash-put'\'' instead!"; false'
+  {{- end }}
+
+  # Disable flow control. For example, Ctrl+s suspends flow-control, and Ctrl+q resumes flow
+  # control. (A detailed explanation can be found at https://stackoverflow.com/questions/791765
+  stty -ixon
+
+  # Custom Bash Bindings:
+  [[ -s "$HOME/.bash_bindings" ]] && . "$HOME/.bash_bindings"
+  [[ -s "$HOME/.fzf_bindings" ]] && . "$HOME/.fzf_bindings"
+fi
 
 # Order matters! These local (user-level) tools should always take precedence in my environment.
 path_prepend "$HOME/.local/bin"
