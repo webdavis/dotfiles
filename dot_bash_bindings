@@ -532,3 +532,87 @@ __git_ls_files_with_last_modified() {
 
 builtin bind -m vi-insert '"\C-xl": "\C-x0__git_ls_files_with_last_modified\r"'
 builtin bind -m vi-command '"\C-xl": "i\C-x0__git_ls_files_with_last_modified\r"'
+
+__list_bash_bindings() {
+  local -a files=(
+    "${HOME}/.bash_bindings"
+    "${HOME}/.fzf_bindings"
+  )
+
+  local f
+  local -a existing_files=()
+  for f in "${files[@]}"; do
+    [[ -f $f ]] && existing_files+=("$f")
+  done
+
+  local red="\033[31m"
+  local reset="\033[0m"
+
+  [[ ${#existing_files[@]} -gt 0 ]] || {
+    printf "${red}No binding files found: %s${reset}\n" "${files[*]}" >&2
+    return 1
+  }
+
+  local file
+  local -a bindings=()
+  for file in "${existing_files[@]}"; do
+    while IFS= read -r line; do
+      # Only process lines with vi-insert
+      [[ $line == *vi-insert* ]] || continue
+
+      # Extract key and command using grep + Perl-style regex
+      if [[ $line =~ \"\\([^\"]+)\":\ \"([^\"]+)\" ]]; then
+        local key="${BASH_REMATCH[1]}"
+        local cmd="${BASH_REMATCH[2]}"
+
+        # Surround first single-character C- or M- sequences with <>:
+        # e.g., C-x → <C-x>, M-a → <M-a>
+        if [[ $key =~ ^(C-|M-)(.) ]]; then
+          key="${BASH_REMATCH[1]}${BASH_REMATCH[2]} ${key:3}"
+        fi
+
+        # Remove leading '\C-x0' from cmd, if present
+        cmd="${cmd#\\C-x0}"
+
+        # Replace trailing '\r' with ' <Enter>'
+        if [[ $cmd == *\\r ]]; then
+          cmd="${cmd%\\r} Enter"
+        fi
+
+        bindings+=("${key}|${cmd}")
+      fi
+    done <"$file"
+  done
+
+  local pager
+  if command -v bat &>/dev/null; then
+    pager='bat --paging=always --color=always'
+  else
+    pager='less -R'
+  fi
+
+  # Sort files:
+  local -a sorted_bindings
+  mapfile -t sorted_bindings < <(printf "%s\n" "${bindings[@]}" | sort)
+
+  local line
+  for line in "${sorted_bindings[@]}"; do
+    IFS="|" read -r key cmd <<<"$line"
+
+    # ANSI color codes
+    local blue="\033[34m"
+    local dark_gray="\033[90m"
+    local purple="\033[35m"
+
+    # Highlight <Enter> in dark gray
+    if [[ $cmd =~ Enter$ ]]; then
+      cmd="${cmd%\ Enter}"
+
+      printf "${blue}%-10s${reset} ${dark_gray}:${reset} ${purple}%s${reset} ${dark_gray}Enter${reset}\n" "$key" "$cmd"
+    else
+      printf "${blue}%-10s${reset} ${dark_gray}:${reset} ${purple}%s${reset}\n" "$key" "$cmd"
+    fi
+  done | $pager
+}
+builtin bind -m vi-insert '"\C-xv": "\C-x0__list_bash_bindings\r"'
+builtin bind -m vi-command '"\C-xv": "i\C-x0__list_bash_bindings\r"'
