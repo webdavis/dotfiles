@@ -214,6 +214,11 @@ builtin bind -m vi-command '"\C-gk-": "i\C-x0git checkout -\r"'
 builtin bind -m vi-insert '"\C-gkm": "\C-x0git checkout main\r"'
 builtin bind -m vi-command '"\C-gkm": "i\C-x0git checkout main\r"'
 
+# Switch to an existing remote branch:
+# git checkout --track <remote_name/branch_name>
+builtin bind -m vi-insert '"\C-gkt": "\C-x0git checkout --track "'
+builtin bind -m vi-command '"\C-gkt": "i\C-x0git checkout --track "'
+
 # git commit --verbose
 builtin bind -m vi-insert '"\C-gcc": "\C-x0git commit --verbose\r"'
 builtin bind -m vi-command '"\C-gcc": "i\C-x0git commit --verbose\r"'
