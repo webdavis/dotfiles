@@ -17,6 +17,14 @@ declare_globals() {
   TMUX_RESURRECT_DIR="${HOME}/.tmux/resurrect"
 }
 
+block_if_in_tmux() {
+  # Protect against running this script from inside Tmux.
+  if [[ -n $TMUX ]]; then
+    print_process "critical" "ERROR: You are running this script inside tmux — cannot safely kill the tmux server you're attached to."
+    return 1
+  fi
+}
+
 trap_error() {
   local lineno=${1:-?}    # Line number where the error occurred
   local cmd=${2:-?}       # Command that triggered the error
@@ -212,17 +220,15 @@ if_no_flags_activate_all() {
 kill_tmux_sessions() {
   # Description: Kills all existing Tmux sessions.
 
-  if tmux ls >/dev/null 2>&1; then
-    print_process "critical" "Killing all existing tmux sessions..." false
+  block_if_in_tmux || return 1
 
-    local session
-    while IFS= read -r session; do
-      tmux kill-session -t "$session"
-    done < <(tmux list-sessions -F "#{session_name}" 2>/dev/null)
-    while tmux list-sessions &>/dev/null; do
-      sleep 0.1
-    done
+  if tmux info &>/dev/null; then
+    print_process "critical" "Kill tmux server..." false
+
+    tmux kill-server 2>/dev/null || true
+
     rm -rf /tmp/tmux-"$(id -u)"/*
+
     print_process "success" " Done."
   else
     print_process "warning" "No tmux server running."
