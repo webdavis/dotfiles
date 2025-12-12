@@ -243,6 +243,10 @@ builtin bind -m vi-command '"\C-gcn": "i\C-x0git commit --amend --no-edit\r"'
 builtin bind -m vi-insert '"\C-gcN": "\C-x0git commit --amend --no-edit --all\r"'
 builtin bind -m vi-command '"\C-gcN": "i\C-x0git commit --amend --no-edit --all\r"'
 
+# git reset
+builtin bind -m vi-insert '"\C-gru": "\C-x0git reset        # Unstage changes, keep working directory unchanged"'
+builtin bind -m vi-command '"\C-gru": "i\C-x0git reset        # Unstage changes, keep working directory unchanged"'
+
 # git reset --soft HEAD~1
 builtin bind -m vi-insert '"\C-grs": "\C-x0git reset --soft HEAD~1        # Undo last commit, keep changes staged for new commit"'
 builtin bind -m vi-command '"\C-grs": "i\C-x0git reset --soft HEAD~1        # Undo last commit, keep changes staged for new commit"'
@@ -250,10 +254,6 @@ builtin bind -m vi-command '"\C-grs": "i\C-x0git reset --soft HEAD~1        # Un
 # git reset --hard (discards all changes in working and staging)
 builtin bind -m vi-insert '"\C-grh": "\C-x0git reset --hard        # Reset HEAD, index, and working files, discarding all changes"'
 builtin bind -m vi-command '"\C-grh": "i\C-x0git reset --hard        ## Reset HEAD, index, and working files, discarding all changes"'
-
-# git reset
-builtin bind -m vi-insert '"\C-grh": "\C-x0git reset        # Unstage changes, keep working directory unchanged"'
-builtin bind -m vi-command '"\C-grh": "i\C-x0git reset        # Unstage changes, keep working directory unchanged"'
 
 # git restore
 builtin bind -m vi-insert '"\C-grr": "\C-x0git restore        # Discard all uncommitted changes in the working directory"'
