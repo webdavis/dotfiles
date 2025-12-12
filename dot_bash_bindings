@@ -492,27 +492,38 @@ builtin bind -m vi-command '"\C-x-": "i\C-x0cd -\r"'
 
 # List git files with last modified:
 __git_ls_files_with_last_modified() {
-  # Header
-  printf "\n%-25s %-10s %s\n" "Last Modified" "Commit" "File"
-  printf "%-25s %-10s %s\n" " ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅" " ̅ ̅ ̅ ̅ ̅ ̅ ̅" " ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅ ̅"
+  # Header:
+  printf "\n%-25s %-7s %s\n" "Last Modified" "Commit" "File"
+  printf "%-25s %-10s %s\n" "—————————————————————————" "———————" "———————————————————————— "
 
-  # ANSI color codes
+  # ANSI color codes:
   local blue='\033[34m'
   local yellow='\033[33m'
   local reset='\033[0m'
 
   local file last_commit_info date commit_hash
 
+  # Capture files with git metadata:
+  local -a files=()
   while read -r file; do
     last_commit_info=$(git log -1 --format="%ci|%h" -- "$file")
     date="${last_commit_info%%|*}"
     commit_hash="${last_commit_info##*|}"
+    files+=("${date}|${commit_hash}|${file}")
+  done < <(git ls-files)
 
+  # Sort files:
+  local -a sorted
+  mapfile -t sorted < <(printf "%s\n" "${files[@]}" | sort -r)
+
+  # Print sorted files:
+  for line in "${sorted[@]}"; do
+    IFS="|" read -r date commit_hash file <<<"$line"
     printf "%b%-25s%b %b%-6s%b %s\n" \
       "$blue" "$date" "$reset" \
       "$yellow" "$commit_hash" "$reset" \
       "$file"
-  done < <(git ls-files)
+  done
 }
 
 builtin bind -m vi-insert '"\C-xl": "\C-x0__git_ls_files_with_last_modified\r"'
