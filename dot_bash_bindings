@@ -393,6 +393,10 @@ builtin bind -m vi-command '"\C-gtl": "i\C-x0__git_list_tags\r"'
 builtin bind -m vi-insert '"\C-gaa": "\C-x0git add "'
 builtin bind -m vi-command '"\C-gaa": "i\C-x0git add "'
 
+# git add --update
+builtin bind -m vi-insert '"\C-gau": "\C-x0git add --update\r"'
+builtin bind -m vi-command '"\C-gau": "i\C-x0git add --update\r"'
+
 # git add .
 builtin bind -m vi-insert '"\C-ga.": "\C-x0git add .\r"'
 builtin bind -m vi-command '"\C-ga.": "i\C-x0git add .\r"'
