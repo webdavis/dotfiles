@@ -199,8 +199,8 @@ builtin bind -m vi-insert '"\C-gdc": "\C-x0git diff --cached\r"'
 builtin bind -m vi-command '"\C-gdc": "i\C-x0git diff --cached\r"'
 
 # `git checkout `
-builtin bind -m vi-insert '"\C-gkk": "\C-x0git checkout "'
-builtin bind -m vi-command '"\C-gkk": "i\C-x0git checkout "'
+builtin bind -m vi-insert '"\C-gkh": "\C-x0git checkout "'
+builtin bind -m vi-command '"\C-gkh": "i\C-x0git checkout "'
 
 # `git checkout -b `
 builtin bind -m vi-insert '"\C-gkn": "\C-x0git checkout -b "'
