@@ -160,7 +160,7 @@ if [[ $- == *i* ]]; then
   {{ if eq .chezmoi.os "darwin" -}}
   alias ping='ping --apple-time'
   alias bu='brew upgrade --formula'
-  alias rm='echo "Boooo: use '\''trash-put'\'' instead!"; false'
+  alias rm='trash-put'
   {{- end }}
 
   # Disable flow control. For example, Ctrl+s suspends flow-control, and Ctrl+q resumes flow
