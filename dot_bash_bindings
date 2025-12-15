@@ -110,30 +110,42 @@ builtin bind -m vi-command '"\C-xP": "i\C-x0ping -c 3 8.8.8.8 "'
 builtin bind -m vi-insert '"\C-x\C-s": "\C-x0source ~/.bashrc\r"'
 builtin bind -m vi-command '"\C-x\C-s": "i\C-x0source ~/.bashrc\r"'
 
-# Go-to bindings:
-builtin bind -m vi-insert '"\M-dc": "\C-x0cd ~/.config\r"'
-builtin bind -m vi-command '"\M-dc": "i\C-x0cd ~/.config\r"'
+# Navigation bindings:
+# `cd -`
+builtin bind -m vi-insert '"\C-x-": "\C-x0cd -\r"'
+builtin bind -m vi-command '"\C-x-": "i\C-x0cd -\r"'
 
-builtin bind -m vi-insert '"\M-dd": "\C-x0cd ~/Documents\r"'
-builtin bind -m vi-command '"\M-dd": "i\C-x0cd ~/Documents\r"'
+# cd ~/.config/
+builtin bind -m vi-insert '"\C-xdc": "\C-x0cd ~/.config\r"'
+builtin bind -m vi-command '"\C-xdc": "i\C-x0cd ~/.config\r"'
 
-builtin bind -m vi-insert '"\M-dD": "\C-x0cd ~/Downloads\r"'
-builtin bind -m vi-command '"\M-dD": "i\C-x0cd ~/Downloads\r"'
+# cd ~/Documents/
+builtin bind -m vi-insert '"\C-xdd": "\C-x0cd ~/Documents\r"'
+builtin bind -m vi-command '"\C-xdd": "i\C-x0cd ~/Documents\r"'
 
-builtin bind -m vi-insert '"\M-dn": "\C-x0cd ~/.config/nvim\r"'
-builtin bind -m vi-command '"\M-dn": "i\C-x0cd ~/.config/nvim\r"'
+# cd ~/Downloads/
+builtin bind -m vi-insert '"\C-xdD": "\C-x0cd ~/Downloads\r"'
+builtin bind -m vi-command '"\C-xdD": "i\C-x0cd ~/Downloads\r"'
 
-builtin bind -m vi-insert '"\M-ds": "\C-x0cd ~/Pictures/screenshots\r"'
-builtin bind -m vi-command '"\M-ds": "i\C-x0cd ~/Pictures/screenshots\r"'
+# cd ~/.config/nvim/
+builtin bind -m vi-insert '"\C-xdn": "\C-x0cd ~/.config/nvim\r"'
+builtin bind -m vi-command '"\C-xdn": "i\C-x0cd ~/.config/nvim\r"'
 
-builtin bind -m vi-insert '"\M-dp": "\C-x0cd ~/workspaces/webdavis/projects\r"'
-builtin bind -m vi-command '"\M-dp": "i\C-x0cd ~/workspaces/webdavis/projects\r"'
+# cd ~/Pictures/screenshots/
+builtin bind -m vi-insert '"\C-xds": "\C-x0cd ~/Pictures/screenshots\r"'
+builtin bind -m vi-command '"\C-xds": "i\C-x0cd ~/Pictures/screenshots\r"'
 
-builtin bind -m vi-insert '"\M-dt": "\C-x0cd ~/workspaces/tools\r"'
-builtin bind -m vi-command '"\M-dt": "i\C-x0cd ~/workspaces/tools\r"'
+# cd ~/workspaces/webdavis/projects/
+builtin bind -m vi-insert '"\C-xdp": "\C-x0cd ~/workspaces/webdavis/projects\r"'
+builtin bind -m vi-command '"\C-xdp": "i\C-x0cd ~/workspaces/webdavis/projects\r"'
 
-builtin bind -m vi-insert '"\M-dT": "\C-x0cd ~/workspaces/test\r"'
-builtin bind -m vi-command '"\M-dT": "i\C-x0cd ~/workspaces/test\r"'
+# cd ~/workspaces/tools/
+builtin bind -m vi-insert '"\C-xdt": "\C-x0cd ~/workspaces/tools\r"'
+builtin bind -m vi-command '"\C-xdt": "i\C-x0cd ~/workspaces/tools\r"'
+
+# cd ~/workspaces/test/
+builtin bind -m vi-insert '"\C-xdT": "\C-x0cd ~/workspaces/test\r"'
+builtin bind -m vi-command '"\C-xdT": "i\C-x0cd ~/workspaces/test\r"'
 
 # Go-to a projects root directory. The respective keyboard binding is in ~/.inputrc.
 __go_to_project_root() {
@@ -489,10 +501,6 @@ redraw_prompt() {
   tput ed # Clear to end of screen
   tput sc # Save cursor position
 }
-
-# `cd -`
-builtin bind -m vi-insert '"\C-x-": "\C-x0cd -\r"'
-builtin bind -m vi-command '"\C-x-": "i\C-x0cd -\r"'
 
 # List git files with last modified:
 __git_ls_files_with_last_modified() {
