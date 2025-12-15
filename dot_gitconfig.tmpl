@@ -146,7 +146,7 @@
   credit = "!f() { git commit --amend --author \"$1 <$2>\" -C HEAD; }; f"
 
   # Show the diff between the latest commit and the current state.
-  d = !"git diff-index --quiet HEAD -- || clear; git --no-pager diff --patch-with-stat"
+  d = !"if ! git diff --quiet; then clear; git --no-pager diff --patch-with-stat; else echo 'git-diff: No changes have been made'; fi"
 
   # `git di $number` shows the diff between the state `$number` revisions ago and the current state.
   di = !"d() { git diff --patch-with-stat HEAD~$1; }; git diff-index --quiet HEAD -- || clear; d"
