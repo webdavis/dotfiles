@@ -442,6 +442,14 @@ builtin bind -m vi-command '"\C-gba": "i\C-x0echo '\''Local:'\''; git branch -vv
 builtin bind -m vi-insert '"\C-gbm": "\C-x0git branch -m "'
 builtin bind -m vi-command '"\C-gbm": "i\C-x0git branch -m "'
 
+# git remote show origin
+builtin bind -m vi-insert '"\C-g\C-ro": "\C-x0git remote show origin\r"'
+builtin bind -m vi-command '"\C-g\C-ro": "i\C-x0git remote show origin\r"'
+
+# git remote show upstream
+builtin bind -m vi-insert '"\C-g\C-ru": "\C-x0git remote show upstream\r"'
+builtin bind -m vi-command '"\C-g\C-ru": "i\C-x0git remote show upstream\r"'
+
 # gh issue list
 builtin bind -m vi-insert '"\C-ghi": "\C-x0gh issue list\r"'
 builtin bind -m vi-command '"\C-ghi": "i\C-x0gh issue list\r"'
