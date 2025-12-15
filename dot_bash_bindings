@@ -191,8 +191,8 @@ builtin bind -m vi-insert '"\C-gdl": "\C-x0git diff HEAD^\r"'
 builtin bind -m vi-command '"\C-gdl": "i\C-x0git diff HEAD^\r"'
 
 # Print the diff of the current and previous commit.
-builtin bind -m vi-insert '"\C-gdp": "\C-x0git diff-index --quiet HEAD -- || clear; git --no-pager diff --patch-with-stat\r"'
-builtin bind -m vi-command '"\C-gdp": "i\C-x0git diff-index --quiet HEAD -- || clear; git --no-pager diff --patch-with-stat\r"'
+builtin bind -m vi-insert '"\C-gdp": "\C-x0if ! git diff --quiet; then clear; git --no-pager diff --patch-with-stat; else echo '\''git-diff: No changes have been made'\''; fi\r"'
+builtin bind -m vi-command '"\C-gdp": "i\C-x0if ! git diff --quiet; then clear; git --no-pager diff --patch-with-stat; else echo '\''git-diff: No changes have been made'\''; fi\r"'
 
 # git diff --cached
 builtin bind -m vi-insert '"\C-gdc": "\C-x0git diff --cached\r"'
