@@ -2,8 +2,7 @@
 
 # shellcheck shell=bash
 
-# Use double quotes here because expressions inside single quotes won't expand
-# Disable SC2016 (which warns about expressions in single quotes)
+# Disable SC2016 (which warns about expressions in single quotes):
 # shellcheck disable=SC2016
 
 # This file contains key-bindings for bash commands so that I can be all kinds of lazy.
@@ -52,19 +51,18 @@ builtin bind '"\C-x0": kill-whole-line'     # Clears the entire line.
 builtin bind '"\C-x1": magic-space'         # Performs history expansion and inserts a space.
 builtin bind '"\C-x2": redraw-current-line' # Refreshes the current line.
 
-# Tab completion of commands that cycles through possible options.
+# Tab completion of commands that cycles through possible options:
 builtin bind -x '"\t": menu-complete'
 builtin bind -m vi-insert '"\t": menu-complete'
 builtin bind -m vi-command '"\t": menu-complete'
-
 builtin bind -x '"\e[Z": menu-complete-backward'
 builtin bind -m vi-insert '"\e[Z": menu-complete-backward'
 builtin bind -m vi-command '"\e[Z": menu-complete-backward'
 
-# Define a function to prepend 'sudo ' to the current command
+# Define a function to prepend 'sudo ' to the current command.
 sudo_insert() {
   READLINE_LINE="sudo $READLINE_LINE"
-  READLINE_POINT=${#READLINE_LINE} # Move cursor to the end
+  READLINE_POINT=${#READLINE_LINE} # Move cursor to the end.
 }
 
 # Insert 'sudo ' at the beginning of a command.
@@ -462,7 +460,7 @@ builtin bind -m vi-command '"\C-ghp": "i\C-x0gh pr list\r"'
 builtin bind -m vi-insert '"\C-xnu": "\C-x0nvm use default\r"'
 builtin bind -m vi-command '"\C-xnu": "i\C-x0nvm use default\r"'
 
-# Package manager update
+# Package manager update:
 __update_package_manager() {
   local os distro command
   case "$OSTYPE" in
@@ -520,7 +518,7 @@ builtin bind -m vi-command '"\C-xos": "i\C-x0brew search "'
 builtin bind -m vi-insert '"\C-xoi": "\C-x0brew install "'
 builtin bind -m vi-command '"\C-xoi": "i\C-x0brew install "'
 
-# Function to redraw the prompt
+# Function to redraw the prompt:
 redraw_prompt() {
   tput rc # Restore cursor position
   tput ed # Clear to end of screen
@@ -533,7 +531,6 @@ __git_ls_files_with_last_modified() {
   printf "\n%-25s %-7s %s\n" "Last Modified" "Commit" "File"
   printf "%-25s %-10s %s\n" "—————————————————————————" "———————" "———————————————————————— "
 
-  # ANSI color codes:
   local blue='\033[34m'
   local yellow='\033[33m'
   local reset='\033[0m'
@@ -590,22 +587,20 @@ __list_bash_bindings() {
   local -a bindings=()
   for file in "${existing_files[@]}"; do
     while IFS= read -r line; do
-      # Only process lines with vi-insert
+      # Only process lines with vi-insert.
       [[ $line == *vi-insert* ]] || continue
 
-      # Extract key and command using grep + Perl-style regex
+      # Extract key and command using grep + Perl-style regex.
       if [[ $line =~ \"\\([^\"]+)\":\ \"([^\"]+)\"\'[[:space:]]*(\#.*)?$ ]]; then
         local key="${BASH_REMATCH[1]}"
         local cmd="${BASH_REMATCH[2]}"
         local description="${BASH_REMATCH[3]}"
 
-        # Surround first single-character C- or M- sequences with <>:
-        # e.g., C-x → <C-x>, M-a → <M-a>
         if [[ $key =~ ^(C-|M-)(.) ]]; then
           key="${BASH_REMATCH[1]}${BASH_REMATCH[2]} ${key:3}"
         fi
 
-        # Remove leading '\C-x0' from cmd, if present
+        # Remove leading '\C-x0' from cmd, if present.
         cmd="${cmd#\\C-x0}"
 
         # If trailing '\r' exists, then remove it and populate `enter` variable.
@@ -638,13 +633,13 @@ __list_bash_bindings() {
     [[ -n $enter ]] && enter=" ${enter}"
     [[ -n $description ]] && description="$(echo "  ${description}" | fold -s -w 50 | sed '2,$s/^/               /')"
 
-    # ANSI color codes
     local blue="\033[34m"
     local purple="\033[35m"
     local dark_gray="\033[90m"
     local light_gray="\033[37m"
 
-    printf "${blue}%-10s${reset} ${light_gray}:${reset} ${purple}%s${reset}${dark_gray}%s${reset}${light_gray}%s${reset}\n" "$key" "$cmd" "$enter" "$description"
+    printf "${blue}%-10s${reset} ${light_gray}:${reset} ${purple}%s${reset}${dark_gray}%s${reset}${light_gray}%s${reset}\n" \
+      "$key" "$cmd" "$enter" "$description"
   done | $pager
   unset IFS
 }
