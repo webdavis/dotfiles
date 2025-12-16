@@ -586,7 +586,7 @@ __list_bash_bindings() {
     return 1
   }
 
-  local file
+  local file line
   local -a bindings=()
   for file in "${existing_files[@]}"; do
     while IFS= read -r line; do
@@ -631,7 +631,7 @@ __list_bash_bindings() {
   local -a sorted_bindings
   mapfile -t sorted_bindings < <(printf "%s\n" "${bindings[@]}" | sort)
 
-  local line enter description
+  local line key cmd enter description
   for line in "${sorted_bindings[@]}"; do
     IFS="|" read -r key cmd enter description <<<"$line"
 
@@ -646,6 +646,7 @@ __list_bash_bindings() {
 
     printf "${blue}%-10s${reset} ${light_gray}:${reset} ${purple}%s${reset}${dark_gray}%s${reset}${light_gray}%s${reset}\n" "$key" "$cmd" "$enter" "$description"
   done | $pager
+  unset IFS
 }
 builtin bind -m vi-insert '"\C-xv": "\C-x0__list_bash_bindings\r"'
 builtin bind -m vi-command '"\C-xv": "i\C-x0__list_bash_bindings\r"'
