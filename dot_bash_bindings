@@ -199,10 +199,10 @@ builtin bind -m vi-insert '"\C-gdd": "\C-x0git diff\r"'
 builtin bind -m vi-command '"\C-gdd": "i\C-x0git diff\r"'
 
 # Print the current git diff of the latest commit.
-builtin bind -m vi-insert '"\C-gdl": "\C-x0git diff HEAD^\r"'
-builtin bind -m vi-command '"\C-gdl": "i\C-x0git diff HEAD^\r"'
 builtin bind -m vi-insert '"\C-gdi": "\C-x0git diff HEAD^\r"'
 builtin bind -m vi-command '"\C-gdi": "i\C-x0git diff HEAD^\r"'
+builtin bind -m vi-insert '"\C-gdl": "\C-x0git diff HEAD^\r"'   # alt: (C-g di)
+builtin bind -m vi-command '"\C-gdl": "i\C-x0git diff HEAD^\r"' # alt: (C-g di)
 
 # Print the diff of the current and previous commit.
 builtin bind -m vi-insert '"\C-gdp": "\C-x0if ! git diff --quiet; then clear; git --no-pager diff --patch-with-stat; else echo '\''git-diff: No changes have been made'\''; fi\r"'
@@ -282,8 +282,8 @@ builtin bind -m vi-insert '"\C-gii": "\C-x0git init\r"'
 builtin bind -m vi-command '"\C-gii": "i\C-xgit init\r"'
 
 # git init && gh repo create
-builtin bind -m vi-insert '"\C-gic": "\C-x0git rev-parse --is-inside-work-tree &>/dev/null || git init; gh repo create\r"'
-builtin bind -m vi-command '"\C-gic": "i\C-x0git rev-parse --is-inside-work-tree &>/dev/null || git init; gh repo create\r"'
+builtin bind -m vi-insert '"\C-gic": "\C-x0if ! git rev-parse --is-inside-work-tree &>/dev/null; then git init; gh repo create; fi\r"'
+builtin bind -m vi-command '"\C-gic": "i\C-x0if ! git rev-parse --is-inside-work-tree &>/dev/null; then git init; gh repo create; fi\r"'
 
 # git push
 builtin bind -m vi-insert '"\C-gpp": "\C-x0git push\r"'
@@ -594,9 +594,10 @@ __list_bash_bindings() {
       [[ $line == *vi-insert* ]] || continue
 
       # Extract key and command using grep + Perl-style regex
-      if [[ $line =~ \"\\([^\"]+)\":\ \"([^\"]+)\" ]]; then
+      if [[ $line =~ \"\\([^\"]+)\":\ \"([^\"]+)\"\'[[:space:]]*(\#.*)?$ ]]; then
         local key="${BASH_REMATCH[1]}"
         local cmd="${BASH_REMATCH[2]}"
+        local description="${BASH_REMATCH[3]}"
 
         # Surround first single-character C- or M- sequences with <>:
         # e.g., C-x → <C-x>, M-a → <M-a>
@@ -607,12 +608,14 @@ __list_bash_bindings() {
         # Remove leading '\C-x0' from cmd, if present
         cmd="${cmd#\\C-x0}"
 
-        # Replace trailing '\r' with ' <Enter>'
+        # If trailing '\r' exists, then remove it and populate `enter` variable.
+        local enter=""
         if [[ $cmd == *\\r ]]; then
-          cmd="${cmd%\\r} Enter"
+          cmd="${cmd%\\r}"
+          enter="Enter"
         fi
 
-        bindings+=("${key}|${cmd}")
+        bindings+=("${key}|${cmd}|${enter}|${description}")
       fi
     done <"$file"
   done
@@ -628,23 +631,20 @@ __list_bash_bindings() {
   local -a sorted_bindings
   mapfile -t sorted_bindings < <(printf "%s\n" "${bindings[@]}" | sort)
 
-  local line
+  local line enter description
   for line in "${sorted_bindings[@]}"; do
-    IFS="|" read -r key cmd <<<"$line"
+    IFS="|" read -r key cmd enter description <<<"$line"
+
+    [[ -n $enter ]] && enter=" ${enter}"
+    [[ -n $description ]] && description="$(echo "  ${description}" | fold -s -w 50 | sed '2,$s/^/               /')"
 
     # ANSI color codes
     local blue="\033[34m"
-    local dark_gray="\033[90m"
     local purple="\033[35m"
+    local dark_gray="\033[90m"
+    local light_gray="\033[37m"
 
-    # Highlight <Enter> in dark gray
-    if [[ $cmd =~ Enter$ ]]; then
-      cmd="${cmd%\ Enter}"
-
-      printf "${blue}%-10s${reset} ${dark_gray}:${reset} ${purple}%s${reset} ${dark_gray}Enter${reset}\n" "$key" "$cmd"
-    else
-      printf "${blue}%-10s${reset} ${dark_gray}:${reset} ${purple}%s${reset}\n" "$key" "$cmd"
-    fi
+    printf "${blue}%-10s${reset} ${light_gray}:${reset} ${purple}%s${reset}${dark_gray}%s${reset}${light_gray}%s${reset}\n" "$key" "$cmd" "$enter" "$description"
   done | $pager
 }
 builtin bind -m vi-insert '"\C-xv": "\C-x0__list_bash_bindings\r"'
