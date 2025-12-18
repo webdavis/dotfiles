@@ -38,13 +38,17 @@ export LANG=en_US.UTF-8
 # After each command, save and reload history.
 export PROMPT_COMMAND="history -a; history -c; history -r; ${PROMPT_COMMAND}"
 
-# Append history entries.
+# Save shell command history more or less permanently.
 shopt -s histappend
+history_file_size=5000000
+export HISTSIZE="$history_file_size"
+export HISTFILESIZE="$history_file_size"
+export HISTFILE="$HOME/.bash_history"
 
 # Ignore consecutive duplicates, remove older duplicates, and skip commands starting with a space.
 export HISTCONTROL=ignoredups:erasedups:ignorespace
 
-# Exclude any commands matching the specified regex pattern from Bash command history.
+# Exclude any commands matching the specified regex pattern from history.
 export HISTIGNORE="$HISTIGNORE:{{ (keepassxc "dotfiles - bashrc - HISTIGNORE - Regex").Password }}"
 
 # ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
