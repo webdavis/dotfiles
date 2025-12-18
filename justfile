@@ -9,19 +9,19 @@ alias m := format-markdown
 alias n := format-nix
 
 lint:
-  nix develop .#adhoc --command ./scripts/lint.sh
+  nix develop .#run --command ./scripts/lint.sh
 
 lint-shell:
-  nix develop .#adhoc --command ./scripts/lint.sh -s
+  nix develop .#run --command ./scripts/lint.sh -s
 
 format-shell:
-  nix develop .#adhoc --command ./scripts/lint.sh -S
+  nix develop .#run --command ./scripts/lint.sh -S
 
 format-markdown:
-  nix develop .#adhoc --command ./scripts/lint.sh -m
+  nix develop .#run --command ./scripts/lint.sh -m
 
 format-nix:
-  nix develop .#adhoc --command ./scripts/lint.sh -n
+  nix develop .#run --command ./scripts/lint.sh -n
 
 install-hooks:
   @echo "Installing Git pre-commit hooks..."
