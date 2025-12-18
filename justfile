@@ -1,6 +1,7 @@
 default:
   @just --choose
 
+alias h := install-hooks
 alias l := lint
 alias s := lint-shell
 alias S := format-shell
@@ -21,3 +22,9 @@ format-markdown:
 
 format-nix:
   nix develop .#adhoc --command ./scripts/lint.sh -n
+
+install-hooks:
+  @echo "Installing Git pre-commit hooks..."
+  git config core.hooksPath .githooks
+  chmod +x .githooks/pre-commit
+  @echo "✓ Git hooks installed. Pre-commit will run lint.sh"

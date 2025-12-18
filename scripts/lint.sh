@@ -146,7 +146,7 @@ find_shell_templates() {
 
 shellcheck_rendered_template_runner() {
   local template_file="$1"
-  chezmoi execute-template <"$template_file" | shellcheck - || return "$?"
+  CI=1 chezmoi execute-template --no-tty <"$template_file" | shellcheck - || return "$?"
 }
 
 run_11_shellcheck_templates() {
