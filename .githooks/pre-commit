@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+
+set -e
+
+printf "%s\n" "Running pre-commit checks..."
+
+# Run lint script.
+if ! just lint; then
+  printf "\n%s\n" "❌ Pre-commit checks failed!"
+  printf "%s\n" "Fix the issues above or run 'git commit --no-verify' to skip checks."
+  exit 1
+fi
+
+printf "%s\n" "✅ All pre-commit checks passed!"
+exit 0
