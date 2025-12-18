@@ -1,20 +1,29 @@
 format = """
 $sudo\
-[  ](bg:#a3aed2 fg:#090c0c)\
-[](bg:#487feb fg:#a3aed2)\
+$os\
+$hostname\
+$shell\
+$shlvl\
+$jobs\
 $directory\
-[](fg:#487feb bg:#394260)\
+$aws\
 $git_branch\
 $git_status\
 $git_metrics\
-[](fg:#394260 bg:#212736)\
 $nodejs\
+$python\
+$c\
 $rust\
 $golang\
 $php\
-[](fg:#212736 bg:#1d2230)\
+$java\
+$kotlin\
+$scala\
+$haskell\
+$lua\
+$docker_context\
+$cmd_duration\
 $time\
-[ ](fg:#1d2230)\
 \n$character"""
 
 [os.symbols]
@@ -49,14 +58,43 @@ disabled = false
 style = "bg:#e84a96"
 format = '[ $symbol]($style)[](fg:#e84a96 bg:#a3aed2)'
 
-[status]
+[os]
 disabled = false
-style = 'bg:blue'
-format = '[\[$symbol$common_meaning$signal_name$maybe_int\]]($style) '
+style = "bold fg:#090c0c bg:#a3aed2"
+format = "[](fg:prev_bg bg:#a3aed2)[$symbol]($style)"
+
+[hostname]
+ssh_only = false
+style = "fg:#090c0c bg:#a3aed2"
+format = "[](fg:prev_bg bg:prev_bg)[$hostname ]($style)"
+
+[shell]
+disabled = false
+bash_indicator = 'bash'
+fish_indicator = '󰈺 '
+powershell_indicator = '_'
+unknown_indicator = 'mystery shell'
+style = 'fg:#090c0c bg:#61687e'
+format = "[](fg:prev_bg bg:#61687e)[ $indicator]($style)"
+
+[shlvl]
+disabled = false
+symbol = '❯'
+repeat = true
+threshold = 1
+style = 'fg:#090c0c bg:#61687e'
+format = "[ $symbol]($style)"
+
+[jobs]
+symbol = '+'
+number_threshold = 1
+symbol_threshold = 1
+style = 'fg:#090c0c bg:#61687e'
+format = "[$symbol$number]($style)"
 
 [directory]
 style = "fg:#e3e5e5 bg:#487feb"
-format = "[ $path ]($style)"
+format = "[](fg:prev_bg bg:#61687e)[](fg:prev_bg bg:#487feb)[ $path ]($style)"
 truncation_length = 1
 
 [directory.substitutions]
@@ -65,74 +103,108 @@ truncation_length = 1
 "Music" = " "
 "Pictures" = " "
 
+[aws]
+disabled = false
+force_display = false
+style = 'fg:#000000 bg:#e2b75e'
+symbol = 'aws'
+format = '[[](fg:prev_bg bg:#e2b75e) $symbol: ($profile )(\($region\) )]($style)'
+
 [git_branch]
 symbol = ""
-style = "bg:#394260"
-format = '[[ $symbol $branch ](fg:#769ff0 bg:#394260)]($style)'
+style = "fg:#769ff0 bg:#394260"
+format = '[[](fg:prev_bg bg:#394260) $symbol $branch ]($style)'
 
 [git_status]
 style = "bg:#394260"
-format = '[[($all_status$ahead_behind )](fg:#769ff0 bg:#394260)]($style)'
+format = '[[($all_status$ahead_behind )]($style)]($style)'
 
 [git_metrics]
-# Enable this module (it's disabled by default).
 disabled = false
+added_style = "fg:green bg:prev_bg"
+deleted_style = "fg:red bg:prev_bg"
 format = '([+$added ]($added_style)[-$deleted ]($deleted_style))'
-added_style = "fg:green bg:#394260"
-deleted_style = "fg:red bg:#394260"
 
 [nodejs]
 symbol = ""
-style = "bg:color_blue"
-format = '[[ $symbol ($version) ](fg:color_fg0 bg:color_blue)]($style)'
-
-[c]
-symbol = " "
-style = "bg:color_blue"
-format = '[[ $symbol ($version) ](fg:color_fg0 bg:color_blue)]($style)'
-
-[rust]
-symbol = ""
-style = "bg:color_blue"
-format = '[[ $symbol ($version) ](fg:color_fg0 bg:color_blue)]($style)'
-
-[golang]
-symbol = ""
-style = "bg:color_blue"
-format = '[[ $symbol ($version) ](fg:color_fg0 bg:color_blue)]($style)'
-
-[php]
-symbol = ""
-style = "bg:color_blue"
-format = '[[ $symbol ($version) ](fg:color_fg0 bg:color_blue)]($style)'
-
-[java]
-symbol = " "
-style = "bg:color_blue"
-format = '[[ $symbol ($version) ](fg:color_fg0 bg:color_blue)]($style)'
-
-[kotlin]
-symbol = ""
-style = "bg:color_blue"
-format = '[[ $symbol ($version) ](fg:color_fg0 bg:color_blue)]($style)'
-
-[haskell]
-symbol = ""
-style = "bg:color_blue"
-format = '[[ $symbol ($version) ](fg:color_fg0 bg:color_blue)]($style)'
+style = "fg:green bg:#212736"
+format = '[[](fg:prev_bg bg:#212736) $symbol ($version )]($style)'
 
 [python]
 symbol = ""
-style = "bg:color_blue"
-format = '[[ $symbol ($version) ](fg:color_fg0 bg:color_blue)]($style)'
+style = "fg:green bg:#212736"
+format = '[[](fg:prev_bg bg:#212736) $symbol ($version )]($style)'
+
+[c]
+symbol = " "
+style = "fg:#767676 bg:#212736"
+format = '[[](fg:prev_bg bg:#212736) $symbol ($version )]($style)'
+
+[rust]
+symbol = ""
+style = "fg:#dea584 bg:#212736"
+format = '[[](fg:prev_bg bg:#212736) $symbol ($version )]($style)'
+
+[golang]
+symbol = ""
+style = "fg:#00add8 bg:#212736"
+format = '[[](fg:prev_bg bg:#212736) $symbol ($version )]($style)'
+
+[php]
+symbol = ""
+style = "fg:#8892be bg:#212736"
+format = '[[](fg:prev_bg bg:#212736) $symbol ($version )]($style)'
+
+[java]
+symbol = " "
+style = "fg:#b07219 bg:#212736"
+format = '[[](fg:prev_bg bg:#212736) $symbol ($version )]($style)'
+
+[kotlin]
+symbol = ""
+style = "fg:#a97bff bg:#212736"
+format = '[[](fg:prev_bg bg:#212736) $symbol ($version )]($style)'
+
+[scala]
+symbol = '🌟'
+style = "fg:red bg:#212736"
+format = '[[](fg:prev_bg bg:#212736) $symbol ($version )]($style)'
+
+[haskell]
+symbol = ""
+style = "fg:#9a5f96 bg:#212736"
+format = '[[](fg:prev_bg bg:#212736) $symbol ($version )]($style)'
+
+[lua]
+symbol = "🌙"
+detect_folders = ['lua']
+style = "fg:#6666b2 bg:#212736"
+format = '[[](fg:prev_bg bg:#212736) $symbol ($version )]($style)'
+
+[swift]
+symbol = "🐦"
+style = "fg:#fe4d2b bg:#212736"
+format = '[[](fg:prev_bg bg:#212736) $symbol ($version )]($style)'
+
+[zig]
+symbol = "↯"
+style = "fg:#e7953a bg:#212736"
+format = '[[](fg:prev_bg bg:#212736) $symbol ($version )]($style)'
 
 [docker_context]
 symbol = ""
-style = "bg:color_bg3"
-format = '[[ $symbol ($context) ](fg:color_fg1 bg:color_bg3)]($style)'
+style = "fg:blue bg:#212736"
+format = '[[](fg:prev_bg bg:#212736) $symbol ($version )]($style)'
+
+[cmd_duration]
+# Always display command duration.
+min_time = 0
+style = "fg:yellow bg:#1d2230"
+format = "[[](fg:prev_bg bg:#1d2230) \ueba2 $duration]($style)"
+show_milliseconds = true
 
 [time]
 disabled = false
-time_format = "%R" # Hour:Minute Format
-style = "bg:#1d2230"
-format = '[[  $time ](fg:#a0a9cb bg:#1d2230)]($style)'
+time_format = "%R" # Format: HH:mm
+style = "fg:#a0a9cb bg:#1d2230"
+format = '[](fg:prev_bg bg:#1d2230)[  $time ]($style)[](fg:#1d2230)'
