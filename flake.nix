@@ -77,7 +77,7 @@
       in
       {
         devShells.default = interactiveShell;
-        devShells.adhoc = baseShell;
+        devShells.run = baseShell;
         formatter = nixfmt;
       }
     );
