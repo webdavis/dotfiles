@@ -1,0 +1,27 @@
+{
+  "title": "Change tab to hyper (⌥⌃⌘⇧) when held, and tab when tapped.",
+  "rules": [{
+    "description": "Change tab to hyper (⌥⌃⌘⇧) when held, and tab when tapped.",
+    "manipulators": [{
+      "type": "basic",
+      "from": {
+        "key_code": "tab",
+        "modifiers": {
+          "optional": [ "any" ]
+        }
+      },
+      "to_if_held_down": [{
+        "key_code": "left_shift",
+        "modifiers": [
+          "left_command",
+          "left_control",
+          "left_option"
+        ],
+        "lazy": true
+      }],
+      "to_if_alone": [{
+        "key_code": "tab"
+      }]
+    }]
+  }]
+}
