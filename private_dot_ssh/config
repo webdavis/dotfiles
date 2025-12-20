@@ -1,0 +1,23 @@
+Host github
+  HostName github.com
+  User git
+
+Host unprovisioned_yoshimo
+  HostName 192.168.1.70
+  User pi
+  Port 22
+
+Host yoshimo
+  HostName 192.168.1.70
+  User localadmin
+  Port 6040
+
+Host unprovisioned_bob
+  HostName 192.168.1.171
+  User pi
+  Port 22
+
+Host bob
+  HostName 192.168.1.171
+  User localadmin
+  Port 6040
