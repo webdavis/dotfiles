@@ -98,12 +98,6 @@ builtin bind -m vi-command '"\C-xu": "i\C-x0eza –-tree -–color=always –-he
 builtin bind -m vi-insert '"\C-x\C-u": "\C-x0eza -lThgB --color=always -I .git "'
 builtin bind -m vi-command '"\C-x\C-u": "i\C-x0eza -lThgB --color=always -I .git "'
 
-# Ping Google's DNS server.
-builtin bind -m vi-insert '"\C-xp": "\C-x0ping -c 3 8.8.8.8\r"'
-builtin bind -m vi-command '"\C-xp": "i\C-x0ping -c 3 8.8.8.8\r"'
-builtin bind -m vi-insert '"\C-xP": "\C-x0ping -c 3 8.8.8.8 "'
-builtin bind -m vi-command '"\C-xP": "i\C-x0ping -c 3 8.8.8.8 "'
-
 # Source ~/.bashrc
 builtin bind -m vi-insert '"\C-x\C-s": "\C-x0source ~/.bashrc\r"'
 builtin bind -m vi-command '"\C-x\C-s": "i\C-x0source ~/.bashrc\r"'
@@ -561,8 +555,401 @@ __bash_bindings_git_ls_files_with_last_modified() {
 builtin bind -m vi-insert '"\C-xl": "\C-x0__bash_bindings_git_ls_files_with_last_modified\r"'
 builtin bind -m vi-command '"\C-xl": "i\C-x0__bash_bindings_git_ls_files_with_last_modified\r"'
 
-builtin bind -m vi-insert '"\C-xl": "\C-x0__git_ls_files_with_last_modified\r"'
-builtin bind -m vi-command '"\C-xl": "i\C-x0__git_ls_files_with_last_modified\r"'
+# ╭───────────────╮
+# │ Host Bindings │
+# ╰───────────────╯
+# Print the hostname of the current machine.
+builtin bind -m vi-insert '"\C-xnhh": "\C-x0hostname\r"'
+builtin bind -m vi-command '"\C-xnhh": "i\C-x0hostname\r"'
+
+# Print the MAC address of the current machine.
+builtin bind -m vi-insert '"\C-xnhm": "\C-x0networksetup -getmacaddress en0 | awk '\''{print $3}'\''\r"'
+builtin bind -m vi-command '"\C-xnhm": "i\C-x0networksetup -getmacaddress en0 | awk '\''{print $3}'\''\r"'
+
+# Shows the network interface your computer currently uses for outbound traffic.
+builtin bind -m vi-insert '"\C-xnhi": "\C-x0route get default | grep interface | awk '\''{print $2}'\''\r"'
+builtin bind -m vi-command '"\C-xnhi": "i\C-x0route get default | grep interface | awk '\''{print $2}'\''\r"'
+
+# Show all active network connections and listening ports for troubleshooting.
+builtin bind -m vi-insert '"\C-xnhp": "\C-x0lsof -nP -iTCP -sTCP:LISTEN\r"'
+builtin bind -m vi-command '"\C-xnhp": "i\C-x0lsof -nP -iTCP -sTCP:LISTEN\r"'
+
+# ╭──────────────╮
+# │ LAN Bindings │
+# ╰──────────────╯
+# Shows your local IP address on the current network (LAN).
+builtin bind -m vi-insert '"\C-xnll": "\C-x0ipconfig getifaddr en0\r"'
+builtin bind -m vi-command '"\C-xnll": "i\C-x0ipconfig getifaddr en0\r"'
+
+# Shows the IP address of your default gateway (usually your router).
+builtin bind -m vi-insert '"\C-xnlg": "\C-x0netstat -rn | grep default -m 1 | awk '\''{print $2}'\''\r"'
+builtin bind -m vi-command '"\C-xnlg": "i\C-x0netstat -rn | grep default -m 1 | awk '\''{print $2}'\''\r"'
+
+# Shows the subnet mask and domain name for your current Wi-Fi or Ethernet interface.
+builtin bind -m vi-insert '"\C-xnlb": "\C-x0ipconfig getsummary en0 | grep '\''subnet_mask'\'' -A1\r"'
+builtin bind -m vi-command '"\C-xnlb": "i\C-x0ipconfig getsummary en0 | grep '\''subnet_mask'\'' -A1\r"'
+
+# Ping the default gateway (usually your router) once to check local network reachability.
+__bash_bindings_ping_default_gateway() {
+  local reset bold green blue purple
+  reset="$(tput sgr0)"
+  bold="$(tput bold)"
+  green="$(tput setaf 2)"
+  blue="$(tput setaf 4)"
+  purple="$(tput setaf 5)"
+
+  printf "\n${bold}%s${reset}\n\n" "Pinging default gateway to check local network reachability..."
+
+  printf "Finding default network gateway via: ${blue}%s${reset}\n" "netstat -rn | grep default -m 1 | awk '{print \$2}'"
+  local gateway
+  gateway="$(netstat -rn | grep default -m 1 | awk '{print $2}')"
+  printf "Gateway: ${green}%s${reset}\n" "$gateway"
+
+  printf "\n${purple}$ ping -c 1 %s${reset}\n" "$gateway"
+  ping -c 1 "$gateway"
+}
+builtin bind -m vi-insert '"\C-xnlr": "\C-x0__bash_bindings_ping_default_gateway\r"'
+builtin bind -m vi-command '"\C-xnlr": "i\C-x0__bash_bindings_ping_default_gateway\r"'
+
+# Check protocol connectivity by checking if <port> on <host> is open.
+__bash_bindings_check_protocol_connectivity() {
+  local reset bold red green yellow blue purple
+  reset="$(tput sgr0)"
+  bold="$(tput bold)"
+  italic=$'\e[3m'
+  red="$(tput setaf 1)"
+  green="$(tput setaf 2)"
+  yellow="$(tput setaf 3)"
+  purple="$(tput setaf 5)"
+
+  local -A port_protocol=(
+    [22]="SSH"
+    [53]="DNS"
+    [80]="HTTP"
+    [443]="HTTPS"
+    [8080]="HTTP-ALT"
+  )
+
+  local port="$1"
+
+  local hostname
+  read -r -p "${bold}Enter hostname to check protocol connectivity (default: ${reset}${italic}google.com${reset}${bold}):${reset} " hostname
+  hostname="${hostname:-google.com}"
+
+  if [[ -z $port ]]; then
+    read -r -p "${bold}What port would you like to check on ${hostname} (default: ${reset}${italic}80${reset}${bold})?${reset} " port
+  fi
+  port="${port:-80}"
+
+  local protocol="${port_protocol[$port]:-Unknown}"
+
+  printf "Hostname: ${green}%s${reset}\n" "$hostname"
+  printf "Port: ${yellow}%s${reset}\n" "$port"
+  printf "Protocol: ${red}%s${reset}\n" "$protocol"
+
+  printf "\n${purple}$ nc -vz -w2 %s %s${reset}\n" "$hostname" "$port"
+  nc -vz -w3 "$hostname" "$port"
+}
+builtin bind -m vi-insert '"\C-xnlt": "\C-x0__bash_bindings_check_protocol_connectivity\r"'
+builtin bind -m vi-command '"\C-xnlt": "i\C-x0__bash_bindings_check_protocol_connectivity\r"'
+builtin bind -m vi-insert '"\C-xnl2": "\C-x0__bash_bindings_check_protocol_connectivity 22\r"'
+builtin bind -m vi-command '"\C-xnl2": "i\C-x0__bash_bindings_check_protocol_connectivity 22\r"'
+builtin bind -m vi-insert '"\C-xnl4": "\C-x0__bash_bindings_check_protocol_connectivity 443\r"'
+builtin bind -m vi-command '"\C-xnl4": "i\C-x0__bash_bindings_check_protocol_connectivity 443\r"'
+builtin bind -m vi-insert '"\C-xnl5": "\C-x0__bash_bindings_check_protocol_connectivity 53\r"'
+builtin bind -m vi-command '"\C-xnl5": "i\C-x0__bash_bindings_check_protocol_connectivity 53\r"'
+builtin bind -m vi-insert '"\C-xnl8": "\C-x0__bash_bindings_check_protocol_connectivity 80\r"'
+builtin bind -m vi-command '"\C-xnl8": "i\C-x0__bash_bindings_check_protocol_connectivity 80\r"'
+builtin bind -m vi-insert '"\C-xnl0": "\C-x0__bash_bindings_check_protocol_connectivity 8080\r"'
+builtin bind -m vi-command '"\C-xnl0": "i\C-x0__bash_bindings_check_protocol_connectivity 8080\r"'
+
+# Scan common ports (22, 53, 80, 443, 8080) on a target host to check which services are open.
+__bash_bindings_scan_common_ports() {
+  local reset bold green yellow purple
+  reset="$(tput sgr0)"
+  bold="$(tput bold)"
+  green="$(tput setaf 2)"
+  yellow="$(tput setaf 3)"
+  purple="$(tput setaf 5)"
+
+  local host
+  read -r -p "\n${bold}Enter domain that you would like to scan with netcat (default: google.com):${reset} " host
+
+  host="${host:-google.com}"
+  local -a ports=(22 53 80 443 8080)
+
+  printf "\nDomain: ${green}%s${reset}\n" "$host"
+  printf "Ports: ${yellow}%s${reset}\n" "${ports[*]/ /,/}"
+
+  printf "\n${bold}%s${reset}" "Scanning common ports ("
+  printf "${yellow}%s${reset}" "${ports[@]:0:1}"
+  local p
+  for p in "${ports[@]:1}"; do
+    printf "${yellow}, %s${reset}" "$p"
+  done
+  printf ")${bold} on ${reset}${green}%s${reset}...\n" "$host"
+
+  printf "\n${purple}$ nc -vz -w3 %s <port>${reset}\n" "$host"
+  for p in "${ports[@]}"; do
+    nc -vz -w2 "$host" "$p" 2>&1
+  done
+}
+builtin bind -m vi-insert '"\C-xnls": "\C-x0__bash_bindings_scan_common_ports\r"'
+builtin bind -m vi-command '"\C-xnls": "i\C-x0__bash_bindings_scan_common_ports\r"'
+
+# Capture 20 packets on the default network interface for packet-level analysis.
+__bash_bindings_capture_packets_on_default_network_interface() {
+  local reset bold green blue purple
+  reset="$(tput sgr0)"
+  bold="$(tput bold)"
+  green="$(tput setaf 2)"
+  blue="$(tput setaf 4)"
+  purple="$(tput setaf 5)"
+
+  printf "\n${bold}%s${reset}\n\n" "Capturing 20 packets on default network interface for packet-level analysis..."
+
+  printf "Finding default network interface via: ${blue}%s${reset}\n" "route get default | awk '/interface:/{print $2}'"
+
+  local interface
+  interface="$(route get default | awk '/interface:/{print $2}')"
+  printf "Interface: ${green}%s${reset}\n" "$interface"
+
+  printf "\n${purple}$ sudo tcpdump -i %s -c 20${reset}\n" "$interface"
+  sudo tcpdump -i "$interface" -c 20
+}
+builtin bind -m vi-insert '"\C-xnlc": "\C-x0__bash_bindings_capture_packets_on_default_network_interface\r"'
+builtin bind -m vi-command '"\C-xnlc": "i\C-x0__bash_bindings_capture_packets_on_default_network_interface\r"'
+
+# Shows your public IPv4 address (the address visible to the internet).
+builtin bind -m vi-insert '"\C-xn4": "\C-x0curl --ipv4 https://ifconfig.me/all\r"'
+builtin bind -m vi-command '"\C-xn4": "i\C-x0curl --ipv4 https://ifconfig.me/all\r"'
+
+# Shows your public IPv6 address (the address visible to the internet).
+builtin bind -m vi-insert '"\C-xn6": "\C-x0curl --ipv6 https://ifconfig.me/all\r"'
+builtin bind -m vi-command '"\C-xn6": "i\C-x0curl --ipv6 https://ifconfig.me/all\r"'
+
+# Displays your ISP and other public network details.
+builtin bind -m vi-insert '"\C-xni": "\C-x0curl -s https://ipinfo.io | jq .\r"'
+builtin bind -m vi-command '"\C-xni": "i\C-x0curl -s https://ipinfo.io | jq .\r"'
+
+# ╭──────────────╮
+# │ DNS Bindings │
+# ╰──────────────╯
+__bash_bindings_dns_lookup() {
+  local bold reset green purple
+  reset="$(tput sgr0)"
+  bold="$(tput bold)"
+  green="$(tput setaf 2)"
+  purple="$(tput setaf 5)"
+
+  local hostname
+  read -r -p "${bold}Enter a hostname to resolve via DNS lookup (default: google.com):${reset} " hostname
+  hostname="${hostname:-google.com}"
+  printf "You chose ${green}%s${reset}\n" "$hostname"
+
+  printf "\n${purple}$ dig +short %s${reset}\n" "$hostname"
+  dig +short "$hostname"
+}
+builtin bind -m vi-insert '"\C-xndd": "\C-x0__bash_bindings_dns_lookup\r"'
+builtin bind -m vi-command '"\C-xndd": "i\C-x0__bash_bindings_dns_lookup\r"'
+
+__bash_bindings_reverse_dns_lookup() {
+  local reset bold green purple
+  reset="$(tput sgr0)"
+  bold="$(tput bold)"
+  green="$(tput setaf 2)"
+  purple="$(tput setaf 5)"
+
+  local ip_address
+  read -r -p "${bold}Enter a IP Address to resolve via Reverse DNS lookup (default: 8.8.8.8):${reset} " ip_address
+  ip_address="${ip_address:-8.8.8.8}"
+  printf "You chose ${green}%s${reset}\n" "$ip_address"
+
+  printf "\n${purple}$ dig +short -x %s${reset}\n" "$ip_address"
+  dig +short -x "$ip_address"
+}
+builtin bind -m vi-insert '"\C-xndr": "\C-x0__bash_bindings_reverse_dns_lookup\r"'
+builtin bind -m vi-command '"\C-xndr": "i\C-x0__bash_bindings_reverse_dns_lookup\r"'
+
+# Lists all active DNS servers configured on your system.
+__bash_bindings_system_dns_servers() {
+  local reset bold green purple
+  reset="$(tput sgr0)"
+  bold="$(tput bold)"
+  green="$(tput setaf 2)"
+  purple="$(tput setaf 5)"
+
+  local hostname
+  hostname="$(hostname)"
+  printf "\n${bold}Listing all active DNS servers configured on${reset} ${green}%s${reset}\n" "$hostname"
+
+  printf "\n${purple}$ %s${reset}\n" "scutil --dns | grep 'nameserver\[[0-9]*\]' | awk '{print $3}' | sort -u"
+  scutil --dns | grep 'nameserver\[[0-9]*\]' | awk '{print $3}' | sort -u
+}
+builtin bind -m vi-insert '"\C-xnda": "\C-x0__bash_bindings_system_dns_servers\r"'
+builtin bind -m vi-command '"\C-xnda": "i\C-x0__bash_bindings_system_dns_servers\r"'
+
+# Test DNS resolution for common domains and display the results with response times.
+__bash_bindings_test_dns_resolution_for_common_domains() {
+  local reset bold green purple
+  reset="$(tput sgr0)"
+  bold="$(tput bold)"
+  green="$(tput setaf 2)"
+  purple="$(tput setaf 5)"
+
+  local -a domains=(google.com cloudflare.com apple.com)
+  printf "\n${bold}%s${reset}" "Testing DNS resolution for domains ("
+  printf "${green}%s${reset}" "${domains[@]:0:1}"
+  local d
+  for d in "${domains[@]:1}"; do
+    printf "${green}, %s${reset}" "$d"
+  done
+  printf "${bold}%s${reset}\n" ") and display the results with response times."
+
+  local d
+  for d in "${domains[@]}"; do
+    printf "\n${purple}$ dig +time=2 +tries=1 +short %s${reset}\n" "$d"
+    dig +time=2 +tries=1 +short "${d}"
+  done
+}
+builtin bind -m vi-insert '"\C-xndt": "\__bash_bindings_test_dns_resolution_for_common_domains\r"'
+builtin bind -m vi-command '"\C-xndt": "i\C-x0__bash_bindings_test_dns_resolution_for_common_domains\r"'
+
+__bash_bindings_dns_summary() {
+  local reset bold red green yellow
+  reset="$(tput sgr0)"
+  bold="$(tput bold)"
+  red="$(tput setaf 1)"
+  green="$(tput setaf 2)"
+  yellow="$(tput setaf 3)"
+
+  local -a domains
+  domains=(
+    google.com
+    cloudflare.com
+    apple.com
+  )
+
+  local d length ip rDNS
+  for d in "${domains[@]}"; do
+    length="${#d}"
+    printf "\n${bold}%s:\n%*s=${reset}\n" "${d^}" "$length" '' | tr ' ' '='
+
+    ip="$(dig +short "$d" | head -n1)"
+
+    if [[ -z $ip ]]; then
+      ip="... Could not resolve IP! Check your network connection."
+    fi
+    printf "${blue}%s${reset} resolves to ${green}%s${reset}\n" "$d" "$ip"
+
+    if [[ -n $ip ]]; then
+      printf "Reverse DNS: "
+      rDNS="$(dig +short -x "$ip")"
+
+      if [[ -z $rDNS ]]; then
+        printf "${yellow}... Could not resolve domain name! ${red}%s${reset}${yellow} might not allow rDNS.${reset}" "$ip"
+      fi
+
+      printf "${green}%s\n${reset}" "$rDNS"
+    fi
+  done
+}
+builtin bind -m vi-insert '"\C-xnds": "\C-x0__bash_bindings_dns_summary\r"'
+builtin bind -m vi-command '"\C-xnds": "i\C-x0__bash_bindings_dns_summary\r"'
+
+# ╭──────────────╮
+# │ WAN Bindings │
+# ╰──────────────╯
+# Measure internet connection latency to Cloudflare DNS (1.1.1.1) with three pings.
+builtin bind -m vi-insert '"\C-xnwl": "\C-x0ping -c 3 1.1.1.1 | tail -1\r"'
+builtin bind -m vi-command '"\C-xnwl": "i\C-x0ping -c 3 1.1.1.1 | tail -1\r"'
+
+# Ping Google's DNS server once to check basic internet connectivity.
+builtin bind -m vi-insert '"\C-xnwp": "\C-x0ping -c 1 8.8.8.8\r"'
+builtin bind -m vi-command '"\C-xnwp": "i\C-x0ping -c 1 8.8.8.8\r"'
+
+# Ping (custom) server once to check basic internet connectivity.
+builtin bind -m vi-insert '"\C-xnwP": "\C-x0ping -c 1 "'
+builtin bind -m vi-command '"\C-xnwP": "i\C-x0ping -c 1 "'
+
+# Perform a traceroute to google.com to see the network path and detect routing issues.
+builtin bind -m vi-insert '"\C-xnwt": "\C-x0traceroute google.com"'
+builtin bind -m vi-command '"\C-xnwt": "i\C-x0traceroute google.com"'
+
+__bash_bindings_latency_traceroute_test() {
+  echo "Traceroute to 8.8.8.8:"
+  traceroute 8.8.8.8
+  echo
+
+  echo "Ping statistics to 8.8.8.8:"
+  ping -c 5 8.8.8.8 | tail -1
+}
+builtin bind -m vi-insert '"\C-xnwL": "\C-x0__bash_bindings_latency_traceroute_test\r"'
+builtin bind -m vi-command '"\C-xnwL": "i\C-x0__bash_bindings_latency_traceroute_test\r"'
+
+__bash_bindings_network_health_check() {
+  local reset bold green purple
+  reset="$(tput sgr0)"
+  bold="$(tput bold)"
+  green="$(tput setaf 2)"
+  blue="$(tput setaf 4)"
+  purple="$(tput setaf 5)"
+
+  printf "\nFinding default network gateway via: ${blue}%s${reset}\n" "netstat -rn | grep default -m 1 | awk '{print \$2}'"
+  local gateway
+  gateway="$(netstat -rn | grep default -m 1 | awk '{print $2}')"
+  printf "${bold}Default Gateway:${reset} ${green}%s${reset}\n" "${gateway}"
+
+  printf "\n${bold}%s${reset}\n" "Pinging Default Gateway..."
+  printf "${purple}$ ping -c 3 %s${reset}\n" "$gateway"
+  ping -c 3 "$gateway"
+  printf "\n"
+
+  printf "${bold}%s${reset}\n" "Pinging Google DNS..."
+  local google_dns="8.8.8.8"
+  printf "${purple}$ ping -c 3 %s${reset}\n" "$google_dns"
+  ping -c 3 "$google_dns"
+  printf "\n"
+
+  local google_domain="google.com"
+  printf "${bold}Testing DNS resolution for ${green}%s${reset}${bold}...${reset}\n" "$google_domain"
+  printf "${purple}$ dig +short %s %s${reset}\n" "$google_domain"
+  dig +short google.com
+}
+builtin bind -m vi-insert '"\C-xnwh": "\C-x0__bash_bindings_network_health_check\r"'
+builtin bind -m vi-command '"\C-xnwh": "i\C-x0__bash_bindings_network_health_check\r"'
+
+__bash_bindings_network_summary() {
+  local reset bold
+  reset="$(tput sgr0)"
+  bold="$(tput bold)"
+
+  printf "${bold}%s${reset}\n" "=== Interfaces ==="
+  ifconfig
+  printf "\n"
+
+  printf "${bold}%s${reset}\n" "=== Routing Table ==="
+  netstat -rn
+  printf "\n"
+
+  printf "${bold}%s${reset}\n" "=== Default Gateway ==="
+  netstat -rn | grep default | awk '{print $2}'
+  printf "\n"
+
+  printf "${bold}%s${reset}\n" "=== DNS Servers ==="
+  scutil --dns | grep 'nameserver\[[0-9]*\]' | awk '{print $3}' | sort -u
+  printf "\n"
+
+  printf "${bold}%s${reset}\n" "=== Ping Gateway ==="
+  gateway="$(netstat -rn | grep default | awk '{print $2}')"
+  ping -c 3 "$gateway"
+  printf "\n"
+
+  printf "${bold}%s${reset}\n" "=== Ping Google ==="
+  ping -c 3 8.8.8.8
+}
+builtin bind -m vi-insert '"\C-xnws": "\C-x0__bash_bindings_network_summary\r"'
+builtin bind -m vi-command '"\C-xnws": "i\C-x0__bash_bindings_network_summary\r"'
 
 __bash_bindings_list_bash_bindings() {
   local -a files=(
