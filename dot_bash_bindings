@@ -146,7 +146,7 @@ builtin bind -m vi-insert '"\C-xdT": "\C-x0cd ~/workspaces/test\r"'
 builtin bind -m vi-command '"\C-xdT": "i\C-x0cd ~/workspaces/test\r"'
 
 # Go-to a projects root directory. The respective keyboard binding is in ~/.inputrc.
-__go_to_project_root() {
+__bash_bindings_go_to_project_root() {
   local path
   path="$(pwd)"
 
@@ -173,8 +173,8 @@ __go_to_project_root() {
     path="$(dirname "$path")"
   done
 }
-builtin bind -m vi-insert '"\C-gdr": "\C-x0__go_to_project_root\r"'
-builtin bind -m vi-command '"\C-gdr": "i\C-x0__go_to_project_root\r"'
+builtin bind -m vi-insert '"\C-gdr": "\C-x0__bash_bindings_go_to_project_root\r"'
+builtin bind -m vi-command '"\C-gdr": "i\C-x0__bash_bindings_go_to_project_root\r"'
 
 # git --version
 builtin bind -m vi-insert '"\C-gv": "\C-x0git --version\r"'
@@ -393,13 +393,12 @@ builtin bind -x '"\C-_Y": "__bash_bindings_open_github_page '\''profile'\''"'
 builtin bind -m vi-insert '"\C-go.": "\C-x0\C-_Y\C-x1\C-x2\b"'
 builtin bind -m vi-command '"\C-go.": "i\C-x0\C-_Y\C-x1\C-x2\b"'
 
-__git_list_tags() {
+# git tag --list --sort=v:refname
+__bash_bindings_git_list_tags() {
   git tag --list --sort='v:refname'
 }
-
-# git tag --list --sort=v:refname
-builtin bind -m vi-insert '"\C-gtl": "\C-x0__git_list_tags\r"'
-builtin bind -m vi-command '"\C-gtl": "i\C-x0__git_list_tags\r"'
+builtin bind -m vi-insert '"\C-gtl": "\C-x0__bash_bindings_git_list_tags\r"'
+builtin bind -m vi-command '"\C-gtl": "i\C-x0__bash_bindings_git_list_tags\r"'
 
 # `git add `
 builtin bind -m vi-insert '"\C-gaa": "\C-x0git add "'
@@ -461,7 +460,7 @@ builtin bind -m vi-insert '"\C-xnu": "\C-x0nvm use default\r"'
 builtin bind -m vi-command '"\C-xnu": "i\C-x0nvm use default\r"'
 
 # Package manager update:
-__update_package_manager() {
+__bash_bindings_update_package_manager() {
   local os distro command
   case "$OSTYPE" in
     solaris*) os='solaris' ;;
@@ -507,8 +506,8 @@ __update_package_manager() {
   esac
   $command
 }
-builtin bind -m vi-insert '"\C-xou": "\C-x0__update_package_manager\r"'
-builtin bind -m vi-command '"\C-xou": "i\C-x0__update_package_manager\r"'
+builtin bind -m vi-insert '"\C-xou": "\C-x0__bash_bindings_update_package_manager\r"'
+builtin bind -m vi-command '"\C-xou": "i\C-x0__bash_bindings_update_package_manager\r"'
 
 # `brew search `
 builtin bind -m vi-insert '"\C-xos": "\C-x0brew search "'
@@ -526,7 +525,7 @@ redraw_prompt() {
 }
 
 # List git files with last modified:
-__git_ls_files_with_last_modified() {
+__bash_bindings_git_ls_files_with_last_modified() {
   # Header:
   printf "\n%-25s %-7s %s\n" "Last Modified" "Commit" "File"
   printf "%-25s %-10s %s\n" "—————————————————————————" "———————" "———————————————————————— "
@@ -559,11 +558,13 @@ __git_ls_files_with_last_modified() {
       "$file"
   done
 }
+builtin bind -m vi-insert '"\C-xl": "\C-x0__bash_bindings_git_ls_files_with_last_modified\r"'
+builtin bind -m vi-command '"\C-xl": "i\C-x0__bash_bindings_git_ls_files_with_last_modified\r"'
 
 builtin bind -m vi-insert '"\C-xl": "\C-x0__git_ls_files_with_last_modified\r"'
 builtin bind -m vi-command '"\C-xl": "i\C-x0__git_ls_files_with_last_modified\r"'
 
-__list_bash_bindings() {
+__bash_bindings_list_bash_bindings() {
   local -a files=(
     "${HOME}/.bash_bindings"
     "${HOME}/.fzf_bindings"
@@ -643,5 +644,5 @@ __list_bash_bindings() {
   done | $pager
   unset IFS
 }
-builtin bind -m vi-insert '"\C-xv": "\C-x0__list_bash_bindings\r"'
-builtin bind -m vi-command '"\C-xv": "i\C-x0__list_bash_bindings\r"'
+builtin bind -m vi-insert '"\C-xv": "\C-x0__bash_bindings_list_bash_bindings\r"'
+builtin bind -m vi-command '"\C-xv": "i\C-x0__bash_bindings_list_bash_bindings\r"'
