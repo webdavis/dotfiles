@@ -281,9 +281,9 @@ builtin bind -m vi-command '"\C-gic": "i\C-x0if ! git rev-parse --is-inside-work
 builtin bind -m vi-insert '"\C-gpp": "\C-x0git push\r"'
 builtin bind -m vi-command '"\C-gpp": "i\C-x0git push\r"'
 
-# git push --force
-builtin bind -m vi-insert '"\C-gpf": "\C-x0git push --force\r"'
-builtin bind -m vi-command '"\C-gpf": "i\C-x0git push --force\r"'
+# git push --force-with-lease
+builtin bind -m vi-insert '"\C-gpf": "\C-x0git push --force-with-lease\r"'
+builtin bind -m vi-command '"\C-gpf": "i\C-x0git push --force-with-lease\r"'
 
 # Delete remote_branch branch from the origin remote.
 # `git push origin :remote_branch`
