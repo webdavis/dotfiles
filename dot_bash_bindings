@@ -277,6 +277,18 @@ builtin bind -m vi-command '"\C-gii": "i\C-xgit init\r"'
 builtin bind -m vi-insert '"\C-gic": "\C-x0if ! git rev-parse --is-inside-work-tree &>/dev/null; then git init; gh repo create; fi\r"'
 builtin bind -m vi-command '"\C-gic": "i\C-x0if ! git rev-parse --is-inside-work-tree &>/dev/null; then git init; gh repo create; fi\r"'
 
+# git fetch
+builtin bind -m vi-insert '"\C-gfe": "\C-x0git fetch\r"'
+builtin bind -m vi-command '"\C-gfe": "i\C-x0git fetch\r"'
+
+# git pull
+builtin bind -m vi-insert '"\C-gfp": "\C-x0git pull\r"'
+builtin bind -m vi-command '"\C-gfp": "i\C-x0git pull\r"'
+
+# git pull --rebase
+builtin bind -m vi-insert '"\C-gfr": "\C-x0git pull --rebase\r"'
+builtin bind -m vi-command '"\C-gfr": "i\C-x0git pull --rebase\r"'
+
 # git push
 builtin bind -m vi-insert '"\C-gpp": "\C-x0git push\r"'
 builtin bind -m vi-command '"\C-gpp": "i\C-x0git push\r"'
