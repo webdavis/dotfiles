@@ -249,6 +249,17 @@ builtin bind -m vi-command '"\C-gcn": "i\C-x0git commit --amend --no-edit\r"'
 builtin bind -m vi-insert '"\C-gcN": "\C-x0git commit --amend --no-edit --all\r"'
 builtin bind -m vi-command '"\C-gcN": "i\C-x0git commit --amend --no-edit --all\r"'
 
+# Copy last git commit message to clipboard.
+__bash_bindings_copy_latest_git_commit_message_to_clipboard() {
+  local reset purple
+  reset="$(tput sgr0)"
+  purple="$(tput setaf 5)"
+  printf "${purple}$ %s${reset}\n" "git log -1 --pretty=%B | pbcopy"
+  git log -1 --pretty=%B | pbcopy
+}
+builtin bind -m vi-insert '"\C-gcy": "\C-x0__bash_bindings_copy_latest_git_commit_message_to_clipboard\r"'
+builtin bind -m vi-command '"\C-gcy": "i\C-x0__bash_bindings_copy_latest_git_commit_message_to_clipboard\r"'
+
 # git reset commands:
 builtin bind -m vi-insert '"\C-gru": "\C-x0git reset"'                     # Unstage index
 builtin bind -m vi-command '"\C-gru": "i\C-x0git reset"'                   # Unstage index
