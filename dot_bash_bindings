@@ -586,12 +586,26 @@ builtin bind -m vi-insert '"\C-xnhh": "\C-x0hostname\r"'
 builtin bind -m vi-command '"\C-xnhh": "i\C-x0hostname\r"'
 
 # Print the MAC address of the current machine.
-builtin bind -m vi-insert '"\C-xnhm": "\C-x0networksetup -getmacaddress en0 | awk '\''{print $3}'\''\r"'
-builtin bind -m vi-command '"\C-xnhm": "i\C-x0networksetup -getmacaddress en0 | awk '\''{print $3}'\''\r"'
+__bash_bindings_print_mac_address() {
+  local reset purple
+  reset="$(tput sgr0)"
+  purple="$(tput setaf 5)"
+  printf "${purple}$ %s${reset}\n" 'networksetup -getmacaddress en0 | awk '\''{print $3}'\'''
+  networksetup -getmacaddress en0 | awk '{print $3}'
+}
+builtin bind -m vi-insert '"\C-xnhm": "\C-x0__bash_bindings_print_mac_address\r"'
+builtin bind -m vi-command '"\C-xnhm": "i\C-x0__bash_bindings_print_mac_address\r"'
 
 # Shows the network interface your computer currently uses for outbound traffic.
-builtin bind -m vi-insert '"\C-xnhi": "\C-x0route get default | grep interface | awk '\''{print $2}'\''\r"'
-builtin bind -m vi-command '"\C-xnhi": "i\C-x0route get default | grep interface | awk '\''{print $2}'\''\r"'
+__bash_bindings_show_current_network_interface() {
+  local reset purple
+  reset="$(tput sgr0)"
+  purple="$(tput setaf 5)"
+  printf "${purple}$ %s${reset}\n" 'route get default | grep interface | awk '\''{print $2}'\'''
+  route get default | grep interface | awk '{print $2}'
+}
+builtin bind -m vi-insert '"\C-xnhi": "\C-x0__bash_bindings_show_current_network_interface\r"'
+builtin bind -m vi-command '"\C-xnhi": "i\C-x0__bash_bindings_show_current_network_interface\r"'
 
 # Show all active network connections and listening ports for troubleshooting.
 builtin bind -m vi-insert '"\C-xnhp": "\C-x0lsof -nP -iTCP -sTCP:LISTEN\r"'
@@ -605,12 +619,26 @@ builtin bind -m vi-insert '"\C-xnll": "\C-x0ipconfig getifaddr en0\r"'
 builtin bind -m vi-command '"\C-xnll": "i\C-x0ipconfig getifaddr en0\r"'
 
 # Shows the IP address of your default gateway (usually your router).
-builtin bind -m vi-insert '"\C-xnlg": "\C-x0netstat -rn | grep default -m 1 | awk '\''{print $2}'\''\r"'
-builtin bind -m vi-command '"\C-xnlg": "i\C-x0netstat -rn | grep default -m 1 | awk '\''{print $2}'\''\r"'
+__bash_bindings_show_ip_address_of_default_gateway() {
+  local reset purple
+  reset="$(tput sgr0)"
+  purple="$(tput setaf 5)"
+  printf "${purple}$ %s${reset}\n" 'netstat -rn | grep default -m 1 | awk '\''{print $2}'\'''
+  netstat -rn | grep default -m 1 | awk '{print $2}'
+}
+builtin bind -m vi-insert '"\C-xnlg": "\C-x0__bash_bindings_show_ip_address_of_default_gateway\r"'
+builtin bind -m vi-command '"\C-xnlg": "i\C-x0__bash_bindings_show_ip_address_of_default_gateway\r"'
 
 # Shows the subnet mask and domain name for your current Wi-Fi or Ethernet interface.
-builtin bind -m vi-insert '"\C-xnlb": "\C-x0ipconfig getsummary en0 | grep '\''subnet_mask'\'' -A1\r"'
-builtin bind -m vi-command '"\C-xnlb": "i\C-x0ipconfig getsummary en0 | grep '\''subnet_mask'\'' -A1\r"'
+__bash_bindings_show_subnet_mask_and_domain_name_of_current_wifi_or_ethernet_interface() {
+  local reset purple
+  reset="$(tput sgr0)"
+  purple="$(tput setaf 5)"
+  printf "${purple}$ %s${reset}\n" "ipconfig getsummary en0 | grep 'subnet_mask' -A1"
+  ipconfig getsummary en0 | grep 'subnet_mask' -A1
+}
+builtin bind -m vi-insert '"\C-xnlb": "\C-x0__bash_bindings_show_subnet_mask_and_domain_name_of_current_wifi_or_ethernet_interface\r"'
+builtin bind -m vi-command '"\C-xnlb": "i\C-x0__bash_bindings_show_subnet_mask_and_domain_name_of_current_wifi_or_ethernet_interface\r"'
 
 # Ping the default gateway (usually your router) once to check local network reachability.
 __bash_bindings_ping_default_gateway() {
