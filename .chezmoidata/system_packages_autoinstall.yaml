@@ -4,7 +4,10 @@ packages:
       taps:
         - buo/cask-upgrade
         - domt4/autoupdate # Automatic Upgrades.
+        - FelixKratz/formulae
+        - mediosz/tap
         - morantron/tmux-fingers
+        - nikitabobko/tap
         - owenthereal/upterm
         - oven-sh/bun
       formulae:
@@ -29,6 +32,7 @@ packages:
         - dust
         - eza
         - fd
+        - FelixKratz/formulae/borders
         - ffmpeg
         - fzf
         - gawk
@@ -74,6 +78,7 @@ packages:
         - swiftlint
         - switchaudio-osx
         - tealdeer
+        - terminal-notifier
         - tmux
         - tmuxinator
         - tokei
@@ -107,9 +112,11 @@ packages:
         - karabiner-elements
         - keepassxc
         - lunar
+        - mediosz/tap/swipeaerospace
         - microsoft-auto-update
         - microsoft-office
         - mitmproxy
+        - nikitabobko/tap/aerospace
         - obs
         - obsidian
         - openemu
