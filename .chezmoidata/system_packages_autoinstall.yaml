@@ -4,7 +4,6 @@ packages:
       taps:
         - buo/cask-upgrade
         - domt4/autoupdate # Automatic Upgrades.
-        - koekeishiya/formulae
         - morantron/tmux-fingers
         - owenthereal/upterm
         - oven-sh/bun
@@ -52,7 +51,6 @@ packages:
         - jackielii/tap/skhd-zig
         - jq
         - just
-        - koekeishiya/formulae/yabai
         - librsvg
         - mas
         - morantron/tmux-fingers/tmux-fingers
