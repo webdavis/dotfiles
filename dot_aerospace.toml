@@ -166,6 +166,8 @@ on-mode-changed = []
     # See: https://nikitabobko.github.io/AeroSpace/commands#exec-and-forget
     ctrl-cmd-comma = 'exec-and-forget ~/.local/bin/aerospace_toggle_app_focus.sh "Strongbox"'
     ctrl-cmd-period = 'exec-and-forget ~/.local/bin/aerospace_toggle_app_focus.sh "KeePassXC"'
+    ctrl-cmd-m = 'exec-and-forget open -a Slack'
+
     alt-ctrl-cmd-shift-backtick = 'exec-and-forget open -na Brave\ Browser --args --incognito'
     alt-ctrl-cmd-shift-semicolon = 'exec-and-forget open -a Ghostty'
     alt-ctrl-cmd-shift-enter = 'exec-and-forget open -na Ghostty'
