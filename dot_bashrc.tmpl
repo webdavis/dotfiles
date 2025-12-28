@@ -49,11 +49,11 @@ export HISTFILE="$HOME/.bash_history"
 export HISTCONTROL=ignoredups:erasedups:ignorespace
 
 # Exclude any commands matching the specified regex pattern from history.
-{{ if (env "CI") }}
+{{- if (env "CI") }}
 export HISTIGNORE="$HISTIGNORE:FAKE_REGEX"
-{{ else }}
+{{- else }}
 export HISTIGNORE="$HISTIGNORE:{{ (keepassxc "dotfiles - bashrc - HISTIGNORE - Regex").Password }}"
-{{ end }}
+{{- end }}
 
 # ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 # ┃  Hombrew: https://brew.sh/  ┃
