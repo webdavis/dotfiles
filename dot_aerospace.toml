@@ -166,31 +166,29 @@ on-mode-changed = []
     # See: https://nikitabobko.github.io/AeroSpace/commands#exec-and-forget
     ctrl-cmd-comma = 'exec-and-forget ~/.local/bin/aerospace_toggle_app_focus.sh "Strongbox"'
     ctrl-cmd-period = 'exec-and-forget ~/.local/bin/aerospace_toggle_app_focus.sh "KeePassXC"'
-    ctrl-cmd-m = 'exec-and-forget open -a Slack'
 
     alt-ctrl-cmd-shift-backtick = 'exec-and-forget open -na Brave\ Browser --args --incognito'
     alt-ctrl-cmd-shift-semicolon = 'exec-and-forget open -a Ghostty'
     alt-ctrl-cmd-shift-enter = 'exec-and-forget open -na Ghostty'
-    alt-ctrl-cmd-shift-minus = 'exec-and-forget open -a Cardhop'
     alt-ctrl-cmd-shift-quote = 'exec-and-forget open -a Mail'
-    alt-ctrl-cmd-shift-equal = 'exec-and-forget ~/.local/bin/aerospace_toggle_app_focus.sh "Session"'
     alt-ctrl-cmd-shift-up = [
       'exec-and-forget /opt/homebrew/bin/espanso restart',
       'exec-and-forget /opt/homebrew/bin/terminal-notifier -title "Aerospace" -message "Restarted Espanso" -group aerospace-config'
     ]
-    alt-ctrl-cmd-shift-a = 'exec-and-forget open -a "Activity Monitor"'
+    alt-ctrl-cmd-shift-a = 'exec-and-forget open -a Activity\ Monitor'
     alt-ctrl-cmd-shift-b = 'exec-and-forget open -a Arc'
     # alt-ctrl-cmd-shift-b = 'exec-and-forget open -a Zen'
     # alt-ctrl-cmd-shift-n = 'exec-and-forget /Applications/Zen.app/Contents/MacOS/zen --new-window'
-    alt-ctrl-cmd-shift-c = 'exec-and-forget ~/.local/bin/aerospace_toggle_app_focus.sh "Fantastical"'
-    alt-ctrl-cmd-shift-d = 'exec-and-forget open -a Docker'
+    alt-ctrl-cmd-shift-c = 'exec-and-forget open -a Cardhop'
+    alt-ctrl-cmd-shift-f = 'exec-and-forget open -a Fantastical'
     alt-ctrl-cmd-shift-g = 'exec-and-forget open -a ChatGPT'
-    alt-ctrl-cmd-shift-m = 'exec-and-forget open -a Messages'
+    alt-ctrl-cmd-shift-m = 'exec-and-forget open -a Slack'
     alt-ctrl-cmd-shift-o = 'exec-and-forget open -a Obsidian'
     alt-ctrl-cmd-shift-p = 'exec-and-forget open -a Phone'
+    alt-ctrl-cmd-shift-t = 'exec-and-forget open -a Messages'
     alt-ctrl-cmd-shift-v = 'exec-and-forget open -a System\ Settings'
     alt-ctrl-cmd-shift-x = 'exec-and-forget open -a Xcode'
-    alt-ctrl-cmd-shift-y = 'exec-and-forget open -a Microsoft\ Excel'
+    alt-ctrl-cmd-shift-y = 'exec-and-forget open -a Session'
 
     # Hide focused application (this is a replacement for macOS Cmd+h).
     alt-ctrl-cmd-shift-down = "exec-and-forget osascript -e 'tell application \"System Events\" to set visible of first process whose frontmost is true to false'"
@@ -209,19 +207,19 @@ on-mode-changed = []
 
     # See: https://nikitabobko.github.io/AeroSpace/commands#fullscreen
     # Alternatively, there is: https://nikitabobko.github.io/AeroSpace/commands#macos-native-fullscreen
-    alt-ctrl-cmd-shift-f = 'fullscreen'
+    alt-ctrl-cmd-shift-equal = 'fullscreen'
     # alt-ctrl-cmd-shift-f = 'macos-native-fullscreen'
+
+    # See: https://nikitabobko.github.io/AeroSpace/commands#layout
+    alt-ctrl-cmd-shift-s = 'layout v_accordion' # 'layout stacking' in i3
+    alt-ctrl-cmd-shift-d = 'layout h_accordion' # 'layout tabbed' in i3
+    alt-ctrl-cmd-shift-w = 'layout accordion horizontal vertical' # 'layout toggle tabbed' in i3
+    alt-ctrl-cmd-shift-e = 'layout tiles horizontal vertical' # 'layout toggle split' in i3
+    alt-ctrl-cmd-shift-space = 'layout floating tiling' # 'floating toggle' in i3
 
     # Consider using 'join-with' command as a 'split' replacement, if you want to enable normalizations.
     alt-ctrl-cmd-shift-u = 'split vertical'
     alt-ctrl-cmd-shift-i = 'split horizontal'
-
-    # See: https://nikitabobko.github.io/AeroSpace/commands#layout
-    alt-ctrl-cmd-shift-s = 'layout v_accordion' # 'layout stacking' in i3
-    alt-ctrl-cmd-shift-t = 'layout h_accordion' # 'layout tabbed' in i3
-    alt-ctrl-cmd-shift-e = 'layout tiles horizontal vertical' # 'layout toggle split' in i3
-    alt-ctrl-cmd-shift-w = 'layout accordion horizontal vertical' # 'layout toggle tabbed' in i3
-    alt-ctrl-cmd-shift-space = 'layout floating tiling' # 'floating toggle' in i3
 
     # See: https://nikitabobko.github.io/AeroSpace/commands#workspace
     alt-ctrl-cmd-shift-1 = 'workspace "1:Main"'
@@ -349,16 +347,6 @@ on-mode-changed = []
 
 [[on-window-detected]]
     if.app-id = 'com.apple.systempreferences'
-    check-further-callbacks = true
-    run = ['layout floating']
-
-[[on-window-detected]]
-    if.app-id = 'com.flexibits.fantastical2.mac'
-    check-further-callbacks = true
-    run = ['layout floating']
-
-[[on-window-detected]]
-    if.app-id = 'com.philipyoungg.session'
     check-further-callbacks = true
     run = ['layout floating']
 
