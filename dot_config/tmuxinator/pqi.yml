@@ -1,5 +1,5 @@
 name: pqi
-root: "~/workspaces/pqi"
+root: "~/workspaces/pqi/surveys"
 pre_window: " sleep 0.5; clear"
 windows:
   - main:
