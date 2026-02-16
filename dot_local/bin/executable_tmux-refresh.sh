@@ -315,9 +315,9 @@ launch_all_tmux_sessions() {
 }
 
 perform_actions() {
-  $kill_sessions_flag && kill_tmux_sessions
-  $purge_tmux_resurrect_data_flag && purge_tmux_resurrect_data
-  $launch_all_tmux_sessions_flag && launch_all_tmux_sessions
+  if $kill_sessions_flag; then kill_tmux_sessions; fi
+  if $purge_tmux_resurrect_data_flag; then purge_tmux_resurrect_data; fi
+  if $launch_all_tmux_sessions_flag; then launch_all_tmux_sessions; fi
 }
 
 main() {
