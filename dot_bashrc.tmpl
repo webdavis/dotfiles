@@ -220,6 +220,7 @@ if ! sh -c 'tmux ls >/dev/null 2>&1'; then
     tmux
   elif [[ -f $tmux_refresh ]]; then
     "$tmux_refresh"
+    command -v tmuxinator &>/dev/null && tmuxinator "Homelab"
   fi
 else
   command -v tmuxinator &>/dev/null && tmuxinator "Homelab"
