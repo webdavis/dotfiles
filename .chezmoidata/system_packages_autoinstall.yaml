@@ -8,15 +8,13 @@ packages:
         - mediosz/tap
         - morantron/tmux-fingers
         - nikitabobko/tap
-        - owenthereal/upterm
         - oven-sh/bun
+        - owenthereal/upterm
       formulae:
         - act
         - age
         - bash
         - bash-completion@2
-        - oven-sh/bun/bun
-        - pinentry-mac
         - bat
         - bore-cli
         - brightness
@@ -27,6 +25,7 @@ packages:
         - cmake-docs
         - coreutils
         - croc
+        - curl
         - diff-so-fancy
         - direnv
         - dust
@@ -46,7 +45,6 @@ packages:
         - gnu-getopt
         - gnu-sed
         - gnupg
-        - curl
         - grpcurl
         - httpie
         - hub
@@ -65,8 +63,10 @@ packages:
         - nmap
         - onefetch
         - openhue/cli/openhue-cli
+        - oven-sh/bun/bun
         - p7zip
         - parallel
+        - pinentry-mac
         - procs
         - pv
         - rbenv
@@ -96,11 +96,11 @@ packages:
         - yq
         - zoxide
       casks:
+        - brave-browser
+        - apple-juice
+        - cardhop
         - chatgpt
         - claude-code
-        - apple-juice
-        - brave-browser
-        - cardhop
         - discord
         - docker-desktop
         - espanso
@@ -121,7 +121,6 @@ packages:
         - obs
         - obsidian
         - openemu
-        - upterm
         - raspberry-pi-imager
         - raycast
         - retroarch-metal
@@ -129,6 +128,7 @@ packages:
         - slack
         - steam
         - torguard
+        - upterm
         - zen
         - zoom
       mas:
