@@ -97,6 +97,7 @@ packages:
         - zoxide
       casks:
         - chatgpt
+        - claude-code
         - apple-juice
         - brave-browser
         - cardhop
