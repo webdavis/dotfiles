@@ -171,6 +171,7 @@ on-mode-changed = []
     alt-ctrl-cmd-shift-semicolon = 'exec-and-forget open -a Ghostty'
     alt-ctrl-cmd-shift-enter = 'exec-and-forget open -na Ghostty'
     alt-ctrl-cmd-shift-quote = 'exec-and-forget open -a Mail'
+    alt-ctrl-cmd-shift-minus = 'exec-and-forget open -a Phone'
     alt-ctrl-cmd-shift-up = [
       'exec-and-forget /opt/homebrew/bin/espanso restart',
       'exec-and-forget /opt/homebrew/bin/terminal-notifier -title "Aerospace" -message "Restarted Espanso" -group aerospace-config'
@@ -184,7 +185,7 @@ on-mode-changed = []
     alt-ctrl-cmd-shift-g = 'exec-and-forget open -a ChatGPT'
     alt-ctrl-cmd-shift-m = 'exec-and-forget open -a Slack'
     alt-ctrl-cmd-shift-o = 'exec-and-forget open -a Obsidian'
-    alt-ctrl-cmd-shift-p = 'exec-and-forget open -a Phone'
+    alt-ctrl-cmd-shift-p = 'exec-and-forget open -a Claude'
     alt-ctrl-cmd-shift-t = 'exec-and-forget open -a Messages'
     alt-ctrl-cmd-shift-v = 'exec-and-forget open -a System\ Settings'
     alt-ctrl-cmd-shift-x = 'exec-and-forget open -a Xcode'
