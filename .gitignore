@@ -5,3 +5,6 @@
 vendor/**
 .vendor/**
 .ruby-lsp/**
+
+# Ignore Vim/Neovim swap files.
+*.sw*
