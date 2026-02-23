@@ -122,6 +122,8 @@ packages:
         - obs
         - obsidian
         - openemu
+        - proton-drive
+        - proton-mail
         - raspberry-pi-imager
         - raycast
         - retroarch-metal
