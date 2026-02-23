@@ -352,7 +352,7 @@ on-mode-changed = []
     run = ['layout floating']
 
 [[on-window-detected]]
-    if.app-id = 'org.keepassxc.keepassxc'
+    if.app-id = 'com.sandstudio.airdroidcast'
     check-further-callbacks = true
     run = ['layout floating']
 
