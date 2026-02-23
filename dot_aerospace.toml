@@ -356,6 +356,11 @@ on-mode-changed = []
     check-further-callbacks = true
     run = ['layout floating']
 
+# [[on-window-detected]]
+#     if.app-id = 'org.keepassxc.keepassxc'
+#     check-further-callbacks = true
+#     run = ['layout floating']
+
 [[on-window-detected]]
     if.app-id = 'com.markmcguill.strongbox'
     check-further-callbacks = true
