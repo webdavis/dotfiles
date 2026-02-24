@@ -175,8 +175,16 @@ builtin bind -m vi-insert '"\C-gv": "\C-x0git --version\r"'
 builtin bind -m vi-command '"\C-gv": "i\C-x0git --version\r"'
 
 # git status
-builtin bind -m vi-insert '"\C-gs": "\C-x0git status\r"'
-builtin bind -m vi-command '"\C-gs": "i\C-x0git status\r"'
+builtin bind -m vi-insert '"\C-gss": "\C-x0git status\r"'
+builtin bind -m vi-command '"\C-gss": "i\C-x0git status\r"'
+
+# git status --short
+builtin bind -m vi-insert '"\C-gsh": "\C-x0git status --short\r"'
+builtin bind -m vi-command '"\C-gss": "i\C-x0git status --short\r"'
+
+# git ls-files --others --exclude-standard | grep --color=always '.*'
+builtin bind -m vi-insert '"\C-gsu": "\C-x0git ls-files --others --exclude-standard | grep --color=always '\''.*'\''\r"'
+builtin bind -m vi-command '"\C-gsu": "i\C-x0git ls-files --others --exclude-standard | grep --color=always '\''.*'\''\r"'
 
 # git log
 builtin bind -m vi-insert '"\C-gll": "\C-x0git log\r"'
