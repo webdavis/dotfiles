@@ -1,5 +1,5 @@
-name: Homelab
-root: "~/workspaces/webdavis/projects/Homelab"
+name: maeve
+root: "~/workspaces/webdavis/Maeve"
 pre_window: " sleep 0.5; clear"
 windows:
   - main:

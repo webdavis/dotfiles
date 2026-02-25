@@ -1,5 +1,5 @@
-name: sierras-macOS-backup
-root: "~/workspaces/webdavis/sierras-macOS-backup"
+name: homelab
+root: "~/workspaces/webdavis/Homelab"
 pre_window: " sleep 0.5; clear"
 windows:
   - main:

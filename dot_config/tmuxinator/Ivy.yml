@@ -1,6 +1,0 @@
-name: justdavis-ansible
-root: "~/workspaces/webdavis/projects/justdavis-ansible"
-pre_window: " sleep 0.5; clear"
-windows:
-  - main:
-      layout: main-vertical

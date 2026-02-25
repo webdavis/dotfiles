@@ -1,5 +1,5 @@
-name: Gaming
-root: "~/workspaces/webdavis/projects/Gaming"
+name: contracting
+root: "~/workspaces/webdavis/justdavis-ansible"
 pre_window: " sleep 0.5; clear"
 windows:
   - main:

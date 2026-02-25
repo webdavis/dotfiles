@@ -1,5 +1,5 @@
 name: webdavis
-root: "~/workspaces/webdavis/projects/webdavis"
+root: "~/workspaces/webdavis/webdavis"
 pre_window: " sleep 0.5; clear"
 windows:
   - main:
