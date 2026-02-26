@@ -140,9 +140,10 @@ atuin last).
 
 Atuin replaces the bash history flush/reload `PROMPT_COMMAND` cycle that was racy across tmux panes.
 History is stored in SQLite (`~/.local/share/atuin/history.db`), eliminating race conditions.
-`dot_config/atuin/config.toml.tmpl` is a chezmoi template that pulls the HISTIGNORE regex from KeePassXC
-via `history_filter`. Bash's built-in history (`HISTSIZE`, `HISTFILE`, `shopt -s histappend`) is kept as
-a safety net — both systems write independently.
+`dot_config/atuin/config.toml.tmpl` retains the `.tmpl` suffix for future `history_filter` integration
+(requires Rust regex syntax, not bash glob patterns used by HISTIGNORE). Atuin's built-in
+`secrets_filter` handles sensitive command filtering for now. Bash's built-in history (`HISTSIZE`,
+`HISTFILE`, `shopt -s histappend`) is kept as a safety net — both systems write independently.
 
 ## Code Style
 
