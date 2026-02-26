@@ -1,19 +1,18 @@
 #!/usr/bin/env bash
 
-# ┏ Requirements (tools) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-# ┃                                                    ┃
-# ┃  ∙ https://github.com/tmux/tmux                    ┃
-# ┃  ∙ https://github.com/tmuxinator/tmuxinator        ┃
-# ┃  ∙ https://github.com/tmux-plugins/tmux-resurrect  ┃
-# ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+# ┏ Requirements (tools) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+# ┃                                                             ┃
+# ┃  ∙ https://github.com/tmux/tmux                             ┃
+# ┃  ∙ https://github.com/jrmoulton/tmux-sessionizer (tms)      ┃
+# ┃  ∙ https://github.com/tmux-plugins/tmux-resurrect           ┃
+# ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 
 # Exit immediately if a command fails.
 set -e
 
 declare_globals() {
   # Settings:
-  declare -g TMUXINATOR_PRESETS_DIR TMUX_RESURRECT_DIR
-  TMUXINATOR_PRESETS_DIR="${HOME}/.config/tmuxinator"
+  declare -g TMUX_RESURRECT_DIR
   TMUX_RESURRECT_DIR="${HOME}/.tmux/resurrect"
 }
 
@@ -120,17 +119,15 @@ help_message() {
   printf '%s\n' "\
 
 ${bold}DESCRIPTION${normal}
-   This script can kill all of existing Tmux sessions, purge their tmux-resurrect data, and then recreate them using tmuxinator presets, all in one command.
-
-   All session presets can be found in ${TMUXINATOR_PRESETS_DIR}
+   This script can kill all existing Tmux sessions, purge their tmux-resurrect data, and then recreate them using tms (tmux-sessionizer) marks, all in one command.
 
 ${bold}USAGE${normal}
-   ${script_name} [-skpth] [any combination]
+   ${script_name} [-kpth] [any combination]
 
 ${bold}OPTIONS${normal}
    -k   Kill all existing Tmux sessions before starting new ones.
    -p   Purge all tmux-resurrect data before starting sessions.
-   -t   Start all Tmux sessions via Tmuxinator using presets located in ${TMUXINATOR_PRESETS_DIR} (default behavior)
+   -t   Start all Tmux sessions via tms marks (default behavior).
    -h   Prints this help text.
 
 ${bold}DEFAULT${normal}
@@ -256,74 +253,24 @@ purge_tmux_resurrect_data() {
   print_process "success" " Done."
 }
 
-launch_tmux_session() {
-  # Description: Spawns a Tmux session preset using Tmuxinator.
-  # Ref: https://github.com/tmuxinator/tmuxinator
-
-  local project="$1"
-  local file="$2"
-
-  print_process "info" "Starting ${project}..." false
-
-  export HOME="$HOME"
-  export XDG_DATA_HOME="$HOME/.local/share"
-  export XDG_CONFIG_HOME="$HOME/.config"
-  TMUX_ENV_CMD="env HOME=$HOME XDG_DATA_HOME=$HOME/.local/share XDG_CONFIG_HOME=$HOME/.config"
-
-  $purge_tmux_resurrect_data_flag && wait_for_resurrect_session_and_data_removal
-
-  if $TMUX_ENV_CMD tmuxinator start "$project" --config "$file" --no-attach; then
-    print_process_finished_indicator " Done."
-  fi
-}
-
-get_tmuxinator_projects() {
-  local files=("$TMUXINATOR_PRESETS_DIR"/*)
-  local project file
-  local found=false
-
-  for file in "${files[@]}"; do
-    [[ -f $file ]] || continue
-    found=true
-
-    # Strip path.
-    project="${file##*/}"
-
-    # Strips file extension.
-    project="${project%%.*}"
-
-    printf "%s:%s\n" "$project" "$file"
-  done
-
-  if ! $found; then
-    print_process "error" "Could not find any tmuxinator config files in ${TMUXINATOR_PRESETS_DIR}" true true
-  fi
-}
-
-launch_all_tmux_sessions() {
-  # Description: Iterates over all Tmuxinator preset files and launches each session.
-
-  local entry entries project file
-
-  mapfile -t entries < <(get_tmuxinator_projects)
-
-  for entry in "${entries[@]}"; do
-    project="${entry%%:*}"
-    file="${entry##*:}"
-    launch_tmux_session "$project" "$file"
-  done
+launch_tms_sessions() {
+  # Description: Creates all default sessions from tms marks.
+  # Ref: https://github.com/jrmoulton/tmux-sessionizer
+  print_process "info" "Starting all tms sessions from marks..." false
+  tms start
+  print_process "success" " Done."
 }
 
 perform_actions() {
   if $kill_sessions_flag; then kill_tmux_sessions; fi
   if $purge_tmux_resurrect_data_flag; then purge_tmux_resurrect_data; fi
-  if $launch_all_tmux_sessions_flag; then launch_all_tmux_sessions; fi
+  if $launch_all_tmux_sessions_flag; then launch_tms_sessions; fi
 }
 
 main() {
   trap_init
   declare_globals
-  verify_required_tools "tmux" "tmuxinator"
+  verify_required_tools "tmux" "tms"
   if_no_flags_activate_all
   perform_actions
 }

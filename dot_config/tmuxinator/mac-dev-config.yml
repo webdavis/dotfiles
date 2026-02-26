@@ -1,6 +1,0 @@
-name: mac-dev-config
-root: "~/workspaces/webdavis/mac-dev-config"
-pre_window: " sleep 0.5; clear"
-windows:
-  - main:
-      layout: main-vertical

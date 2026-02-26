@@ -1,6 +1,0 @@
-name: homelab
-root: "~/workspaces/webdavis/Homelab"
-pre_window: " sleep 0.5; clear"
-windows:
-  - main:
-      layout: main-vertical

@@ -1,6 +1,0 @@
-name: essential-feed-case-study
-root: "~/workspaces/webdavis/essential-feed-case-study"
-pre_window: " sleep 0.5; clear"
-windows:
-  - main:
-      layout: main-vertical

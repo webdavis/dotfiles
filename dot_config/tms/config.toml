@@ -1,3 +1,8 @@
+bookmarks = [
+  "/Users/stephen/workspaces/Ivy/1. Projects/Casually Concerned",
+  "/Users/stephen/.local/share/chezmoi",
+]
+
 [[search_dirs]]
 path = "/Users/stephen/.config"
 
@@ -12,7 +17,7 @@ depth = 2
 
 [marks]
 0 = "/Users/stephen/workspaces/webdavis/mac-dev-config"
-1 = "/Users/stephen/workspaces/Ivy/1. Casually Concerned"
+1 = "/Users/stephen/workspaces/Ivy/1. Projects/Casually Concerned"
 2 = "/Users/stephen/.local/share/chezmoi"
 3 = "/Users/stephen/workspaces/webdavis/essential-feed-case-study"
 4 = "/Users/stephen/workspaces/webdavis/webdavis"

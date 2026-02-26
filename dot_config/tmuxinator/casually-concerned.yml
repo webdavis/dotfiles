@@ -1,6 +1,0 @@
-name: casually-concerned
-root: "~/workspaces/Ivy/1. Projects/Casually Concerned/"
-pre_window: " sleep 0.5; clear"
-windows:
-  - main:
-      layout: main-vertical

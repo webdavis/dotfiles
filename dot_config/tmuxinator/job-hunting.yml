@@ -1,6 +1,0 @@
-name: job-hunting
-root: "~/workspaces/webdavis/job-hunting"
-pre_window: " sleep 0.5; clear"
-windows:
-  - main:
-      layout: main-vertical
