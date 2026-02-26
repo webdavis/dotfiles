@@ -1,15 +1,20 @@
 #!/usr/bin/env bash
-
 set -e
-
 printf "%s\n" "Running pre-commit checks..."
 
-# Run lint script.
+# Capture staged files before formatters modify the working tree.
+mapfile -t staged_files < <(git diff --cached --name-only --diff-filter=ACMR)
+
 if ! just lint; then
   printf "\n%s\n" "❌ Pre-commit checks failed!"
   printf "%s\n" "Fix the issues above or run 'git commit --no-verify' to skip checks."
   exit 1
 fi
+
+# Re-stage files that formatters may have modified so the commit includes the fixes.
+for file in "${staged_files[@]}"; do
+  [[ -f "$file" ]] && git add "$file"
+done
 
 printf "%s\n" "✅ All pre-commit checks passed!"
 exit 0

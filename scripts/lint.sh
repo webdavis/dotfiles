@@ -155,13 +155,10 @@ run_11_shellcheck_templates() {
 
 shfmt_runner() {
   local file="$1"
-
-  local status=0
-
-  shfmt -i 2 -ci -s --diff "$file" || status="$?"
-  shfmt -i 2 -ci -s --write "$file"
-
-  return "$status"
+  # Show what will change (informational, non-fatal).
+  shfmt -i 2 -ci -s --diff "$file" || true
+  # Format in-place. Exit code reflects write success, not pre-format diff.
+  shfmt -i 2 -ci -s --write "$file" || return "$?"
 }
 
 run_20_shfmt() {
@@ -177,12 +174,10 @@ find_markdown_files() {
 
 mdformat_runner() {
   local file="$1"
-  local status=0
-
-  mdformat --check "$file" || status="$?"
-  mdformat "$file"
-
-  return "$status"
+  # Report formatting status (informational, non-fatal).
+  mdformat --check "$file" || true
+  # Format in-place. Exit code reflects format success, not pre-format check.
+  mdformat "$file" || return "$?"
 }
 
 run_40_mdformat() {
@@ -195,6 +190,7 @@ find_nix_files() {
 
 nixfmt_runner() {
   local file="$1"
+  nix fmt -- --quiet "$file"
   nix fmt -- --ci --quiet "$file" || return "$?"
 }
 
