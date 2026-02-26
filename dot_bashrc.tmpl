@@ -181,6 +181,7 @@ eval "$(zoxide init bash)"
 
 # Atuin: https://atuin.sh/
 # SQLite-backed shell history. Replaces the bash history flush/reload cycle.
+# ⚠️ Must initialize after zoxide (both modify PROMPT_COMMAND; atuin last).
 eval "$(atuin init bash --disable-up-arrow)"
 
 # Order matters! These local (user-level) tools should always take precedence in my environment.
