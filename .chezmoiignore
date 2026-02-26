@@ -1,6 +1,7 @@
 # Ignore GitHub/repo metadata:
 README.md
 LICENSE
+CLAUDE.md
 .gitignore
 assets/
 docs/

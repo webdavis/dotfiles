@@ -8,3 +8,6 @@ vendor/**
 
 # Ignore Vim/Neovim swap files.
 *.sw*
+
+# Claude Code session data.
+.claude/
