@@ -13,6 +13,7 @@ packages:
       formulae:
         - act
         - age
+        - atuin
         - bash
         - bash-completion@2
         - bat
@@ -80,7 +81,6 @@ packages:
         - tealdeer
         - terminal-notifier
         - tmux
-        - tmuxinator
         - tokei
         - trash-cli
         - tree
