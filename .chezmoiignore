@@ -15,6 +15,10 @@ scripts/
 # Ignore formatter/linter configs:
 .shellcheckrc
 .editorconfig # shfmt uses EditorConfig as its rc file (so to speak).
+.mdformat.toml
+
+# Git hooks (dev-only):
+.githooks/
 
 # Nix flake files:
 flake.nix
