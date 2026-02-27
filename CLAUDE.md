@@ -54,6 +54,12 @@ Never run bare `chezmoi apply` from Claude Code — it will fail on template fil
 Template files (`~/.bashrc`, `~/.gitconfig`, `~/.aws/credentials`) must be applied from an interactive
 terminal with KeePassXC unlocked.
 
+### Claude Code Settings
+
+`dot_claude/settings.json` is managed by chezmoi and deployed to `~/.claude/settings.json`. It configures
+auto-approved permissions for read-only tools (Read, Grep, Glob, WebFetch, WebSearch) and safe bash
+commands (find, cat, ls, head, tail, wc, grep, tree) so they run without prompting.
+
 ### Git Hooks
 
 Install pre-commit hook (runs full lint suite): `just h`
