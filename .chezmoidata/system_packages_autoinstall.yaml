@@ -126,6 +126,7 @@ packages:
         - proton-mail
         - raspberry-pi-imager
         - raycast
+        - reader
         - retroarch-metal
         - signal
         - slack
