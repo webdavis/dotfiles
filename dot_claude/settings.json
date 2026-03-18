@@ -1,12 +1,4 @@
 {
-  "statusLine": {
-    "type": "command",
-    "command": "bash /Users/stephen/.claude/statusline-command.sh"
-  },
-  "enabledPlugins": {
-    "superpowers@claude-plugins-official": true,
-    "document-skills@anthropic-agent-skills": true
-  },
   "permissions": {
     "allow": [
       "Read",
@@ -23,5 +15,14 @@
       "Bash(grep *)",
       "Bash(tree *)"
     ]
-  }
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "bash /Users/stephen/.claude/statusline-command.sh"
+  },
+  "enabledPlugins": {
+    "superpowers@claude-plugins-official": true,
+    "document-skills@anthropic-agent-skills": true
+  },
+  "voiceEnabled": true
 }
