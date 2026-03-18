@@ -161,6 +161,10 @@ History is stored in SQLite (`~/.local/share/atuin/history.db`), eliminating rac
 - Nix: formatted with `nixfmt-tree`
 - ShellCheck directives: SC1090 and SC1091 are globally disabled (`.shellcheckrc`)
 
+## Git Commits
+
+Do not include `Co-Authored-By` lines in commit messages. Claude should never be listed as a co-author.
+
 ## Security
 
 `*bash_secret*` patterns are gitignored (`.gitignore`) to prevent accidental commits of Bash secret

@@ -64,7 +64,6 @@ packages:
         - nmap
         - onefetch
         - openhue/cli/openhue-cli
-        - osquery
         - oven-sh/bun/bun
         - p7zip
         - parallel
@@ -122,6 +121,7 @@ packages:
         - nikitabobko/tap/aerospace
         - obs
         - obsidian
+        - osquery
         - openemu
         - proton-drive
         - proton-mail
