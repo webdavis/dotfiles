@@ -11,6 +11,7 @@ vendor/**
 
 # Raycast exports and diagnostics.
 *.rayconfig
+*extension-diagnostics*
 
 # Claude Code session data.
 .claude/
