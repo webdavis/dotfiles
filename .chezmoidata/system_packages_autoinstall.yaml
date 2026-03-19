@@ -126,6 +126,7 @@ packages:
         - openemu
         - proton-drive
         - proton-mail
+        - proton-mail-bridge
         - raspberry-pi-imager
         - raycast
         - reader
