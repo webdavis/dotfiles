@@ -21,6 +21,7 @@ packages:
         - brightness
         - btop
         - ca-certificates
+        - ccusage
         - chezmoi
         - cmake
         - cmake-docs
@@ -96,6 +97,8 @@ packages:
         - yq
         - zoxide
       casks:
+        - affinity
+        - blender
         - brave-browser
         - apple-juice
         - cardhop
