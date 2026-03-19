@@ -165,6 +165,9 @@ History is stored in SQLite (`~/.local/share/atuin/history.db`), eliminating rac
 
 Do not include `Co-Authored-By` lines in commit messages. Claude should never be listed as a co-author.
 
+Separate logically distinct changes into their own commits. Each commit should be a single cohesive unit
+of work.
+
 ## Security
 
 `*bash_secret*` patterns are gitignored (`.gitignore`) to prevent accidental commits of Bash secret
