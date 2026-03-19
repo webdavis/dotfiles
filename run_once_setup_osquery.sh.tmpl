@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+{{ if ne .chezmoi.os "darwin" -}}
+# osquery setup is macOS-only
+exit 0
+{{ end -}}
+
+set -e
+
+echo "Setting up osquery..."
+
+# Create osquery flags directory and config pointer.
+sudo mkdir -p /var/osquery
+echo "--config_path=/Users/stephen/.config/osquery/osquery.conf" | sudo tee /var/osquery/osquery.flags >/dev/null
+
+# Create log and report directories.
+mkdir -p "$HOME/.local/log/osquery"
+mkdir -p "$HOME/workspaces/Ivy/Logs/osquery"
+
+# Load the LaunchAgent for the report script.
+launchctl load -w "$HOME/Library/LaunchAgents/com.webdavis.osquery-report.plist" 2>/dev/null || true
+
+# Start osqueryd.
+sudo osqueryctl start || true
+
+echo "osquery setup complete."
