@@ -9,5 +9,8 @@ vendor/**
 # Ignore Vim/Neovim swap files.
 *.sw*
 
+# Raycast exports and diagnostics.
+*.rayconfig
+
 # Claude Code session data.
 .claude/
