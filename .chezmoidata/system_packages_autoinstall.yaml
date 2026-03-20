@@ -47,6 +47,7 @@ packages:
         - gnu-getopt
         - gnu-sed
         - gnupg
+        - gogcli
         - grpcurl
         - httpie
         - himalaya
