@@ -10,7 +10,7 @@ report_file="$report_dir/$(date +%Y-%m-%d).md"
 zombie_threshold=50
 process_threshold=2132 # 80% of 2666
 
-if [[ ! -f "$results_log" ]]; then
+if [[ ! -f $results_log ]]; then
   echo "No results log found at $results_log"
   exit 1
 fi
@@ -18,7 +18,7 @@ fi
 mkdir -p "$report_dir"
 
 # Initialize new report files with frontmatter.
-if [[ ! -f "$report_file" ]]; then
+if [[ ! -f $report_file ]]; then
   cat >"$report_file" <<'EOF'
 ---
 tags:
@@ -39,19 +39,19 @@ top_procs_line=$(get_latest_snapshot "top_processes_by_count")
 per_user_line=$(get_latest_snapshot "per_user_process_count")
 memory_line=$(get_latest_snapshot "top_memory_hogs")
 
-if [[ -z "$zombie_line" && -z "$per_user_line" ]]; then
+if [[ -z $zombie_line && -z $per_user_line ]]; then
   echo "No osquery snapshots found in results log"
   exit 1
 fi
 
 # Extract unixTime from the zombie_count snapshot for idempotency.
 unix_time=""
-if [[ -n "$zombie_line" ]]; then
+if [[ -n $zombie_line ]]; then
   unix_time=$(echo "$zombie_line" | jq -r '.unixTime')
 fi
 
 # Check idempotency: skip if this timestamp is already in the report file.
-if [[ -n "$unix_time" && -f "$report_file" ]]; then
+if [[ -n $unix_time && -f $report_file ]]; then
   if grep -qF "<!-- ts:$unix_time -->" "$report_file"; then
     echo "Report for timestamp $unix_time already exists, skipping"
     exit 0
@@ -67,9 +67,9 @@ timestamp=$(date -r "$unix_time" '+%Y-%m-%d %H:%M:%S' 2>/dev/null || date '+%Y-%
   echo ""
 
   # Zombie count
-  if [[ -n "$zombie_line" ]]; then
+  if [[ -n $zombie_line ]]; then
     zombie_count=$(echo "$zombie_line" | jq -r '.snapshot[0].zombie_count // "0"')
-    if [[ "$zombie_count" -gt "$zombie_threshold" ]]; then
+    if [[ $zombie_count -gt $zombie_threshold ]]; then
       echo "**Zombie processes: $zombie_count** (ABOVE THRESHOLD of $zombie_threshold)"
     else
       echo "**Zombie processes: $zombie_count**"
@@ -78,9 +78,9 @@ timestamp=$(date -r "$unix_time" '+%Y-%m-%d %H:%M:%S' 2>/dev/null || date '+%Y-%
   fi
 
   # Zombie parents
-  if [[ -n "$zombie_parents_line" ]]; then
+  if [[ -n $zombie_parents_line ]]; then
     zombie_parents_count=$(echo "$zombie_parents_line" | jq '.snapshot | length')
-    if [[ "$zombie_parents_count" -gt 0 ]]; then
+    if [[ $zombie_parents_count -gt 0 ]]; then
       echo "### Zombie Parents"
       echo ""
       echo "| Zombie PID | Zombie Name | Parent PID | Parent Name |"
@@ -91,9 +91,9 @@ timestamp=$(date -r "$unix_time" '+%Y-%m-%d %H:%M:%S' 2>/dev/null || date '+%Y-%
   fi
 
   # Total process count (sum of per-user counts)
-  if [[ -n "$per_user_line" ]]; then
+  if [[ -n $per_user_line ]]; then
     total_procs=$(echo "$per_user_line" | jq '[.snapshot[].process_count | tonumber] | add // 0')
-    if [[ "$total_procs" -gt "$process_threshold" ]]; then
+    if [[ $total_procs -gt $process_threshold ]]; then
       echo "**Total processes: $total_procs** (ABOVE THRESHOLD of $process_threshold)"
     else
       echo "**Total processes: $total_procs**"
@@ -109,7 +109,7 @@ timestamp=$(date -r "$unix_time" '+%Y-%m-%d %H:%M:%S' 2>/dev/null || date '+%Y-%
   fi
 
   # Top processes by count
-  if [[ -n "$top_procs_line" ]]; then
+  if [[ -n $top_procs_line ]]; then
     echo "### Top Processes by Count"
     echo ""
     echo "| Name | Count |"
@@ -119,7 +119,7 @@ timestamp=$(date -r "$unix_time" '+%Y-%m-%d %H:%M:%S' 2>/dev/null || date '+%Y-%
   fi
 
   # Top memory hogs
-  if [[ -n "$memory_line" ]]; then
+  if [[ -n $memory_line ]]; then
     echo "### Top Memory Hogs"
     echo ""
     echo "| Name | MB |"
@@ -133,24 +133,24 @@ echo "Report appended to $report_file"
 
 # Alert if thresholds exceeded.
 alert_msg=""
-if [[ -n "$zombie_line" ]]; then
+if [[ -n $zombie_line ]]; then
   zombie_count=$(echo "$zombie_line" | jq -r '.snapshot[0].zombie_count // "0"')
-  if [[ "$zombie_count" -gt "$zombie_threshold" ]]; then
+  if [[ $zombie_count -gt $zombie_threshold ]]; then
     alert_msg="Zombie processes: $zombie_count (threshold: $zombie_threshold)"
   fi
 fi
 
-if [[ -n "$per_user_line" ]]; then
+if [[ -n $per_user_line ]]; then
   total_procs=$(echo "$per_user_line" | jq '[.snapshot[].process_count | tonumber] | add // 0')
-  if [[ "$total_procs" -gt "$process_threshold" ]]; then
-    if [[ -n "$alert_msg" ]]; then
+  if [[ $total_procs -gt $process_threshold ]]; then
+    if [[ -n $alert_msg ]]; then
       alert_msg="$alert_msg\n"
     fi
     alert_msg="${alert_msg}Total processes: $total_procs (threshold: $process_threshold)"
   fi
 fi
 
-if [[ -n "$alert_msg" ]]; then
+if [[ -n $alert_msg ]]; then
   osascript -e "display notification \"$alert_msg\" with title \"osquery Alert\" sound name \"Sosumi\""
 fi
 
