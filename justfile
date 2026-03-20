@@ -1,3 +1,5 @@
+set shell := ["bash", "-c", "source /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh 2>/dev/null; eval \"$@\"", "--"]
+
 default:
   @just --choose
 
