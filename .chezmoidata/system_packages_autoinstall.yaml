@@ -49,6 +49,7 @@ packages:
         - gnupg
         - grpcurl
         - httpie
+        - himalaya
         - hub
         - imagemagick
         - iperf3
