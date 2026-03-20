@@ -13,7 +13,6 @@ packages:
       formulae:
         - act
         - age
-        - atuin
         - bash
         - bash-completion@2
         - bat

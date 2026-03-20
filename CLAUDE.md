@@ -86,8 +86,9 @@ secrets at apply time. The `.install-password-manager.sh` hook auto-installs Kee
 ### System Package Management
 
 Packages are declared in `.chezmoidata/system_packages_autoinstall.yaml` under `packages.macos.homebrew`
-with keys: `taps`, `formulae`, `casks`, `mas`. The `run_onchange_system_packages_autoinstall.sh.tmpl`
-script generates a Brewfile from this data and runs `brew bundle --cleanup` whenever the data changes.
+with keys: `taps`, `formulae`, `casks`, `mas`. The
+`.chezmoiscripts/run_onchange_before_10-system-packages.sh.tmpl` script generates a Brewfile from this
+data and runs `brew bundle --cleanup` whenever the data changes.
 
 **Homebrew install workflow (for AI agents):**
 
@@ -100,12 +101,12 @@ Do **not** run `chezmoi apply` directly — see the KeePassXC constraint above.
 
 ### Template Files
 
-Seven files use chezmoi Go templates (`.tmpl` suffix): `.chezmoi.toml.tmpl`, `dot_bashrc.tmpl`,
+Template files use chezmoi Go templates (`.tmpl` suffix): `.chezmoi.toml.tmpl`, `dot_bashrc.tmpl`,
 `dot_gitconfig.tmpl`, `dot_aws/credentials.tmpl`, `dot_config/gh/private_hosts.yml.tmpl`,
-`dot_config/atuin/config.toml.tmpl`, and `run_onchange_system_packages_autoinstall.sh.tmpl`. Templates
-conditionally branch on `.chezmoi.os` (darwin/linux) and pull secrets from KeePassXC.
-`dot_config/atuin/config.toml.tmpl` does not currently use secrets but retains the `.tmpl` suffix for
-future `history_filter` integration (requires Rust regex, not bash glob patterns).
+`dot_config/atuin/config.toml.tmpl`, and scripts in `.chezmoiscripts/`. Templates conditionally branch on
+`.chezmoi.os` (darwin/linux) and pull secrets from KeePassXC. `dot_config/atuin/config.toml.tmpl` does
+not currently use secrets but retains the `.tmpl` suffix for future `history_filter` integration
+(requires Rust regex, not bash glob patterns).
 
 ### Template Shellcheck Workaround
 

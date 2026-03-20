@@ -1,0 +1,15 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/bin/bash
+
+set -euo pipefail
+
+if command -v atuin &>/dev/null; then
+  echo "atuin is already installed, skipping."
+  exit 0
+fi
+
+echo "Installing atuin..."
+curl --proto '=https' --tlsv1.2 -LsSf https://setup.atuin.sh | sh -s -- --non-interactive
+
+echo "atuin installation complete."
+{{ end -}}
