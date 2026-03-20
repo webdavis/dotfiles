@@ -89,6 +89,15 @@ Packages are declared in `.chezmoidata/system_packages_autoinstall.yaml` under `
 with keys: `taps`, `formulae`, `casks`, `mas`. The `run_onchange_system_packages_autoinstall.sh.tmpl`
 script generates a Brewfile from this data and runs `brew bundle --cleanup` whenever the data changes.
 
+**Homebrew install workflow (for AI agents):**
+
+1. Install the package immediately by running `brew install <formula>` (or `brew install --cask <cask>`).
+1. If the install succeeds, add the package to `.chezmoidata/system_packages_autoinstall.yaml` in the
+   appropriate list (`formulae`, `casks`, `taps`, or `mas`), maintaining alphabetical order.
+1. Create a reminder for the user to run `chezmoi apply` at 22:00 local time (America/Denver) that day.
+
+Do **not** run `chezmoi apply` directly — see the KeePassXC constraint above.
+
 ### Template Files
 
 Seven files use chezmoi Go templates (`.tmpl` suffix): `.chezmoi.toml.tmpl`, `dot_bashrc.tmpl`,
