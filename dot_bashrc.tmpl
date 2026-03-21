@@ -119,6 +119,9 @@ fi
 alias j='just'
 complete -F _just -o bashdefault -o default j
 
+# OpenClaw Completion
+[[ -s "$HOME/.openclaw/completions/openclaw.bash" ]] &&. "$HOME/.openclaw/completions/openclaw.bash"
+
 # NVM (Node Version Manager)
 # ───────────────────────────
 # ∙ Credit: https://www.newline.co/@Adele/how-to-install-nodejs-and-npm-on-macos--22782681
