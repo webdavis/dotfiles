@@ -164,14 +164,12 @@ on-mode-changed = []
     cmd-alt-h = [] # Disable "hide others"
 
     # See: https://nikitabobko.github.io/AeroSpace/commands#exec-and-forget
-    ctrl-cmd-comma = 'exec-and-forget ~/.local/bin/aerospace_toggle_app_focus.sh "Strongbox"'
+    ctrl-cmd-comma = 'exec-and-forget open -a Finder'
     ctrl-cmd-period = 'exec-and-forget ~/.local/bin/aerospace_toggle_app_focus.sh "KeePassXC"'
 
     alt-ctrl-cmd-shift-backtick = 'exec-and-forget open -na Brave\ Browser --args --incognito'
     alt-ctrl-cmd-shift-semicolon = 'exec-and-forget open -a Ghostty'
     alt-ctrl-cmd-shift-enter = 'exec-and-forget open -na Ghostty'
-    alt-ctrl-cmd-shift-minus = 'exec-and-forget open -a Proton\ Mail'
-    alt-ctrl-cmd-shift-quote = 'exec-and-forget open -a Proton\ Drive'
     alt-ctrl-cmd-shift-up = [
       'exec-and-forget /opt/homebrew/bin/espanso restart',
       'exec-and-forget /opt/homebrew/bin/terminal-notifier -title "Aerospace" -message "Restarted Espanso" -group aerospace-config'
@@ -182,14 +180,16 @@ on-mode-changed = []
     # alt-ctrl-cmd-shift-n = 'exec-and-forget /Applications/Zen.app/Contents/MacOS/zen --new-window'
     alt-ctrl-cmd-shift-c = 'exec-and-forget open -a Claude'
     alt-ctrl-cmd-shift-f = 'exec-and-forget open -a Fantastical'
-    alt-ctrl-cmd-shift-g = 'exec-and-forget open -a Finder'
-    alt-ctrl-cmd-shift-m = 'exec-and-forget open -a Slack'
+    alt-ctrl-cmd-shift-m = 'exec-and-forget open -a Messages'
+    cmd-ctrl-m = 'exec-and-forget open -a Slack'
     alt-ctrl-cmd-shift-o = 'exec-and-forget open -a Obsidian'
-    alt-ctrl-cmd-shift-p = 'exec-and-forget open -a Reader'
-    alt-ctrl-cmd-shift-t = 'exec-and-forget open -a Messages'
+    alt-ctrl-cmd-shift-p = 'exec-and-forget open -a Proton\ Mail'
+    cmd-ctrl-p = 'exec-and-forget open -a Proton\ Drive'
+    alt-ctrl-cmd-shift-r = 'exec-and-forget open -a Reader'
+    alt-ctrl-cmd-shift-t = 'exec-and-forget open -a Session'
     alt-ctrl-cmd-shift-v = 'exec-and-forget open -a System\ Settings'
     alt-ctrl-cmd-shift-x = 'exec-and-forget open -a Xcode'
-    alt-ctrl-cmd-shift-y = 'exec-and-forget open -a Session'
+    alt-ctrl-cmd-shift-y = 'exec-and-forget open -a Discord'
 
     # Hide focused application (this is a replacement for macOS Cmd+h).
     alt-ctrl-cmd-shift-down = "exec-and-forget osascript -e 'tell application \"System Events\" to set visible of first process whose frontmost is true to false'"
@@ -267,7 +267,7 @@ on-mode-changed = []
     ]
 
     # See: https://nikitabobko.github.io/AeroSpace/commands#resize
-    alt-ctrl-cmd-shift-r = [
+    cmd-ctrl-r = [
       'mode resize',
       'exec-and-forget /opt/homebrew/bin/terminal-notifier -title "Aerospace" -message "Entered \"resize\" mode" -group aerospace-config'
     ]
