@@ -27,6 +27,7 @@ packages:
         - coreutils
         - croc
         - curl
+        - deno
         - diff-so-fancy
         - direnv
         - dust
@@ -46,6 +47,8 @@ packages:
         - gnu-getopt
         - gnu-sed
         - gnupg
+        - pgvector
+        - postgresql@17
         - gogcli
         - grpcurl
         - httpie
@@ -100,6 +103,7 @@ packages:
       casks:
         - affinity
         - blender
+        - bluebubbles
         - brave-browser
         - apple-juice
         - cardhop
