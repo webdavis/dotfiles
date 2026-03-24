@@ -143,6 +143,16 @@ check_requirements() {
   fi
 }
 
+resolve_room_alias() {
+  local room="$1"
+  case "$room" in
+    studio)   echo "3F - Studio" ;;
+    bedroom)  echo "3F - Master Bedroom" ;;
+    kitchen)  echo "2F - Kitchen" ;;
+    *)        echo "$room" ;;
+  esac
+}
+
 get_room_status() {
   local id="$1"
 
@@ -420,7 +430,7 @@ parse_command_line_arguments() {
         shift
         ;;
       -r | --room)
-        room="$2"
+        room="$(resolve_room_alias "$2")"
         shift 2
         ;;
       -b | --brightness)
