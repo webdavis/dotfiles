@@ -213,7 +213,7 @@ rotate_scene() {
   local scene_name="$1"
   local direction="$2"
 
-  local scenes=('Nightlight' 'Rest' 'Dimmed' 'Relax' 'Read' 'Energize' 'Concentrate')
+  local scenes=('Dimmed' 'Read' 'Energize' 'Concentrate')
 
   local index=""
   for i in "${!scenes[@]}"; do
