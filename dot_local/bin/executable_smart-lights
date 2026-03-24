@@ -11,13 +11,13 @@ set -euo pipefail
 set_debug_log() {
   # Capture all messages to the debug log.
 
-  script_debug_log='/tmp/smart_lights.log'
+  script_debug_log="$HOME/Library/Logs/smart-lights.log"
 
   # Save the original stdout to file descriptor 3.
   exec 3>&1
 
   # Redirect all output to the log file by default.
-  exec >> "$script_debug_log" 2>&1
+  exec >>"$script_debug_log" 2>&1
 
   # Log the script start time.
   echo "Script started at $(date '+%Y-%m-%d %H:%M:%S')"
@@ -32,7 +32,7 @@ log_message() {
   echo "$message"
 
   # If to_stdout is true, print to stdout using the original STDOUT descriptor.
-  if [[ "$to_stdout" == "true" ]]; then
+  if [[ $to_stdout == "true" ]]; then
     # echo "$message" > /dev/tty
     echo "$message" >&3
   fi
@@ -52,11 +52,11 @@ function cleanup() {
 }
 
 function setup_signal_handling() {
-    # Handle process interuption signals.
-    trap cleanup SIGINT SIGTERM
+  # Handle process interuption signals.
+  trap cleanup SIGINT SIGTERM
 
-    # Handle the EXIT signal for any script termination.
-    trap cleanup EXIT
+  # Handle the EXIT signal for any script termination.
+  trap cleanup EXIT
 }
 
 check_requirements() {
@@ -66,8 +66,8 @@ check_requirements() {
 
   local gnu_getopt_path='/opt/homebrew/opt/gnu-getopt/bin'
 
-  if [[ "${GETOPT_CMD%/*}" != "$gnu_getopt_path" ]]; then
-    if [[ -x "$gnu_getopt_path" ]]; then
+  if [[ ${GETOPT_CMD%/*} != "$gnu_getopt_path" ]]; then
+    if [[ -x $gnu_getopt_path ]]; then
       GETOPT_CMD="$gnu_getopt_path/getopt"
     else
       log_message "Error: GNU getopt not found. Please install it with 'brew install gnu-getopt'." true
@@ -115,7 +115,7 @@ toggle_power() {
   local status
   status="$(get_room_status "$id")"
 
-  if [[ "$status" == 'false' ]]; then
+  if [[ $status == 'false' ]]; then
     set_room_power "$room" "$id" "on"
   else
     set_room_power "$room" "$id" "off"
@@ -144,23 +144,23 @@ rotate_scene() {
 
   local index
   for i in "${!scenes[@]}"; do
-    if [[ "${scenes[i]}" == "$scene_name" ]]; then
+    if [[ ${scenes[i]} == "$scene_name" ]]; then
       index=$i
       break
     fi
   done
 
-  if [[ -z "$index" ]]; then
+  if [[ -z $index ]]; then
     # Fallback to "Read" if the scene is not recognized.
     echo 'Read'
     return
   fi
 
   local next_index
-  if [[ "$direction" == 'next' ]]; then
-    next_index=$(( (index + 1) % ${#scenes[@]} ))
+  if [[ $direction == 'next' ]]; then
+    next_index=$(((index + 1) % ${#scenes[@]}))
   else
-    next_index=$(( (index - 1) % ${#scenes[@]} ))
+    next_index=$(((index - 1) % ${#scenes[@]}))
   fi
 
   echo "${scenes[next_index]}"
@@ -212,7 +212,7 @@ validate_room_id() {
   local room="$1"
   local id="$2"
 
-  if [[ -z "$id" ]]; then
+  if [[ -z $id ]]; then
     log_message "Error: Room ID for '$room' not found. Please ensure the room name is correct." true
     exit 1
   fi
@@ -223,12 +223,12 @@ manage_brightness() {
   local room="$2"
 
   # Validate inputs
-  if [[ -z "$direction" || -z "$room" ]]; then
+  if [[ -z $direction || -z $room ]]; then
     log_message "Error: Both direction and room must be provided." true
     return 1
   fi
 
-  if [[ ! "$direction" =~ ^(up|down)$ ]]; then
+  if [[ ! $direction =~ ^(up|down)$ ]]; then
     log_message "Error: Direction must be 'up' or 'down'." true
     return 1
   fi
@@ -244,15 +244,15 @@ manage_brightness() {
   # Calculate new brightness.
   local adjustment=15
   local brightness="$current_brightness"
-  if [[ "$direction" == 'up' ]]; then
-    brightness=$(( brightness + adjustment ))
+  if [[ $direction == 'up' ]]; then
+    brightness=$((brightness + adjustment))
   else
-    brightness=$(( brightness - adjustment ))
+    brightness=$((brightness - adjustment))
   fi
 
-  if (( brightness < 0 )); then
+  if ((brightness < 0)); then
     brightness=0
-  elif (( brightness > 100 )); then
+  elif ((brightness > 100)); then
     brightness=100
   fi
 
@@ -266,7 +266,7 @@ validate_scene_id() {
   local id="$2"
   local room="$3"
 
-  if [[ -z "$id" ]]; then
+  if [[ -z $id ]]; then
     log_message "Error: Unable to find the Scene ID for scene '$scene' in room '$room'." true
     exit 1
   fi
@@ -285,7 +285,7 @@ handle_scene_logic() {
   local scene_name="$1"
   local room="$2"
 
-  if [[ "$scene_name" =~ ^(next|previous)$ ]]; then
+  if [[ $scene_name =~ ^(next|previous)$ ]]; then
     local current_scene
     current_scene="$(get_static_scene "$room")"
 
@@ -315,7 +315,7 @@ parse_command_line_arguments() {
   local power='false'
   local brightness=''
   local scene=''
-  local room='Master Bedroom'
+  local room='3F - Studio'
 
   while true; do
     case "$1" in
@@ -346,11 +346,11 @@ parse_command_line_arguments() {
     esac
   done
 
-  if [[ "$power" == 'true' ]]; then
+  if [[ $power == 'true' ]]; then
     toggle_power "$room"
-  elif [[ -n "$brightness" ]]; then
+  elif [[ -n $brightness ]]; then
     manage_brightness "$brightness" "$room"
-  elif [[ -n "$scene" ]]; then
+  elif [[ -n $scene ]]; then
     handle_scene_logic "$scene" "$room"
   fi
 }
