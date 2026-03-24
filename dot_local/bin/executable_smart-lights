@@ -8,6 +8,13 @@
 # Exit immediately if any command fails.
 set -euo pipefail
 
+# ANSI colors
+CLR_GREEN='\033[0;32m'
+CLR_RED='\033[0;31m'
+CLR_YELLOW='\033[0;33m'
+CLR_CYAN='\033[0;36m'
+CLR_RESET='\033[0m'
+
 set_debug_log() {
   # Capture all messages to the debug log.
 
@@ -27,14 +34,18 @@ log_message() {
   # Function to log and optionally print to stdout.
   local message="$1"
   local to_stdout="${2:-false}" # Default to not printing to stdout
+  local color="${3:-}"          # Optional ANSI color code
 
-  # Log the message to the debug log
+  # Log the message to the debug log (no color)
   echo "$message"
 
   # If to_stdout is true, print to stdout using the original STDOUT descriptor.
   if [[ $to_stdout == "true" ]]; then
-    # echo "$message" > /dev/tty
-    echo "$message" >&3
+    if [[ -n $color ]]; then
+      printf "${color}%s${CLR_RESET}\n" "$message" >&3
+    else
+      echo "$message" >&3
+    fi
   fi
 }
 
@@ -103,7 +114,11 @@ set_room_power() {
   local state="$3"
 
   openhue set room "$id" "--${state}" >/dev/null
-  log_message "$room: $state" true
+  if [[ $state == "on" ]]; then
+    log_message "$room: $state" true "$CLR_GREEN"
+  else
+    log_message "$room: $state" true "$CLR_RED"
+  fi
 }
 
 toggle_power() {
@@ -142,7 +157,7 @@ rotate_scene() {
 
   local scenes=('Nightlight' 'Rest' 'Dimmed' 'Relax' 'Read' 'Energize' 'Concentrate')
 
-  local index
+  local index=""
   for i in "${!scenes[@]}"; do
     if [[ ${scenes[i]} == "$scene_name" ]]; then
       index=$i
@@ -200,10 +215,15 @@ set_brightness() {
   local room="$1"
   local id="$2"
   local brightness="$3"
+  local direction="${4:-up}"
 
   openhue set room "$id" -b "$brightness"
 
-  log_message "🔆 Room: $room | Current brightness: ${brightness}%" true
+  if [[ $direction == "up" ]]; then
+    log_message "🔆 Room: $room | Current brightness: ${brightness}%" true "$CLR_GREEN"
+  else
+    log_message "🔅 Room: $room | Current brightness: ${brightness}%" true "$CLR_YELLOW"
+  fi
 }
 
 validate_room_id() {
@@ -256,7 +276,7 @@ manage_brightness() {
     brightness=100
   fi
 
-  set_brightness "$room" "$id" "$brightness"
+  set_brightness "$room" "$id" "$brightness" "$direction"
 }
 
 validate_scene_id() {
@@ -278,7 +298,7 @@ set_scene() {
   local scene="$3"
 
   openhue set scene "$id" >/dev/null
-  log_message "Room: $room | Scene: $scene" true
+  log_message "Room: $room | Scene: $scene" true "$CLR_CYAN"
 }
 
 handle_scene_logic() {
