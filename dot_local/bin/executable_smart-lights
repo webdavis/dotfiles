@@ -338,14 +338,38 @@ handle_scene_logic() {
   set_scene "$room" "$scene_id" "$scene_name"
 }
 
+show_status() {
+  local room="$1"
+
+  local id
+  id="$(get_room_id "$room")"
+  validate_room_id "$room" "$id"
+
+  local on
+  on="$(get_room_status "$id")"
+
+  local brightness
+  brightness="$(get_brightness "$room")"
+
+  local scene
+  scene="$(get_static_scene "$room")" || scene="unknown"
+
+  if [[ $on == "true" ]]; then
+    log_message "$room: ON | brightness: ${brightness}% | scene: $scene" true "$CLR_GREEN"
+  else
+    log_message "$room: OFF | brightness: ${brightness}% | scene: $scene" true "$CLR_RED"
+  fi
+}
+
 parse_command_line_arguments() {
-  local short='pr:b:nls:N'
-  local long='power,room:,brightness:,next,last,scene:,notify'
+  local short='pr:b:nls:NS'
+  local long='power,room:,brightness:,next,last,scene:,notify,status'
   OPTIONS="$($GETOPT_CMD -o "$short" --long "$long" -- "$@")"
   eval set -- "$OPTIONS"
 
   # Default values
   NOTIFY='false'
+  local status_only='false'
   local power='false'
   local brightness=''
   local scene=''
@@ -373,6 +397,10 @@ parse_command_line_arguments() {
         NOTIFY='true'
         shift
         ;;
+      -S | --status)
+        status_only='true'
+        shift
+        ;;
       --)
         shift
         break
@@ -384,7 +412,9 @@ parse_command_line_arguments() {
     esac
   done
 
-  if [[ $power == 'true' ]]; then
+  if [[ $status_only == 'true' ]]; then
+    show_status "$room"
+  elif [[ $power == 'true' ]]; then
     toggle_power "$room"
   elif [[ -n $brightness ]]; then
     manage_brightness "$brightness" "$room"
