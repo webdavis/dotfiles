@@ -49,6 +49,14 @@ log_message() {
   fi
 }
 
+notify() {
+  # GUI notification via macOS — only fires if --notify flag was passed.
+  local message="$1"
+  if [[ ${NOTIFY:-false} == "true" ]]; then
+    osascript -e "display notification \"$message\" with title \"Smart Lights\"" 2>/dev/null || true
+  fi
+}
+
 function cleanup() {
   # Exit with the status of the command that triggered this trap.
   local status=$?
@@ -116,8 +124,10 @@ set_room_power() {
   openhue set room "$id" "--${state}" >/dev/null
   if [[ $state == "on" ]]; then
     log_message "$room: $state" true "$CLR_GREEN"
+    notify "$room lights on"
   else
     log_message "$room: $state" true "$CLR_RED"
+    notify "$room lights off"
   fi
 }
 
@@ -221,8 +231,10 @@ set_brightness() {
 
   if [[ $direction == "up" ]]; then
     log_message "🔆 Room: $room | Current brightness: ${brightness}%" true "$CLR_GREEN"
+    notify "$room brightness up to ${brightness}%"
   else
     log_message "🔅 Room: $room | Current brightness: ${brightness}%" true "$CLR_YELLOW"
+    notify "$room brightness down to ${brightness}%"
   fi
 }
 
@@ -299,6 +311,7 @@ set_scene() {
 
   openhue set scene "$id" >/dev/null
   log_message "Room: $room | Scene: $scene" true "$CLR_CYAN"
+  notify "$room scene: $scene"
 }
 
 handle_scene_logic() {
@@ -326,12 +339,13 @@ handle_scene_logic() {
 }
 
 parse_command_line_arguments() {
-  local short='pr:b:nls:'
-  local long='power,room:,brightness:,next,last,scene:'
+  local short='pr:b:nls:N'
+  local long='power,room:,brightness:,next,last,scene:,notify'
   OPTIONS="$($GETOPT_CMD -o "$short" --long "$long" -- "$@")"
   eval set -- "$OPTIONS"
 
   # Default values
+  NOTIFY='false'
   local power='false'
   local brightness=''
   local scene=''
@@ -354,6 +368,10 @@ parse_command_line_arguments() {
       -s | --scene)
         scene="$2"
         shift 2
+        ;;
+      -N | --notify)
+        NOTIFY='true'
+        shift
         ;;
       --)
         shift
