@@ -57,6 +57,44 @@ notify() {
   fi
 }
 
+help_message() {
+  local bold normal script_name
+  bold=$(tput bold 2>/dev/null || echo "")
+  normal=$(tput sgr0 2>/dev/null || echo "")
+  script_name="${BASH_SOURCE[0]##*/}"
+
+  printf '%s\n' "\
+
+${bold}DESCRIPTION${normal}
+   Controls Philips Hue lights via OpenHue. Defaults to the 3F - Studio room.
+
+${bold}USAGE${normal}
+   ${script_name} [OPTIONS]
+
+${bold}OPTIONS${normal}
+   -p, --power              Toggle room power on/off
+   -b, --brightness <dir>   Adjust brightness: up or down (steps of 15%)
+   -s, --scene <name>       Set a scene by name, or use: next, previous
+   -S, --status             Print current power state, brightness, and scene
+   -r, --room <name>        Target room (default: 3F - Studio)
+   -N, --notify             Show a macOS GUI notification after the action
+   -h, --help               Print this help text
+
+${bold}SCENES (rotation order)${normal}
+   Dimmed       Soft ambient light
+   Read         Balanced task light
+   Energize     Bright cool light
+   Concentrate  Focused work light
+
+${bold}EXAMPLES${normal}
+   ${script_name}                          Toggle studio lights on/off
+   ${script_name} --brightness up          Increase brightness by 15%
+   ${script_name} --scene Concentrate      Set scene to Concentrate
+   ${script_name} --scene next             Rotate to next scene
+   ${script_name} --status                 Show current room state
+   ${script_name} --power --notify         Toggle power + macOS notification"
+}
+
 function cleanup() {
   # Exit with the status of the command that triggered this trap.
   local status=$?
@@ -362,8 +400,8 @@ show_status() {
 }
 
 parse_command_line_arguments() {
-  local short='pr:b:nls:NS'
-  local long='power,room:,brightness:,next,last,scene:,notify,status'
+  local short='pr:b:nls:NSh'
+  local long='power,room:,brightness:,next,last,scene:,notify,status,help'
   OPTIONS="$($GETOPT_CMD -o "$short" --long "$long" -- "$@")"
   eval set -- "$OPTIONS"
 
@@ -400,6 +438,10 @@ parse_command_line_arguments() {
       -S | --status)
         status_only='true'
         shift
+        ;;
+      -h | --help)
+        help_message >&3
+        exit 0
         ;;
       --)
         shift
