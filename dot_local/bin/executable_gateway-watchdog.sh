@@ -8,10 +8,18 @@ mkdir -p "$LOG_DIR"
 # Read config dynamically each cycle to pick up token rotations
 get_config() {
   python3 -c "
-import json
-c = json.load(open('$HOME/.openclaw/openclaw.json'))
-print(c['channels']['discord']['token'])
-print(c['channels']['discord'].get('defaultChannelId', ''))
+import json, os
+c = json.load(open(os.path.expanduser('~/.openclaw/openclaw.json')))
+token = c.get('channels', {}).get('discord', {}).get('token', '')
+# Read channel ID from watchdog.conf (set during setup)
+conf_path = os.path.expanduser('~/.openclaw/watchdog.conf')
+channel = ''
+if os.path.exists(conf_path):
+    for line in open(conf_path):
+        if line.startswith('DISCORD_CHANNEL_ID='):
+            channel = line.strip().split('=', 1)[1]
+print(token)
+print(channel)
 " 2>/dev/null
 }
 
