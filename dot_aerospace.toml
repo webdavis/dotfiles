@@ -192,11 +192,12 @@ on-mode-changed = []
     alt-ctrl-cmd-shift-y = 'exec-and-forget open -a Discord'
 
     # Smart lights — Studio (3F - Studio)
-    f8  = 'exec-and-forget smart-lights --brightness down'
-    f9  = 'exec-and-forget smart-lights --power'
-    f10 = 'exec-and-forget smart-lights --brightness up'
-    f5  = 'exec-and-forget smart-lights --scene previous'
-    f6  = 'exec-and-forget smart-lights --scene next'
+    f8  = 'exec-and-forget ~/.local/bin/smart-lights --brightness down'
+    f9  = 'exec-and-forget ~/.local/bin/smart-lights --power'
+    f1  = 'exec-and-forget open http://127.0.0.1:18789/'
+    f10 = 'exec-and-forget ~/.local/bin/smart-lights --brightness up'
+    f5  = 'exec-and-forget ~/.local/bin/smart-lights --scene previous'
+    f6  = 'exec-and-forget ~/.local/bin/smart-lights --scene next'
 
     # Hide focused application (this is a replacement for macOS Cmd+h).
     alt-ctrl-cmd-shift-down = "exec-and-forget osascript -e 'tell application \"System Events\" to set visible of first process whose frontmost is true to false'"

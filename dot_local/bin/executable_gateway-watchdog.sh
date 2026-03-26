@@ -2,7 +2,6 @@
 # Gateway watchdog — persistent daemon
 # Checks gateway health, notifies on outage/recovery, detects crash loops
 
-
 # Read config dynamically each cycle to pick up token rotations
 get_config() {
   python3 -c "
@@ -31,7 +30,7 @@ send_discord() {
   curl -s -X POST "https://discord.com/api/v10/channels/$channel/messages" \
     -H "Authorization: Bot $token" \
     -H "Content-Type: application/json" \
-    -d "{\"content\":\"$msg\"}" > /dev/null 2>&1
+    -d "{\"content\":\"$msg\"}" >/dev/null 2>&1
 }
 
 STATE="unknown"
@@ -40,10 +39,10 @@ CRASH_WINDOW_START=0
 CRASH_LOOP_NOTIFIED=false
 CHECK_INTERVAL=5
 MAX_CRASHES=3
-CRASH_WINDOW=300  # 5 minutes
+CRASH_WINDOW=300 # 5 minutes
 
 while true; do
-  if curl -sf --max-time 3 http://127.0.0.1:18789/ > /dev/null 2>&1; then
+  if curl -sf --max-time 3 http://127.0.0.1:18789/ >/dev/null 2>&1; then
     # Gateway is up
     if [ "$STATE" = "down" ]; then
       CRASH_COUNT=$((CRASH_COUNT + 1))
