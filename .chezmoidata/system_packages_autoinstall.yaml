@@ -163,3 +163,6 @@ packages:
           id: "497_799_835"
   uv_tools:
     - mlx-whisper
+  bun_global:
+    - openclaw
+    - clawhub

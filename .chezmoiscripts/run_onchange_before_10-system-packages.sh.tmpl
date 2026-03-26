@@ -35,4 +35,9 @@ echo "Restarting domt4/autoupdate [stop → delete → start]..."
 {{ range .packages.macos.uv_tools -}}
 /opt/homebrew/bin/uv tool install {{ . | quote }}
 {{ end -}}
+
+# Install bun global packages (runs after Homebrew so bun is available).
+{{ range .packages.macos.bun_global -}}
+/Users/stephen/.bun/bin/bun install -g {{ . | quote }}
+{{ end -}}
 {{ end -}}
