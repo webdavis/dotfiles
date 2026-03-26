@@ -161,3 +161,5 @@ packages:
           id: "899_247_664"
         - name: Xcode
           id: "497_799_835"
+  uv_tools:
+    - mlx-whisper
