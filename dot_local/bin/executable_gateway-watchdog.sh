@@ -2,8 +2,6 @@
 # Gateway watchdog — persistent daemon
 # Checks gateway health, notifies on outage/recovery, detects crash loops
 
-LOG_DIR="$HOME/.openclaw/logs"
-mkdir -p "$LOG_DIR"
 
 # Read config dynamically each cycle to pick up token rotations
 get_config() {
@@ -60,7 +58,7 @@ while true; do
 
       if [ "$CRASH_COUNT" -ge "$MAX_CRASHES" ] && [ "$CRASH_LOOP_NOTIFIED" = false ]; then
         logger -t "openclaw-watchdog" "Crash loop detected ($CRASH_COUNT crashes in ${CRASH_WINDOW}s)"
-        send_discord "🔴 **CRASH LOOP DETECTED** — Gateway has restarted $CRASH_COUNT times in the last 5 minutes. Something is wrong. Check logs: \`~/.openclaw/logs/gateway.err.log\`"
+        send_discord "🔴 **CRASH LOOP DETECTED** — Gateway has restarted $CRASH_COUNT times in the last 5 minutes. Something is wrong. Check macOS system log: \`log show --predicate 'subsystem == "openclaw-watchdog"' --last 1h\`"
         CRASH_LOOP_NOTIFIED=true
       else
         logger -t "openclaw-watchdog" "Gateway recovered (crash #$CRASH_COUNT in window)"
