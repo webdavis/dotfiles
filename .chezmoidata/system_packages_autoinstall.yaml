@@ -64,6 +64,7 @@ packages:
         - morantron/tmux-fingers/tmux-fingers
         - mtr
         - neovim
+        - node
         - netcat
         - ngrep
         - nmap
