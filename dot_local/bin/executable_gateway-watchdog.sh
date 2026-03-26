@@ -12,7 +12,7 @@ import json, os
 c = json.load(open(os.path.expanduser('~/.openclaw/openclaw.json')))
 token = c.get('channels', {}).get('discord', {}).get('token', '')
 # Read channel ID from watchdog.conf (set during setup)
-conf_path = os.path.expanduser('~/.openclaw/watchdog.conf')
+conf_path = os.path.expanduser('~/.local/share/openclaw-watchdog/watchdog.conf')
 channel = ''
 if os.path.exists(conf_path):
     for line in open(conf_path):
