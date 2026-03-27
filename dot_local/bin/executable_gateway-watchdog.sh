@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Gateway watchdog — persistent daemon
 # Checks gateway health, notifies on outage/recovery, detects crash loops
 
