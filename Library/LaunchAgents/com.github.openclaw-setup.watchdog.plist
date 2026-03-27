@@ -3,7 +3,7 @@
 <plist version="1.0">
   <dict>
     <key>Label</key>
-    <string>com.webdavis.openclaw-watchdog</string>
+    <string>com.github.openclaw-setup.watchdog</string>
     <key>ProgramArguments</key>
     <array>
       <string>/bin/bash</string>
