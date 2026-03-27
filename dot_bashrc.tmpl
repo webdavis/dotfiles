@@ -192,6 +192,7 @@ eval "$(atuin init bash --disable-up-arrow)"
 
 # Order matters! These local (user-level) tools should always take precedence in my environment.
 path_prepend "$HOME/.local/bin"
+path_prepend "$HOME/.bun/bin"
 
 # ⚠️ Keep this as the last line. Writes the updated PATH to the Bash `env`.
 export PATH
