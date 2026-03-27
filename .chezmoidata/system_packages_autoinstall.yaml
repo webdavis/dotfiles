@@ -120,6 +120,7 @@ packages:
         - font-fira-code
         - font-fira-code-nerd-font
         - font-symbols-only-nerd-font
+        - gcloud-cli
         - ghostty
         - google-chrome
         - karabiner-elements
