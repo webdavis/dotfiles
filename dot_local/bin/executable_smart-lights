@@ -8,12 +8,16 @@
 # Exit immediately if any command fails.
 set -euo pipefail
 
-# ANSI colors
-CLR_GREEN='\033[0;32m'
-CLR_RED='\033[0;31m'
-CLR_YELLOW='\033[0;33m'
-CLR_CYAN='\033[0;36m'
-CLR_RESET='\033[0m'
+# ANSI colors (only when stdout is a terminal)
+if [ -t 1 ]; then
+  CLR_GREEN='\033[0;32m'
+  CLR_RED='\033[0;31m'
+  CLR_YELLOW='\033[0;33m'
+  CLR_CYAN='\033[0;36m'
+  CLR_RESET='\033[0m'
+else
+  CLR_GREEN=''; CLR_RED=''; CLR_YELLOW=''; CLR_CYAN=''; CLR_RESET=''
+fi
 
 set_debug_log() {
   # Capture all messages to the debug log.
