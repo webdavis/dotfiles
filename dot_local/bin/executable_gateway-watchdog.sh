@@ -91,3 +91,5 @@ main() {
   set_globals
   watch
 }
+
+main
