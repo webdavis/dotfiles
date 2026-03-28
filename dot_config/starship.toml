@@ -95,7 +95,7 @@ format = "[$symbol$number]($style)"
 [directory]
 style = "fg:#e3e5e5 bg:#487feb"
 format = "[](fg:prev_bg bg:#61687e)[](fg:prev_bg bg:#487feb)[ $path ]($style)"
-truncation_length = 1
+truncation_length = 2
 
 [directory.substitutions]
 "Documents" = "󰈙 "

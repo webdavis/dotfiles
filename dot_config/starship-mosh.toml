@@ -1,0 +1,70 @@
+format = """
+$sudo\
+$username\
+$hostname\
+$connection_type\
+$directory\
+$git_branch\
+$git_status\
+$cmd_duration\
+$time\
+\n$character"""
+
+[sudo]
+disabled = false
+style = "bold red"
+format = '[SUDO]($style) '
+
+[username]
+show_always = true
+style_user = "bold yellow"
+style_root = "bold red"
+format = '[$user]($style)@'
+
+[hostname]
+ssh_only = false
+style = "bold cyan"
+format = '[$hostname]($style) | '
+
+[env_var.MOSH_KEY]
+variable = "MOSH_KEY"
+default = ""
+format = '[MOSH ]($style)'
+style = "bold green"
+
+[env_var.SSH_CONNECTION]
+variable = "SSH_CONNECTION"
+default = ""
+format = '[SSH ]($style)'
+style = "bold blue"
+
+[directory]
+style = "bold white"
+format = '[$path ]($style)'
+truncation_length = 2
+truncation_symbol = ".../"
+
+[git_branch]
+symbol = "git:"
+style = "bold purple"
+format = '[$symbol $branch ]($style)'
+
+[git_status]
+style = "bold yellow"
+format = '[$all_status$ahead_behind ]($style)'
+
+[cmd_duration]
+min_time = 0
+style = "bold yellow"
+format = '[took $duration ]($style)'
+show_milliseconds = false
+
+[time]
+disabled = false
+time_format = "%H:%M"
+style = "bold white"
+format = '[$time ]($style)'
+
+[character]
+success_symbol = "[>](bold green)"
+error_symbol = "[>](bold red)"

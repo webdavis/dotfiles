@@ -96,6 +96,10 @@ eval "$(gh completion -s bash)" # GitHub CLI
 eval "$(direnv hook bash)" # Sets the Direvn hook.
 
 # Starship: https://starship.rs/
+# Use simplified ASCII config when connecting via Mosh
+if [[ -n "$MOSH_KEY" ]]; then
+  export STARSHIP_CONFIG="$HOME/.config/starship-mosh.toml"
+fi
 eval "$(starship init bash)"
 
 # Cargo: https://github.com/rust-lang/cargo
