@@ -1,6 +1,6 @@
 #!/bin/bash
 # Disable SSH password authentication via drop-in config
-# run_once_ prefix means chezmoi runs this exactly once (tracked by hash)
+# Run manually to (re)apply SSH hardening on this machine
 set -euo pipefail
 
 DROPIN="/etc/ssh/sshd_config.d/50-no-password-auth.conf"
