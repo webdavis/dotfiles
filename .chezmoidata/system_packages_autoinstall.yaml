@@ -63,12 +63,14 @@ packages:
         - mas
         - morantron/tmux-fingers/tmux-fingers
         - mtr
+        - mosh
         - neovim
         - node
         - netcat
         - ngrep
         - nmap
         - onefetch
+        - openai-whisper
         - openhue/cli/openhue-cli
         - oven-sh/bun/bun
         - p7zip
@@ -80,10 +82,13 @@ packages:
         - ripgrep
         - sevenzip
         - socat
+        - steipete/tap/sag
         - starship
         - swiftformat
         - swiftlint
         - switchaudio-osx
+        - gemini-cli
+        - git-crypt
         - tailscale
         - tealdeer
         - terminal-notifier
@@ -148,6 +153,7 @@ packages:
         - steam
         - torguard
         - upterm
+        - xurl
         - zen
         - zoom
       mas:
@@ -165,8 +171,8 @@ packages:
           id: "899_247_664"
         - name: Xcode
           id: "497_799_835"
-  uv_tools:
-    - mlx-whisper
-  bun_global:
-    - openclaw
-    - clawhub
+    uv:
+      - mlx-whisper
+    bun:
+      - openclaw
+      - clawhub
