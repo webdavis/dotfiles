@@ -68,7 +68,7 @@ watch() {
           CRASH_LOOP_NOTIFIED=true
         else
           logger -t "openclaw-watchdog" "Gateway recovered (crash #$CRASH_COUNT in window)"
-          send_discord "✅ Back online."
+          send_discord "✅ Gateway back online."
         fi
       elif [ "$OPENCLAW_GATEWAY_STATE" = "unknown" ]; then
         logger -t "openclaw-watchdog" "Watchdog started, gateway is up"
@@ -79,7 +79,7 @@ watch() {
       # Gateway is down
       if [ "$OPENCLAW_GATEWAY_STATE" = "up" ] || [ "$OPENCLAW_GATEWAY_STATE" = "unknown" ]; then
         logger -t "openclaw-watchdog" "Gateway went down"
-        send_discord "⚠️ **Gateway down.** macOS is restarting it — should be back in ~15 seconds."
+        send_discord "❌ Gateway offline. macOS is restarting it — should be back in ~15 seconds."
       fi
       OPENCLAW_GATEWAY_STATE="down"
     fi
