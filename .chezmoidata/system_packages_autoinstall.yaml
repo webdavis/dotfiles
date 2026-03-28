@@ -84,6 +84,7 @@ packages:
         - swiftformat
         - swiftlint
         - switchaudio-osx
+        - tailscale
         - tealdeer
         - terminal-notifier
         - tmux
