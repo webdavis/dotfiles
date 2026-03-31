@@ -37,8 +37,10 @@ packages:
         - ffmpeg
         - fzf
         - gawk
+        - gemini-cli
         - gh
         - git
+        - git-crypt
         - git-delta
         - git-filter-repo
         - git-lfs
@@ -47,12 +49,10 @@ packages:
         - gnu-getopt
         - gnu-sed
         - gnupg
-        - pgvector
-        - postgresql@17
         - gogcli
         - grpcurl
-        - httpie
         - himalaya
+        - httpie
         - hub
         - imagemagick
         - iperf3
@@ -62,33 +62,33 @@ packages:
         - librsvg
         - mas
         - morantron/tmux-fingers/tmux-fingers
-        - mtr
         - mosh
+        - mtr
         - neovim
-        - node
         - netcat
         - ngrep
         - nmap
+        - node
         - onefetch
         - openai-whisper
         - openhue/cli/openhue-cli
         - oven-sh/bun/bun
         - p7zip
         - parallel
+        - pgvector
         - pinentry-mac
+        - postgresql@17
         - procs
         - pv
         - rbenv
         - ripgrep
         - sevenzip
         - socat
-        - steipete/tap/sag
         - starship
+        - steipete/tap/sag
         - swiftformat
         - swiftlint
         - switchaudio-osx
-        - gemini-cli
-        - git-crypt
         - tailscale
         - tealdeer
         - terminal-notifier
@@ -109,10 +109,10 @@ packages:
         - zoxide
       casks:
         - affinity
+        - apple-juice
         - blender
         - bluebubbles
         - brave-browser
-        - apple-juice
         - cardhop
         - chatgpt
         - claude
@@ -139,8 +139,8 @@ packages:
         - nikitabobko/tap/aerospace
         - obs
         - obsidian
-        - osquery
         - openemu
+        - osquery
         - proton-drive
         - proton-mail
         - proton-mail-bridge
