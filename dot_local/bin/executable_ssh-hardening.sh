@@ -5,9 +5,9 @@ set -euo pipefail
 
 DROPIN="/etc/ssh/sshd_config.d/50-no-password-auth.conf"
 
-if [[ ! -f "$DROPIN" ]] || ! sudo grep -q "PasswordAuthentication no" "$DROPIN" 2>/dev/null; then
-    echo "PasswordAuthentication no" | sudo tee "$DROPIN" > /dev/null
-    echo "[ssh-hardening] Wrote $DROPIN"
+if [[ ! -f $DROPIN ]] || ! sudo grep -q "PasswordAuthentication no" "$DROPIN" 2>/dev/null; then
+  echo "PasswordAuthentication no" | sudo tee "$DROPIN" >/dev/null
+  echo "[ssh-hardening] Wrote $DROPIN"
 fi
 
 # Reload sshd
