@@ -51,7 +51,7 @@ export HISTCONTROL=ignoredups:erasedups:ignorespace
 {{- if (env "CI") }}
 export HISTIGNORE="$HISTIGNORE:FAKE_REGEX"
 {{- else }}
-export HISTIGNORE="$HISTIGNORE:{{ (keepassxc "dotfiles - bashrc - HISTIGNORE - Regex").Password }}"
+export HISTIGNORE="$HISTIGNORE:{{ (keepassxc "Dotfiles (bashrc) :: HISTIGNORE Regex").Password }}"
 {{- end }}
 
 . "$HOME/.atuin/bin/env"
@@ -125,17 +125,6 @@ complete -F _just -o bashdefault -o default j
 
 # OpenClaw Completion
 [[ -s "$HOME/.openclaw/completions/openclaw.bash" ]] &&. "$HOME/.openclaw/completions/openclaw.bash"
-
-# NVM (Node Version Manager)
-# ───────────────────────────
-# ∙ Credit: https://www.newline.co/@Adele/how-to-install-nodejs-and-npm-on-macos--22782681
-#   Section: "Using nvm to install and update Node.js (recommended)"
-# ∙ Troubleshooting: https://github.com/nvm-sh/nvm#macos-troubleshooting
-# ∙ Usage:
-#    $ nvm use node                 # Initialize Node
-#    $ nvm exec 4.2 node --version  # Run node on a specific version
-[ -s "$HOME/.nvm/nvm.sh" ] && \. "$HOME/.nvm/nvm.sh"
-[ -s "$HOME/.nvm/bash_completion" ] && \. "$HOME/.nvm/bash_completion"
 
 # Nix: https://github.com/DeterminateSystems/nix-installer
 nix_daemon='/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh'
