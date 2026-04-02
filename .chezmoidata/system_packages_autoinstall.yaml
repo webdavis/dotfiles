@@ -152,7 +152,6 @@ packages:
         - retroarch-metal
         - signal
         - slack
-        - steam
         - torguard
         - upterm
         - xurl
@@ -177,5 +176,4 @@ packages:
       - mlx-whisper
       - nano-pdf
     bun:
-
       - clawhub
