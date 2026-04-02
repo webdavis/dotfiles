@@ -56,7 +56,6 @@ packages:
         - hub
         - imagemagick
         - iperf3
-        - jackielii/tap/skhd-zig
         - jq
         - just
         - librsvg
