@@ -77,6 +77,7 @@ packages:
         - parallel
         - pgvector
         - pinentry-mac
+        - pnpm
         - postgresql@17
         - procs
         - pv
