@@ -71,7 +71,6 @@ packages:
         - onefetch
         - openai-whisper
         - openhue/cli/openhue-cli
-        - openclaw-cli
         - oven-sh/bun/bun
         - p7zip
         - parallel
