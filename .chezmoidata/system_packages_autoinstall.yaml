@@ -174,5 +174,7 @@ packages:
     uv:
       - mlx-whisper
       - nano-pdf
+    npm:
+      - openclaw@2026.4.2
     bun:
       - clawhub
