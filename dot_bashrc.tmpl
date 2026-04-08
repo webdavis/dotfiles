@@ -160,6 +160,8 @@ if [[ $- == *i* ]]; then
   alias t='tms marks open 5'
   alias fman='compgen -c | fzf | xargs man'
   {{ if eq .chezmoi.os "darwin" -}}
+  # Register interactive claude sessions with Claude Desktop; global default is off so CodexBar/openclaw probes don't clutter the Code tab.
+  alias claude='/opt/homebrew/bin/claude --remote-control'
   alias ping='ping --apple-time'
   alias bu='brew upgrade --formula'
   alias rm='trash-put'
