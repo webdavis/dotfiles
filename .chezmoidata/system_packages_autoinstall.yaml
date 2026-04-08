@@ -176,5 +176,6 @@ packages:
       - nano-pdf
     npm:
       - openclaw@2026.4.8
+      - "@openai/codex"
     bun:
       - clawhub
