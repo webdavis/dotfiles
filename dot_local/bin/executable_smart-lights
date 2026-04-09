@@ -9,14 +9,18 @@
 set -euo pipefail
 
 # ANSI colors (only when stdout is a terminal)
-if [ -t 1 ]; then
+if [[ -t 1 ]]; then
   CLR_GREEN='\033[0;32m'
   CLR_RED='\033[0;31m'
   CLR_YELLOW='\033[0;33m'
   CLR_CYAN='\033[0;36m'
   CLR_RESET='\033[0m'
 else
-  CLR_GREEN=''; CLR_RED=''; CLR_YELLOW=''; CLR_CYAN=''; CLR_RESET=''
+  CLR_GREEN=''
+  CLR_RED=''
+  CLR_YELLOW=''
+  CLR_CYAN=''
+  CLR_RESET=''
 fi
 
 set_debug_log() {
@@ -150,10 +154,10 @@ check_requirements() {
 resolve_room_alias() {
   local room="$1"
   case "$room" in
-    studio)   echo "3F - Studio" ;;
-    bedroom)  echo "3F - Master Bedroom" ;;
-    kitchen)  echo "2F - Kitchen" ;;
-    *)        echo "$room" ;;
+    studio) echo "3F - Studio" ;;
+    bedroom) echo "3F - Master Bedroom" ;;
+    kitchen) echo "2F - Kitchen" ;;
+    *) echo "$room" ;;
   esac
 }
 
