@@ -124,7 +124,7 @@ alias j='just'
 complete -F _just -o bashdefault -o default j
 
 # OpenClaw Completion
-[[ -s "$HOME/.openclaw/completions/openclaw.bash" ]] &&. "$HOME/.openclaw/completions/openclaw.bash"
+[[ -s "$HOME/.openclaw/completions/openclaw.bash" ]] && . "$HOME/.openclaw/completions/openclaw.bash"
 
 # Nix: https://github.com/DeterminateSystems/nix-installer
 nix_daemon='/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh'
@@ -157,7 +157,7 @@ if [[ $- == *i* ]]; then
   alias p='python3'
   alias git-weekly='git diff --name-status "@{7 days ago}" | sort -u | grep -v "Templates" > weekly-review-files.md'
   alias path='echo $PATH | tr ":" "\n"'
-  alias t='tms marks open 5'
+  alias t='tms marks open 0'
   alias fman='compgen -c | fzf | xargs man'
   {{ if eq .chezmoi.os "darwin" -}}
   # Register interactive claude sessions with Claude Desktop; global default is off so CodexBar/openclaw probes don't clutter the Code tab.
@@ -222,12 +222,12 @@ if ! sh -c 'tmux ls >/dev/null 2>&1'; then
     # Bare `tmux` starts the server; tmux-continuum auto-restores saved sessions.
     tmux
   elif command -v tms &>/dev/null; then
-    # Create all default sessions (marks) via tms, which sets session_path correctly.
+    # Create default sessions via tms (reads [[sessions]] from config.toml) and attach.
     tms start
   fi
-fi
-
-# Attach to (or switch to) the Homelab session.
-if command -v tms &>/dev/null; then
-  tms marks open 5
+else
+  # Server already running — attach to (or switch to) the uriel session.
+  if command -v tms &>/dev/null; then
+    tms marks open 0
+  fi
 fi

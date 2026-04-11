@@ -1,6 +1,7 @@
 bookmarks = [
-  "/Users/stephen/workspaces/Ivy/1. Projects/Casually Concerned",
+  "/Users/stephen/workspaces/Ivy/Projects/Casually Concerned",
   "/Users/stephen/.local/share/chezmoi",
+  "/Users/stephen/.openclaw",
 ]
 
 [[search_dirs]]
@@ -15,17 +16,28 @@ depth = 2
 path = "/Users/stephen/workspaces/webdavis"
 depth = 2
 
+[[sessions]]
+name = "uriel"
+path = "/Users/stephen/workspaces/webdavis/uriel"
+
+[[sessions]]
+name = "openclaw"
+path = "/Users/stephen/.openclaw"
+
+[[sessions]]
+name = "Homelab"
+path = "/Users/stephen/workspaces/webdavis/homelab"
+
 [marks]
-0 = "/Users/stephen/workspaces/webdavis/mac-dev-config"
-1 = "/Users/stephen/workspaces/Ivy/1. Projects/Casually Concerned"
-2 = "/Users/stephen/.local/share/chezmoi"
-3 = "/Users/stephen/workspaces/webdavis/essential-feed-case-study"
-4 = "/Users/stephen/workspaces/webdavis/webdavis"
-5 = "/Users/stephen/workspaces/webdavis/Homelab"
-6 = "/Users/stephen/workspaces/Ivy"
-7 = "/Users/stephen/workspaces/webdavis/job-hunting"
-8 = "/Users/stephen/workspaces/webdavis/justdavis-ansible"
-9 = "/Users/stephen/workspaces/webdavis/Maeve"
-10 = "/Users/stephen/.config/nvim"
-11 = "/Users/stephen/workspaces/webdavis/docker-raspios-lite"
-12 = "/Users/stephen/workspaces/webdavis/sierras-macOS-backup"
+0 = "/Users/stephen/workspaces/webdavis/uriel"
+1 = "/Users/stephen/.openclaw"
+2 = "/Users/stephen/workspaces/webdavis/homelab"
+3 = "/Users/stephen/workspaces/Ivy"
+4 = "/Users/stephen/workspaces/Ivy/Projects/Casually Concerned"
+5 = "/Users/stephen/.local/share/chezmoi"
+6 = "/Users/stephen/.config/nvim"
+7 = "/Users/stephen/workspaces/webdavis/essential-feed-case-study"
+8 = "/Users/stephen/workspaces/webdavis/webdavis"
+9 = "/Users/stephen/workspaces/webdavis/job-hunting"
+10 = "/Users/stephen/workspaces/webdavis/justdavis-ansible"
+11 = "/Users/stephen/workspaces/webdavis/Maeve"
