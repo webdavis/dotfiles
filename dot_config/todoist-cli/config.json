@@ -1,0 +1,4 @@
+{
+  "auth_mode": "read-write",
+  "auth_scope": "data:read_write,data:delete,project:delete,backups:read"
+}

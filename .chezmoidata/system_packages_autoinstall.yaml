@@ -151,6 +151,7 @@ packages:
         - retroarch-metal
         - signal
         - slack
+        - todoist-app
         - torguard
         - upterm
         - xurl
@@ -177,5 +178,6 @@ packages:
     npm:
       - openclaw@2026.4.8
       - "@openai/codex"
+      - "@doist/todoist-cli"
     bun:
       - clawhub
