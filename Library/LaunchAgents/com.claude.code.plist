@@ -7,11 +7,16 @@
     <string>com.claude.code</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/bin/bash</string>
+        <string>/opt/homebrew/bin/bash</string>
+        <string>-l</string>
         <string>/Users/stephen/.local/bin/claude-restart.sh</string>
     </array>
     <key>RunAtLoad</key>
     <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
     <key>StandardOutPath</key>
     <string>/tmp/claude-agent.log</string>
     <key>StandardErrorPath</key>
