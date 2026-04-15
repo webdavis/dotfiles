@@ -47,6 +47,31 @@
                 "type": "basic"
               }
             ]
+          },
+          {
+            "description": "Disable macOS sysdiagnose shortcut (Hyper+period) and its open-latest viewer (Hyper+comma).",
+            "manipulators": [
+              {
+                "from": {
+                  "key_code": "period",
+                  "modifiers": {
+                    "mandatory": ["command", "control", "option", "shift"]
+                  }
+                },
+                "to": [{ "key_code": "vk_none" }],
+                "type": "basic"
+              },
+              {
+                "from": {
+                  "key_code": "comma",
+                  "modifiers": {
+                    "mandatory": ["command", "control", "option", "shift"]
+                  }
+                },
+                "to": [{ "key_code": "vk_none" }],
+                "type": "basic"
+              }
+            ]
           }
         ]
       },
