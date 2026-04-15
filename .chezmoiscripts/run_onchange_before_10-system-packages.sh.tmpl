@@ -19,9 +19,6 @@ mas {{ .name | quote }}, id: {{ .id }}
 {{ end -}}
 EOF
 
-# Restart `skhd` hotkey daemon.
-skhd --restart-service
-
 # Configure Hombrew autoupdate.
 HOMBREW_BIN="${HOMEBREW_PREFIX:-/opt/homebrew}/bin/brew"
 
@@ -41,8 +38,4 @@ echo "Restarting domt4/autoupdate [stop → delete → start]..."
 npm install -g {{ . | quote }}
 {{ end -}}
 
-# Install bun global packages (runs after Homebrew so bun is available).
-{{ range .packages.macos.bun -}}
-/Users/stephen/.bun/bin/bun install -g {{ . | quote }}
-{{ end -}}
 {{ end -}}
