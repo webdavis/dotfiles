@@ -2,6 +2,7 @@ packages:
   macos:
     homebrew:
       taps:
+        - antoniorodr/memo
         - buo/cask-upgrade
         - domt4/autoupdate # Automatic Upgrades.
         - FelixKratz/formulae
@@ -10,9 +11,12 @@ packages:
         - nikitabobko/tap
         - oven-sh/bun
         - owenthereal/upterm
+        - xdevplatform/tap
       formulae:
         - act
         - age
+        - antoniorodr/memo/memo
+        - atomicparsley
         - bash
         - bash-completion@2
         - bat
@@ -86,11 +90,13 @@ packages:
         - sevenzip
         - socat
         - starship
+        - steipete/tap/goplaces
+        - steipete/tap/peekaboo
+        - steipete/tap/remindctl
         - steipete/tap/sag
         - swiftformat
         - swiftlint
         - switchaudio-osx
-        - tailscale
         - tealdeer
         - terminal-notifier
         - tmux
@@ -121,6 +127,7 @@ packages:
         - codexbar
         - discord
         - docker-desktop
+        - element
         - espanso
         - fantastical
         - firefox
@@ -151,6 +158,7 @@ packages:
         - retroarch-metal
         - signal
         - slack
+        - tailscale-app
         - todoist-app
         - torguard
         - upterm
@@ -162,8 +170,6 @@ packages:
           id: "1_586_435_171"
         - name: Drafts
           id: "1_435_957_248"
-        - name: Dropover
-          id: "1_355_679_052"
         - name: Session
           id: "1_521_432_881"
         - name: Strongbox
@@ -176,8 +182,9 @@ packages:
       - mlx-whisper
       - nano-pdf
     npm:
-      - openclaw@2026.4.8
+      - openclaw@2026.4.12
       - "@openai/codex"
       - "@doist/todoist-cli"
-    bun:
       - clawhub
+      - "@clawdbot/lobster"
+      - mcporter
