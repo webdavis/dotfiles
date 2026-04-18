@@ -127,7 +127,6 @@ packages:
         - codexbar
         - discord
         - docker-desktop
-        - element
         - espanso
         - fantastical
         - firefox
