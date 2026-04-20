@@ -1,0 +1,37 @@
+# Worktrunk configuration — git worktree management.
+# Docs: https://worktrunk.dev/
+
+worktree-path = "{{ repo_path }}/../{{ repo }}.{{ branch | sanitize }}"
+
+[commit.generation]
+command = "CLAUDECODE= MAX_THINKING_TOKENS=0 claude -p --no-session-persistence --model=haiku --tools='' --disable-slash-commands --setting-sources='' --system-prompt=''"
+
+[commit]
+stage = "all"
+
+[merge]
+squash = true
+rebase = true
+remove = true
+verify = true
+
+[list]
+summary = false
+
+[switch.picker]
+pager = "delta --paging=never"
+
+# Copy whitelisted ignored files to new worktrees.
+[post-start]
+copy = "wt step copy-ignored"
+
+# Pre-merge validation gate (sequential, fast checks first).
+# Array-of-tables form per worktrunk docs — [pre-merge] table form is deprecated.
+[[pre-merge]]
+lint = "just l 2>/dev/null || true"
+
+[[pre-merge]]
+test = "just test 2>/dev/null || true"
+
+[aliases]
+up = "git fetch --all --prune && wt step for-each -- 'git rev-parse --verify -q @{u} >/dev/null || exit 0; g=$(git rev-parse --git-dir); test -d \"$g/rebase-merge\" -o -d \"$g/rebase-apply\" && exit 0; git rebase @{u} --no-autostash || git rebase --abort'"
