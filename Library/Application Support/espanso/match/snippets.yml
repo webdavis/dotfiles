@@ -1,0 +1,351 @@
+matches:
+  # ── Abbreviations (;; + 2-3 letters) ─────────────────────────────────────
+
+  - trigger: ";;bc"
+    replace: "because"
+    word: true
+
+  - trigger: ";;imp"
+    replace: "improvements"
+
+  - trigger: ";;omw"
+    replace: "On my way."
+
+  - trigger: ";;cons"
+    replace: "conscientious"
+  # Note: was ';;con' — renamed to ';;cons' to fix collision (§6.4).
+  # ';;con' (convenient) also removed; use full word 'convenient'.
+
+  - trigger: ";;ao"
+    replace: "anyone"
+    propagate_case: true
+
+  - trigger: ";;so"
+    replace: "someone"
+
+  - trigger: ";;sb"
+    replace: "somebody"
+    propagate_case: true
+
+  - trigger: ";;st"
+    replace: "sometimes"
+    propagate_case: true
+
+  - trigger: ";;sh"
+    replace: "something"
+    propagate_case: true
+
+  - trigger: ";;et"
+    replace: "everything"
+  # Note: ';;evt' removed — duplicate of ';;et' (§6.5)
+
+  - trigger: ";;exp"
+    replace: "experience"
+
+  - trigger: ";;fe"
+    replace: "For example,"
+
+  - trigger: ";;eb"
+    replace: "everybody"
+    propagate_case: true
+
+  - trigger: ";;eo"
+    replace: "everyone"
+    propagate_case: true
+
+  - trigger: ";;nm"
+    replace: "not much"
+
+  - trigger: ";;pm"
+    replace: "pretty much"
+    propagate_case: true
+
+  - trigger: ";;ab"
+    replace: "anybody"
+    propagate_case: true
+
+  - trigger: ";;at"
+    replace: "anything"
+    propagate_case: true
+
+  - trigger: ";;am"
+    replace: "anymore"
+
+  - trigger: ";;bea"
+    replace: "beautiful"
+
+  - trigger: ";;vm"
+    replace: "very much"
+
+  - trigger: ";;vw"
+    replace: "very well"
+
+  - trigger: ";;vg"
+    replace: "very good"
+
+  - trigger: ";;exc"
+    replace: "excellent"
+    propagate_case: true
+
+  - trigger: ";;pg"
+    replace: "pretty good"
+
+  - trigger: ";;qu"
+    replace: "question"
+    propagate_case: true
+
+  - trigger: ";;nc"
+    replace: "no comment"
+    propagate_case: true
+
+  - trigger: ";;ns"
+    replace: "I'm not sure."
+
+  - trigger: ";;rn"
+    replace: "right now"
+  # Note: bare 'rn' trigger removed — duplicate of ';;rn' (§6.5)
+
+  - trigger: ";;com"
+    replace: "communication"
+    propagate_case: true
+
+  - trigger: ";;sr"
+    replace: "strategies"
+
+  - trigger: ";;yo"
+    replace: "years old"
+
+  - trigger: ";;inf"
+    replace: "I'm not familiar with that."
+
+  - trigger: ";;wb"
+    replace: "well being"
+
+  - trigger: ";;df"
+    replace: "different"
+
+  - trigger: ";;des"
+    replace: "description"
+    propagate_case: true
+
+  - trigger: ";;re"
+    replace: "return"
+
+  - trigger: ";;fu"
+    replace: "function"
+
+  - trigger: ";;t"
+    replace: "#task"
+
+  - trigger: ";;#"
+    replace: "#### 6pm: \n#### 7pm: \n#### 8pm: \n#### 9pm: \n"
+
+  - trigger: "natm"
+    replace: "Not at the moment."
+    word: true
+
+  # ── Quick phrases (new per §6.9) ──────────────────────────────────────────
+
+  - trigger: ";;ty"
+    replace: "Thank you"
+
+  - trigger: ";;pls"
+    replace: "please"
+
+  - trigger: ";;lgtm"
+    replace: "Looks good to me"
+
+  - trigger: ";;wfm"
+    replace: "Works for me"
+
+  - trigger: ";;afaik"
+    replace: "As far as I know"
+
+  # ── Titles (;; proper nouns) ──────────────────────────────────────────────
+
+  - trigger: ";;yt"
+    replace: "YouTube"
+
+  - trigger: ";;gh"
+    replace: "GitHub"
+  # Note: browser.yml ';;gh' (github.com URL) renamed to ',,ghu' (§6.4)
+
+  - trigger: ";;cc"
+    replace: "Claude Code"
+
+  - trigger: ";;ob"
+    replace: "Obsidian"
+
+  - trigger: ";;cg"
+    replace: "ChatGPT"
+
+  - trigger: ";;an"
+    replace: "ansible"
+    propagate_case: true
+
+  - trigger: ";js"
+    replace: "JavaScript"
+
+  - trigger: ";py"
+    replace: "Python"
+
+  # ── Formatting / dates / symbols (,, triggers) ───────────────────────────
+
+  - trigger: ",,dt"
+    replace: "{{my_datetime}}"
+    vars:
+      - name: my_datetime
+        type: date
+        params:
+          format: "%Y-%m-%d %H:%M:%S"
+
+  - trigger: ",,date"
+    replace: "{{my_date}}"
+    vars:
+      - name: my_date
+        type: date
+        params:
+          format: "%Y-%m-%d"
+
+  - trigger: ",,iso"
+    replace: "{{my_iso_date}}"
+    vars:
+      - name: my_iso_date
+        type: date
+        params:
+          format: "%Y-%m-%d"
+
+  - trigger: ",,now"
+    replace: "{{my_time}}"
+    vars:
+      - name: my_time
+        type: date
+        params:
+          format: "%H:%M:%S"
+
+  - trigger: ",,day"
+    replace: "{{my_day}}"
+    vars:
+      - name: my_day
+        type: date
+        params:
+          format: "## %A, %Y-%m-%d:"
+
+  - trigger: ",,ts"
+    replace: "{{ts}}"
+    vars:
+      - name: ts
+        type: shell
+        params:
+          cmd: "date +%s"
+
+  - trigger: ",,cb"
+    replace: "```\n$|$\n```"
+
+  - trigger: ",,tu"
+    replace: "👍"
+
+  - trigger: ",,et"
+    replace: "every time"
+    propagate_case: true
+
+  - trigger: ",,df"
+    replace: "difference"
+
+  - trigger: ",,com"
+    replace: "communicate"
+    propagate_case: true
+
+  - trigger: "--com"
+    replace: "communicative"
+    propagate_case: true
+
+  - trigger: ",,con"
+    replace: "consciousness"
+
+  - trigger: ",ty"
+    replace: "thank you"
+    propagate_case: true
+
+  # ── Symbols ───────────────────────────────────────────────────────────────
+
+  - trigger: ",,ex"
+    replace: "❌"
+
+  - trigger: ",,..."
+    replace: "…"
+
+  - trigger: ",,<<"
+    replace: "«"
+
+  - trigger: ",,>>"
+    replace: "»"
+
+  - trigger: ",,<-"
+    replace: "←"
+
+  - trigger: ",,<="
+    replace: "≤"
+
+  - trigger: ",,>="
+    replace: "≥"
+
+  - trigger: ",,/="
+    replace: "≠"
+
+  - trigger: ",,lmao"
+    replace: "😂"
+
+  - trigger: ",,ccs"
+    replace: "♠️"
+
+  - trigger: ",,cci"
+    replace: "🧊"
+
+  - trigger: ",,->"
+    replace: "→"
+
+  - trigger: ",,-u"
+    replace: "↑"
+
+  - trigger: ",,-d"
+    replace: "↓"
+
+  # ── URLs (migrated from browser.yml; ;;XXX → ,,XXX per §6.7) ─────────────
+
+  - trigger: ",,wno"
+    label: White noise
+    replace: "https://www.youtube.com/watch?v=nMfPqeZjc2c"
+  # Note: was ';;wn' — became ',,wno' (3-letter per convention)
+
+  - trigger: ",,azo"
+    replace: "https://www.amazon.com/gp/css/order-history"
+  # Note: was ';;ao' — renamed to ',,azo' to fix collision with ';;ao' (anyone) (§6.4)
+
+  - trigger: ",,ro"
+    replace: "https://100.64.18.88/"
+  # Note: was ';;ro'
+
+  - trigger: ",,wo"
+    replace: "https://www.walmart.com/orders"
+  # Note: was ';;wo'
+
+  - trigger: ",,mu"
+    replace: "https://www.meetup.com/your-events/"
+  # Note: was ';;mu'
+
+  - trigger: ",,ghu"
+    replace: "https://www.github.com/"
+  # Note: was ';;gh' in browser.yml — renamed to ',,ghu' to fix collision with ';;gh' (GitHub title) (§6.4)
+
+  - trigger: ",,jda"
+    replace: "https://www.github.com/karlmdavis/justdavis-ansible/"
+  # Note: was ';;ja'
+
+  - trigger: ",,hml"
+    replace: "https://www.github.com/webdavis/Homelab/"
+  # Note: was ';;hl'
+
+  - trigger: ",,efc"
+    replace: "https://www.github.com/webdavis/essential-feed-case-study/"
+  # Note: was ';;ed' in browser.yml — renamed to ',,efc' to fix collision with ';;ed' (everyday) (§6.4)

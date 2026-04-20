@@ -1,0 +1,98 @@
+matches:
+  # ── Missing-apostrophe fixes ──────────────────────────────────────────────
+
+  # I / I'm / I've / I'll
+  - trigger: "Im"
+    replace: "I'm"
+    word: true
+
+  - trigger: "idk"
+    replace: "I don't know"
+    propagate_case: true
+
+  # don't / doesn't / didn't / can't / couldn't / wouldn't / shouldn't
+  - trigger: "dont"
+    replace: "don't"
+    propagate_case: true
+
+  - trigger: "doesnt"
+    replace: "doesn't"
+    propagate_case: true
+
+  - trigger: "doent"
+    replace: "doesn't"
+
+  - trigger: "did't"
+    replace: "didn't"
+
+  - trigger: "cna't"
+    replace: "can't"
+
+  - trigger: "couldnt"
+    replace: "couldn't"
+
+  - trigger: "coulnd't"
+    replace: "couldn't"
+
+  - trigger: "coulndt"
+    replace: "couldn't"
+
+  - trigger: "wouldnt"
+    replace: "wouldn't"
+    propagate_case: true
+
+  - trigger: "shouldnt"
+    replace: "shouldn't"
+    propagate_case: true
+
+  # haven't / weren't / wasn't / isn't / won't
+  - trigger: "havent"
+    replace: "haven't"
+
+  - trigger: "havne't"
+    replace: "haven't"
+
+  - trigger: "werent"
+    replace: "weren't"
+
+  - trigger: "wasnt"
+    replace: "wasn't"
+    propagate_case: true
+
+  - trigger: "isnt"
+    replace: "isn't"
+
+  - trigger: "wont"
+    replace: "won't"
+
+  # she's / he's / it's / they're / that's
+  - trigger: "shes"
+    replace: "she's"
+    propagate_case: true
+    word: true
+
+  - trigger: "hes"
+    replace: "he's"
+    propagate_case: true
+    word: true
+
+  - trigger: "I'ts"
+    replace: "It's"
+
+  - trigger: "IT's"
+    replace: "It's"
+
+  - trigger: "theyre"
+    replace: "they're"
+    propagate_case: true
+
+  - trigger: "thats"
+    replace: "that's"
+
+  - trigger: "htats"
+    replace: "that's"
+
+  # I don't think / I'm not sure
+  - trigger: ";;idt"
+    replace: "I don't think"
+    propagate_case: true

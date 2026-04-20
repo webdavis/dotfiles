@@ -1,0 +1,66 @@
+matches:
+  # ── Existing chatbot triggers ─────────────────────────────────────────────
+
+  - trigger: ";;si"
+    replace: "System instruction:"
+
+  - trigger: ";;mr"
+    replace: "Make this more readable:\n\n"
+
+  - trigger: ";;gc"
+    replace: "Provide a git commit using conventional git commit style for the following changes:\n\n"
+
+  - trigger: ";;prompt"
+    replace: |
+      Prompt: $|$
+      PROMPT: Please ignore all previous instructions. Act as a prompt engineer for every [PROMPT] I ask. Refine my [PROMPT] into a better prompt and then provide the answer.
+
+      - Act as I speak and write fluently in English.
+      - Write all output in English.
+      - Add detail to [PROMPT].
+      - Add context to [PROMPT].
+      - If [PROMPT] calls for it, provide links to relative resources in the form of a URL.
+
+  # ── New AI prompt triggers (§6.9) ─────────────────────────────────────────
+
+  - trigger: ";;review"
+    replace: "Review this code for bugs, security issues, and readability:"
+
+  - trigger: ";;explain"
+    replace: "Explain this code step by step:"
+
+  - trigger: ";;meta"
+    replace: "What questions am I not asking that I should be? Define those questions and then answer them."
+
+  - trigger: ";;commits"
+    replace: "Each logical unit of work should be its own git commit. No Co-Authored-By lines."
+
+  - trigger: ";;scan"
+    replace: "Scan this entire project -- read config files, playbooks, roles, variables, templates, scripts, and any documentation. Do NOT make any changes."
+
+  - trigger: ";;specfirst"
+    replace: "READ docs/SPEC.md FIRST -- it is the complete technical specification. Follow it precisely."
+
+  - trigger: ";;nochanges"
+    replace: "Do NOT make any changes."
+
+  - trigger: ";;continue"
+    replace: "Continue where you left off. The previous model attempt failed or timed out."
+
+  - trigger: ";;discord"
+    replace: "Okay, respond in Discord from now on."
+
+  - trigger: ";;opentosuggestions"
+    replace: "I'm open to suggestions."
+
+  - trigger: ";;comprehensive"
+    replace: "Take a comprehensive look at this repo and the configuration of each tool."
+
+  - trigger: ";;reviewproject"
+    replace: "Review the current state of this project."
+
+  - trigger: ";;deepresearch"
+    replace: "Go do /deep-research on this."
+
+  - trigger: ";;backup"
+    replace: "Make sure to back up my configs and keep working on it until it's up and running."
