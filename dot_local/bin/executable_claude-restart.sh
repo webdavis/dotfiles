@@ -44,8 +44,16 @@ create_session() {
   $TMUX_BIN send-keys -t "$SESSION_NAME" \
     "unset CLAUDECODE && $CAFFEINATE_BIN -s $CLAUDE_BIN --remote-control --name '$(hostname)'" Enter
 
-  # Wait for the trust prompt to appear, then accept it.
-  sleep 5
+  # Wait for the trust prompt to appear, then accept it. Polls the pane
+  # for the prompt text with a 30s timeout — faster than a blind sleep on
+  # quick launches and more reliable on slow ones.
+  local trust_deadline=$((SECONDS + 30))
+  while ((SECONDS < trust_deadline)); do
+    if $TMUX_BIN capture-pane -p -t "$SESSION_NAME" 2>/dev/null | grep -q "Do you trust"; then
+      break
+    fi
+    sleep 0.5
+  done
   $TMUX_BIN send-keys -t "$SESSION_NAME" Enter
 
   log "Session '$SESSION_NAME' created and Claude started"
