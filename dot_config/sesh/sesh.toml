@@ -1,0 +1,73 @@
+# Sesh configuration — smart tmux session manager.
+# Docs: https://github.com/joshmedeski/sesh
+
+cache = true
+sort_order = ["tmux", "config", "zoxide"]
+dir_length = 1
+blacklist = ["popup", "scratch"]
+
+[default_session]
+preview_command = "td task list -f \"/$(basename {})\" --limit 3 2>/dev/null; echo; eza --tree --level=2 --icons --git-ignore {}"
+
+[[session]]
+name = "uriel"
+path = "~/workspaces/webdavis/uriel"
+
+[[session]]
+name = "openclaw"
+path = "~/.openclaw"
+
+[[session]]
+name = "homelab"
+path = "~/workspaces/webdavis/homelab"
+
+[[session]]
+name = "ivy"
+path = "~/workspaces/Ivy"
+
+[[session]]
+name = "casually-concerned"
+path = "~/workspaces/Ivy/Projects/Casually Concerned"
+
+[[session]]
+name = "dotfiles"
+path = "~/.local/share/chezmoi"
+
+[[session]]
+name = "nvim-config"
+path = "~/.config/nvim"
+
+[[session]]
+name = "essential-feed"
+path = "~/workspaces/webdavis/essential-feed-case-study"
+
+[[session]]
+name = "webdavis-profile"
+path = "~/workspaces/webdavis/webdavis"
+
+[[session]]
+name = "job-hunting"
+path = "~/workspaces/webdavis/job-hunting"
+
+[[session]]
+name = "justdavis-ansible"
+path = "~/workspaces/webdavis/justdavis-ansible"
+
+[[session]]
+name = "maeve"
+path = "~/workspaces/webdavis/Maeve"
+
+[[session]]
+name = "dresden"
+path = "~"
+disable_startup_command = true
+preview_command = "td today --limit 5 2>/dev/null"
+
+[[wildcard]]
+pattern = "~/workspaces/**"
+preview_command = "eza --tree --level=2 --icons --git-ignore {}"
+
+[[wildcard]]
+pattern = "~/.config/*"
+disable_startup_command = true
+preview_command = "eza --tree --level=1 --icons {}"
