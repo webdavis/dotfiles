@@ -1,6 +1,13 @@
 # shellcheck shell=bash
 # vi:filetype=sh shiftwidth=2 softtabstop=2 tabstop=8:
 
+# Opt-in shell startup profiling.
+# Usage: BASHRC_PROFILE=1 bash -i -c exit 2>/tmp/bashrc.trace
+[[ -n ${BASHRC_PROFILE:-} ]] && {
+  PS4='+ $EPOCHREALTIME '
+  set -x
+}
+
 # ┏━━━━━━━━━━━━━━━━━━━━┓
 # ┃  Helper Functions  ┃
 # ┗━━━━━━━━━━━━━━━━━━━━┛
@@ -15,7 +22,7 @@ function path_prepend() {
   if [[ -d $dir ]]; then
     PATH="$dir:$PATH"
   else
-    echo "Directory $dir does not exist."
+    echo "Directory $dir does not exist." >&2
     return 1
   fi
 }
@@ -26,42 +33,26 @@ function path_prepend() {
 EDITOR="$(which nvim)" && export EDITOR
 export BASH_SILENCE_DEPRECATION_WARNING=1
 export MANPAGER="nvim +Man!"
-export TERM='screen-256color'
+export TERM='tmux-256color'
 export COLORTERM=truecolor
 export XDG_DATA_HOME="$HOME/.local/share"
 export XDG_CONFIG_HOME="$HOME/.config"
 export LC_ALL=en_US.UTF-8
 export LANG=en_US.UTF-8
-export TMS_CONFIG_FILE="$HOME/.config/tms/config.toml"
 export USER="${USER:-$(whoami)}"
 
-# Bash History
-# ─────────────
-# Save shell command history more or less permanently.
-shopt -s histappend
-history_file_size=5000000
-export HISTSIZE="$history_file_size"
-export HISTFILESIZE="$history_file_size"
-export HISTFILE="$HOME/.bash_history"
+# Bash history is handled entirely by atuin's daemon (v2 §1.1). Bash built-in
+# history flags (HISTFILE, HISTSIZE, histappend, HISTCONTROL, HISTIGNORE) were
+# removed to eliminate race conditions across tmux panes and redundant writes.
 
-# Ignore consecutive duplicates, remove older duplicates, and skip commands starting with a space.
-export HISTCONTROL=ignoredups:erasedups:ignorespace
-
-# Exclude any commands matching the specified regex pattern from history.
-{{- if (env "CI") }}
-export HISTIGNORE="$HISTIGNORE:FAKE_REGEX"
-{{- else }}
-export HISTIGNORE="$HISTIGNORE:{{ (keepassxc "Dotfiles (bashrc) :: HISTIGNORE Regex").Password }}"
-{{- end }}
-
-. "$HOME/.atuin/bin/env"
+[[ -f "$HOME/.atuin/bin/env" ]] && . "$HOME/.atuin/bin/env"
 
 # ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-# ┃  Hombrew: https://brew.sh/  ┃
+# ┃  Homebrew: https://brew.sh/ ┃
 # ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 HOMEBREW_PREFIX='/opt/homebrew'
 
-# Configure hombrew_prefix/bin tools.
+# Configure homebrew_prefix/bin tools.
 eval "$(${HOMEBREW_PREFIX}/bin/brew shellenv)"
 
 # Configure Homebrew system administrator tools.
@@ -93,29 +84,22 @@ export MANPATH="${HOMEBREW_PREFIX}/share/man:${MANPATH}"
 eval "$(gh completion -s bash)" # GitHub CLI
 
 # Direnv: https://github.com/direnv/direnv
-eval "$(direnv hook bash)" # Sets the Direvn hook.
+eval "$(direnv hook bash)" # Sets the Direnv hook.
+
+# Carapace: universal shell completion engine (v2 §16.3).
+# Ref: https://github.com/carapace-sh/carapace-bin
+command -v carapace &>/dev/null && source <(carapace _carapace bash) 2>/dev/null
 
 # Starship: https://starship.rs/
-# Use simplified ASCII config when connecting via Mosh
-if [[ -n "$MOSH_KEY" ]]; then
+# Use simplified ASCII config when connecting via Mosh or SSH.
+if [[ -n "${MOSH_KEY:-}" || -n "${SSH_CONNECTION:-}" ]]; then
   export STARSHIP_CONFIG="$HOME/.config/starship-mosh.toml"
 fi
 eval "$(starship init bash)"
 
 # Cargo: https://github.com/rust-lang/cargo
-. "$HOME/.cargo/env"
-
-# Ruby: https://github.com/rbenv/rbenv, Added: Sun, 2025-10-19 13:37:56 MDT
-eval "$(rbenv init - --no-rehash bash)"
-
-# Java via SKDMan: https://sdkman.io/]
-JAVA_HOME="$HOME/.sdkman/candidates/java/current"
-# Attempt to install if it isn't present. (TODO: this should probably be moved somewhere else.)
-[[ -d $JAVA_HOME ]] || curl -s "https://get.sdkman.io" | bash
-if [[ -d $JAVA_HOME ]]; then
-  export JAVA_HOME
-  path_prepend "$JAVA_HOME/bin"
-fi
+# Direct PATH add instead of sourcing .cargo/env (avoids file read on every shell start).
+[[ -d "$HOME/.cargo/bin" ]] && path_prepend "$HOME/.cargo/bin"
 
 # Just: https://github.com/casey/just
 [[ -s "$HOME/.bash_just_completions" ]] && . "$HOME/.bash_just_completions"
@@ -129,6 +113,37 @@ complete -F _just -o bashdefault -o default j
 # Nix: https://github.com/DeterminateSystems/nix-installer
 nix_daemon='/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh'
 [[ -e $nix_daemon ]] && . "$nix_daemon"
+
+# ┏━━━━━━━━━━━━━━━━━━━━━┓
+# ┃  Utility functions  ┃
+# ┗━━━━━━━━━━━━━━━━━━━━━┛
+
+# Create a directory and cd into it.
+mkd() { mkdir -p "$@" && cd "$_" || return; }
+
+# Create a temp directory and cd into it.
+tmpd() { cd "$(mktemp -d)" || return; }
+
+# CLI calculator.
+calc() { bc -l <<<"$*"; }
+
+# Show SSL certificate CN and SANs for a domain.
+getcertnames() {
+  if [[ -z "${1:-}" ]]; then
+    echo "Usage: getcertnames <domain>" >&2
+    return 1
+  fi
+  local cert
+  cert=$(openssl s_client -connect "$1:443" -servername "$1" 2>/dev/null </dev/null |
+    openssl x509 -noout -subject -nameopt multiline -ext subjectAltName 2>/dev/null)
+  printf '%s\n' "$cert" | sed -n 's/[[:space:]]*commonName[[:space:]]*=[[:space:]]*//p'
+  printf '%s\n' "$cert" | grep -o 'DNS:[^,]*' | sed 's/DNS://'
+}
+
+# Set push URL to no_push on forks to prevent accidental upstream pushes.
+gitsetoriginnopush() {
+  git remote set-url --push origin no_push
+}
 
 # ┏━━━━━━━━━━━━━━━━━━━━━━━━┓
 # ┃  Local & User Configs  ┃
@@ -146,19 +161,35 @@ if [[ $- == *i* ]]; then
   # Zoxide alias.
   alias cd='z'
 
-  # Bash aliases:
-  alias ls='ls -G'
+  # Modern tool aliases (v2 §16.1).
+  alias ls='eza --icons'
+  alias ll='eza -la --git --icons'
+  alias la='eza -a --icons'
+  alias lt='eza --tree --level=2 --icons --git-ignore'
   alias cp='cp -i'
   alias mv='mv -i'
+  alias cat='bat -p'
   alias bat='bat --color=always'
   alias tree='tree -C'
-  alias grep='grep --color=always'
+  alias du='dust'
+  alias ps='procs'
+  alias grep='grep --color=auto'
   alias tmux-purge-resurrect-session-data='rm -f .tmux/resurrect/last .tmux/resurrect/tmux_resurrect*'
   alias p='python3'
   alias git-weekly='git diff --name-status "@{7 days ago}" | sort -u | grep -v "Templates" > weekly-review-files.md'
   alias path='echo $PATH | tr ":" "\n"'
-  alias t='tms marks open 0'
+  alias t='sesh connect uriel'
   alias fman='compgen -c | fzf | xargs man'
+
+  # Navigation aliases.
+  alias ..='cd ..'
+  alias ...='cd ../..'
+  alias ....='cd ../../..'
+
+  # Network & misc utilities.
+  alias pubip='dig +short myip.opendns.com @resolver1.opendns.com'
+  alias timer='echo "Timer started. Stop with Ctrl-D." && time cat'
+
   {{ if eq .chezmoi.os "darwin" -}}
   # Register interactive claude sessions with Claude Desktop; global default is off so CodexBar/openclaw probes don't clutter the Code tab.
   alias claude='/opt/homebrew/bin/claude --remote-control'
@@ -181,9 +212,43 @@ fi
 eval "$(zoxide init bash)"
 
 # Atuin: https://atuin.sh/
-# SQLite-backed shell history. Replaces the bash history flush/reload cycle.
+# SQLite-backed shell history via daemon. Atuin sources bash-preexec here,
+# which our long-running command notifier below depends on.
 # ⚠️ Must initialize after zoxide (both modify PROMPT_COMMAND; atuin last).
 eval "$(atuin init bash --disable-up-arrow)"
+
+# ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+# ┃  Long-running command notifier (v2 §7.1)      ┃
+# ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+# Uses bash-preexec (sourced by atuin above) instead of a naked DEBUG trap,
+# which would clobber atuin's recording.
+__cmd_notify_start=""
+__cmd_notify_name=""
+
+__cmd_notify_preexec() {
+  __cmd_notify_start=$SECONDS
+  __cmd_notify_name="$1"
+}
+
+__cmd_notify_precmd() {
+  local exit_code=$?
+  [[ -z $__cmd_notify_start ]] && return
+  local elapsed=$((SECONDS - __cmd_notify_start))
+  __cmd_notify_start=""
+  # Skip known interactive TUIs.
+  [[ $__cmd_notify_name =~ ^(vim|nvim|less|man|top|btop|ssh|tmux|claude|fzf) ]] && return
+  if ((elapsed >= 300)); then
+    alerter --title "Command finished" --message "${__cmd_notify_name%% *} (${elapsed}s)" --sound default 2>/dev/null &
+    "$HOME/.local/bin/hue-pulse.sh" "$exit_code" 2>/dev/null &
+  elif ((elapsed >= 30)); then
+    alerter --title "Command finished" --message "${__cmd_notify_name%% *} (${elapsed}s)" --sound default 2>/dev/null &
+  fi
+}
+
+# shellcheck disable=SC2034  # preexec_functions/precmd_functions consumed by bash-preexec
+preexec_functions+=(__cmd_notify_preexec)
+# shellcheck disable=SC2034
+precmd_functions+=(__cmd_notify_precmd)
 
 # Order matters! These local (user-level) tools should always take precedence in my environment.
 path_prepend "$HOME/.local/bin"
@@ -221,13 +286,14 @@ if ! sh -c 'tmux ls >/dev/null 2>&1'; then
   if [[ -f $tmux_resurrect_data ]]; then
     # Bare `tmux` starts the server; tmux-continuum auto-restores saved sessions.
     tmux
-  elif command -v tms &>/dev/null; then
-    # Create default sessions via tms (reads [[sessions]] from config.toml) and attach.
-    tms start
+  elif command -v sesh &>/dev/null; then
+    # Create the three default sessions via sesh-bootstrap, then attach to uriel.
+    "$HOME/.local/bin/sesh-bootstrap.sh" 2>/dev/null
+    tmux attach -t uriel 2>/dev/null || tmux new -s uriel
   fi
 else
   # Server already running — attach to (or switch to) the uriel session.
-  if command -v tms &>/dev/null; then
-    tms marks open 0
+  if command -v sesh &>/dev/null; then
+    sesh connect uriel
   fi
 fi
