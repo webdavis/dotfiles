@@ -1,21 +1,21 @@
-# Atuin: https://atuin.sh/
-# Local-only shell history backed by SQLite.
+## Atuin configuration
+## Docs: https://docs.atuin.sh/configuration/config/
 
-# Disable cloud sync — fully local.
-auto_sync = false
-
-# Search settings.
-search_mode = "fuzzy"
-filter_mode = "global"
-
-# Enter executes directly; Tab to edit before executing.
+## Keep non-sync settings at the top level (atuin puts them there).
+search_mode = "prefix"
+filter_mode = "host"
+filter_mode_shell_up_key_binding = "session"
+style = "compact"
 enter_accept = true
-
-# Auto-filter secrets (AWS keys, GitHub tokens, etc.).
 secrets_filter = true
+
+[sync]
+auto_sync = false
+records = true
 
 [ai]
 enabled = true
 
 [daemon]
-enabled = false
+enabled = true
+autostart = true
