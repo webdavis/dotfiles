@@ -1,0 +1,84 @@
+{
+  "permissions": {
+    "defaultMode": "bypassPermissions",
+    "allow": [
+      "Read",
+      "Grep",
+      "Glob",
+      "WebFetch",
+      "WebSearch",
+      "Bash(find *)",
+      "Bash(cat *)",
+      "Bash(ls *)",
+      "Bash(head *)",
+      "Bash(tail *)",
+      "Bash(wc *)",
+      "Bash(grep *)",
+      "Bash(tree *)"
+    ],
+    "deny": [
+      "Read(.env)",
+      "Read(.env.*)",
+      "Read(secrets/**)",
+      "Read(credentials.json)",
+      "Read(.aws/credentials)",
+      "Read(.ssh/id_*)"
+    ]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "bash {{ .chezmoi.homeDir }}/.claude/statusline-command.sh"
+  },
+  "enabledPlugins": {
+    "superpowers@claude-plugins-official": true,
+    "document-skills@anthropic-agent-skills": true
+  },
+  "voiceEnabled": true,
+  "skipDangerousModePermissionPrompt": true,
+  "alwaysThinkingEnabled": true,
+  "cleanupPeriodDays": 36525,
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "{{ .chezmoi.homeDir }}/.local/bin/claude-user-prompt-start.sh"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "{{ .chezmoi.homeDir }}/.local/bin/claude-stop-pulse.sh"
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "matcher": "permission_prompt",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "alerter --title 'Claude Code' --message 'Needs attention' --sound default"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "{{ .chezmoi.homeDir }}/.local/bin/claude-audit.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
