@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# Global prepare-commit-msg hook — AI-generated conventional commit messages.
+# Activated by core.hooksPath in dot_gitconfig.tmpl.
+#
+# Never blocks a commit: worst case the editor opens with an empty message
+# and the user writes their own.
+#
+# Escape hatches:
+#   SKIP_AI_COMMIT=1 git commit   # skip the hook entirely
+#   git commit -m "msg"           # hook skips when $2 is set (message source)
+#
+# Bails during merges/rebases/cherry-picks. Chains to repo-local
+# .git/hooks/prepare-commit-msg if present.
+
+# Bail early if user opted out, or commit carries a prepared message
+# (-m/-F/merge/squash). $2 is the message source per git's hook spec.
+[[ -n ${SKIP_AI_COMMIT:-} ]] && exit 0
+[[ -n ${2:-} ]] && exit 0
+
+GIT_DIR="$(git rev-parse --git-dir)"
+
+# Bail during in-progress merges, rebases, cherry-picks.
+[[ -f "$GIT_DIR/MERGE_HEAD" ]] && exit 0
+[[ -f "$GIT_DIR/CHERRY_PICK_HEAD" ]] && exit 0
+[[ -d "$GIT_DIR/rebase-merge" || -d "$GIT_DIR/rebase-apply" ]] && exit 0
+
+# Truncate the diff to 5 KB — huge diffs slow haiku and hurt message quality.
+diff="$(git diff --cached --diff-algorithm=histogram 2>/dev/null | head -c 5000)"
+[[ -z $diff ]] && exit 0
+
+# 4-second timeout on the model call. timeout(1) is provided by Homebrew
+# coreutils (in the manifest). On failure/timeout, msg stays empty and the
+# editor opens with an empty first line.
+msg="$(printf '%s' "$diff" | timeout 4 \
+  env CLAUDECODE= MAX_THINKING_TOKENS=0 claude -p \
+  --no-session-persistence --model=haiku --tools='' \
+  --disable-slash-commands --setting-sources='' \
+  --system-prompt='Write a conventional commit message (type: subject). One line, under 72 chars. No explanation.' \
+  2>/dev/null)"
+
+[[ -n $msg ]] && printf '%s\n\n' "$msg" >"$1"
+
+# Chain to repo-local hook if present.
+local_hook="$GIT_DIR/hooks/prepare-commit-msg"
+[[ -x $local_hook ]] && exec "$local_hook" "$@"
+
+exit 0
