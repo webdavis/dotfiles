@@ -56,3 +56,11 @@ quit-after-last-window-closed = true
 # Keybindings
 # =============
 keybind = global:ctrl+grave_accent=toggle_quick_terminal
+
+# Security & UX (v2)
+# =============
+clipboard-read = ask
+clipboard-paste-protection = true
+shell-integration-features = cursor,sudo,title
+window-padding-x = 4
+window-padding-y = 2
