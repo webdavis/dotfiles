@@ -26,7 +26,7 @@ set completion-query-items 30
 set convert-meta on
 
 # If set to "on", prevents pasted characters from being interpreted as editing commands.
-set enable-bracketed-paste off
+set enable-bracketed-paste on
 
 # If set to 'on' makes readline use a single line for display and will scroll horizontally
 # if the command becomes longer than the screen.
@@ -34,7 +34,7 @@ set horizontal-scroll-mode off
 
 # Specifies the duration readline will wait for a character when reading an ambiguous key
 # sequence in milliseconds.
-set keyseq-timeout 1000
+set keyseq-timeout 200
 
 # Expand the tilde (often the abbrev for $HOME).
 set expand-tilde off
@@ -78,7 +78,6 @@ set skip-completed-text on
 set bind-tty-special-chars on
 
 # Show mode in prompt (@ for Emacs, : for Vi command mode, + for Vi insert mode).
-set show-mode-in-prompt on
 set emacs-mode-string @
 set vi-ins-mode-string +
 set vi-cmd-mode-string :
