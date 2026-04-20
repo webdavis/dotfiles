@@ -3,7 +3,7 @@
 # ┏ Requirements (tools) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 # ┃                                                             ┃
 # ┃  ∙ https://github.com/tmux/tmux                             ┃
-# ┃  ∙ https://github.com/jrmoulton/tmux-sessionizer (tms)      ┃
+# ┃  ∙ https://github.com/joshmedeski/sesh                      ┃
 # ┃  ∙ https://github.com/tmux-plugins/tmux-resurrect           ┃
 # ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 
@@ -119,7 +119,7 @@ help_message() {
   printf '%s\n' "\
 
 ${bold}DESCRIPTION${normal}
-   This script can kill all existing Tmux sessions, purge their tmux-resurrect data, and then recreate them using tms (tmux-sessionizer) marks, all in one command.
+   This script can kill all existing Tmux sessions, purge their tmux-resurrect data, and then recreate them using sesh (via sesh-bootstrap.sh), all in one command.
 
 ${bold}USAGE${normal}
    ${script_name} [-kpth] [any combination]
@@ -127,7 +127,7 @@ ${bold}USAGE${normal}
 ${bold}OPTIONS${normal}
    -k   Kill all existing Tmux sessions before starting new ones.
    -p   Purge all tmux-resurrect data before starting sessions.
-   -t   Start all Tmux sessions via tms marks (default behavior).
+   -t   Start default Tmux sessions via sesh-bootstrap (default behavior).
    -h   Prints this help text.
 
 ${bold}DEFAULT${normal}
@@ -253,24 +253,25 @@ purge_tmux_resurrect_data() {
   print_process "success" " Done."
 }
 
-launch_tms_sessions() {
-  # Description: Creates all default sessions from tms marks.
-  # Ref: https://github.com/jrmoulton/tmux-sessionizer
-  print_process "info" "Starting all tms sessions from marks..." false
-  tms start
+launch_sesh_sessions() {
+  # Description: Creates the three default sessions via sesh-bootstrap.sh
+  # (uriel, openclaw, homelab). See ~/.local/bin/sesh-bootstrap.sh.
+  # Ref: https://github.com/joshmedeski/sesh
+  print_process "info" "Starting default sesh sessions (uriel/openclaw/homelab)..." false
+  "$HOME/.local/bin/sesh-bootstrap.sh"
   print_process "success" " Done."
 }
 
 perform_actions() {
   if $kill_sessions_flag; then kill_tmux_sessions; fi
   if $purge_tmux_resurrect_data_flag; then purge_tmux_resurrect_data; fi
-  if $launch_all_tmux_sessions_flag; then launch_tms_sessions; fi
+  if $launch_all_tmux_sessions_flag; then launch_sesh_sessions; fi
 }
 
 main() {
   trap_init
   declare_globals
-  verify_required_tools "tmux" "tms"
+  verify_required_tools "tmux" "sesh"
   if_no_flags_activate_all
   perform_actions
 }
