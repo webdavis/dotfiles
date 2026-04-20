@@ -19,14 +19,17 @@ mas {{ .name | quote }}, id: {{ .id }}
 {{ end -}}
 EOF
 
-# Configure Hombrew autoupdate.
-HOMBREW_BIN="${HOMEBREW_PREFIX:-/opt/homebrew}/bin/brew"
+# Configure Homebrew autoupdate (idempotent — only restart if not already running).
+HOMEBREW_BIN="${HOMEBREW_PREFIX:-/opt/homebrew}/bin/brew"
 
-# Workaround to reset the startup timestamp for `domt4/autoupdate` daemon.
-echo "Restarting domt4/autoupdate [stop → delete → start]..."
-"$HOMBREW_BIN" autoupdate stop
-"$HOMBREW_BIN" autoupdate delete
-"$HOMBREW_BIN" autoupdate start 86400 --upgrade --cleanup --immediate --sudo
+if ! "$HOMEBREW_BIN" autoupdate status 2>/dev/null | grep -q "running"; then
+  echo "Starting domt4/autoupdate [stop → delete → start]..."
+  "$HOMEBREW_BIN" autoupdate stop 2>/dev/null || true
+  "$HOMEBREW_BIN" autoupdate delete 2>/dev/null || true
+  "$HOMEBREW_BIN" autoupdate start 86400 --upgrade --cleanup --immediate --sudo
+else
+  echo "Homebrew autoupdate already running — skipping restart."
+fi
 
 # Install uv tools (runs after Homebrew so uv is available).
 {{ range .packages.macos.uv -}}
