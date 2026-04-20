@@ -6,12 +6,6 @@
 [github]
   username = webdavis
 
-[commit]
-  gpgSign = true
-
-[tag]
-  gpgSign = true
-
 [init]
   defaultBranch = main
 
@@ -19,7 +13,10 @@
   editor = nvim
   autocrlf = input
   excludesfile = ~/.gitignore_global
-  pager = diff-so-fancy | less --tabs=4 -RFX
+  pager = delta
+  hooksPath = ~/.config/git/hooks
+  fsmonitor = true
+  untrackedCache = true
 
   # Treat spaces before tabs and all kinds of trailing whitespace as an error.
   # ---------------------------------------------------------------------------------------
@@ -43,9 +40,10 @@
   submodule = log
   tool = nvimdiff
   colorMoved = default
+  algorithm = histogram
 
 [merge]
-  conflictstyle = diff3
+  conflictstyle = zdiff3
   tool = /opt/homebrew/bin/nvim -d -u ~/.config/nvim/init.lua \"$LOCAL\" \"$REMOTE\"
 
 [log]
@@ -53,13 +51,47 @@
 
 [rebase]
   autosquash = true
+  autoStash = true
+  updateRefs = true
 
 [rerere]
   enabled = true
 
-[filesystem "Oracle Corporation|11.0.5|/dev/mapper/volgroup-home"]
-  timestampResolution = 7000 nanoseconds
-  minRacyThreshold = 17718 microseconds
+[fetch]
+  prune = true
+  pruneTags = true
+  writeCommitGraph = true
+
+[commit]
+  gpgSign = true
+  verbose = true
+
+[branch]
+  sort = -committerdate
+
+[tag]
+  gpgSign = true
+  sort = version:refname
+
+[column]
+  ui = auto
+
+[transfer]
+  fsckObjects = true
+
+[pull]
+  rebase = true
+
+[help]
+  autocorrect = prompt
+
+[credential "https://github.com"]
+  helper =
+  helper = !/opt/homebrew/bin/gh auth git-credential
+
+[credential "https://gist.github.com"]
+  helper =
+  helper = !/opt/homebrew/bin/gh auth git-credential
 
 # Reference: https://github.com/jessfraz/dotfiles/blob/30c4d026bfc71df60f7b05d0bdbb3cc34049c017/.gitconfig#L159
 [url "git@github.com:github"]
@@ -120,7 +152,7 @@
   alias=!git config -l | grep ^alias | cut -c 7- | sort
 
   a = "!f() { git add $@; }; f"
-  acp = "!acp() { git add ${@} && git commit --amend --no-edit && git push --force; }; acp"
+  acp = "!acp() { git add ${@} && git commit --amend --no-edit && git push --force-with-lease; }; acp"
 
   # Checkout main branch.
   cm = checkout main
@@ -165,8 +197,19 @@
 
   ts = tag --list --sort=v:refname
 
-  # Save work in a rush!
-  u = !"git add --all && git commit -m 'Quick save' && git push --set-upstream origin main"
+  # v2 §9.4 additions.
+  undo = reset --soft HEAD~1
+  unstage = restore --staged
+  recent = for-each-ref --sort=-committerdate --count=10 --format='%(refname:short)' refs/heads
+  whoami = !git config --get user.name
+  find-merge = "!sh -c 'commit=$0 && branch=${1:-HEAD} && (git rev-list $commit..$branch --ancestry-path | cat -n; git rev-list $commit..$branch --first-parent | cat -n) | sort -k2 -s | uniq -f1 -d | sort -n | tail -1 | cut -f2'"
+  show-merge = "!sh -c 'merge=$(git find-merge $0 $1) && [ -n \"$merge\" ] && git show $merge'"
+  pr = "!f() { git fetch -fu ${2:-origin} refs/pull/$1/head:pr/$1 && git checkout pr/$1; }; f"
+  go = "!f() { git checkout -b \"$1\" 2>/dev/null || git checkout \"$1\"; }; f"
+  dm = "!git branch --merged | grep -v '\\*' | xargs -n 1 git branch -d"
+  fb = "!f() { git branch -a --contains $1; }; f"
+  fc = "!f() { git log --pretty=format:'%C(yellow)%h %Cblue%ad %Creset%s%Cgreen [%cn] %Cred%d' --decorate --date=short -S\"$1\"; }; f"
+  fm = "!f() { git log --pretty=format:'%C(yellow)%h %Cblue%ad %Creset%s%Cgreen [%cn] %Cred%d' --decorate --date=short --grep=\"$1\"; }; f"
 
 [push]
   autoSetupRemote = true
