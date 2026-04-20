@@ -4,35 +4,45 @@ packages:
       taps:
         - antoniorodr/memo
         - buo/cask-upgrade
+        - cirruslabs/cli
         - domt4/autoupdate # Automatic Upgrades.
+        - eugene1g/safehouse
         - FelixKratz/formulae
         - mediosz/tap
         - morantron/tmux-fingers
         - nikitabobko/tap
         - oven-sh/bun
         - owenthereal/upterm
+        - vjeantet/tap
         - xdevplatform/tap
       formulae:
         - act
+        - actionlint
         - age
+        - agent-safehouse
+        - alerter
         - antoniorodr/memo/memo
         - atomicparsley
+        - atuin
         - bash
         - bash-completion@2
         - bat
+        - bat-extras
         - bore-cli
         - brightness
         - btop
         - ca-certificates
+        - carapace
         - ccusage
         - chezmoi
         - cmake
         - cmake-docs
         - coreutils
         - croc
+        - csvlens
         - curl
         - deno
-        - diff-so-fancy
+        - difftastic
         - direnv
         - dust
         - eza
@@ -49,6 +59,7 @@ packages:
         - git-filter-repo
         - git-lfs
         - git-sizer
+        - gitleaks
         - glow
         - gnu-getopt
         - gnu-sed
@@ -57,7 +68,8 @@ packages:
         - grpcurl
         - himalaya
         - httpie
-        - hub
+        - hurl
+        - hyperfine
         - imagemagick
         - iperf3
         - jq
@@ -65,6 +77,7 @@ packages:
         - librsvg
         - mas
         - morantron/tmux-fingers/tmux-fingers
+        - moreutils
         - mosh
         - mtr
         - neovim
@@ -84,10 +97,12 @@ packages:
         - postgresql@17
         - procs
         - pv
-        - rbenv
         - restic
         - ripgrep
+        - ruff
+        - sd
         - sevenzip
+        - sesh
         - socat
         - starship
         - steipete/tap/goplaces
@@ -97,8 +112,8 @@ packages:
         - swiftformat
         - swiftlint
         - switchaudio-osx
+        - tart
         - tealdeer
-        - terminal-notifier
         - tmux
         - tokei
         - trash-cli
@@ -108,6 +123,7 @@ packages:
         - websocat
         - wget
         - wireshark
+        - worktrunk
         - xcbeautify
         - xcode-build-server
         - xcodegen
