@@ -75,15 +75,20 @@ fi
 
 (
 
-  run_osascript() {
-    osascript -e "display notification \"${2}\" with title \"${1}\""
+  # Notify via alerter (replaces terminal-notifier/osascript per v2 §18.3).
+  run_notify() {
+    if command -v alerter &>/dev/null; then
+      alerter --title "$1" --message "$2" 2>/dev/null &
+    else
+      osascript -e "display notification \"${2}\" with title \"${1}\""
+    fi
   }
 
   most_recent_id="$(gh run list -L 1 --json databaseId --jq '.[].databaseId')"
 
   if [[ -z $most_recent_id ]]; then
     error_message="No GitHub Action workflows detected for this project"
-    run_osascript "$script_name" "$error_message"
+    run_notify "$script_name" "$error_message"
     exit 1
   fi
 
@@ -107,8 +112,8 @@ fi
   fi
 
   if [[ $show_branch == 'true' ]]; then
-    run_osascript "GitHub Action - $most_recent_name" "$most_recent_branch: $status_formatted"
+    run_notify "GitHub Action - $most_recent_name" "$most_recent_branch: $status_formatted"
   else
-    run_osascript "GitHub Action - $most_recent_name" "$status_formatted"
+    run_notify "GitHub Action - $most_recent_name" "$status_formatted"
   fi
 ) &
