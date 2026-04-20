@@ -6,6 +6,8 @@ $shell\
 $shlvl\
 $jobs\
 $directory\
+$nix_shell\
+$direnv\
 $aws\
 $git_branch\
 $git_status\
@@ -25,6 +27,10 @@ $docker_context\
 $cmd_duration\
 $time\
 \n$character"""
+
+# Global prompt-render timeouts.
+scan_timeout = 30
+command_timeout = 500
 
 [os.symbols]
 Windows = "󰍲"
@@ -197,11 +203,24 @@ style = "fg:blue bg:#212736"
 format = '[[](fg:prev_bg bg:#212736) $symbol ($version )]($style)'
 
 [cmd_duration]
-# Always display command duration.
-min_time = 0
+# In-prompt duration display for commands >= 2s. Complements the §7.1 notifier
+# (alerter at 30s, Hue pulse at 5min). v1 was "always on" (min_time=0); v2 tunes
+# to 2s so only actually-slow commands surface.
+min_time = 2000
 style = "fg:yellow bg:#1d2230"
 format = "[[](fg:prev_bg bg:#1d2230) \ueba2 $duration]($style)"
 show_milliseconds = true
+
+[nix_shell]
+disabled = false
+symbol = " "
+style = "fg:#7eb8da bg:#212736"
+format = '[[](fg:prev_bg bg:#212736) $symbol$state( \($name\))]($style)'
+
+[direnv]
+disabled = false
+style = "fg:#b4befe bg:#212736"
+format = '[[](fg:prev_bg bg:#212736) direnv:$loaded/$allowed ]($style)'
 
 [time]
 disabled = false
