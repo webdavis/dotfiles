@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 
-# Exit immediately if a command fails.
-set -e
+# Strict mode.
+set -euo pipefail
 
-results_log="$HOME/.local/log/osquery/osqueryd.snapshots.log"
-report_dir="$HOME/workspaces/Ivy/Logs/osquery"
+results_log="${OSQUERY_RESULTS_LOG:-$HOME/.local/log/osquery/osqueryd.snapshots.log}"
+report_dir="${OSQUERY_REPORT_DIR:-$HOME/.local/state/osquery-reports}"
 report_file="$report_dir/$(date +%Y-%m-%d).md"
 
 zombie_threshold=50
@@ -151,7 +151,11 @@ if [[ -n $per_user_line ]]; then
 fi
 
 if [[ -n $alert_msg ]]; then
-  osascript -e "display notification \"$alert_msg\" with title \"osquery Alert\" sound name \"Sosumi\""
+  if command -v alerter &>/dev/null; then
+    alerter --title "osquery Alert" --message "$alert_msg" --sound Sosumi 2>/dev/null &
+  else
+    osascript -e "display notification \"$alert_msg\" with title \"osquery Alert\" sound name \"Sosumi\""
+  fi
 fi
 
 # Clean up old reports (older than 30 days).
