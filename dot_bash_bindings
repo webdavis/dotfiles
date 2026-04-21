@@ -127,17 +127,15 @@ builtin bind -m vi-command '"\C-xdn": "i\C-x0cd ~/.config/nvim\r"'
 builtin bind -m vi-insert '"\C-xds": "\C-x0cd ~/Pictures/screenshots\r"'
 builtin bind -m vi-command '"\C-xds": "i\C-x0cd ~/Pictures/screenshots\r"'
 
-# cd ~/workspaces/webdavis/projects/
-builtin bind -m vi-insert '"\C-xdp": "\C-x0cd ~/workspaces/webdavis/projects\r"'
-builtin bind -m vi-command '"\C-xdp": "i\C-x0cd ~/workspaces/webdavis/projects\r"'
+# cd ~/workspaces/webdavis/
+builtin bind -m vi-insert '"\C-xdp": "\C-x0cd ~/workspaces/webdavis\r"'
+builtin bind -m vi-command '"\C-xdp": "i\C-x0cd ~/workspaces/webdavis\r"'
 
 # cd ~/workspaces/tools/
 builtin bind -m vi-insert '"\C-xdt": "\C-x0cd ~/workspaces/tools\r"'
 builtin bind -m vi-command '"\C-xdt": "i\C-x0cd ~/workspaces/tools\r"'
 
-# cd ~/workspaces/test/
-builtin bind -m vi-insert '"\C-xdT": "\C-x0cd ~/workspaces/test\r"'
-builtin bind -m vi-command '"\C-xdT": "i\C-x0cd ~/workspaces/test\r"'
+# \C-xdT (~/workspaces/test) removed — directory no longer exists.
 
 # Go-to a projects root directory. The respective keyboard binding is in ~/.inputrc.
 __bash_bindings_go_to_project_root() {
