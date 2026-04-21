@@ -1,0 +1,34 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/usr/bin/env bash
+# Link ~/.local/bin/tmux-last-proc.sh into tmux2k's plugins/ dir.
+#
+# Runs on every `chezmoi apply` (no once_/onchange_ prefix). Idempotent:
+# silently skips if tmux2k isn't installed yet (fresh machine before
+# prefix+I) or if the correct symlink already exists.
+#
+# Why not place the file directly under
+# dot_tmux/plugins/tmux2k/plugins/last-proc.sh? tpm's install logic treats
+# an existing $plugin_dir as "already installed" and skips cloning, so
+# chezmoi creating that path on a fresh machine would prevent tmux2k from
+# ever installing. This script runs AFTER tpm has populated tmux2k.
+
+set -euo pipefail
+
+tmux2k_plugins_dir="$HOME/.tmux/plugins/tmux2k/plugins"
+last_proc_src="$HOME/.local/bin/tmux-last-proc.sh"
+last_proc_dst="$tmux2k_plugins_dir/last-proc.sh"
+
+# Skip if tmux2k isn't present (fresh machine; user hasn't run prefix+I).
+[[ -d $tmux2k_plugins_dir ]] || exit 0
+
+# Skip if the source script isn't deployed yet.
+[[ -f $last_proc_src ]] || exit 0
+
+# Already correctly linked → no-op.
+if [[ -L $last_proc_dst && "$(readlink "$last_proc_dst")" == "$last_proc_src" ]]; then
+  exit 0
+fi
+
+ln -sf "$last_proc_src" "$last_proc_dst"
+echo "Linked tmux2k last-proc plugin."
+{{ end -}}

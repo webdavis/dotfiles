@@ -203,10 +203,14 @@ Passive indicators via tmux2k:
   other) via `~/.local/bin/tmux-window-emoji.sh` called from `@tmux2k-window-list-format`.
 - **Right-side status:** a custom tmux2k plugin (`last-proc`) reads `@prev-session` (set by the
   `client-session-changed` hook) and displays `<previous-session>:<active-window> <emoji>`. The plugin
-  script lives at `~/.local/bin/tmux-last-proc.sh` under chezmoi control; symlink it into tmux2k's
-  `plugins/` directory on each machine:
-  `ln -sf ~/.local/bin/tmux-last-proc.sh ~/.tmux/plugins/tmux2k/plugins/last-proc.sh`. Colors come from
-  `@tmux2k-last-proc-colors` set in `dot_tmux.conf` — no need to edit tmux2k's `main.sh`.
+  script lives at `~/.local/bin/tmux-last-proc.sh` under chezmoi control, and
+  `.chezmoiscripts/run_after_70-link-tmux2k-last-proc.sh.tmpl` symlinks it into
+  `~/.tmux/plugins/tmux2k/plugins/last-proc.sh` on every `chezmoi apply` (silent no-op if tmux2k isn't
+  installed yet — fresh machine runs `prefix + I` first). Colors come from `@tmux2k-last-proc-colors` set
+  in `dot_tmux.conf`; no need to edit tmux2k's `main.sh` because `get_plugin_colors` falls back to
+  user-set tmux options. Direct placement of the file under `dot_tmux/...` is avoided because tpm's
+  install check (`if [ -d $plugin_dir ]; skip`) would treat a chezmoi-created path as "already installed"
+  and skip cloning tmux2k entirely.
 
 Replaces the default battery slot in `@tmux2k-right-plugins` with `last-proc network ram`.
 
