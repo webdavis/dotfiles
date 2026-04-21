@@ -31,6 +31,7 @@
           buildInputs = [
             nixfmt
             pkgs.chezmoi
+            pkgs.jq # JSON validator (v2 §19.2)
             (pkgs.python312.withPackages (
               ps: with ps; [
                 mdformat
@@ -39,6 +40,8 @@
             ))
             pkgs.shellcheck
             pkgs.shfmt
+            pkgs.taplo # TOML formatter/linter (v2 §19.1)
+            pkgs.yq-go # YAML validator (v2 §19.1)
           ];
 
           shellHook = ''
@@ -59,7 +62,7 @@
 
             projectName="$(basename "$PWD")"
 
-            echo -e "''${blue}Entering Brewfile linting environment...''${reset}\n"
+            echo -e "''${blue}Entering dotfiles lint/dev environment...''${reset}\n"
 
             echo -e "''${bold}Project:''${reset} ''${green}''${projectName}''${reset}"
 

@@ -17,6 +17,9 @@ track_runner_exit_codes() {
     [shfmt]=0
     [mdformat]=0
     [nixfmt]=0
+    [taplo]=0
+    [jq]=0
+    [yq]=0
   )
 }
 
@@ -192,7 +195,10 @@ run_40_mdformat() {
 }
 
 find_nix_files() {
-  printf "%b" "flake.nix"
+  find . \
+    -type d \( -name ".git" -o -name ".direnv" -o -regex ".*/\.?vendor" \) -prune \
+    -o -type f -name "*.nix" \
+    -print0
 }
 
 nixfmt_runner() {
@@ -205,6 +211,56 @@ run_50_nixfmt() {
   execute_runner find_nix_files nixfmt_runner || return "$?"
 }
 
+find_toml_files() {
+  # dot_aerospace.toml uses user-preferred visual alignment that taplo's
+  # default formatter strips; skip it so the user's style is preserved.
+  find . \
+    -type d \( -name ".git" -o -name ".direnv" -o -regex ".*/\.?vendor" \) -prune \
+    -o -type f -name "*.toml" ! -name "dot_aerospace.toml" \
+    -print0
+}
+
+taplo_runner() {
+  local file="$1"
+  # Format in place, matching shfmt/mdformat behavior elsewhere in lint.sh.
+  # A non-zero exit here means taplo couldn't parse the file (real syntax
+  # error), not that it would change formatting.
+  taplo format "$file" >/dev/null 2>&1 || return "$?"
+}
+
+run_60_taplo() {
+  execute_runner find_toml_files taplo_runner || return "$?"
+}
+
+find_json_files() {
+  find . \
+    -type d \( -name ".git" -o -name ".direnv" -o -name "node_modules" -o -regex ".*/\.?vendor" \) -prune \
+    -o -type f -name "*.json" \
+    -print0
+}
+
+jq_runner() {
+  local file="$1"
+  jq empty <"$file" || return "$?"
+}
+
+run_70_jq() {
+  execute_runner find_json_files jq_runner || return "$?"
+}
+
+find_yaml_files() {
+  find .chezmoidata -type f \( -name "*.yaml" -o -name "*.yml" \) -print0 2>/dev/null
+}
+
+yq_runner() {
+  local file="$1"
+  yq eval '.' "$file" >/dev/null || return "$?"
+}
+
+run_80_yq() {
+  execute_runner find_yaml_files yq_runner || return "$?"
+}
+
 parse_cli_options() {
   local -n pco_runners="${1:-runners}"
   shift 1
@@ -212,7 +268,7 @@ parse_cli_options() {
 
   local ci_mode=false
 
-  local optstring=":csSrmn"
+  local optstring=":csSrmntjy"
   while getopts "$optstring" option "${cli_options[@]}"; do
     case "$option" in
       c) ci_mode=true ;;
@@ -220,6 +276,9 @@ parse_cli_options() {
       S) pco_runners+=("run_20_shfmt") ;;
       m) pco_runners+=("run_40_mdformat") ;;
       n) pco_runners+=("run_50_nixfmt") ;;
+      t) pco_runners+=("run_60_taplo") ;;
+      j) pco_runners+=("run_70_jq") ;;
+      y) pco_runners+=("run_80_yq") ;;
       *)
         printf "%s\n" "Error: invalid option '$OPTARG'" >&2
         exit 1

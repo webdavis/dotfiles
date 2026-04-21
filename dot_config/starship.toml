@@ -224,6 +224,6 @@ format = '[[](fg:prev_bg bg:#212736) direnv:$loaded/$allowed ]($style)'
 
 [time]
 disabled = false
-time_format = "%R" # Format: HH:mm
+time_format = "%R"                                                      # Format: HH:mm
 style = "fg:#a0a9cb bg:#1d2230"
 format = '[](fg:prev_bg bg:#1d2230)[  $time ]($style)[](fg:#1d2230)'
