@@ -2,10 +2,9 @@
 
 ## Overview
 
-WeasyPrint converts HTML/CSS to PDF. These guidelines ensure professional output without awkward page
-breaks, orphaned content, or layout issues.
+WeasyPrint converts HTML/CSS to PDF. These guidelines ensure professional output without awkward page breaks, orphaned content, or layout issues.
 
-______________________________________________________________________
+---
 
 ## Critical CSS Properties for Page Breaks
 
@@ -52,7 +51,7 @@ p {
 }
 ```
 
-______________________________________________________________________
+---
 
 ## @page Rules
 
@@ -83,7 +82,7 @@ ______________________________________________________________________
 }
 ```
 
-______________________________________________________________________
+---
 
 ## Table Design for PDF
 
@@ -120,7 +119,7 @@ td {
 }
 ```
 
-______________________________________________________________________
+---
 
 ## Typography for Print
 
@@ -151,7 +150,7 @@ h3 { font-size: 11pt; }
 - Tables: 1.4-1.5
 - Bibliography: 1.5
 
-______________________________________________________________________
+---
 
 ## Layout Patterns That Work
 
@@ -196,7 +195,7 @@ Flexbox and Grid have limited WeasyPrint support. Use `display: table`:
 }
 ```
 
-______________________________________________________________________
+---
 
 ## Content Boxes
 
@@ -233,7 +232,7 @@ ______________________________________________________________________
 }
 ```
 
-______________________________________________________________________
+---
 
 ## Bibliography
 
@@ -255,14 +254,13 @@ ______________________________________________________________________
 }
 ```
 
-______________________________________________________________________
+---
 
 ## Common Problems and Solutions
 
 ### Problem: Table Splits Across Pages
 
-**Solution:** Add `page-break-inside: avoid` to table. If table is too large, split into multiple smaller
-tables.
+**Solution:** Add `page-break-inside: avoid` to table. If table is too large, split into multiple smaller tables.
 
 ### Problem: Header at Bottom of Page with No Content
 
@@ -284,20 +282,20 @@ tables.
 
 **Solution:** Use generous @page margins (25mm top/bottom, 20mm sides).
 
-______________________________________________________________________
+---
 
 ## Compact Report Strategy
 
 To reduce page count while maintaining readability:
 
 1. **Use 10pt base font** (not 12pt)
-1. **Tighter line-height**: 1.5-1.6 instead of 1.8
-1. **Smaller margins in boxes**: 10pt padding instead of 15pt
-1. **Condensed bibliography**: 8pt font, tighter spacing
-1. **Two-column layouts** for comparison data
-1. **Inline metrics dashboard** rather than full-width cards
+2. **Tighter line-height**: 1.5-1.6 instead of 1.8
+3. **Smaller margins in boxes**: 10pt padding instead of 15pt
+4. **Condensed bibliography**: 8pt font, tighter spacing
+5. **Two-column layouts** for comparison data
+6. **Inline metrics dashboard** rather than full-width cards
 
-______________________________________________________________________
+---
 
 ## Validation Checklist
 
@@ -312,7 +310,7 @@ Before generating PDF, verify:
 - [ ] @page margins defined
 - [ ] Two-column layouts use `display: table`
 
-______________________________________________________________________
+---
 
 ## Generation Command
 
@@ -321,7 +319,6 @@ weasyprint input.html output.pdf
 ```
 
 Options:
-
 - `--presentational-hints` - Respect HTML presentational hints
 - `-s stylesheet.css` - Apply external stylesheet
 - `--pdf-variant pdf/ua-1` - Generate accessible PDF

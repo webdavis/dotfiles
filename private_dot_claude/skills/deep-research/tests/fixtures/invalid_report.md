@@ -8,19 +8,19 @@ This is too short.
 
 **Confidence Level:** High
 
-______________________________________________________________________
+---
 
 ## Introduction
 
 Missing methodology section.
 
-______________________________________________________________________
+---
 
 ## Main Analysis
 
 No citations here [99].
 
-______________________________________________________________________
+---
 
 ## Limitations & Caveats
 

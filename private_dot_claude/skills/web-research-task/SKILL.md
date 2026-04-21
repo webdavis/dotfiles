@@ -1,19 +1,16 @@
 # Claude Web Research Task
 
 ## Purpose
+This skill enables Claude Code to spawn a **dedicated background agent** that uses Claude in Chrome to access Claude.ai's Research toggle, run deep research queries, and return comprehensive results.
 
-This skill enables Claude Code to spawn a **dedicated background agent** that uses Claude in Chrome to
-access Claude.ai's Research toggle, run deep research queries, and return comprehensive results.
-
-**IMPORTANT**: This task MUST run as a background agent because Research takes 5 to 30+ minutes. Do NOT
-skip this step or try to inline it into other workflows.
+**IMPORTANT**: This task MUST run as a background agent because Research takes 5 to 30+ minutes. Do NOT skip this step or try to inline it into other workflows.
 
 ## Prerequisites
 
 1. **Claude in Chrome Extension** installed and authenticated
-1. **Claude Code** v2.0.60+ (for background agents)
-1. **Paid Claude subscription** (Pro/Team/Max/Enterprise)
-1. Chrome browser running
+2. **Claude Code** v2.0.60+ (for background agents)
+3. **Paid Claude subscription** (Pro/Team/Max/Enterprise)
+4. Chrome browser running
 
 ## How to Invoke
 
@@ -24,7 +21,6 @@ claude --chrome
 ```
 
 Then in Claude Code:
-
 ```
 Run the web research task as a background agent for: "Your research query here"
 ```
@@ -42,13 +38,13 @@ Press `Ctrl+Shift+B` or tell Claude to run it in background.
 The background agent will:
 
 1. **Open new Chrome tab** to https://claude.ai
-1. **Wait for page load** (check for chat interface)
-1. **Click "Research" toggle** (bottom left of chat interface)
-1. **Enter the research query** in the chat input
-1. **Submit and wait** for research to complete (monitor for "Research complete" or final output)
-1. **Extract the full response** including citations
-1. **Save to file**: `./docs/research/[timestamp]-[query-slug].md`
-1. **Return summary** to main Claude Code session
+2. **Wait for page load** (check for chat interface)
+3. **Click "Research" toggle** (bottom left of chat interface)
+4. **Enter the research query** in the chat input
+5. **Submit and wait** for research to complete (monitor for "Research complete" or final output)
+6. **Extract the full response** including citations
+7. **Save to file**: `./docs/research/[timestamp]-[query-slug].md`
+8. **Return summary** to main Claude Code session
 
 ## Critical Instructions for Claude
 
@@ -71,14 +67,14 @@ YOU MUST NOT:
 
 ## Expected Timeline
 
-| Phase                 | Duration         |
-| --------------------- | ---------------- |
-| Navigate to claude.ai | 5 to 10 seconds  |
-| Toggle Research       | 2 to 5 seconds   |
-| Enter query           | 5 to 10 seconds  |
-| Research execution    | 5 to 30 minutes  |
-| Extract results       | 10 to 30 seconds |
-| Save to file          | 2 to 5 seconds   |
+| Phase | Duration |
+|-------|----------|
+| Navigate to claude.ai | 5 to 10 seconds |
+| Toggle Research | 2 to 5 seconds |
+| Enter query | 5 to 10 seconds |
+| Research execution | 5 to 30 minutes |
+| Extract results | 10 to 30 seconds |
+| Save to file | 2 to 5 seconds |
 
 **Total: 6 to 35 minutes** (mostly waiting for Research)
 
@@ -105,12 +101,12 @@ Results are saved as Markdown:
 
 ## Troubleshooting
 
-| Issue                       | Solution                                                          |
-| --------------------------- | ----------------------------------------------------------------- |
-| Research toggle not visible | Ensure you have a paid Claude plan                                |
-| Page not loading            | Check Chrome is running, extension is active                      |
-| Timeout                     | Research can take 30+ min for complex queries; increase wait time |
-| Login required              | Open Claude in Chrome sidebar first to authenticate               |
+| Issue | Solution |
+|-------|----------|
+| Research toggle not visible | Ensure you have a paid Claude plan |
+| Page not loading | Check Chrome is running, extension is active |
+| Timeout | Research can take 30+ min for complex queries; increase wait time |
+| Login required | Open Claude in Chrome sidebar first to authenticate |
 
 ## Integration with Your Workflow
 

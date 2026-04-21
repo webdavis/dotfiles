@@ -2,53 +2,48 @@
 
 ## Overview
 
-This document contains the detailed methodology for conducting deep research. The 8 phases represent a
-comprehensive approach to gathering, verifying, and synthesizing information from multiple sources.
+This document contains the detailed methodology for conducting deep research. The 8 phases represent a comprehensive approach to gathering, verifying, and synthesizing information from multiple sources.
 
-______________________________________________________________________
+---
 
 ## Phase 1: SCOPE - Research Framing
 
 **Objective:** Define research boundaries and success criteria
 
 **Activities:**
-
 1. Decompose the question into core components
-1. Identify stakeholder perspectives
-1. Define scope boundaries (what's in/out)
-1. Establish success criteria
-1. List key assumptions to validate
+2. Identify stakeholder perspectives
+3. Define scope boundaries (what's in/out)
+4. Establish success criteria
+5. List key assumptions to validate
 
-**Ultrathink Application:** Use extended reasoning to explore multiple framings of the question before
-committing to scope.
+**Ultrathink Application:** Use extended reasoning to explore multiple framings of the question before committing to scope.
 
 **Output:** Structured scope document with research boundaries
 
-______________________________________________________________________
+---
 
 ## Phase 2: PLAN - Strategy Formulation
 
 **Objective:** Create an intelligent research roadmap
 
 **Activities:**
-
 1. Identify primary and secondary sources
-1. Map knowledge dependencies (what must be understood first)
-1. Create search query strategy with variants
-1. Plan triangulation approach
-1. Estimate time/effort per phase
-1. Define quality gates
+2. Map knowledge dependencies (what must be understood first)
+3. Create search query strategy with variants
+4. Plan triangulation approach
+5. Estimate time/effort per phase
+6. Define quality gates
 
 **Graph-of-Thoughts:** Branch into multiple potential research paths, then converge on optimal strategy.
 
 **Output:** Research plan with prioritized investigation paths
 
-______________________________________________________________________
+---
 
 ## Phase 3: RETRIEVE - Parallel Information Gathering
 
-**Objective:** Systematically collect information from multiple sources using parallel execution for
-maximum speed
+**Objective:** Systematically collect information from multiple sources using parallel execution for maximum speed
 
 **CRITICAL: Execute ALL searches in parallel using a single message with multiple tool calls**
 
@@ -57,21 +52,20 @@ maximum speed
 Before launching searches, decompose the research question into 5-10 independent search angles:
 
 1. **Core topic (semantic search)** - Meaning-based exploration of main concept
-1. **Technical details (keyword search)** - Specific terms, APIs, implementations
-1. **Recent developments (date-filtered)** - What's new in last 12-18 months (use current date from Step
-   0\)
-1. **Academic sources (domain-specific)** - Papers, research, formal analysis
-1. **Alternative perspectives (comparison)** - Competing approaches, criticisms
-1. **Statistical/data sources** - Quantitative evidence, metrics, benchmarks
-1. **Industry analysis** - Commercial applications, market trends
-1. **Critical analysis/limitations** - Known problems, failure modes, edge cases
+2. **Technical details (keyword search)** - Specific terms, APIs, implementations
+3. **Recent developments (date-filtered)** - What's new in last 12-18 months (use current date from Step 0)
+4. **Academic sources (domain-specific)** - Papers, research, formal analysis
+5. **Alternative perspectives (comparison)** - Competing approaches, criticisms
+6. **Statistical/data sources** - Quantitative evidence, metrics, benchmarks
+7. **Industry analysis** - Commercial applications, market trends
+8. **Critical analysis/limitations** - Known problems, failure modes, edge cases
 
 ### Parallel Execution Protocol
 
 **Step 0: Get the current date**
 
-Before ANY searches, retrieve today's date using Bash: `date +%Y-%m-%d` Use the returned year for all
-date-filtered queries and recency checks. Do NOT assume a year from training data.
+Before ANY searches, retrieve today's date using Bash: `date +%Y-%m-%d`
+Use the returned year for all date-filtered queries and recency checks. Do NOT assume a year from training data.
 
 **Step 1: Launch ALL searches concurrently (single message)**
 
@@ -80,22 +74,18 @@ date-filtered queries and recency checks. Do NOT assume a year from training dat
 Choose ONE search approach per research session:
 
 **Option A: Use WebSearch (built-in, no MCP required)**
-
 - Standard web search with simple query string
 - Parameters: `query` (required)
 - Optional: `allowed_domains`, `blocked_domains`
 - Example: `WebSearch(query="quantum computing 2025")`
 
 **Option B: Use Exa MCP (if available, more powerful)**
-
 - Advanced semantic + keyword search
 - Tool name: `mcp__Exa__exa_search`
-- Parameters: `query` (required), `type` (auto/neural/keyword), `num_results`, `start_published_date`,
-  `include_domains`
+- Parameters: `query` (required), `type` (auto/neural/keyword), `num_results`, `start_published_date`, `include_domains`
 - Example: `mcp__Exa__exa_search(query="quantum computing", type="neural", num_results=10)`
 
 **Option C: Use search-cli (if installed, multi-provider)**
-
 - Unified CLI aggregating Brave, Serper, Exa, Jina, and Firecrawl
 - Install: `brew tap 199-biotechnologies/tap && brew install search-cli`
 - Requires API keys: `search config set keys.[provider] YOUR_KEY`
@@ -105,27 +95,24 @@ Choose ONE search approach per research session:
 - Example: `search "quantum computing 2025" -m academic --json -c 15`
 - **First-time setup:** Ask user if they want to install search-cli and configure API keys
 
+
 **NEVER mix parameter styles** - this causes "Invalid tool parameters" errors.
 
 **Step 2: Spawn parallel deep-dive agents**
 
 Use Task tool with general-purpose agents (3-5 agents) for:
-
 - Academic paper analysis (PDFs, detailed extraction)
 - Documentation deep dives (technical specs, API docs)
 - Repository analysis (code examples, implementations)
 - Specialized domain research (requires multi-step investigation)
 
 **Sub-agent output format:** Require all sub-agents to return structured evidence, not free text:
-
 ```json
 {"claim": "specific claim text", "evidence_quote": "exact quote from source", "source_url": "https://...", "source_title": "...", "confidence": 0.85}
 ```
-
 This prevents synthesis fatigue when merging results from 3-5 agents.
 
 **Example parallel execution (using WebSearch):**
-
 ```
 [Single message with multiple tool calls]
 - WebSearch(query="quantum computing 2025 state of the art")
@@ -139,7 +126,6 @@ This prevents synthesis fatigue when merging results from 3-5 agents.
 ```
 
 **Example parallel execution (using Exa MCP - if available):**
-
 ```
 [Single message with multiple tool calls]
 - mcp__Exa__exa_search(query="quantum computing state of the art", type="neural", num_results=10, start_published_date="[use current year from Step 0]")
@@ -152,26 +138,23 @@ This prevents synthesis fatigue when merging results from 3-5 agents.
 **Step 3: Collect and organize results**
 
 As results arrive:
-
 1. Extract key passages with source metadata (title, URL, date, credibility)
-1. Track information gaps that emerge
-1. Follow promising tangents with additional targeted searches
-1. Maintain source diversity (mix academic, industry, news, technical docs)
-1. Monitor for quality threshold (see FFS pattern below)
+2. Track information gaps that emerge
+3. Follow promising tangents with additional targeted searches
+4. Maintain source diversity (mix academic, industry, news, technical docs)
+5. Monitor for quality threshold (see FFS pattern below)
 
 ### First Finish Search (FFS) Pattern
 
 **Adaptive completion based on quality threshold:**
 
 **Quality gate:** Proceed to Phase 4 when FIRST threshold reached:
-
 - **Quick mode:** 10+ sources with avg credibility >60/100 OR 2 minutes elapsed
 - **Standard mode:** 15+ sources with avg credibility >60/100 OR 5 minutes elapsed
 - **Deep mode:** 25+ sources with avg credibility >70/100 OR 10 minutes elapsed
 - **UltraDeep mode:** 30+ sources with avg credibility >75/100 OR 15 minutes elapsed
 
 **Continue background searches:**
-
 - If threshold reached early, continue remaining parallel searches in background
 - Additional sources used in Phase 5 (SYNTHESIZE) for depth and diversity
 - Allows fast progression without sacrificing thoroughness
@@ -179,20 +162,17 @@ As results arrive:
 ### Quality Standards
 
 **Source diversity requirements:**
-
 - Minimum 3 source types (academic, industry, news, technical docs)
 - Temporal diversity (mix of recent 12-18 months + foundational older sources)
 - Perspective diversity (proponents + critics + neutral analysis)
 - Geographic diversity (not just US sources)
 
 **Credibility tracking:**
-
 - Score each source 0-100 using source_evaluator.py
-- Flag low-credibility sources (\<40) for additional verification
+- Flag low-credibility sources (<40) for additional verification
 - Prioritize high-credibility sources (>80) for core claims
 
 **Techniques:**
-
 - Use WebSearch for current information (primary tool)
 - Use search-cli for multi-provider aggregated search (if installed)
 - Use WebFetch for deep dives into specific sources (secondary)
@@ -203,23 +183,21 @@ As results arrive:
 
 **Output:** Organized information repository with source tracking, credibility scores, and coverage map
 
-______________________________________________________________________
+---
 
 ## Phase 4: TRIANGULATE - Cross-Reference Verification
 
 **Objective:** Validate information across multiple independent sources
 
 **Activities:**
-
 1. Identify claims requiring verification
-1. Cross-reference facts across 3+ sources
-1. Flag contradictions or uncertainties
-1. Assess source credibility
-1. Note consensus vs. debate areas
-1. Document verification status per claim
+2. Cross-reference facts across 3+ sources
+3. Flag contradictions or uncertainties
+4. Assess source credibility
+5. Note consensus vs. debate areas
+6. Document verification status per claim
 
 **Quality Standards:**
-
 - Core claims must have 3+ independent sources
 - Flag any single-source information
 - Note recency of information
@@ -227,17 +205,15 @@ ______________________________________________________________________
 
 **Output:** Verified fact base with confidence levels
 
-______________________________________________________________________
+---
 
 ## Phase 4.5: OUTLINE REFINEMENT - Dynamic Evolution (WebWeaver 2025)
 
 **Objective:** Adapt research direction based on evidence discovered
 
-**Problem Solved:** Prevents "locked-in" research when evidence points to different conclusions or
-uncovers more important angles than initially planned.
+**Problem Solved:** Prevents "locked-in" research when evidence points to different conclusions or uncovers more important angles than initially planned.
 
 **When to Execute:**
-
 - **Standard/Deep/UltraDeep modes only** (Quick mode skips this)
 - After Phase 4 (TRIANGULATE) completes
 - Before Phase 5 (SYNTHESIZE)
@@ -245,16 +221,14 @@ uncovers more important angles than initially planned.
 **Activities:**
 
 1. **Review Initial Scope vs. Actual Findings**
-
    - Compare Phase 1 scope with Phase 3-4 discoveries
    - Identify unexpected patterns or contradictions
    - Note underexplored angles that emerged as critical
    - Flag overexplored areas that proved less important
 
-1. **Evaluate Outline Adaptation Need**
+2. **Evaluate Outline Adaptation Need**
 
    **Signals for adaptation (ANY triggers refinement):**
-
    - Major findings contradict initial assumptions
    - Evidence reveals more important angle than originally scoped
    - Critical subtopic emerged that wasn't in original plan
@@ -262,22 +236,19 @@ uncovers more important angles than initially planned.
    - Sources consistently discuss aspects not in initial outline
 
    **Signals to keep current outline:**
-
    - Evidence aligns with initial scope
    - All key angles adequately covered
    - No major gaps or surprises
 
-1. **Refine Outline (if needed)**
+3. **Refine Outline (if needed)**
 
    **Update structure to reflect evidence:**
-
    - Add sections for unexpected but important findings
    - Demote/remove sections with insufficient evidence
    - Reorder sections based on evidence strength and importance
    - Adjust scope boundaries based on what's actually discoverable
 
    **Example adaptation:**
-
    ```
    Original outline:
    1. Introduction
@@ -294,25 +265,22 @@ uncovers more important angles than initially planned.
    6. Synthesis & Recommendations
    ```
 
-1. **Targeted Gap Filling (if major gaps found)**
+4. **Targeted Gap Filling (if major gaps found)**
 
    If outline refinement reveals critical knowledge gaps:
-
    - Launch 2-3 targeted searches for newly identified angles
    - Quick retrieval only (don't restart full Phase 3)
    - Time-box to 2-5 minutes
    - Update triangulation for new evidence only
 
-1. **Document Adaptation Rationale**
+5. **Document Adaptation Rationale**
 
    Record in methodology appendix:
-
    - What changed in outline
    - Why it changed (evidence-driven reasons)
    - What additional research was conducted (if any)
 
 **Quality Standards:**
-
 - Adaptation must be evidence-driven (cite specific sources that prompted change)
 - No more than 50% outline restructuring (if more needed, scope was severely mis scoped)
 - Retain original research question core (don't drift into different topic entirely)
@@ -321,7 +289,6 @@ uncovers more important angles than initially planned.
 **Output:** Refined outline that accurately reflects evidence landscape, ready for synthesis
 
 **Anti-Pattern Warning:**
-
 - ❌ DON'T adapt outline based on speculation or "what would be interesting"
 - ❌ DON'T add sections without supporting evidence already in hand
 - ❌ DON'T completely abandon original research question
@@ -329,104 +296,95 @@ uncovers more important angles than initially planned.
 - ✅ DO document rationale for changes
 - ✅ DO stay within original topic scope
 
-______________________________________________________________________
+---
 
 ## Phase 5: SYNTHESIZE - Deep Analysis
 
 **Objective:** Connect insights and generate novel understanding
 
 **Activities:**
-
 1. Identify patterns across sources
-1. Map relationships between concepts
-1. Generate insights beyond source material
-1. Create conceptual frameworks
-1. Build argument structures
-1. Develop evidence hierarchies
+2. Map relationships between concepts
+3. Generate insights beyond source material
+4. Create conceptual frameworks
+5. Build argument structures
+6. Develop evidence hierarchies
 
-**Ultrathink Integration:** Use extended reasoning to explore non-obvious connections and second-order
-implications.
+**Ultrathink Integration:** Use extended reasoning to explore non-obvious connections and second-order implications.
 
 **Output:** Synthesized understanding with insight generation
 
-______________________________________________________________________
+---
 
 ## Phase 6: CRITIQUE - Quality Assurance
 
 **Objective:** Rigorously evaluate research quality
 
 **Activities:**
-
 1. Review for logical consistency
-1. Check citation completeness
-1. Identify gaps or weaknesses
-1. Assess balance and objectivity
-1. Verify claims against sources
-1. Test alternative interpretations
+2. Check citation completeness
+3. Identify gaps or weaknesses
+4. Assess balance and objectivity
+5. Verify claims against sources
+6. Test alternative interpretations
 
 **Red Team Questions:**
-
 - What's missing?
 - What could be wrong?
 - What alternative explanations exist?
 - What biases might be present?
 - What counterfactuals should be considered?
 
-**Persona-Based Critique (Deep/UltraDeep only):** Simulate 2-3 specific critic personas relevant to the
-topic:
-
+**Persona-Based Critique (Deep/UltraDeep only):**
+Simulate 2-3 specific critic personas relevant to the topic:
 - "Skeptical Practitioner" — Would someone doing this daily trust these findings?
 - "Adversarial Reviewer" — What would a peer reviewer reject?
 - "Implementation Engineer" — Can these recommendations actually be executed?
 
-**Critical Gap Loop-Back:** If critique identifies a critical knowledge gap (not just a writing issue),
-return to Phase 3 with targeted "delta-queries" before proceeding to Phase 7. Time-box to 3-5 minutes.
-This prevents publishing reports with known blind spots.
+**Critical Gap Loop-Back:**
+If critique identifies a critical knowledge gap (not just a writing issue), return to Phase 3 with targeted "delta-queries" before proceeding to Phase 7. Time-box to 3-5 minutes. This prevents publishing reports with known blind spots.
 
 **Output:** Critique report with improvement recommendations
 
-______________________________________________________________________
+---
 
 ## Phase 7: REFINE - Iterative Improvement
 
 **Objective:** Address gaps and strengthen weak areas
 
 **Activities:**
-
 1. Conduct additional research for gaps
-1. Strengthen weak arguments
-1. Add missing perspectives
-1. Resolve contradictions
-1. Enhance clarity
-1. Verify revised content
+2. Strengthen weak arguments
+3. Add missing perspectives
+4. Resolve contradictions
+5. Enhance clarity
+6. Verify revised content
 
 **Output:** Strengthened research with addressed deficiencies
 
-______________________________________________________________________
+---
 
 ## Phase 8: PACKAGE - Report Generation
 
 **Objective:** Deliver professional, actionable research
 
 **Activities:**
-
 1. Structure report with clear hierarchy
-1. Write executive summary
-1. Develop detailed sections
-1. Create visualizations (tables, diagrams)
-1. Compile full bibliography
-1. Add methodology appendix
+2. Write executive summary
+3. Develop detailed sections
+4. Create visualizations (tables, diagrams)
+5. Compile full bibliography
+6. Add methodology appendix
 
 **Output:** Complete research report ready for use
 
-______________________________________________________________________
+---
 
 ## Advanced Features
 
 ### Graph-of-Thoughts Reasoning
 
 Rather than linear thinking, branch into multiple reasoning paths:
-
 - Explore alternative framings in parallel
 - Pursue tangential leads that might be relevant
 - Merge insights from different branches
@@ -435,7 +393,6 @@ Rather than linear thinking, branch into multiple reasoning paths:
 ### Parallel Agent Deployment
 
 Use Task tool to spawn sub-agents for:
-
 - Parallel source retrieval
 - Independent verification paths
 - Competing hypothesis evaluation
@@ -444,7 +401,6 @@ Use Task tool to spawn sub-agents for:
 ### Adaptive Depth Control
 
 Automatically adjust research depth based on:
-
 - Information complexity
 - Source availability
 - Time constraints
@@ -453,7 +409,6 @@ Automatically adjust research depth based on:
 ### Citation Intelligence
 
 Smart citation management:
-
 - Track provenance of every claim
 - Link to original sources
 - Assess source credibility

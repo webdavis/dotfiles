@@ -3,7 +3,6 @@
 Execute deep research using Claude.ai's Research feature via Chrome automation.
 
 ## Usage
-
 ```
 /research-via-web "Your research query here"
 ```
@@ -13,19 +12,17 @@ Execute deep research using Claude.ai's Research feature via Chrome automation.
 This command MUST be run as a **background agent**. When invoked:
 
 1. Spawns a dedicated background agent
-1. Uses Claude in Chrome to navigate to claude.ai
-1. Enables the Research toggle
-1. Submits the query
-1. Waits for full completion (5 to 30 minutes)
-1. Extracts and saves results to `./docs/research/`
+2. Uses Claude in Chrome to navigate to claude.ai
+3. Enables the Research toggle
+4. Submits the query
+5. Waits for full completion (5 to 30 minutes)
+6. Extracts and saves results to `./docs/research/`
 
 ## CRITICAL: Do Not Skip Background Execution
 
-Research takes significant time. This command is designed to run autonomously while you continue other
-work.
+Research takes significant time. This command is designed to run autonomously while you continue other work.
 
 **Correct invocation:**
-
 ```
 Run /research-via-web as a background agent: "Latest Laravel 12 features and migration guide"
 ```
@@ -34,9 +31,9 @@ Run /research-via-web as a background agent: "Latest Laravel 12 features and mig
 
 ## Arguments
 
-| Argument | Required | Description                    |
-| -------- | -------- | ------------------------------ |
-| query    | Yes      | The research question or topic |
+| Argument | Required | Description |
+|----------|----------|-------------|
+| query | Yes | The research question or topic |
 
 ## Examples
 
@@ -55,7 +52,6 @@ Run /research-via-web as a background agent: "Latest Laravel 12 features and mig
 ## Output Location
 
 Results saved to:
-
 ```
 ./docs/research/YYYYMMDD-HHMMSS-query-slug.md
 ```
@@ -63,7 +59,6 @@ Results saved to:
 ## Checking Status
 
 While the background agent runs:
-
 ```
 Check status of background agents
 ```

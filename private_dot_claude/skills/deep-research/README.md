@@ -1,7 +1,6 @@
 # Deep Research Skill for Claude Code
 
-Enterprise-grade research engine for Claude Code. Produces citation-backed reports with source
-credibility scoring, multi-provider search, and automated validation.
+Enterprise-grade research engine for Claude Code. Produces citation-backed reports with source credibility scoring, multi-provider search, and automated validation.
 
 ## Installation
 
@@ -33,33 +32,28 @@ deep research in ultradeep mode: compare PostgreSQL vs Supabase for our stack
 
 ## Research Modes
 
-| Mode      | Phases | Duration  | Best For                             |
-| --------- | ------ | --------- | ------------------------------------ |
-| Quick     | 3      | 2-5 min   | Initial exploration                  |
-| Standard  | 6      | 5-10 min  | Most research questions              |
-| Deep      | 8      | 10-20 min | Complex topics, critical decisions   |
-| UltraDeep | 8+     | 20-45 min | Comprehensive reports, maximum rigor |
+| Mode | Phases | Duration | Best For |
+|------|--------|----------|----------|
+| Quick | 3 | 2-5 min | Initial exploration |
+| Standard | 6 | 5-10 min | Most research questions |
+| Deep | 8 | 10-20 min | Complex topics, critical decisions |
+| UltraDeep | 8+ | 20-45 min | Comprehensive reports, maximum rigor |
 
 ## Pipeline
 
-Scope → Plan → **Retrieve** (parallel search + agents) → Triangulate → Outline Refinement → Synthesize →
-Critique (with loop-back) → Refine → Package
+Scope &rarr; Plan &rarr; **Retrieve** (parallel search + agents) &rarr; Triangulate &rarr; Outline Refinement &rarr; Synthesize &rarr; Critique (with loop-back) &rarr; Refine &rarr; Package
 
 Key features:
-
 - **Step 0**: Retrieves current date before searches (prevents stale training-data year assumptions)
-- **Parallel retrieval**: 5-10 concurrent searches + 2-3 focused sub-agents returning structured evidence
-  objects
+- **Parallel retrieval**: 5-10 concurrent searches + 2-3 focused sub-agents returning structured evidence objects
 - **First Finish Search**: Adaptive quality thresholds by mode
 - **Critique loop-back**: Phase 6 can return to Phase 3 with delta-queries if critical gaps found
-- **Multi-persona red teaming**: Skeptical Practitioner, Adversarial Reviewer, Implementation Engineer
-  (Deep/UltraDeep)
+- **Multi-persona red teaming**: Skeptical Practitioner, Adversarial Reviewer, Implementation Engineer (Deep/UltraDeep)
 - **Disk-persisted citations**: `sources.json` survives context compaction and continuation agents
 
 ## Output
 
 Reports saved to `~/Documents/[Topic]_Research_[Date]/`:
-
 - Markdown (primary source of truth)
 - HTML (McKinsey-style, auto-opened in browser)
 - PDF (professional print via WeasyPrint)
@@ -72,16 +66,15 @@ Reports >18K words auto-continue via recursive agent spawning with context prese
 - Executive summary 200-400 words
 - Findings 600-2,000 words each, prose-first (>=80%)
 - Full bibliography with URLs, no placeholders
-- Automated validation: `validate_report.py` (9 checks) + `verify_citations.py` (DOI/URL/hallucination
-  detection)
-- Validation loop: validate → fix → retry (max 3 cycles)
+- Automated validation: `validate_report.py` (9 checks) + `verify_citations.py` (DOI/URL/hallucination detection)
+- Validation loop: validate &rarr; fix &rarr; retry (max 3 cycles)
 
 ## Search Tools
 
-| Tool       | When                       | Setup                                |
-| ---------- | -------------------------- | ------------------------------------ |
-| WebSearch  | Default, always available  | None                                 |
-| Exa MCP    | Semantic/neural search     | MCP config                           |
+| Tool | When | Setup |
+|------|------|-------|
+| WebSearch | Default, always available | None |
+| Exa MCP | Semantic/neural search | MCP config |
 | search-cli | Multi-provider aggregation | `brew install search-cli` + API keys |
 
 ## Architecture
@@ -113,13 +106,13 @@ deep-research/
 
 ## Version History
 
-| Version | Date       | Changes                                                                                                            |
-| ------- | ---------- | ------------------------------------------------------------------------------------------------------------------ |
-| 2.3.1   | 2026-03-19 | Template/validator harmonization, structured evidence, critique loop-back, multi-persona red teaming               |
-| 2.3     | 2026-03-19 | Contract harmonization, search-cli integration, dynamic year detection, disk-persisted citations, validation loops |
-| 2.2     | 2025-11-05 | Auto-continuation system for unlimited length                                                                      |
-| 2.1     | 2025-11-05 | Progressive file assembly                                                                                          |
-| 1.0     | 2025-11-04 | Initial release                                                                                                    |
+| Version | Date | Changes |
+|---------|------|---------|
+| 2.3.1 | 2026-03-19 | Template/validator harmonization, structured evidence, critique loop-back, multi-persona red teaming |
+| 2.3 | 2026-03-19 | Contract harmonization, search-cli integration, dynamic year detection, disk-persisted citations, validation loops |
+| 2.2 | 2025-11-05 | Auto-continuation system for unlimited length |
+| 2.1 | 2025-11-05 | Progressive file assembly |
+| 1.0 | 2025-11-04 | Initial release |
 
 ## License
 

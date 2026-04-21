@@ -4,17 +4,17 @@
 
 Trigger auto-continuation when report exceeds 18,000 words in single run.
 
-______________________________________________________________________
+---
 
 ## Strategy Overview
 
 1. Generate sections 1-10 (stay under 18K words)
-1. Save continuation state file with context preservation
-1. Spawn continuation agent via Task tool
-1. Continuation agent: Reads state -> Generates next batch -> Spawns next if needed
-1. Chain continues recursively until complete
+2. Save continuation state file with context preservation
+3. Spawn continuation agent via Task tool
+4. Continuation agent: Reads state -> Generates next batch -> Spawns next if needed
+5. Chain continues recursively until complete
 
-______________________________________________________________________
+---
 
 ## Continuation State File
 
@@ -67,7 +67,7 @@ ______________________________________________________________________
 }
 ```
 
-______________________________________________________________________
+---
 
 ## Spawning Continuation Agent
 
@@ -107,15 +107,15 @@ After generating:
 )
 ```
 
-______________________________________________________________________
+---
 
 ## Continuation Agent Quality Protocol
 
 ### Context Loading (CRITICAL)
 
 1. Read continuation_state.json -> Load ALL context
-1. Read existing report file -> Review last 3 sections
-1. Extract patterns:
+2. Read existing report file -> Review last 3 sections
+3. Extract patterns:
    - Sentence structure complexity
    - Technical terminology used
    - Citation placement patterns
@@ -132,19 +132,18 @@ ______________________________________________________________________
 ### Per-Section Generation
 
 1. Generate section content
-1. Quality checks:
+2. Quality checks:
    - Word count within +/-20%
    - Citation density matches
    - Prose ratio >=80%
    - Theme connection verified
    - Style consistent
-1. If ANY fails: Regenerate
-1. If passes: Write to file, update state
+3. If ANY fails: Regenerate
+4. If passes: Write to file, update state
 
 ### Handoff Decision
 
 Calculate: Current words + remaining sections x avg_words_per_section
-
 - If total < 18K: Generate all + finish
 - If total > 18K: Generate partial, update state, spawn next agent
 
@@ -157,12 +156,11 @@ Calculate: Current words + remaining sections x avg_words_per_section
 - Delete continuation_state.json (cleanup)
 - Report complete to user
 
-______________________________________________________________________
+---
 
 ## User Communication
 
 After spawning continuation:
-
 ```
 Report Generation: Part 1 Complete (N sections, X words)
 Auto-continuing via spawned agent...

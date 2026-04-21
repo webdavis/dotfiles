@@ -166,8 +166,15 @@ run_20_shfmt() {
 }
 
 find_markdown_files() {
+  # Skip files with YAML frontmatter that mdformat can't preserve without the
+  # mdformat-frontmatter plugin. Claude Code skills/agents/commands rely on
+  # `---\nkey: value\n---` metadata blocks; running mdformat on them mangles
+  # the frontmatter into an HR + H2 heading.
   find . \
-    -type d \( -name ".git" -o -regex ".*/\.?vendor" \) -prune \
+    -type d \( -name ".git" -o -regex ".*/\.?vendor" \
+    -o -path "./private_dot_claude/skills" \
+    -o -path "./private_dot_claude/agents" \
+    -o -path "./private_dot_claude/commands" \) -prune \
     -o -type f -name "*.md" \
     -print0
 }
