@@ -15,6 +15,7 @@ packages:
         - owenthereal/upterm
         - vjeantet/tap
         - xdevplatform/tap
+        - yakitrak/yakitrak
       formulae:
         - act
         - actionlint
@@ -84,6 +85,7 @@ packages:
         - ngrep
         - nmap
         - node
+        - obsidian-cli
         - onefetch
         - openai-whisper
         - openhue/cli/openhue-cli
