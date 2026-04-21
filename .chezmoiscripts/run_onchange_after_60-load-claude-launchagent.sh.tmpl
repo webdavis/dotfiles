@@ -1,5 +1,6 @@
 #!/bin/bash
 # run_onchange_after_60-load-claude-launchagent.sh
+# plist hash: {{ include "Library/LaunchAgents/com.claude.code.plist.tmpl" | sha256sum }}
 
 {{- if eq .chezmoi.os "darwin" }}
 launchctl unload ~/Library/LaunchAgents/com.claude.code.plist 2>/dev/null

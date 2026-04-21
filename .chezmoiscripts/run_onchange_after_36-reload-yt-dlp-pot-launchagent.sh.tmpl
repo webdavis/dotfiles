@@ -1,6 +1,6 @@
 #!/bin/bash
 # run_onchange_after_36-reload-yt-dlp-pot-launchagent.sh
-# plist hash: {{ include "Library/LaunchAgents/com.webdavis.yt-dlp-pot-provider.plist" | sha256sum }}
+# plist hash: {{ include "Library/LaunchAgents/com.webdavis.yt-dlp-pot-provider.plist.tmpl" | sha256sum }}
 
 {{- if eq .chezmoi.os "darwin" }}
 LABEL="com.webdavis.yt-dlp-pot-provider"
