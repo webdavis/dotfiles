@@ -4,35 +4,59 @@ multiple workstreams, PRs, or branches were in progress simultaneously.
 Document general principles, workflows, and architecture — not transient
 project state. -->
 
-# Global CLAUDE.md
+# Global Rules
 
 ## Collaboration style
 
 - Terse, direct responses. No trailing recap unless asked.
 - Verify before asserting; show evidence (commands, output).
 - Separate logically distinct changes into their own commits.
-- **No `Co-Authored-By: Claude` lines in commits.** Claude is never an author.
+- **No** trailing whitespace; blank lines included.
+
+## Git Commits
+
+**Never add `Co-Authored-By: Claude` (or any Claude/Anthropic co-author trailer) to commit messages.**
+This applies to all commits, amends, and squashes, in every repository. Do not include the "🤖 Generated
+with Claude Code" footer either. Commits should look as if the user authored them directly.
+
+A global `prepare-commit-msg` hook at `~/.config/git/hooks/` prepopulates conventional commit messages
+via Claude haiku. Set `SKIP_AI_COMMIT=1` to bypass for a single commit.
+
+## Backups
+
+### Location
+
+All backups live in `~/workspaces/backups/`.
+
+### Naming convention
+
+`YYYY-MM-DDTHH-MM-SS.Name.backup[.ext]`
+
+- Date and time come first (sorts chronologically)
+- Hyphens between date and time components
+- A period between the timestamp and the name
+- Hyphens within the name (replace spaces)
+- `.backup` goes after the file or folder name
+- File extension, if present, comes last
+- Same convention applies to both files and folders
+
+Examples:
+
+- `2026-04-20T14-30-00.settings-json.backup.json`
+- `2026-04-20T14-30-00.my-project.backup/`
 
 ## Toolchain (locked-in choices — do not suggest migrating)
 
-- **Shell:** bash (10+ years). Not switching to zsh.
+- **Shell:** bash. Not switching to zsh.
 - **Multiplexer:** tmux. Not switching to zellij or cmux.
 - **Version manager:** not using `mise`. Nix flakes handle per-project toolchain needs.
 - **File manager / git TUI:** neither `yazi` nor `lazygit` wanted.
-- **Terminal:** Ghostty. Not switching.
-- **Editor:** Neovim (overhaul is a separate sub-project).
-- **Secrets:** KeePassXC via chezmoi's `{{ keepassxc ... }}` templates. Not migrating to sops/age for
-  per-machine secrets.
+- **Terminal:** Ghostty.
+- **Editor:** Neovim.
+- **Secrets:** KeePassXC. Not migrating to sops/age for per-machine secrets.
 
-## Workflow defaults
+## Agents
 
-- **Chezmoi:** from automation, always use `--exclude=templates` —
-  `chezmoi apply --exclude=templates --force`. Template files (bashrc, gitconfig, espanso identity,
-  Claude settings) require an interactive terminal with KeePassXC unlocked and are therefore the user's
-  step, not an agent's.
-- **Git:** `pull.rebase=true`, `push.autoSetupRemote=true`, `commit.verbose=true`. Global
-  `prepare-commit-msg` at `~/.config/git/hooks/` prepopulates conventional commit messages via Claude
-  haiku; set `SKIP_AI_COMMIT=1` to bypass.
-- **Agents:** prefer parallel subagents for independent work; stop at environmental blockers (brew
-  install, KeePassXC unlock, destructive rm -rf, long-running VM clones) and surface them to the user
-  rather than attempt them blindly.
+- Prefer parallel subagents for independent work.
+- Stop at environmental blockers (brew install, KeePassXC unlock, destructive rm -rf, long-running VM
+  clones) and surface them rather than attempting them blindly.
