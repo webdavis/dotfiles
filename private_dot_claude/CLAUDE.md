@@ -30,6 +30,7 @@ Reasoning, design, and general knowledge don't require sourcing — only specifi
 
 "Should work" ≠ "works." Evidence before assertions.
 
+- Design: obra/superpowers skill.
 - Code: run tests (or a minimal reproducer); show output.
 - Config: render, parse, or lint it.
 - Script: `shellcheck` and run with representative inputs.
@@ -39,7 +40,7 @@ Reasoning, design, and general knowledge don't require sourcing — only specifi
 
 Require per-invocation confirmation. Blanket "yes" doesn't carry over.
 
-- `rm -rf`, `rm` outside a scratch dir
+- `trash` > `rm`
 - `git push --force` (use `--force-with-lease`; never to main/master), `git reset --hard`,
   `git clean -fd`, `git branch -D`, `git checkout .`
 - Dropping DB tables/schemas; `killall`; `shutdown`; `dd`
@@ -93,10 +94,10 @@ any extension. Applies to files and folders. Examples: `2026-04-20T14-30-00.sett
 - **Shell:** bash.
 - **Multiplexer:** tmux.
 - **Version manager:** Nix flakes per-project (not `mise`).
-- **File manager / git TUI:** neither `yazi` nor `lazygit`.
+- **File manager / git TUI:** `git`, `gh`, and `fzf`.
 - **Terminal:** Ghostty.
 - **Editor:** Neovim.
-- **Secrets:** KeePassXC.
+- **Secrets:** KeePassXC and HashiCorp Vault.
 
 ## Agents
 
