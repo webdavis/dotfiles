@@ -63,5 +63,5 @@ matches:
 {{- if (env "CI") }}
     replace: "FAKE_PHONE_FORMATTED"
 {{- else }}
-    replace: {{ (keepassxc "Personal :: Phone").Password | quote }}
+    replace: {{ (keepassxc "Personal :: Phone").UserName | quote }}
 {{- end }}
