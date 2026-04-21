@@ -9,7 +9,6 @@ packages:
         - eugene1g/safehouse
         - FelixKratz/formulae
         - mediosz/tap
-        - morantron/tmux-fingers
         - nikitabobko/tap
         - oven-sh/bun
         - owenthereal/upterm
@@ -78,7 +77,6 @@ packages:
         - just
         - librsvg
         - mas
-        - morantron/tmux-fingers/tmux-fingers
         - mosh
         - mtr
         - neovim
