@@ -204,7 +204,7 @@ Passive indicators via tmux2k:
 - **Right-side status:** a custom tmux2k plugin (`last-proc`) reads `@prev-session` (set by the
   `client-session-changed` hook) and displays `<previous-session>:<active-window> <emoji>`. The plugin
   script lives at `~/.local/bin/tmux-last-proc.sh` under chezmoi control, and
-  `.chezmoiscripts/run_after_70-link-tmux2k-last-proc.sh.tmpl` symlinks it into
+  `.chezmoiscripts/run_after_70-install-tmux2k-last-proc.sh.tmpl` copies it into
   `~/.tmux/plugins/tmux2k/plugins/last-proc.sh` on every `chezmoi apply` (silent no-op if tmux2k isn't
   installed yet — fresh machine runs `prefix + I` first). Colors come from `@tmux2k-last-proc-colors` set
   in `dot_tmux.conf`; no need to edit tmux2k's `main.sh` because `get_plugin_colors` falls back to
