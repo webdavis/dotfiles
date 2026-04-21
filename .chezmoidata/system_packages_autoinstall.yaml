@@ -77,7 +77,6 @@ packages:
         - librsvg
         - mas
         - morantron/tmux-fingers/tmux-fingers
-        - moreutils
         - mosh
         - mtr
         - neovim
@@ -139,7 +138,7 @@ packages:
         - cardhop
         - chatgpt
         - claude
-        - claude-code
+        - claude-code@latest
         - codexbar
         - discord
         - docker-desktop

@@ -13,7 +13,6 @@ function verify_command_installed() {
 
 verify_command_installed jq
 verify_command_installed rg
-verify_command_installed sponge # moreutils; in brew manifest
 
 JSON_OBJECT="${1:-}"
 REGEX="${2:-}"
@@ -32,7 +31,17 @@ backup_dir="backup_$timestamp"
 mkdir -p "$backup_dir"
 
 # Backup and delete JSON objects from files containing regex.
+# Uses a tempfile+mv instead of `sponge` (moreutils) to avoid a conflict
+# between moreutils' bundled `parallel` and GNU parallel; see commit log
+# for the drop-moreutils rationale.
 rg --files-with-matches "$REGEX" | while IFS= read -r file; do
   cp "$file" "${backup_dir}/"
-  jq "del(.[] | select(${JSON_OBJECT}? == '$REGEX'))" "$file" | sponge "$file"
+  tmp=$(mktemp "${file}.XXXXXX")
+  if jq "del(.[] | select(${JSON_OBJECT}? == '$REGEX'))" "$file" >"$tmp"; then
+    mv "$tmp" "$file"
+  else
+    rm -f "$tmp"
+    printf "Error: jq failed on %s; leaving original untouched.\n" "$file" >&2
+    exit 1
+  fi
 done
