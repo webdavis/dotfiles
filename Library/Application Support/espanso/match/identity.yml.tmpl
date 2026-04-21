@@ -1,39 +1,31 @@
 matches:
   # ── Name ──────────────────────────────────────────────────────────────────
 
-  - trigger: ",,sda"
+  - trigger: ",,sad"
     replace: "Stephen A. Davis"
-  # Note: was ';;sd' in pii.yml (renamed per §6.7)
 
-  - trigger: ",,sdn"
+  - trigger: ",,sd"
     replace: "Stephen Davis"
-  # Note: was ',,sd' in pii.yml (renamed per §6.7)
 
   - trigger: ",,fn"
     replace: "Stephen"
-  # Note: was ';;fn' in pii.yml
 
   - trigger: ",,ln"
     replace: "Davis"
-  # Note: was ';;ln' in pii.yml
 
   # ── Email addresses ───────────────────────────────────────────────────────
 
   - trigger: ",,eml"
     replace: "stephen@webdavis.io"
-  # Note: was ';;em' in email.yml (renamed per §6.7)
 
   - trigger: ",,epl"
     replace: "stephen+$|$@webdavis.io"
-  # Note: was ';;ep' in email.yml (renamed per §6.7)
 
   - trigger: ",,gml"
     replace: "sdstephena@gmail.com"
-  # Note: was ',,em' in email.yml (renamed per §6.7)
 
   - trigger: ",,gpl"
     replace: "sdstephena+$|$@gmail.com"
-  # Note: was ',,ep' in email.yml (renamed per §6.7)
 
   - trigger: ",,rs"
     replace: "ksesqcdt@feed.readwise.io"
@@ -42,41 +34,34 @@ matches:
 
   - trigger: ",,wa"
     replace: "With Appreciation,\nStephen Davis"
-  # Note: was ';;wa' in email.yml (renamed per §6.7)
 
   - trigger: ",,br"
     replace: "Best,\nStephen Davis"
-  # Note: was ';;br' in email.yml (renamed per §6.7)
 
   - trigger: ",,sig"
     replace: "Best,\nStephen Davis\nstephen@webdavis.io"
-  # New per §6.9
 
-  # ── Address (KeePassXC-sourced) ───────────────────────────────────────────
-  # TODO: verify KeePassXC entry name "Personal :: Address" and attribute "Address"
-  # by running: keepassxc-cli show <database> "Personal :: Address"
+  # ── Address (KeePassXC password field) ────────────────────────────────────
 
   - trigger: ",,ma"
 {{- if (env "CI") }}
     replace: "FAKE_ADDRESS"
 {{- else }}
-    replace: {{ keepassxcAttribute "Personal :: Address" "Address" | quote }}
+    replace: {{ (keepassxc "Personal :: Address").Password | quote }}
 {{- end }}
 
-  # ── Phone numbers (KeePassXC-sourced) ─────────────────────────────────────
-  # TODO: verify KeePassXC entry name "Personal :: Phone" and attributes "Phone" / "Formatted"
-  # by running: keepassxc-cli show <database> "Personal :: Phone"
+  # ── Phone numbers (KeePassXC password field) ──────────────────────────────
 
   - trigger: ",,pn"
 {{- if (env "CI") }}
     replace: "FAKE_PHONE"
 {{- else }}
-    replace: {{ keepassxcAttribute "Personal :: Phone" "Phone" | quote }}
+    replace: {{ (keepassxc "Personal :: Phone").Password | quote }}
 {{- end }}
 
-  - trigger: ",,ph"
+  - trigger: ",,pf"
 {{- if (env "CI") }}
     replace: "FAKE_PHONE_FORMATTED"
 {{- else }}
-    replace: {{ keepassxcAttribute "Personal :: Phone" "Formatted" | quote }}
+    replace: {{ (keepassxc "Personal :: Phone").Password | quote }}
 {{- end }}
