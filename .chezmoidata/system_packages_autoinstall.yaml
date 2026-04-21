@@ -36,6 +36,7 @@ packages:
         - carapace
         - ccusage
         - chezmoi
+        - cirruslabs/cli/softnet
         - cmake
         - cmake-docs
         - coreutils
