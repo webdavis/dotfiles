@@ -16,8 +16,10 @@ mkdir -p "${OSQUERY_REPORT_DIR:-$HOME/.local/state/osquery-reports}"
 # Load the LaunchAgent for the report script.
 launchctl load -w "$HOME/Library/LaunchAgents/com.webdavis.osquery-report.plist" 2>/dev/null || true
 
-# Start osqueryd.
-sudo osqueryctl start || true
+# Start osqueryd. Redirect output because osqueryctl prints 'Load failed: 5'
+# to stdout on subsequent runs (the daemon is already loaded); the exit code
+# is swallowed by '|| true'.
+sudo osqueryctl start >/dev/null 2>&1 || true
 
 echo "osquery setup complete."
 {{ end -}}
