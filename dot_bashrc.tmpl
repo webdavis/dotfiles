@@ -64,6 +64,14 @@ export SHELL="${HOMEBREW_PREFIX}/bin/bash"
 bash_completion="${HOMEBREW_PREFIX}/opt/bash-completion@2/etc/profile.d/bash_completion.sh"
 [[ -r $bash_completion ]] && . "$bash_completion"
 
+# bash-preexec: provides preexec_functions/precmd_functions arrays that atuin,
+# the long-running command notifier, and tmux-last-proc all depend on.
+# Must load BEFORE atuin init so atuin's hooks register with it. Newer atuin
+# (>= 18.x) no longer bundles bash-preexec.
+# Ref: https://github.com/rcaloras/bash-preexec
+bash_preexec="${HOMEBREW_PREFIX}/etc/profile.d/bash-preexec.sh"
+[[ -r $bash_preexec ]] && . "$bash_preexec"
+
 # Configure updated curl.
 path_prepend "${HOMEBREW_PREFIX}/opt/curl/bin"
 
@@ -212,16 +220,16 @@ fi
 eval "$(zoxide init bash)"
 
 # Atuin: https://atuin.sh/
-# SQLite-backed shell history via daemon. Atuin sources bash-preexec here,
-# which our long-running command notifier below depends on.
+# SQLite-backed shell history via daemon. atuin init registers its own
+# __atuin_preexec/__atuin_precmd with bash-preexec (sourced earlier).
 # ⚠️ Must initialize after zoxide (both modify PROMPT_COMMAND; atuin last).
 eval "$(atuin init bash --disable-up-arrow)"
 
 # ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 # ┃  Long-running command notifier (v2 §7.1)      ┃
 # ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-# Uses bash-preexec (sourced by atuin above) instead of a naked DEBUG trap,
-# which would clobber atuin's recording.
+# Uses bash-preexec (sourced via Homebrew earlier) instead of a naked DEBUG
+# trap, which would clobber atuin's recording.
 __cmd_notify_start=""
 __cmd_notify_name=""
 

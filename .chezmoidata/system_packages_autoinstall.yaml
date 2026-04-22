@@ -26,6 +26,7 @@ packages:
         - atuin
         - bash
         - bash-completion@2
+        - bash-preexec
         - bat
         - bat-extras
         - bore-cli
