@@ -258,6 +258,22 @@ preexec_functions+=(__cmd_notify_preexec)
 # shellcheck disable=SC2034
 precmd_functions+=(__cmd_notify_precmd)
 
+# ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+# ┃  Tmux last-proc exit-code tracker (v2 §21.4)  ┃
+# ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+# Writes the last command's exit code to a per-pane state file, read by
+# ~/.local/bin/tmux-last-proc.sh to pick ✅/❌ for the prev-session display.
+# /tmp is cleared on reboot so no explicit cleanup is needed.
+__tmux_last_proc_precmd() {
+  local exit_code=$?
+  [[ -z ${TMUX_PANE:-} ]] && return
+  local dir="/tmp/tmux-last-proc-${UID}"
+  [[ -d $dir ]] || mkdir -p "$dir" 2>/dev/null || return
+  printf '%s' "$exit_code" >"$dir/$TMUX_PANE" 2>/dev/null
+}
+# shellcheck disable=SC2034
+precmd_functions+=(__tmux_last_proc_precmd)
+
 # Order matters! These local (user-level) tools should always take precedence in my environment.
 path_prepend "$HOME/.local/bin"
 path_prepend "$HOME/.bun/bin"

@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Output an emoji for the window at $1 (e.g. "uriel:3") based on what's
 # running in its active pane. Silent for shells and interactive TUIs.
-# Consumed by @tmux2k-window-list-format (see dot_tmux.conf v2 §21.2).
+# Consumed by @tmux2k-window-list-format and by tmux-last-proc.sh
+# (see dot_tmux.conf v2 §21.2).
 
 target="${1:-}"
 [[ -z $target ]] && exit 0

@@ -1,39 +1,55 @@
 #!/usr/bin/env bash
-# tmux2k custom plugin: prints "<prev_session>:<window_name> <emoji>"
-# for the right-side plugin slot named `last-proc` (see dot_tmux.conf §3.1).
+# tmux2k custom plugin: right-side status for the previously-active session.
 #
-# Reads @prev-session set by the client-session-changed hook in tmux.conf.
-# Silent no-op if @prev-session is unset or the session is gone.
+# While a non-shell is running in the prev session's active pane:
+#   uriel:sleep ⏳     (sleep running)
+#   uriel:cargo 🔨     (cargo building)
+#   uriel:claude 🤖    (claude running)
 #
-# Installation: chezmoi handles it. The run_after script at
-# .chezmoiscripts/run_after_70-link-tmux2k-last-proc.sh.tmpl symlinks
-# ~/.local/bin/tmux-last-proc.sh → ~/.tmux/plugins/tmux2k/plugins/last-proc.sh
-# on every `chezmoi apply`. Silent no-op until tpm has installed tmux2k
-# (fresh-machine flow: chezmoi apply → start tmux → prefix+I installs
-# tmux2k → next chezmoi apply links this plugin).
+# After the process finishes and the pane returns to a shell, switch to
+# "session:window" and keep a completion glyph until you switch sessions:
+#   uriel:chezmoi ✅   (last command exited 0)
+#   uriel:chezmoi ❌   (last command exited non-zero)
 #
-# dot_tmux.conf sets:
-#   set-option -g @tmux2k-right-plugins "last-proc network ram"
-#   set-option -g @tmux2k-last-proc-colors "cyan black"
+# If the shell hasn't run anything yet (no state file), still show the
+# session:window so the slot never goes blank:
+#   uriel:chezmoi
 #
-# Colors work without editing tmux2k's main.sh because get_plugin_colors
-# falls back to the user-set @tmux2k-<name>-colors tmux option.
-#
-# Why NOT place this file directly at dot_tmux/plugins/tmux2k/plugins/...
-# in chezmoi source: tpm checks `[ -d $plugin_dir ]` before cloning and
-# treats an existing directory as "already installed", which would prevent
-# tmux2k from ever being cloned on a fresh machine.
+# Reads:
+#   @prev-session                                — set by the client-session-changed hook
+#   /tmp/tmux-last-proc-$UID/<pane_id>           — "<exit_code>" written by the
+#                                                   bashrc precmd __tmux_last_proc_precmd
 
 main() {
   prev=$(tmux show-option -gv @prev-session 2>/dev/null)
   [[ -z $prev ]] && exit 0
   tmux has-session -t "$prev" 2>/dev/null || exit 0
 
-  win_idx=$(tmux display-message -p -t "$prev:" '#{window_index}' 2>/dev/null)
-  win_name=$(tmux display-message -p -t "$prev:" '#{window_name}' 2>/dev/null)
-  emoji=$("$HOME/.local/bin/tmux-window-emoji.sh" "$prev:$win_idx")
+  IFS='|' read -r cmd pane_id win_name < <(
+    tmux display-message -p -t "$prev:" '#{pane_current_command}|#{pane_id}|#{window_name}' 2>/dev/null
+  )
+  [[ -z $cmd ]] && exit 0
 
-  printf '%s:%s %s' "$prev" "$win_name" "$emoji"
+  case "$cmd" in
+    bash | zsh | fish | sh | dash)
+      # Shell at prompt — show session:window plus completion glyph if known.
+      local state_file="/tmp/tmux-last-proc-${UID}/${pane_id}"
+      local exit_code=""
+      [[ -f $state_file ]] && read -r exit_code _ <"$state_file" 2>/dev/null
+      if [[ -z $exit_code ]]; then
+        printf '%s:%s' "$prev" "$win_name"
+      elif [[ $exit_code == "0" ]]; then
+        printf '%s:%s ✅' "$prev" "$win_name"
+      else
+        printf '%s:%s ❌' "$prev" "$win_name"
+      fi
+      ;;
+    *)
+      # Non-shell command is running — show session:process with matching emoji.
+      emoji=$("$HOME/.local/bin/tmux-window-emoji.sh" "$prev:")
+      printf '%s:%s %s' "$prev" "$cmd" "$emoji"
+      ;;
+  esac
 }
 
 main
