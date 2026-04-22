@@ -198,6 +198,8 @@ on-mode-changed = []
     f10 = 'exec-and-forget ~/.local/bin/smart-lights --brightness up'
     f5  = 'exec-and-forget ~/.local/bin/smart-lights --scene previous'
     f6  = 'exec-and-forget ~/.local/bin/smart-lights --scene next'
+    f4  = 'exec-and-forget openhue set scene "CC Halo Daylight"'
+    f7  = 'exec-and-forget openhue set scene "CC Halo Amber"'
 
     # Hide focused application (this is a replacement for macOS Cmd+h).
     alt-ctrl-cmd-shift-down = "exec-and-forget osascript -e 'tell application \"System Events\" to set visible of first process whose frontmost is true to false'"
