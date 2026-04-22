@@ -1,0 +1,15 @@
+#!/bin/bash
+# run_onchange_after_40-load-atuin-daemon-launchagent.sh
+# plist hash: {{ include "Library/LaunchAgents/com.webdavis.atuin-daemon.plist.tmpl" | sha256sum }}
+
+{{- if eq .chezmoi.os "darwin" }}
+set -euo pipefail
+
+mkdir -p "$HOME/.local/log"
+
+PLIST="$HOME/Library/LaunchAgents/com.webdavis.atuin-daemon.plist"
+
+# Re-bootstrap the LaunchAgent so a changed plist takes effect.
+launchctl bootout "gui/$(id -u)/com.webdavis.atuin-daemon" 2>/dev/null || true
+launchctl bootstrap "gui/$(id -u)" "$PLIST"
+{{- end }}

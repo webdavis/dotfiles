@@ -18,4 +18,6 @@ enabled = true
 
 [daemon]
 enabled = true
-autostart = true
+# autostart=false: daemon is managed by ~/Library/LaunchAgents/com.webdavis.atuin-daemon.plist
+# (avoids race conditions between LaunchAgent and shell-init autostart).
+autostart = false
