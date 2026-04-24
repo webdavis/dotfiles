@@ -1,6 +1,6 @@
 {
+  "cleanupPeriodDays": 36525,
   "permissions": {
-    "defaultMode": "bypassPermissions",
     "allow": [
       "Read",
       "Grep",
@@ -23,20 +23,9 @@
       "Read(credentials.json)",
       "Read(.aws/credentials)",
       "Read(.ssh/id_*)"
-    ]
+    ],
+    "defaultMode": "bypassPermissions"
   },
-  "statusLine": {
-    "type": "command",
-    "command": "bash {{ .chezmoi.homeDir }}/.claude/statusline-command.sh"
-  },
-  "enabledPlugins": {
-    "superpowers@claude-plugins-official": true,
-    "document-skills@anthropic-agent-skills": true
-  },
-  "voiceEnabled": true,
-  "skipDangerousModePermissionPrompt": true,
-  "alwaysThinkingEnabled": true,
-  "cleanupPeriodDays": 36525,
   "hooks": {
     "UserPromptSubmit": [
       {
@@ -80,5 +69,17 @@
         ]
       }
     ]
-  }
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "bash {{ .chezmoi.homeDir }}/.claude/statusline-command.sh"
+  },
+  "enabledPlugins": {
+    "superpowers@claude-plugins-official": true,
+    "document-skills@anthropic-agent-skills": true
+  },
+  "alwaysThinkingEnabled": true,
+  "skipDangerousModePermissionPrompt": true,
+  "useAutoModeDuringPlan": true,
+  "voiceEnabled": true
 }
