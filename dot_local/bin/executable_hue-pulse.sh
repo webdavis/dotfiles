@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Pulse the studio Hue room green (success) or red (failure) for ~2 seconds,
-# then restore each light to its saved on-state, brightness, and color.
+# Pulse the studio Hue room green (success) or red (failure) through a
+# bright → dim → bright cycle (~3 seconds total), then restore each light
+# to its saved on-state, brightness, and color.
 #
 # Usage: hue-pulse.sh <exit_code>
 #   exit 0  → pulse green (#00c96d)
@@ -42,14 +43,21 @@ openhue get light --json 2>/dev/null |
 
 [[ ! -s $state_file ]] && exit 0
 
-# Pulse.
+# Pulse: bright → dim → bright in the status color, then restore.
+# Two cycles so the user's peripheral vision actually registers it.
 if [[ $exit_code -eq 0 ]]; then
   color="#00c96d"
 else
   color="#ff657a"
 fi
-openhue set room "$room_id" --on --rgb "$color" --brightness 50 --transition-time 500ms 2>/dev/null || exit 0
-sleep 2
+# First call gates the whole pulse — if openhue is unreachable here, bail
+# without attempting further changes or a restore.
+openhue set room "$room_id" --on --rgb "$color" --brightness 60 --transition-time 400ms 2>/dev/null || exit 0
+sleep 1
+openhue set room "$room_id" --on --rgb "$color" --brightness 10 --transition-time 400ms 2>/dev/null || true
+sleep 1
+openhue set room "$room_id" --on --rgb "$color" --brightness 60 --transition-time 400ms 2>/dev/null || true
+sleep 1
 
 # Restore each light.
 while IFS=$'\t' read -r lid on_state bri mode v1 v2; do
