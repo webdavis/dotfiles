@@ -57,14 +57,16 @@ chezmoi apply ~/.tmux.conf                  # specific non-template file
 chezmoi diff --exclude=templates            # diff non-template files
 ```
 
-**Never run bare `chezmoi apply` from Claude Code** — template files (`~/.bashrc`, `~/.gitconfig`,
-`~/Library/Application Support/espanso/match/identity.yml`, `~/.claude/settings.json`) call `keepassxc`
-and will fail without an interactive TTY. Those applications are the user's step, from an interactive
-terminal with KeePassXC unlocked.
+**Never run bare `chezmoi apply` from Claude Code** — the following templates call `keepassxc` and will
+fail without an interactive TTY: `~/.gitconfig`, `~/.aws/credentials`, `~/.config/atuin/config.toml`,
+`~/.config/himalaya/config.toml`, `~/Library/Application Support/espanso/match/identity.yml`,
+`~/Library/Application Support/gogcli/credentials.json`. Apply those from an interactive terminal with
+KeePassXC unlocked. Non-KeePassXC templates (e.g. `~/.bashrc`, `~/.claude/settings.json`) are safe to
+apply from automation.
 
 ### Claude Code Settings
 
-`dot_claude/settings.json.tmpl` is managed by chezmoi and deploys to `~/.claude/settings.json`.
+`private_dot_claude/settings.json.tmpl` is managed by chezmoi and deploys to `~/.claude/settings.json`.
 Configures `defaultMode: "bypassPermissions"` with an allow-list for read-only tools and a deny list for
 sensitive paths (`.env`, `secrets/**`, `.ssh/id_*`). Hooks wired: `UserPromptSubmit` marks session start,
 `Stop` pulses Hue lights if session >5 min, `Notification` (permission_prompt matcher) fires alerter,
@@ -120,16 +122,19 @@ Do **not** run `chezmoi apply` directly — see the KeePassXC constraint above.
 Template files use chezmoi Go templates (`.tmpl` suffix) and live alongside their target files. Notable
 templates: `.chezmoi.toml.tmpl`, `dot_bashrc.tmpl`, `dot_gitconfig.tmpl`, `dot_aws/credentials.tmpl`,
 `dot_config/gh/private_hosts.yml.tmpl`, `dot_config/atuin/config.toml.tmpl`,
-`dot_config/osquery/osquery.conf.tmpl`, `dot_claude/settings.json.tmpl`,
-`Library/LaunchAgents/*.plist.tmpl`, `Library/Application Support/espanso/match/identity.yml.tmpl`, and
-scripts in `.chezmoiscripts/`. Templates conditionally branch on `.chezmoi.os` and pull secrets from
-KeePassXC. Bashrc uses a `{{- if (env "CI") }}` branch so CI rendering doesn't call keepassxc.
+`dot_config/himalaya/config.toml.tmpl`, `dot_config/osquery/osquery.conf.tmpl`,
+`private_dot_claude/settings.json.tmpl`, `Library/LaunchAgents/*.plist.tmpl`,
+`Library/Application Support/espanso/match/identity.yml.tmpl`,
+`Library/Application Support/gogcli/credentials.json.tmpl`, and scripts in `.chezmoiscripts/`. Templates
+conditionally branch on `.chezmoi.os` and, where they pull secrets, call `keepassxc`.
 
 ### Template Shellcheck Workaround
 
 Shell templates contain Go template syntax that shellcheck can't parse directly. The lint script renders
-first: `CI=1 chezmoi execute-template --no-tty <file | shellcheck -`. The `CI=1` env var drives the
-template's keepassxc-avoiding branch.
+first: `CI=1 chezmoi execute-template --no-tty <file | shellcheck -`. Only `dot_bashrc.tmpl` is rendered;
+it no longer calls `keepassxc`, so the `CI=1` env var is defensive (vestigial from an earlier version
+where bashrc had a CI-vs-interactive branch). Other templates with CI branches (e.g. `identity.yml.tmpl`)
+are not shell-linted.
 
 ### OS Targeting
 
