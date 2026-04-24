@@ -9,6 +9,14 @@ style = "compact"
 enter_accept = true
 secrets_filter = true
 
+## Custom regex patterns that prevent matching commands from being recorded.
+## history_filter is the atuin equivalent of bash's HISTIGNORE.
+## Regex lives in KeePassXC — same entry that previously populated HISTIGNORE.
+## Ref: https://docs.atuin.sh/configuration/config/#history_filter
+history_filter = [
+  {{ (keepassxc "Dotfiles (bashrc) :: HISTIGNORE Regex").Password | quote }},
+]
+
 [sync]
 auto_sync = false
 records = true
