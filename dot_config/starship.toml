@@ -29,8 +29,12 @@ $time\
 \n$character"""
 
 # Global prompt-render timeouts.
+# command_timeout is the per-module shell-out cutoff; default 500ms is too
+# tight for large repos where `git status` legitimately takes 800–1500ms on
+# a cache-cold query, which silently drops the git module from the prompt.
+# 1500ms is harmless for fast repos (they finish in tens of ms regardless).
 scan_timeout = 30
-command_timeout = 500
+command_timeout = 1500
 
 [os.symbols]
 Windows = "󰍲"
