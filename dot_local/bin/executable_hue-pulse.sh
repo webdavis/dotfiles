@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
-# Pulse the studio Hue room green (success) or red (failure) through a
-# bright → dim → bright cycle (~3 seconds total), then restore each light
-# to its saved on-state, brightness, and color.
+# Pulse the studio Hue room deep green (success) or deep red (failure)
+# through a bright → 20% → bright → 20% heartbeat cycle (~5 seconds), then
+# restore each light to its saved on-state, brightness, and color. Colors
+# are addressed in CIE xy at the gamut corners for maximum saturation.
 #
 # Usage: hue-pulse.sh <exit_code>
-#   exit 0  → pulse green (#00c96d)
-#   exit ≠0 → pulse red   (#ff657a)
+#   exit 0  → pulse deep green (xy 0.17, 0.7  — gamut C green corner)
+#   exit ≠0 → pulse deep red   (xy 0.6915, 0.3083 — gamut C red corner)
 #
 # Silent no-op if openhue/jq isn't installed or the target room isn't found.
 
@@ -43,21 +44,44 @@ openhue get light --json 2>/dev/null |
 
 [[ ! -s $state_file ]] && exit 0
 
-# Pulse: bright → dim → bright in the status color, then restore.
-# Two cycles so the user's peripheral vision actually registers it.
+# Pulse pattern: bright → 20% → bright → 20% → restore.
+# Four pulse phases (two full lub-DUB cycles) ending on the LOW phase, so
+# the restore is a gentle step from "dim color" back to the user's original
+# state — not a jarring drop from peak brightness.
+#
+# Sleeps match the 1.2s transitions so the bulb fully reaches each target
+# (no interrupting overlap). 1.2s is long enough for the ramp itself to
+# read as smooth wave motion, while the brief API-roundtrip "settle"
+# between transitions is short enough not to feel like a hitch.
+#
+# Color: CIE xy gamut-corner coords (not --rgb) so the colors hit the
+# deepest saturation the bulb is physically capable of. Hue clamps RGB to
+# its gamut and desaturates aggressively; xy bypasses that conversion.
 if [[ $exit_code -eq 0 ]]; then
-  color="#00c96d"
+  px=0.17 # gamut C green corner
+  py=0.7
+  peak=70 # green washes toward white at full brightness (Bezold-Brücke);
+  # 70% lets the green LED primary dominate perception
 else
-  color="#ff657a"
+  px=0.6915 # gamut C red corner
+  py=0.3083
+  peak=100 # red stays saturated at full brightness
 fi
+pulse_to() {
+  # Args: brightness (0-100). 1.2s smooth ramp.
+  openhue set room "$room_id" --on -x "$px" -y "$py" \
+    --brightness "$1" --transition-time 1200ms 2>/dev/null
+}
 # First call gates the whole pulse — if openhue is unreachable here, bail
 # without attempting further changes or a restore.
-openhue set room "$room_id" --on --rgb "$color" --brightness 60 --transition-time 400ms 2>/dev/null || exit 0
-sleep 1
-openhue set room "$room_id" --on --rgb "$color" --brightness 10 --transition-time 400ms 2>/dev/null || true
-sleep 1
-openhue set room "$room_id" --on --rgb "$color" --brightness 60 --transition-time 400ms 2>/dev/null || true
-sleep 1
+pulse_to "$peak" || exit 0
+sleep 1.2
+pulse_to 20 || true
+sleep 1.2
+pulse_to "$peak" || true
+sleep 1.2
+pulse_to 20 || true
+sleep 1.2
 
 # Restore each light.
 while IFS=$'\t' read -r lid on_state bri mode v1 v2; do
