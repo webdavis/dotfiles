@@ -233,9 +233,11 @@ run_60_taplo() {
 }
 
 find_json_files() {
+  # Exclude chezmoi modify_ templates: they share the .json extension of their
+  # target file but contain Go template directives, so jq can't parse them.
   find . \
     -type d \( -name ".git" -o -name ".direnv" -o -name "node_modules" -o -regex ".*/\.?vendor" \) -prune \
-    -o -type f -name "*.json" \
+    -o -type f -name "*.json" -not -name 'modify_*' \
     -print0
 }
 

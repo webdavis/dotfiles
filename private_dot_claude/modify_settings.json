@@ -1,0 +1,93 @@
+{{- /* chezmoi:modify-template */ -}}
+{{- /*
+  Selective field control for ~/.claude/settings.json.
+
+  Why: Claude Code's /config slash command writes user-toggled settings
+  (alwaysThinkingEnabled, useAutoModeDuringPlan, voiceEnabled, etc.) directly
+  into ~/.claude/settings.json, which would create drift against any plain
+  chezmoi template. There is no user-level ~/.claude/settings.local.json that
+  Claude Code reads, so a clean split into local/shared isn't possible at the
+  user scope.
+
+  How: this is a chezmoi modify-template (https://www.chezmoi.io/user-guide/
+  manage-different-types-of-file/#modify-templates). It receives the current
+  ~/.claude/settings.json on .chezmoi.stdin, overlays the stable fields below
+  via setValueAtPath, and writes the merged result back. Ergonomic toggles
+  (anything not in the stable list) are passed through untouched.
+
+  Promote a /config toggle to "managed" by adding it to one of the
+  setValueAtPath calls below.
+*/ -}}
+{{- /* .chezmoi.stdin is only set when chezmoi runs the modify template
+       with a real target file. Use safe access so the template still
+       renders cleanly under `chezmoi execute-template` for ad-hoc testing. */ -}}
+{{- $stdin := index .chezmoi "stdin" | default "" -}}
+{{- $merged := dict -}}
+{{- if $stdin -}}
+{{-   $merged = fromJson $stdin -}}
+{{- end -}}
+
+{{- /* --- stable: scalars and policy --- */ -}}
+{{- $merged = setValueAtPath "cleanupPeriodDays" 36525 $merged -}}
+
+{{- $permissions := dict
+    "allow" (list
+      "Read"
+      "Grep"
+      "Glob"
+      "WebFetch"
+      "WebSearch"
+      "Bash(find *)"
+      "Bash(cat *)"
+      "Bash(ls *)"
+      "Bash(head *)"
+      "Bash(tail *)"
+      "Bash(wc *)"
+      "Bash(grep *)"
+      "Bash(tree *)")
+    "deny" (list
+      "Read(.env)"
+      "Read(.env.*)"
+      "Read(secrets/**)"
+      "Read(credentials.json)"
+      "Read(.aws/credentials)"
+      "Read(.ssh/id_*)")
+    "defaultMode" "bypassPermissions" -}}
+{{- $merged = setValueAtPath "permissions" $permissions $merged -}}
+
+{{- /* --- stable: hooks (paths use $home for portability) --- */ -}}
+{{- $home := .chezmoi.homeDir -}}
+{{- $hooks := dict
+    "UserPromptSubmit" (list (dict
+      "hooks" (list (dict
+        "type" "command"
+        "command" (printf "%s/.local/bin/claude-user-prompt-start.sh" $home)))))
+    "Stop" (list (dict
+      "hooks" (list (dict
+        "type" "command"
+        "command" (printf "%s/.local/bin/claude-stop-pulse.sh" $home)))))
+    "Notification" (list (dict
+      "matcher" "permission_prompt"
+      "hooks" (list (dict
+        "type" "command"
+        "command" "alerter --title 'Claude Code' --message 'Needs attention' --sound default"))))
+    "PreToolUse" (list (dict
+      "matcher" "Bash"
+      "hooks" (list (dict
+        "type" "command"
+        "command" (printf "%s/.local/bin/claude-audit.sh" $home))))) -}}
+{{- $merged = setValueAtPath "hooks" $hooks $merged -}}
+
+{{- /* --- stable: statusLine (path uses $home) --- */ -}}
+{{- $statusLine := dict
+    "type" "command"
+    "command" (printf "bash %s/.claude/statusline-command.sh" $home) -}}
+{{- $merged = setValueAtPath "statusLine" $statusLine $merged -}}
+
+{{- /* --- stable: plugins enabled by default --- */ -}}
+{{- $enabledPlugins := dict
+    "superpowers@claude-plugins-official" true
+    "document-skills@anthropic-agent-skills" true -}}
+{{- $merged = setValueAtPath "enabledPlugins" $enabledPlugins $merged -}}
+
+{{ $merged | toPrettyJson }}
