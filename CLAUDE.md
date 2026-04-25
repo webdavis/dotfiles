@@ -66,12 +66,34 @@ apply from automation.
 
 ### Claude Code Settings
 
-`private_dot_claude/settings.json.tmpl` is managed by chezmoi and deploys to `~/.claude/settings.json`.
-Configures `defaultMode: "bypassPermissions"` with an allow-list for read-only tools and a deny list for
-sensitive paths (`.env`, `secrets/**`, `.ssh/id_*`). Hooks wired: `UserPromptSubmit` marks session start,
-`Stop` pulses Hue lights if session >5 min, `Notification` (permission_prompt matcher) fires alerter,
-`PreToolUse` (Bash matcher) appends to `~/.claude/audit.log`. `alwaysThinkingEnabled: true` forces
-extended thinking; `cleanupPeriodDays: 36525` effectively disables session cleanup.
+`private_dot_claude/modify_settings.json` is a chezmoi **modify-template** (no `.tmpl` extension by
+chezmoi convention) that selectively enforces a fixed set of stable fields in `~/.claude/settings.json`.
+On every `chezmoi apply`, the script reads the current target file, overlays the stable fields below via
+`setValueAtPath`, and writes the merged result back. Anything not in the stable list passes through
+untouched, so `/config` toggles (e.g., `voiceEnabled`, `useAutoModeDuringPlan`, `alwaysThinkingEnabled`)
+drift freely without forcing a chezmoi resync.
+
+**Chezmoi-controlled stable fields:**
+
+- `permissions.allow` (read-only tools), `permissions.deny` (`.env`, `secrets/**`, `.ssh/id_*`, etc.),
+  `permissions.defaultMode` = `bypassPermissions`.
+- `hooks`: `UserPromptSubmit` marks session start, `Stop` pulses Hue lights, `Notification`
+  (`permission_prompt` matcher) fires alerter, `PreToolUse` (`Bash` matcher) writes to
+  `~/.claude/audit.log`.
+- `statusLine`, `enabledPlugins`, `cleanupPeriodDays` (= 36525, effectively disables session cleanup).
+
+**Free-drift (Claude Code owns):** `alwaysThinkingEnabled`, `useAutoModeDuringPlan`, `voiceEnabled`,
+`skipDangerousModePermissionPrompt`, and any future setting `/config` adds.
+
+**Promote a `/config` toggle to stable** by adding a `setValueAtPath` call for that key in
+`private_dot_claude/modify_settings.json` and committing.
+
+Background: `/config` writes ergonomic toggles directly into `~/.claude/settings.json` (verified
+empirically), and Claude Code does not provide a user-level `~/.claude/settings.local.json` for overrides
+— only project-scope `.claude/settings.local.json` exists. The modify-template approach is the cleanest
+way to keep policy fields under chezmoi control while letting `/config` mutate everything else freely.
+See https://www.chezmoi.io/user-guide/manage-different-types-of-file/ for the `modify_` template +
+`setValueAtPath` reference.
 
 ### Git Hooks
 
@@ -123,8 +145,7 @@ Template files use chezmoi Go templates (`.tmpl` suffix) and live alongside thei
 templates: `.chezmoi.toml.tmpl`, `dot_bashrc.tmpl`, `dot_gitconfig.tmpl`, `dot_aws/credentials.tmpl`,
 `dot_config/gh/private_hosts.yml.tmpl`, `dot_config/atuin/config.toml.tmpl`,
 `dot_config/himalaya/config.toml.tmpl`, `dot_config/osquery/osquery.conf.tmpl`,
-`private_dot_claude/settings.json.tmpl`, `Library/LaunchAgents/*.plist.tmpl`,
-`Library/Application Support/espanso/match/identity.yml.tmpl`,
+`Library/LaunchAgents/*.plist.tmpl`, `Library/Application Support/espanso/match/identity.yml.tmpl`,
 `Library/Application Support/gogcli/credentials.json.tmpl`, and scripts in `.chezmoiscripts/`. Templates
 conditionally branch on `.chezmoi.os` and, where they pull secrets, call `keepassxc`.
 
