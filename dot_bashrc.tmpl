@@ -248,10 +248,10 @@ __cmd_notify_precmd() {
   # Wrap each background call in a subshell so jobs aren't attached to this
   # interactive shell (otherwise `fg`/`jobs` would grab them).
   if ((elapsed >= 300)); then
-    (alerter --title "Command finished" --message "${__cmd_notify_name%% *} (${elapsed}s)" --sound default >/dev/null 2>&1 &)
+    (alerter --timeout 10 --title "Command finished" --message "${__cmd_notify_name%% *} (${elapsed}s)" --sound default >/dev/null 2>&1 &)
     ("$HOME/.local/bin/hue-pulse.sh" "$exit_code" >/dev/null 2>&1 &)
   elif ((elapsed >= 30)); then
-    (alerter --title "Command finished" --message "${__cmd_notify_name%% *} (${elapsed}s)" --sound default >/dev/null 2>&1 &)
+    (alerter --timeout 10 --title "Command finished" --message "${__cmd_notify_name%% *} (${elapsed}s)" --sound default >/dev/null 2>&1 &)
   fi
 }
 

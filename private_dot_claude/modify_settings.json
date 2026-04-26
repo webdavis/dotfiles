@@ -70,7 +70,7 @@
       "matcher" "permission_prompt"
       "hooks" (list (dict
         "type" "command"
-        "command" "alerter --title 'Claude Code' --message 'Needs attention' --sound default"))))
+        "command" "alerter --timeout 30 --title 'Claude Code' --message 'Needs attention' --sound default"))))
     "PreToolUse" (list (dict
       "matcher" "Bash"
       "hooks" (list (dict

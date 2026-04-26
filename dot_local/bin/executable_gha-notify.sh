@@ -78,7 +78,7 @@ fi
   # Notify via alerter (replaces terminal-notifier/osascript per v2 §18.3).
   run_notify() {
     if command -v alerter &>/dev/null; then
-      alerter --title "$1" --message "$2" 2>/dev/null &
+      alerter --timeout 10 --title "$1" --message "$2" 2>/dev/null &
     else
       osascript -e "display notification \"${2}\" with title \"${1}\""
     fi

@@ -152,7 +152,7 @@ fi
 
 if [[ -n $alert_msg ]]; then
   if command -v alerter &>/dev/null; then
-    alerter --title "osquery Alert" --message "$alert_msg" --sound Sosumi 2>/dev/null &
+    alerter --timeout 60 --title "osquery Alert" --message "$alert_msg" --sound Sosumi 2>/dev/null &
   else
     osascript -e "display notification \"$alert_msg\" with title \"osquery Alert\" sound name \"Sosumi\""
   fi

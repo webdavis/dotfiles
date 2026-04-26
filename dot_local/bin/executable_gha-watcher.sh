@@ -87,7 +87,7 @@ notify() {
   # Detach via subshell so the daemon doesn't wait for hue-pulse (~5s) or
   # alerter to complete; both become orphaned to launchd, invisible to us.
   (
-    alerter --title "GitHub Actions: $repo" \
+    alerter --timeout 30 --title "GitHub Actions: $repo" \
       --message "$wf — $conc" --open "$url" \
       --sound default >/dev/null 2>&1 &
   )
