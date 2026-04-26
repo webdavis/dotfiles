@@ -3,6 +3,11 @@
 # plist hash: {{ include "Library/LaunchAgents/com.claude.code.plist.tmpl" | sha256sum }}
 
 {{- if eq .chezmoi.os "darwin" }}
-launchctl unload ~/Library/LaunchAgents/com.claude.code.plist 2>/dev/null
-launchctl load ~/Library/LaunchAgents/com.claude.code.plist
+set -euo pipefail
+
+PLIST="$HOME/Library/LaunchAgents/com.claude.code.plist"
+
+# Re-bootstrap the LaunchAgent so a changed plist takes effect.
+launchctl bootout "gui/$(id -u)/com.claude.code" 2>/dev/null || true
+launchctl bootstrap "gui/$(id -u)" "$PLIST"
 {{- end }}
