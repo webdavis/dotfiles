@@ -195,18 +195,35 @@ run `just l` and `just test` before merge. `wt up` rebases every worktree agains
 ### Bashrc Init Ordering
 
 Starship initializes early; zoxide and atuin initialize after the interactive block (both modify
-`PROMPT_COMMAND`; atuin last). Atuin sources `bash-preexec`, which the long-running command timer uses
-via `preexec_functions` / `precmd_functions` — a naked `DEBUG` trap would clobber atuin's recording.
-Direnv hook runs early. Carapace universal completion loads after `gh completion`.
+`PROMPT_COMMAND`; atuin last). `bash-preexec` is sourced explicitly from Homebrew (atuin 18.x stopped
+bundling it) BEFORE `atuin init` — atuin's `__atuin_preexec`/`__atuin_precmd` and our long-running
+command timer both register into `preexec_functions` / `precmd_functions`. A naked `DEBUG` trap would
+clobber atuin's recording. Direnv hook runs early. Carapace universal completion loads after
+`gh completion`.
 
 ### Shell History (Atuin)
 
-Atuin daemon mode is enabled (`[daemon] enabled = true; autostart = true`). Command recording is
-decoupled from `PROMPT_COMMAND` via the daemon. History stored in SQLite at
+Atuin daemon mode is enabled (`[daemon] enabled = true; autostart = false`). The daemon's lifecycle is
+managed by `~/Library/LaunchAgents/com.webdavis.atuin-daemon.plist` (`KeepAlive=true`,
+`atuin daemon start --force` so a stale socket from a prior crash auto-cleans on restart). Command
+recording is decoupled from `PROMPT_COMMAND` via the daemon. History stored in SQLite at
 `~/.local/share/atuin/history.db`. Sync v2 records opt-in (`[sync] records = true`) future-proofs the
 local DB schema even though `auto_sync = false`. `filter_mode = "host"` restricts Ctrl-R to the current
-machine's history; switch to `global` if cross-machine recall becomes important. Bash's built-in history
-is fully removed — atuin owns all recording.
+machine's history. Bash's built-in history is fully removed — atuin owns all recording.
+
+**Diagnostic ladder** when history stops recording:
+
+```bash
+atuin doctor                              # built-in: socket, db, env, shell hooks
+launchctl list | grep atuin               # status: '0' = healthy, '-' = not running
+ps aux | grep '[a]tuin daemon'            # daemon process
+tail ~/.local/log/atuin-daemon.log        # crash messages
+```
+
+Past failures: stale `~/.local/share/atuin/atuin.sock` causing `EADDRINUSE` restart loops (now
+self-healing via `--force`); missing `bash-preexec` after atuin 18.x dropped its bundle (now sourced
+explicitly in bashrc before `atuin init`). `atuin status` is for *sync* status only and errors when not
+logged in — it is not a "is the daemon working" check.
 
 ### AI Commit Messages
 
