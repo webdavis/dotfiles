@@ -9,6 +9,13 @@
     <string>/opt/homebrew/bin/atuin</string>
     <string>daemon</string>
     <string>start</string>
+    <!-- --force: clean up stale socket file from a prior crashed daemon
+         before binding. Without this, an unclean exit leaves the Unix
+         socket file behind and the next start fails with EADDRINUSE,
+         causing launchd to enter a tight restart loop (~6000 attempts
+         observed in production). Safe for single-user LaunchAgent: at
+         most one daemon instance ever exists. -->
+    <string>--force</string>
   </array>
   <key>RunAtLoad</key>
   <true/>
