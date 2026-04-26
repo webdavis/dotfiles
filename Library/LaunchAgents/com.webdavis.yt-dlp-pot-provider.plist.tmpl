@@ -5,18 +5,21 @@
 <dict>
   <key>Label</key>
   <string>com.webdavis.yt-dlp-pot-provider</string>
+  <!-- Run the Node.js build, not the Deno script. Deno + macOS + the npm
+       canvas native module crashes (SIGSEGV in Backend::setCanvas) on
+       every few requests — confirmed by ~4 deno-*.ips DiagnosticReports
+       per day. Canvas was originally written for Node's NAPI and is
+       stable there; upstream is also migrating jsdom→happy-dom (issues
+       #208/#219) which will eventually drop the canvas dep entirely.
+       After updating the bgutil-ytdlp-pot-provider checkout, run
+       `cd .../server && npm ci && npx tsc` to refresh build/main.js. -->
   <key>ProgramArguments</key>
   <array>
-    <string>/opt/homebrew/bin/deno</string>
-    <string>run</string>
-    <string>--allow-env</string>
-    <string>--allow-net</string>
-    <string>--allow-ffi=.</string>
-    <string>--allow-read=.</string>
-    <string>../src/main.ts</string>
+    <string>/opt/homebrew/bin/node</string>
+    <string>build/main.js</string>
   </array>
   <key>WorkingDirectory</key>
-  <string>{{ .chezmoi.homeDir }}/.local/share/yt-dlp/bgutil-ytdlp-pot-provider/server/node_modules</string>
+  <string>{{ .chezmoi.homeDir }}/.local/share/yt-dlp/bgutil-ytdlp-pot-provider/server</string>
   <key>RunAtLoad</key>
   <true/>
   <key>KeepAlive</key>
