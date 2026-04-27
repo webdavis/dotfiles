@@ -9,8 +9,15 @@ bind -m vi-command '"\C-z": emacs-editing-mode'
 bind -m vi-insert '"\C-z": emacs-editing-mode'
 bind -m emacs-standard '"\C-z": vi-editing-mode'
 
-FZF_BASH="${HOME}/.fzf.bash"
-[[ -f $FZF_BASH ]] && source "$FZF_BASH"
+# Source ONLY fzf's key-bindings, NOT its completion.bash. The completion
+# script registers `complete -F _fzf_path_completion` for ~50 commands
+# (ls, cat, cp, vim, …); that handler bypasses readline's
+# `completion-ignore-case`, breaking case-insensitive Tab for those commands.
+# Key-bindings (Ctrl-T file picker, Alt-C cd, Ctrl-R history) are independent
+# of completion overrides and remain safe to load.
+# (~/.fzf.bash sources both — that's why we bypass it.)
+FZF_KEY_BINDINGS="/opt/homebrew/opt/fzf/shell/key-bindings.bash"
+[[ -f $FZF_KEY_BINDINGS ]] && source "$FZF_KEY_BINDINGS"
 
 if ((BASH_VERSINFO[0] < 4)); then
   # CTRL-T - Paste the selected file path into the command line

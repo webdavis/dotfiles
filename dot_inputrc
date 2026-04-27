@@ -6,8 +6,9 @@
 set completion-ignore-case on
 
 # If completion-ignore-case is 'on' this will treat hyphens (-) and underscores (_) as
-# equivalent if it's set to 'on'.
-set completion-map-case off
+# equivalent if it's set to 'on'. Pairs naturally with case-insensitivity for
+# fully-fuzzy file completion (cd ~/my_<TAB> matches both my-foo/ and my_foo/).
+set completion-map-case on
 
 # Display possible completions using colors taken from LS_COLORS.
 set colored-stats on

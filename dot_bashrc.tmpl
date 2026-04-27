@@ -96,6 +96,13 @@ eval "$(direnv hook bash)" # Sets the Direnv hook.
 
 # Carapace: universal shell completion engine (v2 §16.3).
 # Ref: https://github.com/carapace-sh/carapace-bin
+# CARAPACE_MATCH=1 enables case-insensitive matching. Carapace registers
+# `complete -F _carapace_completer` for ~700 commands (ls, cat, vim, git, …)
+# and writes COMPREPLY directly, so readline's `completion-ignore-case` does
+# NOT apply to those commands. Without this env var, lowercase prefixes won't
+# match uppercase filenames despite inputrc settings.
+# Docs: https://carapace-sh.github.io/carapace-bin/setup/environment.html
+export CARAPACE_MATCH=1
 command -v carapace &>/dev/null && source <(carapace _carapace bash) 2>/dev/null
 
 # Starship: https://starship.rs/
@@ -159,8 +166,11 @@ gitsetoriginnopush() {
 # My custom Bash completions.
 [[ -s "$HOME/.bash_completions" ]] && . "$HOME/.bash_completions"
 
-# Fzf is hosted at https://github.com/junegunn/fzf/tree/master/shell.
-[[ -s "$HOME/.fzf.bash" ]] && . "$HOME/.fzf.bash"
+# Fzf: ~/.fzf_bindings (sourced later in the interactive block) loads only
+# key-bindings.bash, NOT completion.bash. Sourcing ~/.fzf.bash here would
+# pull in completion.bash, which registers `complete -F _fzf_path_completion`
+# for ~50 commands and breaks readline's `completion-ignore-case` for them.
+# See https://github.com/junegunn/fzf/tree/master/shell.
 
 # ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 # ┃  Interactive-only features  ┃
