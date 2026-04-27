@@ -173,11 +173,15 @@ find_markdown_files() {
   # mdformat-frontmatter plugin. Claude Code skills/agents/commands rely on
   # `---\nkey: value\n---` metadata blocks; running mdformat on them mangles
   # the frontmatter into an HR + H2 heading.
+  # docs/research/ holds verbatim deep-research output — don't reformat
+  # third-party content (some files use markdown extensions whose HTML
+  # output mdformat's strict round-trip validator rejects).
   find . \
     -type d \( -name ".git" -o -regex ".*/\.?vendor" \
     -o -path "./private_dot_claude/skills" \
     -o -path "./private_dot_claude/agents" \
-    -o -path "./private_dot_claude/commands" \) -prune \
+    -o -path "./private_dot_claude/commands" \
+    -o -path "./docs/research" \) -prune \
     -o -type f -name "*.md" \
     -print0
 }
