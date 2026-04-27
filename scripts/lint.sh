@@ -176,12 +176,15 @@ find_markdown_files() {
   # docs/research/ holds verbatim deep-research output — don't reformat
   # third-party content (some files use markdown extensions whose HTML
   # output mdformat's strict round-trip validator rejects).
+  # docs/superpowers/ holds specs and plans with YAML frontmatter that
+  # mdformat mangles without the mdformat-frontmatter plugin.
   find . \
     -type d \( -name ".git" -o -regex ".*/\.?vendor" \
     -o -path "./private_dot_claude/skills" \
     -o -path "./private_dot_claude/agents" \
     -o -path "./private_dot_claude/commands" \
-    -o -path "./docs/research" \) -prune \
+    -o -path "./docs/research" \
+    -o -path "./docs/superpowers" \) -prune \
     -o -type f -name "*.md" \
     -print0
 }

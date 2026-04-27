@@ -1,6 +1,10 @@
-______________________________________________________________________
-
-## title: macOS Tahoe Disk Cleanup — 4-phase reaper-safe recovery (~365-520 GB) date: 2026-04-27 host: dresden (MacBook Pro M1, macOS 26.2 Tahoe) audience: stephen status: approved (scope + recommendation), execution pending
+---
+title: "macOS Tahoe Disk Cleanup — 4-phase reaper-safe recovery (~365-520 GB)"
+date: 2026-04-27
+host: dresden (MacBook Pro M1, macOS 26.2 Tahoe)
+audience: stephen
+status: approved (scope + recommendation), execution pending
+---
 
 # macOS Tahoe Disk Cleanup Design
 
