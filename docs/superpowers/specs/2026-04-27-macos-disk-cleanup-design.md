@@ -44,11 +44,13 @@ Data volume:                                  774 GB / 926 GB used (88%)
 
 |     Phase | Target                                       | Estimated recovery | Risk                          |
 | --------: | :------------------------------------------- | -----------------: | :---------------------------- |
-|         1 | Simulator runtimes (24 of 27)                |         300-400 GB | None (regenerable)            |
-|         2 | Xcode DerivedData / Archives / DeviceSupport |           40-70 GB | None (regenerable)            |
+|         1 | Simulator runtimes (24 of 27)                |         350-400 GB | None (regenerable)            |
+|        2a | DerivedData (non-keeper)                     |           30-50 GB | None (regenerable)            |
+|        2b | Archives older than 1y                       |             ~28 MB | None (Archives lean)          |
+|        2c | iOS DeviceSupport (retired iOS)              |             ~31 GB | None (regenerable)            |
 |         3 | Docker prune + selective caches              |           20-35 GB | None (regenerable)            |
 |         4 | Misc filesystem cruft                        |            5-15 GB | None (regenerable or expired) |
-| **Total** |                                              |    **~365-520 GB** |                               |
+| **Total** |                                              |    **~436-531 GB** |                               |
 
 After execution, expected utilization: **~30-45%**.
 
@@ -132,30 +134,32 @@ every other DerivedData folder.
 
 Estimated recovery: 30-50 GB depending on how many old projects accumulated.
 
-### 2b. Archives (prune older than 1 year)
+### 2b. Archives (skip — already lean)
 
-`~/Library/Developer/Xcode/Archives/` holds shipped builds. They're useful for symbolicating crash logs
-from past releases, less so once a year+ has passed.
+Actual scan: ~28 MB total in 4 dated folders (2021-2022). Not worth a deletion pass.
+
+### 2c. iOS DeviceSupport (delete all — retired iOS only)
+
+`~/Library/Developer/Xcode/iOS DeviceSupport/<version> (build)/` accumulates one folder per
+iPhone/iPad you've ever connected for debugging. Scan reveals every entry is iOS 14.x or 15.x —
+none matter for current iOS targets.
+
+| Folder | Size |
+|---|---:|
+| iOS 14.6 (18F72) arm64e | 4.1 GB |
+| iOS 14.7.1 (18G82) arm64e | 4.1 GB |
+| iOS 15.0.2 (19A404) arm64e | 5.0 GB |
+| iOS 15.2.1 (19C63) arm64e | 5.2 GB |
+| iOS 15.3.1 (19D52) arm64e | 5.2 GB |
+| iOS 15.4.1 (19E258) arm64e | 5.3 GB |
+| iOS 15.5 (19F77) arm64e | 2.2 GB |
+| **Total** | **~31 GB** |
 
 ```bash
-find ~/Library/Developer/Xcode/Archives -name "*.xcarchive" -mtime +365 -depth 1
-# Review the list, then delete:
-find ~/Library/Developer/Xcode/Archives -name "*.xcarchive" -mtime +365 -depth 1 -exec trash {} +
+trash ~/Library/Developer/Xcode/iOS\ DeviceSupport/*
 ```
 
-Estimated recovery: 5-15 GB.
-
-### 2c. iOS DeviceSupport (prune retired devices)
-
-`~/Library/Developer/Xcode/iOS DeviceSupport/<version> (build)/` accumulates one folder per iPhone/iPad
-you've ever connected for debugging. Devices retired from your roster contribute dead weight.
-
-```bash
-ls ~/Library/Developer/Xcode/iOS\ DeviceSupport/ | sort
-# Review by version; keep latest 2-3 iOS versions matching your project targets.
-```
-
-Estimated recovery: 5-15 GB.
+Estimated recovery: ~31 GB.
 
 ______________________________________________________________________
 
