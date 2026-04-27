@@ -11,13 +11,17 @@ status: approved (scope + recommendation), execution pending
 ## Problem statement
 
 `dresden` is at **88% disk utilization** (774 GB of 926 GB Data volume used; 112 GB free). Investigation
-reveals the dominant consumer is Apple developer tooling, not personal files. The user wants the cruft
-removed, with three explicit constraints:
+reveals the dominant consumer is Apple developer tooling, not personal files. The user has chosen a
+**scorched-earth** stance on cached/derived state: anything regenerable from project source or
+Dockerfiles is fair game.
 
-1. **Keep Xcode functional** for three iOS-only projects: `essential-feed-case-study`, `Maeve`,
-   `webdavis`.
-1. **Keep Docker fully operational** — actively used; image/container loss is acceptable only via
-   `system prune` since Dockerfiles can rebuild.
+Hard constraints:
+
+1. **Keep Xcode installed and functional** (not its cached state) for three iOS-only projects:
+   `essential-feed-case-study`, `Maeve`, `webdavis`. DerivedData / module caches / build products
+   are NOT preserved — first build after cleanup will be slow as Xcode rebuilds.
+1. **Keep Docker fully operational** — actively used. Active containers and named volumes survive
+   (`system prune` without `--volumes`); unused images, build cache, and dangling networks go.
 1. **Do not touch iMessage data** — planned future DB import.
 
 ## Disk inventory
@@ -44,15 +48,16 @@ Data volume:                                  774 GB / 926 GB used (88%)
 
 |     Phase | Target                                       | Estimated recovery | Risk                          |
 | --------: | :------------------------------------------- | -----------------: | :---------------------------- |
-|         1 | Simulator runtimes (24 of 27)                |         350-400 GB | None (regenerable)            |
-|        2a | DerivedData (non-keeper)                     |           30-50 GB | None (regenerable)            |
-|        2b | Archives older than 1y                       |             ~28 MB | None (Archives lean)          |
-|        2c | iOS DeviceSupport (retired iOS)              |             ~31 GB | None (regenerable)            |
-|         3 | Docker prune + selective caches              |           20-35 GB | None (regenerable)            |
+|         1 | Simulator runtimes — keep iOS 26.1 only      |         365-415 GB | None (regenerable)            |
+|        2a | DerivedData — wipe all 133 folders           |           50-70 GB | First Xcode rebuild slow      |
+|        2b | Archives older than 1y                       |     skip (~28 MB)  | n/a                           |
+|        2c | iOS DeviceSupport — wipe all                 |             ~31 GB | None (regenerable)            |
+|        3a | Docker prune (no --volumes)                  |           10-20 GB | None (regenerable)            |
+|        3b | `~/Library/Caches/*` — wipe entirely         |             ~33 GB | UI slowdowns on first relaunch |
 |         4 | Misc filesystem cruft                        |            5-15 GB | None (regenerable or expired) |
-| **Total** |                                              |    **~436-531 GB** |                               |
+| **Total** |                                              |    **~494-584 GB** |                               |
 
-After execution, expected utilization: **~30-45%**.
+After execution, expected utilization: **~35-45%** (down from 88%).
 
 ______________________________________________________________________
 
@@ -68,14 +73,13 @@ visionOS 2.3, 2.4, 2.5, 26.0, 26.1, 26.2, 26.4             ← 7 runtimes
                                                   Total: 27
 ```
 
-**Keep** (per "iOS only" + recent two iOS versions):
+**Keep** (latest iOS only, per scorched-earth stance):
 
-- `iOS 26.0` (com.apple.CoreSimulator.SimRuntime.iOS-26-0)
-- `iOS 26.1` (com.apple.CoreSimulator.SimRuntime.iOS-26-1)
+- `iOS 26.1` (com.apple.CoreSimulator.SimRuntime.iOS-26-1) — single keeper
 
-**Delete** (24 runtimes):
+**Delete** (25 runtimes — all others):
 
-- iOS 18.3, 18.4, 18.5 (older iOS than your projects' deployment target needs)
+- iOS 18.3, 18.4, 18.5, 26.0 (4 older/superseded iOS)
 - All 7 tvOS runtimes
 - All 7 watchOS runtimes
 - All 7 visionOS runtimes
@@ -112,27 +116,24 @@ Apple-distributed binaries.
 
 ______________________________________________________________________
 
-## Phase 2 — Xcode user data (~40-70 GB)
+## Phase 2 — Xcode user data (~80-100 GB)
 
-Three sub-targets, each independently reviewed.
+### 2a. DerivedData (wipe all)
 
-### 2a. DerivedData (filter to keep only the 3 projects)
-
-`~/Library/Developer/Xcode/DerivedData/<ProjectName>-<hashedID>/` is per-project build cache. Anything
-not matching the three keepers is orphaned.
+`~/Library/Developer/Xcode/DerivedData/` contains 133 per-project build-cache folders accumulated over
+years. Per scorched-earth direction: wipe entirely. The 3 keeper projects rebuild from source on next
+Xcode launch (slow first build, normal after that).
 
 ```bash
-# Read: list every DerivedData folder
-ls ~/Library/Developer/Xcode/DerivedData/
+# Read first to log what's being removed:
+ls ~/Library/Developer/Xcode/DerivedData/ | wc -l   # expect ~133
+du -sh ~/Library/Developer/Xcode/DerivedData
 
-# Identify keepers (folders matching essential-feed*, Maeve*, webdavis*)
-# Delete the rest individually, keeping a printed audit trail.
+# Wipe:
+trash ~/Library/Developer/Xcode/DerivedData/*
 ```
 
-**Keep:** any folder matching `essential-feed*`, `Maeve*`, `webdavis*` (case-insensitive). **Delete:**
-every other DerivedData folder.
-
-Estimated recovery: 30-50 GB depending on how many old projects accumulated.
+Estimated recovery: 50-70 GB.
 
 ### 2b. Archives (skip — already lean)
 
@@ -186,19 +187,18 @@ without `--volumes` flag, which is **NOT** included.
 
 Estimated recovery: 10-20 GB.
 
-### 3b. Selective cache cleanup (`~/Library/Caches/`)
+### 3b. Wipe `~/Library/Caches/*` entirely (~33 GB)
 
-Largest cache hogs to identify:
+Per scorched-earth direction: every app in `~/Library/Caches` regenerates its cache on next launch.
+First open of Slack/browsers/IDEs after the wipe will be slower than usual (re-fetch + re-index);
+no actual data is lost.
 
 ```bash
-du -sh ~/Library/Caches/* 2>/dev/null | sort -h | tail -15
+du -sh ~/Library/Caches/* 2>/dev/null | sort -h | tail -10   # log before
+trash ~/Library/Caches/*
 ```
 
-Delete top consumers for apps that regenerate caches gracefully (Homebrew, Spotify, Slack, Chrome, etc.).
-Skip caches for apps with known cache-loss issues (proprietary editors, IDE indexes that take hours to
-rebuild).
-
-Estimated recovery: 10-15 GB.
+Estimated recovery: ~33 GB.
 
 ______________________________________________________________________
 
