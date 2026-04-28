@@ -1,0 +1,18 @@
+# Intentionally empty.
+#
+# espanso auto-creates `match/base.yml` on first run with example triggers
+# (`:espanso`, `:date`, `:shell`). chezmoi-managing it as an empty file
+# keeps the auto-bootstrap from re-introducing those examples — and from
+# becoming a kitchen-sink dumping ground that accumulates duplicates with
+# the dedicated files (autocorrect-spelling.yml, snippets.yml, _pqi.yml,
+# identity.yml).
+#
+# Add new matches to the right dedicated file:
+#   - autocorrect-contractions.yml    common contractions (don't, can't, …)
+#   - autocorrect-spelling.yml        single-word spelling/transposition fixes
+#   - identity.yml.tmpl               name, email, address, phone (templated)
+#   - prompts.yml                     LLM prompt snippets
+#   - snippets.yml                    abbreviations, dates, symbols, URLs
+#   - _pqi.yml                        PCI/work-specific phrases
+
+matches: []

@@ -11,10 +11,9 @@ matches:
   - trigger: ";;omw"
     replace: "On my way."
 
-  - trigger: ";;cons"
+  - trigger: ";;con"
     replace: "conscientious"
-  # Note: was ';;con' — renamed to ';;cons' to fix collision (§6.4).
-  # ';;con' (convenient) also removed; use full word 'convenient'.
+  # Note: ';;con' (convenient) was the colliding entry — removed; use full word 'convenient'.
 
   - trigger: ";;ao"
     replace: "anyone"
@@ -262,6 +261,10 @@ matches:
 
   - trigger: ",,con"
     replace: "consciousness"
+
+  - trigger: ";;ed"
+    replace: "everyday"
+    propagate_case: true
 
   - trigger: ",ty"
     replace: "thank you"

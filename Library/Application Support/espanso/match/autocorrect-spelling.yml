@@ -730,3 +730,17 @@ matches:
 
   - trigger: "covid"
     replace: "COVID"
+
+  # ── Migrated from local base.yml (§6.5) ───────────────────────────────────
+
+  - trigger: "comfrotable"
+    replace: "comfortable"
+
+  - trigger: "sufering"
+    replace: "suffering"
+
+  - trigger: "infromative"
+    replace: "informative"
+
+  - trigger: "aweful"
+    replace: "awful"
