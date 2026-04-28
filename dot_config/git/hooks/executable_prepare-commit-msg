@@ -28,10 +28,12 @@ GIT_DIR="$(git rev-parse --git-dir)"
 diff="$(git diff --cached --diff-algorithm=histogram 2>/dev/null | head -c 5000)"
 [[ -z $diff ]] && exit 0
 
-# 4-second timeout on the model call. timeout(1) is provided by Homebrew
+# 10-second timeout on the model call. timeout(1) is provided by Homebrew
 # coreutils (in the manifest). On failure/timeout, msg stays empty and the
-# editor opens with an empty first line.
-msg="$(printf '%s' "$diff" | timeout 4 \
+# editor opens with an empty first line. Bumped from 4s after observing
+# claude haiku consistently lands at ~4.0s in this environment, causing the
+# hook to truncate 100% of calls and produce empty messages.
+msg="$(printf '%s' "$diff" | timeout 10 \
   env CLAUDECODE= MAX_THINKING_TOKENS=0 claude -p \
   --no-session-persistence --model=haiku --tools='' \
   --disable-slash-commands --setting-sources='' \
