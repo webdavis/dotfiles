@@ -107,7 +107,7 @@ command -v carapace &>/dev/null && source <(carapace _carapace bash) 2>/dev/null
 
 # Starship: https://starship.rs/
 # Use simplified ASCII config when connecting via Mosh or SSH.
-if [[ -n "${MOSH_KEY:-}" || -n "${SSH_CONNECTION:-}" ]]; then
+if [[ -n ${MOSH_KEY:-} || -n ${SSH_CONNECTION:-} ]]; then
   export STARSHIP_CONFIG="$HOME/.config/starship-mosh.toml"
 fi
 eval "$(starship init bash)"
@@ -144,7 +144,7 @@ calc() { bc -l <<<"$*"; }
 
 # Show SSL certificate CN and SANs for a domain.
 getcertnames() {
-  if [[ -z "${1:-}" ]]; then
+  if [[ -z ${1:-} ]]; then
     echo "Usage: getcertnames <domain>" >&2
     return 1
   fi
