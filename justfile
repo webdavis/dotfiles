@@ -5,6 +5,7 @@ default:
 
 alias h := install-hooks
 alias l := lint
+alias L := lint-check
 alias s := lint-shell
 alias S := format-shell
 alias m := format-markdown
@@ -18,6 +19,9 @@ alias c := check
 
 lint:
   nix develop .#run --command ./scripts/lint.sh
+
+lint-check:
+  LINT_CHECK=1 nix develop .#run --command ./scripts/lint.sh
 
 lint-shell:
   nix develop .#run --command ./scripts/lint.sh -s

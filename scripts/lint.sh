@@ -158,10 +158,15 @@ run_11_shellcheck_templates() {
 
 shfmt_runner() {
   local file="$1"
-  # Show what will change (informational, non-fatal).
-  shfmt -i 2 -ci -s --diff "$file" || true
-  # Format in-place. Exit code reflects write success, not pre-format diff.
-  shfmt -i 2 -ci -s --write "$file" || return "$?"
+  if [[ ${LINT_CHECK:-0} == 1 ]]; then
+    # Report drift only; non-zero exit when reformatting would change the file.
+    shfmt -i 2 -ci -s --diff "$file" || return "$?"
+  else
+    # Show what will change (informational, non-fatal).
+    shfmt -i 2 -ci -s --diff "$file" || true
+    # Format in-place. Exit code reflects write success, not pre-format diff.
+    shfmt -i 2 -ci -s --write "$file" || return "$?"
+  fi
 }
 
 run_20_shfmt() {
@@ -191,10 +196,15 @@ find_markdown_files() {
 
 mdformat_runner() {
   local file="$1"
-  # Report formatting status (informational, non-fatal).
-  mdformat --check "$file" || true
-  # Format in-place. Exit code reflects format success, not pre-format check.
-  mdformat "$file" || return "$?"
+  if [[ ${LINT_CHECK:-0} == 1 ]]; then
+    # Non-zero exit when the file would be reformatted.
+    mdformat --check "$file" || return "$?"
+  else
+    # Report formatting status (informational, non-fatal).
+    mdformat --check "$file" || true
+    # Format in-place. Exit code reflects format success, not pre-format check.
+    mdformat "$file" || return "$?"
+  fi
 }
 
 run_40_mdformat() {
@@ -210,8 +220,13 @@ find_nix_files() {
 
 nixfmt_runner() {
   local file="$1"
-  nix fmt -- --quiet "$file"
-  nix fmt -- --ci --quiet "$file" || return "$?"
+  if [[ ${LINT_CHECK:-0} == 1 ]]; then
+    # --ci is check-only; non-zero exit when the file would be reformatted.
+    nix fmt -- --ci --quiet "$file" || return "$?"
+  else
+    nix fmt -- --quiet "$file"
+    nix fmt -- --ci --quiet "$file" || return "$?"
+  fi
 }
 
 run_50_nixfmt() {
@@ -229,10 +244,15 @@ find_toml_files() {
 
 taplo_runner() {
   local file="$1"
-  # Format in place, matching shfmt/mdformat behavior elsewhere in lint.sh.
-  # A non-zero exit here means taplo couldn't parse the file (real syntax
-  # error), not that it would change formatting.
-  taplo format "$file" >/dev/null 2>&1 || return "$?"
+  if [[ ${LINT_CHECK:-0} == 1 ]]; then
+    # --check exits non-zero on any drift (formatting or parse error).
+    taplo format --check "$file" >/dev/null 2>&1 || return "$?"
+  else
+    # Format in place, matching shfmt/mdformat behavior elsewhere in lint.sh.
+    # A non-zero exit here means taplo couldn't parse the file (real syntax
+    # error), not that it would change formatting.
+    taplo format "$file" >/dev/null 2>&1 || return "$?"
+  fi
 }
 
 run_60_taplo() {
