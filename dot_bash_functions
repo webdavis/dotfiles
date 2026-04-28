@@ -1,0 +1,149 @@
+# shellcheck shell=bash
+# Utility functions sourced by ~/.bashrc.
+#
+# Functions belong here when they: take args needing positional handling,
+# have multi-step or conditional logic, or chain multiple commands. Pure
+# command-rename shortcuts live in ~/.bash_aliases instead.
+
+# ┏━━━━━━━━━━━━━━━━━━━━━━━━┓
+# ┃  Filesystem / shell    ┃
+# ┗━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+# Create a directory and cd into it.
+mkd() { mkdir -p "$@" && cd "$_" || return; }
+
+# Create a temp directory and cd into it.
+tmpd() { cd "$(mktemp -d)" || return; }
+
+# CLI calculator.
+calc() { bc -l <<<"$*"; }
+
+# Show SSL certificate CN and SANs for a domain.
+getcertnames() {
+  if [[ -z ${1:-} ]]; then
+    echo "Usage: getcertnames <domain>" >&2
+    return 1
+  fi
+  local cert
+  cert=$(openssl s_client -connect "$1:443" -servername "$1" 2>/dev/null </dev/null |
+    openssl x509 -noout -subject -nameopt multiline -ext subjectAltName 2>/dev/null)
+  printf '%s\n' "$cert" | sed -n 's/[[:space:]]*commonName[[:space:]]*=[[:space:]]*//p'
+  printf '%s\n' "$cert" | grep -o 'DNS:[^,]*' | sed 's/DNS://'
+}
+
+# ┏━━━━━━━━━━━━━━━━━━━━━━━━┓
+# ┃  Git wrappers          ┃
+# ┗━━━━━━━━━━━━━━━━━━━━━━━━┛
+# Migrated from [alias] in ~/.gitconfig on 2026-04-28.
+
+# Set push URL to no_push on forks to prevent accidental upstream pushes.
+git_setorigin_nopush() {
+  git remote set-url --push origin no_push
+}
+
+# List all bash aliases that wrap `git`.
+galiases() {
+  alias | grep -E "='git\b"
+}
+
+# Add, amend the previous commit, force-push with lease.
+# Destructive — rewrites pushed history. --force-with-lease is the safer
+# variant of --force; still risky if collaborators have pulled.
+gacp() {
+  git add "$@" && git commit --amend --no-edit && git push --force-with-lease
+}
+
+# Commit with a multi-word message: `gc fix the bug`.
+gc() {
+  git commit -m "$*"
+}
+
+# Credit an author on the latest commit. Args: <name> <email>.
+gcredit() {
+  git commit --amend --author "$1 <$2>" -C HEAD
+}
+
+# Smart diff: clear + show patch-with-stat if changes exist; else say so.
+gd() {
+  if ! git diff --quiet; then
+    clear
+    git --no-pager diff --patch-with-stat
+  else
+    echo 'git-diff: No changes have been made'
+  fi
+}
+
+# Diff between $1 revisions ago and the current state.
+gdi() {
+  git diff-index --quiet HEAD -- || clear
+  git diff --patch-with-stat "HEAD~$1"
+}
+
+# Initialize a new git repo and create the matching GitHub repo via gh.
+# Renamed from `h` (git alias) to avoid shadowing the gh CLI binary.
+ginitrepo() {
+  git init && gh repo create "$(basename "$PWD")"
+}
+
+# Push current branch to origin.
+gp() {
+  git push origin "$(git rev-parse --abbrev-ref HEAD --)"
+}
+
+# Push current branch to origin and set upstream tracking.
+# The original git alias hardcoded 'main' as the target — the same
+# footgun pattern as the deleted `git u` alias. Fixed to use the
+# current branch name.
+gpu() {
+  local branch
+  branch="$(git rev-parse --abbrev-ref HEAD)"
+  git push --set-upstream origin "$branch"
+}
+
+# Find the merge commit that brought $1's branch into $2 (default HEAD).
+gfindmerge() {
+  local commit="$1" branch="${2:-HEAD}"
+  (
+    git rev-list "$commit".."$branch" --ancestry-path | cat -n
+    git rev-list "$commit".."$branch" --first-parent | cat -n
+  ) | sort -k2 -s | uniq -f1 -d | sort -n | tail -1 | cut -f2
+}
+
+# Show the merge commit identified by gfindmerge.
+gshowmerge() {
+  local merge
+  merge="$(gfindmerge "$1" "$2")"
+  [[ -n $merge ]] && git show "$merge"
+}
+
+# Fetch and check out a GitHub PR by number. Args: <pr> [<remote>=origin].
+gpr() {
+  git fetch -fu "${2:-origin}" "refs/pull/$1/head:pr/$1" && git checkout "pr/$1"
+}
+
+# Checkout a branch, creating it if it doesn't exist.
+ggo() {
+  git checkout -b "$1" 2>/dev/null || git checkout "$1"
+}
+
+# Delete all local branches merged into the current branch.
+gdm() {
+  git branch --merged | grep -v '\*' | xargs -n 1 git branch -d
+}
+
+# List all branches (local and remote) containing the given commit.
+gfb() {
+  git branch -a --contains "$1"
+}
+
+# Find commits whose diff added or removed $1 (pickaxe search via -S).
+gfc() {
+  git log --pretty=format:'%C(yellow)%h %Cblue%ad %Creset%s%Cgreen [%cn] %Cred%d' \
+    --decorate --date=short -S"$1"
+}
+
+# Find commits whose message matches $1 (--grep).
+gfm() {
+  git log --pretty=format:'%C(yellow)%h %Cblue%ad %Creset%s%Cgreen [%cn] %Cred%d' \
+    --decorate --date=short --grep="$1"
+}

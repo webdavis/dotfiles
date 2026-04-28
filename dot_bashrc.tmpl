@@ -132,33 +132,10 @@ nix_daemon='/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh'
 # ┏━━━━━━━━━━━━━━━━━━━━━┓
 # ┃  Utility functions  ┃
 # ┗━━━━━━━━━━━━━━━━━━━━━┛
-
-# Create a directory and cd into it.
-mkd() { mkdir -p "$@" && cd "$_" || return; }
-
-# Create a temp directory and cd into it.
-tmpd() { cd "$(mktemp -d)" || return; }
-
-# CLI calculator.
-calc() { bc -l <<<"$*"; }
-
-# Show SSL certificate CN and SANs for a domain.
-getcertnames() {
-  if [[ -z ${1:-} ]]; then
-    echo "Usage: getcertnames <domain>" >&2
-    return 1
-  fi
-  local cert
-  cert=$(openssl s_client -connect "$1:443" -servername "$1" 2>/dev/null </dev/null |
-    openssl x509 -noout -subject -nameopt multiline -ext subjectAltName 2>/dev/null)
-  printf '%s\n' "$cert" | sed -n 's/[[:space:]]*commonName[[:space:]]*=[[:space:]]*//p'
-  printf '%s\n' "$cert" | grep -o 'DNS:[^,]*' | sed 's/DNS://'
-}
-
-# Set push URL to no_push on forks to prevent accidental upstream pushes.
-git_setorigin_nopush() {
-  git remote set-url --push origin no_push
-}
+# Sourced from ~/.bash_functions for organization. Loaded outside the
+# interactive guard so functions are available to non-interactive
+# sub-shells too (e.g. `bash -c 'mkd /tmp/foo'`).
+[[ -s "$HOME/.bash_functions" ]] && . "$HOME/.bash_functions"
 
 # ┏━━━━━━━━━━━━━━━━━━━━━━━━┓
 # ┃  Local & User Configs  ┃
@@ -198,6 +175,9 @@ if [[ $- == *i* ]]; then
   alias path='echo $PATH | tr ":" "\n"'
   alias t='sesh connect uriel'
   alias fman='compgen -c | fzf | xargs man'
+
+  # Custom git wrappers and other user aliases.
+  [[ -s "$HOME/.bash_aliases" ]] && . "$HOME/.bash_aliases"
 
   # Navigation aliases.
   alias ..='cd ..'

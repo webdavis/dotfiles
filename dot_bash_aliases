@@ -1,0 +1,27 @@
+# shellcheck shell=bash
+# Bash aliases sourced by ~/.bashrc inside the interactive block.
+#
+# Aliases live here when they: take no positional args (or just append
+# them), don't need conditional logic, and call a single command. Anything
+# more complex goes in ~/.bash_functions.
+
+# ┏━━━━━━━━━━━━━━━━━━━━━━━━┓
+# ┃  Git wrappers          ┃
+# ┗━━━━━━━━━━━━━━━━━━━━━━━━┛
+# Migrated from [alias] in ~/.gitconfig on 2026-04-28. Bash forms
+# preferred to avoid the ~/.gitconfig alias namespace entirely.
+
+alias ga='git add'
+alias gcm='git checkout main'
+alias gca='git commit -a --amend -C HEAD --'
+alias gcan='git commit --amend --no-edit'
+alias gamend='git commit --amend --reuse-message=HEAD'
+alias glg='git log --pretty=oneline -n 20 --graph --abbrev-commit'
+alias gmm='git merge origin/main'
+alias gs='git status -s'
+alias gsf='git status'
+alias gts='git tag --list --sort=v:refname'
+alias gundo='git reset --soft HEAD~1'
+alias gunstage='git restore --staged'
+alias grecent='git for-each-ref --sort=-committerdate --count=10 --format="%(refname:short)" refs/heads'
+alias gwhoami='git config --get user.name'
