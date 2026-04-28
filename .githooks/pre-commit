@@ -1,20 +1,15 @@
 #!/usr/bin/env bash
-set -e
+set -euo pipefail
 printf "%s\n" "Running pre-commit checks..."
 
-# Capture staged files before formatters modify the working tree.
-mapfile -t staged_files < <(git diff --cached --name-only --diff-filter=ACMR)
-
-if ! just lint; then
+# Check-only: linters report drift, never mutate the working tree, never
+# touch the index. This preserves partial-commit isolation (`git commit -p`)
+# and keeps cosmetic formatter edits as deliberate, separate commits.
+if ! just lint-check; then
   printf "\n%s\n" "❌ Pre-commit checks failed!"
-  printf "%s\n" "Fix the issues above or run 'git commit --no-verify' to skip checks."
+  printf "%s\n" "Run 'just l' to auto-fix, review the changes, stage what you want, and re-commit."
+  printf "%s\n" "(Or skip with 'git commit --no-verify'.)"
   exit 1
 fi
 
-# Re-stage files that formatters may have modified so the commit includes the fixes.
-for file in "${staged_files[@]}"; do
-  [[ -f "$file" ]] && git add "$file"
-done
-
 printf "%s\n" "✅ All pre-commit checks passed!"
-exit 0
