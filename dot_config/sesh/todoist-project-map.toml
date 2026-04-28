@@ -1,0 +1,37 @@
+# Section name (= git repo basename) → td project name.
+# Consumed by ~/.local/bin/sesh-preview.sh to query Todoist with the
+# `#<project> /<section>` form per ~/.claude/CLAUDE.md.
+#
+# Keys MUST match the path basename used in your session entries.
+# Quoted keys for names containing spaces.
+# If a section is missing here, the preview falls back to `/<section>` only.
+#
+# CONFIRMED via existing tasks:                  tech
+#   uriel, homelab
+#
+# BEST GUESS (please verify and correct):
+#   anything else below — based on CLAUDE.md project semantics
+#   (tech / karl / career / cc / life). Adjust as you create tasks.
+
+# tech (workstation / dev infra / tooling)
+uriel = "tech"
+openclaw = "tech"
+homelab = "tech"
+chezmoi = "tech"
+nvim = "tech"
+warden = "tech"
+"essential-feed-case-study" = "tech"
+
+# karl (joint / Karl Davis work)
+"justdavis-ansible" = "karl"
+
+# career (personal portfolio / job search)
+webdavis = "career"
+"job-hunting" = "career"
+
+# cc (Casually Concerned)
+"Casually Concerned" = "cc"
+
+# life (personal / relationship / non-work)
+Ivy = "life"
+Maeve = "life"

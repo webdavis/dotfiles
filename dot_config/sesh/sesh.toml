@@ -1,5 +1,12 @@
 # Sesh configuration — smart tmux session manager.
 # Docs: https://github.com/joshmedeski/sesh
+#
+# Preview wiring: dot_tmux.conf binds the picker (prefix + o) to fzf with
+# `--preview '~/.local/bin/sesh-preview.sh {2..}'`, which bypasses sesh's
+# built-in `sesh preview` command (that one hardcodes tmux pane-capture for
+# any name matching a running tmux session, ignoring this config).
+# So [default_session].preview_command and per-[[session]] preview_commands
+# only matter for invocations of `sesh preview NAME` outside the picker.
 
 cache = true
 sort_order = ["tmux", "config", "zoxide"]
@@ -7,7 +14,7 @@ dir_length = 1
 blacklist = ["popup", "scratch"]
 
 [default_session]
-preview_command = "td task list -f \"/$(basename {})\" --limit 3 2>/dev/null; echo; eza --tree --level=2 --icons --git-ignore {}"
+preview_command = "~/.local/bin/sesh-preview.sh {}"
 
 [[session]]
 name = "uriel"
@@ -58,16 +65,13 @@ name = "maeve"
 path = "~/workspaces/webdavis/Maeve"
 
 [[session]]
+name = "warden"
+path = "~/workspaces/webdavis/uriel/agents/bob/workspace/builds/warden"
+
+# dresden uses today's Todoist tasks instead of git/eza.
+# Quoted exit-0 fallback so a td failure doesn't show "Exit status 1."
+[[session]]
 name = "dresden"
 path = "~"
 disable_startup_command = true
-preview_command = "td today --limit 5 2>/dev/null"
-
-[[wildcard]]
-pattern = "~/workspaces/**"
-preview_command = "eza --tree --level=2 --icons --git-ignore {}"
-
-[[wildcard]]
-pattern = "~/.config/*"
-disable_startup_command = true
-preview_command = "eza --tree --level=1 --icons {}"
+preview_command = "td today --limit 5 2>/dev/null || echo '(no tasks or td unavailable)'"
