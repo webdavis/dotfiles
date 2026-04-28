@@ -13,7 +13,7 @@ alias t := lint-toml
 alias j := lint-json
 alias y := lint-yaml
 alias d := diff
-alias a := apply
+alias a := apply-no-auth
 alias c := check
 
 lint:
@@ -43,7 +43,7 @@ lint-yaml:
 diff:
   nix develop .#run --command chezmoi diff --exclude=templates
 
-apply:
+apply-no-auth:
   nix develop .#run --command chezmoi apply --exclude=templates --force
 
 check:
