@@ -6,8 +6,22 @@
 set -euo pipefail
 
 PLIST="$HOME/Library/LaunchAgents/com.claude.code.plist"
+TARGET="gui/$(id -u)/com.claude.code"
 
-# Re-bootstrap the LaunchAgent so a changed plist takes effect.
-launchctl bootout "gui/$(id -u)/com.claude.code" 2>/dev/null || true
+# Re-bootstrap the LaunchAgent so a changed plist takes effect. launchd's
+# user-domain registry sometimes still holds the previous registration when
+# bootstrap fires immediately after bootout — the call returns EIO ("Input/
+# output error"). Retry silently up to 3 times before surfacing the real
+# error on the final attempt.
+launchctl bootout "$TARGET" 2>/dev/null || true
+
+for _ in 1 2 3; do
+  if launchctl bootstrap "gui/$(id -u)" "$PLIST" 2>/dev/null; then
+    exit 0
+  fi
+  sleep 1
+done
+
+# Final attempt with stderr passthrough so a non-transient error is visible.
 launchctl bootstrap "gui/$(id -u)" "$PLIST"
 {{- end }}
