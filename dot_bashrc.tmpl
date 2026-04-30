@@ -216,6 +216,20 @@ eval "$(zoxide init bash)"
 eval "$(atuin init bash --disable-up-arrow)"
 
 # ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+# ┃  Atuin daemon drift self-heal                  ┃
+# ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+# If /opt/homebrew/bin/atuin is newer than the daemon's PID file, brew
+# autoupdate (or `chezmoi apply`) replaced the binary while the daemon kept
+# running stale code. Bounce the LaunchAgent in the background. Layered with
+# .chezmoiscripts/run_after_45-bounce-atuin-daemon-on-upgrade.sh.tmpl, which
+# uses version-string comparison at chezmoi-apply time.
+{{ if eq .chezmoi.os "darwin" -}}
+if [[ -f $HOME/.local/share/atuin/atuin-daemon.pid && /opt/homebrew/bin/atuin -nt $HOME/.local/share/atuin/atuin-daemon.pid ]]; then
+  launchctl kickstart -k "gui/$(id -u)/com.webdavis.atuin-daemon" >/dev/null 2>&1 &
+fi
+{{- end }}
+
+# ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 # ┃  Long-running command notifier (v2 §7.1)      ┃
 # ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 # Uses bash-preexec (sourced via Homebrew earlier) instead of a naked DEBUG

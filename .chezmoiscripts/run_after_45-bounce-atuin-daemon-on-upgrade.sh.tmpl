@@ -1,0 +1,29 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/bin/bash
+# When brew upgrades atuin in-place, the running daemon keeps executing its
+# old in-memory image — KeepAlive doesn't catch this since the daemon hasn't
+# crashed. New shells use the new client; gRPC schema drift silently breaks
+# command recording. Bounce the LaunchAgent if the daemon's recorded version
+# (from its PID file) differs from `atuin --version` on disk.
+
+set -euo pipefail
+
+pid_file="$HOME/.local/share/atuin/atuin-daemon.pid"
+atuin_bin="/opt/homebrew/bin/atuin"
+
+[[ -f $pid_file && -x $atuin_bin ]] || exit 0
+
+pid=$(sed -n '1p' "$pid_file")
+running_version=$(sed -n '2p' "$pid_file")
+[[ -n $pid && -n $running_version ]] || exit 0
+
+kill -0 "$pid" 2>/dev/null || exit 0
+
+on_disk_version=$("$atuin_bin" --version | awk '{print $2}')
+[[ -n $on_disk_version ]] || exit 0
+
+if [[ $running_version != "$on_disk_version" ]]; then
+  echo "atuin daemon stale ($running_version → $on_disk_version), bouncing LaunchAgent..."
+  launchctl kickstart -k "gui/$(id -u)/com.webdavis.atuin-daemon"
+fi
+{{ end -}}
