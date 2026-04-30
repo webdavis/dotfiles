@@ -218,12 +218,17 @@ atuin doctor                              # built-in: socket, db, env, shell hoo
 launchctl list | grep atuin               # status: '0' = healthy, '-' = not running
 ps aux | grep '[a]tuin daemon'            # daemon process
 tail ~/.local/log/atuin-daemon.log        # crash messages
+atuin daemon status; atuin --version      # 'Version' line should equal 'atuin <ver>'
 ```
 
 Past failures: stale `~/.local/share/atuin/atuin.sock` causing `EADDRINUSE` restart loops (now
 self-healing via `--force`); missing `bash-preexec` after atuin 18.x dropped its bundle (now sourced
-explicitly in bashrc before `atuin init`). `atuin status` is for *sync* status only and errors when not
-logged in — it is not a "is the daemon working" check.
+explicitly in bashrc before `atuin init`); `brew` upgrading atuin in-place while the daemon kept running
+stale code, silently breaking recording via gRPC schema drift (now self-healing via
+`.chezmoiscripts/run_after_45-bounce-atuin-daemon-on-upgrade.sh.tmpl` plus a mtime check in
+`dot_bashrc.tmpl` after `atuin init`). `atuin status` is for *sync* status only and errors when not
+logged in — it is not a "is the daemon working" check; use `atuin daemon status` (reports `Version`,
+`Protocol`, `Healthy`) for daemon health.
 
 ### AI Commit Messages
 
