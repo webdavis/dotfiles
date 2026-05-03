@@ -1,0 +1,28 @@
+{{- /* chezmoi:modify-template */ -}}
+{{- /*
+  Selective field control for ~/.claude.json (composio MCP entry only).
+
+  Why: `claude mcp add` writes the composio consumer API key in plaintext
+  to ~/.claude.json. Vaulting via KeePassXC keeps the key out of git and
+  lets it rotate via the composio dashboard without re-editing the source.
+
+  How: chezmoi modify-template. Reads current ~/.claude.json from
+  .chezmoi.stdin, overlays mcpServers.composio with the vaulted key,
+  writes the merged result back. All other fields (project state,
+  telemetry IDs, workspace-mcp config, etc.) pass through untouched.
+*/ -}}
+{{- $stdin := index .chezmoi "stdin" | default "" -}}
+{{- $merged := dict -}}
+{{- if $stdin -}}
+{{-   $merged = fromJson $stdin -}}
+{{- end -}}
+
+{{- /* --- stable: composio MCP entry --- */ -}}
+{{- $composio := dict
+    "type" "http"
+    "url" "https://connect.composio.dev/mcp"
+    "headers" (dict
+      "x-consumer-api-key" ((keepassxc "Composio :: API Key :: MCP").Password)) -}}
+{{- $merged = setValueAtPath "mcpServers.composio" $composio $merged -}}
+
+{{ $merged | toPrettyJson }}
