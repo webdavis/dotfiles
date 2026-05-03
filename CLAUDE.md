@@ -58,8 +58,9 @@ chezmoi diff --exclude=templates            # diff non-template files
 ```
 
 **Never run bare `chezmoi apply` from Claude Code** — the following templates call `keepassxc` and will
-fail without an interactive TTY: `~/.gitconfig`, `~/.aws/credentials`, `~/.config/atuin/config.toml`,
-`~/.config/himalaya/config.toml`, `~/Library/Application Support/espanso/match/identity.yml`,
+fail without an interactive TTY: `~/.gitconfig`, `~/.aws/credentials`, `~/.claude.json`,
+`~/.composio/user_data.json`, `~/.config/atuin/config.toml`, `~/.config/himalaya/config.toml`,
+`~/Library/Application Support/espanso/match/identity.yml`,
 `~/Library/Application Support/gogcli/credentials.json`. Apply those from an interactive terminal with
 KeePassXC unlocked. Non-KeePassXC templates (e.g. `~/.bashrc`, `~/.claude/settings.json`) are safe to
 apply from automation.
