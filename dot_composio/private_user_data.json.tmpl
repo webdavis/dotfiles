@@ -1,0 +1,7 @@
+{
+  "api_key": {{ (keepassxc "Composio :: API Key :: CLI").Password | quote }},
+  "base_url": "https://backend.composio.dev",
+  "web_url": "https://dashboard.composio.dev/",
+  "org_id": {{ keepassxcAttribute "Composio :: API Key :: CLI" "org_id" | quote }},
+  "test_user_id": {{ keepassxcAttribute "Composio :: API Key :: CLI" "test_user_id" | quote }}
+}
