@@ -105,6 +105,11 @@ eval "$(direnv hook bash)" # Sets the Direnv hook.
 export CARAPACE_MATCH=1
 command -v carapace &>/dev/null && source <(carapace _carapace bash) 2>/dev/null
 
+# Composio CLI
+# Ref: https://docs.composio.dev/docs/cli
+export COMPOSIO_INSTALL_DIR="$HOME/.composio"
+export PATH="$COMPOSIO_INSTALL_DIR:$PATH"
+
 # Starship: https://starship.rs/
 # Use simplified ASCII config when connecting via Mosh or SSH.
 if [[ -n ${MOSH_KEY:-} || -n ${SSH_CONNECTION:-} ]]; then
