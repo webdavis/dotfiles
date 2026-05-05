@@ -143,13 +143,14 @@ Do **not** run `chezmoi apply` directly — see the KeePassXC constraint above.
 ### macOS Defaults Management
 
 Two `.chezmoidata/` files declaratively track macOS settings; two `.chezmoiscripts/` runners apply them
-at `chezmoi apply` time on darwin (no-op on linux):
+at `chezmoi apply` time on darwin (no-op on Linux):
 
-- `.chezmoidata/macos_defaults.yaml` + `run_onchange_after_30-macos-defaults.sh.tmpl` — per-user
-  `defaults write` records, plus a `killall` list (Dock/Finder/SystemUIServer/cfprefsd; cfprefsd kill is
-  required for plist changes to take effect immediately).
-- `.chezmoidata/macos_system_setup.yaml` + `run_onchange_after_40-macos-system-setup.sh.tmpl` — sudo
-  system commands (one `sudo -v` upfront, then loop). Early-returns when the array is empty.
+- `.chezmoidata/macos_defaults.yaml` + `.chezmoiscripts/run_onchange_after_30-macos-defaults.sh.tmpl` —
+  per-user `defaults write` records, plus a `killall` list (Dock/Finder/SystemUIServer/cfprefsd; cfprefsd
+  kill is required for plist changes to take effect immediately).
+- `.chezmoidata/macos_system_setup.yaml` +
+  `.chezmoiscripts/run_onchange_after_40-macos-system-setup.sh.tmpl` — sudo system commands (one
+  `sudo -v` upfront, then loop). Early-returns when the array is empty.
 
 **Daily workflow:**
 
@@ -157,6 +158,7 @@ at `chezmoi apply` time on darwin (no-op on linux):
 | ----------------------------------- | ------------------------------------------------ |
 | Discover available domains          | `just defaults-list`                             |
 | Browse one domain's keys            | `just defaults-show <domain>`                    |
+| Bulk inspection (paged)             | `just defaults-dump`                             |
 | Capture a setting into YAML         | `just defaults-capture <domain> <key> [current]` |
 | Check for drift                     | `just D`                                         |
 | Force reapply (revert disk to YAML) | `just defaults-apply`                            |
@@ -168,8 +170,8 @@ revert, or hand-edit YAML to capture the new intent.
 
 **Aerospace required defaults:** `com.apple.dock mru-spaces=false` is the single most common Aerospace
 breakage. Several `com.apple.WindowManager` keys (Stage Manager, Sequoia tiling) are recommended off. See
-the design spec at `docs/superpowers/specs/2026-05-05-macos-defaults-management-design.md` for the full
-list.
+the design spec in the chezmoi source tree at
+`docs/superpowers/specs/2026-05-05-macos-defaults-management-design.md` for the full list.
 
 ### Template Files
 
