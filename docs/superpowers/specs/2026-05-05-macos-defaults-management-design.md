@@ -25,7 +25,7 @@ mental note that gets lost across machine rebuilds.
 
 ## §1 — Architecture & file layout
 
-Seven deliverables across three categories, plus three glue changes. All live in this chezmoi repo.
+Eight deliverables across three categories, plus three glue changes. All live in this chezmoi repo.
 
 ### Per-user defaults workflow (chezmoi-managed)
 
@@ -35,6 +35,7 @@ Seven deliverables across three categories, plus three glue changes. All live in
 | `.chezmoiscripts/run_onchange_after_30-macos-defaults.sh.tmpl` | Tier 1 runner. `{{ if eq .chezmoi.os "darwin" }}` guarded; loops over YAML and runs `defaults [-currentHost] write` for each entry, then `killall` on each process. |
 | `dot_local/bin/executable_macos-defaults-drift.sh` | Drift checker (`just D`). Read-only by construction; exits non-zero on drift. Linux-gated via `.chezmoiignore`. |
 | `dot_local/bin/executable_macos-defaults-apply.sh` | Forced reapplier (`just defaults-apply`). Same logic as Tier 1 but invocable directly without bumping the YAML hash. Linux-gated. |
+| `dot_local/bin/executable_macos-defaults-capture.sh` | Capture helper (`just defaults-capture <domain> <key> [--host current]`). Reads the live value+type via `defaults [-currentHost] read-type` + `defaults read`, normalizes to the schema's type tag, appends to `macos_defaults.yaml` if not already present, no-ops if the entry already matches. Used both for initial seeding and for ongoing "I just toggled this in System Settings, track it" workflow. Linux-gated. |
 
 ### Sudo-required system settings (chezmoi-managed; one prompt at apply time)
 
@@ -51,18 +52,53 @@ Seven deliverables across three categories, plus three glue changes. All live in
 
 ### Glue changes
 
-- `justfile` — add `D` (drift) and `defaults-apply` recipes.
+- `justfile` — add `D` (drift), `defaults-apply`, and `defaults-capture` recipes.
 - `CLAUDE.md` — add a "macOS Defaults" section mirroring "Claude Code Settings" / "Homebrew install
   workflow".
-- `.chezmoiignore` — gate the two helper scripts off Linux.
+- `.chezmoiignore` — gate the three helper scripts off Linux.
+
+### Aerospace compatibility (required and recommended defaults)
+
+Aerospace is the workstation's tiling window manager. Several macOS preferences govern how the OS
+itself manages windows and Spaces; the wrong values break Aerospace even though
+`~/.aerospace.toml` (chezmoi-tracked separately as `dot_aerospace.toml`) is untouched. These defaults
+belong in `macos_defaults.yaml` from day one — they are first-class entries in this design, not edge
+cases.
+
+**Required (Aerospace breaks without these):**
+
+| domain | key | type | value | Effect |
+|--------|-----|------|-------|--------|
+| `com.apple.dock` | `mru-spaces` | bool | `false` | Stops macOS from auto-reordering Spaces by recency, which scrambles Aerospace's workspace mapping. The single most common Aerospace breakage. |
+
+**Recommended (Aerospace works without these but UX is cleaner):**
+
+| domain | key | type | value | Effect |
+|--------|-----|------|-------|--------|
+| `com.apple.dock` | `expose-group-apps` | bool | `false` | Mission Control groups by app — collapses tiled windows. False keeps each tile addressable. |
+| `com.apple.WindowManager` | `GloballyEnabled` | bool | `false` | Disables Stage Manager (actively fights tiling WMs). |
+| `com.apple.WindowManager` | `EnableStandardClickToShowDesktop` | bool | `false` | Stops "click wallpaper to reveal desktop"; Sequoia ships this enabled and it hides Aerospace tiles on stray clicks. |
+| `com.apple.WindowManager` | `EnableTilingByEdgeDrag` | bool | `false` | Disables Sequoia's drag-to-edge tiling (collides with Aerospace's tiling). |
+| `com.apple.WindowManager` | `EnableTilingOptionAccelerator` | bool | `false` | Disables hold-Option-to-tile (collides with Aerospace's keybindings). |
+| `com.apple.WindowManager` | `EnableTopTilingByEdgeDrag` | bool | `false` | Disables drag-to-top-edge-to-maximize. |
+
+**Manual System Settings steps** (no reliable `defaults` equivalent — go in the runbook):
+
+- **System Settings → Desktop & Dock → Mission Control → Displays have separate Spaces.** Per-machine
+  preference (uriel: ON for the tri-monitor layout; single-monitor machines: OFF). No defaults
+  equivalent that survives major-version changes.
+- **System Settings → Desktop & Dock → Click wallpaper to reveal desktop.** Set to "Only in Stage
+  Manager" — the `defaults` key changes name across Sequoia point releases, so the runbook approach is
+  more durable than YAML.
 
 ### File-relationship diagram
 
 ```
 .chezmoidata/macos_defaults.yaml ─┐
                                   ├─→ run_onchange_after_30 (chezmoi apply driven)
-                                  ├─→ macos-defaults-drift.sh  ←─ just D
-                                  └─→ macos-defaults-apply.sh  ←─ just defaults-apply
+                                  ├─→ macos-defaults-drift.sh    ←─ just D
+                                  ├─→ macos-defaults-apply.sh    ←─ just defaults-apply
+                                  └─← macos-defaults-capture.sh  ←─ just defaults-capture <dom> <key>
 
 .chezmoidata/macos_system_setup.yaml ─→ run_onchange_after_40 (chezmoi apply driven; sudo)
 
@@ -181,6 +217,26 @@ idempotent commands; this is documented in the YAML's leading comment.
   chezmoi hash gate (so the user can replay the loop after fiddling in System Settings).
 - Linux-gated via `.chezmoiignore`.
 
+#### `dot_local/bin/executable_macos-defaults-capture.sh` — `just defaults-capture <domain> <key> [--host current]`
+
+- **Inputs:** `<domain>` (e.g. `com.apple.dock`), `<key>` (e.g. `tilesize`), optional `--host current`
+  flag (sets `host: current` on the emitted record, runner uses `defaults -currentHost`).
+- **Read sequence:**
+  1. `defaults [-currentHost] read-type "$domain" "$key"` → returns `Type is boolean|integer|float|string`
+     (or non-zero if unset). Map to schema's `bool` / `int` / `float` / `string`.
+  1. `defaults [-currentHost] read "$domain" "$key"` → returns the value. Bool normalization:
+     `1` → `true`, `0` → `false` (so the YAML reads as the user expects, not as macOS stores it).
+- **Write:** append `- { domain: <d>, key: <k>, type: <t>, value: <v>[, host: current] }` to the
+  `macos.defaults:` list in `.chezmoidata/macos_defaults.yaml`.
+- **Idempotency:** if a record with the same `(domain, key, host?)` already exists, the script no-ops
+  with exit 0 if the captured value matches, and exits with `2 — drift` if the existing YAML value
+  differs from disk (forcing the user to either `just defaults-apply` to revert, or hand-edit the YAML
+  to capture intent).
+- **Exit codes:** `0` appended or already in sync, `1` key not currently set on this Mac, `2` YAML
+  drifts from disk (resolve before re-running), `3` malformed args.
+- **Linting:** the appended record passes `yq` parse on subsequent runs.
+- **Linux-gated** via `.chezmoiignore`.
+
 ## §4 — Bootstrap, modification ergonomics, out-of-scope
 
 ### §4.1 — Bootstrap flow
@@ -217,7 +273,7 @@ licenses (see §4.3).
 
 | Operation | Workflow |
 |-----------|----------|
-| **Add a new default** | Toggle the setting in System Settings → `defaults read <domain> <key>` to see actual stored value/type → append to `.chezmoidata/macos_defaults.yaml` → `chezmoi apply` (hash gate fires, runner replays the full loop, killalls fire). |
+| **Add a new default** | Toggle the setting in System Settings → `just defaults-capture <domain> <key> [--host current]` (the helper reads the live value+type and appends a normalized record to `macos_defaults.yaml`) → `chezmoi apply` (hash gate fires, runner replays the full loop, killalls fire). |
 | **Change an existing value** | Edit the value in YAML → `chezmoi apply`. |
 | **Remove a default** | Two-step: delete from YAML → run `defaults delete <domain> <key>` manually. The runner is intentionally write-only; auto-delete is out of scope to keep the apply loop side-effect predictable. Documented in the runbook. |
 | **Per-machine variance** | Edit the inline template branch: `value: {{ if eq .chezmoi.hostname "dresden" }}48{{ else }}64{{ end }}`. |
@@ -267,15 +323,22 @@ These live in `docs/runbooks/macos-fresh-machine-quickstart.md` as a checklist, 
    via `just y`.
 1. **Tier 1 runner** — `.chezmoiscripts/run_onchange_after_30-macos-defaults.sh.tmpl`. Test with the
    YAML still empty (loop is a no-op).
-1. **Drift + apply helpers** — `dot_local/bin/executable_macos-defaults-drift.sh` and
-   `executable_macos-defaults-apply.sh`. `.chezmoiignore` Linux gate added.
+1. **Drift, apply, and capture helpers** — `dot_local/bin/executable_macos-defaults-drift.sh`,
+   `executable_macos-defaults-apply.sh`, and `executable_macos-defaults-capture.sh`. `.chezmoiignore`
+   Linux gate added for all three.
 1. **Tier 2 runner** — `.chezmoiscripts/run_onchange_after_40-macos-system-setup.sh.tmpl`.
-1. **Justfile recipes** — `D` (drift) and `defaults-apply`.
-1. **Migration: capture current state** — one-time pass that runs `defaults read` against the user's
-   actual Mac, populates `macos_defaults.yaml` with the real settings the user wants tracked.
+1. **Justfile recipes** — `D` (drift), `defaults-apply`, and `defaults-capture`.
+1. **Aerospace baseline** — populate `macos_defaults.yaml` with the §1 Aerospace-required and
+   Aerospace-recommended entries (the `mru-spaces`/Stage Manager/Sequoia-tiling block) using the
+   capture helper. These are the only entries that must be present from day one for the workstation to
+   function correctly.
+1. **Initial seeding pass** — the user runs `just defaults-capture <domain> <key>` per setting they
+   want tracked beyond the Aerospace baseline (Dock tile size, Finder hidden files, trackpad clicking,
+   etc.). The helper appends each one and exits cleanly when already in sync, so this can be done
+   incrementally over days.
 1. **CLAUDE.md update** — new "macOS Defaults" section with usage and the killall semantics call-out.
 1. **Runbook** — `docs/runbooks/macos-fresh-machine-quickstart.md` with the §4.3 checklist plus the
-   §4.1 manual gating steps.
+   §4.1 manual gating steps and the §1 Aerospace manual System Settings steps.
 
 ## Validation criteria
 
@@ -284,8 +347,14 @@ These live in `docs/runbooks/macos-fresh-machine-quickstart.md` as a checklist, 
 - `just D` on a clean Mac (post-apply): exit 0, no drift output.
 - `just D` after manually changing a tracked default in System Settings: exit 1, drift row printed.
 - `just defaults-apply`: replays loop without the hash gate, killalls fire, drift cleared.
+- `just defaults-capture com.apple.dock tilesize` on a fresh value: appends a record with the right
+  type tag and exits 0; running again with no changes exits 0 and is a no-op; running after a manual
+  System Settings tweak that diverges from the captured value exits 2 (drift) until resolved.
+- `just defaults-capture` on a never-set key: exits 1 with a "key not currently set" message and does
+  not modify YAML.
 - Editing a YAML value and running `chezmoi apply`: hash gate detects change, runner re-runs.
 - Removing a key from YAML: runner skips it on next apply (and the value persists on disk until the
   user runs `defaults delete` manually, per §4.2).
+- After applying, `defaults read com.apple.dock mru-spaces` returns `0` (Aerospace required).
 - `shellcheck` and `shfmt` pass on all new shell files.
 - `yq` parses both YAML files.
