@@ -173,6 +173,17 @@ breakage. Several `com.apple.WindowManager` keys (Stage Manager, Sequoia tiling)
 the design spec in the chezmoi source tree at
 `docs/superpowers/specs/2026-05-05-macos-defaults-management-design.md` for the full list.
 
+**Implementation gotchas that future maintainers must not "clean up":**
+
+- **`drift.sh` requires `shopt -s lastpipe`** (line 14). Bash's default behavior runs the right-hand side
+  of a pipeline in a subshell, so `drift_count` increments inside `yq | while ...` would be discarded
+  after the loop. Without `lastpipe`, `just D` would always exit 0 even when drift exists — silent false
+  negative. The setting is a correctness requirement, not cosmetic.
+- **The Tier 1 runner template uses `{{ if index . "host" }}`, not `{{ if .host }}`.** Go's
+  `text/template` errors with `map has no entry for key "host"` when the YAML record has no `host` field,
+  which is the common case. The `index` form returns the empty value for absent keys (treated as falsy by
+  `if`); the `.field` form throws. Don't simplify.
+
 ### Template Files
 
 Template files use chezmoi Go templates (`.tmpl` suffix) and live alongside their target files. Notable

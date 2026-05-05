@@ -6,6 +6,8 @@
 # System Settings to revert disk state to the YAML.
 
 set -euo pipefail
+# Note: no `shopt -s lastpipe` here — the while loops below don't mutate
+# outer-scope state (no counter to preserve, unlike drift.sh).
 
 DATA_FILE="${HOME}/.local/share/chezmoi/.chezmoidata/macos_defaults.yaml"
 
