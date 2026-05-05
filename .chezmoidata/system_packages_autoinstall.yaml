@@ -198,7 +198,7 @@ packages:
       - mlx-whisper
       - nano-pdf
     npm:
-      - openclaw@2026.4.12
+      - openclaw@2026.4.27
       - "@openai/codex"
       - "@doist/todoist-cli"
       - clawhub
