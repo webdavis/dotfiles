@@ -202,5 +202,6 @@ packages:
       - "@openai/codex"
       - "@doist/todoist-cli"
       - clawhub
+      - happy
       - "@clawdbot/lobster"
       - mcporter
