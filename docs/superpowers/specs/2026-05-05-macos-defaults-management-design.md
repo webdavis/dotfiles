@@ -35,7 +35,7 @@ Eight deliverables across three categories, plus three glue changes. All live in
 | `.chezmoiscripts/run_onchange_after_30-macos-defaults.sh.tmpl` | Tier 1 runner. `{{ if eq .chezmoi.os "darwin" }}` guarded; loops over YAML and runs `defaults [-currentHost] write` for each entry, then `killall` on each process. |
 | `dot_local/bin/executable_macos-defaults-drift.sh` | Drift checker (`just D`). Read-only by construction; exits non-zero on drift. Linux-gated via `.chezmoiignore`. |
 | `dot_local/bin/executable_macos-defaults-apply.sh` | Forced reapplier (`just defaults-apply`). Same logic as Tier 1 but invocable directly without bumping the YAML hash. Linux-gated. |
-| `dot_local/bin/executable_macos-defaults-capture.sh` | Capture helper (`just defaults-capture <domain> <key> [--host current]`). Reads the live value+type via `defaults [-currentHost] read-type` + `defaults read`, normalizes to the schema's type tag, appends to `macos_defaults.yaml` if not already present, no-ops if the entry already matches. Used both for initial seeding and for ongoing "I just toggled this in System Settings, track it" workflow. Linux-gated. |
+| `dot_local/bin/executable_macos-defaults-capture.sh` | Capture helper (`just defaults-capture <domain> <key> [current]`). Reads the live value+type via `defaults [-currentHost] read-type` + `defaults read`, normalizes to the schema's type tag, appends to `macos_defaults.yaml` if not already present, no-ops if the entry already matches. Used both for initial seeding and for ongoing "I just toggled this in System Settings, track it" workflow. Linux-gated. |
 
 ### Sudo-required system settings (chezmoi-managed; one prompt at apply time)
 
@@ -55,7 +55,7 @@ Eight deliverables across three categories, plus three glue changes. All live in
 - `justfile` — add six recipes:
   - `D` — alias for `defaults-drift`.
   - `defaults-apply` — forced reapplier (calls the apply helper).
-  - `defaults-capture <domain> <key> [--host current]` — capture-to-YAML helper (calls the capture
+  - `defaults-capture <domain> <key> [current]` — capture-to-YAML helper (calls the capture
     helper).
   - `defaults-list` — list all preference domains owned by the current user (`defaults domains | tr
     ',' '\n' | sort`). Pure wrapper, no helper script.
@@ -111,7 +111,7 @@ cases.
                                   ├─→ macos-defaults-apply.sh    ←─ just defaults-apply
                                   └─← macos-defaults-capture.sh  ←─ just defaults-capture <dom> <key>
 
-.chezmoidata/macos_system_setup.yaml ─→ run_onchange_after_40 (chezmoi apply driven; sudo)
+.chezmoidata/macos_system_setup.yaml ─→ run_onchange_after_41 (chezmoi apply driven; sudo)
 
 docs/runbooks/macos-fresh-machine-quickstart.md ←─ user reads on fresh-Mac bootstrap
 ```
@@ -228,7 +228,7 @@ idempotent commands; this is documented in the YAML's leading comment.
   chezmoi hash gate (so the user can replay the loop after fiddling in System Settings).
 - Linux-gated via `.chezmoiignore`.
 
-#### `dot_local/bin/executable_macos-defaults-capture.sh` — `just defaults-capture <domain> <key> [--host current]`
+#### `dot_local/bin/executable_macos-defaults-capture.sh` — `just defaults-capture <domain> <key> [current]`
 
 - **Inputs:** `<domain>` (e.g. `com.apple.dock`), `<key>` (e.g. `tilesize`), optional `--host current`
   flag (sets `host: current` on the emitted record, runner uses `defaults -currentHost`).
@@ -240,11 +240,11 @@ idempotent commands; this is documented in the YAML's leading comment.
 - **Write:** append `- { domain: <d>, key: <k>, type: <t>, value: <v>[, host: current] }` to the
   `macos.defaults:` list in `.chezmoidata/macos_defaults.yaml`.
 - **Idempotency:** if a record with the same `(domain, key, host?)` already exists, the script no-ops
-  with exit 0 if the captured value matches, and exits with `2 — drift` if the existing YAML value
+  with exit 0 if the captured value matches, and exits with `4 — drift` if the existing YAML value
   differs from disk (forcing the user to either `just defaults-apply` to revert, or hand-edit the YAML
   to capture intent).
-- **Exit codes:** `0` appended or already in sync, `1` key not currently set on this Mac, `2` YAML
-  drifts from disk (resolve before re-running), `3` malformed args.
+- **Exit codes:** `0` appended or already in sync, `1` key not currently set on this Mac, `2` data
+  file missing/unreadable, `3` malformed args, `4` YAML drifts from disk (resolve before re-running).
 - **Linting:** the appended record passes `yq` parse on subsequent runs.
 - **Linux-gated** via `.chezmoiignore`.
 
@@ -285,7 +285,7 @@ licenses (see §4.3).
 | Operation | Workflow |
 |-----------|----------|
 | **Discover what's available** | `just defaults-list` to see all preference domains → `just defaults-show <domain>` to see one domain's keys+values → `just defaults-dump` for the full corpus (paged) when you need to grep across everything. |
-| **Add a new default** | Toggle the setting in System Settings → `just defaults-capture <domain> <key> [--host current]` (the helper reads the live value+type and appends a normalized record to `macos_defaults.yaml`) → `chezmoi apply` (hash gate fires, runner replays the full loop, killalls fire). |
+| **Add a new default** | Toggle the setting in System Settings → `just defaults-capture <domain> <key> [current]` (the helper reads the live value+type and appends a normalized record to `macos_defaults.yaml`) → `chezmoi apply` (hash gate fires, runner replays the full loop, killalls fire). |
 | **Change an existing value** | Edit the value in YAML → `chezmoi apply`. |
 | **Remove a default** | Two-step: delete from YAML → run `defaults delete <domain> <key>` manually. The runner is intentionally write-only; auto-delete is out of scope to keep the apply loop side-effect predictable. Documented in the runbook. |
 | **Per-machine variance** | Edit the inline template branch: `value: {{ if eq .chezmoi.hostname "dresden" }}48{{ else }}64{{ end }}`. |
@@ -362,7 +362,7 @@ These live in `docs/runbooks/macos-fresh-machine-quickstart.md` as a checklist, 
 - `just defaults-apply`: replays loop without the hash gate, killalls fire, drift cleared.
 - `just defaults-capture com.apple.dock tilesize` on a fresh value: appends a record with the right
   type tag and exits 0; running again with no changes exits 0 and is a no-op; running after a manual
-  System Settings tweak that diverges from the captured value exits 2 (drift) until resolved.
+  System Settings tweak that diverges from the captured value exits 4 (drift) until resolved.
 - `just defaults-capture` on a never-set key: exits 1 with a "key not currently set" message and does
   not modify YAML.
 - `just defaults-list`: prints sorted, newline-separated list of preference domains, exit 0.
