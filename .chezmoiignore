@@ -32,6 +32,13 @@ tmp.*
 # macOS Finder turds (e.g. Library/Application Support/.DS_Store).
 **/.DS_Store
 
+# Skill repos shipped by openclaw bring their own .git/ and node_modules/;
+# don't track those in this dotfiles repo.
+.agents/skills/*/.git
+.agents/skills/*/.git/**
+.agents/skills/*/node_modules
+.agents/skills/*/node_modules/**
+
 {{- if eq .chezmoi.os "linux" -}}
 .config/yabai
 Library

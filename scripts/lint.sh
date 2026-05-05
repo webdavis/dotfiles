@@ -189,6 +189,7 @@ find_markdown_files() {
     -o -path "./private_dot_claude/skills" \
     -o -path "./private_dot_claude/agents" \
     -o -path "./private_dot_claude/commands" \
+    -o -path "./dot_agents" \
     -o -path "./docs/superpowers" \) -prune \
     -o -type f -name "*.md" \
     ! -path "./docs/research/2026-04-12-worktrunk.md" \
