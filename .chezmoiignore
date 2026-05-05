@@ -42,4 +42,5 @@ tmp.*
 {{- if eq .chezmoi.os "linux" -}}
 .config/yabai
 Library
+.local/bin/macos-defaults-drift.sh
 {{- end -}}
