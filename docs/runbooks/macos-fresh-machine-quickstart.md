@@ -16,7 +16,7 @@ brand-new Mac before running `chezmoi apply` for the first time.
 
 ## During `chezmoi apply`
 
-The Tier 2 runner (`run_onchange_after_40-macos-system-setup.sh.tmpl`) will prompt once for sudo if the
+The Tier 2 runner (`run_onchange_after_41-macos-system-setup.sh.tmpl`) will prompt once for sudo if the
 system_setup YAML is non-empty. Enter your password.
 
 ## After first `chezmoi apply`

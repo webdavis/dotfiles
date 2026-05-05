@@ -42,7 +42,7 @@ Eight deliverables across three categories, plus three glue changes. All live in
 | Path | Purpose |
 |------|---------|
 | `.chezmoidata/macos_system_setup.yaml` | Declarative data: `{description, command, sudo}` triplets. |
-| `.chezmoiscripts/run_onchange_after_40-macos-system-setup.sh.tmpl` | Tier 2 runner. `sudo -v` pre-flight, then loops over the YAML executing each command (with `sudo` prefix when `sudo: true`). |
+| `.chezmoiscripts/run_onchange_after_41-macos-system-setup.sh.tmpl` | Tier 2 runner. `sudo -v` pre-flight, then loops over the YAML executing each command (with `sudo` prefix when `sudo: true`). |
 
 ### Manual setup reference (no execution)
 
@@ -200,7 +200,7 @@ idempotent commands; this is documented in the YAML's leading comment.
 - **Idempotency:** `defaults write` is overwrite-by-default and microsecond-cheap. No read-then-skip
   logic.
 
-### Tier 2 — `.chezmoiscripts/run_onchange_after_40-macos-system-setup.sh.tmpl`
+### Tier 2 — `.chezmoiscripts/run_onchange_after_41-macos-system-setup.sh.tmpl`
 
 - **Trigger / OS guard:** same as Tier 1.
 - **Pre-flight:** `sudo -v` upfront (refresh sudo timestamp). One password prompt at start, none during
@@ -259,7 +259,7 @@ On a fresh Mac, ordered execution under `chezmoi apply`:
 1. `run_onchange_before_10-system-packages.sh.tmpl` — `brew bundle` from generated Brewfile.
 1. File materialization (dotfiles, configs, scripts under `dot_local/bin/`).
 1. **`run_onchange_after_30-macos-defaults.sh.tmpl`** — defaults loop + killall + cfprefsd kill.
-1. **`run_onchange_after_40-macos-system-setup.sh.tmpl`** — sudo system commands.
+1. **`run_onchange_after_41-macos-system-setup.sh.tmpl`** — sudo system commands.
 
 **Why this order:**
 
@@ -338,7 +338,7 @@ These live in `docs/runbooks/macos-fresh-machine-quickstart.md` as a checklist, 
 1. **Drift, apply, and capture helpers** — `dot_local/bin/executable_macos-defaults-drift.sh`,
    `executable_macos-defaults-apply.sh`, and `executable_macos-defaults-capture.sh`. `.chezmoiignore`
    Linux gate added for all three.
-1. **Tier 2 runner** — `.chezmoiscripts/run_onchange_after_40-macos-system-setup.sh.tmpl`.
+1. **Tier 2 runner** — `.chezmoiscripts/run_onchange_after_41-macos-system-setup.sh.tmpl`.
 1. **Justfile recipes** — `D` (drift), `defaults-apply`, `defaults-capture`, `defaults-list`,
    `defaults-show`, and `defaults-dump`.
 1. **Aerospace baseline** — populate `macos_defaults.yaml` with the §1 Aerospace-required and

@@ -149,7 +149,7 @@ at `chezmoi apply` time on darwin (no-op on Linux):
   per-user `defaults write` records, plus a `killall` list (Dock/Finder/SystemUIServer/cfprefsd; cfprefsd
   kill is required for plist changes to take effect immediately).
 - `.chezmoidata/macos_system_setup.yaml` +
-  `.chezmoiscripts/run_onchange_after_40-macos-system-setup.sh.tmpl` — sudo system commands (one
+  `.chezmoiscripts/run_onchange_after_41-macos-system-setup.sh.tmpl` — sudo system commands (one
   `sudo -v` upfront, then loop). Early-returns when the array is empty.
 
 **Daily workflow:**

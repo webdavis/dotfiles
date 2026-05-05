@@ -1,7 +1,7 @@
 # macOS sudo-required system settings — declarative source of truth.
 #
 # Each record under `system_setup:` is a command run by the Tier 2 runner
-# (run_onchange_after_40-macos-system-setup) at `chezmoi apply` time. The
+# (run_onchange_after_41-macos-system-setup) at `chezmoi apply` time. The
 # runner does `sudo -v` once upfront, then prefixes commands with `sudo` only
 # when `sudo: true`.
 #

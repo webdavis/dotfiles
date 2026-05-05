@@ -30,7 +30,7 @@
 | `.chezmoidata/macos_defaults.yaml` | Declarative source of `defaults write` records + `killall` list. |
 | `.chezmoidata/macos_system_setup.yaml` | Declarative source of sudo-prefixed system commands. |
 | `.chezmoiscripts/run_onchange_after_30-macos-defaults.sh.tmpl` | Tier 1 runner: hash-gated darwin-only script that materializes one `defaults write` per record + `killall` post-loop. |
-| `.chezmoiscripts/run_onchange_after_40-macos-system-setup.sh.tmpl` | Tier 2 runner: hash-gated darwin-only script that runs each system command (with sudo as configured). |
+| `.chezmoiscripts/run_onchange_after_41-macos-system-setup.sh.tmpl` | Tier 2 runner: hash-gated darwin-only script that runs each system command (with sudo as configured). |
 | `dot_local/bin/executable_macos-defaults-drift.sh` | Read-only drift checker; exit 1 on drift. |
 | `dot_local/bin/executable_macos-defaults-apply.sh` | Forced reapplier; same write-loop as Tier 1 runner. |
 | `dot_local/bin/executable_macos-defaults-capture.sh` | Capture helper: read live value+type, append to YAML. |
@@ -89,7 +89,7 @@ macos:
 # macOS sudo-required system settings — declarative source of truth.
 #
 # Each record under `system_setup:` is a command run by the Tier 2 runner
-# (run_onchange_after_40-macos-system-setup) at `chezmoi apply` time. The
+# (run_onchange_after_41-macos-system-setup) at `chezmoi apply` time. The
 # runner does `sudo -v` once upfront, then prefixes commands with `sudo` only
 # when `sudo: true`.
 #
@@ -716,7 +716,7 @@ gated."
 
 **Files:**
 
-- Create: `.chezmoiscripts/run_onchange_after_40-macos-system-setup.sh.tmpl`
+- Create: `.chezmoiscripts/run_onchange_after_41-macos-system-setup.sh.tmpl`
 
 - [ ] **Step 1: Write the runner template**
 
@@ -750,26 +750,26 @@ echo "→ {{ .description }}"
 Run:
 
 ```bash
-chezmoi execute-template --no-tty < .chezmoiscripts/run_onchange_after_40-macos-system-setup.sh.tmpl
+chezmoi execute-template --no-tty < .chezmoiscripts/run_onchange_after_41-macos-system-setup.sh.tmpl
 ```
 
 Expected on darwin: a bash script with `set -euo pipefail` and an `exit 0` near the top (because the YAML array is empty).
 
 ```bash
-chezmoi execute-template --no-tty < .chezmoiscripts/run_onchange_after_40-macos-system-setup.sh.tmpl | shellcheck -
+chezmoi execute-template --no-tty < .chezmoiscripts/run_onchange_after_41-macos-system-setup.sh.tmpl | shellcheck -
 ```
 
 Expected: exit 0.
 
 - [ ] **Step 3: Apply the chezmoiscript**
 
-Run: `chezmoi apply .chezmoiscripts/run_onchange_after_40-macos-system-setup.sh.tmpl`
+Run: `chezmoi apply .chezmoiscripts/run_onchange_after_41-macos-system-setup.sh.tmpl`
 Expected: chezmoi runs the script; the early-return fires (no sudo prompt). Exit 0.
 
 - [ ] **Step 4: Commit**
 
 ```bash
-SKIP_AI_COMMIT=1 git add .chezmoiscripts/run_onchange_after_40-macos-system-setup.sh.tmpl
+SKIP_AI_COMMIT=1 git add .chezmoiscripts/run_onchange_after_41-macos-system-setup.sh.tmpl
 SKIP_AI_COMMIT=1 git commit -m "feat(chezmoiscripts): add tier 2 macos system-setup runner
 
 Hash-gated darwin-only script that iterates macos.system_setup and
@@ -880,7 +880,7 @@ at `chezmoi apply` time on darwin (no-op on linux):
 - `.chezmoidata/macos_defaults.yaml` + `run_onchange_after_30-macos-defaults.sh.tmpl` — per-user
   `defaults write` records, plus a `killall` list (Dock/Finder/SystemUIServer/cfprefsd; cfprefsd kill
   is required for plist changes to take effect immediately).
-- `.chezmoidata/macos_system_setup.yaml` + `run_onchange_after_40-macos-system-setup.sh.tmpl` — sudo
+- `.chezmoidata/macos_system_setup.yaml` + `run_onchange_after_41-macos-system-setup.sh.tmpl` — sudo
   system commands (one `sudo -v` upfront, then loop). Early-returns when the array is empty.
 
 **Daily workflow:**
@@ -953,7 +953,7 @@ brand-new Mac before running `chezmoi apply` for the first time.
 
 ## During `chezmoi apply`
 
-The Tier 2 runner (`run_onchange_after_40-macos-system-setup.sh.tmpl`) will prompt once for sudo if
+The Tier 2 runner (`run_onchange_after_41-macos-system-setup.sh.tmpl`) will prompt once for sudo if
 the system_setup YAML is non-empty. Enter your password.
 
 ## After first `chezmoi apply`
