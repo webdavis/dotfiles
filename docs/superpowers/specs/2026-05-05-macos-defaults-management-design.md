@@ -52,10 +52,21 @@ Eight deliverables across three categories, plus three glue changes. All live in
 
 ### Glue changes
 
-- `justfile` — add `D` (drift), `defaults-apply`, and `defaults-capture` recipes.
+- `justfile` — add six recipes:
+  - `D` — alias for `defaults-drift`.
+  - `defaults-apply` — forced reapplier (calls the apply helper).
+  - `defaults-capture <domain> <key> [--host current]` — capture-to-YAML helper (calls the capture
+    helper).
+  - `defaults-list` — list all preference domains owned by the current user (`defaults domains | tr
+    ',' '\n' | sort`). Pure wrapper, no helper script.
+  - `defaults-show <domain>` — print all keys+values in one domain (`defaults read <domain>`). Pure
+    wrapper.
+  - `defaults-dump` — full dump of every domain and every key (`defaults read | less`). Footgun-prone
+    output volume; included for completeness, paged through `less` so it doesn't flood the terminal.
 - `CLAUDE.md` — add a "macOS Defaults" section mirroring "Claude Code Settings" / "Homebrew install
   workflow".
-- `.chezmoiignore` — gate the three helper scripts off Linux.
+- `.chezmoiignore` — gate the three helper scripts off Linux. (The discovery recipes above are
+  justfile-only and Darwin-only by virtue of `defaults` not existing on Linux.)
 
 ### Aerospace compatibility (required and recommended defaults)
 
@@ -273,6 +284,7 @@ licenses (see §4.3).
 
 | Operation | Workflow |
 |-----------|----------|
+| **Discover what's available** | `just defaults-list` to see all preference domains → `just defaults-show <domain>` to see one domain's keys+values → `just defaults-dump` for the full corpus (paged) when you need to grep across everything. |
 | **Add a new default** | Toggle the setting in System Settings → `just defaults-capture <domain> <key> [--host current]` (the helper reads the live value+type and appends a normalized record to `macos_defaults.yaml`) → `chezmoi apply` (hash gate fires, runner replays the full loop, killalls fire). |
 | **Change an existing value** | Edit the value in YAML → `chezmoi apply`. |
 | **Remove a default** | Two-step: delete from YAML → run `defaults delete <domain> <key>` manually. The runner is intentionally write-only; auto-delete is out of scope to keep the apply loop side-effect predictable. Documented in the runbook. |
@@ -327,7 +339,8 @@ These live in `docs/runbooks/macos-fresh-machine-quickstart.md` as a checklist, 
    `executable_macos-defaults-apply.sh`, and `executable_macos-defaults-capture.sh`. `.chezmoiignore`
    Linux gate added for all three.
 1. **Tier 2 runner** — `.chezmoiscripts/run_onchange_after_40-macos-system-setup.sh.tmpl`.
-1. **Justfile recipes** — `D` (drift), `defaults-apply`, and `defaults-capture`.
+1. **Justfile recipes** — `D` (drift), `defaults-apply`, `defaults-capture`, `defaults-list`,
+   `defaults-show`, and `defaults-dump`.
 1. **Aerospace baseline** — populate `macos_defaults.yaml` with the §1 Aerospace-required and
    Aerospace-recommended entries (the `mru-spaces`/Stage Manager/Sequoia-tiling block) using the
    capture helper. These are the only entries that must be present from day one for the workstation to
@@ -352,6 +365,10 @@ These live in `docs/runbooks/macos-fresh-machine-quickstart.md` as a checklist, 
   System Settings tweak that diverges from the captured value exits 2 (drift) until resolved.
 - `just defaults-capture` on a never-set key: exits 1 with a "key not currently set" message and does
   not modify YAML.
+- `just defaults-list`: prints sorted, newline-separated list of preference domains, exit 0.
+- `just defaults-show com.apple.dock`: prints the dock domain's plist contents, exit 0.
+- `just defaults-show <bogus-domain>`: exits non-zero with `defaults`'s native error.
+- `just defaults-dump`: pipes full output through `less`; exit 0 after `less` quits.
 - Editing a YAML value and running `chezmoi apply`: hash gate detects change, runner re-runs.
 - Removing a key from YAML: runner skips it on next apply (and the value persists on disk until the
   user runs `defaults delete` manually, per §4.2).
