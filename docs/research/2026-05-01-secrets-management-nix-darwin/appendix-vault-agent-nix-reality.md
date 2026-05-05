@@ -2,10 +2,9 @@
 
 ## Method
 
-Read-only research only. WebFetch against `developer.hashicorp.com` and `github.com`,
-plus `gh search code/repos`. No edits, no `chezmoi apply`, no installs. Verbatim
-quotes preserved where the docs are dispositive; paraphrase noted where the
-WebFetch model summarized.
+Read-only research only. WebFetch against `developer.hashicorp.com` and `github.com`, plus
+`gh search code/repos`. No edits, no `chezmoi apply`, no installs. Verbatim quotes preserved where the
+docs are dispositive; paraphrase noted where the WebFetch model summarized.
 
 ## Findings (JSON-ish list)
 
@@ -160,31 +159,24 @@ WebFetch model summarized.
 
 ## Synthesis (≈250 words)
 
-Vault Agent on a Nix-managed Mac is **not** well-trodden ground in May 2026. The
-official HashiCorp docs cover Windows service integration explicitly; macOS
-launchd is absent — no plist, no `brew services` recipe for the agent, no
-tutorial. The `hashicorp/tap/vault` Homebrew formula's `brew services` hook
-runs `vault server`, not `vault agent`.
+Vault Agent on a Nix-managed Mac is **not** well-trodden ground in May 2026. The official HashiCorp docs
+cover Windows service integration explicitly; macOS launchd is absent — no plist, no `brew services`
+recipe for the agent, no tutorial. The `hashicorp/tap/vault` Homebrew formula's `brew services` hook runs
+`vault server`, not `vault agent`.
 
-On the Nix side, `services.vault-agent.instances` exists in **nixpkgs** but is
-NixOS-only — it emits `systemd.services.*` units with no darwin codepath.
-nix-darwin's services tree contains no vault module of any kind. Every public
-dotfiles consumer of the nixpkgs module I found targets NixOS-on-Linux
-(usmcamp0811, leoank, nahsi, ananjiani, lopter, …). I could not find a single
-public nix-darwin dotfiles repo running Vault Agent under launchd. That's a
-meaningful absence, not just a search failure.
+On the Nix side, `services.vault-agent.instances` exists in **nixpkgs** but is NixOS-only — it emits
+`systemd.services.*` units with no darwin codepath. nix-darwin's services tree contains no vault module
+of any kind. Every public dotfiles consumer of the nixpkgs module I found targets NixOS-on-Linux
+(usmcamp0811, leoank, nahsi, ananjiani, lopter, …). I could not find a single public nix-darwin dotfiles
+repo running Vault Agent under launchd. That's a meaningful absence, not just a search failure.
 
-Bootstrap is the unavoidable wart on any auth method: token_file is dev-only
-per HashiCorp; AppRole needs role_id and secret_id files on disk, with
-secret_id deleted after first read; JWT is the same shape; OIDC is interactive
-and not an auto-auth method at all. Something outside Vault Agent must place
-the bootstrap credential — keychain, KeePassXC, an out-of-band copy, or a
-launchd-pre script.
+Bootstrap is the unavoidable wart on any auth method: token_file is dev-only per HashiCorp; AppRole needs
+role_id and secret_id files on disk, with secret_id deleted after first read; JWT is the same shape; OIDC
+is interactive and not an auto-auth method at all. Something outside Vault Agent must place the bootstrap
+credential — keychain, KeePassXC, an out-of-band copy, or a launchd-pre script.
 
-For a homelab + workstation Vault, single-node Raft is what you'll actually
-deploy, and the docs explicitly call that "strongly discouraged for production
-use due to the high risk of data loss." For a homelab that's an acceptable
-trade-off, but it is your trade-off, not a HashiCorp recommendation. Audit
-logging is off by default and fail-closed once enabled — operator burden is
-non-trivial. The Mac becomes coupled to homelab uptime: docs don't promise an
-offline grace period for template rendering.
+For a homelab + workstation Vault, single-node Raft is what you'll actually deploy, and the docs
+explicitly call that "strongly discouraged for production use due to the high risk of data loss." For a
+homelab that's an acceptable trade-off, but it is your trade-off, not a HashiCorp recommendation. Audit
+logging is off by default and fail-closed once enabled — operator burden is non-trivial. The Mac becomes
+coupled to homelab uptime: docs don't promise an offline grace period for template rendering.
