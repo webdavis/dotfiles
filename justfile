@@ -16,6 +16,7 @@ alias y := lint-yaml
 alias d := diff
 alias a := apply-no-auth
 alias c := check
+alias D := defaults-drift
 
 lint:
   nix develop .#run --command ./scripts/lint.sh
@@ -60,7 +61,6 @@ install-hooks:
   @echo "✓ Git hooks installed. Pre-commit will run lint.sh"
 
 # macOS Defaults: drift, apply, capture
-alias D := defaults-drift
 
 defaults-drift:
   ~/.local/bin/macos-defaults-drift.sh
@@ -68,10 +68,14 @@ defaults-drift:
 defaults-apply:
   ~/.local/bin/macos-defaults-apply.sh
 
-defaults-capture domain key host="":
+# `defaults-capture <domain> <key> [current]` — capture a live setting into YAML.
+# Pass the literal `current` as the third arg to use ByHost storage
+# (`defaults -currentHost`). Any non-empty third arg triggers ByHost mode;
+# the v1 schema does not support arbitrary hostnames.
+defaults-capture domain key current="":
   #!/usr/bin/env bash
   set -euo pipefail
-  if [[ -n "{{host}}" ]]; then
+  if [[ -n "{{current}}" ]]; then
     ~/.local/bin/macos-defaults-capture.sh "{{domain}}" "{{key}}" "--host=current"
   else
     ~/.local/bin/macos-defaults-capture.sh "{{domain}}" "{{key}}"
