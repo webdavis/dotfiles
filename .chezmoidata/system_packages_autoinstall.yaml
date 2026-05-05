@@ -37,6 +37,7 @@ packages:
         - ccusage
         - chezmoi
         - cirruslabs/cli/softnet
+        - cloudflared
         - cmake
         - cmake-docs
         - coreutils
