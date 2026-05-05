@@ -15,7 +15,35 @@
 # footgun).
 
 macos:
-  defaults: []
+  defaults:
+    - domain: com.apple.dock
+      key: mru-spaces
+      type: bool
+      value: false
+    - domain: com.apple.dock
+      key: expose-group-apps
+      type: bool
+      value: false
+    - domain: com.apple.WindowManager
+      key: GloballyEnabled
+      type: bool
+      value: false
+    - domain: com.apple.WindowManager
+      key: EnableStandardClickToShowDesktop
+      type: bool
+      value: false
+    - domain: com.apple.WindowManager
+      key: EnableTilingByEdgeDrag
+      type: bool
+      value: false
+    - domain: com.apple.WindowManager
+      key: EnableTilingOptionAccelerator
+      type: bool
+      value: false
+    - domain: com.apple.WindowManager
+      key: EnableTopTilingByEdgeDrag
+      type: bool
+      value: false
   killall:
     - Dock
     - Finder
