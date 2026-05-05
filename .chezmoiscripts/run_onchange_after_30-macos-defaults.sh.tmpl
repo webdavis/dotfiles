@@ -12,7 +12,7 @@ osascript -e 'tell application "System Settings" to quit' 2>/dev/null || true
 
 # Main loop: one `defaults write` per record.
 {{ range .macos.defaults -}}
-defaults {{ if .host }}-currentHost {{ end }}write {{ .domain | quote }} {{ .key | quote }} -{{ .type }} {{ .value | quote }}
+defaults {{ if index . "host" }}-currentHost {{ end }}write {{ .domain | quote }} {{ .key | quote }} -{{ .type }} {{ .value | quote }}
 {{ end -}}
 
 # Post-loop: restart user-facing processes so changes take effect immediately.
