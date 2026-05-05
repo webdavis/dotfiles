@@ -7,11 +7,13 @@ packages:
         - cirruslabs/cli
         - domt4/autoupdate # Automatic Upgrades.
         - eugene1g/safehouse
-        - FelixKratz/formulae
+        - felixkratz/formulae
         - mediosz/tap
         - nikitabobko/tap
+        - openhue/cli
         - oven-sh/bun
         - owenthereal/upterm
+        - steipete/tap
         - vjeantet/tap
         - xdevplatform/tap
         - yakitrak/yakitrak
@@ -50,7 +52,7 @@ packages:
         - dust
         - eza
         - fd
-        - FelixKratz/formulae/borders
+        - felixkratz/formulae/borders
         - ffmpeg
         - fzf
         - gawk
@@ -185,6 +187,8 @@ packages:
       mas:
         - name: Actions
           id: "1_586_435_171"
+        - name: DaVinci Resolve
+          id: "571_213_070"
         - name: Drafts
           id: "1_435_957_248"
         - name: Session
@@ -202,7 +206,9 @@ packages:
       - openclaw@2026.4.27
       - "@openai/codex"
       - "@doist/todoist-cli"
+      - agentmail-cli
       - clawhub
       - happy
       - "@clawdbot/lobster"
+      - kulala-ls
       - mcporter
