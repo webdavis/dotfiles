@@ -178,19 +178,20 @@ find_markdown_files() {
   # mdformat-frontmatter plugin. Claude Code skills/agents/commands rely on
   # `---\nkey: value\n---` metadata blocks; running mdformat on them mangles
   # the frontmatter into an HR + H2 heading.
-  # docs/research/ holds verbatim deep-research output — don't reformat
-  # third-party content (some files use markdown extensions whose HTML
-  # output mdformat's strict round-trip validator rejects).
   # docs/superpowers/ holds specs and plans with YAML frontmatter that
   # mdformat mangles without the mdformat-frontmatter plugin.
+  # docs/research/2026-04-12-worktrunk.md fails mdformat's strict round-trip
+  # HTML validator (validate = true in .mdformat.toml). The exact GFM-table
+  # construct that trips the validator hasn't been isolated; quarantine the
+  # one file so the rest of docs/research/ can be linted.
   find . \
     -type d \( -name ".git" -o -regex ".*/\.?vendor" \
     -o -path "./private_dot_claude/skills" \
     -o -path "./private_dot_claude/agents" \
     -o -path "./private_dot_claude/commands" \
-    -o -path "./docs/research" \
     -o -path "./docs/superpowers" \) -prune \
     -o -type f -name "*.md" \
+    ! -path "./docs/research/2026-04-12-worktrunk.md" \
     -print0
 }
 
