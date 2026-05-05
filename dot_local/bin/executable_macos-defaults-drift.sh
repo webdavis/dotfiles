@@ -11,6 +11,7 @@
 #   2 — data file missing or unreadable
 
 set -euo pipefail
+shopt -s lastpipe
 
 DATA_FILE="${HOME}/.local/share/chezmoi/.chezmoidata/macos_defaults.yaml"
 
@@ -45,9 +46,11 @@ print_header() {
 }
 
 # yq -r outputs each record as a single TSV line: domain<TAB>key<TAB>type<TAB>value<TAB>host
+# Note: yq emits a single newline for an empty array; the inline guard below
+# skips that empty row so the script exits 0 cleanly when nothing is tracked.
 yq eval -r '.macos.defaults[] | [.domain, .key, .type, .value, (.host // "")] | @tsv' "$DATA_FILE" |
-  grep -v '^[[:space:]]*$' |
   while IFS=$'\t' read -r domain key type value host; do
+    [[ -z $domain ]] && continue
     expected="$(normalize "$type" "$value")"
     if [[ -n $host ]]; then
       actual="$(defaults -currentHost read "$domain" "$key" 2>/dev/null || printf '<unset>')"
