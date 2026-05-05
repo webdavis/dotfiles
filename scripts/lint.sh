@@ -174,12 +174,19 @@ run_20_shfmt() {
 }
 
 find_markdown_files() {
-  # Skip files with YAML frontmatter that mdformat can't preserve without the
-  # mdformat-frontmatter plugin. Claude Code skills/agents/commands rely on
-  # `---\nkey: value\n---` metadata blocks; running mdformat on them mangles
-  # the frontmatter into an HR + H2 heading.
-  # docs/superpowers/ holds specs and plans with YAML frontmatter that
-  # mdformat mangles without the mdformat-frontmatter plugin.
+  # RULE: skill files (SKILL.md and any markdown shipped alongside a skill,
+  # agent, or slash-command definition) are NEVER touched by mdformat.
+  # Anthropic's skill-authoring guidance treats skills as authored prose with
+  # no line-wrap or formatting requirement, and Anthropic's own skills repo
+  # ships SKILL.md files with lines up to 810 chars and no CI formatter.
+  # There is also a mechanical reason: skill/agent/command files rely on
+  # `---\nkey: value\n---` YAML frontmatter, which mdformat (without the
+  # mdformat-frontmatter plugin) mangles into an HR + H2 heading and breaks
+  # skill discovery. To preserve this rule, every directory that may contain
+  # skill files is pruned below:
+  #   - private_dot_claude/{skills,agents,commands}/  (Claude Code skills)
+  #   - dot_agents/                                   (openclaw skills)
+  # docs/superpowers/ also relies on YAML frontmatter (specs and plans).
   # docs/research/2026-04-12-worktrunk.md fails mdformat's strict round-trip
   # HTML validator (validate = true in .mdformat.toml). The exact GFM-table
   # construct that trips the validator hasn't been isolated; quarantine the
