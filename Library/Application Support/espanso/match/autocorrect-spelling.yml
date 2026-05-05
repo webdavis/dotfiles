@@ -1,746 +1,502 @@
 matches:
   # ── Transpositions ────────────────────────────────────────────────────────
-
   - trigger: "htat"
     replace: "that"
-
   - trigger: "tey"
     replace: "they"
-
   - trigger: "thye"
     replace: "they"
     propagate_case: true
   # Note: duplicate 'thye' entry removed (§6.4)
-
   - trigger: "wsa"
     replace: "was"
-
   - trigger: "adn"
     replace: "and"
     word: true
-
   - trigger: "andd"
     replace: "and"
-
   - trigger: "aand"
     replace: "and"
-
   - trigger: "anad"
     replace: "and"
-
   - trigger: "nad"
     replace: "and"
     word: true
-
   - trigger: "thme"
     replace: "them"
-
   - trigger: "tiem"
     replace: "time"
-
   - trigger: "tihnk"
     replace: "think"
-
   - trigger: "thikn"
     replace: "think"
-
   - trigger: "tlak"
     replace: "talk"
-
   - trigger: "throught"
     replace: "through"
     word: true
-
   - trigger: "thougth"
     replace: "thought"
-
   - trigger: "thigns"
     replace: "things"
-
   - trigger: "thhere"
     replace: "there"
     propagate_case: true
-
   - trigger: "thre"
     replace: "there"
     word: true
-
   - trigger: "ther eto "
     replace: "there to"
-
   - trigger: "there eto "
     replace: "there to"
-
   - trigger: "the yare"
     replace: "they are"
-
   - trigger: "tyring"
     replace: "trying"
-
   - trigger: "treid"
     replace: "tried"
-
   - trigger: "ver"
     replace: "very"
     word: true
-
   - trigger: "celan"
     replace: "clean"
-
   - trigger: "clena"
     replace: "clean"
-
   - trigger: "crare"
     replace: "care"
-
   - trigger: "swtich"
     replace: "switch"
-
   - trigger: "anwer"
     replace: "answer"
-
   - trigger: "answr"
     replace: "answer"
-
   - trigger: "anser"
     replace: "answer"
-
   - trigger: "motehr"
     replace: "mother"
-
   - trigger: "palce"
     replace: "place"
-
   - trigger: "peole"
     replace: "people"
     propagate_case: true
-
   - trigger: "peple"
     replace: "people"
-
   - trigger: "railes"
     replace: "rails"
-
   - trigger: "sfathey"
     replace: "safety"
-
   - trigger: "showes"
     replace: "shows"
-
   - trigger: "seemto"
     replace: "seem to"
-
   - trigger: "soonre"
     replace: "sooner"
-
   - trigger: "rehba"
     replace: "rehab"
-
   - trigger: "hada"
     replace: "had a"
-
-  - trigger: "nota"
-    replace: "not a"
-
   - trigger: "machien"
     replace: "machine"
-
   # ── Doubled / merged letters ──────────────────────────────────────────────
-
   - trigger: "alot"
     replace: "a lot"
     propagate_case: true
-
   - trigger: "everytime"
     replace: "every time"
     propagate_case: true
-
   - trigger: "inbetween"
     replace: "in between"
-
   - trigger: "anyplace"
     replace: "any place"
-
   - trigger: "enoug hstaff"
     replace: "enough staff"
-
   - trigger: "mouthtape"
     replace: "mouth tape"
-
   - trigger: "safet there"
     replace: "safe there"
-
   - trigger: "friendl yand"
     replace: "friendly and"
-
   - trigger: "with hyou."
     replace: "with you."
-
   - trigger: "dignit y"
     replace: "dignity"
-
   - trigger: "salone"
     replace: "salon"
-
   # ── Typos / transposed letters ────────────────────────────────────────────
-
   - trigger: "epxerience"
     replace: "experience"
-
   - trigger: "experienence"
     replace: "experience"
-
   - trigger: "expeirience"
     replace: "experience"
-
   - trigger: "expeirence"
     replace: "experience"
-
   - trigger: "iexperience"
     replace: "experience"
-
   - trigger: "eveything"
     replace: "everything"
     propagate_case: true
-
   - trigger: "eveyrthing"
     replace: "everything"
-
   - trigger: "everythign"
     replace: "everything"
-
   - trigger: "everday"
     replace: "everyday"
-
   - trigger: "anythign"
     replace: "anything"
-
   - trigger: "anyboyd"
     replace: "anybody"
-
   - trigger: "noboyd"
     replace: "nobody"
-
   - trigger: "hyiene"
     replace: "hygiene"
-
   - trigger: "hygenics"
     replace: "hygienics"
-
   - trigger: "embarassing"
     replace: "embarrassing"
-
   - trigger: "recieve"
     replace: "receive"
-
   - trigger: "recieving"
     replace: "receiving"
-
   - trigger: "recomment"
     replace: "recommend"
-
   - trigger: "referal"
     replace: "referral"
-
   - trigger: "referrence"
     replace: "reference"
-
   - trigger: "residetns"
     replace: "residents"
-
   - trigger: "emaculate"
     replace: "immaculate"
-
   - trigger: "imagineative"
     replace: "imaginative"
-
   - trigger: "occuring"
     replace: "occurring"
-
   - trigger: "ocassion"
     replace: "occasion"
-
   - trigger: "occassion"
     replace: "occasion"
-
   - trigger: "occasionaly"
     replace: "occasionally"
-
   - trigger: "convienent"
     replace: "convenient"
-
   - trigger: "consistenty"
     replace: "consistently"
-
   - trigger: "unfortuneately"
     replace: "unfortunately"
     propagate_case: true
-
   - trigger: "uunfortunately"
     replace: "unfortunately"
     propagate_case: true
-
   - trigger: "definetly"
     replace: "definitely"
-
   - trigger: "digestable"
     replace: "digestible"
-
   - trigger: "comparible"
     replace: "comparable"
-
   - trigger: "irrelavant"
     replace: "irrelevant"
-
   - trigger: "adventagous"
     replace: "advantageous"
-
   - trigger: "aprehensive"
     replace: "apprehensive"
-
   - trigger: "persistant"
     replace: "persistent"
-
   - trigger: "competant"
     replace: "competent"
-
   - trigger: "conciderate"
     replace: "considerate"
-
   - trigger: "curteous"
     replace: "courteous"
-
   - trigger: "knowledgable"
     replace: "knowledgeable"
-
   - trigger: "partici"
     replace: "participate"
-
   - trigger: "particu"
     replace: "particular"
-
   - trigger: "leiason"
     replace: "liaison"
-
   - trigger: "liekwise"
     replace: "likewise"
-
   - trigger: "mannored"
     replace: "mannered"
-
   - trigger: "personnable"
     replace: "personable"
-
   - trigger: "paletable"
     replace: "palatable"
-
   - trigger: "commity"
     replace: "committee"
-
   - trigger: "committy"
     replace: "committee"
-
   - trigger: "committes"
     replace: "committees"
-
   - trigger: "committies"
     replace: "committees"
-
   - trigger: "lable"
     replace: "label"
     word: true
-
   - trigger: "freindly"
     replace: "friendly"
-
   - trigger: "frendly"
     replace: "friendly"
-
   - trigger: "freind"
     replace: "friend"
-
   - trigger: "galbladder"
     replace: "gallbladder"
-
   - trigger: "grandaughter"
     replace: "granddaughter"
-
   - trigger: "duaghter"
     replace: "daughter"
     propagate_case: true
-
   - trigger: "dauhgter"
     replace: "daughter"
     propagate_case: true
-
   - trigger: "duahgter"
     replace: "daughter"
     propagate_case: true
-
   - trigger: "concenrs"
     replace: "concerns"
-
   - trigger: "transporation"
     replace: "transportation"
-
   - trigger: "yesterdya"
     replace: "yesterday"
-
   - trigger: "assissted"
     replace: "assisted"
-
   - trigger: "unattentive"
     replace: "inattentive"
-
   - trigger: "invovled"
     replace: "involved"
-
   - trigger: "ingaged"
     replace: "engaged"
-
   - trigger: "postivie"
     replace: "positive"
-
   - trigger: "satisified"
     replace: "satisfied"
-
   - trigger: "understaning"
     replace: "understanding"
-
   - trigger: "genuien"
     replace: "genuine"
-
   - trigger: "wondeful"
     replace: "wonderful"
-
   - trigger: "visistors"
     replace: "visitors"
-
   - trigger: "attendents"
     replace: "attendants"
-
   - trigger: "attendent"
     replace: "attendant"
-
   - trigger: "attendies"
     replace: "attendees"
-
   - trigger: "instraments"
     replace: "instruments"
-
   - trigger: "employes"
     replace: "employees"
-
   - trigger: "cleanign"
     replace: "cleaning"
-
   - trigger: "clothign"
     replace: "clothing"
-
   - trigger: "nruse"
     replace: "nurse"
-
   - trigger: "nrusing"
     replace: "nursing"
-
   - trigger: "nruses"
     replace: "nurses"
-
   - trigger: "patietns"
     replace: "patients"
-
   - trigger: "hosue"
     replace: "house"
-
   - trigger: "hosptial"
     replace: "hospital"
-
   - trigger: "treatement"
     replace: "treatment"
-
   - trigger: "refridgerator"
     replace: "refrigerator"
-
   - trigger: "pnuemonia"
     replace: "pneumonia"
-
   - trigger: "nausiating"
     replace: "nauseating"
-
   - trigger: "nausious"
     replace: "nauseous"
-
   - trigger: "dimentia"
     replace: "dementia"
-
   - trigger: "quadrapaligec"
     replace: "quadriplegic"
-
   - trigger: "theraputic"
     replace: "therapeutic"
-
   - trigger: "therpay"
     replace: "therapy"
-
   - trigger: "manuver"
     replace: "maneuver"
-
   - trigger: "rehabilatation"
     replace: "rehabilitation"
-
   - trigger: "recareational"
     replace: "recreational"
-
   - trigger: "recareation"
     replace: "recreation"
-
   - trigger: "realy"
     replace: "really"
-
   - trigger: "rediculous"
     replace: "ridiculous"
-
   - trigger: "pressue"
     replace: "pressure"
-
   - trigger: "thereford"
     replace: "therefore"
-
   - trigger: "availabel"
     replace: "available"
-
   - trigger: "seemless"
     replace: "seamless"
-
   - trigger: "inqueries"
     replace: "inquiries"
-
   - trigger: "greating"
     replace: "greeting"
-
   - trigger: "outting"
     replace: "outing"
-
   - trigger: "outtings"
     replace: "outings"
-
   - trigger: "appply"
     replace: "apply"
-
   - trigger: "whenver"
     replace: "whenever"
-
   - trigger: "whereever"
     replace: "wherever"
-
   - trigger: "scrammbled"
     replace: "scrambled"
-
   - trigger: "rennovate"
     replace: "renovate"
-
   - trigger: "tendancy"
     replace: "tendency"
-
   - trigger: "comission"
     replace: "commission"
-
   - trigger: "communiion"
     replace: "communion"
-
   - trigger: "defecits"
     replace: "deficits"
-
   - trigger: "disasterouse"
     replace: "disastrous"
-
   - trigger: "abismal"
     replace: "abysmal"
-
   - trigger: "condusive"
     replace: "conducive"
-
   - trigger: "wellfare"
     replace: "welfare"
-
   - trigger: "aggrevates"
     replace: "aggravates"
-
   - trigger: "aggrevating"
     replace: "aggravating"
-
   - trigger: "aggainst"
     replace: "against"
-
   - trigger: "aggrivated"
     replace: "aggravated"
-
   - trigger: "aggitated"
     replace: "agitated"
-
   - trigger: "enterance"
     replace: "entrance"
-
   - trigger: "ceptic"
     replace: "sceptic"
-
   - trigger: "cetner"
     replace: "center"
-
   - trigger: "beter"
     replace: "better"
-
   - trigger: "punny"
     replace: "puny"
-
   - trigger: "puttle"
     replace: "puddle"
-
   - trigger: "otehers"
     replace: "others"
-
   - trigger: "thier"
     replace: "their"
-
   - trigger: "prety"
     replace: "pretty"
-
   - trigger: "woried"
     replace: "worried"
-
   - trigger: "problesm"
     replace: "problems"
-
   - trigger: "scenary"
     replace: "scenery"
-
   - trigger: "gourney"
     replace: "gurney"
-
   - trigger: "futre"
     replace: "future"
     propagate_case: true
-
   - trigger: "comprae"
     replace: "compare"
-
   - trigger: "locaition"
     replace: "location"
-
   - trigger: "locaiton"
     replace: "location"
-
   - trigger: "atrocius"
     replace: "atrocious"
-
   - trigger: "tecnique"
     replace: "technique"
-
   - trigger: "abnoxius"
     replace: "obnoxious"
-
   - trigger: "needded"
     replace: "needed"
-
   - trigger: "signalling"
     replace: "signaling"
-
   - trigger: "faclty"
     replace: "facility"
-
   - trigger: "facilties"
     replace: "facilities"
-
   - trigger: "facilty"
     replace: "facility"
-
   - trigger: "faciltiy"
     replace: "facility"
-
   - trigger: "faciliy"
     replace: "facility"
-
   - trigger: "oursevles"
     replace: "ourselves"
-
   - trigger: "environement"
     replace: "environment"
-
   - trigger: "eenvironment"
     replace: "environment"
-
   - trigger: "catepillar"
     replace: "caterpillar"
-
   - trigger: "bipass"
     replace: "bypass"
-
   - trigger: "unedible"
     replace: "inedible"
-
   - trigger: "psychiatrict"
     replace: "psychiatric"
-
   - trigger: "adminstration"
     replace: "administration"
-
   - trigger: "councelor"
     replace: "councilor"
-
   - trigger: "resepct"
     replace: "respect"
-
   - trigger: "Chaplincy"
     replace: "Chaplaincy"
-
   - trigger: "Virtigo"
     replace: "Vertigo"
-
   - trigger: "Gerriatric"
     replace: "Geriatric"
-
   - trigger: "Michale"
     replace: "Michael"
-
   - trigger: "Kathlene"
     replace: "Kathleen"
-
   - trigger: "Filapino"
     replace: "Filipino"
-
   - trigger: "Juen"
     replace: "June"
-
   - trigger: "Hiasin"
     replace: "Hiaasen"
-
   - trigger: "Massachusets"
     replace: "Massachusetts"
-
   - trigger: "thibido"
     replace: "Thibodeau"
     propagate_case: true
-
   - trigger: "Medicade"
     replace: "Medicaid"
-
   - trigger: "wifi"
     replace: "WiFi"
     word: true
-
   - trigger: "covid"
     replace: "COVID"
-
   # ── Migrated from local base.yml (§6.5) ───────────────────────────────────
-
   - trigger: "comfrotable"
     replace: "comfortable"
-
   - trigger: "sufering"
     replace: "suffering"
-
   - trigger: "infromative"
     replace: "informative"
-
   - trigger: "aweful"
     replace: "awful"
