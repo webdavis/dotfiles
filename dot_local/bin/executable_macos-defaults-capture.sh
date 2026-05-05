@@ -4,7 +4,7 @@
 # Reads the current value+type via `defaults read-type` + `defaults read`,
 # normalizes, appends to the YAML if not already tracked. If the entry is
 # already tracked AND the live value matches: no-op (exit 0). If the entry
-# is already tracked but the live value DIVERGES: exit 2 (drift) — resolve
+# is already tracked but the live value DIVERGES: exit 4 (drift) — resolve
 # via `just defaults-apply` (revert) or hand-edit YAML (capture intent).
 #
 # Usage: macos-defaults-capture.sh <domain> <key> [--host current]
@@ -12,8 +12,9 @@
 # Exit codes:
 #   0 — appended, or already in sync
 #   1 — key not currently set on this Mac
-#   2 — YAML has a different value than disk (drift; resolve before re-running)
+#   2 — data file missing or unreadable
 #   3 — malformed args
+#   4 — YAML has a different value than disk (drift; resolve before re-running)
 
 set -euo pipefail
 
@@ -111,8 +112,9 @@ if [[ -n $existing_value ]]; then
       live_norm="$yaml_value"
       ;;
     string)
-      existing_norm="\"$existing_value\""
-      live_norm="$yaml_value"
+      # Compare bare bash strings, not YAML fragments.
+      existing_norm="$existing_value"
+      live_norm="$raw_value"
       ;;
     *)
       existing_norm="$existing_value"
@@ -126,7 +128,7 @@ if [[ -n $existing_value ]]; then
     printf 'drift: %s %s — yaml=%s disk=%s\n' "$domain" "$key" "$existing_value" "$raw_value" >&2
     # shellcheck disable=SC2016
     printf '  resolve via `just defaults-apply` (revert) or hand-edit YAML.\n' >&2
-    exit 2
+    exit 4
   fi
 fi
 
