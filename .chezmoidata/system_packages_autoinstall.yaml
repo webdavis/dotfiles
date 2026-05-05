@@ -212,5 +212,5 @@ packages:
       - clawhub
       - happy
       - "@clawdbot/lobster"
-      - kulala-ls
+      - "@mistweaverco/kulala-ls"
       - mcporter
