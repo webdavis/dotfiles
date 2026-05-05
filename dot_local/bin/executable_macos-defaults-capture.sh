@@ -53,6 +53,18 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+# Reject domain/key with characters outside the reverse-DNS / identifier set.
+# Defends against yq-expression injection via crafted inputs even though
+# macOS preference domains are constrained to this charset by the OS.
+[[ $domain =~ ^[a-zA-Z0-9._-]+$ ]] || {
+  printf 'error: invalid characters in domain %q\n' "$domain" >&2
+  exit 3
+}
+[[ $key =~ ^[a-zA-Z0-9._-]+$ ]] || {
+  printf 'error: invalid characters in key %q\n' "$key" >&2
+  exit 3
+}
+
 if [[ ! -r $DATA_FILE ]]; then
   printf 'error: cannot read %s\n' "$DATA_FILE" >&2
   exit 2
@@ -133,7 +145,9 @@ if [[ -n $existing_value ]]; then
 fi
 
 # Append a new record.
-tmp="$(mktemp)"
+# Create temp file in the same directory as DATA_FILE so `mv` is atomic
+# (mv across filesystems falls back to copy+delete and loses atomicity).
+tmp="$(mktemp "${DATA_FILE}.XXXXXX")"
 trap 'rm -f "$tmp"' EXIT
 
 yq eval \
