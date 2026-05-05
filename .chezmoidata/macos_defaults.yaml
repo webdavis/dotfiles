@@ -1,0 +1,23 @@
+# macOS user defaults — declarative source of truth.
+#
+# Each record under `defaults:` becomes one `defaults write` invocation at
+# `chezmoi apply` time (Tier 1 runner: run_onchange_after_30-macos-defaults).
+#
+# Schema:
+#   - domain: <string>   # com.apple.dock, NSGlobalDomain, etc.
+#     key:    <string>
+#     type:   bool|int|float|string
+#     value:  <scalar>   # must match `type`
+#     host:   current    # OPTIONAL — if set, runner uses `defaults -currentHost`
+#
+# Each entry in `killall:` runs after the defaults loop. cfprefsd is required
+# for changes to take effect immediately (long-standing macOS plist-cache
+# footgun).
+
+macos:
+  defaults: []
+  killall:
+    - Dock
+    - Finder
+    - SystemUIServer
+    - cfprefsd
