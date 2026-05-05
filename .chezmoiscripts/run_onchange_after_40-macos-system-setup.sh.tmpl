@@ -1,0 +1,22 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/usr/bin/env bash
+# Tier 2 — macOS sudo system-setup runner.
+# chezmoi hash-gates on the rendered template body; this script re-runs only
+# when .chezmoidata/macos_system_setup.yaml changes.
+
+set -euo pipefail
+
+# Early-return if no commands are configured (avoids spurious sudo prompt).
+{{ if eq (len .macos.system_setup) 0 -}}
+exit 0
+{{ else -}}
+# Pre-flight: refresh sudo timestamp upfront. One password prompt at start;
+# none during the loop.
+sudo -v
+
+{{ range .macos.system_setup -}}
+echo "→ {{ .description }}"
+{{ if .sudo }}sudo {{ end }}{{ .command }}
+{{ end -}}
+{{ end -}}
+{{- end }}
