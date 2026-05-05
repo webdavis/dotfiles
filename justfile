@@ -58,3 +58,31 @@ install-hooks:
   git config core.hooksPath .githooks
   chmod +x .githooks/pre-commit
   @echo "✓ Git hooks installed. Pre-commit will run lint.sh"
+
+# macOS Defaults: drift, apply, capture
+alias D := defaults-drift
+
+defaults-drift:
+  ~/.local/bin/macos-defaults-drift.sh
+
+defaults-apply:
+  ~/.local/bin/macos-defaults-apply.sh
+
+defaults-capture domain key host="":
+  #!/usr/bin/env bash
+  set -euo pipefail
+  if [[ -n "{{host}}" ]]; then
+    ~/.local/bin/macos-defaults-capture.sh "{{domain}}" "{{key}}" "--host=current"
+  else
+    ~/.local/bin/macos-defaults-capture.sh "{{domain}}" "{{key}}"
+  fi
+
+# macOS Defaults discovery — read-only wrappers around `defaults`.
+defaults-list:
+  defaults domains | tr ',' '\n' | sort
+
+defaults-show domain:
+  defaults read "{{domain}}"
+
+defaults-dump:
+  defaults read | less
