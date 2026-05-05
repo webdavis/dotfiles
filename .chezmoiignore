@@ -43,4 +43,5 @@ tmp.*
 .config/yabai
 Library
 .local/bin/macos-defaults-drift.sh
+.local/bin/macos-defaults-apply.sh
 {{- end -}}
