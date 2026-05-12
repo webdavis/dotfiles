@@ -204,6 +204,7 @@ packages:
     uv:
       - mlx-whisper
       - nano-pdf
+      - whisply[mlx,app]
     npm:
       - openclaw@2026.4.27
       - "@openai/codex"
