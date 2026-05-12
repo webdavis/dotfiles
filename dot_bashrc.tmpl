@@ -86,10 +86,9 @@ export MANPATH="${HOMEBREW_PREFIX}/share/man:${MANPATH}"
 # ┃  3rd Party Tooling  ┃
 # ┗━━━━━━━━━━━━━━━━━━━━━┛
 
-# Git & GitHub stuff
-[[ -s "$HOME/.git-completion.bash" ]] && . "$HOME/.git-completion.bash"
-
-eval "$(gh completion -s bash)" # GitHub CLI
+# git and gh completions are provided by carapace (below) and, for git, the
+# completion bundled with Homebrew's git formula — both lazy-loaded, so nothing
+# to source here.
 
 # Direnv: https://github.com/direnv/direnv
 eval "$(direnv hook bash)" # Sets the Direnv hook.
@@ -142,11 +141,10 @@ nix_daemon='/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh'
 # sub-shells too (e.g. `bash -c 'mkd /tmp/foo'`).
 [[ -s "$HOME/.bash_functions" ]] && . "$HOME/.bash_functions"
 
-# ┏━━━━━━━━━━━━━━━━━━━━━━━━┓
-# ┃  Local & User Configs  ┃
-# ┗━━━━━━━━━━━━━━━━━━━━━━━━┛
-# My custom Bash completions.
-[[ -s "$HOME/.bash_completions" ]] && . "$HOME/.bash_completions"
+# Per-command Bash completions live in ~/.local/share/bash-completion/completions/
+# and are lazy-loaded by bash-completion@2's dynamic loader (sourced above) on
+# first tab — nothing to source here. Add a file named after the command (e.g.
+# `whisply`), no extension.
 
 # Fzf: ~/.fzf_bindings (sourced later in the interactive block) loads only
 # key-bindings.bash, NOT completion.bash. Sourcing ~/.fzf.bash here would
