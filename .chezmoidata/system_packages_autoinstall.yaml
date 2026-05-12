@@ -202,7 +202,6 @@ packages:
         - name: Xcode
           id: "497_799_835"
     uv:
-      - mlx-whisper
       - nano-pdf
       - whisply[mlx,app]
     npm:
