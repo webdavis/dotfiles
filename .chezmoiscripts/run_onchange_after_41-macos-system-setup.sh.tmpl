@@ -1,5 +1,5 @@
 {{ if eq .chezmoi.os "darwin" -}}
-#!/usr/bin/env bash
+#!/bin/bash
 # Tier 2 — macOS sudo system-setup runner.
 # chezmoi hash-gates on the rendered template body; this script re-runs only
 # when .chezmoidata/macos_system_setup.yaml changes.

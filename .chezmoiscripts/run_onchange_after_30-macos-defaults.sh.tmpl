@@ -1,5 +1,5 @@
 {{ if eq .chezmoi.os "darwin" -}}
-#!/usr/bin/env bash
+#!/bin/bash
 # Tier 1 — macOS user defaults runner.
 # chezmoi hash-gates on the rendered template body; this script re-runs only
 # when .chezmoidata/macos_defaults.yaml changes.
