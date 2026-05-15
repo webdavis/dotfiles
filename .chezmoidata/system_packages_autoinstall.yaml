@@ -8,7 +8,6 @@ packages:
         - domt4/autoupdate # Automatic Upgrades.
         - eugene1g/safehouse
         - felixkratz/formulae
-        - hashicorp/tap
         - mediosz/tap
         - nikitabobko/tap
         - openhue/cli
@@ -125,7 +124,6 @@ packages:
         - tree
         - uv
         - vapor
-        - hashicorp/tap/vault
         - websocat
         - wget
         - wireshark

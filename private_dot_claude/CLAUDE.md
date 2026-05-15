@@ -97,7 +97,7 @@ any extension. Applies to files and folders. Examples: `2026-04-20T14-30-00.sett
 - **File manager / git TUI:** `git`, `gh`, and `fzf`.
 - **Terminal:** Ghostty.
 - **Editor:** Neovim.
-- **Secrets:** KeePassXC and HashiCorp Vault.
+- **Secrets:** KeePassXC.
 
 ## Agents
 
