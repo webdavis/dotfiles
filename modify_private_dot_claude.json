@@ -1,15 +1,16 @@
 {{- /* chezmoi:modify-template */ -}}
 {{- /*
-  Selective field control for ~/.claude.json (composio MCP entry only).
+  Selective field control for ~/.claude.json (composio + workspace-mcp).
 
-  Why: `claude mcp add` writes the composio consumer API key in plaintext
-  to ~/.claude.json. Vaulting via KeePassXC keeps the key out of git and
-  lets it rotate via the composio dashboard without re-editing the source.
+  Why: `claude mcp add` writes secrets in plaintext to ~/.claude.json.
+  Vaulting via KeePassXC keeps secrets out of git and lets them rotate
+  upstream (composio dashboard, Google Cloud Console) without re-editing
+  the source tree.
 
   How: chezmoi modify-template. Reads current ~/.claude.json from
-  .chezmoi.stdin, overlays mcpServers.composio with the vaulted key,
-  writes the merged result back. All other fields (project state,
-  telemetry IDs, workspace-mcp config, etc.) pass through untouched.
+  .chezmoi.stdin, overlays the managed mcpServers entries with vaulted
+  values, writes the merged result back. All other fields (project
+  state, telemetry IDs, additional MCP servers, etc.) pass through.
 */ -}}
 {{- $stdin := index .chezmoi "stdin" | default "" -}}
 {{- $merged := dict -}}
@@ -24,5 +25,16 @@
     "headers" (dict
       "x-consumer-api-key" ((keepassxc "Composio :: API Key :: MCP").Password)) -}}
 {{- $merged = setValueAtPath "mcpServers.composio" $composio $merged -}}
+
+{{- /* --- stable: workspace-mcp entry (Google Workspace via OAuth) --- */ -}}
+{{- $workspaceMcp := dict
+    "type" "stdio"
+    "command" "uvx"
+    "args" (list "workspace-mcp" "--tool-tier" "complete")
+    "env" (dict
+      "GOOGLE_OAUTH_CLIENT_ID" ((keepassxc "Google Cloud (webdavis.io) :: OAuth :: google-workspace-mcp").UserName)
+      "GOOGLE_OAUTH_CLIENT_SECRET" ((keepassxc "Google Cloud (webdavis.io) :: OAuth :: google-workspace-mcp").Password)
+      "OAUTHLIB_INSECURE_TRANSPORT" "1") -}}
+{{- $merged = setValueAtPath "mcpServers.workspace-mcp" $workspaceMcp $merged -}}
 
 {{ $merged | toPrettyJson }}
