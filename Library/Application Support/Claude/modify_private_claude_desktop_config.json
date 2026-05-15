@@ -1,0 +1,30 @@
+{{- /* chezmoi:modify-template */ -}}
+{{- /*
+  Selective field control for Claude Desktop's claude_desktop_config.json.
+
+  Why: workspace-mcp's Google OAuth client secret was leaking into this
+  file in plaintext. Vaulting via KeePassXC keeps the secret out of git
+  while letting the rest of Claude Desktop's config (preferences, browser
+  permissions, etc.) drift freely under the app's own control.
+
+  How: chezmoi modify-template. Reads the current target file from
+  .chezmoi.stdin, overlays mcpServers.google_workspace with the vaulted
+  env, writes the merged JSON back. All other keys pass through.
+*/ -}}
+{{- $stdin := index .chezmoi "stdin" | default "" -}}
+{{- $merged := dict -}}
+{{- if $stdin -}}
+{{-   $merged = fromJson $stdin -}}
+{{- end -}}
+
+{{- /* --- stable: workspace-mcp entry --- */ -}}
+{{- $googleWorkspace := dict
+    "command" "uvx"
+    "args" (list "workspace-mcp" "--tool-tier" "complete")
+    "env" (dict
+      "GOOGLE_OAUTH_CLIENT_ID" ((keepassxc "Google Cloud (webdavis.io) :: OAuth :: google-workspace-mcp").UserName)
+      "GOOGLE_OAUTH_CLIENT_SECRET" ((keepassxc "Google Cloud (webdavis.io) :: OAuth :: google-workspace-mcp").Password)
+      "OAUTHLIB_INSECURE_TRANSPORT" "1") -}}
+{{- $merged = setValueAtPath "mcpServers.google_workspace" $googleWorkspace $merged -}}
+
+{{ $merged | toPrettyJson }}
