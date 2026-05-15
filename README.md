@@ -87,19 +87,20 @@ and is defined in the [`flake.nix`](./flake.nix) file.
 
 ### Install
 
-Install Nix using the
-[Nix Installer from Determinate Systems](https://github.com/DeterminateSystems/nix-installer):
+Install upstream Nix using the [NixOS-maintained Nix Installer](https://github.com/NixOS/nix-installer)
+(a fork of the Determinate Systems installer that continues to support upstream Nix after Determinate's
+installer sunset that path on `2026-01-01`):
 
 ```bash
-curl -fsSL https://install.determinate.systems/nix | sh -s -- install
+curl -sSfL https://artifacts.nixos.org/nix-installer | sh -s -- install
 ```
 
-> [!IMPORTANT]
+> [!NOTE]
 >
-> If you're on macOS and using [nix-darwin](https://github.com/nix-darwin/nix-darwin), when prompted with
-> `Install Determinate Nix?`, say `no`
->
-> - **Why:** As of `2025-10-07`, Determinate Nix is incompatible with nix-darwin 25.05
+> Upstream Nix (rather than Determinate Nix) keeps the path to
+> [nix-darwin](https://github.com/nix-darwin/nix-darwin) clean — nix-darwin defaults to managing upstream
+> Nix and conflicts with Determinate's auto-update daemon. Use the NixOS fork above for both
+> fresh-machine installs and CI.
 
 ### Usage
 
