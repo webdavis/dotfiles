@@ -144,7 +144,6 @@ packages:
         - chatgpt
         - claude
         - claude-code@latest
-        - codexbar
         - discord
         - docker-desktop
         - espanso
