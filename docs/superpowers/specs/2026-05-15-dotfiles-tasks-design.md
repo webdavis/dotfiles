@@ -9,13 +9,13 @@
 
 ## Executive Summary
 
-This audit cycle delivers **13 dotfiles improvements** as Todoist tasks in the `#dotfiles` project, plus one-time **setup work** (archive reorg, audit-outcomes index, CLAUDE.md rule, GitHub housekeeping) that completes the audit closeout. The Todoist tasks already exist; this spec is the implementation design for executing them.
+This audit cycle delivers **13 dotfiles improvements** as Todoist tasks in the `#dotfiles` project, plus one-time **setup work** (delete completed docs, audit-outcomes index, CLAUDE.md rule, GitHub housekeeping) that completes the audit closeout. The Todoist tasks already exist; this spec is the implementation design for executing them.
 
 **Phase model:**
-- **Setup (S1–S5):** Run once, before any implementation phase. Archive completed docs, write the audit-outcomes index, add the CLAUDE.md rule, close GitHub issues, amend the unpushed `Fixes #17` commit. **Three new commits (S1, S2, S3) + one amend-in-place (S5) + GitHub issue closures (S4, no commit).** The "separate logically distinct changes" preference applies to S1/S2/S3.
+- **Setup (S1–S5):** Run once, before any implementation phase. `git rm` completed docs, write the audit-outcomes index, add the CLAUDE.md rule, close GitHub issues, amend the unpushed `Fixes #17` commit. **Three new commits (S1, S2, S3) + one amend-in-place (S5) + GitHub issue closures (S4, no commit).** The "separate logically distinct changes" preference applies to S1/S2/S3.
 - **Implementation (P1–P13):** Each phase corresponds to exactly one Todoist task, ordered by priority + dependency. Phase ends with `td task complete id:<id>`.
 
-**Pre-setup ordering:** This spec and the implementation plan (written by `superpowers:writing-plans` after spec approval) are both committed BEFORE S1 runs. The new 2026-05-15 files live in `docs/superpowers/specs/` and `plans/` before any archive moves happen. `.gitkeep` files are still added to all three superpowers subdirectories during S1 as a future-proof — even though the directories will have content immediately, the `.gitkeep` survives any future cleanup that empties them.
+**Pre-setup ordering:** This spec and the implementation plan (written by `superpowers:writing-plans` after spec approval) are both committed BEFORE S1 runs. The new 2026-05-15 files live in `docs/superpowers/specs/` and `plans/` before any deletions happen. `.gitkeep` files are still added to all three superpowers subdirectories during S1 as a future-proof — even though the directories will have content immediately, the `.gitkeep` survives any future cleanup that empties them.
 
 **Ordering principle:** p2 → p3 → p4. Within bands, dependencies dictate order — most notably **Phase 1 ships the improved commit-message generator (Task 13)** so every subsequent commit benefits from the better template, and **Phase 2 ships PostgreSQL setup (Task 11)** because daily use begins 2026-05-16.
 
@@ -29,13 +29,13 @@ This audit cycle delivers **13 dotfiles improvements** as Todoist tasks in the `
 2. Mark each task complete in Todoist (`td task complete`) immediately after its phase verification passes.
 3. Close stealth-completed GitHub issue #17 via commit-message amend on an existing unpushed commit.
 4. Close GitHub issues #5 (Nu Shell) and #13 (Zellij) as wontfix per locked-in toolchain.
-5. Reorganize `docs/` so future audits don't re-discover the same items — completed research/plans move to `docs/archive/`, and CLAUDE.md tells agents to skip the archive.
-6. Leave a durable audit-outcomes index at `docs/superpowers/audits/2026-05-15-dotfiles-audit-outcomes.md` mapping every archived file → outcome (shipped via commit / Todoist task ID / rejected with rationale).
+5. Reorganize `docs/` so future audits don't re-discover the same items — completed research/plans are `git rm`'d (history retains them; the audit-outcomes index is the new lookup point), and CLAUDE.md tells agents to consult the index rather than re-derive from git history.
+6. Leave a durable audit-outcomes index at `docs/superpowers/audits/2026-05-15-dotfiles-audit-outcomes.md` mapping every removed file → outcome (shipped via commit / Todoist task ID / rejected with rationale).
 
 ### Non-Goals
 
 - **Creating the Todoist tasks.** Already done (2026-05-15). The IDs are referenced below.
-- **Re-auditing the archived docs.** They've been audited; the audit-outcomes index is the new lookup point.
+- **Re-auditing the removed docs.** They've been audited; the audit-outcomes index is the new lookup point (git history retains the originals if needed).
 - **Migrating to nix-darwin/sops-nix.** Tracked by separate pre-existing task `6gWP8w7V3R94PRv5`.
 - **Building OpenClaw itself.** Tasks 3 and 7 hook into OpenClaw's notification surface; they assume OpenClaw exists and has a webhook/event ingestion path.
 
@@ -73,17 +73,17 @@ All in `#dotfiles` project, all `infrastructure` label.
 
 | Step | Description | Commit |
 | --- | --- | --- |
-| S1 | `git mv` 15 research files + 5 superpowers artifacts to `docs/archive/<mirror-of-original-path>/`. Add `.gitkeep` to all three superpowers subdirectories (`audits/`, `plans/`, `specs/`) for future-proofing — they survive even if the directory has content. Also add `.gitkeep` to the four archive subdirectories (`docs/archive/research/`, `docs/archive/superpowers/{audits,plans,specs}/`) for the same reason. | `chore(docs): archive completed research and superpowers artifacts (2026-05-15)` |
-| S2 | Write `docs/superpowers/audits/2026-05-15-dotfiles-audit-outcomes.md`: index mapping every archived file → outcome (shipped via commit `<sha>` / Todoist task ID / rejected with rationale / superseded by `<other>`). Includes note about `2026-04-26-macos-defaults-management.md` not being re-verified line-by-line due to file size at audit time. | `docs(superpowers): add 2026-05-15 audit-outcomes mapping` |
-| S3 | Add to CLAUDE.md (new `### Auditing docs/` subsection): "When asked to audit `docs/` for actionable items, skip `docs/archive/` entirely — those files have been audited; any open follow-ups are tracked in Todoist (#dotfiles) or referenced from the latest `docs/superpowers/audits/*-dotfiles-audit-outcomes.md`. Only `docs/research/` (excluding `2026-05-01-secrets-management-nix-darwin/` which is tied to an existing Todoist task) and active `docs/superpowers/{plans,specs,audits}/` should be read during an audit. Current index: `docs/superpowers/audits/2026-05-15-dotfiles-audit-outcomes.md`." | `docs(CLAUDE): skip docs/archive when auditing` |
+| S1 | `git rm` 15 research files + 5 superpowers artifacts (history retains them; the audit-outcomes index is the durable lookup). Add `.gitkeep` to the three superpowers subdirectories (`audits/`, `plans/`, `specs/`) for future-proofing — they survive even if the directory empties later. | `chore(docs): remove completed research and superpowers artifacts (2026-05-15)` |
+| S2 | Write `docs/superpowers/audits/2026-05-15-dotfiles-audit-outcomes.md`: index mapping every removed file → outcome (shipped via commit `<sha>` / Todoist task ID / rejected with rationale / superseded by `<other>`). Includes note about `2026-04-26-macos-defaults-management.md` not being re-verified line-by-line due to file size at audit time. | `docs(superpowers): add 2026-05-15 audit-outcomes mapping` |
+| S3 | Add to CLAUDE.md (new `### Auditing docs/` subsection): "When asked to audit `docs/` for actionable items, consult `docs/superpowers/audits/2026-05-15-dotfiles-audit-outcomes.md` first — it lists every file removed in the 2026-05-15 audit cycle along with the disposition (shipped via commit / Todoist task ID / rejected / superseded). Don't re-derive these from git history. Open follow-ups are tracked in Todoist (#dotfiles). Only `docs/research/` (excluding `2026-05-01-secrets-management-nix-darwin/` which is tied to an existing Todoist task) and active `docs/superpowers/{plans,specs,audits}/` should be read during an audit." | `docs(CLAUDE): consult audit-outcomes index instead of re-auditing` |
 | S4 | Close GH #5 and GH #13 as wontfix with the rationale comments from the prior plan section A2. | (no commit — `gh issue close` only) |
 | S5 | Amend the most recent unpushed 2026-05-05 macos-defaults commit (likely `409dd2a` if it's the topological tail of the cluster, but verify) to add a `Fixes #17` trailer. When pushed, GitHub's keyword detection auto-closes #17. **Pre-flight required: confirm the commit is unpushed.** `git log origin/main..HEAD --oneline` must include the commit before amending. | (amend in place — no new commit) |
 
 S5's amend is the most risky setup step — guarded by the unpushed precondition. If any of the 2026-05-05 commits are already pushed, fall back to `gh issue close 17 --comment "..."` (per prior plan section A3).
 
-### Files to archive in S1
+### Files to `git rm` in S1
 
-**From `docs/research/` → `docs/archive/research/`** (15 files):
+**From `docs/research/`** (15 files):
 - 2026-03-19-bash-preexec-atuin-shell-history.md
 - 2026-03-19-chezmoi-tool-installation-automation.md
 - 2026-03-21-keeping-imessages-alive-on-locked-mac.md
@@ -100,26 +100,22 @@ S5's amend is the most risky setup step — guarded by the unpushed precondition
 - 2026-04-15-jessfraz-dotfiles-review.md
 - 2026-04-26-macos-defaults-management.md
 
-**From `docs/superpowers/` → `docs/archive/superpowers/`** (5 files, dir structure preserved):
+**From `docs/superpowers/`** (5 files):
 - audits/2026-04-28-v2-progress-audit.md
 - plans/2026-04-15-dotfiles-improvements.md
 - plans/2026-04-19-dotfiles-improvements-v2.md
 - specs/2026-04-14-dotfiles-improvements-design.md
 - specs/2026-04-17-dotfiles-improvements-v2-design.md
 
-**NOT moved (still active):**
-- `docs/research/2026-05-01-secrets-management-nix-darwin/` (tied to open Todoist task `6gWP8w7V3R94PRv5`).
+**NOT removed (still active):**
+- `docs/research/2026-05-01-secrets-management-nix-darwin/` (tied to open Todoist task `6gWP8w7V3R94PRv5`, currently deferred at p4).
 - This spec, once committed: `docs/superpowers/specs/2026-05-15-dotfiles-tasks-design.md`.
 - The audit-outcomes index from S2: `docs/superpowers/audits/2026-05-15-dotfiles-audit-outcomes.md`.
 
-**`.gitkeep` placement (future-proofing):** S1 adds `.gitkeep` to all seven directories that should remain tracked even if emptied later:
+**`.gitkeep` placement (future-proofing):** S1 adds `.gitkeep` to the three superpowers subdirectories that should remain tracked even if emptied later:
 - `docs/superpowers/audits/`
 - `docs/superpowers/plans/`
 - `docs/superpowers/specs/`
-- `docs/archive/research/`
-- `docs/archive/superpowers/audits/`
-- `docs/archive/superpowers/plans/`
-- `docs/archive/superpowers/specs/`
 
 `.gitkeep` files are permanent — they coexist with content. S2 does not remove the one in `audits/`.
 
@@ -285,18 +281,18 @@ After all phases + setup complete:
 2. `td task list --project "dotfiles" --filter "search:completed:6gfVJ"` (or equivalent) shows 13 completed.
 3. `gh issue view 5`, `gh issue view 13`, `gh issue view 17` all show `state: CLOSED`.
 4. `gh issue view 9`, `gh issue view 10`, `gh issue view 11` show CLOSED if their phases ran clean.
-5. `ls docs/archive/research/` shows 15 files; `ls docs/archive/superpowers/{audits,plans,specs}/` shows the 5 prior artifacts.
+5. `git log --diff-filter=D --name-only --pretty=format: -1` (on the S1 commit) shows the 20 removed files.
 6. `ls docs/research/` shows only `2026-05-01-secrets-management-nix-darwin/`.
-7. `grep -q 'docs/archive' /Users/stephen/.local/share/chezmoi/CLAUDE.md` finds the new rule.
-8. `cat docs/superpowers/audits/2026-05-15-dotfiles-audit-outcomes.md` shows the index with all 20 archived files mapped to outcomes.
-9. `find docs/superpowers docs/archive -name .gitkeep | wc -l` returns 7 (one per future-proofed directory).
+7. `grep -q 'audit-outcomes' /Users/stephen/.local/share/chezmoi/CLAUDE.md` finds the new rule.
+8. `cat docs/superpowers/audits/2026-05-15-dotfiles-audit-outcomes.md` shows the index with all 20 removed files mapped to outcomes.
+9. `find docs/superpowers -name .gitkeep | wc -l` returns 3 (one per future-proofed superpowers subdirectory).
 
 ---
 
 ## Open Questions / Gaps
 
 **Gap 1: `2026-04-26-macos-defaults-management.md` not re-verified line-by-line.**
-At audit time, this file exceeded the Read tool's 25k-token limit and was not fully re-read. The corresponding implementation is verified done via CLAUDE.md §"macOS Defaults Management" and the 2026-05-05 commit cluster (~40 commits per Agent 3's audit). The audit-outcomes index (S2) flags this. If future work surfaces inconsistencies between the research and the implementation, re-read the archived file with `offset`/`limit`.
+At audit time, this file exceeded the Read tool's 25k-token limit and was not fully re-read. The corresponding implementation is verified done via CLAUDE.md §"macOS Defaults Management" and the 2026-05-05 commit cluster (~40 commits per Agent 3's audit). The audit-outcomes index (S2) flags this. If future work surfaces inconsistencies between the research and the implementation, recover the removed file from git history (`git show <S1-commit>~:docs/research/2026-04-26-macos-defaults-management.md`) and re-read with `offset`/`limit`.
 
 **Gap 2: OpenClaw notification surface unknown at spec time.**
 P10 and P11 both touch OpenClaw's event ingestion. The implementation will need to discover OpenClaw's hook/webhook API as the first step of P10. If OpenClaw doesn't expose a suitable surface, P10 may surface a follow-up Todoist task (add a notification webhook to OpenClaw upstream) rather than completing.
