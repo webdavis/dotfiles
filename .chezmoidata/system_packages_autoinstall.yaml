@@ -201,6 +201,7 @@ packages:
           id: "497_799_835"
     uv:
       - nano-pdf
+      - sherlock-project
       - whisply[mlx,app]
     npm:
       - openclaw@2026.4.27
