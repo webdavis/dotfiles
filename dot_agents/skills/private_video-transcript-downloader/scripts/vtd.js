@@ -179,10 +179,13 @@ function parseSrt(text) {
 function parseVtt(text) {
   const lines = String(text).split(/\r?\n/);
   const segments = [];
+  let inNote = false;
   for (const line of lines) {
     const l = line.trim();
-    if (!l) continue;
-    if (l === "WEBVTT") continue;
+    if (!l) { inNote = false; continue; }
+    if (inNote) continue;
+    if (l.startsWith("WEBVTT")) continue; // header may carry a suffix (e.g. "WEBVTT whisply_test")
+    if (l === "NOTE" || l.startsWith("NOTE ")) { inNote = true; continue; } // NOTE block runs until blank line
     if (l.startsWith("Kind:") || l.startsWith("Language:")) continue;
     // SRT-style cue indices (Vimeo VTT and others include them even though VTT spec doesn't require them)
     if (/^\d+$/.test(l)) continue;
@@ -203,11 +206,13 @@ function parseVttWithCues(text) {
   const cues = [];
   let currentStart = null;
   let currentText = [];
+  let inNote = false;
 
   const flush = () => {
-    if (currentStart === null) return;
-    const joined = currentText.join(" ").replace(/<\d{2}:\d{2}:\d{2}\.\d{3}>/g, "").replace(/\s+/g, " ").trim();
-    if (joined) cues.push({ start: currentStart, text: joined });
+    if (currentStart !== null) {
+      const joined = currentText.join(" ").replace(/<\d{2}:\d{2}:\d{2}\.\d{3}>/g, "").replace(/\s+/g, " ").trim();
+      if (joined) cues.push({ start: currentStart, text: joined });
+    }
     currentStart = null;
     currentText = [];
   };
@@ -216,14 +221,17 @@ function parseVttWithCues(text) {
     const l = line.trim();
     if (!l) {
       flush();
+      inNote = false;
       continue;
     }
-    if (l === "WEBVTT") continue;
+    if (inNote) continue;
+    if (l.startsWith("WEBVTT")) continue; // header may carry a suffix (e.g. "WEBVTT whisply_test")
+    if (l === "NOTE" || l.startsWith("NOTE ")) { inNote = true; continue; }
     if (l.startsWith("Kind:") || l.startsWith("Language:")) continue;
     // SRT-style cue indices (Vimeo VTT and others include them even though VTT spec doesn't require them)
     if (/^\d+$/.test(l)) continue;
     if (l.includes("-->")) {
-      // mlx_whisper emits MM:SS.mmm for clips under an hour and HH:MM:SS.mmm for longer ones.
+      // VTT cue lines use HH:MM:SS.mmm, but some tools emit MM:SS.mmm for short clips.
       const mHHMMSS = l.match(/^(\d{2}):(\d{2}):(\d{2})\.(\d{3})/);
       const mMMSS = l.match(/^(\d{2}):(\d{2})\.(\d{3})/);
       if (mHHMMSS) {
@@ -331,7 +339,7 @@ async function cmdTranscript({ url, lang, timestamps, keepBrackets, extra, whisp
     if (subsTmpDir) fs.rmSync(subsTmpDir, { recursive: true, force: true });
   }
 
-  // Path 3: Whisper fallback (local, mlx_whisper).
+  // Path 3: Whisper fallback (local, whisply wrapper).
   if (whisperFallback === false) die(subtitleErr.message);
 
   let para;
@@ -350,7 +358,7 @@ async function cmdTranscript({ url, lang, timestamps, keepBrackets, extra, whisp
 
   if (para === null) {
     die(
-      `${subtitleErr.message}; mlx_whisper not on PATH — install with 'uv tool install mlx-whisper' (or 'pip install mlx-whisper'), or pass --no-whisper-fallback`,
+      `${subtitleErr.message}; whisply not on PATH — install with 'uv tool install whisply[mlx,app]', or pass --no-whisper-fallback`,
     );
   }
   if (!para) die("empty transcript from whisper");
@@ -459,26 +467,41 @@ async function cmdAudio({ url, outputDir, extra }) {
 
 async function whisperFallbackTranscript({ url, lang, extra, model, keepBrackets, timestamps }) {
   // Returns the transcript paragraph (or timestamped string) on success.
-  // Returns null when mlx_whisper is not available, so the caller can chain a clear error.
-  // Throws when mlx_whisper itself fails (the caller surfaces that as a die()).
-  const mlx = resolveBin("mlx_whisper", path.join(os.homedir(), ".local/bin/mlx_whisper"));
-  if (!mlx) return null;
+  // Returns null when whisply is not available, so the caller can chain a clear error.
+  // Throws when whisply itself fails (the caller surfaces that as a die()).
+  // Note: --timestamps emits cue-level timestamps (typically per sentence/segment),
+  // not the per-word boundaries the previous mlx_whisper path produced.
+  const whisply = resolveBin("whisply", path.join(os.homedir(), ".local/bin/whisply"));
+  if (!whisply) return null;
 
   const { tmpDir: audioTmp, audioPath } = await downloadAudioToTemp({ url, extra });
   const outDir = fs.mkdtempSync(path.join(os.tmpdir(), "vtd-whisper-"));
 
-  process.stderr.write("transcribing audio with mlx_whisper; this may take several minutes…\n");
+  process.stderr.write("transcribing audio with whisply; this may take several minutes…\n");
 
   try {
-    const args = [audioPath, "--model", model, "--language", lang, "-f", "vtt", "-o", outDir];
-    if (timestamps) args.push("--word-timestamps", "True");
-    const r = await run(mlx, args);
-    if (r.code !== 0) throw new Error(r.out.trim() || "mlx_whisper failed");
+    // whisply picks the fastest backend automatically (mlx on Apple Silicon, gpu on NVIDIA, else cpu).
+    // `-s` is required to actually emit subtitle exports (otherwise whisply refuses with "VTT export format requires subtitle option to be True").
+    // cwd: outDir avoids a whisply 0.14 bug where it crashes computing a relative path if outDir is not under cwd.
+    const args = ["run", "-f", audioPath, "-m", model, "-l", lang, "-e", "vtt", "-s", "-o", outDir];
+    const r = await run(whisply, args, { cwd: outDir });
+    if (r.code !== 0) throw new Error(r.out.trim() || "whisply failed");
 
-    const ext = path.extname(audioPath);
-    const base = path.basename(audioPath, ext);
-    const vttPath = path.join(outDir, base + ".vtt");
-    if (!fs.existsSync(vttPath)) throw new Error(`mlx_whisper produced no VTT at ${vttPath}`);
+    // whisply writes <outDir>/<basename>/<basename>_<lang>.vtt (basename derives from the input file).
+    const vttPath = (function findVtt(dir) {
+      for (const name of fs.readdirSync(dir)) {
+        const full = path.join(dir, name);
+        const stat = fs.statSync(full);
+        if (stat.isDirectory()) {
+          const hit = findVtt(full);
+          if (hit) return hit;
+        } else if (name.endsWith(".vtt")) {
+          return full;
+        }
+      }
+      return null;
+    })(outDir);
+    if (!vttPath) throw new Error(`whisply produced no VTT under ${outDir}`);
     const raw = fs.readFileSync(vttPath, "utf8");
 
     if (timestamps) {
@@ -542,7 +565,7 @@ async function main() {
 
   // Whisper fallback config (max-accuracy default; CC requires this)
   const whisperFallback = opts["no-whisper-fallback"] !== true;
-  const whisperModel = opts["whisper-model"] || "mlx-community/whisper-large-v3";
+  const whisperModel = opts["whisper-model"] || "large-v3";
 
   if (cmd === "transcript") {
     await cmdTranscript({ url, lang, timestamps, keepBrackets, extra, whisperFallback, whisperModel });
