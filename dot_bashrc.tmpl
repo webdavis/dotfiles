@@ -120,6 +120,14 @@ eval "$(starship init bash)"
 # Direct PATH add instead of sourcing .cargo/env (avoids file read on every shell start).
 [[ -d "$HOME/.cargo/bin" ]] && path_prepend "$HOME/.cargo/bin"
 
+# Volta: https://volta.sh/
+# Append (not prepend) so Volta's node/npm shims do NOT win over Homebrew's
+# `node`. Volta-installed CLI tools (e.g. qmd) still resolve here because
+# nothing earlier in PATH provides those binaries, and their shims dispatch to
+# their pinned Node version internally — independent of PATH order.
+export VOLTA_HOME="$HOME/.volta"
+[[ -d "$VOLTA_HOME/bin" ]] && PATH="$PATH:$VOLTA_HOME/bin"
+
 # Just: https://github.com/casey/just
 [[ -s "$HOME/.bash_just_completions" ]] && . "$HOME/.bash_just_completions"
 # Ref: https://github.com/casey/just?tab=readme-ov-file#shell-alias

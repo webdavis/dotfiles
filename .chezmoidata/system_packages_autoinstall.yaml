@@ -124,6 +124,7 @@ packages:
         - tree
         - uv
         - vapor
+        - volta
         - websocat
         - wget
         - wireshark
@@ -211,3 +212,9 @@ packages:
       - "@clawdbot/lobster"
       - "@mistweaverco/kulala-ls"
       - mcporter
+    # Volta-managed CLI tools, each pinned to a specific Node major so the tool
+    # keeps working regardless of the active Homebrew `node` version. See
+    # https://docs.volta.sh/advanced/packages for how pinning works.
+    volta:
+      - package: "@tobilu/qmd"
+        node: "24"
