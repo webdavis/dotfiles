@@ -50,6 +50,7 @@ packages:
         - difftastic
         - direnv
         - dust
+        - espeak-ng
         - eza
         - fd
         - felixkratz/formulae/borders
@@ -92,12 +93,14 @@ packages:
         - onefetch
         - openai-whisper
         - openhue/cli/openhue-cli
+        - opus
         - oven-sh/bun/bun
         - p7zip
         - parallel
         - pgvector
         - pinentry-mac
         - pnpm
+        - portaudio
         - postgresql@17
         - procs
         - pv
@@ -213,6 +216,7 @@ packages:
       - "@clawdbot/lobster"
       - "@mistweaverco/kulala-ls"
       - mcporter
+      - "@elevenlabs/cli"
     # Volta-managed CLI tools, each pinned to a specific Node major so the tool
     # keeps working regardless of the active Homebrew `node` version. See
     # https://docs.volta.sh/advanced/packages for how pinning works.
