@@ -25,8 +25,8 @@ whisply run -f audio.m4a -e txt -o ./output -d mlx
 # Transcribe with language hint
 whisply run -f audio.mp3 -l en -m large-v3-turbo -d mlx
 
-# Generate subtitles (SRT)
-whisply run -f video.mp4 -e srt -o ./subs -d mlx
+# Generate subtitles (SRT)  — note: `-s` is required for any subtitle export
+whisply run -f video.mp4 -e srt -s -o ./subs -d mlx
 
 # Translate to English
 whisply run -f foreign.mp3 -t -d mlx
@@ -66,5 +66,8 @@ Models are unprefixed in whisply (no `mlx-community/` needed). Run `whisply list
 ## Notes
 
 - `-d mlx` requires Apple Silicon and the `[mlx]` extra (install with `uv tool install 'whisply[mlx,app]'`).
+- `-s` is required for any subtitle export (`srt`, `vtt`, `webvtt`, `rttm`). Without it whisply errors with "X export format requires subtitle option to be True". Default `-e all` without `-s` only emits `txt` + `json`.
+- Whisply writes outputs to `<output_dir>/<basename>/<basename>_<lang>.<ext>` (a subdir per input) and also creates a `logs/` directory next to it.
+- Whisply consumes (deletes) the input file during conversion. Copy first if you need to keep it.
 - Models cache to `~/.cache/huggingface/`.
 - For a GUI: `whisply app`.
