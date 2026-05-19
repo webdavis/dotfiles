@@ -211,3 +211,4 @@ packages:
       - "@clawdbot/lobster"
       - "@mistweaverco/kulala-ls"
       - mcporter
+      - "@tobilu/qmd"
