@@ -34,7 +34,7 @@ path = "~/workspaces/Ivy"
 
 [[session]]
 name = "casually-concerned"
-path = "~/workspaces/Ivy/Projects/Casually Concerned"
+path = "~/workspaces/Ivy/projects/casually-concerned"
 
 [[session]]
 name = "dotfiles"
