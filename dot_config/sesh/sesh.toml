@@ -18,7 +18,7 @@ preview_command = "~/.local/bin/sesh-preview.sh {}"
 
 [[session]]
 name = "uriel"
-path = "~/workspaces/webdavis/uriel"
+path = "~/workspaces/Ivy/webdavis/uriel"
 
 [[session]]
 name = "openclaw"
@@ -26,7 +26,7 @@ path = "~/.openclaw"
 
 [[session]]
 name = "homelab"
-path = "~/workspaces/webdavis/homelab"
+path = "~/workspaces/Ivy/webdavis/homelab"
 
 [[session]]
 name = "ivy"
@@ -46,27 +46,27 @@ path = "~/.config/nvim"
 
 [[session]]
 name = "essential-feed"
-path = "~/workspaces/webdavis/essential-feed-case-study"
+path = "~/workspaces/Ivy/webdavis/essential-feed-case-study"
 
 [[session]]
 name = "webdavis-profile"
-path = "~/workspaces/webdavis/webdavis"
+path = "~/workspaces/Ivy/webdavis/webdavis"
 
 [[session]]
 name = "job-hunting"
-path = "~/workspaces/webdavis/job-hunting"
+path = "~/workspaces/Ivy/projects/career-campaign"
 
 [[session]]
 name = "justdavis-ansible"
-path = "~/workspaces/webdavis/justdavis-ansible"
+path = "~/workspaces/Ivy/webdavis/justdavis-ansible"
 
 [[session]]
 name = "maeve"
-path = "~/workspaces/webdavis/Maeve"
+path = "~/workspaces/Ivy/webdavis/Maeve"
 
 [[session]]
 name = "warden"
-path = "~/workspaces/webdavis/uriel/agents/bob/workspace/builds/warden"
+path = "~/workspaces/Ivy/webdavis/uriel/agents/bob/workspace/builds/warden"
 
 # dresden uses today's Todoist tasks instead of git/eza.
 # Quoted exit-0 fallback so a td failure doesn't show "Exit status 1."

@@ -13,12 +13,12 @@ path = "/Users/stephen/workspaces"
 depth = 2
 
 [[search_dirs]]
-path = "/Users/stephen/workspaces/webdavis"
+path = "/Users/stephen/workspaces/Ivy/webdavis"
 depth = 2
 
 [[sessions]]
 name = "uriel"
-path = "/Users/stephen/workspaces/webdavis/uriel"
+path = "/Users/stephen/workspaces/Ivy/webdavis/uriel"
 
 [[sessions]]
 name = "openclaw"
@@ -26,18 +26,18 @@ path = "/Users/stephen/.openclaw"
 
 [[sessions]]
 name = "Homelab"
-path = "/Users/stephen/workspaces/webdavis/homelab"
+path = "/Users/stephen/workspaces/Ivy/webdavis/homelab"
 
 [marks]
-0 = "/Users/stephen/workspaces/webdavis/uriel"
+0 = "/Users/stephen/workspaces/Ivy/webdavis/uriel"
 1 = "/Users/stephen/.openclaw"
-2 = "/Users/stephen/workspaces/webdavis/homelab"
+2 = "/Users/stephen/workspaces/Ivy/webdavis/homelab"
 3 = "/Users/stephen/workspaces/Ivy"
 4 = "/Users/stephen/workspaces/Ivy/Projects/Casually Concerned"
 5 = "/Users/stephen/.local/share/chezmoi"
 6 = "/Users/stephen/.config/nvim"
-7 = "/Users/stephen/workspaces/webdavis/essential-feed-case-study"
-8 = "/Users/stephen/workspaces/webdavis/webdavis"
-9 = "/Users/stephen/workspaces/webdavis/job-hunting"
-10 = "/Users/stephen/workspaces/webdavis/justdavis-ansible"
-11 = "/Users/stephen/workspaces/webdavis/Maeve"
+7 = "/Users/stephen/workspaces/Ivy/webdavis/essential-feed-case-study"
+8 = "/Users/stephen/workspaces/Ivy/webdavis/webdavis"
+9 = "/Users/stephen/workspaces/Ivy/webdavis/job-hunting"
+10 = "/Users/stephen/workspaces/Ivy/webdavis/justdavis-ansible"
+11 = "/Users/stephen/workspaces/Ivy/webdavis/Maeve"

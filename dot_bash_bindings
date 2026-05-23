@@ -127,9 +127,9 @@ builtin bind -m vi-command '"\C-xdn": "i\C-x0cd ~/.config/nvim\r"'
 builtin bind -m vi-insert '"\C-xds": "\C-x0cd ~/Pictures/screenshots\r"'
 builtin bind -m vi-command '"\C-xds": "i\C-x0cd ~/Pictures/screenshots\r"'
 
-# cd ~/workspaces/webdavis/
-builtin bind -m vi-insert '"\C-xdp": "\C-x0cd ~/workspaces/webdavis\r"'
-builtin bind -m vi-command '"\C-xdp": "i\C-x0cd ~/workspaces/webdavis\r"'
+# cd ~/workspaces/Ivy/webdavis/
+builtin bind -m vi-insert '"\C-xdp": "\C-x0cd ~/workspaces/Ivy/webdavis\r"'
+builtin bind -m vi-command '"\C-xdp": "i\C-x0cd ~/workspaces/Ivy/webdavis\r"'
 
 # cd ~/workspaces/tools/
 builtin bind -m vi-insert '"\C-xdt": "\C-x0cd ~/workspaces/tools\r"'
