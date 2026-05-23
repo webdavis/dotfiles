@@ -18,7 +18,7 @@
 
 set -euo pipefail
 
-DATA_FILE="${HOME}/.local/share/chezmoi/.chezmoidata/macos_defaults.yaml"
+DATA_FILE="${HOME}/workspaces/Ivy/webdavis/dotfiles/.chezmoidata/macos_defaults.yaml"
 
 usage() {
   printf 'usage: macos-defaults-capture <domain> <key> [--host current]\n' >&2

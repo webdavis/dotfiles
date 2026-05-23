@@ -13,7 +13,7 @@
 set -euo pipefail
 shopt -s lastpipe
 
-DATA_FILE="${HOME}/.local/share/chezmoi/.chezmoidata/macos_defaults.yaml"
+DATA_FILE="${HOME}/workspaces/Ivy/webdavis/dotfiles/.chezmoidata/macos_defaults.yaml"
 
 if [[ ! -r $DATA_FILE ]]; then
   printf 'error: cannot read %s\n' "$DATA_FILE" >&2

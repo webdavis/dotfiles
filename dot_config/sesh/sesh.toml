@@ -38,7 +38,7 @@ path = "~/workspaces/Ivy/projects/casually-concerned"
 
 [[session]]
 name = "dotfiles"
-path = "~/.local/share/chezmoi"
+path = "~/workspaces/Ivy/webdavis/dotfiles"
 
 [[session]]
 name = "nvim-config"
