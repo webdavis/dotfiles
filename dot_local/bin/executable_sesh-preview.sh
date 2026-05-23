@@ -51,33 +51,27 @@ hdr() {
 }
 
 # ── 1. Todoist tasks for the section ──
-# Per ~/.claude/CLAUDE.md, the canonical query form is `#<project> /<section>`.
-# Look up the project from ~/.config/sesh/todoist-project-map.toml; fall back to a
-# section-only filter if no mapping exists (still returns the right tasks since
-# section names are unique across the user's 5 projects).
+# Post-2026-05 schema: each repo is its OWN Todoist (sub)project and the session
+# basename equals the project name, so query `#<basename>` directly — dynamic, no
+# hardcoded mapping. The optional override map only covers the rare case where a
+# session's basename differs from its Todoist project name.
+# `td ... --filter "#<project>"` returns the project's tasks, or a clean
+# "No tasks found." (exit 0) when the project is absent or empty.
 if command -v td &>/dev/null; then
   td_map="$HOME/.config/sesh/todoist-project-map.toml"
-  td_project=""
+  project="$section"
   if [[ -f $td_map ]] && command -v python3 &>/dev/null; then
-    td_project=$(python3 -c '
+    override=$(python3 -c '
 import tomllib, sys
 with open(sys.argv[2], "rb") as f:
     print(tomllib.load(f).get(sys.argv[1], ""))
 ' "$section" "$td_map" 2>/dev/null)
+    [[ -n $override ]] && project="$override"
   fi
 
-  # Todoist filter syntax requires `&` (logical AND) between project and
-  # section conditions; juxtaposition alone (`#tech /uriel`) silently returns
-  # no matches. The CLAUDE.md example omits the &; using the working form here.
-  if [[ -n $td_project ]]; then
-    td_filter="#$td_project & /$section"
-  else
-    td_filter="/$section"
-  fi
-
-  hdr 24 "📋" "Todoist  ($td_filter)"
+  hdr 24 "📋" "Todoist  (#$project)"
   # FORCE_COLOR=1 makes td emit ANSI escapes even when piped (Node convention).
-  FORCE_COLOR=1 td task list --filter "$td_filter" --limit 5 2>/dev/null || echo "(td unavailable)"
+  FORCE_COLOR=1 td task list --filter "#$project" --limit 5 2>/dev/null || echo "(td unavailable)"
   echo
 fi
 

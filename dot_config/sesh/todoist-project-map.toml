@@ -1,37 +1,13 @@
-# Section name (= git repo basename) → td project name.
-# Consumed by ~/.local/bin/sesh-preview.sh to query Todoist with the
-# `#<project> /<section>` form per ~/.claude/CLAUDE.md.
+# OPTIONAL override map: sesh session basename -> Todoist project name.
+# Consumed by ~/.local/bin/sesh-preview.sh.
 #
-# Keys MUST match the path basename used in your session entries.
-# Quoted keys for names containing spaces.
-# If a section is missing here, the preview falls back to `/<section>` only.
+# As of the 2026-05 Todoist redesign, every tracked repo is its OWN (sub)project
+# and a session's basename already equals its Todoist project name. The preview
+# therefore queries `#<basename>` dynamically and this map is normally EMPTY.
 #
-# CONFIRMED via existing tasks:                  tech
-#   uriel, homelab
+# Add an entry ONLY when a session's basename differs from its Todoist project
+# name. Quote keys containing spaces. Example (uncomment if/when relevant):
 #
-# BEST GUESS (please verify and correct):
-#   anything else below — based on CLAUDE.md project semantics
-#   (tech / karl / career / cc / life). Adjust as you create tasks.
-
-# tech (workstation / dev infra / tooling)
-uriel = "tech"
-openclaw = "tech"
-homelab = "tech"
-chezmoi = "tech"
-nvim = "tech"
-warden = "tech"
-"essential-feed-case-study" = "tech"
-
-# karl (joint / Karl Davis work)
-"justdavis-ansible" = "karl"
-
-# career (personal portfolio / job search)
-webdavis = "career"
-"job-hunting" = "career"
-
-# cc (Casually Concerned)
-"Casually Concerned" = "cc"
-
-# life (personal / relationship / non-work)
-Ivy = "life"
-Maeve = "life"
+#   # chezmoi's source-dir basename is "chezmoi" but its project is "dotfiles"
+#   # (drop once the chezmoi source relocates to webdavis/dotfiles):
+#   chezmoi = "dotfiles"
