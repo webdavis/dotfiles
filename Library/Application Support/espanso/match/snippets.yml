@@ -352,3 +352,17 @@ matches:
   - trigger: ",,efc"
     replace: "https://www.github.com/webdavis/essential-feed-case-study/"
   # Note: was ';;ed' in browser.yml — renamed to ',,efc' to fix collision with ';;ed' (everyday) (§6.4)
+
+  # ── Project names (,, triggers; literal kebab-case identifiers) ──────────
+
+  - trigger: ",,ed"
+    replace: "essential-feed-case-study"
+
+  - trigger: ",,cc"
+    replace: "casually-concerned"
+
+  - trigger: ",,ja"
+    replace: "justdavis-ansible"
+
+  - trigger: ",,hf"
+    replace: "happy-focus"
