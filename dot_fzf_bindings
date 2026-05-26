@@ -135,10 +135,15 @@ __build_edit_command() {
     esac
   done
 
-  # Build the command:
+  # Build the command. The result is inserted into the readline buffer and
+  # re-parsed by bash on Enter, so the path must be shell-quoted (%q) to survive
+  # that second word-splitting pass — otherwise paths with spaces split apart.
+  local qfile=""
+  [[ -n $file ]] && printf -v qfile '%q' "$file"
+
   local cmd=""
   [[ -n $tool ]] && cmd="$tool"
-  [[ -n $file ]] && cmd="${cmd} ${file}"
+  [[ -n $qfile ]] && cmd="${cmd} ${qfile}"
   [[ -n $checkout ]] && cmd="${checkout} ${cmd}"
   [[ -n $line ]] && cmd="${cmd} ${line}"
 
@@ -147,7 +152,9 @@ __build_edit_command() {
   # Choose the operation.
   case $key in
     "alt-c")
-      cmd="builtin cd ${file%/*}"
+      local qdir
+      printf -v qdir '%q' "${file%/*}"
+      cmd="builtin cd ${qdir}"
       if [[ -n $checkout ]]; then
         cmd="${checkout} ${cmd}"
       fi
