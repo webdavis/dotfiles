@@ -34,7 +34,7 @@ path = "~/workspaces/Ivy"
 
 [[session]]
 name = "casually-concerned"
-path = "~/workspaces/Ivy/projects/casually-concerned"
+path = "~/workspaces/Ivy/casually-concerned"
 
 [[session]]
 name = "dotfiles"
@@ -54,7 +54,7 @@ path = "~/workspaces/Ivy/webdavis/webdavis"
 
 [[session]]
 name = "job-hunting"
-path = "~/workspaces/Ivy/projects/career-campaign"
+path = "~/workspaces/Ivy/career-campaign"
 
 [[session]]
 name = "justdavis-ansible"
@@ -66,7 +66,7 @@ path = "~/workspaces/Ivy/webdavis/Maeve"
 
 [[session]]
 name = "warden"
-path = "~/workspaces/Ivy/webdavis/uriel/agents/bob/workspace/builds/warden"
+path = "~/workspaces/Ivy/webdavis/warden"
 
 # dresden uses today's Todoist tasks instead of git/eza.
 # Quoted exit-0 fallback so a td failure doesn't show "Exit status 1."
