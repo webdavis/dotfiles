@@ -121,6 +121,7 @@ packages:
         - switchaudio-osx
         - tart
         - tealdeer
+        - terminal-notifier
         - tmux
         - tokei
         - trash-cli
