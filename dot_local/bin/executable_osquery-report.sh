@@ -32,184 +32,256 @@ startDate: $today_date
 EOF
 fi
 
-# Get the most recent snapshot for a given query name from the results log.
-get_latest_snapshot() {
-  tail -r "$results_log" | grep -m 1 "\"name\":\"$1\"" || true
+# ---------------------------------------------------------------------------
+# Snapshot fetchers — pull the Nth-most-recent line for a query from the
+# snapshots log. N=1 is the current tick, N=2 is the previous tick. Returns
+# the .snapshot JSON array (or "[]" if no snapshot exists).
+# ---------------------------------------------------------------------------
+
+get_snapshot_line() {
+  local name="$1" nth="${2:-1}"
+  tail -r "$results_log" | grep "\"name\":\"$name\"" | sed -n "${nth}p" || true
+}
+
+get_snapshot_rows() {
+  local line
+  line=$(get_snapshot_line "$1" "${2:-1}")
+  if [[ -z $line ]]; then
+    echo "[]"
+  else
+    jq -c '.snapshot // []' <<<"$line"
+  fi
+}
+
+# Row count for a query at the Nth-most-recent snapshot.
+count_rows() {
+  jq 'length' <<<"$(get_snapshot_rows "$1" "${2:-1}")"
+}
+
+# Render "(+N)" / "(-N)" / "" suffix based on delta vs the previous tick.
+count_delta_suffix() {
+  local name="$1" cur prev
+  cur=$(count_rows "$name" 1)
+  prev=$(count_rows "$name" 2)
+  if [[ $prev -eq 0 ]] && [[ $cur -eq 0 ]]; then
+    return
+  fi
+  local delta=$((cur - prev))
+  if [[ $delta -gt 0 ]]; then
+    printf ' (+%d)' "$delta"
+  elif [[ $delta -lt 0 ]]; then
+    printf ' (%d)' "$delta"
+  fi
 }
 
 # ---------------------------------------------------------------------------
-# Renderers — one per scheduled query. Each takes the snapshot line (JSON) as
-# $1 and writes a markdown section body to stdout. Sections are dispatched
-# via render_section(); to add a new query, write a renderer and add a
-# render_section line in the build block at the bottom of the script.
+# Diff helpers — emit markdown delta blocks for one inventory query. Each
+# function:
+#   - returns 0 with no output when nothing changed,
+#   - returns 0 with a block of "**Title (+a, -r):**\n- ➕ ...\n- ➖ ..."
+#     when changes exist.
+# The composite-key string is the row identity for set-diff purposes.
 # ---------------------------------------------------------------------------
 
-render_sip_state() {
-  local enabled
-  enabled=$(jq -r '.snapshot[0].enabled' <<<"$1")
-  if [[ $enabled == "1" ]]; then
-    echo "- Status: **enabled**"
-  else
-    echo "- Status: **disabled** (intentional on this host)"
-  fi
-}
+# Per-query diff renderers. Each takes no args; reads current+previous snapshots
+# internally and prints the markdown delta block (or nothing).
 
-render_firewall_state() {
-  local global stealth logging version state_text
-  global=$(jq -r '.snapshot[0].global_state' <<<"$1")
-  stealth=$(jq -r '.snapshot[0].stealth_enabled' <<<"$1")
-  logging=$(jq -r '.snapshot[0].logging_enabled' <<<"$1")
-  version=$(jq -r '.snapshot[0].version' <<<"$1")
-  case "$global" in
-    0) state_text="**OFF**" ;;
-    1) state_text="on (allow signed apps)" ;;
-    2) state_text="on (block all)" ;;
-    *) state_text="unknown ($global)" ;;
-  esac
-  echo "- State: $state_text"
-  echo "- Stealth mode: $stealth"
-  echo "- Logging: $logging"
-  echo "- alf version: $version"
-}
-
-render_gatekeeper_state() {
-  local assess devid version
-  assess=$(jq -r '.snapshot[0].assessments_enabled' <<<"$1")
-  devid=$(jq -r '.snapshot[0].dev_id_enabled' <<<"$1")
-  version=$(jq -r '.snapshot[0].version' <<<"$1")
-  if [[ $assess == "1" ]]; then
-    echo "- Assessments: **enabled**"
-  else
-    echo "- Assessments: **DISABLED**"
-  fi
-  echo "- Dev-ID: $devid"
-  echo "- Version: $version"
-}
-
-render_listening_non_localhost() {
-  local rows
-  rows=$(jq -r '.snapshot | length' <<<"$1")
-  echo "Count: $rows"
-  if [[ $rows == "0" ]]; then return; fi
+diff_sudoers_rules() {
+  local cur prev added removed n_add n_rem
+  cur=$(get_snapshot_rows sudoers_rules 1)
+  prev=$(get_snapshot_rows sudoers_rules 2)
+  added=$(jq -c --argjson p "$prev" '
+    [.[] | . as $r |
+      select(($p | map("\(.header)|\(.rule_details)") | index("\($r.header)|\($r.rule_details)")) | not)
+    ]' <<<"$cur")
+  removed=$(jq -c --argjson c "$cur" '
+    [.[] | . as $r |
+      select(($c | map("\(.header)|\(.rule_details)") | index("\($r.header)|\($r.rule_details)")) | not)
+    ]' <<<"$prev")
+  n_add=$(jq 'length' <<<"$added")
+  n_rem=$(jq 'length' <<<"$removed")
+  [[ $n_add -eq 0 && $n_rem -eq 0 ]] && return 0
+  echo "**Sudoers rules (+$n_add, -$n_rem):**"
   echo ""
-  echo "| Process | PID | Address | Port | Proto |"
-  echo "|---------|-----|---------|------|-------|"
-  jq -r '.snapshot[] | "| \(.process_name // "?") | \(.pid) | \(.address) | \(.port) | \(.protocol) |"' <<<"$1"
-}
-
-render_startup_items() {
-  local rows
-  rows=$(jq -r '.snapshot | length' <<<"$1")
-  if [[ $rows == "0" ]]; then
-    echo "_None._"
-    return
-  fi
-  echo "| Name | Type | Path | User |"
-  echo "|------|------|------|------|"
-  jq -r '.snapshot[] | "| \(.name) | \(.type) | \(.path) | \(.username // "?") |"' <<<"$1"
-}
-
-render_non_apple_launchd() {
-  local rows
-  rows=$(jq -r '.snapshot | length' <<<"$1")
-  echo "Count: $rows"
-  if [[ $rows == "0" ]]; then return; fi
+  jq -r '.[] | "- ➕ `\(.header) \(.rule_details)`"' <<<"$added"
+  jq -r '.[] | "- ➖ `\(.header) \(.rule_details)`"' <<<"$removed"
   echo ""
-  echo "| Label | RunAtLoad | KeepAlive |"
-  echo "|-------|-----------|-----------|"
-  jq -r '.snapshot[] | "| \(.label) | \(.run_at_load // "—") | \(.keep_alive // "—") |"' <<<"$1"
 }
 
-render_launchd_overrides() {
-  local rows
-  rows=$(jq -r '.snapshot | length' <<<"$1")
-  if [[ $rows == "0" ]]; then
-    echo "_None._"
-    return
-  fi
-  echo "| Label | Key | Value |"
-  echo "|-------|-----|-------|"
-  jq -r '.snapshot[] | "| \(.label) | \(.key) | \(.value) |"' <<<"$1"
-}
-
-render_ssh_authorized_keys() {
-  local rows
-  rows=$(jq -r '.snapshot | length' <<<"$1")
-  echo "Count: $rows"
-  if [[ $rows == "0" ]]; then return; fi
+diff_ssh_authorized_keys() {
+  local cur prev added removed n_add n_rem
+  cur=$(get_snapshot_rows ssh_authorized_keys 1)
+  prev=$(get_snapshot_rows ssh_authorized_keys 2)
+  added=$(jq -c --argjson p "$prev" '
+    [.[] | . as $r |
+      select(($p | map("\(.username)|\(.algorithm)|\(.key_prefix)") | index("\($r.username)|\($r.algorithm)|\($r.key_prefix)")) | not)
+    ]' <<<"$cur")
+  removed=$(jq -c --argjson c "$cur" '
+    [.[] | . as $r |
+      select(($c | map("\(.username)|\(.algorithm)|\(.key_prefix)") | index("\($r.username)|\($r.algorithm)|\($r.key_prefix)")) | not)
+    ]' <<<"$prev")
+  n_add=$(jq 'length' <<<"$added")
+  n_rem=$(jq 'length' <<<"$removed")
+  [[ $n_add -eq 0 && $n_rem -eq 0 ]] && return 0
+  echo "**SSH authorized keys (+$n_add, -$n_rem):**"
   echo ""
-  echo "| User | Algorithm | Key File | Key Prefix |"
-  echo "|------|-----------|----------|------------|"
-  jq -r '.snapshot[] | "| \(.username) | \(.algorithm) | \(.key_file) | `\(.key_prefix)…` |"' <<<"$1"
-}
-
-render_sudoers_rules() {
-  local rows
-  rows=$(jq -r '.snapshot | length' <<<"$1")
-  echo "Count: $rows"
-  if [[ $rows == "0" ]]; then return; fi
+  jq -r '.[] | "- ➕ `\(.username) \(.algorithm) \(.key_prefix)… in \(.key_file)`"' <<<"$added"
+  jq -r '.[] | "- ➖ `\(.username) \(.algorithm) \(.key_prefix)… in \(.key_file)`"' <<<"$removed"
   echo ""
-  echo "| Header | Rule |"
-  echo "|--------|------|"
-  jq -r '.snapshot[] | "| \(.header) | \(.rule_details) |"' <<<"$1"
 }
 
-render_system_extensions() {
-  local rows
-  rows=$(jq -r '.snapshot | length' <<<"$1")
-  echo "Count: $rows"
-  if [[ $rows == "0" ]]; then return; fi
+diff_non_apple_launchd() {
+  local cur prev added removed n_add n_rem
+  cur=$(get_snapshot_rows non_apple_launchd 1)
+  prev=$(get_snapshot_rows non_apple_launchd 2)
+  added=$(jq -c --argjson p "$prev" '
+    [.[] | . as $r | select(($p | map(.label) | index($r.label)) | not)]' <<<"$cur")
+  removed=$(jq -c --argjson c "$cur" '
+    [.[] | . as $r | select(($c | map(.label) | index($r.label)) | not)]' <<<"$prev")
+  n_add=$(jq 'length' <<<"$added")
+  n_rem=$(jq 'length' <<<"$removed")
+  [[ $n_add -eq 0 && $n_rem -eq 0 ]] && return 0
+  echo "**Non-Apple launchd jobs (+$n_add, -$n_rem):**"
   echo ""
-  echo "| Identifier | Category | MDM | State |"
-  echo "|------------|----------|-----|-------|"
-  jq -r '.snapshot[] | "| \(.identifier) | \(.category) | \(.mdm_managed) | \(.state // "?") |"' <<<"$1"
+  jq -r '.[] | "- ➕ `\(.label)`"' <<<"$added"
+  jq -r '.[] | "- ➖ `\(.label)`"' <<<"$removed"
+  echo ""
 }
 
-# File-events renderer — reads from $events_log (delta log), not from the
-# snapshot log. Shows counts grouped by FIM category for the past 6h window.
-# Argument $1 is the unix-time cutoff (events with unixTime >= $1 are counted).
-render_file_events_section() {
-  local since="$1"
-  if [[ ! -s $events_log ]]; then
-    echo "_No events log yet (osqueryd needs one interval tick after enabling events)._"
-    return
-  fi
+diff_launchd_overrides() {
+  local cur prev added removed n_add n_rem
+  cur=$(get_snapshot_rows launchd_overrides 1)
+  prev=$(get_snapshot_rows launchd_overrides 2)
+  added=$(jq -c --argjson p "$prev" '
+    [.[] | . as $r |
+      select(($p | map("\(.label)|\(.key)|\(.value)") | index("\($r.label)|\($r.key)|\($r.value)")) | not)
+    ]' <<<"$cur")
+  removed=$(jq -c --argjson c "$cur" '
+    [.[] | . as $r |
+      select(($c | map("\(.label)|\(.key)|\(.value)") | index("\($r.label)|\($r.key)|\($r.value)")) | not)
+    ]' <<<"$prev")
+  n_add=$(jq 'length' <<<"$added")
+  n_rem=$(jq 'length' <<<"$removed")
+  [[ $n_add -eq 0 && $n_rem -eq 0 ]] && return 0
+  echo "**launchd overrides (+$n_add, -$n_rem):**"
+  echo ""
+  jq -r '.[] | "- ➕ `\(.label) \(.key)=\(.value)`"' <<<"$added"
+  jq -r '.[] | "- ➖ `\(.label) \(.key)=\(.value)`"' <<<"$removed"
+  echo ""
+}
+
+diff_system_extensions() {
+  local cur prev added removed n_add n_rem
+  cur=$(get_snapshot_rows system_extensions 1)
+  prev=$(get_snapshot_rows system_extensions 2)
+  added=$(jq -c --argjson p "$prev" '
+    [.[] | . as $r |
+      select(($p | map("\(.identifier)|\(.state // "")") | index("\($r.identifier)|\($r.state // "")")) | not)
+    ]' <<<"$cur")
+  removed=$(jq -c --argjson c "$cur" '
+    [.[] | . as $r |
+      select(($c | map("\(.identifier)|\(.state // "")") | index("\($r.identifier)|\($r.state // "")")) | not)
+    ]' <<<"$prev")
+  n_add=$(jq 'length' <<<"$added")
+  n_rem=$(jq 'length' <<<"$removed")
+  [[ $n_add -eq 0 && $n_rem -eq 0 ]] && return 0
+  echo "**System extensions (+$n_add, -$n_rem):**"
+  echo ""
+  jq -r '.[] | "- ➕ `\(.identifier) (\(.state // "?"))`"' <<<"$added"
+  jq -r '.[] | "- ➖ `\(.identifier) (\(.state // "?"))`"' <<<"$removed"
+  echo ""
+}
+
+diff_startup_items() {
+  local cur prev added removed n_add n_rem
+  cur=$(get_snapshot_rows startup_items 1)
+  prev=$(get_snapshot_rows startup_items 2)
+  added=$(jq -c --argjson p "$prev" '
+    [.[] | . as $r |
+      select(($p | map("\(.path)|\(.username // "")") | index("\($r.path)|\($r.username // "")")) | not)
+    ]' <<<"$cur")
+  removed=$(jq -c --argjson c "$cur" '
+    [.[] | . as $r |
+      select(($c | map("\(.path)|\(.username // "")") | index("\($r.path)|\($r.username // "")")) | not)
+    ]' <<<"$prev")
+  n_add=$(jq 'length' <<<"$added")
+  n_rem=$(jq 'length' <<<"$removed")
+  [[ $n_add -eq 0 && $n_rem -eq 0 ]] && return 0
+  echo "**Startup items (+$n_add, -$n_rem):**"
+  echo ""
+  jq -r '.[] | "- ➕ `\(.name) — \(.path) [\(.username // "?")]`"' <<<"$added"
+  jq -r '.[] | "- ➖ `\(.name) — \(.path) [\(.username // "?")]`"' <<<"$removed"
+  echo ""
+}
+
+# Posture changes — value-level rather than set-level. Returns a block of
+# "**Posture changed:**\n- firewall: X → Y\n..." when any value differs.
+diff_posture() {
+  local cur_fw prev_fw cur_gk prev_gk cur_sip prev_sip
+  cur_fw=$(jq -r '.[0].global_state // ""' <<<"$(get_snapshot_rows firewall_state 1)")
+  prev_fw=$(jq -r '.[0].global_state // ""' <<<"$(get_snapshot_rows firewall_state 2)")
+  cur_gk=$(jq -r '.[0].assessments_enabled // ""' <<<"$(get_snapshot_rows gatekeeper_state 1)")
+  prev_gk=$(jq -r '.[0].assessments_enabled // ""' <<<"$(get_snapshot_rows gatekeeper_state 2)")
+  cur_sip=$(jq -r '.[0].enabled // ""' <<<"$(get_snapshot_rows sip_state 1)")
+  prev_sip=$(jq -r '.[0].enabled // ""' <<<"$(get_snapshot_rows sip_state 2)")
+
+  local has_any=0
+  local out=""
+  [[ -n $prev_fw && $prev_fw != "$cur_fw" ]] && {
+    out+="- firewall: \`$prev_fw\` → \`$cur_fw\`"$'\n'
+    has_any=1
+  }
+  [[ -n $prev_gk && $prev_gk != "$cur_gk" ]] && {
+    out+="- gatekeeper: \`$prev_gk\` → \`$cur_gk\`"$'\n'
+    has_any=1
+  }
+  [[ -n $prev_sip && $prev_sip != "$cur_sip" ]] && {
+    out+="- SIP: \`$prev_sip\` → \`$cur_sip\`"$'\n'
+    has_any=1
+  }
+  [[ $has_any -eq 0 ]] && return 0
+  echo "**Posture changed:**"
+  echo ""
+  printf '%s' "$out"
+  echo ""
+}
+
+# FIM events block: events in [$1, $2] grouped by category. Returns no
+# output when zero events.
+diff_file_events() {
+  local since="$1" until="$2"
+  [[ ! -s $events_log ]] && return 0
   local rows
-  rows=$(jq -c --argjson since "$since" \
-    'select(.name == "file_events_recent" and (.unixTime | tonumber) >= $since)' \
+  rows=$(jq -c --argjson s "$since" --argjson u "$until" \
+    'select(.name == "file_events_recent" and (.unixTime | tonumber) >= $s and (.unixTime | tonumber) <= $u)' \
     "$events_log" 2>/dev/null || true)
-  if [[ -z $rows ]]; then
-    echo "_No file events since the previous snapshot._"
-    return
-  fi
-  local total
-  total=$(printf '%s\n' "$rows" | wc -l | tr -d ' ')
-  echo "Total: $total events"
+  [[ -z $rows ]] && return 0
+  echo "**File integrity events:**"
   echo ""
-  echo "| Category | Count |"
-  echo "|----------|-------|"
   printf '%s\n' "$rows" |
     jq -r '.columns.category' |
     sort | uniq -c |
-    awk '{printf "| %s | %d |\n", $2, $1}'
-}
-
-# Dispatcher: render_section <query_name> <section_title> <renderer_func>.
-# Skips silently if no snapshot for that query is in the log yet.
-render_section() {
-  local name="$1" title="$2" renderer="$3"
-  local line
-  line=$(get_latest_snapshot "$name")
-  [[ -z $line ]] && return 0
-  echo ""
-  echo "### $title"
-  echo ""
-  "$renderer" "$line"
+    awk '{printf "- %s: %d\n", $2, $1}'
   echo ""
 }
 
-# Idempotency: anchor on firewall_state (always present in this pack).
-fw_line=$(get_latest_snapshot "firewall_state")
+# Count file events in a window — used for the status card.
+count_file_events() {
+  local since="$1" until="$2"
+  [[ ! -s $events_log ]] && {
+    echo 0
+    return
+  }
+  jq -c --argjson s "$since" --argjson u "$until" \
+    'select(.name == "file_events_recent" and (.unixTime | tonumber) >= $s and (.unixTime | tonumber) <= $u)' \
+    "$events_log" 2>/dev/null | wc -l | tr -d ' '
+}
+
+# ---------------------------------------------------------------------------
+# Idempotency anchor: firewall_state is in every pack tick.
+# ---------------------------------------------------------------------------
+
+fw_line=$(get_snapshot_line firewall_state 1)
 if [[ -z $fw_line ]]; then
   echo "No firewall_state snapshot found; daemon may not have run since config change"
   exit 1
@@ -219,60 +291,127 @@ if grep -qF "<!-- ts:$unix_time -->" "$report_file"; then
   echo "Report for timestamp $unix_time already exists, skipping"
   exit 0
 fi
-
 timestamp=$(date -r "$unix_time" '+%Y-%m-%d %H:%M:%S')
+
+# Window bounds for FIM and "previous snapshot" sense.
+prev_fw_line=$(get_snapshot_line firewall_state 2)
+if [[ -n $prev_fw_line ]]; then
+  prev_unix=$(jq -r '.unixTime' <<<"$prev_fw_line")
+  prev_time_short=$(date -r "$prev_unix" '+%H:%M')
+else
+  prev_unix=$((unix_time - 21600))
+  prev_time_short="—"
+fi
+
+# ---------------------------------------------------------------------------
+# Status-card values + emoji selection.
+# ---------------------------------------------------------------------------
+
+fw_global=$(jq -r '.snapshot[0].global_state' <<<"$fw_line")
+gk_line=$(get_snapshot_line gatekeeper_state 1)
+sip_line=$(get_snapshot_line sip_state 1)
+gk_assess=$(jq -r '.snapshot[0].assessments_enabled // ""' <<<"$gk_line")
+sip_enabled=$(jq -r '.snapshot[0].enabled // ""' <<<"$sip_line")
+
+case "$fw_global" in
+  1) fw_cell="✅ on" ;;
+  2) fw_cell="✅ block-all" ;;
+  0) fw_cell="❌ OFF" ;;
+  *) fw_cell="? ($fw_global)" ;;
+esac
+case "$gk_assess" in
+  1) gk_cell="✅ on" ;;
+  0) gk_cell="❌ OFF" ;;
+  *) gk_cell="?" ;;
+esac
+case "$sip_enabled" in
+  1) sip_cell="✅ on" ;;
+  0) sip_cell="🔵 off (intentional)" ;;
+  *) sip_cell="?" ;;
+esac
+fim_count=$(count_file_events "$prev_unix" "$unix_time")
+
+# Counts line with deltas. Listening ports get a count-delta only (no diff in
+# changes section — would be flooded by mDNS noise).
+ssh_count=$(count_rows ssh_authorized_keys 1)
+ssh_delta=$(count_delta_suffix ssh_authorized_keys)
+sudo_count=$(count_rows sudoers_rules 1)
+sudo_delta=$(count_delta_suffix sudoers_rules)
+ld_count=$(count_rows non_apple_launchd 1)
+ld_delta=$(count_delta_suffix non_apple_launchd)
+sx_count=$(count_rows system_extensions 1)
+sx_delta=$(count_delta_suffix system_extensions)
+lp_count=$(count_rows listening_non_localhost 1)
+lp_delta=$(count_delta_suffix listening_non_localhost)
+
+# Compute total change count for the header tag.
+deltas_block=$(
+  diff_posture
+  diff_sudoers_rules
+  diff_ssh_authorized_keys
+  diff_non_apple_launchd
+  diff_launchd_overrides
+  diff_system_extensions
+  diff_startup_items
+  diff_file_events "$prev_unix" "$unix_time"
+)
+change_count=$(printf '%s' "$deltas_block" | grep -cE '^- (➕|➖|firewall:|gatekeeper:|SIP:)' || true)
+
+if [[ -z $prev_fw_line ]]; then
+  header_tag="📍 baseline (no previous snapshot)"
+elif [[ $change_count -eq 0 ]]; then
+  header_tag="✅ ALL CLEAR"
+else
+  header_tag="⚠ $change_count change(s) since $prev_time_short"
+fi
+
+# ---------------------------------------------------------------------------
+# Build and append the snapshot section.
+# ---------------------------------------------------------------------------
 
 {
   echo ""
-  echo "## $timestamp <!-- ts:$unix_time -->"
-
-  render_section sip_state "SIP" render_sip_state
-  render_section firewall_state "Application Firewall" render_firewall_state
-  render_section gatekeeper_state "Gatekeeper" render_gatekeeper_state
-  render_section listening_non_localhost "Listening Ports (non-loopback)" render_listening_non_localhost
-  render_section startup_items "Startup Items" render_startup_items
-  render_section non_apple_launchd "Non-Apple launchd Jobs" render_non_apple_launchd
-  render_section launchd_overrides "launchd Overrides" render_launchd_overrides
-  render_section ssh_authorized_keys "SSH Authorized Keys" render_ssh_authorized_keys
-  render_section sudoers_rules "Sudoers Rules" render_sudoers_rules
-  render_section system_extensions "System Extensions" render_system_extensions
-
-  # File-events: sourced from the deltas log, not the snapshot log. Window
-  # is the previous-snapshot interval so each report covers exactly one tick.
+  echo "## $timestamp — $header_tag <!-- ts:$unix_time -->"
   echo ""
-  echo "### File Integrity Events (last 6h)"
+  echo "| FW | GK | SIP | FIM (6h) |"
+  echo "|----|----|-----|----------|"
+  echo "| $fw_cell | $gk_cell | $sip_cell | $fim_count |"
   echo ""
-  render_file_events_section "$((unix_time - 21600))"
+  printf '📊 %d SSH%s · %d sudoers%s · %d launchd%s · %d sysext%s · %d listening%s\n' \
+    "$ssh_count" "$ssh_delta" \
+    "$sudo_count" "$sudo_delta" \
+    "$ld_count" "$ld_delta" \
+    "$sx_count" "$sx_delta" \
+    "$lp_count" "$lp_delta"
+  echo ""
+  echo "### Changes since previous snapshot"
+  echo ""
+  if [[ -z $prev_fw_line ]]; then
+    echo "_Baseline snapshot — no previous tick to compare against._"
+  elif [[ $change_count -eq 0 ]]; then
+    echo "_None._"
+  else
+    printf '%s' "$deltas_block"
+  fi
   echo ""
 } >>"$report_file"
 
 echo "Report appended to $report_file"
 
 # ---------------------------------------------------------------------------
-# Alert tier — paging-worthy states. SIP intentionally excluded (off on this
-# host by design). FileVault excluded because the disk_encryption table is
-# unreliable on Apple Silicon (always reports encrypted=0 even when fdesetup
-# status says On); the homelab fleet design will pick up FileVault state via
-# MDM, not osquery.
+# Alert tier: firewall OFF or gatekeeper DISABLED.
 # ---------------------------------------------------------------------------
 
 alert_msg=""
-fw_global=$(jq -r '.snapshot[0].global_state' <<<"$fw_line")
 if [[ $fw_global == "0" ]]; then
   alert_msg="Application Firewall is OFF"
 fi
-
-gk_line=$(get_latest_snapshot "gatekeeper_state")
-if [[ -n $gk_line ]]; then
-  gk_assess=$(jq -r '.snapshot[0].assessments_enabled' <<<"$gk_line")
-  if [[ $gk_assess == "0" ]]; then
-    if [[ -n $alert_msg ]]; then
-      alert_msg="${alert_msg}; "
-    fi
-    alert_msg="${alert_msg}Gatekeeper assessments DISABLED"
+if [[ $gk_assess == "0" ]]; then
+  if [[ -n $alert_msg ]]; then
+    alert_msg="${alert_msg}; "
   fi
+  alert_msg="${alert_msg}Gatekeeper assessments DISABLED"
 fi
-
 if [[ -n $alert_msg ]]; then
   if command -v alerter &>/dev/null; then
     alerter --timeout 60 --title "osquery Alert" --message "$alert_msg" --sound Sosumi 2>/dev/null &
