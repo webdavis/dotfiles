@@ -4,7 +4,7 @@
 set -euo pipefail
 
 results_log="${OSQUERY_RESULTS_LOG:-$HOME/.local/log/osquery/osqueryd.snapshots.log}"
-report_dir="${OSQUERY_REPORT_DIR:-$HOME/.local/state/osquery-reports}"
+report_dir="${OSQUERY_REPORT_DIR:-$HOME/workspaces/Ivy/security/osquery}"
 report_file="$report_dir/$(date +%Y-%m-%d).md"
 
 zombie_threshold=50
@@ -17,12 +17,19 @@ fi
 
 mkdir -p "$report_dir"
 
-# Initialize new report files with frontmatter.
+# Initialize new report files with vault-compliant frontmatter.
 if [[ ! -f $report_file ]]; then
-  cat >"$report_file" <<'EOF'
+  today_date=$(date +%Y-%m-%d)
+  today_time=$(date +%H:%M:%S)
+  cat >"$report_file" <<EOF
 ---
+createdDate: '[[$today_date]]'
+createdTime: $today_time
+hub: '[[osquery]]'
 tags:
   - osqueryLog
+status: active
+startDate: $today_date
 ---
 EOF
 fi

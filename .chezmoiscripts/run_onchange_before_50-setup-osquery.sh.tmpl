@@ -11,7 +11,7 @@ echo "--config_path={{ .chezmoi.homeDir }}/.config/osquery/osquery.conf" | sudo 
 
 # Create log and report directories.
 mkdir -p "$HOME/.local/log/osquery"
-mkdir -p "${OSQUERY_REPORT_DIR:-$HOME/.local/state/osquery-reports}"
+mkdir -p "${OSQUERY_REPORT_DIR:-$HOME/workspaces/Ivy/security/osquery}"
 
 # Load the LaunchAgent for the report script (modern bootstrap, not the
 # deprecated load -w). Bootout-then-bootstrap is the launchctl-1 idiom for
