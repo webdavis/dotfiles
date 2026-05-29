@@ -4,28 +4,53 @@
     "disable_events": "true"
   },
   "schedule": {
-    "zombie_count": {
-      "query": "SELECT COUNT(*) AS zombie_count FROM processes WHERE state = 'Z';",
+    "sip_state": {
+      "query": "SELECT enabled FROM sip_config WHERE config_flag = 'sip';",
       "interval": 21600,
       "snapshot": true
     },
-    "zombie_parents": {
-      "query": "SELECT z.pid AS zombie_pid, z.name AS zombie_name, p.pid AS parent_pid, p.name AS parent_name FROM processes z LEFT JOIN processes p ON z.parent = p.pid WHERE z.state = 'Z';",
+    "firewall_state": {
+      "query": "SELECT global_state, stealth_enabled, logging_enabled, version FROM alf;",
       "interval": 21600,
       "snapshot": true
     },
-    "top_processes_by_count": {
-      "query": "SELECT name, COUNT(*) AS count FROM processes GROUP BY name ORDER BY count DESC LIMIT 20;",
+    "gatekeeper_state": {
+      "query": "SELECT assessments_enabled, dev_id_enabled, version FROM gatekeeper;",
       "interval": 21600,
       "snapshot": true
     },
-    "per_user_process_count": {
-      "query": "SELECT u.username, COUNT(*) AS process_count FROM processes p LEFT JOIN users u ON p.uid = u.uid GROUP BY p.uid ORDER BY process_count DESC;",
+    "listening_non_localhost": {
+      "query": "SELECT lp.pid, lp.port, lp.address, lp.protocol, p.name AS process_name FROM listening_ports lp LEFT JOIN processes p ON lp.pid = p.pid WHERE lp.address NOT IN ('::1', '127.0.0.1', '') AND lp.port != 0 ORDER BY lp.port;",
       "interval": 21600,
       "snapshot": true
     },
-    "top_memory_hogs": {
-      "query": "SELECT name, ROUND(resident_size / 1048576.0, 1) AS mb FROM processes ORDER BY resident_size DESC LIMIT 10;",
+    "startup_items": {
+      "query": "SELECT name, path, type, source, username FROM startup_items;",
+      "interval": 21600,
+      "snapshot": true
+    },
+    "non_apple_launchd": {
+      "query": "SELECT label, run_at_load, keep_alive, program FROM launchd WHERE label NOT LIKE 'com.apple.%' AND label NOT LIKE 'system/com.apple.%' ORDER BY label;",
+      "interval": 21600,
+      "snapshot": true
+    },
+    "launchd_overrides": {
+      "query": "SELECT label, key, value FROM launchd_overrides ORDER BY label;",
+      "interval": 21600,
+      "snapshot": true
+    },
+    "ssh_authorized_keys": {
+      "query": "SELECT u.username, a.algorithm, a.key_file, substr(a.key, 1, 16) AS key_prefix FROM users u JOIN authorized_keys a USING (uid);",
+      "interval": 21600,
+      "snapshot": true
+    },
+    "sudoers_rules": {
+      "query": "SELECT header, rule_details FROM sudoers WHERE header != 'Defaults';",
+      "interval": 21600,
+      "snapshot": true
+    },
+    "system_extensions": {
+      "query": "SELECT identifier, category, mdm_managed, state FROM system_extensions;",
       "interval": 21600,
       "snapshot": true
     }
