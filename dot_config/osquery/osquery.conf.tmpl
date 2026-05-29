@@ -1,7 +1,9 @@
 {
   "options": {
     "logger_path": "{{ .chezmoi.homeDir }}/.local/log/osquery",
-    "disable_events": "true"
+    "disable_events": "false",
+    "enable_file_events": "true",
+    "events_expiry": "21600"
   },
   "schedule": {
     "sip_state": {
@@ -53,6 +55,36 @@
       "query": "SELECT identifier, category, mdm_managed, state FROM system_extensions;",
       "interval": 21600,
       "snapshot": true
+    },
+    "file_events_recent": {
+      "query": "SELECT target_path, category, action, time, sha256 FROM file_events;",
+      "interval": 21600,
+      "removed": false
     }
+  },
+  "file_paths": {
+    "ssh": [
+      "{{ .chezmoi.homeDir }}/.ssh/%%"
+    ],
+    "launch_agents": [
+      "{{ .chezmoi.homeDir }}/Library/LaunchAgents/%%",
+      "/Library/LaunchAgents/%%"
+    ],
+    "launch_daemons": [
+      "/Library/LaunchDaemons/%%"
+    ],
+    "sudoers": [
+      "/etc/sudoers",
+      "/etc/sudoers.d/%%"
+    ]
+  },
+  "file_paths_hashes": {
+    "ssh": [
+      "{{ .chezmoi.homeDir }}/.ssh/%%"
+    ],
+    "sudoers": [
+      "/etc/sudoers",
+      "/etc/sudoers.d/%%"
+    ]
   }
 }

@@ -4,6 +4,7 @@
 set -euo pipefail
 
 results_log="${OSQUERY_RESULTS_LOG:-$HOME/.local/log/osquery/osqueryd.snapshots.log}"
+events_log="${OSQUERY_EVENTS_LOG:-$HOME/.local/log/osquery/osqueryd.results.log}"
 report_dir="${OSQUERY_REPORT_DIR:-$HOME/workspaces/Ivy/security/osquery}"
 report_file="$report_dir/$(date +%Y-%m-%d).md"
 
@@ -164,6 +165,35 @@ render_system_extensions() {
   jq -r '.snapshot[] | "| \(.identifier) | \(.category) | \(.mdm_managed) | \(.state // "?") |"' <<<"$1"
 }
 
+# File-events renderer — reads from $events_log (delta log), not from the
+# snapshot log. Shows counts grouped by FIM category for the past 6h window.
+# Argument $1 is the unix-time cutoff (events with unixTime >= $1 are counted).
+render_file_events_section() {
+  local since="$1"
+  if [[ ! -s $events_log ]]; then
+    echo "_No events log yet (osqueryd needs one interval tick after enabling events)._"
+    return
+  fi
+  local rows
+  rows=$(jq -c --argjson since "$since" \
+    'select(.name == "file_events_recent" and (.unixTime | tonumber) >= $since)' \
+    "$events_log" 2>/dev/null || true)
+  if [[ -z $rows ]]; then
+    echo "_No file events since the previous snapshot._"
+    return
+  fi
+  local total
+  total=$(printf '%s\n' "$rows" | wc -l | tr -d ' ')
+  echo "Total: $total events"
+  echo ""
+  echo "| Category | Count |"
+  echo "|----------|-------|"
+  printf '%s\n' "$rows" |
+    jq -r '.columns.category' |
+    sort | uniq -c |
+    awk '{printf "| %s | %d |\n", $2, $1}'
+}
+
 # Dispatcher: render_section <query_name> <section_title> <renderer_func>.
 # Skips silently if no snapshot for that query is in the log yet.
 render_section() {
@@ -206,6 +236,14 @@ timestamp=$(date -r "$unix_time" '+%Y-%m-%d %H:%M:%S')
   render_section ssh_authorized_keys "SSH Authorized Keys" render_ssh_authorized_keys
   render_section sudoers_rules "Sudoers Rules" render_sudoers_rules
   render_section system_extensions "System Extensions" render_system_extensions
+
+  # File-events: sourced from the deltas log, not the snapshot log. Window
+  # is the previous-snapshot interval so each report covers exactly one tick.
+  echo ""
+  echo "### File Integrity Events (last 6h)"
+  echo ""
+  render_file_events_section "$((unix_time - 21600))"
+  echo ""
 } >>"$report_file"
 
 echo "Report appended to $report_file"
