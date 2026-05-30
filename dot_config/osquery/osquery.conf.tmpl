@@ -12,6 +12,11 @@
       "removed": false
     }
   },
+  "packs": {
+    "intrusion-detection": "{{ .chezmoi.homeDir }}/.config/osquery/packs/intrusion-detection.conf",
+    "security-regression": "{{ .chezmoi.homeDir }}/.config/osquery/packs/security-regression.conf",
+    "installed-software-drift": "{{ .chezmoi.homeDir }}/.config/osquery/packs/installed-software-drift.conf"
+  },
   "file_paths": {
     "ssh": [
       "{{ .chezmoi.homeDir }}/.ssh/%%"
