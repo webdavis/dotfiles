@@ -17,15 +17,8 @@ sudo tee /var/osquery/osquery.flags >/dev/null <<FLAGS
 --events_expiry=21600
 FLAGS
 
-# Create log and report directories.
+# Create osquery log directory.
 mkdir -p "$HOME/.local/log/osquery"
-mkdir -p "${OSQUERY_REPORT_DIR:-$HOME/workspaces/Ivy/security/osquery}"
-
-# Load the LaunchAgent for the report script (modern bootstrap, not the
-# deprecated load -w). Bootout-then-bootstrap is the launchctl-1 idiom for
-# "(re)load this unit"; legacy load is being phased out by Apple.
-launchctl bootout "gui/$(id -u)/com.webdavis.osquery-report" 2>/dev/null || true
-launchctl bootstrap "gui/$(id -u)" "$HOME/Library/LaunchAgents/com.webdavis.osquery-report.plist" 2>/dev/null || true
 
 # Start osqueryd. Redirect output because osqueryctl prints 'Load failed: 5'
 # to stdout on subsequent runs (the daemon is already loaded); the exit code
