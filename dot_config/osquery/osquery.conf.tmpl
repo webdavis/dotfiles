@@ -6,59 +6,9 @@
     "events_expiry": "21600"
   },
   "schedule": {
-    "sip_state": {
-      "query": "SELECT enabled FROM sip_config WHERE config_flag = 'sip';",
-      "interval": 21600,
-      "snapshot": true
-    },
-    "firewall_state": {
-      "query": "SELECT global_state, stealth_enabled, logging_enabled, version FROM alf;",
-      "interval": 21600,
-      "snapshot": true
-    },
-    "gatekeeper_state": {
-      "query": "SELECT assessments_enabled, dev_id_enabled, version FROM gatekeeper;",
-      "interval": 21600,
-      "snapshot": true
-    },
-    "listening_non_localhost": {
-      "query": "SELECT lp.pid, lp.port, lp.address, lp.protocol, p.name AS process_name FROM listening_ports lp LEFT JOIN processes p ON lp.pid = p.pid WHERE lp.address NOT IN ('::1', '127.0.0.1', '') AND lp.port != 0 ORDER BY lp.port;",
-      "interval": 21600,
-      "snapshot": true
-    },
-    "startup_items": {
-      "query": "SELECT name, path, type, source, username FROM startup_items;",
-      "interval": 21600,
-      "snapshot": true
-    },
-    "non_apple_launchd": {
-      "query": "SELECT label, run_at_load, keep_alive, program FROM launchd WHERE label NOT LIKE 'com.apple.%' AND label NOT LIKE 'system/com.apple.%' ORDER BY label;",
-      "interval": 21600,
-      "snapshot": true
-    },
-    "launchd_overrides": {
-      "query": "SELECT label, key, value FROM launchd_overrides ORDER BY label;",
-      "interval": 21600,
-      "snapshot": true
-    },
-    "ssh_authorized_keys": {
-      "query": "SELECT u.username, a.algorithm, a.key_file, substr(a.key, 1, 16) AS key_prefix FROM users u JOIN authorized_keys a USING (uid);",
-      "interval": 21600,
-      "snapshot": true
-    },
-    "sudoers_rules": {
-      "query": "SELECT header, rule_details FROM sudoers WHERE header != 'Defaults';",
-      "interval": 21600,
-      "snapshot": true
-    },
-    "system_extensions": {
-      "query": "SELECT identifier, category, mdm_managed, state FROM system_extensions;",
-      "interval": 21600,
-      "snapshot": true
-    },
     "file_events_recent": {
       "query": "SELECT target_path, category, action, time, sha256 FROM file_events;",
-      "interval": 21600,
+      "interval": 60,
       "removed": false
     }
   },
