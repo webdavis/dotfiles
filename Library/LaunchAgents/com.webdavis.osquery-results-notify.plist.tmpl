@@ -3,12 +3,12 @@
 <plist version="1.0">
 <dict>
   <key>Label</key>
-  <string>com.webdavis.osquery-fim-notify</string>
+  <string>com.webdavis.osquery-results-notify</string>
   <key>ProgramArguments</key>
   <array>
     <string>/opt/homebrew/bin/bash</string>
     <string>-l</string>
-    <string>{{ .chezmoi.homeDir }}/.local/bin/osquery-fim-notify.sh</string>
+    <string>{{ .chezmoi.homeDir }}/.local/bin/osquery-results-notify.sh</string>
   </array>
   <key>WatchPaths</key>
   <array>
@@ -17,8 +17,8 @@
   <key>RunAtLoad</key>
   <false/>
   <key>StandardOutPath</key>
-  <string>{{ .chezmoi.homeDir }}/.local/log/osquery/fim-notify.log</string>
+  <string>{{ .chezmoi.homeDir }}/.local/log/osquery/results-notify.log</string>
   <key>StandardErrorPath</key>
-  <string>{{ .chezmoi.homeDir }}/.local/log/osquery/fim-notify.log</string>
+  <string>{{ .chezmoi.homeDir }}/.local/log/osquery/results-notify.log</string>
 </dict>
 </plist>
