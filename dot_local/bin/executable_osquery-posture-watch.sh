@@ -10,6 +10,9 @@ set -euo pipefail
 STATE="${OSQUERY_POSTURE_STATE:-$HOME/.local/state/osquery-posture-state.json}"
 OSQUERYI="${OSQUERYI:-/usr/local/bin/osqueryi}"
 
+# shellcheck source=/dev/null
+source "$HOME/.local/bin/osquery-send-alert.sh"
+
 mkdir -p "$(dirname "$STATE")"
 
 # Read current posture in a single combined query so we get one osqueryi
@@ -83,9 +86,5 @@ sound="Glass"
   sound="Sosumi"
 }
 
-if command -v alerter &>/dev/null; then
-  alerter --timeout 60 --title "$title" --message "$message" --sound "$sound" 2>/dev/null &
-else
-  escaped=${message//\"/\\\"}
-  osascript -e "display notification \"$escaped\" with title \"$title\" sound name \"$sound\""
-fi
+# Dual-channel (local notifier + #osquery Discord) via the shared helper.
+send_alert "$title" "$message" "$sound"
