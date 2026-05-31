@@ -15,16 +15,26 @@ OSQUERY_HERMES_ENV="${OSQUERY_HERMES_ENV:-$HOME/.hermes/.env}"
 
 # send_alert <title> <detail> [sound]
 # Local notification always fires; the Discord POST is best-effort and never
-# fails the caller (so a down gateway can't break the local alert).
+# fails the caller (so a down gateway can't break the local alert). An empty
+# sound argument means a silent notification (used for the low INFO tier).
 send_alert() {
-  local title="$1" detail="$2" sound="${3:-Glass}"
+  local title="$1" detail="$2" sound="${3-}"
 
-  # 1) Local macOS notification (alerter, AppleScript fallback).
+  # 1) Local macOS notification (alerter, AppleScript fallback). Pass --sound
+  #    only when one is given so INFO-tier alerts are visible but silent.
   if command -v alerter >/dev/null 2>&1; then
-    alerter --timeout 60 --title "$title" --message "$detail" --sound "$sound" >/dev/null 2>&1 &
+    if [ -n "$sound" ]; then
+      alerter --timeout 60 --title "$title" --message "$detail" --sound "$sound" >/dev/null 2>&1 &
+    else
+      alerter --timeout 60 --title "$title" --message "$detail" >/dev/null 2>&1 &
+    fi
   else
     local escaped=${detail//\"/\\\"}
-    osascript -e "display notification \"$escaped\" with title \"$title\" sound name \"$sound\"" >/dev/null 2>&1 || true
+    if [ -n "$sound" ]; then
+      osascript -e "display notification \"$escaped\" with title \"$title\" sound name \"$sound\"" >/dev/null 2>&1 || true
+    else
+      osascript -e "display notification \"$escaped\" with title \"$title\"" >/dev/null 2>&1 || true
+    fi
   fi
 
   # 2) Discord via the hermes webhook. The HMAC key is the inlined route secret

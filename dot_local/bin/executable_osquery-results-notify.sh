@@ -38,30 +38,35 @@ fi
 
 [[ $size -eq $prev_offset ]] && exit 0
 
-# Notify only on ACTUAL security events — not routine activity. The allowlist
-# below fires on: persistence/auto-start additions, a new unexpected setuid
-# binary, any security-policy-regression row (a protection turning off), and
-# file-integrity events (ssh keys / sudoers / launchd dirs). Deliberately
-# SILENT (still logged for forensics, never notified): installed-software-drift
-# (apps/brew/extensions you manage), listening_ports, recent_logins, and
-# kernel/system-extension loads — none is a threat on its own. Also excludes
-# chezmoi's renameio temp-file churn. Render each row as
-# "<query without pack prefix>: <added|removed> <best identifier>".
+# Notify on ALL observed activity, tiered by severity so high-threat events
+# stand out from routine ones. Each row is classified:
+#   CRIT (🔴)   — a protection turned off (security-policy-regression), a new
+#                 unexpected setuid binary, or ssh-key / sudoers tampering.
+#   NOTICE (🟡) — new persistence/auto-start, launchd-dir file changes, or a
+#                 new kernel/system extension.
+#   INFO (🔵)   — installed-software drift, listening ports, logins.
+# chezmoi's renameio temp-file churn is excluded. jq emits "<SEV>\t<text>".
 new_lines=$(tail -c "+$((prev_offset + 1))" "$LOG")
 findings=$(printf '%s\n' "$new_lines" | jq -r '
-  select(.name != null and (
-    (.name | test("^pack_intrusion-detection_persistence_"))
-    or (.name == "pack_intrusion-detection_suid_bin_unexpected")
-    or (.name | startswith("pack_security-policy-regression_"))
-    or (.name == "file_events_recent")
-  ))
+  def sev:
+    if (.name | startswith("pack_security-policy-regression_"))
+       or (.name == "pack_intrusion-detection_suid_bin_unexpected")
+       or (.name == "file_events_recent" and ((.columns.category // "") | test("^(ssh|sudoers)$")))
+    then "CRIT"
+    elif (.name | test("^pack_intrusion-detection_persistence_"))
+       or (.name == "pack_intrusion-detection_kernel_extensions_new")
+       or (.name == "pack_intrusion-detection_system_extensions_new")
+       or (.name == "file_events_recent")
+    then "NOTICE"
+    else "INFO" end;
+  select(.name != null and ((.name | startswith("pack_")) or (.name == "file_events_recent")))
   | select((.columns.target_path // "") | test("/\\.renameio-TempDir") | not)
   | (.name | sub("^pack_[^_]+_"; "")) as $q
   | (.action // "changed") as $act
   | (.columns.target_path // .columns.label // .columns.identifier
      // .columns.name // .columns.path // .columns.username
      // (.columns | to_entries | map("\(.key)=\(.value)") | join(", "))) as $id
-  | "\($q): \($act) \($id)"
+  | "\(sev)\t\($q): \($act) \($id)"
 ' 2>/dev/null || true)
 
 # Advance the offset before notifying so a slow/failed dispatch never re-fires
@@ -70,19 +75,35 @@ echo "$size" >"$STATE"
 
 [[ -z $findings ]] && exit 0
 
-count=$(printf '%s\n' "$findings" | grep -c '' || true)
-sample=$(printf '%s\n' "$findings" | head -8)
+total=$(printf '%s\n' "$findings" | grep -c '' || true)
 
-title="osquery: $count change$([ "$count" -ne 1 ] && echo s)"
-if [[ $count -le 8 ]]; then
-  detail="$sample"
+# Highest severity present sets the headline + sound (INFO is silent).
+if printf '%s\n' "$findings" | grep -q '^CRIT'; then
+  sev_word="CRITICAL"
+  sev_emoji="🔴"
+  sound="Sosumi"
+elif printf '%s\n' "$findings" | grep -q '^NOTICE'; then
+  sev_word="Notice"
+  sev_emoji="🟡"
+  sound="Glass"
 else
-  detail="$sample"$'\n'"… and $((count - 8)) more"
+  sev_word="Info"
+  sev_emoji="🔵"
+  sound=""
 fi
+title="$sev_emoji $sev_word — $total security event$([ "$total" -ne 1 ] && echo s)"
 
-# Use the attention sound when a security-policy-regression row is in the batch
-# (a protection may have flipped); otherwise the default.
-sound="Glass"
-printf '%s\n' "$findings" | grep -qiE 'firewall_state|gatekeeper_state|sip_state|filevault_state|screenlock_state|remote_access' && sound="Sosumi"
+# Order lines CRIT -> NOTICE -> INFO, prefix each with its emoji, cap at 12.
+detail=$(printf '%s\n' "$findings" | awk -F'\t' '
+  BEGIN {
+    ord["CRIT"] = 1; ord["NOTICE"] = 2; ord["INFO"] = 3
+    em["CRIT"] = "🔴"; em["NOTICE"] = "🟡"; em["INFO"] = "🔵"
+  }
+  { sv[NR] = $1; tx[NR] = $2 }
+  END { for (p = 1; p <= 3; p++) for (i = 1; i <= NR; i++) if (ord[sv[i]] == p) print em[sv[i]] " " tx[i] }
+')
+if [[ $total -gt 12 ]]; then
+  detail="$(printf '%s\n' "$detail" | head -12)"$'\n'"… and $((total - 12)) more"
+fi
 
 send_alert "$title" "$detail" "$sound"

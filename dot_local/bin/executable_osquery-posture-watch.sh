@@ -79,12 +79,15 @@ fi
 [[ ${#msgs[@]} -eq 0 ]] && exit 0
 
 message=$(printf '%s\n' "${msgs[@]}")
-title="Posture changed"
-sound="Glass"
-[[ $bad -eq 1 ]] && {
-  title="⚠ Posture WORSENED"
+# Match the severity scheme used by osquery-results-notify: a protection
+# turning off is CRITICAL (🔴); re-enabling is a NOTICE (🟡).
+if [[ $bad -eq 1 ]]; then
+  title="🔴 CRITICAL — protection disabled"
   sound="Sosumi"
-}
+else
+  title="🟡 Notice — protection change"
+  sound="Glass"
+fi
 
 # Dual-channel (local notifier + #osquery Discord) via the shared helper.
 send_alert "$title" "$message" "$sound"
