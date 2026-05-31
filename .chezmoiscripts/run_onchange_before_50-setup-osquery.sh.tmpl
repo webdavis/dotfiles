@@ -7,22 +7,28 @@ echo "Setting up osquery..."
 
 # Create osquery flags directory and write CLI flags. Event-related flags
 # (disable_events, enable_file_events, events_expiry) are CLI-only on osquery
-# and ignored if set only in the config's "options" block. Keep config_path
-# and the event flags here so a fresh osqueryd launch picks them up.
+# and ignored if set only in the config's "options" block. The logger_rotate*
+# flags cap filesystem-logger growth (results.log/snapshots.log) at 5 files of
+# 10 MB each; without them the logs grow unbounded (~2 MB/day here).
 sudo mkdir -p /var/osquery
 sudo tee /var/osquery/osquery.flags >/dev/null <<FLAGS
 --config_path={{ .chezmoi.homeDir }}/.config/osquery/osquery.conf
 --disable_events=false
 --enable_file_events=true
 --events_expiry=21600
+--logger_rotate=true
+--logger_rotate_size=10485760
+--logger_rotate_max_files=5
+--logger_min_status=1
 FLAGS
 
 # Create osquery log directory.
 mkdir -p "$HOME/.local/log/osquery"
 
-# Start osqueryd. Redirect output because osqueryctl prints 'Load failed: 5'
-# to stdout on subsequent runs (the daemon is already loaded); the exit code
-# is swallowed by '|| true'.
+# Reload osqueryd so flag-file changes take effect. 'osqueryctl start' alone is
+# a no-op when the daemon is already running, so stop first; both are guarded
+# because a fresh machine has nothing to stop yet.
+sudo osqueryctl stop >/dev/null 2>&1 || true
 sudo osqueryctl start >/dev/null 2>&1 || true
 
 echo "osquery setup complete."
