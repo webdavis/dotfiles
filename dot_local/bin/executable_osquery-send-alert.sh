@@ -47,9 +47,12 @@ send_alert() {
   # 2) Discord via the hermes webhook (best-effort, bounded retry). The HMAC key
   #    is the inlined route secret from hermes's .env; strip CR (CRLF .env) and
   #    surrounding quotes so the bytes match python-dotenv's parse in the gateway.
+  # The trailing `|| true` is required: when grep finds no secret line it exits
+  # 1, and under the caller's `set -e` + pipefail that would abort the whole
+  # script before the graceful empty-secret handling below could run.
   local secret
   secret=$(grep -m1 '^OSQUERY_WEBHOOK_SECRET=' "$OSQUERY_HERMES_ENV" 2>/dev/null |
-    cut -d= -f2- | tr -d '\r' | sed -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'\$//")
+    cut -d= -f2- | tr -d '\r' | sed -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'\$//") || true
   if [ -z "$secret" ]; then
     _osquery_log "WARN no OSQUERY_WEBHOOK_SECRET in $OSQUERY_HERMES_ENV — Discord delivery skipped"
     return 0
