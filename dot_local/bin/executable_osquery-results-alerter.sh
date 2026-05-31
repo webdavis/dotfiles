@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 #
-# osquery-results-notify.sh — fired by launchd (WatchPaths) whenever
+# osquery-results-alerter.sh — fired by launchd (WatchPaths) whenever
 # ~/.local/log/osquery/osqueryd.results.log changes. Reads new lines since the
 # last run (byte-offset state file), and surfaces every differential finding
 # from the scheduled packs (intrusion-detection, security-policy-regression,
 # installed-software-drift) AND the file-events query. Each batch becomes a
 # single notification, delivered to both the local notifier and the #osquery
-# Discord channel via osquery-send-alert.sh.
+# Discord channel via osquery-alert-dispatch.sh.
 #
 # Supersedes the former osquery-fim-notify.sh (which watched the same log but
 # only handled file-events).
@@ -17,7 +17,7 @@ LOG="${OSQUERY_RESULTS_LOG:-$HOME/.local/log/osquery/osqueryd.results.log}"
 STATE="${OSQUERY_RESULTS_OFFSET:-$HOME/.local/state/osquery-results-offset}"
 
 # shellcheck source=/dev/null
-source "$HOME/.local/bin/osquery-send-alert.sh"
+source "$HOME/.local/bin/osquery-alert-dispatch.sh"
 
 mkdir -p "$(dirname "$STATE")"
 [[ -f $LOG ]] || exit 0

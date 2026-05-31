@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 #
-# osquery-send-alert.sh — sourced helper, not run directly. Provides
+# osquery-alert-dispatch.sh — sourced helper, not run directly. Provides
 # send_alert(), which dispatches one finding to BOTH the local macOS notifier
 # (alerter) and the hermes "#osquery" Discord webhook. Signing and dual-channel
-# delivery live here so osquery-results-notify.sh and osquery-posture-watch.sh
+# delivery live here so osquery-results-alerter.sh and osquery-firewall-gatekeeper-monitor.sh
 # share one implementation.
 #
 # Usage (from a sourcing script):
-#   source "$HOME/.local/bin/osquery-send-alert.sh"
+#   source "$HOME/.local/bin/osquery-alert-dispatch.sh"
 #   send_alert "Firewall disabled" "alf global_state 1 -> 0" Sosumi
 
 OSQUERY_HERMES_URL="${OSQUERY_HERMES_URL:-http://127.0.0.1:8644/webhooks/osquery}"

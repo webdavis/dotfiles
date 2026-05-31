@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# osquery-posture-watch.sh — polled every 60s by a launchd StartInterval
+# osquery-firewall-gatekeeper-monitor.sh — polled every 60s by a launchd StartInterval
 # agent. Queries the live firewall (alf) and gatekeeper state via osqueryi,
 # compares against the previous run, and fires alerter only on transitions.
 # Silent in steady state.
@@ -8,10 +8,10 @@
 set -euo pipefail
 
 STATE="${OSQUERY_POSTURE_STATE:-$HOME/.local/state/osquery-posture-state.json}"
-OSQUERYI="${OSQUERYI:-/usr/local/bin/osqueryi}"
+OSQUERYI="${OSQUERYI:-$(command -v osqueryi || echo /usr/local/bin/osqueryi)}"
 
 # shellcheck source=/dev/null
-source "$HOME/.local/bin/osquery-send-alert.sh"
+source "$HOME/.local/bin/osquery-alert-dispatch.sh"
 
 mkdir -p "$(dirname "$STATE")"
 
@@ -79,7 +79,7 @@ fi
 [[ ${#msgs[@]} -eq 0 ]] && exit 0
 
 message=$(printf '%s\n' "${msgs[@]}")
-# Match the severity scheme used by osquery-results-notify: a protection
+# Match the severity scheme used by osquery-results-alerter: a protection
 # turning off is CRITICAL (🔴); re-enabling is a NOTICE (🟡).
 if [[ $bad -eq 1 ]]; then
   title="🔴 CRITICAL — protection disabled"

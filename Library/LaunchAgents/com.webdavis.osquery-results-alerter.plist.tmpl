@@ -3,22 +3,28 @@
 <plist version="1.0">
 <dict>
   <key>Label</key>
-  <string>com.webdavis.osquery-results-notify</string>
+  <string>com.webdavis.osquery-results-alerter</string>
   <key>ProgramArguments</key>
   <array>
     <string>/opt/homebrew/bin/bash</string>
-    <string>-l</string>
-    <string>{{ .chezmoi.homeDir }}/.local/bin/osquery-results-notify.sh</string>
+    <string>{{ .chezmoi.homeDir }}/.local/bin/osquery-results-alerter.sh</string>
   </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
   <key>WatchPaths</key>
   <array>
     <string>{{ .chezmoi.homeDir }}/.local/log/osquery/osqueryd.results.log</string>
   </array>
+  <key>StartInterval</key>
+  <integer>300</integer>
   <key>RunAtLoad</key>
   <false/>
   <key>StandardOutPath</key>
-  <string>{{ .chezmoi.homeDir }}/.local/log/osquery/results-notify.log</string>
+  <string>{{ .chezmoi.homeDir }}/.local/log/osquery/results-alerter.log</string>
   <key>StandardErrorPath</key>
-  <string>{{ .chezmoi.homeDir }}/.local/log/osquery/results-notify.log</string>
+  <string>{{ .chezmoi.homeDir }}/.local/log/osquery/results-alerter.log</string>
 </dict>
 </plist>
