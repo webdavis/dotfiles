@@ -60,12 +60,26 @@ fi
 new_lines=$(tail -c "+$((prev_offset + 1))" "$LOG" | head -c "$((size - prev_offset))" || true)
 findings=$(printf '%s\n' "$new_lines" | jq -rR '
   . as $line | (try ($line | fromjson) catch empty) |
+  # A security-policy row is CRITICAL only when the protection turned OFF, not
+  # on every change. For the boolean states that is an "added" row carrying the
+  # off value; for filevault (the query returns only encrypted volumes) it is a
+  # "removed" row — a volume left the encrypted set. Re-enables, version bumps,
+  # sharing changes, and the paired "removed" old-value rows fall through to
+  # NOTICE. (sharing cannot be direction-classified from a single row, so it is
+  # always NOTICE; the poller covers firewall/Gatekeeper transitions too.)
+  def protection_off:
+    (.name == "pack_security-policy-regression_firewall_state" and .action == "added" and (.columns.global_state // "") == "0")
+    or (.name == "pack_security-policy-regression_gatekeeper_state" and .action == "added" and (.columns.assessments_enabled // "") == "0")
+    or (.name == "pack_security-policy-regression_sip_state" and .action == "added" and (.columns.enabled // "") == "0")
+    or (.name == "pack_security-policy-regression_screenlock_state" and .action == "added" and (.columns.enabled // "") == "0")
+    or (.name == "pack_security-policy-regression_filevault_state" and .action == "removed");
   def sev:
-    if (.name | startswith("pack_security-policy-regression_"))
+    if protection_off
        or (.name == "pack_intrusion-detection_suid_bin_unexpected")
        or (.name == "file_events_recent" and ((.columns.category // "") | test("^(ssh|sudoers)$")))
     then "CRIT"
-    elif (.name | test("^pack_intrusion-detection_persistence_"))
+    elif (.name | startswith("pack_security-policy-regression_"))
+       or (.name | test("^pack_intrusion-detection_persistence_"))
        or (.name == "pack_intrusion-detection_kernel_extensions_new")
        or (.name == "pack_intrusion-detection_system_extensions_new")
        or (.name == "file_events_recent")
