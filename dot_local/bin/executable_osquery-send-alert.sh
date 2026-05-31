@@ -12,6 +12,13 @@
 
 OSQUERY_HERMES_URL="${OSQUERY_HERMES_URL:-http://127.0.0.1:8644/webhooks/osquery}"
 OSQUERY_HERMES_ENV="${OSQUERY_HERMES_ENV:-$HOME/.hermes/.env}"
+OSQUERY_DELIVERY_LOG="${OSQUERY_DELIVERY_LOG:-$HOME/.local/log/osquery/webhook-delivery.log}"
+
+# Append a timestamped line to the delivery log (best-effort; never fails caller).
+_osquery_log() {
+  mkdir -p "$(dirname "$OSQUERY_DELIVERY_LOG")" 2>/dev/null || true
+  printf '%s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$1" >>"$OSQUERY_DELIVERY_LOG" 2>/dev/null || true
+}
 
 # send_alert <title> <detail> [sound]
 # Local notification always fires; the Discord POST is best-effort and never
@@ -37,22 +44,39 @@ send_alert() {
     fi
   fi
 
-  # 2) Discord via the hermes webhook. The HMAC key is the inlined route secret
-  #    read from hermes's .env; strip surrounding quotes so the bytes match what
-  #    python-dotenv loaded into the gateway.
+  # 2) Discord via the hermes webhook (best-effort, bounded retry). The HMAC key
+  #    is the inlined route secret from hermes's .env; strip CR (CRLF .env) and
+  #    surrounding quotes so the bytes match python-dotenv's parse in the gateway.
   local secret
   secret=$(grep -m1 '^OSQUERY_WEBHOOK_SECRET=' "$OSQUERY_HERMES_ENV" 2>/dev/null |
-    cut -d= -f2- | sed -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'\$//")
-  [ -n "$secret" ] || return 0
+    cut -d= -f2- | tr -d '\r' | sed -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'\$//")
+  if [ -z "$secret" ]; then
+    _osquery_log "WARN no OSQUERY_WEBHOOK_SECRET in $OSQUERY_HERMES_ENV — Discord delivery skipped"
+    return 0
+  fi
 
-  local body sig
+  local body sig reqid http attempt
   body=$(jq -cn --arg t "$title" --arg d "$detail" \
     '{event_type:"osquery.alert", alert:{title:$t, detail:$d}}')
   sig=$(printf '%s' "$body" | openssl dgst -sha256 -hmac "$secret" | awk '{print $NF}')
-  curl -s -o /dev/null --max-time 5 \
-    -X POST "$OSQUERY_HERMES_URL" \
-    -H 'Content-Type: application/json' \
-    -H "X-Webhook-Signature: $sig" \
-    -H "X-Request-ID: osquery-$(date +%s)-${RANDOM}" \
-    --data "$body" || true
+  # Content-stable request id: a retry or double-fire of the SAME alert dedups
+  # at the gateway (it honours X-Request-ID for 1h) instead of double-posting.
+  reqid="osquery-$(printf '%s' "$body" | openssl dgst -sha256 | awk '{print $NF}' | cut -c1-32)"
+
+  for attempt in 1 2 3; do
+    http=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 \
+      -X POST "$OSQUERY_HERMES_URL" \
+      -H 'Content-Type: application/json' \
+      -H "X-Webhook-Signature: $sig" \
+      -H "X-Request-ID: $reqid" \
+      --data "$body") || http=000
+    case "$http" in
+      2*) return 0 ;;  # delivered
+      429 | 5?? | 000) # transient → back off and retry
+        if [ "$attempt" -lt 3 ]; then sleep "$attempt"; fi ;;
+      *) break ;; # 401/413/etc — retry won't help
+    esac
+  done
+  _osquery_log "ERROR webhook delivery failed: http=$http url=$OSQUERY_HERMES_URL"
+  return 0
 }
