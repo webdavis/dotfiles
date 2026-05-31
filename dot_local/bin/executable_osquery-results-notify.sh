@@ -22,18 +22,25 @@ source "$HOME/.local/bin/osquery-send-alert.sh"
 mkdir -p "$(dirname "$STATE")"
 [[ -f $LOG ]] || exit 0
 
-size=$(stat -f %z "$LOG")
-prev_offset=$(cat "$STATE" 2>/dev/null || echo 0)
+# Portable size + inode (wc -c / ls -i work on macOS and Linux; BSD `stat -f`
+# does not). Inode lets us notice a rotated/recreated log at the same path.
+size=$(wc -c <"$LOG")
+size=${size//[[:space:]]/}
+# shellcheck disable=SC2012  # $LOG is a fixed, controlled path — ls -i is safe and portable
+inode=$(ls -i "$LOG" | awk '{print $1}')
 
-# Log rotated/truncated — reset to current EOF, don't replay old content.
-if [[ $size -lt $prev_offset ]]; then
-  prev_offset=$size
+# State holds "<inode> <offset>". Re-seed silently when it is missing or not in
+# that exact two-integer form (first run, or migrating the old single-int file).
+if [[ ! -f $STATE ]] || ! read -r prev_inode prev_offset <"$STATE" ||
+  ! [[ $prev_inode =~ ^[0-9]+$ && $prev_offset =~ ^[0-9]+$ ]]; then
+  printf '%s %s\n' "$inode" "$size" >"$STATE"
+  exit 0
 fi
 
-# First-ever run: seed offset at EOF and stay silent (no backlog storm).
-if [[ ! -f $STATE ]]; then
-  echo "$size" >"$STATE"
-  exit 0
+# New inode (rotation/recreation) or a shrink (truncation) → read the current
+# file from byte 0 so nothing is skipped or replayed from the old file.
+if [[ $inode != "$prev_inode" || $size -lt $prev_offset ]]; then
+  prev_offset=0
 fi
 
 [[ $size -eq $prev_offset ]] && exit 0
@@ -46,8 +53,13 @@ fi
 #                 new kernel/system extension.
 #   INFO (🔵)   — installed-software drift, listening ports, logins.
 # chezmoi's renameio temp-file churn is excluded. jq emits "<SEV>\t<text>".
-new_lines=$(tail -c "+$((prev_offset + 1))" "$LOG")
-findings=$(printf '%s\n' "$new_lines" | jq -r '
+# Bound the read to the snapshot window (head -c) so rows appended after we
+# captured $size aren't consumed early and re-fired next time; `|| true`
+# absorbs head's SIGPIPE. jq -rR + per-line try/fromjson means one malformed
+# line yields nothing for that line instead of aborting the whole batch.
+new_lines=$(tail -c "+$((prev_offset + 1))" "$LOG" | head -c "$((size - prev_offset))" || true)
+findings=$(printf '%s\n' "$new_lines" | jq -rR '
+  . as $line | (try ($line | fromjson) catch empty) |
   def sev:
     if (.name | startswith("pack_security-policy-regression_"))
        or (.name == "pack_intrusion-detection_suid_bin_unexpected")
@@ -65,13 +77,14 @@ findings=$(printf '%s\n' "$new_lines" | jq -r '
   | (.action // "changed") as $act
   | (.columns.target_path // .columns.label // .columns.identifier
      // .columns.name // .columns.path // .columns.username
-     // (.columns | to_entries | map("\(.key)=\(.value)") | join(", "))) as $id
+     // ((.columns // {}) | to_entries | map("\(.key)=\(.value)") | join(", "))) as $raw
+  | ($raw | gsub("[\t\n]"; " ")) as $id
   | "\(sev)\t\($q): \($act) \($id)"
 ' 2>/dev/null || true)
 
-# Advance the offset before notifying so a slow/failed dispatch never re-fires
-# the same batch on the next WatchPaths trigger.
-echo "$size" >"$STATE"
+# Advance state before notifying so a slow/failed dispatch never re-fires the
+# same batch on the next WatchPaths trigger. Format: "<inode> <offset>".
+printf '%s %s\n' "$inode" "$size" >"$STATE"
 
 [[ -z $findings ]] && exit 0
 
@@ -91,7 +104,12 @@ else
   sev_emoji="🔵"
   sound=""
 fi
-title="$sev_emoji $sev_word — $total security event$([ "$total" -ne 1 ] && echo s)"
+# Pluralize without a command-substitution: under set -e, title="$([ ] && echo s)"
+# aborts the script when total==1 (the test that surfaced this), silently
+# dropping a single-finding alert after state was already advanced.
+plural=""
+if [[ $total -ne 1 ]]; then plural="s"; fi
+title="$sev_emoji $sev_word — $total security event$plural"
 
 # Order lines CRIT -> NOTICE -> INFO, prefix each with its emoji, cap at 12.
 detail=$(printf '%s\n' "$findings" | awk -F'\t' '
