@@ -38,11 +38,23 @@ fi
 
 [[ $size -eq $prev_offset ]] && exit 0
 
-# New differential rows. Exclude chezmoi's renameio temp-file churn. Render
-# each as "<query without pack prefix>: <added|removed> <best identifier>".
+# Notify only on ACTUAL security events — not routine activity. The allowlist
+# below fires on: persistence/auto-start additions, a new unexpected setuid
+# binary, any security-policy-regression row (a protection turning off), and
+# file-integrity events (ssh keys / sudoers / launchd dirs). Deliberately
+# SILENT (still logged for forensics, never notified): installed-software-drift
+# (apps/brew/extensions you manage), listening_ports, recent_logins, and
+# kernel/system-extension loads — none is a threat on its own. Also excludes
+# chezmoi's renameio temp-file churn. Render each row as
+# "<query without pack prefix>: <added|removed> <best identifier>".
 new_lines=$(tail -c "+$((prev_offset + 1))" "$LOG")
 findings=$(printf '%s\n' "$new_lines" | jq -r '
-  select(.name != null and (.name | startswith("pack_") or . == "file_events_recent"))
+  select(.name != null and (
+    (.name | test("^pack_intrusion-detection_persistence_"))
+    or (.name == "pack_intrusion-detection_suid_bin_unexpected")
+    or (.name | startswith("pack_security-policy-regression_"))
+    or (.name == "file_events_recent")
+  ))
   | select((.columns.target_path // "") | test("/\\.renameio-TempDir") | not)
   | (.name | sub("^pack_[^_]+_"; "")) as $q
   | (.action // "changed") as $act
