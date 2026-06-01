@@ -12,6 +12,10 @@
   disagreeing.
 - One precise question at a time when ambiguous. State a recommendation; ask only if contested.
 - Never create unsolicited docs (`README.md`, `CHANGELOG.md`, etc.) or docstrings.
+- Acronyms in commits and docs: on first use, a **well-known** acronym must give the full name in
+  parentheses — `HMAC (hash-based message authentication code)` — then the bare acronym is fine after. A
+  **less-common / not-widely-known** acronym is avoided altogether — spell it out every time, never
+  introduce the short form (e.g. write "file integrity monitoring", never "FIM").
 - Use the `humanizer` skill on prose longer than a paragraph.
 
 ## Verification and sources of truth
