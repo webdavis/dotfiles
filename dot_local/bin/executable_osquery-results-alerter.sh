@@ -8,8 +8,7 @@
 # single notification, delivered to both the local notifier and the #osquery
 # Discord channel via osquery-alert-dispatch.sh.
 #
-# Supersedes the former osquery-fim-notify.sh (which watched the same log but
-# only handled file-events).
+# Supersedes an earlier file-events-only notifier that watched the same log.
 
 set -euo pipefail
 

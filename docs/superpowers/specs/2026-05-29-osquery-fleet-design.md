@@ -6,14 +6,14 @@
 [FleetDM](https://fleetdm.com/) deployment that centralizes osquery query management, schedules,
 and posture reporting across the laptop plus future Linux servers.
 **Out of scope:** Standing up the homelab infrastructure itself (already covered by the homelab
-project), MDM enrollment of corporate devices (this is personal infra), distributed FIM hashing of
-large directories, FleetDM enterprise-tier features (vulnerability scanning UI, MDM payload
+project), MDM enrollment of corporate devices (this is personal infra), distributed file-integrity
+hashing of large directories, FleetDM enterprise-tier features (vulnerability scanning UI, MDM payload
 authoring), Apple-DEP enrollment.
 
 ## Background
 
 The standalone osquery setup landed in commits `5538d13` (vault integration), `ebb6c2f` (security
-pack), and `b60b559` (file_events FIM). It runs `osqueryd` locally, schedules ten posture queries
+pack), and `b60b559` (file_events monitoring). It runs `osqueryd` locally, schedules ten posture queries
 plus a `file_events_recent` event query at 6h cadence, and renders each tick into a markdown report
 that lands in `~/workspaces/Ivy/security/osquery/YYYY-MM-DD.md`. That works on one machine; it does
 not survive contact with a fleet:
@@ -107,7 +107,7 @@ apiVersion: v1
 kind: pack
 spec:
   name: security
-  description: Security-posture queries (SIP, FW, GK, listening ports, FIM)
+  description: Security-posture queries (SIP, firewall, Gatekeeper, listening ports, file integrity)
   targets:
     labels: [All Hosts]
   queries:
