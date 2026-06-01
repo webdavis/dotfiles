@@ -76,7 +76,7 @@ findings=$(printf '%s\n' "$new_lines" | jq -rR '
   def sev:
     if protection_off
        or (.name == "pack_intrusion-detection_suid_bin_unexpected")
-       or (.name == "file_events_recent" and ((.columns.category // "") | test("^(ssh|sudoers)$")))
+       or (.name == "file_events_recent" and ((.columns.category // "") | test("^(ssh|sudoers|sshd_config)$")))
     then "CRIT"
     elif (.name | startswith("pack_security-policy-regression_"))
        or (.name | test("^pack_intrusion-detection_persistence_"))
