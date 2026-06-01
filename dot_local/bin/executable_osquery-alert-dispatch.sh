@@ -15,7 +15,7 @@ OSQUERY_HERMES_URL="${OSQUERY_HERMES_URL:-http://127.0.0.1:8644/webhooks/osquery
 # file — NOT from hermes's .env. HMAC is symmetric so the value must match the
 # gateway's, but the signer must not reach into the verifier's credential store;
 # each side owns its own copy. Single-value file, mode 600, runtime (not tracked).
-OSQUERY_WEBHOOK_SECRET_FILE="${OSQUERY_WEBHOOK_SECRET_FILE:-$HOME/.config/osquery/webhook-secret}"
+WEBHOOK_OSQUERY_SECRET_FILE="${WEBHOOK_OSQUERY_SECRET_FILE:-$HOME/.config/osquery/webhook-secret}"
 OSQUERY_DELIVERY_LOG="${OSQUERY_DELIVERY_LOG:-$HOME/.local/log/osquery/webhook-delivery.log}"
 
 # Append a timestamped line to the delivery log (best-effort; never fails caller).
@@ -52,13 +52,13 @@ send_alert() {
   #    key from the notifier's own secret file (env override allowed for tests);
   #    strip CR so a CRLF file can't corrupt the key. A missing/empty secret is
   #    handled gracefully (local alert already fired) rather than aborting.
-  local secret="${OSQUERY_WEBHOOK_SECRET:-}"
-  if [ -z "$secret" ] && [ -r "$OSQUERY_WEBHOOK_SECRET_FILE" ]; then
-    IFS= read -r secret <"$OSQUERY_WEBHOOK_SECRET_FILE" || true
+  local secret="${WEBHOOK_OSQUERY_SECRET:-}"
+  if [ -z "$secret" ] && [ -r "$WEBHOOK_OSQUERY_SECRET_FILE" ]; then
+    IFS= read -r secret <"$WEBHOOK_OSQUERY_SECRET_FILE" || true
     secret=$(printf '%s' "$secret" | tr -d '\r')
   fi
   if [ -z "$secret" ]; then
-    _osquery_log "WARN no webhook secret in $OSQUERY_WEBHOOK_SECRET_FILE — Discord delivery skipped"
+    _osquery_log "WARN no webhook secret in $WEBHOOK_OSQUERY_SECRET_FILE — Discord delivery skipped"
     return 0
   fi
 
