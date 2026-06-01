@@ -11,7 +11,11 @@
 #   send_alert "Firewall disabled" "alf global_state 1 -> 0" Sosumi
 
 OSQUERY_HERMES_URL="${OSQUERY_HERMES_URL:-http://127.0.0.1:8644/webhooks/osquery}"
-OSQUERY_HERMES_ENV="${OSQUERY_HERMES_ENV:-$HOME/.hermes/.env}"
+# The notifier signs with its OWN copy of the HMAC key, read from its own secret
+# file — NOT from hermes's .env. HMAC is symmetric so the value must match the
+# gateway's, but the signer must not reach into the verifier's credential store;
+# each side owns its own copy. Single-value file, mode 600, runtime (not tracked).
+OSQUERY_WEBHOOK_SECRET_FILE="${OSQUERY_WEBHOOK_SECRET_FILE:-$HOME/.config/osquery/webhook-secret}"
 OSQUERY_DELIVERY_LOG="${OSQUERY_DELIVERY_LOG:-$HOME/.local/log/osquery/webhook-delivery.log}"
 
 # Append a timestamped line to the delivery log (best-effort; never fails caller).
@@ -44,17 +48,17 @@ send_alert() {
     fi
   fi
 
-  # 2) Discord via the hermes webhook (best-effort, bounded retry). The HMAC key
-  #    is the inlined route secret from hermes's .env; strip CR (CRLF .env) and
-  #    surrounding quotes so the bytes match python-dotenv's parse in the gateway.
-  # The trailing `|| true` is required: when grep finds no secret line it exits
-  # 1, and under the caller's `set -e` + pipefail that would abort the whole
-  # script before the graceful empty-secret handling below could run.
-  local secret
-  secret=$(grep -m1 '^OSQUERY_WEBHOOK_SECRET=' "$OSQUERY_HERMES_ENV" 2>/dev/null |
-    cut -d= -f2- | tr -d '\r' | sed -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'\$//") || true
+  # 2) Discord via the hermes webhook (best-effort, bounded retry). Read the HMAC
+  #    key from the notifier's own secret file (env override allowed for tests);
+  #    strip CR so a CRLF file can't corrupt the key. A missing/empty secret is
+  #    handled gracefully (local alert already fired) rather than aborting.
+  local secret="${OSQUERY_WEBHOOK_SECRET:-}"
+  if [ -z "$secret" ] && [ -r "$OSQUERY_WEBHOOK_SECRET_FILE" ]; then
+    IFS= read -r secret <"$OSQUERY_WEBHOOK_SECRET_FILE" || true
+    secret=$(printf '%s' "$secret" | tr -d '\r')
+  fi
   if [ -z "$secret" ]; then
-    _osquery_log "WARN no OSQUERY_WEBHOOK_SECRET in $OSQUERY_HERMES_ENV — Discord delivery skipped"
+    _osquery_log "WARN no webhook secret in $OSQUERY_WEBHOOK_SECRET_FILE — Discord delivery skipped"
     return 0
   fi
 
