@@ -53,6 +53,9 @@ Require per-invocation confirmation. Blanket "yes" doesn't carry over.
   beat a premature abstraction.
 - **No backwards-compat hacks for unshipped code.** Dead code gets deleted.
 - **Glob before creating.** Prefer editing an existing file.
+- **Never patch, fork, or modify the code of third-party tools I don't own** (e.g. osquery). Configure
+  them through their own config files and supported options only. If a goal seems to require changing a
+  tool's source, stop and say so — don't propose it.
 
 ## Shell scripts
 
