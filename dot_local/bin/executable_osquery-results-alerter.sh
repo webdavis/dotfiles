@@ -72,7 +72,8 @@ findings=$(printf '%s\n' "$new_lines" | jq -rR '
     or (.name == "pack_security-policy-regression_gatekeeper_state" and .action == "added" and (.columns.assessments_enabled // "") == "0")
     or (.name == "pack_security-policy-regression_sip_state" and .action == "added" and (.columns.enabled // "") == "0")
     or (.name == "pack_security-policy-regression_screenlock_state" and .action == "added" and (.columns.enabled // "") == "0")
-    or (.name == "pack_security-policy-regression_filevault_state" and .action == "removed");
+    or (.name == "pack_security-policy-regression_filevault_state" and .action == "removed")
+    or (.action == "currently-off" and (.name | startswith("pack_security-policy-regression_")));
   def sev:
     if protection_off
        or (.name == "pack_intrusion-detection_suid_bin_unexpected")
@@ -85,7 +86,13 @@ findings=$(printf '%s\n' "$new_lines" | jq -rR '
        or (.name == "file_events_recent")
     then "NOTICE"
     else "INFO" end;
-  select(.name != null and ((.name | startswith("pack_")) or (.name == "file_events_recent")))
+  # Snapshot rows (absolute-state floor *_off queries) log under a "snapshot"
+  # array with action "snapshot"; explode each into a synthetic "currently-off"
+  # row so the rest of the pipeline treats it uniformly. Empty snapshot = silent.
+  (if .action == "snapshot"
+   then (.name as $n | .snapshot[]? | {name: $n, action: "currently-off", columns: .})
+   else . end)
+  | select(.name != null and ((.name | startswith("pack_")) or (.name == "file_events_recent")))
   | select((.columns.target_path // "") | test("/\\.renameio-TempDir") | not)
   | (.name | sub("^pack_[^_]+_"; "")) as $q
   | (.action // "changed") as $act
