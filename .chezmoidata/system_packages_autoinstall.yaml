@@ -214,6 +214,7 @@ packages:
       - agentmail-cli
       - clawhub
       - happy
+      - hyperframes
       - "@clawdbot/lobster"
       - "@mistweaverco/kulala-ls"
       - mcporter
