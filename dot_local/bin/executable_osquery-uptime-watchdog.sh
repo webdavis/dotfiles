@@ -46,5 +46,14 @@ fi
 
 if [ ${#problems[@]} -eq 0 ]; then exit 0; fi
 
-detail=$(printf '%s\n' "${problems[@]}")
-send_alert "🔴 CRITICAL — osquery monitoring is DOWN" "$detail" "Sosumi"
+# A dead pipeline is always CRITICAL → #priority. Focused block: what is down
+# (one bullet each) plus instructive diagnostic + restart steps. bt holds a literal
+# backtick so the command renders as Discord inline-code without shell expansion.
+bt='`'
+body="**Monitoring is DOWN**"
+for p in "${problems[@]}"; do body+=$'\n'"- $p"; done
+body+=$'\n'"- **Diagnose:** ${bt}launchctl list | grep -i osquery${bt}"
+body+=$'\n'"- Restart the down component, then re-check."
+title="🔴 **CRITICAL**"
+if [ ${#problems[@]} -gt 1 ]; then title="🔴 **CRITICAL** · ${#problems[@]}"; fi
+send_alert CRIT "$title" "$body" "Sosumi"

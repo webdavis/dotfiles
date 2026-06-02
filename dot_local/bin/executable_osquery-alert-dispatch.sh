@@ -2,15 +2,21 @@
 #
 # osquery-alert-dispatch.sh — sourced helper, not run directly. Provides
 # send_alert(), which dispatches one finding to BOTH the local macOS notifier
-# (alerter) and the hermes "#osquery" Discord webhook. Signing and dual-channel
-# delivery live here so osquery-results-alerter.sh and osquery-firewall-gatekeeper-monitor.sh
-# share one implementation.
+# (alerter) and a hermes Discord webhook, routing by severity (CRIT -> #priority,
+# else -> #osquery). Signing and dual-channel delivery live here so the three
+# producers — osquery-results-alerter.sh, osquery-firewall-gatekeeper-monitor.sh,
+# and osquery-uptime-watchdog.sh — share one implementation.
 #
 # Usage (from a sourcing script):
 #   source "$HOME/.local/bin/osquery-alert-dispatch.sh"
-#   send_alert "Firewall disabled" "alf global_state 1 -> 0" Sosumi
+#   send_alert CRIT "Firewall disabled" "alf global_state 1 -> 0" Sosumi
 
+# Two routes, same app (osquery), each signed with the one osquery key below.
+# CRIT findings go to the #priority channel (the one channel the user watches);
+# everything else goes to the quiet #osquery log channel. send_alert picks the
+# URL from its severity argument.
 OSQUERY_HERMES_URL="${OSQUERY_HERMES_URL:-http://127.0.0.1:8644/webhooks/osquery}"
+OSQUERY_HERMES_PRIORITY_URL="${OSQUERY_HERMES_PRIORITY_URL:-http://127.0.0.1:8644/webhooks/osquery-priority}"
 # The notifier signs with its OWN copy of the HMAC key, read from its own secret
 # file — NOT from hermes's .env. HMAC is symmetric so the value must match the
 # gateway's, but the signer must not reach into the verifier's credential store;
@@ -24,27 +30,39 @@ _osquery_log() {
   printf '%s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$1" >>"$OSQUERY_DELIVERY_LOG" 2>/dev/null || true
 }
 
-# send_alert <title> <detail> [sound]
-# Local notification always fires; the Discord POST is best-effort and never
-# fails the caller (so a down gateway can't break the local alert). An empty
-# sound argument means a silent notification (used for the low INFO tier).
+# send_alert <severity> <title> <detail> [sound]
+# severity is CRIT | NOTICE | INFO. CRIT routes the Discord POST to the
+# #priority channel; NOTICE/INFO route to the quiet #osquery channel. The local
+# notification always fires regardless. The Discord POST is best-effort and
+# never fails the caller (so a down gateway can't break the local alert). An
+# empty sound argument means a silent notification (used for the low INFO tier).
 send_alert() {
-  local title="$1" detail="$2" sound="${3-}"
+  local severity="$1" title="$2" detail="$3" sound="${4-}"
+
+  # Route by severity: only CRIT reaches #priority.
+  local url="$OSQUERY_HERMES_URL"
+  [ "$severity" = "CRIT" ] && url="$OSQUERY_HERMES_PRIORITY_URL"
+
+  # The local notifier renders plain text, so strip Discord markdown (**bold**,
+  # `code`) for it; the webhook POST below keeps the markdown intact.
+  local plain_title plain_detail
+  plain_title=$(printf '%s' "$title" | sed -e 's/\*\*//g' -e 's/`//g')
+  plain_detail=$(printf '%s' "$detail" | sed -e 's/\*\*//g' -e 's/`//g')
 
   # 1) Local macOS notification (alerter, AppleScript fallback). Pass --sound
   #    only when one is given so INFO-tier alerts are visible but silent.
   if command -v alerter >/dev/null 2>&1; then
     if [ -n "$sound" ]; then
-      alerter --timeout 60 --title "$title" --message "$detail" --sound "$sound" >/dev/null 2>&1 &
+      alerter --timeout 60 --title "$plain_title" --message "$plain_detail" --sound "$sound" >/dev/null 2>&1 &
     else
-      alerter --timeout 60 --title "$title" --message "$detail" >/dev/null 2>&1 &
+      alerter --timeout 60 --title "$plain_title" --message "$plain_detail" >/dev/null 2>&1 &
     fi
   else
-    local escaped=${detail//\"/\\\"}
+    local escaped=${plain_detail//\"/\\\"}
     if [ -n "$sound" ]; then
-      osascript -e "display notification \"$escaped\" with title \"$title\" sound name \"$sound\"" >/dev/null 2>&1 || true
+      osascript -e "display notification \"$escaped\" with title \"$plain_title\" sound name \"$sound\"" >/dev/null 2>&1 || true
     else
-      osascript -e "display notification \"$escaped\" with title \"$title\"" >/dev/null 2>&1 || true
+      osascript -e "display notification \"$escaped\" with title \"$plain_title\"" >/dev/null 2>&1 || true
     fi
   fi
 
@@ -72,7 +90,7 @@ send_alert() {
 
   for attempt in 1 2 3; do
     http=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 \
-      -X POST "$OSQUERY_HERMES_URL" \
+      -X POST "$url" \
       -H 'Content-Type: application/json' \
       -H "X-Webhook-Signature: $sig" \
       -H "X-Request-ID: $reqid" \
@@ -84,6 +102,6 @@ send_alert() {
       *) break ;; # 401/413/etc — retry won't help
     esac
   done
-  _osquery_log "ERROR webhook delivery failed: http=$http url=$OSQUERY_HERMES_URL"
+  _osquery_log "ERROR webhook delivery failed: http=$http url=$url"
   return 0
 }

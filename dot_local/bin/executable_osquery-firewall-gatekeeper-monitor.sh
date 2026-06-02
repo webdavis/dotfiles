@@ -63,31 +63,40 @@ gk_to_text() {
   esac
 }
 
-msgs=()
-bad=0 # if any transition lands in a "bad" state, use Sosumi instead of Glass
+# A protection turning OFF is CRITICAL → a focused #priority block; a re-enable is
+# a NOTICE → a compact #osquery line. The block mirrors osquery-results-alerter's
+# protection-off shape: bold header, Was/Now state, then a decision-first next step
+# ("Did you turn this off? …") ahead of the re-enable line.
+crit_blocks=()
+notice_lines=()
 
 if [[ $cur_fw != "$prev_fw" ]]; then
-  msgs+=("Firewall: $(fw_to_text "$prev_fw") → $(fw_to_text "$cur_fw")")
-  [[ $cur_fw == "0" ]] && bad=1
+  if [[ $cur_fw == "0" ]]; then
+    crit_blocks+=("**Firewall turned OFF**"$'\n'"- **Was:** $(fw_to_text "$prev_fw")"$'\n'"- **Now:** **OFF**"$'\n'"- Did you turn this off? If not, something else did — **investigate now**."$'\n'"- Re-enable it: System Settings → Network → Firewall")
+  else
+    notice_lines+=("🟡 **Firewall** — from: $(fw_to_text "$prev_fw"), to: $(fw_to_text "$cur_fw")")
+  fi
 fi
 if [[ $cur_gk != "$prev_gk" ]]; then
-  msgs+=("Gatekeeper: $(gk_to_text "$prev_gk") → $(gk_to_text "$cur_gk")")
-  [[ $cur_gk == "0" ]] && bad=1
+  if [[ $cur_gk == "0" ]]; then
+    crit_blocks+=("**Gatekeeper turned OFF**"$'\n'"- **Was:** $(gk_to_text "$prev_gk")"$'\n'"- **Now:** **DISABLED**"$'\n'"- Did you turn this off? If not, something else did — **investigate now**."$'\n'"- Re-enable it: System Settings → Privacy & Security")
+  else
+    notice_lines+=("🟡 **Gatekeeper** — from: $(gk_to_text "$prev_gk"), to: $(gk_to_text "$cur_gk")")
+  fi
 fi
 
 # No transitions — silent.
-[[ ${#msgs[@]} -eq 0 ]] && exit 0
+[[ ${#crit_blocks[@]} -eq 0 && ${#notice_lines[@]} -eq 0 ]] && exit 0
 
-message=$(printf '%s\n' "${msgs[@]}")
-# Match the severity scheme used by osquery-results-alerter: a protection
-# turning off is CRITICAL (🔴); re-enabling is a NOTICE (🟡).
-if [[ $bad -eq 1 ]]; then
-  title="🔴 CRITICAL — protection disabled"
-  sound="Sosumi"
-else
-  title="🟡 Notice — protection change"
-  sound="Glass"
+if [[ ${#crit_blocks[@]} -gt 0 ]]; then
+  body=$(printf '%s\n\n' "${crit_blocks[@]}")
+  body=${body%$'\n\n'}
+  title="🔴 **CRITICAL**"
+  if [[ ${#crit_blocks[@]} -gt 1 ]]; then title="🔴 **CRITICAL** · ${#crit_blocks[@]}"; fi
+  send_alert CRIT "$title" "$body" "Sosumi"
 fi
-
-# Dual-channel (local notifier + #osquery Discord) via the shared helper.
-send_alert "$title" "$message" "$sound"
+if [[ ${#notice_lines[@]} -gt 0 ]]; then
+  body=$(printf '%s\n' "${notice_lines[@]}")
+  body=${body%$'\n'}
+  send_alert NOTICE "🟡 **Notice** · ${#notice_lines[@]}" "$body" "Glass"
+fi
