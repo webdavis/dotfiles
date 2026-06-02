@@ -249,7 +249,7 @@ render=$(printf '%s\n' "$enriched" | jq -s '
   def block:
     (["**" + header + "**"] + fields + nextstep) | join("\n");
   def line:
-    (if .sev == "NOTICE" then "🟡" else "🔵" end) + " **" + header + "** — " + (segs | join(" · "));
+    "- " + (if .sev == "NOTICE" then "🟡" else "🔵" end) + " **" + header + "** — " + (segs | join(" · "));
   ([.[] | select(.sev == "CRIT")]) as $crit |
   ([.[] | select(.sev != "CRIT")] | sort_by(if .sev == "NOTICE" then 0 else 1 end)) as $rest |
   {
