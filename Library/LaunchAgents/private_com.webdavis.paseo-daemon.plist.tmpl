@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.webdavis.paseo-daemon</string>
+  <key>ProgramArguments</key>
+  <array>
+    <!-- The standalone npm CLI (plain Node), NOT the Homebrew cask binary at
+         /opt/homebrew/bin/paseo. The cask binary re-execs the Paseo.app Electron
+         executable, so a launchd-run daemon registers with macOS LaunchServices
+         as an instance of Paseo.app (bundle id sh.paseo.desktop) and occupies the
+         app's single foreground slot — opening the GUI then fails with "The
+         application 'Paseo.app' is not open anymore." A plain-Node daemon has no
+         app identity, so the headless daemon and the desktop GUI coexist: the GUI
+         rides this daemon as a client (desktop-settings.json
+         manageBuiltInDaemon=false). Installed to an isolated prefix
+         (npm install -g @getpaseo/cli --prefix ~/.local/paseo-cli) so its bin
+         does not collide with the cask's /opt/homebrew/bin/paseo symlink. -->
+    <string>{{ .chezmoi.homeDir }}/.local/paseo-cli/bin/paseo</string>
+    <string>daemon</string>
+    <string>start</string>
+    <!-- --foreground: paseo's `daemon start` daemonizes (forks away) by
+         default. Under launchd that would leave KeepAlive supervising a parent
+         that exits immediately while the real daemon runs detached, producing a
+         restart loop around a phantom. --foreground keeps the daemon as
+         launchd's direct child so RunAtLoad/KeepAlive actually supervise it.
+         (This is why this plist diverges from the atuin one, whose `daemon
+         start` already runs in the foreground.) -->
+    <string>--foreground</string>
+    <!-- --relay-use-tls: connect to the default hosted relay over wss://
+         (relay.paseo.sh:443) and emit wss:// pairing offers, matching the
+         Desktop app. The endpoint/TLS aren't persisted in ~/.paseo/config.json
+         (only relay.enabled=true is), so without this flag the CLI can fall
+         back to ws://, which the TLS-only hosted relay rejects — breaking the
+         off-network phone connection this agent exists to guarantee. -->
+    <string>--relay-use-tls</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>{{ .chezmoi.homeDir }}/.local/log/paseo-daemon.log</string>
+  <key>StandardErrorPath</key>
+  <string>{{ .chezmoi.homeDir }}/.local/log/paseo-daemon.log</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>HOME</key>
+    <string>{{ .chezmoi.homeDir }}</string>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
+</dict>
+</plist>

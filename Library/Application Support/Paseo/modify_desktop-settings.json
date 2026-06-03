@@ -1,0 +1,30 @@
+{{- /* chezmoi:modify-template */ -}}
+{{- /*
+  Selective field control for
+  ~/Library/Application Support/Paseo/desktop-settings.json.
+
+  Why: the Paseo desktop app owns this file and rewrites it as you change
+  settings. We need exactly one field pinned — settings.daemon.manageBuiltInDaemon
+  = false — so the GUI attaches to the LaunchAgent-managed daemon as a client
+  instead of spawning its own. A second app-spawned daemon would collide on
+  127.0.0.1:6767, and because the cask binary carries Paseo.app's LaunchServices
+  identity, the headless daemon and the GUI cannot both hold it — opening the
+  app then fails with "The application 'Paseo.app' is not open anymore."
+  Everything else the app writes (releaseChannel, keepRunningAfterQuit,
+  migrations, future keys) passes through untouched.
+
+  How: chezmoi modify-template (https://www.chezmoi.io/user-guide/
+  manage-different-types-of-file/#modify-templates). It receives the current
+  file on .chezmoi.stdin, overlays the one stable field via setValueAtPath, and
+  writes the merged result back.
+*/ -}}
+{{- /* .chezmoi.stdin is only set when chezmoi runs the modify template against
+       a real target file; default to empty so this still renders under
+       `chezmoi execute-template` for ad-hoc testing (the file-absent case). */ -}}
+{{- $stdin := index .chezmoi "stdin" | default "" -}}
+{{- $merged := dict "version" 1 "settings" dict -}}
+{{- if $stdin -}}
+{{-   $merged = fromJson $stdin -}}
+{{- end -}}
+{{- $merged = setValueAtPath "settings.daemon.manageBuiltInDaemon" false $merged -}}
+{{ $merged | toPrettyJson }}
