@@ -1,0 +1,43 @@
+#!/bin/bash
+# run_onchange_before_11-install-paseo-cli.sh
+
+{{- if eq .chezmoi.os "darwin" }}
+set -euo pipefail
+
+export PATH="/opt/homebrew/bin:$PATH"
+
+# Standalone Paseo daemon CLI (plain Node), installed to an isolated prefix so
+# its `paseo` bin does not collide with the Homebrew cask's
+# /opt/homebrew/bin/paseo symlink — a plain `npm install -g` lands on that same
+# path and fails EEXIST. The LaunchAgent (com.webdavis.paseo-daemon) runs THIS
+# binary as the headless daemon; see
+# Library/LaunchAgents/private_com.webdavis.paseo-daemon.plist.tmpl for why a
+# non-app-bundle binary is required (the cask binary re-execs Paseo.app's
+# Electron executable and would hijack the GUI's macOS LaunchServices identity).
+#
+# No lockstep with the cask GUI is needed: Paseo's wire protocol is
+# backward-compatible in both directions (per getpaseo/paseo CLAUDE.md — "schema
+# changes must not break parsing in either direction"), so a version-skewed
+# daemon and GUI still interoperate. A newer GUI feature that needs a newer
+# daemon capability simply prompts "Update the host to use this." Bump this pin
+# deliberately when you want new daemon-side capabilities or security fixes.
+PASEO_CLI_VERSION="0.1.89"
+PREFIX="$HOME/.local/paseo-cli"
+BIN="$PREFIX/bin/paseo"
+
+current=""
+[[ -x "$BIN" ]] && current="$("$BIN" --version 2>/dev/null || true)"
+
+if [[ "$current" != "$PASEO_CLI_VERSION" ]]; then
+  echo "paseo daemon CLI: installing @getpaseo/cli@${PASEO_CLI_VERSION} to ${PREFIX} (was: ${current:-none})"
+  npm install -g "@getpaseo/cli@${PASEO_CLI_VERSION}" --prefix "$PREFIX"
+
+  # If the daemon LaunchAgent is already loaded, restart it onto the freshly
+  # installed binary. On a fresh machine it is not loaded yet — the later
+  # run_onchange_after_42 script bootstraps it after this install.
+  target="gui/$(id -u)/com.webdavis.paseo-daemon"
+  if launchctl print "$target" &>/dev/null; then
+    launchctl kickstart -k "$target" || true
+  fi
+fi
+{{- end }}
