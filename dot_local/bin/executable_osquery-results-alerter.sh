@@ -95,6 +95,7 @@ raw_findings=$(printf '%s\n' "$new_lines" | jq -rR '
        or (.name == "pack_intrusion-detection_kernel_extensions_new")
        or (.name == "pack_intrusion-detection_system_extensions_new")
        or (.name == "file_events_recent")
+       or (.name == "es_launchd_writes")
     then "NOTICE"
     else "INFO" end;
   # Snapshot rows (absolute-state floor *_off queries) log under a "snapshot"
@@ -103,13 +104,14 @@ raw_findings=$(printf '%s\n' "$new_lines" | jq -rR '
   (if .action == "snapshot"
    then (.name as $n | .snapshot[]? | {name: $n, action: "currently-off", columns: .})
    else . end)
-  | select(.name != null and ((.name | startswith("pack_")) or (.name == "file_events_recent")))
+  | select(.name != null and ((.name | startswith("pack_")) or (.name == "file_events_recent") or (.name == "es_launchd_writes")))
   | select((.columns.target_path // "") | test("/\\.renameio-TempDir") | not)
   | (.name | sub("^pack_[^_]+_"; "")) as $q
   | (.action // "changed") as $act
   # The path the enricher should inspect (a plist, bundle, or binary) per query
   # type — empty when signing/trust does not apply.
-  | ((if .name == "file_events_recent" then (.columns.target_path // "")
+  | ((if .name == "es_launchd_writes" then (.columns.path // "")
+      elif .name == "file_events_recent" then (.columns.target_path // "")
       elif (.name | test("_persistence_launchd$")) then (.columns.path // "")
       elif (.name | test("_persistence_startup_items_crontab$")) then (.columns.path // "")
       elif (.name | test("_kernel_extensions_new$")) then (.columns.path // "")
@@ -227,6 +229,7 @@ render=$(printf '%s\n' "$enriched" | jq -s '
         elif $cat == "sshd_config" then "sshd_config changed"
         elif ($cat == "launch_agents" or $cat == "launch_daemons") then "Startup folder changed"
         else "Watched file changed" end)
+    elif .q == "es_launchd_writes" then "Startup item written by a process"
     else (.q | gsub("_"; " ")) end;
   # Best single identifier for a finding.
   def keyid:
@@ -248,6 +251,7 @@ render=$(printf '%s\n' "$enriched" | jq -s '
     elif .q == "system_extensions_new" then ["name: \(($c.identifier // "?") | code)", "team: \(($c.team // "?") | code)"] + $sg
     elif .q == "kernel_extensions_new" then ["name: \(($c.name // "?") | code)"] + $sg
     elif .q == "file_events_recent" then ["file: \(($c.target_path // "?") | code)", "action: \((.act) | code)"] + $sg
+    elif .q == "es_launchd_writes" then ["process: \(($c.path // "?") | code)", "wrote: \(($c.filename // $c.dest_filename // "?") | code)"] + $sg
     elif (protname) != null then ["state: \((.act) | code)"]
     else ["identifier: \((keyid) | code)"] end;
   # Decision-relevant "Label: value" lines for a #priority block. Values are wrapped
@@ -264,6 +268,7 @@ render=$(printf '%s\n' "$enriched" | jq -s '
     elif .q == "system_extensions_new" then ["- **Name:** \(($c.identifier // "?") | code)", "- **Team:** \(($c.team // "?") | code)"] + $sg
     elif .q == "kernel_extensions_new" then ["- **Name:** \(($c.name // "?") | code)", "- **Path:** \(($c.path // "?") | code)"] + $sg
     elif .q == "file_events_recent" then ["- **File:** \(($c.target_path // "?") | code)", "- **Action:** \(.act)"]
+    elif .q == "es_launchd_writes" then ["- **Process:** \(($c.path // "?") | code)", "- **Wrote:** \(($c.filename // $c.dest_filename // "?") | code)"] + $sg
     elif (protname) != null then ["- **State:** **OFF**"]
     else $sg + ["- **What:** \((keyid) | code)"] end;
   # One or two instructive next-step lines for a #priority (always CRIT) block.
@@ -279,6 +284,8 @@ render=$(printf '%s\n' "$enriched" | jq -s '
       ["- Did you change this? If not, someone altered who can log in or run as **root**.", "- **Review:** " + (("sudo cat \"" + $ep + "\"") | code)]
     elif (.q == "persistence_launchd" or .q == "persistence_startup_items_crontab") then
       ["- Did you set this up? If not, it **auto-runs at every login** — likely malware.", "- **Inspect:** " + (("cat \"" + $ep + "\"") | code)]
+    elif .q == "es_launchd_writes" then
+      ["- Did you run this? If not, a process is **installing persistence** — investigate it and remove the file.", "- **Inspect the writer:** " + (("codesign -dv \"" + $ep + "\"") | code)]
     elif ($ep != "") then ["- **Review:** " + ($ep | code)]
     else [] end;
   def block:

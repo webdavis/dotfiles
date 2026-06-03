@@ -49,6 +49,9 @@ install_root /var/osquery/osquery.flags <<'FLAGS'
 --disable_events=false
 --enable_file_events=true
 --events_expiry=21600
+--disable_endpointsecurity=false
+--disable_endpointsecurity_fim=false
+--es_fim_mute_path_prefix=/private/var/folders,/private/tmp,/private/var/db,/private/var/log
 --logger_rotate=true
 --logger_rotate_size=10485760
 --logger_rotate_max_files=5
