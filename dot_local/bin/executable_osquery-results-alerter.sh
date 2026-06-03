@@ -73,17 +73,31 @@ raw_findings=$(printf '%s\n' "$new_lines" | jq -rR '
   . as $line | (try ($line | fromjson) catch empty) |
   # A security-policy row is CRITICAL only when the protection turned OFF, not
   # on every change. For the boolean states that is an "added" row carrying the
-  # off value; for filevault (the query returns only encrypted volumes) it is a
-  # "removed" row — a volume left the encrypted set. Re-enables, version bumps,
-  # sharing changes, and the paired "removed" old-value rows fall through to
-  # NOTICE. (sharing cannot be direction-classified from a single row, so it is
-  # always NOTICE; the poller covers firewall/Gatekeeper transitions too.)
+  # off value. Re-enables, version bumps, sharing changes, and the paired
+  # "removed" old-value rows fall through to NOTICE. (sharing cannot be
+  # direction-classified from a single row, so it is always NOTICE; the poller
+  # covers firewall/Gatekeeper transitions too.)
+  #
+  # FileVault is NOT detected via filevault_state. That query emits one row per
+  # FileVault-on APFS volume, and on sealed-system-volume macOS a single row can
+  # leave the differential set (a base system volume unmounting, a snapshot
+  # replacing it, APFS identity churn) while the data-bearing volume stays
+  # encrypted — so "one filevault_state row removed" does NOT mean FileVault is
+  # off (issue #18). A removed filevault_state row falls through to NOTICE.
+  #
+  # Genuine FileVault-off is detected by the filevault_off query, which emits a
+  # single constant row only when NO APFS volume is encrypted. It is a
+  # DIFFERENTIAL query (not snapshot): snapshot output goes to
+  # osqueryd.snapshots.log, which this alerter does not read, so the earlier
+  # snapshot form never reached here (the false-negative half of issue #18). As
+  # a differential query its off-row is logged "added" to results.log, matched
+  # below. The constant row is immune to APFS churn, so no false positive.
   def protection_off:
     (.name == "pack_security-policy-regression_firewall_state" and .action == "added" and (.columns.global_state // "") == "0")
     or (.name == "pack_security-policy-regression_gatekeeper_state" and .action == "added" and (.columns.assessments_enabled // "") == "0")
     or (.name == "pack_security-policy-regression_sip_state" and .action == "added" and (.columns.enabled // "") == "0")
     or (.name == "pack_security-policy-regression_screenlock_state" and .action == "added" and (.columns.enabled // "") == "0")
-    or (.name == "pack_security-policy-regression_filevault_state" and .action == "removed")
+    or (.name == "pack_security-policy-regression_filevault_off" and .action == "added")
     or (.action == "currently-off" and (.name | startswith("pack_security-policy-regression_")));
   def sev:
     if protection_off
