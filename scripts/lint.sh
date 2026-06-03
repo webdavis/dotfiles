@@ -129,7 +129,9 @@ execute_runner() {
 }
 
 find_shell_files() {
-  find . -type f \( \
+  find . \
+    -type d \( -name ".git" -o -name ".worktrees" -o -name ".direnv" -o -regex ".*/\.?vendor" \) -prune \
+    -o -type f \( \
     -name "*.sh" \
     -o -name "*.bash" \
     -o -name "dot_bash*" ! -name "*.tmpl" \
@@ -142,7 +144,9 @@ run_10_shellcheck() {
 }
 
 find_shell_templates() {
-  find . -type f \( \
+  find . \
+    -type d \( -name ".git" -o -name ".worktrees" -o -name ".direnv" -o -regex ".*/\.?vendor" \) -prune \
+    -o -type f \( \
     -name "dot_bashrc.tmpl" \
     \) -print0
 }
@@ -192,7 +196,7 @@ find_markdown_files() {
   # construct that trips the validator hasn't been isolated; quarantine the
   # one file so the rest of docs/research/ can be linted.
   find . \
-    -type d \( -name ".git" -o -regex ".*/\.?vendor" \
+    -type d \( -name ".git" -o -name ".worktrees" -o -regex ".*/\.?vendor" \
     -o -path "./private_dot_claude/skills" \
     -o -path "./private_dot_claude/agents" \
     -o -path "./private_dot_claude/commands" \
@@ -222,7 +226,7 @@ run_40_mdformat() {
 
 find_nix_files() {
   find . \
-    -type d \( -name ".git" -o -name ".direnv" -o -regex ".*/\.?vendor" \) -prune \
+    -type d \( -name ".git" -o -name ".worktrees" -o -name ".direnv" -o -regex ".*/\.?vendor" \) -prune \
     -o -type f -name "*.nix" \
     -print0
 }
@@ -246,7 +250,7 @@ find_toml_files() {
   # dot_aerospace.toml uses user-preferred visual alignment that taplo's
   # default formatter strips; skip it so the user's style is preserved.
   find . \
-    -type d \( -name ".git" -o -name ".direnv" -o -regex ".*/\.?vendor" \) -prune \
+    -type d \( -name ".git" -o -name ".worktrees" -o -name ".direnv" -o -regex ".*/\.?vendor" \) -prune \
     -o -type f -name "*.toml" ! -name "dot_aerospace.toml" \
     -print0
 }
@@ -272,7 +276,7 @@ find_json_files() {
   # Exclude chezmoi modify_ templates: they share the .json extension of their
   # target file but contain Go template directives, so jq can't parse them.
   find . \
-    -type d \( -name ".git" -o -name ".direnv" -o -name "node_modules" -o -regex ".*/\.?vendor" \) -prune \
+    -type d \( -name ".git" -o -name ".worktrees" -o -name ".direnv" -o -name "node_modules" -o -regex ".*/\.?vendor" \) -prune \
     -o -type f -name "*.json" -not -name 'modify_*' \
     -print0
 }
