@@ -3,17 +3,26 @@
 
 worktree-path = "{{ repo_path }}/../{{ repo }}.{{ branch | sanitize }}"
 
+# MAX_THINKING_TOKENS is the effort knob (0 = thinking off). Raised to give
+# haiku a real thinking budget for branch summaries — but this command is shared
+# with commit-message generation, so wt commit messages also think now.
 [commit.generation]
-command = "CLAUDECODE= MAX_THINKING_TOKENS=0 claude -p --no-session-persistence --model=haiku --tools='' --disable-slash-commands --setting-sources='' --system-prompt=''"
+command = "CLAUDECODE= MAX_THINKING_TOKENS=16000 claude -p --no-session-persistence --model=haiku --tools='' --disable-slash-commands --setting-sources='' --system-prompt=''"
 
 [commit]
-stage = "all"
+stage = "tracked"
 
 [merge]
 squash = true
 rebase = true
 remove = true
 verify = true
+
+# Keep the branch ref after merge (worktree is still removed). Squash writes a
+# backup ref at refs/wt-backup/<branch>, but retaining the branch leaves an
+# obvious recovery/audit handle without digging through reflog.
+[remove]
+delete-branch = false
 
 [list]
 summary = false
@@ -25,13 +34,5 @@ pager = "delta --paging=never"
 [post-start]
 copy = "wt step copy-ignored"
 
-# Pre-merge validation gate (sequential, fast checks first).
-# Array-of-tables form per worktrunk docs — [pre-merge] table form is deprecated.
-[[pre-merge]]
-lint = "just l 2>/dev/null || true"
-
-[[pre-merge]]
-test = "just test 2>/dev/null || true"
-
 [aliases]
-up = "git fetch --all --prune && wt step for-each -- 'git rev-parse --verify -q @{u} >/dev/null || exit 0; g=$(git rev-parse --git-dir); test -d \"$g/rebase-merge\" -o -d \"$g/rebase-apply\" && exit 0; git rebase @{u} --no-autostash || git rebase --abort'"
+up = "git fetch --all --prune && wt step for-each -- 'git rev-parse --verify -q @{u} >/dev/null || exit 0; g=$(git rev-parse --git-dir); test -d \"$g/rebase-merge\" -o -d \"$g/rebase-apply\" && exit 0; git rebase @{u} --no-autostash || { git rebase --abort; echo \"wt up: rebase failed for $(git branch --show-current); left unchanged\" >&2; }'"
