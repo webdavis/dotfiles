@@ -129,7 +129,9 @@ execute_runner() {
 }
 
 find_shell_files() {
-  find . -type f \( \
+  find . \
+    -type d \( -name ".git" -o -name ".worktrees" -o -name ".direnv" -o -regex ".*/\.?vendor" \) -prune \
+    -o -type f \( \
     -name "*.sh" \
     -o -name "*.bash" \
     -o -name "dot_bash*" ! -name "*.tmpl" \
@@ -142,14 +144,19 @@ run_10_shellcheck() {
 }
 
 find_shell_templates() {
-  find . -type f \( \
+  find . \
+    -type d \( -name ".git" -o -name ".worktrees" -o -name ".direnv" -o -regex ".*/\.?vendor" \) -prune \
+    -o -type f \( \
     -name "dot_bashrc.tmpl" \
+    -o -name "run_onchange_before_50-setup-osquery.sh.tmpl" \
     \) -print0
 }
 
 shellcheck_rendered_template_runner() {
   local template_file="$1"
-  CI=1 chezmoi execute-template --no-tty <"$template_file" | shellcheck - || return "$?"
+  # --source "$PWD" so includeTemplate (used by the osquery setup script to pull
+  # in osquery.conf) resolves against this checkout's .chezmoitemplates.
+  CI=1 chezmoi --source "$PWD" execute-template --no-tty <"$template_file" | shellcheck - || return "$?"
 }
 
 run_11_shellcheck_templates() {
@@ -192,7 +199,7 @@ find_markdown_files() {
   # construct that trips the validator hasn't been isolated; quarantine the
   # one file so the rest of docs/research/ can be linted.
   find . \
-    -type d \( -name ".git" -o -regex ".*/\.?vendor" \
+    -type d \( -name ".git" -o -name ".worktrees" -o -regex ".*/\.?vendor" \
     -o -path "./private_dot_claude/skills" \
     -o -path "./private_dot_claude/agents" \
     -o -path "./private_dot_claude/commands" \
@@ -222,7 +229,7 @@ run_40_mdformat() {
 
 find_nix_files() {
   find . \
-    -type d \( -name ".git" -o -name ".direnv" -o -regex ".*/\.?vendor" \) -prune \
+    -type d \( -name ".git" -o -name ".worktrees" -o -name ".direnv" -o -regex ".*/\.?vendor" \) -prune \
     -o -type f -name "*.nix" \
     -print0
 }
@@ -246,7 +253,7 @@ find_toml_files() {
   # dot_aerospace.toml uses user-preferred visual alignment that taplo's
   # default formatter strips; skip it so the user's style is preserved.
   find . \
-    -type d \( -name ".git" -o -name ".direnv" -o -regex ".*/\.?vendor" \) -prune \
+    -type d \( -name ".git" -o -name ".worktrees" -o -name ".direnv" -o -regex ".*/\.?vendor" \) -prune \
     -o -type f -name "*.toml" ! -name "dot_aerospace.toml" \
     -print0
 }
@@ -272,7 +279,7 @@ find_json_files() {
   # Exclude chezmoi modify_ templates: they share the .json extension of their
   # target file but contain Go template directives, so jq can't parse them.
   find . \
-    -type d \( -name ".git" -o -name ".direnv" -o -name "node_modules" -o -regex ".*/\.?vendor" \) -prune \
+    -type d \( -name ".git" -o -name ".worktrees" -o -name ".direnv" -o -name "node_modules" -o -regex ".*/\.?vendor" \) -prune \
     -o -type f -name "*.json" -not -name 'modify_*' \
     -print0
 }
@@ -284,6 +291,27 @@ jq_runner() {
 
 run_70_jq() {
   execute_runner find_json_files jq_runner || return "$?"
+}
+
+find_osquery_config_templates() {
+  # osquery's config and packs are JSON-bodied .conf templates assembled by
+  # run_onchange_before_50-setup-osquery.sh.tmpl via includeTemplate. The plain
+  # *.json jq runner never sees them, and a broken config silently stops the
+  # daemon from loading. Render each (osquery.conf carries {{ .chezmoi.homeDir }}
+  # directives) and jq-validate the result.
+  find .chezmoitemplates/osquery -type f -name "*.conf" -print0
+}
+
+jq_osquery_runner() {
+  local file="$1"
+  # Source path -> includeTemplate name (drop the .chezmoitemplates/ prefix).
+  local tmpl="${file#./}"
+  tmpl="${tmpl#.chezmoitemplates/}"
+  CI=1 chezmoi --source "$PWD" execute-template --no-tty "{{ includeTemplate \"${tmpl}\" . }}" | jq empty || return "$?"
+}
+
+run_72_osquery_config() {
+  execute_runner find_osquery_config_templates jq_osquery_runner || return "$?"
 }
 
 find_yaml_files() {
@@ -315,7 +343,7 @@ parse_cli_options() {
       m) pco_runners+=("run_40_mdformat") ;;
       n) pco_runners+=("run_50_nixfmt") ;;
       t) pco_runners+=("run_60_taplo") ;;
-      j) pco_runners+=("run_70_jq") ;;
+      j) pco_runners+=("run_70_jq" "run_72_osquery_config") ;;
       y) pco_runners+=("run_80_yq") ;;
       *)
         printf "%s\n" "Error: invalid option '$OPTARG'" >&2

@@ -5,17 +5,53 @@ set -euo pipefail
 
 echo "Setting up osquery..."
 
-# Create osquery flags directory and write CLI flags. Event-related flags
-# (disable_events, enable_file_events, events_expiry) are CLI-only on osquery
-# and ignored if set only in the config's "options" block. The logger_rotate*
-# flags cap filesystem-logger growth (results.log/snapshots.log) at 5 files of
-# 10 MB each; without them the logs grow unbounded (~2 MB/day here).
-sudo mkdir -p /var/osquery
-sudo tee /var/osquery/osquery.flags >/dev/null <<FLAGS
---config_path={{ .chezmoi.homeDir }}/.config/osquery/osquery.conf
+# osqueryd runs as root, so its config and packs must NOT live in a user-writable
+# path. Previously they were rendered to ~/.config/osquery, which any process
+# running as the user could rewrite — and since osqueryd executes those queries
+# as root, that is a local privilege-escalation vector (amplified once Full Disk
+# Access / EndpointSecurity is granted). osquery already enforces this for
+# extensions (it refuses non-root-writable extension binaries) but NOT for the
+# config/packs, so it is on us. Install them root-owned under /var/osquery.
+#
+# Source of truth is .chezmoitemplates/osquery/ (rendered below via
+# includeTemplate). Only the alerter's launch-allowlist.txt and webhook-secret
+# remain in ~/.config — those are read by the user-level alerter, not the root
+# daemon, so a user-writable copy there is not a privilege boundary.
+sudo install -d -o root -g wheel -m 0755 /var/osquery /var/osquery/packs
+
+# Write stdin to a root-owned 0644 file. sudo tee already creates it as root;
+# the chmod pins the mode regardless of umask.
+install_root() {
+  sudo tee "$1" >/dev/null
+  sudo chmod 0644 "$1"
+}
+
+install_root /var/osquery/osquery.conf <<'OSQUERY_CONF'
+{{ includeTemplate "osquery/osquery.conf" . }}
+OSQUERY_CONF
+install_root /var/osquery/packs/intrusion-detection.conf <<'PACK_INTRUSION'
+{{ includeTemplate "osquery/packs/intrusion-detection.conf" . }}
+PACK_INTRUSION
+install_root /var/osquery/packs/security-policy-regression.conf <<'PACK_POLICY'
+{{ includeTemplate "osquery/packs/security-policy-regression.conf" . }}
+PACK_POLICY
+install_root /var/osquery/packs/installed-software-drift.conf <<'PACK_DRIFT'
+{{ includeTemplate "osquery/packs/installed-software-drift.conf" . }}
+PACK_DRIFT
+
+# CLI flags (event flags are CLI-only and ignored if set only in the config's
+# "options" block). --config_path now points at the root-owned copy;
+# --disable_extensions removes the extension-autoload attack surface (unused
+# here). logger_rotate* cap filesystem-logger growth at 5 files of 10 MB.
+install_root /var/osquery/osquery.flags <<'FLAGS'
+--config_path=/var/osquery/osquery.conf
+--disable_extensions=true
 --disable_events=false
 --enable_file_events=true
 --events_expiry=21600
+--disable_endpointsecurity=false
+--disable_endpointsecurity_fim=false
+--es_fim_mute_path_prefix=/private/var/folders,/private/tmp,/private/var/db,/private/var/log
 --logger_rotate=true
 --logger_rotate_size=10485760
 --logger_rotate_max_files=5
@@ -25,7 +61,7 @@ FLAGS
 # Create osquery log directory.
 mkdir -p "$HOME/.local/log/osquery"
 
-# Reload osqueryd so flag-file changes take effect. 'osqueryctl start' alone is
+# Reload osqueryd so flag/config changes take effect. 'osqueryctl start' alone is
 # a no-op when the daemon is already running, so stop first; both are guarded
 # because a fresh machine has nothing to stop yet.
 sudo osqueryctl stop >/dev/null 2>&1 || true

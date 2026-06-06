@@ -137,6 +137,16 @@ complete -F _just -o bashdefault -o default j
 # OpenClaw Completion
 [[ -s "$HOME/.openclaw/completions/openclaw.bash" ]] && . "$HOME/.openclaw/completions/openclaw.bash"
 
+# Worktrunk: https://worktrunk.dev/
+# Defines a `wt` shell function wrapping the binary so `wt switch`/`wt merge`
+# can change the parent shell's directory (a subprocess can't cd its caller —
+# the function reads a directive temp file and runs the cd itself). Without it,
+# `wt switch` finds the worktree but cannot move you there. The init output is
+# self-guarding (`if command -v wt`) and uses `builtin cd`, so it is inert when
+# wt is absent and unaffected by zoxide's later `cd` alias. No PROMPT_COMMAND
+# mutation, so placement here (before zoxide/atuin) is safe.
+eval "$(wt config shell init bash)"
+
 # Nix: https://github.com/NixOS/nix-installer
 nix_daemon='/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh'
 [[ -e $nix_daemon ]] && . "$nix_daemon"
