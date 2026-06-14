@@ -11,7 +11,9 @@
 set -euo pipefail
 
 OSQUERYI="${OSQUERYI:-$(command -v osqueryi || echo /usr/local/bin/osqueryi)}"
-HERMES_URL="${OSQUERY_HERMES_URL:-http://127.0.0.1:8644/webhooks/osquery}"
+# Probe the #priority route — the path pages actually use. The old /webhooks/osquery
+# route was decommissioned, so probing it no longer proves a page can be delivered.
+HERMES_URL="${OSQUERY_HERMES_PRIORITY_URL:-http://127.0.0.1:8644/webhooks/osquery-priority}"
 AGENTS=(
   "com.webdavis.osquery-results-alerter"
   "com.webdavis.osquery-firewall-gatekeeper-monitor"
@@ -42,8 +44,9 @@ for agent in "${AGENTS[@]}"; do
   fi
 done
 
-# 3) hermes gateway reachable (any HTTP status = up; 000 = unreachable). The
-#    local alerter in send_alert still fires even if this is what is down.
+# 3) hermes gateway reachable on the #priority route (any HTTP status = up;
+#    000 = unreachable). The local alerter in send_alert still fires even if this
+#    is what is down.
 code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 "$HERMES_URL" 2>/dev/null) || code=000
 if [ "$code" = "000" ]; then
   problems+=("hermes gateway unreachable at $HERMES_URL")
