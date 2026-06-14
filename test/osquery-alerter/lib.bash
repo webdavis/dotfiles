@@ -17,7 +17,8 @@ row() {
 # Outer action is always "added"; the real FSEvents verb is columns.action.
 file_event_row() {
   jq -cn --arg category "$1" --arg target_path "$2" --arg file_action "$3" \
-    '{name:"file_events_recent",action:"added",counter:1,columns:{action:$file_action,category:$category,target_path:$target_path,sha256:"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",time:"1780000000"},hostIdentifier:"dresden",unixTime:1780000000}'
+    --arg sha256 "${4:-e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855}" \
+    '{name:"file_events_recent",action:"added",counter:1,columns:{action:$file_action,category:$category,target_path:$target_path,sha256:$sha256,time:"1780000000"},hostIdentifier:"dresden",unixTime:1780000000}'
 }
 
 ALERTER="${BATS_TEST_DIRNAME}/../../dot_local/bin/executable_osquery-results-alerter.sh"
@@ -43,6 +44,12 @@ STUB
   export OSQUERY_DIGEST_STORE="$HARNESS_HOME/.local/state/osquery-digest-spool/digest.ndjson"
   mkdir -p "$HARNESS_HOME/.config/osquery"
   export OSQUERY_LAUNCHD_ALLOWLIST="$HARNESS_HOME/.config/osquery/page-launchd-allowlist.txt"
+  export OSQUERY_PIPELINE_MANIFEST="$HARNESS_HOME/.config/osquery/pipeline-known-good.sha256"
+}
+
+# Seed the pipeline-integrity manifest with known-good lines (e.g. "<sha256>  <path>").
+seed_manifest() {
+  printf '%s\n' "$@" >"$OSQUERY_PIPELINE_MANIFEST"
 }
 
 teardown_harness() { [[ -n ${HARNESS_HOME:-} ]] && rm -rf "$HARNESS_HOME"; }
@@ -137,6 +144,7 @@ run_alerter() {
     OSQUERY_RESULTS_OFFSET="$HARNESS_HOME/.local/state/osquery-results-offset" \
     OSQUERY_DIGEST_STORE="$OSQUERY_DIGEST_STORE" \
     OSQUERY_LAUNCHD_ALLOWLIST="$OSQUERY_LAUNCHD_ALLOWLIST" \
+    OSQUERY_PIPELINE_MANIFEST="$OSQUERY_PIPELINE_MANIFEST" \
     bash "$ALERTER"
 }
 

@@ -21,3 +21,19 @@ teardown() { teardown_harness; }
   run_alerter "$(file_event_row sshd_config /etc/ssh/sshd_config UPDATED)"
   assert_page_has sshd_config
 }
+
+@test "T-PAGE-pipeline-mismatch: a tooling change whose hash is NOT in the manifest pages" {
+  # The alerter's own scripts/plists. Legitimacy = content matches the source-derived,
+  # root-owned manifest; any other content (tamper) pages. Never digests (page or silent).
+  seed_manifest "aaaa1111  /Users/x/.local/bin/osquery-results-alerter.sh"
+  run_alerter "$(file_event_row pipeline_integrity /Users/x/.local/bin/osquery-results-alerter.sh UPDATED novelhash9999)"
+  assert_page_has osquery-results-alerter.sh
+  assert_digest_count 0
+}
+
+@test "T-NEG-pipeline-match: a change whose hash IS in the manifest is silent (legit apply)" {
+  seed_manifest "goodhash1234  /Users/x/.local/bin/osquery-results-alerter.sh"
+  run_alerter "$(file_event_row pipeline_integrity /Users/x/.local/bin/osquery-results-alerter.sh UPDATED goodhash1234)"
+  assert_no_page
+  assert_digest_count 0
+}

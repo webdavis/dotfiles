@@ -156,6 +156,13 @@ if [[ -r $ALLOWLIST_FILE ]]; then
 fi
 _allowlisted() { [[ -n $allow_set ]] && grep -qxF -- "$1" <<<"$allow_set"; }
 
+# The pipeline-integrity manifest: root-owned, source-derived sha256 lines for the
+# alerter's own scripts/plists. A file_events:pipeline_integrity change pages ONLY
+# when its sha256 is absent from this manifest (tamper); a legit chezmoi apply
+# produces a matching hash → silent. Fail-safe: a missing manifest or an empty hash
+# means "cannot confirm legitimate" → page (loud), never a silent miss.
+PIPELINE_MANIFEST="${OSQUERY_PIPELINE_MANIFEST:-/var/osquery/pipeline-known-good.sha256}"
+
 # Digest tier (v2): suspicious-but-ambiguous findings accumulate here as NDJSON for a
 # daily grouped summary instead of paging. Best-effort by design — failing to record a
 # digest line must never abort detection, so every step is guarded and the function
@@ -265,6 +272,16 @@ while IFS= read -r obj; do
       esac
       case "$cat" in
         authorized_keys | sshd_config) sev="CRIT" ;;
+        pipeline_integrity)
+          # Page only on content-mismatch: a sha256 that matches the source-derived,
+          # root-owned manifest is a legit apply (silent); an absent hash or any other
+          # content is tamper (page). Never digests — page or silent.
+          hash_value=$(jq -r '.cols.sha256 // ""' <<<"$obj")
+          if [[ -n $hash_value ]] && grep -qiF -- "$hash_value" "$PIPELINE_MANIFEST" 2>/dev/null; then
+            continue
+          fi
+          sev="CRIT"
+          ;;
         sudoers | allowlist_file)
           _digest_append "$obj"
           continue
@@ -371,7 +388,9 @@ render=$(printf '%s\n' "$enriched" | jq -s '
     elif .q == "agent_authfile_changed" then
       ["- Did you rotate this? If not, an attacker may forge or mute alerts, or hijack remote access — **investigate now**."]
     elif .q == "file_events_recent" then
-      ["- Did you change this? If not, someone altered who can log in or run as **root**.", "- **Review:** " + (("sudo cat \"" + $ep + "\"") | code)]
+      (if (.cols.category // "") == "pipeline_integrity"
+       then ["- Did you just apply your dotfiles? If not, your **security tooling was modified** — investigate now.", "- **Compare:** " + (("shasum -a 256 \"" + $ep + "\"") | code)]
+       else ["- Did you change this? If not, someone altered who can log in or run as **root**.", "- **Review:** " + (("sudo cat \"" + $ep + "\"") | code)] end)
     elif (.q == "persistence_launchd" or .q == "persistence_startup_items_crontab") then
       ["- Did you set this up? If not, it **auto-runs at every login** — likely malware.", "- **Inspect:** " + (("cat \"" + $ep + "\"") | code)]
     elif .q == "es_launchd_writes" then
