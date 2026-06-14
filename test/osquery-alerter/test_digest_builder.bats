@@ -67,6 +67,38 @@ teardown() { teardown_harness; }
   assert_no_dispatch
 }
 
+@test "T-DIGM-overflow: more than twelve detector groups roll up with a marker, not a silent cut" {
+  # The only global bound was head -c 1800, which drops trailing groups and cuts the
+  # last line mid-string with no indicator. Cap the group count and emit a footer so
+  # the loss is signalled (the dropped content still survives in results.log).
+  local lines=() i
+  for i in $(seq 1 15); do
+    lines+=("$(digest_record "detector_$i" "id_$i" "detector_$i id_$i")")
+  done
+  seed_digest "${lines[@]}"
+  run_digest
+  assert_digest_sent
+  assert_digest_body_has 'more detector group(s)'
+}
+
+@test "T-DIGM-cadence: the builder sends on any invocation — cadence is launchd's, not an internal gate" {
+  # A hidden wall-clock gate sneaking into the builder would silently stop the daily
+  # digest; assert it sends whenever invoked against a seeded store.
+  seed_digest "$(digest_record sudoers /etc/sudoers.d/foo 'sudoers /etc/sudoers.d/foo')"
+  run_digest
+  assert_digest_sent
+}
+
+@test "T-DIGM-heartbeat-sep: the digest body carries no heartbeat/healthy content" {
+  # The digest summarizes findings only; uptime/heartbeat is a separate signal. Guard
+  # against a future merge that leaks a "healthy"/✅ line into the calm daily summary.
+  seed_digest "$(digest_record system_extensions_new io.example 'system_extensions_new io.example')"
+  run_digest
+  assert_digest_sent
+  run grep -iE 'healthy|✅|all clear' "$SEND_ALERT_LOG"
+  [ "$status" -ne 0 ]
+}
+
 @test "T-DIGM-torn-line: a malformed spool line is skipped; the day's digest still sends" {
   # A SIGKILLed / ENOSPC-interrupted _digest_append can leave one torn (non-JSON)
   # line in the spool. The builder must skip it, NOT abort the whole run under

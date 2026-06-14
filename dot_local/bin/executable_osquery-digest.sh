@@ -41,13 +41,22 @@ item_count=$(grep -c . "$work_file" 2>/dev/null || echo 0)
 # _digest_append — must not abort the run and lose the day's digest. Mirrors the
 # alerter's own resilient results.log reader.
 body=$(jq -rRs '
+  # One rendered block per detector group: header + up to ten bullets + a roll-up.
+  def render_group:
+    "**\(.[0].detector)** (\(length))",
+    (.[0:10][] | "- \(.identity) — \(.summary)"),
+    (if length > 10 then "… +\(length - 10) more" else empty end),
+    "";
   split("\n")
   | map(select(length > 0) | (try fromjson catch empty))
-  | group_by(.detector)[] as $group
-  | "**\($group[0].detector)** (\($group | length))",
-    ($group[0:10][] | "- \(.identity) — \(.summary)"),
-    (if ($group | length) > 10 then "… +\(($group | length) - 10) more" else empty end),
-    ""
+  | group_by(.detector) as $groups
+  # Cap the NUMBER of groups and emit a marker for the rest, so a busy day cannot
+  # drop whole trailing groups to a silent mid-line head -c cut (the content still
+  # survives in results.log/.last). head -c below stays as a hard backstop.
+  | ($groups[0:12][] | render_group),
+    (if ($groups | length) > 12
+     then "… and \(($groups | length) - 12) more detector group(s) — see results.log"
+     else empty end)
 ' "$work_file" 2>/dev/null | head -c 1800) || true
 
 title="🗒️ osquery daily digest · $(date -u +%Y-%m-%d) · ${item_count} item(s)"
