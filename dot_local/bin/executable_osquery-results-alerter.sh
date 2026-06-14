@@ -110,7 +110,7 @@ raw_findings=$(printf '%s\n' "$new_lines" | jq -rR '
   (if .action == "snapshot"
    then (.name as $n | .snapshot[]? | {name: $n, action: "currently-off", columns: .})
    else . end)
-  | select(.name != null and ((.name | startswith("pack_")) or (.name == "file_events_recent") or (.name == "es_launchd_writes") or (.name == "new_admin_user") or (.name == "persistence_launchd")))
+  | select(.name != null and ((.name | startswith("pack_")) or (.name == "file_events_recent") or (.name == "es_launchd_writes") or (.name == "new_admin_user") or (.name == "persistence_launchd") or (.name == "agent_exposure_changed") or (.name == "agent_authfile_changed") or (.name == "agent_binary_changed")))
   | select((.columns.target_path // "") | test("/\\.renameio-TempDir") | not)
   # Discard the counter==0 baseline (first-observation) row — calibration, not a real event.
   | select((.counter // 1) != 0)
@@ -196,6 +196,21 @@ while IFS= read -r obj; do
   # classification + dispatch below, so untriaged behavior is preserved until its own
   # test migrates it onto a gate arm.
   case "$q" in
+    # Page/core: rare, high-confidence, actionable. An agent API port newly bound
+    # off-loopback exposes the operator's primary remote-access path.
+    agent_exposure_changed) sev="CRIT" ;;
+    # The pipeline HMAC key and the paseo daemon keypair are the operator's own auth:
+    # tampering forges/mutes alerts or hijacks remote access → page. The rotation-prone
+    # rest (.env, config.toml, cli-client-id) is noisier → digest.
+    agent_authfile_changed)
+      case "$(jq -r '.cols.path // ""' <<<"$obj")" in
+        */webhook-secret | */daemon-keypair.json) sev="CRIT" ;;
+        *)
+          _digest_append "$obj"
+          continue
+          ;;
+      esac
+      ;;
     # SIP is intentionally off on this developer box: an on->off transition cannot
     # occur, so the snapshot floor is pure noise. Log-only (no page, no digest).
     sip_state) continue ;;
@@ -226,6 +241,11 @@ while IFS= read -r obj; do
     # Suspicious-but-ambiguous: digest for the daily summary, never page. A new
     # non-Apple system extension is usually an app upgrade re-activating a sysext.
     system_extensions_new)
+      _digest_append "$obj"
+      continue
+      ;;
+    # An agent binary hash change is usually a brew/npm/self-update — digest.
+    agent_binary_changed)
       _digest_append "$obj"
       continue
       ;;
@@ -294,6 +314,8 @@ render=$(printf '%s\n' "$enriched" | jq -s '
     elif .q == "persistence_launchd_overrides" then "Startup override changed"
     elif .q == "persistence_startup_items_crontab" then "New startup/cron entry"
     elif .q == "suid_bin_unexpected" then "New setuid root binary"
+    elif .q == "agent_exposure_changed" then "Agent port exposed off-loopback"
+    elif .q == "agent_authfile_changed" then "Agent credential changed"
     elif .q == "kernel_extensions_new" then "New kernel extension"
     elif .q == "system_extensions_new" then "New system extension"
     elif .q == "listening_ports_non_loopback" then "New network listener"
@@ -327,6 +349,8 @@ render=$(printf '%s\n' "$enriched" | jq -s '
     if .q == "persistence_launchd" then ["- **What:** \(($c.label // "?") | code)", "- **Program:** \(($c.program // "?") | code)"] + $sg
     elif .q == "persistence_startup_items_crontab" then ["- **What:** \(($c.name // "?") | code)", "- **Command:** \(($c.command // "?") | code)"] + $sg
     elif .q == "suid_bin_unexpected" then ["- **Path:** \(($c.path // "?") | code)"] + $sg + ["- **Owner:** \(($c.username // "?") | code)"]
+    elif .q == "agent_exposure_changed" then ["- **Address:** \(($c.address // "?") | code)", "- **Port:** \(($c.port // "?") | code)"]
+    elif .q == "agent_authfile_changed" then ["- **File:** \((($c.path // "") | split("/") | last) | code)"]
     elif .q == "system_extensions_new" then ["- **Name:** \(($c.identifier // "?") | code)", "- **Team:** \(($c.team // "?") | code)"] + $sg
     elif .q == "kernel_extensions_new" then ["- **Name:** \(($c.name // "?") | code)", "- **Path:** \(($c.path // "?") | code)"] + $sg
     elif .q == "file_events_recent" then ["- **File:** \(($c.target_path // "?") | code)", "- **Action:** \(.act)"]
@@ -342,6 +366,10 @@ render=$(printf '%s\n' "$enriched" | jq -s '
       ["- Did you install this? If not, **remove it** — an extension can intercept traffic or load at boot.", "- Manage at: System Settings → General → Login Items & Extensions"]
     elif .q == "suid_bin_unexpected" then
       ["- Did you create this? If not, it lets a program run as **root** — a backdoor.", "- **Inspect:** " + (("codesign -dv \"" + $ep + "\"") | code)]
+    elif .q == "agent_exposure_changed" then
+      ["- Did you expose this? If not, an agent API is reachable **off-box** — close it now.", "- Re-bind it to 127.0.0.1 or block the port at the firewall."]
+    elif .q == "agent_authfile_changed" then
+      ["- Did you rotate this? If not, an attacker may forge or mute alerts, or hijack remote access — **investigate now**."]
     elif .q == "file_events_recent" then
       ["- Did you change this? If not, someone altered who can log in or run as **root**.", "- **Review:** " + (("sudo cat \"" + $ep + "\"") | code)]
     elif (.q == "persistence_launchd" or .q == "persistence_startup_items_crontab") then
