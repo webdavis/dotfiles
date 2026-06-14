@@ -16,3 +16,9 @@ teardown() { teardown_harness; }
   assert_no_page
   assert_digest_count 1
 }
+
+@test "T-PAGE-launchd-sysdaemon: a new system LaunchDaemon pages, does not digest" {
+  run_alerter "$(row persistence_launchd added 1 '{"label":"com.evil.daemon","path":"/Library/LaunchDaemons/com.evil.daemon.plist"}')"
+  assert_page_has com.evil.daemon
+  assert_digest_count 0
+}

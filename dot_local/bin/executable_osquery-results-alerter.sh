@@ -191,8 +191,15 @@ while IFS= read -r obj; do
   # test migrates it onto a gate arm.
   case "$q" in
     persistence_launchd)
-      _digest_append "$obj"
-      continue
+      # A root-level LaunchDaemon runs as root at boot — a higher-privilege threat
+      # that pages. A per-user LaunchAgent is lower-stakes and digests.
+      case "$(jq -r '.cols.path // ""' <<<"$obj")" in
+        */LaunchDaemons/*) sev="CRIT" ;;
+        *)
+          _digest_append "$obj"
+          continue
+          ;;
+      esac
       ;;
   esac
   sig=""
