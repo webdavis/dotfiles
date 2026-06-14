@@ -15,7 +15,7 @@ teardown() { teardown_allowlist_harness; }
 }
 
 @test "T-AL-reject-junk: malformed or system labels are refused, nothing appended" {
-  for junk in '*' '../etc' '' 'com foo' 'com.apple.Finder'; do
+  for junk in '*' '../etc' '' 'com foo' 'com.apple.Finder' 'COM.APPLE.Finder' 'com.apple'; do
     run run_allowlist -a "$junk"
     [ "$status" -ne 0 ]
   done

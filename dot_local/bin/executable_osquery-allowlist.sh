@@ -27,7 +27,10 @@ usage() {
 # spaces, or empties. Apple/system labels are refused outright.
 is_valid_label() {
   [[ $1 =~ ^[A-Za-z0-9][A-Za-z0-9._@-]+$ ]] || return 1
-  [[ $1 == com.apple.* ]] && return 1
+  # Refuse Apple/system labels case-insensitively (and the dotless prefix), so a
+  # COM.APPLE.* variant can't slip past and falsely suppress a system-daemon page.
+  local lower="${1,,}"
+  [[ $lower == com.apple.* || $lower == com.apple ]] && return 1
   return 0
 }
 
