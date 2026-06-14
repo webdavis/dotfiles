@@ -21,6 +21,7 @@ file_event_row() {
 }
 
 ALERTER="${BATS_TEST_DIRNAME}/../../dot_local/bin/executable_osquery-results-alerter.sh"
+POLLER="${BATS_TEST_DIRNAME}/../../dot_local/bin/executable_osquery-firewall-gatekeeper-monitor.sh"
 
 # Stand up a temp HOME whose osquery-alert-dispatch.sh is a 1-line send_alert stub
 # that records each dispatch as "<severity>\t<title>\t<detail>" to $SEND_ALERT_LOG.
@@ -37,6 +38,31 @@ STUB
 }
 
 teardown_harness() { [[ -n ${HARNESS_HOME:-} ]] && rm -rf "$HARNESS_HOME"; }
+
+# Posture poller harness: the same temp HOME + send_alert stub, plus a fake osqueryi
+# that prints the posture array held in $POLLER_POSTURE (so a test controls the
+# "current" firewall/gatekeeper reading).
+setup_poller_harness() {
+  setup_harness
+  cat >"$HARNESS_HOME/.local/bin/osqueryi" <<'SHIM'
+#!/usr/bin/env bash
+printf '%s\n' "$POLLER_POSTURE"
+SHIM
+  chmod +x "$HARNESS_HOME/.local/bin/osqueryi"
+  POSTURE_STATE="$HARNESS_HOME/.local/state/osquery-posture-state.json"
+}
+
+# run_poller <prev-posture-object> <current-posture-object> — seed the prior state,
+# set the current reading, run the real poller. osqueryi --json returns an array, so
+# the current object is wrapped in [ ] for the fake.
+run_poller() {
+  printf '%s\n' "$1" >"$POSTURE_STATE"
+  HOME="$HARNESS_HOME" \
+    OSQUERYI="$HARNESS_HOME/.local/bin/osqueryi" \
+    OSQUERY_POSTURE_STATE="$POSTURE_STATE" \
+    POLLER_POSTURE="[$2]" \
+    bash "$POLLER"
+}
 
 # Run the real alerter against fixture rows (NDJSON as the single argument).
 run_alerter() {
