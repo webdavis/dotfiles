@@ -23,6 +23,7 @@ file_event_row() {
 ALERTER="${BATS_TEST_DIRNAME}/../../dot_local/bin/executable_osquery-results-alerter.sh"
 POLLER="${BATS_TEST_DIRNAME}/../../dot_local/bin/executable_osquery-firewall-gatekeeper-monitor.sh"
 DISPATCH="${BATS_TEST_DIRNAME}/../../dot_local/bin/executable_osquery-alert-dispatch.sh"
+DIGEST_BUILDER="${BATS_TEST_DIRNAME}/../../dot_local/bin/executable_osquery-digest.sh"
 
 # Stand up a temp HOME whose osquery-alert-dispatch.sh is a 1-line send_alert stub
 # that records each dispatch as "<severity>\t<title>\t<detail>" to $SEND_ALERT_LOG.
@@ -31,7 +32,8 @@ setup_harness() {
   mkdir -p "$HARNESS_HOME/.local/bin" "$HARNESS_HOME/.local/log/osquery" "$HARNESS_HOME/.local/state"
   cat >"$HARNESS_HOME/.local/bin/osquery-alert-dispatch.sh" <<'STUB'
 # Flatten the (multi-line) detail to one physical line so a dispatch is one record.
-send_alert() { printf '%s\t%s\t%s\n' "$1" "$2" "${3//$'\n'/ }" >>"$SEND_ALERT_LOG"; }
+# Fields: severity, title, detail, sound (sound matters for the silent digest tier).
+send_alert() { printf '%s\t%s\t%s\t%s\n' "$1" "$2" "${3//$'\n'/ }" "${4-}" >>"$SEND_ALERT_LOG"; }
 STUB
   export SEND_ALERT_LOG="$HARNESS_HOME/send_alert.log"
   : >"$SEND_ALERT_LOG"
@@ -63,6 +65,24 @@ run_poller() {
     OSQUERY_POSTURE_STATE="$POSTURE_STATE" \
     POLLER_POSTURE="[$2]" \
     bash "$POLLER"
+}
+
+# Build one digest NDJSON record in the shape the alerter's _digest_append emits.
+# digest_record <detector> <identity> <summary>
+digest_record() {
+  jq -cn --arg detector "$1" --arg identity "$2" --arg summary "$3" \
+    '{timestamp:"2026-06-13T00:00:00Z",detector:$detector,category:"",identity:$identity,action:"added",summary:$summary}'
+}
+
+# Seed the digest store with NDJSON lines (each argument is one record).
+seed_digest() {
+  mkdir -p "$(dirname "$OSQUERY_DIGEST_STORE")"
+  printf '%s\n' "$@" >"$OSQUERY_DIGEST_STORE"
+}
+
+# Run the real digest builder against the seeded store (uses the send_alert stub).
+run_digest() {
+  HOME="$HARNESS_HOME" OSQUERY_DIGEST_STORE="$OSQUERY_DIGEST_STORE" bash "$DIGEST_BUILDER"
 }
 
 # Run the real alerter against fixture rows (NDJSON as the single argument).
@@ -137,6 +157,50 @@ assert_no_post() {
 assert_no_dispatch() {
   if [[ -s $SEND_ALERT_LOG ]]; then
     echo "expected NO dispatch, but send_alert was called: $(cat "$SEND_ALERT_LOG")" >&2
+    return 1
+  fi
+}
+
+# The digest builder dispatched exactly one CRIT message titled "...daily digest...".
+assert_digest_sent() {
+  local n
+  n=$(grep -c $'^CRIT\t' "$SEND_ALERT_LOG" 2>/dev/null || echo 0)
+  if [[ $n -ne 1 ]]; then
+    echo "expected exactly 1 CRIT digest send, got $n: $(cat "$SEND_ALERT_LOG")" >&2
+    return 1
+  fi
+  if ! grep -qF 'daily digest' "$SEND_ALERT_LOG"; then
+    echo "digest send title lacks 'daily digest': $(cat "$SEND_ALERT_LOG")" >&2
+    return 1
+  fi
+}
+
+# The one digest send used an empty sound (silent, non-interruptive — not a page).
+assert_digest_silent() {
+  local sound
+  sound=$(awk -F'\t' '$1=="CRIT"{print $4}' "$SEND_ALERT_LOG")
+  if [[ -n $sound ]]; then
+    echo "expected silent digest (empty sound), got '$sound'" >&2
+    return 1
+  fi
+}
+
+# The digest send body contains <substring> (the multi-line body is flattened to one line).
+assert_digest_body_has() {
+  if ! grep -qF -- "$1" "$SEND_ALERT_LOG"; then
+    echo "expected digest body to contain '$1': $(cat "$SEND_ALERT_LOG")" >&2
+    return 1
+  fi
+}
+
+# After a send the live store is cleared but a .last snapshot is kept.
+assert_store_rotated() {
+  if [[ -e $OSQUERY_DIGEST_STORE ]]; then
+    echo "expected the live digest store cleared after send" >&2
+    return 1
+  fi
+  if [[ ! -e $OSQUERY_DIGEST_STORE.last ]]; then
+    echo "expected a .last snapshot kept" >&2
     return 1
   fi
 }
