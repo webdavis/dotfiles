@@ -138,8 +138,10 @@ send_alert() {
   fi
 
   local body signature request_id http attempt
-  body=$(jq -cn --arg t "$title" --arg d "$detail" \
-    '{event_type:"osquery.alert", alert:{title:$t, detail:$d}}')
+  # host is INSIDE the signed body (and thus the request_id) — the spec's body shape
+  # and the documented multi-host migration seam both require {event_type, host, alert}.
+  body=$(jq -cn --arg h "$(hostname -s)" --arg t "$title" --arg d "$detail" \
+    '{event_type:"osquery.alert", host:$h, alert:{title:$t, detail:$d}}')
   signature=$(printf '%s' "$body" | openssl dgst -sha256 -hmac "$secret" | awk '{print $NF}')
   # Content-stable request id: a retry or double-fire of the SAME alert dedups
   # at the gateway (it honours X-Request-ID for 1h) instead of double-posting.

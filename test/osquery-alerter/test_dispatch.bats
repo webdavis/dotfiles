@@ -17,3 +17,12 @@ teardown() { teardown_harness; }
   send_alert NOTICE "🟡 title" "detail" "Glass"
   assert_no_post
 }
+
+@test "T-DISP-host-field: the signed webhook body carries a host field (multi-host seam)" {
+  send_alert CRIT "🔴 title" "detail" "Sosumi"
+  # The curl shim records the full invocation including --data <body>; host must be
+  # inside the signed bytes — the master-spec body shape and the homelab-migration
+  # seam both require {event_type, host, alert:{...}}.
+  run grep -F '"host":"' "$CURL_LOG"
+  [ "$status" -eq 0 ]
+}
