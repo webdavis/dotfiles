@@ -67,6 +67,14 @@ assert_page_has() {
   fi
 }
 
+# Log-only means zero delivery — no page, no #osquery line, nothing dispatched.
+assert_no_dispatch() {
+  if [[ -s $SEND_ALERT_LOG ]]; then
+    echo "expected NO dispatch, but send_alert was called: $(cat "$SEND_ALERT_LOG")" >&2
+    return 1
+  fi
+}
+
 # The digest store holds one NDJSON line per suspicious-but-ambiguous finding.
 assert_digest_count() {
   local want="$1" got=0

@@ -16,3 +16,25 @@ teardown() { teardown_harness; }
   assert_no_page
   assert_digest_count 0
 }
+
+@test "T-LOG-kext-no-deliver: a kext load/unload is never delivered" {
+  # The kernel_extensions table lists LOADED kexts, which load/unload on demand —
+  # a 657-event firehose. Wrong signal: not page, not digest, not even #osquery.
+  run_alerter "$(row pack_intrusion-detection_kernel_extensions_new added 1 '{"name":"com.foo.kext"}')"
+  assert_no_dispatch
+  assert_digest_count 0
+}
+
+@test "T-LOG-sharing: a remote_access_sharing row does not page (dead until rebuilt)" {
+  # v1 dead code: never emits a deliverable transition, so any row it does emit is
+  # false assurance. Until rebuilt as an ON-transition detector it must be silent.
+  run_alerter "$(row pack_security-policy-regression_remote_access_sharing_state currently-off 1 '{}')"
+  assert_no_dispatch
+  assert_digest_count 0
+}
+
+@test "T-LOG-es: es_launchd_writes is never delivered (forensic-only)" {
+  run_alerter "$(row es_launchd_writes added 1 '{"path":"/usr/bin/foo","filename":"com.bar.plist"}')"
+  assert_no_dispatch
+  assert_digest_count 0
+}

@@ -193,6 +193,15 @@ while IFS= read -r obj; do
     # SIP is intentionally off on this developer box: an on->off transition cannot
     # occur, so the snapshot floor is pure noise. Log-only (no page, no digest).
     sip_state) continue ;;
+    # The kernel_extensions table lists LOADED kexts (load/unload on demand) — a
+    # firehose of hundreds of events. Wrong signal entirely; log-only.
+    kernel_extensions_new) continue ;;
+    # Dead code in v1: never emits a real on->off transition, so any row is false
+    # assurance. Log-only until rebuilt as a Remote-Login/Screen-Sharing detector.
+    remote_access_sharing_state) continue ;;
+    # Endpoint-Security launchd writes are forensic enrichment only (the writer
+    # process), not a deliverable signal on their own. Log-only.
+    es_launchd_writes) continue ;;
     persistence_launchd)
       # A root-level LaunchDaemon runs as root at boot — a higher-privilege threat
       # that pages. A per-user LaunchAgent is lower-stakes and digests.
