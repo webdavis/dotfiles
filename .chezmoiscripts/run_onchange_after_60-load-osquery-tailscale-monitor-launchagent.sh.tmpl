@@ -1,4 +1,4 @@
-{{- if eq .chezmoi.os "darwin" }}
+{{ if eq .chezmoi.os "darwin" -}}
 #!/bin/bash
 # run_onchange_after_60-load-osquery-tailscale-monitor-launchagent.sh
 # plist hash: {{ include "Library/LaunchAgents/com.webdavis.osquery-tailscale-monitor.plist.tmpl" | sha256sum }}
