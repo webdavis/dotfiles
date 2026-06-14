@@ -6,9 +6,12 @@ load lib
 setup() { setup_harness; }
 teardown() { teardown_harness; }
 
-@test "T-PAGE-admin: a new admin user pages" {
+@test "T-PAGE-admin: a new admin user pages with an actionable block, never digests" {
   run_alerter "$(row new_admin_user added 1 '{"username":"backdoor","uid":"503"}')"
-  assert_page_has backdoor
+  assert_page_has "New administrator account" # the proper header, not the raw query name
+  assert_page_has backdoor                    # the offending username
+  assert_page_has "admin access"              # an actionable next step is present
+  assert_digest_count 0                       # a page must never also land in the digest
 }
 
 @test "T-DIG-launchd-user: a new user LaunchAgent digests, does not page" {

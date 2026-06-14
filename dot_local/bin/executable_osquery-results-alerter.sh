@@ -331,6 +331,7 @@ render=$(printf '%s\n' "$enriched" | jq -s '
     elif .q == "persistence_launchd_overrides" then "Startup override changed"
     elif .q == "persistence_startup_items_crontab" then "New startup/cron entry"
     elif .q == "suid_bin_unexpected" then "New setuid root binary"
+    elif .q == "new_admin_user" then "New administrator account"
     elif .q == "agent_exposure_changed" then "Agent port exposed off-loopback"
     elif .q == "agent_authfile_changed" then "Agent credential changed"
     elif .q == "remote_access_sharing_state" then "Remote-access service enabled"
@@ -367,6 +368,7 @@ render=$(printf '%s\n' "$enriched" | jq -s '
     if .q == "persistence_launchd" then ["- **What:** \(($c.label // "?") | code)", "- **Program:** \(($c.program // "?") | code)"] + $sg
     elif .q == "persistence_startup_items_crontab" then ["- **What:** \(($c.name // "?") | code)", "- **Command:** \(($c.command // "?") | code)"] + $sg
     elif .q == "suid_bin_unexpected" then ["- **Path:** \(($c.path // "?") | code)"] + $sg + ["- **Owner:** \(($c.username // "?") | code)"]
+    elif .q == "new_admin_user" then ["- **User:** \(($c.username // "?") | code)", "- **UID:** \(($c.uid // "?") | code)"]
     elif .q == "agent_exposure_changed" then ["- **Process:** \(($c.name // "?") | code)", "- **Address:** \(($c.address // "?") | code)", "- **Port:** \(($c.port // "?") | code)"]
     elif .q == "agent_authfile_changed" then ["- **File:** \((($c.path // "") | split("/") | last) | code)"]
     elif .q == "remote_access_sharing_state" then ["- **Service:** \(($c.service // "?") | code)"]
@@ -385,6 +387,8 @@ render=$(printf '%s\n' "$enriched" | jq -s '
       ["- Did you install this? If not, **remove it** — an extension can intercept traffic or load at boot.", "- Manage at: System Settings → General → Login Items & Extensions"]
     elif .q == "suid_bin_unexpected" then
       ["- Did you create this? If not, it lets a program run as **root** — a backdoor.", "- **Inspect:** " + (("codesign -dv \"" + $ep + "\"") | code)]
+    elif .q == "new_admin_user" then
+      ["- Did you create this account? If not, someone gained **admin access** — investigate now.", "- Review accounts: System Settings → Users & Groups"]
     elif .q == "agent_exposure_changed" then
       ["- Did you expose this? If not, an agent API is reachable **off-box** — close it now.", "- Re-bind it to 127.0.0.1 or block the port at the firewall."]
     elif .q == "agent_authfile_changed" then
