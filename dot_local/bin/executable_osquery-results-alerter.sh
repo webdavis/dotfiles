@@ -190,6 +190,9 @@ while IFS= read -r obj; do
   # classification + dispatch below, so untriaged behavior is preserved until its own
   # test migrates it onto a gate arm.
   case "$q" in
+    # SIP is intentionally off on this developer box: an on->off transition cannot
+    # occur, so the snapshot floor is pure noise. Log-only (no page, no digest).
+    sip_state) continue ;;
     persistence_launchd)
       # A root-level LaunchDaemon runs as root at boot — a higher-privilege threat
       # that pages. A per-user LaunchAgent is lower-stakes and digests.
