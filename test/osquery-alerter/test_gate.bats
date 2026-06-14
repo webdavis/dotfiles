@@ -22,3 +22,9 @@ teardown() { teardown_harness; }
   assert_page_has com.evil.daemon
   assert_digest_count 0
 }
+
+@test "T-NEG-launchd-apple: a /System/Library LaunchDaemon is log-only (Apple churn)" {
+  run_alerter "$(row persistence_launchd added 1 '{"label":"com.apple.foo","path":"/System/Library/LaunchDaemons/com.apple.foo.plist"}')"
+  assert_no_page
+  assert_digest_count 0
+}
