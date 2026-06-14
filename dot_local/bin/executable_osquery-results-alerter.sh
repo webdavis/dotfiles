@@ -105,7 +105,7 @@ raw_findings=$(printf '%s\n' "$new_lines" | jq -rR '
   (if .action == "snapshot"
    then (.name as $n | .snapshot[]? | {name: $n, action: "currently-off", columns: .})
    else . end)
-  | select(.name != null and ((.name | startswith("pack_")) or (.name == "file_events_recent") or (.name == "es_launchd_writes") or (.name == "new_admin_user")))
+  | select(.name != null and ((.name | startswith("pack_")) or (.name == "file_events_recent") or (.name == "es_launchd_writes") or (.name == "new_admin_user") or (.name == "persistence_launchd")))
   | select((.columns.target_path // "") | test("/\\.renameio-TempDir") | not)
   # Discard the counter==0 baseline (first-observation) row — calibration, not a real event.
   | select((.counter // 1) != 0)
@@ -150,6 +150,25 @@ if [[ -r $ALLOWLIST_FILE ]]; then
 fi
 _allowlisted() { [[ -n $allow_set ]] && grep -qxF -- "$1" <<<"$allow_set"; }
 
+# Digest tier (v2): suspicious-but-ambiguous findings accumulate here as NDJSON for a
+# daily grouped summary instead of paging. Best-effort by design — failing to record a
+# digest line must never abort detection, so every step is guarded and the function
+# always succeeds.
+DIGEST_STORE="${OSQUERY_DIGEST_STORE:-$HOME/.local/state/osquery-digest-spool/digest.ndjson}"
+_digest_append() {
+  local finding="$1"
+  mkdir -p "$(dirname "$DIGEST_STORE")" 2>/dev/null || true
+  jq -c --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    '{
+      timestamp: $timestamp,
+      detector: .q,
+      category: (.cols.category // ""),
+      identity: (.cols.label // .cols.identifier // .cols.target_path // .cols.path // .cols.username // "?"),
+      action: .act,
+      summary: (.q + " " + ((.cols.label // .cols.identifier // .cols.target_path // .cols.path // .cols.username) // "?"))
+    }' <<<"$finding" >>"$DIGEST_STORE" 2>/dev/null || true
+}
+
 enriched=""
 while IFS= read -r obj; do
   [[ -z $obj ]] && continue
@@ -166,6 +185,16 @@ while IFS= read -r obj; do
   } < <(
     jq -r '.sev, (.ep // ""), .q, (.cols.category // ""), (.cols.label // .cols.name // "")' <<<"$obj"
   )
+  # Three-outcome gate (v2, incremental): reroute digest-tier detectors out of the
+  # page/dispatch path entirely. Detectors not named here fall through to the legacy
+  # classification + dispatch below, so untriaged behavior is preserved until its own
+  # test migrates it onto a gate arm.
+  case "$q" in
+    persistence_launchd)
+      _digest_append "$obj"
+      continue
+      ;;
+  esac
   sig=""
   if [[ -n $ep && ($sev == CRIT || $sev == NOTICE) && -x $ENRICH ]]; then
     rc=0

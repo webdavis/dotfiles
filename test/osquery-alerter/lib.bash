@@ -33,6 +33,7 @@ send_alert() { printf '%s\t%s\t%s\n' "$1" "$2" "${3//$'\n'/ }" >>"$SEND_ALERT_LO
 STUB
   export SEND_ALERT_LOG="$HARNESS_HOME/send_alert.log"
   : >"$SEND_ALERT_LOG"
+  export OSQUERY_DIGEST_STORE="$HARNESS_HOME/.local/state/osquery-digest-spool/digest.ndjson"
 }
 
 teardown_harness() { [[ -n ${HARNESS_HOME:-} ]] && rm -rf "$HARNESS_HOME"; }
@@ -47,6 +48,7 @@ run_alerter() {
   HOME="$HARNESS_HOME" \
     OSQUERY_RESULTS_LOG="$results_log" \
     OSQUERY_RESULTS_OFFSET="$HARNESS_HOME/.local/state/osquery-results-offset" \
+    OSQUERY_DIGEST_STORE="$OSQUERY_DIGEST_STORE" \
     bash "$ALERTER"
 }
 
@@ -61,6 +63,16 @@ assert_no_page() {
 assert_page_has() {
   if ! grep $'^CRIT\t' "$SEND_ALERT_LOG" | grep -qF -- "$1"; then
     echo "expected a CRIT page containing '$1'; CRIT pages: $(grep $'^CRIT\t' "$SEND_ALERT_LOG" || echo '(none)')" >&2
+    return 1
+  fi
+}
+
+# The digest store holds one NDJSON line per suspicious-but-ambiguous finding.
+assert_digest_count() {
+  local want="$1" got=0
+  [[ -f $OSQUERY_DIGEST_STORE ]] && got=$(grep -c . "$OSQUERY_DIGEST_STORE" 2>/dev/null || echo 0)
+  if [[ $got -ne $want ]]; then
+    echo "expected $want digest line(s), got $got: $(cat "$OSQUERY_DIGEST_STORE" 2>/dev/null || echo '(no store)')" >&2
     return 1
   fi
 }

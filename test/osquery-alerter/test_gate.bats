@@ -10,3 +10,9 @@ teardown() { teardown_harness; }
   run_alerter "$(row new_admin_user added 1 '{"username":"backdoor","uid":"503"}')"
   assert_page_has backdoor
 }
+
+@test "T-DIG-launchd-user: a new user LaunchAgent digests, does not page" {
+  run_alerter "$(row persistence_launchd added 1 '{"label":"com.foo.agent","path":"/Users/x/Library/LaunchAgents/com.foo.agent.plist"}')"
+  assert_no_page
+  assert_digest_count 1
+}
