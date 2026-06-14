@@ -214,6 +214,23 @@ while IFS= read -r obj; do
           ;;
       esac
       ;;
+    # Suspicious-but-ambiguous: digest for the daily summary, never page. A new
+    # non-Apple system extension is usually an app upgrade re-activating a sysext.
+    system_extensions_new)
+      _digest_append "$obj"
+      continue
+      ;;
+    # file_events fans out by category: sudoers churns heavily (visudo / chezmoi
+    # atomic writes), so it digests. Page-tier categories (authorized_keys,
+    # sshd_config) fall through to the legacy CRIT path until their own arms land.
+    file_events_recent)
+      case "$cat" in
+        sudoers)
+          _digest_append "$obj"
+          continue
+          ;;
+      esac
+      ;;
   esac
   sig=""
   if [[ -n $ep && ($sev == CRIT || $sev == NOTICE) && -x $ENRICH ]]; then
