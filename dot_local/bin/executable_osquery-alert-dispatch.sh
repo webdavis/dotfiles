@@ -11,11 +11,10 @@
 #   source "$HOME/.local/bin/osquery-alert-dispatch.sh"
 #   send_alert CRIT "Firewall disabled" "alf global_state 1 -> 0" Sosumi
 
-# Two routes, same app (osquery), each signed with the one osquery key below.
-# CRIT findings go to the #priority channel (the one channel the user watches);
-# everything else goes to the quiet #osquery log channel. send_alert picks the
-# URL from its severity argument.
-OSQUERY_HERMES_URL="${OSQUERY_HERMES_URL:-http://127.0.0.1:8644/webhooks/osquery}"
+# One Discord route: the #priority channel (the one channel the user watches),
+# signed with the osquery HMAC key below. v2 has NO #osquery channel — only a
+# confirmed CRIT page is POSTed; any other severity does the local notification
+# only. There is deliberately no non-priority URL for a producer to leak to.
 OSQUERY_HERMES_PRIORITY_URL="${OSQUERY_HERMES_PRIORITY_URL:-http://127.0.0.1:8644/webhooks/osquery-priority}"
 # The notifier signs with its OWN copy of the HMAC key, read from its own secret
 # file — NOT from hermes's .env. HMAC is symmetric so the value must match the
@@ -31,17 +30,12 @@ _osquery_log() {
 }
 
 # send_alert <severity> <title> <detail> [sound]
-# severity is CRIT | NOTICE | INFO. CRIT routes the Discord POST to the
-# #priority channel; NOTICE/INFO route to the quiet #osquery channel. The local
-# notification always fires regardless. The Discord POST is best-effort and
-# never fails the caller (so a down gateway can't break the local alert). An
-# empty sound argument means a silent notification (used for the low INFO tier).
+# Only a CRIT page is delivered to Discord (#priority); any other severity does the
+# local notification and returns (v2 has no #osquery channel). The Discord POST is
+# best-effort and never fails the caller (so a down gateway can't break the local
+# alert). An empty sound argument means a silent notification (the digest's tier).
 send_alert() {
   local severity="$1" title="$2" detail="$3" sound="${4-}"
-
-  # Route by severity: only CRIT reaches #priority.
-  local url="$OSQUERY_HERMES_URL"
-  [ "$severity" = "CRIT" ] && url="$OSQUERY_HERMES_PRIORITY_URL"
 
   # The local notifier renders plain text, so strip Discord markdown (**bold**,
   # `code`) for it; the webhook POST below keeps the markdown intact.
@@ -65,6 +59,11 @@ send_alert() {
       osascript -e "display notification \"$escaped\" with title \"$plain_title\"" >/dev/null 2>&1 || true
     fi
   fi
+
+  # v2: only a CRIT page is delivered to Discord. Any other severity stops here,
+  # after the local notification — there is no #osquery channel to POST to.
+  [ "$severity" = "CRIT" ] || return 0
+  local url="$OSQUERY_HERMES_PRIORITY_URL"
 
   # 2) Discord via the hermes webhook (best-effort, bounded retry). Read the HMAC
   #    key from the notifier's own secret file (env override allowed for tests);

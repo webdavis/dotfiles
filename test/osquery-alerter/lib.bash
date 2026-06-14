@@ -22,6 +22,7 @@ file_event_row() {
 
 ALERTER="${BATS_TEST_DIRNAME}/../../dot_local/bin/executable_osquery-results-alerter.sh"
 POLLER="${BATS_TEST_DIRNAME}/../../dot_local/bin/executable_osquery-firewall-gatekeeper-monitor.sh"
+DISPATCH="${BATS_TEST_DIRNAME}/../../dot_local/bin/executable_osquery-alert-dispatch.sh"
 
 # Stand up a temp HOME whose osquery-alert-dispatch.sh is a 1-line send_alert stub
 # that records each dispatch as "<severity>\t<title>\t<detail>" to $SEND_ALERT_LOG.
@@ -89,6 +90,45 @@ assert_no_page() {
 assert_page_has() {
   if ! grep $'^CRIT\t' "$SEND_ALERT_LOG" | grep -qF -- "$1"; then
     echo "expected a CRIT page containing '$1'; CRIT pages: $(grep $'^CRIT\t' "$SEND_ALERT_LOG" || echo '(none)')" >&2
+    return 1
+  fi
+}
+
+# Delivery (H2) harness: source the REAL dispatcher with curl + alerter shimmed on
+# PATH, so a test asserts exactly which webhook URL (if any) a send_alert POSTs to.
+# The curl shim records each invocation and emits a 2xx like real `curl -w`.
+setup_dispatch_harness() {
+  HARNESS_HOME="$(mktemp -d)"
+  mkdir -p "$HARNESS_HOME/bin" "$HARNESS_HOME/.local/log/osquery"
+  printf '#!/usr/bin/env bash\nexit 0\n' >"$HARNESS_HOME/bin/alerter"
+  cat >"$HARNESS_HOME/bin/curl" <<'SHIM'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"$CURL_LOG"
+printf '200'
+SHIM
+  chmod +x "$HARNESS_HOME/bin/alerter" "$HARNESS_HOME/bin/curl"
+  export CURL_LOG="$HARNESS_HOME/curl.log"
+  : >"$CURL_LOG"
+  export PATH="$HARNESS_HOME/bin:$PATH"
+  export OSQUERY_WEBHOOK_SECRET="testsecret"
+  export OSQUERY_DELIVERY_LOG="$HARNESS_HOME/.local/log/osquery/webhook-delivery.log"
+  HOME="$HARNESS_HOME"
+  # shellcheck source=/dev/null
+  source "$DISPATCH"
+}
+
+# A webhook POST went to a URL containing <substring>.
+assert_posted_to() {
+  if ! grep -qF -- "$1" "$CURL_LOG"; then
+    echo "expected a POST to a URL containing '$1'; curl log: $(cat "$CURL_LOG")" >&2
+    return 1
+  fi
+}
+
+# No webhook POST happened at all.
+assert_no_post() {
+  if [[ -s $CURL_LOG ]]; then
+    echo "expected NO webhook POST, but curl was called: $(cat "$CURL_LOG")" >&2
     return 1
   fi
 }
