@@ -30,8 +30,10 @@ teardown() { teardown_harness; }
   assert_digest_count 1
 }
 
-@test "T-DIG-agentbin: an agent binary change digests, does not page" {
+@test "T-LOG-agentbin: an agent binary change is log-only (recorded, never delivered)" {
+  # Hash changes cannot tell a frequent legit self-update from a swap, so they are
+  # inherently noisy — recorded in results.log for forensics, never paged or digested.
   run_alerter "$(row agent_binary_changed added 1 '{"path":"/Users/x/.local/bin/codex"}')"
-  assert_no_page
-  assert_digest_count 1
+  assert_no_dispatch
+  assert_digest_count 0
 }

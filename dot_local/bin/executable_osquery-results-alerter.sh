@@ -251,11 +251,10 @@ while IFS= read -r obj; do
       _digest_append "$obj"
       continue
       ;;
-    # An agent binary hash change is usually a brew/npm/self-update — digest.
-    agent_binary_changed)
-      _digest_append "$obj"
-      continue
-      ;;
+    # Agent binary hash changes cannot distinguish a frequent legit self-update from a
+    # swap, so they are inherently noisy — log-only (recorded in results.log for
+    # forensics, never paged or digested).
+    agent_binary_changed) continue ;;
     # Screen lock off is posture drift, not an intrusion — low actionability.
     screenlock_state | screenlock_off)
       _digest_append "$obj"
