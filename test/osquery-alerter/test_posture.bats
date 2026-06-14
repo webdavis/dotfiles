@@ -12,6 +12,7 @@ teardown() { teardown_harness; }
 @test "T-PAGE-suid: a new unexpected setuid-root binary pages" {
   run_alerter "$(row pack_intrusion-detection_suid_bin_unexpected added 1 '{"path":"/Users/x/.local/bin/backdoor","username":"root","permissions":"rwsr-xr-x"}')"
   assert_page_has backdoor
+  assert_digest_count 0
 }
 
 @test "T-PAGE-sharing: a high-risk remote-access service turning on pages" {
@@ -20,6 +21,7 @@ teardown() { teardown_harness; }
   # row = an ON transition. SSH/Remote Login is the operator's own path → excluded.
   run_alerter "$(row pack_security-policy-regression_remote_access_sharing_state added 1 '{"service":"screen_sharing"}')"
   assert_page_has screen_sharing
+  assert_digest_count 0
 }
 
 @test "T-PAGE-filevault-off: a genuine FileVault-off (differential filevault_off) pages (issue #18)" {
@@ -29,6 +31,7 @@ teardown() { teardown_harness; }
   # of #18: as a snapshot it went to snapshots.log, which the alerter never reads).
   run_alerter "$(row pack_security-policy-regression_filevault_off added 1 '{"protection":"filevault"}')"
   assert_page_has "FileVault turned OFF"
+  assert_digest_count 0
 }
 
 @test "T-NEG-filevault-churn: a removed filevault_state row (APFS volume churn) does NOT page (issue #18)" {

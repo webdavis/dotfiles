@@ -186,6 +186,15 @@ assert_page_has() {
   fi
 }
 
+# The inverse: NO CRIT page may contain <substring> — used to prove redaction
+# (a full path or sha256 must never reach the payload, invariant #4).
+assert_page_lacks() {
+  if grep $'^CRIT\t' "$SEND_ALERT_LOG" | grep -qF -- "$1"; then
+    echo "expected NO CRIT page to contain '$1', but one did: $(grep $'^CRIT\t' "$SEND_ALERT_LOG")" >&2
+    return 1
+  fi
+}
+
 # Delivery (H2) harness: source the REAL dispatcher with curl + alerter shimmed on
 # PATH, so a test asserts exactly which webhook URL (if any) a send_alert POSTs to.
 # The curl shim records each invocation and emits a 2xx like real `curl -w`.

@@ -10,6 +10,7 @@ teardown() { teardown_harness; }
 @test "T-PAGE-authkeys: an authorized_keys file CREATED pages" {
   run_alerter "$(file_event_row authorized_keys /Users/x/.ssh/authorized_keys CREATED)"
   assert_page_has authorized_keys
+  assert_digest_count 0
 }
 
 @test "T-NEG-authkeys-delete: an authorized_keys DELETE does not page" {
@@ -20,6 +21,7 @@ teardown() { teardown_harness; }
 @test "T-PAGE-sshd: an sshd_config UPDATED pages" {
   run_alerter "$(file_event_row sshd_config /etc/ssh/sshd_config UPDATED)"
   assert_page_has sshd_config
+  assert_digest_count 0
 }
 
 @test "T-PAGE-pipeline-mismatch: a tooling change whose hash is NOT in the manifest pages" {
