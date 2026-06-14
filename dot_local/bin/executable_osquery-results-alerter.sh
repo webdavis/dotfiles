@@ -234,15 +234,22 @@ while IFS= read -r obj; do
       _digest_append "$obj"
       continue
       ;;
-    # file_events fans out by category: sudoers churns heavily (visudo / chezmoi
-    # atomic writes), so it digests. Page-tier categories (authorized_keys,
-    # sshd_config) fall through to the legacy CRIT path until their own arms land.
+    # file_events fans out by category. authorized_keys / sshd_config are remote-auth
+    # tampering → page. sudoers churns (visudo / chezmoi) and allowlist_file is
+    # runtime-mutable → digest. Everything else (launch dirs, etc.) → log-only.
     file_events_recent)
+      # Only a create/modify is actionable; a delete is your own revert/cleanup noise.
+      case "$(jq -r '.cols.action // ""' <<<"$obj")" in
+        CREATED | UPDATED) ;;
+        *) continue ;;
+      esac
       case "$cat" in
-        sudoers)
+        authorized_keys | sshd_config) sev="CRIT" ;;
+        sudoers | allowlist_file)
           _digest_append "$obj"
           continue
           ;;
+        *) continue ;;
       esac
       ;;
   esac
@@ -296,9 +303,11 @@ render=$(printf '%s\n' "$enriched" | jq -s '
     elif (.q | test("_extensions$|_addons$")) then "New browser extension"
     elif .q == "file_events_recent" then
       ((.cols.category // "") as $cat |
-        if $cat == "ssh" then "SSH file changed"
+        if $cat == "authorized_keys" then "SSH key file changed"
         elif $cat == "sudoers" then "sudoers changed"
         elif $cat == "sshd_config" then "sshd_config changed"
+        elif $cat == "pipeline_integrity" then "Security tooling changed"
+        elif $cat == "allowlist_file" then "Allowlist changed"
         elif ($cat == "launch_agents" or $cat == "launch_daemons") then "Startup folder changed"
         else "Watched file changed" end)
     elif .q == "es_launchd_writes" then "Startup item written by a process"
