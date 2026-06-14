@@ -17,6 +17,15 @@ teardown() { teardown_harness; }
   assert_digest_count 1
 }
 
+@test "T-DIG-launchd-allow: an allowlisted user LaunchAgent neither pages nor digests" {
+  # The reader (alerter) and the writer (osquery-allowlist.sh) share one file/env,
+  # so a label the tool allows is suppressed end to end (T-AL-path through the gate).
+  run_allowlist -a com.foo.agent
+  run_alerter "$(row persistence_launchd added 1 '{"label":"com.foo.agent","path":"/Users/x/Library/LaunchAgents/com.foo.agent.plist"}')"
+  assert_no_page
+  assert_digest_count 0
+}
+
 @test "T-PAGE-launchd-sysdaemon: a new system LaunchDaemon pages, does not digest" {
   run_alerter "$(row persistence_launchd added 1 '{"label":"com.evil.daemon","path":"/Library/LaunchDaemons/com.evil.daemon.plist"}')"
   assert_page_has com.evil.daemon

@@ -6,3 +6,10 @@
 #   osquery-allowlist.sh -l            # list
 # System daemons (/Library/LaunchDaemons) page by path regardless and are NOT
 # allowlistable here; Apple/system (com.apple.*) labels are refused by the writer.
+
+# This host's own osquery monitoring agents (self-installed user LaunchAgents) —
+# known-good, so their (re)install digests silently instead of nagging.
+com.webdavis.osquery-results-alerter
+com.webdavis.osquery-firewall-gatekeeper-monitor
+com.webdavis.osquery-uptime-watchdog
+com.webdavis.osquery-digest

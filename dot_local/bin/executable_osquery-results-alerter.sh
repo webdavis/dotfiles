@@ -139,11 +139,12 @@ printf '%s %s\n' "$inode" "$size" >"$STATE.tmp" && mv -f "$STATE.tmp" "$STATE"
 # inject .signing and the (possibly promoted) .sev back into it.
 ENRICH="$HOME/.local/bin/osquery-enrich-finding.sh"
 
-# Default-deny launch-item allowlist: labels listed here are known-good and are
-# dropped from the quiet #osquery channel (never from #priority — see the
-# CRIT-exempt check in the loop). Load once; fail-open if the file is missing or
-# unreadable (suppress nothing). Strip comments/whitespace/blank lines.
-ALLOWLIST_FILE="${OSQUERY_LAUNCH_ALLOWLIST:-$HOME/.config/osquery/launch-allowlist.txt}"
+# The launchd page-allowlist: labels whose new *user* LaunchAgents are known-good
+# and fully suppressed (neither page nor digest). Curated by the one writer,
+# osquery-allowlist.sh, which shares this exact path + env (reader == writer — a
+# mismatch makes every allow a silent no-op). Load once; fail-open if the file is
+# missing/unreadable (suppress nothing). Strip comments/whitespace/blank lines.
+ALLOWLIST_FILE="${OSQUERY_LAUNCHD_ALLOWLIST:-$HOME/.config/osquery/page-launchd-allowlist.txt}"
 allow_set=""
 if [[ -r $ALLOWLIST_FILE ]]; then
   allow_set=$(sed -e 's/#.*//' -e 's/[[:space:]]//g' "$ALLOWLIST_FILE" | grep -v '^$' || true)
@@ -209,6 +210,9 @@ while IFS= read -r obj; do
         /System/Library/*) continue ;;
         */LaunchDaemons/*) sev="CRIT" ;;
         *)
+          # A known-good user LaunchAgent (label in the page-allowlist) is fully
+          # suppressed; an unknown one digests for the daily review.
+          _allowlisted "$lbl" && continue
           _digest_append "$obj"
           continue
           ;;
@@ -242,17 +246,6 @@ while IFS= read -r obj; do
     rc=0
     sig=$("$ENRICH" "$ep" 2>/dev/null) || rc=$?
     [[ $rc -eq 10 && $sev == NOTICE ]] && sev="CRIT"
-  fi
-  # Default-deny allowlist: drop a known-good launch item from #osquery. Checked
-  # AFTER enrichment so a promoted CRIT (an untrusted binary behind an allowlisted
-  # label) is never suppressed — the allowlist only quiets the non-CRIT channel.
-  if [[ $sev != "CRIT" ]]; then
-    mk=""
-    case "$q" in
-      persistence_launchd | persistence_startup_items_crontab) mk="$lbl" ;;
-      file_events_recent) [[ $cat == "launch_agents" || $cat == "launch_daemons" ]] && mk=$(basename "$ep" .plist) ;;
-    esac
-    [[ -n $mk ]] && _allowlisted "$mk" && continue
   fi
   obj=$(jq -c --arg sev "$sev" --arg sig "$sig" \
     '.sev = $sev | (if $sig == "" then . else .signing = $sig end)' <<<"$obj")

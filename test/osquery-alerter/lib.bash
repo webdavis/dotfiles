@@ -39,6 +39,8 @@ STUB
   export SEND_ALERT_LOG="$HARNESS_HOME/send_alert.log"
   : >"$SEND_ALERT_LOG"
   export OSQUERY_DIGEST_STORE="$HARNESS_HOME/.local/state/osquery-digest-spool/digest.ndjson"
+  mkdir -p "$HARNESS_HOME/.config/osquery"
+  export OSQUERY_LAUNCHD_ALLOWLIST="$HARNESS_HOME/.config/osquery/page-launchd-allowlist.txt"
 }
 
 teardown_harness() { [[ -n ${HARNESS_HOME:-} ]] && rm -rf "$HARNESS_HOME"; }
@@ -132,6 +134,7 @@ run_alerter() {
     OSQUERY_RESULTS_LOG="$results_log" \
     OSQUERY_RESULTS_OFFSET="$HARNESS_HOME/.local/state/osquery-results-offset" \
     OSQUERY_DIGEST_STORE="$OSQUERY_DIGEST_STORE" \
+    OSQUERY_LAUNCHD_ALLOWLIST="$OSQUERY_LAUNCHD_ALLOWLIST" \
     bash "$ALERTER"
 }
 
