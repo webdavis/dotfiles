@@ -66,3 +66,15 @@ teardown() { teardown_harness; }
   [ "$status" -eq 0 ]
   assert_no_dispatch
 }
+
+@test "T-DIGM-e2e: a digested finding flows alerter -> spool -> builder" {
+  # The alerter digests a sysext (writes one spool line, dispatches nothing); the
+  # builder then renders it. Proves _digest_append and the builder agree on field
+  # names (.identity), end to end.
+  run_alerter "$(row pack_intrusion-detection_system_extensions_new added 1 '{"identifier":"io.example.ext","team":"TEAMID"}')"
+  assert_digest_count 1
+  assert_no_dispatch
+  run_digest
+  assert_digest_sent
+  assert_digest_body_has 'io.example.ext'
+}
