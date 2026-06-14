@@ -13,6 +13,7 @@ alias n := format-nix
 alias t := lint-toml
 alias j := lint-json
 alias y := lint-yaml
+alias T := test
 alias d := diff
 alias a := apply-no-auth
 alias c := check
@@ -44,6 +45,10 @@ lint-json:
 
 lint-yaml:
   nix develop .#run --command ./scripts/lint.sh -y
+
+# Run the test suites (bats for the osquery alerter).
+test:
+  nix develop .#run --command bats --recursive test/
 
 diff:
   nix develop .#run --command chezmoi diff --exclude=templates
