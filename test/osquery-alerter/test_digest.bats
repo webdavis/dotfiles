@@ -20,3 +20,11 @@ teardown() { teardown_harness; }
   assert_no_page
   assert_digest_count 1
 }
+
+@test "T-DIG-screenlock: a screenlock OFF row digests, does not page" {
+  # Posture drift (low actionability). Delivery on Dresden still pending the
+  # "does the query actually emit?" confirmation (tier matrix row 16).
+  run_alerter "$(row pack_security-policy-regression_screenlock_state added 1 '{"enabled":"0"}')"
+  assert_no_page
+  assert_digest_count 1
+}

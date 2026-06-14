@@ -220,6 +220,11 @@ while IFS= read -r obj; do
       _digest_append "$obj"
       continue
       ;;
+    # Screen lock off is posture drift, not an intrusion — low actionability.
+    screenlock_state | screenlock_off)
+      _digest_append "$obj"
+      continue
+      ;;
     # file_events fans out by category: sudoers churns heavily (visudo / chezmoi
     # atomic writes), so it digests. Page-tier categories (authorized_keys,
     # sshd_config) fall through to the legacy CRIT path until their own arms land.
