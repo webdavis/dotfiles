@@ -24,6 +24,15 @@ teardown() { teardown_harness; }
   assert_digest_count 0
 }
 
+@test "T-NEG-sharing-off: a remote-access service turning OFF (removed row) does not page" {
+  # The query emits a row per ENABLED service, so a removed row = a service turning
+  # OFF (good news). Only an ON transition (added) is page-worthy; a removed row must
+  # not page "service enabled" for a service that just got disabled.
+  run_alerter "$(row pack_security-policy-regression_remote_access_sharing_state removed 1 '{"service":"screen_sharing"}')"
+  assert_no_page
+  assert_digest_count 0
+}
+
 @test "T-PAGE-filevault-off: a genuine FileVault-off (differential filevault_off) pages (issue #18)" {
   # filevault_off emits one constant row only when NO APFS volume is encrypted. As a
   # differential query its off-row is logged "added" to results.log — the path the

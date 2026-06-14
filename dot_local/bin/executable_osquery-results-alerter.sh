@@ -238,8 +238,15 @@ while IFS= read -r obj; do
     # A high-risk remote-access service (screen sharing, remote management, remote
     # apple events, internet sharing) newly enabled — a remote-control path opened
     # into this Mac. SSH/Remote Login is the operator's own access path and is
-    # excluded by the query, so anything this emits is page-worthy.
-    remote_access_sharing_state) sev="CRIT" ;;
+    # excluded by the query. The query emits a row per ENABLED service, so an
+    # "added" row is an ON transition (page); a "removed" row is a service turning
+    # OFF (good news) → log-only, never a "service enabled" page.
+    remote_access_sharing_state)
+      case "$(jq -r '.act' <<<"$obj")" in
+        added) sev="CRIT" ;;
+        *) continue ;;
+      esac
+      ;;
     # Endpoint-Security launchd writes are forensic enrichment only (the writer
     # process), not a deliverable signal on their own. Log-only.
     es_launchd_writes) continue ;;
