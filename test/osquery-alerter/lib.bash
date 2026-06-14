@@ -27,8 +27,10 @@ ALERTER="${BATS_TEST_DIRNAME}/../../dot_local/bin/executable_osquery-results-ale
 setup_harness() {
   HARNESS_HOME="$(mktemp -d)"
   mkdir -p "$HARNESS_HOME/.local/bin" "$HARNESS_HOME/.local/log/osquery" "$HARNESS_HOME/.local/state"
-  printf '%s\n' 'send_alert() { printf "%s\t%s\t%s\n" "$1" "$2" "$3" >>"$SEND_ALERT_LOG"; }' \
-    >"$HARNESS_HOME/.local/bin/osquery-alert-dispatch.sh"
+  cat >"$HARNESS_HOME/.local/bin/osquery-alert-dispatch.sh" <<'STUB'
+# Flatten the (multi-line) detail to one physical line so a dispatch is one record.
+send_alert() { printf '%s\t%s\t%s\n' "$1" "$2" "${3//$'\n'/ }" >>"$SEND_ALERT_LOG"; }
+STUB
   export SEND_ALERT_LOG="$HARNESS_HOME/send_alert.log"
   : >"$SEND_ALERT_LOG"
 }

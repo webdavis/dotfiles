@@ -87,6 +87,7 @@ raw_findings=$(printf '%s\n' "$new_lines" | jq -rR '
     or (.action == "currently-off" and (.name | startswith("pack_security-policy-regression_")));
   def sev:
     if protection_off
+       or (.name == "new_admin_user")
        or (.name == "pack_intrusion-detection_suid_bin_unexpected")
        or (.name == "file_events_recent" and ((.columns.category // "") | test("^(ssh|sudoers|sshd_config)$")))
     then "CRIT"
@@ -104,8 +105,10 @@ raw_findings=$(printf '%s\n' "$new_lines" | jq -rR '
   (if .action == "snapshot"
    then (.name as $n | .snapshot[]? | {name: $n, action: "currently-off", columns: .})
    else . end)
-  | select(.name != null and ((.name | startswith("pack_")) or (.name == "file_events_recent") or (.name == "es_launchd_writes")))
+  | select(.name != null and ((.name | startswith("pack_")) or (.name == "file_events_recent") or (.name == "es_launchd_writes") or (.name == "new_admin_user")))
   | select((.columns.target_path // "") | test("/\\.renameio-TempDir") | not)
+  # Discard the counter==0 baseline (first-observation) row — calibration, not a real event.
+  | select((.counter // 1) != 0)
   | (.name | sub("^pack_[^_]+_"; "")) as $q
   | (.action // "changed") as $act
   # The path the enricher should inspect (a plist, bundle, or binary) per query
