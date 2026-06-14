@@ -8,9 +8,10 @@ load lib
 setup() { setup_harness; }
 teardown() { teardown_harness; }
 
-@test "T-PAGE-exposure: an agent port bound off-loopback pages" {
-  run_alerter "$(row agent_exposure_changed added 1 '{"address":"0.0.0.0","port":"8644"}')"
-  assert_page_has 8644
+@test "T-PAGE-exposure: an agent/MCP service bound off-loopback pages (names the process)" {
+  run_alerter "$(row agent_exposure_changed added 1 '{"address":"0.0.0.0","port":"8000","name":"workspace-mcp"}')"
+  assert_page_has 8000
+  assert_page_has workspace-mcp
 }
 
 @test "T-PAGE-webhooksecret: a change to the alerter HMAC key pages" {
