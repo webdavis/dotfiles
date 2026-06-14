@@ -21,3 +21,22 @@ teardown() { teardown_harness; }
   run_alerter "$(row pack_security-policy-regression_remote_access_sharing_state added 1 '{"service":"screen_sharing"}')"
   assert_page_has screen_sharing
 }
+
+@test "T-PAGE-filevault-off: a genuine FileVault-off (differential filevault_off) pages (issue #18)" {
+  # filevault_off emits one constant row only when NO APFS volume is encrypted. As a
+  # differential query its off-row is logged "added" to results.log — the path the
+  # alerter reads — so a real disable now reaches #priority (the false-NEGATIVE half
+  # of #18: as a snapshot it went to snapshots.log, which the alerter never reads).
+  run_alerter "$(row pack_security-policy-regression_filevault_off added 1 '{"protection":"filevault"}')"
+  assert_page_has "FileVault turned OFF"
+}
+
+@test "T-NEG-filevault-churn: a removed filevault_state row (APFS volume churn) does NOT page (issue #18)" {
+  # The 2026-06-02 incident: a FileVault-on APFS volume (/dev/disk3s1, filevault_status
+  # "on", encrypted "1") left the differential set while the data volume stayed
+  # encrypted. A removed filevault_state row must NOT be read as FileVault-off — that
+  # was the false-POSITIVE half of #18. It now falls through to NOTICE (log-only).
+  run_alerter "$(row pack_security-policy-regression_filevault_state removed 1 '{"name":"/dev/disk3s1","filevault_status":"on","encryption_status":"encrypted","encrypted":"1"}')"
+  assert_no_page
+  assert_digest_count 0
+}

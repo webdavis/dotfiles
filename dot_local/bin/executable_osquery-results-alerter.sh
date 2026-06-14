@@ -76,20 +76,31 @@ if [[ $span -gt 0 ]]; then
 fi
 raw_findings=$(printf '%s\n' "$new_lines" | jq -rR '
   . as $line | (try ($line | fromjson) catch empty) |
-  # A security-policy row is CRITICAL only when the protection turned OFF, not
-  # on every change. For the boolean states that is an "added" row carrying the
-  # off value; for filevault (the query returns only encrypted volumes) it is a
-  # "removed" row — a volume left the encrypted set. Re-enables, version bumps,
-  # sharing changes, and the paired "removed" old-value rows fall through to
-  # NOTICE. (sharing cannot be direction-classified from a single row, so it is
-  # always NOTICE; the poller covers firewall/Gatekeeper transitions too.)
+  # A security-policy row is CRITICAL only when the protection turned OFF, not on
+  # every change. For the boolean states that is an "added" row carrying the off
+  # value. Re-enables, version bumps, sharing changes, and the paired "removed"
+  # old-value rows fall through to NOTICE (log-only). Firewall/Gatekeeper pack rows
+  # are log-only at the gate — the dedicated 60s poller owns those pages.
+  #
+  # FileVault is NOT detected via filevault_state. That query emits one row per
+  # FileVault-on APFS volume, and on sealed-system-volume macOS a single row can
+  # leave the differential set (a base system volume unmounting, a snapshot
+  # replacing it, APFS identity churn) while the data-bearing volume stays
+  # encrypted — so "one filevault_state row removed" does NOT mean FileVault is off
+  # (issue #18). A removed filevault_state row falls through to NOTICE.
+  #
+  # Genuine FileVault-off is detected by filevault_off: one constant row only when
+  # NO APFS volume is encrypted. It is a DIFFERENTIAL query (not a snapshot) on
+  # purpose — snapshot output goes to osqueryd.snapshots.log, which this alerter
+  # does not read, so the earlier snapshot form never reached here (the
+  # false-negative half of #18). As a differential its off-row is logged "added"
+  # to results.log, matched below; the constant row is immune to APFS churn.
   def protection_off:
     (.name == "pack_security-policy-regression_firewall_state" and .action == "added" and (.columns.global_state // "") == "0")
     or (.name == "pack_security-policy-regression_gatekeeper_state" and .action == "added" and (.columns.assessments_enabled // "") == "0")
     or (.name == "pack_security-policy-regression_sip_state" and .action == "added" and (.columns.enabled // "") == "0")
     or (.name == "pack_security-policy-regression_screenlock_state" and .action == "added" and (.columns.enabled // "") == "0")
-    or (.name == "pack_security-policy-regression_filevault_state" and .action == "removed")
-    or (.action == "currently-off" and (.name | startswith("pack_security-policy-regression_")));
+    or (.name == "pack_security-policy-regression_filevault_off" and .action == "added");
   def sev:
     if protection_off
        or (.name == "new_admin_user")
@@ -104,13 +115,7 @@ raw_findings=$(printf '%s\n' "$new_lines" | jq -rR '
        or (.name == "es_launchd_writes")
     then "NOTICE"
     else "INFO" end;
-  # Snapshot rows (absolute-state floor *_off queries) log under a "snapshot"
-  # array with action "snapshot"; explode each into a synthetic "currently-off"
-  # row so the rest of the pipeline treats it uniformly. Empty snapshot = silent.
-  (if .action == "snapshot"
-   then (.name as $n | .snapshot[]? | {name: $n, action: "currently-off", columns: .})
-   else . end)
-  | select(.name != null and ((.name | startswith("pack_")) or (.name == "file_events_recent") or (.name == "es_launchd_writes") or (.name == "new_admin_user") or (.name == "persistence_launchd") or (.name == "agent_exposure_changed") or (.name == "agent_authfile_changed") or (.name == "agent_binary_changed")))
+  select(.name != null and ((.name | startswith("pack_")) or (.name == "file_events_recent") or (.name == "es_launchd_writes") or (.name == "new_admin_user") or (.name == "persistence_launchd") or (.name == "agent_exposure_changed") or (.name == "agent_authfile_changed") or (.name == "agent_binary_changed")))
   | select((.columns.target_path // "") | test("/\\.renameio-TempDir") | not)
   # Discard the counter==0 baseline (first-observation) row — calibration, not a real event.
   | select((.counter // 1) != 0)
@@ -264,7 +269,7 @@ while IFS= read -r obj; do
     # forensics, never paged or digested).
     agent_binary_changed) continue ;;
     # Screen lock off is posture drift, not an intrusion — low actionability.
-    screenlock_state | screenlock_off)
+    screenlock_state)
       _digest_append "$obj"
       continue
       ;;
