@@ -21,6 +21,10 @@ store="${OSQUERY_DIGEST_STORE:-$HOME/.local/state/osquery-digest-spool/digest.nd
 work_file="$store.$(date -u +%s).build"
 mv -f "$store" "$work_file" 2>/dev/null || exit 0
 
+# If any step below aborts before the send, restore the batch so the next daily
+# run retries it — a silently-dropped digest is invisible to this user.
+trap 'mv -f "$work_file" "$store" 2>/dev/null || true' ERR
+
 # Guard 2: a whitespace-only or zero-byte store has no real records → silent.
 grep -q '[^[:space:]]' "$work_file" 2>/dev/null || {
   rm -f "$work_file"
@@ -32,13 +36,19 @@ item_count=$(grep -c . "$work_file" 2>/dev/null || echo 0)
 # Group findings by detector: one header per detector with a count, up to ten
 # bullets, then a "+K more" roll-up for the rest. Cap the whole body well under
 # Discord's 2000-character message limit.
-body=$(jq -rs '
-  group_by(.detector)[] as $group
+# Parse per line and skip any unparseable (torn/partial) line instead of slurping
+# the whole file as one document: a single malformed line — an interrupted
+# _digest_append — must not abort the run and lose the day's digest. Mirrors the
+# alerter's own resilient results.log reader.
+body=$(jq -rRs '
+  split("\n")
+  | map(select(length > 0) | (try fromjson catch empty))
+  | group_by(.detector)[] as $group
   | "**\($group[0].detector)** (\($group | length))",
     ($group[0:10][] | "- \(.identity) — \(.summary)"),
     (if ($group | length) > 10 then "… +\(($group | length) - 10) more" else empty end),
     ""
-' "$work_file" 2>/dev/null | head -c 1800)
+' "$work_file" 2>/dev/null | head -c 1800) || true
 
 title="🗒️ osquery daily digest · $(date -u +%Y-%m-%d) · ${item_count} item(s)"
 

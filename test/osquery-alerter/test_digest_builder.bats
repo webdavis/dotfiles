@@ -67,6 +67,24 @@ teardown() { teardown_harness; }
   assert_no_dispatch
 }
 
+@test "T-DIGM-torn-line: a malformed spool line is skipped; the day's digest still sends" {
+  # A SIGKILLed / ENOSPC-interrupted _digest_append can leave one torn (non-JSON)
+  # line in the spool. The builder must skip it, NOT abort the whole run under
+  # set -e + pipefail and silently lose the day's findings — empty-suppression
+  # would make that total loss indistinguishable from "nothing happened".
+  mkdir -p "$(dirname "$OSQUERY_DIGEST_STORE")"
+  {
+    printf '%s\n' "$(digest_record persistence_launchd com.good.one 'persistence_launchd com.good.one')"
+    printf '%s\n' '{"detector":"persistence_launchd","identity":"com.tor'
+    printf '%s\n' "$(digest_record persistence_launchd com.good.two 'persistence_launchd com.good.two')"
+  } >"$OSQUERY_DIGEST_STORE"
+  run run_digest
+  [ "$status" -eq 0 ]
+  assert_digest_sent
+  assert_digest_body_has 'com.good.one'
+  assert_digest_body_has 'com.good.two'
+}
+
 @test "T-DIGM-e2e: a digested finding flows alerter -> spool -> builder" {
   # The alerter digests a sysext (writes one spool line, dispatches nothing); the
   # builder then renders it. Proves _digest_append and the builder agree on field
