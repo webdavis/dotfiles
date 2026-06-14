@@ -17,6 +17,21 @@ teardown() { teardown_harness; }
   assert_digest_count 0
 }
 
+@test "T-LOG-firewall-pack-no-page: a firewall_state OFF pack row is log-only (the poller owns the page)" {
+  # The security-policy pack also runs a differential firewall_state query. The tier
+  # matrix routes it to log-only because the dedicated firewall/Gatekeeper poller (60s)
+  # is the page owner — paging here too would fire TWO #priority pages for one disable.
+  run_alerter "$(row pack_security-policy-regression_firewall_state added 1 '{"global_state":"0","stealth_enabled":"1","logging_enabled":"1"}')"
+  assert_no_page
+  assert_digest_count 0
+}
+
+@test "T-LOG-gatekeeper-pack-no-page: a gatekeeper_state OFF pack row is log-only (the poller owns the page)" {
+  run_alerter "$(row pack_security-policy-regression_gatekeeper_state added 1 '{"assessments_enabled":"0","dev_id_enabled":"1"}')"
+  assert_no_page
+  assert_digest_count 0
+}
+
 @test "T-LOG-kext-no-deliver: a kext load/unload is never delivered" {
   # The kernel_extensions table lists LOADED kexts, which load/unload on demand —
   # a 657-event firehose. Wrong signal: not page, not digest, not even #osquery.

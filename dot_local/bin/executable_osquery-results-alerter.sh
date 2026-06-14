@@ -218,6 +218,12 @@ while IFS= read -r obj; do
           ;;
       esac
       ;;
+    # Firewall and Gatekeeper transitions are owned by the dedicated 60s poller
+    # (osquery-firewall-gatekeeper-monitor.sh), which pages the moment a protection
+    # flips off. The security-policy pack ALSO runs differential firewall_state /
+    # gatekeeper_state queries; routing those to log-only here keeps one disable
+    # event from firing a second #priority page. The poller is the single owner.
+    firewall_state | gatekeeper_state) continue ;;
     # SIP is intentionally off on this developer box: an on->off transition cannot
     # occur, so the snapshot floor is pure noise. Log-only (no page, no digest).
     sip_state) continue ;;
