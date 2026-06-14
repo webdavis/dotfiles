@@ -13,3 +13,4 @@ com.webdavis.osquery-results-alerter
 com.webdavis.osquery-firewall-gatekeeper-monitor
 com.webdavis.osquery-uptime-watchdog
 com.webdavis.osquery-digest
+com.webdavis.osquery-tailscale-monitor

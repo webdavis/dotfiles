@@ -23,6 +23,7 @@ file_event_row() {
 
 ALERTER="${BATS_TEST_DIRNAME}/../../dot_local/bin/executable_osquery-results-alerter.sh"
 POLLER="${BATS_TEST_DIRNAME}/../../dot_local/bin/executable_osquery-firewall-gatekeeper-monitor.sh"
+TAILSCALE_MONITOR="${BATS_TEST_DIRNAME}/../../dot_local/bin/executable_osquery-tailscale-monitor.sh"
 DISPATCH="${BATS_TEST_DIRNAME}/../../dot_local/bin/executable_osquery-alert-dispatch.sh"
 DIGEST_BUILDER="${BATS_TEST_DIRNAME}/../../dot_local/bin/executable_osquery-digest.sh"
 ALLOWLIST_TOOL="${BATS_TEST_DIRNAME}/../../dot_local/bin/executable_osquery-allowlist.sh"
@@ -119,6 +120,28 @@ assert_allowlist_label_count() {
 digest_record() {
   jq -cn --arg detector "$1" --arg identity "$2" --arg summary "$3" \
     '{timestamp:"2026-06-13T00:00:00Z",detector:$detector,category:"",identity:$identity,action:"added",summary:$summary}'
+}
+
+# Tailscale funnel poller harness: a fake `tailscale` that prints $TAILSCALE_FUNNEL_OUTPUT.
+setup_tailscale_harness() {
+  setup_harness
+  cat >"$HARNESS_HOME/.local/bin/tailscale" <<'SHIM'
+#!/usr/bin/env bash
+printf '%s\n' "$TAILSCALE_FUNNEL_OUTPUT"
+SHIM
+  chmod +x "$HARNESS_HOME/.local/bin/tailscale"
+  TAILSCALE_STATE="$HARNESS_HOME/.local/state/osquery-tailscale-funnel"
+}
+
+# run_tailscale_monitor <prev-state|""> <funnel-output> — seed prior state (empty =
+# first run), set the fake funnel output, run the real poller.
+run_tailscale_monitor() {
+  if [ -n "$1" ]; then printf '%s\n' "$1" >"$TAILSCALE_STATE"; else rm -f "$TAILSCALE_STATE"; fi
+  HOME="$HARNESS_HOME" \
+    OSQUERY_TAILSCALE_BIN="$HARNESS_HOME/.local/bin/tailscale" \
+    OSQUERY_TAILSCALE_STATE="$TAILSCALE_STATE" \
+    TAILSCALE_FUNNEL_OUTPUT="$2" \
+    bash "$TAILSCALE_MONITOR"
 }
 
 # Seed the digest store with NDJSON lines (each argument is one record).

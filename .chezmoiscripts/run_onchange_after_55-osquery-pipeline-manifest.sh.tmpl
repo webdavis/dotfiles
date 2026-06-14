@@ -14,10 +14,12 @@
 # {{ include "dot_local/bin/executable_osquery-uptime-watchdog.sh" | sha256sum }}
 # {{ include "dot_local/bin/executable_osquery-digest.sh" | sha256sum }}
 # {{ include "dot_local/bin/executable_osquery-allowlist.sh" | sha256sum }}
+# {{ include "dot_local/bin/executable_osquery-tailscale-monitor.sh" | sha256sum }}
 # {{ include "Library/LaunchAgents/com.webdavis.osquery-results-alerter.plist.tmpl" | sha256sum }}
 # {{ include "Library/LaunchAgents/com.webdavis.osquery-firewall-gatekeeper-monitor.plist.tmpl" | sha256sum }}
 # {{ include "Library/LaunchAgents/com.webdavis.osquery-uptime-watchdog.plist.tmpl" | sha256sum }}
 # {{ include "Library/LaunchAgents/com.webdavis.osquery-digest.plist.tmpl" | sha256sum }}
+# {{ include "Library/LaunchAgents/com.webdavis.osquery-tailscale-monitor.plist.tmpl" | sha256sum }}
 
 set -euo pipefail
 
@@ -29,10 +31,12 @@ files=(
   "$HOME/.local/bin/osquery-uptime-watchdog.sh"
   "$HOME/.local/bin/osquery-digest.sh"
   "$HOME/.local/bin/osquery-allowlist.sh"
+  "$HOME/.local/bin/osquery-tailscale-monitor.sh"
   "$HOME/Library/LaunchAgents/com.webdavis.osquery-results-alerter.plist"
   "$HOME/Library/LaunchAgents/com.webdavis.osquery-firewall-gatekeeper-monitor.plist"
   "$HOME/Library/LaunchAgents/com.webdavis.osquery-uptime-watchdog.plist"
   "$HOME/Library/LaunchAgents/com.webdavis.osquery-digest.plist"
+  "$HOME/Library/LaunchAgents/com.webdavis.osquery-tailscale-monitor.plist"
 )
 
 manifest="$(mktemp)"
