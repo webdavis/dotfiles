@@ -35,6 +35,8 @@ setup_harness() {
 # Flatten the (multi-line) detail to one physical line so a dispatch is one record.
 # Fields: severity, title, detail, sound (sound matters for the silent digest tier).
 send_alert() { printf '%s\t%s\t%s\t%s\n' "$1" "$2" "${3//$'\n'/ }" "${4-}" >>"$SEND_ALERT_LOG"; }
+# The alerter drains the spool at startup; H1 isn't testing delivery, so it's a no-op.
+_drain_spool() { :; }
 STUB
   export SEND_ALERT_LOG="$HARNESS_HOME/send_alert.log"
   : >"$SEND_ALERT_LOG"
@@ -160,20 +162,68 @@ setup_dispatch_harness() {
   HARNESS_HOME="$(mktemp -d)"
   mkdir -p "$HARNESS_HOME/bin" "$HARNESS_HOME/.local/log/osquery"
   printf '#!/usr/bin/env bash\nexit 0\n' >"$HARNESS_HOME/bin/alerter"
+  # curl shim: record the invocation, then emit the next queued http code (one per
+  # line in $CURL_CODES_FILE, popped per call), defaulting to 200 when the queue is
+  # empty — so a test can script "503 503 503 then success".
   cat >"$HARNESS_HOME/bin/curl" <<'SHIM'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$CURL_LOG"
-printf '200'
+code=200
+if [ -s "$CURL_CODES_FILE" ]; then
+  code=$(head -1 "$CURL_CODES_FILE")
+  tail -n +2 "$CURL_CODES_FILE" >"$CURL_CODES_FILE.tmp" 2>/dev/null && mv "$CURL_CODES_FILE.tmp" "$CURL_CODES_FILE"
+fi
+printf '%s' "$code"
 SHIM
   chmod +x "$HARNESS_HOME/bin/alerter" "$HARNESS_HOME/bin/curl"
   export CURL_LOG="$HARNESS_HOME/curl.log"
   : >"$CURL_LOG"
+  export CURL_CODES_FILE="$HARNESS_HOME/curl_codes"
+  : >"$CURL_CODES_FILE"
   export PATH="$HARNESS_HOME/bin:$PATH"
   export OSQUERY_WEBHOOK_SECRET="testsecret"
   export OSQUERY_DELIVERY_LOG="$HARNESS_HOME/.local/log/osquery/webhook-delivery.log"
+  export OSQUERY_SPOOL_DIR="$HARNESS_HOME/.local/state/osquery-spool"
+  export OSQUERY_RETRY_BACKOFF_BASE=0 # don't really sleep between retries in tests
   HOME="$HARNESS_HOME"
   # shellcheck source=/dev/null
   source "$DISPATCH"
+}
+
+# Queue the http codes the curl shim will return, one per send/drain POST.
+set_curl_codes() { printf '%s\n' "$@" >"$CURL_CODES_FILE"; }
+
+# Drain the spool via the real dispatcher's _drain_spool (sourced in setup).
+run_drain() { _drain_spool; }
+
+# Count spooled page files (one file per undelivered page).
+assert_spool_count() {
+  local n=0
+  [[ -d $OSQUERY_SPOOL_DIR ]] && n=$(find "$OSQUERY_SPOOL_DIR" -type f 2>/dev/null | wc -l | tr -d ' ')
+  if [[ $n -ne $1 ]]; then
+    echo "expected $1 spooled file(s), got $n: $(ls -la "$OSQUERY_SPOOL_DIR" 2>/dev/null)" >&2
+    return 1
+  fi
+}
+
+# A path has the expected octal permission bits (GNU stat in the nix shell; BSD fallback).
+assert_mode() {
+  local mode
+  mode=$(stat -c '%a' "$2" 2>/dev/null || stat -f '%Lp' "$2" 2>/dev/null)
+  if [[ $mode != "$1" ]]; then
+    echo "expected mode $1 on $2, got $mode" >&2
+    return 1
+  fi
+}
+
+# Count webhook POSTs the shim recorded.
+assert_post_count() {
+  local n
+  n=$(grep -c 'POST' "$CURL_LOG" 2>/dev/null || echo 0)
+  if [[ $n -ne $1 ]]; then
+    echo "expected $1 POST(s), got $n: $(cat "$CURL_LOG")" >&2
+    return 1
+  fi
 }
 
 # A webhook POST went to a URL containing <substring>.

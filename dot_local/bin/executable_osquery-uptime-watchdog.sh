@@ -20,6 +20,11 @@ AGENTS=(
 # shellcheck source=/dev/null
 source "$HOME/.local/bin/osquery-alert-dispatch.sh"
 
+# Backstop drain: the alerter flushes the spool on every results.log change, but if
+# nothing is changing this tick (every 15 min) still replays any page spooled while
+# the gateway was down. `|| true` keeps it off this watchdog's own failure path.
+_drain_spool || true
+
 problems=()
 
 # 1) osqueryd present AND answering — a wedged daemon passes pgrep but can't

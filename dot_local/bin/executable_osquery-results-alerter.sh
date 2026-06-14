@@ -18,6 +18,11 @@ STATE="${OSQUERY_RESULTS_OFFSET:-$HOME/.local/state/osquery-results-offset}"
 # shellcheck source=/dev/null
 source "$HOME/.local/bin/osquery-alert-dispatch.sh"
 
+# Flush any pages spooled while the gateway was down. `|| true` keeps the drain off
+# the detection path: a delivery feature must never abort the alerter (set -euo
+# pipefail) before it reads results.log.
+_drain_spool || true
+
 mkdir -p "$(dirname "$STATE")"
 [[ -f $LOG ]] || exit 0
 
