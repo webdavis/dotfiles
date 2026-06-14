@@ -378,25 +378,13 @@ render=$(printf '%s\n' "$enriched" | jq -s '
   }
 ')
 
-# Dispatch each non-empty channel. #priority carries CRIT only; #osquery NOTICE/INFO.
+# v2 dispatches ONLY the #priority page (confirmed CRIT). Everything non-CRIT is
+# either digested upstream by the gate or stays log-only on disk — there is no
+# #osquery notice/info channel.
 pcount=$(jq -r '.pcount' <<<"$render")
-ocount=$(jq -r '.ocount' <<<"$render")
 
 if [[ $pcount -gt 0 ]]; then
   title="🔴 **CRITICAL**"
   if [[ $pcount -gt 1 ]]; then title="🔴 **CRITICAL** · $pcount"; fi
   send_alert CRIT "$title" "$(jq -r '.pbody' <<<"$render")" "Sosumi"
-fi
-
-if [[ $ocount -gt 0 ]]; then
-  if [[ $(jq -r '.onotice' <<<"$render") == "true" ]]; then
-    osev="NOTICE"
-    otitle="🟡 **Notice** · $ocount"
-    osound="Glass"
-  else
-    osev="INFO"
-    otitle="🔵 **Info** · $ocount"
-    osound=""
-  fi
-  send_alert "$osev" "$otitle" "$(jq -r '.obody' <<<"$render")" "$osound"
 fi

@@ -38,3 +38,14 @@ teardown() { teardown_harness; }
   assert_no_dispatch
   assert_digest_count 0
 }
+
+@test "T-LOG-default-silent: there is no #osquery channel — non-page findings are silent" {
+  # v2 dispatches ONLY confirmed criticals (#priority). Everything else digests or
+  # stays log-only. A NOTICE (new crontab entry) and an INFO (app install) must
+  # produce zero delivery — not a NOTICE/INFO line to a quiet channel.
+  run_alerter "$(row pack_intrusion-detection_persistence_startup_items_crontab added 1 '{"name":"com.foo","command":"/bin/foo"}')"
+  assert_no_dispatch
+  run_alerter "$(row pack_installed-software-drift_installed_apps added 1 '{"name":"Foo.app","bundle_short_version":"1.0"}')"
+  assert_no_dispatch
+  assert_digest_count 0
+}
