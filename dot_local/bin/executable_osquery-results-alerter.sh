@@ -309,25 +309,6 @@ render=$(printf '%s\n' "$enriched" | jq -s '
   def keyid:
     .cols as $c |
     ($c.label // $c.identifier // $c.name // $c.target_path // $c.path // $c.username // "?");
-  # Structured key:value segments for an #osquery single-line entry. Signing rides as
-  # its own segment ("signed: ..." / "UNSIGNED"), not under a redundant "signing:" key.
-  def segs:
-    .cols as $c | (.signing // null) as $sig |
-    (if $sig then [$sig] else [] end) as $sg |
-    if .q == "recent_logins" then ["user: \(($c.username // "?") | code)", "from: \(($c.host // "local") | code)"]
-    elif .q == "listening_ports_non_loopback" then ["process: \(($c.name // "?") | code)", "address: \(("\($c.address // "?"):\($c.port // "?")") | code)"]
-    elif .q == "installed_apps" then ["name: \(($c.name // "?") | code)"] + (if ($c.bundle_short_version // "") != "" then ["version: \(($c.bundle_short_version) | code)"] else [] end)
-    elif .q == "homebrew_packages" then ["name: \(($c.name // "?") | code)", "version: \(($c.version // "?") | code)"]
-    elif (.q | test("_extensions$|_addons$")) then ["name: \(($c.name // "?") | code)", "identifier: \(($c.identifier // "?") | code)"]
-    elif .q == "persistence_launchd" then ["name: \(($c.label // "?") | code)", "program: \(($c.program // "?") | code)"] + $sg
-    elif .q == "persistence_launchd_overrides" then ["label: \(($c.label // "?") | code)", "key: \(($c.key // "?") | code)", "value: \(($c.value // "?") | code)"]
-    elif .q == "persistence_startup_items_crontab" then ["name: \(($c.name // "?") | code)", "command: \(($c.command // "?") | code)"] + $sg
-    elif .q == "system_extensions_new" then ["name: \(($c.identifier // "?") | code)", "team: \(($c.team // "?") | code)"] + $sg
-    elif .q == "kernel_extensions_new" then ["name: \(($c.name // "?") | code)"] + $sg
-    elif .q == "file_events_recent" then ["file: \(($c.target_path // "?") | code)", "action: \((.act) | code)"] + $sg
-    elif .q == "es_launchd_writes" then ["process: \(($c.path // "?") | code)", "wrote: \(($c.filename // $c.dest_filename // "?") | code)"] + $sg
-    elif (protname) != null then ["state: \((.act) | code)"]
-    else ["identifier: \((keyid) | code)"] end;
   # Decision-relevant "Label: value" lines for a #priority block. Values are wrapped
   # in Discord inline-code; an untrusted signing verdict is flagged and bolded.
   def fields:
@@ -364,17 +345,10 @@ render=$(printf '%s\n' "$enriched" | jq -s '
     else [] end;
   def block:
     (["**" + header + "**"] + fields + nextstep) | join("\n");
-  def line:
-    "- " + (if .sev == "NOTICE" then "🟡" else "🔵" end) + " **" + header + "** — " + (segs | join(" · "));
   ([.[] | select(.sev == "CRIT")]) as $crit |
-  ([.[] | select(.sev != "CRIT")] | sort_by(if .sev == "NOTICE" then 0 else 1 end)) as $rest |
   {
     pcount: ($crit | length),
-    ocount: ($rest | length),
-    onotice: (any($rest[]; .sev == "NOTICE")),
-    pbody: ($crit | map(block) | join("\n\n")),
-    obody: (($rest[0:12] | map(line) | join("\n"))
-      + (if ($rest | length) > 12 then "\n…\(($rest | length) - 12) more" else "" end))
+    pbody: ($crit | map(block) | join("\n\n"))
   }
 ')
 
