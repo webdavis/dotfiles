@@ -224,9 +224,11 @@ while IFS= read -r obj; do
     # The kernel_extensions table lists LOADED kexts (load/unload on demand) — a
     # firehose of hundreds of events. Wrong signal entirely; log-only.
     kernel_extensions_new) continue ;;
-    # Dead code in v1: never emits a real on->off transition, so any row is false
-    # assurance. Log-only until rebuilt as a Remote-Login/Screen-Sharing detector.
-    remote_access_sharing_state) continue ;;
+    # A high-risk remote-access service (screen sharing, remote management, remote
+    # apple events, internet sharing) newly enabled — a remote-control path opened
+    # into this Mac. SSH/Remote Login is the operator's own access path and is
+    # excluded by the query, so anything this emits is page-worthy.
+    remote_access_sharing_state) sev="CRIT" ;;
     # Endpoint-Security launchd writes are forensic enrichment only (the writer
     # process), not a deliverable signal on their own. Log-only.
     es_launchd_writes) continue ;;
@@ -319,7 +321,6 @@ render=$(printf '%s\n' "$enriched" | jq -s '
     elif (.q | test("^sip")) then "System Integrity Protection"
     elif (.q | test("^filevault")) then "FileVault"
     elif (.q | test("^screenlock")) then "Screen lock"
-    elif (.q | test("^remote_access_sharing")) then "Sharing"
     else null end;
   # Human header for a finding (kernel/system extensions matched before the generic
   # browser-extension regex so they keep their specific labels).
@@ -332,6 +333,7 @@ render=$(printf '%s\n' "$enriched" | jq -s '
     elif .q == "suid_bin_unexpected" then "New setuid root binary"
     elif .q == "agent_exposure_changed" then "Agent port exposed off-loopback"
     elif .q == "agent_authfile_changed" then "Agent credential changed"
+    elif .q == "remote_access_sharing_state" then "Remote-access service enabled"
     elif .q == "kernel_extensions_new" then "New kernel extension"
     elif .q == "system_extensions_new" then "New system extension"
     elif .q == "listening_ports_non_loopback" then "New network listener"
@@ -367,6 +369,7 @@ render=$(printf '%s\n' "$enriched" | jq -s '
     elif .q == "suid_bin_unexpected" then ["- **Path:** \(($c.path // "?") | code)"] + $sg + ["- **Owner:** \(($c.username // "?") | code)"]
     elif .q == "agent_exposure_changed" then ["- **Process:** \(($c.name // "?") | code)", "- **Address:** \(($c.address // "?") | code)", "- **Port:** \(($c.port // "?") | code)"]
     elif .q == "agent_authfile_changed" then ["- **File:** \((($c.path // "") | split("/") | last) | code)"]
+    elif .q == "remote_access_sharing_state" then ["- **Service:** \(($c.service // "?") | code)"]
     elif .q == "system_extensions_new" then ["- **Name:** \(($c.identifier // "?") | code)", "- **Team:** \(($c.team // "?") | code)"] + $sg
     elif .q == "kernel_extensions_new" then ["- **Name:** \(($c.name // "?") | code)", "- **Path:** \(($c.path // "?") | code)"] + $sg
     elif .q == "file_events_recent" then ["- **File:** \(($c.target_path // "?") | code)", "- **Action:** \(.act)"]
@@ -386,6 +389,8 @@ render=$(printf '%s\n' "$enriched" | jq -s '
       ["- Did you expose this? If not, an agent API is reachable **off-box** — close it now.", "- Re-bind it to 127.0.0.1 or block the port at the firewall."]
     elif .q == "agent_authfile_changed" then
       ["- Did you rotate this? If not, an attacker may forge or mute alerts, or hijack remote access — **investigate now**."]
+    elif .q == "remote_access_sharing_state" then
+      ["- Did you enable this? If not, someone opened a remote-control path into this Mac — **disable it now**.", "- System Settings → General → Sharing"]
     elif .q == "file_events_recent" then
       (if (.cols.category // "") == "pipeline_integrity"
        then ["- Did you just apply your dotfiles? If not, your **security tooling was modified** — investigate now.", "- **Compare:** " + (("shasum -a 256 \"" + $ep + "\"") | code)]
