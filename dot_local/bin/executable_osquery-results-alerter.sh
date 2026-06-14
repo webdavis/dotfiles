@@ -4,9 +4,9 @@
 # ~/.local/log/osquery/osqueryd.results.log changes. Reads new lines since the
 # last run (byte-offset state file), and surfaces every differential finding
 # from the scheduled packs (intrusion-detection, security-policy-regression,
-# installed-software-drift) AND the file-events query. Each batch becomes a
-# single notification, delivered to both the local notifier and the #osquery
-# Discord channel via osquery-alert-dispatch.sh.
+# installed-software-drift) AND the file-events query. A confirmed-critical batch
+# becomes one #priority page via osquery-alert-dispatch.sh; everything else digests
+# or stays log-only. v2 has no #osquery channel.
 #
 # Supersedes an earlier file-events-only notifier that watched the same log.
 
@@ -102,10 +102,14 @@ raw_findings=$(printf '%s\n' "$new_lines" | jq -rR '
     or (.name == "pack_security-policy-regression_screenlock_state" and .action == "added" and (.columns.enabled // "") == "0")
     or (.name == "pack_security-policy-regression_filevault_off" and .action == "added");
   def sev:
+    # file_events tiering is decided AUTHORITATIVELY by the gate file_events_recent
+    # arm below (authorized_keys / sshd_config page; sudoers / allowlist_file digest;
+    # pipeline_integrity page-or-silent; everything else log-only), so it is NOT
+    # pre-classified here. The old clause tested a non-existent ssh category and
+    # mis-marked sudoers CRIT — dead, misleading text that the gate already overrode.
     if protection_off
        or (.name == "new_admin_user")
        or (.name == "pack_intrusion-detection_suid_bin_unexpected")
-       or (.name == "file_events_recent" and ((.columns.category // "") | test("^(ssh|sudoers|sshd_config)$")))
     then "CRIT"
     elif (.name | startswith("pack_security-policy-regression_"))
        or (.name | test("^pack_intrusion-detection_persistence_"))
@@ -131,8 +135,8 @@ raw_findings=$(printf '%s\n' "$new_lines" | jq -rR '
       elif (.name | test("_system_extensions_new$")) then (.columns.bundle_path // .columns.path // "")
       elif (.name | test("_suid_bin_unexpected$")) then (.columns.path // "")
       else "" end) | gsub("[\t\n]"; " ")) as $ep
-  # Emit one compact JSON object per finding; the bash side enriches, then renders
-  # it into a #priority block or an #osquery line via the header/field/step maps.
+  # Emit one compact JSON object per finding; the bash side enriches, gates it to a
+  # tier, then renders a CRIT into a #priority block via the header/field/step maps.
   | {sev: sev, q: $q, act: $act, cols: (.columns // {}), ep: $ep} | @json
 ' 2>/dev/null || true)
 
@@ -323,10 +327,10 @@ enriched=${enriched%$'\n'}
 
 [[ -z $enriched ]] && exit 0
 
-# Render both channel bodies in one jq pass. #priority gets focused labeled blocks
-# (header + decision-relevant fields + one "→" next step); #osquery gets one compact
-# humanized line per finding. Layout follows the user's ADHD surfacing research: one
-# thing, glanceable, minimal fields, ending in a single action, no raw query jargon.
+# Render the #priority page body in one jq pass: focused labeled blocks (header +
+# decision-relevant fields + one "→" next step). Layout follows the user's ADHD
+# surfacing research: one thing, glanceable, minimal fields, ending in a single
+# action, no raw query jargon. v2 renders only this body — there is no #osquery line.
 render=$(printf '%s\n' "$enriched" | jq -s '
   # Wrap a value in Discord inline-code backticks. The value is attacker-controlled
   # (launchd label, path); strip backticks so it cannot break out of the inline-code
