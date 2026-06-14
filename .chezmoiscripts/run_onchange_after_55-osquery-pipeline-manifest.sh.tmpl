@@ -19,6 +19,9 @@
 # {{ include "Library/LaunchAgents/com.webdavis.osquery-firewall-gatekeeper-monitor.plist.tmpl" | sha256sum }}
 # {{ include "Library/LaunchAgents/com.webdavis.osquery-uptime-watchdog.plist.tmpl" | sha256sum }}
 # {{ include "Library/LaunchAgents/com.webdavis.osquery-digest.plist.tmpl" | sha256sum }}
+# digest schedule: {{ .osquery.digestHour }}:{{ .osquery.digestMinute }} — the digest plist renders its
+# Hour/Minute from this data; include hashes the source, so re-key the manifest on the data too, else a
+# digestHour change re-renders the plist while this manifest keeps the old hash → pipeline_integrity page.
 # {{ include "Library/LaunchAgents/com.webdavis.osquery-tailscale-monitor.plist.tmpl" | sha256sum }}
 
 set -euo pipefail
