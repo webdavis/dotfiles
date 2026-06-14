@@ -24,6 +24,7 @@ ALERTER="${BATS_TEST_DIRNAME}/../../dot_local/bin/executable_osquery-results-ale
 POLLER="${BATS_TEST_DIRNAME}/../../dot_local/bin/executable_osquery-firewall-gatekeeper-monitor.sh"
 DISPATCH="${BATS_TEST_DIRNAME}/../../dot_local/bin/executable_osquery-alert-dispatch.sh"
 DIGEST_BUILDER="${BATS_TEST_DIRNAME}/../../dot_local/bin/executable_osquery-digest.sh"
+ALLOWLIST_TOOL="${BATS_TEST_DIRNAME}/../../dot_local/bin/executable_osquery-allowlist.sh"
 
 # Stand up a temp HOME whose osquery-alert-dispatch.sh is a 1-line send_alert stub
 # that records each dispatch as "<severity>\t<title>\t<detail>" to $SEND_ALERT_LOG.
@@ -65,6 +66,41 @@ run_poller() {
     OSQUERY_POSTURE_STATE="$POSTURE_STATE" \
     POLLER_POSTURE="[$2]" \
     bash "$POLLER"
+}
+
+# Allowlist tool harness: a fresh temp allowlist file the writer reads via its env.
+setup_allowlist_harness() {
+  ALLOWLIST_HOME="$(mktemp -d)"
+  export OSQUERY_LAUNCHD_ALLOWLIST="$ALLOWLIST_HOME/page-launchd-allowlist.txt"
+}
+teardown_allowlist_harness() { [[ -n ${ALLOWLIST_HOME:-} ]] && rm -rf "$ALLOWLIST_HOME"; }
+
+# Run the allowlist writer with the harness env (pass tool args verbatim).
+run_allowlist() {
+  OSQUERY_LAUNCHD_ALLOWLIST="$OSQUERY_LAUNCHD_ALLOWLIST" bash "$ALLOWLIST_TOOL" "$@"
+}
+
+# Exact full-line membership in the allowlist file (matches the reader's grep -qxF).
+assert_allowlisted() {
+  if ! grep -qxF -- "$1" "$OSQUERY_LAUNCHD_ALLOWLIST" 2>/dev/null; then
+    echo "expected '$1' in the allowlist: $(cat "$OSQUERY_LAUNCHD_ALLOWLIST" 2>/dev/null || echo '(no file)')" >&2
+    return 1
+  fi
+}
+assert_not_allowlisted() {
+  if grep -qxF -- "$1" "$OSQUERY_LAUNCHD_ALLOWLIST" 2>/dev/null; then
+    echo "expected '$1' NOT in the allowlist: $(cat "$OSQUERY_LAUNCHD_ALLOWLIST")" >&2
+    return 1
+  fi
+}
+# Count of label lines (non-comment, non-blank).
+assert_allowlist_label_count() {
+  local n
+  n=$(grep -cvE '^[[:space:]]*(#|$)' "$OSQUERY_LAUNCHD_ALLOWLIST" 2>/dev/null || echo 0)
+  if [[ $n -ne $1 ]]; then
+    echo "expected $1 label(s), got $n: $(cat "$OSQUERY_LAUNCHD_ALLOWLIST" 2>/dev/null)" >&2
+    return 1
+  fi
 }
 
 # Build one digest NDJSON record in the shape the alerter's _digest_append emits.

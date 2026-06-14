@@ -1,0 +1,8 @@
+# page-launchd-allowlist.txt — labels whose new *user* LaunchAgents digest instead
+# of paging (a known-good tool you installed). One bare launchd label per line,
+# matched exactly (e.g. com.foo.agent). Curate with the one writer:
+#   osquery-allowlist.sh -a <label>    # allow
+#   osquery-allowlist.sh -d <label>    # deny (remove)
+#   osquery-allowlist.sh -l            # list
+# System daemons (/Library/LaunchDaemons) page by path regardless and are NOT
+# allowlistable here; Apple/system (com.apple.*) labels are refused by the writer.
