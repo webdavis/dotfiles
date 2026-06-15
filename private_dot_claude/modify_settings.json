@@ -29,6 +29,7 @@
 
 {{- /* --- stable: scalars and policy --- */ -}}
 {{- $merged = setValueAtPath "cleanupPeriodDays" 36525 $merged -}}
+{{- $merged = setValueAtPath "autoUpdatesChannel" "stable" $merged -}}
 
 {{- $permissions := dict
     "allow" (list
