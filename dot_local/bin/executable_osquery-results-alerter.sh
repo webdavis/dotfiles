@@ -396,7 +396,7 @@ render=$(printf '%s\n' "$enriched" | jq -s '
     elif .q == "remote_access_sharing_state" then ["- **Service:** \(($c.service // "?") | code)"]
     elif .q == "system_extensions_new" then ["- **Name:** \(($c.identifier // "?") | code)", "- **Team:** \(($c.team // "?") | code)"] + $sg
     elif .q == "kernel_extensions_new" then ["- **Name:** \(($c.name // "?") | code)", "- **Path:** \(($c.path // "?") | code)"] + $sg
-    elif .q == "file_events_recent" then ["- **File:** \(($c.target_path // "?") | code)", "- **Action:** \(.act)"]
+    elif .q == "file_events_recent" then ["- **File:** \(($c.target_path // "?") | code)", "- **Action:** \($c.action // .act)"]
     elif .q == "es_launchd_writes" then ["- **Process:** \(($c.path // "?") | code)", "- **Wrote:** \(($c.filename // $c.dest_filename // "?") | code)"] + $sg
     elif (protname) != null then ["- **State:** **OFF**"]
     else $sg + ["- **What:** \((keyid) | code)"] end;

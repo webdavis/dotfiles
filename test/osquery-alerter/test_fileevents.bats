@@ -21,6 +21,7 @@ teardown() { teardown_harness; }
 @test "T-PAGE-sshd: an sshd_config UPDATED pages" {
   run_alerter "$(file_event_row sshd_config /etc/ssh/sshd_config UPDATED)"
   assert_page_has sshd_config
+  assert_page_has UPDATED # the real FSEvents verb, not the constant outer "added"
   assert_digest_count 0
 }
 
