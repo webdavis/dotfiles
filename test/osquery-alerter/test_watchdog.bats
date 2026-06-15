@@ -25,3 +25,10 @@ teardown() { teardown_harness; }
   run_watchdog "com.webdavis.osquery-digest"
   assert_page_has "com.webdavis.osquery-digest"
 }
+
+@test "T-WATCH-heartbeat-down: the unloaded heartbeat agent pages CRIT, naming it" {
+  # If the daily proof-of-life agent silently unloads, the user stops getting the ✅ and
+  # would wrongly read the silence as "all clear" — so the watchdog must cover it too.
+  run_watchdog "com.webdavis.osquery-heartbeat"
+  assert_page_has "com.webdavis.osquery-heartbeat"
+}

@@ -15,6 +15,7 @@
 # {{ include "dot_local/bin/executable_osquery-digest.sh" | sha256sum }}
 # {{ include "dot_local/bin/executable_osquery-allowlist.sh" | sha256sum }}
 # {{ include "dot_local/bin/executable_osquery-tailscale-monitor.sh" | sha256sum }}
+# {{ include "dot_local/bin/executable_osquery-heartbeat.sh" | sha256sum }}
 # {{ include "Library/LaunchAgents/com.webdavis.osquery-results-alerter.plist.tmpl" | sha256sum }}
 # {{ include "Library/LaunchAgents/com.webdavis.osquery-firewall-gatekeeper-monitor.plist.tmpl" | sha256sum }}
 # {{ include "Library/LaunchAgents/com.webdavis.osquery-uptime-watchdog.plist.tmpl" | sha256sum }}
@@ -23,6 +24,7 @@
 # Hour/Minute from this data; include hashes the source, so re-key the manifest on the data too, else a
 # digestHour change re-renders the plist while this manifest keeps the old hash → pipeline_integrity page.
 # {{ include "Library/LaunchAgents/com.webdavis.osquery-tailscale-monitor.plist.tmpl" | sha256sum }}
+# {{ include "Library/LaunchAgents/com.webdavis.osquery-heartbeat.plist.tmpl" | sha256sum }}
 
 set -euo pipefail
 
@@ -35,11 +37,13 @@ files=(
   "$HOME/.local/bin/osquery-digest.sh"
   "$HOME/.local/bin/osquery-allowlist.sh"
   "$HOME/.local/bin/osquery-tailscale-monitor.sh"
+  "$HOME/.local/bin/osquery-heartbeat.sh"
   "$HOME/Library/LaunchAgents/com.webdavis.osquery-results-alerter.plist"
   "$HOME/Library/LaunchAgents/com.webdavis.osquery-firewall-gatekeeper-monitor.plist"
   "$HOME/Library/LaunchAgents/com.webdavis.osquery-uptime-watchdog.plist"
   "$HOME/Library/LaunchAgents/com.webdavis.osquery-digest.plist"
   "$HOME/Library/LaunchAgents/com.webdavis.osquery-tailscale-monitor.plist"
+  "$HOME/Library/LaunchAgents/com.webdavis.osquery-heartbeat.plist"
 )
 
 manifest="$(mktemp)"

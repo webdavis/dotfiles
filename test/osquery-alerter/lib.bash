@@ -28,6 +28,7 @@ DISPATCH="${BATS_TEST_DIRNAME}/../../dot_local/bin/executable_osquery-alert-disp
 DIGEST_BUILDER="${BATS_TEST_DIRNAME}/../../dot_local/bin/executable_osquery-digest.sh"
 ALLOWLIST_TOOL="${BATS_TEST_DIRNAME}/../../dot_local/bin/executable_osquery-allowlist.sh"
 WATCHDOG="${BATS_TEST_DIRNAME}/../../dot_local/bin/executable_osquery-uptime-watchdog.sh"
+HEARTBEAT="${BATS_TEST_DIRNAME}/../../dot_local/bin/executable_osquery-heartbeat.sh"
 
 # Stand up a temp HOME whose osquery-alert-dispatch.sh is a 1-line send_alert stub
 # that records each dispatch as "<severity>\t<title>\t<detail>" to $SEND_ALERT_LOG.
@@ -144,6 +145,26 @@ run_redaction_h2() {
     OSQUERY_DELIVERY_LOG="$OSQUERY_DELIVERY_LOG" \
     OSQUERY_RETRY_BACKOFF_BASE=0 \
     bash "$ALERTER"
+}
+
+# Heartbeat harness: setup_harness (send_alert stub) + an osqueryi stub. HEARTBEAT_OK=0
+# makes the osqueryi stub fail, so a test can drive the "osqueryd not answering" branch.
+setup_heartbeat_harness() {
+  setup_harness
+  cat >"$HARNESS_HOME/.local/bin/osqueryi" <<'SHIM'
+#!/usr/bin/env bash
+[ "${HEARTBEAT_OK:-1}" = "0" ] && exit 1
+echo '[{"ok":"1"}]'
+SHIM
+  chmod +x "$HARNESS_HOME/.local/bin/osqueryi"
+}
+
+# run_heartbeat [ok] — run the real heartbeat; pass 0 to simulate osqueryd not answering.
+run_heartbeat() {
+  HOME="$HARNESS_HOME" \
+    OSQUERYI="$HARNESS_HOME/.local/bin/osqueryi" \
+    HEARTBEAT_OK="${1:-1}" \
+    bash "$HEARTBEAT"
 }
 
 # Allowlist tool harness: a fresh temp allowlist file the writer reads via its env.
