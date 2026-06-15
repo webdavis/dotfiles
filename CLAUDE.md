@@ -33,7 +33,8 @@ just y          # yq (YAML) only
 ```
 
 These invoke `nix develop .#run --command ./scripts/lint.sh` with the appropriate flag. The lint script
-auto-formats in place and reports diffs. The pre-commit hook runs `just l` — install it with `just h`.
+auto-formats in place and reports diffs. On commit, the per-repo `.githooks/pre-commit` hook runs
+`just lint-check` (check-only) — auto-wired via the user-wide dispatcher, no install step. See Git Hooks.
 
 To enter an interactive dev shell with all tools: `nix develop`.
 
@@ -101,18 +102,32 @@ See https://www.chezmoi.io/user-guide/manage-different-types-of-file/ for the `m
 
 ### Git Hooks
 
-Install pre-commit hook (runs full lint): `just h`. Commits also trigger a global `prepare-commit-msg`
-hook at `~/.config/git/hooks/` that prepopulates conventional commit messages via Claude haiku.
+Both hooks live in the **user-wide** hooks dir — `core.hooksPath = ~/.config/git/hooks` (set in
+`dot_gitconfig.tmpl`), so they apply to every repo:
 
-Bypass the AI commit hook: `SKIP_AI_COMMIT=1 git commit ...`.
+- **`prepare-commit-msg` — user-wide AI commit messages.** Prepopulates a conventional message via Claude
+  haiku (internals under **AI Commit Messages** below). Bails on `-m`/merge/rebase; bypass with
+  `SKIP_AI_COMMIT=1`.
+- **`pre-commit` — per-repo lint, via a dispatcher.** `dot_config/git/hooks/executable_pre-commit` runs
+  in every repo but only acts when the repository tracks an executable `.githooks/pre-commit`, which it
+  then `exec`s. This repo's `.githooks/pre-commit` runs `just lint-check` (check-only — reports drift,
+  never mutates the tree or index). No install step: the dispatcher is user-wide and the repo hook is
+  committed with its executable bit.
+
+**Why a dispatcher, not `git config core.hooksPath .githooks`?** `core.hooksPath` is single-valued, so a
+per-repo override shadows the user-wide `prepare-commit-msg`. The dispatcher keeps the global hook
+authoritative while letting any repo opt into pre-commit checks. **Do not reintroduce Git LFS here** —
+`git lfs install` writes exactly such an override, and this repo tracks no LFS files.
+
+Bypass all hooks for one commit: `git commit --no-verify`.
 
 ## Architecture
 
 ### Source-Only Files
 
 Some files are dev/CI only and are excluded from `$HOME` via `.chezmoiignore`: `justfile`, `scripts/`,
-`flake.nix`, `flake.lock`, `.envrc`, `.shellcheckrc`, `.editorconfig`, `.mdformat.toml`, `assets/`,
-`docs/`, `private/`, `README.md`, `LICENSE`, `.gitignore`, `.worktrees/`, `**/.DS_Store`. Only
+`.githooks/`, `flake.nix`, `flake.lock`, `.envrc`, `.shellcheckrc`, `.editorconfig`, `.mdformat.toml`,
+`assets/`, `docs/`, `private/`, `README.md`, `LICENSE`, `.gitignore`, `.worktrees/`, `**/.DS_Store`. Only
 chezmoi-managed files (`dot_`, `private_`, `run_`, etc. prefixes) reach the target state.
 
 ### Minimum Chezmoi Version
@@ -280,10 +295,15 @@ logged in — it is not a "is the daemon working" check; use `atuin daemon statu
 
 ### AI Commit Messages
 
-Global `core.hooksPath = ~/.config/git/hooks` activates a `prepare-commit-msg` hook that: truncates the
-staged diff to 5 KB, pipes it to `claude -p --model=haiku` with a 4-second timeout, and prepopulates the
-commit editor with the returned conventional message. Bails on merge/rebase/cherry-pick. Set
-`SKIP_AI_COMMIT=1` to bypass. Chains to repo-local `.git/hooks/prepare-commit-msg` if present.
+The user-wide `prepare-commit-msg` hook (`dot_config/git/hooks/executable_prepare-commit-msg`, activated
+by `core.hooksPath = ~/.config/git/hooks`) truncates the staged diff to 5 KB, pipes it to
+`claude -p --model=haiku` with a 10-second timeout, and prepopulates the commit editor with the returned
+conventional message. Bails on `-m`/`-F`/merge/rebase/cherry-pick and on `SKIP_AI_COMMIT=1`. Chains to a
+repo-local `.git/hooks/prepare-commit-msg` if present. Never blocks a commit — worst case the editor
+opens with an empty message.
+
+A per-repo `core.hooksPath` override (e.g. what `git lfs install` writes) would shadow this hook; that is
+why the per-repo pre-commit lint uses the dispatcher described under Git Hooks rather than an override.
 
 ### Long-running Command Notifier
 

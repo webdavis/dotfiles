@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# Global pre-commit dispatcher — runs a repository's own pre-commit checks.
+# Activated by core.hooksPath in dot_gitconfig.tmpl, so it runs in every repo.
+#
+# The user-wide hooks dir must stay authoritative so the global
+# prepare-commit-msg AI hook runs everywhere. A per-repo `core.hooksPath`
+# override (e.g. what `git lfs install` writes) would shadow it. To keep
+# pre-commit checks per-repo without that override, each repo opts in by
+# tracking an executable `.githooks/pre-commit`; this dispatcher runs it.
+#
+# Repos without `.githooks/pre-commit` get a no-op.
+
+toplevel="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
+repo_hook="$toplevel/.githooks/pre-commit"
+[[ -x $repo_hook ]] && exec "$repo_hook" "$@"
+exit 0

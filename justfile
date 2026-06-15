@@ -3,7 +3,6 @@ set shell := ["bash", "-c", "source /nix/var/nix/profiles/default/etc/profile.d/
 default:
   @just --choose
 
-alias h := install-hooks
 alias l := lint
 alias L := lint-check
 alias s := lint-shell
@@ -53,12 +52,6 @@ apply-no-auth:
 
 check:
   nix develop .#run --command nix flake check --all-systems
-
-install-hooks:
-  @echo "Installing Git pre-commit hooks..."
-  git config core.hooksPath .githooks
-  chmod +x .githooks/pre-commit
-  @echo "✓ Git hooks installed. Pre-commit will run lint.sh"
 
 # macOS Defaults: drift, apply, capture
 
