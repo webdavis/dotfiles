@@ -105,9 +105,9 @@ See https://www.chezmoi.io/user-guide/manage-different-types-of-file/ for the `m
 Both hooks live in the **user-wide** hooks dir — `core.hooksPath = ~/.config/git/hooks` (set in
 `dot_gitconfig.tmpl`), so they apply to every repo:
 
-- **`prepare-commit-msg` — user-wide AI commit messages.** Prepopulates a conventional message via Claude
-  haiku (internals under **AI Commit Messages** below). Bails on `-m`/merge/rebase; bypass with
-  `SKIP_AI_COMMIT=1`.
+- **`prepare-commit-msg` — user-wide AI commit messages.** Prepopulates a Conventional Commits message
+  via Claude Sonnet (internals under **AI Commit Messages** below). Bails on `-m`/merge/rebase; bypass
+  with `SKIP_AI_COMMIT=1`.
 - **`pre-commit` — per-repo lint, via a dispatcher.** `dot_config/git/hooks/executable_pre-commit` runs
   in every repo but only acts when the repository tracks an executable `.githooks/pre-commit`, which it
   then `exec`s. This repo's `.githooks/pre-commit` runs `just lint-check` (check-only — reports drift,
@@ -296,11 +296,12 @@ logged in — it is not a "is the daemon working" check; use `atuin daemon statu
 ### AI Commit Messages
 
 The user-wide `prepare-commit-msg` hook (`dot_config/git/hooks/executable_prepare-commit-msg`, activated
-by `core.hooksPath = ~/.config/git/hooks`) truncates the staged diff to 5 KB, pipes it to
-`claude -p --model=haiku` with a 10-second timeout, and prepopulates the commit editor with the returned
-conventional message. Bails on `-m`/`-F`/merge/rebase/cherry-pick and on `SKIP_AI_COMMIT=1`. Chains to a
-repo-local `.git/hooks/prepare-commit-msg` if present. Never blocks a commit — worst case the editor
-opens with an empty message.
+by `core.hooksPath = ~/.config/git/hooks`) pipes the full staged diff (no truncation) to
+`claude -p --model=sonnet` with a 30-second timeout, and prepopulates the commit editor with the returned
+Conventional Commits message (subject, optional body, optional footers). Bails on
+`-m`/`-F`/merge/rebase/cherry-pick and on `SKIP_AI_COMMIT=1`. Chains to a repo-local
+`.git/hooks/prepare-commit-msg` if present. Never blocks a commit — worst case the editor opens with an
+empty message.
 
 A per-repo `core.hooksPath` override (e.g. what `git lfs install` writes) would shadow this hook; that is
 why the per-repo pre-commit lint uses the dispatcher described under Git Hooks rather than an override.

@@ -24,20 +24,19 @@ GIT_DIR="$(git rev-parse --git-dir)"
 [[ -f "$GIT_DIR/CHERRY_PICK_HEAD" ]] && exit 0
 [[ -d "$GIT_DIR/rebase-merge" || -d "$GIT_DIR/rebase-apply" ]] && exit 0
 
-# Truncate the diff to 5 KB — huge diffs slow haiku and hurt message quality.
-diff="$(git diff --cached --diff-algorithm=histogram 2>/dev/null | head -c 5000)"
+# Full staged diff — no truncation (Sonnet handles large diffs).
+diff="$(git diff --cached --diff-algorithm=histogram 2>/dev/null)"
 [[ -z $diff ]] && exit 0
 
-# 10-second timeout on the model call. timeout(1) is provided by Homebrew
+# 30-second timeout on the model call. timeout(1) is provided by Homebrew
 # coreutils (in the manifest). On failure/timeout, msg stays empty and the
-# editor opens with an empty first line. Bumped from 4s after observing
-# claude haiku consistently lands at ~4.0s in this environment, causing the
-# hook to truncate 100% of calls and produce empty messages.
-msg="$(printf '%s' "$diff" | timeout 10 \
+# editor opens with an empty first line. Larger than the old 10s because
+# Sonnet is slower than haiku and the diff is no longer truncated.
+msg="$(printf '%s' "$diff" | timeout 30 \
   env CLAUDECODE= MAX_THINKING_TOKENS=0 claude -p \
-  --no-session-persistence --model=haiku --tools='' \
+  --no-session-persistence --model=sonnet --tools='' \
   --disable-slash-commands --setting-sources='' \
-  --system-prompt='Write a conventional commit message (type: subject). One line, under 72 chars. No explanation.' \
+  --system-prompt='Write a Conventional Commits message for the staged diff piped on stdin. Subject line "<type>[optional scope]: <description>" in imperative mood, lowercase description, no trailing period. Optionally add a blank line then a body explaining what and why, then a blank line and footer(s). Use only standard types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert. Output only the raw commit message with no markdown, no code fences, no preamble, and no Co-Authored-By or tool attribution.' \
   2>/dev/null)"
 
 [[ -n $msg ]] && printf '%s\n\n' "$msg" >"$1"
