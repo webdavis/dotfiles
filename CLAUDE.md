@@ -33,7 +33,8 @@ just y          # yq (YAML) only
 ```
 
 These invoke `nix develop .#run --command ./scripts/lint.sh` with the appropriate flag. The lint script
-auto-formats in place and reports diffs. The pre-commit hook runs `just l` — install it with `just h`.
+auto-formats in place and reports diffs. On commit, the per-repo `.githooks/pre-commit` hook runs
+`just lint-check` (check-only) — auto-wired via the user-wide dispatcher, no install step. See Git Hooks.
 
 To enter an interactive dev shell with all tools: `nix develop`.
 
@@ -82,7 +83,9 @@ drift freely without forcing a chezmoi resync.
 - `hooks`: `UserPromptSubmit` marks session start, `Stop` pulses Hue lights, `Notification`
   (`permission_prompt` matcher) fires alerter, `PreToolUse` (`Bash` matcher) writes to
   `~/.claude/audit.log`.
-- `statusLine`, `enabledPlugins`, `cleanupPeriodDays` (= 36525, effectively disables session cleanup).
+- `statusLine`, `enabledPlugins`, `cleanupPeriodDays` (= 36525, effectively disables session cleanup),
+  `autoUpdatesChannel` (= `stable`, pins the release channel so updates lag `latest`),
+  `remoteControlAtStartup` (= `true`, starts the Remote Control bridge every session).
 
 **Free-drift (Claude Code owns):** `alwaysThinkingEnabled`, `useAutoModeDuringPlan`, `voiceEnabled`,
 `skipDangerousModePermissionPrompt`, and any future setting `/config` adds.
@@ -99,18 +102,32 @@ See https://www.chezmoi.io/user-guide/manage-different-types-of-file/ for the `m
 
 ### Git Hooks
 
-Install pre-commit hook (runs full lint): `just h`. Commits also trigger a global `prepare-commit-msg`
-hook at `~/.config/git/hooks/` that prepopulates conventional commit messages via Claude haiku.
+Both hooks live in the **user-wide** hooks dir — `core.hooksPath = ~/.config/git/hooks` (set in
+`dot_gitconfig.tmpl`), so they apply to every repo:
 
-Bypass the AI commit hook: `SKIP_AI_COMMIT=1 git commit ...`.
+- **`prepare-commit-msg` — user-wide AI commit messages.** Prepopulates a Conventional Commits message
+  via Claude Sonnet (internals under **AI Commit Messages** below). Bails on `-m`/merge/rebase; bypass
+  with `SKIP_AI_COMMIT=1`.
+- **`pre-commit` — per-repo lint, via a dispatcher.** `dot_config/git/hooks/executable_pre-commit` runs
+  in every repo but only acts when the repository tracks an executable `.githooks/pre-commit`, which it
+  then `exec`s. This repo's `.githooks/pre-commit` runs `just lint-check` (check-only — reports drift,
+  never mutates the tree or index). No install step: the dispatcher is user-wide and the repo hook is
+  committed with its executable bit.
+
+**Why a dispatcher, not `git config core.hooksPath .githooks`?** `core.hooksPath` is single-valued, so a
+per-repo override shadows the user-wide `prepare-commit-msg`. The dispatcher keeps the global hook
+authoritative while letting any repo opt into pre-commit checks. **Do not reintroduce Git LFS here** —
+`git lfs install` writes exactly such an override, and this repo tracks no LFS files.
+
+Bypass all hooks for one commit: `git commit --no-verify`.
 
 ## Architecture
 
 ### Source-Only Files
 
 Some files are dev/CI only and are excluded from `$HOME` via `.chezmoiignore`: `justfile`, `scripts/`,
-`flake.nix`, `flake.lock`, `.envrc`, `.shellcheckrc`, `.editorconfig`, `.mdformat.toml`, `assets/`,
-`docs/`, `private/`, `README.md`, `LICENSE`, `.gitignore`, `.worktrees/`, `**/.DS_Store`. Only
+`.githooks/`, `flake.nix`, `flake.lock`, `.envrc`, `.shellcheckrc`, `.editorconfig`, `.mdformat.toml`,
+`assets/`, `docs/`, `private/`, `README.md`, `LICENSE`, `.gitignore`, `.worktrees/`, `**/.DS_Store`. Only
 chezmoi-managed files (`dot_`, `private_`, `run_`, etc. prefixes) reach the target state.
 
 ### Minimum Chezmoi Version
@@ -137,7 +154,7 @@ data and runs `brew bundle --cleanup` whenever the data changes. Prerequisites:
 1. Install the package immediately: `brew install <formula>` or `brew install --cask <cask>`.
 1. On success, add it to `.chezmoidata/system_packages_autoinstall.yaml` in the appropriate list
    (formulae, casks, taps, mas), maintaining alphabetical order.
-1. Remind the user to run `chezmoi apply` at 22:00 local time (America/Denver) that day.
+1. Remind the user to run `chezmoi apply` when appropriate.
 
 Do **not** run `chezmoi apply` directly — see the KeePassXC constraint above.
 
@@ -187,13 +204,9 @@ the design spec in the chezmoi source tree at
 
 ### Template Files
 
-Template files use chezmoi Go templates (`.tmpl` suffix) and live alongside their target files. Notable
-templates: `.chezmoi.toml.tmpl`, `dot_bashrc.tmpl`, `dot_gitconfig.tmpl`, `dot_aws/credentials.tmpl`,
-`dot_config/gh/private_hosts.yml.tmpl`, `dot_config/atuin/config.toml.tmpl`,
-`dot_config/himalaya/config.toml.tmpl`, `dot_config/osquery/osquery.conf.tmpl`,
-`Library/LaunchAgents/*.plist.tmpl`, `Library/Application Support/espanso/match/identity.yml.tmpl`,
-`Library/Application Support/gogcli/credentials.json.tmpl`, and scripts in `.chezmoiscripts/`. Templates
-conditionally branch on `.chezmoi.os` and, where they pull secrets, call `keepassxc`.
+Template files use chezmoi Go templates (`.tmpl` suffix) and live alongside their target files (e.g.
+`.chezmoi.toml.tmpl`, `dot_bashrc.tmpl`, `dot_gitconfig.tmpl`, and scripts in `.chezmoiscripts/`).
+Templates conditionally branch on `.chezmoi.os` and, where they pull secrets, call `keepassxc`.
 
 ### Template Shellcheck Workaround
 
@@ -225,18 +238,17 @@ GitHub Actions (`.github/workflows/lint.yml`) runs on `macos-latest`. Runs
 ### Tmux Session Management
 
 Sessions are managed by [sesh](https://github.com/joshmedeski/sesh). Named sessions live in
-`dot_config/sesh/sesh.toml` (13 configured: uriel, openclaw, homelab, ivy, casually-concerned, dotfiles,
-nvim-config, essential-feed, webdavis-profile, job-hunting, justdavis-ansible, maeve, dresden).
-`~/.local/bin/sesh-bootstrap.sh` creates the three default sessions (uriel/openclaw/homelab) and is
-invoked from bashrc, `tmux-refresh.sh`, and the Claude Code LaunchAgent. `prefix + o` opens the fuzzy
-picker; `prefix + C-o <letter>` jumps to a named session via the SESH key table; `prefix + \\` toggles
-last session; `prefix + R` reloads `~/.tmux.conf`.
+`dot_config/sesh/sesh.toml`. `~/.local/bin/sesh-bootstrap.sh` creates the three default sessions
+(uriel/openclaw/homelab) and is invoked from bashrc, `tmux-refresh.sh`, and the Claude Code LaunchAgent.
+`prefix + o` opens the fuzzy picker; `prefix + C-o <letter>` jumps to a named session via the SESH key
+table; `prefix + \\` toggles last session; `prefix + R` reloads `~/.tmux.conf`.
 
 ### Git Worktrees (Worktrunk)
 
 Git worktrees are managed by [worktrunk](https://worktrunk.dev/). Config in
-`dot_config/worktrunk/config.toml`: squash+rebase+remove merges; array-of-tables `[[pre-merge]]` hooks
-run `just l` and `just test` before merge. `wt up` rebases every worktree against upstream safely.
+`dot_config/worktrunk/config.toml`: squash+rebase+remove merges with `verify = true`, and
+`delete-branch = false` keeps the branch ref after merge. `wt up` rebases every worktree against upstream
+safely.
 
 ### Bashrc Init Ordering
 
@@ -278,10 +290,16 @@ logged in — it is not a "is the daemon working" check; use `atuin daemon statu
 
 ### AI Commit Messages
 
-Global `core.hooksPath = ~/.config/git/hooks` activates a `prepare-commit-msg` hook that: truncates the
-staged diff to 5 KB, pipes it to `claude -p --model=haiku` with a 4-second timeout, and prepopulates the
-commit editor with the returned conventional message. Bails on merge/rebase/cherry-pick. Set
-`SKIP_AI_COMMIT=1` to bypass. Chains to repo-local `.git/hooks/prepare-commit-msg` if present.
+The user-wide `prepare-commit-msg` hook (`dot_config/git/hooks/executable_prepare-commit-msg`, activated
+by `core.hooksPath = ~/.config/git/hooks`) pipes the full staged diff (no truncation) to
+`claude -p --model=sonnet` with a 30-second timeout, and prepopulates the commit editor with the returned
+Conventional Commits message (subject, optional body, optional footers). Bails on
+`-m`/`-F`/merge/rebase/cherry-pick and on `SKIP_AI_COMMIT=1`. Chains to a repo-local
+`.git/hooks/prepare-commit-msg` if present. Never blocks a commit — worst case the editor opens with an
+empty message.
+
+A per-repo `core.hooksPath` override (e.g. what `git lfs install` writes) would shadow this hook; that is
+why the per-repo pre-commit lint uses the dispatcher described under Git Hooks rather than an override.
 
 ### Long-running Command Notifier
 
