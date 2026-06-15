@@ -219,7 +219,10 @@ while IFS= read -r obj; do
     # off-loopback exposes the operator's primary remote-access path. Only the "added"
     # (newly-exposed) transition pages; a "removed" row is the port being un-exposed
     # (the exposure being FIXED) — good news, never a page.
-    agent_exposure_changed) [[ $(jq -r '.act' <<<"$obj") == added ]] && sev="CRIT" || continue ;;
+    agent_exposure_changed)
+      [[ $(jq -r '.act' <<<"$obj") == added ]] || continue
+      sev="CRIT"
+      ;;
     # A NEW unexpected setuid-root binary pages (a privilege-escalation backdoor) via
     # the pre-gate CRIT classification; this arm exists only to drop the good-news
     # "removed" row — the binary being deleted, the threat going away — never a page.
