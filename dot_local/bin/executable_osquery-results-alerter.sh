@@ -192,7 +192,9 @@ _digest_append() {
       timestamp: $timestamp,
       detector: .q,
       category: (.cols.category // ""),
-      identity: (.cols.label // .cols.identifier // .cols.target_path // .cols.path // .cols.username // "?"),
+      identity: (if .q == "listening_ports_non_loopback"
+                 then ((.cols.name // .cols.path // "?") + " " + (.cols.address // "?") + ":" + (.cols.port // "?"))
+                 else (.cols.label // .cols.identifier // .cols.target_path // .cols.path // .cols.username // "?") end),
       action: .act,
       summary: (.q + " " + ((.cols.label // .cols.identifier // .cols.target_path // .cols.path // .cols.username) // "?"))
     }' <<<"$finding" >>"$DIGEST_STORE" 2>/dev/null || true
@@ -301,6 +303,15 @@ while IFS= read -r obj; do
     # Suspicious-but-ambiguous: digest for the daily summary, never page. A new
     # non-Apple system extension is usually an app upgrade re-activating a sysext.
     system_extensions_new)
+      _digest_append "$obj"
+      continue
+      ;;
+    # A NEW off-loopback listener (something started exposing a port) is generic
+    # exposure awareness the agent-pattern page detector deliberately does not cover —
+    # a calm daily heads-up, not a page. Only the "added" direction: a removed row is a
+    # listener going away (the exposure closing) and stays log-only.
+    listening_ports_non_loopback)
+      [[ $(jq -r '.act' <<<"$obj") == added ]] || continue
       _digest_append "$obj"
       continue
       ;;
