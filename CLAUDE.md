@@ -83,7 +83,8 @@ drift freely without forcing a chezmoi resync.
   (`permission_prompt` matcher) fires alerter, `PreToolUse` (`Bash` matcher) writes to
   `~/.claude/audit.log`.
 - `statusLine`, `enabledPlugins`, `cleanupPeriodDays` (= 36525, effectively disables session cleanup),
-  `autoUpdatesChannel` (= `stable`, pins the release channel so updates lag `latest`).
+  `autoUpdatesChannel` (= `stable`, pins the release channel so updates lag `latest`),
+  `remoteControlAtStartup` (= `true`, starts the Remote Control bridge every session).
 
 **Free-drift (Claude Code owns):** `alwaysThinkingEnabled`, `useAutoModeDuringPlan`, `voiceEnabled`,
 `skipDangerousModePermissionPrompt`, and any future setting `/config` adds.
