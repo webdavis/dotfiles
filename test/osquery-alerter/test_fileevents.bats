@@ -40,3 +40,12 @@ teardown() { teardown_harness; }
   assert_no_page
   assert_digest_count 0
 }
+
+@test "T-DIG-allowlist-file: editing the page-allowlist (allowlist_file) digests, never pages" {
+  # The page-launchd-allowlist suppresses pages, so editing it is security-relevant —
+  # but it is runtime-mutable curation, not an intrusion, so it digests for the daily
+  # review rather than paging. (Guards the 'a page-suppressor was edited' path.)
+  run_alerter "$(file_event_row allowlist_file /Users/x/.config/osquery/page-launchd-allowlist.txt UPDATED)"
+  assert_no_page
+  assert_digest_count 1
+}

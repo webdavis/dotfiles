@@ -16,3 +16,10 @@ teardown() { teardown_harness; }
   run_poller '{"firewall":"0","gatekeeper":"1"}' '{"firewall":"1","gatekeeper":"1"}'
   assert_no_dispatch
 }
+
+@test "T-POLL-gk-off: a Gatekeeper OFF transition pages CRIT" {
+  # The poller pages on a Gatekeeper-OFF transition via a distinct block from the
+  # firewall one; both prior tests held gatekeeper at 1, so this arm was unexercised.
+  run_poller '{"firewall":"1","gatekeeper":"1"}' '{"firewall":"1","gatekeeper":"0"}'
+  assert_page_has "Gatekeeper turned OFF"
+}

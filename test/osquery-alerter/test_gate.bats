@@ -40,3 +40,16 @@ teardown() { teardown_harness; }
   assert_no_page
   assert_digest_count 0
 }
+
+@test "T-SEP-baseline: a digest detector at counter==0 neither pages nor floods the digest" {
+  # The counter==0 discard runs BEFORE the gate, so a first-observation (baseline) row
+  # of a digest detector cannot flood the daily digest on the first osqueryd run. The
+  # discriminator is the counter, not the detector class: a real (counter>0) event of
+  # the SAME detector does enter the store.
+  run_alerter "$(row persistence_launchd added 0 '{"label":"com.baseline.agent","path":"/Users/x/Library/LaunchAgents/com.baseline.agent.plist"}')"
+  assert_no_page
+  assert_digest_count 0
+  run_alerter "$(row persistence_launchd added 1 '{"label":"com.real.agent","path":"/Users/x/Library/LaunchAgents/com.real.agent.plist"}')"
+  assert_no_page
+  assert_digest_count 1
+}
