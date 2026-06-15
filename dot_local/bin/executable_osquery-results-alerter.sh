@@ -395,7 +395,10 @@ render=$(printf '%s\n' "$enriched" | jq -s '
   # Decision-relevant "Label: value" lines for a #priority block. Values are wrapped
   # in Discord inline-code; an untrusted signing verdict is flagged and bolded.
   def fields:
-    .cols as $c | (.signing // null) as $sig |
+    # Strip markdown metacharacters from the (attacker-influenceable) signing authority
+    # so a crafted certificate subject cannot inject backticks/emphasis into the body.
+    # Every other rendered value already goes through `code`; this is the lone exception.
+    .cols as $c | ((.signing // null) | if type == "string" then gsub("[`*]"; "") else . end) as $sig |
     (if $sig then
        (if ($sig | test("unsigned|untrusted|ad-hoc|unverified|no authority"; "i"))
         then ["- **Signing:** ⚠️ **\($sig)**"] else ["- **Signing:** \($sig)"] end)
@@ -445,7 +448,16 @@ render=$(printf '%s\n' "$enriched" | jq -s '
   ([.[] | select(.sev == "CRIT")]) as $crit |
   {
     pcount: ($crit | length),
-    pbody: ($crit | map(block) | join("\n\n"))
+    # Cap the page at eight blocks + a marker so a large simultaneous-CRIT batch cannot
+    # exceed the Discord 2000-char limit and get stuck undelivered in the spool (an
+    # over-length POST is rejected and re-spooled forever — retry never shrinks it). The
+    # dropped detail still lands in results.log. Mirrors the digest group cap.
+    pbody: (
+      ($crit[0:8] | map(block) | join("\n\n"))
+      + (if ($crit | length) > 8
+         then "\n\n… and \(($crit | length) - 8) more CRITICAL finding(s) — see results.log"
+         else "" end)
+    )
   }
 ')
 

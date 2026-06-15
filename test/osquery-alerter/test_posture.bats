@@ -23,6 +23,17 @@ teardown() { teardown_harness; }
   assert_digest_count 0
 }
 
+@test "T-PAGE-cap: a large simultaneous-CRIT batch caps the page body with an overflow marker" {
+  # Nine CRIT findings at once would exceed Discord's 2000-char limit and get stuck
+  # undelivered in the spool; the page caps at eight blocks plus a marker instead.
+  local rows=() i
+  for i in $(seq 1 9); do
+    rows+=("$(row pack_intrusion-detection_suid_bin_unexpected added 1 "{\"path\":\"/Users/x/.local/bin/tool$i\",\"username\":\"root\"}")")
+  done
+  run_alerter "$(printf '%s\n' "${rows[@]}")"
+  assert_page_has "more CRITICAL finding(s)"
+}
+
 @test "T-PAGE-sharing: a high-risk remote-access service turning on pages" {
   # Rebuilt from the dead log-only detector: the query emits a row per ENABLED
   # high-risk sharing service (screen sharing / remote management / etc.), so a new
