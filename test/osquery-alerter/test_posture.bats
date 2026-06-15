@@ -32,6 +32,10 @@ teardown() { teardown_harness; }
   done
   run_alerter "$(printf '%s\n' "${rows[@]}")"
   assert_page_has "more CRITICAL finding(s)"
+  local body
+  body=$(grep $'^CRIT\t' "$SEND_ALERT_LOG" | cut -f3)
+  [ "${#body}" -lt 2000 ]                                            # the load-bearing Discord bound
+  [ "$(grep -oF 'New setuid root binary' <<<"$body" | wc -l)" -eq 8 ] # exactly eight blocks shown
 }
 
 @test "T-PAGE-sharing: a high-risk remote-access service turning on pages" {
