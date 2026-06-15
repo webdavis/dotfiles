@@ -14,9 +14,17 @@ OSQUERYI="${OSQUERYI:-$(command -v osqueryi || echo /usr/local/bin/osqueryi)}"
 # Probe the #priority route — the path pages actually use. The old /webhooks/osquery
 # route was decommissioned, so probing it no longer proves a page can be delivered.
 HERMES_URL="${OSQUERY_HERMES_PRIORITY_URL:-http://127.0.0.1:8644/webhooks/osquery-priority}"
+# Every deployed osquery LaunchAgent EXCEPT this watchdog (which, if running, is
+# loaded by definition). No osquery plist sets KeepAlive, so launchd will not reload
+# an unloaded agent — this list is the sole liveness backstop. A calendar/interval
+# agent that is merely idle between runs still reports loaded (exit 0), so listing it
+# here cannot false-alarm. The tailscale poller pages on public-internet exposure and
+# the digest agent owns the daily summary; both MUST be covered.
 AGENTS=(
   "com.webdavis.osquery-results-alerter"
   "com.webdavis.osquery-firewall-gatekeeper-monitor"
+  "com.webdavis.osquery-digest"
+  "com.webdavis.osquery-tailscale-monitor"
 )
 
 # shellcheck source=/dev/null
@@ -37,7 +45,7 @@ elif ! "$OSQUERYI" --json "SELECT 1 AS ok FROM time" >/dev/null 2>&1; then
   problems+=("osqueryd is wedged (not answering queries)")
 fi
 
-# 2) Both notifier LaunchAgents are loaded.
+# 2) Every deployed osquery LaunchAgent is loaded.
 for agent in "${AGENTS[@]}"; do
   if ! launchctl list "$agent" >/dev/null 2>&1; then
     problems+=("LaunchAgent not loaded: $agent")

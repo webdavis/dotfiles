@@ -27,6 +27,7 @@ TAILSCALE_MONITOR="${BATS_TEST_DIRNAME}/../../dot_local/bin/executable_osquery-t
 DISPATCH="${BATS_TEST_DIRNAME}/../../dot_local/bin/executable_osquery-alert-dispatch.sh"
 DIGEST_BUILDER="${BATS_TEST_DIRNAME}/../../dot_local/bin/executable_osquery-digest.sh"
 ALLOWLIST_TOOL="${BATS_TEST_DIRNAME}/../../dot_local/bin/executable_osquery-allowlist.sh"
+WATCHDOG="${BATS_TEST_DIRNAME}/../../dot_local/bin/executable_osquery-uptime-watchdog.sh"
 
 # Stand up a temp HOME whose osquery-alert-dispatch.sh is a 1-line send_alert stub
 # that records each dispatch as "<severity>\t<title>\t<detail>" to $SEND_ALERT_LOG.
@@ -78,6 +79,36 @@ run_poller() {
     OSQUERY_POSTURE_STATE="$POSTURE_STATE" \
     POLLER_POSTURE="[$2]" \
     bash "$POLLER"
+}
+
+# Uptime-watchdog harness: setup_harness (send_alert stub) + PATH stubs for pgrep /
+# launchctl / curl and an osqueryi stub, so a test controls which LaunchAgents look
+# "down". WATCHDOG_DOWN_AGENTS (space-separated labels) → launchctl reports those
+# not-loaded (non-zero); every other probe reports healthy.
+setup_watchdog_harness() {
+  setup_harness
+  printf '#!/usr/bin/env bash\nexit 0\n' >"$HARNESS_HOME/.local/bin/pgrep"
+  printf '#!/usr/bin/env bash\necho 200\n' >"$HARNESS_HOME/.local/bin/curl"
+  printf '#!/usr/bin/env bash\necho %s\n' "'[{\"ok\":\"1\"}]'" >"$HARNESS_HOME/.local/bin/osqueryi"
+  cat >"$HARNESS_HOME/.local/bin/launchctl" <<'SHIM'
+#!/usr/bin/env bash
+# Only `list <label>` is consulted; non-zero when <label> is in WATCHDOG_DOWN_AGENTS.
+if [ "${1:-}" = "list" ]; then
+  for down in $WATCHDOG_DOWN_AGENTS; do [ "${2:-}" = "$down" ] && exit 1; done
+fi
+exit 0
+SHIM
+  chmod +x "$HARNESS_HOME/.local/bin/pgrep" "$HARNESS_HOME/.local/bin/curl" \
+    "$HARNESS_HOME/.local/bin/osqueryi" "$HARNESS_HOME/.local/bin/launchctl"
+}
+
+# run_watchdog [down-agent-labels] — run the real watchdog with the stubs on PATH.
+run_watchdog() {
+  HOME="$HARNESS_HOME" \
+    PATH="$HARNESS_HOME/.local/bin:$PATH" \
+    OSQUERYI="$HARNESS_HOME/.local/bin/osqueryi" \
+    WATCHDOG_DOWN_AGENTS="${1:-}" \
+    bash "$WATCHDOG"
 }
 
 # Allowlist tool harness: a fresh temp allowlist file the writer reads via its env.
