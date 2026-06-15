@@ -183,6 +183,10 @@ DIGEST_STORE="${OSQUERY_DIGEST_STORE:-$HOME/.local/state/osquery-digest-spool/di
 _digest_append() {
   local finding="$1"
   mkdir -p "$(dirname "$DIGEST_STORE")" 2>/dev/null || true
+  # The store persists FULL filesystem paths (and the .last copy keeps them indefinitely),
+  # so it must not be world-readable — dir 700 / file 600, the way the page spool is. No
+  # secret/sha256 is stored, but path metadata still discloses project/.env locations.
+  chmod 700 "$(dirname "$DIGEST_STORE")" 2>/dev/null || true
   jq -c --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     '{
       timestamp: $timestamp,
@@ -192,6 +196,7 @@ _digest_append() {
       action: .act,
       summary: (.q + " " + ((.cols.label // .cols.identifier // .cols.target_path // .cols.path // .cols.username) // "?"))
     }' <<<"$finding" >>"$DIGEST_STORE" 2>/dev/null || true
+  chmod 600 "$DIGEST_STORE" 2>/dev/null || true
 }
 
 enriched=""
@@ -231,6 +236,10 @@ while IFS= read -r obj; do
     # tampering forges/mutes alerts or hijacks remote access → page. The rotation-prone
     # rest (.env, config.toml, cli-client-id) is noisier → digest.
     agent_authfile_changed)
+      # A content change emits removed{old hash} + added{new hash} on the same path; the
+      # change is carried by the added row, so the removed row is a pure duplicate. Guard
+      # on added so a rotation neither double-pages nor writes two digest lines.
+      [[ $(jq -r '.act' <<<"$obj") == added ]] || continue
       case "$(jq -r '.cols.path // ""' <<<"$obj")" in
         */webhook-secret | */daemon-keypair.json) sev="CRIT" ;;
         *)
@@ -251,6 +260,10 @@ while IFS= read -r obj; do
     # The kernel_extensions table lists LOADED kexts (load/unload on demand) — a
     # firehose of hundreds of events. Wrong signal entirely; log-only.
     kernel_extensions_new) continue ;;
+    # Startup-item / crontab churn is log-only per the tier matrix (too noisy to page).
+    # Without an explicit arm it falls through to the enricher, which promotes an unsigned
+    # path NOTICE -> CRIT and pages — give it the same continue its noisy siblings have.
+    persistence_startup_items_crontab) continue ;;
     # A high-risk remote-access service (screen sharing, remote management, remote
     # apple events, internet sharing) newly enabled — a remote-control path opened
     # into this Mac. SSH/Remote Login is the operator's own access path and is

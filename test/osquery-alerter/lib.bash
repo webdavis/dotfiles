@@ -55,6 +55,14 @@ seed_manifest() {
   printf '%s\n' "$@" >"$OSQUERY_PIPELINE_MANIFEST"
 }
 
+# Install an enricher stub that reports every path UNTRUSTED (rc=10), so a NOTICE
+# finding with a signable path gets promoted NOTICE->CRIT — exercises the promotion
+# path a log-only detector must NOT be able to reach.
+install_untrusted_enricher() {
+  printf '#!/usr/bin/env bash\nexit 10\n' >"$HARNESS_HOME/.local/bin/osquery-enrich-finding.sh"
+  chmod +x "$HARNESS_HOME/.local/bin/osquery-enrich-finding.sh"
+}
+
 teardown_harness() { [[ -n ${HARNESS_HOME:-} ]] && rm -rf "$HARNESS_HOME"; }
 
 # Posture poller harness: the same temp HOME + send_alert stub, plus a fake osqueryi

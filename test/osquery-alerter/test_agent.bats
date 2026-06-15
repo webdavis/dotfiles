@@ -53,6 +53,15 @@ teardown() { teardown_harness; }
   assert_digest_count 1
 }
 
+@test "T-NEG-authfile-removed: the removed half of a credential rotation does not page or digest" {
+  # A content change emits a removed{old hash} + added{new hash} pair on the same path;
+  # the change is carried by the added row, so the removed row is a pure duplicate and
+  # must neither page (webhook-secret/keypair) nor write a second digest line.
+  run_alerter "$(row agent_authfile_changed removed 1 '{"path":"/Users/x/.config/osquery/webhook-secret","sha256":"OLDHASH"}')"
+  assert_no_page
+  assert_digest_count 0
+}
+
 @test "T-LOG-agentbin: an agent binary change is log-only (recorded, never delivered)" {
   # Hash changes cannot tell a frequent legit self-update from a swap, so they are
   # inherently noisy — recorded in results.log for forensics, never paged or digested.

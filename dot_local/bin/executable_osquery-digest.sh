@@ -65,6 +65,7 @@ body=$(jq -rRs '
 # unrecoverable batch to .last for forensics and stay silent.
 if ! printf '%s' "$body" | grep -q '[^[:space:]]'; then
   mv -f "$work_file" "$store.last" 2>/dev/null || rm -f "$work_file"
+  chmod 600 "$store.last" 2>/dev/null || true
   exit 0
 fi
 
@@ -75,5 +76,8 @@ title="🗒️ osquery daily digest · $(date -u +%Y-%m-%d) · ${item_count} ite
 # this once daily, so one invocation == one daily message.
 send_alert CRIT "$title" "$body" ""
 
-# Keep the rendered batch as .last for forensics; the live store is already gone.
+# Keep the rendered batch as .last for forensics; the live store is already gone. The
+# .last persists indefinitely and holds full paths, so keep it 600 (mv preserves mode,
+# but be defensive in case the source store was written before the hardening landed).
 mv -f "$work_file" "$store.last" 2>/dev/null || rm -f "$work_file"
+chmod 600 "$store.last" 2>/dev/null || true

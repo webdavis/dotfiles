@@ -46,6 +46,17 @@ teardown() { teardown_harness; }
   assert_digest_count 0
 }
 
+@test "T-LOG-crontab-no-promote: a new crontab/startup item stays log-only even when its path is untrusted" {
+  # persistence_startup_items_crontab is log-only per the matrix (noisy, 116 real events).
+  # It must not reach the enricher and get promoted NOTICE->CRIT on an unsigned path — its
+  # sibling noisy detectors (kext, es_launchd) all have explicit log-only arms; this one
+  # was missing, so an unsigned new startup item would page "New startup/cron entry".
+  install_untrusted_enricher
+  run_alerter "$(row pack_intrusion-detection_persistence_startup_items_crontab added 1 '{"name":"com.foo","command":"/bin/foo","path":"/Users/x/.local/bin/unsigned"}')"
+  assert_no_dispatch
+  assert_digest_count 0
+}
+
 @test "T-LOG-default-silent: there is no #osquery channel — non-page findings are silent" {
   # v2 dispatches ONLY confirmed criticals (#priority). Everything else digests or
   # stays log-only. A NOTICE (new crontab entry) and an INFO (app install) must

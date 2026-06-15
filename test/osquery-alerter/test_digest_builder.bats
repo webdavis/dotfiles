@@ -99,6 +99,18 @@ teardown() { teardown_harness; }
   [ "$status" -ne 0 ]
 }
 
+@test "T-DIGM-perms: the digest store dir is 700 and the store/.last files are 600 (no world-read)" {
+  # The digest persists FULL filesystem paths indefinitely in .last; like the page spool
+  # it must not be world-readable (master-spec 700/600) — otherwise any other-uid local
+  # process can read project/client/.env locations.
+  run_alerter "$(row pack_intrusion-detection_system_extensions_new added 1 '{"identifier":"io.example.ext","team":"TEAMID"}')"
+  assert_digest_count 1
+  assert_mode 700 "$(dirname "$OSQUERY_DIGEST_STORE")"
+  assert_mode 600 "$OSQUERY_DIGEST_STORE"
+  run_digest
+  assert_mode 600 "$OSQUERY_DIGEST_STORE.last"
+}
+
 @test "T-DIGM-all-torn: a spool of only torn lines sends nothing, not a blank N-item message" {
   # Every line unparseable (an interrupted _digest_append with zero clean appends):
   # the rendered body is empty, yet Guard 2 (non-whitespace bytes) passes and
