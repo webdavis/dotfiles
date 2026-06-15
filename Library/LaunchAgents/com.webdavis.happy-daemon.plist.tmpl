@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.webdavis.happy-daemon</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/opt/homebrew/bin/happy</string>
+    <string>daemon</string>
+    <!-- start-sync runs the daemon in the FOREGROUND so launchd can supervise
+         and KeepAlive it. `happy daemon start` detaches (forks, then returns),
+         which under KeepAlive looks like an instant exit and restart-loops.
+         start-sync is the same foreground entry point that `happy daemon start`
+         spawns internally; happy ships no documented --foreground flag. -->
+    <string>start-sync</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>{{ .chezmoi.homeDir }}/.local/log/happy-daemon.log</string>
+  <key>StandardErrorPath</key>
+  <string>{{ .chezmoi.homeDir }}/.local/log/happy-daemon.log</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>HOME</key>
+    <string>{{ .chezmoi.homeDir }}</string>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
+</dict>
+</plist>
