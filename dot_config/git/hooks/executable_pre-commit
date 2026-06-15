@@ -11,6 +11,6 @@
 # Repos without `.githooks/pre-commit` get a no-op.
 
 toplevel="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
-repo_hook="$toplevel/.githooks/pre-commit"
+repo_hook="${toplevel}/.githooks/pre-commit"
 [[ -x $repo_hook ]] && exec "$repo_hook" "$@"
 exit 0

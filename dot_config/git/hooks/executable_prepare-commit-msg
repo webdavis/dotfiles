@@ -20,9 +20,9 @@
 GIT_DIR="$(git rev-parse --git-dir)"
 
 # Bail during in-progress merges, rebases, cherry-picks.
-[[ -f "$GIT_DIR/MERGE_HEAD" ]] && exit 0
-[[ -f "$GIT_DIR/CHERRY_PICK_HEAD" ]] && exit 0
-[[ -d "$GIT_DIR/rebase-merge" || -d "$GIT_DIR/rebase-apply" ]] && exit 0
+[[ -f "${GIT_DIR}/MERGE_HEAD" ]] && exit 0
+[[ -f "${GIT_DIR}/CHERRY_PICK_HEAD" ]] && exit 0
+[[ -d "${GIT_DIR}/rebase-merge" || -d "${GIT_DIR}/rebase-apply" ]] && exit 0
 
 # Full staged diff — no truncation (Sonnet handles large diffs).
 diff="$(git diff --cached --diff-algorithm=histogram 2>/dev/null)"
@@ -42,7 +42,7 @@ msg="$(printf '%s' "$diff" | timeout 30 \
 [[ -n $msg ]] && printf '%s\n\n' "$msg" >"$1"
 
 # Chain to repo-local hook if present.
-local_hook="$GIT_DIR/hooks/prepare-commit-msg"
+local_hook="${GIT_DIR}/hooks/prepare-commit-msg"
 [[ -x $local_hook ]] && exec "$local_hook" "$@"
 
 exit 0
