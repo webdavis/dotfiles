@@ -216,8 +216,14 @@ while IFS= read -r obj; do
   # test migrates it onto a gate arm.
   case "$q" in
     # Page/core: rare, high-confidence, actionable. An agent API port newly bound
-    # off-loopback exposes the operator's primary remote-access path.
-    agent_exposure_changed) sev="CRIT" ;;
+    # off-loopback exposes the operator's primary remote-access path. Only the "added"
+    # (newly-exposed) transition pages; a "removed" row is the port being un-exposed
+    # (the exposure being FIXED) — good news, never a page.
+    agent_exposure_changed) [[ $(jq -r '.act' <<<"$obj") == added ]] && sev="CRIT" || continue ;;
+    # A NEW unexpected setuid-root binary pages (a privilege-escalation backdoor) via
+    # the pre-gate CRIT classification; this arm exists only to drop the good-news
+    # "removed" row — the binary being deleted, the threat going away — never a page.
+    suid_bin_unexpected) [[ $(jq -r '.act' <<<"$obj") == added ]] || continue ;;
     # The pipeline HMAC key and the paseo daemon keypair are the operator's own auth:
     # tampering forges/mutes alerts or hijacks remote access → page. The rotation-prone
     # rest (.env, config.toml, cli-client-id) is noisier → digest.
@@ -258,6 +264,10 @@ while IFS= read -r obj; do
     # process), not a deliverable signal on their own. Log-only.
     es_launchd_writes) continue ;;
     persistence_launchd)
+      # Only a NEW persistence item is actionable; a removed row is a deletion (an
+      # uninstall or cleanup — e.g. removing Docker/VPN drops its LaunchDaemon), never
+      # a "new startup item". Guard the whole arm on the added transition.
+      [[ $(jq -r '.act' <<<"$obj") == added ]] || continue
       # A root-level LaunchDaemon runs as root at boot — a higher-privilege threat
       # that pages. A per-user LaunchAgent is lower-stakes and digests.
       case "$(jq -r '.cols.path // ""' <<<"$obj")" in

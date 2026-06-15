@@ -1,8 +1,8 @@
 #!/usr/bin/env bats
-# Posture page tier. Characterization lock: suid still pages via the alerter's
-# pre-gate (v1) classification rather than an explicit gate arm, so this test is a
-# tripwire — a future gate refactor that silently dropped it (privilege escalation
-# is exactly the page you cannot afford to lose) would turn this red.
+# Posture page tier. Characterization lock: an ADDED suid still pages via the alerter's
+# pre-gate (v1) CRIT classification — its gate arm only drops the good-news removed row
+# — so this test is a tripwire: a future refactor that silently dropped the suid page
+# (privilege escalation is exactly the page you cannot afford to lose) would turn red.
 
 load lib
 
@@ -12,6 +12,14 @@ teardown() { teardown_harness; }
 @test "T-PAGE-suid: a new unexpected setuid-root binary pages" {
   run_alerter "$(row pack_intrusion-detection_suid_bin_unexpected added 1 '{"path":"/Users/x/.local/bin/backdoor","username":"root","permissions":"rwsr-xr-x"}')"
   assert_page_has backdoor
+  assert_digest_count 0
+}
+
+@test "T-NEG-suid-removed: deleting a setuid-root binary does not page (good-news removed row)" {
+  # A setuid binary being removed is the threat going AWAY; it must not page
+  # "New setuid root binary … a backdoor" for the good-news direction.
+  run_alerter "$(row pack_intrusion-detection_suid_bin_unexpected removed 1 '{"path":"/Users/x/.local/bin/oldtool","username":"root","permissions":"rwsr-xr-x"}')"
+  assert_no_page
   assert_digest_count 0
 }
 

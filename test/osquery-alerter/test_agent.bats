@@ -15,6 +15,14 @@ teardown() { teardown_harness; }
   assert_digest_count 0
 }
 
+@test "T-NEG-exposure-unbind: un-exposing an agent port does not page (the exposure being fixed)" {
+  # Rebinding 0.0.0.0 → 127.0.0.1 (fixing the exposure) emits a removed row; it must
+  # NOT page "Agent port exposed off-loopback … close it now" for the good-news way.
+  run_alerter "$(row agent_exposure_changed removed 1 '{"address":"0.0.0.0","port":"8000","name":"workspace-mcp"}')"
+  assert_no_page
+  assert_digest_count 0
+}
+
 @test "T-PAGE-webhooksecret: a change to the alerter HMAC key pages" {
   # The single most critical credential — tampering forges or mutes every alert.
   run_alerter "$(row agent_authfile_changed added 1 '{"path":"/Users/x/.config/osquery/webhook-secret","sha256":"DEADBEEF"}')"

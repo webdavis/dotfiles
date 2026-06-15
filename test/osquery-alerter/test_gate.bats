@@ -41,6 +41,14 @@ teardown() { teardown_harness; }
   assert_digest_count 0
 }
 
+@test "T-NEG-launchd-daemon-removed: deleting a system LaunchDaemon does not page (good-news removed row)" {
+  # Uninstalling a privileged helper (Docker, a VPN, any pkg) deletes its LaunchDaemon.
+  # A removed row must NOT page "New startup item … likely malware" — only an added row.
+  run_alerter "$(row persistence_launchd removed 1 '{"label":"com.docker.vmnetd","path":"/Library/LaunchDaemons/com.docker.vmnetd.plist"}')"
+  assert_no_page
+  assert_digest_count 0
+}
+
 @test "T-SEP-baseline: a digest detector at counter==0 neither pages nor floods the digest" {
   # The counter==0 discard runs BEFORE the gate, so a first-observation (baseline) row
   # of a digest detector cannot flood the daily digest on the first osqueryd run. The
