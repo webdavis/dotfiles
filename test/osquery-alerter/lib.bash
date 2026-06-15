@@ -111,6 +111,41 @@ run_watchdog() {
     bash "$WATCHDOG"
 }
 
+# End-to-end redaction harness (H2): the REAL dispatcher (not the send_alert stub),
+# a no-op alerter, and a curl shim that always fails — so the REAL alerter spools a
+# page to disk and a test can base64-decode the on-disk body to prove no full path,
+# sha256, or secret survives the alerter's basename redaction end to end.
+setup_redaction_h2_harness() {
+  setup_harness
+  cp "$DISPATCH" "$HARNESS_HOME/.local/bin/osquery-alert-dispatch.sh"
+  printf '#!/usr/bin/env bash\nexit 0\n' >"$HARNESS_HOME/.local/bin/alerter"
+  printf '#!/usr/bin/env bash\nprintf 503\n' >"$HARNESS_HOME/.local/bin/curl"
+  chmod +x "$HARNESS_HOME/.local/bin/alerter" "$HARNESS_HOME/.local/bin/curl"
+  export OSQUERY_WEBHOOK_SECRET="testsecret"
+  export OSQUERY_SPOOL_DIR="$HARNESS_HOME/.local/state/osquery-spool"
+  export OSQUERY_DELIVERY_LOG="$HARNESS_HOME/.local/log/osquery/webhook-delivery.log"
+}
+
+# run_redaction_h2 <fixture-row> — drive the REAL alerter into the REAL dispatcher
+# (curl forced to fail), so a CRIT finding spools to disk.
+run_redaction_h2() {
+  local results_log="$HARNESS_HOME/.local/log/osquery/osqueryd.results.log"
+  printf '%s\n' "$1" >"$results_log"
+  printf '0 0\n' >"$HARNESS_HOME/.local/state/osquery-results-offset"
+  HOME="$HARNESS_HOME" \
+    PATH="$HARNESS_HOME/.local/bin:$PATH" \
+    OSQUERY_RESULTS_LOG="$results_log" \
+    OSQUERY_RESULTS_OFFSET="$HARNESS_HOME/.local/state/osquery-results-offset" \
+    OSQUERY_DIGEST_STORE="$OSQUERY_DIGEST_STORE" \
+    OSQUERY_LAUNCHD_ALLOWLIST="$OSQUERY_LAUNCHD_ALLOWLIST" \
+    OSQUERY_PIPELINE_MANIFEST="$OSQUERY_PIPELINE_MANIFEST" \
+    OSQUERY_WEBHOOK_SECRET="$OSQUERY_WEBHOOK_SECRET" \
+    OSQUERY_SPOOL_DIR="$OSQUERY_SPOOL_DIR" \
+    OSQUERY_DELIVERY_LOG="$OSQUERY_DELIVERY_LOG" \
+    OSQUERY_RETRY_BACKOFF_BASE=0 \
+    bash "$ALERTER"
+}
+
 # Allowlist tool harness: a fresh temp allowlist file the writer reads via its env.
 setup_allowlist_harness() {
   ALLOWLIST_HOME="$(mktemp -d)"
