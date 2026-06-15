@@ -99,6 +99,19 @@ teardown() { teardown_harness; }
   [ "$status" -ne 0 ]
 }
 
+@test "T-DIGM-all-torn: a spool of only torn lines sends nothing, not a blank N-item message" {
+  # Every line unparseable (an interrupted _digest_append with zero clean appends):
+  # the rendered body is empty, yet Guard 2 (non-whitespace bytes) passes and
+  # item_count counts the torn lines. The builder must NOT POST a misleading silent
+  # "2 item(s)" with an empty body — that inverts the empty-suppression invariant.
+  mkdir -p "$(dirname "$OSQUERY_DIGEST_STORE")"
+  printf '%s\n%s\n' '{"detector":"x' '{"oops' >"$OSQUERY_DIGEST_STORE"
+  run run_digest
+  [ "$status" -eq 0 ]
+  assert_no_dispatch
+  assert_store_rotated
+}
+
 @test "T-DIGM-torn-line: a malformed spool line is skipped; the day's digest still sends" {
   # A SIGKILLed / ENOSPC-interrupted _digest_append can leave one torn (non-JSON)
   # line in the spool. The builder must skip it, NOT abort the whole run under

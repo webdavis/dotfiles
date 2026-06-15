@@ -59,6 +59,15 @@ body=$(jq -rRs '
      else empty end)
 ' "$work_file" 2>/dev/null | head -c 1800) || true
 
+# Empty-suppression, second gate: if EVERY spooled line was torn/unparseable the body
+# renders empty even though Guard 2 (non-whitespace bytes) and item_count saw the torn
+# lines. Do NOT POST a misleading silent "N item(s)" with an empty body; rotate the
+# unrecoverable batch to .last for forensics and stay silent.
+if ! printf '%s' "$body" | grep -q '[^[:space:]]'; then
+  mv -f "$work_file" "$store.last" 2>/dev/null || rm -f "$work_file"
+  exit 0
+fi
+
 title="🗒️ osquery daily digest · $(date -u +%Y-%m-%d) · ${item_count} item(s)"
 
 # CRIT selects the #priority channel (the dispatcher's only route); the empty sound
