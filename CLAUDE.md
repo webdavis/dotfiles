@@ -154,7 +154,7 @@ data and runs `brew bundle --cleanup` whenever the data changes. Prerequisites:
 1. Install the package immediately: `brew install <formula>` or `brew install --cask <cask>`.
 1. On success, add it to `.chezmoidata/system_packages_autoinstall.yaml` in the appropriate list
    (formulae, casks, taps, mas), maintaining alphabetical order.
-1. Remind the user to run `chezmoi apply` at 22:00 local time (America/Denver) that day.
+1. Remind the user to run `chezmoi apply` when appropriate.
 
 Do **not** run `chezmoi apply` directly — see the KeePassXC constraint above.
 
@@ -204,13 +204,9 @@ the design spec in the chezmoi source tree at
 
 ### Template Files
 
-Template files use chezmoi Go templates (`.tmpl` suffix) and live alongside their target files. Notable
-templates: `.chezmoi.toml.tmpl`, `dot_bashrc.tmpl`, `dot_gitconfig.tmpl`, `dot_aws/credentials.tmpl`,
-`dot_config/gh/private_hosts.yml.tmpl`, `dot_config/atuin/config.toml.tmpl`,
-`dot_config/himalaya/config.toml.tmpl`, `dot_config/osquery/osquery.conf.tmpl`,
-`Library/LaunchAgents/*.plist.tmpl`, `Library/Application Support/espanso/match/identity.yml.tmpl`,
-`Library/Application Support/gogcli/credentials.json.tmpl`, and scripts in `.chezmoiscripts/`. Templates
-conditionally branch on `.chezmoi.os` and, where they pull secrets, call `keepassxc`.
+Template files use chezmoi Go templates (`.tmpl` suffix) and live alongside their target files (e.g.
+`.chezmoi.toml.tmpl`, `dot_bashrc.tmpl`, `dot_gitconfig.tmpl`, and scripts in `.chezmoiscripts/`).
+Templates conditionally branch on `.chezmoi.os` and, where they pull secrets, call `keepassxc`.
 
 ### Template Shellcheck Workaround
 
@@ -242,18 +238,17 @@ GitHub Actions (`.github/workflows/lint.yml`) runs on `macos-latest`. Runs
 ### Tmux Session Management
 
 Sessions are managed by [sesh](https://github.com/joshmedeski/sesh). Named sessions live in
-`dot_config/sesh/sesh.toml` (13 configured: uriel, openclaw, homelab, ivy, casually-concerned, dotfiles,
-nvim-config, essential-feed, webdavis-profile, job-hunting, justdavis-ansible, maeve, dresden).
-`~/.local/bin/sesh-bootstrap.sh` creates the three default sessions (uriel/openclaw/homelab) and is
-invoked from bashrc, `tmux-refresh.sh`, and the Claude Code LaunchAgent. `prefix + o` opens the fuzzy
-picker; `prefix + C-o <letter>` jumps to a named session via the SESH key table; `prefix + \\` toggles
-last session; `prefix + R` reloads `~/.tmux.conf`.
+`dot_config/sesh/sesh.toml`. `~/.local/bin/sesh-bootstrap.sh` creates the three default sessions
+(uriel/openclaw/homelab) and is invoked from bashrc, `tmux-refresh.sh`, and the Claude Code LaunchAgent.
+`prefix + o` opens the fuzzy picker; `prefix + C-o <letter>` jumps to a named session via the SESH key
+table; `prefix + \\` toggles last session; `prefix + R` reloads `~/.tmux.conf`.
 
 ### Git Worktrees (Worktrunk)
 
 Git worktrees are managed by [worktrunk](https://worktrunk.dev/). Config in
-`dot_config/worktrunk/config.toml`: squash+rebase+remove merges; array-of-tables `[[pre-merge]]` hooks
-run `just l` and `just test` before merge. `wt up` rebases every worktree against upstream safely.
+`dot_config/worktrunk/config.toml`: squash+rebase+remove merges with `verify = true`, and
+`delete-branch = false` keeps the branch ref after merge. `wt up` rebases every worktree against upstream
+safely.
 
 ### Bashrc Init Ordering
 
