@@ -16,6 +16,7 @@ teardown() { teardown_harness; }
 @test "T-NEG-authkeys-delete: an authorized_keys DELETE does not page" {
   run_alerter "$(file_event_row authorized_keys /Users/x/.ssh/authorized_keys DELETED)"
   assert_no_page
+  assert_digest_count 0 # a delete is revert noise — pin the no-digest plane like its siblings
 }
 
 @test "T-PAGE-sshd: an sshd_config UPDATED pages" {
