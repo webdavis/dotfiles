@@ -175,7 +175,10 @@ PIPELINE_MANIFEST="${OSQUERY_PIPELINE_MANIFEST:-/var/osquery/pipeline-known-good
 # Digest tier (v2): suspicious-but-ambiguous findings accumulate here as NDJSON for a
 # daily grouped summary instead of paging. Best-effort by design — failing to record a
 # digest line must never abort detection, so every step is guarded and the function
-# always succeeds.
+# always succeeds. Deliberate page/digest asymmetry: the page basenames a path for
+# one-glance clarity, but the digest stores the FULL path (.cols.path) — the daily
+# digest is a private single-user triage view where the full path disambiguates (which
+# .env?). No secret/token/sha256 is ever stored here, so invariant #4 still holds.
 DIGEST_STORE="${OSQUERY_DIGEST_STORE:-$HOME/.local/state/osquery-digest-spool/digest.ndjson}"
 _digest_append() {
   local finding="$1"
