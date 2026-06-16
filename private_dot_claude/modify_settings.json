@@ -89,7 +89,11 @@
 {{- /* --- stable: plugins enabled by default --- */ -}}
 {{- $enabledPlugins := dict
     "superpowers@claude-plugins-official" true
-    "document-skills@anthropic-agent-skills" true -}}
+    "document-skills@anthropic-agent-skills" true
+    "frontend-design@claude-plugins-official" true
+    "playwright@claude-plugins-official" true
+    "security-guidance@claude-plugins-official" true
+    "swift-lsp@claude-plugins-official" true -}}
 {{- $merged = setValueAtPath "enabledPlugins" $enabledPlugins $merged -}}
 
 {{ $merged | toPrettyJson }}
