@@ -288,6 +288,33 @@ stale code, silently breaking recording via gRPC schema drift (now self-healing 
 logged in — it is not a "is the daemon working" check; use `atuin daemon status` (reports `Version`,
 `Protocol`, `Healthy`) for daemon health.
 
+### Happy Daemon (Remote Agent Control)
+
+[happy](https://happy.engineering/) bridges Claude Code sessions to the Happy mobile and web apps for
+remote control; the local daemon is that bridge. Its lifecycle is managed by
+`~/Library/LaunchAgents/com.webdavis.happy-daemon.plist` (`KeepAlive=true`, `RunAtLoad=true`), loaded on
+every `chezmoi apply` by `.chezmoiscripts/run_onchange_after_62-load-happy-daemon-launchagent.sh.tmpl`
+(`bootout` + `bootstrap` with a 3-try retry loop, mirroring the atuin loader). `happy` itself is an npm
+global tracked under `npm:` in `.chezmoidata/system_packages_autoinstall.yaml`, and logs go to
+`~/.local/log/happy-daemon.log`.
+
+**The one gotcha — use `start-sync`, not `start`.** The plist runs `happy daemon start-sync`, which keeps
+the daemon in the foreground. The documented command, `happy daemon start`, detaches (forks, then
+returns), which under `KeepAlive` looks like an instant exit and restart-loops — orphaning a daemon each
+cycle. `start-sync` is the foreground entry point that `start` spawns internally; it is NOT listed in
+`happy daemon --help`, so the plist comment is the only record of why it is used. launchd then supervises
+a two-process tree: the `start-sync` process it keeps alive, which in turn manages the real daemon.
+
+**Diagnostic ladder** when remote control stops connecting:
+
+```bash
+happy daemon status                        # 'Daemon is running' + PID, port, version
+launchctl list | grep happy                # col 1 = live PID, col 2 = last exit status
+ps aux | grep '[h]appy daemon'             # supervised start-sync process + the daemon it spawns
+tail ~/.local/log/happy-daemon.log         # crash messages
+happy doctor                               # full diagnostics ('happy doctor clean' kills runaways)
+```
+
 ### AI Commit Messages
 
 The user-wide `prepare-commit-msg` hook (`dot_config/git/hooks/executable_prepare-commit-msg`, activated
