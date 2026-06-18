@@ -59,15 +59,21 @@
 
 {{- /* --- stable: hooks (paths use $home for portability) --- */ -}}
 {{- $home := .chezmoi.homeDir -}}
+{{- $moshiToken := (keepassxc "Moshi :: Webhook :: getmoshi.app").Password -}}
 {{- $hooks := dict
     "UserPromptSubmit" (list (dict
       "hooks" (list (dict
         "type" "command"
         "command" (printf "%s/.local/bin/claude-user-prompt-start.sh" $home)))))
     "Stop" (list (dict
-      "hooks" (list (dict
-        "type" "command"
-        "command" (printf "%s/.local/bin/claude-stop-pulse.sh" $home)))))
+      "hooks" (list
+        (dict
+          "type" "command"
+          "command" (printf "%s/.local/bin/claude-stop-pulse.sh" $home))
+        (dict
+          "type" "command"
+          "async" true
+          "command" (printf "MOSHI_TOKEN='%s' %s/.local/bin/claude-moshi-notify.sh" $moshiToken $home)))))
     "Notification" (list (dict
       "matcher" "permission_prompt"
       "hooks" (list (dict
