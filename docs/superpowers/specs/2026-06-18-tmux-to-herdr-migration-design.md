@@ -72,13 +72,19 @@ declarative install and remain consistent with the design below:
 
 ### Install & update channel (herdr)
 
+- **Current state on this Mac:** herdr 0.7.0 is **already brew-installed**. The migration must
+  actively uninstall the brew copy (`brew uninstall herdr`) before the curl installer runs — this is
+  not a hypothetical / first-machine path.
 - Switch from Homebrew to the direct curl installer
   (`curl -fsSL https://herdr.dev/install.sh | sh`) BECAUSE the preview channel is **unavailable on
   Homebrew installs** (verified — `herdr channel set preview` errors with *"preview channel is only
   available for direct Herdr installs"*).
 - Remove `herdr` from `.chezmoidata/system_packages_autoinstall.yaml`.
-- Add a chezmoi `run_onchange_before_*` script that: uninstalls any brew copy, runs the curl
-  installer, and ensures the preview channel.
+- Add a chezmoi `run_onchange_before_*` script that, idempotently on every run:
+  1. If `brew list herdr` succeeds → `brew uninstall herdr` (handles the current state above AND any
+     future fresh machine where someone brew-installs herdr before applying dotfiles).
+  2. Run the curl installer (`curl -fsSL https://herdr.dev/install.sh | sh`).
+  3. Ensure the preview channel is active.
 - Channel: **preview**. Prefer setting it declaratively via `[update] channel = "preview"` in the
   tracked config; CLI fallback is `herdr channel set preview` (whichever works on direct install — see
   spike below).
