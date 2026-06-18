@@ -61,7 +61,9 @@ Every task implicitly carries these:
 - `dot_bashrc.tmpl` — replace the entire tmux autostart block (lines 310-349), remove the
   `tmux-last-proc` precmd (lines 285-301), remove the `TERM='tmux-256color'` export (line 36),
   remove the `tmux-purge-resurrect-session-data` alias (line 192), remove `tmux` from the TUI
-  skip-list (line 271), and rewrite line 196 (`alias t='sesh connect uriel'`)
+  skip-list (line 271), and rewrite line 196 — replacing the `alias t='sesh connect uriel'`
+  with a new `alias h='herdr workspace create ... homelab ...'` (rename `t` → `h` to match
+  the herdr-era mnemonic; `t` was a tmux-era leftover)
 - `CLAUDE.md` — stash already adds the moshi-hook setup script to the interactive-apply list;
   THIS plan additionally rewrites the "Tmux Session Management" + "Tmux Window/Pane Status
   Indicators" + tmux parts of "Bashrc Init Ordering" sections, and adds a "Moshi integration"
@@ -931,14 +933,14 @@ via 'just update-agent-skills'."
 
 **Interfaces:**
 - Consumes: herdr binary + config (Tasks 2, 4) + the `homelab` workspace chord (Task 5)
-- Produces: fresh interactive bash spawns/attaches inside the `homelab` workspace; the `t=` alias
-  jumps to homelab instead of `sesh connect uriel`
+- Produces: fresh interactive bash spawns/attaches inside the `homelab` workspace; the new `h=`
+  alias jumps to homelab (replaces the tmux-era `t='sesh connect uriel'`)
 
 - [ ] **Step 1: Read the current tmux/sesh block in bashrc**
 
 ```bash
 sed -n '310,349p' dot_bashrc.tmpl
-sed -n '196p' dot_bashrc.tmpl   # the t= alias
+sed -n '196p' dot_bashrc.tmpl   # the t= alias (to be renamed t → h)
 ```
 Expected: matches the spec's recap — the case statement + the bootstrap branches + the `alias
 t='sesh connect uriel'`.
@@ -974,7 +976,7 @@ command -v herdr &>/dev/null || return
 herdr workspace create --cwd "$HOME/workspaces/Ivy/webdavis/homelab" --label homelab --focus
 ```
 
-- [ ] **Step 3: Replace the `t=` alias (line 196)**
+- [ ] **Step 3: Rename + retarget the alias (line 196): `t` → `h`**
 
 Replace:
 
@@ -985,8 +987,11 @@ alias t='sesh connect uriel'
 with:
 
 ```bash
-alias t='herdr workspace create --cwd "$HOME/workspaces/Ivy/webdavis/homelab" --label homelab --focus'
+alias h='herdr workspace create --cwd "$HOME/workspaces/Ivy/webdavis/homelab" --label homelab --focus'
 ```
+
+Rationale: `t` was a tmux-era mnemonic; `h` matches herdr and won't collide with the justfile
+aliases (`l/L/s/S/m/n/t/j/y/d/a/c/D` — `h` is free in bash).
 
 - [ ] **Step 4: Render + shellcheck the template**
 
@@ -1028,7 +1033,9 @@ git commit -m "feat(bashrc): land in herdr homelab workspace on interactive shel
 Replaces the tmux/sesh autostart block (lines 310-349) with a single
 'herdr workspace create --focus' invocation against the homelab path.
 herdr's create-or-focus semantics handle both the first-shell creation
-and subsequent attach cases. The t= alias points at the same command."
+and subsequent attach cases. Renames the t= alias (a tmux-era mnemonic)
+to h= and retargets it at the same homelab workspace create-or-focus
+command."
 ```
 
 ---
