@@ -290,7 +290,7 @@ path_prepend "$HOME/.bun/bin"
 export PATH
 
 # ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-# ┃    Herdr: Auto-attach Homelab Workspace ┃
+# ┃         Herdr: Auto-attach Session       ┃
 # ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 
 case $- in
@@ -311,5 +311,10 @@ command -v herdr &>/dev/null || return
 # Skip herdr for VS Code integrated terminals.
 [[ ${TERM_PROGRAM:-} == "vscode" ]] && return
 
-# Create-or-focus the homelab workspace on the default session.
-herdr workspace create --cwd "$HOME/workspaces/Ivy/webdavis/homelab" --label homelab --focus
+# Launch or attach to the persistent herdr session (starts the server if it
+# isn't running). herdr has no launch-into-workspace flag, so this opens the
+# last-focused workspace — homelab once you've been there, since the session
+# persists. Jump to homelab anytime via prefix+ctrl+h or the `h` alias.
+# NOTE: `herdr workspace create` is a socket call that needs a running server
+# and does not attach the terminal — do not use it here.
+herdr
