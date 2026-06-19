@@ -24,3 +24,65 @@ split_vertical = "prefix+%"
 # key table — built-in modes coexist with the no-multi-step-bindings constraint).
 navigate_workspace_up = "k"
 navigate_workspace_down = "j"
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Workspace quick-jump chords (prefix+ctrl+<letter>)
+# All 8 live in a namespace empty in herdr defaults and structurally unlikely to
+# be claimed upstream. Each runs `herdr workspace create --cwd <path> --label
+# <name> --focus`, which has create-or-focus semantics: first invocation creates
+# the workspace, subsequent invocations focus the existing one.
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[[keys.command]]
+key = "prefix+ctrl+h"
+type = "shell"
+command = "$HERDR_BIN_PATH workspace create --cwd $HOME/workspaces/Ivy/webdavis/homelab --label homelab --focus"
+description = "jump to homelab workspace (auto-start)"
+
+[[keys.command]]
+key = "prefix+ctrl+."
+type = "shell"
+command = "$HERDR_BIN_PATH workspace create --cwd $HOME/workspaces/Ivy/webdavis/dotfiles --label dotfiles --focus"
+description = "jump to dotfiles workspace (CSI-u; fallback below)"
+
+[[keys.command]]
+key = "prefix+."
+type = "shell"
+command = "$HERDR_BIN_PATH workspace create --cwd $HOME/workspaces/Ivy/webdavis/dotfiles --label dotfiles --focus"
+description = "jump to dotfiles workspace (fallback for terminals without CSI-u)"
+
+[[keys.command]]
+key = "prefix+ctrl+c"
+type = "shell"
+command = "$HERDR_BIN_PATH workspace create --cwd $HOME/workspaces/Ivy/casually-concerned --label casually-concerned --focus"
+description = "jump to casually-concerned workspace"
+
+[[keys.command]]
+key = "prefix+ctrl+i"
+type = "shell"
+command = "$HERDR_BIN_PATH workspace create --cwd $HOME/workspaces/Ivy --label Ivy --focus"
+description = "jump to Ivy vault workspace (also fires on prefix+Tab via ctrl+i alias)"
+
+[[keys.command]]
+key = "prefix+ctrl+j"
+type = "shell"
+command = "$HERDR_BIN_PATH workspace create --cwd $HOME/workspaces/Ivy/karlmdavis/justdavis-ansible --label justdavis-ansible --focus"
+description = "jump to justdavis-ansible workspace"
+
+[[keys.command]]
+key = "prefix+ctrl+e"
+type = "shell"
+command = "$HERDR_BIN_PATH workspace create --cwd $HOME/workspaces/Ivy/webdavis/essential-feed-case-study --label essential-feed-case-study --focus"
+description = "jump to essential-feed-case-study workspace"
+
+[[keys.command]]
+key = "prefix+ctrl+n"
+type = "shell"
+command = "$HERDR_BIN_PATH workspace create --cwd $HOME/workspaces/Ivy/webdavis/netpulse --label netpulse --focus"
+description = "jump to netpulse workspace"
+
+[[keys.command]]
+key = "prefix+ctrl+p"
+type = "shell"
+command = "$HERDR_BIN_PATH workspace create --cwd $HOME/workspaces/Ivy/hobbies/plantpulse --label plantpulse --focus"
+description = "jump to plantpulse workspace"
