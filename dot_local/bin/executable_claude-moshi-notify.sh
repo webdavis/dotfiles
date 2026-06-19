@@ -5,13 +5,17 @@
 # permission_mode, hook_event_name }. Wired async in modify_settings.json so it
 # never delays turn completion. Always exits 0.
 #
-# modify_settings.json injects MOSHI_TOKEN (vaulted in KeePassXC) into the hook's
-# environment. No-ops if MOSHI_TOKEN is unset, e.g. before an interactive
-# `chezmoi apply` with KeePassXC unlocked. The token reaches jq via the
-# environment and curl via stdin, so it never appears in this script's argv.
+# Reads the webhook secret from ~/.config/moshi/setting.json (a 0600 file chezmoi
+# renders from the KeePassXC entry "Moshi :: Webhook Secret") into MOSHI_TOKEN and
+# exports it, so the jq body below reads it from the environment — never from a
+# command line. The secret therefore never lands in any process's argv (no `ps`
+# exposure). No-ops if the file is missing or the secret is empty, e.g. before an
+# interactive `chezmoi apply` with KeePassXC unlocked.
 
 set -euo pipefail
 
+MOSHI_TOKEN="$(jq -r '.webhook_secret // empty' "$HOME/.config/moshi/setting.json" 2>/dev/null || true)"
+export MOSHI_TOKEN
 [[ -n ${MOSHI_TOKEN:-} ]] || exit 0
 
 input=$(cat)

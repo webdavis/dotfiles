@@ -61,12 +61,13 @@ chezmoi diff --exclude=templates            # diff non-template files
 **Never run bare `chezmoi apply` from Claude Code** — the following templates call `keepassxc` and will
 fail without an interactive TTY: `~/.gitconfig`, `~/.aws/credentials`, `~/.claude.json`,
 `~/.composio/user_data.json`, `~/.config/atuin/config.toml`, `~/.config/himalaya/config.toml`,
-`~/.claude/settings.json`, `~/Library/Application Support/Claude/claude_desktop_config.json`,
+`~/.config/moshi/setting.json`, `~/Library/Application Support/Claude/claude_desktop_config.json`,
 `~/Library/Application Support/espanso/match/identity.yml`,
 `~/Library/Application Support/gogcli/credentials.json`, and the chezmoiscript
 `.chezmoiscripts/run_once_after_60-moshi-hook-setup.sh.tmpl` (one-time setup; once it runs successfully
 on a given machine, automation can resume). Apply those from an interactive terminal with KeePassXC
-unlocked. Non-KeePassXC templates (e.g. `~/.bashrc`) are safe to apply from automation.
+unlocked. Non-KeePassXC templates (e.g. `~/.bashrc`, and `~/.claude/settings.json` now that its
+modify-template no longer pulls from KeePassXC) are safe to apply from automation.
 
 ### Claude Code Settings
 
@@ -82,7 +83,8 @@ drift freely without forcing a chezmoi resync.
 - `permissions.allow` (read-only tools), `permissions.deny` (`.env`, `secrets/**`, `.ssh/id_*`, etc.),
   `permissions.defaultMode` = `bypassPermissions`.
 - `hooks`: `UserPromptSubmit` marks session start, `Stop` pulses Hue lights and posts a moshi push
-  notification (`claude-moshi-notify.sh`, async; `MOSHI_TOKEN` injected via keepassxc), `Notification`
+  notification (`claude-moshi-notify.sh`, async; the script reads its webhook secret from the 0600
+  `~/.config/moshi/setting.json`, so the hook command carries no secret), `Notification`
   (`permission_prompt` matcher) fires alerter, `PreToolUse` (`Bash` matcher) writes to
   `~/.claude/audit.log`.
 - `statusLine`, `enabledPlugins`, `cleanupPeriodDays` (= 36525, effectively disables session cleanup),
@@ -328,8 +330,8 @@ happy doctor                               # full diagnostics ('happy doctor cle
 ### Moshi Integration
 
 Moshi is the user's primary mobile agent bridge (Happy coexists as a secondary option). The `rjyo/moshi`
-tap and `moshi-hook` formula are declared in `.chezmoidata/system_packages_autoinstall.yaml` under a new
-`trusted_taps:` field; a pre-bundle trust loop in
+tap and `moshi-hook` formula are declared in `.chezmoidata/system_packages_autoinstall.yaml`, with
+`rjyo/moshi` listed in the shared `trusted_taps:` field; a pre-bundle trust loop in
 `.chezmoiscripts/run_onchange_before_10-system-packages.sh.tmpl` runs `brew trust --tap` for each trusted
 tap before `brew bundle` executes.
 
@@ -341,6 +343,12 @@ Pi, and starts the brew service.
 **Asymmetric herdr integration:** moshi-hook reads `HERDR_ENV`, `HERDR_SESSION`, and `HERDR_PANE_ID`
 (which herdr exports natively inside its panes), so no herdr-side configuration is needed for moshi-hook
 to operate.
+
+**Done-notification Stop hook (separate from moshi-hook):** the Claude Code `Stop` hook posts a "done"
+push via `~/.local/bin/claude-moshi-notify.sh`. chezmoi renders its webhook secret into the 0600 file
+`~/.config/moshi/setting.json` (`dot_config/moshi/private_setting.json.tmpl`, from KeePassXC entry
+**`Moshi :: Webhook Secret`**); the script reads it at run time, so the secret never appears on the hook
+command line or in any process's argv.
 
 ### AI Commit Messages
 

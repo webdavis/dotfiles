@@ -1,0 +1,6 @@
+{{- /* Moshi webhook secret consumed by ~/.local/bin/claude-moshi-notify.sh. Kept
+       in this 0600 file rather than the Stop-hook command line so the token never
+       appears in any process's argv. */ -}}
+{
+  "webhook_secret": {{ (keepassxc "Moshi :: Webhook Secret").Password | quote }}
+}
