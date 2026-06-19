@@ -11,14 +11,31 @@
 set -euo pipefail
 
 OSQUERYI="${OSQUERYI:-$(command -v osqueryi || echo /usr/local/bin/osqueryi)}"
-HERMES_URL="${OSQUERY_HERMES_URL:-http://127.0.0.1:8644/webhooks/osquery}"
+# Probe the #priority route — the path pages actually use. The old /webhooks/osquery
+# route was decommissioned, so probing it no longer proves a page can be delivered.
+HERMES_URL="${OSQUERY_HERMES_PRIORITY_URL:-http://127.0.0.1:8644/webhooks/osquery-priority}"
+# Every deployed osquery LaunchAgent EXCEPT this watchdog (which, if running, is
+# loaded by definition). No osquery plist sets KeepAlive, so launchd will not reload
+# an unloaded agent — this list is the sole liveness backstop. A calendar/interval
+# agent that is merely idle between runs still reports loaded (exit 0), so listing it
+# here cannot false-alarm. The tailscale poller pages on public-internet exposure, the
+# digest owns the daily summary, and the heartbeat is the daily proof-of-life whose
+# silence the user trusts — all MUST be covered.
 AGENTS=(
   "com.webdavis.osquery-results-alerter"
   "com.webdavis.osquery-firewall-gatekeeper-monitor"
+  "com.webdavis.osquery-digest"
+  "com.webdavis.osquery-tailscale-monitor"
+  "com.webdavis.osquery-heartbeat"
 )
 
 # shellcheck source=/dev/null
 source "$HOME/.local/bin/osquery-alert-dispatch.sh"
+
+# Backstop drain: the alerter flushes the spool on every results.log change, but if
+# nothing is changing this tick (every 15 min) still replays any page spooled while
+# the gateway was down. `|| true` keeps it off this watchdog's own failure path.
+_drain_spool || true
 
 problems=()
 
@@ -30,15 +47,16 @@ elif ! "$OSQUERYI" --json "SELECT 1 AS ok FROM time" >/dev/null 2>&1; then
   problems+=("osqueryd is wedged (not answering queries)")
 fi
 
-# 2) Both notifier LaunchAgents are loaded.
+# 2) Every deployed osquery LaunchAgent is loaded.
 for agent in "${AGENTS[@]}"; do
   if ! launchctl list "$agent" >/dev/null 2>&1; then
     problems+=("LaunchAgent not loaded: $agent")
   fi
 done
 
-# 3) hermes gateway reachable (any HTTP status = up; 000 = unreachable). The
-#    local alerter in send_alert still fires even if this is what is down.
+# 3) hermes gateway reachable on the #priority route (any HTTP status = up;
+#    000 = unreachable). The local alerter in send_alert still fires even if this
+#    is what is down.
 code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 "$HERMES_URL" 2>/dev/null) || code=000
 if [ "$code" = "000" ]; then
   problems+=("hermes gateway unreachable at $HERMES_URL")
