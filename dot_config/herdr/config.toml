@@ -1,0 +1,26 @@
+# Declarative channel. CLI invocation in run_onchange_before_15-install-herdr.sh.tmpl
+# guarantees the runtime state, this entry documents intent.
+[update]
+channel = "preview"
+
+[keys]
+prefix = "ctrl+d"
+
+# Workspace picker (already the herdr default — set explicitly for documentation).
+goto = "prefix+g"
+
+# Rename current tab.
+rename_tab = "prefix+comma"
+
+# Splits — deliberately crossed against herdr's defaults to preserve tmux muscle memory.
+# herdr names splits by divider orientation; tmux by motion direction. Opposite words,
+# same physical result. DO NOT "fix" the cross — it is the intended mapping.
+#   prefix+" → top/bottom stack (tmux: split horizontally with `-`)
+#   prefix+% → side-by-side    (tmux: split vertically with `|`)
+split_horizontal = "prefix+\""
+split_vertical = "prefix+%"
+
+# Workspace sidebar navigation in herdr's built-in navigate mode (NOT a custom
+# key table — built-in modes coexist with the no-multi-step-bindings constraint).
+navigate_workspace_up = "k"
+navigate_workspace_down = "j"
