@@ -31,6 +31,7 @@ echo "Installing herdr-navigator @ $HERDR_NAV_SHA..."
 # in chezmoi's non-interactive run context. Override with a minimal throwaway
 # config that keeps HTTPS for this one fetch.
 _tmp_git_cfg="$(mktemp)"
+trap 'rm -f "$_tmp_git_cfg"' EXIT
 printf '[user]\n  name = chezmoi-bootstrap\n  email = chezmoi@localhost\n' > "$_tmp_git_cfg"
 GIT_CONFIG_GLOBAL="$_tmp_git_cfg" CARGO_NET_GIT_FETCH_WITH_CLI=true \
   cargo install \
@@ -39,7 +40,6 @@ GIT_CONFIG_GLOBAL="$_tmp_git_cfg" CARGO_NET_GIT_FETCH_WITH_CLI=true \
   --rev "$HERDR_NAV_SHA" \
   --locked \
   --force
-rm -f "$_tmp_git_cfg"
 
 echo "$HERDR_NAV_SHA" > "$sidecar"
 echo "herdr-navigator install complete."
