@@ -11,6 +11,10 @@ prefix = "ctrl+d"
 # Workspace picker (already the herdr default — set explicitly for documentation).
 goto = "prefix+g"
 
+# Jump to the previous workspace — positional (the workspace before the current
+# one in sidebar order). herdr has no MRU "last workspace" toggle.
+previous_workspace = "prefix+ctrl+\\"
+
 # Rename current tab.
 rename_tab = "prefix+comma"
 
