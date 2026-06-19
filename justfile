@@ -89,7 +89,7 @@ defaults-dump:
 # Moshi Skill: installed via 'npx skills add rjyo/moshi-skill', then vendored
 update-agent-skills:
   curl -fsSL https://raw.githubusercontent.com/ogulcancelik/herdr/master/SKILL.md \
-    > private_dot_claude/skills/herdr/SKILL.md
+    > private_dot_claude/skills/herdr/private_SKILL.md
   @echo "Moshi Skill: run 'npx skills add rjyo/moshi-skill', then copy the"
   @echo "resulting ~/.claude/skills/<moshi-dir>/SKILL.md into"
-  @echo "private_dot_claude/skills/moshi/SKILL.md and commit."
+  @echo "private_dot_claude/skills/moshi/private_SKILL.md and commit."
