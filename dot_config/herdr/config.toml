@@ -86,3 +86,17 @@ key = "prefix+ctrl+p"
 type = "shell"
 command = "$HERDR_BIN_PATH workspace create --cwd $HOME/workspaces/Ivy/hobbies/plantpulse --label plantpulse --focus"
 description = "jump to plantpulse workspace"
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Send-prefix workaround (Ctrl-d EOF preservation)
+# Because prefix=ctrl+d, the literal Ctrl-d keystroke is consumed by prefix
+# mode. Double-tap Ctrl-d: first press enters prefix mode → second fires this
+# binding → herdr CLI injects a literal ctrl+d byte into the focused pane's
+# PTY. Conceptually equivalent to tmux's `bind -n send-prefix`.
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[[keys.command]]
+key = "prefix+ctrl+d"
+type = "shell"
+command = "$HERDR_BIN_PATH pane send-keys $HERDR_ACTIVE_PANE_ID 'ctrl+d'"
+description = "double-tap Ctrl-d → send literal Ctrl-d (EOF) to focused pane"
