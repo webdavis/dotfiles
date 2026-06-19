@@ -86,10 +86,9 @@ defaults-dump:
 
 # Refresh vendored agent skills from upstream sources.
 # herdr Agent Skill: ogulcancelik/herdr/SKILL.md
-# Moshi Skill: installed via 'npx skills add rjyo/moshi-skill', then vendored
+# Moshi Skill: rjyo/moshi-skill (skills/moshi-best-practices/SKILL.md on main)
 update-agent-skills:
   curl -fsSL https://raw.githubusercontent.com/ogulcancelik/herdr/master/SKILL.md \
     > private_dot_claude/skills/herdr/private_SKILL.md
-  @echo "Moshi Skill: run 'npx skills add rjyo/moshi-skill', then copy the"
-  @echo "resulting ~/.claude/skills/<moshi-dir>/SKILL.md into"
-  @echo "private_dot_claude/skills/moshi/private_SKILL.md and commit."
+  curl -fsSL https://raw.githubusercontent.com/rjyo/moshi-skill/main/skills/moshi-best-practices/SKILL.md \
+    > private_dot_claude/skills/moshi/private_SKILL.md
