@@ -63,8 +63,10 @@ fail without an interactive TTY: `~/.gitconfig`, `~/.aws/credentials`, `~/.claud
 `~/.composio/user_data.json`, `~/.config/atuin/config.toml`, `~/.config/himalaya/config.toml`,
 `~/.claude/settings.json`, `~/Library/Application Support/Claude/claude_desktop_config.json`,
 `~/Library/Application Support/espanso/match/identity.yml`,
-`~/Library/Application Support/gogcli/credentials.json`. Apply those from an interactive terminal with
-KeePassXC unlocked. Non-KeePassXC templates (e.g. `~/.bashrc`) are safe to apply from automation.
+`~/Library/Application Support/gogcli/credentials.json`, and the chezmoiscript
+`.chezmoiscripts/run_once_after_60-moshi-hook-setup.sh.tmpl` (one-time setup; once it runs successfully
+on a given machine, automation can resume). Apply those from an interactive terminal with KeePassXC
+unlocked. Non-KeePassXC templates (e.g. `~/.bashrc`) are safe to apply from automation.
 
 ### Claude Code Settings
 

@@ -13,6 +13,7 @@ packages:
         - openhue/cli
         - oven-sh/bun
         - owenthereal/upterm
+        - rjyo/moshi
         - steipete/tap
         - vjeantet/tap
         - xdevplatform/tap
@@ -36,6 +37,7 @@ packages:
         - openhue/cli
         - oven-sh/bun
         - owenthereal/upterm
+        - rjyo/moshi
         - steipete/tap
         - vjeantet/tap
         - xdevplatform/tap
@@ -128,6 +130,7 @@ packages:
         - pv
         - restic
         - ripgrep
+        - rjyo/moshi/moshi-hook
         - ruff
         - sd
         - sevenzip

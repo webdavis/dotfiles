@@ -1,0 +1,20 @@
+{{ if eq .chezmoi.os "darwin" -}}
+{{- $token := (keepassxc "Moshi :: Pairing Token").Password -}}
+#!/bin/bash
+# One-time moshi-hook setup: pair this host with the Moshi iPhone app, install
+# agent hooks for the supported AI CLIs, and start the brew service (which
+# writes a launchd plist with KeepAlive so the daemon survives subsequent
+# restarts). The pairing token is pulled from KeePassXC at apply time.
+#
+# Re-running: `run_once_` semantics mean this fires exactly once per machine
+# (tracked via chezmoi's script-state hash). If you need to re-pair, run
+# `moshi-hook pair --token <token>` manually, or
+# `chezmoi state delete-bucket --bucket=scriptState` to clear the hash and let
+# this script re-fire on the next apply.
+
+set -euo pipefail
+
+/opt/homebrew/bin/moshi-hook pair --token {{ $token | quote }}
+/opt/homebrew/bin/moshi-hook install
+/opt/homebrew/bin/brew services start moshi-hook
+{{ end -}}
