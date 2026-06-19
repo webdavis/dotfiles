@@ -242,13 +242,14 @@ Tools provided: chezmoi, shellcheck, shfmt, mdformat (with GFM plugin), nixfmt-t
 GitHub Actions (`.github/workflows/lint.yml`) runs on `macos-latest`. Runs
 `nix flake check --all-systems` and `./scripts/lint.sh` on pushes to main and PRs.
 
-### Tmux Session Management
+### Herdr Workspace Management
 
-Sessions are managed by [sesh](https://github.com/joshmedeski/sesh). Named sessions live in
-`dot_config/sesh/sesh.toml`. `~/.local/bin/sesh-bootstrap.sh` creates the three default sessions
-(uriel/openclaw/homelab) and is invoked from bashrc, `tmux-refresh.sh`, and the Claude Code LaunchAgent.
-`prefix + o` opens the fuzzy picker; `prefix + C-o <letter>` jumps to a named session via the SESH key
-table; `prefix + \\` toggles last session; `prefix + R` reloads `~/.tmux.conf`.
+Workspaces (project-anchored tab groups, ≈ tmux sessions) are configured at
+`dot_config/herdr/config.toml`. Eight quick-jump chords in the `prefix+ctrl+<letter>` namespace map to
+active project paths; see the design spec at
+`docs/superpowers/specs/2026-06-18-tmux-to-herdr-migration-design.md` for the full mapping table.
+`~/.bashrc` lands a fresh interactive shell inside the `homelab` workspace on every terminal launch; the
+other seven workspaces are on-demand via their jump chords.
 
 ### Git Worktrees (Worktrunk)
 
@@ -264,7 +265,9 @@ Starship initializes early; zoxide and atuin initialize after the interactive bl
 bundling it) BEFORE `atuin init` — atuin's `__atuin_preexec`/`__atuin_precmd` and our long-running
 command timer both register into `preexec_functions` / `precmd_functions`. A naked `DEBUG` trap would
 clobber atuin's recording. Direnv hook runs early. Carapace universal completion loads after
-`gh completion`.
+`gh completion`. On interactive launch, `herdr workspace create --focus homelab` runs unconditionally —
+no `tmux ls` probe, no `sesh-bootstrap.sh` call; herdr is idempotent and silently no-ops if the workspace
+already exists.
 
 ### Shell History (Atuin)
 
@@ -322,6 +325,23 @@ tail ~/.local/log/happy-daemon.log         # crash messages
 happy doctor                               # full diagnostics ('happy doctor clean' kills runaways)
 ```
 
+### Moshi Integration
+
+Moshi is the user's primary mobile agent bridge (Happy coexists as a secondary option). The `rjyo/moshi`
+tap and `moshi-hook` formula are declared in `.chezmoidata/system_packages_autoinstall.yaml` under a new
+`trusted_taps:` field; a pre-bundle trust loop in
+`.chezmoiscripts/run_onchange_before_10-system-packages.sh.tmpl` runs `brew trust --tap` for each trusted
+tap before `brew bundle` executes.
+
+One-time setup runs from `.chezmoiscripts/run_once_after_60-moshi-hook-setup.sh.tmpl`: pairs moshi-hook
+with the mobile app (token from KeePassXC entry **`Moshi :: Pairing Token`**), runs `moshi-hook install`
+to wire agent hooks into Claude Code / Codex / OpenCode / Gemini / Cursor / Kimi / Qwen / Grok / OMP /
+Pi, and starts the brew service.
+
+**Asymmetric herdr integration:** moshi-hook reads `HERDR_ENV`, `HERDR_SESSION`, and `HERDR_PANE_ID`
+(which herdr exports natively inside its panes), so no herdr-side configuration is needed for moshi-hook
+to operate.
+
 ### AI Commit Messages
 
 The user-wide `prepare-commit-msg` hook (`dot_config/git/hooks/executable_prepare-commit-msg`, activated
@@ -341,24 +361,11 @@ why the per-repo pre-commit lint uses the dispatcher described under Git Hooks r
 framework). Commands ≥ 30s fire an `alerter` macOS notification; ≥ 5 min additionally pulse Hue lights
 via `~/.local/bin/hue-pulse.sh`. Known interactive TUIs (vim/less/top/ssh/tmux/claude/fzf) are skipped.
 
-### Tmux Window/Pane Status Indicators
+### Herdr Native Status
 
-Passive indicators via tmux2k:
-
-- **Window list:** each window's active pane gets an emoji (🤖 agents, 🧪 test runners, 🔨 build tools, ⏳
-  other) via `~/.local/bin/tmux-window-emoji.sh` called from `@tmux2k-window-list-format`.
-- **Right-side status:** a custom tmux2k plugin (`last-proc`) reads `@prev-session` (set by the
-  `client-session-changed` hook) and displays `<previous-session>:<active-window> <emoji>`. The plugin
-  script lives at `~/.local/bin/tmux-last-proc.sh` under chezmoi control, and
-  `.chezmoiscripts/run_after_70-install-tmux2k-last-proc.sh.tmpl` copies it into
-  `~/.tmux/plugins/tmux2k/plugins/last-proc.sh` on every `chezmoi apply` (silent no-op if tmux2k isn't
-  installed yet — fresh machine runs `prefix + I` first). Colors come from `@tmux2k-last-proc-colors` set
-  in `dot_tmux.conf`; no need to edit tmux2k's `main.sh` because `get_plugin_colors` falls back to
-  user-set tmux options. Direct placement of the file under `dot_tmux/...` is avoided because tpm's
-  install check (`if [ -d $plugin_dir ]; skip`) would treat a chezmoi-created path as "already installed"
-  and skip cloning tmux2k entirely.
-
-Replaces the default battery slot in `@tmux2k-right-plugins` with `last-proc network ram`.
+Workspace state (per-pane agent status: blocked / working / done / idle) is rendered natively by herdr —
+no third-party plugin or custom script. The sidebar rolls each workspace up to its most-urgent agent
+state. Claude Code, Codex, Cursor, OpenCode, and others are recognized out of the box.
 
 ## Code Style
 
