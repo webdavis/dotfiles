@@ -17,6 +17,13 @@ packages:
         - vjeantet/tap
         - xdevplatform/tap
         - yakitrak/yakitrak
+      # Third-party taps whose formulae/casks must be trusted before `brew bundle`
+      # will load them under the HOMEBREW_REQUIRE_TAP_TRUST gate. The pre-bundle
+      # loop in run_onchange_before_10-system-packages.sh.tmpl runs `brew trust`
+      # for each. Add a tap here when `brew bundle` reports it as untrusted.
+      trusted_taps:
+        - eugene1g/safehouse
+        - steipete/tap
       formulae:
         - act
         - actionlint
