@@ -128,3 +128,15 @@ key = "ctrl+l"
 type = "shell"
 command = "$HERDR_BIN_PATH pane focus --direction right --current"
 description = "focus pane right"
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Clear screen — raw Ctrl-l is taken by pane-focus-right above, so prefix+ctrl+l
+# sends a literal Ctrl-l to the focused pane, giving back bash's clear-screen
+# (readline clear-screen: no command, no history entry).
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[[keys.command]]
+key = "prefix+ctrl+l"
+type = "shell"
+command = "$HERDR_BIN_PATH pane send-keys $HERDR_ACTIVE_PANE_ID 'ctrl+l'"
+description = "clear screen: send Ctrl-l to the focused pane (like bash)"
