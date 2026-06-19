@@ -1,0 +1,30 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/bin/bash
+
+set -euo pipefail
+
+# If brew installed herdr previously (current state on this Mac as of 2026-06-18),
+# uninstall it before the curl installer takes over.
+if brew list herdr &>/dev/null; then
+  echo "Uninstalling brew-installed herdr (preview channel requires direct install)..."
+  brew uninstall herdr
+fi
+
+# Run the official direct installer (no-op-ish if already present; the installer
+# is idempotent for same-version reinstalls).
+if ! command -v herdr &>/dev/null; then
+  echo "Installing herdr via direct curl installer..."
+  curl -fsSL https://herdr.dev/install.sh | sh
+fi
+
+# Ensure preview channel is active. The CLI is authoritative; declarative
+# [update] channel = "preview" in config.toml is also set (Task 4) but the
+# CLI invocation here guarantees the runtime state matches.
+if command -v herdr &>/dev/null; then
+  current_channel=$(herdr channel show 2>/dev/null | awk '{print $NF}' || echo "unknown")
+  if [[ $current_channel != "preview" ]]; then
+    echo "Switching herdr to preview channel..."
+    herdr channel set preview
+  fi
+fi
+{{ end -}}

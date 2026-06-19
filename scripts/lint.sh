@@ -148,6 +148,7 @@ find_shell_templates() {
     -type d \( -name ".git" -o -name ".worktrees" -o -name ".direnv" -o -regex ".*/\.?vendor" \) -prune \
     -o -type f \( \
     -name "dot_bashrc.tmpl" \
+    -o -name "run_onchange_before_15-install-herdr.sh.tmpl" \
     -o -name "run_onchange_before_50-setup-osquery.sh.tmpl" \
     \) -print0
 }
