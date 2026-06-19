@@ -95,33 +95,36 @@ command = "$HOME/.local/bin/herdr-jump.sh plantpulse $HOME/workspaces/Ivy/hobbie
 description = "jump to plantpulse workspace"
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# Neovim ↔ herdr seamless pane navigation
-# Raw Ctrl-h/j/k/l routes through herdr-navigator. The binary checks whether
-# the focused pane is running Neovim (via marker files at
-# ~/.cache/herdr.nvim/panes/) — if so, it forwards the keystroke; if not, it
-# moves focus between herdr panes.
+# Pane focus — raw Ctrl-h/j/k/l move focus between herdr panes by direction.
+# These were meant to route through devxplay/herdr.nvim's herdr-navigator for
+# seamless Neovim-split <-> herdr-pane navigation, but that binary no-ops
+# against herdr 0.7.0 (its socket focus call is incompatible — verified: even
+# with a registered pane and a valid neighbor, dispatch/focus do nothing while
+# native `herdr pane focus` works). So these call herdr's native pane focus
+# directly. No Neovim-split awareness until herdr-navigator works on 0.7.0 and
+# its Neovim plugin is installed.
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 [[keys.command]]
 key = "ctrl+h"
 type = "shell"
-command = "$HOME/.cargo/bin/herdr-navigator dispatch left"
-description = "seamless pane nav: left (Neovim or herdr)"
+command = "$HERDR_BIN_PATH pane focus --direction left --current"
+description = "focus pane left"
 
 [[keys.command]]
 key = "ctrl+j"
 type = "shell"
-command = "$HOME/.cargo/bin/herdr-navigator dispatch down"
-description = "seamless pane nav: down (Neovim or herdr)"
+command = "$HERDR_BIN_PATH pane focus --direction down --current"
+description = "focus pane down"
 
 [[keys.command]]
 key = "ctrl+k"
 type = "shell"
-command = "$HOME/.cargo/bin/herdr-navigator dispatch up"
-description = "seamless pane nav: up (Neovim or herdr)"
+command = "$HERDR_BIN_PATH pane focus --direction up --current"
+description = "focus pane up"
 
 [[keys.command]]
 key = "ctrl+l"
 type = "shell"
-command = "$HOME/.cargo/bin/herdr-navigator dispatch right"
-description = "seamless pane nav: right (Neovim or herdr)"
+command = "$HERDR_BIN_PATH pane focus --direction right --current"
+description = "focus pane right"
