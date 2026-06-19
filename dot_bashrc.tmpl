@@ -193,7 +193,7 @@ if [[ $- == *i* ]]; then
   alias p='python3'
   alias git-weekly='git diff --name-status "@{7 days ago}" | sort -u | grep -v "Templates" > weekly-review-files.md'
   alias path='echo $PATH | tr ":" "\n"'
-  alias t='sesh connect uriel'
+  alias h='herdr workspace create --cwd "$HOME/workspaces/Ivy/webdavis/homelab" --label homelab --focus'
   alias fman='compgen -c | fzf | xargs man'
 
   # Custom git wrappers and other user aliases.
@@ -308,7 +308,7 @@ path_prepend "$HOME/.bun/bin"
 export PATH
 
 # ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-# ┃  Tmux: Config / Auto-start Session(s)  ┃
+# ┃    Herdr: Auto-attach Homelab Workspace ┃
 # ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 
 case $- in
@@ -316,34 +316,18 @@ case $- in
   *) return ;; # non-interactive terminal session, exit
 esac
 
-# Skip if tmux isn't installed or already in a session.
-command -v tmux &>/dev/null || return
-[[ -n $TMUX ]] && return
+# Skip if herdr isn't installed or already in a pane.
+command -v herdr &>/dev/null || return
+[[ -n ${HERDR_ENV:-} ]] && return
 
 # Do not interfere with non-interactive remote commands (ssh host 'cmd').
 [[ -n ${SSH_ORIGINAL_COMMAND:-} ]] && return
 
-# Skip tmux for VS Code Remote SSH connections (prevents OOM from multiple background sessions).
+# Skip herdr for VS Code Remote SSH connections.
 [[ -n ${VSCODE_INJECTION:-} ]] && return
 
-# Skip tmux for VS Code integrated terminals.
+# Skip herdr for VS Code integrated terminals.
 [[ ${TERM_PROGRAM:-} == "vscode" ]] && return
 
-# Bail if Tmux server/session is already running.
-if ! sh -c 'tmux ls >/dev/null 2>&1'; then
-  # No tmux server — bootstrap sessions.
-  tmux_resurrect_data="$HOME/.tmux/resurrect/last"
-  if [[ -f $tmux_resurrect_data ]]; then
-    # Bare `tmux` starts the server; tmux-continuum auto-restores saved sessions.
-    tmux
-  elif command -v sesh &>/dev/null; then
-    # Create the three default sessions via sesh-bootstrap, then attach to uriel.
-    "$HOME/.local/bin/sesh-bootstrap.sh" 2>/dev/null
-    tmux attach -t uriel 2>/dev/null || tmux new -s uriel
-  fi
-else
-  # Server already running — attach to (or switch to) the uriel session.
-  if command -v sesh &>/dev/null; then
-    sesh connect uriel
-  fi
-fi
+# Create-or-focus the homelab workspace on the default session.
+herdr workspace create --cwd "$HOME/workspaces/Ivy/webdavis/homelab" --label homelab --focus
