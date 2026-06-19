@@ -3,6 +3,8 @@
 [update]
 channel = "preview"
 
+# herdr's actual keybindings section is [keys] (per `herdr --default-config`); the
+# design brief drafted it as [keybindings]. [keys] is authoritative.
 [keys]
 prefix = "ctrl+d"
 
