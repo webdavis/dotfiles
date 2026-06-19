@@ -17,13 +17,29 @@ packages:
         - vjeantet/tap
         - xdevplatform/tap
         - yakitrak/yakitrak
-      # Third-party taps whose formulae/casks must be trusted before `brew bundle`
-      # will load them under the HOMEBREW_REQUIRE_TAP_TRUST gate. The pre-bundle
-      # loop in run_onchange_before_10-system-packages.sh.tmpl runs `brew trust`
-      # for each. Add a tap here when `brew bundle` reports it as untrusted.
+      # Every third-party tap declared above is trusted up front so Homebrew can
+      # load its formulae, casks, or commands under the HOMEBREW_REQUIRE_TAP_TRUST
+      # gate. The pre-bundle loop in run_onchange_before_10-system-packages.sh.tmpl
+      # runs `brew trust --tap` for each (covers command taps too). The gate is a
+      # load-time check, so an untrusted tap only fails when brew must (re)load it
+      # — on a fresh install or an upgrade — which is why trusting all of them up
+      # front is what keeps `brew bundle` from tripping. Keep in sync with `taps:`.
       trusted_taps:
+        - antoniorodr/memo
+        - buo/cask-upgrade
+        - cirruslabs/cli
+        - domt4/autoupdate
         - eugene1g/safehouse
+        - felixkratz/formulae
+        - mediosz/tap
+        - nikitabobko/tap
+        - openhue/cli
+        - oven-sh/bun
+        - owenthereal/upterm
         - steipete/tap
+        - vjeantet/tap
+        - xdevplatform/tap
+        - yakitrak/yakitrak
       formulae:
         - act
         - actionlint
