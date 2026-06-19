@@ -29,79 +29,67 @@ navigate_workspace_down = "j"
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # Workspace quick-jump chords (prefix+ctrl+<letter>)
-# All 8 live in a namespace empty in herdr defaults and structurally unlikely to
-# be claimed upstream. Each runs `herdr workspace create --cwd <path> --label
-# <name> --focus`, which has create-or-focus semantics: first invocation creates
-# the workspace, subsequent invocations focus the existing one.
+# 8 workspaces in a namespace empty in herdr defaults and structurally unlikely
+# to be claimed upstream. Each calls herdr-jump.sh <label> <cwd>, which focuses
+# the existing workspace with that label or creates it if absent. The helper is
+# required because `herdr workspace create` is NOT idempotent — it spawns a new
+# workspace on every invocation — and `herdr workspace focus` takes an id, not a
+# label, so there is no single built-in create-or-focus command.
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 [[keys.command]]
 key = "prefix+ctrl+h"
 type = "shell"
-command = "$HERDR_BIN_PATH workspace create --cwd $HOME/workspaces/Ivy/webdavis/homelab --label homelab --focus"
+command = "$HOME/.local/bin/herdr-jump.sh homelab $HOME/workspaces/Ivy/webdavis/homelab"
 description = "jump to homelab workspace (auto-start)"
 
 [[keys.command]]
 key = "prefix+ctrl+."
 type = "shell"
-command = "$HERDR_BIN_PATH workspace create --cwd $HOME/workspaces/Ivy/webdavis/dotfiles --label dotfiles --focus"
+command = "$HOME/.local/bin/herdr-jump.sh dotfiles $HOME/workspaces/Ivy/webdavis/dotfiles"
 description = "jump to dotfiles workspace (CSI-u; fallback below)"
 
 [[keys.command]]
 key = "prefix+."
 type = "shell"
-command = "$HERDR_BIN_PATH workspace create --cwd $HOME/workspaces/Ivy/webdavis/dotfiles --label dotfiles --focus"
+command = "$HOME/.local/bin/herdr-jump.sh dotfiles $HOME/workspaces/Ivy/webdavis/dotfiles"
 description = "jump to dotfiles workspace (fallback for terminals without CSI-u)"
 
 [[keys.command]]
 key = "prefix+ctrl+c"
 type = "shell"
-command = "$HERDR_BIN_PATH workspace create --cwd $HOME/workspaces/Ivy/casually-concerned --label casually-concerned --focus"
+command = "$HOME/.local/bin/herdr-jump.sh casually-concerned $HOME/workspaces/Ivy/casually-concerned"
 description = "jump to casually-concerned workspace"
 
 [[keys.command]]
 key = "prefix+ctrl+i"
 type = "shell"
-command = "$HERDR_BIN_PATH workspace create --cwd $HOME/workspaces/Ivy --label Ivy --focus"
+command = "$HOME/.local/bin/herdr-jump.sh Ivy $HOME/workspaces/Ivy"
 description = "jump to Ivy vault workspace (also fires on prefix+Tab via ctrl+i alias)"
 
 [[keys.command]]
 key = "prefix+ctrl+j"
 type = "shell"
-command = "$HERDR_BIN_PATH workspace create --cwd $HOME/workspaces/Ivy/karlmdavis/justdavis-ansible --label justdavis-ansible --focus"
+command = "$HOME/.local/bin/herdr-jump.sh justdavis-ansible $HOME/workspaces/Ivy/karlmdavis/justdavis-ansible"
 description = "jump to justdavis-ansible workspace"
 
 [[keys.command]]
 key = "prefix+ctrl+e"
 type = "shell"
-command = "$HERDR_BIN_PATH workspace create --cwd $HOME/workspaces/Ivy/webdavis/essential-feed-case-study --label essential-feed-case-study --focus"
+command = "$HOME/.local/bin/herdr-jump.sh essential-feed-case-study $HOME/workspaces/Ivy/webdavis/essential-feed-case-study"
 description = "jump to essential-feed-case-study workspace"
 
 [[keys.command]]
 key = "prefix+ctrl+n"
 type = "shell"
-command = "$HERDR_BIN_PATH workspace create --cwd $HOME/workspaces/Ivy/webdavis/netpulse --label netpulse --focus"
+command = "$HOME/.local/bin/herdr-jump.sh netpulse $HOME/workspaces/Ivy/webdavis/netpulse"
 description = "jump to netpulse workspace"
 
 [[keys.command]]
 key = "prefix+ctrl+p"
 type = "shell"
-command = "$HERDR_BIN_PATH workspace create --cwd $HOME/workspaces/Ivy/hobbies/plantpulse --label plantpulse --focus"
+command = "$HOME/.local/bin/herdr-jump.sh plantpulse $HOME/workspaces/Ivy/hobbies/plantpulse"
 description = "jump to plantpulse workspace"
-
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# Send-prefix workaround (Ctrl-d EOF preservation)
-# Because prefix=ctrl+d, the literal Ctrl-d keystroke is consumed by prefix
-# mode. Double-tap Ctrl-d: first press enters prefix mode → second fires this
-# binding → herdr CLI injects a literal ctrl+d byte into the focused pane's
-# PTY. Conceptually equivalent to tmux's `bind -n send-prefix`.
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-[[keys.command]]
-key = "prefix+ctrl+d"
-type = "shell"
-command = "$HERDR_BIN_PATH pane send-keys $HERDR_ACTIVE_PANE_ID 'ctrl+d'"
-description = "double-tap Ctrl-d → send literal Ctrl-d (EOF) to focused pane"
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # Neovim ↔ herdr seamless pane navigation
