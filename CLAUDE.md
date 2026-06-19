@@ -363,9 +363,9 @@ via `~/.local/bin/hue-pulse.sh`. Known interactive TUIs (vim/less/top/ssh/tmux/c
 
 ### Herdr Native Status
 
-Workspace state (per-pane agent status: blocked / working / done / idle) is rendered natively by herdr —
-no third-party plugin or custom script. The sidebar rolls each workspace up to its most-urgent agent
-state. Claude Code, Codex, Cursor, OpenCode, and others are recognized out of the box.
+Workspace state (per-pane agent status: blocked / working / done / idle) is rendered by herdr — no
+third-party plugin or custom script. The sidebar rolls each workspace up to its most-urgent agent state.
+Claude Code, Codex, Cursor, OpenCode, and others are recognized out of the box.
 
 ## Code Style
 
