@@ -3,6 +3,14 @@
 
 set -euo pipefail
 
+# Pre-trust taps that require it. `brew tap` first (no-op if already tapped) so
+# `brew trust` has a target to operate on, then trust. Both idempotent and safe
+# to re-run. Required because `brew bundle` will refuse to install formulae from
+# untrusted taps when HOMEBREW_REQUIRE_TAP_TRUST is set.
+{{ range .packages.macos.homebrew.trusted_taps -}}
+/opt/homebrew/bin/brew tap {{ . | quote }} 2>/dev/null || true
+/opt/homebrew/bin/brew trust --tap {{ . | quote }} 2>/dev/null || true
+{{ end }}
 # Use `brew bundle ...` to install all taps, formulae, casks, and macOS App Store apps.
 /opt/homebrew/bin/brew bundle --cleanup --file=/dev/stdin <<EOF
 {{ range .packages.macos.homebrew.taps -}}

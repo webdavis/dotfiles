@@ -149,6 +149,11 @@ keys: `taps`, `formulae`, `casks`, `mas`. The
 data and runs `brew bundle --cleanup` whenever the data changes. Prerequisites:
 `run_once_before_00-install-homebrew.sh.tmpl` ensures `/opt/homebrew/bin/brew` exists on fresh machines.
 
+Third-party taps whose formulae or casks must be trusted under Homebrew's `HOMEBREW_REQUIRE_TAP_TRUST`
+gate are listed under a `trusted_taps` key in the same data file. A pre-bundle loop in
+`run_onchange_before_10-system-packages.sh.tmpl` runs `brew trust --tap` for each before `brew bundle`,
+so the bundle does not refuse to load them. Add a tap there when `brew bundle` reports it as untrusted.
+
 **Homebrew install workflow (for AI agents):**
 
 1. Install the package immediately: `brew install <formula>` or `brew install --cask <cask>`.
