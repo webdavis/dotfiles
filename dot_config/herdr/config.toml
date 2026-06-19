@@ -22,10 +22,13 @@ rename_tab = "prefix+comma"
 split_horizontal = "prefix+\""
 split_vertical = "prefix+%"
 
-# Workspace sidebar navigation in herdr's built-in navigate mode (NOT a custom
-# key table — built-in modes coexist with the no-multi-step-bindings constraint).
-navigate_workspace_up = "k"
-navigate_workspace_down = "j"
+# Workspace sidebar navigation in herdr's built-in navigate mode (entered via
+# prefix+w). ctrl+p/ctrl+n (up/down) instead of plain k/j so they don't collide
+# with navigate_pane's k/j (a plain-key clash there disables pane up/down in
+# navigate mode). Not a custom key table — built-in mode, so it coexists with
+# the no-multi-step-bindings constraint.
+navigate_workspace_up = "ctrl+p"
+navigate_workspace_down = "ctrl+n"
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # Workspace quick-jump chords (prefix+ctrl+<letter>)
