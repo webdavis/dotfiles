@@ -149,6 +149,7 @@ find_shell_templates() {
     -o -type f \( \
     -name "dot_bashrc.tmpl" \
     -o -name "run_onchange_before_15-install-herdr.sh.tmpl" \
+    -o -name "run_onchange_after_50-install-herdr-navigator.sh.tmpl" \
     -o -name "run_onchange_before_50-setup-osquery.sh.tmpl" \
     \) -print0
 }

@@ -1,0 +1,46 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/bin/bash
+
+set -euo pipefail
+
+# Pin to a specific upstream commit. devxplay/herdr.nvim is early-stage
+# (4 commits, no releases on inspection); pinning by SHA guarantees the
+# Neovim plugin and the binary stay in sync.
+HERDR_NAV_SHA="deed8496356aab90e1cc364dac4f95d898fa6067"
+
+# Bail if cargo isn't on PATH — surface the rustup script as the prerequisite.
+if ! command -v cargo &>/dev/null; then
+  echo "ERROR: cargo not found on PATH. Run the rustup bootstrap first" >&2
+  echo "(.chezmoiscripts/run_once_before_20-install-rustup.sh.tmpl), then" >&2
+  echo "source ~/.cargo/env in a new shell." >&2
+  exit 1
+fi
+
+# Idempotent: only install (or update) if the installed binary's version
+# doesn't match the pinned SHA. Cargo doesn't expose the source commit
+# easily, so we record it in a sidecar file.
+sidecar="$HOME/.cargo/.herdr-navigator-sha"
+if [[ -f $sidecar && $(cat "$sidecar") == "$HERDR_NAV_SHA" ]]; then
+  echo "herdr-navigator already at pinned SHA $HERDR_NAV_SHA, skipping."
+  exit 0
+fi
+
+echo "Installing herdr-navigator @ $HERDR_NAV_SHA..."
+# The system gitconfig rewrites https://github.com/ → git@github.com: (for SSH
+# push convenience). That rewrite breaks cargo when no SSH agent is present, as
+# in chezmoi's non-interactive run context. Override with a minimal throwaway
+# config that keeps HTTPS for this one fetch.
+_tmp_git_cfg="$(mktemp)"
+printf '[user]\n  name = chezmoi-bootstrap\n  email = chezmoi@localhost\n' > "$_tmp_git_cfg"
+GIT_CONFIG_GLOBAL="$_tmp_git_cfg" CARGO_NET_GIT_FETCH_WITH_CLI=true \
+  cargo install \
+  --git https://github.com/devxplay/herdr.nvim.git \
+  --bin herdr-navigator \
+  --rev "$HERDR_NAV_SHA" \
+  --locked \
+  --force
+rm -f "$_tmp_git_cfg"
+
+echo "$HERDR_NAV_SHA" > "$sidecar"
+echo "herdr-navigator install complete."
+{{ end -}}
