@@ -1,7 +1,14 @@
+# Skip Herdr onboarding workflow on first run.
+onboarding = false
+
 # Declarative channel. CLI invocation in run_onchange_before_15-install-herdr.sh.tmpl
 # guarantees the runtime state, this entry documents intent.
 [update]
 channel = "preview"
+
+[terminal]
+default_shell = "bash"
+shell_mode = "auto"
 
 [theme]
 # Built-in theme (others: terminal, tokyo-night, dracula, nord, gruvbox,
@@ -130,16 +137,6 @@ key = "prefix+ctrl+p"
 type = "shell"
 command = "$HOME/.local/bin/herdr-jump.sh plantpulse $HOME/workspaces/Ivy/hobbies/plantpulse"
 description = "jump to plantpulse workspace"
-
-# Bounce to the last workspace you came from (temporal toggle, like tmux's
-# last-window). herdr-bounce.sh reads the id recorded by the jump chords and
-# swaps, so pressing prefix+\ twice returns you. herdr's native
-# previous_workspace is positional (sidebar order), not this temporal MRU.
-[[keys.command]]
-key = "prefix+\\"
-type = "shell"
-command = "$HOME/.local/bin/herdr-bounce.sh"
-description = "bounce to last workspace (temporal toggle)"
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # Pane focus — raw Ctrl-h/j/k/l move focus between herdr panes by direction.
