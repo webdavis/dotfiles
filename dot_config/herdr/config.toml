@@ -157,16 +157,18 @@ type = "shell"
 command = "$HOME/.local/bin/herdr-jump.sh plantpulse $HOME/workspaces/Ivy/hobbies/plantpulse"
 description = "jump to plantpulse workspace"
 
-# Workspace-level back-and-forth (a "last_workspace" toggle). herdr has no
-# builtin for this — last_pane (prefix+\) is pane-level, and previous_workspace
-# is positional, not MRU — so herdr-bounce.sh focuses the workspace recorded by
-# the jump chords and records the one you left, toggling between the two most
-# recent workspaces. Pairs with last_pane: prefix+\ panes, prefix+ctrl+\ spaces.
+# Workspace-level back-and-forth (a true "last_workspace" MRU toggle). herdr has
+# no builtin for this — last_pane (prefix+\) is pane-level, previous_workspace is
+# positional — so the webdavis.last-workspace plugin tracks workspace focus via
+# the workspace.focused event and its `last_workspace` action focuses the previous
+# one. Unlike a key-bound script, the plugin sees mouse/picker switches too. The
+# key is the user's choice; prefix+ctrl+\ is the default. Pairs with last_pane:
+# prefix+\ panes, prefix+ctrl+\ spaces.
 [[keys.command]]
 key = "prefix+ctrl+\\"
-type = "shell"
-command = "$HOME/.local/bin/herdr-bounce.sh"
-description = "bounce to last workspace (temporal MRU toggle)"
+type = "plugin_action"
+command = "webdavis.last-workspace.last_workspace"
+description = "last workspace (MRU toggle, via plugin)"
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # Pane focus — raw Ctrl-h/j/k/l move focus between herdr panes by direction.
