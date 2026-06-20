@@ -3,6 +3,35 @@
 [update]
 channel = "preview"
 
+[theme]
+# Built-in theme (others: terminal, tokyo-night, dracula, nord, gruvbox,
+# one-dark, solarized, kanagawa, rose-pine, vesper).
+name = "catppuccin"
+
+# [ui] scalar keys must precede the [ui.*] subtables below — TOML forbids
+# reopening a table once a subtable has started.
+[ui]
+# Show detected/reported agent labels in split-pane borders when no manual pane
+# name is set.
+show_agent_labels_on_pane_borders = true
+
+[ui.sound]
+# Play a sound when an agent changes state in a background workspace.
+enabled = true
+
+[ui.toast]
+# Background notification popups render as in-app herdr toasts (not a desktop or
+# OS notification). Other values: off, terminal, system.
+delivery = "herdr"
+
+[experimental]
+# Persist pane scrollback across full server restarts.
+pane_history = true
+# While prefix mode is active, temporarily switch the macOS host input source to
+# an ASCII-capable layout so prefix chords register even under a CJK IME, then
+# restore the previous source on prefix exit. macOS only, best-effort.
+switch_ascii_input_source_in_prefix = true
+
 # herdr's actual keybindings section is [keys] (per `herdr --default-config`); the
 # design brief drafted it as [keybindings]. [keys] is authoritative.
 [keys]
