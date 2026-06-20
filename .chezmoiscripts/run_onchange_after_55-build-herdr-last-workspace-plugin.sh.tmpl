@@ -1,0 +1,51 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/bin/bash
+
+set -euo pipefail
+
+# Builds and links the last-workspace herdr plugin (a true MRU workspace toggle
+# herdr lacks natively). `herdr plugin link` does NOT run the manifest's
+# [[build]] step, so the binary is compiled here. Re-runs whenever the plugin
+# source changes (run_onchange keyed on the rendered content below).
+#
+# Plugin source (hashed so this script re-runs on change):
+#   {{ include "dot_local/share/herdr/plugins/last-workspace/src/main.rs" | sha256sum }}
+#   {{ include "dot_local/share/herdr/plugins/last-workspace/Cargo.lock" | sha256sum }}
+#   {{ include "dot_local/share/herdr/plugins/last-workspace/herdr-plugin.toml" | sha256sum }}
+
+plugin_dir="$HOME/.local/share/herdr/plugins/last-workspace"
+plugin_id="webdavis.last-workspace"
+
+if ! command -v cargo &>/dev/null; then
+  echo "cargo not found on PATH; run the rustup bootstrap first" >&2
+  exit 1
+fi
+
+# Compile the plugin binary. --locked keeps Cargo.lock authoritative so the
+# vendored lockfile does not drift on apply.
+(cd "$plugin_dir" && cargo build --release --locked)
+
+# Link with herdr if not already linked. Linking talks to the running herdr
+# server; if it is not up (e.g. a headless apply), skip with a hint — an
+# interactive session can link later. The link persists once registered.
+if herdr plugin list 2>/dev/null | grep -q "$plugin_id"; then
+  echo "herdr plugin $plugin_id already linked"
+elif herdr plugin link "$plugin_dir" >/dev/null 2>&1; then
+  echo "linked herdr plugin $plugin_id"
+else
+  echo "could not link $plugin_id (herdr server not running?); link later with: herdr plugin link $plugin_dir" >&2
+fi
+
+# Seed the MRU 'current' with the live focused workspace so the first bounce
+# after install works. The plugin learns workspaces only as they are focused, so
+# without this seed the workspace focused at install time is missing until it is
+# re-focused (the event-only cold-start gap). Only seed when no state exists yet.
+state="${XDG_STATE_HOME:-$HOME/.local/state}/herdr/plugins/${plugin_id}/mru"
+if [[ ! -s $state ]]; then
+  focused=$(herdr workspace list 2>/dev/null | jq -r '[.result.workspaces[] | select(.focused) | .workspace_id][0] // empty')
+  if [[ -n $focused ]]; then
+    mkdir -p "$(dirname "$state")"
+    printf '%s\n\n' "$focused" >"$state"
+  fi
+fi
+{{ end -}}
