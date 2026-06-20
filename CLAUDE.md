@@ -336,9 +336,19 @@ tap and `moshi-hook` formula are declared in `.chezmoidata/system_packages_autoi
 tap before `brew bundle` executes.
 
 One-time setup runs from `.chezmoiscripts/run_once_after_60-moshi-hook-setup.sh.tmpl`: pairs moshi-hook
-with the mobile app (token from KeePassXC entry **`Moshi :: Pairing Token`**), runs `moshi-hook install`
-to wire agent hooks into Claude Code / Codex / OpenCode / Gemini / Cursor / Kimi / Qwen / Grok / OMP /
-Pi, and starts the brew service.
+with the mobile app (token from KeePassXC entry **`Moshi :: Pairing Token`**), runs
+`moshi-hook install --target codex,opencode,gemini,cursor,kimi,qwen,grok,omp,pi` to wire agent hooks into
+every supported AI CLI **except Claude Code**, and starts the brew service.
+
+**Why Claude Code is excluded from `moshi-hook install`:** moshi-hook's installer writes its own hooks
+into `~/.claude/settings.json` across many events, including `UserPromptSubmit` — which fires a Moshi
+push on every prompt submission (an unwanted "user POST" notification). moshi-hook has no per-event
+opt-out (only `--target` / `--local`), and patching the third-party binary is not permitted, so Claude
+Code's hooks are owned solely by chezmoi's modify-template (see the Stop-only done notifier below).
+Excluding `claude` from `--target` keeps moshi-hook off Claude Code entirely, so the only Moshi push for
+Claude is the agent-response (Stop) one. On a machine provisioned before this exclusion, run
+`moshi-hook uninstall --target claude` once to strip the stale Claude hooks (the next `chezmoi apply`
+then owns them).
 
 **Asymmetric herdr integration:** moshi-hook reads `HERDR_ENV`, `HERDR_SESSION`, and `HERDR_PANE_ID`
 (which herdr exports natively inside its panes), so no herdr-side configuration is needed for moshi-hook
