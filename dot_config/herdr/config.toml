@@ -26,6 +26,11 @@ show_agent_labels_on_pane_borders = true
 # Play a sound when an agent changes state in a background workspace.
 enabled = true
 
+[ui.sound.agents]
+# Per-agent overrides accept "default", "on", or "off". droid is muted by
+# default; turn it on.
+droid = "on"
+
 [ui.toast]
 # Background notification popups render as in-app herdr toasts (not a desktop or
 # OS notification). Other values: off, terminal, system.
