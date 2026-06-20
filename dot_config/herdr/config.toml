@@ -79,6 +79,15 @@ navigate_workspace_down = "ctrl+n"
 # bounces panes, prefix+ctrl+\ bounces workspaces.
 last_pane = "prefix+\\"
 
+# Swap the focused pane with a neighbor. Moved off their default prefix+shift+h/j/k/l
+# to prefix+alt+h/j/k/l so prefix+shift+l is free for clear-screen (below), and
+# to sit alongside the other prefix+alt nav (agent next/prev/focus). h/j/k/l keep
+# the directional convention.
+swap_pane_left = "prefix+alt+h"
+swap_pane_down = "prefix+alt+j"
+swap_pane_up = "prefix+alt+k"
+swap_pane_right = "prefix+alt+l"
+
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # Workspace quick-jump chords (prefix+ctrl+<letter>)
 # 8 workspaces in a namespace empty in herdr defaults and structurally unlikely
@@ -190,13 +199,14 @@ command = "$HERDR_BIN_PATH pane focus --direction right --current"
 description = "focus pane right"
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# Clear screen — raw Ctrl-l is taken by pane-focus-right above, so prefix+ctrl+l
+# Clear screen — raw Ctrl-l is taken by pane-focus-right above, so prefix+shift+l
 # sends a literal Ctrl-l to the focused pane, giving back bash's clear-screen
-# (readline clear-screen: no command, no history entry).
+# (readline clear-screen: no command, no history entry). prefix+shift+l was
+# herdr's default swap_pane_right, relocated to prefix+alt+l above to free it.
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 [[keys.command]]
-key = "prefix+ctrl+l"
+key = "prefix+shift+l"
 type = "shell"
 command = "$HERDR_BIN_PATH pane send-keys $HERDR_ACTIVE_PANE_ID 'ctrl+l'"
 description = "clear screen: send Ctrl-l to the focused pane (like bash)"
