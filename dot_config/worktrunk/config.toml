@@ -1,7 +1,12 @@
 # Worktrunk configuration — git worktree management.
 # Docs: https://worktrunk.dev/
 
-worktree-path = "{{ repo_path }}/../{{ repo }}.{{ branch | sanitize }}"
+# Mirror herdr's worktree layout so both tools create worktrees in ONE place,
+# never two. herdr is hardcoded to <directory>/<repo>/<branch-slug> with
+# directory defaulting to ~/.herdr/worktrees; worktrunk's path is templatable,
+# so it bends to match. `~` expands to home. (herdr's branch-slug and
+# worktrunk's `sanitize` both map `/`→`-`; exotic branch names could still differ.)
+worktree-path = "~/.herdr/worktrees/{{ repo }}/{{ branch | sanitize }}"
 
 # MAX_THINKING_TOKENS is the effort knob (0 = thinking off). Raised to give
 # haiku a real thinking budget for branch summaries — but this command is shared
