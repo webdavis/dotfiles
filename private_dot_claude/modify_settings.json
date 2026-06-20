@@ -31,6 +31,8 @@
 {{- $merged = setValueAtPath "cleanupPeriodDays" 36525 $merged -}}
 {{- $merged = setValueAtPath "autoUpdatesChannel" "stable" $merged -}}
 {{- $merged = setValueAtPath "remoteControlAtStartup" true $merged -}}
+{{- /* xhigh is the maximum effortLevel enum value (low/medium/high/xhigh) */ -}}
+{{- $merged = setValueAtPath "effortLevel" "xhigh" $merged -}}
 
 {{- $permissions := dict
     "allow" (list
