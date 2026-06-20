@@ -27,7 +27,7 @@ A reliable workspace MRU toggle:
   most-recently-focused workspaces (matching tmux `last-window` and the original intent).
 - Correct regardless of how the switch happened — chord, mouse, or picker.
 
-The plugin is **keybinding-agnostic**: it exposes a `bounce` action only and imposes no key. The
+The plugin is **keybinding-agnostic**: it exposes a `last_workspace` action only and imposes no key. The
 keybinding is the user's choice, owned in their own herdr config (`dot_config/herdr/config.toml`) — the
 default is `prefix+ctrl+\`, but it can be set to anything (or invoked manually via
 `herdr plugin action invoke`). This mirrors the example plugins, which ship an action and leave the bind to
@@ -62,9 +62,11 @@ The binary, `last-workspace`, takes one subcommand:
 - `record` — declared as the `workspace.focused` event handler. Reads the newly-focused id from
   `HERDR_PLUGIN_EVENT_JSON` (`.data.workspace_id`). If it differs from the stored `current`, shifts
   `current → previous` and sets `current` to the new id.
-- `bounce` — declared as the `bounce` action, bound to a key. Focuses the stored `previous` via
-  `herdr workspace focus`. That focus re-fires `workspace.focused`, which re-enters `record` and flips
-  the pair — so the next bounce returns. Symmetric toggle with no extra bookkeeping.
+- `bounce` — the binary subcommand backing the **`last_workspace`** action (the bindable one). Focuses
+  the stored `previous` via `herdr workspace focus`. That focus re-fires `workspace.focused`, which
+  re-enters `record` and flips the pair — so the next invocation returns. Symmetric toggle, no extra
+  bookkeeping. The action id is `last_workspace` (mirroring herdr's `last_pane`), so the keybinding
+  command is `webdavis.last-workspace.last_workspace`.
 
 ## State model
 
@@ -89,7 +91,7 @@ focus; `bounce` reads `previous`. herdr provides `HERDR_PLUGIN_STATE_DIR` (per-p
   (best-effort — skips with a hint if the herdr server is not running), then seed the MRU state.
 - Add the chezmoiscript to `scripts/lint.sh`'s shell-template shellcheck enumeration.
 - Rebind `prefix+ctrl+\` in `dot_config/herdr/config.toml` from the shell command to
-  `type = "plugin_action"`, `command = "webdavis.last-workspace.bounce"`.
+  `type = "plugin_action"`, `command = "webdavis.last-workspace.last_workspace"`.
 - Retire the old approach: delete `dot_local/bin/executable_herdr-bounce.sh` and revert
   `dot_local/bin/executable_herdr-jump.sh` to plain create-or-focus (the plugin records state now).
 - `last_pane` on `prefix+\` is unchanged. Result: `prefix+\` bounces panes, `prefix+ctrl+\` bounces
