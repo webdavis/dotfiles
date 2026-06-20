@@ -11,10 +11,6 @@ prefix = "ctrl+d"
 # Workspace picker (already the herdr default — set explicitly for documentation).
 goto = "prefix+g"
 
-# Jump to the previous workspace — positional (the workspace before the current
-# one in sidebar order). herdr has no MRU "last workspace" toggle.
-previous_workspace = "prefix+ctrl+\\"
-
 # Rename current tab.
 rename_tab = "prefix+comma"
 
@@ -97,6 +93,16 @@ key = "prefix+ctrl+p"
 type = "shell"
 command = "$HOME/.local/bin/herdr-jump.sh plantpulse $HOME/workspaces/Ivy/hobbies/plantpulse"
 description = "jump to plantpulse workspace"
+
+# Bounce to the last workspace you came from (temporal toggle, like tmux's
+# last-window). herdr-bounce.sh reads the id recorded by the jump chords and
+# swaps, so pressing prefix+ctrl+\ twice returns you. herdr's native
+# previous_workspace is positional (sidebar order), not this temporal MRU.
+[[keys.command]]
+key = "prefix+ctrl+\\"
+type = "shell"
+command = "$HOME/.local/bin/herdr-bounce.sh"
+description = "bounce to last workspace (temporal toggle)"
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # Pane focus — raw Ctrl-h/j/k/l move focus between herdr panes by direction.
