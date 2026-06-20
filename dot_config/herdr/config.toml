@@ -43,6 +43,14 @@ goto = "prefix+g"
 # Rename current tab.
 rename_tab = "prefix+comma"
 
+# Agent-pane navigation, on the alt modifier so it stays clear of tab nav
+# (herdr's plain prefix+n/prefix+p + prefix+1..9) and the prefix+ctrl+<letter>
+# workspace chords. Three nav axes, three modifier tiers. prefix+alt may depend
+# on terminal handling — Ghostty is fine; verify if a chord misfires.
+next_agent = "prefix+alt+n"
+previous_agent = "prefix+alt+p"
+focus_agent = "prefix+alt+1..9"
+
 # Splits — deliberately crossed against herdr's defaults to preserve tmux muscle memory.
 # herdr names splits by divider orientation; tmux by motion direction. Opposite words,
 # same physical result. DO NOT "fix" the cross — it is the intended mapping.
