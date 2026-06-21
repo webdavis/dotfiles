@@ -9,12 +9,12 @@ set -euo pipefail
 # source changes (run_onchange keyed on the rendered content below).
 #
 # Plugin source (hashed so this script re-runs on change):
-#   {{ include "dot_local/share/herdr/plugins/last-workspace/src/main.rs" | sha256sum }}
-#   {{ include "dot_local/share/herdr/plugins/last-workspace/Cargo.lock" | sha256sum }}
-#   {{ include "dot_local/share/herdr/plugins/last-workspace/herdr-plugin.toml" | sha256sum }}
+#   {{ include "dot_local/share/herdr/plugins/herdr-last-workspace/src/main.rs" | sha256sum }}
+#   {{ include "dot_local/share/herdr/plugins/herdr-last-workspace/Cargo.lock" | sha256sum }}
+#   {{ include "dot_local/share/herdr/plugins/herdr-last-workspace/herdr-plugin.toml" | sha256sum }}
 
-plugin_dir="$HOME/.local/share/herdr/plugins/last-workspace"
-plugin_id="webdavis.last-workspace"
+plugin_dir="$HOME/.local/share/herdr/plugins/herdr-last-workspace"
+plugin_id="herdr-last-workspace"
 
 if ! command -v cargo &>/dev/null; then
   echo "cargo not found on PATH; run the rustup bootstrap first" >&2

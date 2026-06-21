@@ -42,7 +42,7 @@ fn next_mru(current: &str, previous: &str, new_id: &str) -> Option<(String, Stri
 fn state_file() -> PathBuf {
     let dir = env::var("HERDR_PLUGIN_STATE_DIR").unwrap_or_else(|_| {
         let home = env::var("HOME").unwrap_or_default();
-        format!("{home}/.local/state/herdr/plugins/webdavis.last-workspace")
+        format!("{home}/.local/state/herdr/plugins/herdr-last-workspace")
     });
     PathBuf::from(dir).join("mru")
 }

@@ -1,4 +1,4 @@
-id = "webdavis.last-workspace"
+id = "herdr-last-workspace"
 name = "Last Workspace"
 version = "0.1.0"
 min_herdr_version = "0.7.0"
@@ -19,7 +19,7 @@ command = ["./target/release/last-workspace", "record"]
 
 # Bound to a key via [[keys.command]] type = "plugin_action" in the user's herdr
 # config. Action id `last_workspace` mirrors herdr's builtin `last_pane`, so the
-# binding command reads webdavis.last-workspace.last_workspace.
+# binding command reads herdr-last-workspace.last_workspace.
 [[actions]]
 id = "last_workspace"
 title = "Last workspace (MRU toggle)"

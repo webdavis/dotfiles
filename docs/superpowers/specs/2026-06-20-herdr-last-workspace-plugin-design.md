@@ -53,8 +53,8 @@ re-verify.
 
 ## Components
 
-One crate at `~/.local/share/herdr/plugins/last-workspace/` (chezmoi source under
-`dot_local/share/herdr/plugins/last-workspace/`): `herdr-plugin.toml`, `Cargo.toml`, `Cargo.lock`,
+One crate at `~/.local/share/herdr/plugins/herdr-last-workspace/` (chezmoi source under
+`dot_local/share/herdr/plugins/herdr-last-workspace/`): `herdr-plugin.toml`, `Cargo.toml`, `Cargo.lock`,
 `src/main.rs`.
 
 The binary, `last-workspace`, takes one subcommand:
@@ -66,7 +66,7 @@ The binary, `last-workspace`, takes one subcommand:
   the stored `previous` via `herdr workspace focus`. That focus re-fires `workspace.focused`, which
   re-enters `record` and flips the pair — so the next invocation returns. Symmetric toggle, no extra
   bookkeeping. The action id is `last_workspace` (mirroring herdr's `last_pane`), so the keybinding
-  command is `webdavis.last-workspace.last_workspace`.
+  command is `herdr-last-workspace.last_workspace`.
 
 ## State model
 
@@ -85,13 +85,13 @@ focus; `bounce` reads `previous`. herdr provides `HERDR_PLUGIN_STATE_DIR` (per-p
 
 ## Integration (chezmoi)
 
-- Vendor the crate source under `dot_local/share/herdr/plugins/last-workspace/`.
+- Vendor the crate source under `dot_local/share/herdr/plugins/herdr-last-workspace/`.
 - `run_onchange_after_55-build-herdr-last-workspace-plugin.sh.tmpl` (darwin-guarded, keyed on the plugin
   source hashes): `cargo build --release --locked`, then `herdr plugin link` if not already linked
   (best-effort — skips with a hint if the herdr server is not running), then seed the MRU state.
 - Add the chezmoiscript to `scripts/lint.sh`'s shell-template shellcheck enumeration.
 - Rebind `prefix+ctrl+\` in `dot_config/herdr/config.toml` from the shell command to
-  `type = "plugin_action"`, `command = "webdavis.last-workspace.last_workspace"`.
+  `type = "plugin_action"`, `command = "herdr-last-workspace.last_workspace"`.
 - Retire the old approach: delete `dot_local/bin/executable_herdr-bounce.sh` and revert
   `dot_local/bin/executable_herdr-jump.sh` to plain create-or-focus (the plugin records state now).
 - `last_pane` on `prefix+\` is unchanged. Result: `prefix+\` bounces panes, `prefix+ctrl+\` bounces

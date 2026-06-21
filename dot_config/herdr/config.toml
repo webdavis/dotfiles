@@ -159,7 +159,7 @@ description = "jump to plantpulse workspace"
 
 # Workspace-level back-and-forth (a true "last_workspace" MRU toggle). herdr has
 # no builtin for this — last_pane (prefix+\) is pane-level, previous_workspace is
-# positional — so the webdavis.last-workspace plugin tracks workspace focus via
+# positional — so the herdr-last-workspace plugin tracks workspace focus via
 # the workspace.focused event and its `last_workspace` action focuses the previous
 # one. Unlike a key-bound script, the plugin sees mouse/picker switches too. The
 # key is the user's choice; prefix+ctrl+\ is the default. Pairs with last_pane:
@@ -167,7 +167,7 @@ description = "jump to plantpulse workspace"
 [[keys.command]]
 key = "prefix+ctrl+\\"
 type = "plugin_action"
-command = "webdavis.last-workspace.last_workspace"
+command = "herdr-last-workspace.last_workspace"
 description = "last workspace (MRU toggle, via plugin)"
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
