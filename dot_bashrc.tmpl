@@ -63,11 +63,20 @@ export USER="${USER:-$(whoami)}"
 # ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 HOMEBREW_PREFIX='/opt/homebrew'
 
-# Configure homebrew_prefix/bin tools. Kept non-interactive: it establishes the
-# brew PATH that `bash -lc`/`ssh host cmd` need to resolve brew tools. It is the
-# bulk of the residual non-interactive cost (~30ms) but cannot be gated without
-# stripping Homebrew from PATH for those shells.
-eval "$(${HOMEBREW_PREFIX}/bin/brew shellenv)"
+# Brew PATH/env. Runs for non-interactive login shells too (bash -lc,
+# `ssh host cmd`) so they resolve brew tools — /etc/paths does NOT include
+# /opt/homebrew/bin. Inlined verbatim from `brew shellenv` output instead of
+# `eval "$(brew shellenv)"`, because shelling out to brew just to print these
+# exports cost ~27ms on EVERY such shell (it is the bulk of the residual
+# non-interactive cost). The path_helper call is exactly what brew itself emits,
+# so PATH ordering/dedup is identical. Regenerate with `brew shellenv` if
+# Homebrew ever changes its env model.
+export HOMEBREW_PREFIX
+export HOMEBREW_CELLAR="${HOMEBREW_PREFIX}/Cellar"
+export HOMEBREW_REPOSITORY="${HOMEBREW_PREFIX}/Homebrew"
+eval "$(/usr/bin/env PATH_HELPER_ROOT="${HOMEBREW_PREFIX}" /usr/libexec/path_helper -s)"
+[ -z "${MANPATH-}" ] || export MANPATH=":${MANPATH#:}"
+export INFOPATH="${HOMEBREW_PREFIX}/share/info:${INFOPATH:-}"
 
 # Configure Homebrew system administrator tools.
 path_prepend "${HOMEBREW_PREFIX}/sbin"
