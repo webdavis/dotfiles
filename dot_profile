@@ -1,5 +1,10 @@
 # shellcheck shell=bash
 
-[[ -n $BASH_VERSION && -f "${HOME}/.bashrc" ]] && . "${HOME}/.bashrc"
+# Load ~/.bashrc only for INTERACTIVE shells. A non-interactive login shell —
+# notably herdr's `/bin/sh -lc` wrapper around every keybinding command — would
+# otherwise source the full ~/.bashrc (~90ms of atuin/starship/carapace/etc.) on
+# every keypress. Interactive bash gets ~/.bashrc via ~/.bash_profile, so normal
+# terminals are unaffected; this only spares non-interactive login shells.
+[[ -n $BASH_VERSION && $- == *i* && -f "${HOME}/.bashrc" ]] && . "${HOME}/.bashrc"
 
 export XDG_CONFIG_HOME="${HOME}/.config"
