@@ -38,6 +38,18 @@ auto-formats in place and reports diffs. On commit, the per-repo `.githooks/pre-
 
 To enter an interactive dev shell with all tools: `nix develop`.
 
+### Testing
+
+```bash
+just test               # Run every test in test/ (build-tool style; pre-commit runs this too)
+just test-brew-cache    # Run only the brew shellenv cache drift test
+```
+
+Tests are plain executable `test/*.sh` scripts (source-only — `.chezmoiignore`d). `just test` runs them
+all and fails if any exits non-zero; the pre-commit hook runs it on every commit, so all tests must pass
+to commit. Tests use host tools (e.g. `brew`) and run outside the Nix shell. Add a test by dropping a new
+`test/<name>.sh` in place — it is picked up automatically (and shellchecked by `lint.sh`).
+
 ### Chezmoi Operations
 
 ```bash
@@ -112,11 +124,12 @@ Both hooks live in the **user-wide** hooks dir — `core.hooksPath = ~/.config/g
 - **`prepare-commit-msg` — user-wide AI commit messages.** Prepopulates a Conventional Commits message
   via Claude Sonnet (internals under **AI Commit Messages** below). Bails on `-m`/merge/rebase; bypass
   with `SKIP_AI_COMMIT=1`.
-- **`pre-commit` — per-repo lint, via a dispatcher.** `dot_config/git/hooks/executable_pre-commit` runs
-  in every repo but only acts when the repository tracks an executable `.githooks/pre-commit`, which it
-  then `exec`s. This repo's `.githooks/pre-commit` runs `just lint-check` (check-only — reports drift,
-  never mutates the tree or index). No install step: the dispatcher is user-wide and the repo hook is
-  committed with its executable bit.
+- **`pre-commit` — per-repo lint + tests, via a dispatcher.**
+  `dot_config/git/hooks/executable_pre-commit` runs in every repo but only acts when the repository
+  tracks an executable `.githooks/pre-commit`, which it then `exec`s. This repo's `.githooks/pre-commit`
+  runs `just lint-check` (check-only — reports drift, never mutates the tree or index) and then
+  `just test` (the full `test/` suite — see Testing). Both must pass; a failure blocks the commit. No
+  install step: the dispatcher is user-wide and the repo hook is committed with its executable bit.
 
 **Why a dispatcher, not `git config core.hooksPath .githooks`?** `core.hooksPath` is single-valued, so a
 per-repo override shadows the user-wide `prepare-commit-msg`. The dispatcher keeps the global hook
@@ -295,10 +308,21 @@ replace the cache with a hardcoded static block** — that reintroduces silent d
 script is darwin-only and is skipped by `chezmoi apply --exclude=templates`, so the cache refreshes on
 full interactive applies.
 
-**Drift test:** `test/brew-shellenv-cache-drift.sh` (run via `just test-brew-cache`) compares the
-deployed cache's effective environment against a live `brew shellenv` and, on divergence, prints the fix
-(run a full `chezmoi apply` to regenerate). The regen script runs it as a post-apply sanity check, and it
-is available on demand to detect a cache gone stale between applies (Homebrew updated, no apply since).
+**Staying in sync — three layers:**
+
+1. *Regenerate on apply* — the run_after script rewrites the cache from the real `brew shellenv` on every
+   full apply.
+1. *Self-heal on drift* — `~/.bashrc` (interactive only) checks whether Homebrew's shellenv generator
+   (`$HOMEBREW_REPOSITORY/Library/Homebrew/cmd/shellenv.sh`) is newer than the cache (e.g.
+   `brew autoupdate` ran `brew update`) and, if so, regenerates the cache in the background so the next
+   shell is fresh. Mirrors the atuin daemon drift self-heal.
+1. *Test* — `test/brew-shellenv-cache-drift.sh` (`just test-brew-cache`, and part of `just test` and the
+   pre-commit hook) asserts the deployed cache is byte-identical to a live `brew shellenv`; on drift it
+   prints the diff and the fix. The regen script runs it as a post-apply sanity check. A missing cache is
+   a skip, not a failure (bashrc falls back to a live eval).
+
+Regenerate the cache manually (e.g. if the test reports drift) with `just brew-cache-refresh` — no full
+apply needed.
 
 ### Shell History (Atuin)
 

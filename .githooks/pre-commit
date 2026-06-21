@@ -12,4 +12,11 @@ if ! just lint-check; then
   exit 1
 fi
 
+# Run the repo test suite (test/*.sh). Every commit requires all tests to pass.
+if ! just test; then
+  printf "\n%s\n" "❌ Tests failed!"
+  printf "%s\n" "Fix the failing test(s) above (or skip with 'git commit --no-verify')."
+  exit 1
+fi
+
 printf "%s\n" "✅ All pre-commit checks passed!"

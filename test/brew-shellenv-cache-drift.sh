@@ -24,13 +24,12 @@ if [[ "$(uname -s)" != "Darwin" || ! -x "$prefix/bin/brew" ]]; then
 fi
 
 if [[ ! -r $cache ]]; then
-  cat >&2 <<EOF
-brew-shellenv cache drift: FAIL -- cache file is missing.
-  expected: $cache
-  Fix: run a full \`chezmoi apply\` (NOT --exclude=templates) so that
-  .chezmoiscripts/run_after_44-cache-brew-shellenv.sh.tmpl regenerates it.
-EOF
-  exit 1
+  # Not a failure: ~/.bashrc falls back to a live `eval "$(brew shellenv)"` when
+  # the cache is absent (correct, just slower), so a missing cache must not block
+  # commits. Skip with a hint to generate it for the fast path.
+  echo "brew-shellenv cache drift: skipped -- cache not generated yet ($cache)."
+  echo "  Generate it with 'just brew-cache-refresh' (or a full 'chezmoi apply')."
+  exit 0
 fi
 
 # The cache is a verbatim copy of `brew shellenv`, so it must be byte-identical to
@@ -56,8 +55,8 @@ EOF
 diff <(printf '%s\n' "$cached") <(printf '%s\n' "$live") >&2 || true
 cat >&2 <<EOF
 
-  Fix: run a full \`chezmoi apply\` (NOT --exclude=templates) to regenerate the
-  cache from the current brew shellenv. The regen script is
+  Fix: run \`just brew-cache-refresh\` to regenerate the cache now (or a full
+  \`chezmoi apply\`, NOT --exclude=templates). The regen script is
   .chezmoiscripts/run_after_44-cache-brew-shellenv.sh.tmpl.
 EOF
 exit 1

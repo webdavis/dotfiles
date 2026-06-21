@@ -263,6 +263,22 @@ if [[ $- == *i* ]]; then
   fi
   {{- end }}
 
+  {{ if eq .chezmoi.os "darwin" -}}
+  # Brew shellenv cache self-heal: if Homebrew updated its shellenv generator
+  # since the cache was built (e.g. `brew autoupdate` ran `brew update`),
+  # regenerate the cache in the background so the next shell sources fresh output.
+  # Mirrors the atuin drift self-heal above; `just test` is the backstop.
+  __be_cache="${XDG_CACHE_HOME:-$HOME/.cache}/brew-shellenv.sh"
+  __be_gen="${HOMEBREW_REPOSITORY:-/opt/homebrew/Homebrew}/Library/Homebrew/cmd/shellenv.sh"
+  if [[ -f $__be_gen && $__be_gen -nt $__be_cache ]]; then
+    (tmp="$(mktemp "${__be_cache}.XXXXXX")" &&
+      "${HOMEBREW_PREFIX:-/opt/homebrew}/bin/brew" shellenv >"$tmp" 2>/dev/null &&
+      command mv "$tmp" "$__be_cache") & # `command` bypasses the `mv -i` alias
+
+  fi
+  unset __be_cache __be_gen
+  {{- end }}
+
   # ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
   # ┃  Long-running command notifier (v2 §7.1)      ┃
   # ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
