@@ -53,6 +53,12 @@ apply-no-auth:
 check:
   nix develop .#run --command nix flake check --all-systems
 
+# Verify the cached brew shellenv (sourced by ~/.bashrc) still matches a live
+# `brew shellenv`; warns with fix instructions on drift. Uses the host brew
+# directly, so it runs outside the Nix shell.
+test-brew-cache:
+  ./test/brew-shellenv-cache-drift.sh
+
 # macOS Defaults: drift, apply, capture
 
 defaults-drift:

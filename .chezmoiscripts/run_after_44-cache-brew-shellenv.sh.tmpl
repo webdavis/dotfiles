@@ -31,5 +31,9 @@ if [[ -x "$prefix/bin/brew" ]]; then
   tmp="$(mktemp "${cache}.XXXXXX")"
   "$prefix/bin/brew" shellenv >"$tmp"
   mv "$tmp" "$cache"
+
+  # Post-apply sanity check: confirm the freshly written cache reproduces the
+  # live brew shellenv environment. Warn (never fail the apply) on mismatch.
+  bash "{{ .chezmoi.sourceDir }}/test/brew-shellenv-cache-drift.sh" || true
 fi
 {{ end -}}

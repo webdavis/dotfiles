@@ -130,9 +130,10 @@ Bypass all hooks for one commit: `git commit --no-verify`.
 ### Source-Only Files
 
 Some files are dev/CI only and are excluded from `$HOME` via `.chezmoiignore`: `justfile`, `scripts/`,
-`.githooks/`, `flake.nix`, `flake.lock`, `.envrc`, `.shellcheckrc`, `.editorconfig`, `.mdformat.toml`,
-`assets/`, `docs/`, `private/`, `README.md`, `LICENSE`, `.gitignore`, `.worktrees/`, `**/.DS_Store`. Only
-chezmoi-managed files (`dot_`, `private_`, `run_`, etc. prefixes) reach the target state.
+`test/`, `.githooks/`, `flake.nix`, `flake.lock`, `.envrc`, `.shellcheckrc`, `.editorconfig`,
+`.mdformat.toml`, `assets/`, `docs/`, `private/`, `README.md`, `LICENSE`, `.gitignore`, `.worktrees/`,
+`**/.DS_Store`. Only chezmoi-managed files (`dot_`, `private_`, `run_`, etc. prefixes) reach the target
+state.
 
 ### Minimum Chezmoi Version
 
@@ -293,6 +294,11 @@ with upstream automatically (no manual re-transcription) and lets brew self-heal
 replace the cache with a hardcoded static block** — that reintroduces silent drift from upstream. The
 script is darwin-only and is skipped by `chezmoi apply --exclude=templates`, so the cache refreshes on
 full interactive applies.
+
+**Drift test:** `test/brew-shellenv-cache-drift.sh` (run via `just test-brew-cache`) compares the
+deployed cache's effective environment against a live `brew shellenv` and, on divergence, prints the fix
+(run a full `chezmoi apply` to regenerate). The regen script runs it as a post-apply sanity check, and it
+is available on demand to detect a cache gone stale between applies (Homebrew updated, no apply since).
 
 ### Shell History (Atuin)
 
