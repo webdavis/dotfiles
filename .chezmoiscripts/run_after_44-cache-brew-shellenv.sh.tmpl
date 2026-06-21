@@ -1,0 +1,35 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/bin/bash
+
+set -euo pipefail
+
+# Regenerate the cached `brew shellenv` output that ~/.bashrc sources at startup.
+#
+# Why a cache: every non-interactive login shell that reaches ~/.bashrc would
+# otherwise run `eval "$(brew shellenv)"`, which spawns the brew Bash dispatcher
+# (~27ms) just to print six export lines. herdr keybindings are gated out via
+# ~/.profile, but `bash -lc` (via ~/.bash_profile) and `ssh host cmd` (Apple
+# /bin/bash + SSH_SOURCE_BASHRC) still reach ~/.bashrc and need brew on PATH
+# (/etc/paths lacks /opt/homebrew/bin). Generating the output once here and
+# sourcing the result (~1ms) keeps that cost off the hot path.
+#
+# Why regenerate every apply (vs hardcoding the output in bashrc): `brew shellenv`
+# is an upstream abstraction whose emitted exports can change across Homebrew
+# versions. Running the real generator here keeps the cache in sync with upstream
+# automatically AND self-heals ${prefix}/etc/paths (brew shellenv recreates it
+# when missing; the path_helper line in the output reads it to place brew on
+# PATH). bashrc falls back to a live `eval` only when this cache is absent (fresh
+# machine before the first apply).
+
+prefix='/opt/homebrew'
+cache="${XDG_CACHE_HOME:-$HOME/.cache}/brew-shellenv.sh"
+
+if [[ -x "$prefix/bin/brew" ]]; then
+  mkdir -p "$(dirname "$cache")"
+  # Write atomically (temp in the same dir, then mv) so a mid-write failure never
+  # leaves bashrc sourcing a truncated file.
+  tmp="$(mktemp "${cache}.XXXXXX")"
+  "$prefix/bin/brew" shellenv >"$tmp"
+  mv "$tmp" "$cache"
+fi
+{{ end -}}

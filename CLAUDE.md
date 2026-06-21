@@ -262,14 +262,37 @@ safely.
 
 ### Bashrc Init Ordering
 
-Starship initializes early; zoxide and atuin initialize after the interactive block (both modify
-`PROMPT_COMMAND`; atuin last). `bash-preexec` is sourced explicitly from Homebrew (atuin 18.x stopped
-bundling it) BEFORE `atuin init` — atuin's `__atuin_preexec`/`__atuin_precmd` and our long-running
-command timer both register into `preexec_functions` / `precmd_functions`. A naked `DEBUG` trap would
-clobber atuin's recording. Direnv hook runs early. Carapace universal completion loads after
-`gh completion`. On interactive launch, `herdr workspace create --focus homelab` runs unconditionally —
-no `tmux ls` probe, no `sesh-bootstrap.sh` call; herdr is idempotent and silently no-ops if the workspace
-already exists.
+All genuinely interactive-only init lives under a single `[[ $- == *i* ]]` guard, in dependency order:
+`bash-completion@2`, then `bash-preexec` (sourced explicitly from Homebrew — atuin 18.x stopped bundling
+it — BEFORE `atuin init`, because atuin's `__atuin_preexec`/`__atuin_precmd` and the long-running command
+timer both register into `preexec_functions`/`precmd_functions`; a naked `DEBUG` trap would clobber
+atuin's recording), then the `PROMPT_COMMAND` writers in the order direnv → starship → zoxide → atuin
+(zoxide and atuin after starship; atuin last), then carapace, the aliases/keybindings, and the
+command-notifier registration. PATH/env setup (brew, nix, cargo, volta, composio), `~/.bash_functions`,
+and the global env vars stay OUTSIDE the guard so the non-interactive login doors that reach `~/.bashrc`
+(`bash -lc`, `ssh host cmd`) keep their PATH and functions while skipping ~85ms of the guarded init. The
+herdr auto-attach block at the end has its own `case $- in *i*` guard and runs bare `herdr` to attach to
+the last-focused workspace — idempotent, silently no-ops if already attached. This guard split is the
+shell-startup performance fix: see `### Homebrew shellenv (cached)` below and the `dot_profile`
+interactive gate.
+
+### Homebrew shellenv (cached, regenerated at apply time)
+
+`~/.bashrc`'s Homebrew PATH/env block does **not** `eval "$(brew shellenv)"` inline — that spawns the
+brew dispatcher (~27ms) on every shell that sources `~/.bashrc`, including the non-interactive login
+doors (`bash -lc`, `ssh host cmd`) that need brew on PATH (`/etc/paths` lacks `/opt/homebrew/bin`).
+Instead, `.chezmoiscripts/run_after_44-cache-brew-shellenv.sh.tmpl` runs the real `brew shellenv` on
+every `chezmoi apply` and writes its output to `${XDG_CACHE_HOME:-~/.cache}/brew-shellenv.sh`;
+`~/.bashrc` sources that cache (~1ms), falling back to a live `eval` only when the cache is absent (fresh
+machine before the first apply). The doors measure ~110ms → ~15ms with the cache.
+
+**Why regenerate, not hardcode:** `brew shellenv` is an upstream abstraction layer whose emitted exports
+can change across Homebrew versions. Regenerating from the real generator each apply keeps us in sync
+with upstream automatically (no manual re-transcription) and lets brew self-heal
+`/opt/homebrew/etc/paths` (the `path_helper` line in the output reads it to place brew on PATH). **Do not
+replace the cache with a hardcoded static block** — that reintroduces silent drift from upstream. The
+script is darwin-only and is skipped by `chezmoi apply --exclude=templates`, so the cache refreshes on
+full interactive applies.
 
 ### Shell History (Atuin)
 

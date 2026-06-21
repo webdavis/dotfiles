@@ -64,20 +64,23 @@ export USER="${USER:-$(whoami)}"
 # ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 HOMEBREW_PREFIX='/opt/homebrew'
 
-# Brew PATH/env. Runs for non-interactive login shells too (bash -lc,
-# `ssh host cmd`) so they resolve brew tools — /etc/paths does NOT include
-# /opt/homebrew/bin. Inlined verbatim from `brew shellenv` output instead of
-# `eval "$(brew shellenv)"`, because shelling out to brew just to print these
-# exports cost ~27ms on EVERY such shell (it is the bulk of the residual
-# non-interactive cost). The path_helper call is exactly what brew itself emits,
-# so PATH ordering/dedup is identical. Regenerate with `brew shellenv` if
-# Homebrew ever changes its env model.
-export HOMEBREW_PREFIX
-export HOMEBREW_CELLAR="${HOMEBREW_PREFIX}/Cellar"
-export HOMEBREW_REPOSITORY="${HOMEBREW_PREFIX}/Homebrew"
-eval "$(/usr/bin/env PATH_HELPER_ROOT="${HOMEBREW_PREFIX}" /usr/libexec/path_helper -s)"
-[ -z "${MANPATH-}" ] || export MANPATH=":${MANPATH#:}"
-export INFOPATH="${HOMEBREW_PREFIX}/share/info:${INFOPATH:-}"
+# Brew PATH/env, sourced from a cache that
+# .chezmoiscripts/run_after_44-cache-brew-shellenv.sh.tmpl regenerates from the
+# real `brew shellenv` on every `chezmoi apply`. The non-interactive login doors
+# that reach ~/.bashrc (bash -lc via ~/.bash_profile, `ssh host cmd` via Apple
+# /bin/bash's SSH_SOURCE_BASHRC) need brew on PATH — /etc/paths lacks
+# /opt/homebrew/bin. `eval "$(brew shellenv)"` would spawn brew (~27ms) on each;
+# sourcing the pre-generated cache is ~1ms. Regenerating from the real generator
+# at apply time (rather than hardcoding its output) keeps us in sync with
+# upstream Homebrew's shellenv abstraction and self-heals
+# ${HOMEBREW_PREFIX}/etc/paths. Fall back to a live eval before the first apply.
+__brew_shellenv="${XDG_CACHE_HOME:-$HOME/.cache}/brew-shellenv.sh"
+if [[ -r $__brew_shellenv ]]; then
+  . "$__brew_shellenv"
+else
+  eval "$("${HOMEBREW_PREFIX}/bin/brew" shellenv 2>/dev/null)"
+fi
+unset __brew_shellenv
 
 # Configure Homebrew system administrator tools.
 path_prepend "${HOMEBREW_PREFIX}/sbin"
