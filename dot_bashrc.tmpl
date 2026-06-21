@@ -81,9 +81,10 @@ else
   eval "$("${HOMEBREW_PREFIX}/bin/brew" shellenv 2>/dev/null)"
 fi
 unset __brew_shellenv
-
-# Configure Homebrew system administrator tools.
-path_prepend "${HOMEBREW_PREFIX}/sbin"
+# NB: the brew shellenv path_helper line above already places both
+# /opt/homebrew/bin AND /opt/homebrew/sbin on PATH, so there is deliberately no
+# `path_prepend "${HOMEBREW_PREFIX}/sbin"` here — adding one duplicates
+# /opt/homebrew/sbin in PATH.
 
 export SHELL="${HOMEBREW_PREFIX}/bin/bash"
 
