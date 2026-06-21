@@ -28,15 +28,16 @@ function path_prepend() {
 }
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# NON-INTERACTIVE-SAFE setup (PATH, env, functions). This block runs for EVERY
-# shell, including the non-interactive login shells spun up per-invocation by
-# herdr (/bin/sh -lc keybinding commands), `bash -lc`, and `ssh host cmd` (Apple
-# /bin/bash sources ~/.bashrc when SSH_CLIENT is set). Keep it CHEAP. Everything
-# genuinely interactive-only (prompt, completions, history, PROMPT_COMMAND/preexec
-# hooks) lives under the `[[ $- == *i* ]]` guard farther down, so those shells
-# skip ~85ms of pointless init. (dot_profile carries the matching gate for the
-# /bin/sh -lc path; this guard also covers the bash -lc and ssh-cmd paths, which
-# bypass ~/.profile.)
+# NON-INTERACTIVE-SAFE setup (PATH, env, functions). This block runs for every
+# shell that actually sources ~/.bashrc, which includes two NON-interactive login
+# paths: `bash -lc` (via ~/.bash_profile) and `ssh host cmd` (Apple /bin/bash
+# sources ~/.bashrc when SSH_CLIENT is set). Keep it CHEAP. NOTE herdr keybinding
+# commands run via `/bin/sh -lc`, which is DELIBERATELY EXCLUDED: ~/.profile's
+# interactive gate (see dot_profile) stops /bin/sh -lc from reaching ~/.bashrc at
+# all, so those commands inherit PATH from the long-lived herdr server, not this
+# file. Everything genuinely interactive-only (prompt, completions, history,
+# PROMPT_COMMAND/preexec hooks) lives under the `[[ $- == *i* ]]` guard farther
+# down, so the two non-interactive doors above skip ~85ms of pointless init.
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 # ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
