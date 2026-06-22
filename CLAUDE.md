@@ -278,6 +278,11 @@ active project paths; see the design spec at
 `~/.bashrc` lands a fresh interactive shell inside the `homelab` workspace on every terminal launch; the
 other seven workspaces are on-demand via their jump chords.
 
+Ctrl-h/j/k/l "seamless nav across Neovim splits and herdr panes" is a compiled Rust binary
+(`~/.local/bin/herdr-smart-nav`, source `dot_local/share/herdr/herdr-smart-nav/`, built by
+`run_onchange_after_56`), not a shell script. It shells the `herdr` CLI (no Rust SDK exists); the speedup
+over the old `.sh` is small (~5 ms, bash+jq removed) — the value is a unit-tested binary, not felt speed.
+
 ### Git Worktrees (Worktrunk)
 
 Git worktrees are managed by [worktrunk](https://worktrunk.dev/). Config in
