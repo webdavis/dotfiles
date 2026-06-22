@@ -181,6 +181,17 @@ so the bundle does not refuse to load them. Add a tap there when `brew bundle` r
 
 Do **not** run `chezmoi apply` directly — see the KeePassXC constraint above.
 
+**Weekly upgrades (not daily).** The `domt4/autoupdate` daily auto-upgrader has been removed in favor of
+a chezmoi-managed user LaunchAgent, `com.webdavis.homebrew-weekly-upgrade`, that runs
+`~/.local/bin/homebrew-weekly-upgrade.sh` every **Monday 12:00** (launchd `Weekday 1 = Monday`;
+`man launchd.plist`: "0 and 7 are Sunday"), when the operator is present — so app restarts/prompts never
+happen unattended. The helper does `brew update` → log `brew outdated`/`mas outdated` → `brew upgrade` →
+`mas upgrade` → `brew cleanup`, is resilient (a failing step is logged but does not abort the run), and
+does **no** Gatekeeper/quarantine stripping. `RunAtLoad=false` so loading the agent never triggers an
+upgrade. Run it on demand with `just brew-upgrade`; logs at `~/.local/log/homebrew/weekly-upgrade.log`.
+The `run_onchange_before_10-system-packages` script tears down any old autoupdate **before**
+`brew bundle --cleanup` untaps it (ordering is load-bearing — do not reorder).
+
 ### macOS Defaults Management
 
 Two `.chezmoidata/` files declaratively track macOS settings; two `.chezmoiscripts/` runners apply them
