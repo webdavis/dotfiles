@@ -159,6 +159,7 @@ find_shell_templates() {
     -o -name "run_onchange_after_65-load-homebrew-weekly-upgrade-launchagent.sh.tmpl" \
     -o -name "run_onchange_before_15-install-herdr.sh.tmpl" \
     -o -name "run_onchange_after_55-build-herdr-last-workspace-plugin.sh.tmpl" \
+    -o -name "run_onchange_after_56-build-herdr-smart-nav.sh.tmpl" \
     -o -name "run_onchange_before_50-setup-osquery.sh.tmpl" \
     \) -print0
 }
