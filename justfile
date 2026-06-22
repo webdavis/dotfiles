@@ -69,6 +69,12 @@ test-brew-cache:
 brew-cache-refresh:
   mkdir -p "${XDG_CACHE_HOME:-$HOME/.cache}" && /opt/homebrew/bin/brew shellenv > "${XDG_CACHE_HOME:-$HOME/.cache}/brew-shellenv.sh" && echo "Regenerated brew shellenv cache; run 'just test' to confirm."
 
+# Run the weekly Homebrew upgrade by hand (formulae + casks + Mac App Store +
+# cleanup). Same job the Monday-noon LaunchAgent runs; use for the first upgrade
+# or any ad-hoc one. Uses the host brew, outside the Nix shell.
+brew-upgrade:
+  ./dot_local/bin/executable_homebrew-weekly-upgrade.sh
+
 # macOS Defaults: drift, apply, capture
 
 defaults-drift:
