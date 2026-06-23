@@ -170,6 +170,8 @@ packages:
         - chatgpt
         - claude
         - claude-code@latest
+        - codex
+        - codex-app
         - discord
         - docker-desktop
         - espanso
@@ -230,7 +232,6 @@ packages:
       - whisply[mlx,app]
     npm:
       - openclaw@2026.4.27
-      - "@openai/codex"
       - "@doist/todoist-cli"
       - agentmail-cli
       - clawhub
