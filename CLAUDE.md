@@ -73,7 +73,7 @@ chezmoi diff --exclude=templates            # diff non-template files
 **Never run bare `chezmoi apply` from Claude Code** — the following templates call `keepassxc` and will
 fail without an interactive TTY: `~/.gitconfig`, `~/.aws/credentials`, `~/.claude.json`,
 `~/.composio/user_data.json`, `~/.config/atuin/config.toml`, `~/.config/himalaya/config.toml`,
-`~/.config/moshi/setting.json`, `~/Library/Application Support/Claude/claude_desktop_config.json`,
+`~/.config/moshi/auth.json`, `~/Library/Application Support/Claude/claude_desktop_config.json`,
 `~/Library/Application Support/espanso/match/identity.yml`,
 `~/Library/Application Support/gogcli/credentials.json`, and the chezmoiscript
 `.chezmoiscripts/run_once_after_60-moshi-hook-setup.sh.tmpl` (one-time setup; once it runs successfully
@@ -96,7 +96,7 @@ drift freely without forcing a chezmoi resync.
   `permissions.defaultMode` = `bypassPermissions`.
 - `hooks`: `UserPromptSubmit` marks session start, `Stop` pulses Hue lights and posts a moshi push
   notification (`claude-moshi-notify.sh`, async; the script reads its webhook secret from the 0600
-  `~/.config/moshi/setting.json`, so the hook command carries no secret), `Notification`
+  `~/.config/moshi/auth.json`, so the hook command carries no secret), `Notification`
   (`permission_prompt` matcher) fires alerter, `PreToolUse` (`Bash` matcher) writes to
   `~/.claude/audit.log`.
 - `statusLine`, `enabledPlugins`, `cleanupPeriodDays` (= 36525, effectively disables session cleanup),
@@ -428,7 +428,7 @@ to operate.
 
 **Done-notification Stop hook (separate from moshi-hook):** the Claude Code `Stop` hook posts a "done"
 push via `~/.local/bin/claude-moshi-notify.sh`. chezmoi renders its webhook secret into the 0600 file
-`~/.config/moshi/setting.json` (`dot_config/moshi/private_setting.json.tmpl`, from KeePassXC entry
+`~/.config/moshi/auth.json` (`dot_config/moshi/private_auth.json.tmpl`, from KeePassXC entry
 **`Moshi :: Webhook Secret`**); the script reads it at run time, so the secret never appears on the hook
 command line or in any process's argv.
 

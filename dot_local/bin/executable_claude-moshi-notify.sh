@@ -5,7 +5,7 @@
 # permission_mode, hook_event_name }. Wired async in modify_settings.json so it
 # never delays turn completion. Always exits 0.
 #
-# Reads the webhook secret from ~/.config/moshi/setting.json (a 0600 file chezmoi
+# Reads the webhook secret from ~/.config/moshi/auth.json (a 0600 file chezmoi
 # renders from the KeePassXC entry "Moshi :: Webhook Secret") into MOSHI_TOKEN and
 # exports it, so the jq body below reads it from the environment — never from a
 # command line. The secret therefore never lands in any process's argv (no `ps`
@@ -14,7 +14,7 @@
 
 set -euo pipefail
 
-MOSHI_TOKEN="$(jq -r '.webhook_secret // empty' "$HOME/.config/moshi/setting.json" 2>/dev/null || true)"
+MOSHI_TOKEN="$(jq -r '.webhook_secret // empty' "$HOME/.config/moshi/auth.json" 2>/dev/null || true)"
 export MOSHI_TOKEN
 [[ -n ${MOSHI_TOKEN:-} ]] || exit 0
 
