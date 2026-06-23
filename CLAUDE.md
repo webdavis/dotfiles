@@ -402,8 +402,9 @@ happy doctor                               # full diagnostics ('happy doctor cle
 ### Tailscale (headless daemon)
 
 Tailscale runs as the open-source `tailscale` **formula** (not the `tailscale-app` GUI cask) as a launchd
-**system daemon** via `sudo brew services start tailscale` — it boots before login and uses the `utun`
-interface, so there is no Network/System Extension to re-approve after updates (the GUI variants'
+**system daemon** via `sudo tailscaled install-system-daemon` (a root-owned copy in `/usr/local/bin`; the
+brew formula stays user-owned so `brew upgrade` runs unattended) — it boots before login and uses the
+`utun` interface, so there is no Network/System Extension to re-approve after updates (the GUI variants'
 weakness on a headless host). State persists at `/Library/Tailscale` across reboots. Auth is a one-time
 manual `sudo tailscale up --accept-dns=true` plus flipping **Disable Key Expiry** on the node in the
 admin console — after that it never re-authenticates (no auth keys, no rotation, no KeePassXC).
@@ -415,9 +416,10 @@ steps when the daemon is down or unauthenticated; it never runs sudo or authenti
 `#14746`): normal DNS keeps working while roaming, but resolving *other* tailnet hostnames *from* this
 machine may be flaky on a foreign network — pin the few needed tailnet hosts in `/etc/hosts` if so.
 
-**Updates:** the weekly brew-upgrade updates the formula; the running daemon picks up the new binary on
-the next reboot (`sudo brew services restart tailscale` for an immediate bounce — the unattended weekly
-job can't sudo).
+**Updates:** the weekly brew-upgrade updates the user-owned formula unattended;
+`homebrew-weekly-upgrade.sh` then re-copies the new binary into the daemon via
+`sudo tailscaled install-system-daemon` (only when the binary changed). `sudo` is passwordless here via
+the user's `!authenticate` sudo config, so the daemon stays current with no manual step.
 
 **Future (new home Mac, ~3-6 months out):** when an always-home Mac takes over the daemon-host role, this
 machine (dresden, which is carried) cuts back to the GUI `tailscale-app` cask (better roaming DNS) and

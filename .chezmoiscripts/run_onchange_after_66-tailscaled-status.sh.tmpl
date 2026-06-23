@@ -23,6 +23,6 @@ if grep -qiE 'logged out|needslogin|not logged in' <<<"$out"; then
   echo "  then flip 'Disable Key Expiry' on this node in the admin console." >&2
 else
   echo "tailscaled system daemon is not running. One-time:" >&2
-  echo "  sudo brew services start tailscale" >&2
+  echo "  sudo /opt/homebrew/opt/tailscale/bin/tailscaled install-system-daemon" >&2
 fi
 {{ end -}}

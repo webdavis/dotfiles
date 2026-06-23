@@ -31,11 +31,13 @@ exit 0
 MOCK
 chmod +x "$tmp/brew" "$tmp/mas"
 
-out="$(HOMEBREW_WEEKLY_BREW="$tmp/brew" HOMEBREW_WEEKLY_MAS="$tmp/mas" bash "$helper" 2>&1)"
+# HOMEBREW_WEEKLY_TAILSCALED points at a nonexistent path so the tailscaled-refresh
+# step skips (its `[[ -x $TS ]]` guard fails) — the test never touches the real daemon.
+out="$(HOMEBREW_WEEKLY_BREW="$tmp/brew" HOMEBREW_WEEKLY_MAS="$tmp/mas" HOMEBREW_WEEKLY_TAILSCALED="/nonexistent" bash "$helper" 2>&1)"
 
 fail=0
 for marker in "== brew update ==" "== brew outdated ==" "== mas outdated ==" \
-  "== brew upgrade ==" "== mas upgrade ==" "== brew cleanup ==" "=== done"; do
+  "== brew upgrade ==" "== tailscaled refresh" "== mas upgrade ==" "== brew cleanup ==" "=== done"; do
   if ! grep -qF "$marker" <<<"$out"; then
     echo "homebrew-weekly-upgrade: FAIL -- missing section: $marker" >&2
     fail=1

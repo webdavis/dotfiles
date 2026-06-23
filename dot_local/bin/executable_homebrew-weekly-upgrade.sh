@@ -14,6 +14,7 @@ set -uo pipefail
 
 BREW="${HOMEBREW_WEEKLY_BREW:-/opt/homebrew/bin/brew}"
 MAS="${HOMEBREW_WEEKLY_MAS:-/opt/homebrew/bin/mas}"
+TS="${HOMEBREW_WEEKLY_TAILSCALED:-/opt/homebrew/opt/tailscale/bin/tailscaled}"
 
 run() {
   # run "<label>" cmd args... -- print a section header, run, log the outcome,
@@ -28,12 +29,24 @@ run() {
   fi
 }
 
+# Re-copy the tailscaled binary into the system daemon if brew just upgraded it (the
+# daemon runs a root-owned copy in /usr/local/bin that `brew upgrade` does not touch).
+# Guarded so it only fires when the binary actually changed -- no needless weekly VPN
+# restart -- and only when tailscale is installed. sudo is passwordless here via the
+# user's sudo config; if that ever changes the step just logs and continues.
+refresh_tailscaled() {
+  [[ -x $TS ]] || return 0
+  cmp -s "$TS" /usr/local/bin/tailscaled 2>/dev/null && return 0
+  sudo -n "$TS" install-system-daemon
+}
+
 printf '=== homebrew-weekly-upgrade %s ===\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
 run "brew update" "$BREW" update
 run "brew outdated" "$BREW" outdated
 run "mas outdated" "$MAS" outdated
 run "brew upgrade" "$BREW" upgrade
+run "tailscaled refresh (if upgraded)" refresh_tailscaled
 run "mas upgrade" "$MAS" upgrade
 run "brew cleanup" "$BREW" cleanup
 
