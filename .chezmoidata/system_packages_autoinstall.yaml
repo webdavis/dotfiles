@@ -142,6 +142,7 @@ packages:
         - swiftlint
         - switchaudio-osx
         - tart
+        - tailscale
         - tealdeer
         - terminal-notifier
         - tokei
@@ -204,7 +205,6 @@ packages:
         - retroarch-metal
         - signal
         - slack
-        - tailscale-app
         - todoist-app
         - torguard
         - upterm
