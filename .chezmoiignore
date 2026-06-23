@@ -2,6 +2,8 @@
 README.md
 LICENSE
 CLAUDE.md
+AGENTS.md
+skills-lock.json
 .gitignore
 assets/
 docs/

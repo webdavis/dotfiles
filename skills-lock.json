@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "moshi-best-practices": {
+      "source": "rjyo/moshi-skill",
+      "sourceType": "github",
+      "skillPath": "skills/moshi-best-practices/SKILL.md",
+      "computedHash": "a04934c6c42679eef79038cdb5c5ff18374682767ef2a98131bfefdc0c0b98f3"
+    }
+  }
+}
