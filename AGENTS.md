@@ -4,9 +4,9 @@ multiple workstreams, PRs, or branches were in progress simultaneously.
 Document general principles, workflows, and architecture — not transient
 project state. -->
 
-# CLAUDE.md
+# AGENTS.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Codex (Codex.ai/code) when working with code in this repository.
 
 ## What This Is
 
@@ -70,21 +70,21 @@ chezmoi apply ~/.tmux.conf                  # specific non-template file
 chezmoi diff --exclude=templates            # diff non-template files
 ```
 
-**Never run bare `chezmoi apply` from Claude Code** — the following templates call `keepassxc` and will
-fail without an interactive TTY: `~/.gitconfig`, `~/.aws/credentials`, `~/.claude.json`,
+**Never run bare `chezmoi apply` from Codex** — the following templates call `keepassxc` and will fail
+without an interactive TTY: `~/.gitconfig`, `~/.aws/credentials`, `~/.Codex.json`,
 `~/.composio/user_data.json`, `~/.config/atuin/config.toml`, `~/.config/himalaya/config.toml`,
-`~/.config/moshi/auth.json`, `~/Library/Application Support/Claude/claude_desktop_config.json`,
+`~/.config/moshi/auth.json`, `~/Library/Application Support/Codex/claude_desktop_config.json`,
 `~/Library/Application Support/espanso/match/identity.yml`,
 `~/Library/Application Support/gogcli/credentials.json`, and the chezmoiscript
 `.chezmoiscripts/run_once_after_60-moshi-hook-setup.sh.tmpl` (one-time setup; once it runs successfully
 on a given machine, automation can resume). Apply those from an interactive terminal with KeePassXC
-unlocked. Non-KeePassXC templates (e.g. `~/.bashrc`, and `~/.claude/settings.json` now that its
+unlocked. Non-KeePassXC templates (e.g. `~/.bashrc`, and `~/.Codex/settings.json` now that its
 modify-template no longer pulls from KeePassXC) are safe to apply from automation.
 
-### Claude Code Settings
+### Codex Settings
 
 `private_dot_claude/modify_settings.json` is a chezmoi **modify-template** (no `.tmpl` extension by
-chezmoi convention) that selectively enforces a fixed set of stable fields in `~/.claude/settings.json`.
+chezmoi convention) that selectively enforces a fixed set of stable fields in `~/.Codex/settings.json`.
 On every `chezmoi apply`, the script reads the current target file, overlays the stable fields below via
 `setValueAtPath`, and writes the merged result back. Anything not in the stable list passes through
 untouched, so `/config` toggles (e.g., `voiceEnabled`, `useAutoModeDuringPlan`, `alwaysThinkingEnabled`)
@@ -95,25 +95,25 @@ drift freely without forcing a chezmoi resync.
 - `permissions.allow` (read-only tools), `permissions.deny` (`.env`, `secrets/**`, `.ssh/id_*`, etc.),
   `permissions.defaultMode` = `bypassPermissions`.
 - `hooks`: `UserPromptSubmit` marks session start, `Stop` pulses Hue lights and posts a moshi push
-  notification (`claude-moshi-notify.sh`, async; the script reads its webhook secret from the 0600
+  notification (`Codex-moshi-notify.sh`, async; the script reads its webhook secret from the 0600
   `~/.config/moshi/auth.json`, so the hook command carries no secret), `Notification`
   (`permission_prompt` matcher) fires alerter, `PreToolUse` (`Bash` matcher) writes to
-  `~/.claude/audit.log`.
+  `~/.Codex/audit.log`.
 - `statusLine`, `enabledPlugins`, `cleanupPeriodDays` (= 36525, effectively disables session cleanup),
   `autoUpdatesChannel` (= `stable`, pins the release channel so updates lag `latest`),
   `remoteControlAtStartup` (= `true`, starts the Remote Control bridge every session).
 
-**Free-drift (Claude Code owns):** `alwaysThinkingEnabled`, `useAutoModeDuringPlan`, `voiceEnabled`,
+**Free-drift (Codex owns):** `alwaysThinkingEnabled`, `useAutoModeDuringPlan`, `voiceEnabled`,
 `skipDangerousModePermissionPrompt`, and any future setting `/config` adds.
 
 **Promote a `/config` toggle to stable** by adding a `setValueAtPath` call for that key in
 `private_dot_claude/modify_settings.json` and committing.
 
-Background: `/config` writes ergonomic toggles directly into `~/.claude/settings.json` (verified
-empirically), and Claude Code does not provide a user-level `~/.claude/settings.local.json` for overrides
-— only project-scope `.claude/settings.local.json` exists. The modify-template approach is the cleanest
-way to keep policy fields under chezmoi control while letting `/config` mutate everything else freely.
-See https://www.chezmoi.io/user-guide/manage-different-types-of-file/ for the `modify_` template +
+Background: `/config` writes ergonomic toggles directly into `~/.Codex/settings.json` (verified
+empirically), and Codex does not provide a user-level `~/.Codex/settings.local.json` for overrides — only
+project-scope `.Codex/settings.local.json` exists. The modify-template approach is the cleanest way to
+keep policy fields under chezmoi control while letting `/config` mutate everything else freely. See
+https://www.chezmoi.io/user-guide/manage-different-types-of-file/ for the `modify_` template +
 `setValueAtPath` reference.
 
 ### Git Hooks
@@ -122,7 +122,7 @@ Both hooks live in the **user-wide** hooks dir — `core.hooksPath = ~/.config/g
 `dot_gitconfig.tmpl`), so they apply to every repo:
 
 - **`prepare-commit-msg` — user-wide AI commit messages.** Prepopulates a Conventional Commits message
-  via Claude Sonnet (internals under **AI Commit Messages** below). Bails on `-m`/merge/rebase; bypass
+  via Codex Sonnet (internals under **AI Commit Messages** below). Bails on `-m`/merge/rebase; bypass
   with `SKIP_AI_COMMIT=1`.
 - **`pre-commit` — per-repo lint + tests, via a dispatcher.**
   `dot_config/git/hooks/executable_pre-commit` runs in every repo but only acts when the repository
@@ -278,13 +278,10 @@ active project paths; see the design spec at
 `~/.bashrc` lands a fresh interactive shell inside the `homelab` workspace on every terminal launch; the
 other seven workspaces are on-demand via their jump chords.
 
-Ctrl-h/j/k/l "seamless nav across Neovim splits and herdr panes" is a herdr **plugin**
-(`dot_local/share/herdr/plugins/herdr-smart-nav/`, a Rust binary), bound via four
-`type = "plugin_action"` keybindings (`herdr-smart-nav.nav_<dir>`) — so herdr execs it directly as argv,
-with no `/bin/sh -lc` wrapper. Built + linked by `run_onchange_after_57` (mirrors the `last-workspace`
-plugin). It shells the `herdr` CLI (no Rust SDK); the gain over the old shell-keybinding binary is ~5 ms
-(the wrapper) and is imperceptible — the value is the idiomatic plugin integration. Plugin actions get
-`HERDR_PANE_ID` (not `HERDR_ACTIVE_PANE_ID`).
+Ctrl-h/j/k/l "seamless nav across Neovim splits and herdr panes" is a compiled Rust binary
+(`~/.local/bin/herdr-smart-nav`, source `dot_local/share/herdr/herdr-smart-nav/`, built by
+`run_onchange_after_56`), not a shell script. It shells the `herdr` CLI (no Rust SDK exists); the speedup
+over the old `.sh` is small (~5 ms, bash+jq removed) — the value is a unit-tested binary, not felt speed.
 
 ### Git Worktrees (Worktrunk)
 
@@ -374,8 +371,8 @@ logged in — it is not a "is the daemon working" check; use `atuin daemon statu
 
 ### Happy Daemon (Remote Agent Control)
 
-[happy](https://happy.engineering/) bridges Claude Code sessions to the Happy mobile and web apps for
-remote control; the local daemon is that bridge. Its lifecycle is managed by
+[happy](https://happy.engineering/) bridges Codex sessions to the Happy mobile and web apps for remote
+control; the local daemon is that bridge. Its lifecycle is managed by
 `~/Library/LaunchAgents/com.webdavis.happy-daemon.plist` (`KeepAlive=true`, `RunAtLoad=true`), loaded on
 every `chezmoi apply` by `.chezmoiscripts/run_onchange_after_62-load-happy-daemon-launchagent.sh.tmpl`
 (`bootout` + `bootstrap` with a 3-try retry loop, mirroring the atuin loader). `happy` itself is an npm
@@ -399,32 +396,6 @@ tail ~/.local/log/happy-daemon.log         # crash messages
 happy doctor                               # full diagnostics ('happy doctor clean' kills runaways)
 ```
 
-### Tailscale (headless daemon)
-
-Tailscale runs as the open-source `tailscale` **formula** (not the `tailscale-app` GUI cask) as a launchd
-**system daemon** via `sudo tailscaled install-system-daemon` (a root-owned copy in `/usr/local/bin`; the
-brew formula stays user-owned so `brew upgrade` runs unattended) — it boots before login and uses the
-`utun` interface, so there is no Network/System Extension to re-approve after updates (the GUI variants'
-weakness on a headless host). State persists at `/Library/Tailscale` across reboots. Auth is a one-time
-manual `sudo tailscale up --accept-dns=true` plus flipping **Disable Key Expiry** on the node in the
-admin console — after that it never re-authenticates (no auth keys, no rotation, no KeePassXC).
-`run_onchange_after_66-tailscaled-status.sh.tmpl` is a sudo-free reminder that prints those one-time
-steps when the daemon is down or unauthenticated; it never runs sudo or authenticates.
-
-**DNS:** always `--accept-dns=true` (dynamic, roaming-safe) — never a static `100.100.100.100` resolver
-(that breaks off-tailnet). The OSS macOS DNS path is the known weak spot (`tailscale/tailscale#13461`,
-`#14746`): normal DNS keeps working while roaming, but resolving *other* tailnet hostnames *from* this
-machine may be flaky on a foreign network — pin the few needed tailnet hosts in `/etc/hosts` if so.
-
-**Updates:** the weekly brew-upgrade updates the user-owned formula unattended;
-`homebrew-weekly-upgrade.sh` then re-copies the new binary into the daemon via
-`sudo tailscaled install-system-daemon` (only when the binary changed). `sudo` is passwordless here via
-the user's `!authenticate` sudo config, so the daemon stays current with no manual step.
-
-**Future (new home Mac, ~3-6 months out):** when an always-home Mac takes over the daemon-host role, this
-machine (dresden, which is carried) cuts back to the GUI `tailscale-app` cask (better roaming DNS) and
-the new Mac runs this daemon — make the chezmoi config machine-conditional then.
-
 ### Moshi Integration
 
 Moshi is the user's primary mobile agent bridge (Happy coexists as a secondary option). The `rjyo/moshi`
@@ -436,24 +407,23 @@ tap before `brew bundle` executes.
 One-time setup runs from `.chezmoiscripts/run_once_after_60-moshi-hook-setup.sh.tmpl`: pairs moshi-hook
 with the mobile app (token from KeePassXC entry **`Moshi :: Pairing Token`**), runs
 `moshi-hook install --target codex,opencode,gemini,cursor,kimi,qwen,grok,omp,pi` to wire agent hooks into
-every supported AI CLI **except Claude Code**, and starts the brew service.
+every supported AI CLI **except Codex**, and starts the brew service.
 
-**Why Claude Code is excluded from `moshi-hook install`:** moshi-hook's installer writes its own hooks
-into `~/.claude/settings.json` across many events, including `UserPromptSubmit` — which fires a Moshi
-push on every prompt submission (an unwanted "user POST" notification). moshi-hook has no per-event
-opt-out (only `--target` / `--local`), and patching the third-party binary is not permitted, so Claude
-Code's hooks are owned solely by chezmoi's modify-template (see the Stop-only done notifier below).
-Excluding `claude` from `--target` keeps moshi-hook off Claude Code entirely, so the only Moshi push for
-Claude is the agent-response (Stop) one. On a machine provisioned before this exclusion, run
-`moshi-hook uninstall --target claude` once to strip the stale Claude hooks (the next `chezmoi apply`
-then owns them).
+**Why Codex is excluded from `moshi-hook install`:** moshi-hook's installer writes its own hooks into
+`~/.Codex/settings.json` across many events, including `UserPromptSubmit` — which fires a Moshi push on
+every prompt submission (an unwanted "user POST" notification). moshi-hook has no per-event opt-out (only
+`--target` / `--local`), and patching the third-party binary is not permitted, so Codex Code's hooks are
+owned solely by chezmoi's modify-template (see the Stop-only done notifier below). Excluding `Codex` from
+`--target` keeps moshi-hook off Codex entirely, so the only Moshi push for Codex is the agent-response
+(Stop) one. On a machine provisioned before this exclusion, run `moshi-hook uninstall --target Codex`
+once to strip the stale Codex hooks (the next `chezmoi apply` then owns them).
 
 **Asymmetric herdr integration:** moshi-hook reads `HERDR_ENV`, `HERDR_SESSION`, and `HERDR_PANE_ID`
 (which herdr exports natively inside its panes), so no herdr-side configuration is needed for moshi-hook
 to operate.
 
-**Done-notification Stop hook (separate from moshi-hook):** the Claude Code `Stop` hook posts a "done"
-push via `~/.local/bin/claude-moshi-notify.sh`. chezmoi renders its webhook secret into the 0600 file
+**Done-notification Stop hook (separate from moshi-hook):** the Codex `Stop` hook posts a "done" push via
+`~/.local/bin/Codex-moshi-notify.sh`. chezmoi renders its webhook secret into the 0600 file
 `~/.config/moshi/auth.json` (`dot_config/moshi/private_auth.json.tmpl`, from KeePassXC entry
 **`Moshi :: Webhook Secret`**); the script reads it at run time, so the secret never appears on the hook
 command line or in any process's argv.
@@ -462,7 +432,7 @@ command line or in any process's argv.
 
 The user-wide `prepare-commit-msg` hook (`dot_config/git/hooks/executable_prepare-commit-msg`, activated
 by `core.hooksPath = ~/.config/git/hooks`) pipes the full staged diff (no truncation) to
-`claude -p --model=sonnet` with a 30-second timeout, and prepopulates the commit editor with the returned
+`Codex -p --model=sonnet` with a 30-second timeout, and prepopulates the commit editor with the returned
 Conventional Commits message (subject, optional body, optional footers). Bails on
 `-m`/`-F`/merge/rebase/cherry-pick and on `SKIP_AI_COMMIT=1`. Chains to a repo-local
 `.git/hooks/prepare-commit-msg` if present. Never blocks a commit — worst case the editor opens with an
@@ -475,13 +445,13 @@ why the per-repo pre-commit lint uses the dispatcher described under Git Hooks r
 
 `dot_bashrc.tmpl` registers `__cmd_notify_preexec` and `__cmd_notify_precmd` via bash-preexec (atuin's
 framework). Commands ≥ 30s fire an `alerter` macOS notification; ≥ 5 min additionally pulse Hue lights
-via `~/.local/bin/hue-pulse.sh`. Known interactive TUIs (vim/less/top/ssh/tmux/claude/fzf) are skipped.
+via `~/.local/bin/hue-pulse.sh`. Known interactive TUIs (vim/less/top/ssh/tmux/Codex/fzf) are skipped.
 
 ### Herdr Native Status
 
 Workspace state (per-pane agent status: blocked / working / done / idle) is rendered by herdr — no
 third-party plugin or custom script. The sidebar rolls each workspace up to its most-urgent agent state.
-Claude Code, Codex, Cursor, OpenCode, and others are recognized out of the box.
+Codex, Codex, Cursor, OpenCode, and others are recognized out of the box.
 
 ## Code Style
 
@@ -496,7 +466,7 @@ Claude Code, Codex, Cursor, OpenCode, and others are recognized out of the box.
 
 ## Git Commits
 
-**Never include `Co-Authored-By` lines in commit messages.** Claude is never listed as a co-author.
+**Never include `Co-Authored-By` lines in commit messages.** Codex is never listed as a co-author.
 
 Separate logically distinct changes into their own commits. Each commit should be a single cohesive unit
 of work.
@@ -504,6 +474,6 @@ of work.
 ## Security
 
 - `*bash_secret*` patterns are gitignored to prevent accidental commits of Bash secret files.
-- Claude Code settings include a deny list for sensitive paths (`.env`, `secrets/**`, `credentials.json`,
+- Codex settings include a deny list for sensitive paths (`.env`, `secrets/**`, `credentials.json`,
   `.aws/credentials`, `.ssh/id_*`) that applies even under `bypassPermissions`.
 - KeePassXC database is the single source of truth for secrets pulled into templates.

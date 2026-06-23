@@ -5,7 +5,6 @@ packages:
         - antoniorodr/memo
         - buo/cask-upgrade
         - cirruslabs/cli
-        - domt4/autoupdate # Automatic Upgrades.
         - eugene1g/safehouse
         - felixkratz/formulae
         - mediosz/tap
@@ -13,6 +12,7 @@ packages:
         - openhue/cli
         - oven-sh/bun
         - owenthereal/upterm
+        - rjyo/moshi
         - steipete/tap
         - vjeantet/tap
         - xdevplatform/tap
@@ -28,7 +28,6 @@ packages:
         - antoniorodr/memo
         - buo/cask-upgrade
         - cirruslabs/cli
-        - domt4/autoupdate
         - eugene1g/safehouse
         - felixkratz/formulae
         - mediosz/tap
@@ -36,6 +35,7 @@ packages:
         - openhue/cli
         - oven-sh/bun
         - owenthereal/upterm
+        - rjyo/moshi
         - steipete/tap
         - vjeantet/tap
         - xdevplatform/tap
@@ -128,10 +128,10 @@ packages:
         - pv
         - restic
         - ripgrep
+        - rjyo/moshi/moshi-hook
         - ruff
         - sd
         - sevenzip
-        - sesh
         - socat
         - starship
         - steipete/tap/goplaces
@@ -142,9 +142,9 @@ packages:
         - swiftlint
         - switchaudio-osx
         - tart
+        - tailscale
         - tealdeer
         - terminal-notifier
-        - tmux
         - tokei
         - trash-cli
         - tree
@@ -171,6 +171,8 @@ packages:
         - chatgpt
         - claude
         - claude-code@latest
+        - codex
+        - codex-app
         - discord
         - docker-desktop
         - espanso
@@ -194,6 +196,7 @@ packages:
         - obsidian
         - openemu
         - osquery
+        - paseo
         - proton-drive
         - proton-mail
         - proton-mail-bridge
@@ -203,7 +206,6 @@ packages:
         - retroarch-metal
         - signal
         - slack
-        - tailscale-app
         - todoist-app
         - torguard
         - upterm
@@ -231,7 +233,6 @@ packages:
       - whisply[mlx,app]
     npm:
       - openclaw@2026.4.27
-      - "@openai/codex"
       - "@doist/todoist-cli"
       - agentmail-cli
       - clawhub

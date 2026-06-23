@@ -21,3 +21,6 @@ vendor/**
 
 # Git worktrees (isolated implementation workspaces).
 .worktrees/
+
+# Rust build artifacts for vendored herdr projects (plugins + binaries, built in-place, never committed).
+dot_local/share/herdr/**/target/

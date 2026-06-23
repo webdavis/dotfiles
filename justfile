@@ -53,6 +53,28 @@ apply-no-auth:
 check:
   nix develop .#run --command nix flake check --all-systems
 
+# Run all repo tests (test/*.sh). Build-tool style: the pre-commit hook runs this
+# too, so every commit requires all tests to pass. Tests use host tools (e.g.
+# brew), so this runs outside the Nix shell.
+test:
+  @for t in test/*.sh; do echo "== $t =="; bash "$t" || exit 1; done
+
+# Run only the brew shellenv cache drift test (a subset of `just test`).
+test-brew-cache:
+  ./test/brew-shellenv-cache-drift.sh
+
+# Regenerate the brew shellenv cache (~/.cache/brew-shellenv.sh) from the current
+# `brew shellenv`, without a full `chezmoi apply`. Use after a Homebrew update if
+# `just test` reports cache drift.
+brew-cache-refresh:
+  mkdir -p "${XDG_CACHE_HOME:-$HOME/.cache}" && /opt/homebrew/bin/brew shellenv > "${XDG_CACHE_HOME:-$HOME/.cache}/brew-shellenv.sh" && echo "Regenerated brew shellenv cache; run 'just test' to confirm."
+
+# Run the weekly Homebrew upgrade by hand (formulae + casks + Mac App Store +
+# cleanup). Same job the Monday-noon LaunchAgent runs; use for the first upgrade
+# or any ad-hoc one. Uses the host brew, outside the Nix shell.
+brew-upgrade:
+  ./dot_local/bin/executable_homebrew-weekly-upgrade.sh
+
 # macOS Defaults: drift, apply, capture
 
 defaults-drift:
@@ -83,3 +105,12 @@ defaults-show domain:
 
 defaults-dump:
   defaults read | less
+
+# Refresh vendored agent skills from upstream sources.
+# herdr Agent Skill: ogulcancelik/herdr/SKILL.md
+# Moshi Skill: rjyo/moshi-skill (skills/moshi-best-practices/SKILL.md on main)
+update-agent-skills:
+  curl -fsSL https://raw.githubusercontent.com/ogulcancelik/herdr/master/SKILL.md \
+    > private_dot_claude/skills/herdr/private_SKILL.md
+  curl -fsSL https://raw.githubusercontent.com/rjyo/moshi-skill/main/skills/moshi-best-practices/SKILL.md \
+    > private_dot_claude/skills/moshi/private_SKILL.md

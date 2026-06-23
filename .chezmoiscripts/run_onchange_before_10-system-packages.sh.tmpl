@@ -3,6 +3,16 @@
 
 set -euo pipefail
 
+# Tear down the old domt4/autoupdate daily auto-upgrader (replaced by the
+# com.webdavis.homebrew-weekly-upgrade Monday-noon LaunchAgent). MUST run BEFORE
+# `brew bundle --cleanup` below untaps domt4/autoupdate -- otherwise the
+# `brew autoupdate` subcommand is gone when we call it. Guarded on the tap being
+# present so it is a clean no-op once removed / on fresh machines.
+if /opt/homebrew/bin/brew tap | grep -q '^domt4/autoupdate$'; then
+  /opt/homebrew/bin/brew autoupdate stop 2>/dev/null || true
+  /opt/homebrew/bin/brew autoupdate delete 2>/dev/null || true
+fi
+
 # Pre-trust taps that require it. `brew tap` first (no-op if already tapped) so
 # `brew trust` has a target to operate on, then trust. Both idempotent and safe
 # to re-run. Required because `brew bundle` will refuse to install formulae from
@@ -26,18 +36,6 @@ cask {{ . | quote }}
 mas {{ .name | quote }}, id: {{ .id }}
 {{ end -}}
 EOF
-
-# Configure Homebrew autoupdate (idempotent — only restart if not already running).
-HOMEBREW_BIN="${HOMEBREW_PREFIX:-/opt/homebrew}/bin/brew"
-
-if ! "$HOMEBREW_BIN" autoupdate status 2>/dev/null | grep -q "running"; then
-  echo "Starting domt4/autoupdate [stop → delete → start]..."
-  "$HOMEBREW_BIN" autoupdate stop 2>/dev/null || true
-  "$HOMEBREW_BIN" autoupdate delete 2>/dev/null || true
-  "$HOMEBREW_BIN" autoupdate start 86400 --upgrade --cleanup --immediate --sudo
-else
-  echo "Homebrew autoupdate already running — skipping restart."
-fi
 
 # Install uv tools (runs after Homebrew so uv is available).
 {{ range .packages.macos.uv -}}

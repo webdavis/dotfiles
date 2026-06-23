@@ -99,7 +99,7 @@ any extension. Applies to files and folders. Examples: `2026-04-20T14-30-00.sett
 ## Toolchain (locked-in — do not suggest migrating)
 
 - **Shell:** bash.
-- **Multiplexer:** tmux.
+- **Multiplexer:** herdr.
 - **Version manager:** Nix flakes per-project (not `mise`).
 - **File manager / git TUI:** `git`, `gh`, and `fzf`.
 - **Terminal:** Ghostty.

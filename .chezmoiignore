@@ -2,6 +2,8 @@
 README.md
 LICENSE
 CLAUDE.md
+AGENTS.md
+skills-lock.json
 .gitignore
 assets/
 docs/
@@ -11,6 +13,10 @@ private/
 justfile
 .envrc
 scripts/
+test/
+
+# Rust build artifacts for vendored herdr projects (rebuilt in-place at apply; never deploy).
+.local/share/herdr/**/target
 
 # Ignore formatter/linter configs:
 .shellcheckrc

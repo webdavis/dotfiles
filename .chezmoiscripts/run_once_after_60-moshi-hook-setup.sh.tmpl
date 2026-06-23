@@ -1,0 +1,37 @@
+{{ if eq .chezmoi.os "darwin" -}}
+{{- $token := (keepassxc "Moshi :: Pairing Token").Password -}}
+#!/bin/bash
+# One-time moshi-hook setup: pair this host with the Moshi iPhone app, install
+# agent hooks for the supported AI CLIs, and start the brew service (which
+# writes a launchd plist with KeepAlive so the daemon survives subsequent
+# restarts). The pairing token is pulled from KeePassXC at apply time.
+#
+# Claude Code is deliberately EXCLUDED from `moshi-hook install --target` below.
+# moshi-hook's installer writes its own hooks into ~/.claude/settings.json on
+# many events, including UserPromptSubmit -- which fires a Moshi push on every
+# prompt submission (the unwanted "user POST" notification). moshi-hook exposes
+# no per-event opt-out (only --target / --local; verified via
+# `moshi-hook install --help`), and patching the third-party binary is not
+# permitted. So Claude Code's hooks are owned solely by chezmoi's modify-template
+# (private_dot_claude/modify_settings.json), which already wires a Stop-only done
+# notifier (~/.local/bin/claude-moshi-notify.sh). Excluding claude here keeps
+# moshi-hook off Claude Code entirely, so only the agent-response (Stop) push
+# fires -- never one on prompt submission. moshi-hook still manages every other
+# CLI natively.
+#
+# Re-running: `run_once_` semantics mean this fires exactly once per machine
+# (tracked via chezmoi's script-state hash). If you need to re-pair, run
+# `moshi-hook pair --token <token>` manually, or
+# `chezmoi state delete-bucket --bucket=scriptState` to clear the hash and let
+# this script re-fire on the next apply. On a machine already provisioned by an
+# older version of this script, apply the claude exclusion once by hand with
+# `moshi-hook uninstall --target claude` (strips moshi-hook's Claude hooks,
+# including the UserPromptSubmit push); chezmoi's modify-template then owns
+# Claude's hooks from the next `chezmoi apply` onward.
+
+set -euo pipefail
+
+/opt/homebrew/bin/moshi-hook pair --token {{ $token | quote }}
+/opt/homebrew/bin/moshi-hook install --target codex,opencode,gemini,cursor,kimi,qwen,grok,omp,pi
+/opt/homebrew/bin/brew services start moshi-hook
+{{ end -}}

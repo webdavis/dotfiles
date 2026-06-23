@@ -128,9 +128,16 @@ execute_runner() {
   return "$status"
 }
 
+# The directory-prune sets below ignore non-repo trees during traversal (find's
+# -prune skips descent; it deletes nothing). `.claude` is Claude Code session
+# data (settings.local.json, shell snapshots, and agent worktrees under
+# .claude/worktrees/) — gitignored, never repo content. Prune the whole `.claude`
+# dir, NOT just `.claude/worktrees`: narrowing it would re-expose
+# settings.local.json to jq and agent-worktree shell files to shellcheck. Each
+# nested worktree is a full checkout that runs lint.sh on itself from within.
 find_shell_files() {
   find . \
-    -type d \( -name ".git" -o -name ".worktrees" -o -name ".direnv" -o -regex ".*/\.?vendor" \) -prune \
+    -type d \( -name ".git" -o -name ".worktrees" -o -name ".claude" -o -name ".direnv" -o -regex ".*/\.?vendor" \) -prune \
     -o -type f \( \
     -name "*.sh" \
     -o -name "*.bash" \
@@ -145,9 +152,15 @@ run_10_shellcheck() {
 
 find_shell_templates() {
   find . \
-    -type d \( -name ".git" -o -name ".worktrees" -o -name ".direnv" -o -regex ".*/\.?vendor" \) -prune \
+    -type d \( -name ".git" -o -name ".worktrees" -o -name ".claude" -o -name ".direnv" -o -regex ".*/\.?vendor" \) -prune \
     -o -type f \( \
     -name "dot_bashrc.tmpl" \
+    -o -name "run_after_44-cache-brew-shellenv.sh.tmpl" \
+    -o -name "run_onchange_after_65-load-homebrew-weekly-upgrade-launchagent.sh.tmpl" \
+    -o -name "run_onchange_before_15-install-herdr.sh.tmpl" \
+    -o -name "run_onchange_after_55-build-herdr-last-workspace-plugin.sh.tmpl" \
+    -o -name "run_onchange_after_57-build-herdr-smart-nav-plugin.sh.tmpl" \
+    -o -name "run_onchange_after_66-tailscaled-status.sh.tmpl" \
     -o -name "run_onchange_before_50-setup-osquery.sh.tmpl" \
     \) -print0
 }
@@ -199,7 +212,7 @@ find_markdown_files() {
   # construct that trips the validator hasn't been isolated; quarantine the
   # one file so the rest of docs/research/ can be linted.
   find . \
-    -type d \( -name ".git" -o -name ".worktrees" -o -regex ".*/\.?vendor" \
+    -type d \( -name ".git" -o -name ".worktrees" -o -name ".claude" -o -regex ".*/\.?vendor" \
     -o -path "./private_dot_claude/skills" \
     -o -path "./private_dot_claude/agents" \
     -o -path "./private_dot_claude/commands" \
@@ -229,7 +242,7 @@ run_40_mdformat() {
 
 find_nix_files() {
   find . \
-    -type d \( -name ".git" -o -name ".worktrees" -o -name ".direnv" -o -regex ".*/\.?vendor" \) -prune \
+    -type d \( -name ".git" -o -name ".worktrees" -o -name ".claude" -o -name ".direnv" -o -regex ".*/\.?vendor" \) -prune \
     -o -type f -name "*.nix" \
     -print0
 }
@@ -253,7 +266,7 @@ find_toml_files() {
   # dot_aerospace.toml uses user-preferred visual alignment that taplo's
   # default formatter strips; skip it so the user's style is preserved.
   find . \
-    -type d \( -name ".git" -o -name ".worktrees" -o -name ".direnv" -o -regex ".*/\.?vendor" \) -prune \
+    -type d \( -name ".git" -o -name ".worktrees" -o -name ".claude" -o -name ".direnv" -o -regex ".*/\.?vendor" \) -prune \
     -o -type f -name "*.toml" ! -name "dot_aerospace.toml" \
     -print0
 }
@@ -279,7 +292,7 @@ find_json_files() {
   # Exclude chezmoi modify_ templates: they share the .json extension of their
   # target file but contain Go template directives, so jq can't parse them.
   find . \
-    -type d \( -name ".git" -o -name ".worktrees" -o -name ".direnv" -o -name "node_modules" -o -regex ".*/\.?vendor" \) -prune \
+    -type d \( -name ".git" -o -name ".worktrees" -o -name ".claude" -o -name ".direnv" -o -name "node_modules" -o -regex ".*/\.?vendor" \) -prune \
     -o -type f -name "*.json" -not -name 'modify_*' \
     -print0
 }
