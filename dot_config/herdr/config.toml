@@ -183,26 +183,26 @@ description = "last workspace (MRU toggle, via plugin)"
 
 [[keys.command]]
 key = "ctrl+h"
-type = "shell"
-command = "$HOME/.local/bin/herdr-smart-nav left"
+type = "plugin_action"
+command = "herdr-smart-nav.nav_left"
 description = "nav left: Neovim split or herdr pane"
 
 [[keys.command]]
 key = "ctrl+j"
-type = "shell"
-command = "$HOME/.local/bin/herdr-smart-nav down"
+type = "plugin_action"
+command = "herdr-smart-nav.nav_down"
 description = "nav down: Neovim split or herdr pane"
 
 [[keys.command]]
 key = "ctrl+k"
-type = "shell"
-command = "$HOME/.local/bin/herdr-smart-nav up"
+type = "plugin_action"
+command = "herdr-smart-nav.nav_up"
 description = "nav up: Neovim split or herdr pane"
 
 [[keys.command]]
 key = "ctrl+l"
-type = "shell"
-command = "$HOME/.local/bin/herdr-smart-nav right"
+type = "plugin_action"
+command = "herdr-smart-nav.nav_right"
 description = "nav right: Neovim split or herdr pane"
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

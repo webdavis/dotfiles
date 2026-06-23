@@ -278,10 +278,13 @@ active project paths; see the design spec at
 `~/.bashrc` lands a fresh interactive shell inside the `homelab` workspace on every terminal launch; the
 other seven workspaces are on-demand via their jump chords.
 
-Ctrl-h/j/k/l "seamless nav across Neovim splits and herdr panes" is a compiled Rust binary
-(`~/.local/bin/herdr-smart-nav`, source `dot_local/share/herdr/herdr-smart-nav/`, built by
-`run_onchange_after_56`), not a shell script. It shells the `herdr` CLI (no Rust SDK exists); the speedup
-over the old `.sh` is small (~5 ms, bash+jq removed) — the value is a unit-tested binary, not felt speed.
+Ctrl-h/j/k/l "seamless nav across Neovim splits and herdr panes" is a herdr **plugin**
+(`dot_local/share/herdr/plugins/herdr-smart-nav/`, a Rust binary), bound via four
+`type = "plugin_action"` keybindings (`herdr-smart-nav.nav_<dir>`) — so herdr execs it directly as argv,
+with no `/bin/sh -lc` wrapper. Built + linked by `run_onchange_after_57` (mirrors the `last-workspace`
+plugin). It shells the `herdr` CLI (no Rust SDK); the gain over the old shell-keybinding binary is ~5 ms
+(the wrapper) and is imperceptible — the value is the idiomatic plugin integration. Plugin actions get
+`HERDR_PANE_ID` (not `HERDR_ACTIVE_PANE_ID`).
 
 ### Git Worktrees (Worktrunk)
 
