@@ -1,0 +1,15 @@
+{{- /*
+  Activates the Hermes webhook gateway platform -> ~/.hermes/.env. Hermes reads these via os.getenv
+  (gateway/config.py:1470-1471): WEBHOOK_ENABLED gates the whole webhook platform and WEBHOOK_PORT sets the
+  listen port. Neither is a secret -- they are the platform switch, shared by every route (osquery + relay).
+
+  Route secrets are NOT here. Each route carries its own explicit secret in config.yaml: the webhook gateway
+  adapter does not expand ${VAR} in route secrets, and there is intentionally no global WEBHOOK_SECRET, so a
+  route missing its secret fails closed (the platform refuses to start) rather than silently sharing a
+  fallback.
+
+  create_ + private_: written once (0600) only when ~/.hermes/.env is absent; NEVER overwrites the live file
+  (which holds ~25 Hermes-owned keys). On an existing host, ensure these two lines are in the live .env.
+*/ -}}
+WEBHOOK_ENABLED=true
+WEBHOOK_PORT=8644
