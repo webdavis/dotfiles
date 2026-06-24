@@ -45,8 +45,9 @@ agent event to a state.
 - Modify `dot_bashrc.tmpl` — shell notifier thresholds + skip-list + relay.sh call.
 - Create `test/relay.sh`, `test/relay-agent.sh`.
 - Modify `scripts/lint.sh` — add the codex hooks `.sh.tmpl` if templated (the `.json.tmpl` is not shell).
-- Create `dot_hermes/private_dot_env.tmpl` (relay webhook secret) + `dot_hermes/create_private_config.yaml.tmpl`
-  (the `relay` route baseline, `${VAR}` refs, `create_` so it never clobbers the live osquery config).
+- Create `dot_hermes/create_private_dot_env.tmpl` (`WEBHOOK_ENABLED`/`WEBHOOK_PORT` platform switch) +
+  `dot_hermes/create_private_config.yaml.tmpl` (relay route; secret is a keepassxc literal — route `${VAR}`
+  isn't expanded; no global — `create_` so neither clobbers live state).
 - Modify `CLAUDE.md` — replace the moshi/notify sections with the relay description; document the Hermes
   tracking method (`.env` secret + `create_` config baseline + manual route-add on existing hosts).
 
@@ -206,13 +207,13 @@ exit 0
 
 ```json
 {
-  "moshi_secret": "{{ keepassxc "Moshi :: Webhook Secret" }}",
-  "hermes_secret": "{{ keepassxcAttribute "Hermes :: relay webhook" "secret" }}"
+  "moshi_secret": {{ (keepassxc "Moshi :: Webhook Secret").Password | quote }},
+  "hermes_secret": {{ (keepassxc "Hermes :: Relay Webhook Secret").Password | quote }}
 }
 ```
 
-(Create the KeePassXC entry **Hermes :: relay webhook** with a `secret` attribute = a fresh 64-hex token,
-reused verbatim in the `~/.hermes` route in Task 5.)
+(`| quote` emits the JSON-quoted string, so no surrounding quotes. Create the KeePassXC entry
+**Hermes :: Relay Webhook Secret** — the same entry renders the Hermes route's literal secret in Task 5.)
 
 - [ ] **Step 5 — run the test, expect PASS:** `just test 2>&1 | grep relay` → `relay: OK`.
 - [ ] **Step 6 — commit:**
@@ -418,30 +419,35 @@ git commit -m "feat(relay): long-command notifications (local >=1m, full fan-out
 
 ---
 
-## Task 5: Track the Hermes relay route (osquery research method) + secret migration + docs
+## Task 5: Track the Hermes webhook activation + relay route (secrets-safe) + secret migration + docs
 
-**Method** (from `docs/osquery-design:docs/superpowers/research/2026-06-09-hermes-config-yaml-tracking-research.md`):
-secrets → `~/.hermes/.env` (Hermes git-ignores it), settings → `config.yaml` via `${VAR}`. `config.yaml` is
-runtime-rewritten (open bug #4775 can resolve `${VAR}`→plaintext), so it's tracked as a chezmoi **`create_`**
-template (written once on a fresh host, never re-synced or read back). **Only the `relay` route is committed
-here — not the osquery routes** (those live on the unmerged osquery branch). This branch merges first; the
-osquery branch's future `config.yaml` template will conflict with this one — resolved then, by hand.
+**Verified webhook model** (Hermes v0.14.0, confirmed against the installed gateway source, the osquery
+branch, and the docs): the `.env` is the platform **switch** — `WEBHOOK_ENABLED=true` and `WEBHOOK_PORT=8644`
+(read via `os.getenv`, `gateway/config.py:1470-1471`) turn the webhook gateway on; without them no route
+runs. **Secrets are not env-injected for routes** — the gateway does not expand `${VAR}` in route secrets, so
+each route carries an explicit secret in `config.yaml`. We use **no global `WEBHOOK_SECRET`**: every route is
+explicit, and a route missing its secret **fails closed** (the platform refuses to start, `webhook.py:154`).
+`config.yaml` is runtime-rewritten (open bug #4775 can resolve placeholders to plaintext), so both files are
+chezmoi **`create_`** templates (written once on a fresh host, never re-synced or read back). **Only the
+`relay` route is committed here** — not the osquery routes (unmerged osquery branch, which tracks no Hermes
+source and signs from its own runtime secret file, so there's no source collision); the live `config.yaml`
+holds both route sets and `create_` never overwrites it.
 
-**Files:** Create `dot_hermes/private_dot_env.tmpl`, `dot_hermes/create_private_config.yaml.tmpl`; delete
-`dot_config/moshi/private_auth.json.tmpl`; modify `CLAUDE.md`.
+**Files:** Create `dot_hermes/create_private_dot_env.tmpl`, `dot_hermes/create_private_config.yaml.tmpl`
+(both done — committed with this task); delete `dot_config/moshi/private_auth.json.tmpl`; modify `CLAUDE.md`.
 
-- [ ] **Step 1 — migrate the moshi secret.** Confirm nothing else reads `~/.config/moshi/auth.json`
-  (`grep -rn 'config/moshi/auth' .`); delete `dot_config/moshi/private_auth.json.tmpl` (moshi's secret now
-  lives in `~/.config/relay/auth.json` from Task 1). Operator removes the stale `~/.config/moshi/auth.json`.
-- [ ] **Step 2 — secret in `.env`: `dot_hermes/private_dot_env.tmpl`** (same KeePassXC entry as
-  `relay/auth.json`'s `hermes_secret` — relay.sh *signs* with it, Hermes *validates* with it):
+- [ ] **Step 1 — platform switch in `.env`: `dot_hermes/create_private_dot_env.tmpl`** (`create_` — the live
+  `.env` holds ~25 Hermes-owned keys; a normal template would wipe them). Two non-secret activation vars (no
+  keepassxc, so the template is automation-safe):
 
 ```gotemplate
-RELAY_WEBHOOK_SECRET={{ keepassxcAttribute "Hermes :: relay webhook" "secret" }}
+WEBHOOK_ENABLED=true
+WEBHOOK_PORT=8644
 ```
 
-- [ ] **Step 3 — `create_` config baseline: `dot_hermes/create_private_config.yaml.tmpl`** — the webhook
-  platform + only the `relay` route, secret as `${RELAY_WEBHOOK_SECRET}` (never the literal):
+- [ ] **Step 2 — relay route config: `dot_hermes/create_private_config.yaml.tmpl`** (`create_` — never
+  overwrites the live osquery-bearing config). Route `${VAR}` is NOT expanded (v0.14.0), so the secret is a
+  keepassxc-rendered LITERAL; the committed source holds the keepassxc call, never the value:
 
 ```yaml
 platforms:
@@ -452,7 +458,7 @@ platforms:
       port: 8644
       routes:
         relay:
-          secret: ${RELAY_WEBHOOK_SECRET}
+          secret: {{ (keepassxc "Hermes :: Relay Webhook Secret").Password | quote }}
           deliver: discord
           deliver_only: true
           prompt: "{agent} · {state} · {project}\n\n{detail}"
@@ -460,27 +466,31 @@ platforms:
             chat_id: "<#notify-log channel id>"
 ```
 
-`create_` ⇒ chezmoi writes this only where `~/.hermes/config.yaml` is **absent**; it never overwrites the
-existing (osquery-bearing) file. **Never `chezmoi add` the live `config.yaml`** afterward (per #4775 it may
-hold a resolved plaintext secret).
+(No osquery routes; no global `secret:` under `extra` — every route is explicit. Never `chezmoi add` the live
+`config.yaml`; #4775 rewrites it and would capture the resolved literal.)
 
-- [ ] **Step 4 — operator wiring (existing host).** `chezmoi apply ~/.hermes/.env` (KeePassXC-unlocked TTY)
-  renders `RELAY_WEBHOOK_SECRET`. Since `create_` won't touch the live `config.yaml`, **hand-add the Step 3
-  `routes.relay` block** (with `${RELAY_WEBHOOK_SECRET}`) to `~/.hermes/config.yaml` beside the osquery
-  routes; restart Hermes if it doesn't hot-reload. (A fresh host gets the route + `.env` automatically.)
-- [ ] **Step 5 — live end-to-end check.** After `chezmoi apply ~/.config/relay/auth.json ~/.hermes/.env` and
-  the route edit, run
-  `~/.local/bin/relay.sh --agent test --state done --project relay --detail hi --pane "$HERDR_PANE_ID"` and
-  confirm a phone push, a `#notify-log` Discord message (HMAC validated), and a clickable local notification.
+- [ ] **Step 3 — migrate the moshi secret.** `grep -rn 'config/moshi/auth' .`; delete
+  `dot_config/moshi/private_auth.json.tmpl` (moshi's secret now lives in `~/.config/relay/auth.json`,
+  Task 1). Operator removes the stale `~/.config/moshi/auth.json`.
+- [ ] **Step 4 — operator wiring (existing host).** `create_` won't touch the live `.env` or `config.yaml`,
+  so on dresden: confirm `WEBHOOK_ENABLED=true` + `WEBHOOK_PORT=8644` are in the live `~/.hermes/.env` (they
+  already are if the osquery webhook works); create the KeePassXC entry **Hermes :: Relay Webhook Secret**;
+  hand-add the `routes.relay` block (Step 2, real secret from KeePassXC) to the live `config.yaml` beside the
+  osquery routes. Restart Hermes if it doesn't hot-reload. Never `chezmoi add` the live `config.yaml`/`.env`.
+- [ ] **Step 5 — live end-to-end check** (after `relay.sh` exists, Task 1):
+  `~/.local/bin/relay.sh --agent test --state done --project relay --detail hi --pane "$HERDR_PANE_ID"` →
+  phone push + `#notify-log` (HMAC validated) + clickable local.
 - [ ] **Step 6 — CLAUDE.md.** Replace the moshi/notify sections with the relay section; document the Hermes
-  tracking method (`.env` secret + `create_` baseline + manual route-add on existing hosts + the pending
-  osquery-branch merge).
+  tracking method (`.env` = `WEBHOOK_ENABLED`/`WEBHOOK_PORT` platform switch; explicit per-route secret as a
+  keepassxc literal in a `create_` config; no global; the live-file clobber caution; the pending osquery
+  merge), and add only `create_private_config.yaml.tmpl` to the KeePassXC-template list (the `.env` template
+  has no secret, so it's automation-safe).
 - [ ] **Step 7 — commit:**
 
 ```bash
-git add dot_hermes/private_dot_env.tmpl dot_hermes/create_private_config.yaml.tmpl CLAUDE.md
+git add dot_hermes/create_private_dot_env.tmpl dot_hermes/create_private_config.yaml.tmpl CLAUDE.md
 git rm dot_config/moshi/private_auth.json.tmpl
-git commit -m "feat(relay): track Hermes relay route via .env + create_ config (secrets-safe)"
+git commit -m "feat(relay): track Hermes webhook activation + relay route secret (secrets-safe); retire moshi auth"
 ```
 
 ---
