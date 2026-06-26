@@ -463,7 +463,7 @@ platforms:
           deliver_only: true
           prompt: "{agent} · {state} · {project}\n\n{detail}"
           deliver_extra:
-            chat_id: "1519212132518989915"
+            chat_id: {{ (keepassxc "Discord (Uriel) :: Channel ID (#relay)").Password | quote }}
 ```
 
 (No osquery routes; no global `secret:` under `extra` — every route is explicit. Never `chezmoi add` the live

@@ -13,7 +13,8 @@
   the 0600 file chezmoi writes, which must NEVER be `chezmoi add`-ed back (bug #4775 rewrites config.yaml at
   runtime and would capture the resolved secret).
 
-  Delivers to the #relay Discord channel (chat_id 1519212132518989915 below).
+  Delivers to the #relay Discord channel. The channel id is rendered from KeePassXC too (kept out of git),
+  so neither the route secret nor the channel id is ever committed.
 */ -}}
 platforms:
   webhook:
@@ -28,4 +29,4 @@ platforms:
           deliver_only: true
           prompt: "{agent} · {state} · {project}\n\n{detail}"
           deliver_extra:
-            chat_id: "1519212132518989915"
+            chat_id: {{ (keepassxc "Discord (Uriel) :: Channel ID (#relay)").Password | quote }}
