@@ -11,7 +11,7 @@ blocked vs asked vs plan-ready) so I can triage at a glance, and is delivered to
 channels:
 
 - **moshi push** — phone; tap takes me into the live session. The remote/actionable path.
-- **Hermes webhook → Discord `#notify-log`** — a paper trail / at-a-glance log.
+- **Hermes webhook → Discord `#relay`** — a paper trail / at-a-glance log.
 - **local macOS notification** — desktop; clicking brings Ghostty forward and focuses herdr on the exact
   pane that finished (`herdr agent focus`).
 
@@ -85,7 +85,7 @@ affects the others, and always exits 0:
   from today).
 - **hermes** — `POST http://127.0.0.1:8644/webhooks/relay` with a JSON body of our fields and header
   `X-Webhook-Signature: <hex HMAC-SHA256(body, hermes_secret)>` (computed with `openssl dgst`). The route
-  is `deliver_only: true` → Discord `#notify-log`, so Hermes just renders our `prompt` and forwards it; no
+  is `deliver_only: true` → Discord `#relay`, so Hermes just renders our `prompt` and forwards it; no
   agent run. Any non-`200` (or an unreachable `:8644`) is a silent miss.
 - **local** — `terminal-notifier -title "<agent> · <state> · <project>" -message "<detail>"
   -activate com.mitchellh.ghostty -execute "herdr agent focus <pane_id>"`. Clicking brings Ghostty forward
@@ -127,7 +127,7 @@ moshi-hook: drop `codex` from the `--target` list in `run_once_after_60-moshi-ho
 ### Hermes route — `~/.hermes/config.yaml` (user-maintained)
 
 Add a `relay` route: a new `secret`, `deliver: discord`, `deliver_only: true`,
-`deliver_extra.chat_id: <#notify-log id>`, and a `prompt` template that renders our fields (e.g.
+`deliver_extra.chat_id: <#relay id>`, and a `prompt` template that renders our fields (e.g.
 `{agent} · {state} · {project}\n\n{detail}`). Because `~/.hermes` isn't chezmoi-managed, this is added by
 hand (or via `hermes webhook subscribe`). The same secret is stored in a new KeePassXC entry and rendered
 into `~/.config/relay/auth.json` for `relay.sh`.
@@ -168,7 +168,7 @@ The pipeline is **relay**: `relay.sh` (sender) and `relay-agent.sh` (agent messa
 
 ## Out of scope
 
-- A Hermes priority-split (`#notify-log` is one channel for now; the state label sorts).
+- A Hermes priority-split (`#relay` is one channel for now; the state label sorts).
 - chezmoi-managing the whole `~/.hermes/config.yaml`.
 
 ## Testing
@@ -176,7 +176,7 @@ The pipeline is **relay**: `relay.sh` (sender) and `relay-agent.sh` (agent messa
 - `relay.sh`: each channel exercised against a fake endpoint; HMAC matches `openssl`; one channel failing
   leaves the others delivered; exits 0 with secrets absent.
 - `relay-agent.sh`: state→message mapping; `done` snippet from a real transcript; shellcheck-clean.
-- Hermes: a live POST to the `relay` route returns 200 and `#notify-log` receives it.
+- Hermes: a live POST to the `relay` route returns 200 and `#relay` receives it.
 - Codex: excluded from moshi-hook; the chezmoi `hooks.json` fires `relay-agent.sh` on `Stop` /
   `PermissionRequest`; herdr agent-state still works.
 - Shell: 1m local / 5m webhook thresholds; `codex` skipped; clicking the notification focuses the right

@@ -208,12 +208,12 @@ exit 0
 ```json
 {
   "moshi_secret": {{ (keepassxc "Moshi :: Webhook Secret").Password | quote }},
-  "hermes_secret": {{ (keepassxc "Hermes :: Relay Webhook Secret").Password | quote }}
+  "hermes_secret": {{ (keepassxc "Hermes :: Webhook Secret :: #relay").Password | quote }}
 }
 ```
 
 (`| quote` emits the JSON-quoted string, so no surrounding quotes. Create the KeePassXC entry
-**Hermes :: Relay Webhook Secret** — the same entry renders the Hermes route's literal secret in Task 5.)
+**Hermes :: Webhook Secret :: #relay** — the same entry renders the Hermes route's literal secret in Task 5.)
 
 - [ ] **Step 5 — run the test, expect PASS:** `just test 2>&1 | grep relay` → `relay: OK`.
 - [ ] **Step 6 — commit:**
@@ -458,12 +458,12 @@ platforms:
       port: 8644
       routes:
         relay:
-          secret: {{ (keepassxc "Hermes :: Relay Webhook Secret").Password | quote }}
+          secret: {{ (keepassxc "Hermes :: Webhook Secret :: #relay").Password | quote }}
           deliver: discord
           deliver_only: true
           prompt: "{agent} · {state} · {project}\n\n{detail}"
           deliver_extra:
-            chat_id: "<#notify-log channel id>"
+            chat_id: "1519212132518989915"
 ```
 
 (No osquery routes; no global `secret:` under `extra` — every route is explicit. Never `chezmoi add` the live
@@ -474,12 +474,12 @@ platforms:
   Task 1). Operator removes the stale `~/.config/moshi/auth.json`.
 - [ ] **Step 4 — operator wiring (existing host).** `create_` won't touch the live `.env` or `config.yaml`,
   so on dresden: confirm `WEBHOOK_ENABLED=true` + `WEBHOOK_PORT=8644` are in the live `~/.hermes/.env` (they
-  already are if the osquery webhook works); create the KeePassXC entry **Hermes :: Relay Webhook Secret**;
+  already are if the osquery webhook works); create the KeePassXC entry **Hermes :: Webhook Secret :: #relay**;
   hand-add the `routes.relay` block (Step 2, real secret from KeePassXC) to the live `config.yaml` beside the
   osquery routes. Restart Hermes if it doesn't hot-reload. Never `chezmoi add` the live `config.yaml`/`.env`.
 - [ ] **Step 5 — live end-to-end check** (after `relay.sh` exists, Task 1):
   `~/.local/bin/relay.sh --agent test --state done --project relay --detail hi --pane "$HERDR_PANE_ID"` →
-  phone push + `#notify-log` (HMAC validated) + clickable local.
+  phone push + `#relay` (HMAC validated) + clickable local.
 - [ ] **Step 6 — CLAUDE.md.** Replace the moshi/notify sections with the relay section; document the Hermes
   tracking method (`.env` = `WEBHOOK_ENABLED`/`WEBHOOK_PORT` platform switch; explicit per-route secret as a
   keepassxc literal in a `create_` config; no global; the live-file clobber caution; the pending osquery
