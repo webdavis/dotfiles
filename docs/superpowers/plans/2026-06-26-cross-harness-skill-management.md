@@ -15,7 +15,8 @@
 - **Back up** (tar to `~/workspaces/backups/<UTC>.<name>.backup.tar.gz`) before any deletion/overwrite.
 - **Atomic swap** for any in-place content overwrite (temp dir on same FS → `mv -Tf`). Never `rm`-then-recreate a live skill dir.
 - **Skip-list** (never updated/overwritten by tooling): `video-transcript-downloader` + any user-edited copy.
-- **Collisions** kept both, category-namespaced: `engineering-code-review`, `marketing-competitive-brief`, `product-management-competitive-brief`, `legal-review-contract`, `small-business-review-contract`. Existing clawhub `code-review` untouched.
+- **code-review:** REMOVE the existing clawhub copy; the Anthropic KW engineering `code-review` keeps the canonical `code-review` name (not namespaced) — per user decision.
+- **Collisions** kept both, category-namespaced (4): `marketing-competitive-brief`, `product-management-competitive-brief`, `legal-review-contract`, `small-business-review-contract`.
 - Commits on `feat/cli-agent-tracking-workflow`, conventional-commits style, **no Co-Authored-By / no AI trailer**, `SKIP_AI_COMMIT=1` to bypass the haiku hook.
 - "Tests" here = state-verification commands (`ls`/`readlink`/`jq`/`find`), not unit tests.
 - Vars used below: `A=$HOME/.agents`, `S=$A/skills`, `C=$HOME/.claude/skills`, `H=$HOME/.hermes/skills`, `DF=$HOME/workspaces/Ivy/webdavis/dotfiles`.
