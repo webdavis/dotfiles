@@ -7,12 +7,13 @@
   osquery routes.
 
   The relay route secret is a keepassxc-rendered LITERAL, NOT ${VAR}: the webhook gateway adapter on Hermes
-  v0.14.0 does not expand ${VAR} in route-level secrets (verified against the installed gateway code). The
-  committed SOURCE holds the keepassxc call, never the value; the literal lands only in the 0600 file chezmoi
-  writes, which must NEVER be `chezmoi add`-ed back (bug #4775 rewrites config.yaml at runtime and would
-  capture the resolved secret). The global fallback secret comes from WEBHOOK_SECRET in ~/.hermes/.env.
+  v0.14.0 does not expand ${VAR} in route-level secrets (verified against the installed gateway code). There
+  is no global secret -- every route is explicit (platform activation, WEBHOOK_ENABLED/WEBHOOK_PORT, lives in
+  ~/.hermes/.env). The committed SOURCE holds the keepassxc call, never the value; the literal lands only in
+  the 0600 file chezmoi writes, which must NEVER be `chezmoi add`-ed back (bug #4775 rewrites config.yaml at
+  runtime and would capture the resolved secret).
 
-  Replace the chat_id placeholder with the real #notify-log Discord channel id before use.
+  Delivers to the #relay Discord channel (chat_id 1519212132518989915 below).
 */ -}}
 platforms:
   webhook:
@@ -22,9 +23,9 @@ platforms:
       port: 8644
       routes:
         relay:
-          secret: {{ (keepassxc "Hermes :: Relay Webhook Secret").Password | quote }}
+          secret: {{ (keepassxc "Hermes :: Webhook Secret :: #relay").Password | quote }}
           deliver: discord
           deliver_only: true
           prompt: "{agent} · {state} · {project}\n\n{detail}"
           deliver_extra:
-            chat_id: "REPLACE_WITH_NOTIFY_LOG_CHANNEL_ID"
+            chat_id: "1519212132518989915"
