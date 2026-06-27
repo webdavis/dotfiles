@@ -74,12 +74,30 @@
         (dict
           "type" "command"
           "async" true
-          "command" (printf "%s/.local/bin/claude-moshi-notify.sh" $home)))))
+          "command" (printf "%s/.local/bin/relay-agent.sh done" $home)))))
     "Notification" (list (dict
       "matcher" "permission_prompt"
-      "hooks" (list (dict
-        "type" "command"
-        "command" "alerter --timeout 30 --title 'Claude Code' --message 'Needs attention' --sound default"))))
+      "hooks" (list
+        (dict
+          "type" "command"
+          "command" "alerter --timeout 30 --title 'Claude Code' --message 'Needs attention' --sound default")
+        (dict
+          "type" "command"
+          "async" true
+          "command" (printf "%s/.local/bin/relay-agent.sh blocked" $home)))))
+    "PostToolUse" (list
+      (dict
+        "matcher" "AskUserQuestion"
+        "hooks" (list (dict
+          "type" "command"
+          "async" true
+          "command" (printf "%s/.local/bin/relay-agent.sh asked" $home))))
+      (dict
+        "matcher" "ExitPlanMode"
+        "hooks" (list (dict
+          "type" "command"
+          "async" true
+          "command" (printf "%s/.local/bin/relay-agent.sh plan-ready" $home)))))
     "PreToolUse" (list (dict
       "matcher" "Bash"
       "hooks" (list (dict
