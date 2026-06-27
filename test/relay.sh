@@ -141,4 +141,30 @@ grep -q "herdr agent focus wW:p8" "$tmp/tn.log" || {
   exit 1
 }
 rm -f "$tmp/jq"
+# the X-Webhook-Signature must be a CORRECT HMAC-SHA256 of the body under the secret,
+# not merely present -- a wrong-but-nonempty signature passes header checks while Hermes
+# silently rejects every message
+cat >"$tmp/curl" <<'MOCK'
+#!/usr/bin/env bash
+args="$*"
+body="$(cat)"
+if [[ $args == *hermes* ]]; then
+  printf '%s' "$body" >"$HCAP_BODY"
+  sig="${args#*X-Webhook-Signature: }"
+  printf '%s' "${sig%% *}" >"$HCAP_SIG"
+fi
+MOCK
+chmod +x "$tmp/curl"
+: >"$tmp/hbody"
+: >"$tmp/hsig"
+HCAP_BODY="$tmp/hbody" HCAP_SIG="$tmp/hsig" PATH="$tmp:$PATH" RELAY_AUTH_FILE="$tmp/auth.json" \
+  RELAY_HERMES_URL="http://hermes.test/relay" RELAY_MOSHI_URL="http://moshi.test/hook" \
+  bash "$relay" --agent claude --state "done" --project x >/dev/null 2>&1
+wait 2>/dev/null
+expected_sig="$(python3 -c 'import hmac, hashlib, sys
+sys.stdout.write(hmac.new(b"HSECRET", open(sys.argv[1], "rb").read(), hashlib.sha256).hexdigest())' "$tmp/hbody" 2>/dev/null)"
+[[ -n $expected_sig && "$(cat "$tmp/hsig")" == "$expected_sig" ]] || {
+  echo "relay: FAIL -- X-Webhook-Signature is not HMAC-SHA256(body, secret)" >&2
+  exit 1
+}
 echo "relay: OK"

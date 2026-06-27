@@ -48,4 +48,25 @@ grep -qx -- "done thinking" <<<"$args" || {
   echo "relay-agent: FAIL -- snippet" >&2
   exit 1
 }
+# a non-done state takes its detail from the payload (.message // .detail), not a transcript
+: >"$tmp/args"
+out2="$(
+  printf '{"cwd":"/x/dotfiles","message":"waiting for input"}' |
+    PATH="$tmp:$PATH" RELAY_BIN="$tmp/relay.sh" RELAY_ARGS_FILE="$tmp/args" HERDR_PANE_ID="wW:p8" \
+      bash "$agent" "blocked" 2>&1
+  echo "rc=$?"
+)"
+grep -q "rc=0" <<<"$out2" || {
+  echo "relay-agent: FAIL -- blocked exit not 0" >&2
+  exit 1
+}
+args2="$(tr '\0' '\n' <"$tmp/args")"
+grep -qx -- "blocked" <<<"$args2" || {
+  echo "relay-agent: FAIL -- blocked state not passed" >&2
+  exit 1
+}
+grep -qx -- "waiting for input" <<<"$args2" || {
+  echo "relay-agent: FAIL -- blocked detail (.message) not passed" >&2
+  exit 1
+}
 echo "relay-agent: OK"

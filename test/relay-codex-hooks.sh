@@ -41,4 +41,9 @@ n="$(jq '[.hooks.Stop[]?.hooks[]?.command | select(test("relay-agent.sh done"))]
   echo "relay-codex-hooks: FAIL -- not idempotent (Stop relay count=$n)" >&2
   exit 1
 }
+m="$(jq '[.hooks.PermissionRequest[]?.hooks[]?.command | select(test("relay-agent.sh blocked"))] | length' "$home/.codex/hooks.json")"
+[[ $m -eq 1 ]] || {
+  echo "relay-codex-hooks: FAIL -- not idempotent (PermissionRequest relay count=$m)" >&2
+  exit 1
+}
 echo "relay-codex-hooks: OK"
