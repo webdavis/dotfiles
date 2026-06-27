@@ -1,0 +1,95 @@
+#!/usr/bin/env bash
+# relay.sh: fans out to moshi + hermes + local, failure-separated, exits 0.
+set -uo pipefail
+relay="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/dot_local/bin/executable_relay.sh"
+[[ -x $relay ]] || {
+  echo "relay: FAIL -- not executable: $relay" >&2
+  exit 1
+}
+tmp="$(mktemp -d)"
+trap 'rm -rf "$tmp"' EXIT
+# record-only mocks
+cat >"$tmp/curl" <<MOCK
+#!/usr/bin/env bash
+echo "\$*" >>"$tmp/curl-argv.log"
+cat >>"$tmp/curl-stdin.log"
+MOCK
+cat >"$tmp/terminal-notifier" <<MOCK
+#!/usr/bin/env bash
+echo "ARGV: \$*" >>"$tmp/tn.log"
+MOCK
+chmod +x "$tmp/curl" "$tmp/terminal-notifier"
+printf '{"moshi_secret":"MSECRET","hermes_secret":"HSECRET"}' >"$tmp/auth.json"
+out="$(
+  PATH="$tmp:$PATH" RELAY_AUTH_FILE="$tmp/auth.json" \
+    RELAY_MOSHI_URL="http://moshi.test/hook" RELAY_HERMES_URL="http://hermes.test/relay" \
+    bash "$relay" --agent claude --state "done" --project dotfiles --branch main \
+    --detail "all green" --pane wW:p8 2>&1
+  echo "rc=$?"
+)"
+wait 2>/dev/null
+grep -q "rc=0" <<<"$out" || {
+  echo "relay: FAIL -- exit not 0" >&2
+  exit 1
+}
+grep -q "moshi.test/hook" "$tmp/curl-argv.log" || {
+  echo "relay: FAIL -- moshi not called" >&2
+  exit 1
+}
+grep -q "hermes.test/relay" "$tmp/curl-argv.log" || {
+  echo "relay: FAIL -- hermes not called" >&2
+  exit 1
+}
+grep -q "X-Webhook-Signature:" "$tmp/curl-argv.log" || {
+  echo "relay: FAIL -- no HMAC header" >&2
+  exit 1
+}
+grep -q "MSECRET" "$tmp/curl-stdin.log" || {
+  echo "relay: FAIL -- moshi token not sent in body" >&2
+  exit 1
+}
+grep -q "MSECRET\|HSECRET" "$tmp/curl-argv.log" && {
+  echo "relay: FAIL -- secret leaked to argv" >&2
+  exit 1
+}
+grep -q "HSECRET" "$tmp/curl-stdin.log" && {
+  echo "relay: FAIL -- hermes secret leaked into the body" >&2
+  exit 1
+}
+grep -q "herdr agent focus wW:p8" "$tmp/tn.log" || {
+  echo "relay: FAIL -- local focus cmd wrong" >&2
+  exit 1
+}
+# failure separation: hermes curl fails, moshi + local still happen, exit 0
+cat >"$tmp/curl" <<MOCK
+#!/usr/bin/env bash
+echo "ARGV: \$*" >>"$tmp/curl2.log"
+[[ "\$*" == *hermes.test* ]] && exit 7
+MOCK
+chmod +x "$tmp/curl"
+out2="$(
+  PATH="$tmp:$PATH" RELAY_AUTH_FILE="$tmp/auth.json" \
+    RELAY_MOSHI_URL="http://moshi.test/hook" RELAY_HERMES_URL="http://hermes.test/relay" \
+    bash "$relay" --agent claude --state "done" --project x --pane wW:p8 2>&1
+  echo "rc=$?"
+)"
+wait 2>/dev/null
+grep -q "rc=0" <<<"$out2" || {
+  echo "relay: FAIL -- exit not 0 on hermes failure" >&2
+  exit 1
+}
+grep -q "moshi.test/hook" "$tmp/curl2.log" || {
+  echo "relay: FAIL -- moshi dropped on hermes failure" >&2
+  exit 1
+}
+# no secret -> no-op, exit 0
+printf '{}' >"$tmp/empty.json"
+out3="$(
+  PATH="$tmp:$PATH" RELAY_AUTH_FILE="$tmp/empty.json" bash "$relay" --state "done" --project x 2>&1
+  echo "rc=$?"
+)"
+grep -q "rc=0" <<<"$out3" || {
+  echo "relay: FAIL -- exit not 0 with no secrets" >&2
+  exit 1
+}
+echo "relay: OK"
