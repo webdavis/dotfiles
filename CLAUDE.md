@@ -73,7 +73,7 @@ chezmoi diff --exclude=templates            # diff non-template files
 **Never run bare `chezmoi apply` from Claude Code** — the following templates call `keepassxc` and will
 fail without an interactive TTY: `~/.gitconfig`, `~/.aws/credentials`, `~/.claude.json`,
 `~/.composio/user_data.json`, `~/.config/atuin/config.toml`, `~/.config/himalaya/config.toml`,
-`~/.config/moshi/auth.json`, `~/Library/Application Support/Claude/claude_desktop_config.json`,
+`~/.config/relay/auth.json`, `~/Library/Application Support/Claude/claude_desktop_config.json`,
 `~/Library/Application Support/espanso/match/identity.yml`,
 `~/Library/Application Support/gogcli/credentials.json`, and the chezmoiscript
 `.chezmoiscripts/run_once_after_60-moshi-hook-setup.sh.tmpl` (one-time setup; once it runs successfully
@@ -94,11 +94,11 @@ drift freely without forcing a chezmoi resync.
 
 - `permissions.allow` (read-only tools), `permissions.deny` (`.env`, `secrets/**`, `.ssh/id_*`, etc.),
   `permissions.defaultMode` = `bypassPermissions`.
-- `hooks`: `UserPromptSubmit` marks session start, `Stop` pulses Hue lights and posts a moshi push
-  notification (`claude-moshi-notify.sh`, async; the script reads its webhook secret from the 0600
-  `~/.config/moshi/auth.json`, so the hook command carries no secret), `Notification`
-  (`permission_prompt` matcher) fires alerter, `PreToolUse` (`Bash` matcher) writes to
-  `~/.claude/audit.log`.
+- `hooks`: `UserPromptSubmit` marks session start, `Stop` pulses Hue lights and posts a relay
+  notification (`relay-agent.sh done`, async; fans out to moshi + Hermes + a clickable local
+  notification, secret read from the 0600 `~/.config/relay/auth.json`); the `Notification`/`PostToolUse`
+  hooks add `relay-agent.sh blocked|asked|plan-ready`, `Notification` (`permission_prompt` matcher) fires
+  alerter, `PreToolUse` (`Bash` matcher) writes to `~/.claude/audit.log`.
 - `statusLine`, `enabledPlugins`, `cleanupPeriodDays` (= 36525, effectively disables session cleanup),
   `autoUpdatesChannel` (= `stable`, pins the release channel so updates lag `latest`),
   `remoteControlAtStartup` (= `true`, starts the Remote Control bridge every session).
@@ -435,12 +435,13 @@ tap before `brew bundle` executes.
 
 One-time setup runs from `.chezmoiscripts/run_once_after_60-moshi-hook-setup.sh.tmpl`: pairs moshi-hook
 with the mobile app (token from KeePassXC entry **`Moshi :: Pairing Token`**), runs
-`moshi-hook install --target codex,opencode,gemini,cursor,kimi,qwen,grok,omp,pi` to wire agent hooks into
-every supported AI CLI **except Claude Code**, and starts the brew service.
+`moshi-hook install --target opencode,gemini,cursor,kimi,qwen,grok,omp,pi` to wire agent hooks into every
+supported AI CLI **except Claude Code and Codex** (both owned by relay — see below), and starts the brew
+service.
 
-**Why Claude Code is excluded from `moshi-hook install`:** moshi-hook's installer writes its own hooks
-into `~/.claude/settings.json` across many events, including `UserPromptSubmit` — which fires a Moshi
-push on every prompt submission (an unwanted "user POST" notification). moshi-hook has no per-event
+**Why Claude Code and Codex are excluded from `moshi-hook install`:** moshi-hook's installer writes its
+own hooks into `~/.claude/settings.json` across many events, including `UserPromptSubmit` — which fires a
+Moshi push on every prompt submission (an unwanted "user POST" notification). moshi-hook has no per-event
 opt-out (only `--target` / `--local`), and patching the third-party binary is not permitted, so Claude
 Code's hooks are owned solely by chezmoi's modify-template (see the Stop-only done notifier below).
 Excluding `claude` from `--target` keeps moshi-hook off Claude Code entirely, so the only Moshi push for
@@ -452,11 +453,19 @@ then owns them).
 (which herdr exports natively inside its panes), so no herdr-side configuration is needed for moshi-hook
 to operate.
 
-**Done-notification Stop hook (separate from moshi-hook):** the Claude Code `Stop` hook posts a "done"
-push via `~/.local/bin/claude-moshi-notify.sh`. chezmoi renders its webhook secret into the 0600 file
-`~/.config/moshi/auth.json` (`dot_config/moshi/private_auth.json.tmpl`, from KeePassXC entry
-**`Moshi :: Webhook Secret`**); the script reads it at run time, so the secret never appears on the hook
-command line or in any process's argv.
+**Relay notifications (the `done`/`blocked`/`asked`/`plan-ready` pushes):** agent and long-command
+notifications go through `~/.local/bin/relay.sh`, which fans out to three failure-separated channels — a
+moshi push (phone), a Hermes webhook → Discord `#relay` (paper trail), and a clickable local macOS
+notification that focuses the finishing herdr pane on click (`herdr agent focus`).
+`relay-agent.sh <state>` builds the agent message (project, branch, last-reply snippet) and calls
+`relay.sh`; Claude's four states are wired in `modify_settings.json` (Stop /
+Notification[permission_prompt] / PostToolUse[AskUserQuestion|ExitPlanMode]), Codex's two
+(`done`/`blocked`) are merged into `~/.codex/hooks.json` by `relay-codex-hooks.sh` (preserving herdr's
+`SessionStart` entry), and the shell command-notifier calls `relay.sh` directly. Secrets (the moshi token
+and the Hermes HMAC (hash-based message authentication code) key) live in the 0600
+`~/.config/relay/auth.json` (`dot_config/relay/private_auth.json.tmpl`, from KeePassXC) and are read at
+run time — never on a command line or in argv. The Hermes `relay` route is tracked in
+`dot_hermes/create_private_config.yaml.tmpl`.
 
 ### AI Commit Messages
 
@@ -474,8 +483,10 @@ why the per-repo pre-commit lint uses the dispatcher described under Git Hooks r
 ### Long-running Command Notifier
 
 `dot_bashrc.tmpl` registers `__cmd_notify_preexec` and `__cmd_notify_precmd` via bash-preexec (atuin's
-framework). Commands ≥ 30s fire an `alerter` macOS notification; ≥ 5 min additionally pulse Hue lights
-via `~/.local/bin/hue-pulse.sh`. Known interactive TUIs (vim/less/top/ssh/tmux/claude/fzf) are skipped.
+framework). A command ≥ 1 min fires relay's clickable local notification (click → focus its herdr pane);
+≥ 5 min additionally sends the moshi + Hermes push and pulses Hue lights via `~/.local/bin/hue-pulse.sh`.
+Known interactive TUIs (vim/less/top/ssh/herdr/claude/codex/fzf) are skipped — agent CLIs fire their own
+relay hooks.
 
 ### Herdr Native Status
 
