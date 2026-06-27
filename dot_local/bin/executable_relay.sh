@@ -58,11 +58,11 @@ fi
 
 # hermes -- body carries no secret; HMAC key read from the file by python (never argv/env); body on stdin
 hermes_body="$(jq -cn --arg a "$agent" --arg s "$state" --arg p "$project" --arg d "$message" \
-  '{agent: $a, state: $s, project: $p, detail: $d}')"
+  '{agent: $a, state: $s, project: $p, detail: $d}' || true)"
 sig="$(printf '%s' "$hermes_body" | python3 -c 'import hmac, hashlib, json, sys
 secret = json.load(open(sys.argv[1])).get("hermes_secret") or ""
 sys.stdout.write(hmac.new(secret.encode(), sys.stdin.buffer.read(), hashlib.sha256).hexdigest() if secret else "")' "$auth_file" 2>/dev/null || true)"
-if [[ -n $sig && -z $local_only ]]; then
+if [[ -n $hermes_body && -n $sig && -z $local_only ]]; then
   (curl -fsS -m 10 -X POST "$hermes_url" -H 'Content-Type: application/json' \
     -H "X-Webhook-Signature: $sig" --data @- <<<"$hermes_body" >/dev/null 2>&1 || true) &
 fi

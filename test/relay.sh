@@ -118,4 +118,27 @@ grep -q "herdr agent focus wW:p8" "$tmp/tn.log" || {
   echo "relay: FAIL -- --local-only called a webhook" >&2
   exit 1
 }
+# a jq failure must NOT break exit 0 or suppress the jq-independent local channel
+cat >"$tmp/jq" <<'MOCK'
+#!/usr/bin/env bash
+exit 1
+MOCK
+chmod +x "$tmp/jq"
+: >"$tmp/tn.log"
+out5="$(
+  PATH="$tmp:$PATH" RELAY_AUTH_FILE="$tmp/auth.json" \
+    RELAY_MOSHI_URL="http://moshi.test/hook" RELAY_HERMES_URL="http://hermes.test/relay" \
+    bash "$relay" --agent claude --state "done" --project x --pane wW:p8 2>&1
+  echo "rc=$?"
+)"
+wait 2>/dev/null
+grep -q "rc=0" <<<"$out5" || {
+  echo "relay: FAIL -- jq failure broke exit 0" >&2
+  exit 1
+}
+grep -q "herdr agent focus wW:p8" "$tmp/tn.log" || {
+  echo "relay: FAIL -- jq failure suppressed the local channel" >&2
+  exit 1
+}
+rm -f "$tmp/jq"
 echo "relay: OK"
