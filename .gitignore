@@ -24,3 +24,6 @@ vendor/**
 
 # Rust build artifacts for vendored herdr projects (plugins + binaries, built in-place, never committed).
 dot_local/share/herdr/**/target/
+
+# superpowers SDD scratch (progress ledger)
+.superpowers/

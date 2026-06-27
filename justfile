@@ -106,11 +106,9 @@ defaults-show domain:
 defaults-dump:
   defaults read | less
 
-# Refresh vendored agent skills from upstream sources.
-# herdr Agent Skill: ogulcancelik/herdr/SKILL.md
-# Moshi Skill: rjyo/moshi-skill (skills/moshi-best-practices/SKILL.md on main)
-update-agent-skills:
-  curl -fsSL https://raw.githubusercontent.com/ogulcancelik/herdr/master/SKILL.md \
-    > private_dot_claude/skills/herdr/private_SKILL.md
-  curl -fsSL https://raw.githubusercontent.com/rjyo/moshi-skill/main/skills/moshi-best-practices/SKILL.md \
-    > private_dot_claude/skills/moshi/private_SKILL.md
+# (agent-skill vendoring removed: herdr/moshi now live in ~/.agents/skills, symlinked per-harness)
+
+# Refresh portable agent skills in the store (~/.agents/skills) + re-symlink each harness.
+# Also runs weekly via launchd (com.webdavis.update-skills). Pass --dry-run to preview.
+update-skills *args:
+  ~/.local/bin/update-skills.sh {{args}}
