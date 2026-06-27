@@ -19,7 +19,7 @@ command -v openhue &>/dev/null || exit 0
 command -v jq &>/dev/null || exit 0
 
 room_id=$(openhue get room --json 2>/dev/null |
-  jq -r --arg name "$room_name" '.. | select(.Name? == $name) | .Id' | head -1)
+  jq -r --arg name "$room_name" '.. | select(.Name? == $name) | .Id' | head -1 || true)
 [[ -z $room_id ]] && exit 0
 
 state_file=$(mktemp)
@@ -40,7 +40,7 @@ openhue get light --json 2>/dev/null |
       (if .HueData.color_temperature.mirek_valid == true then (.HueData.color_temperature.mirek | tostring) else (.HueData.color.xy.x | tostring) end),
       (if .HueData.color_temperature.mirek_valid == true then "" else (.HueData.color.xy.y | tostring) end)
     ] | @tsv
-  ' >"$state_file"
+  ' >"$state_file" || true
 
 [[ ! -s $state_file ]] && exit 0
 
@@ -95,3 +95,7 @@ while IFS=$'\t' read -r lid on_state bri mode v1 v2; do
     openhue set light "$lid" --off --transition-time 500ms 2>/dev/null || true
   fi
 done <"$state_file"
+
+# Best-effort notifier: a failed pulse must never fail the caller (Stop hook /
+# long-command notifier). Any openhue hiccup above is swallowed; exit clean.
+exit 0

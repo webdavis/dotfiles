@@ -18,5 +18,9 @@ start_file="/tmp/claude-session-${session_id}-start"
 elapsed=$(($(date +%s) - $(cat "$start_file")))
 rm -f "$start_file"
 
-((elapsed >= 300)) && exec "$HOME/.local/bin/hue-pulse.sh" 0
+# Run the pulse without exec so its exit code can't become the hook's: a failed
+# Hue pulse must never surface as a Stop hook error.
+if ((elapsed >= 300)); then
+  "$HOME/.local/bin/hue-pulse.sh" 0 || true
+fi
 exit 0
