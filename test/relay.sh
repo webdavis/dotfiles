@@ -92,4 +92,30 @@ grep -q "rc=0" <<<"$out3" || {
   echo "relay: FAIL -- exit not 0 with no secrets" >&2
   exit 1
 }
+# --local-only: clickable local fires, webhooks do NOT (even with secrets present)
+cat >"$tmp/curl" <<MOCK
+#!/usr/bin/env bash
+echo "ARGV: \$*" >>"$tmp/curl3.log"
+MOCK
+chmod +x "$tmp/curl"
+: >"$tmp/tn.log"
+out4="$(
+  PATH="$tmp:$PATH" RELAY_AUTH_FILE="$tmp/auth.json" \
+    RELAY_MOSHI_URL="http://moshi.test/hook" RELAY_HERMES_URL="http://hermes.test/relay" \
+    bash "$relay" --local-only --agent shell --state "done" --project x --pane wW:p8 2>&1
+  echo "rc=$?"
+)"
+wait 2>/dev/null
+grep -q "rc=0" <<<"$out4" || {
+  echo "relay: FAIL -- --local-only exit not 0" >&2
+  exit 1
+}
+grep -q "herdr agent focus wW:p8" "$tmp/tn.log" || {
+  echo "relay: FAIL -- --local-only sent no local notification" >&2
+  exit 1
+}
+[[ -f "$tmp/curl3.log" ]] && {
+  echo "relay: FAIL -- --local-only called a webhook" >&2
+  exit 1
+}
 echo "relay: OK"

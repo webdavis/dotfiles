@@ -297,15 +297,18 @@ if [[ $- == *i* ]]; then
     [[ -z $__cmd_notify_start ]] && return
     local elapsed=$((SECONDS - __cmd_notify_start))
     __cmd_notify_start=""
-    # Skip known interactive TUIs.
-    [[ $__cmd_notify_name =~ ^(vim|nvim|less|man|top|btop|ssh|herdr|claude|fzf) ]] && return
+    # Skip known interactive TUIs (incl. agent CLIs -- they fire their own relay hooks).
+    [[ $__cmd_notify_name =~ ^(vim|nvim|less|man|top|btop|ssh|herdr|claude|codex|fzf) ]] && return
+    local cmd="${__cmd_notify_name%% *}"
     # Wrap each background call in a subshell so jobs aren't attached to this
-    # interactive shell (otherwise `fg`/`jobs` would grab them).
+    # interactive shell (otherwise `fg`/`jobs` would grab them). relay.sh sends a
+    # clickable local notification (click -> focus the herdr pane) at >=1m, and adds
+    # the phone (moshi) + Discord (Hermes) push and the Hue pulse at >=5m.
     if ((elapsed >= 300)); then
-      (alerter --timeout 10 --title "Command finished" --message "${__cmd_notify_name%% *} (${elapsed}s)" --sound default >/dev/null 2>&1 &)
       ("$HOME/.local/bin/hue-pulse.sh" "$exit_code" >/dev/null 2>&1 &)
-    elif ((elapsed >= 30)); then
-      (alerter --timeout 10 --title "Command finished" --message "${__cmd_notify_name%% *} (${elapsed}s)" --sound default >/dev/null 2>&1 &)
+      ("$HOME/.local/bin/relay.sh" --agent shell --state "done" --project "${PWD##*/}" --detail "$cmd (${elapsed}s)" --pane "${HERDR_PANE_ID:-}" >/dev/null 2>&1 &)
+    elif ((elapsed >= 60)); then
+      ("$HOME/.local/bin/relay.sh" --local-only --agent shell --state "done" --project "${PWD##*/}" --detail "$cmd (${elapsed}s)" --pane "${HERDR_PANE_ID:-}" >/dev/null 2>&1 &)
     fi
   }
 

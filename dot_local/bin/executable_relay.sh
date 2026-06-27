@@ -4,7 +4,7 @@
 # is isolated (|| true, backgrounded); always exits 0. Secret never on argv.
 set -euo pipefail
 
-agent="" state="" project="" branch="" detail="" pane=""
+agent="" state="" project="" branch="" detail="" pane="" local_only=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --agent)
@@ -31,6 +31,10 @@ while [[ $# -gt 0 ]]; do
       pane="${2:-}"
       shift 2
       ;;
+    --local-only)
+      local_only=1
+      shift
+      ;;
     *) shift ;;
   esac
 done
@@ -48,7 +52,7 @@ message="${state:-done}${loc:+ — $loc}"
 # moshi -- token read from the 0600 file by jq; body sent on stdin (never on argv)
 moshi_body="$(jq -c --arg t "$title" --arg m "$message" \
   'if .moshi_secret then {token: .moshi_secret, title: $t, message: $m} else empty end' "$auth_file" 2>/dev/null || true)"
-if [[ -n $moshi_body ]]; then
+if [[ -n $moshi_body && -z $local_only ]]; then
   (curl -fsS -m 10 -X POST "$moshi_url" -H 'Content-Type: application/json' --data @- <<<"$moshi_body" >/dev/null 2>&1 || true) &
 fi
 
@@ -58,7 +62,7 @@ hermes_body="$(jq -cn --arg a "$agent" --arg s "$state" --arg p "$project" --arg
 sig="$(printf '%s' "$hermes_body" | python3 -c 'import hmac, hashlib, json, sys
 secret = json.load(open(sys.argv[1])).get("hermes_secret") or ""
 sys.stdout.write(hmac.new(secret.encode(), sys.stdin.buffer.read(), hashlib.sha256).hexdigest() if secret else "")' "$auth_file" 2>/dev/null || true)"
-if [[ -n $sig ]]; then
+if [[ -n $sig && -z $local_only ]]; then
   (curl -fsS -m 10 -X POST "$hermes_url" -H 'Content-Type: application/json' \
     -H "X-Webhook-Signature: $sig" --data @- <<<"$hermes_body" >/dev/null 2>&1 || true) &
 fi
@@ -67,7 +71,7 @@ fi
 if command -v terminal-notifier >/dev/null 2>&1; then
   exec_cmd=":"
   [[ -n $pane ]] && exec_cmd="herdr agent focus $pane"
-  (terminal-notifier -title "$title" -message "$message" \
+  (terminal-notifier -title "$title" -message "$message" -sound default \
     -activate com.mitchellh.ghostty -execute "$exec_cmd" >/dev/null 2>&1 || true) &
 fi
 
