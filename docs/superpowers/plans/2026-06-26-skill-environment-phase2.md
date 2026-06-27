@@ -15,7 +15,26 @@
 - Atomic swap for every overwrite; back up before deletes; skip-list never auto-updated: `video-transcript-downloader` (fork) + any user-edited.
 - Commit on `feat/cli-agent-tracking-workflow`, conventional commits, **no AI co-author trailer**, `SKIP_AI_COMMIT=1`.
 - 4 namespaced KW collisions preserved: `marketing-/product-management-competitive-brief`, `legal-/small-business-review-contract`.
-- Decisions (resolved): Hermes catalog → hub-lock + commit agent-created; lobster skill → keep guwidoe; deep-research + Hermes-google-workspace → per comparison-subagent verdicts.
+- Decisions (resolved): Hermes catalog → hub-lock + commit agent-created; lobster → keep guwidoe; deep-research → **keep local** (8-phase version beats parags/deep-research-pro); Hermes Google Workspace → **add `workspace-mcp` + keep the native skill**.
+
+## Carried-over context & loose ends (from the originating session — READ FIRST)
+
+**Starting state (verified 2026-06-26):** store = **203** real skills + `cua-driver` (external symlink); feat HEAD `416ee94`. Phase-1 commits on feat: `3cb45cb` (code-review decision), `ba84768` (updater infra + stop herdr/moshi vendoring), `ae0126b` (moshi/herdr/whisply/vtd tracked), `416ee94` (this plan). All destructive steps backed up to `~/workspaces/backups/2026-06-26T*`. Progress ledger (gitignored): `.superpowers/sdd/progress.md`.
+
+**Must-fix loose ends — fold into the tasks:**
+1. **Uncommitted deletion:** `private_dot_claude/skills/web-research-task/` is staged-deleted but not committed — commit it (web-research-task was trashed).
+2. **Wrongly-committed vendored files:** `dot_agents/skills/moshi` + `dot_agents/skills/herdr` were committed (`ae0126b`) before we learned they're vendored (moshi=`rjyo/moshi-skill` path `skills/moshi-best-practices`; herdr=`ogulcancelik/herdr`). **Un-commit them** (Task 4) — they belong in the manifest, not the repo.
+3. **Hermes config:** already chezmoi-managed via `dot_hermes/create_private_config.yaml.tmpl` (a `create_` template — only writes if the file is absent, so source↔live can drift) + secrets via `~/.hermes/.env` + KeePassXC (commit `bef3953`). The 4 settings set live this session — `prune_builtins:false, consolidate:true, write_approval:true, guard_agent_created:true` — must be reflected in that source template. Add `workspace-mcp` to its `mcp_servers` (alongside `qmd`, `cua-driver`) using the `.env`/KeePassXC mechanism for the OAuth secret — never plaintext.
+4. **paseo leftovers:** `~/.paseo` (daemon state) and an empty untracked `dotfiles/paseo.json` still exist — delete both (Task 7). Skills/daemon/cask already removed this session.
+5. **Hermes hub-duplicates:** `senior-architect, todoist-cli, video-transcript-downloader, whisply` exist as **real dirs in `~/.hermes/skills`** (hub-installed/adapted) AND in the store. whisply = Hermes-adapted → **leave**. For the other 3: leave as Hermes-hub-managed (the hub-lock reproduces them); they harmlessly duplicate the store. Do NOT delete the adapted whisply.
+6. **cua-driver = external:** `~/.agents/skills/cua-driver` → `~/.cua-driver/skills/cua-driver` (source `trycua/cua`) AND a Hermes MCP server (`cua-driver` in `mcp_servers`). In the manifest mark it **external** (managed by trycua/cua) — do not vendor it into the store.
+7. **Idle-gate decision (open):** the user questioned why the updater idle-gates. The atomic swap already makes overwrites safe, so the idle-gate is belt-and-suspenders and can cause skipped runs if a harness is always up. Decide: keep or drop.
+8. **n8n-mcp creds:** `czlonkowski/n8n-mcp` likely needs an n8n instance URL + API key the user hasn't supplied — **ask before configuring** (Task 6).
+9. **Codex secret hygiene:** `~/.codex/config.toml` stores `GOOGLE_OAUTH_CLIENT_SECRET` in plaintext — consider moving it to a secret mechanism like Hermes's `.env`/KeePassXC (optional; flag to user).
+
+**Key install nuance (Tasks 2–3):** `npx skills add <src> --global --all` installs into the **store** and npx-lock-tracks it (good); `npx skills add <src> --agent claude-code` (single agent) installs into `~/.claude/skills` as a real dir and must be **relocated** to the store. Prefer `--all`; otherwise install→relocate (the updater already has a defensive relocate step).
+
+**Out of scope here (separate, time-sensitive project):** the originating goal — **Luke Morrison-Smith's first-job résumé** (`career-campaign/luke-morrison-smith/profile.md`; worktree `workflow/job-search/luke-morrison-smith`) — was never returned to (move ~2026-07-11, last day 7/9). Handle separately, not in this skills plan.
 
 ---
 
