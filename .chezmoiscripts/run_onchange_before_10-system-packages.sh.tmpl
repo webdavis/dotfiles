@@ -3,6 +3,12 @@
 
 set -euo pipefail
 
+{{ if env "SKIP_SYSTEM_PACKAGES" -}}
+# SKIP_SYSTEM_PACKAGES=1: skip the brew bundle --cleanup so a `chezmoi apply` from a
+# secondary worktree (whose declared package set differs) cannot uninstall packages
+# this worktree does not list. A later normal apply re-runs this and re-syncs.
+exit 0
+{{ end -}}
 # Tear down the old domt4/autoupdate daily auto-upgrader (replaced by the
 # com.webdavis.homebrew-weekly-upgrade Monday-noon LaunchAgent). MUST run BEFORE
 # `brew bundle --cleanup` below untaps domt4/autoupdate -- otherwise the

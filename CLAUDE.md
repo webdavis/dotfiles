@@ -167,6 +167,13 @@ keys: `taps`, `formulae`, `casks`, `mas`. The
 data and runs `brew bundle --cleanup` whenever the data changes. Prerequisites:
 `run_once_before_00-install-homebrew.sh.tmpl` ensures `/opt/homebrew/bin/brew` exists on fresh machines.
 
+**Skipping the bundle for one apply:** `SKIP_SYSTEM_PACKAGES=1 chezmoi apply` makes this script `exit 0`
+before `brew bundle` (via an `env`-based template guard). Use it when applying from a secondary worktree
+whose declared package set differs from the primary — otherwise the bundle's `--cleanup` would uninstall
+packages that worktree does not list. It flips the script's `run_onchange` hash, so the next *normal*
+apply re-runs the bundle once and re-syncs (expected). `chezmoi apply --exclude=scripts` is the no-edit
+alternative, but it skips every script, not just this one.
+
 Third-party taps whose formulae or casks must be trusted under Homebrew's `HOMEBREW_REQUIRE_TAP_TRUST`
 gate are listed under a `trusted_taps` key in the same data file. A pre-bundle loop in
 `run_onchange_before_10-system-packages.sh.tmpl` runs `brew trust --tap` for each before `brew bundle`,
