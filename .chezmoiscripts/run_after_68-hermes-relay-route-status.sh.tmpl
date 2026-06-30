@@ -1,0 +1,20 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/bin/bash
+# Reminder, NOT an auto-restart: if ~/.hermes/config.yaml defines the relay route but the running gateway
+# returns 404 for it, hermes must be restarted to load it. Mirrors run_onchange_after_66 (tailscaled-status)
+# -- a sudo-free, side-effect-free status nudge. We deliberately do NOT auto-restart: `hermes gateway
+# restart` drains in-flight runs (up to 180s) and the route changes ~never, so you restart deliberately.
+# Runs in the after-phase, once modify_private_config.yaml has merged the route. (Catches "route added but
+# not loaded"; a secret rotation still leaves the route answering 401, so restart deliberately after one.)
+set -euo pipefail
+cfg="$HOME/.hermes/config.yaml"
+command -v yq >/dev/null 2>&1 || exit 0
+[[ -f $cfg ]] || exit 0
+yq -e '.platforms.webhook.extra.routes | has("relay")' "$cfg" >/dev/null 2>&1 || exit 0
+port="$(yq -r '.platforms.webhook.extra.port // 8644' "$cfg" 2>/dev/null || echo 8644)"
+code="$(curl -s -o /dev/null -m 2 -w '%{http_code}' -X POST "http://127.0.0.1:${port}/webhooks/relay" \
+  -H 'Content-Type: application/json' -d '{}' 2>/dev/null || echo 000)"
+if [[ $code == "404" ]]; then
+  printf '\n  ⚠ hermes: the relay route is in config.yaml but the gateway returns 404 (not loaded).\n    Run: hermes gateway restart\n\n'
+fi
+{{ end -}}

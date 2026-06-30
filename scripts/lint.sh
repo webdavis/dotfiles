@@ -162,6 +162,7 @@ find_shell_templates() {
     -o -name "run_onchange_after_57-build-herdr-smart-nav-plugin.sh.tmpl" \
     -o -name "run_onchange_after_66-tailscaled-status.sh.tmpl" \
     -o -name "run_after_72-relay-codex-hooks.sh.tmpl" \
+    -o -name "run_after_68-hermes-relay-route-status.sh.tmpl" \
     -o -name "run_onchange_before_50-setup-osquery.sh.tmpl" \
     \) -print0
 }

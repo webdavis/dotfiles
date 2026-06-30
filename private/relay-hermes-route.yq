@@ -1,0 +1,10 @@
+.platforms.webhook.enabled = true |
+.platforms.webhook.extra.host = (.platforms.webhook.extra.host // "127.0.0.1") |
+.platforms.webhook.extra.port = (.platforms.webhook.extra.port // 8644) |
+.platforms.webhook.extra.routes.relay = {
+  "secret": strenv(SECRET),
+  "deliver": "discord",
+  "deliver_only": true,
+  "prompt": "{agent} · {state} · {project}\n\n{detail}",
+  "deliver_extra": {"chat_id": strenv(CHATID)}
+}
