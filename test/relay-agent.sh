@@ -69,4 +69,28 @@ grep -qx -- "waiting for input" <<<"$args2" || {
   echo "relay-agent: FAIL -- blocked detail (.message) not passed" >&2
   exit 1
 }
+# LEAD: a long multi-sentence reply is trimmed at a sentence boundary, not mid-word
+long='Alpha sentence is complete and padded out here to be longer. Beta sentence is likewise complete and padded out very similarly. Gamma sentence also rounds things out with a bit of padding. Delta sentence pushes the running total up near the limit now. Epsilon sentence is far beyond the budget and must never appear.'
+: >"$tmp/args"
+printf '%s\n' "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"$long\"}]}}" >"$tmp/t3.jsonl"
+printf '{"cwd":"/x/dotfiles","transcript_path":"%s/t3.jsonl"}' "$tmp" |
+  PATH="$tmp:$PATH" RELAY_BIN="$tmp/relay.sh" RELAY_ARGS_FILE="$tmp/args" \
+    bash "$agent" "done" >/dev/null 2>&1
+detail3="$(tr '\0' '\n' <"$tmp/args" | awk 'f{print; exit} $0=="--detail"{f=1}')"
+[[ $detail3 == *. ]] || {
+  echo "relay-agent: FAIL -- snippet not trimmed to a sentence boundary: '$detail3'" >&2
+  exit 1
+}
+[[ $detail3 != *Epsilon* ]] || {
+  echo "relay-agent: FAIL -- snippet kept the over-budget tail sentence" >&2
+  exit 1
+}
+[[ $detail3 != *…* ]] || {
+  echo "relay-agent: FAIL -- mid-word ellipsis instead of a clean sentence cut" >&2
+  exit 1
+}
+[[ ${#detail3} -le 240 ]] || {
+  echo "relay-agent: FAIL -- snippet over 240 chars (${#detail3})" >&2
+  exit 1
+}
 echo "relay-agent: OK"

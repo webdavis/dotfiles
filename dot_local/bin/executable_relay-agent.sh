@@ -16,7 +16,23 @@ if [[ $state == "done" && -n $transcript && -f $transcript ]]; then
   detail="$(jq -rs '[.[] | select(.type=="assistant" and (.message.content? != null))
     | .message.content[] | select(.type=="text") | .text] | last // empty' "$transcript" 2>/dev/null || true)"
   detail="$(printf '%s' "$detail" | tr '\n\r\t' '   ' | tr -s ' ' | sed 's/^ *//; s/ *$//')"
-  [[ ${#detail} -gt 240 ]] && detail="${detail:0:240}…"
+  detail="$(printf '%s' "$detail" | python3 -c 'import sys, re
+s = sys.stdin.read().strip()
+if len(s) <= 240:
+    sys.stdout.write(s)
+else:
+    cut = 0
+    for m in re.finditer(r"[.!?](?= [A-Z])", s):
+        if m.end() <= 240:
+            cut = m.end()
+        else:
+            break
+    if cut:
+        sys.stdout.write(s[:cut])
+    else:
+        head = s[:240]
+        sp = head.rfind(" ")
+        sys.stdout.write(head[:sp] + "…" if sp > 0 else head + "…")' 2>/dev/null || true)"
 else
   detail="$(printf '%s' "$input" | jq -r '.message // .detail // empty' 2>/dev/null || true)"
 fi
