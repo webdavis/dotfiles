@@ -40,7 +40,7 @@ if [[ $state == "done" && -n $transcript && -f $transcript ]]; then
     cmd+=("$codex_bin" exec --skip-git-repo-check -C "$codex_home" -s read-only "Summarize this AI coding agent's last turn for a brief phone notification, then classify it.
 Output EXACTLY one line and nothing else: STATE|SUMMARY
 STATE is one of: done (finished its work), asking (wants you to answer or choose), blocked (needs permission/input to continue).
-SUMMARY is one or two sentences, at most 200 characters, plain text, no newlines.
+SUMMARY is two or three sentences, up to 320 characters, plain text, no newlines, covering what was done plus any decision or question raised.
 
 Turn:
 $reply")
