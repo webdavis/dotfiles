@@ -19,7 +19,7 @@ chmod +x "$tmp/relay.sh"
 printf '%s\n' '{"type":"assistant","message":{"content":[{"type":"text","text":"done thinking"}]}}' >"$tmp/t.jsonl"
 out="$(
   printf '{"cwd":"/x/dotfiles","transcript_path":"%s/t.jsonl"}' "$tmp" |
-    PATH="$tmp:$PATH" RELAY_BIN="$tmp/relay.sh" RELAY_ARGS_FILE="$tmp/args" HERDR_PANE_ID="wW:p8" \
+    PATH="$tmp:$PATH" RELAY_BIN="$tmp/relay.sh" RELAY_ARGS_FILE="$tmp/args" HERDR_PANE_ID="wW:p8" CODEX_BIN=false \
       bash "$agent" "done" 2>&1
   echo "rc=$?"
 )"
@@ -74,7 +74,7 @@ long='Alpha sentence is complete and padded out here to be longer. Beta sentence
 : >"$tmp/args"
 printf '%s\n' "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"$long\"}]}}" >"$tmp/t3.jsonl"
 printf '{"cwd":"/x/dotfiles","transcript_path":"%s/t3.jsonl"}' "$tmp" |
-  PATH="$tmp:$PATH" RELAY_BIN="$tmp/relay.sh" RELAY_ARGS_FILE="$tmp/args" \
+  PATH="$tmp:$PATH" RELAY_BIN="$tmp/relay.sh" RELAY_ARGS_FILE="$tmp/args" CODEX_BIN=false \
     bash "$agent" "done" >/dev/null 2>&1
 detail3="$(tr '\0' '\n' <"$tmp/args" | awk 'f{print; exit} $0=="--detail"{f=1}')"
 [[ $detail3 == *. ]] || {
@@ -91,6 +91,44 @@ detail3="$(tr '\0' '\n' <"$tmp/args" | awk 'f{print; exit} $0=="--detail"{f=1}')
 }
 [[ ${#detail3} -le 240 ]] || {
   echo "relay-agent: FAIL -- snippet over 240 chars (${#detail3})" >&2
+  exit 1
+}
+
+# codex-primary: when CODEX_BIN yields STATE|SUMMARY, relay uses both (state may override 'done')
+: >"$tmp/args"
+cat >"$tmp/codexmock" <<'MOCK'
+#!/usr/bin/env bash
+printf 'asking|Need your decision on the API choice.\n'
+MOCK
+chmod +x "$tmp/codexmock"
+printf '%s\n' '{"type":"assistant","message":{"content":[{"type":"text","text":"A long reply that happens to end by asking you something?"}]}}' >"$tmp/tc.jsonl"
+printf '{"cwd":"/x/dotfiles","transcript_path":"%s/tc.jsonl"}' "$tmp" |
+  PATH="$tmp:$PATH" RELAY_BIN="$tmp/relay.sh" RELAY_ARGS_FILE="$tmp/args" CODEX_BIN="$tmp/codexmock" \
+    bash "$agent" "done" >/dev/null 2>&1
+ca="$(tr '\0' '\n' <"$tmp/args")"
+grep -qx -- "asking" <<<"$ca" || {
+  echo "relay-agent: FAIL -- codex state not used (expected 'asking')" >&2
+  exit 1
+}
+grep -qx -- "Need your decision on the API choice." <<<"$ca" || {
+  echo "relay-agent: FAIL -- codex summary not used" >&2
+  exit 1
+}
+
+# codex guard: on re-entry (RELAY_SUMMARIZING set) relay must NOT call codex, falling back instead
+: >"$tmp/args"
+cat >"$tmp/codexspy" <<'MOCK'
+#!/usr/bin/env bash
+printf 'codex-was-called' >>"$CODEX_SPY_FILE"
+printf 'asking|should not be used\n'
+MOCK
+chmod +x "$tmp/codexspy"
+printf '{"cwd":"/x/dotfiles","transcript_path":"%s/tc.jsonl"}' "$tmp" |
+  PATH="$tmp:$PATH" RELAY_BIN="$tmp/relay.sh" RELAY_ARGS_FILE="$tmp/args" \
+    CODEX_BIN="$tmp/codexspy" CODEX_SPY_FILE="$tmp/spy" RELAY_SUMMARIZING=1 \
+    bash "$agent" "done" >/dev/null 2>&1
+[[ -s "$tmp/spy" ]] && {
+  echo "relay-agent: FAIL -- codex called on re-entry (loop guard missing)" >&2
   exit 1
 }
 echo "relay-agent: OK"
