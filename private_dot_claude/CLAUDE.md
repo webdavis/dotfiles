@@ -53,6 +53,10 @@ Require per-invocation confirmation. Blanket "yes" doesn't carry over.
 
 ## Code discipline
 
+- **Investigate before implementing (Chesterton's Fence).** Before building or changing anything that
+  touches existing state, map that state first — does the target exist, what is in it, how do the
+  relevant tool's semantics interact with what is already there? Understand why a thing is the way it is
+  before changing it. Surface constraints in the plan, not at deploy time. Verify; don't assume.
 - **YAGNI.** No features, refactors, abstractions, or fallbacks beyond task scope. Three similar lines
   beat a premature abstraction.
 - **No backwards-compat hacks for unshipped code.** Dead code gets deleted.
