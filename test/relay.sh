@@ -48,6 +48,12 @@ grep -q "MSECRET" "$tmp/curl-stdin.log" || {
   echo "relay: FAIL -- moshi token not sent in body" >&2
   exit 1
 }
+# de-duped body: the summary is the prominent message (branch-prefixed), NOT behind a redundant
+# "state — project" header that the title already carries (wastes the phone/banner preview line).
+grep -qF '(main) all green' "$tmp/curl-stdin.log" || {
+  echo "relay: FAIL -- de-duped summary is not the message body" >&2
+  exit 1
+}
 grep -q "MSECRET\|HSECRET" "$tmp/curl-argv.log" && {
   echo "relay: FAIL -- secret leaked to argv" >&2
   exit 1

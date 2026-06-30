@@ -43,11 +43,10 @@ auth_file="${RELAY_AUTH_FILE:-$HOME/.config/relay/auth.json}"
 moshi_url="${RELAY_MOSHI_URL:-https://api.getmoshi.app/api/webhook}"
 hermes_url="${RELAY_HERMES_URL:-http://127.0.0.1:8644/webhooks/relay}"
 
-loc="$project"
-[[ -n $branch ]] && loc="${loc:+$loc }($branch)"
 title="${agent:-relay} · ${state:-done}${project:+ · $project}"
-message="${state:-done}${loc:+ — $loc}"
-[[ -n $detail ]] && message="$message"$'\n'"$detail"
+# Body is the summary itself (branch-prefixed), not a redundant "state — project" header the title already
+# carries -- so the phone push / macOS banner spend their short preview on the summary, not boilerplate.
+message="${branch:+($branch) }${detail:-${state:-done}}"
 
 # moshi -- token read from the 0600 file by jq; body sent on stdin (never on argv)
 moshi_body="$(jq -c --arg t "$title" --arg m "$message" \
