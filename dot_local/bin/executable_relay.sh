@@ -47,9 +47,21 @@ title="${agent:-relay} · ${state:-done}${project:+ · $project}"
 # Body is the summary itself (branch-prefixed), not a redundant "state — project" header the title already
 # carries -- so the phone push / macOS banner spend their short preview on the summary, not boilerplate.
 message="${branch:+($branch) }${detail:-${state:-done}}"
+# Phone push + macOS banner clip long summaries mid-sentence; pre-trim to the last full sentence within
+# ~260 chars so they end cleanly. Discord (#relay) keeps the full text below -- it has no length ceiling.
+preview="$(printf '%s' "$message" | python3 -c 'import re, sys
+s = sys.stdin.read()
+if len(s) <= 260:
+    sys.stdout.write(s)
+else:
+    cut = 0
+    for m in re.finditer(r"[.!?](?= |$)", s):
+        if m.end() <= 260:
+            cut = m.end()
+    sys.stdout.write(s[:cut] if cut else s[:259].rstrip() + "…")' 2>/dev/null || printf '%s' "$message")"
 
 # moshi -- token read from the 0600 file by jq; body sent on stdin (never on argv)
-moshi_body="$(jq -c --arg t "$title" --arg m "$message" \
+moshi_body="$(jq -c --arg t "$title" --arg m "$preview" \
   'if .moshi_secret then {token: .moshi_secret, title: $t, message: $m} else empty end' "$auth_file" 2>/dev/null || true)"
 if [[ -n $moshi_body && -z $local_only ]]; then
   (curl -fsS -m 10 -X POST "$moshi_url" -H 'Content-Type: application/json' --data @- <<<"$moshi_body" >/dev/null 2>&1 || true) &
@@ -70,7 +82,7 @@ fi
 if command -v terminal-notifier >/dev/null 2>&1; then
   exec_cmd=":"
   [[ -n $pane ]] && exec_cmd="herdr agent focus $pane"
-  (terminal-notifier -title "$title" -message "$message" -sound default \
+  (terminal-notifier -title "$title" -message "$preview" -sound default \
     -activate com.mitchellh.ghostty -execute "$exec_cmd" >/dev/null 2>&1 || true) &
 fi
 

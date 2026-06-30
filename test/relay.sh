@@ -66,6 +66,25 @@ grep -q "herdr agent focus wW:p8" "$tmp/tn.log" || {
   echo "relay: FAIL -- local focus cmd wrong" >&2
   exit 1
 }
+# long summary: moshi + local get a sentence-bounded preview (phone clips mid-sentence otherwise);
+# hermes/#relay keeps the FULL text (Discord has no length ceiling).
+: >"$tmp/curl-stdin.log"
+long="The first sentence is padded out to a comfortable length so it occupies a real share of the preview here. The second sentence is similarly padded so the two together reach the phone preview ceiling we target. The trailing third sentence must never appear in the trimmed moshi push body whatsoever."
+PATH="$tmp:$PATH" RELAY_AUTH_FILE="$tmp/auth.json" RELAY_MOSHI_URL="http://moshi.test/hook" \
+  RELAY_HERMES_URL="http://hermes.test/relay" bash "$relay" --agent claude --state "done" --project x --detail "$long" >/dev/null 2>&1
+# the hermes curl is delayed ~50ms by the python HMAC; poll until its body lands (moshi is present by then too)
+for ((i = 0; i < 100; i++)); do
+  grep -q '"agent"' "$tmp/curl-stdin.log" && break
+  sleep 0.05
+done
+grep '"agent"' "$tmp/curl-stdin.log" | grep -q 'must never appear' || {
+  echo "relay: FAIL -- hermes/#relay lost the full summary" >&2
+  exit 1
+}
+grep '"token"' "$tmp/curl-stdin.log" | grep -q 'must never appear' && {
+  echo "relay: FAIL -- moshi push not trimmed (full summary would clip mid-sentence on the phone)" >&2
+  exit 1
+}
 # failure separation: hermes curl fails, moshi + local still happen, exit 0
 cat >"$tmp/curl" <<MOCK
 #!/usr/bin/env bash
