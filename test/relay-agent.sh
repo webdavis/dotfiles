@@ -9,6 +9,7 @@ agent="$root/dot_local/bin/executable_relay-agent.sh"
 }
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
+export RELAY_CODEX_HOME="$tmp/codex-home" # keep tests off the real ~/.config/relay/codex-home
 # mock relay.sh records its argv NUL-separated
 cat >"$tmp/relay.sh" <<'MOCK'
 #!/usr/bin/env bash
@@ -129,6 +130,31 @@ printf '{"cwd":"/x/dotfiles","transcript_path":"%s/tc.jsonl"}' "$tmp" |
     bash "$agent" "done" >/dev/null 2>&1
 [[ -s "$tmp/spy" ]] && {
   echo "relay-agent: FAIL -- codex called on re-entry (loop guard missing)" >&2
+  exit 1
+}
+
+# whole-turn: codex receives ALL assistant text since the last user prompt, not just the final block
+: >"$tmp/args"
+cat >"$tmp/codexcap" <<'MOCK'
+#!/usr/bin/env bash
+printf '%s' "${@: -1}" >"$CODEX_CAP_FILE"
+printf 'done|captured\n'
+MOCK
+chmod +x "$tmp/codexcap"
+cat >"$tmp/tw.jsonl" <<'JL'
+{"type":"user","message":{"role":"user","content":[{"type":"text","text":"do the thing"}]}}
+{"type":"assistant","message":{"content":[{"type":"text","text":"FIRSTBLOCK alpha"}]}}
+{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","input":{}}]}}
+{"type":"assistant","message":{"content":[{"type":"text","text":"SECONDBLOCK omega"}]}}
+JL
+printf '{"cwd":"/x/dotfiles","transcript_path":"%s/tw.jsonl"}' "$tmp" |
+  PATH="$tmp:$PATH" RELAY_BIN="$tmp/relay.sh" RELAY_ARGS_FILE="$tmp/args" \
+    CODEX_BIN="$tmp/codexcap" CODEX_CAP_FILE="$tmp/cap" \
+    bash "$agent" "done" >/dev/null 2>&1
+cap=""
+[[ -f "$tmp/cap" ]] && cap="$(<"$tmp/cap")"
+[[ $cap == *FIRSTBLOCK* && $cap == *SECONDBLOCK* ]] || {
+  echo "relay-agent: FAIL -- whole-turn extraction missing a block (got: ${cap:0:80})" >&2
   exit 1
 }
 echo "relay-agent: OK"
