@@ -73,7 +73,8 @@ chezmoi diff --exclude=templates            # diff non-template files
 **Never run bare `chezmoi apply` from Claude Code** — the following templates call `keepassxc` and will
 fail without an interactive TTY: `~/.gitconfig`, `~/.aws/credentials`, `~/.claude.json`,
 `~/.composio/user_data.json`, `~/.config/atuin/config.toml`, `~/.config/himalaya/config.toml`,
-`~/.config/relay/auth.json`, `~/Library/Application Support/Claude/claude_desktop_config.json`,
+`~/.config/relay/auth.json`, `~/.hermes/config.yaml`,
+`~/Library/Application Support/Claude/claude_desktop_config.json`,
 `~/Library/Application Support/espanso/match/identity.yml`,
 `~/Library/Application Support/gogcli/credentials.json`, and the chezmoiscript
 `.chezmoiscripts/run_once_after_60-moshi-hook-setup.sh.tmpl` (one-time setup; once it runs successfully
@@ -471,8 +472,14 @@ Notification[permission_prompt] / PostToolUse[AskUserQuestion|ExitPlanMode]), Co
 `SessionStart` entry), and the shell command-notifier calls `relay.sh` directly. Secrets (the moshi token
 and the Hermes HMAC (hash-based message authentication code) key) live in the 0600
 `~/.config/relay/auth.json` (`dot_config/relay/private_auth.json.tmpl`, from KeePassXC) and are read at
-run time — never on a command line or in argv. The Hermes `relay` route is tracked in
-`dot_hermes/create_private_config.yaml.tmpl`.
+run time — never on a command line or in argv. The Hermes `relay` route is merged into the live
+`~/.hermes/config.yaml` by `dot_hermes/modify_private_config.yaml.tmpl` — a modify-template that is
+idempotent, ensures the webhook base (forces `enabled: true`, defaults host/port when absent), and
+preserves the osquery routes. Its `yq` merge expression lives in `private/relay-hermes-route.yq`
+(unit-tested by `test/relay-hermes-route.sh`). It is keepassxc-gated (interactive applies only) and does
+**not** restart hermes — a restart drains in-flight runs, so
+`.chezmoiscripts/run_after_68-hermes-relay-route-status.sh.tmpl` only *reminds* you (when the route is in
+config.yaml but the gateway returns 404) to run `hermes gateway restart`.
 
 ### AI Commit Messages
 
