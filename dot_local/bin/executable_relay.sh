@@ -60,10 +60,19 @@ else:
             cut = m.end()
     sys.stdout.write(s[:cut] if cut else s[:259].rstrip() + "…")' 2>/dev/null || printf '%s' "$message")"
 
+# Presence gating for the phone push only: at the desk (recent keyboard/mouse input) the local banner +
+# Discord log suffice, so skip moshi; away (idle past the threshold) add it. Fail-safe: if idle is unknown
+# (probe failed) treat as away so a push is never dropped. RELAY_IDLE_SECS overrides the probe (test/manual);
+# RELAY_FORCE_PHONE=1 always pushes. HIDIdleTime is input-idle -> works under the never-sleep power policy.
+desk_idle="${RELAY_DESK_IDLE_SECS:-600}"
+idle_secs="${RELAY_IDLE_SECS:-$(/usr/sbin/ioreg -c IOHIDSystem 2>/dev/null | grep -m1 HIDIdleTime | awk '{print int($NF / 1000000000)}')}"
+want_phone=1
+if [[ -z ${RELAY_FORCE_PHONE:-} && $idle_secs =~ ^[0-9]+$ && $idle_secs -lt $desk_idle ]]; then want_phone=""; fi
+
 # moshi -- token read from the 0600 file by jq; body sent on stdin (never on argv)
 moshi_body="$(jq -c --arg t "$title" --arg m "$preview" \
   'if .moshi_secret then {token: .moshi_secret, title: $t, message: $m} else empty end' "$auth_file" 2>/dev/null || true)"
-if [[ -n $moshi_body && -z $local_only ]]; then
+if [[ -n $moshi_body && -z $local_only && -n $want_phone ]]; then
   (curl -fsS -m 10 -X POST "$moshi_url" -H 'Content-Type: application/json' --data @- <<<"$moshi_body" >/dev/null 2>&1 || true) &
 fi
 

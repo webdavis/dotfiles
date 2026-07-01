@@ -20,6 +20,8 @@ echo "ARGV: \$*" >>"$tmp/tn.log"
 MOCK
 chmod +x "$tmp/curl" "$tmp/terminal-notifier"
 printf '{"moshi_secret":"MSECRET","hermes_secret":"HSECRET"}' >"$tmp/auth.json"
+# default every run to "away" (idle past threshold) so moshi fires; the presence tests override inline
+export RELAY_IDLE_SECS=999
 out="$(
   PATH="$tmp:$PATH" RELAY_AUTH_FILE="$tmp/auth.json" \
     RELAY_MOSHI_URL="http://moshi.test/hook" RELAY_HERMES_URL="http://hermes.test/relay" \
@@ -83,6 +85,54 @@ grep '"agent"' "$tmp/curl-stdin.log" | grep -q 'must never appear' || {
 }
 grep '"token"' "$tmp/curl-stdin.log" | grep -q 'must never appear' && {
   echo "relay: FAIL -- moshi push not trimmed (full summary would clip mid-sentence on the phone)" >&2
+  exit 1
+}
+# presence gating: at the desk (idle below threshold) -> NO phone push; local + Discord still fire
+: >"$tmp/curl-argv.log"
+: >"$tmp/tn.log"
+RELAY_IDLE_SECS=5 PATH="$tmp:$PATH" RELAY_AUTH_FILE="$tmp/auth.json" \
+  RELAY_MOSHI_URL="http://moshi.test/hook" RELAY_HERMES_URL="http://hermes.test/relay" \
+  bash "$relay" --agent claude --state "done" --project x --pane wW:p8 >/dev/null 2>&1
+for ((i = 0; i < 100; i++)); do
+  grep -q hermes.test "$tmp/curl-argv.log" && break
+  sleep 0.05
+done
+grep -q moshi.test "$tmp/curl-argv.log" && {
+  echo "relay: FAIL -- phone pushed while at the desk" >&2
+  exit 1
+}
+grep -q hermes.test "$tmp/curl-argv.log" || {
+  echo "relay: FAIL -- Discord log dropped while at the desk" >&2
+  exit 1
+}
+grep -q "herdr agent focus" "$tmp/tn.log" || {
+  echo "relay: FAIL -- local notification dropped while at the desk" >&2
+  exit 1
+}
+# away (idle past the threshold) -> phone push fires
+: >"$tmp/curl-argv.log"
+RELAY_IDLE_SECS=900 PATH="$tmp:$PATH" RELAY_AUTH_FILE="$tmp/auth.json" \
+  RELAY_MOSHI_URL="http://moshi.test/hook" RELAY_HERMES_URL="http://hermes.test/relay" \
+  bash "$relay" --agent claude --state "done" --project x >/dev/null 2>&1
+for ((i = 0; i < 100; i++)); do
+  grep -q moshi.test "$tmp/curl-argv.log" && break
+  sleep 0.05
+done
+grep -q moshi.test "$tmp/curl-argv.log" || {
+  echo "relay: FAIL -- phone not pushed while away" >&2
+  exit 1
+}
+# at the desk BUT RELAY_FORCE_PHONE=1 -> phone push fires anyway
+: >"$tmp/curl-argv.log"
+RELAY_IDLE_SECS=5 RELAY_FORCE_PHONE=1 PATH="$tmp:$PATH" RELAY_AUTH_FILE="$tmp/auth.json" \
+  RELAY_MOSHI_URL="http://moshi.test/hook" RELAY_HERMES_URL="http://hermes.test/relay" \
+  bash "$relay" --agent claude --state "done" --project x >/dev/null 2>&1
+for ((i = 0; i < 100; i++)); do
+  grep -q moshi.test "$tmp/curl-argv.log" && break
+  sleep 0.05
+done
+grep -q moshi.test "$tmp/curl-argv.log" || {
+  echo "relay: FAIL -- RELAY_FORCE_PHONE did not override desk presence" >&2
   exit 1
 }
 # failure separation: hermes curl fails, moshi + local still happen, exit 0
