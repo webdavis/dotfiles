@@ -163,6 +163,8 @@ find_shell_templates() {
     -o -name "run_onchange_after_66-tailscaled-status.sh.tmpl" \
     -o -name "run_after_72-relay-codex-hooks.sh.tmpl" \
     -o -name "run_after_68-hermes-relay-route-status.sh.tmpl" \
+    -o -name "run_onchange_before_25-install-hermes-agent.sh.tmpl" \
+    -o -name "run_after_67-hermes-config-migrate.sh.tmpl" \
     -o -name "run_onchange_before_50-setup-osquery.sh.tmpl" \
     \) -print0
 }

@@ -1,0 +1,11 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/bin/bash
+# Reconcile the just-applied config.yaml to the installed hermes version's schema. Keeps auto-updates
+# compatible with the tracked (possibly older-schema) source: chezmoi writes the decrypted source, this
+# migrates it forward. No-op once the tracked source is captured at the current schema. Ordered before
+# the run_after_68 restart reminder. EOF-safe: migrate's prompts default to skip on EOF (verified in
+# hermes source); API keys come from .env, not the prompts.
+set -euo pipefail
+command -v hermes >/dev/null 2>&1 || exit 0
+hermes config migrate </dev/null || true
+{{ end -}}

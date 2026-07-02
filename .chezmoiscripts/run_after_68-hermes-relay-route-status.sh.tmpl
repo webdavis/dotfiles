@@ -4,8 +4,9 @@
 # returns 404 for it, hermes must be restarted to load it. Mirrors run_onchange_after_66 (tailscaled-status)
 # -- a sudo-free, side-effect-free status nudge. We deliberately do NOT auto-restart: `hermes gateway
 # restart` drains in-flight runs (up to 180s) and the route changes ~never, so you restart deliberately.
-# Runs in the after-phase, once modify_private_config.yaml has merged the route. (Catches "route added but
-# not loaded"; a secret rotation still leaves the route answering 401, so restart deliberately after one.)
+# Runs in the after-phase, once config.yaml has been applied + migrated (run_after_67); a restart loads the
+# new schema too. (Catches "route in config but gateway returns 404"; a secret rotation still answers 401,
+# so restart deliberately after one.)
 set -euo pipefail
 cfg="$HOME/.hermes/config.yaml"
 command -v yq >/dev/null 2>&1 || exit 0
