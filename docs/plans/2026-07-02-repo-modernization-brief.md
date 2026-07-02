@@ -195,14 +195,40 @@ Don't hunt for that process -- it's a symptom, not the bug.
 
 ### New behavior being asked for
 
-1. **A genuinely "progressive" notification system.** The current desk/away gate makes an instant,
-   one-shot decision. An alternative pattern (referenced from earlier research in this repo, never
-   implemented): fire local first, escalate to the phone only if unacknowledged after a delay. Whether
-   that's wanted here, versus hardening the instant-decision model, is open -- see section 7.
-1. **Hue pulses working "in tandem" with the notification system**, not firing blind from an unrelated
-   script. At minimum, likely: the pulse conveys which *state* fired it (done/blocked/asked/plan-ready,
-   not just success/fail green/red), driven by the same event/decision pipeline as the other channels.
-   Exact shape is open -- see section 7.
+**"Progressive" notification system -- concrete spec from the human (verbatim intent, not a summary):**
+
+1. Detect whether the human is at their computer or not.
+1. **At the computer** -> deliver via the local desktop channel (today's `terminal-notifier` banner).
+   **Away from the computer** -> deliver to the phone via moshi, and *not* to the computer.
+   > The human's own wording said "send the notification to my computer via moshi" for the at-computer
+   > case. Everywhere else in this system (and everywhere else in this brief) moshi is specifically the
+   > phone-push channel, distinct from the local desktop notification. The interpretation above (at
+   > computer -> local; away -> phone via moshi) is the reading that's internally consistent with the
+   > rest of the architecture -- **confirm this with the human before building it**, in case moshi
+   > actually supports a distinct "deliver to this computer" target that isn't documented elsewhere in
+   > this brief.
+1. **Hue pulse, gated on a *different* presence signal than "at the computer":** if a command or agent
+   response takes longer than some threshold to complete, pulse the lights -- green for success, red for
+   failure/error -- but **only if the human is physically in the house**. This is not the same check as
+   "at the computer" (idle time): a laptop can be at a desk while the human is out, or the human could be
+   home without being at that specific machine. This repo already has a Home Assistant integration (the
+   `home-assistant` skill) -- that's the obvious existing source for real home-occupancy/presence data,
+   rather than inventing a new detection mechanism from scratch. Also note the current implementation is
+   asymmetric: the shell long-running-command notifier already pulses red on failure (exit code != 0),
+   but the Claude `Stop`-hook path (`claude-stop-pulse.sh`) only ever pulses green -- there's no defined
+   notion of "failure" for an agent turn yet (a thrown error? a blocked/stuck state? something else?).
+   That gap needs a real answer, not just a threshold tweak.
+1. **Every notification, regardless of the human's location, still gets logged to the Hermes `relay`
+   webhook -> Discord `#relay`, unconditionally.** This one is not new -- it matches current behavior
+   (the Hermes/Discord channel already fires unconditionally) -- but it's now an explicit, permanent
+   requirement: the Discord log must never be gated on presence, only the phone/local/Hue channels are.
+
+**You have the human's explicit permission to critically re-evaluate this spec, not just implement it
+literally.** Their own words: "The model should reevaluate this notification behavior and try to improve
+it if it feels like there are gaps or bad choices." If you find gaps (e.g. what exactly counts as agent
+"failure," how reliably "in the house" can actually be detected, what happens when Home Assistant is
+unreachable) or think a different design serves the same intent better, say so and propose it -- this is
+exactly the kind of thing section "Read this first" above already told you to push back on.
 
 ### Requirements (direct from the human, not design choices)
 
@@ -403,8 +429,12 @@ These are explicitly yours to decide during brainstorming, not the human's to pr
   state) or start narrower? `relay-codex-hooks.sh` (a one-shot config merger, not a runtime notifier) and
   the `dot_bashrc.tmpl` `bash-preexec` block (must stay bash unless section 4 happens) are worth deciding
   in/out explicitly.
-- **"Progressive" / escalation semantics** (section 1) -- instant-decision hardening vs. true
-  wait-then-escalate-on-no-ack, and how Hue participates.
+- **"Progressive" notification mechanics** (section 1) -- the human specified the intended *behavior*
+  concretely (at-computer -> local, away -> phone, Hue gated on being physically home, Discord always
+  logs), but not the *detection mechanism* for either presence signal. Confirm the moshi-target reading
+  flagged in section 1, decide how to detect "at the computer" (idle time? something else?) and "in the
+  house" (Home Assistant occupancy, most likely), and define what "failure" means for an agent turn
+  (currently undefined -- only the shell-command path has a failure concept today).
 - **Depth of the whole-repo sweep** (section 3) -- backlog-only vs. actively executed.
 - **Whether `nvim-overhaul` (section 6) and/or the shell replacement (section 4) fold into the
   combine-and-split branch workflow (section 2)**, or stay separate, sequenced efforts.
