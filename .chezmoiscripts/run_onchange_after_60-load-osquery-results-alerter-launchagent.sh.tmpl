@@ -1,4 +1,4 @@
-{{- if eq .chezmoi.os "darwin" }}
+{{ if eq .chezmoi.os "darwin" -}}
 #!/bin/bash
 # run_onchange_after_60-load-osquery-results-alerter-launchagent.sh
 # plist hash: {{ include "Library/LaunchAgents/com.webdavis.osquery-results-alerter.plist.tmpl" | sha256sum }}

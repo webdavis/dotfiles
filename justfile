@@ -12,6 +12,7 @@ alias n := format-nix
 alias t := lint-toml
 alias j := lint-json
 alias y := lint-yaml
+alias T := test
 alias d := diff
 alias a := apply-no-auth
 alias c := check
@@ -53,11 +54,12 @@ apply-no-auth:
 check:
   nix develop .#run --command nix flake check --all-systems
 
-# Run all repo tests (test/*.sh). Build-tool style: the pre-commit hook runs this
-# too, so every commit requires all tests to pass. Tests use host tools (e.g.
-# brew), so this runs outside the Nix shell.
+# Run all repo tests: hand-rolled test/*.sh (host tools, outside Nix) plus the
+# bats suites (test/**/*.bats — osquery alerter today, more as suites convert).
+# The pre-commit hook runs this too, so every commit requires all tests to pass.
 test:
   @for t in test/*.sh; do echo "== $t =="; bash "$t" || exit 1; done
+  @if find test -name '*.bats' | grep -q .; then echo "== bats =="; bats --recursive test/; fi
 
 # Run only the brew shellenv cache drift test (a subset of `just test`).
 test-brew-cache:

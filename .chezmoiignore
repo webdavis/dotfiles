@@ -45,6 +45,14 @@ tmp.*
 .agents/skills/*/node_modules
 .agents/skills/*/node_modules/**
 
+# Escape hatch — `CHEZMOI_SKIP_SYSTEM_PACKAGES=1 chezmoi apply` skips the Homebrew
+# `brew bundle --cleanup` script (run_onchange_before_10-system-packages). Use it when
+# your package manifest is behind what is actually installed — so --cleanup would prune
+# real packages — and you only want to apply other changes. A normal apply still runs it.
+{{- if env "CHEZMOI_SKIP_SYSTEM_PACKAGES" }}
+.chezmoiscripts/10-system-packages.sh
+{{- end }}
+
 {{- if eq .chezmoi.os "linux" -}}
 .config/yabai
 Library

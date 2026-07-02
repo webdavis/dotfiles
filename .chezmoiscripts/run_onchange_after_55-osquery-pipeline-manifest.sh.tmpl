@@ -1,0 +1,55 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/bin/bash
+# run_onchange_after_55-osquery-pipeline-manifest.sh
+# Regenerate the root-owned pipeline-integrity manifest: the known-good sha256 of the
+# alerter's own scripts + plists. osqueryd (root) hashes these files; the alerter
+# pages a file_events:pipeline_integrity change whose hash is NOT in this manifest
+# (tamper) and stays silent when it matches (a legit chezmoi apply). Root-owned 0644
+# so an attacker cannot self-whitelist a tampered file. Runs in the after-phase, so it
+# hashes the freshly-applied target files. Re-runs whenever any watched source changes:
+# {{ include "dot_local/bin/executable_osquery-results-alerter.sh" | sha256sum }}
+# {{ include "dot_local/bin/executable_osquery-alert-dispatch.sh" | sha256sum }}
+# {{ include "dot_local/bin/executable_osquery-enrich-finding.sh" | sha256sum }}
+# {{ include "dot_local/bin/executable_osquery-firewall-gatekeeper-monitor.sh" | sha256sum }}
+# {{ include "dot_local/bin/executable_osquery-uptime-watchdog.sh" | sha256sum }}
+# {{ include "dot_local/bin/executable_osquery-digest.sh" | sha256sum }}
+# {{ include "dot_local/bin/executable_osquery-allowlist.sh" | sha256sum }}
+# {{ include "dot_local/bin/executable_osquery-tailscale-monitor.sh" | sha256sum }}
+# {{ include "dot_local/bin/executable_osquery-heartbeat.sh" | sha256sum }}
+# {{ include "Library/LaunchAgents/com.webdavis.osquery-results-alerter.plist.tmpl" | sha256sum }}
+# {{ include "Library/LaunchAgents/com.webdavis.osquery-firewall-gatekeeper-monitor.plist.tmpl" | sha256sum }}
+# {{ include "Library/LaunchAgents/com.webdavis.osquery-uptime-watchdog.plist.tmpl" | sha256sum }}
+# {{ include "Library/LaunchAgents/com.webdavis.osquery-digest.plist.tmpl" | sha256sum }}
+# digest schedule: {{ .osquery.digestHour }}:{{ .osquery.digestMinute }} — the digest plist renders its
+# Hour/Minute from this data; include hashes the source, so re-key the manifest on the data too, else a
+# digestHour change re-renders the plist while this manifest keeps the old hash → pipeline_integrity page.
+# {{ include "Library/LaunchAgents/com.webdavis.osquery-tailscale-monitor.plist.tmpl" | sha256sum }}
+# {{ include "Library/LaunchAgents/com.webdavis.osquery-heartbeat.plist.tmpl" | sha256sum }}
+
+set -euo pipefail
+
+files=(
+  "$HOME/.local/bin/osquery-results-alerter.sh"
+  "$HOME/.local/bin/osquery-alert-dispatch.sh"
+  "$HOME/.local/bin/osquery-enrich-finding.sh"
+  "$HOME/.local/bin/osquery-firewall-gatekeeper-monitor.sh"
+  "$HOME/.local/bin/osquery-uptime-watchdog.sh"
+  "$HOME/.local/bin/osquery-digest.sh"
+  "$HOME/.local/bin/osquery-allowlist.sh"
+  "$HOME/.local/bin/osquery-tailscale-monitor.sh"
+  "$HOME/.local/bin/osquery-heartbeat.sh"
+  "$HOME/Library/LaunchAgents/com.webdavis.osquery-results-alerter.plist"
+  "$HOME/Library/LaunchAgents/com.webdavis.osquery-firewall-gatekeeper-monitor.plist"
+  "$HOME/Library/LaunchAgents/com.webdavis.osquery-uptime-watchdog.plist"
+  "$HOME/Library/LaunchAgents/com.webdavis.osquery-digest.plist"
+  "$HOME/Library/LaunchAgents/com.webdavis.osquery-tailscale-monitor.plist"
+  "$HOME/Library/LaunchAgents/com.webdavis.osquery-heartbeat.plist"
+)
+
+manifest="$(mktemp)"
+for file in "${files[@]}"; do
+  [ -f "$file" ] && shasum -a 256 "$file" >>"$manifest"
+done
+sudo install -o root -g wheel -m 0644 "$manifest" /var/osquery/pipeline-known-good.sha256
+rm -f "$manifest"
+{{- end }}
