@@ -15,7 +15,7 @@ LOCKDIR="$AGENTS/.update-skills.lock.d"
 KW_REPO="https://github.com/anthropics/knowledge-work-plugins"
 KW_CATS="bio-research cowork-plugin-management data design engineering enterprise-search finance human-resources legal marketing operations product-management sales small-business"
 # forks / user-authored copies: never auto-update
-SKIP="video-transcript-downloader whisply moshi herdr"
+SKIP="moshi herdr"
 DRYRUN="${1:-}"
 
 log() { printf '[update-skills] %s\n' "$*"; }
