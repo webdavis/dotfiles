@@ -93,6 +93,13 @@ Use the `todoist-cli` skill (`td` CLI) on non-trivial work:
 
 Prefer local CLI tools over MCP servers when both work. MCP only for SaaS APIs without a first-class CLI.
 
+Prefer `gh-axi` (an agent-optimized wrapper skill around `gh`, installed via
+`npx skills add kunchenguid/gh-axi --skill gh-axi -g`) over the raw `gh` CLI for every GitHub operation —
+issues, PRs, workflows, releases, everything. `gh` itself stays installed and authenticated purely as
+`gh-axi`'s runtime dependency; never invoke it directly. Prefer `chrome-devtools-axi` (installed the same
+way) over other browser-automation tools (Claude-in-Chrome, Playwright, raw `chrome-devtools-mcp`)
+whenever Chrome DevTools-based browser automation is needed.
+
 ## Backups
 
 Location: `~/workspaces/backups/`. Naming: `YYYY-MM-DDTHH-MM-SS.Name.backup[.ext]` — timestamp first for
