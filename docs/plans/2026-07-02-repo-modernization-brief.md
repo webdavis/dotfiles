@@ -7,8 +7,7 @@ security, and architecture conventions in depth and is not optional reading. Sep
 `private_dot_claude/CLAUDE.md` (the chezmoi source for the *global* `~/.claude/CLAUDE.md`, applying to
 every Claude Code project, not just this repo) has a "Tool preferences" section that now states `gh-axi`
 is preferred over raw `gh` for all GitHub operations, and `chrome-devtools-axi` is preferred for Chrome
-DevTools-based browser automation -- both were installed as prerequisite setup before this brief was
-written. Use them.
+DevTools-based browser automation -- both were installed prior to this brief bein
 
 ## Read this first: creative freedom and pushback
 
