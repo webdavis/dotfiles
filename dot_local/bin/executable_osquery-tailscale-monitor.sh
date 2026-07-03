@@ -7,14 +7,29 @@
 # Silent in steady state.
 set -euo pipefail
 
-TAILSCALE="${OSQUERY_TAILSCALE_BIN:-/Applications/Tailscale.app/Contents/MacOS/Tailscale}"
+# Resolution order: explicit override → PATH (the headless homebrew formula this
+# machine runs — the LaunchAgent PATH includes /opt/homebrew/bin) → the GUI-app
+# path (the future tailscale-app cask). See CLAUDE.md §Tailscale.
+TAILSCALE="${OSQUERY_TAILSCALE_BIN:-$(command -v tailscale || echo /Applications/Tailscale.app/Contents/MacOS/Tailscale)}"
 STATE="${OSQUERY_TAILSCALE_STATE:-$HOME/.local/state/osquery-tailscale-funnel}"
 
 # shellcheck source=/dev/null
 source "$HOME/.local/bin/osquery-alert-dispatch.sh"
 
 mkdir -p "$(dirname "$STATE")"
-[ -x "$TAILSCALE" ] || exit 0 # tailscale not installed → nothing to check
+
+# A monitoring gap is itself a security event: a missing binary warns once (on the
+# transition into "missing", never every 60s) instead of silently disabling the
+# funnel pager — the regression that left this monitor dead on the formula install.
+if [ ! -x "$TAILSCALE" ]; then
+  prev=$(cat "$STATE" 2>/dev/null || true)
+  printf '%s\n' "missing" >"$STATE"
+  echo "WARN: no tailscale binary ($TAILSCALE) — funnel monitoring is blind" >&2
+  if [ "$prev" != "missing" ]; then
+    send_alert WARN "⚠️ **WARNING**" "**Tailscale funnel monitoring is not running** — no tailscale binary found. Public-exposure paging is blind until this is fixed." "Funk"
+  fi
+  exit 0
+fi
 
 funnel=$("$TAILSCALE" funnel status 2>/dev/null || true)
 
@@ -33,8 +48,10 @@ fi
 prev=$(cat "$STATE" 2>/dev/null || true)
 printf '%s\n' "$cur" >"$STATE"
 
-# Page only on the inactive->active transition (a re-enable, not steady state).
-if [ "$cur" = "active" ] && [ "$prev" = "inactive" ]; then
+# Page on the inactive->active transition (a re-enable, not steady state), and on
+# missing->active: a funnel found running when monitoring recovers from a blind
+# window is exactly the event the blind window could have hidden.
+if [ "$cur" = "active" ] && { [ "$prev" = "inactive" ] || [ "$prev" = "missing" ]; }; then
   body=$(printf '%s\n' \
     "**Tailscale Funnel is exposing a local service to the PUBLIC internet.**" \
     '- Did you set this up? If not, close it now: **tailscale funnel reset**' \

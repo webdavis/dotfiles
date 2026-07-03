@@ -27,3 +27,26 @@ teardown() { teardown_harness; }
   run_tailscale_monitor "" "https://dresden.tailnet.ts.net/ (Funnel on)|--> http://127.0.0.1:8000"
   assert_no_dispatch
 }
+
+# Dead-monitor regression (the GUI-path default silently disabled funnel paging on
+# the headless-formula install): a missing binary must be LOUD, never a silent exit.
+
+@test "T-WARN-ts-missing-bin: a missing tailscale binary warns instead of silently exiting" {
+  run_tailscale_monitor_missing_bin ""
+  assert_warn_has "funnel monitoring"
+}
+
+@test "T-WARN-ts-missing-bin-once: the missing-binary warning fires once, not every 60s" {
+  run_tailscale_monitor_missing_bin "missing"
+  assert_no_dispatch
+}
+
+@test "T-PAGE-funnel-after-blind: a funnel found active on recovery from a blind window pages" {
+  run_tailscale_monitor "missing" "https://dresden.tailnet.ts.net/ (Funnel on)|--> http://127.0.0.1:8000"
+  assert_page_has Funnel
+}
+
+@test "T-RESOLVE-ts-path: with no env override the poller finds tailscale via PATH" {
+  run_tailscale_monitor_path_resolved inactive "https://dresden.tailnet.ts.net/ (Funnel on)|--> http://127.0.0.1:8000"
+  assert_page_has Funnel
+}

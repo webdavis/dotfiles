@@ -239,6 +239,26 @@ run_tailscale_monitor() {
     bash "$TAILSCALE_MONITOR"
 }
 
+# Same, but the configured binary does not exist (the dead-monitor regression).
+run_tailscale_monitor_missing_bin() {
+  if [ -n "$1" ]; then printf '%s\n' "$1" >"$TAILSCALE_STATE"; else rm -f "$TAILSCALE_STATE"; fi
+  HOME="$HARNESS_HOME" \
+    OSQUERY_TAILSCALE_BIN="$HARNESS_HOME/.local/bin/no-such-tailscale" \
+    OSQUERY_TAILSCALE_STATE="$TAILSCALE_STATE" \
+    bash "$TAILSCALE_MONITOR" 2>/dev/null
+}
+
+# Same, but with NO env override: the poller must find the shim via `command -v`
+# on PATH (the homebrew-formula resolution path).
+run_tailscale_monitor_path_resolved() {
+  if [ -n "$1" ]; then printf '%s\n' "$1" >"$TAILSCALE_STATE"; else rm -f "$TAILSCALE_STATE"; fi
+  HOME="$HARNESS_HOME" \
+    PATH="$HARNESS_HOME/.local/bin:$PATH" \
+    OSQUERY_TAILSCALE_STATE="$TAILSCALE_STATE" \
+    TAILSCALE_FUNNEL_OUTPUT="$2" \
+    env -u OSQUERY_TAILSCALE_BIN bash "$TAILSCALE_MONITOR"
+}
+
 # Seed the digest store with NDJSON lines (each argument is one record).
 seed_digest() {
   mkdir -p "$(dirname "$OSQUERY_DIGEST_STORE")"
@@ -277,6 +297,13 @@ assert_no_page() {
 assert_page_has() {
   if ! grep $'^CRIT\t' "$SEND_ALERT_LOG" | grep -qF -- "$1"; then
     echo "expected a CRIT page containing '$1'; CRIT pages: $(grep $'^CRIT\t' "$SEND_ALERT_LOG" || echo '(none)')" >&2
+    return 1
+  fi
+}
+
+assert_warn_has() {
+  if ! grep $'^WARN\t' "$SEND_ALERT_LOG" | grep -qF -- "$1"; then
+    echo "expected a WARN containing '$1'; WARNs: $(grep $'^WARN\t' "$SEND_ALERT_LOG" || echo '(none)')" >&2
     return 1
   fi
 }
