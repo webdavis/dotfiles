@@ -449,6 +449,42 @@ against source and adversarially verified (2 candidates were refuted and dropped
   derive from `.chezmoi.homeDir`/`.chezmoi.username` [SP7, fresh-machine correctness].
 - Pre-commit: skip the bats suite on docs/YAML-only commits (path filter) [SP2 s2].
 
+### CLAUDE.md refactors (both memory files — explicit user requirement)
+
+Comprehensively refactor `~/.claude/CLAUDE.md` (source: `private_dot_claude/CLAUDE.md`) and the repo
+`CLAUDE.md`, per the memory-file guidance in Kun Chen's "L8 Principal's Agentic Engineering Workflow"
+(youtu.be/iQyg-KypKAA @11:26–17:57 — transcript pulled and distilled 2026-07-03) plus Anthropic's own
+CLAUDE.md guidance. The binding principles from that source:
+
+1. **Global file = minimal.** It loads into *every* session's system prompt across all projects; excess
+   content silently burns tokens. Personal preferences + bias-correction rules only (his is 27 lines).
+   The YAGNI/SOLID/TDD/investigate-first rules are exactly the "correct the model's default bias"
+   category and stay; operational detail does not.
+2. **Project file = the repo's collective learning**: what it is, layout, terminology, how the key
+   components work, how to test, conventions — grown incrementally (correction → "remember this into
+   the memory file"), not hand-written monoliths.
+3. **Conditional information moves to skills/runbooks** and loads on demand: long diagnostic ladders
+   (atuin/happy/tailscale), the brew-shellenv three-layer narrative, deep subsystem stories → pointers,
+   with the detail in `docs/runbooks/` or a project skill.
+4. **One file per scope for all harnesses** — repo `AGENTS.md → CLAUDE.md` symlink already exists; add
+   the same parity at the global scope (Codex/other harnesses' global memory path) during the refactor.
+
+**Verified current defects to fix (staleness hotfixes — allowed under the freeze policy, before the
+big rewrite):** global file references the **removed** `humanizer` and `conventional-commits` skills and
+says the prepare-commit-msg hook uses *haiku* (the verified hook runs `--model=sonnet`); repo file's
+Testing section predates bats, describes the source state as `~/.local/share/chezmoi/` (this repo IS the
+source dir per `.chezmoi.toml.tmpl`), uses a `chezmoi apply ~/.tmux.conf` example (tmux is gone), names
+yabai in OS-targeting (removed), and claims only `dot_bashrc.tmpl` is shellcheck-rendered (the lint
+allowlist has 12 templates).
+
+**Disposition:** staleness hotfixes land now-ish as a small commit; the **comprehensive rewrites are
+their own slice at the END of SP2 (post-cutover)** so the repo file documents the *reimplemented*
+reality rather than being rewritten twice. Acceptance: global file ≈ preferences/bias rules/toolchain/
+destructive gates only, no dead references, global AGENTS.md parity; repo file ≈ identity + commands +
+architecture map + conventions with conditional deep-dives extracted to runbooks/skills and **every
+factual claim re-verified against the live repo at write time**; both files carry their evergreen-only
+header comments forward.
+
 ## SP3 — Notification system (Rust): verified behavior contract
 
 **Decision:** one Rust service replaces `relay.sh` + `relay-agent.sh` + `hue-pulse.sh` +
