@@ -111,7 +111,7 @@ packages:
         - ngrep
         - nmap
         - node
-        - obsidian-cli
+        - yakitrak/yakitrak/notesmd-cli # upstream renamed obsidian-cli; provides the `obs` binary
         - onefetch
         - openai-whisper
         - openhue/cli/openhue-cli
