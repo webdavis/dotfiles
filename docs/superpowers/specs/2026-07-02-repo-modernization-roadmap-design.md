@@ -1,7 +1,8 @@
 # Repo Modernization Roadmap — Design
 
 **Date:** 2026-07-02 (extended 2026-07-03 with the full inventory, verified work ledger, SP3 contract,
-and testing strategy)
+and testing strategy; re-evaluated same day at max effort — six defects found and corrected, see the
+final Verification section)
 **Status:** approved via brainstorming; SP1–SP2 designed in full, **SP3 now designed in full** (verified
 behavior contract below), SP4–SP7 indexed. Extended with a complete feature inventory and a work ledger
 of 85+ items (≈40 known + 45 sweep-confirmed) so nothing lives only in chat.
@@ -26,6 +27,10 @@ cycles with their banked decisions so nothing has to be re-litigated.
    away → phone push via moshi only. moshi is purely the phone channel. Discord `#relay` logs
    unconditionally. Hue pulses only when the user is physically home (a different signal than
    at-computer; Home Assistant is the likely source — final call in the notification-rewrite spec).
+   *Refined 2026-07-03 by the SP3 contract below, after live experiments: the "only"s apply to the
+   confident cases — gray zone, lock, and probe failure send **both** surfaces; and the v1 home signal
+   is the UDR + geofence-Shortcut + gateway-MAC module, with Home Assistant as a later addition, not the
+   source.*
 3. **nushell is back in scope, contingent on an honest evaluation.** The prior "Shell: bash — locked-in"
    toolchain line and GH issue #5's planned wontfix closure are superseded by explicit user instruction:
    evaluate the migration seriously (criteria in SP4 below) and pursue it if it holds up.
@@ -45,9 +50,9 @@ cycles with their banked decisions so nothing has to be re-litigated.
 
 | # | Sub-project | Scope | Spec |
 | --- | --- | --- | --- |
-| SP1 | Unblock the tree | Finish + commit the Hermes age-encryption work sitting uncommitted | this spec |
+| SP1 | Unblock the tree | Hermes age encryption: scaffolding committed; operator key + capture remain | this spec |
 | SP2 | Combine & split | Integration PR (#31 + #25) → reimplement from `main` as small PRs → cutover | this spec |
-| SP3 | Notification rewrite | New-language pipeline; subsumes hue-pulse improvements (old P7) | own spec |
+| SP3 | Notification rewrite | One Rust service; subsumes hue-pulse improvements (old P7) | contract in this spec; final spec closes the open items |
 | SP4 | nushell evaluation → migration | Go/no-go evaluation early; migration (if go) after SP3 lands | own spec |
 | SP5 | Thaw install | Trivial standalone PR; slots in during SP2 | none needed |
 | SP6 | nvim-overhaul | Re-evaluate v1/v2/v3 specs, then implement | own spec |
@@ -58,7 +63,9 @@ depends on knowing the shell direction. The *migration* (if go) executes after S
 
 ## SP1 — Unblock the tree (Hermes age encryption)
 
-All scaffolding already exists uncommitted: `.chezmoidata/hermes.yaml` (version pin),
+*(Status 2026-07-03: all scaffolding is **committed** on the working branch — `0085c4b`, `2e8ca53`,
+`3be7312` — and the tree is clean. What remains is the operator key ceremony plus the agent steps
+below.)* The scaffolding: `.chezmoidata/hermes.yaml` (version pin),
 `run_onchange_before_25-install-hermes-agent.sh.tmpl` (pinned install),
 `run_after_67-hermes-config-migrate.sh.tmpl` (headless migrate), `test/hermes-config-encrypted.sh`
 (secret-leak guard; currently skips pre-migration), `test/hermes-config-routes.sh` (route integrity),
@@ -75,6 +82,10 @@ chmod 600 ~/.config/chezmoi/key.txt
 
 **Agent steps (after the key exists):**
 
+0. **Fix the age-tripwire self-match first** (sweep, high): `test/hermes-config-encrypted.sh:28`'s
+   `grep -rlq 'AGE-SECRET-KEY-1'` matches its own source file, so the guard's first *enforcing* run —
+   the moment the `.age` file exists — fails every commit with a false leak alarm. Exclude the test
+   itself (or split the marker string) before anything below.
 1. Edit `.chezmoi.toml.tmpl`: `encryption = "age"` (bare key above the first table), `[age]`
    `identity`/`recipient` (recipient = the public key), `[add] secrets = "error"`; `chezmoi init`;
    verify via `chezmoi dump-config`.
@@ -86,26 +97,28 @@ chmod 600 ~/.config/chezmoi/key.txt
 4. `chezmoi add --encrypt ~/.hermes/config.yaml` → `dot_hermes/encrypted_private_config.yaml.age`.
 5. Round-trip verify: `diff <(chezmoi cat ~/.hermes/config.yaml) ~/.hermes/config.yaml` is empty;
    `head -1` of the source file is an age marker, not YAML.
-6. `just l && just test` (the two hermes tests flip from skip to enforcing), then commit the whole set
-   as logically separate commits (encryption scaffolding; gitleaks gate; docs).
+6. `just l && just test` (the two hermes tests flip from skip to enforcing), then commit the capture +
+   `.chezmoi.toml.tmpl` change + old-mechanism removal as logically separate commits.
 7. Operator afterward: `trash` the world-readable plaintext backups in `~/.hermes/`
    (`config.yaml.bak.*`, `config.yaml.*.backup`) — destructive, per-invocation confirmation.
-
-Also commits in SP1: `docs/superpowers/plans/2026-07-01-dresden-never-sleep-power-policy.md`
-(untracked plan doc) and the brief's lint reflow.
 
 ## SP2 — Combine & split
 
 ### Combine (Approach A: merge-combine)
 
-1. `git checkout -b integration/modernization feat/cli-agent-tracking-workflow` (after SP1 commits).
-2. `git merge feat/osquery-alerter-three-tier` — one conflict resolution; known overlap is exactly
-   `.chezmoiignore` and `justfile`. PR #25's stale merge-base is irrelevant to a merge.
-3. Push; open a **draft PR titled "DO NOT MERGE — integration reference (modernization)"** via
+*(Status 2026-07-03: the merge itself already happened — `feat/osquery-alerter-three-tier` was merged
+directly into the working branch at `f7220d9` on explicit user instruction; the one predicted conflict
+(`.chezmoiignore`) was resolved and the duplicate `justfile` `test` recipe reconciled. The union now
+lives on `feat/cli-agent-tracking-workflow`/PR #31.)*
+
+1. `git checkout -b integration/modernization` at the current working-branch head — the union already
+   exists there; no further merge needed.
+2. Push; open a **draft PR titled "DO NOT MERGE — integration reference (modernization)"** via
    `gh-axi pr create`. Body links this spec and states the branch's role: frozen live-state reference.
-4. dresden keeps its chezmoi source on this branch until cutover. **Freeze policy:** no new feature work
-   lands here; only hotfixes needed to keep dresden healthy, and every hotfix must also be folded into
-   its corresponding reimplementation slice.
+3. dresden keeps its chezmoi source on the working branch until cutover. **Freeze policy:** no new
+   feature work lands here; only hotfixes needed to keep dresden healthy (the tailscale-monitor and
+   credential-perms fixes are the precedent), and every hotfix must also be folded into its
+   corresponding reimplementation slice.
 
 Rejected alternatives: rebase-stacking the 64 osquery commits (history rewrite + conflict churn for a
 throwaway branch); skipping the integration PR (contradicts the explicit live-state-artifact
@@ -151,7 +164,7 @@ pointers to the landed slices.
 | Old phase | Status now | Disposition |
 | --- | --- | --- |
 | P3 package-manager audit (GH #11) | still valid | SP7 backlog |
-| P4 gitleaks pre-commit | **already implemented** (in SP1's uncommitted set) | ships in SP1/SP2 |
+| P4 gitleaks pre-commit | **already implemented + committed** (`2e8ca53`) | ships via SP2 slice 2 |
 | P5 Determinate Nix review (GH #10) | still valid, research-first | SP7 backlog |
 | P6 bandwhich/doggo/ouch | still valid, trivial | SP7 backlog |
 | P7 hue-pulse improvements | superseded | folds into SP3 (race fix already shipped) |
@@ -167,13 +180,15 @@ sub-projects.
 
 ## Deferred spec index (banked context — future specs start here, not from scratch)
 
-- **SP3 — Notification rewrite.** Banked: presence routing (decision 2); Discord unconditional; Hue
-  state-aware and home-gated; the four shipped bash fixes are unverified and get re-derived test-first;
-  the spam bug's root cause (transcript-flush race + per-turn Stop-hook noise) needs a structural fix
-  proven by a failing-then-green test; language choice fully open (Rust has repo precedent); Classist
-  TDD + SOLID + composition-root architecture per the brief's section 8; agent-turn "failure" semantics
-  for the red pulse are currently undefined and must be designed; `test/`-discoverable tests via a thin
-  `just test` wrapper.
+- **SP3 — Notification rewrite: now designed in this spec** (see the SP3 contract section above), which
+  supersedes this bullet's original banked framing — notably "spam root cause = transcript-flush race"
+  (resolved: `jq -rs` slurp bug, and there was **no** loop — fire-once already holds) and "language
+  fully open" (settled: Rust). Still genuinely open for the final SP3 spec cycle: the UDR client-list
+  probe results + operator API key; agent-turn *failure* semantics for the red pulse (what counts as a
+  failed turn); the gray-zone tuning constants (idle thresholds); the lights quiet-window hours; and the
+  exact bats-vs-cargo split for the thin shell shims. The four previously-shipped bash fixes still get
+  re-derived test-first in Rust; Classist TDD + SOLID + composition root per the strategy section;
+  `test/`-discoverable via a thin `just test` wrapper.
 - **SP4 — nushell evaluation.** Go/no-go criteria to verify with evidence, not assume: atuin, starship,
   zoxide, direnv, carapace nushell integration quality; macOS login-shell semantics + the brew-shellenv
   cache analog; reedline keybinding parity with the current bash bindings; native
@@ -313,6 +328,16 @@ Everything to do, merged from the known backlog and the verified sweep. `sev` = 
 `SP` = target sub-project. `[FIXED]` = done this session. Sweep findings carry file:line; each was read
 against source and adversarially verified (2 candidates were refuted and dropped).
 
+### Do these first (sequenced — before any other ledger work)
+
+1. **Interactive `chezmoi apply`** (operator, KeePassXC unlocked): re-deploys `~/.aws/credentials` +
+   `~/.config/himalaya/config.toml` at 0600 **and** normalizes `~/.claude/CLAUDE.md` (purely additive
+   now that the fork is reconciled in source — `4ac97de`).
+2. **UDR API key + client-list probe** (operator creates the key; agent probes from the home network):
+   the last unanswered question gating the final SP3 spec.
+3. **SP1 operator key ceremony** (age-keygen + KeePassXC entry), then SP1 agent steps 0–7.
+4. Then **writing-plans** for SP1/SP2 execution.
+
 ### Fixed this session (baseline — already on the branch)
 
 - `[FIXED]` osquery-tailscale-monitor dead GUI-binary path → PATH resolution + fail-loud + 4 bats (`2f430b3`).
@@ -320,6 +345,8 @@ against source and adversarially verified (2 candidates were refuted and dropped
   (were deploying 0644) (`ae02524`) — **operator must interactive-apply to re-deploy at 0600.**
 - `[FIXED]` moshi `SKILL.md` frontmatter; justfile bats-in-nix + merge de-dup; memory-lancedb-pro-skill
   removed; deep-research self-referential symlink removed; moshi-hook 0.2.32→0.2.37.
+- `[FIXED]` `~/.claude/CLAUDE.md` both-ways fork reconciled in source (`4ac97de`): live-only SOLID/
+  Testing/Browser/git-crypt/gh-axi lines folded in; next interactive apply is purely additive on live.
 
 ### Bugs — high severity
 
@@ -329,8 +356,7 @@ against source and adversarially verified (2 candidates were refuted and dropped
 | `jq -rs` whole-file slurp: one half-written trailing line → empty `(main) done`, loses all turns | `relay-agent.sh:17` | SP3 |
 | SSH password auth still works — drop-in sets only `PasswordAuthentication no`; `UsePAM yes` + `KbdInteractiveAuthentication` default leave PAM login open (verified live) | `ssh-hardening.sh:13` | SP2/SP7 |
 | Age-key tripwire matches **its own source** → the moment SP1 lands, every commit fails a false leak alarm | `test/hermes-config-encrypted.sh:28` | SP1 |
-| bats count assertions false-pass on zero (`grep -c` → `"0\n0"`): `assert_post_count 3` passes even if code POSTs nothing | `test/osquery-alerter/lib.bash:384` (+418,462,206) | SP2 s2 |
-| `~/.claude/CLAUDE.md` forked both ways; `just a --force` silently deletes live-only edits (SOLID/Testing/git-crypt) | `private_dot_claude/CLAUDE.md:115` | SP7 (now) |
+| bats count assertions false-pass on zero (`grep -c` → `"0\n0"` makes `[[ -ne ]]` error silently — re-verified by hand, expected-3-got-0 passes) | `test/osquery-alerter/lib.bash:384` (+418,462,206) | SP2 s2 |
 
 ### Bugs — medium/low (open)
 
@@ -444,7 +470,7 @@ naïve "remote input never touches HID" hypothesis and settled the signals:
 
 | Signal | How computed | What it means | Verified result |
 | --- | --- | --- | --- |
-| **hid-idle** | `ioreg -c IOHIDSystem` HIDIdleTime | seconds since local *or* remote keystroke reached this Mac | Climbs steadily during sustained phone/mosh typing → a reliable "hands-on-a-keyboard-driving-dresden" clock (the one-shot "6 s" that misled Round 1 was a confound). |
+| **hid-idle** | `ioreg -c IOHIDSystem` HIDIdleTime | seconds since the last **physical** input on dresden's own keyboard/trackpad — remote (mosh/Moshi) input does **not** reset it | Climbed steadily 46→119 s during sustained phone typing → a reliable *physically-at-dresden* clock (Round 1's one-shot "6 s while on phone" was a confound; the time-series settled it). |
 | **transport** | `stat -f %a /dev/ttys*` freshness | *which device* is carrying input right now | Ghostty client pty (`ttys000/001`) freshens only on physical typing; the mosh-server pty (`ttys013`) only on phone typing. One `stat` sweep discriminates local vs remote. |
 | **phone-attention** | tailscale bytes→`mister` rate | is the Moshi app foregrounded | 0 B/s backgrounded (session still alive), ~150 B/s reading, 1–5 KB/s typing — iOS suspends the app in background, so rate ≈ foreground. |
 | **mosh-session** | `pgrep -f 'mosh-server.*MOSHI_CLIENT'` | a phone session exists at all | Reliably visible in argv; but **coexists with physical presence** (a session persists while you sit at dresden) → necessary-not-sufficient for "on phone." |
@@ -452,9 +478,12 @@ naïve "remote input never touches HID" hypothesis and settled the signals:
 
 **Ranking (physical wins):** hid-idle fresh → **at dresden** (banner, regardless of any live mosh
 session); hid-idle stale + (transport=mosh-pty fresh OR phone-attention high) → **driving via phone**
-(push); all stale → **away** (push + lights if home). **Fail-open:** any probe error or ambiguity →
-send *both* banner and push. The router never needs to know the user's location to avoid dropping a
-notification — the gray zone and fail-open guarantee delivery; presence only optimizes *which* surface.
+(push); all stale → **away** (push + lights if home). **Lock overrides everything:** `IOConsoleLocked`
+true kills the banner surface, so it's push-only no matter what idle says. **Gray zone, defined:**
+hid-idle stale, screen unlocked, and no transport/attention evidence — ambiguous, so send **both**
+surfaces (this is the reading-at-the-desk case). **Fail-open:** any probe error → also both. The router
+never needs to know the user's location to avoid dropping a notification — gray zone and fail-open
+guarantee delivery; presence only optimizes *which* surface.
 
 ### Home — its own multi-signal module
 
@@ -479,6 +508,12 @@ suite.
 - **Summaries everywhere**, with a hard timeout that can never delay or block delivery (worst case: the
   plain snippet). Discord `#relay` always logs (⚠️ prefix for waiting-on-you); operator mutes `#relay`
   mobile notifications to kill the double-push. Mute switch. CLI long-commands are first-class events.
+- **Invocation model: stateless per-event CLI.** Hooks and the shell notifier exec the binary once per
+  event; probes run at fire time; no daemon, no persistent state (catch-up reads live herdr state, not a
+  store). The bashrc long-command notifier re-points its `relay.sh` call at the new binary — its
+  thresholds (≥60 s local, ≥300 s full) move into the service's config.
+- **Lights quiet window.** Hue has no Focus-mode equivalent, so pulses respect a configured quiet window
+  (e.g. mirroring Sleep-Focus hours); anything missed during it is healed by catch-up-on-return.
 - **Channels are a pluggable boundary** (moshi = today's phone channel). A future custom iOS app —
   actionable notifications (approve/deny from the lock screen) + native presence reporting — is deferred;
   the $99 dev account + TestFlight-internal path avoids App Store review. Nothing gets locked out.
@@ -563,7 +598,14 @@ brief `docs/plans/2026-07-02-repo-modernization-brief.md` §8 and is the binding
 - **Work ledger:** every sweep row was adversarially verified against source before landing here; 2
   candidates were refuted and excluded. `[FIXED]` rows are committed with passing `just test`.
 - **SP3 contract:** the presence table is backed by `round2.csv` (labeled time-series), not assertion;
-  each leg (hid-idle climb under remote typing, per-pty transport fingerprint, tailscale-rate attention)
-  was observed live. The one remaining open probe — the UDR client-list endpoint — is the sole item
-  blocking the SP3 spec from being written with zero open questions (scheduled: the 8am home-network
-  probe + the operator creating the UniFi API key).
+  each leg (hid-idle climbing under remote typing, per-pty transport fingerprint, tailscale-rate
+  attention) was observed live. Open items for the final SP3 spec are enumerated in the deferred index
+  (UDR probe + failure semantics + tuning constants + quiet-window hours + test split).
+- **Re-evaluated 2026-07-03 (max effort), defects found and corrected:** the presence table's hid-idle
+  row had inverted the core finding (said "local *or* remote" resets it — the experiment showed remote
+  does **not**); SP1/SP2 described already-executed work as pending (scaffolding commits, the `f7220d9`
+  merge); decision 2 contradicted the SP3 contract (now annotated); the deferred SP3 bullet still
+  carried the superseded flush-race/spam framing; gray zone and lock behavior were referenced but
+  undefined (now defined); the invocation model and lights quiet window were unstated (now stated). The
+  bats zero-count and CLAUDE.md-fork claims were independently re-verified by hand before acting on
+  them; the fork is reconciled (`4ac97de`).
