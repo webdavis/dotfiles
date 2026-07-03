@@ -134,7 +134,6 @@ packages:
         - sevenzip
         - socat
         - starship
-        - steipete/tap/goplaces
         - steipete/tap/peekaboo
         - steipete/tap/remindctl
         - steipete/tap/sag
@@ -232,7 +231,6 @@ packages:
       - sherlock-project
       - whisply[mlx,app]
     npm:
-      - openclaw@2026.4.27
       - "@doist/todoist-cli"
       - agentmail-cli
       - clawhub
