@@ -59,6 +59,10 @@ Require per-invocation confirmation. Blanket "yes" doesn't carry over.
   before changing it. Surface constraints in the plan, not at deploy time. Verify; don't assume.
 - **YAGNI.** No features, refactors, abstractions, or fallbacks beyond task scope. Three similar lines
   beat a premature abstraction.
+- **SOLID.** All code should be implemented using SOLID principles.
+- **Testing.** Prefer a Classist approach to TDD over Mocks. Test-drive implementations where possible.
+  The TDD process should drive a testing environment that follows SOLID principles, which drives well
+  structure architecture in production code.
 - **No backwards-compat hacks for unshipped code.** Dead code gets deleted.
 - **Glob before creating.** Prefer editing an existing file.
 - **Never patch, fork, or modify the code of third-party tools I don't own** (e.g. osquery). Configure
@@ -112,10 +116,12 @@ any extension. Applies to files and folders. Examples: `2026-04-20T14-30-00.sett
 - **Shell:** bash.
 - **Multiplexer:** herdr.
 - **Version manager:** Nix flakes per-project (not `mise`).
-- **File manager / git TUI:** `git`, `gh`, and `fzf`.
+- **File manager / git TUI:** `git`, `gh-axi`, and `fzf`.
+- **Browser:** `chrome-devtools-axi`.
 - **Terminal:** Ghostty.
 - **Editor:** Neovim.
 - **Secrets:** KeePassXC.
+- **File Encryption:** `git-crypt`.
 
 ## Agents
 
