@@ -1,6 +1,9 @@
-______________________________________________________________________
-
-## name: moshi-best-practices description: Use when preparing or verifying a host for Moshi remote coding. Trigger this for Easy Pair host setup, SSH or preferably Mosh readiness, non-interactive shell PATH issues, tmux defaults, creating a tmux project session rooted at a chosen directory, adapting shell or tmux behavior with the `MOSHI_CLIENT` env signal, installing Moshi agent hooks for Codex or Codex CLI, or using the packaged `moshi DIR` tmux launcher. metadata: updatedAt: "2026-05-13"
+---
+name: moshi
+description: Use when preparing or verifying a host for Moshi remote coding. Trigger this for Easy Pair host setup, SSH or preferably Mosh readiness, non-interactive shell PATH issues, multiplexer defaults, creating a project session rooted at a chosen directory, adapting shell or multiplexer behavior with the `MOSHI_CLIENT` env signal, or installing Moshi agent hooks.
+metadata:
+  updatedAt: "2026-05-13"
+---
 
 # Moshi Best Practices
 
