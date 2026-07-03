@@ -501,7 +501,9 @@ env (preserve today's clean stdin/file-path handling — the one thing the audit
 ## Testing & design strategy (essential-feed — binding on *how*, not *what*)
 
 Per the brief, this discipline is **required** for SP3 and all substantial new code; only its translation
-into Rust is a design choice. Reproduced verbatim from the brief so the spec is self-contained.
+into Rust is a design choice. Condensed here so the spec is self-contained; the **unabridged, verbatim**
+text (the user's authoritative summary of `essentialdevelopercom/essential-feed-case-study`) lives in the
+brief `docs/plans/2026-07-02-repo-modernization-brief.md` §8 and is the binding reference.
 
 > ## Software Testing and Design Strategy
 >
