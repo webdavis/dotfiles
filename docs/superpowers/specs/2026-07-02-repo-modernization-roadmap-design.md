@@ -462,9 +462,12 @@ against source and adversarially verified (2 candidates were refuted and dropped
   gate), `humanizer`, `video-transcript-downloader`, `hyperframes`/`-cli`/`-media`/`-registry`,
   `website-to-hyperframes` (all from git, `4adcfee`), and `kubernetes-specialist` (re-cloned from its
   roster source `jeffallan/claude-skills`). `cua-driver` was never removed; the `playwright` *plugin*
-  remains enabled. **Blocked on user input:** `last30days-official`, `tiktok-crawling`, and any
-  standalone playwright *skills* have no recorded provenance (never lock-tracked; Trash empty) — do not
-  guess-install from registries; confirm exact sources with the user first.
+  remains enabled (assumed to satisfy "all playwright skills" — no standalone playwright skills had
+  recorded provenance). Sources user-confirmed and installed 2026-07-03: `last30days` via
+  `npx skills add mvanhorn/last30days-skill -g` (canonical name is `last30days`, no `-official`), and
+  `tiktok-crawling` via the clawhub CLI (`npx clawhub install romneyda/tiktok-crawling`; frontmatter
+  name `tiktok-scraping-yt-dlp`, dir kept as `tiktok-crawling` for clawhub update tracking). Both
+  fanned out to Claude + Hermes.
 
 ### CLAUDE.md refactors (both memory files — explicit user requirement)
 
