@@ -449,6 +449,23 @@ against source and adversarially verified (2 candidates were refuted and dropped
   derive from `.chezmoi.homeDir`/`.chezmoi.username` [SP7, fresh-machine correctness].
 - Pre-commit: skip the bats suite on docs/YAML-only commits (path filter) [SP2 s2].
 
+### Installs (new tooling — user directives)
+
+- **ponytail** (DietrichGebert/ponytail, MIT) — a least-code-that-works ruleset plugin. Install per
+  harness: Claude Code `/plugin marketplace add DietrichGebert/ponytail` then
+  `/plugin install ponytail@ponytail`; Codex `codex plugin marketplace add DietrichGebert/ponytail`;
+  Hermes `hermes plugins install DietrichGebert/ponytail --enable`. After the Claude install, promote
+  `ponytail@ponytail` into `modify_settings.json`'s `enabledPlugins` stable list so the plugin is
+  declarative like the rest. [SP7 / SP2 chores slice]
+- **Skills keep-list superseded (2026-07-03):** restored to the store + all three harness fan-outs:
+  `conventional-commits` (required commit-policy skill — restored before further implementation, user
+  gate), `humanizer`, `video-transcript-downloader`, `hyperframes`/`-cli`/`-media`/`-registry`,
+  `website-to-hyperframes` (all from git, `4adcfee`), and `kubernetes-specialist` (re-cloned from its
+  roster source `jeffallan/claude-skills`). `cua-driver` was never removed; the `playwright` *plugin*
+  remains enabled. **Blocked on user input:** `last30days-official`, `tiktok-crawling`, and any
+  standalone playwright *skills* have no recorded provenance (never lock-tracked; Trash empty) — do not
+  guess-install from registries; confirm exact sources with the user first.
+
 ### CLAUDE.md refactors (both memory files — explicit user requirement)
 
 Comprehensively refactor `~/.claude/CLAUDE.md` (source: `private_dot_claude/CLAUDE.md`) and the repo
@@ -470,8 +487,9 @@ CLAUDE.md guidance. The binding principles from that source:
    the same parity at the global scope (Codex/other harnesses' global memory path) during the refactor.
 
 **Verified current defects to fix (staleness hotfixes — allowed under the freeze policy, before the
-big rewrite):** global file references the **removed** `humanizer` and `conventional-commits` skills and
-says the prepare-commit-msg hook uses *haiku* (the verified hook runs `--model=sonnet`); repo file's
+big rewrite):** global file says the prepare-commit-msg hook uses *haiku* (the verified hook runs
+`--model=sonnet`) — its `humanizer`/`conventional-commits` references are valid again since the
+2026-07-03 restoration (`4adcfee`); repo file's
 Testing section predates bats, describes the source state as `~/.local/share/chezmoi/` (this repo IS the
 source dir per `.chezmoi.toml.tmpl`), uses a `chezmoi apply ~/.tmux.conf` example (tmux is gone), names
 yabai in OS-targeting (removed), and claims only `dot_bashrc.tmpl` is shellcheck-rendered (the lint
