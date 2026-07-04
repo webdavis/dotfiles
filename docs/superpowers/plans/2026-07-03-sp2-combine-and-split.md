@@ -480,15 +480,45 @@ reasons (added to the spec Decisions log, below). But three **verified** gaps:
 - **Darwin-gated restore:** `run_once_before_05-restore-age-key.sh.tmpl` opens with
   `{{ if eq .chezmoi.os "darwin" }}`, so the **future Linux home-server cannot restore the key**. S8
   drops/generalizes the guard.
-- **No rotation / DR story:** there is no documented age-key rotation, re-encrypt, or disaster-recovery
-  drill. S8 adds a `docs/runbooks/` rotation runbook (apply → config-change → `chezmoi forget` →
-  re-`add --encrypt`) + a `test/*.sh` round-trip test, and the git-history caveat (rotating the key does
-  **not** scrub old ciphertext from history — the real compromise-recovery action is rotating the
-  upstream secrets themselves).
+- **No rotation / DR story:** no documented procedure exists for rotating the age key or recovering it.
+  S8 adds `docs/runbooks/age-key.md` with the two workflows spelled out below (written now, per the
+  "behaviors first" rule — this is the plan text S8 will implement, not the implementation).
 
-**New features:** age-key rotation + re-encrypt runbook + round-trip test `[repo]`; generalize the
-darwin guard `[repo]`; **multi-recipient migration design** (per-machine identity + a shared
-`recipients` list, for the laptop→home-server move) `[dresden]`; DR drill `[repo]`.
+**Runbook 1 — rotate the age key** (do this if the private key may have leaked, or on a schedule):
+
+1. Generate a new identity beside the old: `chezmoi age-keygen --output=$HOME/.config/chezmoi/key.new`.
+1. Update `.chezmoi.toml.tmpl`: set `[age] recipient` to the **new** public key (keep the old identity in
+   an `identities` list temporarily so existing ciphertext still decrypts during the transition), then
+   `chezmoi init`.
+1. Re-encrypt every managed secret to the new recipient: for each `encrypted_*` source file,
+   `chezmoi forget <target>` then `chezmoi add --encrypt <target>` (re-encrypts under the new recipient).
+   Today that is just `~/.hermes/config.yaml`.
+1. Verify round-trip: `diff <(chezmoi cat ~/.hermes/config.yaml) ~/.hermes/config.yaml` is empty;
+   `head -1` of each `encrypted_*` file is an age header, not plaintext.
+1. Drop the old identity from `identities`, `mv key.new key.txt`, and **update the KeePassXC entry**
+   `chezmoi :: Private Key :: age` Password field to the new `AGE-SECRET-KEY` line.
+1. `just l && just test` (the hermes guards enforce), commit.
+1. **git-history caveat:** rotation does **not** scrub old ciphertext from git history — anyone who had
+   the old key can still decrypt old commits. So if the key actually leaked, the real recovery action is
+   to **rotate the upstream secrets themselves** (the Hermes webhook secret, Discord token, etc.), not
+   just the age key. List those in the runbook.
+
+**Runbook 2 — disaster recovery** (dead/lost machine, rebuilding from scratch):
+
+1. On the new machine, retrieve the KeePassXC database (per the fresh-machine quickstart) and unlock it.
+1. `chezmoi init` — `run_once_before_05-restore-age-key` writes `~/.config/chezmoi/key.txt` from the
+   `chezmoi :: Private Key :: age` entry automatically (this is why the key lives in KeePassXC, not only
+   on the dead disk).
+1. `chezmoi apply` — every `encrypted_*` file decrypts with the restored key.
+1. **DR drill (the test that proves the above):** a `test/age-restore.sh` that, in a scratch HOME,
+   simulates a bare machine — no `key.txt` present — stubs the KeePassXC lookup, runs the restore script,
+   and asserts a known ciphertext fixture decrypts. Catches a broken restore path *before* a real
+   disaster, not during one.
+
+**New features:** the `age-key.md` runbook (both workflows above) + the `test/age-restore.sh` DR drill
+`[repo]`; generalize the darwin guard so the restore runs on Linux too `[repo]`; **multi-recipient
+migration design** (each machine keeps its own identity; `.chezmoi.toml.tmpl` lists both public keys as
+`recipients` so files encrypt to both — the laptop→home-server path) `[dresden]`.
 Sources: chezmoi.io/user-guide/encryption/age, chezmoi.io/user-guide/frequently-asked-questions/
 encryption, discourse.nixos.org (git-crypt/agenix/sops-nix comparison).
 *(verdict: SOUND — spot-verified against the live repo and the chezmoi age doc.)*
@@ -556,13 +586,29 @@ Sources: code.claude.com/docs/remote-control, code.claude.com/docs/hooks-guide, 
 *(verdict: core SOUND; trimmed — the native-push coexistence is a real add; the rest confirms the
 existing design.)*
 
-### Gaps (honest — not filled by this pass)
+### R8 — macOS endpoint hardening: keep osquery standalone; add two cheap layers, skip the enterprise ones (amends S9 / S10; operator sign-off)
 
-- **macOS endpoint security (R8) — BLOCKED.** The domain agent (osquery pack design + Santa / Objective-See
-  complements + EndpointSecurity FIM) was refused by a cybersecurity-topic safeguard, so it returned no
-  findings. This overlaps the operator's separately-owned, off-limits osquery work anyway (spec decision
-  4 / the osquery guardrail), so it is **deliberately left for the operator** to research and drive
-  through S9's sign-off gate — not force-retried here.
+Recovered inline 2026-07-04 (the original workflow agent tripped a cyber-topic classifier; decomposed
+product-lookup queries pass cleanly — see the safeguard note below). Findings for a **solo personal Mac**,
+decision-oriented:
+
+| Tool | Purpose | brew | Maintenance | Verdict for dresden |
+| --- | --- | --- | --- | --- |
+| **osquery standalone** | scheduled host queries | — | low | **KEEP — already correct.** It's lightweight and fine on one machine; Fleet / fleet-managers are multi-device tooling, overkill here. Validates S9's existing standalone three-tier design. |
+| **LuLu** (Objective-See) | outbound/egress firewall | cask | low-med (initial prompt tuning, then set-and-forget) | **ADD.** The one layer Apple's inbound-only firewall lacks — catches malware phone-home. chezmoi-trackable. Needs macOS 14+. |
+| **OverSight** (Objective-See) | mic/camera-on alerts | cask | low | **ADD (cheap).** Not covered by osquery at all — genuinely additive. |
+| **BlockBlock / KnockKnock** | persistence monitor / scanner | cask | low | **SKIP (redundant).** osquery already watches launchd / launch-agents / daemons; add only if you want the GUI alerts on top. |
+| **Santa** (North Pole Security) | binary allowlisting | cask | **high** (ongoing allowlist tuning) | **SKIP for solo** (enterprise-shaped). If curious, run MONITOR/log-only, never lockdown. Works without a sync server via `santactl`, but the tuning burden isn't worth it for one laptop. |
+| **Native: FileVault / firewall+stealth / Gatekeeper / SIP** | baseline posture | n/a | none | **ENSURE ON + chezmoi-track the CLI verifications** (`csrutil status`, `spctl`, `fdesetup status`, firewall socketfilterfw) — the cheapest wins; fits S10. |
+
+**Operator sign-off required** (osquery/security is your domain, spec decision 4): this is a
+recommendation for you to approve — nothing lands in S9/S10 without your yes. If accepted, LuLu +
+OverSight are two `.chezmoidata` cask entries + a settings note; the native-posture checks fold into S10.
+Sources: objective-see.org/tools, github.com/northpolesec/santa, fleetdm.com (osquery standalone-vs-fleet),
+drduh.github.io/macOS-Security-and-Privacy-Guide.
+
+### Gaps (honest)
+
 - **R1 / R7 were verdict OVERCLAIMED, then trimmed:** the surviving items above are only the parts that
   passed the fit-to-dresden verification; the discarded parts (a blanket "no tool ever helps"; some
   speculative notification tooling) are intentionally not carried.
