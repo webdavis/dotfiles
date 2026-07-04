@@ -125,11 +125,14 @@ Both hooks live in the **user-wide** hooks dir — `core.hooksPath = ~/.config/g
 - **`prepare-commit-msg` — user-wide AI commit messages.** Prepopulates a Conventional Commits message
   via Claude Sonnet (internals under **AI Commit Messages** below). Bails on `-m`/merge/rebase; bypass
   with `SKIP_AI_COMMIT=1`.
-- **`pre-commit` — per-repo lint, via a dispatcher.** `dot_config/git/hooks/executable_pre-commit` runs
-  in every repo but only acts when the repository tracks an executable `.githooks/pre-commit`, which it
-  then `exec`s. This repo's `.githooks/pre-commit` runs `just lint-check` (check-only — reports drift,
-  never mutates the tree or index). No install step: the dispatcher is user-wide and the repo hook is
-  committed with its executable bit.
+- **`pre-commit` — per-repo lint + tests + secret scan, via a dispatcher.**
+  `dot_config/git/hooks/executable_pre-commit` runs in every repo but only acts when the repository
+  tracks an executable `.githooks/pre-commit`, which it then `exec`s. This repo's `.githooks/pre-commit`
+  runs `just lint-check` (check-only — reports drift, never mutates the tree or index), then `just test`
+  (the full `test/` suite — see Testing), then `gitleaks git --staged --redact` (blocks any staged
+  plaintext secret; gitleaks is provisioned as a Homebrew formula, and the stage is skipped when the
+  binary is absent). All three must pass; a failure blocks the commit. No install step: the dispatcher is
+  user-wide and the repo hook is committed with its executable bit.
 
 **Why a dispatcher, not `git config core.hooksPath .githooks`?** `core.hooksPath` is single-valued, so a
 per-repo override shadows the user-wide `prepare-commit-msg`. The dispatcher keeps the global hook
