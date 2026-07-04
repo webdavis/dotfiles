@@ -1,0 +1,58 @@
+{{ if eq .chezmoi.os "darwin" -}}
+{{- $token := (keepassxc "Moshi :: Pairing Token").Password -}}
+#!/bin/bash
+# One-time moshi-hook setup: pair this host with the Moshi iPhone app, install
+# agent hooks for the supported AI CLIs, and start the brew service (which
+# writes a launchd plist with KeepAlive so the daemon survives subsequent
+# restarts). The pairing token is pulled from KeePassXC at apply time.
+#
+# Claude Code and Codex are deliberately EXCLUDED from `moshi-hook install --target`
+# below -- relay owns their pushes (Claude via the modify-template; Codex via
+# ~/.local/bin/relay-codex-hooks.sh, merged into ~/.codex/hooks.json beside herdr's).
+# moshi-hook's installer writes its own hooks into ~/.claude/settings.json on
+# many events, including UserPromptSubmit -- which fires a Moshi push on every
+# prompt submission (the unwanted "user POST" notification). moshi-hook exposes
+# no per-event opt-out (only --target / --local; verified via
+# `moshi-hook install --help`), and patching the third-party binary is not
+# permitted. So Claude Code's hooks are owned solely by chezmoi's modify-template
+# (private_dot_claude/modify_settings.json), which already wires the relay
+# notifier (relay-agent.sh done, on Stop). Excluding claude here keeps
+# moshi-hook off Claude Code entirely, so only the agent-response (Stop) push
+# fires -- never one on prompt submission. moshi-hook still manages every other
+# CLI natively.
+#
+# Re-running: `run_once_` semantics mean this fires exactly once per machine
+# (tracked via chezmoi's script-state hash). If you need to re-pair, run
+# `moshi-hook pair --token <token>` manually, or
+# `chezmoi state delete-bucket --bucket=scriptState` to clear the hash and let
+# this script re-fire on the next apply. On a machine already provisioned by an
+# older version of this script, apply the claude exclusion once by hand with
+# `moshi-hook uninstall --target claude` (strips moshi-hook's Claude hooks,
+# including the UserPromptSubmit push); chezmoi's modify-template then owns
+# Claude's hooks from the next `chezmoi apply` onward.
+
+set -euo pipefail
+
+# Pairing tokens are single-use, and `run_once_` re-fires whenever this script's
+# CONTENT changes (not just once per machine) -- so on an already-paired host a
+# re-run must skip the pair step, or the consumed token fails the whole apply
+# (observed live: "moshi api /hosts/register: Invalid pairing token").
+# Capture the status output BEFORE grepping: piping straight into `grep -q`
+# under pipefail fails even on a match (grep quits at the first matching line,
+# moshi-hook dies of SIGPIPE mid-write, pipefail reports the pipe as failed --
+# reproduced live; this exact form is required, do not "simplify" to a pipe).
+moshi_status=$(/opt/homebrew/bin/moshi-hook status 2>/dev/null || true)
+if printf '%s' "$moshi_status" | grep -q '^status: *paired'; then
+  echo "moshi-hook already paired -- skipping pair"
+else
+  /opt/homebrew/bin/moshi-hook pair --token {{ $token | quote }}
+fi
+/opt/homebrew/bin/moshi-hook uninstall --target codex 2>/dev/null || true
+/opt/homebrew/bin/moshi-hook install --target opencode,gemini,cursor,kimi,qwen,grok,omp,pi
+# Re-trust the tap right before touching its service: tap trust is pinned to the
+# tap revision, so any `brew update` that pulls new rjyo/moshi commits silently
+# un-trusts it again and `brew services start` refuses to load the formula
+# (observed live). Idempotent, mirrors the pre-trust loop in the packages script.
+/opt/homebrew/bin/brew trust --tap rjyo/moshi 2>/dev/null || true
+/opt/homebrew/bin/brew services start moshi-hook
+{{ end -}}

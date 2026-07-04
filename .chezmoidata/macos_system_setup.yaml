@@ -20,3 +20,6 @@ macos:
     - description: "Install self-healing nix-installer repair LaunchDaemon (NixOS fork)"
       command: "$HOME/.local/bin/install-nix-repair-hook.sh"
       sudo: true
+    - description: "Firewall: enable stealth mode (drop unsolicited probes silently)"
+      command: "/usr/libexec/ApplicationFirewall/socketfilterfw --setstealthmode on"
+      sudo: true

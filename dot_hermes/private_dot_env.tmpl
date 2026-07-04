@@ -1,0 +1,44 @@
+{{- /*
+  Hermes Agent environment -> ~/.hermes/.env (0600). Secrets and Discord IDs render from KeePassXC and never
+  enter git; non-secret settings are inline. This is a REGULAR template (not create_): re-synced on every
+  apply, so rotating a secret in KeePassXC and re-applying updates the live .env, which the gateway reloads
+  at runtime to pick up the new credentials. (config.yaml stays create_ because Hermes rewrites it at
+  runtime, bug #4775 -- the .env is only read, so re-sync is safe.)
+
+  APPLY CAUTION: this OVERWRITES the entire live ~/.hermes/.env. Every KeePassXC entry below must exist and be
+  populated before `chezmoi apply ~/.hermes/.env`, or the rendered file drops that secret and breaks Hermes
+  (an empty DISCORD_BOT_TOKEN takes the Discord platform down). Because it calls keepassxc it is a TTY-only
+  template -- `chezmoi apply --exclude=templates` skips it, so apply it interactively with KeePassXC unlocked.
+  .env values are bare (no quoting).
+*/ -}}
+# --- Webhook gateway activation (the platform switch) ---
+WEBHOOK_ENABLED=true
+WEBHOOK_PORT=8644
+
+# --- Secrets (rendered from KeePassXC; never committed) ---
+ANTHROPIC_TOKEN={{ (keepassxc "Anthropic :: Auth Token").Password }}
+DISCORD_BOT_TOKEN={{ (keepassxc "Discord (Uriel) :: Bot Token (Bob)").Password }}
+ELEVENLABS_API_KEY={{ (keepassxc "ElevenLabs :: API Key").Password }}
+OPENROUTER_API_KEY={{ (keepassxc "OpenRouter :: API Key (Hermes Agent)").Password }}
+TAVILY_API_KEY={{ (keepassxc "Tavily :: API Key").Password }}
+
+# --- Discord IDs (rendered from KeePassXC; kept out of git) ---
+DISCORD_HOME_CHANNEL={{ (keepassxc "Discord (Uriel) :: Channel ID (#general)").Password }}
+DISCORD_OSQUERY_CHANNEL={{ (keepassxc "Discord (Uriel) :: Channel ID (#osquery)").Password }}
+DISCORD_ALLOWED_USERS={{ (keepassxc "Discord (Uriel) :: User ID (Stephen)").Password }}
+
+# --- Non-secret settings (inline) ---
+TERMINAL_MODAL_IMAGE=nikolaik/python-nodejs:python3.11-nodejs20
+TERMINAL_TIMEOUT=60
+TERMINAL_LIFETIME_SECONDS=300
+BROWSERBASE_PROXIES=true
+BROWSERBASE_ADVANCED_STEALTH=false
+BROWSER_SESSION_TIMEOUT=300
+BROWSER_INACTIVITY_TIMEOUT=120
+WEB_TOOLS_DEBUG=false
+VISION_TOOLS_DEBUG=false
+MOA_TOOLS_DEBUG=false
+IMAGE_TOOLS_DEBUG=false
+AGENT_BROWSER_EXECUTABLE_PATH=/Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+MESSAGING_CWD=/Users/stephen/workspaces/webdavis/uriel/agents/bob/workspace
+HASS_URL=http://homeassistant.local:8123

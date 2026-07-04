@@ -31,6 +31,8 @@
 {{- $merged = setValueAtPath "cleanupPeriodDays" 36525 $merged -}}
 {{- $merged = setValueAtPath "autoUpdatesChannel" "stable" $merged -}}
 {{- $merged = setValueAtPath "remoteControlAtStartup" true $merged -}}
+{{- /* xhigh is the maximum effortLevel enum value (low/medium/high/xhigh) */ -}}
+{{- $merged = setValueAtPath "effortLevel" "xhigh" $merged -}}
 
 {{- $permissions := dict
     "allow" (list
@@ -65,14 +67,37 @@
         "type" "command"
         "command" (printf "%s/.local/bin/claude-user-prompt-start.sh" $home)))))
     "Stop" (list (dict
-      "hooks" (list (dict
-        "type" "command"
-        "command" (printf "%s/.local/bin/claude-stop-pulse.sh" $home)))))
+      "hooks" (list
+        (dict
+          "type" "command"
+          "command" (printf "%s/.local/bin/claude-stop-pulse.sh" $home))
+        (dict
+          "type" "command"
+          "async" true
+          "command" (printf "%s/.local/bin/relay-agent.sh done" $home)))))
     "Notification" (list (dict
       "matcher" "permission_prompt"
-      "hooks" (list (dict
-        "type" "command"
-        "command" "alerter --timeout 30 --title 'Claude Code' --message 'Needs attention' --sound default"))))
+      "hooks" (list
+        (dict
+          "type" "command"
+          "command" "alerter --timeout 30 --title 'Claude Code' --message 'Needs attention' --sound default")
+        (dict
+          "type" "command"
+          "async" true
+          "command" (printf "%s/.local/bin/relay-agent.sh blocked" $home)))))
+    "PostToolUse" (list
+      (dict
+        "matcher" "AskUserQuestion"
+        "hooks" (list (dict
+          "type" "command"
+          "async" true
+          "command" (printf "%s/.local/bin/relay-agent.sh asked" $home))))
+      (dict
+        "matcher" "ExitPlanMode"
+        "hooks" (list (dict
+          "type" "command"
+          "async" true
+          "command" (printf "%s/.local/bin/relay-agent.sh plan-ready" $home)))))
     "PreToolUse" (list (dict
       "matcher" "Bash"
       "hooks" (list (dict
@@ -93,7 +118,8 @@
     "frontend-design@claude-plugins-official" true
     "playwright@claude-plugins-official" true
     "security-guidance@claude-plugins-official" true
-    "swift-lsp@claude-plugins-official" true -}}
+    "swift-lsp@claude-plugins-official" true
+    "rust-analyzer-lsp@claude-plugins-official" true -}}
 {{- $merged = setValueAtPath "enabledPlugins" $enabledPlugins $merged -}}
 
 {{ $merged | toPrettyJson }}

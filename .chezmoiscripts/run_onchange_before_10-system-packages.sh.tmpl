@@ -3,6 +3,22 @@
 
 set -euo pipefail
 
+{{ if env "SKIP_SYSTEM_PACKAGES" -}}
+# SKIP_SYSTEM_PACKAGES=1: skip the brew bundle --cleanup so a `chezmoi apply` from a
+# secondary worktree (whose declared package set differs) cannot uninstall packages
+# this worktree does not list. A later normal apply re-runs this and re-syncs.
+exit 0
+{{ end -}}
+# Tear down the old domt4/autoupdate daily auto-upgrader (replaced by the
+# com.webdavis.homebrew-weekly-upgrade Monday-noon LaunchAgent). MUST run BEFORE
+# `brew bundle --cleanup` below untaps domt4/autoupdate -- otherwise the
+# `brew autoupdate` subcommand is gone when we call it. Guarded on the tap being
+# present so it is a clean no-op once removed / on fresh machines.
+if /opt/homebrew/bin/brew tap | grep -q '^domt4/autoupdate$'; then
+  /opt/homebrew/bin/brew autoupdate stop 2>/dev/null || true
+  /opt/homebrew/bin/brew autoupdate delete 2>/dev/null || true
+fi
+
 # Pre-trust taps that require it. `brew tap` first (no-op if already tapped) so
 # `brew trust` has a target to operate on, then trust. Both idempotent and safe
 # to re-run. Required because `brew bundle` will refuse to install formulae from
@@ -11,8 +27,15 @@ set -euo pipefail
 /opt/homebrew/bin/brew tap {{ . | quote }} 2>/dev/null || true
 /opt/homebrew/bin/brew trust --tap {{ . | quote }} 2>/dev/null || true
 {{ end }}
-# Use `brew bundle ...` to install all taps, formulae, casks, and macOS App Store apps.
-/opt/homebrew/bin/brew bundle --cleanup --file=/dev/stdin <<EOF
+# Install all taps, formulae, casks, and macOS App Store apps, then uninstall
+# anything not declared. Homebrew 6.x removed the old `brew bundle --cleanup`
+# behavior: the flag now only PRINTS what it would remove and exits 1 whenever
+# that list is non-empty, which aborts the whole apply under set -e. Removal is
+# now its own command, `brew bundle cleanup --force`. So: write the Brewfile to
+# a temp file once, install from it, then run the cleanup command against it.
+brewfile=$(mktemp)
+trap 'rm -f "$brewfile"' EXIT
+cat >"$brewfile" <<EOF
 {{ range .packages.macos.homebrew.taps -}}
 tap {{ . | quote }}
 {{ end -}}
@@ -26,18 +49,8 @@ cask {{ . | quote }}
 mas {{ .name | quote }}, id: {{ .id }}
 {{ end -}}
 EOF
-
-# Configure Homebrew autoupdate (idempotent — only restart if not already running).
-HOMEBREW_BIN="${HOMEBREW_PREFIX:-/opt/homebrew}/bin/brew"
-
-if ! "$HOMEBREW_BIN" autoupdate status 2>/dev/null | grep -q "running"; then
-  echo "Starting domt4/autoupdate [stop → delete → start]..."
-  "$HOMEBREW_BIN" autoupdate stop 2>/dev/null || true
-  "$HOMEBREW_BIN" autoupdate delete 2>/dev/null || true
-  "$HOMEBREW_BIN" autoupdate start 86400 --upgrade --cleanup --immediate --sudo
-else
-  echo "Homebrew autoupdate already running — skipping restart."
-fi
+/opt/homebrew/bin/brew bundle --file="$brewfile"
+/opt/homebrew/bin/brew bundle cleanup --force --file="$brewfile"
 
 # Install uv tools (runs after Homebrew so uv is available).
 {{ range .packages.macos.uv -}}

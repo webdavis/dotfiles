@@ -38,6 +38,18 @@ auto-formats in place and reports diffs. On commit, the per-repo `.githooks/pre-
 
 To enter an interactive dev shell with all tools: `nix develop`.
 
+### Testing
+
+```bash
+just test               # Run every test in test/ (build-tool style; pre-commit runs this too)
+just test-brew-cache    # Run only the brew shellenv cache drift test
+```
+
+Tests are plain executable `test/*.sh` scripts (source-only — `.chezmoiignore`d). `just test` runs them
+all and fails if any exits non-zero; the pre-commit hook runs it on every commit, so all tests must pass
+to commit. Tests use host tools (e.g. `brew`) and run outside the Nix shell. Add a test by dropping a new
+`test/<name>.sh` in place — it is picked up automatically (and shellchecked by `lint.sh`).
+
 ### Chezmoi Operations
 
 ```bash
@@ -61,11 +73,14 @@ chezmoi diff --exclude=templates            # diff non-template files
 **Never run bare `chezmoi apply` from Claude Code** — the following templates call `keepassxc` and will
 fail without an interactive TTY: `~/.gitconfig`, `~/.aws/credentials`, `~/.claude.json`,
 `~/.composio/user_data.json`, `~/.config/atuin/config.toml`, `~/.config/himalaya/config.toml`,
+`~/.config/relay/auth.json`, `~/.hermes/config.yaml`,
 `~/Library/Application Support/Claude/claude_desktop_config.json`,
 `~/Library/Application Support/espanso/match/identity.yml`,
-`~/Library/Application Support/gogcli/credentials.json`. Apply those from an interactive terminal with
-KeePassXC unlocked. Non-KeePassXC templates (e.g. `~/.bashrc`, `~/.claude/settings.json`) are safe to
-apply from automation.
+`~/Library/Application Support/gogcli/credentials.json`, and the chezmoiscript
+`.chezmoiscripts/run_once_after_60-moshi-hook-setup.sh.tmpl` (one-time setup; once it runs successfully
+on a given machine, automation can resume). Apply those from an interactive terminal with KeePassXC
+unlocked. Non-KeePassXC templates (e.g. `~/.bashrc`, and `~/.claude/settings.json` now that its
+modify-template no longer pulls from KeePassXC) are safe to apply from automation.
 
 ### Claude Code Settings
 
@@ -80,9 +95,11 @@ drift freely without forcing a chezmoi resync.
 
 - `permissions.allow` (read-only tools), `permissions.deny` (`.env`, `secrets/**`, `.ssh/id_*`, etc.),
   `permissions.defaultMode` = `bypassPermissions`.
-- `hooks`: `UserPromptSubmit` marks session start, `Stop` pulses Hue lights, `Notification`
-  (`permission_prompt` matcher) fires alerter, `PreToolUse` (`Bash` matcher) writes to
-  `~/.claude/audit.log`.
+- `hooks`: `UserPromptSubmit` marks session start, `Stop` pulses Hue lights and posts a relay
+  notification (`relay-agent.sh done`, async; fans out to moshi + Hermes + a clickable local
+  notification, secret read from the 0600 `~/.config/relay/auth.json`); the `Notification`/`PostToolUse`
+  hooks add `relay-agent.sh blocked|asked|plan-ready`, `Notification` (`permission_prompt` matcher) fires
+  alerter, `PreToolUse` (`Bash` matcher) writes to `~/.claude/audit.log`.
 - `statusLine`, `enabledPlugins`, `cleanupPeriodDays` (= 36525, effectively disables session cleanup),
   `autoUpdatesChannel` (= `stable`, pins the release channel so updates lag `latest`),
   `remoteControlAtStartup` (= `true`, starts the Remote Control bridge every session).
@@ -108,11 +125,12 @@ Both hooks live in the **user-wide** hooks dir — `core.hooksPath = ~/.config/g
 - **`prepare-commit-msg` — user-wide AI commit messages.** Prepopulates a Conventional Commits message
   via Claude Sonnet (internals under **AI Commit Messages** below). Bails on `-m`/merge/rebase; bypass
   with `SKIP_AI_COMMIT=1`.
-- **`pre-commit` — per-repo lint, via a dispatcher.** `dot_config/git/hooks/executable_pre-commit` runs
-  in every repo but only acts when the repository tracks an executable `.githooks/pre-commit`, which it
-  then `exec`s. This repo's `.githooks/pre-commit` runs `just lint-check` (check-only — reports drift,
-  never mutates the tree or index). No install step: the dispatcher is user-wide and the repo hook is
-  committed with its executable bit.
+- **`pre-commit` — per-repo lint + tests, via a dispatcher.**
+  `dot_config/git/hooks/executable_pre-commit` runs in every repo but only acts when the repository
+  tracks an executable `.githooks/pre-commit`, which it then `exec`s. This repo's `.githooks/pre-commit`
+  runs `just lint-check` (check-only — reports drift, never mutates the tree or index) and then
+  `just test` (the full `test/` suite — see Testing). Both must pass; a failure blocks the commit. No
+  install step: the dispatcher is user-wide and the repo hook is committed with its executable bit.
 
 **Why a dispatcher, not `git config core.hooksPath .githooks`?** `core.hooksPath` is single-valued, so a
 per-repo override shadows the user-wide `prepare-commit-msg`. The dispatcher keeps the global hook
@@ -126,9 +144,10 @@ Bypass all hooks for one commit: `git commit --no-verify`.
 ### Source-Only Files
 
 Some files are dev/CI only and are excluded from `$HOME` via `.chezmoiignore`: `justfile`, `scripts/`,
-`.githooks/`, `flake.nix`, `flake.lock`, `.envrc`, `.shellcheckrc`, `.editorconfig`, `.mdformat.toml`,
-`assets/`, `docs/`, `private/`, `README.md`, `LICENSE`, `.gitignore`, `.worktrees/`, `**/.DS_Store`. Only
-chezmoi-managed files (`dot_`, `private_`, `run_`, etc. prefixes) reach the target state.
+`test/`, `.githooks/`, `flake.nix`, `flake.lock`, `.envrc`, `.shellcheckrc`, `.editorconfig`,
+`.mdformat.toml`, `assets/`, `docs/`, `private/`, `README.md`, `LICENSE`, `.gitignore`, `.worktrees/`,
+`**/.DS_Store`. Only chezmoi-managed files (`dot_`, `private_`, `run_`, etc. prefixes) reach the target
+state.
 
 ### Minimum Chezmoi Version
 
@@ -149,6 +168,13 @@ keys: `taps`, `formulae`, `casks`, `mas`. The
 data and runs `brew bundle --cleanup` whenever the data changes. Prerequisites:
 `run_once_before_00-install-homebrew.sh.tmpl` ensures `/opt/homebrew/bin/brew` exists on fresh machines.
 
+**Skipping the bundle for one apply:** `SKIP_SYSTEM_PACKAGES=1 chezmoi apply` makes this script `exit 0`
+before `brew bundle` (via an `env`-based template guard). Use it when applying from a secondary worktree
+whose declared package set differs from the primary — otherwise the bundle's `--cleanup` would uninstall
+packages that worktree does not list. It flips the script's `run_onchange` hash, so the next *normal*
+apply re-runs the bundle once and re-syncs (expected). `chezmoi apply --exclude=scripts` is the no-edit
+alternative, but it skips every script, not just this one.
+
 Third-party taps whose formulae or casks must be trusted under Homebrew's `HOMEBREW_REQUIRE_TAP_TRUST`
 gate are listed under a `trusted_taps` key in the same data file. A pre-bundle loop in
 `run_onchange_before_10-system-packages.sh.tmpl` runs `brew trust --tap` for each before `brew bundle`,
@@ -162,6 +188,17 @@ so the bundle does not refuse to load them. Add a tap there when `brew bundle` r
 1. Remind the user to run `chezmoi apply` when appropriate.
 
 Do **not** run `chezmoi apply` directly — see the KeePassXC constraint above.
+
+**Weekly upgrades (not daily).** The `domt4/autoupdate` daily auto-upgrader has been removed in favor of
+a chezmoi-managed user LaunchAgent, `com.webdavis.homebrew-weekly-upgrade`, that runs
+`~/.local/bin/homebrew-weekly-upgrade.sh` every **Monday 12:00** (launchd `Weekday 1 = Monday`;
+`man launchd.plist`: "0 and 7 are Sunday"), when the operator is present — so app restarts/prompts never
+happen unattended. The helper does `brew update` → log `brew outdated`/`mas outdated` → `brew upgrade` →
+`mas upgrade` → `brew cleanup`, is resilient (a failing step is logged but does not abort the run), and
+does **no** Gatekeeper/quarantine stripping. `RunAtLoad=false` so loading the agent never triggers an
+upgrade. Run it on demand with `just brew-upgrade`; logs at `~/.local/log/homebrew/weekly-upgrade.log`.
+The `run_onchange_before_10-system-packages` script tears down any old autoupdate **before**
+`brew bundle --cleanup` untaps it (ordering is load-bearing — do not reorder).
 
 ### macOS Defaults Management
 
@@ -240,13 +277,22 @@ Tools provided: chezmoi, shellcheck, shfmt, mdformat (with GFM plugin), nixfmt-t
 GitHub Actions (`.github/workflows/lint.yml`) runs on `macos-latest`. Runs
 `nix flake check --all-systems` and `./scripts/lint.sh` on pushes to main and PRs.
 
-### Tmux Session Management
+### Herdr Workspace Management
 
-Sessions are managed by [sesh](https://github.com/joshmedeski/sesh). Named sessions live in
-`dot_config/sesh/sesh.toml`. `~/.local/bin/sesh-bootstrap.sh` creates the three default sessions
-(uriel/openclaw/homelab) and is invoked from bashrc, `tmux-refresh.sh`, and the Claude Code LaunchAgent.
-`prefix + o` opens the fuzzy picker; `prefix + C-o <letter>` jumps to a named session via the SESH key
-table; `prefix + \\` toggles last session; `prefix + R` reloads `~/.tmux.conf`.
+Workspaces (project-anchored tab groups, ≈ tmux sessions) are configured at
+`dot_config/herdr/config.toml`. Eight quick-jump chords in the `prefix+ctrl+<letter>` namespace map to
+active project paths; see the design spec at
+`docs/superpowers/specs/2026-06-18-tmux-to-herdr-migration-design.md` for the full mapping table.
+`~/.bashrc` lands a fresh interactive shell inside the `homelab` workspace on every terminal launch; the
+other seven workspaces are on-demand via their jump chords.
+
+Ctrl-h/j/k/l "seamless nav across Neovim splits and herdr panes" is a herdr **plugin**
+(`dot_local/share/herdr/plugins/herdr-smart-nav/`, a Rust binary), bound via four
+`type = "plugin_action"` keybindings (`herdr-smart-nav.nav_<dir>`) — so herdr execs it directly as argv,
+with no `/bin/sh -lc` wrapper. Built + linked by `run_onchange_after_57` (mirrors the `last-workspace`
+plugin). It shells the `herdr` CLI (no Rust SDK); the gain over the old shell-keybinding binary is ~5 ms
+(the wrapper) and is imperceptible — the value is the idiomatic plugin integration. Plugin actions get
+`HERDR_PANE_ID` (not `HERDR_ACTIVE_PANE_ID`).
 
 ### Git Worktrees (Worktrunk)
 
@@ -257,12 +303,53 @@ safely.
 
 ### Bashrc Init Ordering
 
-Starship initializes early; zoxide and atuin initialize after the interactive block (both modify
-`PROMPT_COMMAND`; atuin last). `bash-preexec` is sourced explicitly from Homebrew (atuin 18.x stopped
-bundling it) BEFORE `atuin init` — atuin's `__atuin_preexec`/`__atuin_precmd` and our long-running
-command timer both register into `preexec_functions` / `precmd_functions`. A naked `DEBUG` trap would
-clobber atuin's recording. Direnv hook runs early. Carapace universal completion loads after
-`gh completion`.
+All genuinely interactive-only init lives under a single `[[ $- == *i* ]]` guard, in dependency order:
+`bash-completion@2`, then `bash-preexec` (sourced explicitly from Homebrew — atuin 18.x stopped bundling
+it — BEFORE `atuin init`, because atuin's `__atuin_preexec`/`__atuin_precmd` and the long-running command
+timer both register into `preexec_functions`/`precmd_functions`; a naked `DEBUG` trap would clobber
+atuin's recording), then the `PROMPT_COMMAND` writers in the order direnv → starship → zoxide → atuin
+(zoxide and atuin after starship; atuin last), then carapace, the aliases/keybindings, and the
+command-notifier registration. PATH/env setup (brew, nix, cargo, volta, composio), `~/.bash_functions`,
+and the global env vars stay OUTSIDE the guard so the non-interactive login doors that reach `~/.bashrc`
+(`bash -lc`, `ssh host cmd`) keep their PATH and functions while skipping ~85ms of the guarded init. The
+herdr auto-attach block at the end has its own `case $- in *i*` guard and runs bare `herdr` to attach to
+the last-focused workspace — idempotent, silently no-ops if already attached. This guard split is the
+shell-startup performance fix: see `### Homebrew shellenv (cached)` below and the `dot_profile`
+interactive gate.
+
+### Homebrew shellenv (cached, regenerated at apply time)
+
+`~/.bashrc`'s Homebrew PATH/env block does **not** `eval "$(brew shellenv)"` inline — that spawns the
+brew dispatcher (~27ms) on every shell that sources `~/.bashrc`, including the non-interactive login
+doors (`bash -lc`, `ssh host cmd`) that need brew on PATH (`/etc/paths` lacks `/opt/homebrew/bin`).
+Instead, `.chezmoiscripts/run_after_44-cache-brew-shellenv.sh.tmpl` runs the real `brew shellenv` on
+every `chezmoi apply` and writes its output to `${XDG_CACHE_HOME:-~/.cache}/brew-shellenv.sh`;
+`~/.bashrc` sources that cache (~1ms), falling back to a live `eval` only when the cache is absent (fresh
+machine before the first apply). The doors measure ~110ms → ~15ms with the cache.
+
+**Why regenerate, not hardcode:** `brew shellenv` is an upstream abstraction layer whose emitted exports
+can change across Homebrew versions. Regenerating from the real generator each apply keeps us in sync
+with upstream automatically (no manual re-transcription) and lets brew self-heal
+`/opt/homebrew/etc/paths` (the `path_helper` line in the output reads it to place brew on PATH). **Do not
+replace the cache with a hardcoded static block** — that reintroduces silent drift from upstream. The
+script is darwin-only and is skipped by `chezmoi apply --exclude=templates`, so the cache refreshes on
+full interactive applies.
+
+**Staying in sync — three layers:**
+
+1. *Regenerate on apply* — the run_after script rewrites the cache from the real `brew shellenv` on every
+   full apply.
+1. *Self-heal on drift* — `~/.bashrc` (interactive only) checks whether Homebrew's shellenv generator
+   (`$HOMEBREW_REPOSITORY/Library/Homebrew/cmd/shellenv.sh`) is newer than the cache (e.g.
+   `brew autoupdate` ran `brew update`) and, if so, regenerates the cache in the background so the next
+   shell is fresh. Mirrors the atuin daemon drift self-heal.
+1. *Test* — `test/brew-shellenv-cache-drift.sh` (`just test-brew-cache`, and part of `just test` and the
+   pre-commit hook) asserts the deployed cache is byte-identical to a live `brew shellenv`; on drift it
+   prints the diff and the fix. The regen script runs it as a post-apply sanity check. A missing cache is
+   a skip, not a failure (bashrc falls back to a live eval).
+
+Regenerate the cache manually (e.g. if the test reports drift) with `just brew-cache-refresh` — no full
+apply needed.
 
 ### Shell History (Atuin)
 
@@ -320,6 +407,80 @@ tail ~/.local/log/happy-daemon.log         # crash messages
 happy doctor                               # full diagnostics ('happy doctor clean' kills runaways)
 ```
 
+### Tailscale (headless daemon)
+
+Tailscale runs as the open-source `tailscale` **formula** (not the `tailscale-app` GUI cask) as a launchd
+**system daemon** via `sudo tailscaled install-system-daemon` (a root-owned copy in `/usr/local/bin`; the
+brew formula stays user-owned so `brew upgrade` runs unattended) — it boots before login and uses the
+`utun` interface, so there is no Network/System Extension to re-approve after updates (the GUI variants'
+weakness on a headless host). State persists at `/Library/Tailscale` across reboots. Auth is a one-time
+manual `sudo tailscale up --accept-dns=true` plus flipping **Disable Key Expiry** on the node in the
+admin console — after that it never re-authenticates (no auth keys, no rotation, no KeePassXC).
+`run_onchange_after_66-tailscaled-status.sh.tmpl` is a sudo-free reminder that prints those one-time
+steps when the daemon is down or unauthenticated; it never runs sudo or authenticates.
+
+**DNS:** always `--accept-dns=true` (dynamic, roaming-safe) — never a static `100.100.100.100` resolver
+(that breaks off-tailnet). The OSS macOS DNS path is the known weak spot (`tailscale/tailscale#13461`,
+`#14746`): normal DNS keeps working while roaming, but resolving *other* tailnet hostnames *from* this
+machine may be flaky on a foreign network — pin the few needed tailnet hosts in `/etc/hosts` if so.
+
+**Updates:** the weekly brew-upgrade updates the user-owned formula unattended;
+`homebrew-weekly-upgrade.sh` then re-copies the new binary into the daemon via
+`sudo tailscaled install-system-daemon` (only when the binary changed). `sudo` is passwordless here via
+the user's `!authenticate` sudo config, so the daemon stays current with no manual step.
+
+**Future (new home Mac, ~3-6 months out):** when an always-home Mac takes over the daemon-host role, this
+machine (dresden, which is carried) cuts back to the GUI `tailscale-app` cask (better roaming DNS) and
+the new Mac runs this daemon — make the chezmoi config machine-conditional then.
+
+### Moshi Integration
+
+Moshi is the user's primary mobile agent bridge (Happy coexists as a secondary option). The `rjyo/moshi`
+tap and `moshi-hook` formula are declared in `.chezmoidata/system_packages_autoinstall.yaml`, with
+`rjyo/moshi` listed in the shared `trusted_taps:` field; a pre-bundle trust loop in
+`.chezmoiscripts/run_onchange_before_10-system-packages.sh.tmpl` runs `brew trust --tap` for each trusted
+tap before `brew bundle` executes.
+
+One-time setup runs from `.chezmoiscripts/run_once_after_60-moshi-hook-setup.sh.tmpl`: pairs moshi-hook
+with the mobile app (token from KeePassXC entry **`Moshi :: Pairing Token`**), runs
+`moshi-hook install --target opencode,gemini,cursor,kimi,qwen,grok,omp,pi` to wire agent hooks into every
+supported AI CLI **except Claude Code and Codex** (both owned by relay — see below), and starts the brew
+service.
+
+**Why Claude Code and Codex are excluded from `moshi-hook install`:** moshi-hook's installer writes its
+own hooks into `~/.claude/settings.json` across many events, including `UserPromptSubmit` — which fires a
+Moshi push on every prompt submission (an unwanted "user POST" notification). moshi-hook has no per-event
+opt-out (only `--target` / `--local`), and patching the third-party binary is not permitted, so Claude
+Code's hooks are owned solely by chezmoi's modify-template (see the Stop-only done notifier below).
+Excluding `claude` from `--target` keeps moshi-hook off Claude Code entirely, so the only Moshi push for
+Claude is the agent-response (Stop) one. On a machine provisioned before this exclusion, run
+`moshi-hook uninstall --target claude` once to strip the stale Claude hooks (the next `chezmoi apply`
+then owns them).
+
+**Asymmetric herdr integration:** moshi-hook reads `HERDR_ENV`, `HERDR_SESSION`, and `HERDR_PANE_ID`
+(which herdr exports natively inside its panes), so no herdr-side configuration is needed for moshi-hook
+to operate.
+
+**Relay notifications (the `done`/`blocked`/`asked`/`plan-ready` pushes):** agent and long-command
+notifications go through `~/.local/bin/relay.sh`, which fans out to three failure-separated channels — a
+moshi push (phone), a Hermes webhook → Discord `#relay` (paper trail), and a clickable local macOS
+notification that focuses the finishing herdr pane on click (`herdr agent focus`).
+`relay-agent.sh <state>` builds the agent message (project, branch, last-reply snippet) and calls
+`relay.sh`; Claude's four states are wired in `modify_settings.json` (Stop /
+Notification[permission_prompt] / PostToolUse[AskUserQuestion|ExitPlanMode]), Codex's two
+(`done`/`blocked`) are merged into `~/.codex/hooks.json` by `relay-codex-hooks.sh` (preserving herdr's
+`SessionStart` entry), and the shell command-notifier calls `relay.sh` directly. Secrets (the moshi token
+and the Hermes HMAC (hash-based message authentication code) key) live in the 0600
+`~/.config/relay/auth.json` (`dot_config/relay/private_auth.json.tmpl`, from KeePassXC) and are read at
+run time — never on a command line or in argv. The Hermes `relay` route is merged into the live
+`~/.hermes/config.yaml` by `dot_hermes/modify_private_config.yaml.tmpl` — a modify-template that is
+idempotent, ensures the webhook base (forces `enabled: true`, defaults host/port when absent), and
+preserves the osquery routes. Its `yq` merge expression lives in `private/relay-hermes-route.yq`
+(unit-tested by `test/relay-hermes-route.sh`). It is keepassxc-gated (interactive applies only) and does
+**not** restart hermes — a restart drains in-flight runs, so
+`.chezmoiscripts/run_after_68-hermes-relay-route-status.sh.tmpl` only *reminds* you (when the route is in
+config.yaml but the gateway returns 404) to run `hermes gateway restart`.
+
 ### AI Commit Messages
 
 The user-wide `prepare-commit-msg` hook (`dot_config/git/hooks/executable_prepare-commit-msg`, activated
@@ -336,27 +497,16 @@ why the per-repo pre-commit lint uses the dispatcher described under Git Hooks r
 ### Long-running Command Notifier
 
 `dot_bashrc.tmpl` registers `__cmd_notify_preexec` and `__cmd_notify_precmd` via bash-preexec (atuin's
-framework). Commands ≥ 30s fire an `alerter` macOS notification; ≥ 5 min additionally pulse Hue lights
-via `~/.local/bin/hue-pulse.sh`. Known interactive TUIs (vim/less/top/ssh/tmux/claude/fzf) are skipped.
+framework). A command ≥ 1 min fires relay's clickable local notification (click → focus its herdr pane);
+≥ 5 min additionally sends the moshi + Hermes push and pulses Hue lights via `~/.local/bin/hue-pulse.sh`.
+Known interactive TUIs (vim/less/top/ssh/herdr/claude/codex/fzf) are skipped — agent CLIs fire their own
+relay hooks.
 
-### Tmux Window/Pane Status Indicators
+### Herdr Native Status
 
-Passive indicators via tmux2k:
-
-- **Window list:** each window's active pane gets an emoji (🤖 agents, 🧪 test runners, 🔨 build tools, ⏳
-  other) via `~/.local/bin/tmux-window-emoji.sh` called from `@tmux2k-window-list-format`.
-- **Right-side status:** a custom tmux2k plugin (`last-proc`) reads `@prev-session` (set by the
-  `client-session-changed` hook) and displays `<previous-session>:<active-window> <emoji>`. The plugin
-  script lives at `~/.local/bin/tmux-last-proc.sh` under chezmoi control, and
-  `.chezmoiscripts/run_after_70-install-tmux2k-last-proc.sh.tmpl` copies it into
-  `~/.tmux/plugins/tmux2k/plugins/last-proc.sh` on every `chezmoi apply` (silent no-op if tmux2k isn't
-  installed yet — fresh machine runs `prefix + I` first). Colors come from `@tmux2k-last-proc-colors` set
-  in `dot_tmux.conf`; no need to edit tmux2k's `main.sh` because `get_plugin_colors` falls back to
-  user-set tmux options. Direct placement of the file under `dot_tmux/...` is avoided because tpm's
-  install check (`if [ -d $plugin_dir ]; skip`) would treat a chezmoi-created path as "already installed"
-  and skip cloning tmux2k entirely.
-
-Replaces the default battery slot in `@tmux2k-right-plugins` with `last-proc network ram`.
+Workspace state (per-pane agent status: blocked / working / done / idle) is rendered by herdr — no
+third-party plugin or custom script. The sidebar rolls each workspace up to its most-urgent agent state.
+Claude Code, Codex, Cursor, OpenCode, and others are recognized out of the box.
 
 ## Code Style
 

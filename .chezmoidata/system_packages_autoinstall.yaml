@@ -5,7 +5,6 @@ packages:
         - antoniorodr/memo
         - buo/cask-upgrade
         - cirruslabs/cli
-        - domt4/autoupdate # Automatic Upgrades.
         - eugene1g/safehouse
         - felixkratz/formulae
         - mediosz/tap
@@ -13,6 +12,7 @@ packages:
         - openhue/cli
         - oven-sh/bun
         - owenthereal/upterm
+        - rjyo/moshi
         - steipete/tap
         - vjeantet/tap
         - xdevplatform/tap
@@ -28,7 +28,6 @@ packages:
         - antoniorodr/memo
         - buo/cask-upgrade
         - cirruslabs/cli
-        - domt4/autoupdate
         - eugene1g/safehouse
         - felixkratz/formulae
         - mediosz/tap
@@ -36,6 +35,7 @@ packages:
         - openhue/cli
         - oven-sh/bun
         - owenthereal/upterm
+        - rjyo/moshi
         - steipete/tap
         - vjeantet/tap
         - xdevplatform/tap
@@ -111,7 +111,7 @@ packages:
         - ngrep
         - nmap
         - node
-        - obsidian-cli
+        - yakitrak/yakitrak/notesmd-cli # upstream renamed obsidian-cli; provides the `obs` binary
         - onefetch
         - openai-whisper
         - openhue/cli/openhue-cli
@@ -128,13 +128,12 @@ packages:
         - pv
         - restic
         - ripgrep
+        - rjyo/moshi/moshi-hook
         - ruff
         - sd
         - sevenzip
-        - sesh
         - socat
         - starship
-        - steipete/tap/goplaces
         - steipete/tap/peekaboo
         - steipete/tap/remindctl
         - steipete/tap/sag
@@ -142,9 +141,9 @@ packages:
         - swiftlint
         - switchaudio-osx
         - tart
+        - tailscale
         - tealdeer
         - terminal-notifier
-        - tmux
         - tokei
         - trash-cli
         - tree
@@ -171,6 +170,8 @@ packages:
         - chatgpt
         - claude
         - claude-code@latest
+        - codex
+        - codex-app
         - discord
         - docker-desktop
         - espanso
@@ -184,6 +185,7 @@ packages:
         - google-chrome
         - karabiner-elements
         - keepassxc
+        - lulu
         - lunar
         - mediosz/tap/swipeaerospace
         - microsoft-auto-update
@@ -192,8 +194,10 @@ packages:
         - nikitabobko/tap/aerospace
         - obs
         - obsidian
+        - oversight
         - openemu
         - osquery
+        - paseo
         - proton-drive
         - proton-mail
         - proton-mail-bridge
@@ -203,7 +207,6 @@ packages:
         - retroarch-metal
         - signal
         - slack
-        - tailscale-app
         - todoist-app
         - torguard
         - upterm
@@ -230,8 +233,6 @@ packages:
       - sherlock-project
       - whisply[mlx,app]
     npm:
-      - openclaw@2026.4.27
-      - "@openai/codex"
       - "@doist/todoist-cli"
       - agentmail-cli
       - clawhub

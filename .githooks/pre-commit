@@ -12,4 +12,20 @@ if ! just lint-check; then
   exit 1
 fi
 
+# Run the repo test suite (test/*.sh). Every commit requires all tests to pass.
+if ! just test; then
+  printf "\n%s\n" "❌ Tests failed!"
+  printf "%s\n" "Fix the failing test(s) above (or skip with 'git commit --no-verify')."
+  exit 1
+fi
+
+# Secret scan: block any staged plaintext secret (e.g. config.yaml added without --encrypt). The encrypted
+# *.age blob does not false-positive (verified). --redact so a hit never prints the secret to the terminal.
+if command -v gitleaks >/dev/null 2>&1; then
+  if ! gitleaks git --staged --no-banner --redact; then
+    printf "\n%s\n" "❌ gitleaks found a staged secret. If it is the hermes config, re-add it with --encrypt."
+    exit 1
+  fi
+fi
+
 printf "%s\n" "✅ All pre-commit checks passed!"

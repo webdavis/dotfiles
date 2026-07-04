@@ -379,7 +379,7 @@ window.addEventListener("hf-seek", (e) => {
 ### Transcription
 
 - Whisper.cpp models: tiny, base, small, medium, large-v3, small.en, medium.en (default small)
-- Groq API: whisper-large-v3 with word granularities
+- Groq API: whisper-large-v3 with word granularities <!-- gitleaks:allow -->
 - OpenAI API: whisper-1 verbose_json
 - Imports: SRT, VTT, JSON formats
 - Quality gates: music-token detection, garbage cleaning, retry with medium.en

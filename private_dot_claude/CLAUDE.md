@@ -53,8 +53,16 @@ Require per-invocation confirmation. Blanket "yes" doesn't carry over.
 
 ## Code discipline
 
+- **Investigate before implementing (Chesterton's Fence).** Before building or changing anything that
+  touches existing state, map that state first — does the target exist, what is in it, how do the
+  relevant tool's semantics interact with what is already there? Understand why a thing is the way it is
+  before changing it. Surface constraints in the plan, not at deploy time. Verify; don't assume.
 - **YAGNI.** No features, refactors, abstractions, or fallbacks beyond task scope. Three similar lines
   beat a premature abstraction.
+- **SOLID.** All code should be implemented using SOLID principles.
+- **Testing.** Prefer a Classist approach to TDD over Mocks. Test-drive implementations where possible.
+  The TDD process should drive a testing environment that follows SOLID principles, which drives well
+  structure architecture in production code.
 - **No backwards-compat hacks for unshipped code.** Dead code gets deleted.
 - **Glob before creating.** Prefer editing an existing file.
 - **Never patch, fork, or modify the code of third-party tools I don't own** (e.g. osquery). Configure
@@ -89,6 +97,13 @@ Use the `todoist-cli` skill (`td` CLI) on non-trivial work:
 
 Prefer local CLI tools over MCP servers when both work. MCP only for SaaS APIs without a first-class CLI.
 
+Prefer `gh-axi` (an agent-optimized wrapper skill around `gh`, installed via
+`npx skills add kunchenguid/gh-axi --skill gh-axi -g`) over the raw `gh` CLI for every GitHub operation —
+issues, PRs, workflows, releases, everything. `gh` itself stays installed and authenticated purely as
+`gh-axi`'s runtime dependency; never invoke it directly. Prefer `chrome-devtools-axi` (installed the same
+way) over other browser-automation tools (Claude-in-Chrome, Playwright, raw `chrome-devtools-mcp`)
+whenever Chrome DevTools-based browser automation is needed.
+
 ## Backups
 
 Location: `~/workspaces/backups/`. Naming: `YYYY-MM-DDTHH-MM-SS.Name.backup[.ext]` — timestamp first for
@@ -99,12 +114,14 @@ any extension. Applies to files and folders. Examples: `2026-04-20T14-30-00.sett
 ## Toolchain (locked-in — do not suggest migrating)
 
 - **Shell:** bash.
-- **Multiplexer:** tmux.
+- **Multiplexer:** herdr.
 - **Version manager:** Nix flakes per-project (not `mise`).
-- **File manager / git TUI:** `git`, `gh`, and `fzf`.
+- **File manager / git TUI:** `git`, `gh-axi`, and `fzf`.
+- **Browser:** `chrome-devtools-axi`.
 - **Terminal:** Ghostty.
 - **Editor:** Neovim.
 - **Secrets:** KeePassXC.
+- **File Encryption:** `git-crypt`.
 
 ## Agents
 

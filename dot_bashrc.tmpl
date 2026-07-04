@@ -27,13 +27,25 @@ function path_prepend() {
   fi
 }
 
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# NON-INTERACTIVE-SAFE setup (PATH, env, functions). This block runs for every
+# shell that actually sources ~/.bashrc, which includes two NON-interactive login
+# paths: `bash -lc` (via ~/.bash_profile) and `ssh host cmd` (Apple /bin/bash
+# sources ~/.bashrc when SSH_CLIENT is set). Keep it CHEAP. NOTE herdr keybinding
+# commands run via `/bin/sh -lc`, which is DELIBERATELY EXCLUDED: ~/.profile's
+# interactive gate (see dot_profile) stops /bin/sh -lc from reaching ~/.bashrc at
+# all, so those commands inherit PATH from the long-lived herdr server, not this
+# file. Everything genuinely interactive-only (prompt, completions, history,
+# PROMPT_COMMAND/preexec hooks) lives under the `[[ $- == *i* ]]` guard farther
+# down, so the two non-interactive doors above skip ~85ms of pointless init.
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 # ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 # ┃  Global Environment Variables & Settings  ┃
 # ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 EDITOR="$(which nvim)" && export EDITOR
 export BASH_SILENCE_DEPRECATION_WARNING=1
 export MANPAGER="nvim +Man!"
-export TERM='tmux-256color'
 export COLORTERM=truecolor
 export XDG_DATA_HOME="$HOME/.local/share"
 export XDG_CONFIG_HOME="$HOME/.config"
@@ -43,7 +55,7 @@ export USER="${USER:-$(whoami)}"
 
 # Bash history is handled entirely by atuin's daemon (v2 §1.1). Bash built-in
 # history flags (HISTFILE, HISTSIZE, histappend, HISTCONTROL, HISTIGNORE) were
-# removed to eliminate race conditions across tmux panes and redundant writes.
+# removed to eliminate race conditions across herdr panes and redundant writes.
 
 [[ -f "$HOME/.atuin/bin/env" ]] && . "$HOME/.atuin/bin/env"
 
@@ -52,25 +64,31 @@ export USER="${USER:-$(whoami)}"
 # ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 HOMEBREW_PREFIX='/opt/homebrew'
 
-# Configure homebrew_prefix/bin tools.
-eval "$(${HOMEBREW_PREFIX}/bin/brew shellenv)"
-
-# Configure Homebrew system administrator tools.
-path_prepend "${HOMEBREW_PREFIX}/sbin"
+# Brew PATH/env, sourced from a cache that
+# .chezmoiscripts/run_after_44-cache-brew-shellenv.sh.tmpl regenerates from the
+# real `brew shellenv` on every `chezmoi apply`. The non-interactive login doors
+# that reach ~/.bashrc (bash -lc via ~/.bash_profile, `ssh host cmd` via Apple
+# /bin/bash's SSH_SOURCE_BASHRC) need brew on PATH — /etc/paths lacks
+# /opt/homebrew/bin. `eval "$(brew shellenv)"` would spawn brew (~27ms) on each;
+# sourcing the pre-generated cache is ~1ms. Regenerating from the real generator
+# at apply time (rather than hardcoding its output) keeps us in sync with
+# upstream Homebrew's shellenv abstraction and self-heals
+# ${HOMEBREW_PREFIX}/etc/paths. Fall back to a live eval before the first apply.
+__brew_shellenv="${XDG_CACHE_HOME:-$HOME/.cache}/brew-shellenv.sh"
+if [[ -r $__brew_shellenv ]]; then
+  . "$__brew_shellenv"
+else
+  eval "$("${HOMEBREW_PREFIX}/bin/brew" shellenv 2>/dev/null)"
+fi
+unset __brew_shellenv
+# NB: the brew shellenv path_helper line above already places both
+# /opt/homebrew/bin AND /opt/homebrew/sbin on PATH, so there is deliberately no
+# `path_prepend "${HOMEBREW_PREFIX}/sbin"` here — adding one duplicates
+# /opt/homebrew/sbin in PATH.
 
 export SHELL="${HOMEBREW_PREFIX}/bin/bash"
 
-# General Homebrew-Bash completions.
-bash_completion="${HOMEBREW_PREFIX}/opt/bash-completion@2/etc/profile.d/bash_completion.sh"
-[[ -r $bash_completion ]] && . "$bash_completion"
-
-# bash-preexec: provides preexec_functions/precmd_functions arrays that atuin,
-# the long-running command notifier, and tmux-last-proc all depend on.
-# Must load BEFORE atuin init so atuin's hooks register with it. Newer atuin
-# (>= 18.x) no longer bundles bash-preexec.
-# Ref: https://github.com/rcaloras/bash-preexec
-bash_preexec="${HOMEBREW_PREFIX}/etc/profile.d/bash-preexec.sh"
-[[ -r $bash_preexec ]] && . "$bash_preexec"
+export MANPATH="${HOMEBREW_PREFIX}/share/man:${MANPATH}"
 
 # Configure updated curl.
 path_prepend "${HOMEBREW_PREFIX}/opt/curl/bin"
@@ -80,100 +98,102 @@ path_prepend "${HOMEBREW_PREFIX}/opt/trash-cli/bin/"
 
 path_prepend "${HOMEBREW_PREFIX}/opt/gnu-getopt/bin/"
 
-export MANPATH="${HOMEBREW_PREFIX}/share/man:${MANPATH}"
-
-# ┏━━━━━━━━━━━━━━━━━━━━━┓
-# ┃  3rd Party Tooling  ┃
-# ┗━━━━━━━━━━━━━━━━━━━━━┛
-
-# git and gh completions are provided by carapace (below) and, for git, the
-# completion bundled with Homebrew's git formula — both lazy-loaded, so nothing
-# to source here.
-
-# Direnv: https://github.com/direnv/direnv
-eval "$(direnv hook bash)" # Sets the Direnv hook.
-
-# Carapace: universal shell completion engine (v2 §16.3).
-# Ref: https://github.com/carapace-sh/carapace-bin
-# CARAPACE_MATCH=1 enables case-insensitive matching. Carapace registers
-# `complete -F _carapace_completer` for ~700 commands (ls, cat, vim, git, …)
-# and writes COMPREPLY directly, so readline's `completion-ignore-case` does
-# NOT apply to those commands. Without this env var, lowercase prefixes won't
-# match uppercase filenames despite inputrc settings.
-# Docs: https://carapace-sh.github.io/carapace-bin/setup/environment.html
-export CARAPACE_MATCH=1
-command -v carapace &>/dev/null && source <(carapace _carapace bash) 2>/dev/null
-
-# Composio CLI
+# Composio CLI — PATH only (the CLI must resolve in non-interactive shells too).
 # Ref: https://docs.composio.dev/docs/cli
 export COMPOSIO_INSTALL_DIR="$HOME/.composio"
 export PATH="$COMPOSIO_INSTALL_DIR:$PATH"
 
-# Starship: https://starship.rs/
-# Use simplified ASCII config when connecting via Mosh or SSH.
-if [[ -n ${MOSH_KEY:-} || -n ${SSH_CONNECTION:-} ]]; then
-  export STARSHIP_CONFIG="$HOME/.config/starship-mosh.toml"
-fi
-eval "$(starship init bash)"
-
 # Cargo: https://github.com/rust-lang/cargo
-# Direct PATH add instead of sourcing .cargo/env (avoids file read on every shell start).
+# Direct PATH add instead of sourcing .cargo/env (avoids a file read every start).
 [[ -d "$HOME/.cargo/bin" ]] && path_prepend "$HOME/.cargo/bin"
 
 # Volta: https://volta.sh/
 # Append (not prepend) so Volta's node/npm shims do NOT win over Homebrew's
-# `node`. Volta-installed CLI tools (e.g. qmd) still resolve here because
-# nothing earlier in PATH provides those binaries, and their shims dispatch to
-# their pinned Node version internally — independent of PATH order.
+# `node`. Volta-installed CLI tools (e.g. qmd) still resolve here because nothing
+# earlier in PATH provides those binaries, and their shims dispatch internally.
 export VOLTA_HOME="$HOME/.volta"
 [[ -d "$VOLTA_HOME/bin" ]] && PATH="$PATH:$VOLTA_HOME/bin"
 
-# Just: https://github.com/casey/just
-[[ -s "$HOME/.bash_just_completions" ]] && . "$HOME/.bash_just_completions"
-# Ref: https://github.com/casey/just?tab=readme-ov-file#shell-alias
-alias j='just'
-complete -F _just -o bashdefault -o default j
-
-# OpenClaw Completion
-[[ -s "$HOME/.openclaw/completions/openclaw.bash" ]] && . "$HOME/.openclaw/completions/openclaw.bash"
-
-# Worktrunk: https://worktrunk.dev/
-# Defines a `wt` shell function wrapping the binary so `wt switch`/`wt merge`
-# can change the parent shell's directory (a subprocess can't cd its caller —
-# the function reads a directive temp file and runs the cd itself). Without it,
-# `wt switch` finds the worktree but cannot move you there. The init output is
-# self-guarding (`if command -v wt`) and uses `builtin cd`, so it is inert when
-# wt is absent and unaffected by zoxide's later `cd` alias. No PROMPT_COMMAND
-# mutation, so placement here (before zoxide/atuin) is safe.
-eval "$(wt config shell init bash)"
-
 # Nix: https://github.com/NixOS/nix-installer
+# Sets PATH/env for nix; needed by non-interactive shells too.
 nix_daemon='/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh'
 [[ -e $nix_daemon ]] && . "$nix_daemon"
 
 # ┏━━━━━━━━━━━━━━━━━━━━━┓
 # ┃  Utility functions  ┃
 # ┗━━━━━━━━━━━━━━━━━━━━━┛
-# Sourced from ~/.bash_functions for organization. Loaded outside the
-# interactive guard so functions are available to non-interactive
-# sub-shells too (e.g. `bash -c 'mkd /tmp/foo'`).
+# Sourced from ~/.bash_functions for organization. Kept OUTSIDE the interactive
+# guard so functions are available to non-interactive login sub-shells too
+# (e.g. `bash -lc 'mkd /tmp/foo'`).
 [[ -s "$HOME/.bash_functions" ]] && . "$HOME/.bash_functions"
 
-# Per-command Bash completions live in ~/.local/share/bash-completion/completions/
-# and are lazy-loaded by bash-completion@2's dynamic loader (sourced above) on
-# first tab — nothing to source here. Add a file named after the command (e.g.
-# `whisply`), no extension.
+# Order matters! These local (user-level) tools should always take precedence in
+# my environment.
+path_prepend "$HOME/.local/bin"
+path_prepend "$HOME/.bun/bin"
 
-# Fzf: ~/.fzf_bindings (sourced later in the interactive block) loads only
-# key-bindings.bash, NOT completion.bash. Sourcing ~/.fzf.bash here would
-# pull in completion.bash, which registers `complete -F _fzf_path_completion`
-# for ~50 commands and breaks readline's `completion-ignore-case` for them.
-# See https://github.com/junegunn/fzf/tree/master/shell.
+# ⚠️ Writes the updated PATH to the Bash env. Must follow every path_prepend above.
+export PATH
 
-# ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-# ┃  Interactive-only features  ┃
-# ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# INTERACTIVE-ONLY init: prompt, completions, history, and PROMPT_COMMAND/preexec
+# hooks — useless to non-interactive shells and ~85ms of cost. This single guard
+# is the heart of the keypress-latency fix: herdr keybindings, `bash -lc`, and
+# `ssh host cmd` are all non-interactive ($- has no `i`) and skip everything here.
+# Dependency order is load-bearing: bash-preexec BEFORE atuin/notifier; the
+# PROMPT_COMMAND writers in the order direnv -> starship -> zoxide -> atuin.
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 if [[ $- == *i* ]]; then
+  # General Homebrew-Bash completions.
+  bash_completion="${HOMEBREW_PREFIX}/opt/bash-completion@2/etc/profile.d/bash_completion.sh"
+  [[ -r $bash_completion ]] && . "$bash_completion"
+
+  # bash-preexec: provides preexec_functions/precmd_functions arrays that atuin
+  # and the long-running command notifier depend on. Must load BEFORE atuin init
+  # so atuin's hooks register with it. Newer atuin (>= 18.x) no longer bundles it.
+  # Ref: https://github.com/rcaloras/bash-preexec
+  bash_preexec="${HOMEBREW_PREFIX}/etc/profile.d/bash-preexec.sh"
+  [[ -r $bash_preexec ]] && . "$bash_preexec"
+
+  # git and gh completions are provided by carapace (below) and, for git, the
+  # completion bundled with Homebrew's git formula — both lazy-loaded.
+
+  # Direnv: https://github.com/direnv/direnv (PROMPT_COMMAND hook; before starship).
+  eval "$(direnv hook bash)"
+
+  # Carapace: universal shell completion engine (v2 §16.3).
+  # Ref: https://github.com/carapace-sh/carapace-bin
+  # CARAPACE_MATCH=1 enables case-insensitive matching. Carapace registers
+  # `complete -F _carapace_completer` for ~700 commands and writes COMPREPLY
+  # directly, so readline's `completion-ignore-case` does NOT apply to those;
+  # without this env var, lowercase prefixes won't match uppercase filenames.
+  # Docs: https://carapace-sh.github.io/carapace-bin/setup/environment.html
+  export CARAPACE_MATCH=1
+  command -v carapace &>/dev/null && source <(carapace _carapace bash) 2>/dev/null
+
+  # Starship: https://starship.rs/
+  # Use simplified ASCII config when connecting via Mosh or SSH.
+  if [[ -n ${MOSH_KEY:-} || -n ${SSH_CONNECTION:-} ]]; then
+    export STARSHIP_CONFIG="$HOME/.config/starship-mosh.toml"
+  fi
+  eval "$(starship init bash)"
+
+  # Just: https://github.com/casey/just
+  [[ -s "$HOME/.bash_just_completions" ]] && . "$HOME/.bash_just_completions"
+  # Ref: https://github.com/casey/just?tab=readme-ov-file#shell-alias
+  alias j='just'
+  complete -F _just -o bashdefault -o default j
+
+  # OpenClaw Completion
+  [[ -s "$HOME/.openclaw/completions/openclaw.bash" ]] && . "$HOME/.openclaw/completions/openclaw.bash"
+
+  # Worktrunk: https://worktrunk.dev/
+  # Defines a `wt` shell function wrapping the binary so `wt switch`/`wt merge`
+  # can change the parent shell's directory. Self-guarding (`if command -v wt`),
+  # uses `builtin cd`, no PROMPT_COMMAND mutation.
+  eval "$(wt config shell init bash)"
+
+  # ── Aliases ──
   # Zoxide alias.
   alias cd='z'
 
@@ -189,11 +209,10 @@ if [[ $- == *i* ]]; then
   alias du='dust'
   alias ps='procs'
   alias grep='grep --color=auto'
-  alias tmux-purge-resurrect-session-data='rm -f .tmux/resurrect/last .tmux/resurrect/tmux_resurrect*'
   alias p='python3'
   alias git-weekly='git diff --name-status "@{7 days ago}" | sort -u | grep -v "Templates" > weekly-review-files.md'
   alias path='echo $PATH | tr ":" "\n"'
-  alias t='sesh connect uriel'
+  alias h='herdr-jump.sh homelab "$HOME/workspaces/Ivy/webdavis/homelab"'
   alias fman='compgen -c | fzf | xargs man'
 
   # Custom git wrappers and other user aliases.
@@ -223,92 +242,89 @@ if [[ $- == *i* ]]; then
   # Custom Bash Bindings:
   [[ -s "$HOME/.bash_bindings" ]] && . "$HOME/.bash_bindings"
   [[ -s "$HOME/.fzf_bindings" ]] && . "$HOME/.fzf_bindings"
-fi
 
-# Zoxide: https://github.com/ajeetdsouza/zoxide
-# ⚠️ Must initialize after all other tools that modify PROMPT_COMMAND (especially starship).
-eval "$(zoxide init bash)"
+  # Zoxide: https://github.com/ajeetdsouza/zoxide
+  # ⚠️ Must initialize after all other tools that modify PROMPT_COMMAND (especially starship).
+  eval "$(zoxide init bash)"
 
-# Atuin: https://atuin.sh/
-# SQLite-backed shell history via daemon. atuin init registers its own
-# __atuin_preexec/__atuin_precmd with bash-preexec (sourced earlier).
-# ⚠️ Must initialize after zoxide (both modify PROMPT_COMMAND; atuin last).
-eval "$(atuin init bash --disable-up-arrow)"
+  # Atuin: https://atuin.sh/
+  # SQLite-backed shell history via daemon. atuin init registers its own
+  # __atuin_preexec/__atuin_precmd with bash-preexec (sourced earlier).
+  # ⚠️ Must initialize after zoxide (both modify PROMPT_COMMAND; atuin last).
+  eval "$(atuin init bash --disable-up-arrow)"
 
-# ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-# ┃  Atuin daemon drift self-heal                  ┃
-# ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-# If /opt/homebrew/bin/atuin is newer than the daemon's PID file, brew
-# autoupdate (or `chezmoi apply`) replaced the binary while the daemon kept
-# running stale code. Bounce the LaunchAgent in the background. Layered with
-# .chezmoiscripts/run_after_45-bounce-atuin-daemon-on-upgrade.sh.tmpl, which
-# uses version-string comparison at chezmoi-apply time.
-{{ if eq .chezmoi.os "darwin" -}}
-if [[ -f $HOME/.local/share/atuin/atuin-daemon.pid && /opt/homebrew/bin/atuin -nt $HOME/.local/share/atuin/atuin-daemon.pid ]]; then
-  launchctl kickstart -k "gui/$(id -u)/com.webdavis.atuin-daemon" >/dev/null 2>&1 &
-fi
-{{- end }}
-
-# ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-# ┃  Long-running command notifier (v2 §7.1)      ┃
-# ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-# Uses bash-preexec (sourced via Homebrew earlier) instead of a naked DEBUG
-# trap, which would clobber atuin's recording.
-__cmd_notify_start=""
-__cmd_notify_name=""
-
-__cmd_notify_preexec() {
-  __cmd_notify_start=$SECONDS
-  __cmd_notify_name="$1"
-}
-
-__cmd_notify_precmd() {
-  local exit_code=$?
-  [[ -z $__cmd_notify_start ]] && return
-  local elapsed=$((SECONDS - __cmd_notify_start))
-  __cmd_notify_start=""
-  # Skip known interactive TUIs.
-  [[ $__cmd_notify_name =~ ^(vim|nvim|less|man|top|btop|ssh|tmux|claude|fzf) ]] && return
-  # Wrap each background call in a subshell so jobs aren't attached to this
-  # interactive shell (otherwise `fg`/`jobs` would grab them).
-  if ((elapsed >= 300)); then
-    (alerter --timeout 10 --title "Command finished" --message "${__cmd_notify_name%% *} (${elapsed}s)" --sound default >/dev/null 2>&1 &)
-    ("$HOME/.local/bin/hue-pulse.sh" "$exit_code" >/dev/null 2>&1 &)
-  elif ((elapsed >= 30)); then
-    (alerter --timeout 10 --title "Command finished" --message "${__cmd_notify_name%% *} (${elapsed}s)" --sound default >/dev/null 2>&1 &)
+  {{ if eq .chezmoi.os "darwin" -}}
+  # Atuin daemon drift self-heal: if /opt/homebrew/bin/atuin is newer than the
+  # daemon's PID file, brew autoupdate (or `chezmoi apply`) replaced the binary
+  # while the daemon kept running stale code. Bounce the LaunchAgent. Layered with
+  # .chezmoiscripts/run_after_45-bounce-atuin-daemon-on-upgrade.sh.tmpl.
+  if [[ -f $HOME/.local/share/atuin/atuin-daemon.pid && /opt/homebrew/bin/atuin -nt $HOME/.local/share/atuin/atuin-daemon.pid ]]; then
+    launchctl kickstart -k "gui/$(id -u)/com.webdavis.atuin-daemon" >/dev/null 2>&1 &
   fi
-}
+  {{- end }}
 
-# shellcheck disable=SC2034  # preexec_functions/precmd_functions consumed by bash-preexec
-preexec_functions+=(__cmd_notify_preexec)
-# shellcheck disable=SC2034
-precmd_functions+=(__cmd_notify_precmd)
+  {{ if eq .chezmoi.os "darwin" -}}
+  # Brew shellenv cache self-heal: if Homebrew updated its shellenv generator
+  # since the cache was built (e.g. `brew autoupdate` ran `brew update`),
+  # regenerate the cache in the background so the next shell sources fresh output.
+  # Mirrors the atuin drift self-heal above; `just test` is the backstop.
+  __be_cache="${XDG_CACHE_HOME:-$HOME/.cache}/brew-shellenv.sh"
+  __be_gen="${HOMEBREW_REPOSITORY:-/opt/homebrew/Homebrew}/Library/Homebrew/cmd/shellenv.sh"
+  if [[ -f $__be_gen && $__be_gen -nt $__be_cache ]]; then
+    (tmp="$(mktemp "${__be_cache}.XXXXXX")" &&
+      "${HOMEBREW_PREFIX:-/opt/homebrew}/bin/brew" shellenv >"$tmp" 2>/dev/null &&
+      command mv "$tmp" "$__be_cache") & # `command` bypasses the `mv -i` alias
 
-# ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-# ┃  Tmux last-proc exit-code tracker (v2 §21.4)  ┃
-# ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-# Writes the last command's exit code to a per-pane state file, read by
-# ~/.local/bin/tmux-last-proc.sh to pick ✅/❌ for the prev-session display.
-# /tmp is cleared on reboot so no explicit cleanup is needed.
-__tmux_last_proc_precmd() {
-  local exit_code=$?
-  [[ -z ${TMUX_PANE:-} ]] && return
-  local dir="/tmp/tmux-last-proc-${UID}"
-  [[ -d $dir ]] || mkdir -p "$dir" 2>/dev/null || return
-  printf '%s' "$exit_code" >"$dir/$TMUX_PANE" 2>/dev/null
-}
-# shellcheck disable=SC2034
-precmd_functions+=(__tmux_last_proc_precmd)
+  fi
+  unset __be_cache __be_gen
+  {{- end }}
 
-# Order matters! These local (user-level) tools should always take precedence in my environment.
-path_prepend "$HOME/.local/bin"
-path_prepend "$HOME/.bun/bin"
+  # ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+  # ┃  Long-running command notifier (v2 §7.1)      ┃
+  # ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+  # Uses bash-preexec (sourced above) instead of a naked DEBUG trap, which would
+  # clobber atuin's recording.
+  __cmd_notify_start=""
+  __cmd_notify_name=""
 
-# ⚠️ Keep this as the last line. Writes the updated PATH to the Bash `env`.
-export PATH
+  __cmd_notify_preexec() {
+    __cmd_notify_start=$SECONDS
+    __cmd_notify_name="$1"
+  }
+
+  __cmd_notify_precmd() {
+    local exit_code=$?
+    [[ -z $__cmd_notify_start ]] && return
+    local elapsed=$((SECONDS - __cmd_notify_start))
+    __cmd_notify_start=""
+    # Skip known interactive TUIs (incl. agent CLIs -- they fire their own relay hooks).
+    [[ $__cmd_notify_name =~ ^(vim|nvim|less|man|top|btop|ssh|herdr|claude|codex|fzf) ]] && return
+    local cmd="${__cmd_notify_name%% *}" state="done" dur="${elapsed}s"
+    ((exit_code == 0)) || {
+      state="failed"
+      dur="${elapsed}s, exit $exit_code"
+    }
+    # Wrap each background call in a subshell so jobs aren't attached to this
+    # interactive shell (otherwise `fg`/`jobs` would grab them). relay.sh sends a
+    # clickable local notification (click -> focus the herdr pane) at >=1m, and adds
+    # the phone (moshi) + Discord (Hermes) push and the Hue pulse at >=5m. state is
+    # `done` on exit 0, else `failed` (with the exit code carried in the detail).
+    if ((elapsed >= 300)); then
+      ("$HOME/.local/bin/hue-pulse.sh" "$exit_code" >/dev/null 2>&1 &)
+      ("$HOME/.local/bin/relay.sh" --agent shell --state "$state" --project "${PWD##*/}" --detail "$cmd ($dur)" --pane "${HERDR_PANE_ID:-}" >/dev/null 2>&1 &)
+    elif ((elapsed >= 60)); then
+      ("$HOME/.local/bin/relay.sh" --local-only --agent shell --state "$state" --project "${PWD##*/}" --detail "$cmd ($dur)" --pane "${HERDR_PANE_ID:-}" >/dev/null 2>&1 &)
+    fi
+  }
+
+  # shellcheck disable=SC2034  # preexec_functions/precmd_functions consumed by bash-preexec
+  preexec_functions+=(__cmd_notify_preexec)
+  # shellcheck disable=SC2034
+  precmd_functions+=(__cmd_notify_precmd)
+fi
 
 # ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-# ┃  Tmux: Config / Auto-start Session(s)  ┃
+# ┃         Herdr: Auto-attach Session       ┃
 # ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 
 case $- in
@@ -316,34 +332,23 @@ case $- in
   *) return ;; # non-interactive terminal session, exit
 esac
 
-# Skip if tmux isn't installed or already in a session.
-command -v tmux &>/dev/null || return
-[[ -n $TMUX ]] && return
+# Skip if herdr isn't installed or already in a pane.
+command -v herdr &>/dev/null || return
+[[ -n ${HERDR_ENV:-} ]] && return
 
 # Do not interfere with non-interactive remote commands (ssh host 'cmd').
 [[ -n ${SSH_ORIGINAL_COMMAND:-} ]] && return
 
-# Skip tmux for VS Code Remote SSH connections (prevents OOM from multiple background sessions).
+# Skip herdr for VS Code Remote SSH connections.
 [[ -n ${VSCODE_INJECTION:-} ]] && return
 
-# Skip tmux for VS Code integrated terminals.
+# Skip herdr for VS Code integrated terminals.
 [[ ${TERM_PROGRAM:-} == "vscode" ]] && return
 
-# Bail if Tmux server/session is already running.
-if ! sh -c 'tmux ls >/dev/null 2>&1'; then
-  # No tmux server — bootstrap sessions.
-  tmux_resurrect_data="$HOME/.tmux/resurrect/last"
-  if [[ -f $tmux_resurrect_data ]]; then
-    # Bare `tmux` starts the server; tmux-continuum auto-restores saved sessions.
-    tmux
-  elif command -v sesh &>/dev/null; then
-    # Create the three default sessions via sesh-bootstrap, then attach to uriel.
-    "$HOME/.local/bin/sesh-bootstrap.sh" 2>/dev/null
-    tmux attach -t uriel 2>/dev/null || tmux new -s uriel
-  fi
-else
-  # Server already running — attach to (or switch to) the uriel session.
-  if command -v sesh &>/dev/null; then
-    sesh connect uriel
-  fi
-fi
+# Launch or attach to the persistent herdr session (starts the server if it
+# isn't running). herdr has no launch-into-workspace flag, so this opens the
+# last-focused workspace — homelab once you've been there, since the session
+# persists. Jump to homelab anytime via prefix+ctrl+h or the `h` alias.
+# NOTE: `herdr workspace create` is a socket call that needs a running server
+# and does not attach the terminal — do not use it here.
+herdr

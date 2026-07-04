@@ -18,12 +18,23 @@ room_name="${HUE_PULSE_ROOM:-3F - Studio}"
 command -v openhue &>/dev/null || exit 0
 command -v jq &>/dev/null || exit 0
 
+# Serialize concurrent pulses so two triggers (e.g. a Stop hook and the long-command notifier firing at
+# once) queue instead of interleaving openhue calls and restoring each other's transient state. mkdir is
+# atomic; wait up to ~30s for our turn, then give up rather than pile stale pulses up.
+lock="${TMPDIR:-/tmp}/hue-pulse.lock"
+tries=0
+until mkdir "$lock" 2>/dev/null; do
+  sleep 0.5
+  tries=$((tries + 1))
+  if ((tries > 60)); then exit 0; fi
+done
+trap 'rmdir "$lock" 2>/dev/null || true; [[ -n ${state_file:-} ]] && rm -f "$state_file"' EXIT
+
 room_id=$(openhue get room --json 2>/dev/null |
-  jq -r --arg name "$room_name" '.. | select(.Name? == $name) | .Id' | head -1)
+  jq -r --arg name "$room_name" '.. | select(.Name? == $name) | .Id' | head -1 || true)
 [[ -z $room_id ]] && exit 0
 
 state_file=$(mktemp)
-trap 'rm -f "$state_file"' EXIT
 
 # Snapshot each light in the room: id, on-state, brightness, color mode, and
 # the color value(s) — either mirek (color temp) or CIE xy.
@@ -40,7 +51,7 @@ openhue get light --json 2>/dev/null |
       (if .HueData.color_temperature.mirek_valid == true then (.HueData.color_temperature.mirek | tostring) else (.HueData.color.xy.x | tostring) end),
       (if .HueData.color_temperature.mirek_valid == true then "" else (.HueData.color.xy.y | tostring) end)
     ] | @tsv
-  ' >"$state_file"
+  ' >"$state_file" || true
 
 [[ ! -s $state_file ]] && exit 0
 
@@ -95,3 +106,7 @@ while IFS=$'\t' read -r lid on_state bri mode v1 v2; do
     openhue set light "$lid" --off --transition-time 500ms 2>/dev/null || true
   fi
 done <"$state_file"
+
+# Best-effort notifier: a failed pulse must never fail the caller (Stop hook /
+# long-command notifier). Any openhue hiccup above is swallowed; exit clean.
+exit 0
