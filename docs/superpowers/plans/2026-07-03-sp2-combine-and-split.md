@@ -37,6 +37,14 @@ Every task's requirements implicitly include these. Values copied verbatim from 
 - **Chezmoi applies:** never run bare `chezmoi apply` from automation (KeePassXC-gated templates need a
   TTY). Use `chezmoi apply --exclude=templates --force`, or apply specific non-template files by name.
   Pause and ask the operator to apply KeePassXC-gated files interactively.
+- **Design + testing standard (binding, per the spec's essential-feed section and decisions log #6):**
+  **TDD drives the design** — for every piece of new logic, write the failing test first, show the red
+  run, implement minimally, show green; no implementation-first work passes review. **SOLID** at the
+  language's altitude: single-responsibility units behind clear seams, wired at one composition point.
+  **Classist (Detroit-school) testing:** real collaborators in domain tests; test doubles only at true
+  I/O boundaries (network, subprocess, filesystem, clock) — the `test/osquery-alerter/lib.bash` harness
+  is the in-repo exemplar and the template for all bats work. Transplanted (already-tested) code carries
+  its tests in the same PR and runs green; any behavior change to it starts with a failing test.
 - **Every PR is self-contained and fully wired** — no dead code, no half-feature waiting on a later PR,
   no file that nothing references by the time the PR merges. A migration that removes an old tool must
   add its replacement in the same PR (main is never left half-migrated).
