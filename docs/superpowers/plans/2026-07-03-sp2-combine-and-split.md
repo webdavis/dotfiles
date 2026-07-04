@@ -526,9 +526,22 @@ encryption, discourse.nixos.org (git-crypt/agenix/sops-nix comparison).
 ### R5 — Agent skills/memory: architecture correct; reproducibility + supply-chain gaps (amends S3 + S12)
 
 The `~/.agents` store + symlink fan-out + `AGENTS.md`→`CLAUDE.md` model is correct and, in places, ahead
-of the ecosystem (AGENTS.md convention, Anthropic's Agent Skills). But **verified on disk**: **20 live
+of the ecosystem (AGENTS.md convention, Anthropic's Agent Skills). But **verified on disk**: **21 live
 store skills vs 12 committed vs 9 Claude `symlink_` declarations vs 0 Hermes declarations** — a fresh
-`chezmoi apply` reproduces only 9 of 20 skills into Claude and none into Hermes.
+`chezmoi apply` reproduces only ~9 of 21 skills into Claude and none into Hermes.
+
+**Keep/deprecate decision (operator, 2026-07-04): keep ALL 21 — deprecate none** (the operator uses each
+at different times; the earlier "overlap" flags were retracted as unfounded — `last30days` [trend
+research], `tiktok-crawling` [bulk scrape], and `video-transcript-downloader` [transcripts] do genuinely
+different jobs, and the four `hyperframes*` skills are an interdependent suite whose descriptions
+cross-delegate, so they are all-or-nothing). The task is therefore purely **reproducibility**, not
+culling.
+
+**The 9 uncommitted skills S3 must capture** (committed or install-manifested — verified 2026-07-04):
+`chrome-devtools-axi`, `cua-driver`, `elevenlabs`, `gh-axi`, `home-assistant`, `kubernetes-specialist`,
+`last30days`, `sql-toolkit`, `tiktok-crawling`. **Note `gh-axi` and `chrome-devtools-axi` are among
+them** — the repo's own *preferred* GitHub and browser tools would silently not reproduce on a fresh
+machine. Each has a known source (npx-skills / clawhub) captured during this session; S3 records those.
 
 **Changes to apply:**
 
