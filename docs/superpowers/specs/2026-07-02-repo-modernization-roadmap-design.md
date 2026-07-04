@@ -346,13 +346,18 @@ against source and adversarially verified (2 candidates were refuted and dropped
 
 ### Do these first (sequenced — before any other ledger work)
 
-1. **Interactive `chezmoi apply`** (operator, KeePassXC unlocked): re-deploys `~/.aws/credentials` +
-   `~/.config/himalaya/config.toml` at 0600 **and** normalizes `~/.claude/CLAUDE.md` (purely additive
-   now that the fork is reconciled in source — `4ac97de`).
-2. **UDR API key + client-list probe** (operator creates the key; agent probes from the home network):
-   the last unanswered question gating the final SP3 spec.
-3. **SP1 operator key ceremony** (age-keygen + KeePassXC entry), then SP1 agent steps 0–7.
-4. Then **writing-plans** for SP1/SP2 execution.
+1. ~~Interactive `chezmoi apply`~~ **DONE 2026-07-03** (three upstream/setup bugs found and fixed en
+   route: Homebrew 6.x bundle-cleanup behavior change, moshi re-pair on consumed token + pipefail guard,
+   tap re-trust after `brew update`). Credentials at 0600, CLAUDE.md normalized, osquery heartbeat live.
+2. ~~UDR API key + client-list probe~~ **DONE 2026-07-03** — results banked in the SP3 home-module
+   section above.
+3. ~~SP1 key ceremony + agent steps~~ **DONE 2026-07-03** (`c13cc18`, `a0e7d8e`, `3696c92`): encryption
+   live, config captured encrypted + round-trip exact, old yq mechanism retired, fresh-machine restore
+   script in place, both hermes guards enforcing, full suite green. SP1 is complete.
+4. **Next: writing-plans** for SP2 execution. Non-blocking operator odds and ends whenever convenient:
+   `trash` the plaintext `~/.hermes/config.yaml.bak.*` backups (destructive — confirm per file);
+   `brew uninstall goplaces`; `npm uninstall -g openclaw`; phone-side Focus whitelist + Discord `#relay`
+   mobile mute.
 
 ### Fixed this session (baseline — already on the branch)
 
@@ -561,11 +566,24 @@ guarantee delivery; presence only optimizes *which* surface.
 ### Home — its own multi-signal module
 
 Emits `{home, not_home, unknown}` + which signals voted, each with a freshness window: UniFi UDR local
-API (`X-API-KEY`, JSON `meta`/`data`) "is `mister`/`mouse` on home Wi-Fi" (**needs the 8am probe + the
-operator's API key**); geofence Shortcut writing `home|work|gym` + timestamp over Tailscale SSH; dresden
-network identity by **gateway MAC** (subnet numbers lie on foreign networks — verified: the work hotspot
-presents a 192.168.x.x that isn't home). Extensible (Home Assistant / mmWave slot in later). Own test
-suite.
+API "is `mister`/`mouse` on home Wi-Fi"; geofence Shortcut writing `home|work|gym` + timestamp over
+Tailscale SSH; dresden network identity by **gateway MAC** (subnet numbers lie on foreign networks —
+verified: the work hotspot presents a 192.168.x.x that isn't home). Extensible (Home Assistant / mmWave
+slot in later). Own test suite.
+
+**UDR probe — verified live 2026-07-03 (zero open questions):** key = KeePassXC
+`UniFi :: API Key :: dresden-home-presence` (runtime: a 0600 chezmoi-templated file like relay's
+`auth.json`; header `X-API-KEY`, never argv — probe used a curl config file). Flow:
+`GET https://192.168.1.1/proxy/network/integration/v1/sites` → `data[0].id` (one site, internalReference
+`default`) → `GET .../sites/{id}/clients?limit=200` → array of **currently-connected** clients with
+`name`, `type` (WIRELESS/WIRED), `ipAddress`, `macAddress`, `connectedAt` (association freshness —
+exactly the vote fields). Self-signed cert (`insecure` for the LAN IP). **Latency:** first call after
+idle ≈ 11.4 s (UDR-side session init, one-time), warm 44–200 ms → probe with a ~2 s timeout, treat a
+miss as `unknown` (fail-open). **Findings:** `mister` present with MAC matching the ARP baseline; the
+**Hue bridge appears cross-VLAN (WIRED, 192.168.4.24)** in the same list, so one call doubles as a
+bridge-reachable/home-LAN check; `mouse` (watch) was **absent while its owner was home** — watches drop
+Wi-Fi for Bluetooth when the phone is near, empirically confirming the watch is a weak voter and the
+phone is the strong one.
 
 ### Routing, lights, delivery
 
