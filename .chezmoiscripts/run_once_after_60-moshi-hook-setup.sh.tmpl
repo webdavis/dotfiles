@@ -15,8 +15,8 @@
 # no per-event opt-out (only --target / --local; verified via
 # `moshi-hook install --help`), and patching the third-party binary is not
 # permitted. So Claude Code's hooks are owned solely by chezmoi's modify-template
-# (private_dot_claude/modify_settings.json), which already wires a Stop-only done
-# notifier (~/.local/bin/claude-moshi-notify.sh). Excluding claude here keeps
+# (private_dot_claude/modify_settings.json), which already wires the relay
+# notifier (relay-agent.sh done, on Stop). Excluding claude here keeps
 # moshi-hook off Claude Code entirely, so only the agent-response (Stop) push
 # fires -- never one on prompt submission. moshi-hook still manages every other
 # CLI natively.
@@ -33,7 +33,15 @@
 
 set -euo pipefail
 
-/opt/homebrew/bin/moshi-hook pair --token {{ $token | quote }}
+# Pairing tokens are single-use, and `run_once_` re-fires whenever this script's
+# CONTENT changes (not just once per machine) -- so on an already-paired host a
+# re-run must skip the pair step, or the consumed token fails the whole apply
+# (observed live: "moshi api /hosts/register: Invalid pairing token").
+if /opt/homebrew/bin/moshi-hook status 2>/dev/null | grep -q '^status: *paired'; then
+  echo "moshi-hook already paired -- skipping pair"
+else
+  /opt/homebrew/bin/moshi-hook pair --token {{ $token | quote }}
+fi
 /opt/homebrew/bin/moshi-hook uninstall --target codex 2>/dev/null || true
 /opt/homebrew/bin/moshi-hook install --target opencode,gemini,cursor,kimi,qwen,grok,omp,pi
 /opt/homebrew/bin/brew services start moshi-hook
