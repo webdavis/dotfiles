@@ -27,12 +27,12 @@ justfile shortcuts:
 ```bash
 just l             # Format everything in place (shfmt, mdformat, nixfmt, taplo + jq/yq validators)
 just L             # lint-check: check-only drift gate (runs `nix flake check`)
-just s             # Shellcheck only
+just s             # Shellcheck only (incl. rendered chezmoi templates)
 just S             # shfmt (format shell files) only
 just m             # mdformat only
 just n             # nixfmt only
 just t             # taplo (TOML) only
-just j             # jq (JSON validation) only
+just j             # jq (JSON validation, incl. rendered osquery configs) only
 just y             # yq (YAML validation) only
 ```
 
@@ -233,11 +233,14 @@ Templates conditionally branch on `.chezmoi.os` and, where they pull secrets, ca
 
 ### Template Shellcheck Workaround
 
-Shell templates contain Go template syntax that shellcheck can't parse directly. The lint script renders
-first: `CI=1 chezmoi execute-template --no-tty <file | shellcheck -`. Only `dot_bashrc.tmpl` is rendered;
-it no longer calls `keepassxc`, so the `CI=1` env var is defensive (vestigial from an earlier version
-where bashrc had a CI-vs-interactive branch). Other templates with CI branches (e.g. `identity.yml.tmpl`)
-are not shell-linted.
+Shell templates contain Go template syntax that shellcheck can't parse directly. The
+`shellcheck-rendered-template` formatter in `treefmt.nix` renders first:
+`CI=1 chezmoi execute-template --no-tty <file | shellcheck -`. Only `dot_bashrc.tmpl` and
+`.chezmoiscripts/run_onchange_before_50-setup-osquery.sh.tmpl` are rendered; neither calls `keepassxc`,
+so the `CI=1` env var is defensive (vestigial from an earlier version where bashrc had a
+CI-vs-interactive branch). Other templates with CI branches (e.g. `identity.yml.tmpl`) are not
+shell-linted. A sibling formatter, `osquery-config-render`, renders the JSON-bodied
+`.chezmoitemplates/osquery/*.conf` templates via `includeTemplate` and validates the result with jq.
 
 ### OS Targeting
 

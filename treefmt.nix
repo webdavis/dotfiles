@@ -45,6 +45,60 @@ let
     '';
   };
 
+  # Chezmoi shell templates contain Go template syntax that shellcheck can't
+  # parse directly: render first, then shellcheck the result. CI=1 keeps the
+  # templates on their non-interactive branch; --source "$PWD" so
+  # includeTemplate resolves against this checkout's .chezmoitemplates
+  # (treefmt runs formatters from the tree root).
+  shellcheckRenderedTemplate = pkgs.writeShellApplication {
+    name = "shellcheck-rendered-template";
+    runtimeInputs = [
+      pkgs.chezmoi
+      pkgs.shellcheck
+    ];
+    text = ''
+      # chezmoi needs a writable HOME; the Nix check sandbox has none.
+      HOME="$(mktemp -d)"
+      export HOME
+      status=0
+      for file do
+        CI=1 chezmoi --source "$PWD" execute-template --no-tty <"$file" | shellcheck - || {
+          echo "shellcheck-rendered-template: rendered template failed shellcheck: $file" >&2
+          status=1
+        }
+      done
+      exit "$status"
+    '';
+  };
+
+  # osquery's config and packs are JSON-bodied .conf templates assembled by
+  # run_onchange_before_50-setup-osquery.sh.tmpl via includeTemplate. The plain
+  # *.json validator never sees them, and a broken config silently stops the
+  # daemon from loading. Render each (osquery.conf carries {{ .chezmoi.homeDir }}
+  # directives) and jq-validate the result.
+  osqueryConfigRender = pkgs.writeShellApplication {
+    name = "osquery-config-render";
+    runtimeInputs = [
+      pkgs.chezmoi
+      pkgs.jq
+    ];
+    text = ''
+      HOME="$(mktemp -d)"
+      export HOME
+      status=0
+      for file do
+        # Source path -> includeTemplate name (drop the .chezmoitemplates/ prefix).
+        tmpl="''${file#./}"
+        tmpl="''${tmpl#.chezmoitemplates/}"
+        CI=1 chezmoi --source "$PWD" execute-template --no-tty \
+          "{{ includeTemplate \"''${tmpl}\" . }}" | jq empty || {
+          echo "osquery-config-render: rendered config is not valid JSON: $file" >&2
+          status=1
+        }
+      done
+      exit "$status"
+    '';
+  };
 in
 {
   projectRootFile = "flake.nix";
@@ -62,7 +116,7 @@ in
   ];
 
   # Shell — the old lint.sh shell set: *.sh, *.bash, dot_bash*, dot_profile
-  # (never *.tmpl).
+  # (never *.tmpl; rendered templates are handled below).
   programs.shellcheck.enable = true;
   programs.shellcheck.includes = [
     "*.sh"
@@ -139,6 +193,22 @@ in
     includes = [
       ".chezmoidata/*.yaml"
       ".chezmoidata/*.yml"
+    ];
+  };
+
+  # Chezmoi-specific checks ported from lint.sh (see the let-bindings above).
+  settings.formatter.shellcheck-rendered-template = {
+    command = shellcheckRenderedTemplate;
+    includes = [
+      "dot_bashrc.tmpl"
+      ".chezmoiscripts/run_onchange_before_50-setup-osquery.sh.tmpl"
+    ];
+  };
+  settings.formatter.osquery-config-render = {
+    command = osqueryConfigRender;
+    includes = [
+      ".chezmoitemplates/osquery/*.conf"
+      ".chezmoitemplates/osquery/**/*.conf"
     ];
   };
 }

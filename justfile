@@ -31,7 +31,7 @@ lint-check:
   nix flake check
 
 lint-shell:
-  nix develop .#run --command treefmt --formatters shellcheck
+  nix develop .#run --command treefmt --formatters shellcheck,shellcheck-rendered-template
 
 format-shell:
   nix develop .#run --command treefmt --formatters shfmt
@@ -46,7 +46,7 @@ lint-toml:
   nix develop .#run --command treefmt --formatters taplo
 
 lint-json:
-  nix develop .#run --command treefmt --formatters jq-validate
+  nix develop .#run --command treefmt --formatters jq-validate,osquery-config-render
 
 lint-yaml:
   nix develop .#run --command treefmt --formatters yq-validate
