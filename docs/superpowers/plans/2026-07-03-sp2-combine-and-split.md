@@ -588,24 +588,41 @@ existing design.)*
 
 ### R8 — macOS endpoint hardening: keep osquery standalone; add two cheap layers, skip the enterprise ones (amends S9 / S10; operator sign-off)
 
-Recovered inline 2026-07-04 (the original workflow agent tripped a cyber-topic classifier; decomposed
-product-lookup queries pass cleanly — see the safeguard note below). Findings for a **solo personal Mac**,
-decision-oriented:
+The initial subagent tripped a cyber-topic classifier; the research was recovered two ways — decomposed
+in-loop product lookups, then a re-run subagent that also ran **read-only checks on dresden itself** (the
+richer source, used below). Findings for a **solo personal Mac**, decision-oriented.
 
-| Tool | Purpose | brew | Maintenance | Verdict for dresden |
+**⚠ Top action item — SIP is currently DISABLED on dresden** (`csrutil status` → disabled), almost
+certainly a yabai-era leftover (Aerospace does not need SIP off). System Integrity Protection is a core
+macOS defense; re-enabling requires a one-time Recovery-mode `csrutil enable`. **Verify nothing still
+depends on it, then re-enable.** Not automatable (Recovery-only, by design) and osquery-adjacent →
+operator action, tracked as a check-only assertion. This is the single highest-value finding.
+
+Also measured live: FileVault **on**, Gatekeeper **on**, app firewall **on** but **stealth mode off**;
+osquery 5.23.1 already deployed with the six `com.webdavis.osquery-*` jobs; none of the tools below
+installed.
+
+| Tool | Purpose | brew cask | Maint. | Verdict for dresden |
 | --- | --- | --- | --- | --- |
-| **osquery standalone** | scheduled host queries | — | low | **KEEP — already correct.** It's lightweight and fine on one machine; Fleet / fleet-managers are multi-device tooling, overkill here. Validates S9's existing standalone three-tier design. |
-| **LuLu** (Objective-See) | outbound/egress firewall | cask | low-med (initial prompt tuning, then set-and-forget) | **ADD.** The one layer Apple's inbound-only firewall lacks — catches malware phone-home. chezmoi-trackable. Needs macOS 14+. |
-| **OverSight** (Objective-See) | mic/camera-on alerts | cask | low | **ADD (cheap).** Not covered by osquery at all — genuinely additive. |
-| **BlockBlock / KnockKnock** | persistence monitor / scanner | cask | low | **SKIP (redundant).** osquery already watches launchd / launch-agents / daemons; add only if you want the GUI alerts on top. |
-| **Santa** (North Pole Security) | binary allowlisting | cask | **high** (ongoing allowlist tuning) | **SKIP for solo** (enterprise-shaped). If curious, run MONITOR/log-only, never lockdown. Works without a sync server via `santactl`, but the tuning burden isn't worth it for one laptop. |
-| **Native: FileVault / firewall+stealth / Gatekeeper / SIP** | baseline posture | n/a | none | **ENSURE ON + chezmoi-track the CLI verifications** (`csrutil status`, `spctl`, `fdesetup status`, firewall socketfilterfw) — the cheapest wins; fits S10. |
+| **osquery standalone** | scheduled host queries | (installed) | low | **KEEP — already correct.** Fine on one machine in exactly the shape already built (local config + differential queries + local alerter); Fleet is multi-device overkill. Caveat for S9: `interval` counts *daemon-uptime*, and sleep pauses it — a "daily" query can take days on a laptop; schedule tighter than the wall-clock target. |
+| **LuLu** (Objective-See) | outbound firewall | `lulu` | low after ~1wk training | **ADD.** The open-source Little Snitch; the one layer Apple's inbound-only firewall lacks (catches malware phone-home). v4 supports profiles. |
+| **BlockBlock** (Objective-See) | real-time persistence *alerts* | `blockblock` | set-and-forget | **ADD (corrected from my first pass).** NOT redundant with osquery — osquery differential-logs launchd on a schedule; BlockBlock is a real-time GUI *alert* the instant anything installs persistence. Different capability. |
+| **KnockKnock** (Objective-See) | on-demand persistence scan + VirusTotal | `knockknock` | zero (run monthly) | **ADD.** On-demand VT lookups osquery doesn't do; complements, not duplicates. |
+| **OverSight** (Objective-See) | mic/camera-on alerts | `oversight` | zero | **ADD.** Not covered by osquery at all. |
+| **Secretive** (maxgoedjen) | SSH keys in the Secure Enclave | `secretive` | one-time migration | **ADD — high value for a developer.** Makes SSH keys non-exfiltratable (they never leave the enclave). New. |
+| **Santa** (North Pole Security) | binary allowlisting | `santa` | **high** | **SKIP for solo.** Its value is LOCKDOWN mode = perpetual allowlist curation on a machine that compiles new binaries daily; MONITOR mode mostly duplicates BlockBlock+KnockKnock+osquery. Google archived `google/santa` 2025-02; maintained fork is `northpolesec/santa`. |
+| **Pareto Security** | menu-bar settings auditor | `pareto-security` | zero | **OPTIONAL — redundant here.** The repo's `macos_defaults.yaml` drift system + the posture assertions below already cover it declaratively. |
+| **Native: FileVault / firewall+stealth / Gatekeeper / SIP** | baseline posture | n/a | none | **Track in chezmoi.** macOS-version gotchas (verified): script the firewall via `socketfilterfw` **only** — Sequoia+ removed the `com.apple.alf` plist as source of truth; Gatekeeper can no longer be flipped by `spctl` (System-Settings-gated now); FileVault/SIP are **check-only** assertions (don't automate enable — Recovery/DEP-gated). Set **stealth mode on** (currently off) via `socketfilterfw --setstealthmode on` in `macos_system_setup.yaml`. |
 
-**Operator sign-off required** (osquery/security is your domain, spec decision 4): this is a
-recommendation for you to approve — nothing lands in S9/S10 without your yes. If accepted, LuLu +
-OverSight are two `.chezmoidata` cask entries + a settings note; the native-posture checks fold into S10.
-Sources: objective-see.org/tools, github.com/northpolesec/santa, fleetdm.com (osquery standalone-vs-fleet),
-drduh.github.io/macOS-Security-and-Privacy-Guide.
+**Operator sign-off required** (osquery/security is your domain, spec decision 4): a recommendation for
+you to approve — nothing lands in S9/S10 without your yes. If accepted: the four Objective-See casks +
+Secretive are `.chezmoidata` cask entries; stealth-mode + the SIP/FileVault/Gatekeeper check-only
+assertions fold into S10; and S9 gains the two osquery gap-queries the research flagged (a differential
+`listening_ports`⋈`processes`, and a `system_extensions`/`kernel_extensions` differential) **iff** the
+packs don't already cover them — a query-content change, so explicitly your call.
+Sources: objective-see.org/tools, github.com/northpolesec/santa (+ archived google/santa), santa.dev,
+osquery.readthedocs.io/deployment/configuration, support.apple.com/121011 (Sequoia firewall plist),
+developer.apple.com SIP docs, github.com/maxgoedjen/secretive, drduh.github.io/macOS-Security-and-Privacy-Guide.
 
 ### Gaps (honest)
 
