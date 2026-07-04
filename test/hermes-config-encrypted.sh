@@ -25,7 +25,12 @@ grep -qE '(_config_version|deliver_only|basic_auth):' "$enc" && fail "plaintext 
 [[ ! -e dot_hermes/private_config.yaml && ! -e dot_hermes/config.yaml ]] || fail "a plaintext config sibling exists in dot_hermes/"
 [[ ! -e dot_hermes/modify_private_config.yaml.tmpl && ! -e private/relay-hermes-route.yq ]] || fail "old modify_ mechanism still present"
 [[ ! -e dot_hermes/private_dot_env ]] || fail "a rendered plaintext .env (private_dot_env) is present -- it must stay a .tmpl"
-grep -rlq 'AGE-SECRET-KEY-1' . --exclude-dir=.git 2>/dev/null && fail "an age PRIVATE key is in the source tree"
+# Match only REAL keys: the marker followed by a long bech32 tail. Prose that
+# merely mentions the marker (specs, this file) never has the tail, so docs stay
+# covered against actual leaks without tripping on documentation. The pattern is
+# additionally split across adjacent quoted strings so this line's own bytes can
+# never match it.
+grep -rlqE 'AGE-SECRET-KEY-''1[A-Z0-9]{40,}' . --exclude-dir=.git 2>/dev/null && fail "an age PRIVATE key is in the source tree"
 for p in dot_hermes/config.yaml.bak.test dot_hermes/key.txt dot_hermes/backups/pre-migration-x.zip; do
   git check-ignore -q "$p" || fail ".gitignore failsafe is not covering $p"
 done
