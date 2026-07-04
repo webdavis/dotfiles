@@ -30,6 +30,7 @@
         baseShell = pkgs.mkShell {
           buildInputs = [
             nixfmt
+            pkgs.bats # bats-core: test runner for the test/**/*.bats suites (`just test`)
             pkgs.chezmoi
             pkgs.jq # JSON validator (v2 §19.2)
             (pkgs.python312.withPackages (

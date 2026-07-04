@@ -38,6 +38,18 @@ auto-formats in place and reports diffs. On commit, the per-repo `.githooks/pre-
 
 To enter an interactive dev shell with all tools: `nix develop`.
 
+### Testing
+
+```bash
+just test               # Run every test in test/ (build-tool style; pre-commit runs this too)
+```
+
+Tests are plain executable `test/*.sh` scripts (source-only — `.chezmoiignore`d). `just test` runs them
+all and fails if any exits non-zero — and it is green when `test/` is missing or empty. Shell tests use
+host tools (e.g. `brew`) and run outside the Nix shell; bats suites (`test/**/*.bats`) run inside
+`nix develop .#run` (the flake provides `bats`). Add a test by dropping a new executable `test/<name>.sh`
+in place — it is picked up automatically.
+
 ### Chezmoi Operations
 
 ```bash
@@ -126,9 +138,10 @@ Bypass all hooks for one commit: `git commit --no-verify`.
 ### Source-Only Files
 
 Some files are dev/CI only and are excluded from `$HOME` via `.chezmoiignore`: `justfile`, `scripts/`,
-`.githooks/`, `flake.nix`, `flake.lock`, `.envrc`, `.shellcheckrc`, `.editorconfig`, `.mdformat.toml`,
-`assets/`, `docs/`, `private/`, `README.md`, `LICENSE`, `.gitignore`, `.worktrees/`, `**/.DS_Store`. Only
-chezmoi-managed files (`dot_`, `private_`, `run_`, etc. prefixes) reach the target state.
+`test/`, `.githooks/`, `flake.nix`, `flake.lock`, `.envrc`, `.shellcheckrc`, `.editorconfig`,
+`.mdformat.toml`, `assets/`, `docs/`, `private/`, `README.md`, `LICENSE`, `.gitignore`, `.worktrees/`,
+`**/.DS_Store`. Only chezmoi-managed files (`dot_`, `private_`, `run_`, etc. prefixes) reach the target
+state.
 
 ### Minimum Chezmoi Version
 

@@ -12,6 +12,7 @@ private/
 justfile
 .envrc
 scripts/
+test/
 
 # Ignore formatter/linter configs:
 .shellcheckrc

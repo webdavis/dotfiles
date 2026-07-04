@@ -12,6 +12,7 @@ alias n := format-nix
 alias t := lint-toml
 alias j := lint-json
 alias y := lint-yaml
+alias T := test
 alias d := diff
 alias a := apply-no-auth
 alias c := check
@@ -52,6 +53,26 @@ apply-no-auth:
 
 check:
   nix develop .#run --command nix flake check --all-systems
+
+# Run all repo tests: hand-rolled executable test/*.sh (host tools, outside Nix)
+# plus the bats suites (test/**/*.bats) inside the Nix devshell — the flake
+# provides bats, so no host install is needed and the suite runs the same on a
+# fresh machine. Find-driven and empty-safe: green when test/ is missing or has
+# no test scripts. The pre-commit hook runs this too, so every commit requires
+# all tests to pass.
+test:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  status=0
+  while IFS= read -r -d '' t; do
+    printf "== %s ==\n" "$t"
+    "$t" || status=1
+  done < <(find test -maxdepth 1 -type f -name '*.sh' -perm -u+x -print0 2>/dev/null | sort -z)
+  if find test -type f -name '*.bats' -print -quit 2>/dev/null | grep -q .; then
+    printf "== %s ==\n" "bats"
+    nix develop .#run --command bats --recursive test/ || status=1
+  fi
+  exit "$status"
 
 # macOS Defaults: drift, apply, capture
 
