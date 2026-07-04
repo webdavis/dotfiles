@@ -75,10 +75,13 @@ plus the gitleaks pre-commit gate, `.gitignore` failsafe block, and `scripts/lin
 
 ```bash
 mkdir -p ~/.config/chezmoi
-age-keygen -o ~/.config/chezmoi/key.txt   # prints the public key
+chezmoi age-keygen --output=$HOME/.config/chezmoi/key.txt   # prints the public key
 chmod 600 ~/.config/chezmoi/key.txt
 # Store the FULL key.txt contents in KeePassXC as "chezmoi :: age identity" (crown jewel).
 ```
+
+(Chezmoi-driven keygen per the official age guide — one toolchain end to end; the raw `age-keygen`
+binary produces an identical key but is not the workflow this repo standardizes on.)
 
 **Agent steps (after the key exists):**
 
