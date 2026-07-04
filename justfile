@@ -18,32 +18,38 @@ alias a := apply-no-auth
 alias c := check
 alias D := defaults-drift
 
+# Format everything in place. treefmt (configured in treefmt.nix) is the
+# single lint/format orchestrator; the per-tool recipes below just filter it.
 lint:
-  nix develop .#run --command ./scripts/lint.sh
+  nix develop .#run --command treefmt
 
+# Check-only drift gate: builds the flake's treefmt check derivation, which
+# runs treefmt on a sandboxed copy of the tree — reports drift, never mutates
+# the working tree or index (treefmt itself has no dry-run mode, so the
+# sandbox copy is what makes this check-only). Same gate CI runs.
 lint-check:
-  LINT_CHECK=1 nix develop .#run --command ./scripts/lint.sh
+  nix flake check
 
 lint-shell:
-  nix develop .#run --command ./scripts/lint.sh -s
+  nix develop .#run --command treefmt --formatters shellcheck
 
 format-shell:
-  nix develop .#run --command ./scripts/lint.sh -S
+  nix develop .#run --command treefmt --formatters shfmt
 
 format-markdown:
-  nix develop .#run --command ./scripts/lint.sh -m
+  nix develop .#run --command treefmt --formatters mdformat
 
 format-nix:
-  nix develop .#run --command ./scripts/lint.sh -n
+  nix develop .#run --command treefmt --formatters nixfmt
 
 lint-toml:
-  nix develop .#run --command ./scripts/lint.sh -t
+  nix develop .#run --command treefmt --formatters taplo
 
 lint-json:
-  nix develop .#run --command ./scripts/lint.sh -j
+  nix develop .#run --command treefmt --formatters jq-validate
 
 lint-yaml:
-  nix develop .#run --command ./scripts/lint.sh -y
+  nix develop .#run --command treefmt --formatters yq-validate
 
 diff:
   nix develop .#run --command chezmoi diff --exclude=templates

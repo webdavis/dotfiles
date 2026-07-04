@@ -19,22 +19,27 @@ naming conventions: `dot_` prefix maps to `.`, `private_` sets permissions, `exe
 
 ### Linting & Formatting
 
-All lint/format tooling runs via the Nix flake dev shell. Use the justfile shortcuts:
+All lint/format tooling is orchestrated by [treefmt](https://treefmt.com/) via
+[treefmt-nix](https://github.com/numtide/treefmt-nix): `treefmt.nix` holds the formatter configuration,
+and the flake's `checks.treefmt` derivation makes `nix flake check` fail on any format drift. Use the
+justfile shortcuts:
 
 ```bash
-just l          # Run all linters (shellcheck, shfmt, mdformat, nixfmt, taplo, jq, yq)
-just s          # Shellcheck only
-just S          # shfmt (format shell files) only
-just m          # mdformat only
-just n          # nixfmt only
-just t          # taplo (TOML) only
-just j          # jq (JSON) only
-just y          # yq (YAML) only
+just l             # Format everything in place (shfmt, mdformat, nixfmt, taplo + jq/yq validators)
+just L             # lint-check: check-only drift gate (runs `nix flake check`)
+just s             # Shellcheck only
+just S             # shfmt (format shell files) only
+just m             # mdformat only
+just n             # nixfmt only
+just t             # taplo (TOML) only
+just j             # jq (JSON validation) only
+just y             # yq (YAML validation) only
 ```
 
-These invoke `nix develop .#run --command ./scripts/lint.sh` with the appropriate flag. The lint script
-auto-formats in place and reports diffs. On commit, the per-repo `.githooks/pre-commit` hook runs
-`just lint-check` (check-only) — auto-wired via the user-wide dispatcher, no install step. See Git Hooks.
+`just l` auto-formats in place. `just lint-check` never mutates the working tree or index: treefmt has no
+dry-run mode, so the check runs on a sandboxed copy inside the Nix check derivation. On commit, the
+per-repo `.githooks/pre-commit` hook runs `just lint-check` (check-only) — auto-wired via the user-wide
+dispatcher, no install step. See Git Hooks.
 
 To enter an interactive dev shell with all tools: `nix develop`.
 
@@ -246,7 +251,8 @@ Template files use `{{ if eq .chezmoi.os "darwin" }}` for macOS-specific content
 - `default` — interactive shell with colored status output.
 - `run` — headless shell used by `just` and CI.
 
-Tools provided: chezmoi, shellcheck, shfmt, mdformat (with GFM plugin), nixfmt-tree, taplo, jq, yq-go.
+Tools provided: the repo-configured `treefmt` wrapper (bundling shellcheck, shfmt, mdformat with the GFM
+plugin, nixfmt, taplo, and the jq/yq validators from `treefmt.nix`), plus bats and chezmoi.
 
 ### CI
 
@@ -373,12 +379,12 @@ Replaces the default battery slot in `@tmux2k-right-plugins` with `last-proc net
 
 ## Code Style
 
-- Shell files: 2-space indent, case-indent enabled, simplified (`shfmt -i 2 -ci -s`). Always pass these
-  flags explicitly — `.editorconfig` only covers `dot_fzf*` and `dot_bash*` patterns, and the Nix
-  `default` shell hook wrapper only applies in interactive `nix develop` sessions, not when lint.sh is
-  invoked via `nix develop .#run --command` (subprocess execution).
+- Shell files: 2-space indent, case-indent enabled, simplified (`shfmt -i 2 -ci -s`, wired in
+  `treefmt.nix`). When running shfmt by hand, pass these flags explicitly — `.editorconfig` only covers
+  `dot_fzf*` and `dot_bash*` patterns, for editors.
 - Markdown: wrapped at 105 columns, non-consecutive numbering (`mdformat` with `.mdformat.toml`).
-- Nix: formatted with `nixfmt-tree`.
+- Nix: formatted with nixfmt (RFC 166 style — `treefmt.nix` pins `pkgs.nixfmt-rfc-style` because the bare
+  `nixfmt` attribute in nixpkgs 25.05 is still nixfmt-classic).
 - TOML: formatted with `taplo`. `dot_aerospace.toml` is excluded (preserves user's visual alignment).
 - ShellCheck directives: SC1090 and SC1091 are globally disabled (`.shellcheckrc`).
 

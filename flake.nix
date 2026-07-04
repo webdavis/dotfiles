@@ -4,13 +4,16 @@
 
     Provides:
       - Separate interactive and ad-hoc dev shells
-      - Nixfmt for formatting Nix expressions
-        ↪ Ref: https://github.com/NixOS/nixfmt?tab=readme-ov-file#nix-fmt-experimental
+      - treefmt (via treefmt-nix) as the single lint/format orchestrator
+        ↪ Config: ./treefmt.nix — Ref: https://github.com/numtide/treefmt-nix
+      - A `checks.treefmt` derivation so `nix flake check` fails on format drift
   '';
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05";
     flake-utils.url = "github:numtide/flake-utils";
+    treefmt-nix.url = "github:numtide/treefmt-nix";
+    treefmt-nix.inputs.nixpkgs.follows = "nixpkgs";
   };
 
   outputs =
@@ -18,6 +21,7 @@
       self,
       nixpkgs,
       flake-utils,
+      treefmt-nix,
       ...
     }:
     flake-utils.lib.eachSystem [ "x86_64-linux" "aarch64-darwin" ] (
@@ -25,36 +29,19 @@
       let
         pkgs = import nixpkgs { inherit system; };
 
-        nixfmt = nixpkgs.legacyPackages.${system}.nixfmt-tree;
+        treefmtEval = treefmt-nix.lib.evalModule pkgs ./treefmt.nix;
 
         baseShell = pkgs.mkShell {
           buildInputs = [
-            nixfmt
+            treefmtEval.config.build.wrapper # `treefmt` with this repo's config baked in
             pkgs.bats # bats-core: test runner for the test/**/*.bats suites (`just test`)
             pkgs.chezmoi
-            pkgs.jq # JSON validator (v2 §19.2)
-            (pkgs.python312.withPackages (
-              ps: with ps; [
-                mdformat
-                mdformat-gfm
-              ]
-            ))
-            pkgs.shellcheck
-            pkgs.shfmt
-            pkgs.taplo # TOML formatter/linter (v2 §19.1)
-            pkgs.yq-go # YAML validator (v2 §19.1)
           ];
-
-          shellHook = ''
-            shfmt() {
-              command shfmt -i 2 -ci -s "$@"
-            }
-          '';
         };
 
         interactiveShell = pkgs.mkShell {
           buildInputs = baseShell.buildInputs;
-          shellHook = baseShell.shellHook + ''
+          shellHook = ''
             red="\e[91m"
             green="\e[32m"
             blue="\e[34m"
@@ -68,21 +55,16 @@
             echo -e "''${bold}Project:''${reset} ''${green}''${projectName}''${reset}"
 
             echo -e "''${bold}Nix version:''${reset} ''${red}$(nix --version | cut -d' ' -f2-)''${reset}"
-            echo -e "''${bold}Nix fmt version:''${reset} ''${red}$(nix fmt -- --version)''${reset}"
-
-            echo -e "''${bold}Python version:''${reset} ''${red}$(python --version | awk '{print $2}')''${reset}"
-            echo -e "''${bold}mdformat version:''${reset} ''${red}$(mdformat --version | cut -d' ' -f2-)''${reset}"
-
+            echo -e "''${bold}treefmt version:''${reset} ''${red}$(treefmt --version | cut -d' ' -f2-)''${reset}"
             echo -e "''${bold}Bash version:''${reset} ''${red}$(bash --version | head -n 1)''${reset}"
-            echo -e "''${bold}shellcheck version:''${reset} ''${red}$(shellcheck --version | awk '/^version:/ {print $2}')''${reset}"
-            echo -e "''${bold}shfmt version:''${reset} ''${red}$(shfmt --version)''${reset}"
           '';
         };
       in
       {
         devShells.default = interactiveShell;
         devShells.run = baseShell;
-        formatter = nixfmt;
+        formatter = treefmtEval.config.build.wrapper;
+        checks.treefmt = treefmtEval.config.build.check self;
       }
     );
 }
