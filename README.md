@@ -126,13 +126,13 @@ mdformat README.md
 Run a single command in a temporary environment without entering the shell:
 
 ```bash
-nix develop .#adhoc --command ./scripts/lint.sh
+nix develop .#run --command treefmt
 ```
 
 > [!TIP]
 >
-> You can replace `./scripts/lint.sh` with any command you want to execute inside the development
-> environment (e.g. `mdformat README.md`).
+> You can replace `treefmt` with any command you want to execute inside the development environment (e.g.
+> `mdformat README.md`).
 
 ### Bonus: justfile
 

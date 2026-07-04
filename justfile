@@ -12,37 +12,51 @@ alias n := format-nix
 alias t := lint-toml
 alias j := lint-json
 alias y := lint-yaml
+alias T := test
 alias d := diff
 alias a := apply-no-auth
 alias c := check
 alias D := defaults-drift
 
+# Format everything in place. treefmt (configured in treefmt.nix) is the
+# single lint/format orchestrator; the per-tool recipes below just filter it.
 lint:
-  nix develop .#run --command ./scripts/lint.sh
+  nix develop .#run --command treefmt
 
+# Check-only drift gate: builds the flake's treefmt check derivation, which
+# runs treefmt on a sandboxed copy of the tree — reports drift, never mutates
+# the working tree or index (treefmt itself has no dry-run mode, so the
+# sandbox copy is what makes this check-only). Same gate CI runs.
 lint-check:
-  LINT_CHECK=1 nix develop .#run --command ./scripts/lint.sh
+  nix flake check
 
 lint-shell:
-  nix develop .#run --command ./scripts/lint.sh -s
+  nix develop .#run --command treefmt --formatters shellcheck,shellcheck-rendered-template
 
 format-shell:
-  nix develop .#run --command ./scripts/lint.sh -S
+  nix develop .#run --command treefmt --formatters shfmt
 
 format-markdown:
-  nix develop .#run --command ./scripts/lint.sh -m
+  nix develop .#run --command treefmt --formatters mdformat
 
 format-nix:
-  nix develop .#run --command ./scripts/lint.sh -n
+  nix develop .#run --command treefmt --formatters nixfmt
 
 lint-toml:
-  nix develop .#run --command ./scripts/lint.sh -t
+  nix develop .#run --command treefmt --formatters taplo
 
 lint-json:
-  nix develop .#run --command ./scripts/lint.sh -j
+  nix develop .#run --command treefmt --formatters jq-validate,osquery-config-render
 
 lint-yaml:
-  nix develop .#run --command ./scripts/lint.sh -y
+  nix develop .#run --command treefmt --formatters yq-validate
+
+# GitHub Actions hygiene: actionlint (syntax/semantics, also part of `just l`)
+# plus zizmor (static security analysis; --offline skips the audits that need
+# the GitHub API, so the result is deterministic). CI runs this too.
+lint-actions:
+  nix develop .#run --command treefmt --formatters actionlint
+  nix develop .#run --command zizmor --offline .github/workflows
 
 diff:
   nix develop .#run --command chezmoi diff --exclude=templates
@@ -52,6 +66,26 @@ apply-no-auth:
 
 check:
   nix develop .#run --command nix flake check --all-systems
+
+# Run all repo tests: hand-rolled executable test/*.sh (host tools, outside Nix)
+# plus the bats suites (test/**/*.bats) inside the Nix devshell — the flake
+# provides bats, so no host install is needed and the suite runs the same on a
+# fresh machine. Find-driven and empty-safe: green when test/ is missing or has
+# no test scripts. The pre-commit hook runs this too, so every commit requires
+# all tests to pass.
+test:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  status=0
+  while IFS= read -r -d '' t; do
+    printf "== %s ==\n" "$t"
+    "$t" || status=1
+  done < <(find test -maxdepth 1 -type f -name '*.sh' -perm -u+x -print0 2>/dev/null | sort -z)
+  if find test -type f -name '*.bats' -print -quit 2>/dev/null | grep -q .; then
+    printf "== %s ==\n" "bats"
+    nix develop .#run --command bats --recursive test/ || status=1
+  fi
+  exit "$status"
 
 # macOS Defaults: drift, apply, capture
 

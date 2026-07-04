@@ -19,24 +19,42 @@ naming conventions: `dot_` prefix maps to `.`, `private_` sets permissions, `exe
 
 ### Linting & Formatting
 
-All lint/format tooling runs via the Nix flake dev shell. Use the justfile shortcuts:
+All lint/format tooling is orchestrated by [treefmt](https://treefmt.com/) via
+[treefmt-nix](https://github.com/numtide/treefmt-nix): `treefmt.nix` holds the formatter configuration,
+and the flake's `checks.treefmt` derivation makes `nix flake check` fail on any format drift. Use the
+justfile shortcuts:
 
 ```bash
-just l          # Run all linters (shellcheck, shfmt, mdformat, nixfmt, taplo, jq, yq)
-just s          # Shellcheck only
-just S          # shfmt (format shell files) only
-just m          # mdformat only
-just n          # nixfmt only
-just t          # taplo (TOML) only
-just j          # jq (JSON) only
-just y          # yq (YAML) only
+just l             # Format everything in place (shfmt, mdformat, nixfmt, taplo + jq/yq validators)
+just L             # lint-check: check-only drift gate (runs `nix flake check`)
+just s             # Shellcheck only (incl. rendered chezmoi templates)
+just S             # shfmt (format shell files) only
+just m             # mdformat only
+just n             # nixfmt only
+just t             # taplo (TOML) only
+just j             # jq (JSON validation, incl. rendered osquery configs) only
+just y             # yq (YAML validation) only
+just lint-actions  # actionlint + zizmor on .github/workflows
 ```
 
-These invoke `nix develop .#run --command ./scripts/lint.sh` with the appropriate flag. The lint script
-auto-formats in place and reports diffs. On commit, the per-repo `.githooks/pre-commit` hook runs
-`just lint-check` (check-only) — auto-wired via the user-wide dispatcher, no install step. See Git Hooks.
+`just l` auto-formats in place. `just lint-check` never mutates the working tree or index: treefmt has no
+dry-run mode, so the check runs on a sandboxed copy inside the Nix check derivation. On commit, the
+per-repo `.githooks/pre-commit` hook runs `just lint-check` (check-only) — auto-wired via the user-wide
+dispatcher, no install step. See Git Hooks.
 
 To enter an interactive dev shell with all tools: `nix develop`.
+
+### Testing
+
+```bash
+just test               # Run every test in test/ (build-tool style; pre-commit runs this too)
+```
+
+Tests are plain executable `test/*.sh` scripts (source-only — `.chezmoiignore`d). `just test` runs them
+all and fails if any exits non-zero — and it is green when `test/` is missing or empty. Shell tests use
+host tools (e.g. `brew`) and run outside the Nix shell; bats suites (`test/**/*.bats`) run inside
+`nix develop .#run` (the flake provides `bats`). Add a test by dropping a new executable `test/<name>.sh`
+in place — it is picked up automatically.
 
 ### Chezmoi Operations
 
@@ -108,11 +126,14 @@ Both hooks live in the **user-wide** hooks dir — `core.hooksPath = ~/.config/g
 - **`prepare-commit-msg` — user-wide AI commit messages.** Prepopulates a Conventional Commits message
   via Claude Sonnet (internals under **AI Commit Messages** below). Bails on `-m`/merge/rebase; bypass
   with `SKIP_AI_COMMIT=1`.
-- **`pre-commit` — per-repo lint, via a dispatcher.** `dot_config/git/hooks/executable_pre-commit` runs
-  in every repo but only acts when the repository tracks an executable `.githooks/pre-commit`, which it
-  then `exec`s. This repo's `.githooks/pre-commit` runs `just lint-check` (check-only — reports drift,
-  never mutates the tree or index). No install step: the dispatcher is user-wide and the repo hook is
-  committed with its executable bit.
+- **`pre-commit` — per-repo lint + tests + secret scan, via a dispatcher.**
+  `dot_config/git/hooks/executable_pre-commit` runs in every repo but only acts when the repository
+  tracks an executable `.githooks/pre-commit`, which it then `exec`s. This repo's `.githooks/pre-commit`
+  runs `just lint-check` (check-only — reports drift, never mutates the tree or index), then `just test`
+  (the full `test/` suite — see Testing), then `gitleaks git --staged --redact` (blocks any staged
+  plaintext secret; gitleaks is provisioned as a Homebrew formula, and the stage is skipped when the
+  binary is absent). All three must pass; a failure blocks the commit. No install step: the dispatcher is
+  user-wide and the repo hook is committed with its executable bit.
 
 **Why a dispatcher, not `git config core.hooksPath .githooks`?** `core.hooksPath` is single-valued, so a
 per-repo override shadows the user-wide `prepare-commit-msg`. The dispatcher keeps the global hook
@@ -126,9 +147,10 @@ Bypass all hooks for one commit: `git commit --no-verify`.
 ### Source-Only Files
 
 Some files are dev/CI only and are excluded from `$HOME` via `.chezmoiignore`: `justfile`, `scripts/`,
-`.githooks/`, `flake.nix`, `flake.lock`, `.envrc`, `.shellcheckrc`, `.editorconfig`, `.mdformat.toml`,
-`assets/`, `docs/`, `private/`, `README.md`, `LICENSE`, `.gitignore`, `.worktrees/`, `**/.DS_Store`. Only
-chezmoi-managed files (`dot_`, `private_`, `run_`, etc. prefixes) reach the target state.
+`test/`, `treefmt.nix`, `.githooks/`, `flake.nix`, `flake.lock`, `.envrc`, `.shellcheckrc`,
+`.editorconfig`, `.mdformat.toml`, `assets/`, `docs/`, `private/`, `README.md`, `LICENSE`, `.gitignore`,
+`.worktrees/`, `**/.DS_Store`. Only chezmoi-managed files (`dot_`, `private_`, `run_`, etc. prefixes)
+reach the target state.
 
 ### Minimum Chezmoi Version
 
@@ -215,11 +237,14 @@ Templates conditionally branch on `.chezmoi.os` and, where they pull secrets, ca
 
 ### Template Shellcheck Workaround
 
-Shell templates contain Go template syntax that shellcheck can't parse directly. The lint script renders
-first: `CI=1 chezmoi execute-template --no-tty <file | shellcheck -`. Only `dot_bashrc.tmpl` is rendered;
-it no longer calls `keepassxc`, so the `CI=1` env var is defensive (vestigial from an earlier version
-where bashrc had a CI-vs-interactive branch). Other templates with CI branches (e.g. `identity.yml.tmpl`)
-are not shell-linted.
+Shell templates contain Go template syntax that shellcheck can't parse directly. The
+`shellcheck-rendered-template` formatter in `treefmt.nix` renders first:
+`CI=1 chezmoi execute-template --no-tty <file | shellcheck -`. Only `dot_bashrc.tmpl` and
+`.chezmoiscripts/run_onchange_before_50-setup-osquery.sh.tmpl` are rendered; neither calls `keepassxc`,
+so the `CI=1` env var is defensive (vestigial from an earlier version where bashrc had a
+CI-vs-interactive branch). Other templates with CI branches (e.g. `identity.yml.tmpl`) are not
+shell-linted. A sibling formatter, `osquery-config-render`, renders the JSON-bodied
+`.chezmoitemplates/osquery/*.conf` templates via `includeTemplate` and validates the result with jq.
 
 ### OS Targeting
 
@@ -233,12 +258,17 @@ Template files use `{{ if eq .chezmoi.os "darwin" }}` for macOS-specific content
 - `default` — interactive shell with colored status output.
 - `run` — headless shell used by `just` and CI.
 
-Tools provided: chezmoi, shellcheck, shfmt, mdformat (with GFM plugin), nixfmt-tree, taplo, jq, yq-go.
+Tools provided: the repo-configured `treefmt` wrapper (bundling shellcheck, shfmt, mdformat with the GFM
+plugin, nixfmt, taplo, actionlint, and the jq/yq/chezmoi-render validators from `treefmt.nix`), plus
+bats, chezmoi, and zizmor.
 
 ### CI
 
-GitHub Actions (`.github/workflows/lint.yml`) runs on `macos-latest`. Runs
-`nix flake check --all-systems` and `./scripts/lint.sh` on pushes to main and PRs.
+GitHub Actions (`.github/workflows/lint.yml`) runs on `macos-latest` on pushes to main and PRs, with
+workflow-level `permissions: contents: read`, `persist-credentials: false` on checkout, and actions
+SHA-pinned to full commit SHAs (`.github/dependabot.yml` keeps the pins fresh weekly; no auto-merge).
+Steps: `nix flake check --all-systems` (the treefmt drift gate), `just test`, and
+`zizmor --offline .github/workflows` — the latter two inside the flake's `run` shell.
 
 ### Tmux Session Management
 
@@ -360,12 +390,12 @@ Replaces the default battery slot in `@tmux2k-right-plugins` with `last-proc net
 
 ## Code Style
 
-- Shell files: 2-space indent, case-indent enabled, simplified (`shfmt -i 2 -ci -s`). Always pass these
-  flags explicitly — `.editorconfig` only covers `dot_fzf*` and `dot_bash*` patterns, and the Nix
-  `default` shell hook wrapper only applies in interactive `nix develop` sessions, not when lint.sh is
-  invoked via `nix develop .#run --command` (subprocess execution).
+- Shell files: 2-space indent, case-indent enabled, simplified (`shfmt -i 2 -ci -s`, wired in
+  `treefmt.nix`). When running shfmt by hand, pass these flags explicitly — `.editorconfig` only covers
+  `dot_fzf*` and `dot_bash*` patterns, for editors.
 - Markdown: wrapped at 105 columns, non-consecutive numbering (`mdformat` with `.mdformat.toml`).
-- Nix: formatted with `nixfmt-tree`.
+- Nix: formatted with nixfmt (RFC 166 style — `treefmt.nix` pins `pkgs.nixfmt-rfc-style` because the bare
+  `nixfmt` attribute in nixpkgs 25.05 is still nixfmt-classic).
 - TOML: formatted with `taplo`. `dot_aerospace.toml` is excluded (preserves user's visual alignment).
 - ShellCheck directives: SC1090 and SC1091 are globally disabled (`.shellcheckrc`).
 
