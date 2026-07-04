@@ -89,6 +89,12 @@ binary produces an identical key but is not the workflow this repo standardizes 
    `grep -rlq 'AGE-SECRET-KEY-1'` matches its own source file, so the guard's first *enforcing* run —
    the moment the `.age` file exists — fails every commit with a false leak alarm. Exclude the test
    itself (or split the marker string) before anything below.
+0b. **Fresh-machine key restore (so new machines need zero new manual steps):** add a
+   `run_once_before` script (or extend the `.install-password-manager.sh` pre-hook) that, when
+   `~/.config/chezmoi/key.txt` is missing, pulls the `chezmoi :: age identity` entry out of KeePassXC
+   and writes it 0600. Generation happens once ever (the operator ceremony); every future machine
+   *restores* the same key through the KeePassXC unlock the bootstrap already requires. Add the
+   matching line to `docs/runbooks/macos-fresh-machine-quickstart.md`.
 1. Edit `.chezmoi.toml.tmpl`: `encryption = "age"` (bare key above the first table), `[age]`
    `identity`/`recipient` (recipient = the public key), `[add] secrets = "error"`; `chezmoi init`;
    verify via `chezmoi dump-config`.
