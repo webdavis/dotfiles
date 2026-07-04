@@ -51,6 +51,13 @@ lint-json:
 lint-yaml:
   nix develop .#run --command treefmt --formatters yq-validate
 
+# GitHub Actions hygiene: actionlint (syntax/semantics, also part of `just l`)
+# plus zizmor (static security analysis; --offline skips the audits that need
+# the GitHub API, so the result is deterministic). CI runs this too.
+lint-actions:
+  nix develop .#run --command treefmt --formatters actionlint
+  nix develop .#run --command zizmor --offline .github/workflows
+
 diff:
   nix develop .#run --command chezmoi diff --exclude=templates
 

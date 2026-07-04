@@ -34,6 +34,7 @@ just n             # nixfmt only
 just t             # taplo (TOML) only
 just j             # jq (JSON validation, incl. rendered osquery configs) only
 just y             # yq (YAML validation) only
+just lint-actions  # actionlint + zizmor on .github/workflows
 ```
 
 `just l` auto-formats in place. `just lint-check` never mutates the working tree or index: treefmt has no
@@ -258,7 +259,8 @@ Template files use `{{ if eq .chezmoi.os "darwin" }}` for macOS-specific content
 - `run` — headless shell used by `just` and CI.
 
 Tools provided: the repo-configured `treefmt` wrapper (bundling shellcheck, shfmt, mdformat with the GFM
-plugin, nixfmt, taplo, and the jq/yq validators from `treefmt.nix`), plus bats and chezmoi.
+plugin, nixfmt, taplo, actionlint, and the jq/yq/chezmoi-render validators from `treefmt.nix`), plus
+bats, chezmoi, and zizmor.
 
 ### CI
 

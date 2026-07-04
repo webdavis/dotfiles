@@ -173,6 +173,9 @@ in
   programs.taplo.enable = true;
   programs.taplo.excludes = [ "dot_aerospace.toml" ];
 
+  # GitHub Actions workflow linting.
+  programs.actionlint.enable = true;
+
   # JSON validation. Chezmoi modify_ templates share the .json extension of
   # their target file but contain Go template directives, so jq can't parse
   # them.
@@ -187,7 +190,8 @@ in
     ];
   };
 
-  # YAML validation — parity with lint.sh: only .chezmoidata is validated.
+  # YAML validation — parity with lint.sh: only .chezmoidata is validated
+  # (workflow YAML is covered by actionlint above).
   settings.formatter.yq-validate = {
     command = yqValidate;
     includes = [

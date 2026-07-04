@@ -36,6 +36,7 @@
             treefmtEval.config.build.wrapper # `treefmt` with this repo's config baked in
             pkgs.bats # bats-core: test runner for the test/**/*.bats suites (`just test`)
             pkgs.chezmoi
+            pkgs.zizmor # GitHub Actions static analysis (`just lint-actions`)
           ];
         };
 
