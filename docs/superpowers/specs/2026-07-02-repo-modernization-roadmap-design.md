@@ -45,6 +45,17 @@ cycles with their banked decisions so nothing has to be re-litigated.
    real collaborators in domain tests, test doubles only at true input/output boundaries (network,
    subprocess, filesystem, clock). This aligns the user's global CLAUDE.md rules with the
    essential-feed-case-study strategy the brief mandates.
+7. **macOS system config stays chezmoi-native, not nix-darwin** (banked 2026-07-04 via deep-research).
+   S10's `defaults write` + system-setup approach is affirmed: nix-darwin would fork the chezmoi/KeePassXC
+   secret model and add a second apply path for a solo maintainer, with no offsetting win at this scale.
+   A nix-darwin go/no-go (**SP-nix**) is deferred as a research-first sibling of SP4, not adopted inside
+   SP2. Source: github.com/nix-darwin/nix-darwin.
+8. **Secrets-at-rest stays chezmoi-native age** (affirmed 2026-07-04 via deep-research vs sops/sops-nix/
+   agenix/git-crypt). One X25519 identity restored from KeePassXC is current best practice for a solo
+   macOS chezmoi setup; the alternatives each add a second toolchain or a NixOS coupling the repo does
+   not want. The migration caveats (multi-recipient for the home server, rotation/DR, git-history) are
+   banked as S8 work and the deferred laptop→home-server item below. Source:
+   chezmoi.io/user-guide/encryption/age.
 
 ## Sub-project sequence
 
@@ -77,7 +88,7 @@ plus the gitleaks pre-commit gate, `.gitignore` failsafe block, and `scripts/lin
 mkdir -p ~/.config/chezmoi
 chezmoi age-keygen --output=$HOME/.config/chezmoi/key.txt   # prints the public key
 chmod 600 ~/.config/chezmoi/key.txt
-# KeePassXC entry "chezmoi :: age identity": paste ONLY the AGE-SECRET-KEY-1... line
+# KeePassXC entry "chezmoi :: Private Key :: age": paste ONLY the AGE-SECRET-KEY-1... line
 # into the PASSWORD field (single line, house pattern — same field every other
 # template reads via keepassxc(...).Password).
 ```
@@ -96,7 +107,7 @@ public key lives in `.chezmoi.toml.tmpl` and is also re-derivable from the secre
    itself (or split the marker string) before anything below.
 0b. **Fresh-machine key restore (so new machines need zero new manual steps):** add a
    `run_once_before` template script that, when `~/.config/chezmoi/key.txt` is missing, writes the
-   `chezmoi :: age identity` entry's **Password** attribute (the single `AGE-SECRET-KEY` line — a
+   `chezmoi :: Private Key :: age` entry's **Password** attribute (the single `AGE-SECRET-KEY` line — a
    complete identity, proven by round trip) to the file 0600, via the same `keepassxc(...).Password`
    template call every other secret uses — riding the one DB unlock chezmoi already prompts for and
    caches per apply. Generation happens once ever (the operator ceremony); every future machine
@@ -215,6 +226,14 @@ sub-projects.
   unpushed `nvim-overhaul` branch — 10 commits at `~/.paseo/worktrees/1sk17y2x/nvim-overhaul`); then
   migrate `~/.config/nvim` (separate repo, 52 Lua files) into `dot_config/nvim/` under chezmoi and
   modernize per the re-evaluated design.
+- **SP-nix — nix-darwin go/no-go (deferred, research-first).** Sibling of SP4 (nushell): evaluate whether
+  nix-darwin should manage macOS system config instead of chezmoi's `defaults`/system-setup scripts.
+  Banked prior (decision 7): chezmoi holds for now; this is the formal re-evaluation, cross-referenced to
+  P5 (Determinate Nix). Not part of SP2.
+- **Age laptop→home-server migration (deferred).** When the always-home Linux server takes the daemon
+  role: it generates its own X25519 identity, `.chezmoi.toml.tmpl` switches to a **`recipients` list**
+  (both machines) so files encrypt to both, and the darwin guard on `run_once_before_05-restore-age-key`
+  is generalized. Plus the S8 rotation/DR runbook. Banked from the 2026-07-04 secrets-at-rest research.
 - **SP7 — Sweep + backlog.** The p-tasks table above + findings accumulated while reading every file
   during SP2's split + S1/S2/S4 re-ruling + Todoist hygiene. Ships as small PRs; nothing lands unwired.
 

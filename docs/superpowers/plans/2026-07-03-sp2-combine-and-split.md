@@ -142,7 +142,7 @@ those files (procedure in the Slice Protocol). No file is orphaned.
 | Slice | Feature | File groups (from the bucketed delta) | Ledger fixes folded in | Dep |
 | --- | --- | --- | --- | --- |
 | S1 | Docs | `docs/**` (20: the herdr/tailscale/brew/relay/notifications specs+plans, the modernization brief, this plan, the never-sleep policy), `AGENTS.md` (new symlink→CLAUDE.md) | — | none |
-| S2 | Lint/test/CI hardening | `scripts/lint.sh`, `.githooks/pre-commit`, `.github/workflows/lint.yml`, `.editorconfig`/`.shellcheckrc`/`.mdformat.toml` hunks | CI runs tests + `LINT_CHECK=1`; wire **actionlint** (P9); pin `nix-installer-action@<tag>`; `lint.sh` runner-selection subshell bug; `-r` optstring crash; template shellcheck allowlist → programmatic; `find` prune set dedup; bats `grep -c` zero-count false-pass | S1 |
+| S2 | Lint/test/CI hardening | `scripts/lint.sh`, `.githooks/pre-commit`, `.github/workflows/lint.yml`, `.editorconfig`/`.shellcheckrc`/`.mdformat.toml` hunks | CI runs tests + `LINT_CHECK=1`; wire **actionlint** + **zizmor** (P9); **SHA-pin** actions (installer has no tags — see research §Actions); `lint.sh` runner-selection subshell bug; `-r` optstring crash; template shellcheck allowlist → programmatic; `find` prune set dedup; bats `grep -c` zero-count false-pass | S1 |
 | S3 | Skills-store consolidation | `dot_local/bin/executable_update-skills.sh`, `dot_agents/skills/**`, `private_dot_claude/skills/symlink_*`, `skills-lock.json`, delete `private_dot_claude/skills/web-research-task/**` | update-skills **loader script + `~/.local/log/skills` dir**; declare all store symlinks; remove stale `.agents/skills/moshi-best-practices/`; single symlink-owner | S2 |
 | S4 | herdr migration | `dot_config/herdr/**`, `dot_local/share/herdr/plugins/**` (2 Rust plugins), the `run_onchange_after_55/57` build scripts, herdr hunks of `dot_bashrc.tmpl`; **atomically deletes** `dot_tmux.conf`, `dot_config/sesh/**`, `dot_local/bin/executable_{sesh-*,tmux-*,claude-restart}.sh`, `run_after_70-install-tmux2k-last-proc` | herdr plugin build scripts → `.chezmoitemplates` partial; `grep -q "$plugin_id"` anchoring; `dot_fzf_bindings` tmux-dead widgets; `nvm`/`$blue` binding fixes | S2 |
 | S5 | Tailscale headless daemon | `run_onchange_after_66-tailscaled-status.sh.tmpl`, tailscale hunks of `system_packages_autoinstall.yaml` + `CLAUDE.md` | tailscale-monitor already fixed (`2f430b3`, on main? verify) | S2 |
@@ -235,7 +235,12 @@ its own specifics (files, wiring to verify, gotchas, review focus); the mechanic
   The recipe must be green on a still-empty tree; real test files arrive with their feature slices.
 - **Ledger fixes are the substance here.** Test-drive each with the bats/`test-*.sh` harness:
   - CI: edit `.github/workflows/lint.yml` to run `just test` and set `LINT_CHECK=1` on the lint step;
-    pin `NixOS/nix-installer-action@<current-release-tag>` (look up the tag, don't use `@main`).
+    **SHA-pin** `NixOS/nix-installer-action` and `actions/checkout` to full commit SHAs — the
+    installer action publishes **no tags and no releases** (verified via GitHub API 2026-07-04), so
+    `@vX`/`@<tag>` is impossible and `@main` is the mutable-supply-chain risk; resolve the current SHA
+    at implementation time and add a `# vX.Y.Z` trailing comment. Also add workflow-level
+    `permissions: contents: read` (least privilege) and `with: persist-credentials: false` on checkout.
+    See the research section (GitHub Actions supply-chain) for the full set + `dependabot.yml` + zizmor.
   - `lint.sh` runner-selection subshell bug: the `parse_cli_options` nameref result is discarded in a
     `$(...)` subshell → every `just <tool>` runs the full suite in write mode. Fix: populate `runners` in
     the caller's shell. Add a `test/lint-runner-selection.sh` asserting `just j` runs only jq.
@@ -365,3 +370,201 @@ merge instruction corrected from squash to the recorded `--merge` + exact-subjec
 stale `pr-merge.md` flagged as an S11 chore); measured that `main` has **no** `test/` dir or `test:`
 recipe, so S2 now explicitly introduces the harness green-on-empty; the gitleaks pre-commit hunk was
 double-assigned to S2 and S8 — resolved to S2.
+
+---
+
+## Research-backed refinements (deep-research, 2026-07-04)
+
+A deep-research pass investigated the problem domains behind the plan's features — web-search fan-out →
+fetch authoritative sources → adversarial verification of each recommendation against both its sources
+and dresden's real constraints (solo operator, chezmoi, macOS→home-server, low-ops). Eight domains were
+queried; **seven returned** (five verdict SOUND, two core-sound-with-trims); **one was blocked** (see
+Gaps). **Nothing below is implemented — these are plan/spec edits and banked decisions for the execution
+step.** Each domain names the slice(s) it amends and its key sources.
+
+### R1 — Split-PR mechanic: hand-rolled HOLDS; add three process guards (amends Phase B / C / D)
+
+The stacked-diff tools (Graphite, ghstack, git-spr/spr, Sapling, jujutsu) do **not** improve this plan
+for a solo sequential-merger, and several actively conflict with house rules. Confirmed reasons: (1) the
+plan *reimplements from main with new work* (spec decision 5), while split tools mechanically partition
+*existing* commits — they can't fold in the ledger fixes; (2) the tools' value is hiding **reviewer
+latency** to unblock a *team*, which a solo self-reviewer does not have; (3) Graphite's `--by-hunk` is
+just `git add -p` under a SaaS layer, ghstack/spr/Sapling replace GitHub-native merge (breaking the
+house `--merge`-with-exact-subject convention) and route metadata off-box (breaking the public-repo +
+`gh-axi`-only rules). **jujutsu** is the one tool that genuinely improves hunk-splitting (scriptable
+`jj-hunk`, auto-rebase) but adopting a parallel VCS for a one-time decomposition is YAGNI — banked as a
+future standalone go/no-go, like nushell, never bolted onto SP2.
+
+**Changes to apply:**
+
+- **Phase B:** replace the "shared infra files" prose with a **per-file hunk-ownership table** — columns
+  `shared file × owning slice(s) × one-line what` — so every hunk of the 8 shared files is pre-assigned
+  to exactly one slice. The real risk is an **orphaned** hunk (lands in no slice) or a **double-counted**
+  hunk (two slices grab it → the second conflicts); a table makes the "no file orphaned" claim
+  verifiable, not asserted. Build the table by walking `git diff main integration/modernization -- <file>`
+  for each of the 8 during Phase B.
+- **Phase C P-2:** keep `git checkout -p` as option (a) interactive, and add option (b) as the **agent
+  default** — `git diff main integration/modernization -- <file>` → trim the patch to this slice's hunks
+  → `git apply --index`. Deterministic, non-interactive (no y/n/s/e responder for a subagent), and the
+  trimmed patch is a reviewable artifact. Stays git-native (honors "boring, system-shipped tools").
+- **Phase C P-4:** add a per-shared-file assertion — after applying a slice's hunks,
+  `git diff <slice-branch> integration/modernization -- <file>` should show **only the other slices'**
+  hunks (proves this slice took its own and no more).
+- **Phase D D1:** add an **empty-diff reconciliation gate** — before closing the reference PR, assert
+  `git diff main integration/modernization -- <file>` is **empty** for each of the 8 shared files,
+  proving every hunk landed exactly once across the slice sequence.
+- **Phase C preamble:** add a short "Tooling considered and rejected" note (Graphite/ghstack/spr/
+  Sapling/jj + why), so it is not re-litigated mid-execution.
+
+**New features:** hunk-ownership table + empty-diff gate `[plan]`; non-interactive `git apply` P-2
+variant `[plan]`; optional local-stack authoring via `git rebase --update-refs` (git ≥ 2.38, already in
+the toolchain — build several review-independent slices as a local stack, re-sync branch pointers with
+one rebase after each merge) `[plan]`.
+Sources: graphite.com/guides/how-to-split-an-existing-pull-request, graphite.com/blog/stacked-prs,
+graphite.com/docs/privacy-and-security. *(verdict: core SOUND; the "no tool helps" claim trimmed to "no
+tool helps a solo sequential-merger" — jj does help sustained stacking.)*
+
+### R2 — Formatter orchestration: PROMOTE treefmt-nix to S2's primary approach (amends S2)
+
+treefmt-nix is the right replacement for the ~510-line hand-rolled `lint.sh`, and S2 should promote it
+from a creative-liberty *alternative* to its **primary** design. Verified against the treefmt-nix README:
+built-in `shellcheck` and `actionlint` modules exist, `config.build.check` gives fail-on-drift for CI,
+and one global `excludes` replaces the prune-set duplicated 6× in `lint.sh` (resolving that ledger
+consolidation outright). Boundary: treefmt replaces **`just lint-check`** (the lint/format half of the
+gate) only — **`just test`** (the hand-rolled `.sh` + bats loop) stays as-is.
+
+**Changes to apply (all S2):** promote treefmt-nix to S2's primary; **keep** the S2 fixes that live
+*outside* `lint.sh` (bats `grep -c` zero-count false-pass, CI-runs-`just test`, SHA-pin); change CI
+acceptance from "does `lint.sh -c` fail on drift" to "does **`nix flake check --all-systems`** fail on
+format drift" (treefmt's check derivation); port `lint.sh`'s 4 chezmoi-specific checks
+(shellcheck-on-rendered-templates via `CI=1 chezmoi execute-template`, the osquery-config render+jq,
+etc.) as **custom treefmt formatters**; enable **actionlint via its treefmt-nix module** (satisfies old
+P9 without hand-wiring); rewire the seams (`.githooks/pre-commit` + justfile aliases → treefmt; CI drops
+the separate `lint.sh -c` step); record a decision point on whether jq/yq parse-validation stays inside
+treefmt (unified, off-label) or splits out.
+**New features:** `treefmt.nix` module + flake wiring (`treefmt-nix.lib.evalModule`) `[repo]`; the 4
+chezmoi checks as custom formatters `[repo]`; actionlint-via-module `[plan]`.
+Sources: github.com/numtide/treefmt-nix (README), treefmt.com/latest/getting-started/configure.
+*(verdict: SOUND — README spot-fetched; ~450-line deletion confirmed.)*
+
+### R3 — GitHub Actions supply-chain: the plan's pin instruction was unachievable; SHA-pin instead (amends S2)
+
+Direction right, specifics wrong. **`NixOS/nix-installer-action` has zero tags and zero releases**
+(verified via the GitHub API), so the plan's "pin to `<current-release-tag>`" is impossible. Correct
+fix, per GitHub's own 2025 SHA-pinning guidance and the `tj-actions` supply-chain compromise
+(CVE-2025-30066): **pin both actions to full commit SHAs** with a trailing `# vX.Y.Z` comment (already
+applied inline to S2 above). Additional S2 deliverables:
+
+- Workflow-level `permissions: contents: read` (least privilege — the job only reads code).
+- `with: persist-credentials: false` on the checkout step.
+- Wire **zizmor** (GitHub Actions static analysis, in nixpkgs) beside actionlint — flake run-shell + a
+  `scripts/lint.sh`/treefmt runner + a justfile alias.
+- Add **`.github/dependabot.yml`** (`package-ecosystem: github-actions`, weekly, review-gated, no
+  auto-merge) so SHA pins get updated through the normal review loop.
+- Record as rejected (so it is not re-litigated): `step-security/harden-runner` — macOS-hosted runners
+  are unsupported.
+
+Sources: docs.github.com/actions/reference/security/secure-use, github.blog/changelog/2025-08-15 (SHA
+pinning), cisa.gov (tj-actions CVE-2025-30066), github.com/zizmorcore/zizmor.
+*(verdict: SOUND — the empty-tags correction independently re-verified.)*
+
+### R4 — Secrets-at-rest: age HOLDS; three real gaps to close (amends S8 + spec)
+
+chezmoi-native age (one X25519 key, distributed via KeePassXC) is the current ecosystem best practice
+for a solo macOS chezmoi setup — sops-nix/agenix/git-crypt were each evaluated and rejected for concrete
+reasons (added to the spec Decisions log, below). But three **verified** gaps:
+
+- **Real bug (fixed):** the spec named the KeePassXC entry `chezmoi :: age identity` while the live
+  restore script reads `chezmoi :: Private Key :: age` — a fresh-machine restore would query the wrong
+  entry and fail. Spec corrected 2026-07-04.
+- **Darwin-gated restore:** `run_once_before_05-restore-age-key.sh.tmpl` opens with
+  `{{ if eq .chezmoi.os "darwin" }}`, so the **future Linux home-server cannot restore the key**. S8
+  drops/generalizes the guard.
+- **No rotation / DR story:** there is no documented age-key rotation, re-encrypt, or disaster-recovery
+  drill. S8 adds a `docs/runbooks/` rotation runbook (apply → config-change → `chezmoi forget` →
+  re-`add --encrypt`) + a `test/*.sh` round-trip test, and the git-history caveat (rotating the key does
+  **not** scrub old ciphertext from history — the real compromise-recovery action is rotating the
+  upstream secrets themselves).
+
+**New features:** age-key rotation + re-encrypt runbook + round-trip test `[repo]`; generalize the
+darwin guard `[repo]`; **multi-recipient migration design** (per-machine identity + a shared
+`recipients` list, for the laptop→home-server move) `[dresden]`; DR drill `[repo]`.
+Sources: chezmoi.io/user-guide/encryption/age, chezmoi.io/user-guide/frequently-asked-questions/
+encryption, discourse.nixos.org (git-crypt/agenix/sops-nix comparison).
+*(verdict: SOUND — spot-verified against the live repo and the chezmoi age doc.)*
+
+### R5 — Agent skills/memory: architecture correct; reproducibility + supply-chain gaps (amends S3 + S12)
+
+The `~/.agents` store + symlink fan-out + `AGENTS.md`→`CLAUDE.md` model is correct and, in places, ahead
+of the ecosystem (AGENTS.md convention, Anthropic's Agent Skills). But **verified on disk**: **20 live
+store skills vs 12 committed vs 9 Claude `symlink_` declarations vs 0 Hermes declarations** — a fresh
+`chezmoi apply` reproduces only 9 of 20 skills into Claude and none into Hermes.
+
+**Changes to apply:**
+
+- **S3:** commit the full skill roster (or a committed `name→source` install-manifest) so a fresh
+  machine reproduces every skill; make `update-skills.sh` **install-capable** (today its loops
+  `[ -d "$STORE/$n" ] || continue` skip anything absent → refresh-only); complete the fan-out
+  declarations (declare all store→Claude symlinks; add the missing `dot_hermes/skills/` declarations);
+  resolve the **three-way** fan-out ownership (the ledger names two writers — the third is
+  `npx skills … --global`); reconcile the lockfiles (`skills-lock.json` has a stale `moshi-best-practices`
+  entry and 12 vs 20 live); add a **supply-chain gate** — pin each vendored git-clone to a commit SHA
+  and/or verify `computedHash` before the atomic swap.
+- **S12:** specify the global `AGENTS.md` parity **mechanism** (a `.chezmoitemplates` partial included by
+  both `~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md`), not just "add parity."
+
+**New features:** committed full roster / install-manifest `[repo]`; single `.chezmoitemplates` partial
+for the global ruleset `[dresden]`; SHA-pin + hash-verify vendored skills before swap `[repo]`.
+Sources: agents.md, anthropic.com/engineering/…agent-skills, platform.claude.com/docs/…agent-skills/
+best-practices, developers.openai.com/codex/skills.
+*(verdict: SOUND — the 20/12/9/0 counts independently re-verified on disk 2026-07-04.)*
+
+### R6 — nix-darwin vs chezmoi defaults: chezmoi HOLDS; bank the decision (amends S10 + spec)
+
+S10's chezmoi `defaults write` approach is the correct call — do **not** rewrite macOS system config in
+nix-darwin. Decisive, sourced reasons: the repo's entire secret model is chezmoi/KeePassXC (nix-darwin
+would fork it); chezmoi is already the single apply path; and a one-tool-per-concern split lowers ops
+for a solo maintainer. **Changes:** add a 2–3 sentence "Why chezmoi, not nix-darwin" note to S10; append
+a spec Decisions-log entry recording the decision; add **SP-nix** (a deferred, research-first nix-darwin
+go/no-go, sibling of SP4 nushell) to the roadmap sub-project table + deferred index; annotate the
+existing "5 non-osquery plists → `.chezmoitemplates` partial" ledger item as the chosen chezmoi-native
+DRY win.
+**New features:** deferred **SP-nix** go/no-go sub-project `[dresden]`; explicit Decisions-log entry
+`[plan]`.
+Sources: github.com/nix-darwin/nix-darwin, carlosvaz.com/…declarative-macos-management-with-nix-darwin,
+github.com/nix-darwin/nix-darwin/issues/1207.
+*(verdict: SOUND — nix-darwin maintenance + capabilities spot-verified.)*
+
+### R7 — Presence/notification: design HOLDS and leads prior art; reconcile native push (amends SP3 in spec)
+
+The empirically-verified presence model and the stateless/no-daemon architecture stay unchanged — they
+are ahead of the prevailing prior art. The one material gap is **timing/coexistence with Claude Code's
+own native mobile push** (v2.1.110), which is itself presence-aware ("skips while focused on the
+connected terminal"). Two systems pushing to the phone will double-fire. **Changes (SP3 contract in the
+spec):** bank a decision to disable "Push when Claude decides" and keep the route through relay (single
+owner); drive the Claude waiting-on-you vs ready-for-you classes from the **native Notification matchers**
+(`agent_needs_input` / `agent_completed`); name **ntfy** as the reference self-hostable phone channel
+(its http/view **action buttons** give free approve/deny/focus — the actionable-notification feature SP3
+deferred); mirror **Apprise**'s tag-based routing + priority-tier escalation in the Rust composition
+root; record the banner as a shell-out channel (`terminal-notifier -execute` / `alerter`, or `notify-rust`
+for a Rust-native macOS click). Add "confirm native-push coexistence + which Notification matchers to
+wire" to the SP3 final-spec open-items.
+**New features:** reconcile native push (single owner) `[plan]`; ntfy pluggable channel with action
+buttons `[dresden]`; Apprise-style tag routing + priority escalation in the SP3 composition root
+`[plan]`.
+Sources: code.claude.com/docs/remote-control, code.claude.com/docs/hooks-guide, docs.ntfy.sh/publish.
+*(verdict: core SOUND; trimmed — the native-push coexistence is a real add; the rest confirms the
+existing design.)*
+
+### Gaps (honest — not filled by this pass)
+
+- **macOS endpoint security (R8) — BLOCKED.** The domain agent (osquery pack design + Santa / Objective-See
+  complements + EndpointSecurity FIM) was refused by a cybersecurity-topic safeguard, so it returned no
+  findings. This overlaps the operator's separately-owned, off-limits osquery work anyway (spec decision
+  4 / the osquery guardrail), so it is **deliberately left for the operator** to research and drive
+  through S9's sign-off gate — not force-retried here.
+- **R1 / R7 were verdict OVERCLAIMED, then trimmed:** the surviving items above are only the parts that
+  passed the fit-to-dresden verification; the discarded parts (a blanket "no tool ever helps"; some
+  speculative notification tooling) are intentionally not carried.
+- **Point-in-time values to resolve at implementation, not now:** the exact `nix-installer-action` /
+  `checkout` commit SHAs (look up fresh — pins drift), and the current treefmt-nix module set.
