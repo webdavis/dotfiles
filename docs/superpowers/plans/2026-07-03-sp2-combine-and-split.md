@@ -139,6 +139,17 @@ those files (procedure in the Slice Protocol). No file is orphaned.
 `.chezmoi.toml.tmpl`, `.chezmoiignore`, `.gitignore`, `CLAUDE.md`, `private_dot_claude/CLAUDE.md`,
 `dot_bashrc.tmpl`, `dot_profile`, `justfile`.
 
+**Build the hunk-ownership table first (Phase B, step 1 — per §R1).** Before any slicing, walk
+`git diff main integration/modernization -- <file>` for each of the 8 shared files and record which
+slice(s) own which hunks in a table (shared-file × owning-slice × one-line-what). This is deferred to
+execution on purpose — it must be computed against the *live* diff — but it is the first Phase B action,
+not an afterthought; the Phase D empty-diff gate verifies every hunk landed exactly once.
+
+**Sizing authority.** This table's grouping is a starting point, not a size guarantee. **The operator's
+review speed is the authority** — any slice whose real diff is too large to review quickly sub-splits on
+the spot (S4 and S9 carry pre-noted splits; S8 is small — the clean SP1 work). No PR should exceed a
+quick review.
+
 | Slice | Feature | File groups (from the bucketed delta) | Ledger fixes folded in | Dep |
 | --- | --- | --- | --- | --- |
 | S1 | Docs | `docs/**` (20: the herdr/tailscale/brew/relay/notifications specs+plans, the modernization brief, this plan, the never-sleep policy), `AGENTS.md` (new symlink→CLAUDE.md) | — | none |
@@ -179,10 +190,13 @@ its own specifics (files, wiring to verify, gotchas, review focus); the mechanic
 
 - [ ] **P-2: Assemble the slice's files from the integration branch.** For files owned wholly by this
   slice, take them verbatim: `git checkout integration/modernization -- <path> …`. For a **shared infra
-  file**, do NOT take the whole file — apply only this slice's hunks: `git diff main integration/modernization -- <shared-file>`
-  to see the full delta, then hand-apply (or `git checkout -p integration/modernization -- <shared-file>`)
-  only the hunks this slice owns per the slice map. For **deletions**, `git rm <path>` in the same slice
-  that makes the deletion safe (e.g. tmux files die in S4 as herdr lands).
+  file**, do NOT take the whole file — apply only this slice's hunks (per the Phase B hunk-ownership
+  table), two options: **(a) interactive** `git checkout -p integration/modernization -- <shared-file>`
+  (answer y/n per hunk); **(b) agent default (non-interactive, deterministic — use this under
+  subagent-driven execution):** `git diff main integration/modernization -- <shared-file>` → trim the
+  patch to this slice's hunks → `git apply --index` (the trimmed patch is a reviewable artifact). For
+  **deletions**, `git rm <path>` in the same slice that makes the deletion safe (e.g. tmux files die in
+  S4 as herdr lands).
 
 - [ ] **P-3: Fold in the ledger fixes** named in this slice's row — these are *improvements over* the
   integration branch's version (that is the point of reimplementing). Each fix is test-driven where it
@@ -191,7 +205,9 @@ its own specifics (files, wiring to verify, gotchas, review focus); the mechanic
 - [ ] **P-4: Verify full wiring.** No dead code. If the slice adds a `run_*` script, confirm what triggers
   it and that its target exists. If it adds a LaunchAgent plist, confirm the matching loader script is in
   the same slice. If it adds a deployed binary, confirm something references it (a hook, a keybinding, a
-  recipe). Grep the slice's own new symbols to prove each has a consumer.
+  recipe). Grep the slice's own new symbols to prove each has a consumer. **Shared-file check:** after
+  applying this slice's hunks, `git diff <slice-branch> integration/modernization -- <shared-file>` should
+  show **only the *other* slices' hunks** — proving this slice took exactly its own, no more, no less.
 
 - [ ] **P-5: Lint + test green.**
   ```bash
@@ -248,6 +264,12 @@ its own specifics (files, wiring to verify, gotchas, review focus); the mechanic
     `assert_allowlist_label_count`): capture count into a var, guard non-numeric. Add a bats test that a
     zero-when-expecting-N assertion FAILS.
   - actionlint: add to the flake `run` shell + a `lint.sh` runner + a justfile alias.
+- **Research amendments (§R2, §R3):** promote **treefmt-nix** to the *primary* lint/format orchestrator —
+  it deletes ~450 lines of `lint.sh`, one global `excludes` replaces the 6×-duplicated prune set,
+  actionlint runs via its treefmt module, CI's fail-on-drift becomes `nix flake check --all-systems`, and
+  the 4 chezmoi-specific checks port to custom formatters. The SHA-pin + `permissions: contents: read` +
+  `persist-credentials: false` + **zizmor** + `.github/dependabot.yml` set is §R3 (already reflected in
+  the CI bullet above).
 - **Review focus:** does CI now actually fail on a broken test / format drift? (Push a deliberately
   broken commit to a throwaway branch to confirm red, then drop it.)
 
@@ -260,6 +282,13 @@ its own specifics (files, wiring to verify, gotchas, review focus); the mechanic
   `private_dot_claude/skills/symlink_*`; `trash` the stale `.agents/skills/moshi-best-practices/`.
 - **Wiring (P-4):** every `~/.claude/skills/*` symlink target exists in `~/.agents/skills`; the loader
   actually bootstraps the plist.
+- **Research amendments (§R5):** keep-all-21 decision, so the fix is reproducibility, concrete — **9
+  skills are uncommitted** (`chrome-devtools-axi`, `cua-driver`, `elevenlabs`, `gh-axi`, `home-assistant`,
+  `kubernetes-specialist`, `last30days`, `sql-toolkit`, `tiktok-crawling` — including the *preferred*
+  gh-axi/chrome-devtools-axi), Hermes has **0** symlink declarations, and `update-skills.sh` is
+  refresh-only (skips absent skills). Commit or install-manifest all 21, declare the Hermes fan-out, make
+  update-skills install-capable, and add the vendored-skill SHA/`computedHash` supply-chain gate before
+  the atomic swap.
 
 ### S4 — herdr migration (may split into S4a config / S4b plugins / S4c bashrc+tmux-removal)
 - **Atomicity is the invariant:** the tmux/sesh deletions and the herdr additions ship together — main
@@ -296,18 +325,36 @@ its own specifics (files, wiring to verify, gotchas, review focus); the mechanic
   as one clean PR. The age-tripwire fix and the fresh-machine restore script are part of it.
 - **Operator step:** the `age` recipient in `.chezmoi.toml.tmpl` is the operator's public key (already
   set); the private key restore rides KeePassXC. Round-trip verify in the PR (`chezmoi cat` == live).
+- **Research amendments (§R4):** generalize the `{{ if eq .chezmoi.os "darwin" }}` guard on
+  `run_once_before_05-restore-age-key` so the Linux home-server restores the key too; ship
+  `docs/runbooks/age-key.md` (rotation + disaster-recovery workflows are spelled out in §R4) and a
+  `test/age-restore.sh` DR drill. KeePassXC entry name is `chezmoi :: Private Key :: age` (spec corrected
+  2026-07-04). Multi-recipient migration is deferred (see the spec's laptop→home-server item).
 
 ### S9 — osquery three-tier alerting
 - **Smallest big slice** — most of osquery is already on main; carry only the PR#25 delta.
 - **In scope:** alerting/dispatch design improvements. **Sign-off gate:** any `.chezmoitemplates/osquery/
   *.conf` query/pack content change is listed in the PR body for explicit user approval before merge.
 - **Wiring:** all 6 LaunchAgents + loaders; the 87-bat suite green; the pipeline manifest baseline.
+- **Research amendments (§R8):** the two osquery "gap-queries" once proposed are **retracted** —
+  `listening_ports_non_loopback` and `kernel_extensions`/`system_extensions` monitoring already exist in
+  `intrusion-detection.conf`. osquery's genuinely-unfinished work (Mouse analysis agent, approval-UX PR2,
+  FleetDM migration, deferred beaconing/Wazuh) lives on the `docs/osquery-design` branch and is **out of
+  SP2 scope** — S9 ships only the PR#25 three-tier delta.
+- **Sizing fallback:** if that delta is too large for a quick review, sub-split by component (dispatch lib
+  / results-alerter / the six pollers+loaders / packs), mirroring S4.
 
 ### S10 — macOS defaults / system-setup
 - **Ledger fixes:** defaults trio shared-lib + `chezmoi source-path` (kills the worktree-writes-primary
   bug); `after_41` `{{ if index . "sudo" }}`; add `ssh-hardening.sh` as a `macos_system_setup.yaml`
   record so a fresh machine actually locks sshd.
 - **Operator apply** needed (Tier-2 sudo runner prompts once).
+- **Research amendments (§R8, §R6):** the R8 endpoint additions already landed on the working branch
+  (`36d2d27`) — the `lulu` + `oversight` casks and the firewall **stealth-mode** `macos_system_setup.yaml`
+  record — so S10 carries them to main, plus check-only posture assertions (FileVault / Gatekeeper / SIP
+  via `fdesetup status` / `spctl` / `csrutil status`; SIP + FileVault are assert-only, never auto-enable).
+  §R6: macOS system config stays chezmoi-native — nix-darwin is deferred to SP-nix, so no nix-darwin work
+  in this slice.
 
 ### S11 — Shell foundation + secrets hygiene + chores
 - **Files:** the remaining shared-infra hunks + the brew-shellenv cache + the credential `private_`
@@ -336,6 +383,12 @@ its own specifics (files, wiring to verify, gotchas, review focus); the mechanic
 
 ### Task D1: Switch main live, verify, close the reference PRs
 
+- [ ] **Step 0 — empty-diff reconciliation gate (§R1):** before switching main, assert every hunk landed
+  exactly once: for each of the 8 shared infra files, `git diff main integration/modernization -- <file>`
+  must be **empty** (allowing for intentional post-split improvements — investigate any non-empty diff:
+  it means an orphaned or double-counted hunk). Also `git diff main integration/modernization --stat`
+  should show no unexpected file left only on the reference branch. This is the proof that the split
+  reproduced the whole integration branch.
 - [ ] **Step 1:** After S12 merges, point dresden's chezmoi source at `main`
   (`git -C ~/workspaces/Ivy/webdavis/dotfiles checkout main && git pull`).
 - [ ] **Step 2: Operator** runs a full interactive `chezmoi apply` (KeePassXC unlocked).
