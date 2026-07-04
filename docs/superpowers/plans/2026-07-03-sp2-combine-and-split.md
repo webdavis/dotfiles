@@ -637,6 +637,14 @@ Sources: objective-see.org/tools, github.com/northpolesec/santa (+ archived goog
 osquery.readthedocs.io/deployment/configuration, support.apple.com/121011 (Sequoia firewall plist),
 developer.apple.com SIP docs, github.com/maxgoedjen/secretive, drduh.github.io/macOS-Security-and-Privacy-Guide.
 
+**Deferred feature idea `[dresden]` — OverSight → relay bridge.** OverSight's Action tab can `exec` a
+script on every camera/microphone event, passing `-device <camera|microphone> -event <on|off> -process
+<pid> -activeCount <n>`. A tiny wrapper pointing at `relay.sh` (or the SP3 Rust service) would turn an
+*unexpected* camera/mic activation into a phone push — a genuine "someone/something is watching"
+signal that reuses the existing notification fan-out. Not now (needs the wrapper written + a
+whitelist of expected callers like Zoom/Photo Booth so it only fires on the unexpected); banked as a
+future security↔notification integration once SP3 lands.
+
 ### Gaps (honest)
 
 - **R1 / R7 were verdict OVERCLAIMED, then trimmed:** the surviving items above are only the parts that
