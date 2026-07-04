@@ -185,6 +185,7 @@ packages:
         - google-chrome
         - karabiner-elements
         - keepassxc
+        - lulu
         - lunar
         - mediosz/tap/swipeaerospace
         - microsoft-auto-update
@@ -193,6 +194,7 @@ packages:
         - nikitabobko/tap/aerospace
         - obs
         - obsidian
+        - oversight
         - openemu
         - osquery
         - paseo
