@@ -264,8 +264,11 @@ bats, chezmoi, and zizmor.
 
 ### CI
 
-GitHub Actions (`.github/workflows/lint.yml`) runs on `macos-latest`. Runs
-`nix flake check --all-systems` and `./scripts/lint.sh` on pushes to main and PRs.
+GitHub Actions (`.github/workflows/lint.yml`) runs on `macos-latest` on pushes to main and PRs, with
+workflow-level `permissions: contents: read`, `persist-credentials: false` on checkout, and actions
+SHA-pinned to full commit SHAs (`.github/dependabot.yml` keeps the pins fresh weekly; no auto-merge).
+Steps: `nix flake check --all-systems` (the treefmt drift gate), `just test`, and
+`zizmor --offline .github/workflows` — the latter two inside the flake's `run` shell.
 
 ### Tmux Session Management
 

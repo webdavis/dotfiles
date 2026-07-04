@@ -1,0 +1,8 @@
+# Keep the SHA-pinned actions in .github/workflows fresh. No auto-merge:
+# Dependabot only opens PRs; a human reviews and merges.
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
