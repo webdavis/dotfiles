@@ -147,10 +147,10 @@ Bypass all hooks for one commit: `git commit --no-verify`.
 ### Source-Only Files
 
 Some files are dev/CI only and are excluded from `$HOME` via `.chezmoiignore`: `justfile`, `scripts/`,
-`test/`, `.githooks/`, `flake.nix`, `flake.lock`, `.envrc`, `.shellcheckrc`, `.editorconfig`,
-`.mdformat.toml`, `assets/`, `docs/`, `private/`, `README.md`, `LICENSE`, `.gitignore`, `.worktrees/`,
-`**/.DS_Store`. Only chezmoi-managed files (`dot_`, `private_`, `run_`, etc. prefixes) reach the target
-state.
+`test/`, `treefmt.nix`, `.githooks/`, `flake.nix`, `flake.lock`, `.envrc`, `.shellcheckrc`,
+`.editorconfig`, `.mdformat.toml`, `assets/`, `docs/`, `private/`, `README.md`, `LICENSE`, `.gitignore`,
+`.worktrees/`, `**/.DS_Store`. Only chezmoi-managed files (`dot_`, `private_`, `run_`, etc. prefixes)
+reach the target state.
 
 ### Minimum Chezmoi Version
 
