@@ -577,9 +577,13 @@ slot in later). Own test suite.
 `GET https://192.168.1.1/proxy/network/integration/v1/sites` → `data[0].id` (one site, internalReference
 `default`) → `GET .../sites/{id}/clients?limit=200` → array of **currently-connected** clients with
 `name`, `type` (WIRELESS/WIRED), `ipAddress`, `macAddress`, `connectedAt` (association freshness —
-exactly the vote fields). Self-signed cert (`insecure` for the LAN IP). **Latency:** first call after
-idle ≈ 11.4 s (UDR-side session init, one-time), warm 44–200 ms → probe with a ~2 s timeout, treat a
-miss as `unknown` (fail-open). **Findings:** `mister` present with MAC matching the ARP baseline; the
+exactly the vote fields). Self-signed cert (`insecure` for the LAN IP). **Latency — decay measured 2026-07-04:** a 33-minute
+gap-ladder test (calls after 30 s/60 s/2 m/5 m/10 m/15 m idle) showed **no decay** — 55–251 ms at every
+gap. The one observed 11.4 s call was one-time provisioning of the freshly created API key, not a
+recurring cold start. Design consequence: **fire-time probing stands** (no poller/cache needed); probe
+with a ~2 s timeout, treat a miss as `unknown` (fail-open). Untested beyond 15 m idle (an hours-scale
+decay is unruled-out but inconsequential: home only gates lights, so the worst case is one slow/skipped
+pulse after a long quiet period, already covered by fail-open). **Findings:** `mister` present with MAC matching the ARP baseline; the
 **Hue bridge appears cross-VLAN (WIRED, 192.168.4.24)** in the same list, so one call doubles as a
 bridge-reachable/home-LAN check; `mouse` (watch) was **absent while its owner was home** — watches drop
 Wi-Fi for Bluetooth when the phone is near, empirically confirming the watch is a weak voter and the
