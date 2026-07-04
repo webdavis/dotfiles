@@ -77,11 +77,16 @@ plus the gitleaks pre-commit gate, `.gitignore` failsafe block, and `scripts/lin
 mkdir -p ~/.config/chezmoi
 chezmoi age-keygen --output=$HOME/.config/chezmoi/key.txt   # prints the public key
 chmod 600 ~/.config/chezmoi/key.txt
-# Store the FULL key.txt contents in KeePassXC as "chezmoi :: age identity" (crown jewel).
+# KeePassXC entry "chezmoi :: age identity": paste ONLY the AGE-SECRET-KEY-1... line
+# into the PASSWORD field (single line, house pattern — same field every other
+# template reads via keepassxc(...).Password).
 ```
 
-(Chezmoi-driven keygen per the official age guide — one toolchain end to end; the raw `age-keygen`
-binary produces an identical key but is not the workflow this repo standardizes on.)
+(Chezmoi-driven keygen per the official age guide — one toolchain end to end. A key file containing
+only the `AGE-SECRET-KEY` line is a complete identity — proven by round trip: identical derived public
+key, successful encrypt/decrypt with the stripped file; the `#` comment lines are decoration. The
+public key lives in `.chezmoi.toml.tmpl` and is also re-derivable from the secret via
+`age-keygen -y`.)
 
 **Agent steps (after the key exists):**
 
@@ -90,11 +95,13 @@ binary produces an identical key but is not the workflow this repo standardizes 
    the moment the `.age` file exists — fails every commit with a false leak alarm. Exclude the test
    itself (or split the marker string) before anything below.
 0b. **Fresh-machine key restore (so new machines need zero new manual steps):** add a
-   `run_once_before` script (or extend the `.install-password-manager.sh` pre-hook) that, when
-   `~/.config/chezmoi/key.txt` is missing, pulls the `chezmoi :: age identity` entry out of KeePassXC
-   and writes it 0600. Generation happens once ever (the operator ceremony); every future machine
-   *restores* the same key through the KeePassXC unlock the bootstrap already requires. Add the
-   matching line to `docs/runbooks/macos-fresh-machine-quickstart.md`.
+   `run_once_before` template script that, when `~/.config/chezmoi/key.txt` is missing, writes the
+   `chezmoi :: age identity` entry's **Password** attribute (the single `AGE-SECRET-KEY` line — a
+   complete identity, proven by round trip) to the file 0600, via the same `keepassxc(...).Password`
+   template call every other secret uses — riding the one DB unlock chezmoi already prompts for and
+   caches per apply. Generation happens once ever (the operator ceremony); every future machine
+   *restores* the same key. Add the matching line to
+   `docs/runbooks/macos-fresh-machine-quickstart.md`.
 1. Edit `.chezmoi.toml.tmpl`: `encryption = "age"` (bare key above the first table), `[age]`
    `identity`/`recipient` (recipient = the public key), `[add] secrets = "error"`; `chezmoi init`;
    verify via `chezmoi dump-config`.
