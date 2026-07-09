@@ -705,3 +705,154 @@ future security↔notification integration once SP3 lands.
   speculative notification tooling) are intentionally not carried.
 - **Point-in-time values to resolve at implementation, not now:** the exact `nix-installer-action` /
   `checkout` commit SHAs (look up fresh — pins drift), and the current treefmt-nix module set.
+
+---
+
+## Phase E — End-of-SP2 cleanup backlog
+
+Debts discovered during execution (chiefly S3). Each is deferred for a stated reason; all must be
+resolved before SP2 closes. Labelled `fix/<name>` for tracking; a `(→ Sn)` tag means it rides that
+slice.
+
+### fix/harness-skill-reconciliation
+
+Audit **every harness's live skill directory** against the approved roster and per-profile allowlists —
+any skill present or enabled that the operator did not approve is flagged and removed/opted-out. The
+roster/fan-out test enforces the *declared* set in the repo, but live directories can drift (direct
+`npx`/`clawhub` installs, `--clone-from` artifacts, hand-installs). Cover all four surfaces:
+
+- **Store** (`~/.agents/skills`): must be exactly the roster (31 skills) — no extra dirs, no stray
+  installs. This is the source every harness reads, so a stray here contaminates all of them.
+- **Claude Code** (`~/.claude/skills`): must be exactly the roster's store symlinks — no non-symlink
+  entries, no skills absent from the roster.
+- **Codex** (scans `~/.agents/skills` natively; check `~/.codex/skills` and any `--agent codex` install
+  targets for strays that would double-list or add unapproved skills).
+- **Hermes profiles** (`~/.hermes/profiles/{butters,concerned,elaine,nicodemus}/skills/` + default):
+  each physically carries the full bundled catalog (~30 category dirs — apple, devops, creative,
+  security, …) plus `--clone-from default` artifacts; the five-profile plan intends a curated subset
+  scoped by `skills.disabled`. PR #36's gap-A reconcile removed the frozen *store-skill* clones and
+  planted the correct store symlinks, but the bundled catalog dirs — and any skill *enabled* beyond a
+  profile's source-of-truth allowlist — remain.
+
+Fix: for each surface, diff live contents against the approved set and remove/opt-out the rest
+(`hermes -p <p> skills opt-out`/`uninstall` on the Hermes side; `trash` strays elsewhere), then verify
+(`hermes -p <p> skills list`, and the roster test against the live dirs). Hermes-side pruning is Bob's
+domain — coordinate at cutover. Consider promoting the live-vs-approved diff into an automated check so
+drift is caught, not hunted.
+
+### fix/hermes-encrypted-profile-configs (→ S8)
+
+The five profiles' `config.yaml` (enablement + `platform_toolsets`) are persisted only as **untracked
+encrypted `.age` files** in the primary checkout; codegraph's Hermes-MCP enablement likewise. A fresh
+machine reproduces skill *presence* but not per-profile *curation* or the MCP wiring. Fix rides S8 (the
+age machinery): track `dot_hermes/profiles/*/encrypted_config.yaml.age` + the codegraph MCP config,
+round-trip verify, extend the DR drill.
+
+### fix/codex-agents-parity (→ S12)
+
+Global-rules notes (the Home Assistant pairing line, and any future rule) currently reach Codex only via
+a hand-edit to the **untracked `~/.codex/AGENTS.md`**. R5/S12's shared `.chezmoitemplates` partial —
+included by both `~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md` — is not built. Fix: implement the parity
+partial in S12 and migrate the HA note (and the rest of the global ruleset) into it so both harnesses
+share one source.
+
+### fix/graphify-out-excludes-drop
+
+`.gitignore`'s `graphify-out/` entry and `treefmt.nix`'s `graphify-out/**` exclude are band-aids, kept
+because the old global graphify post-commit hook still fires in this repo until the opt-out dispatcher
+(S3) is applied live. Fix: after the cutover `chezmoi apply` deploys the dispatcher and this repo's
+`.githooks/no-graphify` marker suppresses graphify here, drop both excludes.
+
+### fix/live-reconcile-from-scratch
+
+PR #36's live skills convergence (frozen-clone cleanup, per-profile symlink planting, stale hub-install
+retirement, Codex-overlay + routing re-assert, live `skillOverrides` merge) was performed **ad-hoc on
+the live machine** during review. The reproducible path is `.superpowers/sdd/live-reconcile-skills.sh`,
+run once post-cutover-apply on the converged `main` source. Fix: at cutover, after `chezmoi apply`, run
+the reconcile script (`--dry-run` then live) to prove a from-scratch machine converges identically; then
+the ad-hoc live state and the script are reconciled.
+
+### fix/moshi-herdr-drift-check (→ S11)
+
+The fork upstream drift-check + relay notification for the `moshi`/`herdr` local forks is banked for S11
+(it needs `relay.sh` from S7). The lock's `forks` table and the weekly drift-check pass exist; the
+notify path is the missing piece. Fix: wire the relay push in S11.
+
+### fix/skill-architecture-diagram
+
+A living node-graph of the cross-harness skill architecture, so the whole system is legible at a glance
+and every gap is visible — and so `fix/harness-skill-reconciliation` above has a map to reconcile
+against. Keep it accurate to the live repo at authoring time: **regenerate from
+`~/.agents/custom-skill-lock.json` + `dot_local/bin/executable_update-skills.sh` + `test/`, do not
+hand-transcribe** (consider seeding it with `graphify`/`codegraph`). Commit the rendered artifact and its
+source (Mermaid or Graphviz — whichever renders cleanest) under `docs/`. Execution prompt:
+
+> Create a node-graph of the current skill architecture across all harnesses. A reader must be able to
+> trace, for every skill, its full lifecycle. The graph must show:
+>
+> - **Origin & fan-out** — the canonical store (`~/.agents/skills/`) and how each skill reaches each
+>   harness: Claude (`~/.claude/skills/` symlinks), Codex (native store scan + committed
+>   `agents/openai.yaml` overlays), Hermes default (`~/.hermes/skills/`) and specialist profiles
+>   (`~/.hermes/profiles/<agent>/skills/`), and the app-owned symlink case (`~/.cua-driver`).
+> - **Provenance lane per skill** (npx-GitHub / clawhub / vendored-fork / app-owned) and **which lock
+>   file** records it — `~/.agents/custom-skill-lock.json` (tables: `npxTracked`, `clawhubTracked`,
+>   `forks`, `hermesProfiles`, `hermesRegistry`, `tiers`, `superpowersRouting`) and npx's own
+>   `~/.agents/.skill-lock.json` — naming the **tool/script that owns each lock**.
+> - **Update mechanism per skill** — the exact command + infrastructure that refreshes it (`npx skills
+>   update`, `clawhub … update`, `hermes -p <p> skills update`, the CUA app's `cua-driver skills
+>   update`, or "vendored — chezmoi-only / drift-alert-only") and **which pass of
+>   `~/.local/bin/update-skills.sh`** drives it.
+> - **Schedule** — when each updates (the weekly `com.webdavis.update-skills` LaunchAgent, Monday 04:00;
+>   `chezmoi apply` for vendored; the CUA app's own cadence).
+> - **Upstream** — the source repo/registry for each skill, or "no upstream (local fork / bespoke)".
+> - **Tiering** — core vs on-demand, and the mechanism per harness (Claude `skillOverrides`, Codex
+>   `allow_implicit_invocation: false`, Hermes `skills.disabled`).
+> - **Tests** — which TDD suite(s) under `test/` cover each skill, script, and behavior (roster/fan-out
+>   invariants, install supply-chain, hermes-phase, superpowers routing, fork-drift, launchagent-path,
+>   cua refresh, post-commit dispatcher); draw test→subject edges so untested surfaces stand out.
+> - **Gaps in red** (or a clearly distinct style) — any skill with no update path, no upstream, or no
+>   test coverage; any live-vs-declared mismatch; every open `fix/*` from this Phase E backlog; and the
+>   deferred S8 (encrypted profile configs, codegraph MCP) and S12 (Codex AGENTS.md parity) dependencies.
+> - Anything else that aids comprehension — a legend, per-lane colour, a summary count table.
+
+---
+
+## Execution learnings (2026-07-09, from S3 — carry forward to S4–S12 and D1)
+
+Hard-won during the skills slice; each applies to the remaining slices.
+
+1. **The two-world apply trap.** dresden's chezmoi source is the *integration* branch, which does NOT
+   contain merged slice work. A live `chezmoi apply` — or even `chezmoi diff` — from the integration
+   checkout will *revert* a merged slice's files back to the old system (S3: the live updater was still
+   the old 206-era script). Corollary: after a slice merges, the live machine does not automatically
+   match `main` — the committed PR is *desired* state; converging the live machine is a *separate* step.
+   To validate a slice applies cleanly, dry-run-apply the *slice source* into a scratch `$HOME`
+   (`chezmoi --source <worktree> --destination <tmp> apply --dry-run`), or wait for D1. Every slice with
+   a live-state component (S4 herdr, S7 relay, S9 osquery, S10 defaults) has this exposure.
+
+2. **Re-scope each slice against live state at execution — do not trust the plan's file lists/counts.**
+   They were computed early and drift. S3's original scope ("commit the 9 uncommitted of 21 skills") was
+   completely overtaken (the store grew, then settled into a 31-skill npx / clawhub / vendored-fork /
+   app-owned model with weekly auto-update). Before executing, diff the slice's declared files against
+   both the live integration branch and the live machine, and re-scope. The map is a starting point.
+
+3. **Single-writer per worktree.** Never dispatch a second agent into a worktree another agent is
+   writing — concurrent writers corrupt the work (hit twice this session; caught by the second agent
+   freezing with zero writes). To add scope to in-flight work, *message the running agent*; to add work
+   after, wait for it to report done, then verify the worktree is clean before dispatching.
+
+4. **Live reconciliation is a first-class, scripted step — not ad-hoc.** The gap between committed
+   desired-state and the live machine (symlinks, `settings.json` merges, LaunchAgent reloads,
+   stale-copy cleanup, secret-bearing configs) is real and error-prone by hand. Keep it in an
+   idempotent, `--dry-run`-able reconcile script, run once at cutover to prove a from-scratch machine
+   converges. Doing it ad-hoc live (as S3 did under review pressure) leaves the reproducible path
+   unproven — hence `fix/live-reconcile-from-scratch`.
+
+5. **Discovered debt → a `fix/*` item in Phase E immediately.** Don't stretch a slice to fix everything
+   it touches; track it and move on. Phase E now holds S3's.
+
+6. **Skills are their own provenance model, not one lane.** npx `skills add` is GitHub-only; ClawHub
+   skills install/update via the `clawhub` CLI; deliberate local forks stay vendored (drift-alerted);
+   app-owned skills (cua-driver) update via the app. `hermes skills install` has a security scan gate
+   (caution needs `--force`, dangerous is hard-blocked) that direct npx/clawhub writes bypass. Any
+   future skill work must place each skill in the right lane, not assume one mechanism.

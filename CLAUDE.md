@@ -134,6 +134,18 @@ Both hooks live in the **user-wide** hooks dir — `core.hooksPath = ~/.config/g
   plaintext secret; gitleaks is provisioned as a Homebrew formula, and the stage is skipped when the
   binary is absent). All three must pass; a failure blocks the commit. No install step: the dispatcher is
   user-wide and the repo hook is committed with its executable bit.
+- **`post-commit` — graphify knowledge-graph rebuild by default, per-repo opt-out, via a dispatcher.**
+  `dot_config/git/hooks/executable_post-commit` launches graphify's detached rebuild after every commit
+  in every repo, then chains a repo's own executable `.githooks/post-commit` (same composition as the
+  pre-commit dispatcher). It supersedes the unmanaged hook `graphify hook install` wrote to the same
+  path, inlining that hook's body verbatim — the graphify CLI exposes no hook-run action (`graphify hook`
+  is only `install|uninstall|status`) — and keeping the `# graphify-hook-start`/`-end` markers so a rerun
+  of the installer detects it as already installed instead of appending a second copy. A repo opts out of
+  the rebuild (never the chain) by carrying a `.githooks/no-graphify` marker; this repo does, which is
+  what ends the graphify-out/ litter here (the `.gitignore` and treefmt `graphify-out/` excludes stay as
+  band-aids until the hook is applied live). The hook never fails a commit — internal errors exit 0.
+  Per-commit escape hatch: `GRAPHIFY_SKIP_HOOK=1`. `test/post-commit-graphify-dispatcher.sh` covers the
+  decision logic with a stub interpreter.
 
 **Why a dispatcher, not `git config core.hooksPath .githooks`?** `core.hooksPath` is single-valued, so a
 per-repo override shadows the user-wide `prepare-commit-msg`. The dispatcher keeps the global hook
@@ -166,9 +178,12 @@ configured in `.chezmoi.toml.tmpl`. Template files (`.tmpl`) use `{{ keepassxc "
 ### System Package Management
 
 Packages declared in `.chezmoidata/system_packages_autoinstall.yaml` under `packages.macos.homebrew` with
-keys: `taps`, `formulae`, `casks`, `mas`. The
-`.chezmoiscripts/run_onchange_before_10-system-packages.sh.tmpl` script generates a Brewfile from this
-data and runs `brew bundle --cleanup` whenever the data changes. Prerequisites:
+keys: `taps`, `formulae`, `casks`, `mas` — plus sibling `uv` (uv tool installs, e.g. `graphifyy`, which
+provides the `graphify` CLI behind the post-commit dispatcher), `npm` (npm globals, e.g.
+`@colbymchenry/codegraph`; its hermes MCP (Model Context Protocol) enablement lives in the encrypted
+hermes config and is tracked as separate follow-up work), and `volta` lists consumed by the same script.
+The `.chezmoiscripts/run_onchange_before_10-system-packages.sh.tmpl` script generates a Brewfile from
+this data and runs `brew bundle --cleanup` whenever the data changes. Prerequisites:
 `run_once_before_00-install-homebrew.sh.tmpl` ensures `/opt/homebrew/bin/brew` exists on fresh machines.
 
 Third-party taps whose formulae or casks must be trusted under Homebrew's `HOMEBREW_REQUIRE_TAP_TRUST`
@@ -269,6 +284,155 @@ workflow-level `permissions: contents: read`, `persist-credentials: false` on ch
 SHA-pinned to full commit SHAs (`.github/dependabot.yml` keeps the pins fresh weekly; no auto-merge).
 Steps: `nix flake check --all-systems` (the treefmt drift gate), `just test`, and
 `zizmor --offline .github/workflows` — the latter two inside the flake's `run` shell.
+
+### Agent Skills (cross-harness store)
+
+`~/.agents/skills` is the single canonical skills store (31 roster skills). It serves Claude Code always
+(symlinks declared in chezmoi: `private_dot_claude/skills/symlink_*` for the full roster), Codex always
+(it scans the store natively — no declarations), and hermes for exactly the store-symlink subset of the
+delivery model below (`dot_hermes/skills/` and `dot_hermes/profiles/<name>/skills/` symlinks). The
+committed roster is the complete wanted set — `test/skills-roster-fanout.sh` fails the build if the
+store, the lock's `tiers` / `hermesProfiles` / `hermesRegistry` / `npxTracked` / `clawhubTracked` tables,
+the per-harness declarations, or the settings modify-template's `skillOverrides` ever disagree.
+
+**Store provenance — who installs and refreshes each store copy** (the lock at
+`dot_agents/custom-skill-lock.json` records it):
+
+- **npx-tracked** (the `npxTracked` table, 23 skills): the store copy is installed and refreshed by the
+  official npx `skills` CLI from an official GitHub upstream, latest from `main` (no pin).
+  `~/.local/bin/update-skills.sh` installs any absent one with
+  `npx skills add <repo> --skill <name> --agent claude-code --agent codex -g -y` — the multi-agent form
+  lands the real dir in the store and plants the relative `~/.claude/skills` symlink (no `~/.codex` dir;
+  Codex reads the store natively) — and the weekly `npx skills update -g` pass refreshes them all. These
+  skills are NOT vendored in chezmoi. Includes the 13 curated HeyGen HyperFrames skills (router
+  `hyperframes`; domains `hyperframes-core/-animation/-keyframes/-creative`, `media-use`,
+  `hyperframes-cli`, `hyperframes-registry`; workflows `general-video`, `website-to-video`,
+  `faceless-explainer`, `embedded-captions`, `motion-graphics` — `figma`, `music-to-video`, and four
+  others deliberately excluded). Also includes `home-assistant-best-practices` (the official
+  `homeassistant-ai/skills` repo's one skill): Home Assistant config/YAML AUTHORING guidance, not runtime
+  control — it complements the clawhub-tracked `home-assistant` runtime skill everywhere, and it is the
+  one Home Assistant skill that DOES fan out to hermes (default profile), as authoring guidance atop
+  Bob's native Home Assistant runtime tools.
+- **ClawHub-tracked** (the `clawhubTracked` table, 3 skills: `home-assistant`, `sql-toolkit`,
+  `summarize-pro`): the store copy is installed and refreshed by the `clawhub` CLI from ClawHub — the npx
+  lane cannot source ClawHub (`npx skills add` is GitHub-only), so ClawHub-only skills get their own
+  auto-update lane instead of staying vendored. Each entry records the owner-qualified slug and registry.
+  `update-skills.sh` installs an absent one in a throwaway `--workdir` and moves the CLI's nested
+  `@owner/<name>` output flat into the store as `<store>/<name>` (v0.23.1 always nests; the skill's
+  `.clawhub/origin.json` travels along and pins the owner); the weekly pass then refreshes each in place
+  with `clawhub --workdir ~/.agents --dir skills update <name>` — bare store names resolve through
+  `origin.json` even when several ClawHub users publish the name. Two mechanical realities (verified
+  live): Finder `.DS_Store` litter breaks the CLI's fingerprint match, so it is scrubbed pre-update, and
+  the repo-asserted Codex overlay makes the CLI refuse with "local changes" — the pass sets exactly that
+  file aside (byte-equal check) and retries once, and any OTHER local change is a loud relayed WARN.
+  Automation never passes `--force`, and never `--force-install` (ClawHub's scan bypass).
+- **Vendored** (committed under `dot_agents/skills/`, refreshed only by `chezmoi apply`): the `forks`
+  table records each one's upstream for weekly drift-watch. `moshi` and `herdr` are deliberate content
+  forks (`fork: true`); `elevenlabs` is vendored because npx cannot install it full-tree (its `SKILL.md`
+  sits at the repo root beside a `scripts/` dir npx drops, even with `--full-depth`). `tiktok-crawling`
+  is the one plain committed dir with no `forks` entry: a ClawHub-published skill left vendored because
+  hermes owns its hub copy via `hermesRegistry` and its hub name differs from the roster name
+  (`tiktok-scraping-yt-dlp`).
+- **App-owned symlink** (`cua-driver`): the store entry is a symlink into `~/.cua-driver`; the app owns
+  the content. The official mechanism covers all three harnesses (`cua-driver skills status` links Claude
+  Code, Codex via the store, and hermes itself), and the weekly run refreshes the pack via
+  `cua-driver skills update` — the app's own GitHub-Releases updater, never a write through the symlink.
+
+**Tier model (the lock's `tiers` table):** every roster skill is `core` (7) or `on-demand` (24). Core
+skills auto-load in every harness; on-demand skills stay installed everywhere but load only when
+explicitly invoked: in Claude Code via `skillOverrides.<name> = "user-invocable-only"` — one
+`setValueAtPath` per skill in the settings modify-template (per-key, so overrides the user sets for other
+skills drift freely); in Codex via an additive `agents/openai.yaml`
+(`policy: allow_implicit_invocation: false` — Codex then never auto-invokes the skill, while explicit
+`$name` invocation keeps working). The overlay is committed next to each vendored skill; for npx- and
+clawhub-tracked skills (whose folders the add/update passes replace wholesale) `update-skills.sh`
+re-asserts it on every run from the tiers table — and when an upstream skill ships its own
+`agents/openai.yaml` (the official `hyperframes-keyframes` carries an `interface:` block there), the
+policy is APPENDED so upstream metadata survives, never overwritten. Store entries that are SYMLINKS to
+app-owned content (`cua-driver`) never get an overlay — writing through the link would modify content
+this repo does not own, so `cua-driver` stays implicitly invocable in Codex (a deliberate, documented
+asymmetry).
+
+**Hermes delivery is two-lane, under the five-profile architecture** (default/Bob, elaine, butters,
+concerned, nicodemus):
+
+- **Store-symlink lane (the lock's `hermesProfiles` table)** — the store copy is symlinked into the named
+  profiles' `skills/` dirs (`default` = `~/.hermes/skills`, a specialist =
+  `~/.hermes/profiles/<name>/skills`), declared in chezmoi and re-asserted by `update-skills.sh` at run
+  time (creating profile `skills/` dirs when absent). `[]` means the store copy reaches no hermes
+  profile. Fan-out is driven ENTIRELY by this table: non-empty means symlink, `[]` means do not. The
+  final live-truth map: default = `herdr`, `moshi`, `lobster`, `todoist-cli`, `summarize-pro`,
+  `home-assistant-best-practices`; butters = `chrome-devtools-axi`; concerned = `elevenlabs`,
+  `last30days`; elaine = `lobster`; nicodemus = `gh-axi`, `kubernetes-specialist`, `sql-toolkit`.
+  `home-assistant` maps to `[]`: hermes carries native Home Assistant runtime tools, so the runtime skill
+  would be redundant there — its store copy serves Claude/Codex only (the authoring companion,
+  `home-assistant-best-practices`, is what default carries).
+- **Hermes-owned lane (the lock's `hermesRegistry` table)** — hermes installed the skill from a registry
+  (skills.sh / ClawHub / the official registry) and owns a real hub dir in the profile. The weekly
+  `update-skills.sh` hermes phase keeps these fresh: `hermes -p <profile> skills update <lockKey>` per
+  entry, keyed by the entry's `lockKey`, never a list name (a ClawHub slug can differ from the skill's
+  frontmatter name: `tiktok-crawling` installs `tiktok-scraping-yt-dlp`). These skills have NO store
+  symlink declaration — a store symlink would shadow the hub-owned dir, which is why `hermesRegistry` and
+  the non-empty `hermesProfiles` set are DISJOINT. Blocked/refused updates are loud logged warnings
+  (relayed via `relay.sh`), never errors; automation never passes `--force` (bypassing a security scan
+  needs per-invocation operator confirmation) and never uninstalls. `held: true` skips a skill visibly
+  (none currently held). The default profile (Bob) is walked like any other — its un-entanglement is done
+  (2026-07-09), and with `sql-toolkit` and `summarize-pro` since moved to the clawhub-tracked store lane,
+  the registry table holds no default-profile entry: `conventional-commits` in nicodemus, the rest in
+  concerned. The retired hub installs (nicodemus `sql-toolkit`, default `summarize-pro`) are unowned live
+  state to hand-remove — never automated.
+
+Name collisions resolve catalog-first (operator ruling): the `humanizer` and `hyperframes` store copies
+serve Claude/Codex only and are never symlinked hermes-side — hermes gets those names from its own
+catalog/hub. `summarize-pro` and `todoist-cli` left the collision set: their only hermes copies were hub
+installs (since retired), so no catalog copy wins those names and the store symlink is the wanted
+delivery. `test/skills-roster-fanout.sh` enforces this independently of the tables so a future lock edit
+cannot quietly re-route a collision name through the store.
+
+**Superpowers→hermes routing (the lock's `superpowersRouting` table):** the live
+`~/.hermes/skills/hermes-superpowers/` mirror is hand-patched so the five skills with hermes-native
+adaptations (`writing-plans`, `requesting-code-review`, `subagent-driven-development`,
+`systematic-debugging`, `test-driven-development`) are referenced by their adaptation names instead of
+`superpowers:<name>`, keeping the workflow out of the disabled legacy duplicates. The mapping lives in
+the lock's `superpowersRouting` table, and `~/.local/bin/assert-hermes-superpowers-routing.sh` re-asserts
+it idempotently on every `update-skills.sh` run and after any superpowers re-mirror — a re-assert that
+fixes anything is logged loudly (and relayed), because it means something stomped the mirror.
+`assert-hermes-superpowers-routing.sh --check` is the health probe: non-zero lists the stale files and
+changes nothing. Scope is the hermes mirror ONLY — Claude Code's superpowers plugin keeps its
+`superpowers:*` references untouched.
+
+**Local forks (`moshi`, `herdr`) — updating:** they deliberately diverge from upstream, so
+`update-skills.sh` never touches them. When updating them — or when their upstreams ship new features —
+first compare against upstream (https://herdr.dev/docs/preview/agent-skill/ and
+https://getmoshi.app/skill), then port wanted changes into the vendored copy by hand; the divergences are
+documented in the lock's `forks` notes. The weekly run drift-checks the `forks` upstreams and, when one
+changed, alerts in the run log (`~/.local/log/skills/`) and via `relay.sh` when that exists — after the
+hand comparison, bump that fork's `lastComparedTreeHash` to the new upstream hash.
+
+`update-skills.sh` runs weekly via the `com.webdavis.update-skills` LaunchAgent (Monday 04:00,
+`RunAtLoad=false`, logs to `~/.local/log/skills/`); it refuses to swap skills while an agent harness is
+running (`UPDATE_SKILLS_FORCE=1` bypasses, used by tests) — the same gate covers the hermes
+registry-update phase, which runs after the store refresh (hermes skill updates are unattended-safe: no
+GUI restarts, no gateway restart; sessions pick up content at next start, and a deferred run just means
+the updates land next week). The script installs only what the lock declares, so the registered-skill
+count cannot grow from a run.
+
+**Adding a skill:** if it has an official full-tree GitHub upstream, add an `npxTracked` entry
+(`{"repo": "owner/repo"}`); if it is ClawHub-published, add a `clawhubTracked` entry
+(`{"slug": "@owner/name", "registry": "https://clawhub.ai"}`); otherwise vendor it under
+`dot_agents/skills/` (with a `forks` drift-watch entry when it has a watchable upstream). Then add its
+row to `tiers` (plus the `skillOverrides` template entry and the `agents/openai.yaml` overlay when
+on-demand) and `hermesProfiles` (`[]` when hermes should not carry it from the store, the named profiles
+when it should), add a `hermesRegistry` entry when hermes owns it from a registry (never both a non-empty
+`hermesProfiles` mapping and a `hermesRegistry` entry — they are disjoint), declare its Claude symlink
+and — only for store-symlinked skills — the mapped hermes symlinks, and run `just test` — the roster test
+tells you what is missing. **Removing one:** delete the store entry (or `npxTracked` row), every lock
+table row, and every declaration in the same commit.
+
+**On-demand use of an unregistered skill:** point the agent at the file — "read
+`~/.agents/skills/<name>/SKILL.md` and follow it." Router/search-and-load indirection layers were
+evaluated and rejected (measured lossy and slow at this library size); Hermes's larger native catalog
+(`~/.hermes/skills/<category>/`) remains Hermes-only.
 
 ### Tmux Session Management
 
@@ -393,6 +557,21 @@ Replaces the default battery slot in `@tmux2k-right-plugins` with `last-proc net
 - Shell files: 2-space indent, case-indent enabled, simplified (`shfmt -i 2 -ci -s`, wired in
   `treefmt.nix`). When running shfmt by hand, pass these flags explicitly — `.editorconfig` only covers
   `dot_fzf*` and `dot_bash*` patterns, for editors.
+- **Bash follows the [Wooledge BashGuide](https://mywiki.wooledge.org/BashGuide) practices.** The rules
+  that come up most in this repo:
+  - `set -euo pipefail` at the top of every script; double-quote every expansion.
+  - `[[ ]]` for tests, never `[ ]`, in anything with a bash shebang.
+  - Lists are **arrays**, never space-separated strings — no unquoted `$VAR` expansion loops and no
+    `shellcheck disable=SC2086` suppressions to make them lint.
+  - Never `for x in $(command)` — iterate command output with
+    `while IFS= read -r x; do ...; done < <(command)`. If the loop body runs anything that may read stdin
+    (git, ssh, ffmpeg), read on a dedicated fd: `while IFS= read -r -u3 x; do ...; done 3< <(command)`.
+  - Build JSON with `jq -n --arg`/`--argjson`, never by interpolating variables into a JSON string.
+  - `printf` for any output containing variable data; `echo` only for fixed literal text.
+  - Don't parse `ls`; use globs (guarded with a `[[ -e ]]`/`[[ -d ]]` test or `nullglob`).
+  - Validate numeric arguments with a `[[ =~ ]]` pattern before using them.
+  - Unknown CLI arguments/commands are an error: usage to stderr, exit non-zero — never a silent
+    fallthrough to help with exit 0.
 - Markdown: wrapped at 105 columns, non-consecutive numbering (`mdformat` with `.mdformat.toml`).
 - Nix: formatted with nixfmt (RFC 166 style — `treefmt.nix` pins `pkgs.nixfmt-rfc-style` because the bare
   `nixfmt` attribute in nixpkgs 25.05 is still nixfmt-classic).
