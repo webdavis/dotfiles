@@ -72,7 +72,7 @@ name:
 
 ```bash
 chezmoi apply --exclude=templates --force   # safe — no KeePassXC prompt
-chezmoi apply ~/.tmux.conf                  # specific non-template file
+chezmoi apply ~/.fzf_bindings               # specific non-template file
 chezmoi diff --exclude=templates            # diff non-template files
 ```
 
@@ -434,13 +434,22 @@ table row, and every declaration in the same commit.
 evaluated and rejected (measured lossy and slow at this library size); Hermes's larger native catalog
 (`~/.hermes/skills/<category>/`) remains Hermes-only.
 
-### Tmux Session Management
+### Herdr Workspace Management
 
-Sessions are managed by [sesh](https://github.com/joshmedeski/sesh). Named sessions live in
-`dot_config/sesh/sesh.toml`. `~/.local/bin/sesh-bootstrap.sh` creates the three default sessions
-(uriel/openclaw/homelab) and is invoked from bashrc, `tmux-refresh.sh`, and the Claude Code LaunchAgent.
-`prefix + o` opens the fuzzy picker; `prefix + C-o <letter>` jumps to a named session via the SESH key
-table; `prefix + \\` toggles last session; `prefix + R` reloads `~/.tmux.conf`.
+Workspaces (project-anchored tab groups, ≈ tmux sessions) are configured at
+`dot_config/herdr/config.toml`. Eight quick-jump chords in the `prefix+ctrl+<letter>` namespace map to
+active project paths; see the design spec at
+`docs/superpowers/specs/2026-06-18-tmux-to-herdr-migration-design.md` for the full mapping table.
+`~/.bashrc` lands a fresh interactive shell inside the `homelab` workspace on every terminal launch; the
+other seven workspaces are on-demand via their jump chords.
+
+Ctrl-h/j/k/l "seamless nav across Neovim splits and herdr panes" is a herdr **plugin**
+(`dot_local/share/herdr/plugins/herdr-smart-nav/`, a Rust binary), bound via four
+`type = "plugin_action"` keybindings (`herdr-smart-nav.nav_<dir>`) — so herdr execs it directly as argv,
+with no `/bin/sh -lc` wrapper. Built + linked by `run_onchange_after_57` (mirrors the `last-workspace`
+plugin). It shells the `herdr` CLI (no Rust SDK); the gain over the old shell-keybinding binary is ~5 ms
+(the wrapper) and is imperceptible — the value is the idiomatic plugin integration. Plugin actions get
+`HERDR_PANE_ID` (not `HERDR_ACTIVE_PANE_ID`).
 
 ### Git Worktrees (Worktrunk)
 
@@ -531,26 +540,13 @@ why the per-repo pre-commit lint uses the dispatcher described under Git Hooks r
 
 `dot_bashrc.tmpl` registers `__cmd_notify_preexec` and `__cmd_notify_precmd` via bash-preexec (atuin's
 framework). Commands ≥ 30s fire an `alerter` macOS notification; ≥ 5 min additionally pulse Hue lights
-via `~/.local/bin/hue-pulse.sh`. Known interactive TUIs (vim/less/top/ssh/tmux/claude/fzf) are skipped.
+via `~/.local/bin/hue-pulse.sh`. Known interactive TUIs (vim/less/top/ssh/herdr/claude/fzf) are skipped.
 
-### Tmux Window/Pane Status Indicators
+### Herdr Native Status
 
-Passive indicators via tmux2k:
-
-- **Window list:** each window's active pane gets an emoji (🤖 agents, 🧪 test runners, 🔨 build tools, ⏳
-  other) via `~/.local/bin/tmux-window-emoji.sh` called from `@tmux2k-window-list-format`.
-- **Right-side status:** a custom tmux2k plugin (`last-proc`) reads `@prev-session` (set by the
-  `client-session-changed` hook) and displays `<previous-session>:<active-window> <emoji>`. The plugin
-  script lives at `~/.local/bin/tmux-last-proc.sh` under chezmoi control, and
-  `.chezmoiscripts/run_after_70-install-tmux2k-last-proc.sh.tmpl` copies it into
-  `~/.tmux/plugins/tmux2k/plugins/last-proc.sh` on every `chezmoi apply` (silent no-op if tmux2k isn't
-  installed yet — fresh machine runs `prefix + I` first). Colors come from `@tmux2k-last-proc-colors` set
-  in `dot_tmux.conf`; no need to edit tmux2k's `main.sh` because `get_plugin_colors` falls back to
-  user-set tmux options. Direct placement of the file under `dot_tmux/...` is avoided because tpm's
-  install check (`if [ -d $plugin_dir ]; skip`) would treat a chezmoi-created path as "already installed"
-  and skip cloning tmux2k entirely.
-
-Replaces the default battery slot in `@tmux2k-right-plugins` with `last-proc network ram`.
+Workspace state (per-pane agent status: blocked / working / done / idle) is rendered by herdr — no
+third-party plugin or custom script. The sidebar rolls each workspace up to its most-urgent agent state.
+Claude Code, Codex, Cursor, OpenCode, and others are recognized out of the box.
 
 ## Code Style
 
