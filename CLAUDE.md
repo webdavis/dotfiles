@@ -437,11 +437,14 @@ evaluated and rejected (measured lossy and slow at this library size); Hermes's 
 ### Herdr Workspace Management
 
 Workspaces (project-anchored tab groups, ≈ tmux sessions) are configured at
-`dot_config/herdr/config.toml`. Eight quick-jump chords in the `prefix+ctrl+<letter>` namespace map to
-active project paths; see the design spec at
-`docs/superpowers/specs/2026-06-18-tmux-to-herdr-migration-design.md` for the full mapping table.
-`~/.bashrc` lands a fresh interactive shell inside the `homelab` workspace on every terminal launch; the
-other seven workspaces are on-demand via their jump chords.
+`dot_config/herdr/config.toml`. Eight project workspaces are reached by quick-jump chords — bound on nine
+keys, mostly `prefix+ctrl+<letter>`, but the dotfiles chord is `prefix+ctrl+.` (a period, sent via CSI-u)
+with a `prefix+.` fallback for terminals without CSI-u. See the design spec at
+`docs/superpowers/specs/2026-06-18-tmux-to-herdr-migration-design.md` for the full mapping table. On
+every terminal launch `~/.bashrc` auto-attaches to the persistent herdr session, which opens the
+last-focused workspace (homelab in practice, once visited, since the session persists) — herdr has no
+launch-into-workspace flag. Jump to homelab anytime via the `h` alias or the `prefix+ctrl+h` chord; the
+other workspaces are on-demand via their own chords.
 
 Ctrl-h/j/k/l "seamless nav across Neovim splits and herdr panes" is a herdr **plugin**
 (`dot_local/share/herdr/plugins/herdr-smart-nav/`, a Rust binary), bound via four
