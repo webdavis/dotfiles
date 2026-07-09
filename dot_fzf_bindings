@@ -458,7 +458,11 @@ __fzf_git_select_commit_hashes() {
   __fzf_bindings_get_git_root &>/dev/null || return 1
 
   local -r git_log_line_to_hash="printf '%s' {} | grep -o '[a-f0-9]\{7\}' | head -1"
-  local -r view_git_log_line="$git_log_line_to_hash | xargs -I % sh -c 'git show --color=always % | diff-so-fancy'"
+  # delta (the house pager, per dot_gitconfig.tmpl) reads its [delta] config from
+  # git config and emits ANSI color even when piped (verified on delta 0.19.2:
+  # `git show --color=always <hash> | delta | head` keeps escapes), so no force
+  # flag is needed for the non-tty fzf preview pane; its pager self-disables.
+  local -r view_git_log_line="$git_log_line_to_hash | xargs -I % sh -c 'git show --color=always % | delta'"
   local -r fzf_preview_implementation="$view_git_log_line"
   local -r fzf_preview_window="right:50%:wrap"
 
