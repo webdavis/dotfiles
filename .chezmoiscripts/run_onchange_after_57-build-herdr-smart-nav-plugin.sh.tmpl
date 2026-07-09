@@ -7,32 +7,7 @@ set -euo pipefail
 # action). `herdr plugin link` does NOT run the manifest's [[build]] step, so the
 # binary is compiled here. Re-runs whenever the plugin source changes.
 #
-# Plugin source (hashed so this script re-runs on change):
-#   {{ include "dot_local/share/herdr/plugins/herdr-smart-nav/src/main.rs" | sha256sum }}
-#   {{ include "dot_local/share/herdr/plugins/herdr-smart-nav/Cargo.lock" | sha256sum }}
-#   {{ include "dot_local/share/herdr/plugins/herdr-smart-nav/herdr-plugin.toml" | sha256sum }}
-
-plugin_dir="$HOME/.local/share/herdr/plugins/herdr-smart-nav"
-plugin_id="herdr-smart-nav"
-
-if ! command -v cargo &>/dev/null; then
-  echo "cargo not found on PATH; run the rustup bootstrap first" >&2
-  exit 1
-fi
-
-# --locked keeps the vendored Cargo.lock authoritative so it does not drift.
-(cd "$plugin_dir" && cargo build --release --locked)
-
-# Link with herdr if not already linked. Linking talks to the running herdr
-# server; if it is down (headless apply), skip with a hint -- link later.
-if herdr plugin list 2>/dev/null | grep -q "$plugin_id"; then
-  echo "herdr plugin $plugin_id already linked"
-elif herdr plugin link "$plugin_dir" >/dev/null 2>&1; then
-  echo "linked herdr plugin $plugin_id"
-else
-  echo "could not link $plugin_id (herdr server not running?); link later with: herdr plugin link $plugin_dir" >&2
-fi
-
+{{ includeTemplate "herdr-plugin-build.sh.tmpl" (dict "id" "herdr-smart-nav") }}
 # Remove the retired standalone binary (superseded by the plugin action).
 rm -f "$HOME/.local/bin/herdr-smart-nav"
 {{ end -}}
