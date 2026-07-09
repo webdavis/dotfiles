@@ -333,15 +333,51 @@ protocol below is **step 3's inner cycle**, not a replacement for this loop.
   update-skills install-capable, and add the vendored-skill SHA/`computedHash` supply-chain gate before
   the atomic swap.
 
-### S4 — herdr migration (may split into S4a config / S4b plugins / S4c bashrc+tmux-removal)
+### S4 — herdr migration (re-scoped 2026-07-09 against live state, per learning #2)
+- **Decision: ONE PR — the S4a/b/c split is retracted.** The atomicity invariant (below) means any
+  split's final PR still carries the risky flip (bashrc + deletions), so splitting buys nothing; and the
+  content is dresden's already-live state, familiar to the operator. Commits stay logically separated
+  instead.
 - **Atomicity is the invariant:** the tmux/sesh deletions and the herdr additions ship together — main
-  must never have both, nor neither. If split, S4a/b add herdr and S4c flips bashrc + deletes tmux in
-  one PR.
-- **Ledger fixes:** consolidate the two plugin build scripts to a `.chezmoitemplates` partial; anchor the
-  `grep -q "$plugin_id"` link check; remove `dot_fzf_bindings` tmux-`$TMUX` widgets; fix the `dot_bash_bindings`
-  duplicate `\C-gss`, `nvm`, `$blue`.
-- **Wiring (P-4):** the two Rust plugins build (`cargo build --release --locked`) and link; the
-  auto-attach block guards on `HERDR_ENV`. **Operator apply** needed (builds Rust at apply time).
+  must never have both, nor neither.
+- **Exact file set (verified against the live `origin/main`→`integration/modernization` diff):**
+  - **ADD:** `dot_config/herdr/config.toml`; the two Rust plugins under `dot_local/share/herdr/plugins/`
+    (`herdr-last-workspace`, `herdr-smart-nav` — transplants that CARRY their own `#[cfg(test)]` suites
+    and must run green via `cargo test`); `.chezmoiscripts/run_onchange_before_15-install-herdr.sh.tmpl`;
+    the `after_55-build-herdr-last-workspace` + `after_57-build-herdr-smart-nav` build scripts. NOT
+    `after_55-osquery-pipeline-manifest` (S9 — a numeric-glob near-miss).
+  - **DELETE (atomic cluster):** `dot_tmux.conf`, `dot_config/sesh/**`, the six
+    `dot_local/bin/executable_{sesh-*,tmux-*}` scripts, `run_after_70-install-tmux2k-last-proc`, AND —
+    moved here from S7 — `dot_local/bin/executable_claude-restart.sh` +
+    `Library/LaunchAgents/com.claude.code.plist.tmpl`: the plist's only payload is exec'ing
+    `claude-restart.sh`, which drives tmux, so the pair is tmux-coupled and dies with tmux (deleting the
+    script in S4 while S7 kept the plist would leave main's LaunchAgent exec'ing a nonexistent file).
+  - **Shared-file hunks S4 owns:** `dot_bashrc.tmpl` — ONLY the tmux/sesh→herdr semantics (TERM, the
+    `t`/`h` aliases, the tmux-purge alias and `__tmux_last_proc_precmd` block removals, the notifier
+    skip-list word swap tmux→herdr, and the end-of-file herdr auto-attach block with its `HERDR_ENV` /
+    `SSH_ORIGINAL_COMMAND` / vscode guards); NOT the relay notifier rewrite (S7), NOT the
+    interactive-guard/PATH restructure or brew-cache sourcing (S11). `CLAUDE.md` — the tmux→herdr
+    section rewrites (Tmux Session Management → Herdr Workspace Management; drop the tmux2k indicators
+    section; notifier line). `.chezmoiignore` + `.gitignore` — the 2-line herdr `target/` ignore hunks.
+    `.chezmoidata/system_packages_autoinstall.yaml` — remove the `sesh` and `tmux` formula lines
+    (targeted line edits; the file's other diffs belong to S5/S6). `justfile`, `dot_profile`, and
+    `private_dot_claude/CLAUDE.md` carry NO S4 hunks (verified — their diffs are other slices').
+- **Ledger fixes (all are NEW work — the integration branch never fixed them; verified byte-identical
+  to main):** consolidate the two plugin build scripts' common core into a `.chezmoitemplates` partial
+  (red-first: a rendered-template test asserting both scripts share the partial's anchored logic); anchor
+  the `grep -q "$plugin_id"` link check (unanchored substring match); remove the 14 tmux-`$TMUX` dead
+  widgets from `dot_fzf_bindings`; fix `dot_bash_bindings` — the duplicate `\C-gss` vi-command binding
+  (line ~181 should be `\C-gsh`, per its sibling insert-mode line), drop the stale `nvm` bindings
+  (toolchain has no nvm), audit `$blue` for use-before-definition — with a red-first
+  duplicate-keybinding invariant test (`test/bash-bindings-unique.sh`: no `(keymap, key-seq)` bound
+  twice).
+- **Wiring (P-4):** the two Rust plugins build (`cargo build --release --locked`) and their tests pass
+  (`cargo test`); the auto-attach block guards on `HERDR_ENV`; nothing on main references any deleted
+  path afterwards (`git grep` each deleted basename). **Two-world validation (learning #1):** never a
+  live apply from this branch — validate via cargo build/test + `chezmoi execute-template` renders +
+  `just lint-check && just test`; the live apply is the operator's, at P-8.
+- **Operator apply** needed (builds Rust at apply time; installs herdr via the curl installer; tears
+  down tmux LaunchAgent state).
 
 ### S5 — Tailscale headless daemon
 - First confirm whether the tailscale-monitor fix (`2f430b3`) is already on main; if so this slice is
@@ -360,7 +396,9 @@ protocol below is **step 3's inner cycle**, not a replacement for this loop.
 - **Ship the bash exactly as it runs on dresden.** Do NOT fix the SP3-tagged relay bugs here (fail-closed
   idle probe, jq slurp, mkdir lock, regex anchor) — those are the Rust rewrite's job; main must match
   dresden's current live behavior so SP3 replaces a known baseline. Note this explicitly in the PR body.
-- Delete the old `com.claude.code.plist.tmpl` (superseded by the modify_settings hooks).
+- ~~Delete the old `com.claude.code.plist.tmpl`~~ — **moved to S4** (2026-07-09): the plist's only
+  payload execs the tmux-coupled `claude-restart.sh`, which S4 deletes, so the pair ships in S4's atomic
+  cluster (keeping it here would leave main's LaunchAgent exec'ing a nonexistent file between S4 and S7).
 - **Operator apply** needed (`private_auth.json.tmpl` is KeePassXC-gated).
 
 ### S8 — Hermes age-encryption
@@ -820,6 +858,13 @@ the ad-hoc live state and the script are reconciled.
 The fork upstream drift-check + relay notification for the `moshi`/`herdr` local forks is banked for S11
 (it needs `relay.sh` from S7). The lock's `forks` table and the weekly drift-check pass exist; the
 notify path is the missing piece. Fix: wire the relay push in S11.
+
+Also (found during S4 re-scope, 2026-07-09): the vendored `moshi` fork's `SKILL.md` still documents a
+tmux-based remote transport ("Mosh plus tmux", `command -v tmux`, "at least one tmux session") — stale
+against the herdr migration on this machine (though possibly still valid guidance for remote hosts that
+do run tmux). It is fork *content* (skills lane, not S4's), so S4 does not touch it; resolve it in the
+same S11 fork-maintenance pass — decide whether the guidance is host-specific or needs a herdr rewrite,
+and bump the fork's `lastComparedTreeHash` notes accordingly.
 
 ### fix/skill-architecture-diagram
 
