@@ -37,14 +37,17 @@ Every task's requirements implicitly include these. Values copied verbatim from 
 - **Chezmoi applies:** never run bare `chezmoi apply` from automation (KeePassXC-gated templates need a
   TTY). Use `chezmoi apply --exclude=templates --force`, or apply specific non-template files by name.
   Pause and ask the operator to apply KeePassXC-gated files interactively.
-- **Design + testing standard (binding, per the spec's essential-feed section and decisions log #6):**
-  **TDD drives the design** — for every piece of new logic, write the failing test first, show the red
-  run, implement minimally, show green; no implementation-first work passes review. **SOLID** at the
-  language's altitude: single-responsibility units behind clear seams, wired at one composition point.
-  **Classist (Detroit-school) testing:** real collaborators in domain tests; test doubles only at true
-  I/O boundaries (network, subprocess, filesystem, clock) — the `test/osquery-alerter/lib.bash` harness
-  is the in-repo exemplar and the template for all bats work. Transplanted (already-tested) code carries
-  its tests in the same PR and runs green; any behavior change to it starts with a failing test.
+- **Design + testing standard (HARD RULE, binding — per the spec's essential-feed section, decisions log
+  #6, and the [essential-feed-case-study](https://github.com/essentialdevelopercom/essential-feed-case-study)
+  repo the strategy was drawn from):** **TDD drives the design** — for every piece of new logic, write the
+  failing test first, show the red run, implement minimally, show green; no implementation-first work
+  passes review. **SOLID** at the language's altitude: single-responsibility units behind clear seams,
+  wired at one composition point. **Classist (Detroit-school) testing:** real collaborators in domain
+  tests; test doubles only at true I/O boundaries (network, subprocess, filesystem, clock) — the
+  `test/osquery-alerter/lib.bash` harness is the in-repo exemplar and the template for all bats work.
+  Transplanted (already-tested) code carries its tests in the same PR and runs green; any behavior change
+  to it starts with a failing test. **Fable enforces this rule** at step 5 of the Fable-conductor
+  gap-closure loop (Phase C) — it is not waivable.
 - **Every PR is self-contained and fully wired** — no dead code, no half-feature waiting on a later PR,
   no file that nothing references by the time the PR merges. A migration that removes an old tool must
   add its replacement in the same PR (main is never left half-migrated).
@@ -178,7 +181,47 @@ reality. Ship in table order unless the operator re-prioritizes.
 Every slice task S1–S12 executes the **identical protocol** below. Each slice's task section states only
 its own specifics (files, wiring to verify, gotchas, review focus); the mechanical cycle is here, once.
 
-**The protocol (run for each slice):**
+### The Fable-conductor gap-closure loop (STANDING — governs every section)
+
+**Fable 5 is the standing conductor for every section** (each slice S1–S12, and the Phase A/B/D tasks).
+This loop is not opt-in and is not re-instructed per section — it is the default execution model for the
+whole plan. Do not skip it, shortcut it, or ask whether to run it; run it. The mechanical P-1…P-8
+protocol below is **step 3's inner cycle**, not a replacement for this loop.
+
+1. **Plan review.** Fable reads this section's plan text (its slice row, per-slice specifics, folded
+   ledger fixes, and any amending `R*`/Phase-E items) and identifies every gap and every improvement it
+   can — missing wiring, untested surface, stale assumptions, unstated decisions, sizing risk.
+1. **Plan adjustment.** Fable edits the plan to close those gaps and writes the improvements up to the
+   best of its ability *before* implementing — the plan is the source of truth the lower models read, so
+   it is corrected first, not retroactively.
+1. **Orchestrated implementation.** Fable executes the section as orchestrator, running the P-1…P-8
+   protocol below. For each task Fable **selects the best lower model** that can do the job (the
+   subagent-driven-development Model-Selection rules apply: cheapest tier that fits; never inherit
+   Fable's own model by omission — always name the model explicitly).
+1. **Lower-model implementation.** The selected model implements the task at Fable's behest, under the
+   full Global Constraints (TDD-first, green-before-commit, Conventional Commits, no AI trailers).
+1. **Conductor review + correction.** When the lower model finishes, Fable reviews its work against the
+   section plan, names every mistake and residual gap, and instructs the model (or a fresh one) to
+   implement the fixes. Findings move as files, per the skill's handoff rules.
+1. **Repeat until satisfied.** Steps 4–5 loop until Fable can identify no further mistake or gap in that
+   task's work.
+1. **End-of-section sweep.** After the section's tasks are all individually clean, Fable does one final
+   sweep across *everything* the section produced (the whole slice diff), identifies any remaining gaps
+   and improvements, and runs the 4–6 loop on them until satisfied. Only then does Fable decide whether
+   the section is PR-ready and hand it to the operator review gate (P-8).
+
+> **HARD RULE — TDD + SOLID is non-negotiable, and Fable enforces it.** Every implementation in every
+> section MUST follow the TDD-SOLID strategy identified from the
+> [essential-feed-case-study](https://github.com/essentialdevelopercom/essential-feed-case-study) repo
+> and specified in the **Global Constraints** "Design + testing standard" bullet: failing test first →
+> red → minimal implementation → green; SOLID single-responsibility units behind clear seams wired at one
+> composition point; Classist (Detroit-school) testing with real collaborators and doubles only at true
+> I/O boundaries. Fable is responsible for ensuring this rule is met — a task whose work is
+> implementation-first, or whose new logic lacks a shown red-then-green, fails Fable's step-5 review and
+> is sent back. This gate is not waivable by the lower model, by sizing pressure, or by "transplanted
+> code" (transplanted code carries its tests and runs green; any behavior change to it starts red).
+
+**The protocol (run for each slice — this is step 3's inner cycle):**
 
 - [ ] **P-1: Branch from the current main.**
   ```bash
