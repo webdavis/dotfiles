@@ -112,6 +112,7 @@ in
     # Band-aid: droppable once the managed post-commit dispatcher is applied
     # live — .githooks/no-graphify then stops graphify writing here at all.
     "graphify-out/**"
+    ".superpowers/**"
     ".worktrees/**"
     "**/vendor/**"
     "**/.vendor/**"
@@ -218,7 +219,10 @@ in
     command = shellcheckRenderedTemplate;
     includes = [
       "dot_bashrc.tmpl"
+      ".chezmoiscripts/run_onchange_before_15-install-herdr.sh.tmpl"
       ".chezmoiscripts/run_onchange_before_50-setup-osquery.sh.tmpl"
+      ".chezmoiscripts/run_onchange_after_55-build-herdr-last-workspace-plugin.sh.tmpl"
+      ".chezmoiscripts/run_onchange_after_57-build-herdr-smart-nav-plugin.sh.tmpl"
     ];
   };
   settings.formatter.osquery-config-render = {
