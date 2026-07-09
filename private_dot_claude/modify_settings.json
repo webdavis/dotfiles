@@ -96,4 +96,36 @@
     "swift-lsp@claude-plugins-official" true -}}
 {{- $merged = setValueAtPath "enabledPlugins" $enabledPlugins $merged -}}
 
+{{- /* --- stable: skill tiering (on-demand skills load only when the user
+       invokes them). Source of truth: the tiers table in
+       dot_agents/custom-skill-lock.json — every on-demand skill gets exactly
+       one entry here, core skills get none, and test/skills-roster-fanout.sh
+       fails the build when the two sets diverge. Per-key setValueAtPath (not
+       one whole-dict overwrite) so overrides the user sets for other skills
+       via /config pass through untouched. --- */ -}}
+{{- $merged = setValueAtPath "skillOverrides.cua-driver" "user-invocable-only" $merged -}}
+{{- $merged = setValueAtPath "skillOverrides.elevenlabs" "user-invocable-only" $merged -}}
+{{- $merged = setValueAtPath "skillOverrides.embedded-captions" "user-invocable-only" $merged -}}
+{{- $merged = setValueAtPath "skillOverrides.faceless-explainer" "user-invocable-only" $merged -}}
+{{- $merged = setValueAtPath "skillOverrides.general-video" "user-invocable-only" $merged -}}
+{{- $merged = setValueAtPath "skillOverrides.home-assistant" "user-invocable-only" $merged -}}
+{{- $merged = setValueAtPath "skillOverrides.home-assistant-best-practices" "user-invocable-only" $merged -}}
+{{- $merged = setValueAtPath "skillOverrides.hyperframes" "user-invocable-only" $merged -}}
+{{- $merged = setValueAtPath "skillOverrides.hyperframes-animation" "user-invocable-only" $merged -}}
+{{- $merged = setValueAtPath "skillOverrides.hyperframes-cli" "user-invocable-only" $merged -}}
+{{- $merged = setValueAtPath "skillOverrides.hyperframes-core" "user-invocable-only" $merged -}}
+{{- $merged = setValueAtPath "skillOverrides.hyperframes-creative" "user-invocable-only" $merged -}}
+{{- $merged = setValueAtPath "skillOverrides.hyperframes-keyframes" "user-invocable-only" $merged -}}
+{{- $merged = setValueAtPath "skillOverrides.hyperframes-registry" "user-invocable-only" $merged -}}
+{{- $merged = setValueAtPath "skillOverrides.kubernetes-specialist" "user-invocable-only" $merged -}}
+{{- $merged = setValueAtPath "skillOverrides.last30days" "user-invocable-only" $merged -}}
+{{- $merged = setValueAtPath "skillOverrides.lobster" "user-invocable-only" $merged -}}
+{{- $merged = setValueAtPath "skillOverrides.media-use" "user-invocable-only" $merged -}}
+{{- $merged = setValueAtPath "skillOverrides.motion-graphics" "user-invocable-only" $merged -}}
+{{- $merged = setValueAtPath "skillOverrides.sql-toolkit" "user-invocable-only" $merged -}}
+{{- $merged = setValueAtPath "skillOverrides.summarize-pro" "user-invocable-only" $merged -}}
+{{- $merged = setValueAtPath "skillOverrides.tiktok-crawling" "user-invocable-only" $merged -}}
+{{- $merged = setValueAtPath "skillOverrides.video-transcript-downloader" "user-invocable-only" $merged -}}
+{{- $merged = setValueAtPath "skillOverrides.website-to-video" "user-invocable-only" $merged -}}
+
 {{ $merged | toPrettyJson }}
