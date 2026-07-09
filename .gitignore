@@ -26,3 +26,6 @@ vendor/**
 # Band-aid: droppable once the managed post-commit dispatcher is applied live —
 # .githooks/no-graphify then stops graphify from writing here at all.
 graphify-out/
+
+# Rust build artifacts for vendored herdr projects (plugins + binaries, built in-place, never committed).
+dot_local/share/herdr/**/target/

@@ -1,0 +1,34 @@
+id = "herdr-smart-nav"
+name = "Smart Nav"
+version = "0.1.0"
+min_herdr_version = "0.7.0"
+description = "Seamless Ctrl-h/j/k/l navigation across Neovim splits and herdr panes."
+platforms = ["macos", "linux"]
+
+# Compiled at install time. `herdr plugin link` (local dev) does NOT run this, so
+# the chezmoiscript that links the plugin builds it first.
+[[build]]
+command = ["cargo", "build", "--release", "--locked"]
+
+# Bound to ctrl+h/j/k/l via [[keys.command]] type = "plugin_action" in the herdr
+# config. One action per direction (a keybinding cannot pass arguments, so the
+# direction is baked into each action's argv).
+[[actions]]
+id = "nav_left"
+title = "Nav left (Neovim split or herdr pane)"
+command = ["./target/release/herdr-smart-nav", "left"]
+
+[[actions]]
+id = "nav_down"
+title = "Nav down (Neovim split or herdr pane)"
+command = ["./target/release/herdr-smart-nav", "down"]
+
+[[actions]]
+id = "nav_up"
+title = "Nav up (Neovim split or herdr pane)"
+command = ["./target/release/herdr-smart-nav", "up"]
+
+[[actions]]
+id = "nav_right"
+title = "Nav right (Neovim split or herdr pane)"
+command = ["./target/release/herdr-smart-nav", "right"]

@@ -42,6 +42,9 @@ tmp.*
 .agents/skills/*/node_modules
 .agents/skills/*/node_modules/**
 
+# Rust build artifacts for vendored herdr projects (rebuilt in-place at apply; never deploy).
+.local/share/herdr/**/target
+
 {{- if eq .chezmoi.os "linux" -}}
 .config/yabai
 Library
