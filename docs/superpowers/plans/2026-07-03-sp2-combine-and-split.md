@@ -814,3 +814,45 @@ source (Mermaid or Graphviz — whichever renders cleanest) under `docs/`. Execu
 >   test coverage; any live-vs-declared mismatch; every open `fix/*` from this Phase E backlog; and the
 >   deferred S8 (encrypted profile configs, codegraph MCP) and S12 (Codex AGENTS.md parity) dependencies.
 > - Anything else that aids comprehension — a legend, per-lane colour, a summary count table.
+
+---
+
+## Execution learnings (2026-07-09, from S3 — carry forward to S4–S12 and D1)
+
+Hard-won during the skills slice; each applies to the remaining slices.
+
+1. **The two-world apply trap.** dresden's chezmoi source is the *integration* branch, which does NOT
+   contain merged slice work. A live `chezmoi apply` — or even `chezmoi diff` — from the integration
+   checkout will *revert* a merged slice's files back to the old system (S3: the live updater was still
+   the old 206-era script). Corollary: after a slice merges, the live machine does not automatically
+   match `main` — the committed PR is *desired* state; converging the live machine is a *separate* step.
+   To validate a slice applies cleanly, dry-run-apply the *slice source* into a scratch `$HOME`
+   (`chezmoi --source <worktree> --destination <tmp> apply --dry-run`), or wait for D1. Every slice with
+   a live-state component (S4 herdr, S7 relay, S9 osquery, S10 defaults) has this exposure.
+
+2. **Re-scope each slice against live state at execution — do not trust the plan's file lists/counts.**
+   They were computed early and drift. S3's original scope ("commit the 9 uncommitted of 21 skills") was
+   completely overtaken (the store grew, then settled into a 31-skill npx / clawhub / vendored-fork /
+   app-owned model with weekly auto-update). Before executing, diff the slice's declared files against
+   both the live integration branch and the live machine, and re-scope. The map is a starting point.
+
+3. **Single-writer per worktree.** Never dispatch a second agent into a worktree another agent is
+   writing — concurrent writers corrupt the work (hit twice this session; caught by the second agent
+   freezing with zero writes). To add scope to in-flight work, *message the running agent*; to add work
+   after, wait for it to report done, then verify the worktree is clean before dispatching.
+
+4. **Live reconciliation is a first-class, scripted step — not ad-hoc.** The gap between committed
+   desired-state and the live machine (symlinks, `settings.json` merges, LaunchAgent reloads,
+   stale-copy cleanup, secret-bearing configs) is real and error-prone by hand. Keep it in an
+   idempotent, `--dry-run`-able reconcile script, run once at cutover to prove a from-scratch machine
+   converges. Doing it ad-hoc live (as S3 did under review pressure) leaves the reproducible path
+   unproven — hence `fix/live-reconcile-from-scratch`.
+
+5. **Discovered debt → a `fix/*` item in Phase E immediately.** Don't stretch a slice to fix everything
+   it touches; track it and move on. Phase E now holds S3's.
+
+6. **Skills are their own provenance model, not one lane.** npx `skills add` is GitHub-only; ClawHub
+   skills install/update via the `clawhub` CLI; deliberate local forks stay vendored (drift-alerted);
+   app-owned skills (cua-driver) update via the app. `hermes skills install` has a security scan gate
+   (caution needs `--force`, dangerous is hard-blocked) that direct npx/clawhub writes bypass. Any
+   future skill work must place each skill in the right lane, not assume one mechanism.
