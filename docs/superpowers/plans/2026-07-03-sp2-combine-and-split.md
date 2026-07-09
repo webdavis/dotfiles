@@ -791,6 +791,24 @@ future security↔notification integration once SP3 lands.
 
 ---
 
+## Deferred sub-projects — NOT SP2 scope, tracked in the roadmap spec (do not lose these)
+
+These operator-decided items live in `docs/superpowers/specs/2026-07-02-repo-modernization-roadmap-design.md`
+(the sub-project table), not in this plan — listed here so the plan is self-contained about what it
+deliberately does NOT cover:
+
+- **SP4 — bash→nushell evaluation → migration.** The go/no-go *evaluation* (research-only, criteria in
+  the roadmap's SP4 section) is due **during SP2/SP3** because SP3's shell-hook seam depends on the
+  shell direction; the *migration* (if go) executes after SP3. Evaluation dispatched 2026-07-09
+  (during S4) — report banked for SP4's own spec.
+- **SP6 — nvim-overhaul.** Re-evaluate the v1/v2/v3 design generations (Fable conducts the
+  re-evaluation — operator directive) plus the 10 unpushed commits on the `nvim-overhaul` branch, then
+  implement under its own spec. Not started; runs after SP2.
+- **SP7 backlog — small chores**, including **P6: install `bandwhich`, `doggo`, `ouch`** ("still valid,
+  trivial" — manifest entries + `brew install`), P3 package-manager audit, P5 Determinate Nix review,
+  P8 quick wins (placement depends on SP4's verdict).
+- **SP-nix — nix-darwin go/no-go** (research-first sibling of SP4, banked in §R6).
+
 ## Phase E — End-of-SP2 cleanup backlog
 
 Debts discovered during execution (chiefly S3). Each is deferred for a stated reason; all must be
