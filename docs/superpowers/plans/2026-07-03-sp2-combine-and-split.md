@@ -805,10 +805,16 @@ These operator-decided items live in `docs/superpowers/specs/2026-07-02-repo-mod
 (the sub-project table), not in this plan — listed here so the plan is self-contained about what it
 deliberately does NOT cover:
 
-- **SP4 — bash→nushell evaluation → migration.** The go/no-go *evaluation* (research-only, criteria in
-  the roadmap's SP4 section) is due **during SP2/SP3** because SP3's shell-hook seam depends on the
-  shell direction; the *migration* (if go) executes after SP3. Evaluation dispatched 2026-07-09
-  (during S4) — report banked for SP4's own spec.
+- **SP4 — bash→nushell evaluation: RESOLVED — NO-GO, operator-ratified 2026-07-09.** The evaluation ran
+  during S4 (report: `docs/research/2026-07-09-sp4-nushell-evaluation.md`); verdict NO-GO on three legs:
+  reedline binds one key event per binding — no multi-keystroke chord grammar (verified against the
+  line-editor docs AND reedline #69, where chords remain an open feature request), which the ~365-chord
+  binding surface cannot survive; atuin's nushell integration is its weakest (and atuin is the
+  thrice-broken subsystem here); cost/value fails against a working ~15ms bash hot path. Adjacent shells
+  (zsh/fish/others) were surveyed at ratification: zsh is the only chord-capable candidate, and the
+  operator chose to **stay on bash**. Consequences: GH #5 closes as evaluated/declined; SP3 designs its
+  notifier seam against bash-preexec with NO shell-portability abstraction; P8 quick wins unblock
+  (shell-config placement = bash).
 - **SP6 — nvim-overhaul.** Re-evaluate the v1/v2/v3 design generations (Fable conducts the
   re-evaluation — operator directive) plus the 10 unpushed commits on the `nvim-overhaul` branch, then
   implement under its own spec. Not started; runs after SP2.
