@@ -430,7 +430,12 @@ protocol below is **step 3's inner cycle**, not a replacement for this loop.
 ### S10 — macOS defaults / system-setup
 - **Ledger fixes:** defaults trio shared-lib + `chezmoi source-path` (kills the worktree-writes-primary
   bug); `after_41` `{{ if index . "sudo" }}`; add `ssh-hardening.sh` as a `macos_system_setup.yaml`
-  record so a fresh machine actually locks sshd.
+  record so a fresh machine actually locks sshd — **and fix the script's PAM hole (roadmap high-sev,
+  found missing in the 2026-07-09 audit):** the drop-in sets only `PasswordAuthentication no`, but
+  `UsePAM yes` + the `KbdInteractiveAuthentication` default leave PAM password login open (verified
+  live per the roadmap ledger) — the hardening record must also set
+  `KbdInteractiveAuthentication no` (and address UsePAM's interaction) so password auth is actually
+  closed, test-driven per the sshd `-T` effective-config seam.
 - **Operator apply** needed (Tier-2 sudo runner prompts once).
 - **Research amendments (§R8, §R6):** the R8 endpoint additions already landed on the working branch
   (`36d2d27`) — the `lulu` + `oversight` casks and the firewall **stealth-mode** `macos_system_setup.yaml`
@@ -444,8 +449,11 @@ protocol below is **step 3's inner cycle**, not a replacement for this loop.
   renames (`ae02524`) + worktrunk + gitconfig.
 - **Ledger fixes:** merge.tool name-not-command; `core.excludesfile` (ship a `dot_gitignore_global` or
   drop the line); remove git:// url rewrites, `~/.bash_just_completions` source, atuin `~/.atuin/bin/env`
-  guard, the linux yabai ignore; espanso `_pqi.yml` import + shadow-trigger renames; Arc→Zen hotkey;
-  newsyslog log rotation.
+  guard, the linux yabai ignore; espanso `_pqi.yml` import + shadow-trigger renames + the mid-word
+  autocorrect `word:true` fix; Arc→Zen hotkey; newsyslog log rotation; `run_after_35-setup-yt-dlp`
+  network-on-every-apply + deno/node mismatch (roadmap known-bug set — unassigned until the 2026-07-09
+  audit); the inert `gh` `hosts.yml.tmpl`. (P12 gitconfig autocorrect: **already on main** —
+  `autocorrect = prompt`, verified 2026-07-09; no work.)
 - **Installs (SP5 + directive):** Thaw (`brew install --cask thaw` → add to manifest); ponytail (`/plugin
   marketplace add DietrichGebert/ponytail` + `/plugin install`, `hermes plugins install
   DietrichGebert/ponytail --enable`, promote to `enabledPlugins`).
@@ -885,6 +893,25 @@ against the herdr migration on this machine (though possibly still valid guidanc
 do run tmux). It is fork *content* (skills lane, not S4's), so S4 does not touch it; resolve it in the
 same S11 fork-maintenance pass — decide whether the guidance is host-specific or needs a herdr rewrite,
 and bump the fork's `lastComparedTreeHash` notes accordingly.
+
+### fix/pre-commit-path-filter (found 2026-07-09 roadmap audit)
+
+The roadmap's S2 design-alternative "pre-commit: skip the bats suite on docs/YAML-only commits (path
+filter)" never made it into the S2 plan text or implementation — every commit (including docs-only)
+runs the full `just lint-check && just test` (observed live: plan-edit commits run the whole suite).
+Friction, not correctness. Fix: a path filter in `.githooks/pre-commit` that skips `just test` (never
+the lint gate or gitleaks) when the staged diff touches only docs/markdown. Slot: S11 or post-SP2.
+
+### fix/template-render-coverage (found 2026-07-09 roadmap audit)
+
+The old `lint.sh` shellcheck-rendered ~12 templates via an allowlist; S2's treefmt port carried only 2
+(bashrc, osquery before_50) and S4 added its 3 herdr scripts — so ~7 previously-linted shell templates
+lost render-lint coverage, and the S2 ledger fix "template shellcheck allowlist → programmatic" was
+never implemented (treefmt.nix uses an explicit include list). Fix: either make the include list
+programmatic (all `.chezmoiscripts/*.sh.tmpl` that render without keepassxc, discovered not
+enumerated), or restore the missing entries slice-by-slice as their files land (S6/S7/S9/S10 each add
+their scripts). Decide in S11 at the latest; each slice SHOULD add its own templates meanwhile (S4 has,
+belatedly, in its final-review round).
 
 ### fix/skill-architecture-diagram
 
