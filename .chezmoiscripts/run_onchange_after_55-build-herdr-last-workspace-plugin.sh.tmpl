@@ -13,12 +13,24 @@ set -euo pipefail
 # after install works. The plugin learns workspaces only as they are focused, so
 # without this seed the workspace focused at install time is missing until it is
 # re-focused (the event-only cold-start gap). Only seed when no state exists yet.
-state="${XDG_STATE_HOME:-$HOME/.local/state}/herdr/plugins/${plugin_id}/mru"
+# Byte-match the plugin's own fallback path (src/main.rs state_file(), which
+# hardcodes $HOME/.local/state and does NOT honor XDG_STATE_HOME) so the seed
+# lands where the plugin actually reads. Known limit: if herdr sets
+# HERDR_PLUGIN_STATE_DIR to a different dir at runtime, this seed is a harmless
+# no-op warm-up (the plugin self-seeds on the first workspace focus).
+state="$HOME/.local/state/herdr/plugins/${plugin_id}/mru"
 if [[ ! -s $state ]]; then
-  focused=$(herdr workspace list 2>/dev/null | jq -r '[.result.workspaces[] | select(.focused) | .workspace_id][0] // empty')
-  if [[ -n $focused ]]; then
+  # Seed tolerantly, same posture as the link step above: a down/erroring herdr
+  # server must not abort the apply. Guard the assignment so neither herdr's rc
+  # (pipefail) nor jq's rc (error JSON -> "cannot iterate over null") trips
+  # set -e, and suppress jq's stderr on the failure path.
+  if focused=$(herdr workspace list 2>/dev/null |
+    jq -r '[.result.workspaces[] | select(.focused) | .workspace_id][0] // empty' 2>/dev/null) &&
+    [[ -n $focused && $focused != "null" ]]; then
     mkdir -p "$(dirname "$state")"
     printf '%s\n\n' "$focused" >"$state"
+  else
+    echo "could not seed last-workspace MRU (herdr server down?); it self-seeds on first workspace focus" >&2
   fi
 fi
 {{ end -}}

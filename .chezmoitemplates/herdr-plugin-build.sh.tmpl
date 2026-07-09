@@ -14,14 +14,28 @@ links it with herdr. Each caller keeps only its plugin-specific pre/postamble.
 plugin_dir="$HOME/.local/share/herdr/plugins/{{ .id }}"
 plugin_id="{{ .id }}"
 
-if ! command -v cargo &>/dev/null; then
-  echo "cargo not found on PATH; run the rustup bootstrap first" >&2
-  exit 1
+# Resolve cargo. On a fresh machine, run_once_before_20 installs rustup into
+# ~/.cargo/bin during THIS same apply, but that dir is not on the apply shell's
+# PATH yet — so fall back to the absolute path before giving up. A missing
+# toolchain must NEVER abort the whole apply (this partial is includeTemplate'd
+# into run_onchange chezmoiscripts, so exit 1 here kills the entire apply).
+if command -v cargo &>/dev/null; then
+  cargo_bin="cargo"
+elif [[ -x "$HOME/.cargo/bin/cargo" ]]; then
+  cargo_bin="$HOME/.cargo/bin/cargo"
+else
+  # No cargo anywhere: skip (exit 0) so the rest of the apply proceeds. Caveat:
+  # exit 0 consumes this run_onchange trigger (chezmoi records the script hash on
+  # any success), so a bare re-apply will NOT rebuild — after installing rust,
+  # re-touch the plugin source (or clear chezmoi's scriptState bucket) to retry.
+  echo "cargo not found on PATH or in ~/.cargo/bin; skipping ${plugin_id} plugin build." >&2
+  echo "install rust, then re-touch the plugin source and re-run chezmoi apply to build it." >&2
+  exit 0
 fi
 
 # Compile the plugin binary. --locked keeps Cargo.lock authoritative so the
 # vendored lockfile does not drift on apply.
-(cd "$plugin_dir" && cargo build --release --locked)
+(cd "$plugin_dir" && "$cargo_bin" build --release --locked)
 
 # Link with herdr if not already linked. Linking talks to the running herdr
 # server; if it is not up (e.g. a headless apply), skip with a hint — an
