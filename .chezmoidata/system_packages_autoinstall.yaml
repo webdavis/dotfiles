@@ -226,6 +226,7 @@ packages:
         - name: Xcode
           id: "497_799_835"
     uv:
+      - graphifyy
       - nano-pdf
       - sherlock-project
       - whisply[mlx,app]
@@ -235,6 +236,7 @@ packages:
       - "@doist/todoist-cli"
       - agentmail-cli
       - clawhub
+      - "@colbymchenry/codegraph"
       - happy
       - hyperframes
       - "@clawdbot/lobster"
