@@ -1,0 +1,11 @@
+# Gitleaks config for the pre-commit secret scan (extends the default rules).
+title = "dotfiles"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Vendored third-party skill documentation with placeholder example credentials (sk-1234..., myuser:mypassword, truncated PEM blocks). The content must stay byte-identical to upstream/live, so inline gitleaks:allow comments are not an option."
+paths = [
+  '''dot_agents/skills/kubernetes-specialist/references/configuration\.md''',
+]

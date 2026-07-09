@@ -109,6 +109,9 @@ in
   # gitignored paths).
   settings.excludes = [
     ".direnv/**"
+    # Band-aid: droppable once the managed post-commit dispatcher is applied
+    # live — .githooks/no-graphify then stops graphify writing here at all.
+    "graphify-out/**"
     ".worktrees/**"
     "**/vendor/**"
     "**/.vendor/**"
@@ -124,7 +127,14 @@ in
     "dot_bash*"
     "dot_profile"
   ];
-  programs.shellcheck.excludes = [ "*.tmpl" ];
+  # dot_agents/skills/** is vendored third-party skill content (same RULE as the
+  # mdformat exclude below): it must stay byte-identical to upstream/live, so it
+  # is never linted or reformatted. Skills authored in this repo keep their
+  # scripts shellcheck-clean by hand (and exercised by test/).
+  programs.shellcheck.excludes = [
+    "*.tmpl"
+    "dot_agents/skills/**"
+  ];
 
   programs.shfmt.enable = true;
   # indent_size = 2 and simplify = true are the module defaults (-i 2 -s);
@@ -135,7 +145,10 @@ in
     "dot_bash*"
     "dot_profile"
   ];
-  programs.shfmt.excludes = [ "*.tmpl" ];
+  programs.shfmt.excludes = [
+    "*.tmpl"
+    "dot_agents/skills/**"
+  ];
   settings.formatter.shfmt.options = [ "-ci" ];
 
   # Markdown — mdformat reads .mdformat.toml (wrap = 105, number = false,

@@ -117,3 +117,11 @@ defaults-show domain:
 
 defaults-dump:
   defaults read | less
+
+# (agent-skill vendoring removed: herdr/moshi now live in ~/.agents/skills, symlinked per-harness)
+
+# Refresh portable agent skills in the store (~/.agents/skills) + re-symlink each harness.
+# Also runs weekly via launchd (com.webdavis.update-skills). Pass --dry-run to preview,
+# or --install-only to only install absent manifest skills (fresh-machine bootstrap).
+update-skills *args:
+  ~/.local/bin/update-skills.sh {{args}}
