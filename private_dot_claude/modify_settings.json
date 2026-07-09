@@ -122,7 +122,6 @@
 {{- $merged = setValueAtPath "skillOverrides.lobster" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.media-use" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.motion-graphics" "user-invocable-only" $merged -}}
-{{- $merged = setValueAtPath "skillOverrides.sql-toolkit" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.summarize-pro" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.tiktok-crawling" "user-invocable-only" $merged -}}
 {{- $merged = setValueAtPath "skillOverrides.video-transcript-downloader" "user-invocable-only" $merged -}}

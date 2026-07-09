@@ -27,7 +27,7 @@
     "media-use": "on-demand",
     "moshi": "core",
     "motion-graphics": "on-demand",
-    "sql-toolkit": "on-demand",
+    "sql-toolkit": "core",
     "summarize-pro": "on-demand",
     "tiktok-crawling": "on-demand",
     "todoist-cli": "core",
