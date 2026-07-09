@@ -192,15 +192,17 @@ protocol below is **step 3's inner cycle**, not a replacement for this loop.
    ledger fixes, and any amending `R*`/Phase-E items) and identifies every gap and every improvement it
    can — missing wiring, untested surface, stale assumptions, unstated decisions, sizing risk.
 1. **Plan adjustment.** Fable edits the plan to close those gaps and writes the improvements up to the
-   best of its ability *before* implementing — the plan is the source of truth the lower models read, so
+   best of its ability *before* implementing — the plan is the source of truth the implementers read, so
    it is corrected first, not retroactively.
 1. **Orchestrated implementation.** Fable executes the section as orchestrator, running the P-1…P-8
-   protocol below. For each task Fable **selects the best lower model** that can do the job (the
-   subagent-driven-development Model-Selection rules apply: cheapest tier that fits; never inherit
-   Fable's own model by omission — always name the model explicitly).
-1. **Lower-model implementation.** The selected model implements the task at Fable's behest, under the
-   full Global Constraints (TDD-first, green-before-commit, Conventional Commits, no AI trailers).
-1. **Conductor review + correction.** When the lower model finishes, Fable reviews its work against the
+   protocol below. **Model policy (operator-set, 2026-07-09, supersedes the
+   subagent-driven-development cheapest-tier rule): every implementer and fixer dispatch is Opus at
+   max effort; Fable runs its own conductor jobs (gap identification, planning, instructing, reviewing)
+   at high effort.** Always name the model explicitly in the dispatch — never inherit by omission.
+1. **Implementer (Opus, max effort) implementation.** The implementer executes the task at Fable's
+   behest, under the full Global Constraints (TDD-first, green-before-commit, Conventional Commits, no
+   AI trailers).
+1. **Conductor review + correction.** When the implementer finishes, Fable reviews its work against the
    section plan, names every mistake and residual gap, and instructs the model (or a fresh one) to
    implement the fixes. Findings move as files, per the skill's handoff rules.
 1. **Repeat until satisfied.** Steps 4–5 loop until Fable can identify no further mistake or gap in that
@@ -218,7 +220,7 @@ protocol below is **step 3's inner cycle**, not a replacement for this loop.
 > composition point; Classist (Detroit-school) testing with real collaborators and doubles only at true
 > I/O boundaries. Fable is responsible for ensuring this rule is met — a task whose work is
 > implementation-first, or whose new logic lacks a shown red-then-green, fails Fable's step-5 review and
-> is sent back. This gate is not waivable by the lower model, by sizing pressure, or by "transplanted
+> is sent back. This gate is not waivable by the implementer, by sizing pressure, or by "transplanted
 > code" (transplanted code carries its tests and runs green; any behavior change to it starts red).
 
 **The protocol (run for each slice — this is step 3's inner cycle):**
