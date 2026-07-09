@@ -33,7 +33,6 @@ function path_prepend() {
 EDITOR="$(which nvim)" && export EDITOR
 export BASH_SILENCE_DEPRECATION_WARNING=1
 export MANPAGER="nvim +Man!"
-export TERM='tmux-256color'
 export COLORTERM=truecolor
 export XDG_DATA_HOME="$HOME/.local/share"
 export XDG_CONFIG_HOME="$HOME/.config"
@@ -43,7 +42,7 @@ export USER="${USER:-$(whoami)}"
 
 # Bash history is handled entirely by atuin's daemon (v2 §1.1). Bash built-in
 # history flags (HISTFILE, HISTSIZE, histappend, HISTCONTROL, HISTIGNORE) were
-# removed to eliminate race conditions across tmux panes and redundant writes.
+# removed to eliminate race conditions across herdr panes and redundant writes.
 
 [[ -f "$HOME/.atuin/bin/env" ]] && . "$HOME/.atuin/bin/env"
 
@@ -64,10 +63,9 @@ export SHELL="${HOMEBREW_PREFIX}/bin/bash"
 bash_completion="${HOMEBREW_PREFIX}/opt/bash-completion@2/etc/profile.d/bash_completion.sh"
 [[ -r $bash_completion ]] && . "$bash_completion"
 
-# bash-preexec: provides preexec_functions/precmd_functions arrays that atuin,
-# the long-running command notifier, and tmux-last-proc all depend on.
-# Must load BEFORE atuin init so atuin's hooks register with it. Newer atuin
-# (>= 18.x) no longer bundles bash-preexec.
+# bash-preexec: provides preexec_functions/precmd_functions arrays that atuin
+# and the long-running command notifier depend on. Must load BEFORE atuin init
+# so atuin's hooks register with it. Newer atuin (>= 18.x) no longer bundles it.
 # Ref: https://github.com/rcaloras/bash-preexec
 bash_preexec="${HOMEBREW_PREFIX}/etc/profile.d/bash-preexec.sh"
 [[ -r $bash_preexec ]] && . "$bash_preexec"
@@ -189,11 +187,10 @@ if [[ $- == *i* ]]; then
   alias du='dust'
   alias ps='procs'
   alias grep='grep --color=auto'
-  alias tmux-purge-resurrect-session-data='rm -f .tmux/resurrect/last .tmux/resurrect/tmux_resurrect*'
   alias p='python3'
   alias git-weekly='git diff --name-status "@{7 days ago}" | sort -u | grep -v "Templates" > weekly-review-files.md'
   alias path='echo $PATH | tr ":" "\n"'
-  alias t='sesh connect uriel'
+  alias h='herdr-jump.sh homelab "$HOME/workspaces/Ivy/webdavis/homelab"'
   alias fman='compgen -c | fzf | xargs man'
 
   # Custom git wrappers and other user aliases.
@@ -268,7 +265,7 @@ __cmd_notify_precmd() {
   local elapsed=$((SECONDS - __cmd_notify_start))
   __cmd_notify_start=""
   # Skip known interactive TUIs.
-  [[ $__cmd_notify_name =~ ^(vim|nvim|less|man|top|btop|ssh|tmux|claude|fzf) ]] && return
+  [[ $__cmd_notify_name =~ ^(vim|nvim|less|man|top|btop|ssh|herdr|claude|fzf) ]] && return
   # Wrap each background call in a subshell so jobs aren't attached to this
   # interactive shell (otherwise `fg`/`jobs` would grab them).
   if ((elapsed >= 300)); then
@@ -284,22 +281,6 @@ preexec_functions+=(__cmd_notify_preexec)
 # shellcheck disable=SC2034
 precmd_functions+=(__cmd_notify_precmd)
 
-# ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-# ┃  Tmux last-proc exit-code tracker (v2 §21.4)  ┃
-# ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-# Writes the last command's exit code to a per-pane state file, read by
-# ~/.local/bin/tmux-last-proc.sh to pick ✅/❌ for the prev-session display.
-# /tmp is cleared on reboot so no explicit cleanup is needed.
-__tmux_last_proc_precmd() {
-  local exit_code=$?
-  [[ -z ${TMUX_PANE:-} ]] && return
-  local dir="/tmp/tmux-last-proc-${UID}"
-  [[ -d $dir ]] || mkdir -p "$dir" 2>/dev/null || return
-  printf '%s' "$exit_code" >"$dir/$TMUX_PANE" 2>/dev/null
-}
-# shellcheck disable=SC2034
-precmd_functions+=(__tmux_last_proc_precmd)
-
 # Order matters! These local (user-level) tools should always take precedence in my environment.
 path_prepend "$HOME/.local/bin"
 path_prepend "$HOME/.bun/bin"
@@ -308,7 +289,7 @@ path_prepend "$HOME/.bun/bin"
 export PATH
 
 # ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-# ┃  Tmux: Config / Auto-start Session(s)  ┃
+# ┃         Herdr: Auto-attach Session       ┃
 # ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 
 case $- in
@@ -316,34 +297,23 @@ case $- in
   *) return ;; # non-interactive terminal session, exit
 esac
 
-# Skip if tmux isn't installed or already in a session.
-command -v tmux &>/dev/null || return
-[[ -n $TMUX ]] && return
+# Skip if herdr isn't installed or already in a pane.
+command -v herdr &>/dev/null || return
+[[ -n ${HERDR_ENV:-} ]] && return
 
 # Do not interfere with non-interactive remote commands (ssh host 'cmd').
 [[ -n ${SSH_ORIGINAL_COMMAND:-} ]] && return
 
-# Skip tmux for VS Code Remote SSH connections (prevents OOM from multiple background sessions).
+# Skip herdr for VS Code Remote SSH connections.
 [[ -n ${VSCODE_INJECTION:-} ]] && return
 
-# Skip tmux for VS Code integrated terminals.
+# Skip herdr for VS Code integrated terminals.
 [[ ${TERM_PROGRAM:-} == "vscode" ]] && return
 
-# Bail if Tmux server/session is already running.
-if ! sh -c 'tmux ls >/dev/null 2>&1'; then
-  # No tmux server — bootstrap sessions.
-  tmux_resurrect_data="$HOME/.tmux/resurrect/last"
-  if [[ -f $tmux_resurrect_data ]]; then
-    # Bare `tmux` starts the server; tmux-continuum auto-restores saved sessions.
-    tmux
-  elif command -v sesh &>/dev/null; then
-    # Create the three default sessions via sesh-bootstrap, then attach to uriel.
-    "$HOME/.local/bin/sesh-bootstrap.sh" 2>/dev/null
-    tmux attach -t uriel 2>/dev/null || tmux new -s uriel
-  fi
-else
-  # Server already running — attach to (or switch to) the uriel session.
-  if command -v sesh &>/dev/null; then
-    sesh connect uriel
-  fi
-fi
+# Launch or attach to the persistent herdr session (starts the server if it
+# isn't running). herdr has no launch-into-workspace flag, so this opens the
+# last-focused workspace — homelab once you've been there, since the session
+# persists. Jump to homelab anytime via prefix+ctrl+h or the `h` alias.
+# NOTE: `herdr workspace create` is a socket call that needs a running server
+# and does not attach the terminal — do not use it here.
+herdr
