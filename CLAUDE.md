@@ -254,9 +254,9 @@ Templates conditionally branch on `.chezmoi.os` and, where they pull secrets, ca
 
 Shell templates contain Go template syntax that shellcheck can't parse directly. The
 `shellcheck-rendered-template` formatter in `treefmt.nix` renders first:
-`CI=1 chezmoi execute-template --no-tty <file | shellcheck -`. Only `dot_bashrc.tmpl` and
-`.chezmoiscripts/run_onchange_before_50-setup-osquery.sh.tmpl` are rendered; neither calls `keepassxc`,
-so the `CI=1` env var is defensive (vestigial from an earlier version where bashrc had a
+`CI=1 chezmoi execute-template --no-tty <file | shellcheck -`. Five templates are rendered —
+`dot_bashrc.tmpl`, the osquery setup script, and the three herdr install/build chezmoiscripts; none calls
+`keepassxc`, so the `CI=1` env var is defensive (vestigial from an earlier version where bashrc had a
 CI-vs-interactive branch). Other templates with CI branches (e.g. `identity.yml.tmpl`) are not
 shell-linted. A sibling formatter, `osquery-config-render`, renders the JSON-bodied
 `.chezmoitemplates/osquery/*.conf` templates via `includeTemplate` and validates the result with jq.
