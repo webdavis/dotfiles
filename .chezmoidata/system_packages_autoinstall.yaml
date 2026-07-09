@@ -131,7 +131,6 @@ packages:
         - ruff
         - sd
         - sevenzip
-        - sesh
         - socat
         - starship
         - steipete/tap/goplaces
@@ -144,7 +143,6 @@ packages:
         - tart
         - tealdeer
         - terminal-notifier
-        - tmux
         - tokei
         - trash-cli
         - tree
