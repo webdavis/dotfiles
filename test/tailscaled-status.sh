@@ -128,6 +128,7 @@ asilent Running
 run_case starting "$STARTING" 0
 a0 Starting
 am Starting starting
+an Starting "unknown backendstate" # discriminate: falling through to the unknown handler still greps 'starting'
 an Starting install-system-daemon
 
 run_case needslogin "$NEEDSLOGIN" 0
@@ -143,6 +144,7 @@ an NeedsMachineAuth install-system-daemon
 run_case stopped "$STOPPED" 0
 a0 Stopped
 am Stopped stopped
+an Stopped "unknown backendstate" # discriminate: falling through to the unknown handler still greps 'stopped'
 an Stopped install-system-daemon
 
 run_case unknown "$UNKNOWN" 0
