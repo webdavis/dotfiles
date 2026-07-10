@@ -14,22 +14,25 @@ links it with herdr. Each caller keeps only its plugin-specific pre/postamble.
 plugin_dir="$HOME/.local/share/herdr/plugins/{{ .id }}"
 plugin_id="{{ .id }}"
 
-# Resolve cargo. On a fresh machine, run_once_before_20 installs rustup into
-# ~/.cargo/bin during THIS same apply, but that dir is not on the apply shell's
-# PATH yet — so fall back to the absolute path before giving up. A missing
-# toolchain must NEVER abort the whole apply (this partial is includeTemplate'd
-# into run_onchange chezmoiscripts, so exit 1 here kills the entire apply).
-if command -v cargo &>/dev/null; then
-  cargo_bin="cargo"
-elif [[ -x "$HOME/.cargo/bin/cargo" ]]; then
-  cargo_bin="$HOME/.cargo/bin/cargo"
-else
-  # No cargo anywhere: skip (exit 0) so the rest of the apply proceeds. Caveat:
-  # exit 0 consumes this run_onchange trigger (chezmoi records the script hash on
-  # any success), so a bare re-apply will NOT rebuild — after installing rust,
-  # re-touch the plugin source (or clear chezmoi's scriptState bucket) to retry.
-  echo "cargo not found on PATH or in ~/.cargo/bin; skipping ${plugin_id} plugin build." >&2
-  echo "install rust, then re-touch the plugin source and re-run chezmoi apply to build it." >&2
+# Resolve cargo at its deterministic rustup location. cargo on this machine is
+# rustup-managed (run_once_before_20 installs rustup into ~/.cargo/bin), so the
+# canonical binary is ALWAYS "$HOME/.cargo/bin/cargo" — use it directly, never a
+# `command -v cargo` PATH probe. A PATH probe would silently pick up a different,
+# unexpected toolchain, and it is wrong for the very case this build must handle:
+# on a fresh machine run_once_before_20 provisions cargo during THIS same apply,
+# but ~/.cargo/bin is not on the apply shell's PATH yet — the absolute path is
+# authoritative precisely because PATH is not. A missing toolchain must NEVER
+# abort the whole apply (this partial is includeTemplate'd into run_onchange
+# chezmoiscripts, so exit 1 here kills the entire apply).
+cargo_bin="$HOME/.cargo/bin/cargo"
+if [[ ! -x $cargo_bin ]]; then
+  # No cargo at the canonical rustup location: skip (exit 0) so the rest of the
+  # apply proceeds. Caveat: exit 0 consumes this run_onchange trigger (chezmoi
+  # records the script hash on any success), so a bare re-apply will NOT rebuild
+  # — after rustup provisions cargo, re-touch the plugin source (or clear
+  # chezmoi's scriptState bucket) to retry.
+  echo "cargo not found at ${cargo_bin}; skipping ${plugin_id} plugin build." >&2
+  echo "rustup (run_once_before_20) did not provision it; install rust, then re-touch the plugin source and re-run chezmoi apply to build it." >&2
   exit 0
 fi
 

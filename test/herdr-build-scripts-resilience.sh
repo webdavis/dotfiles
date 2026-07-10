@@ -9,9 +9,11 @@
 #   F4  happy path w/ XDG_STATE_HOME  -> seed writes to $HOME/.local/state
 #                                        (the plugin's hardcoded read path), NOT
 #                                        the XDG_STATE_HOME location
-#   F2  cargo only in ~/.cargo/bin    -> the absolute-path fallback is used (a
-#                                        fresh machine has rustup installed there
-#                                        but not yet on the apply shell's PATH)
+#   F2  cargo only on PATH            -> NOT used: the build resolves cargo at the
+#                                        deterministic ~/.cargo/bin/cargo only, so
+#                                        a PATH-only cargo is ignored (skip+hint)
+#   F2  cargo at ~/.cargo/bin + PATH  -> the absolute ~/.cargo/bin/cargo is the
+#                                        one invoked, never the PATH cargo
 #   F2  cargo absent everywhere       -> script exits 0 with a hint (never aborts)
 #
 # This exercises the rendered code path itself (not a copy). Stubs shadow the
@@ -113,25 +115,35 @@ STUB
 }
 
 # run_case <name> <herdr-mode> <cargo-mode> [xdg_state_home]
-#   cargo-mode: path | home | none
-# Populates: RC, ERR (stderr text), CASE_HOME, CARGO_RECORD
+#   cargo-mode: home     -> cargo only at the absolute ~/.cargo/bin/cargo
+#               pathonly -> cargo only on PATH (must be ignored by the build)
+#               both     -> cargo at BOTH ~/.cargo/bin and on PATH
+#               none     -> no cargo anywhere
+# Populates: RC, ERR (stderr text), CASE_HOME, CARGO_RECORD (absolute-cargo
+# argv), PATH_CARGO_RECORD (PATH-cargo argv)
 run_case() {
   local name="$1" herdr_mode="$2" cargo_mode="$3" xdg="${4:-}"
   CASE_HOME="$work/$name/home"
   local bin="$work/$name/bin"
-  CARGO_RECORD="$work/$name/cargo-argv"
+  CARGO_RECORD="$work/$name/cargo-abs-argv"
+  PATH_CARGO_RECORD="$work/$name/cargo-path-argv"
   mkdir -p "$bin" "$CASE_HOME/.local/share/herdr/plugins/$PLUGIN_ID"
 
   make_herdr_stub "$bin" "$herdr_mode"
 
   local case_path
   case "$cargo_mode" in
-    path)
-      make_cargo_stub "$bin/cargo" "$CARGO_RECORD"
-      case_path="$bin:$PATH"
-      ;;
     home)
       make_cargo_stub "$CASE_HOME/.cargo/bin/cargo" "$CARGO_RECORD"
+      case_path="$bin:$PATH_NO_CARGO"
+      ;;
+    pathonly)
+      make_cargo_stub "$bin/cargo" "$PATH_CARGO_RECORD"
+      case_path="$bin:$PATH_NO_CARGO"
+      ;;
+    both)
+      make_cargo_stub "$CASE_HOME/.cargo/bin/cargo" "$CARGO_RECORD"
+      make_cargo_stub "$bin/cargo" "$PATH_CARGO_RECORD"
       case_path="$bin:$PATH_NO_CARGO"
       ;;
     none)
@@ -156,19 +168,19 @@ no_jq_error() {
   ! grep -qiE 'jq: error|cannot iterate' <<<"$ERR"
 }
 
-# --- F1: herdr server down -------------------------------------------------
-run_case f1-down down path
+# --- F1: herdr server down (link step must tolerate it) --------------------
+run_case f1-down down home
 [[ $RC -eq 0 ]] || fail "F1 down: expected exit 0, got $RC (stderr: $ERR)"
 no_jq_error || fail "F1 down: jq error leaked to stderr: $ERR"
 
 # --- F1: herdr returns an error envelope -----------------------------------
-run_case f1-errorjson errorjson path
+run_case f1-errorjson errorjson home
 [[ $RC -eq 0 ]] || fail "F1 errorjson: expected exit 0, got $RC (stderr: $ERR)"
 no_jq_error || fail "F1 errorjson: jq error leaked to stderr: $ERR"
 
 # --- F4: seed path must match the plugin's hardcoded read path -------------
 xdg_dir="$work/f4-happy/xdg-state"
-run_case f4-happy happy path "$xdg_dir"
+run_case f4-happy happy home "$xdg_dir"
 [[ $RC -eq 0 ]] || fail "F4 happy: expected exit 0, got $RC (stderr: $ERR)"
 seeded="$CASE_HOME/.local/state/herdr/plugins/$PLUGIN_ID/mru"
 [[ -s $seeded ]] || fail "F4 happy: seed not written to the plugin read path ($seeded)"
@@ -176,11 +188,21 @@ head -n1 "$seeded" | grep -qx "wW" || fail "F4 happy: seed content wrong ($(cat 
 [[ ! -e "$xdg_dir/herdr/plugins/$PLUGIN_ID/mru" ]] ||
   fail "F4 happy: seed honored XDG_STATE_HOME; plugin never reads there"
 
-# --- F2: cargo only in ~/.cargo/bin (fresh-machine fallback) ---------------
-run_case f2-home down home
-[[ $RC -eq 0 ]] || fail "F2 home-fallback: expected exit 0, got $RC (stderr: $ERR)"
-[[ -s $CARGO_RECORD ]] || fail "F2 home-fallback: ~/.cargo/bin/cargo fallback was not used"
-grep -q 'build' "$CARGO_RECORD" || fail "F2 home-fallback: cargo not invoked to build ($(cat "$CARGO_RECORD"))"
+# --- F2: a PATH-only cargo must NOT be used (deterministic absolute path) ---
+run_case f2-pathonly happy pathonly
+[[ $RC -eq 0 ]] || fail "F2 pathonly: expected exit 0, got $RC (stderr: $ERR)"
+grep -qi 'cargo not found' <<<"$ERR" ||
+  fail "F2 pathonly: a PATH-only cargo must be ignored (skip-with-hint expected) ($ERR)"
+[[ ! -e $PATH_CARGO_RECORD ]] ||
+  fail "F2 pathonly: a PATH cargo was invoked; only ~/.cargo/bin/cargo is authoritative ($(cat "$PATH_CARGO_RECORD"))"
+
+# --- F2: absolute cargo wins even when a PATH cargo also exists -------------
+run_case f2-both happy both
+[[ $RC -eq 0 ]] || fail "F2 both: expected exit 0, got $RC (stderr: $ERR)"
+[[ -s $CARGO_RECORD ]] || fail "F2 both: ~/.cargo/bin/cargo was not invoked"
+grep -q 'build' "$CARGO_RECORD" || fail "F2 both: absolute cargo not invoked to build ($(cat "$CARGO_RECORD"))"
+[[ ! -e $PATH_CARGO_RECORD ]] ||
+  fail "F2 both: the PATH cargo was invoked instead of the absolute path ($(cat "$PATH_CARGO_RECORD"))"
 
 # --- F2: cargo absent everywhere -------------------------------------------
 run_case f2-none down none
@@ -188,4 +210,4 @@ run_case f2-none down none
 grep -qi 'cargo not found' <<<"$ERR" || fail "F2 no-cargo: missing skip-with-hint message ($ERR)"
 [[ ! -e $CARGO_RECORD ]] || fail "F2 no-cargo: cargo ran despite being absent"
 
-printf 'PASS: after_55 tolerates a down/erroring herdr server and a missing cargo toolchain, and seeds the plugin read path\n'
+printf 'PASS: after_55 tolerates a down/erroring herdr server and a missing cargo toolchain, resolves cargo at the deterministic absolute path, and seeds the plugin read path\n'
