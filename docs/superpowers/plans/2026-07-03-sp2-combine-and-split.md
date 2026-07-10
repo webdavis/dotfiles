@@ -92,10 +92,10 @@ amendment** (a plan/roadmap edit). Nothing is unmapped.
 | 24 | Roadmap — Tailscale decision history contradictory | this amendment | June Homebrew-service decision marked superseded-during-execution |
 | 25 | Roadmap — S12 ordering contradictory | this amendment | S12 pinned unambiguously pre-cutover |
 | 26 | Cutover — replace the empty-diff gate | D1 Gate 1 | expected-delta ledger (this amendment) |
-| 27 | Cutover — track the reconciliation tooling | D1 Gate 3 | durable `scripts/` reconcile script; dry-run, idempotent, tested |
+| 27 | Cutover — track the reconciliation tooling | cutover-tooling PR (builds it) + D1 Gate 3 (runs it) | `scripts/live-reconcile.sh` — dry-run, idempotent, tested; authored + merged pre-cutover, only executed at Gate 3 |
 | 28 | Cutover — put Phase E into the dependency graph | D1 five gates + Phase E | every Phase E item attached to a gate or PR |
 | 29 | Cutover — add operational safety | D1 Gate 1 + Gate 2 | dirty-file classify / Hermes backup / inventory / second session / staged apply |
-| 30 | Cutover — explicitly retire old services | D1 Gate 5 | before/after LaunchAgent inventory + managed retirement |
+| 30 | Cutover — explicitly retire old services | D1 Gate 2 (retire) + Gate 3 (verify) | operator-approved retirement during staged activation; before/after inventory diff; Gate 4 soaks the retired final topology; Gate 5 closes the reference PRs |
 | 31 | Remaining slice gap — S6 | S6 fold | audit requirements added to the S6 section |
 | 32 | Remaining slice gap — S7 | S7 fold (R2) | four delivery-loss fixes replace the ship-as-is text |
 | 33 | Remaining slice gap — S8 | S8 fold | Darwin guard kept; `re-add --re-encrypt`; re-scope |
@@ -162,6 +162,11 @@ Every task's requirements implicitly include these. Values copied verbatim from 
   PR #31 + PR #25 + SP1, verified: `git diff main...HEAD` = 196 files).
 - Produces: branch `integration/modernization` pushed to `origin`; a draft PR whose number the cutover
   task (D1) closes with pointers to the landed slices.
+- **Records — the immutable SP2-start base SHA:** the `main` commit the union diverged from
+  (`git merge-base main integration/modernization` at branch time — stable no matter how far `main`
+  later advances, because the integration branch stays frozen). Write it into this plan here. The Phase D
+  Gate 1 expected-delta ledger uses it as the manifest base, so the base is fixed at SP2 start, never
+  re-derived from a moving `main` at cutover time.
 
 - [ ] **Step 1: Branch at the current union head**
 
@@ -691,61 +696,92 @@ protocol below is **step 3's inner cycle**, not a replacement for this loop.
 
 The audit split the single cutover step into **five gates** so that Phase E items which only complete
 *after* apply have a named home, and so the reference PRs are not closed before the soak proves
-convergence. Each gate must pass before the next begins. **`$INTEGRATION_PR` (set in A1) is PR #32**, the
-DO-NOT-MERGE reference; the source PRs are **#25** (osquery three-tier) and **#31** (herdr/Tailscale/
-brew/moshi).
+convergence. Each gate must pass before the next begins. Gate roles: **Gate 1** preflight + the
+immutable-manifest expected-delta ledger; **Gate 2** staged activation **and operator-approved service
+retirement**; **Gate 3** tracked reconciliation + **post-retirement verification**; **Gate 4** soaks the
+**final, retired** topology; **Gate 5** closure-only (close the reference PRs). Retirement lives in Gates
+2–3, not Gate 5 — so the topology soaked is the topology closed out. **`$INTEGRATION_PR` (set in A1) is
+PR #32**, the DO-NOT-MERGE reference; the source PRs are **#25** (osquery three-tier) and **#31**
+(herdr/Tailscale/brew/moshi).
 
 #### Gate 1 — Preflight (before switching the live source)
 
+- [ ] **Fetch and PIN both remote SHAs.** `git fetch origin`, then record in the ledger header:
+  `MAIN_SHA = $(git rev-parse origin/main)` and
+  `INT_SHA = $(git rev-parse origin/integration/modernization)`. Every step below reads these pinned SHAs
+  — **never a local `main`/`integration` ref**, which lags the remote (at this writing the local
+  checkout's `main` is `2bd9733` while `origin/main` is `1a6e718`; a local-ref ledger would describe a
+  different revision from the one Gate 2 activates).
 - [ ] **Classify every dirty/untracked primary-worktree file** — for each, decide keep / discard /
   back-up. Nothing ambiguous crosses into the apply.
 - [ ] **Back up uncaptured Hermes profile state** per the backup convention
   (`~/workspaces/backups/YYYY-MM-DDTHH-MM-SS.<name>.backup[.ext]`) — the per-profile `config.yaml`
   enablement/`platform_toolsets` and codegraph MCP state are otherwise untracked encrypted `.age` files
   (Phase E `fix/hermes-encrypted-profile-configs`).
-- [ ] **Inventory current LaunchAgents and services** — capture the before-state for the Gate 5
-  before/after diff (`launchctl list`, the `com.webdavis.*` set, the osquery jobs).
-- [ ] **Expected-delta ledger — REPLACES the old empty-diff gate.** The old gate was contradictory: the
-  plan permits improvements over the integration branch yet also demanded an empty final diff. Instead,
-  classify **every** reference-branch hunk (`git diff main integration/modernization`) as one of:
-  **landed-unchanged**, **intentionally-improved**, **deliberately-omitted-with-reason**, or **missing**.
-  **Only a `missing` hunk blocks cutover** — the other three are expected and recorded in the ledger.
+- [ ] **Inventory current LaunchAgents and services** — capture the before-state that Gate 2's retirement
+  and Gate 3's post-retirement verification diff against (`launchctl list`, the `com.webdavis.*` set, the
+  osquery jobs).
+- [ ] **Expected-delta ledger — REPLACES the old empty-diff gate, built from an IMMUTABLE manifest.** The
+  old gate was contradictory (the plan permits improvements over the integration branch yet demanded an
+  empty final diff) **and** mechanically unsound: `git diff main integration/modernization` shows only the
+  **residual** difference — every reference hunk that already landed unchanged on `main` has vanished from
+  it, so it can never classify the full original delta, and it reads mutable local refs. Replace it:
+  - **Manifest (immutable):** `git diff <SP2-start base SHA> $INT_SHA`, where the base SHA is the one
+    Phase A recorded (the frozen integration branch's divergence point — stable no matter how far `main`
+    advances). This is the **full original combined delta** (the 196-file union) with every hunk present;
+    nothing has vanished, because the base is fixed, not `main`.
+  - **Classify every manifest hunk against the pinned `$MAIN_SHA`** as exactly one of
+    **landed-unchanged**, **intentionally-improved**, **deliberately-omitted-with-reason**, or
+    **missing**.
+  - **Only a `missing` hunk blocks cutover** — the other three are expected and recorded in the ledger.
+  - **Gate 2 activates exactly `$MAIN_SHA`** — the same pinned commit this ledger classified against, so
+    the state proved converged is the state cut over to.
 
-#### Gate 2 — Staged activation
+#### Gate 2 — Staged activation and service retirement
 
 - [ ] Open a **second remote session** first, so a broken apply cannot lock you out.
-- [ ] After S12 merges, point dresden's chezmoi source at `main`
-  (`git -C ~/workspaces/Ivy/webdavis/dotfiles checkout main && git pull`).
+- [ ] After S12 merges, point dresden's chezmoi source at the **pinned `$MAIN_SHA`** from Gate 1
+  (`git -C ~/workspaces/Ivy/webdavis/dotfiles fetch origin && git checkout $MAIN_SHA`) — not a mutable
+  local `main`.
 - [ ] **Operator** runs a full interactive `chezmoi apply` (KeePassXC unlocked) **in stages**, not one
   shot — keep the integration branch and previously deployed files available for rollback.
+- [ ] **Retire services whose source files were deleted — operator-approved checkpoint.** Diff the live
+  LaunchAgent set against Gate 1's before-inventory; for anything now orphaned (e.g. the old Claude
+  `com.claude.code.plist`), the operator approves each retirement, then a managed
+  `launchctl bootout` / plist removal runs. Retirement happens HERE, during activation — so Gate 4 soaks
+  the FINAL topology, not the pre-retirement one.
 - [ ] **Verify remote reachability** (Tailscale / SSH) before ending the original session.
 
-#### Gate 3 — Tracked live reconciliation
+#### Gate 3 — Tracked live reconciliation and post-retirement verification
 
-- [ ] Run the durable reconciliation script — **tracked under `scripts/` (or a chezmoi-managed
-  executable), NOT `.superpowers/` scratch** (`.superpowers/` is gitignored; the old
-  `.superpowers/sdd/live-reconcile-skills.sh` was never tracked). It must support **`--dry-run`**, be
-  **idempotent**, and have **tests**. Run `--dry-run` first, then live, to prove a from-scratch machine
-  converges identically (Phase E `fix/live-reconcile-from-scratch`).
+- [ ] Run the **already-merged, pinned** `scripts/live-reconcile.sh` shipped by the **cutover-tooling PR**
+  (built, reviewed, and tested pre-cutover — see the authoritative implementation order; it is **NOT**
+  authored ad hoc during cutover). It supports **`--dry-run`**, is **idempotent**, and has **tests**. Run
+  `--dry-run` first, then live, to prove a from-scratch machine converges identically (Phase E
+  `fix/live-reconcile-from-scratch`).
+- [ ] **Post-retirement verification** — capture the after-inventory and diff it against Gate 1's
+  before-inventory: exactly the operator-approved services are gone, nothing else changed, and no orphaned
+  plist or still-running job remains.
 - [ ] `just test` green + live smoke checks: `relay.sh` fires a test notification; `hermes gateway`
   healthy; osquery alerter behaves (`osquery-heartbeat.sh` sends its one ✅);
   `chezmoi diff --exclude=templates` clean.
 
-#### Gate 4 — Soak
+#### Gate 4 — Soak the final topology
 
-- [ ] Let the converged `main` run for a soak window; watch the daily-critical paths (notifications,
-  hermes, osquery, shell startup) for regressions. **Do not close any reference PR during the soak.**
+- [ ] Let the converged `main` — **with retirement already applied** — run for a soak window; watch the
+  daily-critical paths (notifications, hermes, osquery, shell startup) for regressions. **Do not close any
+  reference PR during the soak.**
 
-#### Gate 5 — Final closure
+#### Gate 5 — Final closure (closure-only)
 
-- [ ] **Retire services whose source files were deleted** — a **before/after LaunchAgent inventory**
-  (against Gate 1's capture) and managed `launchctl bootout` / plist removal for anything orphaned (e.g.
-  the old Claude `com.claude.code.plist`). Drop the Phase E `graphify-out/` band-aid excludes here.
 - [ ] Close **PR #25**, **PR #31**, and the **integration reference PR #32** via `gh-axi pr close` —
   **only after the soak passes** — each with a comment linking the slice PRs that superseded it.
+- [ ] Drop the Phase E `graphify-out/` band-aid excludes (`.gitignore` + `treefmt.nix`) now that the soak
+  has confirmed the opt-out dispatcher suppresses graphify here (`fix/graphify-out-excludes-drop`).
 
 **Phase E → gate attachment.** Every Phase E item completes at a named home:
-`fix/live-reconcile-from-scratch` → Gate 3; `fix/graphify-out-excludes-drop` → Gate 5;
+`fix/live-reconcile-from-scratch` → the **cutover-tooling PR** (builds `scripts/live-reconcile.sh`
+pre-cutover) + Gate 3 (runs it); `fix/graphify-out-excludes-drop` → Gate 5;
 `fix/harness-skill-reconciliation` → Gate 3 (Hermes-side pruning, coordinated at cutover);
 `fix/hermes-encrypted-profile-configs` → S8 (backed up at Gate 1); `fix/codex-agents-parity` → S12;
 `fix/template-render-coverage` → the Wave-3 render-coverage PR; `fix/moshi-herdr-drift-check` and
@@ -1152,6 +1188,9 @@ map to the D1 gates below.
 1. Implement S10 during a physical-presence window.
 1. Split S11 and ship SP5 (Thaw) separately.
 1. Complete and mechanically verify S12.
+1. **Land the cutover-tooling PR** — implements `scripts/live-reconcile.sh` (`--dry-run`, idempotent,
+   test-driven) so Gate 3 executes an already-merged, pinned tool rather than an ad-hoc live change.
+   Pre-cutover: after S12, before D1.
 1. Run cutover preflight and expected-delta reconciliation (D1 Gate 1).
 1. Activate `main` in stages (D1 Gate 2).
 1. Run tracked live reconciliation (D1 Gate 3).
@@ -1221,12 +1260,13 @@ because the old global graphify post-commit hook still fires in this repo until 
 PR #36's live skills convergence (frozen-clone cleanup, per-profile symlink planting, stale hub-install
 retirement, Codex-overlay + routing re-assert, live `skillOverrides` merge) was performed **ad-hoc on
 the live machine** during review. The reproducible path was drafted as
-`.superpowers/sdd/live-reconcile-skills.sh` — **corrected 2026-07-10 [audit → D1 Gate 3]:
-`.superpowers/` is gitignored and that script was never tracked; the durable reconcile script lives
-under `scripts/` (or a chezmoi-managed executable), supports `--dry-run`, is idempotent, and has tests.**
-Fix: at cutover (D1 Gate 3), after `chezmoi apply`, run the tracked reconcile script (`--dry-run` then
-live) to prove a from-scratch machine converges identically; then the ad-hoc live state and the script
-are reconciled.
+`.superpowers/sdd/live-reconcile-skills.sh` — **corrected 2026-07-10 [audit → cutover-tooling PR + D1
+Gate 3]: `.superpowers/` is gitignored and that script was never tracked. The durable reconcile script
+is `scripts/live-reconcile.sh`, and it has a dedicated implementation owner — the pre-cutover
+cutover-tooling PR (after S12, before D1 in the authoritative order) implements it test-first
+(`--dry-run` flag, idempotent, tested), reviewed and merged BEFORE cutover.** Gate 3 does not author it;
+Gate 3 only executes that already-merged, pinned tool (`--dry-run` then live) to prove a from-scratch
+machine converges identically, after which the ad-hoc live state and the script are reconciled.
 
 ### fix/moshi-herdr-drift-check (→ S11)
 
