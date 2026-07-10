@@ -238,7 +238,8 @@ those files (procedure in the Slice Protocol). No file is orphaned.
 `git diff main integration/modernization -- <file>` for each of the 8 shared files and record which
 slice(s) own which hunks in a table (shared-file × owning-slice × one-line-what). This is deferred to
 execution on purpose — it must be computed against the *live* diff — but it is the first Phase B action,
-not an afterthought; the Phase D empty-diff gate verifies every hunk landed exactly once.
+not an afterthought; the Phase D expected-delta ledger (Gate 1) verifies every hunk landed exactly once
+or is a documented intentional-improvement/omission.
 
 **Sizing authority.** This table's grouping is a starting point, not a size guarantee. **The operator's
 review speed is the authority** — any slice whose real diff is too large to review quickly sub-splits on
@@ -253,7 +254,7 @@ quick review.
 | S4 | herdr migration | `dot_config/herdr/**`, `dot_local/share/herdr/plugins/**` (2 Rust plugins), the `run_onchange_after_55/57` build scripts, herdr hunks of `dot_bashrc.tmpl`; **atomically deletes** `dot_tmux.conf`, `dot_config/sesh/**`, `dot_local/bin/executable_{sesh-*,tmux-*,claude-restart}.sh`, `run_after_70-install-tmux2k-last-proc` | herdr plugin build scripts → `.chezmoitemplates` partial; `grep -q "$plugin_id"` anchoring; `dot_fzf_bindings` tmux-dead widgets; `nvm`/`$blue` binding fixes | S2 |
 | S5 | Tailscale headless daemon | `run_onchange_after_66-tailscaled-status.sh.tmpl`, tailscale hunks of `system_packages_autoinstall.yaml` + `CLAUDE.md` | tailscale-monitor already fixed (`2f430b3`, on main? verify) | S2 |
 | S6 | Homebrew weekly-upgrade | `dot_local/bin/executable_homebrew-weekly-upgrade.sh`, `Library/LaunchAgents/com.webdavis.homebrew-weekly-upgrade.plist.tmpl`, `run_onchange_after_65` loader, `test/homebrew-weekly-upgrade.sh` | `just brew-upgrade` → deployed copy; **Homebrew 6.x bundle `cleanup --force`** (`961465f`); `SKIP_SYSTEM_PACKAGES=0`-still-skips; before_10 per-ecosystem split; uv/npm/volta unguarded loops | S2 |
-| S7 | Relay notification pipeline (bash, as-deployed) | `dot_local/bin/executable_{relay,relay-agent,relay-codex-hooks,hue-pulse,claude-stop-pulse,claude-user-prompt-start,claude-audit}.sh`, `private_dot_claude/modify_settings.json`, `dot_config/relay/private_auth.json.tmpl`, `run_after_72-relay-codex-hooks`, notifier hunk of `dot_bashrc.tmpl`; delete `Library/LaunchAgents/com.claude.code.plist.tmpl` | ships **as deployed** — SP3 replaces it later. Do NOT pre-apply SP3 bug fixes here (they belong to the Rust rewrite); ship the bash as-is so main matches dresden | S2 |
+| S7 | Relay notification pipeline (bash, as-deployed) | `dot_local/bin/executable_{relay,relay-agent,relay-codex-hooks,hue-pulse,claude-stop-pulse,claude-user-prompt-start,claude-audit}.sh`, `private_dot_claude/modify_settings.json`, `dot_config/relay/private_auth.json.tmpl`, `run_after_72-relay-codex-hooks`, notifier hunk of `dot_bashrc.tmpl`; delete `Library/LaunchAgents/com.claude.code.plist.tmpl` | **R2 (2026-07-10):** fix the four delivery-loss defects BEFORE merge (fail-closed idle probe, jq slurp, mkdir lock, missing flag value); characterization tests for retained harmless quirks; SP3 still replaces the whole design later | S2 |
 | S8 | Hermes age-encryption (SP1) | `dot_hermes/encrypted_private_config.yaml.age`, `dot_hermes/private_dot_env.tmpl`, `.chezmoi.toml.tmpl` age hunk, `run_onchange_before_25`, `run_after_67`, `run_after_68`, `run_once_before_05-restore-age-key`, `test/hermes-config-{encrypted,routes}.sh`, `.gitignore` failsafe hunk (gitleaks gate hunk of `.githooks/pre-commit` ships in S2, not here) | this is the committed SP1 work (`c13cc18`/`a0e7d8e`/`3696c92`) reimplemented as one clean PR; the age-tripwire fix is already in it | S2 |
 | S9 | osquery three-tier alerting | `.chezmoitemplates/osquery/**` (config+4 packs), `dot_local/bin/executable_osquery-*`, the 6 osquery LaunchAgents + `after_60` loaders, `after_55` manifest, `before_50` setup, `test/osquery-alerter/**` | **alerting/dispatch redesign in scope**; heartbeat `RunAtLoad` double-ping; **query/pack content changes → flag for sign-off**. NOTE: much of osquery is already on main — this slice is the PR#25 *delta* only | S2 |
 | S10 | macOS defaults / system-setup | `.chezmoidata/macos_defaults.yaml`, `.chezmoidata/macos_system_setup.yaml`, `run_onchange_after_30/41`, `dot_local/bin/executable_macos-defaults-*.sh` | defaults trio hardcoded-path + shared-lib consolidation; `after_41` fragile `{{ if .sudo }}`; `ssh-hardening.sh` → a `macos_system_setup.yaml` record | S2 |
@@ -809,9 +810,11 @@ future standalone go/no-go, like nushell, never bolted onto SP2.
 - **Phase C P-4:** add a per-shared-file assertion — after applying a slice's hunks,
   `git diff <slice-branch> integration/modernization -- <file>` should show **only the other slices'**
   hunks (proves this slice took its own and no more).
-- **Phase D D1:** add an **empty-diff reconciliation gate** — before closing the reference PR, assert
-  `git diff main integration/modernization -- <file>` is **empty** for each of the 8 shared files,
-  proving every hunk landed exactly once across the slice sequence.
+- **Phase D D1:** ~~add an **empty-diff reconciliation gate**~~ **superseded 2026-07-10 by the
+  expected-delta ledger (D1 Gate 1)** — the empty-diff gate was contradictory (the plan permits
+  intentional improvements over the integration branch, which a strict empty diff forbids). The ledger
+  classifies each reference-branch hunk as landed-unchanged / intentionally-improved /
+  deliberately-omitted-with-reason / missing; only `missing` blocks cutover.
 - **Phase C preamble:** add a short "Tooling considered and rejected" note (Graphite/ghstack/spr/
   Sapling/jj + why), so it is not re-litigated mid-execution.
 

@@ -248,12 +248,14 @@ sub-projects.
 
   The four previously-shipped bash fixes are re-derived test-first in Rust; Classist TDD + SOLID +
   composition root per the strategy section; `test/`-discoverable via a thin `just test` wrapper.
-- **SP4 — nushell evaluation.** Go/no-go criteria to verify with evidence, not assume: atuin, starship,
-  zoxide, direnv, carapace nushell integration quality; macOS login-shell semantics + the brew-shellenv
-  cache analog; reedline keybinding parity with the current bash bindings; native
-  `pre_prompt`/`pre_execution` hooks replacing bash-preexec for the notifier; herdr pane/spawn
-  compatibility; an incremental migration path (opt-in pane first, cutover last). Output: a written
-  recommendation; if go, a migration spec follows after SP3.
+- **SP4 — nushell evaluation: RESOLVED — NO-GO, operator-ratified 2026-07-09** (decision 9;
+  report `docs/research/2026-07-09-sp4-nushell-evaluation.md`; GH #5 closed). The go/no-go criteria were
+  evaluated with evidence — reedline's one-event-per-binding limit (no chord grammar) sank the ~365-chord
+  surface, atuin's nushell integration is its weakest, and cost/value failed against the ~15 ms bash hot
+  path. The **SP4 slot now becomes a bash-setup improvement sub-project** (own spec cycle, after SP3):
+  alias consolidation, an inverted single-table bindings architecture, `fzf` bindings quality/new
+  bindings, generated per-binding tests, and a recorded Charm-tools verdict (zero new dependencies now).
+  SP3 designs its notifier seam against bash-preexec with no shell-portability abstraction.
 - **SP6 — nvim-overhaul.** Re-evaluate v1/v2/reassessment/v3 (v3 + its research doc live only on the
   unpushed `nvim-overhaul` branch — 10 commits at `~/.paseo/worktrees/1sk17y2x/nvim-overhaul`); then
   migrate `~/.config/nvim` (separate repo, 52 Lua files) into `dot_config/nvim/` under chezmoi and
