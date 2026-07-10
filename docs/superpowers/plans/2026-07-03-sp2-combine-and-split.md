@@ -106,7 +106,7 @@ amendment** (a plan/roadmap edit). Nothing is unmapped.
 | 37 | Remaining slice gap — S12 | S12 fold | pre-cutover; shared partial; render-both-targets tests |
 | 38 | Deferred SP3 — Rust notifications | roadmap edit | final spec pending; open-items list refreshed (R7) |
 | 39 | Deferred SP4 — Bash improvements | roadmap edit + plan deferred index | nushell NO-GO recorded; successor scope = Bash improvement |
-| 40 | Deferred SP5 — Thaw | S11 + roadmap | one standalone install/manifest PR during SP2 |
+| 40 | Deferred SP5 — Thaw | standalone SP5 PR + roadmap | one standalone install/manifest PR during SP2 — NOT folded into S11 |
 | 41 | Deferred SP6 — Neovim | plan deferred index + roadmap edit | the audit's five directives added to both SP6 bullets: re-check branch state (69 behind / 3 ahead at audit), back up both repos, inventory live config, import unchanged first, modernize via later PRs |
 | 42 | Deferred SP7 — cleanup backlog | plan deferred index + roadmap p-tasks | deduplicate the ledger into tracked tasks (status/severity/dependencies); P8 unblocked; P12 already on `main`; OpenClaw closed per R3 |
 | 43 | Deferred SP-nix | roadmap edit | conditional research with explicit start triggers |
