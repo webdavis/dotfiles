@@ -95,8 +95,8 @@ amendment** (a plan/roadmap edit). Nothing is unmapped.
 | 26 | Cutover — replace the empty-diff gate | D1 Gate 1 | expected-delta ledger (this amendment) |
 | 27 | Cutover — track the reconciliation tooling | cutover-tooling PR (builds it) + D1 Gate 3 (runs it) | `scripts/live-reconcile.sh` — dry-run, idempotent, tested; authored + merged pre-cutover, only executed at Gate 3 |
 | 28 | Cutover — put Phase E into the dependency graph | D1 five gates + Phase E | every Phase E item attached to a gate or PR |
-| 29 | Cutover — add operational safety | D1 Gate 1 + Gate 2 | dirty-file classify / Hermes backup / inventory / second session / staged apply |
-| 30 | Cutover — explicitly retire old services | D1 Gate 2 (retire) + Gate 3 (verify) | operator-approved retirement during staged activation; before/after inventory diff; Gate 4 soaks the retired final topology; Gate 5 closes the reference PRs |
+| 29 | Cutover — add operational safety | D1 Gate 1 + Gate 2 | dirty-file classify to an empty tree / Hermes backup / retirement manifest / second session / pin re-verify + attached staged apply |
+| 30 | Cutover — explicitly retire old services | D1 Gate 1 (approve) + Gate 2 (retire) + Gate 3 (verify) | operator-approved retirement manifest (desired-state vs live jobs — launchctl diffs can't find orphans); executed during staged activation; manifest-asserted verification; Gate 4 soaks the retired final topology; Gate 5 closes the reference PRs |
 | 31 | Remaining slice gap — S6 | S6 fold | audit requirements added to the S6 section |
 | 32 | Remaining slice gap — S7 | S7 fold (R2) | four delivery-loss fixes replace the ship-as-is text |
 | 33 | Remaining slice gap — S8 | S8 fold | Darwin guard kept; `re-add --re-encrypt`; re-scope |
@@ -163,11 +163,14 @@ Every task's requirements implicitly include these. Values copied verbatim from 
   PR #31 + PR #25 + SP1, verified: `git diff main...HEAD` = 196 files).
 - Produces: branch `integration/modernization` pushed to `origin`; a draft PR whose number the cutover
   task (D1) closes with pointers to the landed slices.
-- **Records — the immutable SP2-start base SHA:** the `main` commit the union diverged from
-  (`git merge-base main integration/modernization` at branch time — stable no matter how far `main`
-  later advances, because the integration branch stays frozen). Write it into this plan here. The Phase D
-  Gate 1 expected-delta ledger uses it as the manifest base, so the base is fixed at SP2 start, never
-  re-derived from a moving `main` at cutover time.
+- **Records — the immutable SP2-start base SHA:
+  `2bd973369158b49535e8e16e80c968444ab23f1d`** — the `main` commit the union diverged from (verified
+  2026-07-10: `git merge-base origin/main origin/integration/modernization`; stable no matter how far
+  `main` later advances, because the integration branch stays frozen). The Phase D Gate 1 expected-delta
+  ledger uses this recorded value as its manifest base — it is never re-derived from a moving `main` at
+  cutover time. (The A1-time union was 196 files; the frozen branch takes hotfixes, so the count drifts —
+  220 at this writing — which is why Gate 1 regenerates the manifest from the pinned SHAs rather than
+  trusting any recorded file count.)
 
 - [ ] **Step 1: Branch at the current union head**
 
@@ -754,11 +757,13 @@ repo-state atomicity, above) becomes operative.
 
 The audit split the single cutover step into **five gates** so that Phase E items which only complete
 *after* apply have a named home, and so the reference PRs are not closed before the soak proves
-convergence. Each gate must pass before the next begins. Gate roles: **Gate 1** preflight + the
-immutable-manifest expected-delta ledger; **Gate 2** staged activation **and operator-approved service
-retirement**; **Gate 3** tracked reconciliation + **post-retirement verification**; **Gate 4** soaks the
-**final, retired** topology; **Gate 5** closure-only (close the reference PRs). Retirement lives in Gates
-2–3, not Gate 5 — so the topology soaked is the topology closed out. **`$INTEGRATION_PR` (set in A1) is
+convergence. Each gate must pass before the next begins. Gate roles: **Gate 1** preflight — pinned SHAs,
+clean tree, the immutable-manifest expected-delta ledger, and **operator approval of the retirement
+manifest**; **Gate 2** staged activation **and execution of the approved retirement**; **Gate 3** tracked
+reconciliation + **post-retirement verification**; **Gate 4** soaks the **final, retired** topology;
+**Gate 5** closure-only (re-verify the pin, close the reference PRs — no repo mutation). Retirement lives
+in Gates 1–3 (approve / execute / verify), not Gate 5 — so the topology soaked is the topology closed
+out. **`$INTEGRATION_PR` (set in A1) is
 PR #32**, the DO-NOT-MERGE reference; the source PRs are **#25** (osquery three-tier) and **#31**
 (herdr/Tailscale/brew/moshi).
 
@@ -770,24 +775,38 @@ PR #32**, the DO-NOT-MERGE reference; the source PRs are **#25** (osquery three-
   — **never a local `main`/`integration` ref**, which lags the remote (at this writing the local
   checkout's `main` is `2bd9733` while `origin/main` is `1a6e718`; a local-ref ledger would describe a
   different revision from the one Gate 2 activates).
-- [ ] **Classify every dirty/untracked primary-worktree file** — for each, decide keep / discard /
-  back-up. Nothing ambiguous crosses into the apply.
+- [ ] **Classify every dirty/untracked primary-worktree file, then EMPTY the tree.** For each, decide
+  keep / discard / back-up — and **kept files move OUTSIDE the source tree** (backup convention), never
+  stay in place: git preserves non-conflicting dirty/untracked files across a checkout and chezmoi reads
+  the working tree, so anything left in the tree would deploy content the ledger never classified (the
+  primary checkout holds exactly such untracked chezmoi sources today). Anything that must ship is
+  **committed BEFORE the SHAs are pinned**, and the classification re-runs over it. Hard requirement:
+  **`git status --porcelain --untracked-files=all` is EMPTY before Gate 2 applies** — Gate 2's
+  exact-`$MAIN_SHA` claim only holds on a clean tree.
 - [ ] **Back up uncaptured Hermes profile state** per the backup convention
   (`~/workspaces/backups/YYYY-MM-DDTHH-MM-SS.<name>.backup[.ext]`) — the per-profile `config.yaml`
   enablement/`platform_toolsets` and codegraph MCP state are otherwise untracked encrypted `.age` files
   (Phase E `fix/hermes-encrypted-profile-configs`).
-- [ ] **Inventory current LaunchAgents and services** — capture the before-state that Gate 2's retirement
-  and Gate 3's post-retirement verification diff against (`launchctl list`, the `com.webdavis.*` set, the
-  osquery jobs).
+- [ ] **Build the retirement MANIFEST — an inventory diff cannot find orphans.** `launchctl list` keeps
+  showing a loaded job after its source plist is deleted, so a before/after inventory diff can never
+  discover an orphan. Build an explicit manifest instead: **(a) desired-state set** — every
+  LaunchAgent/LaunchDaemon the pinned `$MAIN_SHA` source renders; **(b) live loaded set** —
+  `launchctl list` (the `com.webdavis.*` set, the osquery jobs, `com.claude.code`); **(c) retirement
+  list** — every live job NOT in the desired set. **The operator approves this manifest — every named
+  retirement — BEFORE any service-affecting apply stage runs.** Gate 2 executes only the approved list
+  (this covers retirements performed by apply-time scripts too, e.g. Wave-3b's one-time retirement
+  script — approval precedes the apply that runs them).
 - [ ] **Expected-delta ledger — REPLACES the old empty-diff gate, built from an IMMUTABLE manifest.** The
   old gate was contradictory (the plan permits improvements over the integration branch yet demanded an
   empty final diff) **and** mechanically unsound: `git diff main integration/modernization` shows only the
   **residual** difference — every reference hunk that already landed unchanged on `main` has vanished from
   it, so it can never classify the full original delta, and it reads mutable local refs. Replace it:
-  - **Manifest (immutable):** `git diff <SP2-start base SHA> $INT_SHA`, where the base SHA is the one
-    Phase A recorded (the frozen integration branch's divergence point — stable no matter how far `main`
-    advances). This is the **full original combined delta** (the 196-file union) with every hunk present;
-    nothing has vanished, because the base is fixed, not `main`.
+  - **Manifest (immutable):** `git diff 2bd973369158b49535e8e16e80c968444ab23f1d $INT_SHA` — the base
+    is the SP2-start base SHA Phase A recorded (the frozen integration branch's divergence point —
+    stable no matter how far `main` advances). This is the **full original combined delta** with every
+    hunk present; nothing has vanished, because the base is fixed, not `main`. The manifest is
+    **regenerated from these pinned SHAs at Gate 1** — no recorded file count is normative (196 at A1
+    time, 220 at this writing; the frozen branch takes hotfixes).
   - **Classify every manifest hunk against the pinned `$MAIN_SHA`** as exactly one of
     **landed-unchanged**, **intentionally-improved**, **deliberately-omitted-with-reason**, or
     **missing**.
@@ -798,16 +817,22 @@ PR #32**, the DO-NOT-MERGE reference; the source PRs are **#25** (osquery three-
 #### Gate 2 — Staged activation and service retirement
 
 - [ ] Open a **second remote session** first, so a broken apply cannot lock you out.
-- [ ] After S12 merges, point dresden's chezmoi source at the **pinned `$MAIN_SHA`** from Gate 1
-  (`git -C ~/workspaces/Ivy/webdavis/dotfiles fetch origin && git checkout $MAIN_SHA`) — not a mutable
-  local `main`.
+- [ ] **Re-verify the pin, then activate ATTACHED to the branch.** Refetch and require
+  `git rev-parse origin/main` **== `$MAIN_SHA`** — Dependabot auto-merge can advance `main` at any
+  moment; on mismatch, stop: re-pin at Gate 1 and re-run the classification. Then, after S12 merges,
+  point dresden's chezmoi source at the pinned commit **attached to `main`, never detached**:
+  `git -C ~/workspaces/Ivy/webdavis/dotfiles checkout main && git pull --ff-only origin main`, then
+  assert `git rev-parse HEAD` == `$MAIN_SHA`. (A bare `git checkout $MAIN_SHA` detaches HEAD and leaves
+  the live source floating off-branch; the equality check just proven makes the attached checkout land
+  on exactly the pinned commit.)
 - [ ] **Operator** runs a full interactive `chezmoi apply` (KeePassXC unlocked) **in stages**, not one
   shot — keep the integration branch and previously deployed files available for rollback.
-- [ ] **Retire services whose source files were deleted — operator-approved checkpoint.** Diff the live
-  LaunchAgent set against Gate 1's before-inventory; for anything now orphaned (e.g. the old Claude
-  `com.claude.code.plist`), the operator approves each retirement, then a managed
-  `launchctl bootout` / plist removal runs. Retirement happens HERE, during activation — so Gate 4 soaks
-  the FINAL topology, not the pre-retirement one.
+- [ ] **Retire exactly the Gate 1 approved retirement manifest.** Approval already happened at Gate 1 —
+  BEFORE this service-affecting apply; Gate 2 executes only the approved list (managed
+  `launchctl bootout` / plist removal per entry, e.g. the old Claude `com.claude.code.plist`; Wave-3b's
+  one-time retirement script is one of the approved executors). Nothing is discovered or retired ad hoc
+  mid-apply. Retirement happens HERE, during activation — so Gate 4 soaks the FINAL topology, not the
+  pre-retirement one.
 - [ ] **Verify remote reachability** (Tailscale / SSH) before ending the original session.
 
 #### Gate 3 — Tracked live reconciliation and post-retirement verification
@@ -817,9 +842,10 @@ PR #32**, the DO-NOT-MERGE reference; the source PRs are **#25** (osquery three-
   authored ad hoc during cutover). It supports **`--dry-run`**, is **idempotent**, and has **tests**. Run
   `--dry-run` first, then live, to prove a from-scratch machine converges identically (Phase E
   `fix/live-reconcile-from-scratch`).
-- [ ] **Post-retirement verification** — capture the after-inventory and diff it against Gate 1's
-  before-inventory: exactly the operator-approved services are gone, nothing else changed, and no orphaned
-  plist or still-running job remains.
+- [ ] **Post-retirement verification — assert against the Gate 1 manifest, not a before/after diff**
+  (a loaded job outlives its deleted plist, so diffs can't prove retirement): every approved-retired
+  service is **ABSENT from `launchctl list`** (actually unloaded, not merely plist-deleted), and every
+  desired-state service in the manifest is **PRESENT and running**.
 - [ ] `just test` green + live smoke checks: `relay.sh` fires a test notification; `hermes gateway`
   healthy; osquery alerter behaves (`osquery-heartbeat.sh` sends its one ✅);
   `chezmoi diff --exclude=templates` clean.
@@ -832,10 +858,14 @@ PR #32**, the DO-NOT-MERGE reference; the source PRs are **#25** (osquery three-
 
 #### Gate 5 — Final closure (closure-only)
 
+- [ ] **Re-verify the pin before closing anything.** Refetch and require `origin/main` **==
+  `$MAIN_SHA`** still, and the live checkout still attached to `main` at that SHA. If `main` advanced
+  during the soak (Dependabot auto-merge), the soaked state is not the closing state — re-run the Gate 1
+  classification against the new tip and **restart the soak** before closure.
 - [ ] Close **PR #25**, **PR #31**, and the **integration reference PR #32** via `gh-axi pr close` —
-  **only after the soak passes** — each with a comment linking the slice PRs that superseded it.
-- [ ] Drop the Phase E `graphify-out/` band-aid excludes (`.gitignore` + `treefmt.nix`) now that the soak
-  has confirmed the opt-out dispatcher suppresses graphify here (`fix/graphify-out-excludes-drop`).
+  **only after the soak passes** — each with a comment linking the slice PRs that superseded it. No
+  repo mutation happens in this gate (the `graphify-out/` excludes-drop ships in the pre-cutover
+  cutover-tooling PR, so the soaked state IS the final state).
 
 **Phase E → gate attachment.** Every Phase E item completes at a named home:
 `fix/live-reconcile-from-scratch` → the **cutover-tooling PR** (builds `scripts/live-reconcile.sh`
