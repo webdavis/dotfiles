@@ -12,25 +12,18 @@ set -euo pipefail
 # Seed the MRU 'current' with the live focused workspace so the first bounce
 # after install works. The plugin learns workspaces only as they are focused, so
 # without this seed the workspace focused at install time is missing until it is
-# re-focused (the event-only cold-start gap). Only seed when no state exists yet.
-# Byte-match the plugin's own fallback path (src/main.rs state_file(), which
-# hardcodes $HOME/.local/state and does NOT honor XDG_STATE_HOME) so the seed
-# lands where the plugin actually reads. Known limit: if herdr sets
-# HERDR_PLUGIN_STATE_DIR to a different dir at runtime, this seed is a harmless
-# no-op warm-up (the plugin self-seeds on the first workspace focus).
-state="$HOME/.local/state/herdr/plugins/${plugin_id}/mru"
-if [[ ! -s $state ]]; then
-  # Seed tolerantly, same posture as the link step above: a down/erroring herdr
-  # server must not abort the apply. Guard the assignment so neither herdr's rc
-  # (pipefail) nor jq's rc (error JSON -> "cannot iterate over null") trips
-  # set -e, and suppress jq's stderr on the failure path.
-  if focused=$(herdr workspace list 2>/dev/null |
-    jq -r '[.result.workspaces[] | select(.focused) | .workspace_id][0] // empty' 2>/dev/null) &&
-    [[ -n $focused && $focused != "null" ]]; then
-    mkdir -p "$(dirname "$state")"
-    printf '%s\n\n' "$focused" >"$state"
-  else
-    echo "could not seed last-workspace MRU (herdr server down?); it self-seeds on first workspace focus" >&2
-  fi
+# re-focused (the event-only cold-start gap).
+#
+# The seed lives IN the plugin (`seed` subcommand), not here: it resolves the
+# state file via the plugin's OWN state_file() and queries herdr the same way
+# `bounce` does, so seeder/reader path divergence is structurally impossible
+# (previously this was hand-aligned bash + jq that could drift from src/main.rs).
+# `seed` is idempotent (no-op when state already exists) and tolerant of a down
+# herdr server (a failed query seeds nothing and exits 0) — so this call cannot
+# abort the apply. Only run it when the build above actually produced a binary
+# (the build partial exits 0 early when cargo is absent).
+binary="$plugin_dir/target/release/last-workspace"
+if [[ -x $binary ]]; then
+  "$binary" seed || true
 fi
 {{ end -}}

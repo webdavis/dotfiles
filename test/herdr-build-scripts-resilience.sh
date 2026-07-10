@@ -4,11 +4,14 @@
 # the whole `chezmoi apply`. It renders the REAL script with the host chezmoi and
 # runs the rendered body against stub `herdr`/`cargo` on PATH, asserting:
 #
-#   F1  herdr server down (rc=3)      -> script exits 0, no jq error on stderr
-#   F1  herdr emits error JSON (rc=0) -> script exits 0, no jq error on stderr
-#   F4  happy path w/ XDG_STATE_HOME  -> seed writes to $HOME/.local/state
-#                                        (the plugin's hardcoded read path), NOT
-#                                        the XDG_STATE_HOME location
+#   F1  herdr server down (rc=3)      -> script exits 0 (link step tolerates it)
+#   F1  herdr emits error JSON (rc=0) -> script exits 0 (link step tolerates it)
+#   F3  seed shape (built binary)     -> when the build produced a binary, the
+#                                        script runs `<binary> seed` (the MRU seed
+#                                        now lives in the plugin, not in bash — its
+#                                        state-path/idempotence correctness is a
+#                                        Rust cfg(test) concern in src/main.rs);
+#                                        when the build is skipped, seed is not run
 #   F2  cargo only on PATH            -> NOT used: the build resolves cargo at the
 #                                        deterministic ~/.cargo/bin/cargo only, so
 #                                        a PATH-only cargo is ignored (skip+hint)
@@ -17,7 +20,8 @@
 #   F2  cargo absent everywhere       -> script exits 0 with a hint (never aborts)
 #
 # This exercises the rendered code path itself (not a copy). Stubs shadow the
-# live `herdr`/`cargo` on PATH, so the test never touches the running server.
+# live `herdr`/`cargo` on PATH and stand in for the built plugin binary, so the
+# test never touches the running server or needs a real cargo build.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -114,22 +118,35 @@ STUB
   chmod +x "$path"
 }
 
-# run_case <name> <herdr-mode> <cargo-mode> [xdg_state_home]
+# run_case <name> <herdr-mode> <cargo-mode>
 #   cargo-mode: home     -> cargo only at the absolute ~/.cargo/bin/cargo
 #               pathonly -> cargo only on PATH (must be ignored by the build)
 #               both     -> cargo at BOTH ~/.cargo/bin and on PATH
 #               none     -> no cargo anywhere
 # Populates: RC, ERR (stderr text), CASE_HOME, CARGO_RECORD (absolute-cargo
-# argv), PATH_CARGO_RECORD (PATH-cargo argv)
+# argv), PATH_CARGO_RECORD (PATH-cargo argv), SEED_RECORD (built-binary argv)
 run_case() {
-  local name="$1" herdr_mode="$2" cargo_mode="$3" xdg="${4:-}"
+  local name="$1" herdr_mode="$2" cargo_mode="$3"
   CASE_HOME="$work/$name/home"
   local bin="$work/$name/bin"
   CARGO_RECORD="$work/$name/cargo-abs-argv"
   PATH_CARGO_RECORD="$work/$name/cargo-path-argv"
-  mkdir -p "$bin" "$CASE_HOME/.local/share/herdr/plugins/$PLUGIN_ID"
+  SEED_RECORD="$work/$name/seed-argv"
+  local plugin_dir="$CASE_HOME/.local/share/herdr/plugins/$PLUGIN_ID"
+  mkdir -p "$bin" "$plugin_dir/target/release"
 
   make_herdr_stub "$bin" "$herdr_mode"
+
+  # Stand in for the compiled plugin binary the real `cargo build` would emit.
+  # It records its argv so we can assert the script runs it as `<binary> seed`.
+  # (The stub `cargo` never builds anything, so the script would otherwise have
+  # no binary to seed with.)
+  cat >"$plugin_dir/target/release/last-workspace" <<STUB
+#!/bin/bash
+printf '%s\n' "\$*" >>"$SEED_RECORD"
+exit 0
+STUB
+  chmod +x "$plugin_dir/target/release/last-workspace"
 
   local case_path
   case "$cargo_mode" in
@@ -154,39 +171,25 @@ run_case() {
 
   local errf="$work/$name/err"
   RC=0
-  if [[ -n $xdg ]]; then
-    HOME="$CASE_HOME" PATH="$case_path" XDG_STATE_HOME="$xdg" \
-      bash "$rendered" >/dev/null 2>"$errf" || RC=$?
-  else
-    HOME="$CASE_HOME" PATH="$case_path" \
-      bash "$rendered" >/dev/null 2>"$errf" || RC=$?
-  fi
+  HOME="$CASE_HOME" PATH="$case_path" \
+    bash "$rendered" >/dev/null 2>"$errf" || RC=$?
   ERR="$(cat "$errf")"
 }
 
-no_jq_error() {
-  ! grep -qiE 'jq: error|cannot iterate' <<<"$ERR"
-}
-
-# --- F1: herdr server down (link step must tolerate it) --------------------
+# --- F1: herdr server down — the link step must not abort the apply --------
 run_case f1-down down home
 [[ $RC -eq 0 ]] || fail "F1 down: expected exit 0, got $RC (stderr: $ERR)"
-no_jq_error || fail "F1 down: jq error leaked to stderr: $ERR"
 
 # --- F1: herdr returns an error envelope -----------------------------------
 run_case f1-errorjson errorjson home
 [[ $RC -eq 0 ]] || fail "F1 errorjson: expected exit 0, got $RC (stderr: $ERR)"
-no_jq_error || fail "F1 errorjson: jq error leaked to stderr: $ERR"
 
-# --- F4: seed path must match the plugin's hardcoded read path -------------
-xdg_dir="$work/f4-happy/xdg-state"
-run_case f4-happy happy home "$xdg_dir"
-[[ $RC -eq 0 ]] || fail "F4 happy: expected exit 0, got $RC (stderr: $ERR)"
-seeded="$CASE_HOME/.local/state/herdr/plugins/$PLUGIN_ID/mru"
-[[ -s $seeded ]] || fail "F4 happy: seed not written to the plugin read path ($seeded)"
-head -n1 "$seeded" | grep -qx "wW" || fail "F4 happy: seed content wrong ($(cat "$seeded"))"
-[[ ! -e "$xdg_dir/herdr/plugins/$PLUGIN_ID/mru" ]] ||
-  fail "F4 happy: seed honored XDG_STATE_HOME; plugin never reads there"
+# --- F3: happy path — the script runs the built binary's `seed` subcommand --
+run_case f3-happy happy home
+[[ $RC -eq 0 ]] || fail "F3 happy: expected exit 0, got $RC (stderr: $ERR)"
+[[ -s $SEED_RECORD ]] || fail "F3 happy: the plugin binary was not run to seed the MRU"
+grep -qx 'seed' "$SEED_RECORD" ||
+  fail "F3 happy: binary not invoked as \`<binary> seed\` (recorded: $(cat "$SEED_RECORD"))"
 
 # --- F2: a PATH-only cargo must NOT be used (deterministic absolute path) ---
 run_case f2-pathonly happy pathonly
@@ -195,6 +198,8 @@ grep -qi 'cargo not found' <<<"$ERR" ||
   fail "F2 pathonly: a PATH-only cargo must be ignored (skip-with-hint expected) ($ERR)"
 [[ ! -e $PATH_CARGO_RECORD ]] ||
   fail "F2 pathonly: a PATH cargo was invoked; only ~/.cargo/bin/cargo is authoritative ($(cat "$PATH_CARGO_RECORD"))"
+[[ ! -e $SEED_RECORD ]] ||
+  fail "F2 pathonly: seed ran despite the build being skipped"
 
 # --- F2: absolute cargo wins even when a PATH cargo also exists -------------
 run_case f2-both happy both
@@ -203,11 +208,13 @@ run_case f2-both happy both
 grep -q 'build' "$CARGO_RECORD" || fail "F2 both: absolute cargo not invoked to build ($(cat "$CARGO_RECORD"))"
 [[ ! -e $PATH_CARGO_RECORD ]] ||
   fail "F2 both: the PATH cargo was invoked instead of the absolute path ($(cat "$PATH_CARGO_RECORD"))"
+[[ -s $SEED_RECORD ]] || fail "F2 both: seed did not run after a successful build"
 
 # --- F2: cargo absent everywhere -------------------------------------------
 run_case f2-none down none
 [[ $RC -eq 0 ]] || fail "F2 no-cargo: expected exit 0 (must never abort apply), got $RC (stderr: $ERR)"
 grep -qi 'cargo not found' <<<"$ERR" || fail "F2 no-cargo: missing skip-with-hint message ($ERR)"
 [[ ! -e $CARGO_RECORD ]] || fail "F2 no-cargo: cargo ran despite being absent"
+[[ ! -e $SEED_RECORD ]] || fail "F2 no-cargo: seed ran despite the build being skipped"
 
-printf 'PASS: after_55 tolerates a down/erroring herdr server and a missing cargo toolchain, resolves cargo at the deterministic absolute path, and seeds the plugin read path\n'
+printf 'PASS: after_55 tolerates a down/erroring herdr server and a missing cargo toolchain, resolves cargo at the deterministic absolute path, and seeds via the built plugin binary\n'
