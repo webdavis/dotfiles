@@ -210,7 +210,8 @@ at `chezmoi apply` time on darwin (no-op on Linux):
   kill is required for plist changes to take effect immediately).
 - `.chezmoidata/macos_system_setup.yaml` +
   `.chezmoiscripts/run_onchange_after_41-macos-system-setup.sh.tmpl` — sudo system commands (one
-  `sudo -v` upfront, then loop). Early-returns when the array is empty.
+  `sudo -v` upfront, then loop), plus structured `tailnet_pins` data from which the template generates
+  the MagicDNS `/etc/hosts` pin commands. Early-returns when both lists are empty.
 
 **Daily workflow:**
 
@@ -548,9 +549,10 @@ all other DNS works. Remedy:
 `sudo tailscale set --accept-dns=false && sudo tailscale set --accept-dns=true`, then
 `sudo dscacheutil -flushcache; sudo killall -HUP mDNSResponder`; verify with
 `dscacheutil -q host -a name <peer>.<tailnet>.ts.net` (not `dig` — dig bypasses `/etc/resolver`). Durable
-fallback: needed peers are pinned in `/etc/hosts` declaratively — a `macos_system_setup.yaml` record the
-Tier-2 sudo runner applies at `chezmoi apply` (tailscaled never manages that file, so entries coexist;
-tailnet IPs are stable per node).
+fallback: needed peers are pinned in `/etc/hosts` declaratively — structured `tailnet_pins` data in
+`macos_system_setup.yaml` from which the Tier-2 sudo runner template generates the idempotent pin
+commands at `chezmoi apply` (tailscaled never manages that file, so entries coexist; tailnet IPs are
+stable per node).
 
 **Updates:** `brew upgrade` updates the user-owned formula (no extension re-approval needed), but the
 running daemon is a separate root-owned copy a formula upgrade does not touch — after upgrading the
