@@ -19,6 +19,98 @@ the main that earlier slices already advanced, so shared-file edits layer cleanl
 taplo/jq/yq/bats), `just` recipes, bats + hand-rolled `test/*.sh`, gitleaks pre-commit, `gh-axi` (via
 `npx -y gh-axi`) for all GitHub operations.
 
+---
+
+## Progress status (amended 2026-07-10 — the audit becomes permanent)
+
+This section, the **Audit coverage matrix** below it, and every `[audit 2026-07-10]` annotation in the
+slice/Phase sections encode the external audit
+(`docs/superpowers/audits/2026-07-10-dotfiles-modernization-audit-handoff.md`) and the three operator
+rulings that landed after it: **(R1)** MagicDNS was root-caused to the resolver-registration layer, the
+supported-fix attempt failed, and a declarative `/etc/hosts` fallback shipped in S5 — RESOLVED; **(R2)**
+S7 fixes its four delivery-loss defects BEFORE merge (reverses the earlier "ship the bash as-is" text);
+**(R3)** OpenClaw is removed — a Wave-3d cleanup PR owns the package, the AeroSpace F1 binding, and the
+docs, and the operator owns the Todoist cleanup.
+
+`main` (`1a6e718`) carries Phase A and S1–S5. S6 is next. Merge SHAs and PR numbers below are verified
+against `git log origin/main --merges`.
+
+| Item | State | PR | Merge commit | Remaining follow-up |
+| --- | --- | --- | --- | --- |
+| Phase A — integration reference | complete | DO-NOT-MERGE reference | — | closed at cutover Gate 5, not merged |
+| S1 — Docs | complete | #33 | `1ef7c29` | — |
+| S2 — Lint/test/CI | complete | #35 | `90c68c4` | rendered-template coverage regression → **render-coverage** PR |
+| S3 — Skills | complete | #36 | `5f21a81` | 3 High defects + the `35922d4` scope-split → **skills-stab** PR |
+| S4 — herdr | complete | #37 | `addc8d7` | 2 High + 2 Medium defects → **herdr-stab** PR |
+| S5 — Tailscale | complete | #38 | `1a6e718` | copied-daemon re-copy responsibility folds into S6; monitor moved to S9 |
+| Wave-3 skills-stab | not started | — | — | audit PR #36 High×3 (defer-forever / fresh-install / additive-fan-out) + Low `35922d4` move |
+| Wave-3 herdr-stab | not started | — | — | audit PR #37 High×2 (atomic migration / Cargo+registration) + Medium×2 (`Cargo.toml` hash / LaunchAgent unload) |
+| Wave-3 render-coverage + docs | not started | — | — | audit PR #35 Medium (4 template failures + coverage test) + PR #35 Low doc-staleness |
+| Wave-3d OpenClaw cleanup | not started | — | — | R3: remove the `openclaw` package, the AeroSpace F1 binding, and the docs together (operator owns Todoist) |
+| S6 — Homebrew weekly-upgrade | **next** | — | — | audit S6 gaps folded into the S6 section |
+| S7 — Relay pipeline | not started | — | — | R2: four delivery-loss fixes before merge (see S7 section) |
+| S8 — Hermes age-encryption | not started | — | — | Linux-boundary + re-scope folded into the S8 section |
+| S9 — osquery three-tier | not started | — | — | S5 dependency (`2f430b3` monitor) + path/hunk matrix folded into S9 |
+| S10 — macOS defaults / SSH | not started | — | — | physical-presence window + `sshd -T` contract folded into S10 |
+| S11 — long-tail chores | not started | — | — | split into the audit's 7 PRs (Thaw = SP5) |
+| S12 — global instructions | not started | — | — | unambiguously pre-cutover (see S12 section) |
+| Phase D — cutover | not started | — | — | five gates (D1 rewrite below) |
+| Phase E — cleanup backlog | ongoing | — | — | every item attached to a Wave-3 PR or a D1 gate |
+
+## Audit coverage matrix (amended 2026-07-10)
+
+Every finding and directive in the 2026-07-10 audit maps to exactly one owning home: **SHIPPED** (already
+on `main` via the listed S5 commits), a **Wave-3** stabilization PR, a **per-slice fold** (an
+`[audit 2026-07-10]` requirement inside that slice's section), a **D1 cutover gate**, or **this
+amendment** (a plan/roadmap edit). Nothing is unmapped.
+
+| # | Audit item | Owning home | Evidence / status |
+| --- | --- | --- | --- |
+| 1 | Keep Tailscale's copied daemon (correction) | SHIPPED S5 + roadmap edit | copied-daemon model on `main` (`9989812`); supersession note `38bffb6`; June spec/plan history corrected in the roadmap (this amendment) |
+| 2 | PR #35 Medium — rendered shell-template coverage regressed (4 failures + coverage test) | Wave-3 render-coverage; Phase E `fix/template-render-coverage` | not started |
+| 3 | PR #35 Low — active documentation stale (dependabot / haiku→sonnet / "Both hooks") | Wave-3 render-coverage + docs | not started; larger rewrite stays in S12 |
+| 4 | PR #36 High — updates can defer forever | Wave-3 skills-stab | not started |
+| 5 | PR #36 High — fresh-machine install not auto-started | Wave-3 skills-stab | not started |
+| 6 | PR #36 High — skill fan-out additive, not convergent | Wave-3 skills-stab | not started |
+| 7 | PR #36 Low — PR #38 carries an unrelated skills-test fix | Wave-3 skills-stab | `35922d4` lives on `wip/skills-test-hermetic`; move it into skills-stab |
+| 8 | PR #37 High — live migration not operationally atomic | Wave-3 herdr-stab | not started |
+| 9 | PR #37 High — missing Cargo / failed plugin registration treated as success | Wave-3 herdr-stab | not started |
+| 10 | PR #37 Medium — rebuild hashing omits `Cargo.toml` | Wave-3 herdr-stab | not started |
+| 11 | PR #37 Medium — removing old Claude LaunchAgent source does not unload it | Wave-3 herdr-stab | one-time idempotent retirement script |
+| 12 | PR #38 #1 — status classification incomplete | SHIPPED S5 | `81e7559` (classify on `.BackendState`) + `66a5871` (Starting/Stopped tests) + `9989812` |
+| 13 | PR #38 #2 — MagicDNS acceptance fails | SHIPPED S5 (R1) | root-caused registration layer `4830f44`; declarative `/etc/hosts` fallback `6560a59`/`c5614ae`/`f096ecb`/`c90a700`/`164548a` |
+| 14 | PR #38 #3 — record the superseded service decision | SHIPPED S5 + roadmap edit | `38bffb6`; June Tailscale spec/plan supersession in the roadmap (this amendment) |
+| 15 | PR #38 #4 — split unrelated scope (`35922d4`) | Wave-3 skills-stab | same as item 7 |
+| 16 | PR #38 #5 — clean evergreen documentation (`CLAUDE.md` tailscale) | SHIPPED S5 | `6e36512` + `a22ae3b` + `daef534` |
+| 17 | Roadmap — progress tracking stale | this amendment | Progress-status table above |
+| 18 | Roadmap — S3 describes an obsolete architecture | this amendment | S3 section rewritten to the 31-skill provenance model |
+| 19 | Roadmap — Nushell still treated as active | this amendment | roadmap decision 3 / SP4 table / P8 / deferred index / SP3 seam |
+| 20 | Roadmap — SP3 called fully designed while contract items remain | this amendment | roadmap SP3 status → "behavior contract approved; final implementation spec pending" |
+| 21 | Roadmap — SP5 both standalone and part of S11 | this amendment | S11 section keeps Thaw as standalone SP5; roadmap sub-project table |
+| 22 | Roadmap — SP-nix missing from the sequence table | this amendment | SP-nix row added to the roadmap sub-project table + deferred index |
+| 23 | Roadmap — OpenClaw simultaneously dropped and documented | Wave-3d PR + this amendment (R3) | removal ruled; PR owns package/F1/docs; operator owns Todoist |
+| 24 | Roadmap — Tailscale decision history contradictory | this amendment | June Homebrew-service decision marked superseded-during-execution |
+| 25 | Roadmap — S12 ordering contradictory | this amendment | S12 pinned unambiguously pre-cutover |
+| 26 | Cutover — replace the empty-diff gate | D1 Gate 1 | expected-delta ledger (this amendment) |
+| 27 | Cutover — track the reconciliation tooling | D1 Gate 3 | durable `scripts/` reconcile script; dry-run, idempotent, tested |
+| 28 | Cutover — put Phase E into the dependency graph | D1 five gates + Phase E | every Phase E item attached to a gate or PR |
+| 29 | Cutover — add operational safety | D1 Gate 1 + Gate 2 | dirty-file classify / Hermes backup / inventory / second session / staged apply |
+| 30 | Cutover — explicitly retire old services | D1 Gate 5 | before/after LaunchAgent inventory + managed retirement |
+| 31 | Remaining slice gap — S6 | S6 fold | audit requirements added to the S6 section |
+| 32 | Remaining slice gap — S7 | S7 fold (R2) | four delivery-loss fixes replace the ship-as-is text |
+| 33 | Remaining slice gap — S8 | S8 fold | Darwin guard kept; `re-add --re-encrypt`; re-scope |
+| 34 | Remaining slice gap — S9 | S9 fold | path/hunk matrix; S5 dependency; plist render+parse |
+| 35 | Remaining slice gap — S10 | S10 fold | physical presence; `sshd -T` contract defined first |
+| 36 | Remaining slice gap — S11 | S11 fold | split into the audit's 7 PRs; Thaw standalone SP5 |
+| 37 | Remaining slice gap — S12 | S12 fold | pre-cutover; shared partial; render-both-targets tests |
+| 38 | Deferred SP3 — Rust notifications | roadmap edit | final spec pending; open-items list refreshed (R7) |
+| 39 | Deferred SP4 — Bash improvements | roadmap edit + plan deferred index | nushell NO-GO recorded; successor scope = Bash improvement |
+| 40 | Deferred SP5 — Thaw | S11 + roadmap | one standalone install/manifest PR during SP2 |
+| 41 | Deferred SP6 — Neovim | plan deferred index | re-check branch state; back up; import live config first |
+| 42 | Deferred SP7 — cleanup backlog | plan deferred index + roadmap p-tasks | P8 unblocked; P12 already on `main`; OpenClaw closed |
+| 43 | Deferred SP-nix | roadmap edit | conditional research with explicit start triggers |
+| 44 | Recommended implementation order (20 steps) | plan deferred index | adopted as the authoritative SP2 sequence |
+
 ## Global Constraints
 
 Every task's requirements implicitly include these. Values copied verbatim from the spec and the repo's
