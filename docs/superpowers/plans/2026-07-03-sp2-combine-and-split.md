@@ -37,14 +37,17 @@ Every task's requirements implicitly include these. Values copied verbatim from 
 - **Chezmoi applies:** never run bare `chezmoi apply` from automation (KeePassXC-gated templates need a
   TTY). Use `chezmoi apply --exclude=templates --force`, or apply specific non-template files by name.
   Pause and ask the operator to apply KeePassXC-gated files interactively.
-- **Design + testing standard (binding, per the spec's essential-feed section and decisions log #6):**
-  **TDD drives the design** — for every piece of new logic, write the failing test first, show the red
-  run, implement minimally, show green; no implementation-first work passes review. **SOLID** at the
-  language's altitude: single-responsibility units behind clear seams, wired at one composition point.
-  **Classist (Detroit-school) testing:** real collaborators in domain tests; test doubles only at true
-  I/O boundaries (network, subprocess, filesystem, clock) — the `test/osquery-alerter/lib.bash` harness
-  is the in-repo exemplar and the template for all bats work. Transplanted (already-tested) code carries
-  its tests in the same PR and runs green; any behavior change to it starts with a failing test.
+- **Design + testing standard (HARD RULE, binding — per the spec's essential-feed section, decisions log
+  #6, and the [essential-feed-case-study](https://github.com/essentialdevelopercom/essential-feed-case-study)
+  repo the strategy was drawn from):** **TDD drives the design** — for every piece of new logic, write the
+  failing test first, show the red run, implement minimally, show green; no implementation-first work
+  passes review. **SOLID** at the language's altitude: single-responsibility units behind clear seams,
+  wired at one composition point. **Classist (Detroit-school) testing:** real collaborators in domain
+  tests; test doubles only at true I/O boundaries (network, subprocess, filesystem, clock) — the
+  `test/osquery-alerter/lib.bash` harness is the in-repo exemplar and the template for all bats work.
+  Transplanted (already-tested) code carries its tests in the same PR and runs green; any behavior change
+  to it starts with a failing test. **Fable enforces this rule** at step 5 of the Fable-conductor
+  gap-closure loop (Phase C) — it is not waivable.
 - **Every PR is self-contained and fully wired** — no dead code, no half-feature waiting on a later PR,
   no file that nothing references by the time the PR merges. A migration that removes an old tool must
   add its replacement in the same PR (main is never left half-migrated).
@@ -178,7 +181,49 @@ reality. Ship in table order unless the operator re-prioritizes.
 Every slice task S1–S12 executes the **identical protocol** below. Each slice's task section states only
 its own specifics (files, wiring to verify, gotchas, review focus); the mechanical cycle is here, once.
 
-**The protocol (run for each slice):**
+### The Fable-conductor gap-closure loop (STANDING — governs every section)
+
+**Fable 5 is the standing conductor for every section** (each slice S1–S12, and the Phase A/B/D tasks).
+This loop is not opt-in and is not re-instructed per section — it is the default execution model for the
+whole plan. Do not skip it, shortcut it, or ask whether to run it; run it. The mechanical P-1…P-8
+protocol below is **step 3's inner cycle**, not a replacement for this loop.
+
+1. **Plan review.** Fable reads this section's plan text (its slice row, per-slice specifics, folded
+   ledger fixes, and any amending `R*`/Phase-E items) and identifies every gap and every improvement it
+   can — missing wiring, untested surface, stale assumptions, unstated decisions, sizing risk.
+1. **Plan adjustment.** Fable edits the plan to close those gaps and writes the improvements up to the
+   best of its ability *before* implementing — the plan is the source of truth the implementers read, so
+   it is corrected first, not retroactively.
+1. **Orchestrated implementation.** Fable executes the section as orchestrator, running the P-1…P-8
+   protocol below. **Model policy (operator-set, 2026-07-09, supersedes the
+   subagent-driven-development cheapest-tier rule): every implementer and fixer dispatch is Opus at
+   max effort; Fable runs its own conductor jobs (gap identification, planning, instructing, reviewing)
+   at high effort.** Always name the model explicitly in the dispatch — never inherit by omission.
+1. **Implementer (Opus, max effort) implementation.** The implementer executes the task at Fable's
+   behest, under the full Global Constraints (TDD-first, green-before-commit, Conventional Commits, no
+   AI trailers).
+1. **Conductor review + correction.** When the implementer finishes, Fable reviews its work against the
+   section plan, names every mistake and residual gap, and instructs the model (or a fresh one) to
+   implement the fixes. Findings move as files, per the skill's handoff rules.
+1. **Repeat until satisfied.** Steps 4–5 loop until Fable can identify no further mistake or gap in that
+   task's work.
+1. **End-of-section sweep.** After the section's tasks are all individually clean, Fable does one final
+   sweep across *everything* the section produced (the whole slice diff), identifies any remaining gaps
+   and improvements, and runs the 4–6 loop on them until satisfied. Only then does Fable decide whether
+   the section is PR-ready and hand it to the operator review gate (P-8).
+
+> **HARD RULE — TDD + SOLID is non-negotiable, and Fable enforces it.** Every implementation in every
+> section MUST follow the TDD-SOLID strategy identified from the
+> [essential-feed-case-study](https://github.com/essentialdevelopercom/essential-feed-case-study) repo
+> and specified in the **Global Constraints** "Design + testing standard" bullet: failing test first →
+> red → minimal implementation → green; SOLID single-responsibility units behind clear seams wired at one
+> composition point; Classist (Detroit-school) testing with real collaborators and doubles only at true
+> I/O boundaries. Fable is responsible for ensuring this rule is met — a task whose work is
+> implementation-first, or whose new logic lacks a shown red-then-green, fails Fable's step-5 review and
+> is sent back. This gate is not waivable by the implementer, by sizing pressure, or by "transplanted
+> code" (transplanted code carries its tests and runs green; any behavior change to it starts red).
+
+**The protocol (run for each slice — this is step 3's inner cycle):**
 
 - [ ] **P-1: Branch from the current main.**
   ```bash
@@ -290,15 +335,51 @@ its own specifics (files, wiring to verify, gotchas, review focus); the mechanic
   update-skills install-capable, and add the vendored-skill SHA/`computedHash` supply-chain gate before
   the atomic swap.
 
-### S4 — herdr migration (may split into S4a config / S4b plugins / S4c bashrc+tmux-removal)
+### S4 — herdr migration (re-scoped 2026-07-09 against live state, per learning #2)
+- **Decision: ONE PR — the S4a/b/c split is retracted.** The atomicity invariant (below) means any
+  split's final PR still carries the risky flip (bashrc + deletions), so splitting buys nothing; and the
+  content is dresden's already-live state, familiar to the operator. Commits stay logically separated
+  instead.
 - **Atomicity is the invariant:** the tmux/sesh deletions and the herdr additions ship together — main
-  must never have both, nor neither. If split, S4a/b add herdr and S4c flips bashrc + deletes tmux in
-  one PR.
-- **Ledger fixes:** consolidate the two plugin build scripts to a `.chezmoitemplates` partial; anchor the
-  `grep -q "$plugin_id"` link check; remove `dot_fzf_bindings` tmux-`$TMUX` widgets; fix the `dot_bash_bindings`
-  duplicate `\C-gss`, `nvm`, `$blue`.
-- **Wiring (P-4):** the two Rust plugins build (`cargo build --release --locked`) and link; the
-  auto-attach block guards on `HERDR_ENV`. **Operator apply** needed (builds Rust at apply time).
+  must never have both, nor neither.
+- **Exact file set (verified against the live `origin/main`→`integration/modernization` diff):**
+  - **ADD:** `dot_config/herdr/config.toml`; the two Rust plugins under `dot_local/share/herdr/plugins/`
+    (`herdr-last-workspace`, `herdr-smart-nav` — transplants that CARRY their own `#[cfg(test)]` suites
+    and must run green via `cargo test`); `.chezmoiscripts/run_onchange_before_15-install-herdr.sh.tmpl`;
+    the `after_55-build-herdr-last-workspace` + `after_57-build-herdr-smart-nav` build scripts. NOT
+    `after_55-osquery-pipeline-manifest` (S9 — a numeric-glob near-miss).
+  - **DELETE (atomic cluster):** `dot_tmux.conf`, `dot_config/sesh/**`, the six
+    `dot_local/bin/executable_{sesh-*,tmux-*}` scripts, `run_after_70-install-tmux2k-last-proc`, AND —
+    moved here from S7 — `dot_local/bin/executable_claude-restart.sh` +
+    `Library/LaunchAgents/com.claude.code.plist.tmpl`: the plist's only payload is exec'ing
+    `claude-restart.sh`, which drives tmux, so the pair is tmux-coupled and dies with tmux (deleting the
+    script in S4 while S7 kept the plist would leave main's LaunchAgent exec'ing a nonexistent file).
+  - **Shared-file hunks S4 owns:** `dot_bashrc.tmpl` — ONLY the tmux/sesh→herdr semantics (TERM, the
+    `t`/`h` aliases, the tmux-purge alias and `__tmux_last_proc_precmd` block removals, the notifier
+    skip-list word swap tmux→herdr, and the end-of-file herdr auto-attach block with its `HERDR_ENV` /
+    `SSH_ORIGINAL_COMMAND` / vscode guards); NOT the relay notifier rewrite (S7), NOT the
+    interactive-guard/PATH restructure or brew-cache sourcing (S11). `CLAUDE.md` — the tmux→herdr
+    section rewrites (Tmux Session Management → Herdr Workspace Management; drop the tmux2k indicators
+    section; notifier line). `.chezmoiignore` + `.gitignore` — the 2-line herdr `target/` ignore hunks.
+    `.chezmoidata/system_packages_autoinstall.yaml` — remove the `sesh` and `tmux` formula lines
+    (targeted line edits; the file's other diffs belong to S5/S6). `justfile`, `dot_profile`, and
+    `private_dot_claude/CLAUDE.md` carry NO S4 hunks (verified — their diffs are other slices').
+- **Ledger fixes (all are NEW work — the integration branch never fixed them; verified byte-identical
+  to main):** consolidate the two plugin build scripts' common core into a `.chezmoitemplates` partial
+  (red-first: a rendered-template test asserting both scripts share the partial's anchored logic); anchor
+  the `grep -q "$plugin_id"` link check (unanchored substring match); remove the 14 tmux-`$TMUX` dead
+  widgets from `dot_fzf_bindings`; fix `dot_bash_bindings` — the duplicate `\C-gss` vi-command binding
+  (line ~181 should be `\C-gsh`, per its sibling insert-mode line), drop the stale `nvm` bindings
+  (toolchain has no nvm), audit `$blue` for use-before-definition — with a red-first
+  duplicate-keybinding invariant test (`test/bash-bindings-unique.sh`: no `(keymap, key-seq)` bound
+  twice).
+- **Wiring (P-4):** the two Rust plugins build (`cargo build --release --locked`) and their tests pass
+  (`cargo test`); the auto-attach block guards on `HERDR_ENV`; nothing on main references any deleted
+  path afterwards (`git grep` each deleted basename). **Two-world validation (learning #1):** never a
+  live apply from this branch — validate via cargo build/test + `chezmoi execute-template` renders +
+  `just lint-check && just test`; the live apply is the operator's, at P-8.
+- **Operator apply** needed (builds Rust at apply time; installs herdr via the curl installer; tears
+  down tmux LaunchAgent state).
 
 ### S5 — Tailscale headless daemon
 - First confirm whether the tailscale-monitor fix (`2f430b3`) is already on main; if so this slice is
@@ -317,7 +398,9 @@ its own specifics (files, wiring to verify, gotchas, review focus); the mechanic
 - **Ship the bash exactly as it runs on dresden.** Do NOT fix the SP3-tagged relay bugs here (fail-closed
   idle probe, jq slurp, mkdir lock, regex anchor) — those are the Rust rewrite's job; main must match
   dresden's current live behavior so SP3 replaces a known baseline. Note this explicitly in the PR body.
-- Delete the old `com.claude.code.plist.tmpl` (superseded by the modify_settings hooks).
+- ~~Delete the old `com.claude.code.plist.tmpl`~~ — **moved to S4** (2026-07-09): the plist's only
+  payload execs the tmux-coupled `claude-restart.sh`, which S4 deletes, so the pair ships in S4's atomic
+  cluster (keeping it here would leave main's LaunchAgent exec'ing a nonexistent file between S4 and S7).
 - **Operator apply** needed (`private_auth.json.tmpl` is KeePassXC-gated).
 
 ### S8 — Hermes age-encryption
@@ -347,7 +430,12 @@ its own specifics (files, wiring to verify, gotchas, review focus); the mechanic
 ### S10 — macOS defaults / system-setup
 - **Ledger fixes:** defaults trio shared-lib + `chezmoi source-path` (kills the worktree-writes-primary
   bug); `after_41` `{{ if index . "sudo" }}`; add `ssh-hardening.sh` as a `macos_system_setup.yaml`
-  record so a fresh machine actually locks sshd.
+  record so a fresh machine actually locks sshd — **and fix the script's PAM hole (roadmap high-sev,
+  found missing in the 2026-07-09 audit):** the drop-in sets only `PasswordAuthentication no`, but
+  `UsePAM yes` + the `KbdInteractiveAuthentication` default leave PAM password login open (verified
+  live per the roadmap ledger) — the hardening record must also set
+  `KbdInteractiveAuthentication no` (and address UsePAM's interaction) so password auth is actually
+  closed, test-driven per the sshd `-T` effective-config seam.
 - **Operator apply** needed (Tier-2 sudo runner prompts once).
 - **Research amendments (§R8, §R6):** the R8 endpoint additions already landed on the working branch
   (`36d2d27`) — the `lulu` + `oversight` casks and the firewall **stealth-mode** `macos_system_setup.yaml`
@@ -361,8 +449,11 @@ its own specifics (files, wiring to verify, gotchas, review focus); the mechanic
   renames (`ae02524`) + worktrunk + gitconfig.
 - **Ledger fixes:** merge.tool name-not-command; `core.excludesfile` (ship a `dot_gitignore_global` or
   drop the line); remove git:// url rewrites, `~/.bash_just_completions` source, atuin `~/.atuin/bin/env`
-  guard, the linux yabai ignore; espanso `_pqi.yml` import + shadow-trigger renames; Arc→Zen hotkey;
-  newsyslog log rotation.
+  guard, the linux yabai ignore; espanso `_pqi.yml` import + shadow-trigger renames + the mid-word
+  autocorrect `word:true` fix; Arc→Zen hotkey; newsyslog log rotation; `run_after_35-setup-yt-dlp`
+  network-on-every-apply + deno/node mismatch (roadmap known-bug set — unassigned until the 2026-07-09
+  audit); the inert `gh` `hosts.yml.tmpl`. (P12 gitconfig autocorrect: **already on main** —
+  `autocorrect = prompt`, verified 2026-07-09; no work.)
 - **Installs (SP5 + directive):** Thaw (`brew install --cask thaw` → add to manifest); ponytail (`/plugin
   marketplace add DietrichGebert/ponytail` + `/plugin install`, `hermes plugins install
   DietrichGebert/ponytail --enable`, promote to `enabledPlugins`).
@@ -708,6 +799,48 @@ future security↔notification integration once SP3 lands.
 
 ---
 
+## Deferred sub-projects — NOT SP2 scope, tracked in the roadmap spec (do not lose these)
+
+These operator-decided items live in `docs/superpowers/specs/2026-07-02-repo-modernization-roadmap-design.md`
+(the sub-project table), not in this plan — listed here so the plan is self-contained about what it
+deliberately does NOT cover:
+
+- **SP4 — bash→nushell evaluation: RESOLVED — NO-GO, operator-ratified 2026-07-09.** The evaluation ran
+  during S4 (report: `docs/research/2026-07-09-sp4-nushell-evaluation.md`); verdict NO-GO on three legs:
+  reedline binds one key event per binding — no multi-keystroke chord grammar (verified against the
+  line-editor docs AND reedline #69, where chords remain an open feature request), which the ~365-chord
+  binding surface cannot survive; atuin's nushell integration is its weakest (and atuin is the
+  thrice-broken subsystem here); cost/value fails against a working ~15ms bash hot path. Adjacent shells
+  (zsh/fish/others) were surveyed at ratification: zsh is the only chord-capable candidate, and the
+  operator chose to **stay on bash**. Consequences: GH #5 closes as evaluated/declined; SP3 designs its
+  notifier seam against bash-preexec with NO shell-portability abstraction; P8 quick wins unblock
+  (shell-config placement = bash).
+- **SP4 (successor scope, operator-directed 2026-07-09) — Bash setup improvement.** The vacated SP4
+  slot becomes a bash-improvement sub-project (own spec cycle: brainstorming → plan → the standing
+  Fable loop), running AFTER SP2's cutover (D1) — its targets (`dot_bashrc.tmpl`, `dot_bash_aliases`,
+  `dot_bash_bindings`, `dot_fzf_bindings`) are shared files that S7/S11 still carry hunks in, so
+  starting earlier would recreate the two-writer hunk problem. **Sequencing decided (conductor's call,
+  operator delegated 2026-07-09): after SP3** — SP3 replaces the live relay pipeline whose shipped bugs
+  can drop notifications (daily-critical beats quality-of-life), and SP4's bashrc work then lands atop
+  SP3's finished notifier shim instead of underneath it. Five workstreams: (1) consolidate every alias out of bashrc into `.bash_aliases`; (2) `dot_fzf_bindings`
+  code quality + new bindings (candidates: zoxide-backed dir jump, git-stash picker, process killer,
+  worktree switcher, herdr workspace picker); (3) invert the bindings architecture — ONE data table
+  (`key | keymap | description | command`) from which the `bind` statements, an fzf-driven menu (view →
+  pick → execute), and the tests are all generated (kills overlap by construction; replaces the fragile
+  reverse-parsing `__bash_bindings_list_bash_bindings`); (4) Charm-tools verdict RECORDED — gum
+  (script UI prompts): no, fzf already covers the menu; bubbletea + lipgloss (Go TUI/styling
+  libraries): no, YAGNI; crush (AI coding agent): no, redundant with Claude Code/Codex; vhs (scripted
+  terminal recorder): optional later for chord demos/deterministic pty tests — ZERO new dependencies
+  now; (5) generated per-binding tests (registration + firing) so a broken binding is caught at
+  commit time, not at the keyboard.
+- **SP6 — nvim-overhaul.** Re-evaluate the v1/v2/v3 design generations (Fable conducts the
+  re-evaluation — operator directive) plus the 10 unpushed commits on the `nvim-overhaul` branch, then
+  implement under its own spec. Not started; runs after SP2.
+- **SP7 backlog — small chores**, including **P6: install `bandwhich`, `doggo`, `ouch`** ("still valid,
+  trivial" — manifest entries + `brew install`), P3 package-manager audit, P5 Determinate Nix review,
+  P8 quick wins (placement depends on SP4's verdict).
+- **SP-nix — nix-darwin go/no-go** (research-first sibling of SP4, banked in §R6).
+
 ## Phase E — End-of-SP2 cleanup backlog
 
 Debts discovered during execution (chiefly S3). Each is deferred for a stated reason; all must be
@@ -777,6 +910,32 @@ the ad-hoc live state and the script are reconciled.
 The fork upstream drift-check + relay notification for the `moshi`/`herdr` local forks is banked for S11
 (it needs `relay.sh` from S7). The lock's `forks` table and the weekly drift-check pass exist; the
 notify path is the missing piece. Fix: wire the relay push in S11.
+
+Also (found during S4 re-scope, 2026-07-09): the vendored `moshi` fork's `SKILL.md` still documents a
+tmux-based remote transport ("Mosh plus tmux", `command -v tmux`, "at least one tmux session") — stale
+against the herdr migration on this machine (though possibly still valid guidance for remote hosts that
+do run tmux). It is fork *content* (skills lane, not S4's), so S4 does not touch it; resolve it in the
+same S11 fork-maintenance pass — decide whether the guidance is host-specific or needs a herdr rewrite,
+and bump the fork's `lastComparedTreeHash` notes accordingly.
+
+### fix/pre-commit-path-filter (found 2026-07-09 roadmap audit)
+
+The roadmap's S2 design-alternative "pre-commit: skip the bats suite on docs/YAML-only commits (path
+filter)" never made it into the S2 plan text or implementation — every commit (including docs-only)
+runs the full `just lint-check && just test` (observed live: plan-edit commits run the whole suite).
+Friction, not correctness. Fix: a path filter in `.githooks/pre-commit` that skips `just test` (never
+the lint gate or gitleaks) when the staged diff touches only docs/markdown. Slot: S11 or post-SP2.
+
+### fix/template-render-coverage (found 2026-07-09 roadmap audit)
+
+The old `lint.sh` shellcheck-rendered ~12 templates via an allowlist; S2's treefmt port carried only 2
+(bashrc, osquery before_50) and S4 added its 3 herdr scripts — so ~7 previously-linted shell templates
+lost render-lint coverage, and the S2 ledger fix "template shellcheck allowlist → programmatic" was
+never implemented (treefmt.nix uses an explicit include list). Fix: either make the include list
+programmatic (all `.chezmoiscripts/*.sh.tmpl` that render without keepassxc, discovered not
+enumerated), or restore the missing entries slice-by-slice as their files land (S6/S7/S9/S10 each add
+their scripts). Decide in S11 at the latest; each slice SHOULD add its own templates meanwhile (S4 has,
+belatedly, in its final-review round).
 
 ### fix/skill-architecture-diagram
 

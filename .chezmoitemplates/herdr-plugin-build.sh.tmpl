@@ -1,0 +1,55 @@
+{{- /*
+Shared core for the herdr plugin build chezmoiscripts (consumed via
+includeTemplate with (dict "id" "<plugin-id>")). Hashes the plugin source so
+the calling run_onchange_ script re-runs on change, compiles the binary, and
+links it with herdr. Each caller keeps only its plugin-specific pre/postamble.
+*/ -}}
+# --- shared plugin build core: .chezmoitemplates/herdr-plugin-build.sh.tmpl ---
+#
+# Plugin source (hashed so this script re-runs on change):
+#   {{ include (printf "dot_local/share/herdr/plugins/%s/src/main.rs" .id) | sha256sum }}
+#   {{ include (printf "dot_local/share/herdr/plugins/%s/Cargo.lock" .id) | sha256sum }}
+#   {{ include (printf "dot_local/share/herdr/plugins/%s/herdr-plugin.toml" .id) | sha256sum }}
+
+plugin_dir="$HOME/.local/share/herdr/plugins/{{ .id }}"
+plugin_id="{{ .id }}"
+
+# Resolve cargo at its deterministic rustup location. cargo on this machine is
+# rustup-managed (run_once_before_20 installs rustup into ~/.cargo/bin), so the
+# canonical binary is ALWAYS "$HOME/.cargo/bin/cargo" — use it directly, never a
+# `command -v cargo` PATH probe. A PATH probe would silently pick up a different,
+# unexpected toolchain, and it is wrong for the very case this build must handle:
+# on a fresh machine run_once_before_20 provisions cargo during THIS same apply,
+# but ~/.cargo/bin is not on the apply shell's PATH yet — the absolute path is
+# authoritative precisely because PATH is not. A missing toolchain must NEVER
+# abort the whole apply (this partial is includeTemplate'd into run_onchange
+# chezmoiscripts, so exit 1 here kills the entire apply).
+cargo_bin="$HOME/.cargo/bin/cargo"
+if [[ ! -x $cargo_bin ]]; then
+  # No cargo at the canonical rustup location: skip (exit 0) so the rest of the
+  # apply proceeds. Caveat: exit 0 consumes this run_onchange trigger (chezmoi
+  # records the script hash on any success), so a bare re-apply will NOT rebuild
+  # — after rustup provisions cargo, re-touch the plugin source (or clear
+  # chezmoi's scriptState bucket) to retry.
+  echo "cargo not found at ${cargo_bin}; skipping ${plugin_id} plugin build." >&2
+  echo "rustup (run_once_before_20) did not provision it; install rust, then re-touch the plugin source and re-run chezmoi apply to build it." >&2
+  exit 0
+fi
+
+# Compile the plugin binary. --locked keeps Cargo.lock authoritative so the
+# vendored lockfile does not drift on apply.
+(cd "$plugin_dir" && "$cargo_bin" build --release --locked)
+
+# Link with herdr if not already linked. Linking talks to the running herdr
+# server; if it is not up (e.g. a headless apply), skip with a hint — an
+# interactive session can link later. The link persists once registered.
+# The match is anchored to the plugin's list line ("- <id> ...") because
+# `herdr plugin list` also prints each plugin's local path — an unanchored
+# substring match on the id would false-positive against another plugin's line.
+if herdr plugin list 2>/dev/null | grep -q "^- ${plugin_id} "; then
+  echo "herdr plugin $plugin_id already linked"
+elif herdr plugin link "$plugin_dir" >/dev/null 2>&1; then
+  echo "linked herdr plugin $plugin_id"
+else
+  echo "could not link $plugin_id (herdr server not running?); link later with: herdr plugin link $plugin_dir" >&2
+fi

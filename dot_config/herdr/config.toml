@@ -1,0 +1,219 @@
+# Skip Herdr onboarding workflow on first run.
+onboarding = false
+
+# Declarative channel. CLI invocation in run_onchange_before_15-install-herdr.sh.tmpl
+# guarantees the runtime state, this entry documents intent.
+[update]
+channel = "preview"
+
+[terminal]
+default_shell = "bash"
+shell_mode = "auto"
+
+[theme]
+# Built-in theme (others: terminal, tokyo-night, dracula, nord, gruvbox,
+# one-dark, solarized, kanagawa, rose-pine, vesper).
+name = "catppuccin"
+
+# [ui] scalar keys must precede the [ui.*] subtables below — TOML forbids
+# reopening a table once a subtable has started.
+[ui]
+# Show detected/reported agent labels in split-pane borders when no manual pane
+# name is set.
+show_agent_labels_on_pane_borders = true
+
+[ui.sound]
+# Play a sound when an agent changes state in a background workspace.
+enabled = true
+
+[ui.sound.agents]
+# Per-agent overrides accept "default", "on", or "off". droid is muted by
+# default; turn it on.
+droid = "on"
+
+[ui.toast]
+# Background notification popups render as in-app herdr toasts (not a desktop or
+# OS notification). Other values: off, terminal, system.
+delivery = "herdr"
+
+[experimental]
+# Persist pane scrollback across full server restarts.
+pane_history = true
+# While prefix mode is active, temporarily switch the macOS host input source to
+# an ASCII-capable layout so prefix chords register even under a CJK IME, then
+# restore the previous source on prefix exit. macOS only, best-effort.
+switch_ascii_input_source_in_prefix = true
+
+# herdr's actual keybindings section is [keys] (per `herdr --default-config`); the
+# design brief drafted it as [keybindings]. [keys] is authoritative.
+[keys]
+prefix = "ctrl+d"
+
+# Workspace picker (already the herdr default — set explicitly for documentation).
+goto = "prefix+g"
+
+# Rename current tab.
+rename_tab = "prefix+comma"
+
+# Agent-pane navigation, on the alt modifier so it stays clear of tab nav
+# (herdr's plain prefix+n/prefix+p + prefix+1..9) and the prefix+ctrl+<letter>
+# workspace chords. Three nav axes, three modifier tiers. prefix+alt may depend
+# on terminal handling — Ghostty is fine; verify if a chord misfires.
+next_agent = "prefix+alt+n"
+previous_agent = "prefix+alt+p"
+focus_agent = "prefix+alt+1..9"
+
+# Splits — deliberately crossed against herdr's defaults to preserve tmux muscle memory.
+# herdr names splits by divider orientation; tmux by motion direction. Opposite words,
+# same physical result. DO NOT "fix" the cross — it is the intended mapping.
+#   prefix+" → top/bottom stack (tmux: split horizontally with `-`)
+#   prefix+% → side-by-side    (tmux: split vertically with `|`)
+split_horizontal = "prefix+\""
+split_vertical = "prefix+%"
+
+# Workspace sidebar navigation in herdr's built-in navigate mode (entered via
+# prefix+w). ctrl+p/ctrl+n (up/down) instead of plain k/j so they don't collide
+# with navigate_pane's k/j (a plain-key clash there disables pane up/down in
+# navigate mode). Not a custom key table — built-in mode, so it coexists with
+# the no-multi-step-bindings constraint.
+navigate_workspace_up = "ctrl+p"
+navigate_workspace_down = "ctrl+n"
+
+# Back-and-forth to the previously-focused PANE (herdr's builtin global MRU
+# toggle). Pairs with the workspace-level toggle on prefix+ctrl+\ below: prefix+\
+# bounces panes, prefix+ctrl+\ bounces workspaces.
+last_pane = "prefix+\\"
+
+# Swap the focused pane with a neighbor. Moved off their default prefix+shift+h/j/k/l
+# to prefix+alt+h/j/k/l so prefix+shift+l is free for clear-screen (below), and
+# to sit alongside the other prefix+alt nav (agent next/prev/focus). h/j/k/l keep
+# the directional convention.
+swap_pane_left = "prefix+alt+h"
+swap_pane_down = "prefix+alt+j"
+swap_pane_up = "prefix+alt+k"
+swap_pane_right = "prefix+alt+l"
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Workspace quick-jump chords (prefix+ctrl+<letter>)
+# 8 workspaces in a namespace empty in herdr defaults and structurally unlikely
+# to be claimed upstream. Each calls herdr-jump.sh <label> <cwd>, which focuses
+# the existing workspace with that label or creates it if absent. The helper is
+# required because `herdr workspace create` is NOT idempotent — it spawns a new
+# workspace on every invocation — and `herdr workspace focus` takes an id, not a
+# label, so there is no single built-in create-or-focus command.
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[[keys.command]]
+key = "prefix+ctrl+h"
+type = "shell"
+command = "$HOME/.local/bin/herdr-jump.sh homelab $HOME/workspaces/Ivy/webdavis/homelab"
+description = "jump to homelab workspace (auto-start)"
+
+[[keys.command]]
+key = "prefix+ctrl+."
+type = "shell"
+command = "$HOME/.local/bin/herdr-jump.sh dotfiles $HOME/workspaces/Ivy/webdavis/dotfiles"
+description = "jump to dotfiles workspace (CSI-u; fallback below)"
+
+[[keys.command]]
+key = "prefix+."
+type = "shell"
+command = "$HOME/.local/bin/herdr-jump.sh dotfiles $HOME/workspaces/Ivy/webdavis/dotfiles"
+description = "jump to dotfiles workspace (fallback for terminals without CSI-u)"
+
+[[keys.command]]
+key = "prefix+ctrl+c"
+type = "shell"
+command = "$HOME/.local/bin/herdr-jump.sh casually-concerned $HOME/workspaces/Ivy/casually-concerned"
+description = "jump to casually-concerned workspace"
+
+[[keys.command]]
+key = "prefix+ctrl+i"
+type = "shell"
+command = "$HOME/.local/bin/herdr-jump.sh Ivy $HOME/workspaces/Ivy"
+description = "jump to Ivy vault workspace (also fires on prefix+Tab via ctrl+i alias)"
+
+[[keys.command]]
+key = "prefix+ctrl+j"
+type = "shell"
+command = "$HOME/.local/bin/herdr-jump.sh justdavis-ansible $HOME/workspaces/Ivy/karlmdavis/justdavis-ansible"
+description = "jump to justdavis-ansible workspace"
+
+[[keys.command]]
+key = "prefix+ctrl+e"
+type = "shell"
+command = "$HOME/.local/bin/herdr-jump.sh essential-feed-case-study $HOME/workspaces/Ivy/webdavis/essential-feed-case-study"
+description = "jump to essential-feed-case-study workspace"
+
+[[keys.command]]
+key = "prefix+ctrl+n"
+type = "shell"
+command = "$HOME/.local/bin/herdr-jump.sh netpulse $HOME/workspaces/Ivy/webdavis/netpulse"
+description = "jump to netpulse workspace"
+
+[[keys.command]]
+key = "prefix+ctrl+p"
+type = "shell"
+command = "$HOME/.local/bin/herdr-jump.sh plantpulse $HOME/workspaces/Ivy/hobbies/plantpulse"
+description = "jump to plantpulse workspace"
+
+# Workspace-level back-and-forth (a true "last_workspace" MRU toggle). herdr has
+# no builtin for this — last_pane (prefix+\) is pane-level, previous_workspace is
+# positional — so the herdr-last-workspace plugin tracks workspace focus via
+# the workspace.focused event and its `last_workspace` action focuses the previous
+# one. Unlike a key-bound script, the plugin sees mouse/picker switches too. The
+# key is the user's choice; prefix+ctrl+\ is the default. Pairs with last_pane:
+# prefix+\ panes, prefix+ctrl+\ spaces.
+[[keys.command]]
+key = "prefix+ctrl+\\"
+type = "plugin_action"
+command = "herdr-last-workspace.last_workspace"
+description = "last workspace (MRU toggle, via plugin)"
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Pane / split focus — raw Ctrl-h/j/k/l navigate seamlessly across Neovim splits
+# AND herdr panes. herdr-smart-nav is the conditional herdr lacks: if the
+# focused pane runs Neovim it forwards the keystroke into nvim (smart-splits.nvim
+# moves the split, or at a split edge calls `herdr pane focus` to cross into the
+# next herdr pane); otherwise it moves herdr pane focus directly. So one set of
+# keys works whether you are in Neovim or not. Replaces the dead
+# devxplay/herdr.nvim herdr-navigator (no-ops on herdr 0.7.0). nvim side:
+# mrjones2014/smart-splits.nvim + a custom herdr backend (lua/smart-splits/mux/).
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[[keys.command]]
+key = "ctrl+h"
+type = "plugin_action"
+command = "herdr-smart-nav.nav_left"
+description = "nav left: Neovim split or herdr pane"
+
+[[keys.command]]
+key = "ctrl+j"
+type = "plugin_action"
+command = "herdr-smart-nav.nav_down"
+description = "nav down: Neovim split or herdr pane"
+
+[[keys.command]]
+key = "ctrl+k"
+type = "plugin_action"
+command = "herdr-smart-nav.nav_up"
+description = "nav up: Neovim split or herdr pane"
+
+[[keys.command]]
+key = "ctrl+l"
+type = "plugin_action"
+command = "herdr-smart-nav.nav_right"
+description = "nav right: Neovim split or herdr pane"
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Clear screen — raw Ctrl-l is taken by pane-focus-right above, so prefix+shift+l
+# sends a literal Ctrl-l to the focused pane, giving back bash's clear-screen
+# (readline clear-screen: no command, no history entry). prefix+shift+l was
+# herdr's default swap_pane_right, relocated to prefix+alt+l above to free it.
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[[keys.command]]
+key = "prefix+shift+l"
+type = "shell"
+command = "$HERDR_BIN_PATH pane send-keys $HERDR_ACTIVE_PANE_ID 'ctrl+l'"
+description = "clear screen: send Ctrl-l to the focused pane (like bash)"

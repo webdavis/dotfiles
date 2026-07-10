@@ -44,9 +44,9 @@ export FZF_BINDINGS_EXIT_CODE=0
 export FZF_BINDINGS_GIT_LOG_LIMIT=500
 export FZF_BINDINGS_GIT_HASH_REGEX='^[0-9a-f]{7,40}'
 export FZF_BINDINGS_HEIGHT='60%'
-export FZF_BINDINGS_KEYS_GIT_CHECKOUT="ctrl-x,ctrl-v,ctrl-t,ctrl-c"
-export FZF_BINDINGS_KEYS_OPEN="ctrl-o,ctrl-x,ctrl-v,ctrl-t,ctrl-s,alt-c,ctrl-c"
-export FZF_BINDINGS_KEYS_CD="ctrl-o,ctrl-x,ctrl-v,ctrl-t,ctrl-c"
+export FZF_BINDINGS_KEYS_GIT_CHECKOUT="ctrl-c"
+export FZF_BINDINGS_KEYS_OPEN="ctrl-o,ctrl-s,alt-c,ctrl-c"
+export FZF_BINDINGS_KEYS_CD="ctrl-o,ctrl-c"
 export FZF_BINDINGS_KEYS_INTERRUPT="ctrl-c"
 
 if command -v rg >/dev/null 2>&1; then
@@ -147,8 +147,6 @@ __build_edit_command() {
   [[ -n $checkout ]] && cmd="${checkout} ${cmd}"
   [[ -n $line ]] && cmd="${cmd} ${line}"
 
-  local tmux_error_msg="Error: Tmux session not detected. Terminating fzf_bindings!"
-
   # Choose the operation.
   case $key in
     "alt-c")
@@ -206,27 +204,6 @@ __build_edit_command() {
       ;;
     "ctrl-s")
       cmd="sudo ${cmd}"
-      ;;
-    "ctrl-x")
-      if [[ -z $TMUX ]]; then
-        printf "%s\n" "$tmux_error_msg" >&2
-        return 1
-      fi
-      cmd="tmux split-window -v \"${cmd}; exec bash\""
-      ;;
-    "ctrl-v")
-      if [[ -z $TMUX ]]; then
-        printf "%s\n" "$tmux_error_msg" >&2
-        return 1
-      fi
-      cmd="tmux split-window -h \"${cmd}; exec bash\""
-      ;;
-    "ctrl-t")
-      [[ -n $TMUX ]] || {
-        printf "%s\n" "$tmux_error_msg" >&2
-        return 1
-      }
-      cmd="tmux new-window \"${cmd}; exec bash\""
       ;;
   esac
 
@@ -481,7 +458,11 @@ __fzf_git_select_commit_hashes() {
   __fzf_bindings_get_git_root &>/dev/null || return 1
 
   local -r git_log_line_to_hash="printf '%s' {} | grep -o '[a-f0-9]\{7\}' | head -1"
-  local -r view_git_log_line="$git_log_line_to_hash | xargs -I % sh -c 'git show --color=always % | diff-so-fancy'"
+  # delta (the house pager, per dot_gitconfig.tmpl) reads its [delta] config from
+  # git config and emits ANSI color even when piped (verified on delta 0.19.2:
+  # `git show --color=always <hash> | delta | head` keeps escapes), so no force
+  # flag is needed for the non-tty fzf preview pane; its pager self-disables.
+  local -r view_git_log_line="$git_log_line_to_hash | xargs -I % sh -c 'git show --color=always % | delta'"
   local -r fzf_preview_implementation="$view_git_log_line"
   local -r fzf_preview_window="right:50%:wrap"
 
@@ -694,20 +675,12 @@ __build_cd_command_helper() {
   key="$1"
   directory="$2"
 
-  local executable exit_code=0
+  local executable
   case $key in
     "ctrl-o") executable="${OPENER} ${directory} &" ;;
-    "ctrl-x") if [[ -n $TMUX ]]; then executable="tmux split-window -v -c ${directory}"; else exit_code=1; fi ;;
-    "ctrl-v") if [[ -n $TMUX ]]; then executable="tmux split-window -h -c ${directory}"; else exit_code=1; fi ;;
-    "ctrl-t") if [[ -n $TMUX ]]; then executable="tmux new-window -c ${directory}"; else exit_code=1; fi ;;
     *) executable="builtin cd -- \"${directory}\"" ;;
 
   esac
-
-  ((exit_code)) && {
-    printf "%s\n" "Error [tmux]: Session not detected." >&2
-    return 1
-  }
 
   printf "%s" "$executable"
 }

@@ -178,7 +178,7 @@ builtin bind -m vi-command '"\C-gss": "i\C-x0git status\r"'
 
 # git status --short
 builtin bind -m vi-insert '"\C-gsh": "\C-x0git status --short\r"'
-builtin bind -m vi-command '"\C-gss": "i\C-x0git status --short\r"'
+builtin bind -m vi-command '"\C-gsh": "i\C-x0git status --short\r"'
 
 # git ls-files --others --exclude-standard | grep --color=always '.*'
 builtin bind -m vi-insert '"\C-gsu": "\C-x0git ls-files --others --exclude-standard | grep --color=always '\''.*'\''\r"'
@@ -477,10 +477,6 @@ builtin bind -m vi-command '"\C-ghi": "i\C-x0gh issue list\r"'
 # gh pr list
 builtin bind -m vi-insert '"\C-ghp": "\C-x0gh pr list\r"'
 builtin bind -m vi-command '"\C-ghp": "i\C-x0gh pr list\r"'
-
-# nvm use default
-builtin bind -m vi-insert '"\C-xnu": "\C-x0nvm use default\r"'
-builtin bind -m vi-command '"\C-xnu": "i\C-x0nvm use default\r"'
 
 # Package manager update:
 __bash_bindings_update_package_manager() {
@@ -873,12 +869,13 @@ builtin bind -m vi-insert '"\C-xndt": "\__bash_bindings_test_dns_resolution_for_
 builtin bind -m vi-command '"\C-xndt": "i\C-x0__bash_bindings_test_dns_resolution_for_common_domains\r"'
 
 __bash_bindings_dns_summary() {
-  local reset bold red green yellow
+  local reset bold red green yellow blue
   reset="$(tput sgr0)"
   bold="$(tput bold)"
   red="$(tput setaf 1)"
   green="$(tput setaf 2)"
   yellow="$(tput setaf 3)"
+  blue="$(tput setaf 4)"
 
   local -a domains
   domains=(
@@ -945,7 +942,7 @@ builtin bind -m vi-insert '"\C-xnwL": "\C-x0__bash_bindings_latency_traceroute_t
 builtin bind -m vi-command '"\C-xnwL": "i\C-x0__bash_bindings_latency_traceroute_test\r"'
 
 __bash_bindings_network_health_check() {
-  local reset bold green purple
+  local reset bold green blue purple
   reset="$(tput sgr0)"
   bold="$(tput bold)"
   green="$(tput setaf 2)"

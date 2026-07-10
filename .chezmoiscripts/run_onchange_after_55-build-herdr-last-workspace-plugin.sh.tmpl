@@ -1,0 +1,29 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/bin/bash
+
+set -euo pipefail
+
+# Builds and links the last-workspace herdr plugin (a true MRU workspace toggle
+# herdr lacks natively). `herdr plugin link` does NOT run the manifest's
+# [[build]] step, so the binary is compiled here. Re-runs whenever the plugin
+# source changes (run_onchange keyed on the rendered content below).
+#
+{{ includeTemplate "herdr-plugin-build.sh.tmpl" (dict "id" "herdr-last-workspace") }}
+# Seed the MRU 'current' with the live focused workspace so the first bounce
+# after install works. The plugin learns workspaces only as they are focused, so
+# without this seed the workspace focused at install time is missing until it is
+# re-focused (the event-only cold-start gap).
+#
+# The seed lives IN the plugin (`seed` subcommand), not here: it resolves the
+# state file via the plugin's OWN state_file() and queries herdr the same way
+# `bounce` does, so seeder/reader path divergence is structurally impossible
+# (previously this was hand-aligned bash + jq that could drift from src/main.rs).
+# `seed` is idempotent (no-op when state already exists) and tolerant of a down
+# herdr server (a failed query seeds nothing and exits 0) — so this call cannot
+# abort the apply. Only run it when the build above actually produced a binary
+# (the build partial exits 0 early when cargo is absent).
+binary="$plugin_dir/target/release/last-workspace"
+if [[ -x $binary ]]; then
+  "$binary" seed || true
+fi
+{{ end -}}

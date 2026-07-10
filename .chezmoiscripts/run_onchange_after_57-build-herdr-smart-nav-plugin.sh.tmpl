@@ -1,0 +1,13 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/bin/bash
+
+set -euo pipefail
+
+# Builds and links the herdr-smart-nav plugin (the ctrl-h/j/k/l seamless-nav
+# action). `herdr plugin link` does NOT run the manifest's [[build]] step, so the
+# binary is compiled here. Re-runs whenever the plugin source changes.
+#
+{{ includeTemplate "herdr-plugin-build.sh.tmpl" (dict "id" "herdr-smart-nav") }}
+# Remove the retired standalone binary (superseded by the plugin action).
+rm -f "$HOME/.local/bin/herdr-smart-nav"
+{{ end -}}
