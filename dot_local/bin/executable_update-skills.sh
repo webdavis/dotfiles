@@ -520,9 +520,12 @@ fi
 # daemons (the hermes gateway, Claude Code's bg helpers, the Codex app-server) do
 # NOT count — blocking on them is what deferred the weekly run forever (see
 # __update_skills_harness_active). UPDATE_SKILLS_FORCE=1 bypasses (tests, manual
-# runs). On the LAST Monday slot the retry budget is spent, so a deferral there
-# alerts LOUDLY rather than failing silent.
-if [[ ${UPDATE_SKILLS_FORCE:-} != "1" ]] && [[ $DRYRUN != "--dry-run" ]] && __update_skills_harness_active; then
+# runs). --install-only is EXEMPT: it only ADDS absent skills (never swaps a
+# folder), so it is safe under a live session — this is what lets the fresh-
+# machine bootstrap run --install-only unattended at apply time. On the LAST
+# Monday slot the retry budget is spent, so a deferral there alerts LOUDLY rather
+# than failing silent.
+if [[ -z $INSTALL_ONLY ]] && [[ ${UPDATE_SKILLS_FORCE:-} != "1" ]] && [[ $DRYRUN != "--dry-run" ]] && __update_skills_harness_active; then
   log "an interactive harness session (claude/codex/hermes) is using the store; deferring this run"
   if [[ "$(date +%H)" == "$UPDATE_SKILLS_LAST_SLOT_HOUR" ]]; then
     log "EXHAUSTED: the last Monday retry slot (${UPDATE_SKILLS_LAST_SLOT_HOUR}:00) still deferred — the weekly skills update did not run this week"

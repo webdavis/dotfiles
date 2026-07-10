@@ -1,0 +1,33 @@
+#!/bin/bash
+# run_onchange_after_64-update-skills-first-install.sh
+#
+# Fresh-machine bootstrap: install any ABSENT roster skill at apply time so a new
+# machine reproduces the full store immediately, instead of waiting for the
+# weekly Monday LaunchAgent (com.webdavis.update-skills — RunAtLoad=false, so its
+# first chance is Monday at the earliest). Audit Fix 2 (PR #36).
+#
+# run_onchange re-fires whenever the lock OR the updater source changes (the two
+# hashes below), so adding/removing a skill or changing the installer re-syncs
+# the store on the next apply. On an already-provisioned machine the install pass
+# finds nothing absent and returns quickly — idempotent.
+#
+# --install-only runs ONLY the npx + clawhub install passes for ABSENT skills,
+# plus the symlink-fan-out convergence, the Codex overlay re-assert, and the
+# superpowers routing re-assert. It skips the weekly npx/clawhub UPDATE passes,
+# the hermes registry-update phase, and the fork drift-check — and, crucially, it
+# never SWAPS a skill folder (it only adds absent ones), so it is safe to run
+# unattended at apply time even while an agent session is live: the updater's
+# idle-gate exempts --install-only for exactly this reason.
+#
+# lock hash:    {{ include "dot_agents/custom-skill-lock.json" | sha256sum }}
+# updater hash: {{ include "dot_local/bin/executable_update-skills.sh" | sha256sum }}
+set -euo pipefail
+
+UPDATER="$HOME/.local/bin/update-skills.sh"
+
+# Soft-gate on the deployed updater existing: a half-provisioned machine (updater
+# not yet applied) skips silently, exactly like the other loader chezmoiscripts.
+if [[ -x $UPDATER ]]; then
+  "$UPDATER" --install-only ||
+    printf 'update-skills first-install pass reported an issue (continuing)\n' >&2
+fi
