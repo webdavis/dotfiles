@@ -678,24 +678,71 @@ protocol below is **step 3's inner cycle**, not a replacement for this loop.
 
 ---
 
-## Phase D — Cutover
+## Phase D — Cutover (five gates) [audit 2026-07-10]
 
-### Task D1: Switch main live, verify, close the reference PRs
+### Task D1: Switch main live, verify, close the reference PRs — five sequential gates
 
-- [ ] **Step 0 — empty-diff reconciliation gate (§R1):** before switching main, assert every hunk landed
-  exactly once: for each of the 8 shared infra files, `git diff main integration/modernization -- <file>`
-  must be **empty** (allowing for intentional post-split improvements — investigate any non-empty diff:
-  it means an orphaned or double-counted hunk). Also `git diff main integration/modernization --stat`
-  should show no unexpected file left only on the reference branch. This is the proof that the split
-  reproduced the whole integration branch.
-- [ ] **Step 1:** After S12 merges, point dresden's chezmoi source at `main`
+The audit split the single cutover step into **five gates** so that Phase E items which only complete
+*after* apply have a named home, and so the reference PRs are not closed before the soak proves
+convergence. Each gate must pass before the next begins. **`$INTEGRATION_PR` (set in A1) is PR #32**, the
+DO-NOT-MERGE reference; the source PRs are **#25** (osquery three-tier) and **#31** (herdr/Tailscale/
+brew/moshi).
+
+#### Gate 1 — Preflight (before switching the live source)
+
+- [ ] **Classify every dirty/untracked primary-worktree file** — for each, decide keep / discard /
+  back-up. Nothing ambiguous crosses into the apply.
+- [ ] **Back up uncaptured Hermes profile state** per the backup convention
+  (`~/workspaces/backups/YYYY-MM-DDTHH-MM-SS.<name>.backup[.ext]`) — the per-profile `config.yaml`
+  enablement/`platform_toolsets` and codegraph MCP state are otherwise untracked encrypted `.age` files
+  (Phase E `fix/hermes-encrypted-profile-configs`).
+- [ ] **Inventory current LaunchAgents and services** — capture the before-state for the Gate 5
+  before/after diff (`launchctl list`, the `com.webdavis.*` set, the osquery jobs).
+- [ ] **Expected-delta ledger — REPLACES the old empty-diff gate.** The old gate was contradictory: the
+  plan permits improvements over the integration branch yet also demanded an empty final diff. Instead,
+  classify **every** reference-branch hunk (`git diff main integration/modernization`) as one of:
+  **landed-unchanged**, **intentionally-improved**, **deliberately-omitted-with-reason**, or **missing**.
+  **Only a `missing` hunk blocks cutover** — the other three are expected and recorded in the ledger.
+
+#### Gate 2 — Staged activation
+
+- [ ] Open a **second remote session** first, so a broken apply cannot lock you out.
+- [ ] After S12 merges, point dresden's chezmoi source at `main`
   (`git -C ~/workspaces/Ivy/webdavis/dotfiles checkout main && git pull`).
-- [ ] **Step 2: Operator** runs a full interactive `chezmoi apply` (KeePassXC unlocked).
-- [ ] **Step 3:** `just test` green + live smoke checks: `relay.sh` fires a test notification; `hermes
-  gateway` healthy; osquery alerter behaves (`osquery-heartbeat.sh` sends its one ✅);
+- [ ] **Operator** runs a full interactive `chezmoi apply` (KeePassXC unlocked) **in stages**, not one
+  shot — keep the integration branch and previously deployed files available for rollback.
+- [ ] **Verify remote reachability** (Tailscale / SSH) before ending the original session.
+
+#### Gate 3 — Tracked live reconciliation
+
+- [ ] Run the durable reconciliation script — **tracked under `scripts/` (or a chezmoi-managed
+  executable), NOT `.superpowers/` scratch** (`.superpowers/` is gitignored; the old
+  `.superpowers/sdd/live-reconcile-skills.sh` was never tracked). It must support **`--dry-run`**, be
+  **idempotent**, and have **tests**. Run `--dry-run` first, then live, to prove a from-scratch machine
+  converges identically (Phase E `fix/live-reconcile-from-scratch`).
+- [ ] `just test` green + live smoke checks: `relay.sh` fires a test notification; `hermes gateway`
+  healthy; osquery alerter behaves (`osquery-heartbeat.sh` sends its one ✅);
   `chezmoi diff --exclude=templates` clean.
-- [ ] **Step 4:** Close PR #31, PR #25, and the `integration/modernization` reference PR via `gh-axi pr
-  close`, each with a comment linking the slice PRs that superseded it.
+
+#### Gate 4 — Soak
+
+- [ ] Let the converged `main` run for a soak window; watch the daily-critical paths (notifications,
+  hermes, osquery, shell startup) for regressions. **Do not close any reference PR during the soak.**
+
+#### Gate 5 — Final closure
+
+- [ ] **Retire services whose source files were deleted** — a **before/after LaunchAgent inventory**
+  (against Gate 1's capture) and managed `launchctl bootout` / plist removal for anything orphaned (e.g.
+  the old Claude `com.claude.code.plist`). Drop the Phase E `graphify-out/` band-aid excludes here.
+- [ ] Close **PR #25**, **PR #31**, and the **integration reference PR #32** via `gh-axi pr close` —
+  **only after the soak passes** — each with a comment linking the slice PRs that superseded it.
+
+**Phase E → gate attachment.** Every Phase E item completes at a named home:
+`fix/live-reconcile-from-scratch` → Gate 3; `fix/graphify-out-excludes-drop` → Gate 5;
+`fix/harness-skill-reconciliation` → Gate 3 (Hermes-side pruning, coordinated at cutover);
+`fix/hermes-encrypted-profile-configs` → S8 (backed up at Gate 1); `fix/codex-agents-parity` → S12;
+`fix/template-render-coverage` → the Wave-3 render-coverage PR; `fix/moshi-herdr-drift-check` and
+`fix/pre-commit-path-filter` → S11; `fix/skill-architecture-diagram` → Wave-3 skills-stab / S12 docs.
 
 ---
 
@@ -1093,7 +1140,9 @@ map to the D1 gates below.
 
 Debts discovered during execution (chiefly S3). Each is deferred for a stated reason; all must be
 resolved before SP2 closes. Labelled `fix/<name>` for tracking; a `(→ Sn)` tag means it rides that
-slice.
+slice. **[audit 2026-07-10] Every item is attached to a named owner — a Wave-3 stabilization PR or a D1
+cutover gate — in the "Phase E → gate attachment" map at the end of Task D1; the per-item owner notes
+below match that map (nothing floats unattached).**
 
 ### fix/harness-skill-reconciliation
 
@@ -1184,6 +1233,15 @@ programmatic (all `.chezmoiscripts/*.sh.tmpl` that render without keepassxc, dis
 enumerated), or restore the missing entries slice-by-slice as their files land (S6/S7/S9/S10 each add
 their scripts). Decide in S11 at the latest; each slice SHOULD add its own templates meanwhile (S4 has,
 belatedly, in its final-review round).
+
+**Concretized by the audit [audit 2026-07-10] — owned by the Wave-3 render-coverage PR.** The audit's
+manual sweep found **four hidden failures** across the ~20 shell-script templates the treefmt include
+list omitted: an **unquoted `$HOME` in the system-setup render**, and **three osquery loaders whose
+shebang renders on line two**. The required correction is now concrete: (1) **discover all safely
+renderable shell templates programmatically** (not an enumerated allowlist); (2) **fix the four current
+failures**; (3) **add a coverage test that fails when a new shell template is omitted** from render-lint.
+This supersedes the "decide in S11" hedge — it lands in the Wave-3 render-coverage PR (audit PR #35
+Medium).
 
 ### fix/skill-architecture-diagram
 
