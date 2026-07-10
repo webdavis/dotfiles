@@ -190,20 +190,30 @@ diff):
 4. herdr migration (2–3 PRs: config; smart-nav plugin; bashrc/workspace integration).
 5. Tailscale headless daemon.
 6. Homebrew weekly-upgrade LaunchAgent.
-7. Relay notification pipeline **as deployed** (bash version + its tests) — lands so `main` matches
-   dresden's live behavior; SP3 replaces it later through its own PR sequence.
+7. Relay notification pipeline (bash version + its tests). ~~**As deployed** — lands so `main` matches
+   dresden's live behavior~~ **superseded 2026-07-10 by decision 10 (R2):** the four delivery-loss
+   defects are fixed BEFORE merge (with characterization tests for retained harmless quirks); SP3 still
+   replaces the whole design later through its own PR sequence.
 8. Hermes age-encryption (the SP1 work).
 9. osquery three-tier alerting — **reimplemented with design improvements** (decision 4). Alerting/
    dispatch redesign is in scope; query/pack content changes are flagged for user sign-off.
 10. macOS defaults / system-setup additions.
-11. Small chores interleaved (Thaw install = SP5; gitconfig autocorrect = old P12; etc.).
+11. Small chores interleaved. *(Annotated 2026-07-10 [audit]: Thaw ships as a **standalone SP5 PR**, not
+    inside S11; the old-P12 gitconfig autocorrect is **already on `main`** — no work. S11 itself splits
+    into the audit's 7 small PRs; see the SP2 plan's S11 section.)*
 
 ### Cutover
 
-When the slice map is exhausted: dresden's chezmoi source switches back to `main`; full interactive
-`chezmoi apply` (KeePassXC unlocked); `just test` + live smoke checks (relay fires, hermes gateway
-healthy, osquery alerter behavior verified); then close PRs #31 and #25 and the integration PR with
-pointers to the landed slices.
+**Amended 2026-07-10 [audit]: the cutover is FIVE sequential gates, not one shot** — the authoritative
+procedure is the SP2 plan's Task D1
+(`docs/superpowers/plans/2026-07-03-sp2-combine-and-split.md`, Phase D): Gate 1 preflight (dirty-file
+classification, Hermes-state backup, LaunchAgent inventory, and the expected-delta ledger that replaced
+the empty-diff gate), Gate 2 staged activation (second remote session; `chezmoi apply` in stages; verify
+remote reachability), Gate 3 tracked live reconciliation (durable tested script under `scripts/`) plus
+`just test` + live smoke checks (relay fires, hermes gateway healthy, osquery alerter behavior verified),
+Gate 4 soak, and Gate 5 final closure — **PRs #25, #31, and the integration reference PR #32 are closed
+only after the soak passes**, each with pointers to the landed slices, alongside managed retirement of
+services whose sources were deleted.
 
 ## p-tasks re-evaluation (from `2026-05-15-dotfiles-tasks-design.md`)
 
@@ -259,7 +269,10 @@ sub-projects.
 - **SP6 — nvim-overhaul.** Re-evaluate v1/v2/reassessment/v3 (v3 + its research doc live only on the
   unpushed `nvim-overhaul` branch — 10 commits at `~/.paseo/worktrees/1sk17y2x/nvim-overhaul`); then
   migrate `~/.config/nvim` (separate repo, 52 Lua files) into `dot_config/nvim/` under chezmoi and
-  modernize per the re-evaluated design.
+  modernize per the re-evaluated design. **Audit directives [audit 2026-07-10] (`nvim-overhaul` was 69
+  commits behind / 3 ahead of `origin/main` at audit time) — before any modernization:** (1) re-check
+  the branch state; (2) back up both repositories; (3) inventory the live Neovim configuration;
+  (4) import the live configuration UNCHANGED first; (5) modernize only through later reviewable PRs.
 - **SP-nix — nix-darwin go/no-go (deferred, research-first).** Sibling of SP4 (nushell): evaluate whether
   nix-darwin should manage macOS system config instead of chezmoi's `defaults`/system-setup scripts.
   Banked prior (decision 7): chezmoi holds for now; this is the formal re-evaluation, cross-referenced to
@@ -276,7 +289,9 @@ sub-projects.
 - SP1: `just test` fully green with the hermes tests enforcing; `git status` clean;
   `chezmoi diff` clean after the interactive apply.
 - SP2: integration PR open + labeled; every slice PR green on lint/tests and merged after user review;
-  cutover checklist passes (apply from `main`, `just test`, live smoke checks); PRs #31/#25 closed.
+  the five-gate cutover passes (D1 Gates 1–5: preflight expected-delta ledger, staged apply from `main`,
+  tracked reconciliation + `just test` + live smoke checks, soak); PRs #25/#31/#32 closed **only after
+  the soak (Gate 5)**.
 - Each deferred spec cycle ends with its own verification section; this roadmap only tracks that the
   cycle happened in sequence.
 

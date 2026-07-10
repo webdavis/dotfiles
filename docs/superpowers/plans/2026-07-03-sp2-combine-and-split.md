@@ -106,8 +106,8 @@ amendment** (a plan/roadmap edit). Nothing is unmapped.
 | 38 | Deferred SP3 — Rust notifications | roadmap edit | final spec pending; open-items list refreshed (R7) |
 | 39 | Deferred SP4 — Bash improvements | roadmap edit + plan deferred index | nushell NO-GO recorded; successor scope = Bash improvement |
 | 40 | Deferred SP5 — Thaw | S11 + roadmap | one standalone install/manifest PR during SP2 |
-| 41 | Deferred SP6 — Neovim | plan deferred index | re-check branch state; back up; import live config first |
-| 42 | Deferred SP7 — cleanup backlog | plan deferred index + roadmap p-tasks | P8 unblocked; P12 already on `main`; OpenClaw closed |
+| 41 | Deferred SP6 — Neovim | plan deferred index + roadmap edit | the audit's five directives added to both SP6 bullets: re-check branch state (69 behind / 3 ahead at audit), back up both repos, inventory live config, import unchanged first, modernize via later PRs |
+| 42 | Deferred SP7 — cleanup backlog | plan deferred index + roadmap p-tasks | deduplicate the ledger into tracked tasks (status/severity/dependencies); P8 unblocked; P12 already on `main`; OpenClaw closed per R3 |
 | 43 | Deferred SP-nix | roadmap edit | conditional research with explicit start triggers |
 | 44 | Recommended implementation order (20 steps) | plan deferred index | adopted as the authoritative SP2 sequence |
 
@@ -252,7 +252,7 @@ quick review.
 | S2 | Lint/test/CI hardening | `scripts/lint.sh`, `.githooks/pre-commit`, `.github/workflows/lint.yml`, `.editorconfig`/`.shellcheckrc`/`.mdformat.toml` hunks | CI runs tests + `LINT_CHECK=1`; wire **actionlint** + **zizmor** (P9); **SHA-pin** actions (installer has no tags — see research §Actions); `lint.sh` runner-selection subshell bug; `-r` optstring crash; template shellcheck allowlist → programmatic; `find` prune set dedup; bats `grep -c` zero-count false-pass | S1 |
 | S3 | Skills-store consolidation | `dot_local/bin/executable_update-skills.sh`, `dot_agents/skills/**`, `private_dot_claude/skills/symlink_*`, `skills-lock.json`, delete `private_dot_claude/skills/web-research-task/**` | update-skills **loader script + `~/.local/log/skills` dir**; declare all store symlinks; remove stale `.agents/skills/moshi-best-practices/`; single symlink-owner | S2 |
 | S4 | herdr migration | `dot_config/herdr/**`, `dot_local/share/herdr/plugins/**` (2 Rust plugins), the `run_onchange_after_55/57` build scripts, herdr hunks of `dot_bashrc.tmpl`; **atomically deletes** `dot_tmux.conf`, `dot_config/sesh/**`, `dot_local/bin/executable_{sesh-*,tmux-*,claude-restart}.sh`, `run_after_70-install-tmux2k-last-proc` | herdr plugin build scripts → `.chezmoitemplates` partial; `grep -q "$plugin_id"` anchoring; `dot_fzf_bindings` tmux-dead widgets; `nvm`/`$blue` binding fixes | S2 |
-| S5 | Tailscale headless daemon | `run_onchange_after_66-tailscaled-status.sh.tmpl`, tailscale hunks of `system_packages_autoinstall.yaml` + `CLAUDE.md` | tailscale-monitor already fixed (`2f430b3`, on main? verify) | S2 |
+| S5 | Tailscale headless daemon | `run_onchange_after_66-tailscaled-status.sh.tmpl`, tailscale hunks of `system_packages_autoinstall.yaml` + `CLAUDE.md` | tailscale-monitor fix `2f430b3` — resolved: NOT on main; rides with the monitor files in S9 (see the S5 section) | S2 |
 | S6 | Homebrew weekly-upgrade | `dot_local/bin/executable_homebrew-weekly-upgrade.sh`, `Library/LaunchAgents/com.webdavis.homebrew-weekly-upgrade.plist.tmpl`, `run_onchange_after_65` loader, `test/homebrew-weekly-upgrade.sh` | `just brew-upgrade` → deployed copy; **Homebrew 6.x bundle `cleanup --force`** (`961465f`); `SKIP_SYSTEM_PACKAGES=0`-still-skips; before_10 per-ecosystem split; uv/npm/volta unguarded loops | S2 |
 | S7 | Relay notification pipeline (bash, as-deployed) | `dot_local/bin/executable_{relay,relay-agent,relay-codex-hooks,hue-pulse,claude-stop-pulse,claude-user-prompt-start,claude-audit}.sh`, `private_dot_claude/modify_settings.json`, `dot_config/relay/private_auth.json.tmpl`, `run_after_72-relay-codex-hooks`, notifier hunk of `dot_bashrc.tmpl`; delete `Library/LaunchAgents/com.claude.code.plist.tmpl` | **R2 (2026-07-10):** fix the four delivery-loss defects BEFORE merge (fail-closed idle probe, jq slurp, mkdir lock, missing flag value); characterization tests for retained harmless quirks; SP3 still replaces the whole design later | S2 |
 | S8 | Hermes age-encryption (SP1) | `dot_hermes/encrypted_private_config.yaml.age`, `dot_hermes/private_dot_env.tmpl`, `.chezmoi.toml.tmpl` age hunk, `run_onchange_before_25`, `run_after_67`, `run_after_68`, `run_once_before_05-restore-age-key`, `test/hermes-config-{encrypted,routes}.sh`, `.gitignore` failsafe hunk (gitleaks gate hunk of `.githooks/pre-commit` ships in S2, not here) | this is the committed SP1 work (`c13cc18`/`a0e7d8e`/`3696c92`) reimplemented as one clean PR; the age-tripwire fix is already in it | S2 |
@@ -818,7 +818,8 @@ future standalone go/no-go, like nushell, never bolted onto SP2.
 - **Phase C preamble:** add a short "Tooling considered and rejected" note (Graphite/ghstack/spr/
   Sapling/jj + why), so it is not re-litigated mid-execution.
 
-**New features:** hunk-ownership table + empty-diff gate `[plan]`; non-interactive `git apply` P-2
+**New features:** hunk-ownership table + ~~empty-diff gate~~ (superseded 2026-07-10 by the
+expected-delta ledger, D1 Gate 1) `[plan]`; non-interactive `git apply` P-2
 variant `[plan]`; optional local-stack authoring via `git rebase --update-refs` (git ≥ 2.38, already in
 the toolchain — build several review-independent slices as a local stack, re-sync branch pointers with
 one rebase after each merge) `[plan]`.
@@ -880,8 +881,10 @@ reasons (added to the spec Decisions log, below). But three **verified** gaps:
   restore script reads `chezmoi :: Private Key :: age` — a fresh-machine restore would query the wrong
   entry and fail. Spec corrected 2026-07-04.
 - **Darwin-gated restore:** `run_once_before_05-restore-age-key.sh.tmpl` opens with
-  `{{ if eq .chezmoi.os "darwin" }}`, so the **future Linux home-server cannot restore the key**. S8
-  drops/generalizes the guard.
+  `{{ if eq .chezmoi.os "darwin" }}`, so the **future Linux home-server cannot restore the key**. ~~S8
+  drops/generalizes the guard~~ **superseded 2026-07-10 [audit]: the guard is KEPT until a complete
+  Linux credential-source and identity design exists** (see the amended S8 section — the macOS paths and
+  KeePassXC assumptions do not constitute Linux support).
 - **No rotation / DR story:** no documented procedure exists for rotating the age key or recovering it.
   S8 adds `docs/runbooks/age-key.md` with the two workflows spelled out below (written now, per the
   "behaviors first" rule — this is the plan text S8 will implement, not the implementation).
@@ -921,9 +924,10 @@ reasons (added to the spec Decisions log, below). But three **verified** gaps:
    disaster, not during one.
 
 **New features:** the `age-key.md` runbook (both workflows above) + the `test/age-restore.sh` DR drill
-`[repo]`; generalize the darwin guard so the restore runs on Linux too `[repo]`; **multi-recipient
-migration design** (each machine keeps its own identity; `.chezmoi.toml.tmpl` lists both public keys as
-`recipients` so files encrypt to both — the laptop→home-server path) `[dresden]`.
+`[repo]`; ~~generalize the darwin guard so the restore runs on Linux too~~ **superseded 2026-07-10
+[audit]: the guard is KEPT until a real Linux credential design exists (amended S8 section)**;
+**multi-recipient migration design** (each machine keeps its own identity; `.chezmoi.toml.tmpl` lists
+both public keys as `recipients` so files encrypt to both — the laptop→home-server path) `[dresden]`.
 Sources: chezmoi.io/user-guide/encryption/age, chezmoi.io/user-guide/frequently-asked-questions/
 encryption, discourse.nixos.org (git-crypt/agenix/sops-nix comparison).
 *(verdict: SOUND — spot-verified against the live repo and the chezmoi age doc.)*
@@ -942,7 +946,9 @@ different jobs, and the four `hyperframes*` skills are an interdependent suite w
 cross-delegate, so they are all-or-nothing). The task is therefore purely **reproducibility**, not
 culling.
 
-**The 9 uncommitted skills S3 must capture** (committed or install-manifested — verified 2026-07-04):
+**The 9 uncommitted skills S3 must capture** *(superseded 2026-07-10 — historical: S3 shipped the
+31-skill provenance model instead, which subsumed this capture list; see the amended S3 section)*
+(committed or install-manifested — verified 2026-07-04):
 `chrome-devtools-axi`, `cua-driver`, `elevenlabs`, `gh-axi`, `home-assistant`, `kubernetes-specialist`,
 `last30days`, `sql-toolkit`, `tiktok-crawling`. **Note `gh-axi` and `chrome-devtools-axi` are among
 them** — the repo's own *preferred* GitHub and browser tools would silently not reproduce on a fresh
@@ -1102,10 +1108,18 @@ deliberately does NOT cover:
   commit time, not at the keyboard.
 - **SP6 — nvim-overhaul.** Re-evaluate the v1/v2/v3 design generations (Fable conducts the
   re-evaluation — operator directive) plus the 10 unpushed commits on the `nvim-overhaul` branch, then
-  implement under its own spec. Not started; runs after SP2.
+  implement under its own spec. Not started; runs after SP2. **Audit directives [audit 2026-07-10]
+  (before any modernization — the branch was 69 commits behind / 3 ahead of `origin/main` at audit
+  time):** (1) re-check the branch state first; (2) back up both repositories; (3) inventory the live
+  Neovim configuration; (4) import the live configuration UNCHANGED first; (5) modernize only through
+  later reviewable PRs.
 - **SP7 backlog — small chores**, including **P6: install `bandwhich`, `doggo`, `ouch`** ("still valid,
   trivial" — manifest entries + `brew install`), P3 package-manager audit, P5 Determinate Nix review,
-  P8 quick wins (placement depends on SP4's verdict).
+  and P8 quick wins — **P8 is UNBLOCKED [audit 2026-07-10]: the SP4 verdict is in (nushell NO-GO,
+  operator-ratified 2026-07-09), so shell-config placement = bash.** **Audit directive
+  [audit 2026-07-10]: deduplicate the ledger into tracked tasks** — each with current status, severity,
+  and dependencies (P12 is already on `main`; obsolete OpenClaw and issue-tracking work closes or
+  updates per R3).
 - **SP-nix — nix-darwin go/no-go** (research-first sibling of SP4, banked in §R6). **Do not start it
   merely because it appears in the roadmap** [audit 2026-07-10] — start only after one of these triggers:
   a larger Mac fleet; a material maintenance failure in the current `defaults` system; or a proven design
@@ -1200,10 +1214,13 @@ because the old global graphify post-commit hook still fires in this repo until 
 
 PR #36's live skills convergence (frozen-clone cleanup, per-profile symlink planting, stale hub-install
 retirement, Codex-overlay + routing re-assert, live `skillOverrides` merge) was performed **ad-hoc on
-the live machine** during review. The reproducible path is `.superpowers/sdd/live-reconcile-skills.sh`,
-run once post-cutover-apply on the converged `main` source. Fix: at cutover, after `chezmoi apply`, run
-the reconcile script (`--dry-run` then live) to prove a from-scratch machine converges identically; then
-the ad-hoc live state and the script are reconciled.
+the live machine** during review. The reproducible path was drafted as
+`.superpowers/sdd/live-reconcile-skills.sh` — **corrected 2026-07-10 [audit → D1 Gate 3]:
+`.superpowers/` is gitignored and that script was never tracked; the durable reconcile script lives
+under `scripts/` (or a chezmoi-managed executable), supports `--dry-run`, is idempotent, and has tests.**
+Fix: at cutover (D1 Gate 3), after `chezmoi apply`, run the tracked reconcile script (`--dry-run` then
+live) to prove a from-scratch machine converges identically; then the ad-hoc live state and the script
+are reconciled.
 
 ### fix/moshi-herdr-drift-check (→ S11)
 
