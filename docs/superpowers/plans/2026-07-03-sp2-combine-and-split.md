@@ -822,12 +822,41 @@ be dropped, weakened, or left untested):**
    NEVER bare `launchctl list`, which reads only the caller's bootstrap context (verified in round 6: a
    non-GUI review shell's `launchctl list` returned **0** jobs while `launchctl print gui/501` exposed
    **499** services).
-13. **Retirement universe + preserve list.** The retirement candidate universe is the **managed-label
-   set this repo has EVER rendered** — `com.webdavis.*` plus the retired `com.claude.code` — and an
-   explicit PRESERVE list protects package/OS-owned services (`io.osquery.agent` — package-owned,
-   managed via `osqueryctl`, not rendered by this repo; the Tailscale system daemon; `sshd`; Apple
-   system jobs). Retirements are computed ONLY within the managed universe; nothing outside it is ever
-   a retirement candidate.
+13. **Retirement universe + preserve list.** The retirement candidate universe is an **EXACT, versioned
+   (label, domain) inventory of every label this repo has EVER rendered** — a prefix shorthand like
+   "`com.webdavis.*`" is wrong, because repo history holds out-of-prefix labels. **Derivation method
+   (the runner regenerates the inventory this way; the tooling PR documents it):**
+   `git log --all --diff-filter=AD --name-status -- 'Library/LaunchAgents/*' 'Library/LaunchDaemons/*'`
+   plus `--diff-filter=R -M` for renames, plus `git log --all -S '<key>Label</key>' -- ':!Library'` for
+   script-rendered labels (exactly one exists: the nix-hook heredoc). **Currently-known inventory
+   (derived 2026-07-10; every label `gui/$UID` unless noted):**
+   - *In current source:* `com.webdavis.atuin-daemon`, `com.webdavis.happy-daemon`,
+     `com.webdavis.osquery-firewall-gatekeeper-monitor`, `com.webdavis.osquery-results-alerter` (label
+     history: `osquery-fim-notify` → `osquery-results-notify` → this; renames `4771b6d`/`3de3336`),
+     `com.webdavis.osquery-uptime-watchdog`, `com.webdavis.update-skills`,
+     `com.webdavis.yt-dlp-pot-provider` (main + integration); `com.webdavis.homebrew-weekly-upgrade`,
+     `com.webdavis.osquery-digest`, `com.webdavis.osquery-heartbeat`,
+     `com.webdavis.osquery-tailscale-monitor` (integration only, pre-S6/S9);
+     **`systems.nixos.nix-installer.nix-hook` — SYSTEM domain, out-of-prefix** (rendered by
+     `dot_local/bin/executable_install-nix-repair-hook.sh`); `com.webdavis.paseo-daemon` (side-branch
+     source `private_com.webdavis.paseo-daemon.plist.tmpl`, `e29c441` — live on dresden).
+   - *Historical — deleted/renamed away (the retirement-candidate class):* `com.claude.code` (deleted
+     `68a741b` on main / `f590081` on integration — Wave-3b's retirement script unloads it);
+     **`com.github.openclaw-setup.watchdog` — out-of-prefix** (renamed in from
+     `com.webdavis.openclaw-watchdog` at `b6d82e6`, deleted at `d15de21` with **no unload anywhere in
+     that commit** — the archetypal loaded orphan this gate exists to catch);
+     `com.webdavis.openclaw-watchdog` (the pre-rename label — orphanable on a machine that loaded the
+     pre-`b6d82e6` plist); `com.webdavis.gha-watcher` (deleted `f297e1f`); `com.webdavis.osquery-report`
+     (deleted `6199dcb`); `com.webdavis.osquery-posture-watch` (superseded at `3de3336`);
+     `com.webdavis.osquery-fim-notify` and `com.webdavis.osquery-results-notify` (renamed away —
+     orphanable pre-rename labels).
+
+   The **PRESERVE list is unchanged and orthogonal** — it guards non-repo services (`io.osquery.agent`
+   — package-owned, managed via `osqueryctl`, not rendered by this repo; the Tailscale system daemon;
+   `sshd`; Apple system jobs); the universe guards repo history. Retirements are computed ONLY within
+   the universe; nothing outside it is ever a retirement candidate. **The tooling PR's tests must prove
+   a deleted historical label (e.g. the openclaw watchdog) becomes a retirement candidate when found
+   loaded.**
 14. **(label, domain, steady-state predicate) manifest entries.** Unconditional `KeepAlive=true` →
    loaded AND running; conditional `KeepAlive` dictionary → predicate per its semantics
    (`systems.nixos.nix-installer.nix-hook`, system domain, `KeepAlive={SuccessfulExit=false}`: healthy
@@ -908,10 +937,14 @@ admits integration hotfixes): a change landed after pinning would sit silently o
   triple — persistent vs conditional-KeepAlive vs scheduled/demand semantics per checklist item 14),
   the **live loaded set** (enumerated per launchd domain — user AND system — per checklist item 12),
   and the **retirement list**: live jobs absent from the desired set, computed ONLY within the
-  **managed-label universe** (labels this repo has ever rendered: `com.webdavis.*` plus the retired
-  `com.claude.code`) and never touching the **preserve list** of package/OS-owned services
-  (`io.osquery.agent` — package-owned, managed via `osqueryctl`; the Tailscale system daemon; `sshd`;
-  Apple system jobs) — checklist item 13. **Checkpoint:** the operator approves every named retirement
+  **managed-label universe** — the exact, versioned (label, domain) inventory of every label this repo
+  has EVER rendered, derived from repository history per checklist item 13 (NOT a `com.webdavis.*`
+  prefix match: history holds out-of-prefix labels — `com.github.openclaw-setup.watchdog`, deleted with
+  no unload at `d15de21`, is precisely the loaded-orphan class this gate must catch, and the
+  system-domain `systems.nixos.nix-installer.nix-hook` is rendered by a script, not a tracked plist) —
+  and never touching the **preserve list** of package/OS-owned services (`io.osquery.agent` —
+  package-owned, managed via `osqueryctl`; the Tailscale system daemon; `sshd`; Apple system jobs).
+  **Checkpoint:** the operator approves every named retirement
   BEFORE any service-affecting apply stage. Approval reviews a CORRECT manifest — it is a review
   checkpoint, not a repair mechanism for a wrong one. Gate 2 executes only the approved list (covering
   retirements performed by apply-time scripts too, e.g. Wave-3b's one-time retirement script).

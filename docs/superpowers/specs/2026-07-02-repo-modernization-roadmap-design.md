@@ -214,8 +214,9 @@ what and why; the script owns how, reviewed and tested at its own PR. The gates:
 (dirty/untracked classification ending in a fully-visible-clean tree FIRST — kept files leave the source
 tree, must-ship changes land before any pinning, no `graphify-out/` residue; Hermes-state backup; both
 remote SHAs pinned LAST so nothing lands after them; the **operator-approved retirement manifest** —
-computed only within the repo's managed-label universe with a preserve list for package/OS-owned
-services, enumerated per launchd domain, each entry a (label, domain, steady-state predicate) triple;
+computed only within the repo's managed-label universe (an exact, history-derived label inventory —
+not a prefix match) with a preserve list for package/OS-owned services, enumerated per launchd domain,
+each entry a (label, domain, steady-state predicate) triple;
 and the expected-delta ledger — the immutable recorded-base→integration manifest classified against the
 pinned `main` SHA, where only a `missing` hunk blocks); **Gate 2** staged activation **and execution of
 the approved retirement** (second remote session; both pins re-verified fail-closed; activation lands
