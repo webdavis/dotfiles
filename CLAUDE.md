@@ -254,12 +254,13 @@ Templates conditionally branch on `.chezmoi.os` and, where they pull secrets, ca
 
 Shell templates contain Go template syntax that shellcheck can't parse directly. The
 `shellcheck-rendered-template` formatter in `treefmt.nix` renders first:
-`CI=1 chezmoi execute-template --no-tty <file | shellcheck -`. Five templates are rendered —
-`dot_bashrc.tmpl`, the osquery setup script, and the three herdr install/build chezmoiscripts; none calls
-`keepassxc`, so the `CI=1` env var is defensive (vestigial from an earlier version where bashrc had a
-CI-vs-interactive branch). Other templates with CI branches (e.g. `identity.yml.tmpl`) are not
-shell-linted. A sibling formatter, `osquery-config-render`, renders the JSON-bodied
-`.chezmoitemplates/osquery/*.conf` templates via `includeTemplate` and validates the result with jq.
+`CI=1 chezmoi execute-template --no-tty <file | shellcheck -`. Six templates are rendered —
+`dot_bashrc.tmpl`, the osquery setup script, the three herdr install/build chezmoiscripts, and the
+tailscaled status reminder; none calls `keepassxc`, so the `CI=1` env var is defensive (vestigial from an
+earlier version where bashrc had a CI-vs-interactive branch). Other templates with CI branches (e.g.
+`identity.yml.tmpl`) are not shell-linted. A sibling formatter, `osquery-config-render`, renders the
+JSON-bodied `.chezmoitemplates/osquery/*.conf` templates via `includeTemplate` and validates the result
+with jq.
 
 ### OS Targeting
 
@@ -545,9 +546,10 @@ machine may be flaky on a foreign network — pin the few needed tailnet hosts i
 
 **Updates:** `brew upgrade` updates the user-owned formula (no extension re-approval needed), but the
 running daemon is a separate root-owned copy a formula upgrade does not touch — after upgrading the
-`tailscale` formula, re-run `sudo tailscaled install-system-daemon` to refresh the daemon copy. `sudo` is
-passwordless here via the user's `!authenticate` sudo config, so this re-copy is a single manual command
-(S6 automates it weekly).
+`tailscale` formula, re-run `sudo tailscaled install-system-daemon` to refresh the daemon copy. On this
+machine (dresden) `sudo` is passwordless (the operator's `!authenticate` sudoers config — not managed by
+this repo), so the re-copy is a single command; on a fresh machine expect a password prompt. (S6 will
+automate it weekly.)
 
 **Future (new home Mac, ~3-6 months out):** when an always-home Mac takes over the daemon-host role, this
 machine (dresden, which is carried) cuts back to the GUI `tailscale-app` cask (better roaming DNS) and
