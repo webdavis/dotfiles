@@ -1,0 +1,28 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/bin/bash
+
+set -euo pipefail
+
+# Tailscale headless-daemon status reminder (sudo-free). Does NOT start or
+# authenticate anything -- Option A auth is a deliberate one-time manual step.
+# Runs on first deploy (and whenever this script changes) to prompt the cutover;
+# stays quiet once the daemon is up and authenticated. Mirrors the atuin/happy
+# daemon scripts' "remind if not healthy" shape.
+
+tailscale="${TAILSCALE_BIN:-/opt/homebrew/bin/tailscale}"
+[[ -x $tailscale ]] || exit 0 # formula not installed yet; brew bundle handles that.
+
+if "$tailscale" status >/dev/null 2>&1; then
+  exit 0 # connected + authenticated -- nothing to remind.
+fi
+
+out="$("$tailscale" status 2>&1 || true)"
+if grep -qiE 'logged out|needslogin|not logged in' <<<"$out"; then
+  echo "tailscaled is running but NOT authenticated. One-time:" >&2
+  echo "  sudo tailscale up --accept-dns=true" >&2
+  echo "  then flip 'Disable Key Expiry' on this node in the admin console." >&2
+else
+  echo "tailscaled system daemon is not running. One-time:" >&2
+  echo "  sudo /opt/homebrew/opt/tailscale/bin/tailscaled install-system-daemon" >&2
+fi
+{{ end -}}

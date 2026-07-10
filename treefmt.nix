@@ -223,6 +223,7 @@ in
       ".chezmoiscripts/run_onchange_before_50-setup-osquery.sh.tmpl"
       ".chezmoiscripts/run_onchange_after_55-build-herdr-last-workspace-plugin.sh.tmpl"
       ".chezmoiscripts/run_onchange_after_57-build-herdr-smart-nav-plugin.sh.tmpl"
+      ".chezmoiscripts/run_onchange_after_66-tailscaled-status.sh.tmpl"
     ];
   };
   settings.formatter.osquery-config-render = {
