@@ -438,10 +438,14 @@ protocol below is **step 3's inner cycle**, not a replacement for this loop.
   `tiktok-crawling`, refreshed only by `chezmoi apply`), and **app-owned symlink** (`cua-driver`). The
   lock at `dot_agents/custom-skill-lock.json` records every lane plus the `tiers` (core vs on-demand),
   `hermesProfiles`/`hermesRegistry` (the disjoint two-lane hermes delivery across the five profiles),
-  `npxTracked`/`clawhubTracked`, `forks`, and `superpowersRouting` tables; `test/skills-roster-fanout.sh`
-  fails the build if any table, the per-harness declarations, or the settings modify-template's
-  `skillOverrides` disagree. The full narrative is the repo `CLAUDE.md` "Agent Skills (cross-harness
-  store)" section — the source of truth; this plan does not duplicate it.
+  `npxTracked`/`clawhubTracked`, `forks`, and `superpowersRouting` tables. `test/skills-roster-fanout.sh`
+  validates exactly **five** of these — `tiers`, `hermesProfiles`, `hermesRegistry`, `npxTracked`,
+  `clawhubTracked` — against the store, the per-harness declarations, and the settings modify-template's
+  `skillOverrides`, failing the build if any disagree. It does **NOT** read `forks` or
+  `superpowersRouting` (verified 2026-07-10), so those two tables' drift is NOT test-covered — `forks` is
+  the weekly drift-watch's job and `superpowersRouting` is re-asserted by
+  `assert-hermes-superpowers-routing.sh`. The full narrative is the repo `CLAUDE.md` "Agent Skills
+  (cross-harness store)" section — the source of truth; this plan does not duplicate it.
 - **Deleted framing:** the old "21 live / 12 committed / 9 Claude symlinks / 0 Hermes" counts and the
   "9 uncommitted skills to capture" list are superseded and removed — that scope was overtaken by the
   shipped model (execution learning #2).
@@ -546,11 +550,15 @@ repo-state atomicity, above) becomes operative.
   re-copy for now — no doc claim ahead of the code). The old June Tailscale spec/plan history is
   corrected in the roadmap (this amendment).
 - **Resolved: `2f430b3` is NOT on main — and it does not matter for S5.** The tailscale-monitor is an
-  osquery component: all four monitor files in the delta
-  (`run_onchange_after_60-load-osquery-tailscale-monitor-launchagent.sh.tmpl`, its plist,
-  `executable_osquery-tailscale-monitor.sh`, `test/osquery-alerter/test_tailscale.bats`) move to **S9**
-  with the rest of the six-agent osquery set, carrying the `2f430b3` fix with them. A numeric-name
-  match is not slice ownership (same trap as S4's `after_55-osquery` near-miss).
+  osquery component that moves to **S9** with the rest of the six-agent set. The `2f430b3` commit itself
+  touches exactly **three** files (verified `git show 2f430b3`):
+  `dot_local/bin/executable_osquery-tailscale-monitor.sh`, `test/osquery-alerter/lib.bash`, and
+  `test/osquery-alerter/test_tailscale.bats` — **no loader, no plist**. Its loader
+  (`run_onchange_after_60-load-osquery-tailscale-monitor-launchagent.sh.tmpl`) and plist enter S9 as
+  **transplant dependencies through S9's path/hunk matrix**, NOT as part of this commit. Carrying the fix
+  therefore means carrying all three commit files — crucially `lib.bash`, whose helper changes the
+  regression coverage needs (a loader+plist-only transplant would drop them). A numeric-name match is not
+  slice ownership (same trap as S4's `after_55-osquery` near-miss).
 - **Exact S5 file set:** `.chezmoiscripts/run_onchange_after_66-tailscaled-status.sh.tmpl` (28-line
   sudo-free daemon-status reminder, no keepassxc, wholly owned); the manifest's atomic
   **cask→formula swap** (`- tailscale-app` cask removed, `+ tailscale` formula added — one pair, both
@@ -642,8 +650,11 @@ repo-state atomicity, above) becomes operative.
 - **Audit requirements [audit 2026-07-10]:**
   - **Build an exact path-and-hunk matrix before implementation** — the real PR #25 delta against the
     converged `main`, not the early file list.
-  - **S5 dependency:** the Tailscale monitor moved into S9 (the four monitor files carrying `2f430b3`) —
-    S5's re-scope already recorded this; S9 depends on S5's settled model.
+  - **S5 dependency:** the Tailscale monitor moved into S9 — S5's re-scope recorded this. Commit
+    `2f430b3` carries exactly three files
+    (`dot_local/bin/executable_osquery-tailscale-monitor.sh`, `test/osquery-alerter/lib.bash`,
+    `test/osquery-alerter/test_tailscale.bats` — **not** the loader or plist); the loader + plist join S9
+    through the path/hunk matrix as transplant dependencies. S9 depends on S5's settled model.
   - **Render and parse every plist**; **test every loader label and path**.
   - **Split** dispatch / results-alerter / the six pollers+loaders / pack changes into separate PRs if the
     real diff is not quickly reviewable (the sizing fallback below).
@@ -1024,10 +1035,21 @@ encryption, discourse.nixos.org (git-crypt/agenix/sops-nix comparison).
 
 ### R5 — Agent skills/memory: architecture correct; reproducibility + supply-chain gaps (amends S3 + S12)
 
+> **Superseded-historical [2026-07-10 audit] — provenance only.** This section records the 2026-07-04
+> research pass; three of its specific artifacts are OBSOLETE and kept only for the trail: the
+> `21/12/9/0` (and `20/12/9/0`) skill counts, the `skills-lock.json` lock name, and the "declare blanket
+> `dot_hermes/skills/` symlinks" fan-out instruction. The shipped model superseded all three — one
+> `~/.agents/skills` store (31 roster skills) under `dot_agents/custom-skill-lock.json`, with a
+> **disjoint** five-profile hermes delivery (`hermesProfiles` store-symlink lane ⟂ `hermesRegistry`
+> hub-owned lane), NOT a blanket symlink. The live model is the amended S3 section and the repo
+> `CLAUDE.md` "Agent Skills (cross-harness store)" section; read those, not the counts below.
+
 The `~/.agents` store + symlink fan-out + `AGENTS.md`→`CLAUDE.md` model is correct and, in places, ahead
-of the ecosystem (AGENTS.md convention, Anthropic's Agent Skills). But **verified on disk**: **21 live
+of the ecosystem (AGENTS.md convention, Anthropic's Agent Skills). ~~But **verified on disk**: **21 live
 store skills vs 12 committed vs 9 Claude `symlink_` declarations vs 0 Hermes declarations** — a fresh
-`chezmoi apply` reproduces only ~9 of 21 skills into Claude and none into Hermes.
+`chezmoi apply` reproduces only ~9 of 21 skills into Claude and none into Hermes.~~ *(superseded
+2026-07-10 — the shipped 31-skill store reproduces every roster skill into every harness it targets; see
+the banner above.)*
 
 **Keep/deprecate decision (operator, 2026-07-04): keep ALL 21 — deprecate none** (the operator uses each
 at different times; the earlier "overlap" flags were retracted as unfounded — `last30days` [trend
@@ -1046,13 +1068,17 @@ machine. Each has a known source (npx-skills / clawhub) captured during this ses
 
 **Changes to apply:**
 
-- **S3:** commit the full skill roster (or a committed `name→source` install-manifest) so a fresh
-  machine reproduces every skill; make `update-skills.sh` **install-capable** (today its loops
-  `[ -d "$STORE/$n" ] || continue` skip anything absent → refresh-only); complete the fan-out
-  declarations (declare all store→Claude symlinks; add the missing `dot_hermes/skills/` declarations);
-  resolve the **three-way** fan-out ownership (the ledger names two writers — the third is
-  `npx skills … --global`); reconcile the lockfiles (`skills-lock.json` has a stale `moshi-best-practices`
-  entry and 12 vs 20 live); add a **supply-chain gate** — pin each vendored git-clone to a commit SHA
+- **S3** *(these are the 2026-07-04 change requests; the shipped 31-skill model implemented them
+  differently — the stale specifics are struck below, the intent held)*: commit the full skill roster (or
+  a committed `name→source` install-manifest) so a fresh machine reproduces every skill; make
+  `update-skills.sh` **install-capable** (today its loops `[ -d "$STORE/$n" ] || continue` skip anything
+  absent → refresh-only); complete the fan-out declarations (declare all store→Claude symlinks;
+  ~~add the missing `dot_hermes/skills/` declarations~~ *(superseded: hermes fan-out is the disjoint
+  `hermesProfiles` store-symlink lane ⟂ `hermesRegistry` hub lane — NOT blanket `dot_hermes/skills/`
+  symlinks)*); resolve the **three-way** fan-out ownership (the ledger names two writers — the third is
+  `npx skills … --global`); ~~reconcile the lockfiles (`skills-lock.json` has a stale `moshi-best-practices`
+  entry and 12 vs 20 live)~~ *(superseded: the lock is `dot_agents/custom-skill-lock.json`, guarded by the
+  five-table roster test)*; add a **supply-chain gate** — pin each vendored git-clone to a commit SHA
   and/or verify `computedHash` before the atomic swap.
 - **S12:** specify the global `AGENTS.md` parity **mechanism** (a `.chezmoitemplates` partial included by
   both `~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md`), not just "add parity."
@@ -1061,7 +1087,8 @@ machine. Each has a known source (npx-skills / clawhub) captured during this ses
 for the global ruleset `[dresden]`; SHA-pin + hash-verify vendored skills before swap `[repo]`.
 Sources: agents.md, anthropic.com/engineering/…agent-skills, platform.claude.com/docs/…agent-skills/
 best-practices, developers.openai.com/codex/skills.
-*(verdict: SOUND — the 20/12/9/0 counts independently re-verified on disk 2026-07-04.)*
+*(verdict: SOUND at the time — the 20/12/9/0 counts were independently re-verified on disk 2026-07-04;
+those counts are now superseded-historical, see the R5 banner above.)*
 
 ### R6 — nix-darwin vs chezmoi defaults: chezmoi HOLDS; bank the decision (amends S10 + spec)
 

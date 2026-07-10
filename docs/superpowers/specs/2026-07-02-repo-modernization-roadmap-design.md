@@ -389,7 +389,11 @@ modify-template — vaults `mcpServers.composio` + `mcpServers.workspace-mcp` se
 `agents/chezmoi-apply.md`; `commands/pr-merge.md`; skills store `~/.agents/skills` + symlink fan-out
 (`~/.claude`, `~/.hermes`) + `update-skills.sh` (idle-gate, npx-dir relocation, portable roster,
 skill-lock manifest) + weekly LaunchAgent; vendored skills (herdr, moshi, deep-research, todoist-cli,
-lobster) + a stale repo-root `.agents/skills/moshi-best-practices/` (mangled — flagged for removal);
+lobster) + a stale repo-root `.agents/skills/moshi-best-practices/` (mangled — flagged for removal)
+*(superseded 2026-07-10 [audit]: S3 shipped the 31-skill store under `dot_agents/custom-skill-lock.json`
+— npx/clawhub/vendored-fork/app-owned lanes + disjoint five-profile hermes delivery; the "skill-lock
+manifest"/`skills-lock.json` name and this vendored-set snapshot are historical, see the amended SP2-plan
+S3 section)*;
 tool-pref `gh-axi` / `chrome-devtools-axi`; `claude-audit.sh`; Moshi pairing + 8-CLI hooks (claude+codex
 excluded — relay owns); codex relay hooks.
 
@@ -418,7 +422,8 @@ PR #38).
 yq/bats); `scripts/lint.sh` (priority runners, template rendering, osquery config render); justfile;
 `test/` (9 hand-rolled `.sh` + osquery bats, `just test` = sh loop + bats-in-nix); GitHub Actions
 `lint.yml` (macos-latest: flake check + `lint.sh -c`); `.editorconfig`/`.shellcheckrc`/`.mdformat.toml`;
-`skills-lock.json`; small tool configs (nix.conf, docker daemon.json, gh config, bat, yt-dlp, ssh config
+`skills-lock.json` *(→ `dot_agents/custom-skill-lock.json` as of 2026-07-10)*; small tool configs
+(nix.conf, docker daemon.json, gh config, bat, yt-dlp, ssh config
 with Raspberry Pi hosts).
 
 **P. Docs.** `docs/runbooks/macos-fresh-machine-quickstart.md`; `docs/superpowers/{specs,plans}`;
@@ -460,18 +465,25 @@ against source and adversarially verified (2 candidates were refuted and dropped
 
 | Item | Where | SP |
 | --- | --- | --- |
-| Idle probe fail-**closed** aborts all channels if HIDIdleTime absent (defeats documented fail-open) | `relay.sh:68` | SP3 |
-| `jq -rs` whole-file slurp: one half-written trailing line → empty `(main) done`, loses all turns | `relay-agent.sh:17` | SP3 |
+| Idle probe fail-**closed** aborts all channels if HIDIdleTime absent (defeats documented fail-open) | `relay.sh:68` | **S7 (blocker)** |
+| `jq -rs` whole-file slurp: one half-written trailing line → empty `(main) done`, loses all turns | `relay-agent.sh:17` | **S7 (blocker)** |
 | SSH password auth still works — drop-in sets only `PasswordAuthentication no`; `UsePAM yes` + `KbdInteractiveAuthentication` default leave PAM login open (verified live) | `ssh-hardening.sh:13` | SP2/SP7 |
 | Age-key tripwire matches **its own source** → the moment SP1 lands, every commit fails a false leak alarm | `test/hermes-config-encrypted.sh:28` | SP1 |
 | bats count assertions false-pass on zero (`grep -c` → `"0\n0"` makes `[[ -ne ]]` error silently — re-verified by hand, expected-3-got-0 passes) | `test/osquery-alerter/lib.bash:384` (+418,462,206) | SP2 s2 |
+
+**[R2 / decision 10, 2026-07-10] The four relay delivery-loss defects — the idle-probe fail-closed and
+`jq -rs` slurp rows above, plus the `hue-pulse.sh` stale `mkdir` lock and the `relay.sh` flag-parse abort
+in the medium/low list below — are retagged from SP3 to **S7 BLOCKERS**: they are fixed in S7 BEFORE it
+merges (they silently drop notifications), not deferred. SP3 later re-derives their behavior test-first in
+Rust — these four bash fixes are its failure spec (see the SP3 "Bugs the rewrite must not reproduce"
+section), so the retag does not remove them from SP3's scope, it just forbids merging S7 with them open.**
 
 ### Bugs — medium/low (open)
 
 - `claude-stop-pulse.sh:18` empty/garbage marker → arithmetic abort; marker never cleaned (poisons every
   later Stop) [SP3].
-- `hue-pulse.sh` mkdir lock: no stale-lock recovery after SIGKILL (30s spin → silent no-op) [SP3].
-- `relay.sh` flag parse: value-flag as last arg → `shift 2` abort (breaks "always exits 0") [SP3].
+- `hue-pulse.sh` mkdir lock: no stale-lock recovery after SIGKILL (30s spin → silent no-op) [**S7 blocker**].
+- `relay.sh` flag parse: value-flag as last arg → `shift 2` abort (breaks "always exits 0") [**S7 blocker**].
 - `smart-lights`: `--scene previous` negative index breaks on bash 3.2; getopt errors invisible (exec
   redirect before parse); `-n/--next`/`-l/--last` declared but unhandled; `toggle_power` skips
   `validate_room_id` [SP7].
