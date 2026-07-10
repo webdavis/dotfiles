@@ -381,11 +381,25 @@ protocol below is **step 3's inner cycle**, not a replacement for this loop.
 - **Operator apply** needed (builds Rust at apply time; installs herdr via the curl installer; tears
   down tmux LaunchAgent state).
 
-### S5 — Tailscale headless daemon
-- First confirm whether the tailscale-monitor fix (`2f430b3`) is already on main; if so this slice is
-  only the daemon-install status reminder + manifest/CLAUDE.md hunks.
-- **Operator step:** the one-time `sudo tailscale up` + Disable Key Expiry stay manual (documented in
-  the status script) — not automatable, flag in the PR body.
+### S5 — Tailscale headless daemon (re-scoped 2026-07-10 against live state, per learning #2)
+- **Resolved: `2f430b3` is NOT on main — and it does not matter for S5.** The tailscale-monitor is an
+  osquery component: all four monitor files in the delta
+  (`run_onchange_after_60-load-osquery-tailscale-monitor-launchagent.sh.tmpl`, its plist,
+  `executable_osquery-tailscale-monitor.sh`, `test/osquery-alerter/test_tailscale.bats`) move to **S9**
+  with the rest of the six-agent osquery set, carrying the `2f430b3` fix with them. A numeric-name
+  match is not slice ownership (same trap as S4's `after_55-osquery` near-miss).
+- **Exact S5 file set:** `.chezmoiscripts/run_onchange_after_66-tailscaled-status.sh.tmpl` (28-line
+  sudo-free daemon-status reminder, no keepassxc, wholly owned); the manifest's atomic
+  **cask→formula swap** (`- tailscale-app` cask removed, `+ tailscale` formula added — one pair, both
+  hunks in this slice so main never holds both or neither); CLAUDE.md's new "Tailscale (headless
+  daemon)" section — with its **Updates paragraph adapted**: the weekly re-copy it describes is
+  performed by `homebrew-weekly-upgrade.sh`, an **S6 file** — S5's wording documents the manual
+  `sudo tailscaled install-system-daemon` re-copy after a formula upgrade, and S6 restores the
+  automated-weekly wording when it ships the helper (no doc claim ahead of the code that makes it
+  true).
+- **Operator step:** the one-time `sudo tailscale up --accept-dns=true` + Disable Key Expiry stay
+  manual (documented in the status script) — not automatable, flag in the PR body. Also flag the
+  two-world note: dresden already runs the headless daemon live; a merge does not touch it (D1 does).
 
 ### S6 — Homebrew weekly-upgrade
 - **Ledger fixes are load-bearing** (these bit tonight): the Homebrew 6.x `brew bundle` split (install,
