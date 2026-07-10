@@ -548,7 +548,8 @@ all other DNS works. Remedy:
 `sudo tailscale set --accept-dns=false && sudo tailscale set --accept-dns=true`, then
 `sudo dscacheutil -flushcache; sudo killall -HUP mDNSResponder`; verify with
 `dscacheutil -q host -a name <peer>.<tailnet>.ts.net` (not `dig` — dig bypasses `/etc/resolver`). Durable
-fallback: pin needed peers in `/etc/hosts` (tailscaled never manages that file, so entries coexist;
+fallback: needed peers are pinned in `/etc/hosts` declaratively — a `macos_system_setup.yaml` record the
+Tier-2 sudo runner applies at `chezmoi apply` (tailscaled never manages that file, so entries coexist;
 tailnet IPs are stable per node).
 
 **Updates:** `brew upgrade` updates the user-owned formula (no extension re-approval needed), but the
