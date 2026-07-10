@@ -68,11 +68,16 @@
 #                       clawhub updates, the hermes registry-update phase, and
 #                       the fork drift-check)
 #   --check-forks-only  run only the fork/vendored upstream drift-check
-# Env: UPDATE_SKILLS_FORCE=1 bypasses the idle-gate. The idle-gate is the check
-#      below that makes this script refuse to swap skill folders while an agent
-#      harness (claude, codex, or hermes) is running, so a skill is never yanked
-#      out from under a live session. FORCE=1 accepts that risk for test runs
-#      and deliberate manual runs.
+# Env: UPDATE_SKILLS_FORCE=1 bypasses the idle-gate AND the weekly success stamp.
+#      The idle-gate makes this script refuse to swap skill folders while an
+#      INTERACTIVE harness session (claude/codex/hermes) is running, so a skill is
+#      never yanked out from under a live session — persistent background daemons
+#      (the hermes gateway, Claude Code's bg helpers, the Codex app-server) do NOT
+#      defer it (see __update_skills_harness_active). The weekly run is scheduled
+#      across four Monday slots; a per-week success stamp
+#      (~/.local/state/update-skills/last-success) makes the extra slots no-ops
+#      after one succeeds, and the last slot alerts if it still cannot run. FORCE=1
+#      accepts the swap risk for test runs and deliberate manual runs.
 set -euo pipefail
 
 # This script clones and inspects git repos in temp dirs (fork drift-check). If
@@ -88,6 +93,13 @@ CLAUDE="$HOME/.claude/skills"
 HERMES="$HOME/.hermes/skills"            # the default profile (Bob)
 HERMES_PROFILES="$HOME/.hermes/profiles" # specialist profiles: <name>/skills
 LOCKDIR="$AGENTS/.update-skills.lock.d"
+STATE_DIR="$HOME/.local/state/update-skills"
+SUCCESS_STAMP="$STATE_DIR/last-success" # ISO year-week (%G-%V) of the last fully successful weekly run
+# The plist fires four Monday retry slots — 04:00/08:00/12:00/16:00 (see
+# Library/LaunchAgents/com.webdavis.update-skills.plist.tmpl). This is the hour
+# of the LAST slot: a deferral here means the weekly retry budget is exhausted,
+# so the run alerts LOUDLY instead of failing silent. Keep in sync with the plist.
+readonly UPDATE_SKILLS_LAST_SLOT_HOUR="16"
 # The Codex on-demand policy overlay this script asserts into store skill dirs
 # (see assert_codex_overlays) — also what the clawhub update pass recognizes as
 # its OWN file when the CLI refuses over it (see update_clawhub_tracked).
@@ -119,6 +131,58 @@ for arg in "$@"; do
 done
 
 log() { printf '[update-skills] %s\n' "$*"; }
+
+# idle-gate discriminator: is an INTERACTIVE agent-harness session using the
+# store right now? Returns 0 (defer — never swap a skill out from under a live
+# session) for an interactive Claude Code / Codex / hermes session, 1 (proceed)
+# when only persistent background daemons are up.
+#
+# The old gate was `pgrep -x claude || -x codex || -x hermes`, which deferred on
+# ANY match, INCLUDING persistent daemons — so the weekly run could defer forever
+# (the audit logged two such deferrals). We instead read full argv (ps -xo args=)
+# and key on the EXECUTABLE (argv[0] basename), excluding the daemon shapes.
+#
+# Ground truth (dresden, read-only ps, 2026-07-10):
+#   DAEMONS (proceed) — none is an interactive session:
+#     python -m hermes_cli.main gateway run --replace   (hermes gateway: argv[0]
+#         is `python`, so it is ignored outright — and note `pgrep -x hermes`
+#         never even matched it, comm=python; the OLD gate's real defer-forever
+#         driver on THIS machine was long-lived `claude --remote-control` bridges)
+#     .../claude --bg-spare | daemon run | --bg-pty-host   (Claude bg helpers)
+#     codex app-server [--analytics-default-enabled]       (Codex app server)
+#   INTERACTIVE (defer):
+#     /opt/homebrew/bin/claude [--remote-control|resume|-p ...]  (a Claude TUI)
+#     codex [resume <id>]                                        (a Codex CLI session)
+#     .../hermes -c <prompt> | hermes -p <profile>               (an interactive hermes run)
+#
+# Keying on argv[0]'s basename means prompt text or paths that merely CONTAIN
+# "codex"/"claude" (a `node .../codex-companion.mjs` helper, a bash -c carrying a
+# prompt about codex) never false-positive — argv[0] there is `node`/`bash`.
+__update_skills_is_interactive_harness() {
+  local args="$1" cmd base
+  cmd="${args%% *}" # argv[0] (the executable)
+  base="${cmd##*/}" # its basename
+  case "$base" in
+    claude | codex | hermes) ;; # a candidate harness binary
+    *) return 1 ;;              # anything else (python gateway, node, bash, GUI helpers) is not
+  esac
+  # Exclude the daemon shapes by the rest of argv.
+  case "$args" in
+    *hermes_cli.main*gateway* | *'hermes gateway'*) return 1 ;; # hermes gateway
+    *'claude --bg-'* | *'claude daemon run'*) return 1 ;;       # Claude bg spare/daemon/pty-host
+    *'codex app-server'*) return 1 ;;                           # Codex app server
+  esac
+  return 0
+}
+
+__update_skills_harness_active() {
+  local args
+  while IFS= read -r args; do
+    [[ -n $args ]] || continue
+    __update_skills_is_interactive_harness "$args" && return 0
+  done < <(ps -xo args= 2>/dev/null)
+  return 1
+}
 
 ensure_symlink() {
   local skill="$1"
@@ -347,9 +411,34 @@ if ! mkdir "$LOCKDIR" 2>/dev/null; then
 fi
 trap 'rm -rf "$LOCKDIR"' EXIT
 
-# idle-gate: defer while a harness is actively using skills (belt-and-suspenders on npx's own swap)
-if [[ ${UPDATE_SKILLS_FORCE:-} != "1" ]] && [[ $DRYRUN != "--dry-run" ]] && { pgrep -x claude >/dev/null 2>&1 || pgrep -x codex >/dev/null 2>&1 || pgrep -x hermes >/dev/null 2>&1; }; then
-  log "a harness (claude/codex/hermes) is running; deferring this run"
+# weekly success stamp: the four Monday plist slots share one ISO week; once a
+# slot completes a full run this week, the remaining slots are no-ops. A deferral
+# writes no stamp, so the next slot retries. FORCE and dry-run bypass; the
+# install-only / check-forks-only partial runs never consult or write it.
+if [[ -z $INSTALL_ONLY ]] && [[ -z $CHECK_FORKS_ONLY ]] && [[ $DRYRUN != "--dry-run" ]] &&
+  [[ ${UPDATE_SKILLS_FORCE:-} != "1" ]] &&
+  [[ -f $SUCCESS_STAMP && "$(cat "$SUCCESS_STAMP" 2>/dev/null)" == "$(date +%G-%V)" ]]; then
+  log "weekly skills update already succeeded this week ($(cat "$SUCCESS_STAMP")); nothing to do"
+  exit 0
+fi
+
+# idle-gate: defer while an INTERACTIVE harness session is using the store, so a
+# skill is never swapped out from under a live session. Persistent background
+# daemons (the hermes gateway, Claude Code's bg helpers, the Codex app-server) do
+# NOT count — blocking on them is what deferred the weekly run forever (see
+# __update_skills_harness_active). UPDATE_SKILLS_FORCE=1 bypasses (tests, manual
+# runs). On the LAST Monday slot the retry budget is spent, so a deferral there
+# alerts LOUDLY rather than failing silent.
+if [[ ${UPDATE_SKILLS_FORCE:-} != "1" ]] && [[ $DRYRUN != "--dry-run" ]] && __update_skills_harness_active; then
+  log "an interactive harness session (claude/codex/hermes) is using the store; deferring this run"
+  if [[ "$(date +%H)" == "$UPDATE_SKILLS_LAST_SLOT_HOUR" ]]; then
+    log "EXHAUSTED: the last Monday retry slot (${UPDATE_SKILLS_LAST_SLOT_HOUR}:00) still deferred — the weekly skills update did not run this week"
+    if command -v alerter >/dev/null 2>&1; then
+      alerter --timeout 30 --title "update-skills" \
+        --message "Weekly skills update deferred every Monday slot — an agent session was always active. Run it by hand when idle (~/.local/bin/update-skills.sh)." \
+        --sound default >/dev/null 2>&1 || true
+    fi
+  fi
   exit 0
 fi
 
@@ -624,5 +713,12 @@ update_hermes_registry_skills
 # 6) watch the vendored/fork upstreams (alert-only; see the function above)
 log "fork drift-check"
 check_fork_drift
+
+# record this week's success so the remaining Monday slots no-op — the run used
+# to defer forever with no stamp and no bounded retry budget (audit Fix 1)
+if [[ $DRYRUN != "--dry-run" ]]; then
+  mkdir -p "$STATE_DIR"
+  date +%G-%V >"$SUCCESS_STAMP"
+fi
 
 log "done${DRYRUN:+ (dry-run)}"
