@@ -93,7 +93,7 @@ amendment** (a plan/roadmap edit). Nothing is unmapped.
 | 24 | Roadmap — Tailscale decision history contradictory | this amendment | June Homebrew-service decision marked superseded-during-execution |
 | 25 | Roadmap — S12 ordering contradictory | this amendment | S12 pinned unambiguously pre-cutover |
 | 26 | Cutover — replace the empty-diff gate | D1 Gate 1 | expected-delta ledger (this amendment) |
-| 27 | Cutover — track the reconciliation tooling | cutover-tooling PR (builds it) + D1 Gate 3 (runs it) | `scripts/live-reconcile.sh` — dry-run, idempotent, tested; authored + merged before S12, only executed at Gate 3 |
+| 27 | Cutover — track the reconciliation tooling | cutover-tooling PR (builds them) + D1 gates (run them) | `scripts/cutover-gate.sh` (gate runner owning EVERY cutover command, 19-item binding acceptance checklist) + `scripts/live-reconcile.sh` (dry-run, idempotent, tested) — authored + merged before S12; Phase D states invariants only |
 | 28 | Cutover — put Phase E into the dependency graph | D1 five gates + Phase E | every Phase E item attached to a gate or a pre-cutover PR; the post-cutover graphify excludes-drop moved out of Phase E to the SP7 backlog |
 | 29 | Cutover — add operational safety | D1 Gate 1 + Gate 2 | dirty-file classify to an empty tree / Hermes backup / retirement manifest / second session / pin re-verify + attached staged apply |
 | 30 | Cutover — explicitly retire old services | D1 Gate 1 (approve) + Gate 2 (retire) + Gate 3 (verify) | operator-approved retirement manifest (desired-state vs live jobs — launchctl diffs can't find orphans); executed during staged activation; manifest-asserted verification; Gate 4 soaks the retired final topology; Gate 5 closes the reference PRs |
@@ -764,7 +764,92 @@ repo-state atomicity, above) becomes operative.
   `~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md`); **render both global targets in tests** and
   **byte-compare the shared block** across them; **re-verify every command and path against the converged
   `main`** at write time; **move conditional operational detail into runbooks** rather than the
-  always-loaded instruction files (Phase E `fix/codex-agents-parity` rides here).
+  always-loaded instruction files (Phase E `fix/codex-agents-parity` and `fix/skill-architecture-diagram`
+  ride here — the diagram documents the FINAL architecture, so S12 is its sole owner, ruled 2026-07-10).
+
+---
+
+## Cutover tooling PR (pre-S12) — the gate runner owns every cutover command [audit 2026-07-10]
+
+**The plan defines WHAT must be true and WHY; the script owns HOW.** Review rounds 3–6 (2026-07-10)
+proved that executable shell embedded in plan prose cannot be held to code standards — each wave of
+inline commands leaked a fresh scoping or fail-open defect. So Phase D below carries **no command
+sequences**: it states invariants and pass criteria, and every command lives in this PR's deliverables —
+
+- **`scripts/cutover-gate.sh <1|2|3|4|5>`** — the gate runner. One entry point per gate; performs every
+  check and mechanical action for that gate; stops at each operator checkpoint.
+- **`scripts/live-reconcile.sh`** — the live reconciliation tool (as already planned).
+
+Both are tracked, shellcheck-linted, TDD-built (red-first, per Global Constraints), and land in this
+pre-S12 PR, reviewed through the same dual review pipeline as every other slice — so the cutover
+commands get code review, tests, and lint instead of prose review.
+
+**Gate-runner acceptance checklist (BINDING — every invariant hardened in review rounds 3–6; none may
+be dropped, weakened, or left untested):**
+
+1. **Pin-last ordering.** Gate 1 pins `MAIN_SHA` and `INT_SHA` only after the tree is clean and every
+   must-ship change has landed on its branch — pinning is the last mutable-state read (Dependabot
+   auto-merge moves `main`; the freeze policy admits integration hotfixes).
+2. **Immutable manifest.** The expected-delta manifest is
+   `git -C "$repo" diff 2bd973369158b49535e8e16e80c968444ab23f1d "$INT_SHA"` — the recorded Phase A
+   base SHA to the pinned integration tip — regenerated from the pins at Gate 1; no stored file count
+   is normative (196 at A1 time, 220 at this writing).
+3. **Ledger classification.** Every manifest hunk is classified against `$MAIN_SHA` as exactly one of
+   landed-unchanged / intentionally-improved / deliberately-omitted-with-reason / missing; **only
+   `missing` blocks cutover**; Gate 2 activates exactly `$MAIN_SHA`.
+4. **Clean tree, fully visible.** `git -C "$repo" status --porcelain --untracked-files=all` empty AND
+   `"$repo/graphify-out"` absent (gitignored paths escape porcelain; the live unmanaged post-commit
+   hook regenerates it) — both re-checked immediately before the apply.
+5. **Repo handle, per shell.** `repo="$HOME/workspaces/Ivy/webdavis/dotfiles"` (absolute), validated
+   `[[ -d "$repo/.git" ]] || exit 1` at the top of EVERY runner invocation — each gate runs in its own
+   shell, nothing carries over.
+6. **Repo-scoped operations.** Every git operation runs `git -C "$repo"`; non-git commands use
+   absolute `"$repo"` paths or a guarded `cd "$repo" || exit 1` (`git -C` does not change the cwd for
+   non-git commands). The runner never depends on its caller's cwd.
+7. **Pins persisted and reloaded fail-closed.** Gate 1 records both pins in the ledger artifact; every
+   later gate reloads them from the ledger and validates each as a full 40-hex SHA before use —
+   missing/short/empty pins abort.
+8. **Guarded fetch.** `git -C "$repo" fetch origin || exit 1` before any pin comparison — a failed
+   fetch must never let stale remote-tracking refs satisfy the checks.
+9. **Fail-closed comparisons.** Every equality requirement is an explicit `[[ "$x" == "$y" ]] || exit 1`
+   in the runner — never prose, never advisory.
+10. **Two-pin re-verification.** Gates 2 and 5 require `origin/main == $MAIN_SHA` AND
+   `origin/integration/modernization == $INT_SHA`; on either mismatch the runner exits nonzero and the
+   procedure restarts Gates 1–4 (re-clean + re-pin + re-classify, re-activate, re-reconcile, re-soak).
+11. **Attached-HEAD landing.** Activation checks out `main` and fast-forwards to the pin, then asserts
+   branch == `main` AND HEAD == `$MAIN_SHA` — never a detached `checkout $MAIN_SHA`.
+12. **Per-domain launchd enumeration.** `launchctl print "gui/$(id -u)"` AND `launchctl print system` —
+   NEVER bare `launchctl list`, which reads only the caller's bootstrap context (verified in round 6: a
+   non-GUI review shell's `launchctl list` returned **0** jobs while `launchctl print gui/501` exposed
+   **499** services).
+13. **Retirement universe + preserve list.** The retirement candidate universe is the **managed-label
+   set this repo has EVER rendered** — `com.webdavis.*` plus the retired `com.claude.code` — and an
+   explicit PRESERVE list protects package/OS-owned services (`io.osquery.agent` — package-owned,
+   managed via `osqueryctl`, not rendered by this repo; the Tailscale system daemon; `sshd`; Apple
+   system jobs). Retirements are computed ONLY within the managed universe; nothing outside it is ever
+   a retirement candidate.
+14. **(label, domain, steady-state predicate) manifest entries.** Unconditional `KeepAlive=true` →
+   loaded AND running; conditional `KeepAlive` dictionary → predicate per its semantics
+   (`systems.nixos.nix-installer.nix-hook`, system domain, `KeepAlive={SuccessfulExit=false}`: healthy
+   = loaded, idle, last exit 0); scheduled/demand (`StartInterval`/`StartCalendarInterval`/`WatchPaths`
+   triggers, regardless of `RunAtLoad` — which launches once and is NOT persistence) → loaded with the
+   trigger registered, not necessarily running (`com.webdavis.osquery-uptime-watchdog` exits after
+   every run).
+15. **Domain-qualified per-label verification.** `launchctl print "$domain/$label"` per manifest entry:
+   approved-retired labels ABSENT (print errors), every desired label satisfies its recorded predicate.
+16. **Operator checkpoints.** The runner STOPS for operator approval of the retirement manifest
+   (Gate 1) before any service-affecting apply stage, and never performs the interactive
+   `chezmoi apply` itself (that is the operator's, staged, at Gate 2). Approval reviews a CORRECT
+   manifest — it is a review checkpoint, not a repair mechanism for a wrong one.
+17. **Explicit GitHub targeting.** Gate 5 closes PRs with `--repo=webdavis/dotfiles`
+   `--hostname=github.com` passed explicitly, in addition to the guarded cd — gh's resolver precedence
+   is `--repo` > `GH_REPO` > cwd remote, so cwd alone cannot be trusted (verified in round 6: with an
+   inherited `GH_REPO`, a resolver-only test inside this repo selected wrong-owner/wrong-repo).
+18. **Reconcile-script contract.** `scripts/live-reconcile.sh` has a `--dry-run` flag, is idempotent,
+   and is tested; Gate 3 runs it by absolute path, dry-run before live.
+19. **Code standards.** Both scripts pass `shellcheck` and `shfmt`, are TDD-built with stubbed
+   launchd/git/gh boundaries (Classist doubles at true I/O boundaries only), and every checklist item
+   above has a test.
 
 ---
 
@@ -774,8 +859,8 @@ repo-state atomicity, above) becomes operative.
 
 The audit split the single cutover step into **five gates** so that Phase E items which only complete
 *after* apply have a named home, and so the reference PRs are not closed before the soak proves
-convergence. Each gate must pass before the next begins. Gate roles: **Gate 1** preflight — pinned SHAs,
-clean tree, the immutable-manifest expected-delta ledger, and **operator approval of the retirement
+convergence. Each gate must pass before the next begins. Gate roles: **Gate 1** preflight — clean tree,
+then pinned SHAs, the immutable-manifest expected-delta ledger, and **operator approval of the retirement
 manifest**; **Gate 2** staged activation **and execution of the approved retirement**; **Gate 3** tracked
 reconciliation + **post-retirement verification**; **Gate 4** soaks the **final, retired** topology;
 **Gate 5** closure-only (re-verify both pins, close the reference PRs — no repo mutation). Retirement lives
@@ -784,149 +869,102 @@ out. **`$INTEGRATION_PR` (set in A1) is
 PR #32**, the DO-NOT-MERGE reference; the source PRs are **#25** (osquery three-tier) and **#31**
 (herdr/Tailscale/brew/moshi).
 
-**Repo handle — define BEFORE Gate 1, and re-define in every new shell.** Every git command and
-filesystem check in Gates 1–5 is scoped to the live source checkout:
-`repo="$HOME/workspaces/Ivy/webdavis/dotfiles"` (absolute path), validated before use
-(`[[ -d "$repo/.git" ]] || exit 1`), then `git -C "$repo" …` on each command. Gates run hours-to-days
-apart, typically in separate shells, so the variable does NOT carry over — re-issue the definition +
-validation at the start of each gate's session (Gate 5 repeats it explicitly).
+**No commands live in these gates.** Each gate states its invariants and pass criteria; every check and
+mechanical action is performed by the tracked, tested gate runner (`scripts/cutover-gate.sh <gate>`)
+from the **Cutover tooling PR** section above, whose binding acceptance checklist carries the full
+mechanics (repo scoping, fail-closed pin handling, launchd domains, GitHub targeting). Run the gate's
+runner entry, then complete the operator checkpoints it stops for.
 
 #### Gate 1 — Preflight (before switching the live source)
 
-Steps run **in this order** — the tree is cleaned and every must-ship change has LANDED before the SHAs
-are pinned, because both branches can move until then (Dependabot on `main`; the freeze policy admits
-integration hotfixes): a change landed after pinning would sit silently outside the manifest.
+Invariants hold **in this order** — the tree is settled and every must-ship change has LANDED before
+the SHAs are pinned, because both branches can move until then (Dependabot on `main`; the freeze policy
+admits integration hotfixes): a change landed after pinning would sit silently outside the manifest.
 
-- [ ] **1. Classify every dirty/untracked primary-worktree file, then EMPTY the tree.** For each, decide
-  keep / discard / back-up — and **kept files move OUTSIDE the source tree** (backup convention), never
-  stay in place: git preserves non-conflicting dirty/untracked files across a checkout and chezmoi reads
-  the working tree, so anything left in the tree would deploy content the ledger never classified (the
-  primary checkout holds exactly such untracked chezmoi sources today). Anything that must ship is
-  **committed and pushed BEFORE step 3 pins the SHAs** (to `main`, or to the integration branch as a
-  freeze-policy hotfix), and the classification re-runs over it. Hard requirements before Gate 2
-  applies: **`git -C "$repo" status --porcelain --untracked-files=all` is EMPTY** (scoped to the repo
-  handle from the D1 preamble — a bare `git status` reads the caller's cwd), and — because gitignored
-  paths escape that listing — **assert `"$repo/graphify-out"` is ABSENT** after the checkout (the live
-  unmanaged post-commit hook regenerates it; this worktree carries ~1.2 MB of it today — remove it and
-  re-check immediately before the apply). Gate 2's exact-`$MAIN_SHA` claim only holds on a clean tree.
-- [ ] **2. Back up uncaptured Hermes profile state** per the backup convention
+- [ ] **1. Clean tree.** Every dirty/untracked file in the primary checkout is classified keep /
+  discard / back-up; **kept files leave the source tree** (backup convention) — git preserves
+  non-conflicting dirty/untracked files across a checkout and chezmoi deploys the working tree, so
+  anything left in place would deploy content the ledger never classified (the primary checkout holds
+  exactly such untracked chezmoi sources today). Anything that must ship is **committed and pushed
+  before pinning** (to `main`, or to the integration branch as a freeze-policy hotfix) and
+  classification re-runs. **Pass:** the runner sees a fully-visible-clean tree — no dirty or untracked
+  entries AND no `graphify-out/` residue (gitignored paths escape a porcelain listing; the live
+  unmanaged post-commit hook regenerates it) — re-checked immediately before the apply. Gate 2's
+  exact-SHA activation claim holds only on a clean tree (checklist items 4–6).
+- [ ] **2. Hermes backup.** Uncaptured Hermes profile state is backed up per the backup convention
   (`~/workspaces/backups/YYYY-MM-DDTHH-MM-SS.<name>.backup[.ext]`) — the per-profile `config.yaml`
   enablement/`platform_toolsets` and codegraph MCP state are otherwise untracked encrypted `.age` files
   (Phase E `fix/hermes-encrypted-profile-configs`).
-- [ ] **3. Fetch and PIN both remote SHAs — LAST, after steps 1–2 landed everything.**
-  `git -C "$repo" fetch origin`, then record in the ledger header:
-  `MAIN_SHA = $(git -C "$repo" rev-parse origin/main)` and
-  `INT_SHA = $(git -C "$repo" rev-parse origin/integration/modernization)`. Every step below reads these
-  pinned SHAs — **never a local `main`/`integration` ref**, which lags the remote (at this writing the
-  local checkout's `main` is `2bd9733` while `origin/main` is `1a6e718`; a local-ref ledger would
-  describe a different revision from the one Gate 2 activates). Pinning is the LAST mutable-state read:
-  any commit to either branch after this point invalidates the pins (Gates 2 and 5 re-check both).
-- [ ] **4. Build the retirement MANIFEST — an inventory diff cannot find orphans.** `launchctl list`
-  keeps showing a loaded job after its source plist is deleted, so a before/after inventory diff can
-  never discover an orphan. Build an explicit manifest instead, **each entry recording the triple
-  (label, launchd DOMAIN, expected steady-state predicate)** — the domain matters because a job lives in
-  `gui/$UID` (LaunchAgents) or `system` (LaunchDaemons) and user-domain listings cannot see the latter:
-  **(a) desired-state set** — every LaunchAgent/LaunchDaemon the pinned `$MAIN_SHA` source renders, with
-  its predicate:
-  - *persistent* = **unconditional `KeepAlive=true`** — healthy = loaded AND running (e.g. the atuin
-    daemon);
-  - *conditional KeepAlive* = a `KeepAlive` **dictionary**, predicate per its semantics — verified on
-    `main`: `systems.nixos.nix-installer.nix-hook` (a **system-domain** LaunchDaemon rendered by
-    `dot_local/bin/executable_install-nix-repair-hook.sh`, bootstrapped `launchctl bootstrap system`)
-    carries `KeepAlive={SuccessfulExit=false}` — restart-only-on-failure, so healthy = loaded and
-    **idle with last exit 0**; "running" would wrongly fail it, and it never appears in a user-domain
-    `launchctl list` at all;
-  - *scheduled/demand* = `StartInterval`/`StartCalendarInterval`/`WatchPaths` triggers, **regardless of
-    `RunAtLoad`** — healthy = loaded with the trigger registered, NOT running between fires.
-    `RunAtLoad` only launches a job once at load — it is NOT persistence:
-    `com.webdavis.osquery-uptime-watchdog` is `RunAtLoad=true` + `StartInterval=900` (the
-    firewall/gatekeeper monitor likewise, at 60) yet exits after every run, and
-    `com.webdavis.update-skills` is `RunAtLoad=false` + `StartCalendarInterval` — all three are healthy
-    while not running;
-
-  **(b) live loaded set** — enumerated **per domain**: `launchctl list` for `gui/$UID` **plus**
-  `sudo launchctl list` for `system` (a user-domain listing alone misses system daemons like the
-  nix-hook); covers the `com.webdavis.*` set, the osquery jobs, `com.claude.code`;
-  **(c) retirement list** — every live job NOT in the desired set. **The operator approves this
-  manifest — every named retirement — BEFORE any service-affecting apply stage runs.** Gate 2 executes
-  only the approved list (this covers retirements performed by apply-time scripts too, e.g. Wave-3b's
-  one-time retirement script — approval precedes the apply that runs them).
-- [ ] **5. Expected-delta ledger — REPLACES the old empty-diff gate, built from an IMMUTABLE manifest.** The
-  old gate was contradictory (the plan permits improvements over the integration branch yet demanded an
-  empty final diff) **and** mechanically unsound: `git diff main integration/modernization` shows only the
-  **residual** difference — every reference hunk that already landed unchanged on `main` has vanished from
-  it, so it can never classify the full original delta, and it reads mutable local refs. Replace it:
-  - **Manifest (immutable):** `git -C "$repo" diff 2bd973369158b49535e8e16e80c968444ab23f1d $INT_SHA` —
-    the base is the SP2-start base SHA Phase A recorded (the frozen integration branch's divergence point —
-    stable no matter how far `main` advances). This is the **full original combined delta** with every
-    hunk present; nothing has vanished, because the base is fixed, not `main`. The manifest is
-    **regenerated from these pinned SHAs at Gate 1** — no recorded file count is normative (196 at A1
-    time, 220 at this writing; the frozen branch takes hotfixes).
-  - **Classify every manifest hunk against the pinned `$MAIN_SHA`** as exactly one of
-    **landed-unchanged**, **intentionally-improved**, **deliberately-omitted-with-reason**, or
-    **missing**.
-  - **Only a `missing` hunk blocks cutover** — the other three are expected and recorded in the ledger.
-  - **Gate 2 activates exactly `$MAIN_SHA`** — the same pinned commit this ledger classified against, so
-    the state proved converged is the state cut over to.
+- [ ] **3. Pins, LAST.** The runner records `MAIN_SHA` and `INT_SHA` in the ledger from the
+  freshly-fetched **remote-tracking refs — never local branch refs**, which lag the remote (when this
+  was written the local `main` was `2bd9733` while `origin/main` was `1a6e718`; a local-ref ledger
+  would describe a different revision from the one Gate 2 activates). Pinning is the LAST
+  mutable-state read: any commit to either branch afterward invalidates the pins, and Gates 2 and 5
+  re-verify both (checklist items 1, 7–10).
+- [ ] **4. Retirement manifest, operator-approved.** A `launchctl` before/after inventory diff can
+  never find an orphan (a loaded job keeps appearing after its plist is deleted), so the runner builds
+  an explicit manifest: the **desired-state set** (every LaunchAgent/LaunchDaemon the pinned
+  `$MAIN_SHA` source renders, each entry a **(label, launchd domain, expected steady-state predicate)**
+  triple — persistent vs conditional-KeepAlive vs scheduled/demand semantics per checklist item 14),
+  the **live loaded set** (enumerated per launchd domain — user AND system — per checklist item 12),
+  and the **retirement list**: live jobs absent from the desired set, computed ONLY within the
+  **managed-label universe** (labels this repo has ever rendered: `com.webdavis.*` plus the retired
+  `com.claude.code`) and never touching the **preserve list** of package/OS-owned services
+  (`io.osquery.agent` — package-owned, managed via `osqueryctl`; the Tailscale system daemon; `sshd`;
+  Apple system jobs) — checklist item 13. **Checkpoint:** the operator approves every named retirement
+  BEFORE any service-affecting apply stage. Approval reviews a CORRECT manifest — it is a review
+  checkpoint, not a repair mechanism for a wrong one. Gate 2 executes only the approved list (covering
+  retirements performed by apply-time scripts too, e.g. Wave-3b's one-time retirement script).
+- [ ] **5. Expected-delta ledger — REPLACES the old empty-diff gate, built from an IMMUTABLE
+  manifest.** The old gate was contradictory (the plan permits improvements over the integration branch
+  yet demanded an empty final diff) **and** mechanically unsound: a `main`-vs-integration diff shows
+  only the **residual** difference — every reference hunk that already landed unchanged on `main` has
+  vanished from it — and reads mutable refs. Instead the runner regenerates the manifest from the
+  **recorded Phase A base SHA (`2bd9733…`) to the pinned `$INT_SHA`** — the full original combined
+  delta, every hunk present, because the base is fixed, not `main` (no recorded file count is
+  normative: 196 at A1 time, 220 at this writing; the frozen branch takes hotfixes) — and classifies
+  **every** manifest hunk against the pinned `$MAIN_SHA` as exactly one of **landed-unchanged**,
+  **intentionally-improved**, **deliberately-omitted-with-reason**, or **missing** (checklist items
+  2–3). **Pass: only a `missing` hunk blocks cutover** — the other three are expected and recorded.
+  Gate 2 activates exactly `$MAIN_SHA`, the same pinned commit this ledger classified against, so the
+  state proved converged is the state cut over to.
 
 #### Gate 2 — Staged activation and service retirement
 
 - [ ] Open a **second remote session** first, so a broken apply cannot lock you out.
-- [ ] **Re-verify BOTH pins, then activate ATTACHED to the branch.** Re-define + validate the repo
-  handle in this shell (`repo="$HOME/workspaces/Ivy/webdavis/dotfiles"`;
-  `[[ -d "$repo/.git" ]] || exit 1` — fail fast, per the D1 preamble); **every git command in this
-  sequence runs `-C "$repo"`** — a bare
-  `git pull`/`git rev-parse` scopes to the caller's cwd, which may be a different worktree (mutating or
-  validating the wrong checkout while the live source stays stale):
-  1. `git -C "$repo" fetch origin`;
-  2. require `git -C "$repo" rev-parse origin/main` **== `$MAIN_SHA`** AND
-     `git -C "$repo" rev-parse origin/integration/modernization` **== `$INT_SHA`** — Dependabot
-     auto-merge can advance `main`, and the freeze policy admits integration hotfixes, at any moment.
-     **On either mismatch, stop and restart Gates 1–4**: re-clean + re-pin + re-classify (Gate 1),
-     re-activate (Gate 2), re-reconcile (Gate 3), re-soak (Gate 4);
-  3. after S12 merges: `git -C "$repo" checkout main && git -C "$repo" pull --ff-only origin main`;
-  4. assert BOTH `git -C "$repo" symbolic-ref --short HEAD` == `main` AND
-     `git -C "$repo" rev-parse HEAD` == `$MAIN_SHA`.
-
-  (A bare `git checkout $MAIN_SHA` would detach HEAD and leave the live source floating off-branch; the
-  equality checks in step 2 make the attached checkout land on exactly the pinned commit.)
+- [ ] **Pins re-verified, then activation lands ATTACHED at the pin.** The runner re-verifies — in a
+  fresh shell, fail-closed — that both remote branches still equal the recorded pins (checklist items
+  5–10). **On either mismatch it aborts and the procedure restarts Gates 1–4** (re-clean + re-pin +
+  re-classify, re-activate, re-reconcile, re-soak). After S12 merges, it points dresden's chezmoi
+  source at the pinned commit **attached to `main`, never detached** (checklist item 11) — a detached
+  checkout would leave the live source floating off-branch.
 - [ ] **Operator** runs a full interactive `chezmoi apply` (KeePassXC unlocked) **in stages**, not one
-  shot — keep the integration branch and previously deployed files available for rollback.
+  shot — keep the integration branch and previously deployed files available for rollback. (The runner
+  never performs this apply itself — checklist item 16.)
 - [ ] **Retire exactly the Gate 1 approved retirement manifest.** Approval already happened at Gate 1 —
-  BEFORE this service-affecting apply; Gate 2 executes only the approved list (managed, domain-qualified
-  `launchctl bootout "$domain/$label"` / plist removal per manifest entry, e.g. the old Claude
-  `com.claude.code.plist` in `gui/$UID`; Wave-3b's one-time retirement script is one of the approved
-  executors). Nothing is discovered or retired ad hoc mid-apply. Retirement happens HERE, during
-  activation — so Gate 4 soaks the FINAL topology, not the pre-retirement one.
+  BEFORE this service-affecting apply; the runner executes only the approved list, domain-qualified per
+  manifest entry (checklist items 13–15) — e.g. the old Claude `com.claude.code` in the user domain;
+  Wave-3b's one-time retirement script is one of the approved executors. Nothing is discovered or
+  retired ad hoc mid-apply. Retirement happens HERE, during activation — so Gate 4 soaks the FINAL
+  topology, not the pre-retirement one.
 - [ ] **Verify remote reachability** (Tailscale / SSH) before ending the original session.
 
 #### Gate 3 — Tracked live reconciliation and post-retirement verification
 
-- [ ] **Re-define + validate the repo handle in this shell** (`repo="$HOME/workspaces/Ivy/webdavis/dotfiles"`;
-  `[[ -d "$repo/.git" ]] || exit 1`) — note `git -C` never changes the caller's cwd for **non-git**
-  commands, so this gate's scripts run by **absolute path** or behind a **guarded cd**. Then run the
-  **already-merged, pinned** reconcile script by absolute path — `"$repo/scripts/live-reconcile.sh"` —
-  shipped by the **cutover-tooling PR** (built, reviewed, and tested pre-cutover — see the authoritative
-  implementation order; it is **NOT** authored ad hoc during cutover). It supports **`--dry-run`**, is
-  **idempotent**, and has **tests**. Run `--dry-run` first, then live, to prove a from-scratch machine
-  converges identically (Phase E `fix/live-reconcile-from-scratch`).
-- [ ] **Post-retirement verification — assert against the Gate 1 manifest, not a before/after diff**
-  (a loaded job outlives its deleted plist, so diffs can't prove retirement), probing each entry with
-  **`launchctl print "$domain/$label"`** — it addresses BOTH `gui/$UID` and `system` domains, where a
-  bare `launchctl list` sees only the caller's domain (it would miss the system-domain nix-hook
-  entirely): every approved-retired service is **ABSENT** (`launchctl print` errors — actually
-  unloaded, not merely plist-deleted), and every desired-state service satisfies **the steady-state
-  predicate its manifest entry records** — unconditional-`KeepAlive` jobs loaded AND running;
-  conditional-`KeepAlive` jobs per their dictionary semantics (the nix-hook,
-  `KeepAlive={SuccessfulExit=false}`, is healthily idle with last exit 0); scheduled/demand jobs loaded
-  with the trigger registered but NOT necessarily running (`com.webdavis.osquery-uptime-watchdog`,
-  `RunAtLoad=true` + `StartInterval=900`, exits after every run — a blanket "running" check would
-  wrongly fail it and every other one-shot).
-- [ ] **`(cd "$repo" && just test)` green** (guarded cd — `just` discovers its justfile from the cwd, so
-  a bare `just test` would run some other directory's recipes or fail) + live smoke checks: `relay.sh`
-  fires a test notification; `hermes gateway` healthy; osquery alerter behaves (`osquery-heartbeat.sh`
-  sends its one ✅); `chezmoi diff --exclude=templates` clean (`relay.sh`/`osquery-heartbeat.sh` are the
-  deployed `~/.local/bin` copies and `chezmoi` reads its config-pinned sourceDir — all cwd-independent).
+- [ ] **Live reconciliation, dry-run first.** The runner executes the **already-merged, pinned**
+  `scripts/live-reconcile.sh` from the cutover-tooling PR (built, reviewed, and tested pre-S12 — NOT
+  authored ad hoc during cutover), `--dry-run` before live (checklist item 18), to prove a
+  from-scratch machine converges identically (Phase E `fix/live-reconcile-from-scratch`).
+- [ ] **Post-retirement verification against the manifest, not a before/after diff** (a loaded job
+  outlives its deleted plist, so diffs can't prove retirement). The runner probes every manifest entry
+  domain-qualified (checklist items 12, 15): each approved-retired label is **ABSENT** (actually
+  unloaded, not merely plist-deleted), and each desired label satisfies **its recorded steady-state
+  predicate** (checklist item 14 — a blanket "running" check would wrongly fail the one-shots and the
+  conditional-KeepAlive nix-hook).
+- [ ] **Full test suite green + live smoke checks.** The runner executes the repo's test suite from the
+  repo itself (checklist item 6), then the smoke set: relay fires a test notification; the hermes
+  gateway is healthy; the osquery heartbeat sends its one ✅; chezmoi reports no source↔target drift
+  (excluding KeePassXC-gated templates).
 
 #### Gate 4 — Soak the final topology
 
@@ -936,23 +974,18 @@ integration hotfixes): a change landed after pinning would sit silently outside 
 
 #### Gate 5 — Final closure (closure-only)
 
-- [ ] **Re-verify BOTH pins before closing anything.** This gate runs days after Gate 1, in a fresh
-  shell — re-define + validate the repo handle first
-  (`repo="$HOME/workspaces/Ivy/webdavis/dotfiles"`; `[[ -d "$repo/.git" ]] || exit 1`). Then
-  `git -C "$repo" fetch origin`, and require
-  `git -C "$repo" rev-parse origin/main` **== `$MAIN_SHA`** AND
-  `git -C "$repo" rev-parse origin/integration/modernization` **== `$INT_SHA`** still, and the live
-  checkout still attached at the pin (`git -C "$repo" symbolic-ref --short HEAD` == `main` AND
-  `git -C "$repo" rev-parse HEAD` == `$MAIN_SHA`). If either branch moved during the soak (Dependabot
-  auto-merge on `main`; a freeze-policy hotfix on integration), the soaked state is not the closing
-  state — **restart Gates 1–4** (re-clean + re-pin + re-classify, re-activate, re-reconcile, re-soak)
-  before closure.
-- [ ] Close **PR #25**, **PR #31**, and the **integration reference PR #32** —
-  `(cd "$repo" && npx -y gh-axi pr close <n> --comment …)` (guarded cd: `gh` resolves the target repo
-  from the cwd's git remote, so run it from `"$repo"`) — **only after the soak passes** — each with a
-  comment linking the slice PRs that superseded it. No repo mutation happens in this gate (the
-  `graphify-out/` excludes stay in place through cutover as zero-cost belt-and-braces; dropping them is
-  `fix/graphify-out-excludes-drop` in the **SP7 backlog** — post-cutover by design, not Phase E).
+- [ ] **Pins re-verified before closing anything.** This gate runs days after Gate 1, in a fresh shell:
+  the runner reloads both pins from the ledger, validates them, freshly fetches (guarded), and requires
+  both remote branches still at their pins AND the live checkout still attached at the pin (checklist
+  items 5–11). If either branch moved during the soak (Dependabot auto-merge on `main`; a freeze-policy
+  hotfix on integration), the soaked state is not the closing state — **restart Gates 1–4** before
+  closure.
+- [ ] **Close PR #25, PR #31, and the integration reference PR #32** — the runner targets the GitHub
+  repository **explicitly**, never trusting the cwd remote (checklist item 17) — **only after the soak
+  passes** — each with a comment linking the slice PRs that superseded it. No repo mutation happens in
+  this gate (the `graphify-out/` excludes stay in place through cutover as zero-cost belt-and-braces;
+  dropping them is `fix/graphify-out-excludes-drop` in the **SP7 backlog** — post-cutover by design,
+  not Phase E).
 
 **Phase E → gate attachment.** Every Phase E item completes at a named home — a pre-cutover PR or a D1
 gate:
@@ -963,7 +996,9 @@ zero-cost belt-and-braces, Gate 5 mutates nothing, and no re-pin is ever needed)
 `fix/harness-skill-reconciliation` → Gate 3 (Hermes-side pruning, coordinated at cutover);
 `fix/hermes-encrypted-profile-configs` → S8 (backed up at Gate 1); `fix/codex-agents-parity` → S12;
 `fix/template-render-coverage` → the Wave-3 render-coverage PR; `fix/moshi-herdr-drift-check` and
-`fix/pre-commit-path-filter` → S11; `fix/skill-architecture-diagram` → Wave-3 skills-stab / S12 docs.
+`fix/pre-commit-path-filter` → S11; `fix/skill-architecture-diagram` → **S12, sole owner** (ruled
+2026-07-10 — it documents the final architecture, so it belongs with the docs refactor; the earlier
+"Wave-3 skills-stab /" alternative is removed so no PR can assume the other owns it).
 
 ---
 
@@ -1401,11 +1436,12 @@ map to the D1 gates below.
 1. Split S11 and ship SP5 (Thaw) separately.
 1. **Land the Wave-3d OpenClaw cleanup PR (R3)** — removes the `openclaw` package, the AeroSpace F1
    binding, and the docs together — before S12, so S12 documents an OpenClaw-free converged reality.
-1. **Land the cutover-tooling PR** — implements `scripts/live-reconcile.sh` (`--dry-run`, idempotent,
-   test-driven), so Gate 3 executes an already-merged, pinned tool. **Before S12** — S12 verifies every
-   command and path against the truly final repo, so all implementation PRs, this one included, precede
-   it. (The `graphify-out/` excludes-drop is NOT here — it is an SP7 post-cutover chore; see
-   `fix/graphify-out-excludes-drop`.)
+1. **Land the cutover-tooling PR** — implements the gate runner `scripts/cutover-gate.sh` (owning EVERY
+   Phase D command, against the binding 19-item acceptance checklist in the "Cutover tooling PR" section)
+   and `scripts/live-reconcile.sh` (`--dry-run`, idempotent, test-driven), so the gates execute
+   already-merged, pinned, tested tools. **Before S12** — S12 verifies every command and path against
+   the truly final repo, so all implementation PRs, this one included, precede it. (The `graphify-out/`
+   excludes-drop is NOT here — it is an SP7 post-cutover chore; see `fix/graphify-out-excludes-drop`.)
 1. Complete and mechanically verify S12.
 1. Run cutover preflight and expected-delta reconciliation (D1 Gate 1).
 1. Activate `main` in stages (D1 Gate 2).
@@ -1526,7 +1562,7 @@ failures**; (3) **add a coverage test that fails when a new shell template is om
 This supersedes the "decide in S11" hedge — it lands in the Wave-3 render-coverage PR (audit PR #35
 Medium).
 
-### fix/skill-architecture-diagram
+### fix/skill-architecture-diagram (→ S12, sole owner)
 
 A living node-graph of the cross-harness skill architecture, so the whole system is legible at a glance
 and every gap is visible — and so `fix/harness-skill-reconciliation` above has a map to reconcile
