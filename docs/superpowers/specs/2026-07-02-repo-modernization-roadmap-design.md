@@ -283,8 +283,11 @@ sub-projects.
   P5 (Determinate Nix). Not part of SP2.
 - **Age laptop→home-server migration (deferred).** When the always-home Linux server takes the daemon
   role: it generates its own X25519 identity, `.chezmoi.toml.tmpl` switches to a **`recipients` list**
-  (both machines) so files encrypt to both, and the darwin guard on `run_once_before_05-restore-age-key`
-  is generalized. Plus the S8 rotation/DR runbook. Banked from the 2026-07-04 secrets-at-rest research.
+  (both machines) so files encrypt to both. Generalizing the darwin guard on
+  `run_once_before_05-restore-age-key` is **blocked on a complete, approved, and tested Linux
+  credential-source and identity design** [audit 2026-07-10] — the current macOS paths + KeePassXC
+  assumptions do NOT constitute Linux support, so the guard stays until that design exists. Plus the S8
+  rotation/DR runbook. Banked from the 2026-07-04 secrets-at-rest research.
 - **SP7 — Sweep + backlog.** The p-tasks table above + findings accumulated while reading every file
   during SP2's split + S1/S2/S4 re-ruling + Todoist hygiene. Ships as small PRs; nothing lands unwired.
 
@@ -439,8 +442,9 @@ against source and adversarially verified (2 candidates were refuted and dropped
    script in place, both hermes guards enforcing, full suite green. SP1 is complete.
 4. **Next: writing-plans** for SP2 execution. Non-blocking operator odds and ends whenever convenient:
    `trash` the plaintext `~/.hermes/config.yaml.bak.*` backups (destructive — confirm per file);
-   `brew uninstall goplaces`; `npm uninstall -g openclaw`; phone-side Focus whitelist + Discord `#relay`
-   mobile mute.
+   `brew uninstall goplaces`; phone-side Focus whitelist + Discord `#relay` mobile mute. (OpenClaw removal
+   is **not** an ad-hoc operator action — the Wave-3d cleanup PR owns the `openclaw` package, the
+   AeroSpace F1 binding, and the docs together per R3.)
 
 ### Fixed this session (baseline — already on the branch)
 
@@ -616,7 +620,8 @@ header comments forward.
 **Decision:** one Rust **stateless per-event executable** (NOT a daemon/service — invoked once per event;
 see the invocation model below) replaces `relay.sh` + `relay-agent.sh` + `hue-pulse.sh` +
 `claude-stop-pulse.sh`. `relay-codex-hooks.sh` (a one-shot config merger) and the bashrc bash-preexec
-notifier stay shell (the latter contingent on SP4). Built + deployed the way the herdr Rust plugins are
+notifier stay shell (bash — settled: the nushell evaluation resolved NO-GO, decision 9, so there is no
+shell-migration contingency). Built + deployed the way the herdr Rust plugins are
 (rustup toolchain, `run_onchange_after_*` `cargo build --release --locked`, `target/` gitignored).
 
 ### Two event classes (both always reach the user)
@@ -691,7 +696,7 @@ phone is the strong one.
 - **Invocation model: stateless per-event CLI.** Hooks and the shell notifier exec the binary once per
   event; probes run at fire time; no daemon, no persistent state (catch-up reads live herdr state, not a
   store). The bashrc long-command notifier re-points its `relay.sh` call at the new binary — its
-  thresholds (≥60 s local, ≥300 s full) move into the service's config.
+  thresholds (≥60 s local, ≥300 s full) move into the **stateless per-event executable's** config.
 - **Lights quiet window.** Hue has no Focus-mode equivalent, so pulses respect a configured quiet window
   (e.g. mirroring Sleep-Focus hours); anything missed during it is healed by catch-up-on-return.
 - **Channels are a pluggable boundary** (moshi = today's phone channel). A future custom iOS app —
@@ -780,7 +785,8 @@ brief `docs/plans/2026-07-02-repo-modernization-brief.md` §8 and is the binding
 - **SP3 contract:** the presence table is backed by `round2.csv` (labeled time-series), not assertion;
   each leg (hid-idle climbing under remote typing, per-pty transport fingerprint, tailscale-rate
   attention) was observed live. Open items for the final SP3 spec are enumerated in the deferred index
-  (UDR probe + failure semantics + tuning constants + quiet-window hours + test split).
+  (failure semantics + tuning constants + quiet-window hours + test split; the UDR probe is RESOLVED and
+  no longer an open item).
 - **Re-evaluated 2026-07-03 (max effort), defects found and corrected:** the presence table's hid-idle
   row had inverted the core finding (said "local *or* remote" resets it — the experiment showed remote
   does **not**); SP1/SP2 described already-executed work as pending (scaffolding commits, the `f7220d9`

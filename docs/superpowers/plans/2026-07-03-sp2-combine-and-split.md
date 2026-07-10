@@ -32,8 +32,9 @@ S7 fixes its four delivery-loss defects BEFORE merge (reverses the earlier "ship
 **(R3)** OpenClaw is removed — a Wave-3d cleanup PR owns the package, the AeroSpace F1 binding, and the
 docs, and the operator owns the Todoist cleanup.
 
-`main` (`1a6e718`) carries Phase A and S1–S5. S6 is next. Merge SHAs and PR numbers below are verified
-against `git log origin/main --merges`.
+`main` (`1a6e718`) carries Phase A and S1–S5. The **Wave-3 stabilizations** (skills-stab, herdr-stab,
+render-coverage) are next — they precede S6 per the authoritative implementation order; S6 does not start
+until they merge. Merge SHAs and PR numbers below are verified against `git log origin/main --merges`.
 
 | Item | State | PR | Merge commit | Remaining follow-up |
 | --- | --- | --- | --- | --- |
@@ -43,11 +44,11 @@ against `git log origin/main --merges`.
 | S3 — Skills | complete | #36 | `5f21a81` | 3 High defects + the `35922d4` scope-split → **skills-stab** PR |
 | S4 — herdr | complete | #37 | `addc8d7` | 2 High + 2 Medium defects → **herdr-stab** PR |
 | S5 — Tailscale | complete | #38 | `1a6e718` | copied-daemon re-copy responsibility folds into S6; monitor moved to S9 |
-| Wave-3 skills-stab | not started | — | — | audit PR #36 High×3 (defer-forever / fresh-install / additive-fan-out) + Low `35922d4` move |
-| Wave-3 herdr-stab | not started | — | — | audit PR #37 High×2 (atomic migration / Cargo+registration) + Medium×2 (`Cargo.toml` hash / LaunchAgent unload) |
-| Wave-3 render-coverage + docs | not started | — | — | audit PR #35 Medium (4 template failures + coverage test) + PR #35 Low doc-staleness |
-| Wave-3d OpenClaw cleanup | not started | — | — | R3: remove the `openclaw` package, the AeroSpace F1 binding, and the docs together (operator owns Todoist) |
-| S6 — Homebrew weekly-upgrade | **next** | — | — | audit S6 gaps folded into the S6 section |
+| Wave-3a skills-stab | **next** | — | — | audit PR #36 High×3 (defer-forever / fresh-install / additive-fan-out) + Low `35922d4` move |
+| Wave-3b herdr-stab | **next** | — | — | audit PR #37 High×2 (atomic migration / Cargo+registration) + Medium×2 (`Cargo.toml` hash / LaunchAgent unload); operative acceptance in the Wave-3b herdr-stab section |
+| Wave-3c render-coverage + docs | **next** | — | — | audit PR #35 Medium (4 template failures + coverage test) + PR #35 Low doc-staleness |
+| Wave-3d OpenClaw cleanup | queued (before S12) | — | — | R3: remove the `openclaw` package, the AeroSpace F1 binding, and the docs together (operator owns Todoist) |
+| S6 — Homebrew weekly-upgrade | queued (after Wave-3) | — | — | audit S6 gaps folded into the S6 section |
 | S7 — Relay pipeline | not started | — | — | R2: four delivery-loss fixes before merge (see S7 section) |
 | S8 — Hermes age-encryption | not started | — | — | Linux-boundary + re-scope folded into the S8 section |
 | S9 — osquery three-tier | not started | — | — | S5 dependency (`2f430b3` monitor) + path/hunk matrix folded into S9 |
@@ -109,7 +110,7 @@ amendment** (a plan/roadmap edit). Nothing is unmapped.
 | 41 | Deferred SP6 — Neovim | plan deferred index + roadmap edit | the audit's five directives added to both SP6 bullets: re-check branch state (69 behind / 3 ahead at audit), back up both repos, inventory live config, import unchanged first, modernize via later PRs |
 | 42 | Deferred SP7 — cleanup backlog | plan deferred index + roadmap p-tasks | deduplicate the ledger into tracked tasks (status/severity/dependencies); P8 unblocked; P12 already on `main`; OpenClaw closed per R3 |
 | 43 | Deferred SP-nix | roadmap edit | conditional research with explicit start triggers |
-| 44 | Recommended implementation order (20 steps) | plan deferred index | adopted as the authoritative SP2 sequence |
+| 44 | Recommended implementation order | plan deferred index | adopted (and extended: Wave-3d + the cutover-tooling PR) as the single authoritative SP2 sequence |
 
 ## Global Constraints
 
@@ -263,7 +264,7 @@ quick review.
 | S8 | Hermes age-encryption (SP1) | `dot_hermes/encrypted_private_config.yaml.age`, `dot_hermes/private_dot_env.tmpl`, `.chezmoi.toml.tmpl` age hunk, `run_onchange_before_25`, `run_after_67`, `run_after_68`, `run_once_before_05-restore-age-key`, `test/hermes-config-{encrypted,routes}.sh`, `.gitignore` failsafe hunk (gitleaks gate hunk of `.githooks/pre-commit` ships in S2, not here) | this is the committed SP1 work (`c13cc18`/`a0e7d8e`/`3696c92`) reimplemented as one clean PR; the age-tripwire fix is already in it | S2 |
 | S9 | osquery three-tier alerting | `.chezmoitemplates/osquery/**` (config+4 packs), `dot_local/bin/executable_osquery-*`, the 6 osquery LaunchAgents + `after_60` loaders, `after_55` manifest, `before_50` setup, `test/osquery-alerter/**` | **alerting/dispatch redesign in scope**; heartbeat `RunAtLoad` double-ping; **query/pack content changes → flag for sign-off**. NOTE: much of osquery is already on main — this slice is the PR#25 *delta* only | S2 |
 | S10 | macOS defaults / system-setup | `.chezmoidata/macos_defaults.yaml`, `.chezmoidata/macos_system_setup.yaml`, `run_onchange_after_30/41`, `dot_local/bin/executable_macos-defaults-*.sh` | defaults trio hardcoded-path + shared-lib consolidation; `after_41` fragile `{{ if .sudo }}`; `ssh-hardening.sh` → a `macos_system_setup.yaml` record | S2 |
-| S11 | Shell foundation + secrets hygiene + chores | remaining hunks of `dot_bashrc.tmpl`/`dot_profile`/`justfile`/`.chezmoiignore`, `run_after_44-cache-brew-shellenv` + `test/brew-shellenv-cache-drift.sh`, `dot_aws/private_credentials.tmpl` + `dot_config/himalaya/private_config.toml.tmpl` renames, `dot_config/worktrunk/config.toml`, gitconfig fixes; **installs:** Thaw (SP5), ponytail | credential `private_` renames (`ae02524`); merge.tool name; `core.excludesfile`; git:// url removal; `~/.bash_just_completions`; atuin `~/.atuin/bin/env` guard; yabai ignore; espanso `_pqi.yml` + shadow triggers; Arc→Zen hotkey; log rotation (newsyslog) | S2 |
+| S11 | Shell foundation + secrets hygiene + chores | remaining hunks of `dot_bashrc.tmpl`/`dot_profile`/`justfile`/`.chezmoiignore`, `run_after_44-cache-brew-shellenv` + `test/brew-shellenv-cache-drift.sh`, `dot_aws/private_credentials.tmpl` + `dot_config/himalaya/private_config.toml.tmpl` renames, `dot_config/worktrunk/config.toml`, gitconfig fixes; **installs:** ponytail (Thaw is a **standalone SP5** PR, not an S11 install) | credential `private_` renames (`ae02524`); merge.tool name; `core.excludesfile`; git:// url removal; `~/.bash_just_completions`; atuin `~/.atuin/bin/env` guard; yabai ignore; espanso `_pqi.yml` + shadow triggers; Arc→Zen hotkey; log rotation (newsyslog) | S2 |
 | S12 | CLAUDE.md comprehensive refactor | `CLAUDE.md`, `private_dot_claude/CLAUDE.md`, global AGENTS.md parity | the memory-file rewrite per the spec's CLAUDE.md section — **pre-cutover: runs last of all implementation PRs (before Phase D) so it documents the reimplemented reality** [audit 2026-07-10] | S1–S11 |
 
 **Sequencing rationale:** S1 (docs) and S2 (the checkable foundation — CI must actually run tests before
@@ -271,9 +272,8 @@ the rest can be trusted) go first. S3–S11 are feature slices, orderable by dep
 herdr because herdr's plugins live in the store; relay before nothing; osquery last of the big three
 because its diff is smallest relative to main). S12 rewrites the memory files last, against final
 reality. Ship in table order unless the operator re-prioritizes. **For all post-S5 work the
-authoritative sequence is the audit's 20-step "Authoritative implementation order" (amended 2026-07-10)
-in the deferred sub-projects section — it supersedes this prose for everything from the PR #38 repair
-onward.**
+authoritative sequence is the single "Authoritative implementation order" (amended 2026-07-10) in the
+deferred sub-projects section — it supersedes this prose for everything from the PR #38 repair onward.**
 
 ---
 
@@ -457,8 +457,12 @@ protocol below is **step 3's inner cycle**, not a replacement for this loop.
   split's final PR still carries the risky flip (bashrc + deletions), so splitting buys nothing; and the
   content is dresden's already-live state, familiar to the operator. Commits stay logically separated
   instead.
-- **Atomicity is the invariant:** the tmux/sesh deletions and the herdr additions ship together — main
-  must never have both, nor neither.
+- **Atomicity is the invariant — but scoped to REPO state.** The tmux/sesh deletions and the herdr
+  additions ship in one PR — `main` must never have both, nor neither. This is *source-tree* atomicity (a
+  fresh `chezmoi apply` from `main` is always internally consistent). It is NOT the same as
+  *live-migration ordering safety* on dresden (install and prove herdr BEFORE tmux/sesh are torn down at
+  apply time). That ordering safety is a separate, now-operative requirement owned by the **Wave-3b
+  herdr-stab** section below — same-PR scope alone does not provide it.
 - **Exact file set (verified against the live `origin/main`→`integration/modernization` diff):**
   - **ADD:** `dot_config/herdr/config.toml`; the two Rust plugins under `dot_local/share/herdr/plugins/`
     (`herdr-last-workspace`, `herdr-smart-nav` — transplants that CARRY their own `#[cfg(test)]` suites
@@ -497,6 +501,35 @@ protocol below is **step 3's inner cycle**, not a replacement for this loop.
   `just lint-check && just test`; the live apply is the operator's, at P-8.
 - **Operator apply** needed (builds Rust at apply time; installs herdr via the curl installer; tears
   down tmux LaunchAgent state).
+
+### Wave-3b herdr-stab (operative acceptance) [audit 2026-07-10]
+
+S4 shipped the repo-state migration (PR #37); the audit found two High + two Medium defects a follow-up
+**herdr-stab PR** must close. These requirements are **binding acceptance** — the PR is not done until
+every one is met and test-driven. This is where S4's *live-migration ordering safety* (distinct from its
+repo-state atomicity, above) becomes operative.
+
+- **Install-and-verify-before-teardown (the live-migration ordering invariant).** At live-migration time
+  herdr must be **installed AND verified** — binary present and runnable, `config.toml` valid, both Rust
+  plugins built and registered, and a **second herdr session proven** to spawn and attach — BEFORE
+  tmux/sesh are removed. This is the ordering safety S4's repo-state atomicity does NOT provide.
+- **Rollback.** Document the exact rollback path: how to restore tmux/sesh from the pre-migration state if
+  herdr verification fails, so a failed cutover never strands the machine without a working multiplexer.
+- **Plugin-registration error envelope + retry-state retention.** The build/register scripts
+  (`run_onchange_after_55/57`) must treat a failed or skipped plugin registration as an **error
+  envelope**, not silent success — and **the `run_onchange` trigger must NOT be consumed by a
+  skipped/failed registration** (a consumed trigger makes the next apply believe the work is done and
+  never retry). Retain the retry state so a failed registration re-attempts on the next apply until it
+  succeeds. (Audit PR #37 High: failed registration treated as success.)
+- **Hash EVERY build input.** The rebuild-decision hash must cover **every** input to the Rust build —
+  including `Cargo.toml` (and `Cargo.lock`), not only the `.rs` sources — so a dependency/manifest change
+  forces a rebuild. (Audit PR #37 Medium: the hash omitted `Cargo.toml`.)
+- **Old Claude LaunchAgent retirement.** Removing the `com.claude.code.plist` source does NOT unload the
+  already-running LaunchAgent. Ship a **one-time idempotent retirement script** (`launchctl bootout`,
+  guarded to no-op when already gone) with **stubbed tests** (mirroring the atuin/happy loader test
+  pattern). This is the live-side complement to S4's deletion of the plist source. (Audit PR #37 Medium.)
+- **Tests (TDD, per Global Constraints):** registration success/failure envelope; trigger-not-consumed on
+  failure; hash-includes-`Cargo.toml`; retirement-script idempotence — each red-first.
 
 ### S5 — Tailscale headless daemon (COMPLETE — PR #38, merge `1a6e718`) [audit 2026-07-10]
 - **Outcome (all four PR #38 fixes landed).** Status is now classified on `tailscale status --json`'s
@@ -587,10 +620,17 @@ protocol below is **step 3's inner cycle**, not a replacement for this loop.
     sequence** — the R4 runbook below is corrected to the installed workflow.
   - **Enumerate the managed encrypted targets explicitly** in the PR (not just "`~/.hermes/config.yaml`").
   - **Rehearse rotation in a scratch source and destination** before touching live secrets.
-  - **Re-scope S8 up front** — encrypted **per-profile Hermes configs**
-    (`dot_hermes/profiles/*/encrypted_config.yaml.age`) and **codegraph Hermes-MCP state** materially
-    expand the slice, so Phase E `fix/hermes-encrypted-profile-configs` rides here; **round-trip test each
-    captured profile independently**.
+  - **Re-scope S8 up front — capture the full encrypted SET; exact source names resolve at capture time.**
+    Today the integration branch tracks only the **root** config
+    (`dot_hermes/encrypted_private_config.yaml.age`); the per-profile configs and codegraph state are
+    **uncaptured live state**, so no exact per-profile source path exists to name yet (neither the plan's
+    earlier `dot_hermes/profiles/*/encrypted_config.yaml.age` nor any other literal — do not assert one).
+    The capture SET is: the **root Hermes config**, the **four specialist profile configs** (butters,
+    concerned, elaine, nicodemus — default/Bob is the root), and **codegraph Hermes-MCP state**. Their
+    exact source filenames are whatever `chezmoi add --encrypt` derives under each profile's source dir
+    at capture time (chezmoi's `encrypted_`/`private_` naming conventions), recorded in the PR then. This
+    materially expands the slice, so Phase E `fix/hermes-encrypted-profile-configs` rides here;
+    **round-trip test each captured profile independently**.
   - Ship `docs/runbooks/age-key.md` (rotation + disaster-recovery) and the `test/age-restore.sh` DR drill;
     KeePassXC entry name is `chezmoi :: Private Key :: age` (spec corrected 2026-07-04).
 
@@ -623,18 +663,24 @@ protocol below is **step 3's inner cycle**, not a replacement for this loop.
   record so a fresh machine actually locks sshd — **and fix the script's PAM hole (roadmap high-sev,
   found missing in the 2026-07-09 audit):** the drop-in sets only `PasswordAuthentication no`, but
   `UsePAM yes` + the `KbdInteractiveAuthentication` default leave PAM password login open (verified
-  live per the roadmap ledger) — the hardening record must also set
-  `KbdInteractiveAuthentication no` so password auth is actually closed — the **full accepted effective
-  config is defined in the audit bullet below** (the undefined "address UsePAM's interaction" wording is
-  removed and replaced), test-driven per the sshd `-T` effective-config seam.
+  live per the roadmap ledger) — the hardening record produces the **complete accepted `sshd -T`
+  effective config defined in the audit bullet below** (no "decide later" hedge), test-driven per the
+  sshd `-T` effective-config seam.
 - **SSH hardening — audit requirements [audit 2026-07-10] (perform ONLY while physically present):**
-  - **Define the exact accepted `sshd -T` effective config BEFORE implementation** — the full set of
-    keys/values that constitutes "password auth is closed" (at minimum `passwordauthentication no`,
-    `kbdinteractiveauthentication no`, and the chosen `usepam` value with its interaction spelled out).
-    This **replaces** the undefined "address UsePAM's interaction" requirement — the accepted config is a
-    concrete effective-output contract, not a to-do.
+  - **The accepted `sshd -T` effective config — defined NOW (no "at minimum", no "decide/define later"):**
+    - `passwordauthentication no`
+    - `kbdinteractiveauthentication no`
+    - `usepam yes` — macOS **requires** `UsePAM yes` for account and session management (login records,
+      sandbox/session setup); turning it off breaks session setup on macOS. It is safe here **because
+      both password paths above are `no`**, so PAM has no channel through which to open a password login.
+      This is why the value is `yes`, not `no` — the interaction is settled, not a to-do.
+    - `pubkeyauthentication yes`
+    - `permitrootlogin no`
+
+    This concrete effective-output contract **replaces** the old undefined "address UsePAM's interaction"
+    requirement. The drop-in must render `sshd -T` to exactly these values for the listed keys.
   - **Validate syntax and effective config before reload** (`sshd -t`, then diff `sshd -T` against the
-    accepted set).
+    accepted set above — every listed key must match).
   - **Keep the existing session open**, **prove a new key-only session works**, and **test rollback**
     before closing the original session.
 - **Operator apply** needed (Tier-2 sudo runner prompts once).
@@ -655,9 +701,10 @@ protocol below is **step 3's inner cycle**, not a replacement for this loop.
   network-on-every-apply + deno/node mismatch (roadmap known-bug set — unassigned until the 2026-07-09
   audit); the inert `gh` `hosts.yml.tmpl`. (P12 gitconfig autocorrect: **already on main** —
   `autocorrect = prompt`, verified 2026-07-09; no work.)
-- **Installs (SP5 + directive):** Thaw (`brew install --cask thaw` → add to manifest); ponytail (`/plugin
-  marketplace add DietrichGebert/ponytail` + `/plugin install`, `hermes plugins install
-  DietrichGebert/ponytail --enable`, promote to `enabledPlugins`).
+- **Installs (directive only — NOT Thaw):** ponytail (`/plugin marketplace add DietrichGebert/ponytail`
+  + `/plugin install`, `hermes plugins install DietrichGebert/ponytail --enable`, promote to
+  `enabledPlugins`). **Thaw is NOT installed in S11** — it ships as the standalone **SP5** PR (see the
+  standalone-note below and the SP5 sub-project).
 - **Operator apply** needed (credential renames re-deploy at 0600; already done live tonight, but main
   must carry the renamed sources).
 - **Audit requirements [audit 2026-07-10] — split S11 into the audit's 7 small PRs:**
@@ -941,8 +988,9 @@ reasons (added to the spec Decisions log, below). But three **verified** gaps:
    `chezmoi re-add --re-encrypt` (re-encrypts the existing `encrypted_*` files under the new recipient —
    **corrected 2026-07-10**, replacing the destructive `chezmoi forget` + `chezmoi add --encrypt` pair the
    audit flagged). Enumerate the encrypted targets explicitly rather than assuming a single file: today
-   `~/.hermes/config.yaml`, plus the re-scoped per-profile Hermes configs
-   (`dot_hermes/profiles/*/encrypted_config.yaml.age`) and codegraph state as those land in S8.
+   `~/.hermes/config.yaml` (source `dot_hermes/encrypted_private_config.yaml.age`), plus — as they land in
+   S8 — the four specialist profile configs and codegraph state (uncaptured live state today; exact source
+   names follow chezmoi's `encrypted_` naming at capture time, not asserted here).
 1. Verify round-trip: `diff <(chezmoi cat ~/.hermes/config.yaml) ~/.hermes/config.yaml` is empty;
    `head -1` of each `encrypted_*` file is an age header, not plaintext.
 1. Drop the old identity from `identities`, `mv key.new key.txt`, and **update the KeePassXC entry**
@@ -1187,6 +1235,8 @@ map to the D1 gates below.
 1. Re-scope and split S9.
 1. Implement S10 during a physical-presence window.
 1. Split S11 and ship SP5 (Thaw) separately.
+1. **Land the Wave-3d OpenClaw cleanup PR (R3)** — removes the `openclaw` package, the AeroSpace F1
+   binding, and the docs together — before S12, so S12 documents an OpenClaw-free converged reality.
 1. Complete and mechanically verify S12.
 1. **Land the cutover-tooling PR** — implements `scripts/live-reconcile.sh` (`--dry-run`, idempotent,
    test-driven) so Gate 3 executes an already-merged, pinned tool rather than an ad-hoc live change.
@@ -1234,11 +1284,14 @@ drift is caught, not hunted.
 
 ### fix/hermes-encrypted-profile-configs (→ S8)
 
-The five profiles' `config.yaml` (enablement + `platform_toolsets`) are persisted only as **untracked
-encrypted `.age` files** in the primary checkout; codegraph's Hermes-MCP enablement likewise. A fresh
-machine reproduces skill *presence* but not per-profile *curation* or the MCP wiring. Fix rides S8 (the
-age machinery): track `dot_hermes/profiles/*/encrypted_config.yaml.age` + the codegraph MCP config,
-round-trip verify, extend the DR drill.
+The four specialist profiles' `config.yaml` (enablement + `platform_toolsets`) — plus the default/Bob
+root — are persisted only as **untracked encrypted `.age` files** in the primary checkout; codegraph's
+Hermes-MCP enablement likewise. A fresh machine reproduces skill *presence* but not per-profile
+*curation* or the MCP wiring. Fix rides S8 (the age machinery): capture and track the full SET — the root
+Hermes config (already tracked as `dot_hermes/encrypted_private_config.yaml.age`), the four specialist
+profile configs, and the codegraph MCP config — round-trip verify each, extend the DR drill. Exact
+per-profile source filenames are whatever `chezmoi add --encrypt` derives under each profile's source dir
+(uncaptured live state today, so no literal path is asserted here).
 
 ### fix/codex-agents-parity (→ S12)
 
