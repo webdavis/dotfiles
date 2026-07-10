@@ -20,3 +20,10 @@ macos:
     - description: "Install self-healing nix-installer repair LaunchDaemon (NixOS fork)"
       command: "$HOME/.local/bin/install-nix-repair-hook.sh"
       sudo: true
+    # The sh -c wrapper is load-bearing: the runner renders `sudo {{ .command }}`,
+    # so a bare `>>/etc/hosts` redirect would run in the outer USER shell and be
+    # denied. `sudo sh -c '...'` puts the guard AND the append inside the root
+    # shell. Guard-then-append keeps the record idempotent across runner re-runs.
+    - description: "MagicDNS registration-layer fallback pin (per CLAUDE.md Tailscale DNS section)"
+      command: sh -c 'grep -qF "mister.tail2f2430.ts.net" /etc/hosts || printf "100.109.58.54\tmister.tail2f2430.ts.net\tmister\n" >>/etc/hosts'
+      sudo: true
