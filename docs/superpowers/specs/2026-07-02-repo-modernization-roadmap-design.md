@@ -206,24 +206,26 @@ diff):
 
 **Amended 2026-07-10 [audit]: the cutover is FIVE sequential gates, not one shot** — the authoritative
 procedure is the SP2 plan's Task D1
-(`docs/superpowers/plans/2026-07-03-sp2-combine-and-split.md`, Phase D): **Gate 1** preflight (fetch and
-PIN both remote SHAs; dirty/untracked classification ending in an **empty tree** — kept files move
-outside the source tree, must-ship changes are committed before pinning; Hermes-state backup; the
-**operator-approved retirement manifest** — desired-state services from the pinned SHA vs live loaded
-jobs, since a `launchctl` before/after diff cannot find orphans; and the expected-delta ledger — built
-from the immutable recorded-base→integration manifest and classified against the pinned `main` SHA —
-that replaced the empty-diff gate); **Gate 2** staged activation **and execution of the approved
-retirement** (second remote session; re-verify `origin/main` still equals the pinned SHA, then activate
-**attached to `main`** at it, never detached; staged `chezmoi apply`; managed `launchctl bootout`/plist
-removal per approved manifest entry; verify remote reachability); **Gate 3** tracked live reconciliation
-(the pre-built, pinned `scripts/live-reconcile.sh` from the cutover-tooling PR) **plus post-retirement
-verification** (assert against the manifest: approved-retired absent, desired present) and `just test` +
-live smoke checks (relay fires, hermes gateway healthy, osquery alerter behavior verified); **Gate 4**
-soak of the **final, retired** topology; and **Gate 5** closure-only (re-verify the pin first — if
-`main` advanced mid-soak, re-classify and re-soak) — **PRs #25, #31, and the integration reference
-PR #32 are closed only after the soak passes**, each with pointers to the landed slices. Retirement
-happens in Gates 1–3 (approve / execute / verify), not Gate 5, so the topology soaked is the topology
-closed out.
+(`docs/superpowers/plans/2026-07-03-sp2-combine-and-split.md`, Phase D): **Gate 1** preflight
+(dirty/untracked classification ending in an **empty tree** FIRST — kept files move outside the source
+tree, must-ship changes land before any pinning, gitignored `graphify-out/` asserted absent; Hermes-state
+backup; THEN fetch and PIN both remote SHAs — pinned LAST so nothing lands after them; the
+**operator-approved retirement manifest** — desired-state services from the pinned SHA, each tagged
+persistent-vs-scheduled, vs live loaded jobs, since a `launchctl` before/after diff cannot find orphans;
+and the expected-delta ledger — built from the immutable recorded-base→integration manifest and
+classified against the pinned `main` SHA — that replaced the empty-diff gate); **Gate 2** staged
+activation **and execution of the approved retirement** (second remote session; re-verify BOTH pins
+still hold, then activate **attached to `main`** at the pinned SHA, never detached, every git command
+scoped `-C` to the live repo; staged `chezmoi apply`; managed `launchctl bootout`/plist removal per
+approved manifest entry; verify remote reachability); **Gate 3** tracked live reconciliation (the
+pre-built, pinned `scripts/live-reconcile.sh` from the cutover-tooling PR) **plus post-retirement
+verification** (assert against the manifest: approved-retired absent, desired healthy per its lifecycle
+tag — scheduled jobs are loaded, not necessarily running) and `just test` + live smoke checks (relay
+fires, hermes gateway healthy, osquery alerter behavior verified); **Gate 4** soak of the **final,
+retired** topology; and **Gate 5** closure-only (re-verify BOTH pins first — on any drift, Gates 1–4
+restart) — **PRs #25, #31, and the integration reference PR #32 are closed only after the soak
+passes**, each with pointers to the landed slices. Retirement happens in Gates 1–3 (approve / execute /
+verify), not Gate 5, so the topology soaked is the topology closed out.
 
 ## p-tasks re-evaluation (from `2026-05-15-dotfiles-tasks-design.md`)
 
@@ -302,12 +304,13 @@ sub-projects.
 - SP1: `just test` fully green with the hermes tests enforcing; `git status` clean;
   `chezmoi diff` clean after the interactive apply.
 - SP2: integration PR open + labeled; every slice PR green on lint/tests and merged after user review;
-  the five-gate cutover passes (D1 **Gate 1** clean tree + expected-delta ledger against the pinned
-  `main` SHA + approved retirement manifest; **Gate 2** pin re-verified, staged apply attached to `main`
-  at that SHA + execution of the approved retirement; **Gate 3** tracked reconciliation + manifest-based
-  post-retirement verification + `just test` + live smoke checks; **Gate 4** soak of the final topology;
-  **Gate 5** pin re-verified, closure only); PRs #25/#31/#32 closed **only in Gate 5, after the soak
-  passes**.
+  the five-gate cutover passes (D1 **Gate 1** clean tree first, then both SHAs pinned + expected-delta
+  ledger against the pinned `main` SHA + approved lifecycle-tagged retirement manifest; **Gate 2** both
+  pins re-verified, staged apply attached to `main` at that SHA + execution of the approved retirement;
+  **Gate 3** tracked reconciliation + manifest-based per-lifecycle post-retirement verification +
+  `just test` + live smoke checks; **Gate 4** soak of the final topology; **Gate 5** both pins
+  re-verified, closure only — on any drift, Gates 1–4 restart); PRs #25/#31/#32 closed **only in
+  Gate 5, after the soak passes**.
 - Each deferred spec cycle ends with its own verification section; this roadmap only tracks that the
   cycle happened in sequence.
 
