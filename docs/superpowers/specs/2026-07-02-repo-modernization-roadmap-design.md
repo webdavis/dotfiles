@@ -577,7 +577,8 @@ section), so the retag does not remove them from SP3's scope, it just forbids me
 - Generate the 5 non-osquery plists from one `.chezmoitemplates` partial + per-service data [SP7].
 - `.chezmoi.toml.tmpl` hardcodes `/Users/stephen` paths in a file meant to render on a *new* machine →
   derive from `.chezmoi.homeDir`/`.chezmoi.username` [SP7, fresh-machine correctness].
-- Pre-commit: skip the bats suite on docs/YAML-only commits (path filter) [SP2 s2].
+- Pre-commit: skip the bats suite on docs/YAML-only commits (path filter) [SP2 s2 — never implemented
+  there; pinned to **S11** 2026-07-10, see the plan's `fix/pre-commit-path-filter`].
 
 ### Installs (new tooling — user directives)
 

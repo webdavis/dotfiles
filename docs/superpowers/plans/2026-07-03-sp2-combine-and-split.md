@@ -56,7 +56,7 @@ until they merge. Merge SHAs and PR numbers below are verified against `git log 
 | S11 — long-tail chores | not started | — | — | split into the audit's 7 PRs (Thaw = SP5) |
 | S12 — global instructions | not started | — | — | unambiguously pre-cutover (see S12 section) |
 | Phase D — cutover | not started | — | — | five gates (D1 rewrite below) |
-| Phase E — cleanup backlog | ongoing | — | — | every item attached to a Wave-3 PR, a D1 gate, or the cutover-tooling PR (`fix/graphify-out-excludes-drop` moved out to the SP7 backlog — post-cutover by design) |
+| Phase E — cleanup backlog | ongoing | — | — | every item attached to a pre-cutover PR or a D1 gate (`fix/graphify-out-excludes-drop` moved out of Phase E to the SP7 backlog — post-cutover by design) |
 
 ## Audit coverage matrix (amended 2026-07-10)
 
@@ -823,17 +823,30 @@ integration hotfixes): a change landed after pinning would sit silently outside 
   any commit to either branch after this point invalidates the pins (Gates 2 and 5 re-check both).
 - [ ] **4. Build the retirement MANIFEST — an inventory diff cannot find orphans.** `launchctl list`
   keeps showing a loaded job after its source plist is deleted, so a before/after inventory diff can
-  never discover an orphan. Build an explicit manifest instead: **(a) desired-state set** — every
-  LaunchAgent/LaunchDaemon the pinned `$MAIN_SHA` source renders, **each recording its expected steady
-  state per concrete label**: *persistent* = **`KeepAlive`-driven** (healthy = loaded AND running, e.g.
-  the atuin daemon) or *scheduled/demand* = triggered by
-  `StartInterval`/`StartCalendarInterval`/`WatchPaths`, **regardless of `RunAtLoad`** (healthy = loaded
-  with the trigger registered, and NOT running between fires). `RunAtLoad` only launches a job once at
-  load — it is NOT persistence: `com.webdavis.osquery-uptime-watchdog` is `RunAtLoad=true` +
-  `StartInterval=900` (the firewall/gatekeeper monitor likewise, at 60) yet exits after every run, and
-  `com.webdavis.update-skills` is `RunAtLoad=false` + `StartCalendarInterval` — all three are healthy
-  while not running; **(b) live loaded set** — `launchctl list` (the `com.webdavis.*` set, the osquery
-  jobs, `com.claude.code`);
+  never discover an orphan. Build an explicit manifest instead, **each entry recording the triple
+  (label, launchd DOMAIN, expected steady-state predicate)** — the domain matters because a job lives in
+  `gui/$UID` (LaunchAgents) or `system` (LaunchDaemons) and user-domain listings cannot see the latter:
+  **(a) desired-state set** — every LaunchAgent/LaunchDaemon the pinned `$MAIN_SHA` source renders, with
+  its predicate:
+  - *persistent* = **unconditional `KeepAlive=true`** — healthy = loaded AND running (e.g. the atuin
+    daemon);
+  - *conditional KeepAlive* = a `KeepAlive` **dictionary**, predicate per its semantics — verified on
+    `main`: `systems.nixos.nix-installer.nix-hook` (a **system-domain** LaunchDaemon rendered by
+    `dot_local/bin/executable_install-nix-repair-hook.sh`, bootstrapped `launchctl bootstrap system`)
+    carries `KeepAlive={SuccessfulExit=false}` — restart-only-on-failure, so healthy = loaded and
+    **idle with last exit 0**; "running" would wrongly fail it, and it never appears in a user-domain
+    `launchctl list` at all;
+  - *scheduled/demand* = `StartInterval`/`StartCalendarInterval`/`WatchPaths` triggers, **regardless of
+    `RunAtLoad`** — healthy = loaded with the trigger registered, NOT running between fires.
+    `RunAtLoad` only launches a job once at load — it is NOT persistence:
+    `com.webdavis.osquery-uptime-watchdog` is `RunAtLoad=true` + `StartInterval=900` (the
+    firewall/gatekeeper monitor likewise, at 60) yet exits after every run, and
+    `com.webdavis.update-skills` is `RunAtLoad=false` + `StartCalendarInterval` — all three are healthy
+    while not running;
+
+  **(b) live loaded set** — enumerated **per domain**: `launchctl list` for `gui/$UID` **plus**
+  `sudo launchctl list` for `system` (a user-domain listing alone misses system daemons like the
+  nix-hook); covers the `com.webdavis.*` set, the osquery jobs, `com.claude.code`;
   **(c) retirement list** — every live job NOT in the desired set. **The operator approves this
   manifest — every named retirement — BEFORE any service-affecting apply stage runs.** Gate 2 executes
   only the approved list (this covers retirements performed by apply-time scripts too, e.g. Wave-3b's
@@ -843,8 +856,8 @@ integration hotfixes): a change landed after pinning would sit silently outside 
   empty final diff) **and** mechanically unsound: `git diff main integration/modernization` shows only the
   **residual** difference — every reference hunk that already landed unchanged on `main` has vanished from
   it, so it can never classify the full original delta, and it reads mutable local refs. Replace it:
-  - **Manifest (immutable):** `git diff 2bd973369158b49535e8e16e80c968444ab23f1d $INT_SHA` — the base
-    is the SP2-start base SHA Phase A recorded (the frozen integration branch's divergence point —
+  - **Manifest (immutable):** `git -C "$repo" diff 2bd973369158b49535e8e16e80c968444ab23f1d $INT_SHA` —
+    the base is the SP2-start base SHA Phase A recorded (the frozen integration branch's divergence point —
     stable no matter how far `main` advances). This is the **full original combined delta** with every
     hunk present; nothing has vanished, because the base is fixed, not `main`. The manifest is
     **regenerated from these pinned SHAs at Gate 1** — no recorded file count is normative (196 at A1
@@ -860,8 +873,9 @@ integration hotfixes): a change landed after pinning would sit silently outside 
 
 - [ ] Open a **second remote session** first, so a broken apply cannot lock you out.
 - [ ] **Re-verify BOTH pins, then activate ATTACHED to the branch.** Re-define + validate the repo
-  handle in this shell (`repo="$HOME/workspaces/Ivy/webdavis/dotfiles"`; `[[ -d "$repo/.git" ]]` — per
-  the D1 preamble); **every git command in this sequence runs `-C "$repo"`** — a bare
+  handle in this shell (`repo="$HOME/workspaces/Ivy/webdavis/dotfiles"`;
+  `[[ -d "$repo/.git" ]] || exit 1` — fail fast, per the D1 preamble); **every git command in this
+  sequence runs `-C "$repo"`** — a bare
   `git pull`/`git rev-parse` scopes to the caller's cwd, which may be a different worktree (mutating or
   validating the wrong checkout while the live source stays stale):
   1. `git -C "$repo" fetch origin`;
@@ -879,32 +893,40 @@ integration hotfixes): a change landed after pinning would sit silently outside 
 - [ ] **Operator** runs a full interactive `chezmoi apply` (KeePassXC unlocked) **in stages**, not one
   shot — keep the integration branch and previously deployed files available for rollback.
 - [ ] **Retire exactly the Gate 1 approved retirement manifest.** Approval already happened at Gate 1 —
-  BEFORE this service-affecting apply; Gate 2 executes only the approved list (managed
-  `launchctl bootout` / plist removal per entry, e.g. the old Claude `com.claude.code.plist`; Wave-3b's
-  one-time retirement script is one of the approved executors). Nothing is discovered or retired ad hoc
-  mid-apply. Retirement happens HERE, during activation — so Gate 4 soaks the FINAL topology, not the
-  pre-retirement one.
+  BEFORE this service-affecting apply; Gate 2 executes only the approved list (managed, domain-qualified
+  `launchctl bootout "$domain/$label"` / plist removal per manifest entry, e.g. the old Claude
+  `com.claude.code.plist` in `gui/$UID`; Wave-3b's one-time retirement script is one of the approved
+  executors). Nothing is discovered or retired ad hoc mid-apply. Retirement happens HERE, during
+  activation — so Gate 4 soaks the FINAL topology, not the pre-retirement one.
 - [ ] **Verify remote reachability** (Tailscale / SSH) before ending the original session.
 
 #### Gate 3 — Tracked live reconciliation and post-retirement verification
 
-- [ ] Run the **already-merged, pinned** `scripts/live-reconcile.sh` shipped by the **cutover-tooling PR**
-  (built, reviewed, and tested pre-cutover — see the authoritative implementation order; it is **NOT**
-  authored ad hoc during cutover). It supports **`--dry-run`**, is **idempotent**, and has **tests**. Run
-  `--dry-run` first, then live, to prove a from-scratch machine converges identically (Phase E
-  `fix/live-reconcile-from-scratch`).
+- [ ] **Re-define + validate the repo handle in this shell** (`repo="$HOME/workspaces/Ivy/webdavis/dotfiles"`;
+  `[[ -d "$repo/.git" ]] || exit 1`) — note `git -C` never changes the caller's cwd for **non-git**
+  commands, so this gate's scripts run by **absolute path** or behind a **guarded cd**. Then run the
+  **already-merged, pinned** reconcile script by absolute path — `"$repo/scripts/live-reconcile.sh"` —
+  shipped by the **cutover-tooling PR** (built, reviewed, and tested pre-cutover — see the authoritative
+  implementation order; it is **NOT** authored ad hoc during cutover). It supports **`--dry-run`**, is
+  **idempotent**, and has **tests**. Run `--dry-run` first, then live, to prove a from-scratch machine
+  converges identically (Phase E `fix/live-reconcile-from-scratch`).
 - [ ] **Post-retirement verification — assert against the Gate 1 manifest, not a before/after diff**
-  (a loaded job outlives its deleted plist, so diffs can't prove retirement): every approved-retired
-  service is **ABSENT from `launchctl list`** (actually unloaded, not merely plist-deleted), and every
-  desired-state service verifies **against the expected steady state its manifest entry records** —
-  *persistent* (`KeepAlive`-driven) jobs are loaded AND running; *scheduled/demand* jobs
-  (`StartInterval`/`StartCalendarInterval`/`WatchPaths` triggers, regardless of `RunAtLoad`) are loaded
+  (a loaded job outlives its deleted plist, so diffs can't prove retirement), probing each entry with
+  **`launchctl print "$domain/$label"`** — it addresses BOTH `gui/$UID` and `system` domains, where a
+  bare `launchctl list` sees only the caller's domain (it would miss the system-domain nix-hook
+  entirely): every approved-retired service is **ABSENT** (`launchctl print` errors — actually
+  unloaded, not merely plist-deleted), and every desired-state service satisfies **the steady-state
+  predicate its manifest entry records** — unconditional-`KeepAlive` jobs loaded AND running;
+  conditional-`KeepAlive` jobs per their dictionary semantics (the nix-hook,
+  `KeepAlive={SuccessfulExit=false}`, is healthily idle with last exit 0); scheduled/demand jobs loaded
   with the trigger registered but NOT necessarily running (`com.webdavis.osquery-uptime-watchdog`,
   `RunAtLoad=true` + `StartInterval=900`, exits after every run — a blanket "running" check would
   wrongly fail it and every other one-shot).
-- [ ] `just test` green + live smoke checks: `relay.sh` fires a test notification; `hermes gateway`
-  healthy; osquery alerter behaves (`osquery-heartbeat.sh` sends its one ✅);
-  `chezmoi diff --exclude=templates` clean.
+- [ ] **`(cd "$repo" && just test)` green** (guarded cd — `just` discovers its justfile from the cwd, so
+  a bare `just test` would run some other directory's recipes or fail) + live smoke checks: `relay.sh`
+  fires a test notification; `hermes gateway` healthy; osquery alerter behaves (`osquery-heartbeat.sh`
+  sends its one ✅); `chezmoi diff --exclude=templates` clean (`relay.sh`/`osquery-heartbeat.sh` are the
+  deployed `~/.local/bin` copies and `chezmoi` reads its config-pinned sourceDir — all cwd-independent).
 
 #### Gate 4 — Soak the final topology
 
@@ -920,17 +942,20 @@ integration hotfixes): a change landed after pinning would sit silently outside 
   `git -C "$repo" fetch origin`, and require
   `git -C "$repo" rev-parse origin/main` **== `$MAIN_SHA`** AND
   `git -C "$repo" rev-parse origin/integration/modernization` **== `$INT_SHA`** still, and the live
-  checkout still attached to `main` at that SHA. If either branch moved during the soak (Dependabot
+  checkout still attached at the pin (`git -C "$repo" symbolic-ref --short HEAD` == `main` AND
+  `git -C "$repo" rev-parse HEAD` == `$MAIN_SHA`). If either branch moved during the soak (Dependabot
   auto-merge on `main`; a freeze-policy hotfix on integration), the soaked state is not the closing
   state — **restart Gates 1–4** (re-clean + re-pin + re-classify, re-activate, re-reconcile, re-soak)
   before closure.
-- [ ] Close **PR #25**, **PR #31**, and the **integration reference PR #32** via `gh-axi pr close` —
-  **only after the soak passes** — each with a comment linking the slice PRs that superseded it. No
-  repo mutation happens in this gate (the `graphify-out/` excludes stay in place through cutover as
-  zero-cost belt-and-braces; dropping them is `fix/graphify-out-excludes-drop` in the **SP7 backlog** —
-  post-cutover by design, not Phase E).
+- [ ] Close **PR #25**, **PR #31**, and the **integration reference PR #32** —
+  `(cd "$repo" && npx -y gh-axi pr close <n> --comment …)` (guarded cd: `gh` resolves the target repo
+  from the cwd's git remote, so run it from `"$repo"`) — **only after the soak passes** — each with a
+  comment linking the slice PRs that superseded it. No repo mutation happens in this gate (the
+  `graphify-out/` excludes stay in place through cutover as zero-cost belt-and-braces; dropping them is
+  `fix/graphify-out-excludes-drop` in the **SP7 backlog** — post-cutover by design, not Phase E).
 
-**Phase E → gate attachment.** Every Phase E item completes at a named home:
+**Phase E → gate attachment.** Every Phase E item completes at a named home — a pre-cutover PR or a D1
+gate:
 `fix/live-reconcile-from-scratch` → the **cutover-tooling PR** (builds `scripts/live-reconcile.sh`
 pre-cutover) + Gate 3 (runs it); *(`fix/graphify-out-excludes-drop` is no longer a Phase E item — moved
 to the **SP7 backlog** 2026-07-10, post-cutover by design; the excludes stay through cutover as
@@ -1393,11 +1418,10 @@ map to the D1 gates below.
 
 Debts discovered during execution (chiefly S3). Each is deferred for a stated reason; all must be
 resolved before SP2 closes. Labelled `fix/<name>` for tracking; a `(→ Sn)` tag means it rides that
-slice. **[audit 2026-07-10] Every item is attached to a named owner — a Wave-3 stabilization PR, a D1
-cutover gate, or the cutover-tooling PR — in the "Phase E → gate attachment" map at the end of Task D1;
-the per-item owner notes below match that map (nothing floats unattached). Work whose right timing is
-post-cutover is NOT Phase E: `fix/graphify-out-excludes-drop` moved to the SP7 backlog (2026-07-10) for
-exactly that reason.**
+slice. **[audit 2026-07-10] Every item is attached to a named owner — a pre-cutover PR or a D1 gate —
+in the "Phase E → gate attachment" map at the end of Task D1; the per-item owner notes below match that
+map (nothing floats unattached). Work whose right timing is post-cutover is NOT Phase E:
+`fix/graphify-out-excludes-drop` moved to the SP7 backlog (2026-07-10) for exactly that reason.**
 
 ### fix/harness-skill-reconciliation
 
@@ -1472,13 +1496,15 @@ do run tmux). It is fork *content* (skills lane, not S4's), so S4 does not touch
 same S11 fork-maintenance pass — decide whether the guidance is host-specific or needs a herdr rewrite,
 and bump the fork's `lastComparedTreeHash` notes accordingly.
 
-### fix/pre-commit-path-filter (found 2026-07-09 roadmap audit)
+### fix/pre-commit-path-filter (→ S11, found 2026-07-09 roadmap audit)
 
 The roadmap's S2 design-alternative "pre-commit: skip the bats suite on docs/YAML-only commits (path
 filter)" never made it into the S2 plan text or implementation — every commit (including docs-only)
 runs the full `just lint-check && just test` (observed live: plan-edit commits run the whole suite).
 Friction, not correctness. Fix: a path filter in `.githooks/pre-commit` that skips `just test` (never
-the lint gate or gitleaks) when the staged diff touches only docs/markdown. Slot: S11 or post-SP2.
+the lint gate or gitleaks) when the staged diff touches only docs/markdown. Slot: **S11** (pinned
+2026-07-10 — the earlier "or post-SP2" option violated the Phase-E-closes-with-SP2 rule; it is a
+two-line hook filter, and S11's git-hygiene PR is the natural home).
 
 ### fix/template-render-coverage (found 2026-07-09 roadmap audit)
 
