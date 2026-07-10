@@ -93,7 +93,7 @@ amendment** (a plan/roadmap edit). Nothing is unmapped.
 | 24 | Roadmap — Tailscale decision history contradictory | this amendment | June Homebrew-service decision marked superseded-during-execution |
 | 25 | Roadmap — S12 ordering contradictory | this amendment | S12 pinned unambiguously pre-cutover |
 | 26 | Cutover — replace the empty-diff gate | D1 Gate 1 | expected-delta ledger (this amendment) |
-| 27 | Cutover — track the reconciliation tooling | cutover-tooling PR (builds it) + D1 Gate 3 (runs it) | `scripts/live-reconcile.sh` — dry-run, idempotent, tested; authored + merged pre-cutover, only executed at Gate 3 |
+| 27 | Cutover — track the reconciliation tooling | cutover-tooling PR (builds it) + D1 Gate 3 (runs it) | `scripts/live-reconcile.sh` — dry-run, idempotent, tested; authored + merged before S12, only executed at Gate 3 |
 | 28 | Cutover — put Phase E into the dependency graph | D1 five gates + Phase E | every Phase E item attached to a gate or PR |
 | 29 | Cutover — add operational safety | D1 Gate 1 + Gate 2 | dirty-file classify to an empty tree / Hermes backup / retirement manifest / second session / pin re-verify + attached staged apply |
 | 30 | Cutover — explicitly retire old services | D1 Gate 1 (approve) + Gate 2 (retire) + Gate 3 (verify) | operator-approved retirement manifest (desired-state vs live jobs — launchctl diffs can't find orphans); executed during staged activation; manifest-asserted verification; Gate 4 soaks the retired final topology; Gate 5 closes the reference PRs |
@@ -522,12 +522,18 @@ repo-state atomicity, above) becomes operative.
   tmux/sesh are removed. This is the ordering safety S4's repo-state atomicity does NOT provide.
 - **Rollback.** Document the exact rollback path: how to restore tmux/sesh from the pre-migration state if
   herdr verification fails, so a failed cutover never strands the machine without a working multiplexer.
-- **Plugin-registration error envelope + retry-state retention.** The build/register scripts
-  (`run_onchange_after_55/57`) must treat a failed or skipped plugin registration as an **error
-  envelope**, not silent success — and **the `run_onchange` trigger must NOT be consumed by a
-  skipped/failed registration** (a consumed trigger makes the next apply believe the work is done and
-  never retry). Retain the retry state so a failed registration re-attempts on the next apply until it
-  succeeds. (Audit PR #37 High: failed registration treated as success.)
+- **Plugin-registration error envelope + retry-state retention — and missing Cargo is NON-success.**
+  The build/register scripts (`run_onchange_after_55/57`) must treat a failed or skipped plugin
+  registration as an **error envelope**, not silent success — and **the `run_onchange` trigger must NOT
+  be consumed by a skipped/failed registration OR by a missing-Cargo skip** (a consumed trigger makes
+  the next apply believe the work is done and never retry). Retain the retry state until BOTH plugins
+  build AND register. **NOTE — this REVERSES a currently-enforced contract:**
+  `test/herdr-build-scripts-resilience.sh` today asserts the build partial **exits 0 with a hint when
+  Cargo is absent everywhere** ("never aborts"); herdr-stab rewrites that expectation — missing Cargo
+  becomes a retryable non-success, not a satisfied trigger. **Separate build from registration** (two
+  steps, each with its own failure envelope), and after linking, **verify the exact plugin** — query the
+  specific plugin id just registered, not a substring/any-plugin check. (Audit PR #37 High: failed
+  registration treated as success.)
 - **Hash EVERY build input.** The rebuild-decision hash must cover **every** input to the Rust build —
   including `Cargo.toml` (and `Cargo.lock`), not only the `.rs` sources — so a dependency/manifest change
   forces a rebuild. (Audit PR #37 Medium: the hash omitted `Cargo.toml`.)
@@ -536,7 +542,9 @@ repo-state atomicity, above) becomes operative.
   guarded to no-op when already gone) with **stubbed tests** (mirroring the atuin/happy loader test
   pattern). This is the live-side complement to S4's deletion of the plist source. (Audit PR #37 Medium.)
 - **Tests (TDD, per Global Constraints):** registration success/failure envelope; trigger-not-consumed on
-  failure; hash-includes-`Cargo.toml`; retirement-script idempotence — each red-first.
+  failure; **missing-Cargo leaves the trigger retryable** (red-first — this test REVERSES the current
+  exit-0-on-missing-cargo assertion in `test/herdr-build-scripts-resilience.sh`, which is updated in the
+  same PR); hash-includes-`Cargo.toml`; retirement-script idempotence — each red-first.
 
 ### S5 — Tailscale headless daemon (COMPLETE — PR #38, merge `1a6e718`) [audit 2026-07-10]
 - **Outcome (all four PR #38 fixes landed).** Status is now classified on `tailscale status --json`'s
@@ -741,8 +749,9 @@ repo-state atomicity, above) becomes operative.
   parity added. Fold in the verified staleness fixes (haiku→sonnet hook, pre-bats Testing section, wrong
   source-dir description, tmux/yabai remnants, single-template shellcheck claim).
 - **Audit requirements [audit 2026-07-10]:** S12 is **unambiguously pre-cutover** — it runs after ALL
-  implementation PRs (S6–S11 + the Wave-3 stabilization PRs) but BEFORE Phase D cutover, so `main`
-  documents the reimplemented reality and the cutover applies converged instruction files. Build the
+  implementation PRs (S6–S11, the Wave-3 stabilization PRs, Wave-3d, and the cutover-tooling PR) but
+  BEFORE Phase D cutover, so `main` documents the reimplemented reality and the cutover applies
+  converged instruction files. Build the
   **shared Claude + Codex rules partial** (one `.chezmoitemplates` partial included by both
   `~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md`); **render both global targets in tests** and
   **byte-compare the shared block** across them; **re-verify every command and path against the converged
@@ -869,7 +878,8 @@ PR #32**, the DO-NOT-MERGE reference; the source PRs are **#25** (osquery three-
 
 **Phase E → gate attachment.** Every Phase E item completes at a named home:
 `fix/live-reconcile-from-scratch` → the **cutover-tooling PR** (builds `scripts/live-reconcile.sh`
-pre-cutover) + Gate 3 (runs it); `fix/graphify-out-excludes-drop` → Gate 5;
+pre-cutover) + Gate 3 (runs it); `fix/graphify-out-excludes-drop` → the **cutover-tooling PR** (merged
+before Gate 1 pins the SHA, so the soaked state is the final state — Gate 5 mutates nothing);
 `fix/harness-skill-reconciliation` → Gate 3 (Hermes-side pruning, coordinated at cutover);
 `fix/hermes-encrypted-profile-configs` → S8 (backed up at Gate 1); `fix/codex-agents-parity` → S12;
 `fix/template-render-coverage` → the Wave-3 render-coverage PR; `fix/moshi-herdr-drift-check` and
@@ -1294,10 +1304,12 @@ map to the D1 gates below.
 1. Split S11 and ship SP5 (Thaw) separately.
 1. **Land the Wave-3d OpenClaw cleanup PR (R3)** — removes the `openclaw` package, the AeroSpace F1
    binding, and the docs together — before S12, so S12 documents an OpenClaw-free converged reality.
-1. Complete and mechanically verify S12.
 1. **Land the cutover-tooling PR** — implements `scripts/live-reconcile.sh` (`--dry-run`, idempotent,
-   test-driven) so Gate 3 executes an already-merged, pinned tool rather than an ad-hoc live change.
-   Pre-cutover: after S12, before D1.
+   test-driven) and drops the `graphify-out/` band-aid excludes (`.gitignore` + `treefmt.nix`), so
+   Gate 3 executes an already-merged, pinned tool and the soaked state is the final state. **Before
+   S12** — S12 verifies every command and path against the truly final repo, so all implementation PRs,
+   this one included, precede it.
+1. Complete and mechanically verify S12.
 1. Run cutover preflight and expected-delta reconciliation (D1 Gate 1).
 1. Activate `main` in stages (D1 Gate 2).
 1. Run tracked live reconciliation (D1 Gate 3).
@@ -1362,8 +1374,12 @@ share one source.
 
 `.gitignore`'s `graphify-out/` entry and `treefmt.nix`'s `graphify-out/**` exclude are band-aids, kept
 because the old global graphify post-commit hook still fires in this repo until the opt-out dispatcher
-(S3) is applied live. Fix: after the cutover `chezmoi apply` deploys the dispatcher and this repo's
-`.githooks/no-graphify` marker suppresses graphify here, drop both excludes.
+(S3) is applied live. Fix **[re-homed 2026-07-10 — cutover-tooling PR, NOT Gate 5]:** the excludes-drop
+ships in the pre-cutover **cutover-tooling PR** (merged before Gate 1 pins `$MAIN_SHA`), so the state
+Gate 4 soaks — excludes already dropped — is exactly the state Gate 5 closes on; Gate 5 stays
+closure-only. The removal sits dormant on `main` until Gate 2's apply deploys the dispatcher and this
+repo's `.githooks/no-graphify` marker in the same activation, at which point graphify is suppressed here
+and the excludes are already gone.
 
 ### fix/live-reconcile-from-scratch
 
@@ -1373,7 +1389,7 @@ the live machine** during review. The reproducible path was drafted as
 `.superpowers/sdd/live-reconcile-skills.sh` — **corrected 2026-07-10 [audit → cutover-tooling PR + D1
 Gate 3]: `.superpowers/` is gitignored and that script was never tracked. The durable reconcile script
 is `scripts/live-reconcile.sh`, and it has a dedicated implementation owner — the pre-cutover
-cutover-tooling PR (after S12, before D1 in the authoritative order) implements it test-first
+cutover-tooling PR (before S12 in the authoritative order, so S12 verifies the final repo) implements it test-first
 (`--dry-run` flag, idempotent, tested), reviewed and merged BEFORE cutover.** Gate 3 does not author it;
 Gate 3 only executes that already-merged, pinned tool (`--dry-run` then live) to prove a from-scratch
 machine converges identically, after which the ad-hoc live state and the script are reconciled.
