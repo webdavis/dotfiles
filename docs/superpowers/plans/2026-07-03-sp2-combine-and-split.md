@@ -819,9 +819,10 @@ deliberately does NOT cover:
   slot becomes a bash-improvement sub-project (own spec cycle: brainstorming → plan → the standing
   Fable loop), running AFTER SP2's cutover (D1) — its targets (`dot_bashrc.tmpl`, `dot_bash_aliases`,
   `dot_bash_bindings`, `dot_fzf_bindings`) are shared files that S7/S11 still carry hunks in, so
-  starting earlier would recreate the two-writer hunk problem. Roadmap position unchanged: after SP3
-  (only bashrc-shim contact between them; may start at cutover if the operator re-prioritizes). Five
-  workstreams: (1) consolidate every alias out of bashrc into `.bash_aliases`; (2) `dot_fzf_bindings`
+  starting earlier would recreate the two-writer hunk problem. **Sequencing decided (conductor's call,
+  operator delegated 2026-07-09): after SP3** — SP3 replaces the live relay pipeline whose shipped bugs
+  can drop notifications (daily-critical beats quality-of-life), and SP4's bashrc work then lands atop
+  SP3's finished notifier shim instead of underneath it. Five workstreams: (1) consolidate every alias out of bashrc into `.bash_aliases`; (2) `dot_fzf_bindings`
   code quality + new bindings (candidates: zoxide-backed dir jump, git-stash picker, process killer,
   worktree switcher, herdr workspace picker); (3) invert the bindings architecture — ONE data table
   (`key | keymap | description | command`) from which the `bind` statements, an fzf-driven menu (view →
