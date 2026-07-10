@@ -308,10 +308,16 @@ protocol below is **step 3's inner cycle**, not a replacement for this loop.
    independent reviewer looking at the diff. **Beware `A..B` commit ranges that exclude the boundary
    commit `A`** — a review scoped to `A..B` silently skips `A` itself; use `A^..B` (or review the
    explicit commit list) so no fix commit escapes review.
-1. **End-of-section sweep.** After the section's tasks are all individually clean, Fable does one final
-   sweep across *everything* the section produced (the whole slice diff), identifies any remaining gaps
-   and improvements, and runs the 4–6 loop on them until satisfied. Only then does Fable decide whether
-   the section is PR-ready and hand it to the operator review gate (P-8).
+1. **End-of-section sweep — DUAL-PROVIDER (operator-directed 2026-07-10).** After the section's tasks
+   are all individually clean, the whole slice diff gets TWO independent reviews in parallel: (a) a
+   fresh-context Fable reviewer, and (b) a **Codex review (gpt-5.6 sol, ultra effort)** via the codex
+   plugin — cross-provider diversity de-correlates reviewer blind spots (the 2026-07-10 external audit
+   proved this in-repo: it caught defects four same-model review cycles had missed). Fable, as
+   conductor, merges and dedups the two findings sets, adjudicates disagreements with evidence, and
+   routes plan-conflicting findings to the operator. ONE fix wave addresses the union; BOTH reviewers
+   re-review until both return CLEAN. Per-fix-commit strict-letter re-reviews (step 6) stay Fable-only
+   for speed — sol re-joins when a fix wave is large or judgment-heavy. Only after both reviewers are
+   CLEAN does Fable decide the section is PR-ready and hand it to the operator review gate (P-8).
 
 > **HARD RULE — TDD + SOLID is non-negotiable, and Fable enforces it.** Every implementation in every
 > section MUST follow the TDD-SOLID strategy identified from the
