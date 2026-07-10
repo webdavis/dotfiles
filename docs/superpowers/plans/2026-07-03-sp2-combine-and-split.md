@@ -815,6 +815,23 @@ deliberately does NOT cover:
   operator chose to **stay on bash**. Consequences: GH #5 closes as evaluated/declined; SP3 designs its
   notifier seam against bash-preexec with NO shell-portability abstraction; P8 quick wins unblock
   (shell-config placement = bash).
+- **SP4 (successor scope, operator-directed 2026-07-09) — Bash setup improvement.** The vacated SP4
+  slot becomes a bash-improvement sub-project (own spec cycle: brainstorming → plan → the standing
+  Fable loop), running AFTER SP2's cutover (D1) — its targets (`dot_bashrc.tmpl`, `dot_bash_aliases`,
+  `dot_bash_bindings`, `dot_fzf_bindings`) are shared files that S7/S11 still carry hunks in, so
+  starting earlier would recreate the two-writer hunk problem. Roadmap position unchanged: after SP3
+  (only bashrc-shim contact between them; may start at cutover if the operator re-prioritizes). Five
+  workstreams: (1) consolidate every alias out of bashrc into `.bash_aliases`; (2) `dot_fzf_bindings`
+  code quality + new bindings (candidates: zoxide-backed dir jump, git-stash picker, process killer,
+  worktree switcher, herdr workspace picker); (3) invert the bindings architecture — ONE data table
+  (`key | keymap | description | command`) from which the `bind` statements, an fzf-driven menu (view →
+  pick → execute), and the tests are all generated (kills overlap by construction; replaces the fragile
+  reverse-parsing `__bash_bindings_list_bash_bindings`); (4) Charm-tools verdict RECORDED — gum
+  (script UI prompts): no, fzf already covers the menu; bubbletea + lipgloss (Go TUI/styling
+  libraries): no, YAGNI; crush (AI coding agent): no, redundant with Claude Code/Codex; vhs (scripted
+  terminal recorder): optional later for chord demos/deterministic pty tests — ZERO new dependencies
+  now; (5) generated per-binding tests (registration + firing) so a broken binding is caught at
+  commit time, not at the keyboard.
 - **SP6 — nvim-overhaul.** Re-evaluate the v1/v2/v3 design generations (Fable conducts the
   re-evaluation — operator directive) plus the 10 unpushed commits on the `nvim-overhaul` branch, then
   implement under its own spec. Not started; runs after SP2.
