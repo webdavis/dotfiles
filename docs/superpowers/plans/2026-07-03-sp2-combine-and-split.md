@@ -391,8 +391,10 @@ protocol below is **step 3's inner cycle**, not a replacement for this loop.
 - **Exact S5 file set:** `.chezmoiscripts/run_onchange_after_66-tailscaled-status.sh.tmpl` (28-line
   sudo-free daemon-status reminder, no keepassxc, wholly owned); the manifest's atomic
   **cask→formula swap** (`- tailscale-app` cask removed, `+ tailscale` formula added — one pair, both
-  hunks in this slice so main never holds both or neither); CLAUDE.md's new "Tailscale (headless
-  daemon)" section — with its **Updates paragraph adapted**: the weekly re-copy it describes is
+  hunks in this slice so main never holds both or neither); `treefmt.nix`'s render-lint include line
+  (the after_66 script joins the `shellcheck-rendered-template` include list, per
+  fix/template-render-coverage — every slice adds its own templates); CLAUDE.md's new "Tailscale
+  (headless daemon)" section — with its **Updates paragraph adapted**: the weekly re-copy it describes is
   performed by `homebrew-weekly-upgrade.sh`, an **S6 file** — S5's wording documents the manual
   `sudo tailscaled install-system-daemon` re-copy after a formula upgrade, and S6 restores the
   automated-weekly wording when it ships the helper (no doc claim ahead of the code that makes it
