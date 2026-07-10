@@ -56,7 +56,7 @@ until they merge. Merge SHAs and PR numbers below are verified against `git log 
 | S11 — long-tail chores | not started | — | — | split into the audit's 7 PRs (Thaw = SP5) |
 | S12 — global instructions | not started | — | — | unambiguously pre-cutover (see S12 section) |
 | Phase D — cutover | not started | — | — | five gates (D1 rewrite below) |
-| Phase E — cleanup backlog | ongoing | — | — | every item attached to a Wave-3 PR or a D1 gate |
+| Phase E — cleanup backlog | ongoing | — | — | every item attached to a Wave-3 PR, a D1 gate, or the cutover-tooling PR (`fix/graphify-out-excludes-drop` moved out to the SP7 backlog — post-cutover by design) |
 
 ## Audit coverage matrix (amended 2026-07-10)
 
@@ -94,7 +94,7 @@ amendment** (a plan/roadmap edit). Nothing is unmapped.
 | 25 | Roadmap — S12 ordering contradictory | this amendment | S12 pinned unambiguously pre-cutover |
 | 26 | Cutover — replace the empty-diff gate | D1 Gate 1 | expected-delta ledger (this amendment) |
 | 27 | Cutover — track the reconciliation tooling | cutover-tooling PR (builds it) + D1 Gate 3 (runs it) | `scripts/live-reconcile.sh` — dry-run, idempotent, tested; authored + merged before S12, only executed at Gate 3 |
-| 28 | Cutover — put Phase E into the dependency graph | D1 five gates + Phase E | every Phase E item attached to a gate, a PR, or an SP7 post-cutover chore |
+| 28 | Cutover — put Phase E into the dependency graph | D1 five gates + Phase E | every Phase E item attached to a gate or a pre-cutover PR; the post-cutover graphify excludes-drop moved out of Phase E to the SP7 backlog |
 | 29 | Cutover — add operational safety | D1 Gate 1 + Gate 2 | dirty-file classify to an empty tree / Hermes backup / retirement manifest / second session / pin re-verify + attached staged apply |
 | 30 | Cutover — explicitly retire old services | D1 Gate 1 (approve) + Gate 2 (retire) + Gate 3 (verify) | operator-approved retirement manifest (desired-state vs live jobs — launchctl diffs can't find orphans); executed during staged activation; manifest-asserted verification; Gate 4 soaks the retired final topology; Gate 5 closes the reference PRs |
 | 31 | Remaining slice gap — S6 | S6 fold | audit requirements added to the S6 section |
@@ -784,6 +784,13 @@ out. **`$INTEGRATION_PR` (set in A1) is
 PR #32**, the DO-NOT-MERGE reference; the source PRs are **#25** (osquery three-tier) and **#31**
 (herdr/Tailscale/brew/moshi).
 
+**Repo handle — define BEFORE Gate 1, and re-define in every new shell.** Every git command and
+filesystem check in Gates 1–5 is scoped to the live source checkout:
+`repo="$HOME/workspaces/Ivy/webdavis/dotfiles"` (absolute path), validated before use
+(`[[ -d "$repo/.git" ]] || exit 1`), then `git -C "$repo" …` on each command. Gates run hours-to-days
+apart, typically in separate shells, so the variable does NOT carry over — re-issue the definition +
+validation at the start of each gate's session (Gate 5 repeats it explicitly).
+
 #### Gate 1 — Preflight (before switching the live source)
 
 Steps run **in this order** — the tree is cleaned and every must-ship change has LANDED before the SHAs
@@ -797,10 +804,11 @@ integration hotfixes): a change landed after pinning would sit silently outside 
   primary checkout holds exactly such untracked chezmoi sources today). Anything that must ship is
   **committed and pushed BEFORE step 3 pins the SHAs** (to `main`, or to the integration branch as a
   freeze-policy hotfix), and the classification re-runs over it. Hard requirements before Gate 2
-  applies: **`git status --porcelain --untracked-files=all` is EMPTY**, and — because gitignored paths
-  escape that listing — **assert `graphify-out/` is ABSENT** after the checkout (the live unmanaged
-  post-commit hook regenerates it; this worktree carries ~1.2 MB of it today — remove it and re-check
-  immediately before the apply). Gate 2's exact-`$MAIN_SHA` claim only holds on a clean tree.
+  applies: **`git -C "$repo" status --porcelain --untracked-files=all` is EMPTY** (scoped to the repo
+  handle from the D1 preamble — a bare `git status` reads the caller's cwd), and — because gitignored
+  paths escape that listing — **assert `"$repo/graphify-out"` is ABSENT** after the checkout (the live
+  unmanaged post-commit hook regenerates it; this worktree carries ~1.2 MB of it today — remove it and
+  re-check immediately before the apply). Gate 2's exact-`$MAIN_SHA` claim only holds on a clean tree.
 - [ ] **2. Back up uncaptured Hermes profile state** per the backup convention
   (`~/workspaces/backups/YYYY-MM-DDTHH-MM-SS.<name>.backup[.ext]`) — the per-profile `config.yaml`
   enablement/`platform_toolsets` and codegraph MCP state are otherwise untracked encrypted `.age` files
@@ -816,11 +824,16 @@ integration hotfixes): a change landed after pinning would sit silently outside 
 - [ ] **4. Build the retirement MANIFEST — an inventory diff cannot find orphans.** `launchctl list`
   keeps showing a loaded job after its source plist is deleted, so a before/after inventory diff can
   never discover an orphan. Build an explicit manifest instead: **(a) desired-state set** — every
-  LaunchAgent/LaunchDaemon the pinned `$MAIN_SHA` source renders, **each tagged with its expected
-  lifecycle**: *persistent* (`KeepAlive`/`RunAtLoad` — healthy = loaded AND running) or *scheduled*
-  (`RunAtLoad=false` + `StartCalendarInterval`/`WatchPaths` — healthy = loaded with its trigger
-  registered, and NOT running between slots, e.g. `com.webdavis.update-skills`); **(b) live loaded
-  set** — `launchctl list` (the `com.webdavis.*` set, the osquery jobs, `com.claude.code`);
+  LaunchAgent/LaunchDaemon the pinned `$MAIN_SHA` source renders, **each recording its expected steady
+  state per concrete label**: *persistent* = **`KeepAlive`-driven** (healthy = loaded AND running, e.g.
+  the atuin daemon) or *scheduled/demand* = triggered by
+  `StartInterval`/`StartCalendarInterval`/`WatchPaths`, **regardless of `RunAtLoad`** (healthy = loaded
+  with the trigger registered, and NOT running between fires). `RunAtLoad` only launches a job once at
+  load — it is NOT persistence: `com.webdavis.osquery-uptime-watchdog` is `RunAtLoad=true` +
+  `StartInterval=900` (the firewall/gatekeeper monitor likewise, at 60) yet exits after every run, and
+  `com.webdavis.update-skills` is `RunAtLoad=false` + `StartCalendarInterval` — all three are healthy
+  while not running; **(b) live loaded set** — `launchctl list` (the `com.webdavis.*` set, the osquery
+  jobs, `com.claude.code`);
   **(c) retirement list** — every live job NOT in the desired set. **The operator approves this
   manifest — every named retirement — BEFORE any service-affecting apply stage runs.** Gate 2 executes
   only the approved list (this covers retirements performed by apply-time scripts too, e.g. Wave-3b's
@@ -846,10 +859,11 @@ integration hotfixes): a change landed after pinning would sit silently outside 
 #### Gate 2 — Staged activation and service retirement
 
 - [ ] Open a **second remote session** first, so a broken apply cannot lock you out.
-- [ ] **Re-verify BOTH pins, then activate ATTACHED to the branch.** With
-  `repo=~/workspaces/Ivy/webdavis/dotfiles`, **every git command in this sequence runs `-C "$repo"`** —
-  a bare `git pull`/`git rev-parse` scopes to the caller's cwd, which may be a different worktree
-  (mutating or validating the wrong checkout while the live source stays stale):
+- [ ] **Re-verify BOTH pins, then activate ATTACHED to the branch.** Re-define + validate the repo
+  handle in this shell (`repo="$HOME/workspaces/Ivy/webdavis/dotfiles"`; `[[ -d "$repo/.git" ]]` — per
+  the D1 preamble); **every git command in this sequence runs `-C "$repo"`** — a bare
+  `git pull`/`git rev-parse` scopes to the caller's cwd, which may be a different worktree (mutating or
+  validating the wrong checkout while the live source stays stale):
   1. `git -C "$repo" fetch origin`;
   2. require `git -C "$repo" rev-parse origin/main` **== `$MAIN_SHA`** AND
      `git -C "$repo" rev-parse origin/integration/modernization` **== `$INT_SHA`** — Dependabot
@@ -882,10 +896,12 @@ integration hotfixes): a change landed after pinning would sit silently outside 
 - [ ] **Post-retirement verification — assert against the Gate 1 manifest, not a before/after diff**
   (a loaded job outlives its deleted plist, so diffs can't prove retirement): every approved-retired
   service is **ABSENT from `launchctl list`** (actually unloaded, not merely plist-deleted), and every
-  desired-state service verifies **per its manifest lifecycle tag** — *persistent* jobs are loaded AND
-  running; *scheduled* jobs are loaded with their trigger registered but NOT necessarily running
-  (`com.webdavis.update-skills` is `RunAtLoad=false` + `StartCalendarInterval` and is healthily idle
-  between slots — "running" would wrongly fail it).
+  desired-state service verifies **against the expected steady state its manifest entry records** —
+  *persistent* (`KeepAlive`-driven) jobs are loaded AND running; *scheduled/demand* jobs
+  (`StartInterval`/`StartCalendarInterval`/`WatchPaths` triggers, regardless of `RunAtLoad`) are loaded
+  with the trigger registered but NOT necessarily running (`com.webdavis.osquery-uptime-watchdog`,
+  `RunAtLoad=true` + `StartInterval=900`, exits after every run — a blanket "running" check would
+  wrongly fail it and every other one-shot).
 - [ ] `just test` green + live smoke checks: `relay.sh` fires a test notification; `hermes gateway`
   healthy; osquery alerter behaves (`osquery-heartbeat.sh` sends its one ✅);
   `chezmoi diff --exclude=templates` clean.
@@ -898,7 +914,10 @@ integration hotfixes): a change landed after pinning would sit silently outside 
 
 #### Gate 5 — Final closure (closure-only)
 
-- [ ] **Re-verify BOTH pins before closing anything.** `git -C "$repo" fetch origin`, then require
+- [ ] **Re-verify BOTH pins before closing anything.** This gate runs days after Gate 1, in a fresh
+  shell — re-define + validate the repo handle first
+  (`repo="$HOME/workspaces/Ivy/webdavis/dotfiles"`; `[[ -d "$repo/.git" ]] || exit 1`). Then
+  `git -C "$repo" fetch origin`, and require
   `git -C "$repo" rev-parse origin/main` **== `$MAIN_SHA`** AND
   `git -C "$repo" rev-parse origin/integration/modernization` **== `$INT_SHA`** still, and the live
   checkout still attached to `main` at that SHA. If either branch moved during the soak (Dependabot
@@ -908,14 +927,14 @@ integration hotfixes): a change landed after pinning would sit silently outside 
 - [ ] Close **PR #25**, **PR #31**, and the **integration reference PR #32** via `gh-axi pr close` —
   **only after the soak passes** — each with a comment linking the slice PRs that superseded it. No
   repo mutation happens in this gate (the `graphify-out/` excludes stay in place through cutover as
-  zero-cost belt-and-braces; dropping them is an SP7 post-cutover chore — see
-  `fix/graphify-out-excludes-drop`).
+  zero-cost belt-and-braces; dropping them is `fix/graphify-out-excludes-drop` in the **SP7 backlog** —
+  post-cutover by design, not Phase E).
 
 **Phase E → gate attachment.** Every Phase E item completes at a named home:
 `fix/live-reconcile-from-scratch` → the **cutover-tooling PR** (builds `scripts/live-reconcile.sh`
-pre-cutover) + Gate 3 (runs it); `fix/graphify-out-excludes-drop` → **SP7 post-cutover cleanup** (the
-excludes stay through cutover as zero-cost belt-and-braces — Gate 5 mutates nothing, and no re-pin is
-ever needed);
+pre-cutover) + Gate 3 (runs it); *(`fix/graphify-out-excludes-drop` is no longer a Phase E item — moved
+to the **SP7 backlog** 2026-07-10, post-cutover by design; the excludes stay through cutover as
+zero-cost belt-and-braces, Gate 5 mutates nothing, and no re-pin is ever needed)*;
 `fix/harness-skill-reconciliation` → Gate 3 (Hermes-side pruning, coordinated at cutover);
 `fix/hermes-encrypted-profile-configs` → S8 (backed up at Gate 1); `fix/codex-agents-parity` → S12;
 `fix/template-render-coverage` → the Wave-3 render-coverage PR; `fix/moshi-herdr-drift-check` and
@@ -1315,6 +1334,21 @@ deliberately does NOT cover:
   [audit 2026-07-10]: deduplicate the ledger into tracked tasks** — each with current status, severity,
   and dependencies (P12 is already on `main`; obsolete OpenClaw and issue-tracking work closes or
   updates per R3).
+  - **`fix/graphify-out-excludes-drop` (moved OUT of Phase E 2026-07-10 — Phase E must complete before
+    SP2 closes; this chore is post-cutover by design).** `.gitignore`'s `graphify-out/` entry and
+    `treefmt.nix`'s `graphify-out/**` exclude are band-aids, kept because the old global graphify
+    post-commit hook still fires in this repo until the opt-out dispatcher (S3) is applied live — the
+    LIVE hook is the unmanaged old version with **no** `.githooks/no-graphify` check, so it keeps
+    regenerating `graphify-out/` in every worktree until Gate 2's apply replaces it (evidence: the
+    plan-amendment worktree carried ~1.2 MB of `graphify-out/` on 2026-07-10). A pre-cutover
+    excludes-drop is NOT dormant — `.gitignore`/`treefmt.nix` changes take effect immediately in every
+    `main`-derived worktree while the unmanaged hook still fires, recreating untracked source state
+    right before the clean-tree cutover (and a post-Gate-2 drop would force re-pinning `$MAIN_SHA`
+    mid-cutover). The excludes are pure belt-and-braces with zero cost, so they **stay through
+    cutover**; the drop lands here, sequenced: (a) the managed dispatcher + `.githooks/no-graphify`
+    marker are deployed AND verified live (Gate 2's apply); (b) existing `graphify-out/` output is
+    removed from all worktrees; (c) only then drop both exclusions. D1 Gate 1 independently asserts
+    `"$repo/graphify-out"` is absent before the apply (its clean-tree step).
 - **SP-nix — nix-darwin go/no-go** (research-first sibling of SP4, banked in §R6). **Do not start it
   merely because it appears in the roadmap** [audit 2026-07-10] — start only after one of these triggers:
   a larger Mac fleet; a material maintenance failure in the current `defaults` system; or a proven design
@@ -1360,8 +1394,10 @@ map to the D1 gates below.
 Debts discovered during execution (chiefly S3). Each is deferred for a stated reason; all must be
 resolved before SP2 closes. Labelled `fix/<name>` for tracking; a `(→ Sn)` tag means it rides that
 slice. **[audit 2026-07-10] Every item is attached to a named owner — a Wave-3 stabilization PR, a D1
-cutover gate, the cutover-tooling PR, or an SP7 post-cutover chore — in the "Phase E → gate attachment"
-map at the end of Task D1; the per-item owner notes below match that map (nothing floats unattached).**
+cutover gate, or the cutover-tooling PR — in the "Phase E → gate attachment" map at the end of Task D1;
+the per-item owner notes below match that map (nothing floats unattached). Work whose right timing is
+post-cutover is NOT Phase E: `fix/graphify-out-excludes-drop` moved to the SP7 backlog (2026-07-10) for
+exactly that reason.**
 
 ### fix/harness-skill-reconciliation
 
@@ -1409,23 +1445,6 @@ a hand-edit to the **untracked `~/.codex/AGENTS.md`**. R5/S12's shared `.chezmoi
 included by both `~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md` — is not built. Fix: implement the parity
 partial in S12 and migrate the HA note (and the rest of the global ruleset) into it so both harnesses
 share one source.
-
-### fix/graphify-out-excludes-drop
-
-`.gitignore`'s `graphify-out/` entry and `treefmt.nix`'s `graphify-out/**` exclude are band-aids, kept
-because the old global graphify post-commit hook still fires in this repo until the opt-out dispatcher
-(S3) is applied live — and the LIVE hook is the unmanaged old version with **no** `.githooks/no-graphify`
-check, so it keeps regenerating `graphify-out/` in every worktree until Gate 2's apply replaces it
-(evidence: this worktree carries ~1.2 MB of `graphify-out/` today). Fix **[re-homed again 2026-07-10 —
-SP7 post-cutover chore; NOT the cutover-tooling PR, NOT any D1 gate]:** a pre-cutover excludes-drop is
-NOT dormant — `.gitignore`/`treefmt.nix` changes take effect immediately in every `main`-derived
-worktree while the unmanaged hook still fires, recreating untracked source state right before the
-clean-tree cutover (and a post-Gate-2 drop would force re-pinning `$MAIN_SHA` mid-cutover). The excludes
-are pure belt-and-braces with zero cost, so they **stay through cutover**; the drop lands as an SP7
-post-cutover chore, sequenced: (a) the managed dispatcher + `.githooks/no-graphify` marker are deployed
-AND verified live (Gate 2's apply); (b) existing `graphify-out/` output is removed from all worktrees;
-(c) only then drop both exclusions. Gate 1 independently asserts `graphify-out/` is absent before the
-apply (its clean-tree step).
 
 ### fix/live-reconcile-from-scratch
 
