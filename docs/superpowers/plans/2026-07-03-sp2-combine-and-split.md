@@ -235,7 +235,8 @@ Expected: label applied. No commit — this task is pure git/GitHub state.
 
 ## Phase B — The slice map (the file-level assignment, resolved against the real diff)
 
-Every path in `git diff --name-status main...HEAD` (196 files) is assigned to exactly one slice below.
+Every path in `git diff --name-status main...HEAD` (196 files at A1 time; freeze-policy hotfixes drift
+the count — 220 at this writing, regenerate rather than trust it) is assigned to exactly one slice below.
 Eight **shared infra files** are touched by several slices; each slice carries **only its own hunks** of
 those files (procedure in the Slice Protocol). No file is orphaned.
 
@@ -255,16 +256,20 @@ review speed is the authority** — any slice whose real diff is too large to re
 the spot (S4 and S9 carry pre-noted splits; S8 is small — the clean SP1 work). No PR should exceed a
 quick review.
 
+**Table status [2026-07-10]:** this is the *planning-time* assignment; rows of completed slices are
+historical, and wherever a row disagrees with a shipped model or a later ruling, the operative per-slice
+sections and their `[audit 2026-07-10]` annotations govern — not this table.
+
 | Slice | Feature | File groups (from the bucketed delta) | Ledger fixes folded in | Dep |
 | --- | --- | --- | --- | --- |
 | S1 | Docs | `docs/**` (20: the herdr/tailscale/brew/relay/notifications specs+plans, the modernization brief, this plan, the never-sleep policy), `AGENTS.md` (new symlink→CLAUDE.md) | — | none |
 | S2 | Lint/test/CI hardening | `scripts/lint.sh`, `.githooks/pre-commit`, `.github/workflows/lint.yml`, `.editorconfig`/`.shellcheckrc`/`.mdformat.toml` hunks | CI runs tests + `LINT_CHECK=1`; wire **actionlint** + **zizmor** (P9); **SHA-pin** actions (installer has no tags — see research §Actions); `lint.sh` runner-selection subshell bug; `-r` optstring crash; template shellcheck allowlist → programmatic; `find` prune set dedup; bats `grep -c` zero-count false-pass | S1 |
-| S3 | Skills-store consolidation | `dot_local/bin/executable_update-skills.sh`, `dot_agents/skills/**`, `private_dot_claude/skills/symlink_*`, `skills-lock.json`, delete `private_dot_claude/skills/web-research-task/**` | update-skills **loader script + `~/.local/log/skills` dir**; declare all store symlinks; remove stale `.agents/skills/moshi-best-practices/`; single symlink-owner | S2 |
+| S3 | Skills-store consolidation | `dot_local/bin/executable_update-skills.sh`, `dot_agents/skills/**`, `private_dot_claude/skills/symlink_*`, `skills-lock.json` *(historical — shipped as `dot_agents/custom-skill-lock.json`)*, delete `private_dot_claude/skills/web-research-task/**` | update-skills **loader script + `~/.local/log/skills` dir**; declare all store symlinks; remove stale `.agents/skills/moshi-best-practices/`; single symlink-owner | S2 |
 | S4 | herdr migration | `dot_config/herdr/**`, `dot_local/share/herdr/plugins/**` (2 Rust plugins), the `run_onchange_after_55/57` build scripts, herdr hunks of `dot_bashrc.tmpl`; **atomically deletes** `dot_tmux.conf`, `dot_config/sesh/**`, `dot_local/bin/executable_{sesh-*,tmux-*,claude-restart}.sh`, `run_after_70-install-tmux2k-last-proc` | herdr plugin build scripts → `.chezmoitemplates` partial; `grep -q "$plugin_id"` anchoring; `dot_fzf_bindings` tmux-dead widgets; `nvm`/`$blue` binding fixes | S2 |
 | S5 | Tailscale headless daemon | `run_onchange_after_66-tailscaled-status.sh.tmpl`, tailscale hunks of `system_packages_autoinstall.yaml` + `CLAUDE.md` | tailscale-monitor fix `2f430b3` — resolved: NOT on main; rides with the monitor files in S9 (see the S5 section) | S2 |
 | S6 | Homebrew weekly-upgrade | `dot_local/bin/executable_homebrew-weekly-upgrade.sh`, `Library/LaunchAgents/com.webdavis.homebrew-weekly-upgrade.plist.tmpl`, `run_onchange_after_65` loader, `test/homebrew-weekly-upgrade.sh` | `just brew-upgrade` → deployed copy; **Homebrew 6.x bundle `cleanup --force`** (`961465f`); `SKIP_SYSTEM_PACKAGES=0`-still-skips; before_10 per-ecosystem split; uv/npm/volta unguarded loops | S2 |
-| S7 | Relay notification pipeline (bash, as-deployed) | `dot_local/bin/executable_{relay,relay-agent,relay-codex-hooks,hue-pulse,claude-stop-pulse,claude-user-prompt-start,claude-audit}.sh`, `private_dot_claude/modify_settings.json`, `dot_config/relay/private_auth.json.tmpl`, `run_after_72-relay-codex-hooks`, notifier hunk of `dot_bashrc.tmpl`; delete `Library/LaunchAgents/com.claude.code.plist.tmpl` | **R2 (2026-07-10):** fix the four delivery-loss defects BEFORE merge (fail-closed idle probe, jq slurp, mkdir lock, missing flag value); characterization tests for retained harmless quirks; SP3 still replaces the whole design later | S2 |
-| S8 | Hermes age-encryption (SP1) | `dot_hermes/encrypted_private_config.yaml.age`, `dot_hermes/private_dot_env.tmpl`, `.chezmoi.toml.tmpl` age hunk, `run_onchange_before_25`, `run_after_67`, `run_after_68`, `run_once_before_05-restore-age-key`, `test/hermes-config-{encrypted,routes}.sh`, `.gitignore` failsafe hunk (gitleaks gate hunk of `.githooks/pre-commit` ships in S2, not here) | this is the committed SP1 work (`c13cc18`/`a0e7d8e`/`3696c92`) reimplemented as one clean PR; the age-tripwire fix is already in it | S2 |
+| S7 | Relay notification pipeline (bash) *("as-deployed" superseded by R2 — delivery-loss defects are fixed before merge)* | `dot_local/bin/executable_{relay,relay-agent,relay-codex-hooks,hue-pulse,claude-stop-pulse,claude-user-prompt-start,claude-audit}.sh`, `private_dot_claude/modify_settings.json`, `dot_config/relay/private_auth.json.tmpl`, `run_after_72-relay-codex-hooks`, notifier hunk of `dot_bashrc.tmpl` *(the `com.claude.code.plist.tmpl` deletion moved to S4's atomic cluster — not S7's)* | **R2 (2026-07-10):** fix the four delivery-loss defects BEFORE merge (fail-closed idle probe, jq slurp, mkdir lock, missing flag value); characterization tests for retained harmless quirks; SP3 still replaces the whole design later | S2 |
+| S8 | Hermes age-encryption (SP1) | `dot_hermes/encrypted_private_config.yaml.age`, `dot_hermes/private_dot_env.tmpl`, `.chezmoi.toml.tmpl` age hunk, `run_onchange_before_25`, `run_after_67`, `run_after_68`, `run_once_before_05-restore-age-key`, `test/hermes-config-{encrypted,routes}.sh`, `.gitignore` failsafe hunk (gitleaks gate hunk of `.githooks/pre-commit` ships in S2, not here) **+ the expanded capture set** — the four existing untracked per-profile captures and codegraph state (see the S8 section) | this is the committed SP1 work (`c13cc18`/`a0e7d8e`/`3696c92`) reimplemented as one clean PR; the age-tripwire fix is already in it | S2 |
 | S9 | osquery three-tier alerting | `.chezmoitemplates/osquery/**` (config+4 packs), `dot_local/bin/executable_osquery-*`, the 6 osquery LaunchAgents + `after_60` loaders, `after_55` manifest, `before_50` setup, `test/osquery-alerter/**` | **alerting/dispatch redesign in scope**; heartbeat `RunAtLoad` double-ping; **query/pack content changes → flag for sign-off**. NOTE: much of osquery is already on main — this slice is the PR#25 *delta* only | S2 |
 | S10 | macOS defaults / system-setup | `.chezmoidata/macos_defaults.yaml`, `.chezmoidata/macos_system_setup.yaml`, `run_onchange_after_30/41`, `dot_local/bin/executable_macos-defaults-*.sh` | defaults trio hardcoded-path + shared-lib consolidation; `after_41` fragile `{{ if .sudo }}`; `ssh-hardening.sh` → a `macos_system_setup.yaml` record | S2 |
 | S11 | Shell foundation + secrets hygiene + chores | remaining hunks of `dot_bashrc.tmpl`/`dot_profile`/`justfile`/`.chezmoiignore`, `run_after_44-cache-brew-shellenv` + `test/brew-shellenv-cache-drift.sh`, `dot_aws/private_credentials.tmpl` + `dot_config/himalaya/private_config.toml.tmpl` renames, `dot_config/worktrunk/config.toml`, gitconfig fixes; **installs:** ponytail (Thaw is a **standalone SP5** PR, not an S11 install) | credential `private_` renames (`ae02524`); merge.tool name; `core.excludesfile`; git:// url removal; `~/.bash_just_completions`; atuin `~/.atuin/bin/env` guard; yabai ignore; espanso `_pqi.yml` + shadow triggers; Arc→Zen hotkey; log rotation (newsyslog) | S2 |
@@ -639,17 +644,20 @@ repo-state atomicity, above) becomes operative.
     sequence** — the R4 runbook below is corrected to the installed workflow.
   - **Enumerate the managed encrypted targets explicitly** in the PR (not just "`~/.hermes/config.yaml`").
   - **Rehearse rotation in a scratch source and destination** before touching live secrets.
-  - **Re-scope S8 up front — capture the full encrypted SET; exact source names resolve at capture time.**
-    Today the integration branch tracks only the **root** config
-    (`dot_hermes/encrypted_private_config.yaml.age`); the per-profile configs and codegraph state are
-    **uncaptured live state**, so no exact per-profile source path exists to name yet (neither the plan's
-    earlier `dot_hermes/profiles/*/encrypted_config.yaml.age` nor any other literal — do not assert one).
-    The capture SET is: the **root Hermes config**, the **four specialist profile configs** (butters,
-    concerned, elaine, nicodemus — default/Bob is the root), and **codegraph Hermes-MCP state**. Their
-    exact source filenames are whatever `chezmoi add --encrypt` derives under each profile's source dir
-    at capture time (chezmoi's `encrypted_`/`private_` naming conventions), recorded in the PR then. This
-    materially expands the slice, so Phase E `fix/hermes-encrypted-profile-configs` rides here;
-    **round-trip test each captured profile independently**.
+  - **Re-scope S8 up front — the four per-profile captures already EXIST, untracked.** Verified on the
+    primary checkout's filesystem 2026-07-10: the integration branch *tracks* only the **root** config
+    (`dot_hermes/encrypted_private_config.yaml.age`), but four per-profile encrypted captures already
+    sit **untracked** in the primary checkout at
+    `dot_hermes/profiles/private_<profile>/encrypted_private_config.yaml.age`
+    (`private_butters`, `private_concerned`, `private_elaine`, `private_nicodemus` — default/Bob is the
+    root). S8 therefore: **(1) inventory, hash, and back up** those four existing untracked sources
+    (backup convention) before touching anything; **(2) record their verified paths** in the PR;
+    **(3) decide explicitly, per profile, between COMMITTING the existing capture as-is and intentionally
+    RECAPTURING newer live state** (`chezmoi add --encrypt` against the live profile config) — never
+    silently overwrite or duplicate an existing capture. **Codegraph Hermes-MCP state** is still
+    uncaptured (its source name follows chezmoi naming at capture time). This materially expands the
+    slice, so Phase E `fix/hermes-encrypted-profile-configs` rides here; **round-trip test each captured
+    profile independently**.
   - Ship `docs/runbooks/age-key.md` (rotation + disaster-recovery) and the `test/age-restore.sh` DR drill;
     KeePassXC entry name is `chezmoi :: Private Key :: age` (spec corrected 2026-07-04).
 
@@ -892,7 +900,7 @@ before Gate 1 pins the SHA, so the soaked state is the final state — Gate 5 mu
 **Spec coverage:** every SP2-tagged item in the work ledger maps to a slice's "ledger fixes" column (S2
 CI/lint items; S3 skills; S4 herdr consolidation; S6 brew; S9 osquery; S10 defaults/ssh; S11 the long
 tail; S12 CLAUDE.md). The spec's provisional slice map (its items 1–11) maps to S1–S11; SP1 = S8; SP5
-Thaw = S11; the CLAUDE.md refactor = S12. Combine mechanics (integration branch, DO-NOT-MERGE PR, freeze
+Thaw = a standalone SP5 PR during SP2, not S11; the CLAUDE.md refactor = S12. Combine mechanics (integration branch, DO-NOT-MERGE PR, freeze
 policy) = Phase A. Cutover checklist = Phase D. No spec section is unassigned.
 
 **Placeholder scan:** the one deferred detail — exact hunk boundaries inside the 8 shared files — is
@@ -1039,9 +1047,10 @@ reasons (added to the spec Decisions log, below). But three **verified** gaps:
    `chezmoi re-add --re-encrypt` (re-encrypts the existing `encrypted_*` files under the new recipient —
    **corrected 2026-07-10**, replacing the destructive `chezmoi forget` + `chezmoi add --encrypt` pair the
    audit flagged). Enumerate the encrypted targets explicitly rather than assuming a single file: today
-   `~/.hermes/config.yaml` (source `dot_hermes/encrypted_private_config.yaml.age`), plus — as they land in
-   S8 — the four specialist profile configs and codegraph state (uncaptured live state today; exact source
-   names follow chezmoi's `encrypted_` naming at capture time, not asserted here).
+   `~/.hermes/config.yaml` (source `dot_hermes/encrypted_private_config.yaml.age`), plus — as S8 promotes
+   them — the four specialist profile captures that already exist untracked at
+   `dot_hermes/profiles/private_<profile>/encrypted_private_config.yaml.age` (verified 2026-07-10) and
+   codegraph state (uncaptured; its name follows chezmoi's `encrypted_` naming at capture time).
 1. Verify round-trip: `diff <(chezmoi cat ~/.hermes/config.yaml) ~/.hermes/config.yaml` is empty;
    `head -1` of each `encrypted_*` file is an age header, not plaintext.
 1. Drop the old identity from `identities`, `mv key.new key.txt`, and **update the KeePassXC entry**
@@ -1207,7 +1216,8 @@ developer.apple.com SIP docs, github.com/maxgoedjen/secretive, drduh.github.io/m
 
 **Deferred feature idea `[dresden]` — OverSight → relay bridge.** OverSight's Action tab can `exec` a
 script on every camera/microphone event, passing `-device <camera|microphone> -event <on|off> -process
-<pid> -activeCount <n>`. A tiny wrapper pointing at `relay.sh` (or the SP3 Rust service) would turn an
+<pid> -activeCount <n>`. A tiny wrapper pointing at `relay.sh` (or the SP3 stateless per-event
+executable, invoked once per camera/mic event) would turn an
 *unexpected* camera/mic activation into a phone push — a genuine "someone/something is watching"
 signal that reuses the existing notification fan-out. Not now (needs the wrapper written + a
 whitelist of expected callers like Zoom/Photo Booth so it only fires on the unexpected); banked as a
@@ -1353,14 +1363,16 @@ drift is caught, not hunted.
 
 ### fix/hermes-encrypted-profile-configs (→ S8)
 
-The four specialist profiles' `config.yaml` (enablement + `platform_toolsets`) — plus the default/Bob
-root — are persisted only as **untracked encrypted `.age` files** in the primary checkout; codegraph's
-Hermes-MCP enablement likewise. A fresh machine reproduces skill *presence* but not per-profile
-*curation* or the MCP wiring. Fix rides S8 (the age machinery): capture and track the full SET — the root
-Hermes config (already tracked as `dot_hermes/encrypted_private_config.yaml.age`), the four specialist
-profile configs, and the codegraph MCP config — round-trip verify each, extend the DR drill. Exact
-per-profile source filenames are whatever `chezmoi add --encrypt` derives under each profile's source dir
-(uncaptured live state today, so no literal path is asserted here).
+The four specialist profiles' `config.yaml` (enablement + `platform_toolsets`) are persisted only as
+**untracked encrypted `.age` files** in the primary checkout — verified 2026-07-10 at
+`dot_hermes/profiles/private_<profile>/encrypted_private_config.yaml.age` (`private_butters`,
+`private_concerned`, `private_elaine`, `private_nicodemus`); codegraph's Hermes-MCP enablement is
+likewise untracked (and not yet captured at all). A fresh machine reproduces skill *presence* but not
+per-profile *curation* or the MCP wiring. Fix rides S8 (the age machinery): inventory/hash/back up the
+four existing untracked captures, then per profile either **commit the existing capture** or
+**intentionally recapture newer live state** — plus the root config (already tracked as
+`dot_hermes/encrypted_private_config.yaml.age`) and the codegraph MCP config — round-trip verify each,
+extend the DR drill.
 
 ### fix/codex-agents-parity (→ S12)
 
