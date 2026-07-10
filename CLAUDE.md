@@ -535,9 +535,9 @@ brew formula stays user-owned so `brew upgrade` runs unattended) — it boots be
 `utun` interface, so there is no Network/System Extension to re-approve after updates (the GUI variants'
 weakness on a headless host). State persists at `/Library/Tailscale` across reboots. Auth is a one-time
 manual `sudo tailscale up --accept-dns=true` plus flipping **Disable Key Expiry** on the node in the
-admin console — after that it never re-authenticates (no auth keys, no rotation, no KeePassXC).
-`run_onchange_after_66-tailscaled-status.sh.tmpl` is a sudo-free reminder that prints those one-time
-steps when the daemon is down or unauthenticated; it never runs sudo or authenticates.
+admin console — node-key expiry will not force reauthentication (no auth keys, no rotation, no
+KeePassXC). `run_onchange_after_66-tailscaled-status.sh.tmpl` is a sudo-free reminder that prints those
+one-time steps when the daemon is down or unauthenticated; it never runs sudo or authenticates.
 
 **DNS:** always `--accept-dns=true` (dynamic, roaming-safe) — never a static `100.100.100.100` resolver
 (that breaks off-tailnet). The OSS macOS DNS path is the known weak spot (`tailscale/tailscale#13461`,
@@ -546,14 +546,14 @@ machine may be flaky on a foreign network — pin the few needed tailnet hosts i
 
 **Updates:** `brew upgrade` updates the user-owned formula (no extension re-approval needed), but the
 running daemon is a separate root-owned copy a formula upgrade does not touch — after upgrading the
-`tailscale` formula, re-run `sudo tailscaled install-system-daemon` to refresh the daemon copy. On this
-machine (dresden) `sudo` is passwordless (the operator's `!authenticate` sudoers config — not managed by
-this repo), so the re-copy is a single command; on a fresh machine expect a password prompt. (S6 will
-automate it weekly.)
+`tailscale` formula, re-run `sudo /opt/homebrew/opt/tailscale/bin/tailscaled install-system-daemon` to
+refresh the daemon copy. On this machine (dresden) `sudo` is passwordless (the operator's `!authenticate`
+sudoers config — not managed by this repo), so the re-copy is a single command; on a fresh machine expect
+a password prompt.
 
-**Future (new home Mac, ~3-6 months out):** when an always-home Mac takes over the daemon-host role, this
-machine (dresden, which is carried) cuts back to the GUI `tailscale-app` cask (better roaming DNS) and
-the new Mac runs this daemon — make the chezmoi config machine-conditional then.
+**Daemon-host role:** when an always-home Mac exists and takes over the daemon-host role, this machine
+(dresden, which is carried) cuts back to the GUI `tailscale-app` cask (better roaming DNS) and the
+always-home Mac runs this daemon — make the chezmoi config machine-conditional then.
 
 ### AI Commit Messages
 
