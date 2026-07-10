@@ -3,9 +3,10 @@
 **Date:** 2026-07-02 (extended 2026-07-03 with the full inventory, verified work ledger, SP3 contract,
 and testing strategy; re-evaluated same day at max effort — six defects found and corrected, see the
 final Verification section)
-**Status:** approved via brainstorming; SP1–SP2 designed in full, **SP3 now designed in full** (verified
-behavior contract below), SP4–SP7 indexed. Extended with a complete feature inventory and a work ledger
-of 85+ items (≈40 known + 45 sweep-confirmed) so nothing lives only in chat.
+**Status:** approved via brainstorming; SP1–SP2 designed in full, **SP3 behavior contract approved —
+final implementation spec pending** (contract below; open items enumerated in the deferred index),
+SP4–SP7 indexed. Extended with a complete feature inventory and a work ledger of 85+ items (≈40 known +
+45 sweep-confirmed) so nothing lives only in chat.
 **Input:** `docs/plans/2026-07-02-repo-modernization-brief.md` (the full context brief — read it first;
 this spec does not duplicate its background). The work ledger below folds in a max-effort, adversarially
 verified whole-repo sweep (53 agents, 45 confirmed / 2 refuted findings).
@@ -34,6 +35,7 @@ cycles with their banked decisions so nothing has to be re-litigated.
 3. **nushell is back in scope, contingent on an honest evaluation.** The prior "Shell: bash — locked-in"
    toolchain line and GH issue #5's planned wontfix closure are superseded by explicit user instruction:
    evaluate the migration seriously (criteria in SP4 below) and pursue it if it holds up.
+   **RESOLVED 2026-07-09 — NO-GO (see decision 9); GH #5 is closed and bash stays.**
 4. **The osquery hands-off constraint is partially lifted:** the *alerting/dispatch design* of the
    three-tier work (PR #25) must be improved during its reimplementation slice. Query/pack *content*
    changes are proposed-and-flagged for user sign-off, not made unilaterally.
@@ -56,6 +58,20 @@ cycles with their banked decisions so nothing has to be re-litigated.
    not want. The migration caveats (multi-recipient for the home server, rotation/DR, git-history) are
    banked as S8 work and the deferred laptop→home-server item below. Source:
    chezmoi.io/user-guide/encryption/age.
+9. **nushell migration: NO-GO — operator-ratified 2026-07-09** (resolves decision 3). The honest
+   evaluation ran during S4 (report `docs/research/2026-07-09-sp4-nushell-evaluation.md`) and failed on
+   three legs: reedline binds one key event per binding — no multi-keystroke chord grammar (reedline
+   #69) — which the ~365-chord surface cannot survive; atuin's nushell integration is its weakest (and
+   atuin is the thrice-broken subsystem here); and the cost/value fails against a working ~15 ms bash hot
+   path. Adjacent shells were surveyed (zsh is the only chord-capable candidate) and the operator chose to
+   **stay on bash**. GH #5 is closed; the SP4 slot becomes a bash-setup improvement sub-project, and SP3
+   designs its notifier seam against bash-preexec with no shell-portability abstraction.
+10. **S7 relay delivery-loss defects are fixed BEFORE merge — operator ruling (R2), 2026-07-10.** This
+    reverses the earlier "ship the relay bash exactly as deployed" plan text. The four delivery-loss
+    defects (fail-closed idle probe, whole-file `jq -rs` transcript slurp, wedged `mkdir` lock, missing
+    flag value) can silently drop notifications, so they are fixed in S7 with characterization tests for
+    any retained baseline quirk. SP3 still replaces the whole bash design later; S7 simply must not land a
+    known notification-dropping baseline on `main`.
 
 ## Sub-project sequence
 
@@ -63,14 +79,17 @@ cycles with their banked decisions so nothing has to be re-litigated.
 | --- | --- | --- | --- |
 | SP1 | Unblock the tree | Hermes age encryption: scaffolding committed; operator key + capture remain | this spec |
 | SP2 | Combine & split | Integration PR (#31 + #25) → reimplement from `main` as small PRs → cutover | this spec |
-| SP3 | Notification rewrite | One Rust service; subsumes hue-pulse improvements (old P7) | contract in this spec; final spec closes the open items |
-| SP4 | nushell evaluation → migration | Go/no-go evaluation early; migration (if go) after SP3 lands | own spec |
+| SP3 | Notification rewrite | One Rust **stateless per-event executable** (NOT a daemon/service); subsumes hue-pulse improvements (old P7) | behavior contract approved; **final implementation spec pending** |
+| SP4 | Bash setup improvement | nushell evaluated **NO-GO 2026-07-09** (GH #5 closed); the vacated slot becomes a bash-setup improvement sub-project | own spec (after SP3) |
 | SP5 | Thaw install | Trivial standalone PR; slots in during SP2 | none needed |
 | SP6 | nvim-overhaul | Re-evaluate v1/v2/v3 specs, then implement | own spec |
 | SP7 | Sweep + p-tasks backlog | Small chores as interleaved PRs at the end | backlog list |
+| SP-nix | nix-darwin go/no-go | **Conditional research only** — start triggers: larger Mac fleet / material maintenance failure in the defaults system / a proven design preserving single-apply + secrets model | own spec (deferred) |
 
-The nushell *evaluation* (research only) runs early — during SP2/SP3 — because SP3's shell-hook seam
-depends on knowing the shell direction. The *migration* (if go) executes after SP3.
+**Update 2026-07-09:** the nushell evaluation is RESOLVED — **NO-GO, operator-ratified** (GH #5 closed;
+report `docs/research/2026-07-09-sp4-nushell-evaluation.md`). SP3's shell-hook seam is therefore designed
+against bash-preexec with no shell-portability abstraction, and the vacated SP4 slot becomes the
+bash-setup improvement sub-project (own spec cycle, after SP3). See decision 9 below.
 
 ## SP1 — Unblock the tree (Hermes age encryption)
 
@@ -195,27 +214,40 @@ pointers to the landed slices.
 | P5 Determinate Nix review (GH #10) | still valid, research-first | SP7 backlog |
 | P6 bandwhich/doggo/ouch | still valid, trivial | SP7 backlog |
 | P7 hue-pulse improvements | superseded | folds into SP3 (race fix already shipped) |
-| P8 quick wins (MANPAGER, fd/FZF, starship) | valid; shell-config placement depends on nushell | SP7, after SP4's go/no-go |
+| P8 quick wins (MANPAGER, fd/FZF, starship) | **UNBLOCKED** — shell-config placement = bash (nushell NO-GO, decision 9) | SP7 (no longer gated on SP4) |
 | P9 actionlint | still valid | SP2 slice 2 |
-| P12 gitconfig autocorrect | still valid, trivial | SP2 slice 11 or SP7 |
+| P12 gitconfig autocorrect | **already on `main`** (`autocorrect = prompt`, verified 2026-07-09) | no work — done |
 | P13 Tart base image (~25 GB pull) | still valid, deferrable | SP7 backlog, background |
-| P10/P11/N1 (OpenClaw queue, mouse, gh-notify webhook) | dead — superseded by relay + SP3 | dropped; close/retitle their Todoist tasks |
-| S1–S4 (docs archive, CLAUDE.md audit rule, GH #5/#13 closures) | never executed; S3's "close #5 Nu Shell as wontfix" now **invalid** (decision 3) | SP7: re-rule S1/S2/S4; #5 stays open as the nushell tracking issue; #13 (Zellij) still closes wontfix |
+| P10/P11/N1 (OpenClaw queue, mouse, gh-notify webhook) | dead — superseded by relay + SP3; **OpenClaw removal ruled (R3, 2026-07-10)** | Wave-3d PR owns package/F1-binding/docs removal; **operator owns the Todoist cleanup** |
+| S1–S4 (docs archive, CLAUDE.md audit rule, GH #5/#13 closures) | never executed; GH **#5 is now closed** (nushell NO-GO, decision 9) | SP7: re-rule S1/S2/S4; #13 (Zellij) still open |
 
 Todoist hygiene is part of SP7: complete/close the dead tasks, re-point the surviving ones at their new
 sub-projects.
 
 ## Deferred spec index (banked context — future specs start here, not from scratch)
 
-- **SP3 — Notification rewrite: now designed in this spec** (see the SP3 contract section above), which
-  supersedes this bullet's original banked framing — notably "spam root cause = transcript-flush race"
-  (resolved: `jq -rs` slurp bug, and there was **no** loop — fire-once already holds) and "language
-  fully open" (settled: Rust). Still genuinely open for the final SP3 spec cycle: the UDR client-list
-  probe results + operator API key; agent-turn *failure* semantics for the red pulse (what counts as a
-  failed turn); the gray-zone tuning constants (idle thresholds); the lights quiet-window hours; and the
-  exact bats-vs-cargo split for the thin shell shims. The four previously-shipped bash fixes still get
-  re-derived test-first in Rust; Classist TDD + SOLID + composition root per the strategy section;
-  `test/`-discoverable via a thin `just test` wrapper.
+- **SP3 — Notification rewrite: behavior contract approved; final implementation spec PENDING**
+  [audit 2026-07-10]. The contract section below is approved, but SP3 is **not "designed in full"** — the
+  implementation spec still has open items. Superseded banked framing: "spam root cause = transcript-flush
+  race" (resolved: `jq -rs` slurp bug, no loop — fire-once already holds) and "language fully open"
+  (settled: Rust). **SP3 is a stateless per-event EXECUTABLE, not a daemon/service** (any "service"
+  wording is loose). The **UDR client-list probe is RESOLVED** (verified live 2026-07-03, zero open
+  questions — see the home-module section) and is **removed** from the open list. Still open for the final
+  SP3 spec cycle:
+  - **event input schemas** — the hook/CLI event payloads;
+  - **per-harness event mapping** — which Claude/Codex/CLI event maps to which class;
+  - **native-push ownership (R7)** — disable Claude Code's "Push when Claude decides" and keep the single
+    relay-owned route; drive the waiting-on-you vs ready-for-you classes from the **native Notification
+    matchers** (`agent_needs_input` / `agent_completed`); confirm native-push coexistence;
+  - **per-channel retry and failure behavior** — bounded retry with a loud fallback;
+  - **presence thresholds** — the gray-zone idle tuning constants;
+  - **lights quiet-window hours**;
+  - **migration coexistence and rollback**;
+  - **acceptance boundaries** — what the acceptance tests assert, plus the bats-vs-cargo split for the
+    thin shell shims (and agent-turn *failure* semantics for the red pulse).
+
+  The four previously-shipped bash fixes are re-derived test-first in Rust; Classist TDD + SOLID +
+  composition root per the strategy section; `test/`-discoverable via a thin `just test` wrapper.
 - **SP4 — nushell evaluation.** Go/no-go criteria to verify with evidence, not assume: atuin, starship,
   zoxide, direnv, carapace nushell integration quality; macOS login-shell semantics + the brew-shellenv
   cache analog; reedline keybinding parity with the current bash bindings; native
@@ -311,7 +343,9 @@ nav, `after_57`); herdr-last-workspace Rust plugin (MRU, `after_55`); bashrc aut
 status in sidebar.
 
 **I. Terminal / GUI apps.** Ghostty (`bash -i`, themes, quick-terminal); AeroSpace (hyper-key workspaces,
-F-key smart-lights/openhue, terminal-notifier feedback, F1 → OpenClaw `127.0.0.1:18789`); Karabiner
+F-key smart-lights/openhue, terminal-notifier feedback, F1 → OpenClaw `127.0.0.1:18789` — **R3
+(2026-07-10): OpenClaw removal ruled; the F1 binding, the `openclaw` package, and the docs are removed by
+the Wave-3d cleanup PR, operator owns the Todoist cleanup**); Karabiner
 (caps→ctrl/esc, tab→hyper, complex-mod library); espanso (identity from KeePassXC, autocorrect packs,
 prompts/snippets, `_pqi.yml` phone quick-replies); smart-lights CLI (openhue room controller);
 `aerospace_toggle_app_focus.sh`.
@@ -345,7 +379,14 @@ modify-template (`after_68` reminder) — **SP1 replaces with age-encrypted conf
 `127.0.0.1:8644` (`/webhooks/relay` + `/webhooks/osquery-priority`).
 
 **N. Tailscale.** Headless tailscaled system daemon (formula, `/Library/Tailscale` state); weekly
-re-copy; status reminder (`after_66`); GUI-cask future note; runbook.
+re-copy; status reminder (`after_66`); GUI-cask future note; runbook. **Decision history (dated
+2026-07-10):** the June `sudo brew services` decision (PR #31, commit `3b43d67`) was **superseded during
+execution** — running `brew services` under `sudo` changed ownership of the Cellar/opt/bin/sbin paths to
+root and broke the unattended weekly upgrade, so commit `01d15ad` switched to
+`tailscaled install-system-daemon` (a root-owned `/usr/local/bin` copy; the formula stays user-owned).
+The older June tailscaled spec/plan that still name brew-services as the final decision are superseded by
+that discovery (this is the roadmap's own copy of the supersession note; the June docs carry theirs from
+PR #38).
 
 **O. Dev / CI.** Nix flake (default + run shells: chezmoi/shellcheck/shfmt/mdformat+gfm/nixfmt/taplo/jq/
 yq/bats); `scripts/lint.sh` (priority runners, template rendering, osquery config render); justfile;
@@ -539,8 +580,9 @@ yabai in OS-targeting (removed), and claims only `dot_bashrc.tmpl` is shellcheck
 allowlist has 12 templates).
 
 **Disposition:** staleness hotfixes land now-ish as a small commit; the **comprehensive rewrites are
-their own slice at the END of SP2 (post-cutover)** so the repo file documents the *reimplemented*
-reality rather than being rewritten twice. Acceptance: global file ≈ preferences/bias rules/toolchain/
+their own slice (S12) that runs last of all implementation PRs but PRE-cutover — before Phase D**
+[audit 2026-07-10] so the repo file documents the *reimplemented* reality (converged on `main`) rather
+than being rewritten twice. Acceptance: global file ≈ preferences/bias rules/toolchain/
 destructive gates only, no dead references, global AGENTS.md parity; repo file ≈ identity + commands +
 architecture map + conventions with conditional deep-dives extracted to runbooks/skills and **every
 factual claim re-verified against the live repo at write time**; both files carry their evergreen-only
@@ -548,7 +590,8 @@ header comments forward.
 
 ## SP3 — Notification system (Rust): verified behavior contract
 
-**Decision:** one Rust service replaces `relay.sh` + `relay-agent.sh` + `hue-pulse.sh` +
+**Decision:** one Rust **stateless per-event executable** (NOT a daemon/service — invoked once per event;
+see the invocation model below) replaces `relay.sh` + `relay-agent.sh` + `hue-pulse.sh` +
 `claude-stop-pulse.sh`. `relay-codex-hooks.sh` (a one-shot config merger) and the bashrc bash-preexec
 notifier stay shell (the latter contingent on SP4). Built + deployed the way the herdr Rust plugins are
 (rustup toolchain, `run_onchange_after_*` `cargo build --release --locked`, `target/` gitignored).
