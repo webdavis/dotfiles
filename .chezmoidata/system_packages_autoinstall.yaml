@@ -140,6 +140,7 @@ packages:
         - swiftformat
         - swiftlint
         - switchaudio-osx
+        - tailscale
         - tart
         - tealdeer
         - terminal-notifier
@@ -201,7 +202,6 @@ packages:
         - retroarch-metal
         - signal
         - slack
-        - tailscale-app
         - todoist-app
         - torguard
         - upterm

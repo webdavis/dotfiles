@@ -215,6 +215,11 @@ in
   };
 
   # Chezmoi-specific checks ported from lint.sh (see the let-bindings above).
+  # NOTE: run_onchange_after_41-macos-system-setup.sh.tmpl is deliberately
+  # excluded: its pre-existing nix-repair record renders an unquoted
+  # `sudo $HOME/...` that fails rendered shellcheck (SC2086), so including it
+  # today breaks the gate. Inclusion is owned by the render-coverage
+  # stabilization PR (2026-07-10 audit).
   settings.formatter.shellcheck-rendered-template = {
     command = shellcheckRenderedTemplate;
     includes = [
@@ -223,6 +228,7 @@ in
       ".chezmoiscripts/run_onchange_before_50-setup-osquery.sh.tmpl"
       ".chezmoiscripts/run_onchange_after_55-build-herdr-last-workspace-plugin.sh.tmpl"
       ".chezmoiscripts/run_onchange_after_57-build-herdr-smart-nav-plugin.sh.tmpl"
+      ".chezmoiscripts/run_onchange_after_66-tailscaled-status.sh.tmpl"
     ];
   };
   settings.formatter.osquery-config-render = {

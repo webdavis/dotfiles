@@ -1,5 +1,7 @@
 # Headless tailscaled system daemon Implementation Plan
 
+> **Execution note (2026-07-10) — the `brew services` daemon decision below was superseded during PR #31 execution.** Running `sudo brew services` root-owned the Tailscale Cellar/`opt`/linked-keg/`bin`/`sbin` paths, which broke the user-owned unattended weekly Homebrew upgrade. Commit `01d15ad` switched to `sudo tailscaled install-system-daemon` — a root-owned daemon copy in `/usr/local/bin` with the formula left user-owned. The current canonical model is documented in CLAUDE.md's Tailscale section. The `brew services` wording below is kept as historical record.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Convert this Mac (dresden) from the `tailscale-app` GUI cask to the open-source `tailscale` formula run as a `sudo brew services` launchd system daemon (boots before login, no re-approval click).

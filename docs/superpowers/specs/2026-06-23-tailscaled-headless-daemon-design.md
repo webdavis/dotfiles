@@ -1,5 +1,12 @@
 # Headless tailscaled system daemon design
 
+> **Execution note (2026-07-10) — the `brew services` daemon decision in this spec was superseded during
+> PR #31 execution.** Running `sudo brew services` root-owned the Tailscale Cellar/`opt`/linked-keg/`bin`/
+> `sbin` paths, which broke the user-owned unattended weekly Homebrew upgrade. Commit `01d15ad` switched
+> to `sudo tailscaled install-system-daemon` — a root-owned daemon copy in `/usr/local/bin` with the
+> formula left user-owned. The current canonical model is documented in CLAUDE.md's Tailscale section.
+> The `brew services` wording below is kept as historical record.
+
 Date: 2026-06-23
 
 ## Context

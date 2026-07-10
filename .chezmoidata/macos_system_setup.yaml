@@ -14,9 +14,22 @@
 #   - description: <string>   # echoed before execution; trace output
 #     command:     <string>   # bash, NO `sudo` prefix
 #     sudo:        <bool>
+#
+# `tailnet_pins` is structured data, not commands: the runner template generates
+# an idempotent guard-then-append /etc/hosts command per entry (MagicDNS
+# registration-layer fallback pins — per CLAUDE.md's Tailscale DNS section).
+#
+# Schema:
+#   - fqdn:  <string>   # MagicDNS name, ends .ts.net
+#     ip:    <string>   # the node's Tailscale CGNAT address (100.64.0.0/10)
+#     short: <string>   # the fqdn's first label
 
 macos:
   system_setup:
     - description: "Install self-healing nix-installer repair LaunchDaemon (NixOS fork)"
       command: "$HOME/.local/bin/install-nix-repair-hook.sh"
       sudo: true
+  tailnet_pins:
+    - fqdn: mister.tail2f2430.ts.net
+      ip: "100.109.58.54"
+      short: mister

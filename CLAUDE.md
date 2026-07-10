@@ -210,7 +210,8 @@ at `chezmoi apply` time on darwin (no-op on Linux):
   kill is required for plist changes to take effect immediately).
 - `.chezmoidata/macos_system_setup.yaml` +
   `.chezmoiscripts/run_onchange_after_41-macos-system-setup.sh.tmpl` — sudo system commands (one
-  `sudo -v` upfront, then loop). Early-returns when the array is empty.
+  `sudo -v` upfront, then loop), plus structured `tailnet_pins` data from which the template generates
+  the MagicDNS `/etc/hosts` pin commands. Early-returns when both lists are empty.
 
 **Daily workflow:**
 
@@ -254,12 +255,13 @@ Templates conditionally branch on `.chezmoi.os` and, where they pull secrets, ca
 
 Shell templates contain Go template syntax that shellcheck can't parse directly. The
 `shellcheck-rendered-template` formatter in `treefmt.nix` renders first:
-`CI=1 chezmoi execute-template --no-tty <file | shellcheck -`. Five templates are rendered —
-`dot_bashrc.tmpl`, the osquery setup script, and the three herdr install/build chezmoiscripts; none calls
-`keepassxc`, so the `CI=1` env var is defensive (vestigial from an earlier version where bashrc had a
-CI-vs-interactive branch). Other templates with CI branches (e.g. `identity.yml.tmpl`) are not
-shell-linted. A sibling formatter, `osquery-config-render`, renders the JSON-bodied
-`.chezmoitemplates/osquery/*.conf` templates via `includeTemplate` and validates the result with jq.
+`CI=1 chezmoi execute-template --no-tty <file | shellcheck -`. Six templates are rendered —
+`dot_bashrc.tmpl`, the osquery setup script, the three herdr install/build chezmoiscripts, and the
+tailscaled status reminder; none calls `keepassxc`, so the `CI=1` env var is defensive (vestigial from an
+earlier version where bashrc had a CI-vs-interactive branch). Other templates with CI branches (e.g.
+`identity.yml.tmpl`) are not shell-linted. A sibling formatter, `osquery-config-render`, renders the
+JSON-bodied `.chezmoitemplates/osquery/*.conf` templates via `includeTemplate` and validates the result
+with jq.
 
 ### OS Targeting
 
@@ -525,6 +527,43 @@ ps aux | grep '[h]appy daemon'             # supervised start-sync process + the
 tail ~/.local/log/happy-daemon.log         # crash messages
 happy doctor                               # full diagnostics ('happy doctor clean' kills runaways)
 ```
+
+### Tailscale (headless daemon)
+
+Tailscale runs as the open-source `tailscale` **formula** (not the `tailscale-app` GUI cask) as a launchd
+**system daemon** via `sudo tailscaled install-system-daemon` (a root-owned copy in `/usr/local/bin`; the
+brew formula stays user-owned so `brew upgrade` runs unattended) — it boots before login and uses the
+`utun` interface, so there is no Network/System Extension to re-approve after updates (the GUI variants'
+weakness on a headless host). State persists at `/Library/Tailscale` across reboots. Auth is a one-time
+manual `sudo tailscale up --accept-dns=true` plus flipping **Disable Key Expiry** on the node in the
+admin console — node-key expiry will not force reauthentication (no auth keys, no rotation, no
+KeePassXC). `run_onchange_after_66-tailscaled-status.sh.tmpl` is a sudo-free reminder that prints those
+one-time steps when the daemon is down or unauthenticated; it never runs sudo or authenticates.
+
+**DNS:** always `--accept-dns=true` — never a static `100.100.100.100` global resolver (breaks
+off-tailnet). The OSS-macOS weak spot is the resolver registration layer (`tailscale/tailscale#13461`,
+`#19139`): tailscaled's internal MagicDNS resolver stays healthy, but its registration of the
+`<tailnet>.ts.net` suffix route with macOS can silently half-fail (search-domain fragment written, no
+nameserver route) — including at home — so tailnet names stop resolving through the system resolver while
+all other DNS works. Remedy:
+`sudo tailscale set --accept-dns=false && sudo tailscale set --accept-dns=true`, then
+`sudo dscacheutil -flushcache; sudo killall -HUP mDNSResponder`; verify with
+`dscacheutil -q host -a name <peer>.<tailnet>.ts.net` (not `dig` — dig bypasses `/etc/resolver`). Durable
+fallback: needed peers are pinned in `/etc/hosts` declaratively — structured `tailnet_pins` data in
+`macos_system_setup.yaml` from which the Tier-2 sudo runner template generates the idempotent pin
+commands at `chezmoi apply` (tailscaled never manages that file, so entries coexist; tailnet IPs are
+stable per node).
+
+**Updates:** `brew upgrade` updates the user-owned formula (no extension re-approval needed), but the
+running daemon is a separate root-owned copy a formula upgrade does not touch — after upgrading the
+`tailscale` formula, re-run `sudo /opt/homebrew/opt/tailscale/bin/tailscaled install-system-daemon` to
+refresh the daemon copy. On this machine (dresden) `sudo` is passwordless (the operator's `!authenticate`
+sudoers config — not managed by this repo), so the re-copy is a single command; on a fresh machine expect
+a password prompt.
+
+**Daemon-host role:** when an always-home Mac exists and takes over the daemon-host role, this machine
+(dresden, which is carried) cuts back to the GUI `tailscale-app` cask (better roaming DNS) and the
+always-home Mac runs this daemon — make the chezmoi config machine-conditional then.
 
 ### AI Commit Messages
 

@@ -1,0 +1,70 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/bin/bash
+
+set -euo pipefail
+
+# Tailscale headless-daemon status reminder (sudo-free). Does NOT start or
+# authenticate anything -- Option A auth is a deliberate one-time manual step.
+# Runs on first deploy (and whenever this script changes) to prompt the cutover;
+# stays quiet once the daemon is up and authenticated. Mirrors the atuin/happy
+# daemon scripts' "remind if not healthy" shape.
+#
+# Classifies on `tailscale status --json`'s .BackendState so each state gets the
+# right reminder. A command/connection failure (daemon down, or unparseable
+# output) is kept distinct from a backend that is up but not yet authenticated:
+# only the former recommends reinstalling the daemon. Every path exits 0 -- a
+# reminder must never abort `chezmoi apply`.
+
+tailscale="${TAILSCALE_BIN:-/opt/homebrew/bin/tailscale}"
+[[ -x $tailscale ]] || exit 0 # formula not installed yet; brew bundle handles that.
+command -v jq >/dev/null 2>&1 || exit 0 # jq parses the status JSON; without it, stay quiet.
+
+daemon_bin="/opt/homebrew/opt/tailscale/bin/tailscaled"
+
+remind_daemon_down() {
+  echo "tailscaled system daemon is not running. One-time:" >&2
+  echo "  sudo $daemon_bin install-system-daemon" >&2
+}
+
+# Probe exactly once, capturing stdout and the exit code.
+rc=0
+raw="$("$tailscale" status --json 2>/dev/null)" || rc=$?
+
+# (a) command/connection failure -> the daemon is down or unreachable.
+if [[ $rc -ne 0 ]]; then
+  remind_daemon_down
+  exit 0
+fi
+
+# (a) rc 0 but the payload is unparseable JSON -> treat as a failed probe.
+if ! state="$(jq -er '.BackendState' <<<"$raw" 2>/dev/null)"; then
+  remind_daemon_down
+  exit 0
+fi
+
+# (b) known BackendState values -> the matching reminder.
+case "$state" in
+  Running)
+    exit 0 # connected + authenticated -- nothing to remind.
+    ;;
+  Starting)
+    echo "tailscaled is starting up (transient) -- no action needed." >&2
+    ;;
+  NeedsLogin)
+    echo "tailscaled is running but NOT authenticated. One-time:" >&2
+    echo "  sudo tailscale up --accept-dns=true" >&2
+    echo "  then flip 'Disable Key Expiry' on this node in the admin console." >&2
+    ;;
+  NeedsMachineAuth)
+    echo "tailscaled is up but this machine awaits tailnet admin approval." >&2
+    echo "  approve it in the admin console (Machines -> this node)." >&2
+    ;;
+  Stopped)
+    echo "tailscale is stopped -- run: sudo tailscale up" >&2
+    ;;
+  # (c) any other state -> report it verbatim; never claim the daemon is missing.
+  *)
+    echo "tailscaled reported an unknown BackendState: $state" >&2
+    ;;
+esac
+{{ end -}}
