@@ -258,13 +258,16 @@ quick review.
 | S9 | osquery three-tier alerting | `.chezmoitemplates/osquery/**` (config+4 packs), `dot_local/bin/executable_osquery-*`, the 6 osquery LaunchAgents + `after_60` loaders, `after_55` manifest, `before_50` setup, `test/osquery-alerter/**` | **alerting/dispatch redesign in scope**; heartbeat `RunAtLoad` double-ping; **query/pack content changes → flag for sign-off**. NOTE: much of osquery is already on main — this slice is the PR#25 *delta* only | S2 |
 | S10 | macOS defaults / system-setup | `.chezmoidata/macos_defaults.yaml`, `.chezmoidata/macos_system_setup.yaml`, `run_onchange_after_30/41`, `dot_local/bin/executable_macos-defaults-*.sh` | defaults trio hardcoded-path + shared-lib consolidation; `after_41` fragile `{{ if .sudo }}`; `ssh-hardening.sh` → a `macos_system_setup.yaml` record | S2 |
 | S11 | Shell foundation + secrets hygiene + chores | remaining hunks of `dot_bashrc.tmpl`/`dot_profile`/`justfile`/`.chezmoiignore`, `run_after_44-cache-brew-shellenv` + `test/brew-shellenv-cache-drift.sh`, `dot_aws/private_credentials.tmpl` + `dot_config/himalaya/private_config.toml.tmpl` renames, `dot_config/worktrunk/config.toml`, gitconfig fixes; **installs:** Thaw (SP5), ponytail | credential `private_` renames (`ae02524`); merge.tool name; `core.excludesfile`; git:// url removal; `~/.bash_just_completions`; atuin `~/.atuin/bin/env` guard; yabai ignore; espanso `_pqi.yml` + shadow triggers; Arc→Zen hotkey; log rotation (newsyslog) | S2 |
-| S12 | CLAUDE.md comprehensive refactor | `CLAUDE.md`, `private_dot_claude/CLAUDE.md`, global AGENTS.md parity | the memory-file rewrite per the spec's CLAUDE.md section — **post-cutover-adjacent; runs last so it documents the reimplemented reality** | S1–S11 |
+| S12 | CLAUDE.md comprehensive refactor | `CLAUDE.md`, `private_dot_claude/CLAUDE.md`, global AGENTS.md parity | the memory-file rewrite per the spec's CLAUDE.md section — **pre-cutover: runs last of all implementation PRs (before Phase D) so it documents the reimplemented reality** [audit 2026-07-10] | S1–S11 |
 
 **Sequencing rationale:** S1 (docs) and S2 (the checkable foundation — CI must actually run tests before
 the rest can be trusted) go first. S3–S11 are feature slices, orderable by dependency (skills before
 herdr because herdr's plugins live in the store; relay before nothing; osquery last of the big three
 because its diff is smallest relative to main). S12 rewrites the memory files last, against final
-reality. Ship in table order unless the operator re-prioritizes.
+reality. Ship in table order unless the operator re-prioritizes. **For all post-S5 work the
+authoritative sequence is the audit's 20-step "Authoritative implementation order" (amended 2026-07-10)
+in the deferred sub-projects section — it supersedes this prose for everything from the PR #38 repair
+onward.**
 
 ---
 
@@ -297,8 +300,13 @@ protocol below is **step 3's inner cycle**, not a replacement for this loop.
 1. **Conductor review + correction.** When the implementer finishes, Fable reviews its work against the
    section plan, names every mistake and residual gap, and instructs the model (or a fresh one) to
    implement the fixes. Findings move as files, per the skill's handoff rules.
-1. **Repeat until satisfied.** Steps 4–5 loop until Fable can identify no further mistake or gap in that
-   task's work.
+1. **Repeat until satisfied — strict-letter rule [audit 2026-07-10].** Steps 4–5 loop until Fable can
+   identify no further mistake or gap in that task's work. **Every fix commit, however small, gets an
+   independent reviewer pass** — a fresh review of the actual committed diff, not the fixer reviewing
+   itself. **Conductor verification of the fixer's own evidence is never a substitute** for an
+   independent reviewer looking at the diff. **Beware `A..B` commit ranges that exclude the boundary
+   commit `A`** — a review scoped to `A..B` silently skips `A` itself; use `A^..B` (or review the
+   explicit commit list) so no fix commit escapes review.
 1. **End-of-section sweep.** After the section's tasks are all individually clean, Fable does one final
    sweep across *everything* the section produced (the whole slice diff), identifies any remaining gaps
    and improvements, and runs the 4–6 loop on them until satisfied. Only then does Fable decide whether
@@ -410,22 +418,27 @@ protocol below is **step 3's inner cycle**, not a replacement for this loop.
 - **Review focus:** does CI now actually fail on a broken test / format drift? (Push a deliberately
   broken commit to a throwaway branch to confirm red, then drop it.)
 
-### S3 — Skills-store consolidation
-- **Files + deletions** per the map. The restored skills (conventional-commits, humanizer,
-  video-transcript-downloader, hyperframes set, last30days, tiktok-crawling, kubernetes-specialist) are
-  already in the store on the integration branch — carry them.
-- **Ledger fixes:** add `run_onchange_after_*-load-update-skills-launchagent.sh.tmpl` (mirror the atuin
-  loader; `mkdir -p ~/.local/log/skills` before bootstrap); declare every store symlink in
-  `private_dot_claude/skills/symlink_*`; `trash` the stale `.agents/skills/moshi-best-practices/`.
-- **Wiring (P-4):** every `~/.claude/skills/*` symlink target exists in `~/.agents/skills`; the loader
-  actually bootstraps the plist.
-- **Research amendments (§R5):** keep-all-21 decision, so the fix is reproducibility, concrete — **9
-  skills are uncommitted** (`chrome-devtools-axi`, `cua-driver`, `elevenlabs`, `gh-axi`, `home-assistant`,
-  `kubernetes-specialist`, `last30days`, `sql-toolkit`, `tiktok-crawling` — including the *preferred*
-  gh-axi/chrome-devtools-axi), Hermes has **0** symlink declarations, and `update-skills.sh` is
-  refresh-only (skips absent skills). Commit or install-manifest all 21, declare the Hermes fan-out, make
-  update-skills install-capable, and add the vendored-skill SHA/`computedHash` supply-chain gate before
-  the atomic swap.
+### S3 — Skills-store consolidation (COMPLETE — PR #36, merge `5f21a81`) [audit 2026-07-10]
+- **Shipped model (supersedes the obsolete 21-skill framing).** The store settled into a single canonical
+  `~/.agents/skills` (31 roster skills) on a four-lane provenance model — **npx-tracked** (official GitHub
+  upstreams, refreshed by the npx `skills` CLI), **ClawHub-tracked** (`home-assistant`, `sql-toolkit`,
+  `summarize-pro`, refreshed by the `clawhub` CLI), **vendored** (`moshi`/`herdr` forks, `elevenlabs`,
+  `tiktok-crawling`, refreshed only by `chezmoi apply`), and **app-owned symlink** (`cua-driver`). The
+  lock at `dot_agents/custom-skill-lock.json` records every lane plus the `tiers` (core vs on-demand),
+  `hermesProfiles`/`hermesRegistry` (the disjoint two-lane hermes delivery across the five profiles),
+  `npxTracked`/`clawhubTracked`, `forks`, and `superpowersRouting` tables; `test/skills-roster-fanout.sh`
+  fails the build if any table, the per-harness declarations, or the settings modify-template's
+  `skillOverrides` disagree. The full narrative is the repo `CLAUDE.md` "Agent Skills (cross-harness
+  store)" section — the source of truth; this plan does not duplicate it.
+- **Deleted framing:** the old "21 live / 12 committed / 9 Claude symlinks / 0 Hermes" counts and the
+  "9 uncommitted skills to capture" list are superseded and removed — that scope was overtaken by the
+  shipped model (execution learning #2).
+- **Verified residual debt (Phase E / Wave-3 only).** What remains open is the three High convergence
+  defects the audit found in the shipped updater — **updates can defer forever**, **fresh-machine install
+  is not auto-started**, and **fan-out is additive not convergent** — owned by the **Wave-3 skills-stab
+  PR** (audit PR #36); the `35922d4` skills-test scope-split (audit PR #36 Low / PR #38 #4) moves into that
+  same PR from `wip/skills-test-hermetic`; and the Phase E items `fix/harness-skill-reconciliation`,
+  `fix/live-reconcile-from-scratch`, and `fix/skill-architecture-diagram` remain.
 
 ### S4 — herdr migration (re-scoped 2026-07-09 against live state, per learning #2)
 - **Decision: ONE PR — the S4a/b/c split is retracted.** The atomicity invariant (below) means any
@@ -473,7 +486,20 @@ protocol below is **step 3's inner cycle**, not a replacement for this loop.
 - **Operator apply** needed (builds Rust at apply time; installs herdr via the curl installer; tears
   down tmux LaunchAgent state).
 
-### S5 — Tailscale headless daemon (re-scoped 2026-07-10 against live state, per learning #2)
+### S5 — Tailscale headless daemon (COMPLETE — PR #38, merge `1a6e718`) [audit 2026-07-10]
+- **Outcome (all four PR #38 fixes landed).** Status is now classified on `tailscale status --json`'s
+  `.BackendState` (`Running`/`Starting`/`NeedsLogin`/`NeedsMachineAuth`/`Stopped`), with connection
+  failure separated from state and unknown states treated as unknown, not "daemon missing" — the full
+  state machine plus fake-binary tests for every state (`81e7559`, `66a5871`). **MagicDNS is RESOLVED per
+  R1:** root-caused to the macOS resolver-**registration** layer (tailscaled's internal resolver stays
+  healthy; the `<tailnet>.ts.net` suffix route half-registers — fails at home too, not just on foreign
+  networks), the supported-fix attempt failed, and a **declarative `/etc/hosts` fallback** shipped as
+  structured `tailnet_pins` data in `macos_system_setup.yaml` from which the Tier-2 runner generates
+  idempotent pin commands (`4830f44`, `6560a59`, `c5614ae`, `f096ecb`, `c90a700`, `164548a`). The
+  **superseded-service decision** and evergreen `CLAUDE.md` cleanup landed (`38bffb6`, `6e36512`,
+  `a22ae3b`, `daef534`); the copied-daemon re-copy responsibility passes to **S6** (documented manual
+  re-copy for now — no doc claim ahead of the code). The old June Tailscale spec/plan history is
+  corrected in the roadmap (this amendment).
 - **Resolved: `2f430b3` is NOT on main — and it does not matter for S5.** The tailscale-monitor is an
   osquery component: all four monitor files in the delta
   (`run_onchange_after_60-load-osquery-tailscale-monitor-launchagent.sh.tmpl`, its plist,
@@ -501,11 +527,35 @@ protocol below is **step 3's inner cycle**, not a replacement for this loop.
   → `~/.local/bin` copy; `SKIP_SYSTEM_PACKAGES` truthiness (`=0`/`=false` must NOT skip → `{{ if eq (env
   "SKIP_SYSTEM_PACKAGES") "1" }}`); guard the uv/npm/volta loops.
 - **Wiring:** the Monday-noon plist loads; `RunAtLoad=false`.
+- **Audit requirements [audit 2026-07-10]:**
+  - **Depend explicitly on S5's copied-daemon model** — S6 owns the Tailscale daemon re-copy
+    (`sudo /opt/homebrew/opt/tailscale/bin/tailscaled install-system-daemon`) after a formula upgrade,
+    and restores the "automated weekly" `CLAUDE.md` wording S5 deferred to it.
+  - **Re-copy Tailscale only when the formula binary changes** — compare the upgraded user-owned formula
+    binary against the running root-owned `/usr/local/bin/tailscaled` (hash/byte) and skip the re-copy
+    when unchanged.
+  - **Mutual exclusion** — a lock (e.g. `flock`) so two upgrade runs cannot overlap.
+  - **Continue-on-failure with an aggregate exit** — an individual failing step is logged but does not
+    abort the run; the run returns a non-zero **aggregate** status if any step failed.
+  - **Tests:** missing tools, partial failures, logging, loader rendering, and Tailscale-refresh failure.
+  - **Split option:** if the `before_10` per-ecosystem package-runner refactoring makes S6 too large,
+    split that refactor into its own PR (sizing authority = operator review speed).
 
-### S7 — Relay notification pipeline (bash, as-deployed)
-- **Ship the bash exactly as it runs on dresden.** Do NOT fix the SP3-tagged relay bugs here (fail-closed
-  idle probe, jq slurp, mkdir lock, regex anchor) — those are the Rust rewrite's job; main must match
-  dresden's current live behavior so SP3 replaces a known baseline. Note this explicitly in the PR body.
+### S7 — Relay notification pipeline (bash) [audit 2026-07-10 — R2]
+- **[R2 — reverses the earlier "ship the bash exactly as it runs on dresden" text.]** Classify the relay
+  defects into **delivery blockers** and **harmless baseline quirks**, and **fix the four delivery-loss
+  defects BEFORE merging S7** — they can silently drop notifications, which is daily-critical:
+  - **Fail-closed idle probe** — a missing HIDIdleTime aborts all channels instead of failing open
+    (`relay.sh:68`); fail open.
+  - **Whole-file `jq -rs` transcript slurp** — one half-written trailing JSONL line discards the whole
+    summary (`relay-agent.sh:17`); parse line-by-line, skipping an unterminated final line.
+  - **Stale directory lock** — a wedged `mkdir` lock (e.g. after SIGKILL) suppresses later notifications
+    (`hue-pulse.sh`); recover from a stale lock.
+  - **Missing flag value** — a value-flag as the last argument aborts parsing (`relay.sh`), breaking the
+    "always exits 0" contract.
+  Add **characterization tests** for any baseline quirk deliberately retained (the harmless ones). SP3
+  (the Rust rewrite) still replaces the whole bash design later — but these four are fixed now so `main`
+  does not carry known notification-dropping bugs. Note the delivery-blocker/quirk split in the PR body.
 - ~~Delete the old `com.claude.code.plist.tmpl`~~ — **moved to S4** (2026-07-09): the plist's only
   payload execs the tmux-coupled `claude-restart.sh`, which S4 deletes, so the pair ships in S4's atomic
   cluster (keeping it here would leave main's LaunchAgent exec'ing a nonexistent file between S4 and S7).
@@ -516,17 +566,37 @@ protocol below is **step 3's inner cycle**, not a replacement for this loop.
   as one clean PR. The age-tripwire fix and the fresh-machine restore script are part of it.
 - **Operator step:** the `age` recipient in `.chezmoi.toml.tmpl` is the operator's public key (already
   set); the private key restore rides KeePassXC. Round-trip verify in the PR (`chezmoi cat` == live).
-- **Research amendments (§R4):** generalize the `{{ if eq .chezmoi.os "darwin" }}` guard on
-  `run_once_before_05-restore-age-key` so the Linux home-server restores the key too; ship
-  `docs/runbooks/age-key.md` (rotation + disaster-recovery workflows are spelled out in §R4) and a
-  `test/age-restore.sh` DR drill. KeePassXC entry name is `chezmoi :: Private Key :: age` (spec corrected
-  2026-07-04). Multi-recipient migration is deferred (see the spec's laptop→home-server item).
+- **[audit 2026-07-10 — reverses the earlier §R4 "generalize the darwin guard" text.]**
+  - **Keep the `{{ if eq .chezmoi.os "darwin" }}` guard** on `run_once_before_05-restore-age-key` — do
+    NOT generalize it until a complete **Linux credential-source and identity design** exists. The current
+    macOS paths and KeePassXC assumptions do not constitute Linux support; the multi-recipient
+    laptop→home-server migration stays deferred (roadmap deferred index).
+  - **Rotation uses `chezmoi re-add --re-encrypt`, not the destructive `chezmoi forget` + `add`
+    sequence** — the R4 runbook below is corrected to the installed workflow.
+  - **Enumerate the managed encrypted targets explicitly** in the PR (not just "`~/.hermes/config.yaml`").
+  - **Rehearse rotation in a scratch source and destination** before touching live secrets.
+  - **Re-scope S8 up front** — encrypted **per-profile Hermes configs**
+    (`dot_hermes/profiles/*/encrypted_config.yaml.age`) and **codegraph Hermes-MCP state** materially
+    expand the slice, so Phase E `fix/hermes-encrypted-profile-configs` rides here; **round-trip test each
+    captured profile independently**.
+  - Ship `docs/runbooks/age-key.md` (rotation + disaster-recovery) and the `test/age-restore.sh` DR drill;
+    KeePassXC entry name is `chezmoi :: Private Key :: age` (spec corrected 2026-07-04).
 
 ### S9 — osquery three-tier alerting
 - **Smallest big slice** — most of osquery is already on main; carry only the PR#25 delta.
 - **In scope:** alerting/dispatch design improvements. **Sign-off gate:** any `.chezmoitemplates/osquery/
   *.conf` query/pack content change is listed in the PR body for explicit user approval before merge.
 - **Wiring:** all 6 LaunchAgents + loaders; the 87-bat suite green; the pipeline manifest baseline.
+- **Audit requirements [audit 2026-07-10]:**
+  - **Build an exact path-and-hunk matrix before implementation** — the real PR #25 delta against the
+    converged `main`, not the early file list.
+  - **S5 dependency:** the Tailscale monitor moved into S9 (the four monitor files carrying `2f430b3`) —
+    S5's re-scope already recorded this; S9 depends on S5's settled model.
+  - **Render and parse every plist**; **test every loader label and path**.
+  - **Split** dispatch / results-alerter / the six pollers+loaders / pack changes into separate PRs if the
+    real diff is not quickly reviewable (the sizing fallback below).
+  - **Sign-off gate unchanged:** every `.chezmoitemplates/osquery/*.conf` query/pack content change stays
+    behind explicit operator sign-off.
 - **Research amendments (§R8):** the two osquery "gap-queries" once proposed are **retracted** —
   `listening_ports_non_loopback` and `kernel_extensions`/`system_extensions` monitoring already exist in
   `intrusion-detection.conf`. osquery's genuinely-unfinished work (Mouse analysis agent, approval-UX PR2,
@@ -542,8 +612,19 @@ protocol below is **step 3's inner cycle**, not a replacement for this loop.
   found missing in the 2026-07-09 audit):** the drop-in sets only `PasswordAuthentication no`, but
   `UsePAM yes` + the `KbdInteractiveAuthentication` default leave PAM password login open (verified
   live per the roadmap ledger) — the hardening record must also set
-  `KbdInteractiveAuthentication no` (and address UsePAM's interaction) so password auth is actually
-  closed, test-driven per the sshd `-T` effective-config seam.
+  `KbdInteractiveAuthentication no` so password auth is actually closed — the **full accepted effective
+  config is defined in the audit bullet below** (the undefined "address UsePAM's interaction" wording is
+  removed and replaced), test-driven per the sshd `-T` effective-config seam.
+- **SSH hardening — audit requirements [audit 2026-07-10] (perform ONLY while physically present):**
+  - **Define the exact accepted `sshd -T` effective config BEFORE implementation** — the full set of
+    keys/values that constitutes "password auth is closed" (at minimum `passwordauthentication no`,
+    `kbdinteractiveauthentication no`, and the chosen `usepam` value with its interaction spelled out).
+    This **replaces** the undefined "address UsePAM's interaction" requirement — the accepted config is a
+    concrete effective-output contract, not a to-do.
+  - **Validate syntax and effective config before reload** (`sshd -t`, then diff `sshd -T` against the
+    accepted set).
+  - **Keep the existing session open**, **prove a new key-only session works**, and **test rollback**
+    before closing the original session.
 - **Operator apply** needed (Tier-2 sudo runner prompts once).
 - **Research amendments (§R8, §R6):** the R8 endpoint additions already landed on the working branch
   (`36d2d27`) — the `lulu` + `oversight` casks and the firewall **stealth-mode** `macos_system_setup.yaml`
@@ -567,14 +648,33 @@ protocol below is **step 3's inner cycle**, not a replacement for this loop.
   DietrichGebert/ponytail --enable`, promote to `enabledPlugins`).
 - **Operator apply** needed (credential renames re-deploy at 0600; already done live tonight, but main
   must carry the renamed sources).
+- **Audit requirements [audit 2026-07-10] — split S11 into the audit's 7 small PRs:**
+  1. Shell and brew-cache work.
+  2. Secret permission changes.
+  3. Git hygiene.
+  4. Desktop and hotkey cleanup.
+  5. Log rotation.
+  6. Fork maintenance.
+  7. Plugin installation.
+  **Thaw stays a standalone SP5 PR** (not folded into S11). **OpenClaw is already ruled (R3):** the
+  Wave-3d OpenClaw-cleanup PR owns the `openclaw` package removal, the AeroSpace F1 binding, and the docs
+  together, and the operator owns the Todoist cleanup — OpenClaw is NOT an S11 chore.
 
-### S12 — CLAUDE.md comprehensive refactor
+### S12 — CLAUDE.md comprehensive refactor (pre-cutover) [audit 2026-07-10]
 - Runs last. Per the spec's CLAUDE.md section: global file → minimal (preferences + bias-correction +
   toolchain + gates only, no operational detail, no dead skill references); repo file → identity +
   commands + architecture map + conventions, conditional deep-dives extracted to `docs/runbooks/` or
   skills; **every factual claim re-verified against the live repo at write time**; global AGENTS.md
   parity added. Fold in the verified staleness fixes (haiku→sonnet hook, pre-bats Testing section, wrong
   source-dir description, tmux/yabai remnants, single-template shellcheck claim).
+- **Audit requirements [audit 2026-07-10]:** S12 is **unambiguously pre-cutover** — it runs after ALL
+  implementation PRs (S6–S11 + the Wave-3 stabilization PRs) but BEFORE Phase D cutover, so `main`
+  documents the reimplemented reality and the cutover applies converged instruction files. Build the
+  **shared Claude + Codex rules partial** (one `.chezmoitemplates` partial included by both
+  `~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md`); **render both global targets in tests** and
+  **byte-compare the shared block** across them; **re-verify every command and path against the converged
+  `main`** at write time; **move conditional operational detail into runbooks** rather than the
+  always-loaded instruction files (Phase E `fix/codex-agents-parity` rides here).
 
 ---
 
@@ -742,9 +842,12 @@ reasons (added to the spec Decisions log, below). But three **verified** gaps:
 1. Update `.chezmoi.toml.tmpl`: set `[age] recipient` to the **new** public key (keep the old identity in
    an `identities` list temporarily so existing ciphertext still decrypts during the transition), then
    `chezmoi init`.
-1. Re-encrypt every managed secret to the new recipient: for each `encrypted_*` source file,
-   `chezmoi forget <target>` then `chezmoi add --encrypt <target>` (re-encrypts under the new recipient).
-   Today that is just `~/.hermes/config.yaml`.
+1. Re-encrypt every managed secret to the new recipient with the installed non-destructive workflow:
+   `chezmoi re-add --re-encrypt` (re-encrypts the existing `encrypted_*` files under the new recipient —
+   **corrected 2026-07-10**, replacing the destructive `chezmoi forget` + `chezmoi add --encrypt` pair the
+   audit flagged). Enumerate the encrypted targets explicitly rather than assuming a single file: today
+   `~/.hermes/config.yaml`, plus the re-scoped per-profile Hermes configs
+   (`dot_hermes/profiles/*/encrypted_config.yaml.age`) and codegraph state as those land in S8.
 1. Verify round-trip: `diff <(chezmoi cat ~/.hermes/config.yaml) ~/.hermes/config.yaml` is empty;
    `head -1` of each `encrypted_*` file is an age header, not plaintext.
 1. Drop the old identity from `identities`, `mv key.new key.txt`, and **update the KeePassXC entry**
@@ -913,6 +1016,12 @@ These operator-decided items live in `docs/superpowers/specs/2026-07-02-repo-mod
 (the sub-project table), not in this plan — listed here so the plan is self-contained about what it
 deliberately does NOT cover:
 
+- **SP3 — Notification rewrite (Rust): behavior contract approved; final implementation spec PENDING.**
+  Not "fully designed" [audit 2026-07-10]. The roadmap spec (amended 2026-07-10) carries SP3's status and
+  open-items list — event input schemas, per-harness event mapping, native-push ownership (R7),
+  per-channel retry/failure, presence thresholds, lights quiet hours, migration coexistence/rollback, and
+  acceptance boundaries. SP3 is a **stateless per-event executable, not a daemon/service**. Sequenced
+  after SP2 cutover per the authoritative order below.
 - **SP4 — bash→nushell evaluation: RESOLVED — NO-GO, operator-ratified 2026-07-09.** The evaluation ran
   during S4 (report: `docs/research/2026-07-09-sp4-nushell-evaluation.md`); verdict NO-GO on three legs:
   reedline binds one key event per binding — no multi-keystroke chord grammar (verified against the
@@ -947,7 +1056,38 @@ deliberately does NOT cover:
 - **SP7 backlog — small chores**, including **P6: install `bandwhich`, `doggo`, `ouch`** ("still valid,
   trivial" — manifest entries + `brew install`), P3 package-manager audit, P5 Determinate Nix review,
   P8 quick wins (placement depends on SP4's verdict).
-- **SP-nix — nix-darwin go/no-go** (research-first sibling of SP4, banked in §R6).
+- **SP-nix — nix-darwin go/no-go** (research-first sibling of SP4, banked in §R6). **Do not start it
+  merely because it appears in the roadmap** [audit 2026-07-10] — start only after one of these triggers:
+  a larger Mac fleet; a material maintenance failure in the current `defaults` system; or a proven design
+  that preserves the current single-apply and secrets model.
+
+### Authoritative implementation order (audit 2026-07-10 — supersedes the older per-slice sequencing prose)
+
+The audit's recommended order is adopted as the authoritative SP2 sequence for everything from the PR #38
+repair onward; it supersedes the "ship in table order" / "Sequencing rationale" prose for post-S5 work.
+Completed items (S1–S5, steps 1–2) are struck; the rest are the standing plan of record. Cutover steps
+map to the D1 gates below.
+
+1. ~~Repair PR #38 without changing its copied-daemon architecture.~~ (done — merged as #38)
+1. ~~Resolve or explicitly accept the MagicDNS failure.~~ (done — R1: declarative `/etc/hosts` fallback)
+1. **Amend the roadmap and SP2 plan.** ← this amendment
+1. Land the skills stabilization PR.
+1. Land the herdr stabilization PR.
+1. Land rendered-template coverage and documentation fixes.
+1. Implement S6 against the settled Tailscale model.
+1. Resolve the S7 delivery-defect policy.
+1. Resolve S8's Linux and encrypted-profile boundary.
+1. Implement S7 and the re-scoped S8.
+1. Re-scope and split S9.
+1. Implement S10 during a physical-presence window.
+1. Split S11 and ship SP5 (Thaw) separately.
+1. Complete and mechanically verify S12.
+1. Run cutover preflight and expected-delta reconciliation (D1 Gate 1).
+1. Activate `main` in stages (D1 Gate 2).
+1. Run tracked live reconciliation (D1 Gate 3).
+1. Soak, then final closure (D1 Gate 4 → Gate 5).
+1. Continue with SP3, SP4, SP6, then SP7.
+1. Start SP-nix only if its trigger occurs.
 
 ## Phase E — End-of-SP2 cleanup backlog
 
