@@ -265,7 +265,7 @@ __cmd_notify_precmd() {
   local elapsed=$((SECONDS - __cmd_notify_start))
   __cmd_notify_start=""
   # Skip known interactive TUIs.
-  [[ $__cmd_notify_name =~ ^(vim|nvim|less|man|top|btop|ssh|herdr|claude|fzf) ]] && return
+  [[ $__cmd_notify_name =~ ^(vim|nvim|less|man|top|btop|ssh|herdr|claude|hermes|codex|fzf) ]] && return
   # Wrap each background call in a subshell so jobs aren't attached to this
   # interactive shell (otherwise `fg`/`jobs` would grab them).
   if ((elapsed >= 300)); then
