@@ -184,28 +184,106 @@ __update_skills_harness_active() {
   return 1
 }
 
-ensure_symlink() {
-  local skill="$1"
-  [[ -d "$STORE/$skill" ]] || return 0
-  [[ -e "$CLAUDE/$skill" ]] || ln -s "../../.agents/skills/$skill" "$CLAUDE/$skill"
-  ensure_hermes_symlinks "$skill"
+# updater-owned link = a SYMLINK whose literal target points under
+# ~/.agents/skills. The literal readlink target is matched (not a resolved path),
+# so this holds for a DANGLING link too — its string still points into the store.
+# ONLY such links are ever replaced or removed by convergence; real dirs
+# (hub-owned registry dirs, hermes's catalog) and non-store symlinks are never
+# touched, and neither is any name in a profile the lock does not map.
+__update_skills_is_owned_link() {
+  local path="$1" target
+  [[ -L $path ]] || return 1
+  target="$(readlink "$path" 2>/dev/null || true)"
+  case "$target" in
+    *.agents/skills/*) return 0 ;;
+  esac
+  return 1
 }
 
-# Hermes fan-out is profile-driven by the lock's hermesProfiles map: it names
-# the hermes profiles whose skills/ dir carries a store symlink for the skill —
-# "default" is ~/.hermes/skills (Bob), any other name is
-# ~/.hermes/profiles/<name>/skills (created here when absent, so a mapping can
-# land before its profile has been initialized on this machine). A [] mapping —
-# or a missing table — gets no hermes links: the deliberate "not available in
-# hermes from the store" state, not an error. Collision-named skills never fan
-# out regardless: hermes's catalog wins those names (operator ruling), so their
-# store copies serve Claude/Codex only. Claude is not profile-scoped: every
-# store skill keeps its ~/.claude/skills link (tiering there is the settings
-# modify-template's job, not the fan-out's).
-# summarize-pro left this list 2026-07-09: its only hermes copy was the
-# (retired) default-profile hub install, so no catalog copy wins the name —
-# exactly like todoist-cli. It now fans out per hermesProfiles like any other
-# store skill.
+# Converge one managed dir to a desired {name -> "$prefix/$name"} set:
+#   converge_dir <dir> <target_prefix> <desired_name>...
+# create a missing desired link; REPLACE an updater-owned link whose target
+# differs (wrong-target, incl. dangling — the additive `[[ -e ]] || ln -s`
+# crashed on a dangling link); REMOVE an updater-owned link no longer desired
+# (stale). A real dir/file (hub-owned/catalog) at a managed name, and any
+# non-store symlink, are left untouched. A no-op convergence is silent.
+converge_dir() {
+  local dir="$1" prefix="$2"
+  shift 2
+  local -a desired=("$@")
+  local skill target path current name is_desired old_target
+  mkdir -p "$dir"
+  # 1) create or repair every desired link
+  if [[ ${#desired[@]} -gt 0 ]]; then
+    for skill in "${desired[@]}"; do
+      target="$prefix/$skill"
+      path="$dir/$skill"
+      if [[ -L $path ]]; then
+        current="$(readlink "$path" 2>/dev/null || true)"
+        [[ $current == "$target" ]] && continue # already correct
+        if __update_skills_is_owned_link "$path"; then
+          ln -sfn "$target" "$path" # replace wrong-target / dangling updater-owned link
+          log "converge: replaced $path (was $current, now $target)"
+        else
+          log "converge: WARN $path is a non-store symlink at a managed name; leaving it (resolve by hand)"
+        fi
+      elif [[ -e $path ]]; then
+        : # a real dir/file (hub-owned or catalog) at this name — never overwrite
+      else
+        ln -s "$target" "$path"
+        log "converge: created $path -> $target"
+      fi
+    done
+  fi
+  # 2) remove updater-owned links that are no longer desired (stale drift)
+  for path in "$dir"/*; do
+    [[ -e $path || -L $path ]] || continue # skip the un-globbed literal when the dir is empty
+    name="${path##*/}"
+    is_desired=""
+    if [[ ${#desired[@]} -gt 0 ]]; then
+      for skill in "${desired[@]}"; do
+        [[ $skill == "$name" ]] && {
+          is_desired=1
+          break
+        }
+      done
+    fi
+    [[ -n $is_desired ]] && continue
+    if __update_skills_is_owned_link "$path"; then
+      old_target="$(readlink "$path" 2>/dev/null || true)"
+      rm -f "$path"
+      log "converge: removed stale $path (was $old_target)"
+    fi
+  done
+}
+
+# Claude fan-out: every store skill (the full roster) gets a ~/.claude/skills
+# link. Claude is not profile-scoped — tiering there is the settings
+# modify-template's job, not the fan-out's.
+converge_claude_skills() {
+  local -a desired=()
+  local skill_path skill
+  for skill_path in "$STORE"/*; do
+    [[ -d $skill_path || -L $skill_path ]] || continue
+    skill="${skill_path##*/}"
+    desired+=("$skill")
+  done
+  if [[ ${#desired[@]} -gt 0 ]]; then
+    converge_dir "$CLAUDE" "../../.agents/skills" "${desired[@]}"
+  else
+    converge_dir "$CLAUDE" "../../.agents/skills"
+  fi
+}
+
+# Hermes fan-out is profile-driven by the lock's hermesProfiles map. "default" is
+# ~/.hermes/skills (Bob), any other name is ~/.hermes/profiles/<name>/skills
+# (created here when absent, so a mapping can land before its profile exists on
+# this machine). A [] mapping — or a missing table — gets no hermes link: the
+# deliberate "not available in hermes from the store" state, not an error.
+# Collision-named skills (humanizer, hyperframes) never fan out: hermes's catalog
+# wins those names (operator ruling), so a stale store link at such a name IS
+# removed by convergence, but creating one never happens. Only the profiles the
+# lock names are walked — a profile the lock does not map is never touched.
 HERMES_COLLISION_NAMES=(humanizer hyperframes)
 is_hermes_collision_name() {
   local collision_entry
@@ -214,21 +292,36 @@ is_hermes_collision_name() {
   done
   return 1
 }
-ensure_hermes_symlinks() {
-  local skill="$1" profile link_dir target
+converge_hermes_skills() {
   [[ -f $CUSTOM_SKILL_LOCK ]] || return 0
-  is_hermes_collision_name "$skill" && return 0
+  local profile link_dir prefix skill
+  local -a profiles=() desired=()
   while IFS= read -r profile; do
+    [[ -n $profile ]] && profiles+=("$profile")
+  done < <(jq -r '.hermesProfiles // {} | [.[][]?] | unique | .[]' "$CUSTOM_SKILL_LOCK" 2>/dev/null)
+  [[ ${#profiles[@]} -gt 0 ]] || return 0
+  for profile in "${profiles[@]}"; do
     if [[ $profile == "default" ]]; then
       link_dir="$HERMES"
-      target="../../.agents/skills/$skill"
+      prefix="../../.agents/skills"
     else
       link_dir="$HERMES_PROFILES/$profile/skills"
-      target="../../../../.agents/skills/$skill"
+      prefix="../../../../.agents/skills"
     fi
-    mkdir -p "$link_dir"
-    [[ -e "$link_dir/$skill" ]] || ln -s "$target" "$link_dir/$skill"
-  done < <(jq -r --arg skill "$skill" '.hermesProfiles[$skill] // [] | .[]' "$CUSTOM_SKILL_LOCK" 2>/dev/null)
+    desired=()
+    while IFS= read -r skill; do
+      [[ -n $skill ]] || continue
+      is_hermes_collision_name "$skill" && continue              # collision names never fan out
+      [[ -d "$STORE/$skill" || -L "$STORE/$skill" ]] || continue # only skills present in the store
+      desired+=("$skill")
+    done < <(jq -r --arg p "$profile" '.hermesProfiles // {} | to_entries[]
+      | select((.value // []) | index($p) != null) | .key' "$CUSTOM_SKILL_LOCK" 2>/dev/null)
+    if [[ ${#desired[@]} -gt 0 ]]; then
+      converge_dir "$link_dir" "$prefix" "${desired[@]}"
+    else
+      converge_dir "$link_dir" "$prefix"
+    fi
+  done
 }
 
 # Superpowers→hermes routing re-assert: the hand-patched hermes-superpowers
@@ -464,8 +557,7 @@ install_npx_tracked() {
     fi
     if npx --yes skills@latest add "$repo" --skill "$skill" --agent claude-code --agent codex -g -y 2>&1 | tr -d '\r' | tail -3; then
       if [[ -d "$STORE/$skill" ]]; then
-        ensure_symlink "$skill"
-        log "installed: $skill from $repo"
+        log "installed: $skill from $repo" # fan-out is the convergence pass's job (below)
       else
         log "install $skill: npx add reported success but $STORE/$skill is absent (continuing)"
       fi
@@ -515,8 +607,7 @@ install_clawhub_tracked() {
       [[ -d $installed_dir ]] || installed_dir="$tmp_workdir/skills/$skill"
       if [[ -d $installed_dir ]]; then
         mv "$installed_dir" "$STORE/$skill"
-        ensure_symlink "$skill"
-        log "installed: $skill from $slug"
+        log "installed: $skill from $slug" # fan-out is the convergence pass's job (below)
       else
         log "install $skill: clawhub install reported success but produced no skill dir (continuing)"
       fi
@@ -667,7 +758,8 @@ log "clawhub installs (absent skills)"
 install_clawhub_tracked
 
 if [[ -n $INSTALL_ONLY ]]; then
-  for skill_dir in "$STORE"/*/; do [[ -d $skill_dir ]] && ensure_symlink "$(basename "$skill_dir")"; done
+  converge_claude_skills
+  converge_hermes_skills
   assert_codex_overlays
   assert_superpowers_routing
   log "done (install-only)${DRYRUN:+ (dry-run)}"
@@ -692,9 +784,12 @@ update_clawhub_tracked
 #     (see refresh_app_owned_cua_pack above — never a write through the symlink)
 refresh_app_owned_cua_pack
 
-# 2) ensure every store skill is symlinked into Claude, and into exactly the
-#    hermes profile skills dirs its hermesProfiles mapping names
-for skill_dir in "$STORE"/*/; do [[ -d $skill_dir ]] && ensure_symlink "$(basename "$skill_dir")"; done
+# 2) CONVERGE the fan-out: every store skill is symlinked into Claude, and into
+#    exactly the hermes profile skills dirs its hermesProfiles mapping names —
+#    creating missing links, repairing wrong/dangling targets, and removing
+#    updater-owned links that drifted out of the desired set
+converge_claude_skills
+converge_hermes_skills
 
 # 3) re-assert Codex policy overlays for on-demand skills — AFTER the npx
 #    refresh above, which replaces npx-tracked skill folders (overlay and all)
