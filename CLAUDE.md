@@ -539,10 +539,17 @@ admin console — node-key expiry will not force reauthentication (no auth keys,
 KeePassXC). `run_onchange_after_66-tailscaled-status.sh.tmpl` is a sudo-free reminder that prints those
 one-time steps when the daemon is down or unauthenticated; it never runs sudo or authenticates.
 
-**DNS:** always `--accept-dns=true` (dynamic, roaming-safe) — never a static `100.100.100.100` resolver
-(that breaks off-tailnet). The OSS macOS DNS path is the known weak spot (`tailscale/tailscale#13461`,
-`#14746`): normal DNS keeps working while roaming, but resolving *other* tailnet hostnames *from* this
-machine may be flaky on a foreign network — pin the few needed tailnet hosts in `/etc/hosts` if so.
+**DNS:** always `--accept-dns=true` — never a static `100.100.100.100` global resolver (breaks
+off-tailnet). The OSS-macOS weak spot is the resolver registration layer (`tailscale/tailscale#13461`,
+`#19139`): tailscaled's internal MagicDNS resolver stays healthy, but its registration of the
+`<tailnet>.ts.net` suffix route with macOS can silently half-fail (search-domain fragment written, no
+nameserver route) — including at home — so tailnet names stop resolving through the system resolver while
+all other DNS works. Remedy:
+`sudo tailscale set --accept-dns=false && sudo tailscale set --accept-dns=true`, then
+`sudo dscacheutil -flushcache; sudo killall -HUP mDNSResponder`; verify with
+`dscacheutil -q host -a name <peer>.<tailnet>.ts.net` (not `dig` — dig bypasses `/etc/resolver`). Durable
+fallback: pin needed peers in `/etc/hosts` (tailscaled never manages that file, so entries coexist;
+tailnet IPs are stable per node).
 
 **Updates:** `brew upgrade` updates the user-owned formula (no extension re-approval needed), but the
 running daemon is a separate root-owned copy a formula upgrade does not touch — after upgrading the
