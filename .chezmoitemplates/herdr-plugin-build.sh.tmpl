@@ -6,9 +6,12 @@ links it with herdr. Each caller keeps only its plugin-specific pre/postamble.
 */ -}}
 # --- shared plugin build core: .chezmoitemplates/herdr-plugin-build.sh.tmpl ---
 #
-# Plugin source (hashed so this script re-runs on change):
+# Plugin source (hashed so this script re-runs on change). EVERY build input is
+# hashed — a change to any one forces a rebuild — so Cargo.toml (the manifest:
+# deps, edition, package) is hashed alongside Cargo.lock, not omitted:
 #   {{ include (printf "dot_local/share/herdr/plugins/%s/src/main.rs" .id) | sha256sum }}
 #   {{ include (printf "dot_local/share/herdr/plugins/%s/Cargo.lock" .id) | sha256sum }}
+#   {{ include (printf "dot_local/share/herdr/plugins/%s/Cargo.toml" .id) | sha256sum }}
 #   {{ include (printf "dot_local/share/herdr/plugins/%s/herdr-plugin.toml" .id) | sha256sum }}
 
 plugin_dir="$HOME/.local/share/herdr/plugins/{{ .id }}"
