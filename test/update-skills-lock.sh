@@ -41,24 +41,39 @@ HOME="$tmp/home"
 export HOME
 mkdir -p "$HOME/.agents/skills"
 
+# The roster TRACKS one skill so a full run invokes the npx stub: case 4 relies
+# on a BLOCKING stub to park the run mid-lane while it provably holds the lock
+# (an empty roster would skip the lane and finish before the concurrent run
+# starts, making the case a race instead of a proof).
 cat >"$HOME/.agents/custom-skill-lock.json" <<'EOF'
 {
   "version": 2,
-  "tiers": {},
+  "tiers": {"alpha": "core"},
   "hermesProfiles": {},
   "hermesRegistry": {},
-  "npxTracked": {},
+  "npxTracked": {"alpha": {"repo": "fixture/pack"}},
   "clawhubTracked": {},
   "forks": {}
 }
 EOF
 
 # Offline stub so a proceeding full run is fast and never hits the network.
+# Writes a SKILL.md per --skill so candidate validation passes.
 stub="$tmp/stub"
 mkdir -p "$stub"
 cat >"$stub/npx" <<'EOF'
 #!/usr/bin/env bash
-echo stub
+set -euo pipefail
+prev=""
+skills=()
+for a in "$@"; do
+  [[ $prev == --skill ]] && skills+=("$a")
+  prev="$a"
+done
+for s in "${skills[@]}"; do
+  mkdir -p "$HOME/.agents/skills/$s"
+  printf -- '---\nname: %s\n---\n# lane\n' "$s" >"$HOME/.agents/skills/$s/SKILL.md"
+done
 EOF
 chmod +x "$stub"/*
 export PATH="$stub:$PATH"
@@ -136,25 +151,42 @@ grep -q ACQUIRED <<<"$out_c" ||
   fail "the lock was not released when the holder exited (fd-close release failed): $out_c"
 
 # ── 4) end to end: a parked run holds the lock; a concurrent run defers ──────
+# The npx lane signals when it has parked (lane-parked sentinel) and then
+# blocks until released, so the parked run PROVABLY holds the lock while the
+# concurrent run is driven. The wait is passive (a sentinel file): a
+# test-acquire probe here would itself take the kernel lock for a moment and
+# could refuse the parked run's single acquisition attempt (observed flake).
 cat >"$stub/npx" <<EOF
 #!/usr/bin/env bash
+set -euo pipefail
+: >"$tmp/lane-parked"
 while [[ ! -e "$tmp/go" ]]; do sleep 0.02; done
-echo stub
+prev=""
+skills=()
+for a in "\$@"; do
+  [[ \$prev == --skill ]] && skills+=("\$a")
+  prev="\$a"
+done
+for s in "\${skills[@]}"; do
+  mkdir -p "\$HOME/.agents/skills/\$s"
+  printf -- '---\nname: %s\n---\n# lane\n' "\$s" >"\$HOME/.agents/skills/\$s/SKILL.md"
+done
 EOF
 chmod +x "$stub/npx"
-rm -f "$tmp/go"
+rm -f "$tmp/go" "$tmp/lane-parked"
 o1="$tmp/o1.log"
 (UPDATE_SKILLS_FORCE=1 bash "$SCRIPT" >"$o1" 2>&1) &
 run_pid=$!
-# Wait until the parked run holds the lock (its lock file exists and a second
-# acquisition is refused).
 for _ in $(seq 1 300); do
-  if [[ -e "$HOME/.agents/.update-skills.lock" ]] &&
-    grep -q REFUSED <<<"$(bash "$acquire_helper" "$SCRIPT" "" "" 2>&1)"; then
-    break
-  fi
+  [[ -e "$tmp/lane-parked" ]] && break
   sleep 0.02
 done
+[[ -e "$tmp/lane-parked" ]] || {
+  touch "$tmp/go"
+  fail "the parked run never reached the blocking lane (case 4 setup): $(cat "$o1")"
+}
+[[ -e "$HOME/.agents/.update-skills.lock" ]] ||
+  fail "the parked run reached its lane without creating the lock file"
 out_concurrent="$(UPDATE_SKILLS_FORCE=1 bash "$SCRIPT" 2>&1)" ||
   fail "the concurrent run exited non-zero instead of deferring: $out_concurrent"
 grep -qi 'another run in progress' <<<"$out_concurrent" ||
