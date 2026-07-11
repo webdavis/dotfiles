@@ -1323,7 +1323,7 @@ __gen_run_lanes() {
     UPDATE_SKILLS_LANES_ADDITIVE="$additive" \
     UPDATE_SKILLS_FORCE_REINSTALL="$force_reinstall" \
     UPDATE_SKILLS_BUILD_LANES=1 \
-    bash "$UPDATE_SKILLS_SELF" --build-lanes
+    bash "$UPDATE_SKILLS_SELF" --build-lanes 9>&-
 }
 
 # Validate a fully-built candidate generation (brief step 4): every roster
@@ -2441,7 +2441,7 @@ update_hermes_registry_skills() {
         log "would update via hermes -p $profile: $lock_key"
         continue
       fi
-      if update_output="$(hermes -p "$profile" skills update "$lock_key" 2>&1)"; then
+      if update_output="$(hermes -p "$profile" skills update "$lock_key" 9>&- 2>&1)"; then
         if printf '%s\n' "$update_output" | grep -qiE 'blocked|refused'; then
           log "WARN: hermes $profile/$lock_key update was blocked/refused (continuing; never --force from automation)"
           record_required_failure "hermes $profile/$lock_key update blocked/refused"
@@ -2489,7 +2489,9 @@ refresh_app_owned_cua_pack() {
     log "would run: cua-driver skills update"
     return 0
   fi
-  if refresh_output="$(cua-driver skills update 2>&1)"; then
+  # F8: close the lock fd (9) so a long-lived child the app updater might leave
+  # behind never keeps the serialize lock held after this run exits.
+  if refresh_output="$(cua-driver skills update 9>&- 2>&1)"; then
     log "cua-driver skill pack: refreshed via the app's own updater"
   else
     log "WARN: cua-driver skills update failed (continuing)"
@@ -2518,9 +2520,22 @@ if [[ $DRYRUN == "--dry-run" ]]; then
     log "would defer: a live run holds the lock"
   fi
 else
-  if ! __update_skills_acquire_lock; then
-    log "another run in progress; exiting"
-    exit 0
+  # F1: capture the acquisition STATUS; do not collapse contention and hard
+  # failure into one silent exit 0. Contention (lockf EX_TEMPFAIL 75) is a
+  # RETRYABLE deferral in EVERY mode: exit the distinct 75 so the first-install
+  # wrapper preserves its retry marker and a weekly slot simply writes no stamp
+  # and lets a later slot retry. Any OTHER non-zero (unwritable ~/.agents so
+  # `exec 9>>` failed) is a REQUIRED failure: loud warn + relay, no stamp, a
+  # non-zero exit (the wrapper keeps its marker), never a silent success.
+  __update_skills_lock_rc=0
+  __update_skills_acquire_lock || __update_skills_lock_rc=$?
+  if [[ $__update_skills_lock_rc -eq 75 ]]; then
+    log "another run holds the lock; deferring (retryable, exit 75)"
+    exit 75
+  elif [[ $__update_skills_lock_rc -ne 0 ]]; then
+    record_required_failure "could not acquire the serialize lock (rc $__update_skills_lock_rc; e.g. ~/.agents is not writable); no build, no publish, no stamp"
+    __update_skills_alert "update-skills could not acquire its serialize lock (rc $__update_skills_lock_rc). Check that ~/.agents is writable, then re-run ~/.local/bin/update-skills.sh."
+    exit 1
   fi
   # No release path: the kernel drops the lock when this process exits, however
   # it exits. The lock file itself is deliberately never deleted (see the
