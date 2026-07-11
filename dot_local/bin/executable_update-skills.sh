@@ -485,6 +485,30 @@ __update_skills_hermes_profile_universe() {
     done
   fi
 }
+# Reject a managed hermes dir reached THROUGH a directory symlink (item 8). A
+# profiles/<name> or <name>/skills symlink pointing outside ~/.hermes would let
+# convergence create or REMOVE links in that foreign target, decided from the
+# literal relative link text. We take the ruling's reject-symlink branch: when
+# the profile dir OR its skills child is a symlink, we never converge through it
+# (so the managed dir is always a real path under ~/.hermes and every removal
+# stays within this user's tree). Returns 0 = safe to converge, 1 = skip.
+__update_skills_hermes_dir_safe() {
+  local profile="$1" link_dir="$2" profile_dir
+  if [[ $profile == "default" ]]; then
+    profile_dir="$HOME/.hermes"
+  else
+    profile_dir="$HERMES_PROFILES/$profile"
+  fi
+  if [[ -L $profile_dir ]]; then
+    log "converge: WARN hermes profile dir $profile_dir is a symlink; skipping (never converge through a directory symlink)"
+    return 1
+  fi
+  if [[ -L $link_dir ]]; then
+    log "converge: WARN hermes skills dir $link_dir is a symlink; skipping (never converge through a directory symlink)"
+    return 1
+  fi
+  return 0
+}
 converge_hermes_skills() {
   [[ -f $CUSTOM_SKILL_LOCK ]] || return 0
   local profile link_dir prefix skill
@@ -502,6 +526,7 @@ converge_hermes_skills() {
       link_dir="$HERMES_PROFILES/$profile/skills"
       prefix="../../../../.agents/skills"
     fi
+    __update_skills_hermes_dir_safe "$profile" "$link_dir" || continue
     desired=()
     while IFS= read -r skill; do
       [[ -n $skill ]] || continue

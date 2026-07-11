@@ -79,7 +79,7 @@ ln -sfn "../../../../.agents/skills/beta" "$SPEC/beta"  # owned, desired
 ln -sfn "../../../../.agents/skills/gone" "$SPEC/stale" # owned, stale
 plant_foreign "$SPEC"
 
-UPDATE_SKILLS_FORCE=1 bash "$SCRIPT" >/tmp/pu1.log 2>&1 || fail "run 1 exited non-zero: $(cat /tmp/pu1.log)"
+UPDATE_SKILLS_FORCE=1 bash "$SCRIPT" >"$tmp/pu1.log" 2>&1 || fail "run 1 exited non-zero: $(cat "$tmp/pu1.log")"
 
 for d in "$HERMES" "$SPEC"; do
   [[ -L "$d/foreign-abs" && "$(readlink "$d/foreign-abs")" == "/tmp/foreign-root/.agents/skills/evil" ]] ||
@@ -96,7 +96,7 @@ done
 #    profile is still walked (its dir exists) and its owned links are reaped,
 #    foreign entries still survive. ────────────────────────────────────────
 write_lock '[]' '[]'
-UPDATE_SKILLS_FORCE=1 bash "$SCRIPT" >/tmp/pu2.log 2>&1 || fail "run 2 exited non-zero: $(cat /tmp/pu2.log)"
+UPDATE_SKILLS_FORCE=1 bash "$SCRIPT" >"$tmp/pu2.log" 2>&1 || fail "run 2 exited non-zero: $(cat "$tmp/pu2.log")"
 
 [[ ! -e "$HERMES/alpha" ]] ||
   fail "de-mapped default profile was not walked: owned link 'alpha' survived"
