@@ -43,11 +43,11 @@
 #      __gen_lane_clawhub for the local-changes refusal ladder.
 #   - vendored (dot_agents/skills/, committed): third-party copies refreshed by
 #      `chezmoi apply`, never by this script. Two sub-kinds: (a) forks-table
-#      entries whose upstreams the weekly run drift-checks and alerts on — the
+#      entries whose upstreams the weekly run drift-checks and alerts on, the
 #      deliberate content forks moshi/herdr and the npx-can't-install-full-tree
 #      case elevenlabs (its SKILL.md sits at the repo root beside a scripts/
 #      dir npx drops, even with --full-depth); (b) plain committed dirs with no
-#      forks entry — today only tiktok-crawling, a ClawHub skill left vendored
+#      forks entry, today only tiktok-crawling, a ClawHub skill left vendored
 #      because hermes owns its hub copy (hermesRegistry) and its hub name
 #      differs from the roster name.
 #   - app-owned symlink (cua-driver): the store entry is a symlink into the
@@ -56,7 +56,7 @@
 #      updater; see refresh_app_owned_cua_pack).
 #
 # The store serves Claude/Codex always and hermes in two lanes. Symlinks fan
-# out to Claude (~/.claude/skills — every store skill) and to hermes per the
+# out to Claude (~/.claude/skills, every store skill) and to hermes per the
 # lock's hermesProfiles map ("default" = ~/.hermes/skills, any other profile
 # name = ~/.hermes/profiles/<name>/skills, [] = deliberately absent). hermes
 # fan-out is driven ENTIRELY by hermesProfiles: a non-empty mapping means
@@ -64,11 +64,11 @@
 # skills (humanizer, hyperframes) never fan out at all: hermes's catalog wins
 # those names, the store copies serve Claude/Codex only. The skills hermes OWNS from a registry (hermesRegistry table) are
 # hub-owned dirs hermes-side that the weekly hermes phase keeps fresh via
-# `hermes -p <profile> skills update <lockKey>` — a store symlink must never
+# `hermes -p <profile> skills update <lockKey>`, a store symlink must never
 # shadow those paths, which is why hermesRegistry and the non-empty
 # hermesProfiles set are disjoint. Codex needs no fan-out: it scans
 # $HOME/.agents/skills natively (developers.openai.com/codex/skills), and a
-# ~/.codex symlink would surface every skill twice — its tiering is the
+# ~/.codex symlink would surface every skill twice, its tiering is the
 # agents/openai.yaml policy overlay that the lock's tiers table drives (see
 # assert_codex_overlays below).
 #
@@ -107,7 +107,7 @@ set -euo pipefail
 
 # This script clones and inspects git repos in temp dirs (fork drift-check). If
 # a caller (e.g. a git hook) leaked GIT_DIR/GIT_INDEX_FILE into our environment,
-# those clones would silently operate on the caller's repository instead — unset
+# those clones would silently operate on the caller's repository instead, unset
 # them.
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY GIT_COMMON_DIR
 
@@ -176,15 +176,15 @@ HERMES_ACTIVITY_DIR="${UPDATE_SKILLS_HERMES_ACTIVITY_DIR:-$HOME/.hermes/logs}"
 # LOUDLY instead of failing silent. Keep in sync with the plist.
 readonly UPDATE_SKILLS_LAST_SLOT_HOUR="23"
 # The Codex on-demand policy overlay this script asserts into store skill dirs
-# (see assert_codex_overlays) — also what the clawhub update pass recognizes as
+# (see assert_codex_overlays), also what the clawhub update pass recognizes as
 # its OWN file when the CLI refuses over it (see update_clawhub_tracked).
 readonly CODEX_POLICY=$'policy:\n  allow_implicit_invocation: false'
 # The weekly registry-update phase walks exactly the profiles that own a
-# registry skill in the lock (hermesRegistry) — DERIVED from the lock at run
+# registry skill in the lock (hermesRegistry), DERIVED from the lock at run
 # time (see update_hermes_registry_skills), never hardcoded, so a new profile
 # added to hermesRegistry is walked automatically with no second edit to
 # forget. That includes default (Bob): its un-entanglement is DONE
-# (2026-07-09) — kubernetes-specialist, lobster, and todoist-cli moved to pure
+# (2026-07-09), kubernetes-specialist, lobster, and todoist-cli moved to pure
 # npx store ownership (operator directive: hermes no longer owns them), so no
 # registry entry has a store-symlinked install path that hermes's updater path
 # validator would reject. Default is walked via `hermes -p default`, exactly
@@ -581,7 +581,7 @@ __gen_publish() {
   fi
   # Retain the displaced previous generation under its id (garbage-destroy any
   # name collision first so the rename lands cleanly). R2-3d / F7: a retention
-  # failure is FATAL but DISTINCT — the exchange LANDED (the refreshed
+  # failure is FATAL but DISTINCT, the exchange LANDED (the refreshed
   # generation IS live) and the candidate workspace now holds the ONLY copy of
   # the previous generation, with the marker recording the pending retention.
   # Return the distinct code 2 so the caller PRESERVES the workspace and marker
@@ -647,7 +647,7 @@ GEN_ROSTER_HASH=""          # sha256 of the snapshot at run start
 # jq key-walks silently yield nothing, which is exactly the degraded-empty
 # failure this gate exists to refuse.
 #
-# F2: a PRESENT table must be an OBJECT — `.npxTracked // {}` substitutes on
+# F2: a PRESENT table must be an OBJECT, `.npxTracked // {}` substitutes on
 # null AND false (jq: `false // {}` -> `{}`), so `npxTracked: false` (or null,
 # a string, an array) would coerce to an empty object, pass the old check, and
 # silently drop every npx skill. Reject a present-but-non-object table (an
@@ -811,7 +811,7 @@ __gen_recover_exchange_marker() {
       # F7: retention still cannot complete. KEEP the marker AND the workspace
       # (it holds the ONLY copy of the previous generation) so a later recovery
       # retries; the staging walk excludes a marker-named workspace. Never drop
-      # the marker here — dropping it would let the walk delete the workspace.
+      # the marker here, dropping it would let the walk delete the workspace.
       log "recovery: could not complete the retention; KEEPING the workspace and marker for a later retry (previous generation preserved)"
       return 0
     fi
@@ -1036,7 +1036,7 @@ GEN_INSTALL_DEFERRED=""
 # F5: set to 1 by __gen_weekly_attempt when the pre-exchange activity re-probe
 # defers the publish (a harness turned active during the build lanes). The main
 # weekly flow reads it and exits the retryable 75 (no stamp), so a later slot
-# retries — the deferral is not a failure.
+# retries, the deferral is not a failure.
 GEN_EXCHANGE_DEFERRED=""
 
 # Build the candidate generation at .skills-generations/<id>/home/.agents: a fake
@@ -1748,7 +1748,7 @@ __gen_reset_failure_streaks() {
 # activity (fail-closed: a probe error counts as active) AND FORCE is not set.
 # Re-probed IMMEDIATELY before every exchange: activity that begins during the
 # long build lanes must still defer the swap. A fresh machine (no current path)
-# never defers here — it publishes by a plain rename with no readers. Gated on
+# never defers here, it publishes by a plain rename with no readers. Gated on
 # EXISTENCE, not completeness: an incomplete current path is still a swap.
 __gen_exchange_would_defer() {
   [[ -e $SKILLS_CURRENT || -L $SKILLS_CURRENT ]] || return 1
@@ -1840,7 +1840,7 @@ __gen_weekly_attempt() {
   local build_publish_rc=0
   __gen_publish "$candidate_agents" || build_publish_rc=$?
   if [[ $build_publish_rc -eq 2 ]]; then
-    # F7: exchange landed, retention incomplete — preserve the workspace and
+    # F7: exchange landed, retention incomplete, preserve the workspace and
     # marker (the only copy of the previous generation) for recovery. No stamp.
     record_required_failure "publish landed but retention is incomplete; preserving the workspace and marker for recovery (no stamp)"
     return 1
@@ -1914,7 +1914,7 @@ __gen_roster_skill_health() {
     }
   elif grep -q 'allow_implicit_invocation: false' "$STORE/$name/agents/openai.yaml" 2>/dev/null; then
     # F6 symmetric: a core (non-on-demand) skill with a lingering updater policy
-    # block is unhealthy — the block must be removed. Drives a repair (the
+    # block is unhealthy, the block must be removed. Drives a repair (the
     # candidate re-assert strips it) instead of a false no-op.
     printf 'overlay'
     return 0
@@ -1969,7 +1969,7 @@ __gen_install_only_attempt() {
   fi
   if __gen_exchange_would_defer; then
     # A current generation exists, so publishing a repair EXCHANGES it (F5:
-    # gated on EXISTENCE, not completeness — an incomplete current is still a
+    # gated on EXISTENCE, not completeness, an incomplete current is still a
     # swap). A harness shows recent activity (or the probe errored,
     # fail-closed): defer the exchange to a later run rather than swap the
     # generation under a live session. The additive fan-out convergence still
@@ -2016,7 +2016,7 @@ __gen_install_only_attempt() {
   local io_publish_rc=0
   __gen_publish "$candidate_agents" || io_publish_rc=$?
   if [[ $io_publish_rc -eq 2 ]]; then
-    # F7: exchange landed, retention incomplete — preserve the workspace and
+    # F7: exchange landed, retention incomplete, preserve the workspace and
     # marker (the only copy of the previous generation) for recovery. No stamp.
     record_required_failure "install-only publish landed but retention is incomplete; preserving the workspace and marker for recovery (no stamp)"
     return 1
@@ -2562,10 +2562,10 @@ assert_superpowers_routing() {
     log "superpowers routing: clean"
     return 0
   fi
-  log "ROUTING DRIFT: hermes-superpowers routing references no longer match the lock — re-asserting"
+  log "ROUTING DRIFT: hermes-superpowers routing references no longer match the lock, re-asserting"
   if routing_output="$("$routing_script" 2>&1)"; then
     printf '%s\n' "$routing_output"
-    log "ROUTING DRIFT: re-assert complete — something rewrote ~/.hermes/skills/hermes-superpowers (a superpowers re-mirror?); find out what stomped it"
+    log "ROUTING DRIFT: re-assert complete, something rewrote ~/.hermes/skills/hermes-superpowers (a superpowers re-mirror?); find out what stomped it"
     if [[ -x $relay_script ]]; then
       "$relay_script" --agent update-skills --state routing-drift --project hermes-superpowers \
         --detail "superpowers routing references were stomped and re-asserted from the lock; check what re-mirrored the tree" || true
@@ -2578,11 +2578,11 @@ assert_superpowers_routing() {
 }
 
 # Weekly hermes registry-update phase: for each specialist profile, update every
-# skill the lock's hermesRegistry table marks hermes-owned for it — keyed by the
+# skill the lock's hermesRegistry table marks hermes-owned for it, keyed by the
 # entry's lockKey (never a list name: ClawHub slugs differ from frontmatter
 # names, and hermes's own list output shows hub-linked skills as "local").
 # Failure isolation is per skill AND per profile: one blocked/broken update logs
-# a WARN (and relays it, soft-gated like fork drift) and the loop continues — the
+# a WARN (and relays it, soft-gated like fork drift) and the loop continues, the
 # weekly run must never die on a single skill. "Blocked" output with exit 0 is a
 # warning too: updates re-apply hermes's install gate on changed content, and a
 # block needs operator eyes, not a silent pass. held: true entries are skipped
@@ -2611,7 +2611,7 @@ update_hermes_registry_skills() {
     return 0
   fi
   local profile skill lock_key held update_output
-  # Profiles to walk: every profile owning a registry skill — default included
+  # Profiles to walk: every profile owning a registry skill, default included
   # (`hermes -p default` addresses Bob's root profile; un-entanglement done).
   local -a walk_profiles=()
   while IFS= read -r profile; do
@@ -2621,7 +2621,7 @@ update_hermes_registry_skills() {
     # read on fd 3: the loop body runs hermes, which may consume stdin
     while IFS=$'\t' read -r -u3 skill lock_key held; do
       if [[ $held == "true" ]]; then
-        log "hermes $profile/$skill: held — skipped (see the lock's hermesRegistry note)"
+        log "hermes $profile/$skill: held, skipped (see the lock's hermesRegistry note)"
         continue
       fi
       if [[ $DRYRUN == "--dry-run" ]]; then
@@ -2658,10 +2658,10 @@ update_hermes_registry_skills() {
 
 # Weekly app-owned skill-pack refresh: cua-driver's store entry is a SYMLINK
 # into the app's own dir (~/.cua-driver/skills/cua-driver), so nothing here may
-# ever write through it — the only sanctioned refresh is the app's own updater,
+# ever write through it, the only sanctioned refresh is the app's own updater,
 # `cua-driver skills update`, which re-fetches the versioned pack from GitHub
 # Releases and re-plants the agent links (verified: `cua-driver skills status`
-# links Claude Code, Codex — via the store — AND hermes itself). Gated on the
+# links Claude Code, Codex, via the store, AND hermes itself). Gated on the
 # store symlink existing (the roster's app-owned entry; also what keeps
 # sandboxed tests off the real binary) and on the binary being on PATH
 # (half-provisioned machines skip gracefully). Failure is a WARN, never fatal.
@@ -2814,16 +2814,16 @@ fi
 # fork/vendored upstream drift-check: for each lock forks entry, fetch the
 # upstream and compare the recorded skill path's current git hash (tree hash for
 # a folder, blob hash for a single-file skill like herdr's root SKILL.md)
-# against lastComparedTreeHash — the hash at the last HUMAN comparison. Drift
+# against lastComparedTreeHash, the hash at the last HUMAN comparison. Drift
 # means the upstream shipped changes nobody has reviewed against the local copy
 # yet: alert and move on. This pass only ever reads; the vendored store content
 # is untouchable here by construction (nothing below writes to $STORE). An
-# unreachable upstream is a logged warning, never a failure — the weekly run
+# unreachable upstream is a logged warning, never a failure, the weekly run
 # must survive a dead network.
 notify_fork_drift() {
   local fork="$1" source_url="$2"
   local relay_script="$HOME/.local/bin/relay.sh"
-  log "FORK DRIFT: $fork — upstream $source_url has changed since the last comparison"
+  log "FORK DRIFT: $fork, upstream $source_url has changed since the last comparison"
   log "FORK DRIFT: compare upstream and port wanted changes into the vendored copy by hand (see CLAUDE.md, Agent Skills), then set forks[\"$fork\"].lastComparedTreeHash to the new upstream hash; the vendored copy itself was not modified"
   # Soft-gate on relay.sh, exactly like the pre-commit hook's gitleaks stage:
   # relay lands in a later slice, so its absence is a silent skip, not an error.
@@ -2944,7 +2944,7 @@ __gen_weekly_attempt || log "the weekly generation attempt failed; the live gene
 
 # F5: the pre-exchange activity re-probe deferred the publish (a harness turned
 # active during the build). The live generation is untouched and the work is
-# still outstanding, so exit the retryable 75 WITHOUT stamping — a later slot
+# still outstanding, so exit the retryable 75 WITHOUT stamping, a later slot
 # retries. On the last scheduled slot, alert (the retry budget is spent).
 if [[ -n $GEN_EXCHANGE_DEFERRED ]]; then
   log "weekly run deferred the exchange on harness activity; signalling a retryable deferral (exit 75, no stamp)"

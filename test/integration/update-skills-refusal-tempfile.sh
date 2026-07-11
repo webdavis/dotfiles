@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # update-skills-refusal-tempfile.sh (fix-A F9): the roster snapshot mktemp's a
-# run-private copy and an EXIT trap removes it — but the zero-tracked refusal
+# run-private copy and an EXIT trap removes it, but the zero-tracked refusal
 # `exit 1` fired BEFORE that trap was installed, leaking one mktemp per refused
 # run. The fix installs the cleanup trap the moment the snapshot succeeds, so
 # every later refusal exit cleans up. Assert a refused run leaves no
@@ -39,7 +39,7 @@ chmod +x "$stub/alerter"
 export PATH="$stub:$PATH"
 
 # A VALID roster whose tracked union is empty: the snapshot SUCCEEDS (creating
-# the run-private temp), then the zero-union guard refuses — the exact path that
+# the run-private temp), then the zero-union guard refuses, the exact path that
 # leaked before the fix.
 cat >"$HOME/.agents/custom-skill-lock.json" <<'EOF'
 {

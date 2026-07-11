@@ -5,7 +5,7 @@
 # collapsed both into a silent exit 0, so:
 #   - contention (another run holds the lock, lockf EX_TEMPFAIL 75) during an
 #     --install-only run exited 0, which the first-install wrapper reads as
-#     "installed, clear the marker" — losing a deferred install; and
+#     "installed, clear the marker", losing a deferred install; and
 #   - a NON-contention failure (unwritable ~/.agents so `exec 9>>` fails) also
 #     exited 0 silently, with no required-failure accounting and no alert.
 # The fix captures the status: contention exits the distinct retryable 75 in

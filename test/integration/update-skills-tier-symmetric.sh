@@ -4,7 +4,7 @@
 # overlay, so an on-demand -> core change left the stale
 # `allow_implicit_invocation: false` block in place: health reported the skill
 # healthy, install-only no-op'd, and the candidate overlay logic (add-only)
-# never removed it — so Codex kept treating a now-core skill as
+# never removed it, so Codex kept treating a now-core skill as
 # never-auto-invokable. The fix: when the desired tier is core, REMOVE the
 # updater-owned policy block (preserving any upstream metadata) and treat a
 # lingering block as unhealthy so it drives a repair.
@@ -73,7 +73,7 @@ export PATH="$stub:$PATH"
 
 has_policy() { grep -q 'allow_implicit_invocation: false' "$OVERLAY" 2>/dev/null; }
 
-# ── Phase 1: publish {alpha core, beta on-demand} — beta gets the policy ──────
+# ── Phase 1: publish {alpha core, beta on-demand}, beta gets the policy ──────
 write_lock core on-demand
 for n in alpha beta; do
   mkdir -p "$AGENTS/skills/$n"

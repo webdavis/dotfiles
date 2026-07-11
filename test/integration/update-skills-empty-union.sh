@@ -63,7 +63,7 @@ assert_refused() { # $1 label, $2 rc, $3 out, $4 stamp, $5 current
     fail "$label: an EMPTY generation was published (generation.json exists)"
 }
 
-# ── Case 1: fresh home (no .skills-current) — nothing to migrate over ─────────
+# ── Case 1: fresh home (no .skills-current), nothing to migrate over ─────────
 HOME="$tmp/fresh"
 export HOME
 mkdir -p "$HOME/.agents/skills"

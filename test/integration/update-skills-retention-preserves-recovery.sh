@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # update-skills-retention-preserves-recovery.sh (fix-A F7): when the exchange
 # LANDED but the retention `mv` failed, the previous generation sits in the
-# candidate workspace with the marker kept — but the CALLER then unconditionally
+# candidate workspace with the marker kept, but the CALLER then unconditionally
 # garbage-destroyed that workspace, and recovery had the same flaw (it dropped
 # the marker on a move failure, so the staging walk deleted the workspace). The
 # only copy of the previous generation was irrecoverably lost. The fix: on a
@@ -29,7 +29,7 @@ trap 'rm -rf "$tmp"' EXIT
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Part A: the CALLER (full weekly run) must not destroy the workspace when the
-# retention move fails — the displaced previous generation must survive.
+# retention move fails, the displaced previous generation must survive.
 # ─────────────────────────────────────────────────────────────────────────────
 HOME="$tmp/homeA"
 export HOME
@@ -112,7 +112,7 @@ out="$(PATH="$mvstub:$stub:$PATH" UPDATE_SKILLS_FORCE=1 bash "$SCRIPT" 2>&1)" ||
 
 NEW_ID="$(jq -r '.id' "$CURRENT/generation.json")"
 [[ $NEW_ID != "$OLD_ID" ]] ||
-  fail "the exchange did not land (live id unchanged) — fixture drift: $out"
+  fail "the exchange did not land (live id unchanged), fixture drift: $out"
 # The displaced OLD generation must survive in the workspace (caller preserved it).
 WS_AGENTS="$GENERATIONS/$NEW_ID/home/.agents"
 [[ -d $WS_AGENTS ]] ||
@@ -124,7 +124,7 @@ WS_AGENTS="$GENERATIONS/$NEW_ID/home/.agents"
 [[ -f $MARKER ]] || fail "the exchange-in-flight marker was removed (retention cannot be resumed)"
 
 # Retry WITHOUT the mv failure: recovery alone must complete the retention,
-# moving the OLD generation to its retained slot — it survived the whole ordeal.
+# moving the OLD generation to its retained slot, it survived the whole ordeal.
 # Driven via the lib-only marker handler so neither a full rebuild nor the
 # retained-generation prune obscures that the previous generation was resumed.
 outR="$(
