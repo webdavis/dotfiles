@@ -52,23 +52,43 @@ if [[ ! -x $UPDATER ]]; then
   exit 0
 fi
 
-if "$UPDATER" --install-only; then
-  # Success: clear any pending marker so future applies stop re-firing on it.
-  # This removal flips the rendered hash once more, so exactly one further settle
-  # apply re-fires run_onchange (idempotent, nothing absent to install).
-  rm -f "$MARKER"
-else
-  # Failure: bump a monotonic retry counter (never exit non-zero, which would
-  # abort the whole apply). The changed digits re-fire run_onchange next apply.
-  # Defence in depth beside the render-time regexFind sanitizer: take only the
-  # first line (a multiline marker is inert), bound to a few digits, and force
-  # base-10 so a leading-zero marker like 08 is never read as invalid octal.
+# Bump the monotonic retry counter in the marker (never exit non-zero, which
+# would abort the whole apply). The changed digits re-fire run_onchange on the
+# next apply. Defence in depth beside the render-time regexFind sanitizer: take
+# only the first line (a multiline marker is inert), bound to a few digits, and
+# force base-10 so a leading-zero marker like 08 is never read as invalid octal.
+bump_retry_marker() {
   mkdir -p "$MARKER_DIR"
+  local count
   count="$(cat "$MARKER" 2>/dev/null || echo 0)"
   count="${count%%$'\n'*}"
   [[ $count =~ ^[0-9]{1,6}$ ]] || count=0
   count=$((10#$count + 1))
   printf '%s\n' "$count" >"$MARKER"
+  printf '%s' "$count"
+}
+
+# Capture the updater's exit code without tripping set -e; distinguish three
+# outcomes: 0 = installed (clear the marker), 75 = deferred by harness activity
+# (KEEP the marker so the next apply re-fires; NOT a failure), other = hard
+# failure (bump the marker). None of them exits non-zero from this script.
+rc=0
+"$UPDATER" --install-only || rc=$?
+if [[ $rc -eq 0 ]]; then
+  # Success: clear any pending marker so future applies stop re-firing on it.
+  # This removal flips the rendered hash once more, so exactly one further settle
+  # apply re-fires run_onchange (idempotent, nothing absent to install).
+  rm -f "$MARKER"
+elif [[ $rc -eq 75 ]]; then
+  # Deferred (R2-6): the updater found roster work but a live agent session was
+  # active, so it deferred the generation exchange. The install is still
+  # OUTSTANDING, so bump/create the retry marker to re-fire run_onchange on the
+  # next apply; this is not a failure, so no failure relay.
+  count="$(bump_retry_marker)"
+  printf 'update-skills first-install deferred to avoid swapping under a live session (attempt %s); it re-fires on the next apply\n' "$count" >&2
+else
+  # Hard failure: bump the counter and relay, but never abort the apply.
+  count="$(bump_retry_marker)"
   printf 'update-skills first-install pass failed (attempt %s); it will retry on the next apply\n' "$count" >&2
   if [[ -x $RELAY ]]; then
     "$RELAY" --agent update-skills --state first-install-failed --project skills \

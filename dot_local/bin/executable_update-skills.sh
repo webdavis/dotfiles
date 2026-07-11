@@ -962,6 +962,10 @@ GEN_CANDIDATE_AGENTS=""
 # gate) so __gen_run_lanes can read it even when a test drives the lanes
 # directly. Populated only by __gen_install_only_attempt; empty for weekly runs.
 GEN_INSTALL_FORCE_REINSTALL=()
+# Set to 1 by __gen_install_only_attempt when it DEFERS on harness activity
+# (R2-6). The --install-only entrypoint reads it to exit the distinct deferred
+# code (75) so the first-install wrapper preserves its retry marker.
+GEN_INSTALL_DEFERRED=""
 
 # Build the candidate generation at .skills-generations/<id>/home/.agents: a fake
 # HOME whose .agents/skills starts as cp -c clones of the CURRENT generation,
@@ -1771,6 +1775,7 @@ __gen_install_only_attempt() {
   local id candidate_home candidate_agents reason
   local -a needs_work=()
   GEN_INSTALL_FORCE_REINSTALL=()
+  GEN_INSTALL_DEFERRED=""
   local tracked_name
   while IFS= read -r tracked_name; do
     [[ -n $tracked_name ]] || continue
@@ -1796,7 +1801,11 @@ __gen_install_only_attempt() {
     # A live generation exists, so publishing a repair EXCHANGES it. A harness
     # shows recent activity (or the probe errored, fail-closed): defer the
     # exchange to a later run rather than swap the generation under a live
-    # session. The additive fan-out convergence still runs in the caller.
+    # session. The additive fan-out convergence still runs in the caller. This
+    # is a DEFERRAL, not a success (R2-6): the work is still outstanding, so
+    # the caller signals the distinct deferred exit so the first-install
+    # wrapper keeps its retry marker and the next apply re-fires.
+    GEN_INSTALL_DEFERRED=1
     log "install-only: ${#needs_work[@]} skill(s) to add or repair, but a harness shows recent activity; deferring the generation exchange to a later run"
     return 0
   fi
@@ -2690,6 +2699,14 @@ if [[ -n $INSTALL_ONLY ]]; then
   if [[ $REQUIRED_FAILURES -gt 0 ]]; then
     log "install-only finished with $REQUIRED_FAILURES required-phase failure(s)"
     exit 1
+  fi
+  # DISTINCT deferred outcome (R2-6): the install was deferred by harness
+  # activity, so the roster addition is still outstanding. Exit 75 (EX_TEMPFAIL)
+  # so the first-install wrapper keeps its retry marker and the next apply
+  # re-fires, WITHOUT this counting as a hard failure that aborts the apply.
+  if [[ -n $GEN_INSTALL_DEFERRED ]]; then
+    log "install-only deferred on harness activity; signalling a retryable deferral (exit 75)"
+    exit 75
   fi
   exit 0
 fi

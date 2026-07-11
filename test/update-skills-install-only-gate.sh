@@ -120,11 +120,16 @@ printf '%s\n' "$out1" | grep -qF 'present and healthy; no changes' ||
   fail "case 1: a package CLI was invoked though nothing was absent: $(cat "$NPX_LOG")"
 
 # --- Case 2: one absent + active harness -> deferred exchange -----------------
+# A deferral now exits the distinct retryable code 75 (R2-6), not 0.
 write_lock alpha beta
 harness_active "$ACT_CLAUDE"
 : >"$NPX_LOG"
-out2="$(FAKE_PS="$HARNESS" bash "$SCRIPT" --install-only 2>&1)" ||
-  fail "install-only (deferred) exited non-zero: $out2"
+set +e
+out2="$(FAKE_PS="$HARNESS" bash "$SCRIPT" --install-only 2>&1)"
+rc2=$?
+set -e
+[[ $rc2 -eq 75 ]] ||
+  fail "case 2: install-only deferred on activity did not exit the retryable code 75 (got $rc2): $out2"
 printf '%s\n' "$out2" | grep -qiF 'deferring the generation exchange' ||
   fail "case 2: install-only with an active harness did not defer the exchange: $out2"
 [[ "$(gen_id)" == "$id_setup" ]] ||
