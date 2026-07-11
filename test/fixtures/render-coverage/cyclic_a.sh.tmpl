@@ -1,0 +1,7 @@
+#!/bin/bash
+# Fixture (item 2, cycle): A includes B, B includes A. The transitive traversal
+# must terminate (cycle protection) and, since no link calls keepassxc, classify
+# it covered without hanging.
+set -euo pipefail
+{{ includeTemplate "cyclic_b.tmpl" . }}
+echo "done"

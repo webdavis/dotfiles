@@ -1,0 +1,8 @@
+#!/bin/bash
+# Fixture (item 2b): the includeTemplate name is a backtick raw-string literal,
+# not a double-quoted one. The parser must read it and follow the include to the
+# secret partial (verdict: excluded); a double-quote-only parser would miss the
+# include and wrongly classify this covered.
+set -euo pipefail
+{{ includeTemplate `partial_secret.tmpl` . }}
+echo "done"

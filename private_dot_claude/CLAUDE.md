@@ -17,6 +17,8 @@
   **less-common / not-widely-known** acronym is avoided altogether — spell it out every time, never
   introduce the short form (e.g. write "file integrity monitoring", never "FIM").
 - Use the `humanizer` skill on prose longer than a paragraph.
+- **No em-dashes, ever**: not in prose, PR descriptions, commits, docs, or replies. Use commas, periods,
+  or parentheses.
 
 ## Verification and sources of truth
 
@@ -75,7 +77,24 @@ Require per-invocation confirmation. Blanket "yes" doesn't carry over.
 Claude Code" footer.** Commits look as if the user authored them directly.
 
 Use the `conventional-commits` skill. A global `prepare-commit-msg` hook at `~/.config/git/hooks/`
-prepopulates messages via Claude haiku; `SKIP_AI_COMMIT=1` bypasses.
+prepopulates messages via Claude sonnet; `SKIP_AI_COMMIT=1` bypasses.
+
+## Pull request descriptions
+
+Run every PR description through the `humanizer` skill before posting. Structure, in order:
+
+1. `## Context`: orient someone with zero session context (what the project/branch is, why this PR
+   exists). Two short paragraphs max. Define shorthand at first use; no unexplained project jargon.
+1. `## Summary`: a bullet list, 3-5 bullets, each SHORT and SELF-CONTAINED (an itemized change list:
+   deleting any bullet must not strip context another bullet needs; no "all 44" referring back, no "the
+   original" pointing elsewhere). Reference key files by path; use a labeled sub-list when there are
+   several.
+1. Detail sections: `## What changed`, `## How it was reviewed` (when review shaped the result),
+   `## Effect of merging` (what merging does and does not do, e.g. live-machine impact).
+
+Rules: never speak about the audience in third person ("a reader will find..."); imperative directions
+are fine ("see the coverage matrix"). Never imply a referenced document contains content it doesn't. Keep
+the body current: when review rounds change the facts, update the description.
 
 ## Task tracking
 
