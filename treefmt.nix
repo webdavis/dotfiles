@@ -51,7 +51,7 @@ let
   # includeTemplate resolves against this checkout's .chezmoitemplates
   # (treefmt runs formatters from the tree root). The per-file body lives in
   # scripts/lib-shellcheck-rendered-template.sh (sourced verbatim below) so
-  # test/rendered-template-shellcheck-wrapper.sh can drive its blank-render skip
+  # test/unit/rendered-template-shellcheck-wrapper.sh can drive its blank-render skip
   # semantic with a stubbed chezmoi and shellcheck.
   shellcheckRenderedTemplate = pkgs.writeShellApplication {
     name = "shellcheck-rendered-template";
@@ -110,7 +110,7 @@ let
   # includeTemplate name which cannot be resolved statically. Both predicates
   # come from the importable, builtins-only classifier in
   # scripts/render-coverage-classifier.nix. That SAME file is what
-  # test/rendered-template-coverage.sh drives through a fixture matrix via
+  # test/integration/rendered-template-coverage.sh drives through a fixture matrix via
   # `nix eval`, so weakening a predicate there fails the fixtures rather than
   # silently passing while this list stays unchanged.
   classifier = import ./scripts/render-coverage-classifier.nix;
@@ -263,7 +263,7 @@ in
   # Chezmoi-specific checks ported from lint.sh (see the let-bindings above).
   # `includes` is discovered programmatically (renderedShellTemplates, above):
   # every safely renderable shell template, not a hand-picked subset.
-  # test/rendered-template-coverage.sh guards that the discovery never silently
+  # test/integration/rendered-template-coverage.sh guards that the discovery never silently
   # drops a template.
   settings.formatter.shellcheck-rendered-template = {
     command = shellcheckRenderedTemplate;
