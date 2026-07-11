@@ -2743,6 +2743,11 @@ else
       __update_skills_alert "update-skills refused to run: the roster lock at $GEN_ROSTER_SOURCE is missing or broken. Fix the deployed custom-skill-lock.json (chezmoi apply) and re-run."
       exit 1
     fi
+    # F9: the snapshot succeeded, so GEN_ROSTER_SNAPSHOT_FILE is a live temp
+    # file. Install its cleanup trap NOW, before any later refusal exit (the
+    # zero-union guard below), so a refused run never leaks the mktemp. The
+    # trailing `true` keeps the trap from ever altering the exit status.
+    trap '[[ -n ${GEN_ROSTER_SNAPSHOT_FILE:-} ]] && rm -f "$GEN_ROSTER_SNAPSHOT_FILE"; true' EXIT
     __update_skills_tracked_count=0
     while IFS= read -r __update_skills_tracked_probe; do
       [[ -n $__update_skills_tracked_probe ]] && __update_skills_tracked_count=$((__update_skills_tracked_count + 1))
@@ -2758,9 +2763,6 @@ else
       __update_skills_alert "update-skills refused to run: the roster lock tracks no skills. If delisting everything is truly intended, remove the generation by hand; otherwise restore the roster (chezmoi apply) and re-run."
       exit 1
     fi
-    # The run-private snapshot is a temp file; remove it on any exit. The
-    # trailing `true` keeps the trap from ever altering the exit status.
-    trap '[[ -n ${GEN_ROSTER_SNAPSHOT_FILE:-} ]] && rm -f "$GEN_ROSTER_SNAPSHOT_FILE"; true' EXIT
   fi
   # RECOVERY (brief step 1) runs under the lock, BEFORE the stamp early-exit and
   # the idle gate, so a crash-window leftover self-heals even on a slot that
