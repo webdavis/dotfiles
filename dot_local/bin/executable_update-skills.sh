@@ -587,13 +587,60 @@ refresh_app_owned_cua_pack() {
 # A dry run makes no filesystem writes, so it does not pre-create these dirs.
 [[ $DRYRUN == "--dry-run" ]] || mkdir -p "$STORE" "$CLAUDE" "$HERMES"
 
-# serialize: one run at a time (mkdir is atomic + system-shipped; flock is absent on macOS)
-if [[ -d $LOCKDIR ]] && find "$LOCKDIR" -prune -mmin +120 2>/dev/null | grep -q .; then rm -rf "$LOCKDIR"; fi # steal stale lock (>2h: crashed run)
+# serialize: one run at a time. mkdir is atomic and system-shipped (macOS ships
+# neither flock(1) nor lockf(1)). We do NOT steal a lock by age: a long but
+# healthy run must never be killed, and age-stealing raced three writers in the
+# audit (the stale-steal removed a live newcomer's lock, then the first run's
+# unconditional trap removed the newcomer's). Instead the lock carries an owner
+# token (PID plus the process start time, a boot-stable discriminator so a
+# recycled PID cannot masquerade as the original owner), and is reclaimed ONLY
+# from a PROVABLY dead owner.
+LOCK_OWNER_FILE="$LOCKDIR/owner"
+__update_skills_proc_start() {
+  # normalized process start time for pid $1 (empty when the pid is gone)
+  ps -o lstart= -p "$1" 2>/dev/null | tr -s ' ' | sed 's/^ *//;s/ *$//'
+}
+__update_skills_owner_token() { printf '%s\t%s' "$$" "$(__update_skills_proc_start "$$")"; }
+__update_skills_owner_alive() {
+  # $1 = recorded "PID<TAB>START". Alive iff the pid still exists (kill -0) AND
+  # its start time still matches (not recycled). Anything we cannot PROVE dead is
+  # treated as alive, so a contender never steals from a possibly-live run.
+  local rec="$1" rec_pid rec_start cur_start
+  rec_pid="${rec%%$'\t'*}"
+  rec_start="${rec#*$'\t'}"
+  [[ $rec_pid =~ ^[0-9]+$ ]] || return 0                  # unparseable owner: do not steal
+  [[ -n $rec_start && $rec_start != "$rec" ]] || return 0 # missing start field: do not steal
+  kill -0 "$rec_pid" 2>/dev/null || return 1              # no such process: dead
+  cur_start="$(__update_skills_proc_start "$rec_pid")"
+  [[ -z $cur_start ]] && return 1  # ps lookup empty: dead
+  [[ $cur_start == "$rec_start" ]] # start differs => pid recycled => original dead
+}
 if ! mkdir "$LOCKDIR" 2>/dev/null; then
-  log "another run in progress; exiting"
-  exit 0
+  lock_owner="$(cat "$LOCK_OWNER_FILE" 2>/dev/null || true)"
+  if [[ -n $lock_owner ]] && ! __update_skills_owner_alive "$lock_owner"; then
+    log "reclaiming the lock from a dead owner ($lock_owner)"
+    rm -rf "$LOCKDIR"
+    if ! mkdir "$LOCKDIR" 2>/dev/null; then
+      log "another run took the lock while reclaiming; exiting"
+      exit 0
+    fi
+  else
+    log "another run in progress; exiting"
+    exit 0
+  fi
 fi
-trap 'rm -rf "$LOCKDIR"' EXIT
+# Record ownership immediately, then arm a trap that removes the lock ONLY while
+# we still own it: a later run that reclaims a dead lock rewrites the owner file,
+# and our trap must never delete a lock we no longer hold (the three-writer race).
+LOCK_MY_TOKEN="$(__update_skills_owner_token)"
+printf '%s' "$LOCK_MY_TOKEN" >"$LOCK_OWNER_FILE"
+__update_skills_release_lock() {
+  local cur
+  cur="$(cat "$LOCK_OWNER_FILE" 2>/dev/null || true)"
+  [[ $cur == "$LOCK_MY_TOKEN" ]] && rm -rf "$LOCKDIR"
+  return 0 # never let the EXIT trap's status leak into the script's exit code
+}
+trap '__update_skills_release_lock' EXIT
 
 # weekly success stamp: the four Monday plist slots share one ISO week; once a
 # slot completes a full run this week, the remaining slots are no-ops. A deferral
