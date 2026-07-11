@@ -47,7 +47,7 @@ until they merge. Merge SHAs and PR numbers below are verified against `git log 
 | Wave-3a skills-stab | **next** | — | — | audit PR #36 High×3 (defer-forever / fresh-install / additive-fan-out) + Low `35922d4` move |
 | Wave-3b herdr-stab | **next** | — | — | audit PR #37 High×2 (atomic migration / Cargo+registration) + Medium×2 (`Cargo.toml` hash / LaunchAgent unload); operative acceptance in the Wave-3b herdr-stab section |
 | Wave-3c render-coverage + docs | **next** | — | — | audit PR #35 Medium (4 template failures + coverage test) + PR #35 Low doc-staleness |
-| Wave-3d OpenClaw cleanup | queued (before S12) | — | — | R3: remove the `openclaw` package, the AeroSpace F1 binding, and the docs together (operator owns Todoist) |
+| Wave-3d OpenClaw cleanup | in PR (before S12) | — | — | R3 delivered: repo removal (`openclaw` package + AeroSpace F1 binding + active config/doc refs) + live-service retirement (run_once chezmoiscript boots out the three `ai.openclaw.*` agents, deletes their plists, uninstalls the npm package) + docs-truthfulness sweep; operator owns Todoist |
 | S6 — Homebrew weekly-upgrade | queued (after Wave-3) | — | — | audit S6 gaps folded into the S6 section |
 | S7 — Relay pipeline | not started | — | — | R2: four delivery-loss fixes before merge (see S7 section) |
 | S8 — Hermes age-encryption | not started | — | — | Linux-boundary + re-scope folded into the S8 section |

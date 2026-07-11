@@ -221,6 +221,12 @@ The full implementation steps live in the Todoist task descriptions (created 202
 
 ### Phase 10 — Notify via `mouse` OpenClaw agent (single endpoint, three notification types)
 
+> **SUPERSEDED (2026-07-10, operator ruling R3).** OpenClaw was removed from the fleet and replaced by
+> Hermes; the relay pipeline now owns agent and command notifications. The OpenClaw plumbing below
+> (creating the mouse agent, and the `hooks.enabled`/`hooks.token`/`hooks.mappings` OpenClaw config) MUST
+> NOT be executed. This section is retained only as a historical record, never as an actionable
+> instruction to reinstall or reconfigure OpenClaw.
+
 - **Todoist:** `6gfVJ7VwcFQvg7xM`
 - **Pre-flight (blocking):** the dedicated `mouse` OpenClaw agent (`6gfcXjFrG6q3Pm3v`) and its Discord bot (`6gfcXjRh8vC57g2v`) must exist.
 
