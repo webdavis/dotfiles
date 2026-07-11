@@ -1,0 +1,35 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/bin/bash
+
+set -euo pipefail
+
+# One-time retirement of the old com.claude.code LaunchAgent — the tmux-coupled
+# claude-restart.sh supervisor that the herdr migration (S4) removed. Deleting
+# the plist SOURCE from the repo does NOT unload an already-running LaunchAgent,
+# so this is the live-side complement: boot the service out of the GUI domain if
+# it is loaded, and delete a leftover deployed plist if one is present. It is a
+# silent no-op once both are already gone (the state on this machine), idempotent
+# on a re-run, and never aborts the apply — a missing service or plist is the
+# expected end state, not an error.
+
+label="com.claude.code"
+plist="$HOME/Library/LaunchAgents/$label.plist"
+domain_target="gui/$(id -u)/$label"
+
+# Unload only when actually loaded: `launchctl print <service>` exits non-zero
+# for an unknown service, so it is the load probe. Guarding bootout on it keeps
+# the not-loaded path a clean no-op (no bootout error noise). Never let a
+# non-zero status abort the apply.
+if launchctl print "$domain_target" >/dev/null 2>&1; then
+  launchctl bootout "$domain_target" 2>/dev/null || true
+  printf 'retired LaunchAgent %s (booted out of %s)\n' "$label" "$domain_target"
+fi
+
+# Remove a leftover deployed plist if present (the source is already gone).
+if [[ -f $plist ]]; then
+  rm -f "$plist"
+  printf 'removed leftover LaunchAgent plist %s\n' "$plist"
+fi
+
+exit 0
+{{ end -}}
