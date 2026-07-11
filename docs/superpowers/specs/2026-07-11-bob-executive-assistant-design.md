@@ -1,24 +1,29 @@
-# forzare surfacing engine design (Phase 2 — how Bob runs the day)
+# Bob executive-assistant design (forzare — how Bob runs the day)
 
 Date: 2026-07-11
 
 > **Provenance (ported 2026-07-11).** This document was ported from
 > `~/Documents/ADHD_Task_System_Research_20260521/Phase2_Surfacing_Engine_Spec.md` into the dotfiles
-> superpowers specs on 2026-07-11 and is now the **canonical copy**. The research-folder source is retained
+> superpowers specs on 2026-07-11 and is now the **canonical copy** — the user's **executive-assistant
+> design** (originally titled "Phase 2 — Surfacing Engine Spec"). The research-folder source is retained
 > as a read-only pointer (do not edit it). The 2026-07-03/04 conductor rulings (R1–R8) — adjudicated from
 > code-verification evidence banked against the installed hermes-agent at
 > `~/.hermes/hermes-agent` — are folded into §8b, §10, §12, §14, §15, §16, and §19; each touched passage
-> is marked inline with the ruling id.
+> is marked inline with the ruling id. Companion implementation plan:
+> `docs/superpowers/plans/2026-07-11-bob-executive-assistant.md`.
 
-> **System name: forzare** — the ADHD (attention-deficit/hyperactivity disorder) task-management system
-> (Bob is the agent; forzare is the system). Owned-layer files live in `~/workspaces/Ivy/forzare/` (goals
-> yardstick, dopamine menu, calibration state).
+> **The role and the system.** **Bob is the user's executive assistant** — schedule-manager, task-manager,
+> ADHD (attention-deficit/hyperactivity disorder) manager — running as the **DEFAULT hermes-agent profile**
+> (not a dedicated one). **forzare is the operating system for that role:** the ADHD task-management system
+> this spec defines (Bob is the agent; forzare is the system — the name "forzare" is used for the system
+> throughout). Owned-layer files live in `~/workspaces/Ivy/forzare/` (goals yardstick, dopamine menu,
+> calibration state).
 
 **Prepared:** 2026-05-22 · **Revised:** 2026-05-29 (mapped onto verified Hermes-Agent primitives) ·
 **Status:** draft for review · **Ported + hardened:** 2026-07-11 (R1–R8)
-**Premise:** Bob (Hermes) is the **boss of the user's schedule** — it owns and drives the day, not a
-passive "what now?" responder. Grounded in just-in-time adaptive intervention (JITAI) + the Round-1 ADHD
-findings.
+**Premise:** Bob (Hermes) is the **boss of the user's schedule** — the executive assistant owns and drives
+the day, not a passive "what now?" responder. Grounded in just-in-time adaptive intervention (JITAI) + the
+Round-1 ADHD findings.
 
 **Reading guide:** **Part I (§0–§8) = behavior** — the *what/why*; stable, the design contract. **Part II
 (§9–§14) = implementation on Hermes primitives** — the *how*. **Part III (§15–§17) = reliability/ops.**

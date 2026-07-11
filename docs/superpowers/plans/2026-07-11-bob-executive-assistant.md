@@ -1,14 +1,16 @@
-# forzare surfacing engine implementation plan
+# Bob executive-assistant implementation plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or
 > superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for
 > tracking.
 
-**Goal:** Stand up **forzare** V1 — the ADHD (attention-deficit/hyperactivity disorder) task-surfacing
-system run by the agent **Bob** on the installed hermes-agent — so it drives the user's day headlessly:
-schedule-driven morning brief, state-signal transitions, one-thing-or-nothing surfacing, end-of-day roll,
-background capture pipeline, and loud system-failure alerting. Ship behind a `[SILENT]` dry-run, calibrate,
-then flip to live.
+**Goal:** Stand up **Bob as the user's executive assistant** — schedule-manager, task-manager, ADHD
+(attention-deficit/hyperactivity disorder) manager — running as the **DEFAULT hermes-agent profile** (not a
+dedicated one). **forzare** is the operating system for that role: the ADHD task-surfacing system this plan
+builds (the system name stays "forzare" throughout). This is **the executive-assistant plan**: V1 drives
+the user's day headlessly — schedule-driven morning brief, state-signal transitions, one-thing-or-nothing
+surfacing, end-of-day roll, background capture pipeline, and loud system-failure alerting. Ship behind a
+`[SILENT]` dry-run, calibrate, then flip to live.
 
 **Architecture:** Cron is the clock (brief / end-of-day / reconcile / boundaries); skill bundles hold the
 logic; the `/forzare` skill classifies state signals; Kanban is Bob's private background substrate (capture
@@ -20,17 +22,22 @@ launchd `hermes-uptime-watchdog` (chezmoi-managed, modeled on the existing osque
 dead/hung gateway.
 
 **Tech Stack:** hermes-agent (cron / kanban / skills / skill-bundles / config.yaml), the `td` CLI (Todoist),
-`gog` (Google Calendar), Open-Meteo + NWS (weather, keyless), bash, launchd, chezmoi (watchdog only), the
-repo's `just`/`scripts/lint.sh` tooling (watchdog only).
+`gog` (Google Calendar), Open-Meteo + NWS (weather, keyless), bash, launchd, chezmoi (the delivery vehicle —
+`dot_hermes/`, `dot_local/bin/`, `Library/LaunchAgents/`), the repo's `just`/`scripts/lint.sh` tooling.
 
-**Reference spec:** `docs/superpowers/specs/2026-07-11-forzare-surfacing-engine-design.md`
+**Reference spec:** `docs/superpowers/specs/2026-07-11-bob-executive-assistant-design.md`
 
 ## Global Constraints
 
-- **Two homes, one repo commit.** Almost every artifact lives OUTSIDE the dotfiles repo — under `~/.hermes/`
-  (skills, bundles, cron jobs, `config.yaml`) and `~/workspaces/Ivy/forzare/` (owned layer). **Only** the
-  `hermes-uptime-watchdog` script + its launchd plist are chezmoi-managed in this repo (Phase F). Do not try
-  to commit `~/.hermes/*` or `forzare/*` into dotfiles.
+- **Delivery vehicle — the chezmoi source-dir pipeline (stated once, applies plan-wide).** Every artifact
+  this plan produces — `config.yaml` stanzas, `.env` keys, skills, bundles, the default-profile
+  persona/directives, and the watchdog script + launchd plist — ships through the chezmoi source dir in
+  THIS repo (`dot_hermes/`, `dot_local/bin/`, `Library/LaunchAgents/` templates — the same pattern as the
+  existing osquery watchdog), never as unmanaged live-file edits. Applies that touch KeePassXC-gated
+  templates (e.g. `dot_hermes/encrypted_private_config.yaml.age`, `dot_hermes/private_dot_env.tmpl`) are
+  **marked user-run**: the agent edits source + verifies by rendered-template diff; the user runs the
+  interactive `chezmoi apply` (agents use `--exclude=templates`). The Todoist store and the owned layer
+  (`~/workspaces/Ivy/forzare/`) are the two deliberate exceptions — live data, not dotfiles.
 - **Investigate before creating (Chesterton's Fence).** The Todoist 5 surfacing labels
   (`@deep`/`@light`/`@admin`/`@errand`/`@waiting`) and all 5 filters ALREADY EXIST (verified 2026-07-11).
   Every data-layer task is **verify-then-reconcile**, never blind create. Only `@rolled`/`@stalled` are new.
@@ -111,8 +118,9 @@ guard.
 
 ### Task A2: Fix the three live-config drifts (R6b)
 
-**File:** `~/.hermes/config.yaml` (outside the repo). **Back up first** (Global Rules: precious edits get a
-timestamped backup).
+**File:** `~/.hermes/config.yaml`, chezmoi-managed as `dot_hermes/encrypted_private_config.yaml.age`
+(delivery-vehicle rule: edit the encrypted source; the KeePassXC-gated `chezmoi apply` is **user-run**).
+**Back up first** (Global Rules: precious edits get a timestamped backup).
 
 - [ ] **Step 1: Back up the live config**
 
@@ -151,7 +159,8 @@ Expected: `timezone: "America/Denver"`; `auto_decompose: false`; achievements co
 
 ### Task A3: `.env` channels + relay wiring
 
-**File:** `~/.hermes/.env` (outside the repo).
+**File:** `~/.hermes/.env`, chezmoi-managed as `dot_hermes/private_dot_env.tmpl` (delivery-vehicle rule:
+edit the template source; the KeePassXC-gated `chezmoi apply` is **user-run**).
 
 - [ ] **Step 1: Create the dedicated `#forzare-errors` Discord channel** (manual, in Discord) and copy its
   channel id. It carries **nothing but** forzare system/pipeline failures (spec §12.4 scope) — silent when
@@ -226,9 +235,48 @@ exact §4b queries.
 
 ---
 
+### Task A5: Configure the DEFAULT profile's persona/directives (chezmoi template — docs only)
+
+**Files (in THIS repo — the chezmoi source dir):** the `dot_hermes/` templates that carry the default
+profile's persona/directives (extend `dot_hermes/encrypted_private_config.yaml.age` or add a
+`dot_hermes/profiles/` template, matching however the live install stores the default profile — investigate
+first, Chesterton's Fence). **This is a docs/template task: NEVER a live apply** — the KeePassXC-gated
+`chezmoi apply` is user-run.
+
+- [ ] **Step 1: Investigate where the default profile's persona lives** in the installed hermes-agent
+  (config key vs a profiles file) before writing anything — mirror that exact location in the `dot_hermes/`
+  source.
+
+- [ ] **Step 2: Write the persona/directives** for the DEFAULT profile (Bob — no dedicated profile). The
+  directives encode the spec's behavioral contract:
+  - **Boss-of-the-schedule** (spec premise): Bob owns and drives the day — firm and directive, never a
+    passive responder.
+  - **The §0 one rule:** match task-side attributes to person-side state; surface exactly ONE thing — or
+    nothing; the backlog stays out of view.
+  - **The no-shame contract** (spec §0/§6a/§7): the user's task slippage is normal and handled gently
+    (re-shape, never scorekeep, never guilt-wall); system failures are loud on `#forzare-errors` — never
+    conflate the two.
+  - **Decide-in-context** (spec §8b): ask for a decision while the context is fresh, one decision at a
+    time; never defer to a batch or dump option checklists.
+
+- [ ] **Step 3: Verify by rendered-template diff (never a live apply)**
+
+```bash
+cd /Users/stephen/workspaces/worktrees/dotfiles-forzare   # or the active checkout at execution time
+CI=1 chezmoi --source "$PWD" execute-template --no-tty < dot_hermes/private_dot_env.tmpl >/dev/null && echo "env tmpl renders"
+chezmoi --source "$PWD" diff ~/.hermes 2>/dev/null | head -40   # review the pending persona change; do NOT apply
+```
+
+Expected: the template renders; the diff shows exactly the persona/directives addition and nothing else.
+**Acceptance:** the four contract points above appear in the rendered output; no live file changed (the
+user runs the interactive apply).
+
+---
+
 ## Phase B — Atomic skills (test-first; `todoist-surface` first)
 
-> Every skill lives under `~/.hermes/skills/<name>/SKILL.md` (+ any helper scripts), is **curator-pinned**
+> Every skill's applied target is `~/.hermes/skills/<name>/SKILL.md` (+ any helper scripts) — authored in
+> the `dot_hermes/` source dir per the delivery-vehicle rule (Global Constraints) — is **curator-pinned**
 > (`hermes curator pin <name>`, spec §13), and is driven test-first via a `[SILENT]` dry-run against `[TEST]`
 > tasks. `td` usage is learned from the installed `/todoist-cli` skill — do NOT duplicate `td` command
 > knowledge into these skills (spec §10).
@@ -528,7 +576,8 @@ suppresses, partial does not; clarify buttons render on a live session, plain qu
 
 ### Task F1: `hermes-uptime-watchdog` script + launchd plist + lint wiring + docs
 
-**Files (in the dotfiles repo — the ONLY repo-committed forzare artifacts):**
+**Files (in the dotfiles repo, via the delivery-vehicle rule — alongside the `dot_hermes/` templates of
+Tasks A2/A3/A5):**
 
 - Create: `dot_local/bin/executable_hermes-uptime-watchdog.sh`
 - Create: `Library/LaunchAgents/com.webdavis.hermes-uptime-watchdog.plist.tmpl`
@@ -623,6 +672,12 @@ anywhere.
 - [ ] **Voice capture** — a spoken-capture path into stage 1 of the §8b pipeline.
 - [ ] **Edit-in-place ledger channel** — a self-updating Discord message/embed as a live day-ledger, distinct
   from the errors channel.
+- [ ] **Email/comms triage — the natural executive-assistant expansion.** Reading, triaging, and chasing the
+  user's email and other comms is the obvious next lane for Bob's executive-assistant role — **explicitly
+  chosen out of V1 (spec §18: the surfacing engine is Bob-only; Elaine's email-triage lane is a separate
+  system), not forgotten.** Sequence after V1: scope the read-access grant first (the §8 unblock-detection
+  already anticipates email as a future signal), then design the triage lane against the same two-channel /
+  no-shame invariants.
 
 ---
 
@@ -631,15 +686,18 @@ anywhere.
 **Spec coverage:** owned layer (goals.md w/ quadrants, priors.md w/ methylphenidate ER 54 + IR 20 PRN, state/,
 calibration/) → A1; three live-config drifts (empty TZ / auto_decompose / achievements, R6b) → A2 + G4; `.env`
 channels + `#forzare-errors` → A3; Todoist labels (5 existing + `@rolled`/`@stalled`) + 5 filters + auth +
-`@waiting` invariant → A4/B1; `todoist-surface` first → B1; weather / calendar / eisenhower / activation /
-brief-assemble / followups / reflect / tomorrow-prep / `/forzare` classifier → B2–B6; bundles + boot
-assertion → C1; cron rituals w/ cron-native delivery (5:15 Mon–Sat + alt-Sunday, 23:00 EOD, 02:00 reconcile,
-gym-window-end, boundaries; R1a) → C2; Kanban capture pipeline (`--triage` + `specify` + idempotency keys +
-5 stages + dup-guards, R7) → D1; `session_reset` (R6a) + `[SILENT]` guarantee (R3) + clarify buttons /
-no-reaction-input (R8) → E1; `hermes-uptime-watchdog` + plist modeled on osquery + `:8644/health` probe +
-`hermes send` alert (R2) → F1; dry-run → calibrate → go-live → G1; post-V1 (Langfuse self-host, `tailscale
-serve` webhook, Hue, Todoist webhooks, voice, ledger) → H. Delivery is headless-native, no plugin, no
-`inject_message` (R1/R4/R5) throughout. No gaps.
+`@waiting` invariant → A4/B1; default-profile persona/directives (boss-of-the-schedule, §0 one-rule,
+no-shame, decide-in-context; rendered-template diff, never a live apply) → A5; `todoist-surface` first → B1;
+weather / calendar / eisenhower / activation / brief-assemble / followups / reflect / tomorrow-prep /
+`/forzare` classifier → B2–B6; bundles + boot assertion → C1; cron rituals w/ cron-native delivery (5:15
+Mon–Sat + alt-Sunday, 23:00 EOD, 02:00 reconcile, gym-window-end, boundaries; R1a) → C2; Kanban capture
+pipeline (`--triage` + `specify` + idempotency keys + 5 stages + dup-guards, R7) → D1; `session_reset` (R6a)
++ `[SILENT]` guarantee (R3) + clarify buttons / no-reaction-input (R8) → E1; `hermes-uptime-watchdog` + plist
+modeled on osquery + `:8644/health` probe + `hermes send` alert (R2) → F1; dry-run → calibrate → go-live →
+G1; post-V1 (Langfuse self-host, `tailscale serve` webhook, Hue, Todoist webhooks, voice, ledger, email/comms
+triage) → H. Delivery is headless-native, no plugin, no `inject_message` (R1/R4/R5) throughout; every
+produced artifact ships via the chezmoi source-dir pipeline (the delivery-vehicle rule, Global Constraints).
+No gaps.
 
 **Placeholder scan:** verification commands are runnable; `<card-id>` / `<capture-id>` / lat-long /
 channel-ids are the intentionally per-environment values a cold reader fills from their own setup (Discord
@@ -652,6 +710,6 @@ other across A–H.
 
 ## Execution Handoff
 
-Plan complete and saved to `docs/superpowers/plans/2026-07-11-forzare-surfacing-engine.md`. Execute
+Plan complete and saved to `docs/superpowers/plans/2026-07-11-bob-executive-assistant.md`. Execute
 task-by-task with superpowers:subagent-driven-development or superpowers:executing-plans; **go-live (G4) is
 the final step** — everything before it runs `[SILENT]`/`local`.
