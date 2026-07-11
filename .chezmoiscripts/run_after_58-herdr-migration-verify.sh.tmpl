@@ -27,14 +27,28 @@ set -euo pipefail
 stamp="$HOME/.cache/herdr-migration/verified"
 
 {{ includeTemplate "herdr-health-check.sh.tmpl" }}
+# Every filesystem operation below is guarded: this script must NEVER abort
+# the apply (set -e is active, so an unguarded mkdir/truncate/rm failure, for
+# example a directory squatting on the stamp path or a read-only ~/.cache,
+# would kill the whole chezmoi apply). A failed stamp write only means the
+# migration stays deferred, which is the safe direction.
 if reason="$(herdr_health_check)"; then
-  mkdir -p "$(dirname "$stamp")"
-  : >"$stamp"
+  if ! mkdir -p "$(dirname "$stamp")" 2>/dev/null; then
+    printf 'WARNING: herdr is healthy but %s could not be created; stamp not written (before_10 keeps tmux/sesh). Fix the directory permissions and re-apply.\n' "$(dirname "$stamp")" >&2
+    exit 0
+  fi
+  if ! : >"$stamp" 2>/dev/null; then
+    printf 'WARNING: herdr is healthy but the stamp %s could not be written (is a directory squatting on that path?); before_10 keeps tmux/sesh. Clear the path and re-apply.\n' "$stamp" >&2
+    exit 0
+  fi
   printf 'herdr verified as a multiplexer; %s written (before_10 may now remove tmux/sesh).\n' "$stamp"
 else
   # Not verified: drop the stamp so before_10 stays conservative, note why,
-  # and finish cleanly (never abort the apply).
-  rm -f "$stamp"
+  # and finish cleanly.
+  if ! rm -f "$stamp" 2>/dev/null; then
+    printf 'WARNING: could not remove the stale stamp %s (is a directory squatting on that path?). Remove it by hand; until then before_10 treats the migration as unverified anyway (the stamp must be a regular file).\n' "$stamp" >&2
+    exit 0
+  fi
   printf 'herdr not yet verified as a multiplexer (%s); before_10 will keep tmux/sesh until it is.\n' "$reason" >&2
 fi
 exit 0
