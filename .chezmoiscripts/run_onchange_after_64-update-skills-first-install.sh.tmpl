@@ -31,11 +31,14 @@
 # the render. A multiline marker would otherwise become live shell executed at
 # apply time. The marker is interpolated DIGITS-ONLY via regexFind "^[0-9]+" (so
 # a hostile marker contributes at most leading digits, and even that lands inside
-# a comment line), and the run-time bump clamps the counter to digits too.
+# a comment line), and the run-time bump clamps the counter to digits AND forces
+# base-10 too. The marker is read through a shell guard (cat ... 2>/dev/null ||
+# true) so an UNREADABLE (mode-000) or absent marker yields the safe zero path
+# instead of aborting the whole render on a cat error.
 #
 # lock hash:     {{ include "dot_agents/custom-skill-lock.json" | sha256sum }}
 # updater hash:  {{ include "dot_local/bin/executable_update-skills.sh" | sha256sum }}
-# pending retry: {{ if stat (joinPath .chezmoi.homeDir ".local/state/skills/first-install-pending") }}{{ (output "cat" (joinPath .chezmoi.homeDir ".local/state/skills/first-install-pending")) | regexFind "^[0-9]+" }}{{ end }}
+# pending retry: {{ if stat (joinPath .chezmoi.homeDir ".local/state/skills/first-install-pending") }}{{ (output "sh" "-c" (printf "cat %s 2>/dev/null || true" (joinPath .chezmoi.homeDir ".local/state/skills/first-install-pending" | squote))) | regexFind "^[0-9]+" }}{{ end }}
 set -euo pipefail
 
 UPDATER="$HOME/.local/bin/update-skills.sh"
@@ -57,12 +60,14 @@ if "$UPDATER" --install-only; then
 else
   # Failure: bump a monotonic retry counter (never exit non-zero, which would
   # abort the whole apply). The changed digits re-fire run_onchange next apply.
-  # Clamp to digits at run time as defence in depth beside the render-time
-  # regexFind sanitizer.
+  # Defence in depth beside the render-time regexFind sanitizer: take only the
+  # first line (a multiline marker is inert), bound to a few digits, and force
+  # base-10 so a leading-zero marker like 08 is never read as invalid octal.
   mkdir -p "$MARKER_DIR"
   count="$(cat "$MARKER" 2>/dev/null || echo 0)"
-  [[ $count =~ ^[0-9]+$ ]] || count=0
-  count=$((count + 1))
+  count="${count%%$'\n'*}"
+  [[ $count =~ ^[0-9]{1,6}$ ]] || count=0
+  count=$((10#$count + 1))
   printf '%s\n' "$count" >"$MARKER"
   printf 'update-skills first-install pass failed (attempt %s); it will retry on the next apply\n' "$count" >&2
   if [[ -x $RELAY ]]; then

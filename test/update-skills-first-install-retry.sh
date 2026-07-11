@@ -37,8 +37,12 @@ grep -q 'regexFind "\^\[0-9\]+"' "$TMPL" ||
   fail "the chezmoiscript does not sanitize the marker to digits with regexFind"
 grep -q 'first-install-pending' "$TMPL" ||
   fail "the chezmoiscript does not reference the pending-marker file"
-grep -q 'output "cat"' "$TMPL" ||
-  fail "the chezmoiscript does not interpolate the marker via output"
+# The marker is read through a shell guard (cat ... || true) so an unreadable
+# (mode-000) marker yields the safe zero path instead of a render abort.
+grep -q 'output "sh"' "$TMPL" ||
+  fail "the chezmoiscript does not read the marker via a guarded output call"
+grep -q '10#' "$TMPL" ||
+  fail "the chezmoiscript does not force base-10 on the retry counter"
 
 # Sandbox home; render the runner against it (marker path resolves under here).
 sbox="$tmp/home"
@@ -73,6 +77,35 @@ FAKE_UPDATER_RC=1 HOME="$sbox" bash "$runner" || fail "runner aborted on the sec
 # ── 4. success after failure -> marker removed. ─────────────────────────────
 FAKE_UPDATER_RC=0 HOME="$sbox" bash "$runner" || fail "runner exited non-zero clearing the marker"
 [[ ! -e $MARKER ]] || fail "the pending marker was not removed after a success"
+
+# ── 4a. base-10: a leading-zero marker (08) must NOT abort with an octal error;
+#     it routes through the failure branch and increments to 9. ─────────────
+mkdir -p "$(dirname "$MARKER")"
+printf '08\n' >"$MARKER"
+FAKE_UPDATER_RC=1 HOME="$sbox" bash "$runner" ||
+  fail "an '08' marker aborted the failure branch (octal arithmetic bug: value too great for base)"
+[[ "$(<"$MARKER")" == "9" ]] || fail "base-10 bump of '08' did not yield 9: $(<"$MARKER")"
+
+# ── 4b. a multiline marker is inert: only the leading digits count, the second
+#     line never executes, and the counter still increments off the first line.
+sentinel2="$tmp/PWNED2"
+rm -f "$sentinel2"
+printf '5\ntouch %s\n' "$sentinel2" >"$MARKER"
+FAKE_UPDATER_RC=1 HOME="$sbox" bash "$runner" ||
+  fail "a multiline marker aborted the failure branch"
+[[ ! -e $sentinel2 ]] || fail "a multiline marker executed its injected second line at run time"
+[[ "$(<"$MARKER")" == "6" ]] || fail "a multiline marker did not increment off its leading digit: $(<"$MARKER")"
+rm -f "$MARKER"
+
+# ── 4c. render tolerates an UNREADABLE (mode-000) marker: no template abort,
+#     the safe zero path is taken. ────────────────────────────────────────
+mkdir -p "$(dirname "$MARKER")"
+printf '3\n' >"$MARKER"
+chmod 000 "$MARKER"
+mode000_runner="$tmp/mode000.sh"
+render "$mode000_runner" || fail "rendering with a mode-000 marker aborted the render (output of cat errored)"
+chmod 644 "$MARKER"
+rm -f "$MARKER"
 
 # ── 5. SECURITY: a hostile marker must not inject shell. ────────────────────
 sentinel="$tmp/PWNED"

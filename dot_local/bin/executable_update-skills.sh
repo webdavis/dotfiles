@@ -789,20 +789,36 @@ __update_skills_acquire_lock() {
   done
   return 1
 }
-if ! __update_skills_acquire_lock; then
-  log "another run in progress; exiting"
-  exit 0
+if [[ $DRYRUN == "--dry-run" ]]; then
+  # A dry run is a READ-ONLY contention check (item 5): it never creates,
+  # deletes, or reclaims lock state, and it tolerates an absent .agents parent.
+  # It only reports whether a live lock would make the real run defer.
+  if [[ -d $LOCKDIR ]]; then
+    dry_lock_owner="$(cat "$LOCK_OWNER_FILE" 2>/dev/null || true)"
+    if [[ -n $dry_lock_owner ]] && __update_skills_owner_alive "$dry_lock_owner"; then
+      log "would defer: a live run holds the lock ($dry_lock_owner)"
+    else
+      log "would run: the existing lock has no live owner (stale or ownerless)"
+    fi
+  else
+    log "would run: no lock is held"
+  fi
+else
+  if ! __update_skills_acquire_lock; then
+    log "another run in progress; exiting"
+    exit 0
+  fi
+  # The EXIT trap removes the lock ONLY while we still own it: a later run that
+  # reclaims a dead lock rewrites the owner file, and our trap must never delete
+  # a lock we no longer hold (the three-writer race).
+  __update_skills_release_lock() {
+    local cur
+    cur="$(cat "$LOCK_OWNER_FILE" 2>/dev/null || true)"
+    [[ $cur == "$LOCK_MY_TOKEN" ]] && rm -rf "$LOCKDIR"
+    return 0 # never let the EXIT trap's status leak into the script's exit code
+  }
+  trap '__update_skills_release_lock' EXIT
 fi
-# The EXIT trap removes the lock ONLY while we still own it: a later run that
-# reclaims a dead lock rewrites the owner file, and our trap must never delete a
-# lock we no longer hold (the three-writer race).
-__update_skills_release_lock() {
-  local cur
-  cur="$(cat "$LOCK_OWNER_FILE" 2>/dev/null || true)"
-  [[ $cur == "$LOCK_MY_TOKEN" ]] && rm -rf "$LOCKDIR"
-  return 0 # never let the EXIT trap's status leak into the script's exit code
-}
-trap '__update_skills_release_lock' EXIT
 
 # weekly success stamp: the four Monday plist slots share one ISO week; once a
 # slot completes a full run this week, the remaining slots are no-ops. A deferral
