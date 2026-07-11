@@ -140,8 +140,10 @@ working (no surfacing into the shift; provide-nothing), and the next morning as 
 persisted, not session-held:** the `/forzare` shift signal writes `forzare/state/schedule-override.json`
 (block + date + recovery-morning flag, §8a) — the 5:15 brief and 23:00 end-of-day are fresh amnesiac cron
 sessions and can only honor "next morning = recovery" by reading that file. The 5:15 brief firing *mid*-shift
-reads it and goes provide-nothing/recovery **without clearing it**; the recovery flag is consumed by the
-first brief/engagement on the calendar day *after* the block ends, then normal schedule resumes. No
+reads it and **still FIRES — delivering the recovery/provide-nothing *variant* of the brief, not silence**
+(content shaped to "you're mid-shift, rest after," never absent — §2's always-fires rule below) — **without
+clearing** the override; the recovery flag is consumed by the first brief/engagement on the calendar day
+*after* the block ends, then normal schedule resumes. No
 forecasting, no calendar gymnastics — the same adaptation mechanism that handles "back from gym" handles
 "called in for a night shift."
 
@@ -166,9 +168,12 @@ forecasting, no calendar gymnastics — the same adaptation mechanism that handl
    **vulnerability state** — reinforce the routine, don't load deep work onto a collapsing morning).
 6. **Ends with one action** — *"First: eat, then ride."*
 
-**The brief always fires at its time — receptivity shapes its *content*, never withholds it.** A rough
-stretch (dense dismissals → low receptivity) may lighten the ≤3 and drop optional blocks, but the daily
-anchor itself is exempt from the §6a receptivity gate — a bad week is exactly when the clean reset matters
+**The brief always fires at its time — receptivity shapes its *content*, never withholds it.** This includes
+the mid-shift and post-overnight-recovery cases (§2 above): the brief still **delivers**, in its
+recovery/provide-nothing *variant* (a shaped "rest, nothing to start now" message), rather than going absent
+— a silent morning is indistinguishable from a dead Bob (Part III). A rough stretch (dense dismissals → low
+receptivity) may lighten the ≤3 and drop optional blocks, but the daily anchor itself is exempt from the §6a
+receptivity gate — a bad week is exactly when the clean reset matters
 most. (The gate governs intra-day surfacing and nudges, §4/§6.) Fixed daily lines also **vary phrasing by
 construction** (§7's rotation rule) so the anchor doesn't habituate to wallpaper.
 
@@ -308,9 +313,12 @@ says *"not now" / "later" / "tomorrow"*, the response splits by horizon — **on
   `due.date`; a due-*time* is reserved for the user's real appointments. This is what keeps §8's
   fixed-vs-surfacing `"T"` heuristic sound — an agent snooze that wrote a time would make the task read as an
   appointment and silently exempt it from the roll + stall counter *forever* (the overdue-rot §7 exists to
-  prevent). **Recurring tasks are never re-dated at all** (a `td` date-write destroys the recurrence rule;
-  recurrence sets its own next date, and they're roll-excluded anyway) — a "not now" on a recurring task is
-  within-day suppression only.
+  prevent). **The safe date-write verb is `td task reschedule`** (verified v1.75.3 help: *"Reschedule a task
+  (preserves recurrence)"*) — it keeps a recurring task's rule intact and preserves any existing time-of-day;
+  **`td task update` with a `--due` string is FORBIDDEN** because it replaces the whole due and *would*
+  destroy the recurrence rule. **Bob still never re-dates a recurring task at all** — not because a reschedule
+  is unsafe (it isn't), but because recurring tasks are **roll-excluded by design** (recurrence owns its own
+  next date, §8's secondary guard) — so a "not now" on a recurring task is within-day suppression only.
 - **Within-day defer ("not now" / "later today") = surfacing-suppression only — NO date write, NO label
   tick.** The task stays dated today, still in tonight's roll set; Bob just won't re-offer it this cycle (it
   re-enters at the next §3 block boundary / decision point). Still unfinished at 23:00 → the nightly roll
@@ -407,13 +415,17 @@ mechanisms date tasks in (each firing activation-time grooming, below):
   un-combed backlog would surface stale junk, so early on the pull proposes rather than auto-dates.
 
 **Backlog re-decision — the monthly someday-sweep (the second, deliberate re-entry path).** Left alone the
-someday pool only grows, and a ~2050-item backlog is an ADHD wall by its mere existence (§0). So a **monthly**
-cron proposes a **SMALL batch (≤5)** of the *oldest / most-stale* someday items at the morning brief as
-one-line **keep / drop / promote** decisions — decide-in-context, one line each, **no walls and no shame** (it
-is never a list-dump; ≤5 is the whole point). When the un-swept someday backlog crosses a **decided
-threshold**, the sweep additionally offers an explicit, opt-in **"task bankruptcy"** batch-drop ("~N of these
-haven't moved in a year — clear them all?") — a single yes clears the tail, so the backlog can never quietly
-metastasize. Both are proposals; nothing is dropped without the user's word.
+someday pool only grows, and a ~2050-item backlog is an ADHD wall by its mere existence (§0). So **once a
+month** a **SMALL batch (≤5)** of the *oldest / most-stale* someday items is proposed as one-line **keep /
+drop / promote** decisions — decide-in-context, one line each, **no walls and no shame** (it is never a
+list-dump; ≤5 is the whole point). **Delivery is via the MORNING BRIEF, never a second proactive message
+(R2A20):** the sweep runs at brief time on the **1st of the month** and feeds its ≤5 into the brief's
+follow-ups step (§2 step 4) — mechanically, a monthly cron marks the candidates in a state file that the
+brief's `followups-sweep` reads (or the sweep is a brief-time branch gated on a monthly flag). One anchor
+message a day still holds. When the sweep's stale-someday candidate set exceeds a
+**DECIDED threshold — > 25 candidates** (§19) — the sweep additionally offers an explicit, opt-in **"task
+bankruptcy"** batch-drop ("~N of these haven't moved in a year — clear them all?") — a single yes clears the
+tail, so the backlog can never quietly metastasize. Both are proposals; nothing is dropped without the user's word.
 
 **Goals-backend decision (2026-06-02): yardstick stays an owned file; Todoist Goals (Beta) evaluated +
 rejected.** Goals is the right *category* (a semantic objective — name/description/deadline, agent-readable
@@ -491,9 +503,13 @@ Rules:
 - **Every agent date-write records `written_due`.** When Bob dates or re-dates a task (surfacing date, snooze,
   lead-time), it stamps the value it just wrote.
 - **The roll set is the ledger entries where the task's *current* `due.date` still equals `written_due`**
-  (self-healing provenance). If the two differ, **the user re-dated the task** since Bob touched it → the
-  entry is **void** and the task is treated as *fixed* (user-owned date, never auto-rolled). So **user-dated
-  tasks never roll**, with no label bookkeeping to get stale — the divergence *is* the signal.
+  (self-healing provenance) — **this is the definition** (V1; §8 is the single authority). If the two differ,
+  **the user re-dated the task** since Bob touched it → the entry is **void** and the task is treated as
+  *fixed* (user-owned date, never auto-rolled). So **user-dated tasks never roll**, with no label bookkeeping
+  to get stale — the divergence *is* the signal. The task-field checks (`due.isRecurring`, a `"T"` time,
+  future date) are **secondary sanity guards** applied *within* this set, not the membership test. **A
+  deadline-bearing task with a Bob-written lead-time surfacing due IS a ledger entry and DOES roll** (§4c/§8);
+  `deadline != null` marks "fixed" only for a task with **no** ledger entry (a user-dated deadline-day task).
 - **A roll increments `roll_count`.** At `roll_count == 2` (2nd consecutive carry) Bob fires the §7
   escalation; `last_escalated` is stamped so the same stall isn't re-nagged the next night.
 - **Reset on progress** (`roll_count → 0`, entry effectively cleared) on the same triggers as before —
@@ -567,9 +583,9 @@ an overdue-style guilt-wall (INV-4). So Bob does **not** schedule the day block-
 
 But the *opposite* extreme is also wrong: a calendar block **is** an implementation-intention ("when 9:00
 comes → start X"), and if-then is the **single strongest lever in the system** (d=0.65 is the *overall*
-implementation-intention effect, Gollwitzer & Sheeran 2006; the ADHD-specific evidence is in **children** and
-reports no pooled *d* — so "ADHD-specific" names the population, not that figure). Some blocking is the
-highest-value thing Bob does.
+implementation-intention effect, Gollwitzer & Sheeran 2006; d=0.99 in self-regulation-impaired samples,
+**Toli et al. 2016**; the ADHD-specific evidence is in **children** and reports no pooled *d* — so
+"ADHD-specific" names the population, not that figure). Some blocking is the highest-value thing Bob does.
 
 **The resolution — block only these, leave the rest fluid:**
 
@@ -643,13 +659,15 @@ cognitive-load labels** — `@deep`/`@light`/`@admin` ARE the energy-commitment 
 which label-class is eligible (no separate energy scale exists or is needed):
 
 - **Activated / peak** (post-gym, "locked in", recent completions, clear calendar) → **`@deep`** eligible.
-  The *only* state in which deep work surfaces. **⚠ The post-gym activation boost DECAYS** — Mehren 2019
-  *measured* an acute-exercise executive-function gain in ADHD adults at **~33 min post-exercise** (the study
-  did not track its full decay); the **~1–2h** working window is the **research synthesis' own estimate** of
-  how long the lift usefully persists, not a measured Mehren value. So "back from gym" is a *decaying* window,
-  not an all-day flag. Surface the day's hardest `@deep` work into the
-  hour or two right after activation, not at 4pm because the gym happened at 7am. (Corrects the earlier
-  "morning peak always" framing — §6a learns the actual decay curve.)
+  The *only* state in which deep work surfaces. **⚠ The post-gym activation boost is SHORT-LIVED** — Mehren
+  2019 observed the acute-exercise executive-function benefit in ADHD adults at **~10 min post-exercise** and
+  found **no effect on the ~33-min measure** (the authors note the effect's limited duration). So the earlier
+  "**~1–2h** working window" claim is **REMOVED** — it was never a measured value. So "back from gym" is a
+  *briefly* elevated window, not an all-day flag. **v1 seeds a deliberately conservative prior — a boost
+  window of roughly ≤~30 min — explicitly labeled *pending personal data*** (the learned per-person curve,
+  §6a, refines the real duration from initiation data; it may run shorter or longer than the seed). Surface
+  the day's hardest `@deep` work into the window *right after* activation, not at 4pm because the gym happened
+  at 7am. (Corrects the earlier "morning peak always" framing.)
 - **Mid / steady** → **`@light`** (engaged but not deep — reading, watching, reviewing).
 - **Low / depleted** (no activation, "fried", post-lunch dip, dense calendar, recent stalls) → **`@admin`**
   (shallow/mechanical) or a ≤5-min quick-win, or **nothing**. Never `@deep`.
@@ -712,7 +730,17 @@ initiation*, not guesses. **Not logged:** no energy/mood/satisfaction ratings (p
 2. **Activation-decay function** — the lift in P(initiate `@deep`) vs minutes_since_activation, fit as a
    *decaying* boost (the §6 ⚠ correction, learned per-person).
 3. **Receptivity score** — from the validated cheap features (recent dismissals, over-prompting, calendar
-   load). High recent-dismissal density ⇒ withhold.
+   load). High recent-dismissal density ⇒ withhold. **Made computable (V8) — observable proxies, no
+   self-report:**
+   - **initiation** = the surfaced task shows **completed / updated / comment** activity in the Todoist
+     activity log **within N minutes of surfacing** (**N = 30, DECIDED**);
+   - **dismissal** = an explicit defer reply (§4) **OR no activity by the next decision point**;
+   - **the v1 receptivity rule (deterministic):** **withhold** (provide-nothing) when the **count of
+     dismissals in the trailing 24h ≥ D (D = 3, DECIDED)** **OR** **`surfacings_today` ≥ S (S = 8,
+     DECIDED)**; otherwise **proceed**. This is the v1 rule; the calibration loop *refines* the thresholds
+     per-person **post-V1** (they start as the decided seeds, §19). *(Implementation notes for the plan's
+     calibration task: the `td activity` query is **paginated by cursor** — page through it; and **comment**
+     events come from a **separate** activity query than completed/updated.)*
 4. **Per-task aversiveness signal** — rising `consecutive-roll count` ⇒ the task is aversive/ambiguous ⇒
    change the intervention *form* (decompose / attach an if-then plan), **not** the nag frequency.
 5. **Duration-estimate correction** — observed time-to-complete vs `duration_est` per load-class → the
@@ -756,7 +784,8 @@ stall response.
 **Two evidence-backed mechanisms to USE (positive, not just prohibitions):**
 
 - **Implementation intentions (if-then), agent-proposed** — the highest-leverage low-burden lever (d=0.65 is
-  the *overall* effect and d=0.99 the self-regulation-impaired-samples figure, Gollwitzer & Sheeran 2006; the
+  the *overall* effect (Gollwitzer & Sheeran 2006) and d=0.99 the self-regulation-impaired-samples figure
+  (**Toli et al. 2016**); the
   ADHD-specific evidence — response-inhibition normalization — is in **children** and reports no pooled *d*).
   When a task stalls or is ambiguous, Bob attaches a concrete "when <cue>, I <first action>" — this is the
   same if-then mechanism §3/§5 already lean on, now applied at the task level. *(Agent-proposed if-then is
@@ -803,7 +832,7 @@ stall response.
 ## 7. Nudge / silence rules + stall escalation
 
 The governor on Bob's voice: when to speak, when to stay quiet, what to do on a stall, and what to do on a
-win. A thin policy layer over machinery built elsewhere (§6a receptivity, §4d roll-labels, §8 nightly roll).
+win. A thin policy layer over machinery built elsewhere (§6a receptivity, §4d lifecycle ledger, §8 nightly roll).
 
 **Standing rules:**
 
@@ -846,8 +875,9 @@ task has been carried forward without progress, read from the private lifecycle 
    highest-leverage move is to **lower the activation barrier**, two evidence-based forms (§6a):
    - **Decompose** to a tiny concrete first step (raises expectancy — TMT), and/or
    - **Attach an if-then plan** ("when I sit down after the gym, I open the doc and write one sentence") — the
-     single best-evidenced low-burden lever (d=0.65 overall / d=0.99 self-regulation-impaired, Gollwitzer &
-     Sheeran; the ADHD-specific response-inhibition evidence is in children, no pooled *d*).
+     single best-evidenced low-burden lever (d=0.65 overall, Gollwitzer & Sheeran 2006; d=0.99 in
+     self-regulation-impaired samples, **Toli et al. 2016**; the ADHD-specific response-inhibition evidence is
+     in children, no pooled *d*).
    Dropping it is always an offered, shame-free option. The choice is the user's. **Never** re-surface a
    stalled task with more frequency or firmer pressure — pressure adds aversiveness and feeds avoidance (§6a:
    Steel; Sirois & Pychyl). *(When a live Discord session is present, this decision is a clarify-button set —
@@ -873,17 +903,32 @@ treats a post-overnight morning as recovery, not deep-work, *when the shift is k
 below).
 
 - Report the day's **completions as wins** — no scorecard, no list of misses.
-- **Roll forward ONLY the right tasks (do not blindly reschedule everything dated).** "Active = has a due
-  date" (§0) includes tasks dated for a *real, fixed reason* — appointments, deadline-day tasks, things
-  deliberately scheduled for a specific day, recurring tasks with a genuine date. **Rolling those would
-  corrupt the schedule.** So the roll set = tasks that were **eligible to do today and weren't done, and whose
-  date was "today" only as a *surfacing* date, not a fixed commitment.** Concretely, EXCLUDE from the roll
-  (verified `td` JSON checks, §19): `deadline != null` · `due.isRecurring == true` (let recurrence set the
-  next date) · `"T" in due.date` (has an appointment time-of-day — reliable *because* §4's hard rule makes
-  agent writes date-only, so a "T" always means a **user** appointment) · `due.date` is a future day. Roll
-  forward the remainder (the "I meant to get to this today" pool — date-only, today/overdue, no deadline,
-  non-recurring). When uncertain whether a date is "fixed" vs "surfacing," **leave it and flag for the
-  morning** rather than silently moving it (a wrongly-moved deadline is far worse than a wrongly-kept one).
+- **The roll set is DEFINED BY THE LEDGER, full stop (V1 — the single authority).** A task rolls **iff**:
+  (a) it has a **lifecycle-ledger entry** (§4d — i.e. *Bob* wrote its current due date), **and** (b) the
+  task's **current `due.date` still equals the entry's `written_due`** (the self-healing provenance test —
+  if they diverge the user re-dated it, so the entry is void and the task is *fixed*), **and** (c) it is
+  **date-only** and **today/overdue** and **not done**. That is the whole definition. **Ledger membership is
+  what makes a date "surfacing" not "fixed"** — a date Bob wrote to make the task show up, versus a date the
+  user owns. So a **user-dated task never rolls** (no ledger entry, or `current != written_due`), with no
+  field-heuristic needed to catch it — the divergence *is* the signal.
+- **The four field checks are now SECONDARY sanity guards, not the definition** (verified `td` JSON, §19):
+  within the ledger-defined set, still skip any task that reads as a fixed commitment — `due.isRecurring ==
+  true` (let recurrence set its own next date; and a `td` date-write would destroy the rule — §4/R2A18),
+  `"T" in due.date` (an appointment time-of-day — which Bob's date-only hard rule means Bob never writes,
+  so a "T" on a ledger task signals the user re-timed it), or `due.date` is a future day. These guard against
+  a stale or corrupted ledger entry; they don't *define* membership.
+- **Deadline-bearing tasks — the contradiction RESOLVED (V1).** A task carrying a real `deadline` gets a
+  **Bob-written lead-time surfacing due** (§4c) — that due **is in the ledger and DOES roll** like any other
+  surfacing date (the immovable date stays untouched in `deadline`; only the surfacing due moves). The old
+  blanket "`deadline != null` ⇒ exclude" was wrong: it would freeze exactly the lead-time dates Bob creates
+  to surface deadline work. **`deadline != null` only means "fixed" for a task with NO ledger entry** — i.e.
+  a task the *user* dated on its deadline day. Ledger membership decides; the deadline field alone does not.
+- **When uncertain, leave it and flag for the morning** rather than silently moving it (a wrongly-moved
+  user date is far worse than a wrongly-kept one). The ledger test removes almost all uncertainty — a task
+  with no entry, or a diverged entry, is simply never touched.
+- **Fixtures (mirrored in plan B7):** a **user-dated task** (no ledger entry) never moves · a **Bob
+  lead-time date on a deadline-bearing task** rolls (entry present, `current == written_due`) · a **user
+  re-dated** task (`current != written_due`) never moves, entry voided.
 - **p1-clear is unconditional — its own step, NOT scoped to the roll set.** At EOD, clear `p1` from **every**
   unfinished p1 — roll-excluded ones included (deadline/timed/recurring; clearing moves no dates, so it can't
   corrupt the schedule). `p1` is day-scoped by definition (§4b); this is what keeps §4c's idempotency guard
@@ -913,14 +958,36 @@ below).
 - Optionally pre-stage tomorrow's candidate ≤3 from the active pool (Bob proposes; confirmed/replaced in the
   morning).
 
-**Missed-fire safety (degraded mode).** Two layers, because cron's own recovery is **bounded**. (1) **Cron
-catch-up — verified (`cron/jobs.py:488-492`): a job due while the gateway was down replays on restart, but
-only within a ±2h window.** So a brief outage around 23:00 self-heals. (2) **Defensive morning roll — the
-backstop for outages longer than 2h:** the morning brief detects stale state (no roll/reset happened for
-yesterday) and runs the roll before building today's plan. The end-of-day routine is written **idempotent +
-date-stamped** (it records the date it last reconciled) so any of {on-time fire, ≤2h cron catch-up, late
-morning-brief run} happens **exactly once per day** — never double-rolls. This removes the dependency on the
-gateway being alive at exactly 23:00.
+**Missed-fire safety (degraded mode) — corrected to the VERIFIED cron recovery code (V3,
+`cron/jobs.py:1456-1492`).** The earlier "±2h bounded, else **skipped**" claim was **false** and is replaced.
+What the code actually does when the gateway was down and a recurring job's time passed:
+
+- **Within the catch-up grace window** (`_compute_grace_seconds` = half the schedule period, clamped
+  120s–7200s; a **daily** job → the full **2h** cap) → the missed run is treated as **due now and replays**
+  (plain catch-up).
+- **PAST the grace window** → the code **fast-forwards `next_run_at` to the next future occurrence AND still
+  executes the job ONCE now** (`due.append(job)` after the fast-forward, `jobs.py:1462-1492`) — it does
+  **not** skip. So an outage of *any* length ends in **exactly one recovery fire**, not a silent miss. This
+  is the opposite of the old claim and it *strengthens* the guarantee.
+
+Because a late fire can therefore run at an arbitrary recovery time, the roll must not key off the wall clock:
+
+- **The eod-roll takes an EXPLICIT reconciliation date** — the **day being closed**, read as
+  `last-reconcile.json`'s stored date **+ 1** (the first un-reconciled day), **not** `today()`. Its
+  destination is **that reconciliation date + 1**. A run at 23:00 on-time, a ≤2h catch-up, and a
+  next-morning defensive run therefore all reconcile the **same** day and roll to the **same** target — the
+  result is independent of when the job actually fired (this is also §8's "tomorrow" pin, R2A7: re-date to
+  the day *after the day being closed*, never run-time calendar-tomorrow).
+- **Idempotent + date-stamped:** eod-roll stamps `last-reconcile.json` with the date it just closed, so
+  {on-time fire, ≤2h catch-up, past-grace recovery fire, defensive morning run} each reconcile a given day
+  **exactly once** — a second attempt on an already-stamped day is a no-op. Never double-rolls.
+- **Ordering when a stale EOD *and* the morning brief are both due:** the **EOD state half runs first**
+  (roll/counter/p1-clear/stamp), then the brief builds the day. The brief's defensive check already
+  **waits on the stamp** — it runs the roll itself only if `last-reconcile.json` shows yesterday is still
+  un-closed, so the two never race to reconcile the same day.
+
+This removes the dependency on the gateway being alive at exactly 23:00 — and, unlike the old text, it does
+so *without* assuming any outage-length ceiling.
 
 **`@waiting` nightly reconciliation** (idempotent cron — e.g. `0 2 * * *` Denver) — **state-only: the 02:00
 run never messages the user.** Delivery of everything it finds is the **morning brief's follow-ups step (§2
@@ -966,10 +1033,11 @@ the authoritative map of what reads/writes what; the rest of the spec references
 | **Lifecycle ledger** (`roll_count`, `written_due`, `last_escalated` per task id, §4d) | owned layer `forzare/state/task-lifecycle.json` | EOD roll · morning brief · §4 defer · §7 escalation | agent date-writes stamp `written_due`; EOD roll / §4 tomorrow-snooze increment `roll_count`; progress/touched/complete reset; entry pruned on terminal state | **yes — one owned file, off the user's tasks** |
 | **Date provenance** (`current due == written_due`?) | derived: task `due.date` (Todoist) vs ledger `written_due` | every roll-set test (§4d/§8) | n/a — *derived per run* (divergence ⇒ user re-dated ⇒ fixed) | no |
 | **Progress-since-surfaced** (reset trigger) | Todoist **activity log** | `td activity --since <d> --type task --json` (completed/updated/comment events) | n/a — *derived* | no (queried) |
-| **Roll-set / "is this date fixed?"** (#1) | Todoist **task fields** | `td task list --json` → `deadline` / `due.isRecurring` / due-has-time / future-date | n/a — *derived per run* | no |
-| **Last-reconcile date** (idempotency) | owned layer `forzare/state/last-reconcile.json` | morning brief + end-of-day | end-of-day (+ defensive morning run) | **yes — one tiny file** |
+| **Roll-set membership** (the ledger IS the definition, §8/V1) | ledger entry + `current due == written_due` (Todoist task fields as the secondary sanity guard) | every roll-set test (§4d/§8) | n/a — *derived per run* from ledger∩divergence-test | no |
+| **Last-reconcile date** (idempotency + the explicit reconciliation date, §8/V3) | owned layer `forzare/state/last-reconcile.json` | morning brief + end-of-day (the day being closed = stored date **+ 1**) | end-of-day (+ defensive morning run) stamps the day it closed | **yes — one tiny file** |
+| **Tomorrow pre-stage** (EOD proposal → morning brief, §8/R2A8) | owned layer `forzare/state/tomorrow-prestage.json` (≤3 candidate task ids + one anchor candidate) | the morning brief (consumes it, then **clears** it) | end-of-day's `tomorrow-prep` writes it (proposal only — **no** `p1`, **no** calendar write) | **yes — one tiny file, cleared each morning** |
 | **Schedule override + gym activation** (§2/§3/§6) | owned layer `forzare/state/schedule-override.json` (shift block · date · recovery-morning flag · today's `activation` field) | morning brief + end-of-day + gym-window-end check + the `/forzare` skill | shift override set by `/forzare` shift signal (consumed on the day *after* the block ends; a mid-shift 5:15 brief reads without clearing); the **date-scoped `activation` field** is set when the gym-back signal fires, so the gym-window-end cron (§3, an amnesiac session) knows the signal already came | **yes — one tiny file** |
-| **Fire times** (#4) | `forzare/` config + fixed 23:00 | read | hand-edited | config |
+| **Fire times** (§19 decided config) | `forzare/` config + fixed 23:00 | read | hand-edited | config |
 | **Calibration log** (§6a — learning) | owned layer `forzare/calibration/` | aggregate analysis (daily/weekly) | appended per surfacing decision | **yes — the learning dataset** |
 | **Goals yardstick** (§4c) | owned layer `forzare/goals.md` | p1 time | hand-edited ~quarterly | yes (human-owned) |
 
@@ -979,6 +1047,33 @@ last-reconcile date, schedule override) is read every run and acted on immediate
 user-facing, never self-report. **Everything Bob persists now lives under `forzare/`** (lifecycle ledger,
 state-stamp, calibration, goals, dopamine-menu) — nothing failure-shaped is written **on the user's Todoist
 tasks** anymore (§4d). Bob holds no other *knowledge* state between sessions.
+
+**Ledger I/O contract (V2 — the lifecycle ledger is a crash-safe, single-writer store).** The
+`task-lifecycle.json` ledger is touched by concurrent paths (the 23:00 EOD roll, a live `/forzare` snooze, a
+§7 escalation), so its reads/writes go through **one shared helper** with these guarantees — never ad-hoc
+`json.load`/`json.dump` scattered across skills:
+
+- **Exclusive lock.** Every read-modify-write holds an OS advisory lock (`flock` on a sibling
+  `task-lifecycle.lock`) for the whole critical section, so a live snooze and the nightly roll can't
+  interleave a lost update.
+- **Atomic writes.** Write to a temp file in the same directory, `fsync`, then `os.rename` over the target
+  (atomic on the same filesystem) — a crash mid-write never leaves a truncated/corrupt ledger; the reader
+  sees either the old file or the new one.
+- **Per-entry operation record.** Each mutation appends to the entry's history
+  `{old_due, new_due, reconcile_date}` (the reconciliation date from §8/V3), so a run can tell whether *it*
+  already applied a given day's roll — the idempotency substrate under the date-stamp.
+- **Write ORDER — journal, then commit (decided).** For each rolled task the sequence is: **(1)** write the
+  ledger *intent* first (journal the pending `{old_due → new_due, reconcile_date}` with a `pending` flag),
+  **(2)** perform the Todoist `td task reschedule`, **(3)** commit the ledger entry (flip `pending`→committed,
+  stamp the new `written_due`). A crash **between (1) and (3)** leaves an *intent without a commit*.
+- **Healing rule.** On the next run, any `pending` (un-committed) entry is **re-verified against Todoist**:
+  read the task's live `due.date` — if it already equals the intended `new_due`, the Todoist write landed, so
+  **commit** the entry (heal forward); if it still equals `old_due`, the write didn't land, so **re-apply**
+  step (2) then commit; if it equals neither, the **user intervened** — void the entry (the §4d divergence
+  rule). Net: no roll is ever double-applied and none is silently lost across a crash.
+- **Fixtures (mirrored in the plan's ledger-I/O task):** crash after (1)/after (2)/after (3); a concurrent
+  **EOD roll × live snooze** on the same task id (the lock serializes them; the loser re-reads and no-ops via
+  the same-day dedupe).
 
 **The one transient exception — in-flight agent work.** A capture-processing job (§8b) that's mid-flight is
 execution state, not knowledge — it lives on the **Kanban card** (`~/.hermes/kanban.db`, §10), Bob's private
@@ -1024,7 +1119,7 @@ first-class `hermes kanban` verbs (verified flags + watcher behavior); no bespok
 | 4 | **Research** (subagent) | Investigate (web / vault / `/deep-research` as warranted); decide whether the result implies subtasks. | implies subtasks → 5 · not → **STOP (done)** |
 | 5 | **Split** (subagent) | Rewrite as one task + concrete subtasks from the research verdict. | → done |
 
-**Stage 3 *is* the gate (#6) — there is no separate "full-pipeline-vs-not" switch.** Most captures stop at
+**Stage 3 *is* the gate (the research-worthiness verdict) — there is no separate "full-pipeline-vs-not" switch.** Most captures stop at
 stage 2 or 3: an obvious, self-contained task is placed and finished; only genuinely research-worthy items
 walk the whole ladder. The gate is a per-item verdict, deterministic given the item — not a global mode.
 
@@ -1061,7 +1156,7 @@ check). Durable block-and-wait is the *fallback*, not the default. *(Because the
 cron/Kanban-origin — no Discord-bound session — their asks route through the parent conversation, which is
 Discord-bound; that is why the parent owns the inline ask, §12 R1c caveat.)*
 
-**Dup-guard / idempotency (#5) — forced by the no-resume caveat.** Kanban restarts a crashed card from its
+**Dup-guard / idempotency (the check-before-create rule) — forced by the no-resume caveat.** Kanban restarts a crashed card from its
 first stage, not the failed step (§19). So **every stage is check-before-create**: stage 1 skips if the
 capture is already in Inbox (the guard that also covers a full parent-level retry); stage 2 skips re-routing
 an already-placed task; stage 5 skips subtasks that already exist. A restart converges to the same single task
@@ -1162,12 +1257,18 @@ fast, daily sequence while adding exactly the plumbing the user must be firewall
   wall-clock time while active and is killed only after 600s with no activity; `script_timeout_seconds` does
   **not** bound it (that caps only an optional pre-run `--script`). Iterations are capped by `agent.max_turns`
   (default 90).
-- **The bundle composes the steps in order** — **defensive roll** (`eod-roll`, only if yesterday's state is
-  stale, §8) → weather → calendar → active-tasks → **plan** (`eisenhower-plan`: set ≤3 `p1` + place the one
-  deep anchor via `calendar-write`, §4c/§5a) → **follow-ups sweep** (§2 step 4: chases, fixed-item
-  re-decisions, triage re-raises) → activation-reminder → assemble (the bundle's skills, §13), then
-  **deliver** via cron's scheduled Discord path (R1a; delivery is *not* a bundle skill) — all inside the one
-  run, each step degrading **visibly** on failure (§16), not as separate durable cards.
+- **Ordering is a PROMPT CONTRACT, not a structural guarantee (V7/R2A23).** A bundle is a **skill-loader**,
+  not a sequencer — verified `agent/skill_bundles.py:286-340` loads every listed skill into one turn under a
+  header ("Treat every skill below as active guidance for this turn") plus an author-supplied **`instruction`**
+  string; there is no engine step-ordering. So the order below is enforced by the **bundle's mandatory
+  instruction block** (§13) — a prompt the agent follows — not by the loader: **defensive roll** (`eod-roll`,
+  only if yesterday's state is stale, §8) → weather → calendar → active-tasks → **plan** (`eisenhower-plan`:
+  set ≤3 `p1` + place the one deep anchor via `calendar-write`, §4c/§5a) → **follow-ups sweep** (§2 step 4:
+  chases, fixed-item re-decisions, triage re-raises) → activation-reminder → assemble, then **deliver** via
+  cron's scheduled Discord path (R1a; delivery is *not* a bundle skill) — all inside the one run, each step
+  degrading **visibly** on failure (§16). The **defensive-roll-before-p1** rule is carried explicitly in that
+  instruction (and restated in the `brief-assemble` skill) so the roll is never skipped or reordered after a
+  `p1` write. Acceptance verifies the **actual tool trace** (§13), not just that the skills loaded.
 - **`deliver` is the only user-facing step**, via cron's scheduled Discord delivery (§12).
 - **Durability comes from idempotency, not Kanban:** the brief is safe to re-run (§15), and its state-mutating
   half (the nightly roll) is idempotent + date-stamped with a defensive morning re-run (§8). That is the whole
@@ -1256,8 +1357,12 @@ not a lock:**
   root `default_reset_policy`, so it covers the Discord task channel), bracketed between the 23:00 end-of-day
   and the 5:15 brief, so no stale context bleeds across days.
 
-Together these give the same "never two next things at once" guarantee the lock was meant to provide, without
-a bespoke mutex — and without a plugin to host it.
+Together these make double-firing **rare**, but — stated honestly — they are **not a mutex**. The real
+invariant is **"at most one task per RESPONSE, receptivity-gated"**, not "at most one across all concurrent
+paths at all times." A live-session turn and a cron ritual *can* in principle each emit their (single) next
+thing in the same narrow window; nothing here structurally forbids it the way a lock would. That residual is
+accepted for v1 (below) and booked as a post-V1 hardening candidate (§18a) — the earlier claim that this
+gives "the same guarantee as a mutex" is **withdrawn** as overstated.
 
 **Residual interleave — the per-channel delivery LEASE is REJECTED for v1 (YAGNI).** A live-session turn and a
 cron ritual *could* in principle both emit a "next thing" in the same narrow window. A per-channel delivery
@@ -1272,7 +1377,9 @@ practice.
 - **Task channel (idle-only, rate-limited, receptivity-gated):** proactive *task* output goes to Discord via
   the configured **home channel** (`DISCORD_HOME_CHANNEL`), through cron's scheduled delivery (R1a) or a
   live-session reply. `[SILENT]`-only responses are logged but not delivered (§12.2) — for **dry-runs +
-  routine internal-job chatter only**, never for failures (§16/§17).
+  routine internal-job chatter only**, never for failures (§16/§17). **Suppression is DELIVERY-only** — it
+  silences the *message*, not the skill's store writes; genuine side-effect-free staging needs
+  `FORZARE_DRY_RUN=1` on top (§17/V4).
 - **Errors channel (always loud) — the dedicated `#forzare-errors` Discord channel**
   (`DISCORD_ERRORS_CHANNEL`): **system/pipeline failures** go here and are **always delivered — never
   `[SILENT]`, never receptivity-gated, never rate-suppressed.** The out-of-band alert primitive is
@@ -1311,6 +1418,13 @@ recognition suffers.
   `name`/`description`/`instruction`. `/<bundle> [instruction]` loads all listed skills at once (text after
   the command is attached as the instruction). Bundles **don't install** skills and **silently skip missing
   ones** — so the atomic skills must exist first.
+- **Every forzare bundle carries a MANDATORY `instruction` block (V7) — this is where sequencing lives.**
+  Because the loader does not order or gate skills (§11), each bundle's `instruction:` string is a required
+  contract stating: **(1) mode** (`morning` | `eod`), **(2) the ordered step list**, **(3) mutation
+  boundaries** — for EOD explicitly *"writes NO `p1`, NO calendar"*; for morning *"run the defensive
+  `eod-roll` and the roll-set check BEFORE any `p1` write"* — and **(4) failure handling** (degrade visibly,
+  never silent; §16). The `instruction` is not optional decoration for these three bundles; it is the only
+  thing that makes the run deterministic.
   - `/forzare-morning-brief` = `eod-roll` (defensive missed-fire roll first, §8) · `weather` ·
     `calendar-read` · `todoist-surface` · `eisenhower-plan` · `followups-sweep` (§2 step 4: chases + fixed
     re-decisions + triage re-raises) · `activation-prompt` · `calendar-write` · `brief-assemble`. **The
@@ -1320,10 +1434,13 @@ recognition suffers.
   - `/forzare-replan` = `calendar-read` · `todoist-surface` · `eisenhower-plan` (redraw the remaining day from
     the current plan + active pool; no state-detect — that's the `/forzare` state path)
   - `/forzare-eod` = `eod-roll` (the roll + unconditional p1-clear + lifecycle ledger ticks + last-reconcile
-    stamp, §8) · `todoist-surface` · `daily-reflect` · `eisenhower-plan` · `tomorrow-prep` · `calendar-write`.
-    **At EOD `eisenhower-plan`/`tomorrow-prep` only PROPOSE** tomorrow's candidate ≤3 + anchor — **neither
-    writes `p1`** (that is exclusively the morning run's job; this removes the earlier contradiction where both
-    the morning brief and EOD appeared to set `p1`).
+    stamp, §8) · `todoist-surface` · `daily-reflect` · `eisenhower-plan` · `tomorrow-prep`. **`calendar-write`
+    is NOT in the EOD bundle (R2A8):** EOD writes **no** calendar — `tomorrow-prep` only records a candidate
+    anchor to `forzare/state/tomorrow-prestage.json` (§8a); the **morning** run is the sole place the deep
+    anchor is placed on the 🤖 calendar. **At EOD `eisenhower-plan`/`tomorrow-prep` only PROPOSE** tomorrow's
+    candidate ≤3 + anchor — **neither writes `p1`** (that is exclusively the morning run's job; this removes
+    the earlier contradiction where both the morning brief and EOD appeared to set `p1`, and the earlier
+    double where EOD also wrote the calendar).
   - **`eisenhower-plan` is one skill with a mode by caller:** plan-time ranking used by the morning run
     (**writes** `p1` + the deep anchor) and by EOD (**proposal only**, no `p1` write). The caller (bundle)
     determines which.
@@ -1441,11 +1558,27 @@ dispatcher (claim races) — the gateway runs the dispatcher.
     never *tells* you — so the watchdog sends a one-shot probe a hung gateway can't answer:
     **`curl -fsS -m 3 http://127.0.0.1:8644/health`**, exit code **0 = up / 28 = hung / 7 = down** (verified,
     §19). On **down / hung / restart-looping** → loud alert.
-  - **(b) forzare run failures.** Since its last check (a stamped watermark), it scans
-    **`~/.hermes/cron/output/`** for failed ritual runs and the **Kanban DB** for cards in `gave_up`/`blocked`
-    (the §16 `failure_limit` trips) — and routes each to the errors channel. **This is the concrete owner of
-    "cron/pipeline failure summaries reach the user":** the watchdog is the errors *router*, closing the gap
-    where a cron job's own delivery target would otherwise swallow the failure.
+  - **(b) forzare run failures — scan semantics corrected to the verified schema (V9/R2A6).** Since its last
+    check (a stamped watermark), it scans **`~/.hermes/cron/output/`** for failed ritual runs and the
+    **Kanban DB** for genuine failures — and routes each to the errors channel. **The Kanban failure set is
+    precise, because `blocked` alone over-alerts** (verified `hermes_cli/kanban_db.py`: `VALID_STATUSES`
+    includes `blocked` as a card *status*, while `gave_up`/`crashed`/`timed_out` are run **outcomes/events**,
+    not statuses — `kanban_db.py:1120-1130`, `kanban_watchers.py:163`). So alert **only** on:
+    - a card in status **`blocked` WITH `consecutive_failures > 0`** (the §16 `failure_limit` trip — a card
+      that keeps failing);
+    - a run **`timed_out`** or **`crashed`** event;
+    - a **`gave_up`** *outcome* event (the `spawn_auto_blocked → gave_up` terminal, `kanban_db.py:1979`).
+
+    **Explicitly EXCLUDED (healthy, not a failure): a card `blocked` with `consecutive_failures == 0`** — an
+    **awaiting-user** card (e.g. the §8b placement question, reason = user decision). Alerting on those would
+    turn a normal "waiting on you" into a false system alarm, mixing user-decision waits into the errors
+    channel and breaking "unread = broken" (§12.4). **This is the concrete owner of "cron/pipeline failure
+    summaries reach the user":** the watchdog is the errors *router*.
+    - **Durability (mirror the osquery watchdog's pattern):** alert ids are **content-stable** (a hash of
+      {kind, job/card id, run timestamp}) so a re-scan never double-alerts the same failure; the watermark is
+      **spooled before it advances** (write the pending alert to a spool file, *then* move the watermark), and
+      each pass **drains the spool first** (drain-on-run). If `hermes send` exits non-zero (Discord
+      unreachable), the **spool is retained and retried next pass** — a failed alert is never lost.
   - **Alert path (out-of-band, independent of the gateway):** **`hermes send --to discord:<#forzare-errors>`**
     (R2) — no LLM, no agent loop, no running gateway for bot-token platforms — so it can report the gateway's
     own death; the relay's phone/local push stays as belt-and-suspenders. **You cannot use the thing that's
@@ -1509,6 +1642,18 @@ channel); a dependency or job that **can't complete** escalates loud to the erro
     hung step never freezes the day, and a restart never duplicates a task.
 - **Any job that exhausts its `failure_limit` and gives up** → **loud on the errors channel** (§12); the
   captured item is still safe in Inbox (§8b).
+- **Native cron failure-summary delivery — a KNOWN leak, accepted with framing (V5/R2A5).** Verified
+  (`cron/scheduler.py:2760-2786`): when a cron job fails, the scheduler delivers a
+  `_summarize_cron_failure_for_delivery(...)` one-liner to **the job's own delivery target** — and *"failed
+  jobs always deliver"* (a failed turn is structurally un-silenceable, §12.2). Since user-facing rituals
+  deliver to the **home (task) channel**, their failure summaries land **there**, not (only) on
+  `#forzare-errors`. This is a real leak of a system-failure notice onto the task channel, and there is **no
+  suppression machinery to close it** — nor should there be, since quieting a failure is forbidden (§0/§9).
+  **Ruling: accept with framing.** A system-failure notice on the task channel is **loud, not shame** — it
+  names *the system* ("the morning brief job failed"), never the user, so it does not violate the no-shame
+  contract (which is about *the user's* task slippage, §0). And it is **not the only alarm:** the forzare-ops
+  watchdog independently duplicates every cron/pipeline failure to `#forzare-errors` **within ≤15 min**
+  (§14), so the dedicated errors channel still carries the authoritative signal.
 - **Gateway down or hung (the total-failure ceiling)** → cannot be handled *inside* forzare — the process is
   dead/wedged. **Restart is automatic** (`ai.hermes.gateway.plist` KeepAlive, §14); **detection + alerting is
   the external `forzare-ops watchdog`** (§14), which catches the hang KeepAlive misses and fires an
@@ -1524,10 +1669,26 @@ channel); a dependency or job that **can't complete** escalates loud to the erro
   *behavioral* learning data is separate — §6a's owned calibration store (not an observability tool). **Langfuse
   agent tracing is post-V1 (§18a), not part of V1** — it's engineering tracing (turns/LLM-calls/tools), not
   the behavioral tuner, and isn't load-bearing.
-- **Dry-run/staging path before go-live:** run the brief cron with a response whose *entire* output is the
-  `[SILENT]` sentinel (§12.2/R3) — or `--deliver local` — so it exercises the full pipeline + writes to
-  `~/.hermes/cron/output/` **without messaging the user or touching prod** — read the output, tune, then flip
-  delivery to `discord`.
+- **Dry-run/staging path before go-live — and the honesty correction (V4).** `[SILENT]` and `--deliver
+  local` suppress **DELIVERY ONLY** — they stop a message reaching Discord. They do **NOT** suppress a
+  skill's **store writes**: a brief run under `--deliver local` will still `td task reschedule`, set `p1`,
+  write the ledger, and create calendar blocks unless the skill itself is told to stand down. The earlier
+  "without touching prod" claim was **false** and is replaced by an explicit read-only mode:
+  - **`FORZARE_DRY_RUN=1` — honored by EVERY mutating skill (the read-only contract).** When the env var (or
+    an equivalent instruction line the bundle injects) is set, a mutating skill **computes and LOGS its
+    intended writes but performs NONE** — no `td` write, no ledger commit, no `calendar-write`, no
+    `schedule-override.json` write. It is a forzare-layer convention (not a hermes primitive), stated in each
+    mutating skill's SKILL.md, so compliance is decided-before-runtime, not per-run improvisation. This is
+    what makes a staged run genuinely side-effect-free.
+  - **The 23:00 eod-roll job is created DISABLED (or `--deliver local` with `FORZARE_DRY_RUN=1`) until the
+    go-live gate** — it must not silently reschedule real tasks during the staging window.
+  - **Staging acceptance = ZERO production mutations, asserted** — check the Todoist **activity log** (`td
+    activity` shows no forzare-authored task changes in the window) **and** the owned-layer **state-file
+    mtimes** (`last-reconcile.json` / `task-lifecycle.json` unchanged). A staged run is only "clean" when both
+    hold.
+  - So the loop is: stage with `--deliver local` **+ `FORZARE_DRY_RUN=1`** → exercise the full pipeline →
+    read `~/.hermes/cron/output/` + assert zero real mutations → tune → then, at go-live, drop
+    `FORZARE_DRY_RUN` and flip delivery to `discord`.
 
 ---
 
@@ -1550,6 +1711,13 @@ email-triage agent in PLAN-v7 — is not part of this system. "Sierra" is a pers
 These are **deferred, not excluded**: recorded here with rationale so they aren't forgotten, and deliberately
 kept **out of V1**. Sequence is always: ship V1 first → then evaluate.
 
+- **Per-channel delivery LEASE (post-V1 — closes the §12.3 residual interleave).** V1's single-writer story
+  is procedural, not a lock (§12.3), so a live-session turn and a cron ritual *could* both emit a "next thing"
+  in the same narrow window — accepted as rare and benign for v1 (both paths are receptivity-gated and each
+  emits at most one thing; worst case is two short messages moments apart). If it ever proves annoying in
+  practice, add a **per-channel delivery lease**: a short-held claim on the task channel so a second emitter
+  in the window defers. This is exactly the bespoke machinery R4 removed, so it is **not built for v1** — it
+  is booked here (and mirrored in the plan's Phase H) as the concrete hardening move.
 - **Langfuse agent tracing (post-V1).** The user intends to adopt **Langfuse for agent tracing across their
   entire system**; for forzare specifically it could help **analyze how Bob services tasks** (turn /
   LLM-call / tool traces, latency, where the time goes). Hermes has **direct, native Langfuse support** (the
@@ -1569,20 +1737,30 @@ kept **out of V1**. Sequence is always: ship V1 first → then evaluate.
 
 ## 19. Open parameters / setup checks (genuine unknowns — verify at build)
 
-- **RESOLVED (verified 2026-06-30 via `td` CLI) — "is this date fixed vs. surfacing?" (#1 roll carve-out).** A
-  task is **fixed (never auto-rolled)** if ANY of: `deadline != null`, `due.isRecurring == true`, **`due.date`
-  contains a time** (the appointment signal), or `due.date` is a future date. Otherwise it's surfacing-dated →
-  rolls. **Verified field structure** (`td task view --json`): timed due → `due.date = "2026-06-30T15:00:00"`
-  (has `T`+time); date-only → `due.date = "2026-06-30"` (no `T`); recurring → `due.isRecurring = true`;
-  deadline → top-level `deadline: {date, lang}` object, separate from `due`. **Detection is exact:** "has a
-  time-of-day" = `"T" in due.date` (equivalently `len(due.date) > 10`). No ambiguity, no fallback needed.
-- **cron missed-fire / catch-up — RESOLVED (verified 2026-06-30 against upstream `cron/jobs.py:488-492`).** A
-  cron job due while the gateway was down **does replay on restart — but only within a bounded ±2h window.** So
-  catch-up is the *primary* recovery for short outages, and the **defensive morning roll (§8) is the backstop
-  for outages > 2h** (belt-and-suspenders, not redundant). End-of-day stays idempotent + date-stamped so
-  {on-time fire, ≤2h catch-up, late morning re-run} each happen exactly once. **Build-time check (a test, not a
-  design unknown):** confirm the date-stamp guard prevents a double-roll when both the late cron *and* the
-  morning brief attempt it.
+- **RESOLVED (verified 2026-06-30 via `td` CLI) — "is this date fixed vs. surfacing?" (roll carve-out), with
+  the V1 correction.** **The definition is LEDGER membership**, not the task fields: a task rolls **iff** it
+  has a lifecycle-ledger entry (Bob wrote its date) **and** `current due == written_due` **and** it is
+  date-only, today/overdue, not done (§4d/§8). The task-field checks are **secondary sanity guards** applied
+  within that set — skip `due.isRecurring == true`, a `"T"` time-of-day, or a future `due.date`. **`deadline
+  != null` is NOT a blanket exclusion** (V1): a deadline-bearing task with a *Bob-written lead-time surfacing
+  due* is in the ledger and **rolls**; `deadline` marks "fixed" only for a task with **no** ledger entry (a
+  user-dated deadline-day task). **Verified field structure** (`td task view --json`): timed due → `due.date =
+  "2026-06-30T15:00:00"` (has `T`+time); date-only → `due.date = "2026-06-30"` (no `T`); recurring →
+  `due.isRecurring = true`; deadline → top-level `deadline: {date, lang}` object, separate from `due`.
+  **Detection is exact:** "has a time-of-day" = `"T" in due.date` (equivalently `len(due.date) > 10`).
+- **cron missed-fire / catch-up — RESOLVED, and the earlier claim CORRECTED (verified 2026-07-11 against
+  installed `cron/jobs.py:1456-1492`; grace math at `:475-504`).** A recurring cron job due while the gateway
+  was down does **not** silently skip when it is very late. Two regimes: **(1) within the catch-up grace
+  window** (`_compute_grace_seconds` = half the schedule period, clamped 120s–7200s; a *daily* job → the 2h
+  cap) it replays as due; **(2) PAST the grace window** the code **fast-forwards `next_run_at` to the next
+  future occurrence AND still executes once now** (`due.append(job)` after the fast-forward,
+  `jobs.py:1462-1492`) — it fires exactly once at recovery, never zero times. The old "bounded ±2h, else
+  **skipped**" statement was **wrong** (the ±2h is only the *catch-up/accumulate* window, not a fire/skip
+  cutoff). Because a late fire can therefore land at an arbitrary time, the eod-roll keys off an **explicit
+  reconciliation date** (last-reconcile.json + 1, §8/V3), not the wall clock, so {on-time, ≤2h catch-up,
+  past-grace recovery fire, defensive morning run} each reconcile a given day **exactly once**. **Build-time
+  check (a test):** confirm the date-stamp/last-reconcile guard prevents a double-roll when both a late cron
+  fire *and* the morning brief attempt the same day.
 - **RESOLVED — Kanban mechanics corrected against upstream code (verified 2026-06-30, NousResearch/hermes-agent).**
   Several documented claims were fictional or wrong; the design follows the *code*, not the docs:
   - **No wall-clock firing.** There is **no `scheduled_at` / `--scheduled-at`** — the docs invented it. Kanban
@@ -1674,7 +1852,10 @@ kept **out of V1**. Sequence is always: ship V1 first → then evaluate.
   runtime-adaptive): weather thresholds wind>17 / rain / <50°F / >90°F; wake anchor 05:15; **end-of-day cron
   23:00** (fixed, §8); `@waiting` reconcile cron 02:00; stall threshold 2 (§4d); calibration α 0.15 (§6a);
   **root `session_reset` mode=both at 04:00 (R6a, §14)**; **`cron.max_parallel_jobs: 1`** +
-  **`kanban.max_in_progress_per_profile: 2`** (§14). (No `@q2` flag, and no lifecycle labels — the roll
+  **`kanban.max_in_progress_per_profile: 2`** (§14); **receptivity v1 rule (V8, §6a): initiation window
+  N = 30 min, withhold when trailing-24h dismissals ≥ D = 3 OR `surfacings_today` ≥ S = 8** (learned refinement
+  post-V1); **task-bankruptcy trigger > 25 stale-someday candidates (R2A16, §4c)**; **post-activation boost
+  prior ≈ ≤~30 min, pending personal data (V10, §6/§6a)**. (No `@q2` flag, and no lifecycle labels — the roll
   counter is the private ledger, §4d/§5d.)
 
 ---
@@ -1727,3 +1908,27 @@ watchdog is re-scoped as the **forzare-ops watchdog** (health probe + a cron/out
 routed to `#forzare-errors`). The brief's real bound is the cron **inactivity** timeout (600s idle), not
 `script_timeout_seconds` (§11/§16). The Sunday question is **decided** — one daily cron, content
 schedule-derived (§1/§2). Pharmacology + effect-size attributions were made conservative (§5a/§6/§6a/§7).
+
+**2026-07-11 — round-2 adversarial-review hardening (fixes to round-1's own gaps; re-verified against the
+installed hermes-agent).** A second adversarial pass caught half-applied round-1 fixes and imprecise
+code-claims; every corrected claim below was re-checked against installed source. Key corrections: the **roll
+set is now DEFINED by the lifecycle ledger** (entry + `current due == written_due`), the four field checks
+demoted to secondary sanity guards, and the deadline contradiction resolved — a Bob-written lead-time due on a
+deadline task *is* in the ledger and *does* roll (§4d/§8/§19, V1). The **ledger I/O contract** is specified
+(flock, tmp+rename atomic writes, journal-then-commit order, crash-healing rule; §8a, V2). **Cron recovery
+was corrected to the verified code** (`cron/jobs.py:1456-1492`): a past-grace job **fast-forwards but still
+fires once**, never silently skips — so the eod-roll keys off an explicit reconciliation date, not the wall
+clock (§8/§19, V3). **Staging isolation made honest:** `[SILENT]`/`--deliver local` suppress *delivery only*;
+side-effect-free staging needs `FORZARE_DRY_RUN=1` honored by every mutating skill, and the 23:00 roll job is
+disabled until go-live (§17/§12.4, V4). The **native cron failure-summary leak** to a job's own target is
+documented as accept-with-framing + watchdog duplicate (§16, V5); the **one-thing invariant** is restated as
+"at most one per response, receptivity-gated" (not a mutex), with the delivery-lease booked post-V1
+(§12.3/§18a, V6). **Bundles are skill-loaders, not sequencers** (`skill_bundles.py:286-340`) — ordering now
+lives in each bundle's mandatory instruction block (§11/§13, V7). Receptivity/initiation made computable
+(N=30 / D=3 / S=8; §6a/§19, V8); the **watchdog Kanban scan** corrected to the verified schema — alert on
+`blocked` WITH `consecutive_failures>0`, `timed_out`/`crashed`/`gave_up` events, excluding awaiting-user
+blocks (§14, V9/R2A6). **Mehren** corrected: benefit ~10 min post-exercise, no effect at ~33 min, the ~1–2h
+window removed (§6/§6a, V10). Plus job-id extraction rebuilt to parse `Created job:` (12-hex), apply
+checkpoints moved inline per phase, `td task reschedule` noted as recurrence-preserving, d=0.99 re-attributed
+to **Toli et al. 2016**, and the §8a/§8b dangling cross-refs re-pointed (R2A1/R2A2/R2A8/R2A14/R2A17/R2A18/
+R2A20/R2A22/R2A24).
