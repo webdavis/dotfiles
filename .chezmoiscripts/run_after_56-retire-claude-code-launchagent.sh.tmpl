@@ -1,0 +1,124 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/bin/bash
+
+set -euo pipefail
+
+# Convergent retirement of the old com.claude.code LaunchAgent, the tmux-coupled
+# claude-restart.sh supervisor the herdr migration (S4) removed. Deleting the
+# plist SOURCE from the repo does NOT unload an already-running LaunchAgent, so
+# this is the live-side complement: boot the service out of the GUI domain if it
+# is loaded, then delete the leftover deployed plist -- but ONLY once the label
+# is confirmed unloaded.
+#
+# It runs BEFORE run_after_58-herdr-migration-verify (which removes tmux/sesh via
+# brew bundle cleanup): the supervisor is tmux-coupled, so it must be retired
+# while its multiplexer is still installed, not after. That ordering is the
+# reason this is after_56 and not a higher number (asserted by
+# test/unit/claude-retirement-ordering.sh).
+#
+# It is a run_after, NOT a run_once: run_once records success permanently even
+# when a probe or action transiently failed, which would strand a
+# partially-retired host with no retry. Instead it gates on a quiescence marker:
+# only after a re-probe CONFIRMS the label is gone AND the plist is gone does it
+# write the marker; every later apply is then a single file check. Anything short
+# of full convergence leaves the marker unwritten and the next apply retries.
+#
+# Fail-closed and abort-proof: RETAIN the plist whenever the launchd state is
+# loaded OR unknown (only a confirmed absence permits removal, so a wedged job is
+# never orphaned), never claim retirement without a confirming re-probe, and
+# never abort the apply -- every command that can fail (id, launchctl, rm) is
+# guarded, because a retirement hiccup must never block the rest of a chezmoi
+# apply.
+
+log() { printf 'claude-code-retire: %s\n' "$*"; }
+warn() { printf 'claude-code-retire: WARN %s\n' "$*" >&2; }
+
+label="com.claude.code"
+plist="$HOME/Library/LaunchAgents/$label.plist"
+state_dir="$HOME/.local/state/claude-code-launchagent"
+marker="$state_dir/retired"
+
+# Fast path: once fully retired, every subsequent apply costs one file check.
+if [[ -f $marker ]]; then
+  exit 0
+fi
+
+# `launchctl print <service>` exits 0 when the service is loaded and with a known
+# not-found status when it is absent. That status, verified live on this host, is
+# 113. Treat the probe as TRI-STATE: 0 = loaded, 113 = confirmed absent, anything
+# else = an operational error whose result must NOT be interpreted as either
+# state (a nonzero-but-not-113 must never be misread as not-loaded, which would
+# let an operational error delete the plist and mark done while the job is still
+# loaded). Only a CONFIRMED absence permits plist removal and the marker.
+not_found_status=113
+
+# launchd_state <target> : echoes loaded | absent | unknown.
+launchd_state() {
+  local status=0
+  launchctl print "$1" >/dev/null 2>&1 || status=$?
+  if [[ $status -eq 0 ]]; then
+    printf 'loaded'
+  elif [[ $status -eq $not_found_status ]]; then
+    printf 'absent'
+  else
+    printf 'unknown'
+  fi
+}
+
+if ! uid="$(id -u 2>/dev/null)" || ! [[ $uid =~ ^[0-9]+$ ]]; then
+  warn "id -u failed; cannot address the gui launchd domain. Retirement deferred; the next apply retries."
+  warn "If the old agent is still loaded, retire it by hand:  launchctl bootout gui/<your-uid>/$label"
+  exit 0
+fi
+target="gui/$uid/$label"
+
+state="$(launchd_state "$target")"
+if [[ $state == loaded ]]; then
+  # Loaded: boot it out, then re-probe. Only a CONFIRMED absence lets the rest
+  # proceed; a survivor or an uninterpretable re-probe holds the plist and the
+  # marker.
+  if launchctl bootout "$target" 2>/dev/null; then
+    state="$(launchd_state "$target")"
+  else
+    warn "bootout of $target failed; leaving the plist and NOT marking done (the next apply retries)."
+  fi
+fi
+
+case "$state" in
+  loaded)
+    warn "$label is STILL loaded after bootout; leaving the plist in place. Retire it by hand:  launchctl bootout $target"
+    ;;
+  unknown)
+    warn "could not confirm whether $label is loaded (launchctl print returned an unexpected status, neither loaded=0 nor not-found=$not_found_status); leaving the plist untouched. Check by hand:  launchctl print $target"
+    ;;
+  absent)
+    log "confirmed $label is not loaded"
+    ;;
+esac
+
+# Remove the leftover deployed plist ONLY when the label is confirmed absent
+# (never while loaded or unknown -- that could orphan a running job).
+plist_absent=false
+if [[ $state == absent ]]; then
+  if [[ -e $plist ]]; then
+    if rm -f "$plist" 2>/dev/null; then
+      log "removed leftover plist $plist"
+    else
+      warn "could not remove the leftover plist $plist; remove it by hand:  rm -f $plist"
+    fi
+  fi
+  if [[ ! -e $plist ]]; then plist_absent=true; fi
+fi
+
+# Converge: the marker is written ONLY when the label is confirmed absent AND the
+# plist is gone. Anything else leaves it unwritten so the next apply retries.
+if [[ $state == absent && $plist_absent == true ]]; then
+  mkdir -p "$state_dir"
+  : >"$marker"
+  log "retirement complete; wrote quiescence marker $marker"
+else
+  warn "com.claude.code retirement incomplete; NOT writing the marker. The next chezmoi apply will retry."
+fi
+
+exit 0
+{{ end -}}
