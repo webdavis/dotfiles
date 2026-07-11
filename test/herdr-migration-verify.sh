@@ -69,6 +69,9 @@ fi
 #   session-down     -> `session list` fails (server unreachable)
 #   session-stopped  -> session list answers but no entry is running:true
 #   config-invalid   -> reload-config reports diagnostics (config rejected)
+#   config-rejected-empty-diag -> reload-config reports status "rejected" with
+#                       an EMPTY diagnostics array (decouples the status check
+#                       from the diagnostics check; see the mutation case below)
 make_herdr_stub() {
   local dir="$1" mode="$2"
   cat >"$dir/herdr" <<STUB
@@ -124,6 +127,10 @@ case "\$sub" in
   "server reload-config")
     if [[ \$mode == config-invalid ]]; then
       printf '{"id":"cli:server:reload-config","result":{"diagnostics":["unknown key: keybindingz"],"status":"rejected","type":"config_reload"}}\n'
+      exit 0
+    fi
+    if [[ \$mode == config-rejected-empty-diag ]]; then
+      printf '{"id":"cli:server:reload-config","result":{"diagnostics":[],"status":"rejected","type":"config_reload"}}\n'
       exit 0
     fi
     printf '{"id":"cli:server:reload-config","result":{"diagnostics":[],"status":"applied","type":"config_reload"}}\n'
@@ -227,6 +234,17 @@ done
 run_case reject-no-config healthy "tmux" no-config
 [[ $RC -eq 0 ]] || fail "reject-no-config: expected exit 0, got $RC"
 cleanup_ran && fail "reject-no-config: brew bundle cleanup ran though config.toml is absent"
+
+# Reload reports status "rejected" but with an EMPTY diagnostics array. The
+# config-invalid stub above couples a non-applied status with NON-empty
+# diagnostics, so the diagnostics-length check alone would still reject it and
+# a deleted `.result.status == "applied"` mutant would survive. This case
+# decouples the two: with the status check deleted, empty diagnostics would
+# read as a pass and cleanup would run against a REJECTED config. The predicate
+# must still reject it (no cleanup), which kills that mutant.
+run_case reject-rejected-empty-diag config-rejected-empty-diag "tmux" config
+[[ $RC -eq 0 ]] || fail "reject-rejected-empty-diag: expected exit 0, got $RC"
+cleanup_ran && fail "reject-rejected-empty-diag: brew bundle cleanup ran though reload-config reported status 'rejected' (only the empty diagnostics happened to match; the status check must still reject it)"
 
 # --- never-abort: cleanup itself fails ---------------------------------------
 # herdr verified but `brew bundle cleanup` exits non-zero: warn and exit 0, do
