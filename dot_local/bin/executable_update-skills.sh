@@ -383,16 +383,23 @@ __gen_exchange() {
 }
 
 # Write generation.json LAST, as the ready marker. Its presence + matching
-# hashes is what recovery uses to tell a complete candidate from a leftover.
-#   __gen_write_meta <generation-dir> <id>
+# hashes is what recovery uses to tell a complete candidate from a leftover, and
+# its buildMode ("full" | "additive") records whether the lanes ran a FULL
+# refresh or an ADDITIVE (install-only) build, so weekly recovery never reuses an
+# additive candidate as a weekly refresh (an additive clone carries stale
+# byte-copies of the existing skills). Defaults to "full" when the caller does
+# not specify a mode (migration and the reuse fixtures build complete full
+# generations).
+#   __gen_write_meta <generation-dir> <id> [build-mode]
 __gen_write_meta() {
-  local dir="$1" id="$2" meta="$1/$GENERATION_META_NAME"
+  local dir="$1" id="$2" build_mode="${3:-full}" meta="$1/$GENERATION_META_NAME"
   jq -n \
     --arg id "$id" \
     --arg createdAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     --arg customLockHash "$(__gen_custom_lock_hash)" \
     --arg updaterHash "$(__gen_updater_hash)" \
-    '{id: $id, createdAt: $createdAt, customLockHash: $customLockHash, updaterHash: $updaterHash}' \
+    --arg buildMode "$build_mode" \
+    '{id: $id, createdAt: $createdAt, customLockHash: $customLockHash, updaterHash: $updaterHash, buildMode: $buildMode}' \
     >"$meta"
 }
 
@@ -623,9 +630,14 @@ __gen_recover() {
       # A build workspace: .skills-generations/<id>/home/.agents .
       if [[ -d "$entry/home" ]]; then
         cand_agents="$entry/home/.agents"
-        if __gen_is_complete "$cand_agents" && __gen_meta_matches_desired "$cand_agents"; then
-          # A complete candidate matching desired state: reusable (keep the
-          # newest such by createdAt is overkill; one is enough to publish).
+        if __gen_is_complete "$cand_agents" && __gen_meta_matches_desired "$cand_agents" &&
+          [[ "$(__gen_meta_field "$cand_agents" buildMode)" == "full" ]]; then
+          # A complete FULL candidate matching desired state: reusable by the
+          # weekly refresh (one is enough to publish). An ADDITIVE (install-only)
+          # candidate is deliberately NOT reused here: its existing skills are
+          # stale byte-clones, so publishing it as the weekly result would ship
+          # unrefreshed content and stamp the week a success. It falls through to
+          # deletion; the weekly path then builds a fresh full candidate.
           [[ -z $GEN_REUSE_CANDIDATE ]] && GEN_REUSE_CANDIDATE="$cand_agents"
           continue
         fi
@@ -1010,6 +1022,11 @@ __gen_assert_overlays() {
 # any required failure so the parent discards the whole candidate.
 __gen_do_build_lanes() {
   local id="${UPDATE_SKILLS_GEN_ID:-$(__gen_new_id)}"
+  # Record the mode these lanes ran, so recovery can tell a full weekly refresh
+  # from an additive install-only build (the ready marker is written only after
+  # the lanes of THIS mode complete and validate clean).
+  local build_mode="full"
+  [[ -n ${UPDATE_SKILLS_LANES_ADDITIVE:-} ]] && build_mode="additive"
   mkdir -p "$STORE"
   rm -f "$AGENTS/$GEN_FAILED_SKILLS_FILE_NAME"
   log "build lane: npx"
@@ -1026,8 +1043,8 @@ __gen_do_build_lanes() {
   fi
   rm -f "$AGENTS/$GEN_FAILED_SKILLS_FILE_NAME"
   # The ready marker goes at .agents/generation.json (one level above skills/),
-  # written LAST.
-  __gen_write_meta "$AGENTS" "$id"
+  # written LAST, stamped with the mode these lanes ran.
+  __gen_write_meta "$AGENTS" "$id" "$build_mode"
 }
 
 # Parent side: run the build lanes against a candidate home under env -i, with
