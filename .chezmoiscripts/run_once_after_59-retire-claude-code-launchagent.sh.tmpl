@@ -3,32 +3,55 @@
 
 set -euo pipefail
 
-# One-time retirement of the old com.claude.code LaunchAgent — the tmux-coupled
+# One-time retirement of the old com.claude.code LaunchAgent, the tmux-coupled
 # claude-restart.sh supervisor that the herdr migration (S4) removed. Deleting
-# the plist SOURCE from the repo does NOT unload an already-running LaunchAgent,
-# so this is the live-side complement: boot the service out of the GUI domain if
-# it is loaded, and delete a leftover deployed plist if one is present. It is a
-# silent no-op once both are already gone (the state on this machine), idempotent
-# on a re-run, and never aborts the apply — a missing service or plist is the
-# expected end state, not an error.
+# the plist SOURCE from the repo does NOT unload an already-running
+# LaunchAgent, so this is the live-side complement: boot the service out of
+# the GUI domain if it is loaded, and delete a leftover deployed plist if one
+# is present. It is a silent no-op once both are already gone (the state on
+# this machine) and idempotent on a re-run.
+#
+# Honesty contract: run_once records this script as done after ANY exit 0 and
+# never retries it, so no failure may masquerade as success. The retired
+# message is printed ONLY after a re-probe confirms the service is gone; a
+# bootout that leaves the service loaded prints a loud warning naming the
+# exact manual command instead. And no path may abort the apply: every
+# command that can fail (id, launchctl, rm) is guarded, because a retirement
+# hiccup must never block the rest of a chezmoi apply.
 
 label="com.claude.code"
 plist="$HOME/Library/LaunchAgents/$label.plist"
-domain_target="gui/$(id -u)/$label"
 
-# Unload only when actually loaded: `launchctl print <service>` exits non-zero
-# for an unknown service, so it is the load probe. Guarding bootout on it keeps
-# the not-loaded path a clean no-op (no bootout error noise). Never let a
-# non-zero status abort the apply.
-if launchctl print "$domain_target" >/dev/null 2>&1; then
-  launchctl bootout "$domain_target" 2>/dev/null || true
-  printf 'retired LaunchAgent %s (booted out of %s)\n' "$label" "$domain_target"
+if uid="$(id -u 2>/dev/null)" && [[ $uid =~ ^[0-9]+$ ]]; then
+  domain_target="gui/$uid/$label"
+  # Probe first: `launchctl print <service>` exits non-zero for an unknown
+  # service, so it is the load probe. A failing probe reads as not-loaded
+  # (it is the only visibility launchd offers here), which keeps the
+  # not-loaded path a clean no-op.
+  if launchctl print "$domain_target" >/dev/null 2>&1; then
+    launchctl bootout "$domain_target" 2>/dev/null || true
+    # Re-probe: only a confirmed absence earns the success message. run_once
+    # will not retry, so a survivor demands the operator's attention NOW,
+    # with the exact command to run.
+    if launchctl print "$domain_target" >/dev/null 2>&1; then
+      printf 'WARNING: LaunchAgent %s is STILL loaded after bootout; this run_once script will not retry.\n' "$label" >&2
+      printf 'Retire it by hand:  launchctl bootout %s\n' "$domain_target" >&2
+    else
+      printf 'retired LaunchAgent %s (booted out of %s)\n' "$label" "$domain_target"
+    fi
+  fi
+else
+  printf 'WARNING: id -u failed; cannot address the gui launchd domain, skipping the unload probe.\n' >&2
+  printf 'If the old agent is still loaded, retire it by hand:  launchctl bootout gui/<your-uid>/%s\n' "$label" >&2
 fi
 
 # Remove a leftover deployed plist if present (the source is already gone).
 if [[ -f $plist ]]; then
-  rm -f "$plist"
-  printf 'removed leftover LaunchAgent plist %s\n' "$plist"
+  if rm -f "$plist" 2>/dev/null; then
+    printf 'removed leftover LaunchAgent plist %s\n' "$plist"
+  else
+    printf 'WARNING: could not remove the leftover plist %s; remove it by hand (this run_once script will not retry).\n' "$plist" >&2
+  fi
 fi
 
 exit 0
