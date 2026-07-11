@@ -88,7 +88,8 @@ case "$1" in
   tap | trust | autoupdate) exit 0 ;;
   list)
     pkg="$2"
-    for installed in $INSTALLED_PKGS; do
+    read -ra installed_packages <<<"$INSTALLED_PKGS"
+    for installed in "${installed_packages[@]}"; do
       [[ $pkg == "$installed" ]] && exit 0
     done
     exit 1 ;;

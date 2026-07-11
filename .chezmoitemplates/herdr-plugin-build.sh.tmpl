@@ -2,13 +2,13 @@
 Shared core for the herdr plugin build chezmoiscripts (consumed via
 includeTemplate with (dict "id" "<plugin-id>")). Hashes every plugin build input
 so the calling run_onchange_ script re-runs on change, compiles the binary, and
-registers it with herdr — build and registration are SEPARATE phases, each with
+registers it with herdr; build and registration are SEPARATE phases, each with
 its own failure envelope. Each caller keeps only its plugin-specific pre/postamble.
 */ -}}
 # --- shared plugin build core: .chezmoitemplates/herdr-plugin-build.sh.tmpl ---
 #
 # Plugin source (hashed so this script re-runs on change). EVERY build input is
-# hashed — a change to any one forces a rebuild — so Cargo.toml (the manifest:
+# hashed (a change to any one forces a rebuild), so Cargo.toml (the manifest:
 # deps, edition, package) is hashed alongside Cargo.lock, not omitted:
 #   {{ include (printf "dot_local/share/herdr/plugins/%s/src/main.rs" .id) | sha256sum }}
 #   {{ include (printf "dot_local/share/herdr/plugins/%s/Cargo.lock" .id) | sha256sum }}
@@ -37,7 +37,7 @@ plugin_dir="$HOME/.local/share/herdr/plugins/{{ .id }}"
 plugin_id="{{ .id }}"
 
 # cargo is rustup-managed at the deterministic ~/.cargo/bin/cargo (never a PATH
-# probe — a fresh machine provisions it during THIS apply but ~/.cargo/bin is not
+# probe: a fresh machine provisions it during THIS apply but ~/.cargo/bin is not
 # on the apply shell's PATH yet, and a PATH probe could pick a stray toolchain).
 cargo_bin="$HOME/.cargo/bin/cargo"
 
@@ -76,7 +76,7 @@ plugin_registered() {
 }
 
 # register_plugin: 0 iff the plugin ends up registered (exact id verified).
-# Idempotent — a rebuild re-runs this. `herdr plugin link` talks to the running
+# Idempotent: a rebuild re-runs this. `herdr plugin link` talks to the running
 # herdr server (a headless apply, server down, fails here) and may return a herdr
 # error ENVELOPE with exit 0, so its exit code is NOT trusted: the exact-id
 # re-verify via `plugin list` is the sole source of truth for "registered".
@@ -121,6 +121,12 @@ fi
 # broken source. Leave the trigger retryable via the marker and continue (exit 0
 # via fall-through) so the caller's postamble still runs.
 if register_plugin; then
+  # Clearing the marker changes this script's rendered trigger one more time
+  # (success at marker N leaves a render that differs from the recorded one),
+  # so the NEXT apply runs this script once more; that run is idempotent
+  # (already built, already registered) and re-records the settled render, so
+  # the trigger settles from then on. One extra no-op run is the by-design
+  # cost of the retry mechanism.
   rm -f "$retry_marker"
   printf 'herdr plugin %s built and registered\n' "$plugin_id"
 else

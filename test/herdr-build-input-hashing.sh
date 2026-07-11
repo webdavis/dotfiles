@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# herdr-build-input-hashing.sh — the rebuild-decision hash (embedded in the
+# herdr-build-input-hashing.sh: the rebuild-decision hash (embedded in the
 # rendered run_onchange trigger) must cover EVERY input to the Rust build, so a
 # change to any one forces a rebuild. The build partial
 # (.chezmoitemplates/herdr-plugin-build.sh.tmpl) is includeTemplate'd into both
@@ -8,15 +8,15 @@
 #
 #   src/main.rs          the plugin source
 #   Cargo.lock           the resolved dependency graph
-#   Cargo.toml           the manifest (deps, edition, package) — a change here
+#   Cargo.toml           the manifest (deps, edition, package); a change here
 #                        (e.g. a bumped dependency) MUST force a rebuild
 #   herdr-plugin.toml    the plugin manifest (build/events/actions)
 #
 # This renders each plugin build script with the host chezmoi (same mechanics as
 # the treefmt rendered-template lint: scratch HOME, CI=1) and asserts the render
 # carries the sha256 of ALL FOUR inputs. If any input's hash is absent, changing
-# that input would not change the rendered trigger and chezmoi would not rebuild
-# — the exact defect (Cargo.toml omitted) this test guards against.
+# that input would not change the rendered trigger and chezmoi would not
+# rebuild: the exact defect (Cargo.toml omitted) this test guards against.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -73,7 +73,7 @@ for pair in "${SCRIPTS[@]}"; do
     [[ -f $input_path ]] || fail "$plugin_id: missing build input $input"
     hash="$(host_sha256 "$input_path")"
     grep -qF "$hash" <<<"$rendered" ||
-      fail "$plugin_id: rendered trigger omits the hash of $input ($hash) — a change to it would not force a rebuild"
+      fail "$plugin_id: rendered trigger omits the hash of $input ($hash); a change to it would not force a rebuild"
   done
 done
 

@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# herdr-build-retry-refire.sh — the retry marker must actually RE-FIRE the
+# herdr-build-retry-refire.sh: the retry marker must actually RE-FIRE the
 # run_onchange trigger. chezmoi re-runs a run_onchange script only when its
 # rendered content changes; a retryable non-success (missing cargo, unverified
 # registration) bumps a marker file whose contents the build partial interpolates
 # into the rendered trigger. This test proves that bumping the marker changes the
-# render — so the next apply genuinely re-runs the build — and that a distinct
+# render (so the next apply genuinely re-runs the build) and that a distinct
 # render appears for each successive attempt count (a monotonic counter, not a
 # boolean that would stop re-firing after the first retry), and that clearing the
 # marker returns the render to its settled form.

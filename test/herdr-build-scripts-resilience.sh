@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# herdr-build-scripts-resilience.sh — the herdr plugin build chezmoiscript
+# herdr-build-scripts-resilience.sh: the herdr plugin build chezmoiscript
 # (run_onchange_after_55) separates BUILD from REGISTRATION, each with its own
 # failure envelope, and treats a missing toolchain or an unverified registration
-# as a RETRYABLE non-success — NOT a satisfied trigger.
+# as a RETRYABLE non-success, NOT a satisfied trigger.
 #
 # This REVERSES the previous contract (which asserted "cargo absent -> exit 0,
 # never aborts", implying the trigger was consumed/satisfied). chezmoi records a
@@ -57,7 +57,7 @@ done
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 
-# Render the darwin-only script once (scratch HOME, CI=1 — same mechanics as the
+# Render the darwin-only script once (scratch HOME, CI=1; same mechanics as the
 # treefmt rendered-template lint). Empty render == non-darwin host: skip.
 rendered="$work/rendered.sh"
 render_home="$(mktemp -d)"
@@ -235,7 +235,7 @@ marker_present() { [[ -f $MARKER ]]; }
 # --- R1: missing cargo (absent everywhere) is a RETRYABLE non-success ---------
 run_case r1-none down none
 [[ $RC -eq 0 ]] || fail "R1 no-cargo: expected exit 0 (must never abort apply), got $RC ($ERR)"
-marker_present || fail "R1 no-cargo: retry marker not written — trigger would be consumed, no retry"
+marker_present || fail "R1 no-cargo: retry marker not written (trigger would be consumed, no retry)"
 [[ ! -e $CARGO_RECORD ]] || fail "R1 no-cargo: cargo ran despite being absent"
 [[ ! -e $SEED_RECORD ]] || fail "R1 no-cargo: seed ran despite the build being skipped"
 

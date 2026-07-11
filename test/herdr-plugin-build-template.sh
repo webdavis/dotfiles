@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# herdr-plugin-build-template.sh — the two herdr plugin build chezmoiscripts
+# herdr-plugin-build-template.sh: the two herdr plugin build chezmoiscripts
 # (run_onchange_after_55/57) must share the .chezmoitemplates partial and verify
 # registration with an EXACT plugin-id match.
 #
 # Why exact: registration is confirmed by querying the plugin by id over the
-# JSON API — `herdr plugin list --plugin <id> --json` — and asserting the result
+# JSON API (`herdr plugin list --plugin <id> --json`) and asserting the result
 # contains an entry whose plugin_id EQUALS the id (jq `select(.plugin_id == $id)`,
 # equality, not a substring). A substring/any-plugin check (e.g. a bare
 # `grep -q "$plugin_id"` against the human list, where every id also appears
