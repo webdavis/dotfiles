@@ -45,8 +45,12 @@ CLAUDE="$HOME/.claude/skills"
 HERMES="$HOME/.hermes/skills"
 mkdir -p "$STORE" "$CLAUDE" "$HERMES"
 
-# Fixture store: six real skill dirs.
-for s in keeper mover revived demoted humanizer dualname; do
+# Fixture store: six real skill dirs the convergence assertions target, plus a
+# single npx-tracked `anchor` so the roster's tracked UNION is non-empty (the
+# zero-union roster gate refuses any full run otherwise; there is no legitimate
+# empty roster). anchor migrates into a live generation and is not asserted on;
+# the six vendored real dirs are what this test exercises.
+for s in keeper mover revived demoted humanizer dualname anchor; do
   mkdir -p "$STORE/$s"
   printf -- '---\nname: %s\ndescription: fixture\n---\n' "$s" >"$STORE/$s/SKILL.md"
 done
@@ -60,7 +64,8 @@ cat >"$HOME/.agents/custom-skill-lock.json" <<'EOF'
   "version": 2,
   "tiers": {
     "keeper": "core", "mover": "core", "revived": "core",
-    "demoted": "core", "humanizer": "core", "dualname": "on-demand"
+    "demoted": "core", "humanizer": "core", "dualname": "on-demand",
+    "anchor": "core"
   },
   "hermesProfiles": {
     "keeper": ["default"],
@@ -73,11 +78,13 @@ cat >"$HOME/.agents/custom-skill-lock.json" <<'EOF'
   "hermesRegistry": {
     "dualname": {"profiles": ["default"], "source": "clawhub", "identifier": "clawhub/dualname", "lockKey": "dualname"}
   },
-  "npxTracked": {},
+  "npxTracked": {"anchor": {"repo": "fixture/pack"}},
   "clawhubTracked": {},
   "forks": {}
 }
 EOF
+# Seed the flat npx lock so the anchor migrates cleanly into a live generation.
+printf '{"skills":{"anchor":{}}}\n' >"$HOME/.agents/.skill-lock.json"
 
 # ── Pre-existing drift ─────────────────────────────────────────────────────
 # Claude: one correct link (kept), one stale updater-owned link to a skill that
@@ -113,8 +120,25 @@ printf 'mirror\n' >"$HERMES/hermes-superpowers/marker"
 # early-exiting on the stamp.
 stub_dir="$tmp/stubs"
 mkdir -p "$stub_dir"
-printf '#!/usr/bin/env bash\necho stub\n' >"$stub_dir/npx"
+# npx stub: installs each --skill and maintains the CLI global lock, so the
+# anchor's generation build validates (like the other integration stubs).
+cat >"$stub_dir/npx" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+prev=""; skills=()
+for a in "$@"; do [[ $prev == --skill ]] && skills+=("$a"); prev="$a"; done
+cli_lock="${XDG_STATE_HOME:-$HOME/.local/state}/skills/.skill-lock.json"
+mkdir -p "$(dirname "$cli_lock")"
+[[ -f $cli_lock ]] || printf '{"version":3,"skills":{}}\n' >"$cli_lock"
+for s in "${skills[@]}"; do
+  mkdir -p "$HOME/.agents/skills/$s"
+  printf -- '---\nname: %s\ndescription: fixture\n---\n' "$s" >"$HOME/.agents/skills/$s/SKILL.md"
+  jq --arg s "$s" '.skills[$s] = {source: "github:fixture/pack", agents: ["claude-code","codex"]}' \
+    "$cli_lock" >"$cli_lock.tmp" && mv "$cli_lock.tmp" "$cli_lock"
+done
+EOF
 printf '#!/usr/bin/env bash\necho stub\n' >"$stub_dir/hermes"
+printf '#!/usr/bin/env bash\nexit 0\n' >"$stub_dir/alerter"
 chmod +x "$stub_dir"/*
 export PATH="$stub_dir:$PATH"
 

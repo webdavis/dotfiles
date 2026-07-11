@@ -87,7 +87,9 @@ for s in "${skills[@]}"; do
     "$cli_lock" >"$cli_lock.tmp" && mv "$cli_lock.tmp" "$cli_lock"
 done
 EOF
-chmod +x "$stub/npx"
+# no-op alerter: the real one blocks for its --timeout waiting for interaction.
+printf '#!/usr/bin/env bash\nexit 0\n' >"$stub/alerter"
+chmod +x "$stub/npx" "$stub/alerter"
 export PATH="$stub:$PATH"
 
 # ── Establish a live generation with alpha (releases the lock on exit) ────────
