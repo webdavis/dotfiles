@@ -1,0 +1,8 @@
+#!/bin/bash
+# Fixture: a shell template that names keepassxc ONLY in shell comments, never in
+# a Go-template action. A naive substring matcher would wrongly exclude it; the
+# action-scoped detector must leave it covered because no Go-template action here
+# invokes keepassxc.
+# This script does not call keepassxc; the secret is fetched elsewhere.
+set -euo pipefail
+echo "no secret here"

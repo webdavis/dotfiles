@@ -1,22 +1,23 @@
 #!/usr/bin/env bash
-# herdr-plugin-build-template.sh — the two herdr plugin build chezmoiscripts
-# (run_onchange_after_55/57) must share the .chezmoitemplates partial and link
-# with an ANCHORED plugin-list match.
+# herdr-plugin-build-template.sh: the two herdr plugin build chezmoiscripts
+# (run_onchange_after_55/57) must share the .chezmoitemplates partial and verify
+# registration with an EXACT plugin-id match.
 #
-# Why anchored: `herdr plugin list` prints one line per plugin shaped like
-#   - <plugin-id> (<Name>) enabled [local:<path>]
-# An unanchored `grep -q "$plugin_id"` is a substring match — a plugin id that
-# is a substring of another id, or of any plugin's local PATH (every id appears
-# inside its own path suffix and could appear inside another's), false-positives
-# and silently skips linking. Pinning the id to its list line ("- <id> ") makes
-# the check exact.
+# Why exact: registration is confirmed by querying the plugin by id over the
+# JSON API (`herdr plugin list --plugin <id> --json`) and asserting the result
+# contains an entry whose plugin_id EQUALS the id (jq `select(.plugin_id == $id)`,
+# equality, not a substring). A substring/any-plugin check (e.g. a bare
+# `grep -q "$plugin_id"` against the human list, where every id also appears
+# inside its own local path) would false-positive against another plugin's line
+# and silently skip linking. Equality on the parsed id cannot.
 #
 # Renders both templates with the host chezmoi (same mechanics as the
 # rendered-template lint in treefmt.nix: scratch HOME, CI=1) and asserts:
-#   1. each render carries the anchored grep: grep -q "^- ${plugin_id} "
-#   2. each render carries the shared-partial marker (both scripts consume
+#   1. each render queries the exact plugin id: herdr plugin list --plugin "$plugin_id" --json
+#   2. each render matches the id by equality: jq select(.plugin_id == $id)
+#   3. each render carries the shared-partial marker (both scripts consume
 #      .chezmoitemplates/herdr-plugin-build.sh.tmpl)
-#   3. each render still parses standalone (bash -n)
+#   4. each render still parses standalone (bash -n)
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -27,7 +28,9 @@ SCRIPTS=(
 )
 
 # shellcheck disable=SC2016  # the non-expanding ${plugin_id} literal is the point
-ANCHORED_GREP='grep -q "^- ${plugin_id} "'
+EXACT_QUERY='herdr plugin list --plugin "$plugin_id" --json'
+# shellcheck disable=SC2016  # the literal jq program is the point
+EXACT_MATCH='select(.plugin_id == $id)'
 PARTIAL_MARKER='.chezmoitemplates/herdr-plugin-build.sh.tmpl'
 
 fail() {
@@ -53,16 +56,20 @@ for script in "${SCRIPTS[@]}"; do
     fail "chezmoi failed to render $script"
   [[ -n $rendered ]] || fail "empty render (non-darwin?): $script"
 
-  # 1) anchored plugin-list match
-  grep -qF "$ANCHORED_GREP" <<<"$rendered" ||
-    fail "$(basename "$script"): plugin-link check is not the anchored match ($ANCHORED_GREP)"
+  # 1) exact plugin-id query over the JSON API
+  grep -qF "$EXACT_QUERY" <<<"$rendered" ||
+    fail "$(basename "$script"): registration does not query the exact plugin id ($EXACT_QUERY)"
 
-  # 2) shared partial marker
+  # 2) equality match on the parsed id (never a substring)
+  grep -qF "$EXACT_MATCH" <<<"$rendered" ||
+    fail "$(basename "$script"): registration does not match the id by equality ($EXACT_MATCH)"
+
+  # 3) shared partial marker
   grep -qF "$PARTIAL_MARKER" <<<"$rendered" ||
     fail "$(basename "$script"): render does not carry the shared partial marker ($PARTIAL_MARKER)"
 
-  # 3) render is standalone-valid bash
+  # 4) render is standalone-valid bash
   bash -n <<<"$rendered" || fail "$(basename "$script"): rendered script does not parse"
 done
 
-printf 'PASS: both plugin build scripts share the partial and use the anchored plugin-list match\n'
+printf 'PASS: both plugin build scripts share the partial and verify registration by exact plugin id\n'

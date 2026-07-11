@@ -49,7 +49,10 @@ let
   # parse directly: render first, then shellcheck the result. CI=1 keeps the
   # templates on their non-interactive branch; --source "$PWD" so
   # includeTemplate resolves against this checkout's .chezmoitemplates
-  # (treefmt runs formatters from the tree root).
+  # (treefmt runs formatters from the tree root). The per-file body lives in
+  # scripts/lib-shellcheck-rendered-template.sh (sourced verbatim below) so
+  # test/rendered-template-shellcheck-wrapper.sh can drive its blank-render skip
+  # semantic with a stubbed chezmoi and shellcheck.
   shellcheckRenderedTemplate = pkgs.writeShellApplication {
     name = "shellcheck-rendered-template";
     runtimeInputs = [
@@ -60,12 +63,10 @@ let
       # chezmoi needs a writable HOME; the Nix check sandbox has none.
       HOME="$(mktemp -d)"
       export HOME
+      ${builtins.readFile ./scripts/lib-shellcheck-rendered-template.sh}
       status=0
       for file do
-        CI=1 chezmoi --source "$PWD" execute-template --no-tty <"$file" | shellcheck - || {
-          echo "shellcheck-rendered-template: rendered template failed shellcheck: $file" >&2
-          status=1
-        }
+        render_and_shellcheck_one "$file" || status=1
       done
       exit "$status"
     '';
@@ -99,6 +100,51 @@ let
       exit "$status"
     '';
   };
+
+  # Programmatic discovery of the safely renderable shell templates handed to the
+  # shellcheck-rendered-template formatter below. The 2026-07-10 audit found the
+  # old hand-list covered 6 of ~20 shell templates, hiding four render failures.
+  # The set is every `.chezmoiscripts/*.sh.tmpl` plus the shell `dot_*.tmpl` at
+  # the repo root, MINUS any template that cannot render headless: one that (or
+  # whose included partials, transitively) invokes keepassxc, or that has an
+  # includeTemplate name which cannot be resolved statically. Both predicates
+  # come from the importable, builtins-only classifier in
+  # scripts/render-coverage-classifier.nix. That SAME file is what
+  # test/rendered-template-coverage.sh drives through a fixture matrix via
+  # `nix eval`, so weakening a predicate there fails the fixtures rather than
+  # silently passing while this list stays unchanged.
+  classifier = import ./scripts/render-coverage-classifier.nix;
+  includeBase = ./.chezmoitemplates;
+
+  chezmoiscriptShellTemplates =
+    let
+      dir = ./.chezmoiscripts;
+      entries = builtins.readDir dir;
+      names = builtins.filter (
+        name:
+        entries.${name} == "regular"
+        && builtins.match ".*\\.sh\\.tmpl" name != null
+        && !(classifier.rendersUnsafe includeBase (dir + "/${name}"))
+      ) (builtins.attrNames entries);
+    in
+    map (name: ".chezmoiscripts/${name}") names;
+
+  rootShellDotTemplates =
+    let
+      dir = ./.;
+      entries = builtins.readDir dir;
+    in
+    builtins.filter (
+      name:
+      entries.${name} == "regular"
+      && builtins.match "dot_.*\\.tmpl" name != null
+      && classifier.isShellTemplate (dir + "/${name}")
+      && !(classifier.rendersUnsafe includeBase (dir + "/${name}"))
+    ) (builtins.attrNames entries);
+
+  renderedShellTemplates = builtins.sort (a: b: a < b) (
+    chezmoiscriptShellTemplates ++ rootShellDotTemplates
+  );
 in
 {
   projectRootFile = "flake.nix";
@@ -215,22 +261,13 @@ in
   };
 
   # Chezmoi-specific checks ported from lint.sh (see the let-bindings above).
-  # NOTE: run_onchange_after_41-macos-system-setup.sh.tmpl is deliberately
-  # excluded: its pre-existing nix-repair record renders an unquoted
-  # `sudo $HOME/...` that fails rendered shellcheck (SC2086), so including it
-  # today breaks the gate. Inclusion is owned by the render-coverage
-  # stabilization PR (2026-07-10 audit).
+  # `includes` is discovered programmatically (renderedShellTemplates, above):
+  # every safely renderable shell template, not a hand-picked subset.
+  # test/rendered-template-coverage.sh guards that the discovery never silently
+  # drops a template.
   settings.formatter.shellcheck-rendered-template = {
     command = shellcheckRenderedTemplate;
-    includes = [
-      "dot_bashrc.tmpl"
-      ".chezmoiscripts/run_onchange_before_15-install-herdr.sh.tmpl"
-      ".chezmoiscripts/run_onchange_before_50-setup-osquery.sh.tmpl"
-      ".chezmoiscripts/run_onchange_after_55-build-herdr-last-workspace-plugin.sh.tmpl"
-      ".chezmoiscripts/run_onchange_after_57-build-herdr-smart-nav-plugin.sh.tmpl"
-      ".chezmoiscripts/run_onchange_after_64-update-skills-first-install.sh.tmpl"
-      ".chezmoiscripts/run_onchange_after_66-tailscaled-status.sh.tmpl"
-    ];
+    includes = renderedShellTemplates;
   };
   settings.formatter.osquery-config-render = {
     command = osqueryConfigRender;

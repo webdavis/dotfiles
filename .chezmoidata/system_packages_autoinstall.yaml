@@ -229,7 +229,6 @@ packages:
       - sherlock-project
       - whisply[mlx,app]
     npm:
-      - openclaw@2026.4.27
       - "@openai/codex"
       - "@doist/todoist-cli"
       - agentmail-cli

@@ -1,0 +1,8 @@
+#!/bin/bash
+# Fixture (item 2, dynamic): the include name is a variable, unresolvable at eval
+# time. Conservative rejection marks it unsafe (verdict: excluded) even though it
+# is a shell template, because we cannot know what it pulls in.
+set -euo pipefail
+{{ $name := "partial_secret.tmpl" }}
+{{ includeTemplate $name . }}
+echo "done"

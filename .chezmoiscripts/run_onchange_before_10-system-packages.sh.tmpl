@@ -3,16 +3,58 @@
 
 set -euo pipefail
 
+# Resolve the Homebrew prefix once (honoring HOMEBREW_PREFIX, as the autoupdate
+# block below already does) so every brew/uv/volta call goes through one place.
+brew_prefix="${HOMEBREW_PREFIX:-/opt/homebrew}"
+brew_bin="$brew_prefix/bin/brew"
+
 # Pre-trust taps that require it. `brew tap` first (no-op if already tapped) so
 # `brew trust` has a target to operate on, then trust. Both idempotent and safe
 # to re-run. Required because `brew bundle` will refuse to install formulae from
 # untrusted taps when HOMEBREW_REQUIRE_TAP_TRUST is set.
 {{ range .packages.macos.homebrew.trusted_taps -}}
-/opt/homebrew/bin/brew tap {{ . | quote }} 2>/dev/null || true
-/opt/homebrew/bin/brew trust --tap {{ . | quote }} 2>/dev/null || true
+"$brew_bin" tap {{ . | quote }} 2>/dev/null || true
+"$brew_bin" trust --tap {{ . | quote }} 2>/dev/null || true
 {{ end }}
+# --- live-migration ordering safety (herdr replaces tmux/sesh) ---
+# `brew bundle --cleanup` uninstalls any formula/cask absent from the desired
+# set below, including tmux/sesh once they leave the manifest. Removing the old
+# multiplexer HERE is unsafe: chezmoi runs ALL before_ scripts, THEN updates
+# target files, THEN runs after_ scripts, so a --cleanup in this before_ script
+# would validate and tear down against the PREVIOUS revision's installed herdr,
+# and a broken NEW revision would be discovered only after the fallback was
+# already gone. So this script NEVER removes the legacy multiplexer: while tmux
+# or sesh is installed it withholds --cleanup entirely. run_after_58 owns the
+# teardown (it runs post-target-update): it verifies the just-installed herdr
+# LIVE and, only on success, performs the same cleanup this script withholds.
+# bundle_args always carries --file, so it is never an empty array (safe under
+# set -u).
+#
+# True migration sequence (plugin registration and the session server need a
+# RUNNING herdr server, which ONLY an interactive bashrc starts; a chezmoiscript
+# must never start it): apply once (installs herdr, cleanup deferred here) ->
+# open an interactive terminal so the herdr server starts -> apply again
+# (after_58 verifies herdr and runs the cleanup). On a headless / serverless
+# host the deferral simply persists until an interactive terminal is opened.
+#
+# ROLLBACK: while herdr is unverified, tmux/sesh stay installed and usable; no
+# teardown happens. Keep using tmux until after_58 completes the migration.
+bundle_args=(--cleanup --file=/dev/stdin)
+multiplexer_present=false
+for multiplexer in tmux sesh; do
+  if "$brew_bin" list "$multiplexer" &>/dev/null; then
+    multiplexer_present=true
+    break
+  fi
+done
+if [[ $multiplexer_present == true ]]; then
+  bundle_args=(--file=/dev/stdin)
+  printf 'Legacy multiplexer (tmux/sesh) still installed: running brew bundle WITHOUT --cleanup so it is not removed before herdr is verified.\n' >&2
+  printf 'run_after_58 owns the teardown and completes the migration once herdr is healthy: open an interactive terminal (bashrc auto-attaches and starts the herdr server), then run chezmoi apply again so after_58 verifies herdr and removes tmux/sesh.\n' >&2
+fi
+
 # Use `brew bundle ...` to install all taps, formulae, casks, and macOS App Store apps.
-/opt/homebrew/bin/brew bundle --cleanup --file=/dev/stdin <<EOF
+"$brew_bin" bundle "${bundle_args[@]}" <<EOF
 {{ range .packages.macos.homebrew.taps -}}
 tap {{ . | quote }}
 {{ end -}}
@@ -41,7 +83,7 @@ fi
 
 # Install uv tools (runs after Homebrew so uv is available).
 {{ range .packages.macos.uv -}}
-/opt/homebrew/bin/uv tool install {{ . | quote }}
+"$brew_prefix/bin/uv" tool install {{ . | quote }}
 {{ end -}}
 
 # Install npm global packages (runs after Homebrew so node is available).
@@ -55,8 +97,8 @@ npm install -g {{ . | quote }}
 # shim in ~/.volta/bin/<bin> to Node X so the tool keeps working when Homebrew
 # bumps node majors.
 {{ range .packages.macos.volta -}}
-/opt/homebrew/bin/volta install {{ printf "node@%s" .node | quote }}
-/opt/homebrew/bin/volta run --node {{ .node | quote }} npm install -g {{ .package | quote }}
+"$brew_prefix/bin/volta" install {{ printf "node@%s" .node | quote }}
+"$brew_prefix/bin/volta" run --node {{ .node | quote }} npm install -g {{ .package | quote }}
 {{ end -}}
 
 {{ end -}}

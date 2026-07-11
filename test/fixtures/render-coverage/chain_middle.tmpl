@@ -1,0 +1,3 @@
+{{/* Fixture middle link (item 2c): safe itself, but pulls in the secret partial,
+so a one-level traversal would stop here and miss the keepassxc call below. */ -}}
+{{ includeTemplate "partial_secret.tmpl" . }}

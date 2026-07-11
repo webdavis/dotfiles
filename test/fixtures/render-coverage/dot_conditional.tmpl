@@ -1,0 +1,8 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/bin/bash
+# Fixture: a dot_*.tmpl whose first line is a Go conditional and whose first
+# non-directive line is a shell shebang (the osquery-loader shape). The
+# classifier must still recognize it as a shell template (verdict: covered).
+set -euo pipefail
+echo "darwin only"
+{{- end }}

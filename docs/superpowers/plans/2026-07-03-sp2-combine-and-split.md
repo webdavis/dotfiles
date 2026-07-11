@@ -19,6 +19,99 @@ the main that earlier slices already advanced, so shared-file edits layer cleanl
 taplo/jq/yq/bats), `just` recipes, bats + hand-rolled `test/*.sh`, gitleaks pre-commit, `gh-axi` (via
 `npx -y gh-axi`) for all GitHub operations.
 
+---
+
+## Progress status (amended 2026-07-10 — the audit becomes permanent)
+
+This section, the **Audit coverage matrix** below it, and every `[audit 2026-07-10]` annotation in the
+slice/Phase sections encode the external audit
+(`docs/superpowers/audits/2026-07-10-dotfiles-modernization-audit-handoff.md`) and the three operator
+rulings that landed after it: **(R1)** MagicDNS was root-caused to the resolver-registration layer, the
+supported-fix attempt failed, and a declarative `/etc/hosts` fallback shipped in S5 — RESOLVED; **(R2)**
+S7 fixes its four delivery-loss defects BEFORE merge (reverses the earlier "ship the bash as-is" text);
+**(R3)** OpenClaw is removed — a Wave-3d cleanup PR owns the package, the AeroSpace F1 binding, and the
+docs, and the operator owns the Todoist cleanup.
+
+`main` (`1a6e718`) carries Phase A and S1–S5. The **Wave-3 stabilizations** (skills-stab, herdr-stab,
+render-coverage) are next — they precede S6 per the authoritative implementation order; S6 does not start
+until they merge. Merge SHAs and PR numbers below are verified against `git log origin/main --merges`.
+
+| Item | State | PR | Merge commit | Remaining follow-up |
+| --- | --- | --- | --- | --- |
+| Phase A — integration reference | complete | DO-NOT-MERGE reference | — | closed at cutover Gate 5, not merged |
+| S1 — Docs | complete | #33 | `1ef7c29` | — |
+| S2 — Lint/test/CI | complete | #35 | `90c68c4` | rendered-template coverage regression → **render-coverage** PR |
+| S3 — Skills | complete | #36 | `5f21a81` | 3 High defects + the `35922d4` scope-split → **skills-stab** PR |
+| S4 — herdr | complete | #37 | `addc8d7` | 2 High + 2 Medium defects → **herdr-stab** PR |
+| S5 — Tailscale | complete | #38 | `1a6e718` | copied-daemon re-copy responsibility folds into S6; monitor moved to S9 |
+| Wave-3a skills-stab | **next** | — | — | audit PR #36 High×3 (defer-forever / fresh-install / additive-fan-out) + Low `35922d4` move |
+| Wave-3b herdr-stab | **next** | — | — | audit PR #37 High×2 (atomic migration / Cargo+registration) + Medium×2 (`Cargo.toml` hash / LaunchAgent unload); operative acceptance in the Wave-3b herdr-stab section |
+| Wave-3c render-coverage + docs | **next** | — | — | audit PR #35 Medium (4 template failures + coverage test) + PR #35 Low doc-staleness |
+| Wave-3d OpenClaw cleanup | in PR (before S12) | - | - | R3 delivered on the branch: repo removal (`openclaw` package + AeroSpace F1 binding + active config/doc refs) + a `run_after` retirement script (boots out the three `ai.openclaw.*` agents, deletes their plists, uninstalls the npm package, gated on a quiescence marker) + docs-truthfulness sweep. PENDING merge and a live interactive `chezmoi apply`; the run_after has not executed on any host yet, so the live gateway retry-loop persists until that apply. Operator owns Todoist |
+| S6 — Homebrew weekly-upgrade | queued (after Wave-3) | — | — | audit S6 gaps folded into the S6 section |
+| S7 — Relay pipeline | not started | — | — | R2: four delivery-loss fixes before merge (see S7 section) |
+| S8 — Hermes age-encryption | not started | — | — | Linux-boundary + re-scope folded into the S8 section |
+| S9 — osquery three-tier | not started | — | — | S5 dependency (`2f430b3` monitor) + path/hunk matrix folded into S9 |
+| S10 — macOS defaults / SSH | not started | — | — | physical-presence window + `sshd -T` contract folded into S10 |
+| S11 — long-tail chores | not started | — | — | split into the audit's 7 PRs (Thaw = SP5) |
+| S12 — global instructions | not started | — | — | unambiguously pre-cutover (see S12 section) |
+| Phase D — cutover | not started | — | — | five gates (D1 rewrite below) |
+| Phase E — cleanup backlog | ongoing | — | — | every item attached to a pre-cutover PR or a D1 gate (`fix/graphify-out-excludes-drop` moved out of Phase E to the SP7 backlog — post-cutover by design) |
+
+## Audit coverage matrix (amended 2026-07-10)
+
+Every finding and directive in the 2026-07-10 audit maps to exactly one owning home: **SHIPPED** (already
+on `main` via the listed S5 commits), a **Wave-3** stabilization PR, a **per-slice fold** (an
+`[audit 2026-07-10]` requirement inside that slice's section), a **D1 cutover gate**, or **this
+amendment** (a plan/roadmap edit). Nothing is unmapped.
+
+| # | Audit item | Owning home | Evidence / status |
+| --- | --- | --- | --- |
+| 1 | Keep Tailscale's copied daemon (correction) | SHIPPED S5 + roadmap edit | copied-daemon model on `main` (`9989812`); supersession note `38bffb6`; June spec/plan history corrected in the roadmap (this amendment) |
+| 2 | PR #35 Medium — rendered shell-template coverage regressed (4 failures + coverage test) | Wave-3 render-coverage; Phase E `fix/template-render-coverage` | not started |
+| 3 | PR #35 Low — active documentation stale (dependabot / haiku→sonnet / "Both hooks") | Wave-3 render-coverage + docs | not started; larger rewrite stays in S12 |
+| 4 | PR #36 High — updates can defer forever | Wave-3 skills-stab | not started |
+| 5 | PR #36 High — fresh-machine install not auto-started | Wave-3 skills-stab | not started |
+| 6 | PR #36 High — skill fan-out additive, not convergent | Wave-3 skills-stab | not started |
+| 7 | PR #36 Low — PR #38 carries an unrelated skills-test fix | Wave-3 skills-stab | `35922d4` lives on `wip/skills-test-hermetic`; move it into skills-stab |
+| 8 | PR #37 High — live migration not operationally atomic | Wave-3 herdr-stab | not started |
+| 9 | PR #37 High — missing Cargo / failed plugin registration treated as success | Wave-3 herdr-stab | not started |
+| 10 | PR #37 Medium — rebuild hashing omits `Cargo.toml` | Wave-3 herdr-stab | not started |
+| 11 | PR #37 Medium — removing old Claude LaunchAgent source does not unload it | Wave-3 herdr-stab | one-time idempotent retirement script |
+| 12 | PR #38 #1 — status classification incomplete | SHIPPED S5 | `81e7559` (classify on `.BackendState`) + `66a5871` (Starting/Stopped tests) + `9989812` |
+| 13 | PR #38 #2 — MagicDNS acceptance fails | SHIPPED S5 (R1) | root-caused registration layer `4830f44`; declarative `/etc/hosts` fallback `6560a59`/`c5614ae`/`f096ecb`/`c90a700`/`164548a` |
+| 14 | PR #38 #3 — record the superseded service decision | SHIPPED S5 + roadmap edit | `38bffb6`; June Tailscale spec/plan supersession in the roadmap (this amendment) |
+| 15 | PR #38 #4 — split unrelated scope (`35922d4`) | Wave-3 skills-stab | same as item 7 |
+| 16 | PR #38 #5 — clean evergreen documentation (`CLAUDE.md` tailscale) | SHIPPED S5 | `6e36512` + `a22ae3b` + `daef534` |
+| 17 | Roadmap — progress tracking stale | this amendment | Progress-status table above |
+| 18 | Roadmap — S3 describes an obsolete architecture | this amendment | S3 section rewritten to the 31-skill provenance model |
+| 19 | Roadmap — Nushell still treated as active | this amendment | roadmap decision 3 / SP4 table / P8 / deferred index / SP3 seam |
+| 20 | Roadmap — SP3 called fully designed while contract items remain | this amendment | roadmap SP3 status → "behavior contract approved; final implementation spec pending" |
+| 21 | Roadmap — SP5 both standalone and part of S11 | this amendment | S11 section keeps Thaw as standalone SP5; roadmap sub-project table |
+| 22 | Roadmap — SP-nix missing from the sequence table | this amendment | SP-nix row added to the roadmap sub-project table + deferred index |
+| 23 | Roadmap — OpenClaw simultaneously dropped and documented | Wave-3d PR + this amendment (R3) | removal ruled; PR owns package/F1/docs; operator owns Todoist |
+| 24 | Roadmap — Tailscale decision history contradictory | this amendment | June Homebrew-service decision marked superseded-during-execution |
+| 25 | Roadmap — S12 ordering contradictory | this amendment | S12 pinned unambiguously pre-cutover |
+| 26 | Cutover — replace the empty-diff gate | D1 Gate 1 | expected-delta ledger (this amendment) |
+| 27 | Cutover — track the reconciliation tooling | cutover-tooling PR (builds them) + D1 gates (run them) | `scripts/cutover-gate.sh` (gate runner owning EVERY cutover command, 19-item binding acceptance checklist) + `scripts/live-reconcile.sh` (dry-run, idempotent, tested) — authored + merged before S12; Phase D states invariants only |
+| 28 | Cutover — put Phase E into the dependency graph | D1 five gates + Phase E | every Phase E item attached to a gate or a pre-cutover PR; the post-cutover graphify excludes-drop moved out of Phase E to the SP7 backlog |
+| 29 | Cutover — add operational safety | D1 Gate 1 + Gate 2 | dirty-file classify to an empty tree / Hermes backup / retirement manifest / second session / pin re-verify + attached staged apply |
+| 30 | Cutover — explicitly retire old services | D1 Gate 1 (approve) + Gate 2 (retire) + Gate 3 (verify) | operator-approved retirement manifest (desired-state vs live jobs — launchctl diffs can't find orphans); executed during staged activation; manifest-asserted verification; Gate 4 soaks the retired final topology; Gate 5 closes the reference PRs |
+| 31 | Remaining slice gap — S6 | S6 fold | audit requirements added to the S6 section |
+| 32 | Remaining slice gap — S7 | S7 fold (R2) | four delivery-loss fixes replace the ship-as-is text |
+| 33 | Remaining slice gap — S8 | S8 fold | Darwin guard kept; `re-add --re-encrypt`; re-scope |
+| 34 | Remaining slice gap — S9 | S9 fold | path/hunk matrix; S5 dependency; plist render+parse |
+| 35 | Remaining slice gap — S10 | S10 fold | physical presence; `sshd -T` contract defined first |
+| 36 | Remaining slice gap — S11 | S11 fold | split into the audit's 7 PRs; Thaw standalone SP5 |
+| 37 | Remaining slice gap — S12 | S12 fold | pre-cutover; shared partial; render-both-targets tests |
+| 38 | Deferred SP3 — Rust notifications | roadmap edit | final spec pending; open-items list refreshed (R7) |
+| 39 | Deferred SP4 — Bash improvements | roadmap edit + plan deferred index | nushell NO-GO recorded; successor scope = Bash improvement |
+| 40 | Deferred SP5 — Thaw | standalone SP5 PR + roadmap | one standalone install/manifest PR during SP2 — NOT folded into S11 |
+| 41 | Deferred SP6 — Neovim | plan deferred index + roadmap edit | the audit's five directives added to both SP6 bullets: re-check branch state (69 behind / 3 ahead at audit), back up both repos, inventory live config, import unchanged first, modernize via later PRs |
+| 42 | Deferred SP7 — cleanup backlog | plan deferred index + roadmap p-tasks | deduplicate the ledger into tracked tasks (status/severity/dependencies); P8 unblocked; P12 already on `main`; OpenClaw closed per R3 |
+| 43 | Deferred SP-nix | roadmap edit | conditional research with explicit start triggers |
+| 44 | Recommended implementation order | plan deferred index | adopted (and extended: Wave-3d + the cutover-tooling PR) as the single authoritative SP2 sequence |
+
 ## Global Constraints
 
 Every task's requirements implicitly include these. Values copied verbatim from the spec and the repo's
@@ -70,6 +163,14 @@ Every task's requirements implicitly include these. Values copied verbatim from 
   PR #31 + PR #25 + SP1, verified: `git diff main...HEAD` = 196 files).
 - Produces: branch `integration/modernization` pushed to `origin`; a draft PR whose number the cutover
   task (D1) closes with pointers to the landed slices.
+- **Records — the immutable SP2-start base SHA:
+  `2bd973369158b49535e8e16e80c968444ab23f1d`** — the `main` commit the union diverged from (verified
+  2026-07-10: `git merge-base origin/main origin/integration/modernization`; stable no matter how far
+  `main` later advances, because the integration branch stays frozen). The Phase D Gate 1 expected-delta
+  ledger uses this recorded value as its manifest base — it is never re-derived from a moving `main` at
+  cutover time. (The A1-time union was 196 files; the frozen branch takes hotfixes, so the count drifts —
+  220 at this writing — which is why Gate 1 regenerates the manifest from the pinned SHAs rather than
+  trusting any recorded file count.)
 
 - [ ] **Step 1: Branch at the current union head**
 
@@ -134,7 +235,8 @@ Expected: label applied. No commit — this task is pure git/GitHub state.
 
 ## Phase B — The slice map (the file-level assignment, resolved against the real diff)
 
-Every path in `git diff --name-status main...HEAD` (196 files) is assigned to exactly one slice below.
+Every path in `git diff --name-status main...HEAD` (196 files at A1 time; freeze-policy hotfixes drift
+the count — 220 at this writing, regenerate rather than trust it) is assigned to exactly one slice below.
 Eight **shared infra files** are touched by several slices; each slice carries **only its own hunks** of
 those files (procedure in the Slice Protocol). No file is orphaned.
 
@@ -146,33 +248,40 @@ those files (procedure in the Slice Protocol). No file is orphaned.
 `git diff main integration/modernization -- <file>` for each of the 8 shared files and record which
 slice(s) own which hunks in a table (shared-file × owning-slice × one-line-what). This is deferred to
 execution on purpose — it must be computed against the *live* diff — but it is the first Phase B action,
-not an afterthought; the Phase D empty-diff gate verifies every hunk landed exactly once.
+not an afterthought; the Phase D expected-delta ledger (Gate 1) verifies every hunk landed exactly once
+or is a documented intentional-improvement/omission.
 
 **Sizing authority.** This table's grouping is a starting point, not a size guarantee. **The operator's
 review speed is the authority** — any slice whose real diff is too large to review quickly sub-splits on
 the spot (S4 and S9 carry pre-noted splits; S8 is small — the clean SP1 work). No PR should exceed a
 quick review.
 
+**Table status [2026-07-10]:** this is the *planning-time* assignment; rows of completed slices are
+historical, and wherever a row disagrees with a shipped model or a later ruling, the operative per-slice
+sections and their `[audit 2026-07-10]` annotations govern — not this table.
+
 | Slice | Feature | File groups (from the bucketed delta) | Ledger fixes folded in | Dep |
 | --- | --- | --- | --- | --- |
 | S1 | Docs | `docs/**` (20: the herdr/tailscale/brew/relay/notifications specs+plans, the modernization brief, this plan, the never-sleep policy), `AGENTS.md` (new symlink→CLAUDE.md) | — | none |
 | S2 | Lint/test/CI hardening | `scripts/lint.sh`, `.githooks/pre-commit`, `.github/workflows/lint.yml`, `.editorconfig`/`.shellcheckrc`/`.mdformat.toml` hunks | CI runs tests + `LINT_CHECK=1`; wire **actionlint** + **zizmor** (P9); **SHA-pin** actions (installer has no tags — see research §Actions); `lint.sh` runner-selection subshell bug; `-r` optstring crash; template shellcheck allowlist → programmatic; `find` prune set dedup; bats `grep -c` zero-count false-pass | S1 |
-| S3 | Skills-store consolidation | `dot_local/bin/executable_update-skills.sh`, `dot_agents/skills/**`, `private_dot_claude/skills/symlink_*`, `skills-lock.json`, delete `private_dot_claude/skills/web-research-task/**` | update-skills **loader script + `~/.local/log/skills` dir**; declare all store symlinks; remove stale `.agents/skills/moshi-best-practices/`; single symlink-owner | S2 |
+| S3 | Skills-store consolidation | `dot_local/bin/executable_update-skills.sh`, `dot_agents/skills/**`, `private_dot_claude/skills/symlink_*`, `skills-lock.json` *(historical — shipped as `dot_agents/custom-skill-lock.json`)*, delete `private_dot_claude/skills/web-research-task/**` | update-skills **loader script + `~/.local/log/skills` dir**; declare all store symlinks; remove stale `.agents/skills/moshi-best-practices/`; single symlink-owner | S2 |
 | S4 | herdr migration | `dot_config/herdr/**`, `dot_local/share/herdr/plugins/**` (2 Rust plugins), the `run_onchange_after_55/57` build scripts, herdr hunks of `dot_bashrc.tmpl`; **atomically deletes** `dot_tmux.conf`, `dot_config/sesh/**`, `dot_local/bin/executable_{sesh-*,tmux-*,claude-restart}.sh`, `run_after_70-install-tmux2k-last-proc` | herdr plugin build scripts → `.chezmoitemplates` partial; `grep -q "$plugin_id"` anchoring; `dot_fzf_bindings` tmux-dead widgets; `nvm`/`$blue` binding fixes | S2 |
-| S5 | Tailscale headless daemon | `run_onchange_after_66-tailscaled-status.sh.tmpl`, tailscale hunks of `system_packages_autoinstall.yaml` + `CLAUDE.md` | tailscale-monitor already fixed (`2f430b3`, on main? verify) | S2 |
+| S5 | Tailscale headless daemon | `run_onchange_after_66-tailscaled-status.sh.tmpl`, tailscale hunks of `system_packages_autoinstall.yaml` + `CLAUDE.md` | tailscale-monitor fix `2f430b3` — resolved: NOT on main; rides with the monitor files in S9 (see the S5 section) | S2 |
 | S6 | Homebrew weekly-upgrade | `dot_local/bin/executable_homebrew-weekly-upgrade.sh`, `Library/LaunchAgents/com.webdavis.homebrew-weekly-upgrade.plist.tmpl`, `run_onchange_after_65` loader, `test/homebrew-weekly-upgrade.sh` | `just brew-upgrade` → deployed copy; **Homebrew 6.x bundle `cleanup --force`** (`961465f`); `SKIP_SYSTEM_PACKAGES=0`-still-skips; before_10 per-ecosystem split; uv/npm/volta unguarded loops | S2 |
-| S7 | Relay notification pipeline (bash, as-deployed) | `dot_local/bin/executable_{relay,relay-agent,relay-codex-hooks,hue-pulse,claude-stop-pulse,claude-user-prompt-start,claude-audit}.sh`, `private_dot_claude/modify_settings.json`, `dot_config/relay/private_auth.json.tmpl`, `run_after_72-relay-codex-hooks`, notifier hunk of `dot_bashrc.tmpl`; delete `Library/LaunchAgents/com.claude.code.plist.tmpl` | ships **as deployed** — SP3 replaces it later. Do NOT pre-apply SP3 bug fixes here (they belong to the Rust rewrite); ship the bash as-is so main matches dresden | S2 |
-| S8 | Hermes age-encryption (SP1) | `dot_hermes/encrypted_private_config.yaml.age`, `dot_hermes/private_dot_env.tmpl`, `.chezmoi.toml.tmpl` age hunk, `run_onchange_before_25`, `run_after_67`, `run_after_68`, `run_once_before_05-restore-age-key`, `test/hermes-config-{encrypted,routes}.sh`, `.gitignore` failsafe hunk (gitleaks gate hunk of `.githooks/pre-commit` ships in S2, not here) | this is the committed SP1 work (`c13cc18`/`a0e7d8e`/`3696c92`) reimplemented as one clean PR; the age-tripwire fix is already in it | S2 |
+| S7 | Relay notification pipeline (bash) *("as-deployed" superseded by R2 — delivery-loss defects are fixed before merge)* | `dot_local/bin/executable_{relay,relay-agent,relay-codex-hooks,hue-pulse,claude-stop-pulse,claude-user-prompt-start,claude-audit}.sh`, `private_dot_claude/modify_settings.json`, `dot_config/relay/private_auth.json.tmpl`, `run_after_72-relay-codex-hooks`, notifier hunk of `dot_bashrc.tmpl` *(the `com.claude.code.plist.tmpl` deletion moved to S4's atomic cluster — not S7's)* | **R2 (2026-07-10):** fix the four delivery-loss defects BEFORE merge (fail-closed idle probe, jq slurp, mkdir lock, missing flag value); characterization tests for retained harmless quirks; SP3 still replaces the whole design later | S2 |
+| S8 | Hermes age-encryption (SP1) | `dot_hermes/encrypted_private_config.yaml.age`, `dot_hermes/private_dot_env.tmpl`, `.chezmoi.toml.tmpl` age hunk, `run_onchange_before_25`, `run_after_67`, `run_after_68`, `run_once_before_05-restore-age-key`, `test/hermes-config-{encrypted,routes}.sh`, `.gitignore` failsafe hunk (gitleaks gate hunk of `.githooks/pre-commit` ships in S2, not here) **+ the expanded capture set** — the four existing untracked per-profile captures and codegraph state (see the S8 section) | this is the committed SP1 work (`c13cc18`/`a0e7d8e`/`3696c92`) reimplemented as one clean PR; the age-tripwire fix is already in it | S2 |
 | S9 | osquery three-tier alerting | `.chezmoitemplates/osquery/**` (config+4 packs), `dot_local/bin/executable_osquery-*`, the 6 osquery LaunchAgents + `after_60` loaders, `after_55` manifest, `before_50` setup, `test/osquery-alerter/**` | **alerting/dispatch redesign in scope**; heartbeat `RunAtLoad` double-ping; **query/pack content changes → flag for sign-off**. NOTE: much of osquery is already on main — this slice is the PR#25 *delta* only | S2 |
 | S10 | macOS defaults / system-setup | `.chezmoidata/macos_defaults.yaml`, `.chezmoidata/macos_system_setup.yaml`, `run_onchange_after_30/41`, `dot_local/bin/executable_macos-defaults-*.sh` | defaults trio hardcoded-path + shared-lib consolidation; `after_41` fragile `{{ if .sudo }}`; `ssh-hardening.sh` → a `macos_system_setup.yaml` record | S2 |
-| S11 | Shell foundation + secrets hygiene + chores | remaining hunks of `dot_bashrc.tmpl`/`dot_profile`/`justfile`/`.chezmoiignore`, `run_after_44-cache-brew-shellenv` + `test/brew-shellenv-cache-drift.sh`, `dot_aws/private_credentials.tmpl` + `dot_config/himalaya/private_config.toml.tmpl` renames, `dot_config/worktrunk/config.toml`, gitconfig fixes; **installs:** Thaw (SP5), ponytail | credential `private_` renames (`ae02524`); merge.tool name; `core.excludesfile`; git:// url removal; `~/.bash_just_completions`; atuin `~/.atuin/bin/env` guard; yabai ignore; espanso `_pqi.yml` + shadow triggers; Arc→Zen hotkey; log rotation (newsyslog) | S2 |
-| S12 | CLAUDE.md comprehensive refactor | `CLAUDE.md`, `private_dot_claude/CLAUDE.md`, global AGENTS.md parity | the memory-file rewrite per the spec's CLAUDE.md section — **post-cutover-adjacent; runs last so it documents the reimplemented reality** | S1–S11 |
+| S11 | Shell foundation + secrets hygiene + chores | remaining hunks of `dot_bashrc.tmpl`/`dot_profile`/`justfile`/`.chezmoiignore`, `run_after_44-cache-brew-shellenv` + `test/brew-shellenv-cache-drift.sh`, `dot_aws/private_credentials.tmpl` + `dot_config/himalaya/private_config.toml.tmpl` renames, `dot_config/worktrunk/config.toml`, gitconfig fixes; **installs:** ponytail (Thaw is a **standalone SP5** PR, not an S11 install) | credential `private_` renames (`ae02524`); merge.tool name; `core.excludesfile`; git:// url removal; `~/.bash_just_completions`; atuin `~/.atuin/bin/env` guard; yabai ignore; espanso `_pqi.yml` + shadow triggers; Arc→Zen hotkey; log rotation (newsyslog) | S2 |
+| S12 | CLAUDE.md comprehensive refactor | `CLAUDE.md`, `private_dot_claude/CLAUDE.md`, global AGENTS.md parity | the memory-file rewrite per the spec's CLAUDE.md section — **pre-cutover: runs last of all implementation PRs (before Phase D) so it documents the reimplemented reality** [audit 2026-07-10] | S1–S11 |
 
 **Sequencing rationale:** S1 (docs) and S2 (the checkable foundation — CI must actually run tests before
 the rest can be trusted) go first. S3–S11 are feature slices, orderable by dependency (skills before
 herdr because herdr's plugins live in the store; relay before nothing; osquery last of the big three
 because its diff is smallest relative to main). S12 rewrites the memory files last, against final
-reality. Ship in table order unless the operator re-prioritizes.
+reality. Ship in table order unless the operator re-prioritizes. **For all post-S5 work the
+authoritative sequence is the single "Authoritative implementation order" (amended 2026-07-10) in the
+deferred sub-projects section — it supersedes this prose for everything from the PR #38 repair onward.**
 
 ---
 
@@ -205,12 +314,23 @@ protocol below is **step 3's inner cycle**, not a replacement for this loop.
 1. **Conductor review + correction.** When the implementer finishes, Fable reviews its work against the
    section plan, names every mistake and residual gap, and instructs the model (or a fresh one) to
    implement the fixes. Findings move as files, per the skill's handoff rules.
-1. **Repeat until satisfied.** Steps 4–5 loop until Fable can identify no further mistake or gap in that
-   task's work.
-1. **End-of-section sweep.** After the section's tasks are all individually clean, Fable does one final
-   sweep across *everything* the section produced (the whole slice diff), identifies any remaining gaps
-   and improvements, and runs the 4–6 loop on them until satisfied. Only then does Fable decide whether
-   the section is PR-ready and hand it to the operator review gate (P-8).
+1. **Repeat until satisfied — strict-letter rule [audit 2026-07-10].** Steps 4–5 loop until Fable can
+   identify no further mistake or gap in that task's work. **Every fix commit, however small, gets an
+   independent reviewer pass** — a fresh review of the actual committed diff, not the fixer reviewing
+   itself. **Conductor verification of the fixer's own evidence is never a substitute** for an
+   independent reviewer looking at the diff. **Beware `A..B` commit ranges that exclude the boundary
+   commit `A`** — a review scoped to `A..B` silently skips `A` itself; use `A^..B` (or review the
+   explicit commit list) so no fix commit escapes review.
+1. **End-of-section sweep — DUAL-PROVIDER (operator-directed 2026-07-10).** After the section's tasks
+   are all individually clean, the whole slice diff gets TWO independent reviews in parallel: (a) a
+   fresh-context Fable reviewer, and (b) a **Codex review (gpt-5.6 sol, ultra effort)** via the codex
+   plugin — cross-provider diversity de-correlates reviewer blind spots (the 2026-07-10 external audit
+   proved this in-repo: it caught defects four same-model review cycles had missed). Fable, as
+   conductor, merges and dedups the two findings sets, adjudicates disagreements with evidence, and
+   routes plan-conflicting findings to the operator. ONE fix wave addresses the union; BOTH reviewers
+   re-review until both return CLEAN. Per-fix-commit strict-letter re-reviews (step 6) stay Fable-only
+   for speed — sol re-joins when a fix wave is large or judgment-heavy. Only after both reviewers are
+   CLEAN does Fable decide the section is PR-ready and hand it to the operator review gate (P-8).
 
 > **HARD RULE — TDD + SOLID is non-negotiable, and Fable enforces it.** Every implementation in every
 > section MUST follow the TDD-SOLID strategy identified from the
@@ -318,30 +438,43 @@ protocol below is **step 3's inner cycle**, not a replacement for this loop.
 - **Review focus:** does CI now actually fail on a broken test / format drift? (Push a deliberately
   broken commit to a throwaway branch to confirm red, then drop it.)
 
-### S3 — Skills-store consolidation
-- **Files + deletions** per the map. The restored skills (conventional-commits, humanizer,
-  video-transcript-downloader, hyperframes set, last30days, tiktok-crawling, kubernetes-specialist) are
-  already in the store on the integration branch — carry them.
-- **Ledger fixes:** add `run_onchange_after_*-load-update-skills-launchagent.sh.tmpl` (mirror the atuin
-  loader; `mkdir -p ~/.local/log/skills` before bootstrap); declare every store symlink in
-  `private_dot_claude/skills/symlink_*`; `trash` the stale `.agents/skills/moshi-best-practices/`.
-- **Wiring (P-4):** every `~/.claude/skills/*` symlink target exists in `~/.agents/skills`; the loader
-  actually bootstraps the plist.
-- **Research amendments (§R5):** keep-all-21 decision, so the fix is reproducibility, concrete — **9
-  skills are uncommitted** (`chrome-devtools-axi`, `cua-driver`, `elevenlabs`, `gh-axi`, `home-assistant`,
-  `kubernetes-specialist`, `last30days`, `sql-toolkit`, `tiktok-crawling` — including the *preferred*
-  gh-axi/chrome-devtools-axi), Hermes has **0** symlink declarations, and `update-skills.sh` is
-  refresh-only (skips absent skills). Commit or install-manifest all 21, declare the Hermes fan-out, make
-  update-skills install-capable, and add the vendored-skill SHA/`computedHash` supply-chain gate before
-  the atomic swap.
+### S3 — Skills-store consolidation (COMPLETE — PR #36, merge `5f21a81`) [audit 2026-07-10]
+- **Shipped model (supersedes the obsolete 21-skill framing).** The store settled into a single canonical
+  `~/.agents/skills` (31 roster skills) on a four-lane provenance model — **npx-tracked** (official GitHub
+  upstreams, refreshed by the npx `skills` CLI), **ClawHub-tracked** (`home-assistant`, `sql-toolkit`,
+  `summarize-pro`, refreshed by the `clawhub` CLI), **vendored** (`moshi`/`herdr` forks, `elevenlabs`,
+  `tiktok-crawling`, refreshed only by `chezmoi apply`), and **app-owned symlink** (`cua-driver`). The
+  lock at `dot_agents/custom-skill-lock.json` records every lane plus the `tiers` (core vs on-demand),
+  `hermesProfiles`/`hermesRegistry` (the disjoint two-lane hermes delivery across the five profiles),
+  `npxTracked`/`clawhubTracked`, `forks`, and `superpowersRouting` tables. `test/skills-roster-fanout.sh`
+  validates exactly **five** of these — `tiers`, `hermesProfiles`, `hermesRegistry`, `npxTracked`,
+  `clawhubTracked` — against the store, the per-harness declarations, and the settings modify-template's
+  `skillOverrides`, failing the build if any disagree. It does **NOT** read `forks` or
+  `superpowersRouting` (verified 2026-07-10), so those two tables' drift is NOT test-covered — `forks` is
+  the weekly drift-watch's job and `superpowersRouting` is re-asserted by
+  `assert-hermes-superpowers-routing.sh`. The full narrative is the repo `CLAUDE.md` "Agent Skills
+  (cross-harness store)" section — the source of truth; this plan does not duplicate it.
+- **Deleted framing:** the old "21 live / 12 committed / 9 Claude symlinks / 0 Hermes" counts and the
+  "9 uncommitted skills to capture" list are superseded and removed — that scope was overtaken by the
+  shipped model (execution learning #2).
+- **Verified residual debt (Phase E / Wave-3 only).** What remains open is the three High convergence
+  defects the audit found in the shipped updater — **updates can defer forever**, **fresh-machine install
+  is not auto-started**, and **fan-out is additive not convergent** — owned by the **Wave-3 skills-stab
+  PR** (audit PR #36); the `35922d4` skills-test scope-split (audit PR #36 Low / PR #38 #4) moves into that
+  same PR from `wip/skills-test-hermetic`; and the Phase E items `fix/harness-skill-reconciliation`,
+  `fix/live-reconcile-from-scratch`, and `fix/skill-architecture-diagram` remain.
 
 ### S4 — herdr migration (re-scoped 2026-07-09 against live state, per learning #2)
 - **Decision: ONE PR — the S4a/b/c split is retracted.** The atomicity invariant (below) means any
   split's final PR still carries the risky flip (bashrc + deletions), so splitting buys nothing; and the
   content is dresden's already-live state, familiar to the operator. Commits stay logically separated
   instead.
-- **Atomicity is the invariant:** the tmux/sesh deletions and the herdr additions ship together — main
-  must never have both, nor neither.
+- **Atomicity is the invariant — but scoped to REPO state.** The tmux/sesh deletions and the herdr
+  additions ship in one PR — `main` must never have both, nor neither. This is *source-tree* atomicity (a
+  fresh `chezmoi apply` from `main` is always internally consistent). It is NOT the same as
+  *live-migration ordering safety* on dresden (install and prove herdr BEFORE tmux/sesh are torn down at
+  apply time). That ordering safety is a separate, now-operative requirement owned by the **Wave-3b
+  herdr-stab** section below — same-PR scope alone does not provide it.
 - **Exact file set (verified against the live `origin/main`→`integration/modernization` diff):**
   - **ADD:** `dot_config/herdr/config.toml`; the two Rust plugins under `dot_local/share/herdr/plugins/`
     (`herdr-last-workspace`, `herdr-smart-nav` — transplants that CARRY their own `#[cfg(test)]` suites
@@ -381,13 +514,67 @@ protocol below is **step 3's inner cycle**, not a replacement for this loop.
 - **Operator apply** needed (builds Rust at apply time; installs herdr via the curl installer; tears
   down tmux LaunchAgent state).
 
-### S5 — Tailscale headless daemon (re-scoped 2026-07-10 against live state, per learning #2)
+### Wave-3b herdr-stab (operative acceptance) [audit 2026-07-10]
+
+S4 shipped the repo-state migration (PR #37); the audit found two High + two Medium defects a follow-up
+**herdr-stab PR** must close. These requirements are **binding acceptance** — the PR is not done until
+every one is met and test-driven. This is where S4's *live-migration ordering safety* (distinct from its
+repo-state atomicity, above) becomes operative.
+
+- **Install-and-verify-before-teardown (the live-migration ordering invariant).** At live-migration time
+  herdr must be **installed AND verified** — binary present and runnable, `config.toml` valid, both Rust
+  plugins built and registered, and a **second herdr session proven** to spawn and attach — BEFORE
+  tmux/sesh are removed. This is the ordering safety S4's repo-state atomicity does NOT provide.
+- **Rollback.** Document the exact rollback path: how to restore tmux/sesh from the pre-migration state if
+  herdr verification fails, so a failed cutover never strands the machine without a working multiplexer.
+- **Plugin-registration error envelope + retry-state retention — and missing Cargo is NON-success.**
+  The build/register scripts (`run_onchange_after_55/57`) must treat a failed or skipped plugin
+  registration as an **error envelope**, not silent success — and **the `run_onchange` trigger must NOT
+  be consumed by a skipped/failed registration OR by a missing-Cargo skip** (a consumed trigger makes
+  the next apply believe the work is done and never retry). Retain the retry state until BOTH plugins
+  build AND register. **NOTE — this REVERSES a currently-enforced contract:**
+  `test/herdr-build-scripts-resilience.sh` today asserts the build partial **exits 0 with a hint when
+  Cargo is absent everywhere** ("never aborts"); herdr-stab rewrites that expectation — missing Cargo
+  becomes a retryable non-success, not a satisfied trigger. **Separate build from registration** (two
+  steps, each with its own failure envelope), and after linking, **verify the exact plugin** — query the
+  specific plugin id just registered, not a substring/any-plugin check. (Audit PR #37 High: failed
+  registration treated as success.)
+- **Hash EVERY build input.** The rebuild-decision hash must cover **every** input to the Rust build —
+  including `Cargo.toml` (and `Cargo.lock`), not only the `.rs` sources — so a dependency/manifest change
+  forces a rebuild. (Audit PR #37 Medium: the hash omitted `Cargo.toml`.)
+- **Old Claude LaunchAgent retirement.** Removing the `com.claude.code.plist` source does NOT unload the
+  already-running LaunchAgent. Ship a **one-time idempotent retirement script** (`launchctl bootout`,
+  guarded to no-op when already gone) with **stubbed tests** (mirroring the atuin/happy loader test
+  pattern). This is the live-side complement to S4's deletion of the plist source. (Audit PR #37 Medium.)
+- **Tests (TDD, per Global Constraints):** registration success/failure envelope; trigger-not-consumed on
+  failure; **missing-Cargo leaves the trigger retryable** (red-first — this test REVERSES the current
+  exit-0-on-missing-cargo assertion in `test/herdr-build-scripts-resilience.sh`, which is updated in the
+  same PR); hash-includes-`Cargo.toml`; retirement-script idempotence — each red-first.
+
+### S5 — Tailscale headless daemon (COMPLETE — PR #38, merge `1a6e718`) [audit 2026-07-10]
+- **Outcome (all four PR #38 fixes landed).** Status is now classified on `tailscale status --json`'s
+  `.BackendState` (`Running`/`Starting`/`NeedsLogin`/`NeedsMachineAuth`/`Stopped`), with connection
+  failure separated from state and unknown states treated as unknown, not "daemon missing" — the full
+  state machine plus fake-binary tests for every state (`81e7559`, `66a5871`). **MagicDNS is RESOLVED per
+  R1:** root-caused to the macOS resolver-**registration** layer (tailscaled's internal resolver stays
+  healthy; the `<tailnet>.ts.net` suffix route half-registers — fails at home too, not just on foreign
+  networks), the supported-fix attempt failed, and a **declarative `/etc/hosts` fallback** shipped as
+  structured `tailnet_pins` data in `macos_system_setup.yaml` from which the Tier-2 runner generates
+  idempotent pin commands (`4830f44`, `6560a59`, `c5614ae`, `f096ecb`, `c90a700`, `164548a`). The
+  **superseded-service decision** and evergreen `CLAUDE.md` cleanup landed (`38bffb6`, `6e36512`,
+  `a22ae3b`, `daef534`); the copied-daemon re-copy responsibility passes to **S6** (documented manual
+  re-copy for now — no doc claim ahead of the code). The old June Tailscale spec/plan history is
+  corrected in the roadmap (this amendment).
 - **Resolved: `2f430b3` is NOT on main — and it does not matter for S5.** The tailscale-monitor is an
-  osquery component: all four monitor files in the delta
-  (`run_onchange_after_60-load-osquery-tailscale-monitor-launchagent.sh.tmpl`, its plist,
-  `executable_osquery-tailscale-monitor.sh`, `test/osquery-alerter/test_tailscale.bats`) move to **S9**
-  with the rest of the six-agent osquery set, carrying the `2f430b3` fix with them. A numeric-name
-  match is not slice ownership (same trap as S4's `after_55-osquery` near-miss).
+  osquery component that moves to **S9** with the rest of the six-agent set. The `2f430b3` commit itself
+  touches exactly **three** files (verified `git show 2f430b3`):
+  `dot_local/bin/executable_osquery-tailscale-monitor.sh`, `test/osquery-alerter/lib.bash`, and
+  `test/osquery-alerter/test_tailscale.bats` — **no loader, no plist**. Its loader
+  (`run_onchange_after_60-load-osquery-tailscale-monitor-launchagent.sh.tmpl`) and plist enter S9 as
+  **transplant dependencies through S9's path/hunk matrix**, NOT as part of this commit. Carrying the fix
+  therefore means carrying all three commit files — crucially `lib.bash`, whose helper changes the
+  regression coverage needs (a loader+plist-only transplant would drop them). A numeric-name match is not
+  slice ownership (same trap as S4's `after_55-osquery` near-miss).
 - **Exact S5 file set:** `.chezmoiscripts/run_onchange_after_66-tailscaled-status.sh.tmpl` (28-line
   sudo-free daemon-status reminder, no keepassxc, wholly owned); the manifest's atomic
   **cask→formula swap** (`- tailscale-app` cask removed, `+ tailscale` formula added — one pair, both
@@ -409,11 +596,35 @@ protocol below is **step 3's inner cycle**, not a replacement for this loop.
   → `~/.local/bin` copy; `SKIP_SYSTEM_PACKAGES` truthiness (`=0`/`=false` must NOT skip → `{{ if eq (env
   "SKIP_SYSTEM_PACKAGES") "1" }}`); guard the uv/npm/volta loops.
 - **Wiring:** the Monday-noon plist loads; `RunAtLoad=false`.
+- **Audit requirements [audit 2026-07-10]:**
+  - **Depend explicitly on S5's copied-daemon model** — S6 owns the Tailscale daemon re-copy
+    (`sudo /opt/homebrew/opt/tailscale/bin/tailscaled install-system-daemon`) after a formula upgrade,
+    and restores the "automated weekly" `CLAUDE.md` wording S5 deferred to it.
+  - **Re-copy Tailscale only when the formula binary changes** — compare the upgraded user-owned formula
+    binary against the running root-owned `/usr/local/bin/tailscaled` (hash/byte) and skip the re-copy
+    when unchanged.
+  - **Mutual exclusion** — a lock (e.g. `flock`) so two upgrade runs cannot overlap.
+  - **Continue-on-failure with an aggregate exit** — an individual failing step is logged but does not
+    abort the run; the run returns a non-zero **aggregate** status if any step failed.
+  - **Tests:** missing tools, partial failures, logging, loader rendering, and Tailscale-refresh failure.
+  - **Split option:** if the `before_10` per-ecosystem package-runner refactoring makes S6 too large,
+    split that refactor into its own PR (sizing authority = operator review speed).
 
-### S7 — Relay notification pipeline (bash, as-deployed)
-- **Ship the bash exactly as it runs on dresden.** Do NOT fix the SP3-tagged relay bugs here (fail-closed
-  idle probe, jq slurp, mkdir lock, regex anchor) — those are the Rust rewrite's job; main must match
-  dresden's current live behavior so SP3 replaces a known baseline. Note this explicitly in the PR body.
+### S7 — Relay notification pipeline (bash) [audit 2026-07-10 — R2]
+- **[R2 — reverses the earlier "ship the bash exactly as it runs on dresden" text.]** Classify the relay
+  defects into **delivery blockers** and **harmless baseline quirks**, and **fix the four delivery-loss
+  defects BEFORE merging S7** — they can silently drop notifications, which is daily-critical:
+  - **Fail-closed idle probe** — a missing HIDIdleTime aborts all channels instead of failing open
+    (`relay.sh:68`); fail open.
+  - **Whole-file `jq -rs` transcript slurp** — one half-written trailing JSONL line discards the whole
+    summary (`relay-agent.sh:17`); parse line-by-line, skipping an unterminated final line.
+  - **Stale directory lock** — a wedged `mkdir` lock (e.g. after SIGKILL) suppresses later notifications
+    (`hue-pulse.sh`); recover from a stale lock.
+  - **Missing flag value** — a value-flag as the last argument aborts parsing (`relay.sh`), breaking the
+    "always exits 0" contract.
+  Add **characterization tests** for any baseline quirk deliberately retained (the harmless ones). SP3
+  (the Rust rewrite) still replaces the whole bash design later — but these four are fixed now so `main`
+  does not carry known notification-dropping bugs. Note the delivery-blocker/quirk split in the PR body.
 - ~~Delete the old `com.claude.code.plist.tmpl`~~ — **moved to S4** (2026-07-09): the plist's only
   payload execs the tmux-coupled `claude-restart.sh`, which S4 deletes, so the pair ships in S4's atomic
   cluster (keeping it here would leave main's LaunchAgent exec'ing a nonexistent file between S4 and S7).
@@ -424,17 +635,50 @@ protocol below is **step 3's inner cycle**, not a replacement for this loop.
   as one clean PR. The age-tripwire fix and the fresh-machine restore script are part of it.
 - **Operator step:** the `age` recipient in `.chezmoi.toml.tmpl` is the operator's public key (already
   set); the private key restore rides KeePassXC. Round-trip verify in the PR (`chezmoi cat` == live).
-- **Research amendments (§R4):** generalize the `{{ if eq .chezmoi.os "darwin" }}` guard on
-  `run_once_before_05-restore-age-key` so the Linux home-server restores the key too; ship
-  `docs/runbooks/age-key.md` (rotation + disaster-recovery workflows are spelled out in §R4) and a
-  `test/age-restore.sh` DR drill. KeePassXC entry name is `chezmoi :: Private Key :: age` (spec corrected
-  2026-07-04). Multi-recipient migration is deferred (see the spec's laptop→home-server item).
+- **[audit 2026-07-10 — reverses the earlier §R4 "generalize the darwin guard" text.]**
+  - **Keep the `{{ if eq .chezmoi.os "darwin" }}` guard** on `run_once_before_05-restore-age-key` — do
+    NOT generalize it until a complete **Linux credential-source and identity design** exists. The current
+    macOS paths and KeePassXC assumptions do not constitute Linux support; the multi-recipient
+    laptop→home-server migration stays deferred (roadmap deferred index).
+  - **Rotation uses `chezmoi re-add --re-encrypt`, not the destructive `chezmoi forget` + `add`
+    sequence** — the R4 runbook below is corrected to the installed workflow.
+  - **Enumerate the managed encrypted targets explicitly** in the PR (not just "`~/.hermes/config.yaml`").
+  - **Rehearse rotation in a scratch source and destination** before touching live secrets.
+  - **Re-scope S8 up front — the four per-profile captures already EXIST, untracked.** Verified on the
+    primary checkout's filesystem 2026-07-10: the integration branch *tracks* only the **root** config
+    (`dot_hermes/encrypted_private_config.yaml.age`), but four per-profile encrypted captures already
+    sit **untracked** in the primary checkout at
+    `dot_hermes/profiles/private_<profile>/encrypted_private_config.yaml.age`
+    (`private_butters`, `private_concerned`, `private_elaine`, `private_nicodemus` — default/Bob is the
+    root). S8 therefore: **(1) inventory, hash, and back up** those four existing untracked sources
+    (backup convention) before touching anything; **(2) record their verified paths** in the PR;
+    **(3) decide explicitly, per profile, between COMMITTING the existing capture as-is and intentionally
+    RECAPTURING newer live state** (`chezmoi add --encrypt` against the live profile config) — never
+    silently overwrite or duplicate an existing capture. **Codegraph Hermes-MCP state** is still
+    uncaptured (its source name follows chezmoi naming at capture time). This materially expands the
+    slice, so Phase E `fix/hermes-encrypted-profile-configs` rides here; **round-trip test each captured
+    profile independently**.
+  - Ship `docs/runbooks/age-key.md` (rotation + disaster-recovery) and the `test/age-restore.sh` DR drill;
+    KeePassXC entry name is `chezmoi :: Private Key :: age` (spec corrected 2026-07-04).
 
 ### S9 — osquery three-tier alerting
 - **Smallest big slice** — most of osquery is already on main; carry only the PR#25 delta.
 - **In scope:** alerting/dispatch design improvements. **Sign-off gate:** any `.chezmoitemplates/osquery/
   *.conf` query/pack content change is listed in the PR body for explicit user approval before merge.
 - **Wiring:** all 6 LaunchAgents + loaders; the 87-bat suite green; the pipeline manifest baseline.
+- **Audit requirements [audit 2026-07-10]:**
+  - **Build an exact path-and-hunk matrix before implementation** — the real PR #25 delta against the
+    converged `main`, not the early file list.
+  - **S5 dependency:** the Tailscale monitor moved into S9 — S5's re-scope recorded this. Commit
+    `2f430b3` carries exactly three files
+    (`dot_local/bin/executable_osquery-tailscale-monitor.sh`, `test/osquery-alerter/lib.bash`,
+    `test/osquery-alerter/test_tailscale.bats` — **not** the loader or plist); the loader + plist join S9
+    through the path/hunk matrix as transplant dependencies. S9 depends on S5's settled model.
+  - **Render and parse every plist**; **test every loader label and path**.
+  - **Split** dispatch / results-alerter / the six pollers+loaders / pack changes into separate PRs if the
+    real diff is not quickly reviewable (the sizing fallback below).
+  - **Sign-off gate unchanged:** every `.chezmoitemplates/osquery/*.conf` query/pack content change stays
+    behind explicit operator sign-off.
 - **Research amendments (§R8):** the two osquery "gap-queries" once proposed are **retracted** —
   `listening_ports_non_loopback` and `kernel_extensions`/`system_extensions` monitoring already exist in
   `intrusion-detection.conf`. osquery's genuinely-unfinished work (Mouse analysis agent, approval-UX PR2,
@@ -449,9 +693,26 @@ protocol below is **step 3's inner cycle**, not a replacement for this loop.
   record so a fresh machine actually locks sshd — **and fix the script's PAM hole (roadmap high-sev,
   found missing in the 2026-07-09 audit):** the drop-in sets only `PasswordAuthentication no`, but
   `UsePAM yes` + the `KbdInteractiveAuthentication` default leave PAM password login open (verified
-  live per the roadmap ledger) — the hardening record must also set
-  `KbdInteractiveAuthentication no` (and address UsePAM's interaction) so password auth is actually
-  closed, test-driven per the sshd `-T` effective-config seam.
+  live per the roadmap ledger) — the hardening record produces the **complete accepted `sshd -T`
+  effective config defined in the audit bullet below** (no "decide later" hedge), test-driven per the
+  sshd `-T` effective-config seam.
+- **SSH hardening — audit requirements [audit 2026-07-10] (perform ONLY while physically present):**
+  - **The accepted `sshd -T` effective config — defined NOW (no "at minimum", no "decide/define later"):**
+    - `passwordauthentication no`
+    - `kbdinteractiveauthentication no`
+    - `usepam yes` — macOS **requires** `UsePAM yes` for account and session management (login records,
+      sandbox/session setup); turning it off breaks session setup on macOS. It is safe here **because
+      both password paths above are `no`**, so PAM has no channel through which to open a password login.
+      This is why the value is `yes`, not `no` — the interaction is settled, not a to-do.
+    - `pubkeyauthentication yes`
+    - `permitrootlogin no`
+
+    This concrete effective-output contract **replaces** the old undefined "address UsePAM's interaction"
+    requirement. The drop-in must render `sshd -T` to exactly these values for the listed keys.
+  - **Validate syntax and effective config before reload** (`sshd -t`, then diff `sshd -T` against the
+    accepted set above — every listed key must match).
+  - **Keep the existing session open**, **prove a new key-only session works**, and **test rollback**
+    before closing the original session.
 - **Operator apply** needed (Tier-2 sudo runner prompts once).
 - **Research amendments (§R8, §R6):** the R8 endpoint additions already landed on the working branch
   (`36d2d27`) — the `lulu` + `oversight` casks and the firewall **stealth-mode** `macos_system_setup.yaml`
@@ -470,40 +731,307 @@ protocol below is **step 3's inner cycle**, not a replacement for this loop.
   network-on-every-apply + deno/node mismatch (roadmap known-bug set — unassigned until the 2026-07-09
   audit); the inert `gh` `hosts.yml.tmpl`. (P12 gitconfig autocorrect: **already on main** —
   `autocorrect = prompt`, verified 2026-07-09; no work.)
-- **Installs (SP5 + directive):** Thaw (`brew install --cask thaw` → add to manifest); ponytail (`/plugin
-  marketplace add DietrichGebert/ponytail` + `/plugin install`, `hermes plugins install
-  DietrichGebert/ponytail --enable`, promote to `enabledPlugins`).
+- **Installs (directive only — NOT Thaw):** ponytail (`/plugin marketplace add DietrichGebert/ponytail`
+  + `/plugin install`, `hermes plugins install DietrichGebert/ponytail --enable`, promote to
+  `enabledPlugins`). **Thaw is NOT installed in S11** — it ships as the standalone **SP5** PR (see the
+  standalone-note below and the SP5 sub-project).
 - **Operator apply** needed (credential renames re-deploy at 0600; already done live tonight, but main
   must carry the renamed sources).
+- **Audit requirements [audit 2026-07-10] — split S11 into the audit's 7 small PRs:**
+  1. Shell and brew-cache work.
+  2. Secret permission changes.
+  3. Git hygiene.
+  4. Desktop and hotkey cleanup.
+  5. Log rotation.
+  6. Fork maintenance.
+  7. Plugin installation.
+  **Thaw stays a standalone SP5 PR** (not folded into S11). **OpenClaw is already ruled (R3):** the
+  Wave-3d OpenClaw-cleanup PR owns the `openclaw` package removal, the AeroSpace F1 binding, and the docs
+  together, and the operator owns the Todoist cleanup — OpenClaw is NOT an S11 chore.
 
-### S12 — CLAUDE.md comprehensive refactor
+### S12 — CLAUDE.md comprehensive refactor (pre-cutover) [audit 2026-07-10]
 - Runs last. Per the spec's CLAUDE.md section: global file → minimal (preferences + bias-correction +
   toolchain + gates only, no operational detail, no dead skill references); repo file → identity +
   commands + architecture map + conventions, conditional deep-dives extracted to `docs/runbooks/` or
   skills; **every factual claim re-verified against the live repo at write time**; global AGENTS.md
   parity added. Fold in the verified staleness fixes (haiku→sonnet hook, pre-bats Testing section, wrong
   source-dir description, tmux/yabai remnants, single-template shellcheck claim).
+- **Audit requirements [audit 2026-07-10]:** S12 is **unambiguously pre-cutover** — it runs after ALL
+  implementation PRs (S6–S11, the Wave-3 stabilization PRs, Wave-3d, and the cutover-tooling PR) but
+  BEFORE Phase D cutover, so `main` documents the reimplemented reality and the cutover applies
+  converged instruction files. Build the
+  **shared Claude + Codex rules partial** (one `.chezmoitemplates` partial included by both
+  `~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md`); **render both global targets in tests** and
+  **byte-compare the shared block** across them; **re-verify every command and path against the converged
+  `main`** at write time; **move conditional operational detail into runbooks** rather than the
+  always-loaded instruction files (Phase E `fix/codex-agents-parity` and `fix/skill-architecture-diagram`
+  ride here — the diagram documents the FINAL architecture, so S12 is its sole owner, ruled 2026-07-10).
 
 ---
 
-## Phase D — Cutover
+## Cutover tooling PR (pre-S12) — the gate runner owns every cutover command [audit 2026-07-10]
 
-### Task D1: Switch main live, verify, close the reference PRs
+**The plan defines WHAT must be true and WHY; the script owns HOW.** Review rounds 3–6 (2026-07-10)
+proved that executable shell embedded in plan prose cannot be held to code standards — each wave of
+inline commands leaked a fresh scoping or fail-open defect. So Phase D below carries **no command
+sequences**: it states invariants and pass criteria, and every command lives in this PR's deliverables —
 
-- [ ] **Step 0 — empty-diff reconciliation gate (§R1):** before switching main, assert every hunk landed
-  exactly once: for each of the 8 shared infra files, `git diff main integration/modernization -- <file>`
-  must be **empty** (allowing for intentional post-split improvements — investigate any non-empty diff:
-  it means an orphaned or double-counted hunk). Also `git diff main integration/modernization --stat`
-  should show no unexpected file left only on the reference branch. This is the proof that the split
-  reproduced the whole integration branch.
-- [ ] **Step 1:** After S12 merges, point dresden's chezmoi source at `main`
-  (`git -C ~/workspaces/Ivy/webdavis/dotfiles checkout main && git pull`).
-- [ ] **Step 2: Operator** runs a full interactive `chezmoi apply` (KeePassXC unlocked).
-- [ ] **Step 3:** `just test` green + live smoke checks: `relay.sh` fires a test notification; `hermes
-  gateway` healthy; osquery alerter behaves (`osquery-heartbeat.sh` sends its one ✅);
-  `chezmoi diff --exclude=templates` clean.
-- [ ] **Step 4:** Close PR #31, PR #25, and the `integration/modernization` reference PR via `gh-axi pr
-  close`, each with a comment linking the slice PRs that superseded it.
+- **`scripts/cutover-gate.sh <1|2|3|4|5>`** — the gate runner. One entry point per gate; performs every
+  check and mechanical action for that gate; stops at each operator checkpoint.
+- **`scripts/live-reconcile.sh`** — the live reconciliation tool (as already planned).
+
+Both are tracked, shellcheck-linted, TDD-built (red-first, per Global Constraints), and land in this
+pre-S12 PR, reviewed through the same dual review pipeline as every other slice — so the cutover
+commands get code review, tests, and lint instead of prose review.
+
+**Gate-runner acceptance checklist (BINDING — every invariant hardened in review rounds 3–6; none may
+be dropped, weakened, or left untested):**
+
+1. **Pin-last ordering.** Gate 1 pins `MAIN_SHA` and `INT_SHA` only after the tree is clean and every
+   must-ship change has landed on its branch — pinning is the last mutable-state read (Dependabot
+   auto-merge moves `main`; the freeze policy admits integration hotfixes).
+2. **Immutable manifest.** The expected-delta manifest is
+   `git -C "$repo" diff 2bd973369158b49535e8e16e80c968444ab23f1d "$INT_SHA"` — the recorded Phase A
+   base SHA to the pinned integration tip — regenerated from the pins at Gate 1; no stored file count
+   is normative (196 at A1 time, 220 at this writing).
+3. **Ledger classification.** Every manifest hunk is classified against `$MAIN_SHA` as exactly one of
+   landed-unchanged / intentionally-improved / deliberately-omitted-with-reason / missing; **only
+   `missing` blocks cutover**; Gate 2 activates exactly `$MAIN_SHA`.
+4. **Clean tree, fully visible.** `git -C "$repo" status --porcelain --untracked-files=all` empty AND
+   `"$repo/graphify-out"` absent (gitignored paths escape porcelain; the live unmanaged post-commit
+   hook regenerates it) — both re-checked immediately before the apply.
+5. **Repo handle, per shell.** `repo="$HOME/workspaces/Ivy/webdavis/dotfiles"` (absolute), validated
+   `[[ -d "$repo/.git" ]] || exit 1` at the top of EVERY runner invocation — each gate runs in its own
+   shell, nothing carries over.
+6. **Repo-scoped operations.** Every git operation runs `git -C "$repo"`; non-git commands use
+   absolute `"$repo"` paths or a guarded `cd "$repo" || exit 1` (`git -C` does not change the cwd for
+   non-git commands). The runner never depends on its caller's cwd.
+7. **Pins persisted and reloaded fail-closed.** Gate 1 records both pins in the ledger artifact; every
+   later gate reloads them from the ledger and validates each as a full 40-hex SHA before use —
+   missing/short/empty pins abort.
+8. **Guarded fetch.** `git -C "$repo" fetch origin || exit 1` before any pin comparison — a failed
+   fetch must never let stale remote-tracking refs satisfy the checks.
+9. **Fail-closed comparisons.** Every equality requirement is an explicit `[[ "$x" == "$y" ]] || exit 1`
+   in the runner — never prose, never advisory.
+10. **Two-pin re-verification.** Gates 2 and 5 require `origin/main == $MAIN_SHA` AND
+   `origin/integration/modernization == $INT_SHA`; on either mismatch the runner exits nonzero and the
+   procedure restarts Gates 1–4 (re-clean + re-pin + re-classify, re-activate, re-reconcile, re-soak).
+11. **Attached-HEAD landing.** Activation checks out `main` and fast-forwards to the pin, then asserts
+   branch == `main` AND HEAD == `$MAIN_SHA` — never a detached `checkout $MAIN_SHA`.
+12. **Per-domain launchd enumeration.** `launchctl print "gui/$(id -u)"` AND `launchctl print system` —
+   NEVER bare `launchctl list`, which reads only the caller's bootstrap context (verified in round 6: a
+   non-GUI review shell's `launchctl list` returned **0** jobs while `launchctl print gui/501` exposed
+   **499** services).
+13. **Retirement universe + preserve list.** The retirement candidate universe is an **EXACT, versioned
+   (label, domain) inventory of every label this repo has EVER rendered** — a prefix shorthand like
+   "`com.webdavis.*`" is wrong, because repo history holds out-of-prefix labels. **Derivation method
+   (the runner regenerates the inventory this way; the tooling PR documents it):**
+   `git log --all --diff-filter=AD --name-status -- 'Library/LaunchAgents/*' 'Library/LaunchDaemons/*'`
+   plus `--diff-filter=R -M` for renames, plus `git log --all -S '<key>Label</key>' -- ':!Library'` for
+   script-rendered labels (exactly one exists: the nix-hook heredoc). **Currently-known inventory
+   (derived 2026-07-10; every label `gui/$UID` unless noted):**
+   - *In current source:* `com.webdavis.atuin-daemon`, `com.webdavis.happy-daemon`,
+     `com.webdavis.osquery-firewall-gatekeeper-monitor`, `com.webdavis.osquery-results-alerter` (label
+     history: `osquery-fim-notify` → `osquery-results-notify` → this; renames `4771b6d`/`3de3336`),
+     `com.webdavis.osquery-uptime-watchdog`, `com.webdavis.update-skills`,
+     `com.webdavis.yt-dlp-pot-provider` (main + integration); `com.webdavis.homebrew-weekly-upgrade`,
+     `com.webdavis.osquery-digest`, `com.webdavis.osquery-heartbeat`,
+     `com.webdavis.osquery-tailscale-monitor` (integration only, pre-S6/S9);
+     **`systems.nixos.nix-installer.nix-hook` — SYSTEM domain, out-of-prefix** (rendered by
+     `dot_local/bin/executable_install-nix-repair-hook.sh`); `com.webdavis.paseo-daemon` (side-branch
+     source `private_com.webdavis.paseo-daemon.plist.tmpl`, `e29c441` — live on dresden).
+   - *Historical — deleted/renamed away (the retirement-candidate class):* `com.claude.code` (deleted
+     `68a741b` on main / `f590081` on integration — Wave-3b's retirement script unloads it);
+     **`com.github.openclaw-setup.watchdog` — out-of-prefix** (renamed in from
+     `com.webdavis.openclaw-watchdog` at `b6d82e6`, deleted at `d15de21` with **no unload anywhere in
+     that commit** — the archetypal loaded orphan this gate exists to catch);
+     `com.webdavis.openclaw-watchdog` (the pre-rename label — orphanable on a machine that loaded the
+     pre-`b6d82e6` plist); `com.webdavis.gha-watcher` (deleted `f297e1f`); `com.webdavis.osquery-report`
+     (deleted `6199dcb`); `com.webdavis.osquery-posture-watch` (superseded at `3de3336`);
+     `com.webdavis.osquery-fim-notify` and `com.webdavis.osquery-results-notify` (renamed away —
+     orphanable pre-rename labels).
+
+   The **PRESERVE list is unchanged and orthogonal** — it guards non-repo services (`io.osquery.agent`
+   — package-owned, managed via `osqueryctl`, not rendered by this repo; the Tailscale system daemon;
+   `sshd`; Apple system jobs); the universe guards repo history. Retirements are computed ONLY within
+   the universe; nothing outside it is ever a retirement candidate. **The tooling PR's tests must prove
+   a deleted historical label (e.g. the openclaw watchdog) becomes a retirement candidate when found
+   loaded.**
+14. **(label, domain, steady-state predicate) manifest entries.** Unconditional `KeepAlive=true` →
+   loaded AND running; conditional `KeepAlive` dictionary → predicate per its semantics
+   (`systems.nixos.nix-installer.nix-hook`, system domain, `KeepAlive={SuccessfulExit=false}`: healthy
+   = loaded, idle, last exit 0); scheduled/demand (`StartInterval`/`StartCalendarInterval`/`WatchPaths`
+   triggers, regardless of `RunAtLoad` — which launches once and is NOT persistence) → loaded with the
+   trigger registered, not necessarily running (`com.webdavis.osquery-uptime-watchdog` exits after
+   every run).
+15. **Domain-qualified per-label verification.** `launchctl print "$domain/$label"` per manifest entry:
+   approved-retired labels ABSENT (print errors), every desired label satisfies its recorded predicate.
+16. **Operator checkpoints.** The runner STOPS for operator approval of the retirement manifest
+   (Gate 1) before any service-affecting apply stage, and never performs the interactive
+   `chezmoi apply` itself (that is the operator's, staged, at Gate 2). Approval reviews a CORRECT
+   manifest — it is a review checkpoint, not a repair mechanism for a wrong one.
+17. **Explicit GitHub targeting.** Gate 5 closes PRs with `--repo=webdavis/dotfiles`
+   `--hostname=github.com` passed explicitly, in addition to the guarded cd — gh's resolver precedence
+   is `--repo` > `GH_REPO` > cwd remote, so cwd alone cannot be trusted (verified in round 6: with an
+   inherited `GH_REPO`, a resolver-only test inside this repo selected wrong-owner/wrong-repo).
+18. **Reconcile-script contract.** `scripts/live-reconcile.sh` has a `--dry-run` flag, is idempotent,
+   and is tested; Gate 3 runs it by absolute path, dry-run before live.
+19. **Code standards.** Both scripts pass `shellcheck` and `shfmt`, are TDD-built with stubbed
+   launchd/git/gh boundaries (Classist doubles at true I/O boundaries only), and every checklist item
+   above has a test.
+
+---
+
+## Phase D — Cutover (five gates) [audit 2026-07-10]
+
+### Task D1: Switch main live, verify, close the reference PRs — five sequential gates
+
+The audit split the single cutover step into **five gates** so that Phase E items which only complete
+*after* apply have a named home, and so the reference PRs are not closed before the soak proves
+convergence. Each gate must pass before the next begins. Gate roles: **Gate 1** preflight — clean tree,
+then pinned SHAs, the immutable-manifest expected-delta ledger, and **operator approval of the retirement
+manifest**; **Gate 2** staged activation **and execution of the approved retirement**; **Gate 3** tracked
+reconciliation + **post-retirement verification**; **Gate 4** soaks the **final, retired** topology;
+**Gate 5** closure-only (re-verify both pins, close the reference PRs — no repo mutation). Retirement lives
+in Gates 1–3 (approve / execute / verify), not Gate 5 — so the topology soaked is the topology closed
+out. **`$INTEGRATION_PR` (set in A1) is
+PR #32**, the DO-NOT-MERGE reference; the source PRs are **#25** (osquery three-tier) and **#31**
+(herdr/Tailscale/brew/moshi).
+
+**No commands live in these gates.** Each gate states its invariants and pass criteria; every check and
+mechanical action is performed by the tracked, tested gate runner (`scripts/cutover-gate.sh <gate>`)
+from the **Cutover tooling PR** section above, whose binding acceptance checklist carries the full
+mechanics (repo scoping, fail-closed pin handling, launchd domains, GitHub targeting). Run the gate's
+runner entry, then complete the operator checkpoints it stops for.
+
+#### Gate 1 — Preflight (before switching the live source)
+
+Invariants hold **in this order** — the tree is settled and every must-ship change has LANDED before
+the SHAs are pinned, because both branches can move until then (Dependabot on `main`; the freeze policy
+admits integration hotfixes): a change landed after pinning would sit silently outside the manifest.
+
+- [ ] **1. Clean tree.** Every dirty/untracked file in the primary checkout is classified keep /
+  discard / back-up; **kept files leave the source tree** (backup convention) — git preserves
+  non-conflicting dirty/untracked files across a checkout and chezmoi deploys the working tree, so
+  anything left in place would deploy content the ledger never classified (the primary checkout holds
+  exactly such untracked chezmoi sources today). Anything that must ship is **committed and pushed
+  before pinning** (to `main`, or to the integration branch as a freeze-policy hotfix) and
+  classification re-runs. **Pass:** the runner sees a fully-visible-clean tree — no dirty or untracked
+  entries AND no `graphify-out/` residue (gitignored paths escape a porcelain listing; the live
+  unmanaged post-commit hook regenerates it) — re-checked immediately before the apply. Gate 2's
+  exact-SHA activation claim holds only on a clean tree (checklist items 4–6).
+- [ ] **2. Hermes backup.** Uncaptured Hermes profile state is backed up per the backup convention
+  (`~/workspaces/backups/YYYY-MM-DDTHH-MM-SS.<name>.backup[.ext]`) — the per-profile `config.yaml`
+  enablement/`platform_toolsets` and codegraph MCP state are otherwise untracked encrypted `.age` files
+  (Phase E `fix/hermes-encrypted-profile-configs`).
+- [ ] **3. Pins, LAST.** The runner records `MAIN_SHA` and `INT_SHA` in the ledger from the
+  freshly-fetched **remote-tracking refs — never local branch refs**, which lag the remote (when this
+  was written the local `main` was `2bd9733` while `origin/main` was `1a6e718`; a local-ref ledger
+  would describe a different revision from the one Gate 2 activates). Pinning is the LAST
+  mutable-state read: any commit to either branch afterward invalidates the pins, and Gates 2 and 5
+  re-verify both (checklist items 1, 7–10).
+- [ ] **4. Retirement manifest, operator-approved.** A `launchctl` before/after inventory diff can
+  never find an orphan (a loaded job keeps appearing after its plist is deleted), so the runner builds
+  an explicit manifest: the **desired-state set** (every LaunchAgent/LaunchDaemon the pinned
+  `$MAIN_SHA` source renders, each entry a **(label, launchd domain, expected steady-state predicate)**
+  triple — persistent vs conditional-KeepAlive vs scheduled/demand semantics per checklist item 14),
+  the **live loaded set** (enumerated per launchd domain — user AND system — per checklist item 12),
+  and the **retirement list**: live jobs absent from the desired set, computed ONLY within the
+  **managed-label universe** — the exact, versioned (label, domain) inventory of every label this repo
+  has EVER rendered, derived from repository history per checklist item 13 (NOT a `com.webdavis.*`
+  prefix match: history holds out-of-prefix labels — `com.github.openclaw-setup.watchdog`, deleted with
+  no unload at `d15de21`, is precisely the loaded-orphan class this gate must catch, and the
+  system-domain `systems.nixos.nix-installer.nix-hook` is rendered by a script, not a tracked plist) —
+  and never touching the **preserve list** of package/OS-owned services (`io.osquery.agent` —
+  package-owned, managed via `osqueryctl`; the Tailscale system daemon; `sshd`; Apple system jobs).
+  **Checkpoint:** the operator approves every named retirement
+  BEFORE any service-affecting apply stage. Approval reviews a CORRECT manifest — it is a review
+  checkpoint, not a repair mechanism for a wrong one. Gate 2 executes only the approved list (covering
+  retirements performed by apply-time scripts too, e.g. Wave-3b's one-time retirement script).
+- [ ] **5. Expected-delta ledger — REPLACES the old empty-diff gate, built from an IMMUTABLE
+  manifest.** The old gate was contradictory (the plan permits improvements over the integration branch
+  yet demanded an empty final diff) **and** mechanically unsound: a `main`-vs-integration diff shows
+  only the **residual** difference — every reference hunk that already landed unchanged on `main` has
+  vanished from it — and reads mutable refs. Instead the runner regenerates the manifest from the
+  **recorded Phase A base SHA (`2bd9733…`) to the pinned `$INT_SHA`** — the full original combined
+  delta, every hunk present, because the base is fixed, not `main` (no recorded file count is
+  normative: 196 at A1 time, 220 at this writing; the frozen branch takes hotfixes) — and classifies
+  **every** manifest hunk against the pinned `$MAIN_SHA` as exactly one of **landed-unchanged**,
+  **intentionally-improved**, **deliberately-omitted-with-reason**, or **missing** (checklist items
+  2–3). **Pass: only a `missing` hunk blocks cutover** — the other three are expected and recorded.
+  Gate 2 activates exactly `$MAIN_SHA`, the same pinned commit this ledger classified against, so the
+  state proved converged is the state cut over to.
+
+#### Gate 2 — Staged activation and service retirement
+
+- [ ] Open a **second remote session** first, so a broken apply cannot lock you out.
+- [ ] **Pins re-verified, then activation lands ATTACHED at the pin.** The runner re-verifies — in a
+  fresh shell, fail-closed — that both remote branches still equal the recorded pins (checklist items
+  5–10). **On either mismatch it aborts and the procedure restarts Gates 1–4** (re-clean + re-pin +
+  re-classify, re-activate, re-reconcile, re-soak). After S12 merges, it points dresden's chezmoi
+  source at the pinned commit **attached to `main`, never detached** (checklist item 11) — a detached
+  checkout would leave the live source floating off-branch.
+- [ ] **Operator** runs a full interactive `chezmoi apply` (KeePassXC unlocked) **in stages**, not one
+  shot — keep the integration branch and previously deployed files available for rollback. (The runner
+  never performs this apply itself — checklist item 16.)
+- [ ] **Retire exactly the Gate 1 approved retirement manifest.** Approval already happened at Gate 1 —
+  BEFORE this service-affecting apply; the runner executes only the approved list, domain-qualified per
+  manifest entry (checklist items 13–15) — e.g. the old Claude `com.claude.code` in the user domain;
+  Wave-3b's one-time retirement script is one of the approved executors. Nothing is discovered or
+  retired ad hoc mid-apply. Retirement happens HERE, during activation — so Gate 4 soaks the FINAL
+  topology, not the pre-retirement one.
+- [ ] **Verify remote reachability** (Tailscale / SSH) before ending the original session.
+
+#### Gate 3 — Tracked live reconciliation and post-retirement verification
+
+- [ ] **Live reconciliation, dry-run first.** The runner executes the **already-merged, pinned**
+  `scripts/live-reconcile.sh` from the cutover-tooling PR (built, reviewed, and tested pre-S12 — NOT
+  authored ad hoc during cutover), `--dry-run` before live (checklist item 18), to prove a
+  from-scratch machine converges identically (Phase E `fix/live-reconcile-from-scratch`).
+- [ ] **Post-retirement verification against the manifest, not a before/after diff** (a loaded job
+  outlives its deleted plist, so diffs can't prove retirement). The runner probes every manifest entry
+  domain-qualified (checklist items 12, 15): each approved-retired label is **ABSENT** (actually
+  unloaded, not merely plist-deleted), and each desired label satisfies **its recorded steady-state
+  predicate** (checklist item 14 — a blanket "running" check would wrongly fail the one-shots and the
+  conditional-KeepAlive nix-hook).
+- [ ] **Full test suite green + live smoke checks.** The runner executes the repo's test suite from the
+  repo itself (checklist item 6), then the smoke set: relay fires a test notification; the hermes
+  gateway is healthy; the osquery heartbeat sends its one ✅; chezmoi reports no source↔target drift
+  (excluding KeePassXC-gated templates).
+
+#### Gate 4 — Soak the final topology
+
+- [ ] Let the converged `main` — **with retirement already applied** — run for a soak window; watch the
+  daily-critical paths (notifications, hermes, osquery, shell startup) for regressions. **Do not close any
+  reference PR during the soak.**
+
+#### Gate 5 — Final closure (closure-only)
+
+- [ ] **Pins re-verified before closing anything.** This gate runs days after Gate 1, in a fresh shell:
+  the runner reloads both pins from the ledger, validates them, freshly fetches (guarded), and requires
+  both remote branches still at their pins AND the live checkout still attached at the pin (checklist
+  items 5–11). If either branch moved during the soak (Dependabot auto-merge on `main`; a freeze-policy
+  hotfix on integration), the soaked state is not the closing state — **restart Gates 1–4** before
+  closure.
+- [ ] **Close PR #25, PR #31, and the integration reference PR #32** — the runner targets the GitHub
+  repository **explicitly**, never trusting the cwd remote (checklist item 17) — **only after the soak
+  passes** — each with a comment linking the slice PRs that superseded it. No repo mutation happens in
+  this gate (the `graphify-out/` excludes stay in place through cutover as zero-cost belt-and-braces;
+  dropping them is `fix/graphify-out-excludes-drop` in the **SP7 backlog** — post-cutover by design,
+  not Phase E).
+
+**Phase E → gate attachment.** Every Phase E item completes at a named home — a pre-cutover PR or a D1
+gate:
+`fix/live-reconcile-from-scratch` → the **cutover-tooling PR** (builds `scripts/live-reconcile.sh`
+pre-cutover) + Gate 3 (runs it); *(`fix/graphify-out-excludes-drop` is no longer a Phase E item — moved
+to the **SP7 backlog** 2026-07-10, post-cutover by design; the excludes stay through cutover as
+zero-cost belt-and-braces, Gate 5 mutates nothing, and no re-pin is ever needed)*;
+`fix/harness-skill-reconciliation` → Gate 3 (Hermes-side pruning, coordinated at cutover);
+`fix/hermes-encrypted-profile-configs` → S8 (backed up at Gate 1); `fix/codex-agents-parity` → S12;
+`fix/template-render-coverage` → the Wave-3 render-coverage PR; `fix/moshi-herdr-drift-check` and
+`fix/pre-commit-path-filter` → S11; `fix/skill-architecture-diagram` → **S12, sole owner** (ruled
+2026-07-10 — it documents the final architecture, so it belongs with the docs refactor; the earlier
+"Wave-3 skills-stab /" alternative is removed so no PR can assume the other owns it).
 
 ---
 
@@ -512,7 +1040,7 @@ protocol below is **step 3's inner cycle**, not a replacement for this loop.
 **Spec coverage:** every SP2-tagged item in the work ledger maps to a slice's "ledger fixes" column (S2
 CI/lint items; S3 skills; S4 herdr consolidation; S6 brew; S9 osquery; S10 defaults/ssh; S11 the long
 tail; S12 CLAUDE.md). The spec's provisional slice map (its items 1–11) maps to S1–S11; SP1 = S8; SP5
-Thaw = S11; the CLAUDE.md refactor = S12. Combine mechanics (integration branch, DO-NOT-MERGE PR, freeze
+Thaw = a standalone SP5 PR during SP2, not S11; the CLAUDE.md refactor = S12. Combine mechanics (integration branch, DO-NOT-MERGE PR, freeze
 policy) = Phase A. Cutover checklist = Phase D. No spec section is unassigned.
 
 **Placeholder scan:** the one deferred detail — exact hunk boundaries inside the 8 shared files — is
@@ -570,13 +1098,16 @@ future standalone go/no-go, like nushell, never bolted onto SP2.
 - **Phase C P-4:** add a per-shared-file assertion — after applying a slice's hunks,
   `git diff <slice-branch> integration/modernization -- <file>` should show **only the other slices'**
   hunks (proves this slice took its own and no more).
-- **Phase D D1:** add an **empty-diff reconciliation gate** — before closing the reference PR, assert
-  `git diff main integration/modernization -- <file>` is **empty** for each of the 8 shared files,
-  proving every hunk landed exactly once across the slice sequence.
+- **Phase D D1:** ~~add an **empty-diff reconciliation gate**~~ **superseded 2026-07-10 by the
+  expected-delta ledger (D1 Gate 1)** — the empty-diff gate was contradictory (the plan permits
+  intentional improvements over the integration branch, which a strict empty diff forbids). The ledger
+  classifies each reference-branch hunk as landed-unchanged / intentionally-improved /
+  deliberately-omitted-with-reason / missing; only `missing` blocks cutover.
 - **Phase C preamble:** add a short "Tooling considered and rejected" note (Graphite/ghstack/spr/
   Sapling/jj + why), so it is not re-litigated mid-execution.
 
-**New features:** hunk-ownership table + empty-diff gate `[plan]`; non-interactive `git apply` P-2
+**New features:** hunk-ownership table + ~~empty-diff gate~~ (superseded 2026-07-10 by the
+expected-delta ledger, D1 Gate 1) `[plan]`; non-interactive `git apply` P-2
 variant `[plan]`; optional local-stack authoring via `git rebase --update-refs` (git ≥ 2.38, already in
 the toolchain — build several review-independent slices as a local stack, re-sync branch pointers with
 one rebase after each merge) `[plan]`.
@@ -638,8 +1169,10 @@ reasons (added to the spec Decisions log, below). But three **verified** gaps:
   restore script reads `chezmoi :: Private Key :: age` — a fresh-machine restore would query the wrong
   entry and fail. Spec corrected 2026-07-04.
 - **Darwin-gated restore:** `run_once_before_05-restore-age-key.sh.tmpl` opens with
-  `{{ if eq .chezmoi.os "darwin" }}`, so the **future Linux home-server cannot restore the key**. S8
-  drops/generalizes the guard.
+  `{{ if eq .chezmoi.os "darwin" }}`, so the **future Linux home-server cannot restore the key**. ~~S8
+  drops/generalizes the guard~~ **superseded 2026-07-10 [audit]: the guard is KEPT until a complete
+  Linux credential-source and identity design exists** (see the amended S8 section — the macOS paths and
+  KeePassXC assumptions do not constitute Linux support).
 - **No rotation / DR story:** no documented procedure exists for rotating the age key or recovering it.
   S8 adds `docs/runbooks/age-key.md` with the two workflows spelled out below (written now, per the
   "behaviors first" rule — this is the plan text S8 will implement, not the implementation).
@@ -650,9 +1183,14 @@ reasons (added to the spec Decisions log, below). But three **verified** gaps:
 1. Update `.chezmoi.toml.tmpl`: set `[age] recipient` to the **new** public key (keep the old identity in
    an `identities` list temporarily so existing ciphertext still decrypts during the transition), then
    `chezmoi init`.
-1. Re-encrypt every managed secret to the new recipient: for each `encrypted_*` source file,
-   `chezmoi forget <target>` then `chezmoi add --encrypt <target>` (re-encrypts under the new recipient).
-   Today that is just `~/.hermes/config.yaml`.
+1. Re-encrypt every managed secret to the new recipient with the installed non-destructive workflow:
+   `chezmoi re-add --re-encrypt` (re-encrypts the existing `encrypted_*` files under the new recipient —
+   **corrected 2026-07-10**, replacing the destructive `chezmoi forget` + `chezmoi add --encrypt` pair the
+   audit flagged). Enumerate the encrypted targets explicitly rather than assuming a single file: today
+   `~/.hermes/config.yaml` (source `dot_hermes/encrypted_private_config.yaml.age`), plus — as S8 promotes
+   them — the four specialist profile captures that already exist untracked at
+   `dot_hermes/profiles/private_<profile>/encrypted_private_config.yaml.age` (verified 2026-07-10) and
+   codegraph state (uncaptured; its name follows chezmoi's `encrypted_` naming at capture time).
 1. Verify round-trip: `diff <(chezmoi cat ~/.hermes/config.yaml) ~/.hermes/config.yaml` is empty;
    `head -1` of each `encrypted_*` file is an age header, not plaintext.
 1. Drop the old identity from `identities`, `mv key.new key.txt`, and **update the KeePassXC entry**
@@ -676,19 +1214,31 @@ reasons (added to the spec Decisions log, below). But three **verified** gaps:
    disaster, not during one.
 
 **New features:** the `age-key.md` runbook (both workflows above) + the `test/age-restore.sh` DR drill
-`[repo]`; generalize the darwin guard so the restore runs on Linux too `[repo]`; **multi-recipient
-migration design** (each machine keeps its own identity; `.chezmoi.toml.tmpl` lists both public keys as
-`recipients` so files encrypt to both — the laptop→home-server path) `[dresden]`.
+`[repo]`; ~~generalize the darwin guard so the restore runs on Linux too~~ **superseded 2026-07-10
+[audit]: the guard is KEPT until a real Linux credential design exists (amended S8 section)**;
+**multi-recipient migration design** (each machine keeps its own identity; `.chezmoi.toml.tmpl` lists
+both public keys as `recipients` so files encrypt to both — the laptop→home-server path) `[dresden]`.
 Sources: chezmoi.io/user-guide/encryption/age, chezmoi.io/user-guide/frequently-asked-questions/
 encryption, discourse.nixos.org (git-crypt/agenix/sops-nix comparison).
 *(verdict: SOUND — spot-verified against the live repo and the chezmoi age doc.)*
 
 ### R5 — Agent skills/memory: architecture correct; reproducibility + supply-chain gaps (amends S3 + S12)
 
+> **Superseded-historical [2026-07-10 audit] — provenance only.** This section records the 2026-07-04
+> research pass; three of its specific artifacts are OBSOLETE and kept only for the trail: the
+> `21/12/9/0` (and `20/12/9/0`) skill counts, the `skills-lock.json` lock name, and the "declare blanket
+> `dot_hermes/skills/` symlinks" fan-out instruction. The shipped model superseded all three — one
+> `~/.agents/skills` store (31 roster skills) under `dot_agents/custom-skill-lock.json`, with a
+> **disjoint** five-profile hermes delivery (`hermesProfiles` store-symlink lane ⟂ `hermesRegistry`
+> hub-owned lane), NOT a blanket symlink. The live model is the amended S3 section and the repo
+> `CLAUDE.md` "Agent Skills (cross-harness store)" section; read those, not the counts below.
+
 The `~/.agents` store + symlink fan-out + `AGENTS.md`→`CLAUDE.md` model is correct and, in places, ahead
-of the ecosystem (AGENTS.md convention, Anthropic's Agent Skills). But **verified on disk**: **21 live
+of the ecosystem (AGENTS.md convention, Anthropic's Agent Skills). ~~But **verified on disk**: **21 live
 store skills vs 12 committed vs 9 Claude `symlink_` declarations vs 0 Hermes declarations** — a fresh
-`chezmoi apply` reproduces only ~9 of 21 skills into Claude and none into Hermes.
+`chezmoi apply` reproduces only ~9 of 21 skills into Claude and none into Hermes.~~ *(superseded
+2026-07-10 — the shipped 31-skill store reproduces every roster skill into every harness it targets; see
+the banner above.)*
 
 **Keep/deprecate decision (operator, 2026-07-04): keep ALL 21 — deprecate none** (the operator uses each
 at different times; the earlier "overlap" flags were retracted as unfounded — `last30days` [trend
@@ -697,7 +1247,9 @@ different jobs, and the four `hyperframes*` skills are an interdependent suite w
 cross-delegate, so they are all-or-nothing). The task is therefore purely **reproducibility**, not
 culling.
 
-**The 9 uncommitted skills S3 must capture** (committed or install-manifested — verified 2026-07-04):
+**The 9 uncommitted skills S3 must capture** *(superseded 2026-07-10 — historical: S3 shipped the
+31-skill provenance model instead, which subsumed this capture list; see the amended S3 section)*
+(committed or install-manifested — verified 2026-07-04):
 `chrome-devtools-axi`, `cua-driver`, `elevenlabs`, `gh-axi`, `home-assistant`, `kubernetes-specialist`,
 `last30days`, `sql-toolkit`, `tiktok-crawling`. **Note `gh-axi` and `chrome-devtools-axi` are among
 them** — the repo's own *preferred* GitHub and browser tools would silently not reproduce on a fresh
@@ -705,13 +1257,17 @@ machine. Each has a known source (npx-skills / clawhub) captured during this ses
 
 **Changes to apply:**
 
-- **S3:** commit the full skill roster (or a committed `name→source` install-manifest) so a fresh
-  machine reproduces every skill; make `update-skills.sh` **install-capable** (today its loops
-  `[ -d "$STORE/$n" ] || continue` skip anything absent → refresh-only); complete the fan-out
-  declarations (declare all store→Claude symlinks; add the missing `dot_hermes/skills/` declarations);
-  resolve the **three-way** fan-out ownership (the ledger names two writers — the third is
-  `npx skills … --global`); reconcile the lockfiles (`skills-lock.json` has a stale `moshi-best-practices`
-  entry and 12 vs 20 live); add a **supply-chain gate** — pin each vendored git-clone to a commit SHA
+- **S3** *(these are the 2026-07-04 change requests; the shipped 31-skill model implemented them
+  differently — the stale specifics are struck below, the intent held)*: commit the full skill roster (or
+  a committed `name→source` install-manifest) so a fresh machine reproduces every skill; make
+  `update-skills.sh` **install-capable** (today its loops `[ -d "$STORE/$n" ] || continue` skip anything
+  absent → refresh-only); complete the fan-out declarations (declare all store→Claude symlinks;
+  ~~add the missing `dot_hermes/skills/` declarations~~ *(superseded: hermes fan-out is the disjoint
+  `hermesProfiles` store-symlink lane ⟂ `hermesRegistry` hub lane — NOT blanket `dot_hermes/skills/`
+  symlinks)*); resolve the **three-way** fan-out ownership (the ledger names two writers — the third is
+  `npx skills … --global`); ~~reconcile the lockfiles (`skills-lock.json` has a stale `moshi-best-practices`
+  entry and 12 vs 20 live)~~ *(superseded: the lock is `dot_agents/custom-skill-lock.json`, guarded by the
+  five-table roster test)*; add a **supply-chain gate** — pin each vendored git-clone to a commit SHA
   and/or verify `computedHash` before the atomic swap.
 - **S12:** specify the global `AGENTS.md` parity **mechanism** (a `.chezmoitemplates` partial included by
   both `~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md`), not just "add parity."
@@ -720,7 +1276,8 @@ machine. Each has a known source (npx-skills / clawhub) captured during this ses
 for the global ruleset `[dresden]`; SHA-pin + hash-verify vendored skills before swap `[repo]`.
 Sources: agents.md, anthropic.com/engineering/…agent-skills, platform.claude.com/docs/…agent-skills/
 best-practices, developers.openai.com/codex/skills.
-*(verdict: SOUND — the 20/12/9/0 counts independently re-verified on disk 2026-07-04.)*
+*(verdict: SOUND at the time — the 20/12/9/0 counts were independently re-verified on disk 2026-07-04;
+those counts are now superseded-historical, see the R5 banner above.)*
 
 ### R6 — nix-darwin vs chezmoi defaults: chezmoi HOLDS; bank the decision (amends S10 + spec)
 
@@ -799,7 +1356,8 @@ developer.apple.com SIP docs, github.com/maxgoedjen/secretive, drduh.github.io/m
 
 **Deferred feature idea `[dresden]` — OverSight → relay bridge.** OverSight's Action tab can `exec` a
 script on every camera/microphone event, passing `-device <camera|microphone> -event <on|off> -process
-<pid> -activeCount <n>`. A tiny wrapper pointing at `relay.sh` (or the SP3 Rust service) would turn an
+<pid> -activeCount <n>`. A tiny wrapper pointing at `relay.sh` (or the SP3 stateless per-event
+executable, invoked once per camera/mic event) would turn an
 *unexpected* camera/mic activation into a phone push — a genuine "someone/something is watching"
 signal that reuses the existing notification fan-out. Not now (needs the wrapper written + a
 whitelist of expected callers like Zoom/Photo Booth so it only fires on the unexpected); banked as a
@@ -821,6 +1379,12 @@ These operator-decided items live in `docs/superpowers/specs/2026-07-02-repo-mod
 (the sub-project table), not in this plan — listed here so the plan is self-contained about what it
 deliberately does NOT cover:
 
+- **SP3 — Notification rewrite (Rust): behavior contract approved; final implementation spec PENDING.**
+  Not "fully designed" [audit 2026-07-10]. The roadmap spec (amended 2026-07-10) carries SP3's status and
+  open-items list — event input schemas, per-harness event mapping, native-push ownership (R7),
+  per-channel retry/failure, presence thresholds, lights quiet hours, migration coexistence/rollback, and
+  acceptance boundaries. SP3 is a **stateless per-event executable, not a daemon/service**. Sequenced
+  after SP2 cutover per the authoritative order below.
 - **SP4 — bash→nushell evaluation: RESOLVED — NO-GO, operator-ratified 2026-07-09.** The evaluation ran
   during S4 (report: `docs/research/2026-07-09-sp4-nushell-evaluation.md`); verdict NO-GO on three legs:
   reedline binds one key event per binding — no multi-keystroke chord grammar (verified against the
@@ -851,17 +1415,82 @@ deliberately does NOT cover:
   commit time, not at the keyboard.
 - **SP6 — nvim-overhaul.** Re-evaluate the v1/v2/v3 design generations (Fable conducts the
   re-evaluation — operator directive) plus the 10 unpushed commits on the `nvim-overhaul` branch, then
-  implement under its own spec. Not started; runs after SP2.
+  implement under its own spec. Not started; runs after SP2. **Audit directives [audit 2026-07-10]
+  (before any modernization — the branch was 69 commits behind / 3 ahead of `origin/main` at audit
+  time):** (1) re-check the branch state first; (2) back up both repositories; (3) inventory the live
+  Neovim configuration; (4) import the live configuration UNCHANGED first; (5) modernize only through
+  later reviewable PRs.
 - **SP7 backlog — small chores**, including **P6: install `bandwhich`, `doggo`, `ouch`** ("still valid,
   trivial" — manifest entries + `brew install`), P3 package-manager audit, P5 Determinate Nix review,
-  P8 quick wins (placement depends on SP4's verdict).
-- **SP-nix — nix-darwin go/no-go** (research-first sibling of SP4, banked in §R6).
+  and P8 quick wins — **P8 is UNBLOCKED [audit 2026-07-10]: the SP4 verdict is in (nushell NO-GO,
+  operator-ratified 2026-07-09), so shell-config placement = bash.** **Audit directive
+  [audit 2026-07-10]: deduplicate the ledger into tracked tasks** — each with current status, severity,
+  and dependencies (P12 is already on `main`; obsolete OpenClaw and issue-tracking work closes or
+  updates per R3).
+  - **`fix/graphify-out-excludes-drop` (moved OUT of Phase E 2026-07-10 — Phase E must complete before
+    SP2 closes; this chore is post-cutover by design).** `.gitignore`'s `graphify-out/` entry and
+    `treefmt.nix`'s `graphify-out/**` exclude are band-aids, kept because the old global graphify
+    post-commit hook still fires in this repo until the opt-out dispatcher (S3) is applied live — the
+    LIVE hook is the unmanaged old version with **no** `.githooks/no-graphify` check, so it keeps
+    regenerating `graphify-out/` in every worktree until Gate 2's apply replaces it (evidence: the
+    plan-amendment worktree carried ~1.2 MB of `graphify-out/` on 2026-07-10). A pre-cutover
+    excludes-drop is NOT dormant — `.gitignore`/`treefmt.nix` changes take effect immediately in every
+    `main`-derived worktree while the unmanaged hook still fires, recreating untracked source state
+    right before the clean-tree cutover (and a post-Gate-2 drop would force re-pinning `$MAIN_SHA`
+    mid-cutover). The excludes are pure belt-and-braces with zero cost, so they **stay through
+    cutover**; the drop lands here, sequenced: (a) the managed dispatcher + `.githooks/no-graphify`
+    marker are deployed AND verified live (Gate 2's apply); (b) existing `graphify-out/` output is
+    removed from all worktrees; (c) only then drop both exclusions. D1 Gate 1 independently asserts
+    `"$repo/graphify-out"` is absent before the apply (its clean-tree step).
+- **SP-nix — nix-darwin go/no-go** (research-first sibling of SP4, banked in §R6). **Do not start it
+  merely because it appears in the roadmap** [audit 2026-07-10] — start only after one of these triggers:
+  a larger Mac fleet; a material maintenance failure in the current `defaults` system; or a proven design
+  that preserves the current single-apply and secrets model.
+
+### Authoritative implementation order (audit 2026-07-10 — supersedes the older per-slice sequencing prose)
+
+The audit's recommended order is adopted as the authoritative SP2 sequence for everything from the PR #38
+repair onward; it supersedes the "ship in table order" / "Sequencing rationale" prose for post-S5 work.
+Completed items (S1–S5, steps 1–2) are struck; the rest are the standing plan of record. Cutover steps
+map to the D1 gates below.
+
+1. ~~Repair PR #38 without changing its copied-daemon architecture.~~ (done — merged as #38)
+1. ~~Resolve or explicitly accept the MagicDNS failure.~~ (done — R1: declarative `/etc/hosts` fallback)
+1. **Amend the roadmap and SP2 plan.** ← this amendment
+1. Land the skills stabilization PR.
+1. Land the herdr stabilization PR.
+1. Land rendered-template coverage and documentation fixes.
+1. Implement S6 against the settled Tailscale model.
+1. Resolve the S7 delivery-defect policy.
+1. Resolve S8's Linux and encrypted-profile boundary.
+1. Implement S7 and the re-scoped S8.
+1. Re-scope and split S9.
+1. Implement S10 during a physical-presence window.
+1. Split S11 and ship SP5 (Thaw) separately.
+1. **Land the Wave-3d OpenClaw cleanup PR (R3)** — removes the `openclaw` package, the AeroSpace F1
+   binding, and the docs together — before S12, so S12 documents an OpenClaw-free converged reality.
+1. **Land the cutover-tooling PR** — implements the gate runner `scripts/cutover-gate.sh` (owning EVERY
+   Phase D command, against the binding 19-item acceptance checklist in the "Cutover tooling PR" section)
+   and `scripts/live-reconcile.sh` (`--dry-run`, idempotent, test-driven), so the gates execute
+   already-merged, pinned, tested tools. **Before S12** — S12 verifies every command and path against
+   the truly final repo, so all implementation PRs, this one included, precede it. (The `graphify-out/`
+   excludes-drop is NOT here — it is an SP7 post-cutover chore; see `fix/graphify-out-excludes-drop`.)
+1. Complete and mechanically verify S12.
+1. Run cutover preflight and expected-delta reconciliation (D1 Gate 1).
+1. Activate `main` in stages (D1 Gate 2).
+1. Run tracked live reconciliation (D1 Gate 3).
+1. Soak, then final closure (D1 Gate 4 → Gate 5).
+1. Continue with SP3, SP4, SP6, then SP7.
+1. Start SP-nix only if its trigger occurs.
 
 ## Phase E — End-of-SP2 cleanup backlog
 
 Debts discovered during execution (chiefly S3). Each is deferred for a stated reason; all must be
 resolved before SP2 closes. Labelled `fix/<name>` for tracking; a `(→ Sn)` tag means it rides that
-slice.
+slice. **[audit 2026-07-10] Every item is attached to a named owner — a pre-cutover PR or a D1 gate —
+in the "Phase E → gate attachment" map at the end of Task D1; the per-item owner notes below match that
+map (nothing floats unattached). Work whose right timing is post-cutover is NOT Phase E:
+`fix/graphify-out-excludes-drop` moved to the SP7 backlog (2026-07-10) for exactly that reason.**
 
 ### fix/harness-skill-reconciliation
 
@@ -891,11 +1520,16 @@ drift is caught, not hunted.
 
 ### fix/hermes-encrypted-profile-configs (→ S8)
 
-The five profiles' `config.yaml` (enablement + `platform_toolsets`) are persisted only as **untracked
-encrypted `.age` files** in the primary checkout; codegraph's Hermes-MCP enablement likewise. A fresh
-machine reproduces skill *presence* but not per-profile *curation* or the MCP wiring. Fix rides S8 (the
-age machinery): track `dot_hermes/profiles/*/encrypted_config.yaml.age` + the codegraph MCP config,
-round-trip verify, extend the DR drill.
+The four specialist profiles' `config.yaml` (enablement + `platform_toolsets`) are persisted only as
+**untracked encrypted `.age` files** in the primary checkout — verified 2026-07-10 at
+`dot_hermes/profiles/private_<profile>/encrypted_private_config.yaml.age` (`private_butters`,
+`private_concerned`, `private_elaine`, `private_nicodemus`); codegraph's Hermes-MCP enablement is
+likewise untracked (and not yet captured at all). A fresh machine reproduces skill *presence* but not
+per-profile *curation* or the MCP wiring. Fix rides S8 (the age machinery): inventory/hash/back up the
+four existing untracked captures, then per profile either **commit the existing capture** or
+**intentionally recapture newer live state** — plus the root config (already tracked as
+`dot_hermes/encrypted_private_config.yaml.age`) and the codegraph MCP config — round-trip verify each,
+extend the DR drill.
 
 ### fix/codex-agents-parity (→ S12)
 
@@ -905,21 +1539,18 @@ included by both `~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md` — is not built
 partial in S12 and migrate the HA note (and the rest of the global ruleset) into it so both harnesses
 share one source.
 
-### fix/graphify-out-excludes-drop
-
-`.gitignore`'s `graphify-out/` entry and `treefmt.nix`'s `graphify-out/**` exclude are band-aids, kept
-because the old global graphify post-commit hook still fires in this repo until the opt-out dispatcher
-(S3) is applied live. Fix: after the cutover `chezmoi apply` deploys the dispatcher and this repo's
-`.githooks/no-graphify` marker suppresses graphify here, drop both excludes.
-
 ### fix/live-reconcile-from-scratch
 
 PR #36's live skills convergence (frozen-clone cleanup, per-profile symlink planting, stale hub-install
 retirement, Codex-overlay + routing re-assert, live `skillOverrides` merge) was performed **ad-hoc on
-the live machine** during review. The reproducible path is `.superpowers/sdd/live-reconcile-skills.sh`,
-run once post-cutover-apply on the converged `main` source. Fix: at cutover, after `chezmoi apply`, run
-the reconcile script (`--dry-run` then live) to prove a from-scratch machine converges identically; then
-the ad-hoc live state and the script are reconciled.
+the live machine** during review. The reproducible path was drafted as
+`.superpowers/sdd/live-reconcile-skills.sh` — **corrected 2026-07-10 [audit → cutover-tooling PR + D1
+Gate 3]: `.superpowers/` is gitignored and that script was never tracked. The durable reconcile script
+is `scripts/live-reconcile.sh`, and it has a dedicated implementation owner — the pre-cutover
+cutover-tooling PR (before S12 in the authoritative order, so S12 verifies the final repo) implements it test-first
+(`--dry-run` flag, idempotent, tested), reviewed and merged BEFORE cutover.** Gate 3 does not author it;
+Gate 3 only executes that already-merged, pinned tool (`--dry-run` then live) to prove a from-scratch
+machine converges identically, after which the ad-hoc live state and the script are reconciled.
 
 ### fix/moshi-herdr-drift-check (→ S11)
 
@@ -934,13 +1565,15 @@ do run tmux). It is fork *content* (skills lane, not S4's), so S4 does not touch
 same S11 fork-maintenance pass — decide whether the guidance is host-specific or needs a herdr rewrite,
 and bump the fork's `lastComparedTreeHash` notes accordingly.
 
-### fix/pre-commit-path-filter (found 2026-07-09 roadmap audit)
+### fix/pre-commit-path-filter (→ S11, found 2026-07-09 roadmap audit)
 
 The roadmap's S2 design-alternative "pre-commit: skip the bats suite on docs/YAML-only commits (path
 filter)" never made it into the S2 plan text or implementation — every commit (including docs-only)
 runs the full `just lint-check && just test` (observed live: plan-edit commits run the whole suite).
 Friction, not correctness. Fix: a path filter in `.githooks/pre-commit` that skips `just test` (never
-the lint gate or gitleaks) when the staged diff touches only docs/markdown. Slot: S11 or post-SP2.
+the lint gate or gitleaks) when the staged diff touches only docs/markdown. Slot: **S11** (pinned
+2026-07-10 — the earlier "or post-SP2" option violated the Phase-E-closes-with-SP2 rule; it is a
+two-line hook filter, and S11's git-hygiene PR is the natural home).
 
 ### fix/template-render-coverage (found 2026-07-09 roadmap audit)
 
@@ -953,7 +1586,16 @@ enumerated), or restore the missing entries slice-by-slice as their files land (
 their scripts). Decide in S11 at the latest; each slice SHOULD add its own templates meanwhile (S4 has,
 belatedly, in its final-review round).
 
-### fix/skill-architecture-diagram
+**Concretized by the audit [audit 2026-07-10] — owned by the Wave-3 render-coverage PR.** The audit's
+manual sweep found **four hidden failures** across the ~20 shell-script templates the treefmt include
+list omitted: an **unquoted `$HOME` in the system-setup render**, and **three osquery loaders whose
+shebang renders on line two**. The required correction is now concrete: (1) **discover all safely
+renderable shell templates programmatically** (not an enumerated allowlist); (2) **fix the four current
+failures**; (3) **add a coverage test that fails when a new shell template is omitted** from render-lint.
+This supersedes the "decide in S11" hedge — it lands in the Wave-3 render-coverage PR (audit PR #35
+Medium).
+
+### fix/skill-architecture-diagram (→ S12, sole owner)
 
 A living node-graph of the cross-harness skill architecture, so the whole system is legible at a glance
 and every gap is visible — and so `fix/harness-skill-reconciliation` above has a map to reconcile

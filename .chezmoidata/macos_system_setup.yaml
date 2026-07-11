@@ -27,7 +27,7 @@
 macos:
   system_setup:
     - description: "Install self-healing nix-installer repair LaunchDaemon (NixOS fork)"
-      command: "$HOME/.local/bin/install-nix-repair-hook.sh"
+      command: '"$HOME/.local/bin/install-nix-repair-hook.sh"'
       sudo: true
   tailnet_pins:
     - fqdn: mister.tail2f2430.ts.net

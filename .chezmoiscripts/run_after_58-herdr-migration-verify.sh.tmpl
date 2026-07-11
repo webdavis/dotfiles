@@ -1,0 +1,85 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/bin/bash
+
+set -euo pipefail
+
+# Post-target-update migration verify + deferred cleanup. Chezmoi runs all
+# before_ scripts, then updates target files, then runs after_ scripts, so THIS
+# script (after_58) is the first place the CURRENT revision's herdr is on disk.
+# before_10 withholds `--cleanup` while tmux/sesh is installed; this script owns
+# the teardown: it verifies the just-installed herdr LIVE and, only on success,
+# performs the same removal before_10 withheld (regenerate the Brewfile from the
+# same package data and run `brew bundle cleanup --force`).
+#
+# True migration sequence (do NOT start the server from here): plugin
+# registration and the session server need a RUNNING herdr server, which only an
+# interactive bashrc starts. So an unattended apply on a serverless host can
+# never verify: it defers forever (loud warning naming the activation step) and
+# retries naturally on the next apply. Sequence: apply (installs herdr, cleanup
+# deferred) -> open an interactive terminal so the server starts -> apply again
+# (this script verifies and cleans).
+#
+# Fail-closed and abort-proof: set -e is active, but a not-verified herdr or a
+# failed cleanup only means the migration stays deferred (tmux/sesh survive),
+# which is the safe direction; no path aborts the apply. This script holds no
+# stamp -- it re-derives everything from live state on every apply.
+
+brew_prefix="${HOMEBREW_PREFIX:-/opt/homebrew}"
+brew_bin="$brew_prefix/bin/brew"
+
+# Short-circuit FIRST: if neither tmux nor sesh is installed there is nothing to
+# migrate. Make NO herdr contact at all (this also avoids the routine
+# reload-config side effect on already-migrated machines) and exit.
+multiplexer_present=false
+for multiplexer in tmux sesh; do
+  if "$brew_bin" list "$multiplexer" &>/dev/null; then
+    multiplexer_present=true
+    break
+  fi
+done
+if [[ $multiplexer_present == false ]]; then
+  exit 0
+fi
+
+{{ includeTemplate "herdr-health-check.sh.tmpl" }}
+
+# A legacy multiplexer is still installed: verify the CURRENT herdr before
+# removing it. On any failure, defer with a warning that names the interactive
+# activation step, and exit 0 so the next apply retries.
+if ! reason="$(herdr_health_check)"; then
+  printf 'herdr not yet verified as a multiplexer (%s); keeping tmux/sesh installed.\n' "$reason" >&2
+  printf 'Plugin registration and the session server need a RUNNING herdr server, which only an interactive terminal starts (a chezmoiscript must not start it). Complete the migration: open an interactive terminal (bashrc auto-attaches and starts the server), then run chezmoi apply again so this script verifies herdr and removes tmux/sesh.\n' >&2
+  exit 0
+fi
+
+# Verified: perform the deferred cleanup. Regenerate the Brewfile from the SAME
+# package data before_10 uses, then `brew bundle cleanup --force` removes every
+# installed formula/cask/tap absent from it (tmux/sesh among them) -- the exact
+# removal before_10 withheld. Guard mktemp so an unwritable TMPDIR defers the
+# cleanup rather than aborting the apply (set -e is active).
+if ! brewfile="$(mktemp 2>/dev/null)"; then
+  printf 'WARNING: herdr verified but a temporary Brewfile could not be created; cleanup deferred to the next apply.\n' >&2
+  exit 0
+fi
+trap 'rm -f "$brewfile"' EXIT
+cat >"$brewfile" <<EOF
+{{ range .packages.macos.homebrew.taps -}}
+tap {{ . | quote }}
+{{ end -}}
+{{ range .packages.macos.homebrew.formulae -}}
+brew {{ . | quote }}
+{{ end -}}
+{{ range .packages.macos.homebrew.casks -}}
+cask {{ . | quote }}
+{{ end -}}
+{{ range .packages.macos.homebrew.mas -}}
+mas {{ .name | quote }}, id: {{ .id }}
+{{ end -}}
+EOF
+if "$brew_bin" bundle cleanup --force --file="$brewfile"; then
+  printf 'herdr verified as a multiplexer; removed tmux/sesh via brew bundle cleanup (migration complete).\n'
+else
+  printf 'WARNING: herdr verified but brew bundle cleanup failed; tmux/sesh may still be installed. Re-run chezmoi apply to retry.\n' >&2
+fi
+exit 0
+{{ end -}}

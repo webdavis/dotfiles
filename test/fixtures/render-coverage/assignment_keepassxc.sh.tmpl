@@ -1,0 +1,7 @@
+#!/bin/bash
+# Fixture (item 2a): keepassxc invoked in assignment form, so it is NOT the first
+# token after {{. The action-scoped detector must still mark it unsafe
+# (verdict: excluded); a first-token-only matcher would miss it.
+set -euo pipefail
+{{ $entry := keepassxc "Fixture :: Example" }}
+echo "{{ $entry.Password }}"
