@@ -669,14 +669,20 @@ refresh_app_owned_cua_pack() {
 # A dry run makes no filesystem writes, so it does not pre-create these dirs.
 [[ $DRYRUN == "--dry-run" ]] || mkdir -p "$STORE" "$CLAUDE" "$HERMES"
 
-# serialize: one run at a time. mkdir is atomic and system-shipped (macOS ships
-# neither flock(1) nor lockf(1)). We do NOT steal a lock by age: a long but
-# healthy run must never be killed, and age-stealing raced three writers in the
-# audit (the stale-steal removed a live newcomer's lock, then the first run's
-# unconditional trap removed the newcomer's). Instead the lock carries an owner
-# token (PID plus the process start time, a boot-stable discriminator so a
-# recycled PID cannot masquerade as the original owner), and is reclaimed ONLY
-# from a PROVABLY dead owner.
+# serialize: one run at a time. macOS ships no dependable rename-onto-existing
+# primitive from the shell (`mv` onto an existing dir moves INTO it, and macOS
+# ships neither flock(1) nor a lockf(1) we depend on), so acquisition builds a
+# STAGING lock dir with the owner token already inside it and publishes it via a
+# rename that is a single-winner move onto the FINAL path: if the final lockdir
+# is absent the staging dir renames onto it atomically (we win, token already
+# inside); if the final lockdir already exists `mv` drops our staging INSIDE it,
+# which we detect and clean up (we lost). This closes three defects the audit
+# found: (a) two contenders cannot both validate one dead token and both proceed
+# (reclaim is a single-winner move-aside); (b) a kill -0 success followed by a
+# failed/empty ps is NOT declared dead (only a successful ps proving absence or a
+# different start time is); (c) there is never a window where the lockdir exists
+# without its owner token, so an ownerless lock can only be a legacy/corrupt one
+# and is reclaimable, never a permanent wedge. We never steal by age.
 LOCK_OWNER_FILE="$LOCKDIR/owner"
 __update_skills_proc_start() {
   # normalized process start time for pid $1 (empty when the pid is gone)
@@ -684,38 +690,87 @@ __update_skills_proc_start() {
 }
 __update_skills_owner_token() { printf '%s\t%s' "$$" "$(__update_skills_proc_start "$$")"; }
 __update_skills_owner_alive() {
-  # $1 = recorded "PID<TAB>START". Alive iff the pid still exists (kill -0) AND
-  # its start time still matches (not recycled). Anything we cannot PROVE dead is
-  # treated as alive, so a contender never steals from a possibly-live run.
-  local rec="$1" rec_pid rec_start cur_start
+  # $1 = recorded "PID<TAB>START". PROVABLY dead requires positive confirmation;
+  # anything we cannot prove dead is treated as ALIVE so a contender never steals
+  # from a possibly-live run.
+  local rec="$1" rec_pid rec_start raw cur_start listing pid_line
   rec_pid="${rec%%$'\t'*}"
   rec_start="${rec#*$'\t'}"
   [[ $rec_pid =~ ^[0-9]+$ ]] || return 0                  # unparseable owner: do not steal
   [[ -n $rec_start && $rec_start != "$rec" ]] || return 0 # missing start field: do not steal
-  kill -0 "$rec_pid" 2>/dev/null || return 1              # no such process: dead
-  cur_start="$(__update_skills_proc_start "$rec_pid")"
-  [[ -z $cur_start ]] && return 1  # ps lookup empty: dead
-  [[ $cur_start == "$rec_start" ]] # start differs => pid recycled => original dead
-}
-if ! mkdir "$LOCKDIR" 2>/dev/null; then
-  lock_owner="$(cat "$LOCK_OWNER_FILE" 2>/dev/null || true)"
-  if [[ -n $lock_owner ]] && ! __update_skills_owner_alive "$lock_owner"; then
-    log "reclaiming the lock from a dead owner ($lock_owner)"
-    rm -rf "$LOCKDIR"
-    if ! mkdir "$LOCKDIR" 2>/dev/null; then
-      log "another run took the lock while reclaiming; exiting"
-      exit 0
-    fi
-  else
-    log "another run in progress; exiting"
-    exit 0
+  if kill -0 "$rec_pid" 2>/dev/null; then
+    # The pid exists. Only a SUCCESSFUL ps that returns a DIFFERENT start time
+    # proves a recycle (original dead). A failed OR empty lstart lookup cannot
+    # prove death, so we treat it as alive (fixes defect b).
+    raw="$(ps -o lstart= -p "$rec_pid" 2>/dev/null)" || return 0
+    cur_start="$(printf '%s' "$raw" | tr -s ' ' | sed 's/^ *//;s/ *$//')"
+    [[ -n $cur_start ]] || return 0
+    [[ $cur_start == "$rec_start" ]] # same start => alive (0); differs => recycled => dead (1)
+    return
   fi
-fi
-# Record ownership immediately, then arm a trap that removes the lock ONLY while
-# we still own it: a later run that reclaims a dead lock rewrites the owner file,
-# and our trap must never delete a lock we no longer hold (the three-writer race).
+  # kill -0 failed (possibly dead, or EPERM for a foreign owner). Confirm with a
+  # full listing that exits 0 whether or not the pid is present; if ps ITSELF
+  # errors we cannot prove death, so treat as alive (fail safe).
+  listing="$(ps -ax -o pid= 2>/dev/null)" || return 0
+  while IFS= read -r pid_line; do
+    pid_line="${pid_line//[[:space:]]/}"
+    [[ $pid_line == "$rec_pid" ]] && return 0 # present after all: alive
+  done <<<"$listing"
+  return 1 # kill -0 failed AND ps ran and the pid is absent: provably dead
+}
+# Publish a fully-populated STAGING lock dir onto the final path. Return 0 iff we
+# won (LOCKDIR is now our staging, owner token inside); 1 if the lock was held
+# (mv dropped our staging inside it, or renaming onto a non-empty dir failed).
+__update_skills_publish_lock() {
+  local staging="$1" base
+  base="${staging##*/}"
+  if mv "$staging" "$LOCKDIR" 2>/dev/null; then
+    if [[ -d "$LOCKDIR/$base" ]]; then
+      rm -rf "${LOCKDIR:?}/${base:?}" # our staging was moved INSIDE a held lock: we lost
+      return 1
+    fi
+    return 0
+  fi
+  rm -rf "$staging"
+  return 1
+}
+# Move a stale lockdir aside to a unique name; the rename onto an absent target
+# is a single-winner move, so exactly one reclaimer succeeds and then retries
+# acquisition. The moved-aside dir is discarded.
+__update_skills_reclaim_dead_lock() {
+  local aside="${LOCKDIR}.dead.$$.${RANDOM}"
+  if mv "$LOCKDIR" "$aside" 2>/dev/null; then
+    rm -rf "$aside"
+    return 0
+  fi
+  return 1
+}
 LOCK_MY_TOKEN="$(__update_skills_owner_token)"
-printf '%s' "$LOCK_MY_TOKEN" >"$LOCK_OWNER_FILE"
+__update_skills_acquire_lock() {
+  local staging owner
+  for _ in 1 2 3 4 5; do
+    staging="$(mktemp -d "${LOCKDIR}.stage.XXXXXX")" || return 1
+    printf '%s' "$LOCK_MY_TOKEN" >"$staging/owner"
+    __update_skills_publish_lock "$staging" && return 0
+    # The lock is held. Reclaim only from a dead or ownerless (legacy/corrupt)
+    # owner; a live owner means another run is genuinely in progress.
+    owner="$(cat "$LOCK_OWNER_FILE" 2>/dev/null || true)"
+    if [[ -z $owner ]] || ! __update_skills_owner_alive "$owner"; then
+      log "reclaiming the lock from a dead or ownerless owner (${owner:-<none>})"
+      __update_skills_reclaim_dead_lock || true # lost the move-aside: just retry
+      continue
+    fi
+    return 1 # held by a live owner
+  done
+  return 1
+}
+if ! __update_skills_acquire_lock; then
+  log "another run in progress; exiting"
+  exit 0
+fi
+# The EXIT trap removes the lock ONLY while we still own it: a later run that
+# reclaims a dead lock rewrites the owner file, and our trap must never delete a
+# lock we no longer hold (the three-writer race).
 __update_skills_release_lock() {
   local cur
   cur="$(cat "$LOCK_OWNER_FILE" 2>/dev/null || true)"
