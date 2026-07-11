@@ -80,36 +80,52 @@ check:
 test-unit: test-guard
   ./scripts/run-unit-tests.sh
 
-# One camp at a time, for focused iteration.
+# One camp at a time, for focused iteration. Tests read on fd 3 (repo bash
+# rule): a test body that reads stdin must not be able to swallow the file
+# list and silently truncate the gate.
 test-integration: test-guard
   #!/usr/bin/env bash
   set -euo pipefail
   status=0
-  while IFS= read -r -d '' t; do
+  while IFS= read -r -u3 -d '' t; do
     printf "== %s ==\n" "$t"
     "$t" || status=1
-  done < <(find test/integration -maxdepth 1 -type f -name '*.sh' -perm -u+x -print0 2>/dev/null | sort -z)
+  done 3< <(find test/integration -maxdepth 1 -type f -name '*.sh' -perm -u+x -print0 2>/dev/null | sort -z)
   exit "$status"
 
 test-e2e: test-guard
   #!/usr/bin/env bash
   set -euo pipefail
   status=0
-  while IFS= read -r -d '' t; do
+  while IFS= read -r -u3 -d '' t; do
     printf "== %s ==\n" "$t"
     "$t" || status=1
-  done < <(find test/e2e -maxdepth 1 -type f -name '*.sh' -perm -u+x -print0 2>/dev/null | sort -z)
+  done 3< <(find test/e2e -maxdepth 1 -type f -name '*.sh' -perm -u+x -print0 2>/dev/null | sort -z)
   exit "$status"
 
-# Every camp file must live in a camp: a test script directly under test/ is
-# a placement error (usually a branch merged from the pre-camp layout).
+# Placement + mode guard: every test *.sh below test/ must sit DIRECTLY in a
+# recognized camp (test/unit, test/integration, test/e2e) and be executable;
+# a nested dir, an unknown camp, a stray under test/, or a chmod-less test
+# would otherwise be silently invisible to every selector. test/fixtures/**
+# is exempt (fixture data and sourced libs, never run directly).
 test-guard:
   #!/usr/bin/env bash
   set -euo pipefail
-  strays="$(find test -maxdepth 1 -type f -name '*.sh' 2>/dev/null || true)"
-  if [[ -n $strays ]]; then
-    printf 'FAIL: test scripts outside the unit/integration/e2e camps:\n%s\n' "$strays" >&2
-    printf 'Move each into test/unit, test/integration, or test/e2e (and fix its REPO_ROOT depth).\n' >&2
+  bad=""
+  while IFS= read -r -u3 f; do
+    case "$f" in
+      test/fixtures/*) continue ;;
+      test/unit/*/*|test/integration/*/*|test/e2e/*/*)
+        bad+="$f (nested; camps are flat)"$'\n' ;;
+      test/unit/*.sh|test/integration/*.sh|test/e2e/*.sh)
+        [[ -x $f ]] || bad+="$f (not executable; invisible to the gate)"$'\n' ;;
+      *)
+        bad+="$f (outside the unit/integration/e2e camps)"$'\n' ;;
+    esac
+  done 3< <(find test -type f -name '*.sh' 2>/dev/null | sort)
+  if [[ -n $bad ]]; then
+    printf 'FAIL: misplaced or misconfigured test scripts:\n%s' "$bad" >&2
+    printf 'Fix placement/mode (and REPO_ROOT depth is ../.. inside a camp).\n' >&2
     exit 1
   fi
 

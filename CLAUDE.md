@@ -38,9 +38,8 @@ just lint-actions  # actionlint + zizmor on .github/workflows
 ```
 
 `just l` auto-formats in place. `just lint-check` never mutates the working tree or index: treefmt has no
-dry-run mode, so the check runs on a sandboxed copy inside the Nix check derivation. On commit, the
-per-repo `.githooks/pre-commit` hook runs `just lint-check` (check-only) — auto-wired via the user-wide
-dispatcher, no install step. See Git Hooks.
+dry-run mode, so the check runs on a sandboxed copy inside the Nix check derivation. Lint drift is gated
+at pre-push and in CI (the commit hook runs only the unit camp; see Git Hooks and Testing).
 
 To enter an interactive dev shell with all tools: `nix develop`.
 
@@ -165,8 +164,8 @@ All four hooks live in the **user-wide** hooks dir (`core.hooksPath = ~/.config/
   the rebuild (never the chain) by carrying a `.githooks/no-graphify` marker; this repo does, which is
   what ends the graphify-out/ litter here (the `.gitignore` and treefmt `graphify-out/` excludes stay as
   band-aids until the hook is applied live). The hook never fails a commit — internal errors exit 0.
-  Per-commit escape hatch: `GRAPHIFY_SKIP_HOOK=1`. `test/post-commit-graphify-dispatcher.sh` covers the
-  decision logic with a stub interpreter.
+  Per-commit escape hatch: `GRAPHIFY_SKIP_HOOK=1`. `test/integration/post-commit-graphify-dispatcher.sh`
+  covers the decision logic with a stub interpreter.
 
 **Why a dispatcher, not `git config core.hooksPath .githooks`?** `core.hooksPath` is single-valued, so a
 per-repo override shadows the user-wide `prepare-commit-msg`. The dispatcher keeps the global hook
@@ -286,8 +285,8 @@ interactive KeePassXC unlock. Two includeTemplate fragments
 excluded with documented reasons because they only render through their includers. After a successful
 render, a blank (empty or whitespace-only) result is skipped rather than shellchecked, so an OS-gated
 template on the other OS (which renders to nothing) does not fail SC2148; a render failure stays fatal.
-`test/rendered-template-coverage.sh` enforces this universe: it re-reads the formatter's actual include
-list via `nix eval` and fails when discovery drops a template, with a fixture layer under
+`test/integration/rendered-template-coverage.sh` enforces this universe: it re-reads the formatter's
+actual include list via `nix eval` and fails when discovery drops a template, with a fixture layer under
 `test/fixtures/render-coverage` guarding the classifier against blind spots. The `CI=1` env var is
 defensive (vestigial from an earlier bashrc CI-vs-interactive branch). A sibling formatter,
 `osquery-config-render`, renders the JSON-bodied `.chezmoitemplates/osquery/*.conf` templates via
@@ -325,7 +324,7 @@ check on `main` under branch protection, so the auto-merge cannot land until it 
 (symlinks declared in chezmoi: `private_dot_claude/skills/symlink_*` for the full roster), Codex always
 (it scans the store natively — no declarations), and hermes for exactly the store-symlink subset of the
 delivery model below (`dot_hermes/skills/` and `dot_hermes/profiles/<name>/skills/` symlinks). The
-committed roster is the complete wanted set — `test/skills-roster-fanout.sh` fails the build if the
+committed roster is the complete wanted set: `test/unit/skills-roster-fanout.sh` fails the build if the
 store, the lock's `tiers` / `hermesProfiles` / `hermesRegistry` / `npxTracked` / `clawhubTracked` tables,
 the per-harness declarations, or the settings modify-template's `skillOverrides` ever disagree.
 
@@ -421,8 +420,8 @@ Name collisions resolve catalog-first (operator ruling): the `humanizer` and `hy
 serve Claude/Codex only and are never symlinked hermes-side — hermes gets those names from its own
 catalog/hub. `summarize-pro` and `todoist-cli` left the collision set: their only hermes copies were hub
 installs (since retired), so no catalog copy wins those names and the store symlink is the wanted
-delivery. `test/skills-roster-fanout.sh` enforces this independently of the tables so a future lock edit
-cannot quietly re-route a collision name through the store.
+delivery. `test/unit/skills-roster-fanout.sh` enforces this independently of the tables so a future lock
+edit cannot quietly re-route a collision name through the store.
 
 **Superpowers→hermes routing (the lock's `superpowersRouting` table):** the live
 `~/.hermes/skills/hermes-superpowers/` mirror is hand-patched so the five skills with hermes-native

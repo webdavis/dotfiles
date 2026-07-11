@@ -1,6 +1,6 @@
 # shellcheck shell=bash
 # Per-file body of the treefmt `shellcheck-rendered-template` formatter, factored
-# out so test/rendered-template-shellcheck-wrapper.sh can drive it with a stubbed
+# out so test/unit/rendered-template-shellcheck-wrapper.sh can drive it with a stubbed
 # chezmoi and shellcheck. treefmt.nix sources this verbatim (builtins.readFile)
 # into the formatter's writeShellApplication text; chezmoi and shellcheck come
 # from the derivation's runtimeInputs there and from PATH stubs in the test.

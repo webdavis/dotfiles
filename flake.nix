@@ -35,6 +35,7 @@
           buildInputs = [
             treefmtEval.config.build.wrapper # `treefmt` with this repo's config baked in
             pkgs.bats # bats-core: test runner for the test/**/*.bats suites (`just test`)
+            pkgs.parallel # GNU parallel: required by `bats --jobs`; NOT on GitHub's macos runners
             pkgs.chezmoi
             pkgs.just # so CI can run `nix develop .#run --command just test`
             pkgs.zizmor # GitHub Actions static analysis (`just lint-actions`)

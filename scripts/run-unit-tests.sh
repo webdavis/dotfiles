@@ -35,10 +35,20 @@ now_ms() {
   printf '%s' "$((r / 1000))"
 }
 
+# Discovery must be able to FAIL the gate: a `find` inside process
+# substitution cannot propagate its exit status (a partial listing would
+# green-gate with tests silently omitted), so discover into a temp file and
+# check find's status explicitly before trusting the list.
+discovery_file="$(mktemp)"
+trap 'rm -f "$discovery_file"' EXIT
+if ! find test/unit -maxdepth 1 -type f -name '*.sh' -perm -u+x >"$discovery_file"; then
+  printf 'FAIL: unit test discovery failed; refusing to run a partial list\n' >&2
+  exit 1
+fi
 tests=()
 while IFS= read -r t; do
   tests+=("$t")
-done < <(find test/unit -maxdepth 1 -type f -name '*.sh' -perm -u+x | sort)
+done < <(sort "$discovery_file")
 [[ ${#tests[@]} -gt 0 ]] || {
   printf 'no unit tests found\n'
   exit 0
