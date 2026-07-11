@@ -1,5 +1,12 @@
 # Dotfiles Improvements v2 Implementation Plan
 
+> **SUPERSEDED (2026-07-10, operator ruling R3).** OpenClaw was removed from the fleet and replaced by
+> Hermes. This plan's header directs agents to execute it, and steps below recreate an OpenClaw `sesh`
+> session pointing at `~/.openclaw` and its bootstrap entry; those OpenClaw steps MUST NOT be executed.
+> (The tmux/sesh session-manager approach is itself already superseded by the herdr migration.) This
+> plan is retained only as a historical record, never as an actionable instruction to reinstall or
+> reconfigure OpenClaw.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended)
 > or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax
 > for tracking.
