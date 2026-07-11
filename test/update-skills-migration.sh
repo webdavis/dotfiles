@@ -121,11 +121,21 @@ shopt -u nullglob
 [[ ${#leftovers[@]} -eq 0 ]] ||
   fail "migration left in-flight leftovers: ${leftovers[*]}"
 
-# 6) Idempotence.
-before="$(find "$STORE" "$SKILLS_CURRENT" -exec stat -f '%N %m %Z' {} \; | sort)"
+# 6) Idempotence. The snapshot spelling differs by stat flavor: GNU stat takes
+# -c (its -f means file-system status and misreads the format as a path, and
+# the free-block counts it then prints drift between snapshots, a false
+# "mutated"); BSD stat takes -f.
+snapshot_tree() {
+  if stat -c %n . >/dev/null 2>&1; then
+    find "$STORE" "$SKILLS_CURRENT" -exec stat -c '%n %Y %Z' {} \; | sort
+  else
+    find "$STORE" "$SKILLS_CURRENT" -exec stat -f '%N %m %Z' {} \; | sort
+  fi
+}
+before="$(snapshot_tree)"
 __gen_migration_needed && fail "migration still reported as needed after a successful migrate"
 __gen_migrate || fail "second migrate run returned non-zero"
-after="$(find "$STORE" "$SKILLS_CURRENT" -exec stat -f '%N %m %Z' {} \; | sort)"
+after="$(snapshot_tree)"
 [[ $before == "$after" ]] || fail "second migrate run mutated the tree (not idempotent)"
 for name in alpha beta claw; do
   [[ "$(readlink "$STORE/$name")" == "../.skills-current/skills/$name" ]] ||
