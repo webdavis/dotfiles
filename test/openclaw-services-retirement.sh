@@ -1,26 +1,43 @@
 #!/usr/bin/env bash
-# openclaw-services-retirement.sh -- proves the one-time convergent retirement
-# chezmoiscript (run_once_after_61-retire-openclaw-services) boots out the three
+# openclaw-services-retirement.sh -- proves the convergent retirement
+# chezmoiscript (run_after_61-retire-openclaw-services) boots out the three
 # known ai.openclaw.* launchd agents, deletes their plists, and uninstalls the
-# global npm `openclaw` package -- idempotently, loud one line per action, never
+# global npm `openclaw` package -- convergently, loud one line per action, never
 # failing the apply, and NEVER touching ~/.openclaw or any other launchd label.
+#
+# The script is a run_after (not run_once): run_once records success permanently
+# even when a probe or action transiently failed, so it instead gates on a
+# quiescence marker at ~/.local/state/openclaw/retired. Steady state is one file
+# check; the marker is written ONLY after a full postcondition sweep confirms
+# all three labels absent, all three plists absent, and npm openclaw absent.
 #
 # The REAL template is rendered with the host chezmoi (CI=1, scratch HOME) and
 # the rendered body is run against a PATH-prepended stub dir whose `launchctl`,
-# `npm`, and `rm` record argv. `launchctl print` reports "loaded" only for the
-# labels listed in a per-case file; `rm` records then really deletes (so the
-# idempotence case observes a genuine second-run no-op). Mirrors the render+stub
-# approach in test/tailscaled-status.sh and the argv-recording stubs in
+# `npm`, and `rm` record their FULL argv line and mutate shared state files:
+# a successful `launchctl bootout` drops the label from the loaded set (so a
+# later `launchctl print` of it reports absent), a successful `npm uninstall`
+# clears the installed flag, and `rm` really deletes. Failure injection is via
+# FAIL_BOOTOUT / FAIL_RM / FAIL_NPM_UNINSTALL env vars the stubs honor. Each
+# case asserts the COMPLETE expected argv multiset (sorted diff -- extras fail,
+# no unanchored substring matches). Mirrors the render+stub approach in
+# test/tailscaled-status.sh and the argv-recording stubs in
 # test/update-skills-cua-driver-refresh.sh.
 #
 # Cases:
-#   1. loaded + plists present -> 3 bootouts + 3 plist removals + npm uninstall,
-#      each logged; ~/.openclaw and a decoy label/plist untouched.
-#   2. nothing present         -> no bootout, no removal, no uninstall recorded.
-#   3. plist-only (not loaded) -> plist removed, NO bootout recorded.
-#   4. idempotence             -> a second run after case 1 records no actions.
-#   5. guard (static)          -> the script text names ONLY the three
-#      ai.openclaw.* labels, never `launchctl list`, never a wildcard bootout.
+#   A. loaded + plists present -> 3 bootouts + 3 plist removals + npm uninstall,
+#      each logged; a postcondition sweep writes the marker; two decoy labels
+#      (happy-daemon, atuin-daemon) and ~/.openclaw untouched.
+#   B. idempotence (marker) -> re-run on A's SAME state: the marker fast path
+#      short-circuits everything, ZERO stub invocations.
+#   C. nothing present -> no bootout, no removal, no uninstall; marker written.
+#   D. plist-only (not loaded) -> plist removed, NO bootout; marker written.
+#   E. bootout fails -> its plist KEPT, other labels still processed, NO marker.
+#   F. plist removal fails -> other labels processed, NO marker.
+#   G. npm uninstall fails -> labels processed, NO marker.
+#   H. transient failure then retry -> re-run of E's home (injection cleared)
+#      converges and writes the marker.
+#   Guard (static) -> the rendered text names ONLY the three ai.openclaw.*
+#      labels, never `launchctl list`, never a wildcard bootout.
 set -euo pipefail
 
 # git exports GIT_DIR/GIT_INDEX_FILE when this runs under the pre-commit hook;
@@ -28,7 +45,7 @@ set -euo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY GIT_COMMON_DIR
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SCRIPT="$REPO_ROOT/.chezmoiscripts/run_once_after_61-retire-openclaw-services.sh.tmpl"
+SCRIPT="$REPO_ROOT/.chezmoiscripts/run_after_61-retire-openclaw-services.sh.tmpl"
 
 fail() {
   printf 'FAIL: %s\n' "$*" >&2
@@ -57,9 +74,11 @@ if [[ ! -s $rendered ]]; then
   exit 0
 fi
 
-# ── Case 5: static guard on the rendered text ──────────────────────────────
-# Only the three exact labels, no bare `launchctl list`, no wildcard target.
 labels=(ai.openclaw.gateway ai.openclaw.node ai.openclaw.rescue)
+uid="$(id -u)"
+
+# ── Guard: static checks on the rendered text ───────────────────────────────
+# Only the three exact labels, no bare `launchctl list`, no wildcard target.
 for label in "${labels[@]}"; do
   grep -qF -- "$label" "$rendered" || fail "guard: rendered script never mentions $label"
 done
@@ -78,58 +97,100 @@ while IFS= read -r token; do
 done < <(grep -oE 'ai\.openclaw\.(gateway|node|rescue|[a-z]+)' "$rendered" | sort -u)
 
 # ── Stub harness ────────────────────────────────────────────────────────────
+# Stub bodies are written with `printf '%s'` (NOT heredocs): homebrew bash
+# 5.3.15 can deadlock on heredoc writes when a sibling test suite runs
+# concurrently, so this suite stays heredoc-free. The stubs read their log and
+# state paths from the exported env below, and the per-case failure switches
+# (FAIL_BOOTOUT / FAIL_RM / FAIL_NPM_UNINSTALL) from the run env.
 stub_dir="$work/stubs"
 mkdir -p "$stub_dir"
-launchctl_log="$work/launchctl.log"
-npm_log="$work/npm.log"
-rm_log="$work/rm.log"
-loaded_file="$work/loaded" # one label per line = "loaded" in gui/<uid>
-npm_installed_flag="$work/npm-installed"
+export LAUNCHCTL_LOG="$work/launchctl.log"
+export NPM_LOG="$work/npm.log"
+export RM_LOG="$work/rm.log"
+export LOADED_FILE="$work/loaded"     # one label per line = "loaded" in gui/<uid>
+export NPM_FLAG="$work/npm-installed" # exists = openclaw globally installed
+launchctl_log="$LAUNCHCTL_LOG"
+npm_log="$NPM_LOG"
+rm_log="$RM_LOG"
+loaded_file="$LOADED_FILE"
+npm_installed_flag="$NPM_FLAG"
+out_file="$work/stdout"
+err_file="$work/stderr"
 
-cat >"$stub_dir/launchctl" <<STUB
-#!/usr/bin/env bash
-printf '%s\n' "\$*" >>"$launchctl_log"
-if [[ "\$1" == "print" ]]; then
-  target="\$2"
+# launchctl: records argv; `print` consults LOADED_FILE; a successful `bootout`
+# drops the label (stateful, so a later print reports absent). FAIL_BOOTOUT
+# names a label whose bootout fails and leaves it loaded.
+# shellcheck disable=SC2016  # stub body is literal; $vars resolve when it runs
+launchctl_stub='#!/usr/bin/env bash
+printf "%s\n" "$*" >>"$LAUNCHCTL_LOG"
+if [[ "$1" == "print" ]]; then
+  target="$2"
   while IFS= read -r label; do
-    [[ -n "\$label" && "\$target" == *"\$label" ]] && exit 0
-  done <"$loaded_file"
+    [[ -n "$label" && "$target" == *"$label" ]] && exit 0
+  done <"$LOADED_FILE"
   exit 1
 fi
-if [[ "\$1" == "bootout" ]]; then
+if [[ "$1" == "bootout" ]]; then
+  target="$2"
+  label="${target##*/}"
+  if [[ -n "${FAIL_BOOTOUT:-}" && "$label" == "$FAIL_BOOTOUT" ]]; then
+    exit 1
+  fi
+  grep -vFx -- "$label" "$LOADED_FILE" >"$LOADED_FILE.tmp" 2>/dev/null || true
+  mv "$LOADED_FILE.tmp" "$LOADED_FILE"
   exit 0
 fi
-exit 0
-STUB
+exit 0'
 
-cat >"$stub_dir/npm" <<STUB
-#!/usr/bin/env bash
-printf '%s\n' "\$*" >>"$npm_log"
-if [[ "\$1" == "ls" ]]; then
-  [[ -e "$npm_installed_flag" ]] && exit 0
+# npm: records argv; `ls` consults NPM_FLAG; a successful `uninstall` clears it
+# (stateful). FAIL_NPM_UNINSTALL makes uninstall fail with the flag intact.
+# shellcheck disable=SC2016  # stub body is literal; $vars resolve when it runs
+npm_stub='#!/usr/bin/env bash
+printf "%s\n" "$*" >>"$NPM_LOG"
+if [[ "$1" == "ls" ]]; then
+  [[ -e "$NPM_FLAG" ]] && exit 0
   exit 1
 fi
-exit 0
-STUB
+if [[ "$1" == "uninstall" ]]; then
+  [[ -n "${FAIL_NPM_UNINSTALL:-}" ]] && exit 1
+  /bin/rm -f "$NPM_FLAG"
+  exit 0
+fi
+exit 0'
 
 # rm records argv, then really removes (so idempotence sees a true no-op).
-cat >"$stub_dir/rm" <<STUB
-#!/usr/bin/env bash
-printf '%s\n' "\$*" >>"$rm_log"
-exec /bin/rm "\$@"
-STUB
+# FAIL_RM names a path whose removal fails (the file survives).
+# shellcheck disable=SC2016  # stub body is literal; $vars resolve when it runs
+rm_stub='#!/usr/bin/env bash
+printf "%s\n" "$*" >>"$RM_LOG"
+if [[ -n "${FAIL_RM:-}" ]]; then
+  for arg in "$@"; do
+    [[ "$arg" == "$FAIL_RM" ]] && exit 1
+  done
+fi
+exec /bin/rm "$@"'
 
+printf '%s\n' "$launchctl_stub" >"$stub_dir/launchctl"
+printf '%s\n' "$npm_stub" >"$stub_dir/npm"
+printf '%s\n' "$rm_stub" >"$stub_dir/rm"
 chmod +x "$stub_dir/launchctl" "$stub_dir/npm" "$stub_dir/rm"
 
-# run_case <case-home> : renders a fresh HOME layout is the caller's job; this
-# runs the rendered script with the stubs prepended and captures stdout+rc.
+# run_script <case-home> [ENV=val ...] : runs the rendered script with the
+# stubs prepended and the given env, capturing stdout (OUT), stderr (ERR), rc.
 run_script() {
   local case_home="$1"
+  shift
   : >"$launchctl_log"
   : >"$npm_log"
   : >"$rm_log"
   RC=0
-  OUT="$(HOME="$case_home" PATH="$stub_dir:$PATH" bash "$rendered" 2>/dev/null)" || RC=$?
+  # Capture stdout/stderr to files (grep the files, never `printf | grep -q`):
+  # under `set -o pipefail` a `grep -q` early-exit sends the upstream printf
+  # SIGPIPE and the pipeline reports failure even on a match.
+  HOME="$case_home" PATH="$stub_dir:$PATH" env "$@" bash "$rendered" \
+    >"$out_file" 2>"$err_file" || RC=$?
+  OUT="$(cat "$out_file")"
+  ERR="$(cat "$err_file")"
 }
 
 failures=0
@@ -148,7 +209,35 @@ assert_rc0() {
   if [[ $RC -eq 0 ]]; then
     report ok "$1: exits 0"
   else
-    report bad "$1: exits 0 (rc=$RC, out: $OUT)"
+    report bad "$1: exits 0 (rc=$RC, out: $OUT, err: $ERR)"
+  fi
+}
+
+# assert_log_exact <case> <logfile> <label> <expected-line...> : the recorded
+# argv multiset equals exactly the expected lines (sorted diff -- rejects
+# extras and missing, full-line match only).
+assert_log_exact() {
+  local case="$1" logfile="$2" what="$3"
+  shift 3
+  local expected="$work/expected"
+  if [[ $# -eq 0 ]]; then
+    : >"$expected"
+  else
+    printf '%s\n' "$@" >"$expected"
+  fi
+  if diff <(sort "$expected") <(sort "$logfile") >/dev/null 2>&1; then
+    report ok "$case: exact $what argv"
+  else
+    report bad "$case: $what argv mismatch (got: $(tr '\n' '|' <"$logfile"))"
+  fi
+}
+
+# assert_empty_log <case> <logfile> <label>
+assert_empty_log() {
+  if [[ ! -s $2 ]]; then
+    report ok "$1: no $3 invocations"
+  else
+    report bad "$1: unexpected $3 invocations ($(tr '\n' '|' <"$2"))"
   fi
 }
 
@@ -170,120 +259,206 @@ assert_present() {
   fi
 }
 
-# assert_logged <case> <substring> : the loud one-line-per-action log reached stdout.
+# assert_logged <case> <substring> : the loud action log reached stdout.
+# Greps the captured stdout FILE (no here-string: homebrew bash 5.3.15 can
+# deadlock on here-string writes under concurrent-suite load; no pipe: pipefail
+# would misreport a `grep -q` early-exit as failure).
 assert_logged() {
-  if grep -q -- "$2" <<<"$OUT"; then
+  if grep -q -- "$2" "$out_file"; then
     report ok "$1: logged '$2'"
   else
     report bad "$1: missing log '$2' (out: $OUT)"
   fi
 }
 
+# assert_warned <case> <substring> : a warning reached stderr.
+assert_warned() {
+  if grep -q -- "$2" "$err_file"; then
+    report ok "$1: warned '$2'"
+  else
+    report bad "$1: missing warning '$2' (err: $ERR)"
+  fi
+}
+
+marker_of() { printf '%s/.local/state/openclaw/retired' "$1"; }
+assert_marker() {
+  if [[ -f "$(marker_of "$2")" ]]; then
+    report ok "$1: marker written"
+  else
+    report bad "$1: marker NOT written"
+  fi
+}
+assert_no_marker() {
+  if [[ ! -e "$(marker_of "$2")" ]]; then
+    report ok "$1: marker NOT written (incomplete convergence)"
+  else
+    report bad "$1: marker written despite incomplete convergence"
+  fi
+}
+
+seed_loaded() {
+  : >"$loaded_file"
+  local label
+  for label in "$@"; do
+    printf '%s\n' "$label" >>"$loaded_file"
+  done
+}
+
 printf 'openclaw-services-retirement cases:\n'
 
-# ── Case 1: loaded + plists present ─────────────────────────────────────────
-h1="$work/home1"
-mkdir -p "$h1/Library/LaunchAgents" "$h1/.openclaw/elevenlabs"
-printf 'skill data\n' >"$h1/.openclaw/elevenlabs/config"
+# ── Case A: loaded + plists present, npm installed, two decoys ──────────────
+hA="$work/homeA"
+mkdir -p "$hA/Library/LaunchAgents" "$hA/.openclaw/elevenlabs"
+printf 'skill data\n' >"$hA/.openclaw/elevenlabs/config"
 for label in "${labels[@]}"; do
-  printf '<plist/>\n' >"$h1/Library/LaunchAgents/$label.plist"
-  printf '%s\n' "$label" >>"$loaded_file"
+  printf '<plist/>\n' >"$hA/Library/LaunchAgents/$label.plist"
 done
-# Decoy: an unrelated loaded label + plist that MUST survive.
-printf 'com.webdavis.happy-daemon\n' >>"$loaded_file"
-printf '<plist/>\n' >"$h1/Library/LaunchAgents/com.webdavis.happy-daemon.plist"
+# Two decoys that MUST survive: a smuggled non-openclaw label escapes only a
+# fuzzy guard, so both must be untouched.
+printf '<plist/>\n' >"$hA/Library/LaunchAgents/com.webdavis.happy-daemon.plist"
+printf '<plist/>\n' >"$hA/Library/LaunchAgents/com.webdavis.atuin-daemon.plist"
+seed_loaded "${labels[@]}" com.webdavis.happy-daemon com.webdavis.atuin-daemon
 touch "$npm_installed_flag"
 
-run_script "$h1"
-assert_rc0 case1
+run_script "$hA"
+assert_rc0 caseA
+assert_log_exact caseA "$launchctl_log" launchctl \
+  "print gui/$uid/ai.openclaw.gateway" \
+  "bootout gui/$uid/ai.openclaw.gateway" \
+  "print gui/$uid/ai.openclaw.node" \
+  "bootout gui/$uid/ai.openclaw.node" \
+  "print gui/$uid/ai.openclaw.rescue" \
+  "bootout gui/$uid/ai.openclaw.rescue" \
+  "print gui/$uid/ai.openclaw.gateway" \
+  "print gui/$uid/ai.openclaw.node" \
+  "print gui/$uid/ai.openclaw.rescue"
+assert_log_exact caseA "$rm_log" rm \
+  "-f $hA/Library/LaunchAgents/ai.openclaw.gateway.plist" \
+  "-f $hA/Library/LaunchAgents/ai.openclaw.node.plist" \
+  "-f $hA/Library/LaunchAgents/ai.openclaw.rescue.plist"
+assert_log_exact caseA "$npm_log" npm \
+  "ls -g openclaw" \
+  "uninstall -g openclaw" \
+  "ls -g openclaw"
 for label in "${labels[@]}"; do
-  if grep -q "bootout gui/.*/$label" "$launchctl_log"; then
-    report ok "case1: booted out $label"
-  else
-    report bad "case1: no bootout for $label (log: $(cat "$launchctl_log"))"
-  fi
-  assert_absent case1 "$h1/Library/LaunchAgents/$label.plist" "$label.plist"
-  # Loud one-line log per action (the requirement): bootout + removal reached stdout.
-  assert_logged case1 "booted out gui/.*/$label"
-  assert_logged case1 "removed .*$label.plist"
+  assert_absent caseA "$hA/Library/LaunchAgents/$label.plist" "$label.plist"
+  assert_logged caseA "booted out gui/$uid/$label"
+  assert_logged caseA "removed .*$label.plist"
 done
-if grep -q 'uninstall .*openclaw' "$npm_log"; then
-  report ok "case1: uninstalled npm openclaw"
-else
-  report bad "case1: no npm uninstall (log: $(cat "$npm_log"))"
-fi
-assert_logged case1 "uninstalled global npm package openclaw"
-# The decoy label must NOT be booted out and its plist must survive.
-if grep -q 'happy-daemon' "$launchctl_log"; then
-  report bad "case1: touched an unrelated label (happy-daemon)"
-else
-  report ok "case1: left unrelated label untouched"
-fi
-assert_present case1 "$h1/Library/LaunchAgents/com.webdavis.happy-daemon.plist" "the unrelated plist"
-# ~/.openclaw must be untouched.
-assert_present case1 "$h1/.openclaw/elevenlabs/config" "the .openclaw skill data dir"
+assert_logged caseA "uninstalled global npm package openclaw"
+assert_present caseA "$hA/Library/LaunchAgents/com.webdavis.happy-daemon.plist" "the happy-daemon decoy plist"
+assert_present caseA "$hA/Library/LaunchAgents/com.webdavis.atuin-daemon.plist" "the atuin-daemon decoy plist"
+assert_present caseA "$hA/.openclaw/elevenlabs/config" "the .openclaw skill data dir"
+assert_marker caseA "$hA"
 
-# ── Case 4 (uses case 1's now-drained home): idempotence ────────────────────
-: >"$loaded_file" # nothing loaded anymore
-rm -f "$npm_installed_flag"
-run_script "$h1"
-assert_rc0 case4
-if grep -q bootout "$launchctl_log"; then
-  report bad "case4: second run booted out something (log: $(cat "$launchctl_log"))"
-else
-  report ok "case4: second run records no bootout"
-fi
-if [[ -s $rm_log ]]; then
-  report bad "case4: second run removed a plist (log: $(cat "$rm_log"))"
-else
-  report ok "case4: second run removes nothing"
-fi
-if grep -q uninstall "$npm_log"; then
-  report bad "case4: second run uninstalled npm"
-else
-  report ok "case4: second run no npm uninstall"
-fi
+# ── Case B: idempotence via the marker (re-run A's now-drained home) ─────────
+run_script "$hA"
+assert_rc0 caseB
+assert_empty_log caseB "$launchctl_log" launchctl
+assert_empty_log caseB "$npm_log" npm
+assert_empty_log caseB "$rm_log" rm
+assert_marker caseB "$hA"
 
-# ── Case 2: nothing present ─────────────────────────────────────────────────
-h2="$work/home2"
-mkdir -p "$h2/Library/LaunchAgents"
-: >"$loaded_file"
-rm -f "$npm_installed_flag"
-run_script "$h2"
-assert_rc0 case2
-if grep -q bootout "$launchctl_log"; then
-  report bad "case2: booted out something on an empty host"
-else
-  report ok "case2: no bootout"
-fi
-if [[ -s $rm_log ]]; then
-  report bad "case2: removed something on an empty host"
-else
-  report ok "case2: no removal"
-fi
-if grep -q uninstall "$npm_log"; then
-  report bad "case2: uninstalled npm on an empty host"
-else
-  report ok "case2: no npm uninstall"
-fi
+# ── Case C: nothing present ─────────────────────────────────────────────────
+hC="$work/homeC"
+mkdir -p "$hC/Library/LaunchAgents"
+seed_loaded
+/bin/rm -f "$npm_installed_flag"
+run_script "$hC"
+assert_rc0 caseC
+assert_log_exact caseC "$launchctl_log" launchctl \
+  "print gui/$uid/ai.openclaw.gateway" \
+  "print gui/$uid/ai.openclaw.node" \
+  "print gui/$uid/ai.openclaw.rescue" \
+  "print gui/$uid/ai.openclaw.gateway" \
+  "print gui/$uid/ai.openclaw.node" \
+  "print gui/$uid/ai.openclaw.rescue"
+assert_empty_log caseC "$rm_log" rm
+assert_log_exact caseC "$npm_log" npm "ls -g openclaw" "ls -g openclaw"
+assert_marker caseC "$hC"
 
-# ── Case 3: plist-only (not loaded) ─────────────────────────────────────────
-h3="$work/home3"
-mkdir -p "$h3/Library/LaunchAgents"
-printf '<plist/>\n' >"$h3/Library/LaunchAgents/ai.openclaw.gateway.plist"
-: >"$loaded_file" # gateway present on disk but NOT loaded
-rm -f "$npm_installed_flag"
-run_script "$h3"
-assert_rc0 case3
+# ── Case D: plist-only (not loaded) ─────────────────────────────────────────
+hD="$work/homeD"
+mkdir -p "$hD/Library/LaunchAgents"
+printf '<plist/>\n' >"$hD/Library/LaunchAgents/ai.openclaw.gateway.plist"
+seed_loaded
+/bin/rm -f "$npm_installed_flag"
+run_script "$hD"
+assert_rc0 caseD
 if grep -q bootout "$launchctl_log"; then
-  report bad "case3: booted out a not-loaded label"
+  report bad "caseD: booted out a not-loaded label"
 else
-  report ok "case3: no bootout for a not-loaded label"
+  report ok "caseD: no bootout for a not-loaded label"
 fi
-assert_absent case3 "$h3/Library/LaunchAgents/ai.openclaw.gateway.plist" "the orphan plist"
+assert_log_exact caseD "$rm_log" rm "-f $hD/Library/LaunchAgents/ai.openclaw.gateway.plist"
+assert_absent caseD "$hD/Library/LaunchAgents/ai.openclaw.gateway.plist" "the orphan plist"
+assert_marker caseD "$hD"
+
+# ── Case E: bootout fails -> its plist kept, others processed, no marker ─────
+hE="$work/homeE"
+mkdir -p "$hE/Library/LaunchAgents"
+for label in "${labels[@]}"; do
+  printf '<plist/>\n' >"$hE/Library/LaunchAgents/$label.plist"
+done
+seed_loaded "${labels[@]}"
+touch "$npm_installed_flag"
+run_script "$hE" FAIL_BOOTOUT=ai.openclaw.gateway
+assert_rc0 caseE
+assert_warned caseE "failed to bootout gui/$uid/ai.openclaw.gateway"
+assert_present caseE "$hE/Library/LaunchAgents/ai.openclaw.gateway.plist" "the still-loaded gateway plist"
+assert_absent caseE "$hE/Library/LaunchAgents/ai.openclaw.node.plist" "node.plist (other label still processed)"
+assert_absent caseE "$hE/Library/LaunchAgents/ai.openclaw.rescue.plist" "rescue.plist (other label still processed)"
+assert_no_marker caseE "$hE"
+# gateway's plist removal is skipped while it is still loaded.
+assert_log_exact caseE "$rm_log" rm \
+  "-f $hE/Library/LaunchAgents/ai.openclaw.node.plist" \
+  "-f $hE/Library/LaunchAgents/ai.openclaw.rescue.plist"
+
+# ── Case F: plist removal fails -> no marker, others processed ───────────────
+hF="$work/homeF"
+mkdir -p "$hF/Library/LaunchAgents"
+for label in "${labels[@]}"; do
+  printf '<plist/>\n' >"$hF/Library/LaunchAgents/$label.plist"
+done
+seed_loaded "${labels[@]}"
+touch "$npm_installed_flag"
+run_script "$hF" "FAIL_RM=$hF/Library/LaunchAgents/ai.openclaw.gateway.plist"
+assert_rc0 caseF
+assert_present caseF "$hF/Library/LaunchAgents/ai.openclaw.gateway.plist" "the un-removable gateway plist"
+assert_absent caseF "$hF/Library/LaunchAgents/ai.openclaw.node.plist" "node.plist (other label still processed)"
+assert_no_marker caseF "$hF"
+# rm was attempted for all three (gateway attempt fails inside the stub).
+assert_log_exact caseF "$rm_log" rm \
+  "-f $hF/Library/LaunchAgents/ai.openclaw.gateway.plist" \
+  "-f $hF/Library/LaunchAgents/ai.openclaw.node.plist" \
+  "-f $hF/Library/LaunchAgents/ai.openclaw.rescue.plist"
+
+# ── Case G: npm uninstall fails -> no marker, labels processed ───────────────
+hG="$work/homeG"
+mkdir -p "$hG/Library/LaunchAgents"
+for label in "${labels[@]}"; do
+  printf '<plist/>\n' >"$hG/Library/LaunchAgents/$label.plist"
+done
+seed_loaded "${labels[@]}"
+touch "$npm_installed_flag"
+run_script "$hG" FAIL_NPM_UNINSTALL=1
+assert_rc0 caseG
+for label in "${labels[@]}"; do
+  assert_absent caseG "$hG/Library/LaunchAgents/$label.plist" "$label.plist (labels processed)"
+done
+assert_no_marker caseG "$hG"
+assert_log_exact caseG "$npm_log" npm "ls -g openclaw" "uninstall -g openclaw" "ls -g openclaw"
+
+# ── Case H: transient failure then retry converges (re-run E's home) ────────
+# E left the gateway loaded (bootout injected to fail) and no marker. A second
+# apply with the injection gone must converge and write the marker.
+run_script "$hE"
+assert_rc0 caseH
+assert_absent caseH "$hE/Library/LaunchAgents/ai.openclaw.gateway.plist" "gateway.plist on retry"
+assert_marker caseH "$hE"
 
 if [[ $failures -gt 0 ]]; then
   printf 'openclaw-services-retirement: %d assertion(s) FAILED\n' "$failures" >&2
   exit 1
 fi
-printf 'openclaw-services-retirement: OK (retire loaded+plist, no-op empty, plist-only, idempotent, guarded)\n'
+printf 'openclaw-services-retirement: OK (retire+marker, idempotent fast path, empty/plist-only converge, bootout/plist/npm failures hold the marker, transient retry converges, guarded)\n'
