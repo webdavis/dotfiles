@@ -1,29 +1,32 @@
 #!/usr/bin/env bash
-# update-skills-defer.sh — the weekly idle-gate must distinguish an ACTIVE agent
-# harness session (defer — never swap skills under a live session) from a
-# persistent BACKGROUND daemon (proceed — a daemon never loads a skill from the
-# store on its own, so blocking on it defers the weekly run forever).
+# update-skills-defer.sh — the weekly idle-gate must distinguish a LIVE
+# interactive agent-harness session (defer, never swap skills under a live
+# session) from a persistent BACKGROUND daemon (proceed, a daemon never loads a
+# skill from the store on its own, so blocking on it defers the weekly run
+# forever). The discriminator keys strictly on the argv EFFECTIVE program and
+# its flags-position token, never on free prompt text.
 #
 # Ground truth (dresden, read-only ps, 2026-07-10):
-#   DAEMONS — must NOT block the run:
+#   DAEMONS — must NOT block the run (proceed):
 #     python -m hermes_cli.main gateway run --replace        (hermes gateway)
+#     .../claude --remote-control                            (Remote Control bridge)
 #     .../claude --bg-spare | daemon run | --bg-pty-host     (Claude bg helpers)
 #     codex app-server [--analytics-default-enabled]         (Codex app server)
-#   INTERACTIVE SESSIONS — must block the run:
-#     /opt/homebrew/bin/claude --remote-control              (a Claude Code TUI)
-#     codex resume <id>                                      (a Codex CLI session)
-#     .../hermes -c <prompt> | hermes -p <profile>           (an interactive hermes run)
+#   LIVE SESSIONS — must block the run (defer):
+#     .../python .../bin/hermes -c <prompt>                  (hermes console-script session)
+#     /opt/homebrew/bin/claude -p <prompt>                   (a Claude one-shot)
+#     codex resume <id> | plain codex                        (a Codex CLI session)
 #
-# NOTE on the brief's premise: on this machine `pgrep -x hermes` matches NOTHING
-# (the gateway's comm is `python`, not `hermes`); the real persistent matcher of
-# the OLD gate is `claude --remote-control` bridges that linger for days. The
-# defect (defer-forever) is real regardless of which harness triggers it, and
-# the stub world below models the pre-fix gate's view (`pgrep -x hermes` matching
-# the gateway) so the RED is meaningful against the shipped script.
+# Two holes the pre-fix gate had, both covered below: (a) a hermes session's
+# argv starts with `python` (console script), so the old first-word gate never
+# saw it as an agent and swapped skills under it; (b) prompt free text that
+# merely CONTAINS a daemon phrase (`claude -p "restart the hermes gateway"`) was
+# substring-matched as a daemon and let a live session proceed. The new gate
+# also fails CLOSED when ps cannot be read.
 #
 # The gate is exercised through the REAL script (no UPDATE_SKILLS_FORCE — that
-# bypasses the gate). PATH shims present a controllable process world (ps),
-# replicate the pre-fix gate (pgrep), record alerter invocations, and pin the
+# bypasses the gate). PATH shims present a controllable process world (ps, which
+# can also simulate a read failure), record alerter invocations, and pin the
 # clock (date) so the "last retry slot" branch is deterministic. A minimal lock
 # with empty tables makes every network pass a no-op, so a proceeding full run
 # runs clean to its final `[update-skills] done`.
@@ -68,25 +71,15 @@ ALERTER_LOG="$tmp/alerter.log"
 NPX_LOG="$tmp/npx.log"
 : >"$ALERTER_LOG"
 
-# ps stub: prints the simulated process world ($FAKE_PS), whatever flags it gets.
+# ps stub: prints the simulated process world ($FAKE_PS), or simulates a read
+# failure (exit non-zero) when FAKE_PS_FAIL is set — the gate must fail closed.
 cat >"$stub_dir/ps" <<'EOF'
 #!/usr/bin/env bash
+if [[ -n ${FAKE_PS_FAIL:-} ]]; then
+  echo "ps: simulated read failure" >&2
+  exit 1
+fi
 printf '%s\n' "${FAKE_PS:-}"
-EOF
-
-# pgrep stub: models the PRE-FIX gate. `-x hermes` matches the persistent gateway
-# (the defer-forever bug the audit found); `-x claude`/`-x codex` match only when
-# an interactive line for that harness is present in $FAKE_PS.
-cat >"$stub_dir/pgrep" <<'EOF'
-#!/usr/bin/env bash
-pat=""
-for a in "$@"; do case "$a" in -*) ;; *) pat="$a" ;; esac; done
-case "$pat" in
-  hermes) printf '%s\n' "${FAKE_PS:-}" | grep -q 'hermes' && exit 0 ;;
-  claude) printf '%s\n' "${FAKE_PS:-}" | grep -Eq '(^|/| )claude( |$)' && exit 0 ;;
-  codex) printf '%s\n' "${FAKE_PS:-}" | grep -Eq '(^|/| )codex( |$)' && exit 0 ;;
-esac
-exit 1
 EOF
 
 # alerter stub: record every invocation so the "last slot" LOUD-alert path is
@@ -118,14 +111,15 @@ chmod +x "$stub_dir"/*
 export PATH="$stub_dir:$PATH"
 export FAKE_WEEK="2026-28"
 
-# run_gate <fake_ps> <fake_hour> — reset per-run state, run the real script with
-# the given world, capture combined output. No FORCE: the gate is under test.
+# run_gate <fake_ps> [fake_hour] [fake_ps_fail] — reset per-run state, run the
+# real script with the given world, capture combined output. No FORCE: the gate
+# is under test.
 GATE_OUTPUT=""
 run_gate() {
-  local fake_ps="$1" fake_hour="$2"
+  local fake_ps="$1" fake_hour="${2:-04}" fake_ps_fail="${3:-}"
   rm -rf "$HOME/.local/state"
   : >"$ALERTER_LOG"
-  GATE_OUTPUT="$(FAKE_PS="$fake_ps" FAKE_HOUR="$fake_hour" bash "$SCRIPT" 2>&1)" ||
+  GATE_OUTPUT="$(FAKE_PS="$fake_ps" FAKE_HOUR="$fake_hour" FAKE_PS_FAIL="$fake_ps_fail" bash "$SCRIPT" 2>&1)" ||
     fail "script exited non-zero (gate should always exit 0): $GATE_OUTPUT"
 }
 
@@ -134,66 +128,98 @@ deferred() { printf '%s\n' "$GATE_OUTPUT" | grep -qiF 'deferring'; }
 early_exited() { printf '%s\n' "$GATE_OUTPUT" | grep -qiF 'already succeeded'; }
 alerted() { [[ -s $ALERTER_LOG ]]; }
 
-GATEWAY='/Users/x/.hermes/hermes-agent/venv/bin/python -m hermes_cli.main gateway run --replace'
+# argv fixtures — real dresden shapes.
+HERMES_GATEWAY='/Users/x/.hermes/hermes-agent/venv/bin/python -m hermes_cli.main gateway run --replace'
+HERMES_SESSION='/Users/x/.hermes/hermes-agent/venv/bin/python /Users/x/.hermes/hermes-agent/venv/bin/hermes -c Do a thing'
+CLAUDE_REMOTE='/opt/homebrew/bin/claude --remote-control'
 CLAUDE_BG='/opt/homebrew/Caskroom/claude-code@latest/2.1.200/claude --bg-spare /tmp/x.sock'
 CLAUDE_DAEMON='/opt/homebrew/Caskroom/claude-code@latest/2.1.200/claude daemon run --origin transient'
+CLAUDE_PROMPT_TRAP='/opt/homebrew/bin/claude -p restart the hermes gateway'
 CODEX_SERVER='/Applications/Codex.app/Contents/Resources/codex app-server --analytics-default-enabled'
-CLAUDE_TUI='/opt/homebrew/bin/claude --remote-control'
 CODEX_SESSION='codex resume 019f4a8f-c990-7441-b02f-086e4bd16e87'
-HERMES_RUN='/Users/x/.hermes/hermes-agent/venv/bin/hermes -c Do a thing'
+CODEX_PLAIN='codex'
+UNRELATED_PYTHON='/usr/bin/python3 /usr/local/bin/some-tool.py --flag'
 
-# 1) Gateway-only world → PROCEEDS. The persistent hermes gateway is a daemon,
-#    not a session; blocking on it is the defer-forever bug. (RED against the
-#    pre-fix script, whose pgrep -x hermes matches the gateway and defers.)
-run_gate "$GATEWAY" 04
-proceeded || fail "gateway-only world did not proceed (defer-forever bug): $GATE_OUTPUT"
-deferred && fail "gateway-only world deferred — a persistent daemon must not block the run: $GATE_OUTPUT"
+# ── Hostile-argv discriminator table ───────────────────────────────────────
+# 1) python console-script hermes session → DEFER (argv starts with python, but
+#    the effective program is the hermes console script, and the flags token is
+#    -c, not the gateway daemon shape). This is hole (a).
+run_gate "$HERMES_SESSION"
+deferred || fail "python-console hermes session did not defer (hole a): $GATE_OUTPUT"
+proceeded && fail "python-console hermes session proceeded — a live session must defer: $GATE_OUTPUT"
 
-# 1b) Daemons-only world (gateway + Claude bg helpers + Codex app-server) →
-#     PROCEEDS. None of these is an interactive session.
-run_gate "$(printf '%s\n%s\n%s\n%s' "$GATEWAY" "$CLAUDE_BG" "$CLAUDE_DAEMON" "$CODEX_SERVER")" 04
+# 2) hermes gateway (python -m hermes_cli.main gateway) → PROCEED (module maps
+#    to hermes, flags token is exactly `gateway`).
+run_gate "$HERMES_GATEWAY"
+proceeded || fail "hermes gateway daemon did not proceed: $GATE_OUTPUT"
+deferred && fail "hermes gateway daemon deferred — a daemon must not block: $GATE_OUTPUT"
+
+# 3) claude -p with the daemon phrase in the PROMPT free text → DEFER (the
+#    flags-position token is -p; free text is never matched). This is hole (b).
+run_gate "$CLAUDE_PROMPT_TRAP"
+deferred || fail "claude -p with 'hermes gateway' in the prompt did not defer (hole b): $GATE_OUTPUT"
+
+# 4) claude --remote-control (Remote Control bridge, daemon by shape) → PROCEED.
+run_gate "$CLAUDE_REMOTE"
+proceeded || fail "claude --remote-control bridge did not proceed (daemon by shape): $GATE_OUTPUT"
+
+# 5) codex app-server → PROCEED.
+run_gate "$CODEX_SERVER"
+proceeded || fail "codex app-server daemon did not proceed: $GATE_OUTPUT"
+
+# 6) plain codex (interactive) → DEFER.
+run_gate "$CODEX_PLAIN"
+deferred || fail "plain codex session did not defer: $GATE_OUTPUT"
+
+# 6b) codex resume <id> → DEFER (flags token is `resume`, not `app-server`).
+run_gate "$CODEX_SESSION"
+deferred || fail "codex resume session did not defer: $GATE_OUTPUT"
+
+# 7) ps read failure → DEFER (fail closed).
+run_gate "$HERMES_GATEWAY" 04 1
+deferred || fail "ps read failure did not fail closed (must defer): $GATE_OUTPUT"
+
+# 8) unrelated python process → PROCEED (effective program is the script name,
+#    not an agent binary).
+run_gate "$UNRELATED_PYTHON"
+proceeded || fail "unrelated python process did not proceed: $GATE_OUTPUT"
+
+# 8b) Daemons-only world (gateway + Claude bg helpers + Claude bridge + Codex
+#     app-server) → PROCEEDS. None is a live session.
+run_gate "$(printf '%s\n%s\n%s\n%s\n%s' "$HERMES_GATEWAY" "$CLAUDE_REMOTE" "$CLAUDE_BG" "$CLAUDE_DAEMON" "$CODEX_SERVER")"
 proceeded || fail "daemons-only world did not proceed: $GATE_OUTPUT"
 deferred && fail "daemons-only world deferred — background daemons must not block the run: $GATE_OUTPUT"
 
-# 2) Interactive Claude TUI → DEFERS (never swap skills under a live session).
-run_gate "$CLAUDE_TUI" 04
-deferred || fail "interactive claude session did not defer: $GATE_OUTPUT"
-proceeded && fail "interactive claude session proceeded — a live session must defer: $GATE_OUTPUT"
+# 8c) A live session hiding among daemons → DEFER.
+run_gate "$(printf '%s\n%s' "$CODEX_SERVER" "$CODEX_SESSION")" 04
+deferred || fail "a live codex session among daemons did not defer: $GATE_OUTPUT"
+
+# ── Weekly success stamp + alert (last-slot) ────────────────────────────────
+# 2) A non-last slot deferral must NOT fire the LOUD alert.
+run_gate "$CODEX_PLAIN" 04
+deferred || fail "interactive session did not defer: $GATE_OUTPUT"
 alerted && fail "a non-last slot (04:00) fired the LOUD alert — only the last slot should: $(cat "$ALERTER_LOG")"
 
-# 2b) Interactive Codex session → DEFERS (proves the discriminator excludes the
-#     Codex app-server daemon but catches an interactive `codex resume`).
-run_gate "$(printf '%s\n%s' "$CODEX_SERVER" "$CODEX_SESSION")" 04
-deferred || fail "interactive codex session did not defer despite an app-server-only exclusion: $GATE_OUTPUT"
-
-# 2c) Interactive hermes run → DEFERS (the gateway is excluded, but an
-#     interactive `hermes -c` counts).
-run_gate "$(printf '%s\n%s' "$GATEWAY" "$HERMES_RUN")" 04
-deferred || fail "interactive hermes run did not defer despite a gateway-only exclusion: $GATE_OUTPUT"
-
-# 3) Weekly success stamp present → EARLY-EXIT before any work (extra Monday
-#    slots are no-ops once one slot succeeded this week). (RED against the
-#    pre-fix script, which has no stamp and would proceed.)
+# 3) Weekly success stamp present → EARLY-EXIT before any work.
 mkdir -p "$HOME/.local/state/update-skills"
 printf '%s' "$FAKE_WEEK" >"$HOME/.local/state/update-skills/last-success"
 : >"$ALERTER_LOG"
-GATE_OUTPUT="$(FAKE_PS="$GATEWAY" FAKE_HOUR=08 bash "$SCRIPT" 2>&1)" ||
+GATE_OUTPUT="$(FAKE_PS="$HERMES_GATEWAY" FAKE_HOUR=08 bash "$SCRIPT" 2>&1)" ||
   fail "stamped run exited non-zero: $GATE_OUTPUT"
 early_exited || fail "a run whose week already succeeded did not early-exit: $GATE_OUTPUT"
 proceeded && fail "a stamped week re-ran the full pass instead of early-exiting: $GATE_OUTPUT"
 rm -rf "$HOME/.local/state"
 
 # 3b) A proceeding full run WRITES the week stamp (so the next slot early-exits).
-run_gate "$GATEWAY" 04
+run_gate "$HERMES_GATEWAY" 04
 [[ -f "$HOME/.local/state/update-skills/last-success" ]] ||
   fail "a successful full run did not write the weekly success stamp"
 [[ "$(<"$HOME/.local/state/update-skills/last-success")" == "$FAKE_WEEK" ]] ||
   fail "the success stamp is not the current ISO week: $(<"$HOME/.local/state/update-skills/last-success")"
 
 # 4) Last retry slot (16:00) still deferring → LOUD alerter notification + log
-#    line (the weekly budget is exhausted). (RED against the pre-fix script,
-#    which never calls alerter.)
-run_gate "$CLAUDE_TUI" 16
+#    line (the weekly budget is exhausted).
+run_gate "$CODEX_PLAIN" 16
 deferred || fail "last-slot world did not defer: $GATE_OUTPUT"
 alerted || fail "last slot (16:00) deferral did not fire the LOUD alerter notification: (empty log)"
 grep -qiE 'exhaust|budget|last' <<<"$GATE_OUTPUT" ||
