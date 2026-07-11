@@ -95,10 +95,9 @@ chezmoi diff --exclude=templates            # diff non-template files
 fail without an interactive TTY: `~/.gitconfig`, `~/.aws/credentials`, `~/.claude.json`,
 `~/.composio/user_data.json`, `~/.config/atuin/config.toml`, `~/.config/himalaya/config.toml`,
 `~/Library/Application Support/Claude/claude_desktop_config.json`,
-`~/Library/Application Support/espanso/match/identity.yml`,
-`~/Library/Application Support/gogcli/credentials.json`. Apply those from an interactive terminal with
-KeePassXC unlocked. Non-KeePassXC templates (e.g. `~/.bashrc`, `~/.claude/settings.json`) are safe to
-apply from automation.
+`~/Library/Application Support/espanso/match/identity.yml`, `~/.config/gogcli/credentials.json`. Apply
+those from an interactive terminal with KeePassXC unlocked. Non-KeePassXC templates (e.g. `~/.bashrc`,
+`~/.claude/settings.json`) are safe to apply from automation.
 
 ### Claude Code Settings
 
@@ -372,7 +371,7 @@ the per-harness declarations, or the settings modify-template's `skillOverrides`
   Code, Codex via the store, and hermes itself), and the weekly run refreshes the pack via
   `cua-driver skills update` — the app's own GitHub-Releases updater, never a write through the symlink.
 
-**Tier model (the lock's `tiers` table):** every roster skill is `core` (7) or `on-demand` (24). Core
+**Tier model (the lock's `tiers` table):** every roster skill is `core` (8) or `on-demand` (23). Core
 skills auto-load in every harness; on-demand skills stay installed everywhere but load only when
 explicitly invoked: in Claude Code via `skillOverrides.<name> = "user-invocable-only"` — one
 `setValueAtPath` per skill in the settings modify-template (per-key, so overrides the user sets for other
