@@ -17,6 +17,7 @@
   **less-common / not-widely-known** acronym is avoided altogether — spell it out every time, never
   introduce the short form (e.g. write "file integrity monitoring", never "FIM").
 - Use the `humanizer` skill on prose longer than a paragraph.
+- Always run PR descriptions through the `humanizer` skill before posting.
 
 ## Verification and sources of truth
 
