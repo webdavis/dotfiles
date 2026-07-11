@@ -99,6 +99,50 @@ let
       exit "$status"
     '';
   };
+
+  # Programmatic discovery of the safely renderable shell templates handed to the
+  # shellcheck-rendered-template formatter below. The 2026-07-10 audit found the
+  # old hand-list covered 6 of ~20 shell templates, hiding four render failures.
+  # The set is every `.chezmoiscripts/*.sh.tmpl` plus the shell `dot_*.tmpl` at
+  # the repo root, MINUS any template that calls `keepassxc` (those need an
+  # interactive KeePassXC unlock and cannot render in the headless check sandbox).
+  # Computed from the tree at eval time with `builtins` ONLY (no `lib`), so
+  # test/rendered-template-coverage.sh can re-read this exact list through
+  # `nix eval` with a stub `pkgs`.
+  callsKeepassxc = path: builtins.length (builtins.split "keepassxc" (builtins.readFile path)) > 1;
+
+  chezmoiscriptShellTemplates =
+    let
+      dir = ./.chezmoiscripts;
+      entries = builtins.readDir dir;
+      names = builtins.filter (
+        name:
+        entries.${name} == "regular"
+        && builtins.match ".*\\.sh\\.tmpl" name != null
+        && !(callsKeepassxc (dir + "/${name}"))
+      ) (builtins.attrNames entries);
+    in
+    map (name: ".chezmoiscripts/${name}") names;
+
+  rootShellDotTemplates =
+    let
+      dir = ./.;
+      entries = builtins.readDir dir;
+      firstLine = path: builtins.head (builtins.split "\n" (builtins.readFile path));
+      isShellFirstLine =
+        line: builtins.match "#!.*sh.*" line != null || builtins.match "# shellcheck shell=.*" line != null;
+    in
+    builtins.filter (
+      name:
+      entries.${name} == "regular"
+      && builtins.match "dot_.*\\.tmpl" name != null
+      && isShellFirstLine (firstLine (dir + "/${name}"))
+      && !(callsKeepassxc (dir + "/${name}"))
+    ) (builtins.attrNames entries);
+
+  renderedShellTemplates = builtins.sort (a: b: a < b) (
+    chezmoiscriptShellTemplates ++ rootShellDotTemplates
+  );
 in
 {
   projectRootFile = "flake.nix";
@@ -215,21 +259,13 @@ in
   };
 
   # Chezmoi-specific checks ported from lint.sh (see the let-bindings above).
-  # NOTE: run_onchange_after_41-macos-system-setup.sh.tmpl is deliberately
-  # excluded: its pre-existing nix-repair record renders an unquoted
-  # `sudo $HOME/...` that fails rendered shellcheck (SC2086), so including it
-  # today breaks the gate. Inclusion is owned by the render-coverage
-  # stabilization PR (2026-07-10 audit).
+  # `includes` is discovered programmatically (renderedShellTemplates, above):
+  # every safely renderable shell template, not a hand-picked subset.
+  # test/rendered-template-coverage.sh guards that the discovery never silently
+  # drops a template.
   settings.formatter.shellcheck-rendered-template = {
     command = shellcheckRenderedTemplate;
-    includes = [
-      "dot_bashrc.tmpl"
-      ".chezmoiscripts/run_onchange_before_15-install-herdr.sh.tmpl"
-      ".chezmoiscripts/run_onchange_before_50-setup-osquery.sh.tmpl"
-      ".chezmoiscripts/run_onchange_after_55-build-herdr-last-workspace-plugin.sh.tmpl"
-      ".chezmoiscripts/run_onchange_after_57-build-herdr-smart-nav-plugin.sh.tmpl"
-      ".chezmoiscripts/run_onchange_after_66-tailscaled-status.sh.tmpl"
-    ];
+    includes = renderedShellTemplates;
   };
   settings.formatter.osquery-config-render = {
     command = osqueryConfigRender;
