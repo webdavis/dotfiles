@@ -80,28 +80,41 @@ EOF
 chmod +x "$stub"/*
 export PATH="$stub:$PATH"
 
+# run <npx_add_fail> <hour> <dow> [sched], the 4th arg "--scheduled" marks a
+# LaunchAgent run; otherwise the run is manual (never claims exhaustion).
 run() {
+  local -a run_args=()
+  [[ ${4:-} == "--scheduled" ]] && run_args=(--scheduled)
   rm -rf "$HOME/.local/state"
   : >"$ALERTER_LOG"
-  OUT="$(FAKE_NPX_ADD_FAIL="$1" FAKE_HOUR="$2" FAKE_DOW="$3" UPDATE_SKILLS_FORCE=1 bash "$SCRIPT" 2>&1)" ||
+  OUT="$(FAKE_NPX_ADD_FAIL="$1" FAKE_HOUR="$2" FAKE_DOW="$3" UPDATE_SKILLS_FORCE=1 bash "$SCRIPT" "${run_args[@]}" 2>&1)" ||
     fail "run exited non-zero (a required failure must not abort the run): $OUT"
 }
 
-# 1) Required failure on the last Monday slot → no stamp, loud exhaustion alert.
-run 1 16 1
+# 1) Required failure on the last SCHEDULED Monday slot → no stamp, loud
+#    exhaustion alert.
+run 1 16 1 --scheduled
 [[ ! -f $STAMP ]] || fail "the success stamp was written despite a required-phase failure"
 grep -qi 'WITHHOLDING' <<<"$OUT" || fail "a required failure did not log a stamp-withhold: $OUT"
-grep -qi 'EXHAUSTED' <<<"$OUT" || fail "a required failure on the last Monday slot did not log exhaustion: $OUT"
-[[ -s $ALERTER_LOG ]] || fail "a required failure on the last Monday slot did not fire the alerter"
+grep -qi 'EXHAUSTED' <<<"$OUT" || fail "a required failure on the last scheduled slot did not log exhaustion: $OUT"
+[[ -s $ALERTER_LOG ]] || fail "a required failure on the last scheduled slot did not fire the alerter"
 
-# 2) Required failure on a NON-Monday → no stamp, but NO exhaustion alert.
-run 1 16 3
-[[ ! -f $STAMP ]] || fail "the success stamp was written despite a required-phase failure (non-Monday)"
-grep -qi 'WITHHOLDING' <<<"$OUT" || fail "a non-Monday required failure did not log a stamp-withhold: $OUT"
-[[ ! -s $ALERTER_LOG ]] || fail "a non-Monday required failure claimed exhaustion / alerted: $(cat "$ALERTER_LOG")"
+# 2) Required failure on a NON-Monday SCHEDULED catch-up → no stamp; a later day
+#    means the Monday budget is spent, so exhaustion IS claimed.
+run 1 16 3 --scheduled
+[[ ! -f $STAMP ]] || fail "the success stamp was written despite a required-phase failure (catch-up)"
+grep -qi 'WITHHOLDING' <<<"$OUT" || fail "a catch-up required failure did not log a stamp-withhold: $OUT"
+[[ -s $ALERTER_LOG ]] || fail "a scheduled catch-up required failure did not claim exhaustion: $(cat "$ALERTER_LOG")"
+
+# 2b) Required failure on a MANUAL last-Monday-slot run → no stamp, but NO
+#     exhaustion alert (a manual run never claims scheduled-budget exhaustion).
+run 1 16 1
+[[ ! -f $STAMP ]] || fail "the success stamp was written despite a required-phase failure (manual)"
+grep -qi 'WITHHOLDING' <<<"$OUT" || fail "a manual required failure did not log a stamp-withhold: $OUT"
+[[ ! -s $ALERTER_LOG ]] || fail "a manual required failure claimed scheduled-budget exhaustion: $(cat "$ALERTER_LOG")"
 
 # 3) Zero required failures → the stamp IS written.
-run "" 16 1
+run "" 16 1 --scheduled
 [[ -f $STAMP ]] || fail "a clean run did not write the success stamp"
 [[ "$(<"$STAMP")" == "2026-28" ]] || fail "the stamp is not the pinned ISO week: $(<"$STAMP")"
 

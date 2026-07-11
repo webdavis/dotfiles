@@ -103,17 +103,21 @@ chmod +x "$stub_dir"/*
 export PATH="$stub_dir:$PATH"
 export FAKE_WEEK="2026-28"
 
-# run_gate <fake_ps> [fake_hour] [fake_ps_fail], reset per-run state, run the
-# real script with the given world, capture combined output. No FORCE: the gate
-# is under test.
+# run_gate <fake_ps> [fake_hour] [fake_ps_fail] [fake_dow] [sched], reset per-run
+# state, run the real script with the given world, capture combined output. No
+# FORCE: the gate is under test. The 5th arg, when "--scheduled", marks the run
+# as a LaunchAgent (scheduled) run; otherwise the run is manual.
 GATE_OUTPUT=""
 run_gate() {
-  local fake_ps="$1" fake_hour="${2:-04}" fake_ps_fail="${3:-}" fake_dow="${4:-1}"
+  local fake_ps="$1" fake_hour="${2:-04}" fake_ps_fail="${3:-}" fake_dow="${4:-1}" sched="${5:-}"
+  local -a run_args=()
+  [[ $sched == "--scheduled" ]] && run_args=(--scheduled)
   rm -rf "$HOME/.local/state"
   : >"$ALERTER_LOG"
-  GATE_OUTPUT="$(FAKE_PS="$fake_ps" FAKE_HOUR="$fake_hour" FAKE_PS_FAIL="$fake_ps_fail" FAKE_DOW="$fake_dow" bash "$SCRIPT" 2>&1)" ||
+  GATE_OUTPUT="$(FAKE_PS="$fake_ps" FAKE_HOUR="$fake_hour" FAKE_PS_FAIL="$fake_ps_fail" FAKE_DOW="$fake_dow" bash "$SCRIPT" "${run_args[@]}" 2>&1)" ||
     fail "script exited non-zero (gate should always exit 0): $GATE_OUTPUT"
 }
+run_gate_sched() { run_gate "$1" "${2:-04}" "${3:-}" "${4:-1}" --scheduled; }
 
 proceeded() { printf '%s\n' "$GATE_OUTPUT" | grep -qF '[update-skills] done'; }
 deferred() { printf '%s\n' "$GATE_OUTPUT" | grep -qiF 'deferring'; }
@@ -198,24 +202,46 @@ run_gate "$UNRELATED_PYTHON" 04
 [[ "$(<"$HOME/.local/state/update-skills/last-success")" == "$FAKE_WEEK" ]] ||
   fail "the success stamp is not the current ISO week: $(<"$HOME/.local/state/update-skills/last-success")"
 
-# 4) Last retry slot (Monday 16:00) still deferring → LOUD alerter notification +
-#    log line (the weekly budget is exhausted).
-run_gate "$CODEX_PLAIN" 16 "" 1
-deferred || fail "last-slot world did not defer: $GATE_OUTPUT"
-alerted || fail "last slot (Monday 16:00) deferral did not fire the LOUD alerter notification: (empty log)"
-grep -qiE 'exhaust|budget|last' <<<"$GATE_OUTPUT" ||
-  fail "last-slot deferral did not emit an exhausted-budget log line: $GATE_OUTPUT"
+# ── Item 6: slot-aware exhaustion via the --scheduled marker ─────────────────
+# Exhaustion is claimed ONLY for a SCHEDULED run with no later slot remaining
+# this week; a manual run never claims scheduled-budget exhaustion.
 
-# 4b) Same hour (16:00) but NOT Monday (a manual run on another day) → DEFERS but
-#     does NOT claim exhaustion (no future slot to reason about; slot-aware).
+# 4) SCHEDULED last Monday slot (16:00) still deferring → LOUD alert + log line.
+run_gate_sched "$CODEX_PLAIN" 16 "" 1
+deferred || fail "scheduled last-slot world did not defer: $GATE_OUTPUT"
+alerted || fail "a scheduled last slot (Monday 16:00) deferral did not fire the LOUD alerter notification"
+grep -qiE 'exhaust|budget|last' <<<"$GATE_OUTPUT" ||
+  fail "scheduled last-slot deferral did not emit an exhausted-budget log line: $GATE_OUTPUT"
+[[ -f "$HOME/.local/state/update-skills/last-scheduled-week" ]] ||
+  fail "a scheduled run did not record its ISO week in the scheduled-attempt state file"
+
+# 4a) SCHEDULED EARLY Monday slot (04:00) deferring → NO alert (later slots remain).
+run_gate_sched "$CODEX_PLAIN" 04 "" 1
+deferred || fail "scheduled early-slot world did not defer: $GATE_OUTPUT"
+alerted && fail "an early scheduled slot (04:00) claimed exhaustion; later slots remain: $(cat "$ALERTER_LOG")"
+
+# 4b) SCHEDULED coalesced catch-up on a LATER weekday (Wed 10:00) → alert (the
+#     Monday slots are spent; launchd delivered the missed event late).
+run_gate_sched "$CODEX_PLAIN" 10 "" 3
+deferred || fail "scheduled catch-up world did not defer: $GATE_OUTPUT"
+alerted || fail "a scheduled catch-up on a later day did not claim exhaustion (no later slot this week): $GATE_OUTPUT"
+
+# 4c) MANUAL run on Monday 16:00 → DEFERS but NEVER claims scheduled-budget
+#     exhaustion (a manual run is not part of the scheduled cycle).
+run_gate "$CODEX_PLAIN" 16 "" 1
+deferred || fail "manual Monday-16:00 world did not defer: $GATE_OUTPUT"
+alerted && fail "a manual Monday-16:00 run claimed scheduled-budget exhaustion: $(cat "$ALERTER_LOG")"
+
+# 4d) MANUAL non-Monday run → DEFERS, no alert (unchanged).
 run_gate "$CODEX_PLAIN" 16 "" 3
-deferred || fail "non-Monday 16:00 world did not defer: $GATE_OUTPUT"
-alerted && fail "a non-Monday 16:00 deferral fired the exhaustion alert (slot-awareness lost): $(cat "$ALERTER_LOG")"
+deferred || fail "manual non-Monday world did not defer: $GATE_OUTPUT"
+alerted && fail "a manual non-Monday deferral alerted: $(cat "$ALERTER_LOG")"
 
 # 5) The plist declares EXACTLY four Monday retry slots, each a full
-#    {Weekday=1, Hour in 4/8/12/16, Minute=0} tuple. Parse the rendered plist as
-#    real plist data (plutil -> json -> jq) so dropping Weekday or Minute (which
-#    launchd then treats as a wildcard, firing far more often) fails this test.
+#    {Weekday=1, Hour in 4/8/12/16, Minute=0} tuple, AND passes --scheduled in
+#    ProgramArguments. Parse the rendered plist as real plist data (plutil ->
+#    json -> jq) so dropping Weekday or Minute (which launchd then treats as a
+#    wildcard, firing far more often) fails this test.
 PLIST="$REPO_ROOT/Library/LaunchAgents/com.webdavis.update-skills.plist.tmpl"
 rendered_plist="$(CI=1 chezmoi --source "$REPO_ROOT" execute-template --no-tty <"$PLIST")" ||
   fail "chezmoi execute-template failed on the update-skills plist"
@@ -231,5 +257,8 @@ non_conforming="$(jq '[.StartCalendarInterval[] | select(.Weekday != 1 or .Minut
 slot_hours="$(jq -c '[.StartCalendarInterval[].Hour] | sort' "$plist_json")"
 [[ $slot_hours == "[4,8,12,16]" ]] ||
   fail "slot hours are not exactly 4/8/12/16: $slot_hours"
+prog_scheduled="$(jq -r '[.ProgramArguments[] | select(. == "--scheduled")] | length' "$plist_json")"
+[[ $prog_scheduled == "1" ]] ||
+  fail "the plist ProgramArguments does not pass exactly one --scheduled marker (slot-aware exhaustion needs it)"
 
 echo "update-skills-defer: OK"

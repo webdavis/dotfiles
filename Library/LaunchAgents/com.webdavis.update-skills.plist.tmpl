@@ -8,6 +8,9 @@
   <array>
     <string>/opt/homebrew/bin/bash</string>
     <string>{{ .chezmoi.homeDir }}/.local/bin/update-skills.sh</string>
+    <!-- Marks this as a scheduled (not manual) run: only a scheduled run with no
+         later slot remaining this week claims retry-budget exhaustion. -->
+    <string>--scheduled</string>
   </array>
   <key>EnvironmentVariables</key>
   <dict>

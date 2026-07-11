@@ -70,6 +70,9 @@
 #                       weekly npx and clawhub updates, the hermes registry-update
 #                       phase, and the fork drift-check)
 #   --check-forks-only  run only the fork/vendored upstream drift-check
+#   --scheduled         mark this as a LaunchAgent (scheduled) run; only a
+#                       scheduled run with no later slot remaining this week
+#                       claims retry-budget exhaustion (a manual run never does)
 # Env: UPDATE_SKILLS_FORCE=1 bypasses the idle-gate AND the weekly success stamp.
 #      The idle-gate (fail-closed) makes this script refuse to swap skill folders
 #      while ANY agent-harness process (claude/codex/hermes) is running, session
@@ -95,11 +98,13 @@ HERMES="$HOME/.hermes/skills"            # the default profile (Bob)
 HERMES_PROFILES="$HOME/.hermes/profiles" # specialist profiles: <name>/skills
 LOCKDIR="$AGENTS/.update-skills.lock.d"
 STATE_DIR="$HOME/.local/state/update-skills"
-SUCCESS_STAMP="$STATE_DIR/last-success" # ISO year-week (%G-%V) of the last fully successful weekly run
+SUCCESS_STAMP="$STATE_DIR/last-success"               # ISO year-week (%G-%V) of the last fully successful weekly run
+SCHEDULED_WEEK_STAMP="$STATE_DIR/last-scheduled-week" # ISO week of the last SCHEDULED attempt (item 6)
 # The plist fires four Monday retry slots (04:00/08:00/12:00/16:00; see
 # Library/LaunchAgents/com.webdavis.update-skills.plist.tmpl). This is the hour
-# of the LAST slot: a deferral here means the weekly retry budget is exhausted,
-# so the run alerts LOUDLY instead of failing silent. Keep in sync with the plist.
+# of the LAST slot: a scheduled deferral at/after it, or a coalesced catch-up on
+# a later weekday, means the weekly retry budget is exhausted, so the run alerts
+# LOUDLY instead of failing silent. Keep in sync with the plist.
 readonly UPDATE_SKILLS_LAST_SLOT_HOUR="16"
 # The Codex on-demand policy overlay this script asserts into store skill dirs
 # (see assert_codex_overlays) — also what the clawhub update pass recognizes as
@@ -119,11 +124,13 @@ readonly CODEX_POLICY=$'policy:\n  allow_implicit_invocation: false'
 DRYRUN=""
 INSTALL_ONLY=""
 CHECK_FORKS_ONLY=""
+SCHEDULED=""
 for arg in "$@"; do
   case "$arg" in
     --dry-run) DRYRUN="--dry-run" ;;
     --install-only) INSTALL_ONLY=1 ;;
     --check-forks-only) CHECK_FORKS_ONLY=1 ;;
+    --scheduled) SCHEDULED=1 ;;
     *)
       printf 'update-skills: unknown argument: %s\n' "$arg" >&2
       exit 2
@@ -139,25 +146,50 @@ log() { printf '[update-skills] %s\n' "$*"; }
 # WITHIN a run, but every failure is RECORDED here. ADVISORY phases (fork
 # drift-watch, the cua-driver pack refresh) only inform and are never recorded.
 # The weekly success stamp is written ONLY when zero required failures occurred,
-# so a transient failure leaves the stamp absent and a later Monday slot retries.
+# so a transient failure leaves the stamp absent and a later scheduled slot retries.
 REQUIRED_FAILURES=0
 record_required_failure() {
   REQUIRED_FAILURES=$((REQUIRED_FAILURES + 1))
   log "REQUIRED-FAILURE: $*"
 }
 
-# True when now is Monday at or after the last retry slot hour, i.e. no further
-# scheduled slot remains this week to retry a failed or deferred run. date +%u
-# is 1 for Monday; the hour is stripped of a leading zero so 08 is not read as
-# an invalid octal in the arithmetic compare.
-__update_skills_is_last_monday_slot() {
+# True when no further SCHEDULED slot remains this ISO week to retry a failed or
+# deferred run. The plist fires four Monday slots (04/08/12/16); launchd may
+# COALESCE a missed slot and deliver it on a later day (a catch-up), which is
+# also the week's last scheduled chance. So a later slot remains ONLY when today
+# is Monday BEFORE the last slot hour; Monday at/after 16:00, or any later
+# weekday (a coalesced catch-up), means the scheduled budget for this week is
+# spent. date +%u is 1 for Monday; base-10 forces the hour compare so 08 is not
+# read as invalid octal.
+__update_skills_no_scheduled_slot_remains() {
   local dow hour
   dow="$(date +%u)"
   hour="$(date +%H)"
   hour="${hour#0}"
-  [[ $dow == "1" ]] || return 1
   [[ -n $hour ]] || hour=0
-  [[ $hour -ge $UPDATE_SKILLS_LAST_SLOT_HOUR ]]
+  [[ $dow =~ ^[0-9]+$ ]] || return 0
+  [[ $hour =~ ^[0-9]+$ ]] || hour=0
+  if [[ $dow == "1" && $((10#$hour)) -lt $((10#$UPDATE_SKILLS_LAST_SLOT_HOUR)) ]]; then
+    return 1 # Monday, before the last slot: a later scheduled slot remains
+  fi
+  return 0 # no later scheduled slot this week
+}
+
+# Exhaustion is claimed ONLY for a SCHEDULED run (the LaunchAgent passes
+# --scheduled) with no later slot remaining this week. A manual run warns loudly
+# elsewhere but never claims scheduled-budget exhaustion.
+__update_skills_scheduled_budget_exhausted() {
+  [[ -n $SCHEDULED ]] || return 1
+  __update_skills_no_scheduled_slot_remains
+}
+
+# Record the ISO week of this scheduled attempt so a coalesced catch-up on a
+# later day is recognized as this week's scheduled cycle (item 6). Best-effort.
+__update_skills_note_scheduled_attempt() {
+  [[ -n $SCHEDULED ]] || return 0
+  [[ $DRYRUN == "--dry-run" ]] && return 0
+  mkdir -p "$STATE_DIR" 2>/dev/null || return 0
+  date +%G-%V >"$SCHEDULED_WEEK_STAMP" 2>/dev/null || true
 }
 
 # Loud alert on both channels the brief names: a local alerter notification and
@@ -841,11 +873,12 @@ fi
 # machine bootstrap run --install-only unattended at apply time. On the last
 # SCHEDULED slot the retry budget is spent, so a deferral there alerts LOUDLY
 # rather than failing silent.
+__update_skills_note_scheduled_attempt
 if [[ -z $INSTALL_ONLY ]] && [[ ${UPDATE_SKILLS_FORCE:-} != "1" ]] && [[ $DRYRUN != "--dry-run" ]] && __update_skills_harness_active; then
   log "a live harness session (claude/codex/hermes) is using the store, or the process table could not be read (fail-closed); deferring this run"
-  if __update_skills_is_last_monday_slot; then
-    log "EXHAUSTED: the last Monday retry slot (${UPDATE_SKILLS_LAST_SLOT_HOUR}:00) still deferred; the weekly skills update did not run this week"
-    __update_skills_alert "Weekly skills update deferred on every Monday slot (an agent session was always active). Run it by hand when idle (~/.local/bin/update-skills.sh)."
+  if __update_skills_scheduled_budget_exhausted; then
+    log "EXHAUSTED: the last scheduled retry slot for this week still deferred; the weekly skills update did not run this week"
+    __update_skills_alert "Weekly skills update deferred on every scheduled slot (an agent session was always active). Run it by hand when idle (~/.local/bin/update-skills.sh)."
   fi
   exit 0
 fi
@@ -1162,18 +1195,18 @@ check_fork_drift
 # boundary week correct: the days of ISO week 01 that fall in late December carry
 # the NEXT year's %G, and the late-December days of week 52/53 carry the current
 # %G, so the key never collides or splits across the boundary (52/53/01 verified).
-# When a required phase failed we WITHHOLD the stamp, so a later Monday slot
-# retries; and if no slot remains this Monday we alert (the retry budget is
-# spent). A dry run records nothing.
+# When a required phase failed we WITHHOLD the stamp, so a later scheduled slot
+# retries; and for a scheduled run with no slot remaining this week we alert (the
+# retry budget is spent). A dry run records nothing.
 if [[ $DRYRUN != "--dry-run" ]]; then
   if [[ $REQUIRED_FAILURES -eq 0 ]]; then
     mkdir -p "$STATE_DIR"
     date +%G-%V >"$SUCCESS_STAMP"
   else
-    log "WITHHOLDING the weekly success stamp: $REQUIRED_FAILURES required-phase failure(s) this run; a later Monday slot will retry"
-    if __update_skills_is_last_monday_slot; then
-      log "EXHAUSTED: required-phase failures on the last Monday slot (${UPDATE_SKILLS_LAST_SLOT_HOUR}:00); the weekly skills update did not fully succeed this week"
-      __update_skills_alert "Weekly skills update finished with $REQUIRED_FAILURES required-phase failure(s) and no Monday slot remains. Check ~/.local/log/skills/."
+    log "WITHHOLDING the weekly success stamp: $REQUIRED_FAILURES required-phase failure(s) this run; a later scheduled slot will retry"
+    if __update_skills_scheduled_budget_exhausted; then
+      log "EXHAUSTED: required-phase failures on the last scheduled slot for this week; the weekly skills update did not fully succeed this week"
+      __update_skills_alert "Weekly skills update finished with $REQUIRED_FAILURES required-phase failure(s) and no scheduled slot remains this week. Check ~/.local/log/skills/."
     fi
   fi
 fi
