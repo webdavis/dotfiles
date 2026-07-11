@@ -3,7 +3,7 @@
 # This is the SINGLE source of truth for "which shell templates can render
 # headless and are therefore safe to hand to the shellcheck-rendered-template
 # formatter". treefmt.nix imports it to build that formatter's include list, and
-# test/rendered-template-coverage.sh drives the SAME functions through `nix eval`
+# test/integration/rendered-template-coverage.sh drives the SAME functions through `nix eval`
 # against the fixture matrix (beside a bash mirror), asserting agreement case by
 # case. Before this file existed the Nix predicates were unexported let-bindings,
 # so weakening one left every fixture green; now a weakened predicate here fails

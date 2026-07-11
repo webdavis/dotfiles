@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# Pre-push gate (test pyramid, operator 2026-07-11): everything the fast
+# commit gate deliberately skips runs here, before anything leaves the
+# machine. CI runs the same checks again as the final backstop.
+#
+# Invoked by the user-wide pre-push dispatcher
+# (dot_config/git/hooks/executable_pre-push) with git's ref list on stdin;
+# these checks are ref-independent, so stdin is intentionally unused.
+printf "%s\n" "Running pre-push checks..."
+
+# Check-only format/lint drift gate: builds the flake's treefmt check
+# derivation (sandboxed copy; never mutates the working tree or index).
+if ! just lint-check; then
+  printf "\n%s\n" "❌ Lint drift! Run 'just l' to auto-fix, commit the result, and push again."
+  exit 1
+fi
+
+# All test camps: unit + integration + e2e (+ bats suites when present).
+if ! just test; then
+  printf "\n%s\n" "❌ Tests failed! Fix the failing test(s) above and push again."
+  exit 1
+fi
+
+printf "%s\n" "✅ All pre-push checks passed!"

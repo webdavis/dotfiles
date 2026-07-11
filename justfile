@@ -67,25 +67,63 @@ apply-no-auth:
 check:
   nix develop .#run --command nix flake check --all-systems
 
-# Run all repo tests: hand-rolled executable test/*.sh (host tools, outside Nix)
-# plus the bats suites (test/**/*.bats) inside the Nix devshell — the flake
-# provides bats, so no host install is needed and the suite runs the same on a
-# fresh machine. Find-driven and empty-safe: green when test/ is missing or has
-# no test scripts. The pre-commit hook runs this too, so every commit requires
-# all tests to pass.
-test:
+# Test pyramid (operator, 2026-07-11; pattern: essential-feed-case-study).
+# Tests live in camps by DESIGN: test/unit (single component, stub-driven, no
+# flows, no sleeps; FAST is the admission rule), test/integration
+# (multi-component with stubbed boundaries), test/e2e (whole-script flows and
+# timing-bound tests). The pre-commit hook runs `just test-unit` only; the
+# pre-push hook and CI run `just test` (all camps). A test file sitting
+# directly under test/ fails the guard in both runners so strays cannot hide.
+
+# Unit camp only: the commit gate. Seeded shuffle + per-test timing with a
+# warn-only performance summary live in scripts/run-unit-tests.sh.
+test-unit: test-guard
+  ./scripts/run-unit-tests.sh
+
+# One camp at a time, for focused iteration. scripts/run-camp.sh runs the
+# camp's executable *.sh tests (each with fd 3 closed so a test that reads stdin
+# cannot swallow the discovery list) then the camp's own *.bats suites; its
+# discovery is checked so a traversal/sort error fails the gate instead of
+# green-gating a short list.
+test-integration: test-guard
+  ./scripts/run-camp.sh test/integration
+
+test-e2e: test-guard
+  ./scripts/run-camp.sh test/e2e
+
+# Placement / mode / symlink guard (scripts/test-guard.sh): every *.sh and
+# *.bats below test/ must sit DIRECTLY in a recognized camp (test/unit,
+# test/integration, test/e2e); camp *.sh must be executable; no symlinks are
+# allowed anywhere below test/ (a physical find skips them, so they would evade
+# every gate). test/fixtures/** is exempt.
+test-guard:
+  ./scripts/test-guard.sh
+
+# All camps: what pre-push and CI run. The per-camp recipes above already run
+# each camp's bats; this aggregate ALSO runs every bats suite (test/**/*.bats)
+# as the backstop. Bats runs inside the Nix devshell when the host lacks it (the
+# flake provides bats + GNU parallel). Discovery is checked and empty-safe.
+test: test-unit test-integration test-e2e
   #!/usr/bin/env bash
   set -euo pipefail
-  status=0
-  while IFS= read -r -d '' t; do
-    printf "== %s ==\n" "$t"
-    "$t" || status=1
-  done < <(find test -maxdepth 1 -type f -name '*.sh' -perm -u+x -print0 2>/dev/null | sort -z)
-  if find test -type f -name '*.bats' -print -quit 2>/dev/null | grep -q .; then
-    printf "== %s ==\n" "bats"
-    nix develop .#run --command bats --recursive test/ || status=1
+  bats_list="$(mktemp)"
+  trap 'rm -f "$bats_list"' EXIT
+  if ! find test -type f -name '*.bats' -print0 | sort -z >"$bats_list"; then
+    printf 'FAIL: bats discovery failed; refusing to skip a partial list\n' >&2
+    exit 1
   fi
-  exit "$status"
+  bats_files=()
+  while IFS= read -r -d '' b; do
+    bats_files+=("$b")
+  done <"$bats_list"
+  if ((${#bats_files[@]} > 0)); then
+    printf "== bats (all camps) ==\n"
+    if command -v bats >/dev/null 2>&1; then
+      bats --jobs 4 "${bats_files[@]}"
+    else
+      nix develop .#run --command bats --jobs 4 "${bats_files[@]}"
+    fi
+  fi
 
 # macOS Defaults: drift, apply, capture
 
