@@ -1580,9 +1580,16 @@ __update_skills_make_cutoff_sentinel() {
   local cutoff sentinel stamp
   cutoff=$(($(date +%s) - IDLE_THRESHOLD_SECONDS))
   sentinel="$(mktemp)" || return 1
-  # date -r <epoch> is BSD (this is a macOS LaunchAgent script); the test's date
-  # stub execs the real date for -r, so this is exercised faithfully.
-  stamp="$(date -r "$cutoff" +%Y%m%d%H%M.%S 2>/dev/null)" || {
+  # Epoch-to-stamp spelling differs by date flavor: GNU date takes -d @<epoch>,
+  # BSD date takes -r <epoch> (and its -d is the kernel DST flag, so the flavor
+  # is detected via --version, which only GNU date supports, instead of by
+  # trying -d). Both render LOCAL time, matching touch -t below.
+  if date --version >/dev/null 2>&1; then
+    stamp="$(date -d "@$cutoff" +%Y%m%d%H%M.%S 2>/dev/null)" || stamp=""
+  else
+    stamp="$(date -r "$cutoff" +%Y%m%d%H%M.%S 2>/dev/null)" || stamp=""
+  fi
+  [[ -n $stamp ]] || {
     rm -f "$sentinel"
     return 1
   }
