@@ -35,35 +35,49 @@ fail() {
 
 # ---- classifier (shared by the universe enumeration and the fixture oracle) --
 
-# A line invokes keepassxc when keepassxc/keepassxcAttribute appears ANYWHERE
-# inside a Go-template action `{{ ... }}` (not only as the first token, so
-# `{{ $e := keepassxc "x" }}` counts), and the line is not a Go-template comment
-# (`{{/* ... */}}`, in any trim form). A bare shell `#` comment that merely names
-# keepassxc carries no `{{` and does not count, so it stays covered. Mirrors
+# Extract every Go-template action `{{ ... }}` on every line of a file, one per
+# output line (each including its `{{`/`}}` delimiters). `[^}]` bounds the action
+# body, so an action that closes on the same line is captured and a same-line
+# sibling is a SEPARATE action -- multiple actions per line are parsed
+# individually, not collapsed. Mirrors `lineActions` in the classifier.
+line_actions() { # <file>
+  grep -oE '[{][{][^}]*[}][}]' "$1" 2>/dev/null || true
+}
+
+# A line invokes keepassxc when keepassxc/keepassxcAttribute appears inside a
+# NON-comment Go-template action (not only as the first token, so
+# `{{ $e := keepassxc "x" }}` counts). Each action is judged INDIVIDUALLY: a
+# leading comment action (`{{/* ... */}}`) does not suppress a real keepassxc
+# action later on the SAME line, and a bare shell `#` comment that merely names
+# keepassxc carries no `{{` and contributes no action. Mirrors
 # `lineCallsKeepassxc` in scripts/render-coverage-classifier.nix.
 line_calls_keepassxc() { # <file>
-  local hits
-  hits="$(grep -E '[{][{][^}]*keepassxc' "$1" 2>/dev/null |
-    grep -vE '^[[:space:]]*[{][{]-?[[:space:]]*/[*]' || true)"
-  [[ -n $hits ]]
+  local action
+  while IFS= read -r action; do
+    [[ $action == *keepassxc* ]] || continue
+    [[ $action =~ ^\{\{-?[[:space:]]*/\* ]] && continue
+    return 0
+  done < <(line_actions "$1")
+  return 1
 }
 
 # Parse includeTemplate directives, one emitted line per directive:
 #   L<TAB><name>  a double-quoted OR backtick raw-string literal partial name
 #   D             a name that is not a static string literal (a $var, (expr), or
 #                 .field) and so cannot be resolved statically
-# Anchored on `{{` so prose mentioning includeTemplate inside a comment body
-# (which carries no `{{` on that line) is not treated as a directive. Mirrors
-# `parseIncludeLine`/`includeDirectives` in the classifier.
+# EVERY action is parsed, so multiple includes on one line (either order,
+# dynamic or literal) are all accounted for; a comment action never matches
+# (anchored on the action's leading `{{`) and shell `#` prose carries no action.
+# Mirrors `parseIncludeAction`/`includeDirectives` in the classifier.
 include_directives() { # <file>
-  local inc_re='[{][{]-?[[:space:]]*includeTemplate[[:space:]]+(.*)'
+  local inc_re='^[{][{]-?[[:space:]]*includeTemplate[[:space:]]+(.*)'
   # SC2016: the backtick in bt_re is a literal ERE atom (backtick raw-string
   # delimiter), deliberately not command substitution.
   # shellcheck disable=SC2016
   local dq_re='^"([^"]*)"' bt_re='^`([^`]*)`'
-  local line rest
-  while IFS= read -r line; do
-    [[ $line =~ $inc_re ]] || continue
+  local action rest
+  while IFS= read -r action; do
+    [[ $action =~ $inc_re ]] || continue
     rest="${BASH_REMATCH[1]}"
     if [[ $rest =~ $dq_re ]]; then
       printf 'L\t%s\n' "${BASH_REMATCH[1]}"
@@ -72,7 +86,7 @@ include_directives() { # <file>
     else
       printf 'D\n'
     fi
-  done <"$1"
+  done < <(line_actions "$1")
 }
 
 # A template cannot render headless (is UNSAFE) when it, or any partial it
@@ -283,6 +297,10 @@ declare -A FIXTURE_EXPECT=(
   ["chain_root.sh.tmpl"]=excluded
   ["dynamic_include.sh.tmpl"]=excluded
   ["cyclic_a.sh.tmpl"]=covered
+  ["comment_then_secret.sh.tmpl"]=excluded
+  ["multi_include_secret_then_safe.sh.tmpl"]=excluded
+  ["multi_include_safe_then_secret.sh.tmpl"]=excluded
+  ["multi_include_dynamic_then_literal.sh.tmpl"]=excluded
 )
 
 for name in "${!FIXTURE_EXPECT[@]}"; do

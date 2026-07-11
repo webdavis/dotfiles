@@ -16,29 +16,47 @@ rec {
   # File split into lines (drop the capture sublists builtins.split emits).
   fileLines = path: builtins.filter builtins.isString (builtins.split "\n" (builtins.readFile path));
 
+  # Every Go-template action `{{ ... }}` on a line, as a list of the full action
+  # strings (each including its `{{`/`}}` delimiters). builtins.split with a
+  # single capture group around the action leaves those matches as one-element
+  # sublists; keep them and take the head. `[^}]` bounds the action body, so an
+  # action that closes on the same line is captured and a same-line sibling is a
+  # SEPARATE action (the whole point: multiple actions per line are parsed
+  # individually, not collapsed to the first or last). Actions in this repo are
+  # single-line, so a multi-line comment simply yields no complete action here.
+  lineActions =
+    line:
+    map builtins.head (builtins.filter builtins.isList (builtins.split "([{][{][^}]*[}][}])" line));
+
+  # A Go-template COMMENT action (`{{/* ... */}}`, in any trim form).
+  actionIsComment = action: builtins.match "[{][{]-?[[:space:]]*/[*].*" action != null;
+
   # A line invokes keepassxc when the identifier keepassxc/keepassxcAttribute
-  # appears ANYWHERE inside a Go-template action `{{ ... }}`, not only as the
-  # first token: `{{ $e := keepassxc "x" }}` counts. A Go-template COMMENT
-  # (`{{/* ... */}}`, in any trim form) does not, and a bare shell `#` comment
-  # that merely mentions keepassxc does not (it carries no `{{`). Actions in this
-  # repo are single-line, so the scan is per line.
+  # appears inside a NON-comment Go-template action on that line, not only as the
+  # first token (`{{ $e := keepassxc "x" }}` counts). Each action is judged
+  # INDIVIDUALLY: a leading comment action (`{{/* ... */}}`) on a line does not
+  # suppress a real keepassxc action later on the SAME line, and a bare shell `#`
+  # comment mentioning keepassxc carries no `{{` and so contributes no action.
   lineCallsKeepassxc =
     line:
-    builtins.match ".*[{][{][^}]*keepassxc.*" line != null
-    && builtins.match "[[:space:]]*[{][{]-?[[:space:]]*/[*].*" line == null;
+    builtins.any (action: builtins.match ".*keepassxc.*" action != null && !(actionIsComment action)) (
+      lineActions line
+    );
 
   directCallsKeepassxc = path: builtins.any lineCallsKeepassxc (fileLines path);
 
-  # Parse a single line for an includeTemplate directive `{{ includeTemplate <arg> ... }}`.
-  # Returns null (no directive), { name = "<literal>"; } for a double-quoted or
-  # backtick raw-string name, or { dynamic = true; } when the name argument is
-  # not a static string literal (a $var, (expr), or .field) and so cannot be
-  # resolved at eval time. Anchored on `{{` so prose mentioning includeTemplate
-  # inside a comment body (which carries no `{{` on that line) is not a directive.
-  parseIncludeLine =
-    line:
+  # Parse a single ACTION for an includeTemplate directive
+  # `{{ includeTemplate <arg> ... }}`. Returns null (not an include directive),
+  # { name = "<literal>"; } for a double-quoted or backtick raw-string name, or
+  # { dynamic = true; } when the name argument is not a static string literal (a
+  # $var, (expr), or .field) and so cannot be resolved at eval time. Anchored on
+  # the action's leading `{{`, so a comment action (`{{/* ... includeTemplate ...
+  # */}}`) never matches and prose in a shell `#` comment (no `{{`) is not an
+  # action at all.
+  parseIncludeAction =
+    action:
     let
-      m = builtins.match ".*[{][{]-?[[:space:]]*includeTemplate[[:space:]]+(.*)" line;
+      m = builtins.match "[{][{]-?[[:space:]]*includeTemplate[[:space:]]+(.*)" action;
     in
     if m == null then
       null
@@ -56,10 +74,13 @@ rec {
         { dynamic = true; };
 
   # All includeTemplate directives in a file: { dynamic = bool; names = [str]; }.
+  # EVERY action on EVERY line is parsed, so multiple includes on one line (in
+  # either order, dynamic or literal) are all accounted for.
   includeDirectives =
     path:
     let
-      hits = builtins.filter (x: x != null) (map parseIncludeLine (fileLines path));
+      actions = builtins.concatLists (map lineActions (fileLines path));
+      hits = builtins.filter (x: x != null) (map parseIncludeAction actions);
     in
     {
       dynamic = builtins.any (h: h ? dynamic) hits;

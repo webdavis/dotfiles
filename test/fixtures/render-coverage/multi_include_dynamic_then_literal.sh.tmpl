@@ -1,0 +1,9 @@
+#!/bin/bash
+# Fixture (C-F8): a DYNAMIC include then a LITERAL include on ONE line. A greedy
+# parser that keeps only the last action sees just the resolvable literal and
+# misses the unresolvable dynamic name; parsing every action rejects the dynamic
+# conservatively (verdict: excluded).
+set -euo pipefail
+{{ $name := "safe_partial.tmpl" }}
+{{ includeTemplate $name . }} {{ includeTemplate "safe_partial.tmpl" . }}
+echo "done"

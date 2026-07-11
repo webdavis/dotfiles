@@ -1,0 +1,5 @@
+{{/* Fixture safe leaf (C-F8): no keepassxc and no include, so it keeps its
+includer safe. Paired with the secret/dynamic partials on a single include line
+to prove the classifier parses EVERY action, not just the last -- the safe one
+must never mask an unsafe sibling. */ -}}
+echo "safe partial body"
