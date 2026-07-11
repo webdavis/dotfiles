@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# update-skills-converge.sh — the symlink fan-out must CONVERGE each managed dir
+# update-skills-converge.sh, the symlink fan-out must CONVERGE each managed dir
 # to the lock's desired set, not just add missing links. The additive
 # `[[ -e ]] || ln -s` left stale links behind, never fixed a wrong target, and
 # crashed on a DANGLING link (`[[ -e ]]` is false for it, so `ln -s` then failed
@@ -17,7 +17,7 @@
 #   * NEVER touch a real directory (hub-owned registry dir, catalog), a
 #     non-store symlink, or anything in a profile the lock does not map.
 # "updater-owned" = a symlink whose literal target points under ~/.agents/skills
-# (works for dangling links too — the string still points there).
+# (works for dangling links too, the string still points there).
 #
 # The real script runs unmodified in a sandbox: FORCE bypasses the idle-gate and
 # the weekly stamp, offline stubs neutralize the network passes, and the FULL run
@@ -52,7 +52,7 @@ for s in keeper mover revived demoted humanizer dualname; do
 done
 
 # Fixture lock. humanizer is a catalog-collision name mapped to default ON
-# PURPOSE — convergence must still refuse to create it hermes-side and must
+# PURPOSE, convergence must still refuse to create it hermes-side and must
 # remove a stale one. dualname is hermes-OWNED (hermesProfiles [] + a
 # hermesRegistry entry): hermes keeps a real hub dir of that name, untouchable.
 cat >"$HOME/.agents/custom-skill-lock.json" <<'EOF'
@@ -86,14 +86,14 @@ ln -s "../../.agents/skills/keeper" "$CLAUDE/keeper"
 ln -s "../../.agents/skills/gone" "$CLAUDE/gone" # stale: gone not in store
 
 # Hermes default drift:
-#   keeper   — absent            → created (missing)
-#   mover    — wrong target      → replaced
-#   revived  — DANGLING target   → replaced (the old ln -s crashed here)
-#   demoted  — correct target but hermesProfiles [] → removed (stale)
-#   humanizer— collision name    → removed, never re-created
-#   dualname — REAL hub dir      → untouched
-#   external — non-store symlink  → untouched
-#   hermes-superpowers — real dir → untouched
+#   keeper, absent            → created (missing)
+#   mover, wrong target      → replaced
+#   revived, DANGLING target   → replaced (the old ln -s crashed here)
+#   demoted, correct target but hermesProfiles [] → removed (stale)
+#   humanizer, collision name    → removed, never re-created
+#   dualname, REAL hub dir      → untouched
+#   external, non-store symlink  → untouched
+#   hermes-superpowers, real dir → untouched
 ln -s "../../.agents/skills/WRONGTARGET" "$HERMES/mover"
 ln -s "../../.agents/skills/revived-old" "$HERMES/revived" # dangling (revived-old absent)
 ln -s "../../.agents/skills/demoted" "$HERMES/demoted"

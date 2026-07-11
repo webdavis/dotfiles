@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# update-skills-lock.sh — the serialize lock must NEVER steal from a live run by
+# update-skills-lock.sh, the serialize lock must NEVER steal from a live run by
 # age; it reclaims ONLY from a provably dead owner, and its EXIT trap removes
 # only a lock it still owns. This closes the three-writer race the audit found:
 # the old lock removed any dir older than 120 min (killing a long healthy run),

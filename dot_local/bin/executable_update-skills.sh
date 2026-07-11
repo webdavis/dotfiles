@@ -73,7 +73,7 @@
 # Env: UPDATE_SKILLS_FORCE=1 bypasses the idle-gate AND the weekly success stamp.
 #      The idle-gate makes this script refuse to swap skill folders while an
 #      INTERACTIVE harness session (claude/codex/hermes) is running, so a skill is
-#      never yanked out from under a live session — persistent background daemons
+#      never yanked out from under a live session. Persistent background daemons
 #      (the hermes gateway, Claude Code's bg helpers, the Codex app-server) do NOT
 #      defer it (see __update_skills_harness_active). The weekly run is scheduled
 #      across four Monday slots; a per-week success stamp
@@ -97,7 +97,7 @@ HERMES_PROFILES="$HOME/.hermes/profiles" # specialist profiles: <name>/skills
 LOCKDIR="$AGENTS/.update-skills.lock.d"
 STATE_DIR="$HOME/.local/state/update-skills"
 SUCCESS_STAMP="$STATE_DIR/last-success" # ISO year-week (%G-%V) of the last fully successful weekly run
-# The plist fires four Monday retry slots — 04:00/08:00/12:00/16:00 (see
+# The plist fires four Monday retry slots (04:00/08:00/12:00/16:00; see
 # Library/LaunchAgents/com.webdavis.update-skills.plist.tmpl). This is the hour
 # of the LAST slot: a deferral here means the weekly retry budget is exhausted,
 # so the run alerts LOUDLY instead of failing silent. Keep in sync with the plist.
@@ -401,7 +401,7 @@ converge_dir() {
 }
 
 # Claude fan-out: every store skill (the full roster) gets a ~/.claude/skills
-# link. Claude is not profile-scoped — tiering there is the settings
+# link. Claude is not profile-scoped, tiering there is the settings
 # modify-template's job, not the fan-out's.
 converge_claude_skills() {
   local -a desired=()
@@ -421,7 +421,7 @@ converge_claude_skills() {
 # Hermes fan-out is profile-driven by the lock's hermesProfiles map. "default" is
 # ~/.hermes/skills (Bob), any other name is ~/.hermes/profiles/<name>/skills
 # (created here when absent, so a mapping can land before its profile exists on
-# this machine). A [] mapping — or a missing table — gets no hermes link: the
+# this machine). A [] mapping (or a missing table) gets no hermes link: the
 # deliberate "not available in hermes from the store" state, not an error.
 # Collision-named skills (humanizer, hyperframes) never fan out: hermes's catalog
 # wins those names (operator ruling), so a stale store link at such a name IS
@@ -738,10 +738,10 @@ fi
 # idle-gate: defer while an INTERACTIVE harness session is using the store, so a
 # skill is never swapped out from under a live session. Persistent background
 # daemons (the hermes gateway, Claude Code's bg helpers, the Codex app-server) do
-# NOT count — blocking on them is what deferred the weekly run forever (see
+# NOT count, blocking on them is what deferred the weekly run forever (see
 # __update_skills_harness_active). UPDATE_SKILLS_FORCE=1 bypasses (tests, manual
 # runs). --install-only is EXEMPT: it only ADDS absent skills (never swaps a
-# folder), so it is safe under a live session — this is what lets the fresh-
+# folder), so it is safe under a live session, this is what lets the fresh-
 # machine bootstrap run --install-only unattended at apply time. On the LAST
 # Monday slot the retry budget is spent, so a deferral there alerts LOUDLY rather
 # than failing silent.
@@ -1020,7 +1020,7 @@ update_clawhub_tracked
 refresh_app_owned_cua_pack
 
 # 2) CONVERGE the fan-out: every store skill is symlinked into Claude, and into
-#    exactly the hermes profile skills dirs its hermesProfiles mapping names —
+#    exactly the hermes profile skills dirs its hermesProfiles mapping names,
 #    creating missing links, repairing wrong/dangling targets, and removing
 #    updater-owned links that drifted out of the desired set
 converge_claude_skills

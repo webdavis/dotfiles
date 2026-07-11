@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# update-skills-first-install-retry.sh — a failed first-install pass must stay
+# update-skills-first-install-retry.sh, a failed first-install pass must stay
 # RETRYABLE across applies without ever aborting the apply, and the retry marker
 # must never be able to inject shell into the rendered chezmoiscript.
 #

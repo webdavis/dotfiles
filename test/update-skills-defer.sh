@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# update-skills-defer.sh — the weekly idle-gate must distinguish a LIVE
+# update-skills-defer.sh, the weekly idle-gate must distinguish a LIVE
 # interactive agent-harness session (defer, never swap skills under a live
 # session) from a persistent BACKGROUND daemon (proceed, a daemon never loads a
 # skill from the store on its own, so blocking on it defers the weekly run
@@ -7,12 +7,12 @@
 # its flags-position token, never on free prompt text.
 #
 # Ground truth (dresden, read-only ps, 2026-07-10):
-#   DAEMONS — must NOT block the run (proceed):
+#   DAEMONS, must NOT block the run (proceed):
 #     python -m hermes_cli.main gateway run --replace        (hermes gateway)
 #     .../claude --remote-control                            (Remote Control bridge)
 #     .../claude --bg-spare | daemon run | --bg-pty-host     (Claude bg helpers)
 #     codex app-server [--analytics-default-enabled]         (Codex app server)
-#   LIVE SESSIONS — must block the run (defer):
+#   LIVE SESSIONS, must block the run (defer):
 #     .../python .../bin/hermes -c <prompt>                  (hermes console-script session)
 #     /opt/homebrew/bin/claude -p <prompt>                   (a Claude one-shot)
 #     codex resume <id> | plain codex                        (a Codex CLI session)
@@ -24,7 +24,7 @@
 # substring-matched as a daemon and let a live session proceed. The new gate
 # also fails CLOSED when ps cannot be read.
 #
-# The gate is exercised through the REAL script (no UPDATE_SKILLS_FORCE — that
+# The gate is exercised through the REAL script (no UPDATE_SKILLS_FORCE, that
 # bypasses the gate). PATH shims present a controllable process world (ps, which
 # can also simulate a read failure), record alerter invocations, and pin the
 # clock (date) so the "last retry slot" branch is deterministic. A minimal lock
@@ -32,7 +32,7 @@
 # runs clean to its final `[update-skills] done`.
 set -euo pipefail
 
-# git hooks (this runs under pre-commit) leak GIT_DIR/GIT_INDEX_FILE — unset so
+# git hooks (this runs under pre-commit) leak GIT_DIR/GIT_INDEX_FILE, unset so
 # no child git command reaches the outer repo.
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY GIT_COMMON_DIR
 
@@ -72,7 +72,7 @@ NPX_LOG="$tmp/npx.log"
 : >"$ALERTER_LOG"
 
 # ps stub: prints the simulated process world ($FAKE_PS), or simulates a read
-# failure (exit non-zero) when FAKE_PS_FAIL is set — the gate must fail closed.
+# failure (exit non-zero) when FAKE_PS_FAIL is set, the gate must fail closed.
 cat >"$stub_dir/ps" <<'EOF'
 #!/usr/bin/env bash
 if [[ -n ${FAKE_PS_FAIL:-} ]]; then
@@ -112,7 +112,7 @@ chmod +x "$stub_dir"/*
 export PATH="$stub_dir:$PATH"
 export FAKE_WEEK="2026-28"
 
-# run_gate <fake_ps> [fake_hour] [fake_ps_fail] — reset per-run state, run the
+# run_gate <fake_ps> [fake_hour] [fake_ps_fail], reset per-run state, run the
 # real script with the given world, capture combined output. No FORCE: the gate
 # is under test.
 GATE_OUTPUT=""
@@ -129,7 +129,7 @@ deferred() { printf '%s\n' "$GATE_OUTPUT" | grep -qiF 'deferring'; }
 early_exited() { printf '%s\n' "$GATE_OUTPUT" | grep -qiF 'already succeeded'; }
 alerted() { [[ -s $ALERTER_LOG ]]; }
 
-# argv fixtures — real dresden shapes.
+# argv fixtures, real dresden shapes.
 HERMES_GATEWAY='/Users/x/.hermes/hermes-agent/venv/bin/python -m hermes_cli.main gateway run --replace'
 HERMES_SESSION='/Users/x/.hermes/hermes-agent/venv/bin/python /Users/x/.hermes/hermes-agent/venv/bin/hermes -c Do a thing'
 CLAUDE_REMOTE='/opt/homebrew/bin/claude --remote-control'
@@ -147,13 +147,13 @@ UNRELATED_PYTHON='/usr/bin/python3 /usr/local/bin/some-tool.py --flag'
 #    -c, not the gateway daemon shape). This is hole (a).
 run_gate "$HERMES_SESSION"
 deferred || fail "python-console hermes session did not defer (hole a): $GATE_OUTPUT"
-proceeded && fail "python-console hermes session proceeded — a live session must defer: $GATE_OUTPUT"
+proceeded && fail "python-console hermes session proceeded, a live session must defer: $GATE_OUTPUT"
 
 # 2) hermes gateway (python -m hermes_cli.main gateway) → PROCEED (module maps
 #    to hermes, flags token is exactly `gateway`).
 run_gate "$HERMES_GATEWAY"
 proceeded || fail "hermes gateway daemon did not proceed: $GATE_OUTPUT"
-deferred && fail "hermes gateway daemon deferred — a daemon must not block: $GATE_OUTPUT"
+deferred && fail "hermes gateway daemon deferred, a daemon must not block: $GATE_OUTPUT"
 
 # 3) claude -p with the daemon phrase in the PROMPT free text → DEFER (the
 #    flags-position token is -p; free text is never matched). This is hole (b).
@@ -189,7 +189,7 @@ proceeded || fail "unrelated python process did not proceed: $GATE_OUTPUT"
 #     app-server) → PROCEEDS. None is a live session.
 run_gate "$(printf '%s\n%s\n%s\n%s\n%s' "$HERMES_GATEWAY" "$CLAUDE_REMOTE" "$CLAUDE_BG" "$CLAUDE_DAEMON" "$CODEX_SERVER")"
 proceeded || fail "daemons-only world did not proceed: $GATE_OUTPUT"
-deferred && fail "daemons-only world deferred — background daemons must not block the run: $GATE_OUTPUT"
+deferred && fail "daemons-only world deferred, background daemons must not block the run: $GATE_OUTPUT"
 
 # 8c) A live session hiding among daemons → DEFER.
 run_gate "$(printf '%s\n%s' "$CODEX_SERVER" "$CODEX_SESSION")" 04
@@ -199,7 +199,7 @@ deferred || fail "a live codex session among daemons did not defer: $GATE_OUTPUT
 # 2) A non-last slot deferral must NOT fire the LOUD alert.
 run_gate "$CODEX_PLAIN" 04
 deferred || fail "interactive session did not defer: $GATE_OUTPUT"
-alerted && fail "a non-last slot (04:00) fired the LOUD alert — only the last slot should: $(cat "$ALERTER_LOG")"
+alerted && fail "a non-last slot (04:00) fired the LOUD alert, only the last slot should: $(cat "$ALERTER_LOG")"
 
 # 3) Weekly success stamp present → EARLY-EXIT before any work.
 mkdir -p "$HOME/.local/state/update-skills"

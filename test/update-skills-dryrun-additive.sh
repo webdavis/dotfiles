@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# update-skills-dryrun-additive.sh — two convergence guarantees the audit found
+# update-skills-dryrun-additive.sh, two convergence guarantees the audit found
 # violated:
 #   * --dry-run makes ZERO filesystem writes. The old convergence still ran
 #     mkdir/ln/rm under --dry-run, so a "preview" mutated live links. A dry run
@@ -13,10 +13,10 @@
 # The real script runs unmodified in a sandbox. Fixture store = three real skill
 # dirs; the Claude fan-out desired set is the full store roster. Pre-existing
 # Claude drift covers all three convergence actions:
-#   keep   — correct link            → kept
-#   wrongt — wrong-target owned link → full run replaces; dry/install-only leave
-#   miss   — absent                  → created
-#   ghost  — stale owned link        → full run removes; dry/install-only leave
+#   keep, correct link            → kept
+#   wrongt, wrong-target owned link → full run replaces; dry/install-only leave
+#   miss, absent                  → created
+#   ghost, stale owned link        → full run removes; dry/install-only leave
 set -euo pipefail
 
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY GIT_COMMON_DIR

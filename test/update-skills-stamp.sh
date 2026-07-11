@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# update-skills-stamp.sh — the weekly success stamp must be written ONLY when a
+# update-skills-stamp.sh, the weekly success stamp must be written ONLY when a
 # run had zero REQUIRED-phase failures. A required failure (here: an npx install
-# that fails) leaves the stamp absent so a later Monday slot retries, and — only
-# when no future slot remains this Monday — fires the loud exhaustion alert. A
+# that fails) leaves the stamp absent so a later Monday slot retries, and, only
+# when no future slot remains this Monday, fires the loud exhaustion alert. A
 # failure on any other day withholds the stamp but claims no exhaustion.
 #
 # The real script runs unmodified in a sandbox. FORCE bypasses the idle-gate (so

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# update-skills-first-install.sh — a fresh machine must reproduce the full skills
+# update-skills-first-install.sh, a fresh machine must reproduce the full skills
 # store at apply time, not wait for the weekly Monday LaunchAgent (RunAtLoad is
-# false, so the agent's first chance is Monday — or never, given the idle-gate).
+# false, so the agent's first chance is Monday, or never, given the idle-gate).
 #
 # Asserts:
 #   1. the run_onchange chezmoiscript invokes the DEPLOYED updater with
@@ -9,7 +9,7 @@
 #   2. its rendered content re-hashes when the lock changes, so run_onchange
 #      re-fires on any roster edit;
 #   3. --install-only against an empty HOME installs ABSENT skills and skips
-#      present ones — and it runs even while an agent session is live, because
+#      present ones, and it runs even while an agent session is live, because
 #      --install-only only ADDS absent skills (never swaps a folder) and is
 #      therefore exempt from the idle-gate.
 set -euo pipefail

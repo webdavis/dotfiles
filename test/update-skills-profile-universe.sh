@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# update-skills-profile-universe.sh — two convergence-scope guarantees:
+# update-skills-profile-universe.sh, two convergence-scope guarantees:
 #
 #   Item 6 (ownership): a link is updater-owned ONLY when its target resolves to
 #   THIS user's store followed by a single skill basename. A foreign symlink
@@ -70,7 +70,7 @@ plant_foreign() {
   printf 'keep me\n' >"$dir/notes.txt"
 }
 
-# ── Part 1: item 6 — default is WALKED (alpha mapped), and its foreign links
+# ── Part 1: item 6, default is WALKED (alpha mapped), and its foreign links
 #    survive; a stale owned link in spec is reaped. ─────────────────────────
 write_lock '["default"]' '["spec"]'
 ln -sfn "../../.agents/skills/alpha" "$HERMES/alpha" # owned, desired
@@ -92,7 +92,7 @@ done
 [[ -L "$SPEC/beta" ]] || fail "the desired spec link 'beta' was removed"
 [[ ! -e "$SPEC/stale" ]] || fail "a stale owned link in spec was not reaped"
 
-# ── Part 2: item 7 — de-map the sole skill of BOTH default and spec; each
+# ── Part 2: item 7, de-map the sole skill of BOTH default and spec; each
 #    profile is still walked (its dir exists) and its owned links are reaped,
 #    foreign entries still survive. ────────────────────────────────────────
 write_lock '[]' '[]'
