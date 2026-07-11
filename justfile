@@ -67,25 +67,62 @@ apply-no-auth:
 check:
   nix develop .#run --command nix flake check --all-systems
 
-# Run all repo tests: hand-rolled executable test/*.sh (host tools, outside Nix)
-# plus the bats suites (test/**/*.bats) inside the Nix devshell — the flake
-# provides bats, so no host install is needed and the suite runs the same on a
-# fresh machine. Find-driven and empty-safe: green when test/ is missing or has
-# no test scripts. The pre-commit hook runs this too, so every commit requires
-# all tests to pass.
-test:
+# Test pyramid (operator, 2026-07-11; pattern: essential-feed-case-study).
+# Tests live in camps by DESIGN: test/unit (single component, stub-driven, no
+# flows, no sleeps; FAST is the admission rule), test/integration
+# (multi-component with stubbed boundaries), test/e2e (whole-script flows and
+# timing-bound tests). The pre-commit hook runs `just test-unit` only; the
+# pre-push hook and CI run `just test` (all camps). A test file sitting
+# directly under test/ fails the guard in both runners so strays cannot hide.
+
+# Unit camp only: the commit gate. Seeded shuffle + per-test timing with a
+# warn-only performance summary live in scripts/run-unit-tests.sh.
+test-unit: test-guard
+  ./scripts/run-unit-tests.sh
+
+# One camp at a time, for focused iteration.
+test-integration: test-guard
   #!/usr/bin/env bash
   set -euo pipefail
   status=0
   while IFS= read -r -d '' t; do
     printf "== %s ==\n" "$t"
     "$t" || status=1
-  done < <(find test -maxdepth 1 -type f -name '*.sh' -perm -u+x -print0 2>/dev/null | sort -z)
+  done < <(find test/integration -maxdepth 1 -type f -name '*.sh' -perm -u+x -print0 2>/dev/null | sort -z)
+  exit "$status"
+
+test-e2e: test-guard
+  #!/usr/bin/env bash
+  set -euo pipefail
+  status=0
+  while IFS= read -r -d '' t; do
+    printf "== %s ==\n" "$t"
+    "$t" || status=1
+  done < <(find test/e2e -maxdepth 1 -type f -name '*.sh' -perm -u+x -print0 2>/dev/null | sort -z)
+  exit "$status"
+
+# Every camp file must live in a camp: a test script directly under test/ is
+# a placement error (usually a branch merged from the pre-camp layout).
+test-guard:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  strays="$(find test -maxdepth 1 -type f -name '*.sh' 2>/dev/null || true)"
+  if [[ -n $strays ]]; then
+    printf 'FAIL: test scripts outside the unit/integration/e2e camps:\n%s\n' "$strays" >&2
+    printf 'Move each into test/unit, test/integration, or test/e2e (and fix its REPO_ROOT depth).\n' >&2
+    exit 1
+  fi
+
+# All camps: what pre-push and CI run. Bats suites (test/**/*.bats) run inside
+# the Nix devshell; the flake provides bats, so no host install is needed and
+# the suite runs the same on a fresh machine. Empty-safe throughout.
+test: test-unit test-integration test-e2e
+  #!/usr/bin/env bash
+  set -euo pipefail
   if find test -type f -name '*.bats' -print -quit 2>/dev/null | grep -q .; then
     printf "== %s ==\n" "bats"
-    nix develop .#run --command bats --recursive test/ || status=1
+    nix develop .#run --command bats --jobs 4 --recursive test/
   fi
-  exit "$status"
 
 # macOS Defaults: drift, apply, capture
 
