@@ -2588,10 +2588,14 @@ fi
 # always-up bridge no longer defers it forever. A machine quiet for the window
 # proceeds and swaps skills; a live turn defers to next slot. FAIL CLOSED: an
 # unreadable process table or a probe error counts as active. UPDATE_SKILLS_FORCE=1
-# bypasses everything (tests, manual runs). --install-only is EXEMPT: it only ADDS
-# absent skills (never swaps a folder), so it is safe under a live session, this
-# is what lets the fresh-machine bootstrap run --install-only unattended at apply
-# time. On the last SCHEDULED slot the retry budget is spent, so a deferral there
+# bypasses everything (tests, manual runs). --install-only is EXEMPT from THIS
+# top-level gate but idle-gates its OWN generation exchange internally
+# (__gen_install_only_attempt): publishing an additive candidate swaps the
+# whole live generation, so when one already exists the exchange is deferred
+# under a live session exactly like the weekly run, while a fresh machine with
+# no live generation publishes by a plain rename (no exchange, no readers),
+# which is what lets the apply-time bootstrap run unattended. On the last
+# SCHEDULED slot the retry budget is spent, so a deferral there
 # alerts LOUDLY rather than failing silent. See __update_skills_should_defer.
 __update_skills_note_scheduled_attempt
 if [[ -z $INSTALL_ONLY ]] && [[ ${UPDATE_SKILLS_FORCE:-} != "1" ]] && [[ $DRYRUN != "--dry-run" ]] && __update_skills_should_defer; then
@@ -2684,9 +2688,12 @@ fi
 
 # --install-only (brief Modes): build and publish an ADDITIVE candidate whose
 # existing skills are byte-clones of the current generation plus genuinely
-# absent roster skills added. Never migrates a flat store, never replaces
-# existing store content. Safe under a live session (nothing existing is
-# swapped), which is what lets the fresh-machine bootstrap run at apply time.
+# absent or unhealthy roster skills repaired. Never migrates a flat store.
+# Publishing still swaps the whole live generation via an atomic exchange, so
+# __gen_install_only_attempt idle-gates that exchange when a live generation
+# exists (deferring under a live session, exit 75 so the bootstrap wrapper
+# retries); a fresh machine with no live generation publishes by a plain
+# rename, which is what lets the apply-time bootstrap run unattended.
 if [[ -n $INSTALL_ONLY ]]; then
   __gen_install_only_attempt || true
   converge_claude_skills

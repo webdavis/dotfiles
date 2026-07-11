@@ -11,12 +11,17 @@
 # the store on the next apply. On an already-provisioned machine the install pass
 # finds nothing absent and returns quickly (idempotent).
 #
-# --install-only runs ONLY the npx + clawhub install passes for ABSENT skills,
-# plus the symlink-fan-out convergence, the Codex overlay re-assert, and the
-# superpowers routing re-assert. It skips the weekly npx/clawhub UPDATE passes,
-# the hermes registry-update phase, and the fork drift-check, and it never SWAPS
-# a skill folder (it only adds absent ones), so it is safe to run unattended at
-# apply time even while an agent session is live.
+# --install-only runs ONLY the npx + clawhub install passes for ABSENT or
+# unhealthy skills, plus the symlink-fan-out convergence, the Codex overlay
+# re-assert, and the superpowers routing re-assert. It skips the weekly
+# npx/clawhub UPDATE passes, the hermes registry-update phase, and the fork
+# drift-check. Publishing an addition still swaps the whole live generation
+# via an atomic exchange, so when a live generation exists the updater
+# idle-gates that exchange and DEFERS (exit 75) under an active agent session
+# rather than swap a folder mid-turn; this wrapper then keeps its retry marker
+# so the next apply re-fires (see the deferred branch below). A fresh machine
+# with no live generation publishes by a plain rename (no exchange, no
+# readers), which is what lets the bootstrap complete unattended at apply time.
 #
 # RETRY WITHOUT ABORTING THE APPLY. A chezmoiscript that exits non-zero aborts
 # the whole `chezmoi apply`, so a failed first install must NOT exit non-zero.
