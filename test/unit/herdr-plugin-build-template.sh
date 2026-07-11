@@ -4,16 +4,17 @@
 # registration with an EXACT plugin-id match.
 #
 # Why exact: registration is confirmed by querying the plugin by id over the
-# JSON API (`herdr plugin list --plugin <id> --json`) and asserting the result
-# contains an entry whose plugin_id EQUALS the id (jq `select(.plugin_id == $id)`,
-# equality, not a substring). A substring/any-plugin check (e.g. a bare
-# `grep -q "$plugin_id"` against the human list, where every id also appears
-# inside its own local path) would false-positive against another plugin's line
-# and silently skip linking. Equality on the parsed id cannot.
+# JSON API (`plugin list --plugin <id> --json`, invoked through the bounded
+# `"${herdr_cli[@]}"` timeout wrapper) and asserting the result contains an entry
+# whose plugin_id EQUALS the id (jq `select(.plugin_id == $id)`, equality, not a
+# substring). A substring/any-plugin check (e.g. a bare `grep -q "$plugin_id"`
+# against the human list, where every id also appears inside its own local path)
+# would false-positive against another plugin's line and silently skip linking.
+# Equality on the parsed id cannot.
 #
 # Renders both templates with the host chezmoi (same mechanics as the
 # rendered-template lint in treefmt.nix: scratch HOME, CI=1) and asserts:
-#   1. each render queries the exact plugin id: herdr plugin list --plugin "$plugin_id" --json
+#   1. each render queries the exact plugin id: plugin list --plugin "$plugin_id" --json
 #   2. each render matches the id by equality: jq select(.plugin_id == $id)
 #   3. each render carries the shared-partial marker (both scripts consume
 #      .chezmoitemplates/herdr-plugin-build.sh.tmpl)
@@ -28,7 +29,7 @@ SCRIPTS=(
 )
 
 # shellcheck disable=SC2016  # the non-expanding ${plugin_id} literal is the point
-EXACT_QUERY='herdr plugin list --plugin "$plugin_id" --json'
+EXACT_QUERY='plugin list --plugin "$plugin_id" --json'
 # shellcheck disable=SC2016  # the literal jq program is the point
 EXACT_MATCH='select(.plugin_id == $id)'
 PARTIAL_MARKER='.chezmoitemplates/herdr-plugin-build.sh.tmpl'
