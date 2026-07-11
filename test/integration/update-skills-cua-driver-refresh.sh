@@ -38,15 +38,17 @@ HOME="$scratch_dir/home"
 export HOME
 mkdir -p "$HOME/.agents/skills"
 
-# Minimal lock: no npx-tracked skills, no forks, no hermes registry — the only
-# refreshable thing in this sandbox is the app-owned pack.
+# Minimal lock: one npx-tracked `anchor` so the tracked union is non-empty (the
+# zero-union gate refuses any full/install-only run otherwise); the refreshable
+# thing this test exercises is the app-owned pack.
 cat >"$HOME/.agents/custom-skill-lock.json" <<'EOF'
 {
   "version": 2,
-  "tiers": {},
+  "tiers": {"anchor": "core"},
   "hermesProfiles": {},
   "hermesRegistry": {},
-  "npxTracked": {},
+  "npxTracked": {"anchor": {"repo": "fixture/pack"}},
+  "clawhubTracked": {},
   "forks": {}
 }
 EOF
@@ -56,6 +58,11 @@ EOF
 mkdir -p "$HOME/.cua-driver/skills/cua-driver"
 printf -- '---\nname: cua-driver\ndescription: fixture\n---\n' >"$HOME/.cua-driver/skills/cua-driver/SKILL.md"
 ln -s "$HOME/.cua-driver/skills/cua-driver" "$HOME/.agents/skills/cua-driver"
+
+# anchor: an npx-tracked store real dir that migrates into a live generation.
+mkdir -p "$HOME/.agents/skills/anchor"
+printf -- '---\nname: anchor\ndescription: fixture\n---\n' >"$HOME/.agents/skills/anchor/SKILL.md"
+printf '{"skills":{"anchor":{}}}\n' >"$HOME/.agents/.skill-lock.json"
 
 # PATH stubs: cua-driver records argv (fails on demand via a flag file); npx
 # records and succeeds so the full run never reaches the network.

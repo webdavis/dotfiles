@@ -35,19 +35,24 @@ HERMES="$HOME/.hermes/skills"
 SPEC="$HOME/.hermes/profiles/spec/skills"
 mkdir -p "$STORE" "$HOME/.claude/skills" "$HERMES" "$SPEC"
 
-for s in alpha beta; do
+# alpha/beta are vendored fan-out fixtures; anchor is an npx-tracked skill that
+# keeps the roster's tracked union non-empty (the zero-union gate refuses any
+# full run otherwise). anchor migrates into a live generation and maps to no
+# hermes profile, so the alpha/beta convergence assertions are unaffected.
+for s in alpha beta anchor; do
   mkdir -p "$STORE/$s"
   printf -- '---\nname: %s\ndescription: fixture\n---\n' "$s" >"$STORE/$s/SKILL.md"
 done
+printf '{"skills":{"anchor":{}}}\n' >"$HOME/.agents/.skill-lock.json"
 
 write_lock() { # $1 = default mapping for alpha, $2 = spec mapping for beta (json arrays)
   cat >"$HOME/.agents/custom-skill-lock.json" <<EOF
 {
   "version": 2,
-  "tiers": {"alpha": "core", "beta": "core"},
+  "tiers": {"alpha": "core", "beta": "core", "anchor": "core"},
   "hermesProfiles": {"alpha": $1, "beta": $2},
   "hermesRegistry": {},
-  "npxTracked": {},
+  "npxTracked": {"anchor": {"repo": "fixture/pack"}},
   "clawhubTracked": {},
   "forks": {}
 }

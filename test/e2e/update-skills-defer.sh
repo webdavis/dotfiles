@@ -49,19 +49,25 @@ HOME="$tmp/home"
 export HOME
 mkdir -p "$HOME/.agents/skills"
 
-# Minimal lock: every table empty, so install/update/hermes/fork passes no-op
-# and a proceeding full run reaches `[update-skills] done`.
+# Minimal lock: one npx-tracked `anchor` so the tracked union is non-empty (the
+# zero-union gate would otherwise refuse before the idle gate under test); the
+# hermes/fork passes no-op and a proceeding full run reaches
+# `[update-skills] done`.
 cat >"$HOME/.agents/custom-skill-lock.json" <<'EOF'
 {
   "version": 2,
-  "tiers": {},
+  "tiers": {"anchor": "core"},
   "hermesProfiles": {},
   "hermesRegistry": {},
-  "npxTracked": {},
+  "npxTracked": {"anchor": {"repo": "fixture/pack"}},
   "clawhubTracked": {},
   "forks": {}
 }
 EOF
+# anchor: an npx-tracked store real dir that migrates into a live generation.
+mkdir -p "$HOME/.agents/skills/anchor"
+printf -- '---\nname: anchor\ndescription: fixture\n---\n' >"$HOME/.agents/skills/anchor/SKILL.md"
+printf '{"skills":{"anchor":{}}}\n' >"$HOME/.agents/.skill-lock.json"
 
 stub_dir="$tmp/stubs"
 mkdir -p "$stub_dir"

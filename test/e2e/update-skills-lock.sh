@@ -14,7 +14,7 @@
 #   3. the lock is released purely by the holder's process exit (fd close), with
 #      no manual cleanup;
 #   4. end to end: a run parked mid-lane holds the lock and a concurrent run
-#      defers with "another run in progress", then the parked run finishes.
+#      defers with the retryable exit 75, then the parked run finishes.
 set -euo pipefail
 
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY GIT_COMMON_DIR
@@ -187,9 +187,15 @@ done
 }
 [[ -e "$HOME/.agents/.update-skills.lock" ]] ||
   fail "the parked run reached its lane without creating the lock file"
-out_concurrent="$(UPDATE_SKILLS_FORCE=1 bash "$SCRIPT" 2>&1)" ||
-  fail "the concurrent run exited non-zero instead of deferring: $out_concurrent"
-grep -qi 'another run in progress' <<<"$out_concurrent" ||
+set +e
+out_concurrent="$(UPDATE_SKILLS_FORCE=1 bash "$SCRIPT" 2>&1)"
+rc_concurrent=$?
+set -e
+# F1: contention is a RETRYABLE deferral (exit 75 EX_TEMPFAIL), not a silent
+# success (exit 0).
+[[ $rc_concurrent -eq 75 ]] ||
+  fail "a concurrent run did not defer with the retryable exit 75 (got $rc_concurrent): $out_concurrent"
+grep -qiE 'another run holds the lock|deferring' <<<"$out_concurrent" ||
   fail "a concurrent run did not defer to the live lock holder: $out_concurrent"
 touch "$tmp/go"
 wait "$run_pid" 2>/dev/null || true
