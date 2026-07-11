@@ -958,6 +958,10 @@ __gen_migrate() {
 # Outputs of __gen_build_candidate, consumed by the run orchestration and tests.
 GEN_CANDIDATE_HOME=""
 GEN_CANDIDATE_AGENTS=""
+# The install-only force-reinstall set (R2-5), declared here (above the lib-only
+# gate) so __gen_run_lanes can read it even when a test drives the lanes
+# directly. Populated only by __gen_install_only_attempt; empty for weekly runs.
+GEN_INSTALL_FORCE_REINSTALL=()
 
 # Build the candidate generation at .skills-generations/<id>/home/.agents: a fake
 # HOME whose .agents/skills starts as cp -c clones of the CURRENT generation,
@@ -1040,6 +1044,20 @@ record_failed_skill() {
   printf '%s\n' "$1" >>"$AGENTS/$GEN_FAILED_SKILLS_FILE_NAME" 2>/dev/null || true
 }
 
+# True when a skill is on the install-only FORCE-REINSTALL list (R2-5): an
+# additive build normally keeps every existing byte-clone, but a skill whose
+# live topology drifted (a missing SKILL.md, a lock-absent entry) must be
+# reinstalled even though its cloned dir is "present". The parent passes the
+# newline-separated set via UPDATE_SKILLS_FORCE_REINSTALL to the env -i lanes.
+__gen_lane_force_reinstall() {
+  local query="$1" one
+  [[ -n ${UPDATE_SKILLS_FORCE_REINSTALL:-} ]] || return 1
+  while IFS= read -r one; do
+    [[ -n $one && $one == "$query" ]] && return 0
+  done <<<"$UPDATE_SKILLS_FORCE_REINSTALL"
+  return 1
+}
+
 # npx lane (brief step 3): explicit `skills add <repo> --skill <name> ...` per
 # npxTracked entry, GROUPED by repo (NOT a bulk `update`, whose lock-walk logs
 # some failures at exit 0). Operating on $STORE, which in --build-lanes mode is
@@ -1047,8 +1065,9 @@ record_failed_skill() {
 # skills too, since `add` installs-or-refreshes every entry. Each failure is a
 # required failure (the whole candidate is discarded on any).
 # Install-only builds (UPDATE_SKILLS_LANES_ADDITIVE=1) narrow every repo group to
-# the skills ABSENT from the candidate store, so existing skills stay the
-# byte-clones of current the candidate started as (no updates, additive only).
+# the skills ABSENT from the candidate store (or on the force-reinstall list),
+# so existing healthy skills stay the byte-clones of current the candidate
+# started as (no updates, additive only).
 __gen_lane_npx() {
   [[ -f $CUSTOM_SKILL_LOCK ]] || return 0
   local additive="${UPDATE_SKILLS_LANES_ADDITIVE:-}"
@@ -1065,7 +1084,7 @@ __gen_lane_npx() {
     group_names=()
     while IFS= read -r name; do
       [[ -n $name ]] || continue
-      if [[ -n $additive && -e "$STORE/$name" ]]; then
+      if [[ -n $additive && -e "$STORE/$name" ]] && ! __gen_lane_force_reinstall "$name"; then
         continue # additive build: keep the existing byte-clone, never refresh
       fi
       skill_args+=(--skill "$name")
@@ -1100,6 +1119,12 @@ __gen_lane_clawhub() {
   local skill slug registry tmp_workdir installed_dir overlay_file update_output
   local -a clawhub_cmd
   while IFS=$'\t' read -r -u3 skill slug registry; do
+    # R2-5 repair: a present-but-drifted clawhub skill on the force-reinstall
+    # list is removed here so the absent-install branch below reinstalls it
+    # fresh (an additive build would otherwise keep the broken byte-clone).
+    if [[ -n $additive ]] && __gen_lane_force_reinstall "$skill" && [[ -e "$STORE/$skill" ]]; then
+      rm -rf "${STORE:?}/${skill:?}"
+    fi
     if [[ ! -e "$STORE/$skill" ]]; then
       [[ -n $slug ]] || continue
       tmp_workdir="$(mktemp -d)"
@@ -1269,10 +1294,16 @@ __gen_do_build_lanes() {
 #   __gen_run_lanes <candidate-home> <id> [additive]
 # A non-empty third argument runs the lanes ADDITIVELY (install-only builds:
 # only skills absent from the candidate are installed; nothing is refreshed).
+# The install-only FORCE-REINSTALL set (R2-5) is passed to the additive lanes
+# so a drifted skill is reinstalled despite its "present" clone.
 # Returns the re-invocation's exit status (non-zero = discard the candidate).
 __gen_run_lanes() {
   local home="$1" id="$2" additive="${3:-}"
   mkdir -p "$home/.cache" "$home/.config" "$home/.local/share" "$home/.local/state" "$home/.tmp" "$home/.npm"
+  local force_reinstall=""
+  if [[ ${#GEN_INSTALL_FORCE_REINSTALL[@]} -gt 0 ]]; then
+    printf -v force_reinstall '%s\n' "${GEN_INSTALL_FORCE_REINSTALL[@]}"
+  fi
   env -i \
     PATH="$PATH" \
     HOME="$home" \
@@ -1286,6 +1317,7 @@ __gen_run_lanes() {
     UPDATE_SKILLS_GEN_ID="$id" \
     UPDATE_SKILLS_LOCK_PATH="$CUSTOM_SKILL_LOCK" \
     UPDATE_SKILLS_LANES_ADDITIVE="$additive" \
+    UPDATE_SKILLS_FORCE_REINSTALL="$force_reinstall" \
     UPDATE_SKILLS_BUILD_LANES=1 \
     bash "$UPDATE_SKILLS_SELF" --build-lanes
 }
@@ -1655,41 +1687,117 @@ __gen_weekly_attempt() {
   return 0
 }
 
+# Live HEALTH of one roster skill (R2-5). Mere path existence is NOT health:
+# a store link can RESOLVE while its generation target's SKILL.md is gone, and
+# a core<->on-demand tier change drifts the overlay with no absent path at all.
+# Prints a drift REASON (empty when healthy) so install-only can decide
+# no-op-vs-repair and, for content/link drift, force a reinstall. Reasons:
+#   absent   - no store entry at all (also a repair, installed fresh)
+#   link     - the store entry is not the correct generation symlink, or it
+#              does not resolve into the current generation
+#   skillmd  - the resolved skill has no SKILL.md
+#   lock     - an npx-tracked skill missing from the published npx lock (a
+#              later `npx skills update -g` could reinstall/revoke off it)
+#   overlay  - an on-demand skill missing its required Codex tier overlay
+# The first four are CONTENT/LINK drift (force a reinstall); overlay drift is
+# fixed by a plain rebuild (the candidate re-asserts overlays).
+__gen_roster_skill_health() {
+  local name="$1"
+  if [[ ! -e "$STORE/$name" && ! -L "$STORE/$name" ]]; then
+    printf 'absent'
+    return 0
+  fi
+  # Before any live generation exists (a fresh/flat machine that install-only
+  # bootstraps but never migrates), a present real dir with a SKILL.md is
+  # legitimately healthy: the store-symlink topology is the first full weekly
+  # run's job, so demanding it here would reinstall every present skill. Only
+  # once a live generation exists is the full topology an invariant.
+  if ! __gen_is_complete "$SKILLS_CURRENT"; then
+    [[ -f "$STORE/$name/SKILL.md" ]] || {
+      printf 'skillmd'
+      return 0
+    }
+    return 0
+  fi
+  __gen_store_link_correct "$name" || {
+    printf 'link'
+    return 0
+  }
+  if [[ ! -d "$SKILLS_CURRENT/skills/$name" ]]; then
+    printf 'link' # link is correct-form but its generation target is gone
+    return 0
+  fi
+  [[ -f "$STORE/$name/SKILL.md" ]] || {
+    printf 'skillmd'
+    return 0
+  }
+  if jq -e --arg n "$name" '(.npxTracked // {}) | has($n)' "$CUSTOM_SKILL_LOCK" >/dev/null 2>&1; then
+    if [[ -f $SKILL_LOCK_LINK ]] &&
+      ! jq -e --arg n "$name" '(.skills // {}) | has($n)' "$SKILL_LOCK_LINK" >/dev/null 2>&1; then
+      printf 'lock'
+      return 0
+    fi
+  fi
+  if jq -e --arg n "$name" '(.tiers // {})[$n] == "on-demand"' "$CUSTOM_SKILL_LOCK" >/dev/null 2>&1; then
+    grep -q 'allow_implicit_invocation: false' "$STORE/$name/agents/openai.yaml" 2>/dev/null || {
+      printf 'overlay'
+      return 0
+    }
+  fi
+  return 0
+}
+
 # The install-only attempt (brief Modes): builds and publishes a candidate whose
 # EXISTING skills are byte-clones of current (no updates) plus genuinely absent
-# roster skills added. Never migrates a flat store, never replaces existing
-# store content: link planting is additive (absent names only).
+# OR unhealthy roster skills repaired. Never migrates a flat store; link
+# planting is additive.
 #
-# The absent-skill set is computed FIRST. install-only is purely additive, so
-# with nothing absent there is nothing to install AND nothing to publish: the
-# publish path always exchanges the WHOLE live generation, which would displace a
-# concurrent out-of-band write into the retained generation (prunable) and switch
-# a reader reopening a stable path to a new generation mid-session. So return
-# before building or publishing when nothing is absent. When something IS absent
-# and a live generation already exists, the publish exchange is gated behind the
-# idle gate exactly like the weekly run; a fresh machine with no live generation
-# publishes by a plain rename (no exchange, no readers) and is never gated, which
-# is what keeps the apply-time bootstrap unattended.
+# The NEEDS-WORK set is computed FIRST from live health, not path existence
+# (R2-5): a skill counts as work when it is absent OR its live topology has
+# drifted (link/skillmd/lock/overlay). With nothing to do there is nothing to
+# publish, so return before building: the publish path exchanges the WHOLE live
+# generation, which would displace a concurrent out-of-band write into the
+# retained generation and switch a reader reopening a stable path to a new
+# generation mid-session. When there IS work and a live generation exists, the
+# publish exchange is idle-gated exactly like the weekly run; a fresh machine
+# with no live generation publishes by a plain rename (no exchange, no readers)
+# and is never gated, keeping the apply-time bootstrap unattended.
+#
+# Content/link drift (absent/link/skillmd/lock) forces a reinstall of that
+# skill even in the additive lanes (the cloned copy would otherwise be skipped
+# as "present"); overlay-only drift needs no reinstall (the candidate
+# re-asserts overlays and the exchange makes them live).
 __gen_install_only_attempt() {
-  local id candidate_home candidate_agents
-  local -a absent=()
+  local id candidate_home candidate_agents reason
+  local -a needs_work=()
+  GEN_INSTALL_FORCE_REINSTALL=()
   local tracked_name
   while IFS= read -r tracked_name; do
     [[ -n $tracked_name ]] || continue
-    [[ -e "$STORE/$tracked_name" || -L "$STORE/$tracked_name" ]] && continue
-    absent+=("$tracked_name")
+    reason="$(__gen_roster_skill_health "$tracked_name")"
+    [[ -z $reason ]] && continue
+    needs_work+=("$tracked_name")
+    case "$reason" in
+      absent | link | skillmd | lock)
+        GEN_INSTALL_FORCE_REINSTALL+=("$tracked_name")
+        log "install-only: $tracked_name needs repair ($reason); will reinstall it"
+        ;;
+      overlay)
+        log "install-only: $tracked_name needs repair ($reason); will re-assert its overlay"
+        ;;
+    esac
   done < <(__gen_tracked_names)
-  if [[ ${#absent[@]} -eq 0 ]]; then
-    log "install-only: nothing absent; no changes"
+  if [[ ${#needs_work[@]} -eq 0 ]]; then
+    log "install-only: every roster skill is present and healthy; no changes"
     return 0
   fi
   if __gen_is_complete "$SKILLS_CURRENT" &&
     [[ ${UPDATE_SKILLS_FORCE:-} != "1" ]] && __update_skills_should_defer; then
-    # A live generation exists, so publishing an absent skill EXCHANGES it. A
-    # harness shows recent activity (or the probe errored, fail-closed): defer
-    # the exchange to a later run rather than swap the generation under a live
+    # A live generation exists, so publishing a repair EXCHANGES it. A harness
+    # shows recent activity (or the probe errored, fail-closed): defer the
+    # exchange to a later run rather than swap the generation under a live
     # session. The additive fan-out convergence still runs in the caller.
-    log "install-only: ${#absent[@]} absent skill(s) to add, but a harness shows recent activity; deferring the generation exchange to a later run"
+    log "install-only: ${#needs_work[@]} skill(s) to add or repair, but a harness shows recent activity; deferring the generation exchange to a later run"
     return 0
   fi
   id="$(__gen_new_id)"

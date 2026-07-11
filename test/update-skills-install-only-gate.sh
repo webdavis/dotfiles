@@ -112,8 +112,8 @@ id_setup="$(gen_id)"
 : >"$NPX_LOG"
 out1="$(FAKE_PS="$NO_HARNESS" bash "$SCRIPT" --install-only 2>&1)" ||
   fail "install-only (zero absent) exited non-zero: $out1"
-printf '%s\n' "$out1" | grep -qF 'nothing absent; no changes' ||
-  fail "case 1: install-only with zero absent did not report 'nothing absent': $out1"
+printf '%s\n' "$out1" | grep -qF 'present and healthy; no changes' ||
+  fail "case 1: install-only with a healthy roster did not report the no-op: $out1"
 [[ "$(gen_id)" == "$id_setup" ]] ||
   fail "case 1: the live generation was exchanged though nothing was absent"
 [[ ! -s $NPX_LOG ]] ||
