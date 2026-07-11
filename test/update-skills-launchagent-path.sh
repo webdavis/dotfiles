@@ -22,7 +22,10 @@ fail() {
 [[ -f $PLIST ]] || fail "plist template not found: $PLIST"
 
 # Render the template so {{ .chezmoi.homeDir }} etc. resolve exactly as at apply time.
-rendered="$(CI=1 chezmoi execute-template --no-tty <"$PLIST")" ||
+# --source pins the render to THIS checkout (hermetic): bare chezmoi reads the machine's
+# configured sourceDir, so the test would break whenever that live checkout is on a
+# different branch or holds stray state (mirrors treefmt.nix's rendered-template calls).
+rendered="$(CI=1 chezmoi --source "$REPO_ROOT" execute-template --no-tty <"$PLIST")" ||
   fail "chezmoi execute-template failed on the plist"
 
 # Pull the PATH string: the <string> immediately after the <key>PATH</key> line.
@@ -30,7 +33,7 @@ path_value="$(printf '%s\n' "$rendered" |
   awk '/<key>PATH<\/key>/{getline; gsub(/^[[:space:]]*<string>/,""); gsub(/<\/string>[[:space:]]*$/,""); print; exit}')"
 [[ -n $path_value ]] || fail "no PATH EnvironmentVariable found in the rendered plist"
 
-home_dir="$(chezmoi execute-template --no-tty <<<'{{ .chezmoi.homeDir }}')"
+home_dir="$(chezmoi --source "$REPO_ROOT" execute-template --no-tty <<<'{{ .chezmoi.homeDir }}')"
 
 # Every dir the script's bare-name tools live in must be on the launchd PATH.
 for required_dir in "$home_dir/.local/bin" "/opt/homebrew/bin"; do

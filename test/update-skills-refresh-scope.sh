@@ -1,25 +1,26 @@
 #!/usr/bin/env bash
-# update-skills-refresh-scope.sh — the store refresh is npx-native: it runs
-# `npx skills update` and NEVER git-clones a skill to install it. The git-pin
-# supply-chain machinery (clone -> checkout pin -> tree-hash -> swap) is gone,
-# so a full run's only legitimate git use is the fork/vendored upstream
-# drift-check — and with no forks entries there is nothing to clone at all.
+# update-skills-refresh-scope.sh: the store refresh is npx-native and runs in
+# the GENERATION build lanes: an explicit per-repo `npx skills add ... --skill
+# <name>` against the candidate (NEVER the bulk `npx skills update`, whose
+# lock-walk logs some failures at exit 0), and NEVER a git clone to install a
+# skill. The git-pin supply-chain machinery (clone -> checkout pin -> tree-hash
+# -> swap) is gone, so a full run's only legitimate git use is the fork/vendored
+# upstream drift-check, and with no forks entries there is nothing to clone.
 #
 # Setup: a scratch HOME with a lock whose one npx-tracked skill is already
-# present in the store (so the install pass has nothing to add) and no forks,
+# present in the store (a flat real dir the run migrates into the generation),
 # plus PATH shims for git and npx that log every invocation instead of touching
-# the network. Assertions: a full (non --install-only) run still calls
-# `npx skills update`, and never invokes git — proving no residual git-pin
-# install path and no clone of any retired upstream.
+# the network. Assertions: a full run refreshes via the explicit per-repo add,
+# never invokes the bulk update, and never invokes git.
 #
-# The clawhub update pass rides the same full run: two clawhub-tracked skills
-# are already present in the store, so the pass must per-skill `clawhub update`
-# them in the store workdir (--workdir $HOME/.agents --dir skills, bare store
-# name — never install, never --force), scrub Finder .DS_Store litter first
+# The clawhub lane rides the same candidate build: two clawhub-tracked skills
+# are already present, so the lane must per-skill `clawhub update` them in the
+# CANDIDATE workdir (--workdir <candidate>/.agents --dir skills, bare store
+# name, never install, never --force), scrub Finder .DS_Store litter first
 # (it breaks the CLI's fingerprint match), and when the CLI refuses with
 # "local changes" because of the repo-asserted Codex overlay (the one local
 # file this repo writes into tracked skill dirs), set exactly that file aside
-# and retry once — the overlay assert re-creates it later in the same run.
+# and retry once; the candidate overlay assert re-creates it in the same build.
 set -euo pipefail
 
 # When git runs a hook such as pre-commit (this test runs under one via
@@ -51,11 +52,13 @@ mkdir -p "$HOME/.agents/skills"
 # updater must set exactly that file aside and retry once.
 mkdir -p "$HOME/.agents/skills/tracked-skill"
 printf -- '---\nname: tracked-skill\ndescription: present\n---\n' >"$HOME/.agents/skills/tracked-skill/SKILL.md"
-mkdir -p "$HOME/.agents/skills/tracked-claw"
+mkdir -p "$HOME/.agents/skills/tracked-claw/.clawhub"
 printf -- '---\nname: tracked-claw\ndescription: present\n---\n' >"$HOME/.agents/skills/tracked-claw/SKILL.md"
+printf '{"slug":"tracked-claw"}\n' >"$HOME/.agents/skills/tracked-claw/.clawhub/origin.json"
 touch "$HOME/.agents/skills/tracked-claw/.DS_Store"
-mkdir -p "$HOME/.agents/skills/refused-claw/agents"
+mkdir -p "$HOME/.agents/skills/refused-claw/agents" "$HOME/.agents/skills/refused-claw/.clawhub"
 printf -- '---\nname: refused-claw\ndescription: present\n---\n' >"$HOME/.agents/skills/refused-claw/SKILL.md"
+printf '{"slug":"refused-claw"}\n' >"$HOME/.agents/skills/refused-claw/.clawhub/origin.json"
 printf 'policy:\n  allow_implicit_invocation: false' >"$HOME/.agents/skills/refused-claw/agents/openai.yaml"
 cat >"$HOME/.agents/custom-skill-lock.json" <<'EOF'
 {
@@ -109,9 +112,13 @@ export PATH="$shim_dir:$PATH"
 # Full run (NOT --install-only): exercises every refresh pass.
 output="$(UPDATE_SKILLS_FORCE=1 bash "$SCRIPT" 2>&1)" || fail "full run exited non-zero: $output"
 
-# 1) The npx-native refresh is alive.
-grep -q 'skills@latest update' "$scratch_dir/npx.log" 2>/dev/null ||
-  fail "full run never invoked 'npx skills update' (npx-tracked refresh lost)"
+# 1) The npx-native refresh is alive: an explicit per-repo add against the
+#    candidate, never the bulk update (its lock-walk logs failures at exit 0).
+grep -qE 'skills@latest add fixture/tracked-skill .*--skill tracked-skill' "$scratch_dir/npx.log" 2>/dev/null ||
+  fail "full run never invoked the explicit per-repo 'npx skills add' (npx-tracked refresh lost): $(cat "$scratch_dir/npx.log" 2>/dev/null)"
+if grep -qE 'skills@latest update' "$scratch_dir/npx.log" 2>/dev/null; then
+  fail "full run invoked the bulk 'npx skills update' (forbidden; per-repo add only): $(cat "$scratch_dir/npx.log")"
+fi
 
 # 2) The install pass never git-clones (the git-pin machinery is gone), and
 #    with no forks entries the drift-check clones nothing either — so git is
@@ -131,16 +138,21 @@ done
 # 4) The clawhub update pass refreshes each tracked skill IN the store: bare
 #    store name, --workdir $HOME/.agents --dir skills, per-skill (never --all),
 #    and — both skills being present — never an install.
-grep -q -- "--workdir $HOME/.agents --dir skills update tracked-claw" "$scratch_dir/clawhub.log" 2>/dev/null ||
-  fail "full run never invoked 'clawhub update tracked-claw' against the store workdir: $(cat "$scratch_dir/clawhub.log" 2>/dev/null)"
+grep -qE -- "--workdir [^ ]+/.agents --dir skills update tracked-claw" "$scratch_dir/clawhub.log" 2>/dev/null ||
+  fail "full run never invoked 'clawhub update tracked-claw' against a store-shaped workdir: $(cat "$scratch_dir/clawhub.log" 2>/dev/null)"
+# ... and never against the REAL store: the update must run inside the candidate.
+if grep -q -- "--workdir $HOME/.agents " "$scratch_dir/clawhub.log" 2>/dev/null; then
+  fail "the clawhub lane ran against the REAL store workdir (must run inside the candidate): $(cat "$scratch_dir/clawhub.log")"
+fi
 if grep -qE '(^| )install( |$)' "$scratch_dir/clawhub.log"; then
   fail "the clawhub pass ran an install for a present skill: $(cat "$scratch_dir/clawhub.log")"
 fi
 
 # 5) Finder litter is scrubbed before the update: .DS_Store breaks the real
-#    CLI's fingerprint match, so the pass removes it first.
+#    CLI's fingerprint match, so the lane removes it in the candidate; after
+#    publish the store path (now a generation link) must not show it.
 [[ ! -e "$HOME/.agents/skills/tracked-claw/.DS_Store" ]] ||
-  fail "tracked-claw's .DS_Store survived the update pass (it breaks clawhub's fingerprint match)"
+  fail "tracked-claw's .DS_Store survived the update lane (it breaks clawhub's fingerprint match)"
 
 # 6) The refusal ladder: the repo-asserted overlay makes the CLI refuse with
 #    "local changes"; the pass sets exactly that file aside and retries once —
@@ -153,7 +165,7 @@ if grep -q -- '--force' "$scratch_dir/clawhub.log"; then
   fail "the clawhub pass passed a --force flag (automation must never force): $(cat "$scratch_dir/clawhub.log")"
 fi
 overlay="$HOME/.agents/skills/refused-claw/agents/openai.yaml"
-[[ -f $overlay ]] || fail "refused-claw's Codex overlay was not re-asserted after the update pass set it aside"
+[[ -f $overlay ]] || fail "refused-claw's Codex overlay was not re-asserted after the update lane set it aside"
 grep -q 'allow_implicit_invocation: false' "$overlay" ||
   fail "refused-claw's re-asserted overlay has wrong content: $(<"$overlay")"
 

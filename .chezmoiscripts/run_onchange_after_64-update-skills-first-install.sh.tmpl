@@ -1,0 +1,77 @@
+#!/bin/bash
+# run_onchange_after_64-update-skills-first-install.sh
+#
+# Fresh-machine bootstrap: install any ABSENT roster skill at apply time so a new
+# machine reproduces the full store immediately, instead of waiting for the
+# weekly Monday LaunchAgent (com.webdavis.update-skills, RunAtLoad=false, so its
+# first chance is Monday at the earliest). Audit Fix 2 (PR #36).
+#
+# run_onchange re-fires whenever the lock OR the updater source changes (the two
+# hashes below), so adding/removing a skill or changing the installer re-syncs
+# the store on the next apply. On an already-provisioned machine the install pass
+# finds nothing absent and returns quickly (idempotent).
+#
+# --install-only runs ONLY the npx + clawhub install passes for ABSENT skills,
+# plus the symlink-fan-out convergence, the Codex overlay re-assert, and the
+# superpowers routing re-assert. It skips the weekly npx/clawhub UPDATE passes,
+# the hermes registry-update phase, and the fork drift-check, and it never SWAPS
+# a skill folder (it only adds absent ones), so it is safe to run unattended at
+# apply time even while an agent session is live.
+#
+# RETRY WITHOUT ABORTING THE APPLY. A chezmoiscript that exits non-zero aborts
+# the whole `chezmoi apply`, so a failed first install must NOT exit non-zero.
+# Instead, on failure we bump a monotonic counter in the pending-marker file;
+# its digits are interpolated into the "pending retry" line below, so this
+# rendered script's content changes and run_onchange re-fires on the next apply
+# until a run succeeds and removes the marker. Removing the marker flips the hash
+# one final time, so exactly one more settle apply re-fires (idempotent, no-op);
+# that is expected.
+#
+# SECURITY (parallel-branch review lesson): NEVER splice raw marker bytes into
+# the render. A multiline marker would otherwise become live shell executed at
+# apply time. The marker is interpolated DIGITS-ONLY via regexFind "^[0-9]+" (so
+# a hostile marker contributes at most leading digits, and even that lands inside
+# a comment line), and the run-time bump clamps the counter to digits AND forces
+# base-10 too. The marker is read through a shell guard (cat ... 2>/dev/null ||
+# true) so an UNREADABLE (mode-000) or absent marker yields the safe zero path
+# instead of aborting the whole render on a cat error.
+#
+# lock hash:     {{ include "dot_agents/custom-skill-lock.json" | sha256sum }}
+# updater hash:  {{ include "dot_local/bin/executable_update-skills.sh" | sha256sum }}
+# pending retry: {{ if stat (joinPath .chezmoi.homeDir ".local/state/skills/first-install-pending") }}{{ (output "sh" "-c" (printf "cat %s 2>/dev/null || true" (joinPath .chezmoi.homeDir ".local/state/skills/first-install-pending" | squote))) | regexFind "^[0-9]+" }}{{ end }}
+set -euo pipefail
+
+UPDATER="$HOME/.local/bin/update-skills.sh"
+MARKER_DIR="$HOME/.local/state/skills"
+MARKER="$MARKER_DIR/first-install-pending"
+RELAY="$HOME/.local/bin/relay.sh"
+
+# Soft-gate on the deployed updater existing: a half-provisioned machine (updater
+# not yet applied) skips silently, exactly like the other loader chezmoiscripts.
+if [[ ! -x $UPDATER ]]; then
+  exit 0
+fi
+
+if "$UPDATER" --install-only; then
+  # Success: clear any pending marker so future applies stop re-firing on it.
+  # This removal flips the rendered hash once more, so exactly one further settle
+  # apply re-fires run_onchange (idempotent, nothing absent to install).
+  rm -f "$MARKER"
+else
+  # Failure: bump a monotonic retry counter (never exit non-zero, which would
+  # abort the whole apply). The changed digits re-fire run_onchange next apply.
+  # Defence in depth beside the render-time regexFind sanitizer: take only the
+  # first line (a multiline marker is inert), bound to a few digits, and force
+  # base-10 so a leading-zero marker like 08 is never read as invalid octal.
+  mkdir -p "$MARKER_DIR"
+  count="$(cat "$MARKER" 2>/dev/null || echo 0)"
+  count="${count%%$'\n'*}"
+  [[ $count =~ ^[0-9]{1,6}$ ]] || count=0
+  count=$((10#$count + 1))
+  printf '%s\n' "$count" >"$MARKER"
+  printf 'update-skills first-install pass failed (attempt %s); it will retry on the next apply\n' "$count" >&2
+  if [[ -x $RELAY ]]; then
+    "$RELAY" --agent update-skills --state first-install-failed --project skills \
+      --detail "first-install --install-only failed on this machine (attempt $count); it re-fires on the next apply" || true
+  fi
+fi

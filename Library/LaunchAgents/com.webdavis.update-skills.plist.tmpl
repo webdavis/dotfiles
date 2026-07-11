@@ -8,6 +8,9 @@
   <array>
     <string>/opt/homebrew/bin/bash</string>
     <string>{{ .chezmoi.homeDir }}/.local/bin/update-skills.sh</string>
+    <!-- Marks this as a scheduled (not manual) run: only a scheduled run with no
+         later slot remaining this week claims retry-budget exhaustion. -->
+    <string>--scheduled</string>
   </array>
   <key>EnvironmentVariables</key>
   <dict>
@@ -18,15 +21,25 @@
   </dict>
   <key>RunAtLoad</key>
   <false/>
+  <!-- 24 hourly Monday retry slots (00:00..23:00), generated programmatically.
+       A slot that finds a harness with recent activity defers and leaves no
+       weekly success stamp, so the next slot retries; once a slot succeeds, the
+       rest no-op on the stamp. The 23:00 slot is the LAST (a deferral there
+       alerts loudly). Keep the last hour in sync with UPDATE_SKILLS_LAST_SLOT_HOUR
+       in update-skills.sh. -->
   <key>StartCalendarInterval</key>
-  <dict>
-    <key>Weekday</key>
-    <integer>1</integer>
-    <key>Hour</key>
-    <integer>4</integer>
-    <key>Minute</key>
-    <integer>0</integer>
-  </dict>
+  <array>
+{{- range $hour := until 24 }}
+    <dict>
+      <key>Weekday</key>
+      <integer>1</integer>
+      <key>Hour</key>
+      <integer>{{ $hour }}</integer>
+      <key>Minute</key>
+      <integer>0</integer>
+    </dict>
+{{- end }}
+  </array>
   <key>StandardOutPath</key>
   <string>{{ .chezmoi.homeDir }}/.local/log/skills/update-skills.log</string>
   <key>StandardErrorPath</key>
