@@ -22,7 +22,9 @@
 #      updates re-apply the install gate, and a block must reach the operator.
 #   7. --install-only never reaches the phase (it is network-dependent).
 #   8. --dry-run prints would-update lines and invokes hermes zero times.
-#   9. A machine without hermes on PATH skips the phase gracefully (exit 0).
+#   9. A machine without hermes on PATH but a NON-EMPTY hermesRegistry records a
+#      REQUIRED failure (item 4: a missing prerequisite with work to do is not a
+#      silent success), warns loudly, and still exits 0.
 set -euo pipefail
 
 # When git runs a hook such as pre-commit (this test runs under one via
@@ -157,8 +159,9 @@ dry_output="$(UPDATE_SKILLS_FORCE=1 bash "$SCRIPT" --dry-run 2>&1)" || fail "--d
 [[ ! -s $hermes_log ]] || fail "--dry-run invoked hermes: $(cat "$hermes_log")"
 printf '%s\n' "$dry_output" | grep -q "would update" || fail "--dry-run did not report would-update lines: $dry_output"
 
-# 9) hermes off PATH: the phase is a graceful skip, not a failure. The
-#    stripped PATH keeps npx (stub), jq, and git so only hermes is missing.
+# 9) hermes off PATH with a NON-EMPTY hermesRegistry: a REQUIRED failure (item
+#    4), warned loudly, run still exits 0. The stripped PATH keeps npx (stub),
+#    jq, and git so only hermes is missing.
 no_hermes_dir="$scratch_dir/no-hermes"
 mkdir -p "$no_hermes_dir"
 cp "$stub_dir/npx" "$no_hermes_dir/npx"
@@ -166,7 +169,9 @@ ln -s "$(command -v jq)" "$no_hermes_dir/jq"
 ln -s "$(command -v git)" "$no_hermes_dir/git"
 missing_output="$(UPDATE_SKILLS_FORCE=1 PATH="$no_hermes_dir:/usr/bin:/bin" bash "$SCRIPT" 2>&1)" ||
   fail "run without hermes on PATH exited non-zero: $missing_output"
-printf '%s\n' "$missing_output" | grep -qi "hermes.*skip" ||
-  fail "missing hermes was not reported as a skip: $missing_output"
+printf '%s\n' "$missing_output" | grep -qi "REQUIRED-FAILURE.*hermes" ||
+  fail "missing hermes with a non-empty hermesRegistry did not record a required failure: $missing_output"
+printf '%s\n' "$missing_output" | grep -qi "WITHHOLDING" ||
+  fail "missing hermes prerequisite did not withhold the weekly stamp: $missing_output"
 
 echo "update-skills-hermes-phase: OK"

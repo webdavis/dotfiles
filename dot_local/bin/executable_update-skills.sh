@@ -498,7 +498,20 @@ assert_superpowers_routing() {
   local routing_script="$HOME/.local/bin/assert-hermes-superpowers-routing.sh"
   local relay_script="$HOME/.local/bin/relay.sh"
   local routing_output
-  [[ -x $routing_script ]] || return 0
+  if [[ ! -x $routing_script ]]; then
+    # A non-empty superpowersRouting table with no routing script is a REQUIRED
+    # failure: the hermes mirror's routing patches would silently go un-asserted
+    # (item 4). An empty table (or absent lock) means there is nothing to do.
+    if [[ -f $CUSTOM_SKILL_LOCK ]] && jq -e '(.superpowersRouting // {} | length) > 0' "$CUSTOM_SKILL_LOCK" >/dev/null 2>&1; then
+      log "WARN: assert-hermes-superpowers-routing.sh absent but superpowersRouting is non-empty; routing cannot be asserted"
+      record_required_failure "superpowers routing script missing with a non-empty superpowersRouting table"
+      if [[ -x $relay_script ]]; then
+        "$relay_script" --agent update-skills --state prereq-missing --project hermes-superpowers \
+          --detail "the routing-assert script is not deployed but superpowersRouting has entries; the mirror routing may drift" || true
+      fi
+    fi
+    return 0
+  fi
   if [[ $DRYRUN == "--dry-run" ]]; then
     "$routing_script" --dry-run || log "routing re-assert reported issues (continuing)"
     return 0
@@ -587,11 +600,23 @@ assert_codex_overlays() {
 # run).
 update_hermes_registry_skills() {
   [[ -f $CUSTOM_SKILL_LOCK ]] || return 0
+  local relay_script="$HOME/.local/bin/relay.sh"
   if ! command -v hermes >/dev/null 2>&1; then
-    log "hermes not on PATH; skipping the hermes registry-update phase"
+    # A non-empty hermesRegistry table with no hermes binary is a REQUIRED
+    # failure: the hub-owned skills would silently go un-refreshed (item 4). An
+    # empty table means there is nothing to do, so a missing hermes is harmless.
+    if jq -e '(.hermesRegistry // {} | length) > 0' "$CUSTOM_SKILL_LOCK" >/dev/null 2>&1; then
+      log "WARN: hermes not on PATH but hermesRegistry is non-empty; the registry-update phase cannot run"
+      record_required_failure "hermes missing with a non-empty hermesRegistry table"
+      if [[ -x $relay_script ]]; then
+        "$relay_script" --agent update-skills --state prereq-missing --project hermes \
+          --detail "hermes is not on PATH but hermesRegistry has hub-owned skills to refresh; they will drift" || true
+      fi
+    else
+      log "hermes not on PATH; skipping the hermes registry-update phase (hermesRegistry is empty)"
+    fi
     return 0
   fi
-  local relay_script="$HOME/.local/bin/relay.sh"
   local profile skill lock_key held update_output
   # Profiles to walk: every profile owning a registry skill — default included
   # (`hermes -p default` addresses Bob's root profile; un-entanglement done).
@@ -856,8 +881,16 @@ install_npx_tracked() {
 install_clawhub_tracked() {
   [[ -f $CUSTOM_SKILL_LOCK ]] || return 0
   jq -e '.clawhubTracked // {} | length > 0' "$CUSTOM_SKILL_LOCK" >/dev/null 2>&1 || return 0
+  local relay_script="$HOME/.local/bin/relay.sh"
   if ! command -v clawhub >/dev/null 2>&1; then
-    log "clawhub not on PATH; skipping the clawhub install pass"
+    # A non-empty clawhubTracked table with no clawhub binary is a REQUIRED
+    # failure: absent skills would silently never install (item 4).
+    log "WARN: clawhub not on PATH but clawhubTracked is non-empty; the install pass cannot run"
+    record_required_failure "clawhub missing with a non-empty clawhubTracked table (install pass)"
+    if [[ -x $relay_script ]]; then
+      "$relay_script" --agent update-skills --state prereq-missing --project clawhub \
+        --detail "clawhub is not on PATH but clawhubTracked has skills to install; the store cannot be completed" || true
+    fi
     return 0
   fi
   local skill slug registry tmp_workdir installed_dir
@@ -914,11 +947,18 @@ install_clawhub_tracked() {
 update_clawhub_tracked() {
   [[ -f $CUSTOM_SKILL_LOCK ]] || return 0
   jq -e '.clawhubTracked // {} | length > 0' "$CUSTOM_SKILL_LOCK" >/dev/null 2>&1 || return 0
+  local relay_script="$HOME/.local/bin/relay.sh"
   if ! command -v clawhub >/dev/null 2>&1; then
-    log "clawhub not on PATH; skipping the clawhub update pass"
+    # A non-empty clawhubTracked table with no clawhub binary is a REQUIRED
+    # failure: the tracked store copies would silently go un-refreshed (item 4).
+    log "WARN: clawhub not on PATH but clawhubTracked is non-empty; the update pass cannot run"
+    record_required_failure "clawhub missing with a non-empty clawhubTracked table (update pass)"
+    if [[ -x $relay_script ]]; then
+      "$relay_script" --agent update-skills --state prereq-missing --project clawhub \
+        --detail "clawhub is not on PATH but clawhubTracked has skills to refresh; they will drift" || true
+    fi
     return 0
   fi
-  local relay_script="$HOME/.local/bin/relay.sh"
   local skill overlay_file update_output retry_output
   # read on fd 3: clawhub may consume stdin
   while IFS= read -r -u3 skill; do
