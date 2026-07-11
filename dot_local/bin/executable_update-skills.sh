@@ -71,15 +71,14 @@
 #                       phase, and the fork drift-check)
 #   --check-forks-only  run only the fork/vendored upstream drift-check
 # Env: UPDATE_SKILLS_FORCE=1 bypasses the idle-gate AND the weekly success stamp.
-#      The idle-gate makes this script refuse to swap skill folders while an
-#      INTERACTIVE harness session (claude/codex/hermes) is running, so a skill is
-#      never yanked out from under a live session. Persistent background daemons
-#      (the hermes gateway, Claude Code's bg helpers, the Codex app-server) do NOT
-#      defer it (see __update_skills_harness_active). The weekly run is scheduled
-#      across four Monday slots; a per-week success stamp
+#      The idle-gate (fail-closed) makes this script refuse to swap skill folders
+#      while ANY agent-harness process (claude/codex/hermes) is running, session
+#      OR daemon, so a skill is never yanked out from under a live session (argv
+#      shape cannot prove idleness here; see __update_skills_harness_active). The
+#      weekly run is scheduled across four Monday slots; a per-week success stamp
 #      (~/.local/state/update-skills/last-success) makes the extra slots no-ops
-#      after one succeeds, and the last slot alerts if it still cannot run. FORCE=1
-#      accepts the swap risk for test runs and deliberate manual runs.
+#      after one succeeds, and the last scheduled slot alerts if it still cannot
+#      run. FORCE=1 accepts the swap risk for test runs and deliberate manual runs.
 set -euo pipefail
 
 # This script clones and inspects git repos in temp dirs (fork drift-check). If
@@ -174,99 +173,100 @@ __update_skills_alert() {
   fi
 }
 
-# idle-gate discriminator: is a LIVE interactive agent-harness session using the
-# store right now? Returns 0 (defer, never swap a skill out from under a live
-# session) for a live Claude Code / Codex / hermes session, 1 (proceed) when
-# only persistent background daemons are up.
+# idle-gate discriminator (Wave 3a item 1, fail-closed). Argv SHAPE cannot prove
+# idleness on this machine: every interactive Claude launch carries
+# --remote-control (the bridge is on by default), and Codex `app-server` and the
+# Hermes gateway both host live agent turns in-process. So the old daemon-shape
+# allowlist (which declared those "daemon-shaped" argv idle and swapped skills
+# under them) is DELETED. The gate is now simply: if ANY process whose EFFECTIVE
+# program resolves to exactly claude, codex, or hermes exists, DEFER. This trades
+# occasional deferral for never-swap-under-a-live-session, which the design
+# explicitly tolerates (a deferred run just lands the updates next week).
 #
-# The old gate keyed on argv[0]'s basename and substring-matched daemon phrases
-# against the whole flattened argv. Two proven holes: (a) a hermes session execs
-# a python console script, so argv[0] is `python` and the session was never seen
-# as an agent at all (the gate swapped skills under a live hermes session); (b)
-# prompt free text containing a daemon phrase (a `claude -p "restart the hermes
-# gateway"` one-shot) was substring-matched as a daemon, so a live session was
-# read as a daemon and proceeded. The rewrite keys on the argv EFFECTIVE program
-# and on the single flags-position token, never on free text.
-#
-# Algorithm (Wave 3a conductor ruling), applied to one `ps -xo args=` line:
-#   1. Tokenize argv and find the EFFECTIVE program. When token0's basename is a
-#      python interpreter (python, python3, python3.12, ...): a hermes session
-#      is `python /path/bin/hermes ...` (token1 is the console-script path) and
-#      the gateway is `python -m hermes_cli.main ...` (token1 is -m). So:
-#        - token1 == "-m": effective program = the module's leading identifier
-#          (hermes_cli.main -> hermes), flags-position token = token3;
-#        - otherwise:      effective program = basename(token1), flags-position
-#          token = token2.
-#      For a non-python token0: effective program = basename(token0),
-#      flags-position token = token1.
-#   2. AGENT process iff the effective program is EXACTLY claude, codex, or
-#      hermes; anything else (node, bash, a plain python tool) proceeds.
-#   3. DAEMON iff the flags-position token EXACTLY matches that harness's daemon
-#      shape (never a substring, never free text):
-#        hermes -> gateway
-#        claude -> --remote-control | --bg-spare | --bg-pty-host | daemon
-#        codex  -> app-server
-#      A daemon proceeds; every other agent process is a live session -> defer.
-#
-# Ground truth (dresden, read-only ps, 2026-07-10):
-#   DAEMONS (proceed):
-#     python -m hermes_cli.main gateway run --replace      (hermes gateway)
-#     /opt/homebrew/bin/claude --remote-control            (Remote Control bridge)
-#     .../claude --bg-spare | daemon run | --bg-pty-host   (Claude bg helpers)
-#     codex app-server [--analytics-default-enabled]       (Codex app server)
-#   LIVE SESSIONS (defer):
-#     .../python .../bin/hermes -c <prompt>                (hermes console session)
-#     /opt/homebrew/bin/claude -p <prompt> | resume        (a Claude one-shot/TUI)
-#     codex [resume <id>]                                  (a Codex CLI session)
-#
-# A Remote Control bridge is a daemon by SHAPE (flags-position --remote-control);
-# a session that bridge spawns is a SEPARATE claude process WITHOUT that
-# positional flag, so it defers normally.
-__update_skills_is_interactive_harness() {
-  local args="$1"
+# __update_skills_effective_program resolves one `ps -xo args=` line to its
+# harness name (or empty). It is interpreter-aware (item 2): when the program is
+# an interpreter front (python/python3/python3.NN, node, bun, with an optional
+# leading `env`), it skips the interpreter's OWN options to the module or script
+# operand:
+#   - `-m MOD` -> the module's leading identifier mapped to its harness
+#     (hermes_cli.main -> hermes);
+#   - the arg-taking python/node options -X -W -c -e --eval consume the next
+#     token too;
+#   - `--` ends options, the next token is the script (its basename);
+#   - a bare script path -> its basename (a trailing .js/.mjs/.cjs/.py stripped).
+# node/bun-fronted `claude` (npm-style installs) resolves the same way.
+__update_skills_effective_program() {
   local -a tokens
-  read -ra tokens <<<"$args"
-  [[ ${#tokens[@]} -gt 0 ]] || return 1
-  local base0 effective first_arg module
-  base0="${tokens[0]##*/}"
-  case "$base0" in
-    python | python[0-9]*)
-      if [[ ${tokens[1]:-} == "-m" ]]; then
-        module="${tokens[2]:-}"
-        module="${module%%.*}"    # hermes_cli.main -> hermes_cli
-        effective="${module%%_*}" # hermes_cli -> hermes
-        first_arg="${tokens[3]:-}"
-      else
-        effective="${tokens[1]:-}"
-        effective="${effective##*/}" # basename of the script path
-        first_arg="${tokens[2]:-}"
-      fi
-      ;;
-    *)
-      effective="$base0"
-      first_arg="${tokens[1]:-}"
-      ;;
-  esac
-  case "$effective" in
-    claude | codex | hermes) ;;
-    *) return 1 ;; # not an agent process (node, bash, a plain python tool)
-  esac
-  # Daemon shapes: an exact match on the flags-position token means a persistent
-  # background daemon, which never loads a skill on its own, so it proceeds.
-  case "$effective" in
-    hermes)
-      [[ $first_arg == "gateway" ]] && return 1
-      ;;
-    claude)
-      case "$first_arg" in
-        --remote-control | --bg-spare | --bg-pty-host | daemon) return 1 ;;
+  read -ra tokens <<<"$1"
+  [[ ${#tokens[@]} -gt 0 ]] || return 0
+  local i=0 t base module
+  base="${tokens[0]##*/}"
+  # strip a leading `env` (skip its VAR=val assignments and options; -u/-S take
+  # an argument) to the real command.
+  if [[ $base == "env" ]]; then
+    i=1
+    while [[ $i -lt ${#tokens[@]} ]]; do
+      t="${tokens[$i]}"
+      case "$t" in
+        -u | -S) i=$((i + 1)) ;; # consumes the next token
+        -*) : ;;                 # a lone env option
+        *=*) : ;;                # a VAR=value assignment
+        *) break ;;              # the command
       esac
-      ;;
-    codex)
-      [[ $first_arg == "app-server" ]] && return 1
+      i=$((i + 1))
+    done
+    [[ $i -lt ${#tokens[@]} ]] || return 0
+    base="${tokens[$i]##*/}"
+  fi
+  case "$base" in
+    python | python[0-9] | python[0-9].[0-9]* | node | bun)
+      local j=$((i + 1))
+      while [[ $j -lt ${#tokens[@]} ]]; do
+        t="${tokens[$j]}"
+        case "$t" in
+          -m)
+            module="${tokens[$((j + 1))]:-}"
+            module="${module%%.*}" # hermes_cli.main -> hermes_cli
+            module="${module%%_*}" # hermes_cli -> hermes
+            printf '%s' "$module"
+            return 0
+            ;;
+          --)
+            j=$((j + 1))
+            break
+            ;;
+          -X | -W | -c | -e | --eval)
+            j=$((j + 2)) # option consumes the next token too
+            ;;
+          -*)
+            j=$((j + 1)) # a lone interpreter option
+            ;;
+          *)
+            break # the script operand
+            ;;
+        esac
+      done
+      [[ $j -lt ${#tokens[@]} ]] || return 0
+      base="${tokens[$j]##*/}"
       ;;
   esac
-  return 0 # a live interactive session -> defer
+  # strip a trailing script extension so cli.js / claude.py resolve to the bin name
+  base="${base%.js}"
+  base="${base%.mjs}"
+  base="${base%.cjs}"
+  base="${base%.py}"
+  printf '%s' "$base"
+}
+
+# True (0) for one argv line that resolves to an agent harness (claude/codex/
+# hermes), i.e. the gate must DEFER; 1 otherwise.
+__update_skills_is_interactive_harness() {
+  local effective
+  effective="$(__update_skills_effective_program "$1")"
+  case "$effective" in
+    claude | codex | hermes) return 0 ;;
+    *) return 1 ;;
+  esac
 }
 
 __update_skills_harness_active() {
@@ -735,16 +735,16 @@ if [[ -z $INSTALL_ONLY ]] && [[ -z $CHECK_FORKS_ONLY ]] && [[ $DRYRUN != "--dry-
   exit 0
 fi
 
-# idle-gate: defer while an INTERACTIVE harness session is using the store, so a
-# skill is never swapped out from under a live session. Persistent background
-# daemons (the hermes gateway, Claude Code's bg helpers, the Codex app-server) do
-# NOT count, blocking on them is what deferred the weekly run forever (see
-# __update_skills_harness_active). UPDATE_SKILLS_FORCE=1 bypasses (tests, manual
-# runs). --install-only is EXEMPT: it only ADDS absent skills (never swaps a
-# folder), so it is safe under a live session, this is what lets the fresh-
-# machine bootstrap run --install-only unattended at apply time. On the LAST
-# Monday slot the retry budget is spent, so a deferral there alerts LOUDLY rather
-# than failing silent.
+# idle-gate (fail-closed): defer while ANY agent-harness process (claude/codex/
+# hermes) is running, so a skill is never swapped out from under a live session.
+# Argv shape cannot distinguish a live session from a background daemon here, so
+# the gate errs toward deferral (a deferred run just lands the updates next week;
+# see __update_skills_harness_active). UPDATE_SKILLS_FORCE=1 bypasses (tests,
+# manual runs). --install-only is EXEMPT: it only ADDS absent skills (never swaps
+# a folder), so it is safe under a live session, this is what lets the fresh-
+# machine bootstrap run --install-only unattended at apply time. On the last
+# SCHEDULED slot the retry budget is spent, so a deferral there alerts LOUDLY
+# rather than failing silent.
 if [[ -z $INSTALL_ONLY ]] && [[ ${UPDATE_SKILLS_FORCE:-} != "1" ]] && [[ $DRYRUN != "--dry-run" ]] && __update_skills_harness_active; then
   log "a live harness session (claude/codex/hermes) is using the store, or the process table could not be read (fail-closed); deferring this run"
   if __update_skills_is_last_monday_slot; then
