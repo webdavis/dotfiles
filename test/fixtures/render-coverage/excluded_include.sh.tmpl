@@ -1,0 +1,7 @@
+#!/bin/bash
+# Fixture: a shell template that calls no secret itself but pulls in a partial
+# via includeTemplate whose body calls keepassxc. The transitive check (one
+# level) must mark it unsafe (verdict: excluded).
+set -euo pipefail
+{{ includeTemplate "partial_secret.tmpl" . }}
+echo "done"

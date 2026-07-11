@@ -1,0 +1,7 @@
+#!/bin/bash
+# Fixture: a shell template that invokes keepassxc through a Go-template
+# directive (the paren-grouped form used across this repo). The detector must
+# mark it unsafe (verdict: excluded) because it cannot render headless.
+set -euo pipefail
+token={{ (keepassxc "Fixture :: Example").Password | quote }}
+echo "$token"

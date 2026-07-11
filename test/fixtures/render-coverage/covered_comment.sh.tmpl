@@ -1,0 +1,7 @@
+#!/bin/bash
+# Fixture: a shell template that mentions keepassxc ONLY in a comment. A naive
+# substring matcher would wrongly exclude it; the template-call detector must
+# leave it covered because there is no {{ ... keepassxc ... }} directive.
+# This script does not call keepassxc; the secret is fetched elsewhere.
+set -euo pipefail
+echo "no secret here"
