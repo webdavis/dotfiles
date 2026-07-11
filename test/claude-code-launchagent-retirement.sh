@@ -52,9 +52,14 @@ REAL_UID="$(id -u)"
 TARGET="gui/$REAL_UID/com.claude.code"
 
 # Stub launchctl: records FULL argv for every invocation; STATE file present
-# means the service is loaded. `print` exits per load state (or fails outright
-# under LAUNCHCTL_PRINT_FAIL=1); `bootout` clears STATE on success, or exits
-# 77 leaving STATE intact under LAUNCHCTL_BOOTOUT_FAIL=1.
+# means the service is loaded. The load probe is TRI-STATE: `print` exits 0
+# (loaded), 113 (the known not-found status on this host, i.e. confirmed
+# absent), or another code (an operational error). By default `print` derives
+# 0/113 from the STATE file; when LAUNCHCTL_PRINT_SEQ_FILE holds a
+# space-separated list of codes, each `print` pops the next one instead (so a
+# specific probe -- first or second -- can be forced to an operational error).
+# `bootout` clears STATE on success, or exits 77 leaving STATE intact under
+# LAUNCHCTL_BOOTOUT_FAIL=1.
 make_launchctl_stub() {
   local dir="$1"
   cat >"$dir/launchctl" <<'STUB'
@@ -62,7 +67,11 @@ make_launchctl_stub() {
 printf '%s\n' "$*" >>"$LAUNCHCTL_RECORD"
 case "$1" in
   print)
-    [[ ${LAUNCHCTL_PRINT_FAIL:-0} == 1 ]] && exit 2
+    if [[ -n ${LAUNCHCTL_PRINT_SEQ_FILE:-} && -s $LAUNCHCTL_PRINT_SEQ_FILE ]]; then
+      read -r code rest <"$LAUNCHCTL_PRINT_SEQ_FILE"
+      printf '%s\n' "$rest" >"$LAUNCHCTL_PRINT_SEQ_FILE"
+      exit "$code"
+    fi
     [[ -f $LAUNCHCTL_STATE ]] && exit 0
     exit 113 ;;
   bootout)
@@ -77,26 +86,33 @@ STUB
   chmod +x "$dir/launchctl"
 }
 
-# run_case <name> <loaded?> <plist?> [failure-mode]
-#   failure-mode: bootout-fails | print-fails | rm-fails | id-fails | none
+# run_case <name> <loaded?> <plist?> [failure-mode] [print-seq]
+#   failure-mode: bootout-fails | rm-fails | id-fails | none
+#   print-seq: optional space-separated `launchctl print` exit codes, one
+#              popped per invocation (overrides the STATE-derived 0/113)
 run_case() {
-  local name="$1" loaded="$2" plist="$3" failure="${4:-none}"
+  local name="$1" loaded="$2" plist="$3" failure="${4:-none}" print_seq="${5:-}"
   CASE_HOME="$work/$name/home"
   local bin="$work/$name/bin"
   STATE="$work/$name/state"
   RECORD="$work/$name/launchctl-argv"
   OUT_FILE="$work/$name/stdout"
   ERR_FILE="$work/$name/stderr"
+  PRINT_SEQ_FILE="$work/$name/print-seq"
   PLIST="$CASE_HOME/Library/LaunchAgents/com.claude.code.plist"
   mkdir -p "$bin" "$CASE_HOME/Library/LaunchAgents"
   make_launchctl_stub "$bin"
   : >"$RECORD"
   [[ $loaded == loaded ]] && : >"$STATE"
   [[ $plist == plist ]] && : >"$PLIST"
-  local bootout_fail=0 print_fail=0
+  local seq_file=""
+  if [[ -n $print_seq ]]; then
+    printf '%s\n' "$print_seq" >"$PRINT_SEQ_FILE"
+    seq_file="$PRINT_SEQ_FILE"
+  fi
+  local bootout_fail=0
   case "$failure" in
     bootout-fails) bootout_fail=1 ;;
-    print-fails) print_fail=1 ;;
     rm-fails) chmod 555 "$CASE_HOME/Library/LaunchAgents" ;;
     id-fails)
       printf '#!/bin/bash\nexit 1\n' >"$bin/id"
@@ -108,7 +124,7 @@ run_case() {
   RC=0
   HOME="$CASE_HOME" PATH="$bin:$PATH" \
     LAUNCHCTL_STATE="$STATE" LAUNCHCTL_RECORD="$RECORD" \
-    LAUNCHCTL_BOOTOUT_FAIL="$bootout_fail" LAUNCHCTL_PRINT_FAIL="$print_fail" \
+    LAUNCHCTL_BOOTOUT_FAIL="$bootout_fail" LAUNCHCTL_PRINT_SEQ_FILE="$seq_file" \
     bash "$rendered" >"$OUT_FILE" 2>"$ERR_FILE" || RC=$?
   if [[ $failure == rm-fails ]]; then
     chmod 755 "$CASE_HOME/Library/LaunchAgents"
@@ -155,11 +171,36 @@ grep -q 'retired' "$OUT_FILE" &&
 grep -q "launchctl bootout $TARGET" "$ERR_FILE" ||
   fail "bootout-fails: the warning does not name the exact manual command 'launchctl bootout $TARGET' (stderr: $(cat "$ERR_FILE"))"
 
-# `launchctl print` itself fails: treated as not-loaded (the probe is the only
-# visibility we have), no bootout attempted, exit 0.
-run_case print-fails loaded no-plist print-fails
-[[ $RC -eq 0 ]] || fail "print-fails: a failing probe aborted the apply (rc=$RC)"
-[[ "$(bootout_count)" -eq 0 ]] || fail "print-fails: bootout attempted though the probe never confirmed a loaded service"
+# TRI-STATE, first probe is an OPERATIONAL ERROR (not 0=loaded, not
+# 113=confirmed-absent): the state is unknown, so the script must NOT bootout
+# and must NOT claim retirement; it warns and exits 0. The argv trace is
+# exactly one `print` (no bootout, no second probe).
+run_case first-probe-error not-loaded no-plist none "2"
+[[ $RC -eq 0 ]] || fail "first-probe-error: an operational probe error aborted the apply (rc=$RC)"
+[[ "$(bootout_count)" -eq 0 ]] ||
+  fail "first-probe-error: bootout attempted though the load state is unknown ($(cat "$RECORD"))"
+grep -q 'retired' "$OUT_FILE" &&
+  fail "first-probe-error: retired message printed though the load state was never determined ($(cat "$OUT_FILE"))"
+[[ -s $ERR_FILE ]] ||
+  fail "first-probe-error: no warning printed about the unexpected probe status"
+[[ "$(printf '%s\n' "$(grep -c '^print ' "$RECORD")")" -eq 1 ]] ||
+  fail "first-probe-error: expected exactly one print probe and no re-probe ($(cat "$RECORD"))"
+
+# TRI-STATE, second probe is an OPERATIONAL ERROR after a bootout: first probe
+# 0 (loaded) -> bootout -> re-probe returns an unexpected status (not
+# 113=confirmed-absent, not 0=still-loaded). Absence is NOT confirmed, so the
+# script must NOT claim retirement; it warns and exits 0. The argv trace is
+# print, bootout, print (in that order).
+run_case second-probe-error loaded no-plist none "0 2"
+[[ $RC -eq 0 ]] || fail "second-probe-error: an operational re-probe error aborted the apply (rc=$RC)"
+[[ "$(bootout_count)" -eq 1 ]] ||
+  fail "second-probe-error: bootout was not attempted exactly once ($(cat "$RECORD"))"
+grep -q 'retired' "$OUT_FILE" &&
+  fail "second-probe-error: retired message printed though the re-probe never confirmed absence ($(cat "$OUT_FILE"))"
+[[ -s $ERR_FILE ]] ||
+  fail "second-probe-error: no warning printed about the unconfirmed unload"
+printf 'print %s\nbootout %s\nprint %s\n' "$TARGET" "$TARGET" "$TARGET" | cmp -s - "$RECORD" ||
+  fail "second-probe-error: argv trace is not exactly print/bootout/print ($(cat "$RECORD"))"
 
 # `rm` FAILS (read-only LaunchAgents dir): warn and exit 0, never abort.
 run_case rm-fails not-loaded plist rm-fails
@@ -182,11 +223,11 @@ run_case idempotent loaded plist
 RC=0
 HOME="$CASE_HOME" PATH="$work/idempotent/bin:$PATH" \
   LAUNCHCTL_STATE="$STATE" LAUNCHCTL_RECORD="$RECORD" \
-  LAUNCHCTL_BOOTOUT_FAIL=0 LAUNCHCTL_PRINT_FAIL=0 \
+  LAUNCHCTL_BOOTOUT_FAIL=0 LAUNCHCTL_PRINT_SEQ_FILE="" \
   bash "$rendered" >"$OUT_FILE" 2>"$ERR_FILE" || RC=$?
 [[ $RC -eq 0 ]] || fail "idempotent(2): second run must still exit 0, got $RC"
 [[ "$(bootout_count)" -eq 1 ]] ||
   fail "idempotent(2): bootout ran again on a second pass ($(cat "$RECORD"))"
 [[ ! -s $OUT_FILE ]] || fail "idempotent(2): second run should be silent ($(cat "$OUT_FILE"))"
 
-printf 'PASS: the retirement script boots out exactly gui/<uid>/com.claude.code, claims success only after a confirming re-probe, warns loudly (with the manual command) when the service survives, survives id/print/rm failures with exit 0, removes the leftover plist, and is idempotent\n'
+printf 'PASS: the retirement script boots out exactly gui/<uid>/com.claude.code, treats the load probe as tri-state (0=loaded, 113=confirmed-absent, else=operational-error), claims retirement ONLY after a re-probe confirms absence (113), warns without any success claim on a still-loaded or operational-error re-probe, warns and makes no change on an operational-error first probe, survives id/rm/bootout failures with exit 0, removes the leftover plist, and is idempotent\n'
