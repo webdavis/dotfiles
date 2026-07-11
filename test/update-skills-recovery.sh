@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# update-skills-recovery.sh — proves the recovery state table (Wave 3a fix4
+# update-skills-recovery.sh proves the recovery state table (Wave 3a fix4
 # brief step 1). Each crash-window state is fabricated, then __gen_recover is
 # invoked (via UPDATE_SKILLS_LIB_ONLY sourcing) and the self-heal is asserted:
 #   1. incomplete staging leftover        -> deleted
@@ -111,7 +111,9 @@ __gen_recover
 
 # 4) competing-writer real dir recorded for re-absorption; content preserved.
 recorded=""
-for n in "${GEN_REABSORB[@]:-}"; do [[ $n == beta ]] && recorded=1; done
+for n in "${GEN_REABSORB[@]:-}"; do
+  if [[ $n == beta ]]; then recorded=1; fi
+done
 [[ -n $recorded ]] || fail "state 4: competing-writer real dir 'beta' not recorded in GEN_REABSORB"
 [[ -d "$STORE/beta" && ! -L "$STORE/beta" ]] ||
   fail "state 4: recovery must not destroy the competing-writer real dir before re-absorption"

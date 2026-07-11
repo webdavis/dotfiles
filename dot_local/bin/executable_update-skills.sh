@@ -1,33 +1,46 @@
 #!/usr/bin/env bash
-# update-skills: keep the canonical skills store (~/.agents/skills) complete and fresh.
+# update-skills: keep the canonical skills store (~/.agents/skills) complete and
+# fresh via the GENERATION-EXCHANGE model.
 #
 # The store holds exactly the roster this repo declares (see
 # ~/.agents/custom-skill-lock.json), so the registered-skill count in the
-# harnesses does not grow when this runs. The roster's provenance kinds, and
-# who refreshes each:
-#   - npx-tracked (npxTracked table): the store copy is installed and refreshed
-#      by the official npx `skills` CLI from an official upstream, latest from
-#      main (no pin). This script INSTALLS any that are absent with
-#      `npx skills add <repo> --skill <name> --agent claude-code --agent codex
-#      -g -y` — the multi-agent form lands the real dir in the store and plants
-#      a relative ~/.claude/skills symlink (no ~/.codex dir; Codex reads the
-#      store natively). The hermes symlinks are planted here. The weekly
-#      `npx skills update -g` pass REFRESHES them all in place.
-#   - clawhub-tracked (clawhubTracked table): the store copy is installed and
-#      refreshed by the `clawhub` CLI from a ClawHub upstream (npx cannot
-#      source ClawHub — `npx skills add` is GitHub-only). This script INSTALLS
-#      any that are absent: `clawhub install @owner/<name>` nests its output as
-#      <dir>/@owner/<name> (v0.23.1, verified live), so the install runs in a
-#      throwaway --workdir and the nested dir is MOVED flat into the store as
-#      <store>/<name> — its .clawhub/origin.json travels with it and pins the
-#      owner, which is what lets the weekly pass refresh IN PLACE with a bare
-#      `clawhub --workdir ~/.agents --dir skills update <name>` (bare-name
-#      update resolves via origin.json even when the name is ambiguous on the
-#      registry). The temp-workdir install also keeps the store's
-#      .clawhub/lock.json free of phantom @owner-keyed entries, whose presence
-#      would make a slug-form update recreate the nested dir. Fan-out (Claude +
-#      hermes symlinks) is planted here, same as the npx lane. See
-#      update_clawhub_tracked for the local-changes refusal ladder.
+# harnesses does not grow when this runs. Every npx- and clawhub-tracked skill
+# lives inside ONE live generation directory, ~/.agents/.skills-current (real
+# dirs under skills/, the npx CLI lock .skill-lock.json, and generation.json as
+# the ready marker); the store names ~/.agents/skills/<name> are stable literal
+# symlinks into it, and ~/.agents/.skill-lock.json is a symlink to its lock.
+# The weekly run builds a CANDIDATE generation as a fake HOME under
+# ~/.agents/.skills-generations/<id>/home, runs the package-CLI lanes against it
+# under env -i (HOME/XDG/TMPDIR/npm cache pinned inside the candidate), validates
+# the whole candidate, and publishes with ONE atomic renameat2 RENAME_EXCHANGE
+# (gmv --exchange --no-copy -T). Exactly one previous generation is retained.
+#
+# HONEST GUARANTEE: per-lookup completeness and cross-skill coherence per
+# generation: any path resolution during or after the exchange yields a
+# complete tree from exactly one generation. A session that cached a CANONICAL
+# (resolved) path keeps a complete previous generation for at least a week (one
+# retained generation); after pruning it gets a clean ENOENT, never partial
+# content. Out-of-band writers (the HyperFrames workflows self-update the store
+# via `npx hyperframes skills update`, upstream-controlled, no supported
+# disable) bypass any local design exactly as they do today; the weekly run
+# detects that drift in recovery and re-absorbs it into the next candidate. OUR
+# updater's own operations are atomic end to end.
+#
+# The roster's provenance kinds, and who refreshes each:
+#   - npx-tracked (npxTracked table): installed and refreshed by the official
+#      npx `skills` CLI from an official upstream, latest from main (no pin).
+#      The build lane runs an explicit `npx skills add <repo> --skill <name>
+#      --agent claude-code --agent codex -g -y` per repo group against the
+#      CANDIDATE (never the bulk `skills update`, whose lock-walk logs some
+#      failures at exit 0), which also reconciles lock-absent roster skills.
+#   - clawhub-tracked (clawhubTracked table): installed and refreshed by the
+#      `clawhub` CLI from a ClawHub upstream (npx cannot source ClawHub;
+#      `npx skills add` is GitHub-only). The lane installs an absent skill in a
+#      throwaway --workdir and moves the CLI's nested @owner/<name> output flat
+#      into the candidate store (its .clawhub/origin.json travels along and
+#      pins the owner), then refreshes present ones in place with a bare
+#      `clawhub --workdir <candidate>/.agents --dir skills update <name>`. See
+#      __gen_lane_clawhub for the local-changes refusal ladder.
 #   - vendored (dot_agents/skills/, committed): third-party copies refreshed by
 #      `chezmoi apply`, never by this script. Two sub-kinds: (a) forks-table
 #      entries whose upstreams the weekly run drift-checks and alerts on — the
@@ -60,23 +73,27 @@
 # assert_codex_overlays below).
 #
 # Usage: update-skills [--dry-run] [--install-only] [--check-forks-only]
-#   --dry-run           log what would change, write nothing to the filesystem
-#   --install-only      ADDITIVE bootstrap: run only the npx + clawhub install
-#                       passes for absent skills, then the symlink fan-out (which
-#                       here CREATES missing links only, never replacing a
-#                       wrong-target link or removing a stale one), the Codex
-#                       overlay re-assert, and the superpowers routing re-assert
-#                       (used by tests and fresh-machine bootstrap; skips the
-#                       weekly npx and clawhub updates, the hermes registry-update
-#                       phase, and the fork drift-check)
+#   --dry-run           read-only preview: NEVER invokes either package CLI (the
+#                       npx CLI treats `update --help` as a real update, observed
+#                       live), zero writes; reports roster-vs-lock and
+#                       roster-vs-generation drift, the fan-out convergence
+#                       preview, and would-run/would-defer
+#   --install-only      ADDITIVE bootstrap: build and publish a candidate whose
+#                       EXISTING skills are byte-clones of current (no updates)
+#                       plus genuinely absent roster skills added; never migrates
+#                       a flat store, never replaces existing store content; the
+#                       fan-out CREATES missing links only (used by tests and the
+#                       fresh-machine apply-time bootstrap)
 #   --check-forks-only  run only the fork/vendored upstream drift-check
 #   --scheduled         mark this as a LaunchAgent (scheduled) run; only a
 #                       scheduled run with no later slot remaining this week
 #                       claims retry-budget exhaustion (a manual run never does)
+#   --build-lanes       INTERNAL: this process is the env -i sub-invocation that
+#                       runs the build lanes inside a candidate fake HOME
 # Env: UPDATE_SKILLS_FORCE=1 bypasses the idle-gate AND the weekly success stamp.
 #      The idle-gate (activity-based, fail-closed) makes this script refuse to
 #      swap skill folders only while a harness (claude/codex/hermes) shows RECENT
-#      activity — the newest mtime among its per-turn activity files is within
+#      activity, meaning the newest mtime among its per-turn activity files is within
 #      IDLE_THRESHOLD (default 15 min). It runs UNATTENDED: an always-up bridge no
 #      longer defers the weekly run forever; a machine quiet for the window
 #      proceeds (see __update_skills_should_defer). Override the window with
@@ -414,12 +431,23 @@ __gen_publish() {
     log "publish: candidate $candidate is not a real directory"
     return 1
   }
-  [[ -d $SKILLS_CURRENT && ! -L $SKILLS_CURRENT ]] || {
-    log "publish: $SKILLS_CURRENT is not a real directory"
-    return 1
-  }
   __gen_is_complete "$candidate" || {
     log "publish: candidate $candidate is not complete (no ready marker)"
+    return 1
+  }
+  # First publish on a machine with no live generation yet (fresh bootstrap):
+  # a plain rename onto the absent path is atomic and there is no previous
+  # generation to retain.
+  if [[ ! -e $SKILLS_CURRENT && ! -L $SKILLS_CURRENT ]]; then
+    mkdir -p "$AGENTS"
+    if mv "$candidate" "$SKILLS_CURRENT" 2>/dev/null; then
+      return 0
+    fi
+    log "publish: could not rename the candidate onto the absent $SKILLS_CURRENT"
+    return 1
+  fi
+  [[ -d $SKILLS_CURRENT && ! -L $SKILLS_CURRENT ]] || {
+    log "publish: $SKILLS_CURRENT is not a real directory"
     return 1
   }
   __gen_same_device "$candidate" "$SKILLS_CURRENT" || {
@@ -484,11 +512,11 @@ __gen_store_link_correct() {
 # ---------------------------------------------------------------------------
 # RECOVERY state table (brief step 1). Runs before the idle gate and stamp
 # logic. Self-heals what it can and records two things the main flow acts on:
-#   GEN_REABSORB[]      — tracked names whose store entry is a REAL DIR where a
+#   GEN_REABSORB[]      = tracked names whose store entry is a REAL DIR where a
 #                         link is expected (a competing writer, e.g. the
 #                         HyperFrames self-updater, or an interrupted migration):
 #                         re-absorb that content into this run's candidate.
-#   GEN_REUSE_CANDIDATE — a complete, unpublished candidate whose generation.json
+#   GEN_REUSE_CANDIDATE = a complete, unpublished candidate whose generation.json
 #                         matches the current desired state: the main flow may
 #                         publish it instead of rebuilding.
 # The self-healed cases: incomplete staging leftovers are garbage-destroyed;
@@ -514,7 +542,7 @@ __gen_recover() {
         cand_agents="$entry/home/.agents"
         if __gen_is_complete "$cand_agents" && __gen_meta_matches_desired "$cand_agents"; then
           # A complete candidate matching desired state: reusable (keep the
-          # newest such by createdAt is overkill — one is enough to publish).
+          # newest such by createdAt is overkill; one is enough to publish).
           [[ -z $GEN_REUSE_CANDIDATE ]] && GEN_REUSE_CANDIDATE="$cand_agents"
           continue
         fi
@@ -555,7 +583,16 @@ __gen_recover() {
         # a tracked skill present in the generation but missing its store link
         if [[ -d "$SKILLS_CURRENT/skills/$name" ]]; then __gen_plant_store_link "$name" || true; fi
       elif [[ -L $link ]] && ! __gen_store_link_correct "$name"; then
-        __gen_plant_store_link "$name" || true
+        # Repair only a link we plausibly own: a stale generation-form target or
+        # a DANGLING link. A RESOLVING foreign symlink (e.g. app-owned content
+        # at a tracked name) is left alone with a WARN, never replanted.
+        local link_target
+        link_target="$(readlink "$link" 2>/dev/null || true)"
+        if [[ $link_target == ../.skills-current/* || ! -e $link ]]; then
+          __gen_plant_store_link "$name" || true
+        else
+          log "recovery: WARN store/$name is a foreign symlink ($link_target); leaving it"
+        fi
       fi
     done < <(__gen_tracked_names)
   fi
@@ -706,6 +743,18 @@ __gen_build_candidate() {
     cp -c -R "$STORE/$reabsorb" "$agents/skills/$reabsorb" 2>/dev/null ||
       cp -R "$STORE/$reabsorb" "$agents/skills/$reabsorb" || return 1
   done
+  # Any tracked store entry that is a REAL DIR and still absent from the clone
+  # (a flat pre-migration store under --install-only, which never migrates) is
+  # byte-cloned in, so it counts as EXISTING: the additive lanes skip it and
+  # validation sees its real content. The store real dir itself stays untouched.
+  local tracked_name
+  while IFS= read -r tracked_name; do
+    [[ -n $tracked_name ]] || continue
+    [[ -e "$agents/skills/$tracked_name" ]] && continue
+    [[ -d "$STORE/$tracked_name" && ! -L "$STORE/$tracked_name" ]] || continue
+    cp -c -R "$STORE/$tracked_name" "$agents/skills/$tracked_name" 2>/dev/null ||
+      cp -R "$STORE/$tracked_name" "$agents/skills/$tracked_name" || return 1
+  done < <(__gen_tracked_names)
   # Seed the npx lock from the current generation (or an empty object).
   if [[ -f "$SKILLS_CURRENT/.skill-lock.json" ]]; then
     cp -c "$SKILLS_CURRENT/.skill-lock.json" "$agents/.skill-lock.json" 2>/dev/null ||
@@ -719,35 +768,56 @@ __gen_build_candidate() {
   return 0
 }
 
+# Per-skill failure capture for the streak accounting (brief step 6). The lanes
+# run inside the env -i sub-invocation, so failed skill names are appended to a
+# file inside the candidate's .agents dir; the parent reads it back before
+# discarding the failed candidate. Never published: a candidate with failures is
+# always discarded, and a clean build removes the file before the ready marker.
+GEN_FAILED_SKILLS_FILE_NAME=".lane-failed-skills"
+record_failed_skill() {
+  printf '%s\n' "$1" >>"$AGENTS/$GEN_FAILED_SKILLS_FILE_NAME" 2>/dev/null || true
+}
+
 # npx lane (brief step 3): explicit `skills add <repo> --skill <name> ...` per
 # npxTracked entry, GROUPED by repo (NOT a bulk `update`, whose lock-walk logs
 # some failures at exit 0). Operating on $STORE, which in --build-lanes mode is
 # the candidate's store (HOME points there). This reconciles lock-absent roster
 # skills too, since `add` installs-or-refreshes every entry. Each failure is a
 # required failure (the whole candidate is discarded on any).
+# Install-only builds (UPDATE_SKILLS_LANES_ADDITIVE=1) narrow every repo group to
+# the skills ABSENT from the candidate store, so existing skills stay the
+# byte-clones of current the candidate started as (no updates, additive only).
 __gen_lane_npx() {
   [[ -f $CUSTOM_SKILL_LOCK ]] || return 0
+  local additive="${UPDATE_SKILLS_LANES_ADDITIVE:-}"
   local -a repos=()
   local repo
   while IFS= read -r repo; do
     [[ -n $repo ]] && repos+=("$repo")
   done < <(jq -r '.npxTracked // {} | [.[].repo] | unique | .[]' "$CUSTOM_SKILL_LOCK" 2>/dev/null)
-  local -a skill_args
+  local -a skill_args group_names
   local name
   for repo in "${repos[@]:-}"; do
     [[ -n $repo ]] || continue
     skill_args=()
+    group_names=()
     while IFS= read -r name; do
-      [[ -n $name ]] && skill_args+=(--skill "$name")
+      [[ -n $name ]] || continue
+      if [[ -n $additive && -e "$STORE/$name" ]]; then
+        continue # additive build: keep the existing byte-clone, never refresh
+      fi
+      skill_args+=(--skill "$name")
+      group_names+=("$name")
     done < <(jq -r --arg r "$repo" '.npxTracked // {} | to_entries[]
       | select(.value.repo == $r) | .key' "$CUSTOM_SKILL_LOCK" 2>/dev/null)
     [[ ${#skill_args[@]} -gt 0 ]] || continue
     if npx --yes skills@latest add "$repo" "${skill_args[@]}" \
       --agent claude-code --agent codex -g -y 2>&1 | tr -d '\r' | tail -3; then
-      log "npx add: $repo (${#skill_args[@]} skill arg tokens)"
+      log "npx add: $repo (${#group_names[@]} skills)"
     else
       log "npx add failed: $repo (continuing; candidate will be discarded)"
       record_required_failure "npx add $repo failed"
+      for name in "${group_names[@]}"; do record_failed_skill "$name"; done
     fi
   done
 }
@@ -759,6 +829,7 @@ __gen_lane_npx() {
 __gen_lane_clawhub() {
   [[ -f $CUSTOM_SKILL_LOCK ]] || return 0
   jq -e '.clawhubTracked // {} | length > 0' "$CUSTOM_SKILL_LOCK" >/dev/null 2>&1 || return 0
+  local additive="${UPDATE_SKILLS_LANES_ADDITIVE:-}"
   if ! command -v clawhub >/dev/null 2>&1; then
     log "clawhub not on PATH but clawhubTracked is non-empty; candidate cannot be completed"
     record_required_failure "clawhub missing with a non-empty clawhubTracked table (build lane)"
@@ -780,18 +851,23 @@ __gen_lane_clawhub() {
           log "clawhub install: $skill from $slug"
         else
           record_required_failure "clawhub install $skill produced no store dir"
+          record_failed_skill "$skill"
         fi
       else
         record_required_failure "clawhub install $skill failed"
+        record_failed_skill "$skill"
       fi
       rm -rf "$tmp_workdir"
       continue
     fi
+    # An additive (install-only) build keeps every existing byte-clone untouched.
+    [[ -n $additive ]] && continue
     # present: refresh in place (bare name resolves via origin.json)
     [[ -d "$STORE/$skill" && ! -L "$STORE/$skill" ]] || continue
     rm -f "$STORE/$skill/.DS_Store"
     if ! update_output="$(clawhub --no-input --workdir "$AGENTS" --dir skills update "$skill" 2>&1)"; then
       record_required_failure "clawhub update $skill failed"
+      record_failed_skill "$skill"
       printf '%s\n' "$update_output"
       continue
     fi
@@ -808,6 +884,7 @@ __gen_lane_clawhub() {
         printf '%s\n' "$CODEX_POLICY" >"$overlay_file"
       fi
       record_required_failure "clawhub update $skill refused over local changes"
+      record_failed_skill "$skill"
     fi
   done 3< <(jq -r '.clawhubTracked // {} | to_entries[]
     | [.key, (.value.slug // ""), (.value.registry // "")] | @tsv' \
@@ -847,25 +924,35 @@ __gen_assert_overlays() {
 __gen_do_build_lanes() {
   local id="${UPDATE_SKILLS_GEN_ID:-$(__gen_new_id)}"
   mkdir -p "$STORE"
+  rm -f "$AGENTS/$GEN_FAILED_SKILLS_FILE_NAME"
   log "build lane: npx"
   __gen_lane_npx
   log "build lane: clawhub"
   __gen_lane_clawhub
   log "build lane: codex overlays"
   __gen_assert_overlays
-  # The ready marker goes at .agents/generation.json (one level above skills/).
+  if [[ $REQUIRED_FAILURES -gt 0 ]]; then
+    # No ready marker for a failed build: the candidate is incomplete by
+    # construction and recovery deletes it if the parent crashes first. The
+    # failed-skills file stays for the parent to read before the discard.
+    return 1
+  fi
+  rm -f "$AGENTS/$GEN_FAILED_SKILLS_FILE_NAME"
+  # The ready marker goes at .agents/generation.json (one level above skills/),
+  # written LAST.
   __gen_write_meta "$AGENTS" "$id"
-  [[ $REQUIRED_FAILURES -eq 0 ]]
 }
 
 # Parent side: run the build lanes against a candidate home under env -i, with
 # HOME, every XDG_* dir, TMPDIR, and the npm cache/config pinned INSIDE the
 # candidate, so a lane can only write into the candidate (isolation). PATH is
 # passed through so npx/clawhub/jq/gmv resolve (and tests can prepend stubs).
-#   __gen_run_lanes <candidate-home> <id>
+#   __gen_run_lanes <candidate-home> <id> [additive]
+# A non-empty third argument runs the lanes ADDITIVELY (install-only builds:
+# only skills absent from the candidate are installed; nothing is refreshed).
 # Returns the re-invocation's exit status (non-zero = discard the candidate).
 __gen_run_lanes() {
-  local home="$1" id="$2"
+  local home="$1" id="$2" additive="${3:-}"
   mkdir -p "$home/.cache" "$home/.config" "$home/.local/share" "$home/.local/state" "$home/.tmp" "$home/.npm"
   env -i \
     PATH="$PATH" \
@@ -879,6 +966,7 @@ __gen_run_lanes() {
     UPDATE_SKILLS_GMV="$GMV" \
     UPDATE_SKILLS_GEN_ID="$id" \
     UPDATE_SKILLS_LOCK_PATH="$CUSTOM_SKILL_LOCK" \
+    UPDATE_SKILLS_LANES_ADDITIVE="$additive" \
     UPDATE_SKILLS_BUILD_LANES=1 \
     bash "$UPDATE_SKILLS_SELF" --build-lanes
 }
@@ -887,7 +975,7 @@ __gen_run_lanes() {
 # tracked skill present with a SKILL.md, on-demand overlays in place, expected
 # origin metadata (clawhub skills carry .clawhub/origin.json), the npx lock is
 # valid JSON, and the ready marker is present. Returns 0 valid, 1 invalid (the
-# caller garbage-renames the candidate and records a required failure — never a
+# caller garbage-renames the candidate and records a required failure, never a
 # partial promotion).
 #   __gen_validate_candidate <candidate-agents-dir>
 __gen_validate_candidate() {
@@ -912,10 +1000,12 @@ __gen_validate_candidate() {
     [[ -n $name ]] || continue
     [[ -d "$skills/$name" ]] || {
       log "validate: tracked skill $name is missing from the candidate"
+      record_failed_skill_parent "$name"
       return 1
     }
     [[ -f "$skills/$name/SKILL.md" ]] || {
       log "validate: tracked skill $name has no SKILL.md"
+      record_failed_skill_parent "$name"
       return 1
     }
   done < <(__gen_tracked_names)
@@ -924,6 +1014,7 @@ __gen_validate_candidate() {
     [[ -n $name ]] || continue
     [[ -f "$skills/$name/.clawhub/origin.json" ]] || {
       log "validate: clawhub skill $name is missing .clawhub/origin.json"
+      record_failed_skill_parent "$name"
       return 1
     }
   done < <(jq -r '.clawhubTracked // {} | keys[]?' "$CUSTOM_SKILL_LOCK" 2>/dev/null)
@@ -934,9 +1025,302 @@ __gen_validate_candidate() {
     [[ -d "$skills/$name" ]] || continue
     grep -q 'allow_implicit_invocation: false' "$skills/$name/agents/openai.yaml" 2>/dev/null || {
       log "validate: on-demand skill $name is missing its Codex overlay"
+      record_failed_skill_parent "$name"
       return 1
     }
   done < <(jq -r '.tiers // {} | to_entries[] | select(.value == "on-demand") | .key' "$CUSTOM_SKILL_LOCK" 2>/dev/null)
+  return 0
+}
+
+# ---------------------------------------------------------------------------
+# RUN ORCHESTRATION (brief steps 5-6): store-link reconcile, live overlay
+# verification, the weekly attempt, the install-only attempt, drift reporting,
+# and per-skill failure streaks.
+# ---------------------------------------------------------------------------
+
+# Post-publish store-link reconciliation for every tracked name present in the
+# live generation. Full runs (additive="") also absorb competing-writer real
+# dirs recorded by recovery (their content is already inside the published
+# generation) and repair stale generation-form or dangling links. Additive runs
+# (install-only) only plant links for names with NO store entry at all, so
+# nothing existing is ever replaced. A resolving foreign symlink is never
+# touched in either mode.
+#   __gen_reconcile_store_links [additive]
+__gen_reconcile_store_links() {
+  local additive="${1:-}" name link target reabsorbed
+  while IFS= read -r name; do
+    [[ -n $name ]] || continue
+    [[ -d "$SKILLS_CURRENT/skills/$name" ]] || continue
+    link="$STORE/$name"
+    if [[ ! -e $link && ! -L $link ]]; then
+      __gen_plant_store_link "$name" || record_required_failure "store link for $name could not be planted"
+      continue
+    fi
+    [[ -n $additive ]] && continue # additive: never replace anything existing
+    if [[ -d $link && ! -L $link ]]; then
+      # A competing-writer real dir recorded by recovery was absorbed into the
+      # published generation; return the store name to link topology.
+      reabsorbed=""
+      local n
+      for n in "${GEN_REABSORB[@]:-}"; do
+        if [[ -n $n && $n == "$name" ]]; then reabsorbed=1; fi
+      done
+      if [[ -n $reabsorbed ]]; then
+        __gen_absorb_store_link "$name" || record_required_failure "store/$name could not be re-absorbed"
+      else
+        log "WARN: store/$name is a real dir not seen by recovery; leaving it (next run re-absorbs)"
+      fi
+      continue
+    fi
+    if [[ -L $link ]] && ! __gen_store_link_correct "$name"; then
+      target="$(readlink "$link" 2>/dev/null || true)"
+      if [[ $target == ../.skills-current/* || ! -e $link ]]; then
+        __gen_plant_store_link "$name" || record_required_failure "store link for $name could not be repaired"
+      else
+        log "WARN: store/$name is a foreign symlink ($target); leaving it"
+      fi
+    fi
+  done < <(__gen_tracked_names)
+}
+
+# Live-pass Codex overlay handling (brief step 3, overlays): tier overlays are
+# ASSERTED in the candidate only; the live pass VERIFIES them through the store
+# links and records a required failure when one is missing; it never writes
+# through a store link. A vendored on-demand skill (a real store dir outside the
+# generation) still gets the old write-if-missing assert (additive, chezmoi owns
+# the committed copy). App-owned store symlinks (not generation links) carry no
+# overlay by documented asymmetry.
+__gen_verify_live_overlays() {
+  [[ -f $CUSTOM_SKILL_LOCK ]] || return 0
+  local skill overlay_file
+  while IFS= read -r skill; do
+    [[ -n $skill ]] || continue
+    if [[ -L "$STORE/$skill" ]]; then
+      __gen_store_link_correct "$skill" || continue # app-owned/foreign link: never through it
+      overlay_file="$STORE/$skill/agents/openai.yaml"
+      if ! grep -q 'allow_implicit_invocation: false' "$overlay_file" 2>/dev/null; then
+        log "OVERLAY MISSING: on-demand skill $skill has no Codex overlay in the live generation (never written through store links; the next candidate re-asserts it)"
+        record_required_failure "live overlay missing for $skill"
+        record_failed_skill_parent "$skill"
+      fi
+      continue
+    fi
+    [[ -d "$STORE/$skill" ]] || continue
+    # vendored real dir: keep the additive write-if-missing assert
+    overlay_file="$STORE/$skill/agents/openai.yaml"
+    if [[ -f $overlay_file ]] && grep -q 'allow_implicit_invocation: false' "$overlay_file"; then
+      continue
+    fi
+    if ! mkdir -p "$STORE/$skill/agents"; then
+      record_required_failure "codex overlay dir for $skill could not be created"
+      continue
+    fi
+    if [[ -f $overlay_file ]]; then
+      if printf '\n%s\n' "$CODEX_POLICY" >>"$overlay_file"; then
+        log "appended codex overlay policy to upstream openai.yaml: $skill"
+      else
+        record_required_failure "codex overlay append for $skill failed"
+      fi
+    elif printf '%s\n' "$CODEX_POLICY" >"$overlay_file"; then
+      log "asserted codex overlay: $skill"
+    else
+      record_required_failure "codex overlay write for $skill failed"
+    fi
+  done < <(jq -r '.tiers // {} | to_entries[] | select(.value == "on-demand") | .key' "$CUSTOM_SKILL_LOCK" 2>/dev/null)
+}
+
+# Parent-side per-skill failure capture (validation failures, live overlay
+# verification, migration exchanges). The lanes' subprocess failures arrive via
+# the candidate's failed-skills file and are merged in the weekly attempt.
+GEN_FAILED_SKILLS=()
+record_failed_skill_parent() { GEN_FAILED_SKILLS+=("$1"); }
+__gen_merge_lane_failures() {
+  local file="$1" name
+  [[ -f $file ]] || return 0
+  while IFS= read -r name; do
+    [[ -n $name ]] && GEN_FAILED_SKILLS+=("$name")
+  done <"$file"
+}
+
+# --dry-run drift report (brief Modes): NEVER invokes either package CLI (the
+# npx CLI treats `update --help` as a real update, observed live). Reports
+# roster-vs-lock drift (npx-tracked roster skills absent from the npx CLI lock)
+# and roster-vs-generation drift (tracked roster skills absent from the live
+# generation, or no generation at all: migration pending). Zero writes.
+__gen_dryrun_drift_report() {
+  [[ -f $CUSTOM_SKILL_LOCK ]] || {
+    log "drift: no custom-skill-lock.json; nothing to compare"
+    return 0
+  }
+  local name
+  if [[ -f $SKILL_LOCK_LINK ]]; then
+    while IFS= read -r name; do
+      [[ -n $name ]] || continue
+      jq -e --arg n "$name" '.skills | has($n)' "$SKILL_LOCK_LINK" >/dev/null 2>&1 ||
+        log "drift: roster skill $name is absent from the npx lock (the explicit per-repo add reconciles it)"
+    done < <(jq -r '.npxTracked // {} | keys[]?' "$CUSTOM_SKILL_LOCK" 2>/dev/null)
+  else
+    log "drift: no npx lock present"
+  fi
+  if __gen_is_complete "$SKILLS_CURRENT"; then
+    while IFS= read -r name; do
+      [[ -n $name ]] || continue
+      [[ -d "$SKILLS_CURRENT/skills/$name" ]] ||
+        log "drift: roster skill $name is absent from the live generation (the next full run adds it)"
+    done < <(__gen_tracked_names)
+  else
+    log "drift: no live generation yet; the next full run migrates the flat store"
+  fi
+}
+
+# Per-skill failure streaks (brief step 6): {last_failed_week,
+# consecutive_failed_weeks} per skill in one JSON map, incremented at most once
+# per ISO WEEK (not per hourly slot), reset on verified success, escalated alert
+# wording at 2 consecutive weeks. Convergence never stops: streaks only change
+# the alert wording, never gate a retry.
+STREAK_FILE="$STATE_DIR/skill-failure-streaks.json"
+__gen_update_failure_streaks() {
+  [[ ${#GEN_FAILED_SKILLS[@]} -gt 0 ]] || return 0
+  local week name streaks entry_week entry_count
+  week="$(date +%G-%V)"
+  mkdir -p "$STATE_DIR" 2>/dev/null || return 0
+  streaks="$(cat "$STREAK_FILE" 2>/dev/null || true)"
+  jq -e . <<<"$streaks" >/dev/null 2>&1 || streaks='{}'
+  local -a escalated=()
+  local -a seen=()
+  local dup
+  for name in "${GEN_FAILED_SKILLS[@]}"; do
+    [[ -n $name ]] || continue
+    dup=""
+    local s
+    for s in "${seen[@]:-}"; do
+      if [[ -n $s && $s == "$name" ]]; then dup=1; fi
+    done
+    if [[ -n $dup ]]; then continue; fi
+    seen+=("$name")
+    entry_week="$(jq -r --arg n "$name" '.[$n].last_failed_week // ""' <<<"$streaks")"
+    entry_count="$(jq -r --arg n "$name" '.[$n].consecutive_failed_weeks // 0' <<<"$streaks")"
+    [[ $entry_count =~ ^[0-9]+$ ]] || entry_count=0
+    if [[ $entry_week == "$week" ]]; then
+      : # already counted this week (a later hourly slot); no double increment
+    else
+      entry_count=$((entry_count + 1))
+      streaks="$(jq --arg n "$name" --arg w "$week" --argjson c "$entry_count" \
+        '.[$n] = {last_failed_week: $w, consecutive_failed_weeks: $c}' <<<"$streaks")"
+    fi
+    if [[ $entry_count -ge 2 ]]; then
+      escalated+=("$name ($entry_count weeks)")
+      log "STREAK: skill $name has failed $entry_count consecutive weekly cycles"
+    fi
+  done
+  printf '%s\n' "$streaks" >"$STREAK_FILE" 2>/dev/null || true
+  if [[ ${#escalated[@]} -gt 0 ]]; then
+    __update_skills_alert "Weekly skills update: still failing after multiple weeks for ${escalated[*]}. The updater keeps retrying weekly, but these skills need eyes (~/.local/log/skills/)."
+  fi
+}
+__gen_reset_failure_streaks() {
+  if [[ -f $STREAK_FILE ]]; then
+    printf '{}\n' >"$STREAK_FILE" 2>/dev/null || true
+  fi
+}
+
+# The full-run weekly attempt (brief steps 2-5): reuse a recovered complete
+# matching candidate, or build one; run the lanes; validate; publish with the
+# atomic exchange; reconcile the store links. ANY failure discards the WHOLE
+# candidate (no partial promotion), records a required failure (loud + relay),
+# and leaves the live generation untouched; the next slot retries.
+__gen_weekly_attempt() {
+  local relay_script="$HOME/.local/bin/relay.sh"
+  local id candidate_home candidate_agents id_dir
+  if [[ -n $GEN_REUSE_CANDIDATE ]] && __gen_validate_candidate "$GEN_REUSE_CANDIDATE"; then
+    candidate_agents="$GEN_REUSE_CANDIDATE"
+    id_dir="$(dirname "$(dirname "$candidate_agents")")"
+    log "reusing the recovered complete candidate at $candidate_agents"
+    if __gen_publish "$candidate_agents"; then
+      __gen_garbage_destroy "$id_dir"
+      __gen_reconcile_store_links
+      __gen_plant_lock_link || record_required_failure "lock link could not be planted after publish"
+      return 0
+    fi
+    record_required_failure "publish of the recovered candidate failed"
+    __gen_garbage_destroy "$id_dir"
+    return 1
+  fi
+  id="$(__gen_new_id)"
+  if ! __gen_build_candidate "$id"; then
+    record_required_failure "candidate build failed"
+    __gen_garbage_destroy "$GENERATIONS/$id"
+    return 1
+  fi
+  candidate_home="$GEN_CANDIDATE_HOME"
+  candidate_agents="$GEN_CANDIDATE_AGENTS"
+  if ! __gen_run_lanes "$candidate_home" "$id"; then
+    __gen_merge_lane_failures "$candidate_agents/$GEN_FAILED_SKILLS_FILE_NAME"
+    record_required_failure "build lanes failed; the whole candidate is discarded (no partial promotion)"
+    __gen_garbage_destroy "$GENERATIONS/$id"
+    if [[ -x $relay_script ]]; then
+      "$relay_script" --agent update-skills --state build-failed --project skills \
+        --detail "the weekly candidate build lanes failed; the live generation is untouched and the next slot retries" || true
+    fi
+    return 1
+  fi
+  if ! __gen_validate_candidate "$candidate_agents"; then
+    record_required_failure "candidate validation failed; the whole candidate is discarded (no partial promotion)"
+    __gen_garbage_destroy "$GENERATIONS/$id"
+    if [[ -x $relay_script ]]; then
+      "$relay_script" --agent update-skills --state validation-failed --project skills \
+        --detail "the weekly candidate failed validation; the live generation is untouched and the next slot retries" || true
+    fi
+    return 1
+  fi
+  if ! __gen_publish "$candidate_agents"; then
+    record_required_failure "publish failed; the live generation is untouched"
+    __gen_garbage_destroy "$GENERATIONS/$id"
+    return 1
+  fi
+  __gen_garbage_destroy "$GENERATIONS/$id" # the emptied build workspace shell
+  __gen_reconcile_store_links
+  __gen_plant_lock_link || record_required_failure "lock link could not be planted after publish"
+  return 0
+}
+
+# The install-only attempt (brief Modes): builds and publishes a candidate whose
+# EXISTING skills are byte-clones of current (no updates) plus genuinely absent
+# roster skills added. Never migrates a flat store, never replaces existing
+# store content: link planting is additive (absent names only).
+__gen_install_only_attempt() {
+  local id candidate_home candidate_agents
+  id="$(__gen_new_id)"
+  if ! __gen_build_candidate "$id"; then
+    record_required_failure "install-only candidate build failed"
+    __gen_garbage_destroy "$GENERATIONS/$id"
+    return 1
+  fi
+  candidate_home="$GEN_CANDIDATE_HOME"
+  candidate_agents="$GEN_CANDIDATE_AGENTS"
+  if ! __gen_run_lanes "$candidate_home" "$id" additive; then
+    __gen_merge_lane_failures "$candidate_agents/$GEN_FAILED_SKILLS_FILE_NAME"
+    record_required_failure "install-only lanes failed; candidate discarded"
+    __gen_garbage_destroy "$GENERATIONS/$id"
+    return 1
+  fi
+  if ! __gen_validate_candidate "$candidate_agents"; then
+    record_required_failure "install-only candidate failed validation; candidate discarded"
+    __gen_garbage_destroy "$GENERATIONS/$id"
+    return 1
+  fi
+  if ! __gen_publish "$candidate_agents"; then
+    record_required_failure "install-only publish failed; live state untouched"
+    __gen_garbage_destroy "$GENERATIONS/$id"
+    return 1
+  fi
+  __gen_garbage_destroy "$GENERATIONS/$id"
+  __gen_reconcile_store_links additive
+  # The lock link is planted only when nothing exists at the path (a flat lock
+  # file is migration's job, and install-only never migrates).
+  if [[ ! -e $SKILL_LOCK_LINK && ! -L $SKILL_LOCK_LINK ]]; then
+    __gen_plant_lock_link || true
+  fi
   return 0
 }
 
@@ -970,12 +1354,12 @@ fi
 # harness, PROCEED (fast path, evidence never probed); (2) if a harness process
 # exists, probe every harness PRESENT on the machine for recent file activity and
 # DEFER only while at least one is fresh (within IDLE_THRESHOLD); (3) fail closed
-# — an unreadable process table or a probe error counts as ACTIVE. This is the
+# (an unreadable process table or a probe error counts as ACTIVE). This is the
 # UNATTENDED norm: the weekly run proceeds whenever the machine has been quiet for
 # IDLE_THRESHOLD, even with a bridge up.
 #
 # PR-facing tradeoff: the gate reads mtimes, not a lock the harnesses hold, so
-# there is a narrow race — a session that starts writing in the millisecond after
+# there is a narrow race: a session that starts writing in the millisecond after
 # the probe scans could have a skill folder swapped mid-turn. The window is tiny
 # and the blast radius is one weekly run; the design accepts it as the unattended
 # tradeoff. FOLLOW-UP (a task exists): the durable fix is a versioned skills store
@@ -1072,7 +1456,7 @@ __update_skills_is_interactive_harness() {
 # Enumerate the process table for agent-harness processes. Returns:
 #   0 = at least one agent-harness process (claude/codex/hermes) is running
 #   1 = ps read cleanly and NO harness process exists (the fast-path signal)
-#   2 = ps could not be read (or yielded nothing — it must at minimum list this
+#   2 = ps could not be read (or yielded nothing; it must at minimum list this
 #       very process): FAIL CLOSED, the caller must defer.
 __update_skills_harness_active() {
   local ps_output args
@@ -1088,11 +1472,11 @@ __update_skills_harness_active() {
 
 # Recent-activity probe for one harness's activity dir, against a cutoff SENTINEL
 # file whose mtime is (now - IDLE_THRESHOLD). Returns:
-#   0 = ACTIVE  — a file newer than the sentinel exists, OR the probe errored
+#   0 = ACTIVE  = a file newer than the sentinel exists, OR the probe errored
 #                 (unreadable dir / scan failure): fail closed and treat as active
-#   1 = STALE   — the dir is present and readable but its newest file is older
+#   1 = STALE   = the dir is present and readable but its newest file is older
 #                 than the window
-#   2 = ABSENT  — the dir does not exist: this harness is not installed, so it
+#   2 = ABSENT  = the dir does not exist: this harness is not installed, so it
 #                 contributes NO evidence and must not block
 #
 # The sentinel + POSIX `-newer` is deliberate: macOS's BSD `/usr/bin/find` does
@@ -1103,13 +1487,13 @@ __update_skills_harness_active() {
 # non-zero on a scan error (e.g. an unreadable subtree), which we treat as ACTIVE.
 #
 # Empirically verified per-turn activity sources on this machine (2026-07-11):
-#   Claude Code: ~/.claude/projects/**/<session>.jsonl — the transcript is
+#   Claude Code: ~/.claude/projects/**/<session>.jsonl, the transcript that is
 #     appended per turn; the FILE mtime is the signal (directory mtimes do NOT
 #     propagate on append: verified live, newest file mtime == wall clock during
 #     an active turn while the enclosing dir mtime lagged ~45s).
-#   Codex: ~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl — the per-turn rollout
+#   Codex: ~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl, the per-turn rollout
 #     transcript (verified: mtimes advance per turn, stale while idle).
-#   Hermes: ~/.hermes/logs/agent.log (and siblings) — the gateway's per-run/turn
+#   Hermes: ~/.hermes/logs/agent.log (and siblings), the gateway's per-run/turn
 #     log (verified: agent.log mtime advances while the gateway serves a turn).
 __update_skills_activity_state() {
   local dir="$1" sentinel="$2" newer
@@ -1442,55 +1826,6 @@ assert_superpowers_routing() {
   fi
 }
 
-# Codex policy overlays: every skill the lock's tiers table marks "on-demand"
-# must carry agents/openai.yaml with allow_implicit_invocation disabled, so
-# Codex loads it only on an explicit $name invocation
-# (developers.openai.com/codex/skills). Chezmoi commits the overlay for vendored
-# skills, but an npx-tracked skill loses it whenever the npx add/update replaces
-# the folder wholesale, and cua-driver's folder is app-owned — so every run
-# re-asserts the overlay from the tiers table for any on-demand skill present in
-# the store. Additive by construction: the only path ever written is
-# agents/openai.yaml, a file that already carries the policy line is left
-# untouched (keeps chezmoi-managed copies drift-free), and when the upstream
-# skill ships its own agents/openai.yaml (the official hyperframes-keyframes
-# carries an interface: block there) the policy block is APPENDED so upstream
-# metadata survives — never a whole-file overwrite.
-assert_codex_overlays() {
-  [[ -f $CUSTOM_SKILL_LOCK ]] || return 0
-  local skill overlay_file
-  local policy="$CODEX_POLICY"
-  while IFS= read -r skill; do
-    [[ -d "$STORE/$skill" ]] || continue
-    # Never write through a store symlink (e.g. cua-driver -> ~/.cua-driver):
-    # the target is app-owned content this repo must not modify. Such skills
-    # simply carry no Codex overlay — documented asymmetry, not an oversight.
-    [[ -L "$STORE/$skill" ]] && continue
-    overlay_file="$STORE/$skill/agents/openai.yaml"
-    if [[ -f $overlay_file ]] && grep -q 'allow_implicit_invocation: false' "$overlay_file"; then
-      continue
-    fi
-    if [[ $DRYRUN == "--dry-run" ]]; then
-      log "would assert codex overlay: $skill"
-      continue
-    fi
-    if ! mkdir -p "$STORE/$skill/agents"; then
-      record_required_failure "codex overlay dir for $skill could not be created"
-      continue
-    fi
-    if [[ -f $overlay_file ]]; then
-      if printf '\n%s\n' "$policy" >>"$overlay_file"; then
-        log "appended codex overlay policy to upstream openai.yaml: $skill"
-      else
-        record_required_failure "codex overlay append for $skill failed"
-      fi
-    elif printf '%s\n' "$policy" >"$overlay_file"; then
-      log "asserted codex overlay: $skill"
-    else
-      record_required_failure "codex overlay write for $skill failed"
-    fi
-  done < <(jq -r '.tiers // {} | to_entries[] | select(.value == "on-demand") | .key' "$CUSTOM_SKILL_LOCK" 2>/dev/null)
-}
-
 # Weekly hermes registry-update phase: for each specialist profile, update every
 # skill the lock's hermesRegistry table marks hermes-owned for it — keyed by the
 # entry's lockKey (never a list name: ClawHub slugs differ from frontmatter
@@ -1725,6 +2060,13 @@ else
     return 0 # never let the EXIT trap's status leak into the script's exit code
   }
   trap '__update_skills_release_lock' EXIT
+  # RECOVERY (brief step 1) runs under the lock, BEFORE the stamp early-exit and
+  # the idle gate, so a crash-window leftover self-heals even on a slot that
+  # then early-exits. It deletes incomplete staging, marks a reusable complete
+  # candidate, repairs the stable store/lock links, records competing-writer
+  # real dirs for re-absorption, and prunes generation garbage. Dry runs never
+  # reach here (the dry branch above is read-only).
+  __gen_recover
 fi
 
 # weekly success stamp: the 24 Monday plist slots share one stamp; once a slot
@@ -1742,7 +2084,7 @@ if [[ -z $INSTALL_ONLY ]] && [[ -z $CHECK_FORKS_ONLY ]] && [[ $DRYRUN != "--dry-
 fi
 
 # idle-gate (activity-based, fail-closed): defer only while a harness shows
-# RECENT activity (within IDLE_THRESHOLD), so the weekly run is UNATTENDED — an
+# RECENT activity (within IDLE_THRESHOLD), so the weekly run is UNATTENDED; an
 # always-up bridge no longer defers it forever. A machine quiet for the window
 # proceeds and swaps skills; a live turn defers to next slot. FAIL CLOSED: an
 # unreadable process table or a probe error counts as active. UPDATE_SKILLS_FORCE=1
@@ -1760,181 +2102,6 @@ if [[ -z $INSTALL_ONLY ]] && [[ ${UPDATE_SKILLS_FORCE:-} != "1" ]] && [[ $DRYRUN
   fi
   exit 0
 fi
-
-# 0) npx installs: any npx-tracked skill absent from the store is installed from
-#    its upstream via the official npx `skills` CLI (latest from main). The
-#    multi-agent form lands the real dir in ~/.agents/skills and plants the
-#    relative Claude symlink; the weekly `npx skills update` pass below refreshes
-#    present ones — this pass is install-only.
-install_npx_tracked() {
-  [[ -f $CUSTOM_SKILL_LOCK ]] || return 0
-  local skill repo
-  # read on fd 3: npx may consume stdin
-  while IFS= read -r -u3 skill; do
-    [[ -e "$STORE/$skill" ]] && continue # install only what's absent; refresh is the npx update pass's job
-    repo="$(jq -r --arg skill "$skill" '.npxTracked[$skill].repo' "$CUSTOM_SKILL_LOCK")"
-    if [[ -z $repo || $repo == "null" ]]; then
-      log "install $skill: no npxTracked.repo recorded; skipping"
-      continue
-    fi
-    if [[ $DRYRUN == "--dry-run" ]]; then
-      log "would install via npx: $skill from $repo"
-      continue
-    fi
-    if npx --yes skills@latest add "$repo" --skill "$skill" --agent claude-code --agent codex -g -y 2>&1 | tr -d '\r' | tail -3; then
-      if [[ -d "$STORE/$skill" ]]; then
-        log "installed: $skill from $repo" # fan-out is the convergence pass's job (below)
-      else
-        log "install $skill: npx add reported success but $STORE/$skill is absent (continuing)"
-        record_required_failure "npx install $skill produced no store dir"
-      fi
-    else
-      log "install $skill: npx add failed ($repo) (continuing)"
-      record_required_failure "npx install $skill failed"
-    fi
-  done 3< <(jq -r '.npxTracked // {} | keys[]?' "$CUSTOM_SKILL_LOCK" 2>/dev/null)
-}
-
-# 0b) clawhub installs: any clawhub-tracked skill absent from the store is
-#     installed from ClawHub. The CLI nests installs as <dir>/@owner/<name>
-#     (v0.23.1), so each install runs in a throwaway --workdir and the nested
-#     dir is moved FLAT into the store as <store>/<name>. The moved dir keeps
-#     its .clawhub/origin.json (slug + ownerHandle + fingerprint), which is
-#     what makes the weekly bare-name in-place update below deterministic even
-#     for names several ClawHub users publish. Installing outside the store
-#     workdir also keeps the store's .clawhub/lock.json free of @owner-keyed
-#     phantom entries (a slug-form update against such an entry recreates the
-#     nested dir instead of updating the flat one — verified live).
-install_clawhub_tracked() {
-  [[ -f $CUSTOM_SKILL_LOCK ]] || return 0
-  jq -e '.clawhubTracked // {} | length > 0' "$CUSTOM_SKILL_LOCK" >/dev/null 2>&1 || return 0
-  local relay_script="$HOME/.local/bin/relay.sh"
-  if ! command -v clawhub >/dev/null 2>&1; then
-    # A non-empty clawhubTracked table with no clawhub binary is a REQUIRED
-    # failure: absent skills would silently never install (item 4).
-    log "WARN: clawhub not on PATH but clawhubTracked is non-empty; the install pass cannot run"
-    record_required_failure "clawhub missing with a non-empty clawhubTracked table (install pass)"
-    if [[ -x $relay_script ]]; then
-      "$relay_script" --agent update-skills --state prereq-missing --project clawhub \
-        --detail "clawhub is not on PATH but clawhubTracked has skills to install; the store cannot be completed" || true
-    fi
-    return 0
-  fi
-  local skill slug registry tmp_workdir installed_dir
-  local -a clawhub_cmd
-  # read on fd 3: clawhub may consume stdin
-  while IFS=$'\t' read -r -u3 skill slug registry; do
-    [[ -e "$STORE/$skill" ]] && continue # install only what's absent; refresh is the update pass's job
-    if [[ -z $slug ]]; then
-      log "install $skill: no clawhubTracked.slug recorded; skipping"
-      continue
-    fi
-    if [[ $DRYRUN == "--dry-run" ]]; then
-      log "would install via clawhub: $skill from $slug"
-      continue
-    fi
-    tmp_workdir="$(mktemp -d)"
-    clawhub_cmd=(clawhub --no-input --workdir "$tmp_workdir" --dir skills)
-    [[ -n $registry ]] && clawhub_cmd+=(--registry "$registry")
-    if "${clawhub_cmd[@]}" install "$slug" 2>&1 | tail -2; then
-      # Nested @owner layout today; tolerate a flat layout should a future CLI
-      # version stop nesting.
-      installed_dir="$tmp_workdir/skills/$slug"
-      [[ -d $installed_dir ]] || installed_dir="$tmp_workdir/skills/$skill"
-      if [[ -d $installed_dir ]]; then
-        mv "$installed_dir" "$STORE/$skill"
-        log "installed: $skill from $slug" # fan-out is the convergence pass's job (below)
-      else
-        log "install $skill: clawhub install reported success but produced no skill dir (continuing)"
-        record_required_failure "clawhub install $skill produced no store dir"
-      fi
-    else
-      log "install $skill: clawhub install failed ($slug) (continuing)"
-      record_required_failure "clawhub install $skill failed"
-    fi
-    rm -rf "$tmp_workdir"
-  done 3< <(jq -r '.clawhubTracked // {} | to_entries[]
-    | [.key, (.value.slug // ""), (.value.registry // "")] | @tsv' \
-    "$CUSTOM_SKILL_LOCK" 2>/dev/null)
-}
-
-# Weekly clawhub update pass: refresh every clawhub-tracked store copy in
-# place — per skill, by its bare store-dir name, with the store as the CLI's
-# workdir (origin.json pins the owner, so bare names resolve deterministically).
-# Two mechanical realities handled up front (both verified live on v0.23.1):
-# Finder .DS_Store litter breaks the CLI's fingerprint match, so it is scrubbed
-# first; and the repo-asserted Codex overlay (agents/openai.yaml) is a local
-# file the published fingerprint cannot know, so the CLI refuses with "local
-# changes". When the refusal is over EXACTLY that file — byte-equal to the
-# policy this script asserts — the file is set aside and the update retried
-# once (assert_codex_overlays re-creates it later in the same run). Any other
-# local change is a loud WARN (relayed), never overwritten: automation never
-# passes --force (and never --force-install, ClawHub's scan bypass — bypassing
-# a security scan needs per-invocation operator confirmation).
-update_clawhub_tracked() {
-  [[ -f $CUSTOM_SKILL_LOCK ]] || return 0
-  jq -e '.clawhubTracked // {} | length > 0' "$CUSTOM_SKILL_LOCK" >/dev/null 2>&1 || return 0
-  local relay_script="$HOME/.local/bin/relay.sh"
-  if ! command -v clawhub >/dev/null 2>&1; then
-    # A non-empty clawhubTracked table with no clawhub binary is a REQUIRED
-    # failure: the tracked store copies would silently go un-refreshed (item 4).
-    log "WARN: clawhub not on PATH but clawhubTracked is non-empty; the update pass cannot run"
-    record_required_failure "clawhub missing with a non-empty clawhubTracked table (update pass)"
-    if [[ -x $relay_script ]]; then
-      "$relay_script" --agent update-skills --state prereq-missing --project clawhub \
-        --detail "clawhub is not on PATH but clawhubTracked has skills to refresh; they will drift" || true
-    fi
-    return 0
-  fi
-  local skill overlay_file update_output retry_output
-  # read on fd 3: clawhub may consume stdin
-  while IFS= read -r -u3 skill; do
-    # Only real store dirs: absent skills are the install pass's job, and a
-    # symlinked entry would be app-owned content this script must not touch.
-    [[ -d "$STORE/$skill" && ! -L "$STORE/$skill" ]] || continue
-    if [[ $DRYRUN == "--dry-run" ]]; then
-      log "would update via clawhub: $skill"
-      continue
-    fi
-    rm -f "$STORE/$skill/.DS_Store"
-    if ! update_output="$(clawhub --no-input --workdir "$AGENTS" --dir skills update "$skill" 2>&1)"; then
-      log "WARN: clawhub update $skill failed (continuing)"
-      record_required_failure "clawhub update $skill failed"
-      printf '%s\n' "$update_output"
-      if [[ -x $relay_script ]]; then
-        "$relay_script" --agent update-skills --state clawhub-update-failed --project "$skill" \
-          --detail "clawhub update exited non-zero; run it by hand to see why" || true
-      fi
-      continue
-    fi
-    if ! printf '%s\n' "$update_output" | grep -q 'local changes'; then
-      log "clawhub $skill: ok"
-      continue
-    fi
-    # Refusal ladder: only when the sole local change is our own overlay.
-    overlay_file="$STORE/$skill/agents/openai.yaml"
-    if [[ -f $overlay_file && "$(<"$overlay_file")" == "$CODEX_POLICY" ]]; then
-      rm "$overlay_file"
-      rmdir "$STORE/$skill/agents" 2>/dev/null || true
-      if retry_output="$(clawhub --no-input --workdir "$AGENTS" --dir skills update "$skill" 2>&1)" &&
-        ! printf '%s\n' "$retry_output" | grep -q 'local changes'; then
-        log "clawhub $skill: ok (repo-asserted Codex overlay set aside; re-asserted below)"
-        continue
-      fi
-      printf '%s\n' "$retry_output"
-      # Not just our overlay after all — put it back and surface the refusal.
-      mkdir -p "$STORE/$skill/agents"
-      printf '%s\n' "$CODEX_POLICY" >"$overlay_file"
-    fi
-    log "WARN: clawhub $skill update refused over local changes (continuing; never --force from automation)"
-    record_required_failure "clawhub update $skill refused over local changes"
-    printf '%s\n' "$update_output"
-    if [[ -x $relay_script ]]; then
-      "$relay_script" --agent update-skills --state clawhub-blocked --project "$skill" \
-        --detail "clawhub update refused over local changes beyond the repo's own Codex overlay; reconcile by hand (never --force from automation)" || true
-    fi
-  done 3< <(jq -r '.clawhubTracked // {} | keys[]?' "$CUSTOM_SKILL_LOCK" 2>/dev/null)
-}
 
 # fork/vendored upstream drift-check: for each lock forks entry, fetch the
 # upstream and compare the recorded skill path's current git hash (tree hash for
@@ -1998,71 +2165,85 @@ if [[ -n $CHECK_FORKS_ONLY ]]; then
   exit 0
 fi
 
-log "npx installs (absent skills)"
-install_npx_tracked
-
-log "clawhub installs (absent skills)"
-install_clawhub_tracked
-
-if [[ -n $INSTALL_ONLY ]]; then
+# --dry-run (brief Modes): a read-only preview that NEVER invokes either package
+# CLI (the npx CLI treats `update --help` as a real update, observed live) and
+# makes ZERO writes. It reports roster-vs-lock and roster-vs-generation drift,
+# the fan-out convergence preview (would create/replace/remove, pure readlink
+# logic), and the would-run/would-defer lock preview printed above.
+if [[ $DRYRUN == "--dry-run" ]]; then
+  __gen_dryrun_drift_report
   converge_claude_skills
   converge_hermes_skills
-  assert_codex_overlays
+  refresh_app_owned_cua_pack    # its dry branch logs the would-run line only
+  assert_superpowers_routing    # --dry-run probe of the routing script (read-only)
+  update_hermes_registry_skills # its dry branch logs would-update lines only
+  check_fork_drift              # its dry branch logs would-drift-check lines only
+  log "done (dry-run)"
+  exit 0
+fi
+
+# --install-only (brief Modes): build and publish an ADDITIVE candidate whose
+# existing skills are byte-clones of the current generation plus genuinely
+# absent roster skills added. Never migrates a flat store, never replaces
+# existing store content. Safe under a live session (nothing existing is
+# swapped), which is what lets the fresh-machine bootstrap run at apply time.
+if [[ -n $INSTALL_ONLY ]]; then
+  __gen_install_only_attempt || true
+  converge_claude_skills
+  converge_hermes_skills
+  __gen_verify_live_overlays
   assert_superpowers_routing
-  log "done (install-only)${DRYRUN:+ (dry-run)}"
+  log "done (install-only)"
   # Signal any required-phase failure to the caller (the first-install
-  # chezmoiscript keys its retry marker on this non-zero exit). A dry run only
-  # reports, so it never fails.
-  if [[ $DRYRUN != "--dry-run" && $REQUIRED_FAILURES -gt 0 ]]; then
+  # chezmoiscript keys its retry marker on this non-zero exit).
+  if [[ $REQUIRED_FAILURES -gt 0 ]]; then
     log "install-only finished with $REQUIRED_FAILURES required-phase failure(s)"
     exit 1
   fi
   exit 0
 fi
 
-# 1) refresh every npx-tracked store skill in place from its upstream
-if [[ $DRYRUN == "--dry-run" ]]; then
-  log "would run: npx skills update --global"
-else
-  log "npx skills update --global"
-  if ! npx --yes skills@latest update --global -y 2>&1 | tr -d '\r' | tail -3; then
-    log "npx update reported issues (continuing)"
-    record_required_failure "npx skills update failed"
-  fi
+# FULL WEEKLY RUN (brief steps 1-6), the generation-exchange path:
+# 1) Migration: first run on a machine with the old flat store converts every
+#    tracked real dir to a stable store symlink into a freshly built
+#    .skills-current generation (per-entry atomic exchange; idle-gated full
+#    runs only, never --install-only).
+if __gen_migration_needed; then
+  log "migrating the flat store to the generation layout"
+  __gen_migrate || record_required_failure "flat-store migration failed"
+  # Recovery ran before the generation existed; re-run it so a reusable
+  # candidate or competing-writer drift is assessed against the migrated state.
+  __gen_recover
 fi
 
-# 1b) refresh every clawhub-tracked store skill in place from its ClawHub
-#     upstream (see update_clawhub_tracked above — bare store names, refusal
-#     ladder for the repo-asserted overlay, never --force)
-log "clawhub updates (tracked skills)"
-update_clawhub_tracked
+# 2-5) Build the candidate generation (a fake HOME under .skills-generations),
+#      run the npx + clawhub + overlay lanes against it under env -i, validate
+#      the WHOLE candidate, and publish with ONE atomic exchange. Any failure
+#      discards the whole candidate; the live generation is untouched.
+log "weekly generation attempt"
+__gen_weekly_attempt || log "the weekly generation attempt failed; the live generation is unchanged (a later slot retries)"
 
-# 1c) refresh the app-owned cua-driver skill pack via the app's own updater
-#     (see refresh_app_owned_cua_pack above — never a write through the symlink)
+# Post-publish live passes (never write through store links):
 refresh_app_owned_cua_pack
 
-# 2) CONVERGE the fan-out: every store skill is symlinked into Claude, and into
-#    exactly the hermes profile skills dirs its hermesProfiles mapping names,
-#    creating missing links, repairing wrong/dangling targets, and removing
-#    updater-owned links that drifted out of the desired set
+# CONVERGE the fan-out: every store skill is symlinked into Claude, and into
+# exactly the hermes profile skills dirs its hermesProfiles mapping names.
 converge_claude_skills
 converge_hermes_skills
 
-# 3) re-assert Codex policy overlays for on-demand skills — AFTER the npx
-#    refresh above, which replaces npx-tracked skill folders (overlay and all)
-assert_codex_overlays
+# VERIFY the Codex overlays through the store links (asserted in the candidate;
+# a missing one here is a required failure, never an in-place write); vendored
+# real dirs keep the additive write-if-missing assert.
+__gen_verify_live_overlays
 
-# 4) re-assert the superpowers→hermes routing patches on the hermes mirror —
-#    like the Codex overlays, a property that must survive anything replacing
-#    files wholesale (here: a superpowers re-mirror)
+# re-assert the superpowers->hermes routing patches on the hermes mirror
 assert_superpowers_routing
 
-# 5) hermes registry-update phase — after the store refresh, so the run
-#    summary reflects final state for both lanes (independent sources)
+# hermes registry-update phase (hub-owned skills, independent source)
 log "hermes registry updates"
 update_hermes_registry_skills
 
-# 6) watch the vendored/fork upstreams (alert-only; see the function above)
+# watch the vendored/fork upstreams (alert-only)
 log "fork drift-check"
 check_fork_drift
 
@@ -2081,8 +2262,14 @@ if [[ $DRYRUN != "--dry-run" ]]; then
   if [[ $REQUIRED_FAILURES -eq 0 ]]; then
     mkdir -p "$STATE_DIR"
     __update_skills_stamp_value >"$SUCCESS_STAMP"
+    # A verified success resets every per-skill failure streak.
+    __gen_reset_failure_streaks
   else
     log "WITHHOLDING the weekly success stamp: $REQUIRED_FAILURES required-phase failure(s) this run; a later scheduled slot will retry"
+    # Per-skill failure streaks: incremented at most once per ISO week (not per
+    # hourly slot); a skill at 2+ consecutive failed weeks escalates the alert
+    # wording. Convergence never stops: the next slot always retries.
+    __gen_update_failure_streaks
     if __update_skills_scheduled_budget_exhausted; then
       log "EXHAUSTED: required-phase failures on the last scheduled slot for this week; the weekly skills update did not fully succeed this week"
       __update_skills_alert "Weekly skills update finished with $REQUIRED_FAILURES required-phase failure(s) and no scheduled slot remains this week. Check ~/.local/log/skills/."

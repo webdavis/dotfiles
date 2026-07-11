@@ -22,12 +22,15 @@ tmp="$(mktemp -d)"
 # remove everything.
 trap 'chmod -R u+w "$tmp" 2>/dev/null || true; rm -rf "$tmp"' EXIT
 
-# Offline npx stub (a dry run still logs "would run: npx ..." but never calls it;
-# keep PATH sane regardless).
+# Recording npx + clawhub stubs: a dry run must NEVER invoke either package CLI
+# (the npx CLI treats `update --help` as a real update, observed live), so any
+# entry in these logs is a failure asserted at the end.
 stub="$tmp/stub"
 mkdir -p "$stub"
-printf '#!/usr/bin/env bash\necho stub\n' >"$stub/npx"
-chmod +x "$stub/npx"
+CLI_LOG="$tmp/cli-invocations.log"
+printf '#!/usr/bin/env bash\nprintf "npx %%s\\n" "$*" >>"%s"\necho stub\n' "$CLI_LOG" >"$stub/npx"
+printf '#!/usr/bin/env bash\nprintf "clawhub %%s\\n" "$*" >>"%s"\necho stub\n' "$CLI_LOG" >"$stub/clawhub"
+chmod +x "$stub/npx" "$stub/clawhub"
 export PATH="$stub:$PATH"
 
 snapshot() { find "$1" 2>/dev/null | sort; }
@@ -89,18 +92,21 @@ grep -qi 'would defer' <<<"$out" || fail "--dry-run did not preview 'would defer
 kill "$live_pid" 2>/dev/null || true
 wait "$live_pid" 2>/dev/null || true
 
-# ── 4) read-only home → dry-run writes nothing, exits 0 ─────────────────────
+# ── 4) read-only home → dry-run writes nothing, exits 0. The roster is
+#      NON-EMPTY here (an absent npx skill and an absent clawhub skill a full
+#      run would install), so the never-invokes-a-package-CLI assertion at the
+#      end is load-bearing, not vacuous. ──────────────────────────────────────
 HOME4="$tmp/home4"
 export HOME="$HOME4"
 mkdir -p "$HOME4/.agents/skills"
 cat >"$HOME4/.agents/custom-skill-lock.json" <<'EOF'
 {
   "version": 2,
-  "tiers": {},
-  "hermesProfiles": {},
+  "tiers": {"wanted": "core", "clawwanted": "core"},
+  "hermesProfiles": {"wanted": [], "clawwanted": []},
   "hermesRegistry": {},
-  "npxTracked": {},
-  "clawhubTracked": {},
+  "npxTracked": {"wanted": {"repo": "fixture/wanted"}},
+  "clawhubTracked": {"clawwanted": {"slug": "@fixture/clawwanted", "registry": "https://clawhub.example"}},
   "superpowersRouting": {},
   "forks": {}
 }
@@ -116,5 +122,10 @@ $before
 --- after ---
 $after"
 chmod -R u+w "$HOME4/.agents"
+
+# ── 5) across ALL the dry runs above: neither package CLI was ever invoked ────
+if [[ -s $CLI_LOG ]]; then
+  fail "--dry-run invoked a package CLI (npx/clawhub must never run in a dry run): $(cat "$CLI_LOG")"
+fi
 
 echo "update-skills-dryrun-readonly: OK"

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# update-skills-validation-failure.sh — proves the whole-candidate discard rule
+# update-skills-validation-failure.sh proves the whole-candidate discard rule
 # (Wave 3a fix4 brief step 4): ANY lane failure or validation failure discards
 # the WHOLE candidate (no partial promotion, ever). The live generation stays
 # byte-identical, a required failure is recorded, nothing is published, and the

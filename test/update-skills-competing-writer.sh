@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# update-skills-competing-writer.sh — proves competing-writer drift is re-absorbed
+# update-skills-competing-writer.sh proves competing-writer drift is re-absorbed
 # (Wave 3a fix4 hostile test). A store link is replaced with a REAL DIR mid-state
 # (as the HyperFrames self-updater or an interrupted migration would leave it).
 # The next run detects it, re-absorbs its content into the candidate, and the
@@ -73,7 +73,9 @@ printf 'COMPETING-MARKER' >"$STORE/mover/competing.txt"
 # The full-run orchestration for the re-absorption path.
 __gen_recover
 recorded=""
-for n in "${GEN_REABSORB[@]:-}"; do [[ $n == mover ]] && recorded=1; done
+for n in "${GEN_REABSORB[@]:-}"; do
+  if [[ $n == mover ]]; then recorded=1; fi
+done
 [[ -n $recorded ]] || fail "recovery did not record the competing-writer real dir for re-absorption"
 
 id="$(__gen_new_id)"

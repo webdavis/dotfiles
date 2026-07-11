@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# update-skills-lock-symlink.sh — proves the npx CLI reads and writes the npx
+# update-skills-lock-symlink.sh proves the npx CLI reads and writes the npx
 # lock THROUGH the ~/.agents/.skill-lock.json symlink into the live generation
 # (Wave 3a fix4 lock-symlink test). POSIX open() follows the symlink, so a CLI
 # that opens ~/.agents/.skill-lock.json transparently reads and updates the

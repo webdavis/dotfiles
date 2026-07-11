@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# update-skills-generation-lanes.sh — proves the candidate build, the env -i
+# update-skills-generation-lanes.sh proves the candidate build, the env -i
 # isolated lanes, validation, and sibling-path resolution (Wave 3a fix4 brief
 # steps 2-4 and the isolation + sibling-path hostile tests).
 #
@@ -9,7 +9,7 @@
 #      overlay, and clawhub origin metadata.
 #   2. Isolation (hostile): the lanes run under env -i with HOME / XDG_* / TMPDIR
 #      / npm cache pinned inside the candidate. A DECOY real HOME laid out with
-#      sentinel XDG and npm dirs is byte-identical after the run — a lane can
+#      sentinel XDG and npm dirs is byte-identical after the run; a lane can
 #      only write into the candidate.
 #   3. Sibling-path resolution: from inside a RESOLVED workflow skill, the
 #      relative sibling reference ../core reaches the SAME generation's core.

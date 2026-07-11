@@ -4,8 +4,8 @@
 # `claude --remote-control` bridge is always up; the round-2 gate deferred on any
 # such process forever and forced a manual run. The gate now works in two steps:
 #
-#   1. If NO process resolves to an agent harness (claude/codex/hermes) — the
-#      existing effective-program logic, resolved through any interpreter front —
+#   1. If NO process resolves to an agent harness (claude/codex/hermes) via the
+#      existing effective-program logic, resolved through any interpreter front,
 #      PROCEED (unchanged fast path; evidence probes are never touched).
 #   2. If an agent process exists, judge idleness by ACTIVITY. Every harness
 #      PRESENT on the machine (its activity dir exists) is probed for the newest

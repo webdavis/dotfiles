@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# update-skills-migration.sh — proves the flat-store -> generation migration
+# update-skills-migration.sh proves the flat-store -> generation migration
 # (Wave 3a fix4 brief "Migration"). A machine with the old flat store
 # (~/.agents/skills/<name> real dirs + a real ~/.agents/.skill-lock.json) is
 # migrated: every tracked store entry becomes a stable symlink into a real

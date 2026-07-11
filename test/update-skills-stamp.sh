@@ -45,8 +45,9 @@ stub="$tmp/stub"
 mkdir -p "$stub"
 ALERTER_LOG="$tmp/alerter.log"
 
-# npx stub: FAILS `add` when FAKE_NPX_ADD_FAIL is set (a required install
-# failure); otherwise materialises the store dir. `update` always succeeds.
+# npx stub: FAILS `add` while the marker file $tmp/npx-add-fail exists (a
+# required install failure); otherwise materialises the store dir. A FILE, not
+# an env var: the build lanes run under env -i, which strips test variables.
 cat >"$stub/npx" <<EOF
 #!/usr/bin/env bash
 mode=""
@@ -58,7 +59,7 @@ for a in "\$@"; do
   prev="\$a"
 done
 if [[ \$mode == "add" ]]; then
-  if [[ -n \${FAKE_NPX_ADD_FAIL:-} ]]; then echo "npx add boom" >&2; exit 1; fi
+  if [[ -e "$tmp/npx-add-fail" ]]; then echo "npx add boom" >&2; exit 1; fi
   mkdir -p "\$HOME/.agents/skills/\$skill"
   printf -- '---\nname: %s\ndescription: fixture\n---\n' "\$skill" >"\$HOME/.agents/skills/\$skill/SKILL.md"
 fi
@@ -87,7 +88,8 @@ run() {
   [[ ${4:-} == "--scheduled" ]] && run_args=(--scheduled)
   rm -rf "$HOME/.local/state"
   : >"$ALERTER_LOG"
-  OUT="$(FAKE_NPX_ADD_FAIL="$1" FAKE_HOUR="$2" FAKE_DOW="$3" UPDATE_SKILLS_FORCE=1 bash "$SCRIPT" "${run_args[@]}" 2>&1)" ||
+  if [[ -n $1 ]]; then touch "$tmp/npx-add-fail"; else rm -f "$tmp/npx-add-fail"; fi
+  OUT="$(FAKE_HOUR="$2" FAKE_DOW="$3" UPDATE_SKILLS_FORCE=1 bash "$SCRIPT" "${run_args[@]}" 2>&1)" ||
     fail "run exited non-zero (a required failure must not abort the run): $OUT"
 }
 

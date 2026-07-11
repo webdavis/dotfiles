@@ -44,6 +44,9 @@ STAMP="$HOME/.local/state/update-skills/last-success"
 sbin="$tmp/sbin"
 mkdir -p "$sbin"
 ln -s "$(command -v jq)" "$sbin/jq"
+# gmv (GNU coreutils) is the generation-exchange publish primitive; like jq it
+# lives outside the hermetic PATH, so symlink the real binary in.
+ln -s "$(command -v gmv)" "$sbin/gmv"
 cat >"$sbin/npx" <<'EOF'
 #!/usr/bin/env bash
 echo stub
@@ -120,8 +123,9 @@ fi
 
 # ── E) control: non-empty tables but prerequisites PRESENT → no required failure,
 #      stamp IS written. ───────────────────────────────────────────────────
-mkdir -p "$STORE/foo" # clawhub skill already present, so the install pass skips it
+mkdir -p "$STORE/foo/.clawhub" # clawhub skill already present, so the install pass skips it
 printf -- '---\nname: foo\ndescription: fixture\n---\n' >"$STORE/foo/SKILL.md"
+printf '{"slug":"foo"}\n' >"$STORE/foo/.clawhub/origin.json" # real installs carry origin metadata; validation requires it
 cat >"$sbin/clawhub" <<'EOF'
 #!/usr/bin/env bash
 echo "ok"

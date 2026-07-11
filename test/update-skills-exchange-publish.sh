@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# update-skills-exchange-publish.sh — proves the generation-exchange publish is
+# update-skills-exchange-publish.sh proves the generation-exchange publish is
 # atomic and per-lookup complete (Wave 3a fix4 acceptance points 2 and 3).
 #
 # A reader loop resolves the store during 100 publish cycles. Each pass resolves
 # ONE physical generation (as a running session that cached a canonical path
 # would) and reads two sibling skills' recorded generation id from it. The
 # guarantee under test: any resolution yields a COMPLETE tree from EXACTLY ONE
-# generation — the reader never sees a missing path, and two siblings resolved
+# generation: the reader never sees a missing path, and two siblings resolved
 # from one pass never disagree on the generation id (no mixed-generation pair).
 #
 # The machinery is exercised in isolation by sourcing the real script with
@@ -66,12 +66,12 @@ READER_LOG="$tmp/reader.log"
 : >"$READER_LOG"
 
 # The reader models a running session that cached a RESOLVED path. Each pass
-# pins its cwd to the physical generation directory (via the store symlink) —
+# pins its cwd to the physical generation directory (via the store symlink);
 # the cwd fd is the cache, so an atomic exchange of the .skills-current entry
 # does not move this reader off the generation it pinned. It then reads both
 # siblings RELATIVE to that pinned cwd, so the two reads land in ONE generation.
-# Violations: exactly one sibling missing (a PARTIAL tree — never allowed); both
-# present but their generation ids disagree (a MIXED pair — never allowed). Both
+# Violations: exactly one sibling missing (a PARTIAL tree, never allowed); both
+# present but their generation ids disagree (a MIXED pair, never allowed). Both
 # siblings missing is a clean ENOENT of a since-pruned generation (allowed by the
 # per-lookup-completeness guarantee) and is NOT a violation.
 reader() {
