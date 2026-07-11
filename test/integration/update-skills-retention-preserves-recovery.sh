@@ -77,15 +77,27 @@ chmod +x "$stub/npx" "$stub/alerter"
 # mv stub (its OWN dir, prepended only for the failing run): fails EXACTLY the
 # retention move (a candidate .../home/.agents into a bare generation-id slot
 # under .skills-generations); every other mv passes through.
+#
+# CI-HERMETICITY: the passthrough MUST be the REAL resolved GNU mv by absolute
+# path, never /bin/mv. In the Nix run shell (what CI uses) the exchange tool
+# resolve_exchange_tool finds IS plain `mv`, so this stub shadows it on PATH:
+# the updater's capability probe runs `mv --version` and the exchange runs
+# `mv --exchange ...` through this stub. With a /bin/mv passthrough (BSD mv on
+# macOS, no GNU version line, no --exchange), the probe fails and the exchange
+# never lands — which is exactly the CI failure this comment guards against.
+# On a Homebrew host the resolved tool is `gmv` (unshadowed), which is why the
+# bug only showed under CI's clean PATH.
+GMV_REAL="$(command -v "$GMV_BIN")" ||
+  fail "could not resolve the exchange tool $GMV_BIN to an absolute path"
 mvstub="$tmp/mvstub"
 mkdir -p "$mvstub"
-cat >"$mvstub/mv" <<'EOF'
+cat >"$mvstub/mv" <<EOF
 #!/usr/bin/env bash
-if [[ ${1:-} == */home/.agents && ${2:-} == */.skills-generations/* && ${2:-} != *.garbage.* ]]; then
-  echo "mv-stub: refusing retention move $1 -> $2" >&2
+if [[ \${1:-} == */home/.agents && \${2:-} == */.skills-generations/* && \${2:-} != *.garbage.* ]]; then
+  echo "mv-stub: refusing retention move \$1 -> \$2" >&2
   exit 1
 fi
-exec /bin/mv "$@"
+exec "$GMV_REAL" "\$@"
 EOF
 chmod +x "$mvstub/mv"
 
