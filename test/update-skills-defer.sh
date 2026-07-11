@@ -1,26 +1,29 @@
 #!/usr/bin/env bash
-# update-skills-defer.sh, the weekly idle-gate FAILS CLOSED: it defers whenever
-# ANY process whose argv EFFECTIVE program resolves to an agent harness (claude,
-# codex, or hermes) is running, live session or background daemon alike. Argv
-# shape cannot prove idleness here (every interactive Claude launch carries
-# --remote-control; Codex app-server and the Hermes gateway host live agent
-# turns in-process), so the old daemon-shape allowlist was DELETED: a busy
-# machine could present only daemon-shaped argv and get its skills swapped under
-# a live session. The gate now errs toward deferral, which the design tolerates
-# (a deferred run just lands the updates next week). Only a machine with NO agent
-# process proceeds.
+# update-skills-defer.sh: the weekly idle-gate judges recent ACTIVITY, not mere
+# process existence, so the updater runs UNATTENDED. On the daily driver a
+# `claude --remote-control` bridge is always up; the round-2 gate deferred on any
+# such process forever and forced a manual run. The gate now works in two steps:
 #
-# The discriminator keys on the argv EFFECTIVE program, resolved through any
-# interpreter front (python/node/bun, optional `env` prefix), skipping the
-# interpreter's own options to find the -m module or script operand. Free prompt
-# text is never matched.
+#   1. If NO process resolves to an agent harness (claude/codex/hermes) — the
+#      existing effective-program logic, resolved through any interpreter front —
+#      PROCEED (unchanged fast path; evidence probes are never touched).
+#   2. If an agent process exists, judge idleness by ACTIVITY. Every harness
+#      PRESENT on the machine (its activity dir exists) is probed for the newest
+#      file mtime; if EVERY present harness is older than IDLE_THRESHOLD, PROCEED;
+#      if ANY is fresh, DEFER as before.
+#   3. Fail closed: an unreadable process table, or an activity probe that errors
+#      (unreadable dir), counts as ACTIVE and DEFERS.
+#   4. UPDATE_SKILLS_FORCE=1 still bypasses everything (not re-tested here; the
+#      other suites cover it).
 #
-# The gate is exercised through the REAL script (no UPDATE_SKILLS_FORCE, that
-# bypasses the gate). PATH shims present a controllable process world (ps, which
-# can also simulate a read failure), record alerter invocations, and pin the
-# clock (date) so the "last retry slot" branch is deterministic. A minimal lock
-# with empty tables makes every network pass a no-op, so a proceeding full run
-# runs clean to its final `[update-skills] done`.
+# The gate is exercised through the REAL script (no FORCE, that bypasses the
+# gate). PATH shims present a controllable process world (ps, which can also
+# simulate a read failure) and pin the clock (date) so the slot-aware exhaustion
+# branch is deterministic; the activity evidence is stubbed as real files with
+# controlled mtimes inside the tmp HOME, pointed at via the env vars the script
+# reads with sane $HOME-relative defaults. A minimal lock with empty tables makes
+# every network pass a no-op, so a proceeding full run reaches the final
+# `[update-skills] done`.
 set -euo pipefail
 
 # git hooks (this runs under pre-commit) leak GIT_DIR/GIT_INDEX_FILE, unset so
@@ -36,7 +39,11 @@ fail() {
 }
 
 tmp="$(mktemp -d)"
-trap 'rm -rf "$tmp"' EXIT
+cleanup() {
+  chmod -R u+rwx "$tmp" 2>/dev/null || true # an unreadable-dir test may leave a 000 dir
+  rm -rf "$tmp"
+}
+trap cleanup EXIT
 
 HOME="$tmp/home"
 export HOME
@@ -81,7 +88,8 @@ printf 'alerter %s\n' "\$*" >>"$ALERTER_LOG"
 EOF
 
 # date stub: pin the ISO week, the hour, and the weekday (1 = Monday) so the
-# slot-aware alert branch is deterministic; everything else falls through.
+# slot-aware alert branch is deterministic; everything else (notably the +%s the
+# activity probe reads) falls through to the real date.
 cat >"$stub_dir/date" <<'EOF'
 #!/usr/bin/env bash
 case "$1" in
@@ -103,10 +111,54 @@ chmod +x "$stub_dir"/*
 export PATH="$stub_dir:$PATH"
 export FAKE_WEEK="2026-28"
 
+# ── Activity evidence surface. The three probe dirs are pointed at the tmp HOME
+#    via the env vars the script reads (defaults are $HOME/.claude/projects,
+#    $HOME/.codex/sessions, $HOME/.hermes/logs). Threshold default 900s; tests
+#    override it for the boundary case. ────────────────────────────────────────
+ACT_CLAUDE="$HOME/act/claude"
+ACT_CODEX="$HOME/act/codex"
+ACT_HERMES="$HOME/act/hermes"
+export UPDATE_SKILLS_CLAUDE_ACTIVITY_DIR="$ACT_CLAUDE"
+export UPDATE_SKILLS_CODEX_ACTIVITY_DIR="$ACT_CODEX"
+export UPDATE_SKILLS_HERMES_ACTIVITY_DIR="$ACT_HERMES"
+export UPDATE_SKILLS_IDLE_THRESHOLD=900
+
+# harness evidence-state helpers, each on one probe dir.
+reset_activity() {
+  chmod -R u+rwx "$HOME/act" 2>/dev/null || true
+  rm -rf "$HOME/act"
+}
+harness_absent() { rm -rf "$1"; } # no dir at all → not installed
+harness_active() {                # a file whose mtime is NOW → within the window
+  mkdir -p "$1"
+  : >"$1/live.jsonl"
+}
+harness_stale() { # a file aged well past the window → no recent activity
+  local age_ago
+  age_ago="$(/bin/date -r "$(($(/bin/date +%s) - 3600))" +%Y%m%d%H%M.%S)"
+  mkdir -p "$1"
+  : >"$1/old.jsonl"
+  touch -t "$age_ago" "$1/old.jsonl"
+}
+harness_unreadable() { # present but unreadable → probe error → fail closed
+  mkdir -p "$1"
+  : >"$1/x.jsonl"
+  chmod 000 "$1"
+}
+# a file aged a controlled NUMBER of seconds into the past (boundary test).
+harness_file_aged() {
+  local dir="$1" seconds="$2" ts
+  ts="$(/bin/date -r "$(($(/bin/date +%s) - seconds))" +%Y%m%d%H%M.%S)"
+  mkdir -p "$dir"
+  : >"$dir/f.jsonl"
+  touch -t "$ts" "$dir/f.jsonl"
+}
+
 # run_gate <fake_ps> [fake_hour] [fake_ps_fail] [fake_dow] [sched], reset per-run
 # state, run the real script with the given world, capture combined output. No
 # FORCE: the gate is under test. The 5th arg, when "--scheduled", marks the run
-# as a LaunchAgent (scheduled) run; otherwise the run is manual.
+# as a LaunchAgent (scheduled) run; otherwise the run is manual. The activity
+# evidence is whatever the caller staged on disk beforehand.
 GATE_OUTPUT=""
 run_gate() {
   local fake_ps="$1" fake_hour="${2:-04}" fake_ps_fail="${3:-}" fake_dow="${4:-1}" sched="${5:-}"
@@ -129,15 +181,14 @@ HERMES_GATEWAY='/Users/x/.hermes/hermes-agent/venv/bin/python -m hermes_cli.main
 HERMES_SESSION='/Users/x/.hermes/hermes-agent/venv/bin/python /Users/x/.hermes/hermes-agent/venv/bin/hermes -c Do a thing'
 CLAUDE_REMOTE='/opt/homebrew/bin/claude --remote-control'
 CLAUDE_BG='/opt/homebrew/Caskroom/claude-code@latest/2.1.200/claude --bg-spare /tmp/x.sock'
-CLAUDE_DAEMON='/opt/homebrew/Caskroom/claude-code@latest/2.1.200/claude daemon run --origin transient'
-CLAUDE_PROMPT_TRAP='/opt/homebrew/bin/claude -p restart the hermes gateway'
 CODEX_SERVER='/Applications/Codex.app/Contents/Resources/codex app-server --analytics-default-enabled'
 CODEX_SESSION='codex resume 019f4a8f-c990-7441-b02f-086e4bd16e87'
 CODEX_PLAIN='codex'
 UNRELATED_PYTHON='/usr/bin/python3 /usr/local/bin/some-tool.py --flag'
-# Hostile interpreter-front bypasses (item 2): options between the interpreter
-# and the -m module / script operand must be skipped, and `env`/node fronts
-# resolved. Each still resolves to an agent harness and MUST defer.
+# Hostile interpreter-front bypasses: options between the interpreter and the -m
+# module / script operand must be skipped, and `env`/node fronts resolved. Each
+# still resolves to an agent harness and, paired with a fresh evidence file,
+# MUST defer.
 HERMES_U='/Users/x/venv/bin/python3 -u /Users/x/venv/bin/hermes -c go'
 HERMES_I_M='/Users/x/venv/bin/python3 -I -m hermes_cli.main gateway run'
 HERMES_X_M='/Users/x/venv/bin/python3 -X utf8 -m hermes_cli.main gateway run'
@@ -145,46 +196,122 @@ HERMES_DASHDASH='/Users/x/venv/bin/python3 -- /Users/x/venv/bin/hermes -c go'
 HERMES_ENV='/usr/bin/env python3 -m hermes_cli.main gateway run'
 CLAUDE_NODE='/opt/homebrew/bin/node /Users/x/.local/share/npm/bin/claude --remote-control'
 
-# ── Item 1: fail-closed idle gate. ANY agent process (session OR daemon) DEFERS;
-#    only a machine with no agent process proceeds. ──────────────────────────
-# The nine real dresden shapes all DEFER now (the daemon-shape allowlist is gone).
-for world in "$HERMES_GATEWAY" "$HERMES_SESSION" "$CLAUDE_REMOTE" "$CLAUDE_BG" \
-  "$CLAUDE_DAEMON" "$CLAUDE_PROMPT_TRAP" "$CODEX_SERVER" "$CODEX_SESSION" "$CODEX_PLAIN"; do
-  run_gate "$world"
-  deferred || fail "an agent process did not defer (fail-closed gate): [$world]: $GATE_OUTPUT"
-  proceeded && fail "an agent process proceeded (must never swap under a live/daemon agent): [$world]: $GATE_OUTPUT"
-done
+# ── Item 1 of the brief: bridge process present + ALL evidence stale → PROCEED.
+#    This is the unattended headline: the always-up `claude --remote-control`
+#    bridge no longer defers the weekly run when nothing has happened lately. ───
+reset_activity
+harness_stale "$ACT_CLAUDE"
+harness_stale "$ACT_CODEX"
+harness_stale "$ACT_HERMES"
+run_gate "$CLAUDE_REMOTE"
+proceeded || fail "bridge present + all evidence stale did not PROCEED (unattended run): $GATE_OUTPUT"
+deferred && fail "bridge present + all evidence stale wrongly deferred: $GATE_OUTPUT"
 
-# ── Item 2: hostile interpreter-front resolution. Each resolves to an agent and
-#    must DEFER. ───────────────────────────────────────────────────────────
-for world in "$HERMES_U" "$HERMES_I_M" "$HERMES_X_M" "$HERMES_DASHDASH" "$HERMES_ENV" "$CLAUDE_NODE"; do
-  run_gate "$world"
-  deferred || fail "an interpreter-fronted agent did not resolve/defer: [$world]: $GATE_OUTPUT"
-done
+# Bridge present + ALL evidence dirs absent (no transcripts at all) → PROCEED:
+# a harness with no install contributes no evidence and does not block.
+reset_activity
+run_gate "$CLAUDE_REMOTE"
+proceeded || fail "bridge present + no evidence dirs did not PROCEED (absent = no block): $GATE_OUTPUT"
 
-# A non-agent interpreter process (a plain python tool) → PROCEED.
+# ── Item 2: bridge process present + ONE harness active (fresh mtime) → DEFER.
+#    Cross-harness: the fresh harness need not be the one whose process is up. ──
+reset_activity
+harness_stale "$ACT_CLAUDE"
+harness_stale "$ACT_CODEX"
+harness_active "$ACT_HERMES" # a live hermes turn, while the claude bridge idles
+run_gate "$CLAUDE_REMOTE"
+deferred || fail "bridge present + one harness active did not DEFER: $GATE_OUTPUT"
+proceeded && fail "bridge present + one harness active wrongly proceeded: $GATE_OUTPUT"
+
+# The active harness matching its own process also defers.
+reset_activity
+harness_active "$ACT_CLAUDE"
+run_gate "$CLAUDE_REMOTE"
+deferred || fail "an active claude session did not DEFER: $GATE_OUTPUT"
+
+# ── Item 3: NO agent process → PROCEED without touching evidence probes. Prove
+#    it by staging ALL dirs ACTIVE yet still expecting PROCEED (the fast path
+#    short-circuits before any probe). ─────────────────────────────────────────
+reset_activity
+harness_active "$ACT_CLAUDE"
+harness_active "$ACT_CODEX"
+harness_active "$ACT_HERMES"
 run_gate "$UNRELATED_PYTHON"
-proceeded || fail "unrelated python process did not proceed: $GATE_OUTPUT"
+proceeded || fail "an agent-free world did not PROCEED even with fresh evidence (fast path): $GATE_OUTPUT"
 
-# ps read failure → DEFER (fail closed).
+# ── Item 4: evidence probe error (unreadable dir) → DEFER (fail closed). ───────
+reset_activity
+harness_stale "$ACT_CLAUDE"
+harness_unreadable "$ACT_CODEX" # chmod 000 → find errors → ACTIVE
+run_gate "$CLAUDE_REMOTE"
+chmod 755 "$ACT_CODEX" 2>/dev/null || true
+deferred || fail "an unreadable activity dir did not fail closed (must DEFER): $GATE_OUTPUT"
+proceeded && fail "an unreadable activity dir wrongly proceeded: $GATE_OUTPUT"
+
+# ── Item 5: harness absent (no evidence dir) does not block. A present-but-stale
+#    harness alongside two ABSENT ones → PROCEED. ──────────────────────────────
+reset_activity
+harness_stale "$ACT_CLAUDE"
+harness_absent "$ACT_CODEX"
+harness_absent "$ACT_HERMES"
+run_gate "$CLAUDE_REMOTE"
+proceeded || fail "stale-plus-absent harnesses did not PROCEED (absent must not block): $GATE_OUTPUT"
+
+# ── Item 6: threshold boundary. With a small window, a file just INSIDE the
+#    window is ACTIVE (DEFER) and one just OUTSIDE is STALE (PROCEED). ──────────
+export UPDATE_SKILLS_IDLE_THRESHOLD=100
+reset_activity
+harness_file_aged "$ACT_CLAUDE" 40 # 40s old, inside the 100s window → ACTIVE
+run_gate "$CLAUDE_REMOTE"
+deferred || fail "a file just inside IDLE_THRESHOLD did not DEFER: $GATE_OUTPUT"
+reset_activity
+harness_file_aged "$ACT_CLAUDE" 400 # 400s old, well outside 100s → STALE
+run_gate "$CLAUDE_REMOTE"
+proceeded || fail "a file just outside IDLE_THRESHOLD did not PROCEED: $GATE_OUTPUT"
+export UPDATE_SKILLS_IDLE_THRESHOLD=900
+
+# ── ps read failure → DEFER (fail closed): an unreadable process table means we
+#    cannot prove idleness, so we never swap. ──────────────────────────────────
+reset_activity # even with no evidence, a ps failure must defer
 run_gate "$HERMES_GATEWAY" 04 1
 deferred || fail "ps read failure did not fail closed (must defer): $GATE_OUTPUT"
 
-# A world with NO agent process (only an unrelated python tool) → PROCEED.
+# ── Interpreter-front recognition, under the new semantics: each resolves to an
+#    agent harness, so paired with a fresh evidence file it MUST defer. A NON-
+#    harness front paired with the same fresh file PROCEEDS (proving the front is
+#    what is recognized, not the file). ────────────────────────────────────────
+for world in "$HERMES_U" "$HERMES_I_M" "$HERMES_X_M" "$HERMES_DASHDASH" "$HERMES_ENV" \
+  "$CLAUDE_NODE" "$HERMES_GATEWAY" "$HERMES_SESSION" "$CLAUDE_BG" "$CODEX_SERVER" \
+  "$CODEX_SESSION" "$CODEX_PLAIN"; do
+  reset_activity
+  harness_active "$ACT_CLAUDE"
+  run_gate "$world"
+  deferred || fail "an interpreter-fronted agent + fresh evidence did not DEFER: [$world]: $GATE_OUTPUT"
+done
+# The non-harness python front is NOT recognized: same fresh file, but PROCEED.
+reset_activity
+harness_active "$ACT_CLAUDE"
 run_gate "$UNRELATED_PYTHON"
-proceeded || fail "an agent-free world did not proceed: $GATE_OUTPUT"
+proceeded || fail "unrelated python front was treated as a harness: $GATE_OUTPUT"
 
-# A live agent hiding among unrelated processes → DEFER.
+# A live agent hiding among unrelated processes, with fresh evidence → DEFER.
+reset_activity
+harness_active "$ACT_CODEX"
 run_gate "$(printf '%s\n%s' "$UNRELATED_PYTHON" "$CODEX_SESSION")" 04
 deferred || fail "a live agent among unrelated processes did not defer: $GATE_OUTPUT"
 
-# ── Weekly success stamp + alert (last-slot) ────────────────────────────────
-# 2) A non-last slot deferral must NOT fire the LOUD alert.
+# ── Weekly success stamp + alert (last-slot). These semantics are unchanged; the
+#    deferral they rest on is now activity-driven, so each stages a fresh
+#    harness. ──────────────────────────────────────────────────────────────────
+# A non-last slot deferral must NOT fire the LOUD alert.
+reset_activity
+harness_active "$ACT_CODEX"
 run_gate "$CODEX_PLAIN" 04
-deferred || fail "interactive session did not defer: $GATE_OUTPUT"
+deferred || fail "an active session did not defer: $GATE_OUTPUT"
 alerted && fail "a non-last slot (04:00) fired the LOUD alert, only the last slot should: $(cat "$ALERTER_LOG")"
 
-# 3) Weekly success stamp present → EARLY-EXIT before any work.
+# Weekly success stamp present → EARLY-EXIT before any work (no evidence needed).
+reset_activity
 mkdir -p "$HOME/.local/state/update-skills"
 printf '%s' "$FAKE_WEEK" >"$HOME/.local/state/update-skills/last-success"
 : >"$ALERTER_LOG"
@@ -194,54 +321,65 @@ early_exited || fail "a run whose week already succeeded did not early-exit: $GA
 proceeded && fail "a stamped week re-ran the full pass instead of early-exiting: $GATE_OUTPUT"
 rm -rf "$HOME/.local/state"
 
-# 3b) A proceeding full run (agent-free world) WRITES the week stamp (so the next
-#     slot early-exits).
+# A proceeding full run (agent-free world) WRITES the week stamp (so the next
+# slot early-exits).
+reset_activity
 run_gate "$UNRELATED_PYTHON" 04
 [[ -f "$HOME/.local/state/update-skills/last-success" ]] ||
   fail "a successful full run did not write the weekly success stamp"
 [[ "$(<"$HOME/.local/state/update-skills/last-success")" == "$FAKE_WEEK" ]] ||
   fail "the success stamp is not the current ISO week: $(<"$HOME/.local/state/update-skills/last-success")"
 
-# ── Item 6: slot-aware exhaustion via the --scheduled marker ─────────────────
-# Exhaustion is claimed ONLY for a SCHEDULED run with no later slot remaining
-# this week; a manual run never claims scheduled-budget exhaustion.
-
-# 4) SCHEDULED last Monday slot (16:00) still deferring → LOUD alert + log line.
+# ── Slot-aware exhaustion via the --scheduled marker. Exhaustion is claimed ONLY
+#    for a SCHEDULED run with no later slot remaining this week, and now means
+#    "the machine had agent activity at every scheduled slot". Each stages a
+#    fresh harness so the run defers. ──────────────────────────────────────────
+# SCHEDULED last Monday slot (16:00) still deferring → LOUD alert + log line.
+reset_activity
+harness_active "$ACT_CODEX"
 run_gate_sched "$CODEX_PLAIN" 16 "" 1
 deferred || fail "scheduled last-slot world did not defer: $GATE_OUTPUT"
 alerted || fail "a scheduled last slot (Monday 16:00) deferral did not fire the LOUD alerter notification"
-grep -qiE 'exhaust|budget|last' <<<"$GATE_OUTPUT" ||
+grep -qiE 'exhaust|budget|last|activity' <<<"$GATE_OUTPUT" ||
   fail "scheduled last-slot deferral did not emit an exhausted-budget log line: $GATE_OUTPUT"
 [[ -f "$HOME/.local/state/update-skills/last-scheduled-week" ]] ||
   fail "a scheduled run did not record its ISO week in the scheduled-attempt state file"
 
-# 4a) SCHEDULED EARLY Monday slot (04:00) deferring → NO alert (later slots remain).
+# SCHEDULED EARLY Monday slot (04:00) deferring → NO alert (later slots remain).
+reset_activity
+harness_active "$ACT_CODEX"
 run_gate_sched "$CODEX_PLAIN" 04 "" 1
 deferred || fail "scheduled early-slot world did not defer: $GATE_OUTPUT"
 alerted && fail "an early scheduled slot (04:00) claimed exhaustion; later slots remain: $(cat "$ALERTER_LOG")"
 
-# 4b) SCHEDULED coalesced catch-up on a LATER weekday (Wed 10:00) → alert (the
-#     Monday slots are spent; launchd delivered the missed event late).
+# SCHEDULED coalesced catch-up on a LATER weekday (Wed 10:00) → alert (the Monday
+# slots are spent; launchd delivered the missed event late).
+reset_activity
+harness_active "$ACT_CODEX"
 run_gate_sched "$CODEX_PLAIN" 10 "" 3
 deferred || fail "scheduled catch-up world did not defer: $GATE_OUTPUT"
 alerted || fail "a scheduled catch-up on a later day did not claim exhaustion (no later slot this week): $GATE_OUTPUT"
 
-# 4c) MANUAL run on Monday 16:00 → DEFERS but NEVER claims scheduled-budget
-#     exhaustion (a manual run is not part of the scheduled cycle).
+# MANUAL run on Monday 16:00 → DEFERS but NEVER claims scheduled-budget
+# exhaustion (a manual run is not part of the scheduled cycle).
+reset_activity
+harness_active "$ACT_CODEX"
 run_gate "$CODEX_PLAIN" 16 "" 1
 deferred || fail "manual Monday-16:00 world did not defer: $GATE_OUTPUT"
 alerted && fail "a manual Monday-16:00 run claimed scheduled-budget exhaustion: $(cat "$ALERTER_LOG")"
 
-# 4d) MANUAL non-Monday run → DEFERS, no alert (unchanged).
+# MANUAL non-Monday run → DEFERS, no alert (unchanged).
+reset_activity
+harness_active "$ACT_CODEX"
 run_gate "$CODEX_PLAIN" 16 "" 3
 deferred || fail "manual non-Monday world did not defer: $GATE_OUTPUT"
 alerted && fail "a manual non-Monday deferral alerted: $(cat "$ALERTER_LOG")"
 
-# 5) The plist declares EXACTLY four Monday retry slots, each a full
+# ── The plist declares EXACTLY four Monday retry slots, each a full
 #    {Weekday=1, Hour in 4/8/12/16, Minute=0} tuple, AND passes --scheduled in
 #    ProgramArguments. Parse the rendered plist as real plist data (plutil ->
 #    json -> jq) so dropping Weekday or Minute (which launchd then treats as a
-#    wildcard, firing far more often) fails this test.
+#    wildcard, firing far more often) fails this test. ─────────────────────────
 PLIST="$REPO_ROOT/Library/LaunchAgents/com.webdavis.update-skills.plist.tmpl"
 rendered_plist="$(CI=1 chezmoi --source "$REPO_ROOT" execute-template --no-tty <"$PLIST")" ||
   fail "chezmoi execute-template failed on the update-skills plist"

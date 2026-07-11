@@ -74,11 +74,15 @@
 #                       scheduled run with no later slot remaining this week
 #                       claims retry-budget exhaustion (a manual run never does)
 # Env: UPDATE_SKILLS_FORCE=1 bypasses the idle-gate AND the weekly success stamp.
-#      The idle-gate (fail-closed) makes this script refuse to swap skill folders
-#      while ANY agent-harness process (claude/codex/hermes) is running, session
-#      OR daemon, so a skill is never yanked out from under a live session (argv
-#      shape cannot prove idleness here; see __update_skills_harness_active). The
-#      weekly run is scheduled across four Monday slots; a per-week success stamp
+#      The idle-gate (activity-based, fail-closed) makes this script refuse to
+#      swap skill folders only while a harness (claude/codex/hermes) shows RECENT
+#      activity — the newest mtime among its per-turn activity files is within
+#      IDLE_THRESHOLD (default 15 min). It runs UNATTENDED: an always-up bridge no
+#      longer defers the weekly run forever; a machine quiet for the window
+#      proceeds (see __update_skills_should_defer). Override the window with
+#      UPDATE_SKILLS_IDLE_THRESHOLD (seconds) and each harness's probe dir with
+#      UPDATE_SKILLS_{CLAUDE,CODEX,HERMES}_ACTIVITY_DIR (tests do). The weekly run
+#      is scheduled across four Monday slots; a per-week success stamp
 #      (~/.local/state/update-skills/last-success) makes the extra slots no-ops
 #      after one succeeds, and the last scheduled slot alerts if it still cannot
 #      run. FORCE=1 accepts the swap risk for test runs and deliberate manual runs.
@@ -100,6 +104,19 @@ LOCKDIR="$AGENTS/.update-skills.lock.d"
 STATE_DIR="$HOME/.local/state/update-skills"
 SUCCESS_STAMP="$STATE_DIR/last-success"               # ISO year-week (%G-%V) of the last fully successful weekly run
 SCHEDULED_WEEK_STAMP="$STATE_DIR/last-scheduled-week" # ISO week of the last SCHEDULED attempt (item 6)
+# Activity-based idle gate (Wave 3a fix3). The gate judges recent harness
+# ACTIVITY, not mere process existence, so the weekly run is UNATTENDED (on the
+# daily driver a `claude --remote-control` bridge is always up; deferring on its
+# existence alone would defer forever). The window and each harness's probe dir
+# are env-overridable (defaults below); tests point the dirs at a tmp HOME and
+# shrink the window. IDLE_THRESHOLD is in SECONDS (default 15 minutes). The probe
+# dirs are the empirically verified per-turn activity locations on this machine
+# (see __update_skills_activity_state).
+IDLE_THRESHOLD_SECONDS="${UPDATE_SKILLS_IDLE_THRESHOLD:-900}"
+[[ $IDLE_THRESHOLD_SECONDS =~ ^[0-9]+$ ]] || IDLE_THRESHOLD_SECONDS=900
+CLAUDE_ACTIVITY_DIR="${UPDATE_SKILLS_CLAUDE_ACTIVITY_DIR:-$HOME/.claude/projects}"
+CODEX_ACTIVITY_DIR="${UPDATE_SKILLS_CODEX_ACTIVITY_DIR:-$HOME/.codex/sessions}"
+HERMES_ACTIVITY_DIR="${UPDATE_SKILLS_HERMES_ACTIVITY_DIR:-$HOME/.hermes/logs}"
 # The plist fires four Monday retry slots (04:00/08:00/12:00/16:00; see
 # Library/LaunchAgents/com.webdavis.update-skills.plist.tmpl). This is the hour
 # of the LAST slot: a scheduled deferral at/after it, or a coalesced catch-up on
@@ -205,15 +222,29 @@ __update_skills_alert() {
   fi
 }
 
-# idle-gate discriminator (Wave 3a item 1, fail-closed). Argv SHAPE cannot prove
-# idleness on this machine: every interactive Claude launch carries
-# --remote-control (the bridge is on by default), and Codex `app-server` and the
-# Hermes gateway both host live agent turns in-process. So the old daemon-shape
-# allowlist (which declared those "daemon-shaped" argv idle and swapped skills
-# under them) is DELETED. The gate is now simply: if ANY process whose EFFECTIVE
-# program resolves to exactly claude, codex, or hermes exists, DEFER. This trades
-# occasional deferral for never-swap-under-a-live-session, which the design
-# explicitly tolerates (a deferred run just lands the updates next week).
+# idle-gate discriminator (Wave 3a fix3, fail-closed). The gate judges recent
+# harness ACTIVITY, not mere process existence. Rationale: argv SHAPE cannot
+# prove idleness on this machine (every interactive Claude launch carries
+# --remote-control, the bridge is on by default; Codex `app-server` and the
+# Hermes gateway both host live turns in-process), so we cannot tell a live
+# session from an idle bridge by its argv. Deferring on process existence alone
+# (the round-2 gate) meant the always-up bridge deferred the weekly run FOREVER
+# and forced a manual run. So the gate now: (1) if NO process resolves to a
+# harness, PROCEED (fast path, evidence never probed); (2) if a harness process
+# exists, probe every harness PRESENT on the machine for recent file activity and
+# DEFER only while at least one is fresh (within IDLE_THRESHOLD); (3) fail closed
+# — an unreadable process table or a probe error counts as ACTIVE. This is the
+# UNATTENDED norm: the weekly run proceeds whenever the machine has been quiet for
+# IDLE_THRESHOLD, even with a bridge up.
+#
+# PR-facing tradeoff: the gate reads mtimes, not a lock the harnesses hold, so
+# there is a narrow race — a session that starts writing in the millisecond after
+# the probe scans could have a skill folder swapped mid-turn. The window is tiny
+# and the blast radius is one weekly run; the design accepts it as the unattended
+# tradeoff. FOLLOW-UP (a task exists): the durable fix is a versioned skills store
+# with an atomic symlink flip (a running session keeps its resolved inode; new
+# sessions pick up the flipped version), after which this activity gate becomes
+# belt-and-suspenders rather than the sole guard.
 #
 # __update_skills_effective_program resolves one `ps -xo args=` line to its
 # harness name (or empty). It is interpreter-aware (item 2): when the program is
@@ -301,19 +332,101 @@ __update_skills_is_interactive_harness() {
   esac
 }
 
+# Enumerate the process table for agent-harness processes. Returns:
+#   0 = at least one agent-harness process (claude/codex/hermes) is running
+#   1 = ps read cleanly and NO harness process exists (the fast-path signal)
+#   2 = ps could not be read (or yielded nothing — it must at minimum list this
+#       very process): FAIL CLOSED, the caller must defer.
 __update_skills_harness_active() {
   local ps_output args
-  # Fail CLOSED: if ps errors, or yields nothing (it must at minimum list this
-  # very process), treat the world as busy and defer rather than risk swapping
-  # skills under an unreadable process table.
   if ! ps_output="$(ps -xo args= 2>/dev/null)" || [[ -z $ps_output ]]; then
-    return 0
+    return 2
   fi
   while IFS= read -r args; do
     [[ -n $args ]] || continue
     __update_skills_is_interactive_harness "$args" && return 0
   done <<<"$ps_output"
   return 1
+}
+
+# Recent-activity probe for one harness's activity dir, against a cutoff SENTINEL
+# file whose mtime is (now - IDLE_THRESHOLD). Returns:
+#   0 = ACTIVE  — a file newer than the sentinel exists, OR the probe errored
+#                 (unreadable dir / scan failure): fail closed and treat as active
+#   1 = STALE   — the dir is present and readable but its newest file is older
+#                 than the window
+#   2 = ABSENT  — the dir does not exist: this harness is not installed, so it
+#                 contributes NO evidence and must not block
+#
+# The sentinel + POSIX `-newer` is deliberate: macOS's BSD `/usr/bin/find` does
+# NOT parse `-newermt "@<epoch>"` (verified: "Can't parse date/time: @…"), so a
+# sentinel whose mtime is the cutoff is the portable primitive. `-print -quit`
+# bails on the first newer file (cheap: a full idle scan of ~3.2k Claude
+# transcripts is ~25 ms; only a fully idle machine scans them all). find exits
+# non-zero on a scan error (e.g. an unreadable subtree), which we treat as ACTIVE.
+#
+# Empirically verified per-turn activity sources on this machine (2026-07-11):
+#   Claude Code: ~/.claude/projects/**/<session>.jsonl — the transcript is
+#     appended per turn; the FILE mtime is the signal (directory mtimes do NOT
+#     propagate on append: verified live, newest file mtime == wall clock during
+#     an active turn while the enclosing dir mtime lagged ~45s).
+#   Codex: ~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl — the per-turn rollout
+#     transcript (verified: mtimes advance per turn, stale while idle).
+#   Hermes: ~/.hermes/logs/agent.log (and siblings) — the gateway's per-run/turn
+#     log (verified: agent.log mtime advances while the gateway serves a turn).
+__update_skills_activity_state() {
+  local dir="$1" sentinel="$2" newer
+  [[ -d $dir ]] || return 2            # not installed → no evidence
+  [[ -r $dir && -x $dir ]] || return 0 # present but unreadable → fail closed
+  if ! newer="$(find "$dir" -type f -newer "$sentinel" -print -quit 2>/dev/null)"; then
+    return 0 # scan error → fail closed → ACTIVE
+  fi
+  [[ -n $newer ]] && return 0 # a file newer than the cutoff → ACTIVE
+  return 1                    # every file older than the window → STALE
+}
+
+# Build a temp sentinel file whose mtime is (now - IDLE_THRESHOLD). Prints its
+# path on success (rc 0); rc 1 if it could not be built (the caller fails closed).
+__update_skills_make_cutoff_sentinel() {
+  local cutoff sentinel stamp
+  cutoff=$(($(date +%s) - IDLE_THRESHOLD_SECONDS))
+  sentinel="$(mktemp)" || return 1
+  # date -r <epoch> is BSD (this is a macOS LaunchAgent script); the test's date
+  # stub execs the real date for -r, so this is exercised faithfully.
+  stamp="$(date -r "$cutoff" +%Y%m%d%H%M.%S 2>/dev/null)" || {
+    rm -f "$sentinel"
+    return 1
+  }
+  if ! touch -t "$stamp" "$sentinel" 2>/dev/null; then
+    rm -f "$sentinel"
+    return 1
+  fi
+  printf '%s' "$sentinel"
+}
+
+# The full gate decision: return 0 to DEFER, 1 to PROCEED. See the discriminator
+# comment above for the three-step rationale.
+__update_skills_should_defer() {
+  __update_skills_harness_active
+  case $? in
+    1) return 1 ;; # no harness process → PROCEED (fast path; probes untouched)
+    2) return 0 ;; # ps unreadable → fail closed → DEFER
+  esac
+  # A harness process exists: judge idleness by ACTIVITY across every PRESENT
+  # harness. DEFER as soon as one shows recent activity (or errors); PROCEED only
+  # when every present harness is stale (and absent ones contribute nothing).
+  local sentinel dir state defer=1
+  sentinel="$(__update_skills_make_cutoff_sentinel)" || return 0 # no sentinel → fail closed
+  for dir in "$CLAUDE_ACTIVITY_DIR" "$CODEX_ACTIVITY_DIR" "$HERMES_ACTIVITY_DIR"; do
+    __update_skills_activity_state "$dir" "$sentinel"
+    state=$?
+    if [[ $state -eq 0 ]]; then # ACTIVE → DEFER (finish the loop, then clean up)
+      defer=0
+      break
+    fi
+  done
+  rm -f "$sentinel"
+  return $((defer == 0 ? 0 : 1))
 }
 
 # updater-owned link = a SYMLINK whose literal target is EXACTLY this user's
@@ -888,22 +1001,22 @@ if [[ -z $INSTALL_ONLY ]] && [[ -z $CHECK_FORKS_ONLY ]] && [[ $DRYRUN != "--dry-
   exit 0
 fi
 
-# idle-gate (fail-closed): defer while ANY agent-harness process (claude/codex/
-# hermes) is running, so a skill is never swapped out from under a live session.
-# Argv shape cannot distinguish a live session from a background daemon here, so
-# the gate errs toward deferral (a deferred run just lands the updates next week;
-# see __update_skills_harness_active). UPDATE_SKILLS_FORCE=1 bypasses (tests,
-# manual runs). --install-only is EXEMPT: it only ADDS absent skills (never swaps
-# a folder), so it is safe under a live session, this is what lets the fresh-
-# machine bootstrap run --install-only unattended at apply time. On the last
-# SCHEDULED slot the retry budget is spent, so a deferral there alerts LOUDLY
-# rather than failing silent.
+# idle-gate (activity-based, fail-closed): defer only while a harness shows
+# RECENT activity (within IDLE_THRESHOLD), so the weekly run is UNATTENDED — an
+# always-up bridge no longer defers it forever. A machine quiet for the window
+# proceeds and swaps skills; a live turn defers to next slot. FAIL CLOSED: an
+# unreadable process table or a probe error counts as active. UPDATE_SKILLS_FORCE=1
+# bypasses everything (tests, manual runs). --install-only is EXEMPT: it only ADDS
+# absent skills (never swaps a folder), so it is safe under a live session, this
+# is what lets the fresh-machine bootstrap run --install-only unattended at apply
+# time. On the last SCHEDULED slot the retry budget is spent, so a deferral there
+# alerts LOUDLY rather than failing silent. See __update_skills_should_defer.
 __update_skills_note_scheduled_attempt
-if [[ -z $INSTALL_ONLY ]] && [[ ${UPDATE_SKILLS_FORCE:-} != "1" ]] && [[ $DRYRUN != "--dry-run" ]] && __update_skills_harness_active; then
-  log "a live harness session (claude/codex/hermes) is using the store, or the process table could not be read (fail-closed); deferring this run"
+if [[ -z $INSTALL_ONLY ]] && [[ ${UPDATE_SKILLS_FORCE:-} != "1" ]] && [[ $DRYRUN != "--dry-run" ]] && __update_skills_should_defer; then
+  log "a harness showed recent activity (within IDLE_THRESHOLD), or the process table could not be read (fail-closed); deferring this run"
   if __update_skills_scheduled_budget_exhausted; then
     log "EXHAUSTED: the last scheduled retry slot for this week still deferred; the weekly skills update did not run this week"
-    __update_skills_alert "Weekly skills update deferred on every scheduled slot (an agent session was always active). Run it by hand when idle (~/.local/bin/update-skills.sh)."
+    __update_skills_alert "Weekly skills update deferred on every scheduled slot (the machine had agent activity at all four Monday slots). Run it by hand when idle (~/.local/bin/update-skills.sh)."
   fi
   exit 0
 fi
