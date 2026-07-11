@@ -534,19 +534,52 @@ __gen_publish() {
     log "publish: WARN candidate and .skills-current look like different devices; attempting the exchange anyway"
   old_id="$(__gen_meta_field "$SKILLS_CURRENT" id)"
   [[ -n $old_id ]] || old_id="pre-$(__gen_new_id)" # a first-migrated current may predate meta
+  local retained="$GENERATIONS/$old_id"
+  # R2-3c: refuse a retention path that CONTAINS the candidate, BEFORE the
+  # exchange. If the live generation's id equals the candidate's workspace id
+  # (the post-exchange crash signature), retaining the displaced previous
+  # generation at $GENERATIONS/<old_id> would garbage-destroy the workspace
+  # that holds the very generation the exchange just published. Refusing here
+  # leaves the live generation genuinely untouched.
+  case "$candidate/" in
+    "$retained"/*)
+      log "publish: FATAL the retention path $retained contains the candidate; refusing to publish (live generation untouched)"
+      return 1
+      ;;
+  esac
+  # R2-3b: record the in-flight exchange BEFORE it lands, so a crash anywhere
+  # in this window is disambiguated by recovery (marker + live id). An
+  # unwritable marker refuses the publish while the live generation is still
+  # untouched (fail closed).
+  mkdir -p "$GENERATIONS"
+  local marker="$GENERATIONS/$GEN_EXCHANGE_MARKER_NAME"
+  local candidate_workspace_id
+  candidate_workspace_id="$(__gen_meta_field "$candidate" id)"
+  if ! jq -n --arg oldId "$old_id" --arg workspaceId "$candidate_workspace_id" \
+    '{oldId: $oldId, workspaceId: $workspaceId}' >"$marker" 2>/dev/null; then
+    log "publish: FATAL could not write the exchange-in-flight marker; refusing to publish (live generation untouched)"
+    return 1
+  fi
   # THE atomic publish: renameat2 RENAME_EXCHANGE. After it, .skills-current is
   # the new generation and $candidate holds the complete PREVIOUS generation.
   if ! __gen_exchange "$candidate" "$SKILLS_CURRENT"; then
     log "publish: atomic exchange failed; live generation untouched"
+    rm -f "$marker"
     return 1
   fi
-  mkdir -p "$GENERATIONS"
   # Retain the displaced previous generation under its id (garbage-destroy any
-  # name collision first so the rename lands cleanly).
-  local retained="$GENERATIONS/$old_id"
+  # name collision first so the rename lands cleanly). R2-3d: a retention
+  # failure is FATAL: the exchange landed (the refreshed generation IS live),
+  # but the transaction did not complete, so no success is reported and the
+  # caller records a required failure (no stamp). The marker stays for
+  # recovery to finish the cleanup.
   __gen_garbage_destroy "$retained"
-  mv "$candidate" "$retained" 2>/dev/null || __gen_garbage_destroy "$candidate"
+  if ! mv "$candidate" "$retained" 2>/dev/null; then
+    log "publish: FATAL the displaced previous generation could not be retained; the refreshed generation is live but this run reports failure (no stamp)"
+    return 1
+  fi
   __gen_prune_generations "$old_id"
+  rm -f "$marker"
   return 0
 }
 
@@ -688,9 +721,52 @@ __gen_store_link_correct() {
 # ---------------------------------------------------------------------------
 GEN_REABSORB=()
 GEN_REUSE_CANDIDATE=""
+# The exchange-in-flight marker (R2-3b): written by __gen_publish just before
+# the atomic exchange, removed after retention completes. Its presence tells
+# recovery a publish died mid-transaction; comparing the LIVE generation's id
+# with the marker's oldId disambiguates which side of the exchange the crash
+# hit, so recovery can COMPLETE the retention instead of mistaking the
+# displaced old generation for a reusable candidate. A dotfile name keeps it
+# invisible to the "$GENERATIONS"/* walks (sweep, prune, recovery).
+GEN_EXCHANGE_MARKER_NAME=".exchange-in-flight"
+__gen_recover_exchange_marker() {
+  local marker="$GENERATIONS/$GEN_EXCHANGE_MARKER_NAME"
+  [[ -f $marker ]] || return 0
+  local m_old m_ws live_id ws_agents
+  m_old="$(jq -r '.oldId // ""' "$marker" 2>/dev/null || true)"
+  m_ws="$(jq -r '.workspaceId // ""' "$marker" 2>/dev/null || true)"
+  live_id="$(__gen_meta_field "$SKILLS_CURRENT" id)"
+  if [[ -z $m_old || -z $m_ws ]]; then
+    log "recovery: dropping an unreadable exchange-in-flight marker"
+    rm -f "$marker"
+    return 0
+  fi
+  if [[ $live_id == "$m_old" ]]; then
+    # Crash BEFORE the exchange landed: nothing was published; the workspace
+    # is an ordinary candidate and the normal walk assesses it.
+    log "recovery: a publish died before its exchange landed; dropping the marker"
+    rm -f "$marker"
+    return 0
+  fi
+  # The exchange LANDED but retention did not complete: the workspace holds
+  # the DISPLACED previous generation. Complete the retention so the walk
+  # never sees the old generation as a candidate.
+  ws_agents="$GENERATIONS/$m_ws/home/.agents"
+  if [[ -d $ws_agents && "$(__gen_meta_field "$ws_agents" id)" == "$m_old" ]]; then
+    log "recovery: completing the interrupted retention of previous generation $m_old"
+    __gen_garbage_destroy "$GENERATIONS/$m_old"
+    if mv "$ws_agents" "$GENERATIONS/$m_old" 2>/dev/null; then
+      __gen_garbage_destroy "$GENERATIONS/$m_ws" # the emptied workspace shell
+    else
+      log "recovery: could not complete the retention; leaving the workspace for the walk to discard"
+    fi
+  fi
+  rm -f "$marker"
+}
 __gen_recover() {
   GEN_REABSORB=()
   GEN_REUSE_CANDIDATE=""
+  __gen_recover_exchange_marker
   __gen_sweep_garbage "$GENERATIONS"
   __gen_sweep_garbage "$STORE"
   local entry id newest_retained="" newest_epoch=-1 epoch cand_agents
@@ -703,13 +779,20 @@ __gen_recover() {
       if [[ -d "$entry/home" ]]; then
         cand_agents="$entry/home/.agents"
         if __gen_is_complete "$cand_agents" && __gen_meta_matches_desired "$cand_agents" &&
-          [[ "$(__gen_meta_field "$cand_agents" buildMode)" == "full" ]]; then
+          [[ "$(__gen_meta_field "$cand_agents" buildMode)" == "full" ]] &&
+          [[ "$(__gen_meta_field "$cand_agents" id)" == "$id" ]]; then
           # A complete FULL candidate matching desired state: reusable by the
           # weekly refresh (one is enough to publish). An ADDITIVE (install-only)
           # candidate is deliberately NOT reused here: its existing skills are
           # stale byte-clones, so publishing it as the weekly result would ship
           # unrefreshed content and stamp the week a success. It falls through to
           # deletion; the weekly path then builds a fresh full candidate.
+          #
+          # The meta id must equal the WORKSPACE dir name (R2-3a): a genuine
+          # candidate is built with UPDATE_SKILLS_GEN_ID == its workspace id,
+          # while a post-exchange crash leaves the DISPLACED OLD generation
+          # (whose meta id is the old one) under the new workspace. Reusing
+          # that would publish the old generation back over the refreshed one.
           [[ -z $GEN_REUSE_CANDIDATE ]] && GEN_REUSE_CANDIDATE="$cand_agents"
           continue
         fi
@@ -1487,7 +1570,7 @@ __gen_weekly_attempt() {
     return 1
   fi
   if ! __gen_publish "$candidate_agents"; then
-    record_required_failure "publish failed; the live generation is untouched"
+    record_required_failure "publish failed; no success recorded (the publish log above says whether the exchange landed)"
     __gen_garbage_destroy "$GENERATIONS/$id"
     return 1
   fi
@@ -1560,7 +1643,7 @@ __gen_install_only_attempt() {
     return 1
   fi
   if ! __gen_publish "$candidate_agents"; then
-    record_required_failure "install-only publish failed; live state untouched"
+    record_required_failure "install-only publish failed; no success recorded (the publish log above says whether the exchange landed)"
     __gen_garbage_destroy "$GENERATIONS/$id"
     return 1
   fi
