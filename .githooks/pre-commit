@@ -2,21 +2,14 @@
 set -euo pipefail
 printf "%s\n" "Running pre-commit checks..."
 
-# Check-only: linters report drift, never mutate the working tree, never
-# touch the index. This preserves partial-commit isolation (`git commit -p`)
-# and keeps cosmetic formatter edits as deliberate, separate commits.
-# (`just lint-check` builds the flake's treefmt check derivation, which runs
-# treefmt on a sandboxed copy of the tree.)
-if ! just lint-check; then
-  printf "\n%s\n" "❌ Pre-commit checks failed!"
-  printf "%s\n" "Run 'just l' to auto-fix, review the changes, stage what you want, and re-commit."
-  printf "%s\n" "(Or skip with 'git commit --no-verify'.)"
-  exit 1
-fi
-
-# Run the repo test suite (test/*.sh). Every commit requires all tests to pass.
-if ! just test; then
-  printf "\n%s\n" "❌ Tests failed!"
+# COMMIT GATE = unit tests + secret scan ONLY (test pyramid, operator
+# 2026-07-11). The commit-to-commit loop must stay fast: format drift, the
+# integration and e2e camps, and the full flake check all moved to the
+# pre-push hook (.githooks/pre-push) and CI, where their latency belongs.
+# A commit can therefore carry format drift or an integration regression for
+# a few minutes; push and CI still block anything broken from reaching main.
+if ! just test-unit; then
+  printf "\n%s\n" "❌ Unit tests failed!"
   printf "%s\n" "Fix the failing test(s) above (or skip with 'git commit --no-verify')."
   exit 1
 fi

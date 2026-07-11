@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# Global pre-push dispatcher -- runs a repository's own pre-push checks.
+# Activated by core.hooksPath in dot_gitconfig.tmpl, so it runs in every repo.
+#
+# Same composition as the pre-commit dispatcher: the user-wide hooks dir stays
+# authoritative (a per-repo core.hooksPath override would shadow the global
+# prepare-commit-msg hook), and a repo opts into pre-push checks by tracking
+# an executable `.githooks/pre-push`, which this dispatcher exec's with the
+# same stdin/args git gave us (pre-push hooks receive the ref list on stdin).
+#
+# Repos without `.githooks/pre-push` get a no-op.
+
+toplevel="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
+repo_hook="${toplevel}/.githooks/pre-push"
+[[ -x $repo_hook ]] && exec "$repo_hook" "$@"
+exit 0
