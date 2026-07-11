@@ -17,9 +17,9 @@
 # `nix eval` (with a stub `pkgs`), so it tracks the programmatic discovery
 # exactly: red against the old 6-template hand-list, green once discovery covers
 # them all. A fixture layer (test/fixtures/render-coverage) drives the classifier
-# against synthetic templates BOTH ways — the bash mirror in this file and the
+# against synthetic templates BOTH ways: the bash mirror in this file and the
 # production Nix predicates in scripts/render-coverage-classifier.nix (via
-# `nix eval`) — so weakening either side fails a fixture instead of passing
+# `nix eval`), so weakening either side fails a fixture instead of passing
 # silently.
 set -euo pipefail
 
@@ -246,7 +246,7 @@ for path in "${!EXCLUDED[@]}"; do
 done
 
 # 4. Fixture oracle: the SAME classifier runs THREE ways per fixture and all
-# three must agree — the expected verdict, the bash mirror above, and the
+# three must agree: the expected verdict, the bash mirror above, and the
 # PRODUCTION Nix classifier (scripts/render-coverage-classifier.nix) evaluated
 # via `nix eval`. Driving the real Nix predicates here (not just the bash mirror)
 # is what makes weakening EITHER side fail the matrix instead of passing
