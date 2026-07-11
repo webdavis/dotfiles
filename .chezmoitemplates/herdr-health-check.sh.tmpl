@@ -1,0 +1,156 @@
+{{- /*
+Shared herdr health check, consumed via includeTemplate by
+.chezmoiscripts/run_after_58-herdr-migration-verify.sh.tmpl (which runs the
+full check against the just-installed revision and, on success, performs the
+deferred tmux/sesh cleanup). One definition, one call site today; kept as a
+partial so any future includer inherits the same bounded, fail-closed predicate.
+*/ -}}
+# --- shared herdr health check: .chezmoitemplates/herdr-health-check.sh.tmpl ---
+#
+# herdr_health_check: returns 0 iff herdr is currently usable as a
+# multiplexer; on failure prints a short reason to stdout and returns 1.
+# It never exits the calling script. Requirements, all mandatory:
+#   1. the herdr binary is present and runnable
+#   2. the session server answers with an array-shaped session list containing
+#      at least one running:true entry and no error envelope (a connectable
+#      socket, checked FIRST so a down server is diagnosed as such and not
+#      misread as an unregistered plugin below)
+#   3. its config.toml is present AND passes the live reload validation
+#   4. BOTH vendored plugins are registered with the EXACT plugin id, enabled,
+#      and warning-free, in an array-shaped plugin list with no error envelope
+#      and no duplicate entries
+#
+# Every herdr call is wrapped in a bounded coreutils timeout: a wedged socket
+# (accepts the connection, never replies) would otherwise hang `plugin list` /
+# `session list` / `server reload-config` forever, and this predicate runs on
+# every apply through its includer, so one wedged server would block all future
+# applies. An expiry counts as unhealthy (fail-closed), never as an abort.
+#
+# What each probe actually proves (no overclaiming): the session-list answer
+# proves only a connectable socket, NOT a functioning server. Real liveness is
+# proven by the bounded timeout (a hung server fails closed) together with
+# `server reload-config`, which forces the running server to re-read and report
+# on config.toml. Exact-id matching alone is likewise NOT enough: herdr keeps
+# disabled plugins registered and lists invalid manifests with warnings, so an
+# id-only check would bless an unusable installation. Only the CLI's real
+# response shape counts (the 0.7.0 plugin list is
+# {"id":...,"result":{"plugins":[...]}}); object-shaped or otherwise mixed
+# containers and error envelopes all fail closed as not-healthy.
+herdr_health_check() {
+  local herdr_config="$HOME/.config/herdr/config.toml"
+  local -a herdr_required_plugins=(herdr-last-workspace herdr-smart-nav)
+  local plugin_id response count session_response running reload_response reload_verdict
+  local herdr_timeout_bin
+  local -a herdr_cli
+
+  # Resolve the coreutils timeout binary once (probe `timeout`, then the
+  # macOS-Homebrew `gtimeout`; coreutils is a declared formula). If neither is
+  # on PATH at run time, fail closed as unhealthy-with-warning rather than risk
+  # an unbounded herdr call that could hang the apply forever.
+  if command -v timeout >/dev/null 2>&1; then
+    herdr_timeout_bin="timeout"
+  elif command -v gtimeout >/dev/null 2>&1; then
+    herdr_timeout_bin="gtimeout"
+  else
+    printf 'no coreutils timeout binary (timeout/gtimeout absent); cannot bound herdr calls safely, treating as unhealthy'
+    return 1
+  fi
+  # Every herdr invocation goes through this array so the bound is uniform and
+  # array-safe. 10s is generous for a healthy local socket and short enough
+  # that a wedged one fails fast.
+  herdr_cli=("$herdr_timeout_bin" 10 herdr)
+
+  if ! command -v herdr >/dev/null 2>&1; then
+    printf 'binary not found'
+    return 1
+  fi
+  if ! "${herdr_cli[@]}" --version >/dev/null 2>&1; then
+    printf 'binary does not run (or the call timed out)'
+    return 1
+  fi
+
+  # Server reachability FIRST: the session server must answer with an
+  # array-shaped session list, no error envelope, and at least one running
+  # session (the strongest non-interactive proof a second session can be
+  # hosted; a full spawn+attach needs a TTY an apply does not have). A down
+  # server is caught here, so the plugin loop below can attribute an empty
+  # plugin list to a genuine non-registration rather than to a down server.
+  # A malformed response maps to -1, which fails the digits-only guard.
+  if ! session_response="$("${herdr_cli[@]}" session list --json 2>/dev/null)"; then
+    printf 'session server unreachable (or the call timed out)'
+    return 1
+  fi
+  running="$(printf '%s' "$session_response" |
+    jq '
+      if (type == "object") and (has("error") | not) and ((.sessions | type) == "array") then
+        [.sessions[] | select((type == "object") and (.running == true))] | length
+      else -1 end' 2>/dev/null || printf 'malformed')"
+  if ! [[ $running =~ ^[0-9]+$ && $running -ge 1 ]]; then
+    printf 'no running session (running count: %s)' "$running"
+    return 1
+  fi
+
+  if [[ ! -f $herdr_config ]]; then
+    printf 'config.toml missing'
+    return 1
+  fi
+
+  # Config validation: `herdr server reload-config` is the strongest liveness
+  # + config check the 0.7.0 CLI offers (there is no validate-only subcommand;
+  # `herdr config` has only reset-keys). It re-reads config.toml into the
+  # running server and reports status + diagnostics; "applied" with zero
+  # diagnostics is a pass. Side effect note: the reload targets the same file
+  # the server would load anyway, so it is an idempotent sync, not a state
+  # change.
+  if ! reload_response="$("${herdr_cli[@]}" server reload-config 2>/dev/null)"; then
+    printf 'config reload check failed (server did not answer or the call timed out)'
+    return 1
+  fi
+  reload_verdict="$(printf '%s' "$reload_response" |
+    jq -r '
+      if (type == "object") and (has("error") | not)
+        and (.result.status == "applied")
+        and ((.result.diagnostics | type) == "array")
+        and ((.result.diagnostics | length) == 0)
+      then "ok" else "bad" end' 2>/dev/null || printf 'bad')"
+  if [[ $reload_verdict != "ok" ]]; then
+    printf 'config.toml failed live validation (reload-config reported diagnostics or did not apply)'
+    return 1
+  fi
+
+  # Both plugins must be registered, matched by EXACT plugin id (never a
+  # substring), enabled, and free of manifest warnings. The count must be
+  # exactly 1: zero means unregistered/disabled/warning-bearing/wrong-id,
+  # more than one means duplicate registrations; either fails. A container
+  # that is not an array maps to -1 (malformed), and a jq parse failure maps
+  # to the literal 'malformed', both of which fail the == "1" comparison.
+  # (A down server was already rejected above, so an empty list here is a
+  # genuine non-registration, not a symptom of an unreachable server.)
+  for plugin_id in "${herdr_required_plugins[@]}"; do
+    if ! response="$("${herdr_cli[@]}" plugin list --plugin "$plugin_id" --json 2>/dev/null)"; then
+      printf 'plugin query failed for %s (or the call timed out)' "$plugin_id"
+      return 1
+    fi
+    if printf '%s' "$response" | jq -e '.error' >/dev/null 2>&1; then
+      printf 'herdr error envelope querying %s' "$plugin_id"
+      return 1
+    fi
+    count="$(printf '%s' "$response" |
+      jq --arg id "$plugin_id" '
+        if (.result.plugins | type) == "array" then
+          [.result.plugins[] | select(
+            (type == "object")
+            and (.plugin_id == $id)
+            and (.enabled == true)
+            and (((.warnings // []) | length) == 0)
+          )] | length
+        else -1 end' 2>/dev/null ||
+      printf 'malformed')"
+    if [[ $count != "1" ]]; then
+      printf 'plugin %s not registered+enabled+warning-free exactly once (matches: %s)' "$plugin_id" "$count"
+      return 1
+    fi
+  done
+
+  return 0
+}

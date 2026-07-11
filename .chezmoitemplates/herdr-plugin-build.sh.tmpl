@@ -1,55 +1,135 @@
 {{- /*
 Shared core for the herdr plugin build chezmoiscripts (consumed via
-includeTemplate with (dict "id" "<plugin-id>")). Hashes the plugin source so
-the calling run_onchange_ script re-runs on change, compiles the binary, and
-links it with herdr. Each caller keeps only its plugin-specific pre/postamble.
+includeTemplate with (dict "id" "<plugin-id>")). Hashes every plugin build input
+so the calling run_onchange_ script re-runs on change, compiles the binary, and
+registers it with herdr; build and registration are SEPARATE phases, each with
+its own failure envelope. Each caller keeps only its plugin-specific pre/postamble.
 */ -}}
 # --- shared plugin build core: .chezmoitemplates/herdr-plugin-build.sh.tmpl ---
 #
-# Plugin source (hashed so this script re-runs on change):
+# Plugin source (hashed so this script re-runs on change). EVERY build input is
+# hashed (a change to any one forces a rebuild), so Cargo.toml (the manifest:
+# deps, edition, package) is hashed alongside Cargo.lock, not omitted:
 #   {{ include (printf "dot_local/share/herdr/plugins/%s/src/main.rs" .id) | sha256sum }}
 #   {{ include (printf "dot_local/share/herdr/plugins/%s/Cargo.lock" .id) | sha256sum }}
+#   {{ include (printf "dot_local/share/herdr/plugins/%s/Cargo.toml" .id) | sha256sum }}
 #   {{ include (printf "dot_local/share/herdr/plugins/%s/herdr-plugin.toml" .id) | sha256sum }}
+#
+# Retry state (embedded so a retryable non-success re-fires this run_onchange).
+# A missing toolchain or an unverified registration must NOT consume the trigger:
+# chezmoi records a run_onchange script as done on ANY exit 0, so a bare exit 0
+# on a skipped/failed build makes the next apply believe the work is finished and
+# never retry. Those cases bump the marker below (this partial's run-time half);
+# because the marker's contents are interpolated HERE, bumping it changes this
+# rendered script and chezmoi re-runs it on the next apply. Success clears the
+# marker so the trigger settles. (A hard build failure is different: it exits
+# non-zero, which chezmoi does not record, so it retries on its own.)
+#
+# The interpolation is sanitized to the marker's LEADING DIGIT RUN only
+# (regexFind "^[0-9]+"): splicing raw file bytes into a rendered script is a
+# live-shell-injection channel (a marker of '1\nfalse\n' would render `false`
+# as a real command that runs at apply time). A non-numeric or empty marker
+# renders as nothing here (still a safe comment) and is normalized at run
+# time by bump_retry_marker below.
+#   retry-attempts: {{ $rm := printf "%s/.cache/herdr-plugin-build/%s.retry" (env "HOME") .id }}{{ if stat $rm }}{{ (output "cat" $rm) | regexFind "^[0-9]+" }}{{ else }}0{{ end }}
 
 plugin_dir="$HOME/.local/share/herdr/plugins/{{ .id }}"
 plugin_id="{{ .id }}"
 
-# Resolve cargo at its deterministic rustup location. cargo on this machine is
-# rustup-managed (run_once_before_20 installs rustup into ~/.cargo/bin), so the
-# canonical binary is ALWAYS "$HOME/.cargo/bin/cargo" — use it directly, never a
-# `command -v cargo` PATH probe. A PATH probe would silently pick up a different,
-# unexpected toolchain, and it is wrong for the very case this build must handle:
-# on a fresh machine run_once_before_20 provisions cargo during THIS same apply,
-# but ~/.cargo/bin is not on the apply shell's PATH yet — the absolute path is
-# authoritative precisely because PATH is not. A missing toolchain must NEVER
-# abort the whole apply (this partial is includeTemplate'd into run_onchange
-# chezmoiscripts, so exit 1 here kills the entire apply).
+# cargo is rustup-managed at the deterministic ~/.cargo/bin/cargo (never a PATH
+# probe: a fresh machine provisions it during THIS apply but ~/.cargo/bin is not
+# on the apply shell's PATH yet, and a PATH probe could pick a stray toolchain).
 cargo_bin="$HOME/.cargo/bin/cargo"
+
+# The retry marker path MUST match the template's $rm above ($HOME == homeDir at
+# apply time) so the value the template reads is the value this script writes.
+retry_marker="$HOME/.cache/herdr-plugin-build/${plugin_id}.retry"
+
+# Bump the retry marker: leave the run_onchange trigger un-consumed so the next
+# apply retries. The stored value is a monotonic attempt count, so each retry
+# changes the rendered trigger (a boolean would stop re-firing after one retry).
+bump_retry_marker() {
+  local count=0
+  mkdir -p "$(dirname "$retry_marker")"
+  if [[ -f $retry_marker ]]; then
+    count="$(cat "$retry_marker" 2>/dev/null || printf '0')"
+    [[ $count =~ ^[0-9]+$ ]] || count=0
+  fi
+  printf '%d\n' "$((count + 1))" >"$retry_marker"
+}
+
+# plugin_registered: 0 iff `herdr plugin list` confirms EXACTLY this plugin id is
+# registered. A herdr error envelope ({"error":{...}}) or an empty/absent plugins
+# array is NOT registered. The id is matched exactly (never a substring), so a
+# plugin whose id is a substring of another's cannot false-positive.
+plugin_registered() {
+  local response
+  response="$(herdr plugin list --plugin "$plugin_id" --json 2>/dev/null)" || return 1
+  if printf '%s' "$response" | jq -e '.error' >/dev/null 2>&1; then
+    return 1
+  fi
+  local count
+  count="$(printf '%s' "$response" |
+    jq --arg id "$plugin_id" '[.result.plugins[]? | select(.plugin_id == $id)] | length' 2>/dev/null ||
+    printf '0')"
+  [[ $count == "1" ]]
+}
+
+# register_plugin: 0 iff the plugin ends up registered (exact id verified).
+# Idempotent: a rebuild re-runs this. `herdr plugin link` talks to the running
+# herdr server (a headless apply, server down, fails here) and may return a herdr
+# error ENVELOPE with exit 0, so its exit code is NOT trusted: the exact-id
+# re-verify via `plugin list` is the sole source of truth for "registered".
+register_plugin() {
+  if plugin_registered; then
+    return 0
+  fi
+  local link_output link_error
+  link_output="$(herdr plugin link "$plugin_dir" 2>&1)" || true
+  link_error="$(printf '%s' "$link_output" | jq -e -r '.error.message // empty' 2>/dev/null || true)"
+  if [[ -n $link_error ]]; then
+    printf 'herdr plugin link %s returned an error envelope: %s\n' "$plugin_id" "$link_error" >&2
+  fi
+  plugin_registered
+}
+
+# --- build phase ---
+# A MISSING toolchain is a retryable non-success, not a satisfied trigger: warn
+# loudly, leave the trigger retryable via the marker, and exit 0 so the rest of
+# the apply proceeds (this partial is includeTemplate'd into a run_onchange
+# chezmoiscript, so exit 1 here would abort the whole apply).
 if [[ ! -x $cargo_bin ]]; then
-  # No cargo at the canonical rustup location: skip (exit 0) so the rest of the
-  # apply proceeds. Caveat: exit 0 consumes this run_onchange trigger (chezmoi
-  # records the script hash on any success), so a bare re-apply will NOT rebuild
-  # — after rustup provisions cargo, re-touch the plugin source (or clear
-  # chezmoi's scriptState bucket) to retry.
-  echo "cargo not found at ${cargo_bin}; skipping ${plugin_id} plugin build." >&2
-  echo "rustup (run_once_before_20) did not provision it; install rust, then re-touch the plugin source and re-run chezmoi apply to build it." >&2
+  bump_retry_marker
+  printf 'cargo not found at %s; %s plugin build deferred (trigger left retryable).\n' "$cargo_bin" "$plugin_id" >&2
+  printf 'rustup (run_once_before_20) has not provisioned it yet; the next chezmoi apply retries automatically once cargo exists.\n' >&2
   exit 0
 fi
 
-# Compile the plugin binary. --locked keeps Cargo.lock authoritative so the
-# vendored lockfile does not drift on apply.
-(cd "$plugin_dir" && "$cargo_bin" build --release --locked)
+# Compile. --locked keeps Cargo.lock authoritative so the vendored lockfile does
+# not drift on apply. A real build failure (a compile error in the vendored
+# source) is a genuine defect that must surface, so it fails LOUDLY: exit
+# non-zero aborts the apply (chezmoi does not record it, so it retries once the
+# source is fixed).
+if ! (cd "$plugin_dir" && "$cargo_bin" build --release --locked); then
+  printf 'ERROR: cargo build failed for %s; the vendored plugin source is broken.\n' "$plugin_id" >&2
+  exit 1
+fi
 
-# Link with herdr if not already linked. Linking talks to the running herdr
-# server; if it is not up (e.g. a headless apply), skip with a hint — an
-# interactive session can link later. The link persists once registered.
-# The match is anchored to the plugin's list line ("- <id> ...") because
-# `herdr plugin list` also prints each plugin's local path — an unanchored
-# substring match on the id would false-positive against another plugin's line.
-if herdr plugin list 2>/dev/null | grep -q "^- ${plugin_id} "; then
-  echo "herdr plugin $plugin_id already linked"
-elif herdr plugin link "$plugin_dir" >/dev/null 2>&1; then
-  echo "linked herdr plugin $plugin_id"
+# --- registration phase (its own failure envelope, separate from the build) ---
+# Registration is retryable-quiet, NOT loud: it fails on a headless apply where
+# the herdr server is not up, which is a legitimate "link later" condition, not a
+# broken source. Leave the trigger retryable via the marker and continue (exit 0
+# via fall-through) so the caller's postamble still runs.
+if register_plugin; then
+  # Clearing the marker changes this script's rendered trigger one more time
+  # (success at marker N leaves a render that differs from the recorded one),
+  # so the NEXT apply runs this script once more; that run is idempotent
+  # (already built, already registered) and re-records the settled render, so
+  # the trigger settles from then on. One extra no-op run is the by-design
+  # cost of the retry mechanism.
+  rm -f "$retry_marker"
+  printf 'herdr plugin %s built and registered\n' "$plugin_id"
 else
-  echo "could not link $plugin_id (herdr server not running?); link later with: herdr plugin link $plugin_dir" >&2
+  bump_retry_marker
+  printf 'herdr plugin %s built but registration is unverified (herdr server unreachable?); trigger left retryable, the next apply retries.\n' "$plugin_id" >&2
 fi
