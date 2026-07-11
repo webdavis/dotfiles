@@ -54,10 +54,15 @@ mkdir -p "$HOME/.agents" "$TREE"
 
 # The lock: the five production pairs plus one pair whose adaptation name is
 # NOT the bare base name — the canary that catches a transform which strips
-# the superpowers- prefix instead of reading the mapped value.
+# the superpowers- prefix instead of reading the mapped value. `anchor` is an
+# npx-tracked skill kept healthy in the store below, so the roster's tracked
+# union is non-empty (update-skills' zero-union gate refuses any mutation run
+# otherwise); it is incidental scaffolding for step 10, never asserted on.
 cat >"$HOME/.agents/custom-skill-lock.json" <<'EOF'
 {
   "version": 1,
+  "npxTracked": {"anchor": {"repo": "fixture/pack"}},
+  "clawhubTracked": {},
   "superpowersRouting": {
     "slashCommandsSkill": "superpowers-slash-commands",
     "map": {
@@ -71,6 +76,11 @@ cat >"$HOME/.agents/custom-skill-lock.json" <<'EOF'
   }
 }
 EOF
+# anchor: present and healthy in the store (a real dir with a SKILL.md on a
+# machine with no live generation), so step 10's --install-only finds no roster
+# work and never invokes the real npx CLI.
+mkdir -p "$HOME/.agents/skills/anchor"
+printf -- '---\nname: anchor\ndescription: fixture\n---\n' >"$HOME/.agents/skills/anchor/SKILL.md"
 
 # ---- fixture tree: upstream shapes, per recon of the live patched mirror ----
 
