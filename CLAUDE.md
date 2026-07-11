@@ -120,7 +120,7 @@ See https://www.chezmoi.io/user-guide/manage-different-types-of-file/ for the `m
 
 ### Git Hooks
 
-All three hooks live in the **user-wide** hooks dir — `core.hooksPath = ~/.config/git/hooks` (set in
+All three hooks live in the **user-wide** hooks dir (`core.hooksPath = ~/.config/git/hooks`, set in
 `dot_gitconfig.tmpl`), so they apply to every repo:
 
 - **`prepare-commit-msg` — user-wide AI commit messages.** Prepopulates a Conventional Commits message
@@ -253,15 +253,23 @@ Templates conditionally branch on `.chezmoi.os` and, where they pull secrets, ca
 
 ### Template Shellcheck Workaround
 
-Shell templates contain Go template syntax that shellcheck can't parse directly. The
-`shellcheck-rendered-template` formatter in `treefmt.nix` renders first:
-`CI=1 chezmoi execute-template --no-tty <file | shellcheck -`. Six templates are rendered —
-`dot_bashrc.tmpl`, the osquery setup script, the three herdr install/build chezmoiscripts, and the
-tailscaled status reminder; none calls `keepassxc`, so the `CI=1` env var is defensive (vestigial from an
-earlier version where bashrc had a CI-vs-interactive branch). Other templates with CI branches (e.g.
-`identity.yml.tmpl`) are not shell-linted. A sibling formatter, `osquery-config-render`, renders the
-JSON-bodied `.chezmoitemplates/osquery/*.conf` templates via `includeTemplate` and validates the result
-with jq.
+Shell templates contain Go template syntax that shellcheck can't parse directly, so the
+`shellcheck-rendered-template` formatter in `treefmt.nix` renders first
+(`CI=1 chezmoi execute-template --no-tty <file`) and shellchecks the result. Its include list is
+discovered programmatically at Nix eval time, not hand-picked: every `.chezmoiscripts/*.sh.tmpl` plus
+every shell `dot_*.tmpl` (first line a shell shebang or `# shellcheck shell=` directive, or a Go-template
+directive whose first non-directive line is such a shebang), minus any template that (or whose
+`includeTemplate` partial) invokes `keepassxc` through a `{{ ... }}` directive, since those need an
+interactive KeePassXC unlock. One includeTemplate fragment
+(`.chezmoitemplates/herdr-plugin-build.sh.tmpl`) is excluded with a documented reason because it only
+renders through its includers. After a successful render, a blank (empty or whitespace-only) result is
+skipped rather than shellchecked, so an OS-gated template on the other OS (which renders to nothing) does
+not fail SC2148; a render failure stays fatal. `test/rendered-template-coverage.sh` enforces this
+universe: it re-reads the formatter's actual include list via `nix eval` and fails when discovery drops a
+template, with a fixture layer under `test/fixtures/render-coverage` guarding the classifier against
+blind spots. The `CI=1` env var is defensive (vestigial from an earlier bashrc CI-vs-interactive branch).
+A sibling formatter, `osquery-config-render`, renders the JSON-bodied `.chezmoitemplates/osquery/*.conf`
+templates via `includeTemplate` and validates the result with jq.
 
 ### OS Targeting
 
@@ -284,7 +292,8 @@ bats, chezmoi, and zizmor.
 GitHub Actions (`.github/workflows/lint.yml`) runs on `macos-latest` on pushes to main and PRs, with
 workflow-level `permissions: contents: read`, `persist-credentials: false` on checkout, and actions
 SHA-pinned to full commit SHAs (`.github/dependabot.yml` keeps the pins fresh weekly; its PRs auto-merge
-once the lint check passes, via `.github/workflows/dependabot-automerge.yml`). Steps:
+once the lint check passes, via `.github/workflows/dependabot-automerge.yml`; `lint` is a required status
+check on `main` under branch protection, so the auto-merge cannot land until it is green). Steps:
 `nix flake check --all-systems` (the treefmt drift gate), `just test`, and
 `zizmor --offline .github/workflows` — the latter two inside the flake's `run` shell.
 
