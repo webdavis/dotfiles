@@ -1,0 +1,124 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/bin/bash
+
+set -euo pipefail
+
+# Convergent retirement of the live OpenClaw services this host still runs from
+# earlier applies. The repo removal deleted the OpenClaw config and package
+# declarations but never retired what was already installed, so the dead gateway
+# launchd agent (its module gone) retry-loops forever. This script boots out the
+# three known agents (gateway, node, rescue), deletes their plists, and
+# uninstalls the global npm `openclaw` package.
+#
+# It is a run_after, NOT a run_once: run_once records success permanently even
+# when a probe or action transiently failed, which would strand a
+# partially-retired host. Instead it gates on a quiescence marker: once a full
+# postcondition sweep confirms every label is gone, every plist is gone, and npm
+# openclaw is gone, it writes the marker and every later apply is a single file
+# check. Anything short of full convergence leaves the marker unwritten and the
+# next apply retries.
+#
+# It is deliberately narrow: it names ONLY the three exact labels (never a
+# wildcard, never a fuzzy label scan), and it MUST NOT touch ~/.openclaw -- the
+# vendored elevenlabs skill uses ~/.openclaw/elevenlabs/ as its data dir. Every
+# path exits 0 (a retirement chore must never abort `chezmoi apply`), internal
+# failures are warnings, and each real action prints one loud line.
+
+log() { printf 'openclaw-retire: %s\n' "$*"; }
+warn() { printf 'openclaw-retire: WARN %s\n' "$*" >&2; }
+
+state_dir="$HOME/.local/state/openclaw"
+marker="$state_dir/retired"
+
+# Fast path: once fully retired, every subsequent apply costs one file check.
+if [[ -f $marker ]]; then
+  exit 0
+fi
+
+uid="$(id -u)"
+launch_agents_dir="$HOME/Library/LaunchAgents"
+
+# The ONLY launchd labels this script may ever touch. No wildcards, no prefix
+# matches -- the plist filenames are derived from these exact names.
+labels=(
+  ai.openclaw.gateway
+  ai.openclaw.node
+  ai.openclaw.rescue
+)
+
+for label in "${labels[@]}"; do
+  target="gui/$uid/$label"
+  # Probe with `launchctl print` exit status -- a loaded label prints, an
+  # unloaded one exits non-zero. Deliberately not the deprecated fuzzy scan.
+  still_loaded=0
+  if launchctl print "$target" >/dev/null 2>&1; then
+    still_loaded=1
+    if launchctl bootout "$target" >/dev/null 2>&1; then
+      log "booted out $target"
+      still_loaded=0
+    else
+      warn "failed to bootout $target; leaving its plist for the next apply to retry"
+    fi
+  fi
+
+  # Ordering: never remove a plist whose job is still loaded -- that orphans the
+  # running job. Remove the plist only once the label is confirmed not loaded.
+  if [[ $still_loaded -eq 1 ]]; then
+    continue
+  fi
+  plist="$launch_agents_dir/$label.plist"
+  if [[ -e $plist ]]; then
+    if rm -f "$plist" >/dev/null 2>&1; then
+      log "removed $plist"
+    else
+      warn "failed to remove $plist"
+    fi
+  fi
+done
+
+# Uninstall the global npm package, but only when npm exists and reports it
+# present -- probing keeps the run silent on a host that never had it.
+if command -v npm >/dev/null 2>&1; then
+  if npm ls -g openclaw >/dev/null 2>&1; then
+    if npm uninstall -g openclaw >/dev/null 2>&1; then
+      log "uninstalled global npm package openclaw"
+    else
+      warn "failed to uninstall global npm package openclaw"
+    fi
+  fi
+fi
+
+# Postcondition sweep: only a fully verified state writes the marker. Re-probe
+# each label, each plist, and npm; anything remaining is listed loudly with the
+# exact manual command, and the marker stays unwritten so the next apply retries.
+remaining=()
+for label in "${labels[@]}"; do
+  target="gui/$uid/$label"
+  if launchctl print "$target" >/dev/null 2>&1; then
+    remaining+=("launchd job $target still loaded (manual: launchctl bootout $target)")
+  fi
+  plist="$launch_agents_dir/$label.plist"
+  if [[ -e $plist ]]; then
+    remaining+=("plist $plist still present (manual: rm -f $plist)")
+  fi
+done
+if command -v npm >/dev/null 2>&1; then
+  if npm ls -g openclaw >/dev/null 2>&1; then
+    remaining+=("global npm package openclaw still installed (manual: npm uninstall -g openclaw)")
+  fi
+fi
+
+if [[ ${#remaining[@]} -eq 0 ]]; then
+  mkdir -p "$state_dir"
+  : >"$marker"
+  log "retirement complete; wrote quiescence marker $marker"
+else
+  warn "openclaw retirement incomplete; NOT writing the marker. Remaining:"
+  for item in "${remaining[@]}"; do
+    warn "  - $item"
+  done
+  warn "the next chezmoi apply will retry."
+fi
+
+exit 0
+{{- end }}

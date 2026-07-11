@@ -383,9 +383,10 @@ nav, `after_57`); herdr-last-workspace Rust plugin (MRU, `after_55`); bashrc aut
 status in sidebar.
 
 **I. Terminal / GUI apps.** Ghostty (`bash -i`, themes, quick-terminal); AeroSpace (hyper-key workspaces,
-F-key smart-lights/openhue, terminal-notifier feedback, F1 → OpenClaw `127.0.0.1:18789` — **R3
-(2026-07-10): OpenClaw removal ruled; the F1 binding, the `openclaw` package, and the docs are removed by
-the Wave-3d cleanup PR, operator owns the Todoist cleanup**); Karabiner
+F-key smart-lights/openhue, terminal-notifier feedback; **R3 (2026-07-10): the Wave-3d cleanup PR removed
+the F1 → OpenClaw `127.0.0.1:18789` binding, the `openclaw` package entry, and the active config/doc
+references; the dated research docs stay as historical record, and the live services are retired by the
+new run_once chezmoiscript; operator owns the Todoist cleanup**); Karabiner
 (caps→ctrl/esc, tab→hyper, complex-mod library); espanso (identity from KeePassXC, autocorrect packs,
 prompts/snippets, `_pqi.yml` phone quick-replies); smart-lights CLI (openhue room controller);
 `aerospace_toggle_app_focus.sh`.

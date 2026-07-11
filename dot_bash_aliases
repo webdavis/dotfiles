@@ -25,9 +25,3 @@ alias gundo='git reset --soft HEAD~1'
 alias gunstage='git restore --staged'
 alias grecent='git for-each-ref --sort=-committerdate --count=10 --format="%(refname:short)" refs/heads'
 alias gwhoami='git config --get user.name'
-
-# ┏━━━━━━━━━━━━━━━━━━━━━━━━┓
-# ┃  Neovim wrappers       ┃
-# ┗━━━━━━━━━━━━━━━━━━━━━━━━┛
-
-alias no='nvim ~/.openclaw/openclaw.json'

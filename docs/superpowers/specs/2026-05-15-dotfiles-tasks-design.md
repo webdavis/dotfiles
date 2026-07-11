@@ -1,5 +1,11 @@
 # Dotfiles Tasks — Design Spec (2026-05-15 audit cycle)
 
+> **SUPERSEDED (2026-07-10, operator ruling R3).** OpenClaw was removed from the fleet and replaced by
+> Hermes; the relay pipeline now owns agent and command notifications. The OpenClaw-directed phases and
+> gaps in this spec (Phase 10, Phase 11, and the Gap 2 discovery step) MUST NOT be executed. This spec is
+> retained only as a historical record of the audit cycle, never as an actionable instruction to
+> reinstall or reconfigure OpenClaw.
+
 **Date:** 2026-05-15
 **Status:** Design approved via prior multi-session brainstorming. Spec drafted for subagent-driven implementation.
 **Source plan:** `~/.claude/plans/help-me-configure-https-github-com-nix-c-witty-quill.md` (will be obsolete once this spec is approved).
@@ -221,6 +227,12 @@ The full implementation steps live in the Todoist task descriptions (created 202
 
 ### Phase 10 — Notify via `mouse` OpenClaw agent (single endpoint, three notification types)
 
+> **SUPERSEDED (2026-07-10, operator ruling R3).** OpenClaw was removed from the fleet and replaced by
+> Hermes; the relay pipeline now owns agent and command notifications. The OpenClaw plumbing below
+> (creating the mouse agent, and the `hooks.enabled`/`hooks.token`/`hooks.mappings` OpenClaw config) MUST
+> NOT be executed. This section is retained only as a historical record, never as an actionable
+> instruction to reinstall or reconfigure OpenClaw.
+
 - **Todoist:** `6gfVJ7VwcFQvg7xM`
 - **Pre-flight (blocking):** the dedicated `mouse` OpenClaw agent (`6gfcXjFrG6q3Pm3v`) and its Discord bot (`6gfcXjRh8vC57g2v`) must exist.
 
@@ -256,6 +268,12 @@ The consumer (from N1) handles fan-out: alerter for macOS notification, hue-puls
 **Closeout:** `td task complete id:6gfVJ7VwcFQvg7xM`.
 
 ### Phase 11 — GitHub Actions webhook → notification queue (replaces the old gh-notify proposal)
+
+> **SUPERSEDED (2026-07-10, operator ruling R3).** OpenClaw was removed and replaced by Hermes. Sub-task
+> (d) below routes the workflow notification through the `mouse` OpenClaw agent (a fourth `type`
+> extending Phase 10's three); that OpenClaw wiring MUST NOT be executed. The relay pipeline now owns
+> this notification path. This section is retained only as a historical record, never as an actionable
+> instruction to reinstall or reconfigure OpenClaw.
 
 - **Todoist:** `6gfVJ9P5vpX64JhM` (closes [#9](https://github.com/webdavis/dotfiles/issues/9))
 - **Pre-flight (blocking on N1):** the queue + Cloudflare Tunnel + webhook receiver scaffolding from `6ggHM32c8FXWcqmv` must exist.
@@ -305,6 +323,12 @@ After all phases + setup complete:
 At audit time, this file exceeded the Read tool's 25k-token limit and was not fully re-read. The corresponding implementation is verified done via CLAUDE.md §"macOS Defaults Management" and the 2026-05-05 commit cluster (~40 commits per Agent 3's audit). If future work surfaces inconsistencies between the research and the implementation, read the archived file directly at `docs/archive/research/2026-04-26-macos-defaults-management.md` with `offset`/`limit`.
 
 **Gap 2: OpenClaw notification surface unknown at spec time.**
+
+> **SUPERSEDED (2026-07-10, operator ruling R3).** OpenClaw was removed and replaced by Hermes. The
+> forward-looking discovery step below (discover OpenClaw's hook/webhook API as the first step of P10;
+> file a follow-up to add a notification webhook to OpenClaw upstream) MUST NOT be executed. Retained
+> only as a historical record.
+
 P10 and P11 both touch OpenClaw's event ingestion. The implementation will need to discover OpenClaw's hook/webhook API as the first step of P10. If OpenClaw doesn't expose a suitable surface, P10 may surface a follow-up Todoist task (add a notification webhook to OpenClaw upstream) rather than completing.
 
 **Gap 3: Phase ordering for P5 (Determinate Nix migration).**

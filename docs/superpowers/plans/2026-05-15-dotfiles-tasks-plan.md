@@ -1,5 +1,11 @@
 # 2026-05-15 Dotfiles Tasks — Implementation Plan
 
+> **SUPERSEDED (2026-07-10, operator ruling R3).** OpenClaw was removed from the fleet and replaced by
+> Hermes. The OpenClaw tasks in this plan (B1 create the mouse agent, B2 wire the Discord bot, P10 notify
+> via the mouse OpenClaw agent, and the OpenClaw half of P11) MUST NOT be executed. This plan is retained
+> only as a historical record of the audit cycle, never as an actionable instruction to reinstall or
+> reconfigure OpenClaw.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:subagent-driven-development` (recommended) or `superpowers:executing-plans` to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Execute the 13-phase audit cycle defined in `docs/superpowers/specs/2026-05-15-dotfiles-tasks-design.md`, plus the setup/cleanup phases (S1–S5) and Mouse-blocker phases (B1–B3), marking each Todoist task complete on phase closeout.
