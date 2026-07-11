@@ -504,6 +504,18 @@ __gen_plant_lock_link() {
 # precondition failure (caller records a required failure; live state untouched).
 __gen_publish() {
   local candidate="$1" old_id
+  # F4: snapshot the OUTGOING generation's owned names BEFORE the exchange, so
+  # the delist pruner can tell an updater-owned (generation) store dir from a
+  # genuinely foreign one after the swap. Empty on a fresh-machine first
+  # publish (no previous generation).
+  GEN_PREV_OWNED_NAMES=()
+  if [[ -d "$SKILLS_CURRENT/skills" ]]; then
+    local __prev_owned
+    for __prev_owned in "$SKILLS_CURRENT/skills"/*; do
+      [[ -d $__prev_owned ]] || continue
+      GEN_PREV_OWNED_NAMES+=("${__prev_owned##*/}")
+    done
+  fi
   [[ -d $candidate && ! -L $candidate ]] || {
     log "publish: candidate $candidate is not a real directory"
     return 1
@@ -714,6 +726,17 @@ __gen_name_is_tracked() {
   return 1
 }
 
+# F4: true when <name> was owned by the OUTGOING generation (captured by
+# __gen_publish before the exchange). Distinguishes an updater-owned store dir a
+# competing writer clobbered from a genuinely foreign real dir.
+__gen_name_was_generation_owned() {
+  local query="$1" owned
+  for owned in "${GEN_PREV_OWNED_NAMES[@]:-}"; do
+    [[ -n $owned && $owned == "$query" ]] && return 0
+  done
+  return 1
+}
+
 # True when a store entry is the correct migrated symlink for a tracked skill.
 __gen_store_link_correct() {
   local name="$1"
@@ -739,6 +762,13 @@ __gen_store_link_correct() {
 # ---------------------------------------------------------------------------
 GEN_REABSORB=()
 GEN_REUSE_CANDIDATE=""
+# F4: the set of skill names the OUTGOING generation owned, captured by
+# __gen_publish immediately before the exchange (from $SKILLS_CURRENT/skills/).
+# It is the provenance the delist pruner needs: a real dir at a store name that
+# was generation-owned but is no longer tracked was updater-owned (a delisted
+# skill an out-of-band writer clobbered into a real dir) and is quarantined,
+# whereas a genuinely FOREIGN real dir (never a generation skill) is preserved.
+GEN_PREV_OWNED_NAMES=()
 # The exchange-in-flight marker (R2-3b): written by __gen_publish just before
 # the atomic exchange, removed after retention completes. Its presence tells
 # recovery a publish died mid-transaction; comparing the LIVE generation's id
@@ -984,6 +1014,11 @@ GEN_INSTALL_FORCE_REINSTALL=()
 # (R2-6). The --install-only entrypoint reads it to exit the distinct deferred
 # code (75) so the first-install wrapper preserves its retry marker.
 GEN_INSTALL_DEFERRED=""
+# F5: set to 1 by __gen_weekly_attempt when the pre-exchange activity re-probe
+# defers the publish (a harness turned active during the build lanes). The main
+# weekly flow reads it and exits the retryable 75 (no stamp), so a later slot
+# retries — the deferral is not a failure.
+GEN_EXCHANGE_DEFERRED=""
 
 # Build the candidate generation at .skills-generations/<id>/home/.agents: a fake
 # HOME whose .agents/skills starts as cp -c clones of the CURRENT generation,
@@ -1484,8 +1519,21 @@ __gen_prune_delisted_store_links() {
   [[ -d $STORE ]] || return 0
   local link name
   for link in "$STORE"/*; do
-    [[ -L $link ]] || continue # real dirs (foreign/vendored) are outside the generation
     name="${link##*/}"
+    # F4: a REAL DIR at a generation-owned name that is no longer tracked was
+    # updater-owned (a delisted skill an out-of-band writer clobbered into a
+    # real dir); recovery never re-absorbed it (it walks only tracked names),
+    # so it would otherwise survive and stay in the fan-out. Quarantine it. A
+    # genuinely FOREIGN real dir (never a generation skill, e.g. a vendored copy
+    # or an unrelated user dir) is NOT in GEN_PREV_OWNED_NAMES and is preserved.
+    if [[ -d $link && ! -L $link ]]; then
+      if ! __gen_name_is_tracked "$name" && __gen_name_was_generation_owned "$name"; then
+        log "prune: quarantining delisted generation-owned real dir $name (updater-owned, clobbered by an out-of-band writer; dropped from fan-out)"
+        __gen_garbage_destroy "$link"
+      fi
+      continue # foreign/vendored real dirs (not generation-owned) survive
+    fi
+    [[ -L $link ]] || continue                   # anything else (a stray file): leave it
     __gen_store_link_correct "$name" || continue # foreign/app-owned symlink: never through it
     __gen_name_is_tracked "$name" && continue    # still tracked: keep
     if rm -f "$link"; then
@@ -1637,6 +1685,19 @@ __gen_reset_failure_streaks() {
   fi
 }
 
+# F5: true (0 = DEFER) when publishing would EXCHANGE a live generation (the
+# current path EXISTS, so a reader may have it open) AND a harness shows recent
+# activity (fail-closed: a probe error counts as active) AND FORCE is not set.
+# Re-probed IMMEDIATELY before every exchange: activity that begins during the
+# long build lanes must still defer the swap. A fresh machine (no current path)
+# never defers here — it publishes by a plain rename with no readers. Gated on
+# EXISTENCE, not completeness: an incomplete current path is still a swap.
+__gen_exchange_would_defer() {
+  [[ -e $SKILLS_CURRENT || -L $SKILLS_CURRENT ]] || return 1
+  [[ ${UPDATE_SKILLS_FORCE:-} == "1" ]] && return 1
+  __update_skills_should_defer
+}
+
 # The full-run weekly attempt (brief steps 2-5): reuse a recovered complete
 # matching candidate, or build one; run the lanes; validate; publish with the
 # atomic exchange; reconcile the store links. ANY failure discards the WHOLE
@@ -1653,6 +1714,12 @@ __gen_weekly_attempt() {
       record_required_failure "the roster lock changed mid-run; refusing to publish the recovered candidate (built from the old roster)"
       __gen_garbage_destroy "$id_dir"
       return 1
+    fi
+    if __gen_exchange_would_defer; then
+      GEN_EXCHANGE_DEFERRED=1
+      log "weekly: a harness became active before the exchange; deferring the publish to a later slot (retryable, no stamp)"
+      __gen_garbage_destroy "$id_dir"
+      return 0
     fi
     if __gen_publish "$candidate_agents"; then
       __gen_garbage_destroy "$id_dir"
@@ -1696,6 +1763,12 @@ __gen_weekly_attempt() {
     record_required_failure "the roster lock changed mid-run; refusing to publish a candidate built from the old roster"
     __gen_garbage_destroy "$GENERATIONS/$id"
     return 1
+  fi
+  if __gen_exchange_would_defer; then
+    GEN_EXCHANGE_DEFERRED=1
+    log "weekly: a harness became active before the exchange; deferring the publish to a later slot (retryable, no stamp)"
+    __gen_garbage_destroy "$GENERATIONS/$id"
+    return 0
   fi
   if ! __gen_publish "$candidate_agents"; then
     record_required_failure "publish failed; no success recorded (the publish log above says whether the exchange landed)"
@@ -1814,15 +1887,15 @@ __gen_install_only_attempt() {
     log "install-only: every roster skill is present and healthy; no changes"
     return 0
   fi
-  if __gen_is_complete "$SKILLS_CURRENT" &&
-    [[ ${UPDATE_SKILLS_FORCE:-} != "1" ]] && __update_skills_should_defer; then
-    # A live generation exists, so publishing a repair EXCHANGES it. A harness
-    # shows recent activity (or the probe errored, fail-closed): defer the
-    # exchange to a later run rather than swap the generation under a live
-    # session. The additive fan-out convergence still runs in the caller. This
-    # is a DEFERRAL, not a success (R2-6): the work is still outstanding, so
-    # the caller signals the distinct deferred exit so the first-install
-    # wrapper keeps its retry marker and the next apply re-fires.
+  if __gen_exchange_would_defer; then
+    # A current generation exists, so publishing a repair EXCHANGES it (F5:
+    # gated on EXISTENCE, not completeness — an incomplete current is still a
+    # swap). A harness shows recent activity (or the probe errored,
+    # fail-closed): defer the exchange to a later run rather than swap the
+    # generation under a live session. The additive fan-out convergence still
+    # runs in the caller. This is a DEFERRAL, not a success (R2-6): the work is
+    # still outstanding, so the caller signals the distinct deferred exit so the
+    # first-install wrapper keeps its retry marker and the next apply re-fires.
     GEN_INSTALL_DEFERRED=1
     log "install-only: ${#needs_work[@]} skill(s) to add or repair, but a harness shows recent activity; deferring the generation exchange to a later run"
     return 0
@@ -1850,6 +1923,15 @@ __gen_install_only_attempt() {
     record_required_failure "the roster lock changed mid-run; refusing to publish the install-only candidate (built from the old roster)"
     __gen_garbage_destroy "$GENERATIONS/$id"
     return 1
+  fi
+  if __gen_exchange_would_defer; then
+    # F5: a harness turned active during the build lanes (the first probe above
+    # ran BEFORE them). Defer the exchange rather than swap under a live session;
+    # signal the distinct deferred exit so the wrapper keeps its retry marker.
+    GEN_INSTALL_DEFERRED=1
+    log "install-only: a harness became active before the exchange; deferring the generation swap to a later run"
+    __gen_garbage_destroy "$GENERATIONS/$id"
+    return 0
   fi
   if ! __gen_publish "$candidate_agents"; then
     record_required_failure "install-only publish failed; no success recorded (the publish log above says whether the exchange landed)"
@@ -2770,6 +2852,19 @@ fi
 #      discards the whole candidate; the live generation is untouched.
 log "weekly generation attempt"
 __gen_weekly_attempt || log "the weekly generation attempt failed; the live generation is unchanged (a later slot retries)"
+
+# F5: the pre-exchange activity re-probe deferred the publish (a harness turned
+# active during the build). The live generation is untouched and the work is
+# still outstanding, so exit the retryable 75 WITHOUT stamping — a later slot
+# retries. On the last scheduled slot, alert (the retry budget is spent).
+if [[ -n $GEN_EXCHANGE_DEFERRED ]]; then
+  log "weekly run deferred the exchange on harness activity; signalling a retryable deferral (exit 75, no stamp)"
+  if __update_skills_scheduled_budget_exhausted; then
+    log "EXHAUSTED: the last scheduled slot deferred the exchange on harness activity; the weekly skills update did not run this week"
+    __update_skills_alert "Weekly skills update deferred the generation exchange on every scheduled slot (a harness was active at each Monday slot). Run it by hand when idle (~/.local/bin/update-skills.sh)."
+  fi
+  exit 75
+fi
 
 # Post-publish live passes (never write through store links):
 refresh_app_owned_cua_pack
