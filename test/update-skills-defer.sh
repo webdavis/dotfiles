@@ -89,12 +89,13 @@ cat >"$stub_dir/alerter" <<EOF
 printf 'alerter %s\n' "\$*" >>"$ALERTER_LOG"
 EOF
 
-# date stub: pin the ISO week and the hour; everything else falls through to the
-# real date.
+# date stub: pin the ISO week, the hour, and the weekday (1 = Monday) so the
+# slot-aware alert branch is deterministic; everything else falls through.
 cat >"$stub_dir/date" <<'EOF'
 #!/usr/bin/env bash
 case "$1" in
   +%H) printf '%s\n' "${FAKE_HOUR:-04}" ;;
+  +%u) printf '%s\n' "${FAKE_DOW:-1}" ;;
   +%G-%V) printf '%s\n' "${FAKE_WEEK:-2026-28}" ;;
   *) exec /bin/date "$@" ;;
 esac
@@ -116,10 +117,10 @@ export FAKE_WEEK="2026-28"
 # is under test.
 GATE_OUTPUT=""
 run_gate() {
-  local fake_ps="$1" fake_hour="${2:-04}" fake_ps_fail="${3:-}"
+  local fake_ps="$1" fake_hour="${2:-04}" fake_ps_fail="${3:-}" fake_dow="${4:-1}"
   rm -rf "$HOME/.local/state"
   : >"$ALERTER_LOG"
-  GATE_OUTPUT="$(FAKE_PS="$fake_ps" FAKE_HOUR="$fake_hour" FAKE_PS_FAIL="$fake_ps_fail" bash "$SCRIPT" 2>&1)" ||
+  GATE_OUTPUT="$(FAKE_PS="$fake_ps" FAKE_HOUR="$fake_hour" FAKE_PS_FAIL="$fake_ps_fail" FAKE_DOW="$fake_dow" bash "$SCRIPT" 2>&1)" ||
     fail "script exited non-zero (gate should always exit 0): $GATE_OUTPUT"
 }
 
@@ -217,25 +218,38 @@ run_gate "$HERMES_GATEWAY" 04
 [[ "$(<"$HOME/.local/state/update-skills/last-success")" == "$FAKE_WEEK" ]] ||
   fail "the success stamp is not the current ISO week: $(<"$HOME/.local/state/update-skills/last-success")"
 
-# 4) Last retry slot (16:00) still deferring → LOUD alerter notification + log
-#    line (the weekly budget is exhausted).
-run_gate "$CODEX_PLAIN" 16
+# 4) Last retry slot (Monday 16:00) still deferring → LOUD alerter notification +
+#    log line (the weekly budget is exhausted).
+run_gate "$CODEX_PLAIN" 16 "" 1
 deferred || fail "last-slot world did not defer: $GATE_OUTPUT"
-alerted || fail "last slot (16:00) deferral did not fire the LOUD alerter notification: (empty log)"
+alerted || fail "last slot (Monday 16:00) deferral did not fire the LOUD alerter notification: (empty log)"
 grep -qiE 'exhaust|budget|last' <<<"$GATE_OUTPUT" ||
   fail "last-slot deferral did not emit an exhausted-budget log line: $GATE_OUTPUT"
 
-# 5) The plist declares FOUR Monday retry slots (04:00/08:00/12:00/16:00) instead
-#    of the single 04:00 that could defer forever. Render it and count them.
+# 4b) Same hour (16:00) but NOT Monday (a manual run on another day) → DEFERS but
+#     does NOT claim exhaustion (no future slot to reason about; slot-aware).
+run_gate "$CODEX_PLAIN" 16 "" 3
+deferred || fail "non-Monday 16:00 world did not defer: $GATE_OUTPUT"
+alerted && fail "a non-Monday 16:00 deferral fired the exhaustion alert (slot-awareness lost): $(cat "$ALERTER_LOG")"
+
+# 5) The plist declares EXACTLY four Monday retry slots, each a full
+#    {Weekday=1, Hour in 4/8/12/16, Minute=0} tuple. Parse the rendered plist as
+#    real plist data (plutil -> json -> jq) so dropping Weekday or Minute (which
+#    launchd then treats as a wildcard, firing far more often) fails this test.
 PLIST="$REPO_ROOT/Library/LaunchAgents/com.webdavis.update-skills.plist.tmpl"
 rendered_plist="$(CI=1 chezmoi --source "$REPO_ROOT" execute-template --no-tty <"$PLIST")" ||
   fail "chezmoi execute-template failed on the update-skills plist"
-hour_lines="$(printf '%s\n' "$rendered_plist" | grep -c '<key>Hour</key>')"
-[[ $hour_lines -eq 4 ]] ||
-  fail "expected 4 Monday retry slots in the plist, found $hour_lines"
-for slot_hour in 4 8 12 16; do
-  printf '%s\n' "$rendered_plist" | grep -A1 '<key>Hour</key>' | grep -qF "<integer>${slot_hour}</integer>" ||
-    fail "plist is missing the Monday ${slot_hour}:00 retry slot"
-done
+plist_json="$tmp/plist.json"
+printf '%s' "$rendered_plist" | plutil -convert json -o "$plist_json" - 2>/dev/null ||
+  fail "rendered plist did not parse as a plist"
+slot_count="$(jq '.StartCalendarInterval | length' "$plist_json")"
+[[ $slot_count -eq 4 ]] ||
+  fail "expected exactly 4 StartCalendarInterval tuples, got $slot_count"
+non_conforming="$(jq '[.StartCalendarInterval[] | select(.Weekday != 1 or .Minute != 0)] | length' "$plist_json")"
+[[ $non_conforming -eq 0 ]] ||
+  fail "a slot is missing Weekday=1 or Minute=0 (launchd would treat the missing key as a wildcard)"
+slot_hours="$(jq -c '[.StartCalendarInterval[].Hour] | sort' "$plist_json")"
+[[ $slot_hours == "[4,8,12,16]" ]] ||
+  fail "slot hours are not exactly 4/8/12/16: $slot_hours"
 
 echo "update-skills-defer: OK"

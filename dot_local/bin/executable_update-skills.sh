@@ -134,6 +134,46 @@ done
 
 log() { printf '[update-skills] %s\n' "$*"; }
 
+# Required-phase failure accounting. REQUIRED phases (npx/clawhub installs and
+# updates, hermes registry updates, Codex overlay re-assert, fan-out
+# convergence, superpowers routing assert) keep continue-on-failure behavior
+# WITHIN a run, but every failure is RECORDED here. ADVISORY phases (fork
+# drift-watch, the cua-driver pack refresh) only inform and are never recorded.
+# The weekly success stamp is written ONLY when zero required failures occurred,
+# so a transient failure leaves the stamp absent and a later Monday slot retries.
+REQUIRED_FAILURES=0
+record_required_failure() {
+  REQUIRED_FAILURES=$((REQUIRED_FAILURES + 1))
+  log "REQUIRED-FAILURE: $*"
+}
+
+# True when now is Monday at or after the last retry slot hour, i.e. no further
+# scheduled slot remains this week to retry a failed or deferred run. date +%u
+# is 1 for Monday; the hour is stripped of a leading zero so 08 is not read as
+# an invalid octal in the arithmetic compare.
+__update_skills_is_last_monday_slot() {
+  local dow hour
+  dow="$(date +%u)"
+  hour="$(date +%H)"
+  hour="${hour#0}"
+  [[ $dow == "1" ]] || return 1
+  [[ -n $hour ]] || hour=0
+  [[ $hour -ge $UPDATE_SKILLS_LAST_SLOT_HOUR ]]
+}
+
+# Loud alert on both channels the brief names: a local alerter notification and
+# a relay push. Best-effort; a missing tool or relay never fails the run.
+__update_skills_alert() {
+  local detail="$1"
+  if command -v alerter >/dev/null 2>&1; then
+    alerter --timeout 30 --title "update-skills" --message "$detail" --sound default >/dev/null 2>&1 || true
+  fi
+  local relay_script="$HOME/.local/bin/relay.sh"
+  if [[ -x $relay_script ]]; then
+    "$relay_script" --agent update-skills --state exhausted --project skills --detail "$detail" || true
+  fi
+}
+
 # idle-gate discriminator: is a LIVE interactive agent-harness session using the
 # store right now? Returns 0 (defer, never swap a skill out from under a live
 # session) for a live Claude Code / Codex / hermes session, 1 (proceed) when
@@ -303,8 +343,11 @@ converge_dir() {
           elif [[ -n $dry ]]; then
             log "converge: would replace $path (currently $current, desired $target)"
           else
-            ln -sfn "$target" "$path" # replace wrong-target / dangling updater-owned link
-            log "converge: replaced $path (was $current, now $target)"
+            if ln -sfn "$target" "$path"; then # replace wrong-target / dangling updater-owned link
+              log "converge: replaced $path (was $current, now $target)"
+            else
+              record_required_failure "converge could not replace $path"
+            fi
           fi
         else
           log "converge: WARN $path is a non-store symlink at a managed name; leaving it (resolve by hand)"
@@ -313,9 +356,10 @@ converge_dir() {
         : # a real dir/file (hub-owned or catalog) at this name, never overwrite
       elif [[ -n $dry ]]; then
         log "converge: would create $path -> $target"
-      else
-        ln -s "$target" "$path"
+      elif ln -s "$target" "$path"; then
         log "converge: created $path -> $target"
+      else
+        record_required_failure "converge could not create $path"
       fi
     done
   fi
@@ -339,9 +383,10 @@ converge_dir() {
       old_target="$(readlink "$path" 2>/dev/null || true)"
       if [[ -n $dry ]]; then
         log "converge: would remove stale $path (currently $old_target)"
-      else
-        rm -f "$path"
+      elif rm -f "$path"; then
         log "converge: removed stale $path (was $old_target)"
+      else
+        record_required_failure "converge could not remove stale $path"
       fi
     fi
   done
@@ -446,6 +491,7 @@ assert_superpowers_routing() {
   else
     printf '%s\n' "$routing_output"
     log "routing re-assert FAILED (continuing)"
+    record_required_failure "superpowers routing re-assert failed"
   fi
 }
 
@@ -480,13 +526,20 @@ assert_codex_overlays() {
       log "would assert codex overlay: $skill"
       continue
     fi
-    mkdir -p "$STORE/$skill/agents"
+    if ! mkdir -p "$STORE/$skill/agents"; then
+      record_required_failure "codex overlay dir for $skill could not be created"
+      continue
+    fi
     if [[ -f $overlay_file ]]; then
-      printf '\n%s\n' "$policy" >>"$overlay_file"
-      log "appended codex overlay policy to upstream openai.yaml: $skill"
-    else
-      printf '%s\n' "$policy" >"$overlay_file"
+      if printf '\n%s\n' "$policy" >>"$overlay_file"; then
+        log "appended codex overlay policy to upstream openai.yaml: $skill"
+      else
+        record_required_failure "codex overlay append for $skill failed"
+      fi
+    elif printf '%s\n' "$policy" >"$overlay_file"; then
       log "asserted codex overlay: $skill"
+    else
+      record_required_failure "codex overlay write for $skill failed"
     fi
   done < <(jq -r '.tiers // {} | to_entries[] | select(.value == "on-demand") | .key' "$CUSTOM_SKILL_LOCK" 2>/dev/null)
 }
@@ -533,6 +586,7 @@ update_hermes_registry_skills() {
       if update_output="$(hermes -p "$profile" skills update "$lock_key" 2>&1)"; then
         if printf '%s\n' "$update_output" | grep -qiE 'blocked|refused'; then
           log "WARN: hermes $profile/$lock_key update was blocked/refused (continuing; never --force from automation)"
+          record_required_failure "hermes $profile/$lock_key update blocked/refused"
           printf '%s\n' "$update_output"
           if [[ -x $relay_script ]]; then
             "$relay_script" --agent update-skills --state hermes-blocked --project "$profile/$lock_key" \
@@ -543,6 +597,7 @@ update_hermes_registry_skills() {
         fi
       else
         log "WARN: hermes $profile/$lock_key update failed (continuing)"
+        record_required_failure "hermes $profile/$lock_key update failed"
         printf '%s\n' "$update_output"
         if [[ -x $relay_script ]]; then
           "$relay_script" --agent update-skills --state hermes-update-failed --project "$profile/$lock_key" \
@@ -665,13 +720,9 @@ fi
 # than failing silent.
 if [[ -z $INSTALL_ONLY ]] && [[ ${UPDATE_SKILLS_FORCE:-} != "1" ]] && [[ $DRYRUN != "--dry-run" ]] && __update_skills_harness_active; then
   log "a live harness session (claude/codex/hermes) is using the store, or the process table could not be read (fail-closed); deferring this run"
-  if [[ "$(date +%H)" == "$UPDATE_SKILLS_LAST_SLOT_HOUR" ]]; then
-    log "EXHAUSTED: the last Monday retry slot (${UPDATE_SKILLS_LAST_SLOT_HOUR}:00) still deferred — the weekly skills update did not run this week"
-    if command -v alerter >/dev/null 2>&1; then
-      alerter --timeout 30 --title "update-skills" \
-        --message "Weekly skills update deferred every Monday slot — an agent session was always active. Run it by hand when idle (~/.local/bin/update-skills.sh)." \
-        --sound default >/dev/null 2>&1 || true
-    fi
+  if __update_skills_is_last_monday_slot; then
+    log "EXHAUSTED: the last Monday retry slot (${UPDATE_SKILLS_LAST_SLOT_HOUR}:00) still deferred; the weekly skills update did not run this week"
+    __update_skills_alert "Weekly skills update deferred on every Monday slot (an agent session was always active). Run it by hand when idle (~/.local/bin/update-skills.sh)."
   fi
   exit 0
 fi
@@ -701,9 +752,11 @@ install_npx_tracked() {
         log "installed: $skill from $repo" # fan-out is the convergence pass's job (below)
       else
         log "install $skill: npx add reported success but $STORE/$skill is absent (continuing)"
+        record_required_failure "npx install $skill produced no store dir"
       fi
     else
       log "install $skill: npx add failed ($repo) (continuing)"
+      record_required_failure "npx install $skill failed"
     fi
   done 3< <(jq -r '.npxTracked // {} | keys[]?' "$CUSTOM_SKILL_LOCK" 2>/dev/null)
 }
@@ -751,9 +804,11 @@ install_clawhub_tracked() {
         log "installed: $skill from $slug" # fan-out is the convergence pass's job (below)
       else
         log "install $skill: clawhub install reported success but produced no skill dir (continuing)"
+        record_required_failure "clawhub install $skill produced no store dir"
       fi
     else
       log "install $skill: clawhub install failed ($slug) (continuing)"
+      record_required_failure "clawhub install $skill failed"
     fi
     rm -rf "$tmp_workdir"
   done 3< <(jq -r '.clawhubTracked // {} | to_entries[]
@@ -795,6 +850,7 @@ update_clawhub_tracked() {
     rm -f "$STORE/$skill/.DS_Store"
     if ! update_output="$(clawhub --no-input --workdir "$AGENTS" --dir skills update "$skill" 2>&1)"; then
       log "WARN: clawhub update $skill failed (continuing)"
+      record_required_failure "clawhub update $skill failed"
       printf '%s\n' "$update_output"
       if [[ -x $relay_script ]]; then
         "$relay_script" --agent update-skills --state clawhub-update-failed --project "$skill" \
@@ -822,6 +878,7 @@ update_clawhub_tracked() {
       printf '%s\n' "$CODEX_POLICY" >"$overlay_file"
     fi
     log "WARN: clawhub $skill update refused over local changes (continuing; never --force from automation)"
+    record_required_failure "clawhub update $skill refused over local changes"
     printf '%s\n' "$update_output"
     if [[ -x $relay_script ]]; then
       "$relay_script" --agent update-skills --state clawhub-blocked --project "$skill" \
@@ -904,6 +961,13 @@ if [[ -n $INSTALL_ONLY ]]; then
   assert_codex_overlays
   assert_superpowers_routing
   log "done (install-only)${DRYRUN:+ (dry-run)}"
+  # Signal any required-phase failure to the caller (the first-install
+  # chezmoiscript keys its retry marker on this non-zero exit). A dry run only
+  # reports, so it never fails.
+  if [[ $DRYRUN != "--dry-run" && $REQUIRED_FAILURES -gt 0 ]]; then
+    log "install-only finished with $REQUIRED_FAILURES required-phase failure(s)"
+    exit 1
+  fi
   exit 0
 fi
 
@@ -912,7 +976,10 @@ if [[ $DRYRUN == "--dry-run" ]]; then
   log "would run: npx skills update --global"
 else
   log "npx skills update --global"
-  npx --yes skills@latest update --global -y 2>&1 | tr -d '\r' | tail -3 || log "npx update reported issues (continuing)"
+  if ! npx --yes skills@latest update --global -y 2>&1 | tr -d '\r' | tail -3; then
+    log "npx update reported issues (continuing)"
+    record_required_failure "npx skills update failed"
+  fi
 fi
 
 # 1b) refresh every clawhub-tracked store skill in place from its ClawHub
@@ -950,11 +1017,27 @@ update_hermes_registry_skills
 log "fork drift-check"
 check_fork_drift
 
-# record this week's success so the remaining Monday slots no-op — the run used
-# to defer forever with no stamp and no bounded retry budget (audit Fix 1)
+# Record this week's success ONLY when zero required phases failed. The stamp is
+# an ISO year-week key (date +%G-%V): %G is the ISO week-numbering YEAR and %V is
+# the ISO week (01-53), so the four Monday slots share one key and a slot no-ops
+# once one has fully succeeded this week. %G (not %Y) is what keeps a year-
+# boundary week correct: the days of ISO week 01 that fall in late December carry
+# the NEXT year's %G, and the late-December days of week 52/53 carry the current
+# %G, so the key never collides or splits across the boundary (52/53/01 verified).
+# When a required phase failed we WITHHOLD the stamp, so a later Monday slot
+# retries; and if no slot remains this Monday we alert (the retry budget is
+# spent). A dry run records nothing.
 if [[ $DRYRUN != "--dry-run" ]]; then
-  mkdir -p "$STATE_DIR"
-  date +%G-%V >"$SUCCESS_STAMP"
+  if [[ $REQUIRED_FAILURES -eq 0 ]]; then
+    mkdir -p "$STATE_DIR"
+    date +%G-%V >"$SUCCESS_STAMP"
+  else
+    log "WITHHOLDING the weekly success stamp: $REQUIRED_FAILURES required-phase failure(s) this run; a later Monday slot will retry"
+    if __update_skills_is_last_monday_slot; then
+      log "EXHAUSTED: required-phase failures on the last Monday slot (${UPDATE_SKILLS_LAST_SLOT_HOUR}:00); the weekly skills update did not fully succeed this week"
+      __update_skills_alert "Weekly skills update finished with $REQUIRED_FAILURES required-phase failure(s) and no Monday slot remains. Check ~/.local/log/skills/."
+    fi
+  fi
 fi
 
 log "done${DRYRUN:+ (dry-run)}"
