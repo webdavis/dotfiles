@@ -1,0 +1,66 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/bin/bash
+
+set -euo pipefail
+
+# Live-migration ordering safety: this writes the herdr-verified stamp that
+# run_onchange_before_10 consults before it lets `brew bundle --cleanup` remove
+# the old multiplexer (tmux/sesh). The teardown must not happen until herdr is
+# proven usable as a multiplexer, so the stamp is written ONLY when ALL of these
+# hold, and removed otherwise:
+#   1. the herdr binary is present and runnable
+#   2. its config.toml is present
+#   3. BOTH vendored plugins are registered (exact plugin id, via the JSON API)
+#   4. the herdr session server is reachable and reports a running session
+# A full "spawn AND attach a second session" needs an interactive TTY the apply
+# does not have, so (4) — the session server answering over its socket with a
+# running session — is the strongest safe non-interactive proof a second session
+# can be hosted. This runs every apply (a run_ script, no run_onchange) so the
+# stamp always reflects current herdr health; it never aborts the apply (a down
+# herdr just means "not yet verified") and is idempotent.
+#
+# ROLLBACK: this only WRITES the stamp; it removes nothing else. If herdr never
+# verifies, the stamp stays absent, before_10 keeps tmux/sesh installed, and the
+# machine keeps a working multiplexer. Force a re-gate by deleting the stamp:
+# rm -f "$HOME/.cache/herdr-migration/verified".
+
+stamp="$HOME/.cache/herdr-migration/verified"
+config="$HOME/.config/herdr/config.toml"
+plugins=(herdr-last-workspace herdr-smart-nav)
+
+# Not verified: drop the stamp so before_10 stays conservative, note why, and
+# exit 0 (never abort the apply).
+not_verified() {
+  rm -f "$stamp"
+  printf 'herdr not yet verified as a multiplexer (%s); before_10 will keep tmux/sesh until it is.\n' "$1" >&2
+  exit 0
+}
+
+command -v herdr >/dev/null 2>&1 || not_verified "binary not found"
+herdr --version >/dev/null 2>&1 || not_verified "binary does not run"
+[[ -f $config ]] || not_verified "config.toml missing"
+
+# Both plugins must be registered, matched by EXACT plugin id (never a substring).
+for plugin_id in "${plugins[@]}"; do
+  response="$(herdr plugin list --plugin "$plugin_id" --json 2>/dev/null)" ||
+    not_verified "plugin query failed for $plugin_id"
+  if printf '%s' "$response" | jq -e '.error' >/dev/null 2>&1; then
+    not_verified "herdr error envelope querying $plugin_id"
+  fi
+  count="$(printf '%s' "$response" |
+    jq --arg id "$plugin_id" '[.result.plugins[]? | select(.plugin_id == $id)] | length' 2>/dev/null ||
+    printf '0')"
+  [[ $count == "1" ]] || not_verified "plugin $plugin_id not registered"
+done
+
+# The session server must be reachable and report at least one running session.
+session_response="$(herdr session list --json 2>/dev/null)" ||
+  not_verified "session server unreachable"
+running="$(printf '%s' "$session_response" |
+  jq '[.sessions[]? | select(.running == true)] | length' 2>/dev/null || printf '0')"
+[[ $running =~ ^[0-9]+$ && $running -ge 1 ]] || not_verified "no running session"
+
+mkdir -p "$(dirname "$stamp")"
+: >"$stamp"
+printf 'herdr verified as a multiplexer; %s written (before_10 may now remove tmux/sesh).\n' "$stamp"
+{{ end -}}
