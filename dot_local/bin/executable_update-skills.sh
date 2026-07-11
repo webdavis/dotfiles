@@ -104,6 +104,27 @@ LOCKDIR="$AGENTS/.update-skills.lock.d"
 STATE_DIR="$HOME/.local/state/update-skills"
 SUCCESS_STAMP="$STATE_DIR/last-success"               # ISO year-week (%G-%V) of the last fully successful weekly run
 SCHEDULED_WEEK_STAMP="$STATE_DIR/last-scheduled-week" # ISO week of the last SCHEDULED attempt (item 6)
+
+# Generation-exchange store model (Wave 3a fix4). The LIVE generation is a REAL
+# directory .skills-current holding skills/<name> real dirs, the npx CLI lock
+# .skill-lock.json, and generation.json (the READY marker, written last: id +
+# createdAt + custom-lock hash + updater hash). The store ~/.agents/skills/<name>
+# are stable literal symlinks into ../.skills-current/skills/<name>, and
+# ~/.agents/.skill-lock.json is a symlink into .skills-current/.skill-lock.json.
+# Both keep resolving across a publish because .skills-current is a stable PATH
+# whose CONTENTS are swapped by ONE renameat2 RENAME_EXCHANGE
+# (gmv --exchange --no-copy -T), so any lookup during or after the swap yields a
+# complete tree from exactly one generation. Candidate generations are built as a
+# fake HOME under .skills-generations/<id>/home, on the SAME device as
+# .skills-current so the same-filesystem exchange works. Exactly one previous
+# generation is retained (a session that cached a resolved path keeps a complete
+# tree for at least a week); older ones are garbage-renamed then deleted.
+SKILLS_CURRENT="$AGENTS/.skills-current"
+GENERATIONS="$AGENTS/.skills-generations"
+SKILL_LOCK_LINK="$AGENTS/.skill-lock.json"
+GENERATION_META_NAME="generation.json"
+# GNU coreutils mv (has --exchange; BSD /bin/mv does not). Tests can override.
+GMV="${UPDATE_SKILLS_GMV:-gmv}"
 # Activity-based idle gate (Wave 3a fix3). The gate judges recent harness
 # ACTIVITY, not mere process existence, so the weekly run is UNATTENDED (on the
 # daily driver a `claude --remote-control` bridge is always up; deferring on its
@@ -221,6 +242,410 @@ __update_skills_alert() {
     "$relay_script" --agent update-skills --state exhausted --project skills --detail "$detail" || true
   fi
 }
+
+# ============================================================================
+# Generation-exchange machinery (Wave 3a fix4). See the SKILLS_CURRENT config
+# block above for the store model. These functions are dormant unless the main
+# flow calls them; they are unit-tested in isolation via UPDATE_SKILLS_LIB_ONLY.
+# ============================================================================
+
+# sha256 of a file (or the empty-input hash when absent), first field only.
+__gen_hash_file() {
+  local path="$1"
+  [[ -f $path ]] || {
+    printf '%s' "-"
+    return 0
+  }
+  shasum -a 256 "$path" 2>/dev/null | awk '{print $1}'
+}
+
+# The two hashes that define "the desired state" for a generation: the roster
+# lock (what skills the repo wants + how) and this updater script (how they are
+# built). A change in either must invalidate the weekly stamp and force a rebuild.
+__gen_custom_lock_hash() { __gen_hash_file "$CUSTOM_SKILL_LOCK"; }
+__gen_updater_hash() { __gen_hash_file "${BASH_SOURCE[0]}"; }
+
+# A sortable, collision-resistant generation id: epoch seconds + pid + random.
+# Sortable-by-time is what lets prune keep the newest previous and delete older.
+__gen_new_id() { printf '%s-%s-%s' "$(date +%s)" "$$" "${RANDOM}${RANDOM}"; }
+
+# Two paths are on the same filesystem (required for renameat2 RENAME_EXCHANGE).
+__gen_same_device() {
+  local a b
+  a="$(stat -f %d "$1" 2>/dev/null)" || return 1
+  b="$(stat -f %d "$2" 2>/dev/null)" || return 1
+  [[ -n $a && $a == "$b" ]]
+}
+
+# Write generation.json LAST, as the ready marker. Its presence + matching
+# hashes is what recovery uses to tell a complete candidate from a leftover.
+#   __gen_write_meta <generation-dir> <id>
+__gen_write_meta() {
+  local dir="$1" id="$2" meta="$1/$GENERATION_META_NAME"
+  jq -n \
+    --arg id "$id" \
+    --arg createdAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    --arg customLockHash "$(__gen_custom_lock_hash)" \
+    --arg updaterHash "$(__gen_updater_hash)" \
+    '{id: $id, createdAt: $createdAt, customLockHash: $customLockHash, updaterHash: $updaterHash}' \
+    >"$meta"
+}
+
+# Read one field from a generation.json (empty when absent/unreadable).
+#   __gen_meta_field <generation-dir> <field>
+__gen_meta_field() {
+  local meta="$1/$GENERATION_META_NAME"
+  [[ -f $meta ]] || return 0
+  jq -r --arg f "$2" '.[$f] // ""' "$meta" 2>/dev/null || true
+}
+
+# A generation dir is COMPLETE iff it has skills/, the npx lock, and a
+# generation.json carrying a non-empty id (the ready marker was fully written).
+__gen_is_complete() {
+  local dir="$1"
+  [[ -d "$dir/skills" ]] || return 1
+  [[ -f "$dir/.skill-lock.json" ]] || return 1
+  [[ -n "$(__gen_meta_field "$dir" id)" ]]
+}
+
+# A complete generation MATCHES the current desired state iff its recorded
+# hashes equal the live lock+updater hashes.
+__gen_meta_matches_desired() {
+  local dir="$1"
+  [[ "$(__gen_meta_field "$dir" customLockHash)" == "$(__gen_custom_lock_hash)" ]] || return 1
+  [[ "$(__gen_meta_field "$dir" updaterHash)" == "$(__gen_updater_hash)" ]]
+}
+
+# Destroy a path the crash-safe way: rename it to a clearly-garbage sibling name
+# FIRST (atomic), then rm -rf. A crash between the two leaves a *.garbage.*
+# name that recovery/prune resumes deleting; nothing a live link resolves into
+# ever carries a garbage name, so a half-deleted tree is never mistaken for live.
+__gen_garbage_destroy() {
+  local path="$1" garbage
+  [[ -e $path || -L $path ]] || return 0
+  garbage="${path%/}.garbage.$$.${RANDOM}"
+  if mv "$path" "$garbage" 2>/dev/null; then
+    rm -rf "$garbage" 2>/dev/null || true
+  else
+    rm -rf "$path" 2>/dev/null || true
+  fi
+}
+
+# Resume any interrupted deletion: sweep *.garbage.* leftovers under a parent.
+__gen_sweep_garbage() {
+  local parent="$1" entry
+  [[ -d $parent ]] || return 0
+  for entry in "$parent"/*.garbage.*; do
+    [[ -e $entry || -L $entry ]] || continue
+    rm -rf "$entry" 2>/dev/null || true
+  done
+}
+
+# Plant (or repair) the stable store link for one skill: ~/.agents/skills/<name>
+# -> ../.skills-current/skills/<name>. Idempotent; only ever writes an
+# updater-owned link, never clobbers a real dir it does not own.
+__gen_plant_store_link() {
+  local name="$1"
+  local link="$STORE/$name"
+  local want="../.skills-current/skills/$name"
+  mkdir -p "$STORE"
+  if [[ -L $link ]]; then
+    [[ "$(readlink "$link" 2>/dev/null || true)" == "$want" ]] && return 0
+    ln -sfn "$want" "$link"
+    return 0
+  fi
+  [[ -e $link ]] && return 1 # a real dir/file we do not own; caller decides
+  ln -s "$want" "$link"
+}
+
+# Plant (or repair) the ~/.agents/.skill-lock.json symlink into the live
+# generation's lock. Idempotent.
+__gen_plant_lock_link() {
+  local want=".skills-current/.skill-lock.json"
+  if [[ -L $SKILL_LOCK_LINK ]]; then
+    [[ "$(readlink "$SKILL_LOCK_LINK" 2>/dev/null || true)" == "$want" ]] && return 0
+  fi
+  ln -sfn "$want" "$SKILL_LOCK_LINK"
+}
+
+# PUBLISH: swap a fully-built candidate generation dir into place as the new
+# .skills-current with ONE atomic exchange, then retain the displaced previous
+# generation and prune older ones.
+#   __gen_publish <candidate-generation-dir>
+# Preconditions (all checked): candidate and .skills-current are both real dirs
+# on the same device, and the candidate is complete (ready marker present). On
+# success .skills-current holds the new generation and the previous generation
+# is retained under .skills-generations/<old-id>. Returns 0 on publish, 1 on any
+# precondition failure (caller records a required failure; live state untouched).
+__gen_publish() {
+  local candidate="$1" old_id
+  [[ -d $candidate && ! -L $candidate ]] || {
+    log "publish: candidate $candidate is not a real directory"
+    return 1
+  }
+  [[ -d $SKILLS_CURRENT && ! -L $SKILLS_CURRENT ]] || {
+    log "publish: $SKILLS_CURRENT is not a real directory"
+    return 1
+  }
+  __gen_is_complete "$candidate" || {
+    log "publish: candidate $candidate is not complete (no ready marker)"
+    return 1
+  }
+  __gen_same_device "$candidate" "$SKILLS_CURRENT" || {
+    log "publish: candidate and .skills-current are on different devices; exchange impossible"
+    return 1
+  }
+  old_id="$(__gen_meta_field "$SKILLS_CURRENT" id)"
+  [[ -n $old_id ]] || old_id="pre-$(__gen_new_id)" # a first-migrated current may predate meta
+  # THE atomic publish: renameat2 RENAME_EXCHANGE. After it, .skills-current is
+  # the new generation and $candidate holds the complete PREVIOUS generation.
+  if ! "$GMV" --exchange --no-copy -T "$candidate" "$SKILLS_CURRENT" 2>/dev/null; then
+    log "publish: gmv --exchange failed; live generation untouched"
+    return 1
+  fi
+  mkdir -p "$GENERATIONS"
+  # Retain the displaced previous generation under its id (garbage-destroy any
+  # name collision first so the rename lands cleanly).
+  local retained="$GENERATIONS/$old_id"
+  __gen_garbage_destroy "$retained"
+  mv "$candidate" "$retained" 2>/dev/null || __gen_garbage_destroy "$candidate"
+  __gen_prune_generations "$old_id"
+  return 0
+}
+
+# Keep EXACTLY the one just-retained previous generation; garbage-destroy every
+# other generation dir. Never touch a staging/home dir that may still be in use
+# by the caller (those live under .skills-generations/<id>/home during a build;
+# a retained generation is a bare <id> dir). The just-retained id is preserved.
+#   __gen_prune_generations <keep-id>
+__gen_prune_generations() {
+  local keep_id="$1" entry name
+  [[ -d $GENERATIONS ]] || return 0
+  __gen_sweep_garbage "$GENERATIONS"
+  for entry in "$GENERATIONS"/*; do
+    [[ -d $entry ]] || continue
+    name="${entry##*/}"
+    [[ $name == "$keep_id" ]] && continue
+    # A retained previous generation is a bare <id> dir with a generation.json;
+    # a build workspace is <id>/home/... . Only prune retained generations here.
+    [[ -f "$entry/$GENERATION_META_NAME" ]] || continue
+    __gen_garbage_destroy "$entry"
+  done
+}
+
+# The generation-owned skills: exactly the npx- and clawhub-tracked roster
+# names. These live inside .skills-current/skills/ and their store entries are
+# symlinks; vendored and app-owned skills stay real in the store, outside the
+# generation.
+__gen_tracked_names() {
+  [[ -f $CUSTOM_SKILL_LOCK ]] || return 0
+  jq -r '((.npxTracked // {}) + (.clawhubTracked // {})) | keys[]?' "$CUSTOM_SKILL_LOCK" 2>/dev/null
+}
+
+# True when a store entry is the correct migrated symlink for a tracked skill.
+__gen_store_link_correct() {
+  local name="$1"
+  local link="$STORE/$name"
+  [[ -L $link ]] || return 1
+  [[ "$(readlink "$link" 2>/dev/null || true)" == "../.skills-current/skills/$name" ]]
+}
+
+# ---------------------------------------------------------------------------
+# RECOVERY state table (brief step 1). Runs before the idle gate and stamp
+# logic. Self-heals what it can and records two things the main flow acts on:
+#   GEN_REABSORB[]      — tracked names whose store entry is a REAL DIR where a
+#                         link is expected (a competing writer, e.g. the
+#                         HyperFrames self-updater, or an interrupted migration):
+#                         re-absorb that content into this run's candidate.
+#   GEN_REUSE_CANDIDATE — a complete, unpublished candidate whose generation.json
+#                         matches the current desired state: the main flow may
+#                         publish it instead of rebuilding.
+# The self-healed cases: incomplete staging leftovers are garbage-destroyed;
+# published-generation link drift (stale .skill-lock.json link or store links)
+# is repaired; partial-prune garbage is swept; retained generations beyond the
+# newest one are pruned.
+# ---------------------------------------------------------------------------
+GEN_REABSORB=()
+GEN_REUSE_CANDIDATE=""
+__gen_recover() {
+  GEN_REABSORB=()
+  GEN_REUSE_CANDIDATE=""
+  __gen_sweep_garbage "$GENERATIONS"
+  __gen_sweep_garbage "$STORE"
+  local entry id newest_retained="" newest_epoch=-1 epoch cand_agents
+  if [[ -d $GENERATIONS ]]; then
+    for entry in "$GENERATIONS"/*; do
+      [[ -d $entry ]] || continue
+      id="${entry##*/}"
+      case "$id" in *.garbage.*) continue ;; esac
+      # A build workspace: .skills-generations/<id>/home/.agents .
+      if [[ -d "$entry/home" ]]; then
+        cand_agents="$entry/home/.agents"
+        if __gen_is_complete "$cand_agents" && __gen_meta_matches_desired "$cand_agents"; then
+          # A complete candidate matching desired state: reusable (keep the
+          # newest such by createdAt is overkill — one is enough to publish).
+          [[ -z $GEN_REUSE_CANDIDATE ]] && GEN_REUSE_CANDIDATE="$cand_agents"
+          continue
+        fi
+        log "recovery: deleting incomplete or stale staging $entry"
+        __gen_garbage_destroy "$entry"
+        continue
+      fi
+      # A retained previous generation: bare <id> dir with a generation.json.
+      if [[ -f "$entry/$GENERATION_META_NAME" ]] && __gen_is_complete "$entry"; then
+        epoch="${id%%-*}"
+        [[ $epoch =~ ^[0-9]+$ ]] || epoch=0
+        if [[ $epoch -gt $newest_epoch ]]; then
+          [[ -n $newest_retained ]] && __gen_garbage_destroy "$newest_retained"
+          newest_retained="$entry"
+          newest_epoch=$epoch
+        else
+          __gen_garbage_destroy "$entry"
+        fi
+        continue
+      fi
+      # Anything else in the generations dir is leftover garbage.
+      log "recovery: deleting leftover $entry"
+      __gen_garbage_destroy "$entry"
+    done
+  fi
+  # A published live generation: repair its stable links, and detect any tracked
+  # store entry that is a REAL DIR (competing writer) to re-absorb this run.
+  if __gen_is_complete "$SKILLS_CURRENT"; then
+    __gen_plant_lock_link || log "recovery: could not repair the .skill-lock.json link"
+    local name link
+    while IFS= read -r name; do
+      [[ -n $name ]] || continue
+      link="$STORE/$name"
+      if [[ -d $link && ! -L $link ]]; then
+        log "recovery: store/$name is a real dir where a link is expected (competing writer); recording for re-absorption"
+        GEN_REABSORB+=("$name")
+      elif [[ ! -e $link && ! -L $link ]]; then
+        # a tracked skill present in the generation but missing its store link
+        if [[ -d "$SKILLS_CURRENT/skills/$name" ]]; then __gen_plant_store_link "$name" || true; fi
+      elif [[ -L $link ]] && ! __gen_store_link_correct "$name"; then
+        __gen_plant_store_link "$name" || true
+      fi
+    done < <(__gen_tracked_names)
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# MIGRATION (brief "Migration"): first run on a machine with the old flat store
+# (~/.agents/skills/<name> real dirs, ~/.agents/.skill-lock.json a real file).
+# Build .skills-current from the existing tracked real dirs (clone), then per
+# tracked store entry atomically EXCHANGE the real dir with a prebuilt hidden
+# symlink so the store name never dangles and a crash leaves either
+# complete-legacy or complete-migrated per entry. Idempotent: an entry already
+# pointing at the generation is skipped. The .skill-lock.json symlink is planted
+# the same exchange way. Vendored and app-owned store entries are left untouched
+# (outside the generation). Returns 0 when migration ran or was already done.
+# ---------------------------------------------------------------------------
+__gen_migration_needed() {
+  # Needed when no live generation exists yet but a flat store does.
+  __gen_is_complete "$SKILLS_CURRENT" && return 1
+  [[ -d $STORE ]]
+}
+__gen_migrate() {
+  [[ -d $STORE ]] || return 0
+  local id name src link_stub
+  id="$(__gen_new_id)"
+  # 1) Build .skills-current as a real dir from the existing tracked real dirs.
+  if ! __gen_is_complete "$SKILLS_CURRENT"; then
+    local staging="$GENERATIONS/migrate-$id"
+    __gen_garbage_destroy "$staging"
+    mkdir -p "$staging/skills"
+    while IFS= read -r name; do
+      [[ -n $name ]] || continue
+      src="$STORE/$name"
+      # Only clone a real dir; a symlink here is already migrated/app-owned.
+      [[ -d $src && ! -L $src ]] || continue
+      cp -c -R "$src" "$staging/skills/$name" 2>/dev/null || cp -R "$src" "$staging/skills/$name"
+    done < <(__gen_tracked_names)
+    # Seed the npx lock from the flat one (or an empty object).
+    if [[ -f $SKILL_LOCK_LINK && ! -L $SKILL_LOCK_LINK ]]; then
+      cp -c "$SKILL_LOCK_LINK" "$staging/.skill-lock.json" 2>/dev/null || cp "$SKILL_LOCK_LINK" "$staging/.skill-lock.json"
+    else
+      printf '{}\n' >"$staging/.skill-lock.json"
+    fi
+    __gen_write_meta "$staging" "$id"
+    __gen_is_complete "$staging" || {
+      log "migration: built staging is not complete; aborting (flat store untouched)"
+      __gen_garbage_destroy "$staging"
+      return 1
+    }
+    # Promote staging to the live .skills-current. On a fresh machine .skills-current
+    # is absent, so a plain rename publishes it atomically.
+    if [[ ! -e $SKILLS_CURRENT ]]; then
+      mkdir -p "$GENERATIONS"
+      mv "$staging" "$SKILLS_CURRENT" || {
+        log "migration: could not promote staging to .skills-current"
+        __gen_garbage_destroy "$staging"
+        return 1
+      }
+    else
+      # .skills-current exists but is incomplete: exchange it in, garbage the old.
+      if __gen_same_device "$staging" "$SKILLS_CURRENT" &&
+        "$GMV" --exchange --no-copy -T "$staging" "$SKILLS_CURRENT" 2>/dev/null; then
+        __gen_garbage_destroy "$staging"
+      else
+        __gen_garbage_destroy "$staging"
+        log "migration: could not exchange staging into an incomplete .skills-current"
+        return 1
+      fi
+    fi
+  fi
+  # 2) Per tracked entry, atomically swap the flat real dir for a store symlink.
+  while IFS= read -r name; do
+    [[ -n $name ]] || continue
+    __gen_store_link_correct "$name" && continue # idempotent: already migrated
+    [[ -d "$SKILLS_CURRENT/skills/$name" ]] || continue
+    link="$STORE/$name"
+    if [[ -d $link && ! -L $link ]]; then
+      # legacy real dir: exchange it with a prebuilt hidden symlink
+      link_stub="$STORE/.$name.migrating.$$"
+      __gen_garbage_destroy "$link_stub"
+      ln -s "../.skills-current/skills/$name" "$link_stub"
+      if __gen_same_device "$link_stub" "$link" &&
+        "$GMV" --exchange --no-copy -T "$link_stub" "$link" 2>/dev/null; then
+        __gen_garbage_destroy "$link_stub" # now holds the displaced real dir (garbage)
+        log "migration: store/$name -> generation link (legacy dir absorbed)"
+      else
+        __gen_garbage_destroy "$link_stub"
+        log "migration: could not exchange store/$name; leaving the legacy dir"
+        record_required_failure "migration exchange for $name failed"
+      fi
+    elif [[ ! -e $link && ! -L $link ]]; then
+      __gen_plant_store_link "$name" || true # absent: just plant the link
+    fi
+  done < <(__gen_tracked_names)
+  # 3) Plant the .skill-lock.json symlink the same exchange way.
+  if [[ -f $SKILL_LOCK_LINK && ! -L $SKILL_LOCK_LINK ]]; then
+    link_stub="$AGENTS/.skill-lock.json.migrating.$$"
+    __gen_garbage_destroy "$link_stub"
+    ln -s ".skills-current/.skill-lock.json" "$link_stub"
+    if __gen_same_device "$link_stub" "$SKILL_LOCK_LINK" &&
+      "$GMV" --exchange --no-copy -T "$link_stub" "$SKILL_LOCK_LINK" 2>/dev/null; then
+      __gen_garbage_destroy "$link_stub"
+    else
+      __gen_garbage_destroy "$link_stub"
+      __gen_plant_lock_link || true
+    fi
+  else
+    __gen_plant_lock_link || true
+  fi
+  return 0
+}
+
+# Lib-only sourcing gate: a test that sets UPDATE_SKILLS_LIB_ONLY=1 and sources
+# this script gets the config + machinery functions above WITHOUT running the
+# main flow (the lanes, idle gate, and publish orchestration below never fire).
+# `return` only works in a sourced file; when the script is executed normally
+# the variable is unset, so this is a no-op.
+if [[ ${UPDATE_SKILLS_LIB_ONLY:-} == 1 ]]; then
+  # shellcheck disable=SC2317 # exit is reached when executed (return fails outside a sourced file)
+  return 0 2>/dev/null || exit 0
+fi
 
 # idle-gate discriminator (Wave 3a fix3, fail-closed). The gate judges recent
 # harness ACTIVITY, not mere process existence. Rationale: argv SHAPE cannot
