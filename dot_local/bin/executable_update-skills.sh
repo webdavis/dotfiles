@@ -284,20 +284,28 @@ __update_skills_harness_active() {
   return 1
 }
 
-# updater-owned link = a SYMLINK whose literal target points under
-# ~/.agents/skills. The literal readlink target is matched (not a resolved path),
-# so this holds for a DANGLING link too — its string still points into the store.
-# ONLY such links are ever replaced or removed by convergence; real dirs
-# (hub-owned registry dirs, hermes's catalog) and non-store symlinks are never
-# touched, and neither is any name in a profile the lock does not map.
+# updater-owned link = a SYMLINK whose literal target is EXACTLY this user's
+# store followed by a single skill basename: either the absolute "$STORE/<name>"
+# or the exact relative prefix the fan-out plants for the calling dir
+# ("$expected_prefix/<name>"). The literal readlink target is matched (not a
+# resolved path), so this still holds for a DANGLING link. Matching the exact
+# prefix (not a loose ".agents/skills/" substring) is the fix for the audit's
+# false positives: a foreign link like /tmp/x/.agents/skills/y or
+# /Users/other/.agents/skills/y is NOT owned and must survive. <name> is a
+# single path segment, so a target reaching deeper (".../skills/a/b") is not
+# owned either. ONLY owned links are ever replaced or removed by convergence.
+#   __update_skills_is_owned_link <path> <expected_prefix>
 __update_skills_is_owned_link() {
-  local path="$1" target
+  local path="$1" expected_prefix="$2" target name
   [[ -L $path ]] || return 1
   target="$(readlink "$path" 2>/dev/null || true)"
   case "$target" in
-    *.agents/skills/*) return 0 ;;
+    "$STORE"/*) name="${target#"$STORE"/}" ;;
+    "$expected_prefix"/*) name="${target#"$expected_prefix"/}" ;;
+    *) return 1 ;;
   esac
-  return 1
+  # a single valid skill basename: no slash, no leading dot, allowed chars only
+  [[ $name == "${name%%/*}" && $name =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]
 }
 
 # Converge one managed dir to a desired {name -> "$prefix/$name"} set:
@@ -337,7 +345,7 @@ converge_dir() {
       if [[ -L $path ]]; then
         current="$(readlink "$path" 2>/dev/null || true)"
         [[ $current == "$target" ]] && continue # already correct
-        if __update_skills_is_owned_link "$path"; then
+        if __update_skills_is_owned_link "$path" "$prefix"; then
           if [[ -n $additive ]]; then
             log "converge: WARN $path points to $current, not $target; --install-only is additive and leaves it (a full run repairs)"
           elif [[ -n $dry ]]; then
@@ -379,7 +387,7 @@ converge_dir() {
       done
     fi
     [[ -n $is_desired ]] && continue
-    if __update_skills_is_owned_link "$path"; then
+    if __update_skills_is_owned_link "$path" "$prefix"; then
       old_target="$(readlink "$path" 2>/dev/null || true)"
       if [[ -n $dry ]]; then
         log "converge: would remove stale $path (currently $old_target)"
@@ -417,8 +425,12 @@ converge_claude_skills() {
 # deliberate "not available in hermes from the store" state, not an error.
 # Collision-named skills (humanizer, hyperframes) never fan out: hermes's catalog
 # wins those names (operator ruling), so a stale store link at such a name IS
-# removed by convergence, but creating one never happens. Only the profiles the
-# lock names are walked — a profile the lock does not map is never touched.
+# removed by convergence, but creating one never happens. The walk universe is
+# every profile the lock maps PLUS every profile with an EXISTING hermes skills
+# dir on disk, so a profile whose last mapped skill was de-mapped is still walked
+# and its stale updater-owned links get reaped (they would otherwise linger
+# forever). Only owned links are ever removed, so a foreign file in the same dir
+# survives.
 HERMES_COLLISION_NAMES=(humanizer hyperframes)
 is_hermes_collision_name() {
   local collision_entry
@@ -427,14 +439,29 @@ is_hermes_collision_name() {
   done
   return 1
 }
+# The profile walk universe: names the lock maps, plus "default" and every
+# specialist whose skills dir already exists on disk.
+__update_skills_hermes_profile_universe() {
+  jq -r '.hermesProfiles // {} | [.[][]?] | unique | .[]' "$CUSTOM_SKILL_LOCK" 2>/dev/null
+  [[ -d $HERMES ]] && printf 'default\n'
+  local profile_skills_dir profile_name
+  if [[ -d $HERMES_PROFILES ]]; then
+    for profile_skills_dir in "$HERMES_PROFILES"/*/skills; do
+      [[ -d $profile_skills_dir ]] || continue
+      profile_name="${profile_skills_dir%/skills}"
+      printf '%s\n' "${profile_name##*/}"
+    done
+  fi
+}
 converge_hermes_skills() {
   [[ -f $CUSTOM_SKILL_LOCK ]] || return 0
   local profile link_dir prefix skill
   local -a profiles=() desired=()
+  # No early return: an empty universe simply walks nothing. A de-mapped profile
+  # is reached via its on-disk dir even though the lock no longer names it.
   while IFS= read -r profile; do
     [[ -n $profile ]] && profiles+=("$profile")
-  done < <(jq -r '.hermesProfiles // {} | [.[][]?] | unique | .[]' "$CUSTOM_SKILL_LOCK" 2>/dev/null)
-  [[ ${#profiles[@]} -gt 0 ]] || return 0
+  done < <(__update_skills_hermes_profile_universe | sort -u)
   for profile in "${profiles[@]}"; do
     if [[ $profile == "default" ]]; then
       link_dir="$HERMES"
