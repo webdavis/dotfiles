@@ -67,4 +67,56 @@ resettled="$(render)" || fail "render failed (marker cleared)"
 [[ $settled == "$resettled" ]] ||
   fail "clearing the marker did not return the render to its settled form (the trigger would never settle)"
 
-printf 'PASS: the retry marker re-fires the run_onchange trigger — each attempt count renders distinctly and clearing settles it\n'
+# --- render-interpolation sanitization (digits only, never raw bytes) -------
+# A hostile multiline marker must not splice raw bytes into the script:
+# '1\nfalse\n' would render a live `false` line that runs at apply time and,
+# under set -e, aborts the whole apply. Only the leading digit run may reach
+# the render: the hostile marker must render byte-identically to a plain '1'.
+printf '1\n' >"$marker"
+plain1="$(render)" || fail "render failed (marker=1, re-render)"
+printf '1\nfalse\n' >"$marker"
+hostile="$(render)" || fail "render failed (hostile multiline marker)"
+[[ $hostile == "$plain1" ]] ||
+  fail "a hostile multiline marker ('1\\nfalse\\n') changed the render beyond the digit run; raw marker bytes are being spliced into the script (live-shell injection at apply time)"
+bash -n <<<"$hostile" || fail "hostile-marker render does not parse"
+
+# An empty marker must render safely (and parse).
+: >"$marker"
+empty_render="$(render)" || fail "render failed (empty marker)"
+bash -n <<<"$empty_render" || fail "empty-marker render does not parse"
+
+# A garbage (non-numeric) marker: no marker bytes reach the render, and it
+# still parses. (The run-time reset of a garbage COUNT is covered in
+# herdr-build-scripts-resilience.sh.)
+printf 'garbage\n' >"$marker"
+garbage_render="$(render)" || fail "render failed (garbage marker)"
+bash -n <<<"$garbage_render" || fail "garbage-marker render does not parse"
+grep -q 'garbage' <<<"$garbage_render" &&
+  fail "garbage marker bytes were spliced into the render"
+
+# --- two consecutive failures progress the marker against the SAME home -----
+# Run the RENDERED script twice with no cargo in the scratch home: each
+# retryable non-success must bump the marker (1 then 2) and each bump must
+# produce a distinct render. This kills both the constant-counter mutant and
+# the delete-the-count-read mutant (either would stall the retry loop after
+# the first failure).
+rm -f "$marker"
+run_rendered() {
+  local script="$render_home/rendered-run.sh"
+  render >"$script" || fail "render failed (for execution)"
+  HOME="$render_home" bash "$script" >/dev/null 2>&1 ||
+    fail "rendered script failed on the missing-cargo path (must exit 0, never abort the apply)"
+}
+run_rendered
+[[ -f $marker ]] || fail "first missing-cargo run did not write the retry marker"
+[[ "$(cat "$marker")" == "1" ]] ||
+  fail "first missing-cargo run wrote marker '$(cat "$marker")', expected 1"
+render_at_1="$(render)" || fail "render failed (marker=1 after run)"
+run_rendered
+[[ "$(cat "$marker")" == "2" ]] ||
+  fail "second missing-cargo run wrote marker '$(cat "$marker")', expected 2 (the counter must be monotonic, not constant)"
+render_at_2="$(render)" || fail "render failed (marker=2 after run)"
+[[ $render_at_1 != "$render_at_2" ]] ||
+  fail "consecutive failures produced identical renders; the second retry would never re-fire"
+
+printf 'PASS: the retry marker re-fires the run_onchange trigger, interpolates digits only (hostile/empty/garbage markers render safely), and consecutive failures against one home progress the marker 1 -> 2 with distinct renders\n'

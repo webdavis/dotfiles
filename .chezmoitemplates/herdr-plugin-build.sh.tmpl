@@ -22,9 +22,16 @@ its own failure envelope. Each caller keeps only its plugin-specific pre/postamb
 # never retry. Those cases bump the marker below (this partial's run-time half);
 # because the marker's contents are interpolated HERE, bumping it changes this
 # rendered script and chezmoi re-runs it on the next apply. Success clears the
-# marker so the trigger settles. (A hard build failure is different — it exits
+# marker so the trigger settles. (A hard build failure is different: it exits
 # non-zero, which chezmoi does not record, so it retries on its own.)
-#   retry-attempts: {{ $rm := printf "%s/.cache/herdr-plugin-build/%s.retry" (env "HOME") .id }}{{ if stat $rm }}{{ output "cat" $rm }}{{ else }}0{{ end }}
+#
+# The interpolation is sanitized to the marker's LEADING DIGIT RUN only
+# (regexFind "^[0-9]+"): splicing raw file bytes into a rendered script is a
+# live-shell-injection channel (a marker of '1\nfalse\n' would render `false`
+# as a real command that runs at apply time). A non-numeric or empty marker
+# renders as nothing here (still a safe comment) and is normalized at run
+# time by bump_retry_marker below.
+#   retry-attempts: {{ $rm := printf "%s/.cache/herdr-plugin-build/%s.retry" (env "HOME") .id }}{{ if stat $rm }}{{ (output "cat" $rm) | regexFind "^[0-9]+" }}{{ else }}0{{ end }}
 
 plugin_dir="$HOME/.local/share/herdr/plugins/{{ .id }}"
 plugin_id="{{ .id }}"

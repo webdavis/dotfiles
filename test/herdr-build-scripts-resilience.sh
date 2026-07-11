@@ -156,7 +156,9 @@ STUB
 # run_case <name> <herdr-mode> <cargo-mode> [build-mode] [pre-mark]
 #   cargo-mode: home | pathonly | both | none
 #   build-mode: ok | fail   (only meaningful when cargo is present)
-#   pre-mark:   yes -> pre-create the retry marker (to prove success clears it)
+#   pre-mark:   yes     -> pre-create the retry marker (proves success clears it)
+#               garbage -> pre-create it with a NON-numeric count (proves the
+#                          run-time normalization resets it before the bump)
 # Populates: RC, ERR, CASE_HOME, CARGO_RECORD, PATH_CARGO_RECORD, SEED_RECORD,
 #            LINK_RECORD, MARKER
 run_case() {
@@ -183,10 +185,22 @@ exit 0
 STUB
   chmod +x "$plugin_dir/target/release/last-workspace"
 
-  if [[ $pre_mark == yes ]]; then
-    mkdir -p "$(dirname "$MARKER")"
-    printf '2\n' >"$MARKER"
-  fi
+  case "$pre_mark" in
+    yes)
+      mkdir -p "$(dirname "$MARKER")"
+      printf '2\n' >"$MARKER"
+      ;;
+    garbage)
+      # 12abc is deliberately arithmetic-hostile: without the run-time
+      # normalization, $((12abc + 1)) is a syntax error that aborts the
+      # rendered script under set -e (a bare identifier like 'garbage' would
+      # evaluate to 0 and mask the missing guard).
+      mkdir -p "$(dirname "$MARKER")"
+      printf '12abc\n' >"$MARKER"
+      ;;
+    no) ;;
+    *) fail "unknown pre-mark mode: $pre_mark" ;;
+  esac
 
   local case_path
   case "$cargo_mode" in
@@ -232,6 +246,15 @@ marker_present || fail "R1 pathonly: retry marker not written for a PATH-only (i
 [[ ! -e $PATH_CARGO_RECORD ]] || fail "R1 pathonly: a PATH cargo was invoked ($(cat "$PATH_CARGO_RECORD"))"
 [[ ! -e $SEED_RECORD ]] || fail "R1 pathonly: seed ran despite the build being skipped"
 
+# --- R1: a GARBAGE marker count is reset at run time (normalization guard) ----
+# The bump normalizes a non-numeric stored count to 0 before incrementing, so
+# a corrupted marker yields a clean count of 1, not a shell arithmetic error.
+run_case r1-garbage-marker down none ok garbage
+[[ $RC -eq 0 ]] || fail "R1 garbage-marker: expected exit 0, got $RC ($ERR)"
+marker_present || fail "R1 garbage-marker: retry marker missing after the bump"
+[[ "$(cat "$MARKER")" == "1" ]] ||
+  fail "R1 garbage-marker: a garbage count was not reset before the bump (got '$(cat "$MARKER")', expected 1)"
+
 # --- R2: build ok but herdr server down -> registration UNVERIFIED (retryable) -
 run_case r2-down down home
 [[ $RC -eq 0 ]] || fail "R2 down: expected exit 0, got $RC ($ERR)"
@@ -266,6 +289,13 @@ run_case f2-both linkok both
 [[ $RC -eq 0 ]] || fail "F2 both: expected exit 0, got $RC ($ERR)"
 [[ -s $CARGO_RECORD ]] || fail "F2 both: ~/.cargo/bin/cargo was not invoked"
 grep -q 'build' "$CARGO_RECORD" || fail "F2 both: absolute cargo not invoked to build ($(cat "$CARGO_RECORD"))"
+# The exact build argv matters: --release places the binary where the seed and
+# the plugin manifest expect it, and --locked keeps the vendored Cargo.lock
+# authoritative so the lockfile cannot drift on apply.
+grep -qw -- '--release' "$CARGO_RECORD" ||
+  fail "F2 both: cargo argv lacks --release ($(cat "$CARGO_RECORD"))"
+grep -qw -- '--locked' "$CARGO_RECORD" ||
+  fail "F2 both: cargo argv lacks --locked ($(cat "$CARGO_RECORD"))"
 [[ ! -e $PATH_CARGO_RECORD ]] || fail "F2 both: the PATH cargo was invoked instead ($(cat "$PATH_CARGO_RECORD"))"
 
 printf 'PASS: after_55 separates build from registration, treats missing cargo and unverified registration as retryable (marker present, exit 0), clears the marker on a verified exact-id registration, and fails loudly on a real build error\n'
