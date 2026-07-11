@@ -572,6 +572,18 @@ __gen_tracked_names() {
   jq -r '((.npxTracked // {}) + (.clawhubTracked // {})) | keys[]?' "$CUSTOM_SKILL_LOCK" 2>/dev/null
 }
 
+# True when <name> is a currently-tracked generation skill (npx or clawhub).
+# The tracked set is the roster's authority on what the generation should hold;
+# a name that has been DELISTED from the lock is no longer tracked and must not
+# be carried forward into a new candidate or left live in the store.
+__gen_name_is_tracked() {
+  local query="$1" tracked_name
+  while IFS= read -r tracked_name; do
+    [[ $tracked_name == "$query" ]] && return 0
+  done < <(__gen_tracked_names)
+  return 1
+}
+
 # True when a store entry is the correct migrated symlink for a tracked skill.
 __gen_store_link_correct() {
   local name="$1"
@@ -792,12 +804,19 @@ __gen_build_candidate() {
   local agents="$home/.agents"
   __gen_garbage_destroy "$GENERATIONS/$id"
   mkdir -p "$agents/skills" || return 1
-  # Clone the current generation's skills (real dirs) into the candidate.
+  # Clone the current generation's skills (real dirs) into the candidate, but
+  # only names still TRACKED by the roster. A skill DELISTED from the lock (e.g.
+  # a revoked or compromised one) is NOT carried forward, so it leaves the
+  # generation on publish and its store link and fan-out links are dropped.
   if [[ -d "$SKILLS_CURRENT/skills" ]]; then
     local skill_path name
     for skill_path in "$SKILLS_CURRENT/skills"/*; do
       [[ -d $skill_path ]] || continue
       name="${skill_path##*/}"
+      __gen_name_is_tracked "$name" || {
+        log "candidate: skill $name is no longer tracked; not carrying it forward (delisted)"
+        continue
+      }
       cp -c -R "$skill_path" "$agents/skills/$name" 2>/dev/null ||
         cp -R "$skill_path" "$agents/skills/$name" || return 1
     done
@@ -1151,6 +1170,32 @@ __gen_reconcile_store_links() {
   done < <(__gen_tracked_names)
 }
 
+# Post-publish (full runs only): remove obsolete UPDATER-OWNED generation store
+# links whose skill is no longer tracked. After a delisted skill leaves the
+# published generation (not carried forward by the candidate build), its store
+# symlink at $STORE/<name> -> ../.skills-current/skills/<name> dangles; removing
+# it drops the skill from Claude/hermes fan-out convergence, which derives its
+# desired set from the store. Only an updater-owned generation link (recognized
+# by __gen_store_link_correct's exact target form) for a NON-tracked name is
+# removed: a foreign real dir, a vendored real dir, cua-driver's app-owned
+# symlink, and any non-updater symlink all fail that predicate and survive, and
+# a still-tracked name is always kept. Never deletes through a foreign symlink.
+__gen_prune_delisted_store_links() {
+  [[ -d $STORE ]] || return 0
+  local link name
+  for link in "$STORE"/*; do
+    [[ -L $link ]] || continue # real dirs (foreign/vendored) are outside the generation
+    name="${link##*/}"
+    __gen_store_link_correct "$name" || continue # foreign/app-owned symlink: never through it
+    __gen_name_is_tracked "$name" && continue    # still tracked: keep
+    if rm -f "$link"; then
+      log "prune: removed delisted store link $name (no longer tracked; dropped from fan-out)"
+    else
+      record_required_failure "delisted store link $name could not be removed"
+    fi
+  done
+}
+
 # Live-pass Codex overlay handling (brief step 3, overlays): tier overlays are
 # ASSERTED in the candidate only; the live pass VERIFIES them through the store
 # links and records a required failure when one is missing; it never writes
@@ -1307,6 +1352,7 @@ __gen_weekly_attempt() {
     if __gen_publish "$candidate_agents"; then
       __gen_garbage_destroy "$id_dir"
       __gen_reconcile_store_links
+      __gen_prune_delisted_store_links
       __gen_plant_lock_link || record_required_failure "lock link could not be planted after publish"
       return 0
     fi
@@ -1348,6 +1394,7 @@ __gen_weekly_attempt() {
   fi
   __gen_garbage_destroy "$GENERATIONS/$id" # the emptied build workspace shell
   __gen_reconcile_store_links
+  __gen_prune_delisted_store_links
   __gen_plant_lock_link || record_required_failure "lock link could not be planted after publish"
   return 0
 }
