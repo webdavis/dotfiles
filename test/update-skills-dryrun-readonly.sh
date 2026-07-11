@@ -48,49 +48,66 @@ after="$(snapshot "$HOME1")"
 $before
 --- after ---
 $after"
-[[ ! -d "$HOME1/.agents/.update-skills.lock.d" ]] ||
-  fail "--dry-run created a lock dir on a fresh home (false contention path)"
+[[ ! -e "$HOME1/.agents/.update-skills.lock" ]] ||
+  fail "--dry-run created a lock file on a fresh home (false contention path)"
 grep -qiE 'another run in progress' <<<"$out" &&
   fail "--dry-run on a fresh home reported false contention: $out"
 grep -qi 'would run' <<<"$out" || fail "--dry-run did not preview 'would run': $out"
 
-# ── 2) existing DEAD lock → dry-run must not delete it, previews would-run ────
+# ── 2) leftover lock FILE, nobody holding it → previews would-run, no delete ──
+# (Kernel-lock model: the lock file persists on disk by design; only a live
+# open fd means "held". A leftover file from a finished/crashed run previews as
+# would-run and is never deleted or truncated by the dry run.)
 HOME2="$tmp/home2"
 export HOME="$HOME2"
 mkdir -p "$HOME2/.agents/skills"
-LOCKDIR2="$HOME2/.agents/.update-skills.lock.d"
-mkdir -p "$LOCKDIR2"
-printf '%s\t%s' "999999" "Sat Jan  1 00:00:00 2000" >"$LOCKDIR2/owner" # dead owner
+LOCKFILE2="$HOME2/.agents/.update-skills.lock"
+printf 'leftover-bytes' >"$LOCKFILE2" # a crashed run's leftover; nobody holds it
 before="$(snapshot "$HOME2")"
 out="$(UPDATE_SKILLS_FORCE=1 bash "$SCRIPT" --dry-run 2>&1)" ||
-  fail "--dry-run with a dead lock exited non-zero: $out"
+  fail "--dry-run with an unheld lock file exited non-zero: $out"
 after="$(snapshot "$HOME2")"
-[[ $before == "$after" ]] || fail "--dry-run mutated lock state around a dead lock:
+[[ $before == "$after" ]] || fail "--dry-run mutated lock state around an unheld lock file:
 --- before ---
 $before
 --- after ---
 $after"
-[[ -d $LOCKDIR2 && -f "$LOCKDIR2/owner" ]] ||
-  fail "--dry-run deleted a dead lock (must never mutate lock state)"
-grep -qi 'would run' <<<"$out" || fail "--dry-run did not preview 'would run' past a dead lock: $out"
+[[ -f $LOCKFILE2 && "$(cat "$LOCKFILE2")" == "leftover-bytes" ]] ||
+  fail "--dry-run deleted or truncated the lock file (must never mutate lock state)"
+grep -qi 'would run' <<<"$out" || fail "--dry-run did not preview 'would run' past an unheld lock file: $out"
 
-# ── 3) existing LIVE lock → dry-run previews would-defer, changes nothing ─────
+# ── 3) lock HELD by a live process → previews would-defer, changes nothing ────
+# A real holder process acquires the kernel lock the way the updater does (fd 9
+# + /usr/bin/lockf) and parks until released.
 HOME3="$tmp/home3"
 export HOME="$HOME3"
 mkdir -p "$HOME3/.agents/skills"
-LOCKDIR3="$HOME3/.agents/.update-skills.lock.d"
-mkdir -p "$LOCKDIR3"
-sleep 60 &
-live_pid=$!
-printf '%s\t%s' "$live_pid" "$(ps -o lstart= -p "$live_pid" 2>/dev/null | tr -s ' ' | sed 's/^ *//;s/ *$//')" >"$LOCKDIR3/owner"
-before="$(snapshot "$HOME3")"
-out="$(UPDATE_SKILLS_FORCE=1 bash "$SCRIPT" --dry-run 2>&1)" ||
-  fail "--dry-run with a live lock exited non-zero: $out"
-after="$(snapshot "$HOME3")"
-[[ $before == "$after" ]] || fail "--dry-run mutated state around a live lock"
-grep -qi 'would defer' <<<"$out" || fail "--dry-run did not preview 'would defer' under a live lock: $out"
-kill "$live_pid" 2>/dev/null || true
-wait "$live_pid" 2>/dev/null || true
+LOCKFILE3="$HOME3/.agents/.update-skills.lock"
+if [[ -x /usr/bin/lockf ]]; then
+  held3="$tmp/held3"
+  release3="$tmp/release3"
+  rm -f "$held3" "$release3"
+  (
+    exec 9>"$LOCKFILE3"
+    /usr/bin/lockf -s -t 0 9 || exit 1
+    : >"$held3"
+    while [[ ! -e $release3 ]]; do sleep 0.02; done
+  ) &
+  holder_pid=$!
+  for _ in $(seq 1 200); do
+    [[ -e $held3 ]] && break
+    sleep 0.02
+  done
+  [[ -e $held3 ]] || fail "the test's lock holder never acquired the lock"
+  before="$(snapshot "$HOME3")"
+  out="$(UPDATE_SKILLS_FORCE=1 bash "$SCRIPT" --dry-run 2>&1)" ||
+    fail "--dry-run with a held lock exited non-zero: $out"
+  after="$(snapshot "$HOME3")"
+  [[ $before == "$after" ]] || fail "--dry-run mutated state around a held lock"
+  grep -qi 'would defer' <<<"$out" || fail "--dry-run did not preview 'would defer' under a held lock: $out"
+  : >"$release3"
+  wait "$holder_pid" 2>/dev/null || true
+fi
 
 # ── 4) read-only home → dry-run writes nothing, exits 0. The roster is
 #      NON-EMPTY here (an absent npx skill and an absent clawhub skill a full

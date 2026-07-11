@@ -121,7 +121,7 @@ CUSTOM_SKILL_LOCK="${UPDATE_SKILLS_LOCK_PATH:-$AGENTS/custom-skill-lock.json}"
 CLAUDE="$HOME/.claude/skills"
 HERMES="$HOME/.hermes/skills"            # the default profile (Bob)
 HERMES_PROFILES="$HOME/.hermes/profiles" # specialist profiles: <name>/skills
-LOCKDIR="$AGENTS/.update-skills.lock.d"
+LOCKFILE="$AGENTS/.update-skills.lock"
 STATE_DIR="$HOME/.local/state/update-skills"
 SUCCESS_STAMP="$STATE_DIR/last-success"               # ISO year-week (%G-%V) of the last fully successful weekly run
 SCHEDULED_WEEK_STAMP="$STATE_DIR/last-scheduled-week" # ISO week of the last SCHEDULED attempt (item 6)
@@ -1487,92 +1487,37 @@ __gen_install_only_attempt() {
   return 0
 }
 
-# serialize: one run at a time. macOS ships no dependable rename-onto-existing
-# primitive from the shell (`mv` onto an existing dir moves INTO it, and macOS
-# ships neither flock(1) nor a lockf(1) we depend on), so acquisition builds a
-# STAGING lock dir with the owner token already inside it and publishes it via a
-# rename that is a single-winner move onto the FINAL path: if the final lockdir
-# is absent the staging dir renames onto it atomically (we win, token already
-# inside); if the final lockdir already exists `mv` drops our staging INSIDE it,
-# which we detect and clean up (we lost). This closes three defects the audit
-# found: (a) two contenders cannot both validate one dead token and both proceed
-# (reclaim is a single-winner move-aside); (b) a kill -0 success followed by a
-# failed/empty ps is NOT declared dead (only a successful ps proving absence or a
-# different start time is); (c) there is never a window where the lockdir exists
-# without its owner token, so an ownerless lock can only be a legacy/corrupt one
-# and is reclaimable, never a permanent wedge. We never steal by age. These
-# helpers are defined above the lib-only gate so the ownership regression can
-# drive __update_skills_publish_lock directly.
-LOCK_OWNER_FILE="$LOCKDIR/owner"
-__update_skills_proc_start() {
-  # normalized process start time for pid $1 (empty when the pid is gone)
-  ps -o lstart= -p "$1" 2>/dev/null | tr -s ' ' | sed 's/^ *//;s/ *$//'
-}
-__update_skills_owner_token() { printf '%s\t%s' "$$" "$(__update_skills_proc_start "$$")"; }
-__update_skills_owner_alive() {
-  # $1 = recorded "PID<TAB>START". PROVABLY dead requires positive confirmation;
-  # anything we cannot prove dead is treated as ALIVE so a contender never steals
-  # from a possibly-live run.
-  local rec="$1" rec_pid rec_start raw cur_start listing pid_line
-  rec_pid="${rec%%$'\t'*}"
-  rec_start="${rec#*$'\t'}"
-  [[ $rec_pid =~ ^[0-9]+$ ]] || return 0                  # unparseable owner: do not steal
-  [[ -n $rec_start && $rec_start != "$rec" ]] || return 0 # missing start field: do not steal
-  if kill -0 "$rec_pid" 2>/dev/null; then
-    # The pid exists. Only a SUCCESSFUL ps that returns a DIFFERENT start time
-    # proves a recycle (original dead). A failed OR empty lstart lookup cannot
-    # prove death, so we treat it as alive (fixes defect b).
-    raw="$(ps -o lstart= -p "$rec_pid" 2>/dev/null)" || return 0
-    cur_start="$(printf '%s' "$raw" | tr -s ' ' | sed 's/^ *//;s/ *$//')"
-    [[ -n $cur_start ]] || return 0
-    [[ $cur_start == "$rec_start" ]] # same start => alive (0); differs => recycled => dead (1)
-    return
-  fi
-  # kill -0 failed (possibly dead, or EPERM for a foreign owner). Confirm with a
-  # full listing that exits 0 whether or not the pid is present; if ps ITSELF
-  # errors we cannot prove death, so treat as alive (fail safe).
-  listing="$(ps -ax -o pid= 2>/dev/null)" || return 0
-  while IFS= read -r pid_line; do
-    pid_line="${pid_line//[[:space:]]/}"
-    [[ $pid_line == "$rec_pid" ]] && return 0 # present after all: alive
-  done <<<"$listing"
-  return 1 # kill -0 failed AND ps ran and the pid is absent: provably dead
-}
-# Publish a fully-populated STAGING lock dir onto the final path. Return 0 iff we
-# won (LOCKDIR is now our staging, owner token inside); 1 if the lock was held
-# (mv dropped our staging inside it, or renaming onto a non-empty dir failed).
-__update_skills_publish_lock() {
-  local staging="$1" base owner_readback
-  base="${staging##*/}"
-  if mv "$staging" "$LOCKDIR" 2>/dev/null; then
-    if [[ -d "$LOCKDIR/$base" ]]; then
-      rm -rf "${LOCKDIR:?}/${base:?}" # our staging was moved INSIDE a held lock: we lost
-      return 1
-    fi
-    # An absent nested staging is NOT sufficient proof of ownership. In a
-    # three-writer interleave our staging can be moved inside a held lock, that
-    # lock deleted by its owner on exit, and the FINAL path re-acquired by a
-    # third writer before we look — leaving no nested staging yet the lock owned
-    # by the third writer. So read the owner token back and require it to equal
-    # ours; a mismatch (or an unreadable owner) is a FAILED acquisition and the
-    # caller defers, never a false success that grants two owners.
-    owner_readback="$(cat "$LOCK_OWNER_FILE" 2>/dev/null || true)"
-    [[ $owner_readback == "$LOCK_MY_TOKEN" ]] && return 0
-    return 1
-  fi
-  rm -rf "$staging"
-  return 1
-}
-# Move a stale lockdir aside to a unique name; the rename onto an absent target
-# is a single-winner move, so exactly one reclaimer succeeds and then retries
-# acquisition. The moved-aside dir is discarded.
-__update_skills_reclaim_dead_lock() {
-  local aside="${LOCKDIR}.dead.$$.${RANDOM}"
-  if mv "$LOCKDIR" "$aside" 2>/dev/null; then
-    rm -rf "$aside"
+# serialize: one run at a time, via the KERNEL. macOS ships /usr/bin/lockf
+# (lockf(1), flock(2)-backed): acquisition opens $LOCKFILE on fd 9 and
+# test-acquires with `lockf -s -t 0 9` (the man page's fd synopsis; -t 0 =
+# non-blocking, exit 75 = EX_TEMPFAIL when another process holds it). The kernel
+# grants the lock to exactly one process and releases it automatically when
+# every copy of the fd closes (normal exit, crash, or kill alike), so the
+# stale-lock/two-owner class the previous hand-rolled mkdir-owner-token lock
+# kept re-admitting is structurally gone: no owner token, no liveness probing,
+# no dead-owner reclaim, no EXIT-trap cleanup. The lock FILE persists on disk
+# by design (the fd form implies lockf's -k keep semantics, which the man page
+# recommends for lock ordering); its existence does NOT mean the lock is held,
+# only a live open fd does. The absolute /usr/bin/lockf path is used because
+# the Nix devshell's PATH does not carry macOS's /usr/bin tools. Defined above
+# the lib-only gate so the concurrency regression can drive
+# __update_skills_acquire_lock directly from real subshells.
+__update_skills_acquire_lock() {
+  # Non-darwin (no /usr/bin/lockf): proceed unlocked, loudly. The weekly
+  # LaunchAgent that creates concurrent scheduled runs is darwin-only, so on
+  # Linux only deliberate manual runs exist and serialization is the operator's
+  # responsibility; wedging every Linux run on a missing macOS tool would be
+  # worse than the notice.
+  if [[ ! -x /usr/bin/lockf ]]; then
+    log "no /usr/bin/lockf on this host; proceeding without the serialize lock (the scheduled runs that contend are darwin-only)"
     return 0
   fi
-  return 1
+  mkdir -p "$AGENTS" 2>/dev/null || return 1
+  # Hold fd 9 for the remainder of this process's lifetime; the kernel releases
+  # the lock when the process exits. A failed open (unwritable .agents) is a
+  # failed acquisition: the caller defers, never proceeds unlocked on darwin.
+  exec 9>>"$LOCKFILE" || return 1
+  /usr/bin/lockf -s -t 0 9
 }
 
 # Lib-only sourcing gate: a test that sets UPDATE_SKILLS_LIB_ONLY=1 and sources
@@ -2194,54 +2139,32 @@ refresh_app_owned_cua_pack() {
 # A dry run makes no filesystem writes, so it does not pre-create these dirs.
 [[ $DRYRUN == "--dry-run" ]] || mkdir -p "$STORE" "$CLAUDE" "$HERMES"
 
-LOCK_MY_TOKEN="$(__update_skills_owner_token)"
-__update_skills_acquire_lock() {
-  local staging owner
-  for _ in 1 2 3 4 5; do
-    staging="$(mktemp -d "${LOCKDIR}.stage.XXXXXX")" || return 1
-    printf '%s' "$LOCK_MY_TOKEN" >"$staging/owner"
-    __update_skills_publish_lock "$staging" && return 0
-    # The lock is held. Reclaim only from a dead or ownerless (legacy/corrupt)
-    # owner; a live owner means another run is genuinely in progress.
-    owner="$(cat "$LOCK_OWNER_FILE" 2>/dev/null || true)"
-    if [[ -z $owner ]] || ! __update_skills_owner_alive "$owner"; then
-      log "reclaiming the lock from a dead or ownerless owner (${owner:-<none>})"
-      __update_skills_reclaim_dead_lock || true # lost the move-aside: just retry
-      continue
-    fi
-    return 1 # held by a live owner
-  done
-  return 1
-}
 if [[ $DRYRUN == "--dry-run" ]]; then
-  # A dry run is a READ-ONLY contention check (item 5): it never creates,
-  # deletes, or reclaims lock state, and it tolerates an absent .agents parent.
-  # It only reports whether a live lock would make the real run defer.
-  if [[ -d $LOCKDIR ]]; then
-    dry_lock_owner="$(cat "$LOCK_OWNER_FILE" 2>/dev/null || true)"
-    if [[ -n $dry_lock_owner ]] && __update_skills_owner_alive "$dry_lock_owner"; then
-      log "would defer: a live run holds the lock ($dry_lock_owner)"
-    else
-      log "would run: the existing lock has no live owner (stale or ownerless)"
-    fi
-  else
+  # A dry run is a READ-ONLY contention check (item 5): it never creates or
+  # deletes lock state and tolerates an absent .agents parent. The probe runs
+  # in a SUBSHELL: it opens the existing lock file read-only (no create, no
+  # truncate) and test-acquires; the subshell's exit closes the fd, so a
+  # momentary success is released instantly and nothing on disk changes. An
+  # unreadable lock file cannot be probed and previews as would-defer
+  # (fail-closed), matching the real run's failed-open deferral.
+  if [[ ! -e $LOCKFILE ]]; then
     log "would run: no lock is held"
+  elif [[ ! -x /usr/bin/lockf ]]; then
+    log "would run: no /usr/bin/lockf on this host (the real run proceeds unlocked; scheduled contention is darwin-only)"
+  elif (exec 9<"$LOCKFILE" && /usr/bin/lockf -s -t 0 9) 2>/dev/null; then
+    log "would run: the existing lock file is not held (leftover from a finished or crashed run)"
+  else
+    log "would defer: a live run holds the lock"
   fi
 else
   if ! __update_skills_acquire_lock; then
     log "another run in progress; exiting"
     exit 0
   fi
-  # The EXIT trap removes the lock ONLY while we still own it: a later run that
-  # reclaims a dead lock rewrites the owner file, and our trap must never delete
-  # a lock we no longer hold (the three-writer race).
-  __update_skills_release_lock() {
-    local cur
-    cur="$(cat "$LOCK_OWNER_FILE" 2>/dev/null || true)"
-    [[ $cur == "$LOCK_MY_TOKEN" ]] && rm -rf "$LOCKDIR"
-    return 0 # never let the EXIT trap's status leak into the script's exit code
-  }
-  trap '__update_skills_release_lock' EXIT
+  # No release path: the kernel drops the lock when this process exits, however
+  # it exits. The lock file itself is deliberately never deleted (see the
+  # acquisition comment: deleting it would let a later opener lock a fresh
+  # inode while an older holder still locks the unlinked one, i.e. two owners).
   # RECOVERY (brief step 1) runs under the lock, BEFORE the stamp early-exit and
   # the idle gate, so a crash-window leftover self-heals even on a slot that
   # then early-exits. It deletes incomplete staging, marks a reusable complete
