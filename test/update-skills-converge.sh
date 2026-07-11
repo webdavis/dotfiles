@@ -19,9 +19,10 @@
 # "updater-owned" = a symlink whose literal target points under ~/.agents/skills
 # (works for dangling links too — the string still points there).
 #
-# The real script runs unmodified in a sandbox: FORCE bypasses the idle-gate,
-# --install-only runs the install passes (no-op here — empty npx/clawhub tables)
-# then the fan-out convergence.
+# The real script runs unmodified in a sandbox: FORCE bypasses the idle-gate and
+# the weekly stamp, offline stubs neutralize the network passes, and the FULL run
+# exercises destructive convergence (replace/remove), which the additive
+# --install-only bootstrap deliberately never does.
 set -euo pipefail
 
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY GIT_COMMON_DIR
@@ -103,10 +104,24 @@ ln -s "/tmp/external-target" "$HERMES/external"
 mkdir -p "$HERMES/hermes-superpowers"
 printf 'mirror\n' >"$HERMES/hermes-superpowers/marker"
 
+# Destructive reconciliation (replace wrong-target links, remove stale ones)
+# runs only on the FULL weekly path, never under the additive --install-only
+# bootstrap, so this test exercises a FULL run. Offline stubs stand in for the
+# network passes a full run would otherwise make (npx update; the hermes
+# registry phase for the dualname hub entry). FORCE bypasses the idle-gate and
+# the weekly stamp, so the second (idempotence) run reconverges instead of
+# early-exiting on the stamp.
+stub_dir="$tmp/stubs"
+mkdir -p "$stub_dir"
+printf '#!/usr/bin/env bash\necho stub\n' >"$stub_dir/npx"
+printf '#!/usr/bin/env bash\necho stub\n' >"$stub_dir/hermes"
+chmod +x "$stub_dir"/*
+export PATH="$stub_dir:$PATH"
+
 # ── RED gate: capture whether the current script even survives the dangling
 #    link. It is informational; the assertions below are the contract.
-run() { UPDATE_SKILLS_FORCE=1 bash "$SCRIPT" --install-only 2>&1; }
-output="$(run)" || fail "update-skills --install-only exited non-zero (a dangling link must not crash the fan-out): $output"
+run() { UPDATE_SKILLS_FORCE=1 bash "$SCRIPT" 2>&1; }
+output="$(run)" || fail "update-skills full run exited non-zero (a dangling link must not crash the fan-out): $output"
 
 # ── Claude convergence ─────────────────────────────────────────────────────
 for s in keeper mover revived demoted humanizer dualname; do

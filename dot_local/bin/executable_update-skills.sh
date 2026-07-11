@@ -60,13 +60,15 @@
 # assert_codex_overlays below).
 #
 # Usage: update-skills [--dry-run] [--install-only] [--check-forks-only]
-#   --dry-run           log what would change, change nothing
-#   --install-only      run only the npx + clawhub install passes for absent
-#                       skills + symlink fan-out + Codex overlay re-assert +
-#                       superpowers routing re-assert (used by tests and
-#                       fresh-machine bootstrap; skips the weekly npx and
-#                       clawhub updates, the hermes registry-update phase, and
-#                       the fork drift-check)
+#   --dry-run           log what would change, write nothing to the filesystem
+#   --install-only      ADDITIVE bootstrap: run only the npx + clawhub install
+#                       passes for absent skills, then the symlink fan-out (which
+#                       here CREATES missing links only, never replacing a
+#                       wrong-target link or removing a stale one), the Codex
+#                       overlay re-assert, and the superpowers routing re-assert
+#                       (used by tests and fresh-machine bootstrap; skips the
+#                       weekly npx and clawhub updates, the hermes registry-update
+#                       phase, and the fork drift-check)
 #   --check-forks-only  run only the fork/vendored upstream drift-check
 # Env: UPDATE_SKILLS_FORCE=1 bypasses the idle-gate AND the weekly success stamp.
 #      The idle-gate makes this script refuse to swap skill folders while an
@@ -261,16 +263,32 @@ __update_skills_is_owned_link() {
 # Converge one managed dir to a desired {name -> "$prefix/$name"} set:
 #   converge_dir <dir> <target_prefix> <desired_name>...
 # create a missing desired link; REPLACE an updater-owned link whose target
-# differs (wrong-target, incl. dangling — the additive `[[ -e ]] || ln -s`
+# differs (wrong-target, incl. dangling: the additive `[[ -e ]] || ln -s`
 # crashed on a dangling link); REMOVE an updater-owned link no longer desired
 # (stale). A real dir/file (hub-owned/catalog) at a managed name, and any
 # non-store symlink, are left untouched. A no-op convergence is silent.
+#
+# Two run modes narrow that behavior, driven by the globals $DRYRUN and
+# $INSTALL_ONLY:
+#   * --dry-run: make NO filesystem writes at all. Report each action as a
+#     "would create/replace/remove" line and change nothing. A preview must
+#     never mutate live link state.
+#   * --install-only: ADDITIVE only. Create a missing desired link, but NEVER
+#     replace a wrong-target link (leave it + a loud warning) and NEVER remove a
+#     stale one. This is what lets the fresh-machine bootstrap run at apply time,
+#     even under a live agent session, without swapping anything. Destructive
+#     reconciliation (replace/remove) runs solely in the full weekly path behind
+#     the idle gate.
 converge_dir() {
   local dir="$1" prefix="$2"
   shift 2
   local -a desired=("$@")
   local skill target path current name is_desired old_target
-  mkdir -p "$dir"
+  local dry="" additive=""
+  [[ $DRYRUN == "--dry-run" ]] && dry=1
+  [[ -n $INSTALL_ONLY ]] && additive=1
+  # dry-run makes no writes, so it does not even create the managed dir.
+  [[ -n $dry ]] || mkdir -p "$dir"
   # 1) create or repair every desired link
   if [[ ${#desired[@]} -gt 0 ]]; then
     for skill in "${desired[@]}"; do
@@ -280,20 +298,30 @@ converge_dir() {
         current="$(readlink "$path" 2>/dev/null || true)"
         [[ $current == "$target" ]] && continue # already correct
         if __update_skills_is_owned_link "$path"; then
-          ln -sfn "$target" "$path" # replace wrong-target / dangling updater-owned link
-          log "converge: replaced $path (was $current, now $target)"
+          if [[ -n $additive ]]; then
+            log "converge: WARN $path points to $current, not $target; --install-only is additive and leaves it (a full run repairs)"
+          elif [[ -n $dry ]]; then
+            log "converge: would replace $path (currently $current, desired $target)"
+          else
+            ln -sfn "$target" "$path" # replace wrong-target / dangling updater-owned link
+            log "converge: replaced $path (was $current, now $target)"
+          fi
         else
           log "converge: WARN $path is a non-store symlink at a managed name; leaving it (resolve by hand)"
         fi
       elif [[ -e $path ]]; then
-        : # a real dir/file (hub-owned or catalog) at this name — never overwrite
+        : # a real dir/file (hub-owned or catalog) at this name, never overwrite
+      elif [[ -n $dry ]]; then
+        log "converge: would create $path -> $target"
       else
         ln -s "$target" "$path"
         log "converge: created $path -> $target"
       fi
     done
   fi
-  # 2) remove updater-owned links that are no longer desired (stale drift)
+  # 2) remove updater-owned links no longer desired (stale drift). Additive
+  #    --install-only never removes; only the full weekly path reconciles.
+  [[ -n $additive ]] && return 0
   for path in "$dir"/*; do
     [[ -e $path || -L $path ]] || continue # skip the un-globbed literal when the dir is empty
     name="${path##*/}"
@@ -309,8 +337,12 @@ converge_dir() {
     [[ -n $is_desired ]] && continue
     if __update_skills_is_owned_link "$path"; then
       old_target="$(readlink "$path" 2>/dev/null || true)"
-      rm -f "$path"
-      log "converge: removed stale $path (was $old_target)"
+      if [[ -n $dry ]]; then
+        log "converge: would remove stale $path (currently $old_target)"
+      else
+        rm -f "$path"
+        log "converge: removed stale $path (was $old_target)"
+      fi
     fi
   done
 }
@@ -552,7 +584,8 @@ refresh_app_owned_cua_pack() {
   fi
 }
 
-mkdir -p "$STORE" "$CLAUDE" "$HERMES"
+# A dry run makes no filesystem writes, so it does not pre-create these dirs.
+[[ $DRYRUN == "--dry-run" ]] || mkdir -p "$STORE" "$CLAUDE" "$HERMES"
 
 # serialize: one run at a time (mkdir is atomic + system-shipped; flock is absent on macOS)
 if [[ -d $LOCKDIR ]] && find "$LOCKDIR" -prune -mmin +120 2>/dev/null | grep -q .; then rm -rf "$LOCKDIR"; fi # steal stale lock (>2h: crashed run)
