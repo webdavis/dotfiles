@@ -99,7 +99,8 @@ PATH="$stub:$PATH" UPDATE_SKILLS_FORCE=1 bash "$SCRIPT" >/dev/null 2>&1 ||
   fail "part A setup full run failed"
 OLD_ID="$(jq -r '.id' "$CURRENT/generation.json")"
 [[ -n $OLD_ID && $OLD_ID != null ]] || fail "part A setup: no OLD generation id"
-sleep 1 # ensure the next generation earns a distinct id (epoch-second prefix)
+# Each run is a distinct process, so __gen_new_id (epoch-PID-random) yields a
+# distinct id without waiting on the clock.
 
 # Second run WITH the retention-failing mv stub: the exchange lands, retention
 # fails. The caller must preserve the workspace + marker (not garbage-destroy).
