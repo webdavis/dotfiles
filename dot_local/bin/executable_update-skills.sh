@@ -580,15 +580,17 @@ __gen_publish() {
     return 1
   fi
   # Retain the displaced previous generation under its id (garbage-destroy any
-  # name collision first so the rename lands cleanly). R2-3d: a retention
-  # failure is FATAL: the exchange landed (the refreshed generation IS live),
-  # but the transaction did not complete, so no success is reported and the
-  # caller records a required failure (no stamp). The marker stays for
-  # recovery to finish the cleanup.
+  # name collision first so the rename lands cleanly). R2-3d / F7: a retention
+  # failure is FATAL but DISTINCT — the exchange LANDED (the refreshed
+  # generation IS live) and the candidate workspace now holds the ONLY copy of
+  # the previous generation, with the marker recording the pending retention.
+  # Return the distinct code 2 so the caller PRESERVES the workspace and marker
+  # (never garbage-destroys them) for recovery to finish; a plain failure (1) is
+  # reserved for "exchange never landed, live untouched". The marker stays.
   __gen_garbage_destroy "$retained"
   if ! mv "$candidate" "$retained" 2>/dev/null; then
-    log "publish: FATAL the displaced previous generation could not be retained; the refreshed generation is live but this run reports failure (no stamp)"
-    return 1
+    log "publish: FATAL the displaced previous generation could not be retained; the refreshed generation is live but this run reports failure (no stamp). Preserving the workspace and marker for recovery."
+    return 2
   fi
   __gen_prune_generations "$old_id"
   rm -f "$marker"
@@ -806,7 +808,12 @@ __gen_recover_exchange_marker() {
     if mv "$ws_agents" "$GENERATIONS/$m_old" 2>/dev/null; then
       __gen_garbage_destroy "$GENERATIONS/$m_ws" # the emptied workspace shell
     else
-      log "recovery: could not complete the retention; leaving the workspace for the walk to discard"
+      # F7: retention still cannot complete. KEEP the marker AND the workspace
+      # (it holds the ONLY copy of the previous generation) so a later recovery
+      # retries; the staging walk excludes a marker-named workspace. Never drop
+      # the marker here — dropping it would let the walk delete the workspace.
+      log "recovery: could not complete the retention; KEEPING the workspace and marker for a later retry (previous generation preserved)"
+      return 0
     fi
   fi
   rm -f "$marker"
@@ -817,12 +824,24 @@ __gen_recover() {
   __gen_recover_exchange_marker
   __gen_sweep_garbage "$GENERATIONS"
   __gen_sweep_garbage "$STORE"
+  # F7: if the exchange-in-flight marker still exists after the marker handler
+  # ran, its retention could not complete; its workspace holds the ONLY copy of
+  # the previous generation and must be EXCLUDED from the normal staging walk
+  # (which would otherwise delete it as stale, id != workspace).
+  local pending_retention_ws=""
+  if [[ -f "$GENERATIONS/$GEN_EXCHANGE_MARKER_NAME" ]]; then
+    pending_retention_ws="$(jq -r '.workspaceId // ""' "$GENERATIONS/$GEN_EXCHANGE_MARKER_NAME" 2>/dev/null || true)"
+  fi
   local entry id newest_retained="" newest_epoch=-1 epoch cand_agents
   if [[ -d $GENERATIONS ]]; then
     for entry in "$GENERATIONS"/*; do
       [[ -d $entry ]] || continue
       id="${entry##*/}"
       case "$id" in *.garbage.*) continue ;; esac
+      if [[ -n $pending_retention_ws && $id == "$pending_retention_ws" ]]; then
+        log "recovery: preserving workspace $id (retention pending; marker kept for a later retry)"
+        continue
+      fi
       # A build workspace: .skills-generations/<id>/home/.agents .
       if [[ -d "$entry/home" ]]; then
         cand_agents="$entry/home/.agents"
@@ -1235,9 +1254,43 @@ __gen_lane_clawhub() {
     "$CUSTOM_SKILL_LOCK" 2>/dev/null)
 }
 
+# F6: remove the updater-owned Codex policy block (the two lines `policy:` then
+# `  allow_implicit_invocation: false`) from an openai.yaml, preserving any
+# upstream metadata. When nothing but the block (and blank lines) remains, the
+# file is removed (and an emptied agents dir). Idempotent; a no-op when the
+# block is absent. Returns 0 on success.
+__gen_strip_codex_policy() {
+  local overlay_file="$1" agents_dir stripped
+  [[ -f $overlay_file ]] || return 0
+  grep -q 'allow_implicit_invocation: false' "$overlay_file" 2>/dev/null || return 0
+  stripped="$(awk '
+    {
+      if (held) {
+        held = 0
+        if ($0 == "  allow_implicit_invocation: false") next
+        print "policy:"
+      }
+      if ($0 == "policy:") { held = 1; next }
+      print
+    }
+    END { if (held) print "policy:" }
+  ' "$overlay_file")"
+  while [[ $stripped == *$'\n' ]]; do stripped="${stripped%$'\n'}"; done
+  if [[ -z ${stripped//[[:space:]]/} ]]; then
+    rm -f "$overlay_file"
+    agents_dir="${overlay_file%/openai.yaml}"
+    rmdir "$agents_dir" 2>/dev/null || true
+    return 0
+  fi
+  printf '%s\n' "$stripped" >"$overlay_file"
+}
+
 # Codex overlays against the candidate store: every on-demand skill carries
 # agents/openai.yaml with allow_implicit_invocation disabled (append when the
-# upstream ships its own openai.yaml, never overwrite). Idempotent.
+# upstream ships its own openai.yaml, never overwrite). SYMMETRICALLY (F6),
+# every CORE skill has any updater-owned policy block REMOVED, so an
+# on-demand -> core tier change reconciles instead of leaving a stale block.
+# Idempotent.
 __gen_assert_overlays() {
   [[ -f $CUSTOM_SKILL_LOCK ]] || return 0
   local skill overlay_file
@@ -1259,6 +1312,11 @@ __gen_assert_overlays() {
         record_required_failure "candidate overlay write for $skill failed"
     fi
   done < <(jq -r '.tiers // {} | to_entries[] | select(.value == "on-demand") | .key' "$CUSTOM_SKILL_LOCK" 2>/dev/null)
+  # F6 symmetric pass: a core skill must NOT carry the updater policy block.
+  while IFS= read -r skill; do
+    [[ -d "$STORE/$skill" && ! -L "$STORE/$skill" ]] || continue
+    __gen_strip_codex_policy "$STORE/$skill/agents/openai.yaml"
+  done < <(jq -r '.tiers // {} | to_entries[] | select(.value == "core") | .key' "$CUSTOM_SKILL_LOCK" 2>/dev/null)
 }
 
 # Reconcile the candidate's published npx lock (R2-4). Two facts drive this:
@@ -1721,12 +1779,21 @@ __gen_weekly_attempt() {
       __gen_garbage_destroy "$id_dir"
       return 0
     fi
-    if __gen_publish "$candidate_agents"; then
+    local reuse_publish_rc=0
+    __gen_publish "$candidate_agents" || reuse_publish_rc=$?
+    if [[ $reuse_publish_rc -eq 0 ]]; then
       __gen_garbage_destroy "$id_dir"
       __gen_reconcile_store_links
       __gen_prune_delisted_store_links
       __gen_plant_lock_link || record_required_failure "lock link could not be planted after publish"
       return 0
+    elif [[ $reuse_publish_rc -eq 2 ]]; then
+      # F7: the exchange landed but retention is incomplete; the workspace holds
+      # the ONLY copy of the previous generation and the marker records the
+      # pending retention. PRESERVE both (never garbage-destroy) so recovery
+      # finishes it on a later run. No stamp.
+      record_required_failure "publish of the recovered candidate landed but retention is incomplete; preserving the workspace and marker for recovery (no stamp)"
+      return 1
     fi
     record_required_failure "publish of the recovered candidate failed"
     __gen_garbage_destroy "$id_dir"
@@ -1770,7 +1837,14 @@ __gen_weekly_attempt() {
     __gen_garbage_destroy "$GENERATIONS/$id"
     return 0
   fi
-  if ! __gen_publish "$candidate_agents"; then
+  local build_publish_rc=0
+  __gen_publish "$candidate_agents" || build_publish_rc=$?
+  if [[ $build_publish_rc -eq 2 ]]; then
+    # F7: exchange landed, retention incomplete — preserve the workspace and
+    # marker (the only copy of the previous generation) for recovery. No stamp.
+    record_required_failure "publish landed but retention is incomplete; preserving the workspace and marker for recovery (no stamp)"
+    return 1
+  elif [[ $build_publish_rc -ne 0 ]]; then
     record_required_failure "publish failed; no success recorded (the publish log above says whether the exchange landed)"
     __gen_garbage_destroy "$GENERATIONS/$id"
     return 1
@@ -1838,6 +1912,12 @@ __gen_roster_skill_health() {
       printf 'overlay'
       return 0
     }
+  elif grep -q 'allow_implicit_invocation: false' "$STORE/$name/agents/openai.yaml" 2>/dev/null; then
+    # F6 symmetric: a core (non-on-demand) skill with a lingering updater policy
+    # block is unhealthy — the block must be removed. Drives a repair (the
+    # candidate re-assert strips it) instead of a false no-op.
+    printf 'overlay'
+    return 0
   fi
   return 0
 }
@@ -1933,7 +2013,14 @@ __gen_install_only_attempt() {
     __gen_garbage_destroy "$GENERATIONS/$id"
     return 0
   fi
-  if ! __gen_publish "$candidate_agents"; then
+  local io_publish_rc=0
+  __gen_publish "$candidate_agents" || io_publish_rc=$?
+  if [[ $io_publish_rc -eq 2 ]]; then
+    # F7: exchange landed, retention incomplete — preserve the workspace and
+    # marker (the only copy of the previous generation) for recovery. No stamp.
+    record_required_failure "install-only publish landed but retention is incomplete; preserving the workspace and marker for recovery (no stamp)"
+    return 1
+  elif [[ $io_publish_rc -ne 0 ]]; then
     record_required_failure "install-only publish failed; no success recorded (the publish log above says whether the exchange landed)"
     __gen_garbage_destroy "$GENERATIONS/$id"
     return 1
