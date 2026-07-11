@@ -105,62 +105,16 @@ let
   # shellcheck-rendered-template formatter below. The 2026-07-10 audit found the
   # old hand-list covered 6 of ~20 shell templates, hiding four render failures.
   # The set is every `.chezmoiscripts/*.sh.tmpl` plus the shell `dot_*.tmpl` at
-  # the repo root, MINUS any template that (or whose included partials) invokes
-  # keepassxc (those need an interactive KeePassXC unlock and cannot render in
-  # the headless check sandbox). Computed from the tree at eval time with
-  # `builtins` ONLY (no `lib`), so test/rendered-template-coverage.sh can re-read
-  # this exact list through `nix eval` with a stub `pkgs`. The classifier is kept
-  # textually close to that test's bash classifier; a fixture layer under
-  # test/fixtures/render-coverage guards both against shared blind spots.
-  fileLines = path: builtins.filter builtins.isString (builtins.split "\n" (builtins.readFile path));
-
-  # A template invokes keepassxc only through a Go-template directive: a line
-  # containing `{{` followed (after optional trim markers, whitespace, pipes, or
-  # grouping parens) by keepassxc/keepassxcAttribute. A bare comment that merely
-  # mentions keepassxc does NOT count, so it stays covered.
-  directCallsKeepassxc =
-    path:
-    builtins.any (line: builtins.match ".*[{][{][-(|[:space:]]*keepassxc.*" line != null) (
-      fileLines path
-    );
-
-  # includeTemplate "<literal>" partial names a template references.
-  includeTemplateNames =
-    path:
-    map (m: builtins.head m) (
-      builtins.filter builtins.isList (
-        builtins.split "includeTemplate[[:space:]]+\"([^\"]+)\"" (builtins.readFile path)
-      )
-    );
-
-  # Unsafe if the template OR any .chezmoitemplates/ partial it includes (one
-  # level; partial names are literal) calls keepassxc.
-  callsKeepassxc =
-    path:
-    directCallsKeepassxc path
-    || builtins.any (
-      name:
-      let
-        partial = ./.chezmoitemplates + "/${name}";
-      in
-      builtins.pathExists partial && directCallsKeepassxc partial
-    ) (includeTemplateNames path);
-
-  # A template is a shell template when its first line is a shell shebang, OR its
-  # first line is a Go-template directive and its first non-directive line is a
-  # shell shebang (the osquery-loader shape).
-  isShellShebangLine =
-    line: builtins.match "#!.*sh.*" line != null || builtins.match "# shellcheck shell=.*" line != null;
-  isGoDirectiveLine = line: builtins.match "[[:space:]]*[{][{].*" line != null;
-  isShellTemplate =
-    path:
-    let
-      ls = fileLines path;
-      first = if ls == [ ] then "" else builtins.head ls;
-      nonDirective = builtins.filter (l: !(isGoDirectiveLine l)) ls;
-      firstNonDirective = if nonDirective == [ ] then "" else builtins.head nonDirective;
-    in
-    isShellShebangLine first || (isGoDirectiveLine first && isShellShebangLine firstNonDirective);
+  # the repo root, MINUS any template that cannot render headless: one that (or
+  # whose included partials, transitively) invokes keepassxc, or that has an
+  # includeTemplate name which cannot be resolved statically. Both predicates
+  # come from the importable, builtins-only classifier in
+  # scripts/render-coverage-classifier.nix. That SAME file is what
+  # test/rendered-template-coverage.sh drives through a fixture matrix via
+  # `nix eval`, so weakening a predicate there fails the fixtures rather than
+  # silently passing while this list stays unchanged.
+  classifier = import ./scripts/render-coverage-classifier.nix;
+  includeBase = ./.chezmoitemplates;
 
   chezmoiscriptShellTemplates =
     let
@@ -170,7 +124,7 @@ let
         name:
         entries.${name} == "regular"
         && builtins.match ".*\\.sh\\.tmpl" name != null
-        && !(callsKeepassxc (dir + "/${name}"))
+        && !(classifier.rendersUnsafe includeBase (dir + "/${name}"))
       ) (builtins.attrNames entries);
     in
     map (name: ".chezmoiscripts/${name}") names;
@@ -184,8 +138,8 @@ let
       name:
       entries.${name} == "regular"
       && builtins.match "dot_.*\\.tmpl" name != null
-      && isShellTemplate (dir + "/${name}")
-      && !(callsKeepassxc (dir + "/${name}"))
+      && classifier.isShellTemplate (dir + "/${name}")
+      && !(classifier.rendersUnsafe includeBase (dir + "/${name}"))
     ) (builtins.attrNames entries);
 
   renderedShellTemplates = builtins.sort (a: b: a < b) (

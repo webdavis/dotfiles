@@ -16,9 +16,11 @@
 # It reads the formatter's ACTUAL include list straight from treefmt.nix via
 # `nix eval` (with a stub `pkgs`), so it tracks the programmatic discovery
 # exactly: red against the old 6-template hand-list, green once discovery covers
-# them all. A fixture layer (test/fixtures/render-coverage) drives the SAME
-# classifier against synthetic templates so shared discovery/test blind spots
-# stay visible.
+# them all. A fixture layer (test/fixtures/render-coverage) drives the classifier
+# against synthetic templates BOTH ways — the bash mirror in this file and the
+# production Nix predicates in scripts/render-coverage-classifier.nix (via
+# `nix eval`) — so weakening either side fails a fixture instead of passing
+# silently.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1 && pwd)"
@@ -33,32 +35,70 @@ fail() {
 
 # ---- classifier (shared by the universe enumeration and the fixture oracle) --
 
-# A template invokes keepassxc only through a Go-template directive: a line
-# containing `{{` followed (after optional trim markers, whitespace, pipes, or
-# grouping parens) by `keepassxc`/`keepassxcAttribute`. A bare comment that
-# merely mentions keepassxc does NOT count, so it stays covered. Mirrors the
-# `directCallsKeepassxc` predicate in treefmt.nix.
+# A line invokes keepassxc when keepassxc/keepassxcAttribute appears ANYWHERE
+# inside a Go-template action `{{ ... }}` (not only as the first token, so
+# `{{ $e := keepassxc "x" }}` counts), and the line is not a Go-template comment
+# (`{{/* ... */}}`, in any trim form). A bare shell `#` comment that merely names
+# keepassxc carries no `{{` and does not count, so it stays covered. Mirrors
+# `lineCallsKeepassxc` in scripts/render-coverage-classifier.nix.
 line_calls_keepassxc() { # <file>
-  grep -Eq '[{][{][-(|[:space:]]*keepassxc' "$1"
+  local hits
+  hits="$(grep -E '[{][{][^}]*keepassxc' "$1" 2>/dev/null |
+    grep -vE '^[[:space:]]*[{][{]-?[[:space:]]*/[*]' || true)"
+  [[ -n $hits ]]
 }
 
-# includeTemplate "<literal>" partial names a template references (literal
-# strings in this repo). Mirrors `includeTemplateNames` in treefmt.nix.
-include_template_names() { # <file>
-  grep -Eo 'includeTemplate[[:space:]]+"[^"]+"' "$1" | sed -E 's/.*"([^"]+)"/\1/'
+# Parse includeTemplate directives, one emitted line per directive:
+#   L<TAB><name>  a double-quoted OR backtick raw-string literal partial name
+#   D             a name that is not a static string literal (a $var, (expr), or
+#                 .field) and so cannot be resolved statically
+# Anchored on `{{` so prose mentioning includeTemplate inside a comment body
+# (which carries no `{{` on that line) is not treated as a directive. Mirrors
+# `parseIncludeLine`/`includeDirectives` in the classifier.
+include_directives() { # <file>
+  local inc_re='[{][{]-?[[:space:]]*includeTemplate[[:space:]]+(.*)'
+  # SC2016: the backtick in bt_re is a literal ERE atom (backtick raw-string
+  # delimiter), deliberately not command substitution.
+  # shellcheck disable=SC2016
+  local dq_re='^"([^"]*)"' bt_re='^`([^`]*)`'
+  local line rest
+  while IFS= read -r line; do
+    [[ $line =~ $inc_re ]] || continue
+    rest="${BASH_REMATCH[1]}"
+    if [[ $rest =~ $dq_re ]]; then
+      printf 'L\t%s\n' "${BASH_REMATCH[1]}"
+    elif [[ $rest =~ $bt_re ]]; then
+      printf 'L\t%s\n' "${BASH_REMATCH[1]}"
+    else
+      printf 'D\n'
+    fi
+  done <"$1"
 }
 
-# A template is unsafe if it, OR any `.chezmoitemplates/` partial it includes
-# (one level; base overridable for the fixture oracle), calls keepassxc.
-calls_keepassxc() { # <file> [include_base]
-  local file="$1" base="${2:-.chezmoitemplates}" name partial
+# A template cannot render headless (is UNSAFE) when it, or any partial it
+# includeTemplates transitively (literal names resolved against <base>), calls
+# keepassxc, OR when any include name is dynamic (unresolvable). Cycle-protected
+# via a visited set so a cyclic include pair terminates. Mirrors `rendersUnsafe`
+# in scripts/render-coverage-classifier.nix.
+renders_unsafe() { # <file> [include_base]
+  local -A _visited=()
+  _renders_unsafe "$1" "${2:-.chezmoitemplates}"
+}
+_renders_unsafe() { # <file> <base>  (shares _visited with renders_unsafe)
+  local file="$1" base="$2" line kind name partial
+  [[ -n ${_visited["$file"]:-} ]] && return 1
+  _visited["$file"]=1
   line_calls_keepassxc "$file" && return 0
-  while IFS= read -r -u3 name; do
-    [[ -n $name ]] || continue
+  while IFS= read -r -u3 line; do
+    kind="${line%%$'\t'*}"
+    if [[ $kind == D ]]; then
+      return 0
+    fi
+    name="${line#*$'\t'}"
     partial="$base/$name"
     [[ -f $partial ]] || continue
-    line_calls_keepassxc "$partial" && return 0
-  done 3< <(include_template_names "$file")
+    _renders_unsafe "$partial" "$base" && return 0
+  done 3< <(include_directives "$file")
   return 1
 }
 
@@ -113,7 +153,7 @@ consider() { # add a candidate template to the universe once, dropping keepassxc
   [[ -n ${seen["$path"]:-} ]] && return 0
   seen["$path"]=1
   [[ -f $path ]] || return 0
-  if calls_keepassxc "$path"; then
+  if renders_unsafe "$path"; then
     return 0
   fi
   safe+=("$path")
@@ -205,12 +245,15 @@ for path in "${!EXCLUDED[@]}"; do
   fi
 done
 
-# 4. Fixture oracle: run the SAME classifier against synthetic templates so the
-# vacuous discovery clauses (shell classification, keepassxc filter, transitive
-# include) keep a permanent oracle. verdict = covered when the classifier would
-# admit the template to the safe universe, excluded otherwise.
+# 4. Fixture oracle: the SAME classifier runs THREE ways per fixture and all
+# three must agree — the expected verdict, the bash mirror above, and the
+# PRODUCTION Nix classifier (scripts/render-coverage-classifier.nix) evaluated
+# via `nix eval`. Driving the real Nix predicates here (not just the bash mirror)
+# is what makes weakening EITHER side fail the matrix instead of passing
+# silently. verdict = covered when a shell template can render headless, excluded
+# otherwise.
 fixture_verdict() { # <file> <include_base>
-  if calls_keepassxc "$1" "$2"; then
+  if renders_unsafe "$1" "$2"; then
     printf 'excluded'
     return
   fi
@@ -221,6 +264,13 @@ fixture_verdict() { # <file> <include_base>
   printf 'excluded'
 }
 
+# The production Nix classifier's verdict for a fixture, read straight from
+# scripts/render-coverage-classifier.nix so a weakened Nix predicate fails here.
+nix_classify() { # <fixture_file>
+  nix eval --impure --raw --expr \
+    "(import ./scripts/render-coverage-classifier.nix).classify (./${FIXTURE_DIR}) (./$1)"
+}
+
 declare -A FIXTURE_EXPECT=(
   ["executable_hook.tmpl"]=covered
   ["dot_conditional.tmpl"]=covered
@@ -228,16 +278,25 @@ declare -A FIXTURE_EXPECT=(
   ["excluded_keepassxc.sh.tmpl"]=excluded
   ["excluded_include.sh.tmpl"]=excluded
   ["plain_non_shell.tmpl"]=excluded
+  ["assignment_keepassxc.sh.tmpl"]=excluded
+  ["raw_string_include.sh.tmpl"]=excluded
+  ["chain_root.sh.tmpl"]=excluded
+  ["dynamic_include.sh.tmpl"]=excluded
+  ["cyclic_a.sh.tmpl"]=covered
 )
 
 for name in "${!FIXTURE_EXPECT[@]}"; do
   file="$FIXTURE_DIR/$name"
   [[ -f $file ]] || fail "missing fixture: $file"
-  got="$(fixture_verdict "$file" "$FIXTURE_DIR")"
   want="${FIXTURE_EXPECT[$name]}"
-  [[ $got == "$want" ]] ||
-    fail "fixture $name classified '$got', expected '$want' (classifier regressed)"
+  got_bash="$(fixture_verdict "$file" "$FIXTURE_DIR")"
+  [[ $got_bash == "$want" ]] ||
+    fail "fixture $name: bash mirror classified '$got_bash', expected '$want' (bash classifier regressed)"
+  got_nix="$(nix_classify "$file")" ||
+    fail "fixture $name: nix eval of the classifier failed"
+  [[ $got_nix == "$want" ]] ||
+    fail "fixture $name: Nix classifier classified '$got_nix', expected '$want' (Nix classifier regressed)"
 done
 
-printf 'rendered-template-coverage: OK (%d safely renderable, %d covered, %d excluded-with-reason, %d fixtures)\n' \
+printf 'rendered-template-coverage: OK (%d safely renderable, %d covered, %d excluded-with-reason, %d fixtures bash+nix)\n' \
   "${#safe[@]}" "${#covered[@]}" "${#EXCLUDED[@]}" "${#FIXTURE_EXPECT[@]}"

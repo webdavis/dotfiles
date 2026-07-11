@@ -1,0 +1,7 @@
+#!/bin/bash
+# Fixture (item 2c): root -> middle -> secret. The transitive traversal must
+# recurse two levels to reach keepassxc (verdict: excluded); a one-level check
+# would classify this covered.
+set -euo pipefail
+{{ includeTemplate "chain_middle.tmpl" . }}
+echo "done"
