@@ -257,19 +257,20 @@ Shell templates contain Go template syntax that shellcheck can't parse directly,
 `shellcheck-rendered-template` formatter in `treefmt.nix` renders first
 (`CI=1 chezmoi execute-template --no-tty <file`) and shellchecks the result. Its include list is
 discovered programmatically at Nix eval time, not hand-picked: every `.chezmoiscripts/*.sh.tmpl` plus
-every shell `dot_*.tmpl` (first line a shell shebang or `# shellcheck shell=` directive, or a Go-template
-directive whose first non-directive line is such a shebang), minus any template that (or whose
-`includeTemplate` partial) invokes `keepassxc` through a `{{ ... }}` directive, since those need an
-interactive KeePassXC unlock. One includeTemplate fragment
-(`.chezmoitemplates/herdr-plugin-build.sh.tmpl`) is excluded with a documented reason because it only
-renders through its includers. After a successful render, a blank (empty or whitespace-only) result is
-skipped rather than shellchecked, so an OS-gated template on the other OS (which renders to nothing) does
-not fail SC2148; a render failure stays fatal. `test/rendered-template-coverage.sh` enforces this
-universe: it re-reads the formatter's actual include list via `nix eval` and fails when discovery drops a
-template, with a fixture layer under `test/fixtures/render-coverage` guarding the classifier against
-blind spots. The `CI=1` env var is defensive (vestigial from an earlier bashrc CI-vs-interactive branch).
-A sibling formatter, `osquery-config-render`, renders the JSON-bodied `.chezmoitemplates/osquery/*.conf`
-templates via `includeTemplate` and validates the result with jq.
+every shell `dot_*.tmpl` at the repo root (first line a shell shebang or `# shellcheck shell=` directive,
+or a Go-template directive whose first non-directive line is such a shebang), minus any template that (or
+whose `includeTemplate` partial) invokes `keepassxc` through a `{{ ... }}` directive, since those need an
+interactive KeePassXC unlock. Two includeTemplate fragments
+(`.chezmoitemplates/herdr-plugin-build.sh.tmpl` and `.chezmoitemplates/herdr-health-check.sh.tmpl`) are
+excluded with documented reasons because they only render through their includers. After a successful
+render, a blank (empty or whitespace-only) result is skipped rather than shellchecked, so an OS-gated
+template on the other OS (which renders to nothing) does not fail SC2148; a render failure stays fatal.
+`test/rendered-template-coverage.sh` enforces this universe: it re-reads the formatter's actual include
+list via `nix eval` and fails when discovery drops a template, with a fixture layer under
+`test/fixtures/render-coverage` guarding the classifier against blind spots. The `CI=1` env var is
+defensive (vestigial from an earlier bashrc CI-vs-interactive branch). A sibling formatter,
+`osquery-config-render`, renders the JSON-bodied `.chezmoitemplates/osquery/*.conf` templates via
+`includeTemplate` and validates the result with jq.
 
 ### OS Targeting
 

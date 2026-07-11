@@ -92,6 +92,7 @@ is_shell_template() { # <file>
 # list cannot rot.
 declare -A EXCLUDED=(
   [".chezmoitemplates/herdr-plugin-build.sh.tmpl"]='includeTemplate fragment: needs a (dict "id" ...) arg, so it never renders standalone; exercised through its includers run_onchange_after_55/57, which ARE covered'
+  [".chezmoitemplates/herdr-health-check.sh.tmpl"]='includeTemplate fragment: defines a shell function with no standalone shebang entry point, so it never renders on its own; exercised through its covered includer run_after_58-herdr-migration-verify'
 )
 
 # Host-tool guards: plain test/*.sh scripts run with host tools.
