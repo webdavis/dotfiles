@@ -91,9 +91,9 @@ run() {
     fail "run exited non-zero (a required failure must not abort the run): $OUT"
 }
 
-# 1) Required failure on the last SCHEDULED Monday slot → no stamp, loud
+# 1) Required failure on the last SCHEDULED Monday slot (23:00) → no stamp, loud
 #    exhaustion alert.
-run 1 16 1 --scheduled
+run 1 23 1 --scheduled
 [[ ! -f $STAMP ]] || fail "the success stamp was written despite a required-phase failure"
 grep -qi 'WITHHOLDING' <<<"$OUT" || fail "a required failure did not log a stamp-withhold: $OUT"
 grep -qi 'EXHAUSTED' <<<"$OUT" || fail "a required failure on the last scheduled slot did not log exhaustion: $OUT"
@@ -113,9 +113,12 @@ run 1 16 1
 grep -qi 'WITHHOLDING' <<<"$OUT" || fail "a manual required failure did not log a stamp-withhold: $OUT"
 [[ ! -s $ALERTER_LOG ]] || fail "a manual required failure claimed scheduled-budget exhaustion: $(cat "$ALERTER_LOG")"
 
-# 3) Zero required failures → the stamp IS written.
+# 3) Zero required failures → the stamp IS written (ISO week plus the custom-lock
+#    and updater hashes, so a roster or updater change un-stamps the week).
 run "" 16 1 --scheduled
 [[ -f $STAMP ]] || fail "a clean run did not write the success stamp"
-[[ "$(<"$STAMP")" == "2026-28" ]] || fail "the stamp is not the pinned ISO week: $(<"$STAMP")"
+[[ "$(<"$STAMP")" == "2026-28 "* ]] || fail "the stamp does not begin with the pinned ISO week: $(<"$STAMP")"
+stamp_fields="$(wc -w <"$STAMP" | tr -d ' ')"
+[[ $stamp_fields -eq 3 ]] || fail "the stamp is not <week> <lock-hash> <updater-hash> (got $stamp_fields fields): $(<"$STAMP")"
 
 echo "update-skills-stamp: OK"

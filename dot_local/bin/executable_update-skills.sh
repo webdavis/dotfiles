@@ -82,7 +82,7 @@
 #      proceeds (see __update_skills_should_defer). Override the window with
 #      UPDATE_SKILLS_IDLE_THRESHOLD (seconds) and each harness's probe dir with
 #      UPDATE_SKILLS_{CLAUDE,CODEX,HERMES}_ACTIVITY_DIR (tests do). The weekly run
-#      is scheduled across four Monday slots; a per-week success stamp
+#      is scheduled across 24 hourly Monday slots; a per-week success stamp
 #      (~/.local/state/update-skills/last-success) makes the extra slots no-ops
 #      after one succeeds, and the last scheduled slot alerts if it still cannot
 #      run. FORCE=1 accepts the swap risk for test runs and deliberate manual runs.
@@ -145,12 +145,12 @@ IDLE_THRESHOLD_SECONDS="${UPDATE_SKILLS_IDLE_THRESHOLD:-900}"
 CLAUDE_ACTIVITY_DIR="${UPDATE_SKILLS_CLAUDE_ACTIVITY_DIR:-$HOME/.claude/projects}"
 CODEX_ACTIVITY_DIR="${UPDATE_SKILLS_CODEX_ACTIVITY_DIR:-$HOME/.codex/sessions}"
 HERMES_ACTIVITY_DIR="${UPDATE_SKILLS_HERMES_ACTIVITY_DIR:-$HOME/.hermes/logs}"
-# The plist fires four Monday retry slots (04:00/08:00/12:00/16:00; see
+# The plist fires 24 hourly Monday retry slots (00:00..23:00; see
 # Library/LaunchAgents/com.webdavis.update-skills.plist.tmpl). This is the hour
 # of the LAST slot: a scheduled deferral at/after it, or a coalesced catch-up on
 # a later weekday, means the weekly retry budget is exhausted, so the run alerts
 # LOUDLY instead of failing silent. Keep in sync with the plist.
-readonly UPDATE_SKILLS_LAST_SLOT_HOUR="16"
+readonly UPDATE_SKILLS_LAST_SLOT_HOUR="23"
 # The Codex on-demand policy overlay this script asserts into store skill dirs
 # (see assert_codex_overlays) — also what the clawhub update pass recognizes as
 # its OWN file when the CLI refuses over it (see update_clawhub_tracked).
@@ -201,10 +201,10 @@ record_required_failure() {
 }
 
 # True when no further SCHEDULED slot remains this ISO week to retry a failed or
-# deferred run. The plist fires four Monday slots (04/08/12/16); launchd may
+# deferred run. The plist fires 24 hourly Monday slots (00..23); launchd may
 # COALESCE a missed slot and deliver it on a later day (a catch-up), which is
 # also the week's last scheduled chance. So a later slot remains ONLY when today
-# is Monday BEFORE the last slot hour; Monday at/after 16:00, or any later
+# is Monday BEFORE the last slot hour; Monday at/after 23:00, or any later
 # weekday (a coalesced catch-up), means the scheduled budget for this week is
 # spent. date +%u is 1 for Monday; base-10 forces the hour compare so 08 is not
 # read as invalid octal.
@@ -273,6 +273,15 @@ __gen_hash_file() {
 # built). A change in either must invalidate the weekly stamp and force a rebuild.
 __gen_custom_lock_hash() { __gen_hash_file "$CUSTOM_SKILL_LOCK"; }
 __gen_updater_hash() { __gen_hash_file "${BASH_SOURCE[0]}"; }
+
+# The weekly success stamp value: the ISO year-week PLUS the custom-lock hash and
+# the updater hash. A roster change (custom-lock) or an updater change after a
+# Monday success no longer matches the stamp, so the week UN-STAMPS and a later
+# slot rebuilds. The stamp thus means "this EXACT desired state already succeeded
+# this week", not merely "some run succeeded this week" (brief: stamp inputs).
+__update_skills_stamp_value() {
+  printf '%s %s %s' "$(date +%G-%V)" "$(__gen_custom_lock_hash)" "$(__gen_updater_hash)"
+}
 
 # A sortable, collision-resistant generation id: epoch seconds + pid + random.
 # Sortable-by-time is what lets prune keep the newest previous and delete older.
@@ -1718,14 +1727,17 @@ else
   trap '__update_skills_release_lock' EXIT
 fi
 
-# weekly success stamp: the four Monday plist slots share one ISO week; once a
-# slot completes a full run this week, the remaining slots are no-ops. A deferral
-# writes no stamp, so the next slot retries. FORCE and dry-run bypass; the
-# install-only / check-forks-only partial runs never consult or write it.
+# weekly success stamp: the 24 Monday plist slots share one stamp; once a slot
+# completes a full run for the CURRENT desired state this week, the remaining
+# slots are no-ops. The stamp is the ISO week PLUS the custom-lock and updater
+# hashes, so a roster or updater change after a Monday success un-stamps the week
+# and the next slot rebuilds. A deferral writes no stamp, so the next slot
+# retries. FORCE and dry-run bypass; install-only / check-forks-only never
+# consult or write it.
 if [[ -z $INSTALL_ONLY ]] && [[ -z $CHECK_FORKS_ONLY ]] && [[ $DRYRUN != "--dry-run" ]] &&
   [[ ${UPDATE_SKILLS_FORCE:-} != "1" ]] &&
-  [[ -f $SUCCESS_STAMP && "$(cat "$SUCCESS_STAMP" 2>/dev/null)" == "$(date +%G-%V)" ]]; then
-  log "weekly skills update already succeeded this week ($(cat "$SUCCESS_STAMP")); nothing to do"
+  [[ -f $SUCCESS_STAMP && "$(cat "$SUCCESS_STAMP" 2>/dev/null)" == "$(__update_skills_stamp_value)" ]]; then
+  log "weekly skills update already succeeded this week for the current roster; nothing to do"
   exit 0
 fi
 
@@ -1744,7 +1756,7 @@ if [[ -z $INSTALL_ONLY ]] && [[ ${UPDATE_SKILLS_FORCE:-} != "1" ]] && [[ $DRYRUN
   log "a harness showed recent activity (within IDLE_THRESHOLD), or the process table could not be read (fail-closed); deferring this run"
   if __update_skills_scheduled_budget_exhausted; then
     log "EXHAUSTED: the last scheduled retry slot for this week still deferred; the weekly skills update did not run this week"
-    __update_skills_alert "Weekly skills update deferred on every scheduled slot (the machine had agent activity at all four Monday slots). Run it by hand when idle (~/.local/bin/update-skills.sh)."
+    __update_skills_alert "Weekly skills update deferred on every scheduled slot (the machine had agent activity at every Monday slot). Run it by hand when idle (~/.local/bin/update-skills.sh)."
   fi
   exit 0
 fi
@@ -2055,19 +2067,20 @@ log "fork drift-check"
 check_fork_drift
 
 # Record this week's success ONLY when zero required phases failed. The stamp is
-# an ISO year-week key (date +%G-%V): %G is the ISO week-numbering YEAR and %V is
-# the ISO week (01-53), so the four Monday slots share one key and a slot no-ops
-# once one has fully succeeded this week. %G (not %Y) is what keeps a year-
-# boundary week correct: the days of ISO week 01 that fall in late December carry
-# the NEXT year's %G, and the late-December days of week 52/53 carry the current
-# %G, so the key never collides or splits across the boundary (52/53/01 verified).
-# When a required phase failed we WITHHOLD the stamp, so a later scheduled slot
-# retries; and for a scheduled run with no slot remaining this week we alert (the
-# retry budget is spent). A dry run records nothing.
+# the ISO year-week key (date +%G-%V) PLUS the custom-lock and updater hashes
+# (see __update_skills_stamp_value). %G (not %Y) keeps a year-boundary week
+# correct: the days of ISO week 01 that fall in late December carry the NEXT
+# year's %G, and the late-December days of week 52/53 carry the current %G, so the
+# key never collides or splits across the boundary (52/53/01 verified). The two
+# hashes make the stamp mean "this exact desired state succeeded this week", so a
+# roster or updater change after a Monday success un-stamps the week and the next
+# slot rebuilds. When a required phase failed we WITHHOLD the stamp, so a later
+# scheduled slot retries; and for a scheduled run with no slot remaining this
+# week we alert (the retry budget is spent). A dry run records nothing.
 if [[ $DRYRUN != "--dry-run" ]]; then
   if [[ $REQUIRED_FAILURES -eq 0 ]]; then
     mkdir -p "$STATE_DIR"
-    date +%G-%V >"$SUCCESS_STAMP"
+    __update_skills_stamp_value >"$SUCCESS_STAMP"
   else
     log "WITHHOLDING the weekly success stamp: $REQUIRED_FAILURES required-phase failure(s) this run; a later scheduled slot will retry"
     if __update_skills_scheduled_budget_exhausted; then

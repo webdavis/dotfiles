@@ -311,14 +311,26 @@ deferred || fail "an active session did not defer: $GATE_OUTPUT"
 alerted && fail "a non-last slot (04:00) fired the LOUD alert, only the last slot should: $(cat "$ALERTER_LOG")"
 
 # Weekly success stamp present → EARLY-EXIT before any work (no evidence needed).
+# The stamp is <week> <custom-lock-hash> <updater-hash>; the early-exit only
+# fires when all three match the current desired state, so the fixture stamp is
+# built from the real hashes (a roster or updater change un-stamps the week).
 reset_activity
 mkdir -p "$HOME/.local/state/update-skills"
-printf '%s' "$FAKE_WEEK" >"$HOME/.local/state/update-skills/last-success"
+lock_hash="$(shasum -a 256 "$HOME/.agents/custom-skill-lock.json" | awk '{print $1}')"
+updater_hash="$(shasum -a 256 "$SCRIPT" | awk '{print $1}')"
+printf '%s %s %s' "$FAKE_WEEK" "$lock_hash" "$updater_hash" >"$HOME/.local/state/update-skills/last-success"
 : >"$ALERTER_LOG"
 GATE_OUTPUT="$(FAKE_PS="$UNRELATED_PYTHON" FAKE_HOUR=08 bash "$SCRIPT" 2>&1)" ||
   fail "stamped run exited non-zero: $GATE_OUTPUT"
 early_exited || fail "a run whose week already succeeded did not early-exit: $GATE_OUTPUT"
 proceeded && fail "a stamped week re-ran the full pass instead of early-exiting: $GATE_OUTPUT"
+
+# A stamp for the same week but a DIFFERENT roster hash must NOT early-exit (a
+# roster change un-stamps the week).
+printf '%s %s %s' "$FAKE_WEEK" "deadbeef" "$updater_hash" >"$HOME/.local/state/update-skills/last-success"
+GATE_OUTPUT="$(FAKE_PS="$UNRELATED_PYTHON" FAKE_HOUR=08 bash "$SCRIPT" 2>&1)" ||
+  fail "roster-changed run exited non-zero: $GATE_OUTPUT"
+early_exited && fail "a stamp with a stale roster hash early-exited instead of rebuilding: $GATE_OUTPUT"
 rm -rf "$HOME/.local/state"
 
 # A proceeding full run (agent-free world) WRITES the week stamp (so the next
@@ -327,19 +339,19 @@ reset_activity
 run_gate "$UNRELATED_PYTHON" 04
 [[ -f "$HOME/.local/state/update-skills/last-success" ]] ||
   fail "a successful full run did not write the weekly success stamp"
-[[ "$(<"$HOME/.local/state/update-skills/last-success")" == "$FAKE_WEEK" ]] ||
-  fail "the success stamp is not the current ISO week: $(<"$HOME/.local/state/update-skills/last-success")"
+[[ "$(<"$HOME/.local/state/update-skills/last-success")" == "$FAKE_WEEK "* ]] ||
+  fail "the success stamp does not begin with the current ISO week: $(<"$HOME/.local/state/update-skills/last-success")"
 
 # ── Slot-aware exhaustion via the --scheduled marker. Exhaustion is claimed ONLY
 #    for a SCHEDULED run with no later slot remaining this week, and now means
 #    "the machine had agent activity at every scheduled slot". Each stages a
 #    fresh harness so the run defers. ──────────────────────────────────────────
-# SCHEDULED last Monday slot (16:00) still deferring → LOUD alert + log line.
+# SCHEDULED last Monday slot (23:00) still deferring → LOUD alert + log line.
 reset_activity
 harness_active "$ACT_CODEX"
-run_gate_sched "$CODEX_PLAIN" 16 "" 1
+run_gate_sched "$CODEX_PLAIN" 23 "" 1
 deferred || fail "scheduled last-slot world did not defer: $GATE_OUTPUT"
-alerted || fail "a scheduled last slot (Monday 16:00) deferral did not fire the LOUD alerter notification"
+alerted || fail "a scheduled last slot (Monday 23:00) deferral did not fire the LOUD alerter notification"
 grep -qiE 'exhaust|budget|last|activity' <<<"$GATE_OUTPUT" ||
   fail "scheduled last-slot deferral did not emit an exhausted-budget log line: $GATE_OUTPUT"
 [[ -f "$HOME/.local/state/update-skills/last-scheduled-week" ]] ||
@@ -360,26 +372,27 @@ run_gate_sched "$CODEX_PLAIN" 10 "" 3
 deferred || fail "scheduled catch-up world did not defer: $GATE_OUTPUT"
 alerted || fail "a scheduled catch-up on a later day did not claim exhaustion (no later slot this week): $GATE_OUTPUT"
 
-# MANUAL run on Monday 16:00 → DEFERS but NEVER claims scheduled-budget
-# exhaustion (a manual run is not part of the scheduled cycle).
+# MANUAL run on Monday 23:00 (the last slot hour) → DEFERS but NEVER claims
+# scheduled-budget exhaustion (a manual run is not part of the scheduled cycle).
 reset_activity
 harness_active "$ACT_CODEX"
-run_gate "$CODEX_PLAIN" 16 "" 1
-deferred || fail "manual Monday-16:00 world did not defer: $GATE_OUTPUT"
-alerted && fail "a manual Monday-16:00 run claimed scheduled-budget exhaustion: $(cat "$ALERTER_LOG")"
+run_gate "$CODEX_PLAIN" 23 "" 1
+deferred || fail "manual Monday-23:00 world did not defer: $GATE_OUTPUT"
+alerted && fail "a manual Monday-23:00 run claimed scheduled-budget exhaustion: $(cat "$ALERTER_LOG")"
 
 # MANUAL non-Monday run → DEFERS, no alert (unchanged).
 reset_activity
 harness_active "$ACT_CODEX"
-run_gate "$CODEX_PLAIN" 16 "" 3
+run_gate "$CODEX_PLAIN" 23 "" 3
 deferred || fail "manual non-Monday world did not defer: $GATE_OUTPUT"
 alerted && fail "a manual non-Monday deferral alerted: $(cat "$ALERTER_LOG")"
 
-# ── The plist declares EXACTLY four Monday retry slots, each a full
-#    {Weekday=1, Hour in 4/8/12/16, Minute=0} tuple, AND passes --scheduled in
+# ── The plist declares EXACTLY 24 hourly Monday retry slots, each a full
+#    {Weekday=1, Hour in 0..23, Minute=0} tuple, AND passes --scheduled in
 #    ProgramArguments. Parse the rendered plist as real plist data (plutil ->
 #    json -> jq) so dropping Weekday or Minute (which launchd then treats as a
-#    wildcard, firing far more often) fails this test. ─────────────────────────
+#    wildcard, firing far more often) fails this test. The expected hour set is
+#    generated programmatically (0..23) rather than hand-listed. ───────────────
 PLIST="$REPO_ROOT/Library/LaunchAgents/com.webdavis.update-skills.plist.tmpl"
 rendered_plist="$(CI=1 chezmoi --source "$REPO_ROOT" execute-template --no-tty <"$PLIST")" ||
   fail "chezmoi execute-template failed on the update-skills plist"
@@ -387,14 +400,15 @@ plist_json="$tmp/plist.json"
 printf '%s' "$rendered_plist" | plutil -convert json -o "$plist_json" - 2>/dev/null ||
   fail "rendered plist did not parse as a plist"
 slot_count="$(jq '.StartCalendarInterval | length' "$plist_json")"
-[[ $slot_count -eq 4 ]] ||
-  fail "expected exactly 4 StartCalendarInterval tuples, got $slot_count"
+[[ $slot_count -eq 24 ]] ||
+  fail "expected exactly 24 StartCalendarInterval tuples, got $slot_count"
 non_conforming="$(jq '[.StartCalendarInterval[] | select(.Weekday != 1 or .Minute != 0)] | length' "$plist_json")"
 [[ $non_conforming -eq 0 ]] ||
   fail "a slot is missing Weekday=1 or Minute=0 (launchd would treat the missing key as a wildcard)"
 slot_hours="$(jq -c '[.StartCalendarInterval[].Hour] | sort' "$plist_json")"
-[[ $slot_hours == "[4,8,12,16]" ]] ||
-  fail "slot hours are not exactly 4/8/12/16: $slot_hours"
+expected_hours="$(jq -cn '[range(0;24)]')"
+[[ $slot_hours == "$expected_hours" ]] ||
+  fail "slot hours are not exactly 0..23: $slot_hours"
 prog_scheduled="$(jq -r '[.ProgramArguments[] | select(. == "--scheduled")] | length' "$plist_json")"
 [[ $prog_scheduled == "1" ]] ||
   fail "the plist ProgramArguments does not pass exactly one --scheduled marker (slot-aware exhaustion needs it)"
