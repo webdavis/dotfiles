@@ -80,14 +80,22 @@ EOF
 chmod +x "$sbin"/npx "$sbin"/date "$sbin"/alerter
 HPATH="$sbin:/usr/bin:/bin"
 
+# anchor is an npx-tracked skill present as a store real dir, so every case's
+# tracked union is non-empty (the zero-union gate would otherwise refuse cases
+# whose clawhub table is empty, before their hermes/routing prereq check runs).
+# It migrates into a live generation and is orthogonal to the prereq assertions.
+mkdir -p "$STORE/anchor"
+printf -- '---\nname: anchor\ndescription: fixture\n---\n' >"$STORE/anchor/SKILL.md"
+printf '{"skills":{"anchor":{}}}\n' >"$HOME/.agents/.skill-lock.json"
+
 write_lock() { # $1 = claw json, $2 = registry json, $3 = routing json
   cat >"$HOME/.agents/custom-skill-lock.json" <<EOF
 {
   "version": 2,
-  "tiers": {},
+  "tiers": {"anchor": "core"},
   "hermesProfiles": {},
   "hermesRegistry": $2,
-  "npxTracked": {},
+  "npxTracked": {"anchor": {"repo": "fixture/pack"}},
   "clawhubTracked": $1,
   "superpowersRouting": $3,
   "forks": {}

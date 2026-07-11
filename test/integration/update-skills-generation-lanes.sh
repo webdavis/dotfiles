@@ -62,13 +62,18 @@ for a in "$@"; do
   prev="$a"
 done
 if [[ $mode == add ]]; then
+  # Like the real CLI (verified against skills 1.5.16), the global lock is
+  # maintained at $XDG_STATE_HOME/skills/.skill-lock.json.
+  cli_lock="${XDG_STATE_HOME:-$HOME/.local/state}/skills/.skill-lock.json"
+  mkdir -p "$(dirname "$cli_lock")"
+  [[ -f $cli_lock ]] || printf '{"version":3,"skills":{}}\n' >"$cli_lock"
   for s in "${skills[@]}"; do
     mkdir -p "$HOME/.agents/skills/$s"
     printf -- '---\nname: %s\n---\n# %s\n' "$s" "$s" >"$HOME/.agents/skills/$s/SKILL.md"
+    jq --arg s "$s" '.skills[$s] = {source: "github:fixture"}' \
+      "$cli_lock" >"$cli_lock.tmp" && mv "$cli_lock.tmp" "$cli_lock"
   done
   # environment breadcrumbs (must all resolve inside the candidate):
-  : >"$HOME/.agents/.skill-lock.json"
-  printf '{"updated":true}\n' >"$HOME/.agents/.skill-lock.json"
   mkdir -p "$XDG_CACHE_HOME" "$npm_config_cache" "$TMPDIR"
   : >"$XDG_CACHE_HOME/npx-ran"
   : >"$npm_config_cache/npm-ran"

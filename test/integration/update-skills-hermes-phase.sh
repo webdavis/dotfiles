@@ -61,7 +61,7 @@ mkdir -p "$HOME/.agents/skills"
 cat >"$HOME/.agents/custom-skill-lock.json" <<'EOF'
 {
   "version": 2,
-  "tiers": {},
+  "tiers": {"anchor": "core"},
   "hermesProfiles": {
     "epsilon": ["butters"]
   },
@@ -73,10 +73,17 @@ cat >"$HOME/.agents/custom-skill-lock.json" <<'EOF'
     "failer": {"profiles": ["elaine"], "source": "clawhub", "identifier": "clawhub/failer", "lockKey": "failer-key"},
     "blocked": {"profiles": ["concerned"], "source": "clawhub", "identifier": "clawhub/blocked", "lockKey": "blocked-key"}
   },
-  "npxTracked": {},
+  "npxTracked": {"anchor": {"repo": "fixture/pack"}},
+  "clawhubTracked": {},
   "forks": {}
 }
 EOF
+# anchor: an npx-tracked store real dir so the tracked union is non-empty (the
+# zero-union gate refuses any full/install-only run otherwise). It migrates into
+# a live generation and is orthogonal to the hermes registry phase under test.
+mkdir -p "$HOME/.agents/skills/anchor"
+printf -- '---\nname: anchor\ndescription: fixture\n---\n' >"$HOME/.agents/skills/anchor/SKILL.md"
+printf '{"skills":{"anchor":{}}}\n' >"$HOME/.agents/.skill-lock.json"
 
 # PATH stubs. hermes records argv (one line per invocation), fails for
 # failer-key, prints a Blocked verdict for blocked-key; npx records and

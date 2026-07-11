@@ -57,18 +57,23 @@ ln -s "$OUTSIDE2/skills" "$PROFILES/spec2/skills"
 # Lock maps alpha to the default profile only; spec/spec2 are unmapped. Their
 # skills dirs still EXIST on disk (through the symlinks), so the profile-universe
 # walk would reach them, but the symlink guard must skip them.
+# alpha is npx-tracked so the roster's tracked union is non-empty (the zero-union
+# gate refuses any full run otherwise). It maps to the default profile only;
+# spec/spec2 are unmapped.
 cat >"$HOME/.agents/custom-skill-lock.json" <<'EOF'
 {
   "version": 2,
   "tiers": {"alpha": "core"},
   "hermesProfiles": {"alpha": ["default"]},
   "hermesRegistry": {},
-  "npxTracked": {},
+  "npxTracked": {"alpha": {"repo": "fixture/pack"}},
   "clawhubTracked": {},
   "superpowersRouting": {},
   "forks": {}
 }
 EOF
+# Seed the flat npx lock so alpha migrates cleanly into a live generation.
+printf '{"skills":{"alpha":{}}}\n' >"$HOME/.agents/.skill-lock.json"
 
 stub="$tmp/stub"
 mkdir -p "$stub"

@@ -38,18 +38,29 @@ STORE="$HOME/.agents/skills"
 CLAUDE="$HOME/.claude/skills"
 mkdir -p "$STORE" "$CLAUDE" "$HOME/.hermes/skills"
 
-for s in keep wrongt miss; do
+# keep/wrongt/miss are vendored Claude fan-out fixtures; anchor is an
+# npx-tracked skill so the roster's tracked union is non-empty (the zero-union
+# gate refuses any full/install-only run otherwise). anchor is not asserted on.
+for s in keep wrongt miss anchor; do
   mkdir -p "$STORE/$s"
   printf -- '---\nname: %s\ndescription: fixture\n---\n' "$s" >"$STORE/$s/SKILL.md"
 done
+printf '{"skills":{"anchor":{}}}\n' >"$HOME/.agents/.skill-lock.json"
+
+# npx stub: the anchor's generation build never calls the real CLI.
+stub="$tmp/stub"
+mkdir -p "$stub"
+printf '#!/usr/bin/env bash\necho stub\n' >"$stub/npx"
+chmod +x "$stub/npx"
+export PATH="$stub:$PATH"
 
 cat >"$HOME/.agents/custom-skill-lock.json" <<'EOF'
 {
   "version": 2,
-  "tiers": {"keep": "core", "wrongt": "core", "miss": "core"},
+  "tiers": {"keep": "core", "wrongt": "core", "miss": "core", "anchor": "core"},
   "hermesProfiles": {"keep": [], "wrongt": [], "miss": []},
   "hermesRegistry": {},
-  "npxTracked": {},
+  "npxTracked": {"anchor": {"repo": "fixture/pack"}},
   "clawhubTracked": {},
   "forks": {}
 }

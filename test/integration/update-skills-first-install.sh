@@ -9,9 +9,12 @@
 #   2. its rendered content re-hashes when the lock changes, so run_onchange
 #      re-fires on any roster edit;
 #   3. --install-only against an empty HOME installs ABSENT skills and skips
-#      present ones, and it runs even while an agent session is live, because
-#      --install-only only ADDS absent skills (never swaps a folder) and is
-#      therefore exempt from the idle-gate.
+#      present ones. It is exempt from the TOP-LEVEL idle gate, so it runs
+#      even under an active session; on a fresh machine with no live
+#      generation it publishes by a plain rename (no exchange), so the
+#      bootstrap completes here regardless of the session. (Once a live
+#      generation exists, a later install-only idle-gates its own exchange and
+#      defers under activity - exercised in update-skills-install-defer-retry.)
 set -euo pipefail
 
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY GIT_COMMON_DIR

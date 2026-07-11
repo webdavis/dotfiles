@@ -43,11 +43,11 @@
 #      __gen_lane_clawhub for the local-changes refusal ladder.
 #   - vendored (dot_agents/skills/, committed): third-party copies refreshed by
 #      `chezmoi apply`, never by this script. Two sub-kinds: (a) forks-table
-#      entries whose upstreams the weekly run drift-checks and alerts on — the
+#      entries whose upstreams the weekly run drift-checks and alerts on, the
 #      deliberate content forks moshi/herdr and the npx-can't-install-full-tree
 #      case elevenlabs (its SKILL.md sits at the repo root beside a scripts/
 #      dir npx drops, even with --full-depth); (b) plain committed dirs with no
-#      forks entry — today only tiktok-crawling, a ClawHub skill left vendored
+#      forks entry, today only tiktok-crawling, a ClawHub skill left vendored
 #      because hermes owns its hub copy (hermesRegistry) and its hub name
 #      differs from the roster name.
 #   - app-owned symlink (cua-driver): the store entry is a symlink into the
@@ -56,7 +56,7 @@
 #      updater; see refresh_app_owned_cua_pack).
 #
 # The store serves Claude/Codex always and hermes in two lanes. Symlinks fan
-# out to Claude (~/.claude/skills — every store skill) and to hermes per the
+# out to Claude (~/.claude/skills, every store skill) and to hermes per the
 # lock's hermesProfiles map ("default" = ~/.hermes/skills, any other profile
 # name = ~/.hermes/profiles/<name>/skills, [] = deliberately absent). hermes
 # fan-out is driven ENTIRELY by hermesProfiles: a non-empty mapping means
@@ -64,11 +64,11 @@
 # skills (humanizer, hyperframes) never fan out at all: hermes's catalog wins
 # those names, the store copies serve Claude/Codex only. The skills hermes OWNS from a registry (hermesRegistry table) are
 # hub-owned dirs hermes-side that the weekly hermes phase keeps fresh via
-# `hermes -p <profile> skills update <lockKey>` — a store symlink must never
+# `hermes -p <profile> skills update <lockKey>`, a store symlink must never
 # shadow those paths, which is why hermesRegistry and the non-empty
 # hermesProfiles set are disjoint. Codex needs no fan-out: it scans
 # $HOME/.agents/skills natively (developers.openai.com/codex/skills), and a
-# ~/.codex symlink would surface every skill twice — its tiering is the
+# ~/.codex symlink would surface every skill twice, its tiering is the
 # agents/openai.yaml policy overlay that the lock's tiers table drives (see
 # assert_codex_overlays below).
 #
@@ -107,7 +107,7 @@ set -euo pipefail
 
 # This script clones and inspects git repos in temp dirs (fork drift-check). If
 # a caller (e.g. a git hook) leaked GIT_DIR/GIT_INDEX_FILE into our environment,
-# those clones would silently operate on the caller's repository instead — unset
+# those clones would silently operate on the caller's repository instead, unset
 # them.
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY GIT_COMMON_DIR
 
@@ -121,7 +121,7 @@ CUSTOM_SKILL_LOCK="${UPDATE_SKILLS_LOCK_PATH:-$AGENTS/custom-skill-lock.json}"
 CLAUDE="$HOME/.claude/skills"
 HERMES="$HOME/.hermes/skills"            # the default profile (Bob)
 HERMES_PROFILES="$HOME/.hermes/profiles" # specialist profiles: <name>/skills
-LOCKDIR="$AGENTS/.update-skills.lock.d"
+LOCKFILE="$AGENTS/.update-skills.lock"
 STATE_DIR="$HOME/.local/state/update-skills"
 SUCCESS_STAMP="$STATE_DIR/last-success"               # ISO year-week (%G-%V) of the last fully successful weekly run
 SCHEDULED_WEEK_STAMP="$STATE_DIR/last-scheduled-week" # ISO week of the last SCHEDULED attempt (item 6)
@@ -176,15 +176,15 @@ HERMES_ACTIVITY_DIR="${UPDATE_SKILLS_HERMES_ACTIVITY_DIR:-$HOME/.hermes/logs}"
 # LOUDLY instead of failing silent. Keep in sync with the plist.
 readonly UPDATE_SKILLS_LAST_SLOT_HOUR="23"
 # The Codex on-demand policy overlay this script asserts into store skill dirs
-# (see assert_codex_overlays) — also what the clawhub update pass recognizes as
+# (see assert_codex_overlays), also what the clawhub update pass recognizes as
 # its OWN file when the CLI refuses over it (see update_clawhub_tracked).
 readonly CODEX_POLICY=$'policy:\n  allow_implicit_invocation: false'
 # The weekly registry-update phase walks exactly the profiles that own a
-# registry skill in the lock (hermesRegistry) — DERIVED from the lock at run
+# registry skill in the lock (hermesRegistry), DERIVED from the lock at run
 # time (see update_hermes_registry_skills), never hardcoded, so a new profile
 # added to hermesRegistry is walked automatically with no second edit to
 # forget. That includes default (Bob): its un-entanglement is DONE
-# (2026-07-09) — kubernetes-specialist, lobster, and todoist-cli moved to pure
+# (2026-07-09), kubernetes-specialist, lobster, and todoist-cli moved to pure
 # npx store ownership (operator directive: hermes no longer owns them), so no
 # registry entry has a store-symlinked install path that hermes's updater path
 # validator would reject. Default is walked via `hermes -p default`, exactly
@@ -383,16 +383,23 @@ __gen_exchange() {
 }
 
 # Write generation.json LAST, as the ready marker. Its presence + matching
-# hashes is what recovery uses to tell a complete candidate from a leftover.
-#   __gen_write_meta <generation-dir> <id>
+# hashes is what recovery uses to tell a complete candidate from a leftover, and
+# its buildMode ("full" | "additive") records whether the lanes ran a FULL
+# refresh or an ADDITIVE (install-only) build, so weekly recovery never reuses an
+# additive candidate as a weekly refresh (an additive clone carries stale
+# byte-copies of the existing skills). Defaults to "full" when the caller does
+# not specify a mode (migration and the reuse fixtures build complete full
+# generations).
+#   __gen_write_meta <generation-dir> <id> [build-mode]
 __gen_write_meta() {
-  local dir="$1" id="$2" meta="$1/$GENERATION_META_NAME"
+  local dir="$1" id="$2" build_mode="${3:-full}" meta="$1/$GENERATION_META_NAME"
   jq -n \
     --arg id "$id" \
     --arg createdAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     --arg customLockHash "$(__gen_custom_lock_hash)" \
     --arg updaterHash "$(__gen_updater_hash)" \
-    '{id: $id, createdAt: $createdAt, customLockHash: $customLockHash, updaterHash: $updaterHash}' \
+    --arg buildMode "$build_mode" \
+    '{id: $id, createdAt: $createdAt, customLockHash: $customLockHash, updaterHash: $updaterHash, buildMode: $buildMode}' \
     >"$meta"
 }
 
@@ -497,6 +504,18 @@ __gen_plant_lock_link() {
 # precondition failure (caller records a required failure; live state untouched).
 __gen_publish() {
   local candidate="$1" old_id
+  # F4: snapshot the OUTGOING generation's owned names BEFORE the exchange, so
+  # the delist pruner can tell an updater-owned (generation) store dir from a
+  # genuinely foreign one after the swap. Empty on a fresh-machine first
+  # publish (no previous generation).
+  GEN_PREV_OWNED_NAMES=()
+  if [[ -d "$SKILLS_CURRENT/skills" ]]; then
+    local __prev_owned
+    for __prev_owned in "$SKILLS_CURRENT/skills"/*; do
+      [[ -d $__prev_owned ]] || continue
+      GEN_PREV_OWNED_NAMES+=("${__prev_owned##*/}")
+    done
+  fi
   [[ -d $candidate && ! -L $candidate ]] || {
     log "publish: candidate $candidate is not a real directory"
     return 1
@@ -527,19 +546,54 @@ __gen_publish() {
     log "publish: WARN candidate and .skills-current look like different devices; attempting the exchange anyway"
   old_id="$(__gen_meta_field "$SKILLS_CURRENT" id)"
   [[ -n $old_id ]] || old_id="pre-$(__gen_new_id)" # a first-migrated current may predate meta
+  local retained="$GENERATIONS/$old_id"
+  # R2-3c: refuse a retention path that CONTAINS the candidate, BEFORE the
+  # exchange. If the live generation's id equals the candidate's workspace id
+  # (the post-exchange crash signature), retaining the displaced previous
+  # generation at $GENERATIONS/<old_id> would garbage-destroy the workspace
+  # that holds the very generation the exchange just published. Refusing here
+  # leaves the live generation genuinely untouched.
+  case "$candidate/" in
+    "$retained"/*)
+      log "publish: FATAL the retention path $retained contains the candidate; refusing to publish (live generation untouched)"
+      return 1
+      ;;
+  esac
+  # R2-3b: record the in-flight exchange BEFORE it lands, so a crash anywhere
+  # in this window is disambiguated by recovery (marker + live id). An
+  # unwritable marker refuses the publish while the live generation is still
+  # untouched (fail closed).
+  mkdir -p "$GENERATIONS"
+  local marker="$GENERATIONS/$GEN_EXCHANGE_MARKER_NAME"
+  local candidate_workspace_id
+  candidate_workspace_id="$(__gen_meta_field "$candidate" id)"
+  if ! jq -n --arg oldId "$old_id" --arg workspaceId "$candidate_workspace_id" \
+    '{oldId: $oldId, workspaceId: $workspaceId}' >"$marker" 2>/dev/null; then
+    log "publish: FATAL could not write the exchange-in-flight marker; refusing to publish (live generation untouched)"
+    return 1
+  fi
   # THE atomic publish: renameat2 RENAME_EXCHANGE. After it, .skills-current is
   # the new generation and $candidate holds the complete PREVIOUS generation.
   if ! __gen_exchange "$candidate" "$SKILLS_CURRENT"; then
     log "publish: atomic exchange failed; live generation untouched"
+    rm -f "$marker"
     return 1
   fi
-  mkdir -p "$GENERATIONS"
   # Retain the displaced previous generation under its id (garbage-destroy any
-  # name collision first so the rename lands cleanly).
-  local retained="$GENERATIONS/$old_id"
+  # name collision first so the rename lands cleanly). R2-3d / F7: a retention
+  # failure is FATAL but DISTINCT, the exchange LANDED (the refreshed
+  # generation IS live) and the candidate workspace now holds the ONLY copy of
+  # the previous generation, with the marker recording the pending retention.
+  # Return the distinct code 2 so the caller PRESERVES the workspace and marker
+  # (never garbage-destroys them) for recovery to finish; a plain failure (1) is
+  # reserved for "exchange never landed, live untouched". The marker stays.
   __gen_garbage_destroy "$retained"
-  mv "$candidate" "$retained" 2>/dev/null || __gen_garbage_destroy "$candidate"
+  if ! mv "$candidate" "$retained" 2>/dev/null; then
+    log "publish: FATAL the displaced previous generation could not be retained; the refreshed generation is live but this run reports failure (no stamp). Preserving the workspace and marker for recovery."
+    return 2
+  fi
   __gen_prune_generations "$old_id"
+  rm -f "$marker"
   return 0
 }
 
@@ -572,6 +626,119 @@ __gen_tracked_names() {
   jq -r '((.npxTracked // {}) + (.clawhubTracked // {})) | keys[]?' "$CUSTOM_SKILL_LOCK" 2>/dev/null
 }
 
+# ---------------------------------------------------------------------------
+# FAIL-CLOSED roster gate (R2-2). The roster lock is the authority on what the
+# generation should hold; if it is missing, unparseable, or schema-broken, the
+# empty tracked set it degrades to would make the candidate builder drop every
+# skill, validation pass on zero names, and the delist pruner remove every
+# store link: an EMPTY publication stamped as success. So before ANY candidate
+# mutation the run VALIDATES the lock and SNAPSHOTS it to a run-private copy;
+# every later read in the transaction goes through the snapshot, and the LIVE
+# lock's hash is re-checked against the snapshot before publish and before
+# stamping (a mid-run chezmoi apply must not publish a candidate built from
+# the old roster, nor stamp the week for a roster that changed underneath).
+# ---------------------------------------------------------------------------
+GEN_ROSTER_SOURCE=""        # the real deployed lock path (hash re-checks read this)
+GEN_ROSTER_SNAPSHOT_FILE="" # the run-private snapshot (all roster reads go here)
+GEN_ROSTER_HASH=""          # sha256 of the snapshot at run start
+
+# Minimal structural schema: a top-level object whose tracked tables (and the
+# tiers table) are objects when present. A wrong-typed table would make the
+# jq key-walks silently yield nothing, which is exactly the degraded-empty
+# failure this gate exists to refuse.
+#
+# F2: a PRESENT table must be an OBJECT, `.npxTracked // {}` substitutes on
+# null AND false (jq: `false // {}` -> `{}`), so `npxTracked: false` (or null,
+# a string, an array) would coerce to an empty object, pass the old check, and
+# silently drop every npx skill. Reject a present-but-non-object table (an
+# absent key stays legal: it degrades to a genuinely empty table). Also
+# validate ENTRY schemas: every npx entry carries a non-empty string `repo`,
+# every clawhub entry a non-empty string `slug` and `registry`. A malformed
+# entry is a required failure, never a silently skipped skill.
+__gen_roster_schema_ok() {
+  jq -e '
+    def object_or_absent($k): (has($k) | not) or (.[$k] | type == "object");
+    def nonempty_string($v): ($v | type) == "string" and ($v | length) > 0;
+    (type == "object")
+    and object_or_absent("npxTracked")
+    and object_or_absent("clawhubTracked")
+    and object_or_absent("tiers")
+    and ((.npxTracked // {}) | to_entries
+      | all((.value | type == "object") and nonempty_string(.value.repo)))
+    and ((.clawhubTracked // {}) | to_entries
+      | all((.value | type == "object")
+        and nonempty_string(.value.slug) and nonempty_string(.value.registry)))
+  ' "$1" >/dev/null 2>&1
+}
+
+# Validate the live roster lock and snapshot it for the transaction. On
+# success CUSTOM_SKILL_LOCK points at the snapshot (so the candidate build,
+# validation, lanes, and fan-out all read one immutable roster) and
+# GEN_ROSTER_HASH records its content hash. Any validation step failing, or
+# the live lock changing while being copied, is a refused run (caller fails
+# closed; the live store and generation are untouched).
+__gen_snapshot_roster() {
+  GEN_ROSTER_SOURCE="$CUSTOM_SKILL_LOCK"
+  if [[ ! -f $CUSTOM_SKILL_LOCK ]]; then
+    log "roster gate: $CUSTOM_SKILL_LOCK is missing; refusing to treat an absent roster as 'no skills wanted'"
+    return 1
+  fi
+  if ! __gen_roster_schema_ok "$CUSTOM_SKILL_LOCK"; then
+    log "roster gate: $CUSTOM_SKILL_LOCK is unparseable or schema-broken; refusing to build from a degraded-empty roster"
+    return 1
+  fi
+  local source_hash snapshot
+  source_hash="$(__gen_hash_file "$CUSTOM_SKILL_LOCK")"
+  snapshot="$(mktemp "${TMPDIR:-/tmp}/update-skills-roster.XXXXXX")" || return 1
+  if ! cp "$CUSTOM_SKILL_LOCK" "$snapshot"; then
+    rm -f "$snapshot"
+    return 1
+  fi
+  # Torn-copy guard: the snapshot must re-validate and hash-match the source
+  # as it was read; a concurrent writer mid-copy is a refused run.
+  if ! __gen_roster_schema_ok "$snapshot" ||
+    [[ "$(__gen_hash_file "$snapshot")" != "$source_hash" ]]; then
+    log "roster gate: the roster lock changed while being snapshotted; refusing this run"
+    rm -f "$snapshot"
+    return 1
+  fi
+  GEN_ROSTER_SNAPSHOT_FILE="$snapshot"
+  GEN_ROSTER_HASH="$source_hash"
+  CUSTOM_SKILL_LOCK="$snapshot"
+  return 0
+}
+
+# True while the LIVE roster lock is still byte-identical to the run-start
+# snapshot. Publish and stamp are gated on this; with no snapshot taken (a
+# mode that never mutates), it passes vacuously.
+__gen_roster_unchanged() {
+  [[ -n $GEN_ROSTER_HASH ]] || return 0
+  [[ "$(__gen_hash_file "$GEN_ROSTER_SOURCE")" == "$GEN_ROSTER_HASH" ]]
+}
+
+# True when <name> is a currently-tracked generation skill (npx or clawhub).
+# The tracked set is the roster's authority on what the generation should hold;
+# a name that has been DELISTED from the lock is no longer tracked and must not
+# be carried forward into a new candidate or left live in the store.
+__gen_name_is_tracked() {
+  local query="$1" tracked_name
+  while IFS= read -r tracked_name; do
+    [[ $tracked_name == "$query" ]] && return 0
+  done < <(__gen_tracked_names)
+  return 1
+}
+
+# F4: true when <name> was owned by the OUTGOING generation (captured by
+# __gen_publish before the exchange). Distinguishes an updater-owned store dir a
+# competing writer clobbered from a genuinely foreign real dir.
+__gen_name_was_generation_owned() {
+  local query="$1" owned
+  for owned in "${GEN_PREV_OWNED_NAMES[@]:-}"; do
+    [[ -n $owned && $owned == "$query" ]] && return 0
+  done
+  return 1
+}
+
 # True when a store entry is the correct migrated symlink for a tracked skill.
 __gen_store_link_correct() {
   local name="$1"
@@ -597,23 +764,102 @@ __gen_store_link_correct() {
 # ---------------------------------------------------------------------------
 GEN_REABSORB=()
 GEN_REUSE_CANDIDATE=""
+# F4: the set of skill names the OUTGOING generation owned, captured by
+# __gen_publish immediately before the exchange (from $SKILLS_CURRENT/skills/).
+# It is the provenance the delist pruner needs: a real dir at a store name that
+# was generation-owned but is no longer tracked was updater-owned (a delisted
+# skill an out-of-band writer clobbered into a real dir) and is quarantined,
+# whereas a genuinely FOREIGN real dir (never a generation skill) is preserved.
+GEN_PREV_OWNED_NAMES=()
+# The exchange-in-flight marker (R2-3b): written by __gen_publish just before
+# the atomic exchange, removed after retention completes. Its presence tells
+# recovery a publish died mid-transaction; comparing the LIVE generation's id
+# with the marker's oldId disambiguates which side of the exchange the crash
+# hit, so recovery can COMPLETE the retention instead of mistaking the
+# displaced old generation for a reusable candidate. A dotfile name keeps it
+# invisible to the "$GENERATIONS"/* walks (sweep, prune, recovery).
+GEN_EXCHANGE_MARKER_NAME=".exchange-in-flight"
+__gen_recover_exchange_marker() {
+  local marker="$GENERATIONS/$GEN_EXCHANGE_MARKER_NAME"
+  [[ -f $marker ]] || return 0
+  local m_old m_ws live_id ws_agents
+  m_old="$(jq -r '.oldId // ""' "$marker" 2>/dev/null || true)"
+  m_ws="$(jq -r '.workspaceId // ""' "$marker" 2>/dev/null || true)"
+  live_id="$(__gen_meta_field "$SKILLS_CURRENT" id)"
+  if [[ -z $m_old || -z $m_ws ]]; then
+    log "recovery: dropping an unreadable exchange-in-flight marker"
+    rm -f "$marker"
+    return 0
+  fi
+  if [[ $live_id == "$m_old" ]]; then
+    # Crash BEFORE the exchange landed: nothing was published; the workspace
+    # is an ordinary candidate and the normal walk assesses it.
+    log "recovery: a publish died before its exchange landed; dropping the marker"
+    rm -f "$marker"
+    return 0
+  fi
+  # The exchange LANDED but retention did not complete: the workspace holds
+  # the DISPLACED previous generation. Complete the retention so the walk
+  # never sees the old generation as a candidate.
+  ws_agents="$GENERATIONS/$m_ws/home/.agents"
+  if [[ -d $ws_agents && "$(__gen_meta_field "$ws_agents" id)" == "$m_old" ]]; then
+    log "recovery: completing the interrupted retention of previous generation $m_old"
+    __gen_garbage_destroy "$GENERATIONS/$m_old"
+    if mv "$ws_agents" "$GENERATIONS/$m_old" 2>/dev/null; then
+      __gen_garbage_destroy "$GENERATIONS/$m_ws" # the emptied workspace shell
+    else
+      # F7: retention still cannot complete. KEEP the marker AND the workspace
+      # (it holds the ONLY copy of the previous generation) so a later recovery
+      # retries; the staging walk excludes a marker-named workspace. Never drop
+      # the marker here, dropping it would let the walk delete the workspace.
+      log "recovery: could not complete the retention; KEEPING the workspace and marker for a later retry (previous generation preserved)"
+      return 0
+    fi
+  fi
+  rm -f "$marker"
+}
 __gen_recover() {
   GEN_REABSORB=()
   GEN_REUSE_CANDIDATE=""
+  __gen_recover_exchange_marker
   __gen_sweep_garbage "$GENERATIONS"
   __gen_sweep_garbage "$STORE"
+  # F7: if the exchange-in-flight marker still exists after the marker handler
+  # ran, its retention could not complete; its workspace holds the ONLY copy of
+  # the previous generation and must be EXCLUDED from the normal staging walk
+  # (which would otherwise delete it as stale, id != workspace).
+  local pending_retention_ws=""
+  if [[ -f "$GENERATIONS/$GEN_EXCHANGE_MARKER_NAME" ]]; then
+    pending_retention_ws="$(jq -r '.workspaceId // ""' "$GENERATIONS/$GEN_EXCHANGE_MARKER_NAME" 2>/dev/null || true)"
+  fi
   local entry id newest_retained="" newest_epoch=-1 epoch cand_agents
   if [[ -d $GENERATIONS ]]; then
     for entry in "$GENERATIONS"/*; do
       [[ -d $entry ]] || continue
       id="${entry##*/}"
       case "$id" in *.garbage.*) continue ;; esac
+      if [[ -n $pending_retention_ws && $id == "$pending_retention_ws" ]]; then
+        log "recovery: preserving workspace $id (retention pending; marker kept for a later retry)"
+        continue
+      fi
       # A build workspace: .skills-generations/<id>/home/.agents .
       if [[ -d "$entry/home" ]]; then
         cand_agents="$entry/home/.agents"
-        if __gen_is_complete "$cand_agents" && __gen_meta_matches_desired "$cand_agents"; then
-          # A complete candidate matching desired state: reusable (keep the
-          # newest such by createdAt is overkill; one is enough to publish).
+        if __gen_is_complete "$cand_agents" && __gen_meta_matches_desired "$cand_agents" &&
+          [[ "$(__gen_meta_field "$cand_agents" buildMode)" == "full" ]] &&
+          [[ "$(__gen_meta_field "$cand_agents" id)" == "$id" ]]; then
+          # A complete FULL candidate matching desired state: reusable by the
+          # weekly refresh (one is enough to publish). An ADDITIVE (install-only)
+          # candidate is deliberately NOT reused here: its existing skills are
+          # stale byte-clones, so publishing it as the weekly result would ship
+          # unrefreshed content and stamp the week a success. It falls through to
+          # deletion; the weekly path then builds a fresh full candidate.
+          #
+          # The meta id must equal the WORKSPACE dir name (R2-3a): a genuine
+          # candidate is built with UPDATE_SKILLS_GEN_ID == its workspace id,
+          # while a post-exchange crash leaves the DISPLACED OLD generation
+          # (whose meta id is the old one) under the new workspace. Reusing
+          # that would publish the old generation back over the refreshed one.
           [[ -z $GEN_REUSE_CANDIDATE ]] && GEN_REUSE_CANDIDATE="$cand_agents"
           continue
         fi
@@ -779,25 +1025,53 @@ __gen_migrate() {
 # Outputs of __gen_build_candidate, consumed by the run orchestration and tests.
 GEN_CANDIDATE_HOME=""
 GEN_CANDIDATE_AGENTS=""
+# The install-only force-reinstall set (R2-5), declared here (above the lib-only
+# gate) so __gen_run_lanes can read it even when a test drives the lanes
+# directly. Populated only by __gen_install_only_attempt; empty for weekly runs.
+GEN_INSTALL_FORCE_REINSTALL=()
+# Set to 1 by __gen_install_only_attempt when it DEFERS on harness activity
+# (R2-6). The --install-only entrypoint reads it to exit the distinct deferred
+# code (75) so the first-install wrapper preserves its retry marker.
+GEN_INSTALL_DEFERRED=""
+# F5: set to 1 by __gen_weekly_attempt when the pre-exchange activity re-probe
+# defers the publish (a harness turned active during the build lanes). The main
+# weekly flow reads it and exits the retryable 75 (no stamp), so a later slot
+# retries, the deferral is not a failure.
+GEN_EXCHANGE_DEFERRED=""
 
 # Build the candidate generation at .skills-generations/<id>/home/.agents: a fake
 # HOME whose .agents/skills starts as cp -c clones of the CURRENT generation,
 # absorbing any competing-writer real-dir drift recorded in GEN_REABSORB (its
 # content wins over the current generation's copy), with the current .skill-lock.json
 # seeded. Sets GEN_CANDIDATE_HOME / GEN_CANDIDATE_AGENTS. Returns 1 on any error.
-#   __gen_build_candidate <id>
+#
+# The second argument is the build MODE (default "full"). A FULL (weekly) build
+# clone-filters to TRACKED names only, so a delisted skill leaves the generation
+# on publish and the full run's delist pruner drops its store/fan-out links
+# (delisting is a full-run responsibility, where fan-out convergence also
+# reaps the links). An ADDITIVE (install-only) build clones EVERY current entry
+# unchanged (R2-7): install-only is strictly additive and never runs the
+# pruner, so filtering here would orphan a delisted entry's store link and
+# Claude fan-out with nothing to reap them.
+#   __gen_build_candidate <id> [full|additive]
 __gen_build_candidate() {
-  local id="$1"
+  local id="$1" mode="${2:-full}"
   local home="$GENERATIONS/$id/home"
   local agents="$home/.agents"
   __gen_garbage_destroy "$GENERATIONS/$id"
   mkdir -p "$agents/skills" || return 1
-  # Clone the current generation's skills (real dirs) into the candidate.
+  # Clone the current generation's skills (real dirs) into the candidate. FULL
+  # runs carry only TRACKED names forward (a delisted skill is dropped);
+  # ADDITIVE runs clone every entry unchanged (see the mode note above).
   if [[ -d "$SKILLS_CURRENT/skills" ]]; then
     local skill_path name
     for skill_path in "$SKILLS_CURRENT/skills"/*; do
       [[ -d $skill_path ]] || continue
       name="${skill_path##*/}"
+      if [[ $mode == "full" ]] && ! __gen_name_is_tracked "$name"; then
+        log "candidate: skill $name is no longer tracked; not carrying it forward (delisted)"
+        continue
+      fi
       cp -c -R "$skill_path" "$agents/skills/$name" 2>/dev/null ||
         cp -R "$skill_path" "$agents/skills/$name" || return 1
     done
@@ -846,6 +1120,20 @@ record_failed_skill() {
   printf '%s\n' "$1" >>"$AGENTS/$GEN_FAILED_SKILLS_FILE_NAME" 2>/dev/null || true
 }
 
+# True when a skill is on the install-only FORCE-REINSTALL list (R2-5): an
+# additive build normally keeps every existing byte-clone, but a skill whose
+# live topology drifted (a missing SKILL.md, a lock-absent entry) must be
+# reinstalled even though its cloned dir is "present". The parent passes the
+# newline-separated set via UPDATE_SKILLS_FORCE_REINSTALL to the env -i lanes.
+__gen_lane_force_reinstall() {
+  local query="$1" one
+  [[ -n ${UPDATE_SKILLS_FORCE_REINSTALL:-} ]] || return 1
+  while IFS= read -r one; do
+    [[ -n $one && $one == "$query" ]] && return 0
+  done <<<"$UPDATE_SKILLS_FORCE_REINSTALL"
+  return 1
+}
+
 # npx lane (brief step 3): explicit `skills add <repo> --skill <name> ...` per
 # npxTracked entry, GROUPED by repo (NOT a bulk `update`, whose lock-walk logs
 # some failures at exit 0). Operating on $STORE, which in --build-lanes mode is
@@ -853,8 +1141,9 @@ record_failed_skill() {
 # skills too, since `add` installs-or-refreshes every entry. Each failure is a
 # required failure (the whole candidate is discarded on any).
 # Install-only builds (UPDATE_SKILLS_LANES_ADDITIVE=1) narrow every repo group to
-# the skills ABSENT from the candidate store, so existing skills stay the
-# byte-clones of current the candidate started as (no updates, additive only).
+# the skills ABSENT from the candidate store (or on the force-reinstall list),
+# so existing healthy skills stay the byte-clones of current the candidate
+# started as (no updates, additive only).
 __gen_lane_npx() {
   [[ -f $CUSTOM_SKILL_LOCK ]] || return 0
   local additive="${UPDATE_SKILLS_LANES_ADDITIVE:-}"
@@ -871,7 +1160,7 @@ __gen_lane_npx() {
     group_names=()
     while IFS= read -r name; do
       [[ -n $name ]] || continue
-      if [[ -n $additive && -e "$STORE/$name" ]]; then
+      if [[ -n $additive && -e "$STORE/$name" ]] && ! __gen_lane_force_reinstall "$name"; then
         continue # additive build: keep the existing byte-clone, never refresh
       fi
       skill_args+=(--skill "$name")
@@ -906,6 +1195,12 @@ __gen_lane_clawhub() {
   local skill slug registry tmp_workdir installed_dir overlay_file update_output
   local -a clawhub_cmd
   while IFS=$'\t' read -r -u3 skill slug registry; do
+    # R2-5 repair: a present-but-drifted clawhub skill on the force-reinstall
+    # list is removed here so the absent-install branch below reinstalls it
+    # fresh (an additive build would otherwise keep the broken byte-clone).
+    if [[ -n $additive ]] && __gen_lane_force_reinstall "$skill" && [[ -e "$STORE/$skill" ]]; then
+      rm -rf "${STORE:?}/${skill:?}"
+    fi
     if [[ ! -e "$STORE/$skill" ]]; then
       [[ -n $slug ]] || continue
       tmp_workdir="$(mktemp -d)"
@@ -959,9 +1254,43 @@ __gen_lane_clawhub() {
     "$CUSTOM_SKILL_LOCK" 2>/dev/null)
 }
 
+# F6: remove the updater-owned Codex policy block (the two lines `policy:` then
+# `  allow_implicit_invocation: false`) from an openai.yaml, preserving any
+# upstream metadata. When nothing but the block (and blank lines) remains, the
+# file is removed (and an emptied agents dir). Idempotent; a no-op when the
+# block is absent. Returns 0 on success.
+__gen_strip_codex_policy() {
+  local overlay_file="$1" agents_dir stripped
+  [[ -f $overlay_file ]] || return 0
+  grep -q 'allow_implicit_invocation: false' "$overlay_file" 2>/dev/null || return 0
+  stripped="$(awk '
+    {
+      if (held) {
+        held = 0
+        if ($0 == "  allow_implicit_invocation: false") next
+        print "policy:"
+      }
+      if ($0 == "policy:") { held = 1; next }
+      print
+    }
+    END { if (held) print "policy:" }
+  ' "$overlay_file")"
+  while [[ $stripped == *$'\n' ]]; do stripped="${stripped%$'\n'}"; done
+  if [[ -z ${stripped//[[:space:]]/} ]]; then
+    rm -f "$overlay_file"
+    agents_dir="${overlay_file%/openai.yaml}"
+    rmdir "$agents_dir" 2>/dev/null || true
+    return 0
+  fi
+  printf '%s\n' "$stripped" >"$overlay_file"
+}
+
 # Codex overlays against the candidate store: every on-demand skill carries
 # agents/openai.yaml with allow_implicit_invocation disabled (append when the
-# upstream ships its own openai.yaml, never overwrite). Idempotent.
+# upstream ships its own openai.yaml, never overwrite). SYMMETRICALLY (F6),
+# every CORE skill has any updater-owned policy block REMOVED, so an
+# on-demand -> core tier change reconciles instead of leaving a stale block.
+# Idempotent.
 __gen_assert_overlays() {
   [[ -f $CUSTOM_SKILL_LOCK ]] || return 0
   local skill overlay_file
@@ -983,6 +1312,61 @@ __gen_assert_overlays() {
         record_required_failure "candidate overlay write for $skill failed"
     fi
   done < <(jq -r '.tiers // {} | to_entries[] | select(.value == "on-demand") | .key' "$CUSTOM_SKILL_LOCK" 2>/dev/null)
+  # F6 symmetric pass: a core skill must NOT carry the updater policy block.
+  while IFS= read -r skill; do
+    [[ -d "$STORE/$skill" && ! -L "$STORE/$skill" ]] || continue
+    __gen_strip_codex_policy "$STORE/$skill/agents/openai.yaml"
+  done < <(jq -r '.tiers // {} | to_entries[] | select(.value == "core") | .key' "$CUSTOM_SKILL_LOCK" 2>/dev/null)
+}
+
+# Reconcile the candidate's published npx lock (R2-4). Two facts drive this:
+# the candidate SEEDS .agents/.skill-lock.json as a wholesale copy of the
+# previous published lock (so delisted keys survive in it), and the child npx
+# CLI reads/writes its global lock at $XDG_STATE_HOME/skills/.skill-lock.json
+# (verified empirically against skills 1.5.16 with a pinned XDG_STATE_HOME:
+# the CLI never touches ~/.agents/.skill-lock.json when XDG_STATE_HOME is
+# set), so the lane's lock writes land INSIDE the candidate home but not in
+# the published file. After the lanes: overlay the CLI-written entries onto
+# the seeded copy (capturing every install this build performed), and on a
+# FULL build drop every key outside the npxTracked set (delisting is a
+# full-run responsibility; an additive build keeps existing keys untouched).
+#   __gen_reconcile_candidate_npx_lock <full|additive>
+__gen_reconcile_candidate_npx_lock() {
+  local mode="$1"
+  local candidate_lock="$AGENTS/.skill-lock.json"
+  local cli_lock="${XDG_STATE_HOME:-$HOME/.local/state}/skills/.skill-lock.json"
+  local base cli reconciled
+  base="$(cat "$candidate_lock" 2>/dev/null || printf '{}')"
+  jq -e . <<<"$base" >/dev/null 2>&1 || base='{}'
+  cli='{}'
+  if [[ -f $cli_lock ]]; then
+    cli="$(cat "$cli_lock" 2>/dev/null || printf '{}')"
+    jq -e . <<<"$cli" >/dev/null 2>&1 || cli='{}'
+  fi
+  if ! reconciled="$(jq -n \
+    --argjson base "$base" \
+    --argjson cli "$cli" \
+    --arg mode "$mode" \
+    --slurpfile roster "$CUSTOM_SKILL_LOCK" '
+      ($roster[0].npxTracked // {} | keys) as $tracked
+      | (if ($base | length) > 0 then $base else $cli end) as $top
+      | (($base.skills // {}) + ($cli.skills // {})) as $merged
+      | $top
+      | .skills = (if $mode == "full"
+          then ($merged | with_entries(select(.key as $k | $tracked | index($k))))
+          else $merged
+        end)
+    ')"; then
+    record_required_failure "npx lock reconcile failed (candidate will be discarded)"
+    return 1
+  fi
+  if ! printf '%s\n' "$reconciled" >"$candidate_lock.reconcile.tmp" ||
+    ! mv "$candidate_lock.reconcile.tmp" "$candidate_lock"; then
+    record_required_failure "npx lock reconcile could not be written (candidate will be discarded)"
+    rm -f "$candidate_lock.reconcile.tmp"
+    return 1
+  fi
+  return 0
 }
 
 # --build-lanes body: runs INSIDE the candidate fake HOME (env -i, HOME set by
@@ -991,6 +1375,11 @@ __gen_assert_overlays() {
 # any required failure so the parent discards the whole candidate.
 __gen_do_build_lanes() {
   local id="${UPDATE_SKILLS_GEN_ID:-$(__gen_new_id)}"
+  # Record the mode these lanes ran, so recovery can tell a full weekly refresh
+  # from an additive install-only build (the ready marker is written only after
+  # the lanes of THIS mode complete and validate clean).
+  local build_mode="full"
+  [[ -n ${UPDATE_SKILLS_LANES_ADDITIVE:-} ]] && build_mode="additive"
   mkdir -p "$STORE"
   rm -f "$AGENTS/$GEN_FAILED_SKILLS_FILE_NAME"
   log "build lane: npx"
@@ -999,6 +1388,8 @@ __gen_do_build_lanes() {
   __gen_lane_clawhub
   log "build lane: codex overlays"
   __gen_assert_overlays
+  log "build lane: npx lock reconcile"
+  __gen_reconcile_candidate_npx_lock "$build_mode" || true # failure recorded; gate below discards
   if [[ $REQUIRED_FAILURES -gt 0 ]]; then
     # No ready marker for a failed build: the candidate is incomplete by
     # construction and recovery deletes it if the parent crashes first. The
@@ -1007,8 +1398,8 @@ __gen_do_build_lanes() {
   fi
   rm -f "$AGENTS/$GEN_FAILED_SKILLS_FILE_NAME"
   # The ready marker goes at .agents/generation.json (one level above skills/),
-  # written LAST.
-  __gen_write_meta "$AGENTS" "$id"
+  # written LAST, stamped with the mode these lanes ran.
+  __gen_write_meta "$AGENTS" "$id" "$build_mode"
 }
 
 # Parent side: run the build lanes against a candidate home under env -i, with
@@ -1018,10 +1409,16 @@ __gen_do_build_lanes() {
 #   __gen_run_lanes <candidate-home> <id> [additive]
 # A non-empty third argument runs the lanes ADDITIVELY (install-only builds:
 # only skills absent from the candidate are installed; nothing is refreshed).
+# The install-only FORCE-REINSTALL set (R2-5) is passed to the additive lanes
+# so a drifted skill is reinstalled despite its "present" clone.
 # Returns the re-invocation's exit status (non-zero = discard the candidate).
 __gen_run_lanes() {
   local home="$1" id="$2" additive="${3:-}"
   mkdir -p "$home/.cache" "$home/.config" "$home/.local/share" "$home/.local/state" "$home/.tmp" "$home/.npm"
+  local force_reinstall=""
+  if [[ ${#GEN_INSTALL_FORCE_REINSTALL[@]} -gt 0 ]]; then
+    printf -v force_reinstall '%s\n' "${GEN_INSTALL_FORCE_REINSTALL[@]}"
+  fi
   env -i \
     PATH="$PATH" \
     HOME="$home" \
@@ -1035,8 +1432,9 @@ __gen_run_lanes() {
     UPDATE_SKILLS_GEN_ID="$id" \
     UPDATE_SKILLS_LOCK_PATH="$CUSTOM_SKILL_LOCK" \
     UPDATE_SKILLS_LANES_ADDITIVE="$additive" \
+    UPDATE_SKILLS_FORCE_REINSTALL="$force_reinstall" \
     UPDATE_SKILLS_BUILD_LANES=1 \
-    bash "$UPDATE_SKILLS_SELF" --build-lanes
+    bash "$UPDATE_SKILLS_SELF" --build-lanes 9>&-
 }
 
 # Validate a fully-built candidate generation (brief step 4): every roster
@@ -1062,6 +1460,20 @@ __gen_validate_candidate() {
     log "validate: candidate .skill-lock.json is not valid JSON"
     return 1
   }
+  # A FULL candidate's npx lock must hold EXACTLY the npxTracked key set
+  # (R2-4): a surplus (delisted) key in the published lock would let a later
+  # `npx skills update -g` reinstall a revoked skill as a real store dir. An
+  # additive candidate is exempt: delisted keys legitimately survive there
+  # until the next full run (delisting is a full-run responsibility).
+  if [[ "$(__gen_meta_field "$agents" buildMode)" == "full" ]]; then
+    local lock_keys tracked_keys
+    lock_keys="$(jq -r '.skills // {} | keys | sort | join(",")' "$agents/.skill-lock.json" 2>/dev/null || true)"
+    tracked_keys="$(jq -r '.npxTracked // {} | keys | sort | join(",")' "$CUSTOM_SKILL_LOCK" 2>/dev/null || true)"
+    if [[ $lock_keys != "$tracked_keys" ]]; then
+      log "validate: the candidate npx lock keys [$lock_keys] do not equal the npxTracked set [$tracked_keys]"
+      return 1
+    fi
+  fi
   local name
   # every npx- and clawhub-tracked roster skill present with a SKILL.md
   while IFS= read -r name; do
@@ -1149,6 +1561,45 @@ __gen_reconcile_store_links() {
       fi
     fi
   done < <(__gen_tracked_names)
+}
+
+# Post-publish (full runs only): remove obsolete UPDATER-OWNED generation store
+# links whose skill is no longer tracked. After a delisted skill leaves the
+# published generation (not carried forward by the candidate build), its store
+# symlink at $STORE/<name> -> ../.skills-current/skills/<name> dangles; removing
+# it drops the skill from Claude/hermes fan-out convergence, which derives its
+# desired set from the store. Only an updater-owned generation link (recognized
+# by __gen_store_link_correct's exact target form) for a NON-tracked name is
+# removed: a foreign real dir, a vendored real dir, cua-driver's app-owned
+# symlink, and any non-updater symlink all fail that predicate and survive, and
+# a still-tracked name is always kept. Never deletes through a foreign symlink.
+__gen_prune_delisted_store_links() {
+  [[ -d $STORE ]] || return 0
+  local link name
+  for link in "$STORE"/*; do
+    name="${link##*/}"
+    # F4: a REAL DIR at a generation-owned name that is no longer tracked was
+    # updater-owned (a delisted skill an out-of-band writer clobbered into a
+    # real dir); recovery never re-absorbed it (it walks only tracked names),
+    # so it would otherwise survive and stay in the fan-out. Quarantine it. A
+    # genuinely FOREIGN real dir (never a generation skill, e.g. a vendored copy
+    # or an unrelated user dir) is NOT in GEN_PREV_OWNED_NAMES and is preserved.
+    if [[ -d $link && ! -L $link ]]; then
+      if ! __gen_name_is_tracked "$name" && __gen_name_was_generation_owned "$name"; then
+        log "prune: quarantining delisted generation-owned real dir $name (updater-owned, clobbered by an out-of-band writer; dropped from fan-out)"
+        __gen_garbage_destroy "$link"
+      fi
+      continue # foreign/vendored real dirs (not generation-owned) survive
+    fi
+    [[ -L $link ]] || continue                   # anything else (a stray file): leave it
+    __gen_store_link_correct "$name" || continue # foreign/app-owned symlink: never through it
+    __gen_name_is_tracked "$name" && continue    # still tracked: keep
+    if rm -f "$link"; then
+      log "prune: removed delisted store link $name (no longer tracked; dropped from fan-out)"
+    else
+      record_required_failure "delisted store link $name could not be removed"
+    fi
+  done
 }
 
 # Live-pass Codex overlay handling (brief step 3, overlays): tier overlays are
@@ -1292,6 +1743,19 @@ __gen_reset_failure_streaks() {
   fi
 }
 
+# F5: true (0 = DEFER) when publishing would EXCHANGE a live generation (the
+# current path EXISTS, so a reader may have it open) AND a harness shows recent
+# activity (fail-closed: a probe error counts as active) AND FORCE is not set.
+# Re-probed IMMEDIATELY before every exchange: activity that begins during the
+# long build lanes must still defer the swap. A fresh machine (no current path)
+# never defers here, it publishes by a plain rename with no readers. Gated on
+# EXISTENCE, not completeness: an incomplete current path is still a swap.
+__gen_exchange_would_defer() {
+  [[ -e $SKILLS_CURRENT || -L $SKILLS_CURRENT ]] || return 1
+  [[ ${UPDATE_SKILLS_FORCE:-} == "1" ]] && return 1
+  __update_skills_should_defer
+}
+
 # The full-run weekly attempt (brief steps 2-5): reuse a recovered complete
 # matching candidate, or build one; run the lanes; validate; publish with the
 # atomic exchange; reconcile the store links. ANY failure discards the WHOLE
@@ -1304,11 +1768,32 @@ __gen_weekly_attempt() {
     candidate_agents="$GEN_REUSE_CANDIDATE"
     id_dir="$(dirname "$(dirname "$candidate_agents")")"
     log "reusing the recovered complete candidate at $candidate_agents"
-    if __gen_publish "$candidate_agents"; then
+    if ! __gen_roster_unchanged; then
+      record_required_failure "the roster lock changed mid-run; refusing to publish the recovered candidate (built from the old roster)"
+      __gen_garbage_destroy "$id_dir"
+      return 1
+    fi
+    if __gen_exchange_would_defer; then
+      GEN_EXCHANGE_DEFERRED=1
+      log "weekly: a harness became active before the exchange; deferring the publish to a later slot (retryable, no stamp)"
+      __gen_garbage_destroy "$id_dir"
+      return 0
+    fi
+    local reuse_publish_rc=0
+    __gen_publish "$candidate_agents" || reuse_publish_rc=$?
+    if [[ $reuse_publish_rc -eq 0 ]]; then
       __gen_garbage_destroy "$id_dir"
       __gen_reconcile_store_links
+      __gen_prune_delisted_store_links
       __gen_plant_lock_link || record_required_failure "lock link could not be planted after publish"
       return 0
+    elif [[ $reuse_publish_rc -eq 2 ]]; then
+      # F7: the exchange landed but retention is incomplete; the workspace holds
+      # the ONLY copy of the previous generation and the marker records the
+      # pending retention. PRESERVE both (never garbage-destroy) so recovery
+      # finishes it on a later run. No stamp.
+      record_required_failure "publish of the recovered candidate landed but retention is incomplete; preserving the workspace and marker for recovery (no stamp)"
+      return 1
     fi
     record_required_failure "publish of the recovered candidate failed"
     __gen_garbage_destroy "$id_dir"
@@ -1341,25 +1826,162 @@ __gen_weekly_attempt() {
     fi
     return 1
   fi
-  if ! __gen_publish "$candidate_agents"; then
-    record_required_failure "publish failed; the live generation is untouched"
+  if ! __gen_roster_unchanged; then
+    record_required_failure "the roster lock changed mid-run; refusing to publish a candidate built from the old roster"
+    __gen_garbage_destroy "$GENERATIONS/$id"
+    return 1
+  fi
+  if __gen_exchange_would_defer; then
+    GEN_EXCHANGE_DEFERRED=1
+    log "weekly: a harness became active before the exchange; deferring the publish to a later slot (retryable, no stamp)"
+    __gen_garbage_destroy "$GENERATIONS/$id"
+    return 0
+  fi
+  local build_publish_rc=0
+  __gen_publish "$candidate_agents" || build_publish_rc=$?
+  if [[ $build_publish_rc -eq 2 ]]; then
+    # F7: exchange landed, retention incomplete, preserve the workspace and
+    # marker (the only copy of the previous generation) for recovery. No stamp.
+    record_required_failure "publish landed but retention is incomplete; preserving the workspace and marker for recovery (no stamp)"
+    return 1
+  elif [[ $build_publish_rc -ne 0 ]]; then
+    record_required_failure "publish failed; no success recorded (the publish log above says whether the exchange landed)"
     __gen_garbage_destroy "$GENERATIONS/$id"
     return 1
   fi
   __gen_garbage_destroy "$GENERATIONS/$id" # the emptied build workspace shell
   __gen_reconcile_store_links
+  __gen_prune_delisted_store_links
   __gen_plant_lock_link || record_required_failure "lock link could not be planted after publish"
+  return 0
+}
+
+# Live HEALTH of one roster skill (R2-5). Mere path existence is NOT health:
+# a store link can RESOLVE while its generation target's SKILL.md is gone, and
+# a core<->on-demand tier change drifts the overlay with no absent path at all.
+# Prints a drift REASON (empty when healthy) so install-only can decide
+# no-op-vs-repair and, for content/link drift, force a reinstall. Reasons:
+#   absent   - no store entry at all (also a repair, installed fresh)
+#   link     - the store entry is not the correct generation symlink, or it
+#              does not resolve into the current generation
+#   skillmd  - the resolved skill has no SKILL.md
+#   lock     - an npx-tracked skill missing from the published npx lock (a
+#              later `npx skills update -g` could reinstall/revoke off it)
+#   overlay  - an on-demand skill missing its required Codex tier overlay
+# The first four are CONTENT/LINK drift (force a reinstall); overlay drift is
+# fixed by a plain rebuild (the candidate re-asserts overlays).
+__gen_roster_skill_health() {
+  local name="$1"
+  if [[ ! -e "$STORE/$name" && ! -L "$STORE/$name" ]]; then
+    printf 'absent'
+    return 0
+  fi
+  # Before any live generation exists (a fresh/flat machine that install-only
+  # bootstraps but never migrates), a present real dir with a SKILL.md is
+  # legitimately healthy: the store-symlink topology is the first full weekly
+  # run's job, so demanding it here would reinstall every present skill. Only
+  # once a live generation exists is the full topology an invariant.
+  if ! __gen_is_complete "$SKILLS_CURRENT"; then
+    [[ -f "$STORE/$name/SKILL.md" ]] || {
+      printf 'skillmd'
+      return 0
+    }
+    return 0
+  fi
+  __gen_store_link_correct "$name" || {
+    printf 'link'
+    return 0
+  }
+  if [[ ! -d "$SKILLS_CURRENT/skills/$name" ]]; then
+    printf 'link' # link is correct-form but its generation target is gone
+    return 0
+  fi
+  [[ -f "$STORE/$name/SKILL.md" ]] || {
+    printf 'skillmd'
+    return 0
+  }
+  if jq -e --arg n "$name" '(.npxTracked // {}) | has($n)' "$CUSTOM_SKILL_LOCK" >/dev/null 2>&1; then
+    if [[ -f $SKILL_LOCK_LINK ]] &&
+      ! jq -e --arg n "$name" '(.skills // {}) | has($n)' "$SKILL_LOCK_LINK" >/dev/null 2>&1; then
+      printf 'lock'
+      return 0
+    fi
+  fi
+  if jq -e --arg n "$name" '(.tiers // {})[$n] == "on-demand"' "$CUSTOM_SKILL_LOCK" >/dev/null 2>&1; then
+    grep -q 'allow_implicit_invocation: false' "$STORE/$name/agents/openai.yaml" 2>/dev/null || {
+      printf 'overlay'
+      return 0
+    }
+  elif grep -q 'allow_implicit_invocation: false' "$STORE/$name/agents/openai.yaml" 2>/dev/null; then
+    # F6 symmetric: a core (non-on-demand) skill with a lingering updater policy
+    # block is unhealthy, the block must be removed. Drives a repair (the
+    # candidate re-assert strips it) instead of a false no-op.
+    printf 'overlay'
+    return 0
+  fi
   return 0
 }
 
 # The install-only attempt (brief Modes): builds and publishes a candidate whose
 # EXISTING skills are byte-clones of current (no updates) plus genuinely absent
-# roster skills added. Never migrates a flat store, never replaces existing
-# store content: link planting is additive (absent names only).
+# OR unhealthy roster skills repaired. Never migrates a flat store; link
+# planting is additive.
+#
+# The NEEDS-WORK set is computed FIRST from live health, not path existence
+# (R2-5): a skill counts as work when it is absent OR its live topology has
+# drifted (link/skillmd/lock/overlay). With nothing to do there is nothing to
+# publish, so return before building: the publish path exchanges the WHOLE live
+# generation, which would displace a concurrent out-of-band write into the
+# retained generation and switch a reader reopening a stable path to a new
+# generation mid-session. When there IS work and a live generation exists, the
+# publish exchange is idle-gated exactly like the weekly run; a fresh machine
+# with no live generation publishes by a plain rename (no exchange, no readers)
+# and is never gated, keeping the apply-time bootstrap unattended.
+#
+# Content/link drift (absent/link/skillmd/lock) forces a reinstall of that
+# skill even in the additive lanes (the cloned copy would otherwise be skipped
+# as "present"); overlay-only drift needs no reinstall (the candidate
+# re-asserts overlays and the exchange makes them live).
 __gen_install_only_attempt() {
-  local id candidate_home candidate_agents
+  local id candidate_home candidate_agents reason
+  local -a needs_work=()
+  GEN_INSTALL_FORCE_REINSTALL=()
+  GEN_INSTALL_DEFERRED=""
+  local tracked_name
+  while IFS= read -r tracked_name; do
+    [[ -n $tracked_name ]] || continue
+    reason="$(__gen_roster_skill_health "$tracked_name")"
+    [[ -z $reason ]] && continue
+    needs_work+=("$tracked_name")
+    case "$reason" in
+      absent | link | skillmd | lock)
+        GEN_INSTALL_FORCE_REINSTALL+=("$tracked_name")
+        log "install-only: $tracked_name needs repair ($reason); will reinstall it"
+        ;;
+      overlay)
+        log "install-only: $tracked_name needs repair ($reason); will re-assert its overlay"
+        ;;
+    esac
+  done < <(__gen_tracked_names)
+  if [[ ${#needs_work[@]} -eq 0 ]]; then
+    log "install-only: every roster skill is present and healthy; no changes"
+    return 0
+  fi
+  if __gen_exchange_would_defer; then
+    # A current generation exists, so publishing a repair EXCHANGES it (F5:
+    # gated on EXISTENCE, not completeness, an incomplete current is still a
+    # swap). A harness shows recent activity (or the probe errored,
+    # fail-closed): defer the exchange to a later run rather than swap the
+    # generation under a live session. The additive fan-out convergence still
+    # runs in the caller. This is a DEFERRAL, not a success (R2-6): the work is
+    # still outstanding, so the caller signals the distinct deferred exit so the
+    # first-install wrapper keeps its retry marker and the next apply re-fires.
+    GEN_INSTALL_DEFERRED=1
+    log "install-only: ${#needs_work[@]} skill(s) to add or repair, but a harness shows recent activity; deferring the generation exchange to a later run"
+    return 0
+  fi
   id="$(__gen_new_id)"
-  if ! __gen_build_candidate "$id"; then
+  if ! __gen_build_candidate "$id" additive; then
     record_required_failure "install-only candidate build failed"
     __gen_garbage_destroy "$GENERATIONS/$id"
     return 1
@@ -1377,8 +1999,29 @@ __gen_install_only_attempt() {
     __gen_garbage_destroy "$GENERATIONS/$id"
     return 1
   fi
-  if ! __gen_publish "$candidate_agents"; then
-    record_required_failure "install-only publish failed; live state untouched"
+  if ! __gen_roster_unchanged; then
+    record_required_failure "the roster lock changed mid-run; refusing to publish the install-only candidate (built from the old roster)"
+    __gen_garbage_destroy "$GENERATIONS/$id"
+    return 1
+  fi
+  if __gen_exchange_would_defer; then
+    # F5: a harness turned active during the build lanes (the first probe above
+    # ran BEFORE them). Defer the exchange rather than swap under a live session;
+    # signal the distinct deferred exit so the wrapper keeps its retry marker.
+    GEN_INSTALL_DEFERRED=1
+    log "install-only: a harness became active before the exchange; deferring the generation swap to a later run"
+    __gen_garbage_destroy "$GENERATIONS/$id"
+    return 0
+  fi
+  local io_publish_rc=0
+  __gen_publish "$candidate_agents" || io_publish_rc=$?
+  if [[ $io_publish_rc -eq 2 ]]; then
+    # F7: exchange landed, retention incomplete, preserve the workspace and
+    # marker (the only copy of the previous generation) for recovery. No stamp.
+    record_required_failure "install-only publish landed but retention is incomplete; preserving the workspace and marker for recovery (no stamp)"
+    return 1
+  elif [[ $io_publish_rc -ne 0 ]]; then
+    record_required_failure "install-only publish failed; no success recorded (the publish log above says whether the exchange landed)"
     __gen_garbage_destroy "$GENERATIONS/$id"
     return 1
   fi
@@ -1390,6 +2033,39 @@ __gen_install_only_attempt() {
     __gen_plant_lock_link || true
   fi
   return 0
+}
+
+# serialize: one run at a time, via the KERNEL. macOS ships /usr/bin/lockf
+# (lockf(1), flock(2)-backed): acquisition opens $LOCKFILE on fd 9 and
+# test-acquires with `lockf -s -t 0 9` (the man page's fd synopsis; -t 0 =
+# non-blocking, exit 75 = EX_TEMPFAIL when another process holds it). The kernel
+# grants the lock to exactly one process and releases it automatically when
+# every copy of the fd closes (normal exit, crash, or kill alike), so the
+# stale-lock/two-owner class the previous hand-rolled mkdir-owner-token lock
+# kept re-admitting is structurally gone: no owner token, no liveness probing,
+# no dead-owner reclaim, no EXIT-trap cleanup. The lock FILE persists on disk
+# by design (the fd form implies lockf's -k keep semantics, which the man page
+# recommends for lock ordering); its existence does NOT mean the lock is held,
+# only a live open fd does. The absolute /usr/bin/lockf path is used because
+# the Nix devshell's PATH does not carry macOS's /usr/bin tools. Defined above
+# the lib-only gate so the concurrency regression can drive
+# __update_skills_acquire_lock directly from real subshells.
+__update_skills_acquire_lock() {
+  # Non-darwin (no /usr/bin/lockf): proceed unlocked, loudly. The weekly
+  # LaunchAgent that creates concurrent scheduled runs is darwin-only, so on
+  # Linux only deliberate manual runs exist and serialization is the operator's
+  # responsibility; wedging every Linux run on a missing macOS tool would be
+  # worse than the notice.
+  if [[ ! -x /usr/bin/lockf ]]; then
+    log "no /usr/bin/lockf on this host; proceeding without the serialize lock (the scheduled runs that contend are darwin-only)"
+    return 0
+  fi
+  mkdir -p "$AGENTS" 2>/dev/null || return 1
+  # Hold fd 9 for the remainder of this process's lifetime; the kernel releases
+  # the lock when the process exits. A failed open (unwritable .agents) is a
+  # failed acquisition: the caller defers, never proceeds unlocked on darwin.
+  exec 9>>"$LOCKFILE" || return 1
+  /usr/bin/lockf -s -t 0 9
 }
 
 # Lib-only sourcing gate: a test that sets UPDATE_SKILLS_LIB_ONLY=1 and sources
@@ -1886,10 +2562,10 @@ assert_superpowers_routing() {
     log "superpowers routing: clean"
     return 0
   fi
-  log "ROUTING DRIFT: hermes-superpowers routing references no longer match the lock — re-asserting"
+  log "ROUTING DRIFT: hermes-superpowers routing references no longer match the lock, re-asserting"
   if routing_output="$("$routing_script" 2>&1)"; then
     printf '%s\n' "$routing_output"
-    log "ROUTING DRIFT: re-assert complete — something rewrote ~/.hermes/skills/hermes-superpowers (a superpowers re-mirror?); find out what stomped it"
+    log "ROUTING DRIFT: re-assert complete, something rewrote ~/.hermes/skills/hermes-superpowers (a superpowers re-mirror?); find out what stomped it"
     if [[ -x $relay_script ]]; then
       "$relay_script" --agent update-skills --state routing-drift --project hermes-superpowers \
         --detail "superpowers routing references were stomped and re-asserted from the lock; check what re-mirrored the tree" || true
@@ -1902,11 +2578,11 @@ assert_superpowers_routing() {
 }
 
 # Weekly hermes registry-update phase: for each specialist profile, update every
-# skill the lock's hermesRegistry table marks hermes-owned for it — keyed by the
+# skill the lock's hermesRegistry table marks hermes-owned for it, keyed by the
 # entry's lockKey (never a list name: ClawHub slugs differ from frontmatter
 # names, and hermes's own list output shows hub-linked skills as "local").
 # Failure isolation is per skill AND per profile: one blocked/broken update logs
-# a WARN (and relays it, soft-gated like fork drift) and the loop continues — the
+# a WARN (and relays it, soft-gated like fork drift) and the loop continues, the
 # weekly run must never die on a single skill. "Blocked" output with exit 0 is a
 # warning too: updates re-apply hermes's install gate on changed content, and a
 # block needs operator eyes, not a silent pass. held: true entries are skipped
@@ -1935,7 +2611,7 @@ update_hermes_registry_skills() {
     return 0
   fi
   local profile skill lock_key held update_output
-  # Profiles to walk: every profile owning a registry skill — default included
+  # Profiles to walk: every profile owning a registry skill, default included
   # (`hermes -p default` addresses Bob's root profile; un-entanglement done).
   local -a walk_profiles=()
   while IFS= read -r profile; do
@@ -1945,14 +2621,14 @@ update_hermes_registry_skills() {
     # read on fd 3: the loop body runs hermes, which may consume stdin
     while IFS=$'\t' read -r -u3 skill lock_key held; do
       if [[ $held == "true" ]]; then
-        log "hermes $profile/$skill: held — skipped (see the lock's hermesRegistry note)"
+        log "hermes $profile/$skill: held, skipped (see the lock's hermesRegistry note)"
         continue
       fi
       if [[ $DRYRUN == "--dry-run" ]]; then
         log "would update via hermes -p $profile: $lock_key"
         continue
       fi
-      if update_output="$(hermes -p "$profile" skills update "$lock_key" 2>&1)"; then
+      if update_output="$(hermes -p "$profile" skills update "$lock_key" 9>&- 2>&1)"; then
         if printf '%s\n' "$update_output" | grep -qiE 'blocked|refused'; then
           log "WARN: hermes $profile/$lock_key update was blocked/refused (continuing; never --force from automation)"
           record_required_failure "hermes $profile/$lock_key update blocked/refused"
@@ -1982,10 +2658,10 @@ update_hermes_registry_skills() {
 
 # Weekly app-owned skill-pack refresh: cua-driver's store entry is a SYMLINK
 # into the app's own dir (~/.cua-driver/skills/cua-driver), so nothing here may
-# ever write through it — the only sanctioned refresh is the app's own updater,
+# ever write through it, the only sanctioned refresh is the app's own updater,
 # `cua-driver skills update`, which re-fetches the versioned pack from GitHub
 # Releases and re-plants the agent links (verified: `cua-driver skills status`
-# links Claude Code, Codex — via the store — AND hermes itself). Gated on the
+# links Claude Code, Codex, via the store, AND hermes itself). Gated on the
 # store symlink existing (the roster's app-owned entry; also what keeps
 # sandboxed tests off the real binary) and on the binary being on PATH
 # (half-provisioned machines skip gracefully). Failure is a WARN, never fatal.
@@ -2000,7 +2676,9 @@ refresh_app_owned_cua_pack() {
     log "would run: cua-driver skills update"
     return 0
   fi
-  if refresh_output="$(cua-driver skills update 2>&1)"; then
+  # F8: close the lock fd (9) so a long-lived child the app updater might leave
+  # behind never keeps the serialize lock held after this run exits.
+  if refresh_output="$(cua-driver skills update 9>&- 2>&1)"; then
     log "cua-driver skill pack: refreshed via the app's own updater"
   else
     log "WARN: cua-driver skills update failed (continuing)"
@@ -2011,130 +2689,81 @@ refresh_app_owned_cua_pack() {
 # A dry run makes no filesystem writes, so it does not pre-create these dirs.
 [[ $DRYRUN == "--dry-run" ]] || mkdir -p "$STORE" "$CLAUDE" "$HERMES"
 
-# serialize: one run at a time. macOS ships no dependable rename-onto-existing
-# primitive from the shell (`mv` onto an existing dir moves INTO it, and macOS
-# ships neither flock(1) nor a lockf(1) we depend on), so acquisition builds a
-# STAGING lock dir with the owner token already inside it and publishes it via a
-# rename that is a single-winner move onto the FINAL path: if the final lockdir
-# is absent the staging dir renames onto it atomically (we win, token already
-# inside); if the final lockdir already exists `mv` drops our staging INSIDE it,
-# which we detect and clean up (we lost). This closes three defects the audit
-# found: (a) two contenders cannot both validate one dead token and both proceed
-# (reclaim is a single-winner move-aside); (b) a kill -0 success followed by a
-# failed/empty ps is NOT declared dead (only a successful ps proving absence or a
-# different start time is); (c) there is never a window where the lockdir exists
-# without its owner token, so an ownerless lock can only be a legacy/corrupt one
-# and is reclaimable, never a permanent wedge. We never steal by age.
-LOCK_OWNER_FILE="$LOCKDIR/owner"
-__update_skills_proc_start() {
-  # normalized process start time for pid $1 (empty when the pid is gone)
-  ps -o lstart= -p "$1" 2>/dev/null | tr -s ' ' | sed 's/^ *//;s/ *$//'
-}
-__update_skills_owner_token() { printf '%s\t%s' "$$" "$(__update_skills_proc_start "$$")"; }
-__update_skills_owner_alive() {
-  # $1 = recorded "PID<TAB>START". PROVABLY dead requires positive confirmation;
-  # anything we cannot prove dead is treated as ALIVE so a contender never steals
-  # from a possibly-live run.
-  local rec="$1" rec_pid rec_start raw cur_start listing pid_line
-  rec_pid="${rec%%$'\t'*}"
-  rec_start="${rec#*$'\t'}"
-  [[ $rec_pid =~ ^[0-9]+$ ]] || return 0                  # unparseable owner: do not steal
-  [[ -n $rec_start && $rec_start != "$rec" ]] || return 0 # missing start field: do not steal
-  if kill -0 "$rec_pid" 2>/dev/null; then
-    # The pid exists. Only a SUCCESSFUL ps that returns a DIFFERENT start time
-    # proves a recycle (original dead). A failed OR empty lstart lookup cannot
-    # prove death, so we treat it as alive (fixes defect b).
-    raw="$(ps -o lstart= -p "$rec_pid" 2>/dev/null)" || return 0
-    cur_start="$(printf '%s' "$raw" | tr -s ' ' | sed 's/^ *//;s/ *$//')"
-    [[ -n $cur_start ]] || return 0
-    [[ $cur_start == "$rec_start" ]] # same start => alive (0); differs => recycled => dead (1)
-    return
-  fi
-  # kill -0 failed (possibly dead, or EPERM for a foreign owner). Confirm with a
-  # full listing that exits 0 whether or not the pid is present; if ps ITSELF
-  # errors we cannot prove death, so treat as alive (fail safe).
-  listing="$(ps -ax -o pid= 2>/dev/null)" || return 0
-  while IFS= read -r pid_line; do
-    pid_line="${pid_line//[[:space:]]/}"
-    [[ $pid_line == "$rec_pid" ]] && return 0 # present after all: alive
-  done <<<"$listing"
-  return 1 # kill -0 failed AND ps ran and the pid is absent: provably dead
-}
-# Publish a fully-populated STAGING lock dir onto the final path. Return 0 iff we
-# won (LOCKDIR is now our staging, owner token inside); 1 if the lock was held
-# (mv dropped our staging inside it, or renaming onto a non-empty dir failed).
-__update_skills_publish_lock() {
-  local staging="$1" base
-  base="${staging##*/}"
-  if mv "$staging" "$LOCKDIR" 2>/dev/null; then
-    if [[ -d "$LOCKDIR/$base" ]]; then
-      rm -rf "${LOCKDIR:?}/${base:?}" # our staging was moved INSIDE a held lock: we lost
-      return 1
-    fi
-    return 0
-  fi
-  rm -rf "$staging"
-  return 1
-}
-# Move a stale lockdir aside to a unique name; the rename onto an absent target
-# is a single-winner move, so exactly one reclaimer succeeds and then retries
-# acquisition. The moved-aside dir is discarded.
-__update_skills_reclaim_dead_lock() {
-  local aside="${LOCKDIR}.dead.$$.${RANDOM}"
-  if mv "$LOCKDIR" "$aside" 2>/dev/null; then
-    rm -rf "$aside"
-    return 0
-  fi
-  return 1
-}
-LOCK_MY_TOKEN="$(__update_skills_owner_token)"
-__update_skills_acquire_lock() {
-  local staging owner
-  for _ in 1 2 3 4 5; do
-    staging="$(mktemp -d "${LOCKDIR}.stage.XXXXXX")" || return 1
-    printf '%s' "$LOCK_MY_TOKEN" >"$staging/owner"
-    __update_skills_publish_lock "$staging" && return 0
-    # The lock is held. Reclaim only from a dead or ownerless (legacy/corrupt)
-    # owner; a live owner means another run is genuinely in progress.
-    owner="$(cat "$LOCK_OWNER_FILE" 2>/dev/null || true)"
-    if [[ -z $owner ]] || ! __update_skills_owner_alive "$owner"; then
-      log "reclaiming the lock from a dead or ownerless owner (${owner:-<none>})"
-      __update_skills_reclaim_dead_lock || true # lost the move-aside: just retry
-      continue
-    fi
-    return 1 # held by a live owner
-  done
-  return 1
-}
 if [[ $DRYRUN == "--dry-run" ]]; then
-  # A dry run is a READ-ONLY contention check (item 5): it never creates,
-  # deletes, or reclaims lock state, and it tolerates an absent .agents parent.
-  # It only reports whether a live lock would make the real run defer.
-  if [[ -d $LOCKDIR ]]; then
-    dry_lock_owner="$(cat "$LOCK_OWNER_FILE" 2>/dev/null || true)"
-    if [[ -n $dry_lock_owner ]] && __update_skills_owner_alive "$dry_lock_owner"; then
-      log "would defer: a live run holds the lock ($dry_lock_owner)"
-    else
-      log "would run: the existing lock has no live owner (stale or ownerless)"
-    fi
-  else
+  # A dry run is a READ-ONLY contention check (item 5): it never creates or
+  # deletes lock state and tolerates an absent .agents parent. The probe runs
+  # in a SUBSHELL: it opens the existing lock file read-only (no create, no
+  # truncate) and test-acquires; the subshell's exit closes the fd, so a
+  # momentary success is released instantly and nothing on disk changes. An
+  # unreadable lock file cannot be probed and previews as would-defer
+  # (fail-closed), matching the real run's failed-open deferral.
+  if [[ ! -e $LOCKFILE ]]; then
     log "would run: no lock is held"
+  elif [[ ! -x /usr/bin/lockf ]]; then
+    log "would run: no /usr/bin/lockf on this host (the real run proceeds unlocked; scheduled contention is darwin-only)"
+  elif (exec 9<"$LOCKFILE" && /usr/bin/lockf -s -t 0 9) 2>/dev/null; then
+    log "would run: the existing lock file is not held (leftover from a finished or crashed run)"
+  else
+    log "would defer: a live run holds the lock"
   fi
 else
-  if ! __update_skills_acquire_lock; then
-    log "another run in progress; exiting"
-    exit 0
+  # F1: capture the acquisition STATUS; do not collapse contention and hard
+  # failure into one silent exit 0. Contention (lockf EX_TEMPFAIL 75) is a
+  # RETRYABLE deferral in EVERY mode: exit the distinct 75 so the first-install
+  # wrapper preserves its retry marker and a weekly slot simply writes no stamp
+  # and lets a later slot retry. Any OTHER non-zero (unwritable ~/.agents so
+  # `exec 9>>` failed) is a REQUIRED failure: loud warn + relay, no stamp, a
+  # non-zero exit (the wrapper keeps its marker), never a silent success.
+  __update_skills_lock_rc=0
+  __update_skills_acquire_lock || __update_skills_lock_rc=$?
+  if [[ $__update_skills_lock_rc -eq 75 ]]; then
+    log "another run holds the lock; deferring (retryable, exit 75)"
+    exit 75
+  elif [[ $__update_skills_lock_rc -ne 0 ]]; then
+    record_required_failure "could not acquire the serialize lock (rc $__update_skills_lock_rc; e.g. ~/.agents is not writable); no build, no publish, no stamp"
+    __update_skills_alert "update-skills could not acquire its serialize lock (rc $__update_skills_lock_rc). Check that ~/.agents is writable, then re-run ~/.local/bin/update-skills.sh."
+    exit 1
   fi
-  # The EXIT trap removes the lock ONLY while we still own it: a later run that
-  # reclaims a dead lock rewrites the owner file, and our trap must never delete
-  # a lock we no longer hold (the three-writer race).
-  __update_skills_release_lock() {
-    local cur
-    cur="$(cat "$LOCK_OWNER_FILE" 2>/dev/null || true)"
-    [[ $cur == "$LOCK_MY_TOKEN" ]] && rm -rf "$LOCKDIR"
-    return 0 # never let the EXIT trap's status leak into the script's exit code
-  }
-  trap '__update_skills_release_lock' EXIT
+  # No release path: the kernel drops the lock when this process exits, however
+  # it exits. The lock file itself is deliberately never deleted (see the
+  # acquisition comment: deleting it would let a later opener lock a fresh
+  # inode while an older holder still locks the unlinked one, i.e. two owners).
+  #
+  # FAIL-CLOSED roster gate (R2-2): the mutation modes (weekly and
+  # install-only) validate + snapshot the roster lock BEFORE anything runs. A
+  # missing/unparseable/schema-broken roster, or a VALID roster whose tracked
+  # set is empty while the live generation still holds skills (a delist-all is
+  # indistinguishable from corruption), is a refused run: loud required
+  # failure, relay alert, exit 1 (which also keys the first-install wrapper's
+  # retry marker), and the live store/generation/fan-out untouched.
+  # --check-forks-only mutates nothing and keeps its tolerant no-op contract.
+  if [[ -z $CHECK_FORKS_ONLY ]]; then
+    if ! __gen_snapshot_roster; then
+      record_required_failure "roster lock validation failed (missing, unparseable, or schema-broken); no build, no publish, no prune, no stamp"
+      __update_skills_alert "update-skills refused to run: the roster lock at $GEN_ROSTER_SOURCE is missing or broken. Fix the deployed custom-skill-lock.json (chezmoi apply) and re-run."
+      exit 1
+    fi
+    # F9: the snapshot succeeded, so GEN_ROSTER_SNAPSHOT_FILE is a live temp
+    # file. Install its cleanup trap NOW, before any later refusal exit (the
+    # zero-union guard below), so a refused run never leaks the mktemp. The
+    # trailing `true` keeps the trap from ever altering the exit status.
+    trap '[[ -n ${GEN_ROSTER_SNAPSHOT_FILE:-} ]] && rm -f "$GEN_ROSTER_SNAPSHOT_FILE"; true' EXIT
+    __update_skills_tracked_count=0
+    while IFS= read -r __update_skills_tracked_probe; do
+      [[ -n $__update_skills_tracked_probe ]] && __update_skills_tracked_count=$((__update_skills_tracked_count + 1))
+    done < <(__gen_tracked_names)
+    # F3: a zero tracked UNION is refused UNCONDITIONALLY, independent of the
+    # live-generation state. There is no legitimate empty roster (the committed
+    # roster always has entries), so a zero union is corruption or a broken
+    # deploy. Gating on a non-empty live generation let a fresh machine (no
+    # generation) or a damaged current (present, zero skill dirs) migrate over
+    # zero names, publish an EMPTY generation, and stamp success.
+    if [[ $__update_skills_tracked_count -eq 0 ]]; then
+      record_required_failure "the roster tracks ZERO skills (empty npx+clawhub union); refusing any mutation (there is no legitimate empty roster; a zero union is corruption or a broken deploy, not intent)"
+      __update_skills_alert "update-skills refused to run: the roster lock tracks no skills. If delisting everything is truly intended, remove the generation by hand; otherwise restore the roster (chezmoi apply) and re-run."
+      exit 1
+    fi
+  fi
   # RECOVERY (brief step 1) runs under the lock, BEFORE the stamp early-exit and
   # the idle gate, so a crash-window leftover self-heals even on a slot that
   # then early-exits. It deletes incomplete staging, marks a reusable complete
@@ -2163,10 +2792,14 @@ fi
 # always-up bridge no longer defers it forever. A machine quiet for the window
 # proceeds and swaps skills; a live turn defers to next slot. FAIL CLOSED: an
 # unreadable process table or a probe error counts as active. UPDATE_SKILLS_FORCE=1
-# bypasses everything (tests, manual runs). --install-only is EXEMPT: it only ADDS
-# absent skills (never swaps a folder), so it is safe under a live session, this
-# is what lets the fresh-machine bootstrap run --install-only unattended at apply
-# time. On the last SCHEDULED slot the retry budget is spent, so a deferral there
+# bypasses everything (tests, manual runs). --install-only is EXEMPT from THIS
+# top-level gate but idle-gates its OWN generation exchange internally
+# (__gen_install_only_attempt): publishing an additive candidate swaps the
+# whole live generation, so when one already exists the exchange is deferred
+# under a live session exactly like the weekly run, while a fresh machine with
+# no live generation publishes by a plain rename (no exchange, no readers),
+# which is what lets the apply-time bootstrap run unattended. On the last
+# SCHEDULED slot the retry budget is spent, so a deferral there
 # alerts LOUDLY rather than failing silent. See __update_skills_should_defer.
 __update_skills_note_scheduled_attempt
 if [[ -z $INSTALL_ONLY ]] && [[ ${UPDATE_SKILLS_FORCE:-} != "1" ]] && [[ $DRYRUN != "--dry-run" ]] && __update_skills_should_defer; then
@@ -2181,16 +2814,16 @@ fi
 # fork/vendored upstream drift-check: for each lock forks entry, fetch the
 # upstream and compare the recorded skill path's current git hash (tree hash for
 # a folder, blob hash for a single-file skill like herdr's root SKILL.md)
-# against lastComparedTreeHash — the hash at the last HUMAN comparison. Drift
+# against lastComparedTreeHash, the hash at the last HUMAN comparison. Drift
 # means the upstream shipped changes nobody has reviewed against the local copy
 # yet: alert and move on. This pass only ever reads; the vendored store content
 # is untouchable here by construction (nothing below writes to $STORE). An
-# unreachable upstream is a logged warning, never a failure — the weekly run
+# unreachable upstream is a logged warning, never a failure, the weekly run
 # must survive a dead network.
 notify_fork_drift() {
   local fork="$1" source_url="$2"
   local relay_script="$HOME/.local/bin/relay.sh"
-  log "FORK DRIFT: $fork — upstream $source_url has changed since the last comparison"
+  log "FORK DRIFT: $fork, upstream $source_url has changed since the last comparison"
   log "FORK DRIFT: compare upstream and port wanted changes into the vendored copy by hand (see CLAUDE.md, Agent Skills), then set forks[\"$fork\"].lastComparedTreeHash to the new upstream hash; the vendored copy itself was not modified"
   # Soft-gate on relay.sh, exactly like the pre-commit hook's gitleaks stage:
   # relay lands in a later slice, so its absence is a silent skip, not an error.
@@ -2259,9 +2892,12 @@ fi
 
 # --install-only (brief Modes): build and publish an ADDITIVE candidate whose
 # existing skills are byte-clones of the current generation plus genuinely
-# absent roster skills added. Never migrates a flat store, never replaces
-# existing store content. Safe under a live session (nothing existing is
-# swapped), which is what lets the fresh-machine bootstrap run at apply time.
+# absent or unhealthy roster skills repaired. Never migrates a flat store.
+# Publishing still swaps the whole live generation via an atomic exchange, so
+# __gen_install_only_attempt idle-gates that exchange when a live generation
+# exists (deferring under a live session, exit 75 so the bootstrap wrapper
+# retries); a fresh machine with no live generation publishes by a plain
+# rename, which is what lets the apply-time bootstrap run unattended.
 if [[ -n $INSTALL_ONLY ]]; then
   __gen_install_only_attempt || true
   converge_claude_skills
@@ -2274,6 +2910,14 @@ if [[ -n $INSTALL_ONLY ]]; then
   if [[ $REQUIRED_FAILURES -gt 0 ]]; then
     log "install-only finished with $REQUIRED_FAILURES required-phase failure(s)"
     exit 1
+  fi
+  # DISTINCT deferred outcome (R2-6): the install was deferred by harness
+  # activity, so the roster addition is still outstanding. Exit 75 (EX_TEMPFAIL)
+  # so the first-install wrapper keeps its retry marker and the next apply
+  # re-fires, WITHOUT this counting as a hard failure that aborts the apply.
+  if [[ -n $GEN_INSTALL_DEFERRED ]]; then
+    log "install-only deferred on harness activity; signalling a retryable deferral (exit 75)"
+    exit 75
   fi
   exit 0
 fi
@@ -2297,6 +2941,19 @@ fi
 #      discards the whole candidate; the live generation is untouched.
 log "weekly generation attempt"
 __gen_weekly_attempt || log "the weekly generation attempt failed; the live generation is unchanged (a later slot retries)"
+
+# F5: the pre-exchange activity re-probe deferred the publish (a harness turned
+# active during the build). The live generation is untouched and the work is
+# still outstanding, so exit the retryable 75 WITHOUT stamping, a later slot
+# retries. On the last scheduled slot, alert (the retry budget is spent).
+if [[ -n $GEN_EXCHANGE_DEFERRED ]]; then
+  log "weekly run deferred the exchange on harness activity; signalling a retryable deferral (exit 75, no stamp)"
+  if __update_skills_scheduled_budget_exhausted; then
+    log "EXHAUSTED: the last scheduled slot deferred the exchange on harness activity; the weekly skills update did not run this week"
+    __update_skills_alert "Weekly skills update deferred the generation exchange on every scheduled slot (a harness was active at each Monday slot). Run it by hand when idle (~/.local/bin/update-skills.sh)."
+  fi
+  exit 75
+fi
 
 # Post-publish live passes (never write through store links):
 refresh_app_owned_cua_pack
@@ -2334,7 +2991,13 @@ check_fork_drift
 # scheduled slot retries; and for a scheduled run with no slot remaining this
 # week we alert (the retry budget is spent). A dry run records nothing.
 if [[ $DRYRUN != "--dry-run" ]]; then
-  if [[ $REQUIRED_FAILURES -eq 0 ]]; then
+  if [[ $REQUIRED_FAILURES -eq 0 ]] && ! __gen_roster_unchanged; then
+    # R2-2 stamp-time re-check: the roster changed AFTER the publish re-check
+    # (the last window). Publishing already happened against the snapshot, so
+    # live state is consistent; but stamping would mark THIS week done for a
+    # roster that no longer matches, so withhold and let the next slot rebuild.
+    log "WITHHOLDING the weekly success stamp: the roster lock changed after this run's snapshot; the next slot rebuilds against the new roster"
+  elif [[ $REQUIRED_FAILURES -eq 0 ]]; then
     mkdir -p "$STATE_DIR"
     __update_skills_stamp_value >"$SUCCESS_STAMP"
     # A verified success resets every per-skill failure streak.

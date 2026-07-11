@@ -238,15 +238,25 @@ fi
 #    edits from being clobbered by a routine run.
 # 3b) In the same re-run, a deleted overlay must come back: npx refreshes
 #     replace a skill's folder wholesale, so the overlay's durability depends
-#     on every run re-asserting it from the lock's tiers table.
+#     on a build re-asserting it from the lock's tiers table.
+# install-only only builds/publishes when at least one roster skill is ABSENT
+# (an additive install that never exchanges nothing), so trigger a genuine
+# rebuild by adding a fresh absent skill `extraskill` to the roster. The rebuild
+# then clones the present skills forward (markers survive), re-asserts the
+# deleted overlay, and installs the new absent skill.
 touch "$HOME/.agents/skills/goodskill/local-edit.marker"
 touch "$HOME/.agents/skills/clawskill/local-edit.marker"
 rm "$overlay"
+lock_with_extraskill="$(jq '.tiers.extraskill = "core"
+  | .npxTracked.extraskill = {"repo": "fixture/extraskill"}' \
+  "$HOME/.agents/custom-skill-lock.json")"
+printf '%s\n' "$lock_with_extraskill" >"$HOME/.agents/custom-skill-lock.json"
 UPDATE_SKILLS_FORCE=1 bash "$SCRIPT" --install-only >/dev/null 2>&1 || fail "second --install-only run failed"
+[[ -f "$HOME/.agents/skills/extraskill/SKILL.md" ]] || fail "the fresh absent skill was not installed by the rebuild"
 [[ -f "$HOME/.agents/skills/goodskill/local-edit.marker" ]] || fail "install pass reinstalled a skill that was already present"
 [[ -f "$HOME/.agents/skills/clawskill/local-edit.marker" ]] ||
   fail "clawhub install pass reinstalled a skill that was already present"
-[[ -f $overlay ]] || fail "a deleted Codex overlay was not re-asserted by the next run"
+[[ -f $overlay ]] || fail "a deleted Codex overlay was not re-asserted by the next build"
 [[ "$(<"$overlay")" == "$expected_policy" ]] ||
   fail "re-asserted Codex overlay for goodskill has wrong content: $(<"$overlay")"
 

@@ -83,9 +83,24 @@ cat >"$shim_dir/git" <<EOF
 printf 'git %s\n' "\$*" >>"$scratch_dir/git.log"
 exit 1
 EOF
+# The npx shim logs, and (like the real CLI, verified against skills 1.5.16)
+# records each --skill in its global lock at
+# \$XDG_STATE_HOME/skills/.skill-lock.json so the candidate lock reconcile
+# sees the same evidence a real add leaves.
 cat >"$shim_dir/npx" <<EOF
 #!/usr/bin/env bash
 printf 'npx %s\n' "\$*" >>"$scratch_dir/npx.log"
+cli_lock="\${XDG_STATE_HOME:-\$HOME/.local/state}/skills/.skill-lock.json"
+mkdir -p "\$(dirname "\$cli_lock")"
+[[ -f \$cli_lock ]] || printf '{"version":3,"skills":{}}\n' >"\$cli_lock"
+prev=""
+for a in "\$@"; do
+  if [[ \$prev == --skill ]]; then
+    jq --arg s "\$a" '.skills[\$s] = {source: "github:fixture"}' \
+      "\$cli_lock" >"\$cli_lock.tmp" && mv "\$cli_lock.tmp" "\$cli_lock"
+  fi
+  prev="\$a"
+done
 echo "shim: nothing to update"
 EOF
 chmod +x "$shim_dir/git" "$shim_dir/npx"
