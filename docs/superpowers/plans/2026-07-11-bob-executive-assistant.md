@@ -84,8 +84,9 @@ delivery for rituals, clarify-tool native buttons for live-session asks, and
   `dryrun-intents.jsonl`, which go-live truncates) (Task C2/G1, W2).
 - **Delivery is headless-native only** (spec §12/R1): NO `ctx.inject_message`, NO `bob-surface` plugin. Cron
   Discord delivery + clarify buttons + `hermes send --to`.
-- **Fix the live-config drifts (R6b) BEFORE go-live** (Phase A): empty `timezone` and
-  `kanban.auto_decompose: true` (both live-confirmed); plus `kanban.max_in_progress_per_profile: null` and
+- **Fix the live-config drifts (R6b + Z1) BEFORE go-live** (Phase A): empty `timezone`,
+  `kanban.auto_decompose: true`, and `kanban.auto_subscribe_on_create` **unset → defaults `True`** (Z1 — set
+  `false`, the §9 firewall guard); plus `kanban.max_in_progress_per_profile: null` and
   `cron.max_parallel_jobs: null`. **`hermes-achievements` is a keep-OUT guard, not a removal** — it is NOT
   currently in `plugins.enabled` (verified 2026-07-11); assert it never enters (spec §14).
 - **Do not patch hermes-agent source.** Configure it through `config.yaml` / skills / bundles / cron only
@@ -116,8 +117,11 @@ delivery for rituals, clarify-tool native buttons for live-session asks, and
   JOURNAL `mutation-journal.jsonl`** (typed op-history, 45-day retention — the store split, Y5/spec §4d),
   `tomorrow-prestage.json` (EOD proposal → morning brief, spec §8a/R3A13), the **unified
   `decision-queue.json`** (ALL brief-time decisions — waiting-chase/fixed-redecision/stall-decision/
-  triage-reraise/sweep-candidate; Y1/R5A1, generalizes the old `sweep-candidates.json`), the **per-day
-  `plan-of-day.json`** (the morning-plan idempotency record, Y13), and — **staging only** —
+  triage-reraise/sweep-candidate; Y1/R5A1, generalizes the old `sweep-candidates.json`; each record
+  `{id, class, task_id/candidate_id, proposed, status, enqueue_ts, rev}`, Z2), the **per-day
+  `plan-of-day.json`** (the morning-plan idempotency record, Y13), the **`sweep-exclusion.json`** (bankruptcy
+  RETIRE list for undated someday items — never re-proposed, reversible by deleting the entry; Z13), and —
+  **staging only** —
   `dryrun-intents.jsonl` (the ONE file a dry-run writes, spec §17/R3A1; truncated at go-live, never present in
   a live run).
 
@@ -250,12 +254,14 @@ cp ~/.hermes/config.yaml \
 - [ ] **Step 2: Audit the current state**
 
 ```bash
-grep -nE '^timezone:|^session_reset:|auto_decompose:|max_in_progress_per_profile:|default_assignee:|max_parallel_jobs:' ~/.hermes/config.yaml
+grep -nE '^timezone:|^session_reset:|auto_decompose:|auto_subscribe_on_create:|max_in_progress_per_profile:|default_assignee:|max_parallel_jobs:' ~/.hermes/config.yaml
+grep -c 'auto_subscribe_on_create' ~/.hermes/config.yaml   # expect 0 (UNSET → defaults True — Z1 drift)
 grep -c 'hermes-achievements' ~/.hermes/config.yaml   # expect 0 (achievements is NOT enabled — verified)
 sed -n '/^plugins:/,/^[a-z]/p' ~/.hermes/config.yaml | grep -E 'discord|provider'   # confirm the live members we must NOT strip
 ```
 
 Expected: `timezone: ''`; live `session_reset.mode: none`; `auto_decompose: true`;
+`auto_subscribe_on_create` **absent** (count 0 → defaults `True`, the Z1 drift);
 `max_in_progress_per_profile: null`; `default_assignee: ''`; `cron.max_parallel_jobs: null`;
 `hermes-achievements` count **0**; `platforms/discord` + the providers present under `plugins.enabled`.
 
@@ -264,6 +270,11 @@ Expected: `timezone: ''`; live `session_reset.mode: none`; `auto_decompose: true
 
   1. `timezone: "America/Denver"` (root key).
   2. `kanban.auto_decompose: false`.
+  2b. `kanban.auto_subscribe_on_create: false` (Z1 — the firewall guard; default `True`, verified
+     `hermes_cli/config.py:1348`. The in-gateway kanban **tool** create path auto-subscribes a platform-bound
+     chat to a card's terminal events — `tools/kanban_tools.py:843,858-898` — which would leak onto the task
+     channel, §9. forzare's capture flow uses the subscription-free CLI `hermes kanban create`; this is
+     belt-and-suspenders so even a stray tool-path create writes no subscription row).
   3. `kanban.max_in_progress_per_profile: 2` (real key name — was `null`).
   4. `kanban.default_assignee: "default"` (the `default` profile / persona "Bob" — spec §8b/§10; empty also
      resolves to `default`, but set it explicitly).
@@ -284,6 +295,7 @@ C=~/.hermes/config.yaml
 must(){ grep -Eq "$1" "$C" || { echo "FATAL: missing /$1/ in config.yaml" >&2; exit 1; }; echo "OK: $2"; }
 must '^timezone: "America/Denver"'          'timezone'
 must 'auto_decompose: false'                'auto_decompose'          # separate assert
+must 'auto_subscribe_on_create: false'      'kanban auto-subscribe guard (Z1)'  # separate assert
 must 'max_in_progress_per_profile: 2'       'kanban in-progress cap'  # separate assert
 must 'default_assignee: "default"'          'default_assignee'        # separate assert
 must 'max_parallel_jobs: 1'                 'cron parallel cap'
@@ -460,7 +472,13 @@ anything against them. Phase B's staged skill dry-runs read the live `config.yam
 
 ```bash
 set -euo pipefail
-set -a; . ~/.hermes/.env; set +a
+# Z4: NEVER `source`/`. ~/.hermes/.env` — the managed .env carries an unquoted value with spaces that CRASHES
+# a strict shell (`set -euo pipefail` + `. .env` aborts). dotenv-PARSE only the two channel keys instead —
+# this extracts values without evaluating the file (verified robust for a quoted or bare numeric channel id):
+dotenv_get(){ sed -n "s/^[[:space:]]*$1=//p" ~/.hermes/.env | tail -n1 \
+  | sed -e 's/^"\(.*\)"$/\1/' -e "s/^'\(.*\)'\$/\1/"; }
+DISCORD_HOME_CHANNEL=$(dotenv_get DISCORD_HOME_CHANNEL)
+DISCORD_ERRORS_CHANNEL=$(dotenv_get DISCORD_ERRORS_CHANNEL)
 : "${DISCORD_HOME_CHANNEL:?FATAL: DISCORD_HOME_CHANNEL empty}"
 : "${DISCORD_ERRORS_CHANNEL:?FATAL: DISCORD_ERRORS_CHANNEL empty}"
 [ "$DISCORD_HOME_CHANNEL" != "$DISCORD_ERRORS_CHANNEL" ] \
@@ -484,24 +502,27 @@ rm -f "$SEND_ERR"
 ## Phase B — Atomic skills + the shared helper (author-all → Apply Checkpoint B → pin+stage-all)
 
 > **BUILD ORDER — the topological rule (Y6/R5A3, load-bearing).** A staged dry-run reads the skill's **LIVE**
-> `~/.hermes/skills/<name>/SKILL.md`, which only exists after a `chezmoi apply`. So Phase B runs in **three
-> ordered stages, not task-by-task-author-then-run:**
+> `~/.hermes/skills/<name>/SKILL.md`, which only exists after a `chezmoi apply`. So Phase B runs in **four
+> ordered stages (DE-CIRCULARIZED, Z5), not task-by-task-author-then-run:**
 > 1. **Author ALL Phase-B sources first** — the **shared mutation helper FIRST (Task B0** — B1–B11 all depend
 >    on it), then every skill's `SKILL.md` (B1–B10), the **`forzare-capture-pipeline` skill (Task B11**, moved
->    here from D1 per R5A4), and the schedule `skills.config` (B10) — all authored in the `dot_hermes/` source
->    dir, **no live run yet.**
-> 2. **APPLY CHECKPOINT B** (new, fail-closed — at the end of the author stage) — the user-run/agent-run apply
->    of **every** Phase-B file (the skills, the capture-pipeline skill, and the `config.yaml` `skills.config`
->    from B10) + the boot skill-existence assertion + the shared gate over the explicit file list. **No staged
->    dry-run below may run until Checkpoint B is CLEARED** — that is the "no stage-run before its live copy
->    exists" rule.
+>    here from D1 per R5A4), the schedule `skills.config` (B10), **and the boot-check script** (moved into the
+>    author stage so it exists before the POST-PIN GATE that invokes it, Z5) — all authored in the `dot_hermes/`
+>    source dir, **no live run yet.**
+> 2. **APPLY CHECKPOINT B** (fail-closed — end of the author stage) — the user-run/agent-run apply of **every**
+>    Phase-B file (skills, capture-pipeline skill, `config.yaml` `skills.config`) + the shared gate over the
+>    explicit file list + an **installed-dir + resolved-config check ONLY (NOT pins — Z5)**. **No staged
+>    dry-run below may run until Checkpoint B is CLEARED.**
 > 3. **Pin + staged dry-run ALL** — only after Checkpoint B: `hermes curator pin <name>` + the per-skill staged
->    cron dry-run (each task's "curator-pin + staged dry-run" step). These are the verify steps; they are
->    explicitly gated on Checkpoint B.
+>    cron dry-run (each task's "curator-pin + staged dry-run" step). These are the verify steps.
+> 4. **POST-PIN GATE** (fail-closed, Z5) — once every skill is pinned, the boot skill-existence + **pin**
+>    assertion runs (the boot-check script). This — not Checkpoint B — is where pins are asserted, so nothing is
+>    circular. Phase C is gated on it.
 >
 > Each task below is written skill-by-skill for readability; its **author** steps belong to stage 1 and its
 > **curator-pin + staged dry-run** steps to stage 3. (Checkpoint **C** is therefore re-scoped — it applies only
-> what **Phase C** authors, the three bundles; the skills are already live from Checkpoint B, R5A3.)
+> what **Phase C** authors, the three bundles; the skills are already live from Checkpoint B, R5A3, and pinned
+> at the POST-PIN GATE.)
 >
 > Every skill's applied target is `~/.hermes/skills/<name>/SKILL.md` (+ any helper scripts) — authored in
 > the `dot_hermes/` source dir per the delivery-vehicle rule (Global Constraints) — is **curator-pinned**
@@ -638,32 +659,66 @@ planning-pull, snooze, roll, the §7 escalation, the if-then cue). Never a scatt
     terminal state.**
   - **JOURNAL — `forzare/state/mutation-journal.jsonl`** (append-only): the helper is the single writer for
     **every** Bob mutation, appending one typed line `{ts, type, target, op, args, commit_state}` — `type ∈
-    {date-op, p1, label, comment, calendar, description}` (X11/R5A11 — **`description`** is the §7/X13 if-then
-    cue, which Todoist reports only as a bare `updated`, so it MUST be journaled or W7's calibration exclusion
-    misreads it as a user touch). **The JOURNAL is retained 45 days (the calibration correlation window, spec
+    {date-op, p1, label, comment, calendar, description, task.add, task.complete}` (X11/R5A11/**Z3**).
+    **`description`** is the §7/X13 if-then cue (Todoist reports it as a bare `updated`, so it MUST be journaled
+    or W7's exclusion misreads it as a user touch); **`task.add` + `task.complete` are added in Z3** (aligning
+    the enum with the intent-op vocabulary) so a Bob-authored capture-create or completion is journaled too and
+    can't read as user initiation. **The JOURNAL is retained 45 days (the calibration correlation window, spec
     §19), then pruned — NOT pruned on task completion** (the reducer still needs the recent journal to exclude
     Bob's writes after a task is done).
-- [ ] **Step 3: I/O guarantees (V2), applied to BOTH stores:** **(a)** an exclusive `flock` on a sibling lock
-  around every read-modify-write; **(b)** atomic writes — temp file in the same dir → `fsync` → `os.rename`;
-  **(c)** a per-entry MAP operation record `{old_due, new_due, reconcile_date}`; **(d)** the
-  **journal-then-commit** write order — journal the intent (`pending`) → perform the state-chosen Todoist write
-  → commit (flip `pending`, stamp new `written_due`); **(e)** the **healing rule** — on the next run, re-verify
-  any `pending` entry against the live Todoist value: equals `new_due` ⇒ commit; equals `old_due` ⇒ re-apply
-  then commit; equals neither ⇒ user intervened, void (§4d divergence). **journal-then-commit + healing are
-  defined for EVERY journal `type`** (Y5), the date-op sequence being the worked example. Under the dry-run
-  instruction the helper **appends the intended write + journal op to `forzare/state/dryrun-intents.jsonl` and
-  performs neither** (R3A1); **staged external writes also carry the native `td --dry-run` flag** (Y4).
+  - **QUEUE — `forzare/state/decision-queue.json`** (Z2, spec §2 step 4/§8a): the helper is ALSO the single
+    writer for the unified decision queue. Each record is `{id, class, task_id/candidate_id, proposed, status,
+    enqueue_ts, rev}` — **`id` = a stable content-derived dedup key** `hash(class + task_id/candidate_id +
+    proposed)`, so a producer re-enqueuing the same decision is a **no-op** (dedup-by-`id`). **Total order =
+    `(class-rank, enqueue_ts, id)`**, class-rank **`waiting-chase > fixed-redecision > stall-decision >
+    triage-reraise > sweep-candidate`** (R6A10). Producers append/dedup; the live ack is a **compare-and-set on
+    `{id, rev}`** of the record actually shown (a moved `rev` fails the CAS → re-read, never ack a stale head).
+  - **RETIRE list — `forzare/state/sweep-exclusion.json`** (Z13, spec §4c/§8a): the helper appends an id when
+    bankruptcy RETIREs an undated someday item (reversible by deleting the entry; no label, no delete, no
+    re-parent).
+- [ ] **Step 3: I/O guarantees (V2/Z2), applied to ALL THREE stores (MAP + JOURNAL + QUEUE):** **(a)** an
+  exclusive `flock` on a sibling lock around every read-modify-write; **(b)** atomic writes — temp file in the
+  same dir → `fsync` → `os.rename`; **(c)** a per-entry MAP operation record `{old_due, new_due,
+  reconcile_date}`; **(d)** the **journal-then-commit** write order — journal the intent (`pending`) → perform
+  the state-chosen Todoist write → commit (flip `pending`, stamp new `written_due`); **(e)** the **healing
+  rule** — on the next run, re-verify any `pending` entry against Todoist. **journal-then-commit + healing are
+  defined for EVERY journal `type`, each with a TYPE-SPECIFIC verification predicate (Z3):**
+  - **`date-op`** → live `due.date` vs `new_due` (equals `new_due` ⇒ commit; `old_due` ⇒ re-apply; neither ⇒
+    user intervened, void — the §4d divergence).
+  - **`comment`** → the target task has a comment with the journaled content (content + task lookup).
+  - **`calendar`** → the 🤖-calendar event exists **by its stable event key** with the intended fields.
+  - **`label` / `p1` / `description`** → the task's **current value** matches the journaled intent (label set
+    contains/omits · `p1` present/cleared · description equals the if-then cue).
+  - **`task.add`** → **dedup-key lookup** (a task with the Inbox-task-id/idempotency key exists — the same
+    check §8b stage-1 runs).
+  - **`task.complete`** → the task reads completed.
+
+  The **MAP keeps its 4-field schema** — operation records live ONLY in the journal (Z3). The **QUEUE obeys the
+  same `flock` + atomic-replace, and its ack is a compare-and-set on `{id, rev}`** of the shown record; producers
+  dedup by `id` (Z2). Under the dry-run instruction the helper **appends the intended write + journal op to
+  `forzare/state/dryrun-intents.jsonl` and performs neither** (R3A1); **staged external writes also carry the
+  native `td --dry-run` flag** (Y4).
 - [ ] **Step 4: Fixtures** — crash after (c)/after the write/after commit; a concurrent **EOD roll × live
   snooze** on one task id (the lock serializes; the loser re-reads and no-ops via the same-day dedupe); an
   **undated-task initial date** (asserts `td task update --due`, not `reschedule`) vs an **already-dated
   re-date** (asserts `td task reschedule`); **one fixture per `kind` (X5):** `surfacing` + `leadtime` (both
   roll-eligible), `waiting_checkback` + `user_fixed` (both roll-EXCLUDED — asserted absent from B7 Step 1's
-  roll set); **and one fixture per journal `type`** — including a **`description`** write (the if-then cue)
-  asserted present in the JOURNAL so W7 exclusion stays complete (Y5/R5A11).
+  roll set).
+  - **After-write crash fixture PER JOURNAL `type` (Z3):** one each for `date-op` / `comment` / `calendar` /
+    `label` / `p1` / `description` / `task.add` / `task.complete` — crash between the journal-`pending` and the
+    commit, then assert the run's **type-specific healing predicate** commits (write landed), re-applies (write
+    didn't land), or voids (user-shaped divergence) correctly. The `description` and `task.add`/`task.complete`
+    writes are asserted **present in the JOURNAL** so W7 exclusion stays complete (Y5/R5A11/Z3).
+  - **Decision-queue concurrency fixtures (Z2):** a **producer race** (two producers enqueue the same `id` ⇒
+    exactly one record, the second a no-op); a **duplicate reconcile** (re-enqueue of an existing `id` ⇒
+    no-op); and an **ack-vs-promotion race** (the head's `rev` moves between the live turn's read and its ack
+    ⇒ the CAS fails and the turn re-reads rather than acking a stale head).
 
-  **Acceptance:** the helper is authored before B1; verb selection is state-chosen; the MAP and JOURNAL are
-  two distinct stores with the split lifetimes (map pruned on terminal state, journal retained 45 days);
-  journal-then-commit + healing hold for every `type`; the `description` fixture lands in the JOURNAL.
+  **Acceptance:** the helper is authored before B1; verb selection is state-chosen; the MAP, JOURNAL, and QUEUE
+  are three distinct stores (map pruned on terminal state, journal retained 45 days, queue under the same
+  lock/atomic-replace); journal-then-commit + the **per-type healing predicate** hold for every `type`
+  (incl. `task.add`/`task.complete`, Z3); the `description`/`task.add`/`task.complete` fixtures land in the
+  JOURNAL; the three queue concurrency fixtures pass (dedup-by-`id`, CAS ack, Z2).
 
 ---
 
@@ -683,6 +738,11 @@ planning-pull, snooze, roll, the §7 escalation, the if-then cue). Never a scatt
   Task B0)**, which picks the verb by task state (spec §4/W6: `td task reschedule` for an already-dated task;
   `td task update --due` only when initially dating an undated task, since `reschedule` errors `NO_DUE_DATE`
   there). **Completion beats name the shared phrasing-rotation directive** (R3A17, Phase B intro).
+  **`todoist-surface` OWNS the receptivity gate (V8/R6A3, spec §6a).** Before surfacing, it evaluates the v1
+  deterministic rule from the **configurable N/D/S** (`receptivity_initiation_window_min` = N=30,
+  `receptivity_dismissal_threshold` = D=3, `receptivity_surfacing_cap` = S=8; B10 `skills.config`): **withhold
+  (provide-nothing) when trailing-24h dismissals ≥ D OR `surfacings_today` ≥ S**, else proceed. This is the one
+  named owner of the gate logic — no scattered per-skill receptivity checks.
   **Stalled-task branch — the named if-then owner (X13, spec §7/§13).** When `todoist-surface` would surface a
   task whose ledger `roll_count ≥ 2`, it emits **this decision as the one thing** instead of the task:
   decompose / if-then / drop, no-shame, single-decision (clarify buttons on a live session, a plain question
@@ -753,6 +813,15 @@ the audit shows the **single** decompose/if-then/drop decision (no-shame, one th
 journals a **`task.update-description`** intent (the op-enum name, Phase B intro/R5A13) that **persists the cue
 to the task's description** — mirrored in the JOURNAL as a `type: description` line (Y5/R5A11) so W7 exclusion
 stays complete — asserted from the intent record, not the real store.
+**Receptivity-gate staged acceptance + THRESHOLD-BOUNDARY tests (R6A3/V8, `todoist-surface` owns the gate):**
+seed the calibration store with dismissal/surfacing fixtures and stage a surface for each boundary, asserting
+**withhold-intent (provide-nothing) is logged** exactly at/over threshold and a surface below it:
+- **Dismissals: 2 vs 3 (D=3).** 2 trailing-24h dismissals ⇒ **surface** (below D); 3 ⇒ **withhold** (a
+  `provide-nothing` decision logged, no task surfaced).
+- **Surfacings: 7 vs 8 (S=8).** `surfacings_today == 7` ⇒ **surface**; `== 8` ⇒ **withhold**.
+
+Each boundary asserts the gate output (surface vs withhold) from the audit/intent, so the N/D/S constants are
+exercised, not just declared.
 
 ---
 
@@ -767,12 +836,31 @@ stays complete — asserted from the intent record, not the real store.
 - [ ] **Step 2: Curator-pin + dry-run**
 
 ```bash
+set -o pipefail
 hermes curator pin weather
 curl -fsS -m 5 'https://api.open-meteo.com/v1/forecast?latitude=39.7&longitude=-105&hourly=temperature_2m,precipitation,wind_speed_10m&temperature_unit=fahrenheit&wind_speed_unit=mph' | jq '.hourly|keys'
+
+# R6A11: SYNTHETIC threshold-crossing harness — drive the skill's classifier off fixed JSON, so clear / breach
+# / degrade are each ASSERTED deterministically (not "eyeball a live forecast"). The skill exposes a
+# pure classify entrypoint reading a forecast blob + the thresholds; feed it three fixtures:
+python3 ~/.hermes/skills/weather/classify.py <<'JSON'   # adjust to the skill's real classify entrypoint
+{"thresholds":{"wind_mph":17,"rain":"any","temp_low_f":50,"temp_high_f":90},
+ "cases":[
+  {"name":"clear",  "hourly":{"wind_speed_10m":[8],"precipitation":[0.0],"temperature_2m":[62]}, "expect":"clear"},
+  {"name":"breach", "hourly":{"wind_speed_10m":[22],"precipitation":[0.3],"temperature_2m":[38]},"expect":"prep"},
+  {"name":"degrade","hourly":null, "source_error":"open-meteo + NWS both unreachable", "expect":"degrade"}
+ ]}
+JSON
+# the classifier must return: clear ⇒ a one-line "clear" verdict; breach ⇒ an actionable prep line naming the
+# breached factor(s); degrade ⇒ the "weather unavailable — assume layers" note (never a crash). The harness
+# asserts each case's verdict equals its `expect` and EXITS NONZERO on any mismatch.
 ```
 
-Expected: Open-Meteo returns hourly temp/precip/wind; the skill flags only on threshold breach. **Acceptance:**
-clear day → one-line "clear"; a threshold breach → actionable prep line; API-down → the degrade note.
+Expected: Open-Meteo returns hourly temp/precip/wind; the synthetic harness proves clear/breach/degrade
+each classify correctly. **Acceptance (R6A11):** the three synthetic threshold-crossing cases each assert their
+verdict — **clear** (wind 8 / no rain / 62°F ⇒ one-line "clear"), **breach** (wind 22 > 17, 0.3" rain, 38°F <
+50°F ⇒ actionable prep line), **degrade** (both sources unreachable ⇒ "weather unavailable — assume layers",
+no crash) — the harness fails loud on any mismatch; not an eyeballed live forecast.
 
 ---
 
@@ -876,22 +964,64 @@ idempotent, **each asserting the EXACT computed popup timestamp** (`block_start 
   re-derive a
   rotation. The brief is the **one bounded exception** to the one-per-response rule (spec §0/W12): read-only
   context that still ends with exactly ONE action.
-- [ ] **Step 4: Curator-pin all three + staged dry-run** (Phase B intro pattern)
+- [ ] **Step 4: Curator-pin all three + three concrete harnesses (R6A11)**
 
 ```bash
 set -o pipefail
 for s in eisenhower-plan activation-prompt brief-assemble; do hermes curator pin "$s"; done
+INTENTS=~/workspaces/Ivy/forzare/state/dryrun-intents.jsonl
+POD=~/workspaces/Ivy/forzare/state/plan-of-day.json
+DRY='DRY RUN — record intended writes to forzare/state/dryrun-intents.jsonl, perform none. '
+
+# (1) PLAN-OF-DAY RESUME (R6A11): seed a plan record for TODAY with ONE write flag flipped OFF; a dry re-run
+#     must journal EXACTLY the one missing write's intent (the alarm), and NO p1.set (p1_set already true).
+TODAY=$(TZ=America/Denver date +%F)
+cp "$POD" "$POD.bak" 2>/dev/null || true
+cat > "$POD" <<JSON
+{"date":"$TODAY","selected_ids":["[TEST]-a","[TEST]-b"],"anchor":"[TEST]-a","writes":{"p1_set":true,"anchor_placed":true,"alarm_set":false}}
+JSON
+: > "$INTENTS"
+JR=$(stage_skill '0 0 1 1 *' "${DRY}Run eisenhower-plan in morning mode; resume today's plan-of-day." eisenhower-plan test-pod-resume); hermes cron remove "$JR"
+RID=$(jq -rs 'map(.run_id)|last // empty' "$INTENTS")
+NSET=$(jq -s --arg r "$RID" '[.[]|select(.run_id==$r and .op=="p1.set")]|length' "$INTENTS")
+NALARM=$(jq -s --arg r "$RID" '[.[]|select(.run_id==$r and .op=="calendar.create")]|length' "$INTENTS")
+[ "$NSET" = 0 ] || { echo "FATAL: resume re-ran the already-done p1.set ($NSET) — must resume ONLY missing writes (Y13/R6A11)" >&2; exit 1; }
+[ "$NALARM" -ge 1 ] || { echo "FATAL: resume did not complete the one missing write (alarm_set) (R6A11)" >&2; exit 1; }
+echo "plan-of-day resume OK: only the missing alarm write journaled, no p1 top-up"
+mv "$POD.bak" "$POD" 2>/dev/null || rm -f "$POD"
+
+# (2) >3-Q1 CONFLICT (R6A11): a pool with FOUR real-deadline-today [TEST] tasks must journal a
+#     conflict-DECISION intent (enqueue to decision-queue), NEVER a 4th p1.set.
+: > "$INTENTS"
+JC=$(stage_skill '0 0 1 1 *' "${DRY}Run eisenhower-plan morning mode against a pool of FOUR [TEST] tasks each with a deadline TODAY; cap p1 at 3." eisenhower-plan test-q1-conflict); hermes cron remove "$JC"
+RID=$(jq -rs 'map(.run_id)|last // empty' "$INTENTS")
+NP1=$(jq -s --arg r "$RID" '[.[]|select(.run_id==$r and .op=="p1.set")]|length' "$INTENTS")
+[ "$NP1" -le 3 ] || { echo "FATAL: eisenhower-plan set $NP1 p1 — must cap at 3 and surface a conflict decision (INV-5/R6A11)" >&2; exit 1; }
+jq -e --arg r "$RID" 'select(.run_id==$r and .op=="state-write" and (.target|test("decision-queue")))' "$INTENTS" >/dev/null \
+  || { echo "FATAL: >3-Q1 collision did not enqueue a conflict decision (never silently drop, §4c/R6A11)" >&2; exit 1; }
+echo ">3-Q1 conflict OK: ≤3 p1.set + a conflict-decision enqueued (no 4th p1, no silent drop)"
+
+# (3) IMPERATIVE-COUNT (R6A11/Z12): the staged brief text closes on ≤1 actionable line. Seed a queue head +
+#     a weather trigger + an activation state; count imperative/question lines in the assembled brief.
+: > "$INTENTS"
+JI=$(stage_skill '0 0 1 1 *' "${DRY}Assemble the brief: queue head present, weather threshold breached, activation pending. Output the brief text." brief-assemble test-brief-imperative)
+AUDIT=~/.hermes/cron/output/"$JI"
+# count lines that END in '?' or START with an imperative verb (a coarse but deterministic proxy):
+ACTIONABLE=$(grep -cE '\?[[:space:]]*$|^[[:space:]]*(First|Start|Do|Decide|Chase|Pick|Break|Drop|Reschedule|Undate|Retire):' "$AUDIT"/*.md || true)
+[ "${ACTIONABLE:-0}" -le 1 ] || { echo "FATAL: brief has $ACTIONABLE actionable lines — must be ≤1 (Z12/W12/R6A11)" >&2; exit 1; }
+echo "imperative-count OK: brief closes on ≤1 actionable line (weather+activation rendered non-actionable, Z12)"
+hermes cron remove "$JI"
 ```
 
 **Acceptance:** `eisenhower-plan` in morning mode never assigns >3 p1 and, **guarded by `plan-of-day.json`
-(Y13, NOT a p1 count)**, is a no-op when today's plan record already exists — resuming only its missing writes
-and leaving a user-set p1 untouched (a re-fire never tops up past the recorded `selected_ids`); in EOD mode
-writes zero p1; in replan mode redraws only the remaining day, proposes (never applies) p1 changes, and never
-touches a fixed anchor (W10); `brief-assemble` yields the ordered brief and drops optional blocks under low
-receptivity but always includes the anchor — and **the one-per-response check counts actionable imperatives +
-questions (W12):** every non-brief response totals ≤ 1; the brief's context lines are non-actionable and it
-closes on exactly ONE thing — the unified decision-queue head record when non-empty (which replaces the do-now
-close), else one do-now action (§0/R5A1/Y1).
+(Y13, NOT a p1 count)**, is a no-op when today's plan record already exists — the **resume harness** proves it
+journals ONLY the one missing write and never tops up p1 past `selected_ids`; the **>3-Q1 conflict harness**
+proves a 4-deadline pool caps at ≤3 `p1.set` and enqueues a conflict decision (never a 4th p1, never a silent
+drop, INV-5); in EOD mode writes zero p1; in replan mode redraws only the remaining day, proposes (never
+applies) p1 changes, never touches a fixed anchor (W10); `brief-assemble` yields the ordered brief, drops
+optional blocks under low receptivity but always includes the anchor, and — **the imperative-count harness
+(Z12/W12/R6A11)** — closes on **≤1 actionable line** with a queue head + weather trigger + activation state all
+present (weather + activation rendered non-actionable context, spec §2).
 
 ---
 
@@ -911,32 +1041,79 @@ close), else one do-now action (§0/R5A1/Y1).
     (R5A5):** the live turn that receives the user's answer marks the head `acked` (cleared) so the next
     surfaces next morning — followups-sweep itself, running at brief time, only READS the head.
   - **SWEEP mode (monthly, `--deliver local`, R4A6/X7) — one PRODUCER for the unified queue.** Selects the
-    **≤5 oldest/most-stale** someday candidates and **enqueues them to `forzare/state/decision-queue.json`** as
-    `sweep-candidate` records (`{class:"sweep-candidate", candidate_id, proposed, status:pending}`); when the
-    stale-someday set **exceeds 25** it additionally enqueues the opt-in **task-bankruptcy** offer (spec
-    §4c/§19). **Bankruptcy is a REVERSIBLE UNDATE (Y3):** the confirmed batch op **strips the surfacing/lead-time
-    due** from a **frozen, journaled** id set so they drop to hidden someday — **never delete/complete/archive**
-    (the 2026-05-20 cascade-delete incident, STATUS:76) — with a bounded summary, a confirmation that **names
-    the operation** ("undate N tasks back to someday — reversible"), and **idempotent partial-failure recovery**
-    (a re-run reads the frozen journaled set, completes only ids still dated). **State-only — never messages**
-    (the brief-mode read is the sole delivery). This mode owns the sweep-marking logic (R4A6).
+    **≤5 oldest/most-stale** candidates (skipping any id on the `sweep-exclusion.json` RETIRE list, Z13) and
+    **enqueues them to `forzare/state/decision-queue.json`** as `sweep-candidate` records (`{id, class:
+    "sweep-candidate", candidate_id, proposed, status:pending, enqueue_ts, rev}`, Z2); when the stale set
+    **exceeds 25** it additionally enqueues the opt-in **task-bankruptcy** offer (spec §4c/§19). **Bankruptcy is
+    a REVERSIBLE, TWO-CLASS clear (Y3/Z13) — NEVER delete/complete/archive.** The confirmed batch op applies the
+    op that fits each item's class over a **frozen, journaled** id set:
+    - **stale DATED actives** (a surfacing/lead-time due that never moved) ⇒ **UNDATE** (strip the due → back to
+      hidden someday);
+    - **undated someday items** (no due to strip) ⇒ **RETIRE** (append the id to `sweep-exclusion.json` so the
+      monthly sweep never re-proposes it — no label, no delete, no re-parent; reversible by deleting the entry).
+
+    With a bounded summary, a confirmation that **names the operation** ("undate N dated + retire M someday —
+    reversible"), and **idempotent partial-failure recovery** (a re-run reads the frozen journaled set and
+    completes only the ids not yet undated/retired). **Two distinct incidents motivate reversibility, cited
+    separately (R6A7):** the **Todoist parent-delete cascade** (deleting a parent deletes its subtasks;
+    STATUS:76, 3 videos — `td activity --json` recovers) and the **separate 2026-05-20 Obsidian-vault refactor**
+    (a bulk rename/merge that deleted 31 files). **State-only — never messages** (the brief-mode read is the
+    sole delivery). This mode owns the sweep-marking logic (R4A6).
 - [ ] **Step 2: `daily-reflect`** — EOD report half: completions-as-wins (no scorecard, no misses list),
   receptivity-gated (spec §8). Gain-framed, task-level (spec §7). **Completion beats name the shared
   phrasing-rotation directive** (R3A17, Phase B intro).
 - [ ] **Step 3: `tomorrow-prep`** — EOD pre-stage of tomorrow's candidate anchor + ≤3 (proposal only; spec
   §5b/§8).
-- [ ] **Step 4: Curator-pin + dry-run against `[TEST]` fixtures**
+- [ ] **Step 4: Curator-pin + head/ack/bankruptcy via queue-file fixtures + dry runs (R6A11)**
 
 ```bash
+set -o pipefail
 for s in followups-sweep daily-reflect tomorrow-prep; do hermes curator pin "$s"; done
+Q=~/workspaces/Ivy/forzare/state/decision-queue.json
+INTENTS=~/workspaces/Ivy/forzare/state/dryrun-intents.jsonl
+DRY='DRY RUN — record intended writes to forzare/state/dryrun-intents.jsonl, perform none. '
+# (1) HEAD ordering (R6A10/R6A11): seed two pending records of DIFFERENT classes; brief-mode must emit the
+#     class-rank HEAD (waiting-chase > sweep-candidate), a single decision, never a list.
+cp "$Q" "$Q.bak" 2>/dev/null || true
+cat > "$Q" <<'JSON'
+{"records":[
+ {"id":"sc1","class":"sweep-candidate","candidate_id":"[TEST]-old","proposed":"keep","status":"pending","enqueue_ts":"2026-07-10T05:00:00Z","rev":1},
+ {"id":"wc1","class":"waiting-chase","task_id":"[TEST]-wait","proposed":"chase","status":"pending","enqueue_ts":"2026-07-11T02:00:00Z","rev":1}
+]}
+JSON
+Q_MT0=$(stat -f %m "$Q")
+: > "$INTENTS"
+JID=$(stage_skill '0 0 1 1 *' "${DRY}Run followups-sweep in brief mode; emit the single head decision or [SILENT]." followups-sweep test-sweep-head)
+AUDIT=~/.hermes/cron/output/"$JID"
+grep -q '\[TEST\]-wait' "$AUDIT"/*.md && ! grep -q '\[TEST\]-old' "$AUDIT"/*.md \
+  || { echo "FATAL: brief-mode did not emit the class-rank HEAD (waiting-chase before sweep-candidate) (R6A10/R6A11)" >&2; exit 1; }
+echo "queue HEAD ordering OK (waiting-chase head, single decision)"
+# (2) ACK is a LIVE-only CAS (R5A5/Z2): brief-mode (a cron/dry path) must NOT write the queue.
+[ "$(stat -f %m "$Q")" = "$Q_MT0" ] || { echo "FATAL: brief-mode wrote the queue — CAS ack must be a LIVE turn only (R5A5)" >&2; exit 1; }
+echo "ack purity OK (brief-mode reads only)"; hermes cron remove "$JID"; mv "$Q.bak" "$Q" 2>/dev/null || rm -f "$Q"
+# (3) BANKRUPTCY two-class (Y3/Z13): a >25 stale set with BOTH dated + undated [TEST] items ⇒ SWEEP dry-run
+#     journals the bankruptcy offer + per-class ops (UNDATE dated / RETIRE undated), NEVER a destructive op.
+: > "$INTENTS"
+JB=$(stage_skill '0 0 1 1 *' "${DRY}Run followups-sweep in SWEEP mode against a >25 stale set of [TEST] items (mixed dated + undated); enqueue the bankruptcy offer + per-class clear ops." followups-sweep test-sweep-bankrupt)
+hermes cron remove "$JB"
+jq -e 'select(.op=="state-write" and (.target|test("decision-queue")) and (.args|tostring|test("bankruptcy")))' "$INTENTS" >/dev/null \
+  || { echo "FATAL: SWEEP did not enqueue a bankruptcy offer past 25 stale (Y3)" >&2; exit 1; }
+jq -e 'select(.op=="state-write" and (.target|test("sweep-exclusion")))' "$INTENTS" >/dev/null \
+  || { echo "FATAL: no RETIRE (sweep-exclusion) intent for undated bankruptcy items (Z13)" >&2; exit 1; }
+! jq -e 'select(.op=="task.complete" or .op=="task.delete")' "$INTENTS" >/dev/null \
+  || { echo "FATAL: bankruptcy journaled a DESTRUCTIVE op — must be UNDATE/RETIRE only (Z13)" >&2; exit 1; }
+echo "bankruptcy two-class + non-destructive OK (Y3/Z13): offer enqueued, undated → sweep-exclusion, no delete/complete"
 ```
 
 **Acceptance:** `daily-reflect` never lists misses; `followups-sweep` in brief mode emits **only the single
-HEAD `pending` record** of the unified `decision-queue.json` (never a list; `waiting-chase` ordered
-most-overdue first) and never itself acks (ack is the live turn's job, R5A5); in SWEEP mode it enqueues
-`sweep-candidate` records and, past 25 stale candidates, the **reversible-UNDATE** bankruptcy offer with a
-frozen journaled id set (never a delete, Y3); `tomorrow-prep` proposes ≤3 without setting p1 (that's the
-morning's job).
+class-rank HEAD `pending` record** of the unified `decision-queue.json` (waiting-chase > fixed-redecision >
+stall-decision > triage-reraise > sweep-candidate; `waiting-chase` ordered most-overdue first) and never itself
+acks (the CAS ack is the live turn's job, R5A5/Z2); in SWEEP mode it enqueues `sweep-candidate` records and,
+past 25 stale candidates, the **TWO-CLASS reversible bankruptcy** offer (Y3/Z13) — **UNDATE** for stale dated
+actives, **RETIRE onto `sweep-exclusion.json`** for undated someday items — with a frozen journaled id set and
+**never a delete/complete/archive** (asserted from the dry-run intents), and a **before/after set-membership**
+check (each dated id left the active view, each undated id entered the exclusion list); `tomorrow-prep` proposes
+≤3 without setting p1 (that's the morning's job).
 
 ---
 
@@ -976,12 +1153,28 @@ jq -e 'select(.op=="state-write" and (.target|test("schedule-override")) and .ar
 [ ! -f ~/workspaces/Ivy/forzare/state/schedule-override.json ] \
   || { echo "FATAL: dry-run wrote the REAL schedule-override.json" >&2; exit 1; }
 hermes cron remove "$JID"
+
+# R6A9: PASSING-MENTION NEGATIVE fixtures — the over-trigger guard (spec §19). A passing mention of work/gym
+# in a NON-report context must NOT classify as a state change and must journal NO schedule-override write.
+for neg in "my friend works at a gym" "work was busy last year, glad that's over"; do
+  : > "$INTENTS"
+  JN=$(stage_skill '0 0 1 1 *' "${DRY}The user says: \"$neg\". Classify; act ONLY on a genuine own-state change; respond exactly [SILENT] when done." \
+          forzare "test-forzare-neg")
+  # NO schedule-override / state-write intent may be journaled for a passing mention:
+  if jq -e 'select(.op=="state-write" and (.target|test("schedule-override")))' "$INTENTS" >/dev/null 2>&1; then
+    echo "FATAL: passing mention \"$neg\" wrongly fired a schedule-override (over-trigger, R6A9)" >&2; exit 1
+  fi
+  echo "passing-mention negative OK — \"$neg\" did not fire (R6A9)"
+  hermes cron remove "$JN"
+done
 ```
 
 **Acceptance:** each of the 4 signal classes routes correctly on clear phrasing; a low-confidence phrase
 triggers the one-line confirm (button on live session); the shift signal journals a valid schedule-override
 INTENT (block + date + recovery flag) to `dryrun-intents.jsonl` while the real file stays absent (R3A1/W2);
-no `pre_gateway_dispatch` hook is used (spec §3B/§12).
+**passing-mention NEGATIVES ("my friend works at a gym", "work was busy" in a recap) do NOT fire — no
+schedule-override intent is journaled (R6A9, the §19 over-trigger validation requirement)**; no
+`pre_gateway_dispatch` hook is used (spec §3B/§12).
 
 ---
 
@@ -1038,9 +1231,17 @@ exit-ramp/hand-off logic explicit owners (spec §8/§3a/§3b; U2/A10/A14/A31).
   `@waiting` → near-term check-back + "auto-repaired" flag, then enqueue a `waiting-chase`); **unblock
   detection vs `gog` calendar + `td activity` ONLY — NOT "recent Discord" (R5A12)**: an amnesiac 02:00 cron
   session has no verified read path to chat history, so it relies only on the two signals it can actually read
-  (opportunistic Discord-context clearing stays a *live-turn* path, spec §8); 14-day staleness sweep enqueues a
-  `waiting-chase`. **State-only — never delivers** (the morning `followups-sweep` reads the head). Run directly
-  by the 02:00 cron, not in a bundle.
+  (opportunistic Discord-context clearing stays a *live-turn* path, spec §8); the `td activity` check queries
+  **BOTH** the `--type task` AND the separate **`--type comment`** streams (comments are not in the task stream,
+  Z14). **On a detected unblock the re-date rewrites the ledger `kind`: `waiting_checkback → surfacing`
+  (Z14)** — the entry was a chase reminder (never rolls); once unblocked it becomes a surfacing date that
+  **rolls normally**, so the re-date goes through the centralized helper (Task B0) which stamps the new `kind`
+  + `written_due` together. 14-day staleness sweep enqueues a `waiting-chase`. **State-only — never delivers**
+  (the morning `followups-sweep` reads the head). Run directly by the 02:00 cron, not in a bundle. **Fixtures
+  (Z14):** a **calendar-only unblock** (the awaited event passed on the 🤖/primary calendar ⇒ clear + re-date,
+  `kind` flips to `surfacing`, entry now rolls) and a **comment-only unblock** (a genuine user comment on the
+  blocking task, found on the `--type comment` stream ⇒ same clear + `kind` flip) — each asserting the
+  `waiting_checkback → surfacing` transition and that the task then joins the roll set.
 - [ ] **Step 3: `transition`** — the §3a hyperfocus exit-ramps (soft pre-warning → one-last-thing → hard-stop
   anchor → capture re-entry) + the §3b task-transition ritual (close the loop on the outgoing task's next
   action, pre-stage the next one). Owns the deadline lead-time framing at hand-off and the exit-ramp cues
@@ -1088,8 +1289,10 @@ echo "dry-run purity OK — stamp + MAP + JOURNAL + decision-queue all untouched
 probe logs an **`already-reconciled` no-op** on the second run and leaves **every** real store
 (`last-reconcile.json`, the `task-lifecycle.json` MAP, `mutation-journal.jsonl`, `decision-queue.json`)
 **untouched** (dry-run purity, Y5/Y1); the real double-roll guard is verified at G1 day-1; `waiting-reconcile`
-enqueues `waiting-chase` records and sends nothing (unblock signals = gog + `td activity` only, no Discord,
-R5A12); `transition` produces the graduated ramp, never a hard yank.
+enqueues `waiting-chase` records and sends nothing (unblock signals = gog calendar + `td activity` on **both**
+`--type task` and `--type comment`, no Discord, R5A12/Z14), and on a detected unblock rewrites the ledger
+`kind` `waiting_checkback → surfacing` so the task rolls (calendar-only + comment-only unblock fixtures, Z14);
+`transition` produces the graduated ramp, never a hard yank.
 
 ---
 
@@ -1185,62 +1388,74 @@ owned `forzare/calibration/` store (U10/A12).
   label groom, auto-repair comment, or if-then cue is journaled too, so none can read as user initiation.
   **Initiation counts only
   attribution-reliable signals:** a completion, a subtask completion, or an explicit user response — never a
-  raw `updated`/`comment` event the journal authored. **Pagination (X11):** the `td activity` query is
+  raw `updated`/`comment` event the journal authored. **Pagination (X11/R6A8):** the `td activity` query is
   **cursor-paginated** — loop the cursor to exhaustion (never read only page 1), and **comment** events come
   from a **separate `--type comment` query** than completed/updated, so both must be paged and both
-  cross-checked against the journal.
+  cross-checked against the journal. **The reducer's activity SOURCE LAYER is stubbable (R6A8)** — a small
+  fetch interface `(cursor) → (events, next_cursor)` the reducer calls in a loop — so pagination is testable
+  with a **TWO-PAGE stub (a real cursor token on page 1, the progress event on page 2)** that **asserts the
+  page-2 fetch occurred**, measuring pagination **without fabricating a live 100+-event history**. The live-path
+  smoke stays read-only (a real `td activity` call, no assertion on volume).
 - [ ] **Step 4: Policy read path + retention** — the engine reads the reduced curves (not the raw log). The
   **mutation JOURNAL is retained 45 days** (Y5/§19 — the calibration correlation window, so an outcome can
   still be cross-checked against Bob's writes weeks later), then pruned; the raw calibration log keeps its own
   window and the reductions are kept.
-- [ ] **Step 5: Deterministic fixtures** — including **provide-nothing records** (the control condition), the
-  **W7 NEGATIVE attribution fixture**, a **>100-event history** (asserts the cursor loop pages past page 1,
-  X11), and a **comment-only-progress** case (a genuine user comment the journal did NOT author counts as a
-  touch, X11) — so the reducers are testable without live data.
+- [ ] **Step 5: Deterministic fixtures via the STUBBABLE source layer (R6A8)** — **provide-nothing records**
+  (the control condition), the **W7 NEGATIVE attribution fixture**, and — replacing the old 120-event blob — a
+  **TWO-PAGE cursor stub** (a real cursor token on page 1, the genuine user comment on page 2) that asserts the
+  reducer **fetched page 2** (a `comment-only-progress` touch the journal did NOT author). The stub measures
+  pagination **without fabricating a live 100+-event history**; the live-path smoke stays read-only.
 
 ```bash
 set -o pipefail
 hermes curator pin calibration-log
 CAL=~/workspaces/Ivy/forzare/calibration
-# Scripted round-trip: a surfacing record, a provide-nothing control, the W7 negative fixture (task Y — only
-# Bob-authored activity), and the X11 comment-only-progress fixture (task Z — a genuine user comment the
-# journal did NOT author). The activity_probe on Z carries >100 events to exercise the cursor loop (X11).
-python3 - "$CAL/fixture-events.jsonl" <<'PY'
+# The reducer's activity SOURCE is stubbed by a fetch table keyed on cursor: page-1 (cursor=null) returns a
+# next_cursor; page-2 (cursor=PAGE2) returns the genuine user comment. The stub RECORDS which cursors were
+# fetched, so we assert page-2 was actually requested (R6A8 — pagination measured, not fabricated).
+python3 - "$CAL/fixture-events.jsonl" "$CAL/activity-stub.json" <<'PY'
 import json, sys
 rows = [
  {"schema_version":1,"ts":"2026-07-11T09:00:00Z","context":{"day_type":"off","tod_bucket":"morning"},"action":{"task_id":"X","load_class":"deep"},"outcome":{"initiated":True,"completed":True}},
  {"schema_version":1,"ts":"2026-07-11T14:00:00Z","context":{"day_type":"off","tod_bucket":"afternoon"},"action":"provide_nothing","outcome":{}},
- {"schema_version":1,"ts":"2026-07-11T10:00:00Z","context":{"day_type":"off","tod_bucket":"morning"},"action":{"task_id":"Y","load_class":"light"},"outcome":{},"activity_probe":{"task_id":"Y","events":[{"eventType":"updated","journaled_by_forzare":True},{"eventType":"comment","journaled_by_forzare":True}]}},
+ {"schema_version":1,"ts":"2026-07-11T10:00:00Z","context":{"day_type":"off","tod_bucket":"morning"},"action":{"task_id":"Y","load_class":"light"},"outcome":{}},
+ {"schema_version":1,"ts":"2026-07-11T11:00:00Z","context":{"day_type":"off","tod_bucket":"morning"},"action":{"task_id":"Z","load_class":"admin"},"outcome":{}},
 ]
-# Task Z: >100 journaled events then, on a LATER page, ONE genuine user comment (not journaled) = progress.
-z_events = [{"eventType":"updated","journaled_by_forzare":True} for _ in range(120)]
-z_events.append({"eventType":"comment","journaled_by_forzare":False})   # the real user touch, page 2+
-rows.append({"schema_version":1,"ts":"2026-07-11T11:00:00Z","context":{"day_type":"off","tod_bucket":"morning"},"action":{"task_id":"Z","load_class":"admin"},"outcome":{},"activity_probe":{"task_id":"Z","events":z_events}})
-with open(sys.argv[1],"w") as f:
-    for r in rows: f.write(json.dumps(r)+"\n")
+# Two-page cursor stub the reducer calls as (task_id, cursor) -> {events, next_cursor}. Task Y: one page, only
+# Bob-authored activity (W7 negative). Task Z: page 1 (only Bob-authored + a next_cursor) then page 2 (the real
+# user comment) — so scoring Z initiated=true REQUIRES following the cursor to page 2.
+stub = {
+ "Y": {"null": {"events":[{"eventType":"updated","journaled_by_forzare":True}], "next_cursor":None}},
+ "Z": {"null":  {"events":[{"eventType":"updated","journaled_by_forzare":True}], "next_cursor":"PAGE2"},
+       "PAGE2": {"events":[{"eventType":"comment","journaled_by_forzare":False}], "next_cursor":None}},
+}
+open(sys.argv[1],"w").write("\n".join(json.dumps(r) for r in rows)+"\n")
+json.dump(stub, open(sys.argv[2],"w"))
 PY
-# invoke the reducer authored in this task (adjust to its real entrypoint):
-python3 ~/.hermes/skills/calibration-log/reduce.py "$CAL/fixture-events.jsonl" --out "$CAL/curves.test.json"
+# the reducer records fetched cursors to $CAL/fetched-cursors.json when driven with --activity-stub (R6A8):
+python3 ~/.hermes/skills/calibration-log/reduce.py "$CAL/fixture-events.jsonl" \
+  --activity-stub "$CAL/activity-stub.json" --record-cursors "$CAL/fetched-cursors.json" --out "$CAL/curves.test.json"
 test -s "$CAL/curves.test.json" || { echo "FATAL: reducer produced no curve file" >&2; exit 1; }
-# the provide-nothing CONTROL must be counted, not dropped:
 jq -e '.provide_nothing_count >= 1' "$CAL/curves.test.json" \
   || { echo "FATAL: provide-nothing records dropped by the reducer" >&2; exit 1; }
-# W7 NEGATIVE fixture: task Y's only activity is Bob-authored ⇒ the reducer must score initiated=false:
 jq -e '.tasks.Y.initiated == false' "$CAL/curves.test.json" \
   || { echo "FATAL: Bob-authored activity was scored as user initiation (W7)" >&2; exit 1; }
-# X11 comment-only-progress: task Z's genuine user comment (on a LATER page, past the 120 journaled events)
-# must score initiated=true — proving the reducer paged the cursor to exhaustion, not just page 1:
+# R6A8: the reducer must have FETCHED page 2 (cursor PAGE2) for task Z — proving it followed the cursor:
+jq -e '.Z | index("PAGE2")' "$CAL/fetched-cursors.json" \
+  || { echo "FATAL: reducer never fetched page 2 (cursor PAGE2) — pagination not followed (R6A8)" >&2; exit 1; }
+# and the genuine page-2 user comment scores initiated=true:
 jq -e '.tasks.Z.initiated == true' "$CAL/curves.test.json" \
-  || { echo "FATAL: user comment past page 1 missed — reducer didn't page the cursor (X11)" >&2; exit 1; }
-echo "calibration reducer round-trip OK (curve; provide-nothing counted; Bob-writes excluded; cursor paged)"
-rm -f "$CAL/fixture-events.jsonl" "$CAL/curves.test.json"
+  || { echo "FATAL: page-2 user comment missed — reducer didn't page the cursor (R6A8/X11)" >&2; exit 1; }
+echo "calibration reducer round-trip OK (curve; provide-nothing counted; Bob-writes excluded; page-2 fetch asserted)"
+rm -f "$CAL/fixture-events.jsonl" "$CAL/activity-stub.json" "$CAL/fetched-cursors.json" "$CAL/curves.test.json"
 ```
 
 **Acceptance:** the scripted fixture round-trips through the reducer to a non-empty curve file; the
 provide-nothing control is counted (`provide_nothing_count >= 1`, not dropped); the **W7 negative fixture
-scores `initiated=false`** (only Bob-authored p1/label/due/comment events ⇒ no initiation credit); the **X11
-comment-only-progress fixture scores `initiated=true`** (a genuine user comment on a later page ⇒ the reducer
-paged the `td activity` cursor past page 1); the engine reads reductions, never the raw log.
+scores `initiated=false`** (only Bob-authored events ⇒ no initiation credit); the **two-page cursor stub proves
+the reducer FETCHED page 2** (the recorded-cursor list contains `PAGE2`, R6A8) and the genuine page-2 user
+comment scores `initiated=true` — pagination measured with a stub, not a fabricated live history; the engine
+reads reductions, never the raw log.
 
 ---
 
@@ -1264,17 +1479,39 @@ passes** — a schedule-derived brief with no `work_schedule` mis-fires every mo
 / `activation-prompt` / `weather`), whose `metadata.hermes.config` block declares every parameter with a
 default.
 
-- [ ] **Step 1: Author the config schema + defaults** (key / description / default / prompt per entry, spec
-  §13):
-  - **`work_schedule`** — per-weekday work blocks (currently **Tue/Thu/Sat 15:00–23:00**) **+ the
-    alternating-Sunday rule with anchor date `2026-06-07 = ON`** (so May 31 OFF, Jun 14 OFF, Jun 21 ON, …).
-  - **`gym_schedule`** — days = **Mon/Tue/Wed/Fri/Sat/Sun**, rest = **Thu**; the gym window (independent of
-    `work_schedule`).
-  - **`wake_anchor`** = **05:15**.
-  - **weather thresholds** = wind > 17 mph / any rain / < 50°F / > 90°F.
-  - **commute constants (X12, spec §3a/§19)** = `commute_prep_minutes: 30` + `commute_travel_minutes: 25`
-    (hand-editable; the §3a/W13 leave-time alarm fires at `work_block_start − prep − travel`).
-  - (Peak/free windows are **derived** at run time from these, spec §2/§6a — NOT stored.)
+- [ ] **Step 1: Author the EXACT config schema + defaults** (key / description / default / prompt per entry,
+  spec §13/Z9/R6A5). `work_schedule` is a **per-weekday MAP** (every weekday key present; `null` = off) **plus
+  an alternating-Sunday anchor** — this exact shape is what C2's DOW-aware cron derivation and B10 Step 3's
+  key-by-key verify read:
+
+  ```yaml
+  work_schedule:
+    days:
+      monday:    null
+      tuesday:   {start: "15:00", end: "23:00"}
+      wednesday: null
+      thursday:  {start: "15:00", end: "23:00"}
+      friday:    null
+      saturday:  {start: "15:00", end: "23:00"}
+      sunday:    {start: "15:00", end: "23:00", alternating: true}
+    alt_sunday_anchor: "2026-06-07"      # this Sunday = ON; ±14-day multiples = ON (May 31 OFF, Jun 14 OFF, …)
+  gym_schedule:
+    days: [monday, tuesday, wednesday, friday, saturday, sunday]   # rest = thursday
+    window_start: "06:00"
+    window_end:   "09:00"
+  wake_anchor: "05:15"
+  weather_thresholds: {wind_mph: 17, rain: any, temp_low_f: 50, temp_high_f: 90}
+  commute_prep_minutes: 30
+  commute_travel_minutes: 25
+  receptivity_initiation_window_min: 30   # N (V8/R6A3) — user progress within N min of surfacing = initiated
+  receptivity_dismissal_threshold: 3      # D (V8/R6A3) — withhold when trailing-24h dismissals ≥ D
+  receptivity_surfacing_cap: 8            # S (V8/R6A3) — withhold when surfacings_today ≥ S
+  ```
+
+  Notes: **commute constants (X12, spec §3a/§19)** drive the §3a/W13 leave-time alarm (`work_block_start − prep
+  − travel`). **N/D/S are the receptivity-gate constants (V8/R6A3)** — configurable here, OWNED by
+  `todoist-surface`'s gate logic (B1). **Peak/free windows are DERIVED** at run time (spec §2/§6a — NOT stored).
+  **Cron trigger times are DERIVED from this map, DOW-aware (Z9, C2 Step 1)** — never a flat `block_start`.
 - [ ] **Step 2: Ship via chezmoi** — the SKILL.md is authored in `dot_hermes/skills/…`; the resolved
   `skills.config` lands in the chezmoi-managed `config.yaml` (`.age`) per the delivery-vehicle rule.
 - [ ] **Step 3: Verify by a RENDERED-LIVE read** (not a source grep — assert the resolved value each
@@ -1290,11 +1527,37 @@ def need(k):
     assert k in sc and sc[k] not in (None, "", {}), f"skills.config missing/empty: {k}"
     print("OK:", k, "=", sc[k])
 for k in ("work_schedule", "gym_schedule", "wake_anchor", "weather_thresholds",
-          "commute_prep_minutes", "commute_travel_minutes"):
+          "commute_prep_minutes", "commute_travel_minutes",
+          "receptivity_initiation_window_min", "receptivity_dismissal_threshold",
+          "receptivity_surfacing_cap"):
     need(k)
+# R6A3: assert the DECIDED receptivity constants N/D/S:
+assert sc["receptivity_initiation_window_min"] == 30, f"N {sc['receptivity_initiation_window_min']} != 30"
+assert sc["receptivity_dismissal_threshold"] == 3,    f"D {sc['receptivity_dismissal_threshold']} != 3"
+assert sc["receptivity_surfacing_cap"] == 8,          f"S {sc['receptivity_surfacing_cap']} != 8"
+print("receptivity constants OK: N=30, D=3, S=8 (R6A3)")
+# Z9/R6A5: validate the work_schedule per-weekday MAP key-by-key with DECIDED values.
 ws = sc["work_schedule"]
-assert "anchor" in str(ws) or "2026-06-07" in str(ws), "work_schedule missing the alt-Sunday anchor"
-print("rendered work_schedule anchor present OK")
+days = ws["days"]
+DOW = ("monday","tuesday","wednesday","thursday","friday","saturday","sunday")
+for d in DOW:
+    assert d in days, f"work_schedule.days missing weekday key: {d}"   # every weekday present
+work_days = {"tuesday","thursday","saturday","sunday"}
+for d in DOW:
+    blk = days[d]
+    if d in work_days:
+        assert blk and blk.get("start")=="15:00" and blk.get("end")=="23:00", f"{d} block != 15:00-23:00 ({blk})"
+    else:
+        assert blk is None, f"{d} must be an OFF day (null), got {blk}"
+assert days["sunday"].get("alternating") is True, "sunday must carry alternating: true"
+assert ws.get("alt_sunday_anchor") == "2026-06-07", f"alt_sunday_anchor {ws.get('alt_sunday_anchor')} != 2026-06-07"
+print("work_schedule per-weekday map OK: Tue/Thu/Sat/Sun 15:00-23:00, Mon/Wed/Fri OFF, Sun alternating, anchor 2026-06-07")
+# gym_schedule: rest day = Thursday (absent), the other six present.
+gym = sc["gym_schedule"]; gdays = set(gym["days"])
+assert gdays == {"monday","tuesday","wednesday","friday","saturday","sunday"}, f"gym days {gdays} (rest must be Thu)"
+assert "thursday" not in gdays, "thursday must be the gym REST day (absent from gym_schedule.days)"
+assert sc["wake_anchor"] == "05:15", f"wake_anchor {sc['wake_anchor']} != 05:15"
+print("gym_schedule OK (rest=Thu); wake_anchor=05:15")
 # R3A14: assert the CLAIMED weather thresholds, value by value (wind > 17 mph / any rain / < 50°F / > 90°F):
 wt = sc["weather_thresholds"]
 assert wt.get("wind_mph") == 17,   f"wind threshold {wt.get('wind_mph')} != 17"
@@ -1309,11 +1572,14 @@ print("commute constants OK: prep=30 travel=25 (leave-time alarm = block_start -
 PY
 ```
 
-**Acceptance:** `skills.config` carries `work_schedule` (with the alt-Sunday anchor `2026-06-07=ON`),
-`gym_schedule` (rest=Thu), `wake_anchor=05:15`, **the four weather-threshold values asserted individually
-(wind>17 / any rain / <50°F / >90°F — R3A14)**, and **`commute_prep_minutes: 30` + `commute_travel_minutes: 25`
-(X12)** — each from the **resolved live config**, not the source template. Only then may Task C2 create the
-schedule-derived cron jobs.
+**Acceptance:** `skills.config` carries the **EXACT `work_schedule` per-weekday map validated key-by-key
+(Z9/R6A5)** — every weekday key present, Tue/Thu/Sat/Sun `15:00–23:00`, Mon/Wed/Fri `null` (off),
+`sunday.alternating: true`, `alt_sunday_anchor: 2026-06-07` — plus `gym_schedule` (rest=Thu, key-by-key),
+`wake_anchor=05:15`, **the four weather-threshold values asserted individually (wind>17 / any rain / <50°F /
+>90°F — R3A14)**, and **`commute_prep_minutes: 30` + `commute_travel_minutes: 25` (X12)** — each from the
+**resolved live config**, not the source template. Only then may Task C2 create the schedule-derived cron jobs
+(whose block-boundary/gym DOW fields are DERIVED from this map — Z9, C2 Step 1: boundary `* * 0,2,4,6` never
+fires Mon/Wed/Fri; gym excludes Thu; the alt-Sunday job fires weekly and the skill no-ops on OFF Sundays).
 
 - [ ] **Step 4: The "schedule changed ⇒ re-run reconcile" rule + assertion (Y9).** Because C2 DERIVES the
   block-boundary and gym-window-end cron trigger times from this resolved `work_schedule`/`gym_schedule` at
@@ -1342,9 +1608,15 @@ lifecycle/idempotency/harness TESTS** (R5A4) — it no longer authors the skill.
   routing cases) → **Verify+research-decision** → **Research** → **Split**, each gating the next. Every stage-2
   date-write goes through the **centralized helper (Task B0, W6/X5)** — a user-stated day is `kind: user_fixed`
   (never rolls), a hard time bound is `deadline` + a `kind: leadtime` surfacing due (rolls).
-- [ ] **Step 2: The kickoff is create → specify, BOTH by the parent — NO `notify-subscribe` (Y2, verified
-  `hermes kanban --help`: `notify-subscribe` routes TERMINAL events only, onto the home channel — a firewall
-  breach + dispatch race, so it is DELETED).** The parent issues, before the dispatcher can touch the card:
+- [ ] **Step 2: The kickoff is create → specify, BOTH by the parent — via the SUBSCRIPTION-FREE CLI, NO
+  `notify-subscribe` (Z1/Y2).** **CLI transport is a HARD RULE of this skill's contract (Z1):** create every card
+  through the CLI **`hermes kanban create`**, NEVER the in-gateway kanban *tool* — the CLI create path is
+  verified subscription-free (`hermes_cli/kanban.py` never calls `_maybe_auto_subscribe`), whereas the tool path
+  on a platform-bound session auto-subscribes the chat to the card's terminal events
+  (`tools/kanban_tools.py:843,858-898`, gated by `kanban.auto_subscribe_on_create`, default `True`). The config
+  guard `auto_subscribe_on_create: false` (A2) is belt-and-suspenders. (`notify-subscribe` is separately
+  DELETED — verified `hermes kanban --help`: it routes TERMINAL events only, onto the home channel — a firewall
+  breach + dispatch race, Y2.) The parent issues, before the dispatcher can touch the card:
   1. **`hermes kanban create "<title>" --triage --idempotency-key <inbox-task-id> --assignee default
      --max-runtime 900 --skill forzare-capture-pipeline`** — titled `--triage` card (title is a required
      positional); **`--max-runtime 900` (Y7, verified `hermes kanban create --help`)**; the idempotency key is
@@ -1372,22 +1644,47 @@ a `triage-reraise` decision-queue record and failures route via the watchdog —
 
 ### APPLY CHECKPOINT B (inline, fail-closed — Y6/R5A3) — do this BEFORE any Phase-B staged dry-run or Phase C
 
-**NEW checkpoint (the topological fix, Y6/R5A3).** Every Phase-B source authored above (the Task B0 helper,
-B1–B10 skills, the B11 capture-pipeline skill, the B10 `skills.config`) must be **applied to live** before ANY
-staged dry-run runs against it — a staged dry-run reads the LIVE `~/.hermes/skills/<name>/SKILL.md`, which
-only exists after `chezmoi apply`. So the three-stage flow is: **author-all (above) → THIS Checkpoint B →
-pin + staged dry-run (each task's verify step) + Phase C.** No staged run below Checkpoint B may execute until
-it is CLEARED.
+**NEW checkpoint (the topological fix, Y6/R5A3), DE-CIRCULARIZED (Z5).** Every Phase-B source authored above
+(the Task B0 helper, B1–B10 skills, the B11 capture-pipeline skill, the B10 `skills.config`) must be **applied
+to live** before ANY staged dry-run runs against it — a staged dry-run reads the LIVE
+`~/.hermes/skills/<name>/SKILL.md`, which only exists after `chezmoi apply`. **Checkpoint B verifies APPLIED
+FILES + RESOLVED CONFIG ONLY — it does NOT check pins (Z5):** pinning happens in the *next* stage, so gating on
+"pinned" here would be circular. So the four-stage flow is: **author-all (above) → THIS Checkpoint B (files +
+config) → pin all + staged dry-run (each task's verify step) → POST-PIN GATE (asserts pins) → Phase C.** No
+staged run below Checkpoint B may execute until it is CLEARED.
 
 - **User-run/agent-run:** apply the skills + capture-pipeline skill sources (agent-runnable plaintext) + the
-  KeePassXC-gated `config.yaml` re-apply for B10's `skills.config` stanza (user-run, R5A14); then the **boot
-  skill-existence assertion (C1 Step 2)** must pass (every skill the bundles will name is installed + pinned).
-- **Gate (fail-closed):** `source ~/workspaces/Ivy/forzare/gate-check.sh` (the persistent Phase-A script, X10)
-  and run `gate_check` with this checkpoint's **explicit FILE list (W3 — `chezmoi diff` on a directory is
-  NON-recursive):** **every** `~/.hermes/skills/<name>/SKILL.md` authored in Phase B (incl.
-  `forzare-capture-pipeline`) **+ `~/.hermes/config.yaml`** (the B10 `skills.config` edit, R5A14). It must
-  print `checkpoint CLEARED`; any pending diff / non-zero exit / stderr blocks every Phase-B staged run and
-  Phase C.
+  KeePassXC-gated `config.yaml` re-apply for B10's `skills.config` stanza (user-run, R5A14).
+- **Gate (fail-closed) — files + config, NOT pins (Z5):** `source ~/workspaces/Ivy/forzare/gate-check.sh` (the
+  persistent Phase-A script, X10) and run `gate_check` with this checkpoint's **explicit FILE list (W3 —
+  `chezmoi diff` on a directory is NON-recursive):** **every** `~/.hermes/skills/<name>/SKILL.md` authored in
+  Phase B (incl. `forzare-capture-pipeline`) **+ `~/.hermes/config.yaml`** (the B10 `skills.config` edit,
+  R5A14). Then assert every named skill **dir exists live** (installed, not yet pinned):
+  `for s in <names>; do [ -d ~/.hermes/skills/"$s" ] || { echo "FATAL: $s not applied" >&2; exit 1; }; done`,
+  and the B10 `skills.config` **resolves** (the B10 Step 3 rendered-live read). It must print `checkpoint
+  CLEARED`; any pending diff / non-zero exit / stderr / missing dir blocks every Phase-B staged run and Phase C.
+
+---
+
+### POST-PIN GATE (inline, fail-closed — Z5) — do this AFTER stage-3 pinning, BEFORE Phase C
+
+**The de-circularized pin assertion (Z5).** Checkpoint B (above) checked *applied files*, not *pins* —
+pinning happens in stage 3 (each task's curator-pin step). This small gate closes the loop: once every atomic
+skill is pinned, run the **boot skill-existence + pin assertion** (the boot-check script, authored in the Phase-B
+author stage — moved BEFORE this gate that invokes it, Z5; documented at C1 Step 2) which asserts **every skill
+the three bundles will name is installed AND pinned** and **fails loud** if any is missing/unpinned. This must
+pass before Phase C authors the bundles and before any bundle-level staged run.
+
+```bash
+set -o pipefail
+# every atomic skill the bundles name must be pinned (curator status), else fail loud (the silent-skip guard):
+for s in todoist-surface weather calendar-read calendar-write eisenhower-plan activation-prompt brief-assemble \
+         followups-sweep daily-reflect tomorrow-prep eod-roll waiting-reconcile transition forzare-capture-pipeline; do
+  hermes curator status 2>/dev/null | grep -qiE "^\s*${s}\b.*pinned|pinned.*${s}" \
+    || { echo "FATAL: skill '$s' is not pinned — the curator could GC it (Z5/silent-skip guard, spec §13)" >&2; exit 1; }
+done
+echo "POST-PIN GATE CLEARED — every bundle-named skill installed + pinned (Z5)"
+```
 
 ---
 
@@ -1414,10 +1711,14 @@ it is CLEARED.
     (R2A8)** — EOD writes no calendar; `tomorrow-prep` only records the candidate anchor to
     `forzare/state/tomorrow-prestage.json` (spec §8a); the morning run is the sole calendar writer.
   - (`waiting-reconcile` is NOT bundled — the 02:00 cron runs the skill directly, Task C2.)
-- [ ] **Step 2: Boot-time skill-existence assertion (closes the silent-skip hole, spec §13).** Add a boot
-  check (a small script Bob runs at gateway start, or a documented pre-start check) that asserts every skill
-  named by the bundles is installed + pinned and **fails loud** (abort boot; once up,
-  `hermes send --to discord:<#forzare-errors>`) if any is missing.
+- [ ] **Step 2: Boot-time skill-existence assertion (closes the silent-skip hole, spec §13).** The boot-check
+  script (a small script Bob runs at gateway start, or a documented pre-start check) asserts every skill named
+  by the bundles is installed + pinned and **fails loud** (abort boot; once up,
+  `hermes send --to discord:<#forzare-errors>`) if any is missing. **AUTHORING MOVES to the Phase-B author stage
+  (Z5)** — it must exist before the **POST-PIN GATE** (end of Phase B) that invokes it, so it is written
+  alongside the skills (this Step documents its contract; the script itself is authored in stage 1, like
+  `gate-check.sh`). The POST-PIN GATE runs it once every atomic skill is pinned; Checkpoint B does NOT (pins
+  aren't set yet at Checkpoint B — the de-circularization).
 - [ ] **Step 3: Verify**
 
 ```bash
@@ -1474,9 +1775,9 @@ authors — the three `skill-bundles/*.yaml`** — before C2 force-runs the brie
 exercises the pipeline. **All of Task C2 and Phase D are gated on "Checkpoint C cleared"** — it sits *before*
 its dependent staged command (W3).
 
-- **User-run/agent-run:** apply the three bundle sources; then the **boot skill-existence assertion (C1 Step
-  2)** must pass (every bundle-named skill installed + pinned — those skills are already live from Checkpoint
-  B, so this is now a *re-confirm*, else fail loud).
+- **User-run/agent-run:** apply the three bundle sources. (Every bundle-named skill was already asserted
+  installed + **pinned** at the **POST-PIN GATE** at the end of Phase B, Z5 — so this checkpoint does not
+  re-run the pin assertion; it gates only the newly-authored bundles.)
 - **Gate (fail-closed):** `source ~/workspaces/Ivy/forzare/gate-check.sh` (the persistent Phase-A script, X10)
   and run `gate_check` with this checkpoint's **explicit FILE list (W3 — `chezmoi diff` on a directory is
   NON-recursive):** the three `~/.hermes/skill-bundles/forzare-*.yaml`. (The skills + `config.yaml` were gated
@@ -1502,12 +1803,15 @@ see Task E2's backup/rollback for it.
   `--deliver local` for the whole build (V5/R2A4)** — Task G1 Step 4 is the *only* place delivery flips to
   `discord` (and removes the dry-run directive, W2).
 
-**Transactional install (Y8) + schedule-DERIVED boundary/gym times (Y9).** The install is one atomic
-transaction: `set -euo pipefail`, a **declared name manifest**, **reconcile by NAME** (edit an existing job of
-that name, create a missing one — **never blind-create a duplicate**), and **rollback on partial failure**
-(delete the ids this attempt created). The gym-window-end and block-boundary trigger times are **DERIVED from
-the resolved `work_schedule`/`gym_schedule`** (B10, live) — not hardcoded — so a schedule edit re-derives them
-(B10 Step 4/Y9).
+**Transactional install (Y8 + Z7) + schedule-DERIVED boundary/gym times (Y9).** The install is one atomic
+transaction, hardened to a true transaction (Z7): `set -euo pipefail`, a **declared name manifest**, **(1)
+pre-validate the manifest** (reject a duplicate name in the manifest or an ambiguous already-duplicated live
+name), **reconcile by NAME** (edit an existing job of that name, create a missing one — **never blind-create a
+duplicate**), **(2) snapshot every to-be-edited record** (jq extract) before mutating, **(3) rollback on
+partial failure restores the edited records AND deletes the created ids**, and **(4) post-install assert the
+exact manifest**. The gym-window-end and block-boundary trigger times are **DERIVED from the resolved
+`work_schedule`/`gym_schedule`, DOW-aware** (B10, live) — not hardcoded — so a schedule edit re-derives them
+(B10 Step 4/Y9/Z9).
 
 ```bash
 set -euo pipefail
@@ -1516,21 +1820,37 @@ set -euo pipefail
 cp ~/.hermes/cron/jobs.json \
   ~/workspaces/backups/"$(date -u +%Y-%m-%dT%H-%M-%S).hermes-cron-jobs.backup.json"
 
-# Y9: DERIVE the gym-window-end + block-boundary cron specs from the RESOLVED work_schedule/gym_schedule
-# (B10's live skills.config). Hardcoding them would desync on any schedule edit (Y9 reconcile rule, B10 Step 4).
-# NOTE: each cron spec itself contains spaces, so python emits them PIPE-separated and bash splits on '|'
-# (a plain `read a b` on space-separated specs would mis-split the fields).
+# Y9/Z9/R6A5: DERIVE the gym-window-end + block-boundary cron specs from the RESOLVED per-weekday
+# work_schedule/gym_schedule (B10's live skills.config) — DOW-AWARE, never a flat block_start read, so a
+# boundary NEVER fires on a genuine off day. Hardcoding would desync on any schedule edit (Y9 reconcile, B10 S4).
+# NOTE: each cron spec itself contains spaces, so python emits them PIPE-separated and bash splits on '|'.
 IFS='|' read -r GYM_CRON BOUND_CRON < <(~/.hermes/hermes-agent/venv/bin/python - <<'PY'
 import os, yaml
 sc = (yaml.safe_load(open(os.path.expanduser("~/.hermes/config.yaml"))).get("skills",{}) or {}).get("config",{}) or {}
 gym  = sc["gym_schedule"]; work = sc["work_schedule"]
-# gym-window-end minute-of-day → the "Back from the gym?" backstop; block-boundary → the work-block START edge.
+# cron day-of-week numbers: Sun=0 Mon=1 … Sat=6
+DOWNUM = {"sunday":0,"monday":1,"tuesday":2,"wednesday":3,"thursday":4,"friday":5,"saturday":6}
+days = work["days"]
+# BLOCK-BOUNDARY DOW = the weekdays that HAVE a work block (Tue/Thu/Sat + Sunday, which is conditionally a
+# work day via the alt-Sunday anchor — the skill no-ops on OFF Sundays). Never Mon/Wed/Fri (genuine off days).
+work_dow = sorted({DOWNUM[d] for d, blk in days.items() if blk})
+# all work blocks share one start time in v1 — assert that, then take it (uniform start, one boundary cron).
+starts = {blk["start"] for blk in days.values() if blk}
+assert len(starts) == 1, f"non-uniform work-block starts {starts} — a per-start boundary cron is a future concern"
+wh, wm = map(int, starts.pop().split(":"))
+bound_dow = ",".join(str(n) for n in work_dow)             # e.g. "0,2,4,6" (Sun/Tue/Thu/Sat)
+# GYM-WINDOW-END DOW = the gym days (all but Thursday); backstop fires at window_end.
+gym_dow = sorted({DOWNUM[d] for d in gym["days"]})
 gh, gm = map(int, str(gym["window_end"]).split(":"))       # e.g. "09:00"
-wh, wm = map(int, str(work["block_start"]).split(":"))     # e.g. "15:00"
-print(f"{gm} {gh} * * *|{wm} {wh} * * *")                  # two 5-field Denver-local cron specs, '|'-separated
+gym_dowc = ",".join(str(n) for n in gym_dow)               # e.g. "0,1,2,3,5,6"
+print(f"{gm} {gh} * * {gym_dowc}|{wm} {wh} * * {bound_dow}")   # two DOW-AWARE Denver-local cron specs, '|'-sep
 PY
 )
-{ [ -n "${GYM_CRON:-}" ] && [ -n "${BOUND_CRON:-}" ]; } || { echo "FATAL: could not derive gym/boundary cron from work_schedule (Y9)" >&2; exit 1; }
+{ [ -n "${GYM_CRON:-}" ] && [ -n "${BOUND_CRON:-}" ]; } || { echo "FATAL: could not derive gym/boundary cron from work_schedule (Y9/Z9)" >&2; exit 1; }
+# Z9 sanity: the block-boundary DOW must EXCLUDE the off days (Mon=1/Wed=3/Fri=5) and INCLUDE Sun=0 (alt-Sunday
+# fires weekly; the skill no-ops on OFF Sundays). e.g. "55 14 * * 0,2,4,6" for a 14:55 boundary.
+case "$BOUND_CRON" in *"* * 0,2,4,6") echo "boundary DOW OK: $BOUND_CRON (Sun/Tue/Thu/Sat, no off days)";; \
+  *) echo "NOTE: boundary DOW = ${BOUND_CRON##* } — verify it excludes Mon/Wed/Fri and includes Sun (Z9)";; esac
 
 # jid_from_create from the Phase B intro. The DRY-RUN directive rides in the PROMPT (instruction transport,
 # R3A4 — a gateway-ticked job inherits no shell env); G1 edits these jobs WITHOUT it.
@@ -1545,16 +1865,42 @@ declare -A SPEC=(
   [forzare-someday-sweep]="0 5 1 * *|followups-sweep|$DRY Run the monthly someday-sweep (state-only)."
 )
 MANIFEST=(forzare-morning-brief forzare-eod forzare-waiting-reconcile forzare-gym-window-end forzare-block-boundary forzare-someday-sweep)
-created_ids=()
-rollback(){ echo "FATAL: partial cron install — rolling back THIS attempt's created jobs" >&2; \
-  for id in "${created_ids[@]:-}"; do if [ -n "$id" ]; then hermes cron remove "$id" >/dev/null 2>&1 || true; fi; done; exit 1; }
-trap rollback ERR
 existing_id(){ jq -r --arg n "$1" '.jobs[]|select(.name==$n)|.id' ~/.hermes/cron/jobs.json | head -1; }
+
+# Z7 (1): PRE-VALIDATE the manifest before any mutation — reject a duplicate NAME in our own manifest, and
+# reject a duplicate name ALREADY in jobs.json (two live jobs of one name = ambiguous reconcile).
+DUP=$(printf '%s\n' "${MANIFEST[@]}" | sort | uniq -d)
+[ -z "$DUP" ] || { echo "FATAL: duplicate name in the manifest: $DUP (Z7)" >&2; exit 1; }
+for name in "${MANIFEST[@]}"; do
+  C=$(jq -r --arg n "$name" '[.jobs[]|select(.name==$n)]|length' ~/.hermes/cron/jobs.json)
+  [ "$C" -le 1 ] || { echo "FATAL: $C live jobs already named '$name' — ambiguous reconcile (Z7)" >&2; exit 1; }
+done
+echo "manifest pre-validated OK (no dup names, no ambiguous live names) (Z7)"
+
+# Z7 (2): SNAPSHOT every to-be-EDITED record before mutating (jq extract), so a partial failure can RESTORE it.
+declare -A EDIT_SNAP           # name -> the full job record JSON, captured pre-edit
+created_ids=()
+for name in "${MANIFEST[@]}"; do
+  eid=$(existing_id "$name")
+  [ -n "$eid" ] && EDIT_SNAP[$name]=$(jq -c --arg id "$eid" '.jobs[]|select(.id==$id)' ~/.hermes/cron/jobs.json)
+done
+
+# Z7 (3): rollback RESTORES edited records AND deletes created ids — a true transaction.
+rollback(){ echo "FATAL: partial cron install — rolling back THIS attempt (restore edits + delete creates)" >&2; \
+  for id in "${created_ids[@]:-}"; do [ -n "$id" ] && hermes cron remove "$id" >/dev/null 2>&1 || true; done; \
+  for name in "${!EDIT_SNAP[@]}"; do \
+    snap="${EDIT_SNAP[$name]}"; eid=$(printf '%s' "$snap" | jq -r '.id'); \
+    sc=$(printf '%s' "$snap" | jq -r '.schedule'); sk=$(printf '%s' "$snap" | jq -r '(.skills|if type=="array" then join(",") else tostring end)'); \
+    pr=$(printf '%s' "$snap" | jq -r '.prompt // ""'); dl=$(printf '%s' "$snap" | jq -r '.deliver // "local"'); \
+    hermes cron edit "$eid" --schedule "$sc" --skill "$sk" --prompt "$pr" --deliver "$dl" >/dev/null 2>&1 || true; \
+    echo "restored $name ($eid) to its pre-edit record" >&2; \
+  done; exit 1; }
+trap rollback ERR
+
 for name in "${MANIFEST[@]}"; do
   IFS='|' read -r sched skill prompt <<<"${SPEC[$name]}"
   eid=$(existing_id "$name")
   if [ -n "$eid" ]; then
-    # reconcile-by-name: UPDATE the existing job in place — never blind-create a duplicate (Y8)
     hermes cron edit "$eid" --schedule "$sched" --skill "$skill" --prompt "$prompt" --deliver local >/dev/null
     echo "reconciled $name ($eid)"
   else
@@ -1563,6 +1909,12 @@ for name in "${MANIFEST[@]}"; do
   fi
 done
 trap - ERR
+
+# Z7 (4): POST-INSTALL assert the EXACT manifest — every name present exactly once, no stray forzare job.
+GOT=$(jq -r '.jobs[]|select(.name|test("^forzare-"))|.name' ~/.hermes/cron/jobs.json | sort)
+WANT=$(printf '%s\n' "${MANIFEST[@]}" | sort)
+[ "$GOT" = "$WANT" ] || { echo "FATAL: post-install manifest mismatch (Z7):" >&2; diff <(printf '%s\n' "$WANT") <(printf '%s\n' "$GOT") >&2; exit 1; }
+echo "post-install exact-manifest OK (Z7): 6 forzare jobs, no dup, no stray"
 # capture ids by name for Step 2's per-job reads:
 for name in "${MANIFEST[@]}"; do printf '%s=%s\n' "$name" "$(existing_id "$name")"; done
 BRIEF=$(existing_id forzare-morning-brief); EOD=$(existing_id forzare-eod); RECON=$(existing_id forzare-waiting-reconcile)
@@ -1597,12 +1949,15 @@ BRIEF=$(existing_id forzare-morning-brief); EOD=$(existing_id forzare-eod); RECO
     (R2A16, spec §4c/§19) it enqueues the opt-in **reversible-UNDATE** task-bankruptcy offer (Y3).
 - [ ] **Step 2: Verify (staged — do NOT deliver to Discord yet).** Note the real trigger semantics:
   `hermes cron run <job_id>` **queues** the job for the next tick and takes **NO `--deliver`**; `hermes cron
-  tick` then executes due jobs. Three assertions per job: **(a) the persisted job carries the expected
-  `skills` value (W1)**, **(b) the staged trace shows the attached skills' activity (W1)**, **(c) the staged
-  window performed ZERO real mutations (R3A2)** — asserted with the verified `td activity` shapes (camelCase
-  `eventType`/`objectId`; the event `id` is float-mangled scientific notation, so NEVER compare on `.id` —
-  key on `objectId`+`eventDate`), time-window bounded, cross-checked against the dryrun-intents log, with a
-  fail-LOUD nonzero-exit negative branch:
+  tick` then executes due jobs. It **seeds the [TEST] fixture it claims** (an ungroomed dated task, R6A4) so the
+  always-acting writers have real work. Three assertions per job: **(a) the persisted job carries the expected
+  `skills` value (W1)**, **(b) the staged trace shows the attached skills' activity via the intent log (W1)**,
+  **(c) the staged window performed ZERO real mutations — the NEGATIVE gate is INDEPENDENT before/after
+  snapshots (Z8):** a task-activity diff + a **separate `--type comment`** stream diff + a **[TEST]-scoped
+  🤖-calendar** count + **hashes of EVERY owned-state file** — with the intent log used **only as positive
+  evidence**. Asserted with the verified `td activity` shapes (camelCase `eventType`/`objectId`; the event `id`
+  is float-mangled scientific notation, so NEVER compare on `.id` — key on `objectId`+`eventDate`),
+  time-window bounded, with a fail-LOUD nonzero-exit negative branch:
 
 ```bash
 set -o pipefail
@@ -1618,8 +1973,19 @@ echo "persisted --skill values OK (W1)"
 # by a stale record from an earlier run.
 INTENTS=~/workspaces/Ivy/forzare/state/dryrun-intents.jsonl
 : > "$INTENTS"
-# Force one staged brief run and read the audit BY its job id:
+# R6A4: SEED the [TEST] fixture the gate claims — an UNGROOMED DATED task (no load-label, no duration) so the
+# staged brief's groom-on-read + eisenhower-plan have real work to do (the three always-acting writers journal).
+FIX=$(td task add "[TEST] ungroomed dated fixture" --due today --json | jq -r '.id')
+[ -n "$FIX" ] && [ "$FIX" != null ] || { echo "FATAL: could not seed the [TEST] bundle fixture (R6A4)" >&2; exit 1; }
+# Z8: INDEPENDENT BEFORE-snapshots — task activity, the SEPARATE comment-activity stream, the [TEST]-scoped
+# 🤖-calendar list, and hashes of EVERY owned-state file. The intent log is POSITIVE evidence only; the
+# negative gate is these independent before/after diffs.
 WINDOW_START=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+STATE=~/workspaces/Ivy/forzare/state
+hash_state(){ for f in "$STATE"/*.json "$STATE"/*.jsonl; do [ -e "$f" ] && shasum -a 256 "$f"; done 2>/dev/null | sort; }
+STATE_BEFORE=$(hash_state)
+CAL_BEFORE=$(gog calendar events -j 2>/dev/null | jq -r '[.events[]?|select((.summary//"")|test("\\[TEST\\]"))]|length' || echo 0)
+# Force one staged brief run and read the audit BY its job id:
 hermes cron run "$BRIEF" >/dev/null && hermes cron tick >/dev/null
 AUDIT=~/.hermes/cron/output/"$BRIEF"
 ls "$AUDIT"/*.md >/dev/null 2>&1 || { echo "FATAL: no brief audit at $AUDIT" >&2; exit 1; }
@@ -1641,39 +2007,65 @@ for s in eod-roll todoist-surface eisenhower-plan; do
   [ "$N" -gt 0 ] || { echo "FATAL: no intent-log EFFECT for bundle skill '$s' — it did not run (W1/R5A8)" >&2; exit 1; }
 done
 echo "staged brief: each always-acting mutating bundle skill produced an intent-log effect (W1/R5A8 — effects, not a prompt grep)"
-# (c) R3A2/R4A12: ZERO FORZARE mutations in the staged window — SCOPED to Bob-authored targets. A dry-run
-# performs no real Todoist write, but the USER may edit Todoist freely during staging; so instead of
-# FATAL-on-any-event, cross-check real activity against the dry-run INTENTS: a real mutation whose objectId
-# matches a journaled intent target is a LEAK (the dry-run performed a write it should only have journaled);
-# events on OTHER tasks are the user's and ignored. Verified shapes: camelCase eventType/objectId; the event
-# id is float-mangled ("2.15…e+36") so never key on .id. stderr captured; ANY read error is FATAL.
+# (c) ZERO FORZARE mutations — the NEGATIVE gate is INDEPENDENT before/after snapshots (Z8), not the intent
+# log. The intent log is POSITIVE evidence only (proof the skills computed writes). A dry-run performs no real
+# write, but the USER may edit Todoist freely during staging, so Bob-authored leaks are scoped to the intent
+# targets. Verified shapes: camelCase eventType/objectId; the event id is float-mangled ("2.15…e+36") so never
+# key on .id. stderr captured; ANY read error is FATAL.
 [ -s "$INTENTS" ] || { echo "FATAL: staged run logged no intents — dry-run directive not honored (R3A1)" >&2; exit 1; }
 TARGETS_JSON=$(jq -rs 'map(.target)|unique' "$INTENTS")   # the task ids the run INTENDED to write
+# (c1) TASK-activity diff, scoped to Bob-intended targets:
 ACT_ERR=$(mktemp)
 LEAKS=$(td activity --since "$(date -u +%Y-%m-%d)" --type task --json 2>"$ACT_ERR" \
   | jq -r --arg w "$WINDOW_START" --argjson t "$TARGETS_JSON" \
       '[.results[] | select(.eventDate >= $w)
         | select(.eventType=="updated" or .eventType=="added" or .eventType=="deleted" or .eventType=="completed")
         | select(.objectId as $o | $t | index($o))] | length')
-if [ -s "$ACT_ERR" ]; then echo "FATAL: td activity errored:" >&2; cat "$ACT_ERR" >&2; rm -f "$ACT_ERR"; exit 1; fi
+if [ -s "$ACT_ERR" ]; then echo "FATAL: td activity (task) errored:" >&2; cat "$ACT_ERR" >&2; rm -f "$ACT_ERR"; exit 1; fi
+[ "$LEAKS" = 0 ] || { echo "FATAL: $LEAKS real TASK mutation(s) on a Bob-intended target — dry-run leaked (Z8)" >&2; exit 1; }
+# (c2) COMMENT-activity is a SEPARATE stream (Z8/§6a) — a skill that posted an auto-repair/if-then comment
+# would slip past a task-only check. Scope to Bob-intended targets too:
+CLEAKS=$(td activity --since "$(date -u +%Y-%m-%d)" --type comment --json 2>"$ACT_ERR" \
+  | jq -r --arg w "$WINDOW_START" --argjson t "$TARGETS_JSON" \
+      '[.results[] | select(.eventDate >= $w) | select(.objectId as $o | $t | index($o))] | length')
+if [ -s "$ACT_ERR" ]; then echo "FATAL: td activity (comment) errored:" >&2; cat "$ACT_ERR" >&2; rm -f "$ACT_ERR"; exit 1; fi
 rm -f "$ACT_ERR"
-[ "$LEAKS" = 0 ] || { echo "FATAL: $LEAKS real mutation(s) on a Bob-intended target — dry-run leaked (R3A2/R4A12)" >&2; exit 1; }
-echo "staged window: 0 Bob-authored mutations (user edits ignored), $(jq -rs length "$INTENTS") intent record(s) (gate green)"
+[ "$CLEAKS" = 0 ] || { echo "FATAL: $CLEAKS real COMMENT mutation(s) on a Bob-intended target — dry-run leaked (Z8)" >&2; exit 1; }
+# (c3) [TEST]-scoped 🤖-CALENDAR list unchanged (no external activity-log mirror for calendar):
+CAL_AFTER=$(gog calendar events -j 2>/dev/null | jq -r '[.events[]?|select((.summary//"")|test("\\[TEST\\]"))]|length' || echo 0)
+[ "$CAL_AFTER" = "$CAL_BEFORE" ] || { echo "FATAL: 🤖-calendar [TEST] event count changed ($CAL_BEFORE -> $CAL_AFTER) — dry-run leaked (Z8)" >&2; exit 1; }
+# (c4) ALL owned-state file hashes unchanged (last-reconcile / task-lifecycle / mutation-journal /
+# schedule-override / tomorrow-prestage / plan-of-day / decision-queue / sweep-exclusion / calibration):
+STATE_AFTER=$(hash_state)
+[ "$STATE_BEFORE" = "$STATE_AFTER" ] || { echo "FATAL: an owned-state file changed under dry-run — leaked (Z8):" >&2; \
+  diff <(printf '%s\n' "$STATE_BEFORE") <(printf '%s\n' "$STATE_AFTER") >&2; exit 1; }
+echo "staged window: 0 Bob-authored mutations across task + comment + calendar + ALL state hashes (Z8 independent snapshots), $(jq -rs length "$INTENTS") intent record(s) (gate green)"
+# cleanup the seeded fixture (R6A4):
+td task delete "$FIX" --yes
 ```
 
 Expected: all jobs listed at the right times/TZ; every user-facing job is `--deliver local` + `--skill`
 during the build; the forced run writes `~/.hermes/cron/output/<job_id>/` and does NOT message Discord.
-**Acceptance:** the install is **transactional (Y8)** — the exact **six-name manifest** reconciles
-by name (edit existing / create missing / never blind-create; rollback deletes this attempt's created ids on
-partial failure), and the gym-window-end + block-boundary times are **DERIVED from the resolved
-`work_schedule`/`gym_schedule` (Y9)**, not hardcoded; each job carries its persisted `skills` value (W1); the
+**Acceptance:** the install is a **true transaction (Y8 + Z7)** — the exact **six-name manifest** is
+**pre-validated** (no dup name, no ambiguous live name), reconciled by name (edit existing / create missing /
+never blind-create), with **every to-be-edited record snapshotted** first so **rollback restores edited records
+AND deletes created ids** on partial failure, and a **post-install exact-manifest assert**; and the
+gym-window-end + block-boundary times are **DERIVED from the resolved
+`work_schedule`/`gym_schedule`, DOW-AWARE (Y9/Z9/R6A5)** — never a flat `block_start`: the boundary cron's
+day-of-week field is the work weekdays `0,2,4,6` (Sun/Tue/Thu/Sat), so it **never fires on an off day
+(Mon/Wed/Fri)**, and the gym cron excludes Thursday; the alternating Sunday is a **weekly** fire the skill
+no-ops on OFF Sundays (cron can't express "every other Sunday"). Each job carries its persisted `skills` value
+(W1); the
 staged brief's **per-skill EFFECTS are asserted from the intent log — NOT a grep over the audit prompt (R5A8)**
 — every always-acting mutating member (`eod-roll`/`todoist-surface`/`eisenhower-plan`) produced an intent
 record keyed by `skill`+`run_id`; the 02:00 reconcile and monthly sweep have no user-facing delivery; the
-staged window shows zero **Bob-authored** Todoist mutation events (scoped to the dry-run intent targets, so the
-user may edit Todoist freely during staging — string-safe `eventType`/`objectId` reads, fail-loud) while the
-intents log carries the computed writes (R3A1/R3A2/R4A12). The **exact six-name manifest + count** is
-re-asserted at go-live (G1, Y8).
+staged window shows zero **Bob-authored** mutations across **INDEPENDENT before/after snapshots (Z8)** — the
+`--type task` stream, the separate `--type comment` stream, the [TEST]-scoped 🤖-calendar count, and hashes of
+**every** owned-state file — all scoped to the dry-run intent targets (so the user may edit Todoist freely
+during staging; string-safe `eventType`/`objectId` reads, fail-loud), with the **seeded [TEST] ungroomed
+fixture (R6A4)** giving the always-acting writers real work, while the intents log carries the computed writes
+as **positive evidence only** (R3A1/R3A2/R4A12/Z8). The **exact six-name manifest + count** is re-asserted at
+go-live (G1, Y8).
 
 ---
 
@@ -1749,15 +2141,22 @@ echo "idempotency dedupe OK (same id $ID1)"
 ST=$(hermes kanban show "$ID1" --json | jq -r '.status')
 [ "$ST" = triage ] || { echo "FATAL: expected status=triage, got $ST" >&2; exit 1; }
 echo "triage status OK; assignee=$NOOP is non-spawnable, so the live dispatcher leaves it inert"
-# clean up: kanban has NO `delete` verb — use `archive`:
-hermes kanban archive "$ID1"
+# Z1: the CLI `hermes kanban create` is subscription-free — the notify-subs table must have NO row for the
+# card (belt-and-suspenders: config `auto_subscribe_on_create: false`, A2, means even the tool path wouldn't).
+SUBS=$(hermes kanban notify-list "$ID1" --json | jq 'length')
+[ "$SUBS" = 0 ] || { echo "FATAL: $SUBS subscription row(s) for the CLI-created card — firewall leak (Z1)" >&2; exit 1; }
+echo "no-subscription-row OK (CLI create is subscription-free, Z1)"
+# Z6: DO NOT archive the card here — Step 6's controlled harness drives it. The archive is the LAST step of
+# Step 6 (a card archived now would leave the harness nothing to run). Only stray [TEST] Todoist tasks are
+# cleaned here; the card $ID1 is kept unarchived through Step 6.
 td task list --filter "search: [TEST]" --all --json | jq -r '.results[]|select(.content|startswith("[TEST]"))|.id' \
   | xargs -r -I{} td task delete {} --yes
 ```
 
 Expected: the second create returns the existing card id (no dup); the `status` field reads `triage`; the
+CLI-created card has **no `kanban_notify_subs` row** (Z1 — the CLI is subscription-free); the
 non-spawnable assignee keeps the live dispatcher from ever running the probe card. **Acceptance:** idempotency
-key dedupes; a simulated stage crash restarts from stage 1 and still yields one task; a forced stage error
+key dedupes; the no-subscription-row check passes (Z1); a simulated stage crash restarts from stage 1 and still yields one task; a forced stage error
 records a genuine failure **event** and the card goes terminal (the errors-channel ROUTE test is F1's, R5A7;
 its cron/kanban audit read keyed by the job/card id, never latest-mtime). (Inbox-write correctness for a
 capture is covered in Task B8; stage-2 dated placement is asserted in Step 6.)
@@ -1776,17 +2175,33 @@ capture is covered in Task B8; stage-2 dated placement is asserted in Step 6.)
   - **Simulated crash-restart (no mid-run resume, §8b):** invoke the harness twice against the same card (the
     second simulating a restart from stage 1) — it **converges to exactly one** Todoist task / one 🤖-calendar
     event (check-before-create dup-guards hold), never a duplicate.
-  - **Forced error → CARD/EVENT state only (R5A7 — the route test is F1's).** Force a stage to error (e.g. an
-    unreachable dependency) and confirm the card records a genuine failure **event** (`gave_up`/`crashed`/
-    `timed_out`) and goes terminal, the captured item still safe in Inbox. **Do NOT assert the
-    `#forzare-errors` delivery here** — that end-to-end route (seeded event → `hermes send` → spool) is
-    asserted in **Task F1** (which owns the watchdog + spool), avoiding a forward dependency and any
-    user-visible message before Phase G.
+  - **STAGE-LOGIC tests stay on the direct harness (Z6):** dated placement + crash-restart idempotency above are
+    pure stage logic — a direct `-z` invocation drives them deterministically.
+  - **TERMINAL-EVENT tests run through the REAL DISPATCHER (Z6/R6A6) — a direct `-z` invocation is NOT a
+    claimed worker, so it CANNOT produce a genuine `timed_out`/`crashed`/`gave_up` event** (verified: those
+    events are emitted only for dispatcher-claimed workers — `enforce_max_runtime` / `detect_crashed_workers`,
+    `hermes_cli/kanban_db.py:5766+`/`6027+`). So to test a terminal event, use the **minimal
+    dispatcher-owned variant:** briefly flip the probe card's assignee from the non-spawnable
+    `forzare-noop-test` to a **real profile** (`hermes kanban reassign <id> default`) so ONE dispatcher tick
+    claims + spawns it, force the failure (e.g. `--max-runtime 1` for a `timed_out`, or a killed worker for a
+    `crashed`), let the dispatcher record the event and drop the card terminal, then **flip the assignee back to
+    the non-spawnable id** so nothing else runs. Confirm the card recorded a genuine failure **event** and went
+    terminal; the captured item is still safe in Inbox. **Do NOT assert the `#forzare-errors` delivery here** —
+    that end-to-end route (seeded event → `hermes send` → spool) is asserted in **Task F1** (which owns the
+    watchdog + spool), avoiding a forward dependency and any user-visible message before Phase G.
+  - **RECORD a machine-checked result file (Z6/R6A6).** The harness writes its verdicts to
+    `~/workspaces/Ivy/forzare/state/d1-harness-result.json` — `{dated_placement_kind, restart_task_count,
+    restart_event_count, terminal_event, terminal_status, all_pass}` — so **Checkpoint D consumes a machine
+    result, not prose.**
+  - **Archive the card LAST (Z6):** `hermes kanban archive "$ID1"` is the final line of Step 6, after every
+    assertion has run against the still-live card.
 
-  **Acceptance (Step 6):** the direct-invocation harness drives stages 2–5 deterministically (dispatcher never
-  involved); dated placement writes the correct due + `kind`; a re-run yields exactly one task/event; a forced
-  error records a failure event + terminal card (the errors-channel route is F1's, R5A7) — all with the
-  non-spawnable assignee keeping the live dispatcher inert.
+  **Acceptance (Step 6):** the direct harness drives the stage-LOGIC tests deterministically (dated placement
+  writes the correct due + `kind`; a re-run yields exactly one task/event); the **terminal-EVENT test runs
+  through the real dispatcher** (assignee flipped spawnable→run→failure→flipped back), recording a genuine
+  `timed_out`/`crashed`/`gave_up` event + terminal card — not a direct `-z`, which can't emit one; a
+  **machine-checked `d1-harness-result.json`** is written (Checkpoint D reads it); and the probe card is
+  **archived as the last step**, kept unarchived through every assertion (Z6).
 
 ---
 
@@ -1797,19 +2212,27 @@ capture is covered in Task B8; stage-2 dated placement is asserted in Step 6.)
 so this is a **verify gate**, not an apply: confirm the capture pipeline is exercised end-to-end and the board
 config is live before delivery/watchdog phases build on it.
 
-- **Verify (fail-closed):** the D1 **controlled-execution harness (Step 6) passed** — dated placement writes
-  the right `kind`, a re-run converges to one task/event, and a forced error records a terminal failure event
-  (the errors-channel route is F1's, R5A7). AND the live `config.yaml` `kanban.*` stanza resolves as expected
-  (`default_assignee: "default"`, `auto_decompose: false`, `max_in_progress_per_profile: 2`, `failure_limit:
+- **Verify (fail-closed):** Checkpoint D **consumes the machine-checked D1 result file, NOT prose (Z6/R6A6)** —
+  it reads `~/workspaces/Ivy/forzare/state/d1-harness-result.json` and asserts `all_pass == true` (dated
+  placement wrote the right `kind`, the re-run converged to one task/event, and the **dispatcher-driven**
+  terminal-event test recorded a genuine `timed_out`/`crashed`/`gave_up` — the errors-channel route is F1's,
+  R5A7). AND the live `config.yaml` `kanban.*` stanza resolves as expected (`default_assignee: "default"`,
+  `auto_decompose: false`, `auto_subscribe_on_create: false`, `max_in_progress_per_profile: 2`, `failure_limit:
   2`) via a resolved read:
 
 ```bash
 set -o pipefail
+# Z6: the D1 harness result is a MACHINE artifact, not a prose "it passed":
+RES=~/workspaces/Ivy/forzare/state/d1-harness-result.json
+jq -e '.all_pass == true and (.terminal_event|IN("timed_out","crashed","gave_up"))' "$RES" \
+  || { echo "FATAL: D1 harness result not all_pass or missing a real terminal event (Z6)" >&2; exit 1; }
+echo "D1 harness result OK (machine-checked, Z6): $(jq -c . "$RES")"
 ~/.hermes/hermes-agent/venv/bin/python - <<'PY'
 import os, yaml
 k = (yaml.safe_load(open(os.path.expanduser("~/.hermes/config.yaml"))).get("kanban",{}) or {})
 assert k.get("default_assignee") == "default", k.get("default_assignee")
 assert k.get("auto_decompose") is False, k.get("auto_decompose")
+assert k.get("auto_subscribe_on_create") is False, k.get("auto_subscribe_on_create")  # Z1 firewall guard
 assert k.get("max_in_progress_per_profile") == 2, k.get("max_in_progress_per_profile")
 assert k.get("failure_limit") == 2, k.get("failure_limit")
 print("kanban board config live + correct (Checkpoint D)")
@@ -2019,9 +2442,14 @@ Tasks A2/A3/A5):**
     `DISCORD_ERRORS_CHANNEL` is unset, fall back to the home channel with a `⚠ ERROR` prefix (the fallback
     lives HERE, not in hermes). **Robustness under launchd's minimal env (W9):** resolve the **absolute
     `hermes` binary path at install** — a script-level `HERMES_BIN` constant or the plist's
-    `EnvironmentVariables` `PATH` including `~/.local/bin` — and **load the channel env explicitly** (source
-    `~/.hermes/.env` for `DISCORD_ERRORS_CHANNEL`/`DISCORD_HOME_CHANNEL`); an inherited-PATH `hermes: command
-    not found` or an unset channel would silently swallow the alert. `set -euo pipefail`, double-quoted
+    `EnvironmentVariables` `PATH` including `~/.local/bin` — and **load the channel env by dotenv-PARSING
+    `~/.hermes/.env` for exactly `DISCORD_ERRORS_CHANNEL`/`DISCORD_HOME_CHANNEL` — NEVER `source`-ing it (Z4).**
+    The managed `.env` carries an unquoted value with spaces that **crashes a strict shell** (`set -euo
+    pipefail` + `. ~/.hermes/.env` aborts before the alert can send), so extract only the two keys without
+    evaluating the file:
+    `dotenv_get(){ sed -n "s/^[[:space:]]*$1=//p" ~/.hermes/.env | tail -n1 | sed -e 's/^"\(.*\)"$/\1/'; }`.
+    An inherited-PATH `hermes: command not found` or an unset channel would silently swallow the alert. `set
+    -euo pipefail`, double-quoted
     expansions, ISO-8601 timestamps (`date -u +"%Y-%m-%dT%H:%M:%SZ"`). **Do NOT curl the Discord webhook
     directly** (R2 dropped that phrasing). `:8644` caveat — exists only while the webhook platform is enabled;
     for a platform-independent probe, `API_SERVER_ENABLED=1` → `/health` on `:8642` (spec §19).
@@ -2058,8 +2486,12 @@ retried successfully, then blocks awaiting the user: `status='blocked'`, `consec
 gave_up/crashed/timed_out event since the watermark ⇒ NO alert — this is the case the old status+counter
 predicate got wrong) — and when healthy; a **second scan does NOT re-alert** the same failure (content-stable
 ids); a **simulated Discord outage** (`hermes send` exit-1) **retains the spool and retries next pass** (no
-lost alert); and the script finds `hermes` + the channel env **under launchd's minimal environment** (W9 —
-absolute `HERMES_BIN`, sourced `.env`). **The end-to-end errors-channel ROUTE test moved here from D1 (R5A7):**
+lost alert); and — **the launchd-minimal-environment test (Z4/W9)** — the script, run with a **scrubbed env**
+(`env -i PATH=/usr/bin:/bin HOME="$HOME" bash forzare-ops-watchdog.sh …`, mimicking launchd's stripped
+environment), still **resolves `hermes`** (absolute `HERMES_BIN`) and **dotenv-PARSES both channel ids without
+crashing** — proving it never `source`s the `.env` (a `. ~/.hermes/.env` under `set -euo pipefail` would abort
+on the managed file's unquoted value with spaces, swallowing the alert). **The end-to-end errors-channel ROUTE
+test moved here from D1 (R5A7):**
 a seeded `gave_up`/`crashed`/`timed_out` capture-card event is asserted to reach `#forzare-errors` via
 `hermes send` + spool — F1 owns this route because it owns the watchdog + spool, so no forward dependency and
 no user-visible message issues from D1 before Phase G. **The `last_delivery_error` masking window is the
@@ -2117,11 +2549,35 @@ launchctl print "gui/$(id -u)/com.webdavis.forzare-ops-watchdog" | grep -i state
   `15 5 * * *`, surfaces ≤3 sensibly, weather/calendar/follow-up steps degrade visibly (never silently), the
   EOD roll + unconditional p1-clear + **lifecycle-ledger** ticks behave, and the 02:00 reconcile marks (never
   messages). **Assert the actual step ORDER / mutation boundaries from the INTENTS LOG + trace (V7/R3A1):**
-  the **EOD** run journals **zero `p1` and zero calendar intents** in `dryrun-intents.jsonl` (a correct
-  dry-run left the real store untouched, so the intents log — not `td activity` or the 🤖 calendar — is where
-  a boundary violation would show); the **morning** run's roll intents precede its `p1` intents in the log's
-  record order (the defensive `eod-roll` before any `eisenhower-plan` p1 write). A bundle whose instruction
-  failed to sequence would journal a p1 intent before the roll intents — that fails this gate.
+  the **EOD** run journals **zero `p1.set` and zero `calendar.*` intents** in `dryrun-intents.jsonl` (EOD sets
+  no p1 and writes no calendar, spec §8/R2A8) **but MUST journal the `p1.clear` intents** — the EOD p1-clear is
+  **unconditional** (every unfinished p1, roll-excluded included, spec §8), so a run that journaled *no*
+  `p1.clear` failed its contract just as surely as one that journaled a `p1.set`. So the gate asserts **both
+  directions (Z10/G1):** `[ p1.set count == 0 ]` AND `[ p1.clear count > 0 ]` (given ≥1 unfinished p1 in the
+  fixture). A correct dry-run left the real store untouched, so the intents log — not `td activity` or the 🤖
+  calendar — is where a boundary violation would show. The **morning** run's roll intents precede its `p1.set`
+  intents in the log's record order (the defensive `eod-roll` before any `eisenhower-plan` p1 write); a bundle
+  whose instruction failed to sequence would journal a `p1.set` before the roll intents — that fails this gate.
+
+```bash
+set -o pipefail
+INTENTS=~/workspaces/Ivy/forzare/state/dryrun-intents.jsonl
+# EOD gate (Z10): zero p1.set + zero calendar.*, but p1.clear REQUIRED (unconditional clear, spec §8).
+# Seed ≥1 unfinished [TEST] p1 so a correct EOD has something to clear (cleaned up after).
+: > "$INTENTS"
+DRY='DRY RUN — record intended writes to forzare/state/dryrun-intents.jsonl, perform none. '
+TP=$(td task add "[TEST] eod p1-clear fixture" --priority p1 --due today --json | jq -r '.id')
+JE=$(stage_skill '0 0 1 1 *' "${DRY}Run the forzare-eod bundle once." forzare-eod test-eod-gate); hermes cron remove "$JE"
+RID=$(jq -rs 'map(.run_id)|last // empty' "$INTENTS")
+NSET=$(jq -s --arg r "$RID" '[.[]|select(.run_id==$r and .op=="p1.set")]|length' "$INTENTS")
+NCAL=$(jq -s --arg r "$RID" '[.[]|select(.run_id==$r and (.op|startswith("calendar.")))]|length' "$INTENTS")
+NCLR=$(jq -s --arg r "$RID" '[.[]|select(.run_id==$r and .op=="p1.clear")]|length' "$INTENTS")
+[ "$NSET" = 0 ] || { echo "FATAL: EOD journaled $NSET p1.set intent(s) — EOD sets no p1 (Z10)" >&2; exit 1; }
+[ "$NCAL" = 0 ] || { echo "FATAL: EOD journaled $NCAL calendar intent(s) — EOD writes no calendar (R2A8)" >&2; exit 1; }
+[ "$NCLR" -gt 0 ] || { echo "FATAL: EOD journaled NO p1.clear — the unconditional clear is required (Z10)" >&2; exit 1; }
+echo "EOD gate OK: 0 p1.set, 0 calendar, $NCLR p1.clear (unconditional clear honored, Z10)"
+td task delete "$TP" --yes
+```
 - [ ] **Step 2: Explicit go-live matrix (replaces "several days / sensibly").** Drive each scenario and assert
   expected state + message count (U15):
 
@@ -2153,6 +2609,24 @@ grep -q 'already-reconciled' "$INTENTS" \
   || { echo "FATAL: duplicate staged fire logged no already-reconciled no-op intent (R3A3)" >&2; exit 1; }
 [ "$(stat -f %m "$STAMP")" = "$STAMP_MT0" ] || { echo "FATAL: a dry-run advanced the REAL stamp" >&2; exit 1; }
 echo "staged duplicate-fire idempotency OK (intents-log no-op; real stamp untouched)"
+
+# CONCURRENT-TRIGGER row (R6A11): a cron ritual and a live one-shot fired in the SAME window must EACH emit at
+# most ONE surfaced item (§12.3/W12 residual accepted — not a mutex, but each path is one-thing-bounded). Drive
+# both simultaneously and assert each surface is a single item. Both staged --deliver local / dry-run.
+: > "$INTENTS"
+JCT=$(hermes cron create '0 0 1 1 *' "${DRY}Surface the next ONE thing or [SILENT]." --skill todoist-surface --deliver local --name test-concurrent | jid_from_create)
+# fire the cron job and a simultaneous one-shot in the background, then wait:
+( hermes cron run "$JCT" >/dev/null && hermes cron tick >/dev/null ) &
+hermes -p default -z "${DRY}Surface the next ONE thing or [SILENT]." --skills todoist-surface >/tmp/forzare-oneshot.out 2>&1 &
+wait
+CRON_AUDIT=~/.hermes/cron/output/"$JCT"
+# each surface must be a SINGLE item: the cron audit's response has ≤1 actionable line, and the one-shot ≤1:
+CN=$(grep -cE '\?[[:space:]]*$|^[[:space:]]*(First|Start|Do|Next|Surface):' "$CRON_AUDIT"/*.md || true)
+ON=$(grep -cE '\?[[:space:]]*$|^[[:space:]]*(First|Start|Do|Next|Surface):' /tmp/forzare-oneshot.out || true)
+[ "${CN:-0}" -le 1 ] && [ "${ON:-0}" -le 1 ] \
+  || { echo "FATAL: concurrent trigger surfaced a WALL (cron=$CN, one-shot=$ON) — each must be ≤1 (§12.3/W12/R6A11)" >&2; exit 1; }
+echo "concurrent-trigger OK: cron + one-shot each surfaced ≤1 item (residual interleave accepted, not a wall)"
+hermes cron remove "$JCT"; rm -f /tmp/forzare-oneshot.out
 ```
 
 - [ ] **Step 3: Calibrate** — tune the duration upward-bias factor + weather thresholds + brief content from
@@ -2348,7 +2822,8 @@ freely, R4A12) and its trace match is a **here-string** (X14); `gate_check` is a
 and the `jobs.json` backup moves to C2 (X10); the if-then stall lever gets a named owner in `todoist-surface`
 (X13); G1 **strips DRY-RUN from all six jobs and asserts every prompt** (X1); commute constants
 `commute_prep_minutes: 30`/`commute_travel_minutes: 25` decided with the alarm timestamp asserted (X12);
-staged tests truncate the intents log at start (R4A11); the §4c idempotency guard is "any p1" not "3 p1s"
+staged tests truncate the intents log at start (R4A11); the §4c/§15 idempotency guard is the per-day plan
+record `plan-of-day.json` (Y13/R6A2, superseding the "any p1 present" heuristic)
 (R4A9); EOD marks the stall and the brief delivers it (R4A10); D1 gains a **direct `hermes -p default`
 controlled-execution harness** (R4A5); the D1 watchdog note and the `VALID_STATUSES` citation
 (`kanban_db.py:101`) corrected (R4A4/R4A13).
@@ -2384,6 +2859,49 @@ controlled **LIVE** [TEST]-keyed harness on the 🤖 calendar (R5A6); the intent
 once** in the Phase B intro (R5A13); B10's second config edit is gated at Checkpoint B (R5A14); the 02:00
 unblock signals are gog + `td activity` only, no Discord (R5A12); the Self-Review `≤5-minute guarantee` wording
 weakened to best-effort (R5A9).
+
+**Round-6 additions:** **Kanban subscription firewall guard** (Z1/R6A1): `kanban.auto_subscribe_on_create:
+false` added to A2 (audit + apply + verify), the CLI-transport hard rule in B11/D1, and a **no-subscription-row**
+assertion (`hermes kanban notify-list` empty) in D1 — the CLI create path is verified subscription-free
+(`hermes_cli/kanban.py`), the tool path gated by the config key (default `True`, `config.py:1348`) → A2/B11/D1
++ Checkpoint D. **Decision-queue identity + concurrency** (Z2): records gain `{id, enqueue_ts, rev}`, total
+order `(class-rank, enqueue_ts, id)` with class-rank waiting-chase>fixed-redecision>stall-decision>triage-reraise>
+sweep-candidate (R6A10), queue mutations under the map/journal lock + atomic-replace, dedup-by-`id`, CAS ack —
+the B0 helper is the single queue writer, with producer-race / duplicate-reconcile / ack-vs-promotion fixtures
+→ B0/A1/B5. **Journal completeness + per-type healing** (Z3): the type enum gains `task.add` + `task.complete`
+(aligning with the intent-op enum), and pending→commit→heal is defined per type with a type-specific predicate
+(comment content, calendar event-key, current-value compare, dedup-key lookup, task state), one after-write
+crash fixture per type → B0. **Never `source` the managed `.env`** (Z4): Checkpoint A's channel gate and F1's
+watchdog **dotenv-PARSE** the two channel keys (grep/sed, no evaluation — the live file's unquoted spaces crash
+a strict shell), + a **launchd-minimal-environment test** in F1 → Checkpoint A/F1. **Checkpoint B
+de-circularized** (Z5): it verifies applied files + resolved config ONLY (not pins); a new **POST-PIN GATE**
+asserts pins after stage-3 pinning; the boot-check script authoring moves to the Phase-B author stage →
+Phase-B flow/Checkpoint B/C1. **D1 dispatcher-driven terminal events** (Z6/R6A6): the probe card is kept
+unarchived through Step 6 (archive is the LAST step); stage-LOGIC tests stay on the direct harness but
+**terminal-EVENT tests run through the real dispatcher** (non-spawnable→spawnable→failure→revert, since events
+only come from claimed workers, `kanban_db.py:5766+/6027+`); Checkpoint D consumes a **machine-checked
+`d1-harness-result.json`**, not prose → D1/Checkpoint D. **Truly transactional cron install** (Z7): pre-validate
+the manifest (reject dup names), snapshot every to-be-edited record, rollback restores edits AND deletes
+creates, post-install exact-manifest assert → C2. **Staged leak gate on INDEPENDENT snapshots** (Z8/R6A4): the
+C2 bundle-effects gate **seeds its [TEST] fixture** and diffs task activity + a separate `--type comment` stream
++ a [TEST]-scoped calendar list + hashes of ALL owned-state files, intent log as positive evidence only →
+C2. **Exact `work_schedule` schema + DOW-aware crons** (Z9/R6A5): B10 validates the per-weekday map key-by-key;
+C2 derives DOW-aware crons (`0 14 * * 0,2,4,6`, never a flat `block_start`, never firing on off days; alt-Sunday
+fires weekly, the skill no-ops on OFF Sundays) → B10/C2. **§15 p1-guard swept + G1 EOD gate** (Z10/R6A2): the
+stale "any p1 present" recap replaced by the plan-of-day record; G1 asserts **zero `p1.set` but REQUIRED
+`p1.clear`** intents (unconditional clear) → G1. **Named receptivity-gate owner + boundary tests** (Z11/R6A3):
+N/D/S are B10 `skills.config`, `todoist-surface` owns the gate, with 2-vs-3-dismissal / 7-vs-8-surfacing
+boundary tests → B1/B10; the B9 correlator gets a **two-page cursor stub** asserting the page-2 fetch
+(R6A8). **Brief response-structure fixture** (Z12): B4's imperative-count harness asserts ≤1 actionable line
+with a queue head + weather + activation present → B4. **Bankruptcy two-class** (Z13): B5 UNDATEs dated /
+RETIREs undated onto `sweep-exclusion.json`, with a before/after set-membership test, never a destructive op →
+B5/A1/B0. **Sweeps cleanup** (Z14): the 02:00 unblock re-date rewrites `kind` `waiting_checkback → surfacing`
+with calendar-only + comment-only fixtures → B7. **Incident citations split** (R6A7): the Todoist parent-delete
+cascade and the separate 2026-05-20 vault refactor cited distinctly → B5. **Passing-mention negatives** (R6A9):
+B6 asserts "my friend works at a gym" / "work was busy" do NOT fire → B6. **Unfalsifiable acceptances get
+harnesses** (R6A11): B2 synthetic weather threshold-crossing, B4 plan-of-day-resume + >3-Q1-conflict +
+imperative-count, B5 head/ack/bankruptcy queue fixtures, G1 concurrent-trigger scripted (cron + one-shot, each
+≤1 item) → B2/B4/B5/G1.
 
 **Placeholder scan:** verification commands are runnable; `<inbox-task-id>` / lat-long / channel-ids are the
 intentionally per-environment values a cold reader fills from their own setup.
