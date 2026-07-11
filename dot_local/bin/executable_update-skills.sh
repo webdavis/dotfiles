@@ -1403,8 +1403,39 @@ __gen_weekly_attempt() {
 # EXISTING skills are byte-clones of current (no updates) plus genuinely absent
 # roster skills added. Never migrates a flat store, never replaces existing
 # store content: link planting is additive (absent names only).
+#
+# The absent-skill set is computed FIRST. install-only is purely additive, so
+# with nothing absent there is nothing to install AND nothing to publish: the
+# publish path always exchanges the WHOLE live generation, which would displace a
+# concurrent out-of-band write into the retained generation (prunable) and switch
+# a reader reopening a stable path to a new generation mid-session. So return
+# before building or publishing when nothing is absent. When something IS absent
+# and a live generation already exists, the publish exchange is gated behind the
+# idle gate exactly like the weekly run; a fresh machine with no live generation
+# publishes by a plain rename (no exchange, no readers) and is never gated, which
+# is what keeps the apply-time bootstrap unattended.
 __gen_install_only_attempt() {
   local id candidate_home candidate_agents
+  local -a absent=()
+  local tracked_name
+  while IFS= read -r tracked_name; do
+    [[ -n $tracked_name ]] || continue
+    [[ -e "$STORE/$tracked_name" || -L "$STORE/$tracked_name" ]] && continue
+    absent+=("$tracked_name")
+  done < <(__gen_tracked_names)
+  if [[ ${#absent[@]} -eq 0 ]]; then
+    log "install-only: nothing absent; no changes"
+    return 0
+  fi
+  if __gen_is_complete "$SKILLS_CURRENT" &&
+    [[ ${UPDATE_SKILLS_FORCE:-} != "1" ]] && __update_skills_should_defer; then
+    # A live generation exists, so publishing an absent skill EXCHANGES it. A
+    # harness shows recent activity (or the probe errored, fail-closed): defer
+    # the exchange to a later run rather than swap the generation under a live
+    # session. The additive fan-out convergence still runs in the caller.
+    log "install-only: ${#absent[@]} absent skill(s) to add, but a harness shows recent activity; deferring the generation exchange to a later run"
+    return 0
+  fi
   id="$(__gen_new_id)"
   if ! __gen_build_candidate "$id"; then
     record_required_failure "install-only candidate build failed"
