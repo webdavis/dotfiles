@@ -579,6 +579,78 @@ __gen_tracked_names() {
   jq -r '((.npxTracked // {}) + (.clawhubTracked // {})) | keys[]?' "$CUSTOM_SKILL_LOCK" 2>/dev/null
 }
 
+# ---------------------------------------------------------------------------
+# FAIL-CLOSED roster gate (R2-2). The roster lock is the authority on what the
+# generation should hold; if it is missing, unparseable, or schema-broken, the
+# empty tracked set it degrades to would make the candidate builder drop every
+# skill, validation pass on zero names, and the delist pruner remove every
+# store link: an EMPTY publication stamped as success. So before ANY candidate
+# mutation the run VALIDATES the lock and SNAPSHOTS it to a run-private copy;
+# every later read in the transaction goes through the snapshot, and the LIVE
+# lock's hash is re-checked against the snapshot before publish and before
+# stamping (a mid-run chezmoi apply must not publish a candidate built from
+# the old roster, nor stamp the week for a roster that changed underneath).
+# ---------------------------------------------------------------------------
+GEN_ROSTER_SOURCE=""        # the real deployed lock path (hash re-checks read this)
+GEN_ROSTER_SNAPSHOT_FILE="" # the run-private snapshot (all roster reads go here)
+GEN_ROSTER_HASH=""          # sha256 of the snapshot at run start
+
+# Minimal structural schema: a top-level object whose tracked tables (and the
+# tiers table) are objects when present. A wrong-typed table would make the
+# jq key-walks silently yield nothing, which is exactly the degraded-empty
+# failure this gate exists to refuse.
+__gen_roster_schema_ok() {
+  jq -e '(type == "object")
+    and ((.npxTracked // {}) | type == "object")
+    and ((.clawhubTracked // {}) | type == "object")
+    and ((.tiers // {}) | type == "object")' "$1" >/dev/null 2>&1
+}
+
+# Validate the live roster lock and snapshot it for the transaction. On
+# success CUSTOM_SKILL_LOCK points at the snapshot (so the candidate build,
+# validation, lanes, and fan-out all read one immutable roster) and
+# GEN_ROSTER_HASH records its content hash. Any validation step failing, or
+# the live lock changing while being copied, is a refused run (caller fails
+# closed; the live store and generation are untouched).
+__gen_snapshot_roster() {
+  GEN_ROSTER_SOURCE="$CUSTOM_SKILL_LOCK"
+  if [[ ! -f $CUSTOM_SKILL_LOCK ]]; then
+    log "roster gate: $CUSTOM_SKILL_LOCK is missing; refusing to treat an absent roster as 'no skills wanted'"
+    return 1
+  fi
+  if ! __gen_roster_schema_ok "$CUSTOM_SKILL_LOCK"; then
+    log "roster gate: $CUSTOM_SKILL_LOCK is unparseable or schema-broken; refusing to build from a degraded-empty roster"
+    return 1
+  fi
+  local source_hash snapshot
+  source_hash="$(__gen_hash_file "$CUSTOM_SKILL_LOCK")"
+  snapshot="$(mktemp "${TMPDIR:-/tmp}/update-skills-roster.XXXXXX")" || return 1
+  if ! cp "$CUSTOM_SKILL_LOCK" "$snapshot"; then
+    rm -f "$snapshot"
+    return 1
+  fi
+  # Torn-copy guard: the snapshot must re-validate and hash-match the source
+  # as it was read; a concurrent writer mid-copy is a refused run.
+  if ! __gen_roster_schema_ok "$snapshot" ||
+    [[ "$(__gen_hash_file "$snapshot")" != "$source_hash" ]]; then
+    log "roster gate: the roster lock changed while being snapshotted; refusing this run"
+    rm -f "$snapshot"
+    return 1
+  fi
+  GEN_ROSTER_SNAPSHOT_FILE="$snapshot"
+  GEN_ROSTER_HASH="$source_hash"
+  CUSTOM_SKILL_LOCK="$snapshot"
+  return 0
+}
+
+# True while the LIVE roster lock is still byte-identical to the run-start
+# snapshot. Publish and stamp are gated on this; with no snapshot taken (a
+# mode that never mutates), it passes vacuously.
+__gen_roster_unchanged() {
+  [[ -n $GEN_ROSTER_HASH ]] || return 0
+  [[ "$(__gen_hash_file "$GEN_ROSTER_SOURCE")" == "$GEN_ROSTER_HASH" ]]
+}
+
 # True when <name> is a currently-tracked generation skill (npx or clawhub).
 # The tracked set is the roster's authority on what the generation should hold;
 # a name that has been DELISTED from the lock is no longer tracked and must not
@@ -1366,6 +1438,11 @@ __gen_weekly_attempt() {
     candidate_agents="$GEN_REUSE_CANDIDATE"
     id_dir="$(dirname "$(dirname "$candidate_agents")")"
     log "reusing the recovered complete candidate at $candidate_agents"
+    if ! __gen_roster_unchanged; then
+      record_required_failure "the roster lock changed mid-run; refusing to publish the recovered candidate (built from the old roster)"
+      __gen_garbage_destroy "$id_dir"
+      return 1
+    fi
     if __gen_publish "$candidate_agents"; then
       __gen_garbage_destroy "$id_dir"
       __gen_reconcile_store_links
@@ -1402,6 +1479,11 @@ __gen_weekly_attempt() {
       "$relay_script" --agent update-skills --state validation-failed --project skills \
         --detail "the weekly candidate failed validation; the live generation is untouched and the next slot retries" || true
     fi
+    return 1
+  fi
+  if ! __gen_roster_unchanged; then
+    record_required_failure "the roster lock changed mid-run; refusing to publish a candidate built from the old roster"
+    __gen_garbage_destroy "$GENERATIONS/$id"
     return 1
   fi
   if ! __gen_publish "$candidate_agents"; then
@@ -1469,6 +1551,11 @@ __gen_install_only_attempt() {
   fi
   if ! __gen_validate_candidate "$candidate_agents"; then
     record_required_failure "install-only candidate failed validation; candidate discarded"
+    __gen_garbage_destroy "$GENERATIONS/$id"
+    return 1
+  fi
+  if ! __gen_roster_unchanged; then
+    record_required_failure "the roster lock changed mid-run; refusing to publish the install-only candidate (built from the old roster)"
     __gen_garbage_destroy "$GENERATIONS/$id"
     return 1
   fi
@@ -2165,6 +2252,40 @@ else
   # it exits. The lock file itself is deliberately never deleted (see the
   # acquisition comment: deleting it would let a later opener lock a fresh
   # inode while an older holder still locks the unlinked one, i.e. two owners).
+  #
+  # FAIL-CLOSED roster gate (R2-2): the mutation modes (weekly and
+  # install-only) validate + snapshot the roster lock BEFORE anything runs. A
+  # missing/unparseable/schema-broken roster, or a VALID roster whose tracked
+  # set is empty while the live generation still holds skills (a delist-all is
+  # indistinguishable from corruption), is a refused run: loud required
+  # failure, relay alert, exit 1 (which also keys the first-install wrapper's
+  # retry marker), and the live store/generation/fan-out untouched.
+  # --check-forks-only mutates nothing and keeps its tolerant no-op contract.
+  if [[ -z $CHECK_FORKS_ONLY ]]; then
+    if ! __gen_snapshot_roster; then
+      record_required_failure "roster lock validation failed (missing, unparseable, or schema-broken); no build, no publish, no prune, no stamp"
+      __update_skills_alert "update-skills refused to run: the roster lock at $GEN_ROSTER_SOURCE is missing or broken. Fix the deployed custom-skill-lock.json (chezmoi apply) and re-run."
+      exit 1
+    fi
+    __update_skills_live_skill_count=0
+    if [[ -d "$SKILLS_CURRENT/skills" ]]; then
+      for __update_skills_live_entry in "$SKILLS_CURRENT/skills"/*; do
+        [[ -d $__update_skills_live_entry ]] && __update_skills_live_skill_count=$((__update_skills_live_skill_count + 1))
+      done
+    fi
+    __update_skills_tracked_count=0
+    while IFS= read -r __update_skills_tracked_probe; do
+      [[ -n $__update_skills_tracked_probe ]] && __update_skills_tracked_count=$((__update_skills_tracked_count + 1))
+    done < <(__gen_tracked_names)
+    if [[ $__update_skills_tracked_count -eq 0 && $__update_skills_live_skill_count -gt 0 ]]; then
+      record_required_failure "the roster tracks ZERO skills but the live generation holds $__update_skills_live_skill_count; refusing to clone-filter/prune (a delist-everything roster is treated as corruption, not intent)"
+      __update_skills_alert "update-skills refused to run: the roster lock tracks no skills while the live generation is non-empty. If delisting everything is intended, remove the generation by hand; otherwise restore the roster."
+      exit 1
+    fi
+    # The run-private snapshot is a temp file; remove it on any exit. The
+    # trailing `true` keeps the trap from ever altering the exit status.
+    trap '[[ -n ${GEN_ROSTER_SNAPSHOT_FILE:-} ]] && rm -f "$GEN_ROSTER_SNAPSHOT_FILE"; true' EXIT
+  fi
   # RECOVERY (brief step 1) runs under the lock, BEFORE the stamp early-exit and
   # the idle gate, so a crash-window leftover self-heals even on a slot that
   # then early-exits. It deletes incomplete staging, marks a reusable complete
@@ -2364,7 +2485,13 @@ check_fork_drift
 # scheduled slot retries; and for a scheduled run with no slot remaining this
 # week we alert (the retry budget is spent). A dry run records nothing.
 if [[ $DRYRUN != "--dry-run" ]]; then
-  if [[ $REQUIRED_FAILURES -eq 0 ]]; then
+  if [[ $REQUIRED_FAILURES -eq 0 ]] && ! __gen_roster_unchanged; then
+    # R2-2 stamp-time re-check: the roster changed AFTER the publish re-check
+    # (the last window). Publishing already happened against the snapshot, so
+    # live state is consistent; but stamping would mark THIS week done for a
+    # roster that no longer matches, so withhold and let the next slot rebuild.
+    log "WITHHOLDING the weekly success stamp: the roster lock changed after this run's snapshot; the next slot rebuilds against the new roster"
+  elif [[ $REQUIRED_FAILURES -eq 0 ]]; then
     mkdir -p "$STATE_DIR"
     __update_skills_stamp_value >"$SUCCESS_STAMP"
     # A verified success resets every per-skill failure streak.
