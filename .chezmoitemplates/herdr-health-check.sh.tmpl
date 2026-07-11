@@ -1,0 +1,71 @@
+{{- /*
+Shared herdr health check, consumed via includeTemplate by BOTH
+.chezmoiscripts/run_onchange_before_10-system-packages.sh.tmpl (as the LIVE
+authority that gates `brew bundle --cleanup`, the step that removes the old
+multiplexer) and .chezmoiscripts/run_after_58-herdr-migration-verify.sh.tmpl
+(as the predicate behind the stamp it writes). One definition, two call sites,
+so the gate and the stamp writer cannot drift apart.
+*/ -}}
+# --- shared herdr health check: .chezmoitemplates/herdr-health-check.sh.tmpl ---
+#
+# herdr_health_check: returns 0 iff herdr is currently usable as a
+# multiplexer; on failure prints a short reason to stdout and returns 1.
+# It never exits the calling script and runs no destructive command.
+# Requirements, all mandatory:
+#   1. the herdr binary is present and runnable
+#   2. its config.toml is present
+#   3. BOTH vendored plugins are registered (exact plugin id, via the JSON API)
+#   4. the herdr session server is reachable and reports a running session
+herdr_health_check() {
+  local herdr_config="$HOME/.config/herdr/config.toml"
+  local -a herdr_required_plugins=(herdr-last-workspace herdr-smart-nav)
+  local plugin_id response count session_response running
+
+  if ! command -v herdr >/dev/null 2>&1; then
+    printf 'binary not found'
+    return 1
+  fi
+  if ! herdr --version >/dev/null 2>&1; then
+    printf 'binary does not run'
+    return 1
+  fi
+  if [[ ! -f $herdr_config ]]; then
+    printf 'config.toml missing'
+    return 1
+  fi
+
+  # Both plugins must be registered, matched by EXACT plugin id (never a
+  # substring). An error envelope ({"error":{...}}) is a failed query.
+  for plugin_id in "${herdr_required_plugins[@]}"; do
+    if ! response="$(herdr plugin list --plugin "$plugin_id" --json 2>/dev/null)"; then
+      printf 'plugin query failed for %s' "$plugin_id"
+      return 1
+    fi
+    if printf '%s' "$response" | jq -e '.error' >/dev/null 2>&1; then
+      printf 'herdr error envelope querying %s' "$plugin_id"
+      return 1
+    fi
+    count="$(printf '%s' "$response" |
+      jq --arg id "$plugin_id" '[.result.plugins[]? | select(.plugin_id == $id)] | length' 2>/dev/null ||
+      printf '0')"
+    if [[ $count != "1" ]]; then
+      printf 'plugin %s not registered' "$plugin_id"
+      return 1
+    fi
+  done
+
+  # The session server must be reachable and report at least one running
+  # session (the strongest non-interactive proof a second session can be
+  # hosted; a full spawn+attach needs a TTY an apply does not have).
+  if ! session_response="$(herdr session list --json 2>/dev/null)"; then
+    printf 'session server unreachable'
+    return 1
+  fi
+  running="$(printf '%s' "$session_response" |
+    jq '[.sessions[]? | select(.running == true)] | length' 2>/dev/null || printf '0')"
+  if ! [[ $running =~ ^[0-9]+$ && $running -ge 1 ]]; then
+    printf 'no running session'
+    return 1
+  fi
+  return 0
+}
