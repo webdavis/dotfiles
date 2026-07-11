@@ -964,26 +964,34 @@ GEN_CANDIDATE_AGENTS=""
 # absorbing any competing-writer real-dir drift recorded in GEN_REABSORB (its
 # content wins over the current generation's copy), with the current .skill-lock.json
 # seeded. Sets GEN_CANDIDATE_HOME / GEN_CANDIDATE_AGENTS. Returns 1 on any error.
-#   __gen_build_candidate <id>
+#
+# The second argument is the build MODE (default "full"). A FULL (weekly) build
+# clone-filters to TRACKED names only, so a delisted skill leaves the generation
+# on publish and the full run's delist pruner drops its store/fan-out links
+# (delisting is a full-run responsibility, where fan-out convergence also
+# reaps the links). An ADDITIVE (install-only) build clones EVERY current entry
+# unchanged (R2-7): install-only is strictly additive and never runs the
+# pruner, so filtering here would orphan a delisted entry's store link and
+# Claude fan-out with nothing to reap them.
+#   __gen_build_candidate <id> [full|additive]
 __gen_build_candidate() {
-  local id="$1"
+  local id="$1" mode="${2:-full}"
   local home="$GENERATIONS/$id/home"
   local agents="$home/.agents"
   __gen_garbage_destroy "$GENERATIONS/$id"
   mkdir -p "$agents/skills" || return 1
-  # Clone the current generation's skills (real dirs) into the candidate, but
-  # only names still TRACKED by the roster. A skill DELISTED from the lock (e.g.
-  # a revoked or compromised one) is NOT carried forward, so it leaves the
-  # generation on publish and its store link and fan-out links are dropped.
+  # Clone the current generation's skills (real dirs) into the candidate. FULL
+  # runs carry only TRACKED names forward (a delisted skill is dropped);
+  # ADDITIVE runs clone every entry unchanged (see the mode note above).
   if [[ -d "$SKILLS_CURRENT/skills" ]]; then
     local skill_path name
     for skill_path in "$SKILLS_CURRENT/skills"/*; do
       [[ -d $skill_path ]] || continue
       name="${skill_path##*/}"
-      __gen_name_is_tracked "$name" || {
+      if [[ $mode == "full" ]] && ! __gen_name_is_tracked "$name"; then
         log "candidate: skill $name is no longer tracked; not carrying it forward (delisted)"
         continue
-      }
+      fi
       cp -c -R "$skill_path" "$agents/skills/$name" 2>/dev/null ||
         cp -R "$skill_path" "$agents/skills/$name" || return 1
     done
@@ -1685,7 +1693,7 @@ __gen_install_only_attempt() {
     return 0
   fi
   id="$(__gen_new_id)"
-  if ! __gen_build_candidate "$id"; then
+  if ! __gen_build_candidate "$id" additive; then
     record_required_failure "install-only candidate build failed"
     __gen_garbage_destroy "$GENERATIONS/$id"
     return 1
