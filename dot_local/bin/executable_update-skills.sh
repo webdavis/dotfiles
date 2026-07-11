@@ -1392,6 +1392,94 @@ __gen_install_only_attempt() {
   return 0
 }
 
+# serialize: one run at a time. macOS ships no dependable rename-onto-existing
+# primitive from the shell (`mv` onto an existing dir moves INTO it, and macOS
+# ships neither flock(1) nor a lockf(1) we depend on), so acquisition builds a
+# STAGING lock dir with the owner token already inside it and publishes it via a
+# rename that is a single-winner move onto the FINAL path: if the final lockdir
+# is absent the staging dir renames onto it atomically (we win, token already
+# inside); if the final lockdir already exists `mv` drops our staging INSIDE it,
+# which we detect and clean up (we lost). This closes three defects the audit
+# found: (a) two contenders cannot both validate one dead token and both proceed
+# (reclaim is a single-winner move-aside); (b) a kill -0 success followed by a
+# failed/empty ps is NOT declared dead (only a successful ps proving absence or a
+# different start time is); (c) there is never a window where the lockdir exists
+# without its owner token, so an ownerless lock can only be a legacy/corrupt one
+# and is reclaimable, never a permanent wedge. We never steal by age. These
+# helpers are defined above the lib-only gate so the ownership regression can
+# drive __update_skills_publish_lock directly.
+LOCK_OWNER_FILE="$LOCKDIR/owner"
+__update_skills_proc_start() {
+  # normalized process start time for pid $1 (empty when the pid is gone)
+  ps -o lstart= -p "$1" 2>/dev/null | tr -s ' ' | sed 's/^ *//;s/ *$//'
+}
+__update_skills_owner_token() { printf '%s\t%s' "$$" "$(__update_skills_proc_start "$$")"; }
+__update_skills_owner_alive() {
+  # $1 = recorded "PID<TAB>START". PROVABLY dead requires positive confirmation;
+  # anything we cannot prove dead is treated as ALIVE so a contender never steals
+  # from a possibly-live run.
+  local rec="$1" rec_pid rec_start raw cur_start listing pid_line
+  rec_pid="${rec%%$'\t'*}"
+  rec_start="${rec#*$'\t'}"
+  [[ $rec_pid =~ ^[0-9]+$ ]] || return 0                  # unparseable owner: do not steal
+  [[ -n $rec_start && $rec_start != "$rec" ]] || return 0 # missing start field: do not steal
+  if kill -0 "$rec_pid" 2>/dev/null; then
+    # The pid exists. Only a SUCCESSFUL ps that returns a DIFFERENT start time
+    # proves a recycle (original dead). A failed OR empty lstart lookup cannot
+    # prove death, so we treat it as alive (fixes defect b).
+    raw="$(ps -o lstart= -p "$rec_pid" 2>/dev/null)" || return 0
+    cur_start="$(printf '%s' "$raw" | tr -s ' ' | sed 's/^ *//;s/ *$//')"
+    [[ -n $cur_start ]] || return 0
+    [[ $cur_start == "$rec_start" ]] # same start => alive (0); differs => recycled => dead (1)
+    return
+  fi
+  # kill -0 failed (possibly dead, or EPERM for a foreign owner). Confirm with a
+  # full listing that exits 0 whether or not the pid is present; if ps ITSELF
+  # errors we cannot prove death, so treat as alive (fail safe).
+  listing="$(ps -ax -o pid= 2>/dev/null)" || return 0
+  while IFS= read -r pid_line; do
+    pid_line="${pid_line//[[:space:]]/}"
+    [[ $pid_line == "$rec_pid" ]] && return 0 # present after all: alive
+  done <<<"$listing"
+  return 1 # kill -0 failed AND ps ran and the pid is absent: provably dead
+}
+# Publish a fully-populated STAGING lock dir onto the final path. Return 0 iff we
+# won (LOCKDIR is now our staging, owner token inside); 1 if the lock was held
+# (mv dropped our staging inside it, or renaming onto a non-empty dir failed).
+__update_skills_publish_lock() {
+  local staging="$1" base owner_readback
+  base="${staging##*/}"
+  if mv "$staging" "$LOCKDIR" 2>/dev/null; then
+    if [[ -d "$LOCKDIR/$base" ]]; then
+      rm -rf "${LOCKDIR:?}/${base:?}" # our staging was moved INSIDE a held lock: we lost
+      return 1
+    fi
+    # An absent nested staging is NOT sufficient proof of ownership. In a
+    # three-writer interleave our staging can be moved inside a held lock, that
+    # lock deleted by its owner on exit, and the FINAL path re-acquired by a
+    # third writer before we look — leaving no nested staging yet the lock owned
+    # by the third writer. So read the owner token back and require it to equal
+    # ours; a mismatch (or an unreadable owner) is a FAILED acquisition and the
+    # caller defers, never a false success that grants two owners.
+    owner_readback="$(cat "$LOCK_OWNER_FILE" 2>/dev/null || true)"
+    [[ $owner_readback == "$LOCK_MY_TOKEN" ]] && return 0
+    return 1
+  fi
+  rm -rf "$staging"
+  return 1
+}
+# Move a stale lockdir aside to a unique name; the rename onto an absent target
+# is a single-winner move, so exactly one reclaimer succeeds and then retries
+# acquisition. The moved-aside dir is discarded.
+__update_skills_reclaim_dead_lock() {
+  local aside="${LOCKDIR}.dead.$$.${RANDOM}"
+  if mv "$LOCKDIR" "$aside" 2>/dev/null; then
+    rm -rf "$aside"
+    return 0
+  fi
+  return 1
+}
+
 # Lib-only sourcing gate: a test that sets UPDATE_SKILLS_LIB_ONLY=1 and sources
 # this script gets the config + machinery functions above WITHOUT running the
 # main flow (the lanes, idle gate, and publish orchestration below never fire).
@@ -2011,82 +2099,6 @@ refresh_app_owned_cua_pack() {
 # A dry run makes no filesystem writes, so it does not pre-create these dirs.
 [[ $DRYRUN == "--dry-run" ]] || mkdir -p "$STORE" "$CLAUDE" "$HERMES"
 
-# serialize: one run at a time. macOS ships no dependable rename-onto-existing
-# primitive from the shell (`mv` onto an existing dir moves INTO it, and macOS
-# ships neither flock(1) nor a lockf(1) we depend on), so acquisition builds a
-# STAGING lock dir with the owner token already inside it and publishes it via a
-# rename that is a single-winner move onto the FINAL path: if the final lockdir
-# is absent the staging dir renames onto it atomically (we win, token already
-# inside); if the final lockdir already exists `mv` drops our staging INSIDE it,
-# which we detect and clean up (we lost). This closes three defects the audit
-# found: (a) two contenders cannot both validate one dead token and both proceed
-# (reclaim is a single-winner move-aside); (b) a kill -0 success followed by a
-# failed/empty ps is NOT declared dead (only a successful ps proving absence or a
-# different start time is); (c) there is never a window where the lockdir exists
-# without its owner token, so an ownerless lock can only be a legacy/corrupt one
-# and is reclaimable, never a permanent wedge. We never steal by age.
-LOCK_OWNER_FILE="$LOCKDIR/owner"
-__update_skills_proc_start() {
-  # normalized process start time for pid $1 (empty when the pid is gone)
-  ps -o lstart= -p "$1" 2>/dev/null | tr -s ' ' | sed 's/^ *//;s/ *$//'
-}
-__update_skills_owner_token() { printf '%s\t%s' "$$" "$(__update_skills_proc_start "$$")"; }
-__update_skills_owner_alive() {
-  # $1 = recorded "PID<TAB>START". PROVABLY dead requires positive confirmation;
-  # anything we cannot prove dead is treated as ALIVE so a contender never steals
-  # from a possibly-live run.
-  local rec="$1" rec_pid rec_start raw cur_start listing pid_line
-  rec_pid="${rec%%$'\t'*}"
-  rec_start="${rec#*$'\t'}"
-  [[ $rec_pid =~ ^[0-9]+$ ]] || return 0                  # unparseable owner: do not steal
-  [[ -n $rec_start && $rec_start != "$rec" ]] || return 0 # missing start field: do not steal
-  if kill -0 "$rec_pid" 2>/dev/null; then
-    # The pid exists. Only a SUCCESSFUL ps that returns a DIFFERENT start time
-    # proves a recycle (original dead). A failed OR empty lstart lookup cannot
-    # prove death, so we treat it as alive (fixes defect b).
-    raw="$(ps -o lstart= -p "$rec_pid" 2>/dev/null)" || return 0
-    cur_start="$(printf '%s' "$raw" | tr -s ' ' | sed 's/^ *//;s/ *$//')"
-    [[ -n $cur_start ]] || return 0
-    [[ $cur_start == "$rec_start" ]] # same start => alive (0); differs => recycled => dead (1)
-    return
-  fi
-  # kill -0 failed (possibly dead, or EPERM for a foreign owner). Confirm with a
-  # full listing that exits 0 whether or not the pid is present; if ps ITSELF
-  # errors we cannot prove death, so treat as alive (fail safe).
-  listing="$(ps -ax -o pid= 2>/dev/null)" || return 0
-  while IFS= read -r pid_line; do
-    pid_line="${pid_line//[[:space:]]/}"
-    [[ $pid_line == "$rec_pid" ]] && return 0 # present after all: alive
-  done <<<"$listing"
-  return 1 # kill -0 failed AND ps ran and the pid is absent: provably dead
-}
-# Publish a fully-populated STAGING lock dir onto the final path. Return 0 iff we
-# won (LOCKDIR is now our staging, owner token inside); 1 if the lock was held
-# (mv dropped our staging inside it, or renaming onto a non-empty dir failed).
-__update_skills_publish_lock() {
-  local staging="$1" base
-  base="${staging##*/}"
-  if mv "$staging" "$LOCKDIR" 2>/dev/null; then
-    if [[ -d "$LOCKDIR/$base" ]]; then
-      rm -rf "${LOCKDIR:?}/${base:?}" # our staging was moved INSIDE a held lock: we lost
-      return 1
-    fi
-    return 0
-  fi
-  rm -rf "$staging"
-  return 1
-}
-# Move a stale lockdir aside to a unique name; the rename onto an absent target
-# is a single-winner move, so exactly one reclaimer succeeds and then retries
-# acquisition. The moved-aside dir is discarded.
-__update_skills_reclaim_dead_lock() {
-  local aside="${LOCKDIR}.dead.$$.${RANDOM}"
-  if mv "$LOCKDIR" "$aside" 2>/dev/null; then
-    rm -rf "$aside"
-    return 0
-  fi
-  return 1
-}
 LOCK_MY_TOKEN="$(__update_skills_owner_token)"
 __update_skills_acquire_lock() {
   local staging owner
