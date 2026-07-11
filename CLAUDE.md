@@ -120,7 +120,7 @@ See https://www.chezmoi.io/user-guide/manage-different-types-of-file/ for the `m
 
 ### Git Hooks
 
-Both hooks live in the **user-wide** hooks dir — `core.hooksPath = ~/.config/git/hooks` (set in
+All three hooks live in the **user-wide** hooks dir — `core.hooksPath = ~/.config/git/hooks` (set in
 `dot_gitconfig.tmpl`), so they apply to every repo:
 
 - **`prepare-commit-msg` — user-wide AI commit messages.** Prepopulates a Conventional Commits message
@@ -283,8 +283,9 @@ bats, chezmoi, and zizmor.
 
 GitHub Actions (`.github/workflows/lint.yml`) runs on `macos-latest` on pushes to main and PRs, with
 workflow-level `permissions: contents: read`, `persist-credentials: false` on checkout, and actions
-SHA-pinned to full commit SHAs (`.github/dependabot.yml` keeps the pins fresh weekly; no auto-merge).
-Steps: `nix flake check --all-systems` (the treefmt drift gate), `just test`, and
+SHA-pinned to full commit SHAs (`.github/dependabot.yml` keeps the pins fresh weekly; its PRs auto-merge
+once the lint check passes, via `.github/workflows/dependabot-automerge.yml`). Steps:
+`nix flake check --all-systems` (the treefmt drift gate), `just test`, and
 `zizmor --offline .github/workflows` — the latter two inside the flake's `run` shell.
 
 ### Agent Skills (cross-harness store)
