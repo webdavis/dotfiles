@@ -45,10 +45,18 @@ if ! find test/unit -maxdepth 1 -type f -name '*.sh' -perm -u+x >"$discovery_fil
   printf 'FAIL: unit test discovery failed; refusing to run a partial list\n' >&2
   exit 1
 fi
+# Sort in the FOREGROUND with status checked, for the same reason as the find
+# above: a `sort` inside a process substitution cannot fail the gate, so a sort
+# error would truncate the list and green-gate. `sort -o file file` is a safe
+# in-place sort (POSIX; both BSD and GNU sort buffer input before writing).
+if ! sort -o "$discovery_file" "$discovery_file"; then
+  printf 'FAIL: unit test discovery sort failed; refusing to run a partial list\n' >&2
+  exit 1
+fi
 tests=()
 while IFS= read -r t; do
   tests+=("$t")
-done < <(sort "$discovery_file")
+done <"$discovery_file"
 [[ ${#tests[@]} -gt 0 ]] || {
   printf 'no unit tests found\n'
   exit 0

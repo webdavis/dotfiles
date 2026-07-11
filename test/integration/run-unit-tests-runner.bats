@@ -22,6 +22,18 @@ mk_test() { # <name> <exit-code>
   chmod +x "$scratch/test/unit/$1.sh"
 }
 
+# A fixture that records its own name in execution order to $ORDER_LOG, so a
+# test can compare the ORDER SEQUENCE across runs (the runner prints no passing
+# names, and comparing stdout would only see the seed banner). Exits 0.
+mk_order_test() { # <name>
+  {
+    printf '#!/usr/bin/env bash\n'
+    printf 'printf '\''%%s\\n'\'' %q >> "$ORDER_LOG"\n' "$1"
+    printf 'exit 0\n'
+  } > "$scratch/test/unit/$1.sh"
+  chmod +x "$scratch/test/unit/$1.sh"
+}
+
 @test "all-pass camp exits 0" {
   mk_test a 0
   mk_test b 0
@@ -59,12 +71,54 @@ SHIM
   [[ "$output" == *"discovery failed"* ]]
 }
 
-@test "same TEST_SEED reproduces the same order" {
+@test "sort failure refuses to green-gate" {
   mk_test a 0
-  mk_test b 0
-  mk_test c 0
-  TEST_SEED=42 run "$scratch/scripts/run-unit-tests.sh"
-  first="$output"
-  TEST_SEED=42 run "$scratch/scripts/run-unit-tests.sh"
-  [ "$first" = "$output" ]
+  # Shim `sort` to exit nonzero, modeling a sort that fails mid-discovery; the
+  # runner must refuse rather than trust the list.
+  mkdir -p "$scratch/bin"
+  cat > "$scratch/bin/sort" <<SHIM
+#!/usr/bin/env bash
+/usr/bin/sort "\$@"
+exit 7
+SHIM
+  chmod +x "$scratch/bin/sort"
+  PATH="$scratch/bin:$PATH" run "$scratch/scripts/run-unit-tests.sh"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"sort failed"* ]]
+}
+
+# The seed test must have TEETH: it has to go RED if the shuffle is removed or
+# TEST_SEED is ignored. It records execution order via mk_order_test fixtures
+# (the runner prints no passing names) and asserts BOTH:
+#   (1) same seed -> identical order  (fails if TEST_SEED is ignored / random)
+#   (2) some seed -> order != plain sorted order  (fails if shuffle is disabled,
+#       since a disabled shuffle always yields the sorted order)
+@test "TEST_SEED drives a real, reproducible shuffle (not just sorted order)" {
+  local names=(00 01 02 03 04 05 06 07 08 09)
+  local n
+  for n in "${names[@]}"; do mk_order_test "$n"; done
+  local sorted
+  sorted="$(printf '%s\n' "${names[@]}" | LC_ALL=C sort)"
+
+  # (1) reproducibility under a fixed seed
+  export ORDER_LOG="$scratch/order.a1"; : > "$ORDER_LOG"
+  TEST_SEED=1 run "$scratch/scripts/run-unit-tests.sh"
+  [ "$status" -eq 0 ]
+  local a1; a1="$(cat "$ORDER_LOG")"
+  export ORDER_LOG="$scratch/order.a2"; : > "$ORDER_LOG"
+  TEST_SEED=1 run "$scratch/scripts/run-unit-tests.sh"
+  [ "$status" -eq 0 ]
+  local a2; a2="$(cat "$ORDER_LOG")"
+  [ "$a1" = "$a2" ]
+
+  # (2) the shuffle actually reorders relative to sorted, for at least one seed
+  local s reordered=0 order
+  for s in 1 2 3 4 5; do
+    export ORDER_LOG="$scratch/order.s$s"; : > "$ORDER_LOG"
+    TEST_SEED="$s" run "$scratch/scripts/run-unit-tests.sh"
+    [ "$status" -eq 0 ]
+    order="$(cat "$ORDER_LOG")"
+    [ "$order" != "$sorted" ] && reordered=1
+  done
+  [ "$reordered" -eq 1 ]
 }

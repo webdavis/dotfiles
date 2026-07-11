@@ -80,64 +80,49 @@ check:
 test-unit: test-guard
   ./scripts/run-unit-tests.sh
 
-# One camp at a time, for focused iteration. Tests read on fd 3 (repo bash
-# rule): a test body that reads stdin must not be able to swallow the file
-# list and silently truncate the gate.
+# One camp at a time, for focused iteration. scripts/run-camp.sh runs the
+# camp's executable *.sh tests (each with fd 3 closed so a test that reads stdin
+# cannot swallow the discovery list) then the camp's own *.bats suites; its
+# discovery is checked so a traversal/sort error fails the gate instead of
+# green-gating a short list.
 test-integration: test-guard
-  #!/usr/bin/env bash
-  set -euo pipefail
-  status=0
-  while IFS= read -r -u3 -d '' t; do
-    printf "== %s ==\n" "$t"
-    "$t" || status=1
-  done 3< <(find test/integration -maxdepth 1 -type f -name '*.sh' -perm -u+x -print0 2>/dev/null | sort -z)
-  exit "$status"
+  ./scripts/run-camp.sh test/integration
 
 test-e2e: test-guard
-  #!/usr/bin/env bash
-  set -euo pipefail
-  status=0
-  while IFS= read -r -u3 -d '' t; do
-    printf "== %s ==\n" "$t"
-    "$t" || status=1
-  done 3< <(find test/e2e -maxdepth 1 -type f -name '*.sh' -perm -u+x -print0 2>/dev/null | sort -z)
-  exit "$status"
+  ./scripts/run-camp.sh test/e2e
 
-# Placement + mode guard: every test *.sh below test/ must sit DIRECTLY in a
-# recognized camp (test/unit, test/integration, test/e2e) and be executable;
-# a nested dir, an unknown camp, a stray under test/, or a chmod-less test
-# would otherwise be silently invisible to every selector. test/fixtures/**
-# is exempt (fixture data and sourced libs, never run directly).
+# Placement / mode / symlink guard (scripts/test-guard.sh): every *.sh and
+# *.bats below test/ must sit DIRECTLY in a recognized camp (test/unit,
+# test/integration, test/e2e); camp *.sh must be executable; no symlinks are
+# allowed anywhere below test/ (a physical find skips them, so they would evade
+# every gate). test/fixtures/** is exempt.
 test-guard:
-  #!/usr/bin/env bash
-  set -euo pipefail
-  bad=""
-  while IFS= read -r -u3 f; do
-    case "$f" in
-      test/fixtures/*) continue ;;
-      test/unit/*/*|test/integration/*/*|test/e2e/*/*)
-        bad+="$f (nested; camps are flat)"$'\n' ;;
-      test/unit/*.sh|test/integration/*.sh|test/e2e/*.sh)
-        [[ -x $f ]] || bad+="$f (not executable; invisible to the gate)"$'\n' ;;
-      *)
-        bad+="$f (outside the unit/integration/e2e camps)"$'\n' ;;
-    esac
-  done 3< <(find test -type f -name '*.sh' 2>/dev/null | sort)
-  if [[ -n $bad ]]; then
-    printf 'FAIL: misplaced or misconfigured test scripts:\n%s' "$bad" >&2
-    printf 'Fix placement/mode (and REPO_ROOT depth is ../.. inside a camp).\n' >&2
-    exit 1
-  fi
+  ./scripts/test-guard.sh
 
-# All camps: what pre-push and CI run. Bats suites (test/**/*.bats) run inside
-# the Nix devshell; the flake provides bats, so no host install is needed and
-# the suite runs the same on a fresh machine. Empty-safe throughout.
+# All camps: what pre-push and CI run. The per-camp recipes above already run
+# each camp's bats; this aggregate ALSO runs every bats suite (test/**/*.bats)
+# as the backstop. Bats runs inside the Nix devshell when the host lacks it (the
+# flake provides bats + GNU parallel). Discovery is checked and empty-safe.
 test: test-unit test-integration test-e2e
   #!/usr/bin/env bash
   set -euo pipefail
-  if find test -type f -name '*.bats' -print -quit 2>/dev/null | grep -q .; then
-    printf "== %s ==\n" "bats"
-    nix develop .#run --command bats --jobs 4 --recursive test/
+  bats_list="$(mktemp)"
+  trap 'rm -f "$bats_list"' EXIT
+  if ! find test -type f -name '*.bats' -print0 | sort -z >"$bats_list"; then
+    printf 'FAIL: bats discovery failed; refusing to skip a partial list\n' >&2
+    exit 1
+  fi
+  bats_files=()
+  while IFS= read -r -d '' b; do
+    bats_files+=("$b")
+  done <"$bats_list"
+  if ((${#bats_files[@]} > 0)); then
+    printf "== bats (all camps) ==\n"
+    if command -v bats >/dev/null 2>&1; then
+      bats --jobs 4 "${bats_files[@]}"
+    else
+      nix develop .#run --command bats --jobs 4 "${bats_files[@]}"
+    fi
   fi
 
 # macOS Defaults: drift, apply, capture
