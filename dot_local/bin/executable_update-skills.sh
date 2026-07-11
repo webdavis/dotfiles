@@ -632,11 +632,29 @@ GEN_ROSTER_HASH=""          # sha256 of the snapshot at run start
 # tiers table) are objects when present. A wrong-typed table would make the
 # jq key-walks silently yield nothing, which is exactly the degraded-empty
 # failure this gate exists to refuse.
+#
+# F2: a PRESENT table must be an OBJECT — `.npxTracked // {}` substitutes on
+# null AND false (jq: `false // {}` -> `{}`), so `npxTracked: false` (or null,
+# a string, an array) would coerce to an empty object, pass the old check, and
+# silently drop every npx skill. Reject a present-but-non-object table (an
+# absent key stays legal: it degrades to a genuinely empty table). Also
+# validate ENTRY schemas: every npx entry carries a non-empty string `repo`,
+# every clawhub entry a non-empty string `slug` and `registry`. A malformed
+# entry is a required failure, never a silently skipped skill.
 __gen_roster_schema_ok() {
-  jq -e '(type == "object")
-    and ((.npxTracked // {}) | type == "object")
-    and ((.clawhubTracked // {}) | type == "object")
-    and ((.tiers // {}) | type == "object")' "$1" >/dev/null 2>&1
+  jq -e '
+    def object_or_absent($k): (has($k) | not) or (.[$k] | type == "object");
+    def nonempty_string($v): ($v | type) == "string" and ($v | length) > 0;
+    (type == "object")
+    and object_or_absent("npxTracked")
+    and object_or_absent("clawhubTracked")
+    and object_or_absent("tiers")
+    and ((.npxTracked // {}) | to_entries
+      | all((.value | type == "object") and nonempty_string(.value.repo)))
+    and ((.clawhubTracked // {}) | to_entries
+      | all((.value | type == "object")
+        and nonempty_string(.value.slug) and nonempty_string(.value.registry)))
+  ' "$1" >/dev/null 2>&1
 }
 
 # Validate the live roster lock and snapshot it for the transaction. On
@@ -2556,19 +2574,19 @@ else
       __update_skills_alert "update-skills refused to run: the roster lock at $GEN_ROSTER_SOURCE is missing or broken. Fix the deployed custom-skill-lock.json (chezmoi apply) and re-run."
       exit 1
     fi
-    __update_skills_live_skill_count=0
-    if [[ -d "$SKILLS_CURRENT/skills" ]]; then
-      for __update_skills_live_entry in "$SKILLS_CURRENT/skills"/*; do
-        [[ -d $__update_skills_live_entry ]] && __update_skills_live_skill_count=$((__update_skills_live_skill_count + 1))
-      done
-    fi
     __update_skills_tracked_count=0
     while IFS= read -r __update_skills_tracked_probe; do
       [[ -n $__update_skills_tracked_probe ]] && __update_skills_tracked_count=$((__update_skills_tracked_count + 1))
     done < <(__gen_tracked_names)
-    if [[ $__update_skills_tracked_count -eq 0 && $__update_skills_live_skill_count -gt 0 ]]; then
-      record_required_failure "the roster tracks ZERO skills but the live generation holds $__update_skills_live_skill_count; refusing to clone-filter/prune (a delist-everything roster is treated as corruption, not intent)"
-      __update_skills_alert "update-skills refused to run: the roster lock tracks no skills while the live generation is non-empty. If delisting everything is intended, remove the generation by hand; otherwise restore the roster."
+    # F3: a zero tracked UNION is refused UNCONDITIONALLY, independent of the
+    # live-generation state. There is no legitimate empty roster (the committed
+    # roster always has entries), so a zero union is corruption or a broken
+    # deploy. Gating on a non-empty live generation let a fresh machine (no
+    # generation) or a damaged current (present, zero skill dirs) migrate over
+    # zero names, publish an EMPTY generation, and stamp success.
+    if [[ $__update_skills_tracked_count -eq 0 ]]; then
+      record_required_failure "the roster tracks ZERO skills (empty npx+clawhub union); refusing any mutation (there is no legitimate empty roster; a zero union is corruption or a broken deploy, not intent)"
+      __update_skills_alert "update-skills refused to run: the roster lock tracks no skills. If delisting everything is truly intended, remove the generation by hand; otherwise restore the roster (chezmoi apply) and re-run."
       exit 1
     fi
     # The run-private snapshot is a temp file; remove it on any exit. The
