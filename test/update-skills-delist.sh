@@ -58,24 +58,38 @@ write_lock() { # $@ = tracked skill names
 EOF
 }
 
-# npx stub: writes a SKILL.md for each --skill in the group.
+# npx stub: writes a SKILL.md for each --skill in the group, and maintains the
+# CLI's global lock at $XDG_STATE_HOME/skills/.skill-lock.json exactly like the
+# real skills CLI (verified empirically against skills 1.5.16: with
+# XDG_STATE_HOME set, getSkillLockPath() reads AND writes there, never
+# ~/.agents/.skill-lock.json).
 stub="$tmp/stub"
 mkdir -p "$stub"
-cat >"$stub/npx" <<EOF
+cat >"$stub/npx" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
-prev=""; skills=()
-for a in "\$@"; do
-  [[ \$prev == --skill ]] && skills+=("\$a")
-  prev="\$a"
+prev=""
+skills=()
+for a in "$@"; do
+  [[ $prev == --skill ]] && skills+=("$a")
+  prev="$a"
 done
-for s in "\${skills[@]}"; do
-  mkdir -p "\$HOME/.agents/skills/\$s"
-  printf -- '---\nname: %s\n---\n# lane\n' "\$s" >"\$HOME/.agents/skills/\$s/SKILL.md"
+cli_lock="${XDG_STATE_HOME:-$HOME/.local/state}/skills/.skill-lock.json"
+mkdir -p "$(dirname "$cli_lock")"
+[[ -f $cli_lock ]] || printf '{"version":3,"skills":{}}\n' >"$cli_lock"
+for s in "${skills[@]}"; do
+  mkdir -p "$HOME/.agents/skills/$s"
+  printf -- '---\nname: %s\n---\n# lane\n' "$s" >"$HOME/.agents/skills/$s/SKILL.md"
+  jq --arg s "$s" '.skills[$s] = {source: "github:fixture/pack", agents: ["claude-code","codex"]}' \
+    "$cli_lock" >"$cli_lock.tmp" && mv "$cli_lock.tmp" "$cli_lock"
 done
 EOF
 chmod +x "$stub/npx"
 export PATH="$stub:$PATH"
+
+published_lock_keys() {
+  jq -r '.skills // {} | keys | sort | join(",")' "$AGENTS/.skill-lock.json" 2>/dev/null || echo READ-ERROR
+}
 
 run_full() { UPDATE_SKILLS_FORCE=1 bash "$SCRIPT" 2>&1; }
 
@@ -121,5 +135,23 @@ out2="$(run_full)" || fail "phase 2 run exited non-zero: $out2"
   fail "the foreign real dir gamma was destroyed"
 [[ "$(cat "$AGENTS/skills/gamma/keep.txt")" == "FOREIGN-GAMMA" ]] ||
   fail "gamma content changed"
+
+# R2-4: the PUBLISHED npx lock must hold EXACTLY the npxTracked set. A
+# delisted key surviving in the published lock would let a later
+# `npx skills update -g` reinstall the revoked skill as a real store dir
+# (which the pruner spares and the Claude fan-out then accepts).
+[[ "$(published_lock_keys)" == "alpha" ]] ||
+  fail "delisted beta survives in the PUBLISHED npx lock (keys: $(published_lock_keys))"
+
+# --- Phase 3: a newly tracked skill's lock entry is CAPTURED on publish -------
+# The child CLI writes its lock under the pinned XDG_STATE_HOME (verified
+# empirically); the candidate must capture that write, or the published lock
+# silently loses every skill the lanes just installed.
+write_lock alpha delta
+out3="$(run_full)" || fail "phase 3 run exited non-zero: $out3"
+[[ -L "$AGENTS/skills/delta" && -f "$AGENTS/skills/delta/SKILL.md" ]] ||
+  fail "phase 3: newly tracked delta was not installed"
+[[ "$(published_lock_keys)" == "alpha,delta" ]] ||
+  fail "phase 3: the published npx lock did not capture the lane's lock write for delta (keys: $(published_lock_keys))"
 
 echo "update-skills-delist: OK"

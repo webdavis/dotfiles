@@ -59,6 +59,12 @@ if [[ \$mode == "add" ]]; then
   if [[ -e "$tmp/npx-add-fail" ]]; then echo "npx add boom" >&2; exit 1; fi
   mkdir -p "\$HOME/.agents/skills/\$skill"
   printf -- '---\nname: %s\ndescription: fixture\n---\n' "\$skill" >"\$HOME/.agents/skills/\$skill/SKILL.md"
+  # like the real CLI (skills 1.5.16): record the add in the XDG global lock
+  cli_lock="\${XDG_STATE_HOME:-\$HOME/.local/state}/skills/.skill-lock.json"
+  mkdir -p "\$(dirname "\$cli_lock")"
+  [[ -f \$cli_lock ]] || printf '{"version":3,"skills":{}}\n' >"\$cli_lock"
+  jq --arg s "\$skill" '.skills[\$s] = {source: "github:fixture"}' \
+    "\$cli_lock" >"\$cli_lock.tmp" && mv "\$cli_lock.tmp" "\$cli_lock"
 fi
 echo stub
 EOF

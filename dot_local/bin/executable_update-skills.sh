@@ -1171,6 +1171,56 @@ __gen_assert_overlays() {
   done < <(jq -r '.tiers // {} | to_entries[] | select(.value == "on-demand") | .key' "$CUSTOM_SKILL_LOCK" 2>/dev/null)
 }
 
+# Reconcile the candidate's published npx lock (R2-4). Two facts drive this:
+# the candidate SEEDS .agents/.skill-lock.json as a wholesale copy of the
+# previous published lock (so delisted keys survive in it), and the child npx
+# CLI reads/writes its global lock at $XDG_STATE_HOME/skills/.skill-lock.json
+# (verified empirically against skills 1.5.16 with a pinned XDG_STATE_HOME:
+# the CLI never touches ~/.agents/.skill-lock.json when XDG_STATE_HOME is
+# set), so the lane's lock writes land INSIDE the candidate home but not in
+# the published file. After the lanes: overlay the CLI-written entries onto
+# the seeded copy (capturing every install this build performed), and on a
+# FULL build drop every key outside the npxTracked set (delisting is a
+# full-run responsibility; an additive build keeps existing keys untouched).
+#   __gen_reconcile_candidate_npx_lock <full|additive>
+__gen_reconcile_candidate_npx_lock() {
+  local mode="$1"
+  local candidate_lock="$AGENTS/.skill-lock.json"
+  local cli_lock="${XDG_STATE_HOME:-$HOME/.local/state}/skills/.skill-lock.json"
+  local base cli reconciled
+  base="$(cat "$candidate_lock" 2>/dev/null || printf '{}')"
+  jq -e . <<<"$base" >/dev/null 2>&1 || base='{}'
+  cli='{}'
+  if [[ -f $cli_lock ]]; then
+    cli="$(cat "$cli_lock" 2>/dev/null || printf '{}')"
+    jq -e . <<<"$cli" >/dev/null 2>&1 || cli='{}'
+  fi
+  if ! reconciled="$(jq -n \
+    --argjson base "$base" \
+    --argjson cli "$cli" \
+    --arg mode "$mode" \
+    --slurpfile roster "$CUSTOM_SKILL_LOCK" '
+      ($roster[0].npxTracked // {} | keys) as $tracked
+      | (if ($base | length) > 0 then $base else $cli end) as $top
+      | (($base.skills // {}) + ($cli.skills // {})) as $merged
+      | $top
+      | .skills = (if $mode == "full"
+          then ($merged | with_entries(select(.key as $k | $tracked | index($k))))
+          else $merged
+        end)
+    ')"; then
+    record_required_failure "npx lock reconcile failed (candidate will be discarded)"
+    return 1
+  fi
+  if ! printf '%s\n' "$reconciled" >"$candidate_lock.reconcile.tmp" ||
+    ! mv "$candidate_lock.reconcile.tmp" "$candidate_lock"; then
+    record_required_failure "npx lock reconcile could not be written (candidate will be discarded)"
+    rm -f "$candidate_lock.reconcile.tmp"
+    return 1
+  fi
+  return 0
+}
+
 # --build-lanes body: runs INSIDE the candidate fake HOME (env -i, HOME set by
 # __gen_run_lanes). $STORE etc. resolve to the candidate. Runs the three build
 # lanes, writes generation.json LAST as the ready marker, and exits non-zero on
@@ -1190,6 +1240,8 @@ __gen_do_build_lanes() {
   __gen_lane_clawhub
   log "build lane: codex overlays"
   __gen_assert_overlays
+  log "build lane: npx lock reconcile"
+  __gen_reconcile_candidate_npx_lock "$build_mode" || true # failure recorded; gate below discards
   if [[ $REQUIRED_FAILURES -gt 0 ]]; then
     # No ready marker for a failed build: the candidate is incomplete by
     # construction and recovery deletes it if the parent crashes first. The
@@ -1253,6 +1305,20 @@ __gen_validate_candidate() {
     log "validate: candidate .skill-lock.json is not valid JSON"
     return 1
   }
+  # A FULL candidate's npx lock must hold EXACTLY the npxTracked key set
+  # (R2-4): a surplus (delisted) key in the published lock would let a later
+  # `npx skills update -g` reinstall a revoked skill as a real store dir. An
+  # additive candidate is exempt: delisted keys legitimately survive there
+  # until the next full run (delisting is a full-run responsibility).
+  if [[ "$(__gen_meta_field "$agents" buildMode)" == "full" ]]; then
+    local lock_keys tracked_keys
+    lock_keys="$(jq -r '.skills // {} | keys | sort | join(",")' "$agents/.skill-lock.json" 2>/dev/null || true)"
+    tracked_keys="$(jq -r '.npxTracked // {} | keys | sort | join(",")' "$CUSTOM_SKILL_LOCK" 2>/dev/null || true)"
+    if [[ $lock_keys != "$tracked_keys" ]]; then
+      log "validate: the candidate npx lock keys [$lock_keys] do not equal the npxTracked set [$tracked_keys]"
+      return 1
+    fi
+  fi
   local name
   # every npx- and clawhub-tracked roster skill present with a SKILL.md
   while IFS= read -r name; do

@@ -37,6 +37,8 @@ stub="$tmp/stub"
 mkdir -p "$stub"
 # The npx stub refreshes SKILL.md but leaves any other files in place (a real
 # add does not purge sibling files), so an absorbed competing file survives.
+# Like the real CLI (verified against skills 1.5.16), it maintains its global
+# lock at $XDG_STATE_HOME/skills/.skill-lock.json.
 cat >"$stub/npx" <<'STUB'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -47,9 +49,14 @@ for a in "$@"; do
   prev="$a"
 done
 if [[ $mode == add ]]; then
+  cli_lock="${XDG_STATE_HOME:-$HOME/.local/state}/skills/.skill-lock.json"
+  mkdir -p "$(dirname "$cli_lock")"
+  [[ -f $cli_lock ]] || printf '{"version":3,"skills":{}}\n' >"$cli_lock"
   for s in "${skills[@]}"; do
     mkdir -p "$HOME/.agents/skills/$s"
     printf -- '---\nname: %s\n---\n# refreshed\n' "$s" >"$HOME/.agents/skills/$s/SKILL.md"
+    jq --arg s "$s" '.skills[$s] = {source: "github:fixture"}' \
+      "$cli_lock" >"$cli_lock.tmp" && mv "$cli_lock.tmp" "$cli_lock"
   done
 fi
 STUB
