@@ -46,24 +46,78 @@ labels=(
   ai.openclaw.rescue
 )
 
+# `launchctl print <service>` exits 0 when the service is loaded and with a known
+# not-found status when it is absent. That status, verified live (113 = confirmed
+# absent; 112 = an operational error such as an invalid GUI domain). Treat the
+# probe as TRI-STATE: 0 = loaded, 113 = confirmed absent, anything else = an
+# operational error whose result must NOT be interpreted as either state -- a
+# nonzero-but-not-113 must never be misread as "unloaded", which would let an
+# operational error delete a plist and write the permanent marker while the job
+# is still loaded. Mirrors run_after_56/59. Only a CONFIRMED absence permits plist
+# removal and counts toward the quiescence marker.
+not_found_status=113
+
+# launchd_state <target> : echoes loaded | absent | unknown.
+launchd_state() {
+  local status=0
+  launchctl print "$1" >/dev/null 2>&1 || status=$?
+  if [[ $status -eq 0 ]]; then
+    printf 'loaded'
+  elif [[ $status -eq $not_found_status ]]; then
+    printf 'absent'
+  else
+    printf 'unknown'
+  fi
+}
+
+# npm_openclaw_state : echoes installed | absent | unknown. `npm ls` shares the
+# probe ambiguity -- a non-zero exit can mean "absent" OR "npm could not answer"
+# -- so the verdict is parsed from the --json tree, not the exit code: a parseable
+# object with a .dependencies.openclaw entry is installed, a parseable object
+# without one is confirmed absent, and an unparseable answer or an error envelope
+# is unknown (could not determine). No npm at all means no global npm package, so
+# confirmed absent.
+npm_openclaw_state() {
+  if ! command -v npm >/dev/null 2>&1; then
+    printf 'absent'
+    return 0
+  fi
+  local json verdict
+  json="$(npm ls -g openclaw --json 2>/dev/null)" || true
+  verdict="$(printf '%s' "$json" |
+    jq -r '
+      if type == "object" then
+        (if has("error") then "unknown"
+         elif (.dependencies.openclaw != null) then "installed"
+         else "absent" end)
+      else "unknown" end' 2>/dev/null || printf 'unknown')"
+  case "$verdict" in
+    installed | absent | unknown) printf '%s' "$verdict" ;;
+    *) printf 'unknown' ;;
+  esac
+}
+
 for label in "${labels[@]}"; do
   target="gui/$uid/$label"
-  # Probe with `launchctl print` exit status -- a loaded label prints, an
-  # unloaded one exits non-zero. Deliberately not the deprecated fuzzy scan.
-  still_loaded=0
-  if launchctl print "$target" >/dev/null 2>&1; then
-    still_loaded=1
+  state="$(launchd_state "$target")"
+  if [[ $state == loaded ]]; then
     if launchctl bootout "$target" >/dev/null 2>&1; then
       log "booted out $target"
-      still_loaded=0
+      # Re-probe: only a CONFIRMED absence lets the plist go.
+      state="$(launchd_state "$target")"
     else
       warn "failed to bootout $target; leaving its plist for the next apply to retry"
     fi
   fi
 
-  # Ordering: never remove a plist whose job is still loaded -- that orphans the
-  # running job. Remove the plist only once the label is confirmed not loaded.
-  if [[ $still_loaded -eq 1 ]]; then
+  # Ordering: remove the plist ONLY when the label is confirmed absent (113).
+  # While loaded OR unknown (an operational probe error), retain it -- removing a
+  # plist whose job is still loaded, or whose state we could not determine,
+  # orphans the running job.
+  if [[ $state != absent ]]; then
+    if [[ $state == unknown ]]; then
+      warn "could not determine the load state of $target (launchctl print returned an unexpected status); leaving its plist for the next apply to retry"
+    fi
     continue
   fi
   plist="$launch_agents_dir/$label.plist"
@@ -76,36 +130,39 @@ for label in "${labels[@]}"; do
   fi
 done
 
-# Uninstall the global npm package, but only when npm exists and reports it
-# present -- probing keeps the run silent on a host that never had it.
-if command -v npm >/dev/null 2>&1; then
-  if npm ls -g openclaw >/dev/null 2>&1; then
-    if npm uninstall -g openclaw >/dev/null 2>&1; then
-      log "uninstalled global npm package openclaw"
-    else
-      warn "failed to uninstall global npm package openclaw"
-    fi
+# Uninstall the global npm package, but only when it is CONFIRMED installed. An
+# indeterminate probe (unknown) never triggers an uninstall and never counts as
+# retired -- it warns and holds the marker.
+npm_state="$(npm_openclaw_state)"
+if [[ $npm_state == installed ]]; then
+  if npm uninstall -g openclaw >/dev/null 2>&1; then
+    log "uninstalled global npm package openclaw"
+  else
+    warn "failed to uninstall global npm package openclaw"
   fi
+elif [[ $npm_state == unknown ]]; then
+  warn "could not determine whether the global npm package openclaw is installed; leaving it for the next apply to retry"
 fi
 
 # Postcondition sweep: only a fully verified state writes the marker. Re-probe
-# each label, each plist, and npm; anything remaining is listed loudly with the
-# exact manual command, and the marker stays unwritten so the next apply retries.
+# each label (tri-state -- only a confirmed absence counts), each plist, and npm;
+# anything not confirmed gone is listed loudly with the exact manual command, and
+# the marker stays unwritten so the next apply retries.
 remaining=()
 for label in "${labels[@]}"; do
   target="gui/$uid/$label"
-  if launchctl print "$target" >/dev/null 2>&1; then
-    remaining+=("launchd job $target still loaded (manual: launchctl bootout $target)")
+  state="$(launchd_state "$target")"
+  if [[ $state != absent ]]; then
+    remaining+=("launchd job $target not confirmed unloaded (state: $state; manual: launchctl bootout $target)")
   fi
   plist="$launch_agents_dir/$label.plist"
   if [[ -e $plist ]]; then
     remaining+=("plist $plist still present (manual: rm -f $plist)")
   fi
 done
-if command -v npm >/dev/null 2>&1; then
-  if npm ls -g openclaw >/dev/null 2>&1; then
-    remaining+=("global npm package openclaw still installed (manual: npm uninstall -g openclaw)")
-  fi
+npm_state="$(npm_openclaw_state)"
+if [[ $npm_state != absent ]]; then
+  remaining+=("global npm package openclaw not confirmed absent (state: $npm_state; manual: npm uninstall -g openclaw)")
 fi
 
 if [[ ${#remaining[@]} -eq 0 ]]; then
