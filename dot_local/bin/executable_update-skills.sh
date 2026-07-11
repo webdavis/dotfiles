@@ -13,7 +13,7 @@
 # ~/.agents/.skills-generations/<id>/home, runs the package-CLI lanes against it
 # under env -i (HOME/XDG/TMPDIR/npm cache pinned inside the candidate), validates
 # the whole candidate, and publishes with ONE atomic renameat2 RENAME_EXCHANGE
-# (gmv --exchange --no-copy -T). Exactly one previous generation is retained.
+# (GNU mv --exchange --no-copy -T). Exactly one previous generation is retained.
 #
 # HONEST GUARANTEE: per-lookup completeness and cross-skill coherence per
 # generation: any path resolution during or after the exchange yields a
@@ -134,7 +134,7 @@ SCHEDULED_WEEK_STAMP="$STATE_DIR/last-scheduled-week" # ISO week of the last SCH
 # ~/.agents/.skill-lock.json is a symlink into .skills-current/.skill-lock.json.
 # Both keep resolving across a publish because .skills-current is a stable PATH
 # whose CONTENTS are swapped by ONE renameat2 RENAME_EXCHANGE
-# (gmv --exchange --no-copy -T), so any lookup during or after the swap yields a
+# (GNU mv --exchange --no-copy -T), so any lookup during or after the swap yields a
 # complete tree from exactly one generation. Candidate generations are built as a
 # fake HOME under .skills-generations/<id>/home, on the SAME device as
 # .skills-current so the same-filesystem exchange works. Exactly one previous
@@ -144,8 +144,15 @@ SKILLS_CURRENT="$AGENTS/.skills-current"
 GENERATIONS="$AGENTS/.skills-generations"
 SKILL_LOCK_LINK="$AGENTS/.skill-lock.json"
 GENERATION_META_NAME="generation.json"
-# GNU coreutils mv (has --exchange; BSD /bin/mv does not). Tests can override.
-GMV="${UPDATE_SKILLS_GMV:-gmv}"
+# The exchange tool (a GNU coreutils mv with a working --exchange; BSD /bin/mv
+# lacks it) is resolved at RUN TIME by __gen_resolve_exchange_tool, never a
+# hardcoded host path: a macOS host carries it as Homebrew's gmv, while the Nix
+# devshell (CI) provides GNU mv as plain mv and has no /opt/homebrew. Candidate
+# order is the UPDATE_SKILLS_GMV override (tests), then gmv, then mv on PATH; a
+# candidate is accepted only when --version says GNU coreutils AND a functional
+# probe swap succeeds. The accepted tool is cached here for the rest of the
+# run; empty means not resolved yet.
+GEN_EXCHANGE_TOOL=""
 # This script's own path, for the env -i re-invocation that runs the build lanes
 # inside a candidate fake HOME (see __gen_run_lanes / --build-lanes).
 UPDATE_SKILLS_SELF="${BASH_SOURCE[0]}"
@@ -304,12 +311,75 @@ __update_skills_stamp_value() {
 # Sortable-by-time is what lets prune keep the newest previous and delete older.
 __gen_new_id() { printf '%s-%s-%s' "$(date +%s)" "$$" "${RANDOM}${RANDOM}"; }
 
-# Two paths are on the same filesystem (required for renameat2 RENAME_EXCHANGE).
+# Two paths are on the same filesystem (renameat2 RENAME_EXCHANGE needs that).
+# %d is the device number, but the flag spelling differs by stat flavor: GNU
+# stat takes -c (its -f means file-SYSTEM status, whose %d is the format code;
+# comparing that reports same-device paths as different); BSD stat takes -f.
+# Probe the GNU spelling first, fall back to BSD. ADVISORY ONLY: callers
+# attempt the exchange regardless and treat its outcome as authoritative; this
+# check only shapes the pre-flight warning.
 __gen_same_device() {
   local a b
-  a="$(stat -f %d "$1" 2>/dev/null)" || return 1
-  b="$(stat -f %d "$2" 2>/dev/null)" || return 1
+  if a="$(stat -c %d "$1" 2>/dev/null)"; then
+    b="$(stat -c %d "$2" 2>/dev/null)" || return 1
+  else
+    a="$(stat -f %d "$1" 2>/dev/null)" || return 1
+    b="$(stat -f %d "$2" 2>/dev/null)" || return 1
+  fi
   [[ -n $a && $a == "$b" ]]
+}
+
+# A candidate exchange tool is capable iff --version says GNU coreutils AND a
+# real probe swap in a private temp dir succeeds (--exchange --no-copy -T with
+# the swapped content verified). The functional probe is the authority: a GNU
+# mv too old for --exchange, or a filesystem without atomic-swap support, both
+# fail here and the candidate is rejected.
+__gen_exchange_tool_capable() {
+  local tool="$1" probe rc=1
+  command -v "$tool" >/dev/null 2>&1 || return 1
+  "$tool" --version 2>/dev/null | head -1 | grep -q 'GNU coreutils' || return 1
+  probe="$(mktemp -d)" || return 1
+  mkdir -p "$probe/a" "$probe/b" || {
+    rm -rf "$probe"
+    return 1
+  }
+  printf 'a' >"$probe/a/marker"
+  printf 'b' >"$probe/b/marker"
+  if "$tool" --exchange --no-copy -T "$probe/a" "$probe/b" 2>/dev/null &&
+    [[ "$(cat "$probe/a/marker" 2>/dev/null)" == "b" &&
+    "$(cat "$probe/b/marker" 2>/dev/null)" == "a" ]]; then
+    rc=0
+  fi
+  rm -rf "$probe"
+  return $rc
+}
+
+# Resolve (and cache for this run) the exchange tool: the UPDATE_SKILLS_GMV
+# override first, then gmv, then mv on PATH. Returns 1 (cache left empty) when
+# no capable tool exists; callers then fail LOUDLY, never partially.
+__gen_resolve_exchange_tool() {
+  [[ -n $GEN_EXCHANGE_TOOL ]] && return 0
+  local candidate
+  for candidate in ${UPDATE_SKILLS_GMV:+"$UPDATE_SKILLS_GMV"} gmv mv; do
+    if __gen_exchange_tool_capable "$candidate"; then
+      GEN_EXCHANGE_TOOL="$candidate"
+      return 0
+    fi
+  done
+  return 1
+}
+
+# THE atomic swap primitive: renameat2 RENAME_EXCHANGE via the resolved GNU mv.
+# Logs loudly and returns 1 when no capable tool exists. --no-copy guarantees a
+# cross-device attempt fails cleanly instead of degrading to a partial copy, so
+# a non-zero return always means "nothing changed".
+#   __gen_exchange <path-a> <path-b>
+__gen_exchange() {
+  if ! __gen_resolve_exchange_tool; then
+    log "exchange: no GNU coreutils mv with a working --exchange on PATH (tried:${UPDATE_SKILLS_GMV:+ $UPDATE_SKILLS_GMV,} gmv, mv)"
+    return 1
+  fi
+  "$GEN_EXCHANGE_TOOL" --exchange --no-copy -T "$1" "$2" 2>/dev/null
 }
 
 # Write generation.json LAST, as the ready marker. Its presence + matching
@@ -450,16 +520,17 @@ __gen_publish() {
     log "publish: $SKILLS_CURRENT is not a real directory"
     return 1
   }
-  __gen_same_device "$candidate" "$SKILLS_CURRENT" || {
-    log "publish: candidate and .skills-current are on different devices; exchange impossible"
-    return 1
-  }
+  # Pre-flight ADVISORY only: warn on an apparent device mismatch, but let the
+  # exchange itself be the authority (--no-copy makes a cross-device attempt a
+  # clean failure, never a partial operation).
+  __gen_same_device "$candidate" "$SKILLS_CURRENT" ||
+    log "publish: WARN candidate and .skills-current look like different devices; attempting the exchange anyway"
   old_id="$(__gen_meta_field "$SKILLS_CURRENT" id)"
   [[ -n $old_id ]] || old_id="pre-$(__gen_new_id)" # a first-migrated current may predate meta
   # THE atomic publish: renameat2 RENAME_EXCHANGE. After it, .skills-current is
   # the new generation and $candidate holds the complete PREVIOUS generation.
-  if ! "$GMV" --exchange --no-copy -T "$candidate" "$SKILLS_CURRENT" 2>/dev/null; then
-    log "publish: gmv --exchange failed; live generation untouched"
+  if ! __gen_exchange "$candidate" "$SKILLS_CURRENT"; then
+    log "publish: atomic exchange failed; live generation untouched"
     return 1
   fi
   mkdir -p "$GENERATIONS"
@@ -653,8 +724,7 @@ __gen_migrate() {
       }
     else
       # .skills-current exists but is incomplete: exchange it in, garbage the old.
-      if __gen_same_device "$staging" "$SKILLS_CURRENT" &&
-        "$GMV" --exchange --no-copy -T "$staging" "$SKILLS_CURRENT" 2>/dev/null; then
+      if __gen_exchange "$staging" "$SKILLS_CURRENT"; then
         __gen_garbage_destroy "$staging"
       else
         __gen_garbage_destroy "$staging"
@@ -674,8 +744,7 @@ __gen_migrate() {
       link_stub="$STORE/.$name.migrating.$$"
       __gen_garbage_destroy "$link_stub"
       ln -s "../.skills-current/skills/$name" "$link_stub"
-      if __gen_same_device "$link_stub" "$link" &&
-        "$GMV" --exchange --no-copy -T "$link_stub" "$link" 2>/dev/null; then
+      if __gen_exchange "$link_stub" "$link"; then
         __gen_garbage_destroy "$link_stub" # now holds the displaced real dir (garbage)
         log "migration: store/$name -> generation link (legacy dir absorbed)"
       else
@@ -692,8 +761,7 @@ __gen_migrate() {
     link_stub="$AGENTS/.skill-lock.json.migrating.$$"
     __gen_garbage_destroy "$link_stub"
     ln -s ".skills-current/.skill-lock.json" "$link_stub"
-    if __gen_same_device "$link_stub" "$SKILL_LOCK_LINK" &&
-      "$GMV" --exchange --no-copy -T "$link_stub" "$SKILL_LOCK_LINK" 2>/dev/null; then
+    if __gen_exchange "$link_stub" "$SKILL_LOCK_LINK"; then
       __gen_garbage_destroy "$link_stub"
     else
       __gen_garbage_destroy "$link_stub"
@@ -946,7 +1014,7 @@ __gen_do_build_lanes() {
 # Parent side: run the build lanes against a candidate home under env -i, with
 # HOME, every XDG_* dir, TMPDIR, and the npm cache/config pinned INSIDE the
 # candidate, so a lane can only write into the candidate (isolation). PATH is
-# passed through so npx/clawhub/jq/gmv resolve (and tests can prepend stubs).
+# passed through so npx/clawhub/jq/GNU mv resolve (and tests can prepend stubs).
 #   __gen_run_lanes <candidate-home> <id> [additive]
 # A non-empty third argument runs the lanes ADDITIVELY (install-only builds:
 # only skills absent from the candidate are installed; nothing is refreshed).
@@ -963,7 +1031,7 @@ __gen_run_lanes() {
     XDG_STATE_HOME="$home/.local/state" \
     TMPDIR="$home/.tmp" \
     npm_config_cache="$home/.npm" \
-    UPDATE_SKILLS_GMV="$GMV" \
+    UPDATE_SKILLS_GMV="${GEN_EXCHANGE_TOOL:-${UPDATE_SKILLS_GMV:-}}" \
     UPDATE_SKILLS_GEN_ID="$id" \
     UPDATE_SKILLS_LOCK_PATH="$CUSTOM_SKILL_LOCK" \
     UPDATE_SKILLS_LANES_ADDITIVE="$additive" \

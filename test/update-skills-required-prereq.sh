@@ -28,6 +28,9 @@ fail() {
   exit 1
 }
 
+# shellcheck source=test/fixtures/exchange-tool.lib.sh
+source "$REPO_ROOT/test/fixtures/exchange-tool.lib.sh"
+
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 
@@ -44,9 +47,19 @@ STAMP="$HOME/.local/state/update-skills/last-success"
 sbin="$tmp/sbin"
 mkdir -p "$sbin"
 ln -s "$(command -v jq)" "$sbin/jq"
-# gmv (GNU coreutils) is the generation-exchange publish primitive; like jq it
-# lives outside the hermetic PATH, so symlink the real binary in.
-ln -s "$(command -v gmv)" "$sbin/gmv"
+# The generation-exchange publish primitive is a GNU coreutils mv resolved at
+# run time (gmv on a Homebrew host, plain mv in the Nix devshell); like jq it
+# lives outside the hermetic PATH, so bring it in as gmv. An exec WRAPPER, not
+# a symlink: Nix ships coreutils as one multi-call binary that dispatches on
+# argv[0], so a symlink named gmv would not behave as mv.
+exchange_tool="$(resolve_exchange_tool)" ||
+  fail "no GNU coreutils mv with a working --exchange on PATH (need gmv or mv)"
+exchange_tool_path="$(command -v "$exchange_tool")"
+cat >"$sbin/gmv" <<EOF
+#!/usr/bin/env bash
+exec "$exchange_tool_path" "\$@"
+EOF
+chmod +x "$sbin/gmv"
 cat >"$sbin/npx" <<'EOF'
 #!/usr/bin/env bash
 echo stub

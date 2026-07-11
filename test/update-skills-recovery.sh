@@ -17,12 +17,18 @@ unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY GIT_COMMON_DIR
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SCRIPT="$REPO_ROOT/dot_local/bin/executable_update-skills.sh"
-GMV_BIN="${UPDATE_SKILLS_GMV:-/opt/homebrew/bin/gmv}"
-
 fail() {
   printf 'FAIL: %s\n' "$*" >&2
   exit 1
 }
+
+# Resolve the generation-exchange tool the way the updater does at run time
+# (gmv on a Homebrew host, plain mv in the Nix devshell), never a hardcoded
+# host path.
+# shellcheck source=test/fixtures/exchange-tool.lib.sh
+source "$REPO_ROOT/test/fixtures/exchange-tool.lib.sh"
+GMV_BIN="$(resolve_exchange_tool)" ||
+  fail "no GNU coreutils mv with a working --exchange on PATH (need gmv or mv)"
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
