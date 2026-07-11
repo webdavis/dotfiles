@@ -3,9 +3,10 @@
 **Date:** 2026-07-02 (extended 2026-07-03 with the full inventory, verified work ledger, SP3 contract,
 and testing strategy; re-evaluated same day at max effort — six defects found and corrected, see the
 final Verification section)
-**Status:** approved via brainstorming; SP1–SP2 designed in full, **SP3 now designed in full** (verified
-behavior contract below), SP4–SP7 indexed. Extended with a complete feature inventory and a work ledger
-of 85+ items (≈40 known + 45 sweep-confirmed) so nothing lives only in chat.
+**Status:** approved via brainstorming; SP1–SP2 designed in full, **SP3 behavior contract approved —
+final implementation spec pending** (contract below; open items enumerated in the deferred index),
+SP4–SP7 indexed. Extended with a complete feature inventory and a work ledger of 85+ items (≈40 known +
+45 sweep-confirmed) so nothing lives only in chat.
 **Input:** `docs/plans/2026-07-02-repo-modernization-brief.md` (the full context brief — read it first;
 this spec does not duplicate its background). The work ledger below folds in a max-effort, adversarially
 verified whole-repo sweep (53 agents, 45 confirmed / 2 refuted findings).
@@ -34,6 +35,7 @@ cycles with their banked decisions so nothing has to be re-litigated.
 3. **nushell is back in scope, contingent on an honest evaluation.** The prior "Shell: bash — locked-in"
    toolchain line and GH issue #5's planned wontfix closure are superseded by explicit user instruction:
    evaluate the migration seriously (criteria in SP4 below) and pursue it if it holds up.
+   **RESOLVED 2026-07-09 — NO-GO (see decision 9); GH #5 is closed and bash stays.**
 4. **The osquery hands-off constraint is partially lifted:** the *alerting/dispatch design* of the
    three-tier work (PR #25) must be improved during its reimplementation slice. Query/pack *content*
    changes are proposed-and-flagged for user sign-off, not made unilaterally.
@@ -56,6 +58,20 @@ cycles with their banked decisions so nothing has to be re-litigated.
    not want. The migration caveats (multi-recipient for the home server, rotation/DR, git-history) are
    banked as S8 work and the deferred laptop→home-server item below. Source:
    chezmoi.io/user-guide/encryption/age.
+9. **nushell migration: NO-GO — operator-ratified 2026-07-09** (resolves decision 3). The honest
+   evaluation ran during S4 (report `docs/research/2026-07-09-sp4-nushell-evaluation.md`) and failed on
+   three legs: reedline binds one key event per binding — no multi-keystroke chord grammar (reedline
+   #69) — which the ~365-chord surface cannot survive; atuin's nushell integration is its weakest (and
+   atuin is the thrice-broken subsystem here); and the cost/value fails against a working ~15 ms bash hot
+   path. Adjacent shells were surveyed (zsh is the only chord-capable candidate) and the operator chose to
+   **stay on bash**. GH #5 is closed; the SP4 slot becomes a bash-setup improvement sub-project, and SP3
+   designs its notifier seam against bash-preexec with no shell-portability abstraction.
+10. **S7 relay delivery-loss defects are fixed BEFORE merge — operator ruling (R2), 2026-07-10.** This
+    reverses the earlier "ship the relay bash exactly as deployed" plan text. The four delivery-loss
+    defects (fail-closed idle probe, whole-file `jq -rs` transcript slurp, wedged `mkdir` lock, missing
+    flag value) can silently drop notifications, so they are fixed in S7 with characterization tests for
+    any retained baseline quirk. SP3 still replaces the whole bash design later; S7 simply must not land a
+    known notification-dropping baseline on `main`.
 
 ## Sub-project sequence
 
@@ -63,14 +79,17 @@ cycles with their banked decisions so nothing has to be re-litigated.
 | --- | --- | --- | --- |
 | SP1 | Unblock the tree | Hermes age encryption: scaffolding committed; operator key + capture remain | this spec |
 | SP2 | Combine & split | Integration PR (#31 + #25) → reimplement from `main` as small PRs → cutover | this spec |
-| SP3 | Notification rewrite | One Rust service; subsumes hue-pulse improvements (old P7) | contract in this spec; final spec closes the open items |
-| SP4 | nushell evaluation → migration | Go/no-go evaluation early; migration (if go) after SP3 lands | own spec |
+| SP3 | Notification rewrite | One Rust **stateless per-event executable** (NOT a daemon/service); subsumes hue-pulse improvements (old P7) | behavior contract approved; **final implementation spec pending** |
+| SP4 | Bash setup improvement | nushell evaluated **NO-GO 2026-07-09** (GH #5 closed); the vacated slot becomes a bash-setup improvement sub-project | own spec (after SP3) |
 | SP5 | Thaw install | Trivial standalone PR; slots in during SP2 | none needed |
 | SP6 | nvim-overhaul | Re-evaluate v1/v2/v3 specs, then implement | own spec |
 | SP7 | Sweep + p-tasks backlog | Small chores as interleaved PRs at the end | backlog list |
+| SP-nix | nix-darwin go/no-go | **Conditional research only** — start triggers: larger Mac fleet / material maintenance failure in the defaults system / a proven design preserving single-apply + secrets model | own spec (deferred) |
 
-The nushell *evaluation* (research only) runs early — during SP2/SP3 — because SP3's shell-hook seam
-depends on knowing the shell direction. The *migration* (if go) executes after SP3.
+**Update 2026-07-09:** the nushell evaluation is RESOLVED — **NO-GO, operator-ratified** (GH #5 closed;
+report `docs/research/2026-07-09-sp4-nushell-evaluation.md`). SP3's shell-hook seam is therefore designed
+against bash-preexec with no shell-portability abstraction, and the vacated SP4 slot becomes the
+bash-setup improvement sub-project (own spec cycle, after SP3). See decision 9 below.
 
 ## SP1 — Unblock the tree (Hermes age encryption)
 
@@ -171,20 +190,46 @@ diff):
 4. herdr migration (2–3 PRs: config; smart-nav plugin; bashrc/workspace integration).
 5. Tailscale headless daemon.
 6. Homebrew weekly-upgrade LaunchAgent.
-7. Relay notification pipeline **as deployed** (bash version + its tests) — lands so `main` matches
-   dresden's live behavior; SP3 replaces it later through its own PR sequence.
+7. Relay notification pipeline (bash version + its tests). ~~**As deployed** — lands so `main` matches
+   dresden's live behavior~~ **superseded 2026-07-10 by decision 10 (R2):** the four delivery-loss
+   defects are fixed BEFORE merge (with characterization tests for retained harmless quirks); SP3 still
+   replaces the whole design later through its own PR sequence.
 8. Hermes age-encryption (the SP1 work).
 9. osquery three-tier alerting — **reimplemented with design improvements** (decision 4). Alerting/
    dispatch redesign is in scope; query/pack content changes are flagged for user sign-off.
 10. macOS defaults / system-setup additions.
-11. Small chores interleaved (Thaw install = SP5; gitconfig autocorrect = old P12; etc.).
+11. Small chores interleaved. *(Annotated 2026-07-10 [audit]: Thaw ships as a **standalone SP5 PR**, not
+    inside S11; the old-P12 gitconfig autocorrect is **already on `main`** — no work. S11 itself splits
+    into the audit's 7 small PRs; see the SP2 plan's S11 section.)*
 
 ### Cutover
 
-When the slice map is exhausted: dresden's chezmoi source switches back to `main`; full interactive
-`chezmoi apply` (KeePassXC unlocked); `just test` + live smoke checks (relay fires, hermes gateway
-healthy, osquery alerter behavior verified); then close PRs #31 and #25 and the integration PR with
-pointers to the landed slices.
+**Amended 2026-07-10 [audit]: the cutover is FIVE sequential gates, not one shot** — the authoritative
+procedure is the SP2 plan's Task D1
+(`docs/superpowers/plans/2026-07-03-sp2-combine-and-split.md`, Phase D), which states each gate as
+**invariants and pass criteria only**: every command sequence lives in the pre-S12 **cutover-tooling
+PR**'s tracked, shellcheck-linted, TDD-built gate runner (`scripts/cutover-gate.sh <gate>`, plus
+`scripts/live-reconcile.sh`), built against a binding 19-item acceptance checklist — the plan defines
+what and why; the script owns how, reviewed and tested at its own PR. The gates: **Gate 1** preflight
+(dirty/untracked classification ending in a fully-visible-clean tree FIRST — kept files leave the source
+tree, must-ship changes land before any pinning, no `graphify-out/` residue; Hermes-state backup; both
+remote SHAs pinned LAST so nothing lands after them; the **operator-approved retirement manifest** —
+computed only within the repo's managed-label universe (an exact, history-derived label inventory —
+not a prefix match) with a preserve list for package/OS-owned services, enumerated per launchd domain,
+each entry a (label, domain, steady-state predicate) triple;
+and the expected-delta ledger — the immutable recorded-base→integration manifest classified against the
+pinned `main` SHA, where only a `missing` hunk blocks); **Gate 2** staged activation **and execution of
+the approved retirement** (second remote session; both pins re-verified fail-closed; activation lands
+attached to `main` at exactly the pinned SHA, never detached; the operator's staged interactive apply;
+remote reachability verified); **Gate 3** tracked live reconciliation (dry-run, then live) **plus
+post-retirement verification** (every manifest entry probed domain-qualified against its recorded
+predicate) and the full test suite + live smoke checks (relay fires, hermes gateway healthy, osquery
+alerter behavior verified); **Gate 4** soak of the **final, retired** topology; and **Gate 5**
+closure-only (both pins re-verified fail-closed in a fresh session — on any drift, Gates 1–4 restart;
+the reference PRs closed with explicit GitHub-repository targeting) — **PRs #25, #31, and the
+integration reference PR #32 are closed only after the soak passes**, each with pointers to the landed
+slices. Retirement happens in Gates 1–3 (approve / execute / verify), not Gate 5, so the topology soaked
+is the topology closed out.
 
 ## p-tasks re-evaluation (from `2026-05-15-dotfiles-tasks-design.md`)
 
@@ -195,45 +240,66 @@ pointers to the landed slices.
 | P5 Determinate Nix review (GH #10) | still valid, research-first | SP7 backlog |
 | P6 bandwhich/doggo/ouch | still valid, trivial | SP7 backlog |
 | P7 hue-pulse improvements | superseded | folds into SP3 (race fix already shipped) |
-| P8 quick wins (MANPAGER, fd/FZF, starship) | valid; shell-config placement depends on nushell | SP7, after SP4's go/no-go |
+| P8 quick wins (MANPAGER, fd/FZF, starship) | **UNBLOCKED** — shell-config placement = bash (nushell NO-GO, decision 9) | SP7 (no longer gated on SP4) |
 | P9 actionlint | still valid | SP2 slice 2 |
-| P12 gitconfig autocorrect | still valid, trivial | SP2 slice 11 or SP7 |
+| P12 gitconfig autocorrect | **already on `main`** (`autocorrect = prompt`, verified 2026-07-09) | no work — done |
 | P13 Tart base image (~25 GB pull) | still valid, deferrable | SP7 backlog, background |
-| P10/P11/N1 (OpenClaw queue, mouse, gh-notify webhook) | dead — superseded by relay + SP3 | dropped; close/retitle their Todoist tasks |
-| S1–S4 (docs archive, CLAUDE.md audit rule, GH #5/#13 closures) | never executed; S3's "close #5 Nu Shell as wontfix" now **invalid** (decision 3) | SP7: re-rule S1/S2/S4; #5 stays open as the nushell tracking issue; #13 (Zellij) still closes wontfix |
+| P10/P11/N1 (OpenClaw queue, mouse, gh-notify webhook) | dead — superseded by relay + SP3; **OpenClaw removal ruled (R3, 2026-07-10)** | Wave-3d PR owns package/F1-binding/docs removal; **operator owns the Todoist cleanup** |
+| S1–S4 (docs archive, CLAUDE.md audit rule, GH #5/#13 closures) | never executed; GH **#5 is now closed** (nushell NO-GO, decision 9) | SP7: re-rule S1/S2/S4; #13 (Zellij) still open |
 
 Todoist hygiene is part of SP7: complete/close the dead tasks, re-point the surviving ones at their new
 sub-projects.
 
 ## Deferred spec index (banked context — future specs start here, not from scratch)
 
-- **SP3 — Notification rewrite: now designed in this spec** (see the SP3 contract section above), which
-  supersedes this bullet's original banked framing — notably "spam root cause = transcript-flush race"
-  (resolved: `jq -rs` slurp bug, and there was **no** loop — fire-once already holds) and "language
-  fully open" (settled: Rust). Still genuinely open for the final SP3 spec cycle: the UDR client-list
-  probe results + operator API key; agent-turn *failure* semantics for the red pulse (what counts as a
-  failed turn); the gray-zone tuning constants (idle thresholds); the lights quiet-window hours; and the
-  exact bats-vs-cargo split for the thin shell shims. The four previously-shipped bash fixes still get
-  re-derived test-first in Rust; Classist TDD + SOLID + composition root per the strategy section;
-  `test/`-discoverable via a thin `just test` wrapper.
-- **SP4 — nushell evaluation.** Go/no-go criteria to verify with evidence, not assume: atuin, starship,
-  zoxide, direnv, carapace nushell integration quality; macOS login-shell semantics + the brew-shellenv
-  cache analog; reedline keybinding parity with the current bash bindings; native
-  `pre_prompt`/`pre_execution` hooks replacing bash-preexec for the notifier; herdr pane/spawn
-  compatibility; an incremental migration path (opt-in pane first, cutover last). Output: a written
-  recommendation; if go, a migration spec follows after SP3.
+- **SP3 — Notification rewrite: behavior contract approved; final implementation spec PENDING**
+  [audit 2026-07-10]. The contract section below is approved, but SP3 is **not "designed in full"** — the
+  implementation spec still has open items. Superseded banked framing: "spam root cause = transcript-flush
+  race" (resolved: `jq -rs` slurp bug, no loop — fire-once already holds) and "language fully open"
+  (settled: Rust). **SP3 is a stateless per-event EXECUTABLE, not a daemon/service** (any "service"
+  wording is loose). The **UDR client-list probe is RESOLVED** (verified live 2026-07-03, zero open
+  questions — see the home-module section) and is **removed** from the open list. Still open for the final
+  SP3 spec cycle:
+  - **event input schemas** — the hook/CLI event payloads;
+  - **per-harness event mapping** — which Claude/Codex/CLI event maps to which class;
+  - **native-push ownership (R7)** — disable Claude Code's "Push when Claude decides" and keep the single
+    relay-owned route; drive the waiting-on-you vs ready-for-you classes from the **native Notification
+    matchers** (`agent_needs_input` / `agent_completed`); confirm native-push coexistence;
+  - **per-channel retry and failure behavior** — bounded retry with a loud fallback;
+  - **presence thresholds** — the gray-zone idle tuning constants;
+  - **lights quiet-window hours**;
+  - **migration coexistence and rollback**;
+  - **acceptance boundaries** — what the acceptance tests assert, plus the bats-vs-cargo split for the
+    thin shell shims (and agent-turn *failure* semantics for the red pulse).
+
+  The four previously-shipped bash fixes are re-derived test-first in Rust; Classist TDD + SOLID +
+  composition root per the strategy section; `test/`-discoverable via a thin `just test` wrapper.
+- **SP4 — nushell evaluation: RESOLVED — NO-GO, operator-ratified 2026-07-09** (decision 9;
+  report `docs/research/2026-07-09-sp4-nushell-evaluation.md`; GH #5 closed). The go/no-go criteria were
+  evaluated with evidence — reedline's one-event-per-binding limit (no chord grammar) sank the ~365-chord
+  surface, atuin's nushell integration is its weakest, and cost/value failed against the ~15 ms bash hot
+  path. The **SP4 slot now becomes a bash-setup improvement sub-project** (own spec cycle, after SP3):
+  alias consolidation, an inverted single-table bindings architecture, `fzf` bindings quality/new
+  bindings, generated per-binding tests, and a recorded Charm-tools verdict (zero new dependencies now).
+  SP3 designs its notifier seam against bash-preexec with no shell-portability abstraction.
 - **SP6 — nvim-overhaul.** Re-evaluate v1/v2/reassessment/v3 (v3 + its research doc live only on the
   unpushed `nvim-overhaul` branch — 10 commits at `~/.paseo/worktrees/1sk17y2x/nvim-overhaul`); then
   migrate `~/.config/nvim` (separate repo, 52 Lua files) into `dot_config/nvim/` under chezmoi and
-  modernize per the re-evaluated design.
+  modernize per the re-evaluated design. **Audit directives [audit 2026-07-10] (`nvim-overhaul` was 69
+  commits behind / 3 ahead of `origin/main` at audit time) — before any modernization:** (1) re-check
+  the branch state; (2) back up both repositories; (3) inventory the live Neovim configuration;
+  (4) import the live configuration UNCHANGED first; (5) modernize only through later reviewable PRs.
 - **SP-nix — nix-darwin go/no-go (deferred, research-first).** Sibling of SP4 (nushell): evaluate whether
   nix-darwin should manage macOS system config instead of chezmoi's `defaults`/system-setup scripts.
   Banked prior (decision 7): chezmoi holds for now; this is the formal re-evaluation, cross-referenced to
   P5 (Determinate Nix). Not part of SP2.
 - **Age laptop→home-server migration (deferred).** When the always-home Linux server takes the daemon
   role: it generates its own X25519 identity, `.chezmoi.toml.tmpl` switches to a **`recipients` list**
-  (both machines) so files encrypt to both, and the darwin guard on `run_once_before_05-restore-age-key`
-  is generalized. Plus the S8 rotation/DR runbook. Banked from the 2026-07-04 secrets-at-rest research.
+  (both machines) so files encrypt to both. Generalizing the darwin guard on
+  `run_once_before_05-restore-age-key` is **blocked on a complete, approved, and tested Linux
+  credential-source and identity design** [audit 2026-07-10] — the current macOS paths + KeePassXC
+  assumptions do NOT constitute Linux support, so the guard stays until that design exists. Plus the S8
+  rotation/DR runbook. Banked from the 2026-07-04 secrets-at-rest research.
 - **SP7 — Sweep + backlog.** The p-tasks table above + findings accumulated while reading every file
   during SP2's split + S1/S2/S4 re-ruling + Todoist hygiene. Ships as small PRs; nothing lands unwired.
 
@@ -242,7 +308,13 @@ sub-projects.
 - SP1: `just test` fully green with the hermes tests enforcing; `git status` clean;
   `chezmoi diff` clean after the interactive apply.
 - SP2: integration PR open + labeled; every slice PR green on lint/tests and merged after user review;
-  cutover checklist passes (apply from `main`, `just test`, live smoke checks); PRs #31/#25 closed.
+  the five-gate cutover passes via the tracked gate runner (D1 **Gate 1** clean tree first, then both
+  SHAs pinned + expected-delta ledger against the pinned `main` SHA + approved retirement manifest
+  scoped to the managed-label universe; **Gate 2** both pins re-verified, staged apply attached to
+  `main` at that SHA + execution of the approved retirement; **Gate 3** tracked reconciliation +
+  per-predicate post-retirement verification + the full test suite + live smoke checks; **Gate 4** soak
+  of the final topology; **Gate 5** both pins re-verified, closure only — on any drift, Gates 1–4
+  restart); PRs #25/#31/#32 closed **only in Gate 5, after the soak passes**.
 - Each deferred spec cycle ends with its own verification section; this roadmap only tracks that the
   cycle happened in sequence.
 
@@ -311,7 +383,9 @@ nav, `after_57`); herdr-last-workspace Rust plugin (MRU, `after_55`); bashrc aut
 status in sidebar.
 
 **I. Terminal / GUI apps.** Ghostty (`bash -i`, themes, quick-terminal); AeroSpace (hyper-key workspaces,
-F-key smart-lights/openhue, terminal-notifier feedback, F1 → OpenClaw `127.0.0.1:18789`); Karabiner
+F-key smart-lights/openhue, terminal-notifier feedback, F1 → OpenClaw `127.0.0.1:18789` — **R3
+(2026-07-10): OpenClaw removal ruled; the F1 binding, the `openclaw` package, and the docs are removed by
+the Wave-3d cleanup PR, operator owns the Todoist cleanup**); Karabiner
 (caps→ctrl/esc, tab→hyper, complex-mod library); espanso (identity from KeePassXC, autocorrect packs,
 prompts/snippets, `_pqi.yml` phone quick-replies); smart-lights CLI (openhue room controller);
 `aerospace_toggle_app_focus.sh`.
@@ -329,7 +403,11 @@ modify-template — vaults `mcpServers.composio` + `mcpServers.workspace-mcp` se
 `agents/chezmoi-apply.md`; `commands/pr-merge.md`; skills store `~/.agents/skills` + symlink fan-out
 (`~/.claude`, `~/.hermes`) + `update-skills.sh` (idle-gate, npx-dir relocation, portable roster,
 skill-lock manifest) + weekly LaunchAgent; vendored skills (herdr, moshi, deep-research, todoist-cli,
-lobster) + a stale repo-root `.agents/skills/moshi-best-practices/` (mangled — flagged for removal);
+lobster) + a stale repo-root `.agents/skills/moshi-best-practices/` (mangled — flagged for removal)
+*(superseded 2026-07-10 [audit]: S3 shipped the 31-skill store under `dot_agents/custom-skill-lock.json`
+— npx/clawhub/vendored-fork/app-owned lanes + disjoint five-profile hermes delivery; the "skill-lock
+manifest"/`skills-lock.json` name and this vendored-set snapshot are historical, see the amended SP2-plan
+S3 section)*;
 tool-pref `gh-axi` / `chrome-devtools-axi`; `claude-audit.sh`; Moshi pairing + 8-CLI hooks (claude+codex
 excluded — relay owns); codex relay hooks.
 
@@ -345,13 +423,21 @@ modify-template (`after_68` reminder) — **SP1 replaces with age-encrypted conf
 `127.0.0.1:8644` (`/webhooks/relay` + `/webhooks/osquery-priority`).
 
 **N. Tailscale.** Headless tailscaled system daemon (formula, `/Library/Tailscale` state); weekly
-re-copy; status reminder (`after_66`); GUI-cask future note; runbook.
+re-copy; status reminder (`after_66`); GUI-cask future note; runbook. **Decision history (dated
+2026-07-10):** the June `sudo brew services` decision (PR #31, commit `3b43d67`) was **superseded during
+execution** — running `brew services` under `sudo` changed ownership of the Cellar/opt/bin/sbin paths to
+root and broke the unattended weekly upgrade, so commit `01d15ad` switched to
+`tailscaled install-system-daemon` (a root-owned `/usr/local/bin` copy; the formula stays user-owned).
+The older June tailscaled spec/plan that still name brew-services as the final decision are superseded by
+that discovery (this is the roadmap's own copy of the supersession note; the June docs carry theirs from
+PR #38).
 
 **O. Dev / CI.** Nix flake (default + run shells: chezmoi/shellcheck/shfmt/mdformat+gfm/nixfmt/taplo/jq/
 yq/bats); `scripts/lint.sh` (priority runners, template rendering, osquery config render); justfile;
 `test/` (9 hand-rolled `.sh` + osquery bats, `just test` = sh loop + bats-in-nix); GitHub Actions
 `lint.yml` (macos-latest: flake check + `lint.sh -c`); `.editorconfig`/`.shellcheckrc`/`.mdformat.toml`;
-`skills-lock.json`; small tool configs (nix.conf, docker daemon.json, gh config, bat, yt-dlp, ssh config
+`skills-lock.json` *(→ `dot_agents/custom-skill-lock.json` as of 2026-07-10)*; small tool configs
+(nix.conf, docker daemon.json, gh config, bat, yt-dlp, ssh config
 with Raspberry Pi hosts).
 
 **P. Docs.** `docs/runbooks/macos-fresh-machine-quickstart.md`; `docs/superpowers/{specs,plans}`;
@@ -375,8 +461,9 @@ against source and adversarially verified (2 candidates were refuted and dropped
    script in place, both hermes guards enforcing, full suite green. SP1 is complete.
 4. **Next: writing-plans** for SP2 execution. Non-blocking operator odds and ends whenever convenient:
    `trash` the plaintext `~/.hermes/config.yaml.bak.*` backups (destructive — confirm per file);
-   `brew uninstall goplaces`; `npm uninstall -g openclaw`; phone-side Focus whitelist + Discord `#relay`
-   mobile mute.
+   `brew uninstall goplaces`; phone-side Focus whitelist + Discord `#relay` mobile mute. (OpenClaw removal
+   is **not** an ad-hoc operator action — the Wave-3d cleanup PR owns the `openclaw` package, the
+   AeroSpace F1 binding, and the docs together per R3.)
 
 ### Fixed this session (baseline — already on the branch)
 
@@ -392,18 +479,25 @@ against source and adversarially verified (2 candidates were refuted and dropped
 
 | Item | Where | SP |
 | --- | --- | --- |
-| Idle probe fail-**closed** aborts all channels if HIDIdleTime absent (defeats documented fail-open) | `relay.sh:68` | SP3 |
-| `jq -rs` whole-file slurp: one half-written trailing line → empty `(main) done`, loses all turns | `relay-agent.sh:17` | SP3 |
+| Idle probe fail-**closed** aborts all channels if HIDIdleTime absent (defeats documented fail-open) | `relay.sh:68` | **S7 (blocker)** |
+| `jq -rs` whole-file slurp: one half-written trailing line → empty `(main) done`, loses all turns | `relay-agent.sh:17` | **S7 (blocker)** |
 | SSH password auth still works — drop-in sets only `PasswordAuthentication no`; `UsePAM yes` + `KbdInteractiveAuthentication` default leave PAM login open (verified live) | `ssh-hardening.sh:13` | SP2/SP7 |
 | Age-key tripwire matches **its own source** → the moment SP1 lands, every commit fails a false leak alarm | `test/hermes-config-encrypted.sh:28` | SP1 |
 | bats count assertions false-pass on zero (`grep -c` → `"0\n0"` makes `[[ -ne ]]` error silently — re-verified by hand, expected-3-got-0 passes) | `test/osquery-alerter/lib.bash:384` (+418,462,206) | SP2 s2 |
+
+**[R2 / decision 10, 2026-07-10] The four relay delivery-loss defects — the idle-probe fail-closed and
+`jq -rs` slurp rows above, plus the `hue-pulse.sh` stale `mkdir` lock and the `relay.sh` flag-parse abort
+in the medium/low list below — are retagged from SP3 to **S7 BLOCKERS**: they are fixed in S7 BEFORE it
+merges (they silently drop notifications), not deferred. SP3 later re-derives their behavior test-first in
+Rust — these four bash fixes are its failure spec (see the SP3 "Bugs the rewrite must not reproduce"
+section), so the retag does not remove them from SP3's scope, it just forbids merging S7 with them open.**
 
 ### Bugs — medium/low (open)
 
 - `claude-stop-pulse.sh:18` empty/garbage marker → arithmetic abort; marker never cleaned (poisons every
   later Stop) [SP3].
-- `hue-pulse.sh` mkdir lock: no stale-lock recovery after SIGKILL (30s spin → silent no-op) [SP3].
-- `relay.sh` flag parse: value-flag as last arg → `shift 2` abort (breaks "always exits 0") [SP3].
+- `hue-pulse.sh` mkdir lock: no stale-lock recovery after SIGKILL (30s spin → silent no-op) [**S7 blocker**].
+- `relay.sh` flag parse: value-flag as last arg → `shift 2` abort (breaks "always exits 0") [**S7 blocker**].
 - `smart-lights`: `--scene previous` negative index breaks on bash 3.2; getopt errors invisible (exec
   redirect before parse); `-n/--next`/`-l/--last` declared but unhandled; `toggle_power` skips
   `validate_room_id` [SP7].
@@ -487,7 +581,8 @@ against source and adversarially verified (2 candidates were refuted and dropped
 - Generate the 5 non-osquery plists from one `.chezmoitemplates` partial + per-service data [SP7].
 - `.chezmoi.toml.tmpl` hardcodes `/Users/stephen` paths in a file meant to render on a *new* machine →
   derive from `.chezmoi.homeDir`/`.chezmoi.username` [SP7, fresh-machine correctness].
-- Pre-commit: skip the bats suite on docs/YAML-only commits (path filter) [SP2 s2].
+- Pre-commit: skip the bats suite on docs/YAML-only commits (path filter) [SP2 s2 — never implemented
+  there; pinned to **S11** 2026-07-10, see the plan's `fix/pre-commit-path-filter`].
 
 ### Installs (new tooling — user directives)
 
@@ -539,8 +634,9 @@ yabai in OS-targeting (removed), and claims only `dot_bashrc.tmpl` is shellcheck
 allowlist has 12 templates).
 
 **Disposition:** staleness hotfixes land now-ish as a small commit; the **comprehensive rewrites are
-their own slice at the END of SP2 (post-cutover)** so the repo file documents the *reimplemented*
-reality rather than being rewritten twice. Acceptance: global file ≈ preferences/bias rules/toolchain/
+their own slice (S12) that runs last of all implementation PRs but PRE-cutover — before Phase D**
+[audit 2026-07-10] so the repo file documents the *reimplemented* reality (converged on `main`) rather
+than being rewritten twice. Acceptance: global file ≈ preferences/bias rules/toolchain/
 destructive gates only, no dead references, global AGENTS.md parity; repo file ≈ identity + commands +
 architecture map + conventions with conditional deep-dives extracted to runbooks/skills and **every
 factual claim re-verified against the live repo at write time**; both files carry their evergreen-only
@@ -548,9 +644,11 @@ header comments forward.
 
 ## SP3 — Notification system (Rust): verified behavior contract
 
-**Decision:** one Rust service replaces `relay.sh` + `relay-agent.sh` + `hue-pulse.sh` +
+**Decision:** one Rust **stateless per-event executable** (NOT a daemon/service — invoked once per event;
+see the invocation model below) replaces `relay.sh` + `relay-agent.sh` + `hue-pulse.sh` +
 `claude-stop-pulse.sh`. `relay-codex-hooks.sh` (a one-shot config merger) and the bashrc bash-preexec
-notifier stay shell (the latter contingent on SP4). Built + deployed the way the herdr Rust plugins are
+notifier stay shell (bash — settled: the nushell evaluation resolved NO-GO, decision 9, so there is no
+shell-migration contingency). Built + deployed the way the herdr Rust plugins are
 (rustup toolchain, `run_onchange_after_*` `cargo build --release --locked`, `target/` gitignored).
 
 ### Two event classes (both always reach the user)
@@ -625,7 +723,7 @@ phone is the strong one.
 - **Invocation model: stateless per-event CLI.** Hooks and the shell notifier exec the binary once per
   event; probes run at fire time; no daemon, no persistent state (catch-up reads live herdr state, not a
   store). The bashrc long-command notifier re-points its `relay.sh` call at the new binary — its
-  thresholds (≥60 s local, ≥300 s full) move into the service's config.
+  thresholds (≥60 s local, ≥300 s full) move into the **stateless per-event executable's** config.
 - **Lights quiet window.** Hue has no Focus-mode equivalent, so pulses respect a configured quiet window
   (e.g. mirroring Sleep-Focus hours); anything missed during it is healed by catch-up-on-return.
 - **Channels are a pluggable boundary** (moshi = today's phone channel). A future custom iOS app —
@@ -714,7 +812,8 @@ brief `docs/plans/2026-07-02-repo-modernization-brief.md` §8 and is the binding
 - **SP3 contract:** the presence table is backed by `round2.csv` (labeled time-series), not assertion;
   each leg (hid-idle climbing under remote typing, per-pty transport fingerprint, tailscale-rate
   attention) was observed live. Open items for the final SP3 spec are enumerated in the deferred index
-  (UDR probe + failure semantics + tuning constants + quiet-window hours + test split).
+  (failure semantics + tuning constants + quiet-window hours + test split; the UDR probe is RESOLVED and
+  no longer an open item).
 - **Re-evaluated 2026-07-03 (max effort), defects found and corrected:** the presence table's hid-idle
   row had inverted the core finding (said "local *or* remote" resets it — the experiment showed remote
   does **not**); SP1/SP2 described already-executed work as pending (scaffolding commits, the `f7220d9`
