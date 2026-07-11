@@ -1,35 +1,31 @@
 #!/usr/bin/env bash
-# herdr-migration-verify.sh: run_after_58-herdr-migration-verify writes the
-# herdr-verified stamp ONLY when herdr is fully proven as a multiplexer, and
-# removes it otherwise. The stamp is the TRIGGER signal run_onchange_before_10
-# consults (and re-checks live) before it lets `brew bundle --cleanup` remove
-# the old multiplexer (tmux/sesh): no stamp, no teardown. The shared predicate
-# (.chezmoitemplates/herdr-health-check.sh.tmpl) requires ALL of:
+# herdr-migration-verify.sh: run_after_58-herdr-migration-verify runs
+# post-target-update and owns the deferred tmux/sesh teardown that before_10
+# withholds. Its state machine:
 #
-#   1. the herdr binary is present and runnable
-#   2. its config.toml is present AND passes the live reload validation
-#      (`herdr server reload-config` reports status "applied" with an empty
-#      diagnostics array; herdr 0.7.0 offers no validate-only subcommand)
-#   3. BOTH vendored plugins are registered with the EXACT plugin id, enabled,
-#      and warning-free, in an array-shaped plugin list with no error envelope
-#      and no duplicate entries
-#   4. the session server answers with an array-shaped session list containing
-#      at least one running:true entry and no error envelope
+#   1. SHORT-CIRCUIT: if neither tmux nor sesh is installed there is nothing to
+#      migrate. Make NO herdr contact at all (this also removes the routine
+#      reload-config side effect on already-migrated machines) and exit 0.
+#   2. Otherwise run the shared health check
+#      (.chezmoitemplates/herdr-health-check.sh.tmpl) against the CURRENT
+#      (just-installed) herdr. It requires ALL of: the binary runs; the session
+#      server answers with a running session; config.toml passes the live
+#      reload validation; both vendored plugins are registered by EXACT id,
+#      enabled, and warning-free in an array-shaped list.
+#   3. On full verification, perform the deferred cleanup itself: regenerate the
+#      Brewfile from the same package data before_10 uses and run
+#      `brew bundle cleanup --force` with it (the removal before_10 withheld).
+#   4. On ANY verification failure, warn loudly (naming the interactive
+#      activation step) and exit 0; the migration retries naturally next apply.
 #
-# Exact-id-only matching is NOT enough: a probe with an invalid config, a
-# disabled warning-bearing plugin, and one running session used to earn the
-# stamp (herdr keeps disabled plugins registered and lists invalid manifests
-# with warnings), so the predicate must reject those unusable installations.
-#
-# The script never aborts the apply (exit 0 always, even when filesystem
-# operations on the stamp fail) and is idempotent. It is exercised by
-# rendering the REAL template and running it against a stub herdr on PATH
-# with a scratch HOME.
+# The script never aborts the apply (exit 0 always, even when the cleanup
+# fails) and holds no stamp -- it re-derives everything from live state each
+# apply. It is exercised by rendering the REAL template and running it against a
+# stub herdr and a stub brew on PATH with a scratch HOME.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SCRIPT="$REPO_ROOT/.chezmoiscripts/run_after_58-herdr-migration-verify.sh.tmpl"
-STAMP_REL=".cache/herdr-migration/verified"
 
 fail() {
   printf 'FAIL: %s\n' "$*" >&2
@@ -57,9 +53,10 @@ if [[ ! -s $rendered ]]; then
   exit 0
 fi
 
-# Stub herdr. Modes flip one health signal each to prove the stamp needs ALL
-# of them; the healthy shape mirrors the live 0.7.0 CLI (enabled:true, no
-# warnings key, id envelope on plugin/reload responses).
+# Stub herdr. Modes flip one health signal each to prove cleanup needs ALL of
+# them; the healthy shape mirrors the live 0.7.0 CLI (enabled:true, no warnings
+# key, id envelope on plugin/reload responses). Every invocation appends its
+# argv to $HERDR_RECORD so a test can prove herdr was (or was not) contacted.
 #   healthy          -> version ok, both plugins enabled+warning-free,
 #                       session running, config reload applied cleanly
 #   binary-broken    -> every invocation fails (`herdr --version` included)
@@ -76,6 +73,7 @@ make_herdr_stub() {
   local dir="$1" mode="$2"
   cat >"$dir/herdr" <<STUB
 #!/bin/bash
+printf '%s\n' "\$*" >>"\$HERDR_RECORD"
 mode="$mode"
 if [[ \$mode == binary-broken ]]; then
   exit 1
@@ -136,129 +134,106 @@ STUB
   chmod +x "$dir/herdr"
 }
 
-# run_case <name> <mode> <config?> <pre-stamp?> [fs-sabotage]
-#   fs-sabotage: dir-at-stamp     -> a DIRECTORY occupies the stamp path
-#                unwritable-cache -> ~/.cache is read-only and the stamp
-#                                    subdir does not exist (mkdir -p fails)
-run_case() {
-  local name="$1" mode="$2" config="$3" pre_stamp="$4" sabotage="${5:-none}"
-  CASE_HOME="$work/$name/home"
-  local bin="$work/$name/bin"
-  STAMP="$CASE_HOME/$STAMP_REL"
-  ERR_FILE="$work/$name/stderr"
-  mkdir -p "$bin" "$CASE_HOME/.config/herdr"
-  make_herdr_stub "$bin" "$mode"
-  [[ $config == config ]] && printf 'x = 1\n' >"$CASE_HOME/.config/herdr/config.toml"
-  if [[ $pre_stamp == pre-stamp ]]; then
-    mkdir -p "$(dirname "$STAMP")"
-    : >"$STAMP"
-  fi
-  case "$sabotage" in
-    dir-at-stamp)
-      mkdir -p "$STAMP"
-      ;;
-    unwritable-cache)
-      mkdir -p "$CASE_HOME/.cache"
-      chmod 555 "$CASE_HOME/.cache"
-      ;;
-    none) ;;
-    *) fail "unknown sabotage mode: $sabotage" ;;
-  esac
-  RC=0
-  HOME="$CASE_HOME" PATH="$bin:$PATH" bash "$rendered" >/dev/null 2>"$ERR_FILE" || RC=$?
-  # Re-open a sabotaged read-only dir so the EXIT-trap cleanup can remove it.
-  if [[ $sabotage == unwritable-cache ]]; then
-    chmod 755 "$CASE_HOME/.cache"
-  fi
+# Stub brew: `list <pkg>` reports installed only for names in $INSTALLED_PKGS;
+# `bundle` records its full argv and exits per $BREW_BUNDLE_RC (so a cleanup
+# failure can be simulated). after_58 passes the Brewfile via --file, not stdin,
+# so the stub must NOT read stdin (doing so would block on an unclosed fd).
+make_brew_stub() {
+  local dir="$1"
+  cat >"$dir/brew" <<'STUB'
+#!/bin/bash
+case "$1" in
+  list)
+    pkg="$2"
+    read -ra installed_packages <<<"$INSTALLED_PKGS"
+    for installed in "${installed_packages[@]}"; do
+      [[ $pkg == "$installed" ]] && exit 0
+    done
+    exit 1 ;;
+  bundle)
+    printf '%s\n' "$*" >>"$BUNDLE_RECORD"
+    exit "${BREW_BUNDLE_RC:-0}" ;;
+esac
+exit 0
+STUB
+  chmod +x "$dir/brew"
 }
 
-stamp_present() { [[ -f $STAMP ]]; }
+# run_case <name> <herdr-mode> <installed-pkgs> <config?> [brew-bundle-rc]
+run_case() {
+  local name="$1" mode="$2" installed="$3" config="$4" bundle_rc="${5:-0}"
+  CASE_HOME="$work/$name/home"
+  local prefix="$work/$name/prefix"
+  local path_bin="$work/$name/path-bin"
+  HERDR_RECORD="$work/$name/herdr-argv"
+  BUNDLE_RECORD="$work/$name/bundle-argv"
+  ERR_FILE="$work/$name/stderr"
+  OUT_FILE="$work/$name/stdout"
+  mkdir -p "$prefix/bin" "$path_bin" "$CASE_HOME/.config/herdr"
+  make_brew_stub "$prefix/bin"
+  make_herdr_stub "$path_bin" "$mode"
+  : >"$HERDR_RECORD"
+  [[ $config == config ]] && printf 'x = 1\n' >"$CASE_HOME/.config/herdr/config.toml"
+  RC=0
+  HOME="$CASE_HOME" HOMEBREW_PREFIX="$prefix" PATH="$path_bin:$PATH" \
+    INSTALLED_PKGS="$installed" HERDR_RECORD="$HERDR_RECORD" \
+    BUNDLE_RECORD="$BUNDLE_RECORD" BREW_BUNDLE_RC="$bundle_rc" \
+    bash "$rendered" >"$OUT_FILE" 2>"$ERR_FILE" || RC=$?
+}
 
-# Healthy: stamp written, exit 0.
-run_case healthy healthy config no-stamp
-[[ $RC -eq 0 ]] || fail "healthy: expected exit 0, got $RC ($(cat "$ERR_FILE"))"
-stamp_present || fail "healthy: verified stamp was not written despite herdr fully healthy"
+cleanup_ran() { [[ -f $BUNDLE_RECORD ]] && grep -q 'bundle cleanup --force' "$BUNDLE_RECORD"; }
+herdr_contacted() { [[ -s $HERDR_RECORD ]]; }
 
-# Idempotent: a second run on a healthy host keeps the stamp, still exit 0.
-run_case healthy-again healthy config pre-stamp
-[[ $RC -eq 0 ]] || fail "healthy-again: expected exit 0, got $RC"
-stamp_present || fail "healthy-again: stamp removed on a healthy second run (not idempotent)"
+# --- short-circuit: fresh/already-migrated machine, no multiplexer -----------
+# No tmux/sesh installed: NO herdr contact, no cleanup, exit 0. herdr is broken
+# to prove it is never invoked (the short-circuit precedes any health check).
+run_case fresh-no-op binary-broken "wget" config
+[[ $RC -eq 0 ]] || fail "fresh-no-op: expected exit 0, got $RC ($(cat "$ERR_FILE"))"
+herdr_contacted && fail "fresh-no-op: herdr was contacted though no multiplexer is installed (short-circuit skipped)"
+cleanup_ran && fail "fresh-no-op: brew bundle cleanup ran though nothing needs migrating"
 
-# One plugin missing: NOT verified; a stale stamp is removed.
-run_case plugin-missing plugin-missing config pre-stamp
-[[ $RC -eq 0 ]] || fail "plugin-missing: expected exit 0, got $RC"
-stamp_present && fail "plugin-missing: stamp present though a plugin is not registered"
+# --- migration host, happy path ----------------------------------------------
+# tmux installed + herdr fully healthy: verify, then run brew bundle cleanup
+# --force to remove tmux/sesh. The success message is printed.
+run_case migrate-happy healthy "tmux" config
+[[ $RC -eq 0 ]] || fail "migrate-happy: expected exit 0, got $RC ($(cat "$ERR_FILE"))"
+herdr_contacted || fail "migrate-happy: herdr was never contacted though tmux is installed"
+cleanup_ran || fail "migrate-happy: brew bundle cleanup --force did not run though herdr is verified (migration would never complete)"
+grep -q 'migration complete' "$OUT_FILE" ||
+  fail "migrate-happy: no migration-complete message after a verified cleanup ($(cat "$OUT_FILE"))"
 
-# Plugin registered but DISABLED: an unusable installation must not stamp.
-run_case plugin-disabled plugin-disabled config pre-stamp
-[[ $RC -eq 0 ]] || fail "plugin-disabled: expected exit 0, got $RC"
-stamp_present && fail "plugin-disabled: stamp present though a required plugin is disabled"
+# --- serverless host: defers forever without ever cleaning -------------------
+# tmux installed, herdr present but its session server is down (no interactive
+# terminal ever started it): NOT verified, no cleanup, and the warning must name
+# the interactive activation step. Exit 0 (retries next apply).
+run_case serverless session-down "tmux" config
+[[ $RC -eq 0 ]] || fail "serverless: expected exit 0, got $RC"
+herdr_contacted || fail "serverless: herdr was never contacted though tmux is installed"
+cleanup_ran && fail "serverless: brew bundle cleanup ran though the herdr server is down (would remove the only multiplexer)"
+grep -qi 'interactive terminal' "$ERR_FILE" ||
+  fail "serverless: the deferral warning does not name the interactive activation step ($(cat "$ERR_FILE"))"
 
-# Plugin enabled but carrying a manifest WARNING: not proven usable.
-run_case plugin-warning plugin-warning config pre-stamp
-[[ $RC -eq 0 ]] || fail "plugin-warning: expected exit 0, got $RC"
-stamp_present && fail "plugin-warning: stamp present though a required plugin carries warnings"
+# --- predicate rejection cases: multiplexer present, but herdr unhealthy ------
+# Each unhealthy mode must block the cleanup. Cleanup running under any of these
+# would remove the only working multiplexer against an unusable herdr.
+for mode in binary-broken plugin-missing plugin-disabled plugin-warning \
+  plugin-wrong-id plugin-duplicate plugin-mixed session-stopped config-invalid; do
+  run_case "reject-$mode" "$mode" "tmux" config
+  [[ $RC -eq 0 ]] || fail "reject-$mode: expected exit 0, got $RC ($(cat "$ERR_FILE"))"
+  cleanup_ran && fail "reject-$mode: brew bundle cleanup ran though herdr is unhealthy ($mode)"
+done
 
-# The list answers with a DIFFERENT plugin id: exact-id equality must reject
-# it (kills any relaxation of the id match to a substring or any-entry check).
-run_case plugin-wrong-id plugin-wrong-id config pre-stamp
-[[ $RC -eq 0 ]] || fail "plugin-wrong-id: expected exit 0, got $RC"
-stamp_present && fail "plugin-wrong-id: stamp present though the list returned a different plugin id"
+# config.toml absent, herdr otherwise healthy: NOT verified, no cleanup.
+run_case reject-no-config healthy "tmux" no-config
+[[ $RC -eq 0 ]] || fail "reject-no-config: expected exit 0, got $RC"
+cleanup_ran && fail "reject-no-config: brew bundle cleanup ran though config.toml is absent"
 
-# Duplicate entries for one id: exactly-one is the contract.
-run_case plugin-duplicate plugin-duplicate config pre-stamp
-[[ $RC -eq 0 ]] || fail "plugin-duplicate: expected exit 0, got $RC"
-stamp_present && fail "plugin-duplicate: stamp present though the plugin list carries duplicate entries"
+# --- never-abort: cleanup itself fails ---------------------------------------
+# herdr verified but `brew bundle cleanup` exits non-zero: warn and exit 0, do
+# NOT abort the apply. tmux/sesh may remain; the next apply retries.
+run_case cleanup-fails healthy "tmux" config 5
+[[ $RC -eq 0 ]] || fail "cleanup-fails: a failing brew bundle cleanup aborted the apply (rc=$RC; stderr: $(cat "$ERR_FILE"))"
+cleanup_ran || fail "cleanup-fails: brew bundle cleanup was expected to be attempted"
+[[ -s $ERR_FILE ]] || fail "cleanup-fails: no warning printed about the failed cleanup"
 
-# Object-shaped (mixed) plugins container: only the CLI's real array shape
-# counts; anything else is malformed and must not verify.
-run_case plugin-mixed plugin-mixed config pre-stamp
-[[ $RC -eq 0 ]] || fail "plugin-mixed: expected exit 0, got $RC"
-stamp_present && fail "plugin-mixed: stamp present though the plugins container is not an array"
-
-# Session server down: NOT verified.
-run_case session-down session-down config pre-stamp
-[[ $RC -eq 0 ]] || fail "session-down: expected exit 0, got $RC"
-stamp_present && fail "session-down: stamp present though the session server is unreachable"
-
-# Session list answers but nothing is running: NOT verified.
-run_case session-stopped session-stopped config pre-stamp
-[[ $RC -eq 0 ]] || fail "session-stopped: expected exit 0, got $RC"
-stamp_present && fail "session-stopped: stamp present though no session is running"
-
-# Config missing: NOT verified.
-run_case no-config healthy no-config pre-stamp
-[[ $RC -eq 0 ]] || fail "no-config: expected exit 0, got $RC"
-stamp_present && fail "no-config: stamp present though config.toml is absent"
-
-# Config present but REJECTED by the live reload validation: NOT verified.
-run_case config-invalid config-invalid config pre-stamp
-[[ $RC -eq 0 ]] || fail "config-invalid: expected exit 0, got $RC"
-stamp_present && fail "config-invalid: stamp present though herdr rejected the config with diagnostics"
-
-# Binary broken: NOT verified.
-run_case binary-broken binary-broken config pre-stamp
-[[ $RC -eq 0 ]] || fail "binary-broken: expected exit 0, got $RC"
-stamp_present && fail "binary-broken: stamp present though the herdr binary does not run"
-
-# --- never-abort guarantees (the apply must survive filesystem sabotage) ----
-
-# A DIRECTORY occupies the stamp path, herdr healthy: the truncate fails; the
-# script must warn and exit 0, not abort the apply.
-run_case dir-at-stamp-healthy healthy config no-stamp dir-at-stamp
-[[ $RC -eq 0 ]] || fail "dir-at-stamp-healthy: a directory at the stamp path aborted the apply (rc=$RC; stderr: $(cat "$ERR_FILE"))"
-[[ -s $ERR_FILE ]] || fail "dir-at-stamp-healthy: no warning printed about the unwritable stamp"
-
-# A DIRECTORY occupies the stamp path, herdr broken: the rm fails; the script
-# must warn and exit 0.
-run_case dir-at-stamp-broken binary-broken config no-stamp dir-at-stamp
-[[ $RC -eq 0 ]] || fail "dir-at-stamp-broken: a directory at the stamp path aborted the apply on the not-verified path (rc=$RC; stderr: $(cat "$ERR_FILE"))"
-[[ -s $ERR_FILE ]] || fail "dir-at-stamp-broken: no warning printed about the unremovable stamp path"
-
-# ~/.cache is read-only and the stamp subdir is missing, herdr healthy: the
-# mkdir fails; the script must warn and exit 0.
-run_case unwritable-cache healthy config no-stamp unwritable-cache
-[[ $RC -eq 0 ]] || fail "unwritable-cache: an unwritable cache dir aborted the apply (rc=$RC; stderr: $(cat "$ERR_FILE"))"
-[[ -s $ERR_FILE ]] || fail "unwritable-cache: no warning printed about the unwritable cache dir"
-
-printf 'PASS: run_after_58 stamps only a fully healthy herdr (binary, validated config, both plugins enabled+warning-free by exact id in an array-shaped list, running session), rejects disabled/warning/wrong-id/duplicate/mixed/stopped/invalid-config states, and never aborts the apply even under filesystem sabotage\n'
+printf 'PASS: after_58 short-circuits with no herdr contact when no multiplexer is installed, verifies the current herdr (binary, running session, validated config, both plugins enabled+warning-free by exact id) before running brew bundle cleanup --force, defers with an activation-step warning on any unhealthy state or a serverless host, and never aborts the apply even when the cleanup fails\n'

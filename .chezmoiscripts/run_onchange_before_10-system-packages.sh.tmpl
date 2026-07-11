@@ -19,40 +19,26 @@ brew_bin="$brew_prefix/bin/brew"
 # --- live-migration ordering safety (herdr replaces tmux/sesh) ---
 # `brew bundle --cleanup` uninstalls any formula/cask absent from the desired
 # set below, including tmux/sesh once they leave the manifest. Removing the old
-# multiplexer BEFORE herdr is installed and healthy would strand a machine with
-# no multiplexer if the herdr install (before_15) or plugin build/verify
-# (after_55/57/58) fails. So withhold the --cleanup that would remove tmux/sesh
-# until BOTH hold:
-#   1. TRIGGER: the stamp run_after_58 writes is present (its presence is also
-#      interpolated into this rendered body below, so the stamp write re-fires
-#      this run_onchange script on the next apply), and
-#   2. AUTHORITY: a LIVE herdr health check passes in this same apply. The
-#      stamp alone is only proof herdr was healthy at some PAST apply; if herdr
-#      broke since, a stale stamp must not authorize removing the only working
-#      multiplexer.
+# multiplexer HERE is unsafe: chezmoi runs ALL before_ scripts, THEN updates
+# target files, THEN runs after_ scripts, so a --cleanup in this before_ script
+# would validate and tear down against the PREVIOUS revision's installed herdr,
+# and a broken NEW revision would be discovered only after the fallback was
+# already gone. So this script NEVER removes the legacy multiplexer: while tmux
+# or sesh is installed it withholds --cleanup entirely. run_after_58 owns the
+# teardown (it runs post-target-update): it verifies the just-installed herdr
+# LIVE and, only on success, performs the same cleanup this script withholds.
+# bundle_args always carries --file, so it is never an empty array (safe under
+# set -u).
 #
-# Effect on a not-yet-migrated machine: apply N installs herdr, builds its
-# plugins, and after_58 verifies it and writes the stamp, which flips this
-# script's rendered hash; apply N+1 re-runs this script, re-checks herdr LIVE,
-# and runs --cleanup to remove tmux/sesh. tmux/sesh are never removed before
-# herdr is proven healthy in the removing apply itself. bundle_args always
-# carries --file, so it is never an empty array (safe under set -u).
+# True migration sequence (plugin registration and the session server need a
+# RUNNING herdr server, which ONLY an interactive bashrc starts; a chezmoiscript
+# must never start it): apply once (installs herdr, cleanup deferred here) ->
+# open an interactive terminal so the herdr server starts -> apply again
+# (after_58 verifies herdr and runs the cleanup). On a headless / serverless
+# host the deferral simply persists until an interactive terminal is opened.
 #
-# ROLLBACK: if herdr never verifies (or breaks after the stamp was written),
-# tmux/sesh stay installed and usable; no teardown happens. To recover a broken
-# cutover, keep using tmux; reinstall with `brew install tmux sesh` if
-# something else removed them, and restore the tmux config from git history.
-# Once herdr is healthy again, `chezmoi apply` re-writes the stamp (after_58)
-# and the next apply completes the migration.
-#
-# The line below interpolates the stamp's PRESENCE (never its contents; file
-# contents spliced raw into a script are a shell-injection channel) into this
-# rendered body: chezmoi re-runs a run_onchange script only when its rendered
-# content changes, and the stamp file itself is otherwise consulted only at
-# run time, which chezmoi cannot see.
-# herdr-migration-stamp-present: {{ if stat (printf "%s/.cache/herdr-migration/verified" (env "HOME")) }}1{{ else }}0{{ end }}
-{{ includeTemplate "herdr-health-check.sh.tmpl" }}
-herdr_verified_stamp="$HOME/.cache/herdr-migration/verified"
+# ROLLBACK: while herdr is unverified, tmux/sesh stay installed and usable; no
+# teardown happens. Keep using tmux until after_58 completes the migration.
 bundle_args=(--cleanup --file=/dev/stdin)
 multiplexer_present=false
 for multiplexer in tmux sesh; do
@@ -62,15 +48,9 @@ for multiplexer in tmux sesh; do
   fi
 done
 if [[ $multiplexer_present == true ]]; then
-  if [[ ! -f $herdr_verified_stamp ]]; then
-    bundle_args=(--file=/dev/stdin)
-    printf 'herdr not yet verified but tmux/sesh still installed: running brew bundle WITHOUT --cleanup so the old multiplexer is not removed before herdr is proven.\n' >&2
-    printf 'The next apply, after run_after_58 verifies herdr and writes %s, runs --cleanup to complete the migration.\n' "$herdr_verified_stamp" >&2
-  elif ! herdr_health_reason="$(herdr_health_check)"; then
-    bundle_args=(--file=/dev/stdin)
-    printf 'STALE herdr-verified stamp: %s exists but herdr fails its live health check right now (%s).\n' "$herdr_verified_stamp" "$herdr_health_reason" >&2
-    printf 'Running brew bundle WITHOUT --cleanup so tmux/sesh are not removed while herdr is broken; fix herdr (run_after_58 re-verifies on every apply), then re-apply.\n' >&2
-  fi
+  bundle_args=(--file=/dev/stdin)
+  printf 'Legacy multiplexer (tmux/sesh) still installed: running brew bundle WITHOUT --cleanup so it is not removed before herdr is verified.\n' >&2
+  printf 'run_after_58 owns the teardown and completes the migration once herdr is healthy: open an interactive terminal (bashrc auto-attaches and starts the herdr server), then run chezmoi apply again so after_58 verifies herdr and removes tmux/sesh.\n' >&2
 fi
 
 # Use `brew bundle ...` to install all taps, formulae, casks, and macOS App Store apps.
