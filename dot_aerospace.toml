@@ -194,7 +194,6 @@ on-mode-changed = []
     # Smart lights — Studio (3F - Studio)
     f8  = 'exec-and-forget ~/.local/bin/smart-lights --brightness down'
     f9  = 'exec-and-forget ~/.local/bin/smart-lights --power'
-    f1  = 'exec-and-forget open http://127.0.0.1:18789/'
     f10 = 'exec-and-forget ~/.local/bin/smart-lights --brightness up'
     f5  = 'exec-and-forget ~/.local/bin/smart-lights --scene previous'
     f6  = 'exec-and-forget ~/.local/bin/smart-lights --scene next'
