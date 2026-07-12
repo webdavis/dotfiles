@@ -22,3 +22,18 @@ teardown() { teardown_harness; }
   run grep -rqF "DEADBEEFCAFE1234" "$OSQUERY_DELIVERY_LOG" # delivery log = metadata only
   [ "$status" -ne 0 ]
 }
+
+@test "T-CAP-overlong-spool: an over-long page spools UNDER the 2000-char cap and then drains (FX8)" {
+  # A 4000-char field would render a >3000-char body; without a final cap the POST is
+  # rejected and re-spooled forever (retry never shrinks it). The SPOOLED body must be
+  # the truncated one (< 2000), and it must deliver once the gateway recovers.
+  local big
+  big=$(printf 'A%.0s' $(seq 1 4000))
+  run_redaction_h2 "$(row new_admin_user added 1 "$(jq -cn --arg u "$big" '{username:$u,uid:"503"}')")"
+  assert_spool_count 1
+  local detail
+  detail=$(cut -f4 "$(find "$OSQUERY_SPOOL_DIR" -type f | head -1)" | base64 -d | jq -r '.alert.detail')
+  [ "${#detail}" -lt 2000 ] # the spooled body is the capped one
+  run_h2_drain
+  assert_spool_count 0 # recovers and clears
+}

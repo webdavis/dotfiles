@@ -38,6 +38,22 @@ teardown() { teardown_harness; }
   [ "$(grep -oF 'New setuid root binary' <<<"$body" | wc -l)" -eq 8 ] # exactly eight blocks shown
 }
 
+@test "T-PAGE-len-cap: the rendered page is capped under 2000 chars even at max blocks (FX8)" {
+  # The eight-block cap bounds COUNT, not length: eight blocks with long fields can still
+  # exceed Discord's 2000-char limit, and an over-length POST is rejected and re-spooled
+  # forever. A final length cap after rendering guarantees the body fits.
+  local rows=() i big
+  big=$(printf 'B%.0s' $(seq 1 300))
+  for i in $(seq 1 8); do
+    rows+=("$(row new_admin_user added 1 "$(jq -cn --arg u "$big$i" '{username:$u,uid:"5"}')")")
+  done
+  run_alerter "$(printf '%s\n' "${rows[@]}")"
+  local body
+  body=$(grep $'^CRIT\t' "$SEND_ALERT_LOG" | cut -f3)
+  [ "${#body}" -lt 2000 ] # the load-bearing Discord bound
+  grep -qF truncated <<<"$body"
+}
+
 @test "T-PAGE-sharing: a high-risk remote-access service turning on pages" {
   # Rebuilt from the dead log-only detector: the query emits a row per ENABLED
   # high-risk sharing service (screen sharing / remote management / etc.), so a new

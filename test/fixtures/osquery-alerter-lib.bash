@@ -159,6 +159,19 @@ run_redaction_h2() {
     bash "$ALERTER"
 }
 
+# Flip the H2 curl shim to success and drain the spool via the real dispatcher, so a
+# test can prove a spooled (capped) page actually delivers and clears on recovery.
+run_h2_drain() {
+  printf '#!/usr/bin/env bash\nprintf 200\n' >"$HARNESS_HOME/.local/bin/curl"
+  chmod +x "$HARNESS_HOME/.local/bin/curl"
+  HOME="$HARNESS_HOME" \
+    PATH="$HARNESS_HOME/.local/bin:$PATH" \
+    OSQUERY_WEBHOOK_SECRET="$OSQUERY_WEBHOOK_SECRET" \
+    OSQUERY_SPOOL_DIR="$OSQUERY_SPOOL_DIR" \
+    OSQUERY_DELIVERY_LOG="$OSQUERY_DELIVERY_LOG" \
+    bash -c 'source "$HOME/.local/bin/osquery-alert-dispatch.sh"; _drain_spool'
+}
+
 # Heartbeat harness: setup_harness (send_alert stub) + an osqueryi stub. HEARTBEAT_OK=0
 # makes the osqueryi stub fail, so a test can drive the "osqueryd not answering" branch.
 setup_heartbeat_harness() {

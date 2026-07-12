@@ -247,6 +247,16 @@ _digest_append() {
   chmod 600 "$DIGEST_STORE" 2>/dev/null || true
 }
 
+# FX4: an agent_authfile_changed content change emits removed{old} + added{new} on the
+# same path, so a removed row is a rotation DUPLICATE only when an added row for the SAME
+# path is present in this batch. A pure (unpaired) deletion of a page-tier authfile — the
+# pipeline HMAC key or the paseo keypair — mutes alerts or hijacks access and must PAGE.
+# Precompute the set of added authfile paths in this batch so the loop can tell a paired
+# rotation (suppress the removed half) from a bare deletion (route it by its tier).
+authfile_added_paths=$(printf '%s\n' "$raw_findings" |
+  jq -r 'select(.q == "agent_authfile_changed" and .act == "added") | .cols.path // empty' 2>/dev/null || true)
+_authfile_rotation_pair() { [[ -n $authfile_added_paths ]] && grep -qxF -- "$1" <<<"$authfile_added_paths"; }
+
 enriched=""
 while IFS= read -r obj; do
   [[ -z $obj ]] && continue
@@ -284,11 +294,15 @@ while IFS= read -r obj; do
     # tampering forges/mutes alerts or hijacks remote access → page. The rotation-prone
     # rest (.env, config.toml, cli-client-id) is noisier → digest.
     agent_authfile_changed)
-      # A content change emits removed{old hash} + added{new hash} on the same path; the
-      # change is carried by the added row, so the removed row is a pure duplicate. Guard
-      # on added so a rotation neither double-pages nor writes two digest lines.
-      [[ $(jq -r '.act' <<<"$obj") == added ]] || continue
-      case "$(jq -r '.cols.path // ""' <<<"$obj")" in
+      # A removed row is suppressed ONLY when paired with an added row for the SAME path
+      # in this batch (a content-change rotation: removed{old} + added{new}). An UNPAIRED
+      # removal is a real deletion — route it by the file's tier exactly like a change, so
+      # a bare deletion of a page-tier authfile pages instead of vanishing silently (FX4).
+      authfile_path=$(jq -r '.cols.path // ""' <<<"$obj")
+      if [[ $(jq -r '.act' <<<"$obj") != added ]] && _authfile_rotation_pair "$authfile_path"; then
+        continue
+      fi
+      case "$authfile_path" in
         */webhook-secret | */daemon-keypair.json) sev="CRIT" ;;
         *)
           _digest_append "$obj"
@@ -449,8 +463,12 @@ enriched=${enriched%$'\n'}
 render=$(printf '%s\n' "$enriched" | jq -s '
   # Wrap a value in Discord inline-code backticks. The value is attacker-controlled
   # (launchd label, path); strip backticks so it cannot break out of the inline-code
-  # span and inject markdown. Display-only — does not affect detection/severity.
-  def code: "`" + (gsub("`"; "") ) + "`";
+  # span and inject markdown. Display-only — does not affect detection/severity. FX8:
+  # bound each field to 240 chars with an explicit omission marker so a single giant
+  # value (a 4KB crafted path/username) cannot alone blow the 2000-char Discord budget.
+  def code:
+    (gsub("`"; "")) as $v
+    | "`" + (if ($v | length) > 240 then ($v[0:240] + "…(truncated)") else $v end) + "`";
   # Plain-English name of a macOS protection query, or null if the finding is not one.
   def protname:
     if (.q | test("^firewall")) then "Firewall"
@@ -561,10 +579,17 @@ render=$(printf '%s\n' "$enriched" | jq -s '
     # over-length POST is rejected and re-spooled forever — retry never shrinks it). The
     # dropped detail still lands in results.log. Mirrors the digest group cap.
     pbody: (
-      ($crit[0:8] | map(block) | join("\n\n"))
-      + (if ($crit | length) > 8
-         then "\n\n… and \(($crit | length) - 8) more CRITICAL finding(s) — see results.log"
-         else "" end)
+      (($crit[0:8] | map(block) | join("\n\n"))
+       + (if ($crit | length) > 8
+          then "\n\n… and \(($crit | length) - 8) more CRITICAL finding(s) — see results.log"
+          else "" end)) as $full
+      # FX8: the eight-block cap bounds COUNT, not length — eight blocks with long fields
+      # can still exceed 2000. Apply a FINAL hard length cap (per-field truncation above
+      # already bounds any single value); the truncated body is exactly what send_alert
+      # spools, so an over-length page can never wedge the spool.
+      | if ($full | length) > 1900
+        then ($full[0:1900] + "\n… (truncated to fit the 2000-char limit — see results.log)")
+        else $full end
     )
   }
 ')

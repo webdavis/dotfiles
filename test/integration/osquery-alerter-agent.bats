@@ -53,13 +53,39 @@ teardown() { teardown_harness; }
   assert_digest_count 1
 }
 
-@test "T-NEG-authfile-removed: the removed half of a credential rotation does not page or digest" {
-  # A content change emits a removed{old hash} + added{new hash} pair on the same path;
-  # the change is carried by the added row, so the removed row is a pure duplicate and
-  # must neither page (webhook-secret/keypair) nor write a second digest line.
-  run_alerter "$(row agent_authfile_changed removed 1 '{"path":"/Users/x/.config/osquery/webhook-secret","sha256":"OLDHASH"}')"
-  assert_no_page
+@test "T-NEG-authfile-rotate-pair: a webhook-secret rotation (removed+added, same batch) pages once" {
+  # A content change emits removed{old hash} + added{new hash} on the same path; the
+  # change is carried by the added row, so the removed row is suppressed ONLY because it
+  # is paired — the page fires once, not twice, and no second digest line is written.
+  local removed added
+  removed=$(row agent_authfile_changed removed 1 '{"path":"/Users/x/.config/osquery/webhook-secret","sha256":"OLDHASH"}')
+  added=$(row agent_authfile_changed added 1 '{"path":"/Users/x/.config/osquery/webhook-secret","sha256":"NEWHASH"}')
+  run_alerter "$(printf '%s\n%s' "$removed" "$added")"
+  assert_page_has webhook-secret
+  local body
+  body=$(grep $'^CRIT\t' "$SEND_ALERT_LOG" | cut -f3)
+  [ "$(grep -oF 'Agent credential changed' <<<"$body" | wc -l)" -eq 1 ] # removed half suppressed
   assert_digest_count 0
+}
+
+@test "T-PAGE-authfile-delete: an UNPAIRED webhook-secret deletion pages (FX4)" {
+  # Pure deletion of the pipeline HMAC key (no added row in the batch) mutes every future
+  # alert — the loudest possible failure. The old code dropped ALL removed rows, so this
+  # vanished silently. An unpaired page-tier authfile removal must page.
+  run_alerter "$(row agent_authfile_changed removed 1 '{"path":"/Users/x/.config/osquery/webhook-secret","sha256":"OLDHASH"}')"
+  assert_page_has webhook-secret
+}
+
+@test "T-PAGE-authfile-delete-keypair: an UNPAIRED paseo keypair deletion pages (FX4)" {
+  run_alerter "$(row agent_authfile_changed removed 1 '{"path":"/Users/x/.paseo/daemon-keypair.json","sha256":"OLDHASH"}')"
+  assert_page_has daemon-keypair
+}
+
+@test "T-DIG-authfile-delete-digesttier: an unpaired .env deletion digests (its tier), never pages" {
+  # A digest-tier authfile deletion stays at its tier — it digests, not pages.
+  run_alerter "$(row agent_authfile_changed removed 1 '{"path":"/Users/x/.hermes/.env","sha256":"OLDHASH"}')"
+  assert_no_page
+  assert_digest_count 1
 }
 
 @test "T-LOG-agentbin: an agent binary change is log-only (recorded, never delivered)" {
