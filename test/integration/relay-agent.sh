@@ -239,12 +239,15 @@ rm -rf "$tmp/codex-home"
 printf '{"cwd":"/x/dotfiles","transcript_path":"%s/t.jsonl"}' "$tmp" |
   PATH="$tmp:$PATH" RELAY_BIN="$tmp/relay.sh" RELAY_ARGS_FILE="$tmp/args" CODEX_BIN=false \
     bash "$agent" "done" >/dev/null 2>&1
-perms="$(stat -f '%Sp' "$tmp/codex-home" 2>/dev/null || stat -c '%A' "$tmp/codex-home" 2>/dev/null || true)"
+# GNU form first: GNU stat treats -f as "filesystem status" and SUCCEEDS with
+# multi-line junk, so a BSD-first chain never falls through under nix coreutils
+# (CI). BSD stat rejects -c outright, so GNU-first fails cleanly into the BSD form.
+perms="$(stat -c '%A' "$tmp/codex-home" 2>/dev/null || stat -f '%Sp' "$tmp/codex-home" 2>/dev/null || true)"
 [[ $perms == drwx------ ]] || {
   echo "relay-agent: FAIL -- relay Codex home is not owner-only (perms: '$perms')" >&2
   exit 1
 }
-cfg_perms="$(stat -f '%Sp' "$tmp/codex-home/config.toml" 2>/dev/null || stat -c '%A' "$tmp/codex-home/config.toml" 2>/dev/null || true)"
+cfg_perms="$(stat -c '%A' "$tmp/codex-home/config.toml" 2>/dev/null || stat -f '%Sp' "$tmp/codex-home/config.toml" 2>/dev/null || true)"
 [[ $cfg_perms == -rw------- ]] || {
   echo "relay-agent: FAIL -- relay Codex config.toml is not owner-only (perms: '$cfg_perms')" >&2
   exit 1
