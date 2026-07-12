@@ -4,8 +4,8 @@
 # (System Integrity Protection) state and NEVER change any of them. It renders the
 # REAL chezmoiscript and runs the rendered body against fake fdesetup/spctl/csrutil
 # binaries (FDESETUP_BIN/SPCTL_BIN/CSRUTIL_BIN) per posture. The fakes answer ONLY
-# their status query; ANY other invocation (an enable/--master-enable fix attempt)
-# is logged to a mutation file and fails, so a single fix attempt is caught.
+# their status query; ANY other invocation (an enable/mutation fix attempt) is logged
+# to a mutation file and fails, so a single fix attempt is caught.
 #
 # Asserts, for every case: exit 0 (a reminder must never abort `chezmoi apply`) and
 # an EMPTY mutation log (assert-only). Plus: enabled -> a stdout OK line and no
@@ -111,6 +111,12 @@ anomut disabled
 errhas disabled "FileVault is DISABLED"
 errhas disabled "Gatekeeper is DISABLED"
 errhas disabled "SIP is DISABLED"
+# R2-4: the Gatekeeper remedy must not name a removed flag. `spctl --master-enable`
+# was removed on macOS 15+ (this box's `spctl` offers only --global-disable /
+# --disable-status / --status -- no enable flag), so re-enabling is System-Settings-
+# gated. The remedy must point there, never to a nonexistent spctl flag.
+errno disabled "master-enable"
+errhas disabled "System Settings"
 
 # Unparseable -> a could-not-determine note, exit 0, no mutation.
 run_case unknown "gibberish" "gibberish" "unknown (Custom Configuration)"

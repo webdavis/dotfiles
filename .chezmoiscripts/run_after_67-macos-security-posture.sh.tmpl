@@ -76,7 +76,7 @@ check_posture() {
 check_posture "FileVault" "$fdesetup" "status" "FileVault is On" "FileVault is Off" \
   "enabling FileVault is disruptive; turn it on yourself in System Settings > Privacy & Security."
 check_posture "Gatekeeper" "$spctl" "--status" "assessments enabled" "assessments disabled" \
-  "re-enable with: sudo spctl --master-enable."
+  "re-enable in System Settings > Privacy & Security (spctl can no longer enable Gatekeeper from the CLI on macOS 15+; it only offers --global-disable)."
 check_posture "SIP" "$csrutil" "status" "status: enabled" "status: disabled" \
   "re-enable from Recovery (csrutil enable); this is a deliberate operator step."
 
