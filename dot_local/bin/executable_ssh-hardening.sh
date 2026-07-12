@@ -283,6 +283,12 @@ install_dropin() {
     printf '[ssh-hardening] %s already current\n' "$DROPIN"
   fi
 
+  # Pin a deterministic, non-secret 0644 (world-readable, like Apple's 100-macos.conf).
+  # The drop-in holds NO credential and sshd needs it readable; `tee` alone leaves the
+  # mode to root's umask (022 -> 0644, but a stricter umask -> 0600), so set it
+  # explicitly rather than depend on the ambient umask or make a false "0600" claim.
+  priv chmod 0644 "$DROPIN"
+
   # Migrate the superseded 50- drop-in: it sorted AFTER 100-macos.conf and so was
   # shadowed. Remove it in the same privileged step so no orphan/duplicate lingers.
   if [[ -e $LEGACY_DROPIN ]]; then
