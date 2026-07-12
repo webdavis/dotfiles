@@ -1960,10 +1960,24 @@
       "norm_label": "executable_ssh-hardening.sh script"
     },
     {
+      "label": "priv()",
+      "file_type": "code",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L63",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_bin_executable_ssh_hardening_priv",
+      "community": 263,
+      "norm_label": "priv()"
+    },
+    {
       "label": "render_dropin()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L30",
+      "source_location": "L76",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -1974,10 +1988,38 @@
       "norm_label": "render_dropin()"
     },
     {
+      "label": "assert_effective_config()",
+      "file_type": "code",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L90",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_bin_executable_ssh_hardening_assert_effective_config",
+      "community": 263,
+      "norm_label": "assert_effective_config()"
+    },
+    {
+      "label": "verify_effective()",
+      "file_type": "code",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L110",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_bin_executable_ssh_hardening_verify_effective",
+      "community": 263,
+      "norm_label": "verify_effective()"
+    },
+    {
       "label": "install_dropin()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L42",
+      "source_location": "L131",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -1988,10 +2030,24 @@
       "norm_label": "install_dropin()"
     },
     {
+      "label": "prime_sudo()",
+      "file_type": "code",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L162",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_bin_executable_ssh_hardening_prime_sudo",
+      "community": 263,
+      "norm_label": "prime_sudo()"
+    },
+    {
       "label": "do_reload()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L59",
+      "source_location": "L172",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -3209,7 +3265,7 @@
       "label": "macos_defaults_data_file()",
       "file_type": "code",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L37",
+      "source_location": "L41",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -3223,7 +3279,7 @@
       "label": "require_readable_data_file()",
       "file_type": "code",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L45",
+      "source_location": "L49",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -3237,7 +3293,7 @@
       "label": "defaults_records_tsv()",
       "file_type": "code",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L56",
+      "source_location": "L60",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -7106,6 +7162,48 @@
       "norm_label": "fail()"
     },
     {
+      "label": "macos-firewall-globalstate-order.sh",
+      "file_type": "code",
+      "source_file": "test/integration/macos-firewall-globalstate-order.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "test_integration_macos_firewall_globalstate_order",
+      "community": 311,
+      "norm_label": "macos-firewall-globalstate-order.sh"
+    },
+    {
+      "label": "macos-firewall-globalstate-order.sh script",
+      "file_type": "code",
+      "source_file": "test/integration/macos-firewall-globalstate-order.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "test_integration_macos_firewall_globalstate_order_sh__entry",
+      "community": 311,
+      "norm_label": "macos-firewall-globalstate-order.sh script"
+    },
+    {
+      "label": "fail()",
+      "file_type": "code",
+      "source_file": "test/integration/macos-firewall-globalstate-order.sh",
+      "source_location": "L18",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_integration_macos_firewall_globalstate_order_fail",
+      "community": 311,
+      "norm_label": "fail()"
+    },
+    {
       "label": "macos-system-setup-sudo-guard.sh",
       "file_type": "code",
       "source_file": "test/integration/macos-system-setup-sudo-guard.sh",
@@ -8140,6 +8238,230 @@
       "id": "test_integration_run_camp_runner_run_camp",
       "community": 187,
       "norm_label": "run_camp()"
+    },
+    {
+      "label": "ssh-hardening-include-precedence.sh",
+      "file_type": "code",
+      "source_file": "test/integration/ssh-hardening-include-precedence.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "test_integration_ssh_hardening_include_precedence",
+      "community": 309,
+      "norm_label": "ssh-hardening-include-precedence.sh"
+    },
+    {
+      "label": "ssh-hardening-include-precedence.sh script",
+      "file_type": "code",
+      "source_file": "test/integration/ssh-hardening-include-precedence.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "test_integration_ssh_hardening_include_precedence_sh__entry",
+      "community": 309,
+      "norm_label": "ssh-hardening-include-precedence.sh script"
+    },
+    {
+      "label": "fail()",
+      "file_type": "code",
+      "source_file": "test/integration/ssh-hardening-include-precedence.sh",
+      "source_location": "L31",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_integration_ssh_hardening_include_precedence_fail",
+      "community": 309,
+      "norm_label": "fail()"
+    },
+    {
+      "label": "want",
+      "file_type": "code",
+      "source_file": "test/integration/ssh-hardening-include-precedence.sh",
+      "source_location": "L103",
+      "metadata": {
+        "language": "bash",
+        "kind": "code"
+      },
+      "_origin": "ast",
+      "id": "test_integration_ssh_hardening_include_precedence_want",
+      "community": 309,
+      "norm_label": "want"
+    },
+    {
+      "label": "ssh-hardening-reload-failclosed.sh",
+      "file_type": "code",
+      "source_file": "test/integration/ssh-hardening-reload-failclosed.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "test_integration_ssh_hardening_reload_failclosed",
+      "community": 310,
+      "norm_label": "ssh-hardening-reload-failclosed.sh"
+    },
+    {
+      "label": "ssh-hardening-reload-failclosed.sh script",
+      "file_type": "code",
+      "source_file": "test/integration/ssh-hardening-reload-failclosed.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "test_integration_ssh_hardening_reload_failclosed_sh__entry",
+      "community": 310,
+      "norm_label": "ssh-hardening-reload-failclosed.sh script"
+    },
+    {
+      "label": "fail()",
+      "file_type": "code",
+      "source_file": "test/integration/ssh-hardening-reload-failclosed.sh",
+      "source_location": "L28",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_integration_ssh_hardening_reload_failclosed_fail",
+      "community": 310,
+      "norm_label": "fail()"
+    },
+    {
+      "label": "reload_case()",
+      "file_type": "code",
+      "source_file": "test/integration/ssh-hardening-reload-failclosed.sh",
+      "source_location": "L116",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_integration_ssh_hardening_reload_failclosed_reload_case",
+      "community": 310,
+      "norm_label": "reload_case()"
+    },
+    {
+      "label": "report()",
+      "file_type": "code",
+      "source_file": "test/integration/ssh-hardening-reload-failclosed.sh",
+      "source_location": "L135",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_integration_ssh_hardening_reload_failclosed_report",
+      "community": 310,
+      "norm_label": "report()"
+    },
+    {
+      "label": "rc_nonzero()",
+      "file_type": "code",
+      "source_file": "test/integration/ssh-hardening-reload-failclosed.sh",
+      "source_location": "L141",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_integration_ssh_hardening_reload_failclosed_rc_nonzero",
+      "community": 310,
+      "norm_label": "rc_nonzero()"
+    },
+    {
+      "label": "rc_zero()",
+      "file_type": "code",
+      "source_file": "test/integration/ssh-hardening-reload-failclosed.sh",
+      "source_location": "L142",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_integration_ssh_hardening_reload_failclosed_rc_zero",
+      "community": 310,
+      "norm_label": "rc_zero()"
+    },
+    {
+      "label": "no_kick()",
+      "file_type": "code",
+      "source_file": "test/integration/ssh-hardening-reload-failclosed.sh",
+      "source_location": "L143",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_integration_ssh_hardening_reload_failclosed_no_kick",
+      "community": 310,
+      "norm_label": "no_kick()"
+    },
+    {
+      "label": "did_kick()",
+      "file_type": "code",
+      "source_file": "test/integration/ssh-hardening-reload-failclosed.sh",
+      "source_location": "L144",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_integration_ssh_hardening_reload_failclosed_did_kick",
+      "community": 310,
+      "norm_label": "did_kick()"
+    },
+    {
+      "label": "err_has()",
+      "file_type": "code",
+      "source_file": "test/integration/ssh-hardening-reload-failclosed.sh",
+      "source_location": "L145",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_integration_ssh_hardening_reload_failclosed_err_has",
+      "community": 310,
+      "norm_label": "err_has()"
+    },
+    {
+      "label": "err_no()",
+      "file_type": "code",
+      "source_file": "test/integration/ssh-hardening-reload-failclosed.sh",
+      "source_location": "L146",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_integration_ssh_hardening_reload_failclosed_err_no",
+      "community": 310,
+      "norm_label": "err_no()"
+    },
+    {
+      "label": "out_has()",
+      "file_type": "code",
+      "source_file": "test/integration/ssh-hardening-reload-failclosed.sh",
+      "source_location": "L147",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_integration_ssh_hardening_reload_failclosed_out_has",
+      "community": 310,
+      "norm_label": "out_has()"
     },
     {
       "label": "ssh-hardening-sshd-validate.sh",
@@ -12160,6 +12482,48 @@
       "norm_label": "assert_kv()"
     },
     {
+      "label": "macos-defaults-source-path-propagation.sh",
+      "file_type": "code",
+      "source_file": "test/unit/macos-defaults-source-path-propagation.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "test_unit_macos_defaults_source_path_propagation",
+      "community": 312,
+      "norm_label": "macos-defaults-source-path-propagation.sh"
+    },
+    {
+      "label": "macos-defaults-source-path-propagation.sh script",
+      "file_type": "code",
+      "source_file": "test/unit/macos-defaults-source-path-propagation.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "test_unit_macos_defaults_source_path_propagation_sh__entry",
+      "community": 312,
+      "norm_label": "macos-defaults-source-path-propagation.sh script"
+    },
+    {
+      "label": "fail()",
+      "file_type": "code",
+      "source_file": "test/unit/macos-defaults-source-path-propagation.sh",
+      "source_location": "L19",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_macos_defaults_source_path_propagation_fail",
+      "community": 312,
+      "norm_label": "fail()"
+    },
+    {
       "label": "macos-security-posture.sh",
       "file_type": "code",
       "source_file": "test/unit/macos-security-posture.sh",
@@ -12205,7 +12569,7 @@
       "label": "make_stub()",
       "file_type": "code",
       "source_file": "test/unit/macos-security-posture.sh",
-      "source_location": "L49",
+      "source_location": "L50",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -12219,7 +12583,7 @@
       "label": "run_case()",
       "file_type": "code",
       "source_file": "test/unit/macos-security-posture.sh",
-      "source_location": "L62",
+      "source_location": "L64",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -12233,7 +12597,7 @@
       "label": "report()",
       "file_type": "code",
       "source_file": "test/unit/macos-security-posture.sh",
-      "source_location": "L79",
+      "source_location": "L82",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -12247,7 +12611,7 @@
       "label": "a0()",
       "file_type": "code",
       "source_file": "test/unit/macos-security-posture.sh",
-      "source_location": "L85",
+      "source_location": "L88",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -12261,7 +12625,7 @@
       "label": "anomut()",
       "file_type": "code",
       "source_file": "test/unit/macos-security-posture.sh",
-      "source_location": "L87",
+      "source_location": "L90",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -12275,7 +12639,7 @@
       "label": "outhas()",
       "file_type": "code",
       "source_file": "test/unit/macos-security-posture.sh",
-      "source_location": "L88",
+      "source_location": "L91",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -12286,10 +12650,24 @@
       "norm_label": "outhas()"
     },
     {
+      "label": "outno()",
+      "file_type": "code",
+      "source_file": "test/unit/macos-security-posture.sh",
+      "source_location": "L92",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_macos_security_posture_outno",
+      "community": 308,
+      "norm_label": "outno()"
+    },
+    {
       "label": "errhas()",
       "file_type": "code",
       "source_file": "test/unit/macos-security-posture.sh",
-      "source_location": "L89",
+      "source_location": "L93",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -12303,7 +12681,7 @@
       "label": "errno()",
       "file_type": "code",
       "source_file": "test/unit/macos-security-posture.sh",
-      "source_location": "L90",
+      "source_location": "L94",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -33328,7 +33706,17 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L59",
+      "source_location": "L90",
+      "weight": 1.0,
+      "source": "dot_local_bin_executable_ssh_hardening",
+      "target": "dot_local_bin_executable_ssh_hardening_assert_effective_config",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L172",
       "weight": 1.0,
       "source": "dot_local_bin_executable_ssh_hardening",
       "target": "dot_local_bin_executable_ssh_hardening_do_reload",
@@ -33338,7 +33726,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L42",
+      "source_location": "L131",
       "weight": 1.0,
       "source": "dot_local_bin_executable_ssh_hardening",
       "target": "dot_local_bin_executable_ssh_hardening_install_dropin",
@@ -33348,7 +33736,27 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L30",
+      "source_location": "L162",
+      "weight": 1.0,
+      "source": "dot_local_bin_executable_ssh_hardening",
+      "target": "dot_local_bin_executable_ssh_hardening_prime_sudo",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L63",
+      "weight": 1.0,
+      "source": "dot_local_bin_executable_ssh_hardening",
+      "target": "dot_local_bin_executable_ssh_hardening_priv",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L76",
       "weight": 1.0,
       "source": "dot_local_bin_executable_ssh_hardening",
       "target": "dot_local_bin_executable_ssh_hardening_render_dropin",
@@ -33365,10 +33773,20 @@
       "confidence_score": 1.0
     },
     {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L110",
+      "weight": 1.0,
+      "source": "dot_local_bin_executable_ssh_hardening",
+      "target": "dot_local_bin_executable_ssh_hardening_verify_effective",
+      "confidence_score": 1.0
+    },
+    {
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L73",
+      "source_location": "L235",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_ssh_hardening_sh__entry",
@@ -33379,7 +33797,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L76",
+      "source_location": "L238",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_ssh_hardening_sh__entry",
@@ -33390,7 +33808,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L70",
+      "source_location": "L226",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_ssh_hardening_sh__entry",
@@ -33401,11 +33819,88 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L48",
+      "source_location": "L232",
+      "weight": 1.0,
+      "context": "call",
+      "source": "dot_local_bin_executable_ssh_hardening_sh__entry",
+      "target": "dot_local_bin_executable_ssh_hardening_verify_effective",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L184",
+      "weight": 1.0,
+      "context": "call",
+      "source": "dot_local_bin_executable_ssh_hardening_do_reload",
+      "target": "dot_local_bin_executable_ssh_hardening_priv",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L137",
+      "weight": 1.0,
+      "context": "call",
+      "source": "dot_local_bin_executable_ssh_hardening_install_dropin",
+      "target": "dot_local_bin_executable_ssh_hardening_priv",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L137",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_ssh_hardening_install_dropin",
       "target": "dot_local_bin_executable_ssh_hardening_render_dropin",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L122",
+      "weight": 1.0,
+      "context": "call",
+      "source": "dot_local_bin_executable_ssh_hardening_verify_effective",
+      "target": "dot_local_bin_executable_ssh_hardening_assert_effective_config",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L188",
+      "weight": 1.0,
+      "context": "call",
+      "source": "dot_local_bin_executable_ssh_hardening_do_reload",
+      "target": "dot_local_bin_executable_ssh_hardening_verify_effective",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L152",
+      "weight": 1.0,
+      "context": "call",
+      "source": "dot_local_bin_executable_ssh_hardening_install_dropin",
+      "target": "dot_local_bin_executable_ssh_hardening_verify_effective",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L175",
+      "weight": 1.0,
+      "context": "call",
+      "source": "dot_local_bin_executable_ssh_hardening_do_reload",
+      "target": "dot_local_bin_executable_ssh_hardening_prime_sudo",
       "confidence_score": 1.0
     },
     {
@@ -35948,7 +36443,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L56",
+      "source_location": "L60",
       "weight": 1.0,
       "source": "dot_local_bin_macos_defaults_lib",
       "target": "dot_local_bin_macos_defaults_lib_defaults_records_tsv",
@@ -35958,7 +36453,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L37",
+      "source_location": "L41",
       "weight": 1.0,
       "source": "dot_local_bin_macos_defaults_lib",
       "target": "dot_local_bin_macos_defaults_lib_macos_defaults_data_file",
@@ -35968,7 +36463,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L45",
+      "source_location": "L49",
       "weight": 1.0,
       "source": "dot_local_bin_macos_defaults_lib",
       "target": "dot_local_bin_macos_defaults_lib_require_readable_data_file",
@@ -40149,6 +40644,37 @@
     {
       "relation": "defines",
       "confidence": "EXTRACTED",
+      "source_file": "test/integration/macos-firewall-globalstate-order.sh",
+      "source_location": "L18",
+      "weight": 1.0,
+      "source": "test_integration_macos_firewall_globalstate_order",
+      "target": "test_integration_macos_firewall_globalstate_order_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/macos-firewall-globalstate-order.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "test_integration_macos_firewall_globalstate_order",
+      "target": "test_integration_macos_firewall_globalstate_order_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/macos-firewall-globalstate-order.sh",
+      "source_location": "L27",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_integration_macos_firewall_globalstate_order_sh__entry",
+      "target": "test_integration_macos_firewall_globalstate_order_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
       "source_file": "test/integration/macos-system-setup-sudo-guard.sh",
       "source_location": "L18",
       "weight": 1.0,
@@ -41300,6 +41826,333 @@
       "context": "call",
       "source": "test_integration_run_camp_runner_sh__entry",
       "target": "test_integration_run_camp_runner_run_camp",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/ssh-hardening-include-precedence.sh",
+      "source_location": "L31",
+      "weight": 1.0,
+      "source": "test_integration_ssh_hardening_include_precedence",
+      "target": "test_integration_ssh_hardening_include_precedence_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/ssh-hardening-include-precedence.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "test_integration_ssh_hardening_include_precedence",
+      "target": "test_integration_ssh_hardening_include_precedence_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/ssh-hardening-include-precedence.sh",
+      "source_location": "L103",
+      "weight": 1.0,
+      "source": "test_integration_ssh_hardening_include_precedence",
+      "target": "test_integration_ssh_hardening_include_precedence_want",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/ssh-hardening-include-precedence.sh",
+      "source_location": "L36",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_integration_ssh_hardening_include_precedence_sh__entry",
+      "target": "test_integration_ssh_hardening_include_precedence_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/ssh-hardening-reload-failclosed.sh",
+      "source_location": "L144",
+      "weight": 1.0,
+      "source": "test_integration_ssh_hardening_reload_failclosed",
+      "target": "test_integration_ssh_hardening_reload_failclosed_did_kick",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/ssh-hardening-reload-failclosed.sh",
+      "source_location": "L145",
+      "weight": 1.0,
+      "source": "test_integration_ssh_hardening_reload_failclosed",
+      "target": "test_integration_ssh_hardening_reload_failclosed_err_has",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/ssh-hardening-reload-failclosed.sh",
+      "source_location": "L146",
+      "weight": 1.0,
+      "source": "test_integration_ssh_hardening_reload_failclosed",
+      "target": "test_integration_ssh_hardening_reload_failclosed_err_no",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/ssh-hardening-reload-failclosed.sh",
+      "source_location": "L28",
+      "weight": 1.0,
+      "source": "test_integration_ssh_hardening_reload_failclosed",
+      "target": "test_integration_ssh_hardening_reload_failclosed_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/ssh-hardening-reload-failclosed.sh",
+      "source_location": "L143",
+      "weight": 1.0,
+      "source": "test_integration_ssh_hardening_reload_failclosed",
+      "target": "test_integration_ssh_hardening_reload_failclosed_no_kick",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/ssh-hardening-reload-failclosed.sh",
+      "source_location": "L147",
+      "weight": 1.0,
+      "source": "test_integration_ssh_hardening_reload_failclosed",
+      "target": "test_integration_ssh_hardening_reload_failclosed_out_has",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/ssh-hardening-reload-failclosed.sh",
+      "source_location": "L141",
+      "weight": 1.0,
+      "source": "test_integration_ssh_hardening_reload_failclosed",
+      "target": "test_integration_ssh_hardening_reload_failclosed_rc_nonzero",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/ssh-hardening-reload-failclosed.sh",
+      "source_location": "L142",
+      "weight": 1.0,
+      "source": "test_integration_ssh_hardening_reload_failclosed",
+      "target": "test_integration_ssh_hardening_reload_failclosed_rc_zero",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/ssh-hardening-reload-failclosed.sh",
+      "source_location": "L116",
+      "weight": 1.0,
+      "source": "test_integration_ssh_hardening_reload_failclosed",
+      "target": "test_integration_ssh_hardening_reload_failclosed_reload_case",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/ssh-hardening-reload-failclosed.sh",
+      "source_location": "L135",
+      "weight": 1.0,
+      "source": "test_integration_ssh_hardening_reload_failclosed",
+      "target": "test_integration_ssh_hardening_reload_failclosed_report",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/ssh-hardening-reload-failclosed.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "test_integration_ssh_hardening_reload_failclosed",
+      "target": "test_integration_ssh_hardening_reload_failclosed_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/ssh-hardening-reload-failclosed.sh",
+      "source_location": "L187",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_integration_ssh_hardening_reload_failclosed_sh__entry",
+      "target": "test_integration_ssh_hardening_reload_failclosed_did_kick",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/ssh-hardening-reload-failclosed.sh",
+      "source_location": "L157",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_integration_ssh_hardening_reload_failclosed_sh__entry",
+      "target": "test_integration_ssh_hardening_reload_failclosed_err_has",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/ssh-hardening-reload-failclosed.sh",
+      "source_location": "L155",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_integration_ssh_hardening_reload_failclosed_sh__entry",
+      "target": "test_integration_ssh_hardening_reload_failclosed_err_no",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/ssh-hardening-reload-failclosed.sh",
+      "source_location": "L32",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_integration_ssh_hardening_reload_failclosed_sh__entry",
+      "target": "test_integration_ssh_hardening_reload_failclosed_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/ssh-hardening-reload-failclosed.sh",
+      "source_location": "L154",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_integration_ssh_hardening_reload_failclosed_sh__entry",
+      "target": "test_integration_ssh_hardening_reload_failclosed_no_kick",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/ssh-hardening-reload-failclosed.sh",
+      "source_location": "L175",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_integration_ssh_hardening_reload_failclosed_sh__entry",
+      "target": "test_integration_ssh_hardening_reload_failclosed_out_has",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/ssh-hardening-reload-failclosed.sh",
+      "source_location": "L153",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_integration_ssh_hardening_reload_failclosed_sh__entry",
+      "target": "test_integration_ssh_hardening_reload_failclosed_rc_nonzero",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/ssh-hardening-reload-failclosed.sh",
+      "source_location": "L173",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_integration_ssh_hardening_reload_failclosed_sh__entry",
+      "target": "test_integration_ssh_hardening_reload_failclosed_rc_zero",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/ssh-hardening-reload-failclosed.sh",
+      "source_location": "L152",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_integration_ssh_hardening_reload_failclosed_sh__entry",
+      "target": "test_integration_ssh_hardening_reload_failclosed_reload_case",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/ssh-hardening-reload-failclosed.sh",
+      "source_location": "L144",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_integration_ssh_hardening_reload_failclosed_did_kick",
+      "target": "test_integration_ssh_hardening_reload_failclosed_report",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/ssh-hardening-reload-failclosed.sh",
+      "source_location": "L145",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_integration_ssh_hardening_reload_failclosed_err_has",
+      "target": "test_integration_ssh_hardening_reload_failclosed_report",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/ssh-hardening-reload-failclosed.sh",
+      "source_location": "L146",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_integration_ssh_hardening_reload_failclosed_err_no",
+      "target": "test_integration_ssh_hardening_reload_failclosed_report",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/ssh-hardening-reload-failclosed.sh",
+      "source_location": "L143",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_integration_ssh_hardening_reload_failclosed_no_kick",
+      "target": "test_integration_ssh_hardening_reload_failclosed_report",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/ssh-hardening-reload-failclosed.sh",
+      "source_location": "L147",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_integration_ssh_hardening_reload_failclosed_out_has",
+      "target": "test_integration_ssh_hardening_reload_failclosed_report",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/ssh-hardening-reload-failclosed.sh",
+      "source_location": "L141",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_integration_ssh_hardening_reload_failclosed_rc_nonzero",
+      "target": "test_integration_ssh_hardening_reload_failclosed_report",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/ssh-hardening-reload-failclosed.sh",
+      "source_location": "L142",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_integration_ssh_hardening_reload_failclosed_rc_zero",
+      "target": "test_integration_ssh_hardening_reload_failclosed_report",
       "confidence_score": 1.0
     },
     {
@@ -44765,8 +45618,39 @@
     {
       "relation": "defines",
       "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-source-path-propagation.sh",
+      "source_location": "L19",
+      "weight": 1.0,
+      "source": "test_unit_macos_defaults_source_path_propagation",
+      "target": "test_unit_macos_defaults_source_path_propagation_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-source-path-propagation.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "test_unit_macos_defaults_source_path_propagation",
+      "target": "test_unit_macos_defaults_source_path_propagation_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-source-path-propagation.sh",
+      "source_location": "L23",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_defaults_source_path_propagation_sh__entry",
+      "target": "test_unit_macos_defaults_source_path_propagation_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
       "source_file": "test/unit/macos-security-posture.sh",
-      "source_location": "L85",
+      "source_location": "L88",
       "weight": 1.0,
       "source": "test_unit_macos_security_posture",
       "target": "test_unit_macos_security_posture_a0",
@@ -44776,7 +45660,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/macos-security-posture.sh",
-      "source_location": "L87",
+      "source_location": "L90",
       "weight": 1.0,
       "source": "test_unit_macos_security_posture",
       "target": "test_unit_macos_security_posture_anomut",
@@ -44786,7 +45670,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/macos-security-posture.sh",
-      "source_location": "L89",
+      "source_location": "L93",
       "weight": 1.0,
       "source": "test_unit_macos_security_posture",
       "target": "test_unit_macos_security_posture_errhas",
@@ -44796,7 +45680,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/macos-security-posture.sh",
-      "source_location": "L90",
+      "source_location": "L94",
       "weight": 1.0,
       "source": "test_unit_macos_security_posture",
       "target": "test_unit_macos_security_posture_errno",
@@ -44816,7 +45700,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/macos-security-posture.sh",
-      "source_location": "L49",
+      "source_location": "L50",
       "weight": 1.0,
       "source": "test_unit_macos_security_posture",
       "target": "test_unit_macos_security_posture_make_stub",
@@ -44826,7 +45710,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/macos-security-posture.sh",
-      "source_location": "L88",
+      "source_location": "L91",
       "weight": 1.0,
       "source": "test_unit_macos_security_posture",
       "target": "test_unit_macos_security_posture_outhas",
@@ -44836,7 +45720,17 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/macos-security-posture.sh",
-      "source_location": "L79",
+      "source_location": "L92",
+      "weight": 1.0,
+      "source": "test_unit_macos_security_posture",
+      "target": "test_unit_macos_security_posture_outno",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-security-posture.sh",
+      "source_location": "L82",
       "weight": 1.0,
       "source": "test_unit_macos_security_posture",
       "target": "test_unit_macos_security_posture_report",
@@ -44846,7 +45740,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/macos-security-posture.sh",
-      "source_location": "L62",
+      "source_location": "L64",
       "weight": 1.0,
       "source": "test_unit_macos_security_posture",
       "target": "test_unit_macos_security_posture_run_case",
@@ -44866,7 +45760,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/macos-security-posture.sh",
-      "source_location": "L96",
+      "source_location": "L100",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_macos_security_posture_sh__entry",
@@ -44877,7 +45771,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/macos-security-posture.sh",
-      "source_location": "L97",
+      "source_location": "L101",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_macos_security_posture_sh__entry",
@@ -44888,7 +45782,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/macos-security-posture.sh",
-      "source_location": "L107",
+      "source_location": "L111",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_macos_security_posture_sh__entry",
@@ -44899,7 +45793,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/macos-security-posture.sh",
-      "source_location": "L101",
+      "source_location": "L105",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_macos_security_posture_sh__entry",
@@ -44921,7 +45815,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/macos-security-posture.sh",
-      "source_location": "L98",
+      "source_location": "L102",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_macos_security_posture_sh__entry",
@@ -44932,7 +45826,18 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/macos-security-posture.sh",
-      "source_location": "L95",
+      "source_location": "L131",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_security_posture_sh__entry",
+      "target": "test_unit_macos_security_posture_outno",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-security-posture.sh",
+      "source_location": "L99",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_macos_security_posture_sh__entry",
@@ -44943,7 +45848,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/macos-security-posture.sh",
-      "source_location": "L68",
+      "source_location": "L71",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_macos_security_posture_run_case",
@@ -44954,7 +45859,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/macos-security-posture.sh",
-      "source_location": "L85",
+      "source_location": "L88",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_macos_security_posture_a0",
@@ -44965,7 +45870,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/macos-security-posture.sh",
-      "source_location": "L87",
+      "source_location": "L90",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_macos_security_posture_anomut",
@@ -44976,7 +45881,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/macos-security-posture.sh",
-      "source_location": "L89",
+      "source_location": "L93",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_macos_security_posture_errhas",
@@ -44987,7 +45892,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/macos-security-posture.sh",
-      "source_location": "L90",
+      "source_location": "L94",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_macos_security_posture_errno",
@@ -44998,10 +45903,21 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/macos-security-posture.sh",
-      "source_location": "L88",
+      "source_location": "L91",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_macos_security_posture_outhas",
+      "target": "test_unit_macos_security_posture_report",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-security-posture.sh",
+      "source_location": "L92",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_security_posture_outno",
       "target": "test_unit_macos_security_posture_report",
       "confidence_score": 1.0
     },
@@ -63477,5 +64393,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "e0c1e02622d60658b90e57c57bf6237bc6311429"
+  "built_at_commit": "e97035004c93b223807a257415923441a8da3c3e"
 }
