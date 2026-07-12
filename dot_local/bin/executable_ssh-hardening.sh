@@ -19,10 +19,13 @@
 #   --print-config    print the drop-in content to stdout and exit. No sudo, no
 #                     writes, no sshd: the pure inspection and test seam.
 #   --print-path      print the managed drop-in's absolute path and exit.
-#   --verify          parse the FULL effective sshd config (main config + every
-#                     drop-in) with `sshd -G` and assert all five hardening values
-#                     are in force. Read-only: no reload, no writes. Nonzero if the
-#                     hardening is shadowed by a sibling drop-in.
+#   --verify          assert the hardening holds three ways, all read-only and
+#                     host-key-free: the global (pre-Match) config via `sshd -G`, a
+#                     raw scan of every included file for a Match block that re-enables
+#                     a protected directive, and a per-connection resolution via
+#                     `sshd -G -T -C` for a root and a normal-user spec. No reload, no
+#                     writes. Nonzero if any view is not fully hardened (a sibling
+#                     shadowing it, or a Match block re-opening a closed path).
 #   --reload          reload sshd so a running daemon picks up the drop-in. This
 #                     is the disruptive, operator-controlled step: it validates the
 #                     complete config first and fails closed, but a reload can drop
