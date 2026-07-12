@@ -35,13 +35,47 @@ fail() {
 
 # ---- classifier (shared by the universe enumeration and the fixture oracle) --
 
+# The one-action extended regex, QUOTE-AWARE: the body is a sequence of
+# double-quoted strings, backtick raw strings, or any character that is not a
+# `}`, `"`, or backtick, so a `}` inside a quoted Go string is NOT structural
+# (`{{ keepassxc "entry}name" }}` is one complete action; a naive `[^}]*` body
+# rejects it and sees no action at all) and a quoted `}}` cannot close the
+# action early. Mirrors `actionRegex` in the classifier.
+# SC2016: the backticks are literal ERE atoms (raw-string delimiters), not
+# command substitution.
+# shellcheck disable=SC2016
+ACTION_RE='[{][{]("[^"]*"|`[^`]*`|[^}"`])*[}][}]'
+
 # Extract every Go-template action `{{ ... }}` on every line of a file, one per
-# output line (each including its `{{`/`}}` delimiters). `[^}]` bounds the action
-# body, so an action that closes on the same line is captured and a same-line
-# sibling is a SEPARATE action -- multiple actions per line are parsed
-# individually, not collapsed. Mirrors `lineActions` in the classifier.
+# output line (each including its `{{`/`}}` delimiters). An action that closes
+# on the same line is captured and a same-line sibling is a SEPARATE action --
+# multiple actions per line are parsed individually, not collapsed. Mirrors
+# `lineActions` in the classifier.
 line_actions() { # <file>
-  grep -oE '[{][{][^}]*[}][}]' "$1" 2>/dev/null || true
+  grep -oE "$ACTION_RE" "$1" 2>/dev/null || true
+}
+
+# A file carries an UNTERMINATED action start when, after every complete action
+# is removed from a line, a `{{` remains (e.g. a legal Go action split across
+# lines: `token={{ keepassxc` newline `"Entry" }}`). Conservative: such a file
+# is NOT safely coverable (over-excluding a safe template is tolerable;
+# admitting a secret one never is). ONE tolerated shape: a leftover whose FIRST
+# `{{` opens a Go COMMENT (`{{/*` / `{{- /*`) is a multi-line comment (the
+# standard .chezmoitemplates partial-header preamble); its body never renders.
+# The first-`{{` anchor matters: a leftover `{{` can only be the line's
+# unterminated TAIL (any later `}}` would have closed it), so a non-comment
+# opener can never hide behind a later `{{/*`. Mirrors
+# `lineHasUnterminatedActionStart` in the classifier.
+file_has_unterminated_action() { # <file>
+  local stripped line rest
+  stripped="$(sed -E "s/$ACTION_RE//g" "$1" 2>/dev/null)" || return 1
+  while IFS= read -r line; do
+    [[ $line == *'{{'* ]] || continue
+    rest="{{${line#*'{{'}"
+    [[ $rest =~ ^\{\{-?[[:space:]]*/\* ]] && continue
+    return 0
+  done < <(printf '%s\n' "$stripped")
+  return 1
 }
 
 # A line invokes keepassxc when keepassxc/keepassxcAttribute appears inside a
@@ -103,6 +137,7 @@ _renders_unsafe() { # <file> <base>  (shares _visited with renders_unsafe)
   [[ -n ${_visited["$file"]:-} ]] && return 1
   _visited["$file"]=1
   line_calls_keepassxc "$file" && return 0
+  file_has_unterminated_action "$file" && return 0
   while IFS= read -r -u3 line; do
     kind="${line%%$'\t'*}"
     if [[ $kind == D ]]; then
@@ -301,6 +336,9 @@ declare -A FIXTURE_EXPECT=(
   ["multi_include_secret_then_safe.sh.tmpl"]=excluded
   ["multi_include_safe_then_secret.sh.tmpl"]=excluded
   ["multi_include_dynamic_then_literal.sh.tmpl"]=excluded
+  ["quoted_brace_secret.sh.tmpl"]=excluded
+  ["quoted_brace_include.sh.tmpl"]=excluded
+  ["multiline_secret.sh.tmpl"]=excluded
 )
 
 for name in "${!FIXTURE_EXPECT[@]}"; do

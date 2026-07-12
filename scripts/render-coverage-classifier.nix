@@ -16,17 +16,44 @@ rec {
   # File split into lines (drop the capture sublists builtins.split emits).
   fileLines = path: builtins.filter builtins.isString (builtins.split "\n" (builtins.readFile path));
 
+  # One Go-template action `{{ ... }}`, QUOTE-AWARE: the body is a sequence of
+  # double-quoted strings, backtick raw strings, or any character that is not a
+  # `}`, `"`, or backtick. A `}` inside a quoted Go string is NOT structural, so
+  # `{{ keepassxc "entry}name" }}` is one complete action (a naive `[^}]*` body
+  # rejects it, sees no action at all, and would classify a secret template
+  # safe). The quoted-string branches consume their content atomically, so a
+  # quoted `}}` cannot close the action early either.
+  actionRegex = "([{][{](\"[^\"]*\"|`[^`]*`|[^}\"`])*[}][}])";
+
   # Every Go-template action `{{ ... }}` on a line, as a list of the full action
   # strings (each including its `{{`/`}}` delimiters). builtins.split with a
-  # single capture group around the action leaves those matches as one-element
-  # sublists; keep them and take the head. `[^}]` bounds the action body, so an
-  # action that closes on the same line is captured and a same-line sibling is a
-  # SEPARATE action (the whole point: multiple actions per line are parsed
-  # individually, not collapsed to the first or last). Actions in this repo are
-  # single-line, so a multi-line comment simply yields no complete action here.
+  # capture group around the action leaves those matches as sublists (the first
+  # capture is the whole action; take the head). An action that closes on the
+  # same line is captured and a same-line sibling is a SEPARATE action (the
+  # whole point: multiple actions per line are parsed individually, not
+  # collapsed to the first or last).
   lineActions =
+    line: map builtins.head (builtins.filter builtins.isList (builtins.split actionRegex line));
+
+  # A line carries an UNTERMINATED action start when, after every complete
+  # action is removed, a `{{` remains (e.g. a legal Go action split across
+  # lines: `token={{ keepassxc` newline `"Entry" }}`). Such a line's action
+  # content cannot be judged per line, so it is treated conservatively: the
+  # file is NOT safely coverable (over-excluding a safe template is tolerable;
+  # admitting a secret one never is). ONE tolerated shape: a leftover whose
+  # FIRST `{{` opens a Go COMMENT (`{{/*` / `{{- /*`) is a multi-line comment
+  # (the standard .chezmoitemplates partial-header preamble); its body never
+  # renders, so it is not an action start. The anchor matters: the comment
+  # opener must be the first `{{` in the leftover -- a leftover `{{` can only
+  # be the line's unterminated TAIL (any later `}}` on the line would have
+  # closed it), so a non-comment opener can never hide behind a later `{{/*`.
+  lineHasUnterminatedActionStart =
     line:
-    map builtins.head (builtins.filter builtins.isList (builtins.split "([{][{][^}]*[}][}])" line));
+    builtins.any (
+      part:
+      builtins.match ".*[{][{].*" part != null
+      && builtins.match "([^{]|[{][^{])*[{][{]-?[[:space:]]*/[*].*" part == null
+    ) (builtins.filter builtins.isString (builtins.split actionRegex line));
 
   # A Go-template COMMENT action (`{{/* ... */}}`, in any trim form).
   actionIsComment = action: builtins.match "[{][{]-?[[:space:]]*/[*].*" action != null;
@@ -44,6 +71,10 @@ rec {
     );
 
   directCallsKeepassxc = path: builtins.any lineCallsKeepassxc (fileLines path);
+
+  # Any line with an unterminated action start makes the whole file unsafe to
+  # classify per line (the unclosed action's content lives on later lines).
+  hasUnterminatedAction = path: builtins.any lineHasUnterminatedActionStart (fileLines path);
 
   # Parse a single ACTION for an includeTemplate directive
   # `{{ includeTemplate <arg> ... }}`. Returns null (not an include directive),
@@ -89,11 +120,13 @@ rec {
 
   # A template cannot render headless (is UNSAFE) when it, or any partial it
   # includeTemplates (transitively, literal names resolved against includeBase),
-  # calls keepassxc, OR when any includeTemplate name cannot be resolved
-  # statically (conservative rejection). Cycle-protected: a partial already on
-  # the current include chain contributes no new unsafety, so a cyclic pair
-  # terminates. A literal include whose partial is absent under includeBase is
-  # skipped (it would fail at real render time, a separate concern).
+  # calls keepassxc, OR carries an unterminated (multi-line) action start
+  # (conservative: its content cannot be judged per line), OR when any
+  # includeTemplate name cannot be resolved statically (conservative
+  # rejection). Cycle-protected: a partial already on the current include chain
+  # contributes no new unsafety, so a cyclic pair terminates. A literal include
+  # whose partial is absent under includeBase is skipped (it would fail at real
+  # render time, a separate concern).
   rendersUnsafe =
     includeBase: path:
     let
@@ -101,7 +134,7 @@ rec {
         visited: p:
         if builtins.elem p visited then
           false
-        else if directCallsKeepassxc p then
+        else if directCallsKeepassxc p || hasUnterminatedAction p then
           true
         else
           let

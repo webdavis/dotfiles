@@ -1,0 +1,10 @@
+#!/bin/bash
+# Fixture (F5): an includeTemplate of the SECRET partial where a later argument
+# carries a quoted `}`. A naive `[^}]*` extractor cannot match the action, so it
+# finds no include directive at all and classifies the template safe even though
+# it transitively pulls in a keepassxc call. The quote-aware extractor must
+# still parse the include and follow it to the secret partial (verdict:
+# excluded).
+set -euo pipefail
+{{ includeTemplate "partial_secret.tmpl" (dict "note" "a}b") }}
+echo "done"
