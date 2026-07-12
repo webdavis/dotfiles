@@ -3553,7 +3553,7 @@
       "label": "fail()",
       "file_type": "code",
       "source_file": "test/e2e/age-rotation-drill.sh",
-      "source_location": "L16",
+      "source_location": "L22",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -3562,6 +3562,20 @@
       "id": "test_e2e_age_rotation_drill_fail",
       "community": 286,
       "norm_label": "fail()"
+    },
+    {
+      "label": "sha256()",
+      "file_type": "code",
+      "source_file": "test/e2e/age-rotation-drill.sh",
+      "source_location": "L38",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_e2e_age_rotation_drill_sha256",
+      "community": 286,
+      "norm_label": "sha256()"
     },
     {
       "label": "herdr-health-check-timeout.sh",
@@ -6278,6 +6292,90 @@
       "id": "test_integration_rendered_template_coverage_fixture_expect",
       "community": 28,
       "norm_label": "fixture_expect"
+    },
+    {
+      "label": "restore-age-key-behavior.sh",
+      "file_type": "code",
+      "source_file": "test/integration/restore-age-key-behavior.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "test_integration_restore_age_key_behavior",
+      "community": 287,
+      "norm_label": "restore-age-key-behavior.sh"
+    },
+    {
+      "label": "restore-age-key-behavior.sh script",
+      "file_type": "code",
+      "source_file": "test/integration/restore-age-key-behavior.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "test_integration_restore_age_key_behavior_sh__entry",
+      "community": 287,
+      "norm_label": "restore-age-key-behavior.sh script"
+    },
+    {
+      "label": "fail()",
+      "file_type": "code",
+      "source_file": "test/integration/restore-age-key-behavior.sh",
+      "source_location": "L16",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_integration_restore_age_key_behavior_fail",
+      "community": 287,
+      "norm_label": "fail()"
+    },
+    {
+      "label": "run()",
+      "file_type": "code",
+      "source_file": "test/integration/restore-age-key-behavior.sh",
+      "source_location": "L69",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_integration_restore_age_key_behavior_run",
+      "community": 287,
+      "norm_label": "run()"
+    },
+    {
+      "label": "perms()",
+      "file_type": "code",
+      "source_file": "test/integration/restore-age-key-behavior.sh",
+      "source_location": "L73",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_integration_restore_age_key_behavior_perms",
+      "community": 287,
+      "norm_label": "perms()"
+    },
+    {
+      "label": "reset_key_dir()",
+      "file_type": "code",
+      "source_file": "test/integration/restore-age-key-behavior.sh",
+      "source_location": "L75",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_integration_restore_age_key_behavior_reset_key_dir",
+      "community": 287,
+      "norm_label": "reset_key_dir()"
     },
     {
       "label": "run-camp-runner.sh",
@@ -9696,6 +9794,48 @@
       "norm_label": "attempt()"
     },
     {
+      "label": "age-tripwire-pq.sh",
+      "file_type": "code",
+      "source_file": "test/unit/age-tripwire-pq.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "test_unit_age_tripwire_pq",
+      "community": 288,
+      "norm_label": "age-tripwire-pq.sh"
+    },
+    {
+      "label": "age-tripwire-pq.sh script",
+      "file_type": "code",
+      "source_file": "test/unit/age-tripwire-pq.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "test_unit_age_tripwire_pq_sh__entry",
+      "community": 288,
+      "norm_label": "age-tripwire-pq.sh script"
+    },
+    {
+      "label": "fail()",
+      "file_type": "code",
+      "source_file": "test/unit/age-tripwire-pq.sh",
+      "source_location": "L13",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_age_tripwire_pq_fail",
+      "community": 288,
+      "norm_label": "fail()"
+    },
+    {
       "label": "bash-bindings-unique.sh",
       "file_type": "code",
       "source_file": "test/unit/bash-bindings-unique.sh",
@@ -10296,6 +10436,48 @@
       "id": "test_unit_rendered_template_shellcheck_wrapper_stub_shellcheck_exit",
       "community": 200,
       "norm_label": "stub_shellcheck_exit"
+    },
+    {
+      "label": "restore-age-key-secret-free.sh",
+      "file_type": "code",
+      "source_file": "test/unit/restore-age-key-secret-free.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "test_unit_restore_age_key_secret_free",
+      "community": 289,
+      "norm_label": "restore-age-key-secret-free.sh"
+    },
+    {
+      "label": "restore-age-key-secret-free.sh script",
+      "file_type": "code",
+      "source_file": "test/unit/restore-age-key-secret-free.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "test_unit_restore_age_key_secret_free_sh__entry",
+      "community": 289,
+      "norm_label": "restore-age-key-secret-free.sh script"
+    },
+    {
+      "label": "fail()",
+      "file_type": "code",
+      "source_file": "test/unit/restore-age-key-secret-free.sh",
+      "source_location": "L16",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_restore_age_key_secret_free_fail",
+      "community": 289,
+      "norm_label": "fail()"
     },
     {
       "label": "skills-roster-fanout.sh",
@@ -19273,7 +19455,7 @@
       "label": "Every managed encrypted target",
       "file_type": "document",
       "source_file": "docs/runbooks/age-key.md",
-      "source_location": "L17",
+      "source_location": "L18",
       "_origin": "ast",
       "id": "docs_runbooks_age_key_every_managed_encrypted_target",
       "community": 11,
@@ -19283,7 +19465,7 @@
       "label": "Disaster recovery: restore the key on a fresh or wiped machine",
       "file_type": "document",
       "source_file": "docs/runbooks/age-key.md",
-      "source_location": "L34",
+      "source_location": "L35",
       "_origin": "ast",
       "id": "docs_runbooks_age_key_disaster_recovery_restore_the_key_on_a_fresh_or_wiped_machine",
       "community": 11,
@@ -19293,17 +19475,27 @@
       "label": "Rotation: replace the key",
       "file_type": "document",
       "source_file": "docs/runbooks/age-key.md",
-      "source_location": "L50",
+      "source_location": "L56",
       "_origin": "ast",
       "id": "docs_runbooks_age_key_rotation_replace_the_key",
       "community": 11,
       "norm_label": "rotation: replace the key"
     },
     {
+      "label": "Compromise response: a leaked key is not fixed by rotation alone",
+      "file_type": "document",
+      "source_file": "docs/runbooks/age-key.md",
+      "source_location": "L129",
+      "_origin": "ast",
+      "id": "docs_runbooks_age_key_compromise_response_a_leaked_key_is_not_fixed_by_rotation_alone",
+      "community": 11,
+      "norm_label": "compromise response: a leaked key is not fixed by rotation alone"
+    },
+    {
       "label": "Rehearsing this runbook",
       "file_type": "document",
       "source_file": "docs/runbooks/age-key.md",
-      "source_location": "L76",
+      "source_location": "L147",
       "_origin": "ast",
       "id": "docs_runbooks_age_key_rehearsing_this_runbook",
       "community": 11,
@@ -34482,7 +34674,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/e2e/age-rotation-drill.sh",
-      "source_location": "L16",
+      "source_location": "L22",
       "weight": 1.0,
       "source": "test_e2e_age_rotation_drill",
       "target": "test_e2e_age_rotation_drill_fail",
@@ -34499,10 +34691,20 @@
       "confidence_score": 1.0
     },
     {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/e2e/age-rotation-drill.sh",
+      "source_location": "L40",
+      "weight": 1.0,
+      "source": "test_e2e_age_rotation_drill",
+      "target": "test_e2e_age_rotation_drill_sha256",
+      "confidence_score": 1.0
+    },
+    {
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/e2e/age-rotation-drill.sh",
-      "source_location": "L37",
+      "source_location": "L42",
       "weight": 1.0,
       "context": "call",
       "source": "test_e2e_age_rotation_drill_sh__entry",
@@ -37400,6 +37602,78 @@
       "context": "call",
       "source": "test_integration_rendered_template_coverage_fixture_verdict",
       "target": "test_integration_rendered_template_coverage_is_shell_template",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/restore-age-key-behavior.sh",
+      "source_location": "L16",
+      "weight": 1.0,
+      "source": "test_integration_restore_age_key_behavior",
+      "target": "test_integration_restore_age_key_behavior_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/restore-age-key-behavior.sh",
+      "source_location": "L73",
+      "weight": 1.0,
+      "source": "test_integration_restore_age_key_behavior",
+      "target": "test_integration_restore_age_key_behavior_perms",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/restore-age-key-behavior.sh",
+      "source_location": "L75",
+      "weight": 1.0,
+      "source": "test_integration_restore_age_key_behavior",
+      "target": "test_integration_restore_age_key_behavior_reset_key_dir",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/restore-age-key-behavior.sh",
+      "source_location": "L69",
+      "weight": 1.0,
+      "source": "test_integration_restore_age_key_behavior",
+      "target": "test_integration_restore_age_key_behavior_run",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/restore-age-key-behavior.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "test_integration_restore_age_key_behavior",
+      "target": "test_integration_restore_age_key_behavior_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/restore-age-key-behavior.sh",
+      "source_location": "L30",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_integration_restore_age_key_behavior_sh__entry",
+      "target": "test_integration_restore_age_key_behavior_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/restore-age-key-behavior.sh",
+      "source_location": "L83",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_integration_restore_age_key_behavior_sh__entry",
+      "target": "test_integration_restore_age_key_behavior_reset_key_dir",
       "confidence_score": 1.0
     },
     {
@@ -40391,6 +40665,37 @@
     {
       "relation": "defines",
       "confidence": "EXTRACTED",
+      "source_file": "test/unit/age-tripwire-pq.sh",
+      "source_location": "L13",
+      "weight": 1.0,
+      "source": "test_unit_age_tripwire_pq",
+      "target": "test_unit_age_tripwire_pq_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/age-tripwire-pq.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "test_unit_age_tripwire_pq",
+      "target": "test_unit_age_tripwire_pq_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/age-tripwire-pq.sh",
+      "source_location": "L29",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_age_tripwire_pq_sh__entry",
+      "target": "test_unit_age_tripwire_pq_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
       "source_file": "test/unit/bash-bindings-unique.sh",
       "source_location": "L29",
       "weight": 1.0,
@@ -40860,6 +41165,37 @@
       "context": "call",
       "source": "test_unit_rendered_template_shellcheck_wrapper_sh__entry",
       "target": "test_unit_rendered_template_shellcheck_wrapper_check",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/restore-age-key-secret-free.sh",
+      "source_location": "L16",
+      "weight": 1.0,
+      "source": "test_unit_restore_age_key_secret_free",
+      "target": "test_unit_restore_age_key_secret_free_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/restore-age-key-secret-free.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "test_unit_restore_age_key_secret_free",
+      "target": "test_unit_restore_age_key_secret_free_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/restore-age-key-secret-free.sh",
+      "source_location": "L26",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_restore_age_key_secret_free_sh__entry",
+      "target": "test_unit_restore_age_key_secret_free_fail",
       "confidence_score": 1.0
     },
     {
@@ -49643,7 +49979,17 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "docs/runbooks/age-key.md",
-      "source_location": "L34",
+      "source_location": "L129",
+      "weight": 1.0,
+      "source": "docs_runbooks_age_key_age_encryption_key_rotation_and_disaster_recovery",
+      "target": "docs_runbooks_age_key_compromise_response_a_leaked_key_is_not_fixed_by_rotation_alone",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/runbooks/age-key.md",
+      "source_location": "L35",
       "weight": 1.0,
       "source": "docs_runbooks_age_key_age_encryption_key_rotation_and_disaster_recovery",
       "target": "docs_runbooks_age_key_disaster_recovery_restore_the_key_on_a_fresh_or_wiped_machine",
@@ -49653,7 +49999,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "docs/runbooks/age-key.md",
-      "source_location": "L76",
+      "source_location": "L147",
       "weight": 1.0,
       "source": "docs_runbooks_age_key_age_encryption_key_rotation_and_disaster_recovery",
       "target": "docs_runbooks_age_key_rehearsing_this_runbook",
@@ -49663,7 +50009,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "docs/runbooks/age-key.md",
-      "source_location": "L50",
+      "source_location": "L56",
       "weight": 1.0,
       "source": "docs_runbooks_age_key_age_encryption_key_rotation_and_disaster_recovery",
       "target": "docs_runbooks_age_key_rotation_replace_the_key",
@@ -49683,7 +50029,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "docs/runbooks/age-key.md",
-      "source_location": "L17",
+      "source_location": "L18",
       "weight": 1.0,
       "source": "docs_runbooks_age_key_what_the_key_protects",
       "target": "docs_runbooks_age_key_every_managed_encrypted_target",
@@ -59181,5 +59527,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "c4bdb625d0c98374109c30346cb8493b40bcd0c3"
+  "built_at_commit": "9a6374d47fecc8da34053022d5ef014dfbb111ce"
 }
