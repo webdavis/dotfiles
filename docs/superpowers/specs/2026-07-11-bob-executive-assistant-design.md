@@ -191,7 +191,8 @@ forecasting, no calendar gymnastics — the same adaptation mechanism that handl
    and **EOD** enqueues a **`stale-p1`** record for any *user-set* `p1` older than 48h (§4c/§8/AA2 — flagged
    once, never auto-cleared). **Each record carries the ONE canonical schema (DD4 — defined once in plan Task B0,
    restated here identically): `{id, class, task_id|candidate_id|aggregate-key, proposed, status, enqueue_ts, gen,
-   rev, head}`, `status ∈ {pending, tombstoned}` (no bare `acked` flag — ack TOMBSTONES, below)** — **`id` is a
+   rev, head, journal_ref, answer?}`, `status ∈ {pending, tombstoned}` (no bare `acked` flag — ack TOMBSTONES,
+   recording the user's `answer` on the retained record, KK3, below)** — **`id` is a
    STABLE, content-INDEPENDENT key, NOT hashed over `proposed`/content (AA4/BB2)**, keyed by the decision's natural
    identity per class: a **per-task** class keys
    on the task = `class + ":" + task_id/candidate_id` (`waiting-chase`, `fixed-redecision`, `stale-p1`,
@@ -205,10 +206,20 @@ forecasting, no calendar gymnastics — the same adaptation mechanism that handl
    `rev`; the producer's re-touch **retires any obsolete revision** so only the current record survives. **Ack
    TOMBSTONES the record IN PLACE (BB2/GG5 — supersedes the bare `acked` flag):** the ack flips the record's
    `status` to `tombstoned` in place — the full record is retained, `gen` unchanged, **no separate tombstone
-   object** (one id = one record); a later **re-enqueue of a tombstoned `id`** is a *new occurrence* — it
+   object** (one id = one record); **the ack RECORDS the user's answer on the tombstoned record in an `answer`
+   field (KK3/JJ3 — e.g. `keep` / `drop` / `chase` / the settled decision).** A later **re-enqueue of a
+   tombstoned `id`** is a *new occurrence* — it
    **reuses the same record**, resetting it to **`status = pending`, `gen + 1`, `rev = 1`, `head = false`, and a fresh `enqueue_ts`** (the `rev` counter resets with each new generation; the rollover clears the old promotion flag + re-stamps the occurrence clock, II6) — so a chase answered
    today, then genuinely overdue again next week, re-asks under `gen 2` rather than being suppressed forever by a
-   stale ack. **Total order = `(head DESC, class-rank, enqueue_ts, id)`** — **the `head` flag is the PRIMARY sort
+   stale ack. **PRODUCER ONCE-GUARD (KK3/JJ3 — the generalized re-ask rule):** a producer must **NOT re-enqueue a
+   tombstoned `id` whose predicate STATE is unchanged**. Concretely, when a producer would re-enqueue an id that
+   already has a tombstoned record, it re-opens a new generation **only if the predicate INPUT changed** — a
+   genuinely new episode (e.g. for `stale-p1`: the user's `p1` was removed and then RE-SET, a fresh staleness
+   episode); if the predicate is unchanged **and** the tombstone's recorded `answer` was **`keep`** (the user
+   deliberately kept it as-is), the re-enqueue is a **NO-OP** — a stale `p1` the user chose to keep, or an
+   unchanged sweep candidate already answered `keep`, is **flagged ONCE and never re-asked** until its predicate
+   state actually changes. This is why `stale-p1` "flagged once, never auto-cleared" (§4c/§8) is a stable
+   guarantee: the once-guard, not a per-day suppression list, prevents the nightly re-ask. **Total order = `(head DESC, class-rank, enqueue_ts, id)`** — **the `head` flag is the PRIMARY sort
    key, so promotion PARTICIPATES in the order (BB2)** rather than living in a side "head slot": a genuinely
    time-sensitive chase is promoted by setting `head = true` under the lock (`rev++`), which sorts it to the
    order's minimum without adding a second item — class-rank
@@ -1207,7 +1218,11 @@ below).
   set directly in Todoist is NEVER cleared by Bob** (it is not in `selected_ids`) — the old "clear every
   unfinished p1 unconditionally" step would have wiped the user's own priorities nightly. A user `p1` still
   present after 48h is instead enqueued **once** as a `stale-p1` decision-queue record (§2 step 4/§4c) for the
-  user to decide — never auto-cleared. Because the plan record names exactly which ids Bob set (§4c/Y13), the
+  user to decide — never auto-cleared. **"Once" is enforced by the §2-step-4 producer once-guard (KK3/JJ3):**
+  after the user answers (tombstone records the `answer`), EOD does **not** re-enqueue the same `stale-p1` id on
+  a later night while its predicate is unchanged (the same user `p1` still older than 48h, answered `keep`); a
+  new episode re-asks only if the `p1` was removed and RE-SET. So a stale p1 the user chose to keep is flagged
+  exactly once, never nightly. Because the plan record names exactly which ids Bob set (§4c/Y13), the
   morning idempotency guard no longer needs "p1 present ⇒ assigned today."
 - **Missed FIXED items don't rot (the roll-excluded overdue path).** EOD *enumerates* the just-closed day's
   roll-EXCLUDED overdue (the just-closed day = CEILING — *today* for the on-time 23:00 fire, *yesterday* for a
@@ -1354,7 +1369,7 @@ the authoritative map of what reads/writes what; the rest of the spec references
 | **Progress-since-surfaced** (reset trigger) | Todoist **activity log** | TWO paginated queries: `td activity --since <d> --type task --json` (completed/updated/added events) **plus a SEPARATE** `--type comment` query (comments are NOT in the `--type task` stream, §6a/Z14) — both cursor-paged to exhaustion | n/a — *derived* | no (queried) |
 | **Roll-set membership** (the ledger IS the definition, §8/V1) | ledger entry + `current due == written_due` (Todoist task fields as the secondary sanity guard) | every roll-set test (§4d/§8) | n/a — *derived per run* from ledger∩divergence-test | no |
 | **Last-reconcile date** (idempotency + the explicit reconciliation range, §8/V3/R3A9) | owned layer `forzare/state/last-reconcile.json` | morning brief + end-of-day (days closed = the range `(stored .. CEILING]`; **CEILING = today at/after the 23:00 Denver cutoff, else yesterday** — §8/W5/X6) | end-of-day (+ defensive morning run) stamps CEILING; **seeded = Denver yesterday at install** (plan A1) | **yes — one tiny file** |
-| **Unified decision queue** (ALL brief-time decisions, §2 step 4/§4c/X7/**R5A1/Y1/Z2/AA4/BB2**) | owned layer `forzare/state/decision-queue.json` (`{id, class ∈ q1-conflict\|waiting-chase\|fixed-redecision\|stale-p1\|stall-decision\|triage-reraise\|sweep-candidate\|bankruptcy-offer, task_id\|candidate_id\|aggregate-key, proposed, status, enqueue_ts, gen, rev, head, journal_ref}` per record (the ONE canonical schema, DD4/§2 step 4/plan B0; `status ∈ {pending, tombstoned}`; **`journal_ref` = nullable mutation-journal uuid the ack consumes, populated for `bankruptcy-offer` + the ambiguous-window `triage-reraise`, II3 — the ack reads the frozen snapshot by this EXACT uuid, never a month search**); **`id` = STABLE content-INDEPENDENT key — per-task classes `class:task_id`, AGGREGATE classes `q1-conflict:<date>` / `bankruptcy-offer:<YYYY-MM>` (BB2); total order `(head DESC, class-rank, enqueue_ts, id)`** with promotion participating in the order via the `head` flag, class-rank q1-conflict>waiting-chase>fixed-redecision=stale-p1>stall-decision>triage-reraise>sweep-candidate>bankruptcy-offer, AA4/R6A10) | the morning brief (emits ONLY the single HEAD `pending` record as its one decision, replacing the do-now close) | **producers (state-only, never message):** 02:00 `waiting-reconcile` (waiting-chase + repairs) · EOD `eod-roll` (fixed-redecision + stall-decision + stale-p1) · morning `eisenhower-plan` (q1-conflict) · §8b capture pipeline (triage-reraise) · monthly SWEEP `followups-sweep` (sweep-candidate + bankruptcy-offer) — **producers dedup by `id`: a re-enqueue of an unchanged decision is a no-op, a changed `proposed` updates IN PLACE + `rev++`; ALL mutations under the same lock/atomic-replace contract as the map/journal (Z2)**. **Ack = a LIVE-ONLY compare-and-set on `{id, gen, rev}` that TOMBSTONES the record (R5A5/Z2/BB2):** the live turn that resolves a decision (the shown brief head OR any record settled intra-day, CC10) CAS-flips the record's `status` to `tombstoned` IN PLACE (`gen` unchanged, no separate object, GG5); a moved `gen`/`rev` fails the CAS and the turn re-reads; a re-enqueue of a tombstoned `id` **reuses that record**, resetting it to `status=pending`, `gen+1`, `rev=1`, `head=false`, fresh `enqueue_ts` (II6); **never a dry-run write** | **yes — one small queue file** |
+| **Unified decision queue** (ALL brief-time decisions, §2 step 4/§4c/X7/**R5A1/Y1/Z2/AA4/BB2**) | owned layer `forzare/state/decision-queue.json` (`{id, class ∈ q1-conflict\|waiting-chase\|fixed-redecision\|stale-p1\|stall-decision\|triage-reraise\|sweep-candidate\|bankruptcy-offer, task_id\|candidate_id\|aggregate-key, proposed, status, enqueue_ts, gen, rev, head, journal_ref, answer?}` per record (the ONE canonical schema, DD4/§2 step 4/plan B0; `status ∈ {pending, tombstoned}`; **`journal_ref` = nullable mutation-journal uuid the ack consumes, populated for `bankruptcy-offer` + the ambiguous-window `triage-reraise`, II3 — the ack reads the frozen snapshot by this EXACT uuid, never a month search**; **`answer` = the user's recorded decision (`keep`/`drop`/…) written on the tombstoned record so the producer once-guard never re-asks an unchanged-predicate `keep`, KK3/JJ3**); **`id` = STABLE content-INDEPENDENT key — per-task classes `class:task_id`, AGGREGATE classes `q1-conflict:<date>` / `bankruptcy-offer:<YYYY-MM>` (BB2); total order `(head DESC, class-rank, enqueue_ts, id)`** with promotion participating in the order via the `head` flag, class-rank q1-conflict>waiting-chase>fixed-redecision=stale-p1>stall-decision>triage-reraise>sweep-candidate>bankruptcy-offer, AA4/R6A10) | the morning brief (emits ONLY the single HEAD `pending` record as its one decision, replacing the do-now close) | **producers (state-only, never message):** 02:00 `waiting-reconcile` (waiting-chase + repairs) · EOD `eod-roll` (fixed-redecision + stall-decision + stale-p1) · morning `eisenhower-plan` (q1-conflict) · §8b capture pipeline (triage-reraise) · monthly SWEEP `followups-sweep` (sweep-candidate + bankruptcy-offer) — **producers dedup by `id`: a re-enqueue of an unchanged decision is a no-op, a changed `proposed` updates IN PLACE + `rev++`; ALL mutations under the same lock/atomic-replace contract as the map/journal (Z2)**. **Ack = a LIVE-ONLY compare-and-set on `{id, gen, rev}` that TOMBSTONES the record (R5A5/Z2/BB2):** the live turn that resolves a decision (the shown brief head OR any record settled intra-day, CC10) CAS-flips the record's `status` to `tombstoned` IN PLACE (`gen` unchanged, no separate object, GG5); a moved `gen`/`rev` fails the CAS and the turn re-reads; a re-enqueue of a tombstoned `id` **reuses that record**, resetting it to `status=pending`, `gen+1`, `rev=1`, `head=false`, fresh `enqueue_ts` (II6); **never a dry-run write** | **yes — one small queue file** |
 | **Sweep-exclusion list** (bankruptcy RETIRE for undated items, §4c/**Z13**) | owned layer `forzare/state/sweep-exclusion.json` (a set of task ids the monthly sweep never re-proposes) | monthly SWEEP `followups-sweep` (excludes these from the candidate pool) | RETIRE appends an id (reversible by deleting the entry; no label/delete/re-parent) | **yes — one small file** |
 | **Per-day plan record** (idempotency guard, §4c/§15/**Y13**) | owned layer `forzare/state/plan-of-day.json` (`{date, created_ts, selected_ids[], anchor, writes:{p1_set, anchor_placed, alarm_set}}`; `created_ts` = plan-write time, the EE6/FF6 intervening-user-event cutoff) | the morning brief's `eisenhower-plan` (resume-missing-writes guard; distinguishes Bob-owned p1 from user-set p1) | written *as the narrowing executes* — each `writes.*` flag set when that write lands; a re-fire resumes only the missing writes | **yes — one tiny file per day** |
 | **Tomorrow pre-stage** (EOD proposal → morning brief, §8/R2A8) | owned layer `forzare/state/tomorrow-prestage.json` (≤3 candidate task ids + one anchor candidate) | the morning brief (consumes it, then **clears** it) | end-of-day's `tomorrow-prep` writes it (proposal only — **no** `p1`, **no** calendar write) | **yes — one tiny file, cleared each morning** |
@@ -1387,10 +1402,17 @@ compare-and-set on `{id, gen, rev}` that TOMBSTONES the record IN PLACE** (Z2/BB
 `tombstoned` on the retained record, `gen` unchanged; a re-enqueue of a tombstoned `id` **reuses that record**,
 resetting it to `status=pending`, `gen+1`, `rev=1`, `head=false`, fresh `enqueue_ts` (II6)):
 
-- **Exclusive lock.** Every read-modify-write holds a lock for the whole critical section via an ATOMIC
-  `mkdir` sentinel (`task-lifecycle.lock.d`) — **`flock` is verified ABSENT on this macOS (HH2)**, so the lock
-  is `until mkdir "$LOCK" 2>/dev/null; do sleep 0.05; done` acquired, `rmdir "$LOCK"` released in the `finally`/EXIT
-  path — so a live snooze and the nightly roll can't interleave a lost update.
+- **Exclusive lock — ONE state-layer sentinel, crash-auto-released (KK1/JJ11 — supersedes the mkdir/PID/TTL
+  machinery).** Every read-modify-write holds ONE lock for the whole **map+journal+queue** critical section — a
+  single state-layer-wide sentinel file **`task-lifecycle.lock`** — acquired through the **B0 helper's python
+  shim via `fcntl.flock(fd, LOCK_EX)`**. **`fcntl.flock` is verified AVAILABLE on this macOS host** (`python3 -c
+  'import fcntl'` succeeds; what is absent is the shell `flock(1)` binary, not the syscall — the earlier "flock
+  verified ABSENT" reading conflated the two). Because the advisory lock is held on an OPEN FILE DESCRIPTOR, the
+  **kernel releases it automatically the instant the holding process exits or is SIGKILLed** — so there is **no
+  PID file, no TTL, no stale-lock sweep, and no `mkdir` sentinel**: a crashed holder can never leave the lock
+  wedged, and the crash-heal contract composes with it (the next run simply re-takes an already-released lock).
+  A live snooze and the nightly roll still can't interleave a lost update, because the whole critical section is
+  serialized under the one lock.
 - **Atomic writes.** Write to a temp file in the same directory, `fsync`, then `os.rename` over the target
   (atomic on the same filesystem) — a crash mid-write never leaves a truncated/corrupt ledger; the reader
   sees either the old file or the new one.
@@ -1476,8 +1498,20 @@ resetting it to `status=pending`, `gen+1`, `rev=1`, `head=false`, fresh `enqueue
   - **`retire` (bankruptcy RETIRE, BB3)** — the undated someday id is appended to `sweep-exclusion.json`: landed
     iff the id is present in the list; absent iff not (re-append). A state-file op, so its "live value" is the
     exclusion list, not a Todoist field.
-  In every case: `intended_value` match ⇒ commit; `old_value` match ⇒ re-apply then commit; OTHER ⇒
-  abort + flag (void), never overwrite user state.
+  - **`bankruptcy` (the frozen id-set snapshot, KK7 — COMMITTED-AT-WRITE, NO pending phase; the generic
+    three-way heal does NOT apply to this type).** The snapshot is written as **ONE atomic append of the
+    COMPLETE record** (every frozen id + its per-item op + the `journal-uuid`), never a journal-then-commit
+    pair — so it is either **wholly absent or wholly present**, never half-written. There is therefore no
+    `pending` state to heal three ways; recovery is binary: **absent ⇒ the offer never froze** (no cohort was
+    committed, safe to re-offer — the next sweep re-freezes from the live sweep pool); **present (complete) ⇒
+    recovery reads the frozen cohort back and drives the per-item `undate`/`retire` ops** (each of which heals
+    under its OWN predicate above). **Immutable-cohort recovery invariant:** once committed the frozen id set is
+    **read-only** — a resumed clear reads exactly the ids that were frozen and never re-derives a different
+    cohort, so an interrupted clear resumes over the SAME cohort and never processes a task the offer did not
+    name. (The generic three-way `date-op`-style crash fixture for this type is REMOVED — a committed-at-write
+    snapshot has no absent/intended/OTHER live value to compare, KK7.)
+  In every case (except the committed-at-write `bankruptcy` snapshot above): `intended_value` match ⇒ commit;
+  `old_value` match ⇒ re-apply then commit; OTHER ⇒ abort + flag (void), never overwrite user state.
 - **Fixtures (mirrored in the plan's ledger-I/O task):** crash after (1)/after (2)/after (3); **one
   after-write crash fixture per journal `type`** (`date-op`/`comment`/`calendar`/`label`/`p1`/`description`/
   `task.add`/`task.complete`/`waiting-clear`/`undate`/`retire`) **exercising ALL THREE heal outcomes** — live
@@ -1493,7 +1527,12 @@ resetting it to `status=pending`, `gen+1`, `rev=1`, `head=false`, fresh `enqueue
   `waiting-clear` fixture asserts
   the **composite** transition heals atomically (a partial re-applies the whole clear+redate+flip); the `undate`
   and `retire` fixtures assert the bankruptcy ops heal (undate landed iff due null · retire landed iff on the
-  exclusion list); a concurrent **EOD roll × live snooze** on the same task id (the lock serializes them; the
+  exclusion list); the **`bankruptcy` snapshot fixture is COMMITTED-AT-WRITE-shaped, NOT three-way (KK7)** — a
+  crash *before* the atomic append leaves the snapshot **absent ⇒ the offer is re-offered** (no cohort
+  committed), and a crash *after* it leaves the snapshot **complete ⇒ recovery reads the SAME frozen cohort and
+  drives the per-item ops idempotently** (immutable-cohort: the resumed clear never re-derives a different set);
+  a **SIGKILL-mid-critical-section** fixture asserts the `fcntl.flock` lock is **auto-released** by the kernel so
+  the next run re-takes it and heals with no stale-lock sweep (KK1); a concurrent **EOD roll × live snooze** on the same task id (the lock serializes them; the
   loser re-reads and no-ops via the same-day dedupe); and **decision-queue concurrency fixtures (Z2/AA4/BB2):**
   a **producer race** (two producers enqueue the same `id` → one record, the second a no-op), a **duplicate
   reconcile** (a re-enqueue of an unchanged decision is a no-op), an **in-place update** (a producer re-touches
@@ -1546,9 +1585,11 @@ fire-and-forget it:
    `--triage` card is **not dispatchable**; verified — the dispatcher spawns only `ready` cards,
    `has_spawnable_ready`, §18). The **`fz-capture: ` title prefix is the forzare-card discriminator** (the private
    board is shared across profiles, §9, and while `hermes kanban create` exposes `--body`/`--priority`/`--project`/
-   `--workspace`/`--tenant`/`--created-by` (verified `--help`, FF9), **none is a per-card label/tag/metadata field the
-   stale-triage scan can filter on** — so the title prefix is what the watchdog stale-triage scan filters on;
-   non-forzare triage cards never alarm). `title` is a
+   `--workspace`/`--tenant`/`--created-by` (verified `--help`, FF9), **`--created-by` IS a stored, filterable
+   per-card column (`kanban_db.py:1019`, HH5) — so a `created_by=forzare` filter would also scope the scan** —
+   but the **greppable, human-legible `fz-capture: ` title prefix is the CHOSEN discriminator** (the earlier
+   "none is filterable" remnant is swept, JJ8/HH5); either way the watchdog stale-triage AND run-failure scans
+   (§14 (b)/(e)) filter on the forzare marker so non-forzare triage/failure cards never alarm). `title` is a
    **REQUIRED positional** (verified `hermes kanban create --help`; a
    bare `create --triage` fails), seeded from the parent's placement decision. **`--max-runtime 900` (DECIDED,
    Y7/§19)** caps each card at 900s; on exceed the dispatcher SIGTERMs→SIGKILLs (5s grace) and re-queues the
@@ -1961,9 +2002,13 @@ recognition suffers.
     morning run is where the day's plan is WRITTEN** — `eisenhower-plan` sets the ≤3 `p1` (§4c) and
     `calendar-write` places the ONE protected deep anchor if a deep window exists (§5a). (These two were
     missing from the earlier composition, so the morning bundle couldn't actually build the day.)
-  - `/forzare-replan` = `calendar-read` · `todoist-surface` · `eisenhower-plan` in **`replan` mode (W10)** —
+  - `/forzare-replan` = `calendar-read` · `todoist-surface` · `eisenhower-plan` · **`calendar-write` (KK5/JJ5 —
+    required in the bundle because replan MOVES Bob's own 🤖-calendar proposals, and every 🤖-calendar write
+    goes through `calendar-write`'s contract, §5c: own lane only, movable proposals, never a user event)** in
+    **`replan` mode (W10)** —
     redraw **only the REMAINING day** (from now to end-of-day), from the current plan + active pool; no
-    state-detect (that's the `/forzare` state path). Replan **may move Bob's own 🤖-calendar proposals** and
+    state-detect (that's the `/forzare` state path). Replan **may move Bob's own 🤖-calendar proposals** (via
+    `calendar-write`, inside its §5c contract) and
     **may PROPOSE `p1` changes**, but **never silently applies** a `p1` change — applying one requires the
     user's explicit yes (INV-5) — and it **never touches fixed anchors** (the work block, user-primary events,
     a §5c user-confirmed fixed event). **Partial-day acceptance:** a mid-afternoon replan re-plans only the
@@ -1996,12 +2041,19 @@ recognition suffers.
   patch** (no-patching-third-party-tools rule) — there is no forzare-owned hook that can abort *Hermes'* boot.
   So integrity is enforced by two forzare-owned mechanisms instead:
   - **(a) The forzare-ops watchdog's per-pass skill-INTEGRITY scan (§14 scan (f)).** Each 300s pass asserts
-    **every V1 skill is installed at its expected path AND its `SKILL.md` content-hash matches the chezmoi
-    source** — covering not just the three bundles' members but **the full V1 skill set: the bundle skills, the
-    on-demand handles `forzare-next`/`forzare-today`/`forzare-capture`, the `/forzare` classifier,
-    `forzare-capture-pipeline`, `calibration-log`, and the shared mutation helper — plus the 3 bundle YAMLs** —
-    and **alerts to `#forzare-errors`** (best-effort ≈5-min, W8/X9) on any missing/drifted skill. This is the
-    runtime guard against Hermes' silent-skip behavior.
+    **every managed file of every V1 skill dir is installed at its expected path, content-hash-matches the
+    chezmoi source, AND carries its expected exec mode (KK6 — a RECURSIVE per-file manifest, not just
+    `SKILL.md`).** A skill is more than its `SKILL.md`: the scan enumerates **every executable/support file
+    shipped in each skill dir** — e.g. `weather/classify.py`, `followups-sweep/eligibility`,
+    `calibration-log/reduce.py`, and the `forzare-capture-pipeline` stage scripts — so a corrupted or
+    non-executable support file (which Hermes would silently skip or fail on) is caught, not just a missing
+    `SKILL.md`. The manifest covers **the FULL V1 skill set: the bundle skills, the on-demand handles
+    `forzare-next`/`forzare-today`/`forzare-capture`, the `/forzare` classifier, `forzare-capture-pipeline`,
+    `calibration-log`, `waiting-reconcile` (the 02:00 cron skill, not a bundle member — JJ10), `transition`
+    (the block-boundary skill — JJ10), the shared mutation helper `forzare-mutate.sh` — plus the 3 bundle
+    YAMLs** — matching the plan's canonical `integrity_manifest()` exactly (plan Task A1/F1). It **alerts to
+    `#forzare-errors`** (best-effort ≈5-min, W8/X9) on any missing / content-drifted / wrong-exec-mode managed
+    file. This is the runtime guard against Hermes' silent-skip behavior.
   - **(b) The documented pre-start check in the go-live runbook** — the build-time SKILL-INTEGRITY GATE (plan,
     end of Phase B) runs the same path+hash assertion before delivery ever flips to live, and the runbook says
     to re-run it after any skill re-apply.
@@ -2177,7 +2229,12 @@ dispatcher (claim races) — the gateway runs the dispatcher.
   - **(b) forzare run failures — predicate is a causal run EVENT, never status+counter (W9, corrects
     V9/R2A6).** Since its last check (a stamped watermark), it scans **`~/.hermes/cron/output/`** for failed
     ritual runs and the **Kanban DB** for genuine failures — and routes each to the errors channel. **The
-    failure predicate is a causal run OUTCOME/EVENT, NOT a `status='blocked' AND consecutive_failures>0`
+    Kanban-DB half carries the SAME forzare discriminator scan (e) uses (JJ4):** only a card matching the
+    **`fz-capture: ` title prefix (or `created_by=forzare`, the stored filterable per-card column,
+    `kanban_db.py:1019`)** can raise a `#forzare-errors` alarm — the private board is shared across profiles
+    (§9), so a **non-forzare profile's card failing (`gave_up`/`crashed`/`timed_out`) NEVER alarms** the forzare
+    errors channel. (Cron-`output/` ritual failures are already forzare-scoped by the `forzare-*` job manifest.)
+    **The failure predicate is a causal run OUTCOME/EVENT, NOT a `status='blocked' AND consecutive_failures>0`
     derivation.** Verified: **`block_task` (`running → blocked`) does NOT clear `consecutive_failures`**
     (`kanban_db.py:4383` sets only status/claim fields — that claim stands). The counter *is* cleared on the
     UNBLOCK path (`unblock_task`, `kanban_db.py:4560-62`, verified — CC9 corrects the earlier "cleared only on
@@ -2248,13 +2305,18 @@ dispatcher (claim races) — the gateway runs the dispatcher.
     capture.
   - **(f) Skill-INTEGRITY scan (BB8 — the runtime integrity guard, replacing the removed boot-abort).** Because
     forzare cannot hook Hermes' own boot (no-patching rule, §13), this scan is the standing runtime guard against
-    Hermes' silent-skip behavior: each pass asserts **every V1 skill is installed at its expected path AND its
-    `SKILL.md` content-hash matches the chezmoi source** — the bundle skills, the on-demand handles
+    Hermes' silent-skip behavior: each pass asserts **every MANAGED FILE of every V1 skill dir is installed at
+    its expected path, content-hash-matches the chezmoi source, AND carries its expected exec mode (KK6 — a
+    RECURSIVE per-file manifest, not just `SKILL.md`)** — every skill's `SKILL.md` PLUS every executable/support
+    file it ships (`weather/classify.py`, `followups-sweep/eligibility`, `calibration-log/reduce.py`, the
+    `forzare-capture-pipeline` stage scripts, …). The manifest covers the bundle skills, the on-demand handles
     (`forzare-next`/`forzare-today`/`forzare-capture`), the `/forzare` classifier, `forzare-capture-pipeline`,
-    `calibration-log`, and the shared mutation helper, plus the 3 bundle YAMLs — and on any **missing or
-    content-drifted** skill ⇒ an errors-channel alert (same content-stable id + spool). A missing/stale skill is
-    silently skipped by Hermes' bundle loader, so without this scan a typo'd or half-applied skill degrades the
-    engine invisibly.
+    `calibration-log`, **`waiting-reconcile` and `transition` (JJ10 — the 02:00-cron and block-boundary skills,
+    not bundle members)**, and the shared mutation helper `forzare-mutate.sh`, plus the 3 bundle YAMLs — the
+    SAME `integrity_manifest()` list the plan iterates (Task A1/F1). On any **missing / content-drifted /
+    wrong-exec-mode** managed file ⇒ an errors-channel alert (same content-stable id + spool). A missing/stale
+    file is silently skipped by Hermes' bundle loader, so without this scan a typo'd or half-applied skill
+    degrades the engine invisibly.
   - **Alert path (out-of-band, independent of the gateway):** **`hermes send --to discord:<#forzare-errors>`**
     (R2) — no LLM, no agent loop, no running gateway for bot-token platforms — so it can report the gateway's
     own death; the relay's phone/local push stays as belt-and-suspenders. **You cannot use the thing that's
@@ -3011,3 +3073,35 @@ both services health-verified pre-flag, II2; `[TEST-STAGING]` project made real 
 fixture, II4; response gate checks every non-marker line pre- AND post-marker, II7; RUN1/RUN2 two-run probes,
 HH3/II8; morning roll-then-plan ordering command, HH7; B6 acceptance re-scoped to the measured surface, HH8;
 set-e-safe retry wrapper, HH9).
+
+**2026-07-12 — round-12 structural + adversarial-review hardening (JJ0–JJ12 · KK0–KK9; THE STRUCTURAL WAVE).** A
+twelfth pass applied the process doc's own prescription for the recurring embedded-command finding class: **the
+plan's staged-test bash HARNESSES are demoted from normative embedded scripts to per-task INVARIANTS + one new
+build deliverable, Task E3 "forzare-staging-harness"** (a chezmoi-shipped, shellcheck+bats-gated script suite
+authored at build time, each invariant id mapping to a test, writing run-scoped atomic result files the
+checkpoints consume) — KK0/JJ0. This spec's design decisions are unchanged by that plan-side refactor; the
+design corrections this pass are: **the state-layer lock is `fcntl.flock` (python), not a `mkdir` sentinel**
+(KK1/JJ11 — `fcntl.flock` verified AVAILABLE on this macOS host via `python3 -c 'import fcntl'`; the earlier
+"flock ABSENT" reading conflated the missing shell `flock(1)` binary with the syscall; the advisory lock is
+crash-auto-released by the kernel, so the PID/TTL/mkdir stale-lock machinery is dropped; ONE state-layer
+sentinel `task-lifecycle.lock` covers the map+journal+queue critical section, §8a). **The [TEST-STAGING]
+Todoist project is a USER-CREATED prerequisite** — the build resolve-only, FATALs if absent, never auto-creates
+it (KK2/JJ2, the no-unprompted-projects rule). **A producer once-guard** stops a re-ask of a tombstoned
+decision whose predicate state is unchanged and whose recorded `answer` was `keep` — the `answer` field is added
+to the canonical queue schema, making "stale-p1 flagged once, never nightly" a stable guarantee (KK3/JJ3, §2
+step 4/§4c/§8). **Watchdog scan (b) carries the same forzare discriminator as scan (e)** so a non-forzare
+profile's card failure never alarms `#forzare-errors` (KK4/JJ4, §14). **The replan bundle gains `calendar-write`**
+because replan MOVES Bob's 🤖-calendar proposals inside the §5c contract (KK5/JJ5, §13). **The integrity manifest
+is RECURSIVE** — every managed file of every skill dir (SKILL.md + every executable/support file:
+`classify.py`, `eligibility`, `reduce.py`, …) asserted for existence + hash + exec mode, and the enumeration
+gains `waiting-reconcile` + `transition` to match the plan's canonical list (KK6/JJ10, §13/§14). **Bankruptcy
+healing is COMMITTED-AT-WRITE** — the frozen snapshot is one atomic append with no pending phase; recovery is
+binary (absent ⇒ re-offer, complete ⇒ read the immutable cohort); the generic three-way fixture for this type is
+removed (KK7/JJ9, §8a). Plus: the §8b "none is filterable" remnant is swept (`--created-by` IS a filterable
+per-card column; the `fz-capture: ` title prefix stays the chosen discriminator, JJ8/HH5); the §8a heal-list +
+fixtures gain the committed-at-write `bankruptcy` case and a SIGKILL-mid-critical-section flock-auto-release
+fixture (JJ9/KK1); the integrity enumeration adds `waiting-reconcile` + `transition` (JJ10); lock identity is
+unified to the one `fcntl.flock` sentinel (JJ11); the G1 concurrent-trigger block became a plan invariant under
+E3 (JJ12/KK0). The round-11 "harness lock is `mkdir`-atomic, not `flock`" note (above) is therefore SUPERSEDED
+for the state layer: the design lock is `fcntl.flock`, and the plan's own staging-harness lock is likewise a
+`fcntl.flock` file via the B0 python shim (KK1).
