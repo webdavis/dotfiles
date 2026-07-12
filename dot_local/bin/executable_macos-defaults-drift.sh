@@ -13,12 +13,15 @@
 set -euo pipefail
 shopt -s lastpipe
 
-DATA_FILE="${HOME}/workspaces/Ivy/webdavis/dotfiles/.chezmoidata/macos_defaults.yaml"
+# shellcheck source=dot_local/bin/macos-defaults-lib.sh
+source "$(dirname "${BASH_SOURCE[0]}")/macos-defaults-lib.sh"
 
-if [[ ! -r $DATA_FILE ]]; then
-  printf 'error: cannot read %s\n' "$DATA_FILE" >&2
+DATA_FILE="$(macos_defaults_data_file)" || {
+  printf 'error: cannot resolve the chezmoi source dir for macos_defaults.yaml\n' >&2
   exit 2
-fi
+}
+
+require_readable_data_file "$DATA_FILE"
 
 # Normalize a value for comparison. macOS stores bools as 0/1; YAML ships them
 # as true/false. Strings/ints/floats compare directly.
@@ -45,10 +48,10 @@ print_header() {
   fi
 }
 
-# yq -r outputs each record as a single TSV line: domain<TAB>key<TAB>type<TAB>value<TAB>host
+# Each record arrives as one TSV line: domain<TAB>key<TAB>type<TAB>value<TAB>host.
 # Note: yq emits a single newline for an empty array; the inline guard below
 # skips that empty row so the script exits 0 cleanly when nothing is tracked.
-yq eval -r '.macos.defaults[] | [.domain, .key, .type, .value, (.host // "")] | @tsv' "$DATA_FILE" |
+defaults_records_tsv "$DATA_FILE" |
   while IFS=$'\t' read -r domain key type value host; do
     [[ -z $domain ]] && continue
     expected="$(normalize "$type" "$value")"
