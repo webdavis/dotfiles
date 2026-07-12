@@ -1,0 +1,12 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/bin/bash
+# Wire relay's Codex notifications into ~/.codex/hooks.json on every apply
+# (idempotent; re-heals after herdr re-installs its integration). The merge logic
+# lives in the tracked, unit-tested relay-codex-hooks.sh. Runs after the 60-series
+# moshi-hook setup (which strips Codex from moshi-hook) so relay owns Codex's pushes.
+set -euo pipefail
+script="$HOME/.local/bin/relay-codex-hooks.sh"
+if [[ -x $script ]]; then
+  "$script" || true
+fi
+{{ end -}}

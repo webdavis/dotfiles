@@ -924,6 +924,76 @@
       "norm_label": "usage()"
     },
     {
+      "label": "executable_homebrew-weekly-upgrade.sh",
+      "file_type": "code",
+      "source_file": "dot_local/bin/executable_homebrew-weekly-upgrade.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "dot_local_bin_executable_homebrew_weekly_upgrade",
+      "community": 221,
+      "norm_label": "executable_homebrew-weekly-upgrade.sh"
+    },
+    {
+      "label": "executable_homebrew-weekly-upgrade.sh script",
+      "file_type": "code",
+      "source_file": "dot_local/bin/executable_homebrew-weekly-upgrade.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "dot_local_bin_executable_homebrew_weekly_upgrade_sh__entry",
+      "community": 221,
+      "norm_label": "executable_homebrew-weekly-upgrade.sh script"
+    },
+    {
+      "label": "acquire_lock()",
+      "file_type": "code",
+      "source_file": "dot_local/bin/executable_homebrew-weekly-upgrade.sh",
+      "source_location": "L30",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_bin_executable_homebrew_weekly_upgrade_acquire_lock",
+      "community": 221,
+      "norm_label": "acquire_lock()"
+    },
+    {
+      "label": "run()",
+      "file_type": "code",
+      "source_file": "dot_local/bin/executable_homebrew-weekly-upgrade.sh",
+      "source_location": "L41",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_bin_executable_homebrew_weekly_upgrade_run",
+      "community": 221,
+      "norm_label": "run()"
+    },
+    {
+      "label": "refresh_tailscaled()",
+      "file_type": "code",
+      "source_file": "dot_local/bin/executable_homebrew-weekly-upgrade.sh",
+      "source_location": "L60",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_bin_executable_homebrew_weekly_upgrade_refresh_tailscaled",
+      "community": 221,
+      "norm_label": "refresh_tailscaled()"
+    },
+    {
       "label": "executable_hue-pulse.sh",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_hue-pulse.sh",
@@ -955,7 +1025,7 @@
       "label": "pulse_to()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_hue-pulse.sh",
-      "source_location": "L70",
+      "source_location": "L87",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -1370,6 +1440,104 @@
       "id": "dot_local_bin_executable_osquery_uptime_watchdog_sh__entry",
       "community": 262,
       "norm_label": "executable_osquery-uptime-watchdog.sh script"
+    },
+    {
+      "label": "executable_relay-agent.sh",
+      "file_type": "code",
+      "source_file": "dot_local/bin/executable_relay-agent.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "dot_local_bin_executable_relay_agent",
+      "community": 281,
+      "norm_label": "executable_relay-agent.sh"
+    },
+    {
+      "label": "executable_relay-agent.sh script",
+      "file_type": "code",
+      "source_file": "dot_local/bin/executable_relay-agent.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "dot_local_bin_executable_relay_agent_sh__entry",
+      "community": 281,
+      "norm_label": "executable_relay-agent.sh script"
+    },
+    {
+      "label": "executable_relay-codex-hooks.sh",
+      "file_type": "code",
+      "source_file": "dot_local/bin/executable_relay-codex-hooks.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "dot_local_bin_executable_relay_codex_hooks",
+      "community": 282,
+      "norm_label": "executable_relay-codex-hooks.sh"
+    },
+    {
+      "label": "executable_relay-codex-hooks.sh script",
+      "file_type": "code",
+      "source_file": "dot_local/bin/executable_relay-codex-hooks.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "dot_local_bin_executable_relay_codex_hooks_sh__entry",
+      "community": 282,
+      "norm_label": "executable_relay-codex-hooks.sh script"
+    },
+    {
+      "label": "executable_relay.sh",
+      "file_type": "code",
+      "source_file": "dot_local/bin/executable_relay.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "dot_local_bin_executable_relay",
+      "community": 280,
+      "norm_label": "executable_relay.sh"
+    },
+    {
+      "label": "executable_relay.sh script",
+      "file_type": "code",
+      "source_file": "dot_local/bin/executable_relay.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "dot_local_bin_executable_relay_sh__entry",
+      "community": 280,
+      "norm_label": "executable_relay.sh script"
+    },
+    {
+      "label": "is_relay_flag()",
+      "file_type": "code",
+      "source_file": "dot_local/bin/executable_relay.sh",
+      "source_location": "L8",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_bin_executable_relay_is_relay_flag",
+      "community": 280,
+      "norm_label": "is_relay_flag()"
     },
     {
       "label": "executable_ssh-hardening.sh",
@@ -3522,6 +3690,118 @@
       "norm_label": "run_one()"
     },
     {
+      "label": "homebrew-weekly-lock.sh",
+      "file_type": "code",
+      "source_file": "test/e2e/homebrew-weekly-lock.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "test_e2e_homebrew_weekly_lock",
+      "community": 274,
+      "norm_label": "homebrew-weekly-lock.sh"
+    },
+    {
+      "label": "homebrew-weekly-lock.sh script",
+      "file_type": "code",
+      "source_file": "test/e2e/homebrew-weekly-lock.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "test_e2e_homebrew_weekly_lock_sh__entry",
+      "community": 274,
+      "norm_label": "homebrew-weekly-lock.sh script"
+    },
+    {
+      "label": "fail()",
+      "file_type": "code",
+      "source_file": "test/e2e/homebrew-weekly-lock.sh",
+      "source_location": "L18",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_e2e_homebrew_weekly_lock_fail",
+      "community": 274,
+      "norm_label": "fail()"
+    },
+    {
+      "label": "hue-pulse-lock.sh",
+      "file_type": "code",
+      "source_file": "test/e2e/hue-pulse-lock.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "test_e2e_hue_pulse_lock",
+      "community": 283,
+      "norm_label": "hue-pulse-lock.sh"
+    },
+    {
+      "label": "hue-pulse-lock.sh script",
+      "file_type": "code",
+      "source_file": "test/e2e/hue-pulse-lock.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "test_e2e_hue_pulse_lock_sh__entry",
+      "community": 283,
+      "norm_label": "hue-pulse-lock.sh script"
+    },
+    {
+      "label": "relay.sh",
+      "file_type": "code",
+      "source_file": "test/e2e/relay.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "test_e2e_relay",
+      "community": 275,
+      "norm_label": "relay.sh"
+    },
+    {
+      "label": "relay.sh script",
+      "file_type": "code",
+      "source_file": "test/e2e/relay.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "test_e2e_relay_sh__entry",
+      "community": 275,
+      "norm_label": "relay.sh script"
+    },
+    {
+      "label": "RELAY_IDLE_SECS",
+      "file_type": "code",
+      "source_file": "test/e2e/relay.sh",
+      "source_location": "L24",
+      "metadata": {
+        "language": "bash",
+        "kind": "code"
+      },
+      "_origin": "ast",
+      "id": "test_e2e_relay_relay_idle_secs",
+      "community": 275,
+      "norm_label": "relay_idle_secs"
+    },
+    {
       "label": "update-skills-defer.sh",
       "file_type": "code",
       "source_file": "test/e2e/update-skills-defer.sh",
@@ -4631,7 +4911,7 @@
       "label": "cleanup_used()",
       "file_type": "code",
       "source_file": "test/integration/herdr-migration-ordering.sh",
-      "source_location": "L101",
+      "source_location": "L105",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -4715,7 +4995,7 @@
       "label": "run_case()",
       "file_type": "code",
       "source_file": "test/integration/herdr-migration-verify.sh",
-      "source_location": "L170",
+      "source_location": "L176",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -4729,7 +5009,7 @@
       "label": "cleanup_ran()",
       "file_type": "code",
       "source_file": "test/integration/herdr-migration-verify.sh",
-      "source_location": "L191",
+      "source_location": "L198",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -4743,7 +5023,7 @@
       "label": "herdr_contacted()",
       "file_type": "code",
       "source_file": "test/integration/herdr-migration-verify.sh",
-      "source_location": "L192",
+      "source_location": "L199",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -4850,6 +5130,412 @@
       "id": "test_integration_hermes_superpowers_routing_tree_hash",
       "community": 229,
       "norm_label": "tree_hash()"
+    },
+    {
+      "label": "homebrew-after58-skip-cleanup.sh",
+      "file_type": "code",
+      "source_file": "test/integration/homebrew-after58-skip-cleanup.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "test_integration_homebrew_after58_skip_cleanup",
+      "community": 44,
+      "norm_label": "homebrew-after58-skip-cleanup.sh"
+    },
+    {
+      "label": "homebrew-after58-skip-cleanup.sh script",
+      "file_type": "code",
+      "source_file": "test/integration/homebrew-after58-skip-cleanup.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "test_integration_homebrew_after58_skip_cleanup_sh__entry",
+      "community": 44,
+      "norm_label": "homebrew-after58-skip-cleanup.sh script"
+    },
+    {
+      "label": "fail()",
+      "file_type": "code",
+      "source_file": "test/integration/homebrew-after58-skip-cleanup.sh",
+      "source_location": "L18",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_integration_homebrew_after58_skip_cleanup_fail",
+      "community": 44,
+      "norm_label": "fail()"
+    },
+    {
+      "label": "make_healthy_herdr()",
+      "file_type": "code",
+      "source_file": "test/integration/homebrew-after58-skip-cleanup.sh",
+      "source_location": "L36",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_integration_homebrew_after58_skip_cleanup_make_healthy_herdr",
+      "community": 44,
+      "norm_label": "make_healthy_herdr()"
+    },
+    {
+      "label": "make_brew()",
+      "file_type": "code",
+      "source_file": "test/integration/homebrew-after58-skip-cleanup.sh",
+      "source_location": "L55",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_integration_homebrew_after58_skip_cleanup_make_brew",
+      "community": 44,
+      "norm_label": "make_brew()"
+    },
+    {
+      "label": "run_render()",
+      "file_type": "code",
+      "source_file": "test/integration/homebrew-after58-skip-cleanup.sh",
+      "source_location": "L73",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_integration_homebrew_after58_skip_cleanup_run_render",
+      "community": 44,
+      "norm_label": "run_render()"
+    },
+    {
+      "label": "herdr_contacted()",
+      "file_type": "code",
+      "source_file": "test/integration/homebrew-after58-skip-cleanup.sh",
+      "source_location": "L107",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_integration_homebrew_after58_skip_cleanup_herdr_contacted",
+      "community": 44,
+      "norm_label": "herdr_contacted()"
+    },
+    {
+      "label": "cleanup_ran()",
+      "file_type": "code",
+      "source_file": "test/integration/homebrew-after58-skip-cleanup.sh",
+      "source_location": "L108",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_integration_homebrew_after58_skip_cleanup_cleanup_ran",
+      "community": 44,
+      "norm_label": "cleanup_ran()"
+    },
+    {
+      "label": "homebrew-before10-autoupdate-teardown.sh",
+      "file_type": "code",
+      "source_file": "test/integration/homebrew-before10-autoupdate-teardown.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "test_integration_homebrew_before10_autoupdate_teardown",
+      "community": 276,
+      "norm_label": "homebrew-before10-autoupdate-teardown.sh"
+    },
+    {
+      "label": "homebrew-before10-autoupdate-teardown.sh script",
+      "file_type": "code",
+      "source_file": "test/integration/homebrew-before10-autoupdate-teardown.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "test_integration_homebrew_before10_autoupdate_teardown_sh__entry",
+      "community": 276,
+      "norm_label": "homebrew-before10-autoupdate-teardown.sh script"
+    },
+    {
+      "label": "fail()",
+      "file_type": "code",
+      "source_file": "test/integration/homebrew-before10-autoupdate-teardown.sh",
+      "source_location": "L21",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_integration_homebrew_before10_autoupdate_teardown_fail",
+      "community": 276,
+      "norm_label": "fail()"
+    },
+    {
+      "label": "homebrew-before10-bundle-split.sh",
+      "file_type": "code",
+      "source_file": "test/integration/homebrew-before10-bundle-split.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "test_integration_homebrew_before10_bundle_split",
+      "community": 277,
+      "norm_label": "homebrew-before10-bundle-split.sh"
+    },
+    {
+      "label": "homebrew-before10-bundle-split.sh script",
+      "file_type": "code",
+      "source_file": "test/integration/homebrew-before10-bundle-split.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "test_integration_homebrew_before10_bundle_split_sh__entry",
+      "community": 277,
+      "norm_label": "homebrew-before10-bundle-split.sh script"
+    },
+    {
+      "label": "fail()",
+      "file_type": "code",
+      "source_file": "test/integration/homebrew-before10-bundle-split.sh",
+      "source_location": "L18",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_integration_homebrew_before10_bundle_split_fail",
+      "community": 277,
+      "norm_label": "fail()"
+    },
+    {
+      "label": "homebrew-before10-ecosystem-guards.sh",
+      "file_type": "code",
+      "source_file": "test/integration/homebrew-before10-ecosystem-guards.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "test_integration_homebrew_before10_ecosystem_guards",
+      "community": 272,
+      "norm_label": "homebrew-before10-ecosystem-guards.sh"
+    },
+    {
+      "label": "homebrew-before10-ecosystem-guards.sh script",
+      "file_type": "code",
+      "source_file": "test/integration/homebrew-before10-ecosystem-guards.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "test_integration_homebrew_before10_ecosystem_guards_sh__entry",
+      "community": 272,
+      "norm_label": "homebrew-before10-ecosystem-guards.sh script"
+    },
+    {
+      "label": "fail()",
+      "file_type": "code",
+      "source_file": "test/integration/homebrew-before10-ecosystem-guards.sh",
+      "source_location": "L17",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_integration_homebrew_before10_ecosystem_guards_fail",
+      "community": 272,
+      "norm_label": "fail()"
+    },
+    {
+      "label": "make_brew()",
+      "file_type": "code",
+      "source_file": "test/integration/homebrew-before10-ecosystem-guards.sh",
+      "source_location": "L46",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_integration_homebrew_before10_ecosystem_guards_make_brew",
+      "community": 272,
+      "norm_label": "make_brew()"
+    },
+    {
+      "label": "homebrew-cleanup-guard.sh",
+      "file_type": "code",
+      "source_file": "test/integration/homebrew-cleanup-guard.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "test_integration_homebrew_cleanup_guard",
+      "community": 172,
+      "norm_label": "homebrew-cleanup-guard.sh"
+    },
+    {
+      "label": "homebrew-cleanup-guard.sh script",
+      "file_type": "code",
+      "source_file": "test/integration/homebrew-cleanup-guard.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "test_integration_homebrew_cleanup_guard_sh__entry",
+      "community": 172,
+      "norm_label": "homebrew-cleanup-guard.sh script"
+    },
+    {
+      "label": "fail()",
+      "file_type": "code",
+      "source_file": "test/integration/homebrew-cleanup-guard.sh",
+      "source_location": "L21",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_integration_homebrew_cleanup_guard_fail",
+      "community": 172,
+      "norm_label": "fail()"
+    },
+    {
+      "label": "make_prefix()",
+      "file_type": "code",
+      "source_file": "test/integration/homebrew-cleanup-guard.sh",
+      "source_location": "L68",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_integration_homebrew_cleanup_guard_make_prefix",
+      "community": 172,
+      "norm_label": "make_prefix()"
+    },
+    {
+      "label": "run_case()",
+      "file_type": "code",
+      "source_file": "test/integration/homebrew-cleanup-guard.sh",
+      "source_location": "L99",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_integration_homebrew_cleanup_guard_run_case",
+      "community": 172,
+      "norm_label": "run_case()"
+    },
+    {
+      "label": "forced_ran()",
+      "file_type": "code",
+      "source_file": "test/integration/homebrew-cleanup-guard.sh",
+      "source_location": "L116",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_integration_homebrew_cleanup_guard_forced_ran",
+      "community": 172,
+      "norm_label": "forced_ran()"
+    },
+    {
+      "label": "homebrew-weekly-upgrade.sh",
+      "file_type": "code",
+      "source_file": "test/integration/homebrew-weekly-upgrade.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "test_integration_homebrew_weekly_upgrade",
+      "community": 268,
+      "norm_label": "homebrew-weekly-upgrade.sh"
+    },
+    {
+      "label": "homebrew-weekly-upgrade.sh script",
+      "file_type": "code",
+      "source_file": "test/integration/homebrew-weekly-upgrade.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "test_integration_homebrew_weekly_upgrade_sh__entry",
+      "community": 268,
+      "norm_label": "homebrew-weekly-upgrade.sh script"
+    },
+    {
+      "label": "fail()",
+      "file_type": "code",
+      "source_file": "test/integration/homebrew-weekly-upgrade.sh",
+      "source_location": "L19",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_integration_homebrew_weekly_upgrade_fail",
+      "community": 268,
+      "norm_label": "fail()"
+    },
+    {
+      "label": "assert_all_sections()",
+      "file_type": "code",
+      "source_file": "test/integration/homebrew-weekly-upgrade.sh",
+      "source_location": "L37",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_integration_homebrew_weekly_upgrade_assert_all_sections",
+      "community": 268,
+      "norm_label": "assert_all_sections()"
+    },
+    {
+      "label": "make_brew()",
+      "file_type": "code",
+      "source_file": "test/integration/homebrew-weekly-upgrade.sh",
+      "source_location": "L49",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_integration_homebrew_weekly_upgrade_make_brew",
+      "community": 268,
+      "norm_label": "make_brew()"
     },
     {
       "label": "openclaw-services-retirement.sh",
@@ -5160,6 +5846,48 @@
       "norm_label": "seed_loaded()"
     },
     {
+      "label": "relay-agent.sh",
+      "file_type": "code",
+      "source_file": "test/integration/relay-agent.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "test_integration_relay_agent",
+      "community": 278,
+      "norm_label": "relay-agent.sh"
+    },
+    {
+      "label": "relay-agent.sh script",
+      "file_type": "code",
+      "source_file": "test/integration/relay-agent.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "test_integration_relay_agent_sh__entry",
+      "community": 278,
+      "norm_label": "relay-agent.sh script"
+    },
+    {
+      "label": "RELAY_CODEX_HOME",
+      "file_type": "code",
+      "source_file": "test/integration/relay-agent.sh",
+      "source_location": "L12",
+      "metadata": {
+        "language": "bash",
+        "kind": "code"
+      },
+      "_origin": "ast",
+      "id": "test_integration_relay_agent_relay_codex_home",
+      "community": 278,
+      "norm_label": "relay_codex_home"
+    },
+    {
       "label": "rendered-template-coverage.sh",
       "file_type": "code",
       "source_file": "test/integration/rendered-template-coverage.sh",
@@ -5331,7 +6059,7 @@
       "label": "seen",
       "file_type": "code",
       "source_file": "test/integration/rendered-template-coverage.sh",
-      "source_location": "L196",
+      "source_location": "L197",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -5345,7 +6073,7 @@
       "label": "safe",
       "file_type": "code",
       "source_file": "test/integration/rendered-template-coverage.sh",
-      "source_location": "L197",
+      "source_location": "L198",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -5359,7 +6087,7 @@
       "label": "safe_set",
       "file_type": "code",
       "source_file": "test/integration/rendered-template-coverage.sh",
-      "source_location": "L198",
+      "source_location": "L199",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -5373,7 +6101,7 @@
       "label": "consider()",
       "file_type": "code",
       "source_file": "test/integration/rendered-template-coverage.sh",
-      "source_location": "L200",
+      "source_location": "L201",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -5387,7 +6115,7 @@
       "label": "stray_exec",
       "file_type": "code",
       "source_file": "test/integration/rendered-template-coverage.sh",
-      "source_location": "L232",
+      "source_location": "L233",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -5401,7 +6129,7 @@
       "label": "covered",
       "file_type": "code",
       "source_file": "test/integration/rendered-template-coverage.sh",
-      "source_location": "L252",
+      "source_location": "L253",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -5415,7 +6143,7 @@
       "label": "missing",
       "file_type": "code",
       "source_file": "test/integration/rendered-template-coverage.sh",
-      "source_location": "L264",
+      "source_location": "L265",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -5429,7 +6157,7 @@
       "label": "fixture_verdict()",
       "file_type": "code",
       "source_file": "test/integration/rendered-template-coverage.sh",
-      "source_location": "L304",
+      "source_location": "L305",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -5443,7 +6171,7 @@
       "label": "nix_classify()",
       "file_type": "code",
       "source_file": "test/integration/rendered-template-coverage.sh",
-      "source_location": "L318",
+      "source_location": "L319",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -5457,7 +6185,7 @@
       "label": "FIXTURE_EXPECT",
       "file_type": "code",
       "source_file": "test/integration/rendered-template-coverage.sh",
-      "source_location": "L323",
+      "source_location": "L324",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -9178,6 +9906,202 @@
       "norm_label": "fail()"
     },
     {
+      "label": "homebrew-before10-skip-truthiness.sh",
+      "file_type": "code",
+      "source_file": "test/unit/homebrew-before10-skip-truthiness.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "test_unit_homebrew_before10_skip_truthiness",
+      "community": 269,
+      "norm_label": "homebrew-before10-skip-truthiness.sh"
+    },
+    {
+      "label": "homebrew-before10-skip-truthiness.sh script",
+      "file_type": "code",
+      "source_file": "test/unit/homebrew-before10-skip-truthiness.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "test_unit_homebrew_before10_skip_truthiness_sh__entry",
+      "community": 269,
+      "norm_label": "homebrew-before10-skip-truthiness.sh script"
+    },
+    {
+      "label": "fail()",
+      "file_type": "code",
+      "source_file": "test/unit/homebrew-before10-skip-truthiness.sh",
+      "source_location": "L15",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_homebrew_before10_skip_truthiness_fail",
+      "community": 269,
+      "norm_label": "fail()"
+    },
+    {
+      "label": "render()",
+      "file_type": "code",
+      "source_file": "test/unit/homebrew-before10-skip-truthiness.sh",
+      "source_location": "L33",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_homebrew_before10_skip_truthiness_render",
+      "community": 269,
+      "norm_label": "render()"
+    },
+    {
+      "label": "render_has_skip()",
+      "file_type": "code",
+      "source_file": "test/unit/homebrew-before10-skip-truthiness.sh",
+      "source_location": "L57",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_homebrew_before10_skip_truthiness_render_has_skip",
+      "community": 269,
+      "norm_label": "render_has_skip()"
+    },
+    {
+      "label": "homebrew-brew-upgrade-recipe.sh",
+      "file_type": "code",
+      "source_file": "test/unit/homebrew-brew-upgrade-recipe.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "test_unit_homebrew_brew_upgrade_recipe",
+      "community": 279,
+      "norm_label": "homebrew-brew-upgrade-recipe.sh"
+    },
+    {
+      "label": "homebrew-brew-upgrade-recipe.sh script",
+      "file_type": "code",
+      "source_file": "test/unit/homebrew-brew-upgrade-recipe.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "test_unit_homebrew_brew_upgrade_recipe_sh__entry",
+      "community": 279,
+      "norm_label": "homebrew-brew-upgrade-recipe.sh script"
+    },
+    {
+      "label": "fail()",
+      "file_type": "code",
+      "source_file": "test/unit/homebrew-brew-upgrade-recipe.sh",
+      "source_location": "L14",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_homebrew_brew_upgrade_recipe_fail",
+      "community": 279,
+      "norm_label": "fail()"
+    },
+    {
+      "label": "homebrew-weekly-plist.sh",
+      "file_type": "code",
+      "source_file": "test/unit/homebrew-weekly-plist.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "test_unit_homebrew_weekly_plist",
+      "community": 273,
+      "norm_label": "homebrew-weekly-plist.sh"
+    },
+    {
+      "label": "homebrew-weekly-plist.sh script",
+      "file_type": "code",
+      "source_file": "test/unit/homebrew-weekly-plist.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "test_unit_homebrew_weekly_plist_sh__entry",
+      "community": 273,
+      "norm_label": "homebrew-weekly-plist.sh script"
+    },
+    {
+      "label": "fail()",
+      "file_type": "code",
+      "source_file": "test/unit/homebrew-weekly-plist.sh",
+      "source_location": "L16",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_homebrew_weekly_plist_fail",
+      "community": 273,
+      "norm_label": "fail()"
+    },
+    {
+      "label": "assert_kv()",
+      "file_type": "code",
+      "source_file": "test/unit/homebrew-weekly-plist.sh",
+      "source_location": "L38",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_homebrew_weekly_plist_assert_kv",
+      "community": 273,
+      "norm_label": "assert_kv()"
+    },
+    {
+      "label": "relay-codex-hooks.sh",
+      "file_type": "code",
+      "source_file": "test/unit/relay-codex-hooks.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "test_unit_relay_codex_hooks",
+      "community": 284,
+      "norm_label": "relay-codex-hooks.sh"
+    },
+    {
+      "label": "relay-codex-hooks.sh script",
+      "file_type": "code",
+      "source_file": "test/unit/relay-codex-hooks.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "test_unit_relay_codex_hooks_sh__entry",
+      "community": 284,
+      "norm_label": "relay-codex-hooks.sh script"
+    },
+    {
       "label": "rendered-template-shellcheck-wrapper.sh",
       "file_type": "code",
       "source_file": "test/unit/rendered-template-shellcheck-wrapper.sh",
@@ -9663,7 +10587,7 @@
       "label": "Architecture",
       "file_type": "document",
       "source_file": "CLAUDE.md",
-      "source_location": "L179",
+      "source_location": "L178",
       "_origin": "ast",
       "id": "claude_architecture",
       "community": 12,
@@ -9673,7 +10597,7 @@
       "label": "Source-Only Files",
       "file_type": "document",
       "source_file": "CLAUDE.md",
-      "source_location": "L181",
+      "source_location": "L180",
       "_origin": "ast",
       "id": "claude_source_only_files",
       "community": 12,
@@ -9683,7 +10607,7 @@
       "label": "Minimum Chezmoi Version",
       "file_type": "document",
       "source_file": "CLAUDE.md",
-      "source_location": "L189",
+      "source_location": "L188",
       "_origin": "ast",
       "id": "claude_minimum_chezmoi_version",
       "community": 12,
@@ -9693,7 +10617,7 @@
       "label": "Secrets Management",
       "file_type": "document",
       "source_file": "CLAUDE.md",
-      "source_location": "L193",
+      "source_location": "L192",
       "_origin": "ast",
       "id": "claude_secrets_management",
       "community": 12,
@@ -9703,7 +10627,7 @@
       "label": "System Package Management",
       "file_type": "document",
       "source_file": "CLAUDE.md",
-      "source_location": "L200",
+      "source_location": "L199",
       "_origin": "ast",
       "id": "claude_system_package_management",
       "community": 12,
@@ -9713,7 +10637,7 @@
       "label": "macOS Defaults Management",
       "file_type": "document",
       "source_file": "CLAUDE.md",
-      "source_location": "L225",
+      "source_location": "L224",
       "_origin": "ast",
       "id": "claude_macos_defaults_management",
       "community": 12,
@@ -9723,7 +10647,7 @@
       "label": "Template Files",
       "file_type": "document",
       "source_file": "CLAUDE.md",
-      "source_location": "L270",
+      "source_location": "L269",
       "_origin": "ast",
       "id": "claude_template_files",
       "community": 12,
@@ -9733,7 +10657,7 @@
       "label": "Template Shellcheck Workaround",
       "file_type": "document",
       "source_file": "CLAUDE.md",
-      "source_location": "L276",
+      "source_location": "L275",
       "_origin": "ast",
       "id": "claude_template_shellcheck_workaround",
       "community": 12,
@@ -9743,7 +10667,7 @@
       "label": "OS Targeting",
       "file_type": "document",
       "source_file": "CLAUDE.md",
-      "source_location": "L297",
+      "source_location": "L296",
       "_origin": "ast",
       "id": "claude_os_targeting",
       "community": 12,
@@ -9753,7 +10677,7 @@
       "label": "Dev Environment (Nix Flake)",
       "file_type": "document",
       "source_file": "CLAUDE.md",
-      "source_location": "L302",
+      "source_location": "L301",
       "_origin": "ast",
       "id": "claude_dev_environment_nix_flake",
       "community": 12,
@@ -9763,7 +10687,7 @@
       "label": "CI",
       "file_type": "document",
       "source_file": "CLAUDE.md",
-      "source_location": "L313",
+      "source_location": "L312",
       "_origin": "ast",
       "id": "claude_ci",
       "community": 12,
@@ -9773,7 +10697,7 @@
       "label": "Agent Skills (cross-harness store)",
       "file_type": "document",
       "source_file": "CLAUDE.md",
-      "source_location": "L323",
+      "source_location": "L322",
       "_origin": "ast",
       "id": "claude_agent_skills_cross_harness_store",
       "community": 12,
@@ -9783,7 +10707,7 @@
       "label": "Herdr Workspace Management",
       "file_type": "document",
       "source_file": "CLAUDE.md",
-      "source_location": "L493",
+      "source_location": "L492",
       "_origin": "ast",
       "id": "claude_herdr_workspace_management",
       "community": 12,
@@ -9793,7 +10717,7 @@
       "label": "Git Worktrees (Worktrunk)",
       "file_type": "document",
       "source_file": "CLAUDE.md",
-      "source_location": "L513",
+      "source_location": "L512",
       "_origin": "ast",
       "id": "claude_git_worktrees_worktrunk",
       "community": 12,
@@ -9803,7 +10727,7 @@
       "label": "Bashrc Init Ordering",
       "file_type": "document",
       "source_file": "CLAUDE.md",
-      "source_location": "L520",
+      "source_location": "L519",
       "_origin": "ast",
       "id": "claude_bashrc_init_ordering",
       "community": 12,
@@ -9813,7 +10737,7 @@
       "label": "Shell History (Atuin)",
       "file_type": "document",
       "source_file": "CLAUDE.md",
-      "source_location": "L529",
+      "source_location": "L528",
       "_origin": "ast",
       "id": "claude_shell_history_atuin",
       "community": 12,
@@ -9823,7 +10747,7 @@
       "label": "Happy Daemon (Remote Agent Control)",
       "file_type": "document",
       "source_file": "CLAUDE.md",
-      "source_location": "L558",
+      "source_location": "L557",
       "_origin": "ast",
       "id": "claude_happy_daemon_remote_agent_control",
       "community": 12,
@@ -9833,7 +10757,7 @@
       "label": "Tailscale (headless daemon)",
       "file_type": "document",
       "source_file": "CLAUDE.md",
-      "source_location": "L585",
+      "source_location": "L584",
       "_origin": "ast",
       "id": "claude_tailscale_headless_daemon",
       "community": 12,
@@ -9843,7 +10767,7 @@
       "label": "AI Commit Messages",
       "file_type": "document",
       "source_file": "CLAUDE.md",
-      "source_location": "L622",
+      "source_location": "L621",
       "_origin": "ast",
       "id": "claude_ai_commit_messages",
       "community": 12,
@@ -9853,7 +10777,7 @@
       "label": "Long-running Command Notifier",
       "file_type": "document",
       "source_file": "CLAUDE.md",
-      "source_location": "L635",
+      "source_location": "L634",
       "_origin": "ast",
       "id": "claude_long_running_command_notifier",
       "community": 12,
@@ -9863,7 +10787,7 @@
       "label": "Herdr Native Status",
       "file_type": "document",
       "source_file": "CLAUDE.md",
-      "source_location": "L641",
+      "source_location": "L640",
       "_origin": "ast",
       "id": "claude_herdr_native_status",
       "community": 12,
@@ -9873,7 +10797,7 @@
       "label": "Code Style",
       "file_type": "document",
       "source_file": "CLAUDE.md",
-      "source_location": "L647",
+      "source_location": "L646",
       "_origin": "ast",
       "id": "claude_code_style",
       "community": 12,
@@ -9883,7 +10807,7 @@
       "label": "Git Commits",
       "file_type": "document",
       "source_file": "CLAUDE.md",
-      "source_location": "L673",
+      "source_location": "L672",
       "_origin": "ast",
       "id": "claude_git_commits",
       "community": 12,
@@ -9893,7 +10817,7 @@
       "label": "Security",
       "file_type": "document",
       "source_file": "CLAUDE.md",
-      "source_location": "L680",
+      "source_location": "L679",
       "_origin": "ast",
       "id": "claude_security",
       "community": 12,
@@ -23886,7 +24810,7 @@
       "source_location": "L1108",
       "_origin": "ast",
       "id": "docs_superpowers_specs_2026_04_17_dotfiles_improvements_v2_design_13_user_customization_migration",
-      "community": 58,
+      "community": 271,
       "norm_label": "13. user-customization migration"
     },
     {
@@ -23896,7 +24820,7 @@
       "source_location": "L1112",
       "_origin": "ast",
       "id": "docs_superpowers_specs_2026_04_17_dotfiles_improvements_v2_design_13_1_custom_skills_chezmoi",
-      "community": 58,
+      "community": 271,
       "norm_label": "13.1 custom skills \u2192 chezmoi"
     },
     {
@@ -23906,7 +24830,7 @@
       "source_location": "L1124",
       "_origin": "ast",
       "id": "docs_superpowers_specs_2026_04_17_dotfiles_improvements_v2_design_13_2_statusline_script_chezmoi",
-      "community": 58,
+      "community": 271,
       "norm_label": "13.2 statusline script \u2192 chezmoi"
     },
     {
@@ -23916,7 +24840,7 @@
       "source_location": "L1133",
       "_origin": "ast",
       "id": "docs_superpowers_specs_2026_04_17_dotfiles_improvements_v2_design_13_3_audit_other_user_customizations",
-      "community": 58,
+      "community": 271,
       "norm_label": "13.3 audit: other user customizations"
     },
     {
@@ -29123,8 +30047,70 @@
     {
       "relation": "defines",
       "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_homebrew-weekly-upgrade.sh",
+      "source_location": "L30",
+      "weight": 1.0,
+      "source": "dot_local_bin_executable_homebrew_weekly_upgrade",
+      "target": "dot_local_bin_executable_homebrew_weekly_upgrade_acquire_lock",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_homebrew-weekly-upgrade.sh",
+      "source_location": "L60",
+      "weight": 1.0,
+      "source": "dot_local_bin_executable_homebrew_weekly_upgrade",
+      "target": "dot_local_bin_executable_homebrew_weekly_upgrade_refresh_tailscaled",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_homebrew-weekly-upgrade.sh",
+      "source_location": "L41",
+      "weight": 1.0,
+      "source": "dot_local_bin_executable_homebrew_weekly_upgrade",
+      "target": "dot_local_bin_executable_homebrew_weekly_upgrade_run",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_homebrew-weekly-upgrade.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "dot_local_bin_executable_homebrew_weekly_upgrade",
+      "target": "dot_local_bin_executable_homebrew_weekly_upgrade_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_homebrew-weekly-upgrade.sh",
+      "source_location": "L66",
+      "weight": 1.0,
+      "context": "call",
+      "source": "dot_local_bin_executable_homebrew_weekly_upgrade_sh__entry",
+      "target": "dot_local_bin_executable_homebrew_weekly_upgrade_acquire_lock",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_homebrew-weekly-upgrade.sh",
+      "source_location": "L73",
+      "weight": 1.0,
+      "context": "call",
+      "source": "dot_local_bin_executable_homebrew_weekly_upgrade_sh__entry",
+      "target": "dot_local_bin_executable_homebrew_weekly_upgrade_run",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_hue-pulse.sh",
-      "source_location": "L70",
+      "source_location": "L87",
       "weight": 1.0,
       "source": "dot_local_bin_executable_hue_pulse",
       "target": "dot_local_bin_executable_hue_pulse_pulse_to",
@@ -29144,7 +30130,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_hue-pulse.sh",
-      "source_location": "L77",
+      "source_location": "L94",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_hue_pulse_sh__entry",
@@ -29404,6 +30390,57 @@
       "weight": 1.0,
       "source": "dot_local_bin_executable_osquery_uptime_watchdog",
       "target": "dot_local_bin_executable_osquery_uptime_watchdog_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_relay-agent.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "dot_local_bin_executable_relay_agent",
+      "target": "dot_local_bin_executable_relay_agent_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_relay-codex-hooks.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "dot_local_bin_executable_relay_codex_hooks",
+      "target": "dot_local_bin_executable_relay_codex_hooks_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_relay.sh",
+      "source_location": "L8",
+      "weight": 1.0,
+      "source": "dot_local_bin_executable_relay",
+      "target": "dot_local_bin_executable_relay_is_relay_flag",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_relay.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "dot_local_bin_executable_relay",
+      "target": "dot_local_bin_executable_relay_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_relay.sh",
+      "source_location": "L23",
+      "weight": 1.0,
+      "context": "call",
+      "source": "dot_local_bin_executable_relay_sh__entry",
+      "target": "dot_local_bin_executable_relay_is_relay_flag",
       "confidence_score": 1.0
     },
     {
@@ -33425,6 +34462,67 @@
     {
       "relation": "defines",
       "confidence": "EXTRACTED",
+      "source_file": "test/e2e/homebrew-weekly-lock.sh",
+      "source_location": "L18",
+      "weight": 1.0,
+      "source": "test_e2e_homebrew_weekly_lock",
+      "target": "test_e2e_homebrew_weekly_lock_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "test/e2e/homebrew-weekly-lock.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "test_e2e_homebrew_weekly_lock",
+      "target": "test_e2e_homebrew_weekly_lock_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/e2e/homebrew-weekly-lock.sh",
+      "source_location": "L27",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_e2e_homebrew_weekly_lock_sh__entry",
+      "target": "test_e2e_homebrew_weekly_lock_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "test/e2e/hue-pulse-lock.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "test_e2e_hue_pulse_lock",
+      "target": "test_e2e_hue_pulse_lock_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/e2e/relay.sh",
+      "source_location": "L401",
+      "weight": 1.0,
+      "source": "test_e2e_relay",
+      "target": "test_e2e_relay_relay_idle_secs",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "test/e2e/relay.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "test_e2e_relay",
+      "target": "test_e2e_relay_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
       "source_file": "test/e2e/update-skills-defer.sh",
       "source_location": "L183",
       "weight": 1.0,
@@ -34494,7 +35592,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/herdr-migration-ordering.sh",
-      "source_location": "L101",
+      "source_location": "L105",
       "weight": 1.0,
       "source": "test_integration_herdr_migration_ordering",
       "target": "test_integration_herdr_migration_ordering_cleanup_used",
@@ -34534,7 +35632,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/herdr-migration-ordering.sh",
-      "source_location": "L110",
+      "source_location": "L114",
       "weight": 1.0,
       "context": "call",
       "source": "test_integration_herdr_migration_ordering_sh__entry",
@@ -34556,7 +35654,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/herdr-migration-ordering.sh",
-      "source_location": "L107",
+      "source_location": "L111",
       "weight": 1.0,
       "context": "call",
       "source": "test_integration_herdr_migration_ordering_sh__entry",
@@ -34578,7 +35676,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/herdr-migration-verify.sh",
-      "source_location": "L191",
+      "source_location": "L198",
       "weight": 1.0,
       "source": "test_integration_herdr_migration_verify",
       "target": "test_integration_herdr_migration_verify_cleanup_ran",
@@ -34598,7 +35696,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/herdr-migration-verify.sh",
-      "source_location": "L192",
+      "source_location": "L199",
       "weight": 1.0,
       "source": "test_integration_herdr_migration_verify",
       "target": "test_integration_herdr_migration_verify_herdr_contacted",
@@ -34628,7 +35726,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/herdr-migration-verify.sh",
-      "source_location": "L170",
+      "source_location": "L176",
       "weight": 1.0,
       "source": "test_integration_herdr_migration_verify",
       "target": "test_integration_herdr_migration_verify_run_case",
@@ -34648,7 +35746,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/herdr-migration-verify.sh",
-      "source_location": "L200",
+      "source_location": "L207",
       "weight": 1.0,
       "context": "call",
       "source": "test_integration_herdr_migration_verify_sh__entry",
@@ -34670,7 +35768,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/herdr-migration-verify.sh",
-      "source_location": "L199",
+      "source_location": "L206",
       "weight": 1.0,
       "context": "call",
       "source": "test_integration_herdr_migration_verify_sh__entry",
@@ -34681,7 +35779,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/herdr-migration-verify.sh",
-      "source_location": "L197",
+      "source_location": "L204",
       "weight": 1.0,
       "context": "call",
       "source": "test_integration_herdr_migration_verify_sh__entry",
@@ -34692,7 +35790,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/herdr-migration-verify.sh",
-      "source_location": "L181",
+      "source_location": "L187",
       "weight": 1.0,
       "context": "call",
       "source": "test_integration_herdr_migration_verify_run_case",
@@ -34703,7 +35801,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/herdr-migration-verify.sh",
-      "source_location": "L180",
+      "source_location": "L186",
       "weight": 1.0,
       "context": "call",
       "source": "test_integration_herdr_migration_verify_run_case",
@@ -34780,6 +35878,456 @@
       "context": "call",
       "source": "test_integration_hermes_superpowers_routing_sh__entry",
       "target": "test_integration_hermes_superpowers_routing_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/homebrew-after58-skip-cleanup.sh",
+      "source_location": "L108",
+      "weight": 1.0,
+      "source": "test_integration_homebrew_after58_skip_cleanup",
+      "target": "test_integration_homebrew_after58_skip_cleanup_cleanup_ran",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/homebrew-after58-skip-cleanup.sh",
+      "source_location": "L18",
+      "weight": 1.0,
+      "source": "test_integration_homebrew_after58_skip_cleanup",
+      "target": "test_integration_homebrew_after58_skip_cleanup_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/homebrew-after58-skip-cleanup.sh",
+      "source_location": "L107",
+      "weight": 1.0,
+      "source": "test_integration_homebrew_after58_skip_cleanup",
+      "target": "test_integration_homebrew_after58_skip_cleanup_herdr_contacted",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/homebrew-after58-skip-cleanup.sh",
+      "source_location": "L55",
+      "weight": 1.0,
+      "source": "test_integration_homebrew_after58_skip_cleanup",
+      "target": "test_integration_homebrew_after58_skip_cleanup_make_brew",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/homebrew-after58-skip-cleanup.sh",
+      "source_location": "L36",
+      "weight": 1.0,
+      "source": "test_integration_homebrew_after58_skip_cleanup",
+      "target": "test_integration_homebrew_after58_skip_cleanup_make_healthy_herdr",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/homebrew-after58-skip-cleanup.sh",
+      "source_location": "L73",
+      "weight": 1.0,
+      "source": "test_integration_homebrew_after58_skip_cleanup",
+      "target": "test_integration_homebrew_after58_skip_cleanup_run_render",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/homebrew-after58-skip-cleanup.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "test_integration_homebrew_after58_skip_cleanup",
+      "target": "test_integration_homebrew_after58_skip_cleanup_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/homebrew-after58-skip-cleanup.sh",
+      "source_location": "L114",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_integration_homebrew_after58_skip_cleanup_sh__entry",
+      "target": "test_integration_homebrew_after58_skip_cleanup_cleanup_ran",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/homebrew-after58-skip-cleanup.sh",
+      "source_location": "L29",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_integration_homebrew_after58_skip_cleanup_sh__entry",
+      "target": "test_integration_homebrew_after58_skip_cleanup_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/homebrew-after58-skip-cleanup.sh",
+      "source_location": "L113",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_integration_homebrew_after58_skip_cleanup_sh__entry",
+      "target": "test_integration_homebrew_after58_skip_cleanup_herdr_contacted",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/homebrew-after58-skip-cleanup.sh",
+      "source_location": "L111",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_integration_homebrew_after58_skip_cleanup_sh__entry",
+      "target": "test_integration_homebrew_after58_skip_cleanup_run_render",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/homebrew-after58-skip-cleanup.sh",
+      "source_location": "L92",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_integration_homebrew_after58_skip_cleanup_run_render",
+      "target": "test_integration_homebrew_after58_skip_cleanup_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/homebrew-after58-skip-cleanup.sh",
+      "source_location": "L83",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_integration_homebrew_after58_skip_cleanup_run_render",
+      "target": "test_integration_homebrew_after58_skip_cleanup_make_healthy_herdr",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/homebrew-after58-skip-cleanup.sh",
+      "source_location": "L82",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_integration_homebrew_after58_skip_cleanup_run_render",
+      "target": "test_integration_homebrew_after58_skip_cleanup_make_brew",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/homebrew-before10-autoupdate-teardown.sh",
+      "source_location": "L21",
+      "weight": 1.0,
+      "source": "test_integration_homebrew_before10_autoupdate_teardown",
+      "target": "test_integration_homebrew_before10_autoupdate_teardown_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/homebrew-before10-autoupdate-teardown.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "test_integration_homebrew_before10_autoupdate_teardown",
+      "target": "test_integration_homebrew_before10_autoupdate_teardown_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/homebrew-before10-autoupdate-teardown.sh",
+      "source_location": "L30",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_integration_homebrew_before10_autoupdate_teardown_sh__entry",
+      "target": "test_integration_homebrew_before10_autoupdate_teardown_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/homebrew-before10-bundle-split.sh",
+      "source_location": "L18",
+      "weight": 1.0,
+      "source": "test_integration_homebrew_before10_bundle_split",
+      "target": "test_integration_homebrew_before10_bundle_split_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/homebrew-before10-bundle-split.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "test_integration_homebrew_before10_bundle_split",
+      "target": "test_integration_homebrew_before10_bundle_split_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/homebrew-before10-bundle-split.sh",
+      "source_location": "L27",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_integration_homebrew_before10_bundle_split_sh__entry",
+      "target": "test_integration_homebrew_before10_bundle_split_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/homebrew-before10-ecosystem-guards.sh",
+      "source_location": "L17",
+      "weight": 1.0,
+      "source": "test_integration_homebrew_before10_ecosystem_guards",
+      "target": "test_integration_homebrew_before10_ecosystem_guards_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/homebrew-before10-ecosystem-guards.sh",
+      "source_location": "L46",
+      "weight": 1.0,
+      "source": "test_integration_homebrew_before10_ecosystem_guards",
+      "target": "test_integration_homebrew_before10_ecosystem_guards_make_brew",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/homebrew-before10-ecosystem-guards.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "test_integration_homebrew_before10_ecosystem_guards",
+      "target": "test_integration_homebrew_before10_ecosystem_guards_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/homebrew-before10-ecosystem-guards.sh",
+      "source_location": "L26",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_integration_homebrew_before10_ecosystem_guards_sh__entry",
+      "target": "test_integration_homebrew_before10_ecosystem_guards_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/homebrew-before10-ecosystem-guards.sh",
+      "source_location": "L59",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_integration_homebrew_before10_ecosystem_guards_sh__entry",
+      "target": "test_integration_homebrew_before10_ecosystem_guards_make_brew",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/homebrew-cleanup-guard.sh",
+      "source_location": "L21",
+      "weight": 1.0,
+      "source": "test_integration_homebrew_cleanup_guard",
+      "target": "test_integration_homebrew_cleanup_guard_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/homebrew-cleanup-guard.sh",
+      "source_location": "L116",
+      "weight": 1.0,
+      "source": "test_integration_homebrew_cleanup_guard",
+      "target": "test_integration_homebrew_cleanup_guard_forced_ran",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/homebrew-cleanup-guard.sh",
+      "source_location": "L68",
+      "weight": 1.0,
+      "source": "test_integration_homebrew_cleanup_guard",
+      "target": "test_integration_homebrew_cleanup_guard_make_prefix",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/homebrew-cleanup-guard.sh",
+      "source_location": "L99",
+      "weight": 1.0,
+      "source": "test_integration_homebrew_cleanup_guard",
+      "target": "test_integration_homebrew_cleanup_guard_run_case",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/homebrew-cleanup-guard.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "test_integration_homebrew_cleanup_guard",
+      "target": "test_integration_homebrew_cleanup_guard_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/homebrew-cleanup-guard.sh",
+      "source_location": "L30",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_integration_homebrew_cleanup_guard_sh__entry",
+      "target": "test_integration_homebrew_cleanup_guard_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/homebrew-cleanup-guard.sh",
+      "source_location": "L120",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_integration_homebrew_cleanup_guard_sh__entry",
+      "target": "test_integration_homebrew_cleanup_guard_forced_ran",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/homebrew-cleanup-guard.sh",
+      "source_location": "L119",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_integration_homebrew_cleanup_guard_sh__entry",
+      "target": "test_integration_homebrew_cleanup_guard_run_case",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/homebrew-cleanup-guard.sh",
+      "source_location": "L113",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_integration_homebrew_cleanup_guard_run_case",
+      "target": "test_integration_homebrew_cleanup_guard_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/homebrew-cleanup-guard.sh",
+      "source_location": "L106",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_integration_homebrew_cleanup_guard_run_case",
+      "target": "test_integration_homebrew_cleanup_guard_make_prefix",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/homebrew-weekly-upgrade.sh",
+      "source_location": "L37",
+      "weight": 1.0,
+      "source": "test_integration_homebrew_weekly_upgrade",
+      "target": "test_integration_homebrew_weekly_upgrade_assert_all_sections",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/homebrew-weekly-upgrade.sh",
+      "source_location": "L19",
+      "weight": 1.0,
+      "source": "test_integration_homebrew_weekly_upgrade",
+      "target": "test_integration_homebrew_weekly_upgrade_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/homebrew-weekly-upgrade.sh",
+      "source_location": "L49",
+      "weight": 1.0,
+      "source": "test_integration_homebrew_weekly_upgrade",
+      "target": "test_integration_homebrew_weekly_upgrade_make_brew",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/homebrew-weekly-upgrade.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "test_integration_homebrew_weekly_upgrade",
+      "target": "test_integration_homebrew_weekly_upgrade_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/homebrew-weekly-upgrade.sh",
+      "source_location": "L73",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_integration_homebrew_weekly_upgrade_sh__entry",
+      "target": "test_integration_homebrew_weekly_upgrade_assert_all_sections",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/homebrew-weekly-upgrade.sh",
+      "source_location": "L24",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_integration_homebrew_weekly_upgrade_sh__entry",
+      "target": "test_integration_homebrew_weekly_upgrade_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/homebrew-weekly-upgrade.sh",
+      "source_location": "L65",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_integration_homebrew_weekly_upgrade_sh__entry",
+      "target": "test_integration_homebrew_weekly_upgrade_make_brew",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/homebrew-weekly-upgrade.sh",
+      "source_location": "L42",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_integration_homebrew_weekly_upgrade_assert_all_sections",
+      "target": "test_integration_homebrew_weekly_upgrade_fail",
       "confidence_score": 1.0
     },
     {
@@ -35259,8 +36807,28 @@
     {
       "relation": "defines",
       "confidence": "EXTRACTED",
+      "source_file": "test/integration/relay-agent.sh",
+      "source_location": "L12",
+      "weight": 1.0,
+      "source": "test_integration_relay_agent",
+      "target": "test_integration_relay_agent_relay_codex_home",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/relay-agent.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "test_integration_relay_agent",
+      "target": "test_integration_relay_agent_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
       "source_file": "test/integration/rendered-template-coverage.sh",
-      "source_location": "L200",
+      "source_location": "L201",
       "weight": 1.0,
       "source": "test_integration_rendered_template_coverage",
       "target": "test_integration_rendered_template_coverage_consider",
@@ -35270,7 +36838,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/rendered-template-coverage.sh",
-      "source_location": "L252",
+      "source_location": "L253",
       "weight": 1.0,
       "source": "test_integration_rendered_template_coverage",
       "target": "test_integration_rendered_template_coverage_covered",
@@ -35310,7 +36878,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/rendered-template-coverage.sh",
-      "source_location": "L323",
+      "source_location": "L324",
       "weight": 1.0,
       "source": "test_integration_rendered_template_coverage",
       "target": "test_integration_rendered_template_coverage_fixture_expect",
@@ -35320,7 +36888,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/rendered-template-coverage.sh",
-      "source_location": "L304",
+      "source_location": "L305",
       "weight": 1.0,
       "source": "test_integration_rendered_template_coverage",
       "target": "test_integration_rendered_template_coverage_fixture_verdict",
@@ -35390,7 +36958,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/rendered-template-coverage.sh",
-      "source_location": "L264",
+      "source_location": "L265",
       "weight": 1.0,
       "source": "test_integration_rendered_template_coverage",
       "target": "test_integration_rendered_template_coverage_missing",
@@ -35400,7 +36968,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/rendered-template-coverage.sh",
-      "source_location": "L318",
+      "source_location": "L319",
       "weight": 1.0,
       "source": "test_integration_rendered_template_coverage",
       "target": "test_integration_rendered_template_coverage_nix_classify",
@@ -35420,7 +36988,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/rendered-template-coverage.sh",
-      "source_location": "L197",
+      "source_location": "L198",
       "weight": 1.0,
       "source": "test_integration_rendered_template_coverage",
       "target": "test_integration_rendered_template_coverage_safe",
@@ -35430,7 +36998,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/rendered-template-coverage.sh",
-      "source_location": "L198",
+      "source_location": "L199",
       "weight": 1.0,
       "source": "test_integration_rendered_template_coverage",
       "target": "test_integration_rendered_template_coverage_safe_set",
@@ -35440,7 +37008,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/rendered-template-coverage.sh",
-      "source_location": "L196",
+      "source_location": "L197",
       "weight": 1.0,
       "source": "test_integration_rendered_template_coverage",
       "target": "test_integration_rendered_template_coverage_seen",
@@ -35460,7 +37028,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/rendered-template-coverage.sh",
-      "source_location": "L232",
+      "source_location": "L233",
       "weight": 1.0,
       "source": "test_integration_rendered_template_coverage",
       "target": "test_integration_rendered_template_coverage_stray_exec",
@@ -35470,7 +37038,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/rendered-template-coverage.sh",
-      "source_location": "L215",
+      "source_location": "L216",
       "weight": 1.0,
       "context": "call",
       "source": "test_integration_rendered_template_coverage_sh__entry",
@@ -35481,7 +37049,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/rendered-template-coverage.sh",
-      "source_location": "L226",
+      "source_location": "L227",
       "weight": 1.0,
       "context": "call",
       "source": "test_integration_rendered_template_coverage_sh__entry",
@@ -35492,7 +37060,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/rendered-template-coverage.sh",
-      "source_location": "L223",
+      "source_location": "L224",
       "weight": 1.0,
       "context": "call",
       "source": "test_integration_rendered_template_coverage_sh__entry",
@@ -35525,7 +37093,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/rendered-template-coverage.sh",
-      "source_location": "L205",
+      "source_location": "L206",
       "weight": 1.0,
       "context": "call",
       "source": "test_integration_rendered_template_coverage_consider",
@@ -35536,7 +37104,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/rendered-template-coverage.sh",
-      "source_location": "L305",
+      "source_location": "L306",
       "weight": 1.0,
       "context": "call",
       "source": "test_integration_rendered_template_coverage_fixture_verdict",
@@ -35569,7 +37137,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/rendered-template-coverage.sh",
-      "source_location": "L309",
+      "source_location": "L310",
       "weight": 1.0,
       "context": "call",
       "source": "test_integration_rendered_template_coverage_fixture_verdict",
@@ -38802,6 +40370,161 @@
     {
       "relation": "defines",
       "confidence": "EXTRACTED",
+      "source_file": "test/unit/homebrew-before10-skip-truthiness.sh",
+      "source_location": "L15",
+      "weight": 1.0,
+      "source": "test_unit_homebrew_before10_skip_truthiness",
+      "target": "test_unit_homebrew_before10_skip_truthiness_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/homebrew-before10-skip-truthiness.sh",
+      "source_location": "L33",
+      "weight": 1.0,
+      "source": "test_unit_homebrew_before10_skip_truthiness",
+      "target": "test_unit_homebrew_before10_skip_truthiness_render",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/homebrew-before10-skip-truthiness.sh",
+      "source_location": "L57",
+      "weight": 1.0,
+      "source": "test_unit_homebrew_before10_skip_truthiness",
+      "target": "test_unit_homebrew_before10_skip_truthiness_render_has_skip",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/homebrew-before10-skip-truthiness.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "test_unit_homebrew_before10_skip_truthiness",
+      "target": "test_unit_homebrew_before10_skip_truthiness_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/homebrew-before10-skip-truthiness.sh",
+      "source_location": "L24",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_homebrew_before10_skip_truthiness_sh__entry",
+      "target": "test_unit_homebrew_before10_skip_truthiness_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/homebrew-brew-upgrade-recipe.sh",
+      "source_location": "L14",
+      "weight": 1.0,
+      "source": "test_unit_homebrew_brew_upgrade_recipe",
+      "target": "test_unit_homebrew_brew_upgrade_recipe_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/homebrew-brew-upgrade-recipe.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "test_unit_homebrew_brew_upgrade_recipe",
+      "target": "test_unit_homebrew_brew_upgrade_recipe_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/homebrew-brew-upgrade-recipe.sh",
+      "source_location": "L25",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_homebrew_brew_upgrade_recipe_sh__entry",
+      "target": "test_unit_homebrew_brew_upgrade_recipe_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/homebrew-weekly-plist.sh",
+      "source_location": "L38",
+      "weight": 1.0,
+      "source": "test_unit_homebrew_weekly_plist",
+      "target": "test_unit_homebrew_weekly_plist_assert_kv",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/homebrew-weekly-plist.sh",
+      "source_location": "L16",
+      "weight": 1.0,
+      "source": "test_unit_homebrew_weekly_plist",
+      "target": "test_unit_homebrew_weekly_plist_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/homebrew-weekly-plist.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "test_unit_homebrew_weekly_plist",
+      "target": "test_unit_homebrew_weekly_plist_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/homebrew-weekly-plist.sh",
+      "source_location": "L51",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_homebrew_weekly_plist_sh__entry",
+      "target": "test_unit_homebrew_weekly_plist_assert_kv",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/homebrew-weekly-plist.sh",
+      "source_location": "L25",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_homebrew_weekly_plist_sh__entry",
+      "target": "test_unit_homebrew_weekly_plist_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/homebrew-weekly-plist.sh",
+      "source_location": "L43",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_homebrew_weekly_plist_assert_kv",
+      "target": "test_unit_homebrew_weekly_plist_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/relay-codex-hooks.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "test_unit_relay_codex_hooks",
+      "target": "test_unit_relay_codex_hooks_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
       "source_file": "test/unit/rendered-template-shellcheck-wrapper.sh",
       "source_location": "L60",
       "weight": 1.0,
@@ -39251,7 +40974,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "CLAUDE.md",
-      "source_location": "L179",
+      "source_location": "L178",
       "weight": 1.0,
       "source": "claude_claude_md",
       "target": "claude_architecture",
@@ -39261,7 +40984,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "CLAUDE.md",
-      "source_location": "L647",
+      "source_location": "L646",
       "weight": 1.0,
       "source": "claude_claude_md",
       "target": "claude_code_style",
@@ -39271,7 +40994,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "CLAUDE.md",
-      "source_location": "L673",
+      "source_location": "L672",
       "weight": 1.0,
       "source": "claude_claude_md",
       "target": "claude_git_commits",
@@ -39291,7 +41014,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "CLAUDE.md",
-      "source_location": "L680",
+      "source_location": "L679",
       "weight": 1.0,
       "source": "claude_claude_md",
       "target": "claude_security",
@@ -39361,7 +41084,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "CLAUDE.md",
-      "source_location": "L323",
+      "source_location": "L322",
       "weight": 1.0,
       "source": "claude_architecture",
       "target": "claude_agent_skills_cross_harness_store",
@@ -39371,7 +41094,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "CLAUDE.md",
-      "source_location": "L622",
+      "source_location": "L621",
       "weight": 1.0,
       "source": "claude_architecture",
       "target": "claude_ai_commit_messages",
@@ -39381,7 +41104,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "CLAUDE.md",
-      "source_location": "L520",
+      "source_location": "L519",
       "weight": 1.0,
       "source": "claude_architecture",
       "target": "claude_bashrc_init_ordering",
@@ -39391,7 +41114,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "CLAUDE.md",
-      "source_location": "L313",
+      "source_location": "L312",
       "weight": 1.0,
       "source": "claude_architecture",
       "target": "claude_ci",
@@ -39401,7 +41124,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "CLAUDE.md",
-      "source_location": "L302",
+      "source_location": "L301",
       "weight": 1.0,
       "source": "claude_architecture",
       "target": "claude_dev_environment_nix_flake",
@@ -39411,7 +41134,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "CLAUDE.md",
-      "source_location": "L513",
+      "source_location": "L512",
       "weight": 1.0,
       "source": "claude_architecture",
       "target": "claude_git_worktrees_worktrunk",
@@ -39421,7 +41144,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "CLAUDE.md",
-      "source_location": "L558",
+      "source_location": "L557",
       "weight": 1.0,
       "source": "claude_architecture",
       "target": "claude_happy_daemon_remote_agent_control",
@@ -39431,7 +41154,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "CLAUDE.md",
-      "source_location": "L641",
+      "source_location": "L640",
       "weight": 1.0,
       "source": "claude_architecture",
       "target": "claude_herdr_native_status",
@@ -39441,7 +41164,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "CLAUDE.md",
-      "source_location": "L493",
+      "source_location": "L492",
       "weight": 1.0,
       "source": "claude_architecture",
       "target": "claude_herdr_workspace_management",
@@ -39451,7 +41174,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "CLAUDE.md",
-      "source_location": "L635",
+      "source_location": "L634",
       "weight": 1.0,
       "source": "claude_architecture",
       "target": "claude_long_running_command_notifier",
@@ -39461,7 +41184,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "CLAUDE.md",
-      "source_location": "L225",
+      "source_location": "L224",
       "weight": 1.0,
       "source": "claude_architecture",
       "target": "claude_macos_defaults_management",
@@ -39471,7 +41194,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "CLAUDE.md",
-      "source_location": "L189",
+      "source_location": "L188",
       "weight": 1.0,
       "source": "claude_architecture",
       "target": "claude_minimum_chezmoi_version",
@@ -39481,7 +41204,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "CLAUDE.md",
-      "source_location": "L297",
+      "source_location": "L296",
       "weight": 1.0,
       "source": "claude_architecture",
       "target": "claude_os_targeting",
@@ -39491,7 +41214,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "CLAUDE.md",
-      "source_location": "L193",
+      "source_location": "L192",
       "weight": 1.0,
       "source": "claude_architecture",
       "target": "claude_secrets_management",
@@ -39501,7 +41224,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "CLAUDE.md",
-      "source_location": "L529",
+      "source_location": "L528",
       "weight": 1.0,
       "source": "claude_architecture",
       "target": "claude_shell_history_atuin",
@@ -39511,7 +41234,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "CLAUDE.md",
-      "source_location": "L181",
+      "source_location": "L180",
       "weight": 1.0,
       "source": "claude_architecture",
       "target": "claude_source_only_files",
@@ -39521,7 +41244,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "CLAUDE.md",
-      "source_location": "L200",
+      "source_location": "L199",
       "weight": 1.0,
       "source": "claude_architecture",
       "target": "claude_system_package_management",
@@ -39531,7 +41254,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "CLAUDE.md",
-      "source_location": "L585",
+      "source_location": "L584",
       "weight": 1.0,
       "source": "claude_architecture",
       "target": "claude_tailscale_headless_daemon",
@@ -39541,7 +41264,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "CLAUDE.md",
-      "source_location": "L270",
+      "source_location": "L269",
       "weight": 1.0,
       "source": "claude_architecture",
       "target": "claude_template_files",
@@ -39551,7 +41274,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "CLAUDE.md",
-      "source_location": "L276",
+      "source_location": "L275",
       "weight": 1.0,
       "source": "claude_architecture",
       "target": "claude_template_shellcheck_workaround",
@@ -57109,5 +58832,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "c863ed80d246300a8a297f94fcc8ff9a9d84e4a7"
+  "built_at_commit": "ed7d55955d197bcc2c8e82047ecd5a39eb3fb80a"
 }
