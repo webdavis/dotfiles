@@ -24,10 +24,14 @@ resolve_source_dir() {
     printf '%s\n' "$MACOS_DEFAULTS_SOURCE_DIR"
     return 0
   fi
-  local top
+  local top resolved
   if top="$(git rev-parse --show-toplevel 2>/dev/null)" &&
     [[ -f "$top/.chezmoidata/macos_defaults.yaml" ]]; then
-    chezmoi --source="$top" source-path
+    if ! resolved="$(chezmoi --source="$top" source-path)"; then
+      printf 'error: chezmoi --source=%s source-path failed\n' "$top" >&2
+      return 1
+    fi
+    printf '%s\n' "$resolved"
     return 0
   fi
   chezmoi source-path
