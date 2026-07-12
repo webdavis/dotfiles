@@ -48,6 +48,9 @@ _drain_spool() { :; }
 STUB
   export SEND_ALERT_LOG="$HARNESS_HOME/send_alert.log"
   : >"$SEND_ALERT_LOG"
+  # R2-10: the pipeline re-hash debounce (a real sleep in production) is 0 in tests — the
+  # on-disk target and manifest are already settled, so the wait only slows the suite.
+  export OSQUERY_PIPELINE_REHASH_DELAY=0
   export OSQUERY_DIGEST_STORE="$HARNESS_HOME/.local/state/osquery-digest-spool/digest.ndjson"
   mkdir -p "$HARNESS_HOME/.config/osquery"
   export OSQUERY_LAUNCHD_ALLOWLIST="$HARNESS_HOME/.config/osquery/page-launchd-allowlist.txt"
@@ -57,6 +60,15 @@ STUB
 # Seed the pipeline-integrity manifest with known-good lines (e.g. "<sha256>  <path>").
 seed_manifest() {
   printf '%s\n' "$@" >"$OSQUERY_PIPELINE_MANIFEST"
+}
+
+# Seed one persistence-allowlist tuple (R2-1). The allowlist binds a launchd LABEL to its
+# known-good identity (canonical plist path + program [+ pinned plist sha256]); the alerter
+# suppresses ONLY a full-tuple match and PAGES a label reused with a different path/program.
+# seed_allowlist_tuple <label> <path> <program> [sha256]  (append one NDJSON object per call)
+seed_allowlist_tuple() {
+  jq -cn --arg label "$1" --arg path "$2" --arg program "$3" --arg sha256 "${4-}" \
+    '{label:$label, path:$path, program:$program, sha256:$sha256}' >>"$OSQUERY_LAUNCHD_ALLOWLIST"
 }
 
 # Install an enricher stub that reports every path UNTRUSTED (rc=10), so a NOTICE
@@ -183,6 +195,29 @@ run_redaction_h2() {
     bash "$ALERTER"
 }
 
+# Drive the REAL alerter into the REAL dispatcher with delivery AND durable spool both
+# broken (curl fails, secret absent, spool dir unwritable), so the batch page HARD-fails
+# (R2-6). The alerter must NOT advance the cursor past a page it could neither deliver nor
+# store, so the next run retries it. <fixture-row> plus the pre-run cursor "0 0".
+run_alerter_hardfail_spool() {
+  local results_log="$HARNESS_HOME/.local/log/osquery/osqueryd.results.log"
+  local offset="$HARNESS_HOME/.local/state/osquery-results-offset"
+  printf '%s\n' "$1" >"$results_log"
+  printf '0 0\n' >"$offset"
+  touch "$HARNESS_HOME/spool-blocker" # parent is a FILE → mkdir of the spool dir cannot succeed
+  HOME="$HARNESS_HOME" \
+    PATH="$HARNESS_HOME/.local/bin:$PATH" \
+    OSQUERY_RESULTS_LOG="$results_log" \
+    OSQUERY_RESULTS_OFFSET="$offset" \
+    OSQUERY_DIGEST_STORE="$OSQUERY_DIGEST_STORE" \
+    OSQUERY_LAUNCHD_ALLOWLIST="$OSQUERY_LAUNCHD_ALLOWLIST" \
+    OSQUERY_PIPELINE_MANIFEST="$OSQUERY_PIPELINE_MANIFEST" \
+    OSQUERY_SPOOL_DIR="$HARNESS_HOME/spool-blocker/spool" \
+    OSQUERY_DELIVERY_LOG="$HARNESS_HOME/.local/log/osquery/webhook-delivery.log" \
+    OSQUERY_RETRY_BACKOFF_BASE=0 \
+    bash "$ALERTER"
+}
+
 # Flip the H2 curl shim to success and drain the spool via the real dispatcher, so a
 # test can prove a spooled (capped) page actually delivers and clears on recovery.
 run_h2_drain() {
@@ -216,37 +251,48 @@ run_heartbeat() {
     bash "$HEARTBEAT"
 }
 
-# Allowlist tool harness: a fresh temp allowlist file the writer reads via its env.
+# Allowlist tool harness: a fresh temp allowlist file the writer curates, plus an osqueryi
+# stub the writer uses to CAPTURE a label's identity (R2-1). The stub prints
+# $ALLOWLIST_OSQUERYI_ROW (default an empty result, so a fake label captures a label-only
+# entry); a capture test sets it to a real {path,program} row.
 setup_allowlist_harness() {
   ALLOWLIST_HOME="$(mktemp -d)"
   export OSQUERY_LAUNCHD_ALLOWLIST="$ALLOWLIST_HOME/page-launchd-allowlist.txt"
+  mkdir -p "$ALLOWLIST_HOME/bin"
+  cat >"$ALLOWLIST_HOME/bin/osqueryi" <<'SHIM'
+#!/usr/bin/env bash
+printf '%s\n' "${ALLOWLIST_OSQUERYI_ROW:-[]}"
+SHIM
+  chmod +x "$ALLOWLIST_HOME/bin/osqueryi"
+  export ALLOWLIST_OSQUERYI="$ALLOWLIST_HOME/bin/osqueryi"
 }
 teardown_allowlist_harness() { [[ -n ${ALLOWLIST_HOME:-} ]] && rm -rf "$ALLOWLIST_HOME"; }
 
 # Run the allowlist writer with the harness env (pass tool args verbatim).
 run_allowlist() {
-  OSQUERY_LAUNCHD_ALLOWLIST="$OSQUERY_LAUNCHD_ALLOWLIST" bash "$ALLOWLIST_TOOL" "$@"
+  OSQUERY_LAUNCHD_ALLOWLIST="$OSQUERY_LAUNCHD_ALLOWLIST" OSQUERYI="$ALLOWLIST_OSQUERYI" \
+    bash "$ALLOWLIST_TOOL" "$@"
 }
 
-# Exact full-line membership in the allowlist file (matches the reader's grep -qxF).
+# Membership by the JSON .label field (the file is NDJSON tuples now, R2-1).
 assert_allowlisted() {
-  if ! grep -qxF -- "$1" "$OSQUERY_LAUNCHD_ALLOWLIST" 2>/dev/null; then
-    echo "expected '$1' in the allowlist: $(cat "$OSQUERY_LAUNCHD_ALLOWLIST" 2>/dev/null || echo '(no file)')" >&2
+  if ! grep -qF "\"label\":\"$1\"" "$OSQUERY_LAUNCHD_ALLOWLIST" 2>/dev/null; then
+    echo "expected label '$1' in the allowlist: $(cat "$OSQUERY_LAUNCHD_ALLOWLIST" 2>/dev/null || echo '(no file)')" >&2
     return 1
   fi
 }
 assert_not_allowlisted() {
-  if grep -qxF -- "$1" "$OSQUERY_LAUNCHD_ALLOWLIST" 2>/dev/null; then
-    echo "expected '$1' NOT in the allowlist: $(cat "$OSQUERY_LAUNCHD_ALLOWLIST")" >&2
+  if grep -qF "\"label\":\"$1\"" "$OSQUERY_LAUNCHD_ALLOWLIST" 2>/dev/null; then
+    echo "expected label '$1' NOT in the allowlist: $(cat "$OSQUERY_LAUNCHD_ALLOWLIST")" >&2
     return 1
   fi
 }
-# Count of label lines (non-comment, non-blank).
+# Count of entry lines (non-comment, non-blank) — one NDJSON tuple per line.
 assert_allowlist_label_count() {
   local n
   n=$(grep -cvE '^[[:space:]]*(#|$)' "$OSQUERY_LAUNCHD_ALLOWLIST" 2>/dev/null || echo 0)
   if [[ $n -ne $1 ]]; then
-    echo "expected $1 label(s), got $n: $(cat "$OSQUERY_LAUNCHD_ALLOWLIST" 2>/dev/null)" >&2
+    echo "expected $1 entr(y/ies), got $n: $(cat "$OSQUERY_LAUNCHD_ALLOWLIST" 2>/dev/null)" >&2
     return 1
   fi
 }
@@ -325,6 +371,41 @@ run_alerter() {
     OSQUERY_LAUNCHD_ALLOWLIST="$OSQUERY_LAUNCHD_ALLOWLIST" \
     OSQUERY_PIPELINE_MANIFEST="$OSQUERY_PIPELINE_MANIFEST" \
     bash "$ALERTER"
+}
+
+# Run the real alerter with the cursor state in a chosen shape (R2-2): "missing" removes the
+# offset file, "corrupt" writes an unparseable one. A missing/corrupt cursor must PROCESS the
+# recent tail (never silently seek-to-EOF), so the fixture rows are seen, not skipped.
+run_alerter_cursor() {
+  local shape="$1" rows="$2" results_log="$HARNESS_HOME/.local/log/osquery/osqueryd.results.log"
+  local offset="$HARNESS_HOME/.local/state/osquery-results-offset"
+  printf '%s\n' "$rows" >"$results_log"
+  case "$shape" in
+    missing) rm -f "$offset" ;;
+    corrupt) printf 'not-a-cursor\n' >"$offset" ;;
+    *)
+      echo "run_alerter_cursor: unknown shape '$shape'" >&2
+      return 2
+      ;;
+  esac
+  HOME="$HARNESS_HOME" \
+    OSQUERY_RESULTS_LOG="$results_log" \
+    OSQUERY_RESULTS_OFFSET="$offset" \
+    OSQUERY_DIGEST_STORE="$OSQUERY_DIGEST_STORE" \
+    OSQUERY_LAUNCHD_ALLOWLIST="$OSQUERY_LAUNCHD_ALLOWLIST" \
+    OSQUERY_PIPELINE_MANIFEST="$OSQUERY_PIPELINE_MANIFEST" \
+    bash "$ALERTER"
+}
+
+# Read back the cursor's stored byte offset (second field), or "" when the file is absent.
+cursor_offset() {
+  local offset="$HARNESS_HOME/.local/state/osquery-results-offset" _inode off
+  [[ -f $offset ]] || {
+    printf ''
+    return 0
+  }
+  read -r _inode off <"$offset" 2>/dev/null || true
+  printf '%s' "$off"
 }
 
 # A "page" is a CRIT dispatch (the #priority channel).

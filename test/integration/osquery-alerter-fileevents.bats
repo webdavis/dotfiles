@@ -70,20 +70,27 @@ teardown() { teardown_harness; }
 
 # --- FX1 + FX2 + FX3: pipeline_integrity -----------------------------------------
 
-@test "T-PAGE-pipeline-movedto: a pipeline script atomic replacement (live MOVED_TO, empty sha256) pages" {
-  # The dominant live pipeline_integrity verb (22 rows) — MOVED_TO with an empty sha256.
-  # It carries no hash, so legitimacy cannot be confirmed → page (fail-safe loud). This
-  # is the exact row the old CREATED/UPDATED gate dropped, blinding the tamper detector.
+@test "T-PAGE-pipeline-movedto-absent: a MOVED_TO (empty sha256) whose on-disk target is GONE pages (R2-10)" {
+  # The dominant live pipeline_integrity verb (22 rows) — MOVED_TO with an empty event sha256
+  # (osquery does not content-hash a rename). R2-10: re-hash the on-disk target. Here the file
+  # does not exist (a crashed-mid-apply / removed target), so it cannot be confirmed → page.
   seed_manifest "aaaa1111  /Users/x/.local/bin/osquery-alert-dispatch.sh"
   run_alerter "$(file_event_row pipeline_integrity /Users/x/.local/bin/osquery-alert-dispatch.sh MOVED_TO "")"
   assert_page_has osquery-alert-dispatch.sh
   assert_digest_count 0
 }
 
-@test "T-PAGE-pipeline-rootchanged: a pipeline script ROOT_CHANGED (empty sha256) pages" {
+@test "T-PAGE-pipeline-rootchanged-absent: a ROOT_CHANGED (empty sha256) with the target GONE pages (R2-10)" {
   seed_manifest "aaaa1111  /Users/x/.local/bin/osquery-alert-dispatch.sh"
   run_alerter "$(file_event_row pipeline_integrity /Users/x/.local/bin/osquery-alert-dispatch.sh ROOT_CHANGED "")"
   assert_page_has osquery-alert-dispatch.sh
+}
+
+@test "T-PAGE-pipeline-delete: a DELETE of a tracked pipeline file pages (destructive, no re-hash) (R2-10)" {
+  # A DELETE has no on-disk file to re-hash and is destructive — it always pages.
+  seed_manifest "aaaa1111  /Users/x/.local/bin/osquery-digest.sh"
+  run_alerter "$(file_event_row pipeline_integrity /Users/x/.local/bin/osquery-digest.sh DELETED "")"
+  assert_page_has osquery-digest.sh
 }
 
 @test "T-PAGE-pipeline-mismatch: a tooling change whose hash is NOT in the manifest pages" {
@@ -93,10 +100,30 @@ teardown() { teardown_harness; }
   assert_digest_count 0
 }
 
-@test "T-NEG-pipeline-match: the EXACT (path, hash) tuple in the manifest is silent (legit apply)" {
-  seed_manifest "goodhash1234  /Users/x/.local/bin/osquery-results-alerter.sh"
-  run_alerter "$(file_event_row pipeline_integrity /Users/x/.local/bin/osquery-results-alerter.sh UPDATED goodhash1234)"
+@test "T-NEG-pipeline-rehash-match: a live MOVED_TO (empty event hash) whose ON-DISK file matches the manifest is SILENT (R2-10)" {
+  # The real chezmoi apply shape: an atomic-rename MOVED_TO carries an EMPTY event hash, so the
+  # old code paged EVERY legit apply. R2-10 re-hashes the on-disk target and compares the
+  # (path, on-disk hash) tuple to the freshly-regenerated manifest → a known-good deployed file
+  # is SILENT. Build a real on-disk file, pin its true hash, then feed the empty-hash event.
+  local target="$HARNESS_HOME/.local/bin/osquery-results-alerter.sh"
+  mkdir -p "$(dirname "$target")"
+  printf 'known-good deployed content\n' >"$target"
+  seed_manifest "$(shasum -a 256 "$target" | awk '{print $1}')  $target"
+  run_alerter "$(file_event_row pipeline_integrity "$target" MOVED_TO "")"
   assert_no_page
+  assert_digest_count 0
+}
+
+@test "T-PAGE-pipeline-rehash-mismatch: a MOVED_TO (empty event hash) whose ON-DISK file diverges from the manifest PAGES (R2-10)" {
+  # Same live shape, but the on-disk bytes do NOT match the manifest (a real tamper, or a
+  # crashed-mid-apply). The re-hash mismatches → page. This is what makes FX2 functional
+  # against the real event shape instead of paging every legit apply.
+  local target="$HARNESS_HOME/.local/bin/osquery-results-alerter.sh"
+  mkdir -p "$(dirname "$target")"
+  printf 'tampered content\n' >"$target"
+  seed_manifest "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef  $target"
+  run_alerter "$(file_event_row pipeline_integrity "$target" MOVED_TO "")"
+  assert_page_has osquery-results-alerter.sh
   assert_digest_count 0
 }
 

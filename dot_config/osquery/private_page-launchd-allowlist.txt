@@ -1,0 +1,28 @@
+# page-launchd-allowlist.txt — user LaunchAgents whose new persistence digests instead of
+# paging (a known-good tool you installed). R2-1: an entry is a TUPLE, not a bare label. The
+# alerter suppresses a persistence_launchd finding ONLY when its (label, canonical plist path,
+# program [, pinned plist sha256]) matches an entry here, and PAGES a label reused with a
+# different path/program/hash — so a stolen label pointed at a malicious program cannot hide.
+#
+# One NDJSON object per line: {"label","path","program","sha256"}.
+#   - path/program: a leading $HOME is written ~/ so this file stays user-agnostic; the alerter
+#     re-expands ~/ to $HOME/ before comparing to osquery's absolute launchd row.
+#   - sha256: OPTIONAL plist-content pin. When non-empty the on-disk plist must still hash to it
+#     (defeats a same-path/same-program plist rewrite). Left EMPTY for this host's own agents:
+#     their plists change with the dotfiles (e.g. the digest Hour/Minute), and their content is
+#     already verified by the root-owned pipeline-integrity manifest (the file_events tamper
+#     detector). Third-party agents added via `osquery-allowlist.sh -a` capture a pinned sha256.
+#
+# Curate with the one writer, which captures the tuple from the live launchd table:
+#   osquery-allowlist.sh -a <label>    # allow (capture/refresh identity)
+#   osquery-allowlist.sh -d <label>    # deny (remove)
+#   osquery-allowlist.sh -l            # list
+# System daemons (/Library/LaunchDaemons) page by path regardless and are NOT allowlistable
+# here; Apple/system (com.apple.*) labels are refused by the writer. This file is mode 0600.
+
+{"label":"com.webdavis.osquery-results-alerter","path":"~/Library/LaunchAgents/com.webdavis.osquery-results-alerter.plist","program":"/opt/homebrew/bin/bash ~/.local/bin/osquery-results-alerter.sh","sha256":""}
+{"label":"com.webdavis.osquery-firewall-gatekeeper-monitor","path":"~/Library/LaunchAgents/com.webdavis.osquery-firewall-gatekeeper-monitor.plist","program":"/opt/homebrew/bin/bash ~/.local/bin/osquery-firewall-gatekeeper-monitor.sh","sha256":""}
+{"label":"com.webdavis.osquery-uptime-watchdog","path":"~/Library/LaunchAgents/com.webdavis.osquery-uptime-watchdog.plist","program":"/opt/homebrew/bin/bash ~/.local/bin/osquery-uptime-watchdog.sh","sha256":""}
+{"label":"com.webdavis.osquery-digest","path":"~/Library/LaunchAgents/com.webdavis.osquery-digest.plist","program":"/opt/homebrew/bin/bash ~/.local/bin/osquery-digest.sh","sha256":""}
+{"label":"com.webdavis.osquery-tailscale-monitor","path":"~/Library/LaunchAgents/com.webdavis.osquery-tailscale-monitor.plist","program":"/opt/homebrew/bin/bash ~/.local/bin/osquery-tailscale-monitor.sh","sha256":""}
+{"label":"com.webdavis.osquery-heartbeat","path":"~/Library/LaunchAgents/com.webdavis.osquery-heartbeat.plist","program":"/opt/homebrew/bin/bash ~/.local/bin/osquery-heartbeat.sh","sha256":""}
