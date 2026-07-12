@@ -26,3 +26,18 @@ teardown() { teardown_harness; }
   run grep -F '"host":"' "$CURL_LOG"
   [ "$status" -eq 0 ]
 }
+
+@test "T-DISP-nosecret-spool: a CRIT with no webhook secret spools the page and loudly names the broken channel (FX4)" {
+  # The old code logged a WARN and returned SUCCESS without spooling — the critical
+  # silently degraded to local-only and was lost. With no secret the page must be spooled
+  # durably (it delivers when the secret returns) and a LOUD local notification must name
+  # the broken channel; nothing may be signed or POSTed without a key.
+  unset OSQUERY_WEBHOOK_SECRET
+  : >"$ALERTER_LOG"
+  run send_alert CRIT "🔴 title" "detail body" "Sosumi"
+  [ "$status" -eq 0 ]                       # still fire-and-forget for its callers
+  assert_spool_count 1                      # durably spooled, not dropped
+  assert_no_post                            # nothing signed/POSTed without a key
+  grep -qiE 'secret|degraded|broken' "$OSQUERY_DELIVERY_LOG"
+  grep -qiE 'secret|Discord|broken|deliver' "$ALERTER_LOG" # loud local notice names the channel
+}

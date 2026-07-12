@@ -340,7 +340,11 @@ assert_page_lacks() {
 setup_dispatch_harness() {
   HARNESS_HOME="$(mktemp -d)"
   mkdir -p "$HARNESS_HOME/bin" "$HARNESS_HOME/.local/log/osquery"
-  printf '#!/usr/bin/env bash\nexit 0\n' >"$HARNESS_HOME/bin/alerter"
+  # The alerter shim records its argv so a test can assert the local notification's
+  # content (e.g. the loud "Discord channel broken — no secret" message).
+  export ALERTER_LOG="$HARNESS_HOME/alerter.log"
+  : >"$ALERTER_LOG"
+  printf '#!/usr/bin/env bash\nprintf "%%s\\n" "$*" >>"%s"\nexit 0\n' "$ALERTER_LOG" >"$HARNESS_HOME/bin/alerter"
   # curl shim: record the invocation, then emit the next queued http code (one per
   # line in $CURL_CODES_FILE, popped per call), defaulting to 200 when the queue is
   # empty — so a test can script "503 503 503 then success".

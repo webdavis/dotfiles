@@ -125,29 +125,45 @@ send_alert() {
   [ "$severity" = "CRIT" ] || return 0
   local url="$OSQUERY_HERMES_PRIORITY_URL"
 
+  local body request_id signature http attempt
+  # host is INSIDE the signed body (and thus the request_id) — the spec's body shape
+  # and the documented multi-host migration seam both require {event_type, host, alert}.
+  # Build the body and the content-stable request id BEFORE reading the secret: neither
+  # needs it (the id is a plain sha256 of the body), so a missing-secret page can spool
+  # with the SAME id and the drain then signs and delivers it verbatim. Content-stable id
+  # also dedups a retry or double-fire at the gateway (it honours X-Request-ID for 1h).
+  body=$(jq -cn --arg h "$(hostname -s)" --arg t "$title" --arg d "$detail" \
+    '{event_type:"osquery.alert", host:$h, alert:{title:$t, detail:$d}}')
+  request_id="osquery-$(printf '%s' "$body" | openssl dgst -sha256 | awk '{print $NF}' | cut -c1-32)"
+
   # 2) Discord via the hermes webhook (best-effort, bounded retry). Read the HMAC
   #    key from the notifier's own secret file (env override allowed for tests);
-  #    strip CR so a CRLF file can't corrupt the key. A missing/empty secret is
-  #    handled gracefully (local alert already fired) rather than aborting.
+  #    strip CR so a CRLF file can't corrupt the key.
   local secret="${OSQUERY_WEBHOOK_SECRET:-}"
   if [ -z "$secret" ] && [ -r "$OSQUERY_WEBHOOK_SECRET_FILE" ]; then
     IFS= read -r secret <"$OSQUERY_WEBHOOK_SECRET_FILE" || true
     secret=$(printf '%s' "$secret" | tr -d '\r')
   fi
   if [ -z "$secret" ]; then
-    _osquery_log "WARN no webhook secret in $OSQUERY_WEBHOOK_SECRET_FILE — Discord delivery skipped"
+    # FX4: a missing secret must NOT silently degrade a critical to local-only. The old
+    # code logged a WARN and returned success WITHOUT spooling — the page was lost. Spool
+    # it durably (unsigned; the drain signs it once the secret returns) and fire a LOUD
+    # local notification NAMING the broken channel, so the operator learns Discord paging
+    # is down. Never a bare success that drops the page.
+    _spool_page "$request_id" "$url" "$body"
+    _osquery_log "SPOOLED-NOSECRET Discord delivery degraded: request_id=$request_id (no secret in $OSQUERY_WEBHOOK_SECRET_FILE)"
+    local warn_title="⚠️ osquery Discord paging BROKEN"
+    local warn_msg="No webhook secret — this CRITICAL page was spooled locally and delivers when the secret is restored."
+    if command -v alerter >/dev/null 2>&1; then
+      alerter --timeout 60 --title "$warn_title" --message "$warn_msg" --sound Funk >/dev/null 2>&1 &
+    else
+      local warn_escaped=${warn_msg//\"/\\\"}
+      osascript -e "display notification \"$warn_escaped\" with title \"$warn_title\" sound name \"Funk\"" >/dev/null 2>&1 || true
+    fi
     return 0
   fi
 
-  local body signature request_id http attempt
-  # host is INSIDE the signed body (and thus the request_id) — the spec's body shape
-  # and the documented multi-host migration seam both require {event_type, host, alert}.
-  body=$(jq -cn --arg h "$(hostname -s)" --arg t "$title" --arg d "$detail" \
-    '{event_type:"osquery.alert", host:$h, alert:{title:$t, detail:$d}}')
   signature=$(printf '%s' "$body" | openssl dgst -sha256 -hmac "$secret" | awk '{print $NF}')
-  # Content-stable request id: a retry or double-fire of the SAME alert dedups
-  # at the gateway (it honours X-Request-ID for 1h) instead of double-posting.
-  request_id="osquery-$(printf '%s' "$body" | openssl dgst -sha256 | awk '{print $NF}' | cut -c1-32)"
 
   for attempt in 1 2 3; do
     http=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 \
