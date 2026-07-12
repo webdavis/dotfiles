@@ -42,6 +42,7 @@ DROPIN="$SSHD_CONFIG_D/000-ssh-hardening.conf"
 LEGACY_DROPIN="$SSHD_CONFIG_D/50-no-password-auth.conf"
 
 SSHD_BIN="${SSHD_BIN:-sshd}"
+LAUNCHCTL_BIN="${LAUNCHCTL_BIN:-launchctl}"
 SSHD_MAIN_CONFIG="${SSHD_MAIN_CONFIG:-/etc/ssh/sshd_config}"
 # Privilege prefix for live-system reads/writes/reloads. Default sudo; tests set
 # SSH_HARDENING_SUDO="" to operate unprivileged against a sandbox tree.
@@ -156,16 +157,68 @@ install_dropin() {
   printf '[ssh-hardening] drop-in in place; run ssh-hardening.sh --reload (or re-enable Remote Login) to activate it on a running sshd\n'
 }
 
+# prime_sudo -- refresh the sudo timestamp visibly, failing closed if privilege
+# escalation is unavailable. No-op when the sudo prefix is empty (test mode).
+prime_sudo() {
+  [[ -n $SUDO ]] || return 0
+  "$SUDO" -v
+}
+
 # do_reload -- reload a running sshd via the modern kickstart -k idiom (kill +
-# restart in one call). Skips silently when sshd is not loaded: the drop-in stays
-# in place and applies whenever Remote Login is next enabled.
+# restart in one call). This TERMINATES the current listener, so it fails CLOSED:
+# it validates the complete config first, distinguishes a confirmed-absent service
+# from an errored probe, returns nonzero on any failure, and confirms sshd came
+# back. It never treats a sudo/launchctl error as proof the daemon is down.
 do_reload() {
-  if sudo launchctl print system/com.openssh.sshd &>/dev/null; then
-    sudo launchctl kickstart -k system/com.openssh.sshd
-    printf '[ssh-hardening] sshd reloaded\n'
-  else
-    printf '[ssh-hardening] sshd not currently running; the drop-in applies when Remote Login is next enabled\n'
+  # (a) Prime privilege escalation visibly. A sudo failure must NOT be mistaken for
+  #     "sshd is down".
+  if ! prime_sudo; then
+    printf '[ssh-hardening] ERROR: could not acquire sudo; refusing to reload sshd.\n' >&2
+    return 1
   fi
+
+  # (b) Validate the COMPLETE live config BEFORE the disruptive kickstart. A
+  #     kickstart -k terminates the listener, so never restart onto a config that
+  #     fails syntax or has lost the hardening (a broken sibling drop-in must not be
+  #     allowed to drop the daemon). Syntax first, then the five effective values.
+  if ! priv "$SSHD_BIN" -t; then
+    printf '[ssh-hardening] ERROR: sshd config failed syntax validation (sshd -t); refusing to reload.\n' >&2
+    return 1
+  fi
+  if ! verify_effective; then
+    printf '[ssh-hardening] ERROR: the live effective config is not fully hardened; refusing to reload.\n' >&2
+    return 1
+  fi
+
+  # (c)/(d) Probe the service, distinguishing CONFIRMED-absent from a probe ERROR.
+  #     `launchctl print` exits 0 when the service is loaded and 113 ("Could not
+  #     find service") when it is genuinely absent; ANY other nonzero is an errored
+  #     probe (e.g. a sudo/launchctl failure) and is NOT proof the daemon is down --
+  #     propagate it, never proceed as if stopped.
+  local probe_rc=0
+  priv "$LAUNCHCTL_BIN" print system/com.openssh.sshd >/dev/null 2>&1 || probe_rc=$?
+  if [[ $probe_rc -eq 0 ]]; then
+    : # loaded; fall through to the kickstart
+  elif [[ $probe_rc -eq 113 ]]; then
+    printf '[ssh-hardening] sshd is not loaded (Remote Login off); the drop-in applies when it is next enabled.\n'
+    return 0
+  else
+    printf '[ssh-hardening] ERROR: could not determine sshd state (launchctl print failed rc=%d); NOT proceeding as if it were stopped.\n' "$probe_rc" >&2
+    return 1
+  fi
+
+  # Disruptive step: kill + restart in one call.
+  if ! priv "$LAUNCHCTL_BIN" kickstart -k system/com.openssh.sshd; then
+    printf '[ssh-hardening] ERROR: launchctl kickstart failed; sshd may not have restarted. Check: sudo launchctl print system/com.openssh.sshd\n' >&2
+    return 1
+  fi
+
+  # (e) Verify the service came back after the kickstart.
+  if ! priv "$LAUNCHCTL_BIN" print system/com.openssh.sshd >/dev/null 2>&1; then
+    printf '[ssh-hardening] ERROR: sshd did NOT come back after kickstart. Investigate immediately: sudo launchctl print system/com.openssh.sshd\n' >&2
+    return 1
+  fi
+  printf '[ssh-hardening] sshd reloaded and confirmed running.\n'
 }
 
 case "${1:-}" in
