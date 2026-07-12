@@ -1,0 +1,6 @@
+# The committed knowledge-graph map merges by graph union: the
+# [merge "graphify-union"] driver defined in the user gitconfig
+# (dot_gitconfig.tmpl) runs `graphify merge-driver`. Where the driver is not
+# configured (CI, other machines), git falls back to a normal merge conflict,
+# resolvable by regenerating the map (`graphify update .`).
+graphify-out/graph.json merge=graphify-union
