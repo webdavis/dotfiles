@@ -158,6 +158,23 @@ cap=""
   exit 1
 }
 
+# FIX 2 (whole-file jq -rs slurp -> line-by-line): a single half-written trailing JSONL
+# line must not discard the whole summary. The last valid assistant reply is still
+# extracted, skipping the unterminated final line. CODEX_BIN=false -> python trim path.
+: >"$tmp/args"
+{
+  printf '%s\n' '{"type":"assistant","message":{"content":[{"type":"text","text":"COMPLETE reply survives."}]}}'
+  printf '%s' '{"type":"assistant","message":{"content":[{"type":"text","text":"truncated line no clos'
+} >"$tmp/ttrunc.jsonl"
+printf '{"cwd":"/x/dotfiles","transcript_path":"%s/ttrunc.jsonl"}' "$tmp" |
+  PATH="$tmp:$PATH" RELAY_BIN="$tmp/relay.sh" RELAY_ARGS_FILE="$tmp/args" CODEX_BIN=false \
+    bash "$agent" "done" >/dev/null 2>&1
+trunc_detail="$(tr '\0' '\n' <"$tmp/args" | awk 'f{print; exit} $0=="--detail"{f=1}')"
+[[ $trunc_detail == *"COMPLETE reply survives"* ]] || {
+  echo "relay-agent: FAIL -- a truncated last JSONL line discarded the whole summary: '$trunc_detail'" >&2
+  exit 1
+}
+
 # CHARACTERIZATION (baseline quirk, retained; SP3 owns): the last-user-turn boundary
 # detection only recognizes a user entry whose content is a string OR whose FIRST
 # content block is type=="text". A user turn that is purely a tool_result (content[0]
