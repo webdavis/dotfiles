@@ -84,9 +84,33 @@ SHIM
 
 # run_poller <prev-posture-object> <current-posture-object> — seed the prior state,
 # set the current reading, run the real poller. osqueryi --json returns an array, so
-# the current object is wrapped in [ ] for the fake.
+# the current object is wrapped in [ ] for the fake. The seeded baseline is chmod 600 to
+# match production (the poller writes its state owner-only), so it is a TRUSTED baseline.
 run_poller() {
   printf '%s\n' "$1" >"$POSTURE_STATE"
+  chmod 600 "$POSTURE_STATE"
+  HOME="$HARNESS_HOME" \
+    OSQUERYI="$HARNESS_HOME/.local/bin/osqueryi" \
+    OSQUERY_POSTURE_STATE="$POSTURE_STATE" \
+    POLLER_POSTURE="[$2]" \
+    bash "$POLLER"
+}
+
+# run_poller_firstrun <current-posture> — no prior baseline (first observation).
+run_poller_firstrun() {
+  rm -f "$POSTURE_STATE"
+  HOME="$HARNESS_HOME" \
+    OSQUERYI="$HARNESS_HOME/.local/bin/osqueryi" \
+    OSQUERY_POSTURE_STATE="$POSTURE_STATE" \
+    POLLER_POSTURE="[$1]" \
+    bash "$POLLER"
+}
+
+# run_poller_badperms <prev-posture> <current-posture> — a baseline that exists but is
+# group/world-readable (mode 644), i.e. NOT owner-only, so it must be treated as untrusted.
+run_poller_badperms() {
+  printf '%s\n' "$1" >"$POSTURE_STATE"
+  chmod 644 "$POSTURE_STATE"
   HOME="$HARNESS_HOME" \
     OSQUERYI="$HARNESS_HOME/.local/bin/osqueryi" \
     OSQUERY_POSTURE_STATE="$POSTURE_STATE" \
