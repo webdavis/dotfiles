@@ -23,9 +23,17 @@ teardown() { teardown_harness; }
   assert_no_dispatch
 }
 
-@test "T-NEG-funnel-firstrun: the first run baselines silently" {
-  run_tailscale_monitor "" "https://dresden.tailnet.ts.net/ (Funnel on)|--> http://127.0.0.1:8000"
+@test "T-NEG-funnel-firstrun-inactive: a first run with NO funnel baselines silently" {
+  run_tailscale_monitor "" "No serve config"
   assert_no_dispatch
+}
+
+@test "T-PAGE-funnel-firstrun-active: a first run with the funnel ALREADY active pages (FX7)" {
+  # The old code baselined the first sample silently even when a funnel was already
+  # exposing a local service to the public internet — a pre-existing exposure accepted
+  # as normal. Only inactive may seed silently; an initial active observation pages.
+  run_tailscale_monitor "" "https://dresden.tailnet.ts.net/ (Funnel on)|--> http://127.0.0.1:8000"
+  assert_page_has Funnel
 }
 
 # Dead-monitor regression (the GUI-path default silently disabled funnel paging on
