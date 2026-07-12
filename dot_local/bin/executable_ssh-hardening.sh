@@ -41,7 +41,9 @@ DROPIN="$SSHD_CONFIG_D/000-ssh-hardening.conf"
 # away on install.
 LEGACY_DROPIN="$SSHD_CONFIG_D/50-no-password-auth.conf"
 
-SSHD_BIN="${SSHD_BIN:-sshd}"
+# Absolute path (macOS default) so a stripped PATH cannot silently fail to resolve the
+# verifier and let a security check no-op. Tests override this seam with a stub.
+SSHD_BIN="${SSHD_BIN:-/usr/sbin/sshd}"
 LAUNCHCTL_BIN="${LAUNCHCTL_BIN:-launchctl}"
 # ssh-keyscan is the post-reload readiness prover: it completes an SSH banner
 # exchange, so a host-key line on stdout proves sshd is actually accepting (not merely
@@ -225,9 +227,17 @@ verify_effective_specs() {
 # separately -- no blanket "all in force" claim unless every view passes.
 verify_effective() {
   if ! command -v "$SSHD_BIN" >/dev/null 2>&1; then
-    printf '[ssh-hardening] NOTE: %s not found; cannot verify the effective config here. On macOS verify with: sudo sshd -G -T -C user=root,addr=203.0.113.1,host=localhost | grep -iE "passwordauthentication|kbdinteractiveauthentication|usepam|pubkeyauthentication|permitrootlogin"\n' \
+    # A verifier that cannot run must NEVER report success in a production path. The
+    # tool-absence SKIP is allowed ONLY via an explicit test env seam; the default
+    # (production) is FAIL CLOSED.
+    if [[ ${SSH_HARDENING_SKIP_IF_NO_SSHD:-0} == 1 ]]; then
+      printf '[ssh-hardening] NOTE: %s not found; skipping effective-config verification (SSH_HARDENING_SKIP_IF_NO_SSHD set -- test seam only).\n' \
+        "$SSHD_BIN" >&2
+      return 0
+    fi
+    printf '[ssh-hardening] ERROR: %s not found; refusing to verify -- FAILING CLOSED. A security check that cannot run must not report success. On macOS the verifier is /usr/sbin/sshd; verify by hand with: sudo /usr/sbin/sshd -G -T -C user=root,addr=203.0.113.1,host=localhost | grep -iE "passwordauthentication|kbdinteractiveauthentication|usepam|pubkeyauthentication|permitrootlogin"\n' \
       "$SSHD_BIN" >&2
-    return 0
+    return 1
   fi
   local rc=0 global_eff
   # 1. Global (pre-Match) effective config.
