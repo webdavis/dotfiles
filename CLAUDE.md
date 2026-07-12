@@ -154,20 +154,19 @@ All four hooks live in the **user-wide** hooks dir (`core.hooksPath = ~/.config/
   gate) then `just test` (all camps), so everything the commit gate skips runs before anything leaves the
   machine; CI runs the same as the final backstop.
 - **`post-commit`: per-repo hooks, via a dispatcher.** `dot_config/git/hooks/executable_post-commit`
-  mirrors the pre-commit dispatcher (user-wide, exec's the repo's executable `.githooks/post-commit`
-  when present, no-op otherwise). Nothing global runs graphify anymore; a repo that wants a
-  knowledge-graph rebuild after each commit opts in by tracking its own `.githooks/post-commit`. The
-  old global-by-default design (graphify inlined in the dispatcher with a `.githooks/no-graphify`
-  opt-out marker) is gone. **This repo opts in:** its `.githooks/post-commit` launches
-  `graphify update .` detached (a full rebuild measures ~2s here; the detach keeps any rebuild off the
-  commit path) with `PYTHONHASHSEED=0` for reproducible clustering, logging to
+  mirrors the pre-commit dispatcher (user-wide, exec's the repo's executable `.githooks/post-commit` when
+  present, no-op otherwise). Nothing global runs graphify anymore; a repo that wants a knowledge-graph
+  rebuild after each commit opts in by tracking its own `.githooks/post-commit`. The old
+  global-by-default design (graphify inlined in the dispatcher with a `.githooks/no-graphify` opt-out
+  marker) is gone. **This repo opts in:** its `.githooks/post-commit` launches `graphify update .`
+  detached (a full rebuild measures ~2s here; the detach keeps any rebuild off the commit path) with
+  `PYTHONHASHSEED=0` for reproducible clustering, logging to
   `~/.local/log/graphify/dotfiles-post-commit.log`. `graphify-out/graph.json` is the **committed map**
   (the rest of `graphify-out/` stays gitignored); the rebuilt map appears as an unstaged change to fold
   into the next commit, and map-only commits skip the rebuild (loop prevention). Cross-branch merges of
-  the map union-merge via the `graphify-union` driver (`.gitattributes` +
-  `[merge "graphify-union"]` in `dot_gitconfig.tmpl`); without the driver git falls back to a normal
-  conflict, resolvable by regenerating (`graphify update .`). Per-commit escape hatch:
-  `GRAPHIFY_SKIP_HOOK=1`.
+  the map union-merge via the `graphify-union` driver (`.gitattributes` + `[merge "graphify-union"]` in
+  `dot_gitconfig.tmpl`); without the driver git falls back to a normal conflict, resolvable by
+  regenerating (`graphify update .`). Per-commit escape hatch: `GRAPHIFY_SKIP_HOOK=1`.
 
 **Why a dispatcher, not `git config core.hooksPath .githooks`?** `core.hooksPath` is single-valued, so a
 per-repo override shadows the user-wide `prepare-commit-msg`. The dispatcher keeps the global hook
