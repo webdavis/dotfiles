@@ -100,7 +100,8 @@ raw_findings=$(printf '%s\n' "$new_lines" | jq -rR '
     or (.name == "pack_security-policy-regression_gatekeeper_state" and .action == "added" and (.columns.assessments_enabled // "") == "0")
     or (.name == "pack_security-policy-regression_sip_state" and .action == "added" and (.columns.enabled // "") == "0")
     or (.name == "pack_security-policy-regression_screenlock_state" and .action == "added" and (.columns.enabled // "") == "0")
-    or (.name == "pack_security-policy-regression_filevault_off" and .action == "added");
+    or (.name == "pack_security-policy-regression_filevault_off" and .action == "added")
+    or (.name == "pack_security-policy-regression_screenlock_off" and .action == "added");
   def sev:
     # file_events tiering is decided AUTHORITATIVELY by the gate file_events_recent
     # arm below (authorized_keys / sshd_config page; sudoers / allowlist_file digest;
@@ -129,10 +130,12 @@ raw_findings=$(printf '%s\n' "$new_lines" | jq -rR '
   # observation and stay silent at counter==0. ABSOLUTE-STATE queries emit a row ONLY
   # when the current state is already unsafe (filevault_off = no volume encrypted;
   # remote_access_sharing_state = a service enabled; agent_exposure_changed = a port
-  # off-loopback), so a counter==0 row is an unsafe FIRST observation that must PAGE, not
-  # seed. Keep counter==0 rows ONLY for those absolute-state queries; discard the rest.
+  # off-loopback; screenlock_off = the lock disabled), so a counter==0 row is an unsafe
+  # FIRST observation that must PAGE, not seed. Keep counter==0 rows ONLY for those
+  # absolute-state queries; discard the rest.
   | select((.counter // 1) != 0
       or (.name | test("filevault_off$"))
+      or (.name | test("screenlock_off$"))
       or (.name | test("remote_access_sharing_state$"))
       or (.name | test("agent_exposure_changed$")))
   | (.name | sub("^pack_[^_]+_"; "")) as $q
