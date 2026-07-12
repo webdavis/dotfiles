@@ -3,10 +3,28 @@
 
 set -euo pipefail
 
+{{ if eq (env "SKIP_SYSTEM_PACKAGES") "1" -}}
+# SKIP_SYSTEM_PACKAGES=1 set: skipping the brew bundle sync entirely, so a
+# `chezmoi apply` from a secondary worktree (whose declared package set differs)
+# cannot uninstall packages this worktree does not list. Only the literal "1"
+# skips -- 0/false/anything-else still run the sync. A later normal apply re-runs
+# this and re-syncs.
+exit 0
+{{ end -}}
 # Resolve the Homebrew prefix once (honoring HOMEBREW_PREFIX, as the autoupdate
 # block below already does) so every brew/uv/volta call goes through one place.
 brew_prefix="${HOMEBREW_PREFIX:-/opt/homebrew}"
 brew_bin="$brew_prefix/bin/brew"
+
+# Tear down the old domt4/autoupdate daily auto-upgrader (replaced by the
+# com.webdavis.homebrew-weekly-upgrade Monday-noon LaunchAgent). MUST run BEFORE
+# the `brew bundle cleanup` below untaps domt4/autoupdate -- otherwise the
+# `brew autoupdate` subcommand is gone when we call it. Guarded on the tap being
+# present so it is a clean no-op once removed / on fresh machines.
+if "$brew_bin" tap | grep -q '^domt4/autoupdate$'; then
+  "$brew_bin" autoupdate stop 2>/dev/null || true
+  "$brew_bin" autoupdate delete 2>/dev/null || true
+fi
 
 # Pre-trust taps that require it. `brew tap` first (no-op if already tapped) so
 # `brew trust` has a target to operate on, then trust. Both idempotent and safe
@@ -39,7 +57,6 @@ brew_bin="$brew_prefix/bin/brew"
 #
 # ROLLBACK: while herdr is unverified, tmux/sesh stay installed and usable; no
 # teardown happens. Keep using tmux until after_58 completes the migration.
-bundle_args=(--cleanup --file=/dev/stdin)
 multiplexer_present=false
 for multiplexer in tmux sesh; do
   if "$brew_bin" list "$multiplexer" &>/dev/null; then
@@ -48,13 +65,20 @@ for multiplexer in tmux sesh; do
   fi
 done
 if [[ $multiplexer_present == true ]]; then
-  bundle_args=(--file=/dev/stdin)
-  printf 'Legacy multiplexer (tmux/sesh) still installed: running brew bundle WITHOUT --cleanup so it is not removed before herdr is verified.\n' >&2
+  printf 'Legacy multiplexer (tmux/sesh) still installed: running brew bundle WITHOUT cleanup so it is not removed before herdr is verified.\n' >&2
   printf 'run_after_58 owns the teardown and completes the migration once herdr is healthy: open an interactive terminal (bashrc auto-attaches and starts the herdr server), then run chezmoi apply again so after_58 verifies herdr and removes tmux/sesh.\n' >&2
 fi
 
-# Use `brew bundle ...` to install all taps, formulae, casks, and macOS App Store apps.
-"$brew_bin" bundle "${bundle_args[@]}" <<EOF
+# Install all taps, formulae, casks, and macOS App Store apps, then uninstall
+# anything not declared. Homebrew 6.x removed the old `brew bundle --cleanup`
+# behavior: the flag now only PRINTS what it would remove and exits 1 whenever
+# that list is non-empty, which aborts the whole apply under set -e. Removal is
+# now its own command, `brew bundle cleanup --force`. So write the Brewfile to a
+# temp file once, install from it, then (unless the legacy multiplexer is still
+# installed, per the withhold rationale above) run the cleanup command.
+brewfile=$(mktemp)
+trap 'rm -f "$brewfile"' EXIT
+cat >"$brewfile" <<EOF
 {{ range .packages.macos.homebrew.taps -}}
 tap {{ . | quote }}
 {{ end -}}
@@ -68,37 +92,56 @@ cask {{ . | quote }}
 mas {{ .name | quote }}, id: {{ .id }}
 {{ end -}}
 EOF
-
-# Configure Homebrew autoupdate (idempotent — only restart if not already running).
-HOMEBREW_BIN="${HOMEBREW_PREFIX:-/opt/homebrew}/bin/brew"
-
-if ! "$HOMEBREW_BIN" autoupdate status 2>/dev/null | grep -q "running"; then
-  echo "Starting domt4/autoupdate [stop → delete → start]..."
-  "$HOMEBREW_BIN" autoupdate stop 2>/dev/null || true
-  "$HOMEBREW_BIN" autoupdate delete 2>/dev/null || true
-  "$HOMEBREW_BIN" autoupdate start 86400 --upgrade --cleanup --immediate --sudo
-else
-  echo "Homebrew autoupdate already running — skipping restart."
+"$brew_bin" bundle --file="$brewfile"
+{{ includeTemplate "brew-bundle-cleanup-guard.sh.tmpl" }}
+if [[ $multiplexer_present == false ]]; then
+  # Guarded: refuses a bulk cleanup against a partial/empty Brewfile (returns 0
+  # on refuse or clean, non-zero only on a real cleanup failure -- so set -e
+  # still aborts the apply on a genuine failure, as before).
+  brew_bundle_cleanup_guarded "$brewfile"
 fi
 
-# Install uv tools (runs after Homebrew so uv is available).
-{{ range .packages.macos.uv -}}
-"$brew_prefix/bin/uv" tool install {{ . | quote }}
+# The ecosystem tools (uv, node/npm, volta) were just installed by the bundle at
+# $brew_prefix/bin, which the apply shell's PATH may not yet include (a fresh
+# machine, or `bash -lc` reaching an unsourced shell). Prepend it once so the
+# `command -v` guards and the invocations below see the SAME binaries -- without
+# this a guard could skip a tool the bundle just installed at an absolute path,
+# and run_onchange would not retry until the data file changes.
+export PATH="$brew_prefix/bin:$PATH"
+
+# Install uv tools (runs after Homebrew so uv is available). Guarded on uv being
+# on PATH so a fresh machine (whose PATH now includes the brew prefix above)
+# skips cleanly instead of aborting under set -e when uv is genuinely absent.
+{{ if .packages.macos.uv -}}
+if command -v uv >/dev/null 2>&1; then
+{{- range .packages.macos.uv }}
+  uv tool install {{ . | quote }}
+{{- end }}
+fi
 {{ end -}}
 
-# Install npm global packages (runs after Homebrew so node is available).
-{{ range .packages.macos.npm -}}
-npm install -g {{ . | quote }}
+# Install npm global packages (runs after Homebrew so node is available). Same
+# command -v guard so a missing npm skips cleanly rather than aborting the apply.
+{{ if .packages.macos.npm -}}
+if command -v npm >/dev/null 2>&1; then
+{{- range .packages.macos.npm }}
+  npm install -g {{ . | quote }}
+{{- end }}
+fi
 {{ end -}}
 
 # Install Volta-pinned CLI tools. `volta install node@X` ensures the runtime is
-# present (and resets Volta's default to X — harmless because Homebrew's `node`
+# present (and resets Volta's default to X, harmless because Homebrew's `node`
 # wins in PATH). `volta run --node X npm install -g <pkg>` pins the resulting
 # shim in ~/.volta/bin/<bin> to Node X so the tool keeps working when Homebrew
-# bumps node majors.
-{{ range .packages.macos.volta -}}
-"$brew_prefix/bin/volta" install {{ printf "node@%s" .node | quote }}
-"$brew_prefix/bin/volta" run --node {{ .node | quote }} npm install -g {{ .package | quote }}
+# bumps node majors. Guarded on volta being on PATH so it skips cleanly if absent.
+{{ if .packages.macos.volta -}}
+if command -v volta >/dev/null 2>&1; then
+{{- range .packages.macos.volta }}
+  volta install {{ printf "node@%s" .node | quote }}
+  volta run --node {{ .node | quote }} npm install -g {{ .package | quote }}
+{{- end }}
+fi
 {{ end -}}
 
 {{ end -}}
