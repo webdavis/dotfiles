@@ -65,7 +65,11 @@ else:
 # (probe failed) treat as away so a push is never dropped. RELAY_IDLE_SECS overrides the probe (test/manual);
 # RELAY_FORCE_PHONE=1 always pushes. HIDIdleTime is input-idle -> works under the never-sleep power policy.
 desk_idle="${RELAY_DESK_IDLE_SECS:-600}"
-idle_secs="${RELAY_IDLE_SECS:-$(/usr/sbin/ioreg -c IOHIDSystem 2>/dev/null | grep -m1 HIDIdleTime | awk '{print int($NF / 1000000000)}')}"
+# Fail OPEN: if the probe fails (ioreg absent, no HIDIdleTime line, unparseable) the || true
+# keeps set -e from aborting the whole notification path; idle_secs stays empty, the numeric
+# guard below is false, and want_phone stays 1 -- unknown idle is treated as "user away" so a
+# push is never silently dropped. RELAY_IOREG overrides the probe binary (tests point it at a stub).
+idle_secs="${RELAY_IDLE_SECS:-$("${RELAY_IOREG:-/usr/sbin/ioreg}" -c IOHIDSystem 2>/dev/null | grep -m1 HIDIdleTime | awk '{print int($NF / 1000000000)}' || true)}"
 want_phone=1
 if [[ -z ${RELAY_FORCE_PHONE:-} && $idle_secs =~ ^[0-9]+$ && $idle_secs -lt $desk_idle ]]; then want_phone=""; fi
 

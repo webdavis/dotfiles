@@ -242,6 +242,51 @@ sys.stdout.write(hmac.new(b"HSECRET", open(sys.argv[1], "rb").read(), hashlib.sh
   echo "relay: FAIL -- X-Webhook-Signature is not HMAC-SHA256(body, secret)" >&2
   exit 1
 }
+# FIX 1 (fail-closed idle probe -> fail OPEN): with RELAY_IDLE_SECS unset, a failing
+# or HIDIdleTime-less ioreg probe must NOT abort the script. Unknown idle = "user away",
+# so every channel still fires. The stub prints lines without HIDIdleTime, so grep -m1
+# finds nothing and the probe pipeline exits non-zero (the abort trigger under set -e).
+cat >"$tmp/ioreg" <<'MOCK'
+#!/usr/bin/env bash
+echo "no idle field here"
+MOCK
+chmod +x "$tmp/ioreg"
+cat >"$tmp/curl" <<MOCK
+#!/usr/bin/env bash
+echo "ARGV: \$*" >>"$tmp/curl-idle.log"
+MOCK
+chmod +x "$tmp/curl"
+: >"$tmp/tn.log"
+unset RELAY_IDLE_SECS
+out_idle="$(
+  PATH="$tmp:$PATH" RELAY_AUTH_FILE="$tmp/auth.json" RELAY_IOREG="$tmp/ioreg" \
+    RELAY_MOSHI_URL="http://moshi.test/hook" RELAY_HERMES_URL="http://hermes.test/relay" \
+    bash "$relay" --agent claude --state "done" --project x --detail "idle probe failed" --pane wW:p8 2>&1
+  echo "rc=$?"
+)"
+for ((i = 0; i < 100; i++)); do
+  grep -q hermes.test "$tmp/curl-idle.log" 2>/dev/null && grep -q moshi.test "$tmp/curl-idle.log" 2>/dev/null && break
+  sleep 0.05
+done
+wait 2>/dev/null
+grep -q "rc=0" <<<"$out_idle" || {
+  echo "relay: FAIL -- a failed idle probe aborted the script (fail-closed)" >&2
+  exit 1
+}
+grep -q moshi.test "$tmp/curl-idle.log" || {
+  echo "relay: FAIL -- fail-open idle: phone push dropped when idle is unknown" >&2
+  exit 1
+}
+grep -q hermes.test "$tmp/curl-idle.log" || {
+  echo "relay: FAIL -- fail-open idle: Discord log dropped when idle is unknown" >&2
+  exit 1
+}
+grep -q "herdr agent focus wW:p8" "$tmp/tn.log" || {
+  echo "relay: FAIL -- fail-open idle: local notification dropped when idle is unknown" >&2
+  exit 1
+}
+export RELAY_IDLE_SECS=999
+
 # CHARACTERIZATION (baseline quirk, retained; SP3 owns): the arg parser silently
 # ignores an UNRECOGNIZED flag (the *) shift ;; branch) rather than erroring, which
 # deviates from the house "unknown arg is an error" rule. A notification path must
