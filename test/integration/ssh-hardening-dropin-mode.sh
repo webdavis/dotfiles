@@ -15,6 +15,14 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SCRIPT="$REPO_ROOT/dot_local/bin/executable_ssh-hardening.sh"
 
+# Exercise the script through its PRODUCTION shebang interpreter (/bin/bash). macOS
+# ships /bin/bash 3.2, which lacks associative arrays and the compgen builtin, and the
+# operator invokes the script by its `#!/bin/bash` shebang -- so a 3.2-only regression
+# must fail HERE, not in production. Falls back to the ambient bash where /bin/bash is
+# absent (non-macOS).
+BASH_BIN=/bin/bash
+[[ -x $BASH_BIN ]] || BASH_BIN="bash"
+
 fail() {
   printf 'FAIL: %s\n' "$*" >&2
   exit 1
@@ -42,7 +50,7 @@ rc=0
 (
   umask 0077
   SSH_HARDENING_SUDO="" SSHD_CONFIG_D="$confd" SSHD_MAIN_CONFIG="$main" \
-    SSH_HARDENING_SKIP_IF_NO_SSHD=1 bash "$SCRIPT" >"$work/out" 2>"$work/err"
+    SSH_HARDENING_SKIP_IF_NO_SSHD=1 "$BASH_BIN" "$SCRIPT" >"$work/out" 2>"$work/err"
 ) || rc=$?
 
 dropin="$confd/000-ssh-hardening.conf"

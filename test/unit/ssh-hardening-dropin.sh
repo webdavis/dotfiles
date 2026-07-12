@@ -21,6 +21,14 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SCRIPT="$REPO_ROOT/dot_local/bin/executable_ssh-hardening.sh"
 
+# Exercise the script through its PRODUCTION shebang interpreter (/bin/bash). macOS
+# ships /bin/bash 3.2, which lacks associative arrays and the compgen builtin, and the
+# operator invokes the script by its `#!/bin/bash` shebang -- so a 3.2-only regression
+# must fail HERE, not in production. Falls back to the ambient bash where /bin/bash is
+# absent (non-macOS).
+BASH_BIN=/bin/bash
+[[ -x $BASH_BIN ]] || BASH_BIN="bash"
+
 fail() {
   printf 'FAIL: %s\n' "$*" >&2
   exit 1
@@ -29,7 +37,7 @@ fail() {
 [[ -f $SCRIPT ]] || fail "missing script: $SCRIPT"
 
 # --print-config must succeed with no sudo and no writes.
-config="$(bash "$SCRIPT" --print-config)" || fail "ssh-hardening.sh --print-config exited non-zero"
+config="$("$BASH_BIN" "$SCRIPT" --print-config)" || fail "ssh-hardening.sh --print-config exited non-zero"
 
 # Each accepted key=value must be present as its own exact line.
 declare -a want=(
@@ -61,7 +69,7 @@ done
 # --print-path must name a drop-in that sorts FIRST in sshd's lexical Include order,
 # AHEAD of Apple's 100-macos.conf. Under `Include sshd_config.d/*`, sshd is
 # first-value-wins, so a drop-in that sorts after 100- is silently shadowed (R1-1).
-dropin_path="$(bash "$SCRIPT" --print-path)" || fail "ssh-hardening.sh --print-path exited non-zero"
+dropin_path="$("$BASH_BIN" "$SCRIPT" --print-path)" || fail "ssh-hardening.sh --print-path exited non-zero"
 dropin_base="$(basename "$dropin_path")"
 [[ $dropin_base == "000-ssh-hardening.conf" ]] ||
   fail "managed drop-in must be 000-ssh-hardening.conf so it sorts first (got: $dropin_base)"

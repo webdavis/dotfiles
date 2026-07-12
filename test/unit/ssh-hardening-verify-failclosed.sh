@@ -18,6 +18,14 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SCRIPT="$REPO_ROOT/dot_local/bin/executable_ssh-hardening.sh"
 
+# Exercise the script through its PRODUCTION shebang interpreter (/bin/bash). macOS
+# ships /bin/bash 3.2, which lacks associative arrays and the compgen builtin, and the
+# operator invokes the script by its `#!/bin/bash` shebang -- so a 3.2-only regression
+# must fail HERE, not in production. Falls back to the ambient bash where /bin/bash is
+# absent (non-macOS).
+BASH_BIN=/bin/bash
+[[ -x $BASH_BIN ]] || BASH_BIN="bash"
+
 fail() {
   printf 'FAIL: %s\n' "$*" >&2
   exit 1
@@ -41,7 +49,7 @@ printf 'ssh-hardening --verify fail-closed cases:\n'
 # 1. PRODUCTION path (no skip seam), sshd binary absent -> FAIL CLOSED (nonzero, loud).
 rc=0
 err="$(SSH_HARDENING_SUDO="" SSHD_BIN="$missing" SSHD_MAIN_CONFIG=/dev/null \
-  bash "$SCRIPT" --verify 2>&1 >/dev/null)" || rc=$?
+  "$BASH_BIN" "$SCRIPT" --verify 2>&1 >/dev/null)" || rc=$?
 if [[ $rc -ne 0 ]]; then report ok "production: --verify FAILS closed (rc=$rc)"; else
   report bad "production: --verify must FAIL when the verifier cannot run (got rc=0; out/err: $err)"
 fi
@@ -52,7 +60,7 @@ fi
 # 2. TEST seam set, sshd absent -> clean SKIP (rc 0, a skip note, never a bogus pass).
 rc=0
 out="$(SSH_HARDENING_SUDO="" SSHD_BIN="$missing" SSHD_MAIN_CONFIG=/dev/null \
-  SSH_HARDENING_SKIP_IF_NO_SSHD=1 bash "$SCRIPT" --verify 2>"$work/e2")" || rc=$?
+  SSH_HARDENING_SKIP_IF_NO_SSHD=1 "$BASH_BIN" "$SCRIPT" --verify 2>"$work/e2")" || rc=$?
 err2="$(cat "$work/e2")"
 if [[ $rc -eq 0 ]]; then report ok "test-seam: --verify skips cleanly (rc=0)"; else
   report bad "test-seam: --verify must skip (rc=0) when the seam is set (rc=$rc; err: $err2)"

@@ -28,6 +28,14 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SCRIPT="$REPO_ROOT/dot_local/bin/executable_ssh-hardening.sh"
 
+# Exercise the script through its PRODUCTION shebang interpreter (/bin/bash). macOS
+# ships /bin/bash 3.2, which lacks associative arrays and the compgen builtin, and the
+# operator invokes the script by its `#!/bin/bash` shebang -- so a 3.2-only regression
+# must fail HERE, not in production. Falls back to the ambient bash where /bin/bash is
+# absent (non-macOS).
+BASH_BIN=/bin/bash
+[[ -x $BASH_BIN ]] || BASH_BIN="bash"
+
 fail() {
   printf 'FAIL: %s\n' "$*" >&2
   exit 1
@@ -85,7 +93,7 @@ out="$work/out"
 err="$work/err"
 rc=0
 SSH_HARDENING_SUDO="" SSHD_CONFIG_D="$confd" SSHD_MAIN_CONFIG="$main" \
-  PATH="$stub:$PATH" bash "$SCRIPT" >"$out" 2>"$err" || rc=$?
+  PATH="$stub:$PATH" "$BASH_BIN" "$SCRIPT" >"$out" 2>"$err" || rc=$?
 
 [[ $rc -eq 0 ]] ||
   fail "installer must exit 0 on a tree where the drop-in wins (got rc=$rc; err: $(cat "$err"))"
@@ -115,14 +123,14 @@ done
 # ---- 3a. regression guard: the OLD 50- name is DEFEATED by the hostile 100- ------
 # (documents WHY the rename is required: hostile 100- sorts before 50-.)
 rm -f "$confd/000-ssh-hardening.conf"
-bash "$SCRIPT" --print-config >"$confd/50-no-password-auth.conf"
+"$BASH_BIN" "$SCRIPT" --print-config >"$confd/50-no-password-auth.conf"
 eff_legacy="$(sshd -G -f "$main" 2>/dev/null)" || fail "sshd -G failed on the legacy-name tree"
 grep -qxiF 'passwordauthentication yes' <<<"$eff_legacy" ||
   fail "regression guard: the 50- name should be DEFEATED (hostile 100- wins passwordauthentication) -- this is the shadowing the rename closes"
 
 # ---- 3b. --verify FAILS loudly on the shadowed tree -----------------------------
 vrc=0
-SSH_HARDENING_SUDO="" SSHD_MAIN_CONFIG="$main" bash "$SCRIPT" --verify \
+SSH_HARDENING_SUDO="" SSHD_MAIN_CONFIG="$main" "$BASH_BIN" "$SCRIPT" --verify \
   >"$work/vout" 2>"$work/verr" || vrc=$?
 [[ $vrc -ne 0 ]] ||
   fail "--verify must FAIL (nonzero) when the hardening is shadowed (defense in depth)"
@@ -130,9 +138,9 @@ grep -qi 'WARNING' "$work/verr" ||
   fail "--verify must warn loudly on a shadowed tree (stderr: $(cat "$work/verr"))"
 
 # ---- 3c. --verify PASSES once the winning 000- drop-in is restored ---------------
-bash "$SCRIPT" --print-config >"$confd/000-ssh-hardening.conf"
+"$BASH_BIN" "$SCRIPT" --print-config >"$confd/000-ssh-hardening.conf"
 vrc=0
-SSH_HARDENING_SUDO="" SSHD_MAIN_CONFIG="$main" bash "$SCRIPT" --verify \
+SSH_HARDENING_SUDO="" SSHD_MAIN_CONFIG="$main" "$BASH_BIN" "$SCRIPT" --verify \
   >"$work/vout2" 2>"$work/verr2" || vrc=$?
 [[ $vrc -eq 0 ]] ||
   fail "--verify must PASS when 000- wins (got rc=$vrc; err: $(cat "$work/verr2"))"

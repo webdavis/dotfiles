@@ -67,17 +67,20 @@ ACCEPTED_EFFECTIVE=(
   'permitrootlogin no'
 )
 
-# The four auth directives that MAY appear inside a `Match` block, each with its
-# hardened value. A Match block that sets any of these to a different value re-enables
-# it for the matching connections (the criteria-based bypass `sshd -G` alone is blind
-# to). UsePAM is intentionally absent: it is not a Match-scoped keyword. Keys are
-# lowercased (sshd keywords are case-insensitive).
-declare -A PROTECTED_MATCH_HARDENED=(
-  [passwordauthentication]=no
-  [kbdinteractiveauthentication]=no
-  [pubkeyauthentication]=yes
-  [permitrootlogin]=no
-)
+# hardened_value_for <lowercased-keyword> -- echo the hardened value for a protected
+# Match-scoped auth directive, or nothing if the keyword is not one. A Match block that
+# sets one of these to a different value re-enables it for the matching connections
+# (the criteria-based bypass `sshd -G` alone is blind to). UsePAM is intentionally
+# absent: it is not a Match-scoped keyword. A `case` (not an associative array)
+# because macOS's stock /bin/bash is 3.2, which lacks `declare -A` -- and the script's
+# shebang selects that interpreter.
+hardened_value_for() {
+  case "$1" in
+    passwordauthentication | kbdinteractiveauthentication | permitrootlogin) printf 'no' ;;
+    pubkeyauthentication) printf 'yes' ;;
+    *) : ;;
+  esac
+}
 
 # Representative connection specs for the authoritative per-connection resolution
 # (`sshd -G -T -C`). A privileged (root) login and an ordinary user, from a sample
@@ -132,6 +135,19 @@ assert_effective_config() {
   return "$rc"
 }
 
+# expand_include_glob <glob-pattern> -- print the regular files matching an sshd
+# Include glob, honoring its basename pattern, in lexical (sshd) order. Uses `find`
+# (a stock binary) rather than `compgen -G` (not a builtin in every bash build -- it
+# is absent under nix bash --norc) or an unquoted variable glob. Empty when nothing
+# matches or the directory is absent.
+expand_include_glob() {
+  local pattern="$1" dir base
+  dir="$(dirname "$pattern")"
+  base="$(basename "$pattern")"
+  [[ -d $dir ]] || return 0
+  find "$dir" -maxdepth 1 -type f -name "$base" 2>/dev/null | LC_ALL=C sort
+}
+
 # enumerate_config_files <main-config> -- print the main config path, then every file
 # it Includes, expanded in sshd's own lexical order. Handles absolute and
 # base-relative Include globs (one level -- the drop-in dir; the authoritative
@@ -154,7 +170,7 @@ enumerate_config_files() {
       [[ $pat == /* ]] && abspat="$pat" || abspat="$base/$pat"
       while IFS= read -r match; do
         printf '%s\n' "$match"
-      done < <(compgen -G "$abspat" 2>/dev/null | LC_ALL=C sort)
+      done < <(expand_include_glob "$abspat")
     done
   done < <(priv cat "$main" 2>/dev/null || true)
 }
@@ -176,7 +192,7 @@ scan_one_file_match() {
       continue
     fi
     [[ $in_match -eq 1 ]] || continue
-    hardened="${PROTECTED_MATCH_HARDENED[$lc_kw]:-}"
+    hardened="$(hardened_value_for "$lc_kw")"
     [[ -n $hardened ]] || continue
     lc_val="$(printf '%s' "$val" | tr '[:upper:]' '[:lower:]')"
     if [[ $lc_val != "$hardened" ]]; then

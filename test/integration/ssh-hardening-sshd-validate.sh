@@ -19,6 +19,14 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SCRIPT="$REPO_ROOT/dot_local/bin/executable_ssh-hardening.sh"
 
+# Exercise the script through its PRODUCTION shebang interpreter (/bin/bash). macOS
+# ships /bin/bash 3.2, which lacks associative arrays and the compgen builtin, and the
+# operator invokes the script by its `#!/bin/bash` shebang -- so a 3.2-only regression
+# must fail HERE, not in production. Falls back to the ambient bash where /bin/bash is
+# absent (non-macOS).
+BASH_BIN=/bin/bash
+[[ -x $BASH_BIN ]] || BASH_BIN="bash"
+
 fail() {
   printf 'FAIL: %s\n' "$*" >&2
   exit 1
@@ -39,7 +47,7 @@ work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 
 dropin="$work/50-ssh-hardening.conf"
-bash "$SCRIPT" --print-config >"$dropin" || fail "--print-config exited non-zero"
+"$BASH_BIN" "$SCRIPT" --print-config >"$dropin" || fail "--print-config exited non-zero"
 
 # sshd -G rejects bad syntax; a non-zero exit here means the drop-in is malformed.
 effective="$work/effective"

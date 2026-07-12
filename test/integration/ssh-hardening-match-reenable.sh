@@ -46,6 +46,14 @@ if ! "$SSHD" -G -T -C user=root,addr=1.2.3.4,host=h -f /dev/null >/dev/null 2>&1
   exit 0
 fi
 
+# Exercise the script through its PRODUCTION shebang interpreter (/bin/bash). macOS
+# ships /bin/bash 3.2, which lacks associative arrays and the compgen builtin, and the
+# operator's Tier-2 runner invokes the script by its `#!/bin/bash` shebang -- so a
+# 3.2-only regression in the Match scan must fail HERE, not in production. Falls back
+# to the ambient bash only where /bin/bash is absent (non-macOS).
+BASH_BIN=/bin/bash
+[[ -x $BASH_BIN ]] || BASH_BIN="bash"
+
 work="$(cd "$(mktemp -d)" && pwd -P)"
 trap 'rm -rf "$work"' EXIT
 
@@ -55,7 +63,7 @@ main="$work/sshd_config"
 printf 'Include %s/*\n' "$confd" >"$main"
 
 # The winning managed drop-in (globally hardened; sorts first).
-bash "$SCRIPT" --print-config >"$confd/000-ssh-hardening.conf"
+"$BASH_BIN" "$SCRIPT" --print-config >"$confd/000-ssh-hardening.conf"
 
 failures=0
 report() {
@@ -69,7 +77,7 @@ report() {
 verify_run() {
   RC=0
   SSH_HARDENING_SUDO="" SSHD_BIN="$SSHD" SSHD_MAIN_CONFIG="$main" \
-    bash "$SCRIPT" --verify >"$work/vout" 2>"$work/verr" || RC=$?
+    "$BASH_BIN" "$SCRIPT" --verify >"$work/vout" 2>"$work/verr" || RC=$?
   ERR="$(cat "$work/verr")"
 }
 
