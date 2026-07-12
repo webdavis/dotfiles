@@ -18,9 +18,13 @@ exit 0
 # none during the loop — it covers the generated tailnet-pin commands too.
 sudo -v
 
+{{/* `index . "sudo"`, not `.sudo`: Go's text/template throws
+     `map has no entry for key "sudo"` on the .field form when a record omits the
+     key; `index` returns the empty value (falsy in `if`) — the same absent-key
+     gotcha the pins guard above documents. */ -}}
 {{ range .macos.system_setup -}}
 echo "→ {{ .description }}"
-{{ if .sudo }}sudo {{ end }}{{ .command }}
+{{ if index . "sudo" }}sudo {{ end }}{{ .command }}
 {{ end -}}
 {{/* Generated MagicDNS /etc/hosts fallback pins (structured tailnet_pins data).
      Guard-then-append keeps each idempotent across runner re-runs. The sh -c
