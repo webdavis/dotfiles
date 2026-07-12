@@ -299,6 +299,16 @@ assert_warned() {
   fi
 }
 
+# assert_no_npm_uninstall <case> : no `npm uninstall` was attempted (the package
+# must not be pulled out from under a still-loaded openclaw job).
+assert_no_npm_uninstall() {
+  if grep -q '^uninstall ' "$npm_log"; then
+    report bad "$1: npm uninstall attempted though the launchd services are not fully retired"
+  else
+    report ok "$1: no npm uninstall while services are not fully retired"
+  fi
+}
+
 marker_of() { printf '%s/.local/state/openclaw/retired' "$1"; }
 assert_marker() {
   if [[ -f "$(marker_of "$2")" ]]; then
@@ -437,6 +447,12 @@ assert_no_marker caseE "$hE"
 assert_log_exact caseE "$rm_log" rm \
   "-f $hE/Library/LaunchAgents/ai.openclaw.node.plist" \
   "-f $hE/Library/LaunchAgents/ai.openclaw.rescue.plist"
+# B-F5 (F2): the gateway is STILL loaded, so the npm package must NOT be
+# uninstalled -- doing so would pull dist/index.js out from under the running
+# KeepAlive job. The uninstall is gated on EVERY label absent AND every plist
+# gone; here it must be deferred and the package left installed.
+assert_no_npm_uninstall caseE
+assert_present caseE "$npm_installed_flag" "the openclaw npm package (a still-loaded job forbids uninstall)"
 
 # ── Case F: plist removal fails -> no marker, others processed ───────────────
 hF="$work/homeF"
@@ -456,6 +472,10 @@ assert_log_exact caseF "$rm_log" rm \
   "-f $hF/Library/LaunchAgents/ai.openclaw.gateway.plist" \
   "-f $hF/Library/LaunchAgents/ai.openclaw.node.plist" \
   "-f $hF/Library/LaunchAgents/ai.openclaw.rescue.plist"
+# B-F5 (F2): the gateway plist survived, so retirement is incomplete -- the npm
+# uninstall must be deferred and the package left installed.
+assert_no_npm_uninstall caseF
+assert_present caseF "$npm_installed_flag" "the openclaw npm package (an un-removed plist forbids uninstall)"
 
 # ── Case G: npm uninstall fails -> no marker, labels processed ───────────────
 hG="$work/homeG"
@@ -526,6 +546,52 @@ fi
 assert_warned caseJ "could not determine whether the global npm package openclaw is installed"
 assert_no_marker caseJ "$hJ"
 /bin/rm -f "$npm_installed_flag"
+
+# ── Case K (F2): an unknown-state label forbids the npm uninstall ────────────
+# 112 (operational probe error) leaves the gateway's load state unknown, so the
+# services are NOT fully retired. The npm uninstall is gated on EVERY label
+# confirmed absent AND every plist gone, so it must be deferred here and the
+# package left installed even though the other two labels are clean.
+hK="$work/homeK"
+mkdir -p "$hK/Library/LaunchAgents"
+seed_loaded
+touch "$npm_installed_flag"
+run_script "$hK" FAIL_PRINT=ai.openclaw.gateway
+assert_rc0 caseK
+assert_no_npm_uninstall caseK
+assert_present caseK "$npm_installed_flag" "the openclaw npm package (an unknown-state label forbids uninstall)"
+assert_no_marker caseK "$hK"
+/bin/rm -f "$npm_installed_flag"
+
+# ── Case L (F3): a missing npm binary is "unknown", never "absent" ───────────
+# A system-only PATH (an automation env) can hide Homebrew's npm. Treating a
+# missing npm as confirmed-absent would write the PERMANENT quiescence marker
+# while the global package silently survives forever. Missing npm is
+# indeterminate: the marker is withheld and the next apply retries. Runs on an
+# ISOLATED PATH that carries the launchctl/rm stubs but no npm at all.
+nonpm_dir="$work/stubs-nonpm"
+mkdir -p "$nonpm_dir"
+ln -s "$stub_dir/launchctl" "$nonpm_dir/launchctl"
+ln -s "$stub_dir/rm" "$nonpm_dir/rm"
+L_PATH="$nonpm_dir:/usr/bin:/bin"
+if PATH="$L_PATH" command -v npm >/dev/null 2>&1; then
+  report ok "caseL: SKIPPED (npm leaks into the isolated PATH; cannot exercise a missing npm)"
+else
+  hL="$work/homeL"
+  mkdir -p "$hL/Library/LaunchAgents"
+  seed_loaded
+  : >"$launchctl_log"
+  : >"$npm_log"
+  : >"$rm_log"
+  RCL=0
+  HOME="$hL" PATH="$L_PATH" bash "$rendered" >"$out_file" 2>"$err_file" || RCL=$?
+  if [[ $RCL -eq 0 ]]; then
+    report ok "caseL: exits 0"
+  else
+    report bad "caseL: exits 0 (rc=$RCL, err: $(cat "$err_file"))"
+  fi
+  assert_no_marker caseL "$hL"
+fi
 
 if [[ $failures -gt 0 ]]; then
   printf 'openclaw-services-retirement: %d assertion(s) FAILED\n' "$failures" >&2

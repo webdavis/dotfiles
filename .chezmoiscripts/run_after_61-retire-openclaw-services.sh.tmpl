@@ -75,11 +75,14 @@ launchd_state() {
 # -- so the verdict is parsed from the --json tree, not the exit code: a parseable
 # object with a .dependencies.openclaw entry is installed, a parseable object
 # without one is confirmed absent, and an unparseable answer or an error envelope
-# is unknown (could not determine). No npm at all means no global npm package, so
-# confirmed absent.
+# is unknown (could not determine). A MISSING npm binary is "unknown", NOT
+# "absent": a system-only PATH (an automation env) can hide Homebrew's npm, and
+# calling that confirmed-absent would write the PERMANENT quiescence marker while
+# the global package silently survives. Indeterminate withholds the marker and
+# retries next apply.
 npm_openclaw_state() {
   if ! command -v npm >/dev/null 2>&1; then
-    printf 'absent'
+    printf 'unknown'
     return 0
   fi
   local json verdict
@@ -97,6 +100,13 @@ npm_openclaw_state() {
   esac
 }
 
+# services_all_retired stays true only if EVERY label ends confirmed absent AND
+# every plist is gone. It gates the npm uninstall below: uninstalling the package
+# while any openclaw launchd job is still loaded (or its state is unknown) would
+# pull /opt/homebrew/lib/node_modules/openclaw/dist/index.js out from under a
+# running KeepAlive job. Any label left loaded/unknown, or any plist that
+# survives, flips it false and defers the uninstall to a later apply.
+services_all_retired=true
 for label in "${labels[@]}"; do
   target="gui/$uid/$label"
   state="$(launchd_state "$target")"
@@ -118,6 +128,7 @@ for label in "${labels[@]}"; do
     if [[ $state == unknown ]]; then
       warn "could not determine the load state of $target (launchctl print returned an unexpected status); leaving its plist for the next apply to retry"
     fi
+    services_all_retired=false
     continue
   fi
   plist="$launch_agents_dir/$label.plist"
@@ -128,13 +139,25 @@ for label in "${labels[@]}"; do
       warn "failed to remove $plist"
     fi
   fi
+  # A plist that survived removal (still loaded elsewhere would already have
+  # continued above; this catches a failed rm) leaves the service not fully gone.
+  if [[ -e $plist ]]; then
+    services_all_retired=false
+  fi
 done
 
-# Uninstall the global npm package, but only when it is CONFIRMED installed. An
-# indeterminate probe (unknown) never triggers an uninstall and never counts as
-# retired -- it warns and holds the marker.
+# Uninstall the global npm package, but ONLY when every launchd label is
+# confirmed absent AND every plist is gone (services_all_retired) AND npm
+# confirms the package installed. If the services are not fully retired, the
+# uninstall is deferred so the package is not pulled out from under a still-loaded
+# job. An indeterminate npm probe (unknown) never triggers an uninstall and never
+# counts as retired -- it warns and holds the marker.
 npm_state="$(npm_openclaw_state)"
-if [[ $npm_state == installed ]]; then
+if [[ $services_all_retired != true ]]; then
+  if [[ $npm_state != absent ]]; then
+    warn "openclaw launchd services are not fully retired yet; deferring the npm uninstall so the package is not pulled out from under a still-loaded job (retry next apply)"
+  fi
+elif [[ $npm_state == installed ]]; then
   if npm uninstall -g openclaw >/dev/null 2>&1; then
     log "uninstalled global npm package openclaw"
   else
