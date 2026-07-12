@@ -116,11 +116,10 @@ delivery for rituals, clarify-tool native buttons for live-session asks, and
   requirement — nothing lost, it changes form) and **points to `Task E3 forzare-staging-harness`**, a
   chezmoi-shipped, shellcheck+bats-gated script suite that IMPLEMENTS those invariants (one test per invariant
   id), writes **run-scoped atomic result files** the checkpoints consume, and is reviewed ONCE under a real gate
-  rather than re-litigated inline every round. The embedded bash blocks that remain in the verify steps are that
-  suite's **reference implementation** — E3 packages them, gates them, and owns their maintenance; **kept
-  verbatim in the steps only:** single-line probes, config asserts, and the proven E1 python filter probes. This
-  is the process doc's own exit for the recurring embedded-command finding class (the surface that generated 5
-  rounds of interference findings).
+  rather than re-litigated inline every round. **The harness bash lives ONLY in E3's suite** — the doc carries
+  no test-harness bodies; **kept verbatim in the steps only:** single-line probes, config asserts, and the
+  proven E1 python filter probes. This is the process doc's own exit for the recurring embedded-command finding
+  class (the surface that generated 5 rounds of interference findings).
 
 ---
 
@@ -755,9 +754,10 @@ rm -f "$SEND_ERR"
 >   leaves open. **A fully isolated Todoist ACCOUNT is REJECTED for v1 — recorded won't-fix (GG6):** only one
 >   account exists, so a separate staging account is out of scope; ordinary-task mutation risk stays covered by the
 >   intent-log cross-check + the activity diff over the `[TEST-STAGING]` project.
-> The individual staged blocks below are written against this convention (a block may abbreviate the trap for
-> readability, but the RUN-ID prefix + captured-id cleanup + run-id-suffixed backup + `--project "$STAGING_PROJECT"`
-> `[TEST-STAGING]`-project fixtures are required of each).
+> These primitives are defined ONCE in the Task E3 harness `run.sh` (KK0); every per-task invariant below is
+> implemented by an E3 test that sources them — the RUN-ID prefix + captured-id cleanup + run-id-suffixed
+> existed-before backups + `--project "$STAGING_PROJECT"` `[TEST-STAGING]`-project fixtures are required of
+> every test.
 >
 > **Staging test-override contract — AUTHORED, staging-only fields in `schedule-override.json` (CC4/CC12,
 > mirrors spec §8a).** So the schedule-, weather-, and clock-dependent skills are testable deterministically
@@ -802,43 +802,20 @@ rm -f "$SEND_ERR"
 > `cron/jobs.py:854`); color is stripped when the output is piped (non-TTY). There is **no `hermes cron list
 > --json`** (`cron_list` takes no `--json` — verified), so never parse job ids that way. The audit for a run
 > lives at **`~/.hermes/cron/output/<job_id>/<timestamp>.md`** — keyed by the job id (`save_job_output`,
-> `cron/jobs.py:1548`), so read it **by job id**, never by newest-mtime dir. Define these two helpers once
-> and reuse them in every staged block below:
+> `cron/jobs.py:1548`), so read it **by job id**, never by newest-mtime dir.
 >
-> ```bash
-> set -o pipefail
-> # The dry-run directive every mutating staged prompt OPENS with (R3A1/R3A4 — instruction transport). It stamps
-> # run_id=$RUNID on every intent so assertions filter `.run_id==$RUNID` directly (FF14 — never map|last). Each
-> # test sets RUNID first; a two-run test also appends `test_window_id=<shared>` (GG3). The intent record shape is
-> # {ts, skill, op, target, args, run_id, test_window_id?}.
-> DRY="DRY RUN — record intended writes to forzare/state/dryrun-intents.jsonl, stamping run_id=$RUNID on each, perform none. "
-> # Parse "Created job: <12-hex>" from cron-create stdout; fail loud if absent.
-> jid_from_create(){ local j; j=$(sed -n 's/.*Created job: *//p' | grep -oiE '[0-9a-f]{12}' | head -1); \
->   [ -n "$j" ] || { echo "FATAL: no 'Created job:' id parsed" >&2; return 1; }; printf '%s\n' "$j"; }
-> # Stage one skill: create --deliver local, force-run, return the job id.
-> stage_skill(){ # $1=schedule $2=prompt $3=skill $4=name
->   local jid; jid=$(hermes cron create "$1" "$2" --skill "$3" --deliver local --name "$4" | jid_from_create) \
->     || return 1
->   hermes cron run "$jid" >/dev/null && hermes cron tick >/dev/null || { echo "FATAL: run/tick failed" >&2; return 1; }
->   printf '%s\n' "$jid"; }
-> ```
->
-> Then, per skill:
->
-> ```bash
-> set -o pipefail
-> JID=$(stage_skill '0 0 1 1 *' "${DRY}Run <skill> once; surface at most ONE task or respond exactly [SILENT]." <skill> test-<skill>)
-> AUDIT=~/.hermes/cron/output/"$JID"
-> ls "$AUDIT"/*.md >/dev/null 2>&1 || { echo "FATAL: no audit artifact at $AUDIT" >&2; exit 1; }
-> cat "$AUDIT"/*.md | tail -40
-> hermes cron remove "$JID"   # clean up the staging job
-> ```
->
+> **The pattern's PRIMITIVES live ONCE in the Task E3 harness `run.sh` (KK0)** — the tests source them, never
+> re-derive them: the **DRY directive** every mutating staged prompt OPENS with (`DRY RUN — record intended
+> writes to forzare/state/dryrun-intents.jsonl, stamping run_id=$RUNID on each, perform none.` — the
+> instruction transport, R3A1/R3A4; assertions filter `.run_id==$RUNID` directly, never `map|last` (FF14); a
+> two-run test appends `test_window_id=<shared>` (GG3); the intent record shape is `{ts, skill, op, target,
+> args, run_id, test_window_id?}`); **`jid_from_create`** (the fail-loud `Created job:` 12-hex parse); and
+> **`stage_skill`** (create `--deliver local` with `--skill` + `--name`, force via `hermes cron run` +
+> `hermes cron tick`, return the job id; the audit is then read BY that id and the staging job removed).
 > `--deliver local` means **nothing reaches Discord**; the per-job cron audit is the evidence. **Store writes
 > are NOT suppressed by `--deliver local`** — a mutating skill still writes unless it also sees the **dry-run
 > instruction** carried in the prompt (spec §17/V4/R3A4; Global Constraints), which redirects each intended
-> write to `forzare/state/dryrun-intents.jsonl`. (Adjust schedule/prompt per skill; always keep the `$DRY`
-> prefix on a mutating skill.)
+> write to `forzare/state/dryrun-intents.jsonl`; always keep the DRY prefix on a mutating skill.
 
 ### Task B0: The shared mutation + ledger helper — build FIRST (B1–B11 all depend on it)
 
@@ -1041,37 +1018,18 @@ planning-pull, snooze, roll, the §7 escalation, the if-then cue). Never a scatt
     dedupe on their period key, BB2); and a **non-head intra-day resolution (CC10)** — a `stall-decision` settled
     mid-day by a live turn ⇒ the same CAS tombstones it ⇒ a subsequent brief read does NOT re-surface it.
 - [ ] **Step 5: MEASURE the live `td task add`→search propagation window (II5/JJ6) — validate the 120s bound
-  before the crash-heal relies on it. This probe is OWNED by the Task E3 harness (`b0_propagation` test); the
-  block below is its reference.** Time how long after a real `td task add` the created task first appears in a
-  marker search, over several trials; **compute the p95 of the create→search round-trip and REJECT (FATAL) the
-  120s bound when p95 > 90s (JJ6 — a hard safety margin below the 120s crash-heal window; the earlier soft WARN
-  band is REMOVED)** — widen the window (and the two-search cadence) rather than ship a bound a real indexing lag
-  could breach and let a landed task read as "definitively absent". The clock is read BEFORE the API call, the
-  marker rides `--description`, and the measured p95 is recorded in `calibration/priors.md`.
-
-```bash
-set -o pipefail
-# II5: create a marker-tagged [TEST-STAGING] task, then poll a marker search until it appears; record the delay.
-STAGING_PROJECT="$(td project list --search "[TEST-STAGING]" --json | jq -r '.results[]|select(.name=="[TEST-STAGING]")|.id' | head -1)"
-[ -n "$STAGING_PROJECT" ] || { echo "FATAL: [TEST-STAGING] Todoist project not found — the USER must create it ONCE (Checkpoint-A prerequisite, KK2/JJ2); the build RESOLVES it, NEVER auto-creates a Todoist project (no-unprompted-projects rule)" >&2; exit 1; }
-DELAYS=()
-for n in $(seq 1 20); do   # JJ6: enough trials for a meaningful p95
-  MK="⟦fz:propcheck-$(date +%s)-$n⟧"
-  id=$(td task add "[TEST-propcheck-$n] $MK" --project "$STAGING_PROJECT" --description "$MK" --json | jq -r '.id')
-  t0=$(date +%s); delay=0
-  until td task list --project "$STAGING_PROJECT" --filter "search: $MK" --all --json | jq -e '.results|length>0' >/dev/null 2>&1; do
-    delay=$(( $(date +%s) - t0 ))
-    [ "$delay" -gt 300 ] && { echo "FATAL: $MK never propagated within 300s — 120s bound is UNSAFE, widen it (II5)" >&2; td task delete "$id" --yes >/dev/null 2>&1; exit 1; }
-    sleep 2
-  done
-  DELAYS+=("$delay")
-  td task delete "$id" --yes >/dev/null 2>&1
-done
-# JJ6: compute the p95 and REJECT (FATAL) the 120s bound when p95 > 90s (hard safety margin; NO soft WARN band).
-P95=$(printf '%s\n' "${DELAYS[@]}" | sort -n | awk '{a[NR]=$1} END{i=int(0.95*NR); if(i<1)i=1; print a[i]}')
-echo "propagation measurement: p95 create→search delay = ${P95}s over ${#DELAYS[@]} trials (record in calibration/priors.md, JJ6)"
-[ "$P95" -le 90 ] || { echo "FATAL: p95 propagation ${P95}s > 90s — the 120s crash-heal bound has no safe margin; WIDEN the window + the ≥30s two-search cadence before shipping (JJ6)" >&2; exit 1; }
-```
+  before the crash-heal relies on it.** Implemented by **E3 test `b0_propagation`**; invariants:
+  - **INV-B0-1:** the probe creates a `⟦fz:…⟧` marker-tagged task **in the resolved `[TEST-STAGING]` project**
+    (resolve-only, FATAL if absent — KK2) with the marker riding `--description`, and reads the clock **BEFORE**
+    the API call.
+  - **INV-B0-2:** it polls a marker search (`--filter "search: <marker>" --all`) until the task appears,
+    recording the create→search delay per trial, over **≥ 20 trials** (enough for a meaningful p95); any single
+    trial exceeding **300s** is an immediate FATAL (the bound is unsafe outright).
+  - **INV-B0-3 (JJ6):** the test computes the **p95** of the recorded delays and **REJECTS (FATAL) the 120s
+    bound when p95 > 90s** — a hard safety margin below the 120s crash-heal window; there is **no soft WARN
+    band**. On rejection, widen the window AND the ≥30s two-search cadence before shipping.
+  - **INV-B0-4:** every probe task is deleted (captured-id only) and the measured p95 is recorded in
+    `calibration/priors.md`.
 
   **Acceptance:** the helper is authored before B1; verb selection is state-chosen; the MAP, JOURNAL, and QUEUE
   are three distinct stores (map pruned on terminal state, journal retained 45 days, queue under the same
@@ -1121,67 +1079,32 @@ set -o pipefail
 [ -d ~/.hermes/skills/todoist-surface ] && echo "todoist-surface installed OK (no pin needed — AA11)"
 ```
 
-- [ ] **Step 3: Staged dry-run against `[TEST]` tasks** (structured add — no NL date parse; `.results[]`;
-  `--yes` delete)
+- [ ] **Step 3: Staged dry-run against `[TEST]` tasks.** Implemented by **E3 test `b1_surface`** (the E3
+  `run.sh` primitives supply the `RUNID`/`[TEST-$RUNID]` scoping, EXIT-trap captured-id cleanup, `[TEST-STAGING]`
+  resolve-only, and the staged-cron `stage_skill` pattern — audits read BY JOB ID, never newest-mtime);
+  invariants:
+  - **INV-B1-1:** the test seeds ONE disposable `[TEST-$RUNID]` fixture in `[TEST-STAGING]` via structured
+    `td task add` with an unprefixed `deep` label + `--due today`, stages `todoist-surface` UNDER the dry-run
+    directive (the groom-on-read touches the whole active pool — without the directive a staged run would groom
+    REAL tasks), and the audit shows **at most ONE** task (or exactly `[SILENT]`).
+  - **INV-B1-2 (X4 no-clobber):** intent assertions **SLURP the whole intents log (`jq -s`) filtered by THIS
+    run's `run_id` — NEVER `tail -1`/`map|last`**. Zero label-write intents is acceptable (already groomed); if
+    a label-write intent for the fixture exists there is **EXACTLY ONE** and its FULL label set **preserves
+    `deep`** — a partial set is the clobber bug and FAILS.
+  - **INV-B1-3 (purity):** the fixture's REAL label set is unchanged after the run — read via
+    `--filter "search: [TEST-$RUNID]"` + `--all` (R3A5: the default `--limit` is 300 of ~2,270 tasks; a bare
+    list can miss the fixture).
+  - **INV-B1-4:** nothing reached Discord (`--deliver local`); cleanup deletes ONLY captured ids (no
+    `search: [TEST]` prefix sweep) and removes the staging cron job.
 
-```bash
-set -o pipefail
-# helpers jid_from_create / stage_skill / $DRY defined in the Phase B intro
-INTENTS=~/workspaces/Ivy/forzare/state/dryrun-intents.jsonl
-# BB6 staging-harness safety: run-id-scoped fixture + a trap that deletes ONLY the captured id (no prefix sweep).
-RUNID="$(date +%s)-$$"; CREATED=()
-# FF14: (re)define DRY AFTER RUNID so the directive stamps run_id=$RUNID on each intent (filter by $RUNID, not map|last):
-DRY="DRY RUN — record intended writes to forzare/state/dryrun-intents.jsonl, stamping run_id=$RUNID on each, perform none. "
-trap 'for id in "${CREATED[@]}"; do td task delete "$id" --yes >/dev/null 2>&1 || true; done' EXIT; trap 'exit 130' INT; trap 'exit 143' TERM   # GG7
-# disposable fixture (structured add, unprefixed label) — the TEST script's own write, deleted by the trap
-TID=$(td task add "[TEST-$RUNID] deep surfacing probe" --project "$STAGING_PROJECT" --labels "deep" --due today --json | jq -r '.id')   # II4: [TEST-STAGING] project
-[ -n "$TID" ] && [ "$TID" != null ] || { echo "FATAL: fixture task not created" >&2; exit 1; }
-CREATED+=("$TID")
-: > "$INTENTS"
-# exercise via the staged-cron pattern UNDER DRY-RUN (the groom-on-read touches the whole active pool —
-# without the directive a staged run would groom REAL tasks); read the audit BY JOB ID (not newest-mtime dir)
-JID=$(stage_skill '0 0 1 1 *' "${DRY}Run todoist-surface once; surface at most ONE task or respond exactly [SILENT]." \
-        todoist-surface test-surface)
-AUDIT=~/.hermes/cron/output/"$JID"
-ls "$AUDIT"/*.md >/dev/null 2>&1 || { echo "FATAL: no audit artifact at $AUDIT" >&2; exit 1; }
-cat "$AUDIT"/*.md | tail -40
-# no-clobber assertion (X4/R3A3 — SLURP the whole log with `jq -s`, NEVER `tail -1`; scope to THIS run's
-# run_id when any intent exists). A clean surface of an already-groomed fixture may journal ZERO intents —
-# that is fine (nothing needed writing). But if there IS a label-write for the fixture there must be EXACTLY
-# ONE and its FULL set must preserve every fixture label ('deep') — a partial set is the clobber bug.
-RUN_ID="$RUNID"   # FF14: the DRY directive stamps run_id=$RUNID; filter by it, never map|last
-if [ -n "$RUN_ID" ]; then
-  N=$(jq -s --arg id "$TID" --arg r "$RUN_ID" \
-    '[.[] | select(.run_id==$r and .op=="task.update-labels" and .target==$id)] | length' "$INTENTS")
-  if [ "$N" -gt 0 ]; then
-    [ "$N" -eq 1 ] || { echo "FATAL: $N label-write intents for the fixture — expected exactly one" >&2; exit 1; }
-    jq -es --arg id "$TID" --arg r "$RUN_ID" \
-      'first(.[] | select(.run_id==$r and .op=="task.update-labels" and .target==$id)) | .args.labels | index("deep")' \
-      "$INTENTS" >/dev/null \
-      || { echo "FATAL: the label-write intent dropped 'deep' (partial-set clobber)" >&2; exit 1; }
-  fi
-fi
-echo "label-set contract OK (≤1 targeted label-write via jq -s over run_id; 'deep' preserved when present)"
-# the fixture's REAL label set is untouched by a dry-run (purity) — read via --filter/--all scoped to THIS run's
-# prefix (R3A5: default --limit is 300 of ~2,270 tasks, a bare list can miss it):
-LBLS=$(td task list --project "$STAGING_PROJECT" --filter "search: [TEST-$RUNID]" --all --json | jq -r --arg id "$TID" '.results[]|select(.id==$id)|.labels|join(",")')
-[ "$LBLS" = deep ] || { echo "FATAL: dry-run mutated the fixture's real labels ($LBLS)" >&2; exit 1; }
-echo "dry-run purity OK (fixture's real label set untouched)"
-# clean up — the captured id via the EXIT/INT trap (BB6: no `search: [TEST]` prefix sweep that could delete a
-# concurrent run's or a real user's [TEST] task):
-hermes cron remove "$JID"
-```
-
-Expected: the audit artifact shows **at most one** task (or `[SILENT]`); any journaled label-write intent
-carries the full set including `deep` (full-set write contract, no clobber — asserted, fails loud otherwise);
-the fixture's real labels are untouched (dry-run purity). Nothing reached Discord (`--deliver local`).
-**Acceptance:** dry-run green; `[TEST]` tasks deleted; the cron audit shows the single decision. **X13
-stalled-task fixture:** seed a ledger entry with `roll_count == 2` for a `[TEST]` task and stage a surface —
+**Acceptance:** the four invariants pass under E3 `b1_surface`. **X13
+stalled-task fixture (E3 test `b1_stall`):** seed a ledger entry with `roll_count == 2` for a `[TEST]` task and stage a surface —
 the audit shows the **single** decompose/if-then/drop decision (no-shame, one thing), and choosing if-then
 journals a **`task.update-description`** intent (the op-enum name, Phase B intro/R5A13) that **persists the cue
 to the task's description** — mirrored in the JOURNAL as a `type: description` line (Y5/R5A11) so W7 exclusion
 stays complete — asserted from the intent record, not the real store.
-**Receptivity-gate staged acceptance + THRESHOLD-BOUNDARY tests (R6A3/V8, `todoist-surface` owns the gate):**
+**Receptivity-gate staged acceptance + THRESHOLD-BOUNDARY tests (R6A3/V8, `todoist-surface` owns the gate; E3
+test `b1_receptivity`):**
 seed the calibration store with dismissal/surfacing fixtures and stage a surface for each boundary, asserting
 **withhold-intent (provide-nothing) is logged** exactly at/over threshold and a surface below it:
 - **Dismissals: 2 vs 3 (D=3).** 2 trailing-24h dismissals ⇒ **surface** (below D); 3 ⇒ **withhold** (a
@@ -1205,30 +1128,18 @@ exercised, not just declared.
   content-hash gate)
 
 ```bash
-set -o pipefail
 curl -fsS -m 5 'https://api.open-meteo.com/v1/forecast?latitude=39.7&longitude=-105&hourly=temperature_2m,precipitation,wind_speed_10m&temperature_unit=fahrenheit&wind_speed_unit=mph' | jq '.hourly|keys'
-
-# R6A11: SYNTHETIC threshold-crossing harness — drive the skill's classifier off fixed JSON, so clear / breach
-# / degrade are each ASSERTED deterministically (not "eyeball a live forecast"). The skill exposes a
-# pure classify entrypoint reading a forecast blob + the thresholds; feed it three fixtures:
-python3 ~/.hermes/skills/weather/classify.py <<'JSON'   # adjust to the skill's real classify entrypoint
-{"thresholds":{"wind_mph":17,"rain":"any","temp_low_f":50,"temp_high_f":90},
- "cases":[
-  {"name":"clear",  "hourly":{"wind_speed_10m":[8],"precipitation":[0.0],"temperature_2m":[62]}, "expect":"clear"},
-  {"name":"breach", "hourly":{"wind_speed_10m":[22],"precipitation":[0.3],"temperature_2m":[38]},"expect":"prep"},
-  {"name":"degrade","hourly":null, "source_error":"open-meteo + NWS both unreachable", "expect":"degrade"}
- ]}
-JSON
-# the classifier must return: clear ⇒ a one-line "clear" verdict; breach ⇒ an actionable prep line naming the
-# breached factor(s); degrade ⇒ the "weather unavailable — assume layers" note (never a crash). The harness
-# asserts each case's verdict equals its `expect` and EXITS NONZERO on any mismatch.
 ```
 
-Expected: Open-Meteo returns hourly temp/precip/wind; the synthetic harness proves clear/breach/degrade
-each classify correctly. **Acceptance (R6A11):** the three synthetic threshold-crossing cases each assert their
-verdict — **clear** (wind 8 / no rain / 62°F ⇒ one-line "clear"), **breach** (wind 22 > 17, 0.3" rain, 38°F <
-50°F ⇒ actionable prep line), **degrade** (both sources unreachable ⇒ "weather unavailable — assume layers",
-no crash) — the harness fails loud on any mismatch; not an eyeballed live forecast.
+**Acceptance (R6A11; E3 test `b2_classify`).** The Open-Meteo probe above returns hourly temp/precip/wind.
+The **synthetic threshold-crossing harness** (a pure `classify` entrypoint the skill exposes, driven off fixed
+JSON — never an eyeballed live forecast) asserts, exiting nonzero on any mismatch:
+- **INV-B2-1 (clear):** wind 8 / no rain / 62°F against the thresholds `{wind>17, any rain, <50°F, >90°F}` ⇒ a
+  one-line "clear" verdict.
+- **INV-B2-2 (breach):** wind 22 (> 17) + 0.3" rain + 38°F (< 50°F) ⇒ an actionable prep line **naming the
+  breached factor(s)**.
+- **INV-B2-3 (degrade):** both sources unreachable (`hourly: null` + a source error) ⇒ the "weather unavailable
+  — assume layers" note, **never a crash** (spec §16).
 
 ---
 
@@ -1342,170 +1253,44 @@ idempotent, **each asserting the EXACT computed popup timestamp** (`block_start 
 - [ ] **Step 4: Three concrete harnesses on REAL SEEDED fixtures — NO curator pin (AA11); response-section-only
   parsing + cardinality-EXACTLY-1 (R7A4/AA10); schedule-deterministic resume with an off-day variant (R7A6)**
 
-```bash
-set -o pipefail
-# NO curator pin (AA11) — eisenhower-plan/activation-prompt/brief-assemble are chezmoi-dropped, integrity is the
-# content-hash gate. Helper: extract ONLY the audit's ## Response section (R7A4) — the audit .md EMBEDS the
-# ## Prompt, whose skill-instruction text contains imperative-shaped lines that would over-count.
-resp_only(){ awk '/^## *Response/{f=1;next} /^## /{f=0} f' "$1"; }
-INTENTS=~/workspaces/Ivy/forzare/state/dryrun-intents.jsonl
-POD=~/workspaces/Ivy/forzare/state/plan-of-day.json
-Q=~/workspaces/Ivy/forzare/state/decision-queue.json
-OVR=~/workspaces/Ivy/forzare/state/schedule-override.json
-DRY='DRY RUN — record intended writes to forzare/state/dryrun-intents.jsonl, perform none. '
-TODAY=$(TZ=America/Denver date +%F)
-# BB6 staging-harness safety: a per-run id, run-id-suffixed backups, a trap that restores them + deletes ONLY
-# the ids this run created (never a `search: [TEST]` prefix sweep).
-RUNID="$(date +%s)-$$"; CREATED=(); GUARDED_EXIST=(); GUARDED_ABSENT=()
-# FF14: (re)define DRY AFTER RUNID so the directive stamps run_id=$RUNID on each intent (filter by $RUNID, not map|last):
-DRY="DRY RUN — record intended writes to forzare/state/dryrun-intents.jsonl, stamping run_id=$RUNID on each, perform none. "
-# II1/HH1: record an EXISTED-BEFORE flag per store at GUARD time; a backup-creation failure is FATAL; guard ALL
-# touched stores (incl. $Q) BEFORE arming the trap, so an early FATAL can never `rm` a live store (the restore
-# only rm's a store that did NOT exist before). The single EXIT restore branches on the flag: mv-back if it
-# existed, rm if it was absent.
-guard(){ f=$1; if [ -e "$f" ]; then cp "$f" "$f.bak.$RUNID" || { echo "FATAL: backup of $f failed (II1)" >&2; exit 1; }; GUARDED_EXIST+=("$f"); else GUARDED_ABSENT+=("$f"); fi; }
-guard "$POD"; guard "$OVR"; guard "$Q"
-restore_b4(){ for f in "${GUARDED_EXIST[@]}"; do [ -f "$f.bak.$RUNID" ] && mv "$f.bak.$RUNID" "$f"; done; \
-  for f in "${GUARDED_ABSENT[@]}"; do [ -e "$f" ] && rm -f "$f"; done; \
-  for id in "${CREATED[@]}"; do td task delete "$id" --yes >/dev/null 2>&1 || true; done; }
-trap restore_b4 EXIT; trap 'exit 130' INT; trap 'exit 143' TERM   # GG7/II1: INT/TERM exit → single EXIT restore; existed-before flag decides mv-back vs rm (never rm a live store)
+Implemented by **E3 tests `b4_resume` / `b4_q1conflict` / `b4_marker`** (E3 primitives: `RUNID` scoping,
+existed-before `guard`/single-EXIT restore over `plan-of-day.json` + `schedule-override.json` +
+`decision-queue.json` — all guarded BEFORE the trap is armed, a backup-creation failure FATAL (II1/HH1) —
+captured-id cleanup, `## Response`-section-only parsing via `resp_only` (R7A4 — the audit .md EMBEDS the
+`## Prompt`, whose skill-instruction text would over-count)); invariants:
 
-# (1) PLAN-OF-DAY RESUME — SCHEDULE-DETERMINISTIC via a pinned fixture schedule (R7A6). A WORK-DAY fixture
-#     (a work block today, so a deep window + a leave-time alarm are due) with ONE write flag OFF: a dry re-run
-#     journals EXACTLY the one missing write (the alarm) and NO p1.set. seed two real [TEST-$RUNID] tasks.
-TA=$(td task add "[TEST-$RUNID] pod-a" --project "$STAGING_PROJECT" --priority p1 --due today --json | jq -r '.id'); CREATED+=("$TA")
-TB=$(td task add "[TEST-$RUNID] pod-b" --project "$STAGING_PROJECT" --priority p1 --due today --json | jq -r '.id'); CREATED+=("$TB")
-printf '{"pinned_schedule":{"work_block":{"start":"15:00","end":"23:00"}},"activation":null}\n' > "$OVR"   # WORK day
-cat > "$POD" <<JSON
-{"date":"$TODAY","selected_ids":["$TA","$TB"],"anchor":"$TA","writes":{"p1_set":true,"anchor_placed":true,"alarm_set":false}}
-JSON
-: > "$INTENTS"
-JR=$(stage_skill '0 0 1 1 *' "${DRY}Run eisenhower-plan in morning mode using the pinned fixture schedule in schedule-override.json; resume today's plan-of-day." eisenhower-plan test-pod-resume); hermes cron remove "$JR"
-RID="$RUNID"   # FF14: the DRY directive stamps run_id=$RUNID; filter by it, never map|last
-NSET=$(jq -s --arg r "$RID" '[.[]|select(.run_id==$r and .op=="p1.set")]|length' "$INTENTS")
-NALARM=$(jq -s --arg r "$RID" '[.[]|select(.run_id==$r and .op=="calendar.create")]|length' "$INTENTS")
-[ "$NSET" = 0 ] || { echo "FATAL: resume re-ran the already-done p1.set ($NSET) — must resume ONLY missing writes (Y13/R7A6)" >&2; exit 1; }
-[ "$NALARM" -ge 1 ] || { echo "FATAL: resume did not complete the one missing write (alarm_set) on a WORK day (R7A6)" >&2; exit 1; }
-echo "plan-of-day resume (work-day) OK: only the missing alarm write journaled, no p1 top-up"
-# OFF-DAY VARIANT (R7A6): a fixture with NO work block ⇒ the resume completes with NO alarm intent at all.
-printf '{"pinned_schedule":{"work_block":null},"activation":null}\n' > "$OVR"                              # OFF day
-printf '{"date":"%s","selected_ids":["%s","%s"],"anchor":"%s","writes":{"p1_set":true,"anchor_placed":true,"alarm_set":false}}\n' "$TODAY" "$TA" "$TB" "$TA" > "$POD"
-: > "$INTENTS"
-JRO=$(stage_skill '0 0 1 1 *' "${DRY}Run eisenhower-plan morning mode using the pinned OFF-day schedule; resume today's plan-of-day." eisenhower-plan test-pod-resume-off); hermes cron remove "$JRO"
-RIDO="$RUNID"   # FF14: the DRY directive stamps run_id=$RUNID; filter by it, never map|last
-NALARMO=$(jq -s --arg r "$RIDO" '[.[]|select(.run_id==$r and .op=="calendar.create")]|length' "$INTENTS")
-[ "$NALARMO" = 0 ] || { echo "FATAL: OFF-day resume journaled a leave-time alarm ($NALARMO) — no work block, no alarm (R7A6)" >&2; exit 1; }
-echo "plan-of-day resume (off-day) OK: NO alarm intent (day-of-week dependence removed, R7A6)"
+- **INV-B4-1 (plan-of-day resume, work-day — Y13/R7A6):** with a **pinned fixture schedule** (CC4
+  `pinned_schedule` = a 15:00–23:00 work block) and a seeded today-record whose `writes` flags are all true
+  except `alarm_set:false` over two seeded `[TEST-$RUNID]` p1 tasks, a staged morning `eisenhower-plan` journals
+  **ZERO `p1.set`** (never re-runs a done write, never tops p1 past `selected_ids`) and **≥1 `calendar.create`**
+  (completes exactly the one missing alarm write).
+- **INV-B4-2 (resume, off-day variant — R7A6):** the same seeded record under `pinned_schedule: {work_block:
+  null}` completes with **ZERO alarm intent** (no work block ⇒ no leave-time alarm) — day-of-week dependence
+  removed.
+- **INV-B4-3 (>3-Q1 conflict — AA4/AA10/BB2/INV-5):** FOUR seeded `[TEST-$RUNID]` deadline-TODAY tasks ⇒ the
+  plan journals **≤3 `p1.set`** and **ONE `q1-conflict` enqueue intent whose structured `args.class ==
+  "q1-conflict"` AND `args.id == "q1-conflict:<today>"`** (the AGGREGATE period key — never a 4th p1, never a
+  silent drop; a verb-grep is not the check).
+- **INV-B4-4 (`▶ ` exactly-one gate, BOTH queue states — BB10/DD8/EE8/GG12/II7):** the `assert_one_action` gate
+  holds all four checks over the `## Response` section only: **(i)** exactly ONE marker-INITIAL line (a line
+  starting `▶ `); **(ii)** exactly ONE marker OCCURRENCE (`grep -o | wc -l` — an occurrence count, NOT a line
+  count: two markers on one line is still a wall); **(iii)** ZERO non-`· ` non-empty lines OTHER THAN the marker
+  line, **PRE- and POST-marker** (context carries a `· ` prefix, so any bare sentence/bullet/numbered
+  step/question anywhere is a structural second ask); **(iv)** the secondary verb/question regex count over the
+  non-marker lines == 0. Asserted for **queue NON-EMPTY** (a seeded `waiting-chase` head + `synthetic_weather`
+  breach + pending activation ⇒ the head is the sole `▶ ` line) **and queue EMPTY** (the do-now close is).
+- **INV-B4-5 (gate failure fixtures — the gate itself is exercised, deterministically):** EIGHT adversarial
+  fixtures are **ALL rejected** — a two-marker wall, plus an imperative sentence / a bullet / a numbered step /
+  a question **each placed both AFTER and BEFORE the marker** — while a positive fixture with `· ` context lines
+  before AND after the marker **PASSES**.
 
-# (2) >3-Q1 CONFLICT — SEED FOUR real [TEST-$RUNID] deadline-today tasks (R7A3): the plan caps at ≤3 p1.set and
-#     enqueues ONE q1-conflict record (AGGREGATE id q1-conflict:<date>, BB2), NEVER a 4th p1, never a silent drop.
-Q1=(); for n in 1 2 3 4; do id=$(td task add "[TEST-$RUNID] q1-$n" --project "$STAGING_PROJECT" --due today --deadline "$TODAY" --json | jq -r '.id'); Q1+=("$id"); CREATED+=("$id"); done
-: > "$INTENTS"
-JC=$(stage_skill '0 0 1 1 *' "${DRY}Run eisenhower-plan morning mode against the FOUR [TEST] tasks that each carry a deadline TODAY; cap p1 at 3." eisenhower-plan test-q1-conflict); hermes cron remove "$JC"
-RID="$RUNID"   # FF14: the DRY directive stamps run_id=$RUNID; filter by it, never map|last
-NP1=$(jq -s --arg r "$RID" '[.[]|select(.run_id==$r and .op=="p1.set")]|length' "$INTENTS")
-[ "$NP1" -le 3 ] || { echo "FATAL: eisenhower-plan set $NP1 p1 — must cap at 3 and surface a q1-conflict (INV-5/AA4)" >&2; exit 1; }
-# structured action-field validation over verb-grep (AA10): the enqueue intent's args.class must be q1-conflict
-# AND its id the AGGREGATE key q1-conflict:<date> (BB2 — no single task_id for a same-day capacity conflict).
-jq -e --arg r "$RID" --arg d "$TODAY" 'select(.run_id==$r and .op=="state-write" and (.target|test("decision-queue")) and .args.class=="q1-conflict" and (.args.id=="q1-conflict:"+$d))' "$INTENTS" >/dev/null \
-  || { echo "FATAL: >3-Q1 collision did not enqueue a q1-conflict record keyed q1-conflict:$TODAY (never silently drop, §4c/AA4/BB2)" >&2; exit 1; }
-echo ">3-Q1 conflict OK: ≤3 p1.set + a q1-conflict:$TODAY aggregate-id record enqueued (AA4/AA10/BB2)"
-
-# (3) EXACTLY-ONE ACTION via the `▶ ` SCHEMA MARKER (BB10/DD8/EE8/GG12) — the gate's PRIMARY checks, each on the
-#     ## Response section ONLY (R7A4): (i) exactly ONE marker-INITIAL line (a line STARTING `▶ `); (ii) exactly
-#     ONE marker OCCURRENCE overall (grep -o | wc -l, NOT a line count — two markers on one line must FAIL);
-#     (iii) GG12/II7: ZERO non-`· ` non-empty lines OTHER THAN the single marker line — checked over the WHOLE
-#     response, PRE- AND POST-marker (context lines carry a leading `· `, so any bare sentence, bullet, numbered
-#     step, or question anywhere except the one `▶ ` line is a structural second-ask and FAILS — catches an
-#     arbitrary second imperative the verb regex would miss). (iv) the verb/question regex stays as SECONDARY
-#     evidence, asserted == 0 over the non-marker lines. Seed uses BB2 fields (gen/head) + the
-#     FORZARE_NOW/synthetic_weather/pinned_schedule staging overrides (CC4). ($Q was guarded at harness setup, II1.)
-# assert_one_action <response-file>: fail loud unless all four hold. Returns 0 on pass, 1 on any violation.
-assert_one_action(){ local f=$1 init occ nonctx extra mln;
-  init=$(grep -cE '^▶ ' "$f" || true)                            # marker-INITIAL lines
-  occ=$(grep -o '▶ ' "$f" | wc -l | tr -d ' ')                   # marker OCCURRENCES (DD8 — not line count)
-  mln=$(grep -nE '^▶ ' "$f" | head -1 | cut -d: -f1)             # the marker line number
-  # (iii) GG12/II7: ANY non-empty non-marker line (PRE- OR POST-marker) that is NOT a `· `-context line:
-  nonctx=$(awk -v m="${mln:-0}" 'NR!=m && NF>0 && $0 !~ /^· / && $0 !~ /^▶ /' "$f" | wc -l | tr -d ' ')
-  # (iv) SECONDARY verb/question count over the non-marker lines:
-  extra=$(grep -vE '^▶ ' "$f" | grep -cE '\?[[:space:]]*$|^[[:space:]]*(First|Start|Do|Decide|Chase|Pick|Break|Drop|Reschedule|Undate|Retire|Next|Surface):' || true)
-  [ "${init:-0}" -eq 1 ] || { echo "FATAL: $init marker-INITIAL lines — must be EXACTLY 1 (0=head/close not surfaced; >1=a wall) (EE8)" >&2; return 1; }
-  [ "${occ:-0}" -eq 1 ]  || { echo "FATAL: $occ '▶ ' OCCURRENCES — must be EXACTLY 1 (DD8: occurrence count, not line count — two markers on one line is still a wall)" >&2; return 1; }
-  [ "${nonctx:-0}" -eq 0 ] || { echo "FATAL: $nonctx non-'· ' non-marker line(s) — EVERY non-marker line (pre- OR post-marker) must be a '· ' context line (GG12/II7: no second imperative/bullet/step/question anywhere)" >&2; return 1; }
-  [ "${extra:-0}" -eq 0 ] || { echo "FATAL: $extra ADDITIONAL actionable/question line(s) beyond the marker — must be 0 (EE8: no second ask)" >&2; return 1; }
-  return 0; }
-# (3a) QUEUE NON-EMPTY ⇒ the queue head is the sole `▶ ` line.
-printf '{"records":[{"id":"waiting-chase:%s","class":"waiting-chase","task_id":"%s","proposed":"chase","status":"pending","enqueue_ts":"%sT02:00:00Z","gen":1,"rev":1,"head":false}]}\n' "$TA" "$TA" "$TODAY" > "$Q"
-printf '{"pinned_schedule":{"work_block":{"start":"15:00","end":"23:00"}},"activation":"pending","synthetic_weather":{"breach":"rain 6am"}}\n' > "$OVR"
-: > "$INTENTS"
-JI=$(stage_skill '0 0 1 1 *' "${DRY}Assemble the brief from the seeded decision-queue head + the synthetic weather breach + the pending activation in schedule-override.json. Emit the single action as a '▶ ' marker line." brief-assemble test-brief-marker-nonempty)
-RESP=$(mktemp); resp_only ~/.hermes/cron/output/"$JI"/*.md > "$RESP"; hermes cron remove "$JI"
-assert_one_action "$RESP" || exit 1
-echo "queue-nonempty OK: exactly 1 marker-initial line + 1 occurrence + 0 extra asks (BB10/DD8/EE8)"; rm -f "$RESP"
-# (3b) QUEUE EMPTY ⇒ the do-now close is the sole `▶ ` line (the gate must hold here TOO).
-printf '{"records":[]}\n' > "$Q"
-: > "$INTENTS"
-JE=$(stage_skill '0 0 1 1 *' "${DRY}Assemble the brief with an EMPTY decision queue; close on the single do-now action as a '▶ ' marker line." brief-assemble test-brief-marker-empty)
-RESP=$(mktemp); resp_only ~/.hermes/cron/output/"$JE"/*.md > "$RESP"; hermes cron remove "$JE"
-assert_one_action "$RESP" || exit 1
-echo "queue-empty OK: exactly 1 marker-initial line + 1 occurrence + 0 extra asks (BB10/DD8/EE8 — gate holds in BOTH states)"
-rm -f "$RESP"
-# (3c) FAILURE FIXTURES — prove the gate REJECTS a wall (deterministic: exercises the gate itself, not the
-#      model). The two-marker wall + the THREE GG12 adversarial after-marker shapes (imperative sentence, bullet,
-#      numbered step) + the FOUR II7 PRE-marker shapes (imperative/bullet/numbered/question BEFORE the marker) must
-#      ALL be rejected. A valid `· ` context line before/after the marker must PASS.
-BAD1=$(mktemp); printf '▶ First: eat, then ride.\n▶ Also: chase the invoice.\n' > "$BAD1"   # two marker lines / two occurrences
-assert_one_action "$BAD1" && { echo "FATAL: gate accepted a TWO-marker wall (EE8)" >&2; exit 1; }
-echo "failure fixture 1 OK: two-marker wall rejected (EE8)"; rm -f "$BAD1"
-BAD2=$(mktemp); printf '▶ First: eat, then ride.\nAlso chase the invoice today.\n' > "$BAD2"   # GG12: imperative SENTENCE after the marker (no `· `)
-assert_one_action "$BAD2" && { echo "FATAL: gate accepted an imperative sentence after the marker (GG12)" >&2; exit 1; }
-echo "failure fixture 2 OK: after-marker imperative sentence rejected (GG12)"; rm -f "$BAD2"
-BAD3=$(mktemp); printf '▶ First: eat, then ride.\n- chase the invoice\n' > "$BAD3"   # GG12: BULLET after the marker
-assert_one_action "$BAD3" && { echo "FATAL: gate accepted a bullet after the marker (GG12)" >&2; exit 1; }
-echo "failure fixture 3 OK: after-marker bullet rejected (GG12)"; rm -f "$BAD3"
-BAD4=$(mktemp); printf '▶ First: eat, then ride.\n1. reschedule the dentist\n' > "$BAD4"   # GG12: NUMBERED step after the marker
-assert_one_action "$BAD4" && { echo "FATAL: gate accepted a numbered step after the marker (GG12)" >&2; exit 1; }
-echo "failure fixture 4 OK: after-marker numbered step rejected (GG12)"; rm -f "$BAD4"
-# II7: the SAME four adversarial shapes BEFORE the marker must fail too (the check now covers pre- AND post-marker).
-BAD5=$(mktemp); printf 'Also chase the invoice today.\n▶ First: eat, then ride.\n' > "$BAD5"   # II7: imperative SENTENCE before the marker (no `· `)
-assert_one_action "$BAD5" && { echo "FATAL: gate accepted an imperative sentence BEFORE the marker (II7)" >&2; exit 1; }
-echo "failure fixture 5 OK: pre-marker imperative sentence rejected (II7)"; rm -f "$BAD5"
-BAD6=$(mktemp); printf '- chase the invoice\n▶ First: eat, then ride.\n' > "$BAD6"   # II7: BULLET before the marker
-assert_one_action "$BAD6" && { echo "FATAL: gate accepted a bullet BEFORE the marker (II7)" >&2; exit 1; }
-echo "failure fixture 6 OK: pre-marker bullet rejected (II7)"; rm -f "$BAD6"
-BAD7=$(mktemp); printf '1. reschedule the dentist\n▶ First: eat, then ride.\n' > "$BAD7"   # II7: NUMBERED step before the marker
-assert_one_action "$BAD7" && { echo "FATAL: gate accepted a numbered step BEFORE the marker (II7)" >&2; exit 1; }
-echo "failure fixture 7 OK: pre-marker numbered step rejected (II7)"; rm -f "$BAD7"
-BAD8=$(mktemp); printf 'Want me to chase the invoice?\n▶ First: eat, then ride.\n' > "$BAD8"   # II7: QUESTION before the marker
-assert_one_action "$BAD8" && { echo "FATAL: gate accepted a question BEFORE the marker (II7)" >&2; exit 1; }
-echo "failure fixture 8 OK: pre-marker question rejected (II7)"; rm -f "$BAD8"
-GOOD=$(mktemp); printf '· Routine: breakfast → gym\n▶ First: eat, then ride.\n· Then: shower\n' > "$GOOD"   # II7: `· ` context lines BEFORE and after the marker PASS
-assert_one_action "$GOOD" || { echo "FATAL: gate rejected valid '· ' context lines before/after the marker (GG12/II7)" >&2; exit 1; }
-echo "positive fixture OK: '· ' context lines before AND after the marker are allowed (GG12/II7)"; rm -f "$GOOD"
-# II1: NO manual success-path restore here — the single EXIT trap (restore_b4) is the ONLY restorer (existed-before ⇒ mv-back, absent-before ⇒ rm).
-# teardown is the EXIT/INT trap (restore_b4) — captured-id deletion only, never a `search: [TEST]` sweep (BB6).
-echo "B4 fixtures torn down by trap (captured ids only, BB6)"
-```
-
-**Acceptance:** NO curator pin (AA11 — integrity is the content-hash gate). `eisenhower-plan` in morning mode
-never assigns >3 p1 and, **guarded by `plan-of-day.json` (Y13, NOT a p1 count)**, is a no-op when today's plan
-record already exists — the **resume harness runs on a PINNED fixture schedule** (work-day: journals ONLY the
-one missing alarm write, never tops p1 past `selected_ids`; **off-day variant: completes with ZERO alarm
-intent** — day-of-week dependence removed, R7A6); the **>3-Q1 conflict harness seeds FOUR real [TEST]
-deadline-today tasks** and proves the plan caps at ≤3 `p1.set` and enqueues **one `q1-conflict` record**
-(structured `args.class` check, AA4/AA10 — never a 4th p1, never a silent drop, INV-5); in EOD mode writes zero
-p1; in replan mode redraws only the remaining day, proposes (never applies) p1 changes, never touches a fixed
-anchor (W10); `brief-assemble` yields the ordered brief and — **the exactly-one-action harness parses the
-`## Response` section ONLY (R7A4) and asserts the `▶ ` gate (BB10/DD8/EE8/GG12) in BOTH queue states:
-exactly ONE marker-INITIAL line, exactly ONE marker OCCURRENCE (`grep -o | wc -l`, not a line count), ZERO
-non-`· ` non-empty lines OTHER THAN the marker — PRE- AND POST-marker (GG12/II7 — context carries a `· ` prefix, so any bare
-sentence/bullet/step/question anywhere is a second ask), and the secondary verb/question count ASSERTED == 0** (non-empty: the
-queue head is the sole `▶ ` line; empty: the do-now close is), **plus EIGHT adversarial failure fixtures (four post-marker + four pre-marker, II7) + a
-positive one (GG12/II7): a two-marker wall, an imperative sentence, a bullet, a numbered step, and a question —
-each BOTH after AND before the marker — are ALL rejected, while `· ` context lines before/after the marker PASS**;
-the q1-conflict enqueue
-uses the AGGREGATE id `q1-conflict:<date>` (BB2). Fixtures are `[TEST-$RUNID]`-scoped and torn down by the
-EXIT/INT trap (captured ids only, run-id-suffixed state backups restored — BB6), never a `search: [TEST]` sweep.
+**Acceptance:** NO curator pin (AA11 — integrity is the content-hash gate); INV-B4-1..5 pass under E3
+(`eisenhower-plan` in morning mode never assigns >3 p1 and is **guarded by `plan-of-day.json` (Y13, NOT a p1
+count)** — a today-record makes it resume-only); in EOD mode `eisenhower-plan` writes zero p1; in replan mode
+it redraws only the remaining day, proposes (never applies) p1 changes, never touches a fixed anchor (W10);
+`brief-assemble` yields the ordered brief. Fixtures are `[TEST-$RUNID]`-scoped in `[TEST-STAGING]` and torn
+down by the single EXIT trap (captured ids only, run-id-suffixed state backups restored, existed-before ⇒
+mv-back / absent-before ⇒ rm — BB6/II1), never a `search: [TEST]` sweep.
 
 ---
 
@@ -1554,200 +1339,48 @@ EXIT/INT trap (captured ids only, run-id-suffixed state backups restored — BB6
 - [ ] **Step 4: Head/ack + the TWO-PHASE bankruptcy over REAL SEEDED ids — NO curator pin (AA11); offer =
   ZERO clear intents, acknowledged op = UNDATE + RETIRE over the frozen seeded set (AA6/R7A5/R7A3)**
 
-```bash
-set -o pipefail
-# NO curator pin (AA11). helpers from the Phase B intro.
-Q=~/workspaces/Ivy/forzare/state/decision-queue.json
-MAP=~/workspaces/Ivy/forzare/state/task-lifecycle.json
-EXCL=~/workspaces/Ivy/forzare/state/sweep-exclusion.json
-JRNL=~/workspaces/Ivy/forzare/state/mutation-journal.jsonl   # FF1: the frozen bankruptcy set is a JOURNAL record
-INTENTS=~/workspaces/Ivy/forzare/state/dryrun-intents.jsonl
-DRY='DRY RUN — record intended writes to forzare/state/dryrun-intents.jsonl, perform none. '
-# BB6/DD1 staging-harness safety: per-run id; run-id-suffixed backups for EVERY touched state store
-# (decision-queue, lifecycle MAP, AND sweep-exclusion — B5's bankruptcy RETIRE appends to EXCL); a
-# fresh-install-aware restore (existed-before ⇒ mv the backup back; ABSENT-before ⇒ rm the test-created file —
-# never an rm of a real store); captured-id cleanup only.
-RUNID="$(date +%s)-$$"; CREATED=(); GUARDED_EXIST=(); GUARDED_ABSENT=()
-guard(){ f=$1; if [ -e "$f" ]; then cp "$f" "$f.bak.$RUNID" || { echo "FATAL: backup of $f failed (II1)" >&2; exit 1; }; GUARDED_EXIST+=("$f"); else GUARDED_ABSENT+=("$f"); fi; }
-guard "$Q"; guard "$MAP"; guard "$EXCL"; guard "$JRNL"   # FF1: (3b) seeds a type=bankruptcy JOURNAL line; II1: guard BEFORE arming the trap
-restore_b5(){ for f in "${GUARDED_EXIST[@]}"; do [ -f "$f.bak.$RUNID" ] && mv "$f.bak.$RUNID" "$f"; done; \
-  for f in "${GUARDED_ABSENT[@]}"; do [ -e "$f" ] && rm -f "$f"; done; \
-  for id in "${CREATED[@]}"; do td task delete "$id" --yes >/dev/null 2>&1 || true; done; }
-trap restore_b5 EXIT; trap 'exit 130' INT; trap 'exit 143' TERM   # GG7: INT/TERM exit → single EXIT restore
-# (1) HEAD ordering (AA4/R6A10/BB2): seed two pending records of DIFFERENT classes with STABLE ids + gen/head;
-#     brief-mode emits the class-rank HEAD (waiting-chase > sweep-candidate), a single decision, never a list.
-cat > "$Q" <<'JSON'
-{"records":[
- {"id":"sweep-candidate:TESTold","class":"sweep-candidate","candidate_id":"TESTold","proposed":"keep","status":"pending","enqueue_ts":"2026-07-10T05:00:00Z","gen":1,"rev":1,"head":false},
- {"id":"waiting-chase:TESTwait","class":"waiting-chase","task_id":"TESTwait","proposed":"chase","status":"pending","enqueue_ts":"2026-07-11T02:00:00Z","gen":1,"rev":1,"head":false}
-]}
-JSON
-: > "$INTENTS"
-JID=$(stage_skill '0 0 1 1 *' "${DRY}Run followups-sweep in brief mode; emit the single head decision or [SILENT]." followups-sweep test-sweep-head)
-RESP=$(mktemp); awk '/^## *Response/{f=1;next} /^## /{f=0} f' ~/.hermes/cron/output/"$JID"/*.md > "$RESP"
-grep -q 'TESTwait' "$RESP" && ! grep -q 'TESTold' "$RESP" \
-  || { echo "FATAL: brief-mode did not emit the class-rank HEAD (waiting-chase before sweep-candidate) (AA4)" >&2; exit 1; }
-echo "queue HEAD ordering OK (waiting-chase head, single decision)"; rm -f "$RESP"
-# (2) ACK PURITY (CC6/HH4 — supersedes the mtime compare): brief-mode is a cron/dry path, so it must journal NO
-#     ack-shaped intent. The detector keys on the CURRENT canonical shape (args.status=="tombstoned"), retaining
-#     the legacy predicates (tombstone!=null / status=="acked" / op=="ack") as additional catches; ZERO expected.
-NACK=$(jq -s '[.[]|select(.op=="state-write" and (.target|test("decision-queue")) and ((.args.status=="tombstoned") or (.args.tombstone!=null) or (.args.status=="acked") or (.args.op=="ack")))]|length' "$INTENTS")
-[ "$NACK" = 0 ] || { echo "FATAL: brief-mode journaled $NACK ack-shaped decision-queue intent — the CAS tombstone ack is a LIVE turn ONLY (R5A5/CC6)" >&2; exit 1; }
-echo "ack purity OK (brief-mode journaled ZERO ack intents, CC6)"; hermes cron remove "$JID"
-# (3) BANKRUPTCY — HONEST fixture (BB7/EE7): the "no progress ≥ 30 days" HALF of the eligibility CANNOT be
-#     honestly proven on live just-created [TEST] tasks — their Todoist activity streams carry brand-new `added`
-#     events, and an `added` event IS progress (the reducer counts it; a fixture that claimed these tasks are
-#     30-days-inactive would be a lie the sweep merely echoed). So the eligibility test SPLITS (EE7):
-#     (i) ELIGIBILITY via the REDUCER against a SYNTHETIC activity stream — drive the sweep's 30-day-inactivity
-#         reducer with the B9 --activity-stub pattern, feeding per-task event streams whose newest timestamps are
-#         GENUINELY 40 days old; assert eligible=true for those, and eligible=false for a control task whose stub
-#         stream carries a 2-day-old `added` event (added-events-are-progress asserted, not assumed).
-#     (ii) MECHANICS on the live seeded set below — freeze/journal/offer/undate/retire — with the staleness half
-#          SUPPLIED by the seeded MAP + stub, never claimed of the live tasks themselves.
-# (i) REDUCER ELIGIBILITY over synthetic streams (EE7 — the honest path for 30-day inactivity). The sweep skill
-#     EXPOSES a pure `eligibility` entrypoint reading (map-entry, activity-stream) pairs — the same
-#     testable-entrypoint pattern as B2's classifier and B9's reducer `--activity-stub` (authored contract):
-OLD_TS=$(TZ=America/Denver date -v-40d -u +%Y-%m-%dT%H:%M:%SZ); NEW_TS=$(TZ=America/Denver date -v-2d -u +%Y-%m-%dT%H:%M:%SZ)
-STUB=$(mktemp); printf '{"STALE":[{"eventType":"added","eventDate":"%s"}],"FRESH":[{"eventType":"added","eventDate":"%s"}]}\n' "$OLD_TS" "$NEW_TS" > "$STUB"
-ELIG=$(~/.hermes/skills/followups-sweep/eligibility --activity-stub "$STUB" --roll-count 12 --ids STALE,FRESH --json)
-[ "$(jq -r '.STALE.eligible' <<<"$ELIG")" = true ]  || { echo "FATAL: 40-day-inactive synthetic stream not eligible (EE7)" >&2; exit 1; }
-[ "$(jq -r '.FRESH.eligible' <<<"$ELIG")" = false ] || { echo "FATAL: 2-day-old added event counted as INACTIVE — added events ARE progress (EE7)" >&2; exit 1; }
-echo "reducer eligibility OK (EE7): synthetic 40d-old stream eligible, fresh added-event stream NOT"
-# (ii) MECHANICS fixtures: 14 dated actives + MAP entries + 26 undated someday tasks. The MAP entry + the stub
-#      supply the staleness; the live tasks exercise ONLY freeze/journal/undate/retire mechanics (EE7).
-FORTY=$(TZ=America/Denver date -v-40d +%F)   # 40 days ago (Denver) — the backdated written_due
-D_IDS=(); for n in $(seq 1 14); do
-  id=$(td task add "[TEST-$RUNID] bk-dated-$n" --project "$STAGING_PROJECT" --due "$FORTY" --json | jq -r '.id'); D_IDS+=("$id"); CREATED+=("$id"); done
-U_IDS=(); for n in $(seq 1 26); do
-  id=$(td task add "[TEST-$RUNID] bk-undated-$n" --project "$STAGING_PROJECT" --json | jq -r '.id'); U_IDS+=("$id"); CREATED+=("$id"); done
-# seed a lifecycle MAP entry per dated active: roll_count 12 (≥10), kind surfacing, written_due = 40d ago. The
-# staged SWEEP below reads its 30d-inactivity streams via the CC4 `activity_stub` staging-override (GG11) so the
-# live [TEST] tasks are NEVER claimed stale on their real (minutes-old) activity — the stub gives every seeded id
-# a genuinely 40-day-old newest event.
-python3 - "$MAP" "$FORTY" "${D_IDS[@]}" <<'PY'
-import json,sys
-mp=sys.argv[1]; wd=sys.argv[2]; ids=sys.argv[3:]
-m=json.load(open(mp)) if __import__("os").path.exists(mp) else {}
-for i in ids: m[i]={"written_due":wd,"roll_count":12,"last_escalated":wd,"kind":"surfacing"}
-json.dump(m,open(mp,"w"))
-PY
-# GG11: build the activity stub (every seeded id → one 40-day-old `added` event) and point the CC4
-# `activity_stub` staging-override at it, so followups-sweep SWEEP reads it under the dry-run directive.
-OVR=~/workspaces/Ivy/forzare/state/schedule-override.json; guard "$OVR"
-SWEEP_STUB=~/workspaces/Ivy/forzare/state/sweep-activity-stub.$RUNID.json   # removed at teardown
-OLD40=$(TZ=America/Denver date -v-40d -u +%Y-%m-%dT%H:%M:%SZ)
-python3 - "$SWEEP_STUB" "$OLD40" "${D_IDS[@]}" "--U--" "${U_IDS[@]}" <<'PY'
-import json,sys
-out,ts=sys.argv[1],sys.argv[2]; rest=sys.argv[3:]; cut=rest.index("--U--")
-stub={i:[{"eventType":"added","eventDate":ts}] for i in rest[:cut]+rest[cut+1:]}
-json.dump(stub, open(out,"w"))
-PY
-printf '{"activity_stub":"%s"}\n' "$SWEEP_STUB" > "$OVR"
-# (3a) OFFER GENERATION (FF1): FREEZE + JOURNAL the id set as a `bankruptcy`-TYPE MUTATION-JOURNAL record (every
-#      id + its class/op + a journal-uuid), then enqueue ONE bankruptcy-offer (aggregate id bankruptcy-offer:<YYYY-MM>,
-#      BB2) — canonical schema, NO frozen field; the queue record references the journal record by its uuid. ZERO clear intents (AA6).
-: > "$INTENTS"
-JB=$(stage_skill '0 0 1 1 *' "${DRY}Run followups-sweep in SWEEP mode over the seeded stale set (ledger roll_count≥10 dated + >25 undated). FREEZE the exact id set with per-id op and JOURNAL it as ONE mutation-journal record of type 'bankruptcy' (with a journal-uuid); then enqueue the OFFER as a canonical bankruptcy-offer queue record (NO frozen field — set its journal_ref to that journal-uuid). Clear NOTHING." followups-sweep test-sweep-offer); hermes cron remove "$JB"
-MONTH=$(TZ=America/Denver date +%Y-%m)
-# (i) the FROZEN set lives in a `bankruptcy` JOURNAL intent (FF1), and (GG11) it must name EVERY seeded dated id
-#     (op undate) AND >25 undated ids (op retire), with a journal-uuid:
-BKREC=$(jq -c 'select(.op=="state-write" and (.target|test("mutation-journal")) and .args.type=="bankruptcy" and (.args.external_marker|length>0))' "$INTENTS")
-BKJ=$(jq -c '.args.frozen' <<<"$BKREC"); BKUUID=$(jq -r '.args.external_marker' <<<"$BKREC")   # II3: the journal-uuid
-[ -n "$BKJ" ] && [ -n "$BKUUID" ] || { echo "FATAL: SWEEP did not JOURNAL a type=bankruptcy record with a journal-uuid (FF1/Y3/BB7)" >&2; exit 1; }
-for id in "${D_IDS[@]}"; do
-  jq -e --arg id "$id" 'any(.[]; .id==$id and .op=="undate")' <<<"$BKJ" >/dev/null \
-    || { echo "FATAL: dated active $id missing from the frozen bankruptcy record (or not op=undate) (GG11)" >&2; exit 1; }
-done
-NUND=$(jq '[.[]|select(.op=="retire")]|length' <<<"$BKJ")
-[ "$NUND" -gt 25 ] || { echo "FATAL: frozen bankruptcy record has $NUND retire (undated) ids — need >25 (GG11)" >&2; exit 1; }
-echo "frozen bankruptcy record OK (GG11): all 14 dated ids op=undate + $NUND undated ids op=retire"
-# (ii) the bankruptcy-offer QUEUE record is canonical — NO frozen field, and its journal_ref == the journal-uuid (II3/FF1):
-jq -e --arg m "bankruptcy-offer:$MONTH" --arg u "$BKUUID" 'select(.op=="state-write" and (.target|test("decision-queue")) and .args.class=="bankruptcy-offer" and .args.id==$m and (.args|has("frozen")|not) and .args.journal_ref==$u)' "$INTENTS" >/dev/null \
-  || { echo "FATAL: bankruptcy-offer:$MONTH queue record missing, carries a frozen field, OR its journal_ref != the journal-uuid $BKUUID — it must reference the journal record by uuid, not embed it (II3/FF1)" >&2; exit 1; }
-NCLR=$(jq -s '[.[]|select(.op=="task.undate" or .op=="task.update-due" or .op=="sweep.retire" or .op=="task.complete" or .op=="task.delete")]|length' "$INTENTS")
-[ "$NCLR" = 0 ] || { echo "FATAL: OFFER generation journaled $NCLR clear intent(s) — the offer is a PROPOSAL, nothing clears until acknowledged (AA6)" >&2; exit 1; }
-echo "offer-generation OK: type=bankruptcy JOURNAL record holds the frozen set; bankruptcy-offer:$MONTH queue record carries NO frozen field; ZERO clear intents (FF1/AA6/BB7)"
-# (3b) ACKNOWLEDGED op CONSUMES the JOURNALED `bankruptcy` record — NOT a prompt-injected id list, NOT a queue
-#      .args.frozen (FF1/BB7). Seed the frozen set as a type=bankruptcy JOURNAL line + a canonical (frozen-free)
-#      queue offer whose journal_ref IS that uuid; the ack reads the frozen set from the JOURNAL record matched by
-#      the offer's EXACT journal_ref (II3 — no month/date search).
-UUID="bk-$MONTH-$RUNID"
-python3 - "$Q" "$JRNL" "$MONTH" "$FORTY" "$UUID" "${D_IDS[@]}" "--U--" "${U_IDS[@]}" <<'PY'
-import json,sys
-q,jrnl,month,wd,uuid=sys.argv[1:6]; rest=sys.argv[6:]
-cut=rest.index("--U--"); dated=rest[:cut]; undated=rest[cut+1:]
-frozen=[{"id":i,"class":"dated","op":"undate"} for i in dated]+[{"id":i,"class":"undated","op":"retire"} for i in undated]
-# the FROZEN set lives in the mutation JOURNAL as a type=bankruptcy record (external_marker = the journal-uuid):
-with open(jrnl,"a") as f:
-    f.write(json.dumps({"ts":wd+"T05:00:00Z","created_ts":wd+"T05:00:00Z","type":"bankruptcy","target":f"bankruptcy-offer:{month}","op":"freeze","args":{"frozen":frozen},"external_marker":uuid,"commit_state":"committed"})+"\n")
-# the QUEUE offer is canonical — NO frozen field; journal_ref IS the journal-uuid (II3):
-json.dump({"records":[{"id":f"bankruptcy-offer:{month}","class":"bankruptcy-offer","aggregate-key":month,"proposed":"clear","status":"pending","enqueue_ts":wd+"T05:00:00Z","gen":1,"rev":1,"head":False,"journal_ref":uuid}]}, open(q,"w"))
-PY
-: > "$INTENTS"
-JA=$(stage_skill '0 0 1 1 *' "${DRY}The user ACCEPTED the bankruptcy offer. Read the offer's journal_ref off the bankruptcy-offer queue record, then find the type=bankruptcy record in mutation-journal.jsonl whose external_marker EQUALS that journal_ref (an EXACT-uuid match — do NOT month/date-search, do NOT expect an id list in this prompt, and do NOT read a frozen field off the queue record) and apply each frozen item's op: UNDATE each dated, RETIRE each undated onto sweep-exclusion.json. Never delete/complete/archive." followups-sweep test-sweep-ack); hermes cron remove "$JA"
-for id in "${D_IDS[@]}"; do
-  jq -e --arg id "$id" 'select(.op=="task.undate" and .target==$id)' "$INTENTS" >/dev/null \
-    || { echo "FATAL: dated active $id was not UNDATEd from the journaled snapshot (BB7/AA6)" >&2; exit 1; }
-done
-for id in "${U_IDS[@]}"; do
-  jq -e --arg id "$id" 'select(.op=="sweep.retire" and (.args.ids|index($id)))' "$INTENTS" >/dev/null \
-    || { echo "FATAL: undated someday $id was not RETIREd from the journaled snapshot (BB7/AA6/Z13)" >&2; exit 1; }
-done
-! jq -e 'select(.op=="task.complete" or .op=="task.delete")' "$INTENTS" >/dev/null \
-  || { echo "FATAL: acknowledged bankruptcy journaled a DESTRUCTIVE op — must be UNDATE/RETIRE only (Z13)" >&2; exit 1; }
-echo "acknowledged bankruptcy OK (BB7/AA6/Z13): ops driven by the JOURNALED snapshot, not the prompt; 14 UNDATE + 26 RETIRE, no destructive op"
-# (3c) FAILURE BETWEEN MUTATION BATCHES → idempotent retry (BB7/II3 — BOTH halves). Mark the first 7 dated as
-#      already-UNDATEd (clear their live due) AND the first 13 undated as already-RETIREd (seed sweep-exclusion);
-#      the retry re-reads the frozen snapshot (matched by the offer's EXACT journal_ref) + the live state and
-#      journals ops ONLY for the NOT-yet-done remainder of EACH half — never re-processing a completed id.
-printf '{"ids":[%s]}\n' "$(printf '"%s",' "${U_IDS[@]:0:13}" | sed 's/,$//')" > "$EXCL"
-for id in "${D_IDS[@]:0:7}"; do td task update "$id" --no-due >/dev/null; done   # already-UNDATEd dated half (live due now null)
-: > "$INTENTS"
-JR=$(stage_skill '0 0 1 1 *' "${DRY}RESUME the interrupted bankruptcy: re-read the type=bankruptcy JOURNAL record matched by the offer's EXACT journal_ref (the frozen snapshot, FF1/II3) AND sweep-exclusion.json AND each dated task's live due; apply ops ONLY for ids not already retired (undated ids absent from the exclusion list) / not already undated (dated ids whose due is still set) — idempotent partial-failure recovery. Never re-process a completed id." followups-sweep test-sweep-retry); hermes cron remove "$JR"
-# UNDATE half: the 7 already-undated dated ids must NOT be undated again; the remaining 7 dated MUST be undated:
-for id in "${D_IDS[@]:0:7}"; do
-  ! jq -e --arg id "$id" 'select(.op=="task.undate" and .target==$id)' "$INTENTS" >/dev/null \
-    || { echo "FATAL: retry RE-undated an already-done dated id $id — not idempotent (II3/BB7)" >&2; exit 1; }
-done
-for id in "${D_IDS[@]:7}"; do
-  jq -e --arg id "$id" 'select(.op=="task.undate" and .target==$id)' "$INTENTS" >/dev/null \
-    || { echo "FATAL: retry did not complete the remaining dated id $id (II3/BB7)" >&2; exit 1; }
-done
-# RETIRE half: the 13 already-retired undated ids must NOT be retired again; the remaining 13 MUST be retired:
-for id in "${U_IDS[@]:0:13}"; do
-  ! jq -e --arg id "$id" 'select(.op=="sweep.retire" and (.args.ids|index($id)))' "$INTENTS" >/dev/null \
-    || { echo "FATAL: retry RE-retired an already-done id $id — not idempotent (BB7)" >&2; exit 1; }
-done
-for id in "${U_IDS[@]:13}"; do
-  jq -e --arg id "$id" 'select(.op=="sweep.retire" and (.args.ids|index($id)))' "$INTENTS" >/dev/null \
-    || { echo "FATAL: retry did not complete the remaining undated id $id (BB7)" >&2; exit 1; }
-done
-echo "idempotent partial-failure retry OK (BB7/II3): already-done ids skipped in BOTH halves, remainder completed from the frozen snapshot"
-rm -f "$EXCL" "$SWEEP_STUB"
-# teardown = the EXIT/INT/TERM trap (restore_b5): captured-id deletion + guarded-file restore (incl. OVR), never
-# a `search: [TEST]` sweep (BB6/GG7).
-echo "B5 bankruptcy fixtures torn down by trap (captured ids only, BB6)"
-```
+Implemented by **E3 tests `b5_head` / `b5_ackpurity` / `b5_eligibility` / `b5_offer` / `b5_ack` / `b5_retry`**
+(E3 primitives: `RUNID` scoping; existed-before `guard`/single-EXIT restore over `decision-queue.json`, the
+lifecycle MAP, `sweep-exclusion.json` (the RETIRE target), `mutation-journal.jsonl` (the FF1 freeze target), and
+`schedule-override.json` — all guarded BEFORE the trap is armed (II1); captured-id cleanup); invariants:
 
-**Acceptance:** NO curator pin (AA11). `daily-reflect` never lists misses; `followups-sweep` in brief mode emits
-**only the single class-rank HEAD `pending` record** of the unified `decision-queue.json` (q1-conflict >
-waiting-chase > fixed-redecision = stale-p1 > stall-decision > triage-reraise > sweep-candidate >
-bankruptcy-offer; `waiting-chase` most-overdue first) and **never itself acks — it journals ZERO ack-shaped
-intents (CC6 — the mtime compare is dropped; the CAS tombstone ack is the live turn's job, R5A5/Z2)**. In SWEEP
-mode it enqueues `sweep-candidate` records and, past 25 stale candidates, one **`bankruptcy-offer:<YYYY-MM>`**
-aggregate record (BB2) — and **OFFER generation FREEZES the id set into a `bankruptcy`-TYPE MUTATION-JOURNAL
-record (FF1 — the queue's bankruptcy-offer record carries NO frozen field; it references the journal record by
-its uuid) and asserts ZERO clear intents** (AA6/BB7). The **HONEST fixture (BB7/EE7) SPLITS eligibility from mechanics**: the 30-day
-inactivity half is proven **via the reducer against SYNTHETIC activity streams with genuinely old timestamps**
-(40-day-old ⇒ eligible; a 2-day-old `added` event ⇒ NOT — `added` events ARE progress, asserted), because a
-just-created live `[TEST]` task carries fresh `added` activity and can never honestly read as 30-days-inactive;
-the live seeded set — 14 dated actives (MAP `roll_count ≥ 10`, 40-day `written_due`) plus **>25 undated someday**
-candidates — exercises ONLY the freeze/journal/offer/undate/retire MECHANICS; the **acknowledged clear CONSUMES the JOURNALED
-`bankruptcy` record (matched by the offer's EXACT `journal_ref` — NOT a month/date search, NOT a prompt-injected id list, NOT a queue `.args.frozen`, FF1/II3)**, journaling **`task.undate` for every dated active** and
-**`sweep.retire` onto `sweep-exclusion.json` for every undated someday**, **never a delete/complete/archive**; and
-a **failure-between-batches fixture proves idempotent retry** (already-done ids skipped, only the remainder
-completed from the frozen snapshot). Fixtures are `[TEST-$RUNID]`-scoped and torn down by the EXIT/INT trap
-(captured ids only, BB6); `tomorrow-prep` proposes ≤3 without setting p1 (that's the morning's job).
+- **INV-B5-1 (HEAD ordering — AA4/R6A10/BB2):** with two seeded `pending` records of different classes
+  (`waiting-chase` newer, `sweep-candidate` older), brief-mode emits **the class-rank HEAD only**
+  (waiting-chase > sweep-candidate — a single decision, never a list; the older lower-rank record is NOT shown).
+- **INV-B5-2 (ack purity — CC6/HH4/R5A5):** brief-mode is a cron/dry path, so it journals **ZERO ack-shaped
+  decision-queue intents** — the detector keys on the CURRENT canonical shape (`args.status=="tombstoned"`)
+  and retains the legacy predicates (`tombstone!=null` / `status=="acked"` / `op=="ack"`) as additional
+  catches; the CAS tombstone ack is a LIVE turn only (the mtime compare is superseded).
+- **INV-B5-3 (HONEST eligibility split — BB7/EE7/GG11):** the 30-day-inactivity half of bankruptcy eligibility
+  is proven **via the sweep's pure `eligibility` entrypoint over SYNTHETIC activity streams** — a stream whose
+  newest event is genuinely **40 days old ⇒ eligible**, and a control stream with a **2-day-old `added` event ⇒
+  NOT eligible** (`added` events ARE progress — asserted, not assumed) — because a just-created live `[TEST]`
+  task carries fresh `added` activity and can never honestly read as 30-days-inactive. The live seeded set
+  exercises **mechanics only**, its staleness SUPPLIED by seeded MAP entries (`roll_count 12`, 40-day
+  `written_due`, `kind: surfacing`) + the CC4 `activity_stub` staging-override giving every seeded id a
+  40-day-old newest event.
+- **INV-B5-4 (OFFER generation — FF1/AA6/BB7/GG11/II3):** over the seeded pool (14 dated actives + 26 undated
+  someday, both `[TEST-$RUNID]`-scoped in `[TEST-STAGING]`), a staged SWEEP run **FREEZES the id set as ONE
+  `bankruptcy`-type MUTATION-JOURNAL record** naming EVERY dated id with `op: undate` AND **>25** undated ids
+  with `op: retire`, carrying a `journal-uuid` `external_marker`; the enqueued **`bankruptcy-offer:<YYYY-MM>`
+  queue record is canonical — NO frozen field — and its `journal_ref` EQUALS that journal-uuid**; the offer
+  journals **ZERO clear intents** (no `task.undate`/`task.update-due`/`sweep.retire`/`task.complete`/
+  `task.delete` — the offer is a proposal, nothing clears until acknowledged).
+- **INV-B5-5 (acknowledged clear — BB7/AA6/Z13/II3):** the accepted offer **CONSUMES the JOURNALED snapshot
+  matched by the offer's EXACT `journal_ref`** — never a month/date search, never a prompt-injected id list,
+  never a queue `.args.frozen` — journaling **`task.undate` for every dated id** and **`sweep.retire` onto
+  `sweep-exclusion.json` for every undated id**, with **ZERO destructive ops** (no complete/delete/archive).
+- **INV-B5-6 (idempotent partial-failure retry, BOTH halves — BB7/II3):** with the first 7 dated ids already
+  undated (live due cleared) AND the first 13 undated ids already on the exclusion list, a RESUME run journals
+  ops **ONLY for the not-yet-done remainder of EACH half** — no already-undated id is re-undated, no
+  already-retired id is re-retired, and every remaining id in both halves completes from the frozen snapshot.
+
+**Acceptance:** NO curator pin (AA11). `daily-reflect` never lists misses; `followups-sweep` in brief mode
+emits only the single class-rank HEAD `pending` record (q1-conflict > waiting-chase > fixed-redecision =
+stale-p1 > stall-decision > triage-reraise > sweep-candidate > bankruptcy-offer; `waiting-chase` most-overdue
+first) and never itself acks; INV-B5-1..6 pass under E3; `tomorrow-prep` proposes ≤3 without setting p1 (the
+morning's job). Fixtures torn down by the single EXIT trap (captured ids only, guarded stores restored —
+BB6/GG7), never a `search: [TEST]` sweep.
 
 ---
 
@@ -1766,59 +1399,24 @@ completed from the frozen snapshot). Fixtures are `[TEST-$RUNID]`-scoped and tor
 - [ ] **Step 2: Classification staged dry-run** (staged cron, `--deliver local`; NOT `hermes -z … --safe-mode`;
   NO curator pin — AA11)
 
-```bash
-set -o pipefail
-# helpers (incl. $DRY) from the Phase B intro. NO curator pin (AA11 — repo-authored, not a curator GC candidate).
-INTENTS=~/workspaces/Ivy/forzare/state/dryrun-intents.jsonl
-OVR=~/workspaces/Ivy/forzare/state/schedule-override.json
-: > "$INTENTS"
-# FF13: purity is an UNCHANGED-NESS check, NOT an absence check. schedule-override.json legitimately holds the
-# CC4 staging-override fields (pinned_schedule / synthetic_weather / FORZARE_NOW / activity_stub) during staging,
-# so it may already exist — hash it BEFORE (a missing file hashes to a sentinel), assert the hash is IDENTICAL
-# AFTER (a correct dry-run journals the intent and mutates the real file not at all):
-OVR_H0=$(shasum -a 256 "$OVR" 2>/dev/null | cut -d' ' -f1 || echo absent)
-JID=$(stage_skill '0 0 1 1 *' "${DRY}The user says: \"picked up a shift\". Classify + act; respond exactly [SILENT] when done." \
-        forzare test-forzare)
-AUDIT=~/.hermes/cron/output/"$JID"
-ls "$AUDIT"/*.md >/dev/null 2>&1 || { echo "FATAL: no audit artifact at $AUDIT" >&2; exit 1; }
-cat "$AUDIT"/*.md | tail -20
-# R3A1: assert the INTENT RECORD, never the real store — a dry-run classifier journals the intended
-# schedule-override write (op + target + a well-formed block/date payload) instead of performing it:
-jq -e 'select(.op=="state-write" and (.target|test("schedule-override")) and .args.block and .args.date)' \
-    "$INTENTS" >/dev/null \
-  || { echo "FATAL: no well-formed schedule-override intent in dryrun-intents.jsonl (R3A1)" >&2; exit 1; }
-# FF13/W2: the REAL schedule-override.json must be UNCHANGED by the dry-run (hash-compare like every other gate),
-# NOT asserted absent — staging-override fields legitimately live there. Cleanup NEVER rm's the real file.
-OVR_H1=$(shasum -a 256 "$OVR" 2>/dev/null | cut -d' ' -f1 || echo absent)
-[ "$OVR_H0" = "$OVR_H1" ] \
-  || { echo "FATAL: dry-run CHANGED the real schedule-override.json ($OVR_H0 -> $OVR_H1) (FF13/W2)" >&2; exit 1; }
-hermes cron remove "$JID"
+Implemented by **E3 test `b6_classifier`**; invariants:
 
-# R6A9: PASSING-MENTION NEGATIVE fixtures — the over-trigger guard (spec §19). A passing mention of work/gym
-# in a NON-report context must NOT classify as a state change and must journal NO schedule-override write.
-for neg in "my friend works at a gym" "work was busy last year, glad that's over"; do
-  : > "$INTENTS"
-  JN=$(stage_skill '0 0 1 1 *' "${DRY}The user says: \"$neg\". Classify; act ONLY on a genuine own-state change; respond exactly [SILENT] when done." \
-          forzare "test-forzare-neg")
-  # NO schedule-override / state-write intent may be journaled for a passing mention:
-  if jq -e 'select(.op=="state-write" and (.target|test("schedule-override")))' "$INTENTS" >/dev/null 2>&1; then
-    echo "FATAL: passing mention \"$neg\" wrongly fired a schedule-override (over-trigger, R6A9)" >&2; exit 1
-  fi
-  echo "passing-mention negative OK — \"$neg\" did not fire (R6A9)"
-  hermes cron remove "$JN"
-done
-```
+- **INV-B6-1 (positive — R3A1):** the staged prompt "picked up a shift" journals a **well-formed
+  schedule-override INTENT** to `dryrun-intents.jsonl` — `op: state-write`, target matching
+  `schedule-override`, with `args.block` AND `args.date` present (+ the recovery-morning flag) — asserted from
+  the intent record, never the real store.
+- **INV-B6-2 (purity is UNCHANGED-ness, NOT absence — FF13/W2):** `schedule-override.json` legitimately holds
+  the CC4 staging-override fields during staging, so it may already exist — the test hashes it BEFORE (a missing
+  file hashes to a sentinel) and asserts the hash is **IDENTICAL after** the dry-run; cleanup never `rm`s the
+  real file.
+- **INV-B6-3 (passing-mention negatives — R6A9, the §19 over-trigger validation):** each of "my friend works at
+  a gym" and "work was busy last year, glad that's over" journals **NO schedule-override / state-write intent**
+  — a passing mention in a non-report context must not classify as a state change.
 
-**Acceptance (re-scoped to the MEASURED surface, HH8):** the staged test measures **one positive** (a work-shift
-signal) **plus two negatives** (passing mentions). The shift signal journals a valid schedule-override
-INTENT (block + date + recovery flag) to `dryrun-intents.jsonl` while the real `schedule-override.json` stays
-**UNCHANGED (hash-compare before/after, NOT an absence check — the CC4 staging-override fields legitimately live
-there, FF13)**;
-**passing-mention NEGATIVES ("my friend works at a gym", "work was busy" in a recap) do NOT fire — no
-schedule-override intent is journaled (R6A9, the §19 over-trigger validation requirement)**; no
-`pre_gateway_dispatch` hook is used (spec §3B/§12). **The full 4-class routing matrix and the low-confidence
-one-line confirm (which needs live Discord buttons) are DECLARED-but-not-staged here — they move to the G1 day-1
-supervised observation items (HH8); staging asserts only what it can measure.**
+**Acceptance (re-scoped to the MEASURED surface, HH8):** INV-B6-1..3 pass under E3 (one positive + two
+negatives); no `pre_gateway_dispatch` hook is used (spec §3B/§12). **The full 4-class routing matrix and the
+low-confidence one-line confirm (which needs live Discord buttons) are DECLARED-but-not-staged here — they move
+to the G1 day-1 supervised observation items (HH8); staging asserts only what it can measure.**
 
 ---
 
@@ -1918,39 +1516,21 @@ exit-ramp/hand-off logic explicit owners (spec §8/§3a/§3b; U2/A10/A14/A31).
   on the real stamp and logs an **`already-reconciled` no-op intent**. The REAL double-roll guard (the real stamp advances once, a real second run no-ops) is a **G1
   go-live day-1 supervised check** (Task G1), not a dry-run.
 
-```bash
-set -o pipefail
-# NO curator pin (AA11) — eod-roll/waiting-reconcile/transition are chezmoi-dropped, not curator GC candidates.
-INTENTS=~/workspaces/Ivy/forzare/state/dryrun-intents.jsonl
-: > "$INTENTS"                                        # fresh intents log for the two-run probe
-# Dry-run PURITY covers EVERY real store eod-roll could write (Y5/Y1): the stamp, the lifecycle MAP, the
-# append-only JOURNAL, and the decision queue (eod-roll enqueues fixed-redecision/stall-decision records).
-# GG3/II8: the two runs share ONE explicit test_window_id (so execution #2's shadow overlay reads execution #1's
-# intended writes — overlay reads intents where run_id==own OR test_window_id==shared) AND each stamps its OWN
-# distinct run_id (RUN1 / RUN2) in BOTH prompts, so the no-op assertion keys to run_id==RUN2.
-WINDOW="$(date +%s)-$$"; RUN1="run1-$WINDOW"; RUN2="run2-$WINDOW"
-DRY1="DRY RUN — record intended writes to forzare/state/dryrun-intents.jsonl, stamping run_id=$RUN1 AND test_window_id=$WINDOW on each, perform none. "
-DRY2="DRY RUN — record intended writes to forzare/state/dryrun-intents.jsonl, stamping run_id=$RUN2 AND test_window_id=$WINDOW on each, perform none. "
-declare -A MT0
-for f in last-reconcile.json task-lifecycle.json mutation-journal.jsonl decision-queue.json; do
-  MT0[$f]=$(stat -f %m ~/workspaces/Ivy/forzare/state/"$f" 2>/dev/null || echo none)
-done
-# First dry-run (execution #1, run_id=RUN1): journals its intended reconcile/roll to the intents log (NOT the real store).
-J1=$(stage_skill '0 0 1 1 *' "${DRY1}Run eod-roll once (execution #1)." eod-roll test-eod-1); hermes cron remove "$J1"
-# Second dry-run (execution #2, run_id=RUN2): its shadow overlay reads run#1's intents by the shared test_window_id, so it
-# observes the first's intended stamp advance and logs an already-reconciled no-op stamped run_id=RUN2.
-J2=$(stage_skill '0 0 1 1 *' "${DRY2}Run eod-roll once (execution #2)." eod-roll test-eod-2); hermes cron remove "$J2"
-# II8: the already-reconciled no-op MUST belong to run_id==RUN2 (and carry the shared window):
-jq -es --arg r "$RUN2" --arg w "$WINDOW" 'any(.[]; .run_id==$r and .test_window_id==$w and ((.op // "")=="state-write") and ((.args.result // .args.status // "")|tostring|test("already-reconciled")))' "$INTENTS" >/dev/null \
-  || { echo "FATAL: 2nd consecutive dry-run (RUN2) did not log an already-reconciled no-op intent stamped run_id=RUN2 (GG3/II8)" >&2; exit 1; }
-echo "staging idempotency OK — RUN2 no-ops via the shared-test_window_id shadow overlay (GG3/II8)"
-# Dry-run PURITY: NONE of the real stores changed (a correct dry-run touches none).
-for f in last-reconcile.json task-lifecycle.json mutation-journal.jsonl decision-queue.json; do
-  MT1=$(stat -f %m ~/workspaces/Ivy/forzare/state/"$f" 2>/dev/null || echo none)
-  [ "${MT0[$f]}" = "$MT1" ] || { echo "FATAL: dry-run mutated real $f (${MT0[$f]} -> $MT1)" >&2; exit 1; }
-done
-echo "dry-run purity OK — stamp + MAP + JOURNAL + decision-queue all untouched"
-```
+Implemented by **E3 test `b7_two_run`**; invariants:
+
+- **INV-B7-1 (shared window + per-run ids — GG3/II8):** the two consecutive staged `eod-roll` dry-runs share
+  **ONE explicit `test_window_id`** and each stamps its **OWN distinct `run_id`** (`RUN1`/`RUN2`) in its prompt
+  directive — so execution #2's shadow overlay reads execution #1's intended writes (overlay reads intents where
+  `run_id == own OR test_window_id == shared`), and every assertion is keyed to the known run id, never
+  `map(.run_id)|last`.
+- **INV-B7-2 (no-op keyed to RUN2 — R3A3/II8):** the SECOND run logs an **`already-reconciled` no-op intent
+  stamped `run_id == RUN2`** (+ the shared window id) — proof it observed the first run's intended stamp advance
+  through the shadow overlay, since a correct dry-run never advances the real stamp (a real-stamp diff proves
+  nothing).
+- **INV-B7-3 (dry-run purity across EVERY store eod-roll could write — Y5/Y1):** `last-reconcile.json`, the
+  `task-lifecycle.json` MAP, `mutation-journal.jsonl`, AND `decision-queue.json` (eod-roll enqueues
+  fixed-redecision/stall-decision records) are all **unchanged** across both runs (before/after compare per
+  store).
 
 **Acceptance:** `eod-roll` rolls only the ledger-defined set (V1), clears `p1` from **ONLY the day's
 `plan-of-day.json` `selected_ids` — never a user-set p1 (AA2/CC1; the G1 EOD gate seeds a Bob-owned + an
@@ -1980,60 +1560,24 @@ they are **skills/bundles invoked by name or plain language**, not plugin comman
   only to Inbox; never auto-creates a project.
 - [ ] **Step 4: End-to-end staged test** (dry-run intents, per the Phase B pattern — R3A1; NO curator pin — AA11)
 
-```bash
-set -o pipefail
-# helpers (incl. $DRY) from the Phase B intro. NO curator pin (AA11 — repo-authored, not curator GC candidates).
-# Pipeline state is CONTROLLED: forzare-capture's stage 1 (td task add) is synchronous; stages 2–5 are the
-# separate 60s Kanban dispatcher (D1), which a cron tick does NOT run — and under the dry-run directive stage 1
-# journals its Inbox write instead of performing it.
+Implemented by **E3 test `b8_capture`** (pipeline state is CONTROLLED: forzare-capture's stage 1 is
+synchronous; stages 2–5 belong to the separate 60s Kanban dispatcher (D1), which a cron tick does NOT run — and
+under the dry-run directive stage 1 journals its Inbox write instead of performing it); invariants:
 
-# R3A1: staged capture runs are DRY-RUNS — assertions target the INTENT RECORD in dryrun-intents.jsonl,
-# never the real store. R3A5: the due check distinguishes MISSING (no due key journaled — correct: stage 1
-# never parses a date) from NULL (a due key explicitly journaled as null) from a VALUE (a parsed date — the
-# bug). DD9: fixtures are RUN-ID-scoped ([TEST-$RUNID], never bare [TEST]) and the purity read is scoped to THIS
-# run's prefix — `--filter "search: [TEST-$RUNID]"` + `--all` (default --limit is 300 and the store holds ~2,270
-# tasks — a bare list can silently MISS the fixture; a bare [TEST] scope could false-trip on a concurrent run's
-# or the user's own [TEST] task).
-RUNID="$(date +%s)-$$"
-INTENTS=~/workspaces/Ivy/forzare/state/dryrun-intents.jsonl
-# due state of a journaled task.add intent: MISSING | NULL | the parsed value (R3A5's three-way read):
-intent_due(){ jq -r --arg c "$1" \
-  'select(.op=="task.add" and .args.content==$c)
-   | if (.args|has("due"))|not then "MISSING" elif .args.due==null then "NULL" else (.args.due|tostring) end' \
-  "$INTENTS"; }
+- **INV-B8-1 (timeless capture — R3A1/R3A5):** a `[TEST-$RUNID]` capture with no date word journals a verbatim
+  `task.add` intent that carries **NO `due` key at all** — the test distinguishes **MISSING** (no due key — the
+  correct outcome: stage 1 stores verbatim) from **NULL** (a due key explicitly null) from a **VALUE** (a parsed
+  date — the bug).
+- **INV-B8-2 (date-word capture):** a capture containing a date word ("… Tuesday") ALSO journals **no due key**
+  — proving stage 1 never NL-parses (no `quickadd`); the parent-stage-1 dated PLACEMENT (the pipeline actually
+  choosing a date) is asserted in Task D1.
+- **INV-B8-3 (purity — DD9):** neither capture exists in the REAL store — read via
+  `--filter "search: [TEST-$RUNID]"` + `--all` (the default `--limit` is 300 of ~2,270 tasks: a bare list can
+  silently MISS a leak; a bare `[TEST]` scope could false-trip on a concurrent run's or the user's own `[TEST]`
+  task).
 
-# (1) TIMELESS capture (no date word at all): the intent must exist and carry NO due key at all
-: > "$INTENTS"
-JID=$(stage_skill '0 0 1 1 *' "${DRY}Capture: \"[TEST-$RUNID] alphabetize the spice rack\". Route via forzare-capture." \
-        forzare-capture test-capture-timeless)
-D=$(intent_due "[TEST-$RUNID] alphabetize the spice rack")
-[ -n "$D" ] || { echo "FATAL: no task.add intent journaled for the timeless capture (R3A1)" >&2; exit 1; }
-[ "$D" = MISSING ] || { echo "FATAL: timeless capture journaled a due key ($D) — stage 1 must store verbatim" >&2; exit 1; }
-echo "timeless capture intent OK (no due key)"; hermes cron remove "$JID"
-
-# (2) DATE-WORD capture: the intent must ALSO carry no due key — proving stage 1 never NL-parses (no
-#     quickadd). The parent-stage-1 dated PLACEMENT (the pipeline actually choosing a date) is asserted in Task D1.
-: > "$INTENTS"
-JID=$(stage_skill '0 0 1 1 *' "${DRY}Capture: \"[TEST-$RUNID] ring the plumber Tuesday\". Route via forzare-capture." \
-        forzare-capture test-capture-dateword)
-D2=$(intent_due "[TEST-$RUNID] ring the plumber Tuesday")
-[ -n "$D2" ] || { echo "FATAL: no task.add intent journaled for the date-word capture (R3A1)" >&2; exit 1; }
-[ "$D2" = MISSING ] || { echo "FATAL: date-word capture journaled a due ($D2) — NL parse leaked into stage 1" >&2; exit 1; }
-echo "date-word capture intent OK (no due key — no quickadd NL parse)"; hermes cron remove "$JID"
-
-# DRY-RUN PURITY: neither capture may exist in the REAL store (--filter + --all so nothing hides past the
-# default page); a hit means the dry-run leaked a real write:
-LEAKED=$(td task list --filter "search: [TEST-$RUNID]" --all --json \
-  | jq -r --arg p "[TEST-$RUNID]" '[.results[]|select(.content|startswith($p))]|length')
-[ "$LEAKED" = 0 ] || { echo "FATAL: $LEAKED [TEST-$RUNID] task(s) in the real store — dry-run leaked (R3A1)" >&2; exit 1; }
-echo "dry-run purity OK (no [TEST-$RUNID] task in the real store)"
-```
-
-**Acceptance:** each handle activates by name and plain language; `forzare-capture` journals **both** the
-timeless and the date-word captures as verbatim `task.add` intents with **no due key** (no date parsed
-pre-classification, spec §8b/U4; MISSING-vs-NULL-vs-value distinguished explicitly, R3A5), while the real
-store stays clean (dry-run purity, R3A1); authorization boundaries hold. Stage-2 dated placement is asserted
-in D1; the live Inbox write is observed at G1 day-1.
+**Acceptance:** each handle activates by name and plain language; INV-B8-1..3 pass under E3; authorization
+boundaries hold. Stage-2 dated placement is asserted in D1; the live Inbox write is observed at G1 day-1.
 
 ---
 
@@ -2082,119 +1626,43 @@ owned `forzare/calibration/` store (U10/A12).
   reducer **fetched page 2** (a `comment-only-progress` touch the journal did NOT author). The stub measures
   pagination **without fabricating a live 100+-event history**; the live-path smoke stays read-only.
 
-```bash
-set -o pipefail
-# NO curator pin (AA11) — calibration-log is chezmoi-dropped, not a curator GC candidate.
-CAL=~/workspaces/Ivy/forzare/calibration
-# The reducer's activity SOURCE is stubbed by a fetch table keyed on cursor: page-1 (cursor=null) returns a
-# next_cursor; page-2 (cursor=PAGE2) returns the genuine user comment. The stub RECORDS which cursors were
-# fetched, so we assert page-2 was actually requested (R6A8 — pagination measured, not fabricated).
-python3 - "$CAL/fixture-events.jsonl" "$CAL/activity-stub.json" <<'PY'
-import json, sys
-rows = [
- {"schema_version":1,"ts":"2026-07-11T09:00:00Z","context":{"day_type":"off","tod_bucket":"morning"},"action":{"task_id":"X","load_class":"deep"},"outcome":{"initiated":True,"completed":True}},
- {"schema_version":1,"ts":"2026-07-11T14:00:00Z","context":{"day_type":"off","tod_bucket":"afternoon"},"action":"provide_nothing","outcome":{}},
- {"schema_version":1,"ts":"2026-07-11T10:00:00Z","context":{"day_type":"off","tod_bucket":"morning"},"action":{"task_id":"Y","load_class":"light"},"outcome":{}},
- {"schema_version":1,"ts":"2026-07-11T11:00:00Z","context":{"day_type":"off","tod_bucket":"morning"},"action":{"task_id":"Z","load_class":"admin"},"outcome":{}},
- {"schema_version":1,"ts":"2026-07-11T12:00:00Z","context":{"day_type":"off","tod_bucket":"afternoon"},"action":{"task_id":"C","load_class":"admin"},"outcome":{}},
- {"schema_version":1,"ts":"2026-07-11T13:00:00Z","context":{"day_type":"off","tod_bucket":"afternoon"},"action":{"task_id":"A","load_class":"light"},"outcome":{}},
-]
-# Two-page cursor stub the reducer calls as (task_id, cursor) -> {events, next_cursor}. Task Y: one page, only
-# Bob-authored activity (W7 negative). Task Z: page 1 (only Bob-authored + a next_cursor) then page 2 (the real
-# user comment) — so scoring Z initiated=true REQUIRES following the cursor to page 2. Tasks C/A: GG13 negative
-# fixtures — a Bob-authored `completed` (C) and a Bob-authored capture `added` (A) must each be EXCLUDED
-# generically (they are journaled forzare types), so neither scores as user initiation.
-stub = {
- "Y": {"null": {"events":[{"eventType":"updated","journaled_by_forzare":True}], "next_cursor":None}},
- "Z": {"null":  {"events":[{"eventType":"updated","journaled_by_forzare":True}], "next_cursor":"PAGE2"},
-       "PAGE2": {"events":[{"eventType":"comment","journaled_by_forzare":False}], "next_cursor":None}},
- "C": {"null": {"events":[{"eventType":"completed","journaled_by_forzare":True}], "next_cursor":None}},
- "A": {"null": {"events":[{"eventType":"added","journaled_by_forzare":True}], "next_cursor":None}},
-}
-open(sys.argv[1],"w").write("\n".join(json.dumps(r) for r in rows)+"\n")
-json.dump(stub, open(sys.argv[2],"w"))
-PY
-# the reducer records fetched cursors to $CAL/fetched-cursors.json when driven with --activity-stub (R6A8):
-python3 ~/.hermes/skills/calibration-log/reduce.py "$CAL/fixture-events.jsonl" \
-  --activity-stub "$CAL/activity-stub.json" --record-cursors "$CAL/fetched-cursors.json" --out "$CAL/curves.test.json"
-test -s "$CAL/curves.test.json" || { echo "FATAL: reducer produced no curve file" >&2; exit 1; }
-jq -e '.provide_nothing_count >= 1' "$CAL/curves.test.json" \
-  || { echo "FATAL: provide-nothing records dropped by the reducer" >&2; exit 1; }
-jq -e '.tasks.Y.initiated == false' "$CAL/curves.test.json" \
-  || { echo "FATAL: Bob-authored activity was scored as user initiation (W7)" >&2; exit 1; }
-# R6A8: the reducer must have FETCHED page 2 (cursor PAGE2) for task Z — proving it followed the cursor:
-jq -e '.Z | index("PAGE2")' "$CAL/fetched-cursors.json" \
-  || { echo "FATAL: reducer never fetched page 2 (cursor PAGE2) — pagination not followed (R6A8)" >&2; exit 1; }
-# and the genuine page-2 user comment scores initiated=true:
-jq -e '.tasks.Z.initiated == true' "$CAL/curves.test.json" \
-  || { echo "FATAL: page-2 user comment missed — reducer didn't page the cursor (R6A8/X11)" >&2; exit 1; }
-# GG13 negative fixtures: a Bob-authored `completed` (C) and a Bob-authored capture `added` (A) are journaled
-# forzare types, excluded GENERICALLY — neither scores as user initiation:
-jq -e '.tasks.C.initiated == false' "$CAL/curves.test.json" \
-  || { echo "FATAL: a Bob-authored task.complete was scored as user initiation — journal exclusion not generic (GG13)" >&2; exit 1; }
-jq -e '.tasks.A.initiated == false' "$CAL/curves.test.json" \
-  || { echo "FATAL: a Bob-authored capture task.add was scored as a user touch — journal exclusion not generic (GG13)" >&2; exit 1; }
-echo "calibration reducer round-trip OK (curve; provide-nothing counted; Bob-writes excluded generically incl. task.complete/task.add, GG13; page-2 fetch asserted)"
-rm -f "$CAL/fixture-events.jsonl" "$CAL/activity-stub.json" "$CAL/fetched-cursors.json" "$CAL/curves.test.json"
-```
+Implemented by **E3 test `b9_reducer`**; invariants:
+
+- **INV-B9-1 (provide-nothing counted):** a fixture event set containing a `provide_nothing` record reduces to a
+  non-empty curve file with `provide_nothing_count >= 1` — the control condition is never dropped.
+- **INV-B9-2 (W7 negative attribution):** a task whose only activity is Bob-journaled (`journaled_by_forzare`)
+  scores `initiated == false` — Bob-authored events never read as user initiation.
+- **INV-B9-3 (two-page cursor stub — R6A8/X11):** the reducer's stubbable fetch layer `(task_id, cursor) →
+  {events, next_cursor}` is driven with page 1 = Bob-authored events + a real cursor token, page 2 = a genuine
+  user comment; the test asserts **the page-2 fetch actually occurred** (the recorded-cursor list contains the
+  page-2 token) AND the page-2 user comment scores `initiated == true` — pagination measured with a stub, never
+  a fabricated live 100+-event history; the live-path smoke stays read-only.
+- **INV-B9-4 (GG13 generic exclusion):** a Bob-authored `completed` event and a Bob-authored capture `added`
+  event (both journaled forzare types) each score `initiated == false` — the exclusion consumes the journal
+  `type` enum GENERICALLY, so a new op type can never silently re-open a false positive.
 
 - [ ] **Step 6: DETERMINISTIC NUMERIC fixtures per update rule + one END-TO-END recommendation shift (BB11 —
   the acceptance measures the POLICY, not just a round-trip).** Each of the four §6a rules has a known
   input→output; the reducer's pure functions are asserted against the expected number, and one end-to-end case
   proves recorded outcomes move a later recommendation by the expected amount.
 
-```bash
-set -o pipefail
-CAL=~/workspaces/Ivy/forzare/calibration
-# FF12: the heredoc is fed to reduce.py --self-check as stdin and PARSED AS JSON, so the stdin must be PURE JSON
-# — the per-rule explanations are bash comments ABOVE the heredoc, never inside the array (a `#` line would break
-# json.loads). Rules fed to the reducer's pure update functions:
-#  (a) α-UPDATE (α=0.15): estimate 0.50, observed 1.0 → 0.50 + 0.15*(1.0-0.50) = 0.575 (spec §6a).
-#  (b) ACTIVATION-DECAY: a decaying boost — P(initiate) 0.80 at 0 min, 0.20 at 60 min → DECREASING fit, ~0.50 at
-#      30 min (monotone-decreasing check + midpoint within tolerance).
-#  (c) DURATION-BIAS per load-class: estimates [30,30], observed [45,45] → bias factor 1.5 (pad-up direction).
-#  (d) HABITUATION index: week-1 rate 0.80, week-4 0.35 → 0.35 < 0.5*0.80=0.40 ⇒ flag TRUE.
-python3 ~/.hermes/skills/calibration-log/reduce.py --self-check <<'PY' > "$CAL/numeric.test.json"
-[
- {"rule":"alpha_update", "estimate":0.50, "observed":1.0, "expect":0.575},
- {"rule":"activation_decay", "points":[[0,0.80],[60,0.20]], "at":30, "expect":0.50, "tol":0.10, "monotone":"decreasing"},
- {"rule":"duration_bias", "load_class":"deep", "estimates":[30,30], "observed":[45,45], "expect":1.5},
- {"rule":"habituation", "baseline_rate":0.80, "current_rate":0.35, "expect_flag":true}
-]
-PY
-jq -e '.results | all(.pass)' "$CAL/numeric.test.json" \
-  || { echo "FATAL: a numeric update-rule fixture did not match its expected output (BB11):" >&2; jq '.results' "$CAL/numeric.test.json" >&2; exit 1; }
-echo "numeric update-rule fixtures OK (BB11): alpha-update=0.575, decay decreasing ~0.50@30m, duration-bias=1.5, habituation flag"
+Implemented by **E3 test `b9_numeric`** (the reducer exposes a pure `--self-check` entrypoint whose stdin is
+PURE JSON — explanations live outside the payload, FF12); invariants:
 
-# END-TO-END: recorded outcomes shift a later RECOMMENDATION by the expected amount. Seed a history where deep
-# is initiated in the MORNING and NOT in the afternoon; assert the recommended deep window flips to morning and
-# the morning deep-initiation estimate is the α-updated value (not the flat prior).
-python3 - "$CAL/e2e-events.jsonl" <<'PY'
-import json,sys
-rows=[]
-for _ in range(6): rows.append({"schema_version":1,"context":{"tod_bucket":"morning"},"action":{"load_class":"deep"},"outcome":{"initiated":True}})
-for _ in range(6): rows.append({"schema_version":1,"context":{"tod_bucket":"afternoon"},"action":{"load_class":"deep"},"outcome":{"initiated":False}})
-open(sys.argv[1],"w").write("\n".join(json.dumps(r) for r in rows)+"\n")
-PY
-python3 ~/.hermes/skills/calibration-log/reduce.py "$CAL/e2e-events.jsonl" --out "$CAL/e2e-curves.json"
-REC=$(jq -r '.recommendations.deep_window' "$CAL/e2e-curves.json")
-[ "$REC" = morning ] || { echo "FATAL: recorded morning-deep-initiations did not shift the deep-window recommendation to morning (got $REC) (BB11)" >&2; exit 1; }
-jq -e '.curves.deep.morning > .curves.deep.afternoon' "$CAL/e2e-curves.json" \
-  || { echo "FATAL: morning deep-initiation estimate did not exceed afternoon after the recorded outcomes (BB11)" >&2; exit 1; }
-echo "end-to-end recommendation-shift OK (BB11): recorded outcomes moved the deep-window recommendation to morning"
-rm -f "$CAL/numeric.test.json" "$CAL/e2e-events.jsonl" "$CAL/e2e-curves.json"
-```
+- **INV-B9-5 (α-update):** estimate 0.50, observed 1.0, α = 0.15 ⇒ `0.50 + 0.15·(1.0 − 0.50) = 0.575` exactly.
+- **INV-B9-6 (activation-decay):** points (0 min, 0.80) and (60 min, 0.20) fit a **monotone-DECREASING** curve
+  with the 30-min midpoint ≈ 0.50 (tolerance 0.10).
+- **INV-B9-7 (duration-bias):** estimates [30,30] vs observed [45,45] ⇒ bias factor **1.5** (the pad-UP
+  direction).
+- **INV-B9-8 (habituation):** week-1 rate 0.80 vs current 0.35 ⇒ 0.35 < 0.5·0.80 ⇒ the habituation flag is
+  **TRUE**.
+- **INV-B9-9 (end-to-end recommendation shift):** a seeded history of 6 morning deep-initiations + 6 afternoon
+  deep-non-initiations flips the deep-window recommendation to **morning** AND lifts the morning deep estimate
+  strictly above the afternoon one — recorded outcomes move a later recommendation by the expected amount, so
+  the acceptance measures the POLICY, not just a round-trip.
 
-**Acceptance:** the scripted fixture round-trips through the reducer to a non-empty curve file; the
-provide-nothing control is counted (`provide_nothing_count >= 1`, not dropped); the **W7 negative fixture
-scores `initiated=false`** (only Bob-authored events ⇒ no initiation credit); the **two-page cursor stub proves
-the reducer FETCHED page 2** (the recorded-cursor list contains `PAGE2`, R6A8) and the genuine page-2 user
-comment scores `initiated=true` — pagination measured with a stub, not a fabricated live history; **the four
-NUMERIC update-rule fixtures (BB11) each match their expected output** (α-update `0.575`, a decreasing
-activation-decay fit ~`0.50` at 30 min, duration-bias `1.5`, the habituation flag), and **one END-TO-END case
-proves recorded outcomes shift a later recommendation by the expected amount** (morning deep-initiations flip the
-deep-window recommendation to morning and lift the morning estimate above afternoon); the engine reads
-reductions, never the raw log.
+**Acceptance:** INV-B9-1..9 pass under E3 (`b9_reducer` + `b9_numeric`); the engine reads reductions, never
+the raw log.
 
 ---
 
@@ -2579,6 +2047,12 @@ if printf '%s\n' "$EOD_SKILLS" | grep -x calendar-write >/dev/null; then
   echo "FATAL: forzare-eod must not include calendar-write (R2A8)" >&2; exit 1
 fi
 echo "eod bundle calendar-write-free OK"
+# the replan bundle MUST list calendar-write (KK5/JJ5 — replan moves Bob's 🤖-calendar proposals through it):
+REPLAN_SKILLS=$(yq '.skills[]' ~/.hermes/skill-bundles/forzare-replan.yaml)
+if ! printf '%s\n' "$REPLAN_SKILLS" | grep -x calendar-write >/dev/null; then
+  echo "FATAL: forzare-replan must include calendar-write (KK5)" >&2; exit 1
+fi
+echo "replan bundle lists calendar-write OK (KK5)"
 # every named skill must resolve to an installed SKILL.md dir — REAL assertion, not an eyeball (R3A15):
 MISSING=$(comm -23 <(yq '.skills[]' ~/.hermes/skill-bundles/*.yaml | sort -u) \
                    <(ls ~/.hermes/skills | sort -u))
@@ -2587,8 +2061,9 @@ MISSING=$(comm -23 <(yq '.skills[]' ~/.hermes/skill-bundles/*.yaml | sort -u) \
 echo "all bundle-named skills resolve to installed dirs"
 ```
 
-Expected: each bundle lists the exact skills, carries a non-empty `instruction:`, and the eod bundle has no
-`calendar-write`; the `comm` check **asserts** emptiness and fails loud with the missing names otherwise.
+Expected: each bundle lists the exact skills, carries a non-empty `instruction:`, the eod bundle has no
+`calendar-write`, and the replan bundle LISTS `calendar-write` (KK5); the `comm` check **asserts** emptiness
+and fails loud with the missing names otherwise.
 **Acceptance:** bundles resolve fully; the boot INTEGRITY assertion fails loud on a deliberately-missing or
 content-drifted skill (test it once by moving/editing a skill dir, then restore) — no pins involved (AA11).
 
@@ -2646,191 +2121,48 @@ see Task E2's backup/rollback for it.
   `--deliver local` for the whole build (V5/R2A4)** — Task G1 Step 4 is the *only* place delivery flips to
   `discord` (and removes the dry-run directive, W2).
 
-**Transactional install (Y8 + Z7 + AA9 + BB4) + schedule-DERIVED boundary/gym times (Y9).** **The whole install
-runs in a GATEWAY-STOPPED window (BB4):** because it is **pre-go-live by definition** (every job is created
-`--deliver local`, and delivery only flips at G1), and the gateway's 60s tick reloads `jobs.json` on every tick,
-the install stops the gateway so a tick can never observe or reload a half-written `jobs.json` mid-reconcile —
-**an EXECUTABLE `launchctl bootout gui/<uid>/ai.hermes.gateway` (the plist's `KeepAlive: true` means a plain
-`hermes gateway stop` would be auto-revived, so `bootout` is required), which the block runs in the user's GUI
-session and then ASSERTS is actually down (both `launchctl print` gone AND the health port no longer answering)
-before mutating (EE5). **Phase C's stop-set is the GATEWAY ONLY (GG8)** — the forzare-ops watchdog does not
-exist until Phase F, so it is neither stopped nor restarted here. **The restore handler records the gateway's
-INITIAL loaded state and is ARMED (EXIT/INT/TERM) BEFORE the first bootout (GG8), restarts ONLY an
-initially-loaded gateway, and health-probes it — on success OR rollback** (the rollback restores `jobs.json`,
-exits nonzero, and the EXIT trap then brings the gateway back and probes its health port, warning loudly if it
-does not return); a bootout that returns nonzero is handled explicitly (the down-assert is authoritative). The install is otherwise one atomic transaction:
-`set -euo pipefail`, a **declared name manifest**, **(1) pre-validate the manifest** (reject a duplicate name in
-the manifest or an ambiguous already-duplicated live name — AA9), **reconcile by NAME** (edit an existing job of
-that name, create a missing one — **never blind-create a duplicate**; each job attaches ONE bundle/skill via a
-single `--skill`, and a multi-skill job would **repeat `--skill` per skill** — verified help, AA9), **(2)
-ROLLBACK is an ATOMIC restore of the VALIDATED `jobs.json` backup via same-dir TMP + `mv` (BB4 — a bare `cp`
-could leave a torn file if anything reads it mid-restore; the atomic rename never does) + a BYTE-COMPARE (AA9)**,
-and **(3) the ERR trap stays ARMED through ALL postconditions** — the post-install exact-manifest assert is
-INSIDE the transaction, so a post-install mismatch ALSO triggers the atomic restore; the trap is disarmed only
-after the assert passes. **Ordering note (BB4/EE5/GG8):** record gateway initial-loaded state → ARM the
-EXIT/INT/TERM restore handler → back up jobs.json → bootout the gateway → ASSERT it is down → reconcile →
-post-assert → (ERR ⇒ atomic rollback) → EXIT trap restarts + health-probes the gateway (only if it was initially
-loaded; the watchdog is not in this Phase-C stop-set — it is built in Phase F). The gateway reloads the final
-`jobs.json` on restart. The gym-window-end and block-boundary
-trigger times are **DERIVED from the resolved `work_schedule`/`gym_schedule`, DOW-aware** (B10, live) — the
-boundary time is the **R7A2 formula** `block_start − prep − travel − 30` = 13:35 — not hardcoded — so a schedule
-edit re-derives them (B10 Step 4/Y9/Z9/R7A2).
+**Transactional install (Y8 + Z7 + AA9 + BB4/EE5/GG8) + schedule-DERIVED boundary/gym times (Y9).** The whole
+install runs in a **GATEWAY-STOPPED window** (pre-go-live by definition — every job is `--deliver local`; the
+gateway's 60s tick reloads `jobs.json`, so it must never observe a half-written file mid-reconcile). Ordering:
+record gateway initial-loaded state → ARM the EXIT/INT/TERM restore handler → back up `jobs.json` → bootout the
+gateway → ASSERT it is down → reconcile by name → post-assert → (ERR ⇒ atomic rollback) → EXIT trap restarts +
+health-probes the gateway. Implemented by **E3 script `c2_install` (a SINGLE gated script — the stopped-window
+single-script execution model with ONE combined cleanup handler, KK0 leg-B/GG8)**; invariants:
 
-```bash
-set -euo pipefail
-# X10: back up jobs.json HERE — immediately before the FIRST cron mutation (moved out of Task E2, which now
-# only declares the live-data exception + documents the rollback). jobs.json is NOT chezmoi-managed.
-# AA9: capture the VALIDATED backup path so rollback is an ATOMIC whole-file restore (not per-record replay).
-JOBS=~/.hermes/cron/jobs.json
-JOBS_BAK=~/workspaces/backups/"$(date -u +%Y-%m-%dT%H-%M-%S).hermes-cron-jobs.backup.json"
-cp "$JOBS" "$JOBS_BAK"
-python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$JOBS_BAK" \
-  && echo "jobs.json backup validated at $JOBS_BAK (AA9)" \
-  || { echo "FATAL: jobs.json backup is not valid JSON — refusing to proceed (AA9)" >&2; exit 1; }
-
-# EE5/BB4/GG8: EXECUTABLE gateway STOP window. The gateway must be DOWN so no tick reloads a half-written
-# jobs.json mid-reconcile. **Phase C's stop-set is the GATEWAY ONLY (GG8):** the forzare-ops watchdog does NOT
-# exist until Phase F, so it is neither stopped nor restarted here. The gateway plist has KeepAlive=true (a plain
-# `hermes gateway stop` would be auto-revived), so the stop is a launchctl BOOTOUT — a user-run step in the
-# user's GUI session (`gui/<uid>`), the same session the checkpoints run in.
-GUI="gui/$(id -u)"
-GW_LABEL="ai.hermes.gateway"; GW_PLIST=~/Library/LaunchAgents/"$GW_LABEL".plist
-# GG8: RECORD the gateway's INITIAL loaded state BEFORE any bootout, so restore only ever restarts a service that
-# was actually up to begin with.
-if launchctl print "$GUI/$GW_LABEL" >/dev/null 2>&1; then GW_WAS_LOADED=1; else GW_WAS_LOADED=0; fi
-# GG8: ARM the restore handler (EXIT + INT + TERM) BEFORE the first bootout, so an interrupt or a failed
-# assertion below still brings the gateway back. It restarts ONLY an initially-loaded gateway (never a service
-# that was already down), on success OR fault:
-restart_services(){ rc=$?; \
-  if [ "$GW_WAS_LOADED" = 1 ]; then \
-    launchctl bootstrap "$GUI" "$GW_PLIST" 2>/dev/null || launchctl kickstart -k "$GUI/$GW_LABEL" 2>/dev/null || true; \
-    for _ in 1 2 3 4 5; do curl -fsS -m 3 http://127.0.0.1:8644/health >/dev/null 2>&1 && break; sleep 1; done; \
-    curl -fsS -m 3 http://127.0.0.1:8644/health >/dev/null 2>&1 \
-      && echo "gateway restarted + health-probed OK (EE5)" \
-      || echo "WARN: gateway did NOT come back healthy — restart $GW_PLIST by hand (EE5)" >&2; \
-  fi; \
-  exit "$rc"; }
-trap restart_services EXIT; trap 'exit 130' INT; trap 'exit 143' TERM   # GG7/GG8: armed BEFORE the bootout
-# STOP the gateway — bootout, with the failure handled EXPLICITLY (GG8): only bootout if it was loaded, and if
-# the bootout command errors, warn (the assert below is authoritative — a still-loaded gateway is FATAL).
-if [ "$GW_WAS_LOADED" = 1 ]; then
-  launchctl bootout "$GUI/$GW_LABEL" 2>/dev/null \
-    || echo "WARN: gateway bootout returned nonzero — verifying it is down via the assert below (GG8)" >&2
-fi
-# ASSERT actually stopped BEFORE mutating (a still-running gateway would reload a torn jobs.json):
-sleep 1
-launchctl print "$GUI/$GW_LABEL" >/dev/null 2>&1 \
-  && { echo "FATAL: gateway still loaded after bootout — refusing to mutate jobs.json (EE5)" >&2; exit 1; }
-curl -fsS -m 3 http://127.0.0.1:8644/health >/dev/null 2>&1 \
-  && { echo "FATAL: gateway health still answering after stop — not actually down (EE5)" >&2; exit 1; }
-echo "gateway confirmed STOPPED (EE5) — safe to mutate jobs.json (watchdog not built until Phase F, so not in the Phase-C stop-set, GG8)"
-
-# Y9/Z9/R6A5: DERIVE the gym-window-end + block-boundary cron specs from the RESOLVED per-weekday
-# work_schedule/gym_schedule (B10's live skills.config) — DOW-AWARE, never a flat block_start read, so a
-# boundary NEVER fires on a genuine off day. Hardcoding would desync on any schedule edit (Y9 reconcile, B10 S4).
-# NOTE: each cron spec itself contains spaces, so python emits them PIPE-separated and bash splits on '|'.
-IFS='|' read -r GYM_CRON BOUND_CRON < <(~/.hermes/hermes-agent/venv/bin/python - <<'PY'
-import os, yaml
-sc = (yaml.safe_load(open(os.path.expanduser("~/.hermes/config.yaml"))).get("skills",{}) or {}).get("config",{}) or {}
-gym  = sc["gym_schedule"]; work = sc["work_schedule"]
-# cron day-of-week numbers: Sun=0 Mon=1 … Sat=6
-DOWNUM = {"sunday":0,"monday":1,"tuesday":2,"wednesday":3,"thursday":4,"friday":5,"saturday":6}
-days = work["days"]
-# BLOCK-BOUNDARY DOW = the weekdays that HAVE a work block (Tue/Thu/Sat + Sunday, which is conditionally a
-# work day via the alt-Sunday anchor — the skill no-ops on OFF Sundays). Never Mon/Wed/Fri (genuine off days).
-work_dow = sorted({DOWNUM[d] for d, blk in days.items() if blk})
-# all work blocks share one start time in v1 — assert that, then take it (uniform start, one boundary cron).
-starts = {blk["start"] for blk in days.values() if blk}
-assert len(starts) == 1, f"non-uniform work-block starts {starts} — a per-start boundary cron is a future concern"
-wh, wm = map(int, starts.pop().split(":"))
-bound_dow = ",".join(str(n) for n in work_dow)             # e.g. "0,2,4,6" (Sun/Tue/Thu/Sat)
-# BLOCK-BOUNDARY TIME = the R7A2 FORMULA: block_start - commute_prep - commute_travel - 30 (the ~30-min-until-
-# you-leave soft pre-warning, spec §3/§3a — NOT the leave-time alarm, which is block_start - prep - travel).
-prep   = int(sc["commute_prep_minutes"]); travel = int(sc["commute_travel_minutes"])
-bmin   = wh*60 + wm - prep - travel - 30                    # 15:00 - 30 - 25 - 30 = 815 min
-assert bmin >= 0, f"boundary minutes negative ({bmin}) — block start too early for the offsets"
-bh, bm = divmod(bmin, 60)                                   # 13, 35
-# GYM-WINDOW-END DOW = the gym days (all but Thursday); backstop fires at window_end.
-gym_dow = sorted({DOWNUM[d] for d in gym["days"]})
-gh, gm = map(int, str(gym["window_end"]).split(":"))       # e.g. "09:00"
-gym_dowc = ",".join(str(n) for n in gym_dow)               # e.g. "0,1,2,3,5,6"
-print(f"{gm} {gh} * * {gym_dowc}|{bm} {bh} * * {bound_dow}")   # two DOW-AWARE Denver-local cron specs, '|'-sep
-PY
-)
-{ [ -n "${GYM_CRON:-}" ] && [ -n "${BOUND_CRON:-}" ]; } || { echo "FATAL: could not derive gym/boundary cron from work_schedule (Y9/Z9)" >&2; exit 1; }
-# R7A2/Z9 sanity: the boundary TIME must be the formula (15:00 block ⇒ 13:35) and its DOW must EXCLUDE the off
-# days (Mon=1/Wed=3/Fri=5) and INCLUDE Sun=0 (alt-Sunday fires weekly; the skill no-ops on OFF Sundays).
-[ "$BOUND_CRON" = "35 13 * * 0,2,4,6" ] \
-  && echo "boundary cron OK: $BOUND_CRON (block_start 15:00 − prep 30 − travel 25 − 30 = 13:35; R7A2)" \
-  || { echo "FATAL: boundary cron is '$BOUND_CRON', expected '35 13 * * 0,2,4,6' (R7A2 formula)" >&2; exit 1; }
-
-# jid_from_create from the Phase B intro. The DRY-RUN directive rides in the PROMPT (instruction transport,
-# R3A4 — a gateway-ticked job inherits no shell env); G1 edits these jobs WITHOUT it.
-DRY='DRY RUN — record intended writes to forzare/state/dryrun-intents.jsonl, perform none.'
-# Y8: declared name MANIFEST (the exact six) + spec = "schedule|skill|prompt" per name.
-declare -A SPEC=(
-  [forzare-morning-brief]="15 5 * * *|forzare-morning-brief|$DRY"
-  [forzare-eod]="0 23 * * *|forzare-eod|$DRY"
-  [forzare-waiting-reconcile]="0 2 * * *|waiting-reconcile|$DRY"
-  [forzare-gym-window-end]="$GYM_CRON|activation-prompt|$DRY Fire the gym-window-end backstop."
-  [forzare-block-boundary]="$BOUND_CRON|transition|$DRY Fire the block-boundary prompt."
-  [forzare-someday-sweep]="0 5 1 * *|followups-sweep|$DRY Run the monthly someday-sweep (state-only)."
-)
-MANIFEST=(forzare-morning-brief forzare-eod forzare-waiting-reconcile forzare-gym-window-end forzare-block-boundary forzare-someday-sweep)
-existing_id(){ jq -r --arg n "$1" '.jobs[]|select(.name==$n)|.id' ~/.hermes/cron/jobs.json | head -1; }
-
-# Z7 (1): PRE-VALIDATE the manifest before any mutation — reject a duplicate NAME in our own manifest, and
-# reject a duplicate name ALREADY in jobs.json (two live jobs of one name = ambiguous reconcile).
-DUP=$(printf '%s\n' "${MANIFEST[@]}" | sort | uniq -d)
-[ -z "$DUP" ] || { echo "FATAL: duplicate name in the manifest: $DUP (Z7)" >&2; exit 1; }
-for name in "${MANIFEST[@]}"; do
-  C=$(jq -r --arg n "$name" '[.jobs[]|select(.name==$n)]|length' ~/.hermes/cron/jobs.json)
-  [ "$C" -le 1 ] || { echo "FATAL: $C live jobs already named '$name' — ambiguous reconcile (Z7)" >&2; exit 1; }
-done
-echo "manifest pre-validated OK (no dup names, no ambiguous live names) (Z7)"
-
-# AA9: rollback = ATOMIC restore of the VALIDATED jobs.json backup, then a BYTE-COMPARE to prove it landed —
-# simpler and more robust than a per-record `hermes cron edit` replay (which is itself fallible and could pass a
-# comma-joined --skill as one skill; --skill is REPEATED per skill, verified `hermes cron create/edit --help`).
-# BB4: the gateway is STOPPED for this window (pre-go-live), so no tick reloads a half-written jobs.json; it is
-# restarted after the trap disarms. Restore is a SAME-DIR TMP + `mv` (atomic rename) + BYTE-COMPARE — never a
-# bare `cp` (which could leave a torn file if anything read it mid-restore); the rename swaps the whole file.
-rollback(){ echo "FATAL: partial cron install — ATOMIC-restoring jobs.json from the validated backup (AA9/BB4)" >&2; \
-  TMP="$(dirname "$JOBS")/.jobs.json.restore.$$"; \
-  cp "$JOBS_BAK" "$TMP" && mv "$TMP" "$JOBS" \
-    || { echo "FATAL: atomic restore failed — jobs.json may be inconsistent, restore $JOBS_BAK by hand" >&2; exit 1; }; \
-  if cmp -s "$JOBS_BAK" "$JOBS"; then echo "jobs.json byte-identical to the pre-install backup — rollback verified (AA9)" >&2; \
-  else echo "FATAL: post-restore byte-compare MISMATCH — restore $JOBS_BAK by hand" >&2; fi; \
-  exit 1; }
-trap rollback ERR
-
-# reconcile by NAME (edit existing / create missing / never blind-create a duplicate). Each job attaches ONE
-# bundle/skill via a single --skill (a multi-skill job would REPEAT --skill per skill — verified help, AA9).
-for name in "${MANIFEST[@]}"; do
-  IFS='|' read -r sched skill prompt <<<"${SPEC[$name]}"
-  eid=$(existing_id "$name")
-  if [ -n "$eid" ]; then
-    hermes cron edit "$eid" --schedule "$sched" --skill "$skill" --prompt "$prompt" --deliver local >/dev/null
-    echo "reconciled $name ($eid)"
-  else
-    nid=$(hermes cron create "$sched" "$prompt" --skill "$skill" --deliver local --name "$name" | jid_from_create)
-    echo "created $name ($nid)"
-  fi
-done
-
-# AA9: the trap stays ARMED through ALL postconditions — the exact-manifest assert below is inside the
-# transaction, so a post-install mismatch ALSO triggers the atomic rollback (trap disarmed only after it passes).
-# Z7 (4): POST-INSTALL assert the EXACT manifest — every name present exactly once, no stray forzare job.
-GOT=$(jq -r '.jobs[]|select(.name|test("^forzare-"))|.name' ~/.hermes/cron/jobs.json | sort)
-WANT=$(printf '%s\n' "${MANIFEST[@]}" | sort)
-# AA9: on mismatch, CALL rollback (atomic restore) rather than a bare exit — the postcondition is inside the txn.
-[ "$GOT" = "$WANT" ] || { echo "FATAL: post-install manifest mismatch (Z7):" >&2; diff <(printf '%s\n' "$WANT") <(printf '%s\n' "$GOT") >&2; rollback; }
-echo "post-install exact-manifest OK (Z7): 6 forzare jobs, no dup, no stray"
-trap - ERR   # AA9: postconditions passed — NOW disarm the transaction trap
-# capture ids by name for Step 2's per-job reads:
-for name in "${MANIFEST[@]}"; do printf '%s=%s\n' "$name" "$(existing_id "$name")"; done
-BRIEF=$(existing_id forzare-morning-brief); EOD=$(existing_id forzare-eod); RECON=$(existing_id forzare-waiting-reconcile)
-```
+- **INV-C2-1 (backup first — X10/AA9):** `jobs.json` is backed up to `~/workspaces/backups/` with the
+  timestamped naming convention and **validated as JSON** BEFORE any mutation; an invalid backup is FATAL
+  (rollback depends on it).
+- **INV-C2-2 (gateway-stopped window — BB4/EE5/GG8):** the install records the gateway's **INITIAL loaded
+  state**, **ARMS the EXIT/INT/TERM restore handler BEFORE the first bootout**, then stops the gateway via
+  `launchctl bootout gui/<uid>/ai.hermes.gateway` (KeepAlive=true means a plain `hermes gateway stop` would be
+  auto-revived) and **ASSERTS it is actually down** (both `launchctl print` gone AND the health port no longer
+  answering) before touching `jobs.json` — a nonzero bootout is a WARN, the down-assert is authoritative and a
+  still-loaded gateway is FATAL. **The Phase-C stop-set is the GATEWAY ONLY** — the forzare-ops watchdog does
+  not exist until Phase F, so it is neither stopped nor restarted here.
+- **INV-C2-3 (restore handler — GG8/EE5):** the single EXIT handler restarts **only an initially-loaded**
+  gateway (bootstrap, kickstart fallback) and **health-probes** it, on success OR rollback, warning loudly if it
+  does not return.
+- **INV-C2-4 (DOW-derived trigger times — Y9/Z9/R6A5/R7A2):** the gym-window-end and block-boundary cron specs
+  are **DERIVED from the RESOLVED per-weekday `work_schedule`/`gym_schedule`** (never a flat `block_start`):
+  the boundary DOW = the weekdays with a work block (incl. the conditional Sunday — the skill no-ops on OFF
+  Sundays), never Mon/Wed/Fri; all work blocks are asserted to share ONE start (v1); the boundary TIME is the
+  formula `block_start − prep − travel − 30` — the derived spec is **asserted to equal `35 13 * * 0,2,4,6`**
+  for the 15:00/30/25 values (13:35, distinct from the 14:05 leave-time alarm); the gym DOW excludes Thursday
+  and fires at `window_end`.
+- **INV-C2-5 (manifest pre-validation — Z7):** the declared SIX-name manifest (`forzare-morning-brief` `15 5 *
+  * *` / `forzare-eod` `0 23 * * *` / `forzare-waiting-reconcile` `0 2 * * *` / `forzare-gym-window-end` /
+  `forzare-block-boundary` / `forzare-someday-sweep` `0 5 1 * *`, each `--skill <bundle-or-skill>` +
+  `--deliver local` + the DRY prompt) is pre-validated — a duplicate name IN the manifest, or a name already
+  duplicated in live `jobs.json` (ambiguous reconcile), is FATAL before any mutation.
+- **INV-C2-6 (reconcile by NAME — Y8/AA9):** an existing job of a manifest name is EDITED, a missing one
+  CREATED — never a blind duplicate; a multi-skill job repeats `--skill` per skill (verified help).
+- **INV-C2-7 (atomic rollback, trap through ALL postconditions — AA9/BB4):** rollback = an ATOMIC restore of
+  the validated backup via same-dir tmp + `mv` (never a bare `cp`) + a **byte-compare** proving it landed; the
+  ERR trap stays armed through the post-install assert, so a postcondition failure ALSO rolls back; the trap is
+  disarmed only after the assert passes.
+- **INV-C2-8 (post-install exact manifest — Z7):** exactly the six names exist (`^forzare-` scan of
+  `jobs.json`), no duplicate, no stray forzare job; the per-name job ids are captured for Step 2's keyed reads;
+  the gateway reloads the final `jobs.json` on restart.
 
   - **Morning brief — ONE daily job, `15 5 * * *` (fires EVERY day; Sunday is DECIDED, spec §1/§2/U15)**,
     **`--skill forzare-morning-brief`** (the bundle — W1), `--deliver local` (flips to `discord` home channel
@@ -2844,11 +2176,11 @@ BRIEF=$(existing_id forzare-morning-brief); EOD=$(existing_id forzare-eod); RECO
     resumes it (W2)**.
   - **`@waiting` reconcile** `0 2 * * *`, **`--skill waiting-reconcile`** (the atomic skill directly — not a
     bundle, Task B7) — **state-only, NEVER messages the user** (spec §8); `--deliver local` **permanently**.
-  - **Gym-window-end check** at the **DERIVED gym-window end (Y9 — `$GYM_CRON`, from the resolved
+  - **Gym-window-end check** at the **DERIVED gym-window end (Y9 — INV-C2-4, from the resolved
     `gym_schedule`, not hardcoded)**, **`--skill activation-prompt`** — the "Back from the gym?" backstop,
     skipped on Thu / recovery mornings / signal-already-fired (reads `schedule-override.json` `activation`, spec
     §3/§8a); `--deliver local` until G1.
-  - **Block-boundary prompts** at the **DERIVED work-block edge (Y9 — `$BOUND_CRON`, from the resolved
+  - **Block-boundary prompts** at the **DERIVED work-block edge (Y9 — INV-C2-4, from the resolved
     `work_schedule`)**, **`--skill transition`** (spec §3/§5), `--deliver local` until G1. A schedule edit
     re-derives both times (B10 Step 4 reconcile rule).
   - **Monthly someday-sweep — one PRODUCER for the unified decision queue, delivered head-at-a-time via the
@@ -2862,175 +2194,44 @@ BRIEF=$(existing_id forzare-morning-brief); EOD=$(existing_id forzare-eod); RECO
     (R2A16, spec §4c/§19) it enqueues the opt-in **reversible-UNDATE** task-bankruptcy offer (Y3).
 - [ ] **Step 2: Verify (staged — do NOT deliver to Discord yet).** Note the real trigger semantics:
   `hermes cron run <job_id>` **queues** the job for the next tick and takes **NO `--deliver`**; `hermes cron
-  tick` then executes due jobs. It **seeds the [TEST] fixture it claims** (an ungroomed dated task, R6A4) so the
-  always-acting writers have real work. Three assertions per job: **(a) the persisted job carries the expected
-  `skills` value (W1)**, **(b) the staged trace shows the attached skills' activity via the intent log (W1 —
-  the intent log is POSITIVE evidence only)**, **(c) the staged window performed ZERO real mutations — the
-  NEGATIVE gate is INDEPENDENT of the intent log (AA1):** before/after diffs of task activity + the **separate
-  `--type comment`** stream, **CURSOR-PAGINATED to exhaustion (R7A8)** and scoped to the **run-scoped [TEST-$RUNID] fingerprint (EE3)**
-  (the harness-seeded tasks, NOT the intent targets, NOT `--by me` — so the user may edit real tasks freely) +
-  a **run-scoped ([TEST-$RUNID]-prefixed) 🤖-calendar snapshot whose detection is PREFLIGHTED against a seeded
-  fixture event before the before/after compare is trusted (EE3)** + a **RECURSIVE state+calibration content-hash that EXCLUDES
-  `dryrun-intents.jsonl`** (a dry-run DOES append to it, so hashing it would be self-defeating — AA1). Asserted
-  with the verified `td activity` shapes (camelCase `eventType`/`objectId`; the event `id` is float-mangled
-  scientific notation, so NEVER compare on `.id` — key on `objectId`), with a fail-LOUD nonzero-exit negative
-  branch:
+  tick` then executes due jobs. Implemented by **E3 test `c2_bundle_gate`** (E3 primitives: `RUNID` scoping,
+  `[TEST-STAGING]` resolve-only, captured-id cleanup; intents-log truncation at start, R4A11); invariants:
 
-```bash
-set -o pipefail
-# There is NO `hermes cron list --json` (verified: cron_list takes no --json). Job ids were captured at
-# create time (Step 1). (a) W1: the PERSISTED job must carry the skills list — read jobs.json by job id:
-for pair in "$BRIEF:forzare-morning-brief" "$EOD:forzare-eod" "$RECON:waiting-reconcile"; do
-  jid=${pair%%:*}; want=${pair#*:}
-  got=$(jq -r --arg id "$jid" '.jobs[]|select(.id==$id)|.skills|if type=="array" then join(",") else tostring end' ~/.hermes/cron/jobs.json)
-  [ "$got" = "$want" ] || { echo "FATAL: job $jid persisted skills=$got, want $want (W1)" >&2; exit 1; }
-done
-echo "persisted --skill values OK (W1)"
-# R4A11: truncate the intents log at the START of this staged test so positive assertions can't be satisfied
-# by a stale record from an earlier run.
-INTENTS=~/workspaces/Ivy/forzare/state/dryrun-intents.jsonl
-: > "$INTENTS"
-# R6A4: SEED the fixture the gate claims — an UNGROOMED DATED task (no load-label, no duration) so the staged
-# brief's groom-on-read + eisenhower-plan have real work to do (the three always-acting writers journal). BB6:
-# run-id-prefixed + a trap that deletes ONLY the captured id (no prefix sweep).
-RUNID="$(date +%s)-$$"
-# II4: resolve-or-create the [TEST-STAGING] project (Phase D, own block) and seed the fixture INSIDE it.
-STAGING_PROJECT="$(td project list --search "[TEST-STAGING]" --json | jq -r '.results[]|select(.name=="[TEST-STAGING]")|.id' | head -1)"
-[ -n "$STAGING_PROJECT" ] || { echo "FATAL: [TEST-STAGING] Todoist project not found — the USER must create it ONCE (Checkpoint-A prerequisite, KK2/JJ2); the build RESOLVES it, NEVER auto-creates a Todoist project (no-unprompted-projects rule)" >&2; exit 1; }
-FIX=$(td task add "[TEST-$RUNID] ungroomed dated fixture" --project "$STAGING_PROJECT" --due today --json | jq -r '.id')
-[ -n "$FIX" ] && [ "$FIX" != null ] || { echo "FATAL: could not seed the bundle fixture (R6A4)" >&2; exit 1; }
-trap 'td task delete "$FIX" --yes >/dev/null 2>&1 || true' EXIT; trap 'exit 130' INT; trap 'exit 143' TERM   # GG7
-# AA1/R7A1/R7A8: the NEGATIVE gate is INDEPENDENT of the intent log — before/after diffs of task + comment
-# activity (CURSOR-PAGINATED to exhaustion), a run-scoped ([TEST-$RUNID]) calendar snapshot (detection
-# preflighted, EE3), and a RECURSIVE state+calibration hash that EXCLUDES dryrun-intents.jsonl. Scope activity
-# to the RUN-SCOPED [TEST-$RUNID] FINGERPRINT (the harness-seeded tasks,
-# NOT the intent targets and NOT `--by me`): the tester owns [TEST] tasks so the user can edit real tasks freely.
-STATE=~/workspaces/Ivy/forzare/state
-CAL=~/workspaces/Ivy/forzare/calibration
-# hash_state: RECURSE over state/ AND calibration/, EXPLICITLY EXCLUDING dryrun-intents.jsonl — a dry-run DOES
-# append to that one file, so hashing it would make this gate self-defeating (AA1).
-hash_state(){ find "$STATE" "$CAL" -type f ! -name 'dryrun-intents.jsonl' -print0 2>/dev/null \
-  | sort -z | xargs -0 -r shasum -a 256; }
-# td_activity_paged: loop --cursor until exhausted (never page 1 only, R7A8). Emits every event as one JSON line.
-td_activity_paged(){ local typ="$1" cur="" page nc; while :; do
-    page=$(td activity --since "$(date -u +%Y-%m-%d)" --type "$typ" --json ${cur:+--cursor "$cur"}) || return 1
-    printf '%s' "$page" | jq -c '.results[]?'
-    nc=$(printf '%s' "$page" | jq -r '.nextCursor // .cursor // empty'); [ -n "$nc" ] || break; cur="$nc"
-  done; }
-# the fingerprint set (objectIds the harness owns) — SCOPED to the [TEST-STAGING] project AND this run's
-# [TEST-$RUNID] prefix (II4), so activity here can only be a forzare leak:
-TEST_IDS=$(td task list --project "$STAGING_PROJECT" --filter "search: [TEST-$RUNID]" --all --json | jq -r '[.results[].id]')
-# count fingerprint-scoped events across a paginated stream:
-count_test_events(){ td_activity_paged "$1" | jq -s --argjson t "$TEST_IDS" '[.[]|select(.objectId as $o|$t|index($o))]|length'; }
-TASK_BEFORE=$(count_test_events task); COMMENT_BEFORE=$(count_test_events comment)
-STATE_BEFORE=$(hash_state)
-# BB5: gog probes ALWAYS pass an explicit account (-a) + the 🤖 calendar id, and command/parse failure is FATAL
-# (never `|| echo 0`, which would mask a broken gog into a false "clean" gate). Resolve both up front, fail loud.
-GOG_ACCT="${GOG_ACCT:?set GOG_ACCT to the authenticated Google account (BB5)}"
-BOT_CAL=$(gog calendar calendars -a "$GOG_ACCT" -j | jq -r '(.calendars // .)[] | select((.summary//"")|test("🤖|[Bb]ob")) | .id' | head -1) \
-  || { echo "FATAL: gog calendar calendars failed — cannot resolve the 🤖 calendar id (BB5)" >&2; exit 1; }
-[ -n "$BOT_CAL" ] || { echo "FATAL: no 🤖 calendar found for $GOG_ACCT (BB5)" >&2; exit 1; }
-# cal_snapshot: the RUN-SCOPED ([TEST-$RUNID]-prefixed, EE3 — never bare [TEST], which could false-trip on a
-# concurrent run's or an older leftover [TEST] event) event {id, updated} pairs on the 🤖 calendar — a SET
-# compare on IDs + the `updated` timestamp (not a count), so an in-place edit of an existing fixture event is
-# caught too. FATAL on any command/parse failure (BB5 — no ||-to-zero).
-cal_snapshot(){ gog calendar events -a "$GOG_ACCT" "$BOT_CAL" -j \
-    | jq -S --arg p "[TEST-$RUNID]" '[.events[]? | select((.summary//"")|startswith($p)) | {id, updated}] | sort_by(.id)' \
-    || { echo "FATAL: gog calendar events snapshot failed (BB5)" >&2; exit 1; }; }
-# EE3 PREFLIGHT — prove the snapshot DETECTS before trusting its before/after compare. A matcher that silently
-# matches nothing would render the whole calendar leak gate vacuously "clean" (empty == empty). So: seed one
-# known [TEST-$RUNID] fixture event (verified `gog calendar create <calendarId> --summary --from --to`), assert
-# the snapshot SEES it (a changed snapshot), then delete it (verified `gog calendar delete <calendarId>
-# <eventId>`) and assert the snapshot is empty again — only then take CAL_BEFORE.
-PRE_EMPTY=$(cal_snapshot)
-PROBE_ID=$(gog calendar create "$BOT_CAL" -a "$GOG_ACCT" --summary "[TEST-$RUNID] cal-snapshot preflight probe" \
-    --from "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --to "$(date -u -v+5M +%Y-%m-%dT%H:%M:%SZ)" -j | jq -r '.id // .event.id') \
-  || { echo "FATAL: preflight probe event create failed (EE3)" >&2; exit 1; }
-[ -n "$PROBE_ID" ] && [ "$PROBE_ID" != null ] || { echo "FATAL: no probe event id returned (EE3)" >&2; exit 1; }
-PRE_SEEDED=$(cal_snapshot)
-[ "$PRE_SEEDED" != "$PRE_EMPTY" ] || { echo "FATAL: cal_snapshot did NOT detect the seeded probe event — the leak gate would be vacuous (EE3)" >&2; \
-    gog calendar delete "$BOT_CAL" "$PROBE_ID" -a "$GOG_ACCT" -y >/dev/null 2>&1 || true; exit 1; }
-gog calendar delete "$BOT_CAL" "$PROBE_ID" -a "$GOG_ACCT" -y \
-  || { echo "FATAL: preflight probe event delete failed — remove event $PROBE_ID from the 🤖 calendar by hand (EE3)" >&2; exit 1; }
-[ "$(cal_snapshot)" = "$PRE_EMPTY" ] || { echo "FATAL: snapshot not restored after probe cleanup (EE3)" >&2; exit 1; }
-echo "cal_snapshot detection preflight OK (EE3): seeded probe detected, cleaned, baseline restored"
-CAL_BEFORE=$(cal_snapshot)
-# Force one staged brief run and read the audit BY its job id:
-hermes cron run "$BRIEF" >/dev/null && hermes cron tick >/dev/null
-AUDIT=~/.hermes/cron/output/"$BRIEF"
-ls "$AUDIT"/*.md >/dev/null 2>&1 || { echo "FATAL: no brief audit at $AUDIT" >&2; exit 1; }
-# (b) W1/R5A8: assert per-skill OBSERVABLE EFFECTS from the INTENT LOG — NEVER a grep over the audit .md.
-# Verified 2026-07-11: the cron audit records only the ## Prompt (which EMBEDS each loaded skill's instruction
-# text, so a skill NAME appears there whether or not the skill did anything) + the ## Response; it records NO
-# tool calls (save_job_output writes prompt+response only). So grepping skill names over the audit proves the
-# bundle LOADED them, not that they RAN — the exact "prompt-text grep" R5A8 forbids. Instead, each MUTATING
-# member journals its intents with a `skill` field: assert an intent-log effect per reliably-acting mutating
-# member. (Read-only members — weather/calendar-read/activation-prompt — and conditional writers —
-# calendar-write only on a deep-window/work day, followups-sweep brief-mode only READS, brief-assemble
-# prestage-clear only if a prestage exists — produce no deterministic intent here; each is asserted in its own
-# task: B2/B3/B4/B5/B7. This bundle test seeds a [TEST] fixture task that FORCES grooming + planning so the
-# three always-acting writers below journal.)
-[ -s "$INTENTS" ] || { echo "FATAL: staged brief logged NO intents — the loaded skills never RAN (W1/R5A8)" >&2; exit 1; }
-# FF14: the brief is a PRE-CREATED job, so it can't carry the test's $RUNID; instead scope to the brief's OWN
-# run — the run_id carrying the eisenhower-plan effect (ONLY the morning-brief bundle runs eisenhower-plan, so a
-# co-running waiting-reconcile/sweep tick can't be mistaken for it). NEVER map(.run_id)|last over the whole log.
-RUN_ID=$(jq -rs 'map(select(.skill=="eisenhower-plan"))|last|.run_id // empty' "$INTENTS")
-[ -n "$RUN_ID" ] || { echo "FATAL: no eisenhower-plan intent — the brief bundle did not run (W1/R5A8)" >&2; exit 1; }
-for s in eod-roll todoist-surface eisenhower-plan; do
-  N=$(jq -s --arg s "$s" --arg r "$RUN_ID" '[.[]|select(.run_id==$r and .skill==$s)]|length' "$INTENTS")
-  [ "$N" -gt 0 ] || { echo "FATAL: no intent-log EFFECT for bundle skill '$s' — it did not run (W1/R5A8)" >&2; exit 1; }
-done
-echo "staged brief: each always-acting mutating bundle skill produced an intent-log effect (W1/R5A8 — effects, not a prompt grep)"
-# (c) ZERO FORZARE mutations — the NEGATIVE gate is INDEPENDENT of the intent log (AA1). The intent log is
-# POSITIVE evidence only ((b) above). A dry-run performs no real write, so ANY new activity on a [TEST] task —
-# which the tester owns and the user never edits — is a leak. Verified shapes: camelCase eventType/objectId;
-# the event id is float-mangled ("2.15…e+36") so never key on .id. Cursor-paginated to exhaustion (R7A8).
-# (c1) TASK-activity: no NEW [TEST]-scoped event (before vs after, paginated):
-TASK_AFTER=$(count_test_events task)
-[ "$TASK_AFTER" = "$TASK_BEFORE" ] || { echo "FATAL: [TEST]-scoped TASK activity grew ($TASK_BEFORE -> $TASK_AFTER) — dry-run leaked (AA1)" >&2; exit 1; }
-# (c2) COMMENT-activity is a SEPARATE paginated stream (§6a) — an auto-repair/if-then comment would slip past a
-# task-only check:
-COMMENT_AFTER=$(count_test_events comment)
-[ "$COMMENT_AFTER" = "$COMMENT_BEFORE" ] || { echo "FATAL: [TEST]-scoped COMMENT activity grew ($COMMENT_BEFORE -> $COMMENT_AFTER) — dry-run leaked (AA1)" >&2; exit 1; }
-# (c3) run-scoped ([TEST-$RUNID]) 🤖-CALENDAR unchanged — SET compare on event IDs + `updated` fields, not a count (BB5/EE3;
-# no activity-log mirror for calendar). A new or in-place-edited [TEST] event changes the snapshot:
-CAL_AFTER=$(cal_snapshot)
-[ "$CAL_AFTER" = "$CAL_BEFORE" ] || { echo "FATAL: 🤖-calendar [TEST] events changed under dry-run — leaked (AA1/BB5):" >&2; \
-  diff <(printf '%s\n' "$CAL_BEFORE") <(printf '%s\n' "$CAL_AFTER") >&2; exit 1; }
-# (c4) RECURSIVE state+calibration hash unchanged, dryrun-intents.jsonl EXCLUDED (AA1):
-STATE_AFTER=$(hash_state)
-[ "$STATE_BEFORE" = "$STATE_AFTER" ] || { echo "FATAL: a state/calibration file changed under dry-run — leaked (AA1):" >&2; \
-  diff <(printf '%s\n' "$STATE_BEFORE") <(printf '%s\n' "$STATE_AFTER") >&2; exit 1; }
-echo "staged window: 0 Bob-authored mutations across [TEST]-scoped task + comment (paginated) + calendar + recursive state/calibration hash (AA1 independent of the intent log; intents = positive evidence only), $(jq -rs length "$INTENTS") intent record(s) (gate green)"
-# cleanup the seeded fixture (--yes):
-td task delete "$FIX" --yes
-```
+- **INV-C2-9 (persisted `--skill` — W1):** each captured job id's persisted `skills` value in `jobs.json`
+  equals its expected bundle/skill (`forzare-morning-brief` / `forzare-eod` / `waiting-reconcile`) — read BY
+  JOB ID (there is NO `hermes cron list --json`).
+- **INV-C2-10 (seeded work — R6A4):** the test seeds ONE `[TEST-$RUNID]` **ungroomed dated** fixture (no
+  load-label, no duration) inside `[TEST-STAGING]`, so the staged brief's groom-on-read + eisenhower-plan have
+  real work and the always-acting writers journal.
+- **INV-C2-11 (per-skill EFFECTS, not a prompt grep — W1/R5A8/FF14):** after one forced staged brief run (audit
+  read BY job id), the intents log carries an effect record for EACH always-acting mutating member
+  (`eod-roll` / `todoist-surface` / `eisenhower-plan`), keyed `skill` + the brief's OWN `run_id` — resolved as
+  the run id carrying the `eisenhower-plan` effect (only the morning bundle runs it), never `map(.run_id)|last`
+  and NEVER a grep over the audit .md (the audit embeds each loaded skill's instruction text in `## Prompt`, so
+  a name-grep proves loading, not running; read-only members and conditional writers are asserted in their own
+  tasks: B2/B3/B4/B5/B7).
+- **INV-C2-12 (NEGATIVE leak gate, INDEPENDENT of the intent log — AA1/R7A8/EE3/BB5):** across the staged
+  window, all four independent before/after checks are UNCHANGED, with any command/parse failure FATAL (never
+  masked to zero):
+  - task-activity AND the SEPARATE `--type comment` activity stream, both **cursor-paginated to exhaustion**
+    (loop the cursor until empty — never page 1 only) and **scoped to the `[TEST-STAGING]`-project +
+    `[TEST-$RUNID]` fingerprint** (the harness-seeded objectIds — NOT the intent targets, NOT `--by me`; the
+    user may edit real tasks freely; key on `objectId`, never the float-mangled event `.id`);
+  - a **run-scoped 🤖-calendar snapshot** — a SET compare on event `{id, updated}` pairs (an in-place edit is
+    caught, not just a count change) — whose **detection is PREFLIGHTED**: a seeded `[TEST-$RUNID]` probe event
+    must be SEEN by the snapshot, then deleted and the baseline re-verified, BEFORE the before/after compare is
+    trusted (a matcher that silently matches nothing would make the gate vacuous);
+  - a **RECURSIVE content-hash of `state/` + `calibration/` EXCLUDING `dryrun-intents.jsonl`** (a dry-run DOES
+    append there — hashing it would be self-defeating);
+  - **created-id coverage:** every id the test seeded is present in the fingerprint set (nothing the harness
+    created escapes the scope).
+  The intents log is POSITIVE evidence only (INV-C2-11); the negative gate never consults it.
 
-Expected: all jobs listed at the right times/TZ; every user-facing job is `--deliver local` + `--skill`
-during the build; the forced run writes `~/.hermes/cron/output/<job_id>/` and does NOT message Discord.
-**Acceptance:** the install is a **true transaction (Y8 + Z7 + AA9)** — the exact **six-name manifest** is
-**pre-validated** (no dup name, no ambiguous live name), reconciled by name (edit existing / create missing /
-never blind-create; `--skill` repeated per skill), with **rollback = an ATOMIC restore of the validated
-`jobs.json` backup + a byte-compare** and the **ERR trap armed through ALL postconditions** (a post-install
-manifest mismatch triggers the same atomic restore; trap disarmed only after the assert passes), and a
-**post-install exact-manifest assert**; and the
-gym-window-end + block-boundary times are **DERIVED from the resolved
-`work_schedule`/`gym_schedule`, DOW-AWARE (Y9/Z9/R6A5)** — never a flat `block_start`: the boundary cron is the
-**R7A2 formula** `block_start − prep − travel − 30` = **`35 13 * * 0,2,4,6`** (Sun/Tue/Thu/Sat), so it **never
-fires on an off day (Mon/Wed/Fri)** and is distinct from the 14:05 leave-time alarm; the gym cron excludes
-Thursday; the alternating Sunday is a **weekly** fire the skill no-ops on OFF Sundays (cron can't express
-"every other Sunday"). Each job carries its persisted `skills` value (W1); the staged brief's **per-skill
-EFFECTS are asserted from the intent log — NOT a grep over the audit prompt (R5A8)** — every always-acting
-mutating member (`eod-roll`/`todoist-surface`/`eisenhower-plan`) produced an intent record keyed by
-`skill`+`run_id`; the 02:00 reconcile and monthly sweep have no user-facing delivery; the staged window shows
-zero **Bob-authored** mutations across **before/after diffs INDEPENDENT of the intent log (AA1)** — the
-`--type task` stream and the separate `--type comment` stream **cursor-paginated to exhaustion (R7A8)**, both
-scoped to the **run-scoped [TEST-$RUNID] fingerprint (EE3)** (not the intent targets, not `--by me` — so the
-user may edit Todoist freely during staging), the run-scoped 🤖-calendar snapshot (detection preflighted, EE3), and a **RECURSIVE state+calibration hash that
-EXCLUDES `dryrun-intents.jsonl`** (string-safe `eventType`/`objectId` reads, fail-loud), with the **seeded
-[TEST] ungroomed fixture** giving the always-acting writers real work, while the intents log carries the
-computed writes as **positive evidence only** (R3A1/R3A2/AA1). The **exact six-name manifest + count** is
-re-asserted at go-live (G1, Y8).
+**Acceptance:** every user-facing job is `--deliver local` + `--skill` during the build; the forced run writes
+`~/.hermes/cron/output/<job_id>/` and does NOT message Discord; INV-C2-1..12 pass under E3 (`c2_install` +
+`c2_bundle_gate`); the alternating Sunday is a **weekly** fire the skill no-ops on OFF Sundays (cron can't
+express "every other Sunday"); the 02:00 reconcile and monthly sweep have no user-facing delivery. The **exact
+six-name manifest + count** is re-asserted at go-live (G1, Y8).
 
 ---
 
@@ -3100,46 +2301,33 @@ config** and the **card lifecycle / idempotency / controlled-harness tests** bel
   `kanban_watchers.py:749-752` — so never rely on `max_in_progress: 0`.) Read the **`status` field via
   `--json`** (verified `kanban show --json` emits `status`), not a text grep.
 
-```bash
-set -o pipefail
-NOOP=forzare-noop-test   # NOT a real profile — the dispatcher can never spawn it (W4 isolation)
-RUNID="$(date +%s)-$$"   # BB6: run-id-scope the card + key so concurrent/re-runs never collide
-# a titled --triage card (title is a REQUIRED positional, R3A11); the idempotency key must return the SAME id on re-fire:
-ID1=$(hermes kanban create "fz-capture: [TEST-$RUNID] capture probe" --triage --idempotency-key "test-cap-$RUNID" --assignee "$NOOP" --json | jq -r '.id // .task_id')
-ID2=$(hermes kanban create "fz-capture: [TEST-$RUNID] capture probe" --triage --idempotency-key "test-cap-$RUNID" --assignee "$NOOP" --json | jq -r '.id // .task_id')
-[ -n "$ID1" ] && [ "$ID1" = "$ID2" ] || { echo "FATAL: idempotency did not dedupe ($ID1 vs $ID2)" >&2; exit 1; }
-echo "idempotency dedupe OK (same id $ID1)"
-# read the STATUS field from JSON (not a text grep): a fresh --triage card is status=triage
-ST=$(hermes kanban show "$ID1" --json | jq -r '.status')
-[ "$ST" = triage ] || { echo "FATAL: expected status=triage, got $ST" >&2; exit 1; }
-echo "triage status OK; assignee=$NOOP is non-spawnable, so the live dispatcher leaves it inert"
-# Z1: the CLI `hermes kanban create` is subscription-free — the notify-subs table must have NO row for the
-# card (belt-and-suspenders: config `auto_subscribe_on_create: false`, A2, means even the tool path wouldn't).
-SUBS=$(hermes kanban notify-list "$ID1" --json | jq 'length')
-[ "$SUBS" = 0 ] || { echo "FATAL: $SUBS subscription row(s) for the CLI-created card — firewall leak (Z1)" >&2; exit 1; }
-echo "no-subscription-row OK (CLI create is subscription-free, Z1)"
-# Z6: DO NOT archive the card here — Step 6's controlled harness drives it. The archive is the LAST step of
-# Step 6 (a card archived now would leave the harness nothing to run). Only THIS run's [TEST-$RUNID] Todoist
-# tasks are cleaned here (BB6: run-id-scoped, never a bare `search: [TEST]` sweep); the card $ID1 is kept
-# unarchived through Step 6.
-td task list --filter "search: [TEST-$RUNID]" --all --json | jq -r '.results[]|select(.content|startswith("[TEST-'"$RUNID"']"))|.id' \
-  | xargs -r -I{} td task delete {} --yes
-```
+Implemented by **E3 test `d1_lifecycle`** (`RUNID`-scoped card title + idempotency key so concurrent/re-runs
+never collide, BB6); invariants:
 
-Expected: the second create returns the existing card id (no dup); the `status` field reads `triage`; the
-CLI-created card has **no `kanban_notify_subs` row** (Z1 — the CLI is subscription-free); the
-non-spawnable assignee keeps the live dispatcher from ever running the probe card. **Acceptance:** idempotency
-key dedupes; the no-subscription-row check passes (Z1); a simulated stage crash restarts from stage 1 and still yields one task; a forced stage error
-records a genuine failure **event** and the card goes terminal (the errors-channel ROUTE test is F1's, R5A7;
-its cron/kanban audit read keyed by the job/card id, never latest-mtime). (Inbox-write correctness for a
-capture is covered in Task B8; the parent-stage-1 dated placement is asserted in Step 6.)
+- **INV-D1-1 (idempotency dedupe):** two `hermes kanban create "fz-capture: [TEST-$RUNID] …" --triage
+  --idempotency-key test-cap-$RUNID --assignee forzare-noop-test` calls return the **SAME card id** (the second
+  is a dedupe, never a duplicate); the title is the required positional (R3A11).
+- **INV-D1-2 (status via JSON):** the fresh card reads `status == "triage"` from `kanban show --json` — a JSON
+  field read, never a text grep; the non-spawnable assignee keeps the live dispatcher from ever running it.
+- **INV-D1-3 (no subscription row — Z1):** `hermes kanban notify-list <id> --json` is **EMPTY** for the
+  CLI-created card (the CLI create path is subscription-free; `auto_subscribe_on_create: false` from A2 is
+  belt-and-suspenders).
+- **INV-D1-4 (card kept for Step 6 — Z6):** the card is **NOT archived here** — Step 6's controlled harness
+  drives it; archive is Step 6's LAST line. Only THIS run's `[TEST-$RUNID]` Todoist tasks are cleaned
+  (run-id-scoped, never a bare `search: [TEST]` sweep).
+
+**Acceptance:** INV-D1-1..4 pass under E3; a simulated stage crash restarts from stage 1 and still yields one
+task; a forced stage error records a genuine failure **event** and the card goes terminal (the errors-channel
+ROUTE test is F1's, R5A7; its cron/kanban audit read keyed by the job/card id, never latest-mtime).
+(Inbox-write correctness for a capture is covered in Task B8; the parent-stage-1 dated placement is asserted in
+Step 6.)
 
 - [ ] **Step 6: Controlled-execution harness — exercise the stages by DIRECT `hermes -p default` invocation
   (R4A5).** The non-spawnable assignee keeps the *dispatcher* inert (Step 5), which means the stage logic never
   runs on its own — so the stage-level acceptances (dated placement, crash-restart idempotency, forced-error →
   errors-spool) need a **deterministic** driver. Run the pipeline skill **directly against the probe card**
   with a one-shot profile invocation — the dispatcher is never involved, so timing is deterministic:
-  **`hermes -p default -z "<prompt: run forzare-capture-pipeline against card <ID1>, driving the PARENT stage-1
+  **`hermes -p default -z "<prompt: run forzare-capture-pipeline against card <the Step-5 probe-card id>, driving the PARENT stage-1
   placement+dating logic then the background stages>" --skills forzare-capture-pipeline`**. **Do NOT pass `--safe-mode`** — it strips `skills.config`/plugins the pipeline
   needs (Global Constraints); a plain one-shot keeps the real config. Under this harness, drive and assert:
   - **Dated placement (parent stage 1, W6/X5):** a `[TEST]` capture with a user-stated day places a **date-only**
@@ -3170,7 +2358,7 @@ capture is covered in Task B8; the parent-stage-1 dated placement is asserted in
     `~/workspaces/Ivy/forzare/state/d1-harness-result.json` — `{dated_placement_kind, restart_task_count,
     restart_event_count, terminal_event, terminal_status, all_pass}` — so **Checkpoint D consumes a machine
     result, not prose.**
-  - **Archive the card LAST (Z6):** `hermes kanban archive "$ID1"` is the final line of Step 6, after every
+  - **Archive the card LAST (Z6):** `hermes kanban archive <the Step-5 probe-card id>` is the final line of Step 6, after every
     assertion has run against the still-live card.
 
   **Acceptance (Step 6):** the direct harness drives the stage-LOGIC tests deterministically (dated placement
@@ -3277,24 +2465,16 @@ assert not is_intentional_silence_agent_result({"failed": True},  "[SILENT]"), "
 assert is_intentional_silence_agent_result({"failed": False}, "[SILENT]"),     "gateway: successful exact silence suppresses"
 print("SILENT contract probes: cron(lenient) + gateway(exact, success-only) all green")
 PY
-
-# CRON-path FAILED-turn end-to-end check (the one piece a pure-function probe can't cover): a failed run
-# still writes its audit + delivers its failure summary. Deterministic via a --no-agent script exiting 1.
-# The script MUST live under ~/.hermes/scripts/ — verified cron/scheduler.py:1571-1590 BLOCKS any path that
-# resolves outside it ("Blocked: script path resolves outside the scripts directory") — so use a dedicated
-# forzare-staging/ subdir, created + removed by the test (a documented staging-only live-write exception,
-# like the staged cron jobs themselves — R3A6):
-mkdir -p ~/.hermes/scripts/forzare-staging
-printf '#!/usr/bin/env bash\nexit 1\n' > ~/.hermes/scripts/forzare-staging/forzare-fail.sh
-chmod +x ~/.hermes/scripts/forzare-staging/forzare-fail.sh
-JC=$(hermes cron create '0 0 1 1 *' 'n/a' --no-agent --script forzare-staging/forzare-fail.sh --deliver local --name silent-fail | jid_from_create)
-hermes cron run "$JC" >/dev/null && hermes cron tick >/dev/null
-ls ~/.hermes/cron/output/"$JC"/*.md >/dev/null 2>&1 \
-  && echo "failure audit recorded for $JC (a failed run is un-silenceable — delivers its failure summary)" \
-  || { echo "FATAL: no failure audit for $JC" >&2; exit 1; }
-hermes cron remove "$JC"
-rm -f ~/.hermes/scripts/forzare-staging/forzare-fail.sh && rmdir ~/.hermes/scripts/forzare-staging
 ```
+
+  **CRON-path FAILED-turn end-to-end check — E3 test `e1_failed_turn`** (the one piece a pure-function probe
+  can't cover); invariants:
+  - **INV-E1-1 (R3A6):** a deterministic `--no-agent` script exiting 1 drives a forced-failure cron run; the
+    script lives under a dedicated `~/.hermes/scripts/forzare-staging/` subdir — the scheduler **BLOCKS any
+    `--script` path resolving outside `~/.hermes/scripts/`** (verified `cron/scheduler.py:1571-1590`) — created
+    + removed by the test (a documented staging-only live-write exception).
+  - **INV-E1-2:** the failed run **writes its audit** under `~/.hermes/cron/output/<job_id>/` (a failed run is
+    un-silenceable — it delivers its failure summary); the staging job and script dir are cleaned up after.
 
   The **delivered-vs-suppressed live observation** (an actual Discord message appearing / not appearing) is
   **deliberately moved to G1 day-1** (R3A7/W11) — optionally against a throwaway test channel
@@ -3738,94 +2918,39 @@ launchctl print "gui/$(id -u)/com.webdavis.forzare-ops-watchdog" | grep -i state
   scenario matrix**, reading `~/.hermes/cron/output/` each run by job id (spec §17). Confirm the brief fires
   `15 5 * * *`, surfaces ≤3 sensibly, weather/calendar/follow-up steps degrade visibly (never silently), the
   EOD roll + **Bob-owned p1-clear (AA2)** + **lifecycle-ledger** ticks behave, and the 02:00 reconcile marks
-  (never messages). **Assert the actual step ORDER / mutation boundaries from the INTENTS LOG + trace
-  (V7/R3A1):** the **EOD** run journals **zero `p1.set` and zero `calendar.*` intents** in `dryrun-intents.jsonl`
-  (EOD sets no p1 and writes no calendar, spec §8/R2A8) **and its `p1.clear` intents target ONLY the day's
-  `plan-of-day` `selected_ids` — never a user-set p1 (AA2).** So the gate seeds TWO [TEST] p1s: a **Bob-owned**
-  one (listed in `plan-of-day.selected_ids`) and a **user-set** one (NOT listed), then asserts `p1.set == 0`,
-  `p1.clear` present for the Bob-owned id, and **`p1.clear` ABSENT for the user-set id** (the old "clear every
-  unfinished p1 unconditionally" rule would have wrongly cleared it). A correct dry-run left the real store
-  untouched, so the intents log — not `td activity` or the 🤖 calendar — is where a boundary violation would
-  show. The **morning** run's roll intents precede its `p1.set` intents in the log's record order (the defensive
-  `eod-roll` before any `eisenhower-plan` p1 write); a bundle whose instruction failed to sequence would journal
-  a `p1.set` before the roll intents — that fails this gate.
+  (never messages). **Step ORDER / mutation boundaries are asserted from the INTENTS LOG (V7/R3A1)** — a
+  correct dry-run left the real store untouched, so the intents log (not `td activity` or the 🤖 calendar) is
+  where a boundary violation shows.
 
-```bash
-set -o pipefail
-INTENTS=~/workspaces/Ivy/forzare/state/dryrun-intents.jsonl
-POD=~/workspaces/Ivy/forzare/state/plan-of-day.json
-# EOD gate (AA2/EE6): zero p1.set + zero calendar.*; p1.clear targets ONLY plan-of-day selected_ids (Bob-owned),
-# NEVER a user-set p1 — and ownership is RE-CHECKED at clear time (EE6): a selected id with an intervening
-# user priority event is SKIPPED + flagged. Seed a BOB-owned p1 (in selected_ids), a USER-set p1 (not in
-# selected_ids), AND a RE-TAKEN p1 (in selected_ids, but with a seeded intra-day user priority event and NO
-# matching Bob p1.set journal line — it must SURVIVE EOD).
-DRY='DRY RUN — record intended writes to forzare/state/dryrun-intents.jsonl, perform none. '
-TODAY=$(TZ=America/Denver date +%F)
-# BB6: run-id-scoped fixtures + run-id-suffixed POD backup + a trap that restores it and deletes captured ids.
-RUNID="$(date +%s)-$$"; CREATED=()
-# FF14: (re)define DRY AFTER RUNID so the directive stamps run_id=$RUNID on each intent (filter by $RUNID, not map|last):
-DRY="DRY RUN — record intended writes to forzare/state/dryrun-intents.jsonl, stamping run_id=$RUNID on each, perform none. "
-# II4: resolve-or-create the [TEST-STAGING] project (Phase G, own block) and seed every fixture INSIDE it.
-STAGING_PROJECT="$(td project list --search "[TEST-STAGING]" --json | jq -r '.results[]|select(.name=="[TEST-STAGING]")|.id' | head -1)"
-[ -n "$STAGING_PROJECT" ] || { echo "FATAL: [TEST-STAGING] Todoist project not found — the USER must create it ONCE (Checkpoint-A prerequisite, KK2/JJ2); the build RESOLVES it, NEVER auto-creates a Todoist project (no-unprompted-projects rule)" >&2; exit 1; }
-cp "$POD" "$POD.bak.$RUNID" 2>/dev/null || true
-trap '[ -f "$POD.bak.$RUNID" ] && mv "$POD.bak.$RUNID" "$POD" || rm -f "$POD"; for id in "${CREATED[@]}"; do td task delete "$id" --yes >/dev/null 2>&1 || true; done' EXIT; trap 'exit 130' INT; trap 'exit 143' TERM   # GG7
-BOB=$(td task add "[TEST-$RUNID] eod bob-p1" --project "$STAGING_PROJECT" --priority p1 --due today --json | jq -r '.id'); CREATED+=("$BOB")
-USR=$(td task add "[TEST-$RUNID] eod user-p1" --project "$STAGING_PROJECT" --priority p1 --due today --json | jq -r '.id'); CREATED+=("$USR")
-RTK=$(td task add "[TEST-$RUNID] eod retaken-p1" --project "$STAGING_PROJECT" --priority p2 --due today --json | jq -r '.id'); CREATED+=("$RTK")
-# EE6 RE-TAKEN fixture (FF6 ORDERING): the plan record must be written with its `created_ts` BEFORE the user's
-# priority bump, so the intervening-user-event check (activity event ts > plan-of-day.created_ts) actually sees
-# the bump as "after the plan" — a time-granular implementation only passes when the plan predates the touch.
-POD_TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-printf '{"date":"%s","created_ts":"%s","selected_ids":["%s","%s"],"anchor":"%s","writes":{"p1_set":true,"anchor_placed":true,"alarm_set":true}}\n' "$TODAY" "$POD_TS" "$BOB" "$RTK" "$BOB" > "$POD"
-sleep 1
-# NOW the USER re-sets its priority intra-day — a REAL priority touch with NO Bob p1.set journal line (that
-# absence IS the ownership signal eod-roll checks; verified `td activity` updated events carry priority/
-# lastPriority in extraData, FF6). Its event ts is strictly AFTER the plan's created_ts:
-td task update "$RTK" --priority p1 >/dev/null   # the intervening USER priority event (activity records it)
-: > "$INTENTS"
-JE=$(stage_skill '0 0 1 1 *' "${DRY}Run the forzare-eod bundle once; clear ONLY the day's plan-of-day selected_ids, re-checking ownership per id (skip + flag any id with an intervening user priority event)." forzare-eod test-eod-gate); hermes cron remove "$JE"
-RID="$RUNID"   # FF14: the DRY directive stamps run_id=$RUNID; filter by it, never map|last
-NSET=$(jq -s --arg r "$RID" '[.[]|select(.run_id==$r and .op=="p1.set")]|length' "$INTENTS")
-NCAL=$(jq -s --arg r "$RID" '[.[]|select(.run_id==$r and (.op|startswith("calendar.")))]|length' "$INTENTS")
-CLR_BOB=$(jq -s --arg r "$RID" --arg id "$BOB" '[.[]|select(.run_id==$r and .op=="p1.clear" and .target==$id)]|length' "$INTENTS")
-CLR_USR=$(jq -s --arg r "$RID" --arg id "$USR" '[.[]|select(.run_id==$r and .op=="p1.clear" and .target==$id)]|length' "$INTENTS")
-CLR_RTK=$(jq -s --arg r "$RID" --arg id "$RTK" '[.[]|select(.run_id==$r and .op=="p1.clear" and .target==$id)]|length' "$INTENTS")
-FLAG_RTK=$(jq -s --arg r "$RID" --arg id "$RTK" '[.[]|select(.run_id==$r and .op=="state-write" and (.target|test("decision-queue")) and ((.args.task_id // .args.id // "")|tostring|test($id)))]|length' "$INTENTS")
-[ "$NSET" = 0 ] || { echo "FATAL: EOD journaled $NSET p1.set intent(s) — EOD sets no p1 (Z10)" >&2; exit 1; }
-[ "$NCAL" = 0 ] || { echo "FATAL: EOD journaled $NCAL calendar intent(s) — EOD writes no calendar (R2A8)" >&2; exit 1; }
-[ "$CLR_BOB" -gt 0 ] || { echo "FATAL: EOD did not clear the Bob-owned p1 in selected_ids (AA2)" >&2; exit 1; }
-[ "$CLR_USR" = 0 ] || { echo "FATAL: EOD cleared a USER-set p1 ($CLR_USR) — must clear ONLY selected_ids (AA2)" >&2; exit 1; }
-[ "$CLR_RTK" = 0 ] || { echo "FATAL: EOD cleared the RE-TAKEN p1 ($CLR_RTK) — an intervening user priority event must SKIP the clear (EE6)" >&2; exit 1; }
-[ "$FLAG_RTK" -gt 0 ] || { echo "FATAL: EOD skipped the re-taken p1 but journaled NO queue flag for it (EE6 — skip must be flagged, never silent)" >&2; exit 1; }
-echo "EOD gate OK (AA2/EE6): 0 p1.set, 0 calendar, Bob-owned p1 cleared, USER-set p1 UNTOUCHED, re-taken p1 SURVIVED + flagged"
-# POD restore + captured-id deletion happen in the EXIT/INT trap (BB6).
-```
+  Implemented by **E3 test `g1_eod_gate`** (E3 primitives: `RUNID` scoping, `[TEST-STAGING]` resolve-only,
+  plan-of-day guard/restore, captured-id cleanup); invariants:
 
-  **Morning-ordering acceptance (HH7) — its command.** The **morning** bundle rolls (the defensive `eod-roll`)
-  BEFORE it sets any p1. Assert the LAST roll intent's `ts` strictly precedes the FIRST `p1.set` intent's `ts`
-  within this run's window — a bundle that planned before rolling would invert this and FAIL:
+  - **INV-G1-1 (fixture set — AA2/EE6/FF6):** the test seeds THREE `[TEST-$RUNID]` p1-bearing tasks — a
+    **Bob-owned** p1 (listed in `plan-of-day.selected_ids`), a **user-set** p1 (NOT listed), and a **RE-TAKEN**
+    p1 (listed in `selected_ids`, then its priority re-set by a REAL user touch AFTER the plan record's
+    `created_ts` — the plan record is written FIRST with its `created_ts`, THEN the user bump lands, so the
+    intervening-user-event check (activity `ts` > `created_ts`, priority/`lastPriority` in `extraData`, no
+    matching Bob `p1.set` journal line) actually sees the bump as after-the-plan).
+  - **INV-G1-2 (EOD boundaries — Z10/R2A8):** the staged EOD run journals **ZERO `p1.set`** and **ZERO
+    `calendar.*`** intents (EOD sets no p1 and writes no calendar) — the old "clear every unfinished p1
+    unconditionally" rule is superseded.
+  - **INV-G1-3 (ownership — AA2/EE6):** `p1.clear` is journaled for the **Bob-owned** id, **ABSENT for the
+    user-set** id (never in `selected_ids` ⇒ never cleared), and **ABSENT for the re-taken** id (an intervening
+    user priority event ⇒ SKIP the clear) — **with a decision-queue flag journaled for the re-taken id** (the
+    skip is flagged, never silent).
 
-```bash
-set -o pipefail
-INTENTS=~/workspaces/Ivy/forzare/state/dryrun-intents.jsonl
-RUNID="$(date +%s)-$$"; CREATED=()
-DRY="DRY RUN — record intended writes to forzare/state/dryrun-intents.jsonl, stamping run_id=$RUNID on each, perform none. "
-# II4: seed the fixtures INSIDE the [TEST-STAGING] project.
-STAGING_PROJECT="$(td project list --search "[TEST-STAGING]" --json | jq -r '.results[]|select(.name=="[TEST-STAGING]")|.id' | head -1)"
-[ -n "$STAGING_PROJECT" ] || { echo "FATAL: [TEST-STAGING] Todoist project not found — the USER must create it ONCE (Checkpoint-A prerequisite, KK2/JJ2); the build RESOLVES it, NEVER auto-creates a Todoist project (no-unprompted-projects rule)" >&2; exit 1; }
-trap 'for id in "${CREATED[@]}"; do td task delete "$id" --yes >/dev/null 2>&1 || true; done' EXIT; trap 'exit 130' INT; trap 'exit 143' TERM   # GG7
-# an OVERDUE dated task (so the defensive roll has real work) + a p1 candidate for today:
-OV=$(td task add "[TEST-$RUNID] morning overdue" --project "$STAGING_PROJECT" --due yesterday --deadline "$(TZ=America/Denver date +%F)" --json | jq -r '.id'); CREATED+=("$OV")
-: > "$INTENTS"
-JM=$(stage_skill '0 0 1 1 *' "${DRY}Run the forzare-morning-brief bundle once: roll overdue dated tasks forward FIRST, then set today's p1 plan." forzare-morning-brief test-morning-order); hermes cron remove "$JM"
-MAXROLL=$(jq -s --arg r "$RUNID" '[.[]|select(.run_id==$r and .op=="task.update-due")|.ts]|max // empty' "$INTENTS")
-MINP1=$(jq -s --arg r "$RUNID" '[.[]|select(.run_id==$r and .op=="p1.set")|.ts]|min // empty' "$INTENTS")
-[ -n "$MAXROLL" ] || { echo "FATAL: morning run journaled NO roll (task.update-due) intent — cannot prove roll-then-plan ordering (HH7)" >&2; exit 1; }
-[ -n "$MINP1" ]   || { echo "FATAL: morning run journaled NO p1.set intent — cannot prove roll-then-plan ordering (HH7)" >&2; exit 1; }
-[[ "$MAXROLL" < "$MINP1" ]] || { echo "FATAL: morning ordering violated — last roll ($MAXROLL) not before first p1.set ($MINP1); the bundle planned before rolling (HH7)" >&2; exit 1; }
-echo "morning-ordering OK (HH7): max(roll ts)=$MAXROLL < min(p1.set ts)=$MINP1"
-```
+  **Morning-ordering acceptance (HH7).** The **morning** bundle rolls (the defensive `eod-roll`) BEFORE it
+  sets any p1. Implemented by **E3 test `g1_morning_order`**; invariants:
+
+  - **INV-G1-4 (seeded roll target — KK0 leg-B "B12"):** the fixture seeds an OVERDUE dated `[TEST-$RUNID]`
+    task **with its lifecycle-ledger entry (`kind: surfacing`)** — so the defensive roll has a real,
+    LEDGER-DEFINED roll target (a fixture with no ledger entry would never roll and the ordering could not be
+    proven) — plus a p1 candidate for today.
+  - **INV-G1-5 (roll-then-plan — HH7):** within this run's intents, the **LAST roll intent's `ts` strictly
+    precedes the FIRST `p1.set` intent's `ts`** (max roll ts < min p1.set ts); a run journaling NO roll intent
+    or NO `p1.set` intent FAILS (the ordering cannot be proven), and a bundle that planned before rolling
+    inverts the comparison and FAILS.
+
 - [ ] **Step 2: Explicit go-live matrix (replaces "several days / sensibly").** Drive each scenario and assert
   expected state + message count (U15):
 
@@ -3842,53 +2967,19 @@ echo "morning-ordering OK (HH7): max(roll ts)=$MAXROLL < min(p1.set ts)=$MINP1"
   | Dependency failure (gog/td down) | degrade-and-note inline; if unrecoverable → errors channel | 1 brief (degraded) + errors msg |
   | Concurrent trigger (live turn + cron) | at most one DO-NOW action or one requested decision each (§12.3/W12 residual accepted) | ≤2 short, no wall |
 
-```bash
-set -o pipefail
-INTENTS=~/workspaces/Ivy/forzare/state/dryrun-intents.jsonl
-STAMP=~/workspaces/Ivy/forzare/state/last-reconcile.json
-# STAGED duplicate-fire scenario (R3A3: observable via the intents log — a dry-run never advances the real
-# stamp, so comparing the real stamp across two dry-runs proves nothing). HH3/II8: use the EXACT B7 Step-4
-# shadow-stamp pattern — BOTH runs share ONE test_window_id (so run #2's shadow overlay reads run #1's intended
-# stamp advance) AND each stamps its OWN run_id (RUN1/RUN2); the no-op assertion keys to run_id==RUN2.
-: > "$INTENTS"
-STAMP_MT0=$(stat -f %m "$STAMP")
-WINDOW="$(date +%s)-$$"; RUN1="run1-$WINDOW"; RUN2="run2-$WINDOW"
-DRY1="DRY RUN — record intended writes to forzare/state/dryrun-intents.jsonl, stamping run_id=$RUN1 AND test_window_id=$WINDOW on each, perform none. "
-DRY2="DRY RUN — record intended writes to forzare/state/dryrun-intents.jsonl, stamping run_id=$RUN2 AND test_window_id=$WINDOW on each, perform none. "
-J1=$(stage_skill '0 0 1 1 *' "${DRY1}Run eod-roll once." eod-roll test-dupfire-1); hermes cron remove "$J1"
-J2=$(stage_skill '0 0 1 1 *' "${DRY2}Run eod-roll once (duplicate/defensive fire)." eod-roll test-dupfire-2); hermes cron remove "$J2"
-# II8: the already-reconciled no-op MUST belong to run_id==RUN2 (execution #2 saw #1's shadow stamp):
-jq -es --arg r "$RUN2" --arg w "$WINDOW" 'any(.[]; .run_id==$r and .test_window_id==$w and ((.args.result // .args.status // "")|tostring|test("already-reconciled")))' "$INTENTS" >/dev/null \
-  || { echo "FATAL: duplicate staged fire (RUN2) logged no already-reconciled no-op intent stamped run_id=RUN2 (R3A3/HH3/II8)" >&2; exit 1; }
-[ "$(stat -f %m "$STAMP")" = "$STAMP_MT0" ] || { echo "FATAL: a dry-run advanced the REAL stamp" >&2; exit 1; }
-echo "staged duplicate-fire idempotency OK (RUN2 intents-log no-op via shared-window shadow; real stamp untouched)"
+  The two staged rows are implemented by **E3 tests `g1_dupfire` / `g1_concurrent`**; invariants:
 
-# CONCURRENT-TRIGGER row (R6A11; owned by the Task E3 `g1_concurrent` test — this is its reference). A cron
-# ritual and a live one-shot fired in the SAME window must EACH emit at most ONE surfaced item (§12.3/W12
-# residual accepted — not a mutex, but each path is one-thing-bounded). JJ12: DRY and RUNID are DEFINED IN THIS
-# BLOCK'S SCOPE (they were dangling before — DRY1/DRY2 above are the dup-fire block's, not this one's):
-RUNID="$(date +%s)-$$"
-DRY="DRY RUN — record intended writes to forzare/state/dryrun-intents.jsonl, stamping run_id=$RUNID on each, perform none. "
-# Drive both simultaneously and assert each surface is a single item. Both staged --deliver local / dry-run.
-: > "$INTENTS"
-JCT=$(hermes cron create '0 0 1 1 *' "${DRY}Surface the next ONE thing or [SILENT]." --skill todoist-surface --deliver local --name test-concurrent | jid_from_create)
-# fire the cron job and a simultaneous one-shot in the background, then wait:
-( hermes cron run "$JCT" >/dev/null && hermes cron tick >/dev/null ) &
-hermes -p default -z "${DRY}Surface the next ONE thing or [SILENT]." --skills todoist-surface >/tmp/forzare-oneshot.out 2>&1 &
-wait
-CRON_AUDIT=~/.hermes/cron/output/"$JCT"
-# each surface must be a SINGLE item — parse the cron audit's ## Response section ONLY (R7A4/AA10; the audit
-# .md EMBEDS the ## Prompt whose skill-instruction text would over-count). The one-shot stdout has no such
-# embedding, but strip any prompt echo defensively by counting only actionable lines.
-CRESP=$(mktemp); awk '/^## *Response/{f=1;next} /^## /{f=0} f' "$CRON_AUDIT"/*.md > "$CRESP"
-CN=$(grep -cE '\?[[:space:]]*$|^[[:space:]]*(First|Start|Do|Next|Surface):' "$CRESP" || true)
-ON=$(grep -cE '\?[[:space:]]*$|^[[:space:]]*(First|Start|Do|Next|Surface):' /tmp/forzare-oneshot.out || true)
-rm -f "$CRESP"
-[ "${CN:-0}" -le 1 ] && [ "${ON:-0}" -le 1 ] \
-  || { echo "FATAL: concurrent trigger surfaced a WALL (cron=$CN, one-shot=$ON) — each must be ≤1 (§12.3/W12/AA10)" >&2; exit 1; }
-echo "concurrent-trigger OK: cron + one-shot each surfaced ≤1 item (residual interleave accepted, not a wall)"
-hermes cron remove "$JCT"; rm -f /tmp/forzare-oneshot.out
-```
+  - **INV-G1-6 (staged duplicate fire — R3A3/HH3/II8):** the EXACT B7 two-run pattern — both `eod-roll`
+    dry-runs share ONE `test_window_id`, each stamps its own `run_id` (`RUN1`/`RUN2`); the
+    **`already-reconciled` no-op intent belongs to `run_id == RUN2`** (execution #2 saw #1's shadow-overlaid
+    stamp), and the **REAL `last-reconcile.json` is untouched** across both runs (a dry-run never advances the
+    real stamp — the intents-log no-op is the only valid evidence).
+  - **INV-G1-7 (concurrent trigger — R6A11/§12.3/W12; JJ12):** a staged cron `todoist-surface` ritual and a
+    live one-shot (`hermes -p default -z … --skills todoist-surface`, never `--safe-mode`) fired in the SAME
+    window **EACH surface at most ONE item** — the cron side parsed from the audit's `## Response` section ONLY
+    (R7A4/AA10), the one-shot from its stdout with any prompt echo stripped — the residual interleave is
+    accepted (not a mutex), but neither path may emit a wall. **The test defines its own `DRY`/`RUNID` in scope
+    (JJ12)** — it never borrows another block's directive variables.
 
 - [ ] **Step 3: Calibrate** — tune the duration upward-bias factor + weather thresholds + brief content from
   the observed staged output (spec §4c/§6a; the Task B9 reducers are the producer). Priors stay auditable in
@@ -3920,82 +3011,31 @@ hermes cron remove "$JCT"; rm -f /tmp/forzare-oneshot.out
      port + watchdog running) BEFORE `go-live.json` is written (II2); a restart/health failure rolls back and
      writes NO flag** — the EXIT trap's `restore_services` is a fail-loud, idempotent safety net (GG8):
 
-     ```bash
-     set -euo pipefail
-     JOBS=~/.hermes/cron/jobs.json
-     # GG9/GG8: run the flip in a gateway+watchdog STOPPED window (both exist at Phase G). Record initial loaded
-     # state, ARM the EXIT/INT/TERM restore handler BEFORE the bootout (restores only initially-loaded services),
-     # back up + validate jobs.json, bootout, assert down; the ERR trap atomic-restores jobs.json on any failure.
-     GUI="gui/$(id -u)"; GW=ai.hermes.gateway; WD=com.webdavis.forzare-ops-watchdog
-     declare -A WAS
-     for L in "$GW" "$WD"; do launchctl print "$GUI/$L" >/dev/null 2>&1 && WAS[$L]=1 || WAS[$L]=0; done
-     # II2: restore_services is FAIL-LOUD (no `|| true` swallow) and IDEMPOTENT (skips a service the success-path
-     # restart already brought up), so it is safe as both the interrupt/rollback net AND the EXIT-path net.
-     restore_services(){ rc=$?; \
-       for L in "$GW" "$WD"; do \
-         [ "${WAS[$L]}" = 1 ] || continue; \
-         launchctl print "$GUI/$L" >/dev/null 2>&1 && continue; \
-         launchctl bootstrap "$GUI" ~/Library/LaunchAgents/"$L".plist 2>/dev/null \
-           || launchctl kickstart -k "$GUI/$L" \
-           || echo "FATAL: could not restart $L on exit — restart it MANUALLY (II2)" >&2; \
-       done; \
-       for _ in 1 2 3 4 5; do curl -fsS -m 3 http://127.0.0.1:8644/health >/dev/null 2>&1 && break; sleep 1; done; \
-       exit "$rc"; }
-     trap restore_services EXIT; trap 'exit 130' INT; trap 'exit 143' TERM   # armed BEFORE the bootout (GG8)
-     JOBS_BAK=~/workspaces/backups/"$(date -u +%Y-%m-%dT%H-%M-%S).hermes-cron-jobs.golive.backup.json"
-     cp "$JOBS" "$JOBS_BAK"; python3 -c 'import json,sys;json.load(open(sys.argv[1]))' "$JOBS_BAK" \
-       || { echo "FATAL: jobs.json backup invalid — refusing go-live flip (GG9)" >&2; exit 1; }
-     rollback(){ echo "FATAL: go-live flip failed — atomic-restoring jobs.json (GG9)" >&2; \
-       TMP="$(dirname "$JOBS")/.jobs.json.restore.$$"; cp "$JOBS_BAK" "$TMP" && mv "$TMP" "$JOBS"; exit 1; }
-     for L in "$GW" "$WD"; do [ "${WAS[$L]}" = 1 ] && { launchctl bootout "$GUI/$L" 2>/dev/null || echo "WARN: bootout $L nonzero (GG8)" >&2; }; done
-     sleep 1
-     launchctl print "$GUI/$GW" >/dev/null 2>&1 && { echo "FATAL: gateway still loaded — refusing to flip jobs.json (GG8)" >&2; exit 1; }
-     # II2: assert the WATCHDOG is ALSO down (when it was initially loaded) — a running watchdog could act mid-flip.
-     [ "${WAS[$WD]}" = 1 ] && launchctl print "$GUI/$WD" >/dev/null 2>&1 && { echo "FATAL: watchdog still loaded — refusing to flip jobs.json (II2)" >&2; exit 1; }
-     trap rollback ERR   # armed for the edits + the axis assertions below
-     # --- do items 1–3 here: hermes cron edit (strip DRY prompt) ×6, flip --deliver discord ×4, resume eod-roll ---
-     # (edits omitted for brevity; each `hermes cron edit`/`resume` error trips the ERR rollback under set -e.)
-     # --- ASSERT ALL AXES (a)-(e); any mismatch calls rollback ---
-     EXPECT=$(printf '%s\n' forzare-morning-brief forzare-eod forzare-waiting-reconcile forzare-gym-window-end forzare-block-boundary forzare-someday-sweep | sort)
-     GOT=$(jq -r '.jobs[]|select(.name|test("^forzare-"))|.name' "$JOBS" | sort)
-     [ "$GOT" = "$EXPECT" ] || { echo "FATAL: (a) manifest mismatch (GG9):" >&2; diff <(echo "$EXPECT") <(echo "$GOT") >&2; rollback; }
-     DISABLED=$(jq -r '.jobs[]|select(.name|test("^forzare-"))|select(.enabled==false or .state=="paused")|.name' "$JOBS")
-     [ -z "$DISABLED" ] || { echo "FATAL: (b) job(s) not enabled (GG9): $DISABLED" >&2; rollback; }
-     EXPECT_MAP=$(printf '%s\n' 'forzare-block-boundary	discord' 'forzare-eod	discord' \
-       'forzare-gym-window-end	discord' 'forzare-morning-brief	discord' \
-       'forzare-someday-sweep	local' 'forzare-waiting-reconcile	local' | sort)
-     GOT_MAP=$(jq -r '.jobs[]|select(.name|test("^forzare-"))|"\(.name)\t\(.deliver)"' "$JOBS" | sort)
-     [ "$GOT_MAP" = "$EXPECT_MAP" ] || { echo "FATAL: (c) name→delivery map mismatch (GG9/EE2):" >&2; diff <(echo "$EXPECT_MAP") <(echo "$GOT_MAP") >&2; rollback; }
-     DIRTY=$(jq -r '.jobs[]|select(.name|test("^forzare-"))|select((.prompt // "")|test("^\\s*DRY RUN"))|.name' "$JOBS")
-     [ -z "$DIRTY" ] || { echo "FATAL: (d) prompt still DRY-RUN (GG9/X1): $DIRTY" >&2; rollback; }
-     for b in forzare-morning-brief forzare-replan forzare-eod; do
-       # II2: a bundle read/parse failure is FATAL (→ rollback), not swallowed — a missing/corrupt bundle must
-       # never let go-live proceed as if it were DRY-free.
-       INSTR=$(yq -r '.instruction // ""' ~/.hermes/skill-bundles/$b.yaml) \
-         || { echo "FATAL: (e) cannot read/parse bundle $b — refusing go-live (II2)" >&2; rollback; }
-       if printf '%s' "$INSTR" | grep -qi 'DRY RUN'; then
-         echo "FATAL: (e) bundle $b instruction still carries a DRY variant (GG9)" >&2; rollback; fi
-     done
-     echo "ALL AXES OK PRE-FLAG (GG9): manifest + enabled + 4-discord/2-local map + DRY-free prompts + DRY-free bundles"
-     # II2: RESTART both stopped services and HEALTH-VERIFY both BEFORE the flag is written — a restart or health
-     # failure ROLLS BACK jobs.json and NEVER writes go-live.json (a half-up system must not be flagged live).
-     restart_one(){ L=$1; [ "${WAS[$L]}" = 1 ] || return 0; \
-       launchctl bootstrap "$GUI" ~/Library/LaunchAgents/"$L".plist 2>/dev/null \
-         || launchctl kickstart -k "$GUI/$L" \
-         || { echo "FATAL: could not restart $L (II2)" >&2; return 1; }; }
-     restart_one "$GW" || rollback
-     restart_one "$WD" || rollback
-     GW_OK=0; for _ in 1 2 3 4 5; do curl -fsS -m 3 http://127.0.0.1:8644/health >/dev/null 2>&1 && { GW_OK=1; break; }; sleep 1; done
-     [ "$GW_OK" = 1 ] || { echo "FATAL: gateway health port did not return after restart (II2)" >&2; rollback; }
-     if [ "${WAS[$WD]}" = 1 ]; then
-       launchctl print "$GUI/$WD" 2>/dev/null | grep -Eq 'state = running|pid = [0-9]' \
-         || { echo "FATAL: watchdog did not come back running after restart (II2)" >&2; rollback; }
-     fi
-     echo "BOTH services restarted + health-verified (II2): gateway health-port up, watchdog running"
-     # ONLY now write the go-live flag (CC3) — after all axes pass AND both services are confirmed healthy:
-     printf '{"gone_live":true,"ts":"%s"}\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > ~/workspaces/Ivy/forzare/state/go-live.json
-     trap - ERR   # axes + restart+health passed — disarm rollback; the EXIT trap's restore_services is now an idempotent no-op (both already up)
-     ```
+     Implemented by **E3 script `g1_flip` (ONE gated script — the same stopped-window single-script execution
+     model as `c2_install`, with one combined cleanup handler; KK0 leg-B "B5")**; invariants:
+
+     - **INV-G1-8 (stop-set = gateway + watchdog — GG8/II2):** the flip records BOTH services' initial loaded
+       state, ARMS the EXIT/INT/TERM restore handler BEFORE the first bootout (fail-loud — no `|| true` swallow
+       — and idempotent: it skips a service the success path already brought up, restarting only
+       initially-loaded services), backs up + JSON-validates `jobs.json`, bootouts both, and **ASSERTS both are
+       down** (gateway: launchctl + health port; watchdog: launchctl — a running watchdog could act mid-flip)
+       before any edit.
+     - **INV-G1-9 (the exact edits):** items 1–3 above — six `hermes cron edit` DRY-strip prompt edits, four
+       `--deliver discord` flips, resume eod-roll — each command's error trips the ERR rollback under `set -e`.
+     - **INV-G1-10 (all axes PRE-FLAG — GG9/EE2/X1/II2):** axes (a)–(e) are asserted INSIDE the stopped window,
+       any mismatch ⇒ the ERR rollback (atomic same-dir tmp + `mv` restore of the validated backup): (a) the
+       exact six-name manifest; (b) all six `enabled` (none paused); (c) the exact name→delivery map — 4
+       `discord` (morning-brief / eod / gym-window-end / block-boundary) + 2 `local` (waiting-reconcile /
+       someday-sweep); (d) every forzare prompt DRY-RUN-free; (e) every bundle `instruction` DRY-free, where a
+       bundle READ/PARSE failure is itself FATAL → rollback (a missing/corrupt bundle must never read as
+       DRY-free).
+     - **INV-G1-11 (post-restart failure = restore, NO flag — II2):** after the axes pass, BOTH stopped
+       services are RESTARTED (bootstrap, kickstart fallback) and HEALTH-VERIFIED — the gateway's health port
+       answers within the retry window AND the watchdog reads running — **BEFORE `go-live.json` is written**; a
+       restart or health failure **stops, atomic-restores `jobs.json`, byte-verifies the restore, restarts the
+       services, re-health-checks, and writes NO flag** (a half-up system is never flagged live). Only after
+       all axes + both healths pass is `{"gone_live":true, ts}` written and the rollback trap disarmed — the
+       EXIT trap's restore is then an idempotent no-op.
   5. **`go-live.json` arms the watchdog's ritual-absence scan (F1 (d)) to ALERT** (before this flag it only LOGS,
      so the staging window's deliberately-paused jobs never false-alarm). The **watchdog manifest (F1) carries
      the SAME expected name→delivery mapping AND now the prompt-DRYNESS axis (GG9)** — post-go-live it **alerts on
@@ -4469,6 +3509,21 @@ Step 5 computes p95 over 20 trials and REJECTS the 120s bound at p95 > 90s (soft
 impossible "a lower-rank pending out-orders it" claim deleted → B0. **Concurrent-trigger block defines its own
 `DRY`/`RUNID` scope** (JJ12) and is owned by the E3 `g1_concurrent` test → G1. Spec-side: the §8b "none is
 filterable" remnant swept (JJ8/HH5) and the round-12 provenance recorded.
+
+**Round-12.5 (the KK0 extraction completed).** Every remaining multi-step embedded harness body
+(B0/B1/B2/B4/B5/B6/B7/B8/B9/C2/D1/E1-failed-turn/G1 incl. the go-live flip, plus the Phase-B-intro
+`stage_skill`/`DRY` scaffolding) is replaced by its numbered `INV-<task>-<n>` list + the owning E3 test id
+(`b0_propagation` `b1_surface` `b1_stall` `b1_receptivity` `b2_classify` `b4_resume` `b4_q1conflict`
+`b4_marker` `b5_head` `b5_ackpurity` `b5_eligibility` `b5_offer` `b5_ack` `b5_retry` `b6_classifier`
+`b7_two_run` `b8_capture` `b9_reducer` `b9_numeric` `c2_install` `c2_bundle_gate` `d1_lifecycle`
+`e1_failed_turn` `g1_eod_gate` `g1_morning_order` `g1_dupfire` `g1_concurrent` `g1_flip`); every fixture
+design, negative case, threshold, and safety rule is preserved as an invariant bullet. Kept verbatim: the
+Phase-A install/config blocks, single-line probes (B1/B2/B3/F1), config asserts (A2/A4/B10/C1/Checkpoint-D/
+E2/G1-smoke), the deploy gates (Checkpoints A/F, the SKILL-INTEGRITY GATE), and the proven E1 python filter
+probes. Added to avoid losing a design: INV-G1-4 makes explicit that the morning-ordering fixture seeds its
+lifecycle-ledger entry (`kind: surfacing`) so the roll target is LEDGER-defined (KK0 leg-B "B12" — the old
+block seeded only a dated task, which the ledger-defined roll would never roll); C1 Step 3 gains the
+`forzare-replan`-lists-`calendar-write` assert (KK5).
 
 **Placeholder scan:** verification commands are runnable; `<inbox-task-id>` / lat-long / channel-ids are the
 intentionally per-environment values a cold reader fills from their own setup.
