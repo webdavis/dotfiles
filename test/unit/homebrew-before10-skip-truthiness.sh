@@ -27,28 +27,36 @@ command -v chezmoi >/dev/null 2>&1 || {
 # was skipped for this render.
 SENTINEL='skipping the brew bundle sync'
 
-# render_has_skip <value|__unset__> -> prints "yes"/"no". Empty render (non-darwin
-# host) skips the whole test.
-render_has_skip() {
-  local value="$1"
-  local home rendered
+# render <value|__unset__> -> the rendered script on stdout. A render failure is
+# fatal at TOP level (set -e propagates the failed assignment out of render_has_skip,
+# so this never mis-classifies a broken render as a "no").
+render() {
+  local value="$1" home out
   home="$(mktemp -d)"
-  rendered="$(
-    if [[ $value == __unset__ ]]; then
-      HOME="$home" CI=1 chezmoi --source "$REPO_ROOT" execute-template --no-tty <"$SCRIPT"
-    else
-      HOME="$home" CI=1 SKIP_SYSTEM_PACKAGES="$value" \
-        chezmoi --source "$REPO_ROOT" execute-template --no-tty <"$SCRIPT"
-    fi
-  )" || {
-    rm -rf "$home"
-    fail "chezmoi failed to render with SKIP_SYSTEM_PACKAGES=$value"
-  }
-  rm -rf "$home"
-  if [[ -z ${rendered//[[:space:]]/} ]]; then
-    printf 'SKIP: empty render (non-darwin host); nothing to exercise\n'
-    exit 0
+  if [[ $value == __unset__ ]]; then
+    out="$(HOME="$home" CI=1 chezmoi --source "$REPO_ROOT" execute-template --no-tty <"$SCRIPT")"
+  else
+    out="$(HOME="$home" CI=1 SKIP_SYSTEM_PACKAGES="$value" \
+      chezmoi --source "$REPO_ROOT" execute-template --no-tty <"$SCRIPT")"
   fi
+  rm -rf "$home"
+  printf '%s' "$out"
+}
+
+# Detect the non-darwin host (empty render) ONCE, at top level, and skip the
+# whole test there -- so the empty-render exit is a real script exit, not a
+# subshell exit that leaves an assertion comparing SKIP text against "yes".
+probe="$(render __unset__)" || fail 'chezmoi failed to render before_10'
+if [[ -z ${probe//[[:space:]]/} ]]; then
+  printf 'SKIP: empty render (non-darwin host); nothing to exercise\n'
+  exit 0
+fi
+
+# render_has_skip <value|__unset__> -> "yes"/"no". The probe above proved the
+# template renders, so this only classifies presence of the skip sentinel.
+render_has_skip() {
+  local rendered
+  rendered="$(render "$1")"
   if grep -qF "$SENTINEL" <<<"$rendered"; then printf 'yes'; else printf 'no'; fi
 }
 
