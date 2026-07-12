@@ -133,6 +133,16 @@ test: test-unit test-integration test-e2e
 brew-upgrade:
   ~/.local/bin/homebrew-weekly-upgrade.sh
 
+# Run only the brew shellenv cache drift test (a subset of `just test`).
+test-brew-cache:
+  ./test/e2e/brew-shellenv-cache-drift.sh
+
+# Regenerate the brew shellenv cache (~/.cache/brew-shellenv.sh) from the current
+# `brew shellenv`, without a full `chezmoi apply`. Use after a Homebrew update if
+# `just test` reports cache drift.
+brew-cache-refresh:
+  mkdir -p "${XDG_CACHE_HOME:-$HOME/.cache}" && /opt/homebrew/bin/brew shellenv > "${XDG_CACHE_HOME:-$HOME/.cache}/brew-shellenv.sh" && echo "Regenerated brew shellenv cache; run 'just test' to confirm."
+
 # macOS Defaults: drift, apply, capture
 
 defaults-drift:
