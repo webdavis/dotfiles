@@ -133,11 +133,14 @@ printf '{"cwd":"/x/dotfiles","transcript_path":"%s/tc.jsonl"}' "$tmp" |
   exit 1
 }
 
-# whole-turn: codex receives ALL assistant text since the last user prompt, not just the final block
+# whole-turn + FIX F3 (prompt via stdin, never argv): codex receives ALL assistant text since the last
+# user prompt, fed on STDIN so the transcript (up to 8000 chars) is never a ps-visible argv positional,
+# and the invocation uses --ephemeral (no persisted session) with the `-` stdin positional.
 : >"$tmp/args"
 cat >"$tmp/codexcap" <<'MOCK'
 #!/usr/bin/env bash
-printf '%s' "${@: -1}" >"$CODEX_CAP_FILE"
+printf '%s\n' "$@" >"$CODEX_ARGV_FILE"
+cat >"$CODEX_CAP_FILE"
 printf 'done|captured\n'
 MOCK
 chmod +x "$tmp/codexcap"
@@ -149,12 +152,26 @@ cat >"$tmp/tw.jsonl" <<'JL'
 JL
 printf '{"cwd":"/x/dotfiles","transcript_path":"%s/tw.jsonl"}' "$tmp" |
   PATH="$tmp:$PATH" RELAY_BIN="$tmp/relay.sh" RELAY_ARGS_FILE="$tmp/args" \
-    CODEX_BIN="$tmp/codexcap" CODEX_CAP_FILE="$tmp/cap" \
+    CODEX_BIN="$tmp/codexcap" CODEX_CAP_FILE="$tmp/cap" CODEX_ARGV_FILE="$tmp/argv" \
     bash "$agent" "done" >/dev/null 2>&1
 cap=""
 [[ -f "$tmp/cap" ]] && cap="$(<"$tmp/cap")"
 [[ $cap == *FIRSTBLOCK* && $cap == *SECONDBLOCK* ]] || {
-  echo "relay-agent: FAIL -- whole-turn extraction missing a block (got: ${cap:0:80})" >&2
+  echo "relay-agent: FAIL -- whole-turn prompt (stdin) missing a block (got: ${cap:0:80})" >&2
+  exit 1
+}
+argv=""
+[[ -f "$tmp/argv" ]] && argv="$(<"$tmp/argv")"
+[[ $argv == *FIRSTBLOCK* || $argv == *SECONDBLOCK* ]] && {
+  echo "relay-agent: FAIL -- transcript text leaked onto codex argv (ps-visible)" >&2
+  exit 1
+}
+grep -qx -- "--ephemeral" <<<"$argv" || {
+  echo "relay-agent: FAIL -- codex not invoked with --ephemeral (session files would persist)" >&2
+  exit 1
+}
+grep -qx -- "-" <<<"$argv" || {
+  echo "relay-agent: FAIL -- codex not invoked with the '-' stdin positional" >&2
   exit 1
 }
 
@@ -195,6 +212,50 @@ printf '{"cwd":"/x/dotfiles","transcript_path":"%s/tb.jsonl"}' "$tmp" |
 tb_detail="$(tr '\0' '\n' <"$tmp/args" | awk 'f{print; exit} $0=="--detail"{f=1}')"
 [[ $tb_detail == *BLEED* ]] || {
   echo "relay-agent: FAIL -- tool_result boundary quirk drifted (BLEED no longer bleeds in): '$tb_detail'" >&2
+  exit 1
+}
+
+# FIX F3 (private relay Codex home): the home symlinks the live Codex auth, so it must be created
+# owner-only (umask 077) -- never group/other readable. A freshly created home is checked here.
+: >"$tmp/args"
+rm -rf "$tmp/codex-home"
+printf '{"cwd":"/x/dotfiles","transcript_path":"%s/t.jsonl"}' "$tmp" |
+  PATH="$tmp:$PATH" RELAY_BIN="$tmp/relay.sh" RELAY_ARGS_FILE="$tmp/args" CODEX_BIN=false \
+    bash "$agent" "done" >/dev/null 2>&1
+perms="$(stat -f '%Sp' "$tmp/codex-home" 2>/dev/null || stat -c '%A' "$tmp/codex-home" 2>/dev/null || true)"
+[[ $perms == drwx------ ]] || {
+  echo "relay-agent: FAIL -- relay Codex home is not owner-only (perms: '$perms')" >&2
+  exit 1
+}
+cfg_perms="$(stat -f '%Sp' "$tmp/codex-home/config.toml" 2>/dev/null || stat -c '%A' "$tmp/codex-home/config.toml" 2>/dev/null || true)"
+[[ $cfg_perms == -rw------- ]] || {
+  echo "relay-agent: FAIL -- relay Codex config.toml is not owner-only (perms: '$cfg_perms')" >&2
+  exit 1
+}
+
+# CHARACTERIZATION (DEFERRED to SP3, pin only): today's extractor reads Claude-shaped assistant records
+# (.type=="assistant" | .message.content[] text). A current Codex rollout stores assistant output as
+# response_item records under .payload, which the extractor does not read, so a Codex-format transcript
+# yields an EMPTY summary and the generic (detail-less) notification still fires, exit 0. SP3 owns the
+# schema work; this pins the baseline so SP3 replaces a known behavior. CODEX_BIN=false (empty reply also
+# skips the codex-summarize path).
+: >"$tmp/args"
+cat >"$tmp/tcodex.jsonl" <<'JL'
+{"type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"codex did work under the new schema"}]}}
+JL
+out_codexschema="$(
+  printf '{"cwd":"/x/dotfiles","transcript_path":"%s/tcodex.jsonl"}' "$tmp" |
+    PATH="$tmp:$PATH" RELAY_BIN="$tmp/relay.sh" RELAY_ARGS_FILE="$tmp/args" CODEX_BIN=false \
+      bash "$agent" "done" 2>&1
+  echo "rc=$?"
+)"
+grep -q "rc=0" <<<"$out_codexschema" || {
+  echo "relay-agent: FAIL -- a Codex-schema transcript broke exit 0" >&2
+  exit 1
+}
+cs_args="$(tr '\0' '\n' <"$tmp/args")"
+grep -qx -- "--detail" <<<"$cs_args" && {
+  echo "relay-agent: FAIL -- Codex response_item schema quirk drifted (extractor now reads .payload)" >&2
   exit 1
 }
 echo "relay-agent: OK"

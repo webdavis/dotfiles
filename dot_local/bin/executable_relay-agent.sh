@@ -28,8 +28,11 @@ if [[ $state == "done" && -n $transcript && -f $transcript ]]; then
   # (tests point it at a temp dir). On any miss (re-entry, codex absent, timeout, bad output) it falls back.
   if [[ -z ${RELAY_SUMMARIZING:-} && -n $reply ]] && command -v "$codex_bin" >/dev/null 2>&1; then
     codex_home="${RELAY_CODEX_HOME:-$HOME/.config/relay/codex-home}"
-    mkdir -p "$codex_home" 2>/dev/null || true
-    [[ -f "$codex_home/config.toml" ]] || printf 'model = "gpt-5.5"\nmodel_reasoning_effort = "low"\n' >"$codex_home/config.toml" 2>/dev/null || true
+    # Keep the relay Codex home private: it symlinks the live Codex auth, so create the dir and its
+    # config under umask 077 (owner-only). --ephemeral below also stops session transcripts from being
+    # persisted at all, so retained files no longer exist -- this is the belt to that suspenders.
+    (umask 077 && mkdir -p "$codex_home") 2>/dev/null || true
+    [[ -f "$codex_home/config.toml" ]] || (umask 077 && printf 'model = "gpt-5.5"\nmodel_reasoning_effort = "low"\n' >"$codex_home/config.toml") 2>/dev/null || true
     ln -sf "$HOME/.codex/auth.json" "$codex_home/auth.json" 2>/dev/null || true
     cmd=()
     if command -v gtimeout >/dev/null 2>&1; then
@@ -37,14 +40,18 @@ if [[ $state == "done" && -n $transcript && -f $transcript ]]; then
     elif command -v timeout >/dev/null 2>&1; then
       cmd=(timeout 30)
     fi
-    cmd+=("$codex_bin" exec --skip-git-repo-check -C "$codex_home" -s read-only "Summarize this AI coding agent's last turn for a brief phone notification, then classify it.
+    # The turn transcript (up to 8000 chars of assistant output) is fed on STDIN, never as an argv
+    # positional where `ps` could read it: the `-` positional tells `codex exec` to read the prompt from
+    # stdin. --ephemeral runs without persisting any session file, so the transcript is not retained on disk.
+    prompt="Summarize this AI coding agent's last turn for a brief phone notification, then classify it.
 Output EXACTLY one line and nothing else: STATE|SUMMARY
 STATE is one of: done (finished its work), asking (wants you to answer or choose), blocked (needs permission/input to continue).
 SUMMARY is two or three sentences, up to 320 characters, plain text, no newlines, covering what was done plus any decision or question raised.
 
 Turn:
-$reply")
-    out="$(RELAY_SUMMARIZING=1 CODEX_HOME="$codex_home" "${cmd[@]}" 2>/dev/null || true)"
+$reply"
+    cmd+=("$codex_bin" exec --ephemeral --skip-git-repo-check -C "$codex_home" -s read-only -)
+    out="$(RELAY_SUMMARIZING=1 CODEX_HOME="$codex_home" "${cmd[@]}" <<<"$prompt" 2>/dev/null || true)"
     line="$(printf '%s\n' "$out" | grep -E '^(done|asking|blocked)\|' | tail -1 || true)"
     if [[ -n $line ]]; then
       state="${line%%|*}"
