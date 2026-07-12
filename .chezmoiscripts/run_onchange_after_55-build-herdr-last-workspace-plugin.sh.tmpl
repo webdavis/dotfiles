@@ -27,7 +27,7 @@ set -euo pipefail
 # for every herdr call ($herdr_timeout_bin, in scope from the includeTemplate
 # above): the plugin binary shells `herdr workspace list`, and it has NO timeout
 # of its own, so a wedged herdr socket (accepts the connection, never replies)
-# would otherwise hang the seed — and thus the whole apply — right here, past
+# would otherwise hang the seed (and thus the whole apply) right here, past
 # after_58's bounded health check. Seed is BEST-EFFORT (it only warms the MRU
 # state), so a timeout (exit 124) or any other failure is a warn-and-continue,
 # never an apply abort. When no timeout binary is on PATH the seed cannot be
