@@ -19,38 +19,22 @@ command -v openhue &>/dev/null || exit 0
 command -v jq &>/dev/null || exit 0
 
 # Serialize concurrent pulses so two triggers (e.g. a Stop hook and the long-command notifier firing at
-# once) queue instead of interleaving openhue calls and restoring each other's transient state. mkdir is
-# atomic; wait up to ~30s for our turn, then give up rather than pile stale pulses up.
-lock="${TMPDIR:-/tmp}/hue-pulse.lock"
-# Release only if we still own the lock: a live pulse that took it over from us must not
-# have its lock clobbered by our exit trap. Inline (not a function) so shellcheck does not
-# flag the trap-only body as unreachable.
-trap 'if [[ -f "$lock/pid" && "$(cat "$lock/pid" 2>/dev/null || true)" == "$$" ]]; then rm -rf "$lock" 2>/dev/null || true; fi; [[ -n ${state_file:-} ]] && rm -f "$state_file"; true' EXIT
-tries=0
-while true; do
-  if mkdir "$lock" 2>/dev/null; then
-    printf '%s\n' "$$" >"$lock/pid"
-    break
-  fi
-  holder="$(cat "$lock/pid" 2>/dev/null || true)"
-  if [[ -n $holder ]] && kill -0 "$holder" 2>/dev/null; then
-    sleep 0.5 # a live pulse holds the lock; wait our turn
-    tries=$((tries + 1))
-    if ((tries > 60)); then exit 0; fi
-    continue
-  fi
-  # The holder is dead (crashed / SIGKILLed mid-pulse) or has not published its pid yet.
-  # Give a just-created lock a brief grace to write its pid before deciding it is stale, so
-  # we never steal from a live holder still starting up; take over only if it is still
-  # ownerless after the grace. A stale lock must never suppress every later pulse.
-  sleep 0.5
-  holder="$(cat "$lock/pid" 2>/dev/null || true)"
-  if [[ -z $holder ]] || ! kill -0 "$holder" 2>/dev/null; then
-    rm -rf "$lock" 2>/dev/null || true
-  fi
-  tries=$((tries + 1))
-  if ((tries > 60)); then exit 0; fi
-done
+# once) never interleave openhue calls and restore each other's transient state. Use the KERNEL lock
+# /usr/bin/lockf on a held fd: the kernel releases it on ANY exit (normal or crash), so no stale-lock
+# class exists and a wedged prior pulse can never suppress every later one. A pulse is short-lived and
+# purely cosmetic, so contention simply skips this pulse quietly and exits 0 rather than queueing (the
+# most-recent trigger's state is what matters; a dropped duplicate pulse is invisible). Non-darwin hosts
+# (no /usr/bin/lockf) proceed unlocked. Absolute path because a stripped PATH may not carry /usr/bin.
+# The lockfile is a distinct regular-file anchor (not the old mkdir dir); any leftover dir at the old
+# path is harmless TMPDIR cruft that clears on reboot. (House precedent: homebrew-weekly-upgrade.sh and
+# update-skills.sh guard with this same kernel-lock shape.)
+lock="${TMPDIR:-/tmp}/hue-pulse.lockf"
+# Clean up only our own temp state on exit; the kernel owns lock release.
+trap '[[ -n ${state_file:-} ]] && rm -f "$state_file"; true' EXIT
+if [[ -x /usr/bin/lockf ]]; then
+  exec 9>>"$lock" 2>/dev/null || exit 0
+  /usr/bin/lockf -s -t 0 9 || exit 0
+fi
 
 room_id=$(openhue get room --json 2>/dev/null |
   jq -r --arg name "$room_name" '.. | select(.Name? == $name) | .Id' | head -1 || true)
