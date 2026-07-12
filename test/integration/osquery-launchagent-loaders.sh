@@ -58,8 +58,14 @@ for name in "${agents[@]}"; do
   plist_tmpl="Library/LaunchAgents/${label}.plist.tmpl"
   loader_tmpl=".chezmoiscripts/run_onchange_after_60-load-osquery-${name}-launchagent.sh.tmpl"
 
-  [[ -f "$plist_tmpl" ]] || { fail "$name: missing plist template $plist_tmpl"; continue; }
-  [[ -f "$loader_tmpl" ]] || { fail "$name: missing loader template $loader_tmpl"; continue; }
+  [[ -f $plist_tmpl ]] || {
+    fail "$name: missing plist template $plist_tmpl"
+    continue
+  }
+  [[ -f $loader_tmpl ]] || {
+    fail "$name: missing loader template $loader_tmpl"
+    continue
+  }
 
   rendered_plist="$render_home/${name}.plist"
   if ! render "$plist_tmpl" >"$rendered_plist" 2>"$render_home/plist.err"; then
@@ -73,15 +79,15 @@ for name in "${agents[@]}"; do
   fi
 
   got_label="$(plutil -extract Label raw "$rendered_plist" 2>/dev/null || true)"
-  [[ "$got_label" == "$label" ]] || fail "$name: plist Label is '$got_label', expected '$label'"
+  [[ $got_label == "$label" ]] || fail "$name: plist Label is '$got_label', expected '$label'"
 
   # ProgramArguments must invoke ~/.local/bin/osquery-<name>.sh. Assert against the
   # rendered ProgramArguments array as JSON (plutil -extract raw yields the array
   # count for arrays, not the elements).
   # plutil's JSON escapes path slashes (\/), so match the (slash-free) basename.
   prog_json="$(plutil -extract ProgramArguments json -o - "$rendered_plist" 2>/dev/null || true)"
-  grep -qF "osquery-${name}.sh" <<<"$prog_json" \
-    || fail "$name: plist ProgramArguments lacks osquery-${name}.sh (got: $prog_json)"
+  grep -qF "osquery-${name}.sh" <<<"$prog_json" ||
+    fail "$name: plist ProgramArguments lacks osquery-${name}.sh (got: $prog_json)"
 
   # The loader must bootstrap THIS label and reference THIS plist path. Render it
   # (the darwin guard and the plist-hash include both resolve under --source).
@@ -89,10 +95,10 @@ for name in "${agents[@]}"; do
     fail "$name: loader render failed: $(cat "$render_home/loader.err")"
     continue
   fi
-  grep -qF "com.webdavis.osquery-${name}" <<<"$rendered_loader" \
-    || fail "$name: loader does not reference label com.webdavis.osquery-${name}"
-  grep -qF "Library/LaunchAgents/com.webdavis.osquery-${name}.plist" <<<"$rendered_loader" \
-    || fail "$name: loader does not reference plist path for ${name}"
+  grep -qF "com.webdavis.osquery-${name}" <<<"$rendered_loader" ||
+    fail "$name: loader does not reference label com.webdavis.osquery-${name}"
+  grep -qF "Library/LaunchAgents/com.webdavis.osquery-${name}.plist" <<<"$rendered_loader" ||
+    fail "$name: loader does not reference plist path for ${name}"
 done
 
 if ((fails > 0)); then
