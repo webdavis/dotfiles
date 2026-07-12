@@ -29,6 +29,9 @@ macos:
     - description: "Install self-healing nix-installer repair LaunchDaemon (NixOS fork)"
       command: '"$HOME/.local/bin/install-nix-repair-hook.sh"'
       sudo: true
+    - description: "SSH: write the public-key-only sshd drop-in (script self-escalates; reload is a separate operator step)"
+      command: '"$HOME/.local/bin/ssh-hardening.sh"'
+      sudo: false
   tailnet_pins:
     - fqdn: mister.tail2f2430.ts.net
       ip: "100.109.58.54"
