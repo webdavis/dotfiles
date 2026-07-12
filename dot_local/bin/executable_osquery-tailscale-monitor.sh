@@ -68,12 +68,15 @@ rc=0
 funnel=$("$TAILSCALE" funnel status 2>/dev/null) || rc=$?
 
 # A failed command, or an EMPTY output we cannot classify, is a gap - not a silent "inactive".
+# bt holds a literal backtick so the command renders as Discord inline-code without a lint
+# conflict (shfmt would single-quote a no-expansion string, then SC2016 flags the bare backticks).
+bt='`'
 if [ "$rc" -ne 0 ]; then
-  gap_alert unavailable "\`tailscale funnel status\` exited $rc - the funnel state is unreadable."
+  gap_alert unavailable "${bt}tailscale funnel status${bt} exited $rc - the funnel state is unreadable."
   exit 0
 fi
 if [ -z "$funnel" ]; then
-  gap_alert unavailable '`tailscale funnel status` returned no output - the funnel state is unreadable.'
+  gap_alert unavailable "${bt}tailscale funnel status${bt} returned no output - the funnel state is unreadable."
   exit 0
 fi
 
