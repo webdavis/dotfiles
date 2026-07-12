@@ -99,24 +99,39 @@ else
   echo "Homebrew autoupdate already running — skipping restart."
 fi
 
-# Install uv tools (runs after Homebrew so uv is available).
-{{ range .packages.macos.uv -}}
-"$brew_prefix/bin/uv" tool install {{ . | quote }}
+# Install uv tools (runs after Homebrew so uv is available). Guarded on uv being
+# on PATH so a fresh machine (or an apply whose PATH has not yet picked up a
+# just-installed uv) skips cleanly instead of aborting under set -e.
+{{ if .packages.macos.uv -}}
+if command -v uv >/dev/null 2>&1; then
+{{- range .packages.macos.uv }}
+  "$brew_prefix/bin/uv" tool install {{ . | quote }}
+{{- end }}
+fi
 {{ end -}}
 
-# Install npm global packages (runs after Homebrew so node is available).
-{{ range .packages.macos.npm -}}
-npm install -g {{ . | quote }}
+# Install npm global packages (runs after Homebrew so node is available). Same
+# command -v guard so a missing npm skips cleanly rather than aborting the apply.
+{{ if .packages.macos.npm -}}
+if command -v npm >/dev/null 2>&1; then
+{{- range .packages.macos.npm }}
+  npm install -g {{ . | quote }}
+{{- end }}
+fi
 {{ end -}}
 
 # Install Volta-pinned CLI tools. `volta install node@X` ensures the runtime is
-# present (and resets Volta's default to X — harmless because Homebrew's `node`
+# present (and resets Volta's default to X, harmless because Homebrew's `node`
 # wins in PATH). `volta run --node X npm install -g <pkg>` pins the resulting
 # shim in ~/.volta/bin/<bin> to Node X so the tool keeps working when Homebrew
-# bumps node majors.
-{{ range .packages.macos.volta -}}
-"$brew_prefix/bin/volta" install {{ printf "node@%s" .node | quote }}
-"$brew_prefix/bin/volta" run --node {{ .node | quote }} npm install -g {{ .package | quote }}
+# bumps node majors. Guarded on volta being on PATH so it skips cleanly if absent.
+{{ if .packages.macos.volta -}}
+if command -v volta >/dev/null 2>&1; then
+{{- range .packages.macos.volta }}
+  "$brew_prefix/bin/volta" install {{ printf "node@%s" .node | quote }}
+  "$brew_prefix/bin/volta" run --node {{ .node | quote }} npm install -g {{ .package | quote }}
+{{- end }}
+fi
 {{ end -}}
 
 {{ end -}}
