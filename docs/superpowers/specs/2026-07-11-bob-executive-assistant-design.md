@@ -255,15 +255,15 @@ count is a mechanical `▶ `-marker count == 1 on **every** morning, in **both**
 
 **Context lines carry a leading `· ` (GG12).** Every non-actionable line — weather, calendar, the ≤3, the
 activation reminder when it is not the close — is emitted as a `· `-prefixed context line, so the gate can
-distinguish context from a stray second imperative structurally: **any non-empty line after the single `▶ `
-close must start with `· `.** A bare imperative sentence, a bullet, or a numbered step after the close is
-therefore caught, not just verb-matched.
+distinguish context from a stray second imperative structurally: **any non-empty line OTHER THAN the single
+`▶ ` line — whether it falls BEFORE or AFTER the marker — must start with `· `.** A bare imperative sentence, a
+bullet, or a numbered step on EITHER side of the marker is therefore caught, not just verb-matched.
 
 So the acceptance (§0) is mechanical and unambiguous: **count `▶ ` markers == 1 AND zero non-`· ` non-empty
 lines OTHER THAN the marker line — checked BOTH PRE- and POST-marker (II7 parity with the plan's INV-B4-4) —
 for BOTH the queue-empty and the queue-nonempty brief** (a build fixture asserts exactly
 this; plan B4). The imperative/question verb regex stays only as **secondary evidence** — the `▶ ` marker count
-+ the `· `-only-after-marker check are the primary, machine-readable gate (BB10/GG12).
++ the `· `-only-on-both-sides-of-the-marker check are the primary, machine-readable gate (BB10/GG12).
 
 **The brief always fires at its time — receptivity shapes its *content*, never withholds it.** This includes
 the mid-shift and post-overnight-recovery cases (§2 above): the brief still **delivers**, in its
@@ -995,7 +995,8 @@ initiation*, not guesses. **Not logged:** no energy/mood/satisfaction ratings (p
      DECIDED)**; otherwise **proceed**. This is the v1 rule; the calibration loop *refines* the thresholds
      per-person **post-V1** (they start as the decided seeds, §19). *(Implementation notes for the plan's
      calibration task (X11): the `td activity` query is **paginated by cursor** — loop the cursor until it is
-     exhausted, never read only the first page (fixtures must include a >100-event history); and **comment**
+     exhausted, never read only the first page (fixtures use the **two-page cursor stub**, R6A8 — a real cursor
+     token on page 1 and the genuine user comment on page 2, so a first-page-only read demonstrably misses it); and **comment**
      events come from a **separate** `--type comment` activity query than completed/updated, so both must be
      paged and both cross-checked against the journal, including a **comment-only-progress** case — a genuine
      user comment the journal did NOT author counts as a touch, a Bob-journaled comment does not.)*
@@ -1209,8 +1210,9 @@ below).
   `selected_ids` is morning-time evidence, and ownership can change intra-day: a user who re-set the priority on
   a selected id during the day has RE-TAKEN ownership.** So, per selected id, EOD first checks the day's activity
   stream for an **intervening user priority event** — a priority-change event on that task **whose `ts` is later
-  than the plan record's `created_ts` (FF6 — the plan-write moment is the cutoff, so the morning's own p1-set
-  never counts as "intervening")** that is NOT matched by a Bob-journaled `p1.set` in the mutation journal (the
+  than the plan record's `created_ts` (FF6 — the plan-write moment is the cutoff; Bob's OWN morning p1-set events
+  DO postdate `created_ts`, so it is the journal cross-check below, NOT the cutoff, that excludes them)** that is
+  NOT matched by a Bob-journaled `p1.set` in the mutation journal (the
   journal is what distinguishes Bob's own morning write from the user's touch; W7's exclusion machinery, §6a).
   **(Verified: `td activity` `updated` events on a priority change carry `priority`/`lastPriority` in
   `extraData`, FF6 — so a priority-change event is detectable in the stream.)** **No intervening user event ⇒
@@ -1597,9 +1599,14 @@ fire-and-forget it:
    bare `create --triage` fails), seeded from the parent's placement decision. **`--max-runtime 900` (DECIDED,
    Y7/§19)** caps each card at 900s; on exceed the dispatcher SIGTERMs→SIGKILLs (5s grace) and re-queues the
    whole card (`timed_out`, §16). **The idempotency key is the Inbox TASK ID** (stage 1's durable output), not a
-   fresh uuid — so a full parent retry *or* a Kanban no-resume restart both re-derive the **same** key and get
-   the **same** card, never a duplicate (§15); stage 1 writes the Inbox task first, so the id exists before the
-   card. **The `forzare-capture-pipeline` skill is ATTACHED via `--skill`** (W4) — the card's stages are that
+   fresh uuid — so a full parent retry *or* a Kanban no-resume restart both re-derive the **same** key and look up
+   the **same** card. This key dedupes **best-effort**: hermes' own `kanban create` runs the idempotency lookup
+   BEFORE the write transaction (`hermes_cli/kanban_db.py:2385-2389` — "Race is acceptable: two concurrent
+   creators with the same key might both insert … the next lookup stabilises"). **The design guarantee that
+   forzare never hits that race is that the PARENT is the single capture-writer, SERIALIZED per Inbox task id** —
+   only one `kanban create` is ever in flight for a given key (a retry runs only after the prior attempt
+   returned), so the concurrent-insert window never opens (§15). Stage 1 writes the Inbox task first, so the id
+   exists before the card. **The `forzare-capture-pipeline` skill is ATTACHED via `--skill`** (W4) — the card's stages are that
    one installed skill's content (loaded through `job.skills`, the same expansion path as cron `--skill`,
    §11/W1), not free-form improvisation; it is not a bespoke plugin. **Create is instant; the bounded `specify`
    attempt (item 2) follows on the parent's path — short on the happy path.**
@@ -1645,8 +1652,9 @@ Discord-bound turn re-raises it opportunistically (the parent owns the inline cl
 §12.1c). On the user's answer the live turn writes it onto the card (a comment/field keyed by card id) and
 **unblocks** the card (`hermes kanban unblock`), which lets the dispatcher resume the pipeline; the same turn
 TOMBSTONES the queue record via the `{id, gen, rev}` CAS (R5A5/BB2). **Pipeline FAILURES** (a crashed / timed-out / gave-up card) reach
-`#forzare-errors` via the **forzare-ops watchdog** (§14/§16), never a card subscription — so no user-facing
-message issues before Phase G go-live.
+`#forzare-errors` via the **forzare-ops watchdog** (§14/§16), never a card subscription — so no message issues
+on the user-facing TASK channel before Phase G go-live (the `#forzare-errors` route + the Checkpoint-A/F1 send
+probes are sanctioned staging traffic, §16).
 
 `create` and `specify` are first-class `hermes kanban` verbs (verified flags + watcher behavior). Stage 1's
 Inbox write is the instant nothing-lost ack; the bounded `specify` attempt runs on the parent's path (short on
@@ -2227,10 +2235,10 @@ dispatcher (claim races) — the gateway runs the dispatcher.
   hit to `#forzare-errors`:
   - **(a) Gateway health.** `KeepAlive` catches a process *exit* but **not a wedged-but-alive gateway**, and
     never *tells* you — so the watchdog sends a one-shot probe a hung gateway can't answer:
-    **`curl -fsS -m 3 http://127.0.0.1:8642/health`**, exit code **0 = up / 28 = hung / 7 = down** (verified,
-    §19). The probe port is the **API server's** `:8642/health` (gated on the Phase-A `API_SERVER_ENABLED=1`
-    env, MM2) — platform-independent, unlike the webhook `:8644` (dead when `WEBHOOK_ENABLED=false`, verified
-    live). On **down / hung / restart-looping** → loud alert.
+    **`curl -fsS -m 3 http://127.0.0.1:8644/health`**, exit code **0 = up / 28 = hung / 7 = down** (verified,
+    §19). The probe port is the **webhook platform's** `:8644/health` (`webhook.py:195`, DEFAULT_PORT 8644) —
+    present iff the platform is enabled, which the **managed env pins**: `private_dot_env.tmpl:15` sets
+    `WEBHOOK_ENABLED=true` (Phase-A prerequisite: assert post-apply). On **down / hung / restart-looping** → loud alert.
   - **(b) forzare run failures — predicate is a causal run EVENT, never status+counter (W9, corrects
     V9/R2A6).** Since its last check (a stamped watermark), it scans **`~/.hermes/cron/output/`** for failed
     ritual runs and the **Kanban DB** for genuine failures — and routes each to the errors channel. **The
@@ -2311,7 +2319,8 @@ dispatcher (claim races) — the gateway runs the dispatcher.
   - **(f) Skill-INTEGRITY scan (BB8 — the runtime integrity guard, replacing the removed boot-abort).** Because
     forzare cannot hook Hermes' own boot (no-patching rule, §13), this scan is the standing runtime guard against
     Hermes' silent-skip behavior: each pass asserts **every MANAGED FILE of every V1 skill dir is installed at
-    its expected path, content-hash-matches the chezmoi source, AND carries its expected exec mode (KK6 — a
+    its expected path, content-hash-matches the chezmoi source, AND carries its expected exec mode — keyed off
+    the chezmoi `executable_` SOURCE attribute, not a filename suffix (KK6/NN9 — a
     RECURSIVE per-file manifest, not just `SKILL.md`)** — every skill's `SKILL.md` PLUS every executable/support
     file it ships (`weather/classify.py`, `followups-sweep/eligibility`, `calibration-log/reduce.py`, the
     `forzare-capture-pipeline` stage scripts, …). The manifest covers the bundle skills, the on-demand handles
@@ -2502,11 +2511,12 @@ channel); a dependency or job that **can't complete** escalates loud to the erro
     cron job's agent turn runs inside the gateway process and does **not** inherit an ad-hoc shell
     `FORZARE_DRY_RUN=1` export — hermes strips undeclared environment from its children (verified: cron script
     subprocesses pass through `_sanitize_subprocess_env`, and the agent turn is never handed a caller-set
-    var). So the dry-run directive is carried **in the job's prompt and the bundle's `instruction` block**:
-    every staged ritual job's prompt OPENS with an explicit directive — *"DRY RUN: record every intended write
-    to `forzare/state/dryrun-intents.jsonl` and perform none."* The instruction-line mechanism is the
-    **primary** transport; a shell `FORZARE_DRY_RUN=1` export is honored only in the rare hand-run case where
-    the child process does inherit it.
+    var). So the dry-run directive is carried **ONLY in the job's prompt (`jobs.json`), NEVER in a bundle
+    `instruction` file (OO8)**: every staged ritual job's prompt OPENS with an explicit directive — *"DRY RUN:
+    record every intended write to `forzare/state/dryrun-intents.jsonl` and perform none."* Keeping it out of the
+    bundle instructions is precisely what lets the go-live flip stay a **single-file (`jobs.json`) transaction**.
+    The prompt-directive mechanism is the **primary** transport; a shell `FORZARE_DRY_RUN=1` export is honored
+    only in the rare hand-run case where the child process does inherit it.
   - **The 23:00 eod-roll job is created DISABLED (or `--deliver local` with the dry-run instruction) until the
     go-live gate** — it must not silently reschedule real tasks during the staging window.
   - **Staging acceptance = ZERO production mutations, asserted across ALL stores (Y4/X3/AA1) — the NEGATIVE gate
@@ -2536,7 +2546,7 @@ channel); a dependency or job that **can't complete** escalates loud to the erro
     A staged run is "clean" only when the positive check and every independent negative check hold.
   - So the loop is: stage with `--deliver local` **+ the dry-run instruction** → exercise the full pipeline →
     read `~/.hermes/cron/output/` + assert the intents log + assert zero real mutations → tune → then, at
-    **go-live (plan G1): REMOVE the dry-run directive from EVERY job's prompt/bundle instruction — all six
+    **go-live (plan G1): REMOVE the dry-run directive from EVERY job's prompt in `jobs.json` (bundles never carried it, OO8) — all six
     ritual jobs, including the two `--deliver local`-forever state-only ones (`waiting-reconcile`, the monthly
     someday-sweep), whose prompts also go live so they actually mark state (X1) — ENABLE/RESUME the
     23:00 eod-roll job, and flip delivery to `discord` for the four user-facing jobs only.** Staged cleanup
@@ -2707,18 +2717,16 @@ kept **out of V1**. Sequence is always: ship V1 first → then evaluate.
   a no-op-for-protection. So the earlier pin step is **dropped**; the gate is **installed PATH + content HASH**
   (§13 boot-integrity check). Bundle YAMLs are likewise not curator-managed (the curator walks only `SKILL.md`
   dirs).
-- **RESOLVED (code + live-probe verified 2026-06-30; probe port DECIDED 2026-07-12, MM2) — gateway liveness probe.**
-  The DECISION: the watchdog probes the **API server's** unauthenticated **`GET http://127.0.0.1:8642/health`**
-  (`gateway/platforms/api_server.py:4385` `add_get("/health")`, DEFAULT_PORT 8642; static JSON). This is
-  **platform-independent**, unlike the webhook `:8644/health` (`gateway/platforms/webhook.py:73` DEFAULT_PORT
-  8644) which is **dead when `WEBHOOK_ENABLED=false`** — verified live: the current host runs
-  `WEBHOOK_ENABLED=false`, so `:8644` does not answer. The earlier platform-dependent-probe caveat is therefore
-  **resolved by decision**: a new Phase-A `.env` line **`API_SERVER_ENABLED=1`** (a real config key,
-  `hermes_cli/config.py:3911`; `1` is truthy, verified `is_truthy_value`) brings up the OpenAI-compatible API
-  server and its `/health` route. **Prerequisite (verified):** the API server **refuses to start without
-  `API_SERVER_KEY`** (`api_server.py`), so the managed `.env` sets both `API_SERVER_ENABLED=1` **and** an
-  `API_SERVER_KEY` (loopback `127.0.0.1` bind still requires it). Watchdog: `curl -fsS -m 3
-  http://127.0.0.1:8642/health`, branch on exit code — **0 = up, 28 = hung** (loop wedged: accepts TCP, no
+- **RESOLVED (code + live-probe verified 2026-06-30; probe re-verified live 2026-07-12, OO1 — REVERTS the round-13 MM2 `:8642` decision) — gateway liveness probe.**
+  The DECISION: the watchdog probes the **webhook platform's** unauthenticated **`GET http://127.0.0.1:8644/health`**
+  (`gateway/platforms/webhook.py:195` `add_get("/health")`, DEFAULT_PORT 8644 at `webhook.py:73`; static JSON
+  `{"status": "ok", "platform": "webhook"}`). The endpoint is **present iff the webhook platform is enabled**,
+  and the **managed env pins it enabled**: `dot_hermes/private_dot_env.tmpl:15` sets `WEBHOOK_ENABLED=true`
+  (verified in source; the Phase-A prerequisite is to assert this post-apply). Verified live 2026-07-12:
+  `:8644/health` answers `{"status": "ok", "platform": "webhook"}` (exit 0) — the round-13 "`:8644` dead under
+  `WEBHOOK_ENABLED=false`" reading was a transient/false observation, corrected here. **No new secret and no
+  API-server key are added**: the probe rides the platform the managed env already enables. Watchdog: `curl -fsS -m 3
+  http://127.0.0.1:8644/health`, branch on exit code — **0 = up, 28 = hung** (loop wedged: accepts TCP, no
   HTTP reply), **7 = down**. This is the hang KeepAlive + PID-checks miss (a hung gateway keeps a live PID;
   `gateway_state.json.updated_at` doesn't advance when idle). **NOT `:9119`** — that's the separate dashboard
   process, which infers "running" from the PID file and so reports a *hung* gateway as alive (useless for hang
@@ -2737,12 +2745,13 @@ kept **out of V1**. Sequence is always: ship V1 first → then evaluate.
   **`kanban.max_in_progress_per_profile: 2`** + **`kanban.auto_subscribe_on_create: false` (Z1, §9/§14 — the
   firewall guard; default `True`)** (§14); **receptivity v1 rule (V8, §6a): initiation window
   N = 30 min, withhold when trailing-24h dismissals ≥ D = 3 OR `surfacings_today` ≥ S = 8** (learned refinement
-  post-V1); **task-bankruptcy trigger > 25 stale-someday candidates (R2A16, §4c)**; **post-activation boost
+  post-V1); **task-bankruptcy trigger > 25 candidates in the sweep POOL — undated someday ∪ long-cycling dated (R2A16, §4c)**; **post-activation boost
   prior ≈ ≤~30 min, pending personal data (V10, §6/§6a)**; **commute constants `commute_prep_minutes: 30` +
   `commute_travel_minutes: 25` (X12, §3a — hand-editable; the §3a/W13 leave-time alarm fires at work-block
   start − prep − travel = start − 55 min)**; **watchdog `StartInterval: 300s` (best-effort ≈5-min detection,
-  X9, §14)**; **`API_SERVER_ENABLED=1` + `API_SERVER_KEY` in the managed `.env` (MM2, §14/§16 — brings up the
-  platform-independent `:8642/health` liveness probe; the server refuses to start without the key)**;
+  X9, §14)**; **watchdog gateway probe `:8644/health` — the webhook platform's static-JSON health route, present
+  iff `WEBHOOK_ENABLED=true`, which the managed `.env` pins (`private_dot_env.tmpl:15`; OO1, §14/§16 — assert
+  post-apply, no bearer key added)**;
   **capture-card `--max-runtime 900` (Y7, §8b/§16 — verified `hermes kanban create --help`)**;
   **mutation-journal retention 45 days (Y5, §4d/§8a — the calibration correlation window; the prunable
   lifecycle map has no retention window, it prunes on task terminal state)**; **stale-p1 flag age 48h (AA2,
@@ -3135,7 +3144,11 @@ flag exists — the scans jq the field), and the title prefix is demoted to disp
 liveness probe port DECIDED `:8642` (MM2)** — the webhook `:8644/health` is dead when `WEBHOOK_ENABLED=false`
 (verified live), so the platform-independent API-server `:8642/health` (`api_server.py:4385`, DEFAULT_PORT 8642)
 is adopted; a Phase-A `.env` gains `API_SERVER_ENABLED=1` + `API_SERVER_KEY` (the server refuses to start without
-the key), and every `:8644` probe reference is swept (§16/§19/decided-config). **§2 response gate** now checks
+the key), and every `:8644` probe reference is swept (§16/§19/decided-config). **(SUPERSEDED round-14/OO1 — MM2
+REVERTED: the `:8642` switch rested on a transient/false `WEBHOOK_ENABLED=false` reading; re-verified live
+2026-07-12 the managed-env-pinned webhook `:8644/health` answers, so the probe returns to `:8644` with NO
+API-server key, and the `API_SERVER_ENABLED`/`API_SERVER_KEY` additions are removed everywhere; see the round-14
+recap.)** **§2 response gate** now checks
 zero non-`· ` lines OTHER THAN the marker line **PRE- and POST-marker** (II7 parity with plan INV-B4-4). The plan
 absorbed the matching structural fixes: E3 moved to Phase A ahead of its consumers (MM3); the integrity manifest
 uses `chezmoi managed --include=files` + per-skill empty⇒FATAL (MM4/LL1/LL2); E3 ships as
@@ -3143,3 +3156,30 @@ uses `chezmoi managed --include=files` + per-skill empty⇒FATAL (MM4/LL1/LL2); 
 a machine-readable INV↔test bijection manifest with the unnumbered families numbered (MM10/LL5); intent- vs
 journal-record schemas disentangled (LL4); staging harness results moved out of the state layer to
 `staging/e3-results/` (MM7/LL6).
+
+**2026-07-12 — round-14 adversarial-review hardening (NN1–NN10 · OO1–OO8; the revert + coherence wave, minimal
+diff).** **Gateway liveness probe REVERTED to the webhook `:8644/health` (OO1, superseding the round-13 MM2
+`:8642` decision — NN1).** The MM2 switch rested on a transient/false `WEBHOOK_ENABLED=false` observation;
+re-verified live 2026-07-12, `:8644/health` answers `{"status":"ok","platform":"webhook"}` (exit 0), the managed
+env `dot_hermes/private_dot_env.tmpl:15` pins `WEBHOOK_ENABLED=true`, and `:8642` refuses (exit 7). So the probe
+returns to `:8644` with the platform-enabled prerequisite (asserted post-apply), and **every
+`API_SERVER_ENABLED`/`API_SERVER_KEY` addition is removed** — no new bearer secret, and the gate_check `.env`
+diff is made secret-safe (names/presence only). Coherence + honesty fixes: **§6a pagination fixture reworded to
+the two-page cursor stub (R6A8, NN4)**; **§2's residual post-only marker sentences made PRE-and-POST (NN5)**;
+**the FF6 causal note corrected — the morning's own p1-set postdates `created_ts`, so the journal cross-check
+(not the cutoff) excludes it (NN6)**; **the round-6 recap's "unconditional `p1.clear`" annotated SUPERSEDED by
+AA2/EE6 (NN7)**; **the "nothing messages the user before Phase G" claim scoped to the TASK channel — the
+Checkpoint-A/F1 errors-channel probes are sanctioned staging traffic (NN8)**; **exec-mode assertion keyed off the
+chezmoi `executable_` SOURCE attribute, not a filename suffix (NN9)**; **the §19 bankruptcy trigger reworded to
+">25 candidates in the sweep POOL — undated someday ∪ long-cycling dated" (NN10)**; **§8b capture idempotency
+made honest — the Inbox-task-id key dedupes best-effort (`kanban_db.py:2385-2389` documents the concurrent-insert
+race); the guarantee comes from the parent being the single capture-writer serialized per Inbox task id (OO7)**;
+and **the staging DRY directive scoped to `jobs.json` prompts only, never bundle instruction files, so the
+go-live flip stays a single-file transaction (OO8)**. The plan absorbed the structural coherence: the E3 result
+consumers unified to **{post-stage Checkpoint B2, C, D, G1}** (F consumes gate_check + hashes only) with one
+shared named `e3_result_gate` reader (NN2/OO3); the four unmapped verify surfaces entered the bijection
+(`b3_calendar`, `b11_retry`, `d1_harness`, `g1_matrix`; NN3); Checkpoint D's jq genuinely tightened to run_id ==
+build id + ts-in-window + referenced-objects re-verified (OO4); retry-job creation resolves-by-name first
+(`create_job` always appends, `cron/jobs.py:977-980`; OO5); harness teardown runs under the production
+`task-lifecycle.lock` with a changed-abort (OO6); and the integrity manifest is materialized + status-checked
+before its read loop (OO2).
