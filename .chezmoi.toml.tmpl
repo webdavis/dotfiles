@@ -1,5 +1,16 @@
+# encryption must stay a bare key ABOVE the first [section] or chezmoi ignores it.
+encryption = "age"
 sourceDir = "/Users/stephen/workspaces/Ivy/webdavis/dotfiles"
 workingTree = "/Users/stephen/workspaces/Ivy/webdavis/dotfiles"
+
+[add]
+  # Refuse `chezmoi add` of files that look like they contain secrets unless
+  # --encrypt is given (a guardrail, not a substitute for the gitleaks gate).
+  secrets = "error"
+
+[age]
+  identity = "/Users/stephen/.config/chezmoi/key.txt"
+  recipient = "age17p5xkaeynccd2nep0tfzjr4lndfxum28uwdermhdudtdd3dwhslsskjq50"
 
 [keepassxc]
   database = '/Users/stephen/Library/Mobile Documents/iCloud~com~strongbox/Documents/keepass.kdbx'
