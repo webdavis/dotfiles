@@ -1123,7 +1123,7 @@
       "label": "usage()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_macos-defaults-capture.sh",
-      "source_location": "L23",
+      "source_location": "L29",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -1165,7 +1165,7 @@
       "label": "normalize()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_macos-defaults-drift.sh",
-      "source_location": "L25",
+      "source_location": "L28",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -1179,7 +1179,7 @@
       "label": "print_header()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_macos-defaults-drift.sh",
-      "source_location": "L41",
+      "source_location": "L44",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -1958,6 +1958,48 @@
       "id": "dot_local_bin_executable_ssh_hardening_sh__entry",
       "community": 263,
       "norm_label": "executable_ssh-hardening.sh script"
+    },
+    {
+      "label": "render_dropin()",
+      "file_type": "code",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L30",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_bin_executable_ssh_hardening_render_dropin",
+      "community": 263,
+      "norm_label": "render_dropin()"
+    },
+    {
+      "label": "install_dropin()",
+      "file_type": "code",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L42",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_bin_executable_ssh_hardening_install_dropin",
+      "community": 263,
+      "norm_label": "install_dropin()"
+    },
+    {
+      "label": "do_reload()",
+      "file_type": "code",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L59",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_bin_executable_ssh_hardening_do_reload",
+      "community": 263,
+      "norm_label": "do_reload()"
     },
     {
       "label": "executable_update-skills.sh",
@@ -3120,6 +3162,90 @@
       "id": "dot_local_bin_executable_update_skills_check_fork_drift",
       "community": 0,
       "norm_label": "check_fork_drift()"
+    },
+    {
+      "label": "macos-defaults-lib.sh",
+      "file_type": "code",
+      "source_file": "dot_local/bin/macos-defaults-lib.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "dot_local_bin_macos_defaults_lib",
+      "community": 304,
+      "norm_label": "macos-defaults-lib.sh"
+    },
+    {
+      "label": "macos-defaults-lib.sh script",
+      "file_type": "code",
+      "source_file": "dot_local/bin/macos-defaults-lib.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "dot_local_bin_macos_defaults_lib_sh__entry",
+      "community": 304,
+      "norm_label": "macos-defaults-lib.sh script"
+    },
+    {
+      "label": "resolve_source_dir()",
+      "file_type": "code",
+      "source_file": "dot_local/bin/macos-defaults-lib.sh",
+      "source_location": "L22",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_bin_macos_defaults_lib_resolve_source_dir",
+      "community": 304,
+      "norm_label": "resolve_source_dir()"
+    },
+    {
+      "label": "macos_defaults_data_file()",
+      "file_type": "code",
+      "source_file": "dot_local/bin/macos-defaults-lib.sh",
+      "source_location": "L37",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_bin_macos_defaults_lib_macos_defaults_data_file",
+      "community": 304,
+      "norm_label": "macos_defaults_data_file()"
+    },
+    {
+      "label": "require_readable_data_file()",
+      "file_type": "code",
+      "source_file": "dot_local/bin/macos-defaults-lib.sh",
+      "source_location": "L45",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_bin_macos_defaults_lib_require_readable_data_file",
+      "community": 304,
+      "norm_label": "require_readable_data_file()"
+    },
+    {
+      "label": "defaults_records_tsv()",
+      "file_type": "code",
+      "source_file": "dot_local/bin/macos-defaults-lib.sh",
+      "source_location": "L56",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_bin_macos_defaults_lib_defaults_records_tsv",
+      "community": 304,
+      "norm_label": "defaults_records_tsv()"
     },
     {
       "label": "main.rs",
@@ -5188,10 +5314,24 @@
       "norm_label": "teardown_harness()"
     },
     {
+      "label": "wait_for_log_match()",
+      "file_type": "code",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L90",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_fixtures_osquery_alerter_lib_wait_for_log_match",
+      "community": 290,
+      "norm_label": "wait_for_log_match()"
+    },
+    {
       "label": "setup_poller_harness()",
       "file_type": "code",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L87",
+      "source_location": "L102",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -5205,7 +5345,7 @@
       "label": "run_poller()",
       "file_type": "code",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L101",
+      "source_location": "L116",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -5219,7 +5359,7 @@
       "label": "run_poller_firstrun()",
       "file_type": "code",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L112",
+      "source_location": "L127",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -5233,7 +5373,7 @@
       "label": "run_poller_badperms()",
       "file_type": "code",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L123",
+      "source_location": "L138",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -5247,7 +5387,7 @@
       "label": "setup_watchdog_harness()",
       "file_type": "code",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L139",
+      "source_location": "L154",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -5261,7 +5401,7 @@
       "label": "run_watchdog()",
       "file_type": "code",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L166",
+      "source_location": "L184",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -5275,7 +5415,7 @@
       "label": "seed_spool_file()",
       "file_type": "code",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L177",
+      "source_location": "L195",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -5289,7 +5429,7 @@
       "label": "setup_redaction_h2_harness()",
       "file_type": "code",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L193",
+      "source_location": "L211",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -5303,7 +5443,7 @@
       "label": "run_redaction_h2()",
       "file_type": "code",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L206",
+      "source_location": "L224",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -5317,7 +5457,7 @@
       "label": "run_alerter_hardfail_spool()",
       "file_type": "code",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L228",
+      "source_location": "L246",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -5331,7 +5471,7 @@
       "label": "run_h2_drain()",
       "file_type": "code",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L249",
+      "source_location": "L267",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -5345,7 +5485,7 @@
       "label": "setup_heartbeat_harness()",
       "file_type": "code",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L263",
+      "source_location": "L281",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -5359,7 +5499,7 @@
       "label": "seed_canary()",
       "file_type": "code",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L271",
+      "source_location": "L289",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -5373,7 +5513,7 @@
       "label": "run_heartbeat()",
       "file_type": "code",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L280",
+      "source_location": "L298",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -5387,7 +5527,7 @@
       "label": "setup_allowlist_harness()",
       "file_type": "code",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L290",
+      "source_location": "L308",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -5401,7 +5541,7 @@
       "label": "teardown_allowlist_harness()",
       "file_type": "code",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L301",
+      "source_location": "L319",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -5415,7 +5555,7 @@
       "label": "run_allowlist()",
       "file_type": "code",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L304",
+      "source_location": "L322",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -5429,7 +5569,7 @@
       "label": "assert_allowlisted()",
       "file_type": "code",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L310",
+      "source_location": "L328",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -5443,7 +5583,7 @@
       "label": "assert_not_allowlisted()",
       "file_type": "code",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L316",
+      "source_location": "L334",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -5457,7 +5597,7 @@
       "label": "assert_allowlist_label_count()",
       "file_type": "code",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L323",
+      "source_location": "L341",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -5471,7 +5611,7 @@
       "label": "digest_record()",
       "file_type": "code",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L334",
+      "source_location": "L352",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -5485,7 +5625,7 @@
       "label": "setup_tailscale_harness()",
       "file_type": "code",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L341",
+      "source_location": "L359",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -5499,7 +5639,7 @@
       "label": "_seed_ts_state()",
       "file_type": "code",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L354",
+      "source_location": "L372",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -5513,7 +5653,7 @@
       "label": "run_tailscale_monitor()",
       "file_type": "code",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L367",
+      "source_location": "L385",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -5527,7 +5667,7 @@
       "label": "run_tailscale_monitor_missing_bin()",
       "file_type": "code",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L378",
+      "source_location": "L396",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -5541,7 +5681,7 @@
       "label": "run_tailscale_monitor_path_resolved()",
       "file_type": "code",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L388",
+      "source_location": "L406",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -5555,7 +5695,7 @@
       "label": "tailscale_state_funnel()",
       "file_type": "code",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L398",
+      "source_location": "L416",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -5569,7 +5709,7 @@
       "label": "seed_digest()",
       "file_type": "code",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L401",
+      "source_location": "L419",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -5583,7 +5723,7 @@
       "label": "run_digest()",
       "file_type": "code",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L407",
+      "source_location": "L425",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -5597,7 +5737,7 @@
       "label": "run_alerter()",
       "file_type": "code",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L412",
+      "source_location": "L430",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -5611,7 +5751,7 @@
       "label": "run_alerter_cursor()",
       "file_type": "code",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L430",
+      "source_location": "L448",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -5625,7 +5765,7 @@
       "label": "cursor_offset()",
       "file_type": "code",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L452",
+      "source_location": "L470",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -5639,7 +5779,7 @@
       "label": "assert_no_page()",
       "file_type": "code",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L463",
+      "source_location": "L481",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -5653,7 +5793,7 @@
       "label": "assert_page_has()",
       "file_type": "code",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L470",
+      "source_location": "L488",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -5667,7 +5807,7 @@
       "label": "assert_warn_has()",
       "file_type": "code",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L477",
+      "source_location": "L495",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -5681,7 +5821,7 @@
       "label": "assert_page_lacks()",
       "file_type": "code",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L486",
+      "source_location": "L504",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -5695,7 +5835,7 @@
       "label": "setup_dispatch_harness()",
       "file_type": "code",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L496",
+      "source_location": "L514",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -5709,7 +5849,7 @@
       "label": "set_curl_codes()",
       "file_type": "code",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L533",
+      "source_location": "L551",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -5723,7 +5863,7 @@
       "label": "wait_for_alerter()",
       "file_type": "code",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L537",
+      "source_location": "L555",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -5737,7 +5877,7 @@
       "label": "run_drain()",
       "file_type": "code",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L548",
+      "source_location": "L566",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -5751,7 +5891,7 @@
       "label": "assert_spool_count()",
       "file_type": "code",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L551",
+      "source_location": "L569",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -5765,7 +5905,7 @@
       "label": "assert_mode()",
       "file_type": "code",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L561",
+      "source_location": "L579",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -5779,7 +5919,7 @@
       "label": "assert_post_count()",
       "file_type": "code",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L571",
+      "source_location": "L589",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -5793,7 +5933,7 @@
       "label": "assert_posted_to()",
       "file_type": "code",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L581",
+      "source_location": "L599",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -5807,7 +5947,7 @@
       "label": "assert_no_post()",
       "file_type": "code",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L589",
+      "source_location": "L607",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -5821,7 +5961,7 @@
       "label": "assert_no_dispatch()",
       "file_type": "code",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L597",
+      "source_location": "L615",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -5835,7 +5975,7 @@
       "label": "assert_digest_sent()",
       "file_type": "code",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L605",
+      "source_location": "L623",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -5849,7 +5989,7 @@
       "label": "assert_digest_silent()",
       "file_type": "code",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L619",
+      "source_location": "L637",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -5863,7 +6003,7 @@
       "label": "assert_digest_body_has()",
       "file_type": "code",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L629",
+      "source_location": "L647",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -5877,7 +6017,7 @@
       "label": "assert_store_rotated()",
       "file_type": "code",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L637",
+      "source_location": "L655",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -5891,7 +6031,7 @@
       "label": "assert_digest_count()",
       "file_type": "code",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L649",
+      "source_location": "L667",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -6924,6 +7064,90 @@
       "norm_label": "make_brew()"
     },
     {
+      "label": "macos-defaults-source-path.sh",
+      "file_type": "code",
+      "source_file": "test/integration/macos-defaults-source-path.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "test_integration_macos_defaults_source_path",
+      "community": 305,
+      "norm_label": "macos-defaults-source-path.sh"
+    },
+    {
+      "label": "macos-defaults-source-path.sh script",
+      "file_type": "code",
+      "source_file": "test/integration/macos-defaults-source-path.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "test_integration_macos_defaults_source_path_sh__entry",
+      "community": 305,
+      "norm_label": "macos-defaults-source-path.sh script"
+    },
+    {
+      "label": "fail()",
+      "file_type": "code",
+      "source_file": "test/integration/macos-defaults-source-path.sh",
+      "source_location": "L27",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_integration_macos_defaults_source_path_fail",
+      "community": 305,
+      "norm_label": "fail()"
+    },
+    {
+      "label": "macos-system-setup-sudo-guard.sh",
+      "file_type": "code",
+      "source_file": "test/integration/macos-system-setup-sudo-guard.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "test_integration_macos_system_setup_sudo_guard",
+      "community": 12,
+      "norm_label": "macos-system-setup-sudo-guard.sh"
+    },
+    {
+      "label": "macos-system-setup-sudo-guard.sh script",
+      "file_type": "code",
+      "source_file": "test/integration/macos-system-setup-sudo-guard.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "test_integration_macos_system_setup_sudo_guard_sh__entry",
+      "community": 12,
+      "norm_label": "macos-system-setup-sudo-guard.sh script"
+    },
+    {
+      "label": "fail()",
+      "file_type": "code",
+      "source_file": "test/integration/macos-system-setup-sudo-guard.sh",
+      "source_location": "L18",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_integration_macos_system_setup_sudo_guard_fail",
+      "community": 12,
+      "norm_label": "fail()"
+    },
+    {
       "label": "openclaw-services-retirement.sh",
       "file_type": "code",
       "source_file": "test/integration/openclaw-services-retirement.sh",
@@ -7916,6 +8140,62 @@
       "id": "test_integration_run_camp_runner_run_camp",
       "community": 187,
       "norm_label": "run_camp()"
+    },
+    {
+      "label": "ssh-hardening-sshd-validate.sh",
+      "file_type": "code",
+      "source_file": "test/integration/ssh-hardening-sshd-validate.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "test_integration_ssh_hardening_sshd_validate",
+      "community": 307,
+      "norm_label": "ssh-hardening-sshd-validate.sh"
+    },
+    {
+      "label": "ssh-hardening-sshd-validate.sh script",
+      "file_type": "code",
+      "source_file": "test/integration/ssh-hardening-sshd-validate.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "test_integration_ssh_hardening_sshd_validate_sh__entry",
+      "community": 307,
+      "norm_label": "ssh-hardening-sshd-validate.sh script"
+    },
+    {
+      "label": "fail()",
+      "file_type": "code",
+      "source_file": "test/integration/ssh-hardening-sshd-validate.sh",
+      "source_location": "L22",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_integration_ssh_hardening_sshd_validate_fail",
+      "community": 307,
+      "norm_label": "fail()"
+    },
+    {
+      "label": "want",
+      "file_type": "code",
+      "source_file": "test/integration/ssh-hardening-sshd-validate.sh",
+      "source_location": "L50",
+      "metadata": {
+        "language": "bash",
+        "kind": "code"
+      },
+      "_origin": "ast",
+      "id": "test_integration_ssh_hardening_sshd_validate_want",
+      "community": 307,
+      "norm_label": "want"
     },
     {
       "label": "tailnet-pins.sh",
@@ -11880,6 +12160,160 @@
       "norm_label": "assert_kv()"
     },
     {
+      "label": "macos-security-posture.sh",
+      "file_type": "code",
+      "source_file": "test/unit/macos-security-posture.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "test_unit_macos_security_posture",
+      "community": 308,
+      "norm_label": "macos-security-posture.sh"
+    },
+    {
+      "label": "macos-security-posture.sh script",
+      "file_type": "code",
+      "source_file": "test/unit/macos-security-posture.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "test_unit_macos_security_posture_sh__entry",
+      "community": 308,
+      "norm_label": "macos-security-posture.sh script"
+    },
+    {
+      "label": "fail()",
+      "file_type": "code",
+      "source_file": "test/unit/macos-security-posture.sh",
+      "source_location": "L20",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_macos_security_posture_fail",
+      "community": 308,
+      "norm_label": "fail()"
+    },
+    {
+      "label": "make_stub()",
+      "file_type": "code",
+      "source_file": "test/unit/macos-security-posture.sh",
+      "source_location": "L49",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_macos_security_posture_make_stub",
+      "community": 308,
+      "norm_label": "make_stub()"
+    },
+    {
+      "label": "run_case()",
+      "file_type": "code",
+      "source_file": "test/unit/macos-security-posture.sh",
+      "source_location": "L62",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_macos_security_posture_run_case",
+      "community": 308,
+      "norm_label": "run_case()"
+    },
+    {
+      "label": "report()",
+      "file_type": "code",
+      "source_file": "test/unit/macos-security-posture.sh",
+      "source_location": "L79",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_macos_security_posture_report",
+      "community": 308,
+      "norm_label": "report()"
+    },
+    {
+      "label": "a0()",
+      "file_type": "code",
+      "source_file": "test/unit/macos-security-posture.sh",
+      "source_location": "L85",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_macos_security_posture_a0",
+      "community": 308,
+      "norm_label": "a0()"
+    },
+    {
+      "label": "anomut()",
+      "file_type": "code",
+      "source_file": "test/unit/macos-security-posture.sh",
+      "source_location": "L87",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_macos_security_posture_anomut",
+      "community": 308,
+      "norm_label": "anomut()"
+    },
+    {
+      "label": "outhas()",
+      "file_type": "code",
+      "source_file": "test/unit/macos-security-posture.sh",
+      "source_location": "L88",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_macos_security_posture_outhas",
+      "community": 308,
+      "norm_label": "outhas()"
+    },
+    {
+      "label": "errhas()",
+      "file_type": "code",
+      "source_file": "test/unit/macos-security-posture.sh",
+      "source_location": "L89",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_macos_security_posture_errhas",
+      "community": 308,
+      "norm_label": "errhas()"
+    },
+    {
+      "label": "errno()",
+      "file_type": "code",
+      "source_file": "test/unit/macos-security-posture.sh",
+      "source_location": "L90",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_macos_security_posture_errno",
+      "community": 308,
+      "norm_label": "errno()"
+    },
+    {
       "label": "relay-codex-hooks.sh",
       "file_type": "code",
       "source_file": "test/unit/relay-codex-hooks.sh",
@@ -12132,6 +12566,76 @@
       "norm_label": "hermes_declaration_dirs()"
     },
     {
+      "label": "ssh-hardening-dropin.sh",
+      "file_type": "code",
+      "source_file": "test/unit/ssh-hardening-dropin.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "test_unit_ssh_hardening_dropin",
+      "community": 270,
+      "norm_label": "ssh-hardening-dropin.sh"
+    },
+    {
+      "label": "ssh-hardening-dropin.sh script",
+      "file_type": "code",
+      "source_file": "test/unit/ssh-hardening-dropin.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "test_unit_ssh_hardening_dropin_sh__entry",
+      "community": 270,
+      "norm_label": "ssh-hardening-dropin.sh script"
+    },
+    {
+      "label": "fail()",
+      "file_type": "code",
+      "source_file": "test/unit/ssh-hardening-dropin.sh",
+      "source_location": "L24",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_ssh_hardening_dropin_fail",
+      "community": 270,
+      "norm_label": "fail()"
+    },
+    {
+      "label": "want",
+      "file_type": "code",
+      "source_file": "test/unit/ssh-hardening-dropin.sh",
+      "source_location": "L35",
+      "metadata": {
+        "language": "bash",
+        "kind": "code"
+      },
+      "_origin": "ast",
+      "id": "test_unit_ssh_hardening_dropin_want",
+      "community": 270,
+      "norm_label": "want"
+    },
+    {
+      "label": "forbid",
+      "file_type": "code",
+      "source_file": "test/unit/ssh-hardening-dropin.sh",
+      "source_location": "L49",
+      "metadata": {
+        "language": "bash",
+        "kind": "code"
+      },
+      "_origin": "ast",
+      "id": "test_unit_ssh_hardening_dropin_forbid",
+      "community": 270,
+      "norm_label": "forbid"
+    },
+    {
       "label": "tailscaled-status.sh",
       "file_type": "code",
       "source_file": "test/unit/tailscaled-status.sh",
@@ -12342,333 +12846,333 @@
       "norm_label": "update_skills_lib_only"
     },
     {
-      "label": "CLAUDE.md",
+      "label": "AGENTS.md",
       "file_type": "document",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L1",
       "_origin": "ast",
-      "id": "claude",
-      "community": 12,
-      "norm_label": "claude.md"
+      "id": "agents",
+      "community": 303,
+      "norm_label": "agents.md"
     },
     {
       "label": "CLAUDE.md",
       "file_type": "document",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L7",
       "_origin": "ast",
-      "id": "claude_claude_md",
-      "community": 12,
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_claude_md",
+      "community": 303,
       "norm_label": "claude.md"
     },
     {
       "label": "What This Is",
       "file_type": "document",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L11",
       "_origin": "ast",
-      "id": "claude_what_this_is",
-      "community": 12,
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_what_this_is",
+      "community": 303,
       "norm_label": "what this is"
     },
     {
       "label": "Key Commands",
       "file_type": "document",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L18",
       "_origin": "ast",
-      "id": "claude_key_commands",
-      "community": 12,
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_key_commands",
+      "community": 303,
       "norm_label": "key commands"
     },
     {
       "label": "Linting & Formatting",
       "file_type": "document",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L20",
       "_origin": "ast",
-      "id": "claude_linting_formatting",
-      "community": 12,
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_linting_formatting",
+      "community": 303,
       "norm_label": "linting & formatting"
     },
     {
       "label": "Testing",
       "file_type": "document",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L46",
       "_origin": "ast",
-      "id": "claude_testing",
-      "community": 12,
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_testing",
+      "community": 303,
       "norm_label": "testing"
     },
     {
       "label": "Chezmoi Operations",
       "file_type": "document",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L74",
       "_origin": "ast",
-      "id": "claude_chezmoi_operations",
-      "community": 12,
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_chezmoi_operations",
+      "community": 303,
       "norm_label": "chezmoi operations"
     },
     {
       "label": "Claude Code Settings",
       "file_type": "document",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L102",
       "_origin": "ast",
-      "id": "claude_claude_code_settings",
-      "community": 12,
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_claude_code_settings",
+      "community": 303,
       "norm_label": "claude code settings"
     },
     {
       "label": "Git Hooks",
       "file_type": "document",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L135",
       "_origin": "ast",
-      "id": "claude_git_hooks",
-      "community": 12,
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_git_hooks",
+      "community": 303,
       "norm_label": "git hooks"
     },
     {
       "label": "Architecture",
       "file_type": "document",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L178",
       "_origin": "ast",
-      "id": "claude_architecture",
-      "community": 12,
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_architecture",
+      "community": 303,
       "norm_label": "architecture"
     },
     {
       "label": "Source-Only Files",
       "file_type": "document",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L180",
       "_origin": "ast",
-      "id": "claude_source_only_files",
-      "community": 12,
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_source_only_files",
+      "community": 303,
       "norm_label": "source-only files"
     },
     {
       "label": "Minimum Chezmoi Version",
       "file_type": "document",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L188",
       "_origin": "ast",
-      "id": "claude_minimum_chezmoi_version",
-      "community": 12,
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_minimum_chezmoi_version",
+      "community": 303,
       "norm_label": "minimum chezmoi version"
     },
     {
       "label": "Secrets Management",
       "file_type": "document",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L192",
       "_origin": "ast",
-      "id": "claude_secrets_management",
-      "community": 12,
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_secrets_management",
+      "community": 303,
       "norm_label": "secrets management"
     },
     {
       "label": "System Package Management",
       "file_type": "document",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L199",
       "_origin": "ast",
-      "id": "claude_system_package_management",
-      "community": 12,
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_system_package_management",
+      "community": 303,
       "norm_label": "system package management"
     },
     {
       "label": "macOS Defaults Management",
       "file_type": "document",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L224",
       "_origin": "ast",
-      "id": "claude_macos_defaults_management",
-      "community": 12,
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_macos_defaults_management",
+      "community": 303,
       "norm_label": "macos defaults management"
     },
     {
       "label": "Template Files",
       "file_type": "document",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L269",
       "_origin": "ast",
-      "id": "claude_template_files",
-      "community": 12,
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_template_files",
+      "community": 303,
       "norm_label": "template files"
     },
     {
       "label": "Template Shellcheck Workaround",
       "file_type": "document",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L275",
       "_origin": "ast",
-      "id": "claude_template_shellcheck_workaround",
-      "community": 12,
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_template_shellcheck_workaround",
+      "community": 303,
       "norm_label": "template shellcheck workaround"
     },
     {
       "label": "OS Targeting",
       "file_type": "document",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L296",
       "_origin": "ast",
-      "id": "claude_os_targeting",
-      "community": 12,
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_os_targeting",
+      "community": 303,
       "norm_label": "os targeting"
     },
     {
       "label": "Dev Environment (Nix Flake)",
       "file_type": "document",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L301",
       "_origin": "ast",
-      "id": "claude_dev_environment_nix_flake",
-      "community": 12,
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_dev_environment_nix_flake",
+      "community": 303,
       "norm_label": "dev environment (nix flake)"
     },
     {
       "label": "CI",
       "file_type": "document",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L312",
       "_origin": "ast",
-      "id": "claude_ci",
-      "community": 12,
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_ci",
+      "community": 303,
       "norm_label": "ci"
     },
     {
       "label": "Agent Skills (cross-harness store)",
       "file_type": "document",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L322",
       "_origin": "ast",
-      "id": "claude_agent_skills_cross_harness_store",
-      "community": 12,
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_agent_skills_cross_harness_store",
+      "community": 303,
       "norm_label": "agent skills (cross-harness store)"
     },
     {
       "label": "Herdr Workspace Management",
       "file_type": "document",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L492",
       "_origin": "ast",
-      "id": "claude_herdr_workspace_management",
-      "community": 12,
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_herdr_workspace_management",
+      "community": 303,
       "norm_label": "herdr workspace management"
     },
     {
       "label": "Git Worktrees (Worktrunk)",
       "file_type": "document",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L512",
       "_origin": "ast",
-      "id": "claude_git_worktrees_worktrunk",
-      "community": 12,
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_git_worktrees_worktrunk",
+      "community": 303,
       "norm_label": "git worktrees (worktrunk)"
     },
     {
       "label": "Bashrc Init Ordering",
       "file_type": "document",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L519",
       "_origin": "ast",
-      "id": "claude_bashrc_init_ordering",
-      "community": 12,
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_bashrc_init_ordering",
+      "community": 303,
       "norm_label": "bashrc init ordering"
     },
     {
       "label": "Shell History (Atuin)",
       "file_type": "document",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L528",
       "_origin": "ast",
-      "id": "claude_shell_history_atuin",
-      "community": 12,
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_shell_history_atuin",
+      "community": 303,
       "norm_label": "shell history (atuin)"
     },
     {
       "label": "Happy Daemon (Remote Agent Control)",
       "file_type": "document",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L557",
       "_origin": "ast",
-      "id": "claude_happy_daemon_remote_agent_control",
-      "community": 12,
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_happy_daemon_remote_agent_control",
+      "community": 303,
       "norm_label": "happy daemon (remote agent control)"
     },
     {
       "label": "Tailscale (headless daemon)",
       "file_type": "document",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L584",
       "_origin": "ast",
-      "id": "claude_tailscale_headless_daemon",
-      "community": 12,
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_tailscale_headless_daemon",
+      "community": 303,
       "norm_label": "tailscale (headless daemon)"
     },
     {
       "label": "AI Commit Messages",
       "file_type": "document",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L621",
       "_origin": "ast",
-      "id": "claude_ai_commit_messages",
-      "community": 12,
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_ai_commit_messages",
+      "community": 303,
       "norm_label": "ai commit messages"
     },
     {
       "label": "Long-running Command Notifier",
       "file_type": "document",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L634",
       "_origin": "ast",
-      "id": "claude_long_running_command_notifier",
-      "community": 12,
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_long_running_command_notifier",
+      "community": 303,
       "norm_label": "long-running command notifier"
     },
     {
       "label": "Herdr Native Status",
       "file_type": "document",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L640",
       "_origin": "ast",
-      "id": "claude_herdr_native_status",
-      "community": 12,
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_herdr_native_status",
+      "community": 303,
       "norm_label": "herdr native status"
     },
     {
       "label": "Code Style",
       "file_type": "document",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L646",
       "_origin": "ast",
-      "id": "claude_code_style",
-      "community": 12,
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_code_style",
+      "community": 303,
       "norm_label": "code style"
     },
     {
       "label": "Git Commits",
       "file_type": "document",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L672",
       "_origin": "ast",
-      "id": "claude_git_commits",
-      "community": 12,
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_git_commits",
+      "community": 303,
       "norm_label": "git commits"
     },
     {
       "label": "Security",
       "file_type": "document",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L679",
       "_origin": "ast",
-      "id": "claude_security",
-      "community": 12,
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_security",
+      "community": 303,
       "norm_label": "security"
     },
     {
@@ -18728,7 +19232,7 @@
       "source_location": "L38",
       "_origin": "ast",
       "id": "docs_research_2026_04_26_macos_defaults_management_introduction",
-      "community": 270,
+      "community": 306,
       "norm_label": "introduction"
     },
     {
@@ -18738,7 +19242,7 @@
       "source_location": "L40",
       "_origin": "ast",
       "id": "docs_research_2026_04_26_macos_defaults_management_scope",
-      "community": 270,
+      "community": 306,
       "norm_label": "scope"
     },
     {
@@ -18748,7 +19252,7 @@
       "source_location": "L55",
       "_origin": "ast",
       "id": "docs_research_2026_04_26_macos_defaults_management_methodology",
-      "community": 270,
+      "community": 306,
       "norm_label": "methodology"
     },
     {
@@ -18758,7 +19262,7 @@
       "source_location": "L67",
       "_origin": "ast",
       "id": "docs_research_2026_04_26_macos_defaults_management_key_assumptions",
-      "community": 270,
+      "community": 306,
       "norm_label": "key assumptions"
     },
     {
@@ -32099,7 +32603,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_macos-defaults-capture.sh",
-      "source_location": "L23",
+      "source_location": "L29",
       "weight": 1.0,
       "source": "dot_local_bin_executable_macos_defaults_capture",
       "target": "dot_local_bin_executable_macos_defaults_capture_usage",
@@ -32109,7 +32613,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_macos-defaults-capture.sh",
-      "source_location": "L28",
+      "source_location": "L34",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_macos_defaults_capture_sh__entry",
@@ -32120,7 +32624,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_macos-defaults-drift.sh",
-      "source_location": "L25",
+      "source_location": "L28",
       "weight": 1.0,
       "source": "dot_local_bin_executable_macos_defaults_drift",
       "target": "dot_local_bin_executable_macos_defaults_drift_normalize",
@@ -32130,7 +32634,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_macos-defaults-drift.sh",
-      "source_location": "L41",
+      "source_location": "L44",
       "weight": 1.0,
       "source": "dot_local_bin_executable_macos_defaults_drift",
       "target": "dot_local_bin_executable_macos_defaults_drift_print_header",
@@ -32150,7 +32654,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_macos-defaults-drift.sh",
-      "source_location": "L61",
+      "source_location": "L64",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_macos_defaults_drift_sh__entry",
@@ -32741,7 +33245,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_osquery-tailscale-monitor.sh",
-      "source_location": "L86",
+      "source_location": "L89",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_osquery_tailscale_monitor_sh__entry",
@@ -32821,6 +33325,36 @@
       "confidence_score": 1.0
     },
     {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L59",
+      "weight": 1.0,
+      "source": "dot_local_bin_executable_ssh_hardening",
+      "target": "dot_local_bin_executable_ssh_hardening_do_reload",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L42",
+      "weight": 1.0,
+      "source": "dot_local_bin_executable_ssh_hardening",
+      "target": "dot_local_bin_executable_ssh_hardening_install_dropin",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L30",
+      "weight": 1.0,
+      "source": "dot_local_bin_executable_ssh_hardening",
+      "target": "dot_local_bin_executable_ssh_hardening_render_dropin",
+      "confidence_score": 1.0
+    },
+    {
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
@@ -32828,6 +33362,50 @@
       "weight": 1.0,
       "source": "dot_local_bin_executable_ssh_hardening",
       "target": "dot_local_bin_executable_ssh_hardening_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L73",
+      "weight": 1.0,
+      "context": "call",
+      "source": "dot_local_bin_executable_ssh_hardening_sh__entry",
+      "target": "dot_local_bin_executable_ssh_hardening_do_reload",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L76",
+      "weight": 1.0,
+      "context": "call",
+      "source": "dot_local_bin_executable_ssh_hardening_sh__entry",
+      "target": "dot_local_bin_executable_ssh_hardening_install_dropin",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L70",
+      "weight": 1.0,
+      "context": "call",
+      "source": "dot_local_bin_executable_ssh_hardening_sh__entry",
+      "target": "dot_local_bin_executable_ssh_hardening_render_dropin",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L48",
+      "weight": 1.0,
+      "context": "call",
+      "source": "dot_local_bin_executable_ssh_hardening_install_dropin",
+      "target": "dot_local_bin_executable_ssh_hardening_render_dropin",
       "confidence_score": 1.0
     },
     {
@@ -35367,6 +35945,56 @@
       "confidence_score": 1.0
     },
     {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/macos-defaults-lib.sh",
+      "source_location": "L56",
+      "weight": 1.0,
+      "source": "dot_local_bin_macos_defaults_lib",
+      "target": "dot_local_bin_macos_defaults_lib_defaults_records_tsv",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/macos-defaults-lib.sh",
+      "source_location": "L37",
+      "weight": 1.0,
+      "source": "dot_local_bin_macos_defaults_lib",
+      "target": "dot_local_bin_macos_defaults_lib_macos_defaults_data_file",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/macos-defaults-lib.sh",
+      "source_location": "L45",
+      "weight": 1.0,
+      "source": "dot_local_bin_macos_defaults_lib",
+      "target": "dot_local_bin_macos_defaults_lib_require_readable_data_file",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/macos-defaults-lib.sh",
+      "source_location": "L22",
+      "weight": 1.0,
+      "source": "dot_local_bin_macos_defaults_lib",
+      "target": "dot_local_bin_macos_defaults_lib_resolve_source_dir",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/macos-defaults-lib.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "dot_local_bin_macos_defaults_lib",
+      "target": "dot_local_bin_macos_defaults_lib_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/share/herdr/plugins/herdr-last-workspace/src/main.rs",
@@ -37685,7 +38313,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L323",
+      "source_location": "L341",
       "weight": 1.0,
       "source": "test_fixtures_osquery_alerter_lib",
       "target": "test_fixtures_osquery_alerter_lib_assert_allowlist_label_count",
@@ -37695,7 +38323,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L310",
+      "source_location": "L328",
       "weight": 1.0,
       "source": "test_fixtures_osquery_alerter_lib",
       "target": "test_fixtures_osquery_alerter_lib_assert_allowlisted",
@@ -37705,7 +38333,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L629",
+      "source_location": "L647",
       "weight": 1.0,
       "source": "test_fixtures_osquery_alerter_lib",
       "target": "test_fixtures_osquery_alerter_lib_assert_digest_body_has",
@@ -37715,7 +38343,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L649",
+      "source_location": "L667",
       "weight": 1.0,
       "source": "test_fixtures_osquery_alerter_lib",
       "target": "test_fixtures_osquery_alerter_lib_assert_digest_count",
@@ -37725,7 +38353,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L605",
+      "source_location": "L623",
       "weight": 1.0,
       "source": "test_fixtures_osquery_alerter_lib",
       "target": "test_fixtures_osquery_alerter_lib_assert_digest_sent",
@@ -37735,7 +38363,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L619",
+      "source_location": "L637",
       "weight": 1.0,
       "source": "test_fixtures_osquery_alerter_lib",
       "target": "test_fixtures_osquery_alerter_lib_assert_digest_silent",
@@ -37745,7 +38373,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L561",
+      "source_location": "L579",
       "weight": 1.0,
       "source": "test_fixtures_osquery_alerter_lib",
       "target": "test_fixtures_osquery_alerter_lib_assert_mode",
@@ -37755,7 +38383,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L597",
+      "source_location": "L615",
       "weight": 1.0,
       "source": "test_fixtures_osquery_alerter_lib",
       "target": "test_fixtures_osquery_alerter_lib_assert_no_dispatch",
@@ -37765,7 +38393,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L463",
+      "source_location": "L481",
       "weight": 1.0,
       "source": "test_fixtures_osquery_alerter_lib",
       "target": "test_fixtures_osquery_alerter_lib_assert_no_page",
@@ -37775,7 +38403,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L589",
+      "source_location": "L607",
       "weight": 1.0,
       "source": "test_fixtures_osquery_alerter_lib",
       "target": "test_fixtures_osquery_alerter_lib_assert_no_post",
@@ -37785,7 +38413,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L316",
+      "source_location": "L334",
       "weight": 1.0,
       "source": "test_fixtures_osquery_alerter_lib",
       "target": "test_fixtures_osquery_alerter_lib_assert_not_allowlisted",
@@ -37795,7 +38423,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L470",
+      "source_location": "L488",
       "weight": 1.0,
       "source": "test_fixtures_osquery_alerter_lib",
       "target": "test_fixtures_osquery_alerter_lib_assert_page_has",
@@ -37805,7 +38433,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L486",
+      "source_location": "L504",
       "weight": 1.0,
       "source": "test_fixtures_osquery_alerter_lib",
       "target": "test_fixtures_osquery_alerter_lib_assert_page_lacks",
@@ -37815,7 +38443,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L571",
+      "source_location": "L589",
       "weight": 1.0,
       "source": "test_fixtures_osquery_alerter_lib",
       "target": "test_fixtures_osquery_alerter_lib_assert_post_count",
@@ -37825,7 +38453,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L581",
+      "source_location": "L599",
       "weight": 1.0,
       "source": "test_fixtures_osquery_alerter_lib",
       "target": "test_fixtures_osquery_alerter_lib_assert_posted_to",
@@ -37835,7 +38463,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L551",
+      "source_location": "L569",
       "weight": 1.0,
       "source": "test_fixtures_osquery_alerter_lib",
       "target": "test_fixtures_osquery_alerter_lib_assert_spool_count",
@@ -37845,7 +38473,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L637",
+      "source_location": "L655",
       "weight": 1.0,
       "source": "test_fixtures_osquery_alerter_lib",
       "target": "test_fixtures_osquery_alerter_lib_assert_store_rotated",
@@ -37855,7 +38483,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L477",
+      "source_location": "L495",
       "weight": 1.0,
       "source": "test_fixtures_osquery_alerter_lib",
       "target": "test_fixtures_osquery_alerter_lib_assert_warn_has",
@@ -37875,7 +38503,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L452",
+      "source_location": "L470",
       "weight": 1.0,
       "source": "test_fixtures_osquery_alerter_lib",
       "target": "test_fixtures_osquery_alerter_lib_cursor_offset",
@@ -37885,7 +38513,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L334",
+      "source_location": "L352",
       "weight": 1.0,
       "source": "test_fixtures_osquery_alerter_lib",
       "target": "test_fixtures_osquery_alerter_lib_digest_record",
@@ -37925,7 +38553,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L412",
+      "source_location": "L430",
       "weight": 1.0,
       "source": "test_fixtures_osquery_alerter_lib",
       "target": "test_fixtures_osquery_alerter_lib_run_alerter",
@@ -37935,7 +38563,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L430",
+      "source_location": "L448",
       "weight": 1.0,
       "source": "test_fixtures_osquery_alerter_lib",
       "target": "test_fixtures_osquery_alerter_lib_run_alerter_cursor",
@@ -37945,7 +38573,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L228",
+      "source_location": "L246",
       "weight": 1.0,
       "source": "test_fixtures_osquery_alerter_lib",
       "target": "test_fixtures_osquery_alerter_lib_run_alerter_hardfail_spool",
@@ -37955,7 +38583,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L304",
+      "source_location": "L322",
       "weight": 1.0,
       "source": "test_fixtures_osquery_alerter_lib",
       "target": "test_fixtures_osquery_alerter_lib_run_allowlist",
@@ -37965,7 +38593,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L407",
+      "source_location": "L425",
       "weight": 1.0,
       "source": "test_fixtures_osquery_alerter_lib",
       "target": "test_fixtures_osquery_alerter_lib_run_digest",
@@ -37975,7 +38603,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L548",
+      "source_location": "L566",
       "weight": 1.0,
       "source": "test_fixtures_osquery_alerter_lib",
       "target": "test_fixtures_osquery_alerter_lib_run_drain",
@@ -37985,7 +38613,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L249",
+      "source_location": "L267",
       "weight": 1.0,
       "source": "test_fixtures_osquery_alerter_lib",
       "target": "test_fixtures_osquery_alerter_lib_run_h2_drain",
@@ -37995,7 +38623,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L280",
+      "source_location": "L298",
       "weight": 1.0,
       "source": "test_fixtures_osquery_alerter_lib",
       "target": "test_fixtures_osquery_alerter_lib_run_heartbeat",
@@ -38005,7 +38633,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L101",
+      "source_location": "L116",
       "weight": 1.0,
       "source": "test_fixtures_osquery_alerter_lib",
       "target": "test_fixtures_osquery_alerter_lib_run_poller",
@@ -38015,7 +38643,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L123",
+      "source_location": "L138",
       "weight": 1.0,
       "source": "test_fixtures_osquery_alerter_lib",
       "target": "test_fixtures_osquery_alerter_lib_run_poller_badperms",
@@ -38025,7 +38653,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L112",
+      "source_location": "L127",
       "weight": 1.0,
       "source": "test_fixtures_osquery_alerter_lib",
       "target": "test_fixtures_osquery_alerter_lib_run_poller_firstrun",
@@ -38035,7 +38663,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L206",
+      "source_location": "L224",
       "weight": 1.0,
       "source": "test_fixtures_osquery_alerter_lib",
       "target": "test_fixtures_osquery_alerter_lib_run_redaction_h2",
@@ -38045,7 +38673,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L367",
+      "source_location": "L385",
       "weight": 1.0,
       "source": "test_fixtures_osquery_alerter_lib",
       "target": "test_fixtures_osquery_alerter_lib_run_tailscale_monitor",
@@ -38055,7 +38683,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L378",
+      "source_location": "L396",
       "weight": 1.0,
       "source": "test_fixtures_osquery_alerter_lib",
       "target": "test_fixtures_osquery_alerter_lib_run_tailscale_monitor_missing_bin",
@@ -38065,7 +38693,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L388",
+      "source_location": "L406",
       "weight": 1.0,
       "source": "test_fixtures_osquery_alerter_lib",
       "target": "test_fixtures_osquery_alerter_lib_run_tailscale_monitor_path_resolved",
@@ -38075,7 +38703,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L166",
+      "source_location": "L184",
       "weight": 1.0,
       "source": "test_fixtures_osquery_alerter_lib",
       "target": "test_fixtures_osquery_alerter_lib_run_watchdog",
@@ -38095,7 +38723,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L271",
+      "source_location": "L289",
       "weight": 1.0,
       "source": "test_fixtures_osquery_alerter_lib",
       "target": "test_fixtures_osquery_alerter_lib_seed_canary",
@@ -38105,7 +38733,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L401",
+      "source_location": "L419",
       "weight": 1.0,
       "source": "test_fixtures_osquery_alerter_lib",
       "target": "test_fixtures_osquery_alerter_lib_seed_digest",
@@ -38125,7 +38753,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L177",
+      "source_location": "L195",
       "weight": 1.0,
       "source": "test_fixtures_osquery_alerter_lib",
       "target": "test_fixtures_osquery_alerter_lib_seed_spool_file",
@@ -38135,7 +38763,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L354",
+      "source_location": "L372",
       "weight": 1.0,
       "source": "test_fixtures_osquery_alerter_lib",
       "target": "test_fixtures_osquery_alerter_lib_seed_ts_state",
@@ -38145,7 +38773,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L533",
+      "source_location": "L551",
       "weight": 1.0,
       "source": "test_fixtures_osquery_alerter_lib",
       "target": "test_fixtures_osquery_alerter_lib_set_curl_codes",
@@ -38155,7 +38783,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L290",
+      "source_location": "L308",
       "weight": 1.0,
       "source": "test_fixtures_osquery_alerter_lib",
       "target": "test_fixtures_osquery_alerter_lib_setup_allowlist_harness",
@@ -38165,7 +38793,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L496",
+      "source_location": "L514",
       "weight": 1.0,
       "source": "test_fixtures_osquery_alerter_lib",
       "target": "test_fixtures_osquery_alerter_lib_setup_dispatch_harness",
@@ -38185,7 +38813,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L263",
+      "source_location": "L281",
       "weight": 1.0,
       "source": "test_fixtures_osquery_alerter_lib",
       "target": "test_fixtures_osquery_alerter_lib_setup_heartbeat_harness",
@@ -38195,7 +38823,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L87",
+      "source_location": "L102",
       "weight": 1.0,
       "source": "test_fixtures_osquery_alerter_lib",
       "target": "test_fixtures_osquery_alerter_lib_setup_poller_harness",
@@ -38205,7 +38833,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L193",
+      "source_location": "L211",
       "weight": 1.0,
       "source": "test_fixtures_osquery_alerter_lib",
       "target": "test_fixtures_osquery_alerter_lib_setup_redaction_h2_harness",
@@ -38215,7 +38843,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L341",
+      "source_location": "L359",
       "weight": 1.0,
       "source": "test_fixtures_osquery_alerter_lib",
       "target": "test_fixtures_osquery_alerter_lib_setup_tailscale_harness",
@@ -38225,7 +38853,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L139",
+      "source_location": "L154",
       "weight": 1.0,
       "source": "test_fixtures_osquery_alerter_lib",
       "target": "test_fixtures_osquery_alerter_lib_setup_watchdog_harness",
@@ -38235,7 +38863,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L398",
+      "source_location": "L416",
       "weight": 1.0,
       "source": "test_fixtures_osquery_alerter_lib",
       "target": "test_fixtures_osquery_alerter_lib_tailscale_state_funnel",
@@ -38245,7 +38873,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L301",
+      "source_location": "L319",
       "weight": 1.0,
       "source": "test_fixtures_osquery_alerter_lib",
       "target": "test_fixtures_osquery_alerter_lib_teardown_allowlist_harness",
@@ -38265,17 +38893,27 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L537",
+      "source_location": "L555",
       "weight": 1.0,
       "source": "test_fixtures_osquery_alerter_lib",
       "target": "test_fixtures_osquery_alerter_lib_wait_for_alerter",
       "confidence_score": 1.0
     },
     {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L90",
+      "weight": 1.0,
+      "source": "test_fixtures_osquery_alerter_lib",
+      "target": "test_fixtures_osquery_alerter_lib_wait_for_log_match",
+      "confidence_score": 1.0
+    },
+    {
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L264",
+      "source_location": "L282",
       "weight": 1.0,
       "context": "call",
       "source": "test_fixtures_osquery_alerter_lib_setup_heartbeat_harness",
@@ -38286,7 +38924,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L88",
+      "source_location": "L103",
       "weight": 1.0,
       "context": "call",
       "source": "test_fixtures_osquery_alerter_lib_setup_poller_harness",
@@ -38297,7 +38935,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L194",
+      "source_location": "L212",
       "weight": 1.0,
       "context": "call",
       "source": "test_fixtures_osquery_alerter_lib_setup_redaction_h2_harness",
@@ -38308,7 +38946,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L342",
+      "source_location": "L360",
       "weight": 1.0,
       "context": "call",
       "source": "test_fixtures_osquery_alerter_lib_setup_tailscale_harness",
@@ -38319,7 +38957,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L140",
+      "source_location": "L155",
       "weight": 1.0,
       "context": "call",
       "source": "test_fixtures_osquery_alerter_lib_setup_watchdog_harness",
@@ -38330,7 +38968,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L368",
+      "source_location": "L386",
       "weight": 1.0,
       "context": "call",
       "source": "test_fixtures_osquery_alerter_lib_run_tailscale_monitor",
@@ -38341,7 +38979,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L379",
+      "source_location": "L397",
       "weight": 1.0,
       "context": "call",
       "source": "test_fixtures_osquery_alerter_lib_run_tailscale_monitor_missing_bin",
@@ -38352,7 +38990,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/fixtures/osquery-alerter-lib.bash",
-      "source_location": "L389",
+      "source_location": "L407",
       "weight": 1.0,
       "context": "call",
       "source": "test_fixtures_osquery_alerter_lib_run_tailscale_monitor_path_resolved",
@@ -39480,6 +40118,68 @@
     {
       "relation": "defines",
       "confidence": "EXTRACTED",
+      "source_file": "test/integration/macos-defaults-source-path.sh",
+      "source_location": "L27",
+      "weight": 1.0,
+      "source": "test_integration_macos_defaults_source_path",
+      "target": "test_integration_macos_defaults_source_path_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/macos-defaults-source-path.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "test_integration_macos_defaults_source_path",
+      "target": "test_integration_macos_defaults_source_path_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/macos-defaults-source-path.sh",
+      "source_location": "L40",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_integration_macos_defaults_source_path_sh__entry",
+      "target": "test_integration_macos_defaults_source_path_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/macos-system-setup-sudo-guard.sh",
+      "source_location": "L18",
+      "weight": 1.0,
+      "source": "test_integration_macos_system_setup_sudo_guard",
+      "target": "test_integration_macos_system_setup_sudo_guard_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/macos-system-setup-sudo-guard.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "test_integration_macos_system_setup_sudo_guard",
+      "target": "test_integration_macos_system_setup_sudo_guard_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/macos-system-setup-sudo-guard.sh",
+      "source_location": "L27",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_integration_macos_system_setup_sudo_guard_sh__entry",
+      "target": "test_integration_macos_system_setup_sudo_guard_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
       "source_file": "test/integration/openclaw-services-retirement.sh",
       "source_location": "L264",
       "weight": 1.0,
@@ -40600,6 +41300,47 @@
       "context": "call",
       "source": "test_integration_run_camp_runner_sh__entry",
       "target": "test_integration_run_camp_runner_run_camp",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/ssh-hardening-sshd-validate.sh",
+      "source_location": "L22",
+      "weight": 1.0,
+      "source": "test_integration_ssh_hardening_sshd_validate",
+      "target": "test_integration_ssh_hardening_sshd_validate_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/ssh-hardening-sshd-validate.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "test_integration_ssh_hardening_sshd_validate",
+      "target": "test_integration_ssh_hardening_sshd_validate_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/ssh-hardening-sshd-validate.sh",
+      "source_location": "L50",
+      "weight": 1.0,
+      "source": "test_integration_ssh_hardening_sshd_validate",
+      "target": "test_integration_ssh_hardening_sshd_validate_want",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/ssh-hardening-sshd-validate.sh",
+      "source_location": "L27",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_integration_ssh_hardening_sshd_validate_sh__entry",
+      "target": "test_integration_ssh_hardening_sshd_validate_fail",
       "confidence_score": 1.0
     },
     {
@@ -44022,6 +44763,249 @@
       "confidence_score": 1.0
     },
     {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-security-posture.sh",
+      "source_location": "L85",
+      "weight": 1.0,
+      "source": "test_unit_macos_security_posture",
+      "target": "test_unit_macos_security_posture_a0",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-security-posture.sh",
+      "source_location": "L87",
+      "weight": 1.0,
+      "source": "test_unit_macos_security_posture",
+      "target": "test_unit_macos_security_posture_anomut",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-security-posture.sh",
+      "source_location": "L89",
+      "weight": 1.0,
+      "source": "test_unit_macos_security_posture",
+      "target": "test_unit_macos_security_posture_errhas",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-security-posture.sh",
+      "source_location": "L90",
+      "weight": 1.0,
+      "source": "test_unit_macos_security_posture",
+      "target": "test_unit_macos_security_posture_errno",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-security-posture.sh",
+      "source_location": "L20",
+      "weight": 1.0,
+      "source": "test_unit_macos_security_posture",
+      "target": "test_unit_macos_security_posture_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-security-posture.sh",
+      "source_location": "L49",
+      "weight": 1.0,
+      "source": "test_unit_macos_security_posture",
+      "target": "test_unit_macos_security_posture_make_stub",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-security-posture.sh",
+      "source_location": "L88",
+      "weight": 1.0,
+      "source": "test_unit_macos_security_posture",
+      "target": "test_unit_macos_security_posture_outhas",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-security-posture.sh",
+      "source_location": "L79",
+      "weight": 1.0,
+      "source": "test_unit_macos_security_posture",
+      "target": "test_unit_macos_security_posture_report",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-security-posture.sh",
+      "source_location": "L62",
+      "weight": 1.0,
+      "source": "test_unit_macos_security_posture",
+      "target": "test_unit_macos_security_posture_run_case",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-security-posture.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "test_unit_macos_security_posture",
+      "target": "test_unit_macos_security_posture_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-security-posture.sh",
+      "source_location": "L96",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_security_posture_sh__entry",
+      "target": "test_unit_macos_security_posture_a0",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-security-posture.sh",
+      "source_location": "L97",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_security_posture_sh__entry",
+      "target": "test_unit_macos_security_posture_anomut",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-security-posture.sh",
+      "source_location": "L107",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_security_posture_sh__entry",
+      "target": "test_unit_macos_security_posture_errhas",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-security-posture.sh",
+      "source_location": "L101",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_security_posture_sh__entry",
+      "target": "test_unit_macos_security_posture_errno",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-security-posture.sh",
+      "source_location": "L29",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_security_posture_sh__entry",
+      "target": "test_unit_macos_security_posture_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-security-posture.sh",
+      "source_location": "L98",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_security_posture_sh__entry",
+      "target": "test_unit_macos_security_posture_outhas",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-security-posture.sh",
+      "source_location": "L95",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_security_posture_sh__entry",
+      "target": "test_unit_macos_security_posture_run_case",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-security-posture.sh",
+      "source_location": "L68",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_security_posture_run_case",
+      "target": "test_unit_macos_security_posture_make_stub",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-security-posture.sh",
+      "source_location": "L85",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_security_posture_a0",
+      "target": "test_unit_macos_security_posture_report",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-security-posture.sh",
+      "source_location": "L87",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_security_posture_anomut",
+      "target": "test_unit_macos_security_posture_report",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-security-posture.sh",
+      "source_location": "L89",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_security_posture_errhas",
+      "target": "test_unit_macos_security_posture_report",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-security-posture.sh",
+      "source_location": "L90",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_security_posture_errno",
+      "target": "test_unit_macos_security_posture_report",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-security-posture.sh",
+      "source_location": "L88",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_security_posture_outhas",
+      "target": "test_unit_macos_security_posture_report",
+      "confidence_score": 1.0
+    },
+    {
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/relay-codex-hooks.sh",
@@ -44236,6 +45220,57 @@
       "context": "call",
       "source": "test_unit_skills_roster_fanout_roster",
       "target": "test_unit_skills_roster_fanout_vendored_dirs",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ssh-hardening-dropin.sh",
+      "source_location": "L24",
+      "weight": 1.0,
+      "source": "test_unit_ssh_hardening_dropin",
+      "target": "test_unit_ssh_hardening_dropin_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ssh-hardening-dropin.sh",
+      "source_location": "L49",
+      "weight": 1.0,
+      "source": "test_unit_ssh_hardening_dropin",
+      "target": "test_unit_ssh_hardening_dropin_forbid",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ssh-hardening-dropin.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "test_unit_ssh_hardening_dropin",
+      "target": "test_unit_ssh_hardening_dropin_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ssh-hardening-dropin.sh",
+      "source_location": "L35",
+      "weight": 1.0,
+      "source": "test_unit_ssh_hardening_dropin",
+      "target": "test_unit_ssh_hardening_dropin_want",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ssh-hardening-dropin.sh",
+      "source_location": "L29",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_ssh_hardening_dropin_sh__entry",
+      "target": "test_unit_ssh_hardening_dropin_fail",
       "confidence_score": 1.0
     },
     {
@@ -44503,321 +45538,321 @@
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L7",
       "weight": 1.0,
-      "source": "claude",
-      "target": "claude_claude_md",
+      "source": "agents",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_claude_md",
       "confidence_score": 1.0
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L178",
       "weight": 1.0,
-      "source": "claude_claude_md",
-      "target": "claude_architecture",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_claude_md",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_architecture",
       "confidence_score": 1.0
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L646",
       "weight": 1.0,
-      "source": "claude_claude_md",
-      "target": "claude_code_style",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_claude_md",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_code_style",
       "confidence_score": 1.0
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L672",
       "weight": 1.0,
-      "source": "claude_claude_md",
-      "target": "claude_git_commits",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_claude_md",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_git_commits",
       "confidence_score": 1.0
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L18",
       "weight": 1.0,
-      "source": "claude_claude_md",
-      "target": "claude_key_commands",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_claude_md",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_key_commands",
       "confidence_score": 1.0
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L679",
       "weight": 1.0,
-      "source": "claude_claude_md",
-      "target": "claude_security",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_claude_md",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_security",
       "confidence_score": 1.0
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L11",
       "weight": 1.0,
-      "source": "claude_claude_md",
-      "target": "claude_what_this_is",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_claude_md",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_what_this_is",
       "confidence_score": 1.0
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L74",
       "weight": 1.0,
-      "source": "claude_key_commands",
-      "target": "claude_chezmoi_operations",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_key_commands",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_chezmoi_operations",
       "confidence_score": 1.0
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L102",
       "weight": 1.0,
-      "source": "claude_key_commands",
-      "target": "claude_claude_code_settings",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_key_commands",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_claude_code_settings",
       "confidence_score": 1.0
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L135",
       "weight": 1.0,
-      "source": "claude_key_commands",
-      "target": "claude_git_hooks",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_key_commands",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_git_hooks",
       "confidence_score": 1.0
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L20",
       "weight": 1.0,
-      "source": "claude_key_commands",
-      "target": "claude_linting_formatting",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_key_commands",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_linting_formatting",
       "confidence_score": 1.0
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L46",
       "weight": 1.0,
-      "source": "claude_key_commands",
-      "target": "claude_testing",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_key_commands",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_testing",
       "confidence_score": 1.0
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L322",
       "weight": 1.0,
-      "source": "claude_architecture",
-      "target": "claude_agent_skills_cross_harness_store",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_agent_skills_cross_harness_store",
       "confidence_score": 1.0
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L621",
       "weight": 1.0,
-      "source": "claude_architecture",
-      "target": "claude_ai_commit_messages",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_ai_commit_messages",
       "confidence_score": 1.0
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L519",
       "weight": 1.0,
-      "source": "claude_architecture",
-      "target": "claude_bashrc_init_ordering",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_bashrc_init_ordering",
       "confidence_score": 1.0
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L312",
       "weight": 1.0,
-      "source": "claude_architecture",
-      "target": "claude_ci",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_ci",
       "confidence_score": 1.0
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L301",
       "weight": 1.0,
-      "source": "claude_architecture",
-      "target": "claude_dev_environment_nix_flake",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_dev_environment_nix_flake",
       "confidence_score": 1.0
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L512",
       "weight": 1.0,
-      "source": "claude_architecture",
-      "target": "claude_git_worktrees_worktrunk",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_git_worktrees_worktrunk",
       "confidence_score": 1.0
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L557",
       "weight": 1.0,
-      "source": "claude_architecture",
-      "target": "claude_happy_daemon_remote_agent_control",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_happy_daemon_remote_agent_control",
       "confidence_score": 1.0
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L640",
       "weight": 1.0,
-      "source": "claude_architecture",
-      "target": "claude_herdr_native_status",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_herdr_native_status",
       "confidence_score": 1.0
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L492",
       "weight": 1.0,
-      "source": "claude_architecture",
-      "target": "claude_herdr_workspace_management",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_herdr_workspace_management",
       "confidence_score": 1.0
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L634",
       "weight": 1.0,
-      "source": "claude_architecture",
-      "target": "claude_long_running_command_notifier",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_long_running_command_notifier",
       "confidence_score": 1.0
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L224",
       "weight": 1.0,
-      "source": "claude_architecture",
-      "target": "claude_macos_defaults_management",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_macos_defaults_management",
       "confidence_score": 1.0
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L188",
       "weight": 1.0,
-      "source": "claude_architecture",
-      "target": "claude_minimum_chezmoi_version",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_minimum_chezmoi_version",
       "confidence_score": 1.0
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L296",
       "weight": 1.0,
-      "source": "claude_architecture",
-      "target": "claude_os_targeting",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_os_targeting",
       "confidence_score": 1.0
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L192",
       "weight": 1.0,
-      "source": "claude_architecture",
-      "target": "claude_secrets_management",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_secrets_management",
       "confidence_score": 1.0
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L528",
       "weight": 1.0,
-      "source": "claude_architecture",
-      "target": "claude_shell_history_atuin",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_shell_history_atuin",
       "confidence_score": 1.0
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L180",
       "weight": 1.0,
-      "source": "claude_architecture",
-      "target": "claude_source_only_files",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_source_only_files",
       "confidence_score": 1.0
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L199",
       "weight": 1.0,
-      "source": "claude_architecture",
-      "target": "claude_system_package_management",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_system_package_management",
       "confidence_score": 1.0
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L584",
       "weight": 1.0,
-      "source": "claude_architecture",
-      "target": "claude_tailscale_headless_daemon",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_tailscale_headless_daemon",
       "confidence_score": 1.0
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L269",
       "weight": 1.0,
-      "source": "claude_architecture",
-      "target": "claude_template_files",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_template_files",
       "confidence_score": 1.0
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L275",
       "weight": 1.0,
-      "source": "claude_architecture",
-      "target": "claude_template_shellcheck_workaround",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s10_macos_agents_template_shellcheck_workaround",
       "confidence_score": 1.0
     },
     {
@@ -62442,5 +63477,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "e40a5af65ed55c6bbee33cb720c32decaec5a347"
+  "built_at_commit": "e0c1e02622d60658b90e57c57bf6237bc6311429"
 }
