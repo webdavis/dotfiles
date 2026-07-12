@@ -3183,3 +3183,20 @@ build id + ts-in-window + referenced-objects re-verified (OO4); retry-job creati
 (`create_job` always appends, `cron/jobs.py:977-980`; OO5); harness teardown runs under the production
 `task-lifecycle.lock` with a changed-abort (OO6); and the integrity manifest is materialized + status-checked
 before its read loop (OO2).
+
+**2026-07-12 — round-15 adversarial-review hardening (PP1–PP6; the final wave, minimal diff — loop closure).**
+The last mechanical pass landed entirely in the plan (the spec's design surface was already clean): **PP1** both
+`todoist_task_absent` re-verifications read `td task list --all`, so the id-absence check sees the full task set
+rather than a 300-row first page; **PP2** the persisted specify-retry cron job is renamed
+`forzare-specify-retry-<cardid>` so it falls inside watchdog scan (b)'s existing `forzare-*` manifest scope
+(§8b/§14 swept — the spec names no job token, so no edit here); **PP3** `g1_flip` is dropped from the go-live
+gate's pre-edit precondition (it IS the flip; its result is consumed by the post-flip smoke); **PP4** the E3
+result filename is fixed to `<test-id>.<SUITE_RUN>.json` with `SUITE_RUN` = the run-manifest `run_id`, the
+per-test `RUNID` staying fixture-scoping; **PP5** the E3 result-consumer set is corrected to {post-stage
+Checkpoint B2, C2's Acceptance, Checkpoint D, the G1 go-live gate} — the round-14 line above still reads
+`{…, C, …}`, superseded here: the pre-stage *Apply* Checkpoint C precedes the results, so the Phase-C consumer
+is C2's Acceptance; **PP6** the three plan-side stale-p1 attribution sites now name the journal `type: p1` (op
+`set` in `args`). **Loop closure:** 15 dual-provider adversarial rounds (Fable 5 leg A, gpt-5.6-sol leg B), ~330
+findings adjudicated; the owner called convergence after round 15, and the remaining residue — including the two
+spec-side `p1.set` attribution mentions (§4d/§8, design shorthand left per PP6's three-site scope) — is booked
+in this review ledger.

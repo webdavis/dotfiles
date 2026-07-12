@@ -275,7 +275,7 @@ gate_check(){
   echo "source == live for all $# file target(s) (checkpoint CLEARED)"
 }
 
-# NN2/OO3: the ONE named reader every RESULT-consuming checkpoint calls — {post-stage B2, C, D, G1}. It rejects
+# NN2/OO3: the ONE named reader every RESULT-consuming checkpoint calls — {post-stage B2, C2's Acceptance, D, G1}. It rejects
 # stale/foreign E3 results by run-id + ts-window (read from the build run-manifest, OO4), asserts outcome==pass,
 # and re-verifies each referenced_object BY COMMAND. Usage: e3_result_gate <test-id> [<test-id>...]. Checkpoint F
 # does NOT call this — it consumes only gate_check + content hashes.
@@ -295,7 +295,7 @@ e3_result_gate(){
       kind=$(jq -r '.kind' <<<"$obj"); ref=$(jq -r '.ref' <<<"$obj")
       case "$kind" in
         kanban_card_archived) hermes kanban list --status archived --json | jq -e --arg id "$ref" 'any(.[]; .id==$id)' >/dev/null || { echo "FATAL: '$tid' ref card $ref not archived (OO4)" >&2; fail=1; } ;;
-        todoist_task_absent)  td task list --json | jq -e --arg id "$ref" 'all(.results[]; .id!=$id)' >/dev/null || { echo "FATAL: '$tid' ref task $ref still present (OO4)" >&2; fail=1; } ;;
+        todoist_task_absent)  td task list --all --json | jq -e --arg id "$ref" 'all(.results[]; .id!=$id)' >/dev/null || { echo "FATAL: '$tid' ref task $ref still present (OO4)" >&2; fail=1; } ;;
         state_hash_unchanged) [ "$(shasum -a 256 "${ref%%:*}" | cut -d' ' -f1)" = "${ref##*:}" ] || { echo "FATAL: '$tid' ref state ${ref%%:*} hash drift (OO4)" >&2; fail=1; } ;;
         *) echo "FATAL: '$tid' unknown referenced_object kind '$kind' (OO4)" >&2; fail=1 ;;
       esac
@@ -342,7 +342,7 @@ integrity_manifest(){
 SH
 chezmoi apply --exclude=templates "$GATE"                    # plaintext, non-secret → agent-runnable (GG2)
 # a checkpoint uses it as:  source ~/.local/bin/gate-check.sh; gate_check <files...>
-# a RESULT-consuming checkpoint (B2/C/D/G1) uses:  source ~/.local/bin/gate-check.sh; e3_result_gate <test-ids...>  (NN2/OO3 — run-id + ts-window + outcome + referenced-objects)
+# a RESULT-consuming checkpoint (B2 / C2's Acceptance / D / G1) uses:  source ~/.local/bin/gate-check.sh; e3_result_gate <test-ids...>  (NN2/OO3 — run-id + ts-window + outcome + referenced-objects)
 # the integrity consumers use it as:  source ~/.local/bin/gate-check.sh; M=$(mktemp); integrity_manifest [pre-c] >"$M" || exit 1; [ -s "$M" ] || exit 1; while read -r f; do …; done <"$M"; rm -f "$M"  (OO2 — MATERIALIZE + status/non-empty check, never `< <(…)` which swallows the producer exit status)
 bash -n "$GATE" && echo "gate-check.sh parses OK (installed at $GATE, source dot_local/bin/executable_gate-check.sh, GG2)"
 ```
@@ -649,7 +649,7 @@ rm -f "$SEND_ERR"
 > **BUILT IN PHASE A, ahead of ALL its consumers (MM3).** This task is authored + self-gated (shellcheck + bats +
 > the `--check-manifest` bijection) HERE, in Phase A, because its `run.sh` PRIMITIVES are sourced by every staged
 > dry-run from Phase B onward and its result files are consumed by the post-test checkpoints **{post-stage
-> Checkpoint B2, Checkpoint C, Checkpoint D, the G1 go-live gate}** (NN2 — NOT the pre-stage Apply Checkpoint B,
+> Checkpoint B2, C2's Acceptance, Checkpoint D, the G1 go-live gate}** (NN2 — NOT the pre-stage Apply Checkpoint B,
 > which runs before any staged result exists, and NOT Checkpoint F, which consumes only `gate_check` + content
 > hashes). **Authoring vs execution split:** the harness *scripts* and
 > *bats specs* are self-contained and gate at Phase-A build time (they carry their OWN `fcntl.flock` python shim —
@@ -818,7 +818,10 @@ A2/B10/D/E1), and the **proven E1 python filter-function probes** (`_is_cron_sil
 
 - [ ] **Step 2: Run-scoped ATOMIC result files consumed by the checkpoints — in the STAGING dir, OUT of `state/`
   (MM7/LL6).** Each test writes its verdict to
-  **`~/workspaces/Ivy/forzare/staging/e3-results/<test-id>.<RUNID>.json`** — a **staging-only** directory OUTSIDE
+  **`~/workspaces/Ivy/forzare/staging/e3-results/<test-id>.<SUITE_RUN>.json`** (**`SUITE_RUN` = the E3
+  run-manifest `run_id` `run.sh` stamps once at suite start, Step 4 — the ONE suite-wide build id, distinct from
+  the per-test `RUNID` fixture-scoping token, and the SAME value the `e3_result_gate` reader reads back from
+  `run-manifest.json` into `$run`**) — a **staging-only** directory OUTSIDE
   the owned state layer, so the §17 negative gate's RECURSIVE content-hash of `state/` + `calibration/`
   (AA1/DD6) never sees a harness result and the GC/never-rm contracts stand untouched — `{test_id, run_id, ts, measured{…},
   outcome: pass|fail, referenced_objects:[…]}` — written **atomically (same-dir tmp + `os.rename`)** so a reader
@@ -863,7 +866,7 @@ per-file `executable_` prefixes; bats under `test/forzare-staging-harness/`), sh
 time; the **Step-1 manifest table maps every `INV-<task>-<n>` id to exactly one named test** and the
 `--check-manifest` self-check asserts that bijection against the discovered tests (MM10/LL5); each test writes a
 run-scoped atomic result file under **`staging/e3-results/`** (outside `state/`, MM7/LL6); the RESULT-consuming
-checkpoints **{post-stage Checkpoint B2, Checkpoint C, Checkpoint D, the G1 go-live gate}** (NN2 — NOT F) consume
+checkpoints **{post-stage Checkpoint B2, C2's Acceptance, Checkpoint D, the G1 go-live gate}** (NN2 — NOT F) consume
 those files via the shared `e3_result_gate` reader, **rejecting stale/foreign results (run-id + ts window) and re-verifying `referenced_objects`** before
 clearing; the propagation probe REJECTS the 120s bound at p95 > 90s (JJ6); the gen-rollover fixture asserts the
 tail-ordering truth (KK8/JJ7); and the concurrent-trigger test defines its own `DRY`/`RUNID` scope (JJ12).
@@ -1773,7 +1776,7 @@ exit-ramp/hand-off logic explicit owners (spec §8/§3a/§3b; U2/A10/A14/A31).
   `plan-of-day.json` `selected_ids`, NEVER a user-set p1, AND ownership RE-CHECKED at clear time (AA2/EE6,
   spec §8).** Clear `p1` from the ids Bob set this morning (roll-excluded ones among them included) — but per
   selected id, first check the day's activity for an **intervening user priority event** (a priority change on
-  that task since the morning plan NOT matched by a Bob-journaled `p1.set` in the mutation journal): **none ⇒
+  that task since the morning plan NOT matched by a Bob-journaled mutation of `type: p1` (the `set` op detail in `args`) in the mutation journal): **none ⇒
   clear; one ⇒ SKIP + enqueue one queue flag** (the user re-took ownership intra-day; never silently wipe a
   priority they re-asserted). A `p1` the USER set directly is left untouched (it is not in `selected_ids`).
   **Enqueue a `stale-p1` record** for any user-set `p1` older than 48h (never auto-cleared) — **subject to the
@@ -2211,21 +2214,21 @@ every card attaches this one installed skill via `--skill` (W4). **Phase D (Task
        E1 test-only `forzare-staging/` exception — a production retry must not live in a staging-only dir.)*
      - **Resolve-by-name FIRST, then create (OO5 — verified `hermes cron create` ALWAYS APPENDS:
        `cron/jobs.py:977-980` `jobs.append(job)`, NO name-dedup, so a blind re-create STACKS duplicates).** The
-       stable per-card name is **`fz-specify-retry-<cardid>`**. Before creating, resolve by name against the cron
-       store directly — `jq -e --arg n "fz-specify-retry-<cardid>" 'any(.jobs[]?; .name==$n)' ~/.hermes/cron/jobs.json`
+       stable per-card name is **`forzare-specify-retry-<cardid>`**. Before creating, resolve by name against the cron
+       store directly — `jq -e --arg n "forzare-specify-retry-<cardid>" 'any(.jobs[]?; .name==$n)' ~/.hermes/cron/jobs.json`
        (jobs.json IS json, `{"jobs":[…]}`; there is **no `hermes cron list --json`**, verified) — and **REUSE the
        existing job if present, create ONLY if absent**. The create, when needed, is (verified `hermes cron
-       create --help`): **`hermes cron create --name "fz-specify-retry-<cardid>" --deliver local --no-agent
+       create --help`): **`hermes cron create --name "forzare-specify-retry-<cardid>" --deliver local --no-agent
        --script ~/.hermes/scripts/forzare/specify-retry-<cardid>.sh --repeat 1 5m`** — **`--deliver local`**
        (never a user-facing message, go-live-safe), and a **`5m` one-shot delay**. The **concurrent
        duplicate-scheduling race** (two parents each resolving "absent" then both creating, since the resolve is
        OUTSIDE `create_job`'s `_jobs_lock()`) is covered by an **E3 invariant** (INV-B11 `b11_retry`, §B11) that
-       asserts at most one `fz-specify-retry-<cardid>` job survives.
+       asserts at most one `forzare-specify-retry-<cardid>` job survives.
      - **Repeat-one removal is AUTOMATIC (verified).** A `5m` schedule parses to `kind: "once"`, for which
        `cron/jobs.py:846-848` auto-sets `repeat=1`; on completion `cron/jobs.py:1205-1208` **`jobs.pop(i)` removes
        the job record from `jobs.json`** — no manual dequeue. The job's **audit-output dir and the generated
        `specify-retry-<cardid>.sh` PERSIST** past that removal, so **the watchdog recognizes a retry that ran by its
-       job NAME (`fz-specify-retry-*`) in the cron audit dir** (F1 scan b keys on the job name, not a live job list).
+       job NAME (`forzare-specify-retry-*`) in the cron audit dir** (F1 scan b keys on the job name, not a live job list).
      - **Error surfacing.** The script's `hermes kanban specify` non-zero exit is recorded as a **failed run**,
        which the **F1 failed-run scan (scan b)** detects and routes to `#forzare-errors` — the retry never silently
        swallows a still-stuck capture.
@@ -2250,10 +2253,10 @@ every card attaches this one installed skill via `--skill` (W4). **Phase D (Task
   - **SUCCESS fixture:** write `~/.hermes/scripts/forzare/specify-retry-<cardid>.sh` against the seeded card and
     create the one-shot job by its stable name; force one tick; assert **(a)** the card left `triage` (specify
     ran), **(b)** the job **self-removed from `jobs.json`** (repeat-one; `hermes cron list` shows no
-    `fz-specify-retry-<cardid>`), and **(c)** the retry script **self-deleted** (`[ ! -e … ]`) on the zero exit.
+    `forzare-specify-retry-<cardid>`), and **(c)** the retry script **self-deleted** (`[ ! -e … ]`) on the zero exit.
   - **FAILURE fixture:** point the script at a card whose `specify` is forced to exit non-zero; force one tick;
     assert **(a)** the card **stays `triage`**, **(b)** the job still self-removed (one-shot), **(c)** the failed
-    run is recorded in the cron audit dir under the **job NAME** `fz-specify-retry-<cardid>` (what F1 scan b keys
+    run is recorded in the cron audit dir under the **job NAME** `forzare-specify-retry-<cardid>` (what F1 scan b keys
     on), and **(d)** the script is **retained** for inspection. Teardown deletes the seeded card + any residual
     script via the EXIT/INT trap (BB6, captured-id + guarded-file only).
   - **FORCED-TIMEOUT fixture (II9 — proves the pinned `auxiliary.triage_specifier.timeout: 20` actually bounds the
@@ -2263,18 +2266,18 @@ every card attaches this one installed skill via `--skill` (W4). **Phase D (Task
     fast test) — and assert **(a)** the command returns **non-zero within ~the bound** (it does NOT hang
     indefinitely — the timeout fired), **(b)** the card **STAYS `triage`** (never `blocked`), and **(c)** the
     degradation path is authored to fire (the "capture saved; processing delayed" line + a scheduled one-shot
-    `fz-specify-retry-<cardid>` retry). Restore the overlay on teardown.
+    `forzare-specify-retry-<cardid>` retry). Restore the overlay on teardown.
 
   **Step 4b's fixtures enter the E3 bijection as `b11_retry` (NN3/OO5):**
   - **INV-B11-1 (SUCCESS):** the retry ran, the job self-removed from `jobs.json` (repeat-one), and the script
     self-deleted on `specify` rc 0.
   - **INV-B11-2 (FAILURE):** the card stays `triage`, the job still self-removed, the failed run is recorded
-    under the job NAME `fz-specify-retry-<cardid>` (F1 scan b keys on it), and the script is retained.
+    under the job NAME `forzare-specify-retry-<cardid>` (F1 scan b keys on it), and the script is retained.
   - **INV-B11-3 (FORCED-TIMEOUT, II9):** `specify` returns non-zero WITHIN the bound (never hangs), the card
     stays `triage` (never `blocked`), and the degradation path (delayed line + scheduled retry) fires.
   - **INV-B11-4 (resolve-by-name + concurrent dedup — OO5):** a second schedule for the same card REUSES the
     existing job (resolve-by-name over `jobs.json`, never a second create), and two parents racing to schedule
-    yield at most ONE `fz-specify-retry-<cardid>` job (verified `create_job` ALWAYS appends,
+    yield at most ONE `forzare-specify-retry-<cardid>` job (verified `create_job` ALWAYS appends,
     `cron/jobs.py:977-980`, so the resolve is load-bearing).
 - [ ] **Step 5: Install (NO curator pin — AA11)** `forzare-capture-pipeline` (the live pipeline execution tests
   are D1's controlled harness; this task only authors the skill, applied at Checkpoint B; integrity is the
@@ -2284,7 +2287,7 @@ every card attaches this one installed skill via `--skill` (W4). **Phase D (Task
 placement is the PARENT's inline decision; `specify` is a **BOUNDED synchronous attempt** (BB1) whose failure
 leaves the card in `triage` + a "capture saved; processing delayed" line + a persisted one-shot `--no-agent`
 cron retry with the **EE4 concrete mechanics** (per-card `~/.hermes/scripts/forzare/specify-retry-<cardid>.sh`,
-stable name `fz-specify-retry-<cardid>`, `--deliver local --repeat 1 5m`, auto-removal via repeat-one, error →
+stable name `forzare-specify-retry-<cardid>`, `--deliver local --repeat 1 5m`, auto-removal via repeat-one, error →
 F1's failed-run scan by job name, self-delete on success / watchdog-pruned on failure), backstopped by the F1
 stale-triage scan — the ungrounded "retried / raises a failure event" claims deleted; no `notify-subscribe`
 (Y2); cards carry `--max-runtime 900` (Y7); awaiting-user enqueues a `triage-reraise` decision-queue record and
@@ -2851,7 +2854,7 @@ for obj in "${REFS[@]}"; do
       hermes kanban list --status archived --json | jq -e --arg id "$ref" 'any(.[]; .id == $id)' >/dev/null \
         || { echo "FATAL: D1 referenced card $ref is NOT archived (OO4 re-verify)" >&2; exit 1; } ;;
     todoist_task_absent)
-      td task list --json | jq -e --arg id "$ref" 'all(.results[]; .id != $id)' >/dev/null \
+      td task list --all --json | jq -e --arg id "$ref" 'all(.results[]; .id != $id)' >/dev/null \
         || { echo "FATAL: D1 referenced [TEST] fixture $ref still present in Todoist (OO4 re-verify)" >&2; exit 1; } ;;
     state_hash_unchanged)
       # ref = "<path>:<sha256>" — the real store the test recorded must still hash to the recorded value
@@ -3277,7 +3280,7 @@ launchctl print "gui/$(id -u)/com.webdavis.forzare-ops-watchdog" | grep -i state
     p1 (listed in `selected_ids`, then its priority re-set by a REAL user touch AFTER the plan record's
     `created_ts` — the plan record is written FIRST with its `created_ts`, THEN the user bump lands, so the
     intervening-user-event check (activity `ts` > `created_ts`, priority/`lastPriority` in `extraData`, no
-    matching Bob `p1.set` journal line) actually sees the bump as after-the-plan).
+    matching Bob journal line of `type: p1` (op `set` in `args`)) actually sees the bump as after-the-plan).
   - **INV-G1-2 (EOD boundaries — Z10/R2A8):** the staged EOD run journals **ZERO `p1.set`** and **ZERO
     `calendar.*`** intents (EOD sets no p1 and writes no calendar) — the old "clear every unfinished p1
     unconditionally" rule is superseded.
@@ -3346,8 +3349,10 @@ launchctl print "gui/$(id -u)/com.webdavis.forzare-ops-watchdog" | grep -i state
 - [ ] **Step 4: Flip to live (W2/R3A16/X1/GG9) — inside the SAME gateway-stopped-window transaction as C2 (GG8),
   asserting ALL axes BEFORE writing `go-live.json`, with rollback on any failure.** **Precondition (NN2/OO3):**
   the go-live gate first runs the shared named reader — `source ~/.local/bin/gate-check.sh; e3_result_gate
-  g1_eod_gate g1_morning_order g1_dupfire g1_concurrent g1_matrix g1_flip` — so every g1-family result is
-  run-scoped to THIS build, in-window, and `outcome=pass` before any edit. The flip mutates `jobs.json`
+  g1_eod_gate g1_morning_order g1_dupfire g1_concurrent g1_matrix` — so the OTHER FIVE g1-family results are
+  run-scoped to THIS build, in-window, and `outcome=pass` before any edit. **`g1_flip` is EXCLUDED from this
+  pre-edit gate — it IS this flip transaction, so its result cannot exist yet; the flip PRODUCES it and the
+  post-flip smoke (Step 5) consumes it.** The flip mutates `jobs.json`
   (six prompt edits + four delivery edits + resume the eod-roll job), and the gateway's 60s tick reloads
   `jobs.json` — so the whole flip runs with the gateway (and, now that Phase F is done, the watchdog) **STOPPED**,
   exactly like C2's transactional install. Two DIFFERENT axes — do not conflate them:
@@ -3773,7 +3778,7 @@ stage-1 placement+dating; the spec's four "§8b stage 2" dating labels re-pointe
 §4c/§4d/§8b. **Retry-job mechanics concrete** (EE4, verified `cron/jobs.py:846-848,1205-1208` +
 `cron/scheduler.py:1585,1619,1633`): a per-card `~/.hermes/scripts/forzare/specify-retry-<cardid>.sh` (the
 scheduler blocks paths outside `~/.hermes/scripts/`, passes no args/env), stable name
-`fz-specify-retry-<cardid>`, `--deliver local --repeat 1 5m`, auto-removal on completion (repeat-one pops the
+`forzare-specify-retry-<cardid>`, `--deliver local --repeat 1 5m`, auto-removal on completion (repeat-one pops the
 job; audit dir persists so F1 keys on the job name), self-delete on success / watchdog-pruned on failure,
 SUCCESS + FAILURE fixtures → B11. **ONE canonical queue schema** (DD4): stated once in B0
 (`{id, class, task_id|candidate_id|aggregate-key, proposed, status, enqueue_ts, gen, rev, head}`,
@@ -3795,7 +3800,7 @@ failure (GG9) → G1. **Leak-gate matchers run-scoped + preflighted** (EE3, veri
 `gog calendar create/delete` flags): `cal_snapshot` and the activity fingerprint key on `[TEST-$RUNID]`, and a
 seeded probe event proves the snapshot DETECTS before the before/after compare is trusted → C2. **p1 ownership
 re-checked at clear time** (EE6): eod-roll clears a `selected_id` only if no intervening user priority event
-exists (activity cross-checked against Bob's journaled `p1.set`); intervening event ⇒ skip + one queue flag;
+exists (activity cross-checked against Bob's journaled `type: p1` line, op `set` in `args`); intervening event ⇒ skip + one queue flag;
 G1 fixture: a user-re-taken selected id SURVIVES EOD + is flagged → B7/G1 + spec §8. **Bankruptcy eligibility
 honest** (EE7): the 30-day-inactivity half is proven via the reducer over SYNTHETIC activity streams (40-day-old
 ⇒ eligible; a fresh `added` event ⇒ NOT — added events ARE progress); the live seeded set exercises mechanics
@@ -3946,6 +3951,26 @@ alone. **OO2:** `integrity_manifest` is materialized to a temp file with a produ
 before the read loop. Plus NN4 (§6a two-page cursor stub), NN5 (§2 pre-and-post marker), NN6 (FF6 journal-not-
 cutoff), NN7 (round-6 `p1.clear` SUPERSEDED annotation), NN8 (Phase-G no-message scoped to the task channel), NN9
 (exec-mode keyed off the chezmoi `executable_` attribute), NN10 (§19 bankruptcy pool wording).
+
+**Round-15 (final adversarial-review wave, PP1–PP6; minimal diff — loop closure).** The last mechanical pass:
+**PP1** — both `todoist_task_absent` re-verification sites (the shared `e3_result_gate` reader and Checkpoint D)
+now read **`td task list --all`**, so the id-absence assertion sees the FULL task set, never a 300-row first
+page (verified `--all` = "Fetch all results (no limit)", `td task list --help`). **PP2** — the persisted
+specify-retry cron job is renamed **`forzare-specify-retry-<cardid>`** (was `fz-specify-retry-…`) so it falls
+inside watchdog scan (b)'s existing `forzare-*` job-manifest scope without widening the scan; the per-card
+script path `~/.hermes/scripts/forzare/specify-retry-<cardid>.sh` is unchanged. **PP3** — `g1_flip` is dropped
+from the go-live gate's PRE-edit precondition list (it IS the flip transaction, so its result cannot exist
+before the edit); the precondition now gates the other five g1-family results, and `g1_flip`'s own result is
+produced BY the flip and consumed by the post-flip smoke (Step 5). **PP4** — the result-filename token is
+defined ONCE as **`<test-id>.<SUITE_RUN>.json`**, `SUITE_RUN` = the E3 run-manifest `run_id` (the one
+suite-wide build id the reader reads back into `$run`); the per-test `RUNID` stays fixture-scoping only.
+**PP5** — the E3 result-consumer set corrected to **{post-stage Checkpoint B2, C2's Acceptance, Checkpoint D,
+the G1 go-live gate}**: the pre-stage *Apply* Checkpoint C precedes any staged result, so the Phase-C consumer
+is C2's Acceptance, not Apply Checkpoint C. **PP6** — the three stale-p1 attribution sites name the schema: a
+Bob-set p1 is a mutation-journal line of **`type: p1`** (the `set` op detail in `args`), per LL4. **Loop
+closure:** 15 dual-provider adversarial rounds (Fable 5 leg A, gpt-5.6-sol leg B), ~330 findings adjudicated
+across the spec + plan; the owner called convergence after round 15, and the remaining residue is booked in
+this review ledger.
 
 **Placeholder scan:** verification commands are runnable; `<inbox-task-id>` / lat-long / channel-ids are the
 intentionally per-environment values a cold reader fills from their own setup.
