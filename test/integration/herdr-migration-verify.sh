@@ -159,6 +159,12 @@ case "$1" in
     exit 1 ;;
   bundle)
     printf '%s\n' "$*" >>"$BUNDLE_RECORD"
+    # Non-forced `bundle cleanup` is the bulk-guard preview: emit $BREW_PREVIEW
+    # (a would-remove block) on stdout so the guard can count removals. Forced
+    # cleanup and plain install print nothing extra.
+    if [[ ${2:-} == cleanup && "$*" != *--force* && -n "${BREW_PREVIEW:-}" ]]; then
+      printf '%s\n' "$BREW_PREVIEW"
+    fi
     exit "${BREW_BUNDLE_RC:-0}" ;;
 esac
 exit 0
@@ -185,6 +191,7 @@ run_case() {
   HOME="$CASE_HOME" HOMEBREW_PREFIX="$prefix" PATH="$path_bin:$PATH" \
     INSTALLED_PKGS="$installed" HERDR_RECORD="$HERDR_RECORD" \
     BUNDLE_RECORD="$BUNDLE_RECORD" BREW_BUNDLE_RC="$bundle_rc" \
+    BREW_PREVIEW="${BREW_PREVIEW:-}" \
     bash "$rendered" >"$OUT_FILE" 2>"$ERR_FILE" || RC=$?
 }
 
@@ -254,4 +261,21 @@ run_case cleanup-fails healthy "tmux" config 5
 cleanup_ran || fail "cleanup-fails: brew bundle cleanup was expected to be attempted"
 [[ -s $ERR_FILE ]] || fail "cleanup-fails: no warning printed about the failed cleanup"
 
-printf 'PASS: after_58 short-circuits with no herdr contact when no multiplexer is installed, verifies the current herdr (binary, running session, validated config, both plugins enabled+warning-free by exact id) before running brew bundle cleanup --force, defers with an activation-step warning on any unhealthy state or a serverless host, and never aborts the apply even when the cleanup fails\n'
+# --- bulk-cleanup guard: herdr verified but the manifest would remove too much -
+# after_58 is the second owner of the forced cleanup, so it shares the same
+# bulk-removal guard. herdr is fully healthy and tmux is installed, but the
+# non-forced preview reports 8 would-be removals (> threshold 5): the forced
+# cleanup must be REFUSED (tmux/sesh survive), and after_58 must NOT claim the
+# migration complete.
+BREW_PREVIEW="$(printf 'Would uninstall formulae:\ncodex codex-app lulu oversight paseo foo bar\nWould untap:\nrjyo/moshi\nRun cleanup to make these changes.\n')" \
+  run_case migrate-bulk-refused healthy "tmux" config
+[[ $RC -eq 0 ]] || fail "migrate-bulk-refused: expected exit 0, got $RC ($(cat "$ERR_FILE"))"
+grep -q 'bundle cleanup --force' "$BUNDLE_RECORD" &&
+  fail "migrate-bulk-refused: forced cleanup ran though 8 removals exceed the threshold (unguarded)"
+grep -q 'migration complete' "$OUT_FILE" &&
+  fail "migrate-bulk-refused: claimed migration complete though the cleanup was refused"
+grep -qiE 'refus' "$ERR_FILE" ||
+  fail "migrate-bulk-refused: no refusal warning printed ($(cat "$ERR_FILE"))"
+unset BREW_PREVIEW
+
+printf 'PASS: after_58 short-circuits with no herdr contact when no multiplexer is installed, verifies the current herdr (binary, running session, validated config, both plugins enabled+warning-free by exact id) before running the guarded brew bundle cleanup --force (which refuses a bulk removal against a partial manifest), defers with an activation-step warning on any unhealthy state or a serverless host, and never aborts the apply even when the cleanup fails\n'

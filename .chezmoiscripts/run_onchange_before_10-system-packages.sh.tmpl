@@ -93,8 +93,12 @@ mas {{ .name | quote }}, id: {{ .id }}
 {{ end -}}
 EOF
 "$brew_bin" bundle --file="$brewfile"
+{{ includeTemplate "brew-bundle-cleanup-guard.sh.tmpl" }}
 if [[ $multiplexer_present == false ]]; then
-  "$brew_bin" bundle cleanup --force --file="$brewfile"
+  # Guarded: refuses a bulk cleanup against a partial/empty Brewfile (returns 0
+  # on refuse or clean, non-zero only on a real cleanup failure -- so set -e
+  # still aborts the apply on a genuine failure, as before).
+  brew_bundle_cleanup_guarded "$brewfile"
 fi
 
 # Install uv tools (runs after Homebrew so uv is available). Guarded on uv being

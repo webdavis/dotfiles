@@ -1,0 +1,51 @@
+{{- /*
+Shared bulk-cleanup guard, consumed via includeTemplate by
+.chezmoiscripts/run_onchange_before_10-system-packages.sh.tmpl and
+.chezmoiscripts/run_after_58-herdr-migration-verify.sh.tmpl -- the two owners of
+a `brew bundle cleanup --force` against a rendered Brewfile. Under the two-world
+model main's manifest is legitimately partial until later slices land, so an
+unguarded forced cleanup would mass-uninstall at D1. One definition, two call
+sites, so the safety check cannot drift between them.
+*/ -}}
+# --- shared bulk-cleanup guard: .chezmoitemplates/brew-bundle-cleanup-guard.sh.tmpl ---
+#
+# brew_bundle_cleanup_guarded <brewfile>: run the forced `brew bundle cleanup`
+# only after the non-forced preview confirms the number of would-be removals is
+# at or below the safety threshold (default 5, override HOMEBREW_BUNDLE_CLEANUP_THRESHOLD).
+# Over the threshold it REFUSES (loud warning naming the would-be removals; the
+# preceding install results stand) unless HOMEBREW_BUNDLE_ALLOW_BULK_CLEANUP=1
+# authorizes it -- so a partial or empty rendered Brewfile cannot silently
+# uninstall a pile of packages. Requires $brew_bin to be set by the caller.
+#
+# Sets BREW_CLEANUP_OUTCOME to cleaned|refused|failed. Returns 0 for cleaned or
+# refused (both non-fatal, so a caller under `set -e` is not aborted by a
+# refusal), non-zero ONLY when the forced cleanup itself failed.
+# shellcheck disable=SC2034  # BREW_CLEANUP_OUTCOME is read by the after_58 caller; the before_10 caller ignores it
+brew_bundle_cleanup_guarded() {
+  local brewfile="$1"
+  local threshold="${HOMEBREW_BUNDLE_CLEANUP_THRESHOLD:-5}"
+  local preview removals
+  BREW_CLEANUP_OUTCOME=refused
+
+  # Homebrew 6.x's non-forced `brew bundle cleanup` PRINTS what it would remove
+  # ("Would uninstall ...:" / "Would untap:" headers, columnar names, a "Run ..."
+  # footer) and exits 1 when anything would be removed -- expected here, hence
+  # `|| true`. Count the item tokens on the non-header, non-footer lines.
+  preview="$("$brew_bin" bundle cleanup --file="$brewfile" 2>/dev/null || true)"
+  removals="$(printf '%s\n' "$preview" | { grep -vE '^(Would |Run )' || true; } | wc -w | tr -d '[:space:]')"
+  [[ -n $removals ]] || removals=0
+
+  if [[ ${HOMEBREW_BUNDLE_ALLOW_BULK_CLEANUP:-} != 1 && $removals -gt $threshold ]]; then
+    printf 'WARNING: brew bundle cleanup would remove %d item(s), over the safety threshold of %d; REFUSING the forced cleanup so a partial Brewfile cannot mass-uninstall. Install results stand. Set HOMEBREW_BUNDLE_ALLOW_BULK_CLEANUP=1 to authorize.\n' "$removals" "$threshold" >&2
+    printf 'Would-be removals:\n%s\n' "$preview" >&2
+    BREW_CLEANUP_OUTCOME=refused
+    return 0
+  fi
+
+  if "$brew_bin" bundle cleanup --force --file="$brewfile"; then
+    BREW_CLEANUP_OUTCOME=cleaned
+    return 0
+  fi
+  BREW_CLEANUP_OUTCOME=failed
+  return 1
+}
