@@ -41,4 +41,6 @@ dot_local/share/herdr/**/target/
 *config.yaml.*.backup
 dot_hermes/backups/
 dot_hermes/**/pre-migration-*.zip
-*key.txt
+# The age identity filename only (anchored to the basename in any directory). A bare `*key.txt`
+# overmatched unrelated names like hotkey.txt; `key.txt` catches the stray identity without that.
+key.txt
