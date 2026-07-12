@@ -323,6 +323,77 @@ grep -q "herdr agent focus wW:p8" "$tmp/tn.log" || {
 }
 export RELAY_IDLE_SECS=999
 
+# FIX F2a (garbled probe line -> fail OPEN): a PRESENT but non-numeric HIDIdleTime field must not be
+# awk-coerced to 0 ("actively typing") and silently suppress the phone push. Presence is unknown, so
+# every channel including moshi fires, exit 0. RELAY_IDLE_SECS unset so the probe path runs.
+cat >"$tmp/ioreg" <<'MOCK'
+#!/usr/bin/env bash
+echo '"HIDIdleTime" = notanumber'
+MOCK
+chmod +x "$tmp/ioreg"
+cat >"$tmp/curl" <<MOCK
+#!/usr/bin/env bash
+echo "ARGV: \$*" >>"$tmp/curl-garbled.log"
+MOCK
+chmod +x "$tmp/curl"
+unset RELAY_IDLE_SECS
+out_garbled="$(
+  PATH="$tmp:$PATH" RELAY_AUTH_FILE="$tmp/auth.json" RELAY_IOREG="$tmp/ioreg" \
+    RELAY_MOSHI_URL="http://moshi.test/hook" RELAY_HERMES_URL="http://hermes.test/relay" \
+    bash "$relay" --agent claude --state "done" --project x --detail "garbled idle" 2>&1
+  echo "rc=$?"
+)"
+for ((i = 0; i < 100; i++)); do
+  grep -q moshi.test "$tmp/curl-garbled.log" 2>/dev/null && grep -q hermes.test "$tmp/curl-garbled.log" 2>/dev/null && break
+  sleep 0.05
+done
+wait 2>/dev/null
+grep -q "rc=0" <<<"$out_garbled" || {
+  echo "relay: FAIL -- a garbled idle probe line broke exit 0" >&2
+  exit 1
+}
+grep -q moshi.test "$tmp/curl-garbled.log" || {
+  echo "relay: FAIL -- a garbled idle line was coerced to 0 and suppressed the phone push" >&2
+  exit 1
+}
+grep -q hermes.test "$tmp/curl-garbled.log" || {
+  echo "relay: FAIL -- garbled idle: Discord log dropped" >&2
+  exit 1
+}
+
+# FIX F2b (non-numeric threshold -> fail OPEN): a non-numeric RELAY_DESK_IDLE_SECS must not abort the
+# bash arithmetic comparison under set -u (rc=1). The threshold is validated as decimal digits BEFORE
+# the arithmetic; an invalid threshold = presence unknown = deliver everything, exit 0.
+cat >"$tmp/curl" <<MOCK
+#!/usr/bin/env bash
+echo "ARGV: \$*" >>"$tmp/curl-thresh.log"
+MOCK
+chmod +x "$tmp/curl"
+out_thresh="$(
+  PATH="$tmp:$PATH" RELAY_AUTH_FILE="$tmp/auth.json" RELAY_IDLE_SECS=5 RELAY_DESK_IDLE_SECS=not-a-number \
+    RELAY_MOSHI_URL="http://moshi.test/hook" RELAY_HERMES_URL="http://hermes.test/relay" \
+    bash "$relay" --agent claude --state "done" --project x --detail "bad threshold" 2>&1
+  echo "rc=$?"
+)"
+for ((i = 0; i < 100; i++)); do
+  grep -q moshi.test "$tmp/curl-thresh.log" 2>/dev/null && grep -q hermes.test "$tmp/curl-thresh.log" 2>/dev/null && break
+  sleep 0.05
+done
+wait 2>/dev/null
+grep -q "rc=0" <<<"$out_thresh" || {
+  echo "relay: FAIL -- a non-numeric RELAY_DESK_IDLE_SECS aborted the notification path (rc!=0)" >&2
+  exit 1
+}
+grep -q moshi.test "$tmp/curl-thresh.log" || {
+  echo "relay: FAIL -- a non-numeric threshold suppressed the phone push instead of failing open" >&2
+  exit 1
+}
+grep -q hermes.test "$tmp/curl-thresh.log" || {
+  echo "relay: FAIL -- non-numeric threshold: Discord log dropped" >&2
+  exit 1
+}
+export RELAY_IDLE_SECS=999
+
 # CHARACTERIZATION (baseline quirk, retained; SP3 owns): the arg parser silently
 # ignores an UNRECOGNIZED flag (the *) shift ;; branch) rather than erroring, which
 # deviates from the house "unknown arg is an error" rule. A notification path must
