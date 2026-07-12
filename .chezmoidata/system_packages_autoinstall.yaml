@@ -5,7 +5,6 @@ packages:
         - antoniorodr/memo
         - buo/cask-upgrade
         - cirruslabs/cli
-        - domt4/autoupdate # Automatic Upgrades.
         - eugene1g/safehouse
         - felixkratz/formulae
         - mediosz/tap
@@ -28,7 +27,6 @@ packages:
         - antoniorodr/memo
         - buo/cask-upgrade
         - cirruslabs/cli
-        - domt4/autoupdate
         - eugene1g/safehouse
         - felixkratz/formulae
         - mediosz/tap
