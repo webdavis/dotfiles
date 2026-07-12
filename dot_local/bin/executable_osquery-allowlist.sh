@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# osquery-allowlist.sh — the ONE writer for the launchd page-allowlist: the *user*
+# osquery-allowlist.sh - the ONE writer for the launchd page-allowlist: the *user*
 # LaunchAgents whose new persistence digests instead of paging. Every caller (manual
 # curation now, the PR#2 tap-button bot and /osquery skill later) goes through this
 # single security boundary, so all validation lives here.
@@ -32,7 +32,7 @@ usage() {
 entry_label() { jq -r '.label // empty' <<<"$1" 2>/dev/null || true; }
 
 # A real launchd label starts alphanumeric, then allows . _ @ - (so
-# homebrew.mxcl.postgresql@17 passes) and nothing else — no wildcards, paths,
+# homebrew.mxcl.postgresql@17 passes) and nothing else - no wildcards, paths,
 # spaces, or empties. Apple/system labels are refused outright.
 is_valid_label() {
   [[ $1 =~ ^[A-Za-z0-9][A-Za-z0-9._@-]+$ ]] || return 1
@@ -71,7 +71,7 @@ allow_label() {
   # Capture the label's known-good identity from the SAME launchd table the finding comes from,
   # so a future persistence_launchd row matches the stored tuple exactly. A label with no loaded
   # LaunchAgent captures a degraded label-only entry (empty path/program) that the alerter will
-  # NOT suppress on — fail-safe, and a warning tells the operator to re-run once it is loaded.
+  # NOT suppress on - fail-safe, and a warning tells the operator to re-run once it is loaded.
   local row abs_path abs_prog sha rel_path rel_prog
   row=$("$OSQUERYI" --json \
     "SELECT path, COALESCE(NULLIF(program,''), program_arguments) AS program FROM launchd WHERE label = '$label';" \
@@ -90,7 +90,7 @@ allow_label() {
     '{label:$label, path:$path, program:$program, sha256:$sha256}' >>"$temp"
   mv -f "$temp" "$ALLOWLIST"
   if [[ -z $abs_path || -z $abs_prog ]]; then
-    printf 'allowed (label-only, degraded): %s — no loaded LaunchAgent found; re-run once it is loaded to capture its identity, or it will NOT be suppressed\n' "$label" >&2
+    printf 'allowed (label-only, degraded): %s - no loaded LaunchAgent found; re-run once it is loaded to capture its identity, or it will NOT be suppressed\n' "$label" >&2
   else
     printf 'allowed: %s → %s\n' "$label" "$abs_prog"
   fi

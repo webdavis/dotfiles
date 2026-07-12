@@ -1,6 +1,6 @@
 #!/usr/bin/env bats
 # Daily heartbeat: the positive proof-of-life. Sends ONE silent message to #priority at 09:00 so
-# the user can trust silence = safe. R2-8: it must verify the ROOT DAEMON — a standalone osqueryi
+# the user can trust silence = safe. R2-8: it must verify the ROOT DAEMON - a standalone osqueryi
 # one-shot succeeds even while osqueryd is stopped/wedged, so instead the heartbeat checks that
 # the daemon's scheduled heartbeat_canary snapshot is FRESH. Always silent (never pings), honest
 # (reports a stale canary rather than a blind checkmark); the uptime watchdog is what PAGES.

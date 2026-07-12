@@ -22,7 +22,7 @@ teardown() { teardown_harness; }
 }
 
 @test "T-DIG-listener: a new off-loopback listener digests and names the address:port" {
-  # Generic exposure awareness the agent pattern misses — a NEW service binding
+  # Generic exposure awareness the agent pattern misses - a NEW service binding
   # off-loopback (e.g. 0.0.0.0). The counter==0 baseline discard keeps existing listeners
   # out, so only a genuinely new exposure surfaces, at the calm daily tier rather than
   # buried in results.log.
@@ -34,7 +34,7 @@ teardown() { teardown_harness; }
 }
 
 @test "T-NEG-listener-removed: a listener going away (un-exposure) does not digest" {
-  # A removed row is a service that STOPPED listening off-loopback — good news, log-only.
+  # A removed row is a service that STOPPED listening off-loopback - good news, log-only.
   run_alerter "$(row pack_intrusion-detection_listening_ports_non_loopback removed 1 '{"address":"0.0.0.0","port":"4416","name":"node","path":"/opt/homebrew/bin/node"}')"
   assert_no_page
   assert_digest_count 0

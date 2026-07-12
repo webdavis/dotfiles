@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 #
-# osquery-firewall-gatekeeper-monitor.sh — polled every 60s by a launchd StartInterval agent.
+# osquery-firewall-gatekeeper-monitor.sh - polled every 60s by a launchd StartInterval agent.
 # The security-posture monitor: queries the live firewall (alf), Gatekeeper, AND screen-lock
 # state via osqueryi in the gui/501 USER session, compares against the previous run, and pages
 # only on a protection turning OFF. Silent in steady state.
 #
 # R2-3: screen-lock-off detection lives HERE, not in the root-daemon pack. The `screenlock`
 # osquery table is scoped to the logged-in user, so the ROOT osqueryd daemon (no user session)
-# never returns a screenlock row — the pack's screenlock_off/screenlock_state queries were DEAD
+# never returns a screenlock row - the pack's screenlock_off/screenlock_state queries were DEAD
 # (live proof: 0 screenlock rows in the daemon's results.log). This poller runs as a gui/501 user
 # LaunchAgent whose osqueryi DOES have the user session (verified live: enabled=1 reads here), so
 # it is the correct place to detect the lock turning off.
@@ -38,19 +38,19 @@ cur_sl=$(jq -r '.screenlock // empty' <<<"$posture" 2>/dev/null || echo "")
 
 # R2-9: validate EVERY scalar against its exact allowed value set BEFORE any classification or
 # state update. A partial/empty/malformed reading (e.g. firewall='' gatekeeper='1') is a
-# MONITORING GAP — the security state is UNKNOWN, not safe — so it must NOT be persisted as a
+# MONITORING GAP - the security state is UNKNOWN, not safe - so it must NOT be persisted as a
 # baseline and must page (a blind monitor cannot see a protection turn off). Preserve the last
 # valid state; page once per gap (a marker), and clear it on recovery so a transient does not spam.
 if ! [[ $cur_fw =~ ^[012]$ && $cur_gk =~ ^[01]$ && $cur_sl =~ ^[01]$ ]]; then
   if [[ ! -f $GAP ]]; then
     : >"$GAP"
-    gap_body="**Security-posture monitoring gap**"$'\n'"- The posture query returned an unreadable value (firewall='$cur_fw' gatekeeper='$cur_gk' screenlock='$cur_sl') — the firewall / Gatekeeper / screen-lock state is currently UNKNOWN."$'\n'"- A blind monitor cannot see a protection turn off. Did osqueryi or the LaunchAgent break? **Check now.**"$'\n'"- Diagnose: run the posture query by hand, then re-check."
+    gap_body="**Security-posture monitoring gap**"$'\n'"- The posture query returned an unreadable value (firewall='$cur_fw' gatekeeper='$cur_gk' screenlock='$cur_sl') - the firewall / Gatekeeper / screen-lock state is currently UNKNOWN."$'\n'"- A blind monitor cannot see a protection turn off. Did osqueryi or the LaunchAgent break? **Check now.**"$'\n'"- Diagnose: run the posture query by hand, then re-check."
     gap_title="🔴 **CRITICAL**"
     send_alert CRIT "$gap_title" "$gap_body" "Sosumi" || true
   fi
   exit 0
 fi
-# A valid sample cleared the gap (recovery) — drop the marker so the next gap pages again.
+# A valid sample cleared the gap (recovery) - drop the marker so the next gap pages again.
 rm -f "$GAP" 2>/dev/null || true
 
 # Persist the current posture owner-only (0600) so a later run can trust its own
@@ -116,13 +116,13 @@ crit_blocks=()
 if [[ $prev_valid -eq 0 ]]; then
   write_state
   if [[ $cur_fw == "0" ]]; then
-    crit_blocks+=("**Firewall is OFF (first check)**"$'\n'"- **Now:** **OFF**"$'\n'"- Monitoring just started and the firewall is already off — this may be a pre-existing exposure. Did you turn it off? If not, **investigate now**."$'\n'"- Re-enable it: System Settings → Network → Firewall")
+    crit_blocks+=("**Firewall is OFF (first check)**"$'\n'"- **Now:** **OFF**"$'\n'"- Monitoring just started and the firewall is already off - this may be a pre-existing exposure. Did you turn it off? If not, **investigate now**."$'\n'"- Re-enable it: System Settings → Network → Firewall")
   fi
   if [[ $cur_gk == "0" ]]; then
-    crit_blocks+=("**Gatekeeper is OFF (first check)**"$'\n'"- **Now:** **DISABLED**"$'\n'"- Monitoring just started and Gatekeeper is already disabled — this may be a pre-existing exposure. Did you turn it off? If not, **investigate now**."$'\n'"- Re-enable it: System Settings → Privacy & Security")
+    crit_blocks+=("**Gatekeeper is OFF (first check)**"$'\n'"- **Now:** **DISABLED**"$'\n'"- Monitoring just started and Gatekeeper is already disabled - this may be a pre-existing exposure. Did you turn it off? If not, **investigate now**."$'\n'"- Re-enable it: System Settings → Privacy & Security")
   fi
   if [[ $cur_sl == "0" ]]; then
-    crit_blocks+=("**Screen lock is OFF (first check)**"$'\n'"- **Now:** **OFF**"$'\n'"- Monitoring just started and the screen-lock password requirement is already off — anyone at the machine has access. Did you turn it off? If not, **investigate now**."$'\n'"- Re-enable it: System Settings → Lock Screen → Require password")
+    crit_blocks+=("**Screen lock is OFF (first check)**"$'\n'"- **Now:** **OFF**"$'\n'"- Monitoring just started and the screen-lock password requirement is already off - anyone at the machine has access. Did you turn it off? If not, **investigate now**."$'\n'"- Re-enable it: System Settings → Lock Screen → Require password")
   fi
   if [[ ${#crit_blocks[@]} -eq 0 ]]; then exit 0; fi # healthy seed, silent
   body=$(printf '%s\n\n' "${crit_blocks[@]}")
@@ -137,16 +137,16 @@ fi
 write_state
 
 if [[ $cur_fw != "$prev_fw" && $cur_fw == "0" ]]; then
-  crit_blocks+=("**Firewall turned OFF**"$'\n'"- **Was:** $(fw_to_text "$prev_fw")"$'\n'"- **Now:** **OFF**"$'\n'"- Did you turn this off? If not, something else did — **investigate now**."$'\n'"- Re-enable it: System Settings → Network → Firewall")
+  crit_blocks+=("**Firewall turned OFF**"$'\n'"- **Was:** $(fw_to_text "$prev_fw")"$'\n'"- **Now:** **OFF**"$'\n'"- Did you turn this off? If not, something else did - **investigate now**."$'\n'"- Re-enable it: System Settings → Network → Firewall")
 fi
 if [[ $cur_gk != "$prev_gk" && $cur_gk == "0" ]]; then
-  crit_blocks+=("**Gatekeeper turned OFF**"$'\n'"- **Was:** $(gk_to_text "$prev_gk")"$'\n'"- **Now:** **DISABLED**"$'\n'"- Did you turn this off? If not, something else did — **investigate now**."$'\n'"- Re-enable it: System Settings → Privacy & Security")
+  crit_blocks+=("**Gatekeeper turned OFF**"$'\n'"- **Was:** $(gk_to_text "$prev_gk")"$'\n'"- **Now:** **DISABLED**"$'\n'"- Did you turn this off? If not, something else did - **investigate now**."$'\n'"- Re-enable it: System Settings → Privacy & Security")
 fi
 if [[ $cur_sl != "$prev_sl" && $cur_sl == "0" ]]; then
-  crit_blocks+=("**Screen lock turned OFF**"$'\n'"- **Was:** $(sl_to_text "$prev_sl")"$'\n'"- **Now:** **OFF**"$'\n'"- Did you turn this off? If not, something else did — **investigate now**."$'\n'"- Re-enable it: System Settings → Lock Screen → Require password")
+  crit_blocks+=("**Screen lock turned OFF**"$'\n'"- **Was:** $(sl_to_text "$prev_sl")"$'\n'"- **Now:** **OFF**"$'\n'"- Did you turn this off? If not, something else did - **investigate now**."$'\n'"- Re-enable it: System Settings → Lock Screen → Require password")
 fi
 
-# No OFF transition — silent.
+# No OFF transition - silent.
 [[ ${#crit_blocks[@]} -eq 0 ]] && exit 0
 
 body=$(printf '%s\n\n' "${crit_blocks[@]}")

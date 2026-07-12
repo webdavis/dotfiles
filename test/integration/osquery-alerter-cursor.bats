@@ -1,7 +1,7 @@
 #!/usr/bin/env bats
 # Cursor integrity (R2-2). A missing/malformed cursor made the alerter write inode+EOF and
 # exit WITHOUT parsing, so an entire queued batch (including an unsafe row) was silently
-# skipped — deleting the cursor was a way to suppress alerts. A missing/corrupt cursor is an
+# skipped - deleting the cursor was a way to suppress alerts. A missing/corrupt cursor is an
 # ALERTING FAILURE: process the recent tail (never seek-to-EOF), and emit a LOUD warning that
 # the cursor was reset. The checkpoint advances only AFTER the batch is durably handled.
 
@@ -23,7 +23,7 @@ teardown() { teardown_harness; }
 }
 
 @test "T-CURSOR-missing-warns: a missing cursor emits a LOUD reset warning (R2-2)" {
-  # The operator must learn the cursor was reset — a cursor deletion could otherwise hide a
+  # The operator must learn the cursor was reset - a cursor deletion could otherwise hide a
   # skipped batch. The warning is loud (a real sound), distinct from the batch page.
   run_alerter_cursor missing "$(row pack_security-policy-regression_filevault_off added 0 '{"protection":"filevault"}')"
   assert_page_has "cursor"      # a reset warning was dispatched
@@ -38,7 +38,7 @@ teardown() { teardown_harness; }
 }
 
 @test "T-CURSOR-valid-no-warn: a valid cursor does NOT emit a reset warning (R2-2 no false alarm)" {
-  # The steady-state path (a valid cursor) must stay quiet about the cursor — only a real
+  # The steady-state path (a valid cursor) must stay quiet about the cursor - only a real
   # reset warns, so the warning does not cry wolf on every ordinary run.
   run_alerter "$(row pack_security-policy-regression_filevault_off added 1 '{"protection":"filevault"}')"
   assert_page_has "FileVault turned OFF"

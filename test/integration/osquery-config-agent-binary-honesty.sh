@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # osquery-config-agent-binary-honesty.sh (R2-12). The agent_binary_changed detector is blind to
 # CONTENT changes of oversized/unsigned binaries: codex (~260 MB) exceeds osquery read_max so its
-# sha256 is always empty, and paseo is unsigned so it has no cdhash signal — its only signal is the
+# sha256 is always empty, and paseo is unsigned so it has no cdhash signal - its only signal is the
 # coarse (size, inode, mtime) tuple, which an in-place edit can preserve. The tier is (and must
 # stay) LOG-ONLY, and its description must be HONEST about this limitation and point at the robust
 # follow-up, making no false promise of content-change detection.

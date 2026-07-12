@@ -1,5 +1,5 @@
 #!/usr/bin/env bats
-# Task 1 — the three-outcome gate (page / digest / log-only).
+# Task 1 - the three-outcome gate (page / digest / log-only).
 
 load ../fixtures/osquery-alerter-lib
 
@@ -44,7 +44,7 @@ teardown() { teardown_harness; }
 
 @test "T-NEG-launchd-daemon-removed: deleting a system LaunchDaemon does not page (good-news removed row)" {
   # Uninstalling a privileged helper (Docker, a VPN, any pkg) deletes its LaunchDaemon.
-  # A removed row must NOT page "New startup item … likely malware" — only an added row.
+  # A removed row must NOT page "New startup item … likely malware" - only an added row.
   run_alerter "$(row persistence_launchd removed 1 '{"label":"com.docker.vmnetd","path":"/Library/LaunchDaemons/com.docker.vmnetd.plist"}')"
   assert_no_page
   assert_digest_count 0

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# osquery-results-alerter.sh — fired by launchd (WatchPaths) whenever
+# osquery-results-alerter.sh - fired by launchd (WatchPaths) whenever
 # ~/.local/log/osquery/osqueryd.results.log changes. Reads new lines since the
 # last run (byte-offset state file), and surfaces every differential finding
 # from the scheduled packs (intrusion-detection, security-policy-regression,
@@ -30,17 +30,17 @@ mkdir -p "$(dirname "$STATE")"
 # does not). Inode lets us notice a rotated/recreated log at the same path.
 size=$(wc -c <"$LOG")
 size=${size//[[:space:]]/}
-# shellcheck disable=SC2012  # $LOG is a fixed, controlled path — ls -i is safe and portable
+# shellcheck disable=SC2012  # $LOG is a fixed, controlled path - ls -i is safe and portable
 inode=$(ls -i "$LOG" | awk '{print $1}')
 
 # Atomically checkpoint the cursor to the current inode + EOF offset. Called ONLY after a
-# batch is durably delivered-or-spooled (R2-2/R2-6) — never before parsing — so a page that
+# batch is durably delivered-or-spooled (R2-2/R2-6) - never before parsing - so a page that
 # could be neither delivered nor stored leaves the cursor put and the next run retries it.
 _checkpoint() { printf '%s %s\n' "$inode" "$size" >"$STATE.tmp" && mv -f "$STATE.tmp" "$STATE"; }
 
 # State holds "<inode> <offset>". A missing or malformed cursor is an ALERTING FAILURE, not a
 # silent seek-to-EOF (R2-2): the old code wrote inode+EOF and exited WITHOUT parsing, so a
-# queued batch — including a pre-existing unsafe row — was skipped, and deleting the cursor
+# queued batch - including a pre-existing unsafe row - was skipped, and deleting the cursor
 # was a way to suppress an entire batch. Instead process a BOUNDED recent tail (a full multi-MB
 # replay is avoided, and the page cap bounds the blast radius) and warn LOUDLY below.
 prev_inode=""
@@ -72,17 +72,17 @@ fi
 # so it never blocks the batch; the batch page is what gates the checkpoint.
 if [[ $cursor_reset -eq 1 ]]; then
   send_alert CRIT "🔴 **osquery cursor reset**" \
-    "**The osquery alerter cursor was missing or corrupt — monitoring state was disturbed.**"$'\n'"- Recent results were reprocessed from a bounded tail; a queued batch may have been briefly skipped before this run."$'\n'"- If you did not clear ~/.local/state, something else reset it — **investigate now**." \
+    "**The osquery alerter cursor was missing or corrupt - monitoring state was disturbed.**"$'\n'"- Recent results were reprocessed from a bounded tail; a queued batch may have been briefly skipped before this run."$'\n'"- If you did not clear ~/.local/state, something else reset it - **investigate now**." \
     "Sosumi" "cursor-reset:$inode:$size" || true
 fi
 
 # Notify on ALL observed activity, tiered by severity so high-threat events
 # stand out from routine ones. Each row is classified:
-#   CRIT (🔴)   — a protection turned off (security-policy-regression), a new
+#   CRIT (🔴)   - a protection turned off (security-policy-regression), a new
 #                 unexpected setuid binary, or ssh-key / sudoers tampering.
-#   NOTICE (🟡) — new persistence/auto-start, launchd-dir file changes, or a
+#   NOTICE (🟡) - new persistence/auto-start, launchd-dir file changes, or a
 #                 new kernel/system extension.
-#   INFO (🔵)   — installed-software drift, listening ports, logins.
+#   INFO (🔵)   - installed-software drift, listening ports, logins.
 # chezmoi's renameio temp-file churn is excluded. jq emits "<SEV>\t<text>".
 # Bound the read to the snapshot window (head -c) so rows appended after we
 # captured $size aren't consumed early and re-fired next time; `|| true`
@@ -102,18 +102,18 @@ raw_findings=$(printf '%s\n' "$new_lines" | jq -rR '
   # every change. For the boolean states that is an "added" row carrying the off
   # value. Re-enables, version bumps, sharing changes, and the paired "removed"
   # old-value rows fall through to NOTICE (log-only). Firewall/Gatekeeper pack rows
-  # are log-only at the gate — the dedicated 60s poller owns those pages.
+  # are log-only at the gate - the dedicated 60s poller owns those pages.
   #
   # FileVault is NOT detected via filevault_state. That query emits one row per
   # FileVault-on APFS volume, and on sealed-system-volume macOS a single row can
   # leave the differential set (a base system volume unmounting, a snapshot
   # replacing it, APFS identity churn) while the data-bearing volume stays
-  # encrypted — so "one filevault_state row removed" does NOT mean FileVault is off
+  # encrypted - so "one filevault_state row removed" does NOT mean FileVault is off
   # (issue #18). A removed filevault_state row falls through to NOTICE.
   #
   # Genuine FileVault-off is detected by filevault_off: one constant row only when
   # NO APFS volume is encrypted. It is a DIFFERENTIAL query (not a snapshot) on
-  # purpose — snapshot output goes to osqueryd.snapshots.log, which this alerter
+  # purpose - snapshot output goes to osqueryd.snapshots.log, which this alerter
   # does not read, so the earlier snapshot form never reached here (the
   # false-negative half of #18). As a differential its off-row is logged "added"
   # to results.log, matched below; the constant row is immune to APFS churn.
@@ -127,7 +127,7 @@ raw_findings=$(printf '%s\n' "$new_lines" | jq -rR '
     # arm below (authorized_keys / sshd_config page; sudoers / allowlist_file digest;
     # pipeline_integrity page-or-silent; everything else log-only), so it is NOT
     # pre-classified here. The old clause tested a non-existent ssh category and
-    # mis-marked sudoers CRIT — dead, misleading text that the gate already overrode.
+    # mis-marked sudoers CRIT - dead, misleading text that the gate already overrode.
     if protection_off
        or (.name == "new_admin_user")
        or (.name == "pack_intrusion-detection_suid_bin_unexpected")
@@ -146,7 +146,7 @@ raw_findings=$(printf '%s\n' "$new_lines" | jq -rR '
   # ACCEPTED a pre-existing compromise: an admin already added, sharing already enabled,
   # a listener already exposed, or FileVault already off would all seed silently on the
   # first osqueryd run. MEMBERSHIP queries (new_admin_user, persistence, extensions, suid
-  # — a differential against a seeded baseline set) legitimately calibrate on the first
+  # - a differential against a seeded baseline set) legitimately calibrate on the first
   # observation and stay silent at counter==0. ABSOLUTE-STATE queries emit a row ONLY
   # when the current state is already unsafe (filevault_off = no volume encrypted;
   # remote_access_sharing_state = a service enabled; agent_exposure_changed = a port
@@ -160,7 +160,7 @@ raw_findings=$(printf '%s\n' "$new_lines" | jq -rR '
   | (.name | sub("^pack_[^_]+_"; "")) as $q
   | (.action // "changed") as $act
   # The path the enricher should inspect (a plist, bundle, or binary) per query
-  # type — empty when signing/trust does not apply.
+  # type - empty when signing/trust does not apply.
   | ((if .name == "es_launchd_writes" then (.columns.path // "")
       elif .name == "file_events_recent" then (.columns.target_path // "")
       elif (.name | test("_persistence_launchd$")) then (.columns.path // "")
@@ -191,7 +191,7 @@ raw_findings=$(printf '%s\n' "$new_lines" | jq -rR '
 ENRICH="$HOME/.local/bin/osquery-enrich-finding.sh"
 
 # The launchd page-allowlist (R2-1): NDJSON tuples, one per line, binding a launchd LABEL to
-# its known-good identity — {label, path, program, sha256}. A new *user* LaunchAgent is fully
+# its known-good identity - {label, path, program, sha256}. A new *user* LaunchAgent is fully
 # suppressed ONLY when its (label, canonical plist path, program [, pinned plist sha256]) tuple
 # matches an entry; an allowlisted LABEL reused with a DIFFERENT path/program/hash must PAGE
 # (label-only suppression let a reused label hide a malicious program). Curated by the one
@@ -215,7 +215,7 @@ _allowlist_verdict() {
     jpath=$(_expand_home "$(jq -r '.path // ""' <<<"$line" 2>/dev/null)")
     jprog=$(_expand_home "$(jq -r '.program // ""' <<<"$line" 2>/dev/null)")
     jhash=$(jq -r '.sha256 // ""' <<<"$line" 2>/dev/null)
-    # A degraded label-only entry (no captured identity) cannot vouch for a program — do NOT
+    # A degraded label-only entry (no captured identity) cannot vouch for a program - do NOT
     # suppress on the bare label (that IS the R2-1 bug); fail safe by treating it as absent.
     [[ -n $jpath && -n $jprog ]] || return 1
     # The tuple must match on path AND program; any divergence is a reused label → page.
@@ -262,12 +262,12 @@ _manifest_has_tuple() {
 # (an untracked neighbor, or a change whose exact tuple is known-good).
 #
 # R2-10: chezmoi writes these files via ATOMIC RENAME, so the live event is MOVED_TO/
-# ROOT_CHANGED carrying an EMPTY event sha256 (osquery does not content-hash a rename) — 34/34
+# ROOT_CHANGED carrying an EMPTY event sha256 (osquery does not content-hash a rename) - 34/34
 # live pipeline events were this shape. The old `[[ -n $hash ]] &&` short-circuited on the
 # empty hash and PAGED, so EVERY legit apply paged CRITICAL and FX2's tuple binding could never
 # suppress it. Now, for a NON-DELETE event with an empty event hash, DEBOUNCE briefly (the
 # rename may still be settling) then RE-HASH the on-disk target and compare the (path, on-disk
-# hash) tuple to the manifest — regenerated in the SAME apply, so a known-good deployed file
+# hash) tuple to the manifest - regenerated in the SAME apply, so a known-good deployed file
 # matches → SILENT; a mismatch / missing file / unreadable manifest → PAGE (fail-safe). A DELETE
 # is destructive and has no file to re-hash → always page.
 _pipeline_verdict() {
@@ -278,7 +278,7 @@ _pipeline_verdict() {
   esac
   [[ $verb == DELETED ]] && return 0 # destructive removal of a tracked file → page
   # A non-empty EVENT hash (CREATED/UPDATED carry one): validate the exact (path, hash) tuple
-  # directly — the swap-in-place probe (a valid hash lifted onto a different tracked path) fails.
+  # directly - the swap-in-place probe (a valid hash lifted onto a different tracked path) fails.
   if [[ -n $hash_value ]]; then
     _manifest_has_tuple "$target" "$hash_value" && return 1
     return 0
@@ -291,10 +291,10 @@ _pipeline_verdict() {
 }
 
 # Digest tier (v2): suspicious-but-ambiguous findings accumulate here as NDJSON for a
-# daily grouped summary instead of paging. Best-effort by design — failing to record a
+# daily grouped summary instead of paging. Best-effort by design - failing to record a
 # digest line must never abort detection, so every step is guarded and the function
 # always succeeds. Deliberate page/digest asymmetry: the page basenames a path for
-# one-glance clarity, but the digest stores the FULL path (.cols.path) — the daily
+# one-glance clarity, but the digest stores the FULL path (.cols.path) - the daily
 # digest is a private single-user triage view where the full path disambiguates (which
 # .env?). No secret/token/sha256 is ever stored here, so invariant #4 still holds.
 DIGEST_STORE="${OSQUERY_DIGEST_STORE:-$HOME/.local/state/osquery-digest-spool/digest.ndjson}"
@@ -302,7 +302,7 @@ _digest_append() {
   local finding="$1"
   mkdir -p "$(dirname "$DIGEST_STORE")" 2>/dev/null || true
   # The store persists FULL filesystem paths (and the .last copy keeps them indefinitely),
-  # so it must not be world-readable — dir 700 / file 600, the way the page spool is. No
+  # so it must not be world-readable - dir 700 / file 600, the way the page spool is. No
   # secret/sha256 is stored, but path metadata still discloses project/.env locations.
   chmod 700 "$(dirname "$DIGEST_STORE")" 2>/dev/null || true
   jq -c --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
@@ -321,8 +321,8 @@ _digest_append() {
 
 # FX4: an agent_authfile_changed content change emits removed{old} + added{new} on the
 # same path, so a removed row is a rotation DUPLICATE only when an added row for the SAME
-# path is present in this batch. A pure (unpaired) deletion of a page-tier authfile — the
-# pipeline HMAC key or the paseo keypair — mutes alerts or hijacks access and must PAGE.
+# path is present in this batch. A pure (unpaired) deletion of a page-tier authfile - the
+# pipeline HMAC key or the paseo keypair - mutes alerts or hijacks access and must PAGE.
 # Precompute the set of added authfile paths in this batch so the loop can tell a paired
 # rotation (suppress the removed half) from a bare deletion (route it by its tier).
 authfile_added_paths=$(printf '%s\n' "$raw_findings" |
@@ -353,14 +353,14 @@ while IFS= read -r obj; do
     # Page/core: rare, high-confidence, actionable. An agent API port newly bound
     # off-loopback exposes the operator's primary remote-access path. Only the "added"
     # (newly-exposed) transition pages; a "removed" row is the port being un-exposed
-    # (the exposure being FIXED) — good news, never a page.
+    # (the exposure being FIXED) - good news, never a page.
     agent_exposure_changed)
       [[ $(jq -r '.act' <<<"$obj") == added ]] || continue
       sev="CRIT"
       ;;
     # A NEW unexpected setuid-root binary pages (a privilege-escalation backdoor) via
     # the pre-gate CRIT classification; this arm exists only to drop the good-news
-    # "removed" row — the binary being deleted, the threat going away — never a page.
+    # "removed" row - the binary being deleted, the threat going away - never a page.
     suid_bin_unexpected) [[ $(jq -r '.act' <<<"$obj") == added ]] || continue ;;
     # The pipeline HMAC key and the paseo daemon keypair are the operator's own auth:
     # tampering forges/mutes alerts or hijacks remote access → page. The rotation-prone
@@ -368,7 +368,7 @@ while IFS= read -r obj; do
     agent_authfile_changed)
       # A removed row is suppressed ONLY when paired with an added row for the SAME path
       # in this batch (a content-change rotation: removed{old} + added{new}). An UNPAIRED
-      # removal is a real deletion — route it by the file's tier exactly like a change, so
+      # removal is a real deletion - route it by the file's tier exactly like a change, so
       # a bare deletion of a page-tier authfile pages instead of vanishing silently (FX4).
       authfile_path=$(jq -r '.cols.path // ""' <<<"$obj")
       if [[ $(jq -r '.act' <<<"$obj") != added ]] && _authfile_rotation_pair "$authfile_path"; then
@@ -391,15 +391,15 @@ while IFS= read -r obj; do
     # SIP is intentionally off on this developer box: an on->off transition cannot
     # occur, so the snapshot floor is pure noise. Log-only (no page, no digest).
     sip_state) continue ;;
-    # The kernel_extensions table lists LOADED kexts (load/unload on demand) — a
+    # The kernel_extensions table lists LOADED kexts (load/unload on demand) - a
     # firehose of hundreds of events. Wrong signal entirely; log-only.
     kernel_extensions_new) continue ;;
     # Startup-item / crontab churn is log-only per the tier matrix (too noisy to page).
     # Without an explicit arm it falls through to the enricher, which promotes an unsigned
-    # path NOTICE -> CRIT and pages — give it the same continue its noisy siblings have.
+    # path NOTICE -> CRIT and pages - give it the same continue its noisy siblings have.
     persistence_startup_items_crontab) continue ;;
     # A high-risk remote-access service (screen sharing, remote management, remote
-    # apple events, internet sharing) newly enabled — a remote-control path opened
+    # apple events, internet sharing) newly enabled - a remote-control path opened
     # into this Mac. SSH/Remote Login is the operator's own access path and is
     # excluded by the query. The query emits a row per ENABLED service, so an
     # "added" row is an ON transition (page); a "removed" row is a service turning
@@ -415,10 +415,10 @@ while IFS= read -r obj; do
     es_launchd_writes) continue ;;
     persistence_launchd)
       # Only a NEW persistence item is actionable; a removed row is a deletion (an
-      # uninstall or cleanup — e.g. removing Docker/VPN drops its LaunchDaemon), never
+      # uninstall or cleanup - e.g. removing Docker/VPN drops its LaunchDaemon), never
       # a "new startup item". Guard the whole arm on the added transition.
       [[ $(jq -r '.act' <<<"$obj") == added ]] || continue
-      # A root-level LaunchDaemon runs as root at boot — a higher-privilege threat
+      # A root-level LaunchDaemon runs as root at boot - a higher-privilege threat
       # that pages. A per-user LaunchAgent is lower-stakes and digests.
       case "$(jq -r '.cols.path // ""' <<<"$obj")" in
         /System/Library/*) continue ;;
@@ -450,7 +450,7 @@ while IFS= read -r obj; do
       continue
       ;;
     # A NEW off-loopback listener (something started exposing a port) is generic
-    # exposure awareness the agent-pattern page detector deliberately does not cover —
+    # exposure awareness the agent-pattern page detector deliberately does not cover -
     # a calm daily heads-up, not a page. Only the "added" direction: a removed row is a
     # listener going away (the exposure closing) and stays log-only.
     listening_ports_non_loopback)
@@ -459,7 +459,7 @@ while IFS= read -r obj; do
       continue
       ;;
     # Agent binary hash changes cannot distinguish a frequent legit self-update from a
-    # swap, so they are inherently noisy — log-only (recorded in results.log for
+    # swap, so they are inherently noisy - log-only (recorded in results.log for
     # forensics, never paged or digested).
     agent_binary_changed) continue ;;
     # (screenlock_state was REMOVED here in R2-3: the screenlock table is user-scoped, so the
@@ -467,7 +467,7 @@ while IFS= read -r obj; do
     # osquery-firewall-gatekeeper-monitor.sh.)
     # file_events fans out by category, then by target path within the category (FX3:
     # the watches are containing directories now, so a category fires for every file in
-    # the dir). FX1: every production FSEvents verb is actionable — CREATED, UPDATED,
+    # the dir). FX1: every production FSEvents verb is actionable - CREATED, UPDATED,
     # MOVED_TO (atomic replacement, the dominant live verb), ROOT_CHANGED (a parent dir
     # renamed), ATTRIBUTES_MODIFIED (chmod/chown/xattr), and DELETED (destructive). The
     # old CREATED/UPDATED-only filter dropped the rest, so the tamper detector and the
@@ -497,7 +497,7 @@ while IFS= read -r obj; do
         # / launch_daemons watch) are the alerter's own tooling. The verdict filters to
         # the tracked set by basename and validates the exact (path, sha256) tuple: a
         # legit apply whose tuple is known-good is silent; anything unconfirmable (empty
-        # hash, mismatch, missing manifest) pages. Never digests — page or silent.
+        # hash, mismatch, missing manifest) pages. Never digests - page or silent.
         pipeline_integrity | launch_agents | launch_daemons)
           hash_value=$(jq -r '.cols.sha256 // ""' <<<"$obj")
           verb=$(jq -r '.cols.action // ""' <<<"$obj")
@@ -545,11 +545,11 @@ enriched=${enriched%$'\n'}
 # Render the #priority page body in one jq pass: focused labeled blocks (header +
 # decision-relevant fields + one "→" next step). Layout follows the user's ADHD
 # surfacing research: one thing, glanceable, minimal fields, ending in a single
-# action, no raw query jargon. v2 renders only this body — there is no #osquery line.
+# action, no raw query jargon. v2 renders only this body - there is no #osquery line.
 render=$(printf '%s\n' "$enriched" | jq -s '
   # Wrap a value in Discord inline-code backticks. The value is attacker-controlled
   # (launchd label, path); strip backticks so it cannot break out of the inline-code
-  # span and inject markdown. Display-only — does not affect detection/severity. FX8:
+  # span and inject markdown. Display-only - does not affect detection/severity. FX8:
   # bound each field to 240 chars with an explicit omission marker so a single giant
   # value (a 4KB crafted path/username) cannot alone blow the 2000-char Discord budget.
   def code:
@@ -629,29 +629,29 @@ render=$(printf '%s\n' "$enriched" | jq -s '
   def nextstep:
     (.ep // "") as $ep |
     if (protname) != null then
-      ["- Did you turn this off? If not, something else did — **investigate now**.", "- Re-enable it in System Settings."]
+      ["- Did you turn this off? If not, something else did - **investigate now**.", "- Re-enable it in System Settings."]
     elif (.q == "system_extensions_new" or .q == "kernel_extensions_new") then
-      ["- Did you install this? If not, **remove it** — an extension can intercept traffic or load at boot.", "- Manage at: System Settings → General → Login Items & Extensions"]
+      ["- Did you install this? If not, **remove it** - an extension can intercept traffic or load at boot.", "- Manage at: System Settings → General → Login Items & Extensions"]
     elif .q == "suid_bin_unexpected" then
-      ["- Did you create this? If not, it lets a program run as **root** — a backdoor.", "- **Inspect:** " + (("codesign -dv \"" + $ep + "\"") | code)]
+      ["- Did you create this? If not, it lets a program run as **root** - a backdoor.", "- **Inspect:** " + (("codesign -dv \"" + $ep + "\"") | code)]
     elif .q == "new_admin_user" then
-      ["- Did you create this account? If not, someone gained **admin access** — investigate now.", "- Review accounts: System Settings → Users & Groups"]
+      ["- Did you create this account? If not, someone gained **admin access** - investigate now.", "- Review accounts: System Settings → Users & Groups"]
     elif .q == "agent_exposure_changed" then
-      ["- Did you expose this? If not, an agent API is reachable **off-box** — close it now.", "- Re-bind it to 127.0.0.1 or block the port at the firewall."]
+      ["- Did you expose this? If not, an agent API is reachable **off-box** - close it now.", "- Re-bind it to 127.0.0.1 or block the port at the firewall."]
     elif .q == "agent_authfile_changed" then
-      ["- Did you rotate this? If not, an attacker may forge or mute alerts, or hijack remote access — **investigate now**."]
+      ["- Did you rotate this? If not, an attacker may forge or mute alerts, or hijack remote access - **investigate now**."]
     elif .q == "remote_access_sharing_state" then
-      ["- Did you enable this? If not, someone opened a remote-control path into this Mac — **disable it now**.", "- System Settings → General → Sharing"]
+      ["- Did you enable this? If not, someone opened a remote-control path into this Mac - **disable it now**.", "- System Settings → General → Sharing"]
     elif .q == "file_events_recent" then
       (((.cols.target_path // "") | split("/") | last) as $bn |
        if ((.cols.category // "") == "pipeline_integrity")
           or ($bn | test("^osquery-.*\\.sh$")) or ($bn | test("^com\\.webdavis\\.osquery-.*\\.plist$"))
-       then ["- Did you just apply your dotfiles? If not, your **security tooling was modified** — investigate now.", "- **Compare:** " + (("shasum -a 256 \"" + $ep + "\"") | code)]
+       then ["- Did you just apply your dotfiles? If not, your **security tooling was modified** - investigate now.", "- **Compare:** " + (("shasum -a 256 \"" + $ep + "\"") | code)]
        else ["- Did you change this? If not, someone altered who can log in or run as **root**.", "- **Review:** " + (("sudo cat \"" + $ep + "\"") | code)] end)
     elif (.q == "persistence_launchd" or .q == "persistence_startup_items_crontab") then
-      ["- Did you set this up? If not, it **auto-runs at every login** — likely malware.", "- **Inspect:** " + (("cat \"" + $ep + "\"") | code)]
+      ["- Did you set this up? If not, it **auto-runs at every login** - likely malware.", "- **Inspect:** " + (("cat \"" + $ep + "\"") | code)]
     elif .q == "es_launchd_writes" then
-      ["- Did you run this? If not, a process is **installing persistence** — investigate it and remove the file.", "- **Inspect the writer:** " + (("codesign -dv \"" + $ep + "\"") | code)]
+      ["- Did you run this? If not, a process is **installing persistence** - investigate it and remove the file.", "- **Inspect the writer:** " + (("codesign -dv \"" + $ep + "\"") | code)]
     elif ($ep != "") then ["- **Review:** " + ($ep | code)]
     else [] end;
   def block:
@@ -661,26 +661,26 @@ render=$(printf '%s\n' "$enriched" | jq -s '
     pcount: ($crit | length),
     # Cap the page at eight blocks + a marker so a large simultaneous-CRIT batch cannot
     # exceed the Discord 2000-char limit and get stuck undelivered in the spool (an
-    # over-length POST is rejected and re-spooled forever — retry never shrinks it). The
+    # over-length POST is rejected and re-spooled forever - retry never shrinks it). The
     # dropped detail still lands in results.log. Mirrors the digest group cap.
     pbody: (
       (($crit[0:8] | map(block) | join("\n\n"))
        + (if ($crit | length) > 8
-          then "\n\n… and \(($crit | length) - 8) more CRITICAL finding(s) — see results.log"
+          then "\n\n… and \(($crit | length) - 8) more CRITICAL finding(s) - see results.log"
           else "" end)) as $full
-      # FX8: the eight-block cap bounds COUNT, not length — eight blocks with long fields
+      # FX8: the eight-block cap bounds COUNT, not length - eight blocks with long fields
       # can still exceed 2000. Apply a FINAL hard length cap (per-field truncation above
       # already bounds any single value); the truncated body is exactly what send_alert
       # spools, so an over-length page can never wedge the spool.
       | if ($full | length) > 1900
-        then ($full[0:1900] + "\n… (truncated to fit the 2000-char limit — see results.log)")
+        then ($full[0:1900] + "\n… (truncated to fit the 2000-char limit - see results.log)")
         else $full end
     )
   }
 ')
 
 # v2 dispatches ONLY the #priority page (confirmed CRIT). Everything non-CRIT is
-# either digested upstream by the gate or stays log-only on disk — there is no
+# either digested upstream by the gate or stays log-only on disk - there is no
 # #osquery notice/info channel.
 pcount=$(jq -r '.pcount' <<<"$render")
 

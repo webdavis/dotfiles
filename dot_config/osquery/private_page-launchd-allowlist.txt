@@ -1,8 +1,8 @@
-# page-launchd-allowlist.txt — user LaunchAgents whose new persistence digests instead of
+# page-launchd-allowlist.txt - user LaunchAgents whose new persistence digests instead of
 # paging (a known-good tool you installed). R2-1: an entry is a TUPLE, not a bare label. The
 # alerter suppresses a persistence_launchd finding ONLY when its (label, canonical plist path,
 # program [, pinned plist sha256]) matches an entry here, and PAGES a label reused with a
-# different path/program/hash — so a stolen label pointed at a malicious program cannot hide.
+# different path/program/hash - so a stolen label pointed at a malicious program cannot hide.
 #
 # One NDJSON object per line: {"label","path","program","sha256"}.
 #   - path/program: a leading $HOME is written ~/ so this file stays user-agnostic; the alerter

@@ -39,7 +39,7 @@ teardown() {
 @test "T-WATCH-route-405-ok-but-stale-spool: a 405 GET with a STALE spool (a 502 POST that never drained) is NOT healthy (R2-7)" {
   # The live trap: a priority POST 502s (its page spools and sits), while the watchdog's GET
   # returns 405 (route exists). 405 alone is accepted, but the STALE spooled page proves delivery
-  # is broken — the exact case the old "405 is fine" check missed.
+  # is broken - the exact case the old "405 is fine" check missed.
   export WATCHDOG_HTTP_CODE=405
   seed_spool_file 45   # a page stuck undelivered for 45 min
   run_watchdog ""

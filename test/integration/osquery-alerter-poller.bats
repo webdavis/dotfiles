@@ -60,7 +60,7 @@ teardown() { teardown_harness; }
   assert_page_has OFF
 }
 
-# R2-9: validate every scalar. A partial reading is a monitoring gap — page, do not persist safe.
+# R2-9: validate every scalar. A partial reading is a monitoring gap - page, do not persist safe.
 
 @test "T-POLL-gap-partial-pages: firewall='' gatekeeper=1 screenlock=1 is a GAP, pages, not persisted safe (R2-9)" {
   run_poller_firstrun '{"firewall":"","gatekeeper":"1","screenlock":"1"}'

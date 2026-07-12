@@ -1,6 +1,6 @@
 #!/usr/bin/env bats
 # Shared dispatcher (osquery-alert-dispatch.sh): v2 delivers ONLY a CRIT page to the
-# #priority webhook. Any other severity does the local notification and never POSTs —
+# #priority webhook. Any other severity does the local notification and never POSTs -
 # there is no #osquery channel for a producer to leak to.
 
 load ../fixtures/osquery-alerter-lib
@@ -21,14 +21,14 @@ teardown() { teardown_harness; }
 @test "T-DISP-host-field: the signed webhook body carries a host field (multi-host seam)" {
   send_alert CRIT "🔴 title" "detail" "Sosumi"
   # The curl shim records the full invocation including --data <body>; host must be
-  # inside the signed bytes — the master-spec body shape and the homelab-migration
+  # inside the signed bytes - the master-spec body shape and the homelab-migration
   # seam both require {event_type, host, alert:{...}}.
   run grep -F '"host":"' "$CURL_LOG"
   [ "$status" -eq 0 ]
 }
 
 @test "T-DISP-nosecret-spool: a CRIT with no webhook secret spools the page and loudly names the broken channel (FX4)" {
-  # The old code logged a WARN and returned SUCCESS without spooling — the critical
+  # The old code logged a WARN and returned SUCCESS without spooling - the critical
   # silently degraded to local-only and was lost. With no secret the page must be spooled
   # durably (it delivers when the secret returns) and a LOUD local notification must name
   # the broken channel; nothing may be signed or POSTed without a key.
@@ -55,12 +55,12 @@ teardown() { teardown_harness; }
   set_curl_codes 503 503 503 503 503 503
   send_alert CRIT "🔴 firewall" "Firewall turned OFF" "Sosumi" "inode7:100:200"
   send_alert CRIT "🔴 firewall" "Firewall turned OFF" "Sosumi" "inode7:200:300"
-  assert_spool_count 2   # both incidents survive — a later same-body incident does not clobber the earlier
+  assert_spool_count 2   # both incidents survive - a later same-body incident does not clobber the earlier
 }
 
 @test "T-DISP-occurrence-retry-stable: the SAME occurrence retried reuses one id (idempotent spool) (R2-4)" {
   # A retry of the SAME occurrence (same identity) must reuse the id so the gateway dedups
-  # it and the spool file is idempotent — one file, not a growing pile of duplicates.
+  # it and the spool file is idempotent - one file, not a growing pile of duplicates.
   set_curl_codes 503 503 503 503 503 503
   send_alert CRIT "🔴 firewall" "Firewall turned OFF" "Sosumi" "inode7:100:200"
   send_alert CRIT "🔴 firewall" "Firewall turned OFF" "Sosumi" "inode7:100:200"
@@ -76,13 +76,13 @@ teardown() { teardown_harness; }
 @test "T-DISP-spool-hardfail: an unwritable spool dir + no secret returns nonzero and loudly alerts (R2-6)" {
   # Point the spool at a path whose parent is a FILE, so mkdir/create cannot succeed for
   # any uid (deterministic, not permission/uid-dependent). With no secret the page cannot
-  # be signed either — it can be neither delivered NOR stored, which MUST be loud + nonzero.
+  # be signed either - it can be neither delivered NOR stored, which MUST be loud + nonzero.
   unset OSQUERY_WEBHOOK_SECRET
   : >"$ALERTER_LOG"
   touch "$HARNESS_HOME/notadir"
   export OSQUERY_SPOOL_DIR="$HARNESS_HOME/notadir/spool"
   run send_alert CRIT "🔴 title" "detail body" "Sosumi"
-  [ "$status" -ne 0 ]                        # hard delivery failure — NOT a silent success
+  [ "$status" -ne 0 ]                        # hard delivery failure - NOT a silent success
   assert_spool_count 0                       # nothing was stored
   assert_no_post                             # nothing signed/POSTed without a key
   grep -qiE 'SPOOL-FAILED' "$OSQUERY_DELIVERY_LOG"        # synchronous: the hard failure is recorded
@@ -104,7 +104,7 @@ teardown() { teardown_harness; }
 }
 
 @test "T-DISP-spool-atomic: a spooled page is written atomically and drains on recovery (R2-6)" {
-  # A spool file appears (delivery failed) and drains clean once curl recovers — proving
+  # A spool file appears (delivery failed) and drains clean once curl recovers - proving
   # the temp+rename path produces a well-formed, replayable entry (no torn temp left behind).
   set_curl_codes 503 503 503
   send_alert CRIT "🔴 title" "detail body" "Sosumi" "occ:1:2"
@@ -117,7 +117,7 @@ teardown() { teardown_harness; }
 
 # --- R2-11: digest/heartbeat traffic DOES reach the remote POST; mark its tier --------
 # The dispatcher POSTs for severity==CRIT, and the digest AND heartbeat both dispatch at
-# CRIT (verified), so they DO reach the remote POST — this is NOT moot. The `sound` arg
+# CRIT (verified), so they DO reach the remote POST - this is NOT moot. The `sound` arg
 # only muted the LOCAL notifier; the POST carried no tier, so a silent digest looked
 # identical to a real page on the wire. Thread an explicit tier the Hermes adapter can map
 # to a suppressed notification: a page (non-empty sound) is tier=page, a muted digest/

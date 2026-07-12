@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# osquery-tailscale-monitor.sh — polled every 60s by a launchd StartInterval agent. Pages on the
+# osquery-tailscale-monitor.sh - polled every 60s by a launchd StartInterval agent. Pages on the
 # off->on transition of `tailscale funnel` (a local port newly exposed to the PUBLIC internet).
 # Funnel traffic tunnels through tailscaled, so osquery cannot see it as a listening port; polling
 # the CLI is the only way to catch it. Silent in steady state.
@@ -9,7 +9,7 @@
 # undetectable public-exposure risk). So a status-command failure is NOT swallowed into "inactive",
 # a corrupt/gap prior state is NOT trusted as a baseline, the state file is written atomically, and
 # every blindness path (missing binary, failed/empty status) dispatches at CRIT so it reaches the
-# remote #priority channel (the dispatcher POSTs only CRIT — a WARN was dropped before the POST).
+# remote #priority channel (the dispatcher POSTs only CRIT - a WARN was dropped before the POST).
 set -euo pipefail
 
 # Resolution order: explicit override -> PATH (the headless homebrew formula this machine runs) ->
@@ -49,7 +49,7 @@ gap_alert() {
   # Page once: only when transitioning FROM a healthy monitor (ok/empty) INTO a gap.
   if [ "$prev_monitor" = "ok" ] || [ -z "$prev_monitor" ]; then
     send_alert CRIT "🔴 **CRITICAL**" \
-      "**Tailscale funnel monitoring is BLIND — public-exposure paging is not running.**"$'\n'"- $detail"$'\n'"- A funnel could be opened to the PUBLIC internet without a page while this is blind. **Fix now.**" \
+      "**Tailscale funnel monitoring is BLIND - public-exposure paging is not running.**"$'\n'"- $detail"$'\n'"- A funnel could be opened to the PUBLIC internet without a page while this is blind. **Fix now.**" \
       "Sosumi" "tailscale-gap:$kind" || true
   fi
   write_state "${prev_funnel:-inactive}" "$kind" # preserve the last valid funnel state
@@ -58,7 +58,7 @@ gap_alert() {
 # A missing binary is a monitoring gap (the regression that left this monitor dead on the formula
 # install). CRIT so it reaches the remote channel, page-once.
 if [ ! -x "$TAILSCALE" ]; then
-  echo "WARN: no tailscale binary ($TAILSCALE) — funnel monitoring is blind" >&2
+  echo "WARN: no tailscale binary ($TAILSCALE) - funnel monitoring is blind" >&2
   gap_alert missing "No tailscale binary found at $TAILSCALE."
   exit 0
 fi
@@ -67,13 +67,13 @@ fi
 rc=0
 funnel=$("$TAILSCALE" funnel status 2>/dev/null) || rc=$?
 
-# A failed command, or an EMPTY output we cannot classify, is a gap — not a silent "inactive".
+# A failed command, or an EMPTY output we cannot classify, is a gap - not a silent "inactive".
 if [ "$rc" -ne 0 ]; then
-  gap_alert unavailable "\`tailscale funnel status\` exited $rc — the funnel state is unreadable."
+  gap_alert unavailable "\`tailscale funnel status\` exited $rc - the funnel state is unreadable."
   exit 0
 fi
 if [ -z "$funnel" ]; then
-  gap_alert unavailable "\`tailscale funnel status\` returned no output — the funnel state is unreadable."
+  gap_alert unavailable '`tailscale funnel status` returned no output - the funnel state is unreadable.'
   exit 0
 fi
 

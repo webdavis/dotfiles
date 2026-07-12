@@ -4,7 +4,7 @@
 # H1 harness: drive the REAL alerter against a fixture results.log with a 1-line
 # send_alert stub, then assert on what it dispatched. Real osqueryd rows carry a
 # 9-key envelope (action, calendarTime, columns, counter, epoch, hostIdentifier,
-# name, numerics, unixTime) — the builders below emit that shape so fixtures match
+# name, numerics, unixTime) - the builders below emit that shape so fixtures match
 # production, not a toy {name,action,columns}.
 
 # Differential row: row <name> <action> <counter> <columns-json>
@@ -15,7 +15,7 @@ row() {
 
 # Evented file_events row: file_event_row <category> <target_path> <verb> [sha256]
 # Outer action is always "added"; the real FSEvents verb is columns.action (CREATED,
-# UPDATED, MOVED_TO, ROOT_CHANGED, ATTRIBUTES_MODIFIED, DELETED — the production set).
+# UPDATED, MOVED_TO, ROOT_CHANGED, ATTRIBUTES_MODIFIED, DELETED - the production set).
 # The sha256 arg uses ${4-default} (default only when UNSET), so an explicit "" models
 # the empty sha256 that live MOVED_TO/ROOT_CHANGED/ATTRIBUTES_MODIFIED/DELETED rows
 # carry (osquery does not content-hash a rename/attribute/delete event).
@@ -48,7 +48,7 @@ _drain_spool() { :; }
 STUB
   export SEND_ALERT_LOG="$HARNESS_HOME/send_alert.log"
   : >"$SEND_ALERT_LOG"
-  # R2-10: the pipeline re-hash debounce (a real sleep in production) is 0 in tests — the
+  # R2-10: the pipeline re-hash debounce (a real sleep in production) is 0 in tests - the
   # on-disk target and manifest are already settled, so the wait only slows the suite.
   export OSQUERY_PIPELINE_REHASH_DELAY=0
   export OSQUERY_DIGEST_STORE="$HARNESS_HOME/.local/state/osquery-digest-spool/digest.ndjson"
@@ -72,7 +72,7 @@ seed_allowlist_tuple() {
 }
 
 # Install an enricher stub that reports every path UNTRUSTED (rc=10), so a NOTICE
-# finding with a signable path gets promoted NOTICE->CRIT — exercises the promotion
+# finding with a signable path gets promoted NOTICE->CRIT - exercises the promotion
 # path a log-only detector must NOT be able to reach.
 install_untrusted_enricher() {
   printf '#!/usr/bin/env bash\nexit 10\n' >"$HARNESS_HOME/.local/bin/osquery-enrich-finding.sh"
@@ -94,7 +94,7 @@ SHIM
   POSTURE_STATE="$HARNESS_HOME/.local/state/osquery-posture-state.json"
 }
 
-# run_poller <prev-posture-object> <current-posture-object> — seed the prior state,
+# run_poller <prev-posture-object> <current-posture-object> - seed the prior state,
 # set the current reading, run the real poller. osqueryi --json returns an array, so
 # the current object is wrapped in [ ] for the fake. The seeded baseline is chmod 600 to
 # match production (the poller writes its state owner-only), so it is a TRUSTED baseline.
@@ -108,7 +108,7 @@ run_poller() {
     bash "$POLLER"
 }
 
-# run_poller_firstrun <current-posture> — no prior baseline (first observation).
+# run_poller_firstrun <current-posture> - no prior baseline (first observation).
 run_poller_firstrun() {
   rm -f "$POSTURE_STATE"
   HOME="$HARNESS_HOME" \
@@ -118,7 +118,7 @@ run_poller_firstrun() {
     bash "$POLLER"
 }
 
-# run_poller_badperms <prev-posture> <current-posture> — a baseline that exists but is
+# run_poller_badperms <prev-posture> <current-posture> - a baseline that exists but is
 # group/world-readable (mode 644), i.e. NOT owner-only, so it must be treated as untrusted.
 run_poller_badperms() {
   printf '%s\n' "$1" >"$POSTURE_STATE"
@@ -164,7 +164,7 @@ SHIM
   export OSQUERY_SPOOL_DIR="$HARNESS_HOME/.local/state/osquery-spool"
 }
 
-# run_watchdog [down-agent-labels] — run the real watchdog with the stubs on PATH. Other knobs
+# run_watchdog [down-agent-labels] - run the real watchdog with the stubs on PATH. Other knobs
 # (WATCHDOG_CRASH_AGENTS/_STATUS, WATCHDOG_HTTP_CODE) are read from the (exported) environment.
 run_watchdog() {
   HOME="$HARNESS_HOME" \
@@ -190,7 +190,7 @@ seed_spool_file() {
 }
 
 # End-to-end redaction harness (H2): the REAL dispatcher (not the send_alert stub),
-# a no-op alerter, and a curl shim that always fails — so the REAL alerter spools a
+# a no-op alerter, and a curl shim that always fails - so the REAL alerter spools a
 # page to disk and a test can base64-decode the on-disk body to prove no full path,
 # sha256, or secret survives the alerter's basename redaction end to end.
 setup_redaction_h2_harness() {
@@ -204,7 +204,7 @@ setup_redaction_h2_harness() {
   export OSQUERY_DELIVERY_LOG="$HARNESS_HOME/.local/log/osquery/webhook-delivery.log"
 }
 
-# run_redaction_h2 <fixture-row> — drive the REAL alerter into the REAL dispatcher
+# run_redaction_h2 <fixture-row> - drive the REAL alerter into the REAL dispatcher
 # (curl forced to fail), so a CRIT finding spools to disk.
 run_redaction_h2() {
   local results_log="$HARNESS_HOME/.local/log/osquery/osqueryd.results.log"
@@ -262,14 +262,14 @@ run_h2_drain() {
 
 # Heartbeat harness (R2-8): setup_harness (send_alert stub) + a controllable snapshots.log. The
 # heartbeat verifies the ROOT DAEMON by checking that its scheduled heartbeat_canary snapshot is
-# FRESH — not by launching a standalone osqueryi (which succeeds even while osqueryd is stopped).
+# FRESH - not by launching a standalone osqueryi (which succeeds even while osqueryd is stopped).
 setup_heartbeat_harness() {
   setup_harness
   export OSQUERY_SNAPSHOTS_LOG="$HARNESS_HOME/.local/log/osquery/osqueryd.snapshots.log"
   : >"$OSQUERY_SNAPSHOTS_LOG"
 }
 
-# seed_canary <seconds-ago> — append a heartbeat_canary snapshot row timestamped that long ago,
+# seed_canary <seconds-ago> - append a heartbeat_canary snapshot row timestamped that long ago,
 # in the shape the root daemon writes to osqueryd.snapshots.log.
 seed_canary() {
   local ts
@@ -279,7 +279,7 @@ seed_canary() {
     >>"$OSQUERY_SNAPSHOTS_LOG"
 }
 
-# run_heartbeat — run the real heartbeat against the seeded snapshots.log.
+# run_heartbeat - run the real heartbeat against the seeded snapshots.log.
 run_heartbeat() {
   HOME="$HARNESS_HOME" \
     OSQUERY_SNAPSHOTS_LOG="$OSQUERY_SNAPSHOTS_LOG" \
@@ -322,7 +322,7 @@ assert_not_allowlisted() {
     return 1
   fi
 }
-# Count of entry lines (non-comment, non-blank) — one NDJSON tuple per line.
+# Count of entry lines (non-comment, non-blank) - one NDJSON tuple per line.
 assert_allowlist_label_count() {
   local n
   n=$(grep -cvE '^[[:space:]]*(#|$)' "$OSQUERY_LAUNCHD_ALLOWLIST" 2>/dev/null || echo 0)
@@ -365,7 +365,7 @@ _seed_ts_state() {
   esac
 }
 
-# run_tailscale_monitor <prev-token|""> <funnel-output> [rc] — seed prior state, set the fake
+# run_tailscale_monitor <prev-token|""> <funnel-output> [rc] - seed prior state, set the fake
 # funnel output (and optional nonzero exit code), run the real poller.
 run_tailscale_monitor() {
   _seed_ts_state "$1"
@@ -484,7 +484,7 @@ assert_warn_has() {
   fi
 }
 
-# The inverse: NO CRIT page may contain <substring> — used to prove redaction
+# The inverse: NO CRIT page may contain <substring> - used to prove redaction
 # (a full path or sha256 must never reach the payload, invariant #4).
 assert_page_lacks() {
   if grep $'^CRIT\t' "$SEND_ALERT_LOG" | grep -qF -- "$1"; then
@@ -500,13 +500,13 @@ setup_dispatch_harness() {
   HARNESS_HOME="$(mktemp -d)"
   mkdir -p "$HARNESS_HOME/bin" "$HARNESS_HOME/.local/log/osquery"
   # The alerter shim records its argv so a test can assert the local notification's
-  # content (e.g. the loud "Discord channel broken — no secret" message).
+  # content (e.g. the loud "Discord channel broken - no secret" message).
   export ALERTER_LOG="$HARNESS_HOME/alerter.log"
   : >"$ALERTER_LOG"
   printf '#!/usr/bin/env bash\nprintf "%%s\\n" "$*" >>"%s"\nexit 0\n' "$ALERTER_LOG" >"$HARNESS_HOME/bin/alerter"
   # curl shim: record the invocation, then emit the next queued http code (one per
   # line in $CURL_CODES_FILE, popped per call), defaulting to 200 when the queue is
-  # empty — so a test can script "503 503 503 then success".
+  # empty - so a test can script "503 503 503 then success".
   cat >"$HARNESS_HOME/bin/curl" <<'SHIM'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$CURL_LOG"
@@ -596,7 +596,7 @@ assert_no_post() {
   fi
 }
 
-# Log-only means zero delivery — no page, no #osquery line, nothing dispatched.
+# Log-only means zero delivery - no page, no #osquery line, nothing dispatched.
 assert_no_dispatch() {
   if [[ -s $SEND_ALERT_LOG ]]; then
     echo "expected NO dispatch, but send_alert was called: $(cat "$SEND_ALERT_LOG")" >&2
@@ -618,7 +618,7 @@ assert_digest_sent() {
   fi
 }
 
-# The one digest send used an empty sound (silent, non-interruptive — not a page).
+# The one digest send used an empty sound (silent, non-interruptive - not a page).
 assert_digest_silent() {
   local sound
   sound=$(awk -F'\t' '$1=="CRIT"{print $4}' "$SEND_ALERT_LOG")

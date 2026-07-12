@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
 #
-# osquery-uptime-watchdog.sh — polled every 15 min by launchd. Asserts the
+# osquery-uptime-watchdog.sh - polled every 15 min by launchd. Asserts the
 # osquery notification pipeline is actually ALIVE, because a dead pipeline
 # otherwise looks identical to "all quiet" (the alerter is edge-triggered and
 # the queries are differential, so genuine silence is normal). Fires a single
 # CRITICAL alert via the shared dispatcher if any component is down or wedged;
 # silent when everything is healthy. Deliberately does NOT use results.log
-# mtime as a signal — hours of healthy silence are expected.
+# mtime as a signal - hours of healthy silence are expected.
 
 set -euo pipefail
 
 OSQUERYI="${OSQUERYI:-$(command -v osqueryi || echo /usr/local/bin/osqueryi)}"
-# Probe the #priority route — the path pages actually use. The old /webhooks/osquery
+# Probe the #priority route - the path pages actually use. The old /webhooks/osquery
 # route was decommissioned, so probing it no longer proves a page can be delivered.
 HERMES_URL="${OSQUERY_HERMES_PRIORITY_URL:-http://127.0.0.1:8644/webhooks/osquery-priority}"
 # Cross-run state (R2-7): per-agent consecutive-nonzero-exit streaks (so a one-off transient does
@@ -22,11 +22,11 @@ SPOOL_DIR="${OSQUERY_SPOOL_DIR:-$HOME/.local/state/osquery-spool}"
 SPOOL_STALE_MIN="${OSQUERY_SPOOL_STALE_MIN:-30}"
 # Every deployed osquery LaunchAgent EXCEPT this watchdog (which, if running, is
 # loaded by definition). No osquery plist sets KeepAlive, so launchd will not reload
-# an unloaded agent — this list is the sole liveness backstop. A calendar/interval
+# an unloaded agent - this list is the sole liveness backstop. A calendar/interval
 # agent that is merely idle between runs still reports loaded (exit 0), so listing it
 # here cannot false-alarm. The tailscale poller pages on public-internet exposure, the
 # digest owns the daily summary, and the heartbeat is the daily proof-of-life whose
-# silence the user trusts — all MUST be covered.
+# silence the user trusts - all MUST be covered.
 AGENTS=(
   "com.webdavis.osquery-results-alerter"
   "com.webdavis.osquery-firewall-gatekeeper-monitor"
@@ -50,7 +50,7 @@ prev_state="{}"
 [ -r "$STATE" ] && prev_state=$(cat "$STATE" 2>/dev/null || echo "{}")
 printf '%s' "$prev_state" | jq -e . >/dev/null 2>&1 || prev_state="{}"
 
-# 1) osqueryd present AND answering — a wedged daemon passes pgrep but can't
+# 1) osqueryd present AND answering - a wedged daemon passes pgrep but can't
 #    answer a one-shot query, which is the failure mode KeepAlive won't catch.
 if ! pgrep -fq '/opt/osquery/.*osqueryd'; then
   problems+=("osqueryd is not running")
@@ -60,7 +60,7 @@ fi
 
 # 2) Every deployed osquery LaunchAgent is loaded AND not crash-looping (R2-7). A registered job
 #    that exits nonzero every run (a StartInterval crash-loop) stays "loaded", so registration
-#    alone is not liveness — inspect LastExitStatus. Alert only when it is nonzero on TWO
+#    alone is not liveness - inspect LastExitStatus. Alert only when it is nonzero on TWO
 #    consecutive watchdog checks, so a single transient exit does not page. Streaks accumulate
 #    into streaks_json incrementally (a missing entry means "reset to 0" next run).
 streaks_json="{}"
@@ -93,18 +93,18 @@ esac
 
 # 4) Page-spool health (R2-7). A page that cannot deliver is spooled, so a STALE spooled page
 #    (older than SPOOL_STALE_MIN) or a spool that GREW since the last check means pages are not
-#    draining — the exact 502-on-POST case a 405 GET cannot see. Either alerts.
+#    draining - the exact 502-on-POST case a 405 GET cannot see. Either alerts.
 spool_count=0
 if [ -d "$SPOOL_DIR" ]; then
   spool_count=$(find "$SPOOL_DIR" -type f ! -name '*.tmp.*' 2>/dev/null | wc -l | tr -d ' ')
   if [ -n "$(find "$SPOOL_DIR" -type f ! -name '*.tmp.*' -mmin "+$SPOOL_STALE_MIN" 2>/dev/null | head -1)" ]; then
-    problems+=("page spool is STALE: an undelivered page has sat > ${SPOOL_STALE_MIN}m — Discord delivery is broken")
+    problems+=("page spool is STALE: an undelivered page has sat > ${SPOOL_STALE_MIN}m - Discord delivery is broken")
   fi
 fi
 prev_spool=$(printf '%s' "$prev_state" | jq -r '.spool_count // 0' 2>/dev/null || echo 0)
 [[ $prev_spool =~ ^[0-9]+$ ]] || prev_spool=0
 if [ "$spool_count" -gt "$prev_spool" ] && [ "$spool_count" -gt 0 ]; then
-  problems+=("page spool is GROWING ($prev_spool → $spool_count undelivered pages) — pages are not draining")
+  problems+=("page spool is GROWING ($prev_spool → $spool_count undelivered pages) - pages are not draining")
 fi
 
 # Persist the new state (per-agent streaks + current spool count) atomically, owner-only, BEFORE
@@ -130,5 +130,5 @@ body+=$'\n'"- Restart the down component, then re-check."
 title="🔴 **CRITICAL**"
 if [ ${#problems[@]} -gt 1 ]; then title="🔴 **CRITICAL** · ${#problems[@]}"; fi
 # `|| true`: send_alert returns nonzero on a hard delivery failure (R2-6); the watchdog is
-# fire-and-forget (the failure is already loudly surfaced) — keep it off set -e's abort path.
+# fire-and-forget (the failure is already loudly surfaced) - keep it off set -e's abort path.
 send_alert CRIT "$title" "$body" "Sosumi" || true

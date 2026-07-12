@@ -22,7 +22,7 @@ persist_row() { # persist_row <label> <path> <program>
   seed_allowlist_tuple com.foo.agent /Users/x/Library/LaunchAgents/com.foo.agent.plist /opt/homebrew/opt/foo/bin/foo
   run_alerter "$(persist_row com.foo.agent /Users/x/Library/LaunchAgents/com.foo.agent.plist /opt/homebrew/opt/foo/bin/foo)"
   assert_no_page
-  assert_digest_count 0   # fully suppressed — neither page nor digest
+  assert_digest_count 0   # fully suppressed - neither page nor digest
 }
 
 @test "T-PERSIST-tuple-reuse-program-pages: an allowlisted LABEL reused with a different program PAGES (R2-1)" {
@@ -47,7 +47,7 @@ persist_row() { # persist_row <label> <path> <program>
 }
 
 @test "T-PERSIST-label-only-entry-does-not-suppress: a degraded label-only entry cannot vouch, so a finding is NOT suppressed (R2-1 fail-safe)" {
-  # A label-only entry (no captured identity) must not suppress on the bare label — that IS the
+  # A label-only entry (no captured identity) must not suppress on the bare label - that IS the
   # R2-1 bug. It fails safe: the finding routes by its tier (digest) instead of vanishing.
   seed_allowlist_tuple com.foo.agent "" ""
   run_alerter "$(persist_row com.foo.agent /Users/x/Library/LaunchAgents/com.foo.agent.plist /opt/homebrew/opt/foo/bin/foo)"
@@ -69,7 +69,7 @@ persist_row() { # persist_row <label> <path> <program>
 }
 
 @test "T-PERSIST-daemon-still-pages: a root LaunchDaemon still pages regardless of the allowlist" {
-  # /Library/LaunchDaemons runs as root at boot — it pages by PATH, the allowlist never applies.
+  # /Library/LaunchDaemons runs as root at boot - it pages by PATH, the allowlist never applies.
   run_alerter "$(persist_row com.foo.daemon /Library/LaunchDaemons/com.foo.daemon.plist /opt/homebrew/bin/foo)"
   assert_page_has com.foo.daemon
 }

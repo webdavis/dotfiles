@@ -1,6 +1,6 @@
 #!/usr/bin/env bats
 # Delivery durability (H2): a page that can't be delivered must be SPOOLED, never
-# silently dropped — a lost page looks exactly like "all clear". The drain replays
+# silently dropped - a lost page looks exactly like "all clear". The drain replays
 # it idempotently, to localhost only, and never aborts its caller.
 
 load ../fixtures/osquery-alerter-lib
@@ -24,8 +24,8 @@ teardown() { teardown_harness; }
 @test "T-SEC-spool-idem: re-spooling the SAME occurrence stays one file; drain replays once (R2-4)" {
   # Idempotency is keyed on OCCURRENCE IDENTITY now, not body content (R2-4): the SAME
   # occurrence re-spooled stays one file and reuses one request_id, so the gateway dedups a
-  # retry. (Two DISTINCT occurrences that render the same body get two files — covered by
-  # T-DISP-occurrence-distinct — which is the collapse bug this pass fixes.)
+  # retry. (Two DISTINCT occurrences that render the same body get two files - covered by
+  # T-DISP-occurrence-distinct - which is the collapse bug this pass fixes.)
   set_curl_codes 503 503 503 503 503 503
   send_alert CRIT "🔴 title" "same detail" "Sosumi" "occ:disk3:900:1000"
   send_alert CRIT "🔴 title" "same detail" "Sosumi" "occ:disk3:900:1000" # same occurrence → same request_id

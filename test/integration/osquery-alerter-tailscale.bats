@@ -1,7 +1,7 @@
 #!/usr/bin/env bats
 # Tailscale funnel poller: pages on the off->on transition of `tailscale funnel` (a local port
 # newly exposed to the PUBLIC internet). Funnel traffic tunnels through tailscaled, so osquery
-# can't see it as a listener — this poller is the only way. R2-5: a monitoring GAP (missing binary,
+# can't see it as a listener - this poller is the only way. R2-5: a monitoring GAP (missing binary,
 # failed/empty status, corrupt state) is CRIT (it reaches the remote channel), the prior valid
 # state is preserved (not swallowed into a false "inactive"), and state is written atomically.
 
@@ -35,7 +35,7 @@ teardown() { teardown_harness; }
   assert_page_has Funnel
 }
 
-# R2-5: a monitoring gap is CRIT (reaches the remote channel — a WARN was dropped before the POST).
+# R2-5: a monitoring gap is CRIT (reaches the remote channel - a WARN was dropped before the POST).
 
 @test "T-CRIT-ts-missing-bin: a missing tailscale binary pages CRIT (blindness reaches remote) (R2-5)" {
   # The dead-monitor regression: the GUI-path default silently disabled funnel paging on the
@@ -60,7 +60,7 @@ teardown() { teardown_harness; }
 }
 
 @test "T-NEG-ts-status-fail-preserves: a status failure PRESERVES the prior valid funnel state (R2-5)" {
-  # rc=1 must not overwrite a known-active baseline with a false "inactive" — the prior state is
+  # rc=1 must not overwrite a known-active baseline with a false "inactive" - the prior state is
   # preserved so a real transition is still detectable when the command recovers.
   run_tailscale_monitor active "" 1
   [ "$(tailscale_state_funnel)" = "active" ]

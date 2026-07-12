@@ -1,8 +1,8 @@
 #!/usr/bin/env bats
-# osquery-allowlist.sh — the ONE writer for the launchd page-allowlist (-a allow,
+# osquery-allowlist.sh - the ONE writer for the launchd page-allowlist (-a allow,
 # -d deny, -l list). It is the security boundary every caller (manual curation, the
 # PR#2 button bot, the /osquery skill) goes through, so validation is the test focus.
-# R2-1: an entry is now a TUPLE — `-a` captures the label's identity (plist path + program
+# R2-1: an entry is now a TUPLE - `-a` captures the label's identity (plist path + program
 # + plist sha256) from the launchd table, so the alerter suppresses a full-tuple match only.
 
 load ../fixtures/osquery-alerter-lib

@@ -3,11 +3,11 @@
 #
 # FX1: the old gate only let CREATED/UPDATED through, but the live log is dominated by
 # MOVED_TO (atomic replacement), ROOT_CHANGED (a parent dir renamed) and
-# ATTRIBUTES_MODIFIED — so the tamper detector and the sshd page could never fire.
+# ATTRIBUTES_MODIFIED - so the tamper detector and the sshd page could never fire.
 # Every production verb now routes to its category's tier; DELETED is destructive.
 #
 # FX3: watches are now CONTAINING DIRECTORIES (~/.ssh, ~/.local/bin, ~/.config/osquery),
-# so the alerter filters target paths at routing time — authorized_keys pages, other
+# so the alerter filters target paths at routing time - authorized_keys pages, other
 # ~/.ssh files digest, and a neighbor file in a watched dir is log-only.
 #
 # FX2: legitimacy is the EXACT (target_path, sha256) tuple in the root-owned manifest;
@@ -63,7 +63,7 @@ teardown() { teardown_harness; }
 
 @test "T-PAGE-sshd-attrmod: an sshd_config ATTRIBUTES_MODIFIED pages (was silently dropped)" {
   # Live log: the only sshd_config event on this host was ATTRIBUTES_MODIFIED, which the
-  # CREATED/UPDATED-only gate discarded — the sshd page could never fire.
+  # CREATED/UPDATED-only gate discarded - the sshd page could never fire.
   run_alerter "$(file_event_row sshd_config /private/etc/ssh/sshd_config ATTRIBUTES_MODIFIED "")"
   assert_page_has sshd_config
 }
@@ -71,7 +71,7 @@ teardown() { teardown_harness; }
 # --- FX1 + FX2 + FX3: pipeline_integrity -----------------------------------------
 
 @test "T-PAGE-pipeline-movedto-absent: a MOVED_TO (empty sha256) whose on-disk target is GONE pages (R2-10)" {
-  # The dominant live pipeline_integrity verb (22 rows) — MOVED_TO with an empty event sha256
+  # The dominant live pipeline_integrity verb (22 rows) - MOVED_TO with an empty event sha256
   # (osquery does not content-hash a rename). R2-10: re-hash the on-disk target. Here the file
   # does not exist (a crashed-mid-apply / removed target), so it cannot be confirmed → page.
   seed_manifest "aaaa1111  /Users/x/.local/bin/osquery-alert-dispatch.sh"
@@ -87,7 +87,7 @@ teardown() { teardown_harness; }
 }
 
 @test "T-PAGE-pipeline-delete: a DELETE of a tracked pipeline file pages (destructive, no re-hash) (R2-10)" {
-  # A DELETE has no on-disk file to re-hash and is destructive — it always pages.
+  # A DELETE has no on-disk file to re-hash and is destructive - it always pages.
   seed_manifest "aaaa1111  /Users/x/.local/bin/osquery-digest.sh"
   run_alerter "$(file_event_row pipeline_integrity /Users/x/.local/bin/osquery-digest.sh DELETED "")"
   assert_page_has osquery-digest.sh
