@@ -7,28 +7,24 @@ set -euo pipefail
 agent="" state="" project="" branch="" detail="" pane="" local_only=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --agent)
-      agent="${2:-}"
-      shift 2
-      ;;
-    --state)
-      state="${2:-}"
-      shift 2
-      ;;
-    --project)
-      project="${2:-}"
-      shift 2
-      ;;
-    --branch)
-      branch="${2:-}"
-      shift 2
-      ;;
-    --detail)
-      detail="${2:-}"
-      shift 2
-      ;;
-    --pane)
-      pane="${2:-}"
+    --agent | --state | --project | --branch | --detail | --pane)
+      # A value-taking flag with no value (typically as the last argument) must NOT abort
+      # this always-exit-0 notification path: warn, ignore the flag, and keep going. Without
+      # the guard, `shift 2` on a single remaining argument fails under set -e and kills the
+      # whole run, silently dropping every channel.
+      if [[ $# -lt 2 ]]; then
+        printf 'relay: %s given without a value; ignoring\n' "$1" >&2
+        shift
+        continue
+      fi
+      case "$1" in
+        --agent) agent="$2" ;;
+        --state) state="$2" ;;
+        --project) project="$2" ;;
+        --branch) branch="$2" ;;
+        --detail) detail="$2" ;;
+        --pane) pane="$2" ;;
+      esac
       shift 2
       ;;
     --local-only)

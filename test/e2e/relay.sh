@@ -242,6 +242,42 @@ sys.stdout.write(hmac.new(b"HSECRET", open(sys.argv[1], "rb").read(), hashlib.sh
   echo "relay: FAIL -- X-Webhook-Signature is not HMAC-SHA256(body, secret)" >&2
   exit 1
 }
+# FIX 4 (missing flag value -> graceful degrade): a value-taking flag as the LAST argument
+# must not abort the notification path. It warns to stderr, ignores the valueless flag, still
+# exits 0, and the channels whose flags DID parse still fire.
+cat >"$tmp/curl" <<MOCK
+#!/usr/bin/env bash
+echo "ARGV: \$*" >>"$tmp/curl-noval.log"
+MOCK
+chmod +x "$tmp/curl"
+noval_err="$(
+  PATH="$tmp:$PATH" RELAY_AUTH_FILE="$tmp/auth.json" \
+    RELAY_MOSHI_URL="http://moshi.test/hook" RELAY_HERMES_URL="http://hermes.test/relay" \
+    bash "$relay" --agent claude --state "done" --project x --pane 2>&1 >/dev/null
+)"
+noval_rc=$?
+for ((i = 0; i < 100; i++)); do
+  grep -q hermes.test "$tmp/curl-noval.log" 2>/dev/null && grep -q moshi.test "$tmp/curl-noval.log" 2>/dev/null && break
+  sleep 0.05
+done
+wait 2>/dev/null
+[[ $noval_rc -eq 0 ]] || {
+  echo "relay: FAIL -- a value-taking flag with no value broke the always-exit-0 contract (rc=$noval_rc)" >&2
+  exit 1
+}
+grep -qi "pane" <<<"$noval_err" || {
+  echo "relay: FAIL -- no stderr warning for the missing --pane value" >&2
+  exit 1
+}
+grep -q moshi.test "$tmp/curl-noval.log" || {
+  echo "relay: FAIL -- moshi dropped when a trailing flag lacked its value" >&2
+  exit 1
+}
+grep -q hermes.test "$tmp/curl-noval.log" || {
+  echo "relay: FAIL -- hermes dropped when a trailing flag lacked its value" >&2
+  exit 1
+}
+
 # FIX 1 (fail-closed idle probe -> fail OPEN): with RELAY_IDLE_SECS unset, a failing
 # or HIDIdleTime-less ioreg probe must NOT abort the script. Unknown idle = "user away",
 # so every channel still fires. The stub prints lines without HIDIdleTime, so grep -m1
