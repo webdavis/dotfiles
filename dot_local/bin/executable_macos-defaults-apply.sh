@@ -9,18 +9,21 @@ set -euo pipefail
 # Note: no `shopt -s lastpipe` here — the while loops below don't mutate
 # outer-scope state (no counter to preserve, unlike drift.sh).
 
-DATA_FILE="${HOME}/workspaces/Ivy/webdavis/dotfiles/.chezmoidata/macos_defaults.yaml"
+# shellcheck source=dot_local/bin/macos-defaults-lib.sh
+source "$(dirname "${BASH_SOURCE[0]}")/macos-defaults-lib.sh"
 
-if [[ ! -r $DATA_FILE ]]; then
-  printf 'error: cannot read %s\n' "$DATA_FILE" >&2
+DATA_FILE="$(macos_defaults_data_file)" || {
+  printf 'error: cannot resolve the chezmoi source dir for macos_defaults.yaml\n' >&2
   exit 2
-fi
+}
+
+require_readable_data_file "$DATA_FILE"
 
 # Pre-flight: close System Settings if open (same reason as runner).
 osascript -e 'tell application "System Settings" to quit' 2>/dev/null || true
 
 # Main loop: one `defaults write` per record.
-yq eval -r '.macos.defaults[] | [.domain, .key, .type, .value, (.host // "")] | @tsv' "$DATA_FILE" |
+defaults_records_tsv "$DATA_FILE" |
   while IFS=$'\t' read -r domain key type value host; do
     [[ -z $domain ]] && continue
     if [[ -n $host ]]; then

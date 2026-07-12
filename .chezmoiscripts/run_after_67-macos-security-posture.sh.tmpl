@@ -1,0 +1,84 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/bin/bash
+
+set -euo pipefail
+
+# macOS security-posture reminder (sudo-free, ASSERT-ONLY). Reports FileVault,
+# Gatekeeper, and System Integrity Protection (SIP) state so a regression surfaces
+# on every apply; it NEVER changes any of them. SIP and FileVault are assert-only
+# by policy (enabling SIP needs Recovery; enabling FileVault is disruptive), and
+# Gatekeeper is likewise only reported. A disabled or indeterminate posture is a
+# loud stderr warning, never a fix attempt. Every path exits 0: a reminder must
+# never abort `chezmoi apply`. This is a run_after (not run_onchange) so posture
+# drift surfaces on EVERY apply, not only when the script body changes. Mirrors the
+# tailscaled-status reminder shape; the *_BIN overrides are the test seam.
+
+fdesetup="${FDESETUP_BIN:-fdesetup}"
+spctl="${SPCTL_BIN:-spctl}"
+csrutil="${CSRUTIL_BIN:-csrutil}"
+
+# classify_contains <output> <enabled-needle> <disabled-needle> -> enabled|disabled|unknown
+classify_contains() {
+  local out="$1" on="$2" off="$3"
+  if [[ $out == *"$on"* ]]; then
+    printf 'enabled'
+  elif [[ $out == *"$off"* ]]; then
+    printf 'disabled'
+  else
+    printf 'unknown'
+  fi
+}
+
+# report_posture <label> <state> <detail> <remedy>. enabled -> a one-line OK on
+# stdout; disabled -> a loud warning on stderr with the operator remedy; unknown ->
+# a could-not-determine note on stderr. Never runs a mutating command.
+report_posture() {
+  local label="$1" state="$2" detail="$3" remedy="$4"
+  case "$state" in
+    enabled)
+      printf '[posture] %s: enabled\n' "$label"
+      ;;
+    disabled)
+      printf '[posture] WARNING: %s is DISABLED. %s\n' "$label" "$remedy" >&2
+      ;;
+    *)
+      printf '[posture] %s: could not determine state (raw: %s)\n' "$label" "$detail" >&2
+      ;;
+  esac
+}
+
+# check_posture <label> <bin> <query> <on-needle> <off-needle> <remedy>. Tolerates
+# an absent or failing tool; never aborts the run. Captures the query's stdout,
+# stderr, and exit status SEPARATELY: a NONZERO query is INDETERMINATE regardless
+# of what it printed (a failed probe's stdout is untrustworthy -- it may print
+# enabled-looking text yet have failed), so it is reported "could not determine",
+# never "enabled". Only a zero-exit query is classified from its stdout.
+check_posture() {
+  local label="$1" bin="$2" query="$3" on="$4" off="$5" remedy="$6"
+  if ! command -v "$bin" >/dev/null 2>&1; then
+    printf '[posture] %s: %s not found; skipping\n' "$label" "$bin" >&2
+    return 0
+  fi
+  local out err rc=0 errfile state
+  errfile="$(mktemp)"
+  out="$("$bin" "$query" 2>"$errfile")" || rc=$?
+  err="$(cat "$errfile")"
+  rm -f "$errfile"
+  if [[ $rc -ne 0 ]]; then
+    state="unknown"
+    report_posture "$label" "$state" "query failed rc=$rc; stdout: ${out:-<none>}; stderr: ${err:-<none>}" "$remedy"
+  else
+    state="$(classify_contains "$out" "$on" "$off")"
+    report_posture "$label" "$state" "$out" "$remedy"
+  fi
+}
+
+check_posture "FileVault" "$fdesetup" "status" "FileVault is On" "FileVault is Off" \
+  "enabling FileVault is disruptive; turn it on yourself in System Settings > Privacy & Security."
+check_posture "Gatekeeper" "$spctl" "--status" "assessments enabled" "assessments disabled" \
+  "re-enable in System Settings > Privacy & Security (spctl can no longer enable Gatekeeper from the CLI on macOS 15+; it only offers --global-disable)."
+check_posture "SIP" "$csrutil" "status" "status: enabled" "status: disabled" \
+  "re-enable from Recovery (csrutil enable); this is a deliberate operator step."
+
+exit 0
+{{ end -}}
