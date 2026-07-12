@@ -130,34 +130,60 @@ run_poller_badperms() {
     bash "$POLLER"
 }
 
-# Uptime-watchdog harness: setup_harness (send_alert stub) + PATH stubs for pgrep /
-# launchctl / curl and an osqueryi stub, so a test controls which LaunchAgents look
-# "down". WATCHDOG_DOWN_AGENTS (space-separated labels) → launchctl reports those
-# not-loaded (non-zero); every other probe reports healthy.
+# Uptime-watchdog harness: setup_harness (send_alert stub) + PATH stubs for pgrep / launchctl /
+# curl and an osqueryi stub. Test knobs (env):
+#   WATCHDOG_DOWN_AGENTS   space-separated labels launchctl reports NOT loaded (exit 1)
+#   WATCHDOG_CRASH_AGENTS  space-separated labels whose `list` reports a nonzero LastExitStatus
+#   WATCHDOG_CRASH_STATUS  the nonzero LastExitStatus value (default 78)
+#   WATCHDOG_HTTP_CODE     the route probe's HTTP code (default 405 = the POST-only route exists)
 setup_watchdog_harness() {
   setup_harness
   printf '#!/usr/bin/env bash\nexit 0\n' >"$HARNESS_HOME/.local/bin/pgrep"
-  printf '#!/usr/bin/env bash\necho 200\n' >"$HARNESS_HOME/.local/bin/curl"
+  printf '#!/usr/bin/env bash\nprintf "%%s" "${WATCHDOG_HTTP_CODE:-405}"\n' >"$HARNESS_HOME/.local/bin/curl"
   printf '#!/usr/bin/env bash\necho %s\n' "'[{\"ok\":\"1\"}]'" >"$HARNESS_HOME/.local/bin/osqueryi"
   cat >"$HARNESS_HOME/.local/bin/launchctl" <<'SHIM'
 #!/usr/bin/env bash
-# Only `list <label>` is consulted; non-zero when <label> is in WATCHDOG_DOWN_AGENTS.
+# `list <label>`: exit 1 for a not-loaded agent; else print a plist dict whose LastExitStatus
+# is nonzero for a crash-looping agent (WATCHDOG_CRASH_AGENTS), 0 otherwise.
 if [ "${1:-}" = "list" ]; then
-  for down in $WATCHDOG_DOWN_AGENTS; do [ "${2:-}" = "$down" ] && exit 1; done
+  label="${2:-}"
+  for down in $WATCHDOG_DOWN_AGENTS; do [ "$label" = "$down" ] && exit 1; done
+  les=0
+  for crash in $WATCHDOG_CRASH_AGENTS; do [ "$label" = "$crash" ] && les="${WATCHDOG_CRASH_STATUS:-78}"; done
+  printf '{\n\t"Label" = "%s";\n\t"LastExitStatus" = %s;\n\t"PID" = 4242;\n};\n' "$label" "$les"
+  exit 0
 fi
 exit 0
 SHIM
   chmod +x "$HARNESS_HOME/.local/bin/pgrep" "$HARNESS_HOME/.local/bin/curl" \
     "$HARNESS_HOME/.local/bin/osqueryi" "$HARNESS_HOME/.local/bin/launchctl"
+  export OSQUERY_WATCHDOG_STATE="$HARNESS_HOME/.local/state/osquery-watchdog-state.json"
+  export OSQUERY_SPOOL_DIR="$HARNESS_HOME/.local/state/osquery-spool"
 }
 
-# run_watchdog [down-agent-labels] — run the real watchdog with the stubs on PATH.
+# run_watchdog [down-agent-labels] — run the real watchdog with the stubs on PATH. Other knobs
+# (WATCHDOG_CRASH_AGENTS/_STATUS, WATCHDOG_HTTP_CODE) are read from the (exported) environment.
 run_watchdog() {
   HOME="$HARNESS_HOME" \
     PATH="$HARNESS_HOME/.local/bin:$PATH" \
     OSQUERYI="$HARNESS_HOME/.local/bin/osqueryi" \
+    OSQUERY_WATCHDOG_STATE="$OSQUERY_WATCHDOG_STATE" \
+    OSQUERY_SPOOL_DIR="$OSQUERY_SPOOL_DIR" \
     WATCHDOG_DOWN_AGENTS="${1:-}" \
     bash "$WATCHDOG"
+}
+
+# Seed a spooled page file aged <minutes-old> (a stuck, undelivered page).
+seed_spool_file() {
+  mkdir -p "$OSQUERY_SPOOL_DIR"
+  local f="$OSQUERY_SPOOL_DIR/osquery-stuck-$RANDOM"
+  printf '%s\tosquery-stuck\thttp://127.0.0.1:8644/x\tYm9keQ==\n' "$(date -u +%s)" >"$f"
+  # Age its mtime by <minutes-old> so the staleness check trips (GNU touch -d first, BSD fallback).
+  local mins="${1:-0}"
+  if [[ $mins -gt 0 ]]; then
+    touch -d "-${mins} minutes" "$f" 2>/dev/null ||
+      touch -t "$(date -v"-${mins}M" +%Y%m%d%H%M 2>/dev/null)" "$f" 2>/dev/null || true
+  fi
 }
 
 # End-to-end redaction harness (H2): the REAL dispatcher (not the send_alert stub),
