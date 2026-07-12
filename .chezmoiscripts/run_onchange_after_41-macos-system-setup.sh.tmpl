@@ -20,7 +20,7 @@ sudo -v
 
 {{/* `index . "sudo"`, not `.sudo`: Go's text/template throws
      `map has no entry for key "sudo"` on the .field form when a record omits the
-     key; `index` returns the empty value (falsy in `if`) — the same absent-key
+     key; `index` returns the empty value (falsy in `if`), the same absent-key
      gotcha the pins guard above documents. */ -}}
 {{ range .macos.system_setup -}}
 echo "→ {{ .description }}"
