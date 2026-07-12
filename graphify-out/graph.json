@@ -1025,7 +1025,7 @@
       "label": "pulse_to()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_hue-pulse.sh",
-      "source_location": "L103",
+      "source_location": "L87",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -1524,6 +1524,20 @@
       "id": "dot_local_bin_executable_relay_sh__entry",
       "community": 280,
       "norm_label": "executable_relay.sh script"
+    },
+    {
+      "label": "is_relay_flag()",
+      "file_type": "code",
+      "source_file": "dot_local/bin/executable_relay.sh",
+      "source_location": "L8",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_bin_executable_relay_is_relay_flag",
+      "community": 280,
+      "norm_label": "is_relay_flag()"
     },
     {
       "label": "executable_ssh-hardening.sh",
@@ -10480,336 +10494,6 @@
       "norm_label": "update_skills_lib_only"
     },
     {
-      "label": "AGENTS.md",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L1",
-      "_origin": "ast",
-      "id": "agents",
-      "community": 11,
-      "norm_label": "agents.md"
-    },
-    {
-      "label": "CLAUDE.md",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L7",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_claude_md",
-      "community": 11,
-      "norm_label": "claude.md"
-    },
-    {
-      "label": "What This Is",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L11",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_what_this_is",
-      "community": 11,
-      "norm_label": "what this is"
-    },
-    {
-      "label": "Key Commands",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L18",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_key_commands",
-      "community": 11,
-      "norm_label": "key commands"
-    },
-    {
-      "label": "Linting & Formatting",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L20",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_linting_formatting",
-      "community": 11,
-      "norm_label": "linting & formatting"
-    },
-    {
-      "label": "Testing",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L46",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_testing",
-      "community": 11,
-      "norm_label": "testing"
-    },
-    {
-      "label": "Chezmoi Operations",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L74",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_chezmoi_operations",
-      "community": 11,
-      "norm_label": "chezmoi operations"
-    },
-    {
-      "label": "Claude Code Settings",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L102",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_claude_code_settings",
-      "community": 11,
-      "norm_label": "claude code settings"
-    },
-    {
-      "label": "Git Hooks",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L135",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_git_hooks",
-      "community": 11,
-      "norm_label": "git hooks"
-    },
-    {
-      "label": "Architecture",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L178",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_architecture",
-      "community": 11,
-      "norm_label": "architecture"
-    },
-    {
-      "label": "Source-Only Files",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L180",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_source_only_files",
-      "community": 11,
-      "norm_label": "source-only files"
-    },
-    {
-      "label": "Minimum Chezmoi Version",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L188",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_minimum_chezmoi_version",
-      "community": 11,
-      "norm_label": "minimum chezmoi version"
-    },
-    {
-      "label": "Secrets Management",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L192",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_secrets_management",
-      "community": 11,
-      "norm_label": "secrets management"
-    },
-    {
-      "label": "System Package Management",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L199",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_system_package_management",
-      "community": 11,
-      "norm_label": "system package management"
-    },
-    {
-      "label": "macOS Defaults Management",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L224",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_macos_defaults_management",
-      "community": 11,
-      "norm_label": "macos defaults management"
-    },
-    {
-      "label": "Template Files",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L269",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_template_files",
-      "community": 11,
-      "norm_label": "template files"
-    },
-    {
-      "label": "Template Shellcheck Workaround",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L275",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_template_shellcheck_workaround",
-      "community": 11,
-      "norm_label": "template shellcheck workaround"
-    },
-    {
-      "label": "OS Targeting",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L296",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_os_targeting",
-      "community": 11,
-      "norm_label": "os targeting"
-    },
-    {
-      "label": "Dev Environment (Nix Flake)",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L301",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_dev_environment_nix_flake",
-      "community": 11,
-      "norm_label": "dev environment (nix flake)"
-    },
-    {
-      "label": "CI",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L312",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_ci",
-      "community": 11,
-      "norm_label": "ci"
-    },
-    {
-      "label": "Agent Skills (cross-harness store)",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L322",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_agent_skills_cross_harness_store",
-      "community": 11,
-      "norm_label": "agent skills (cross-harness store)"
-    },
-    {
-      "label": "Herdr Workspace Management",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L492",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_herdr_workspace_management",
-      "community": 11,
-      "norm_label": "herdr workspace management"
-    },
-    {
-      "label": "Git Worktrees (Worktrunk)",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L512",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_git_worktrees_worktrunk",
-      "community": 11,
-      "norm_label": "git worktrees (worktrunk)"
-    },
-    {
-      "label": "Bashrc Init Ordering",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L519",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_bashrc_init_ordering",
-      "community": 11,
-      "norm_label": "bashrc init ordering"
-    },
-    {
-      "label": "Shell History (Atuin)",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L528",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_shell_history_atuin",
-      "community": 11,
-      "norm_label": "shell history (atuin)"
-    },
-    {
-      "label": "Happy Daemon (Remote Agent Control)",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L557",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_happy_daemon_remote_agent_control",
-      "community": 11,
-      "norm_label": "happy daemon (remote agent control)"
-    },
-    {
-      "label": "Tailscale (headless daemon)",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L584",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_tailscale_headless_daemon",
-      "community": 11,
-      "norm_label": "tailscale (headless daemon)"
-    },
-    {
-      "label": "AI Commit Messages",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L621",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_ai_commit_messages",
-      "community": 11,
-      "norm_label": "ai commit messages"
-    },
-    {
-      "label": "Long-running Command Notifier",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L634",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_long_running_command_notifier",
-      "community": 11,
-      "norm_label": "long-running command notifier"
-    },
-    {
-      "label": "Herdr Native Status",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L640",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_herdr_native_status",
-      "community": 11,
-      "norm_label": "herdr native status"
-    },
-    {
-      "label": "Code Style",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L646",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_code_style",
-      "community": 11,
-      "norm_label": "code style"
-    },
-    {
-      "label": "Git Commits",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L672",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_git_commits",
-      "community": 11,
-      "norm_label": "git commits"
-    },
-    {
-      "label": "Security",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L679",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_security",
-      "community": 11,
-      "norm_label": "security"
-    },
-    {
       "label": "CLAUDE.md",
       "file_type": "document",
       "source_file": "CLAUDE.md",
@@ -17196,7 +16880,7 @@
       "source_location": "L38",
       "_origin": "ast",
       "id": "docs_research_2026_04_26_macos_defaults_management_introduction",
-      "community": 270,
+      "community": 54,
       "norm_label": "introduction"
     },
     {
@@ -17206,7 +16890,7 @@
       "source_location": "L40",
       "_origin": "ast",
       "id": "docs_research_2026_04_26_macos_defaults_management_scope",
-      "community": 270,
+      "community": 54,
       "norm_label": "scope"
     },
     {
@@ -17216,7 +16900,7 @@
       "source_location": "L55",
       "_origin": "ast",
       "id": "docs_research_2026_04_26_macos_defaults_management_methodology",
-      "community": 270,
+      "community": 54,
       "norm_label": "methodology"
     },
     {
@@ -17226,7 +16910,7 @@
       "source_location": "L67",
       "_origin": "ast",
       "id": "docs_research_2026_04_26_macos_defaults_management_key_assumptions",
-      "community": 270,
+      "community": 54,
       "norm_label": "key assumptions"
     },
     {
@@ -17786,7 +17470,7 @@
       "source_location": "L1003",
       "_origin": "ast",
       "id": "docs_research_2026_04_26_macos_defaults_management_limitations_caveats",
-      "community": 110,
+      "community": 54,
       "norm_label": "limitations & caveats"
     },
     {
@@ -17796,7 +17480,7 @@
       "source_location": "L1005",
       "_origin": "ast",
       "id": "docs_research_2026_04_26_macos_defaults_management_single_source_claims",
-      "community": 110,
+      "community": 54,
       "norm_label": "single-source claims"
     },
     {
@@ -17806,7 +17490,7 @@
       "source_location": "L1017",
       "_origin": "ast",
       "id": "docs_research_2026_04_26_macos_defaults_management_starter_list_is_opinionated",
-      "community": 110,
+      "community": 54,
       "norm_label": "starter list is opinionated"
     },
     {
@@ -17816,7 +17500,7 @@
       "source_location": "L1026",
       "_origin": "ast",
       "id": "docs_research_2026_04_26_macos_defaults_management_macos_26_may_further_tighten",
-      "community": 110,
+      "community": 54,
       "norm_label": "macos 26 may further tighten"
     },
     {
@@ -17826,7 +17510,7 @@
       "source_location": "L1034",
       "_origin": "ast",
       "id": "docs_research_2026_04_26_macos_defaults_management_scalar_only_schema",
-      "community": 110,
+      "community": 54,
       "norm_label": "scalar-only schema"
     },
     {
@@ -17836,7 +17520,7 @@
       "source_location": "L1043",
       "_origin": "ast",
       "id": "docs_research_2026_04_26_macos_defaults_management_drift_checker_doesn_t_restore",
-      "community": 110,
+      "community": 54,
       "norm_label": "drift checker doesn't restore"
     },
     {
@@ -17846,7 +17530,7 @@
       "source_location": "L1051",
       "_origin": "ast",
       "id": "docs_research_2026_04_26_macos_defaults_management_two_machine_difference_is_hard_to_reason_about",
-      "community": 110,
+      "community": 54,
       "norm_label": "two-machine difference is hard to reason about"
     },
     {
@@ -17856,7 +17540,7 @@
       "source_location": "L1059",
       "_origin": "ast",
       "id": "docs_research_2026_04_26_macos_defaults_management_recommendations",
-      "community": 215,
+      "community": 54,
       "norm_label": "recommendations"
     },
     {
@@ -17866,7 +17550,7 @@
       "source_location": "L1061",
       "_origin": "ast",
       "id": "docs_research_2026_04_26_macos_defaults_management_immediate_actions_this_week",
-      "community": 215,
+      "community": 54,
       "norm_label": "immediate actions (this week)"
     },
     {
@@ -17876,7 +17560,7 @@
       "source_location": "L1080",
       "_origin": "ast",
       "id": "docs_research_2026_04_26_macos_defaults_management_near_term_next_month",
-      "community": 215,
+      "community": 54,
       "norm_label": "near-term (next month)"
     },
     {
@@ -17886,7 +17570,7 @@
       "source_location": "L1090",
       "_origin": "ast",
       "id": "docs_research_2026_04_26_macos_defaults_management_quarterly_review",
-      "community": 215,
+      "community": 54,
       "norm_label": "quarterly review"
     },
     {
@@ -17896,7 +17580,7 @@
       "source_location": "L1101",
       "_origin": "ast",
       "id": "docs_research_2026_04_26_macos_defaults_management_things_to_not_do",
-      "community": 215,
+      "community": 54,
       "norm_label": "things to not do"
     },
     {
@@ -17916,7 +17600,7 @@
       "source_location": "L1284",
       "_origin": "ast",
       "id": "docs_research_2026_04_26_macos_defaults_management_methodology_appendix",
-      "community": 111,
+      "community": 54,
       "norm_label": "methodology appendix"
     },
     {
@@ -17926,7 +17610,7 @@
       "source_location": "L1286",
       "_origin": "ast",
       "id": "docs_research_2026_04_26_macos_defaults_management_research_approach",
-      "community": 111,
+      "community": 54,
       "norm_label": "research approach"
     },
     {
@@ -17936,7 +17620,7 @@
       "source_location": "L1292",
       "_origin": "ast",
       "id": "docs_research_2026_04_26_macos_defaults_management_source_acquisition",
-      "community": 111,
+      "community": 54,
       "norm_label": "source acquisition"
     },
     {
@@ -17946,7 +17630,7 @@
       "source_location": "L1304",
       "_origin": "ast",
       "id": "docs_research_2026_04_26_macos_defaults_management_triangulation",
-      "community": 111,
+      "community": 54,
       "norm_label": "triangulation"
     },
     {
@@ -17956,7 +17640,7 @@
       "source_location": "L1314",
       "_origin": "ast",
       "id": "docs_research_2026_04_26_macos_defaults_management_verification_of_local_environment",
-      "community": 111,
+      "community": 54,
       "norm_label": "verification of local environment"
     },
     {
@@ -17966,7 +17650,7 @@
       "source_location": "L1322",
       "_origin": "ast",
       "id": "docs_research_2026_04_26_macos_defaults_management_sources_of_bias_and_uncertainty",
-      "community": 111,
+      "community": 54,
       "norm_label": "sources of bias and uncertainty"
     },
     {
@@ -17976,7 +17660,7 @@
       "source_location": "L1332",
       "_origin": "ast",
       "id": "docs_research_2026_04_26_macos_defaults_management_what_was_deliberately_not_researched",
-      "community": 111,
+      "community": 54,
       "norm_label": "what was deliberately not researched"
     },
     {
@@ -30426,7 +30110,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_hue-pulse.sh",
-      "source_location": "L103",
+      "source_location": "L87",
       "weight": 1.0,
       "source": "dot_local_bin_executable_hue_pulse",
       "target": "dot_local_bin_executable_hue_pulse_pulse_to",
@@ -30446,7 +30130,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_hue-pulse.sh",
-      "source_location": "L110",
+      "source_location": "L94",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_hue_pulse_sh__entry",
@@ -30729,6 +30413,16 @@
       "confidence_score": 1.0
     },
     {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_relay.sh",
+      "source_location": "L8",
+      "weight": 1.0,
+      "source": "dot_local_bin_executable_relay",
+      "target": "dot_local_bin_executable_relay_is_relay_flag",
+      "confidence_score": 1.0
+    },
+    {
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_relay.sh",
@@ -30736,6 +30430,17 @@
       "weight": 1.0,
       "source": "dot_local_bin_executable_relay",
       "target": "dot_local_bin_executable_relay_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_relay.sh",
+      "source_location": "L23",
+      "weight": 1.0,
+      "context": "call",
+      "source": "dot_local_bin_executable_relay_sh__entry",
+      "target": "dot_local_bin_executable_relay_is_relay_flag",
       "confidence_score": 1.0
     },
     {
@@ -34799,7 +34504,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/e2e/relay.sh",
-      "source_location": "L324",
+      "source_location": "L401",
       "weight": 1.0,
       "source": "test_e2e_relay",
       "target": "test_e2e_relay_relay_idle_secs",
@@ -41253,326 +40958,6 @@
       "context": "call",
       "source": "test_unit_update_skills_lock_symlink_sh__entry",
       "target": "test_unit_update_skills_lock_symlink_fail",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L7",
-      "weight": 1.0,
-      "source": "agents",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_claude_md",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L178",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_claude_md",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_architecture",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L646",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_claude_md",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_code_style",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L672",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_claude_md",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_git_commits",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L18",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_claude_md",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_key_commands",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L679",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_claude_md",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_security",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L11",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_claude_md",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_what_this_is",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L74",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_key_commands",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_chezmoi_operations",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L102",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_key_commands",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_claude_code_settings",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L135",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_key_commands",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_git_hooks",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L20",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_key_commands",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_linting_formatting",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L46",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_key_commands",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_testing",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L322",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_agent_skills_cross_harness_store",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L621",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_ai_commit_messages",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L519",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_bashrc_init_ordering",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L312",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_ci",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L301",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_dev_environment_nix_flake",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L512",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_git_worktrees_worktrunk",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L557",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_happy_daemon_remote_agent_control",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L640",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_herdr_native_status",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L492",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_herdr_workspace_management",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L634",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_long_running_command_notifier",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L224",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_macos_defaults_management",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L188",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_minimum_chezmoi_version",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L296",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_os_targeting",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L192",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_secrets_management",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L528",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_shell_history_atuin",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L180",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_source_only_files",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L199",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_system_package_management",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L584",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_tailscale_headless_daemon",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L269",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_template_files",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L275",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s7_relay_agents_template_shellcheck_workaround",
       "confidence_score": 1.0
     },
     {
@@ -59447,5 +58832,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "7ea9c25e82bd4c23e9ab4b4a5d99fc4abdd41ffa"
+  "built_at_commit": "ed7d55955d197bcc2c8e82047ecd5a39eb3fb80a"
 }
