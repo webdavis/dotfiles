@@ -20,7 +20,7 @@ blocked_cmd="RELAY_AGENT=codex $agent blocked"
 base='{"hooks":{}}'
 if [[ -f $hooks ]]; then
   raw="$(cat "$hooks")"
-  if [[ -n "${raw//[[:space:]]/}" ]]; then
+  if [[ -n ${raw//[[:space:]]/} ]]; then
     if candidate="$(printf '%s' "$raw" | jq -es 'if length==1 and (.[0]|type=="object") and (.[0].hooks|type=="object") then .[0] else error end' 2>/dev/null)"; then
       base="$candidate"
     else
