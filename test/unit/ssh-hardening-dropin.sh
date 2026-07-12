@@ -58,4 +58,15 @@ for line in "${forbid[@]}"; do
   fi
 done
 
-printf 'ssh-hardening-dropin: OK (all five accepted keys present, no conflicting directive)\n'
+# --print-path must name a drop-in that sorts FIRST in sshd's lexical Include order,
+# AHEAD of Apple's 100-macos.conf. Under `Include sshd_config.d/*`, sshd is
+# first-value-wins, so a drop-in that sorts after 100- is silently shadowed (R1-1).
+dropin_path="$(bash "$SCRIPT" --print-path)" || fail "ssh-hardening.sh --print-path exited non-zero"
+dropin_base="$(basename "$dropin_path")"
+[[ $dropin_base == "000-ssh-hardening.conf" ]] ||
+  fail "managed drop-in must be 000-ssh-hardening.conf so it sorts first (got: $dropin_base)"
+first="$(printf '%s\n100-macos.conf\n' "$dropin_base" | LC_ALL=C sort | head -n1)"
+[[ $first == "$dropin_base" ]] ||
+  fail "managed drop-in must sort before 100-macos.conf (LC_ALL=C sort put '$first' first)"
+
+printf 'ssh-hardening-dropin: OK (all five accepted keys present, no conflicting directive; 000- sorts first)\n'
