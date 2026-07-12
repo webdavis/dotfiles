@@ -1,0 +1,30 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/bin/bash
+# Restore the age private key on a fresh machine, so encrypted_ files decrypt on
+# the very first apply with zero manual steps beyond the KeePassXC unlock the
+# bootstrap already requires. Generation happened once, ever (the operator key
+# ceremony); every machine after that RESTORES the same key from the KeePassXC
+# entry "chezmoi :: Private Key :: age" (Password field = the single
+# AGE-SECRET-KEY line, which is a complete identity on its own — comment lines
+# in a key file are optional decoration).
+#
+# The secret is rendered into this script's body at apply time via the same
+# keepassxc template call every other secret template uses, riding the one DB
+# unlock chezmoi prompts for and caches per apply. Headless automation never
+# renders this (agents apply with --exclude=templates), matching the other
+# KeePassXC-gated templates.
+
+set -euo pipefail
+
+key_file="$HOME/.config/chezmoi/key.txt"
+
+if [ -f "$key_file" ]; then
+  exit 0 # key already present (this machine, or an earlier restore)
+fi
+
+umask 077
+mkdir -p "$(dirname "$key_file")"
+printf '%s\n' {{ (keepassxc "chezmoi :: Private Key :: age").Password | quote }} >"$key_file"
+chmod 600 "$key_file"
+echo "restored age private key to $key_file from KeePassXC"
+{{ end -}}

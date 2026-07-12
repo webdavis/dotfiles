@@ -34,3 +34,11 @@ graphify-out/*
 
 # Rust build artifacts for vendored herdr projects (plugins + binaries, built in-place, never committed).
 dot_local/share/herdr/**/target/
+
+# Hermes secret-bearing plaintext backups + any stray age identity (never commit to a public repo).
+*config.yaml.bak*
+*config.yaml.corrupt*
+*config.yaml.*.backup
+dot_hermes/backups/
+dot_hermes/**/pre-migration-*.zip
+*key.txt
