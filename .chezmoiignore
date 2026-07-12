@@ -4,6 +4,7 @@ LICENSE
 CLAUDE.md
 AGENTS.md
 .gitignore
+.gitattributes
 assets/
 docs/
 private/
@@ -21,6 +22,10 @@ test/
 
 # Git hooks (dev-only):
 .githooks/
+
+# Knowledge-graph output (the committed map + regenerated artifacts) is repo
+# metadata, never target state.
+graphify-out/
 
 # Nix flake files:
 flake.nix
