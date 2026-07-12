@@ -400,6 +400,18 @@ SHIM
 # Queue the http codes the curl shim will return, one per send/drain POST.
 set_curl_codes() { printf '%s\n' "$@" >"$CURL_CODES_FILE"; }
 
+# The alerter (local notification) is fired fire-and-forget in the background, so poll the
+# alerter shim's log up to ~2s for <extended-regex> instead of racing a single grep.
+wait_for_alerter() {
+  local i
+  for i in $(seq 1 20); do
+    grep -qiE "$1" "$ALERTER_LOG" 2>/dev/null && return 0
+    sleep 0.1
+  done
+  echo "expected the alerter log to match /$1/ within 2s: $(cat "$ALERTER_LOG" 2>/dev/null)" >&2
+  return 1
+}
+
 # Drain the spool via the real dispatcher's _drain_spool (sourced in setup).
 run_drain() { _drain_spool; }
 

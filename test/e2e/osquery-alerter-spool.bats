@@ -21,10 +21,14 @@ teardown() { teardown_harness; }
   assert_spool_count 0
 }
 
-@test "T-SEC-spool-idem: re-spooling the same page stays one file; drain replays once" {
+@test "T-SEC-spool-idem: re-spooling the SAME occurrence stays one file; drain replays once (R2-4)" {
+  # Idempotency is keyed on OCCURRENCE IDENTITY now, not body content (R2-4): the SAME
+  # occurrence re-spooled stays one file and reuses one request_id, so the gateway dedups a
+  # retry. (Two DISTINCT occurrences that render the same body get two files — covered by
+  # T-DISP-occurrence-distinct — which is the collapse bug this pass fixes.)
   set_curl_codes 503 503 503 503 503 503
-  send_alert CRIT "🔴 title" "same detail" "Sosumi"
-  send_alert CRIT "🔴 title" "same detail" "Sosumi" # identical body → same request_id
+  send_alert CRIT "🔴 title" "same detail" "Sosumi" "occ:disk3:900:1000"
+  send_alert CRIT "🔴 title" "same detail" "Sosumi" "occ:disk3:900:1000" # same occurrence → same request_id
   assert_spool_count 1
   local stored_rid
   stored_rid=$(cut -f2 "$(find "$OSQUERY_SPOOL_DIR" -type f | head -1)")

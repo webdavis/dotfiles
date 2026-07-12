@@ -71,10 +71,13 @@ fi
 
 title="🗒️ osquery daily digest · $(date -u +%Y-%m-%d) · ${item_count} item(s)"
 
-# CRIT selects the #priority channel (the dispatcher's only route); the empty sound
-# makes it silent — a digest must never ping like a page. The launchd agent runs
-# this once daily, so one invocation == one daily message.
-send_alert CRIT "$title" "$body" ""
+# CRIT selects the #priority channel (the dispatcher's only route); the empty sound makes
+# it silent AND threads tier=muted into the POST so the Hermes adapter suppresses the ping
+# (R2-11) — a digest must never notify like a page. `|| true`: send_alert now returns nonzero
+# on a HARD delivery failure (R2-6); the digest is fire-and-forget (a lost daily digest is
+# low-stakes and send_alert already fired a loud local alert), so keep it off set -e's abort
+# path and still rotate the batch to .last below. The launchd agent runs this once daily.
+send_alert CRIT "$title" "$body" "" || true
 
 # Keep the rendered batch as .last for forensics; the live store is already gone. The
 # .last persists indefinitely and holds full paths, so keep it 600 (mv preserves mode,
