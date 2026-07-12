@@ -192,6 +192,23 @@ trunc_detail="$(tr '\0' '\n' <"$tmp/args" | awk 'f{print; exit} $0=="--detail"{f
   exit 1
 }
 
+# FIX F7 (scalar JSON line must not kill the parse): a line that is valid JSON but a bare SCALAR (e.g. a
+# quoted string) survives fromjson? and then .type indexing on a string hard-errors, discarding the whole
+# summary. select(type=="object") drops non-object lines so the last valid assistant reply still survives.
+: >"$tmp/args"
+{
+  printf '%s\n' '{"type":"assistant","message":{"content":[{"type":"text","text":"SCALAR-SURVIVOR reply."}]}}'
+  printf '%s\n' '"a bare json string line"'
+} >"$tmp/tscalar.jsonl"
+printf '{"cwd":"/x/dotfiles","transcript_path":"%s/tscalar.jsonl"}' "$tmp" |
+  PATH="$tmp:$PATH" RELAY_BIN="$tmp/relay.sh" RELAY_ARGS_FILE="$tmp/args" CODEX_BIN=false \
+    bash "$agent" "done" >/dev/null 2>&1
+scalar_detail="$(tr '\0' '\n' <"$tmp/args" | awk 'f{print; exit} $0=="--detail"{f=1}')"
+[[ $scalar_detail == *"SCALAR-SURVIVOR"* ]] || {
+  echo "relay-agent: FAIL -- a bare scalar JSON line killed the parse and discarded the summary: '$scalar_detail'" >&2
+  exit 1
+}
+
 # CHARACTERIZATION (baseline quirk, retained; SP3 owns): the last-user-turn boundary
 # detection only recognizes a user entry whose content is a string OR whose FIRST
 # content block is type=="text". A user turn that is purely a tool_result (content[0]

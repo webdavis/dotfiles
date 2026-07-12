@@ -14,7 +14,7 @@ branch=""
 [[ -n $cwd && -d $cwd ]] && branch="$(git -C "$cwd" branch --show-current 2>/dev/null || true)"
 detail=""
 if [[ $state == "done" && -n $transcript && -f $transcript ]]; then
-  reply="$(jq -rs -R '[ splits("\n") | select(length > 0) | fromjson? ] as $a
+  reply="$(jq -rs -R '[ splits("\n") | select(length > 0) | fromjson? | select(type=="object") ] as $a
     | ([ $a | to_entries[] | select(.value.type=="user" and ((.value.message.content|type)=="string" or ((.value.message.content[0]?.type)=="text"))) | .key ] | last // -1) as $s
     | [ $a[$s+1:][] | select(.type=="assistant") | .message.content[]? | select(.type=="text") | .text ] | join("\n\n")' "$transcript" 2>/dev/null || true)"
   reply="$(printf '%s' "$reply" | tr '\n\r\t' '   ' | tr -s ' ' | sed 's/^ *//; s/ *$//')"
