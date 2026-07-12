@@ -206,7 +206,7 @@ forecasting, no calendar gymnastics — the same adaptation mechanism that handl
    TOMBSTONES the record IN PLACE (BB2/GG5 — supersedes the bare `acked` flag):** the ack flips the record's
    `status` to `tombstoned` in place — the full record is retained, `gen` unchanged, **no separate tombstone
    object** (one id = one record); a later **re-enqueue of a tombstoned `id`** is a *new occurrence* — it
-   **reuses the same record**, resetting it to **`status = pending`, `gen + 1`, `rev = 1`** (the `rev` counter resets with each new generation) — so a chase answered
+   **reuses the same record**, resetting it to **`status = pending`, `gen + 1`, `rev = 1`, `head = false`, and a fresh `enqueue_ts`** (the `rev` counter resets with each new generation; the rollover clears the old promotion flag + re-stamps the occurrence clock, II6) — so a chase answered
    today, then genuinely overdue again next week, re-asks under `gen 2` rather than being suppressed forever by a
    stale ack. **Total order = `(head DESC, class-rank, enqueue_ts, id)`** — **the `head` flag is the PRIMARY sort
    key, so promotion PARTICIPATES in the order (BB2)** rather than living in a side "head slot": a genuinely
@@ -728,8 +728,9 @@ the mutation history have different lifetimes, so they live in two owned-layer s
   `kind`-flip, §8a), **`undate`** (a bankruptcy UNDATE of a stale dated active, §4c), and **`retire`** (a
   bankruptcy RETIRE onto `sweep-exclusion.json`, §4c); and — **added FF1** — **`bankruptcy`** (the frozen id-set
   snapshot the sweep journals before a bankruptcy clear — naming every id + its class/op; the queue's
-  `bankruptcy-offer` record carries NO frozen field and references this journal record by its `journal-uuid`
-  `external_marker`, §4c). **pending→commit→heal ordering is defined for
+  `bankruptcy-offer` record carries NO frozen field and references this journal record by storing its
+  `journal-uuid` `external_marker` in the queue record's **`journal_ref`** field — the ack matches that EXACT uuid,
+  never a month search (II3), §4c). **pending→commit→heal ordering is defined for
   every `type`, each with a type-specific verification predicate** (§8a/V2/Z3/BB3 — the journal-then-commit write
   order and the crash-heal re-verify apply to each op class, not just date-ops).
   Entries are **retained through the calibration correlation window — 45 days (DECIDED, §19) — then pruned**;
@@ -1353,7 +1354,7 @@ the authoritative map of what reads/writes what; the rest of the spec references
 | **Progress-since-surfaced** (reset trigger) | Todoist **activity log** | TWO paginated queries: `td activity --since <d> --type task --json` (completed/updated/added events) **plus a SEPARATE** `--type comment` query (comments are NOT in the `--type task` stream, §6a/Z14) — both cursor-paged to exhaustion | n/a — *derived* | no (queried) |
 | **Roll-set membership** (the ledger IS the definition, §8/V1) | ledger entry + `current due == written_due` (Todoist task fields as the secondary sanity guard) | every roll-set test (§4d/§8) | n/a — *derived per run* from ledger∩divergence-test | no |
 | **Last-reconcile date** (idempotency + the explicit reconciliation range, §8/V3/R3A9) | owned layer `forzare/state/last-reconcile.json` | morning brief + end-of-day (days closed = the range `(stored .. CEILING]`; **CEILING = today at/after the 23:00 Denver cutoff, else yesterday** — §8/W5/X6) | end-of-day (+ defensive morning run) stamps CEILING; **seeded = Denver yesterday at install** (plan A1) | **yes — one tiny file** |
-| **Unified decision queue** (ALL brief-time decisions, §2 step 4/§4c/X7/**R5A1/Y1/Z2/AA4/BB2**) | owned layer `forzare/state/decision-queue.json` (`{id, class ∈ q1-conflict\|waiting-chase\|fixed-redecision\|stale-p1\|stall-decision\|triage-reraise\|sweep-candidate\|bankruptcy-offer, task_id\|candidate_id\|aggregate-key, proposed, status, enqueue_ts, gen, rev, head}` per record (the ONE canonical schema, DD4/§2 step 4/plan B0; `status ∈ {pending, tombstoned}`); **`id` = STABLE content-INDEPENDENT key — per-task classes `class:task_id`, AGGREGATE classes `q1-conflict:<date>` / `bankruptcy-offer:<YYYY-MM>` (BB2); total order `(head DESC, class-rank, enqueue_ts, id)`** with promotion participating in the order via the `head` flag, class-rank q1-conflict>waiting-chase>fixed-redecision=stale-p1>stall-decision>triage-reraise>sweep-candidate>bankruptcy-offer, AA4/R6A10) | the morning brief (emits ONLY the single HEAD `pending` record as its one decision, replacing the do-now close) | **producers (state-only, never message):** 02:00 `waiting-reconcile` (waiting-chase + repairs) · EOD `eod-roll` (fixed-redecision + stall-decision + stale-p1) · morning `eisenhower-plan` (q1-conflict) · §8b capture pipeline (triage-reraise) · monthly SWEEP `followups-sweep` (sweep-candidate + bankruptcy-offer) — **producers dedup by `id`: a re-enqueue of an unchanged decision is a no-op, a changed `proposed` updates IN PLACE + `rev++`; ALL mutations under the same lock/atomic-replace contract as the map/journal (Z2)**. **Ack = a LIVE-ONLY compare-and-set on `{id, gen, rev}` that TOMBSTONES the record (R5A5/Z2/BB2):** the live turn that resolves a decision (the shown brief head OR any record settled intra-day, CC10) CAS-flips the record's `status` to `tombstoned` IN PLACE (`gen` unchanged, no separate object, GG5); a moved `gen`/`rev` fails the CAS and the turn re-reads; a re-enqueue of a tombstoned `id` **reuses that record**, resetting it to `status=pending`, `gen+1`, `rev=1`; **never a dry-run write** | **yes — one small queue file** |
+| **Unified decision queue** (ALL brief-time decisions, §2 step 4/§4c/X7/**R5A1/Y1/Z2/AA4/BB2**) | owned layer `forzare/state/decision-queue.json` (`{id, class ∈ q1-conflict\|waiting-chase\|fixed-redecision\|stale-p1\|stall-decision\|triage-reraise\|sweep-candidate\|bankruptcy-offer, task_id\|candidate_id\|aggregate-key, proposed, status, enqueue_ts, gen, rev, head, journal_ref}` per record (the ONE canonical schema, DD4/§2 step 4/plan B0; `status ∈ {pending, tombstoned}`; **`journal_ref` = nullable mutation-journal uuid the ack consumes, populated for `bankruptcy-offer` + the ambiguous-window `triage-reraise`, II3 — the ack reads the frozen snapshot by this EXACT uuid, never a month search**); **`id` = STABLE content-INDEPENDENT key — per-task classes `class:task_id`, AGGREGATE classes `q1-conflict:<date>` / `bankruptcy-offer:<YYYY-MM>` (BB2); total order `(head DESC, class-rank, enqueue_ts, id)`** with promotion participating in the order via the `head` flag, class-rank q1-conflict>waiting-chase>fixed-redecision=stale-p1>stall-decision>triage-reraise>sweep-candidate>bankruptcy-offer, AA4/R6A10) | the morning brief (emits ONLY the single HEAD `pending` record as its one decision, replacing the do-now close) | **producers (state-only, never message):** 02:00 `waiting-reconcile` (waiting-chase + repairs) · EOD `eod-roll` (fixed-redecision + stall-decision + stale-p1) · morning `eisenhower-plan` (q1-conflict) · §8b capture pipeline (triage-reraise) · monthly SWEEP `followups-sweep` (sweep-candidate + bankruptcy-offer) — **producers dedup by `id`: a re-enqueue of an unchanged decision is a no-op, a changed `proposed` updates IN PLACE + `rev++`; ALL mutations under the same lock/atomic-replace contract as the map/journal (Z2)**. **Ack = a LIVE-ONLY compare-and-set on `{id, gen, rev}` that TOMBSTONES the record (R5A5/Z2/BB2):** the live turn that resolves a decision (the shown brief head OR any record settled intra-day, CC10) CAS-flips the record's `status` to `tombstoned` IN PLACE (`gen` unchanged, no separate object, GG5); a moved `gen`/`rev` fails the CAS and the turn re-reads; a re-enqueue of a tombstoned `id` **reuses that record**, resetting it to `status=pending`, `gen+1`, `rev=1`, `head=false`, fresh `enqueue_ts` (II6); **never a dry-run write** | **yes — one small queue file** |
 | **Sweep-exclusion list** (bankruptcy RETIRE for undated items, §4c/**Z13**) | owned layer `forzare/state/sweep-exclusion.json` (a set of task ids the monthly sweep never re-proposes) | monthly SWEEP `followups-sweep` (excludes these from the candidate pool) | RETIRE appends an id (reversible by deleting the entry; no label/delete/re-parent) | **yes — one small file** |
 | **Per-day plan record** (idempotency guard, §4c/§15/**Y13**) | owned layer `forzare/state/plan-of-day.json` (`{date, created_ts, selected_ids[], anchor, writes:{p1_set, anchor_placed, alarm_set}}`; `created_ts` = plan-write time, the EE6/FF6 intervening-user-event cutoff) | the morning brief's `eisenhower-plan` (resume-missing-writes guard; distinguishes Bob-owned p1 from user-set p1) | written *as the narrowing executes* — each `writes.*` flag set when that write lands; a re-fire resumes only the missing writes | **yes — one tiny file per day** |
 | **Tomorrow pre-stage** (EOD proposal → morning brief, §8/R2A8) | owned layer `forzare/state/tomorrow-prestage.json` (≤3 candidate task ids + one anchor candidate) | the morning brief (consumes it, then **clears** it) | end-of-day's `tomorrow-prep` writes it (proposal only — **no** `p1`, **no** calendar write) | **yes — one tiny file, cleared each morning** |
@@ -1384,11 +1385,12 @@ can't read as user initiation under W7; the enum now aligns with the intent-op v
 the date-op sequence is the worked example. **The queue obeys the same lock + atomic-replace, and its ack is a
 compare-and-set on `{id, gen, rev}` that TOMBSTONES the record IN PLACE** (Z2/BB2/GG5 — the `status` flips to
 `tombstoned` on the retained record, `gen` unchanged; a re-enqueue of a tombstoned `id` **reuses that record**,
-resetting it to `status=pending`, `gen+1`, `rev=1`):
+resetting it to `status=pending`, `gen+1`, `rev=1`, `head=false`, fresh `enqueue_ts` (II6)):
 
-- **Exclusive lock.** Every read-modify-write holds an OS advisory lock (`flock` on a sibling
-  `task-lifecycle.lock`) for the whole critical section, so a live snooze and the nightly roll can't
-  interleave a lost update.
+- **Exclusive lock.** Every read-modify-write holds a lock for the whole critical section via an ATOMIC
+  `mkdir` sentinel (`task-lifecycle.lock.d`) — **`flock` is verified ABSENT on this macOS (HH2)**, so the lock
+  is `until mkdir "$LOCK" 2>/dev/null; do sleep 0.05; done` acquired, `rmdir "$LOCK"` released in the `finally`/EXIT
+  path — so a live snooze and the nightly roll can't interleave a lost update.
 - **Atomic writes.** Write to a temp file in the same directory, `fsync`, then `os.rename` over the target
   (atomic on the same filesystem) — a crash mid-write never leaves a truncated/corrupt ledger; the reader
   sees either the old file or the new one.
@@ -1447,8 +1449,11 @@ resetting it to `status=pending`, `gen+1`, `rev=1`):
       marker found on a task whose content/project has since diverged still heals correctly — the marker, not the
       content, is the identity.
     - **no journaled id, marker NOT found, AND the intent is OLDER than the API-propagation window** (its
-      `created_ts` predates the **120s** propagation window, §19, so a landed task would already be searchable)
-      ⇒ the create is **definitively ABSENT** (crash-before-API-effect / never-landed) ⇒ **REPLAY safe**.
+      `created_ts` predates the **120s** propagation window, §19, so a landed task should already be searchable)
+      ⇒ **REPLAY FAILS CLOSED (II5): replay ONLY after TWO consecutive empty-SUCCESS marker searches ≥30s apart
+      both confirm absence.** A **single** miss, or **any search ERROR**, ⇒ do NOT replay — **ABORT + enqueue the
+      one-tap `triage-reraise` re-confirm** instead. Elapsed time alone never authorizes a replay: an indexing lag
+      past the window must not be misread as a true absence (the duplicate is the worse failure).
     - **no journaled id, marker NOT found, but the intent is WITHIN the 120s propagation window** — **the ONE ambiguous
       window** (the API may have returned and the id-journal crash raced the create; a search miss could be index
       lag rather than a true absence) ⇒ **AT-MOST-ONCE decided: ABORT + enqueue a one-line queue decision, NEVER
@@ -1456,8 +1461,8 @@ resetting it to `status=pending`, `gen+1`, `rev=1`):
       re-fragment attention), so Bob refuses to replay under ambiguity and instead asks the user to re-confirm the
       capture in one tap (a `triage-reraise`-class `decision-queue.json` record whose `id` is
       **`triage-reraise:<journal-uuid>`** — keyed on the journal-uuid since no `td` task id exists yet, FF10, §2 step 4).
-    So "absent ⇒ replay" holds **only past the window** (definitively absent) and "no-marker ⇒ abort" holds **only
-    within the window** (genuinely ambiguous) — both true, disambiguated by the window. There is **no Todoist-side
+    So past the window a replay fires **only on a DOUBLE empty-success search** (II5) and within the window it never
+    fires — both paths **fail closed toward the one-tap re-confirm**, never toward a blind duplicate. There is **no Todoist-side
     idempotency key** to look up (the Inbox-task-id idempotency key is Kanban's, on the *card*, not the `td` task).
     This replaces §8b stage-1's content+project dup-guard with the same state machine.
   - **`task.complete`** — read the task's state: landed iff the task is completed.
@@ -1481,8 +1486,9 @@ resetting it to `status=pending`, `gen+1`, `rev=1`):
   PER HEALING WINDOW (EE1)**: (i) **journaled-id present** ⇒ verify-by-id commits; (ii) **no id, marker FOUND**
   under the **collision / rename / move** cases — a same-content sibling (collision), a task renamed after create,
   and a task moved to another project — each of which the marker still resolves where a content+project search
-  would mis-heal ⇒ resume-from-step-3; (iii) **no id, no marker, intent PAST the propagation window** ⇒ REPLAY
-  (definitively absent); (iv) **no id, no marker, intent WITHIN the window** (the ambiguous window) ⇒ **ABORT +
+  would mis-heal ⇒ resume-from-step-3; (iii) **no id, no marker, intent PAST the propagation window** ⇒ REPLAY only
+  after a **DOUBLE empty-success marker search ≥30s apart (II5)**, with paired negatives (a single miss and a
+  search error each ⇒ ABORT + re-confirm, ZERO replay); (iv) **no id, no marker, intent WITHIN the window** (the ambiguous window) ⇒ **ABORT +
   enqueue a one-line re-confirm decision, asserting NO auto-duplicate `td task add`** (at-most-once); the
   `waiting-clear` fixture asserts
   the **composite** transition heals atomically (a partial re-applies the whole clear+redate+flip); the `undate`
@@ -2083,7 +2089,7 @@ kanban:
                                      #   _maybe_auto_subscribe), so this key is belt-and-suspenders: false so
                                      #   even a stray tool-path create writes no subscription row. (drift #3)
 auxiliary:
-  triage_specifier: { provider: anthropic, model: claude-haiku-4-5 }   # R7 — `hermes kanban specify` slot; pin a cheap model (live = provider: auto, model: "")
+  triage_specifier: { provider: anthropic, model: claude-haiku-4-5, timeout: 20 }   # R7 — `hermes kanban specify` slot; cheap model (live = provider: auto, model: ""); timeout 20 bounds the specify LLM call (II9 — key verified config.py:1505, default 120)
 cron:
   wrap_response: true               # default
   max_parallel_jobs: 1              # live = null (unbounded) — pin to 1 so rituals never interleave (U6)
@@ -2134,7 +2140,8 @@ diverges from this spec; **fix these before flipping delivery to live:**
 
 Two further drifts to repair while here (A17/U6): **`kanban.max_in_progress_per_profile` is `null`** (set to
 `2`) and **`cron.max_parallel_jobs` is `null`** (set to `1`); and pin **`auxiliary.triage_specifier`** off its
-`provider: auto` default to a cheap model for the §8b `specify` slot.
+`provider: auto` default to a cheap model **and its `timeout` to `20` (II9 — the key exists at `config.py:1505`,
+default 120, and bounds the specify LLM call, `kanban_specify.py:196`)** for the §8b `specify` slot.
 
 **Boot (deploy):** write `config.yaml` + `.env` → **fix the four live-config drifts above (R6b + Z1)** → install
 every V1 skill → **run the pre-start skill-INTEGRITY check — assert every V1 skill is installed at its expected
@@ -2228,7 +2235,11 @@ dispatcher (claim races) — the gateway runs the dispatcher.
     LOGS the finding (informational; the staging jobs are DELIBERATELY `--deliver local`/paused, so alerting
     would be a false alarm), and POST-go-live it ALERTS to the errors channel.** ("the morning brief has not run
     since <ts>"), same content-stable id + spool as (b)/(c). This is the one scan that closes the silent no-fire
-    — the failure a prospective-memory-impaired user would never notice on their own.
+    — the failure a prospective-memory-impaired user would never notice on their own. **Post-go-live the manifest
+    also carries the plan's two drift classes (HH6, plan G1 Step 4/F1): the expected name→delivery map AND the
+    prompt-DRYNESS axis — so the scan additionally ALERTS on delivery drift (a user-facing job no longer
+    `--deliver discord`, or a state-only job no longer `local`) OR a job whose prompt reverts to a `DRY RUN`
+    opener, either of which silently stops the job acting or delivering.**
   - **(e) Stale-triage detection (AA5 — the specify backstop).** Because the bounded `specify` attempt can fail
     or time out (§8b/BB1), a `specify` that never completed leaves a capture card stuck in `triage`. So the pass
     scans the private Kanban board for any **forzare capture card still in `status = triage` past its create
@@ -2660,8 +2671,10 @@ kept **out of V1**. Sequence is always: ship V1 first → then evaluate.
   time = block_start − prep − travel − 30 (R7A2/AA7, §3/§3a/§13 — 13:35 for the 15:00 block, distinct from the
   14:05 leave-time alarm)**; **watchdog ritual-absence + stale-triage grace 30 min (AA8/AA5, §14)**;
   **`task.add` API-propagation window 120s (GG4/FF3, §8a — the eventual-consistency bound the crash-heal keys off
-  the journal record's `created_ts`; DECIDED, empirically validate at build against a live `td task add`→search
-  round-trip)**. (No `@q2`
+  the journal record's `created_ts`; DECIDED, and a build task MEASURES the live `td task add`→search propagation
+  and REJECTS the 120s bound if the observed round-trip is unsafe, II5)**; **because the bound is empirical, a
+  past-window replay still fails closed — it fires only on TWO consecutive empty-success marker searches ≥30s
+  apart, never on elapsed time alone (II5)**. (No `@q2`
   flag, and no lifecycle labels — the roll counter is the private lifecycle map, §4d/§5d.)
 
 ---
@@ -2721,7 +2734,7 @@ code-claims; every corrected claim below was re-checked against installed source
 set is now DEFINED by the lifecycle ledger** (entry + `current due == written_due`), the four field checks
 demoted to secondary sanity guards, and the deadline contradiction resolved — a Bob-written lead-time due on a
 deadline task *is* in the ledger and *does* roll (§4d/§8/§19, V1). The **ledger I/O contract** is specified
-(flock, tmp+rename atomic writes, journal-then-commit order, crash-healing rule; §8a, V2). **Cron recovery
+(mkdir-sentinel lock, tmp+rename atomic writes, journal-then-commit order, crash-healing rule; §8a, V2). **Cron recovery
 was corrected to the verified code** (`cron/jobs.py:1456-1492`): a past-grace job **fast-forwards but still
 fires once**, never silently skips — so the eod-roll keys off an explicit reconciliation date, not the wall
 clock (§8/§19, V3). **Staging isolation made honest:** `[SILENT]`/`--deliver local` suppress *delivery only*;
@@ -2916,7 +2929,8 @@ ack-then-reenqueue, and non-head-resolution fixtures added (§2/§8a). **`task.a
 a `⟦fz:<journal-uuid>⟧` line rides the create call in `--description` (intent journaled BEFORE the API call; the
 returned id journaled immediately after; marker stripped on commit-verify). Healing disambiguates by window —
 journaled-id ⇒ verify-by-id; marker found ⇒ resume (robust to collision/rename/move); no marker past the
-propagation window ⇒ replay (definitively absent); no marker within it (the one ambiguous window) ⇒ AT-MOST-ONCE
+propagation window ⇒ replay ONLY on a DOUBLE empty-success search ≥30s apart (a single miss/search error ⇒ abort
++ re-confirm, II5); no marker within it (the one ambiguous window) ⇒ AT-MOST-ONCE
 abort + enqueue a one-line re-confirm, never an auto-duplicate — resolving the earlier absent⇒replay /
 no-marker⇒abort contradiction (a fixture per window); the journal/intent enums gain `waiting-clear`, `undate`,
 `retire` (§4d/§8a/§8b).
@@ -2973,7 +2987,27 @@ boot line** created `--deliver local`, go-live flips the four user-facing jobs (
 are the PARENT's synchronous work (GG10). **Response gate** adds the `· ` context-prefix and a "zero non-`· `
 lines after the marker" check (GG12). **Calibration exclusion is GENERIC over the journal enum incl.
 `bankruptcy`** (GG13). **`hermes kanban create` help evidence corrected** — it exposes
-`--body`/`--priority`/`--project`/`--workspace`, none a per-card discriminator, so the title prefix stands (FF9).
+`--body`/`--priority`/`--project`/`--workspace`/`--created-by`; the title prefix is the chosen discriminator — a
+`--created-by` filter would also work (it is a stored, filterable per-card column, `kanban_db.py:1019`), but the
+greppable title prefix is preferred (FF9/HH5).
 The plan absorbed the matching build-side fixes (gate-check.sh ships through chezmoi + a watchdog self-guard,
-GG2/FF15; phase-aware integrity manifest, GG1; bash-correct harness traps + flock, GG7; the Phase-C gateway
+GG2/FF15; phase-aware integrity manifest, GG1; bash-correct harness traps + mkdir lock, GG7/HH2; the Phase-C gateway
 stop-window drops the not-yet-built watchdog, GG8; the go-live flip becomes a stopped-window transaction, GG9).
+
+**2026-07-12 — round-11 adversarial-review hardening (HH1–HH9 · II1–II9; every command/flag/config-key re-probed
+against installed reality).** **Harness lock is `mkdir`-atomic, not `flock`** (HH2/II2 — `flock` verified ABSENT
+on this macOS; §8a lock sentence + plan intro/B0). **Queue schema gains `journal_ref`** (II3, nullable
+mutation-journal uuid the ack consumes — populated for `bankruptcy-offer` + the ambiguous-window
+`triage-reraise`; the ack matches that EXACT uuid, month search deleted; `bankruptcy` joins the per-type heal
+list). **Generation rollover resets `head=false` + a fresh `enqueue_ts`** (II6). **`task.add` replay fails
+closed** (II5 — past the 120s window a replay fires ONLY on TWO consecutive empty-success marker searches ≥30s
+apart; a single miss/search error ⇒ abort + re-confirm; a build task measures the live create→search propagation
+and rejects the bound if unsafe). **`auxiliary.triage_specifier.timeout` pinned to 20s** (II9 — the key exists,
+`config.py:1505`; no `gtimeout` wrapper needed). **Ritual-absence scan (d) also alerts on the two post-go-live
+drift classes** — delivery-map + prompt-dryness (HH6). **`--created-by` is a filterable per-card column**
+(`kanban_db.py:1019`) — the title prefix is the *chosen* discriminator, not the only possible one (HH5). The plan
+absorbed the matching build-side fixes (single-EXIT existed-before trap, HH1/II1; go-live restore fail-loud +
+both services health-verified pre-flag, II2; `[TEST-STAGING]` project made real with `--project` on every
+fixture, II4; response gate checks every non-marker line pre- AND post-marker, II7; RUN1/RUN2 two-run probes,
+HH3/II8; morning roll-then-plan ordering command, HH7; B6 acceptance re-scoped to the measured surface, HH8;
+set-e-safe retry wrapper, HH9).
