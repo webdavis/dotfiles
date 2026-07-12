@@ -48,15 +48,29 @@ report_posture() {
 }
 
 # check_posture <label> <bin> <query> <on-needle> <off-needle> <remedy>. Tolerates
-# an absent or failing tool (empty output -> unknown); never aborts the run.
+# an absent or failing tool; never aborts the run. Captures the query's stdout,
+# stderr, and exit status SEPARATELY: a NONZERO query is INDETERMINATE regardless
+# of what it printed (a failed probe's stdout is untrustworthy -- it may print
+# enabled-looking text yet have failed), so it is reported "could not determine",
+# never "enabled". Only a zero-exit query is classified from its stdout.
 check_posture() {
-  local label="$1" bin="$2" query="$3" on="$4" off="$5" remedy="$6" out
+  local label="$1" bin="$2" query="$3" on="$4" off="$5" remedy="$6"
   if ! command -v "$bin" >/dev/null 2>&1; then
     printf '[posture] %s: %s not found; skipping\n' "$label" "$bin" >&2
     return 0
   fi
-  out="$("$bin" "$query" 2>/dev/null || true)"
-  report_posture "$label" "$(classify_contains "$out" "$on" "$off")" "$out" "$remedy"
+  local out err rc=0 errfile state
+  errfile="$(mktemp)"
+  out="$("$bin" "$query" 2>"$errfile")" || rc=$?
+  err="$(cat "$errfile")"
+  rm -f "$errfile"
+  if [[ $rc -ne 0 ]]; then
+    state="unknown"
+    report_posture "$label" "$state" "query failed rc=$rc; stdout: ${out:-<none>}; stderr: ${err:-<none>}" "$remedy"
+  else
+    state="$(classify_contains "$out" "$on" "$off")"
+    report_posture "$label" "$state" "$out" "$remedy"
+  fi
 }
 
 check_posture "FileVault" "$fdesetup" "status" "FileVault is On" "FileVault is Off" \

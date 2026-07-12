@@ -43,31 +43,34 @@ if [[ ! -s $rendered ]]; then
   exit 0
 fi
 
-# make_stub <path> <status_output> <mutation_log>: a fake fdesetup/spctl/csrutil.
-# It answers `status` / `--status` with the given text; ANY other argument is a
-# fix attempt -> record it and fail loudly.
+# make_stub <path> <status_output> <mutation_log> [status_rc]: a fake fdesetup/
+# spctl/csrutil. It answers `status` / `--status` with the given text and exit code
+# (default 0); ANY other argument is a fix attempt -> record it and fail loudly. A
+# nonzero status_rc models a DEGRADED query (a probe that prints text yet fails).
 make_stub() {
-  local path="$1" out="$2" mlog="$3"
+  local path="$1" out="$2" mlog="$3" status_rc="${4:-0}"
   cat >"$path" <<STUB
 #!/bin/bash
 case "\$1" in
-  status|--status) printf '%s\n' "$out"; exit 0 ;;
+  status|--status) printf '%s\n' "$out"; exit $status_rc ;;
   *) printf '%s %s\n' "\$(basename "\$0")" "\$*" >>"$mlog"; exit 1 ;;
 esac
 STUB
   chmod +x "$path"
 }
 
-# run_case <name> <fv_out> <gk_out> <sip_out> -> populates RC, OUT, ERR, MUT.
+# run_case <name> <fv_out> <gk_out> <sip_out> [fv_rc] [gk_rc] [sip_rc] -> populates
+# RC, OUT, ERR, MUT. The trailing rc args default to 0 (successful query).
 run_case() {
   local name="$1" fv="$2" gk="$3" sip="$4"
+  local fv_rc="${5:-0}" gk_rc="${6:-0}" sip_rc="${7:-0}"
   local dir="$work/$name"
   mkdir -p "$dir"
   local mlog="$dir/mutations"
   : >"$mlog"
-  make_stub "$dir/fdesetup" "$fv" "$mlog"
-  make_stub "$dir/spctl" "$gk" "$mlog"
-  make_stub "$dir/csrutil" "$sip" "$mlog"
+  make_stub "$dir/fdesetup" "$fv" "$mlog" "$fv_rc"
+  make_stub "$dir/spctl" "$gk" "$mlog" "$gk_rc"
+  make_stub "$dir/csrutil" "$sip" "$mlog" "$sip_rc"
   RC=0
   OUT="$(FDESETUP_BIN="$dir/fdesetup" SPCTL_BIN="$dir/spctl" CSRUTIL_BIN="$dir/csrutil" \
     bash "$rendered" 2>"$dir/err")" || RC=$?
@@ -86,6 +89,7 @@ a0() { if [[ $RC -eq 0 ]]; then report ok "$1: exits 0"; else report bad "$1: ex
 # Assert-only: no fix command was ever invoked.
 anomut() { if [[ -z $MUT ]]; then report ok "$1: no mutation attempted"; else report bad "$1: attempted a fix: $MUT"; fi; }
 outhas() { if grep -qi -- "$2" <<<"$OUT"; then report ok "$1: stdout has '$2'"; else report bad "$1: stdout has '$2' (out: $OUT)"; fi; }
+outno() { if grep -qi -- "$2" <<<"$OUT"; then report bad "$1: stdout must NOT contain '$2' (out: $OUT)"; else report ok "$1: no '$2' in stdout"; fi; }
 errhas() { if grep -qi -- "$2" <<<"$ERR"; then report ok "$1: stderr warns '$2'"; else report bad "$1: stderr warns '$2' (err: $ERR)"; fi; }
 errno() { if grep -qi -- "$2" <<<"$ERR"; then report bad "$1: stderr must NOT contain '$2' (err: $ERR)"; else report ok "$1: no '$2' in stderr"; fi; }
 
@@ -113,6 +117,20 @@ run_case unknown "gibberish" "gibberish" "unknown (Custom Configuration)"
 a0 unknown
 anomut unknown
 errhas unknown "could not determine"
+
+# Degraded query (R1-4): a probe that prints ENABLED-looking text but EXITS
+# NONZERO must be reported INDETERMINATE, never enabled -- a failed query's stdout
+# is untrustworthy. Here fdesetup fails (rc 23) while printing "FileVault is On.";
+# Gatekeeper and SIP succeed and stay classifiable. FileVault must read
+# could-not-determine (never "FileVault: enabled"); the others still report enabled.
+run_case degraded "FileVault is On." "assessments enabled" \
+  "System Integrity Protection status: enabled." 23 0 0
+a0 degraded
+anomut degraded
+errhas degraded "FileVault: could not determine"
+outno degraded "FileVault: enabled"
+outhas degraded "Gatekeeper: enabled"
+outhas degraded "SIP: enabled"
 
 if [[ $failures -gt 0 ]]; then
   printf 'macos-security-posture: %d assertion(s) FAILED\n' "$failures" >&2
