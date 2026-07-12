@@ -70,7 +70,10 @@ run() { # run NAME=VALUE...  : sets stub env, prepends the stub bin to PATH, run
   env PATH="$sandbox/bin:$PATH" "$@" bash "$sandbox/script.sh"
 }
 
-perms() { stat -f '%Lp' "$1" 2>/dev/null || stat -c '%a' "$1"; }
+# GNU form first: GNU stat treats -f as filesystem-status and SUCCEEDS with
+# multi-line junk under nix coreutils (CI), so a BSD-first chain never falls
+# through. BSD stat rejects -c outright, so GNU-first fails cleanly into it.
+perms() { stat -c '%a' "$1" 2>/dev/null || stat -f '%Lp' "$1"; }
 
 reset_key_dir() {
   rm -rf "$key_dir"
