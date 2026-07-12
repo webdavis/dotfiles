@@ -3,6 +3,14 @@
 
 set -euo pipefail
 
+{{ if eq (env "SKIP_SYSTEM_PACKAGES") "1" -}}
+# SKIP_SYSTEM_PACKAGES=1 set: skipping the brew bundle sync entirely, so a
+# `chezmoi apply` from a secondary worktree (whose declared package set differs)
+# cannot uninstall packages this worktree does not list. Only the literal "1"
+# skips -- 0/false/anything-else still run the sync. A later normal apply re-runs
+# this and re-syncs.
+exit 0
+{{ end -}}
 # Resolve the Homebrew prefix once (honoring HOMEBREW_PREFIX, as the autoupdate
 # block below already does) so every brew/uv/volta call goes through one place.
 brew_prefix="${HOMEBREW_PREFIX:-/opt/homebrew}"
