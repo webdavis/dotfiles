@@ -58,6 +58,27 @@ ACCEPTED_EFFECTIVE=(
   'permitrootlogin no'
 )
 
+# The four auth directives that MAY appear inside a `Match` block, each with its
+# hardened value. A Match block that sets any of these to a different value re-enables
+# it for the matching connections (the criteria-based bypass `sshd -G` alone is blind
+# to). UsePAM is intentionally absent: it is not a Match-scoped keyword. Keys are
+# lowercased (sshd keywords are case-insensitive).
+declare -A PROTECTED_MATCH_HARDENED=(
+  [passwordauthentication]=no
+  [kbdinteractiveauthentication]=no
+  [pubkeyauthentication]=yes
+  [permitrootlogin]=no
+)
+
+# Representative connection specs for the authoritative per-connection resolution
+# (`sshd -G -T -C`). A privileged (root) login and an ordinary user, from a sample
+# address/host, cover the wildcard/address/root Match criteria; the raw file scan
+# below covers a Match keyed to a specific non-sampled user.
+VERIFY_SPECS=(
+  'user=root,addr=203.0.113.1,host=localhost'
+  'user=nobody,addr=203.0.113.1,host=localhost'
+)
+
 # priv <cmd...> -- run a command with the configured privilege prefix (sudo by
 # default; nothing when SSH_HARDENING_SUDO is empty, e.g. under test).
 priv() {
@@ -84,46 +105,154 @@ PermitRootLogin no
 EOF
 }
 
-# assert_effective_config <effective-config-text> -- return 0 iff ALL five accepted
-# values are present. On any mismatch, print a loud per-key WARNING to stderr and
+# assert_effective_config <effective-config-text> [context-label] -- return 0 iff ALL
+# five accepted values are present. On any mismatch, print a loud per-key WARNING to
+# stderr (tagged with the context label so the operator knows WHICH view failed) and
 # return 1. Pure: no sshd, no sudo, no writes -- the unit seam.
 assert_effective_config() {
-  local effective="$1" rc=0 pair key actual
+  local effective="$1" ctx="${2:-effective sshd config}" rc=0 pair key actual
   for pair in "${ACCEPTED_EFFECTIVE[@]}"; do
     if ! grep -qxiF "$pair" <<<"$effective"; then
       key="${pair%% *}"
       actual="$(grep -iE "^${key} " <<<"$effective" | head -n1 || true)"
-      printf '[ssh-hardening] WARNING: effective sshd config has "%s" but hardening requires "%s"\n' \
-        "${actual:-(no ${key} line)}" "$pair" >&2
+      printf '[ssh-hardening] WARNING: %s has "%s" but hardening requires "%s"\n' \
+        "$ctx" "${actual:-(no ${key} line)}" "$pair" >&2
       rc=1
     fi
   done
   return "$rc"
 }
 
-# verify_effective -- assert the FULL effective sshd config (main config + every
-# drop-in, in sshd's own Include precedence) resolves to the five accepted values.
-# Uses `sshd -G` (read-only, host-key-free: never reloads, never binds). Root is
-# needed to read the mode-0600 managed drop-in, so it runs under the privilege
-# prefix. When sshd is absent it cannot verify: it says so and returns 0 (macOS
-# always ships sshd, so that path is only hit off-target, e.g. Linux CI).
+# enumerate_config_files <main-config> -- print the main config path, then every file
+# it Includes, expanded in sshd's own lexical order. Handles absolute and
+# base-relative Include globs (one level -- the drop-in dir; the authoritative
+# `sshd -G -T -C` check below is the catch-all for any deeper structure). Reads under
+# the privilege prefix so a root-only main config is still enumerable.
+enumerate_config_files() {
+  local main="$1"
+  printf '%s\n' "$main"
+  local base
+  base="$(dirname "$main")"
+  local line first rest pat abspat match
+  while IFS= read -r line; do
+    line="${line#"${line%%[![:space:]]*}"}"
+    [[ -z $line || ${line:0:1} == '#' ]] && continue
+    read -r first rest <<<"$line"
+    [[ "$(printf '%s' "$first" | tr '[:upper:]' '[:lower:]')" == include ]] || continue
+    local -a pats=()
+    read -r -a pats <<<"$rest"
+    for pat in "${pats[@]}"; do
+      [[ $pat == /* ]] && abspat="$pat" || abspat="$base/$pat"
+      while IFS= read -r match; do
+        printf '%s\n' "$match"
+      done < <(compgen -G "$abspat" 2>/dev/null | LC_ALL=C sort)
+    done
+  done < <(priv cat "$main" 2>/dev/null || true)
+}
+
+# scan_one_file_match <file> -- scan a single sshd config file for a `Match` block
+# that sets a protected directive to a non-hardened value. Return 1 (with a loud
+# per-hit WARNING naming the file and the Match line) if any is found. Pure text scan:
+# host-key-free, catches even a Match keyed to a specific user the -C sampling misses.
+scan_one_file_match() {
+  local file="$1" rc=0 in_match=0 match_ctx="" raw line kw val lc_kw lc_val hardened
+  while IFS= read -r raw; do
+    line="${raw#"${raw%%[![:space:]]*}"}"
+    [[ -z $line || ${line:0:1} == '#' ]] && continue
+    read -r kw val _rest <<<"$line"
+    lc_kw="$(printf '%s' "$kw" | tr '[:upper:]' '[:lower:]')"
+    if [[ $lc_kw == match ]]; then
+      in_match=1
+      match_ctx="$line"
+      continue
+    fi
+    [[ $in_match -eq 1 ]] || continue
+    hardened="${PROTECTED_MATCH_HARDENED[$lc_kw]:-}"
+    [[ -n $hardened ]] || continue
+    lc_val="$(printf '%s' "$val" | tr '[:upper:]' '[:lower:]')"
+    if [[ $lc_val != "$hardened" ]]; then
+      printf '[ssh-hardening] WARNING: %s re-enables a protected directive inside "%s": sets "%s %s" but hardening requires "%s %s" for ALL connections.\n' \
+        "$file" "$match_ctx" "$kw" "$val" "$kw" "$hardened" >&2
+      rc=1
+    fi
+  done < <(priv cat "$file" 2>/dev/null || true)
+  return "$rc"
+}
+
+# scan_match_reenables -- scan the whole include tree (main + every included file) for
+# a Match block that weakens a protected directive. Return 1 if any file does.
+scan_match_reenables() {
+  local rc=0 file
+  while IFS= read -r file; do
+    scan_one_file_match "$file" || rc=1
+  done < <(enumerate_config_files "$SSHD_MAIN_CONFIG")
+  return "$rc"
+}
+
+# verify_effective_specs -- authoritative per-connection resolution. For each
+# representative spec, `sshd -G -T -C <spec>` resolves ALL Match blocks (host-key-free,
+# root-free) and prints the effective config for that connection; assert the five
+# values hold. Return 1 if any spec diverges or cannot be resolved.
+verify_effective_specs() {
+  local rc=0 spec eff
+  for spec in "${VERIFY_SPECS[@]}"; do
+    if ! eff="$(priv "$SSHD_BIN" -G -T -C "$spec" -f "$SSHD_MAIN_CONFIG" 2>/dev/null)"; then
+      printf '[ssh-hardening] WARNING: could not resolve the effective config for connection spec %s (%s -G -T -C failed); NOT claiming hardened.\n' \
+        "$spec" "$SSHD_BIN" >&2
+      rc=1
+      continue
+    fi
+    assert_effective_config "$eff" "connection spec [$spec]" || rc=1
+  done
+  return "$rc"
+}
+
+# verify_effective -- assert the hardening holds THREE independent ways, all
+# read-only and host-key-free (never reload, never bind):
+#   1. the global (pre-Match) effective config via `sshd -G`;
+#   2. a raw scan of every included file for a Match block that re-enables a protected
+#      directive (the criteria-based bypass `sshd -G` alone is blind to -- it dumps
+#      only the pre-Match config);
+#   3. an authoritative per-connection resolution via `sshd -G -T -C` for a root spec
+#      and a normal-user spec (this DOES resolve Match blocks, without host keys).
+# The parse runs under the privilege prefix because a sibling drop-in in the include
+# tree may be root-only; running privileged lets the parse read the COMPLETE tree so a
+# hostile root-only sibling cannot hide from the check. Each view is reported
+# separately -- no blanket "all in force" claim unless every view passes.
 verify_effective() {
   if ! command -v "$SSHD_BIN" >/dev/null 2>&1; then
-    printf '[ssh-hardening] NOTE: %s not found; cannot verify the effective config here. On macOS verify with: sudo sshd -T | grep -iE "passwordauthentication|kbdinteractiveauthentication|usepam|pubkeyauthentication|permitrootlogin"\n' \
+    printf '[ssh-hardening] NOTE: %s not found; cannot verify the effective config here. On macOS verify with: sudo sshd -G -T -C user=root,addr=203.0.113.1,host=localhost | grep -iE "passwordauthentication|kbdinteractiveauthentication|usepam|pubkeyauthentication|permitrootlogin"\n' \
       "$SSHD_BIN" >&2
     return 0
   fi
-  local effective
-  if ! effective="$(priv "$SSHD_BIN" -G -f "$SSHD_MAIN_CONFIG" 2>/dev/null)"; then
-    printf '[ssh-hardening] WARNING: could not parse the effective sshd config (%s -G -f %s failed); NOT claiming this host is hardened.\n' \
+  local rc=0 global_eff
+  # 1. Global (pre-Match) effective config.
+  if ! global_eff="$(priv "$SSHD_BIN" -G -f "$SSHD_MAIN_CONFIG" 2>/dev/null)"; then
+    printf '[ssh-hardening] WARNING: could not parse the global effective sshd config (%s -G -f %s failed); NOT claiming this host is hardened.\n' \
       "$SSHD_BIN" "$SSHD_MAIN_CONFIG" >&2
     return 1
   fi
-  if assert_effective_config "$effective"; then
-    printf '[ssh-hardening] verified: all five hardening values are in force in the effective config\n'
-    return 0
+  if assert_effective_config "$global_eff" "global effective config (pre-Match)"; then
+    printf '[ssh-hardening] global effective config verified (sshd -G, pre-Match): all five values accepted\n'
+  else
+    rc=1
   fi
-  return 1
+  # 2. Raw Match-block scan (catches criteria-based re-enables; names the file).
+  if scan_match_reenables; then
+    printf '[ssh-hardening] Match-block scan: no sibling Match re-enables a protected directive\n'
+  else
+    rc=1
+  fi
+  # 3. Authoritative per-connection resolution (sshd -G -T -C; resolves Match blocks).
+  if verify_effective_specs; then
+    printf '[ssh-hardening] per-connection check (sshd -G -T -C): hardening holds for root and a normal user\n'
+  else
+    rc=1
+  fi
+  if [[ $rc -eq 0 ]]; then
+    printf '[ssh-hardening] verified: hardening holds globally, under the Match-block scan, and per connection spec\n'
+  fi
+  return "$rc"
 }
 
 # install_dropin -- write the drop-in when missing or stale (idempotent), migrate
