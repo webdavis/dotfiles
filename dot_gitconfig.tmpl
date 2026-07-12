@@ -49,6 +49,12 @@
   conflictstyle = zdiff3
   tool = /opt/homebrew/bin/nvim -d -u ~/.config/nvim/init.lua \"$LOCAL\" \"$REMOTE\"
 
+# Union-merges the committed graphify map (wired via .gitattributes in the
+# dotfiles repo: graphify-out/graph.json merge=graphify-union).
+[merge "graphify-union"]
+  name = graphify graph.json union merge
+  driver = graphify merge-driver %O %A %B
+
 [log]
   showSignature = false
 

@@ -125,6 +125,14 @@ test: test-unit test-integration test-e2e
     fi
   fi
 
+# Run the weekly Homebrew upgrade by hand (formulae + casks + Mac App Store +
+# cleanup). Same job the Monday-noon com.webdavis.homebrew-weekly-upgrade
+# LaunchAgent runs; use it for the first upgrade or any ad-hoc one. Runs the
+# DEPLOYED helper (what launchd runs), not the repo source copy, and uses the
+# host brew outside the Nix shell.
+brew-upgrade:
+  ~/.local/bin/homebrew-weekly-upgrade.sh
+
 # macOS Defaults: drift, apply, capture
 
 defaults-drift:

@@ -43,6 +43,8 @@ fi
 
 {{ includeTemplate "herdr-health-check.sh.tmpl" }}
 
+{{ includeTemplate "brew-bundle-cleanup-guard.sh.tmpl" }}
+
 # A legacy multiplexer is still installed: verify the CURRENT herdr before
 # removing it. On any failure, defer with a warning that names the interactive
 # activation step, and exit 0 so the next apply retries.
@@ -52,6 +54,15 @@ if ! reason="$(herdr_health_check)"; then
   exit 0
 fi
 
+{{ if eq (env "SKIP_SYSTEM_PACKAGES") "1" -}}
+# SKIP_SYSTEM_PACKAGES=1: herdr is verified, but skip the deferred tmux/sesh
+# cleanup so an apply from a secondary worktree (whose declared package set
+# differs) cannot uninstall packages this worktree does not list -- the same
+# secondary-worktree safety before_10 honors. Only the literal "1" skips; a
+# normal apply completes the migration.
+printf 'SKIP_SYSTEM_PACKAGES=1: herdr verified but skipping the deferred tmux/sesh cleanup (secondary-worktree safety); a normal apply completes the migration.\n' >&2
+exit 0
+{{ end -}}
 # Verified: perform the deferred cleanup. Regenerate the Brewfile from the SAME
 # package data before_10 uses, then `brew bundle cleanup --force` removes every
 # installed formula/cask/tap absent from it (tmux/sesh among them) -- the exact
@@ -76,8 +87,12 @@ cask {{ . | quote }}
 mas {{ .name | quote }}, id: {{ .id }}
 {{ end -}}
 EOF
-if "$brew_bin" bundle cleanup --force --file="$brewfile"; then
-  printf 'herdr verified as a multiplexer; removed tmux/sesh via brew bundle cleanup (migration complete).\n'
+if brew_bundle_cleanup_guarded "$brewfile"; then
+  if [[ $BREW_CLEANUP_OUTCOME == refused ]]; then
+    printf 'WARNING: herdr verified but the forced cleanup was refused by the bulk-removal guard (the rendered manifest would remove more than the safety threshold); tmux/sesh may still be installed. Re-run with HOMEBREW_BUNDLE_ALLOW_BULK_CLEANUP=1 once the manifest is complete.\n' >&2
+  else
+    printf 'herdr verified as a multiplexer; removed tmux/sesh via brew bundle cleanup (migration complete).\n'
+  fi
 else
   printf 'WARNING: herdr verified but brew bundle cleanup failed; tmux/sesh may still be installed. Re-run chezmoi apply to retry.\n' >&2
 fi

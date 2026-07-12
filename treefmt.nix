@@ -155,8 +155,8 @@ in
   # gitignored paths).
   settings.excludes = [
     ".direnv/**"
-    # Band-aid: droppable once the managed post-commit dispatcher is applied
-    # live — .githooks/no-graphify then stops graphify writing here at all.
+    # Generated knowledge-graph artifacts; the committed graph.json is
+    # machine-written and must never be reformatted.
     "graphify-out/**"
     ".superpowers/**"
     ".worktrees/**"
