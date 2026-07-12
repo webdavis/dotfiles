@@ -51,7 +51,7 @@ grep -q "MSECRET" "$tmp/curl-stdin.log" || {
   exit 1
 }
 # de-duped body: the summary is the prominent message (branch-prefixed), NOT behind a redundant
-# "state — project" header that the title already carries (wastes the phone/banner preview line).
+# "state / project" header that the title already carries (wastes the phone/banner preview line).
 grep -qF '(main) all green' "$tmp/curl-stdin.log" || {
   echo "relay: FAIL -- de-duped summary is not the message body" >&2
   exit 1
@@ -235,6 +235,12 @@ chmod +x "$tmp/curl"
 HCAP_BODY="$tmp/hbody" HCAP_SIG="$tmp/hsig" PATH="$tmp:$PATH" RELAY_AUTH_FILE="$tmp/auth.json" \
   RELAY_HERMES_URL="http://hermes.test/relay" RELAY_MOSHI_URL="http://moshi.test/hook" \
   bash "$relay" --agent claude --state "done" --project x >/dev/null 2>&1
+# The hermes curl is a backgrounded grandchild (relay exits before it lands), so `wait` cannot see it;
+# poll up to ~5s for the captured body/sig, matching the neighboring sections, before asserting.
+for ((i = 0; i < 100; i++)); do
+  [[ -s "$tmp/hbody" && -s "$tmp/hsig" ]] && break
+  sleep 0.05
+done
 wait 2>/dev/null
 expected_sig="$(python3 -c 'import hmac, hashlib, sys
 sys.stdout.write(hmac.new(b"HSECRET", open(sys.argv[1], "rb").read(), hashlib.sha256).hexdigest())' "$tmp/hbody" 2>/dev/null)"
