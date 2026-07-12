@@ -117,18 +117,25 @@ npm_installed_flag="$NPM_FLAG"
 out_file="$work/stdout"
 err_file="$work/stderr"
 
-# launchctl: records argv; `print` consults LOADED_FILE; a successful `bootout`
-# drops the label (stateful, so a later print reports absent). FAIL_BOOTOUT
-# names a label whose bootout fails and leaves it loaded.
+# launchctl: records argv; `print` is TRI-STATE -- it exits 0 for a loaded label
+# (in LOADED_FILE), 113 for a confirmed-absent one (the known not-found status),
+# and 112 (an operational error, e.g. an invalid GUI domain) for any label named
+# in FAIL_PRINT. A successful `bootout` drops the label (stateful, so a later
+# print reports 113). FAIL_BOOTOUT names a label whose bootout fails and leaves
+# it loaded.
 # shellcheck disable=SC2016  # stub body is literal; $vars resolve when it runs
 launchctl_stub='#!/usr/bin/env bash
 printf "%s\n" "$*" >>"$LAUNCHCTL_LOG"
 if [[ "$1" == "print" ]]; then
   target="$2"
-  while IFS= read -r label; do
-    [[ -n "$label" && "$target" == *"$label" ]] && exit 0
+  label="${target##*/}"
+  if [[ -n "${FAIL_PRINT:-}" && "$label" == "$FAIL_PRINT" ]]; then
+    exit 112
+  fi
+  while IFS= read -r loaded; do
+    [[ -n "$loaded" && "$target" == *"$loaded" ]] && exit 0
   done <"$LOADED_FILE"
-  exit 1
+  exit 113
 fi
 if [[ "$1" == "bootout" ]]; then
   target="$2"
@@ -142,13 +149,25 @@ if [[ "$1" == "bootout" ]]; then
 fi
 exit 0'
 
-# npm: records argv; `ls` consults NPM_FLAG; a successful `uninstall` clears it
-# (stateful). FAIL_NPM_UNINSTALL makes uninstall fail with the flag intact.
+# npm: records argv; `ls -g openclaw --json` emits the npm --json tree so the
+# script parses the verdict from it (not the exit code): a .dependencies.openclaw
+# entry when NPM_FLAG exists (installed), an entry-less object otherwise
+# (confirmed absent). NPM_LS_BROKEN makes `ls` emit non-JSON on stderr and exit
+# non-zero (could-not-determine -> unknown). A successful `uninstall` clears the
+# flag (stateful); FAIL_NPM_UNINSTALL makes uninstall fail with the flag intact.
 # shellcheck disable=SC2016  # stub body is literal; $vars resolve when it runs
 npm_stub='#!/usr/bin/env bash
 printf "%s\n" "$*" >>"$NPM_LOG"
 if [[ "$1" == "ls" ]]; then
-  [[ -e "$NPM_FLAG" ]] && exit 0
+  if [[ -n "${NPM_LS_BROKEN:-}" ]]; then
+    printf "npm error: registry unreachable\n" >&2
+    exit 1
+  fi
+  if [[ -e "$NPM_FLAG" ]]; then
+    printf "{\"name\":\"lib\",\"dependencies\":{\"openclaw\":{\"version\":\"1.0.0\"}}}\n"
+    exit 0
+  fi
+  printf "{\"name\":\"lib\"}\n"
   exit 1
 fi
 if [[ "$1" == "uninstall" ]]; then
@@ -280,6 +299,16 @@ assert_warned() {
   fi
 }
 
+# assert_no_npm_uninstall <case> : no `npm uninstall` was attempted (the package
+# must not be pulled out from under a still-loaded openclaw job).
+assert_no_npm_uninstall() {
+  if grep -q '^uninstall ' "$npm_log"; then
+    report bad "$1: npm uninstall attempted though the launchd services are not fully retired"
+  else
+    report ok "$1: no npm uninstall while services are not fully retired"
+  fi
+}
+
 marker_of() { printf '%s/.local/state/openclaw/retired' "$1"; }
 assert_marker() {
   if [[ -f "$(marker_of "$2")" ]]; then
@@ -322,13 +351,18 @@ touch "$npm_installed_flag"
 
 run_script "$hA"
 assert_rc0 caseA
+# Per loaded label: initial print, bootout, re-probe print (confirms absence
+# before the plist goes); then the sweep re-probes each once more.
 assert_log_exact caseA "$launchctl_log" launchctl \
   "print gui/$uid/ai.openclaw.gateway" \
   "bootout gui/$uid/ai.openclaw.gateway" \
+  "print gui/$uid/ai.openclaw.gateway" \
   "print gui/$uid/ai.openclaw.node" \
   "bootout gui/$uid/ai.openclaw.node" \
+  "print gui/$uid/ai.openclaw.node" \
   "print gui/$uid/ai.openclaw.rescue" \
   "bootout gui/$uid/ai.openclaw.rescue" \
+  "print gui/$uid/ai.openclaw.rescue" \
   "print gui/$uid/ai.openclaw.gateway" \
   "print gui/$uid/ai.openclaw.node" \
   "print gui/$uid/ai.openclaw.rescue"
@@ -337,9 +371,9 @@ assert_log_exact caseA "$rm_log" rm \
   "-f $hA/Library/LaunchAgents/ai.openclaw.node.plist" \
   "-f $hA/Library/LaunchAgents/ai.openclaw.rescue.plist"
 assert_log_exact caseA "$npm_log" npm \
-  "ls -g openclaw" \
+  "ls -g openclaw --json" \
   "uninstall -g openclaw" \
-  "ls -g openclaw"
+  "ls -g openclaw --json"
 for label in "${labels[@]}"; do
   assert_absent caseA "$hA/Library/LaunchAgents/$label.plist" "$label.plist"
   assert_logged caseA "booted out gui/$uid/$label"
@@ -374,7 +408,7 @@ assert_log_exact caseC "$launchctl_log" launchctl \
   "print gui/$uid/ai.openclaw.node" \
   "print gui/$uid/ai.openclaw.rescue"
 assert_empty_log caseC "$rm_log" rm
-assert_log_exact caseC "$npm_log" npm "ls -g openclaw" "ls -g openclaw"
+assert_log_exact caseC "$npm_log" npm "ls -g openclaw --json" "ls -g openclaw --json"
 assert_marker caseC "$hC"
 
 # ── Case D: plist-only (not loaded) ─────────────────────────────────────────
@@ -413,6 +447,12 @@ assert_no_marker caseE "$hE"
 assert_log_exact caseE "$rm_log" rm \
   "-f $hE/Library/LaunchAgents/ai.openclaw.node.plist" \
   "-f $hE/Library/LaunchAgents/ai.openclaw.rescue.plist"
+# B-F5 (F2): the gateway is STILL loaded, so the npm package must NOT be
+# uninstalled -- doing so would pull dist/index.js out from under the running
+# KeepAlive job. The uninstall is gated on EVERY label absent AND every plist
+# gone; here it must be deferred and the package left installed.
+assert_no_npm_uninstall caseE
+assert_present caseE "$npm_installed_flag" "the openclaw npm package (a still-loaded job forbids uninstall)"
 
 # ── Case F: plist removal fails -> no marker, others processed ───────────────
 hF="$work/homeF"
@@ -432,6 +472,10 @@ assert_log_exact caseF "$rm_log" rm \
   "-f $hF/Library/LaunchAgents/ai.openclaw.gateway.plist" \
   "-f $hF/Library/LaunchAgents/ai.openclaw.node.plist" \
   "-f $hF/Library/LaunchAgents/ai.openclaw.rescue.plist"
+# B-F5 (F2): the gateway plist survived, so retirement is incomplete -- the npm
+# uninstall must be deferred and the package left installed.
+assert_no_npm_uninstall caseF
+assert_present caseF "$npm_installed_flag" "the openclaw npm package (an un-removed plist forbids uninstall)"
 
 # ── Case G: npm uninstall fails -> no marker, labels processed ───────────────
 hG="$work/homeG"
@@ -447,7 +491,7 @@ for label in "${labels[@]}"; do
   assert_absent caseG "$hG/Library/LaunchAgents/$label.plist" "$label.plist (labels processed)"
 done
 assert_no_marker caseG "$hG"
-assert_log_exact caseG "$npm_log" npm "ls -g openclaw" "uninstall -g openclaw" "ls -g openclaw"
+assert_log_exact caseG "$npm_log" npm "ls -g openclaw --json" "uninstall -g openclaw" "ls -g openclaw --json"
 
 # ── Case H: transient failure then retry converges (re-run E's home) ────────
 # E left the gateway loaded (bootout injected to fail) and no marker. A second
@@ -456,6 +500,114 @@ run_script "$hE"
 assert_rc0 caseH
 assert_absent caseH "$hE/Library/LaunchAgents/ai.openclaw.gateway.plist" "gateway.plist on retry"
 assert_marker caseH "$hE"
+
+# ── Case I: operational probe error (112, not 113) -> plist KEPT, no marker ──
+# The core B-F7 defect: a non-113 launchctl-print error (112 = invalid GUI
+# domain) must NOT be misread as "unloaded". The label's state is unknown, so
+# the script must NOT bootout it and must NOT delete its plist, and the sweep
+# leaves the marker unwritten.
+hI="$work/homeI"
+mkdir -p "$hI/Library/LaunchAgents"
+for label in "${labels[@]}"; do
+  printf '<plist/>\n' >"$hI/Library/LaunchAgents/$label.plist"
+done
+seed_loaded
+/bin/rm -f "$npm_installed_flag"
+run_script "$hI" FAIL_PRINT=ai.openclaw.gateway
+assert_rc0 caseI
+if grep -q "bootout gui/$uid/ai.openclaw.gateway" "$launchctl_log"; then
+  report bad "caseI: booted out a label whose load state is unknown (112 probe error)"
+else
+  report ok "caseI: no bootout for an operational-error (112) probe"
+fi
+assert_present caseI "$hI/Library/LaunchAgents/ai.openclaw.gateway.plist" "the unknown-state gateway plist"
+assert_warned caseI "could not determine the load state of gui/$uid/ai.openclaw.gateway"
+assert_no_marker caseI "$hI"
+# node/rescue were confirmed absent (113) and had their plists removed.
+assert_absent caseI "$hI/Library/LaunchAgents/ai.openclaw.node.plist" "node.plist (confirmed absent)"
+assert_absent caseI "$hI/Library/LaunchAgents/ai.openclaw.rescue.plist" "rescue.plist (confirmed absent)"
+
+# ── Case J: npm probe cannot determine -> no uninstall, no marker ────────────
+# `npm ls` failing indeterminately (registry unreachable) must be distinguished
+# from a confirmed absence: the script must NOT treat it as retired. No
+# uninstall is attempted, a warning fires, and the marker stays unwritten even
+# though every launchd label is clean.
+hJ="$work/homeJ"
+mkdir -p "$hJ/Library/LaunchAgents"
+seed_loaded
+touch "$npm_installed_flag"
+run_script "$hJ" NPM_LS_BROKEN=1
+assert_rc0 caseJ
+if grep -q '^uninstall ' "$npm_log"; then
+  report bad "caseJ: attempted an uninstall though the npm probe could not determine installation"
+else
+  report ok "caseJ: no uninstall on an indeterminate npm probe"
+fi
+assert_warned caseJ "could not determine whether the global npm package openclaw is installed"
+assert_no_marker caseJ "$hJ"
+/bin/rm -f "$npm_installed_flag"
+
+# ── Case K (F2): an unknown-state label forbids the npm uninstall ────────────
+# 112 (operational probe error) leaves the gateway's load state unknown, so the
+# services are NOT fully retired. The npm uninstall is gated on EVERY label
+# confirmed absent AND every plist gone, so it must be deferred here and the
+# package left installed even though the other two labels are clean.
+hK="$work/homeK"
+mkdir -p "$hK/Library/LaunchAgents"
+seed_loaded
+touch "$npm_installed_flag"
+run_script "$hK" FAIL_PRINT=ai.openclaw.gateway
+assert_rc0 caseK
+assert_no_npm_uninstall caseK
+assert_present caseK "$npm_installed_flag" "the openclaw npm package (an unknown-state label forbids uninstall)"
+assert_no_marker caseK "$hK"
+/bin/rm -f "$npm_installed_flag"
+
+# ── Case L (F3): a missing npm binary is "unknown", never "absent" ───────────
+# A system-only PATH (an automation env) can hide Homebrew's npm. Treating a
+# missing npm as confirmed-absent would write the PERMANENT quiescence marker
+# while the global package silently survives forever. Missing npm is
+# indeterminate: the marker is withheld and the next apply retries. Runs on an
+# ISOLATED PATH that carries the launchctl/rm stubs but no npm at all.
+nonpm_dir="$work/stubs-nonpm"
+mkdir -p "$nonpm_dir"
+ln -s "$stub_dir/launchctl" "$nonpm_dir/launchctl"
+ln -s "$stub_dir/rm" "$nonpm_dir/rm"
+L_PATH="$nonpm_dir:/usr/bin:/bin"
+if PATH="$L_PATH" command -v npm >/dev/null 2>&1; then
+  report ok "caseL: SKIPPED (npm leaks into the isolated PATH; cannot exercise a missing npm)"
+else
+  hL="$work/homeL"
+  mkdir -p "$hL/Library/LaunchAgents"
+  seed_loaded
+  : >"$launchctl_log"
+  : >"$npm_log"
+  : >"$rm_log"
+  RCL=0
+  HOME="$hL" PATH="$L_PATH" bash "$rendered" >"$out_file" 2>"$err_file" || RCL=$?
+  if [[ $RCL -eq 0 ]]; then
+    report ok "caseL: exits 0"
+  else
+    report bad "caseL: exits 0 (rc=$RCL, err: $(cat "$err_file"))"
+  fi
+  assert_no_marker caseL "$hL"
+fi
+
+# ── Case M (F4): an unwritable state dir must not abort the apply ────────────
+# A full convergence (nothing loaded, no plists, npm confirmed absent) reaches
+# the marker write, but `mkdir -p`/`: >marker` are under `set -euo pipefail`; an
+# unwritable state dir (a root-owned leftover) would abort the entire apply. The
+# guarded write must warn, write no marker, and still exit 0. The state dir path
+# is pre-created as a FILE so mkdir -p and the marker write both fail.
+hM="$work/homeM"
+mkdir -p "$hM/.local/state" "$hM/Library/LaunchAgents"
+: >"$hM/.local/state/openclaw"
+seed_loaded
+/bin/rm -f "$npm_installed_flag"
+run_script "$hM"
+assert_rc0 caseM
+assert_no_marker caseM "$hM"
+assert_warned caseM "could not be written"
 
 if [[ $failures -gt 0 ]]; then
   printf 'openclaw-services-retirement: %d assertion(s) FAILED\n' "$failures" >&2

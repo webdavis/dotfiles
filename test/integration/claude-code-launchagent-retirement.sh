@@ -1,28 +1,38 @@
 #!/usr/bin/env bash
-# claude-code-launchagent-retirement.sh: the one-time retirement chezmoiscript
-# (run_once_after_59) must unload the old com.claude.code LaunchAgent and
-# delete a leftover deployed plist, be a silent no-op when both are already
-# gone, be idempotent on a second run, and NEVER abort the apply. Removing the
-# plist SOURCE (done in S4) does NOT unload an already-running LaunchAgent;
-# this is the live-side complement.
+# claude-code-launchagent-retirement.sh: the com.claude.code retirement
+# chezmoiscript (run_after_56) must convergently retire the old tmux-coupled
+# supervisor. Removing the plist SOURCE (done in S4) does NOT unload an
+# already-running LaunchAgent; this is the live-side complement.
 #
-# Honesty contract (run_once never retries, so failures must be loud):
-#   - the retired/success message is printed ONLY when a re-probe confirms the
-#     service is actually gone after bootout
-#   - a bootout that leaves the service loaded prints a LOUD warning naming
-#     the exact manual command to run, and still exits 0
-#   - failing `id`, `launchctl print`, and `rm` paths never abort the apply
+# It is a run_after, NOT a run_once: run_once records success permanently even
+# when a probe or action transiently failed. Instead it gates on a quiescence
+# marker at ~/.local/state/claude-code-launchagent/retired. Steady state is one
+# file check; the marker is written ONLY after a re-probe confirms the label
+# absent (launchctl print not-found = 113) AND the leftover plist is gone.
+#
+# Convergence + honesty contract (the marker never lies):
+#   - the marker + "retirement complete" print ONLY when the label is confirmed
+#     absent (113) and the plist is gone
+#   - a FAILED bootout leaves the service loaded: the plist is RETAINED and the
+#     marker is NOT written (retryable next apply)
+#   - the load probe is TRI-STATE (0 = loaded, 113 = confirmed absent, anything
+#     else = operational error); an operational error on the first probe makes
+#     no change and no bootout, and on the re-probe holds the plist + marker --
+#     a nonzero-but-not-113 is never misread as "not loaded"
+#   - the plist is removed ONLY when the label is confirmed absent (never while
+#     loaded or unknown -- that could orphan a running job)
+#   - failing id / launchctl / rm never abort the apply (always exit 0)
 #   - the bootout targets the EXACT domain target gui/<uid>/com.claude.code
-#     (the stub records full argv, so a wrong domain or a similar label fails)
 #
 # It renders the REAL template and runs it against a stub `launchctl` on PATH
-# that models the GUI domain with a state file: `print` reports loaded while
-# the state file exists, `bootout` records its argv and clears the state.
-# Failure modes are toggled via env vars. No live launchd state is touched.
+# that models the GUI domain with a state file: `print` reports loaded while the
+# state file exists (else the not-found status 113), `bootout` records its argv
+# and clears the state. Failure modes are toggled via env vars. No live launchd
+# state is touched.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-SCRIPT="$REPO_ROOT/.chezmoiscripts/run_once_after_59-retire-claude-code-launchagent.sh.tmpl"
+SCRIPT="$REPO_ROOT/.chezmoiscripts/run_after_56-retire-claude-code-launchagent.sh.tmpl"
 
 fail() {
   printf 'FAIL: %s\n' "$*" >&2
@@ -86,6 +96,8 @@ STUB
   chmod +x "$dir/launchctl"
 }
 
+marker_of() { printf '%s/.local/state/claude-code-launchagent/retired' "$1"; }
+
 # run_case <name> <loaded?> <plist?> [failure-mode] [print-seq]
 #   failure-mode: bootout-fails | rm-fails | id-fails | none
 #   print-seq: optional space-separated `launchctl print` exit codes, one
@@ -100,6 +112,7 @@ run_case() {
   ERR_FILE="$work/$name/stderr"
   PRINT_SEQ_FILE="$work/$name/print-seq"
   PLIST="$CASE_HOME/Library/LaunchAgents/com.claude.code.plist"
+  MARKER="$(marker_of "$CASE_HOME")"
   mkdir -p "$bin" "$CASE_HOME/Library/LaunchAgents"
   make_launchctl_stub "$bin"
   : >"$RECORD"
@@ -118,6 +131,13 @@ run_case() {
       printf '#!/bin/bash\nexit 1\n' >"$bin/id"
       chmod +x "$bin/id"
       ;;
+    state-unwritable)
+      # Pre-create the marker's state dir path as a FILE, so `mkdir -p` (and the
+      # marker write) fail even after a full convergence -- an unwritable state
+      # dir (e.g. a root-owned leftover) must not abort the whole apply.
+      mkdir -p "$CASE_HOME/.local/state"
+      : >"$CASE_HOME/.local/state/claude-code-launchagent"
+      ;;
     none) ;;
     *) fail "unknown failure mode: $failure" ;;
   esac
@@ -133,101 +153,125 @@ run_case() {
 
 bootout_count() { grep -c '^bootout ' "$RECORD" || true; }
 
-# Loaded + plist present: unloaded (exact target), re-probed, plist removed.
+# Loaded + plist present: unloaded (exact target), re-probed absent, plist
+# removed, marker written.
 run_case loaded-plist loaded plist
 [[ $RC -eq 0 ]] || fail "loaded-plist: expected exit 0, got $RC ($(cat "$ERR_FILE"))"
 grep -qx "bootout $TARGET" "$RECORD" ||
   fail "loaded-plist: bootout argv is not exactly 'bootout $TARGET' ($(cat "$RECORD"))"
 grep -qx "print $TARGET" "$RECORD" ||
   fail "loaded-plist: the load probe argv is not exactly 'print $TARGET' ($(cat "$RECORD"))"
-grep -q 'retired' "$OUT_FILE" ||
-  fail "loaded-plist: no retired message after a confirmed bootout ($(cat "$OUT_FILE"))"
+grep -q 'retirement complete' "$OUT_FILE" ||
+  fail "loaded-plist: no completion message after a confirmed bootout ($(cat "$OUT_FILE"))"
 [[ ! -e $PLIST ]] || fail "loaded-plist: leftover plist was not removed"
+[[ -f $MARKER ]] || fail "loaded-plist: quiescence marker not written after full convergence"
 
-# Not loaded + no plist: silent no-op, no bootout.
+# Not loaded + no plist: no bootout, marker written (convergent no-op).
 run_case clean not-loaded no-plist
 [[ $RC -eq 0 ]] || fail "clean: expected exit 0, got $RC"
 [[ "$(bootout_count)" -eq 0 ]] || fail "clean: bootout called though the service is not loaded"
-[[ ! -s $OUT_FILE ]] || fail "clean: expected a silent no-op, got output ($(cat "$OUT_FILE"))"
+[[ -f $MARKER ]] || fail "clean: marker not written on an already-clean host"
 
-# Loaded + no plist: unloaded, exit 0.
+# Loaded + no plist: unloaded, re-probed absent, marker written.
 run_case loaded-only loaded no-plist
 [[ $RC -eq 0 ]] || fail "loaded-only: expected exit 0, got $RC"
 [[ "$(bootout_count)" -eq 1 ]] || fail "loaded-only: bootout not called exactly once for a loaded service"
+[[ -f $MARKER ]] || fail "loaded-only: marker not written after a confirmed unload"
 
-# Not loaded + leftover plist: no bootout, plist still removed.
+# Not loaded + leftover plist: no bootout, plist removed, marker written.
 run_case plist-only not-loaded plist
 [[ $RC -eq 0 ]] || fail "plist-only: expected exit 0, got $RC"
 [[ "$(bootout_count)" -eq 0 ]] || fail "plist-only: bootout called though the service is not loaded"
 [[ ! -e $PLIST ]] || fail "plist-only: leftover plist was not removed"
+[[ -f $MARKER ]] || fail "plist-only: marker not written after removing the orphan plist"
 
-# Bootout FAILS and the service stays loaded: run_once never retries, so the
-# script must NOT claim success; it must print a loud warning naming the exact
-# manual command, and still exit 0 (never abort the apply).
+# Bootout FAILS and the service stays loaded: the plist is RETAINED (removing it
+# would orphan the running job) and the marker is NOT written (retryable next
+# apply); a loud warning names the exact manual command, and still exit 0.
 run_case bootout-fails loaded plist bootout-fails
 [[ $RC -eq 0 ]] || fail "bootout-fails: a failed bootout aborted the apply (rc=$RC; stderr: $(cat "$ERR_FILE"))"
-grep -q 'retired' "$OUT_FILE" &&
-  fail "bootout-fails: retired message printed though the service is STILL loaded ($(cat "$OUT_FILE"))"
+grep -q 'retirement complete' "$OUT_FILE" &&
+  fail "bootout-fails: completion message printed though the service is STILL loaded ($(cat "$OUT_FILE"))"
+[[ -e $PLIST ]] ||
+  fail "bootout-fails: the plist was removed though the service is STILL loaded (orphans the running job)"
+[[ ! -e $MARKER ]] ||
+  fail "bootout-fails: marker written though the service is STILL loaded (a run_once-style lie)"
 grep -q "launchctl bootout $TARGET" "$ERR_FILE" ||
   fail "bootout-fails: the warning does not name the exact manual command 'launchctl bootout $TARGET' (stderr: $(cat "$ERR_FILE"))"
 
 # TRI-STATE, first probe is an OPERATIONAL ERROR (not 0=loaded, not
-# 113=confirmed-absent): the state is unknown, so the script must NOT bootout
-# and must NOT claim retirement; it warns and exits 0. The argv trace is
-# exactly one `print` (no bootout, no second probe).
-run_case first-probe-error not-loaded no-plist none "2"
+# 113=confirmed-absent): the state is unknown, so the script must NOT bootout,
+# must NOT remove the plist, and must NOT write the marker; it warns and exits 0.
+# The argv trace is exactly one `print` (no bootout, no re-probe).
+run_case first-probe-error not-loaded plist none "112"
 [[ $RC -eq 0 ]] || fail "first-probe-error: an operational probe error aborted the apply (rc=$RC)"
 [[ "$(bootout_count)" -eq 0 ]] ||
   fail "first-probe-error: bootout attempted though the load state is unknown ($(cat "$RECORD"))"
-grep -q 'retired' "$OUT_FILE" &&
-  fail "first-probe-error: retired message printed though the load state was never determined ($(cat "$OUT_FILE"))"
-[[ -s $ERR_FILE ]] ||
-  fail "first-probe-error: no warning printed about the unexpected probe status"
-[[ "$(printf '%s\n' "$(grep -c '^print ' "$RECORD")")" -eq 1 ]] ||
+[[ -e $PLIST ]] || fail "first-probe-error: plist removed though the load state was never determined"
+[[ ! -e $MARKER ]] || fail "first-probe-error: marker written though the load state was never determined"
+[[ -s $ERR_FILE ]] || fail "first-probe-error: no warning printed about the unexpected probe status"
+[[ "$(grep -c '^print ' "$RECORD")" -eq 1 ]] ||
   fail "first-probe-error: expected exactly one print probe and no re-probe ($(cat "$RECORD"))"
 
-# TRI-STATE, second probe is an OPERATIONAL ERROR after a bootout: first probe
-# 0 (loaded) -> bootout -> re-probe returns an unexpected status (not
+# TRI-STATE, second probe is an OPERATIONAL ERROR after a bootout: first probe 0
+# (loaded) -> bootout -> re-probe returns an unexpected status (not
 # 113=confirmed-absent, not 0=still-loaded). Absence is NOT confirmed, so the
-# script must NOT claim retirement; it warns and exits 0. The argv trace is
-# print, bootout, print (in that order).
-run_case second-probe-error loaded no-plist none "0 2"
+# plist is retained and the marker is not written; it warns and exits 0. The
+# argv trace is print, bootout, print.
+run_case second-probe-error loaded plist none "0 112"
 [[ $RC -eq 0 ]] || fail "second-probe-error: an operational re-probe error aborted the apply (rc=$RC)"
 [[ "$(bootout_count)" -eq 1 ]] ||
   fail "second-probe-error: bootout was not attempted exactly once ($(cat "$RECORD"))"
-grep -q 'retired' "$OUT_FILE" &&
-  fail "second-probe-error: retired message printed though the re-probe never confirmed absence ($(cat "$OUT_FILE"))"
-[[ -s $ERR_FILE ]] ||
-  fail "second-probe-error: no warning printed about the unconfirmed unload"
+[[ -e $PLIST ]] || fail "second-probe-error: plist removed though the re-probe never confirmed absence"
+[[ ! -e $MARKER ]] || fail "second-probe-error: marker written though the re-probe never confirmed absence"
 printf 'print %s\nbootout %s\nprint %s\n' "$TARGET" "$TARGET" "$TARGET" | cmp -s - "$RECORD" ||
   fail "second-probe-error: argv trace is not exactly print/bootout/print ($(cat "$RECORD"))"
 
-# `rm` FAILS (read-only LaunchAgents dir): warn and exit 0, never abort.
+# `rm` FAILS (read-only LaunchAgents dir): the plist survives, so convergence is
+# incomplete -- warn, no marker, exit 0, never abort.
 run_case rm-fails not-loaded plist rm-fails
 [[ $RC -eq 0 ]] || fail "rm-fails: a failed plist removal aborted the apply (rc=$RC; stderr: $(cat "$ERR_FILE"))"
+[[ ! -e $MARKER ]] || fail "rm-fails: marker written though the plist could not be removed"
 [[ -s $ERR_FILE ]] || fail "rm-fails: no warning printed about the unremovable plist"
 
-# `id -u` FAILS: the launchctl phase is skipped with a warning (no malformed
-# domain target), the plist is still removed, exit 0.
+# `id -u` FAILS: cannot address the gui domain -> no bootout, the plist is
+# retained (state unknown), no marker, warn, exit 0.
 run_case id-fails loaded plist id-fails
 [[ $RC -eq 0 ]] || fail "id-fails: a failing id aborted the apply (rc=$RC; stderr: $(cat "$ERR_FILE"))"
 [[ "$(bootout_count)" -eq 0 ]] || fail "id-fails: bootout attempted without a valid uid ($(cat "$RECORD"))"
+[[ -e $PLIST ]] || fail "id-fails: plist removed though the uid (and thus the load state) is unknown"
+[[ ! -e $MARKER ]] || fail "id-fails: marker written though the load state is unknown"
 [[ -s $ERR_FILE ]] || fail "id-fails: no warning printed about the failed uid lookup"
-[[ ! -e $PLIST ]] || fail "id-fails: leftover plist was not removed"
 
-# Idempotence: a loaded service, run twice against the same state. The first
-# run boots it out; the second sees it already gone and must NOT bootout again
-# (still exit 0, still silent).
+# State dir UNWRITABLE at the marker write (F4): a full convergence (bootout +
+# plist removed) reaches the marker write, but `mkdir -p`/`: >marker` are under
+# `set -euo pipefail` -- an unwritable state dir (a root-owned leftover) would
+# abort the ENTIRE chezmoi apply. The guarded write must warn, NOT claim
+# completion, write no marker, and still exit 0 so the next apply retries.
+run_case state-unwritable loaded plist state-unwritable
+[[ $RC -eq 0 ]] ||
+  fail "state-unwritable: an unwritable state dir aborted the apply (rc=$RC; stderr: $(cat "$ERR_FILE"))"
+[[ ! -e $MARKER ]] || fail "state-unwritable: marker written though the state dir is unwritable"
+grep -q 'retirement complete' "$OUT_FILE" &&
+  fail "state-unwritable: claimed completion though the marker could not be written ($(cat "$OUT_FILE"))"
+grep -q 'could not be written' "$ERR_FILE" ||
+  fail "state-unwritable: no warning that the marker could not be written (stderr: $(cat "$ERR_FILE"))"
+
+# Idempotence via the marker: a loaded service, run twice. The first run boots it
+# out and writes the marker; the second sees the marker and short-circuits with
+# ZERO launchctl invocations.
 run_case idempotent loaded plist
 [[ $RC -eq 0 ]] || fail "idempotent(1): expected exit 0, got $RC"
+[[ -f $MARKER ]] || fail "idempotent(1): marker not written on the first converging run"
 RC=0
+: >"$RECORD"
 HOME="$CASE_HOME" PATH="$work/idempotent/bin:$PATH" \
   LAUNCHCTL_STATE="$STATE" LAUNCHCTL_RECORD="$RECORD" \
   LAUNCHCTL_BOOTOUT_FAIL=0 LAUNCHCTL_PRINT_SEQ_FILE="" \
   bash "$rendered" >"$OUT_FILE" 2>"$ERR_FILE" || RC=$?
 [[ $RC -eq 0 ]] || fail "idempotent(2): second run must still exit 0, got $RC"
-[[ "$(bootout_count)" -eq 1 ]] ||
-  fail "idempotent(2): bootout ran again on a second pass ($(cat "$RECORD"))"
+[[ ! -s $RECORD ]] ||
+  fail "idempotent(2): the marker fast path did not short-circuit (launchctl was invoked: $(cat "$RECORD"))"
 [[ ! -s $OUT_FILE ]] || fail "idempotent(2): second run should be silent ($(cat "$OUT_FILE"))"
 
-printf 'PASS: the retirement script boots out exactly gui/<uid>/com.claude.code, treats the load probe as tri-state (0=loaded, 113=confirmed-absent, else=operational-error), claims retirement ONLY after a re-probe confirms absence (113), warns without any success claim on a still-loaded or operational-error re-probe, warns and makes no change on an operational-error first probe, survives id/rm/bootout failures with exit 0, removes the leftover plist, and is idempotent\n'
+printf 'PASS: the convergent retirement script boots out exactly gui/<uid>/com.claude.code, treats the load probe as tri-state, removes the plist and writes the quiescence marker ONLY after a re-probe confirms absence (113), retains the plist and withholds the marker on a failed bootout / still-loaded / operational-error probe / unremovable plist / failed uid, survives id/rm/bootout failures with exit 0, and fast-paths on the marker\n'

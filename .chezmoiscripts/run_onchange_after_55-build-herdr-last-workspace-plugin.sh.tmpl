@@ -22,8 +22,31 @@ set -euo pipefail
 # herdr server (a failed query seeds nothing and exits 0) — so this call cannot
 # abort the apply. Only run it when the build above actually produced a binary
 # (the build partial exits 0 early when cargo is absent).
+#
+# The seed is BOUNDED by the same coreutils timeout the build partial resolves
+# for every herdr call ($herdr_timeout_bin, in scope from the includeTemplate
+# above): the plugin binary shells `herdr workspace list`, and it has NO timeout
+# of its own, so a wedged herdr socket (accepts the connection, never replies)
+# would otherwise hang the seed (and thus the whole apply) right here, past
+# after_58's bounded health check. Seed is BEST-EFFORT (it only warms the MRU
+# state), so a timeout (exit 124) or any other failure is a warn-and-continue,
+# never an apply abort. When no timeout binary is on PATH the seed cannot be
+# bounded safely, so it is skipped (best-effort) rather than risked unbounded.
+# (A Rust-side timeout on the plugin's own Command::output would be a deeper
+# future hardening; this shell bound is the minimal fix consistent with the
+# partial's herdr calls.)
 binary="$plugin_dir/target/release/last-workspace"
 if [[ -x $binary ]]; then
-  "$binary" seed || true
+  if [[ -n $herdr_timeout_bin ]]; then
+    seed_rc=0
+    "$herdr_timeout_bin" 10 "$binary" seed || seed_rc=$?
+    if [[ $seed_rc -eq 124 ]]; then
+      printf 'herdr-last-workspace seed timed out (herdr socket wedged?); MRU seed skipped (best-effort), apply continues.\n' >&2
+    elif [[ $seed_rc -ne 0 ]]; then
+      printf 'herdr-last-workspace seed exited %d; MRU seed skipped (best-effort), apply continues.\n' "$seed_rc" >&2
+    fi
+  else
+    printf 'no coreutils timeout binary (timeout/gtimeout absent); cannot bound the herdr-last-workspace seed safely, MRU seed skipped (best-effort), apply continues.\n' >&2
+  fi
 fi
 {{ end -}}

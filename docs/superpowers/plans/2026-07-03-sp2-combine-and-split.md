@@ -32,23 +32,28 @@ S7 fixes its four delivery-loss defects BEFORE merge (reverses the earlier "ship
 **(R3)** OpenClaw is removed — a Wave-3d cleanup PR owns the package, the AeroSpace F1 binding, and the
 docs, and the operator owns the Todoist cleanup.
 
-`main` (`1a6e718`) carries Phase A and S1–S5. The **Wave-3 stabilizations** (skills-stab, herdr-stab,
-render-coverage) are next — they precede S6 per the authoritative implementation order; S6 does not start
-until they merge. Merge SHAs and PR numbers below are verified against `git log origin/main --merges`.
+`main` (`ded84e2`) carries Phase A, S1–S5, all four **Wave-3 stabilizations** (skills-stab, herdr-stab,
+render-coverage, OpenClaw cleanup), and the **integration-fix branch A** (updater fixes). Wave-3 is
+MERGED TO MAIN, so S6 (the next feature slice) may now proceed. Merge SHAs and PR numbers below are
+verified against `git log origin/main --merges`. **Merged to main is not yet live:** dresden applies from
+`integration/modernization` until the D1 cutover, so the retirement/migration chezmoiscripts these PRs
+added (com.claude.code + OpenClaw retirement, the tmux→herdr teardown) have NOT run on dresden yet; the
+live OpenClaw gateway retry-loop and the old supervisor persist until that first interactive apply.
 
 | Item | State | PR | Merge commit | Remaining follow-up |
 | --- | --- | --- | --- | --- |
 | Phase A — integration reference | complete | DO-NOT-MERGE reference | — | closed at cutover Gate 5, not merged |
 | S1 — Docs | complete | #33 | `1ef7c29` | — |
-| S2 — Lint/test/CI | complete | #35 | `90c68c4` | rendered-template coverage regression → **render-coverage** PR |
-| S3 — Skills | complete | #36 | `5f21a81` | 3 High defects + the `35922d4` scope-split → **skills-stab** PR |
-| S4 — herdr | complete | #37 | `addc8d7` | 2 High + 2 Medium defects → **herdr-stab** PR |
+| S2 — Lint/test/CI | complete | #35 | `90c68c4` | rendered-template coverage regression → **render-coverage** PR (merged, below) |
+| S3 — Skills | complete | #36 | `5f21a81` | 3 High defects + the `35922d4` scope-split → **skills-stab** PR (merged, below) |
+| S4 — herdr | complete | #37 | `addc8d7` | 2 High + 2 Medium defects → **herdr-stab** PR (merged, below) |
 | S5 — Tailscale | complete | #38 | `1a6e718` | copied-daemon re-copy responsibility folds into S6; monitor moved to S9 |
-| Wave-3a skills-stab | **next** | — | — | audit PR #36 High×3 (defer-forever / fresh-install / additive-fan-out) + Low `35922d4` move |
-| Wave-3b herdr-stab | **next** | — | — | audit PR #37 High×2 (atomic migration / Cargo+registration) + Medium×2 (`Cargo.toml` hash / LaunchAgent unload); operative acceptance in the Wave-3b herdr-stab section |
-| Wave-3c render-coverage + docs | **next** | — | — | audit PR #35 Medium (4 template failures + coverage test) + PR #35 Low doc-staleness |
-| Wave-3d OpenClaw cleanup | in PR (before S12) | - | - | R3 delivered on the branch: repo removal (`openclaw` package + AeroSpace F1 binding + active config/doc refs) + a `run_after` retirement script (boots out the three `ai.openclaw.*` agents, deletes their plists, uninstalls the npm package, gated on a quiescence marker) + docs-truthfulness sweep. PENDING merge and a live interactive `chezmoi apply`; the run_after has not executed on any host yet, so the live gateway retry-loop persists until that apply. Operator owns Todoist |
-| S6 — Homebrew weekly-upgrade | queued (after Wave-3) | — | — | audit S6 gaps folded into the S6 section |
+| Wave-3a skills-stab | merged to main | #43 | `1c9e7f5` | audit PR #36 High×3 (defer-forever / fresh-install / additive-fan-out) + Low `35922d4` move (all shipped; pending live apply at D1) |
+| Wave-3b herdr-stab | merged to main | #41 | `823fac0` | audit PR #37 High×2 (atomic migration / Cargo+registration) + Medium×2 (`Cargo.toml` hash / LaunchAgent unload) (all shipped; pending live apply at D1) |
+| Wave-3c render-coverage + docs | merged to main | #42 | `1a9767c` | audit PR #35 Medium (4 template failures + coverage test) + PR #35 Low doc-staleness (shipped) |
+| Wave-3d OpenClaw cleanup | merged to main | #40 | `fbd40a5` | R3 delivered: repo removal (`openclaw` package + AeroSpace F1 binding + active config/doc refs) + the `run_after_61` retirement script (boots out the three `ai.openclaw.*` agents, deletes their plists, uninstalls the npm package, gated on a quiescence marker) + docs sweep. PENDING a live interactive `chezmoi apply` at D1; the run_after has NOT executed on dresden yet, so the live gateway retry-loop persists until then. Operator owns Todoist |
+| Branch A (updater integration-fix) | merged to main | #45 | `ded84e2` | post-Wave-3 updater/test integration fixes (the base for this fix/apply-sequence-and-docs work) |
+| S6 — Homebrew weekly-upgrade | next | — | — | audit S6 gaps folded into the S6 section |
 | S7 — Relay pipeline | not started | — | — | R2: four delivery-loss fixes before merge (see S7 section) |
 | S8 — Hermes age-encryption | not started | — | — | Linux-boundary + re-scope folded into the S8 section |
 | S9 — osquery three-tier | not started | — | — | S5 dependency (`2f430b3` monitor) + path/hunk matrix folded into S9 |
@@ -68,16 +73,16 @@ amendment** (a plan/roadmap edit). Nothing is unmapped.
 | # | Audit item | Owning home | Evidence / status |
 | --- | --- | --- | --- |
 | 1 | Keep Tailscale's copied daemon (correction) | SHIPPED S5 + roadmap edit | copied-daemon model on `main` (`9989812`); supersession note `38bffb6`; June spec/plan history corrected in the roadmap (this amendment) |
-| 2 | PR #35 Medium — rendered shell-template coverage regressed (4 failures + coverage test) | Wave-3 render-coverage; Phase E `fix/template-render-coverage` | not started |
-| 3 | PR #35 Low — active documentation stale (dependabot / haiku→sonnet / "Both hooks") | Wave-3 render-coverage + docs | not started; larger rewrite stays in S12 |
-| 4 | PR #36 High — updates can defer forever | Wave-3 skills-stab | not started |
-| 5 | PR #36 High — fresh-machine install not auto-started | Wave-3 skills-stab | not started |
-| 6 | PR #36 High — skill fan-out additive, not convergent | Wave-3 skills-stab | not started |
-| 7 | PR #36 Low — PR #38 carries an unrelated skills-test fix | Wave-3 skills-stab | `35922d4` lives on `wip/skills-test-hermetic`; move it into skills-stab |
-| 8 | PR #37 High — live migration not operationally atomic | Wave-3 herdr-stab | not started |
-| 9 | PR #37 High — missing Cargo / failed plugin registration treated as success | Wave-3 herdr-stab | not started |
-| 10 | PR #37 Medium — rebuild hashing omits `Cargo.toml` | Wave-3 herdr-stab | not started |
-| 11 | PR #37 Medium — removing old Claude LaunchAgent source does not unload it | Wave-3 herdr-stab | one-time idempotent retirement script |
+| 2 | PR #35 Medium — rendered shell-template coverage regressed (4 failures + coverage test) | Wave-3 render-coverage; Phase E `fix/template-render-coverage` | SHIPPED via render-coverage PR #42 (`1a9767c`) |
+| 3 | PR #35 Low — active documentation stale (dependabot / haiku→sonnet / "Both hooks") | Wave-3 render-coverage + docs | SHIPPED in render-coverage PR #42 (`1a9767c`); larger rewrite stays in S12 |
+| 4 | PR #36 High — updates can defer forever | Wave-3 skills-stab | SHIPPED via skills-stab PR #43 (`1c9e7f5`) |
+| 5 | PR #36 High — fresh-machine install not auto-started | Wave-3 skills-stab | SHIPPED via skills-stab PR #43 (`1c9e7f5`) |
+| 6 | PR #36 High — skill fan-out additive, not convergent | Wave-3 skills-stab | SHIPPED via skills-stab PR #43 (`1c9e7f5`) |
+| 7 | PR #36 Low — PR #38 carries an unrelated skills-test fix | Wave-3 skills-stab | SHIPPED in skills-stab PR #43 (`1c9e7f5`); `35922d4` folded in |
+| 8 | PR #37 High — live migration not operationally atomic | Wave-3 herdr-stab | SHIPPED via herdr-stab PR #41 (`823fac0`) |
+| 9 | PR #37 High — missing Cargo / failed plugin registration treated as success | Wave-3 herdr-stab | SHIPPED via herdr-stab PR #41 (`823fac0`) |
+| 10 | PR #37 Medium — rebuild hashing omits `Cargo.toml` | Wave-3 herdr-stab | SHIPPED via herdr-stab PR #41 (`823fac0`) |
+| 11 | PR #37 Medium — removing old Claude LaunchAgent source does not unload it | Wave-3 herdr-stab | SHIPPED via herdr-stab PR #41 (`823fac0`); the retirement is now the convergent `run_after_56` (fix/apply-sequence-and-docs), reordered before the tmux/sesh teardown |
 | 12 | PR #38 #1 — status classification incomplete | SHIPPED S5 | `81e7559` (classify on `.BackendState`) + `66a5871` (Starting/Stopped tests) + `9989812` |
 | 13 | PR #38 #2 — MagicDNS acceptance fails | SHIPPED S5 (R1) | root-caused registration layer `4830f44`; declarative `/etc/hosts` fallback `6560a59`/`c5614ae`/`f096ecb`/`c90a700`/`164548a` |
 | 14 | PR #38 #3 — record the superseded service decision | SHIPPED S5 + roadmap edit | `38bffb6`; June Tailscale spec/plan supersession in the roadmap (this amendment) |

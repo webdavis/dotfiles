@@ -45,6 +45,30 @@ cargo_bin="$HOME/.cargo/bin/cargo"
 # apply time) so the value the template reads is the value this script writes.
 retry_marker="$HOME/.cache/herdr-plugin-build/${plugin_id}.retry"
 
+# Every herdr call below goes through a bounded coreutils timeout, exactly as the
+# health-check partial (.chezmoitemplates/herdr-health-check.sh.tmpl) does: a
+# wedged herdr socket (accepts the connection, never replies) would otherwise
+# hang `plugin list` / `plugin link` forever. This partial's registration phase
+# runs on every apply through its includers (after_55/after_57) and BEFORE
+# after_58's bounded health check, so a wedged server would block the apply here.
+# Resolve `timeout`, then the macOS-Homebrew `gtimeout` (coreutils is a declared
+# formula). If neither is on PATH at run time, registration cannot be bounded
+# safely, so it is deferred as a retryable non-success rather than risking an
+# unbounded herdr call that could hang the apply forever.
+herdr_timeout_bin=""
+if command -v timeout >/dev/null 2>&1; then
+  herdr_timeout_bin="timeout"
+elif command -v gtimeout >/dev/null 2>&1; then
+  herdr_timeout_bin="gtimeout"
+fi
+# 10s matches the health-check partial: generous for a healthy local socket,
+# short enough that a wedged one fails fast. An expiry surfaces as exit code 124.
+herdr_cli=()
+if [[ -n $herdr_timeout_bin ]]; then
+  herdr_cli=("$herdr_timeout_bin" 10 herdr)
+fi
+herdr_timed_out=0
+
 # Bump the retry marker: leave the run_onchange trigger un-consumed so the next
 # apply retries. The stored value is a monotonic attempt count, so each retry
 # changes the rendered trigger (a boolean would stop re-firing after one retry).
@@ -61,10 +85,17 @@ bump_retry_marker() {
 # plugin_registered: 0 iff `herdr plugin list` confirms EXACTLY this plugin id is
 # registered. A herdr error envelope ({"error":{...}}) or an empty/absent plugins
 # array is NOT registered. The id is matched exactly (never a substring), so a
-# plugin whose id is a substring of another's cannot false-positive.
+# plugin whose id is a substring of another's cannot false-positive. The bounded
+# herdr call sets herdr_timed_out=1 when it expires (exit 124) so the caller can
+# short-circuit a wedged server as a retryable failure instead of hammering it.
 plugin_registered() {
-  local response
-  response="$(herdr plugin list --plugin "$plugin_id" --json 2>/dev/null)" || return 1
+  herdr_timed_out=0
+  local response rc
+  response="$("${herdr_cli[@]}" plugin list --plugin "$plugin_id" --json 2>/dev/null)" && rc=0 || rc=$?
+  if [[ $rc -ne 0 ]]; then
+    if [[ $rc -eq 124 ]]; then herdr_timed_out=1; fi
+    return 1
+  fi
   if printf '%s' "$response" | jq -e '.error' >/dev/null 2>&1; then
     return 1
   fi
@@ -81,11 +112,27 @@ plugin_registered() {
 # error ENVELOPE with exit 0, so its exit code is NOT trusted: the exact-id
 # re-verify via `plugin list` is the sole source of truth for "registered".
 register_plugin() {
+  # No coreutils timeout binary: herdr cannot be called safely, so defer as a
+  # retryable non-success rather than risk an unbounded call hanging the apply.
+  if [[ ${#herdr_cli[@]} -eq 0 ]]; then
+    printf 'no coreutils timeout binary (timeout/gtimeout absent); cannot bound herdr calls safely, %s registration deferred (trigger left retryable).\n' "$plugin_id" >&2
+    return 1
+  fi
   if plugin_registered; then
     return 0
   fi
-  local link_output link_error
-  link_output="$(herdr plugin link "$plugin_dir" 2>&1)" || true
+  # A timed-out list probe means the server is wedged: do NOT try to link (that
+  # would burn another bound); defer as retryable so the next apply retries.
+  if [[ $herdr_timed_out -eq 1 ]]; then
+    printf 'herdr plugin list timed out for %s (server wedged?); registration deferred (trigger left retryable).\n' "$plugin_id" >&2
+    return 1
+  fi
+  local link_output link_error rc
+  link_output="$("${herdr_cli[@]}" plugin link "$plugin_dir" 2>&1)" && rc=0 || rc=$?
+  if [[ $rc -eq 124 ]]; then
+    printf 'herdr plugin link timed out for %s (server wedged?); registration deferred (trigger left retryable).\n' "$plugin_id" >&2
+    return 1
+  fi
   link_error="$(printf '%s' "$link_output" | jq -e -r '.error.message // empty' 2>/dev/null || true)"
   if [[ -n $link_error ]]; then
     printf 'herdr plugin link %s returned an error envelope: %s\n' "$plugin_id" "$link_error" >&2

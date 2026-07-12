@@ -386,7 +386,8 @@ status in sidebar.
 F-key smart-lights/openhue, terminal-notifier feedback; **R3 (2026-07-10): the Wave-3d cleanup PR removed
 the F1 → OpenClaw `127.0.0.1:18789` binding, the `openclaw` package entry, and the active config/doc
 references; the dated research docs stay as historical record, and the live services are retired by the
-new run_once chezmoiscript; operator owns the Todoist cleanup**); Karabiner
+`run_after_61-retire-openclaw-services` chezmoiscript (retry-until-quiescence, gated on a marker, not a
+run_once); operator owns the Todoist cleanup**); Karabiner
 (caps→ctrl/esc, tab→hyper, complex-mod library); espanso (identity from KeePassXC, autocorrect packs,
 prompts/snippets, `_pqi.yml` phone quick-replies); smart-lights CLI (openhue room controller);
 `aerospace_toggle_app_focus.sh`.
