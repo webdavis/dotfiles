@@ -32,6 +32,9 @@ macos:
     - description: "SSH: write the public-key-only sshd drop-in (script self-escalates; reload is a separate operator step)"
       command: '"$HOME/.local/bin/ssh-hardening.sh"'
       sudo: false
+    - description: "Firewall: enable the application firewall (required for stealth mode to be active protection)"
+      command: "/usr/libexec/ApplicationFirewall/socketfilterfw --setglobalstate on"
+      sudo: true
     - description: "Firewall: enable stealth mode (drop unsolicited probes silently)"
       command: "/usr/libexec/ApplicationFirewall/socketfilterfw --setstealthmode on"
       sudo: true
