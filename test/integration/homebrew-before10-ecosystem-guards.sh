@@ -90,4 +90,35 @@ for tool in uv npm volta; do
   [[ -s "$work/$tool.invoked" ]] || fail "$tool loop did not run when $tool was present (guard over-eager)"
 done
 
-printf 'homebrew-before10-ecosystem-guards: OK (absent tools skip cleanly; present tools run)\n'
+# --- Scenario 3 (Fix 5): tools exist at the brew prefix but the prefix is NOT on
+# PATH (the fresh-machine apply shell right after the bundle installed them at
+# absolute paths). The guards and invocations must see the SAME world, so each
+# loop must still run. The old code guarded on `command -v` (PATH) but invoked
+# `$brew_prefix/bin/<tool>`, so the guard skipped a tool the bundle just
+# installed. ---
+pathless="$work/pathless"
+make_brew "$pathless"
+for tool in uv npm volta; do
+  log="$work/pathless-$tool.invoked"
+  cat >"$pathless/bin/$tool" <<MOCK
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >>"$log"
+exit 0
+MOCK
+  chmod +x "$pathless/bin/$tool"
+done
+rc=0
+# PATH deliberately EXCLUDES $pathless/bin; HOMEBREW_PREFIX points at it.
+env -i HOME="$work" PATH="/usr/bin:/bin" HOMEBREW_PREFIX="$pathless" \
+  bash "$rendered" >"$work/pathless.out" 2>&1 || rc=$?
+if [[ $rc -ne 0 ]]; then
+  printf 'rendered output (pathless):\n' >&2
+  cat "$work/pathless.out" >&2
+  fail "script aborted (rc=$rc) with the prefix absent from PATH"
+fi
+for tool in uv npm volta; do
+  [[ -s "$work/pathless-$tool.invoked" ]] ||
+    fail "$tool loop did not run when $tool exists at the prefix but the prefix is off PATH (guard/invocation see different worlds)"
+done
+
+printf 'homebrew-before10-ecosystem-guards: OK (absent tools skip cleanly; present tools run; prefix-off-PATH tools run)\n'

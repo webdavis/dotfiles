@@ -101,13 +101,21 @@ if [[ $multiplexer_present == false ]]; then
   brew_bundle_cleanup_guarded "$brewfile"
 fi
 
+# The ecosystem tools (uv, node/npm, volta) were just installed by the bundle at
+# $brew_prefix/bin, which the apply shell's PATH may not yet include (a fresh
+# machine, or `bash -lc` reaching an unsourced shell). Prepend it once so the
+# `command -v` guards and the invocations below see the SAME binaries -- without
+# this a guard could skip a tool the bundle just installed at an absolute path,
+# and run_onchange would not retry until the data file changes.
+export PATH="$brew_prefix/bin:$PATH"
+
 # Install uv tools (runs after Homebrew so uv is available). Guarded on uv being
-# on PATH so a fresh machine (or an apply whose PATH has not yet picked up a
-# just-installed uv) skips cleanly instead of aborting under set -e.
+# on PATH so a fresh machine (whose PATH now includes the brew prefix above)
+# skips cleanly instead of aborting under set -e when uv is genuinely absent.
 {{ if .packages.macos.uv -}}
 if command -v uv >/dev/null 2>&1; then
 {{- range .packages.macos.uv }}
-  "$brew_prefix/bin/uv" tool install {{ . | quote }}
+  uv tool install {{ . | quote }}
 {{- end }}
 fi
 {{ end -}}
@@ -130,8 +138,8 @@ fi
 {{ if .packages.macos.volta -}}
 if command -v volta >/dev/null 2>&1; then
 {{- range .packages.macos.volta }}
-  "$brew_prefix/bin/volta" install {{ printf "node@%s" .node | quote }}
-  "$brew_prefix/bin/volta" run --node {{ .node | quote }} npm install -g {{ .package | quote }}
+  volta install {{ printf "node@%s" .node | quote }}
+  volta run --node {{ .node | quote }} npm install -g {{ .package | quote }}
 {{- end }}
 fi
 {{ end -}}
