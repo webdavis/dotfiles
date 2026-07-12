@@ -113,9 +113,11 @@ delivery for rituals, clarify-tool native buttons for live-session asks, and
 - **Staged verification is INVARIANT-based; the mechanics live in ONE gated deliverable — Task E3 (KK0/JJ0, THE
   STRUCTURAL RULE).** Each B/C/D/G verify step states what must be observably TRUE as numbered invariants
   `INV-<task>-<n>` (every fixture design, negative case, threshold, and safety rule preserved as a bullet
-  requirement — nothing lost, it changes form) and **points to `Task E3 forzare-staging-harness`**, a
-  chezmoi-shipped, shellcheck+bats-gated script suite that IMPLEMENTS those invariants (one test per invariant
-  id), writes **run-scoped atomic result files** the checkpoints consume, and is reviewed ONCE under a real gate
+  requirement — nothing lost, it changes form) and **points to `Task E3 forzare-staging-harness`** (built FIRST,
+  in Phase A, ahead of all its consumers — MM3), a
+  chezmoi-shipped, shellcheck+bats-gated script suite that IMPLEMENTS those invariants (tests named PER FAMILY,
+  mapped to invariant ids by the E3 machine-readable INV↔test manifest + a `--check-manifest` bijection gate,
+  MM10/LL5), writes **run-scoped atomic result files** under `staging/e3-results/` (outside `state/`, MM7/LL6) the checkpoints consume, and is reviewed ONCE under a real gate
   rather than re-litigated inline every round. **The harness bash lives ONLY in E3's suite** — the doc carries
   no test-harness bodies; **kept verbatim in the steps only:** single-line probes, config asserts, and the
   proven E1 python filter probes. This is the process doc's own exit for the recurring embedded-command finding
@@ -276,7 +278,7 @@ gate_check(){
 #   integrity_manifest pre-c   → skills + helper only (the end-of-Phase-B SKILL-INTEGRITY GATE)
 #   integrity_manifest         → full set incl. the 3 bundle YAMLs (the watchdog + any post-Checkpoint-C gate)
 integrity_manifest(){
-  local s phase="${1:-post-c}"
+  local s phase="${1:-post-c}" mlines
   # V1 SKILLS — the manifest is RECURSIVE per skill dir (KK6/JJ10/B8): NOT just SKILL.md but EVERY managed file
   # in each skill dir (SKILL.md + every executable/support file — classify.py, eligibility, reduce.py, the
   # capture-pipeline stage scripts, …). Enumerate from the CHEZMOI SOURCE (`chezmoi managed`, so a file that
@@ -285,10 +287,15 @@ integrity_manifest(){
   for s in todoist-surface weather calendar-read calendar-write eisenhower-plan activation-prompt \
            brief-assemble followups-sweep daily-reflect tomorrow-prep eod-roll waiting-reconcile transition \
            forzare-capture-pipeline forzare forzare-next forzare-today forzare-capture calibration-log; do
-    # every managed file the chezmoi source ships under this skill dir (recursive), mapped to its live target:
-    "${CHEZMOI_BIN:-chezmoi}" --source "$REPO" managed "$HOME/.hermes/skills/$s" 2>/dev/null \
-      | sed "s#^#$HOME/#" \
-      || printf '%s\n' "$HOME/.hermes/skills/$s/SKILL.md"   # fallback: at least the SKILL.md
+    # FAIL-CLOSED per skill (LL1/LL2/MM4): collect FILES ONLY (`--include=files`, so a bare DIRECTORY line can
+    # never false-count as a member — verified the flag exists, chezmoi v2.70). Do NOT suppress enumeration
+    # errors (no `2>/dev/null`): a `chezmoi managed` failure is FATAL, never a masked empty. And REQUIRE ≥1
+    # emitted file — an EMPTY result means the skill was never authored/applied (the dead `|| SKILL.md` fallback
+    # is DELETED: a missing source path emits nothing + exit 0, so the `||` never fired, LL1).
+    mlines=$("${CHEZMOI_BIN:-chezmoi}" --source "$REPO" managed --include=files "$HOME/.hermes/skills/$s") \
+      || { echo "FATAL: 'chezmoi managed' failed enumerating skill '$s' (error not suppressed, MM4)" >&2; return 1; }
+    [ -n "$mlines" ] || { echo "FATAL: skill '$s' ships NO managed files in the chezmoi source — skill not authored (LL1)" >&2; return 1; }
+    printf '%s\n' "$mlines" | sed "s#^#$HOME/#"
   done
   # B0 shared-mutation helper module (imported by every mutating skill, Task B0):
   printf '%s\n' "$HOME/.hermes/skills/forzare-mutate.sh"
@@ -309,7 +316,9 @@ bash -n "$GATE" && echo "gate-check.sh parses OK (installed at $GATE, source dot
   **Acceptance:** `gate-check.sh` is authored in the chezmoi source (`dot_local/bin/executable_gate-check.sh`)
   and installed to `~/.local/bin/gate-check.sh`, `bash -n` clean; every inline checkpoint (A/C/F) and Task E2
   source THIS one installed script rather than redefining the function; `integrity_manifest` is phase-aware
-  (`pre-c` = skills+helper, default = +bundles, GG1).
+  (`pre-c` = skills+helper, default = +bundles, GG1) **and fail-closed per skill** (`--include=files` so no
+  directory line false-counts, unsuppressed enumeration errors, empty result ⇒ FATAL "skill not authored", the
+  dead `|| SKILL.md` fallback deleted — LL1/LL2/MM4).
 
 ---
 
@@ -404,14 +413,25 @@ edit the template source; the KeePassXC-gated `chezmoi apply` is **user-run**).
 - [ ] **Step 2: Set the env keys** in `~/.hermes/.env`:
   - `DISCORD_HOME_CHANNEL` = the task channel (proactive-delivery target).
   - `DISCORD_ERRORS_CHANNEL` = the `#forzare-errors` channel id (always-loud target).
+  - **`API_SERVER_ENABLED=1` (MM2)** — brings up the OpenAI-compatible API server so the watchdog's
+    platform-independent **`:8642/health`** liveness probe (F1 scan a, spec §16/§19) has an endpoint;
+    `API_SERVER_ENABLED` is a real config key (`hermes_cli/config.py:3911`; `1` is truthy, verified
+    `is_truthy_value`). The webhook `:8644` is dead here (`WEBHOOK_ENABLED=false`, verified live), which is why
+    the probe uses `:8642`.
+  - **`API_SERVER_KEY` = a generated bearer token (MM2, required)** — the API server **refuses to start without
+    it** (`api_server.py`), even on the loopback `127.0.0.1` bind; store it via KeePassXC like the other secrets
+    in the `.age` config / template. (Leave `API_SERVER_PORT` unset ⇒ default `8642`; `API_SERVER_HOST` unset ⇒
+    `127.0.0.1`.)
 
 - [ ] **Step 3: Verify**
 
 ```bash
-grep -E 'DISCORD_HOME_CHANNEL|DISCORD_ERRORS_CHANNEL' ~/.hermes/.env
+grep -E 'DISCORD_HOME_CHANNEL|DISCORD_ERRORS_CHANNEL|API_SERVER_ENABLED|API_SERVER_KEY' ~/.hermes/.env
 ```
 
-Expected: both keys present and non-empty. **Acceptance:** home + errors channels resolve to distinct ids.
+Expected: the channel keys present and non-empty; `API_SERVER_ENABLED=1` and a non-empty `API_SERVER_KEY`
+(MM2). **Acceptance:** home + errors channels resolve to distinct ids; the API server is enabled + keyed so
+`:8642/health` answers for the watchdog probe.
 
 ---
 
@@ -482,7 +502,8 @@ surfacing labels (no lifecycle labels), 5 filters with the exact §4b queries.
 and touches none of the others. It is **plaintext with no secrets** (`grep -Eic 'token|api[._-]?key|secret|password' SOUL.md` = 0)
 — so it is NOT inside the encrypted `.age` config, and does **not** need KeePassXC to apply. It is not yet
 chezmoi-managed (`dot_hermes/` currently holds only `encrypted_private_config.yaml.age` +
-`private_dot_env.tmpl`).
+`private_dot_env.tmpl` — and NO `dot_hermes/profiles/{butters,concerned,elaine,nicodemus}/` source dirs, so the
+four non-default personas stay live-only/unmanaged; this task manages the `default` SOUL.md alone, FF16 re-swept).
 
 **File to add (in THIS repo):** `dot_hermes/private_SOUL.md` (a plaintext managed file — `private_` keeps the
 applied mode 0600; no `.tmpl` needed since it carries no variables). **Because it is plaintext and
@@ -589,6 +610,205 @@ rm -f "$SEND_ERR"
 
 ---
 
+### Task E3: `forzare-staging-harness` — the gated staging-test suite (KK0/JJ0 — THE STRUCTURAL DELIVERABLE)
+
+> **BUILT IN PHASE A, ahead of ALL its consumers (MM3).** This task is authored + self-gated (shellcheck + bats +
+> the `--check-manifest` bijection) HERE, in Phase A, because its `run.sh` PRIMITIVES are sourced by every staged
+> dry-run from Phase B onward and its result files are consumed by the post-test checkpoints (Apply Checkpoint B,
+> Checkpoint C, Checkpoint D, and the G1 go-live gate). **Authoring vs execution split:** the harness *scripts* and
+> *bats specs* are self-contained and gate at Phase-A build time (they carry their OWN `fcntl.flock` python shim —
+> the SAME primitive Task B0 later reuses, not a forward dependency); the harness *tests* only EXECUTE against the
+> live skills once those exist, at each Phase-B..G checkpoint. **The `E3` / `e3-results` / `INV-<task>-<n>`
+> identifiers are RETAINED as stable cross-references** despite the Phase-A home — renaming them would churn ~40
+> call-sites for no benefit (the ruling permits "re-homed … minimal churn").
+
+**Files (in the dotfiles repo, via the delivery-vehicle rule):**
+
+- Create: `dot_local/bin/forzare-staging-harness/` — the harness script suite (one `.sh` per invariant family +
+  a `run.sh` orchestrator), each file carrying a **PER-FILE `executable_` prefix** (`executable_run.sh`,
+  `executable_b0_ledger.sh`, `executable_b4_resume.sh`, …) — chezmoi's `executable_` is a **per-file** attribute,
+  NOT a directory one (a dir-level `executable_forzare-staging-harness/` would **not** make its contents 0755 —
+  verified; MM5/LL3), so the dir name is **plain** and each script is prefixed. The applied tree is
+  `~/.local/bin/forzare-staging-harness/run.sh` etc. Every `.sh` is auto-shellchecked by `find_shell_files`
+  (it globs `*.sh` recursively, so the subdir is already covered — no `scripts/lint.sh` change needed).
+- Create: `test/forzare-staging-harness/*.bats` — the bats specs that gate each `.sh`, under the repo's
+  **top-level `test/` tree** so the existing **`just test`** discovery picks them up (verified: the `justfile`
+  `test` recipe runs `bats --recursive test/`, the SAME convention as `test/osquery-alerter/*.bats`; MM5). Bats
+  specs are not chmod-executable (run via `bats`), so they carry no `executable_` prefix.
+
+**Why this task exists (the recurring-finding exit — KK0/JJ0).** Across rounds 1–11, the plan's *staged-test
+BASH* — the traps, locks, fixture seeding, snapshot diffs, two-run windows embedded inline in every B/C/D/G verify
+step — was itself the surface that generated ≥5 rounds of interference findings (a trap that double-fired, a
+`map|last` run-id race, a `mkdir` lock, a masked-to-zero leak gate, …). This is the *process doc's own
+prescription* for the recurring embedded-command finding class: **demote every multi-step embedded harness to
+per-task INVARIANTS (what must be observably TRUE — every fixture design, negative case, threshold, and safety
+rule preserved as a bullet requirement, nothing lost, it changes form) and move the mechanics into ONE
+build-time deliverable — this harness suite — that is itself gate-checked (shellcheck + bats) and reviewed at
+build time.** Each per-task acceptance now reads as invariants + a pointer here; this task IMPLEMENTS them. **Kept
+verbatim in the task steps (NOT moved here):** single-line probes (`command -v td`, `curl … /health`, a
+`gog calendar calendars` reachability check), config asserts (the `yaml.safe_load` / resolved-value reads in
+A2/B10/D/E1), and the **proven E1 python filter-function probes** (`_is_cron_silence_response` /
+`is_intentional_silence_*` — already green against the installed venv).
+
+- [ ] **Step 1: The invariant CATALOG + a machine-readable INV↔test manifest (MM10/LL5).** Every demoted verify
+  step lists numbered invariants `INV-<task>-<n>` in its own task body. **The tests are named PER FAMILY**
+  (`b0_ledger`, `b4_resume`, `g1_eod_gate`, …), **not** a strict `<task>_<n>` one-to-one — a family test may own
+  several INV ids (`b9_numeric` owns INV-B9-5..9) and a task may split across families (`b4_resume` /
+  `b4_q1conflict` / `b4_marker`). What is TOTAL and mechanical is the **manifest below: every `INV-<task>-<n>` id
+  lists its ONE owning test name**, and Step 3's `--check-manifest` asserts that bijection against the discovered
+  tests. The catalog the suite MUST implement (drawn from the demoted acceptances — the fixture designs,
+  thresholds, and negative cases are preserved as test requirements, JJ0):
+  - **B0 (ledger I/O):** the per-`type` after-write crash fixtures (`date-op`/`comment`/`calendar`/`label`/`p1`/
+    `description`/`task.add`/`task.complete`/`waiting-clear`/`undate`/`retire`) each exercising all THREE heal
+    outcomes (intended⇒commit · old⇒re-apply · OTHER⇒abort+flag, user value NOT overwritten); the `task.add`
+    five-step machine per healing window (verify-by-id / marker-found under collision·rename·move / past-window
+    replay ONLY on a DOUBLE empty-success search ≥30s apart / within-window at-most-once abort+re-confirm); **the
+    `bankruptcy` fixture is COMMITTED-AT-WRITE-shaped, NOT three-way (KK7): absent⇒re-offer, complete⇒read the
+    immutable cohort**; the decision-queue concurrency set (producer-race, duplicate-reconcile, in-place update
+    `rev==2`, ack-vs-promotion CAS, ack-then-reenqueue `gen 2`, **the gen1→gen2 rollover ordering fixture whose
+    assertable truth is "the re-enqueued gen-2 record has `head=false` + a fresh `enqueue_ts` and sorts at the
+    TAIL of its class-rank" — the impossible "a lower-rank pending out-orders it" claim is DELETED (KK8/JJ7)**,
+    delayed-answer, aggregate-id, non-head intra-day resolution); **the KK3 producer once-guard** (a re-enqueue
+    of a tombstoned `id` with `answer=keep` and an unchanged predicate is a NO-OP); **a SIGKILL-mid-critical-
+    section fixture asserting the `fcntl.flock` lock is kernel-auto-released so the next run re-takes it (KK1)**.
+  - **B0 propagation probe (Step-5 measurement, JJ6):** create a marker-tagged task, poll a marker search until
+    it appears, over N trials; **compute p95 of the create→search round-trip and REJECT (FATAL) the 120s bound
+    when p95 > 90s** (the safety margin below the 120s crash-heal window — decided; the earlier soft-WARN band is
+    removed). The marker rides `--description`, the clock is read BEFORE the API call, and the measured p95 is
+    recorded in `calibration/priors.md`.
+  - **B1/B2/B6/B8 (skill dry-runs):** the label-set-preserve contract (≤1 targeted label-write, `deep`
+    preserved), dry-run purity, the receptivity boundary tests (2-vs-3 dismissals, 7-vs-8 surfacings); the
+    weather synthetic classifier (clear/breach/degrade); the `/forzare` positive + two passing-mention negatives
+    with purity hash-compare; the capture MISSING-vs-NULL-vs-value due read + purity.
+  - **B4 (eisenhower/brief):** the plan-of-day resume on a PINNED schedule (work-day: only the missing alarm
+    write; off-day variant: ZERO alarm intent); the >3-Q1 conflict (≤3 `p1.set` + one `q1-conflict:<date>`
+    aggregate record); the `▶ ` exactly-one-action gate (one marker-initial line + one occurrence + zero non-`· `
+    lines pre- AND post-marker + zero secondary asks) in BOTH queue states, with the NINE adversarial failure
+    fixtures (a two-marker wall + each of imperative/bullet/numbered/question placed both after AND before the
+    marker) + the positive `· `-context fixture.
+  - **B5 (followups-sweep):** brief-mode HEAD ordering + ack purity; the honest bankruptcy split (reducer
+    eligibility over SYNTHETIC 40-day streams vs a fresh `added` event; live mechanics only); OFFER = a
+    `bankruptcy`-type JOURNAL freeze + a canonical (frozen-free) `bankruptcy-offer:<YYYY-MM>` queue record with
+    `journal_ref` = the journal-uuid + ZERO clear intents; acknowledged clear consumes the JOURNALED snapshot
+    (UNDATE dated + RETIRE undated, no destructive op); idempotent partial-failure retry across BOTH halves.
+  - **B7 (eod-roll two-run):** the shared-`test_window_id` shadow overlay so RUN2 logs an `already-reconciled`
+    no-op keyed `run_id==RUN2`; dry-run purity across stamp + MAP + JOURNAL + queue; the CEILING/cutoff matrix
+    driven by `FORZARE_NOW` (22:59 / 23:00 / just-past-midnight / ≤2h catch-up / manual mid-day); the ≥3-day
+    outage single-tick drain; the six W6/X5 dating fixtures.
+  - **B9 (calibration):** the two-page cursor stub asserting the page-2 fetch, the W7/GG13 generic-exclusion
+    negatives, and the four numeric update-rule fixtures + the end-to-end recommendation shift.
+  - **C2 (bundle leak gate, KK0 leg-B "B2"):** the NEGATIVE gate is INDEPENDENT of the intent log — before/after
+    diffs of task + comment activity **cursor-paginated to exhaustion (all pages)**, scoped to the
+    `[TEST-STAGING]` project + `[TEST-$RUNID]` fingerprint; a run-scoped 🤖-calendar snapshot whose **detection is
+    PREFLIGHTED against a seeded probe event (a matcher that silently matches nothing is a FATAL observer
+    failure, not a vacuous pass)**; a RECURSIVE state+calibration hash EXCLUDING `dryrun-intents.jsonl`;
+    **created-id coverage** (every seeded fixture id is in the fingerprint set); a gog/`td` command-or-parse
+    failure is FATAL, never masked-to-zero.
+  - **C2 transactional install (KK0 leg-B "B4" stopped-window):** the SINGLE-SCRIPT execution model with ONE
+    combined cleanup handler — record gateway initial-loaded state → arm the EXIT/INT/TERM restore BEFORE the
+    first bootout → back up + validate `jobs.json` → bootout → assert down (launchctl + health port) → reconcile
+    by name → post-assert exact manifest → (ERR ⇒ atomic tmp+rename restore + byte-compare) → EXIT restarts +
+    health-probes only an initially-loaded gateway (the watchdog is NOT in the Phase-C stop-set).
+  - **G1 go-live transaction (KK0 leg-B "B5"):** every exact edit (six DRY-strip prompt edits + four
+    `--deliver discord` flips + resume eod-roll), all axes asserted PRE-FLAG (manifest / enabled / 4-discord +
+    2-local map / DRY-free prompts / DRY-free bundles), and **post-restart failure = stop, restore `jobs.json`,
+    byte-verify, restart BOTH services, re-health-check — and write NO `go-live.json` on any restart/health
+    failure**; the morning roll-then-plan ordering (max roll ts < min p1.set ts); **the concurrent-trigger
+    invariant (JJ12/KK0): a cron ritual and a live one-shot fired in the same window EACH surface ≤1 item — the
+    `DRY`/`RUNID` are defined in the test's own scope, not left dangling**.
+  - **Existed-before backup rule — a SHARED Step-4 primitive, NOT its own family test (LL10).** `guard` records
+    whether each touched state file existed before, a single EXIT restore branches mv-back (existed) vs rm
+    (absent), a backup-creation failure is FATAL, and there is no `rm` of a real store anywhere. This is one of
+    the **shared BB6 `run.sh` primitives** (Step 4) that EVERY test sources — the plan-of-day/`b6_classifier`
+    fixtures exercise it, but it is not a standalone catalog entry.
+  - **G1 morning-ordering (`g1_morning_order`, INV-G1-4/5 — LL10):** the fixture seeds its lifecycle-ledger entry with `kind: surfacing`
+    (so the defensive roll has a real ledger-defined roll target) and asserts the fixture id rolls before the
+    plan writes p1.
+  - **Checkpoint-D result writer (KK0 leg-B "B7"):** the D1 harness writes the machine-checked
+    `d1-harness-result.json`; this suite writes the analogous run-scoped result files (below).
+
+  **THE MACHINE-READABLE INV↔TEST MANIFEST (MM10/LL5) — every `INV-<task>-<n>` → its ONE owning test.** Step 3's
+  `--check-manifest` parses this table and asserts the bijection against the discovered test functions (every INV
+  id resolves to exactly one existing test; every test is claimed). The previously-UNNUMBERED families
+  (`b1_stall`, `b1_receptivity`, and B0's ledger/queue/once-guard fixtures + B7's ceiling/dating matrix) are now
+  numbered in their task bodies:
+
+  | Test | Owns INV ids |
+  |---|---|
+  | `b0_propagation` | INV-B0-1, INV-B0-2, INV-B0-3, INV-B0-4 |
+  | `b0_ledger` | INV-B0-5 (per-`type` after-write crash, three-way heal) |
+  | `b0_queue` | INV-B0-6 (decision-queue concurrency set) |
+  | `b0_onceguard` | INV-B0-7 (producer once-guard + `bankruptcy` committed-at-write binary cases) |
+  | `b1_surface` | INV-B1-1, INV-B1-2, INV-B1-3, INV-B1-4 |
+  | `b1_stall` | INV-B1-5 (stalled-task decompose/if-then/drop) |
+  | `b1_receptivity` | INV-B1-6 (dismissals 2v3), INV-B1-7 (surfacings 7v8) |
+  | `b2_classify` | INV-B2-1, INV-B2-2, INV-B2-3 |
+  | `b4_resume` | INV-B4-1, INV-B4-2, INV-B4-6 |
+  | `b4_q1conflict` | INV-B4-3 |
+  | `b4_marker` | INV-B4-4, INV-B4-5 |
+  | `b5_head` | INV-B5-1 |
+  | `b5_ackpurity` | INV-B5-2 |
+  | `b5_eligibility` | INV-B5-3 |
+  | `b5_offer` | INV-B5-4 |
+  | `b5_ack` | INV-B5-5 |
+  | `b5_retry` | INV-B5-6 |
+  | `b6_classifier` | INV-B6-1, INV-B6-2, INV-B6-3 |
+  | `b7_two_run` | INV-B7-1, INV-B7-2, INV-B7-3 |
+  | `b7_ceiling` | INV-B7-4 (CEILING/cutoff matrix + ≥3-day outage single-tick drain) |
+  | `b7_dating` | INV-B7-5 (the six W6/X5 date-writer × `kind` fixtures) |
+  | `b8_capture` | INV-B8-1, INV-B8-2, INV-B8-3 |
+  | `b9_reducer` | INV-B9-1, INV-B9-2, INV-B9-3, INV-B9-4 |
+  | `b9_numeric` | INV-B9-5, INV-B9-6, INV-B9-7, INV-B9-8, INV-B9-9 |
+  | `c2_install` | INV-C2-1..INV-C2-8 |
+  | `c2_bundle_gate` | INV-C2-9, INV-C2-10, INV-C2-11, INV-C2-12 |
+  | `d1_lifecycle` | INV-D1-1, INV-D1-2, INV-D1-3, INV-D1-4 |
+  | `e1_failed_turn` | INV-E1-1, INV-E1-2 |
+  | `g1_eod_gate` | INV-G1-1, INV-G1-2, INV-G1-3 |
+  | `g1_morning_order` | INV-G1-4, INV-G1-5 |
+  | `g1_dupfire` | INV-G1-6 |
+  | `g1_concurrent` | INV-G1-7 |
+  | `g1_flip` | INV-G1-8, INV-G1-9, INV-G1-10, INV-G1-11 |
+
+- [ ] **Step 2: Run-scoped ATOMIC result files consumed by the checkpoints — in the STAGING dir, OUT of `state/`
+  (MM7/LL6).** Each test writes its verdict to
+  **`~/workspaces/Ivy/forzare/staging/e3-results/<test-id>.<RUNID>.json`** — a **staging-only** directory OUTSIDE
+  the owned state layer, so the §17 negative gate's RECURSIVE content-hash of `state/` + `calibration/`
+  (AA1/DD6) never sees a harness result and the GC/never-rm contracts stand untouched — `{test_id, run_id, ts, measured{…},
+  outcome: pass|fail, referenced_objects:[…]}` — written **atomically (same-dir tmp + `os.rename`)** so a reader
+  never sees a torn verdict. **Checkpoints CONSUME these result files, and REJECT stale or foreign ones:** a
+  checkpoint asserting a family passed requires a result file whose **`run_id` matches THIS build's run id** (not
+  a leftover from an earlier run) and whose `ts` is within the build window, then **RE-VERIFIES the
+  `referenced_objects`** (e.g. that a `[TEST-$RUNID]` fixture the test claimed to clean up is actually gone, that
+  the real store hash the test recorded still matches) — so a stale green result can never wave a checkpoint
+  through. (This closes leg-B's Checkpoint-D stale-evidence item.)
+- [ ] **Step 3: Build-time gating + the INV↔test bijection self-check (MM10/LL5).** The suite is
+  **shellcheck-clean** (every `.sh` under `find_shell_files`, which globs the `dot_local/bin/forzare-staging-harness/*.sh`
+  subdir) and **bats-green** (`nix develop .#run --command bats --recursive test/forzare-staging-harness/`, the
+  `just test` path) — run in the same pre-commit flow as Task F1's watchdog. A red bats spec or a shellcheck
+  finding **blocks the harness from shipping**. **The suite ALSO gates its own INV↔test bijection (MM10):** a
+  `run.sh --check-manifest` mode reads the Step-1 manifest table and asserts **every `INV-<task>-<n>` id maps to
+  exactly ONE discovered test function AND every discovered test is claimed by ≥1 INV id** — a missing test, an
+  orphan test, or a duplicate mapping is FATAL. So the mechanics are reviewed HERE, once, under a real gate — not
+  re-litigated inline in fifteen verify steps every round.
+- [ ] **Step 4: The one lock + the shared safety primitives.** The suite's `run.sh` provides ONE set of the
+  primitives every test reuses: the **`fcntl.flock` critical-section lock via the B0 python shim (KK1 — no
+  `mkdir` sentinel, kernel-auto-released)**; the `RUNID`/`[TEST-$RUNID]` fixture scoping; the existed-before
+  `guard`/`restore` with a single EXIT handler; captured-id-only cleanup (never a `search: [TEST]` sweep); the
+  `[TEST-STAGING]` project RESOLVE-ONLY (KK2 — FATAL if absent, never `td project create`); and the CC4
+  staging-override honoring (`pinned_schedule`/`synthetic_weather`/`FORZARE_NOW`/`activity_stub`). Each test file
+  sources these — they are defined ONCE, not re-derived per test.
+
+**Acceptance:** the harness suite is authored in the chezmoi source (`dot_local/bin/forzare-staging-harness/` with
+per-file `executable_` prefixes; bats under `test/forzare-staging-harness/`), shellcheck-clean and bats-green at build
+time; the **Step-1 manifest table maps every `INV-<task>-<n>` id to exactly one named test** and the
+`--check-manifest` self-check asserts that bijection against the discovered tests (MM10/LL5); each test writes a
+run-scoped atomic result file under **`staging/e3-results/`** (outside `state/`, MM7/LL6); the checkpoints (B/C/D/F + the G1 go-live gate) consume
+those files, **reject stale/foreign results (run-id + ts window) and re-verify `referenced_objects`** before
+clearing; the propagation probe REJECTS the 120s bound at p95 > 90s (JJ6); the gen-rollover fixture asserts the
+tail-ordering truth (KK8/JJ7); and the concurrent-trigger test defines its own `DRY`/`RUNID` scope (JJ12).
+
+---
+
 ## Phase B — Atomic skills + the shared helper (author-all → Apply Checkpoint B → stage-all → integrity gate)
 
 > **BUILD ORDER — the topological rule (Y6/R5A3, load-bearing).** A staged dry-run reads the skill's **LIVE**
@@ -666,9 +886,13 @@ rm -f "$SEND_ERR"
 > **`p1.clear`**. Every SKILL task and every jq assertion below uses
 > exactly these names. (Distinct from the mutation-JOURNAL `type` enum — `date-op`/`p1`/`label`/`comment`/
 > `calendar`/`description`/`task.add`/`task.complete`/`waiting-clear`/`undate`/`retire`/`bankruptcy`, spec §4d/Y5/Z3/BB3/FF1 —
-> which classifies the append-only journal lines, not the intents. Both the journal line and the intent record
-> carry the **unified shape** `{ts, created_ts, type/op, target, args, old_value, intended_value, external_marker?,
-> reconcile_date, commit_state}` (`created_ts` = the propagation-window clock, GG4), stated identically in spec §4d/§8a and Task B0, CC8.)
+> which classifies the append-only journal lines, not the intents. **The two record shapes are DISTINCT and must
+> not be conflated (LL4):** the **mutation-JOURNAL line** carries the CC8 shape `{ts, created_ts, type, target,
+> op, args, old_value, intended_value, external_marker?, reconcile_date, commit_state}` (`created_ts` = the
+> propagation-window clock, GG4), stated identically in spec §4d/§8a and Task B0; the **dry-run INTENT record** is
+> the SEPARATE, smaller shape `{ts, skill, op, target, args, run_id, test_window_id?}` (the staging-observability
+> shape defined below and in spec §17). Each site names the schema it means — there is no single "unified shape"
+> spanning both.)
 >
 > **Enforcement is prompt-level + native CLI flags (X3/Y4):** the read-only check is centralized as the
 > **mode-check-first** step of the shared mutation helper (Task B0) — every mutating skill's first move is
@@ -749,11 +973,15 @@ rm -f "$SEND_ERR"
 >   `STAGING_PROJECT="$(td project list --search "[TEST-STAGING]" --json | jq -r '.results[]|select(.name=="[TEST-STAGING]")|.id' | head -1)"; [ -n "$STAGING_PROJECT" ] || { echo "FATAL: [TEST-STAGING] Todoist project not found — the USER must create it ONCE (Checkpoint-A prerequisite, KK2/JJ2); the build RESOLVES it, NEVER auto-creates a Todoist project" >&2; exit 1; }`
 >   (verified `td project list --json` → `{results:[…]}`; the build issues NO `td project create`).
 >   The negative leak gate **scopes its snapshot to that project id + THIS run's `[TEST-$RUNID]` prefix** and diffs
->   it against the `[TEST]`-scoped 🤖 calendar — so a staged skill that mutates an *ordinary* task outside the
->   fixture set is caught, bounding the "real-target blindness" a bare `[TEST-$RUNID]`-prefix scoping
->   leaves open. **A fully isolated Todoist ACCOUNT is REJECTED for v1 — recorded won't-fix (GG6):** only one
->   account exists, so a separate staging account is out of scope; ordinary-task mutation risk stays covered by the
->   intent-log cross-check + the activity diff over the `[TEST-STAGING]` project.
+>   it against the `[TEST]`-scoped 🤖 calendar — so it catches a staged skill that mutates a **fixture** task it
+>   should have left alone under dry-run. **What a fixture-scoped snapshot CANNOT catch (MM9 — the honest bound):**
+>   a mutation to an *ordinary* task OUTSIDE the fixture scope is precisely the "real-target blindness" a
+>   `[TEST-$RUNID]`/`[TEST-STAGING]` scoping leaves open — the earlier claim that this gate "catches an ordinary-task
+>   mutation outside the fixture set" is FALSE and is DELETED. **A fully isolated Todoist ACCOUNT is REJECTED for
+>   v1 — recorded won't-fix (GG6):** only one account exists, so a separate staging account is out of scope. That
+>   residual ordinary-task-mutation risk is instead bounded by the **prompt-level dry-run mode-check + the
+>   intent-log cross-check** (a correct dry-run computes only intents, mutating nothing); the engine-level
+>   **default-deny wrapper** that would close it outright stays the booked **Phase-H** hardening item.
 > These primitives are defined ONCE in the Task E3 harness `run.sh` (KK0); every per-task invariant below is
 > implemented by an E3 test that sources them — the RUN-ID prefix + captured-id cleanup + run-id-suffixed
 > existed-before backups + `--project "$STAGING_PROJECT"` `[TEST-STAGING]`-project fixtures are required of
@@ -977,8 +1205,9 @@ planning-pull, snooze, roll, the §7 escalation, the if-then cue). Never a scatt
   roll set).
   - **After-write crash fixture PER JOURNAL `type` (Z3/AA3/BB3), each exercising ALL THREE heal outcomes:** one
     each for `date-op` / `comment` / `calendar` / `label` / `p1` / `description` / `task.add` / `task.complete` /
-    `waiting-clear` / `undate` / `retire` / **`bankruptcy` (II3 — a crash mid-freeze re-freezes an absent/incomplete
-    snapshot, and the per-item ops stay idempotent)** — crash between the journal-`pending` and the commit, then seed the live
+    `waiting-clear` / `undate` / `retire` — **`bankruptcy` is NOT in this generic three-way list (MM8/KK7): it is
+    COMMITTED-AT-WRITE, so it has no journal-`pending`→commit gap and no OTHER-heal outcome; its dedicated fixture
+    is below** — crash between the journal-`pending` and the commit, then seed the live
     value to each of (intended ⇒ **commit**), (old ⇒ **re-apply**), and (a THIRD user-changed value ⇒ **ABORT +
     FLAG, user value NOT overwritten**), asserting the type-specific predicate resolves each correctly. **The
     `task.add` fixture asserts the five-step machine with ONE FIXTURE PER HEALING WINDOW (EE1):** (i)
@@ -996,6 +1225,13 @@ planning-pull, snooze, roll, the §7 escalation, the if-then cue). Never a scatt
     clear+redate+flip); the `undate`/`retire` fixtures assert the bankruptcy ops heal (undate landed iff due
     null · retire landed iff on the exclusion list). The `description`/`task.add`/`task.complete`/`undate`/`retire`
     writes are asserted **present in the JOURNAL** so W7 exclusion stays complete (Y5/R5A11/Z3/BB3).
+  - **`bankruptcy` committed-at-write fixture — the TWO binary cases, NOT three-way (MM8/KK7/II3).** Because the
+    frozen snapshot is ONE atomic append (no pending phase), recovery is binary: **(1) ABSENT ⇒ RE-OFFER** —
+    crash BEFORE the atomic append leaves no cohort committed, so the next sweep safely re-freezes from the live
+    pool (assert no half-written record, and that re-offer produces a fresh freeze); **(2) COMPLETE ⇒ IMMUTABLE
+    COHORT** — a present record is read back exactly, driving the per-item `undate`/`retire` ops (each healing
+    under its own predicate above) and NEVER re-deriving a different cohort. No `intended`/`old`/`OTHER` seeding —
+    that three-way seeding applies only to the pending-phase types above.
   - **Decision-queue concurrency fixtures (Z2/AA4/BB2):** a **producer race** (two producers enqueue the same
     `id` ⇒ exactly one record, the second a no-op); a **duplicate reconcile** (re-enqueue of an unchanged
     decision ⇒ no-op); an **IN-PLACE update** (a producer re-touches an existing `id` with a *different*
@@ -1017,6 +1253,16 @@ planning-pull, snooze, roll, the §7 escalation, the if-then cue). Never a scatt
     `q1-conflict` keyed `q1-conflict:<date>` and a `bankruptcy-offer` keyed `bankruptcy-offer:<YYYY-MM>` each
     dedupe on their period key, BB2); and a **non-head intra-day resolution (CC10)** — a `stall-decision` settled
     mid-day by a live turn ⇒ the same CAS tombstones it ⇒ a subsequent brief read does NOT re-surface it.
+
+  These Step-4 fixtures are IMPLEMENTED by three E3 tests, each with a NUMBERED invariant (MM10/LL5):
+  **`b0_ledger` — INV-B0-5:** the per-`type` after-write crash fixtures (`date-op`/`comment`/`calendar`/`label`/`p1`/
+  `description`/`task.add`/`task.complete`/`waiting-clear`/`undate`/`retire`) each resolving all THREE heal
+  outcomes, plus the `task.add` five-step machine per healing window. **`b0_queue` — INV-B0-6:** the
+  decision-queue concurrency set (producer-race, duplicate-reconcile, in-place `rev==2`, ack-vs-promotion CAS,
+  ack-then-reenqueue `gen 2`, gen1→gen2 tail-ordering, delayed-answer, aggregate-id, non-head resolution).
+  **`b0_onceguard` — INV-B0-7:** the KK3 producer once-guard (a re-enqueue of a tombstoned `id` with
+  `answer=keep` + unchanged predicate is a NO-OP), the SIGKILL-mid-critical-section `fcntl.flock` auto-release,
+  AND the `bankruptcy` committed-at-write binary cases (absent⇒re-offer, complete⇒immutable cohort, MM8).
 - [ ] **Step 5: MEASURE the live `td task add`→search propagation window (II5/JJ6) — validate the 120s bound
   before the crash-heal relies on it.** Implemented by **E3 test `b0_propagation`**; invariants:
   - **INV-B0-1:** the probe creates a `⟦fz:…⟧` marker-tagged task **in the resolved `[TEST-STAGING]` project**
@@ -1097,19 +1343,19 @@ set -o pipefail
   - **INV-B1-4:** nothing reached Discord (`--deliver local`); cleanup deletes ONLY captured ids (no
     `search: [TEST]` prefix sweep) and removes the staging cron job.
 
-**Acceptance:** the four invariants pass under E3 `b1_surface`. **X13
-stalled-task fixture (E3 test `b1_stall`):** seed a ledger entry with `roll_count == 2` for a `[TEST]` task and stage a surface —
+**Acceptance:** the four invariants pass under E3 `b1_surface`. **INV-B1-5 (X13 stalled-task fixture — E3 test
+`b1_stall`, numbered MM10/LL5):** seed a ledger entry with `roll_count == 2` for a `[TEST]` task and stage a surface —
 the audit shows the **single** decompose/if-then/drop decision (no-shame, one thing), and choosing if-then
 journals a **`task.update-description`** intent (the op-enum name, Phase B intro/R5A13) that **persists the cue
 to the task's description** — mirrored in the JOURNAL as a `type: description` line (Y5/R5A11) so W7 exclusion
 stays complete — asserted from the intent record, not the real store.
 **Receptivity-gate staged acceptance + THRESHOLD-BOUNDARY tests (R6A3/V8, `todoist-surface` owns the gate; E3
-test `b1_receptivity`):**
+test `b1_receptivity`, numbered MM10/LL5):**
 seed the calibration store with dismissal/surfacing fixtures and stage a surface for each boundary, asserting
 **withhold-intent (provide-nothing) is logged** exactly at/over threshold and a surface below it:
-- **Dismissals: 2 vs 3 (D=3).** 2 trailing-24h dismissals ⇒ **surface** (below D); 3 ⇒ **withhold** (a
+- **INV-B1-6 (Dismissals: 2 vs 3, D=3).** 2 trailing-24h dismissals ⇒ **surface** (below D); 3 ⇒ **withhold** (a
   `provide-nothing` decision logged, no task surfaced).
-- **Surfacings: 7 vs 8 (S=8).** `surfacings_today == 7` ⇒ **surface**; `== 8` ⇒ **withhold**.
+- **INV-B1-7 (Surfacings: 7 vs 8, S=8).** `surfacings_today == 7` ⇒ **surface**; `== 8` ⇒ **withhold**.
 
 Each boundary asserts the gate output (surface vs withhold) from the audit/intent, so the N/D/S constants are
 exercised, not just declared.
@@ -1216,8 +1462,10 @@ idempotent, **each asserting the EXACT computed popup timestamp** (`block_start 
   THREE modes by caller** (spec §13/W10): pool → free windows → rank Q1 → Q2 against `goals.md` →
   capacity/window fit → cap at 3.
   - **`morning` ⇒ WRITES the ≤3 `p1`** — **guarded by the PER-DAY PLAN RECORD, not a p1 count (Y13, spec
-    §4c/§15).** On entry read **`forzare/state/plan-of-day.json`** `{date, selected_ids[], anchor,
-    writes:{p1_set, anchor_placed, alarm_set}}`; if a record for **today** exists, **resume only the missing
+    §4c/§15).** On entry read **`forzare/state/plan-of-day.json`** `{date, created_ts, selected_ids[], anchor,
+    writes:{p1_set, anchor_placed, alarm_set}}` — **`created_ts` is stamped at plan-record CREATION (MM6/FF6),
+    the reference clock the EOD-ownership check (EE6, spec §8) compares an intervening user-priority event's `ts`
+    against** (a bump AFTER `created_ts` = the user re-took the p1 ⇒ skip the clear); if a record for **today** exists, **resume only the missing
     writes** (each `writes.*` flag is that write's done-marker) — never re-run a completed write, never top p1
     up past the recorded `selected_ids`, and **leave a `p1` the USER set directly in Todoist untouched** (only
     ids in `selected_ids` are Bob's — the old "any p1 present" heuristic couldn't tell them apart). Then place
@@ -1279,10 +1527,15 @@ captured-id cleanup, `## Response`-section-only parsing via `resp_only` (R7A4 �
   step/question anywhere is a structural second ask); **(iv)** the secondary verb/question regex count over the
   non-marker lines == 0. Asserted for **queue NON-EMPTY** (a seeded `waiting-chase` head + `synthetic_weather`
   breach + pending activation ⇒ the head is the sole `▶ ` line) **and queue EMPTY** (the do-now close is).
-- **INV-B4-5 (gate failure fixtures — the gate itself is exercised, deterministically):** EIGHT adversarial
-  fixtures are **ALL rejected** — a two-marker wall, plus an imperative sentence / a bullet / a numbered step /
-  a question **each placed both AFTER and BEFORE the marker** — while a positive fixture with `· ` context lines
+- **INV-B4-5 (gate failure fixtures — the gate itself is exercised, deterministically):** NINE adversarial
+  fixtures are **ALL rejected** — a two-marker wall (1), plus an imperative sentence / a bullet / a numbered step /
+  a question **each placed both AFTER and BEFORE the marker** (4 × 2 = 8) — while a positive fixture with `· ` context lines
   before AND after the marker **PASSES**.
+- **INV-B4-6 (plan-of-day carries `created_ts` — MM6/FF6):** a morning-mode `eisenhower-plan` run that WRITES a
+  fresh `plan-of-day.json` record (no today-record to resume) produces a record whose **`created_ts` is present
+  and is a valid ISO timestamp** — asserted before any EOD-ownership test (G1 INV-G1-1/EE6) can compare an
+  intervening-user-event `ts` against it; a record missing `created_ts` FAILS (the ownership check would have no
+  reference clock).
 
 **Acceptance:** NO curator pin (AA11 — integrity is the content-hash gate); INV-B4-1..5 pass under E3
 (`eisenhower-plan` in morning mode never assigns >3 p1 and is **guarded by `plan-of-day.json` (Y13, NOT a p1
@@ -1303,10 +1556,11 @@ mv-back / absent-before ⇒ rm — BB6/II1), never a `search: [TEST]` sweep.
   - **Brief mode (default) — the §2-step-4 delivery consolidator.** Reads the unified
     **`forzare/state/decision-queue.json`** (populated by the 02:00 reconcile + EOD + the capture pipeline +
     the monthly sweep) and emits **ONLY the single HEAD `pending` record** as the brief's one decision — never
-    a list. The queue holds every class: `waiting-chase` (most-overdue first), `fixed-redecision` (do
-    late / reschedule / drop), `stall-decision` (any map task at `roll_count ≥ 2` that EOD marked but did not
-    message — the gentle decompose/if-then/drop, R4A10, spec §7/§8), `triage-reraise`, and `sweep-candidate`
-    (X7). **The head decision REPLACES the brief's do-now close** (§0/W12). **Ack is a LIVE-only write
+    a list. The queue holds **all eight classes** (LL9): `q1-conflict` (>3 Q1 today), `waiting-chase`
+    (most-overdue first), `fixed-redecision` (do late / reschedule / drop), `stale-p1` (a user p1 > 48h),
+    `stall-decision` (any map task at `roll_count ≥ 2` that EOD marked but did not
+    message — the gentle decompose/if-then/drop, R4A10, spec §7/§8), `triage-reraise`, `sweep-candidate`
+    (X7), and `bankruptcy-offer` (the opt-in mass clear). **The head decision REPLACES the brief's do-now close** (§0/W12). **Ack is a LIVE-only write
     (R5A5):** the live turn that receives the user's answer TOMBSTONES the head via the `{id, gen, rev}` CAS (BB2)
     so the next surfaces next morning — followups-sweep itself, running at brief time, only READS the head.
   - **SWEEP mode (monthly, `--deliver local`, R4A6/X7) — one PRODUCER for the unified queue.** Selects the
@@ -1437,7 +1691,7 @@ exit-ramp/hand-off logic explicit owners (spec §8/§3a/§3b; U2/A10/A14/A31).
   future) are **secondary sanity guards within** that set, **not** the definition, and **`deadline != null` is
   NOT a blanket exclusion** — a Bob-written lead-time due on a deadline task is in the ledger and rolls (§4c/§8).
   The roll re-dates **already-dated** tasks, so it uses **`td task reschedule`** (preserves recurrence/time)
-  through the Step-0 centralized helper (journal→date-write→commit); the same helper uses `td task update
+  through the Task B0 centralized helper (journal→date-write→commit); the same helper uses `td task update
   --due` only where it *initially* dates an undated task (spec §4/W6). **BOB-OWNED `p1`-clear — ONLY the day's
   `plan-of-day.json` `selected_ids`, NEVER a user-set p1, AND ownership RE-CHECKED at clear time (AA2/EE6,
   spec §8).** Clear `p1` from the ids Bob set this morning (roll-excluded ones among them included) — but per
@@ -1531,6 +1785,20 @@ Implemented by **E3 test `b7_two_run`**; invariants:
   `task-lifecycle.json` MAP, `mutation-journal.jsonl`, AND `decision-queue.json` (eod-roll enqueues
   fixed-redecision/stall-decision records) are all **unchanged** across both runs (before/after compare per
   store).
+
+The Step-1 CEILING/cutoff recovery matrix and the dating fixtures are two further E3 tests, numbered (MM10/LL5):
+
+- **INV-B7-4 (CEILING/cutoff matrix — E3 test `b7_ceiling`; X6/W5/R3A9):** the Step-1 recovery points, each driven
+  DETERMINISTICALLY by the staging `FORZARE_NOW` clock override — 22:59 (before cutoff ⇒ CEILING = yesterday) /
+  23:00 (at cutoff ⇒ CEILING = today) / just-past-midnight (still closes the prior day) / ≤2h catch-up / manual
+  mid-day — each yields the identical, once-only roll; AND a **≥3-day outage** drains the whole gap in ONE pass,
+  ticking each carried task's `roll_count` EXACTLY ONCE.
+- **INV-B7-5 (dating fixtures, one per date-writer path × `kind` — E3 test `b7_dating`; W6/X5):** a user-dated task
+  (no ledger entry — never moves) · a Bob lead-time date on a deadline task (`kind: leadtime` — rolls) · a
+  capture-dated task (user-stated day ⇒ `kind: user_fixed`, never rolls; lead-time capture ⇒ `kind: leadtime`,
+  rolls) · a planning-pull promotion (`kind: surfacing`, initial `update --due`, then rolls) · a `@waiting`
+  check-back (`kind: waiting_checkback` — never rolls/ticks) · a timed (`"T"`) task · a recurring task (both
+  never mutated).
 
 **Acceptance:** `eod-roll` rolls only the ledger-defined set (V1), clears `p1` from **ONLY the day's
 `plan-of-day.json` `selected_ids` — never a user-set p1 (AA2/CC1; the G1 EOD gate seeds a Bob-owned + an
@@ -1827,16 +2095,16 @@ every card attaches this one installed skill via `--skill` (W4). **Phase D (Task
   guard `auto_subscribe_on_create: false` (A2) is belt-and-suspenders. (`notify-subscribe` is separately
   DELETED — verified `hermes kanban --help`: it routes TERMINAL events only, onto the home channel — a firewall
   breach + dispatch race, Y2.)
-  1. **`hermes kanban create "fz-capture: <title>" --triage --idempotency-key <inbox-task-id> --assignee default
+  1. **`hermes kanban create "fz-capture: <title>" --triage --created-by forzare --idempotency-key <inbox-task-id> --assignee default
      --max-runtime 900 --skill forzare-capture-pipeline`** — titled `--triage` card (title required positional).
-     **The `fz-capture: ` TITLE PREFIX is the forzare-card discriminator (DD11):** the private board is shared
-     across profiles (spec §9), so the stale-triage scan (F1 (e)) must alarm ONLY on forzare capture cards — and
-     while `hermes kanban create` does expose `--body`/`--priority`/`--project`/`--workspace`/`--tenant`/
-     `--created-by` (verified `--help`, FF9), the namespace flags (`--project`/`--workspace`/`--tenant`) are not a
-     forzare-per-card marker and `--body` isn't a queryable discriminator — so the **title prefix is the chosen
-     discriminator (HH5: a `--created-by` filter would also work — it IS a stored, filterable per-card column,
-     `kanban_db.py:1019`; the title prefix is preferred as the greppable, human-legible marker)**; the
-     scan filters `title` on `^fz-capture: ` and non-forzare triage cards never alarm. **`--max-runtime 900` (Y7)**; idempotency key = the stage-1 Inbox task id (a retry / no-resume
+     **The `--created-by forzare` STORED COLUMN is the forzare-card discriminator (DD11/MM1):** the private board is shared
+     across profiles (spec §9), so the stale-triage scan (F1 (e)) and the run-failure scan (F1 (b)) must alarm ONLY on forzare cards.
+     `--created-by` (verified `--help`, FF9) is a stored, **IMMUTABLE**, filterable per-card column
+     (`kanban_db.py:1019`), so both scans read **`created_by == "forzare"` from `hermes kanban list --json`** (the
+     CLI has no `--created-by` filter flag — they jq the field). **The `fz-capture: ` title prefix is DISPLAY-ONLY,
+     NOT the discriminator (MM1)** — because **`specify` provably rewrites the title** (`specify_triage_task`
+     atomically updates title/body, `kanban_db.py:4574`), a title-prefix scan would MISS every specified card; the
+     earlier "title prefix is the chosen discriminator" framing is swept (HH5/JJ8/MM1). **`--max-runtime 900` (Y7)**; idempotency key = the stage-1 Inbox task id (a retry / no-resume
      restart re-derives the same card). Stage 1's Inbox write already gave the instant nothing-lost ack.
   2. **`hermes kanban specify <task_id>` — a BOUNDED synchronous attempt, supervised by a persisted cron retry
      (BB1 — NOT a detached fire-and-forget; corrects the AA5 framing that claimed a supervision Hermes cannot
@@ -2203,13 +2471,18 @@ single-script execution model with ONE combined cleanup handler, KK0 leg-B/GG8)*
 - **INV-C2-10 (seeded work — R6A4):** the test seeds ONE `[TEST-$RUNID]` **ungroomed dated** fixture (no
   load-label, no duration) inside `[TEST-STAGING]`, so the staged brief's groom-on-read + eisenhower-plan have
   real work and the always-acting writers journal.
-- **INV-C2-11 (per-skill EFFECTS, not a prompt grep — W1/R5A8/FF14):** after one forced staged brief run (audit
-  read BY job id), the intents log carries an effect record for EACH always-acting mutating member
-  (`eod-roll` / `todoist-surface` / `eisenhower-plan`), keyed `skill` + the brief's OWN `run_id` — resolved as
-  the run id carrying the `eisenhower-plan` effect (only the morning bundle runs it), never `map(.run_id)|last`
-  and NEVER a grep over the audit .md (the audit embeds each loaded skill's instruction text in `## Prompt`, so
-  a name-grep proves loading, not running; read-only members and conditional writers are asserted in their own
-  tasks: B2/B3/B4/B5/B7).
+- **INV-C2-11 (per-skill EFFECTS, not a prompt grep — W1/R5A8/FF14/LL13):** the forced staged brief run is
+  driven with a **UNIQUE per-test `RUNID` injected into THAT run's OWN prompt DRY directive** (`… stamping
+  run_id=$RUNID on each intent …`), so every assertion filters **`.run_id == $RUNID`** directly. This is what
+  isolates the forced run from the **standing forzare ritual jobs** — those were created in Step 1 with a
+  STATIC DRY directive (a different/no `$RUNID`), so the live gateway's own 60s tick firing one of them into the
+  same intents log during the staged window is **excluded by run_id mismatch** (FF14 preserved — never
+  `map(.run_id)|last`, and never "the run carrying the `eisenhower-plan` effect," which two morning-bundle runs
+  would BOTH carry). After one forced run (audit read BY job id), the intents log carries an effect record for
+  EACH always-acting mutating member (`eod-roll` / `todoist-surface` / `eisenhower-plan`), keyed `skill` + this
+  test's `$RUNID` — NEVER a grep over the audit .md (the audit embeds each loaded skill's instruction text in
+  `## Prompt`, so a name-grep proves loading, not running; read-only members and conditional writers are
+  asserted in their own tasks: B2/B3/B4/B5/B7).
 - **INV-C2-12 (NEGATIVE leak gate, INDEPENDENT of the intent log — AA1/R7A8/EE3/BB5):** across the staged
   window, all four independent before/after checks are UNCHANGED, with any command/parse failure FATAL (never
   masked to zero):
@@ -2251,9 +2524,10 @@ config** and the **card lifecycle / idempotency / controlled-harness tests** bel
   `td task add` to Inbox — NOT `quickadd`, spec §8b/U4; instant ack, idempotent) AND the placement/classification
   decisions (task-vs-event pre-check + the 4 routing cases, decide-in-context — placement moved to the PARENT,
   AA5)**, then:
-  1. **`hermes kanban create "fz-capture: <title>" --triage --idempotency-key <inbox-task-id> --assignee default
-     --max-runtime 900 --skill forzare-capture-pipeline`** (title required positional — verified; the `fz-capture: `
-     prefix is the DD11 discriminator the stale-triage scan filters on; idempotency
+  1. **`hermes kanban create "fz-capture: <title>" --triage --created-by forzare --idempotency-key <inbox-task-id> --assignee default
+     --max-runtime 900 --skill forzare-capture-pipeline`** (title required positional — verified; the immutable
+     `created_by == "forzare"` column is the DD11/MM1 discriminator both watchdog scans filter on — the
+     `fz-capture: ` title prefix is display-only, since `specify` rewrites it; idempotency
      key = the stage-1 Inbox TASK ID; **`--max-runtime 900`**, Y7; `--skill` attaches B11's stage logic). A
      `--triage` card is **not dispatchable**; stage 1's Inbox write already gave the instant nothing-lost ack.
   2. **`hermes kanban specify <task_id>` — a BOUNDED synchronous attempt, supervised by a persisted cron retry
@@ -2304,9 +2578,10 @@ config** and the **card lifecycle / idempotency / controlled-harness tests** bel
 Implemented by **E3 test `d1_lifecycle`** (`RUNID`-scoped card title + idempotency key so concurrent/re-runs
 never collide, BB6); invariants:
 
-- **INV-D1-1 (idempotency dedupe):** two `hermes kanban create "fz-capture: [TEST-$RUNID] …" --triage
-  --idempotency-key test-cap-$RUNID --assignee forzare-noop-test` calls return the **SAME card id** (the second
-  is a dedupe, never a duplicate); the title is the required positional (R3A11).
+- **INV-D1-1 (idempotency dedupe + discriminator column):** two `hermes kanban create "fz-capture: [TEST-$RUNID] …" --triage
+  --created-by forzare --idempotency-key test-cap-$RUNID --assignee forzare-noop-test` calls return the **SAME card id** (the second
+  is a dedupe, never a duplicate); the title is the required positional (R3A11); and `kanban show --json` reports
+  **`created_by == "forzare"`** on the card (the MM1 discriminator both watchdog scans key on).
 - **INV-D1-2 (status via JSON):** the fresh card reads `status == "triage"` from `kanban show --json` — a JSON
   field read, never a text grep; the non-spawnable assignee keeps the live dispatcher from ever running it.
 - **INV-D1-3 (no subscription row — Z1):** `hermes kanban notify-list <id> --json` is **EMPTY** for the
@@ -2354,10 +2629,12 @@ Step 6.)
     the `#forzare-errors` delivery here** — that end-to-end route (seeded event → `hermes send` → spool) is
     asserted in **Task F1** (which owns the watchdog + spool), avoiding a forward dependency and any user-visible
     message before Phase G.
-  - **RECORD a machine-checked result file (Z6/R6A6).** The harness writes its verdicts to
-    `~/workspaces/Ivy/forzare/state/d1-harness-result.json` — `{dated_placement_kind, restart_task_count,
-    restart_event_count, terminal_event, terminal_status, all_pass}` — so **Checkpoint D consumes a machine
-    result, not prose.**
+  - **RECORD a machine-checked result file (Z6/R6A6) — in the STAGING dir, NOT `state/` (MM7/LL6).** The harness
+    writes its verdicts to **`~/workspaces/Ivy/forzare/staging/d1-harness-result.json`** — kept OUT of the state
+    layer so the §17 recursive `state/` content-hash gate (AA1/DD6) is never polluted by a harness artifact —
+    `{run_id, ts, referenced_objects[], dated_placement_kind, restart_task_count, restart_event_count,
+    terminal_event, terminal_status, all_pass}` (the `run_id`/`ts`/`referenced_objects` fields let Checkpoint D
+    reject a stale/foreign result and re-verify, MM3) — so **Checkpoint D consumes a machine result, not prose.**
   - **Archive the card LAST (Z6):** `hermes kanban archive <the Step-5 probe-card id>` is the final line of Step 6, after every
     assertion has run against the still-live card.
 
@@ -2380,8 +2657,8 @@ config is live before delivery/watchdog phases build on it.
 
 - **Verify (fail-closed):** Checkpoint D **consumes the machine-checked D1 result file, NOT prose (Z6/R6A6);
   like every Task-E3-consumed result it REJECTS a stale/foreign result and RE-VERIFIES referenced objects
-  (KK0/JJ0).** It reads `~/workspaces/Ivy/forzare/state/d1-harness-result.json` (and the E3
-  `state/e3-results/*.json` verdicts for any D-phase invariants), asserts each **`run_id` matches THIS build's
+  (KK0/JJ0).** It reads `~/workspaces/Ivy/forzare/staging/d1-harness-result.json` (and the E3
+  `staging/e3-results/*.json` verdicts for any D-phase invariants — both in the STAGING dir, outside `state/`, MM7/LL6), asserts each **`run_id` matches THIS build's
   run and `ts` is within the build window** (a leftover green result from an earlier run is rejected), and
   **re-verifies its `referenced_objects`** (e.g. the probe card is actually archived, its `[TEST-$RUNID]`
   fixtures are gone), then asserts `all_pass == true` (dated
@@ -2393,11 +2670,17 @@ config is live before delivery/watchdog phases build on it.
 
 ```bash
 set -o pipefail
-# Z6: the D1 harness result is a MACHINE artifact, not a prose "it passed":
-RES=~/workspaces/Ivy/forzare/state/d1-harness-result.json
-jq -e '.all_pass == true and (.terminal_event|IN("timed_out","crashed","gave_up"))' "$RES" \
-  || { echo "FATAL: D1 harness result not all_pass or missing a real terminal event (Z6)" >&2; exit 1; }
-echo "D1 harness result OK (machine-checked, Z6): $(jq -c . "$RES")"
+# Z6: the D1 harness result is a MACHINE artifact, not a prose "it passed" (in staging/, not state/ — MM7/LL6):
+RES=~/workspaces/Ivy/forzare/staging/d1-harness-result.json
+# MM3: TIGHTEN the jq — require run_id + ts + a referenced_objects array (a minimal {all_pass:true,...} JSON is
+# REJECTED), so a stale/foreign/hand-faked result can never wave the checkpoint through:
+jq -e '.all_pass == true
+       and (.run_id|type=="string") and (.run_id|length>0)
+       and (.ts|type=="string") and (.ts|length>0)
+       and (.referenced_objects|type=="array")
+       and (.terminal_event|IN("timed_out","crashed","gave_up"))' "$RES" \
+  || { echo "FATAL: D1 harness result not all_pass, or missing run_id/ts/referenced_objects, or missing a real terminal event (Z6/MM3)" >&2; exit 1; }
+echo "D1 harness result OK (machine-checked, Z6/MM3): $(jq -c . "$RES")"
 ~/.hermes/hermes-agent/venv/bin/python - <<'PY'
 import os, yaml
 k = (yaml.safe_load(open(os.path.expanduser("~/.hermes/config.yaml"))).get("kanban",{}) or {})
@@ -2552,131 +2835,6 @@ documented rollback restores it.
 
 ---
 
-### Task E3: `forzare-staging-harness` — the gated staging-test suite (KK0/JJ0 — THE STRUCTURAL DELIVERABLE)
-
-**Files (in the dotfiles repo, via the delivery-vehicle rule):**
-
-- Create: `dot_local/bin/executable_forzare-staging-harness/` — the harness script suite (one `.sh` per
-  invariant family + a `run.sh` orchestrator), each auto-shellchecked by `find_shell_files` (Task F1 Step 3 wires
-  the dir into `scripts/lint.sh` if not already covered).
-- Create: `dot_local/bin/executable_forzare-staging-harness/*.bats` — the bats specs that gate each `.sh`.
-
-**Why this task exists (the recurring-finding exit — KK0/JJ0).** Across rounds 1–11, the plan's *staged-test
-BASH* — the traps, locks, fixture seeding, snapshot diffs, two-run windows embedded inline in every B/C/D/G verify
-step — was itself the surface that generated ≥5 rounds of interference findings (a trap that double-fired, a
-`map|last` run-id race, a `mkdir` lock, a masked-to-zero leak gate, …). This is the *process doc's own
-prescription* for the recurring embedded-command finding class: **demote every multi-step embedded harness to
-per-task INVARIANTS (what must be observably TRUE — every fixture design, negative case, threshold, and safety
-rule preserved as a bullet requirement, nothing lost, it changes form) and move the mechanics into ONE
-build-time deliverable — this harness suite — that is itself gate-checked (shellcheck + bats) and reviewed at
-build time.** Each per-task acceptance now reads as invariants + a pointer here; this task IMPLEMENTS them. **Kept
-verbatim in the task steps (NOT moved here):** single-line probes (`command -v td`, `curl … /health`, a
-`gog calendar calendars` reachability check), config asserts (the `yaml.safe_load` / resolved-value reads in
-A2/B10/D/E1), and the **proven E1 python filter-function probes** (`_is_cron_silence_response` /
-`is_intentional_silence_*` — already green against the installed venv).
-
-- [ ] **Step 1: The invariant CATALOG — each per-task invariant id maps to ONE harness test.** Every demoted
-  verify step lists numbered invariants `INV-<task>-<n>` in its own task body; this suite's tests are named
-  `<task>_<n>` one-to-one, so the mapping is total and mechanical. The catalog the suite MUST implement (drawn
-  from the demoted acceptances — the fixture designs, thresholds, and negative cases are preserved as test
-  requirements, JJ0):
-  - **B0 (ledger I/O):** the per-`type` after-write crash fixtures (`date-op`/`comment`/`calendar`/`label`/`p1`/
-    `description`/`task.add`/`task.complete`/`waiting-clear`/`undate`/`retire`) each exercising all THREE heal
-    outcomes (intended⇒commit · old⇒re-apply · OTHER⇒abort+flag, user value NOT overwritten); the `task.add`
-    five-step machine per healing window (verify-by-id / marker-found under collision·rename·move / past-window
-    replay ONLY on a DOUBLE empty-success search ≥30s apart / within-window at-most-once abort+re-confirm); **the
-    `bankruptcy` fixture is COMMITTED-AT-WRITE-shaped, NOT three-way (KK7): absent⇒re-offer, complete⇒read the
-    immutable cohort**; the decision-queue concurrency set (producer-race, duplicate-reconcile, in-place update
-    `rev==2`, ack-vs-promotion CAS, ack-then-reenqueue `gen 2`, **the gen1→gen2 rollover ordering fixture whose
-    assertable truth is "the re-enqueued gen-2 record has `head=false` + a fresh `enqueue_ts` and sorts at the
-    TAIL of its class-rank" — the impossible "a lower-rank pending out-orders it" claim is DELETED (KK8/JJ7)**,
-    delayed-answer, aggregate-id, non-head intra-day resolution); **the KK3 producer once-guard** (a re-enqueue
-    of a tombstoned `id` with `answer=keep` and an unchanged predicate is a NO-OP); **a SIGKILL-mid-critical-
-    section fixture asserting the `fcntl.flock` lock is kernel-auto-released so the next run re-takes it (KK1)**.
-  - **B0 propagation probe (Step-5 measurement, JJ6):** create a marker-tagged task, poll a marker search until
-    it appears, over N trials; **compute p95 of the create→search round-trip and REJECT (FATAL) the 120s bound
-    when p95 > 90s** (the safety margin below the 120s crash-heal window — decided; the earlier soft-WARN band is
-    removed). The marker rides `--description`, the clock is read BEFORE the API call, and the measured p95 is
-    recorded in `calibration/priors.md`.
-  - **B1/B2/B6/B8 (skill dry-runs):** the label-set-preserve contract (≤1 targeted label-write, `deep`
-    preserved), dry-run purity, the receptivity boundary tests (2-vs-3 dismissals, 7-vs-8 surfacings); the
-    weather synthetic classifier (clear/breach/degrade); the `/forzare` positive + two passing-mention negatives
-    with purity hash-compare; the capture MISSING-vs-NULL-vs-value due read + purity.
-  - **B4 (eisenhower/brief):** the plan-of-day resume on a PINNED schedule (work-day: only the missing alarm
-    write; off-day variant: ZERO alarm intent); the >3-Q1 conflict (≤3 `p1.set` + one `q1-conflict:<date>`
-    aggregate record); the `▶ ` exactly-one-action gate (one marker-initial line + one occurrence + zero non-`· `
-    lines pre- AND post-marker + zero secondary asks) in BOTH queue states, with the eight adversarial failure
-    fixtures + the positive `· `-context fixture.
-  - **B5 (followups-sweep):** brief-mode HEAD ordering + ack purity; the honest bankruptcy split (reducer
-    eligibility over SYNTHETIC 40-day streams vs a fresh `added` event; live mechanics only); OFFER = a
-    `bankruptcy`-type JOURNAL freeze + a canonical (frozen-free) `bankruptcy-offer:<YYYY-MM>` queue record with
-    `journal_ref` = the journal-uuid + ZERO clear intents; acknowledged clear consumes the JOURNALED snapshot
-    (UNDATE dated + RETIRE undated, no destructive op); idempotent partial-failure retry across BOTH halves.
-  - **B7 (eod-roll two-run):** the shared-`test_window_id` shadow overlay so RUN2 logs an `already-reconciled`
-    no-op keyed `run_id==RUN2`; dry-run purity across stamp + MAP + JOURNAL + queue; the CEILING/cutoff matrix
-    driven by `FORZARE_NOW` (22:59 / 23:00 / just-past-midnight / ≤2h catch-up / manual mid-day); the ≥3-day
-    outage single-tick drain; the six W6/X5 dating fixtures.
-  - **B9 (calibration):** the two-page cursor stub asserting the page-2 fetch, the W7/GG13 generic-exclusion
-    negatives, and the four numeric update-rule fixtures + the end-to-end recommendation shift.
-  - **C2 (bundle leak gate, KK0 leg-B "B2"):** the NEGATIVE gate is INDEPENDENT of the intent log — before/after
-    diffs of task + comment activity **cursor-paginated to exhaustion (all pages)**, scoped to the
-    `[TEST-STAGING]` project + `[TEST-$RUNID]` fingerprint; a run-scoped 🤖-calendar snapshot whose **detection is
-    PREFLIGHTED against a seeded probe event (a matcher that silently matches nothing is a FATAL observer
-    failure, not a vacuous pass)**; a RECURSIVE state+calibration hash EXCLUDING `dryrun-intents.jsonl`;
-    **created-id coverage** (every seeded fixture id is in the fingerprint set); a gog/`td` command-or-parse
-    failure is FATAL, never masked-to-zero.
-  - **C2 transactional install (KK0 leg-B "B4" stopped-window):** the SINGLE-SCRIPT execution model with ONE
-    combined cleanup handler — record gateway initial-loaded state → arm the EXIT/INT/TERM restore BEFORE the
-    first bootout → back up + validate `jobs.json` → bootout → assert down (launchctl + health port) → reconcile
-    by name → post-assert exact manifest → (ERR ⇒ atomic tmp+rename restore + byte-compare) → EXIT restarts +
-    health-probes only an initially-loaded gateway (the watchdog is NOT in the Phase-C stop-set).
-  - **G1 go-live transaction (KK0 leg-B "B5"):** every exact edit (six DRY-strip prompt edits + four
-    `--deliver discord` flips + resume eod-roll), all axes asserted PRE-FLAG (manifest / enabled / 4-discord +
-    2-local map / DRY-free prompts / DRY-free bundles), and **post-restart failure = stop, restore `jobs.json`,
-    byte-verify, restart BOTH services, re-health-check — and write NO `go-live.json` on any restart/health
-    failure**; the morning roll-then-plan ordering (max roll ts < min p1.set ts); **the concurrent-trigger
-    invariant (JJ12/KK0): a cron ritual and a live one-shot fired in the same window EACH surface ≤1 item — the
-    `DRY`/`RUNID` are defined in the test's own scope, not left dangling**.
-  - **B6/plan-of-day (KK0 leg-B "B6"):** the existed-before backup rule — `guard` records whether each touched
-    state file existed before, a single EXIT restore branches mv-back (existed) vs rm (absent), a
-    backup-creation failure is FATAL, and there is no `rm` of a real store anywhere.
-  - **B12 morning-ordering (KK0 leg-B):** the fixture seeds its lifecycle-ledger entry with `kind: surfacing`
-    (so the defensive roll has a real ledger-defined roll target) and asserts the fixture id rolls before the
-    plan writes p1.
-  - **Checkpoint-D result writer (KK0 leg-B "B7"):** the D1 harness writes the machine-checked
-    `d1-harness-result.json`; this suite writes the analogous run-scoped result files (below).
-
-- [ ] **Step 2: Run-scoped ATOMIC result files consumed by the checkpoints.** Each test writes its verdict to
-  **`~/workspaces/Ivy/forzare/state/e3-results/<test-id>.<RUNID>.json`** — `{test_id, run_id, ts, measured{…},
-  outcome: pass|fail, referenced_objects:[…]}` — written **atomically (same-dir tmp + `os.rename`)** so a reader
-  never sees a torn verdict. **Checkpoints CONSUME these result files, and REJECT stale or foreign ones:** a
-  checkpoint asserting a family passed requires a result file whose **`run_id` matches THIS build's run id** (not
-  a leftover from an earlier run) and whose `ts` is within the build window, then **RE-VERIFIES the
-  `referenced_objects`** (e.g. that a `[TEST-$RUNID]` fixture the test claimed to clean up is actually gone, that
-  the real store hash the test recorded still matches) — so a stale green result can never wave a checkpoint
-  through. (This closes leg-B's Checkpoint-D stale-evidence item.)
-- [ ] **Step 3: Build-time gating.** The suite is **shellcheck-clean** (every `.sh` under
-  `find_shell_files`) and **bats-green** (`bats dot_local/bin/executable_forzare-staging-harness/`) — run in the
-  same pre-commit flow as Task F1's watchdog. A red bats spec or a shellcheck finding **blocks the harness from
-  shipping**, so the mechanics are reviewed HERE, once, under a real gate — not re-litigated inline in fifteen
-  verify steps every round.
-- [ ] **Step 4: The one lock + the shared safety primitives.** The suite's `run.sh` provides ONE set of the
-  primitives every test reuses: the **`fcntl.flock` critical-section lock via the B0 python shim (KK1 — no
-  `mkdir` sentinel, kernel-auto-released)**; the `RUNID`/`[TEST-$RUNID]` fixture scoping; the existed-before
-  `guard`/`restore` with a single EXIT handler; captured-id-only cleanup (never a `search: [TEST]` sweep); the
-  `[TEST-STAGING]` project RESOLVE-ONLY (KK2 — FATAL if absent, never `td project create`); and the CC4
-  staging-override honoring (`pinned_schedule`/`synthetic_weather`/`FORZARE_NOW`/`activity_stub`). Each test file
-  sources these — they are defined ONCE, not re-derived per test.
-
-**Acceptance:** the harness suite is authored in the chezmoi source, shellcheck-clean and bats-green at build
-time; every demoted per-task invariant `INV-<task>-<n>` maps to a suite test `<task>_<n>`; each test writes a
-run-scoped atomic result file under `state/e3-results/`; the checkpoints (B/C/D/F + the G1 go-live gate) consume
-those files, **reject stale/foreign results (run-id + ts window) and re-verify `referenced_objects`** before
-clearing; the propagation probe REJECTS the 120s bound at p95 > 90s (JJ6); the gen-rollover fixture asserts the
-tail-ordering truth (KK8/JJ7); and the concurrent-trigger test defines its own `DRY`/`RUNID` scope (JJ12).
-
----
-
 ## Phase F — Watchdog + ops (chezmoi-managed, in this repo)
 
 ### Task F1: `forzare-ops-watchdog` script + launchd plist + lint wiring + docs
@@ -2692,13 +2850,16 @@ Tasks A2/A3/A5):**
 
 - [ ] **Step 1: Write the watchdog script**, modeled on `dot_local/bin/executable_osquery-uptime-watchdog.sh`
   — **zero LLM**, out-of-band, doing SIX state-stamped scans per pass (spec §14/U3):
-  - **(a) Gateway health.** Probe **`curl -fsS -m 3 http://127.0.0.1:8644/health`**, branch on exit code —
+  - **(a) Gateway health.** Probe **`curl -fsS -m 3 http://127.0.0.1:8642/health`** — the API server's
+    platform-independent `/health` (gated on the Phase-A `API_SERVER_ENABLED=1` env, MM2; the webhook `:8644` is
+    dead when `WEBHOOK_ENABLED=false`, verified live) — branch on exit code —
     **0 = up, 28 = hung, 7 = down** (spec §19). On down / hung / restart-looping → alert.
   - **(b) forzare run failures — the predicate is a causal run EVENT, never status+counter (W9, corrects
     V9/R2A6).** Since the last stamped watermark, scan `~/.hermes/cron/output/` for failed ritual runs and the
     kanban DB for **genuine** failures, routing each to the errors channel. **The kanban-DB half carries the
-    SAME forzare discriminator scan (e) uses (KK4/JJ4):** only a card matching the **`fz-capture: ` title prefix
-    (or `created_by=forzare`, the filterable per-card column `kanban_db.py:1019`)** can raise a
+    SAME forzare discriminator scan (e) uses (KK4/JJ4/MM1):** only a card whose stored **`created_by == "forzare"`
+    column** (`kanban_db.py:1019`, read from `hermes kanban list --json` — immutable, unlike the title `specify`
+    rewrites) can raise a
     `#forzare-errors` alarm — the private board is shared across profiles (spec §9), so a **non-forzare
     profile's card failing NEVER alarms** the forzare errors channel. (Cron-`output/` failures are already
     forzare-scoped by the `forzare-*` job manifest.) Alert **ONLY** on failure
@@ -2753,11 +2914,12 @@ Tasks A2/A3/A5):**
     `DRY RUN` opener post-go-live** (which would silently stop it acting/delivering) — same content-stable id + spool.
   - **(e) Stale-triage detection — the `specify` backstop (AA5/BB1).** Because the bounded `specify` attempt can
     fail or time out (§8b/B11/BB1), a `specify` that never completed leaves a capture card stuck in `triage`. So
-    the pass reads the private Kanban board for any triage card **whose `title` matches the `^fz-capture: `
-    discriminator (DD11 — the forzare-card marker, since `hermes kanban create` has no metadata field) in
+    the pass reads the private Kanban board (`hermes kanban list --json`) for any card whose stored
+    **`created_by == "forzare"`** column (DD11/MM1 — the immutable forzare-card marker; NOT the `fz-capture: `
+    title prefix, which a wedged-in-`triage` card still carries but a specified card does not) is in
     `status = triage` past its create time + 30-min grace ⇒ an errors-channel alert** (same content-stable id +
     spool) — catching a wedged/failed specify (including a failed one-shot `--no-agent` retry) that would otherwise
-    silently swallow a capture. **A non-forzare profile's triage card (no `fz-capture: ` prefix) never alarms** —
+    silently swallow a capture. **A non-forzare profile's triage card (`created_by != "forzare"`) never alarms** —
     the scan is scoped to forzare's own cards.
   - **(f) Skill-INTEGRITY scan — the runtime guard replacing the removed boot-abort (BB8).** Because forzare
     cannot hook Hermes' own boot (no-patching rule, spec §13), this is the standing runtime guard against Hermes'
@@ -2797,8 +2959,10 @@ Tasks A2/A3/A5):**
     An inherited-PATH `hermes: command not found` or an unset channel would silently swallow the alert. `set
     -euo pipefail`, double-quoted
     expansions, ISO-8601 timestamps (`date -u +"%Y-%m-%dT%H:%M:%SZ"`). **Do NOT curl the Discord webhook
-    directly** (R2 dropped that phrasing). `:8644` caveat — exists only while the webhook platform is enabled;
-    for a platform-independent probe, `API_SERVER_ENABLED=1` → `/health` on `:8642` (spec §19).
+    directly** (R2 dropped that phrasing). The health probe is the API server's **`:8642/health`** — DECIDED
+    platform-independent (MM2), gated on the Phase-A `.env` `API_SERVER_ENABLED=1` (+ `API_SERVER_KEY`, without
+    which the server refuses to start); the webhook `:8644` is dead when `WEBHOOK_ENABLED=false` (verified live,
+    spec §19).
 - [ ] **Step 2: Write the plist**, modeled on `com.webdavis.osquery-uptime-watchdog.plist.tmpl` — launchd
   **`StartInterval` 300s (DECIDED — W8/X9: the **best-effort ≈5-min** detection target, NOT a hard ceiling;
   launchd skips intervals during sleep and won't re-enter a still-running pass, so "every system failure on
@@ -2808,7 +2972,7 @@ Tasks A2/A3/A5):**
   this watchdog covers the hang KeepAlive can't detect, spec §14/§19.)
 - [ ] **Step 3: Wire lint** — add the plist loader template to `find_shell_templates` in `scripts/lint.sh`
   (the `.sh` helper is auto-shellchecked by `find_shell_files`; the `.plist.tmpl` is XML → `plutil -lint`).
-- [ ] **Step 4: Document** in `CLAUDE.md` — the watchdog probes `:8644/health`, scans cron/output +
+- [ ] **Step 4: Document** in `CLAUDE.md` — the watchdog probes the API server's `:8642/health` (MM2), scans cron/output +
   the kanban DB (event-based: `gave_up`/`crashed`/`timed_out`), scans `jobs.json` for `last_delivery_error`
   (delivery-only failures, X8), **loads the six-job C2 manifest for ritual-ABSENCE (a job that never ran by its
   deadline+30-min grace, AA8; go-live-KEYED — LOG pre-go-live / ALERT post-go-live, CC3)**, **scans the board
@@ -2824,8 +2988,8 @@ set -o pipefail
 source ~/.local/bin/gate-check.sh
 shellcheck "$REPO/dot_local/bin/executable_forzare-ops-watchdog.sh"
 CI=1 chezmoi --source "$REPO" execute-template --no-tty < "$REPO/Library/LaunchAgents/com.webdavis.forzare-ops-watchdog.plist.tmpl" | plutil -lint -
-# health probe returns 0 while the gateway is up:
-curl -fsS -m 3 http://127.0.0.1:8644/health >/dev/null && echo "gateway health OK (exit 0)"
+# health probe returns 0 while the gateway is up (API server's :8642/health, MM2 — needs API_SERVER_ENABLED=1):
+curl -fsS -m 3 http://127.0.0.1:8642/health >/dev/null && echo "gateway health OK (exit 0)"
 ```
 
 Expected: shellcheck clean; `plutil -lint` → `OK`; the live probe exits 0. **Acceptance (W9/X8/AA8/AA5/BB8/CC3
@@ -2837,9 +3001,9 @@ GO-LIVE-KEYED (CC3) — with `go-live.json` present/`gone_live:true`, fixtures f
 (missing from the manifest), a DISABLED/paused job, and a job whose newest `cron/output/` timestamp is past its
 schedule-derived deadline + 30-min grace (a NO-OUTPUT run); but with `go-live.json` ABSENT/`false` (staging) the
 SAME paused-job fixture LOGS only, NO alert** (paused-while-staging ⇒ no alert; paused-after-go-live ⇒ alert);
-**on a STALE-TRIAGE card (AA5/BB1/DD11) — a seeded `fz-capture: [TEST]` card left in `triage` past its create
-time + 30 min fires an alert, while a seeded NON-forzare triage card (no `fz-capture: ` prefix) left equally stale
-does NOT (the discriminator scopes the scan to forzare's own cards)**; **on a MISSING/CORRUPT `gate-check.sh`
+**on a STALE-TRIAGE card (AA5/BB1/DD11/MM1) — a seeded card created `--created-by forzare` left in `triage` past its create
+time + 30 min fires an alert, while a seeded NON-forzare triage card (`created_by != "forzare"`) left equally stale
+does NOT (the `created_by == "forzare"` discriminator scopes the scan to forzare's own cards)**; **on a MISSING/CORRUPT `gate-check.sh`
 (FF15/GG2) — a fixture that deletes or content-edits `~/.local/bin/gate-check.sh` fires the scan-(f) SELF-GUARD
 alert via `hermes send` (using the pinned constants) and does NOT source the tampered gate, then restore**;
 **on skill-INTEGRITY drift (BB8) — a fixture that moves or content-edits one V1 skill's `SKILL.md`
@@ -3066,7 +3230,7 @@ DIRTY=$(jq -r '.jobs[] | select(.name | test("^forzare-")) | select((.prompt // 
 echo "all six forzare job prompts are DRY-RUN-free (X1)"
 # Delivery axis: the four user-facing jobs deliver to discord; the two state-only jobs stay local.
 jq -r '.jobs[] | select(.name|test("^forzare-")) | "\(.name)\t\(.deliver)"' ~/.hermes/cron/jobs.json
-curl -fsS -m 3 http://127.0.0.1:8644/health && echo "gateway up"
+curl -fsS -m 3 http://127.0.0.1:8642/health && echo "gateway up"   # API server's :8642/health (MM2)
 launchctl print "gui/$(id -u)/com.webdavis.forzare-ops-watchdog" | grep -i state
 ```
 
@@ -3387,7 +3551,8 @@ recommendation shift → B9. **Pause-vs-absence reconciled** (CC3): the F1 absen
 `go-live.json` (LOG pre-go-live / ALERT post-go-live; G1 writes the flag) → F1/G1/A1. **Staging test-override
 schema authored** (CC4/CC12): `schedule-override.json`'s staging-only `{pinned_schedule, synthetic_weather,
 FORZARE_NOW}` fields are an authored contract, cutoff tests driven by `FORZARE_NOW` → Phase-B intro/B7/G1. Plus
-precision fixes: the unified journal/intent record shape stated once (CC8) → B0/Phase-B intro; the F1 scan (b)
+precision fixes: the journal record shape (CC8) and the DISTINCT dry-run intent record shape stated separately,
+never conflated (LL4) → B0/Phase-B intro; the F1 scan (b)
 citation corrected (`4560-62` is the unblock path, "only" dropped, `4383` stands, CC9) → F1; the ack-purity check
 asserts NO ack-shaped intent, mtime compare dropped (CC6) → B5; "pinned" → "installed (integrity-gated)" for the
 capture-pipeline skill (CC5) → D1; the round-6 boundary value annotated superseded (CC13) → changelog; the F1
@@ -3438,9 +3603,9 @@ B0 + spec §4d. Minor: §17's never-rm list → the category rule (every file un
 → spec §17; stale-p1 producer = EOD only, §4c step 6 references (DD7) → spec §4c; marker cardinality by
 occurrence + failure fixtures (DD8/EE8) → B4; B8 fixtures run-id-scoped (DD9) → B8; execution-locus stated once
 (merged canonical checkout; every gate uses the pinned `$REPO`, DD10) → Global Constraints/SKILL-INTEGRITY GATE;
-forzare-card discriminator = the `fz-capture: ` title prefix (DD11/FF9/HH5 — the chosen discriminator; a
-`--created-by` filter would also work, it is a stored filterable per-card column `kanban_db.py:1019`, but the
-greppable title prefix is preferred) → B11/D1/F1 + spec §8b; watchdog env constants += `CHEZMOI_BIN`
+forzare-card discriminator = the immutable **`created_by == "forzare"`** column (DD11/FF9/HH5/MM1 — create
+commands gain `--created-by forzare`; both watchdog scans jq `created_by` from `hermes kanban list --json`; the
+`fz-capture: ` title prefix is DISPLAY-ONLY, since `specify` rewrites the title, `kanban_db.py:4574`) → B11/D1/F1 + spec §8b; watchdog env constants += `CHEZMOI_BIN`
 (verified `/opt/homebrew/bin/chezmoi`) + `CHEZMOI_SOURCE` (DD12) → F1; backlog figure → ~2,270 live-verified
 (DD13) → both docs.
 
@@ -3477,8 +3642,9 @@ RUN1/RUN2 two-run probes with `run_id==RUN2` no-op assertion (HH3/II8) → B7 St
 pinned `auxiliary.triage_specifier.timeout: 20` (key verified `config.py:1505`) + forced-timeout fixture (II9) →
 A2/B11 + spec §14; scan (d) also alerts on delivery-map + prompt-dryness drift (HH6) → spec §14; morning
 roll-then-plan ordering command (HH7) → G1 Step 1; B6 acceptance re-scoped to the measured surface, 4-class
-matrix + low-confidence-confirm moved to G1 day-1 (HH8); set-e-safe retry wrapper (HH9) → B11; `--created-by` is
-a filterable per-card column (`kanban_db.py:1019`), title prefix is the *chosen* discriminator (HH5) → B11/spec §8b.
+matrix + low-confidence-confirm moved to G1 day-1 (HH8); set-e-safe retry wrapper (HH9) → B11; `--created-by
+forzare` is the immutable per-card discriminator both watchdog scans jq (`kanban_db.py:1019`); the title prefix
+is DISPLAY-ONLY, since `specify` rewrites it (HH5/MM1) → B11/D1/F1/spec §8b.
 
 **Round-12 (THE STRUCTURAL WAVE, JJ0–JJ12 · KK0–KK9).** **New Task E3 `forzare-staging-harness`** (KK0/JJ0): the
 staged-test bash is demoted from inline harnesses to per-task INVARIANTS `INV-<task>-<n>` + ONE chezmoi-shipped,
@@ -3496,8 +3662,8 @@ with a FATAL-if-absent, a Checkpoint-A prerequisite line added, the build issues
 / B0 / C2 / G1 / Checkpoint A. **Producer once-guard + `answer` field** (KK3/JJ3): the canonical queue schema
 gains `answer?`, the B0 producer never re-opens a tombstoned id whose predicate is unchanged and whose recorded
 `answer` was `keep` — making "stale-p1 flagged once, never nightly" a stable guarantee → B0 / A1 / B7 + spec §2
-step 4/§4c/§8. **Watchdog scan (b) forzare discriminator** (KK4/JJ4): only a `fz-capture:`/`created_by=forzare`
-card can raise a `#forzare-errors` alarm → F1 + spec §14. **Replan bundle += `calendar-write`** (KK5/JJ5) → C1
+step 4/§4c/§8. **Watchdog scan (b) forzare discriminator** (KK4/JJ4/MM1): only a `created_by == "forzare"`
+card (jq'd from `hermes kanban list --json`) can raise a `#forzare-errors` alarm → F1 + spec §14. **Replan bundle += `calendar-write`** (KK5/JJ5) → C1
 + spec §13. **Integrity manifest RECURSIVE + exec-mode** (KK6/JJ10): `integrity_manifest()` enumerates every
 managed file per skill dir (SKILL.md + `classify.py`/`eligibility`/`reduce.py`/stage scripts) via `chezmoi
 managed`, the gate asserts existence + hash + exec mode, `waiting-reconcile`/`transition` already present → A1 /
@@ -3525,11 +3691,36 @@ lifecycle-ledger entry (`kind: surfacing`) so the roll target is LEDGER-defined 
 block seeded only a dated task, which the ledger-defined roll would never roll); C1 Step 3 gains the
 `forzare-replan`-lists-`calendar-write` assert (KK5).
 
+**Round-13 (extraction-cleanup wave, LL1–LL13 · MM1–MM10; minimal diff).** **Capture-card discriminator flipped to
+the immutable `created_by == "forzare"` column (MM1)** — create commands (B11/D1/§8b/§15) gain `--created-by
+forzare`; both watchdog scans (F1 b/e) jq `created_by` from `hermes kanban list --json` (no `--created-by` filter
+flag exists); the `fz-capture: ` title prefix is DISPLAY-ONLY, because `specify` provably rewrites the title
+(`kanban_db.py:4574`). **Health probe port DECIDED `:8642` (MM2)** — the API server's platform-independent
+`/health` (`API_SERVER_ENABLED=1` + `API_SERVER_KEY` added to the Phase-A `.env`, A3), since the webhook `:8644`
+is dead under the verified-live `WEBHOOK_ENABLED=false`; every `:8644` probe swept (F1/G1/self-review). **E3 moved
+to Phase A** ahead of its consumers (MM3); its layout fixed to `dot_local/bin/forzare-staging-harness/` with
+per-file `executable_` prefixes + bats under `test/forzare-staging-harness/` (MM5/LL3, verified `just test`
+discovery). **Integrity manifest fail-closed** — `chezmoi managed --include=files`, unsuppressed enumeration
+errors, per-skill empty ⇒ FATAL, dead `|| SKILL.md` fallback deleted (MM4/LL1/LL2). **Machine-readable INV↔test
+manifest table** added to E3 with a `--check-manifest` bijection gate; the previously-unnumbered families numbered
+(`b0_ledger`=INV-B0-5, `b0_queue`=INV-B0-6, `b0_onceguard`=INV-B0-7, `b1_stall`=INV-B1-5, `b1_receptivity`=INV-B1-6/7,
+`b7_ceiling`=INV-B7-4, `b7_dating`=INV-B7-5; `g1_morning_order` re-homed under G1; the existed-before rule
+attributed to the shared BB6 Step-4 primitives — MM10/LL5/LL10). **Staging harness results moved out of `state/`**
+to `staging/e3-results/` + `staging/d1-harness-result.json` (MM7/LL6), keeping the §17 recursive `state/` hash
+clean; **Checkpoint D jq tightened** to require `run_id`/`ts`/`referenced_objects` (MM3). **Journal vs dry-run
+intent record shapes disentangled** — the false "unified shape" claim deleted (LL4). **Bankruptcy removed from the
+generic three-way B0 crash-fixture list**, replaced with the two committed-at-write binary cases (MM8). **False
+"fixture-scoped snapshot catches an ordinary-task mutation" claim deleted** — residual real-target blindness
+bounded by the prompt dry-run + intent-log, default-deny wrapper booked to Phase H (MM9). **B4 plan-of-day gains
+`created_ts`** + INV-B4-6 (MM6). Plus LL7 EIGHT→NINE (INV-B4-5 gate fixtures), LL9 B5 five→eight class list, LL11
+"Step-0"→"Task B0", LL12 A5 `dot_hermes/profiles/…` unmanaged note, LL13 INV-C2-11 keyed by a unique per-test
+`$RUNID`.
+
 **Placeholder scan:** verification commands are runnable; `<inbox-task-id>` / lat-long / channel-ids are the
 intentionally per-environment values a cold reader fills from their own setup.
 
 **Consistency:** channel names (`DISCORD_HOME_CHANNEL` / `DISCORD_ERRORS_CHANNEL` / `#forzare-errors`), the
-health probe (`curl -fsS -m 3 http://127.0.0.1:8644/health`, 0/28/7), the alert primitive (`hermes send --to
+health probe (`curl -fsS -m 3 http://127.0.0.1:8642/health`, 0/28/7 — the API server's port, MM2), the alert primitive (`hermes send --to
 discord:<channel>`), the per-path `[SILENT]` rule, the assignee (`default`), and the unprefixed label / filter
 names match the spec and each other across A–H.
 
