@@ -43,6 +43,10 @@ LEGACY_DROPIN="$SSHD_CONFIG_D/50-no-password-auth.conf"
 
 SSHD_BIN="${SSHD_BIN:-sshd}"
 LAUNCHCTL_BIN="${LAUNCHCTL_BIN:-launchctl}"
+# ssh-keyscan is the post-reload readiness prover: it completes an SSH banner
+# exchange, so a host-key line on stdout proves sshd is actually accepting (not merely
+# a loaded launchd job). Overridable for tests.
+KEYSCAN_BIN="${KEYSCAN_BIN:-ssh-keyscan}"
 SSHD_MAIN_CONFIG="${SSHD_MAIN_CONFIG:-/etc/ssh/sshd_config}"
 # Privilege prefix for live-system reads/writes/reloads. Default sudo; tests set
 # SSH_HARDENING_SUDO="" to operate unprivileged against a sandbox tree.
@@ -293,11 +297,46 @@ prime_sudo() {
   "$SUDO" -v
 }
 
+# effective_port -- the port sshd listens on, from the effective config (first `port`
+# line; default 22). Used to aim the readiness probe. Read-only, host-key-free.
+effective_port() {
+  local eff port
+  eff="$(priv "$SSHD_BIN" -G -f "$SSHD_MAIN_CONFIG" 2>/dev/null || true)"
+  port="$(grep -iE '^port ' <<<"$eff" | head -n1 | awk '{print $2}')"
+  [[ $port =~ ^[0-9]+$ ]] || port=22
+  printf '%s' "$port"
+}
+
+# ssh_ready_probe <port> -- bounded probe that sshd is ACTUALLY accepting SSH on the
+# loopback listener, not merely a loaded launchd job. `ssh-keyscan` completes an SSH
+# banner exchange, so a host-key line on stdout is the ready signal (its exit code is
+# unreliable across versions, so the presence of a non-comment stdout line is used).
+# Retries a few times with a short pause (both overridable for tests) to tolerate the
+# brief window while the kickstarted daemon rebinds. Returns 0 as soon as sshd
+# answers, nonzero if it never does.
+ssh_ready_probe() {
+  local port="$1" attempts="${SSH_READY_ATTEMPTS:-10}" pause="${SSH_READY_SLEEP_SECONDS:-1}" i banner
+  if ! command -v "$KEYSCAN_BIN" >/dev/null 2>&1; then
+    printf '[ssh-hardening] WARNING: readiness prover (%s) not found; cannot confirm sshd is accepting connections.\n' \
+      "$KEYSCAN_BIN" >&2
+    return 1
+  fi
+  for ((i = 1; i <= attempts; i++)); do
+    banner="$("$KEYSCAN_BIN" -T 2 -p "$port" 127.0.0.1 2>/dev/null || true)"
+    if grep -qvE '^[[:space:]]*(#|$)' <<<"$banner"; then
+      return 0
+    fi
+    [[ $i -lt $attempts ]] && sleep "$pause"
+  done
+  return 1
+}
+
 # do_reload -- reload a running sshd via the modern kickstart -k idiom (kill +
 # restart in one call). This TERMINATES the current listener, so it fails CLOSED:
 # it validates the complete config first, distinguishes a confirmed-absent service
 # from an errored probe, returns nonzero on any failure, and confirms sshd came
-# back. It never treats a sudo/launchctl error as proof the daemon is down.
+# back accepting connections. It never treats a sudo/launchctl error, nor a merely
+# loaded launchd job, as proof the daemon is up.
 do_reload() {
   # (a) Prime privilege escalation visibly. A sudo failure must NOT be mistaken for
   #     "sshd is down".
@@ -342,12 +381,24 @@ do_reload() {
     return 1
   fi
 
-  # (e) Verify the service came back after the kickstart.
+  # (e) First signal: the launchd job is loaded again. This is NOT readiness --
+  #     `launchctl print` returns 0 for a loaded-but-crashed service (active count 0,
+  #     "state = not running"), so treating it as "running" can green a remote lockout.
   if ! priv "$LAUNCHCTL_BIN" print system/com.openssh.sshd >/dev/null 2>&1; then
-    printf '[ssh-hardening] ERROR: sshd did NOT come back after kickstart. Investigate immediately: sudo launchctl print system/com.openssh.sshd\n' >&2
+    printf '[ssh-hardening] ERROR: the sshd job did NOT reload after kickstart. Investigate immediately: sudo launchctl print system/com.openssh.sshd\n' >&2
     return 1
   fi
-  printf '[ssh-hardening] sshd reloaded and confirmed running.\n'
+  # (f) Readiness: prove the listener actually ACCEPTS an SSH connection. A loaded job
+  #     that never completes a banner exchange means the new config crashed sshd -- a
+  #     possible remote lockout that must fail loud, not report green.
+  local ready_port
+  ready_port="$(effective_port)"
+  if ! ssh_ready_probe "$ready_port"; then
+    printf '[ssh-hardening] ERROR: sshd is loaded but did NOT become ready (its listener on port %s never completed an SSH banner exchange after the kickstart). This may be a remote lockout -- KEEP your current session open and investigate: sudo launchctl print system/com.openssh.sshd\n' \
+      "$ready_port" >&2
+    return 1
+  fi
+  printf '[ssh-hardening] sshd reloaded and confirmed accepting SSH connections on port %s.\n' "$ready_port"
 }
 
 case "${1:-}" in

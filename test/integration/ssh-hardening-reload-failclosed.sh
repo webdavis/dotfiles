@@ -14,12 +14,16 @@
 #       ERROR (any other nonzero): a sudo/launchctl error is NOT proof the daemon is
 #       down, so propagate it, never proceed as if stopped;
 #   (d) return NONZERO on any failure;
-#   (e) verify the service came back after the kickstart.
+#   (e) verify the launchd job reloaded after the kickstart (first signal only); and
+#   (f) prove sshd is actually READY -- accepting an SSH connection -- not merely a
+#       loaded launchd job (R2-2). `launchctl print` returns 0 for a loaded-but-
+#       crashed service, so a readiness probe (ssh-keyscan on the listener) must gate
+#       the green result; a loaded-but-not-accepting sshd fails loud (remote lockout).
 #
-# Drives `--reload` through fully-controlled sudo/sshd/launchctl stubs (the
-# SSH_HARDENING_SUDO / SSHD_BIN / LAUNCHCTL_BIN seams, mirrored on PATH so the
-# UNFIXED script's bare-name calls hit the same stubs). NEVER touches the live
-# daemon or /etc/ssh. SKIPs never needed (no real tool required).
+# Drives `--reload` through fully-controlled sudo/sshd/launchctl/ssh-keyscan stubs
+# (the SSH_HARDENING_SUDO / SSHD_BIN / LAUNCHCTL_BIN / KEYSCAN_BIN seams, mirrored on
+# PATH so the UNFIXED script's bare-name calls hit the same stubs). NEVER touches the
+# live daemon or /etc/ssh. SKIPs never needed (no real tool required).
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -94,9 +98,21 @@ case "$1" in
     ;;
 esac
 EOF
-chmod +x "$stub/sudo" "$stub/sshd" "$stub/launchctl"
 
+# ssh-keyscan stub: models the readiness probe. STUB_KEYSCAN_READY=1 -> emit a fake
+# host-key line (sshd answered the SSH banner exchange); otherwise emit nothing (the
+# listener is not accepting -- a loaded-but-crashed sshd).
+cat >"$stub/ssh-keyscan" <<'EOF'
+#!/bin/bash
+[[ ${STUB_KEYSCAN_READY:-0} == 1 ]] && printf '[127.0.0.1]:22 ssh-ed25519 AAAAFAKEKEYMATERIAL\n'
+exit 0
+EOF
+chmod +x "$stub/sudo" "$stub/sshd" "$stub/launchctl" "$stub/ssh-keyscan"
+
+# The effective config the sshd stub reports. Includes a `port` line so effective_port
+# aims the readiness probe (and exercises the extraction).
 cat >"$work/eff-hardened" <<'EOF'
+port 22
 passwordauthentication no
 kbdinteractiveauthentication no
 usepam yes
@@ -105,6 +121,7 @@ permitrootlogin no
 EOF
 # One value lost (passwordauthentication back on) -> verify must abort the reload.
 cat >"$work/eff-lost" <<'EOF'
+port 22
 passwordauthentication yes
 kbdinteractiveauthentication no
 usepam yes
@@ -123,6 +140,7 @@ reload_case() {
   RC=0
   OUT="$(env \
     SSH_HARDENING_SUDO="$stub/sudo" SSHD_BIN="$stub/sshd" LAUNCHCTL_BIN="$stub/launchctl" \
+    KEYSCAN_BIN="$stub/ssh-keyscan" SSH_READY_ATTEMPTS=2 SSH_READY_SLEEP_SECONDS=0 \
     SSHD_MAIN_CONFIG="$work/main" STUB_SSHD_EFFECTIVE="$work/eff-hardened" \
     STUB_LAUNCHCTL_KICKLOG="$kicklog" STUB_LAUNCHCTL_PRINT_COUNT="$pcount" \
     PATH="$stub:$PATH" "$@" \
@@ -187,17 +205,27 @@ rc_nonzero kick-fail
 did_kick kick-fail
 err_has kick-fail "kickstart"
 
-# 7. service did not come back after kickstart: nonzero + loud.
+# 7. launchd job did not reload after kickstart: nonzero + loud.
 reload_case no-return STUB_LAUNCHCTL_PRINT_RCS=0:3
 rc_nonzero no-return
 did_kick no-return
-err_has no-return "come back"
+err_has no-return "did not reload"
 
-# 8. happy path: validated, kicked, confirmed back up.
-reload_case happy STUB_LAUNCHCTL_PRINT_RCS=0:0
+# 8. loaded but NOT READY (R2-2): launchctl reports the job loaded (rc 0 both probes)
+#    and the kickstart succeeds, but the readiness probe never sees sshd accept a
+#    connection -> fail closed, loud, NOT green.
+reload_case not-ready STUB_LAUNCHCTL_PRINT_RCS=0:0 STUB_KEYSCAN_READY=0
+rc_nonzero not-ready
+did_kick not-ready
+err_has not-ready "did NOT become ready"
+err_has not-ready "lockout"
+
+# 9. happy path: validated, kicked, launchd job reloaded AND the readiness probe saw
+#    sshd accept a connection.
+reload_case happy STUB_LAUNCHCTL_PRINT_RCS=0:0 STUB_KEYSCAN_READY=1
 rc_zero happy
 did_kick happy
-out_has happy "confirmed running"
+out_has happy "accepting SSH connections"
 
 if [[ $failures -gt 0 ]]; then
   printf 'ssh-hardening-reload-failclosed: %d assertion(s) FAILED\n' "$failures" >&2
