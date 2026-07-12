@@ -43,4 +43,35 @@ wait
   echo "hue-pulse-lock: FAIL -- lock dir leaked (not released on exit)" >&2
   exit 1
 }
+
+# FIX 3 (stale lock recovery): a wedged lock from a process that died mid-pulse (e.g. SIGKILL)
+# must not suppress every later pulse forever. Pre-seed the lock dir with a DEAD pid; the next
+# pulse must detect the dead holder, take the lock over, proceed to openhue, and release it.
+: >"$tmp/GOTROOM"
+rm -f "$tmp/GOTROOM"
+cat >"$tmp/openhue" <<MOCK
+#!/usr/bin/env bash
+if [[ "\$*" == *"get room"* ]]; then
+  touch "$tmp/GOTROOM"
+  echo '[{"Name":"TEST-ROOM","Id":"room1"}]'
+elif [[ "\$*" == *"get light"* ]]; then
+  echo '[]'
+fi
+MOCK
+chmod +x "$tmp/openhue"
+# A guaranteed-dead PID: fork a child, wait for it to exit, then reuse its (now free) pid.
+sleep 0 &
+dead_pid=$!
+wait "$dead_pid" 2>/dev/null || true
+mkdir -p "$tmp/hue-pulse.lock"
+printf '%s\n' "$dead_pid" >"$tmp/hue-pulse.lock/pid"
+HUE_PULSE_ROOM=TEST-ROOM TMPDIR="$tmp" PATH="$tmp:$PATH" bash "$hue" 0
+[[ -e "$tmp/GOTROOM" ]] || {
+  echo "hue-pulse-lock: FAIL -- a stale (dead-PID) lock suppressed the pulse (never reached openhue)" >&2
+  exit 1
+}
+[[ -e "$tmp/hue-pulse.lock" ]] && {
+  echo "hue-pulse-lock: FAIL -- stale lock not replaced/released after takeover" >&2
+  exit 1
+}
 echo "hue-pulse-lock: OK"
