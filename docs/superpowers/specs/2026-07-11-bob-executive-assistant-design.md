@@ -260,7 +260,8 @@ close must start with `· `.** A bare imperative sentence, a bullet, or a number
 therefore caught, not just verb-matched.
 
 So the acceptance (§0) is mechanical and unambiguous: **count `▶ ` markers == 1 AND zero non-`· ` non-empty
-lines after the marker, for BOTH the queue-empty and the queue-nonempty brief** (a build fixture asserts exactly
+lines OTHER THAN the marker line — checked BOTH PRE- and POST-marker (II7 parity with the plan's INV-B4-4) —
+for BOTH the queue-empty and the queue-nonempty brief** (a build fixture asserts exactly
 this; plan B4). The imperative/question verb regex stays only as **secondary evidence** — the `▶ ` marker count
 + the `· `-only-after-marker check are the primary, machine-readable gate (BB10/GG12).
 
@@ -1580,16 +1581,18 @@ cannot give a non-dispatched call).** Stage 1's Inbox write is the instant, noth
 makes the placement decision, creates the card, and runs **ONE bounded `specify` attempt** — it does not
 fire-and-forget it:
 
-1. **`hermes kanban create "fz-capture: <title>" --triage --idempotency-key <inbox-task-id> --assignee default
+1. **`hermes kanban create "fz-capture: <title>" --triage --created-by forzare --idempotency-key <inbox-task-id> --assignee default
    --max-runtime 900 --skill forzare-capture-pipeline`** — parks the card in the **`triage`** column (a
    `--triage` card is **not dispatchable**; verified — the dispatcher spawns only `ready` cards,
-   `has_spawnable_ready`, §18). The **`fz-capture: ` title prefix is the forzare-card discriminator** (the private
-   board is shared across profiles, §9, and while `hermes kanban create` exposes `--body`/`--priority`/`--project`/
-   `--workspace`/`--tenant`/`--created-by` (verified `--help`, FF9), **`--created-by` IS a stored, filterable
-   per-card column (`kanban_db.py:1019`, HH5) — so a `created_by=forzare` filter would also scope the scan** —
-   but the **greppable, human-legible `fz-capture: ` title prefix is the CHOSEN discriminator** (the earlier
-   "none is filterable" remnant is swept, JJ8/HH5); either way the watchdog stale-triage AND run-failure scans
-   (§14 (b)/(e)) filter on the forzare marker so non-forzare triage/failure cards never alarm). `title` is a
+   `has_spawnable_ready`, §18). The **`--created-by forzare` stored column is the forzare-card discriminator** (MM1 —
+   the private board is shared across profiles, §9): `--created-by` is a stored, IMMUTABLE, filterable per-card
+   column (`kanban_db.py:1019`, verified `--help`, FF9/HH5), so both watchdog scans read `created_by == "forzare"`
+   from `hermes kanban list --json` (the CLI exposes no `--created-by` filter flag — the scans jq the JSON field).
+   The **`fz-capture: ` title prefix is now DISPLAY-ONLY** — human-legible, but NO LONGER a discriminator, because
+   `specify` **provably rewrites the title** (`specify_triage_task` atomically updates title/body, `kanban_db.py:4574`),
+   so a title-prefix scan would miss every specified card; the earlier "chosen discriminator" framing is swept
+   (JJ8/HH5/MM1). Both the watchdog stale-triage AND run-failure scans (§14 (b)/(e)) filter on `created_by ==
+   "forzare"` so non-forzare triage/failure cards never alarm. `title` is a
    **REQUIRED positional** (verified `hermes kanban create --help`; a
    bare `create --triage` fails), seeded from the parent's placement decision. **`--max-runtime 900` (DECIDED,
    Y7/§19)** caps each card at 900s; on exceed the dispatcher SIGTERMs→SIGKILLs (5s grace) and re-queues the
@@ -2224,14 +2227,16 @@ dispatcher (claim races) — the gateway runs the dispatcher.
   hit to `#forzare-errors`:
   - **(a) Gateway health.** `KeepAlive` catches a process *exit* but **not a wedged-but-alive gateway**, and
     never *tells* you — so the watchdog sends a one-shot probe a hung gateway can't answer:
-    **`curl -fsS -m 3 http://127.0.0.1:8644/health`**, exit code **0 = up / 28 = hung / 7 = down** (verified,
-    §19). On **down / hung / restart-looping** → loud alert.
+    **`curl -fsS -m 3 http://127.0.0.1:8642/health`**, exit code **0 = up / 28 = hung / 7 = down** (verified,
+    §19). The probe port is the **API server's** `:8642/health` (gated on the Phase-A `API_SERVER_ENABLED=1`
+    env, MM2) — platform-independent, unlike the webhook `:8644` (dead when `WEBHOOK_ENABLED=false`, verified
+    live). On **down / hung / restart-looping** → loud alert.
   - **(b) forzare run failures — predicate is a causal run EVENT, never status+counter (W9, corrects
     V9/R2A6).** Since its last check (a stamped watermark), it scans **`~/.hermes/cron/output/`** for failed
     ritual runs and the **Kanban DB** for genuine failures — and routes each to the errors channel. **The
-    Kanban-DB half carries the SAME forzare discriminator scan (e) uses (JJ4):** only a card matching the
-    **`fz-capture: ` title prefix (or `created_by=forzare`, the stored filterable per-card column,
-    `kanban_db.py:1019`)** can raise a `#forzare-errors` alarm — the private board is shared across profiles
+    Kanban-DB half carries the SAME forzare discriminator scan (e) uses (JJ4/MM1):** only a card whose stored
+    **`created_by == "forzare"` column** (`kanban_db.py:1019`, read from `hermes kanban list --json` — the
+    immutable discriminator, since `specify` rewrites the title, MM1) can raise a `#forzare-errors` alarm — the private board is shared across profiles
     (§9), so a **non-forzare profile's card failing (`gave_up`/`crashed`/`timed_out`) NEVER alarms** the forzare
     errors channel. (Cron-`output/` ritual failures are already forzare-scoped by the `forzare-*` job manifest.)
     **The failure predicate is a causal run OUTCOME/EVENT, NOT a `status='blocked' AND consecutive_failures>0`
@@ -2363,9 +2368,10 @@ dispatcher (claim races) — the gateway runs the dispatcher.
     Bob-owned p1 from a p1 the *user* set directly in Todoist (the old "any p1 present" heuristic could not,
     §4c). A re-fire or the ±2h catch-up converges to the same day-plan idempotently. (The earlier "any p1
     present ⇒ no-op" rule is superseded — it would have mistaken a user's own p1 for "already planned.")
-  - Kanban capture-pipeline kickoffs (§8b): **`hermes kanban create "fz-capture: <title>" --triage
-    --idempotency-key <inbox-task-id>`** (R7/W4 — `title` is a required positional, verified; the `fz-capture: `
-    prefix is the forzare-card discriminator the watchdog stale-triage scan filters on, DD11; the key is the
+  - Kanban capture-pipeline kickoffs (§8b): **`hermes kanban create "fz-capture: <title>" --triage --created-by forzare
+    --idempotency-key <inbox-task-id>`** (R7/W4 — `title` is a required positional, verified; the immutable
+    `created_by == "forzare"` column is the forzare-card discriminator both watchdog scans filter on, DD11/MM1
+    — the `fz-capture: ` title prefix is display-only, since `specify` rewrites the title; the key is the
     stage-1 Inbox task id, stable across retries) — re-firing returns the existing card, no dup; the brief is **not** a Kanban
     kickoff (its idempotency is the app-level guard above).
   - End-of-day rollover: keyed per day; safe to re-run.
@@ -2523,7 +2529,10 @@ channel); a dependency or job that **can't complete** escalates loud to the erro
       (`last-reconcile.json`, `task-lifecycle.json`, `mutation-journal.jsonl`, `schedule-override.json`,
       `tomorrow-prestage.json`, `plan-of-day.json`, `decision-queue.json`, `sweep-exclusion.json`, and every
       `calibration/` file) and **EXPLICITLY EXCLUDING `dryrun-intents.jsonl`** — because a dry-run *does* append
-      to that one file, so including it in the negative hash would make the gate self-defeating (AA1).
+      to that one file, so including it in the negative hash would make the gate self-defeating (AA1). **The
+      staging-harness RESULT files live OUTSIDE the state layer — `~/workspaces/Ivy/forzare/staging/e3-results/`
+      + `staging/d1-harness-result.json` (MM7/LL6)** — so this recursive `state/` hash never sees a harness
+      artifact and the never-rm / GC contracts (DD6/AA1) stand untouched; no per-file exclusion is added for them.
     A staged run is "clean" only when the positive check and every independent negative check hold.
   - So the loop is: stage with `--deliver local` **+ the dry-run instruction** → exercise the full pipeline →
     read `~/.hermes/cron/output/` + assert the intents log + assert zero real mutations → tune → then, at
@@ -2698,15 +2707,22 @@ kept **out of V1**. Sequence is always: ship V1 first → then evaluate.
   a no-op-for-protection. So the earlier pin step is **dropped**; the gate is **installed PATH + content HASH**
   (§13 boot-integrity check). Bundle YAMLs are likewise not curator-managed (the curator walks only `SKILL.md`
   dirs).
-- **RESOLVED (code + live-probe verified 2026-06-30) — gateway liveness probe.** The gateway serves an
-  unauthenticated **`GET http://127.0.0.1:8644/health`** (the webhook platform adapter,
-  `gateway/platforms/webhook.py:195,350`; static JSON, ~30ms). Watchdog: `curl -fsS -m 3
-  http://127.0.0.1:8644/health`, branch on exit code — **0 = up, 28 = hung** (loop wedged: accepts TCP, no
+- **RESOLVED (code + live-probe verified 2026-06-30; probe port DECIDED 2026-07-12, MM2) — gateway liveness probe.**
+  The DECISION: the watchdog probes the **API server's** unauthenticated **`GET http://127.0.0.1:8642/health`**
+  (`gateway/platforms/api_server.py:4385` `add_get("/health")`, DEFAULT_PORT 8642; static JSON). This is
+  **platform-independent**, unlike the webhook `:8644/health` (`gateway/platforms/webhook.py:73` DEFAULT_PORT
+  8644) which is **dead when `WEBHOOK_ENABLED=false`** — verified live: the current host runs
+  `WEBHOOK_ENABLED=false`, so `:8644` does not answer. The earlier platform-dependent-probe caveat is therefore
+  **resolved by decision**: a new Phase-A `.env` line **`API_SERVER_ENABLED=1`** (a real config key,
+  `hermes_cli/config.py:3911`; `1` is truthy, verified `is_truthy_value`) brings up the OpenAI-compatible API
+  server and its `/health` route. **Prerequisite (verified):** the API server **refuses to start without
+  `API_SERVER_KEY`** (`api_server.py`), so the managed `.env` sets both `API_SERVER_ENABLED=1` **and** an
+  `API_SERVER_KEY` (loopback `127.0.0.1` bind still requires it). Watchdog: `curl -fsS -m 3
+  http://127.0.0.1:8642/health`, branch on exit code — **0 = up, 28 = hung** (loop wedged: accepts TCP, no
   HTTP reply), **7 = down**. This is the hang KeepAlive + PID-checks miss (a hung gateway keeps a live PID;
   `gateway_state.json.updated_at` doesn't advance when idle). **NOT `:9119`** — that's the separate dashboard
   process, which infers "running" from the PID file and so reports a *hung* gateway as alive (useless for hang
-  detection). **Caveat:** `:8644` exists only while the webhook platform is enabled (port configurable); for a
-  platform-independent probe, set `API_SERVER_ENABLED=1` → `/health` on `:8642`. **Alert path (R2):**
+  detection). **Alert path (R2):**
   **`hermes send --to discord:<#forzare-errors>`** + relay phone/local — independent of the gateway (§14).
   This probe is the health half of the **forzare-ops watchdog** (§14), whose script + plist are modeled on the
   existing `osquery-uptime-watchdog.sh` / `com.webdavis.osquery-uptime-watchdog.plist.tmpl` (chezmoi-managed).
@@ -2725,7 +2741,9 @@ kept **out of V1**. Sequence is always: ship V1 first → then evaluate.
   prior ≈ ≤~30 min, pending personal data (V10, §6/§6a)**; **commute constants `commute_prep_minutes: 30` +
   `commute_travel_minutes: 25` (X12, §3a — hand-editable; the §3a/W13 leave-time alarm fires at work-block
   start − prep − travel = start − 55 min)**; **watchdog `StartInterval: 300s` (best-effort ≈5-min detection,
-  X9, §14)**; **capture-card `--max-runtime 900` (Y7, §8b/§16 — verified `hermes kanban create --help`)**;
+  X9, §14)**; **`API_SERVER_ENABLED=1` + `API_SERVER_KEY` in the managed `.env` (MM2, §14/§16 — brings up the
+  platform-independent `:8642/health` liveness probe; the server refuses to start without the key)**;
+  **capture-card `--max-runtime 900` (Y7, §8b/§16 — verified `hermes kanban create --help`)**;
   **mutation-journal retention 45 days (Y5, §4d/§8a — the calibration correlation window; the prunable
   lifecycle map has no retention window, it prunes on task terminal state)**; **stale-p1 flag age 48h (AA2,
   §4c/§8 — a user-set p1 older than this is queued once, never auto-cleared)**; **bankruptcy stale-DATED-active
@@ -3105,3 +3123,23 @@ unified to the one `fcntl.flock` sentinel (JJ11); the G1 concurrent-trigger bloc
 E3 (JJ12/KK0). The round-11 "harness lock is `mkdir`-atomic, not `flock`" note (above) is therefore SUPERSEDED
 for the state layer: the design lock is `fcntl.flock`, and the plan's own staging-harness lock is likewise a
 `fcntl.flock` file via the B0 python shim (KK1).
+
+**2026-07-12 — round-13 adversarial-review hardening (LL1–LL13 · MM1–MM10; extraction-cleanup wave, minimal
+diff).** A thirteenth pass closed extraction residue. **Capture-card discriminator is now `--created-by forzare`,
+not the title prefix (MM1/LL-carryover — the heaviest correction).** `specify` **provably rewrites the card
+title** (`specify_triage_task` atomically updates title/body, `kanban_db.py:4574`), so a `fz-capture: `
+title-prefix scan would MISS every specified card — the discriminator moves to the **stored, immutable,
+filterable `created_by` column** (`kanban_db.py:1019`); create commands gain `--created-by forzare`, BOTH
+watchdog scans (b)/(e) read `created_by == "forzare"` from `hermes kanban list --json` (no `--created-by` filter
+flag exists — the scans jq the field), and the title prefix is demoted to display-only (§8b/§14/§15). **Gateway
+liveness probe port DECIDED `:8642` (MM2)** — the webhook `:8644/health` is dead when `WEBHOOK_ENABLED=false`
+(verified live), so the platform-independent API-server `:8642/health` (`api_server.py:4385`, DEFAULT_PORT 8642)
+is adopted; a Phase-A `.env` gains `API_SERVER_ENABLED=1` + `API_SERVER_KEY` (the server refuses to start without
+the key), and every `:8644` probe reference is swept (§16/§19/decided-config). **§2 response gate** now checks
+zero non-`· ` lines OTHER THAN the marker line **PRE- and POST-marker** (II7 parity with plan INV-B4-4). The plan
+absorbed the matching structural fixes: E3 moved to Phase A ahead of its consumers (MM3); the integrity manifest
+uses `chezmoi managed --include=files` + per-skill empty⇒FATAL (MM4/LL1/LL2); E3 ships as
+`dot_local/bin/forzare-staging-harness/` with per-file `executable_` prefixes and bats under `test/` (MM5/LL3);
+a machine-readable INV↔test bijection manifest with the unnumbered families numbered (MM10/LL5); intent- vs
+journal-record schemas disentangled (LL4); staging harness results moved out of the state layer to
+`staging/e3-results/` (MM7/LL6).
