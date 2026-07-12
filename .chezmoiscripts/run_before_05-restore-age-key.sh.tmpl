@@ -1,0 +1,112 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/bin/bash
+# Restore and validate the chezmoi age identity on every apply (idempotent).
+#
+# Design (S8 hardening):
+#  - SECRET-FREE RENDERED BODY. The private AGE-SECRET-KEY line is never rendered
+#    into this script. It is fetched at EXECUTION time with keepassxc-cli from the
+#    entry "chezmoi :: Private Key :: age" (Password attribute) and streamed
+#    straight into a 0600 temp file, then atomically moved into place. Only
+#    NON-secret values (the identity path, the expected recipient, the database
+#    path) are pulled from the chezmoi config through render-time template syntax.
+#  - IDEMPOTENT run_before_ (not run_once_): a recorded "once" success can never
+#    mask a later key deletion or corruption; every apply re-checks and self-heals.
+#  - VALIDATE, never clobber: an existing key is validated by deriving its public
+#    recipient (age-keygen -y) and comparing to the configured recipient. A
+#    mismatch or unreadable key is a LOUD warning that points at the runbook; it is
+#    never auto-deleted or overwritten, and the apply is not bricked (exit 0).
+#
+# Ordering note: this script runs at before_05, ahead of before_10-system-packages,
+# so on a truly fresh machine the age formula (age-keygen) is not installed yet.
+# Recipient-derivation validation is therefore best-effort: when age-keygen is
+# absent the key is still restored (fresh-machine bootstrap must not regress) after
+# a structural marker check, and a later apply (age-keygen present) validates fully.
+
+set -euo pipefail
+
+key_file={{ .chezmoi.config.age.identity | quote }}
+expected_recipient={{ .chezmoi.config.age.recipient | quote }}
+keepass_db={{ .chezmoi.config.keepassxc.database | quote }}
+keepass_entry="chezmoi :: Private Key :: age"
+runbook="docs/runbooks/age-key.md"
+
+warn() { printf 'restore-age-key: WARNING -- %s\n' "$*" >&2; }
+
+# Derive the public recipient of an age identity file, or empty on any failure.
+derive_recipient() {
+  age-keygen -y "$1" 2>/dev/null | head -1
+}
+
+# Reject a symlink at the key path loudly: never follow it, never write through it.
+if [[ -L $key_file ]]; then
+  warn "$key_file is a symlink; refusing to read or write through it. Investigate ($runbook)."
+  exit 0
+fi
+
+# An existing regular file: validate it in place, never overwrite it.
+if [[ -e $key_file ]]; then
+  if [[ ! -f $key_file ]]; then
+    warn "$key_file exists but is not a regular file; leaving it untouched ($runbook)."
+    exit 0
+  fi
+  if ! command -v age-keygen >/dev/null 2>&1; then
+    # Cannot derive without age-keygen (the fresh-machine before_05 window). Enforce
+    # perms and defer full validation to a later apply once the age formula is in.
+    chmod 600 "$key_file"
+    exit 0
+  fi
+  derived="$(derive_recipient "$key_file" || true)"
+  if [[ -z $derived ]]; then
+    warn "$key_file is empty or not a valid age identity; NOT overwriting it ($runbook)."
+    exit 0
+  fi
+  if [[ $derived != "$expected_recipient" ]]; then
+    warn "$key_file derives a recipient that does not match the configured recipient; NOT overwriting it ($runbook)."
+    exit 0
+  fi
+  chmod 600 "$key_file"
+  exit 0
+fi
+
+# Absent: restore from KeePassXC at execution time.
+if ! command -v keepassxc-cli >/dev/null 2>&1; then
+  warn "keepassxc-cli not found; cannot restore the age identity to $key_file ($runbook)."
+  exit 0
+fi
+
+umask 077
+mkdir -p "$(dirname "$key_file")"
+tmp="$(mktemp "$(dirname "$key_file")/key.txt.XXXXXX")" || {
+  warn "could not create a temp file beside $key_file; skipping restore ($runbook)."
+  exit 0
+}
+trap 'rm -f "$tmp"' EXIT
+
+# Stream ONLY the Password attribute into the 0600 temp file. The database
+# master-password prompt goes to stderr (the operator's terminal); stdout carries
+# just the value. The secret never touches a command line or this script's body.
+if ! keepassxc-cli show -s -a Password "$keepass_db" "$keepass_entry" >"$tmp"; then
+  warn "keepassxc-cli could not read '$keepass_entry'; leaving $key_file absent ($runbook)."
+  exit 0
+fi
+
+# Structural sanity (needs no age-keygen): the value must be an AGE-SECRET-KEY line.
+if ! grep -qE '^AGE-SECRET-KEY-(PQ-)?1[A-Z0-9]+' "$tmp"; then
+  warn "the value from '$keepass_entry' is not an age identity; NOT installing it ($runbook)."
+  exit 0
+fi
+
+# Full validation when age-keygen is available: derived recipient must match config.
+if command -v age-keygen >/dev/null 2>&1; then
+  derived="$(derive_recipient "$tmp" || true)"
+  if [[ $derived != "$expected_recipient" ]]; then
+    warn "the restored key derives a recipient that does not match the configured recipient; NOT installing it ($runbook)."
+    exit 0
+  fi
+fi
+
+chmod 600 "$tmp"
+mv "$tmp" "$key_file"
+trap - EXIT
+printf 'restore-age-key: restored the age identity to %s from KeePassXC\n' "$key_file"
+{{ end -}}
