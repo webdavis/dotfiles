@@ -14,7 +14,7 @@ echo "Setting up osquery..."
 # config/packs, so it is on us. Install them root-owned under /var/osquery.
 #
 # Source of truth is .chezmoitemplates/osquery/ (rendered below via
-# includeTemplate). Only the alerter's launch-allowlist.txt and webhook-secret
+# includeTemplate). Only the alerter's page-launchd-allowlist.txt and webhook-secret
 # remain in ~/.config — those are read by the user-level alerter, not the root
 # daemon, so a user-writable copy there is not a privilege boundary.
 sudo install -d -o root -g wheel -m 0755 /var/osquery /var/osquery/packs
@@ -38,6 +38,9 @@ PACK_POLICY
 install_root /var/osquery/packs/installed-software-drift.conf <<'PACK_DRIFT'
 {{ includeTemplate "osquery/packs/installed-software-drift.conf" . }}
 PACK_DRIFT
+install_root /var/osquery/packs/agent-attack-surface.conf <<'PACK_AGENT'
+{{ includeTemplate "osquery/packs/agent-attack-surface.conf" . }}
+PACK_AGENT
 
 # CLI flags (event flags are CLI-only and ignored if set only in the config's
 # "options" block). --config_path now points at the root-owned copy;
