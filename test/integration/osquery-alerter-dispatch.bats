@@ -39,7 +39,9 @@ teardown() { teardown_harness; }
   assert_spool_count 1                      # durably spooled, not dropped
   assert_no_post                            # nothing signed/POSTed without a key
   grep -qiE 'secret|degraded|broken' "$OSQUERY_DELIVERY_LOG"
-  grep -qiE 'secret|Discord|broken|deliver' "$ALERTER_LOG" # loud local notice names the channel
+  # The loud local notice fires via a backgrounded alerter (& so it never blocks dispatch), so
+  # poll rather than grep once - a single immediate grep races the stub's append under parallel CI.
+  wait_for_log_match 'secret|Discord|broken|deliver' "$ALERTER_LOG" # loud local notice names the channel
 }
 
 # --- R2-4: occurrence-identity request id + occurrence-unique spool filenames --------

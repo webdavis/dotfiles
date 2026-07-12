@@ -81,6 +81,21 @@ install_untrusted_enricher() {
 
 teardown_harness() { [[ -n ${HARNESS_HOME:-} ]] && rm -rf "$HARNESS_HOME"; }
 
+# Wait up to ~2s for a pattern to appear in a log file, polling. Used to assert on a
+# BACKGROUNDED side effect: the loud-local notice fires via `alerter ... &` (so a hung
+# alerter can never stall dispatch), so a single immediate grep races the stub's append and
+# loses under a loaded parallel CI host. Returns 0 as soon as the pattern lands, non-zero after
+# the timeout, so it stays a real assertion (a genuinely absent notice still fails the test).
+# The success path returns on the first iteration, so the passing case is not slowed.
+wait_for_log_match() {
+  local pattern="$1" file="$2" tries="${3:-40}" i
+  for ((i = 0; i < tries; i++)); do
+    grep -qiE "$pattern" "$file" 2>/dev/null && return 0
+    sleep 0.05
+  done
+  return 1
+}
+
 # Posture poller harness: the same temp HOME + send_alert stub, plus a fake osqueryi
 # that prints the posture array held in $POLLER_POSTURE (so a test controls the
 # "current" firewall/gatekeeper reading).
