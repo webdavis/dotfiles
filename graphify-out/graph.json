@@ -1221,7 +1221,7 @@
       "label": "_osquery_log()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_osquery-alert-dispatch.sh",
-      "source_location": "L28",
+      "source_location": "L34",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -1232,10 +1232,38 @@
       "norm_label": "_osquery_log()"
     },
     {
+      "label": "_spool_page()",
+      "file_type": "code",
+      "source_file": "dot_local/bin/executable_osquery-alert-dispatch.sh",
+      "source_location": "L42",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_bin_executable_osquery_alert_dispatch_spool_page",
+      "community": 223,
+      "norm_label": "_spool_page()"
+    },
+    {
+      "label": "_drain_spool()",
+      "file_type": "code",
+      "source_file": "dot_local/bin/executable_osquery-alert-dispatch.sh",
+      "source_location": "L58",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_bin_executable_osquery_alert_dispatch_drain_spool",
+      "community": 223,
+      "norm_label": "_drain_spool()"
+    },
+    {
       "label": "send_alert()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_osquery-alert-dispatch.sh",
-      "source_location": "L39",
+      "source_location": "L97",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -1244,6 +1272,132 @@
       "id": "dot_local_bin_executable_osquery_alert_dispatch_send_alert",
       "community": 223,
       "norm_label": "send_alert()"
+    },
+    {
+      "label": "executable_osquery-allowlist.sh",
+      "file_type": "code",
+      "source_file": "dot_local/bin/executable_osquery-allowlist.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "dot_local_bin_executable_osquery_allowlist",
+      "community": 292,
+      "norm_label": "executable_osquery-allowlist.sh"
+    },
+    {
+      "label": "executable_osquery-allowlist.sh script",
+      "file_type": "code",
+      "source_file": "dot_local/bin/executable_osquery-allowlist.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "dot_local_bin_executable_osquery_allowlist_sh__entry",
+      "community": 292,
+      "norm_label": "executable_osquery-allowlist.sh script"
+    },
+    {
+      "label": "usage()",
+      "file_type": "code",
+      "source_file": "dot_local/bin/executable_osquery-allowlist.sh",
+      "source_location": "L20",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_bin_executable_osquery_allowlist_usage",
+      "community": 292,
+      "norm_label": "usage()"
+    },
+    {
+      "label": "is_valid_label()",
+      "file_type": "code",
+      "source_file": "dot_local/bin/executable_osquery-allowlist.sh",
+      "source_location": "L28",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_bin_executable_osquery_allowlist_is_valid_label",
+      "community": 292,
+      "norm_label": "is_valid_label()"
+    },
+    {
+      "label": "allow_label()",
+      "file_type": "code",
+      "source_file": "dot_local/bin/executable_osquery-allowlist.sh",
+      "source_location": "L37",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_bin_executable_osquery_allowlist_allow_label",
+      "community": 292,
+      "norm_label": "allow_label()"
+    },
+    {
+      "label": "deny_label()",
+      "file_type": "code",
+      "source_file": "dot_local/bin/executable_osquery-allowlist.sh",
+      "source_location": "L53",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_bin_executable_osquery_allowlist_deny_label",
+      "community": 292,
+      "norm_label": "deny_label()"
+    },
+    {
+      "label": "list_labels()",
+      "file_type": "code",
+      "source_file": "dot_local/bin/executable_osquery-allowlist.sh",
+      "source_location": "L70",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_bin_executable_osquery_allowlist_list_labels",
+      "community": 292,
+      "norm_label": "list_labels()"
+    },
+    {
+      "label": "executable_osquery-digest.sh",
+      "file_type": "code",
+      "source_file": "dot_local/bin/executable_osquery-digest.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "dot_local_bin_executable_osquery_digest",
+      "community": 295,
+      "norm_label": "executable_osquery-digest.sh"
+    },
+    {
+      "label": "executable_osquery-digest.sh script",
+      "file_type": "code",
+      "source_file": "dot_local/bin/executable_osquery-digest.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "dot_local_bin_executable_osquery_digest_sh__entry",
+      "community": 295,
+      "norm_label": "executable_osquery-digest.sh script"
     },
     {
       "label": "executable_osquery-enrich-finding.sh",
@@ -1372,6 +1526,34 @@
       "norm_label": "gk_to_text()"
     },
     {
+      "label": "executable_osquery-heartbeat.sh",
+      "file_type": "code",
+      "source_file": "dot_local/bin/executable_osquery-heartbeat.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "dot_local_bin_executable_osquery_heartbeat",
+      "community": 296,
+      "norm_label": "executable_osquery-heartbeat.sh"
+    },
+    {
+      "label": "executable_osquery-heartbeat.sh script",
+      "file_type": "code",
+      "source_file": "dot_local/bin/executable_osquery-heartbeat.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "dot_local_bin_executable_osquery_heartbeat_sh__entry",
+      "community": 296,
+      "norm_label": "executable_osquery-heartbeat.sh script"
+    },
+    {
       "label": "executable_osquery-results-alerter.sh",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_osquery-results-alerter.sh",
@@ -1403,7 +1585,7 @@
       "label": "_allowlisted()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_osquery-results-alerter.sh",
-      "source_location": "L148",
+      "source_location": "L166",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -1412,6 +1594,48 @@
       "id": "dot_local_bin_executable_osquery_results_alerter_allowlisted",
       "community": 248,
       "norm_label": "_allowlisted()"
+    },
+    {
+      "label": "_digest_append()",
+      "file_type": "code",
+      "source_file": "dot_local/bin/executable_osquery-results-alerter.sh",
+      "source_location": "L183",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_bin_executable_osquery_results_alerter_digest_append",
+      "community": 248,
+      "norm_label": "_digest_append()"
+    },
+    {
+      "label": "executable_osquery-tailscale-monitor.sh",
+      "file_type": "code",
+      "source_file": "dot_local/bin/executable_osquery-tailscale-monitor.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "dot_local_bin_executable_osquery_tailscale_monitor",
+      "community": 297,
+      "norm_label": "executable_osquery-tailscale-monitor.sh"
+    },
+    {
+      "label": "executable_osquery-tailscale-monitor.sh script",
+      "file_type": "code",
+      "source_file": "dot_local/bin/executable_osquery-tailscale-monitor.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "dot_local_bin_executable_osquery_tailscale_monitor_sh__entry",
+      "community": 297,
+      "norm_label": "executable_osquery-tailscale-monitor.sh script"
     },
     {
       "label": "executable_osquery-uptime-watchdog.sh",
@@ -4614,6 +4838,678 @@
       "norm_label": "resolve_exchange_tool()"
     },
     {
+      "label": "osquery-alerter-lib.bash",
+      "file_type": "code",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "test_fixtures_osquery_alerter_lib",
+      "community": 290,
+      "norm_label": "osquery-alerter-lib.bash"
+    },
+    {
+      "label": "osquery-alerter-lib.bash script",
+      "file_type": "code",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "test_fixtures_osquery_alerter_lib_bash__entry",
+      "community": 290,
+      "norm_label": "osquery-alerter-lib.bash script"
+    },
+    {
+      "label": "row()",
+      "file_type": "code",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L11",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_fixtures_osquery_alerter_lib_row",
+      "community": 290,
+      "norm_label": "row()"
+    },
+    {
+      "label": "file_event_row()",
+      "file_type": "code",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L18",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_fixtures_osquery_alerter_lib_file_event_row",
+      "community": 290,
+      "norm_label": "file_event_row()"
+    },
+    {
+      "label": "setup_harness()",
+      "file_type": "code",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L35",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_fixtures_osquery_alerter_lib_setup_harness",
+      "community": 290,
+      "norm_label": "setup_harness()"
+    },
+    {
+      "label": "seed_manifest()",
+      "file_type": "code",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L54",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_fixtures_osquery_alerter_lib_seed_manifest",
+      "community": 290,
+      "norm_label": "seed_manifest()"
+    },
+    {
+      "label": "install_untrusted_enricher()",
+      "file_type": "code",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L61",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_fixtures_osquery_alerter_lib_install_untrusted_enricher",
+      "community": 290,
+      "norm_label": "install_untrusted_enricher()"
+    },
+    {
+      "label": "teardown_harness()",
+      "file_type": "code",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L66",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_fixtures_osquery_alerter_lib_teardown_harness",
+      "community": 290,
+      "norm_label": "teardown_harness()"
+    },
+    {
+      "label": "setup_poller_harness()",
+      "file_type": "code",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L71",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_fixtures_osquery_alerter_lib_setup_poller_harness",
+      "community": 290,
+      "norm_label": "setup_poller_harness()"
+    },
+    {
+      "label": "run_poller()",
+      "file_type": "code",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L84",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_fixtures_osquery_alerter_lib_run_poller",
+      "community": 290,
+      "norm_label": "run_poller()"
+    },
+    {
+      "label": "setup_watchdog_harness()",
+      "file_type": "code",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L97",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_fixtures_osquery_alerter_lib_setup_watchdog_harness",
+      "community": 290,
+      "norm_label": "setup_watchdog_harness()"
+    },
+    {
+      "label": "run_watchdog()",
+      "file_type": "code",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L115",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_fixtures_osquery_alerter_lib_run_watchdog",
+      "community": 290,
+      "norm_label": "run_watchdog()"
+    },
+    {
+      "label": "setup_redaction_h2_harness()",
+      "file_type": "code",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L127",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_fixtures_osquery_alerter_lib_setup_redaction_h2_harness",
+      "community": 290,
+      "norm_label": "setup_redaction_h2_harness()"
+    },
+    {
+      "label": "run_redaction_h2()",
+      "file_type": "code",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L140",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_fixtures_osquery_alerter_lib_run_redaction_h2",
+      "community": 290,
+      "norm_label": "run_redaction_h2()"
+    },
+    {
+      "label": "setup_heartbeat_harness()",
+      "file_type": "code",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L160",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_fixtures_osquery_alerter_lib_setup_heartbeat_harness",
+      "community": 290,
+      "norm_label": "setup_heartbeat_harness()"
+    },
+    {
+      "label": "run_heartbeat()",
+      "file_type": "code",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L171",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_fixtures_osquery_alerter_lib_run_heartbeat",
+      "community": 290,
+      "norm_label": "run_heartbeat()"
+    },
+    {
+      "label": "setup_allowlist_harness()",
+      "file_type": "code",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L179",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_fixtures_osquery_alerter_lib_setup_allowlist_harness",
+      "community": 290,
+      "norm_label": "setup_allowlist_harness()"
+    },
+    {
+      "label": "teardown_allowlist_harness()",
+      "file_type": "code",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L183",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_fixtures_osquery_alerter_lib_teardown_allowlist_harness",
+      "community": 290,
+      "norm_label": "teardown_allowlist_harness()"
+    },
+    {
+      "label": "run_allowlist()",
+      "file_type": "code",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L186",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_fixtures_osquery_alerter_lib_run_allowlist",
+      "community": 290,
+      "norm_label": "run_allowlist()"
+    },
+    {
+      "label": "assert_allowlisted()",
+      "file_type": "code",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L191",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_fixtures_osquery_alerter_lib_assert_allowlisted",
+      "community": 290,
+      "norm_label": "assert_allowlisted()"
+    },
+    {
+      "label": "assert_not_allowlisted()",
+      "file_type": "code",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L197",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_fixtures_osquery_alerter_lib_assert_not_allowlisted",
+      "community": 290,
+      "norm_label": "assert_not_allowlisted()"
+    },
+    {
+      "label": "assert_allowlist_label_count()",
+      "file_type": "code",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L204",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_fixtures_osquery_alerter_lib_assert_allowlist_label_count",
+      "community": 290,
+      "norm_label": "assert_allowlist_label_count()"
+    },
+    {
+      "label": "digest_record()",
+      "file_type": "code",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L215",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_fixtures_osquery_alerter_lib_digest_record",
+      "community": 290,
+      "norm_label": "digest_record()"
+    },
+    {
+      "label": "setup_tailscale_harness()",
+      "file_type": "code",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L221",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_fixtures_osquery_alerter_lib_setup_tailscale_harness",
+      "community": 290,
+      "norm_label": "setup_tailscale_harness()"
+    },
+    {
+      "label": "run_tailscale_monitor()",
+      "file_type": "code",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L233",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_fixtures_osquery_alerter_lib_run_tailscale_monitor",
+      "community": 290,
+      "norm_label": "run_tailscale_monitor()"
+    },
+    {
+      "label": "run_tailscale_monitor_missing_bin()",
+      "file_type": "code",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L243",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_fixtures_osquery_alerter_lib_run_tailscale_monitor_missing_bin",
+      "community": 290,
+      "norm_label": "run_tailscale_monitor_missing_bin()"
+    },
+    {
+      "label": "run_tailscale_monitor_path_resolved()",
+      "file_type": "code",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L253",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_fixtures_osquery_alerter_lib_run_tailscale_monitor_path_resolved",
+      "community": 290,
+      "norm_label": "run_tailscale_monitor_path_resolved()"
+    },
+    {
+      "label": "seed_digest()",
+      "file_type": "code",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L263",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_fixtures_osquery_alerter_lib_seed_digest",
+      "community": 290,
+      "norm_label": "seed_digest()"
+    },
+    {
+      "label": "run_digest()",
+      "file_type": "code",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L269",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_fixtures_osquery_alerter_lib_run_digest",
+      "community": 290,
+      "norm_label": "run_digest()"
+    },
+    {
+      "label": "run_alerter()",
+      "file_type": "code",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L274",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_fixtures_osquery_alerter_lib_run_alerter",
+      "community": 290,
+      "norm_label": "run_alerter()"
+    },
+    {
+      "label": "assert_no_page()",
+      "file_type": "code",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L290",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_fixtures_osquery_alerter_lib_assert_no_page",
+      "community": 290,
+      "norm_label": "assert_no_page()"
+    },
+    {
+      "label": "assert_page_has()",
+      "file_type": "code",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L297",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_fixtures_osquery_alerter_lib_assert_page_has",
+      "community": 290,
+      "norm_label": "assert_page_has()"
+    },
+    {
+      "label": "assert_warn_has()",
+      "file_type": "code",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L304",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_fixtures_osquery_alerter_lib_assert_warn_has",
+      "community": 290,
+      "norm_label": "assert_warn_has()"
+    },
+    {
+      "label": "assert_page_lacks()",
+      "file_type": "code",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L313",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_fixtures_osquery_alerter_lib_assert_page_lacks",
+      "community": 290,
+      "norm_label": "assert_page_lacks()"
+    },
+    {
+      "label": "setup_dispatch_harness()",
+      "file_type": "code",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L323",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_fixtures_osquery_alerter_lib_setup_dispatch_harness",
+      "community": 290,
+      "norm_label": "setup_dispatch_harness()"
+    },
+    {
+      "label": "set_curl_codes()",
+      "file_type": "code",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L356",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_fixtures_osquery_alerter_lib_set_curl_codes",
+      "community": 290,
+      "norm_label": "set_curl_codes()"
+    },
+    {
+      "label": "run_drain()",
+      "file_type": "code",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L359",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_fixtures_osquery_alerter_lib_run_drain",
+      "community": 290,
+      "norm_label": "run_drain()"
+    },
+    {
+      "label": "assert_spool_count()",
+      "file_type": "code",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L362",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_fixtures_osquery_alerter_lib_assert_spool_count",
+      "community": 290,
+      "norm_label": "assert_spool_count()"
+    },
+    {
+      "label": "assert_mode()",
+      "file_type": "code",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L372",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_fixtures_osquery_alerter_lib_assert_mode",
+      "community": 290,
+      "norm_label": "assert_mode()"
+    },
+    {
+      "label": "assert_post_count()",
+      "file_type": "code",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L382",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_fixtures_osquery_alerter_lib_assert_post_count",
+      "community": 290,
+      "norm_label": "assert_post_count()"
+    },
+    {
+      "label": "assert_posted_to()",
+      "file_type": "code",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L392",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_fixtures_osquery_alerter_lib_assert_posted_to",
+      "community": 290,
+      "norm_label": "assert_posted_to()"
+    },
+    {
+      "label": "assert_no_post()",
+      "file_type": "code",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L400",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_fixtures_osquery_alerter_lib_assert_no_post",
+      "community": 290,
+      "norm_label": "assert_no_post()"
+    },
+    {
+      "label": "assert_no_dispatch()",
+      "file_type": "code",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L408",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_fixtures_osquery_alerter_lib_assert_no_dispatch",
+      "community": 290,
+      "norm_label": "assert_no_dispatch()"
+    },
+    {
+      "label": "assert_digest_sent()",
+      "file_type": "code",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L416",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_fixtures_osquery_alerter_lib_assert_digest_sent",
+      "community": 290,
+      "norm_label": "assert_digest_sent()"
+    },
+    {
+      "label": "assert_digest_silent()",
+      "file_type": "code",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L430",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_fixtures_osquery_alerter_lib_assert_digest_silent",
+      "community": 290,
+      "norm_label": "assert_digest_silent()"
+    },
+    {
+      "label": "assert_digest_body_has()",
+      "file_type": "code",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L440",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_fixtures_osquery_alerter_lib_assert_digest_body_has",
+      "community": 290,
+      "norm_label": "assert_digest_body_has()"
+    },
+    {
+      "label": "assert_store_rotated()",
+      "file_type": "code",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L448",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_fixtures_osquery_alerter_lib_assert_store_rotated",
+      "community": 290,
+      "norm_label": "assert_store_rotated()"
+    },
+    {
+      "label": "assert_digest_count()",
+      "file_type": "code",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L460",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_fixtures_osquery_alerter_lib_assert_digest_count",
+      "community": 290,
+      "norm_label": "assert_digest_count()"
+    },
+    {
       "label": "claude-code-launchagent-retirement.sh",
       "file_type": "code",
       "source_file": "test/integration/claude-code-launchagent-retirement.sh",
@@ -5944,6 +6840,62 @@
       "norm_label": "seed_loaded()"
     },
     {
+      "label": "osquery-launchagent-loaders.sh",
+      "file_type": "code",
+      "source_file": "test/integration/osquery-launchagent-loaders.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "test_integration_osquery_launchagent_loaders",
+      "community": 294,
+      "norm_label": "osquery-launchagent-loaders.sh"
+    },
+    {
+      "label": "osquery-launchagent-loaders.sh script",
+      "file_type": "code",
+      "source_file": "test/integration/osquery-launchagent-loaders.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "test_integration_osquery_launchagent_loaders_sh__entry",
+      "community": 294,
+      "norm_label": "osquery-launchagent-loaders.sh script"
+    },
+    {
+      "label": "fail()",
+      "file_type": "code",
+      "source_file": "test/integration/osquery-launchagent-loaders.sh",
+      "source_location": "L47",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_integration_osquery_launchagent_loaders_fail",
+      "community": 294,
+      "norm_label": "fail()"
+    },
+    {
+      "label": "render()",
+      "file_type": "code",
+      "source_file": "test/integration/osquery-launchagent-loaders.sh",
+      "source_location": "L52",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_integration_osquery_launchagent_loaders_render",
+      "community": 294,
+      "norm_label": "render()"
+    },
+    {
       "label": "relay-agent.sh",
       "file_type": "code",
       "source_file": "test/integration/relay-agent.sh",
@@ -6353,7 +7305,7 @@
       "label": "perms()",
       "file_type": "code",
       "source_file": "test/integration/restore-age-key-behavior.sh",
-      "source_location": "L73",
+      "source_location": "L76",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -6367,7 +7319,7 @@
       "label": "reset_key_dir()",
       "file_type": "code",
       "source_file": "test/integration/restore-age-key-behavior.sh",
-      "source_location": "L75",
+      "source_location": "L78",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -6516,6 +7468,76 @@
       "id": "test_integration_tailnet_pins_run_pin_command",
       "community": 188,
       "norm_label": "run_pin_command()"
+    },
+    {
+      "label": "test-guard-bsd-stat.sh",
+      "file_type": "code",
+      "source_file": "test/integration/test-guard-bsd-stat.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "test_integration_test_guard_bsd_stat",
+      "community": 293,
+      "norm_label": "test-guard-bsd-stat.sh"
+    },
+    {
+      "label": "test-guard-bsd-stat.sh script",
+      "file_type": "code",
+      "source_file": "test/integration/test-guard-bsd-stat.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "test_integration_test_guard_bsd_stat_sh__entry",
+      "community": 293,
+      "norm_label": "test-guard-bsd-stat.sh script"
+    },
+    {
+      "label": "fail()",
+      "file_type": "code",
+      "source_file": "test/integration/test-guard-bsd-stat.sh",
+      "source_location": "L26",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_integration_test_guard_bsd_stat_fail",
+      "community": 293,
+      "norm_label": "fail()"
+    },
+    {
+      "label": "mk_scratch()",
+      "file_type": "code",
+      "source_file": "test/integration/test-guard-bsd-stat.sh",
+      "source_location": "L33",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_integration_test_guard_bsd_stat_mk_scratch",
+      "community": 293,
+      "norm_label": "mk_scratch()"
+    },
+    {
+      "label": "run_guard()",
+      "file_type": "code",
+      "source_file": "test/integration/test-guard-bsd-stat.sh",
+      "source_location": "L45",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_integration_test_guard_bsd_stat_run_guard",
+      "community": 293,
+      "norm_label": "run_guard()"
     },
     {
       "label": "test-guard-runner.sh",
@@ -30621,7 +31643,17 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_osquery-alert-dispatch.sh",
-      "source_location": "L28",
+      "source_location": "L58",
+      "weight": 1.0,
+      "source": "dot_local_bin_executable_osquery_alert_dispatch",
+      "target": "dot_local_bin_executable_osquery_alert_dispatch_drain_spool",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_osquery-alert-dispatch.sh",
+      "source_location": "L34",
       "weight": 1.0,
       "source": "dot_local_bin_executable_osquery_alert_dispatch",
       "target": "dot_local_bin_executable_osquery_alert_dispatch_osquery_log",
@@ -30631,7 +31663,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_osquery-alert-dispatch.sh",
-      "source_location": "L39",
+      "source_location": "L97",
       "weight": 1.0,
       "source": "dot_local_bin_executable_osquery_alert_dispatch",
       "target": "dot_local_bin_executable_osquery_alert_dispatch_send_alert",
@@ -30648,14 +31680,171 @@
       "confidence_score": 1.0
     },
     {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_osquery-alert-dispatch.sh",
+      "source_location": "L42",
+      "weight": 1.0,
+      "source": "dot_local_bin_executable_osquery_alert_dispatch",
+      "target": "dot_local_bin_executable_osquery_alert_dispatch_spool_page",
+      "confidence_score": 1.0
+    },
+    {
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_osquery-alert-dispatch.sh",
-      "source_location": "L79",
+      "source_location": "L138",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_osquery_alert_dispatch_send_alert",
       "target": "dot_local_bin_executable_osquery_alert_dispatch_osquery_log",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_osquery-alert-dispatch.sh",
+      "source_location": "L168",
+      "weight": 1.0,
+      "context": "call",
+      "source": "dot_local_bin_executable_osquery_alert_dispatch_send_alert",
+      "target": "dot_local_bin_executable_osquery_alert_dispatch_spool_page",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_osquery-allowlist.sh",
+      "source_location": "L37",
+      "weight": 1.0,
+      "source": "dot_local_bin_executable_osquery_allowlist",
+      "target": "dot_local_bin_executable_osquery_allowlist_allow_label",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_osquery-allowlist.sh",
+      "source_location": "L53",
+      "weight": 1.0,
+      "source": "dot_local_bin_executable_osquery_allowlist",
+      "target": "dot_local_bin_executable_osquery_allowlist_deny_label",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_osquery-allowlist.sh",
+      "source_location": "L28",
+      "weight": 1.0,
+      "source": "dot_local_bin_executable_osquery_allowlist",
+      "target": "dot_local_bin_executable_osquery_allowlist_is_valid_label",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_osquery-allowlist.sh",
+      "source_location": "L70",
+      "weight": 1.0,
+      "source": "dot_local_bin_executable_osquery_allowlist",
+      "target": "dot_local_bin_executable_osquery_allowlist_list_labels",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_osquery-allowlist.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "dot_local_bin_executable_osquery_allowlist",
+      "target": "dot_local_bin_executable_osquery_allowlist_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_osquery-allowlist.sh",
+      "source_location": "L20",
+      "weight": 1.0,
+      "source": "dot_local_bin_executable_osquery_allowlist",
+      "target": "dot_local_bin_executable_osquery_allowlist_usage",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_osquery-allowlist.sh",
+      "source_location": "L101",
+      "weight": 1.0,
+      "context": "call",
+      "source": "dot_local_bin_executable_osquery_allowlist_sh__entry",
+      "target": "dot_local_bin_executable_osquery_allowlist_allow_label",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_osquery-allowlist.sh",
+      "source_location": "L102",
+      "weight": 1.0,
+      "context": "call",
+      "source": "dot_local_bin_executable_osquery_allowlist_sh__entry",
+      "target": "dot_local_bin_executable_osquery_allowlist_deny_label",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_osquery-allowlist.sh",
+      "source_location": "L103",
+      "weight": 1.0,
+      "context": "call",
+      "source": "dot_local_bin_executable_osquery_allowlist_sh__entry",
+      "target": "dot_local_bin_executable_osquery_allowlist_list_labels",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_osquery-allowlist.sh",
+      "source_location": "L94",
+      "weight": 1.0,
+      "context": "call",
+      "source": "dot_local_bin_executable_osquery_allowlist_sh__entry",
+      "target": "dot_local_bin_executable_osquery_allowlist_usage",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_osquery-allowlist.sh",
+      "source_location": "L39",
+      "weight": 1.0,
+      "context": "call",
+      "source": "dot_local_bin_executable_osquery_allowlist_allow_label",
+      "target": "dot_local_bin_executable_osquery_allowlist_is_valid_label",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_osquery-allowlist.sh",
+      "source_location": "L55",
+      "weight": 1.0,
+      "context": "call",
+      "source": "dot_local_bin_executable_osquery_allowlist_deny_label",
+      "target": "dot_local_bin_executable_osquery_allowlist_is_valid_label",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_osquery-digest.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "dot_local_bin_executable_osquery_digest",
+      "target": "dot_local_bin_executable_osquery_digest_sh__entry",
       "confidence_score": 1.0
     },
     {
@@ -30740,13 +31929,33 @@
       "confidence_score": 1.0
     },
     {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_osquery-heartbeat.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "dot_local_bin_executable_osquery_heartbeat",
+      "target": "dot_local_bin_executable_osquery_heartbeat_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_osquery-results-alerter.sh",
-      "source_location": "L148",
+      "source_location": "L166",
       "weight": 1.0,
       "source": "dot_local_bin_executable_osquery_results_alerter",
       "target": "dot_local_bin_executable_osquery_results_alerter_allowlisted",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_osquery-results-alerter.sh",
+      "source_location": "L183",
+      "weight": 1.0,
+      "source": "dot_local_bin_executable_osquery_results_alerter",
+      "target": "dot_local_bin_executable_osquery_results_alerter_digest_append",
       "confidence_score": 1.0
     },
     {
@@ -30763,11 +31972,32 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_osquery-results-alerter.sh",
-      "source_location": "L181",
+      "source_location": "L297",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_osquery_results_alerter_sh__entry",
       "target": "dot_local_bin_executable_osquery_results_alerter_allowlisted",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_osquery-results-alerter.sh",
+      "source_location": "L248",
+      "weight": 1.0,
+      "context": "call",
+      "source": "dot_local_bin_executable_osquery_results_alerter_sh__entry",
+      "target": "dot_local_bin_executable_osquery_results_alerter_digest_append",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_osquery-tailscale-monitor.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "dot_local_bin_executable_osquery_tailscale_monitor",
+      "target": "dot_local_bin_executable_osquery_tailscale_monitor_sh__entry",
       "confidence_score": 1.0
     },
     {
@@ -35675,6 +36905,531 @@
     {
       "relation": "defines",
       "confidence": "EXTRACTED",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L204",
+      "weight": 1.0,
+      "source": "test_fixtures_osquery_alerter_lib",
+      "target": "test_fixtures_osquery_alerter_lib_assert_allowlist_label_count",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L191",
+      "weight": 1.0,
+      "source": "test_fixtures_osquery_alerter_lib",
+      "target": "test_fixtures_osquery_alerter_lib_assert_allowlisted",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L440",
+      "weight": 1.0,
+      "source": "test_fixtures_osquery_alerter_lib",
+      "target": "test_fixtures_osquery_alerter_lib_assert_digest_body_has",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L460",
+      "weight": 1.0,
+      "source": "test_fixtures_osquery_alerter_lib",
+      "target": "test_fixtures_osquery_alerter_lib_assert_digest_count",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L416",
+      "weight": 1.0,
+      "source": "test_fixtures_osquery_alerter_lib",
+      "target": "test_fixtures_osquery_alerter_lib_assert_digest_sent",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L430",
+      "weight": 1.0,
+      "source": "test_fixtures_osquery_alerter_lib",
+      "target": "test_fixtures_osquery_alerter_lib_assert_digest_silent",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L372",
+      "weight": 1.0,
+      "source": "test_fixtures_osquery_alerter_lib",
+      "target": "test_fixtures_osquery_alerter_lib_assert_mode",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L408",
+      "weight": 1.0,
+      "source": "test_fixtures_osquery_alerter_lib",
+      "target": "test_fixtures_osquery_alerter_lib_assert_no_dispatch",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L290",
+      "weight": 1.0,
+      "source": "test_fixtures_osquery_alerter_lib",
+      "target": "test_fixtures_osquery_alerter_lib_assert_no_page",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L400",
+      "weight": 1.0,
+      "source": "test_fixtures_osquery_alerter_lib",
+      "target": "test_fixtures_osquery_alerter_lib_assert_no_post",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L197",
+      "weight": 1.0,
+      "source": "test_fixtures_osquery_alerter_lib",
+      "target": "test_fixtures_osquery_alerter_lib_assert_not_allowlisted",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L297",
+      "weight": 1.0,
+      "source": "test_fixtures_osquery_alerter_lib",
+      "target": "test_fixtures_osquery_alerter_lib_assert_page_has",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L313",
+      "weight": 1.0,
+      "source": "test_fixtures_osquery_alerter_lib",
+      "target": "test_fixtures_osquery_alerter_lib_assert_page_lacks",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L382",
+      "weight": 1.0,
+      "source": "test_fixtures_osquery_alerter_lib",
+      "target": "test_fixtures_osquery_alerter_lib_assert_post_count",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L392",
+      "weight": 1.0,
+      "source": "test_fixtures_osquery_alerter_lib",
+      "target": "test_fixtures_osquery_alerter_lib_assert_posted_to",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L362",
+      "weight": 1.0,
+      "source": "test_fixtures_osquery_alerter_lib",
+      "target": "test_fixtures_osquery_alerter_lib_assert_spool_count",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L448",
+      "weight": 1.0,
+      "source": "test_fixtures_osquery_alerter_lib",
+      "target": "test_fixtures_osquery_alerter_lib_assert_store_rotated",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L304",
+      "weight": 1.0,
+      "source": "test_fixtures_osquery_alerter_lib",
+      "target": "test_fixtures_osquery_alerter_lib_assert_warn_has",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "test_fixtures_osquery_alerter_lib",
+      "target": "test_fixtures_osquery_alerter_lib_bash__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L215",
+      "weight": 1.0,
+      "source": "test_fixtures_osquery_alerter_lib",
+      "target": "test_fixtures_osquery_alerter_lib_digest_record",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L18",
+      "weight": 1.0,
+      "source": "test_fixtures_osquery_alerter_lib",
+      "target": "test_fixtures_osquery_alerter_lib_file_event_row",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L61",
+      "weight": 1.0,
+      "source": "test_fixtures_osquery_alerter_lib",
+      "target": "test_fixtures_osquery_alerter_lib_install_untrusted_enricher",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L11",
+      "weight": 1.0,
+      "source": "test_fixtures_osquery_alerter_lib",
+      "target": "test_fixtures_osquery_alerter_lib_row",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L274",
+      "weight": 1.0,
+      "source": "test_fixtures_osquery_alerter_lib",
+      "target": "test_fixtures_osquery_alerter_lib_run_alerter",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L186",
+      "weight": 1.0,
+      "source": "test_fixtures_osquery_alerter_lib",
+      "target": "test_fixtures_osquery_alerter_lib_run_allowlist",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L269",
+      "weight": 1.0,
+      "source": "test_fixtures_osquery_alerter_lib",
+      "target": "test_fixtures_osquery_alerter_lib_run_digest",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L359",
+      "weight": 1.0,
+      "source": "test_fixtures_osquery_alerter_lib",
+      "target": "test_fixtures_osquery_alerter_lib_run_drain",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L171",
+      "weight": 1.0,
+      "source": "test_fixtures_osquery_alerter_lib",
+      "target": "test_fixtures_osquery_alerter_lib_run_heartbeat",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L84",
+      "weight": 1.0,
+      "source": "test_fixtures_osquery_alerter_lib",
+      "target": "test_fixtures_osquery_alerter_lib_run_poller",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L140",
+      "weight": 1.0,
+      "source": "test_fixtures_osquery_alerter_lib",
+      "target": "test_fixtures_osquery_alerter_lib_run_redaction_h2",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L233",
+      "weight": 1.0,
+      "source": "test_fixtures_osquery_alerter_lib",
+      "target": "test_fixtures_osquery_alerter_lib_run_tailscale_monitor",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L243",
+      "weight": 1.0,
+      "source": "test_fixtures_osquery_alerter_lib",
+      "target": "test_fixtures_osquery_alerter_lib_run_tailscale_monitor_missing_bin",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L253",
+      "weight": 1.0,
+      "source": "test_fixtures_osquery_alerter_lib",
+      "target": "test_fixtures_osquery_alerter_lib_run_tailscale_monitor_path_resolved",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L115",
+      "weight": 1.0,
+      "source": "test_fixtures_osquery_alerter_lib",
+      "target": "test_fixtures_osquery_alerter_lib_run_watchdog",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L263",
+      "weight": 1.0,
+      "source": "test_fixtures_osquery_alerter_lib",
+      "target": "test_fixtures_osquery_alerter_lib_seed_digest",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L54",
+      "weight": 1.0,
+      "source": "test_fixtures_osquery_alerter_lib",
+      "target": "test_fixtures_osquery_alerter_lib_seed_manifest",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L356",
+      "weight": 1.0,
+      "source": "test_fixtures_osquery_alerter_lib",
+      "target": "test_fixtures_osquery_alerter_lib_set_curl_codes",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L179",
+      "weight": 1.0,
+      "source": "test_fixtures_osquery_alerter_lib",
+      "target": "test_fixtures_osquery_alerter_lib_setup_allowlist_harness",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L323",
+      "weight": 1.0,
+      "source": "test_fixtures_osquery_alerter_lib",
+      "target": "test_fixtures_osquery_alerter_lib_setup_dispatch_harness",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L35",
+      "weight": 1.0,
+      "source": "test_fixtures_osquery_alerter_lib",
+      "target": "test_fixtures_osquery_alerter_lib_setup_harness",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L160",
+      "weight": 1.0,
+      "source": "test_fixtures_osquery_alerter_lib",
+      "target": "test_fixtures_osquery_alerter_lib_setup_heartbeat_harness",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L71",
+      "weight": 1.0,
+      "source": "test_fixtures_osquery_alerter_lib",
+      "target": "test_fixtures_osquery_alerter_lib_setup_poller_harness",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L127",
+      "weight": 1.0,
+      "source": "test_fixtures_osquery_alerter_lib",
+      "target": "test_fixtures_osquery_alerter_lib_setup_redaction_h2_harness",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L221",
+      "weight": 1.0,
+      "source": "test_fixtures_osquery_alerter_lib",
+      "target": "test_fixtures_osquery_alerter_lib_setup_tailscale_harness",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L97",
+      "weight": 1.0,
+      "source": "test_fixtures_osquery_alerter_lib",
+      "target": "test_fixtures_osquery_alerter_lib_setup_watchdog_harness",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L183",
+      "weight": 1.0,
+      "source": "test_fixtures_osquery_alerter_lib",
+      "target": "test_fixtures_osquery_alerter_lib_teardown_allowlist_harness",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L66",
+      "weight": 1.0,
+      "source": "test_fixtures_osquery_alerter_lib",
+      "target": "test_fixtures_osquery_alerter_lib_teardown_harness",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L161",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_fixtures_osquery_alerter_lib_setup_heartbeat_harness",
+      "target": "test_fixtures_osquery_alerter_lib_setup_harness",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L72",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_fixtures_osquery_alerter_lib_setup_poller_harness",
+      "target": "test_fixtures_osquery_alerter_lib_setup_harness",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L128",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_fixtures_osquery_alerter_lib_setup_redaction_h2_harness",
+      "target": "test_fixtures_osquery_alerter_lib_setup_harness",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L222",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_fixtures_osquery_alerter_lib_setup_tailscale_harness",
+      "target": "test_fixtures_osquery_alerter_lib_setup_harness",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/fixtures/osquery-alerter-lib.bash",
+      "source_location": "L98",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_fixtures_osquery_alerter_lib_setup_watchdog_harness",
+      "target": "test_fixtures_osquery_alerter_lib_setup_harness",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
       "source_file": "test/integration/claude-code-launchagent-retirement.sh",
       "source_location": "L154",
       "weight": 1.0,
@@ -37267,6 +39022,58 @@
     {
       "relation": "defines",
       "confidence": "EXTRACTED",
+      "source_file": "test/integration/osquery-launchagent-loaders.sh",
+      "source_location": "L47",
+      "weight": 1.0,
+      "source": "test_integration_osquery_launchagent_loaders",
+      "target": "test_integration_osquery_launchagent_loaders_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/osquery-launchagent-loaders.sh",
+      "source_location": "L52",
+      "weight": 1.0,
+      "source": "test_integration_osquery_launchagent_loaders",
+      "target": "test_integration_osquery_launchagent_loaders_render",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/osquery-launchagent-loaders.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "test_integration_osquery_launchagent_loaders",
+      "target": "test_integration_osquery_launchagent_loaders_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/osquery-launchagent-loaders.sh",
+      "source_location": "L61",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_integration_osquery_launchagent_loaders_sh__entry",
+      "target": "test_integration_osquery_launchagent_loaders_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/osquery-launchagent-loaders.sh",
+      "source_location": "L65",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_integration_osquery_launchagent_loaders_sh__entry",
+      "target": "test_integration_osquery_launchagent_loaders_render",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
       "source_file": "test/integration/relay-agent.sh",
       "source_location": "L12",
       "weight": 1.0,
@@ -37618,7 +39425,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/restore-age-key-behavior.sh",
-      "source_location": "L73",
+      "source_location": "L76",
       "weight": 1.0,
       "source": "test_integration_restore_age_key_behavior",
       "target": "test_integration_restore_age_key_behavior_perms",
@@ -37628,7 +39435,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/restore-age-key-behavior.sh",
-      "source_location": "L75",
+      "source_location": "L78",
       "weight": 1.0,
       "source": "test_integration_restore_age_key_behavior",
       "target": "test_integration_restore_age_key_behavior_reset_key_dir",
@@ -37669,7 +39476,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/restore-age-key-behavior.sh",
-      "source_location": "L83",
+      "source_location": "L86",
       "weight": 1.0,
       "context": "call",
       "source": "test_integration_restore_age_key_behavior_sh__entry",
@@ -37842,6 +39649,68 @@
       "context": "call",
       "source": "test_integration_tailnet_pins_run_pin_command",
       "target": "test_integration_tailnet_pins_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/test-guard-bsd-stat.sh",
+      "source_location": "L26",
+      "weight": 1.0,
+      "source": "test_integration_test_guard_bsd_stat",
+      "target": "test_integration_test_guard_bsd_stat_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/test-guard-bsd-stat.sh",
+      "source_location": "L33",
+      "weight": 1.0,
+      "source": "test_integration_test_guard_bsd_stat",
+      "target": "test_integration_test_guard_bsd_stat_mk_scratch",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/test-guard-bsd-stat.sh",
+      "source_location": "L45",
+      "weight": 1.0,
+      "source": "test_integration_test_guard_bsd_stat",
+      "target": "test_integration_test_guard_bsd_stat_run_guard",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/test-guard-bsd-stat.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "test_integration_test_guard_bsd_stat",
+      "target": "test_integration_test_guard_bsd_stat_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/test-guard-bsd-stat.sh",
+      "source_location": "L56",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_integration_test_guard_bsd_stat_sh__entry",
+      "target": "test_integration_test_guard_bsd_stat_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/test-guard-bsd-stat.sh",
+      "source_location": "L54",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_integration_test_guard_bsd_stat_sh__entry",
+      "target": "test_integration_test_guard_bsd_stat_run_guard",
       "confidence_score": 1.0
     },
     {
@@ -59527,5 +61396,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "9a6374d47fecc8da34053022d5ef014dfbb111ce"
+  "built_at_commit": "21b3ca55687c619b80159a07a3d0150c9cfa5887"
 }
