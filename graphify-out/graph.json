@@ -1599,7 +1599,7 @@
       "label": "_allowlisted()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_osquery-results-alerter.sh",
-      "source_location": "L178",
+      "source_location": "L181",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -1613,7 +1613,7 @@
       "label": "_manifest_has_tuple()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_osquery-results-alerter.sh",
-      "source_location": "L193",
+      "source_location": "L196",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -1627,7 +1627,7 @@
       "label": "_pipeline_verdict()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_osquery-results-alerter.sh",
-      "source_location": "L211",
+      "source_location": "L214",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -1641,7 +1641,7 @@
       "label": "_digest_append()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_osquery-results-alerter.sh",
-      "source_location": "L229",
+      "source_location": "L232",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -1655,7 +1655,7 @@
       "label": "_authfile_rotation_pair()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_osquery-results-alerter.sh",
-      "source_location": "L258",
+      "source_location": "L261",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -4122,6 +4122,34 @@
       "id": "test_e2e_osquery_agent_binary_signal_sh__entry",
       "community": 299,
       "norm_label": "osquery-agent-binary-signal.sh script"
+    },
+    {
+      "label": "osquery-screenlock-off-query.sh",
+      "file_type": "code",
+      "source_file": "test/e2e/osquery-screenlock-off-query.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "test_e2e_osquery_screenlock_off_query",
+      "community": 301,
+      "norm_label": "osquery-screenlock-off-query.sh"
+    },
+    {
+      "label": "osquery-screenlock-off-query.sh script",
+      "file_type": "code",
+      "source_file": "test/e2e/osquery-screenlock-off-query.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "test_e2e_osquery_screenlock_off_query_sh__entry",
+      "community": 301,
+      "norm_label": "osquery-screenlock-off-query.sh script"
     },
     {
       "label": "relay.sh",
@@ -32159,7 +32187,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_osquery-results-alerter.sh",
-      "source_location": "L178",
+      "source_location": "L181",
       "weight": 1.0,
       "source": "dot_local_bin_executable_osquery_results_alerter",
       "target": "dot_local_bin_executable_osquery_results_alerter_allowlisted",
@@ -32169,7 +32197,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_osquery-results-alerter.sh",
-      "source_location": "L258",
+      "source_location": "L261",
       "weight": 1.0,
       "source": "dot_local_bin_executable_osquery_results_alerter",
       "target": "dot_local_bin_executable_osquery_results_alerter_authfile_rotation_pair",
@@ -32179,7 +32207,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_osquery-results-alerter.sh",
-      "source_location": "L229",
+      "source_location": "L232",
       "weight": 1.0,
       "source": "dot_local_bin_executable_osquery_results_alerter",
       "target": "dot_local_bin_executable_osquery_results_alerter_digest_append",
@@ -32189,7 +32217,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_osquery-results-alerter.sh",
-      "source_location": "L193",
+      "source_location": "L196",
       "weight": 1.0,
       "source": "dot_local_bin_executable_osquery_results_alerter",
       "target": "dot_local_bin_executable_osquery_results_alerter_manifest_has_tuple",
@@ -32199,7 +32227,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_osquery-results-alerter.sh",
-      "source_location": "L211",
+      "source_location": "L214",
       "weight": 1.0,
       "source": "dot_local_bin_executable_osquery_results_alerter",
       "target": "dot_local_bin_executable_osquery_results_alerter_pipeline_verdict",
@@ -32219,7 +32247,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_osquery-results-alerter.sh",
-      "source_location": "L357",
+      "source_location": "L360",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_osquery_results_alerter_sh__entry",
@@ -32230,7 +32258,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_osquery-results-alerter.sh",
-      "source_location": "L302",
+      "source_location": "L305",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_osquery_results_alerter_sh__entry",
@@ -32241,7 +32269,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_osquery-results-alerter.sh",
-      "source_location": "L308",
+      "source_location": "L311",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_osquery_results_alerter_sh__entry",
@@ -32252,7 +32280,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_osquery-results-alerter.sh",
-      "source_location": "L422",
+      "source_location": "L425",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_osquery_results_alerter_sh__entry",
@@ -32263,7 +32291,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_osquery-results-alerter.sh",
-      "source_location": "L217",
+      "source_location": "L220",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_osquery_results_alerter_pipeline_verdict",
@@ -36447,6 +36475,16 @@
       "weight": 1.0,
       "source": "test_e2e_osquery_agent_binary_signal",
       "target": "test_e2e_osquery_agent_binary_signal_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "test/e2e/osquery-screenlock-off-query.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "test_e2e_osquery_screenlock_off_query",
+      "target": "test_e2e_osquery_screenlock_off_query_sh__entry",
       "confidence_score": 1.0
     },
     {
@@ -61778,5 +61816,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "8fac84309618528e049984711b68388d2fa90e59"
+  "built_at_commit": "55722c17969aebf8b7e15d889413ca154f3c6881"
 }
