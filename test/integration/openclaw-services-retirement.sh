@@ -593,6 +593,22 @@ else
   assert_no_marker caseL "$hL"
 fi
 
+# ── Case M (F4): an unwritable state dir must not abort the apply ────────────
+# A full convergence (nothing loaded, no plists, npm confirmed absent) reaches
+# the marker write, but `mkdir -p`/`: >marker` are under `set -euo pipefail`; an
+# unwritable state dir (a root-owned leftover) would abort the entire apply. The
+# guarded write must warn, write no marker, and still exit 0. The state dir path
+# is pre-created as a FILE so mkdir -p and the marker write both fail.
+hM="$work/homeM"
+mkdir -p "$hM/.local/state" "$hM/Library/LaunchAgents"
+: >"$hM/.local/state/openclaw"
+seed_loaded
+/bin/rm -f "$npm_installed_flag"
+run_script "$hM"
+assert_rc0 caseM
+assert_no_marker caseM "$hM"
+assert_warned caseM "could not be written"
+
 if [[ $failures -gt 0 ]]; then
   printf 'openclaw-services-retirement: %d assertion(s) FAILED\n' "$failures" >&2
   exit 1

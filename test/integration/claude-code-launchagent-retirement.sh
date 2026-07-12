@@ -131,6 +131,13 @@ run_case() {
       printf '#!/bin/bash\nexit 1\n' >"$bin/id"
       chmod +x "$bin/id"
       ;;
+    state-unwritable)
+      # Pre-create the marker's state dir path as a FILE, so `mkdir -p` (and the
+      # marker write) fail even after a full convergence -- an unwritable state
+      # dir (e.g. a root-owned leftover) must not abort the whole apply.
+      mkdir -p "$CASE_HOME/.local/state"
+      : >"$CASE_HOME/.local/state/claude-code-launchagent"
+      ;;
     none) ;;
     *) fail "unknown failure mode: $failure" ;;
   esac
@@ -235,6 +242,20 @@ run_case id-fails loaded plist id-fails
 [[ -e $PLIST ]] || fail "id-fails: plist removed though the uid (and thus the load state) is unknown"
 [[ ! -e $MARKER ]] || fail "id-fails: marker written though the load state is unknown"
 [[ -s $ERR_FILE ]] || fail "id-fails: no warning printed about the failed uid lookup"
+
+# State dir UNWRITABLE at the marker write (F4): a full convergence (bootout +
+# plist removed) reaches the marker write, but `mkdir -p`/`: >marker` are under
+# `set -euo pipefail` -- an unwritable state dir (a root-owned leftover) would
+# abort the ENTIRE chezmoi apply. The guarded write must warn, NOT claim
+# completion, write no marker, and still exit 0 so the next apply retries.
+run_case state-unwritable loaded plist state-unwritable
+[[ $RC -eq 0 ]] ||
+  fail "state-unwritable: an unwritable state dir aborted the apply (rc=$RC; stderr: $(cat "$ERR_FILE"))"
+[[ ! -e $MARKER ]] || fail "state-unwritable: marker written though the state dir is unwritable"
+grep -q 'retirement complete' "$OUT_FILE" &&
+  fail "state-unwritable: claimed completion though the marker could not be written ($(cat "$OUT_FILE"))"
+grep -q 'could not be written' "$ERR_FILE" ||
+  fail "state-unwritable: no warning that the marker could not be written (stderr: $(cat "$ERR_FILE"))"
 
 # Idempotence via the marker: a loaded service, run twice. The first run boots it
 # out and writes the marker; the second sees the marker and short-circuits with

@@ -112,10 +112,16 @@ fi
 
 # Converge: the marker is written ONLY when the label is confirmed absent AND the
 # plist is gone. Anything else leaves it unwritten so the next apply retries.
+# The mkdir + marker write are GUARDED: under `set -euo pipefail` an unwritable
+# state dir (a root-owned leftover) would otherwise abort the whole apply. A
+# failed write warns, does NOT claim completion, and still exits 0 so the next
+# apply retries.
 if [[ $state == absent && $plist_absent == true ]]; then
-  mkdir -p "$state_dir"
-  : >"$marker"
-  log "retirement complete; wrote quiescence marker $marker"
+  if mkdir -p "$state_dir" 2>/dev/null && : >"$marker" 2>/dev/null; then
+    log "retirement complete; wrote quiescence marker $marker"
+  else
+    warn "com.claude.code retirement converged but the quiescence marker $marker could not be written (state dir unwritable?); NOT claiming completion. The next chezmoi apply will retry."
+  fi
 else
   warn "com.claude.code retirement incomplete; NOT writing the marker. The next chezmoi apply will retry."
 fi

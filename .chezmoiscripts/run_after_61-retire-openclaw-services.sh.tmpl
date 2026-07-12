@@ -188,10 +188,16 @@ if [[ $npm_state != absent ]]; then
   remaining+=("global npm package openclaw not confirmed absent (state: $npm_state; manual: npm uninstall -g openclaw)")
 fi
 
+# The mkdir + marker write are GUARDED: under `set -euo pipefail` an unwritable
+# state dir (a root-owned leftover) would otherwise abort the whole apply. A
+# failed write warns, does NOT claim completion, and still exits 0 so the next
+# apply retries.
 if [[ ${#remaining[@]} -eq 0 ]]; then
-  mkdir -p "$state_dir"
-  : >"$marker"
-  log "retirement complete; wrote quiescence marker $marker"
+  if mkdir -p "$state_dir" 2>/dev/null && : >"$marker" 2>/dev/null; then
+    log "retirement complete; wrote quiescence marker $marker"
+  else
+    warn "openclaw retirement converged but the quiescence marker $marker could not be written (state dir unwritable?); NOT claiming completion. The next chezmoi apply will retry."
+  fi
 else
   warn "openclaw retirement incomplete; NOT writing the marker. Remaining:"
   for item in "${remaining[@]}"; do
