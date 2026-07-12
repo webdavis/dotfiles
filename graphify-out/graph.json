@@ -39053,7 +39053,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/osquery-launchagent-loaders.sh",
-      "source_location": "L61",
+      "source_location": "L62",
       "weight": 1.0,
       "context": "call",
       "source": "test_integration_osquery_launchagent_loaders_sh__entry",
@@ -39064,7 +39064,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/osquery-launchagent-loaders.sh",
-      "source_location": "L65",
+      "source_location": "L71",
       "weight": 1.0,
       "context": "call",
       "source": "test_integration_osquery_launchagent_loaders_sh__entry",
@@ -61396,5 +61396,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "21b3ca55687c619b80159a07a3d0150c9cfa5887"
+  "built_at_commit": "c5640a6d4c5fde75ed0fd8dcd557d8c802d82f98"
 }
