@@ -13,11 +13,15 @@ row() {
     '{name:$name,action:$action,counter:$counter,columns:$columns,hostIdentifier:"dresden",calendarTime:"Tue Jun 10 17:00:00 2026 UTC",epoch:0,numerics:false,unixTime:1780000000}'
 }
 
-# Evented file_events row: file_event_row <category> <target_path> <CREATED|UPDATED|DELETED>
-# Outer action is always "added"; the real FSEvents verb is columns.action.
+# Evented file_events row: file_event_row <category> <target_path> <verb> [sha256]
+# Outer action is always "added"; the real FSEvents verb is columns.action (CREATED,
+# UPDATED, MOVED_TO, ROOT_CHANGED, ATTRIBUTES_MODIFIED, DELETED — the production set).
+# The sha256 arg uses ${4-default} (default only when UNSET), so an explicit "" models
+# the empty sha256 that live MOVED_TO/ROOT_CHANGED/ATTRIBUTES_MODIFIED/DELETED rows
+# carry (osquery does not content-hash a rename/attribute/delete event).
 file_event_row() {
   jq -cn --arg category "$1" --arg target_path "$2" --arg file_action "$3" \
-    --arg sha256 "${4:-e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855}" \
+    --arg sha256 "${4-e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855}" \
     '{name:"file_events_recent",action:"added",counter:1,columns:{action:$file_action,category:$category,target_path:$target_path,sha256:$sha256,time:"1780000000"},hostIdentifier:"dresden",unixTime:1780000000}'
 }
 

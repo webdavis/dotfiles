@@ -121,8 +121,20 @@ raw_findings=$(printf '%s\n' "$new_lines" | jq -rR '
     else "INFO" end;
   select(.name != null and ((.name | startswith("pack_")) or (.name == "file_events_recent") or (.name == "es_launchd_writes") or (.name == "new_admin_user") or (.name == "persistence_launchd") or (.name == "agent_exposure_changed") or (.name == "agent_authfile_changed") or (.name == "agent_binary_changed")))
   | select((.columns.target_path // "") | test("/\\.renameio-TempDir") | not)
-  # Discard the counter==0 baseline (first-observation) row — calibration, not a real event.
-  | select((.counter // 1) != 0)
+  # Per-query baseline policy (FX5). The old unconditional counter==0 discard silently
+  # ACCEPTED a pre-existing compromise: an admin already added, sharing already enabled,
+  # a listener already exposed, or FileVault already off would all seed silently on the
+  # first osqueryd run. MEMBERSHIP queries (new_admin_user, persistence, extensions, suid
+  # — a differential against a seeded baseline set) legitimately calibrate on the first
+  # observation and stay silent at counter==0. ABSOLUTE-STATE queries emit a row ONLY
+  # when the current state is already unsafe (filevault_off = no volume encrypted;
+  # remote_access_sharing_state = a service enabled; agent_exposure_changed = a port
+  # off-loopback), so a counter==0 row is an unsafe FIRST observation that must PAGE, not
+  # seed. Keep counter==0 rows ONLY for those absolute-state queries; discard the rest.
+  | select((.counter // 1) != 0
+      or (.name | test("filevault_off$"))
+      or (.name | test("remote_access_sharing_state$"))
+      or (.name | test("agent_exposure_changed$")))
   | (.name | sub("^pack_[^_]+_"; "")) as $q
   | (.action // "changed") as $act
   # The path the enricher should inspect (a plist, bundle, or binary) per query
@@ -171,6 +183,40 @@ _allowlisted() { [[ -n $allow_set ]] && grep -qxF -- "$1" <<<"$allow_set"; }
 # produces a matching hash → silent. Fail-safe: a missing manifest or an empty hash
 # means "cannot confirm legitimate" → page (loud), never a silent miss.
 PIPELINE_MANIFEST="${OSQUERY_PIPELINE_MANIFEST:-/var/osquery/pipeline-known-good.sha256}"
+
+# FX2: legitimacy is the EXACT (target_path, sha256) tuple, not the hash alone. The
+# manifest is shasum format ("<sha256>  <path>"); a line passes only when BOTH its hash
+# and its path match. Binding the hash to ITS path defeats the swap-in-place probe
+# (replacing dispatch.sh with a byte-copy of heartbeat.sh, whose hash is in the manifest
+# but bound to a different path). Case-insensitive on the hash (shasum and osquery both
+# emit lowercase, but normalize defensively). A missing/unreadable manifest returns 1.
+_manifest_has_tuple() {
+  [[ -r $PIPELINE_MANIFEST ]] || return 1
+  local want_path="$1" want_hash h p
+  want_hash=$(printf '%s' "$2" | tr '[:upper:]' '[:lower:]')
+  while read -r h p; do
+    h=$(printf '%s' "$h" | tr '[:upper:]' '[:lower:]')
+    [[ $h == "$want_hash" && $p == "$want_path" ]] && return 0
+  done <"$PIPELINE_MANIFEST"
+  return 1
+}
+
+# FX3: with directory watches (~/.local/bin, ~/Library/LaunchAgents) the pipeline
+# categories fire for every file in the dir, so the tracked set is filtered here by
+# basename: only the osquery pipeline scripts and our own LaunchAgents are pipeline
+# infrastructure. Verdict: return 0 = PAGE (tamper / cannot confirm legit), 1 = SILENT
+# (an untracked neighbor, or a change whose exact tuple is known-good). An empty/absent
+# sha256 (which live MOVED_TO/ROOT_CHANGED/ATTRIBUTES_MODIFIED/DELETED rows carry), any
+# mismatch, or a missing manifest cannot confirm a legit apply → page (fail-safe loud).
+_pipeline_verdict() {
+  local target="$1" hash_value="$2" base="${1##*/}"
+  case "$base" in
+    osquery-*.sh | com.webdavis.osquery-*.plist) ;;
+    *) return 1 ;; # a neighbor file in the watched dir → log-only
+  esac
+  [[ -n $hash_value ]] && _manifest_has_tuple "$target" "$hash_value" && return 1
+  return 0
+}
 
 # Digest tier (v2): suspicious-but-ambiguous findings accumulate here as NDJSON for a
 # daily grouped summary instead of paging. Best-effort by design — failing to record a
@@ -324,30 +370,59 @@ while IFS= read -r obj; do
       _digest_append "$obj"
       continue
       ;;
-    # file_events fans out by category. authorized_keys / sshd_config are remote-auth
-    # tampering → page. sudoers churns (visudo / chezmoi) and allowlist_file is
-    # runtime-mutable → digest. Everything else (launch dirs, etc.) → log-only.
+    # file_events fans out by category, then by target path within the category (FX3:
+    # the watches are containing directories now, so a category fires for every file in
+    # the dir). FX1: every production FSEvents verb is actionable — CREATED, UPDATED,
+    # MOVED_TO (atomic replacement, the dominant live verb), ROOT_CHANGED (a parent dir
+    # renamed), ATTRIBUTES_MODIFIED (chmod/chown/xattr), and DELETED (destructive). The
+    # old CREATED/UPDATED-only filter dropped the rest, so the tamper detector and the
+    # sshd page could never fire. No verb is dropped here; the category + target decide
+    # the tier, and an unknown verb in a paging category pages conservatively.
     file_events_recent)
-      # Only a create/modify is actionable; a delete is your own revert/cleanup noise.
-      case "$(jq -r '.cols.action // ""' <<<"$obj")" in
-        CREATED | UPDATED) ;;
-        *) continue ;;
-      esac
+      target=$(jq -r '.cols.target_path // ""' <<<"$obj")
+      base=${target##*/}
       case "$cat" in
-        authorized_keys | sshd_config) sev="CRIT" ;;
-        pipeline_integrity)
-          # Page only on content-mismatch: a sha256 that matches the source-derived,
-          # root-owned manifest is a legit apply (silent); an absent hash or any other
-          # content is tamper (page). Never digests — page or silent.
-          hash_value=$(jq -r '.cols.sha256 // ""' <<<"$obj")
-          if [[ -n $hash_value ]] && grep -qiF -- "$hash_value" "$PIPELINE_MANIFEST" 2>/dev/null; then
-            continue
-          fi
-          sev="CRIT"
+        # ~/.ssh directory watch (FX3): authorized_keys{,2} are remote-auth entry points
+        # → page on any verb (DELETED included: removing the key file can be an attacker
+        # locking the operator out). Every other ~/.ssh file (private keys, config,
+        # known_hosts) is sensitive but operator-churned → digest (restored broad
+        # coverage the exact-file narrowing had lost).
+        ssh)
+          case "$base" in
+            authorized_keys | authorized_keys2) sev="CRIT" ;;
+            *)
+              _digest_append "$obj"
+              continue
+              ;;
+          esac
           ;;
-        sudoers | allowlist_file)
+        # sshd_config: remote-auth policy → page on any verb.
+        sshd_config) sev="CRIT" ;;
+        # pipeline_integrity (~/.local/bin watch) and our own LaunchAgents (launch_agents
+        # / launch_daemons watch) are the alerter's own tooling. The verdict filters to
+        # the tracked set by basename and validates the exact (path, sha256) tuple: a
+        # legit apply whose tuple is known-good is silent; anything unconfirmable (empty
+        # hash, mismatch, missing manifest) pages. Never digests — page or silent.
+        pipeline_integrity | launch_agents | launch_daemons)
+          hash_value=$(jq -r '.cols.sha256 // ""' <<<"$obj")
+          if _pipeline_verdict "$target" "$hash_value"; then sev="CRIT"; else continue; fi
+          ;;
+        # sudoers churns (visudo / chezmoi) → digest on any verb.
+        sudoers)
           _digest_append "$obj"
           continue
+          ;;
+        # ~/.config/osquery watch (FX3): only the page-allowlist itself is the
+        # security-relevant page-suppressor edit → digest. Neighbors (e.g. webhook-secret,
+        # covered by agent_authfile_changed) are log-only here.
+        allowlist_file)
+          case "$base" in
+            page-launchd-allowlist.txt)
+              _digest_append "$obj"
+              continue
+              ;;
+            *) continue ;;
+          esac
           ;;
         *) continue ;;
       esac
@@ -405,8 +480,12 @@ render=$(printf '%s\n' "$enriched" | jq -s '
     elif .q == "homebrew_packages" then "New Homebrew package"
     elif (.q | test("_extensions$|_addons$")) then "New browser extension"
     elif .q == "file_events_recent" then
-      ((.cols.category // "") as $cat |
-        if $cat == "authorized_keys" then "SSH key file changed"
+      ((.cols.category // "") as $cat | ((.cols.target_path // "") | split("/") | last) as $bn |
+        # A tracked pipeline file can arrive under pipeline_integrity OR (for our own
+        # LaunchAgents) launch_agents/launch_daemons, so key the tooling header on the
+        # basename, not only the category.
+        if ($bn | test("^osquery-.*\\.sh$")) or ($bn | test("^com\\.webdavis\\.osquery-.*\\.plist$")) then "Security tooling changed"
+        elif ($cat == "ssh" or $cat == "authorized_keys") then "SSH key file changed"
         elif $cat == "sudoers" then "sudoers changed"
         elif $cat == "sshd_config" then "sshd_config changed"
         elif $cat == "pipeline_integrity" then "Security tooling changed"
@@ -461,7 +540,9 @@ render=$(printf '%s\n' "$enriched" | jq -s '
     elif .q == "remote_access_sharing_state" then
       ["- Did you enable this? If not, someone opened a remote-control path into this Mac — **disable it now**.", "- System Settings → General → Sharing"]
     elif .q == "file_events_recent" then
-      (if (.cols.category // "") == "pipeline_integrity"
+      (((.cols.target_path // "") | split("/") | last) as $bn |
+       if ((.cols.category // "") == "pipeline_integrity")
+          or ($bn | test("^osquery-.*\\.sh$")) or ($bn | test("^com\\.webdavis\\.osquery-.*\\.plist$"))
        then ["- Did you just apply your dotfiles? If not, your **security tooling was modified** — investigate now.", "- **Compare:** " + (("shasum -a 256 \"" + $ep + "\"") | code)]
        else ["- Did you change this? If not, someone altered who can log in or run as **root**.", "- **Review:** " + (("sudo cat \"" + $ep + "\"") | code)] end)
     elif (.q == "persistence_launchd" or .q == "persistence_startup_items_crontab") then
