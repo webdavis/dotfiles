@@ -231,23 +231,29 @@ run_h2_drain() {
     bash -c 'source "$HOME/.local/bin/osquery-alert-dispatch.sh"; _drain_spool'
 }
 
-# Heartbeat harness: setup_harness (send_alert stub) + an osqueryi stub. HEARTBEAT_OK=0
-# makes the osqueryi stub fail, so a test can drive the "osqueryd not answering" branch.
+# Heartbeat harness (R2-8): setup_harness (send_alert stub) + a controllable snapshots.log. The
+# heartbeat verifies the ROOT DAEMON by checking that its scheduled heartbeat_canary snapshot is
+# FRESH — not by launching a standalone osqueryi (which succeeds even while osqueryd is stopped).
 setup_heartbeat_harness() {
   setup_harness
-  cat >"$HARNESS_HOME/.local/bin/osqueryi" <<'SHIM'
-#!/usr/bin/env bash
-[ "${HEARTBEAT_OK:-1}" = "0" ] && exit 1
-echo '[{"ok":"1"}]'
-SHIM
-  chmod +x "$HARNESS_HOME/.local/bin/osqueryi"
+  export OSQUERY_SNAPSHOTS_LOG="$HARNESS_HOME/.local/log/osquery/osqueryd.snapshots.log"
+  : >"$OSQUERY_SNAPSHOTS_LOG"
 }
 
-# run_heartbeat [ok] — run the real heartbeat; pass 0 to simulate osqueryd not answering.
+# seed_canary <seconds-ago> — append a heartbeat_canary snapshot row timestamped that long ago,
+# in the shape the root daemon writes to osqueryd.snapshots.log.
+seed_canary() {
+  local ts
+  ts=$(($(date -u +%s) - $1))
+  jq -cn --argjson t "$ts" \
+    '{name:"heartbeat_canary",action:"snapshot",snapshot:[{unix_time:($t|tostring)}],unixTime:$t,hostIdentifier:"dresden"}' \
+    >>"$OSQUERY_SNAPSHOTS_LOG"
+}
+
+# run_heartbeat — run the real heartbeat against the seeded snapshots.log.
 run_heartbeat() {
   HOME="$HARNESS_HOME" \
-    OSQUERYI="$HARNESS_HOME/.local/bin/osqueryi" \
-    HEARTBEAT_OK="${1:-1}" \
+    OSQUERY_SNAPSHOTS_LOG="$OSQUERY_SNAPSHOTS_LOG" \
     bash "$HEARTBEAT"
 }
 
