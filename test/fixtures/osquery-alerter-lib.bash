@@ -139,7 +139,10 @@ run_poller_badperms() {
 setup_watchdog_harness() {
   setup_harness
   printf '#!/usr/bin/env bash\nexit 0\n' >"$HARNESS_HOME/.local/bin/pgrep"
-  printf '#!/usr/bin/env bash\nprintf "%%s" "${WATCHDOG_HTTP_CODE:-405}"\n' >"$HARNESS_HOME/.local/bin/curl"
+  cat >"$HARNESS_HOME/.local/bin/curl" <<'SHIM'
+#!/usr/bin/env bash
+printf '%s' "${WATCHDOG_HTTP_CODE:-405}"
+SHIM
   printf '#!/usr/bin/env bash\necho %s\n' "'[{\"ok\":\"1\"}]'" >"$HARNESS_HOME/.local/bin/osqueryi"
   cat >"$HARNESS_HOME/.local/bin/launchctl" <<'SHIM'
 #!/usr/bin/env bash
@@ -535,8 +538,8 @@ set_curl_codes() { printf '%s\n' "$@" >"$CURL_CODES_FILE"; }
 # The alerter (local notification) is fired fire-and-forget in the background, so poll the
 # alerter shim's log up to ~2s for <extended-regex> instead of racing a single grep.
 wait_for_alerter() {
-  local i
-  for i in $(seq 1 20); do
+  local _
+  for _ in $(seq 1 20); do
     grep -qiE "$1" "$ALERTER_LOG" 2>/dev/null && return 0
     sleep 0.1
   done
