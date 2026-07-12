@@ -71,6 +71,27 @@ run_guard "$root"
 [[ $status -eq 0 ]] || fail "ungated bare BSD form (no chain) was wrongly rejected: $out"
 rm -rf "$root"
 
+# 4) Multiline BSD-first chain with `||` on a backslash-continuation line: MUST be
+#    rejected (FX11). The per-physical-line scan missed this because line 1 (the BSD
+#    form) carried no `||` and line 2 (the `||` + GNU form) carried no BSD form. The
+#    guard now joins continuations before matching, so the logical line is flagged.
+ml="$bsd '%Lp' \"\$1\" \\"$'\n'"    || $gnu '%a' \"\$1\""
+root="$(mk_scratch "perms() { $ml; }")"
+run_guard "$root"
+if [[ $status -eq 0 ]]; then
+  fail "multiline BSD-first chain (|| on a continuation line) was NOT rejected (guard exit 0)"
+else
+  grep -qiE 'stat|bsd|gnu-first' <<<"$out" || fail "multiline rejection lacks the stat rule msg: $out"
+fi
+rm -rf "$root"
+
+# 5) Multiline GNU-first chain: MUST still pass (join must not create a false positive).
+mlg="$gnu '%a' \"\$1\" \\"$'\n'"    || $bsd '%Lp' \"\$1\""
+root="$(mk_scratch "perms() { $mlg; }")"
+run_guard "$root"
+[[ $status -eq 0 ]] || fail "multiline GNU-first chain was wrongly rejected: $out"
+rm -rf "$root"
+
 if ((fails > 0)); then
   printf '%d assertion(s) failed\n' "$fails" >&2
   exit 1

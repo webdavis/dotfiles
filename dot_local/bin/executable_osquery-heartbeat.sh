@@ -19,7 +19,7 @@ OSQUERYI="${OSQUERYI:-$(command -v osqueryi || echo /usr/local/bin/osqueryi)}"
 # so probe with a real query — the same signal the watchdog uses.
 if "$OSQUERYI" --json "SELECT 1 AS ok FROM time" >/dev/null 2>&1; then
   send_alert CRIT "✅ osquery pipeline healthy · $(date -u +%Y-%m-%d)" \
-    "- osqueryd answering; all monitors scheduled. Silence since the last message means all clear." ""
+    "- osqueryd is answering queries. (This checks osqueryd only; the uptime watchdog is what verifies each monitor agent is loaded and pages if one is down.) Silence since the last message means all clear." ""
 else
   send_alert CRIT "⚠️ osquery heartbeat · $(date -u +%Y-%m-%d)" \
     "- osqueryd is not answering — the uptime watchdog pages on this; this note is the silent daily record." ""

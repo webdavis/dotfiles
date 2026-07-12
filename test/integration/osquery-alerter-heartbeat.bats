@@ -17,6 +17,16 @@ teardown() { teardown_harness; }
   [ -z "$(awk -F'\t' '$1=="CRIT"{print $4}' "$SEND_ALERT_LOG")" ]  # silent (empty sound)
 }
 
+@test "T-HB-honest-claim: the healthy message claims only what it checked — osqueryd, not the agents (FX12)" {
+  # The heartbeat only probes osqueryd liveness (a single query), so it must NOT claim
+  # "all monitors scheduled" — the uptime watchdog is what verifies each agent is loaded.
+  run_heartbeat
+  local body
+  body=$(grep $'^CRIT\t' "$SEND_ALERT_LOG" | cut -f3)
+  ! grep -qiF "all monitors scheduled" <<<"$body" # the overclaim is gone
+  grep -qiF "watchdog" <<<"$body"                 # it points at who actually owns agent liveness
+}
+
 @test "T-HB-degraded: if osqueryd is not answering, the heartbeat reports it (still silent)" {
   run_heartbeat 0
   [ "$(grep -c $'^CRIT\t' "$SEND_ALERT_LOG")" -eq 1 ]
