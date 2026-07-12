@@ -82,16 +82,6 @@ teardown() { teardown_harness; }
   assert_digest_count 0
 }
 
-@test "T-PAGE-screenlock-off: a genuine screen-lock-off (differential screenlock_off) pages" {
-  # screenlock_off mirrors filevault_off exactly: one constant row only when the screen
-  # lock is disabled, differential (the alerter does not read snapshots.log), so a real
-  # disable reaches #priority. The old snapshot screenlock_off was removed this slice as
-  # dead; this is its working replacement.
-  run_alerter "$(row pack_security-policy-regression_screenlock_off added 1 '{"protection":"screenlock"}')"
-  assert_page_has "Screen lock turned OFF"
-  assert_digest_count 0
-}
-
 @test "T-NEG-filevault-churn: a removed filevault_state row (APFS volume churn) does NOT page (issue #18)" {
   # The 2026-06-02 incident: a FileVault-on APFS volume (/dev/disk3s1, filevault_status
   # "on", encrypted "1") left the differential set while the data volume stayed

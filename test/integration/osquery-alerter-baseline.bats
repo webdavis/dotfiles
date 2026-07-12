@@ -36,15 +36,6 @@ teardown() { teardown_harness; }
   assert_digest_count 0
 }
 
-@test "T-BASE-screenlock-unsafe: a counter==0 screenlock_off row pages (already off at baseline)" {
-  # screenlock_off emits one row ONLY when the screen lock is disabled, so a
-  # first-observation row means the lock was ALREADY off when monitoring started, an
-  # unsafe pre-existing state. Absolute-state query per FX5: it pages, never seeds.
-  run_alerter "$(row pack_security-policy-regression_screenlock_off added 0 '{"protection":"screenlock"}')"
-  assert_page_has "Screen lock turned OFF"
-  assert_digest_count 0
-}
-
 @test "T-BASE-exposure-unsafe: a counter==0 agent_exposure_changed row pages (already exposed)" {
   # A row per off-loopback agent listener; a counter==0 row means the port was already
   # exposed off-box at baseline — a pre-existing exposure, must page.

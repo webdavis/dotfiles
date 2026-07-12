@@ -20,11 +20,12 @@ teardown() { teardown_harness; }
   assert_digest_count 1
 }
 
-@test "T-DIG-launchd-allow: an allowlisted user LaunchAgent neither pages nor digests" {
-  # The reader (alerter) and the writer (osquery-allowlist.sh) share one file/env,
-  # so a label the tool allows is suppressed end to end (T-AL-path through the gate).
-  run_allowlist -a com.foo.agent
-  run_alerter "$(row persistence_launchd added 1 '{"label":"com.foo.agent","path":"/Users/x/Library/LaunchAgents/com.foo.agent.plist"}')"
+@test "T-DIG-launchd-allow: an allowlisted user LaunchAgent (full-tuple match) neither pages nor digests" {
+  # R2-1: suppression is a TUPLE match now. A finding whose (label, path, program) matches an
+  # allowlist entry is fully suppressed end to end through the gate. (The reused-label PAGE case
+  # and the writer's capture live in osquery-alerter-persistence.bats / -allowlist.bats.)
+  seed_allowlist_tuple com.foo.agent /Users/x/Library/LaunchAgents/com.foo.agent.plist /opt/homebrew/opt/foo/bin/foo
+  run_alerter "$(row persistence_launchd added 1 '{"label":"com.foo.agent","path":"/Users/x/Library/LaunchAgents/com.foo.agent.plist","program":"/opt/homebrew/opt/foo/bin/foo"}')"
   assert_no_page
   assert_digest_count 0
 }

@@ -336,31 +336,47 @@ digest_record() {
     '{timestamp:"2026-06-13T00:00:00Z",detector:$detector,category:"",identity:$identity,action:"added",summary:$summary}'
 }
 
-# Tailscale funnel poller harness: a fake `tailscale` that prints $TAILSCALE_FUNNEL_OUTPUT.
+# Tailscale funnel poller harness: a fake `tailscale` that prints $TAILSCALE_FUNNEL_OUTPUT and
+# exits $TAILSCALE_FUNNEL_RC (default 0), so a test can force a status-command failure.
 setup_tailscale_harness() {
   setup_harness
   cat >"$HARNESS_HOME/.local/bin/tailscale" <<'SHIM'
 #!/usr/bin/env bash
 printf '%s\n' "$TAILSCALE_FUNNEL_OUTPUT"
+exit "${TAILSCALE_FUNNEL_RC:-0}"
 SHIM
   chmod +x "$HARNESS_HOME/.local/bin/tailscale"
   TAILSCALE_STATE="$HARNESS_HOME/.local/state/osquery-tailscale-funnel"
 }
 
-# run_tailscale_monitor <prev-state|""> <funnel-output> — seed prior state (empty =
-# first run), set the fake funnel output, run the real poller.
+# Seed the prior state (R2-5 state is JSON now). Token → JSON: "" removes it (first run),
+# active/inactive/missing map to the JSON shape, corrupt writes garbage, anything else is verbatim.
+_seed_ts_state() {
+  case "$1" in
+    "") rm -f "$TAILSCALE_STATE" ;;
+    inactive) printf '{"funnel":"inactive","monitor":"ok"}\n' >"$TAILSCALE_STATE" ;;
+    active) printf '{"funnel":"active","monitor":"ok"}\n' >"$TAILSCALE_STATE" ;;
+    missing) printf '{"funnel":"inactive","monitor":"missing"}\n' >"$TAILSCALE_STATE" ;;
+    corrupt) printf 'not-json-garbage\n' >"$TAILSCALE_STATE" ;;
+    *) printf '%s\n' "$1" >"$TAILSCALE_STATE" ;;
+  esac
+}
+
+# run_tailscale_monitor <prev-token|""> <funnel-output> [rc] — seed prior state, set the fake
+# funnel output (and optional nonzero exit code), run the real poller.
 run_tailscale_monitor() {
-  if [ -n "$1" ]; then printf '%s\n' "$1" >"$TAILSCALE_STATE"; else rm -f "$TAILSCALE_STATE"; fi
+  _seed_ts_state "$1"
   HOME="$HARNESS_HOME" \
     OSQUERY_TAILSCALE_BIN="$HARNESS_HOME/.local/bin/tailscale" \
     OSQUERY_TAILSCALE_STATE="$TAILSCALE_STATE" \
     TAILSCALE_FUNNEL_OUTPUT="$2" \
+    TAILSCALE_FUNNEL_RC="${3:-0}" \
     bash "$TAILSCALE_MONITOR"
 }
 
 # Same, but the configured binary does not exist (the dead-monitor regression).
 run_tailscale_monitor_missing_bin() {
-  if [ -n "$1" ]; then printf '%s\n' "$1" >"$TAILSCALE_STATE"; else rm -f "$TAILSCALE_STATE"; fi
+  _seed_ts_state "$1"
   HOME="$HARNESS_HOME" \
     OSQUERY_TAILSCALE_BIN="$HARNESS_HOME/.local/bin/no-such-tailscale" \
     OSQUERY_TAILSCALE_STATE="$TAILSCALE_STATE" \
@@ -370,13 +386,16 @@ run_tailscale_monitor_missing_bin() {
 # Same, but with NO env override: the poller must find the shim via `command -v`
 # on PATH (the homebrew-formula resolution path).
 run_tailscale_monitor_path_resolved() {
-  if [ -n "$1" ]; then printf '%s\n' "$1" >"$TAILSCALE_STATE"; else rm -f "$TAILSCALE_STATE"; fi
+  _seed_ts_state "$1"
   HOME="$HARNESS_HOME" \
     PATH="$HARNESS_HOME/.local/bin:$PATH" \
     OSQUERY_TAILSCALE_STATE="$TAILSCALE_STATE" \
     TAILSCALE_FUNNEL_OUTPUT="$2" \
     env -u OSQUERY_TAILSCALE_BIN bash "$TAILSCALE_MONITOR"
 }
+
+# The stored funnel field (for asserting a gap PRESERVED the prior valid state).
+tailscale_state_funnel() { jq -r '.funnel // empty' <"$TAILSCALE_STATE" 2>/dev/null || echo ""; }
 
 # Seed the digest store with NDJSON lines (each argument is one record).
 seed_digest() {

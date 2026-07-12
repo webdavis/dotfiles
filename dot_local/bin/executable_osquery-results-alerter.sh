@@ -121,9 +121,7 @@ raw_findings=$(printf '%s\n' "$new_lines" | jq -rR '
     (.name == "pack_security-policy-regression_firewall_state" and .action == "added" and (.columns.global_state // "") == "0")
     or (.name == "pack_security-policy-regression_gatekeeper_state" and .action == "added" and (.columns.assessments_enabled // "") == "0")
     or (.name == "pack_security-policy-regression_sip_state" and .action == "added" and (.columns.enabled // "") == "0")
-    or (.name == "pack_security-policy-regression_screenlock_state" and .action == "added" and (.columns.enabled // "") == "0")
-    or (.name == "pack_security-policy-regression_filevault_off" and .action == "added")
-    or (.name == "pack_security-policy-regression_screenlock_off" and .action == "added");
+    or (.name == "pack_security-policy-regression_filevault_off" and .action == "added");
   def sev:
     # file_events tiering is decided AUTHORITATIVELY by the gate file_events_recent
     # arm below (authorized_keys / sshd_config page; sudoers / allowlist_file digest;
@@ -157,7 +155,6 @@ raw_findings=$(printf '%s\n' "$new_lines" | jq -rR '
   # absolute-state queries; discard the rest.
   | select((.counter // 1) != 0
       or (.name | test("filevault_off$"))
-      or (.name | test("screenlock_off$"))
       or (.name | test("remote_access_sharing_state$"))
       or (.name | test("agent_exposure_changed$")))
   | (.name | sub("^pack_[^_]+_"; "")) as $q
@@ -465,11 +462,9 @@ while IFS= read -r obj; do
     # swap, so they are inherently noisy — log-only (recorded in results.log for
     # forensics, never paged or digested).
     agent_binary_changed) continue ;;
-    # Screen lock off is posture drift, not an intrusion — low actionability.
-    screenlock_state)
-      _digest_append "$obj"
-      continue
-      ;;
+    # (screenlock_state was REMOVED here in R2-3: the screenlock table is user-scoped, so the
+    # root daemon never emits it; screen-lock-off detection moved to the gui/501 user poller,
+    # osquery-firewall-gatekeeper-monitor.sh.)
     # file_events fans out by category, then by target path within the category (FX3:
     # the watches are containing directories now, so a category fires for every file in
     # the dir). FX1: every production FSEvents verb is actionable — CREATED, UPDATED,
@@ -566,7 +561,6 @@ render=$(printf '%s\n' "$enriched" | jq -s '
     elif (.q | test("^gatekeeper")) then "Gatekeeper"
     elif (.q | test("^sip")) then "System Integrity Protection"
     elif (.q | test("^filevault")) then "FileVault"
-    elif (.q | test("^screenlock")) then "Screen lock"
     else null end;
   # Human header for a finding (kernel/system extensions matched before the generic
   # browser-extension regex so they keep their specific labels).
