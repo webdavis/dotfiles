@@ -5,14 +5,22 @@
 set -euo pipefail
 
 agent="" state="" project="" branch="" detail="" pane="" local_only=""
+is_relay_flag() {
+  case "$1" in
+    --agent | --state | --project | --branch | --detail | --pane | --local-only) return 0 ;;
+    *) return 1 ;;
+  esac
+}
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --agent | --state | --project | --branch | --detail | --pane)
-      # A value-taking flag with no value (typically as the last argument) must NOT abort
-      # this always-exit-0 notification path: warn, ignore the flag, and keep going. Without
-      # the guard, `shift 2` on a single remaining argument fails under set -e and kills the
-      # whole run, silently dropping every channel.
-      if [[ $# -lt 2 ]]; then
+      # A value-taking flag with no value must NOT abort this always-exit-0 notification path: warn,
+      # ignore the flag, and keep going. "No value" means either the flag is the last argument, OR its
+      # next token is itself a RECOGNIZED option (e.g. `--pane --local-only`) -- consuming that token as
+      # the value would silently drop the real flag (here, leak to external channels the caller asked to
+      # keep local). In both cases we do NOT consume the next token. (An unrecognized next token like
+      # `--bogus` is still taken as the value -- the unknown-flag leniency below is deliberately retained.)
+      if [[ $# -lt 2 ]] || is_relay_flag "$2"; then
         printf 'relay: %s given without a value; ignoring\n' "$1" >&2
         shift
         continue

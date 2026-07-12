@@ -394,6 +394,41 @@ grep -q hermes.test "$tmp/curl-thresh.log" || {
 }
 export RELAY_IDLE_SECS=999
 
+# FIX F4 (missing value consumes a following recognized flag): `--pane --local-only` must NOT let
+# --local-only become the pane VALUE (which would leave local_only empty and fire both webhooks despite
+# the caller asking for local-only). A value-taking flag whose next token is a RECOGNIZED option is
+# treated as missing-value: warn, ignore the valueless flag, do NOT consume the next token. Result:
+# --local-only takes effect -> NEITHER webhook fires, the local notification DOES.
+cat >"$tmp/curl" <<MOCK
+#!/usr/bin/env bash
+echo "ARGV: \$*" >>"$tmp/curl-f4.log"
+MOCK
+chmod +x "$tmp/curl"
+: >"$tmp/tn.log"
+f4_err="$(
+  PATH="$tmp:$PATH" RELAY_AUTH_FILE="$tmp/auth.json" \
+    RELAY_MOSHI_URL="http://moshi.test/hook" RELAY_HERMES_URL="http://hermes.test/relay" \
+    bash "$relay" --agent claude --state "done" --project x --pane --local-only 2>&1 >/dev/null
+)"
+f4_rc=$?
+wait 2>/dev/null
+[[ $f4_rc -eq 0 ]] || {
+  echo "relay: FAIL -- --pane --local-only broke exit 0 (rc=$f4_rc)" >&2
+  exit 1
+}
+grep -qi "pane" <<<"$f4_err" || {
+  echo "relay: FAIL -- no stderr warning that --pane lacked its value" >&2
+  exit 1
+}
+[[ -f "$tmp/curl-f4.log" ]] && {
+  echo "relay: FAIL -- --local-only was consumed as the pane value; a webhook fired" >&2
+  exit 1
+}
+grep -q "terminal-notifier\|herdr agent focus\|ARGV" "$tmp/tn.log" || {
+  echo "relay: FAIL -- --local-only local notification did not fire" >&2
+  exit 1
+}
+
 # CHARACTERIZATION (baseline quirk, retained; SP3 owns): the arg parser silently
 # ignores an UNRECOGNIZED flag (the *) shift ;; branch) rather than erroring, which
 # deviates from the house "unknown arg is an error" rule. A notification path must
