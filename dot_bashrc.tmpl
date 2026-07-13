@@ -261,16 +261,29 @@ if [[ $- == *i* ]]; then
   {{ if eq .chezmoi.os "darwin" -}}
   # Brew shellenv cache self-heal: if Homebrew updated its shellenv generator
   # since the cache was built (e.g. `brew autoupdate` ran `brew update`),
-  # regenerate the cache in the background so the next shell sources fresh output.
-  # Mirrors the atuin drift self-heal above; `just test` is the backstop.
+  # regenerate the cache so the next shell sources fresh output. Mirrors the atuin
+  # drift self-heal above; `just test` is the backstop. The regeneration runs in a
+  # detached subshell (the `( ... & )` idiom the notifier below uses) so it never
+  # enters this interactive shell's job table: no `[N] pid` start line and no
+  # failed-job notice at the prompt. mkdir the cache and log dirs FIRST, because a
+  # fresh host has no cache dir (mktemp would fail to the terminal) and the log
+  # redirect needs its dir too; send all output to a log rather than the terminal,
+  # and trap-clean the temp on any exit. The atomic mktemp + success-gated mv
+  # matches run_after_44 and `just brew-cache-refresh`, so no writer can truncate
+  # the live cache.
   __be_cache="${XDG_CACHE_HOME:-$HOME/.cache}/brew-shellenv.sh"
   __be_gen="${HOMEBREW_REPOSITORY:-/opt/homebrew/Homebrew}/Library/Homebrew/cmd/shellenv.sh"
+  __be_log="$HOME/.local/log/brew-shellenv-selfheal.log"
   if [[ -f $__be_gen && $__be_gen -nt $__be_cache ]]; then
-    (tmp="$(mktemp "${__be_cache}.XXXXXX")" &&
-      "${HOMEBREW_PREFIX:-/opt/homebrew}/bin/brew" shellenv >"$tmp" 2>/dev/null &&
-      command mv "$tmp" "$__be_cache") & # `command` bypasses the `mv -i` alias
+    mkdir -p "${__be_cache%/*}" "${__be_log%/*}" 2>/dev/null
+    ( {
+        tmp="$(mktemp "${__be_cache}.XXXXXX")" || exit
+        trap 'rm -f "$tmp"' EXIT
+        "${HOMEBREW_PREFIX:-/opt/homebrew}/bin/brew" shellenv >"$tmp" &&
+          command mv "$tmp" "$__be_cache" # `command` bypasses the `mv -i` alias
+      } >>"$__be_log" 2>&1 & )
   fi
-  unset __be_cache __be_gen
+  unset __be_cache __be_gen __be_log
   {{- end }}
 
   # ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
