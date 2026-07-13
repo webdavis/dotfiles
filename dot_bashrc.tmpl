@@ -73,7 +73,11 @@ HOMEBREW_PREFIX='/opt/homebrew'
 # upstream Homebrew's shellenv abstraction and self-heals
 # ${HOMEBREW_PREFIX}/etc/paths. Fall back to a live eval before the first apply.
 __brew_shellenv="${XDG_CACHE_HOME:-$HOME/.cache}/brew-shellenv.sh"
-if [[ -r $__brew_shellenv ]]; then
+# Guard on -s (non-empty), NOT -r: an EMPTY cache is readable, so -r would source
+# nothing and skip the live fallback, leaving brew off PATH with no self-recovery
+# (e.g. a 0-byte cache left by an interrupted write). -s falls through to the live
+# eval so a truncated/empty cache always heals.
+if [[ -s $__brew_shellenv ]]; then
   . "$__brew_shellenv"
 else
   eval "$("${HOMEBREW_PREFIX}/bin/brew" shellenv 2>/dev/null)"
@@ -181,10 +185,21 @@ if [[ $- == *i* ]]; then
   # old ~/.bash_just_completions snapshot was unmanaged and absent on fresh machines.
   # Ref: https://github.com/casey/just?tab=readme-ov-file#shell-alias
   alias j='just'
-  # carapace registers its completer for `just`, not the `j` alias (progcomp_alias
-  # is off), so bind the same completer to `j` too. Guard on the function existing
-  # so a carapace-less shell (fresh machine) does not error.
-  declare -F _carapace_completer &>/dev/null && complete -F _carapace_completer j
+  # carapace keys its completer on COMP_WORDS[0], and it has a spec for `just`, not
+  # the `j` alias, so binding `_carapace_completer` to `j` directly yields ZERO
+  # completions (progcomp_alias is off). Wrap it: rewrite the completion context
+  # from `j` to `just` (just is 4 chars vs j 1, so COMP_POINT shifts +3), then
+  # delegate. Guarded on the function existing so a carapace-less fresh machine
+  # does not error.
+  if declare -F _carapace_completer &>/dev/null; then
+    _j_carapace_complete() {
+      COMP_WORDS[0]=just
+      COMP_LINE="just${COMP_LINE#j}"
+      ((COMP_POINT += 3))
+      _carapace_completer
+    }
+    complete -F _j_carapace_complete j
+  fi
 
   # Worktrunk: https://worktrunk.dev/
   # Defines a `wt` shell function wrapping the binary so `wt switch`/`wt merge`
@@ -278,8 +293,12 @@ if [[ $- == *i* ]]; then
   __be_cache="${XDG_CACHE_HOME:-$HOME/.cache}/brew-shellenv.sh"
   __be_gen="${HOMEBREW_REPOSITORY:-/opt/homebrew/Homebrew}/Library/Homebrew/cmd/shellenv.sh"
   __be_log="$HOME/.local/log/brew-shellenv-selfheal.log"
-  if [[ -f $__be_gen && $__be_gen -nt $__be_cache ]]; then
-    mkdir -p "${__be_cache%/*}" "${__be_log%/*}" 2>/dev/null
+  # Gate the whole detached launch on mkdir SUCCEEDING: if the cache/log dir is
+  # not creatable, launch nothing and print nothing (otherwise the outer
+  # subshell's `>>$log` open would fail straight to the interactive terminal
+  # before its own 2>&1 applies).
+  if [[ -f $__be_gen && $__be_gen -nt $__be_cache ]] &&
+    mkdir -p "${__be_cache%/*}" "${__be_log%/*}" 2>/dev/null; then
     ( {
         tmp="$(mktemp "${__be_cache}.XXXXXX")" || exit
         trap 'rm -f "$tmp"' EXIT
@@ -350,8 +369,8 @@ command -v herdr &>/dev/null || return
 
 # Launch or attach to the persistent herdr session (starts the server if it
 # isn't running). herdr has no launch-into-workspace flag, so this opens the
-# last-focused workspace — homelab once you've been there, since the session
+# last-focused workspace, homelab once you've been there, since the session
 # persists. Jump to homelab anytime via prefix+ctrl+h or the `h` alias.
 # NOTE: `herdr workspace create` is a socket call that needs a running server
-# and does not attach the terminal — do not use it here.
+# and does not attach the terminal, do not use it here.
 herdr
