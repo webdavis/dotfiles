@@ -32,13 +32,13 @@ if [[ ! -r $cache ]]; then
   exit 0
 fi
 
-# The cache is a verbatim copy of `brew shellenv`, so it must be byte-identical to
-# a fresh run. Command substitution strips trailing newlines from both sides, so a
-# trailing-newline-only difference does not false-alarm.
-live="$("$prefix/bin/brew" shellenv)"
-cached="$(cat "$cache")"
-
-if [[ $live == "$cached" ]]; then
+# The cache is a verbatim copy of `brew shellenv` stdout (run_after_44, the
+# `just brew-cache-refresh` recipe, and the bashrc self-heal all write it via
+# `brew shellenv >tmp && mv tmp cache`), so it must be BYTE-identical to a fresh
+# run. cmp against the live stream directly: capturing both through command
+# substitution would strip trailing newlines and hide a real drift the
+# byte-identity invariant forbids.
+if "$prefix/bin/brew" shellenv | cmp -s - "$cache"; then
   echo "brew-shellenv cache drift: OK -- cache matches live brew shellenv"
   exit 0
 fi
@@ -52,7 +52,7 @@ is sourcing a stale brew environment from:
 
 Diff (cached vs live brew shellenv):
 EOF
-diff <(printf '%s\n' "$cached") <(printf '%s\n' "$live") >&2 || true
+diff "$cache" <("$prefix/bin/brew" shellenv) >&2 || true
 cat >&2 <<EOF
 
   Fix: run \`just brew-cache-refresh\` to regenerate the cache now (or a full
