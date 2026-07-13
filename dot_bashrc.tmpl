@@ -181,6 +181,10 @@ if [[ $- == *i* ]]; then
   # old ~/.bash_just_completions snapshot was unmanaged and absent on fresh machines.
   # Ref: https://github.com/casey/just?tab=readme-ov-file#shell-alias
   alias j='just'
+  # carapace registers its completer for `just`, not the `j` alias (progcomp_alias
+  # is off), so bind the same completer to `j` too. Guard on the function existing
+  # so a carapace-less shell (fresh machine) does not error.
+  declare -F _carapace_completer &>/dev/null && complete -F _carapace_completer j
 
   # Worktrunk: https://worktrunk.dev/
   # Defines a `wt` shell function wrapping the binary so `wt switch`/`wt merge`
