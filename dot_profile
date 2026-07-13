@@ -1,7 +1,7 @@
 # shellcheck shell=bash
 
-# Load ~/.bashrc only for INTERACTIVE shells. A non-interactive login shell —
-# notably herdr's `/bin/sh -lc` wrapper around every keybinding command — would
+# Load ~/.bashrc only for INTERACTIVE shells. A non-interactive login shell
+# (notably herdr's `/bin/sh -lc` wrapper around every keybinding command) would
 # otherwise source the full ~/.bashrc (~90ms of atuin/starship/carapace/etc.) on
 # every keypress. Interactive bash gets ~/.bashrc via ~/.bash_profile, so normal
 # terminals are unaffected; this only spares non-interactive login shells.

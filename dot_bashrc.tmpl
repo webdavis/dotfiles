@@ -66,8 +66,8 @@ HOMEBREW_PREFIX='/opt/homebrew'
 # .chezmoiscripts/run_after_44-cache-brew-shellenv.sh.tmpl regenerates from the
 # real `brew shellenv` on every `chezmoi apply`. The non-interactive login doors
 # that reach ~/.bashrc (bash -lc via ~/.bash_profile, `ssh host cmd` via Apple
-# /bin/bash's SSH_SOURCE_BASHRC) need brew on PATH — /etc/paths lacks
-# /opt/homebrew/bin. `eval "$(brew shellenv)"` would spawn brew (~27ms) on each;
+# /bin/bash's SSH_SOURCE_BASHRC) need brew on PATH (/etc/paths lacks
+# /opt/homebrew/bin). `eval "$(brew shellenv)"` would spawn brew (~27ms) on each;
 # sourcing the pre-generated cache is ~1ms. Regenerating from the real generator
 # at apply time (rather than hardcoding its output) keeps us in sync with
 # upstream Homebrew's shellenv abstraction and self-heals
@@ -81,7 +81,7 @@ fi
 unset __brew_shellenv
 # NB: the brew shellenv path_helper line above already places both
 # /opt/homebrew/bin AND /opt/homebrew/sbin on PATH, so there is deliberately no
-# `path_prepend "${HOMEBREW_PREFIX}/sbin"` here — adding one duplicates
+# `path_prepend "${HOMEBREW_PREFIX}/sbin"` here. Adding one duplicates
 # /opt/homebrew/sbin in PATH.
 
 export SHELL="${HOMEBREW_PREFIX}/bin/bash"
@@ -96,7 +96,7 @@ path_prepend "${HOMEBREW_PREFIX}/opt/trash-cli/bin/"
 
 path_prepend "${HOMEBREW_PREFIX}/opt/gnu-getopt/bin/"
 
-# Composio CLI — PATH only (the CLI must resolve in non-interactive shells too).
+# Composio CLI, PATH only (the CLI must resolve in non-interactive shells too).
 # Ref: https://docs.composio.dev/docs/cli
 export COMPOSIO_INSTALL_DIR="$HOME/.composio"
 export PATH="$COMPOSIO_INSTALL_DIR:$PATH"
@@ -135,7 +135,7 @@ export PATH
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # INTERACTIVE-ONLY init: prompt, completions, history, and PROMPT_COMMAND/preexec
-# hooks — useless to non-interactive shells and ~85ms of cost. This single guard
+# hooks, useless to non-interactive shells and ~85ms of cost. This single guard
 # is the heart of the keypress-latency fix: herdr keybindings, `bash -lc`, and
 # `ssh host cmd` are all non-interactive ($- has no `i`) and skip everything here.
 # Dependency order is load-bearing: bash-preexec BEFORE atuin/notifier; the
@@ -154,7 +154,7 @@ if [[ $- == *i* ]]; then
   [[ -r $bash_preexec ]] && . "$bash_preexec"
 
   # git and gh completions are provided by carapace (below) and, for git, the
-  # completion bundled with Homebrew's git formula — both lazy-loaded.
+  # completion bundled with Homebrew's git formula, both lazy-loaded.
 
   # Direnv: https://github.com/direnv/direnv (PROMPT_COMMAND hook; before starship).
   eval "$(direnv hook bash)"
