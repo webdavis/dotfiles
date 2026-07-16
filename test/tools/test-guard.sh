@@ -19,21 +19,22 @@ set -euo pipefail
 
 root="${1:-test}"
 
-links_list="$(mktemp)"
+symlink_paths_list="$(mktemp)"
 files_list="$(mktemp)"
-trap 'rm -f "$links_list" "$files_list"' EXIT
+trap 'rm -f "$symlink_paths_list" "$files_list"' EXIT
 
 # Symlink rejection first. `-type l` matches symlinked files AND symlinked dirs
 # (find does not follow symlinks without -L), catching a symlinked camp dir too.
-if ! find "$root" -type l -print0 >"$links_list"; then
+if ! find "$root" -type l -print0 >"$symlink_paths_list"; then
   printf 'FAIL: symlink scan of %s/ failed\n' "$root" >&2
   exit 1
 fi
-if [[ -s $links_list ]]; then
+
+if [[ -s $symlink_paths_list ]]; then
   printf 'FAIL: symlinks are not allowed below %s/ (out-of-tree traversal / cycle risk); remove:\n' "$root" >&2
   while IFS= read -r -d '' link; do
     printf '  %s\n' "$link" >&2
-  done <"$links_list"
+  done <"$symlink_paths_list"
   exit 1
 fi
 
@@ -43,22 +44,22 @@ if ! find "$root" -type f \( -name '*.sh' -o -name '*.bats' \) -print0 | sort -z
 fi
 
 bad=""
-while IFS= read -r -d '' f; do
-  case "$f" in
+while IFS= read -r -d '' file; do
+  case "$file" in
     "$root"/fixtures/*) continue ;;
     # Test infrastructure (this guard and the camp runners), run by just, never discovered as tests.
     "$root"/tools/*) continue ;;
     "$root"/unit/*/* | "$root"/integration/*/* | "$root"/e2e/*/*)
-      bad+="$f (nested; camps are flat)"$'\n'
+      bad+="$file (nested; camps are flat)"$'\n'
       ;;
     "$root"/unit/*.sh | "$root"/integration/*.sh | "$root"/e2e/*.sh)
-      [[ -x $f ]] || bad+="$f (not executable; invisible to the gate)"$'\n'
+      [[ -x $file ]] || bad+="$file (not executable; invisible to the gate)"$'\n'
       ;;
     "$root"/unit/*.bats | "$root"/integration/*.bats | "$root"/e2e/*.bats)
       :
       ;; # bats live flat in a camp; bats itself runs them (no +x needed)
     *)
-      bad+="$f (outside the unit/integration/e2e camps)"$'\n'
+      bad+="$file (outside the unit/integration/e2e camps)"$'\n'
       ;;
   esac
 done <"$files_list"
@@ -69,57 +70,35 @@ if [[ -n $bad ]]; then
   exit 1
 fi
 
-# BSD-first stat fallback chains. A fallback chain that places the BSD form (the
-# `-f` variant) before the GNU form runs BSD first; on Linux CI (GNU coreutils)
-# `stat -f` means "filesystem status" and SUCCEEDS with the wrong output, so the
-# GNU fallback never fires and the test silently reads garbage.
-# (The guard now lives inside its own scan root, so no comment here may spell a
-# literal BSD-first chain; this prose uses the "-f variant" style on purpose.) Two CI failures (PRs #49, #50) came from exactly
-# this. The portable idiom is GNU-first: `stat -c ... || stat -f ...`. The GNU
-# form is `-c`, `--format` (attached `=` or separate argument), or `--printf`;
-# the BSD form is `-f`. Flag a
-# fallback CHAIN whose first `stat -f` has no GNU-form stat before it WITHIN the
-# same chain segment: the logical line is split into segments on `;` and `&&`
-# (both terminate a `||` chain), so an unrelated GNU stat earlier on the line
-# (say, a previous command substitution) cannot mask a later BSD-first chain.
-# Documented boundary of the approximation: `$( )`, `{ }`, and single-`|`
-# transitions are NOT segment boundaries, so a GNU stat and a BSD-first chain
-# packed into ONE segment with no `;`/`&&` between them still masks.
-# A capability-gated bare `stat -f` with no chain (e.g. a
-# `find -exec stat -f` in a GNU-probed else-branch) is not a fallback chain and is
-# left alone. Scans every text file below root (fixtures included) since a sourced
-# lib carries the same trap.
+# BSD-first stat fallback chains. The BSD form of stat (the `-f` variant) placed
+# first in a fallback chain does not fail on Linux (GNU coreutils), where that
+# flag means "filesystem status": it succeeds with the wrong output, the GNU
+# fallback never fires, and the caller silently reads garbage (this broke CI
+# twice). The scan's contract, applied per chain segment (physical lines joined
+# across backslash continuations, then split on `;` and `&&`):
 #
-# Scope guarantee: the scan detects LITERAL chains in raw text, nothing more.
-# Runtime-assembled chains (eval over a variable holding `stat -f`, a string fed
-# to `sh -c`, a here-doc piped to a shell) are out of scope by design; a static
-# text scan cannot see them. Conversely, the scan deliberately reads ALL raw
-# text, comments and fixture prose included: a commented-out example gets
-# copy-pasted, and a sourced fixture carries the same trap, so inert prose
-# holding a BSD-first chain is EXPECTED to trip it; reword the prose or assemble
-# the tokens at run time (as this repo's own guard test does).
+#   - FLAGGED: a segment whose BSD-form stat sits in a `||` chain with no
+#     GNU-form stat (`-c`, `--format`, `--printf`) before it. Comments and
+#     fixture prose count; the scan reads raw text on purpose (copy-paste risk).
+#   - ALLOWED: GNU-first chains, and capability-gated bare BSD-form calls.
+#   - Boundary: literal chains in raw text only. Runtime-assembled chains and a
+#     masking GNU call inside the same unseparated segment are out of scope.
+#   - Fail closed: a grep or awk error fails the guard, never a silent pass.
 #
-# FX11: a chain split across a backslash continuation (the chain operator opening
-# the next physical line) slipped past a per-physical-line scan: line 1 held the
-# BSD form but no chain operator, line 2 held the operator but no BSD form (and a
-# GNU-first chain split the same way false-POSITIVED on its continuation line).
-# Join backslash continuations into one logical line, keyed by the starting
-# physical line number, before matching.
-# Fail closed: candidate discovery and per-file matching are CHECKED commands
-# into temp files, mirroring the discovery pipeline above. grep exit 1 means
-# "no candidates" (a pass); anything above 1 is a tool error and MUST fail the
-# guard, never silently yield an empty candidate list and a green pass. An awk
-# failure likewise fails the guard instead of vanishing inside a process
-# substitution. No `2>/dev/null` -- a real tool error is seen.
+# Each rule and boundary here is pinned as a named fixture + assertion in
+# test/integration/test-guard-bsd-stat.sh; that test is the authoritative
+# documentation and cannot drift. (The guard lives inside its own scan root, so
+# no comment here may spell a literal BSD-first chain; hence this phrasing.)
 stat_candidates_list="$(mktemp)"
 chain_lines_list="$(mktemp)"
-trap 'rm -f "$links_list" "$files_list" "$stat_candidates_list" "$chain_lines_list"' EXIT
+trap 'rm -f "$symlink_paths_list" "$files_list" "$stat_candidates_list" "$chain_lines_list"' EXIT
 
-# Token matching is whitespace-tolerant (`stat[[:space:]]+-f`): a tab or a run
-# of spaces between `stat` and its flag is the same command and must not bypass
-# the prefilter or the per-segment matching below.
-# LC_ALL=C pins byte semantics: BSD grep's -I binary/text classification (and
-# regex character classes) vary with the caller's locale, C does not.
+# Candidate discovery, checked: grep exit 1 means "no candidates" (a pass);
+# anything above 1 is a tool error and fails the guard. Token matching is
+# whitespace-tolerant (a tab or a run of spaces between `stat` and its flag is
+# the same command). LC_ALL=C because grep decides whether a file is binary
+# differently depending on the machine's locale; pinning the locale makes every
+# machine decide identically.
 grep_status=0
 LC_ALL=C grep -rEIl 'stat[[:space:]]+-f' "$root" >"$stat_candidates_list" || grep_status=$?
 if [[ $grep_status -gt 1 ]]; then
@@ -130,17 +109,26 @@ fi
 bsd_first_chains=""
 while IFS= read -r scanned_file; do
   [[ -n $scanned_file ]] || continue
+  # awk idiom: awk has no `local`; extra function parameters ARE the locals,
+  # and the wide gap in flush()'s parameter list separates real arguments
+  # (none here) from those locals.
   if ! LC_ALL=C awk '
-    function flush(   line_copy, segment_count, i, segment, bsd_index, gnu_index) {
+    function flush(   line_copy, segment_count, segment_number, segment, bsd_index, gnu_index) {
       if (joined == "") return
+      # Segment split: `;` and `&&` both terminate a chain, so rewrite
+      # `&&` to `;` and split the logical line once.
       line_copy = joined
       gsub(/&&/, ";", line_copy)
       segment_count = split(line_copy, segments, ";")
-      for (i = 1; i <= segment_count; i++) {
-        segment = segments[i]
+      for (segment_number = 1; segment_number <= segment_count; segment_number++) {
+        segment = segments[segment_number]
+        # BSD hit: skip any segment without the BSD form.
         bsd_index = match(segment, /stat[[:space:]]+-f/)
         if (bsd_index == 0) continue
+        # Chain check: a bare capability-gated call is not a fallback chain.
         if (index(segment, "||") == 0) continue
+        # GNU-before check: a GNU form earlier in the SAME segment means the
+        # chain is GNU-first, the portable order.
         gnu_index = match(segment, /stat[[:space:]]+(-c|--(format|printf)[=[:space:]])/)
         if (!(gnu_index > 0 && gnu_index < bsd_index)) {
           print start_line
@@ -152,6 +140,8 @@ while IFS= read -r scanned_file; do
     {
       if (joined == "") start_line = NR
       line = $0
+      # Backslash continuation: join into one logical line, keyed to the
+      # starting physical line number.
       if (line ~ /\\[ \t]*$/) { sub(/\\[ \t]*$/, " ", line); joined = joined line; next }
       joined = joined line
       flush()

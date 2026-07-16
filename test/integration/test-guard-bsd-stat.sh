@@ -136,6 +136,21 @@ gnu_long_separate="$(write_probe "$clean_root" gnu-long-separate \
 bsd_then_long="$(write_probe "$flagged_root" bsd-then-long \
   "perms() { $bsd_form '%Lp' \"\$1\" || $gnu_long_form=%a \"\$1\"; }")"
 
+# (m) A BSD-first chain inside a COMMENT -- MUST be flagged: the scan reads raw
+# text on purpose, since a commented-out example gets copy-pasted.
+commented_chain="$(write_probe "$flagged_root" commented-chain \
+  "# copy-paste bait: $bsd_form '%Lp' . || $gnu_form '%a' .")"
+
+# (n) A BSD-first chain inside \$root/fixtures/ -- MUST be flagged: the placement
+# check exempts fixtures/, but the stat scan reads every text file below the
+# scanned root (a sourced fixture lib carries the same trap).
+fixtures_lib="$flagged_root/test/fixtures/stat-lib.sh"
+mkdir -p "$flagged_root/test/fixtures"
+{
+  printf '#!/usr/bin/env bash\n'
+  printf '%s\n' "perms() { $bsd_form '%Lp' \"\$1\" || $gnu_form '%a' \"\$1\"; }"
+} >"$fixtures_lib"
+
 # The flagged tree also carries the passing single-line and split-passing fixtures
 # so one guard run proves the scan flags only the BSD-first chains and leaves the
 # GNU-first ones untouched.
@@ -163,6 +178,10 @@ else
     report_failure "tab-spelled BSD-first chain not reported at :2: $guard_output"
   grep -qF "$bsd_then_long:2" <<<"$guard_output" ||
     report_failure "BSD-first chain with only a long-option GNU fallback not reported at :2: $guard_output"
+  grep -qF "$commented_chain:2" <<<"$guard_output" ||
+    report_failure "BSD-first chain inside a comment not reported at :2: $guard_output"
+  grep -qF "$fixtures_lib:2" <<<"$guard_output" ||
+    report_failure "BSD-first chain inside fixtures/ not reported at :2: $guard_output"
   grep -qF "$gnu_single_mixed" <<<"$guard_output" &&
     report_failure "GNU-first single-line chain was wrongly reported: $guard_output"
   grep -qF "$gnu_split_mixed" <<<"$guard_output" &&
@@ -223,21 +242,25 @@ else
     report_failure "awk-failure rejection does not name awk: $guard_output"
 fi
 
-# Assertion 6 (documented boundary, pinned): the scan's guarantee is LITERAL
-# chains in raw text. A BSD-first chain assembled at run time (eval over a
-# variable holding the BSD form, or a string handed to `sh -c`) is out of scope
-# and MUST pass. These tests exist so a future "improvement" that silently
-# widens the scan's scope shows up as a test change.
+# Assertion 6 (documented boundaries, pinned): the scan's guarantee is LITERAL
+# chains in raw text, analyzed per chain segment. Out of scope and MUST pass:
+# a BSD-first chain assembled at run time (eval over a variable holding the BSD
+# form, or a string handed to `sh -c`), and a GNU stat call that masks a later
+# BSD-first chain packed into the SAME segment (no `;`/`&&` between them; the
+# segment split is a documented approximation). These tests exist so a future
+# "improvement" that silently widens the scan's scope shows up as a test change.
 eval_probe="$(write_probe "$eval_boundary_root" eval-assembled \
   "bsd_token='$bsd_form'" \
   "eval \"\$bsd_token '%Lp' . || $gnu_form '%a' .\"")"
 sh_c_probe="$(write_probe "$eval_boundary_root" sh-c-assembled \
   "gated_command='$bsd_form'" \
   "sh -c \"\$gated_command '%Lp' . || $gnu_form '%a' .\"")"
+same_segment_mask="$(write_probe "$eval_boundary_root" same-segment-mask \
+  "a=\$($gnu_form '%a' .) b=\$($bsd_form '%Lp' . || $gnu_form '%a' .)")"
 run_guard "$eval_boundary_root/test"
 [[ $guard_status -eq 0 ]] ||
-  report_failure "runtime-assembled (eval / sh -c) chains are out of scope and must pass: $guard_output"
-: "$eval_probe" "$sh_c_probe"
+  report_failure "documented out-of-scope cases (eval, sh -c, same-segment mask) must pass: $guard_output"
+: "$eval_probe" "$sh_c_probe" "$same_segment_mask"
 
 # Reference the passing fixture paths so shellcheck sees them used; they double as
 # a manifest of what the clean tree contains.
