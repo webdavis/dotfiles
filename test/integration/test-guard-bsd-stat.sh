@@ -28,6 +28,11 @@ GUARD="$REPO_ROOT/scripts/test-guard.sh"
 gnu_form='stat -c'
 bsd_form='stat -f'
 
+# Whitespace variants (a tab, multiple spaces): legal shell spellings of the
+# same commands, derived from the tokens so no literal appears here either.
+bsd_form_tab="${bsd_form/ /$'\t'}"
+gnu_form_wide="${gnu_form/ /   }"
+
 failures=0
 report_failure() {
   printf 'test-guard-bsd-stat: FAIL -- %s\n' "$*" >&2
@@ -102,6 +107,16 @@ masked_bsd="$(write_probe "$flagged_root" masked-bsd \
 double_safe="$(write_probe "$clean_root" double-safe \
   "x=\$($gnu_form '%a' . || $bsd_form '%Lp' .); y=\$($gnu_form '%s' . || $bsd_form '%z' .)")"
 
+# (i) BSD-first chain spelled with a tab between stat and -f -- MUST be flagged
+# (legal token spacing must not bypass the scan).
+bsd_tab="$(write_probe "$flagged_root" bsd-tab \
+  "perms() { $bsd_form_tab '%Lp' \"\$1\" || $gnu_form '%a' \"\$1\"; }")"
+
+# (j) GNU-first chain with multi-space GNU form and tab BSD fallback -- MUST pass
+# (the GNU form must be recognized through the same whitespace tolerance).
+gnu_wide="$(write_probe "$clean_root" gnu-wide \
+  "perms() { $gnu_form_wide '%a' \"\$1\" || $bsd_form_tab '%Lp' \"\$1\"; }")"
+
 # The flagged tree also carries the passing single-line and split-passing fixtures
 # so one guard run proves the scan flags only the BSD-first chains and leaves the
 # GNU-first ones untouched.
@@ -125,6 +140,8 @@ else
     report_failure "BSD-first split chain not reported at :2: $guard_output"
   grep -qF "$masked_bsd:2" <<<"$guard_output" ||
     report_failure "BSD-first chain masked by an earlier GNU call not reported at :2: $guard_output"
+  grep -qF "$bsd_tab:2" <<<"$guard_output" ||
+    report_failure "tab-spelled BSD-first chain not reported at :2: $guard_output"
   grep -qF "$gnu_single_mixed" <<<"$guard_output" &&
     report_failure "GNU-first single-line chain was wrongly reported: $guard_output"
   grep -qF "$gnu_split_mixed" <<<"$guard_output" &&
@@ -187,7 +204,7 @@ fi
 
 # Reference the passing fixture paths so shellcheck sees them used; they double as
 # a manifest of what the clean tree contains.
-: "$gnu_single" "$gnu_split" "$bare_bsd" "$clean_file" "$double_safe"
+: "$gnu_single" "$gnu_split" "$bare_bsd" "$clean_file" "$double_safe" "$gnu_wide"
 
 if ((failures > 0)); then
   printf 'test-guard-bsd-stat: %d assertion(s) failed\n' "$failures" >&2

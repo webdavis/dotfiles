@@ -100,8 +100,11 @@ stat_candidates_list="$(mktemp)"
 chain_lines_list="$(mktemp)"
 trap 'rm -f "$links_list" "$files_list" "$stat_candidates_list" "$chain_lines_list"' EXIT
 
+# Token matching is whitespace-tolerant (`stat[[:space:]]+-f`): a tab or a run
+# of spaces between `stat` and its flag is the same command and must not bypass
+# the prefilter or the per-segment matching below.
 grep_status=0
-grep -rlI 'stat -f' "$root" >"$stat_candidates_list" || grep_status=$?
+grep -rEIl 'stat[[:space:]]+-f' "$root" >"$stat_candidates_list" || grep_status=$?
 if [[ $grep_status -gt 1 ]]; then
   printf 'FAIL: stat-chain candidate scan of %s/ failed (grep exit %d); refusing to pass on a partial scan\n' "$root" "$grep_status" >&2
   exit 1
@@ -118,10 +121,10 @@ while IFS= read -r scanned_file; do
       segment_count = split(line_copy, segments, ";")
       for (i = 1; i <= segment_count; i++) {
         segment = segments[i]
-        bsd_index = index(segment, "stat -f")
+        bsd_index = match(segment, /stat[[:space:]]+-f/)
         if (bsd_index == 0) continue
         if (index(segment, "||") == 0) continue
-        gnu_index = index(segment, "stat -c")
+        gnu_index = match(segment, /stat[[:space:]]+-c/)
         if (!(gnu_index > 0 && gnu_index < bsd_index)) {
           print start_line
           break
