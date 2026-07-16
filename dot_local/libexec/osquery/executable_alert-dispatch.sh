@@ -40,8 +40,8 @@ send_alert() {
   local severity="$1" title="$2" detail="$3" sound="${4-}"
 
   # Route by severity: only CRIT reaches #priority.
-  local url="$OSQUERY_HERMES_URL"
-  [[ $severity == "CRIT" ]] && url="$OSQUERY_HERMES_PRIORITY_URL"
+  local webhook_url="$OSQUERY_HERMES_URL"
+  [[ $severity == "CRIT" ]] && webhook_url="$OSQUERY_HERMES_PRIORITY_URL"
 
   # The local notifier renders plain text, so strip Discord markdown (**bold**,
   # `code`) for it; the webhook POST below keeps the markdown intact.
@@ -58,11 +58,11 @@ send_alert() {
       alerter --timeout 60 --title "$plain_title" --message "$plain_detail" >/dev/null 2>&1 &
     fi
   else
-    local escaped=${plain_detail//\"/\\\"}
+    local escaped_detail=${plain_detail//\"/\\\"}
     if [[ -n $sound ]]; then
-      osascript -e "display notification \"$escaped\" with title \"$plain_title\" sound name \"$sound\"" >/dev/null 2>&1 || true
+      osascript -e "display notification \"$escaped_detail\" with title \"$plain_title\" sound name \"$sound\"" >/dev/null 2>&1 || true
     else
-      osascript -e "display notification \"$escaped\" with title \"$plain_title\"" >/dev/null 2>&1 || true
+      osascript -e "display notification \"$escaped_detail\" with title \"$plain_title\"" >/dev/null 2>&1 || true
     fi
   fi
 
@@ -80,28 +80,28 @@ send_alert() {
     return 0
   fi
 
-  local body sig reqid http attempt
+  local body signature request_id http_status attempt
   body="$(jq -cn --arg t "$title" --arg d "$detail" \
     '{event_type:"osquery.alert", alert:{title:$t, detail:$d}}')"
-  sig="$(printf '%s' "$body" | openssl dgst -sha256 -hmac "$secret" | awk '{print $NF}')"
+  signature="$(printf '%s' "$body" | openssl dgst -sha256 -hmac "$secret" | awk '{print $NF}')"
   # Content-stable request id: a retry or double-fire of the SAME alert dedups
   # at the gateway (it honours X-Request-ID for 1h) instead of double-posting.
-  reqid="osquery-$(printf '%s' "$body" | openssl dgst -sha256 | awk '{print $NF}' | cut -c1-32)"
+  request_id="osquery-$(printf '%s' "$body" | openssl dgst -sha256 | awk '{print $NF}' | cut -c1-32)"
 
   for attempt in 1 2 3; do
-    http="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 \
-      -X POST "$url" \
+    http_status="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 \
+      -X POST "$webhook_url" \
       -H 'Content-Type: application/json' \
-      -H "X-Webhook-Signature: $sig" \
-      -H "X-Request-ID: $reqid" \
-      --data "$body")" || http=000
-    case "$http" in
+      -H "X-Webhook-Signature: $signature" \
+      -H "X-Request-ID: $request_id" \
+      --data "$body")" || http_status=000
+    case "$http_status" in
       2*) return 0 ;;  # delivered
       429 | 5?? | 000) # transient → back off and retry
         if [[ $attempt -lt 3 ]]; then sleep "$attempt"; fi ;;
       *) break ;; # 401/413/etc, retry won't help
     esac
   done
-  _osquery_log "ERROR webhook delivery failed: http=$http url=$url"
+  _osquery_log "ERROR webhook delivery failed: http=$http_status url=$webhook_url"
   return 0
 }

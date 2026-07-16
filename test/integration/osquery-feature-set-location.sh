@@ -60,7 +60,7 @@ done
 
 # results-alerter invokes the enricher from the libexec home.
 # shellcheck disable=SC2016
-assert_contains 'ENRICH="$HOME/.local/libexec/osquery/enrich-finding.sh"' \
+assert_contains 'ENRICH_SCRIPT="$HOME/.local/libexec/osquery/enrich-finding.sh"' \
   "dot_local/libexec/osquery/executable_results-alerter.sh"
 
 if [[ $fail -ne 0 ]]; then
