@@ -91,6 +91,17 @@ bare_bsd="$(write_probe "$clean_root" bare-bsd \
 clean_file="$(write_probe "$clean_root" clean \
   "printf 'no stat calls here\\n'")"
 
+# (g) An earlier GNU call must NOT mask a later BSD-first chain on the same
+# logical line: the second command substitution is a BSD-first fallback chain
+# and MUST be flagged (per-chain analysis, not first-global-occurrence).
+masked_bsd="$(write_probe "$flagged_root" masked-bsd \
+  "a=\$($gnu_form '%a' .); b=\$($bsd_form '%Lp' . || $gnu_form '%a' .)")"
+
+# (h) Two safe GNU-first chains on one logical line -- MUST pass (the per-chain
+# split must not cross-contaminate neighbouring chains).
+double_safe="$(write_probe "$clean_root" double-safe \
+  "x=\$($gnu_form '%a' . || $bsd_form '%Lp' .); y=\$($gnu_form '%s' . || $bsd_form '%z' .)")"
+
 # The flagged tree also carries the passing single-line and split-passing fixtures
 # so one guard run proves the scan flags only the BSD-first chains and leaves the
 # GNU-first ones untouched.
@@ -112,6 +123,8 @@ else
     report_failure "BSD-first single-line chain not reported at :2: $guard_output"
   grep -qF "$bsd_split:2" <<<"$guard_output" ||
     report_failure "BSD-first split chain not reported at :2: $guard_output"
+  grep -qF "$masked_bsd:2" <<<"$guard_output" ||
+    report_failure "BSD-first chain masked by an earlier GNU call not reported at :2: $guard_output"
   grep -qF "$gnu_single_mixed" <<<"$guard_output" &&
     report_failure "GNU-first single-line chain was wrongly reported: $guard_output"
   grep -qF "$gnu_split_mixed" <<<"$guard_output" &&
@@ -174,7 +187,7 @@ fi
 
 # Reference the passing fixture paths so shellcheck sees them used; they double as
 # a manifest of what the clean tree contains.
-: "$gnu_single" "$gnu_split" "$bare_bsd" "$clean_file"
+: "$gnu_single" "$gnu_split" "$bare_bsd" "$clean_file" "$double_safe"
 
 if ((failures > 0)); then
   printf 'test-guard-bsd-stat: %d assertion(s) failed\n' "$failures" >&2

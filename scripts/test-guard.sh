@@ -72,8 +72,14 @@ fi
 # SUCCEEDS with the wrong output, so the `|| stat -c` fallback never fires and the
 # test silently reads garbage. Two CI failures (PRs #49, #50) came from exactly
 # this. The portable idiom is GNU-first: `stat -c ... || stat -f ...`. Flag a
-# fallback CHAIN (a logical line containing `||`) whose first `stat -f` has no
-# `stat -c` before it. A capability-gated bare `stat -f` with no chain (e.g. a
+# fallback CHAIN whose first `stat -f` has no GNU-form stat before it WITHIN the
+# same chain segment: the logical line is split into segments on `;` and `&&`
+# (both terminate a `||` chain), so an unrelated GNU stat earlier on the line
+# (say, a previous command substitution) cannot mask a later BSD-first chain.
+# Documented boundary of the approximation: `$( )`, `{ }`, and single-`|`
+# transitions are NOT segment boundaries, so a GNU stat and a BSD-first chain
+# packed into ONE segment with no `;`/`&&` between them still masks.
+# A capability-gated bare `stat -f` with no chain (e.g. a
 # `find -exec stat -f` in a GNU-probed else-branch) is not a fallback chain and is
 # left alone. Scans every text file below root (fixtures included) since a sourced
 # lib carries the same trap.
@@ -105,12 +111,21 @@ bsd_first_chains=""
 while IFS= read -r scanned_file; do
   [[ -n $scanned_file ]] || continue
   if ! awk '
-    function flush(   bsd_index, gnu_index) {
+    function flush(   line_copy, segment_count, i, segment, bsd_index, gnu_index) {
       if (joined == "") return
-      bsd_index = index(joined, "stat -f")
-      if (bsd_index > 0) {
-        gnu_index = index(joined, "stat -c")
-        if (!(gnu_index > 0 && gnu_index < bsd_index) && index(joined, "||") > 0) print start_line
+      line_copy = joined
+      gsub(/&&/, ";", line_copy)
+      segment_count = split(line_copy, segments, ";")
+      for (i = 1; i <= segment_count; i++) {
+        segment = segments[i]
+        bsd_index = index(segment, "stat -f")
+        if (bsd_index == 0) continue
+        if (index(segment, "||") == 0) continue
+        gnu_index = index(segment, "stat -c")
+        if (!(gnu_index > 0 && gnu_index < bsd_index)) {
+          print start_line
+          break
+        }
       }
       joined = ""
     }
