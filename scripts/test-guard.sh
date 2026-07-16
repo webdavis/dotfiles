@@ -66,3 +66,53 @@ if [[ -n $bad ]]; then
   printf 'Fix placement/mode (and REPO_ROOT depth is ../.. inside a camp).\n' >&2
   exit 1
 fi
+
+# BSD-first stat fallback chains. `stat -f ... || stat -c ...` runs the BSD form
+# first; on Linux CI (GNU coreutils) `stat -f` means "filesystem status" and
+# SUCCEEDS with the wrong output, so the `|| stat -c` fallback never fires and the
+# test silently reads garbage. Two CI failures (PRs #49, #50) came from exactly
+# this. The portable idiom is GNU-first: `stat -c ... || stat -f ...`. Flag a
+# fallback CHAIN (a logical line containing `||`) whose first `stat -f` has no
+# `stat -c` before it. A capability-gated bare `stat -f` with no chain (e.g. a
+# `find -exec stat -f` in a GNU-probed else-branch) is not a fallback chain and is
+# left alone. Scans every text file below root (fixtures included) since a sourced
+# lib carries the same trap.
+#
+# FX11: a chain split across a backslash continuation (the `||` on the next physical
+# line) slipped past a per-physical-line scan: line 1 held `stat -f` but no `||`,
+# line 2 held `||` but no `stat -f` (and a GNU-first chain split the same way
+# false-POSITIVED on the `|| stat -f` continuation line). Join backslash
+# continuations into one logical line, keyed by the starting physical line number,
+# before matching.
+bsd_first_chains=""
+while IFS= read -r scanned_file; do
+  [[ -n $scanned_file ]] || continue
+  while IFS= read -r chain_start_line; do
+    bsd_first_chains+="$scanned_file:$chain_start_line"$'\n'
+  done < <(awk '
+    function flush(   bsd_index, gnu_index) {
+      if (joined == "") return
+      bsd_index = index(joined, "stat -f")
+      if (bsd_index > 0) {
+        gnu_index = index(joined, "stat -c")
+        if (!(gnu_index > 0 && gnu_index < bsd_index) && index(joined, "||") > 0) print start_line
+      }
+      joined = ""
+    }
+    {
+      if (joined == "") start_line = NR
+      line = $0
+      if (line ~ /\\[ \t]*$/) { sub(/\\[ \t]*$/, " ", line); joined = joined line; next }
+      joined = joined line
+      flush()
+    }
+    END { flush() }
+  ' "$scanned_file")
+done < <(grep -rlI 'stat -f' "$root" 2>/dev/null || true)
+bsd_first_chains="${bsd_first_chains%$'\n'}"
+
+if [[ -n $bsd_first_chains ]]; then
+  printf 'FAIL: BSD-first stat fallback chain(s) below %s/ (break on Linux CI; put the GNU -c form first, the BSD -f form as the fallback):\n' "$root" >&2
+  printf '%s\n' "$bsd_first_chains" | sed 's/^/  /' >&2
+  exit 1
+fi
