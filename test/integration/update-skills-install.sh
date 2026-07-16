@@ -1,32 +1,32 @@
 #!/usr/bin/env bash
-# update-skills-install.sh — proves update-skills.sh's npx install pass and
+# update-skills-install.sh, proves update-skills.sh's npx install pass and
 # fan-out, offline.
 #
 # The real script runs unmodified in a sandbox: a scratch HOME and a PATH stub
-# for `npx` that stands in for the network — on `skills ... add ... --skill
+# for `npx` that stands in for the network, on `skills ... add ... --skill
 # <name> ...` it writes ~/.agents/skills/<name>/SKILL.md (the real dir the
 # multi-agent add lands in the store), the legitimate subprocess double.
 # Assertions:
 #   1. An absent npx-tracked skill ("goodskill") is installed into the store.
 #   2. Its fan-out follows the lock: a Claude symlink always, plus one hermes
-#      symlink per hermesProfiles mapping — the default profile's skills dir
+#      symlink per hermesProfiles mapping, the default profile's skills dir
 #      and a specialist profile's, the latter created by the run itself.
 #   3. An on-demand skill (per the lock's tiers table) gets the Codex policy
 #      overlay agents/openai.yaml written into its store folder, and a deleted
-#      overlay is re-asserted by the next run — the property that survives npx
+#      overlay is re-asserted by the next run, the property that survives npx
 #      refreshes replacing a skill's folder wholesale. When the upstream skill
 #      already ships agents/openai.yaml with its own content, the policy block
 #      is APPENDED idempotently, never an overwrite.
 #   4. A core skill mapped to no hermes profile ("plainskill", hermesProfiles
 #      []) still installs and reaches Claude, but gets NO hermes symlink and
-#      NO Codex overlay — unmapped means deliberately absent, not defaulted.
+#      NO Codex overlay, unmapped means deliberately absent, not defaulted.
 #   5. A hermes-OWNED skill ("hubskill", hermesProfiles [] + a hermesRegistry
 #      entry) installs into the store and reaches Claude, but gets NO hermes
 #      symlink: hermes maintains its own hub-owned copy via `hermes skills
 #      update`, and a store symlink would shadow it. Only skills with a
 #      non-empty hermesProfiles mapping fan out to hermes.
 #   6. A skill already in the store is never reinstalled (a planted marker file
-#      survives a second run) — routine runs cannot clobber local edits.
+#      survives a second run), routine runs cannot clobber local edits.
 #   7. A store entry that is a SYMLINK (app-owned content, like cua-driver ->
 #      ~/.cua-driver) never receives a Codex overlay.
 #   8. A clawhub-tracked skill ("clawskill") absent from the store is installed
@@ -38,7 +38,7 @@
 set -euo pipefail
 
 # This test runs inside the pre-commit hook, and git makes hooks inherit
-# GIT_DIR/GIT_INDEX_FILE — every child git command then targets the OUTER repo.
+# GIT_DIR/GIT_INDEX_FILE, every child git command then targets the OUTER repo.
 # Unset so nothing here can reach it.
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY GIT_COMMON_DIR
 
@@ -92,7 +92,7 @@ chmod +x "$stub_dir/npx"
 
 # The clawhub stub: logs every invocation, and on `install <slug>` materialises
 # the nested <workdir>/<dir>/@owner/<name> layout the real CLI produces (v0.23.1
-# always nests when installing by @owner/name — verified live). The updater is
+# always nests when installing by @owner/name, verified live). The updater is
 # responsible for flattening that into the store.
 cat >"$stub_dir/clawhub" <<EOF
 #!/usr/bin/env bash
@@ -204,13 +204,13 @@ expected_policy=$'policy:\n  allow_implicit_invocation: false'
 [[ -f "$HOME/.agents/skills/hubskill/SKILL.md" ]] || fail "hubskill was not installed into the store"
 [[ -L "$HOME/.claude/skills/hubskill" ]] || fail "missing Claude fan-out symlink for hubskill"
 [[ ! -e "$HOME/.hermes/skills/hubskill" ]] ||
-  fail "hubskill (hermes-owned) was symlinked into the default hermes profile — store fan-out is hermesProfiles-only"
+  fail "hubskill (hermes-owned) was symlinked into the default hermes profile, store fan-out is hermesProfiles-only"
 
 # 8) The clawhub pass installs an absent clawhub-tracked skill: the nested
 #    @owner layout the CLI produces is flattened into the store under the
 #    roster name, the @owner dir never reaches the store, fan-out and the
 #    on-demand overlay follow the lock, and the invocation targets an explicit
-#    --workdir/--dir pair with the lock's registry — never --force.
+#    --workdir/--dir pair with the lock's registry, never --force.
 [[ -f "$HOME/.agents/skills/clawskill/SKILL.md" ]] || fail "clawskill was not installed into the store"
 [[ -f "$HOME/.agents/skills/clawskill/.clawhub/origin.json" ]] ||
   fail "clawskill's .clawhub/origin.json did not survive the flatten into the store"

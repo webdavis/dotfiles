@@ -17,8 +17,8 @@ rendered template content for per-machine idempotency [1], runs in plain bash (t
 shell), and integrates with the existing lint/format pipeline at zero cost.
 
 The two competing alternatives both add cost without paying it back. **dsully/macos-defaults** (Rust,
-YAML-driven) is the most polished third-party tool in the niche — it ships a single static binary,
-supports `currentHost` and per-domain `kill` lists, and has dedicated drift-detection plumbing — but its
+YAML-driven) is the most polished third-party tool in the niche, it ships a single static binary,
+supports `currentHost` and per-domain `kill` lists, and has dedicated drift-detection plumbing, but its
 `--dry-run` flag was silently broken across all tagged releases until a fix landed in HEAD on 2026-04-26
 (no release yet) [2], it has bus-factor 1, and it adds a runtime dependency for what is fundamentally a
 30-line bash loop [3]. **nix-darwin's `system.defaults` module** exposes ~211 typed keys [4] but requires
@@ -29,11 +29,11 @@ chezmoi for that purpose [10].
 
 A non-negotiable caveat applies to *every* approach: macOS 26 Tahoe has tightened TCC (Transparency,
 Consent, Control) and SIP enforcement to the point where ~30% of "make a fresh Mac feel like home"
-settings — Bluetooth, Remote Login, Screen Sharing, Full Disk Access grants — can no longer be flipped
-via `defaults write` regardless of the wrapper [11]. Those require signed `.mobileconfig` profiles or
-manual System Settings clicks, and any automation that pretends otherwise will fail silently. Honest
-scope: this recommendation handles the ~70% of settings that `defaults` still owns cleanly, and
-explicitly defers the rest to a documented manual setup checklist.
+settings, Bluetooth, Remote Login, Screen Sharing, Full Disk Access grants, can no longer be flipped via
+`defaults write` regardless of the wrapper [11]. Those require signed `.mobileconfig` profiles or manual
+System Settings clicks, and any automation that pretends otherwise will fail silently. Honest scope: this
+recommendation handles the ~70% of settings that `defaults` still owns cleanly, and explicitly defers the
+rest to a documented manual setup checklist.
 
 ## Introduction
 
@@ -42,14 +42,14 @@ explicitly defers the rest to a documented manual setup checklist.
 This report evaluates approaches for adding declarative, idempotent, version-controlled macOS `defaults`
 management to an existing chezmoi-based dotfiles repository. The user's hard requirements are: (1)
 bootstrappable on a freshly-minted macOS 26 system with no manual steps beyond the chezmoi init they
-already perform; (2) version-controlled in git and pushable to GitHub; (3) idempotent — re-runs must not
+already perform; (2) version-controlled in git and pushable to GitHub; (3) idempotent, re-runs must not
 break or destructively re-apply already-applied settings, ideally with drift detection; (4) one-file
 editing ergonomics for adding or removing a setting.
 
 The user's toolchain is locked: bash for scripts (no zsh/fish), chezmoi (>=2.62.3) with KeePassXC
 integration for secrets, Nix flakes per-project (not nix-darwin for system management), and a justfile +
 `scripts/lint.sh` invoking shellcheck/shfmt/mdformat/nixfmt/taplo/jq/yq via
-`nix develop .#run --command`. The recommendation must respect this toolchain — wholesale migration to
+`nix develop .#run --command`. The recommendation must respect this toolchain, wholesale migration to
 nix-darwin is explicitly off the table per user instruction.
 
 ### Methodology
@@ -66,7 +66,7 @@ precedent exists) are flagged inline.
 
 ### Key assumptions
 
-The recommendation assumes (a) the user maintains a small number (2-5) of macOS machines, not a fleet —
+The recommendation assumes (a) the user maintains a small number (2-5) of macOS machines, not a fleet,
 making MDM/Jamf overkill; (b) `defaults` settings are opt-in policy the user wants enforced across
 machines, not just bootstrap-once-and-forget; (c) drift detection should be on-demand
 (`just defaults-drift`), not continuous monitoring (no daemon); (d) the user is willing to maintain a
@@ -102,14 +102,14 @@ attributes (the `run_onchange_`, `before_`/`after_`, and ordering-numeral semant
 the source-state-attributes reference [45], and `.chezmoidata/` is documented as a special directory
 whose YAML/TOML/JSON contents merge into the root template-data dictionary in lexical order [44]. This
 means a template wrapped in `{{ if eq .chezmoi.os "darwin" }}...{{ end }}` produces an empty rendered
-body on Linux (which chezmoi correctly treats as "no script to run" — the maintainer confirmed this is
+body on Linux (which chezmoi correctly treats as "no script to run", the maintainer confirmed this is
 reliable and intentional in discussion #4555 [13]) and a populated body on macOS (which produces a
 different hash per machine if any per-machine data is interpolated, but stays stable across reruns on the
 same machine).
 
 Critically, this hash is taken *after* the template engine substitutes `.chezmoidata/macos_defaults.yaml`
 values into the script body. So the runner script's text changes whenever the YAML data file changes,
-which means editing the YAML — adding a setting, removing one, changing a value — automatically triggers
+which means editing the YAML, adding a setting, removing one, changing a value, automatically triggers
 re-execution on the next `chezmoi apply`. There is no need for the runner to maintain its own
 change-detection logic; chezmoi already does it.
 
@@ -120,9 +120,9 @@ configuration: "Generally speaking, you should use run_onchange\_ script unless 
 good reason to use a run_once\_ script" [14]. The reason is that `run_once_` records each unique
 content-hash it has ever seen and refuses to re-execute any of them. So if a user changes a Dock setting
 from `false` to `true`, then later changes their mind and reverts to `false`, `run_once_` will see "I've
-already run a version with `false`" and skip — leaving the actual machine state at `true`.
-`run_onchange_` doesn't have this problem because it only compares against the *last* successfully-run
-hash, not the entire history.
+already run a version with `false`" and skip, leaving the actual machine state at `true`. `run_onchange_`
+doesn't have this problem because it only compares against the *last* successfully-run hash, not the
+entire history.
 
 For settings management this distinction is load-bearing. The user will edit `macos_defaults.yaml` over
 time, and revisions will sometimes revert prior values. `run_onchange_` will correctly re-apply each new
@@ -133,7 +133,7 @@ revision; `run_once_` would silently skip reverts.
 The closest precedent for the data-driven approach is **cweagans/dotfiles**, which keeps per-domain JSONC
 files under `~/.config/macos/` and a runner template iterates them via `glob` with `jq` [15]. The runner
 extracts a `restart` command from the JSON and `eval`s it to handle the `killall Dock`-style step. Five
-other production chezmoi repositories use simpler variants — posquit0/dotfiles puts ~200 lines of literal
+other production chezmoi repositories use simpler variants, posquit0/dotfiles puts ~200 lines of literal
 `defaults write` calls into `darwin/run_onchange_after_02_configure_macos_defaults.sh` (no template, OS
 gating via subdirectory name) [16]; timriley/dotfiles uses a template guarded by
 `{{ if (eq .chezmoi.os "darwin") -}}` for a small focused script [17]; smasato/dotfiles uses numeric
@@ -155,7 +155,7 @@ YAML edit.
 The user's `.chezmoidata/system_packages_autoinstall.yaml` already lives by this principle. Adding a
 Homebrew formula is a one-line YAML edit; the runner script never changes. The proposed
 `macos_defaults.yaml` + runner mirrors this exactly, lowering the cognitive cost of the new pattern to
-near-zero — the user already knows how to maintain it because they already maintain the Brewfile
+near-zero, the user already knows how to maintain it because they already maintain the Brewfile
 equivalent.
 
 The lint pipeline absorbs the new file at zero cost: `yq` already runs over `.chezmoidata/*.yaml` (per
@@ -166,7 +166,7 @@ additions for the runner itself.
 
 ### Idempotency without `defaults read`
 
-A natural impulse is to make the runner script "smart" — read the current value with `defaults read`,
+A natural impulse is to make the runner script "smart", read the current value with `defaults read`,
 compare to the desired value, only write on mismatch. This is not done in the wild. A sample of eight
 production chezmoi macOS-defaults repositories (posquit0, timriley, smasato, liby, samyakbardiya,
 felixjung, jgoguen, fhemberger) shows that none use `defaults read` to skip writes; all call
@@ -200,12 +200,12 @@ killall {{ . | quote }} 2>/dev/null || true
 {{- end }}
 ```
 
-The companion data file `macos_defaults.yaml` contains nothing but two lists — a list of
-`{domain, key, type, value}` records and a list of process names to `killall` after — both of which are
+The companion data file `macos_defaults.yaml` contains nothing but two lists, a list of
+`{domain, key, type, value}` records and a list of process names to `killall` after, both of which are
 pure declarative data that the user edits without thinking about bash quoting or template syntax. This is
 the entire mechanism.
 
-### Finding 2: dsully/macos-defaults — promising but premature for this user
+### Finding 2: dsully/macos-defaults, promising but premature for this user
 
 Of the third-party tools in this niche, dsully/macos-defaults is by far the most polished. It's a single
 static Rust binary distributed as a Homebrew bottle for Apple Silicon [22], parses YAML input (the author
@@ -217,8 +217,8 @@ if values actually changed) [24], a `current_host: bool` toggle that resolves pa
 `/Library/Preferences/` writes, automatic detection of sandboxed-container plists (it falls back to
 `~/Library/Containers/{domain}/Data/Library/Preferences/` if present), and pre-write backups to
 `{path}.prev` for every modified plist. The schema also supports two power-user markers: `"!": {}` inside
-a dict for overwrite-mode (delete keys not specified — the README explicitly warns this is dangerous),
-and `"..."` inside arrays for splice-in-existing-values semantics treating arrays as sets [22].
+a dict for overwrite-mode (delete keys not specified, the README explicitly warns this is dangerous), and
+`"..."` inside arrays for splice-in-existing-values semantics treating arrays as sets [22].
 
 ### Why it's the *almost*-right tool
 
@@ -234,7 +234,7 @@ The `--dry-run` flag was a defined CLI option but silently ignored across every 
 wrote changes regardless of `-d`, making it unsafe for read-only drift detection. This was filed as issue
 #10 ("--dry-run flag silently ignored: apply writes changes regardless ... the tool reports what it would
 change but actually applies the same changes, making dry-run mode unsafe for read-only drift detection")
-and the fix landed in HEAD on 2026-04-26 — *the same day this report was written* [2]. There is no tagged
+and the fix landed in HEAD on 2026-04-26, *the same day this report was written* [2]. There is no tagged
 release yet that contains the fix; the Homebrew bottle still ships 0.3.0 from 2025-11-09 with the bug
 intact. So as of today, the user has two options for trying the tool: (a) install the Homebrew version
 and accept that drift-checking is silently broken; (b)
@@ -243,7 +243,7 @@ pinned to an unreleased commit that may contain other unreleased changes and may
 force-pushes.
 
 The maintenance pattern compounds the concern. The repo has 78 stars, 2 forks, and contributor activity
-is dsully (32 commits) followed by mmorella-dev (2), dependabot (1), pasteley (1) — bus-factor 1 by every
+is dsully (32 commits) followed by mmorella-dev (2), dependabot (1), pasteley (1), bus-factor 1 by every
 measure [27]. Releases land roughly once per year (v0.0.1 2023-07, 0.1.0 2024-03, 0.1.1 + 0.2.0 2024-09,
 0.3.0 2025-11), so the gap between "fix lands in HEAD" and "fix in a brew bottle" can plausibly be 3-12
 months. For a user who needs working drift detection now, that's a long wait against a known bug.
@@ -259,26 +259,26 @@ The runner script in Finding 1 is 30 lines of bash. The user already has shellch
 and the project already gates everything through `nix develop`. Adopting dsully/macos-defaults adds a new
 runtime dependency (the Rust binary), a new maintenance surface (track upstream releases, install via
 Homebrew tap or `cargo install`, handle the case where the brew tap fork drifts from upstream), and a new
-failure mode (the binary itself misbehaves) — for the privilege of not writing 30 lines of bash. The
+failure mode (the binary itself misbehaves), for the privilege of not writing 30 lines of bash. The
 cost-benefit is clearly underwater for this user's stack.
 
-If the calculus changes — the user wants to switch all macOS defaults to a typed YAML schema that catches
+If the calculus changes, the user wants to switch all macOS defaults to a typed YAML schema that catches
 typos at apply-time (`serde(deny_unknown_fields)` is enforced [22]), or wants the `current_host` / `kill`
-semantics handled automatically, or wants the `.prev` backup-on-write safety net — then dsully becomes
+semantics handled automatically, or wants the `.prev` backup-on-write safety net, then dsully becomes
 much more attractive. None of those are current asks. Revisit annually; commit to native bash now.
 
 ### Other tools in the niche, briefly
 
-**zero-sh/apply-user-defaults** is the direct prior-art for dsully — Rust, YAML, 73 stars, last pushed
+**zero-sh/apply-user-defaults** is the direct prior-art for dsully, Rust, YAML, 73 stars, last pushed
 2023-08-24, effectively dormant [28]. **koenrh/deft** (Go, 0 stars, last push 2026-04-16) has a dedicated
 `diff` subcommand that's working today but is brand-new with no track record [29]. **RATIU5/fjrd** (Go,
 TOML input, 1 star, beta status) supports loading config from a GitHub repo URL (`fjrd username/repo`)
 which is interesting but immature [30]. **g0t4/mcp-server-macos-defaults** is an MCP server exposing
-`defaults` to LLMs — not file-driven, not relevant [31]. **kevinSuttle/macOS-Defaults** (1.4k stars) is a
-well-known imperative shell-script collection forked from the mathiasbynens canon, last pushed 2020-03 —
+`defaults` to LLMs, not file-driven, not relevant [31]. **kevinSuttle/macOS-Defaults** (1.4k stars) is a
+well-known imperative shell-script collection forked from the mathiasbynens canon, last pushed 2020-03,
 dormant. **jwbargsten/defbro** is single-purpose (sets default browser only). **Ansible's
 `community.general.osx_defaults` module** is mature and idempotent, with recent updates adding
-dict-merging support [49] — but Ansible's playbook + inventory + facts apparatus is heavyweight for a
+dict-merging support [49], but Ansible's playbook + inventory + facts apparatus is heavyweight for a
 single-machine personal-Mac context, and importing Ansible solely to manage defaults is the same overkill
 argument that disqualifies nix-darwin.
 
@@ -292,7 +292,7 @@ nix-darwin's `system.defaults` module is the most catalog-complete declarative t
 module exposes ~211 typed `mkOption` keys across 23 sub-namespace files [4], with the largest namespaces
 being `NSGlobalDomain` (53 keys), `dock` (44 keys), `trackpad` (22 keys), `finder` (21 keys), and
 `WindowManager` (12 keys, including Stage Manager and tiling). For users already invested in Nix for
-system management, this is a powerful proposition — type-checked configuration, evaluation-time error
+system management, this is a powerful proposition, type-checked configuration, evaluation-time error
 catching, and integration with the broader nix-darwin ecosystem (services, LaunchAgents, packages).
 
 For a user *not* otherwise on Nix for system management, the proposition collapses under bootstrap
@@ -301,12 +301,12 @@ weight.
 ### Bootstrap cost on a fresh Mac
 
 Standalone use of nix-darwin's `system.defaults` requires: (a) a Nix implementation installed (Nix or
-Lix; the project's README recommends the Lix installer for new users [32]); (b) a flake — the maintainers
+Lix; the project's README recommends the Lix installer for new users [32]); (b) a flake, the maintainers
 explicitly state "we recommend that beginners use flakes to manage their nix-darwin configurations" [32];
 (c) `sudo nix run nix-darwin/master#darwin-rebuild -- switch` to perform initial install, after which
 subsequent rebuilds use `sudo darwin-rebuild switch` [32]; (d) a `system.primaryUser` declaration without
 which any user-scope default (dock/finder/NSGlobalDomain/etc.) triggers an assertion failure [33]; (e)
-`sudo` on every rebuild — recent versions of nix-darwin run all activation as root and per-user defaults
+`sudo` on every rebuild, recent versions of nix-darwin run all activation as root and per-user defaults
 are written via `launchctl asuser "$(id -u -- ${user})" sudo --user=${user} --` [34].
 
 The minimum viable defaults-only flake is roughly:
@@ -329,13 +329,13 @@ The minimum viable defaults-only flake is roughly:
 ```
 
 That's ~1 GB of Nix store on a fresh Mac, plus 300-500 MB of nix-darwin + nixpkgs evaluation cache, plus
-a passwordless sudoers entry for `darwin-rebuild` if you want chezmoi to invoke it without prompting —
-all to gain a slightly nicer way to write `defaults write com.apple.dock autohide -bool true`. The
+a passwordless sudoers entry for `darwin-rebuild` if you want chezmoi to invoke it without prompting, all
+to gain a slightly nicer way to write `defaults write com.apple.dock autohide -bool true`. The
 cost-benefit is severely lopsided for defaults-only use.
 
 ### Idempotency model and the activation gap
 
-`system.defaults` runs `defaults write` unconditionally on every `darwin-rebuild switch` — there is no
+`system.defaults` runs `defaults write` unconditionally on every `darwin-rebuild switch`, there is no
 diff/skip logic [34]. Drift correction is implicit (settings are unconditionally re-asserted) but there
 is no diff/warn/dry-run plumbing. More importantly, settings written via `defaults write` often don't
 take effect until logout, restart, or manual `cfprefsd` kill; this is a long-standing open issue (#658,
@@ -355,11 +355,11 @@ chezmoi hash gate handles drift correction.
 ### The ByHost gap
 
 A documented limitation: nix-darwin has no declarative mechanism for the `defaults -currentHost` (ByHost)
-domain [38]. This is a real gap — settings like ControlCenter Bluetooth visibility
+domain [38]. This is a real gap, settings like ControlCenter Bluetooth visibility
 (`com.apple.controlcenter Bluetooth -int 18`), per-keyboard remaps in `~/Library/Preferences/ByHost/`,
 and Spotlight per-host indexing live in this domain. nix-darwin users today fall back to
 `system.activationScripts` with raw `defaults -currentHost write` commands. So even if you adopt
-nix-darwin, you'll still write some bash for ByHost settings — defeating part of the proposition.
+nix-darwin, you'll still write some bash for ByHost settings, defeating part of the proposition.
 
 ### macOS 26 Tahoe friction
 
@@ -367,13 +367,13 @@ Filtering nix-darwin's open issues for "Tahoe" or "macOS 26" returns at least fo
 recently-closed regressions: #1513 (firmlink stitching warning on root volume) [9], #1544
 (`darwin-rebuild: command not found` on fresh Tahoe installs because PATH isn't refreshed) [7], #1572
 (trackpad settings not applied without manual cfprefsd kill) [36], #1577 (`$TMPDIR` / `/tmp` symlink
-behavior changed on macOS 26, breaking `nix flake update` — workaround:
+behavior changed on macOS 26, breaking `nix flake update`, workaround:
 `services.nix-daemon.tempDir = "/private/tmp"`) [8]. Issue #1621 (Tahoe modified `/etc/zshrc` and
 `/etc/zprofile`, blocking activation with "Unexpected files in /etc" error) was fixed in nix-darwin 25.05
-[6] — recent, but indicative of how often Tahoe changes break nix-darwin's assumptions.
+[6], recent, but indicative of how often Tahoe changes break nix-darwin's assumptions.
 
 For a user not otherwise running Nix, this is a non-trivial bootstrap risk on a brand-new macOS 26
-machine — the exact scenario the user wants to support cleanly.
+machine, the exact scenario the user wants to support cleanly.
 
 ### No precedent for chezmoi-orchestrated defaults-only nix-darwin
 
@@ -386,18 +386,18 @@ debug failure modes, and the first to maintain the integration as both projects 
 
 ### Verdict
 
-nix-darwin remains the right tool *if and when* the user adopts Nix for system management broadly —
+nix-darwin remains the right tool *if and when* the user adopts Nix for system management broadly,
 packages, services, LaunchAgents, dev shells. As a defaults-only tool added incrementally to a
 chezmoi+bash stack, it imports too much weight: a Nix install, sudo gates, system.primaryUser ceremony,
 the activation gap for ByHost, and four open Tahoe-specific regressions to watch. Defer until the broader
 Nix-for-system decision is on the table.
 
-### Finding 4: Drift detection requires DIY for the native approach — and that's fine
+### Finding 4: Drift detection requires DIY for the native approach, and that's fine
 
 The user's stated requirement #3 is "idempotent ... should detect drift (someone toggled a setting via
 System Settings UI) and report or restore." chezmoi's `run_onchange_*` mechanism handles half of that
 natively: re-running `chezmoi apply` on an unchanged YAML file is a no-op (the script body's hash hasn't
-changed, so the script doesn't execute). What chezmoi does *not* do is detect the inverse case — that the
+changed, so the script doesn't execute). What chezmoi does *not* do is detect the inverse case, that the
 YAML still says one thing but the live system now says another because the user toggled a setting in
 System Settings.
 
@@ -440,7 +440,7 @@ exit $drift
 
 This script is a sibling of the runner, lives at `dot_local/bin/executable_macos-defaults-drift.sh`
 (chezmoi's `executable_` prefix sets `+x`), and reads the same source-of-truth YAML. Adding a setting to
-YAML automatically extends both the runner's apply set and the drift checker's check set — no
+YAML automatically extends both the runner's apply set and the drift checker's check set, no
 double-bookkeeping.
 
 ### Wiring into the justfile
@@ -463,7 +463,7 @@ The user's requirement says "report or restore." The native pattern handles rest
 `chezmoi apply` re-runs the runner script if the YAML hash differs from the last successful run, which
 re-applies every setting. So the workflow for drift remediation is:
 
-1. `just D` — see what's drifted.
+1. `just D`, see what's drifted.
 1. Decide: was the drift accidental (revert), or did you actually want this setting changed permanently
    (update YAML)?
 1. If revert: `just a` (chezmoi apply) won't re-run the runner because the YAML is unchanged. Workaround:
@@ -473,7 +473,7 @@ re-applies every setting. So the workflow for drift remediation is:
    data file.)
 1. If update: edit YAML, commit, `chezmoi apply` runs the runner with the new value.
 
-Step 3 is mildly awkward — chezmoi correctly skips re-runs when content hasn't changed, but drift
+Step 3 is mildly awkward, chezmoi correctly skips re-runs when content hasn't changed, but drift
 correction needs an unconditional re-run. The cleanest fix is a separate
 `dot_local/bin/macos-defaults-apply.sh` script (parallel to the drift checker) that's called directly by
 `just defaults-apply` and bypasses chezmoi entirely. This makes the apply path explicit and removes the
@@ -492,10 +492,10 @@ of modification" (their stated requirement #4), the bash version wins.
 ### Limitations of the drift checker
 
 The native checker handles the common case (single-value scalars: bools, ints, strings) cleanly. Arrays
-and dicts are harder — `defaults read` returns multi-line plist syntax that requires
+and dicts are harder, `defaults read` returns multi-line plist syntax that requires
 `plutil -convert json -o -` round-tripping for clean comparison. For the starter list of ~30 settings
 (Finding 7), nearly all values are scalars; arrays are rare (Dock persistent-apps is a notable
-exception). A v1 checker can warn-and-skip for non-scalar types and grow array/dict handling on demand —
+exception). A v1 checker can warn-and-skip for non-scalar types and grow array/dict handling on demand,
 the YAGNI principle applies.
 
 ### Finding 5: macOS 26 Tahoe-specific quirks affect every approach
@@ -504,15 +504,15 @@ macOS 26 Tahoe (released 2025-09-15 [48], currently 26.2 with build 25C56 on the
 introduced several changes that affect any `defaults`-based automation regardless of wrapper. Apple's
 developer release notes [47] and the most recent security-content advisory [50] provide the canonical
 version-by-version delta. Some are tightening enforcement, some are deprecation timelines, some are just
-cosmetic state-management changes — but all are worth flagging in advance to avoid time-wasting debugging
+cosmetic state-management changes, but all are worth flagging in advance to avoid time-wasting debugging
 sessions later.
 
 ### TCC tightening: the 30% that defaults can no longer touch
 
 The most consequential change for automation: the perimeter of what `defaults write` (and `systemsetup`,
 and `launchctl load`) can affect has shrunk meaningfully. Empirically: "Every approach you'll find
-documented online — defaults write for Bluetooth, systemsetup for Remote Login, launchctl load for Screen
-Sharing — hits a wall on Tahoe, either through TCC restrictions, SIP blocking launchd modifications,
+documented online, defaults write for Bluetooth, systemsetup for Remote Login, launchctl load for Screen
+Sharing, hits a wall on Tahoe, either through TCC restrictions, SIP blocking launchd modifications,
 silent failure, or state that doesn't survive a reboot" [11]. For the user's use case, this means:
 
 - **Bluetooth toggles** via `defaults write com.apple.Bluetooth ...` may write the plist but not change
@@ -520,19 +520,19 @@ silent failure, or state that doesn't survive a reboot" [11]. For the user's use
 - **Remote Login** (`systemsetup -setremotelogin`) is now TCC-gated: invoking from Terminal requires
   Terminal to have Full Disk Access pre-granted, which itself requires manual System Settings clicks.
 - **Screen Sharing** state via `launchctl load` may be gated by SIP.
-- **Full Disk Access grants themselves** — the entries in System Settings > Privacy & Security > Full
-  Disk Access — cannot be modified from the command line at all on macOS 26.1+ (the UI now only accepts
-  `.app` bundles, not arbitrary binaries) [40].
+- **Full Disk Access grants themselves**, the entries in System Settings > Privacy & Security > Full Disk
+  Access, cannot be modified from the command line at all on macOS 26.1+ (the UI now only accepts `.app`
+  bundles, not arbitrary binaries) [40].
 
 The honest workaround is to keep these out of automation entirely. The user's chezmoi runner should only
 manage `defaults`-friendly settings (Dock, Finder, keyboard, trackpad, screenshots, etc.) and a separate
 `docs/MACOS_MANUAL_SETUP.md` should document the things that genuinely require manual System Settings
-clicks — Full Disk Access grants for terminals, Remote Login enable, screen recording permissions,
+clicks, Full Disk Access grants for terminals, Remote Login enable, screen recording permissions,
 accessibility permissions, etc. Pretending these can be automated leads to scripts that silently fail on
 every fresh install.
 
 A more sophisticated path is to use signed `.mobileconfig` configuration profiles, which can grant TCC
-permissions and toggle restricted settings — but those require either a paid Apple Developer ID for
+permissions and toggle restricted settings, but those require either a paid Apple Developer ID for
 signing or manual install confirmation in System Settings, which moves the goalposts but doesn't
 eliminate manual clicks. For a single-user personal Mac, the manual checklist is the right answer; for a
 fleet, an MDM is the right answer; in between, configuration profiles signed with a self-signed cert are
@@ -559,7 +559,7 @@ updates", the path forward is declarative profiles, not `defaults write`.
 ### Rosetta deprecation warnings start in 26.4
 
 "Starting in macOS Tahoe 26.4, users will be notified when they launch apps that use Rosetta that they
-will not open in a future release of macOS" [41]. Not a defaults issue — but worth noting for the user's
+will not open in a future release of macOS" [41]. Not a defaults issue, but worth noting for the user's
 broader bootstrap planning. Any x86_64 Homebrew bottles in the Brewfile will start showing Rosetta
 warnings in late 2026, and will fail outright in macOS 27 or 28.
 
@@ -574,7 +574,7 @@ ever sets up a VPN configuration.
 A single user-discovered preference can disable most menu item icons in Apple's first-party apps,
 restoring a cleaner pre-Tahoe look. The exact key isn't documented officially but is circulating in macOS
 power-user circles. If the user wants this in their starter list, they'll need to grep the user's
-preferences after toggling manually once. (This is a recurring pattern for Tahoe-specific settings — many
+preferences after toggling manually once. (This is a recurring pattern for Tahoe-specific settings, many
 haven't been catalogued in macos-defaults.com yet.)
 
 ### /etc/zshrc and /etc/zprofile changed
@@ -591,7 +591,7 @@ settings should be in the YAML data file. The starter list in Finding 7 delibera
 declarative-profile-required, and deprecated areas, sticking to settings that are stable across the macOS
 24 → 26 transition and likely to remain stable into 27.
 
-### Finding 6: SIP, sudo, and TCC boundaries — what to keep out of automation
+### Finding 6: SIP, sudo, and TCC boundaries, what to keep out of automation
 
 Three privilege-related boundaries determine which settings belong in chezmoi automation versus a manual
 checklist:
@@ -600,7 +600,7 @@ checklist:
 
 `pmset` (power management) requires sudo; `systemsetup` requires admin privileges [42]. Settings written
 to `/Library/Preferences/` (system-wide) require sudo; settings written to `~/Library/Preferences/`
-(per-user) do not. Per the user's CLAUDE.md and global rules, automation should not sudo-prompt — chezmoi
+(per-user) do not. Per the user's CLAUDE.md and global rules, automation should not sudo-prompt, chezmoi
 scripts that require sudo will hang waiting for input from a non-interactive shell. The clean rule:
 **only per-user `defaults write` calls go in the chezmoi runner**. System-wide settings
 (`/Library/Preferences/com.apple.X` writes, pmset, systemsetup, launchctl load of system daemons) belong
@@ -608,7 +608,7 @@ in `dot_local/bin/macos-system-setup.sh` (a separately-invoked script the user r
 terminal, prompting for sudo once and applying everything in one batch).
 
 The user already has precedent for this split: `dot_local/bin/executable_ssh-hardening.sh` is exactly
-this pattern — manually invoked, requires sudo, modifies system state, runs once after Remote Login is
+this pattern, manually invoked, requires sudo, modifies system state, runs once after Remote Login is
 enabled. A `macos-system-setup.sh` script in the same shape would handle pmset and systemsetup calls.
 
 ### SIP-protected paths
@@ -623,7 +623,7 @@ want to touch these for personalization purposes; the starter list avoids them.
 TCC (Transparency, Consent, and Control) gates certain `defaults` and `systemsetup` operations behind
 Full Disk Access grants for the calling process. On Tahoe specifically, more operations are now TCC-gated
 than on prior macOS versions [11]. The user's terminal (Ghostty) would need Full Disk Access for
-TCC-gated automation to work, which itself requires manual System Settings clicks to grant — a
+TCC-gated automation to work, which itself requires manual System Settings clicks to grant, a
 chicken-and-egg situation that's not worth automating around.
 
 The same rule applies: keep TCC-gated settings out of the chezmoi runner. Document them in
@@ -633,14 +633,14 @@ per their `.chezmoidata/system_packages_autoinstall.yaml`).
 
 ### What this leaves for automation
 
-After excluding sudo-required, SIP-protected, and TCC-gated settings, the remaining surface — per-user
-`defaults write` to `~/Library/Preferences/` — is large and useful. Dock layout and behavior, Finder
+After excluding sudo-required, SIP-protected, and TCC-gated settings, the remaining surface, per-user
+`defaults write` to `~/Library/Preferences/`, is large and useful. Dock layout and behavior, Finder
 display preferences, keyboard repeat rates, trackpad gestures, screenshot location and format,
 screensaver password timing, text-editor defaults, mouse acceleration, menu bar clock formatting, hot
-corners — all of these live here and all are safe to automate via the chezmoi runner pattern. The starter
+corners, all of these live here and all are safe to automate via the chezmoi runner pattern. The starter
 list in Finding 7 stays inside this perimeter.
 
-### Finding 7: Concrete recommendation — files, schema, starter list
+### Finding 7: Concrete recommendation, files, schema, starter list
 
 The recommended structure adds three files to the chezmoi repo and a single justfile target. Nothing else
 changes.
@@ -660,7 +660,7 @@ namespace and matches the user's "scoped data" convention.
 #   - For arrays/dicts, see the docs/MACOS_MANUAL_SETUP.md (rare; not auto-managed).
 #   - Adding a setting: append a record. Removing: delete the line and run `just a`.
 #     (chezmoi will re-run the script because the YAML hash changes; existing
-#     settings on the live system that you removed from YAML are NOT deleted —
+#     settings on the live system that you removed from YAML are NOT deleted,
 #     manage those manually if you want them reverted.)
 macos:
   defaults:
@@ -693,7 +693,7 @@ might restart Dock/Finder for other reasons.
 ```bash
 #!/usr/bin/env bash
 {{- if eq .chezmoi.os "darwin" }}
-# macOS defaults applier — driven by .chezmoidata/macos_defaults.yaml.
+# macOS defaults applier, driven by .chezmoidata/macos_defaults.yaml.
 # This script is idempotent at the chezmoi-hash level: it only runs when the
 # YAML data file changes (the rendered template body changes, hash differs).
 # `defaults write` is overwrite-by-default and microsecond-cheap, so we don't
@@ -735,7 +735,7 @@ The drift checker. Read-only by construction (no `defaults write`), exits non-ze
 
 ```bash
 #!/usr/bin/env bash
-# macos-defaults-drift.sh — report drift between .chezmoidata/macos_defaults.yaml
+# macos-defaults-drift.sh, report drift between .chezmoidata/macos_defaults.yaml
 # and the live system's defaults state. Exits 0 if clean, 1 if drift detected.
 # Wired into the justfile as `just D`.
 set -euo pipefail
@@ -802,8 +802,8 @@ The single-letter `D` matches the user's existing convention (`d` is `chezmoi di
 
 ### Starter list of ~30 high-value defaults
 
-This is a starting point, not a deliverable — the user should curate. Each setting is verified to work
-via per-user `defaults write` (no sudo, no TCC) and is stable across macOS 24-26. Settings deliberately
+This is a starting point, not a deliverable, the user should curate. Each setting is verified to work via
+per-user `defaults write` (no sudo, no TCC) and is stable across macOS 24-26. Settings deliberately
 omitted: Dock persistent-apps (array; restore from a per-machine snapshot is more useful), Finder
 favorites sidebar (array; same reason), anything Apple Intelligence / Siri / Keyboard
 (declarative-profile territory now), anything Bluetooth / Remote Login / Screen Sharing (TCC-gated on
@@ -846,7 +846,7 @@ macos:
     - { domain: "com.apple.screencapture",   key: "type",                        type: string, value: "png" }
     - { domain: "com.apple.screencapture",   key: "disable-shadow",              type: bool,   value: true }
     - { domain: "com.apple.screencapture",   key: "show-thumbnail",              type: bool,   value: false }    # no floating preview
-    # location: ~/Pictures/Screenshots — set via the runner because it needs $HOME
+    # location: ~/Pictures/Screenshots, set via the runner because it needs $HOME
     - { domain: "com.apple.screencapture",   key: "location",                    type: string, value: "~/Pictures/Screenshots" }
 
     # ===== Screensaver =====
@@ -872,8 +872,8 @@ macos:
 
 That's 31 settings. The user should:
 
-1. Review each — some (like `tilesize: 48`, `orientation: bottom`) are taste preferences that should
-   match what the user already has on their main machine.
+1. Review each, some (like `tilesize: 48`, `orientation: bottom`) are taste preferences that should match
+   what the user already has on their main machine.
 1. Run `defaults read <domain> <key>` for each on a machine they like, and snapshot the values into the
    YAML.
 1. Add domain-specific killall entries if needed (e.g., `Mail` for Mail.app preferences).
@@ -899,15 +899,15 @@ No manual handholding beyond chezmoi init. The user's hard requirement #1 is met
 Add a setting:
 
 1. Edit `.chezmoidata/macos_defaults.yaml`, append a record.
-1. `just l` (lint) — yq validates structure, shellcheck stays happy.
-1. `just a` (chezmoi apply) — runner re-runs because YAML hash changed.
+1. `just l` (lint), yq validates structure, shellcheck stays happy.
+1. `just a` (chezmoi apply), runner re-runs because YAML hash changed.
 
 Remove a setting:
 
 1. Delete the line from YAML.
-1. `just a` — runner runs but no longer writes that key. **Caveat:** the live system still has the value
+1. `just a`, runner runs but no longer writes that key. **Caveat:** the live system still has the value
    you deleted. If you want it reverted to macOS default, run `defaults delete <domain> <key>` manually.
-   (This asymmetry — chezmoi-managed adds vs unmanaged removes — is a fundamental property of
+   (This asymmetry, chezmoi-managed adds vs unmanaged removes, is a fundamental property of
    `defaults write`, not specific to the recommendation.)
 
 The user's hard requirement #4 (one-file edit) is met for adds; removes require a separate one-time
@@ -921,20 +921,20 @@ The competitive landscape for macOS defaults management spans from "declarative-
 Nix module, full type checking and dependency graphs) to "imperative-pure" (mathiasbynens-style 200-line
 bash script with inlined `defaults write` calls). Most third-party tools (dsully, koenrh, RATIU5) sit in
 the middle: a YAML/TOML data file consumed by a binary runner. The marketing pitch for the middle tier is
-consistent — "one file declares your settings, the binary applies them, and you get drift detection /
-type safety / kill-list management for free." For users running this on shared infrastructure or
-maintaining settings for a fleet, that pitch is correct: the per-tool overhead amortizes across many
-users and many settings.
+consistent, "one file declares your settings, the binary applies them, and you get drift detection / type
+safety / kill-list management for free." For users running this on shared infrastructure or maintaining
+settings for a fleet, that pitch is correct: the per-tool overhead amortizes across many users and many
+settings.
 
 For a single-developer personal Mac with ~30 settings, the math inverts. The "binary runner" tier
 requires you to track upstream releases (nix-darwin issues new releases monthly, dsully releases yearly,
 koenrh has no releases), debug binary-specific failure modes (nix-darwin's activateSettings gap, dsully's
 --dry-run bug), and accept a new dependency category in your toolchain. Meanwhile, the "imperative bash"
-approach has been doing the same work for fifteen years with negligible failure rate — `defaults write`
-is one of the most stable interfaces Apple ships, and a
+approach has been doing the same work for fifteen years with negligible failure rate, `defaults write` is
+one of the most stable interfaces Apple ships, and a
 `for setting in list; do defaults write $setting; done` loop is two lines.
 
-The recommendation in this report — `.chezmoidata/macos_defaults.yaml` + thin runner — captures the
+The recommendation in this report, `.chezmoidata/macos_defaults.yaml` + thin runner, captures the
 data/code separation that makes the "middle tier" attractive without paying the binary runner's cost. The
 data lives as data; the runner is a stable 30-line consumer that rarely changes; chezmoi's hash gate
 handles idempotency externally rather than baking it into the runner. This is the "trust the wrapper,
@@ -945,7 +945,7 @@ best.
 
 The user's existing repository already shows this pattern at work. The Brewfile script
 (`run_onchange_before_10-system-packages.sh.tmpl`) doesn't bother checking whether a Homebrew formula is
-already installed before running `brew bundle` — it trusts that `brew bundle` is fast on a no-op and that
+already installed before running `brew bundle`, it trusts that `brew bundle` is fast on a no-op and that
 chezmoi won't run the script unless the YAML data has changed. The same logic applies to defaults:
 `defaults write` is fast on a no-op, and chezmoi won't run the script unless the data has changed. By
 treating chezmoi as the orchestration layer, individual scripts can stay small and focused on their
@@ -960,7 +960,7 @@ schema would only surface at apply-time instead of pre-commit-time.
 
 ### The drift-detection insight
 
-The user's requirement for drift detection is the single point where dsully looks most attractive — its
+The user's requirement for drift detection is the single point where dsully looks most attractive, its
 `--exit-code N` plumbing (when `--dry-run` works, post-fix-release) gives you "tell me if the system has
 drifted" as a one-liner. But the same capability in 50 lines of bash is plausibly *better* for this user,
 because: (a) the bash version reads the same data file the runner uses, so there's one source of truth
@@ -984,9 +984,9 @@ investment in an elaborate tool for managing the shrinking command-line surface 
 investment in a thin, easily-modifiable wrapper that the user owns and can adapt is more durable.
 
 The honest framing for a 2026 dotfiles author: `defaults write` is a stable but shrinking interface. The
-chezmoi runner pattern handles what's left of it gracefully. The remainder — TCC grants,
-declarative-profile settings, anything Apple Intelligence — should be documented as manual setup steps
-and re-evaluated as Apple's tooling evolves (or as the user moves to a fleet-management context where MDM
+chezmoi runner pattern handles what's left of it gracefully. The remainder, TCC grants,
+declarative-profile settings, anything Apple Intelligence, should be documented as manual setup steps and
+re-evaluated as Apple's tooling evolves (or as the user moves to a fleet-management context where MDM
 becomes appropriate).
 
 ### The "configuration profile" escape hatch
@@ -1011,7 +1011,7 @@ Two findings rest on single sources or single observations:
    softens. Re-check before adopting dsully.
 1. **Zero public chezmoi+nix-darwin defaults-only precedent**: a negative finding from a single GitHub
    code search. It's possible such a setup exists in private repos or has been discussed informally; the
-   absence of a public example doesn't mean nobody has done it. The point stands directionally — there's
+   absence of a public example doesn't mean nobody has done it. The point stands directionally, there's
    no documented playbook to copy from.
 
 ### Starter list is opinionated
@@ -1020,21 +1020,21 @@ The 31-setting starter list reflects a generalist developer's preferences (fast 
 Dock, list-view Finder, plain-text TextEdit). The user should treat it as a discussion document, not a
 final answer. Some settings (like `Clicking: true` for tap-to-click) are matters of muscle memory; others
 (like `_FXShowPosixPathInTitle: true`) are workflow-specific. Settings the user doesn't care about should
-be removed from the YAML — every entry is a small ongoing maintenance burden (Apple may rename or
+be removed from the YAML, every entry is a small ongoing maintenance burden (Apple may rename or
 deprecate keys across versions).
 
 ### macOS 26 may further tighten
 
 Apple's enterprise documentation indicates ongoing migration of restrictions from `defaults`-style
 preferences to declarative configuration profiles. Settings that work in macOS 26.2 (the user's current
-version) may not work in 26.5 or 27.0. The recommended pattern is robust to this — settings that stop
+version) may not work in 26.5 or 27.0. The recommended pattern is robust to this, settings that stop
 working will fail visibly when `defaults write` returns nonzero, and the drift checker will flag them as
 `<unset>` even though declared. But the starter list will require maintenance over time.
 
 ### Scalar-only schema
 
 The recommended YAML schema handles scalar values (bool, int, float, string) cleanly. Arrays and
-dictionaries (e.g., Dock persistent-apps) are not handled. This is a deliberate trade-off — the v1
+dictionaries (e.g., Dock persistent-apps) are not handled. This is a deliberate trade-off, the v1
 implementation stays small and the data file stays readable. If the user wants to manage array/dict
 settings, the cleanest path is a separate `dot_config/macos/dock-layout.plist` checked into the repo and
 applied via `defaults import com.apple.dock dock-layout.plist` from the runner. Treat this as a v2
@@ -1044,7 +1044,7 @@ extension if the need materializes.
 
 The drift checker reports drift, exits non-zero, but does not write. Restore is a separate explicit step
 (`just defaults-apply` calls the reapplier script described in Finding 7). This is a deliberate safety
-choice — auto-restore on detection would be surprising and could fight against an intentional manual
+choice, auto-restore on detection would be surprising and could fight against an intentional manual
 change the user made temporarily. Manual reapply is a small two-step (drift-check → reapply) but keeps
 the tool's effects predictable.
 
@@ -1104,11 +1104,11 @@ Not load-bearing for v1.
   primaryUser ceremony, four open Tahoe issues) is not justified for defaults-only use.
 - Do **not** install dsully/macos-defaults *until* a release ships with the `--dry-run` fix. The Homebrew
   bottle currently in the tap is 0.3.0 with the bug.
-- Do **not** try to automate TCC-gated settings (Bluetooth, Remote Login, Screen Sharing) via `defaults`
-  — it will silently fail on Tahoe. Document them as manual steps.
+- Do **not** try to automate TCC-gated settings (Bluetooth, Remote Login, Screen Sharing) via `defaults`:
+  it will silently fail on Tahoe. Document them as manual steps.
 - Do **not** add `defaults read` / skip-if-already-set logic to the runner. Trust the chezmoi hash gate.
 - Do **not** put system-wide settings (`/Library/Preferences/`, `pmset`, `systemsetup`) into the chezmoi
-  runner — they require sudo and will hang in non-interactive contexts. Use a separate manually-invoked
+  runner, they require sudo and will hang in non-interactive contexts. Use a separate manually-invoked
   `macos-system-setup.sh` script in the same shape as the existing `ssh-hardening.sh`.
 
 ## Bibliography
@@ -1132,7 +1132,7 @@ nix-darwin GitHub. https://github.com/nix-darwin/nix-darwin/blob/master/modules/
 [6] nix-darwin contributors (2025). "Issue #1621: Tahoe modified /etc/zshrc and /etc/zprofile (closed)."
 nix-darwin GitHub. https://github.com/nix-darwin/nix-darwin/issues/1621 (Retrieved: 2026-04-26)
 
-[7] nix-darwin contributors (2025). "Issue #1544: nix-darwin on macOS Tahoe — sudo: darwin-rebuild:
+[7] nix-darwin contributors (2025). "Issue #1544: nix-darwin on macOS Tahoe, sudo: darwin-rebuild:
 command not found (open)." nix-darwin GitHub. https://github.com/nix-darwin/nix-darwin/issues/1544
 (Retrieved: 2026-04-26)
 
@@ -1142,7 +1142,7 @@ https://github.com/nix-darwin/nix-darwin/issues/1577 (Retrieved: 2026-04-26)
 [9] nix-darwin contributors (2025). "Issue #1513: macOS 26: failed to stitch firmlinks (open)."
 nix-darwin GitHub. https://github.com/nix-darwin/nix-darwin/issues/1513 (Retrieved: 2026-04-26)
 
-[10] GitHub Code Search (2026). "Query: 'darwin-rebuild' chezmoi language:Shell — total: 0 results."
+[10] GitHub Code Search (2026). "Query: 'darwin-rebuild' chezmoi language:Shell, total: 0 results."
 GitHub. https://github.com/search?q=%22darwin-rebuild%22+chezmoi+language%3AShell&type=code (Retrieved:
 2026-04-26)
 
@@ -1255,7 +1255,7 @@ https://support.apple.com/en-us/124963 (Retrieved: 2026-04-26)
 [42] ss64.com (2026). "SYSTEMSETUP Command: Configure System Preferences in macOS."
 https://ss64.com/mac/systemsetup.html (Retrieved: 2026-04-26)
 
-[43] Bertrand, Y. (2026). "macos-defaults.com — A list of macOS defaults commands with demos."
+[43] Bertrand, Y. (2026). "macos-defaults.com, A list of macOS defaults commands with demos."
 https://macos-defaults.com/ (Retrieved: 2026-04-26)
 
 [44] chezmoi (2026). "Reference: .chezmoidata special directory." chezmoi documentation.
@@ -1273,7 +1273,7 @@ https://developer.apple.com/documentation/macos-release-notes/macos-26-release-n
 
 [48] Wikipedia (2026). "macOS Tahoe." https://en.wikipedia.org/wiki/MacOS_Tahoe (Retrieved: 2026-04-26)
 
-[49] Ansible Community (2026). "community.general.osx_defaults module — Manage macOS user defaults."
+[49] Ansible Community (2026). "community.general.osx_defaults module, Manage macOS user defaults."
 Ansible documentation.
 https://docs.ansible.com/projects/ansible/latest/collections/community/general/osx_defaults_module.html
 (Retrieved: 2026-04-26)
@@ -1323,7 +1323,7 @@ actual environment rather than a hypothetical one.
 
 The deep-research approach favors documented evidence over expert opinion, which can underweight insider
 knowledge that hasn't made it into docs. For this report specifically: (a) the dsully tool's bus-factor
-critique reflects publicly-visible commit and contributor data only — the maintainer may have private
+critique reflects publicly-visible commit and contributor data only, the maintainer may have private
 maintenance plans that change the calculus; (b) Apple's enterprise documentation is the source of truth
 for Tahoe policy changes, but specific pre-release behavior in 26.5+ is not yet documented; (c) the
 starter list of ~30 settings reflects a "generalist developer" persona and may not match the user's
@@ -1331,9 +1331,9 @@ specific tastes.
 
 ### What was deliberately not researched
 
-- **MDM (Jamf, Kandji, Mosyle) approaches** — out of scope for a single-developer personal Mac.
-- **Legacy macOS versions** — the user's machine is on 26.2; no Catalina/Big Sur compatibility analysis.
-- **Multi-user / role-based settings** — single-user personal machine assumed.
-- **Backup/restore of existing system settings** before applying — the cweagans-style `.prev` plist
-  backup is one approach, but adds complexity not justified at v1; rely on Time Machine + the repo's git
-  history instead.
+- **MDM (Jamf, Kandji, Mosyle) approaches**, out of scope for a single-developer personal Mac.
+- **Legacy macOS versions**, the user's machine is on 26.2; no Catalina/Big Sur compatibility analysis.
+- **Multi-user / role-based settings**, single-user personal machine assumed.
+- **Backup/restore of existing system settings** before applying, the cweagans-style `.prev` plist backup
+  is one approach, but adds complexity not justified at v1; rely on Time Machine + the repo's git history
+  instead.

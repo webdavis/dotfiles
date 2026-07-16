@@ -21,7 +21,7 @@ packages:
       # gate. The pre-bundle loop in run_onchange_before_10-system-packages.sh.tmpl
       # runs `brew trust --tap` for each (covers command taps too). The gate is a
       # load-time check, so an untrusted tap only fails when brew must (re)load it
-      # — on a fresh install or an upgrade — which is why trusting all of them up
+      #, on a fresh install or an upgrade, which is why trusting all of them up
       # front is what keeps `brew bundle` from tripping. Keep in sync with `taps:`.
       trusted_taps:
         - antoniorodr/memo

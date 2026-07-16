@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# herdr-plugin-tests.sh — gate the herdr plugin Rust suites in `just test`.
+# herdr-plugin-tests.sh, gate the herdr plugin Rust suites in `just test`.
 #
 # The two vendored herdr plugins (herdr-last-workspace, herdr-smart-nav) carry
-# cfg(test) unit suites, but nothing in `just test` ran them — a plugin
+# cfg(test) unit suites, but nothing in `just test` ran them, a plugin
 # regression would only surface at `chezmoi apply` time (the build script) or,
 # worse, at runtime. This script runs `cargo test --locked` for BOTH plugins so
 # the pre-commit hook (which runs `just test`) blocks the regression instead.
 #
-# cargo is resolved at the deterministic rustup path "$HOME/.cargo/bin/cargo" —
+# cargo is resolved at the deterministic rustup path "$HOME/.cargo/bin/cargo",
 # the SAME path the build partial (.chezmoitemplates/herdr-plugin-build.sh.tmpl)
 # uses; keep the two consistent so this test exercises the toolchain the build
 # would actually use, never a stray PATH cargo.
@@ -16,7 +16,7 @@
 # run with host tools outside the Nix shell, and neither CI's nix devshell nor a
 # fresh machine (before run_once_before_20 provisions rustup) has cargo at
 # ~/.cargo/bin. Failing there would turn a missing host toolchain into a
-# permanently red suite; the host pre-commit — where cargo exists — is where
+# permanently red suite; the host pre-commit, where cargo exists, is where
 # this gate bites. Same posture as the chezmoi/jq guards in the sibling tests.
 set -euo pipefail
 

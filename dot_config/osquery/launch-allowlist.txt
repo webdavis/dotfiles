@@ -1,19 +1,19 @@
-# launch-allowlist.txt — known-good launchd labels to keep out of the quiet #osquery log.
+# launch-allowlist.txt, known-good launchd labels to keep out of the quiet #osquery log.
 #
 # Format: one launchd Label (or StartupItem / crontab name) per line. Lines
 # beginning with '#' and blank lines are ignored; surrounding whitespace is
 # stripped. Matching is exact (whole-label).
 #
-# Effect: a launch-item finding — a new/changed LaunchAgent, LaunchDaemon,
-# StartupItem, or crontab entry — whose label exactly matches a line here is
+# Effect: a launch-item finding, a new/changed LaunchAgent, LaunchDaemon,
+# StartupItem, or crontab entry, whose label exactly matches a line here is
 # dropped from the #osquery channel, so your own routine agents stop showing up.
 #
 # SAFETY (default-deny, fail-open, CRIT-exempt):
-#   - Anything NOT listed here still surfaces — this is an allowlist, never a
+#   - Anything NOT listed here still surfaces, this is an allowlist, never a
 #     blocklist. An empty or missing file suppresses nothing.
 #   - This ONLY quiets the #osquery log. A CRITICAL finding is NEVER suppressed:
 #     an UNSIGNED / ad-hoc / untrusted launch item, a protection turned off, or
-#     ssh/sudoers tampering always reaches #priority — even if its label is
+#     ssh/sudoers tampering always reaches #priority, even if its label is
 #     listed here. So listing a label cannot hide an untrusted item that reused
 #     that label; the signing check still escalates it.
 #

@@ -13,7 +13,7 @@ matches:
 
   - trigger: ";;con"
     replace: "conscientious"
-  # Note: ';;con' (convenient) was the colliding entry — removed; use full word 'convenient'.
+  # Note: ';;con' (convenient) was the colliding entry, removed; use full word 'convenient'.
 
   - trigger: ";;ao"
     replace: "anyone"
@@ -36,7 +36,7 @@ matches:
 
   - trigger: ";;et"
     replace: "everything"
-  # Note: ';;evt' removed — duplicate of ';;et' (§6.5)
+  # Note: ';;evt' removed, duplicate of ';;et' (§6.5)
 
   - trigger: ";;exp"
     replace: "experience"
@@ -102,7 +102,7 @@ matches:
 
   - trigger: ";;rn"
     replace: "right now"
-  # Note: bare 'rn' trigger removed — duplicate of ';;rn' (§6.5)
+  # Note: bare 'rn' trigger removed, duplicate of ';;rn' (§6.5)
 
   - trigger: ";;com"
     replace: "communication"
@@ -319,11 +319,11 @@ matches:
   - trigger: ",,wno"
     label: White noise
     replace: "https://www.youtube.com/watch?v=nMfPqeZjc2c"
-  # Note: was ';;wn' — became ',,wno' (3-letter per convention)
+  # Note: was ';;wn', became ',,wno' (3-letter per convention)
 
   - trigger: ",,azo"
     replace: "https://www.amazon.com/gp/css/order-history"
-  # Note: was ';;ao' — renamed to ',,azo' to fix collision with ';;ao' (anyone) (§6.4)
+  # Note: was ';;ao', renamed to ',,azo' to fix collision with ';;ao' (anyone) (§6.4)
 
   - trigger: ",,ro"
     replace: "https://100.64.18.88/"
@@ -339,7 +339,7 @@ matches:
 
   - trigger: ",,ghu"
     replace: "https://www.github.com/"
-  # Note: was ';;gh' in browser.yml — renamed to ',,ghu' to fix collision with ';;gh' (GitHub title) (§6.4)
+  # Note: was ';;gh' in browser.yml, renamed to ',,ghu' to fix collision with ';;gh' (GitHub title) (§6.4)
 
   - trigger: ",,jda"
     replace: "https://www.github.com/karlmdavis/justdavis-ansible/"
@@ -351,7 +351,7 @@ matches:
 
   - trigger: ",,efc"
     replace: "https://www.github.com/webdavis/essential-feed-case-study/"
-  # Note: was ';;ed' in browser.yml — renamed to ',,efc' to fix collision with ';;ed' (everyday) (§6.4)
+  # Note: was ';;ed' in browser.yml, renamed to ',,efc' to fix collision with ';;ed' (everyday) (§6.4)
 
   # ── Project names (,, triggers; literal kebab-case identifiers) ──────────
 

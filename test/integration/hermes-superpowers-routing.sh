@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
-# hermes-superpowers-routing.sh — proves assert-hermes-superpowers-routing.sh, offline.
+# hermes-superpowers-routing.sh, proves assert-hermes-superpowers-routing.sh, offline.
 #
 # The live ~/.hermes/skills/hermes-superpowers mirror is hand-patched so skills
 # with hermes-native adaptations are referenced by their adaptation names, not
 # superpowers:<name>. Any re-mirror stomps those patches; the transform script
 # re-applies them from the lock's superpowersRouting table. The real script
 # runs unmodified in a sandbox: a scratch HOME whose fixture tree is modeled on
-# the REAL upstream reference shapes found in recon of the live mirror —
+# the REAL upstream reference shapes found in recon of the live mirror,
 # colon-form refs (prose, bold related-skills lists, graphviz nodes), the
 # slash-commands dispatcher with skill_view(name="...") literals and the
 # {skill_name} placeholder, and frontmatter name: lines. Assertions:
 #   1. Every mapped superpowers:<base> reference is rewritten to the mapped
-#      adaptation name — including a pair whose adaptation name differs from
+#      adaptation name, including a pair whose adaptation name differs from
 #      the bare base name, so the script provably reads the VALUE from data
 #      (all five production pairs are identity-after-prefix-strip).
 #   2. Non-mapped references survive byte-identical: other superpowers:* skills
@@ -28,7 +28,7 @@
 #   9. An absent mirror dir is a graceful skip: exit 0 (fresh machine before
 #      hermes setup).
 #  10. The weekly wiring: an update-skills.sh run heals a stomped tree through
-#      its routing re-assert pass and logs the drift loudly — deleting the
+#      its routing re-assert pass and logs the drift loudly, deleting the
 #      assert_superpowers_routing call cannot go unnoticed.
 set -euo pipefail
 
@@ -53,7 +53,7 @@ TREE="$HOME/.hermes/skills/hermes-superpowers"
 mkdir -p "$HOME/.agents" "$TREE"
 
 # The lock: the five production pairs plus one pair whose adaptation name is
-# NOT the bare base name — the canary that catches a transform which strips
+# NOT the bare base name, the canary that catches a transform which strips
 # the superpowers- prefix instead of reading the mapped value. `anchor` is an
 # npx-tracked skill kept healthy in the store below, so the roster's tracked
 # union is non-empty (update-skills' zero-union gate refuses any mutation run
@@ -157,7 +157,7 @@ Dispatch superpowers:code-reviewer subagent to catch issues before they cascade.
 Use Task tool with superpowers:code-reviewer type, fill template at `code-reviewer.md`
 EOF
 
-# Support file beyond SKILL.md — the exact stale line found live in recon.
+# Support file beyond SKILL.md, the exact stale line found live in recon.
 cat >"$TREE/superpowers-writing-skills/testing-skills-with-subagents.md" <<'EOF'
 # Testing Skills With Subagents
 

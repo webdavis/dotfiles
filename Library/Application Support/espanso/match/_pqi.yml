@@ -23,7 +23,7 @@ matches:
 
   - trigger: ";;na"
     replace: "It's not applicable."
-  # Note: was 2× — second entry "It doesn't apply." removed (§6.4); use ;;da for that phrasing.
+  # Note: was 2×, second entry "It doesn't apply." removed (§6.4); use ;;da for that phrasing.
 
   - trigger: ";;sk"
     replace: "skip it"

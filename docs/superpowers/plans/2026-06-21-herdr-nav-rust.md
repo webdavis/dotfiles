@@ -13,8 +13,8 @@
 ## Global Constraints
 
 - **Behavior parity** with `executable_herdr-smart-nav.sh`: `left=ctrl+h, down=ctrl+j, up=ctrl+k, right=ctrl+l`; detect nvim via `herdr pane process-info`; nvim→`herdr pane send-keys`, else→`herdr pane focus --direction`; no `HERDR_ACTIVE_PANE_ID`→`focus --current`; bad arg→exit 2.
-- **Pure core unit-tested; herdr shell-outs untested** (no live server in tests) — same boundary as `last-workspace`.
-- **No reimplementing herdr's socket protocol** (preview/undocumented; out of scope) — shell the `herdr` CLI.
+- **Pure core unit-tested; herdr shell-outs untested** (no live server in tests), same boundary as `last-workspace`.
+- **No reimplementing herdr's socket protocol** (preview/undocumented; out of scope). Shell the `herdr` CLI.
 - Cargo: `edition = "2021"`, dep `serde_json = "1"`, **`Cargo.lock` vendored**, build `--locked`.
 - Connection-safe (cargo build + a nav-keybinding swap; no network/SSH/Tailscale). Every commit passes the pre-commit hook (`just lint-check` + `just test`); `cargo test` must pass.
 - Edits to `dot_config/herdr/config.toml` must stay `taplo`-clean.
@@ -43,7 +43,7 @@ edition = "2021"
 serde_json = "1"
 ```
 
-- [ ] **Step 2: `src/main.rs` — tests + compiling stubs** (so `cargo test` compiles and *fails*)
+- [ ] **Step 2: `src/main.rs`: tests + compiling stubs** (so `cargo test` compiles and *fails*)
 
 ```rust
 use std::env;
@@ -135,7 +135,7 @@ mod tests {
 - [ ] **Step 3: Run tests, verify they fail**
 
 Run: `cd dot_local/share/herdr/herdr-smart-nav && cargo test`
-Expected: compiles; FAILS — `direction_to_chord_maps_all_four` (got `None`), `is_nvim_foreground_true_when_present` (got false), `decide_sendkeys_when_nvim`/`decide_focus_when_not_nvim` (got `FocusCurrent`).
+Expected: compiles; FAILS: `direction_to_chord_maps_all_four` (got `None`), `is_nvim_foreground_true_when_present` (got false), `decide_sendkeys_when_nvim`/`decide_focus_when_not_nvim` (got `FocusCurrent`).
 
 - [ ] **Step 4: Implement the pure core** (replace the three stubs)
 
@@ -279,7 +279,7 @@ rm -f "$HOME/.local/bin/herdr-smart-nav.sh"
 {{ end -}}
 ```
 
-- [ ] **Step 2: Add to `find_shell_templates`** — `scripts/lint.sh`, after the homebrew-weekly-upgrade loader line
+- [ ] **Step 2: Add to `find_shell_templates`**: `scripts/lint.sh`, after the homebrew-weekly-upgrade loader line
 
 ```bash
     -o -name "run_onchange_after_65-load-homebrew-weekly-upgrade-launchagent.sh.tmpl" \
@@ -309,7 +309,7 @@ git commit -m "feat(herdr): build+install script for herdr-smart-nav + lint wiri
 - Remove: `dot_local/bin/executable_herdr-smart-nav.sh`
 - Modify: `CLAUDE.md` (one-line note under "### Herdr Workspace Management")
 
-- [ ] **Step 1: Repoint the bindings + comment** — `dot_config/herdr/config.toml`
+- [ ] **Step 1: Repoint the bindings + comment**: `dot_config/herdr/config.toml`
 
 Replace every occurrence of `herdr-smart-nav.sh` with `herdr-smart-nav` (4 `command = "$HOME/.local/bin/herdr-smart-nav.sh <dir>"` lines → drop `.sh`; the comment at line ~175 likewise). Use an exact replace-all of the string `herdr-smart-nav.sh` → `herdr-smart-nav`.
 
@@ -319,18 +319,18 @@ Replace every occurrence of `herdr-smart-nav.sh` with `herdr-smart-nav` (4 `comm
 git rm dot_local/bin/executable_herdr-smart-nav.sh
 ```
 
-- [ ] **Step 3: CLAUDE.md note** — append to the "### Herdr Workspace Management" section
+- [ ] **Step 3: CLAUDE.md note**: append to the "### Herdr Workspace Management" section
 
 ```markdown
 Ctrl-h/j/k/l "seamless nav across Neovim splits and herdr panes" is a compiled Rust binary
 (`~/.local/bin/herdr-smart-nav`, source `dot_local/share/herdr/herdr-smart-nav/`, built by
 `run_onchange_after_56`), not a shell script. It shells the `herdr` CLI (no Rust SDK exists); the speedup
-over the old `.sh` is small (~5ms, bash+jq removed) — the value is a unit-tested binary, not felt speed.
+over the old `.sh` is small (~5ms, bash+jq removed), the value is a unit-tested binary, not felt speed.
 ```
 
 - [ ] **Step 4: Validate + commit**
 
-Run: `just t` (taplo — config.toml clean) and `just m` (mdformat — CLAUDE.md)
+Run: `just t` (taplo, config.toml clean) and `just m` (mdformat, CLAUDE.md)
 Expected: ✅.
 
 ```bash
@@ -378,7 +378,7 @@ Expected: usage-exit 2; all ✅. The real nav (focus move / nvim forward) is exe
 
 **Spec coverage:** pure core + tests → Task 1; thin herdr boundary + main → Task 1 Step 6; build/install mirroring the plugin → Task 2; keybinding repoint + script removal → Task 3; lint wiring → Task 2; CLAUDE.md → Task 3; activate/verify → Task 4; "no socket reimpl" honored (shells CLI). No gaps.
 
-**Placeholder scan:** none — full Cargo.toml, full `main.rs` (stubs + real), full build script, exact edits and commands.
+**Placeholder scan:** none: full Cargo.toml, full `main.rs` (stubs + real), full build script, exact edits and commands.
 
 **Type/name consistency:** `Action` variants (`SendKeys{pane,chord}`, `Focus{pane,direction}`, `FocusCurrent{direction}`) are identical in the enum decl (Step 2), `decide` (Step 4), `execute` (Step 6), and the tests. `direction_to_chord`/`is_nvim_foreground`/`decide` signatures match between stubs (Step 2), real impls (Step 4), and call sites (Step 6). Binary name `herdr-smart-nav` is identical across Cargo.toml, the build script's `install`, the keybinding, and Task 4.
 

@@ -1,36 +1,36 @@
 # Dotfiles Improvements Design Spec (v2)
 
 **Date:** 2026-04-17 **Supersedes:** `docs/superpowers/specs/2026-04-14-dotfiles-improvements-design.md`
-**Scope:** Core "fix & tighten" sub-project — shell, tmux, sesh, worktrunk, espanso, configs, Claude
+**Scope:** Core "fix & tighten" sub-project: shell, tmux, sesh, worktrunk, espanso, configs, Claude
 Code, plus template/bootstrap/manifest hygiene. **Out of scope (deferred):** Neovim overhaul, macOS
 defaults script, Claude Code Review GH Action, `settings.local.json` templating, theme unification,
 launchctl modernization, per-profile shell consolidation.
 
 ## What changed from v1
 
-- **Technical corrections** — Claude Code Action v1 input schema was wrong; Stop and UserPromptSubmit
+- **Technical corrections**: Claude Code Action v1 input schema was wrong; Stop and UserPromptSubmit
   hooks don't support matchers; Notification hook does (`permission_prompt`, `idle_prompt`,
   `auth_success`, `elicitation_dialog`); hooks receive JSON on stdin, NOT env vars (no
-  `CLAUDE_SESSION_ID` exists); `cleanupPeriodDays` **does** exist (v2-early-draft claimed it didn't —
+  `CLAUDE_SESSION_ID` exists); `cleanupPeriodDays` **does** exist (v2-early-draft claimed it didn't,
   corrected); `terminal-notifier` abandoned since 2017 → `alerter` via `vjeantet/tap`;
   `b0o/tmux-autoreload` archived Oct 2025; sesh `separator_aware` key not documented; atuin search keys
   are top-level (not nested under `[search]`); macOS `date -Is` isn't supported (use `gdate` or portable
   format).
-- **Architectural simplifications** — Espanso 7 files → 5; smart-startup dashboard simplified and made
+- **Architectural simplifications**: Espanso 7 files → 5; smart-startup dashboard simplified and made
   opt-in; Hue pulse skips scene save/restore; `settings.local.json.tmpl` cut; Claude Code Review GH
   Action cut; SSH commit signing dropped (GPG+KeePassXC already solves it); KeePassXC preflight script
   cut (the existing `CLAUDE.md` guidance is sufficient); MCP config left unmanaged; **rbenv removed
-  entirely** (user doesn't use Ruby — v1 and v2-early lazy-loaded it; v2-final cuts it). Starship's
+  entirely** (user doesn't use Ruby, v1 and v2-early lazy-loaded it; v2-final cuts it). Starship's
   `cmd_duration` module added for in-prompt duration display, complementing §7.1's notification triggers.
-- **Hardened** — AI commit hook gets 5KB truncation, 4-second timeout, merge/rebase/cherry-pick guards,
+- **Hardened**: AI commit hook gets 5KB truncation, 4-second timeout, merge/rebase/cherry-pick guards,
   `SKIP_AI_COMMIT=1` escape hatch; Claude Stop hook gated on 5-minute session duration (computed from
   stdin-parsed `session_id`).
-- **New scope** — Sections §13–§21 added: user-customization migration, template hygiene pass, bootstrap
+- **New scope**: Sections §13 to §21 added: user-customization migration, template hygiene pass, bootstrap
   hardening, shell productivity additions, package manifest cleanup, user-bin script fixes, lint/CI
   expansion, `dot_claude/` surface expansion, passive tmux window/pane status indicators (emoji in window
   list + `last-proc` tmux2k plugin showing the previously-active session's window state).
-- **Tart reframed** — Kept, but positioned as general-purpose macOS sandbox (not just `act` Layer 2).
-- **Already-wired items flagged** — `direnv` hook, `gh completion`, just/openclaw/git completions are
+- **Tart reframed**: Kept, but positioned as general-purpose macOS sandbox (not just `act` Layer 2).
+- **Already-wired items flagged**: `direnv` hook, `gh completion`, just/openclaw/git completions are
   already wired in the current `dot_bashrc.tmpl`; v2 notes these as "no action needed" rather than
   treating them as adds.
 
@@ -58,10 +58,10 @@ invocation so new machines don't need a manual launch.
 
 **Records (sync v2):** opt in to the records-based storage protocol now. This will become the default in
 a future atuin release; setting it explicitly means the local DB migrates to the v2 format on next run
-(non-destructive — atuin handles the conversion). No immediate behavior change while `auto_sync = false`,
+(non-destructive, atuin handles the conversion). No immediate behavior change while `auto_sync = false`,
 but future-proofs the config and positions you to turn sync on later without a schema migration.
 
-Moves the existing top-level `auto_sync = false` under `[sync]` for tidiness — remove the old top-level
+Moves the existing top-level `auto_sync = false` under `[sync]` for tidiness. Remove the old top-level
 line when adding the table.
 
 ### 1.2 Filter and search modes
@@ -120,8 +120,8 @@ fi
 
 ### 2.2 Remove SDKMan
 
-- Remove the sdkman init block from `dot_bashrc.tmpl` (including the hidden `curl | bash` auto-installer
-  — moving it to a chezmoi script is explicitly rejected; SDKMan is not wanted).
+- Remove the sdkman init block from `dot_bashrc.tmpl` (including the hidden `curl | bash` auto-installer,
+  moving it to a chezmoi script is explicitly rejected; SDKMan is not wanted).
 - Delete `~/.sdkman/` directory from disk.
 
 ### 2.3 Remove skhd
@@ -131,7 +131,7 @@ fi
 
 ### 2.4 Remove bash history
 
-Strip the following from `dot_bashrc.tmpl` (verified lines 41–55):
+Strip the following from `dot_bashrc.tmpl` (verified lines 41-55):
 
 - `shopt -s histappend`
 - `history_file_size=5000000`
@@ -139,7 +139,7 @@ Strip the following from `dot_bashrc.tmpl` (verified lines 41–55):
 - `export HISTFILESIZE=...`
 - `export HISTFILE="$HOME/.bash_history"`
 - `export HISTCONTROL=...`
-- The entire `HISTIGNORE` template block (lines 51–55) including the `{{- if (env "CI") }}` /
+- The entire `HISTIGNORE` template block (lines 51-55) including the `{{- if (env "CI") }}` /
   `{{- else }}` KeePassXC template. Atuin's `secrets_filter` handles the same job.
 
 Atuin daemon handles all recording; bash's built-in history becomes dead weight.
@@ -171,7 +171,7 @@ action needed for these.
 All wrapped in `command -v TOOL &>/dev/null && eval "..."` guards so absent tools don't error.
 
 **Deferred to carapace (§16.3)** for tools with interactive or awkward bash-completion output: rbenv,
-deno, bun. Carapace handles these via its universal spec layer — simpler than maintaining per-tool `eval`
+deno, bun. Carapace handles these via its universal spec layer, simpler than maintaining per-tool `eval`
 glue.
 
 ### 2.8 Bash bindings fix
@@ -187,11 +187,11 @@ Fix em-dash encoding bug in `dot_bash_bindings` (~line 96). Replace em-dash with
 
 **Utility functions:**
 
-- `mkd()` — `mkdir -p "$@" && cd "$_"`
-- `tmpd()` — `cd "$(mktemp -d)"`
-- `calc()` — `bc -l <<< "$*"`
+- `mkd()`: `mkdir -p "$@" && cd "$_"`
+- `tmpd()`: `cd "$(mktemp -d)"`
+- `calc()`: `bc -l <<< "$*"`
 - `timer='echo "Timer started. Stop with Ctrl-D." && time cat'`
-- `getcertnames()` — SSL certificate CN and SANs for a domain
+- `getcertnames()`: SSL certificate CN and SANs for a domain
 
 **Network aliases:**
 
@@ -199,9 +199,9 @@ Fix em-dash encoding bug in `dot_bash_bindings` (~line 96). Replace em-dash with
 
 **Git safety function:**
 
-- `gitsetoriginnopush()` — sets push URL to `no_push` on forks to prevent accidental upstream pushes
+- `gitsetoriginnopush()`: sets push URL to `no_push` on forks to prevent accidental upstream pushes
 
-**Modern tool aliases** (new in v2 — see §16 for full list):
+**Modern tool aliases** (new in v2, see §16 for full list):
 
 - `alias ls='eza --icons'`
 - `alias ll='eza -la --git --icons'`
@@ -257,13 +257,13 @@ Replace the entire tms section in `dot_tmux.conf` with sesh integration:
 
 Across the tree:
 
-- **`dot_tmux.conf`:** remove tms keybindings (lines 80–105), `TMUX_SESSIONIZER` key table, the
-  `if-shell` curl-installer block (lines 77–78), and the tms-section header/comment.
+- **`dot_tmux.conf`:** remove tms keybindings (lines 80-105), `TMUX_SESSIONIZER` key table, the
+  `if-shell` curl-installer block (lines 77-78), and the tms-section header/comment.
 - **`dot_bashrc.tmpl`:**
   - Remove `export TMS_CONFIG_FILE="$HOME/.config/tms/config.toml"` (line 35).
   - Remove or replace `alias t='tms marks open 0'` (line 160). v2 replacement:
     `alias t='sesh connect uriel'` (preserves the muscle-memory `t` shortcut).
-  - Rewrite the tmux auto-startup block (lines 218–233). Current logic uses `tms start` and
+  - Rewrite the tmux auto-startup block (lines 218-233). Current logic uses `tms start` and
     `tms marks open 0`; replace with a call to `~/.local/bin/sesh-bootstrap.sh` (see §4.5) followed by
     `tmux attach || tmux new -s uriel`.
 - **`dot_local/bin/executable_tmux-refresh.sh`:** update `verify_required_tools` to check `sesh` instead
@@ -276,7 +276,7 @@ Across the tree:
 - `default-terminal "tmux-256color"` (replace `screen-256color`)
 - `terminal-overrides ",xterm-ghostty:RGB"` (replace kitty override + `Tc`)
 - Drop the kitty `Ss`/`Se` override (no longer using Kitty).
-- Also update `TERM=screen-256color` export in bashrc to `TERM=tmux-256color` (or remove — tmux sets it
+- Also update `TERM=screen-256color` export in bashrc to `TERM=tmux-256color` (or remove, tmux sets it
   automatically inside tmux).
 
 ### 3.5 Extended keys
@@ -297,7 +297,7 @@ Raise `history-limit` from 10000 to 50000.
 - Drop `tmux-plugins/tmux-copycat` (unmaintained; replaced by tmux 3.5+ built-in search and
   tmux-fuzzback).
 
-- `b0o/tmux-autoreload` is **archived Oct 2025** — do NOT add. Instead, bind `prefix + r` to reload:
+- `b0o/tmux-autoreload` is **archived Oct 2025**. Do NOT add. Instead, bind `prefix + r` to reload:
 
   ```tmux
   bind-key r source-file ~/.tmux.conf \; display-message "Reloaded ~/.tmux.conf"
@@ -330,7 +330,7 @@ blacklist = ["popup", "scratch"]
 
 **Simplified** from v1's 30-line script to ~12 lines focused on the two information sources that actually
 matter here: git status and Todoist tasks. Additionally, the dashboard is now **opt-in**, not tied to
-sesh's `startup_command` — auto-dashboards in every new session became noisy.
+sesh's `startup_command`. Auto-dashboards in every new session became noisy.
 
 The script at `dot_config/sesh/scripts/executable_smart-startup.sh`:
 
@@ -342,11 +342,11 @@ The script at `dot_config/sesh/scripts/executable_smart-startup.sh`:
 - Fallback: `eza --tree --level=1 --icons`.
 - ANSI-colored headers; output stays under ~15 lines.
 
-**Invocation:** The script is invoked explicitly. Wire it up as a short bash function — pick a name that
+**Invocation:** The script is invoked explicitly. Wire it up as a short bash function. Pick a name that
 doesn't collide with existing binaries. `sd` is taken by the sed-replacement (§11.1); safe names include
 `ss`, `info`, `proj`, or `dash`. Not auto-run on session open.
 
-**Preview command** (still runs on session hover — lightweight):
+**Preview command** (still runs on session hover, lightweight):
 
 ```toml
 [default_session]
@@ -411,7 +411,7 @@ ______________________________________________________________________
 ### 5.1 New file: `dot_config/worktrunk/config.toml`
 
 Chezmoi-managed. Coordination: worktrunk owns git worktree lifecycle, sesh owns tmux session lifecycle.
-Worktrunk hooks **do not** manipulate tmux — v1's `post-switch`/`pre-remove` tmux-window renames are
+Worktrunk hooks **do not** manipulate tmux, v1's `post-switch`/`pre-remove` tmux-window renames are
 dropped (low-value UI and they undermined the "worktrunk doesn't touch tmux" claim).
 
 ```toml
@@ -444,7 +444,7 @@ pager = "delta --paging=never"
 copy = "wt step copy-ignored"
 
 # Pre-merge validation gate (sequential, fast checks first).
-# Array-of-tables form per worktrunk docs — [pre-merge] table form is deprecated.
+# Array-of-tables form per worktrunk docs, [pre-merge] table form is deprecated.
 [[pre-merge]]
 lint = "just l 2>/dev/null || true"
 
@@ -485,9 +485,9 @@ fast Neovim editing; isolate the huge autocorrect list into two pattern-class fi
 
 | File                           | Purpose                                                                                             |
 | ------------------------------ | --------------------------------------------------------------------------------------------------- |
-| `autocorrect-contractions.yml` | Missing-apostrophe fixes (dont→don't, wasnt→wasn't, etc.) ~40–60 entries                            |
+| `autocorrect-contractions.yml` | Missing-apostrophe fixes (dont→don't, wasnt→wasn't, etc.) ~40-60 entries                            |
 | `autocorrect-spelling.yml`     | Transpositions, doubled/missing letters, merged-word fixes (teh→the, alot→a lot, etc.) ~150 entries |
-| `snippets.yml`                 | All `;;`/`,,` short triggers: abbreviations + urls + formatting + titles (~80–100 entries)          |
+| `snippets.yml`                 | All `;;`/`,,` short triggers: abbreviations + urls + formatting + titles (~80-100 entries)          |
 | `identity.yml.tmpl`            | KeePassXC-templated sensitive data (address, phone, signing email)                                  |
 | `prompts.yml`                  | Long-form AI prompt expansions (different editing cadence)                                          |
 
@@ -582,7 +582,7 @@ precmd_functions+=(__cmd_notify_precmd)
 Thresholds:
 
 - **30s:** fire `alerter` (double-dash flags per v26+ Swift rewrite).
-- **5 min:** additionally pulse Hue lights (lowered from v1's 10 min — user preference).
+- **5 min:** additionally pulse Hue lights (lowered from v1's 10 min, user preference).
 - Skip if the command was a known interactive TUI (vim/less/top/ssh/tmux/claude).
 
 **Ordering:** must be registered *after* `atuin init bash` runs (so `preexec_functions` exists). Place
@@ -606,7 +606,7 @@ If elapsed > 5 minutes, additionally fire a Hue light pulse:
 New file: `dot_local/bin/executable_hue-pulse.sh`
 
 - Single positional argument: exit code (0 = green, non-zero = red).
-- No threshold logic inside — callers decide when to invoke. The Claude Stop hook (§12.3) wraps this
+- No threshold logic inside, callers decide when to invoke. The Claude Stop hook (§12.3) wraps this
   script with its own elapsed-time gate; the bashrc command-timer (§7.2) gates by `$SECONDS`.
 - Uses `openhue` CLI (same API as existing `smart-lights`).
 - Pulse logic:
@@ -646,7 +646,7 @@ rbenv is dead weight.
   drops `~/.rbenv/shims` from PATH automatically, since it was that eval adding it.
 - Remove `rbenv` from `.chezmoidata/system_packages_autoinstall.yaml` formulae list.
 - Delete `~/.rbenv/` directory during migration.
-- Saves ~50–100ms of shell startup time.
+- Saves ~50 to 100ms of shell startup time.
 
 (v1 and early-v2 both proposed lazy-loading rbenv across a broader trigger set. Cutting it entirely is
 simpler.)
@@ -700,7 +700,7 @@ Add to `dot_gitconfig.tmpl`:
 - `column.ui = auto`
 - `transfer.fsckObjects = true`
 - `pull.rebase = true`
-- `help.autocorrect = prompt` (prompts before executing — safer than v1's `= 1` which auto-runs)
+- `help.autocorrect = prompt` (prompts before executing, safer than v1's `= 1` which auto-runs)
 - `core.fsmonitor = true` + `core.untrackedCache = true` (faster `git status` on large repos; Apple
   Silicon-friendly)
 
@@ -709,7 +709,7 @@ Add to `dot_gitconfig.tmpl`:
 Replace `diff-so-fancy` with `delta` in `core.pager`. Currently contradictory: `core.pager` uses
 diff-so-fancy but `interactive.diffFilter` uses delta. Delta is superior.
 
-Keep `difftastic` as an on-demand tool (`GIT_EXTERNAL_DIFF=difft git diff`) — they have different
+Keep `difftastic` as an on-demand tool (`GIT_EXTERNAL_DIFF=difft git diff`), they have different
 strengths.
 
 ### 9.3 Fix acp alias
@@ -733,10 +733,10 @@ Change `--force` to `--force-with-lease` in the `acp` git alias.
 
 ### 9.5 Remove footguns from gitconfig
 
-- Delete the `[filesystem "Oracle Corporation|11.0.5|/dev/mapper/volgroup-home"]` block (lines 60–62).
+- Delete the `[filesystem "Oracle Corporation|11.0.5|/dev/mapper/volgroup-home"]` block (lines 60-62).
   This is a JGit-only cache (used by Eclipse/EGit/IntelliJ-bundled git, not the vanilla `git` CLI) from
   an old Linux host. Dead on macOS; vanilla `git` ignores the section entirely.
-- Delete the `git u` alias — it force-pushes "Quick save" to the current branch with no confirmation.
+- Delete the `git u` alias, it force-pushes "Quick save" to the current branch with no confirmation.
   Dangerous. Users who want quick saves can use `git stash` or `git commit --amend`.
 - Optionally template the `[difftool "nvimdiff"]` path by OS.
 
@@ -751,7 +751,7 @@ Change `--force` to `--force-with-lease` in the `acp` git alias.
 - Add `nix_shell` module (visual feedback in Nix dev shells).
 - Add `direnv` module (shows .envrc loaded/allowed state).
 - Tune `cmd_duration` module: `min_time = 2000` (ms) for in-prompt elapsed display on any command longer
-  than 2 seconds. Complements §7.1's notification triggers — starship renders duration in the prompt,
+  than 2 seconds. Complements §7.1's notification triggers, starship renders duration in the prompt,
   bash-preexec fires alerter + Hue.
 - Add `scan_timeout = 30` and `command_timeout = 500`.
 - Keep all language modules (needed for reading other repos).
@@ -779,7 +779,7 @@ ______________________________________________________________________
 ### 10.1 Hardened prepare-commit-msg hook
 
 Chezmoi-managed at `dot_config/git/hooks/executable_prepare-commit-msg`. Uses Claude Code CLI in pipe
-mode (`claude -p`) — no API keys, no third-party tools, uses existing Claude Code subscription auth.
+mode (`claude -p`), no API keys, no third-party tools, uses existing Claude Code subscription auth.
 
 **Hardening vs v1:**
 
@@ -787,11 +787,11 @@ mode (`claude -p`) — no API keys, no third-party tools, uses existing Claude C
 1. **4-second timeout** on the `claude -p` call; fall back to empty message on timeout/non-zero exit.
 1. **Skip merge/rebase/cherry-pick/amend**, not just `-m`.
 1. `SKIP_AI_COMMIT=1` **env escape hatch** for one-off quick commits.
-1. **Never blocks the commit** — worst case is an empty prepopulated message.
+1. **Never blocks the commit**, worst case is an empty prepopulated message.
 
 ```bash
 #!/usr/bin/env bash
-# Global prepare-commit-msg hook — AI-generated conventional commit messages.
+# Global prepare-commit-msg hook, AI-generated conventional commit messages.
 # Chains to repo-local .git/hooks/prepare-commit-msg if present.
 
 # Bail early if user opted out, or commit carries a prepared message (-m/-F/merge/squash).
@@ -837,11 +837,11 @@ pushing workflow changes.
 ### 10.4 act configuration and Tart general-purpose sandbox
 
 **Reframed from v1:** Tart is positioned as a general-purpose macOS sandbox for testing dotfile rollouts,
-new tool installs, or any risky macOS-local change — not just `act` isolation. This makes the 25GB base
+new tool installs, or any risky macOS-local change, not just `act` isolation. This makes the 25GB base
 image investment pay off across many use cases.
 
 **Per-project `.actrc`:** Each project that uses `act` gets its own `.actrc` in the repo root (which
-`act` reads automatically). No global `~/.actrc` — different projects need different runner
+`act` reads automatically). No global `~/.actrc`, different projects need different runner
 configurations. For this chezmoi dotfiles project, add `.actrc` at the repo root:
 
 ```
@@ -863,7 +863,7 @@ Wraps `act` in a macOS `sandbox-exec` deny-first profile that blocks access outs
 
 **General-purpose macOS sandbox (Tart):**
 
-Runs entirely in user-space — no root, no daemon. Tart uses Apple's `Virtualization.framework`
+Runs entirely in user-space, no root, no daemon. Tart uses Apple's `Virtualization.framework`
 (user-accessible on Apple Silicon); VM files live in `~/.tart/`. The only hard cap is Apple's EULA limit
 of 2 concurrent macOS VMs per host, which is a licensing constraint, not a privilege one.
 
@@ -906,38 +906,38 @@ ______________________________________________________________________
 - `hyperfine` (benchmarking; also used for shell startup profiling in §16)
 - `gitleaks`
 - `difftastic`
-- `moreutils` (sponge, pee, vipe — required by `find-and-remove-json-objects.sh`)
+- `moreutils` (sponge, pee, vipe, required by `find-and-remove-json-objects.sh`)
 - `sd` (sed replacement)
 - `ruff` (Python linter/formatter)
 - `hurl` (plain-text HTTP test runner)
-- `carapace` (universal shell completion engine — see §16)
+- `carapace` (universal shell completion engine, see §16)
 
 ### 11.2 Add to brew taps
 
 - `eugene1g/safehouse` (for agent-safehouse)
 - `cirruslabs/cli` (for tart)
-- `vjeantet/tap` (for alerter — not in homebrew-core)
+- `vjeantet/tap` (for alerter, not in homebrew-core)
 
 ### 11.3 Add to brew formulae (from taps)
 
 - `agent-safehouse` (from `eugene1g/safehouse`)
 - `tart` (from `cirruslabs/cli`)
-- `alerter` (from `vjeantet/tap` — replaces terminal-notifier)
+- `alerter` (from `vjeantet/tap`, replaces terminal-notifier)
 
 ### 11.4 Remove from brew formulae
 
 - `diff-so-fancy` (replaced by delta).
 - `terminal-notifier` (abandoned; replaced by alerter).
 - `hub` (superseded by `gh`; both installed currently).
-- `rbenv` (user doesn't use Ruby; any future Ruby goes through a Nix flake — see §8.1).
+- `rbenv` (user doesn't use Ruby; any future Ruby goes through a Nix flake, see §8.1).
 
 ### 11.5 Remove from system
 
-- `tms` binary at `~/.local/bin/tms` (not brew, not cargo — manual binary).
+- `tms` binary at `~/.local/bin/tms` (not brew, not cargo, manual binary).
 - `~/.config/tms/` (old config).
 - `~/.sdkman/` (entire directory).
 - `~/.atuin/bin/` (old curl-installed binary).
-- `~/.rbenv/` (entire directory — see §8.1).
+- `~/.rbenv/` (entire directory, see §8.1).
 
 ### 11.6 Resolve tmux-fingers duplicate
 
@@ -976,11 +976,11 @@ Even with `bypassPermissions`, explicit `deny` rules still apply as a safety net
 ### 12.3 Stop hook (gated on 5-min session duration)
 
 Stop hook fires `hue-pulse.sh` only if the current session lasted longer than 5 minutes. Implementation:
-hook scripts receive their input as **JSON on stdin** (not env vars — there is no `CLAUDE_SESSION_ID` env
+hook scripts receive their input as **JSON on stdin** (not env vars, there is no `CLAUDE_SESSION_ID` env
 var). The `UserPromptSubmit` hook (§20.4) writes `date +%s` to `/tmp/claude-session-$session_id-start` on
 first prompt; the Stop hook reads that file and computes elapsed time.
 
-**Stop hook schema (no matcher supported — Stop always fires):**
+**Stop hook schema (no matcher supported, Stop always fires):**
 
 ```json
 "Stop": [
@@ -1035,8 +1035,8 @@ on actual permission requests:
 ]
 ```
 
-(Note: `alerter` v26+ uses **double-dash** flags — the Swift rewrite; the legacy single-dash form was
-dropped. v1 spec used single-dash — fixed in v2.)
+(Note: `alerter` v26+ uses **double-dash** flags, the Swift rewrite; the legacy single-dash form was
+dropped. v1 spec used single-dash, fixed in v2.)
 
 ### 12.5 `alwaysThinkingEnabled`
 
@@ -1049,17 +1049,17 @@ Claude Code deletes session files older than `cleanupPeriodDays` at startup (def
 day). Setting `cleanupPeriodDays: 36525` (≈100 years) effectively disables cleanup so session history is
 preserved indefinitely. Also controls orphaned-subagent-worktree cleanup age.
 
-(Note: v2-early-draft claimed this setting didn't exist. That was wrong — per the Claude Code settings
+(Note: v2-early-draft claimed this setting didn't exist. That was wrong, per the Claude Code settings
 docs, the setting is valid and takes effect. To fully disable session persistence, use
 `CLAUDE_CODE_SKIP_PROMPT_HISTORY` env var or `--no-session-persistence` flag in `-p` mode instead.)
 
 ### 12.7 CLAUDE.md evergreen directive
 
-Add to the top of the repo's `CLAUDE.md` (and the global `~/.claude/CLAUDE.md` — see §20):
+Add to the top of the repo's `CLAUDE.md` (and the global `~/.claude/CLAUDE.md`, see §20):
 
 > Avoid adding point-in-time content (current sprint goals, active branches, temporary workarounds) that
 > wouldn't make sense if multiple workstreams, PRs, or branches were in progress simultaneously. Document
-> general principles, workflows, and architecture — not transient project state.
+> general principles, workflows, and architecture, not transient project state.
 
 ### 12.8 `/pr-merge` slash command
 
@@ -1088,7 +1088,7 @@ Now lives in §12.3 (gated on 5-min session duration).
 
 ### 12.13 **FIXED (v2):** Claude Code Action v1 schema
 
-(This item applies only if §12.11 is ever revisited — archived here for reference.) The correct v1 input
+(This item applies only if §12.11 is ever revisited, archived here for reference.) The correct v1 input
 schema is:
 
 ```yaml
@@ -1126,7 +1126,7 @@ structure (`SKILL.md`, `scripts/`, `templates/`, etc.). Commit to chezmoi.
 Current state: `~/.claude/statusline-command.sh` is unmanaged. Contains hardcoded `/Users/stephen/` paths
 referenced by settings.json.
 
-**Action:** Move to `private_dot_claude/executable_statusline-command.sh` (no `.tmpl` needed — it doesn't
+**Action:** Move to `private_dot_claude/executable_statusline-command.sh` (no `.tmpl` needed, it doesn't
 interpolate anything at apply time; settings.json will point to
 `{{ .chezmoi.homeDir }}/.claude/statusline-command.sh`).
 
@@ -1152,7 +1152,7 @@ Hardcoded `/Users/stephen/...` in several managed files makes them non-portable.
 
 ### 14.2 LaunchAgents
 
-`Library/LaunchAgents/*.plist` — three plists, all likely contain hardcoded `/Users/stephen/...` paths.
+`Library/LaunchAgents/*.plist`, three plists, all likely contain hardcoded `/Users/stephen/...` paths.
 Audit each, rename to `.tmpl`, interpolate `{{ .chezmoi.homeDir }}` where needed.
 
 ### 14.3 `dot_claude/settings.json` statusLine
@@ -1162,7 +1162,7 @@ Covered in §12.1 (templated to `{{ .chezmoi.homeDir }}`).
 ### 14.4 Git config cleanup
 
 Delete the `[filesystem "Oracle Corporation|11.0.5|/dev/mapper/volgroup-home"]` JGit cache block
-(gitconfig lines 60–62) — dead on macOS. Covered in §9.5 with more detail.
+(gitconfig lines 60-62), dead on macOS. Covered in §9.5 with more detail.
 
 Optionally template `[difftool "nvimdiff"].cmd` path by OS. Low priority.
 
@@ -1181,7 +1181,7 @@ ______________________________________________________________________
 
 ### 15.1 New: Homebrew install bootstrap
 
-`.chezmoiscripts/run_once_before_00-install-homebrew.sh.tmpl` — ensures Homebrew exists before package
+`.chezmoiscripts/run_once_before_00-install-homebrew.sh.tmpl`, ensures Homebrew exists before package
 manifest script runs. Currently every downstream script assumes `/opt/homebrew/bin/brew` exists; a fresh
 machine without Homebrew fails all of them.
 
@@ -1227,13 +1227,13 @@ alias du='dust'
 alias ps='procs'
 alias grep='grep --color=auto'   # fix --color=always which breaks pipes
 
-# sd not aliased — `sed` and `sd` have different semantics; use sd directly.
+# sd not aliased, `sed` and `sd` have different semantics; use sd directly.
 ```
 
 ### 16.2 direnv bash hook (already wired)
 
 direnv is already installed **and** hooked at `dot_bashrc.tmpl` line 96: `eval "$(direnv hook bash)"`.
-Verified during the v2 review — no change needed to enable the hook.
+Verified during the v2 review, no change needed to enable the hook.
 
 Pair with project `.envrc` files containing `use flake` so Nix dev shells auto-activate per-project.
 Consider adding a `direnv allow` reminder to the chezmoi-apply workflow so new machines don't silently
@@ -1307,7 +1307,7 @@ tools exist.)
 - `diff-so-fancy` (replaced by delta)
 - `hub` (superseded by gh)
 - `terminal-notifier` (abandoned; replaced by alerter)
-- `rbenv` (user doesn't use Ruby — see §8.1)
+- `rbenv` (user doesn't use Ruby, see §8.1)
 
 ### 17.2 Verify after apply
 
@@ -1319,7 +1319,7 @@ comm -23 \
   <(brew list --formula | sort)
 ```
 
-Any output lines are formulae in the manifest that aren't installed — indicates a failed or incomplete
+Any output lines are formulae in the manifest that aren't installed, indicates a failed or incomplete
 `brew bundle`.
 
 ______________________________________________________________________
@@ -1336,7 +1336,7 @@ automatically.
 
 **Fix:**
 
-- Add `moreutils` to formulae (§17.1) — provides `sponge`.
+- Add `moreutils` to formulae (§17.1), provides `sponge`.
 - Add `set -euo pipefail`.
 - Fix empty-var error messages (currently `printf "Error: $JSON_OBJECT is empty"` prints nothing because
   `$JSON_OBJECT` is the empty var). Use `%q` or quote strings.
@@ -1377,10 +1377,10 @@ Add to `flake.nix` `buildInputs`:
 
 Extend `scripts/lint.sh` with runners for new file types:
 
-- `run_30_taplo` — `taplo fmt --check` across all `*.toml` files. Catches drift in tms, atuin, himalaya,
+- `run_30_taplo`: `taplo fmt --check` across all `*.toml` files. Catches drift in tms, atuin, himalaya,
   aerospace, starship, yt-dlp configs.
-- `run_35_jq` — `jq empty < "$f"` across all `*.json` files to verify parseability.
-- `run_40_yq` — `yq eval '.' "$f" > /dev/null` on `.chezmoidata/*.yaml` for schema validation.
+- `run_35_jq`: `jq empty < "$f"` across all `*.json` files to verify parseability.
+- `run_40_yq`: `yq eval '.' "$f" > /dev/null` on `.chezmoidata/*.yaml` for schema validation.
 
 Wire each into the `all` flag used by `just l`.
 
@@ -1408,14 +1408,14 @@ check:
     nix develop .#run --command nix flake check --all-systems
 ```
 
-Naming mirrors the short-letter recipes (`l`, `s`, `S`, `m`, `n`, `h`) — these can also get short-letter
+Naming mirrors the short-letter recipes (`l`, `s`, `S`, `m`, `n`, `h`), these can also get short-letter
 variants if desired (e.g., `d`, `a`, `c`). `brew update && upgrade` is NOT added as a recipe because the
 system packages autoupdate daemon (§2.6) handles this continuously.
 
 ### 19.5 Pre-commit hook integration
 
 Existing: `just h` installs a pre-commit hook running `just l`. After §19.2, `just l` will also validate
-TOML/JSON/YAML — so the pre-commit hook catches drift before commit.
+TOML/JSON/YAML, so the pre-commit hook catches drift before commit.
 
 ______________________________________________________________________
 
@@ -1432,11 +1432,11 @@ Create `dot_claude/CLAUDE.md` with:
   (e.g., "not migrating to mise, zellij, yazi, lazygit").
 - A `## Collaboration style` section capturing high-level preferences.
 
-### 20.2 `private_dot_claude/commands/` — `/pr-merge` (from §12.8)
+### 20.2 `private_dot_claude/commands/`, `/pr-merge` (from §12.8)
 
 Already covered.
 
-### 20.3 `private_dot_claude/agents/` — initial agent
+### 20.3 `private_dot_claude/agents/`, initial agent
 
 Rather than empty `.keep` (v1): add one concrete agent that wraps the chezmoi-apply workflow, since it's
 a high-friction repeat. Example `private_dot_claude/agents/chezmoi-apply.md`:
@@ -1451,11 +1451,11 @@ tools: Bash, Read
 Use this agent to safely apply chezmoi state without triggering KeePassXC password prompts.
 ```
 
-(Exact agent body to be refined during implementation — this is a scaffolding placeholder.)
+(Exact agent body to be refined during implementation, this is a scaffolding placeholder.)
 
 ### 20.4 Claude Code hooks: `UserPromptSubmit` + `PreToolUse`
 
-**`UserPromptSubmit` hook** — writes session start marker for the 5-min gated Stop hook (§12.3). Matcher
+**`UserPromptSubmit` hook**: writes session start marker for the 5-min gated Stop hook (§12.3). Matcher
 is not supported on UserPromptSubmit; this fires on every prompt, and the script itself makes the "first
 time for this session" check via a sentinel file:
 
@@ -1490,7 +1490,7 @@ Context-injection (prepending `git status -sb` to every prompt) is intentionally
 to add later as a one-line `printf` to stdout in the same script, but the file would need to exit with
 JSON `{"hookSpecificOutput": {"additionalContext": "..."}}` per the hook schema. Defer until needed.
 
-**`PreToolUse` Bash audit hook** — logs every `Bash(*)` invocation to `~/.claude/audit.log` with
+**`PreToolUse` Bash audit hook**: logs every `Bash(*)` invocation to `~/.claude/audit.log` with
 timestamp, working directory, and command. Useful when reviewing what Claude did in long sessions:
 
 ```json
@@ -1558,7 +1558,7 @@ target="${1:-}"
 cmd=$(tmux display-message -p -t "$target" '#{pane_current_command}' 2>/dev/null)
 
 case "$cmd" in
-  # Shells and interactive TUIs — silent.
+  # Shells and interactive TUIs, silent.
   bash|zsh|fish|sh|dash) ;;
   nvim|vim|vi|view|less|more|man|top|btop|htop|tmux|ssh|mosh|fzf) ;;
 
@@ -1573,13 +1573,13 @@ case "$cmd" in
   docker|nix|nix-build|nixos-rebuild|npm|pnpm|yarn|bun) printf '🔨' ;;
   gradle|mvn|ant|meson|ninja|bazel|buck|cmake) printf '🔨' ;;
 
-  # Everything else that's not a shell — generic long-running.
+  # Everything else that's not a shell, generic long-running.
   *) printf '⏳' ;;
 esac
 ```
 
 **Matching note:** `pane_current_command` gives the foreground process's name, not its full argv. So
-`cargo build` and `cargo test` both map to 🔨. This is intentional — the point is coarse "something is
+`cargo build` and `cargo test` both map to 🔨. This is intentional, the point is coarse "something is
 running" signal, not fine-grained classification. If you want `cargo test` → 🧪 later, we'd read full argv
 via `ps -o command= -p <pane_pid>`; defer until the simpler version proves insufficient.
 
@@ -1592,7 +1592,7 @@ set-option -g @tmux2k-window-list-format "#I #W #(~/.local/bin/tmux-window-emoji
 ```
 
 tmux2k invokes this format per window per refresh. For a typical 10-window setup, that's ~3 forks per
-second — trivial overhead for a case-statement shell script.
+second, trivial overhead for a case-statement shell script.
 
 ### 21.3 "Last session" tracking
 
@@ -1604,13 +1604,13 @@ set-hook -g client-session-changed \
   'run-shell "tmux set-option -g @prev-session \"#{hook_session_name}\""'
 ```
 
-**Verification item for implementation:** tmux format variables available in this hook's context —
+**Verification item for implementation:** tmux format variables available in this hook's context,
 `hook_session_name` vs `client_last_session` vs something else. Pick whichever holds the *pre-switch*
 session name. `tmux show-hooks` and `tmux list-keys` plus a quick test will confirm.
 
 ### 21.4 `last-proc` custom tmux2k plugin
 
-Drop a script at tmux2k's plugin scripts path (exact path to verify — typically
+Drop a script at tmux2k's plugin scripts path (exact path to verify, typically
 `~/.config/tmux/tmux2k/scripts/<name>.sh` or the installed plugin's `scripts/` directory). The script
 name matches the plugin name in `@tmux2k-right-plugins`.
 
@@ -1650,8 +1650,8 @@ set-option -g @tmux2k-right-plugins "last-proc network ram"
 
 - The window-emoji helper runs *before* tmux2k's refresh completes; its output is cached by tmux for the
   refresh interval.
-- If `@prev-session` is unset (fresh tmux server), `last-proc` outputs nothing — silent degradation.
-- No interaction with `automatic-rename` or `allow-rename` — we're not renaming windows, just appending
+- If `@prev-session` is unset (fresh tmux server), `last-proc` outputs nothing, silent degradation.
+- No interaction with `automatic-rename` or `allow-rename`, we're not renaming windows, just appending
   computed text to format strings.
 - `status-interval` stays at its current value; only tmux2k's refresh rate governs how often the scripts
   run.
@@ -1678,5 +1678,5 @@ ______________________________________________________________________
 - `jj` / `git-branchless` (defer)
 - `sops` / `age` per-project secrets (defer)
 - Theme unification across bat/delta/ghostty (defer)
-- launchctl `bootout`/`bootstrap` modernization (defer — low value until a failure forces it)
+- launchctl `bootout`/`bootstrap` modernization (defer, low value until a failure forces it)
 - `dot_bash_profile` / `dot_profile` consolidation (defer)

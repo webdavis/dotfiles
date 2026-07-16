@@ -10,7 +10,7 @@ platforms = ["macos", "linux"]
 [[build]]
 command = ["cargo", "build", "--release", "--locked"]
 
-# Fires on EVERY workspace focus change — mouse, picker, or chord alike — which
+# Fires on EVERY workspace focus change, mouse, picker, or chord alike, which
 # is why this is correct where a key-bound shell script was not: the script only
 # saw switches routed through itself, this sees them all.
 [[events]]

@@ -191,7 +191,7 @@ on-mode-changed = []
     alt-ctrl-cmd-shift-x = 'exec-and-forget open -a Xcode'
     alt-ctrl-cmd-shift-y = 'exec-and-forget open -a Discord'
 
-    # Smart lights — Studio (3F - Studio)
+    # Smart lights, Studio (3F - Studio)
     f8  = 'exec-and-forget ~/.local/bin/smart-lights --brightness down'
     f9  = 'exec-and-forget ~/.local/bin/smart-lights --power'
     f10 = 'exec-and-forget ~/.local/bin/smart-lights --brightness up'

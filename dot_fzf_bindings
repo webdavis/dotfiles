@@ -15,7 +15,7 @@ bind -m emacs-standard '"\C-z": vi-editing-mode'
 # `completion-ignore-case`, breaking case-insensitive Tab for those commands.
 # Key-bindings (Ctrl-T file picker, Alt-C cd, Ctrl-R history) are independent
 # of completion overrides and remain safe to load.
-# (~/.fzf.bash sources both — that's why we bypass it.)
+# (~/.fzf.bash sources both, that's why we bypass it.)
 FZF_KEY_BINDINGS="/opt/homebrew/opt/fzf/shell/key-bindings.bash"
 [[ -f $FZF_KEY_BINDINGS ]] && source "$FZF_KEY_BINDINGS"
 
@@ -137,7 +137,7 @@ __build_edit_command() {
 
   # Build the command. The result is inserted into the readline buffer and
   # re-parsed by bash on Enter, so the path must be shell-quoted (%q) to survive
-  # that second word-splitting pass — otherwise paths with spaces split apart.
+  # that second word-splitting pass, otherwise paths with spaces split apart.
   local qfile=""
   [[ -n $file ]] && printf -v qfile '%q' "$file"
 

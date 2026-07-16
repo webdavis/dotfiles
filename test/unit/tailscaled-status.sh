@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# tailscaled-status.sh — the Tailscale status reminder (run_onchange_after_66)
+# tailscaled-status.sh, the Tailscale status reminder (run_onchange_after_66)
 # must classify on `tailscale status --json`'s .BackendState, not on grepped text.
 # It renders the REAL chezmoiscript with the host chezmoi and runs the rendered
 # body against a fake `tailscale` binary (TAILSCALE_BIN) per BackendState, plus a
@@ -15,7 +15,7 @@
 #   garbage stdout   -> same "daemon is not running" reminder (unparseable JSON)
 #
 # Every case must exit 0 (a reminder must never abort `chezmoi apply`), and the
-# five real states must NOT be misclassified as a missing daemon — the exact bug
+# five real states must NOT be misclassified as a missing daemon, the exact bug
 # the audit flagged in the old grep-based script.
 set -euo pipefail
 
@@ -39,7 +39,7 @@ done
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 
-# Render the darwin-only script once (scratch HOME, CI=1 — same mechanics as the
+# Render the darwin-only script once (scratch HOME, CI=1, same mechanics as the
 # treefmt rendered-template lint and the herdr build-script test). Empty render
 # == non-darwin host: skip.
 rendered="$work/rendered.sh"
@@ -53,7 +53,7 @@ if [[ ! -s $rendered ]]; then
 fi
 
 # Write a fake `tailscale` at $1/tailscale that, for `status --json`, cats the
-# payload file $2 and exits with code $3. Any other invocation exits non-zero —
+# payload file $2 and exits with code $3. Any other invocation exits non-zero,
 # the reminder must depend only on the JSON contract, never on bare `status`.
 make_fake() {
   local dir="$1" payload_file="$2" json_rc="$3"
@@ -83,7 +83,7 @@ run_case() {
 }
 
 failures=0
-# check <case> <PASS|already-failed> ...  — records + prints per-assertion result.
+# check <case> <PASS|already-failed> ..., records + prints per-assertion result.
 report() {
   local status="$1" msg="$2"
   if [[ $status == ok ]]; then

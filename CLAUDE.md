@@ -1,7 +1,7 @@
 <!-- Keep this file evergreen. Avoid adding point-in-time content (current sprint
 goals, active branches, temporary workarounds) that wouldn't make sense if
 multiple workstreams, PRs, or branches were in progress simultaneously.
-Document general principles, workflows, and architecture — not transient
+Document general principles, workflows, and architecture, not transient
 project state. -->
 
 # CLAUDE.md
@@ -86,12 +86,12 @@ chezmoi edit <file>                         # edit a template (prefer over direc
 name:
 
 ```bash
-chezmoi apply --exclude=templates --force   # safe — no KeePassXC prompt
+chezmoi apply --exclude=templates --force   # safe, no KeePassXC prompt
 chezmoi apply ~/.fzf_bindings               # specific non-template file
 chezmoi diff --exclude=templates            # diff non-template files
 ```
 
-**Never run bare `chezmoi apply` from Claude Code** — the following templates call `keepassxc` and will
+**Never run bare `chezmoi apply` from Claude Code**, the following templates call `keepassxc` and will
 fail without an interactive TTY: `~/.gitconfig`, `~/.aws/credentials`, `~/.claude.json`,
 `~/.composio/user_data.json`, `~/.config/atuin/config.toml`, `~/.config/himalaya/config.toml`,
 `~/Library/Application Support/Claude/claude_desktop_config.json`,
@@ -126,20 +126,20 @@ drift freely without forcing a chezmoi resync.
 `private_dot_claude/modify_settings.json` and committing.
 
 Background: `/config` writes ergonomic toggles directly into `~/.claude/settings.json` (verified
-empirically), and Claude Code does not provide a user-level `~/.claude/settings.local.json` for overrides
-— only project-scope `.claude/settings.local.json` exists. The modify-template approach is the cleanest
-way to keep policy fields under chezmoi control while letting `/config` mutate everything else freely.
-See https://www.chezmoi.io/user-guide/manage-different-types-of-file/ for the `modify_` template +
-`setValueAtPath` reference.
+empirically), and Claude Code does not provide a user-level `~/.claude/settings.local.json` for
+overrides, only project-scope `.claude/settings.local.json` exists. The modify-template approach is the
+cleanest way to keep policy fields under chezmoi control while letting `/config` mutate everything else
+freely. See https://www.chezmoi.io/user-guide/manage-different-types-of-file/ for the `modify_` template
+\+ `setValueAtPath` reference.
 
 ### Git Hooks
 
 All four hooks live in the **user-wide** hooks dir (`core.hooksPath = ~/.config/git/hooks`, set in
 `dot_gitconfig.tmpl`), so they apply to every repo:
 
-- **`prepare-commit-msg` — user-wide AI commit messages.** Prepopulates a Conventional Commits message
-  via Claude Sonnet (internals under **AI Commit Messages** below). Bails on `-m`/merge/rebase; bypass
-  with `SKIP_AI_COMMIT=1`.
+- **`prepare-commit-msg`: user-wide AI commit messages.** Prepopulates a Conventional Commits message via
+  Claude Sonnet (internals under **AI Commit Messages** below). Bails on `-m`/merge/rebase; bypass with
+  `SKIP_AI_COMMIT=1`.
 - **`pre-commit`: per-repo FAST gate (unit tests + secret scan), via a dispatcher.**
   `dot_config/git/hooks/executable_pre-commit` runs in every repo but only acts when the repository
   tracks an executable `.githooks/pre-commit`, which it then `exec`s. This repo's `.githooks/pre-commit`
@@ -170,7 +170,7 @@ All four hooks live in the **user-wide** hooks dir (`core.hooksPath = ~/.config/
 
 **Why a dispatcher, not `git config core.hooksPath .githooks`?** `core.hooksPath` is single-valued, so a
 per-repo override shadows the user-wide `prepare-commit-msg`. The dispatcher keeps the global hook
-authoritative while letting any repo opt into pre-commit checks. **Do not reintroduce Git LFS here** —
+authoritative while letting any repo opt into pre-commit checks. **Do not reintroduce Git LFS here**,
 `git lfs install` writes exactly such an override, and this repo tracks no LFS files.
 
 Bypass all hooks for one commit: `git commit --no-verify`.
@@ -199,7 +199,7 @@ configured in `.chezmoi.toml.tmpl`. Template files (`.tmpl`) use `{{ keepassxc "
 ### System Package Management
 
 Packages declared in `.chezmoidata/system_packages_autoinstall.yaml` under `packages.macos.homebrew` with
-keys: `taps`, `formulae`, `casks`, `mas` — plus sibling `uv` (uv tool installs, e.g. `graphifyy`, which
+keys: `taps`, `formulae`, `casks`, `mas`, plus sibling `uv` (uv tool installs, e.g. `graphifyy`, which
 provides the `graphify` CLI behind the post-commit dispatcher), `npm` (npm globals, e.g.
 `@colbymchenry/codegraph`; its hermes MCP (Model Context Protocol) enablement lives in the encrypted
 hermes config and is tracked as separate follow-up work), and `volta` lists consumed by the same script.
@@ -219,20 +219,20 @@ so the bundle does not refuse to load them. Add a tap there when `brew bundle` r
    (formulae, casks, taps, mas), maintaining alphabetical order.
 1. Remind the user to run `chezmoi apply` when appropriate.
 
-Do **not** run `chezmoi apply` directly — see the KeePassXC constraint above.
+Do **not** run `chezmoi apply` directly, see the KeePassXC constraint above.
 
 ### macOS Defaults Management
 
 Two `.chezmoidata/` files declaratively track macOS settings; two `.chezmoiscripts/` runners apply them
 at `chezmoi apply` time on darwin (no-op on Linux):
 
-- `.chezmoidata/macos_defaults.yaml` + `.chezmoiscripts/run_onchange_after_30-macos-defaults.sh.tmpl` —
+- `.chezmoidata/macos_defaults.yaml` + `.chezmoiscripts/run_onchange_after_30-macos-defaults.sh.tmpl`,
   per-user `defaults write` records, plus a `killall` list (Dock/Finder/SystemUIServer/cfprefsd; cfprefsd
   kill is required for plist changes to take effect immediately).
 - `.chezmoidata/macos_system_setup.yaml` +
-  `.chezmoiscripts/run_onchange_after_41-macos-system-setup.sh.tmpl` — sudo system commands (one
-  `sudo -v` upfront, then loop), plus structured `tailnet_pins` data from which the template generates
-  the MagicDNS `/etc/hosts` pin commands. Early-returns when both lists are empty.
+  `.chezmoiscripts/run_onchange_after_41-macos-system-setup.sh.tmpl`, sudo system commands (one `sudo -v`
+  upfront, then loop), plus structured `tailnet_pins` data from which the template generates the MagicDNS
+  `/etc/hosts` pin commands. Early-returns when both lists are empty.
 
 **Daily workflow:**
 
@@ -247,8 +247,8 @@ at `chezmoi apply` time on darwin (no-op on Linux):
 
 The capture helper is the canonical way to add a tracked setting: toggle it in System Settings, run
 `just defaults-capture`, then `chezmoi apply` to commit. The helper refuses to silently overwrite a
-tracked entry whose live value diverges from YAML (exits 4) — resolve via `just defaults-apply` to
-revert, or hand-edit YAML to capture the new intent.
+tracked entry whose live value diverges from YAML (exits 4): resolve via `just defaults-apply` to revert,
+or hand-edit YAML to capture the new intent.
 
 **Aerospace required defaults:** `com.apple.dock mru-spaces=false` is the single most common Aerospace
 breakage. Several `com.apple.WindowManager` keys (Stage Manager, Sequoia tiling) are recommended off. See
@@ -259,7 +259,7 @@ the design spec in the chezmoi source tree at
 
 - **`drift.sh` requires `shopt -s lastpipe`** (line 14). Bash's default behavior runs the right-hand side
   of a pipeline in a subshell, so `drift_count` increments inside `yq | while ...` would be discarded
-  after the loop. Without `lastpipe`, `just D` would always exit 0 even when drift exists — silent false
+  after the loop. Without `lastpipe`, `just D` would always exit 0 even when drift exists, silent false
   negative. The setting is a correctness requirement, not cosmetic.
 - **The Tier 1 runner template uses `{{ if index . "host" }}`, not `{{ if .host }}`.** Go's
   `text/template` errors with `map has no entry for key "host"` when the YAML record has no `host` field,
@@ -302,8 +302,8 @@ Template files use `{{ if eq .chezmoi.os "darwin" }}` for macOS-specific content
 
 `flake.nix` provides two dev shells (for `x86_64-linux` and `aarch64-darwin`):
 
-- `default` — interactive shell with colored status output.
-- `run` — headless shell used by `just` and CI.
+- `default`, interactive shell with colored status output.
+- `run`, headless shell used by `just` and CI.
 
 Tools provided: the repo-configured `treefmt` wrapper (bundling shellcheck, shfmt, mdformat with the GFM
 plugin, nixfmt, taplo, actionlint, and the jq/yq/chezmoi-render validators from `treefmt.nix`), plus
@@ -317,19 +317,19 @@ SHA-pinned to full commit SHAs (`.github/dependabot.yml` keeps the pins fresh we
 once the lint check passes, via `.github/workflows/dependabot-automerge.yml`; `lint` is a required status
 check on `main` under branch protection, so the auto-merge cannot land until it is green). Steps:
 `nix flake check --all-systems` (the treefmt drift gate), `just test`, and
-`zizmor --offline .github/workflows` — the latter two inside the flake's `run` shell.
+`zizmor --offline .github/workflows`, the latter two inside the flake's `run` shell.
 
 ### Agent Skills (cross-harness store)
 
 `~/.agents/skills` is the single canonical skills store (31 roster skills). It serves Claude Code always
 (symlinks declared in chezmoi: `private_dot_claude/skills/symlink_*` for the full roster), Codex always
-(it scans the store natively — no declarations), and hermes for exactly the store-symlink subset of the
+(it scans the store natively, no declarations), and hermes for exactly the store-symlink subset of the
 delivery model below (`dot_hermes/skills/` and `dot_hermes/profiles/<name>/skills/` symlinks). The
 committed roster is the complete wanted set: `test/unit/skills-roster-fanout.sh` fails the build if the
 store, the lock's `tiers` / `hermesProfiles` / `hermesRegistry` / `npxTracked` / `clawhubTracked` tables,
 the per-harness declarations, or the settings modify-template's `skillOverrides` ever disagree.
 
-**Store provenance — who installs and refreshes each store copy** (the lock at
+**Store provenance: who installs and refreshes each store copy** (the lock at
 `dot_agents/custom-skill-lock.json` records it):
 
 - **npx-tracked** (the `npxTracked` table, 23 skills): the store copy is installed and refreshed by the
@@ -349,7 +349,7 @@ the per-harness declarations, or the settings modify-template's `skillOverrides`
   DOES fan out to hermes (default profile), as authoring guidance atop Bob's native Home Assistant
   runtime tools.
 - **ClawHub-tracked** (the `clawhubTracked` table, 3 skills: `home-assistant`, `sql-toolkit`,
-  `summarize-pro`): the store copy is installed and refreshed by the `clawhub` CLI from ClawHub — the npx
+  `summarize-pro`): the store copy is installed and refreshed by the `clawhub` CLI from ClawHub. The npx
   lane cannot source ClawHub (`npx skills add` is GitHub-only), so ClawHub-only skills get their own
   auto-update lane instead of staying vendored. Each entry records the owner-qualified slug and registry.
   `update-skills.sh` installs an absent one in a throwaway `--workdir` and moves the CLI's nested
@@ -371,27 +371,27 @@ the per-harness declarations, or the settings modify-template's `skillOverrides`
 - **App-owned symlink** (`cua-driver`): the store entry is a symlink into `~/.cua-driver`; the app owns
   the content. The official mechanism covers all three harnesses (`cua-driver skills status` links Claude
   Code, Codex via the store, and hermes itself), and the weekly run refreshes the pack via
-  `cua-driver skills update` — the app's own GitHub-Releases updater, never a write through the symlink.
+  `cua-driver skills update`, the app's own GitHub-Releases updater, never a write through the symlink.
 
 **Tier model (the lock's `tiers` table):** every roster skill is `core` (8) or `on-demand` (23). Core
 skills auto-load in every harness; on-demand skills stay installed everywhere but load only when
-explicitly invoked: in Claude Code via `skillOverrides.<name> = "user-invocable-only"` — one
+explicitly invoked: in Claude Code via `skillOverrides.<name> = "user-invocable-only"`, one
 `setValueAtPath` per skill in the settings modify-template (per-key, so overrides the user sets for other
 skills drift freely); in Codex via an additive `agents/openai.yaml`
-(`policy: allow_implicit_invocation: false` — Codex then never auto-invokes the skill, while explicit
+(`policy: allow_implicit_invocation: false`, Codex then never auto-invokes the skill, while explicit
 `$name` invocation keeps working). The overlay is committed next to each vendored skill; for npx- and
 clawhub-tracked skills (whose folders the add/update passes replace wholesale) `update-skills.sh`
-re-asserts it on every run from the tiers table — and when an upstream skill ships its own
+re-asserts it on every run from the tiers table, and when an upstream skill ships its own
 `agents/openai.yaml` (the official `hyperframes-keyframes` carries an `interface:` block there), the
 policy is APPENDED so upstream metadata survives, never overwritten. Store entries that are SYMLINKS to
-app-owned content (`cua-driver`) never get an overlay — writing through the link would modify content
-this repo does not own, so `cua-driver` stays implicitly invocable in Codex (a deliberate, documented
+app-owned content (`cua-driver`) never get an overlay, writing through the link would modify content this
+repo does not own, so `cua-driver` stays implicitly invocable in Codex (a deliberate, documented
 asymmetry).
 
 **Hermes delivery is two-lane, under the five-profile architecture** (default/Bob, elaine, butters,
 concerned, nicodemus):
 
-- **Store-symlink lane (the lock's `hermesProfiles` table)** — the store copy is symlinked into the named
+- **Store-symlink lane (the lock's `hermesProfiles` table)**: the store copy is symlinked into the named
   profiles' `skills/` dirs (`default` = `~/.hermes/skills`, a specialist =
   `~/.hermes/profiles/<name>/skills`), declared in chezmoi and re-asserted by `update-skills.sh` at run
   time (creating profile `skills/` dirs when absent). `[]` means the store copy reaches no hermes
@@ -400,25 +400,25 @@ concerned, nicodemus):
   `home-assistant-best-practices`; butters = `chrome-devtools-axi`; concerned = `elevenlabs`,
   `last30days`; elaine = `lobster`; nicodemus = `gh-axi`, `kubernetes-specialist`, `sql-toolkit`.
   `home-assistant` maps to `[]`: hermes carries native Home Assistant runtime tools, so the runtime skill
-  would be redundant there — its store copy serves Claude/Codex only (the authoring companion,
+  would be redundant there, its store copy serves Claude/Codex only (the authoring companion,
   `home-assistant-best-practices`, is what default carries).
-- **Hermes-owned lane (the lock's `hermesRegistry` table)** — hermes installed the skill from a registry
+- **Hermes-owned lane (the lock's `hermesRegistry` table)**: hermes installed the skill from a registry
   (skills.sh / ClawHub / the official registry) and owns a real hub dir in the profile. The weekly
   `update-skills.sh` hermes phase keeps these fresh: `hermes -p <profile> skills update <lockKey>` per
   entry, keyed by the entry's `lockKey`, never a list name (a ClawHub slug can differ from the skill's
   frontmatter name: `tiktok-crawling` installs `tiktok-scraping-yt-dlp`). These skills have NO store
-  symlink declaration — a store symlink would shadow the hub-owned dir, which is why `hermesRegistry` and
+  symlink declaration, a store symlink would shadow the hub-owned dir, which is why `hermesRegistry` and
   the non-empty `hermesProfiles` set are DISJOINT. Blocked/refused updates are loud logged warnings
   (relayed via `relay.sh`), never errors; automation never passes `--force` (bypassing a security scan
   needs per-invocation operator confirmation) and never uninstalls. `held: true` skips a skill visibly
-  (none currently held). The default profile (Bob) is walked like any other — its un-entanglement is done
+  (none currently held). The default profile (Bob) is walked like any other, its un-entanglement is done
   (2026-07-09), and with `sql-toolkit` and `summarize-pro` since moved to the clawhub-tracked store lane,
   the registry table holds no default-profile entry: `conventional-commits` in nicodemus, the rest in
   concerned. The retired hub installs (nicodemus `sql-toolkit`, default `summarize-pro`) are unowned live
-  state to hand-remove — never automated.
+  state to hand-remove, never automated.
 
 Name collisions resolve catalog-first (operator ruling): the `humanizer` and `hyperframes` store copies
-serve Claude/Codex only and are never symlinked hermes-side — hermes gets those names from its own
+serve Claude/Codex only and are never symlinked hermes-side, hermes gets those names from its own
 catalog/hub. `summarize-pro` and `todoist-cli` left the collision set: their only hermes copies were hub
 installs (since retired), so no catalog copy wins those names and the store symlink is the wanted
 delivery. `test/unit/skills-roster-fanout.sh` enforces this independently of the tables so a future lock
@@ -430,18 +430,18 @@ adaptations (`writing-plans`, `requesting-code-review`, `subagent-driven-develop
 `systematic-debugging`, `test-driven-development`) are referenced by their adaptation names instead of
 `superpowers:<name>`, keeping the workflow out of the disabled legacy duplicates. The mapping lives in
 the lock's `superpowersRouting` table, and `~/.local/bin/assert-hermes-superpowers-routing.sh` re-asserts
-it idempotently on every `update-skills.sh` run and after any superpowers re-mirror — a re-assert that
+it idempotently on every `update-skills.sh` run and after any superpowers re-mirror, a re-assert that
 fixes anything is logged loudly (and relayed), because it means something stomped the mirror.
 `assert-hermes-superpowers-routing.sh --check` is the health probe: non-zero lists the stale files and
-changes nothing. Scope is the hermes mirror ONLY — Claude Code's superpowers plugin keeps its
+changes nothing. Scope is the hermes mirror ONLY. Claude Code's superpowers plugin keeps its
 `superpowers:*` references untouched.
 
-**Local forks (`moshi`, `herdr`) — updating:** they deliberately diverge from upstream, so
-`update-skills.sh` never touches them. When updating them — or when their upstreams ship new features —
+**Local forks (`moshi`, `herdr`), updating:** they deliberately diverge from upstream, so
+`update-skills.sh` never touches them. When updating them, or when their upstreams ship new features,
 first compare against upstream (https://herdr.dev/docs/preview/agent-skill/ and
 https://getmoshi.app/skill), then port wanted changes into the vendored copy by hand; the divergences are
 documented in the lock's `forks` notes. The weekly run drift-checks the `forks` upstreams and, when one
-changed, alerts in the run log (`~/.local/log/skills/`) and via `relay.sh` when that exists — after the
+changed, alerts in the run log (`~/.local/log/skills/`) and via `relay.sh` when that exists. After the
 hand comparison, bump that fork's `lastComparedTreeHash` to the new upstream hash.
 
 **Generation-exchange updates:** every npx- and clawhub-tracked skill lives inside ONE live generation
@@ -479,12 +479,12 @@ declares, so the registered-skill count cannot grow from a run.
 row to `tiers` (plus the `skillOverrides` template entry and the `agents/openai.yaml` overlay when
 on-demand) and `hermesProfiles` (`[]` when hermes should not carry it from the store, the named profiles
 when it should), add a `hermesRegistry` entry when hermes owns it from a registry (never both a non-empty
-`hermesProfiles` mapping and a `hermesRegistry` entry — they are disjoint), declare its Claude symlink
-and — only for store-symlinked skills — the mapped hermes symlinks, and run `just test` — the roster test
+`hermesProfiles` mapping and a `hermesRegistry` entry, they are disjoint), declare its Claude symlink
+and, only for store-symlinked skills, the mapped hermes symlinks, and run `just test`, the roster test
 tells you what is missing. **Removing one:** delete the store entry (or `npxTracked` row), every lock
 table row, and every declaration in the same commit.
 
-**On-demand use of an unregistered skill:** point the agent at the file — "read
+**On-demand use of an unregistered skill:** point the agent at the file, "read
 `~/.agents/skills/<name>/SKILL.md` and follow it." Router/search-and-load indirection layers were
 evaluated and rejected (measured lossy and slow at this library size); Hermes's larger native catalog
 (`~/.hermes/skills/<category>/`) remains Hermes-only.
@@ -492,21 +492,21 @@ evaluated and rejected (measured lossy and slow at this library size); Hermes's 
 ### Herdr Workspace Management
 
 Workspaces (project-anchored tab groups, ≈ tmux sessions) are configured at
-`dot_config/herdr/config.toml`. Eight project workspaces are reached by quick-jump chords — bound on nine
+`dot_config/herdr/config.toml`. Eight project workspaces are reached by quick-jump chords, bound on nine
 keys, mostly `prefix+ctrl+<letter>`, but the dotfiles chord is `prefix+ctrl+.` (a period, sent via CSI-u)
 with a `prefix+.` fallback for terminals without CSI-u. See the design spec at
 `docs/superpowers/specs/2026-06-18-tmux-to-herdr-migration-design.md` for the full mapping table. On
 every terminal launch `~/.bashrc` auto-attaches to the persistent herdr session, which opens the
-last-focused workspace (homelab in practice, once visited, since the session persists) — herdr has no
+last-focused workspace (homelab in practice, once visited, since the session persists), herdr has no
 launch-into-workspace flag. Jump to homelab anytime via the `h` alias or the `prefix+ctrl+h` chord; the
 other workspaces are on-demand via their own chords.
 
 Ctrl-h/j/k/l "seamless nav across Neovim splits and herdr panes" is a herdr **plugin**
 (`dot_local/share/herdr/plugins/herdr-smart-nav/`, a Rust binary), bound via four
-`type = "plugin_action"` keybindings (`herdr-smart-nav.nav_<dir>`) — so herdr execs it directly as argv,
+`type = "plugin_action"` keybindings (`herdr-smart-nav.nav_<dir>`), so herdr execs it directly as argv,
 with no `/bin/sh -lc` wrapper. Built + linked by `run_onchange_after_57` (mirrors the `last-workspace`
 plugin). It shells the `herdr` CLI (no Rust SDK); the gain over the old shell-keybinding binary is ~5 ms
-(the wrapper) and is imperceptible — the value is the idiomatic plugin integration. Plugin actions get
+(the wrapper) and is imperceptible. The value is the idiomatic plugin integration. Plugin actions get
 `HERDR_PANE_ID` (not `HERDR_ACTIVE_PANE_ID`).
 
 ### Git Worktrees (Worktrunk)
@@ -520,10 +520,9 @@ safely.
 
 Starship initializes early; zoxide and atuin initialize after the interactive block (both modify
 `PROMPT_COMMAND`; atuin last). `bash-preexec` is sourced explicitly from Homebrew (atuin 18.x stopped
-bundling it) BEFORE `atuin init` — atuin's `__atuin_preexec`/`__atuin_precmd` and our long-running
-command timer both register into `preexec_functions` / `precmd_functions`. A naked `DEBUG` trap would
-clobber atuin's recording. Direnv hook runs early. Carapace universal completion loads after
-`gh completion`.
+bundling it) BEFORE `atuin init`, atuin's `__atuin_preexec`/`__atuin_precmd` and our long-running command
+timer both register into `preexec_functions` / `precmd_functions`. A naked `DEBUG` trap would clobber
+atuin's recording. Direnv hook runs early. Carapace universal completion loads after `gh completion`.
 
 ### Shell History (Atuin)
 
@@ -533,7 +532,7 @@ managed by `~/Library/LaunchAgents/com.webdavis.atuin-daemon.plist` (`KeepAlive=
 recording is decoupled from `PROMPT_COMMAND` via the daemon. History stored in SQLite at
 `~/.local/share/atuin/history.db`. Sync v2 records opt-in (`[sync] records = true`) future-proofs the
 local DB schema even though `auto_sync = false`. `filter_mode = "host"` restricts Ctrl-R to the current
-machine's history. Bash's built-in history is fully removed — atuin owns all recording.
+machine's history. Bash's built-in history is fully removed, atuin owns all recording.
 
 **Diagnostic ladder** when history stops recording:
 
@@ -551,7 +550,7 @@ explicitly in bashrc before `atuin init`); `brew` upgrading atuin in-place while
 stale code, silently breaking recording via gRPC schema drift (now self-healing via
 `.chezmoiscripts/run_after_45-bounce-atuin-daemon-on-upgrade.sh.tmpl` plus a mtime check in
 `dot_bashrc.tmpl` after `atuin init`). `atuin status` is for *sync* status only and errors when not
-logged in — it is not a "is the daemon working" check; use `atuin daemon status` (reports `Version`,
+logged in, it is not a "is the daemon working" check; use `atuin daemon status` (reports `Version`,
 `Protocol`, `Healthy`) for daemon health.
 
 ### Happy Daemon (Remote Agent Control)
@@ -564,9 +563,9 @@ every `chezmoi apply` by `.chezmoiscripts/run_onchange_after_62-load-happy-daemo
 global tracked under `npm:` in `.chezmoidata/system_packages_autoinstall.yaml`, and logs go to
 `~/.local/log/happy-daemon.log`.
 
-**The one gotcha — use `start-sync`, not `start`.** The plist runs `happy daemon start-sync`, which keeps
+**The one gotcha: use `start-sync`, not `start`.** The plist runs `happy daemon start-sync`, which keeps
 the daemon in the foreground. The documented command, `happy daemon start`, detaches (forks, then
-returns), which under `KeepAlive` looks like an instant exit and restart-loops — orphaning a daemon each
+returns), which under `KeepAlive` looks like an instant exit and restart-loops, orphaning a daemon each
 cycle. `start-sync` is the foreground entry point that `start` spawns internally; it is NOT listed in
 `happy daemon --help`, so the plist comment is the only record of why it is used. launchd then supervises
 a two-process tree: the `start-sync` process it keeps alive, which in turn manages the real daemon.
@@ -585,38 +584,38 @@ happy doctor                               # full diagnostics ('happy doctor cle
 
 Tailscale runs as the open-source `tailscale` **formula** (not the `tailscale-app` GUI cask) as a launchd
 **system daemon** via `sudo tailscaled install-system-daemon` (a root-owned copy in `/usr/local/bin`; the
-brew formula stays user-owned so `brew upgrade` runs unattended) — it boots before login and uses the
+brew formula stays user-owned so `brew upgrade` runs unattended). It boots before login and uses the
 `utun` interface, so there is no Network/System Extension to re-approve after updates (the GUI variants'
 weakness on a headless host). State persists at `/Library/Tailscale` across reboots. Auth is a one-time
 manual `sudo tailscale up --accept-dns=true` plus flipping **Disable Key Expiry** on the node in the
-admin console — node-key expiry will not force reauthentication (no auth keys, no rotation, no
-KeePassXC). `run_onchange_after_66-tailscaled-status.sh.tmpl` is a sudo-free reminder that prints those
-one-time steps when the daemon is down or unauthenticated; it never runs sudo or authenticates.
+admin console, node-key expiry will not force reauthentication (no auth keys, no rotation, no KeePassXC).
+`run_onchange_after_66-tailscaled-status.sh.tmpl` is a sudo-free reminder that prints those one-time
+steps when the daemon is down or unauthenticated; it never runs sudo or authenticates.
 
-**DNS:** always `--accept-dns=true` — never a static `100.100.100.100` global resolver (breaks
+**DNS:** always `--accept-dns=true`, never a static `100.100.100.100` global resolver (breaks
 off-tailnet). The OSS-macOS weak spot is the resolver registration layer (`tailscale/tailscale#13461`,
 `#19139`): tailscaled's internal MagicDNS resolver stays healthy, but its registration of the
 `<tailnet>.ts.net` suffix route with macOS can silently half-fail (search-domain fragment written, no
-nameserver route) — including at home — so tailnet names stop resolving through the system resolver while
+nameserver route), including at home, so tailnet names stop resolving through the system resolver while
 all other DNS works. Remedy:
 `sudo tailscale set --accept-dns=false && sudo tailscale set --accept-dns=true`, then
 `sudo dscacheutil -flushcache; sudo killall -HUP mDNSResponder`; verify with
-`dscacheutil -q host -a name <peer>.<tailnet>.ts.net` (not `dig` — dig bypasses `/etc/resolver`). Durable
-fallback: needed peers are pinned in `/etc/hosts` declaratively — structured `tailnet_pins` data in
+`dscacheutil -q host -a name <peer>.<tailnet>.ts.net` (not `dig`, dig bypasses `/etc/resolver`). Durable
+fallback: needed peers are pinned in `/etc/hosts` declaratively, structured `tailnet_pins` data in
 `macos_system_setup.yaml` from which the Tier-2 sudo runner template generates the idempotent pin
 commands at `chezmoi apply` (tailscaled never manages that file, so entries coexist; tailnet IPs are
 stable per node).
 
 **Updates:** `brew upgrade` updates the user-owned formula (no extension re-approval needed), but the
-running daemon is a separate root-owned copy a formula upgrade does not touch — after upgrading the
+running daemon is a separate root-owned copy a formula upgrade does not touch. After upgrading the
 `tailscale` formula, re-run `sudo /opt/homebrew/opt/tailscale/bin/tailscaled install-system-daemon` to
 refresh the daemon copy. On this machine (dresden) `sudo` is passwordless (the operator's `!authenticate`
-sudoers config — not managed by this repo), so the re-copy is a single command; on a fresh machine expect
+sudoers config, not managed by this repo), so the re-copy is a single command; on a fresh machine expect
 a password prompt.
 
 **Daemon-host role:** when an always-home Mac exists and takes over the daemon-host role, this machine
 (dresden, which is carried) cuts back to the GUI `tailscale-app` cask (better roaming DNS) and the
-always-home Mac runs this daemon — make the chezmoi config machine-conditional then.
+always-home Mac runs this daemon. Make the chezmoi config machine-conditional then.
 
 ### AI Commit Messages
 
@@ -625,7 +624,7 @@ by `core.hooksPath = ~/.config/git/hooks`) pipes the full staged diff (no trunca
 `claude -p --model=sonnet` with a 30-second timeout, and prepopulates the commit editor with the returned
 Conventional Commits message (subject, optional body, optional footers). Bails on
 `-m`/`-F`/merge/rebase/cherry-pick and on `SKIP_AI_COMMIT=1`. Chains to a repo-local
-`.git/hooks/prepare-commit-msg` if present. Never blocks a commit — worst case the editor opens with an
+`.git/hooks/prepare-commit-msg` if present. Never blocks a commit, worst case the editor opens with an
 empty message.
 
 A per-repo `core.hooksPath` override (e.g. what `git lfs install` writes) would shadow this hook; that is
@@ -639,32 +638,32 @@ via `~/.local/bin/hue-pulse.sh`. Known interactive TUIs (vim/less/top/ssh/herdr/
 
 ### Herdr Native Status
 
-Workspace state (per-pane agent status: blocked / working / done / idle) is rendered by herdr — no
+Workspace state (per-pane agent status: blocked / working / done / idle) is rendered by herdr, no
 third-party plugin or custom script. The sidebar rolls each workspace up to its most-urgent agent state.
 Claude Code, Codex, Cursor, OpenCode, and others are recognized out of the box.
 
 ## Code Style
 
 - Shell files: 2-space indent, case-indent enabled, simplified (`shfmt -i 2 -ci -s`, wired in
-  `treefmt.nix`). When running shfmt by hand, pass these flags explicitly — `.editorconfig` only covers
+  `treefmt.nix`). When running shfmt by hand, pass these flags explicitly, `.editorconfig` only covers
   `dot_fzf*` and `dot_bash*` patterns, for editors.
 - **Bash follows the [Wooledge BashGuide](https://mywiki.wooledge.org/BashGuide) practices.** The rules
   that come up most in this repo:
   - `set -euo pipefail` at the top of every script; double-quote every expansion.
   - `[[ ]]` for tests, never `[ ]`, in anything with a bash shebang.
-  - Lists are **arrays**, never space-separated strings — no unquoted `$VAR` expansion loops and no
+  - Lists are **arrays**, never space-separated strings, no unquoted `$VAR` expansion loops and no
     `shellcheck disable=SC2086` suppressions to make them lint.
-  - Never `for x in $(command)` — iterate command output with
+  - Never `for x in $(command)`, iterate command output with
     `while IFS= read -r x; do ...; done < <(command)`. If the loop body runs anything that may read stdin
     (git, ssh, ffmpeg), read on a dedicated fd: `while IFS= read -r -u3 x; do ...; done 3< <(command)`.
   - Build JSON with `jq -n --arg`/`--argjson`, never by interpolating variables into a JSON string.
   - `printf` for any output containing variable data; `echo` only for fixed literal text.
   - Don't parse `ls`; use globs (guarded with a `[[ -e ]]`/`[[ -d ]]` test or `nullglob`).
   - Validate numeric arguments with a `[[ =~ ]]` pattern before using them.
-  - Unknown CLI arguments/commands are an error: usage to stderr, exit non-zero — never a silent
+  - Unknown CLI arguments/commands are an error: usage to stderr, exit non-zero, never a silent
     fallthrough to help with exit 0.
 - Markdown: wrapped at 105 columns, non-consecutive numbering (`mdformat` with `.mdformat.toml`).
-- Nix: formatted with nixfmt (RFC 166 style — `treefmt.nix` pins `pkgs.nixfmt-rfc-style` because the bare
+- Nix: formatted with nixfmt (RFC 166 style, `treefmt.nix` pins `pkgs.nixfmt-rfc-style` because the bare
   `nixfmt` attribute in nixpkgs 25.05 is still nixfmt-classic).
 - TOML: formatted with `taplo`. `dot_aerospace.toml` is excluded (preserves user's visual alignment).
 - ShellCheck directives: SC1090 and SC1091 are globally disabled (`.shellcheckrc`).

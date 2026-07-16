@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# macos-defaults-apply.sh — forced reapply of tracked macOS defaults.
+# macos-defaults-apply.sh, forced reapply of tracked macOS defaults.
 #
 # Same defaults-write loop as the Tier 1 chezmoiscript runner, but invocable
 # on demand without bumping the chezmoi hash gate. Use after fiddling in
 # System Settings to revert disk state to the YAML.
 
 set -euo pipefail
-# Note: no `shopt -s lastpipe` here — the while loops below don't mutate
+# Note: no `shopt -s lastpipe` here, the while loops below don't mutate
 # outer-scope state (no counter to preserve, unlike drift.sh).
 
 DATA_FILE="${HOME}/workspaces/Ivy/webdavis/dotfiles/.chezmoidata/macos_defaults.yaml"

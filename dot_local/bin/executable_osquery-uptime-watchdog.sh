@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 #
-# osquery-uptime-watchdog.sh — polled every 15 min by launchd. Asserts the
+# osquery-uptime-watchdog.sh, polled every 15 min by launchd. Asserts the
 # osquery notification pipeline is actually ALIVE, because a dead pipeline
 # otherwise looks identical to "all quiet" (the alerter is edge-triggered and
 # the queries are differential, so genuine silence is normal). Fires a single
 # CRITICAL alert via the shared dispatcher if any component is down or wedged;
 # silent when everything is healthy. Deliberately does NOT use results.log
-# mtime as a signal — hours of healthy silence are expected.
+# mtime as a signal: hours of healthy silence are expected.
 
 set -euo pipefail
 
@@ -22,7 +22,7 @@ source "$HOME/.local/bin/osquery-alert-dispatch.sh"
 
 problems=()
 
-# 1) osqueryd present AND answering — a wedged daemon passes pgrep but can't
+# 1) osqueryd present AND answering: a wedged daemon passes pgrep but can't
 #    answer a one-shot query, which is the failure mode KeepAlive won't catch.
 if ! pgrep -fq '/opt/osquery/.*osqueryd'; then
   problems+=("osqueryd is not running")

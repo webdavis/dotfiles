@@ -58,7 +58,7 @@
 - [ ] **Step 1: Create `macos_defaults.yaml` with empty arrays**
 
 ```yaml
-# macOS user defaults — declarative source of truth.
+# macOS user defaults: declarative source of truth.
 #
 # Each record under `defaults:` becomes one `defaults write` invocation at
 # `chezmoi apply` time (Tier 1 runner: run_onchange_after_30-macos-defaults).
@@ -68,7 +68,7 @@
 #     key:    <string>
 #     type:   bool|int|float|string
 #     value:  <scalar>   # must match `type`
-#     host:   current    # OPTIONAL — if set, runner uses `defaults -currentHost`
+#     host:   current    # OPTIONAL, if set, runner uses `defaults -currentHost`
 #
 # Each entry in `killall:` runs after the defaults loop. cfprefsd is required
 # for changes to take effect immediately (long-standing macOS plist-cache
@@ -86,14 +86,14 @@ macos:
 - [ ] **Step 2: Create `macos_system_setup.yaml` with empty array**
 
 ```yaml
-# macOS sudo-required system settings — declarative source of truth.
+# macOS sudo-required system settings: declarative source of truth.
 #
 # Each record under `system_setup:` is a command run by the Tier 2 runner
 # (run_onchange_after_41-macos-system-setup) at `chezmoi apply` time. The
 # runner does `sudo -v` once upfront, then prefixes commands with `sudo` only
 # when `sudo: true`.
 #
-# All commands MUST be idempotent — the runner re-runs the entire list every
+# All commands MUST be idempotent, the runner re-runs the entire list every
 # time the YAML changes (chezmoi hash gate). For non-idempotent commands,
 # put them in the runbook (docs/runbooks/macos-fresh-machine-quickstart.md)
 # instead of here.
@@ -149,7 +149,7 @@ runner will iterate macos.system_setup for sudo system commands."
 ```sh
 {{ if eq .chezmoi.os "darwin" -}}
 #!/usr/bin/env bash
-# Tier 1 — macOS user defaults runner.
+# Tier 1: macOS user defaults runner.
 # chezmoi hash-gates on the rendered template body; this script re-runs only
 # when .chezmoidata/macos_defaults.yaml changes.
 
@@ -203,7 +203,7 @@ chezmoi apply .chezmoiscripts/run_onchange_after_30-macos-defaults.sh.tmpl
 
 Expected: chezmoi materializes the rendered script in its scripts cache and runs it once. Visible side effect: System Settings closes if it was open; the four `killall` invocations restart Dock/Finder/SystemUIServer/cfprefsd (you'll see Dock and Finder briefly redraw). Exit 0.
 
-If you want to verify the run happened, check `chezmoi state get-bucket scriptState | grep macos-defaults` — there should be an entry.
+If you want to verify the run happened, check `chezmoi state get-bucket scriptState | grep macos-defaults`. There should be an entry.
 
 - [ ] **Step 5: Commit**
 
@@ -231,16 +231,16 @@ linux."
 
 ```bash
 #!/usr/bin/env bash
-# macos-defaults-drift.sh — read-only drift checker for tracked macOS defaults.
+# macos-defaults-drift.sh: read-only drift checker for tracked macOS defaults.
 #
 # Compares each record in .chezmoidata/macos_defaults.yaml against the live
 # value via `defaults [-currentHost] read`. Prints a tab-aligned table of
 # drifted rows only. Never writes.
 #
 # Exit codes:
-#   0 — no drift
-#   1 — drift detected
-#   2 — data file missing or unreadable
+#   0: no drift
+#   1: drift detected
+#   2: data file missing or unreadable
 
 set -euo pipefail
 
@@ -371,7 +371,7 @@ compare cleanly. Linux-gated via .chezmoiignore."
 
 ```bash
 #!/usr/bin/env bash
-# macos-defaults-apply.sh — forced reapply of tracked macOS defaults.
+# macos-defaults-apply.sh: forced reapply of tracked macOS defaults.
 #
 # Same defaults-write loop as the Tier 1 chezmoiscript runner, but invocable
 # on demand without bumping the chezmoi hash gate. Use after fiddling in
@@ -469,21 +469,21 @@ revert disk state to the YAML. Linux-gated."
 
 ```bash
 #!/usr/bin/env bash
-# macos-defaults-capture.sh — append a live setting to macos_defaults.yaml.
+# macos-defaults-capture.sh: append a live setting to macos_defaults.yaml.
 #
 # Reads the current value+type via `defaults read-type` + `defaults read`,
 # normalizes, appends to the YAML if not already tracked. If the entry is
 # already tracked AND the live value matches: no-op (exit 0). If the entry
-# is already tracked but the live value DIVERGES: exit 2 (drift) — resolve
+# is already tracked but the live value DIVERGES: exit 2 (drift), resolve
 # via `just defaults-apply` (revert) or hand-edit YAML (capture intent).
 #
 # Usage: macos-defaults-capture.sh <domain> <key> [--host current]
 #
 # Exit codes:
-#   0 — appended, or already in sync
-#   1 — key not currently set on this Mac
-#   2 — YAML has a different value than disk (drift; resolve before re-running)
-#   3 — malformed args
+#   0: appended, or already in sync
+#   1: key not currently set on this Mac
+#   2: YAML has a different value than disk (drift; resolve before re-running)
+#   3: malformed args
 
 set -euo pipefail
 
@@ -593,7 +593,7 @@ if [[ -n "$existing_value" ]]; then
     printf 'already tracked: %s %s = %s\n' "$domain" "$key" "$existing_value"
     exit 0
   else
-    printf 'drift: %s %s — yaml=%s disk=%s\n' "$domain" "$key" "$existing_value" "$raw_value" >&2
+    printf 'drift: %s %s, yaml=%s disk=%s\n' "$domain" "$key" "$existing_value" "$raw_value" >&2
     printf '  resolve via `just defaults-apply` (revert) or hand-edit YAML.\n' >&2
     exit 2
   fi
@@ -723,7 +723,7 @@ gated."
 ```sh
 {{ if eq .chezmoi.os "darwin" -}}
 #!/usr/bin/env bash
-# Tier 2 — macOS sudo system-setup runner.
+# Tier 2: macOS sudo system-setup runner.
 # chezmoi hash-gates on the rendered template body; this script re-runs only
 # when .chezmoidata/macos_system_setup.yaml changes.
 
@@ -814,7 +814,7 @@ defaults-capture domain key host="":
     ~/.local/bin/macos-defaults-capture.sh "{{domain}}" "{{key}}"
   fi
 
-# macOS Defaults discovery — read-only wrappers around `defaults`.
+# macOS Defaults discovery: read-only wrappers around `defaults`.
 defaults-list:
   defaults domains | tr ',' '\n' | sort
 
@@ -850,7 +850,7 @@ SKIP_AI_COMMIT=1 git commit -m "feat(justfile): add macos defaults recipes
 
 Six recipes for the new defaults workflow: D (alias defaults-drift),
 defaults-apply, defaults-capture <domain> <key> [host], plus three
-discovery wrappers around macOS's defaults command — defaults-list
+discovery wrappers around macOS's defaults command: defaults-list
 (domains), defaults-show <domain> (one domain's keys), defaults-dump
 (full corpus, paged through less)."
 ```
@@ -877,10 +877,10 @@ Add (immediately after the existing Homebrew block):
 Two `.chezmoidata/` files declaratively track macOS settings; two `.chezmoiscripts/` runners apply them
 at `chezmoi apply` time on darwin (no-op on linux):
 
-- `.chezmoidata/macos_defaults.yaml` + `run_onchange_after_30-macos-defaults.sh.tmpl` — per-user
+- `.chezmoidata/macos_defaults.yaml` + `run_onchange_after_30-macos-defaults.sh.tmpl`, per-user
   `defaults write` records, plus a `killall` list (Dock/Finder/SystemUIServer/cfprefsd; cfprefsd kill
   is required for plist changes to take effect immediately).
-- `.chezmoidata/macos_system_setup.yaml` + `run_onchange_after_41-macos-system-setup.sh.tmpl` — sudo
+- `.chezmoidata/macos_system_setup.yaml` + `run_onchange_after_41-macos-system-setup.sh.tmpl`, sudo
   system commands (one `sudo -v` upfront, then loop). Early-returns when the array is empty.
 
 **Daily workflow:**
@@ -895,7 +895,7 @@ at `chezmoi apply` time on darwin (no-op on linux):
 
 The capture helper is the canonical way to add a tracked setting: toggle it in System Settings, run
 `just defaults-capture`, then `chezmoi apply` to commit. The helper refuses to silently overwrite a
-tracked entry whose live value diverges from YAML (exits 2) — resolve via `just defaults-apply` to
+tracked entry whose live value diverges from YAML (exits 2), resolve via `just defaults-apply` to
 revert, or hand-edit YAML to capture the new intent.
 
 **Aerospace required defaults:** `com.apple.dock mru-spaces=false` is the single most common Aerospace
@@ -942,13 +942,13 @@ brand-new Mac before running `chezmoi apply` for the first time.
 
 ## Before first `chezmoi apply`
 
-1. **Install Xcode Command Line Tools** — `xcode-select --install`. Required for git and brew.
-2. **Sign into Apple ID** — System Settings → Apple ID. Required for iCloud Drive (KeePassXC db sync)
+1. **Install Xcode Command Line Tools**: `xcode-select --install`. Required for git and brew.
+2. **Sign into Apple ID**: System Settings → Apple ID. Required for iCloud Drive (KeePassXC db sync)
    and `mas` App Store installs.
-3. **Retrieve the KeePassXC database** — from offline backup or iCloud Drive. Place at the path
+3. **Retrieve the KeePassXC database**: from offline backup or iCloud Drive. Place at the path
    referenced in `.chezmoi.toml.tmpl`.
-4. **Install chezmoi** — `brew install chezmoi` (or pre-install via homebrew bootstrap).
-5. **Initialize chezmoi** — `chezmoi init <repo-url>`. This will require the KeePassXC db to be
+4. **Install chezmoi**: `brew install chezmoi` (or pre-install via homebrew bootstrap).
+5. **Initialize chezmoi**: `chezmoi init <repo-url>`. This will require the KeePassXC db to be
    reachable for any KeePassXC-templated files.
 
 ## During `chezmoi apply`
@@ -958,37 +958,37 @@ the system_setup YAML is non-empty. Enter your password.
 
 ## After first `chezmoi apply`
 
-These steps require GUI interaction or interactive auth — there's no `defaults` equivalent.
+These steps require GUI interaction or interactive auth, there's no `defaults` equivalent.
 
 ### Aerospace compatibility
 
-- **System Settings → Desktop & Dock → Mission Control → Displays have separate Spaces** — set per
+- **System Settings → Desktop & Dock → Mission Control → Displays have separate Spaces**: set per
   machine: ON for tri-monitor, OFF for single-monitor.
-- **System Settings → Desktop & Dock → Click wallpaper to reveal desktop** — set to "Only in Stage
+- **System Settings → Desktop & Dock → Click wallpaper to reveal desktop**: set to "Only in Stage
   Manager" (the `defaults` key changes name across Sequoia point releases, so manual is more durable).
 
 ### TCC privacy grants
 
 System Settings → Privacy & Security → grant the following:
 
-- **Full Disk Access** — Ghostty, Karabiner-Elements, Hammerspoon.
-- **Screen Recording** — any tool you use that needs it (Loom, Zoom, OBS).
-- **Accessibility** — Karabiner-Elements, Rectangle, any keyboard-remap tools.
-- **Input Monitoring** — Karabiner-Elements.
+- **Full Disk Access**: Ghostty, Karabiner-Elements, Hammerspoon.
+- **Screen Recording**: any tool you use that needs it (Loom, Zoom, OBS).
+- **Accessibility**: Karabiner-Elements, Rectangle, any keyboard-remap tools.
+- **Input Monitoring**: Karabiner-Elements.
 
-Each grant requires opening the Privacy sheet and dragging the app into the listed sheet — there's no
+Each grant requires opening the Privacy sheet and dragging the app into the listed sheet, there's no
 CLI surface.
 
 ### Hardware pairing
 
-- **Bluetooth** — pair AirPods, mice, keyboards via System Settings → Bluetooth.
-- **Wi-Fi profiles / 802.1X** — connect to your network; the password / cert flow is interactive.
-- **Touch ID** — enroll fingerprints via System Settings → Touch ID & Password.
+- **Bluetooth**: pair AirPods, mice, keyboards via System Settings → Bluetooth.
+- **Wi-Fi profiles / 802.1X**: connect to your network; the password / cert flow is interactive.
+- **Touch ID**: enroll fingerprints via System Settings → Touch ID & Password.
 
 ### App authentication
 
-- **Browser sign-ins** — 1Password browser extension, GitHub, work accounts.
-- **App Store apps requiring purchase confirmation** — after `mas install <id>`, confirm purchase in
+- **Browser sign-ins**: 1Password browser extension, GitHub, work accounts.
+- **App Store apps requiring purchase confirmation**: after `mas install <id>`, confirm purchase in
   the modal that appears.
 
 ### Login Items
@@ -1000,11 +1000,11 @@ System Settings → General → Login Items → add anything not covered by an i
 
 The following are intentionally NOT tracked in the YAML:
 
-- **Karabiner-Elements rules** — managed by Karabiner's own JSON in `dot_config/private_karabiner/`.
-- **SIP-protected toggles** (`nvram`, `csrutil`) — recovery-mode only.
-- **Hot Corners / Mission Control assignments** — `defaults` keys vary by macOS major version;
+- **Karabiner-Elements rules**: managed by Karabiner's own JSON in `dot_config/private_karabiner/`.
+- **SIP-protected toggles** (`nvram`, `csrutil`): recovery-mode only.
+- **Hot Corners / Mission Control assignments**: `defaults` keys vary by macOS major version;
   punt to v2.
-- **Per-app keyboard shortcuts** (`NSGlobalDomain NSUserKeyEquivalents`) — arrays-of-dicts not
+- **Per-app keyboard shortcuts** (`NSGlobalDomain NSUserKeyEquivalents`): arrays-of-dicts not
   supported by v1 schema; punt to v2.
 
 ## Sanity checks after setup is complete
@@ -1024,7 +1024,7 @@ pgrep -x AeroSpace  # expect a PID
 - [ ] **Step 3: Lint pass**
 
 Run: `just m`
-Expected: mdformat ✅. (`docs/runbooks/` is in the mdformat target — same `.mdformat.toml` rules apply.)
+Expected: mdformat ✅. (`docs/runbooks/` is in the mdformat target, same `.mdformat.toml` rules apply.)
 
 - [ ] **Step 4: Commit**
 
@@ -1048,7 +1048,7 @@ Includes a sanity-check section with concrete commands."
 - Modify: `.chezmoidata/macos_defaults.yaml`
 
 This task uses the capture helper to populate the spec's required + recommended Aerospace entries.
-Before running each capture, the live value on disk must match what the spec says it should be —
+Before running each capture, the live value on disk must match what the spec says it should be,
 otherwise the helper captures the wrong value. So we set each value first, then capture.
 
 - [ ] **Step 1: Set the seven Aerospace-relevant defaults to their target values**
@@ -1100,7 +1100,7 @@ nix develop .#run --command yq eval '.macos.defaults | length' .chezmoidata/maco
 
 Expected: `7`.
 
-- [ ] **Step 4: Run `just D` — should be clean (YAML matches disk)**
+- [ ] **Step 4: Run `just D`, should be clean (YAML matches disk)**
 
 Run: `just D`
 Expected: exit 0, no output.
@@ -1109,7 +1109,7 @@ Expected: exit 0, no output.
 
 Run: `chezmoi apply --exclude=templates`
 Expected: chezmoi notices the rendered Tier 1 script's hash changed (because YAML changed), re-runs
-it. The runner emits 7 `defaults write` calls (all idempotent — values already match) and 4 killall
+it. The runner emits 7 `defaults write` calls (all idempotent, values already match) and 4 killall
 calls. Dock + Finder briefly redraw. Exit 0.
 
 - [ ] **Step 6: Verify the post-apply state**
@@ -1137,39 +1137,39 @@ flipping mru-spaces back to true)."
 
 ---
 
-## Task 11: Ongoing seeding — incremental capture
+## Task 11: Ongoing seeding, incremental capture
 
 This task is open-ended and user-driven. The implementation work is done after Task 10; what
 follows is the ongoing flow that the user owns.
 
 For each setting the user wants tracked beyond the Aerospace baseline:
 
-1. **Discover** — `just defaults-list` to see all preference domains, then
+1. **Discover**: `just defaults-list` to see all preference domains, then
    `just defaults-show <domain>` to browse one domain's keys.
-2. **Capture** — `just defaults-capture <domain> <key>` (or with `--host=current` for ByHost
+2. **Capture**: `just defaults-capture <domain> <key>` (or with `--host=current` for ByHost
    settings). Helper writes the record into `.chezmoidata/macos_defaults.yaml`.
-3. **Apply** — `chezmoi apply`. Tier 1 runner re-fires (hash gate), the new defaults take effect,
+3. **Apply**: `chezmoi apply`. Tier 1 runner re-fires (hash gate), the new defaults take effect,
    killalls fire as needed.
-4. **Commit** — one commit per logical group of captures (`feat(macos-defaults): track dock+finder
+4. **Commit**: one commit per logical group of captures (`feat(macos-defaults): track dock+finder
    visibility settings`, etc.).
 
 For sudo system commands (`pmset`, `systemsetup`, etc.):
 
 1. **Hand-edit** `.chezmoidata/macos_system_setup.yaml`. The capture helper does not cover Tier 2
    (sudo commands aren't `defaults`-shaped).
-2. **Apply** — `chezmoi apply`. Tier 2 runner fires; one sudo prompt, then the loop.
+2. **Apply**: `chezmoi apply`. Tier 2 runner fires; one sudo prompt, then the loop.
 3. **Commit**.
 
 Stop when you've captured everything you care about. The system is fully usable at any incremental
-checkpoint — partial coverage is fine.
+checkpoint, partial coverage is fine.
 
 ---
 
 ## Verification gates (run after every task)
 
-- `just l` — lint passes.
-- `git status` — clean working tree before next task.
-- `just D` — drift checker exits 0 (after Task 3 onward, with empty YAML).
+- `just l`: lint passes.
+- `git status`: clean working tree before next task.
+- `just D`: drift checker exits 0 (after Task 3 onward, with empty YAML).
 
 ## Final acceptance check (run after Task 10)
 

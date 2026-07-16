@@ -22,7 +22,7 @@ vendor/**
 # Git worktrees (isolated implementation workspaces).
 .worktrees/
 
-# Agent scratch (superpowers SDD briefs, reports, evidence — never tracked).
+# Agent scratch (superpowers SDD briefs, reports, evidence, never tracked).
 .superpowers/
 
 # Knowledge-graph output: graph.json is the committed map (rebuilt after each

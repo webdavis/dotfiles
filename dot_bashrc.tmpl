@@ -85,7 +85,7 @@ export MANPATH="${HOMEBREW_PREFIX}/share/man:${MANPATH}"
 # ┗━━━━━━━━━━━━━━━━━━━━━┛
 
 # git and gh completions are provided by carapace (below) and, for git, the
-# completion bundled with Homebrew's git formula — both lazy-loaded, so nothing
+# completion bundled with Homebrew's git formula, both lazy-loaded, so nothing
 # to source here.
 
 # Direnv: https://github.com/direnv/direnv
@@ -122,7 +122,7 @@ eval "$(starship init bash)"
 # Append (not prepend) so Volta's node/npm shims do NOT win over Homebrew's
 # `node`. Volta-installed CLI tools (e.g. qmd) still resolve here because
 # nothing earlier in PATH provides those binaries, and their shims dispatch to
-# their pinned Node version internally — independent of PATH order.
+# their pinned Node version internally, independent of PATH order.
 export VOLTA_HOME="$HOME/.volta"
 [[ -d "$VOLTA_HOME/bin" ]] && PATH="$PATH:$VOLTA_HOME/bin"
 
@@ -134,7 +134,7 @@ complete -F _just -o bashdefault -o default j
 
 # Worktrunk: https://worktrunk.dev/
 # Defines a `wt` shell function wrapping the binary so `wt switch`/`wt merge`
-# can change the parent shell's directory (a subprocess can't cd its caller —
+# can change the parent shell's directory (a subprocess can't cd its caller,
 # the function reads a directive temp file and runs the cd itself). Without it,
 # `wt switch` finds the worktree but cannot move you there. The init output is
 # self-guarding (`if command -v wt`) and uses `builtin cd`, so it is inert when
@@ -156,7 +156,7 @@ nix_daemon='/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh'
 
 # Per-command Bash completions live in ~/.local/share/bash-completion/completions/
 # and are lazy-loaded by bash-completion@2's dynamic loader (sourced above) on
-# first tab — nothing to source here. Add a file named after the command (e.g.
+# first tab, nothing to source here. Add a file named after the command (e.g.
 # `whisply`), no extension.
 
 # Fzf: ~/.fzf_bindings (sourced later in the interactive block) loads only
@@ -309,8 +309,8 @@ command -v herdr &>/dev/null || return
 
 # Launch or attach to the persistent herdr session (starts the server if it
 # isn't running). herdr has no launch-into-workspace flag, so this opens the
-# last-focused workspace — homelab once you've been there, since the session
+# last-focused workspace, homelab once you've been there, since the session
 # persists. Jump to homelab anytime via prefix+ctrl+h or the `h` alias.
 # NOTE: `herdr workspace create` is a socket call that needs a running server
-# and does not attach the terminal — do not use it here.
+# and does not attach the terminal, do not use it here.
 herdr

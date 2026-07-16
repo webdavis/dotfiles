@@ -48,7 +48,7 @@ moshi_url="${RELAY_MOSHI_URL:-https://api.getmoshi.app/api/webhook}"
 hermes_url="${RELAY_HERMES_URL:-http://127.0.0.1:8644/webhooks/relay}"
 
 title="${agent:-relay} · ${state:-done}${project:+ · $project}"
-# Body is the summary itself (branch-prefixed), not a redundant "state — project" header the title already
+# Body is the summary itself (branch-prefixed), not a redundant "state, project" header the title already
 # carries -- so the phone push / macOS banner spend their short preview on the summary, not boilerplate.
 message="${branch:+($branch) }${detail:-${state:-done}}"
 # Phone push + macOS banner clip long summaries mid-sentence; pre-trim to the last full sentence within

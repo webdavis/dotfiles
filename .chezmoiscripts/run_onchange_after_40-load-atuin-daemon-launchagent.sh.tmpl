@@ -12,7 +12,7 @@ TARGET="gui/$(id -u)/com.webdavis.atuin-daemon"
 
 # Re-bootstrap the LaunchAgent so a changed plist takes effect. launchd's
 # user-domain registry sometimes still holds the previous registration when
-# bootstrap fires immediately after bootout — the call returns EIO ("Input/
+# bootstrap fires immediately after bootout, the call returns EIO ("Input/
 # output error"). Retry silently up to 3 times before surfacing the real
 # error on the final attempt.
 launchctl bootout "$TARGET" 2>/dev/null || true

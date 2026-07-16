@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # Create-or-focus a herdr workspace by label.
 #
-# `herdr workspace create` is NOT idempotent — it spawns a new workspace every
-# invocation — and `herdr workspace focus` takes a workspace id, not a label, so
+# `herdr workspace create` is NOT idempotent, it spawns a new workspace every
+# invocation, and `herdr workspace focus` takes a workspace id, not a label, so
 # there is no single built-in create-or-focus command; hence this helper.
 #
 # (Workspace MRU "last workspace" tracking lives in the herdr-last-workspace
-# herdr plugin, which hooks the workspace.focused event — this helper just jumps.)
+# herdr plugin, which hooks the workspace.focused event, this helper just jumps.)
 #
 # Usage: herdr-jump.sh <label> <cwd>
 set -euo pipefail

@@ -1,4 +1,4 @@
-# Neovim Config Overhaul Design Spec — v2
+# Neovim Config Overhaul Design Spec: v2
 
 **Date:** 2026-06-02
 **Status:** Active design. Supersedes `2026-05-24-nvim-overhaul-design.md` (v1).
@@ -23,15 +23,15 @@ Three framing errors in v1 are corrected here, because they invalidate v1's rati
    "LazyVim will default X" are struck. `lazyvim.json` and `lazyvim_*` augroups are vestigial starter
    scaffolding (delete per decision γ).
 1. **The startup lever is `defaults.lazy = false`** (`lua/config/lazy.lua:41`), which forces *all* ~39
-   plugin specs eager — not "~14 eager specs" as v1 claimed. The fix is to flip that flag and add
+   plugin specs eager, not "~14 eager specs" as v1 claimed. The fix is to flip that flag and add
    per-spec triggers (decision δ), and the < 150 ms target is **non-binding** (it sits below the never-
    achieved ~190 ms baseline). The only hard criterion is "measurably faster."
-1. **Two v1 bugs are dead and two are softened** — see §3. A new bug was found (`custom_api/git.lua:247`).
+1. **Two v1 bugs are dead and two are softened** (see §3). A new bug was found (`custom_api/git.lua:247`).
 
 ## Background
 
 The nvim config is a **standalone git repo**, `git@github.com:webdavis/neovim-config.git`, checked out
-at `~/.config/nvim` — **not** under this chezmoi source (`~/workspaces/Ivy/webdavis/dotfiles`, verified
+at `~/.config/nvim`, **not** under this chezmoi source (`~/workspaces/Ivy/webdavis/dotfiles`, verified
 via `chezmoi source-path`). A fresh machine therefore gets no working editor from `chezmoi apply`.
 
 Baseline metrics: 83 plugin pins (`lazy-lock.json`), ~39 plugin spec files, 6 `custom_api/` modules
@@ -41,11 +41,11 @@ Baseline metrics: 83 plugin pins (`lazy-lock.json`), ~39 plugin spec files, 6 `c
 
 | # | Approach | Verdict | Reason |
 |---|----------|---------|--------|
-| 1 | **Flatten the standalone repo into `dot_config/nvim/`** (this design) | **Chosen** | One source of truth; `chezmoi apply` sets up a fresh machine. (v1 cited the `chezmoi.nvim` autocmd as the reason — that rationale is **struck**: the autocmd watches `~/.local/share/chezmoi`, not the relocated source, and has `watch=false`.) |
+| 1 | **Flatten the standalone repo into `dot_config/nvim/`** (this design) | **Chosen** | One source of truth; `chezmoi apply` sets up a fresh machine. (v1 cited the `chezmoi.nvim` autocmd as the reason, that rationale is **struck**: the autocmd watches `~/.local/share/chezmoi`, not the relocated source, and has `watch=false`.) |
 | 2 | Keep separate repo, clone via a `run_once` script | Rejected | Two sources of truth; bootstrap still needs network + SSH at apply time. |
 | 3 | git submodule | Rejected | Submodule friction with chezmoi's source-state model; detached-HEAD foot-guns. |
 
-## §0 — Decisions
+## §0: Decisions
 
 **Resolved:**
 
@@ -58,26 +58,26 @@ Baseline metrics: 83 plugin pins (`lazy-lock.json`), ~39 plugin spec files, 6 `c
 - **octo.nvim picker backend.** v1's "switch snacks → fzf-lua because that's where LazyVim is heading"
   is **false** (LazyVim's octo extra tries telescope→fzf-lua→snacks; snacks is the bundled default). The
   live config already uses `picker = "snacks"` (`git.lua:1170`) and already depends on snacks.
-  **Recommendation: stay on snacks** — this still removes telescope with **zero net plugin add** and
+  **Recommendation: stay on snacks**. This still removes telescope with **zero net plugin add** and
   contradicts v1's "net 83→75 (+fzf-lua)" framing in your favor. Choose fzf-lua only if you specifically
   want its speed. Default assumed below: **snacks**.
 
-## §1 — Architecture & file layout (α–θ, corrected)
+## §1: Architecture & file layout (α to θ, corrected)
 
 | ID | Decision | Rework folded in from reassessment |
 |----|----------|------------------------------------|
-| **α** | Flatten `webdavis/neovim-config` → `dot_config/nvim/`; archive original as `…-archive` | Justify on "one source of truth," **not** the inert `chezmoi.nvim` autocmd. Script removal of the nested `~/.config/nvim/.git` to avoid dual-VCS state. Sequencing is a **blocker** — see §4.1. |
-| **β** | Track `lazy-lock.json` for reproducible pins | After `:Lazy update/restore`, run `chezmoi re-add ~/.config/nvim/lazy-lock.json`. **Set `checker.enabled = false`** (`lazy.lua:48-49`) — the background update checker rewrites the lock and fights chezmoi (§4.4). |
+| **α** | Flatten `webdavis/neovim-config` → `dot_config/nvim/`; archive original as `…-archive` | Justify on "one source of truth," **not** the inert `chezmoi.nvim` autocmd. Script removal of the nested `~/.config/nvim/.git` to avoid dual-VCS state. Sequencing is a **blocker** (see §4.1). |
+| **β** | Track `lazy-lock.json` for reproducible pins | After `:Lazy update/restore`, run `chezmoi re-add ~/.config/nvim/lazy-lock.json`. **Set `checker.enabled = false`** (`lazy.lua:48-49`), the background update checker rewrites the lock and fights chezmoi (§4.4). |
 | **γ** | Delete orphan `lazyvim.json` | Low stakes; tie to the "not actually LazyVim" cleanup. |
 | **δ** | Lazy-load + faster startup | **Primary lever = flip `defaults.lazy = false` → `true`** (`lazy.lua:41`) plus per-spec `event/ft/keys/cmd`. < 150 ms is **non-binding**; measure with `--startuptime`. |
-| **ε** | Audit + fix `custom_api/`, keep module structure | Sound. Ship with a headless smoke test (the runtime-only bugs are invisible to luacheck — §4.8). |
-| **ζ** | Bootstrap script `run_onchange_after_80-bootstrap-nvim.sh.tmpl` | **Reworked — blocker (§4.1).** Cold-path long/no timeout; drive Mason only via `MasonToolsInstallSync` with `run_on_start = false` (kill the `run_on_start=true`/`start_delay`/`debounce` race at `lsp.lua:212-226`); verify expected binaries and **exit non-zero on incompleteness** so `run_onchange` re-triggers; document network/SSH + cargo prerequisites; `{{ if eq .chezmoi.os "darwin" }}` guard. |
-| **η** | Track `CLAUDE.md` + `.claude/` | Nested `CLAUDE.md` tracks fine. **Carve out `.config/nvim/.claude/settings.local.json`** — it is a permissions allowlist and must not land in a public repo. Confirm before propagating the allowlist machine-wide. |
-| **θ** | Chezmoiignore dev-only files | **Bare patterns are target-root-anchored** (verified) — they would *not* ignore files under `dot_config/nvim/`. Use **path-anchored** entries: `.config/nvim/.luacheckrc`, `.config/nvim/stylua.toml`, `.config/nvim/.prettierignore`, `.config/nvim/README.md`, and the two v1 missed: `.config/nvim/docs/`, `.config/nvim/.github/`. |
+| **ε** | Audit + fix `custom_api/`, keep module structure | Sound. Ship with a headless smoke test (the runtime-only bugs are invisible to luacheck, §4.8). |
+| **ζ** | Bootstrap script `run_onchange_after_80-bootstrap-nvim.sh.tmpl` | **Reworked, blocker (§4.1).** Cold-path long/no timeout; drive Mason only via `MasonToolsInstallSync` with `run_on_start = false` (kill the `run_on_start=true`/`start_delay`/`debounce` race at `lsp.lua:212-226`); verify expected binaries and **exit non-zero on incompleteness** so `run_onchange` re-triggers; document network/SSH + cargo prerequisites; `{{ if eq .chezmoi.os "darwin" }}` guard. |
+| **η** | Track `CLAUDE.md` + `.claude/` | Nested `CLAUDE.md` tracks fine. **Carve out `.config/nvim/.claude/settings.local.json`**, it is a permissions allowlist and must not land in a public repo. Confirm before propagating the allowlist machine-wide. |
+| **θ** | Chezmoiignore dev-only files | **Bare patterns are target-root-anchored** (verified), they would *not* ignore files under `dot_config/nvim/`. Use **path-anchored** entries: `.config/nvim/.luacheckrc`, `.config/nvim/stylua.toml`, `.config/nvim/.prettierignore`, `.config/nvim/README.md`, and the two v1 missed: `.config/nvim/docs/`, `.config/nvim/.github/`. |
 
-## §2 — Plugin changes
+## §2: Plugin changes
 
-### Drops (8) — most are transitive deps, so each is an atomic multi-edit
+### Drops (8): most are transitive deps, so each is an atomic multi-edit
 
 Removing a drop's spec block alone is a **no-op or an error**: `lazy.nvim` force-installs anything still
 named in a `dependencies` list, and removing a dep a consumer still references errors at use-time. Land
@@ -90,7 +90,7 @@ each as one cohesive commit.
 | `nvim-notify` | noice dep | remove dep; noice uses `snacks.notifier` | snacks.notifier |
 | `gv.vim` | fugitive dep | remove from fugitive deps `git.lua:255` | `snacks.picker.git_log` |
 | `git-messenger.vim` | explicit/dep | remove spec | gitsigns `blame_line` (already at `git.lua:199`) |
-| `git-blame.nvim` | explicit | remove spec | **feature loss — flag (§4.10)**; `current_line_blame` must be *added* to gitsigns opts (`git.lua:60`); commit-URL keymaps have no gitlinker equivalent |
+| `git-blame.nvim` | explicit | remove spec | **feature loss, flag (§4.10)**; `current_line_blame` must be *added* to gitsigns opts (`git.lua:60`); commit-URL keymaps have no gitlinker equivalent |
 | `telescope.nvim` | octo dep | **last**: decide octo picker (§0) → remove dep `git.lua:1161` + delete standalone block `git.lua:1142-1155` | snacks (default) or fzf-lua |
 | `boole.nvim` | explicit spec | **last**: port `<C-a>/<C-x>` augends to a new dial spec first, then remove | dial.nvim augends |
 
@@ -98,27 +98,27 @@ each as one cohesive commit.
 
 | Plugin | Config | Note |
 |--------|--------|------|
-| `coder/claudecode.nvim` | `provider = "none"` | Healthy; `provider="none"` valid and endorses the tmux-pane workflow. **Pin a commit** — only tag is v0.3.0 (Sept 2025) while main advances daily. |
+| `coder/claudecode.nvim` | `provider = "none"` | Healthy; `provider="none"` valid and endorses the tmux-pane workflow. **Pin a commit**, only tag is v0.3.0 (Sept 2025) while main advances daily. |
 | `ibhagwan/fzf-lua` | octo picker backend | **Only if §0 chooses fzf-lua over snacks.** Otherwise omit (snacks already present). |
 
 ### Keeps / bumps (corrected)
 
 - **`defaults.lazy`** flip is the real perf change (δ), not a plugin swap.
 - **`nvim-surround`** → `^4.0.0` (current v4.0.5).
-- **`none-ls`** — **no forced bump.** Bug #13 is refuted (the pinned commit `0b45795` already contains
+- **`none-ls`**: **no forced bump.** Bug #13 is refuted (the pinned commit `0b45795` already contains
   the 0.12 guards, verified on disk). none-ls publishes **no tags**; if ever bumped, update the lock to a
   main HEAD and record `0b45795` as the rollback anchor. Not part of this overhaul's required work.
-- **catppuccin** — keep `name = "catppuccin"`. The v2.0.0 breaking change is the **colorscheme name**:
+- **catppuccin**: keep `name = "catppuccin"`. The v2.0.0 breaking change is the **colorscheme name**:
   change only `vim.cmd.colorscheme(...)` → `"catppuccin-nvim"` at `ui.lua:60`, and only when bumping the
   pin past `605b460`. Bufferline path (`ui.lua:70`) is already v2-correct.
-- **nvim-treesitter** — already fully on the `main` branch (`treesitter.lua:153,195`); v1's "master→main
-  critical gap" is **done, strike it**. New fact: nvim-treesitter was **archived 2026-04-03** — the pin
+- **nvim-treesitter**: already fully on the `main` branch (`treesitter.lua:153,195`); v1's "master→main
+  critical gap" is **done, strike it**. New fact: nvim-treesitter was **archived 2026-04-03**, the pin
   keeps working but receives no upstream fixes; long-term path is nvim 0.12's builtin treesitter. Flag,
   no action. Verify `nvim-treesitter-context` (still on `master`) renders under 0.12.2 during any bump.
-- **`gopls`** — still absent from Mason; add only if you want Go LSP (user preference).
+- **`gopls`**: still absent from Mason; add only if you want Go LSP (user preference).
 - Keep `dial.nvim`, `markview`, `toggleterm`.
 
-## §3 — Bug fixes (the work list)
+## §3: Bug fixes (the work list)
 
 13 confirmed + 1 newly found. Refuted/softened items noted at the bottom so they are not re-litigated.
 
@@ -126,9 +126,9 @@ each as one cohesive commit.
 |---|----------|-----|----------|-----|
 | 1 | high | `github.username()` is nil → runtime error on `<C-g>i` | `git.lua:267` | read `account().username` (cf. `git.lua:25`) |
 | 4 | high | `default_branch` expects table, gets string | `custom_api/git.lua:231-232`; caller `git.lua:997-998` | pass `{repo=…}` or read the string directly |
-| 4b | high | **NEW:** `string.format("…/%s/%s…", repo)` — two `%s`, one arg → raises whenever the GitHub-API fallback runs | `custom_api/git.lua:247` | supply both owner+name args; fix with #4 |
+| 4b | high | **NEW:** `string.format("…/%s/%s…", repo)`, two `%s`, one arg → raises whenever the GitHub-API fallback runs | `custom_api/git.lua:247` | supply both owner+name args; fix with #4 |
 | 11 | high | hardcoded `mkdp_open_ip = "dresden.home.webdavis.io"` | `markdown.lua:314` | derive host or make configurable |
-| 12 | **critical** | mason-lspconfig v2.1.0 never reads the `servers` block — lua_ls/clangd settings silently dropped | `lsp.lua:50-148` | move per-server config to `vim.lsp.config('lua_ls', {…})` / `vim.lsp.config('clangd', {…})`; leave mason-lspconfig for `ensure_installed` + `automatic_enable` only |
+| 12 | **critical** | mason-lspconfig v2.1.0 never reads the `servers` block, lua_ls/clangd settings silently dropped | `lsp.lua:50-148` | move per-server config to `vim.lsp.config('lua_ls', {…})` / `vim.lsp.config('clangd', {…})`; leave mason-lspconfig for `ensure_installed` + `automatic_enable` only |
 | 3 | medium | `toggle_runner("OverseerWatchRun")` → invalid action name | `overseer.lua:413-414`→`292` | bind `<M-[>` to `vim.cmd("OverseerWatchRun")` (`overseer.lua:253`) |
 | 5 | medium | `delegate.setup()` called twice (benign) | `delegate.lua:171` + `keymaps.lua:6` | drop the auto-call or the explicit one |
 | 8 | medium | `parse_branch_line` off-by-one drops first commit word when an upstream is present | `custom_api/git.lua:101-112` | return `i`, not `i+1` |
@@ -137,19 +137,19 @@ each as one cohesive commit.
 | 6 | low | duplicate `checktime` autocmd, ungrouped/unguarded | `options.lua:116-118` vs `autocmds.lua:15-22` | remove the options.lua copy |
 | 10 | low | `nvim_win_get_width(0)` evaluated at spec-load (returns 0) | `harpoon.lua:6` | make `opts` a function |
 | 15 | low | hlslens `validate()` deprecation fix is exactly 1 commit ahead | pin `4254054` → `be2d7b2` | bump pin +1 |
-| 16 | low (conditional) | catppuccin colorscheme rename | `ui.lua:60` | **only** when bumping past `605b460` — see §2 |
+| 16 | low (conditional) | catppuccin colorscheme rename | `ui.lua:60` | **only** when bumping past `605b460` (see §2) |
 | 17 | low | noice `inc_rename=true` references uninstalled plugin (harmless) | `noice.lua:36` | set false or install inc-rename.nvim |
 
-**Refuted — do not fix:** **#7** (dial binds nothing; `boole.lua:5-6` is the only binder — no live
-`<C-a>/<C-x>` conflict; resolved for free when boole is dropped) and **#13** (none-ls 0.12 crashes —
+**Refuted, do not fix:** **#7** (dial binds nothing; `boole.lua:5-6` is the only binder, no live
+`<C-a>/<C-x>` conflict; resolved for free when boole is dropped) and **#13** (none-ls 0.12 crashes,
 guards present at the pinned commit, verified on disk).
-**Softened:** **#14** Overseer is medium, not high — `run_template` is a working deprecated alias,
+**Softened:** **#14** Overseer is medium, not high, `run_template` is a working deprecated alias,
 `bundles`/`log` are dead-but-harmless config, and `actions`→`keymap` never happened (that sub-claim was
 wrong); clean up at `overseer.lua:83,192-200,219-229,254` opportunistically.
 
-## §4 — Blockers & risks (prioritized)
+## §4: Blockers & risks (prioritized)
 
-**Blockers — resolve before any implementation:**
+**Blockers, resolve before any implementation:**
 
 1. **Bootstrap reliability (ζ).** `timeout 120` cannot clone ~75 repos + build/download ~30 Mason tools
    (incl. `tree-sitter-cli` via cargo, `codelldb`); a SIGTERM mid-install still trips the `run_onchange`
@@ -162,21 +162,21 @@ wrong); clean up at `overseer.lua:83,192-200,219-229,254` opportunistically.
 
 **Important:**
 
-3. **`checker.enabled = true` fights β** (`lazy.lua:48-49`) — set false or document the drift workflow.
-1. **Bug #12 fix method is the riskiest to get wrong** — moving the `servers` table without adopting the
+3. **`checker.enabled = true` fights β** (`lazy.lua:48-49`), set false or document the drift workflow.
+1. **Bug #12 fix method is the riskiest to get wrong**, moving the `servers` table without adopting the
    `vim.lsp.config(...)` API reproduces the silent failure. Assert: open a `.c` file →
    `:lua =vim.lsp.get_clients()[1].config.cmd` shows `--clang-tidy`/`--header-insertion=iwyu`.
-1. **No test catches the runtime-only bugs** (#1, #4, #4b, #8, #9, #12) — they pass luacheck and a clean
+1. **No test catches the runtime-only bugs** (#1, #4, #4b, #8, #9, #12), they pass luacheck and a clean
    startup while broken (exactly how #12 survived a year frozen). Add a headless Lua test
    (`nvim --headless -l test.lua`) and wire it to `just` / the bootstrap.
 
 **Nice-to-have:**
 
-6. **git-blame drop loses features** (§2) — `<C-g>By` copy-SHA and `<C-g>Bo/BO` commit-URL have no
+6. **git-blame drop loses features** (§2), `<C-g>By` copy-SHA and `<C-g>Bo/BO` commit-URL have no
    gitlinker equivalent. Flag to user; if retained, remap to `gitsigns.blame_line({full=true})` + a
    custom commit-URL action.
 
-## §5 — Implementation sequence (safe order)
+## §5: Implementation sequence (safe order)
 
 1. **Backup** `~/.config/nvim` → `~/workspaces/backups/<ts>.nvim-config.backup/`.
 1. **Drain VCS state:** commit `autocmds.lua`; pop/commit `stash@{0}`; push to `webdavis/neovim-config`
@@ -195,13 +195,13 @@ wrong); clean up at `overseer.lua:83,192-200,219-229,254` opportunistically.
 1. **Bootstrap script** (hardened ζ); test against a clean `$HOME`.
 1. **Optional:** `gopls`; opportunistic Overseer cleanup (#14).
 
-## §6 — Success criteria
+## §6: Success criteria
 
 No startup errors; no feature errors; improved organization for agents; measurably faster startup;
 workflow-improving plugins added; increased security; and a fresh machine reaches a working editor from
 `chezmoi apply` alone.
 
-## §7 — Verification
+## §7: Verification
 
 - `nvim --headless "+checkhealth" +qa` clean.
 - Headless Lua test green: `extract_upstream` on `[origin/main]` keeps the first commit word;

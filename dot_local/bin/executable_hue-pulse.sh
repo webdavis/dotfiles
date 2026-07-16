@@ -5,8 +5,8 @@
 # are addressed in CIE xy at the gamut corners for maximum saturation.
 #
 # Usage: hue-pulse.sh <exit_code>
-#   exit 0  → pulse deep green (xy 0.17, 0.7  — gamut C green corner)
-#   exit ≠0 → pulse deep red   (xy 0.6915, 0.3083 — gamut C red corner)
+#   exit 0  → pulse deep green (xy 0.17, 0.7, gamut C green corner)
+#   exit ≠0 → pulse deep red   (xy 0.6915, 0.3083, gamut C red corner)
 #
 # Silent no-op if openhue/jq isn't installed or the target room isn't found.
 
@@ -43,7 +43,7 @@ room_id=$(openhue get room --json 2>/dev/null |
 state_file=$(mktemp)
 
 # Snapshot each light in the room: id, on-state, brightness, color mode, and
-# the color value(s) — either mirek (color temp) or CIE xy.
+# the color value(s), either mirek (color temp) or CIE xy.
 # TSV columns: id  on(true|false)  brightness  mode(ct|xy)  v1  v2
 openhue get light --json 2>/dev/null |
   jq -r --arg room "$room_id" '
@@ -64,7 +64,7 @@ openhue get light --json 2>/dev/null |
 # Pulse pattern: bright → 20% → bright → 20% → restore.
 # Four pulse phases (two full lub-DUB cycles) ending on the LOW phase, so
 # the restore is a gentle step from "dim color" back to the user's original
-# state — not a jarring drop from peak brightness.
+# state, not a jarring drop from peak brightness.
 #
 # Sleeps match the 1.2s transitions so the bulb fully reaches each target
 # (no interrupting overlap). 1.2s is long enough for the ramp itself to
@@ -89,7 +89,7 @@ pulse_to() {
   openhue set room "$room_id" --on -x "$px" -y "$py" \
     --brightness "$1" --transition-time 1200ms 2>/dev/null
 }
-# First call gates the whole pulse — if openhue is unreachable here, bail
+# First call gates the whole pulse, if openhue is unreachable here, bail
 # without attempting further changes or a restore.
 pulse_to "$peak" || exit 0
 sleep 1.2

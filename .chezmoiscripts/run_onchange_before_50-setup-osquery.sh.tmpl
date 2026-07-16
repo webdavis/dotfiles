@@ -7,7 +7,7 @@ echo "Setting up osquery..."
 
 # osqueryd runs as root, so its config and packs must NOT live in a user-writable
 # path. Previously they were rendered to ~/.config/osquery, which any process
-# running as the user could rewrite — and since osqueryd executes those queries
+# running as the user could rewrite, and since osqueryd executes those queries
 # as root, that is a local privilege-escalation vector (amplified once Full Disk
 # Access / EndpointSecurity is granted). osquery already enforces this for
 # extensions (it refuses non-root-writable extension binaries) but NOT for the
@@ -15,7 +15,7 @@ echo "Setting up osquery..."
 #
 # Source of truth is .chezmoitemplates/osquery/ (rendered below via
 # includeTemplate). Only the alerter's launch-allowlist.txt and webhook-secret
-# remain in ~/.config — those are read by the user-level alerter, not the root
+# remain in ~/.config. Those are read by the user-level alerter, not the root
 # daemon, so a user-writable copy there is not a privilege boundary.
 sudo install -d -o root -g wheel -m 0755 /var/osquery /var/osquery/packs
 

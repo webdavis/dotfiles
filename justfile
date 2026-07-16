@@ -24,7 +24,7 @@ lint:
   nix develop .#run --command treefmt
 
 # Check-only drift gate: builds the flake's treefmt check derivation, which
-# runs treefmt on a sandboxed copy of the tree — reports drift, never mutates
+# runs treefmt on a sandboxed copy of the tree, reports drift, never mutates
 # the working tree or index (treefmt itself has no dry-run mode, so the
 # sandbox copy is what makes this check-only). Same gate CI runs.
 lint-check:
@@ -141,7 +141,7 @@ defaults-drift:
 defaults-apply:
   ~/.local/bin/macos-defaults-apply.sh
 
-# `defaults-capture <domain> <key> [current]` — capture a live setting into YAML.
+# `defaults-capture <domain> <key> [current]`, capture a live setting into YAML.
 # Pass the literal `current` as the third arg to use ByHost storage
 # (`defaults -currentHost`). Any non-empty third arg triggers ByHost mode;
 # the v1 schema does not support arbitrary hostnames.
@@ -154,7 +154,7 @@ defaults-capture domain key current="":
     ~/.local/bin/macos-defaults-capture.sh "{{domain}}" "{{key}}"
   fi
 
-# macOS Defaults discovery — read-only wrappers around `defaults`.
+# macOS Defaults discovery, read-only wrappers around `defaults`.
 defaults-list:
   defaults domains | tr ',' '\n' | sort
 
