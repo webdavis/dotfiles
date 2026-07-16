@@ -1,6 +1,0 @@
-# osquery alerting configuration consumed by templates.
-# digestHour/digestMinute drive the daily digest agent's StartCalendarInterval
-# (local time). 18:00 = an end-of-day glance; empty days stay silent.
-osquery:
-  digestHour: 18
-  digestMinute: 0
