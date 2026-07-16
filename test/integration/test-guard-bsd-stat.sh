@@ -33,6 +33,11 @@ bsd_form='stat -f'
 bsd_form_tab="${bsd_form/ /$'\t'}"
 gnu_form_wide="${gnu_form/ /   }"
 
+# GNU long-option spellings. These literals are safe to write here: only a BSD
+# form inside a `||` segment can trip the guard, never a GNU form.
+gnu_long_form='stat --format'
+gnu_printf_form='stat --printf'
+
 failures=0
 report_failure() {
   printf 'test-guard-bsd-stat: FAIL -- %s\n' "$*" >&2
@@ -117,6 +122,19 @@ bsd_tab="$(write_probe "$flagged_root" bsd-tab \
 gnu_wide="$(write_probe "$clean_root" gnu-wide \
   "perms() { $gnu_form_wide '%a' \"\$1\" || $bsd_form_tab '%Lp' \"\$1\"; }")"
 
+# (k) GNU-first chains spelled with the long options (`--format=` attached,
+# `--printf` with a separate argument) -- MUST pass: they are correct GNU-first
+# fallbacks, exactly like `-c`.
+gnu_long_attached="$(write_probe "$clean_root" gnu-long-attached \
+  "perms() { $gnu_long_form=%a \"\$1\" || $bsd_form '%Lp' \"\$1\"; }")"
+gnu_long_separate="$(write_probe "$clean_root" gnu-long-separate \
+  "size() { $gnu_printf_form '%s' \"\$1\" || $bsd_form '%z' \"\$1\"; }")"
+
+# (l) A chain with ONLY a long-option GNU form AFTER the BSD form -- MUST still
+# be flagged (the long options count as GNU forms, not as absolution).
+bsd_then_long="$(write_probe "$flagged_root" bsd-then-long \
+  "perms() { $bsd_form '%Lp' \"\$1\" || $gnu_long_form=%a \"\$1\"; }")"
+
 # The flagged tree also carries the passing single-line and split-passing fixtures
 # so one guard run proves the scan flags only the BSD-first chains and leaves the
 # GNU-first ones untouched.
@@ -142,6 +160,8 @@ else
     report_failure "BSD-first chain masked by an earlier GNU call not reported at :2: $guard_output"
   grep -qF "$bsd_tab:2" <<<"$guard_output" ||
     report_failure "tab-spelled BSD-first chain not reported at :2: $guard_output"
+  grep -qF "$bsd_then_long:2" <<<"$guard_output" ||
+    report_failure "BSD-first chain with only a long-option GNU fallback not reported at :2: $guard_output"
   grep -qF "$gnu_single_mixed" <<<"$guard_output" &&
     report_failure "GNU-first single-line chain was wrongly reported: $guard_output"
   grep -qF "$gnu_split_mixed" <<<"$guard_output" &&
@@ -205,6 +225,7 @@ fi
 # Reference the passing fixture paths so shellcheck sees them used; they double as
 # a manifest of what the clean tree contains.
 : "$gnu_single" "$gnu_split" "$bare_bsd" "$clean_file" "$double_safe" "$gnu_wide"
+: "$gnu_long_attached" "$gnu_long_separate"
 
 if ((failures > 0)); then
   printf 'test-guard-bsd-stat: %d assertion(s) failed\n' "$failures" >&2

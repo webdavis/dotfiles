@@ -71,7 +71,9 @@ fi
 # first; on Linux CI (GNU coreutils) `stat -f` means "filesystem status" and
 # SUCCEEDS with the wrong output, so the `|| stat -c` fallback never fires and the
 # test silently reads garbage. Two CI failures (PRs #49, #50) came from exactly
-# this. The portable idiom is GNU-first: `stat -c ... || stat -f ...`. Flag a
+# this. The portable idiom is GNU-first: `stat -c ... || stat -f ...`. The GNU
+# form is `-c`, `--format` (attached `=` or separate argument), or `--printf`;
+# the BSD form is `-f`. Flag a
 # fallback CHAIN whose first `stat -f` has no GNU-form stat before it WITHIN the
 # same chain segment: the logical line is split into segments on `;` and `&&`
 # (both terminate a `||` chain), so an unrelated GNU stat earlier on the line
@@ -124,7 +126,7 @@ while IFS= read -r scanned_file; do
         bsd_index = match(segment, /stat[[:space:]]+-f/)
         if (bsd_index == 0) continue
         if (index(segment, "||") == 0) continue
-        gnu_index = match(segment, /stat[[:space:]]+-c/)
+        gnu_index = match(segment, /stat[[:space:]]+(-c|--(format|printf)[=[:space:]])/)
         if (!(gnu_index > 0 && gnu_index < bsd_index)) {
           print start_line
           break
