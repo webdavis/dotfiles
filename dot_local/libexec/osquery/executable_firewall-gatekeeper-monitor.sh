@@ -17,11 +17,11 @@ mkdir -p "$(dirname "$STATE")"
 
 # Read current posture in a single combined query so we get one osqueryi
 # startup per tick instead of two.
-posture=$("$OSQUERYI" --json "
+posture="$("$OSQUERYI" --json "
   SELECT
     (SELECT global_state FROM alf) AS firewall,
     (SELECT assessments_enabled FROM gatekeeper) AS gatekeeper
-" 2>/dev/null | jq -c '.[0]')
+" 2>/dev/null | jq -c '.[0]')"
 
 if [[ -z $posture || $posture == "null" ]]; then
   # osqueryi failed (daemon not up yet on fresh boot, or alf/gatekeeper
@@ -29,8 +29,8 @@ if [[ -z $posture || $posture == "null" ]]; then
   exit 0
 fi
 
-cur_fw=$(jq -r '.firewall' <<<"$posture")
-cur_gk=$(jq -r '.gatekeeper' <<<"$posture")
+cur_fw="$(jq -r '.firewall' <<<"$posture")"
+cur_gk="$(jq -r '.gatekeeper' <<<"$posture")"
 
 # First run: write state and exit. No notification: we don't know what the
 # previous state was, so we can't claim a transition.
@@ -39,8 +39,8 @@ if [[ ! -f $STATE ]]; then
   exit 0
 fi
 
-prev_fw=$(jq -r '.firewall' <"$STATE")
-prev_gk=$(jq -r '.gatekeeper' <"$STATE")
+prev_fw="$(jq -r '.firewall' <"$STATE")"
+prev_gk="$(jq -r '.gatekeeper' <"$STATE")"
 
 # Update state file BEFORE notification so a slow alerter can't cause duplicate
 # notifications on the next tick.
@@ -89,14 +89,14 @@ fi
 [[ ${#crit_blocks[@]} -eq 0 && ${#notice_lines[@]} -eq 0 ]] && exit 0
 
 if [[ ${#crit_blocks[@]} -gt 0 ]]; then
-  body=$(printf '%s\n\n' "${crit_blocks[@]}")
+  body="$(printf '%s\n\n' "${crit_blocks[@]}")"
   body=${body%$'\n\n'}
   title="🔴 **CRITICAL**"
   if [[ ${#crit_blocks[@]} -gt 1 ]]; then title="🔴 **CRITICAL** · ${#crit_blocks[@]}"; fi
   send_alert CRIT "$title" "$body" "Sosumi"
 fi
 if [[ ${#notice_lines[@]} -gt 0 ]]; then
-  body=$(printf '%s\n' "${notice_lines[@]}")
+  body="$(printf '%s\n' "${notice_lines[@]}")"
   body=${body%$'\n'}
   send_alert NOTICE "🟡 **Notice** · ${#notice_lines[@]}" "$body" "Glass"
 fi

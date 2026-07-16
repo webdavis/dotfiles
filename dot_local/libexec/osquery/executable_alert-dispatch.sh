@@ -41,25 +41,25 @@ send_alert() {
 
   # Route by severity: only CRIT reaches #priority.
   local url="$OSQUERY_HERMES_URL"
-  [ "$severity" = "CRIT" ] && url="$OSQUERY_HERMES_PRIORITY_URL"
+  [[ $severity == "CRIT" ]] && url="$OSQUERY_HERMES_PRIORITY_URL"
 
   # The local notifier renders plain text, so strip Discord markdown (**bold**,
   # `code`) for it; the webhook POST below keeps the markdown intact.
   local plain_title plain_detail
-  plain_title=$(printf '%s' "$title" | sed -e 's/\*\*//g' -e 's/`//g')
-  plain_detail=$(printf '%s' "$detail" | sed -e 's/\*\*//g' -e 's/`//g')
+  plain_title="$(printf '%s' "$title" | sed -e 's/\*\*//g' -e 's/`//g')"
+  plain_detail="$(printf '%s' "$detail" | sed -e 's/\*\*//g' -e 's/`//g')"
 
   # 1) Local macOS notification (alerter, AppleScript fallback). Pass --sound
   #    only when one is given so INFO-tier alerts are visible but silent.
   if command -v alerter >/dev/null 2>&1; then
-    if [ -n "$sound" ]; then
+    if [[ -n $sound ]]; then
       alerter --timeout 60 --title "$plain_title" --message "$plain_detail" --sound "$sound" >/dev/null 2>&1 &
     else
       alerter --timeout 60 --title "$plain_title" --message "$plain_detail" >/dev/null 2>&1 &
     fi
   else
     local escaped=${plain_detail//\"/\\\"}
-    if [ -n "$sound" ]; then
+    if [[ -n $sound ]]; then
       osascript -e "display notification \"$escaped\" with title \"$plain_title\" sound name \"$sound\"" >/dev/null 2>&1 || true
     else
       osascript -e "display notification \"$escaped\" with title \"$plain_title\"" >/dev/null 2>&1 || true
@@ -71,34 +71,34 @@ send_alert() {
   #    strip CR so a CRLF file can't corrupt the key. A missing/empty secret is
   #    handled gracefully (local alert already fired) rather than aborting.
   local secret="${OSQUERY_WEBHOOK_SECRET:-}"
-  if [ -z "$secret" ] && [ -r "$OSQUERY_WEBHOOK_SECRET_FILE" ]; then
+  if [[ -z $secret && -r $OSQUERY_WEBHOOK_SECRET_FILE ]]; then
     IFS= read -r secret <"$OSQUERY_WEBHOOK_SECRET_FILE" || true
-    secret=$(printf '%s' "$secret" | tr -d '\r')
+    secret="$(printf '%s' "$secret" | tr -d '\r')"
   fi
-  if [ -z "$secret" ]; then
+  if [[ -z $secret ]]; then
     _osquery_log "WARN no webhook secret in $OSQUERY_WEBHOOK_SECRET_FILE, Discord delivery skipped"
     return 0
   fi
 
   local body sig reqid http attempt
-  body=$(jq -cn --arg t "$title" --arg d "$detail" \
-    '{event_type:"osquery.alert", alert:{title:$t, detail:$d}}')
-  sig=$(printf '%s' "$body" | openssl dgst -sha256 -hmac "$secret" | awk '{print $NF}')
+  body="$(jq -cn --arg t "$title" --arg d "$detail" \
+    '{event_type:"osquery.alert", alert:{title:$t, detail:$d}}')"
+  sig="$(printf '%s' "$body" | openssl dgst -sha256 -hmac "$secret" | awk '{print $NF}')"
   # Content-stable request id: a retry or double-fire of the SAME alert dedups
   # at the gateway (it honours X-Request-ID for 1h) instead of double-posting.
   reqid="osquery-$(printf '%s' "$body" | openssl dgst -sha256 | awk '{print $NF}' | cut -c1-32)"
 
   for attempt in 1 2 3; do
-    http=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 \
+    http="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 \
       -X POST "$url" \
       -H 'Content-Type: application/json' \
       -H "X-Webhook-Signature: $sig" \
       -H "X-Request-ID: $reqid" \
-      --data "$body") || http=000
+      --data "$body")" || http=000
     case "$http" in
       2*) return 0 ;;  # delivered
       429 | 5?? | 000) # transient → back off and retry
-        if [ "$attempt" -lt 3 ]; then sleep "$attempt"; fi ;;
+        if [[ $attempt -lt 3 ]]; then sleep "$attempt"; fi ;;
       *) break ;; # 401/413/etc, retry won't help
     esac
   done

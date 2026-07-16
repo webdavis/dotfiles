@@ -39,12 +39,12 @@ done
 
 # 3) hermes gateway reachable (any HTTP status = up; 000 = unreachable). The
 #    local alerter in send_alert still fires even if this is what is down.
-code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 "$HERMES_URL" 2>/dev/null) || code=000
-if [ "$code" = "000" ]; then
+code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 "$HERMES_URL" 2>/dev/null)" || code=000
+if [[ $code == "000" ]]; then
   problems+=("hermes gateway unreachable at $HERMES_URL")
 fi
 
-if [ ${#problems[@]} -eq 0 ]; then exit 0; fi
+if [[ ${#problems[@]} -eq 0 ]]; then exit 0; fi
 
 # A dead pipeline is always CRITICAL → #priority. Focused block: what is down
 # (one bullet each) plus instructive diagnostic + restart steps. bt holds a literal
@@ -55,5 +55,5 @@ for p in "${problems[@]}"; do body+=$'\n'"- $p"; done
 body+=$'\n'"- **Diagnose:** ${bt}launchctl list | grep -i osquery${bt}"
 body+=$'\n'"- Restart the down component, then re-check."
 title="🔴 **CRITICAL**"
-if [ ${#problems[@]} -gt 1 ]; then title="🔴 **CRITICAL** · ${#problems[@]}"; fi
+if [[ ${#problems[@]} -gt 1 ]]; then title="🔴 **CRITICAL** · ${#problems[@]}"; fi
 send_alert CRIT "$title" "$body" "Sosumi"
