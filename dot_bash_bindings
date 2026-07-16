@@ -135,7 +135,7 @@ builtin bind -m vi-command '"\C-xdp": "i\C-x0cd ~/workspaces/Ivy/webdavis\r"'
 builtin bind -m vi-insert '"\C-xdt": "\C-x0cd ~/workspaces/tools\r"'
 builtin bind -m vi-command '"\C-xdt": "i\C-x0cd ~/workspaces/tools\r"'
 
-# \C-xdT (~/workspaces/test) removed — directory no longer exists.
+# \C-xdT (~/workspaces/test) removed, directory no longer exists.
 
 # Go-to a projects root directory. The respective keyboard binding is in ~/.inputrc.
 __bash_bindings_go_to_project_root() {
@@ -547,7 +547,7 @@ redraw_prompt() {
 __bash_bindings_git_ls_files_with_last_modified() {
   # Header:
   printf "\n%-25s %-7s %s\n" "Last Modified" "Commit" "File"
-  printf "%-25s %-10s %s\n" "—————————————————————————" "———————" "———————————————————————— "
+  printf "%-25s %-10s %s\n" "-------------------------" "-------" "------------------------ "
 
   local blue='\033[34m'
   local yellow='\033[33m'

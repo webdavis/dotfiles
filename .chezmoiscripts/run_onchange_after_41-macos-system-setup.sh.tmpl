@@ -1,6 +1,6 @@
 {{ if eq .chezmoi.os "darwin" -}}
 #!/bin/bash
-# Tier 2 — macOS sudo system-setup runner.
+# Tier 2, macOS sudo system-setup runner.
 # chezmoi hash-gates on the rendered template body; this script re-runs only
 # when .chezmoidata/macos_system_setup.yaml changes.
 
@@ -8,14 +8,14 @@ set -euo pipefail
 
 {{/* `index`, not `.macos.tailnet_pins`: Go's text/template errors on an absent
      key with the .field form; `index` returns the empty value (falsy in `if`,
-     a no-op under `range`) — the repo's documented Tier-1 runner gotcha. */ -}}
+     a no-op under `range`), the repo's documented Tier-1 runner gotcha. */ -}}
 {{ $pins := index .macos "tailnet_pins" -}}
 {{ if and (eq (len .macos.system_setup) 0) (not $pins) -}}
 # Early-return if nothing is configured (avoids spurious sudo prompt).
 exit 0
 {{ else -}}
 # Pre-flight: refresh sudo timestamp upfront. One password prompt at start;
-# none during the loop — it covers the generated tailnet-pin commands too.
+# none during the loop, it covers the generated tailnet-pin commands too.
 sudo -v
 
 {{ range .macos.system_setup -}}

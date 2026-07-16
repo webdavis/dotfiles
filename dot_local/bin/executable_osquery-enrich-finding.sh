@@ -1,20 +1,20 @@
 #!/usr/bin/env bash
 #
-# osquery-enrich-finding.sh — given a path drawn from an osquery finding (a
+# osquery-enrich-finding.sh, given a path drawn from an osquery finding (a
 # launchd plist, an app/extension bundle, a Mach-O binary, or a watched config
 # file), emit a SHORT single-line fact string to stdout describing its trust:
 # code-signing authority, ad-hoc/unsigned state, and download (quarantine)
-# origin. Read-only, no network — pure local inspection.
+# origin. Read-only, no network, pure local inspection.
 #
 # The exit status is the machine signal the caller (osquery-results-alerter.sh)
 # routes on:
-#   0  — TRUSTED or not-applicable: a binary signed by Apple or a Developer ID,
+#   0:  TRUSTED or not-applicable: a binary signed by Apple or a Developer ID,
 #        a config file (signing N/A), or a launchd job whose payload is a script
-#        run by a signed interpreter (surfaced with a note, but not escalated —
+#        run by a signed interpreter (surfaced with a note, but not escalated:
 #        the user's own script LaunchAgents are this shape; the deferred
 #        allowlist is what would let unknown ones escalate).
-#   10 — UNTRUSTED / undeterminable code: unsigned, ad-hoc, signed-without-an-
-#        authority, or a binary codesign cannot assess. Fail-LOUD — uncertainty
+#   10: UNTRUSTED / undeterminable code: unsigned, ad-hoc, signed-without-an-
+#        authority, or a binary codesign cannot assess. Fail-LOUD: uncertainty
 #        about *code* escalates (→ #priority), never silently trusts.
 #
 # Nothing is ever suppressed here; the caller always surfaces the finding. This
@@ -40,7 +40,7 @@ quarantine_note() {
 
 # Assess a Mach-O binary or bundle. Echoes a human label; returns 10 only for
 # the untrusted cases (unsigned, ad-hoc, or signed with no authority) so they
-# promote NOTICE -> CRIT. Returns 0 when a signing authority is present —
+# promote NOTICE -> CRIT. Returns 0 when a signing authority is present:
 # Apple/Developer ID get a friendly label, any other named authority is shown
 # verbatim ("signed: <authority>"). A present-but-unrecognized authority is NOT
 # promoted (the authority still surfaces in the alert for the user to judge); a
@@ -74,7 +74,7 @@ assess_code() {
 }
 
 # A launchd job whose program is one of these runs an attacker-controllable
-# script payload — the signed interpreter tells us nothing about the script.
+# script payload. The signed interpreter tells us nothing about the script.
 is_interpreter() {
   case "$(basename "$1")" in
     sh | bash | zsh | dash | ksh | python | python2 | python3 | perl | ruby | node | osascript | php | env) return 0 ;;
@@ -92,7 +92,7 @@ case "$path" in
       exit 10
     fi
     if is_interpreter "$prog"; then
-      # Find the first existing absolute-path argument — the script payload.
+      # Find the first existing absolute-path argument, the script payload.
       script=""
       for i in 1 2 3 4 5; do
         a=$("$PLUTIL" -extract "ProgramArguments.$i" raw -o - "$path" 2>/dev/null) || a=""
@@ -105,10 +105,10 @@ case "$path" in
         esac
       done
       if [ -n "$script" ]; then
-        printf 'runs script %s via %s — payload unverified%s' \
+        printf 'runs script %s via %s, payload unverified%s' \
           "$(basename "$script")" "$(basename "$prog")" "$(quarantine_note "$script")"
       else
-        printf 'runs %s (interpreter) — payload unverified' "$(basename "$prog")"
+        printf 'runs %s (interpreter), payload unverified' "$(basename "$prog")"
       fi
       exit 0
     fi

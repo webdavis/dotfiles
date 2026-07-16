@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# osquery-results-alerter.sh — fired by launchd (WatchPaths) whenever
+# osquery-results-alerter.sh, fired by launchd (WatchPaths) whenever
 # ~/.local/log/osquery/osqueryd.results.log changes. Reads new lines since the
 # last run (byte-offset state file), and surfaces every differential finding
 # from the scheduled packs (intrusion-detection, security-policy-regression,
@@ -25,7 +25,7 @@ mkdir -p "$(dirname "$STATE")"
 # does not). Inode lets us notice a rotated/recreated log at the same path.
 size=$(wc -c <"$LOG")
 size=${size//[[:space:]]/}
-# shellcheck disable=SC2012  # $LOG is a fixed, controlled path — ls -i is safe and portable
+# shellcheck disable=SC2012  # $LOG is a fixed, controlled path; ls -i is safe and portable
 inode=$(ls -i "$LOG" | awk '{print $1}')
 
 # State holds "<inode> <offset>". Re-seed silently when it is missing or not in
@@ -51,11 +51,11 @@ fi
 
 # Notify on ALL observed activity, tiered by severity so high-threat events
 # stand out from routine ones. Each row is classified:
-#   CRIT (🔴)   — a protection turned off (security-policy-regression), a new
+#   CRIT (🔴):   a protection turned off (security-policy-regression), a new
 #                 unexpected setuid binary, or ssh-key / sudoers tampering.
-#   NOTICE (🟡) — new persistence/auto-start, launchd-dir file changes, or a
+#   NOTICE (🟡): new persistence/auto-start, launchd-dir file changes, or a
 #                 new kernel/system extension.
-#   INFO (🔵)   — installed-software drift, listening ports, logins.
+#   INFO (🔵):   installed-software drift, listening ports, logins.
 # chezmoi's renameio temp-file churn is excluded. jq emits "<SEV>\t<text>".
 # Bound the read to the snapshot window (head -c) so rows appended after we
 # captured $size aren't consumed early and re-fired next time; `|| true`
@@ -74,7 +74,7 @@ raw_findings=$(printf '%s\n' "$new_lines" | jq -rR '
   # A security-policy row is CRITICAL only when the protection turned OFF, not
   # on every change. For the boolean states that is an "added" row carrying the
   # off value; for filevault (the query returns only encrypted volumes) it is a
-  # "removed" row — a volume left the encrypted set. Re-enables, version bumps,
+  # "removed" row, a volume left the encrypted set. Re-enables, version bumps,
   # sharing changes, and the paired "removed" old-value rows fall through to
   # NOTICE. (sharing cannot be direction-classified from a single row, so it is
   # always NOTICE; the poller covers firewall/Gatekeeper transitions too.)
@@ -109,7 +109,7 @@ raw_findings=$(printf '%s\n' "$new_lines" | jq -rR '
   | (.name | sub("^pack_[^_]+_"; "")) as $q
   | (.action // "changed") as $act
   # The path the enricher should inspect (a plist, bundle, or binary) per query
-  # type — empty when signing/trust does not apply.
+  # type, empty when signing/trust does not apply.
   | ((if .name == "es_launchd_writes" then (.columns.path // "")
       elif .name == "file_events_recent" then (.columns.target_path // "")
       elif (.name | test("_persistence_launchd$")) then (.columns.path // "")
@@ -137,7 +137,7 @@ printf '%s %s\n' "$inode" "$size" >"$STATE.tmp" && mv -f "$STATE.tmp" "$STATE"
 ENRICH="$HOME/.local/bin/osquery-enrich-finding.sh"
 
 # Default-deny launch-item allowlist: labels listed here are known-good and are
-# dropped from the quiet #osquery channel (never from #priority — see the
+# dropped from the quiet #osquery channel (never from #priority, see the
 # CRIT-exempt check in the loop). Load once; fail-open if the file is missing or
 # unreadable (suppress nothing). Strip comments/whitespace/blank lines.
 ALLOWLIST_FILE="${OSQUERY_LAUNCH_ALLOWLIST:-$HOME/.config/osquery/launch-allowlist.txt}"
@@ -171,7 +171,7 @@ while IFS= read -r obj; do
   fi
   # Default-deny allowlist: drop a known-good launch item from #osquery. Checked
   # AFTER enrichment so a promoted CRIT (an untrusted binary behind an allowlisted
-  # label) is never suppressed — the allowlist only quiets the non-CRIT channel.
+  # label) is never suppressed. The allowlist only quiets the non-CRIT channel.
   if [[ $sev != "CRIT" ]]; then
     mk=""
     case "$q" in
@@ -195,7 +195,7 @@ enriched=${enriched%$'\n'}
 render=$(printf '%s\n' "$enriched" | jq -s '
   # Wrap a value in Discord inline-code backticks. The value is attacker-controlled
   # (launchd label, path); strip backticks so it cannot break out of the inline-code
-  # span and inject markdown. Display-only — does not affect detection/severity.
+  # span and inject markdown. Display-only, does not affect detection/severity.
   def code: "`" + (gsub("`"; "") ) + "`";
   # Plain-English name of a macOS protection query, or null if the finding is not one.
   def protname:
@@ -275,23 +275,23 @@ render=$(printf '%s\n' "$enriched" | jq -s '
   def nextstep:
     (.ep // "") as $ep |
     if (protname) != null then
-      ["- Did you turn this off? If not, something else did — **investigate now**.", "- Re-enable it in System Settings."]
+      ["- Did you turn this off? If not, something else did: **investigate now**.", "- Re-enable it in System Settings."]
     elif (.q == "system_extensions_new" or .q == "kernel_extensions_new") then
-      ["- Did you install this? If not, **remove it** — an extension can intercept traffic or load at boot.", "- Manage at: System Settings → General → Login Items & Extensions"]
+      ["- Did you install this? If not, **remove it**: an extension can intercept traffic or load at boot.", "- Manage at: System Settings → General → Login Items & Extensions"]
     elif .q == "suid_bin_unexpected" then
-      ["- Did you create this? If not, it lets a program run as **root** — a backdoor.", "- **Inspect:** " + (("codesign -dv \"" + $ep + "\"") | code)]
+      ["- Did you create this? If not, it lets a program run as **root**, a backdoor.", "- **Inspect:** " + (("codesign -dv \"" + $ep + "\"") | code)]
     elif .q == "file_events_recent" then
       ["- Did you change this? If not, someone altered who can log in or run as **root**.", "- **Review:** " + (("sudo cat \"" + $ep + "\"") | code)]
     elif (.q == "persistence_launchd" or .q == "persistence_startup_items_crontab") then
-      ["- Did you set this up? If not, it **auto-runs at every login** — likely malware.", "- **Inspect:** " + (("cat \"" + $ep + "\"") | code)]
+      ["- Did you set this up? If not, it **auto-runs at every login**, likely malware.", "- **Inspect:** " + (("cat \"" + $ep + "\"") | code)]
     elif .q == "es_launchd_writes" then
-      ["- Did you run this? If not, a process is **installing persistence** — investigate it and remove the file.", "- **Inspect the writer:** " + (("codesign -dv \"" + $ep + "\"") | code)]
+      ["- Did you run this? If not, a process is **installing persistence**: investigate it and remove the file.", "- **Inspect the writer:** " + (("codesign -dv \"" + $ep + "\"") | code)]
     elif ($ep != "") then ["- **Review:** " + ($ep | code)]
     else [] end;
   def block:
     (["**" + header + "**"] + fields + nextstep) | join("\n");
   def line:
-    "- " + (if .sev == "NOTICE" then "🟡" else "🔵" end) + " **" + header + "** — " + (segs | join(" · "));
+    "- " + (if .sev == "NOTICE" then "🟡" else "🔵" end) + " **" + header + "**: " + (segs | join(" · "));
   ([.[] | select(.sev == "CRIT")]) as $crit |
   ([.[] | select(.sev != "CRIT")] | sort_by(if .sev == "NOTICE" then 0 else 1 end)) as $rest |
   {

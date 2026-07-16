@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 #
-# osquery-alert-dispatch.sh — sourced helper, not run directly. Provides
+# osquery-alert-dispatch.sh, sourced helper, not run directly. Provides
 # send_alert(), which dispatches one finding to BOTH the local macOS notifier
 # (alerter) and a hermes Discord webhook, routing by severity (CRIT -> #priority,
 # else -> #osquery). Signing and dual-channel delivery live here so the three
-# producers — osquery-results-alerter.sh, osquery-firewall-gatekeeper-monitor.sh,
-# and osquery-uptime-watchdog.sh — share one implementation.
+# producers (osquery-results-alerter.sh, osquery-firewall-gatekeeper-monitor.sh,
+# and osquery-uptime-watchdog.sh) share one implementation.
 #
 # Usage (from a sourcing script):
 #   source "$HOME/.local/bin/osquery-alert-dispatch.sh"
@@ -18,7 +18,7 @@
 OSQUERY_HERMES_URL="${OSQUERY_HERMES_URL:-http://127.0.0.1:8644/webhooks/osquery}"
 OSQUERY_HERMES_PRIORITY_URL="${OSQUERY_HERMES_PRIORITY_URL:-http://127.0.0.1:8644/webhooks/osquery-priority}"
 # The notifier signs with its OWN copy of the HMAC key, read from its own secret
-# file — NOT from hermes's .env. HMAC is symmetric so the value must match the
+# file, NOT from hermes's .env. HMAC is symmetric so the value must match the
 # gateway's, but the signer must not reach into the verifier's credential store;
 # each side owns its own copy. Single-value file, mode 600, runtime (not tracked).
 OSQUERY_WEBHOOK_SECRET_FILE="${OSQUERY_WEBHOOK_SECRET_FILE:-$HOME/.config/osquery/webhook-secret}"
@@ -76,7 +76,7 @@ send_alert() {
     secret=$(printf '%s' "$secret" | tr -d '\r')
   fi
   if [ -z "$secret" ]; then
-    _osquery_log "WARN no webhook secret in $OSQUERY_WEBHOOK_SECRET_FILE — Discord delivery skipped"
+    _osquery_log "WARN no webhook secret in $OSQUERY_WEBHOOK_SECRET_FILE, Discord delivery skipped"
     return 0
   fi
 
@@ -99,7 +99,7 @@ send_alert() {
       2*) return 0 ;;  # delivered
       429 | 5?? | 000) # transient → back off and retry
         if [ "$attempt" -lt 3 ]; then sleep "$attempt"; fi ;;
-      *) break ;; # 401/413/etc — retry won't help
+      *) break ;; # 401/413/etc, retry won't help
     esac
   done
   _osquery_log "ERROR webhook delivery failed: http=$http url=$url"

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# bash-bindings-unique.sh — no (keymap, key-seq) pair in dot_bash_bindings may
+# bash-bindings-unique.sh, no (keymap, key-seq) pair in dot_bash_bindings may
 # be bound twice. A later `builtin bind -m <keymap> '"<key-seq>": ...'` silently
 # clobbers an earlier one, so a duplicate is always either a typo'd key-seq or a
-# lost binding — never intentional.
+# lost binding, never intentional.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"

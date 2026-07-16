@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# tailnet-pins.sh — MagicDNS /etc/hosts fallback pins are STRUCTURED DATA
+# tailnet-pins.sh, MagicDNS /etc/hosts fallback pins are STRUCTURED DATA
 # (`macos.tailnet_pins` in .chezmoidata/macos_system_setup.yaml); the Tier-2 sudo
 # runner template (run_onchange_after_41) generates the guard-then-append command
 # for each pin. Two test layers:
 #
-# LAYER 1 — MACHINERY (fixture): copy the REAL template into a temp chezmoi
+# LAYER 1, MACHINERY (fixture): copy the REAL template into a temp chezmoi
 # source dir with fixture chezmoidata carrying test-owned pins (TEST-NET-1
 # addresses, never real tailnet data), render it, and assert:
-#   - the EXACT generated command string per pin (expectation hardcoded here —
+#   - the EXACT generated command string per pin (expectation hardcoded here,
 #     an independent derivation, never re-implemented from the template logic);
 #   - `sudo -v` is emitted even when the system_setup commands list is EMPTY
 #     (pins must still apply; the upfront timestamp covers them);
@@ -17,8 +17,8 @@
 #     a temp hosts file twice: exact ip\tfqdn\tshort line present, byte-identical
 #     on run 2 (idempotent), pre-existing content preserved.
 #
-# LAYER 2 — SHAPE (real data): read the real YAML's pins via yq and validate form
-# only — fields non-empty, ip inside the proper Tailscale CGNAT range
+# LAYER 2, SHAPE (real data): read the real YAML's pins via yq and validate form
+# only, fields non-empty, ip inside the proper Tailscale CGNAT range
 # 100.64.0.0/10, fqdn ends .ts.net, short == the fqdn's first label. No
 # behavioral expectations are derived from real data.
 set -euo pipefail
@@ -85,9 +85,9 @@ grep -qxF "$expected_1" "$rendered" ||
 grep -qxF "$expected_2" "$rendered" ||
   fail "generated pin command 2 missing or wrong; expected exactly: $expected_2"
 grep -qxF 'sudo -v' "$rendered" ||
-  fail "sudo -v not emitted with an empty commands list — the upfront timestamp must cover pin commands"
+  fail "sudo -v not emitted with an empty commands list, the upfront timestamp must cover pin commands"
 if grep -qxF 'exit 0' "$rendered"; then
-  fail "early-return emitted despite pins being configured — pins would never apply"
+  fail "early-return emitted despite pins being configured, pins would never apply"
 fi
 
 # ---------- LAYER 1b: no tailnet_pins key -> early-return survives ----------

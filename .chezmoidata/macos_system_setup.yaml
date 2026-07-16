@@ -1,11 +1,11 @@
-# macOS sudo-required system settings — declarative source of truth.
+# macOS sudo-required system settings, declarative source of truth.
 #
 # Each record under `system_setup:` is a command run by the Tier 2 runner
 # (run_onchange_after_41-macos-system-setup) at `chezmoi apply` time. The
 # runner does `sudo -v` once upfront, then prefixes commands with `sudo` only
 # when `sudo: true`.
 #
-# All commands MUST be idempotent — the runner re-runs the entire list every
+# All commands MUST be idempotent, the runner re-runs the entire list every
 # time the YAML changes (chezmoi hash gate). For non-idempotent commands,
 # put them in the runbook (docs/runbooks/macos-fresh-machine-quickstart.md)
 # instead of here.
@@ -17,7 +17,7 @@
 #
 # `tailnet_pins` is structured data, not commands: the runner template generates
 # an idempotent guard-then-append /etc/hosts command per entry (MagicDNS
-# registration-layer fallback pins — per CLAUDE.md's Tailscale DNS section).
+# registration-layer fallback pins, per CLAUDE.md's Tailscale DNS section).
 #
 # Schema:
 #   - fqdn:  <string>   # MagicDNS name, ends .ts.net

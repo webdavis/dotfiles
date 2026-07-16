@@ -1,7 +1,7 @@
-# Notification System + Repo Modernization — Brief for Implementation
+# Notification System + Repo Modernization: Brief for Implementation
 
-**Status:** brief / not yet designed — hand this to a fresh model or session with no memory of the
-conversation that produced it. **Repo:** `/Users/stephen/workspaces/Ivy/webdavis/dotfiles` — a chezmoi
+**Status:** brief / not yet designed. Hand this to a fresh model or session with no memory of the
+conversation that produced it. **Repo:** `/Users/stephen/workspaces/Ivy/webdavis/dotfiles`, a chezmoi
 dotfiles repo. Read its root `CLAUDE.md` in full before touching anything; it governs code style,
 security, and architecture conventions in depth and is not optional reading. Separately,
 `private_dot_claude/CLAUDE.md` (the chezmoi source for the *global* `~/.claude/CLAUDE.md`, applying to
@@ -11,29 +11,29 @@ DevTools-based browser automation -- both were installed prior to this brief bei
 
 ## Read this first: creative freedom and pushback
 
-**Every recommendation, rationale, or design choice in this document — apart from the Standing Rules
-section immediately below — is a starting hypothesis, not a decision, and you are expected to challenge
-it if you have a better idea.** This explicitly includes: the Rust precedent mentioned for the
-notification rewrite (pick something else entirely if it's the better call), the specific shape described
-for the four already-shipped notification fixes, the framing of the spam-bug root cause and how to fix
-it, the nvim-overhaul v1/v2/v3 designs themselves (the human explicitly wants these *re-evaluated*, not
-rubber-stamped — see that section), the exact mechanics proposed for the branch-combination workflow, and
+**Every recommendation, rationale, or design choice in this document, apart from the Standing Rules
+section immediately below, is a starting hypothesis, not a decision, and you are expected to challenge it
+if you have a better idea.** This explicitly includes: the Rust precedent mentioned for the notification
+rewrite (pick something else entirely if it's the better call), the specific shape described for the four
+already-shipped notification fixes, the framing of the spam-bug root cause and how to fix it, the
+nvim-overhaul v1/v2/v3 designs themselves (the human explicitly wants these *re-evaluated*, not
+rubber-stamped, see that section), the exact mechanics proposed for the branch-combination workflow, and
 the ordering/prioritization across the workstreams below. If you disagree with something written here,
-say so, explain why, and propose something better — that is the expected behavior, not a deviation from
+say so, explain why, and propose something better. That is the expected behavior, not a deviation from
 it. You also have full freedom to choose whatever programming language(s) best fit each piece of work;
 nothing in this document locks in a language for anything.
 
 What follows this section is genuinely not up for reinterpretation, because it isn't "a choice made in
-this plan" — it's either a standing policy of this repo/user that predates and outlives this initiative,
+this plan": it's either a standing policy of this repo/user that predates and outlives this initiative,
 or a literal, explicit instruction the human gave directly for this work.
 
 ## Standing rules (not part of "creative freedom")
 
 - **Investigate before implementing.** Every file this brief describes should be re-read and re-verified
-  against the live repo before you touch it — this is a snapshot from one point in time and parts of it
+  against the live repo before you touch it. This is a snapshot from one point in time and parts of it
   (especially branch/commit counts) will already be stale by the time you read it.
 - **YAGNI constrains *how*, not *whether*, you make a large change.** Nothing here should stop you from
-  proposing something as big as a shell replacement (see Workstream 4) if it's genuinely justified — but
+  proposing something as big as a shell replacement (see Workstream 4) if it's genuinely justified, but
   build whatever you build without speculative abstraction beyond what today's actual requirements need.
 - **Never patch, fork, or vendor third-party tools.** `openhue`, `terminal-notifier`, `curl`, `jq`,
   moshi's API, Hermes' webhook gateway, `lazy.nvim`, `nushell` itself, `Thaw`, `gh-axi`,

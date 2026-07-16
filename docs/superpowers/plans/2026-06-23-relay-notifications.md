@@ -1,9 +1,9 @@
-# Relay notifications — Implementation Plan
+# Relay notifications: Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or
 > superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax.
 
-**Goal:** Build the `relay` pipeline — agents (Claude, Codex) and long shell commands send state-aware
+**Goal:** Build the `relay` pipeline: agents (Claude, Codex) and long shell commands send state-aware
 notifications to three failure-separated channels (moshi push, Hermes→Discord, clickable-local).
 
 **Architecture:** A shared sender `relay.sh` fans out to the three channels, each isolated. `relay-agent.sh`
@@ -32,23 +32,23 @@ agent event to a state.
 
 ## File structure
 
-- Create `dot_local/bin/executable_relay.sh` — the sender (3 channels, failure-separated, exit 0).
-- Create `dot_local/bin/executable_relay-agent.sh` — agent state→message builder (calls relay.sh).
-- Delete `dot_local/bin/executable_claude-moshi-notify.sh` — superseded by the two above.
-- Create `dot_config/relay/private_auth.json.tmpl` — `{moshi_secret, hermes_secret}` from KeePassXC, 0600.
-- Delete `dot_config/moshi/private_auth.json.tmpl` — moshi secret migrates into relay's.
-- Modify `private_dot_claude/modify_settings.json` — Claude hooks → `relay-agent.sh <state>`.
-- Create `dot_codex/private_hooks.json.tmpl` — Codex `Stop`/`PermissionRequest` → `relay-agent.sh`, plus the
+- Create `dot_local/bin/executable_relay.sh`, the sender (3 channels, failure-separated, exit 0).
+- Create `dot_local/bin/executable_relay-agent.sh`, agent state→message builder (calls relay.sh).
+- Delete `dot_local/bin/executable_claude-moshi-notify.sh`, superseded by the two above.
+- Create `dot_config/relay/private_auth.json.tmpl`, `{moshi_secret, hermes_secret}` from KeePassXC, 0600.
+- Delete `dot_config/moshi/private_auth.json.tmpl`, moshi secret migrates into relay's.
+- Modify `private_dot_claude/modify_settings.json`, Claude hooks → `relay-agent.sh <state>`.
+- Create `dot_codex/private_hooks.json.tmpl`, Codex `Stop`/`PermissionRequest` → `relay-agent.sh`, plus the
   preserved herdr agent-state `SessionStart` hook.
-- Create `dot_codex/executable_herdr-agent-state.sh` — tracked copy (Task 0 confirms origin/content).
-- Modify `.chezmoiscripts/run_once_after_60-moshi-hook-setup.sh.tmpl` — drop `codex` from `--target`.
-- Modify `dot_bashrc.tmpl` — shell notifier thresholds + skip-list + relay.sh call.
+- Create `dot_codex/executable_herdr-agent-state.sh`, tracked copy (Task 0 confirms origin/content).
+- Modify `.chezmoiscripts/run_once_after_60-moshi-hook-setup.sh.tmpl`, drop `codex` from `--target`.
+- Modify `dot_bashrc.tmpl`, shell notifier thresholds + skip-list + relay.sh call.
 - Create `test/relay.sh`, `test/relay-agent.sh`.
-- Modify `scripts/lint.sh` — add the codex hooks `.sh.tmpl` if templated (the `.json.tmpl` is not shell).
+- Modify `scripts/lint.sh`, add the codex hooks `.sh.tmpl` if templated (the `.json.tmpl` is not shell).
 - Create `dot_hermes/create_private_dot_env.tmpl` (`WEBHOOK_ENABLED`/`WEBHOOK_PORT` platform switch) +
-  `dot_hermes/create_private_config.yaml.tmpl` (relay route; secret is a keepassxc literal — route `${VAR}`
-  isn't expanded; no global — `create_` so neither clobbers live state).
-- Modify `CLAUDE.md` — replace the moshi/notify sections with the relay description; document the Hermes
+  `dot_hermes/create_private_config.yaml.tmpl` (relay route; secret is a keepassxc literal, route `${VAR}`
+  isn't expanded; no global, `create_` so neither clobbers live state).
+- Modify `CLAUDE.md`, replace the moshi/notify sections with the relay description; document the Hermes
   tracking method (`.env` secret + `create_` config baseline + manual route-add on existing hosts).
 
 ---
@@ -57,18 +57,18 @@ agent event to a state.
 
 **Files:** none (investigation; record findings inline in this plan or the commit message of Task 3).
 
-- [ ] **Step 1 — Codex hook payload.** Add a temporary echo hook OR inspect a real Codex run: confirm
+- [ ] **Step 1: Codex hook payload.** Add a temporary echo hook OR inspect a real Codex run: confirm
   whether Codex's `Stop` and `PermissionRequest` hooks receive stdin JSON with `cwd` and `transcript_path`.
   Run: trigger a Codex session and capture stdin, e.g. temporarily set a Codex `Stop` hook to
   `cat > /tmp/codex-stop.json` and inspect it. Expected: learn which fields exist.
-- [ ] **Step 2 — Record the decision.** If `transcript_path` is present and JSONL like Claude's,
+- [ ] **Step 2: Record the decision.** If `transcript_path` is present and JSONL like Claude's,
   `relay-agent.sh` reuses the snippet parser for Codex. If absent, Codex's `done` message uses
   project/branch only (no snippet). Write the finding into Task 2's snippet step as a guard.
-- [ ] **Step 3 — herdr-agent-state.sh origin.** Run
+- [ ] **Step 3: herdr-agent-state.sh origin.** Run
   `grep -rl herdr-agent-state ~/.codex ~/.config/herdr /opt/homebrew/bin/moshi-hook 2>/dev/null` and
   `file ~/.codex/herdr-agent-state.sh`; check whether moshi-hook or a herdr integration wrote it
   (`herdr integration --help`). Expected: identify the writer.
-- [ ] **Step 4 — Decide tracking.** If it's a static helper, copy it to
+- [ ] **Step 4: Decide tracking.** If it's a static helper, copy it to
   `dot_codex/executable_herdr-agent-state.sh` verbatim so the chezmoi `hooks.json` reference resolves. If a
   tool regenerates it, note that the tool must run before the hooks.json is used, and still track a copy.
 
@@ -85,7 +85,7 @@ agent event to a state.
 reading secrets from `${RELAY_AUTH_FILE:-~/.config/relay/auth.json}`, endpoints overridable via
 `RELAY_MOSHI_URL` / `RELAY_HERMES_URL`.
 
-- [ ] **Step 1 — failing test `test/relay.sh`.** Mocks `curl` + `terminal-notifier` on `PATH` (each records
+- [ ] **Step 1: failing test `test/relay.sh`.** Mocks `curl` + `terminal-notifier` on `PATH` (each records
   its argv + stdin to files under a tempdir), points `RELAY_AUTH_FILE` at a fixture with both secrets and
   `RELAY_MOSHI_URL`/`RELAY_HERMES_URL` at dummy URLs, runs `relay.sh`, and asserts:
 
@@ -141,8 +141,8 @@ grep -q "rc=0" <<<"$out3" || { echo "relay: FAIL -- exit not 0 with no secrets" 
 echo "relay: OK"
 ```
 
-- [ ] **Step 2 — run it, expect FAIL** (`relay.sh` missing): `just test 2>&1 | grep relay`.
-- [ ] **Step 3 — implement `dot_local/bin/executable_relay.sh`:**
+- [ ] **Step 2: run it, expect FAIL** (`relay.sh` missing): `just test 2>&1 | grep relay`.
+- [ ] **Step 3: implement `dot_local/bin/executable_relay.sh`:**
 
 ```bash
 #!/usr/bin/env bash
@@ -171,17 +171,17 @@ hermes_url="${RELAY_HERMES_URL:-http://127.0.0.1:8644/webhooks/relay}"
 loc="$project"
 [[ -n $branch ]] && loc="${loc:+$loc }($branch)"
 title="${agent:-relay} · ${state:-done}${project:+ · $project}"
-message="${state:-done}${loc:+ — $loc}"
+message="${state:-done}${loc:+, $loc}"
 [[ -n $detail ]] && message="$message"$'\n'"$detail"
 
-# moshi — token read from the 0600 file by jq; body sent on stdin (never on argv)
+# moshi, token read from the 0600 file by jq; body sent on stdin (never on argv)
 moshi_body="$(jq -c --arg t "$title" --arg m "$message" \
   'if .moshi_secret then {token: .moshi_secret, title: $t, message: $m} else empty end' "$auth_file" 2>/dev/null || true)"
 if [[ -n $moshi_body ]]; then
   (curl -fsS -m 10 -X POST "$moshi_url" -H 'Content-Type: application/json' --data @- <<<"$moshi_body" >/dev/null 2>&1 || true) &
 fi
 
-# hermes — body carries no secret; HMAC key read from the file by python (never argv/env); body on stdin
+# hermes, body carries no secret; HMAC key read from the file by python (never argv/env); body on stdin
 hermes_body="$(jq -cn --arg a "$agent" --arg s "$state" --arg p "$project" --arg d "$message" \
   '{agent: $a, state: $s, project: $p, detail: $d}')"
 sig="$(printf '%s' "$hermes_body" | python3 -c 'import hmac, hashlib, json, sys
@@ -203,7 +203,7 @@ fi
 exit 0
 ```
 
-- [ ] **Step 4 — secret template `dot_config/relay/private_auth.json.tmpl`:**
+- [ ] **Step 4: secret template `dot_config/relay/private_auth.json.tmpl`:**
 
 ```json
 {
@@ -213,10 +213,10 @@ exit 0
 ```
 
 (`| quote` emits the JSON-quoted string, so no surrounding quotes. Create the KeePassXC entry
-**Hermes :: Webhook Secret :: #relay** — the same entry renders the Hermes route's literal secret in Task 5.)
+**Hermes :: Webhook Secret :: #relay**, the same entry renders the Hermes route's literal secret in Task 5.)
 
-- [ ] **Step 5 — run the test, expect PASS:** `just test 2>&1 | grep relay` → `relay: OK`.
-- [ ] **Step 6 — commit:**
+- [ ] **Step 5: run the test, expect PASS:** `just test 2>&1 | grep relay` → `relay: OK`.
+- [ ] **Step 6: commit:**
 
 ```bash
 git add dot_local/bin/executable_relay.sh dot_config/relay/private_auth.json.tmpl test/relay.sh
@@ -235,7 +235,7 @@ git commit -m "feat(relay): fan-out sender (moshi + Hermes + clickable local), f
 
 **Consumes:** `relay.sh` (Task 1). **Produces:** `relay-agent.sh <state>` reading the hook stdin JSON.
 
-- [ ] **Step 1 — failing test `test/relay-agent.sh`.** Mocks `relay.sh` on `PATH` (records argv), feeds a
+- [ ] **Step 1: failing test `test/relay-agent.sh`.** Mocks `relay.sh` on `PATH` (records argv), feeds a
   fixture transcript + a `{"cwd":...,"transcript_path":...}` stdin, asserts the right `--state`, `--project`,
   `--pane`, and (for `done`) a `--detail` snippet:
 
@@ -264,8 +264,8 @@ grep -qx -- "done thinking" <<<"$args" || { echo "relay-agent: FAIL -- snippet" 
 echo "relay-agent: OK"
 ```
 
-- [ ] **Step 2 — run it, expect FAIL.**
-- [ ] **Step 3 — implement `dot_local/bin/executable_relay-agent.sh`** (reuse the transcript parse from the
+- [ ] **Step 2: run it, expect FAIL.**
+- [ ] **Step 3: implement `dot_local/bin/executable_relay-agent.sh`** (reuse the transcript parse from the
   current `claude-moshi-notify.sh`; delegate delivery to relay.sh via `${RELAY_BIN:-$HOME/.local/bin/relay.sh}`):
 
 ```bash
@@ -296,8 +296,8 @@ fi
 exit 0
 ```
 
-- [ ] **Step 4 — run the test, expect PASS.**
-- [ ] **Step 5 — rewire Claude hooks in `private_dot_claude/modify_settings.json`.** In the `$hooks` dict,
+- [ ] **Step 4: run the test, expect PASS.**
+- [ ] **Step 5: rewire Claude hooks in `private_dot_claude/modify_settings.json`.** In the `$hooks` dict,
   change the `Stop` moshi entry's command from `claude-moshi-notify.sh` to
   `printf '%s/.local/bin/relay-agent.sh' $home` with arg `done`, and add `Notification[permission_prompt]`,
   `PostToolUse[AskUserQuestion]`, `PostToolUse[ExitPlanMode]` entries calling `relay-agent.sh blocked|asked|plan-ready`.
@@ -314,10 +314,10 @@ exit 0
 matchers, and extend the existing `Notification[permission_prompt]` array with a `relay-agent.sh blocked`
 command alongside the alerter.)
 
-- [ ] **Step 6 — render-check (no KeePassXC needed; settings modify-template is keepassxc-free):**
+- [ ] **Step 6: render-check (no KeePassXC needed; settings modify-template is keepassxc-free):**
   `chezmoi cat ~/.claude/settings.json | jq '.hooks.Stop'` → shows `relay-agent.sh done`.
-- [ ] **Step 7 — delete the old script:** `git rm dot_local/bin/executable_claude-moshi-notify.sh`.
-- [ ] **Step 8 — commit:**
+- [ ] **Step 7: delete the old script:** `git rm dot_local/bin/executable_claude-moshi-notify.sh`.
+- [ ] **Step 8: commit:**
 
 ```bash
 git add dot_local/bin/executable_relay-agent.sh test/relay-agent.sh private_dot_claude/modify_settings.json
@@ -326,7 +326,7 @@ git commit -m "feat(relay): agent message-builder + Claude done/blocked/asked/pl
 
 ---
 
-## Task 3: Codex — chezmoi-owned hooks.json + moshi-hook exclusion + herdr-agent-state
+## Task 3: Codex, chezmoi-owned hooks.json + moshi-hook exclusion + herdr-agent-state
 
 **Files:**
 - Create `dot_codex/private_hooks.json.tmpl`
@@ -335,7 +335,7 @@ git commit -m "feat(relay): agent message-builder + Claude done/blocked/asked/pl
 
 **Consumes:** `relay-agent.sh` (Task 2), Task 0 findings.
 
-- [ ] **Step 1 — `dot_codex/private_hooks.json.tmpl`** (`$home` = `.chezmoi.homeDir`); `Stop`→`done`,
+- [ ] **Step 1: `dot_codex/private_hooks.json.tmpl`** (`$home` = `.chezmoi.homeDir`); `Stop`→`done`,
   `PermissionRequest`→`blocked`, preserve the herdr agent-state `SessionStart`:
 
 ```gotemplate
@@ -358,15 +358,15 @@ git commit -m "feat(relay): agent message-builder + Claude done/blocked/asked/pl
 }
 ```
 
-- [ ] **Step 2 — drop `codex` from `--target`** in
+- [ ] **Step 2: drop `codex` from `--target`** in
   `.chezmoiscripts/run_once_after_60-moshi-hook-setup.sh.tmpl` (change the install line to
   `--target opencode,gemini,cursor,kimi,qwen,grok,omp,pi`), and add a guarded one-time
   `moshi-hook uninstall --target codex` before it (mirrors the Claude-exclusion note already in the file).
-- [ ] **Step 3 — operator step (document in the commit body):** run `moshi-hook uninstall --target codex`
+- [ ] **Step 3: operator step (document in the commit body):** run `moshi-hook uninstall --target codex`
   once, then apply the new hooks: `chezmoi apply ~/.codex/hooks.json ~/.codex/herdr-agent-state.sh`.
-- [ ] **Step 4 — verify:** `jq '.hooks | keys' ~/.codex/hooks.json` shows the three events;
+- [ ] **Step 4: verify:** `jq '.hooks | keys' ~/.codex/hooks.json` shows the three events;
   `moshi-hook status` shows `codex` as **not found** (no longer managed); a Codex `Stop` fires `relay-agent`.
-- [ ] **Step 5 — commit:**
+- [ ] **Step 5: commit:**
 
 ```bash
 git add dot_codex/private_hooks.json.tmpl dot_codex/executable_herdr-agent-state.sh \
@@ -382,7 +382,7 @@ git commit -m "feat(relay): own Codex hooks (done/blocked) + remove Codex from m
 
 **Consumes:** `relay.sh`.
 
-- [ ] **Step 1 — edit `__cmd_notify_precmd`** (lines ~301-309): add `codex` to the skip-list regex, raise
+- [ ] **Step 1: edit `__cmd_notify_precmd`** (lines ~301-309): add `codex` to the skip-list regex, raise
   the alerter tier to `>= 60`, and at `>= 300` add a relay call. New body:
 
 ```bash
@@ -400,17 +400,17 @@ git commit -m "feat(relay): own Codex hooks (done/blocked) + remove Codex from m
 ```
 
 (The ≥60 tier sends the clickable local notification via relay's local channel; ≥300 adds moshi+Hermes+Hue.
-relay.sh decides channels by which secrets exist — so for a local-only tier, point it at the local channel:
+relay.sh decides channels by which secrets exist, so for a local-only tier, point it at the local channel:
 see Step 2.)
 
-- [ ] **Step 2 — add a `--local-only` flag to `relay.sh`** so the ≥60 tier sends only the local notification
+- [ ] **Step 2: add a `--local-only` flag to `relay.sh`** so the ≥60 tier sends only the local notification
   (no phone/Discord spam under 5m). In `relay.sh` arg parse add `--local-only) local_only=1; shift ;;` and
   guard the moshi + hermes blocks with `[[ -z ${local_only:-} ]] &&`. Update `test/relay.sh` with a case:
   `--local-only` produces a `tn.log` entry but no `curl.log` entry. Use `--local-only` in the ≥60 tier and
   full fan-out in the ≥300 tier.
-- [ ] **Step 3 — render + shellcheck** `dot_bashrc.tmpl`:
+- [ ] **Step 3: render + shellcheck** `dot_bashrc.tmpl`:
   `CI=1 chezmoi execute-template --no-tty dot_bashrc.tmpl | shellcheck -` → clean.
-- [ ] **Step 4 — commit:**
+- [ ] **Step 4: commit:**
 
 ```bash
 git add dot_bashrc.tmpl dot_local/bin/executable_relay.sh test/relay.sh
@@ -422,21 +422,21 @@ git commit -m "feat(relay): long-command notifications (local >=1m, full fan-out
 ## Task 5: Track the Hermes webhook activation + relay route (secrets-safe) + secret migration + docs
 
 **Verified webhook model** (Hermes v0.14.0, confirmed against the installed gateway source, the osquery
-branch, and the docs): the `.env` is the platform **switch** — `WEBHOOK_ENABLED=true` and `WEBHOOK_PORT=8644`
+branch, and the docs): the `.env` is the platform **switch**, `WEBHOOK_ENABLED=true` and `WEBHOOK_PORT=8644`
 (read via `os.getenv`, `gateway/config.py:1470-1471`) turn the webhook gateway on; without them no route
-runs. **Secrets are not env-injected for routes** — the gateway does not expand `${VAR}` in route secrets, so
+runs. **Secrets are not env-injected for routes**, the gateway does not expand `${VAR}` in route secrets, so
 each route carries an explicit secret in `config.yaml`. We use **no global `WEBHOOK_SECRET`**: every route is
 explicit, and a route missing its secret **fails closed** (the platform refuses to start, `webhook.py:154`).
 `config.yaml` is runtime-rewritten (open bug #4775 can resolve placeholders to plaintext), so both files are
 chezmoi **`create_`** templates (written once on a fresh host, never re-synced or read back). **Only the
-`relay` route is committed here** — not the osquery routes (unmerged osquery branch, which tracks no Hermes
+`relay` route is committed here**, not the osquery routes (unmerged osquery branch, which tracks no Hermes
 source and signs from its own runtime secret file, so there's no source collision); the live `config.yaml`
 holds both route sets and `create_` never overwrites it.
 
 **Files:** Create `dot_hermes/create_private_dot_env.tmpl`, `dot_hermes/create_private_config.yaml.tmpl`
-(both done — committed with this task); delete `dot_config/moshi/private_auth.json.tmpl`; modify `CLAUDE.md`.
+(both done, committed with this task); delete `dot_config/moshi/private_auth.json.tmpl`; modify `CLAUDE.md`.
 
-- [ ] **Step 1 — platform switch in `.env`: `dot_hermes/create_private_dot_env.tmpl`** (`create_` — the live
+- [ ] **Step 1: platform switch in `.env`: `dot_hermes/create_private_dot_env.tmpl`** (`create_`, the live
   `.env` holds ~25 Hermes-owned keys; a normal template would wipe them). Two non-secret activation vars (no
   keepassxc, so the template is automation-safe):
 
@@ -445,7 +445,7 @@ WEBHOOK_ENABLED=true
 WEBHOOK_PORT=8644
 ```
 
-- [ ] **Step 2 — relay route config: `dot_hermes/create_private_config.yaml.tmpl`** (`create_` — never
+- [ ] **Step 2: relay route config: `dot_hermes/create_private_config.yaml.tmpl`** (`create_`, never
   overwrites the live osquery-bearing config). Route `${VAR}` is NOT expanded (v0.14.0), so the secret is a
   keepassxc-rendered LITERAL; the committed source holds the keepassxc call, never the value:
 
@@ -466,26 +466,26 @@ platforms:
             chat_id: {{ (keepassxc "Discord (Uriel) :: Channel ID (#relay)").Password | quote }}
 ```
 
-(No osquery routes; no global `secret:` under `extra` — every route is explicit. Never `chezmoi add` the live
+(No osquery routes; no global `secret:` under `extra`, every route is explicit. Never `chezmoi add` the live
 `config.yaml`; #4775 rewrites it and would capture the resolved literal.)
 
-- [ ] **Step 3 — migrate the moshi secret.** `grep -rn 'config/moshi/auth' .`; delete
+- [ ] **Step 3: migrate the moshi secret.** `grep -rn 'config/moshi/auth' .`; delete
   `dot_config/moshi/private_auth.json.tmpl` (moshi's secret now lives in `~/.config/relay/auth.json`,
   Task 1). Operator removes the stale `~/.config/moshi/auth.json`.
-- [ ] **Step 4 — operator wiring (existing host).** `create_` won't touch the live `.env` or `config.yaml`,
+- [ ] **Step 4: operator wiring (existing host).** `create_` won't touch the live `.env` or `config.yaml`,
   so on dresden: confirm `WEBHOOK_ENABLED=true` + `WEBHOOK_PORT=8644` are in the live `~/.hermes/.env` (they
   already are if the osquery webhook works); create the KeePassXC entry **Hermes :: Webhook Secret :: #relay**;
   hand-add the `routes.relay` block (Step 2, real secret from KeePassXC) to the live `config.yaml` beside the
   osquery routes. Restart Hermes if it doesn't hot-reload. Never `chezmoi add` the live `config.yaml`/`.env`.
-- [ ] **Step 5 — live end-to-end check** (after `relay.sh` exists, Task 1):
+- [ ] **Step 5: live end-to-end check** (after `relay.sh` exists, Task 1):
   `~/.local/bin/relay.sh --agent test --state done --project relay --detail hi --pane "$HERDR_PANE_ID"` →
   phone push + `#relay` (HMAC validated) + clickable local.
-- [ ] **Step 6 — CLAUDE.md.** Replace the moshi/notify sections with the relay section; document the Hermes
+- [ ] **Step 6: CLAUDE.md.** Replace the moshi/notify sections with the relay section; document the Hermes
   tracking method (`.env` = `WEBHOOK_ENABLED`/`WEBHOOK_PORT` platform switch; explicit per-route secret as a
   keepassxc literal in a `create_` config; no global; the live-file clobber caution; the pending osquery
   merge), and add only `create_private_config.yaml.tmpl` to the KeePassXC-template list (the `.env` template
   has no secret, so it's automation-safe).
-- [ ] **Step 7 — commit:**
+- [ ] **Step 7: commit:**
 
 ```bash
 git add dot_hermes/create_private_dot_env.tmpl dot_hermes/create_private_config.yaml.tmpl CLAUDE.md
@@ -501,7 +501,7 @@ git commit -m "feat(relay): track Hermes webhook activation + relay route secret
   exclusion + herdr-agent-state (T3), shell thresholds + skip-list (T4), Hermes route + secret migration +
   docs (T5), exact-pane via `herdr agent focus` (T1 local channel), failure separation (T1), open questions
   (T0). All covered.
-- **Placeholders:** none — every script/test/edit shows complete code; `<...>` tokens are operator-supplied
+- **Placeholders:** none, every script/test/edit shows complete code; `<...>` tokens are operator-supplied
   secrets/ids, not code gaps.
 - **Type consistency:** `relay.sh` flags (`--agent/--state/--project/--branch/--detail/--pane/--local-only`)
   are used identically by `relay-agent.sh`, the shell notifier, and the tests; `RELAY_AGENT`/`RELAY_BIN`/

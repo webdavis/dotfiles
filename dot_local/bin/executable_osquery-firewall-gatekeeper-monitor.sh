@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# osquery-firewall-gatekeeper-monitor.sh — polled every 60s by a launchd StartInterval
+# osquery-firewall-gatekeeper-monitor.sh, polled every 60s by a launchd StartInterval
 # agent. Queries the live firewall (alf) and gatekeeper state via osqueryi,
 # compares against the previous run, and fires alerter only on transitions.
 # Silent in steady state.
@@ -32,7 +32,7 @@ fi
 cur_fw=$(jq -r '.firewall' <<<"$posture")
 cur_gk=$(jq -r '.gatekeeper' <<<"$posture")
 
-# First run: write state and exit. No notification — we don't know what the
+# First run: write state and exit. No notification: we don't know what the
 # previous state was, so we can't claim a transition.
 if [[ ! -f $STATE ]]; then
   printf '%s\n' "$posture" >"$STATE"
@@ -72,20 +72,20 @@ notice_lines=()
 
 if [[ $cur_fw != "$prev_fw" ]]; then
   if [[ $cur_fw == "0" ]]; then
-    crit_blocks+=("**Firewall turned OFF**"$'\n'"- **Was:** $(fw_to_text "$prev_fw")"$'\n'"- **Now:** **OFF**"$'\n'"- Did you turn this off? If not, something else did — **investigate now**."$'\n'"- Re-enable it: System Settings → Network → Firewall")
+    crit_blocks+=("**Firewall turned OFF**"$'\n'"- **Was:** $(fw_to_text "$prev_fw")"$'\n'"- **Now:** **OFF**"$'\n'"- Did you turn this off? If not, something else did: **investigate now**."$'\n'"- Re-enable it: System Settings → Network → Firewall")
   else
-    notice_lines+=("🟡 **Firewall** — from: $(fw_to_text "$prev_fw"), to: $(fw_to_text "$cur_fw")")
+    notice_lines+=("🟡 **Firewall**: from: $(fw_to_text "$prev_fw"), to: $(fw_to_text "$cur_fw")")
   fi
 fi
 if [[ $cur_gk != "$prev_gk" ]]; then
   if [[ $cur_gk == "0" ]]; then
-    crit_blocks+=("**Gatekeeper turned OFF**"$'\n'"- **Was:** $(gk_to_text "$prev_gk")"$'\n'"- **Now:** **DISABLED**"$'\n'"- Did you turn this off? If not, something else did — **investigate now**."$'\n'"- Re-enable it: System Settings → Privacy & Security")
+    crit_blocks+=("**Gatekeeper turned OFF**"$'\n'"- **Was:** $(gk_to_text "$prev_gk")"$'\n'"- **Now:** **DISABLED**"$'\n'"- Did you turn this off? If not, something else did: **investigate now**."$'\n'"- Re-enable it: System Settings → Privacy & Security")
   else
-    notice_lines+=("🟡 **Gatekeeper** — from: $(gk_to_text "$prev_gk"), to: $(gk_to_text "$cur_gk")")
+    notice_lines+=("🟡 **Gatekeeper**: from: $(gk_to_text "$prev_gk"), to: $(gk_to_text "$cur_gk")")
   fi
 fi
 
-# No transitions — silent.
+# No transitions. Silent.
 [[ ${#crit_blocks[@]} -eq 0 && ${#notice_lines[@]} -eq 0 ]] && exit 0
 
 if [[ ${#crit_blocks[@]} -gt 0 ]]; then

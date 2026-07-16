@@ -3,7 +3,7 @@
 # Manually invoked (no launchd schedule). Run after enabling Remote Login
 # on a fresh Mac to lock the SSH server to public-key auth only.
 #
-# The drop-in file IS the lock — leave it in place permanently. Without it,
+# The drop-in file IS the lock, leave it in place permanently. Without it,
 # sshd reverts to its default of allowing password auth.
 set -euo pipefail
 
@@ -16,11 +16,11 @@ fi
 
 # Reload sshd via the modern kickstart -k idiom (kill + restart in one call,
 # replaces the deprecated launchctl unload/load pair). Skip silently if sshd
-# isn't currently loaded — the drop-in stays in place and will apply
+# isn't currently loaded, the drop-in stays in place and will apply
 # whenever Remote Login is next enabled.
 if sudo launchctl print system/com.openssh.sshd &>/dev/null; then
   sudo launchctl kickstart -k system/com.openssh.sshd
   echo "[ssh-hardening] sshd reloaded"
 else
-  echo "[ssh-hardening] sshd not currently running — config will apply when Remote Login is enabled"
+  echo "[ssh-hardening] sshd not currently running, config will apply when Remote Login is enabled"
 fi

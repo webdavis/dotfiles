@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# macos-defaults-drift.sh — read-only drift checker for tracked macOS defaults.
+# macos-defaults-drift.sh, read-only drift checker for tracked macOS defaults.
 #
 # Compares each record in .chezmoidata/macos_defaults.yaml against the live
 # value via `defaults [-currentHost] read`. Prints a tab-aligned table of
 # drifted rows only. Never writes.
 #
 # Exit codes:
-#   0 — no drift
-#   1 — drift detected
-#   2 — data file missing or unreadable
+#   0: no drift
+#   1: drift detected
+#   2: data file missing or unreadable
 
 set -euo pipefail
 shopt -s lastpipe

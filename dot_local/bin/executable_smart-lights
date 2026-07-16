@@ -58,7 +58,7 @@ log_message() {
 }
 
 notify() {
-  # GUI notification via macOS — only fires if --notify flag was passed.
+  # GUI notification via macOS, only fires if --notify flag was passed.
   local message="$1"
   if [[ ${NOTIFY:-false} == "true" ]]; then
     osascript -e "display notification \"$message\" with title \"Smart Lights\"" 2>/dev/null || true

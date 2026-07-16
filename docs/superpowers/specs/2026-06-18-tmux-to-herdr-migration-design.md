@@ -15,7 +15,7 @@ and agent integration documented below. Linux-ready (the curl installer + chezmo
 ## herdr concept model (use these terms consistently)
 
 - **session** = persistent background server (≈ tmux SERVER). One default session; survives disconnect.
-  Named sessions (`herdr session attach <name>`) isolate bigger setups — not used here.
+  Named sessions (`herdr session attach <name>`) isolate bigger setups, not used here.
 - **workspace** = per-project tab group anchored to a directory (≈ tmux SESSION). The sidebar shows
   workspaces as "spaces" and rolls each up to its most-urgent agent state.
 - **tab / pane** = windows / panes (real PTYs).
@@ -31,7 +31,7 @@ server.
 - **moshi-hook IS herdr-aware natively:** reads `HERDR_ENV`, `HERDR_SESSION`, `HERDR_PANE_ID` (set by
   herdr in panes). The `moshi-hook context` subcommand explicitly supports `tmux`, `herdr`, `zellij`,
   or `shell`. Binary string inspection confirms.
-- **herdr is NOT moshi-aware:** `/docs/preview/integrations/` lists AI agents only — no moshi mention.
+- **herdr is NOT moshi-aware:** `/docs/preview/integrations/` lists AI agents only, no moshi mention.
 - **Consequence:** no herdr-side config is required for moshi-hook to work. The single `HERDR_ENV=1`
   signal that herdr exports natively in its panes double-serves both moshi-hook's context detection
   and the herdr Agent Skill's gate.
@@ -39,7 +39,7 @@ server.
   Qwen, Grok, OMP, Pi (`--target` flag for subset; default = all).
 - moshi-hook is the user's primary remote-terminal / agent-bridge tool; Happy daemon coexists.
 
-## Context — current state (verified; herdr 0.7.0 installed)
+## Context, current state (verified; herdr 0.7.0 installed)
 
 - chezmoi dotfiles repo. tmux with prefix Ctrl-d, tmux2k theme, ~10 TPM plugins, sesh session manager
   (14 sessions in `dot_config/sesh/sesh.toml`), and a custom status hack
@@ -51,33 +51,33 @@ server.
 - `~/.local/bin/claude-restart.sh` + `Library/LaunchAgents/com.claude.code.plist.tmpl` supervise an
   always-on `claude --remote-control` tmux session.
 - Happy daemon (`Library/LaunchAgents/com.webdavis.happy-daemon.plist`) bridges Claude Code sessions to
-  Happy mobile/web — STAYS, coexists with moshi-hook.
+  Happy mobile/web, STAYS, coexists with moshi-hook.
 - Bashrc keepers (NOT tmux-coupled): the long-running-command notifier
   (`__cmd_notify_preexec`/`__cmd_notify_precmd`) and the bash-preexec-before-atuin init ordering.
 
 ## Already in-flight on this branch (uncommitted)
 
-These edits are already on disk from earlier brainstorming work — they implement the moshi-hook
+These edits are already on disk from earlier brainstorming work, they implement the moshi-hook
 declarative install and remain consistent with the design below:
 
-- `.chezmoidata/system_packages_autoinstall.yaml` — adds `rjyo/moshi` tap, `rjyo/moshi/moshi-hook`
+- `.chezmoidata/system_packages_autoinstall.yaml`, adds `rjyo/moshi` tap, `rjyo/moshi/moshi-hook`
   formula, and a new `trusted_taps:` field listing `rjyo/moshi`.
-- `.chezmoiscripts/run_onchange_before_10-system-packages.sh.tmpl` — pre-bundle trust loop that runs
+- `.chezmoiscripts/run_onchange_before_10-system-packages.sh.tmpl`, pre-bundle trust loop that runs
   `brew tap` + `brew trust --tap` for every entry in `trusted_taps`.
-- `.chezmoiscripts/run_once_after_60-moshi-hook-setup.sh.tmpl` — one-time pair + install +
+- `.chezmoiscripts/run_once_after_60-moshi-hook-setup.sh.tmpl`, one-time pair + install +
   `brew services start` (pulls pairing token from KeePassXC entry `Moshi :: Pairing Token`).
-- `CLAUDE.md` — adds the new chezmoiscript to the interactive-apply list.
+- `CLAUDE.md`, adds the new chezmoiscript to the interactive-apply list.
 
 ## Locked decisions
 
 ### Install & update channel (herdr)
 
 - **Current state on this Mac:** herdr 0.7.0 is **already brew-installed**. The migration must
-  actively uninstall the brew copy (`brew uninstall herdr`) before the curl installer runs — this is
+  actively uninstall the brew copy (`brew uninstall herdr`) before the curl installer runs, this is
   not a hypothetical / first-machine path.
 - Switch from Homebrew to the direct curl installer
   (`curl -fsSL https://herdr.dev/install.sh | sh`) BECAUSE the preview channel is **unavailable on
-  Homebrew installs** (verified — `herdr channel set preview` errors with *"preview channel is only
+  Homebrew installs** (verified, `herdr channel set preview` errors with *"preview channel is only
   available for direct Herdr installs"*).
 - Remove `herdr` from `.chezmoidata/system_packages_autoinstall.yaml`.
 - Add a chezmoi `run_onchange_before_*` script that, idempotently on every run:
@@ -86,7 +86,7 @@ declarative install and remain consistent with the design below:
   2. Run the curl installer (`curl -fsSL https://herdr.dev/install.sh | sh`).
   3. Ensure the preview channel is active.
 - Channel: **preview**. Prefer setting it declaratively via `[update] channel = "preview"` in the
-  tracked config; CLI fallback is `herdr channel set preview` (whichever works on direct install — see
+  tracked config; CLI fallback is `herdr channel set preview` (whichever works on direct install, see
   spike below).
 - Update cadence: **manual** (`herdr update`), never on every `chezmoi apply`.
 
@@ -97,14 +97,14 @@ declarative install and remain consistent with the design below:
 ### Prefix & keybindings (real herdr action names)
 
 - `prefix = "ctrl+d"` (herdr default is `ctrl+b`).
-- `goto = "prefix+g"` (already herdr's default — the workspace picker; primary space switcher).
+- `goto = "prefix+g"` (already herdr's default, the workspace picker; primary space switcher).
 - `rename_tab = "prefix+comma"`.
 - **Splits deliberately crossed** to preserve tmux muscle memory:
   - `split_horizontal = "prefix+\""` (top/bottom stack)
   - `split_vertical = "prefix+%"` (side-by-side)
   - Reason: herdr names splits by *divider orientation*; tmux by *motion direction*. Opposite words,
     same physical result. The cross matches what `prefix+"`/`prefix+%` do in tmux today.
-- `navigate_workspace_up = "k"`, `navigate_workspace_down = "j"` — local keys inside herdr's
+- `navigate_workspace_up = "k"`, `navigate_workspace_down = "j"`, local keys inside herdr's
   built-in navigate mode (a stock mode like copy mode; not a user-defined key table, so this does not
   conflict with the multi-step-keybindings constraint below).
 - Keep herdr's default `prefix+h/j/k/l` (`focus_pane_*`) as fallback pane focus; raw `Ctrl-h/j/k/l`
@@ -130,9 +130,9 @@ herdr CLI injects a literal `ctrl+d` byte into the focused pane's PTY. Conceptua
 tmux's `bind -n send-prefix`. **Implementation spike** (below): verify `pane send-keys "ctrl+d"`
 actually triggers EOF in the shell.
 
-### Workspaces (8) — quick-jump chords
+### Workspaces (8), quick-jump chords
 
-All chords live in the `prefix+ctrl+<letter>` namespace — currently empty in herdr defaults and
+All chords live in the `prefix+ctrl+<letter>` namespace, currently empty in herdr defaults and
 structurally unlikely to be populated upstream (a breaking change for any existing user). Each
 workspace gets one `[[keys.command]]` entry running `herdr workspace create --cwd <path> --label
 <name> --focus` (create-or-focus semantics).
@@ -168,7 +168,7 @@ Notes:
 
 ### Neovim ↔ herdr pane navigation
 
-Adopt **`devxplay/herdr.nvim`** for seamless raw `Ctrl-h/j/k/l` across nvim splits and herdr panes —
+Adopt **`devxplay/herdr.nvim`** for seamless raw `Ctrl-h/j/k/l` across nvim splits and herdr panes,
 the only known solution. It's early-stage (4 commits, no releases, 3 stars on inspection) → pin to an
 exact commit SHA.
 
@@ -192,13 +192,13 @@ pinned SHA. This is the **one accepted bit of complexity** in an otherwise simpl
 Both skills are **vendored** into the chezmoi tree alongside a `just` recipe to refresh from upstream
 on demand.
 
-- **herdr Agent Skill** — copy of upstream
+- **herdr Agent Skill**, copy of upstream
   `https://github.com/ogulcancelik/herdr/blob/master/SKILL.md` into
-  `private_dot_claude/skills/herdr/SKILL.md`. Teaches AI agents (with `HERDR_ENV=1` set — which herdr
+  `private_dot_claude/skills/herdr/SKILL.md`. Teaches AI agents (with `HERDR_ENV=1` set, which herdr
   exports natively in its panes) to use the `herdr` CLI for terminal control.
-- **Moshi Skill** — installed by `npx skills add rjyo/moshi-skill`, then vendor the resulting
+- **Moshi Skill**, installed by `npx skills add rjyo/moshi-skill`, then vendor the resulting
   `~/.claude/skills/...` file into `private_dot_claude/skills/moshi/SKILL.md` for reproducibility.
-- `just update-agent-skills` — one recipe that re-pulls both upstream skill files.
+- `just update-agent-skills`, one recipe that re-pulls both upstream skill files.
 - `HERDR_ENV` is set automatically by herdr inside its panes (verified via binary inspection); no
   manual shell export is needed.
 
@@ -230,7 +230,7 @@ Recap of the already-in-flight implementation (above):
   STAY untouched.
 - moshi-hook is the primary bridge, but Happy runs alongside; user picks the mobile UI per session.
 
-### Multi-step keybindings (key tables) — NOT AVAILABLE (known constraint)
+### Multi-step keybindings (key tables), NOT AVAILABLE (known constraint)
 
 - Verified via comprehensive source-code review (parser at `src/config/keybinds.rs:813,983`,
   `Mode` enum at `src/app/state.rs:748-769`, plugin v1 manifest schema) and a full issues /
@@ -241,7 +241,7 @@ Recap of the already-in-flight implementation (above):
 - Implication: tmux-style `prefix → C-o → letter` key tables CANNOT be replicated. All workspace
   jumps are flat single chords (resolved above).
 
-### `moshi .` post-migration behavior — implementation spike
+### `moshi .` post-migration behavior, implementation spike
 
 - `moshi .` today opens a tmux session per `moshi-hook help`.
 - Spike during implementation: verify whether the command auto-detects `HERDR_ENV` and spawns a herdr
@@ -249,7 +249,7 @@ Recap of the already-in-flight implementation (above):
 - If herdr-aware: keep the shortcut.
 - If tmux-only: retire it (don't depend on the shortcut after tmux is gone).
 
-### herdr server pre-warm — NOT NEEDED
+### herdr server pre-warm, NOT NEEDED
 
 - Plain `herdr` (or any `[[keys.command]]` that runs the CLI) auto-creates the default session if
   none exists.
@@ -271,7 +271,7 @@ Recap of the already-in-flight implementation (above):
   section covering the install + setup script + the asymmetric integration shape.
 - Rewrite the global `~/.claude/CLAUDE.md` Toolchain line that lists tmux as "locked-in" → herdr.
 
-## Removals (hard cutover — no dead code/packages)
+## Removals (hard cutover, no dead code/packages)
 
 - `tmux`, `tmux2k`, and ALL TPM plugins cold-dropped with no replacement: `tpm`, `tmux-sensible`,
   `tmux-resurrect`, `tmux-continuum`, `tmux-yank`, `tmux-fzf-url`, `tmux-thumbs`, `tmux-fuzzback`,
@@ -289,12 +289,12 @@ Recap of the already-in-flight implementation (above):
 - herdr preview docs: `herdr.dev/docs/preview/*` (quick-start, configuration with
   `#custom-command-keybindings`, keyboard, cli-reference, persistence-remote, agents, integrations,
   agent-skill, install, session-state, plugins, socket-api, concepts).
-- `github.com/ogulcancelik/herdr` — source code review (single-prefix model confirmed).
-- `github.com/devxplay/herdr.nvim` — Neovim pane-nav plugin.
-- `getmoshi.app` — Moshi homepage (herdr explicitly supported).
+- `github.com/ogulcancelik/herdr`, source code review (single-prefix model confirmed).
+- `github.com/devxplay/herdr.nvim`, Neovim pane-nav plugin.
+- `getmoshi.app`, Moshi homepage (herdr explicitly supported).
 - `moshi-hook help` output + binary string inspection (`HERDR_ENV` / `HERDR_SESSION` /
   `HERDR_PANE_ID` confirmed).
-- Local dotfiles repo — source of truth for what must be replicated.
+- Local dotfiles repo, source of truth for what must be replicated.
 - Captured real default config at `/tmp/herdr-default-config.toml` (herdr 0.7.0).
 
 ## Constraints
@@ -338,26 +338,26 @@ Recap of the already-in-flight implementation (above):
 
 ## Proposed commit sequence (the writing-plans phase will refine)
 
-1. `feat(herdr): switch from brew to direct curl installer (preview channel)` — chezmoi script +
+1. `feat(herdr): switch from brew to direct curl installer (preview channel)`, chezmoi script +
    YAML removal of `herdr`.
-2. `feat(rust): bootstrap rustup if missing` — prereq for herdr-navigator build.
-3. `feat(herdr): track ~/.config/herdr/config.toml in chezmoi` — seeded from `herdr --default-config`,
+2. `feat(rust): bootstrap rustup if missing`, prereq for herdr-navigator build.
+3. `feat(herdr): track ~/.config/herdr/config.toml in chezmoi`, seeded from `herdr --default-config`,
    `prefix=ctrl+d` + the locked keybindings.
-4. `feat(herdr): add the 8 workspace quick-jump chords` — `[[keys.command]]` entries.
-5. `feat(herdr): wire the send-prefix double-tap binding` — Ctrl-d EOF workaround.
-6. `feat(herdr): install + pin devxplay/herdr.nvim and the navigator binary` — chezmoi script,
+4. `feat(herdr): add the 8 workspace quick-jump chords`, `[[keys.command]]` entries.
+5. `feat(herdr): wire the send-prefix double-tap binding`, Ctrl-d EOF workaround.
+6. `feat(herdr): install + pin devxplay/herdr.nvim and the navigator binary`, chezmoi script,
    lazy.nvim entry, four routing bindings.
 7. `feat(claude): vendor the herdr Agent Skill into private_dot_claude/skills/herdr/SKILL.md` + a
    `just update-agent-skills` recipe.
 8. `feat(claude): vendor the Moshi Skill into private_dot_claude/skills/moshi/SKILL.md`.
-9. `feat(bashrc): land in herdr homelab on interactive shell` — replace `sesh connect uriel`; update
+9. `feat(bashrc): land in herdr homelab on interactive shell`, replace `sesh connect uriel`; update
    the `t=` alias.
-10. `chore: remove claude-restart.sh + com.claude.code LaunchAgent` — Happy + moshi cover the
+10. `chore: remove claude-restart.sh + com.claude.code LaunchAgent`, Happy + moshi cover the
     bridging.
-11. `chore: remove tmux + tmux2k + TPM plugin set + sesh + 3 hack scripts + tmux config` — cold
+11. `chore: remove tmux + tmux2k + TPM plugin set + sesh + 3 hack scripts + tmux config`, cold
     cutover.
-12. `docs(claude): rewrite tmux sections in CLAUDE.md → herdr` — repo + global.
-13. `chore: run just l` — verify everything lints.
+12. `docs(claude): rewrite tmux sections in CLAUDE.md → herdr`, repo + global.
+13. `chore: run just l`, verify everything lints.
 
 (The moshi-hook brew install + trust loop + setup script + CLAUDE.md interactive-apply addition are
 already on this branch as uncommitted edits; the plan can group them as their own commit early in the

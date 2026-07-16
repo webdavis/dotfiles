@@ -1,6 +1,6 @@
 # Keeping iMessages alive on a locked Mac
 
-**System sleep — not the lock screen — kills iMessage syncing.** When a MacBook's display turns off, the
+**System sleep, not the lock screen, kills iMessage syncing.** When a MacBook's display turns off, the
 system quickly follows into full sleep, powering down Wi-Fi and severing the persistent connection to
 Apple's push notification servers. The fix is straightforward: decouple display sleep from system sleep
 so your screen goes dark and locks, but the Mac itself stays fully awake. This works on all recent macOS
@@ -11,13 +11,13 @@ remains active and protective while iMessages flow in real-time.
 
 The problem feels like screen lock breaks iMessage, but the actual mechanism is a four-step cascade.
 First, your inactivity timer expires and the screen locks. Second, display sleep kicks in and the screen
-goes dark. Third — and this is the critical step — **the system enters full sleep within seconds on a
+goes dark. Third, and this is the critical step, **the system enters full sleep within seconds on a
 MacBook by default**. Fourth, full sleep suspends all processes, powers down the Wi-Fi chipset, and
 terminates the persistent TLS connection to Apple's push notification service (APNs on TCP port 5223).
 With that connection gone, new iMessages queue on Apple's servers until the Mac wakes and reconnects.
 
 The lock screen is purely a security overlay. It does not affect network connectivity, background
-processes, or app execution. Display sleep alone is also harmless — the CPU keeps running, all apps
+processes, or app execution. Display sleep alone is also harmless: the CPU keeps running, all apps
 function normally, and network connections remain active. The entire problem traces to **full system
 sleep following display sleep almost immediately on laptops**. On MacBooks, Apple's default behavior
 aggressively transitions from display-off to system sleep unless you explicitly prevent it.
@@ -44,14 +44,14 @@ background connectivity.
 the power adapter. On battery, the Mac will sleep regardless of this setting.
 
 Configure your lock screen timing separately in **System Settings → Lock Screen**, setting "Turn display
-off on power adapter when inactive" to your preferred timeout (5–10 minutes works well) and "Require
+off on power adapter when inactive" to your preferred timeout (5 to 10 minutes works well) and "Require
 password after screen saver begins or display is turned off" to **Immediately**. Lock manually anytime
 with **⌃⌘Q** (Control+Command+Q), which locks the screen without triggering sleep.
 
 ## Terminal commands for precise control
 
 The `pmset` utility gives granular control over every power management parameter, and its settings
-**persist across reboots** — no daemons or startup items required. Here is the recommended configuration
+**persist across reboots**, no daemons or startup items required. Here is the recommended configuration
 for an always-on iMessage Mac:
 
 ```bash
@@ -96,14 +96,14 @@ caffeinate -is &
 
 The `-i` flag prevents idle sleep and `-s` prevents system sleep on AC power. The `&` backgrounds the
 process. To stop it: `killall caffeinate`. The drawback is that `caffeinate` does not persist across
-reboots — you would need a launchd daemon or login item to make it permanent. For a home Mac that stays
+reboots. You would need a launchd daemon or login item to make it permanent. For a home Mac that stays
 plugged in, `pmset -c sleep 0` is the simpler, more robust choice.
 
 ## Amphetamine adds automation and reliability
 
 For users who prefer a GUI tool with advanced control, **Amphetamine** (free on the Mac App Store) is the
 most widely recommended option. It creates power management assertions that prevent sleep, and
-critically, it offers an **"Allow Display Sleep" option** — meaning the screen goes dark while the system
+critically, it offers an **"Allow Display Sleep" option**, meaning the screen goes dark while the system
 stays awake, exactly what this use case requires.
 
 Amphetamine's trigger system is particularly useful for an always-on iMessage Mac. You can configure it
@@ -126,9 +126,9 @@ completely.
 
 On older Macs, Energy Saver had two visible sliders making this distinction obvious. Modern macOS hides
 it behind the "Prevent automatic sleeping when the display is off" checkbox, which effectively decouples
-the two timers. Power Nap and Wake for Network Access provide **periodic** wakes during system sleep —
-the Mac briefly reconnects to sync iCloud data including Messages — but these are not real-time. Power
-Nap might sync every 15–60 minutes, which means significant message delivery delays. For real-time
+the two timers. Power Nap and Wake for Network Access provide **periodic** wakes during system sleep, the
+Mac briefly reconnects to sync iCloud data including Messages, but these are not real-time. Power Nap
+might sync every 15 to 60 minutes, which means significant message delivery delays. For real-time
 iMessage delivery, **preventing system sleep entirely is the only reliable approach**.
 
 On Apple Silicon Macs (M1 and later), Power Nap functionality is handled natively by the efficiency
@@ -138,7 +138,7 @@ delivery.
 
 ## Security stays intact when sleep is disabled
 
-A locked, awake Mac has the **same security posture as a locked Mac with the screen on** — which is to
+A locked, awake Mac has the **same security posture as a locked Mac with the screen on**, which is to
 say, it's the normal state your Mac is in whenever you step away during active use. The lock screen
 requires authentication before granting desktop access. FileVault encryption keys remain in memory (as
 they do during any awake or standard-sleep state), protected by the Secure Enclave on Apple Silicon and
@@ -146,7 +146,7 @@ T2-chip Macs. DMA attacks via Thunderbolt are mitigated by hardware-level protec
 
 The only theoretical difference is that an always-awake Mac maintains active network connections,
 presenting a marginally larger attack surface than a sleeping Mac. For a home network environment, this
-is negligible. Power consumption on an idle Apple Silicon Mac is minimal thanks to the efficiency cores —
+is negligible. Power consumption on an idle Apple Silicon Mac is minimal thanks to the efficiency cores,
 the M-series chips draw very little power when idle with the display off.
 
 One important note about lid behavior: **closing a MacBook lid forces sleep regardless of other
@@ -161,5 +161,5 @@ is off," disable Low Power Mode, and keep the Mac plugged in. This lets the scre
 normally while the system stays awake and iMessages arrive in real-time. For users wanting extra
 reliability, `sudo pmset -c sleep 0` in Terminal achieves the same result and persists across reboots.
 Amphetamine adds sophisticated automation for free. The key insight is that **screen lock and display
-sleep are cosmetic** — they don't affect iMessage. Only system sleep, which kills Wi-Fi and severs the
+sleep are cosmetic**, they don't affect iMessage. Only system sleep, which kills Wi-Fi and severs the
 APNs connection, causes the sync interruption. Prevent system sleep, and the problem disappears entirely.

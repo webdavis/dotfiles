@@ -11,7 +11,7 @@ Karabiner-Elements rules (already managed by Karabiner JSON), SIP-protected togg
 ## Background
 
 Goal: a fresh Mac should reach a known-good state with `chezmoi apply` plus one manual sudo invocation,
-not a tribal-knowledge wandering tour. Today there is no such tracking — every defaults change is a
+not a tribal-knowledge wandering tour. Today there is no such tracking, every defaults change is a
 mental note that gets lost across machine rebuilds.
 
 ### Approaches considered
@@ -23,7 +23,7 @@ mental note that gets lost across machine rebuilds.
 | 3 | `nix-darwin` | Rejected | Sudo on every apply, four open Tahoe-incompatibility issues, and a steep bootstrap cost the workstation doesn't otherwise need. |
 | 4 | mathiasbynens-style inline bash | Rejected | Single shell file becomes a dump zone; harder to lint, harder to diff per-setting. The data/code split here is worth the slight overhead. |
 
-## §1 — Architecture & file layout
+## §1, Architecture & file layout
 
 Eight deliverables across three categories, plus three glue changes. All live in this chezmoi repo.
 
@@ -52,20 +52,20 @@ Eight deliverables across three categories, plus three glue changes. All live in
 
 ### Glue changes
 
-- `justfile` — add six recipes:
-  - `D` — alias for `defaults-drift`.
-  - `defaults-apply` — forced reapplier (calls the apply helper).
-  - `defaults-capture <domain> <key> [current]` — capture-to-YAML helper (calls the capture
+- `justfile`, add six recipes:
+  - `D`, alias for `defaults-drift`.
+  - `defaults-apply`, forced reapplier (calls the apply helper).
+  - `defaults-capture <domain> <key> [current]`, capture-to-YAML helper (calls the capture
     helper).
-  - `defaults-list` — list all preference domains owned by the current user (`defaults domains | tr
+  - `defaults-list`, list all preference domains owned by the current user (`defaults domains | tr
     ',' '\n' | sort`). Pure wrapper, no helper script.
-  - `defaults-show <domain>` — print all keys+values in one domain (`defaults read <domain>`). Pure
+  - `defaults-show <domain>`, print all keys+values in one domain (`defaults read <domain>`). Pure
     wrapper.
-  - `defaults-dump` — full dump of every domain and every key (`defaults read | less`). Footgun-prone
+  - `defaults-dump`, full dump of every domain and every key (`defaults read | less`). Footgun-prone
     output volume; included for completeness, paged through `less` so it doesn't flood the terminal.
-- `CLAUDE.md` — add a "macOS Defaults" section mirroring "Claude Code Settings" / "Homebrew install
+- `CLAUDE.md`, add a "macOS Defaults" section mirroring "Claude Code Settings" / "Homebrew install
   workflow".
-- `.chezmoiignore` — gate the three helper scripts off Linux. (The discovery recipes above are
+- `.chezmoiignore`, gate the three helper scripts off Linux. (The discovery recipes above are
   justfile-only and Darwin-only by virtue of `defaults` not existing on Linux.)
 
 ### Aerospace compatibility (required and recommended defaults)
@@ -73,7 +73,7 @@ Eight deliverables across three categories, plus three glue changes. All live in
 Aerospace is the workstation's tiling window manager. Several macOS preferences govern how the OS
 itself manages windows and Spaces; the wrong values break Aerospace even though
 `~/.aerospace.toml` (chezmoi-tracked separately as `dot_aerospace.toml`) is untouched. These defaults
-belong in `macos_defaults.yaml` from day one — they are first-class entries in this design, not edge
+belong in `macos_defaults.yaml` from day one, they are first-class entries in this design, not edge
 cases.
 
 **Required (Aerospace breaks without these):**
@@ -86,20 +86,20 @@ cases.
 
 | domain | key | type | value | Effect |
 |--------|-----|------|-------|--------|
-| `com.apple.dock` | `expose-group-apps` | bool | `false` | Mission Control groups by app — collapses tiled windows. False keeps each tile addressable. |
+| `com.apple.dock` | `expose-group-apps` | bool | `false` | Mission Control groups by app, collapses tiled windows. False keeps each tile addressable. |
 | `com.apple.WindowManager` | `GloballyEnabled` | bool | `false` | Disables Stage Manager (actively fights tiling WMs). |
 | `com.apple.WindowManager` | `EnableStandardClickToShowDesktop` | bool | `false` | Stops "click wallpaper to reveal desktop"; Sequoia ships this enabled and it hides Aerospace tiles on stray clicks. |
 | `com.apple.WindowManager` | `EnableTilingByEdgeDrag` | bool | `false` | Disables Sequoia's drag-to-edge tiling (collides with Aerospace's tiling). |
 | `com.apple.WindowManager` | `EnableTilingOptionAccelerator` | bool | `false` | Disables hold-Option-to-tile (collides with Aerospace's keybindings). |
 | `com.apple.WindowManager` | `EnableTopTilingByEdgeDrag` | bool | `false` | Disables drag-to-top-edge-to-maximize. |
 
-**Manual System Settings steps** (no reliable `defaults` equivalent — go in the runbook):
+**Manual System Settings steps** (no reliable `defaults` equivalent, go in the runbook):
 
 - **System Settings → Desktop & Dock → Mission Control → Displays have separate Spaces.** Per-machine
   preference (uriel: ON for the tri-monitor layout; single-monitor machines: OFF). No defaults
   equivalent that survives major-version changes.
 - **System Settings → Desktop & Dock → Click wallpaper to reveal desktop.** Set to "Only in Stage
-  Manager" — the `defaults` key changes name across Sequoia point releases, so the runbook approach is
+  Manager", the `defaults` key changes name across Sequoia point releases, so the runbook approach is
   more durable than YAML.
 
 ### File-relationship diagram
@@ -116,7 +116,7 @@ cases.
 docs/runbooks/macos-fresh-machine-quickstart.md ←─ user reads on fresh-Mac bootstrap
 ```
 
-## §2 — Data model
+## §2, Data model
 
 Two declarative YAML files under `.chezmoidata/`. Both are consumed by their corresponding runner
 template at chezmoi apply time. The chezmoi hash gate makes "did anything change?" a free check.
@@ -135,7 +135,7 @@ macos:
 |-------|----------|--------|-------|
 | `domain` | yes | `com.apple.dock`, `NSGlobalDomain`, `com.apple.finder`, etc. | The preference domain. |
 | `key` | yes | `tilesize`, `autohide`, etc. | The key within the domain. |
-| `type` | yes | `bool` \| `int` \| `float` \| `string` | Explicit type tag — avoids YAML's inference footguns (e.g. the string `"yes"` silently becoming a boolean) and maps directly to `defaults write -<type>`. |
+| `type` | yes | `bool` \| `int` \| `float` \| `string` | Explicit type tag, avoids YAML's inference footguns (e.g. the string `"yes"` silently becoming a boolean) and maps directly to `defaults write -<type>`. |
 | `value` | yes | scalar matching `type` | Arrays/dicts not supported in v1; rare keys that need them go to manual setup doc and are deferred to schema v2. |
 | `host` | no | `current` | Omitted = global storage in `~/Library/Preferences/<domain>.plist`. `current` = ByHost storage in `~/Library/Preferences/ByHost/<domain>.<HardwareUUID>.plist`; runner uses `defaults -currentHost write`. |
 
@@ -158,7 +158,7 @@ macos:
   host: current
 ```
 
-**`killall` list** — processes restarted after the defaults loop completes. Defaults: `Dock`, `Finder`,
+**`killall` list**, processes restarted after the defaults loop completes. Defaults: `Dock`, `Finder`,
 `SystemUIServer`, `cfprefsd`. The `cfprefsd` entry is non-obvious but critical: macOS caches preferences
 in `cfprefsd`'s memory; without killing it, many `defaults write` calls don't take effect until the next
 reboot or app relaunch.
@@ -177,19 +177,19 @@ macos:
 | `command` | yes | Bash command, **no `sudo` prefix** (the runner adds it when `sudo: true`). |
 | `sudo` | yes | When true, runner prefixes with `sudo`. The Tier 2 runner does one `sudo -v` upfront so the user doesn't get spammed with prompts. |
 
-**Idempotency contract** — Tier 2 commands must be idempotent. Most sudo system commands inherently are
+**Idempotency contract**, Tier 2 commands must be idempotent. Most sudo system commands inherently are
 (`pmset -c sleep 0` is a no-op when sleep is already 0). The user is responsible for adding only
 idempotent commands; this is documented in the YAML's leading comment.
 
-## §3 — Runtime semantics
+## §3, Runtime semantics
 
-### Tier 1 — `.chezmoiscripts/run_onchange_after_30-macos-defaults.sh.tmpl`
+### Tier 1, `.chezmoiscripts/run_onchange_after_30-macos-defaults.sh.tmpl`
 
 - **Trigger:** chezmoi hash gate on the rendered template body. Re-runs only when `macos_defaults.yaml`
   content changes (template-substituted into the script).
 - **OS guard:** `{{ if eq .chezmoi.os "darwin" }}...{{ end }}` outer wrap. Renders to empty body on
   Linux → chezmoi treats as no-op.
-- **Pre-flight:** `osascript -e 'tell application "System Settings" to quit' 2>/dev/null || true` —
+- **Pre-flight:** `osascript -e 'tell application "System Settings" to quit' 2>/dev/null || true`,
   closes Settings if open. Critical: open Settings caches plist values and writes them back over yours
   when closed (long-standing macOS footgun).
 - **Main loop:** for each record, emit
@@ -200,7 +200,7 @@ idempotent commands; this is documented in the YAML's leading comment.
 - **Idempotency:** `defaults write` is overwrite-by-default and microsecond-cheap. No read-then-skip
   logic.
 
-### Tier 2 — `.chezmoiscripts/run_onchange_after_41-macos-system-setup.sh.tmpl`
+### Tier 2, `.chezmoiscripts/run_onchange_after_41-macos-system-setup.sh.tmpl`
 
 - **Trigger / OS guard:** same as Tier 1.
 - **Pre-flight:** `sudo -v` upfront (refresh sudo timestamp). One password prompt at start, none during
@@ -213,22 +213,22 @@ idempotent commands; this is documented in the YAML's leading comment.
 
 ### Tier 1 helpers
 
-#### `dot_local/bin/executable_macos-defaults-drift.sh` — `just D`
+#### `dot_local/bin/executable_macos-defaults-drift.sh`, `just D`
 
 - Read-only by construction (no `defaults write` calls).
 - Loop: for each YAML record, `defaults ${host:+-currentHost} read "$domain" "$key" 2>/dev/null` (or
   `<unset>` on failure). Compare against declared `value`. Bool normalization: `true`/`yes` → `1`,
   `false`/`no` → `0` (defaults stores bools as `0`/`1`).
-- Output: tab-aligned table — `DOMAIN | KEY | EXPECTED | ACTUAL` — only drifted rows.
+- Output: tab-aligned table, `DOMAIN | KEY | EXPECTED | ACTUAL`, only drifted rows.
 - Exit codes: `0` clean, `1` drift detected, `2` data file missing.
 
-#### `dot_local/bin/executable_macos-defaults-apply.sh` — `just defaults-apply`
+#### `dot_local/bin/executable_macos-defaults-apply.sh`, `just defaults-apply`
 
 - Same `defaults write` + `killall` loop as Tier 1, but invocable on demand without bumping the
   chezmoi hash gate (so the user can replay the loop after fiddling in System Settings).
 - Linux-gated via `.chezmoiignore`.
 
-#### `dot_local/bin/executable_macos-defaults-capture.sh` — `just defaults-capture <domain> <key> [current]`
+#### `dot_local/bin/executable_macos-defaults-capture.sh`, `just defaults-capture <domain> <key> [current]`
 
 - **Inputs:** `<domain>` (e.g. `com.apple.dock`), `<key>` (e.g. `tilesize`), optional `--host current`
   flag (sets `host: current` on the emitted record, runner uses `defaults -currentHost`).
@@ -240,7 +240,7 @@ idempotent commands; this is documented in the YAML's leading comment.
 - **Write:** append `- { domain: <d>, key: <k>, type: <t>, value: <v>[, host: current] }` to the
   `macos.defaults:` list in `.chezmoidata/macos_defaults.yaml`.
 - **Idempotency:** if a record with the same `(domain, key, host?)` already exists, the script no-ops
-  with exit 0 if the captured value matches, and exits with `4 — drift` if the existing YAML value
+  with exit 0 if the captured value matches, and exits with `4, drift` if the existing YAML value
   differs from disk (forcing the user to either `just defaults-apply` to revert, or hand-edit the YAML
   to capture intent).
 - **Exit codes:** `0` appended or already in sync, `1` key not currently set on this Mac, `2` data
@@ -248,18 +248,18 @@ idempotent commands; this is documented in the YAML's leading comment.
 - **Linting:** the appended record passes `yq` parse on subsequent runs.
 - **Linux-gated** via `.chezmoiignore`.
 
-## §4 — Bootstrap, modification ergonomics, out-of-scope
+## §4, Bootstrap, modification ergonomics, out-of-scope
 
-### §4.1 — Bootstrap flow
+### §4.1, Bootstrap flow
 
 On a fresh Mac, ordered execution under `chezmoi apply`:
 
-1. `run_once_before_00-install-homebrew.sh.tmpl` — Homebrew install.
-1. `.install-password-manager.sh` — KeePassXC if missing.
-1. `run_onchange_before_10-system-packages.sh.tmpl` — `brew bundle` from generated Brewfile.
+1. `run_once_before_00-install-homebrew.sh.tmpl`, Homebrew install.
+1. `.install-password-manager.sh`, KeePassXC if missing.
+1. `run_onchange_before_10-system-packages.sh.tmpl`, `brew bundle` from generated Brewfile.
 1. File materialization (dotfiles, configs, scripts under `dot_local/bin/`).
-1. **`run_onchange_after_30-macos-defaults.sh.tmpl`** — defaults loop + killall + cfprefsd kill.
-1. **`run_onchange_after_41-macos-system-setup.sh.tmpl`** — sudo system commands.
+1. **`run_onchange_after_30-macos-defaults.sh.tmpl`**, defaults loop + killall + cfprefsd kill.
+1. **`run_onchange_after_41-macos-system-setup.sh.tmpl`**, sudo system commands.
 
 **Why this order:**
 
@@ -280,7 +280,7 @@ On a fresh Mac, ordered execution under `chezmoi apply`:
 **User-side manual steps after first apply:** TCC grants, Bluetooth pairing, browser sign-ins, app
 licenses (see §4.3).
 
-### §4.2 — Modification ergonomics
+### §4.2, Modification ergonomics
 
 | Operation | Workflow |
 |-----------|----------|
@@ -310,7 +310,7 @@ The two recipes are the entire user-facing surface for "something is out of sync
 itself stays uninvolved, matching the "observation tools never mutate" principle from earlier in the
 design discussion.
 
-### §4.3 — Out-of-scope items
+### §4.3, Out-of-scope items
 
 These live in `docs/runbooks/macos-fresh-machine-quickstart.md` as a checklist, not in YAML:
 
@@ -330,27 +330,27 @@ These live in `docs/runbooks/macos-fresh-machine-quickstart.md` as a checklist, 
 
 ## Implementation order
 
-1. **Data files first** — `.chezmoidata/macos_defaults.yaml` and `.chezmoidata/macos_system_setup.yaml`
+1. **Data files first**, `.chezmoidata/macos_defaults.yaml` and `.chezmoidata/macos_system_setup.yaml`
    with empty `defaults:`, `killall:`, and `system_setup:` arrays plus leading comments. Lints clean
    via `just y`.
-1. **Tier 1 runner** — `.chezmoiscripts/run_onchange_after_30-macos-defaults.sh.tmpl`. Test with the
+1. **Tier 1 runner**, `.chezmoiscripts/run_onchange_after_30-macos-defaults.sh.tmpl`. Test with the
    YAML still empty (loop is a no-op).
-1. **Drift, apply, and capture helpers** — `dot_local/bin/executable_macos-defaults-drift.sh`,
+1. **Drift, apply, and capture helpers**, `dot_local/bin/executable_macos-defaults-drift.sh`,
    `executable_macos-defaults-apply.sh`, and `executable_macos-defaults-capture.sh`. `.chezmoiignore`
    Linux gate added for all three.
-1. **Tier 2 runner** — `.chezmoiscripts/run_onchange_after_41-macos-system-setup.sh.tmpl`.
-1. **Justfile recipes** — `D` (drift), `defaults-apply`, `defaults-capture`, `defaults-list`,
+1. **Tier 2 runner**, `.chezmoiscripts/run_onchange_after_41-macos-system-setup.sh.tmpl`.
+1. **Justfile recipes**, `D` (drift), `defaults-apply`, `defaults-capture`, `defaults-list`,
    `defaults-show`, and `defaults-dump`.
-1. **Aerospace baseline** — populate `macos_defaults.yaml` with the §1 Aerospace-required and
+1. **Aerospace baseline**, populate `macos_defaults.yaml` with the §1 Aerospace-required and
    Aerospace-recommended entries (the `mru-spaces`/Stage Manager/Sequoia-tiling block) using the
    capture helper. These are the only entries that must be present from day one for the workstation to
    function correctly.
-1. **Initial seeding pass** — the user runs `just defaults-capture <domain> <key>` per setting they
+1. **Initial seeding pass**, the user runs `just defaults-capture <domain> <key>` per setting they
    want tracked beyond the Aerospace baseline (Dock tile size, Finder hidden files, trackpad clicking,
    etc.). The helper appends each one and exits cleanly when already in sync, so this can be done
    incrementally over days.
-1. **CLAUDE.md update** — new "macOS Defaults" section with usage and the killall semantics call-out.
-1. **Runbook** — `docs/runbooks/macos-fresh-machine-quickstart.md` with the §4.3 checklist plus the
+1. **CLAUDE.md update**, new "macOS Defaults" section with usage and the killall semantics call-out.
+1. **Runbook**, `docs/runbooks/macos-fresh-machine-quickstart.md` with the §4.3 checklist plus the
    §4.1 manual gating steps and the §1 Aerospace manual System Settings steps.
 
 ## Validation criteria

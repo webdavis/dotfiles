@@ -1,4 +1,4 @@
-# tmux → herdr Migration + moshi-hook Wiring — Implementation Plan
+# tmux → herdr Migration + moshi-hook Wiring: Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended)
 > or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax
@@ -27,12 +27,12 @@ Every task implicitly carries these:
   apply.
 - **OS guard:** all chezmoiscripts wrap darwin-only logic in `{{ if eq .chezmoi.os "darwin" -}}` /
   `{{ end -}}`. Linux-ready by structure.
-- **Never run bare `chezmoi apply`** from inside an agent — use
+- **Never run bare `chezmoi apply`** from inside an agent, use
   `chezmoi apply --exclude=templates --force` (skips KeePassXC-touching templates) or apply specific
   non-template files by name.
 - **`just l` must pass green** at end of every commit. Pre-commit hook will block otherwise.
 - **Conventional Commits** (`feat:`, `fix:`, `chore:`, `docs:`). **NO `Co-Authored-By: Claude` trailers,
-  NO "🤖 Generated with Claude Code" footers** — commits must look as if the user authored them directly.
+  NO "🤖 Generated with Claude Code" footers**. Commits must look as if the user authored them directly.
 - **Shell scripts:** `set -euo pipefail`, double-quoted expansions, 2-space indent, case-indent on,
   simplified (`shfmt -i 2 -ci -s`).
 - **Use `trash` not `rm`** when removing files at the OS level. For chezmoi-tracked files, deletion is
@@ -44,33 +44,33 @@ Every task implicitly carries these:
 
 **Create (new files in chezmoi source):**
 
-- `dot_config/herdr/config.toml` — herdr config (prefix, splits, workspace chords, nav, send-prefix)
-- `.chezmoiscripts/run_onchange_before_15-install-herdr.sh.tmpl` — direct curl installer + brew-uninstall
+- `dot_config/herdr/config.toml`: herdr config (prefix, splits, workspace chords, nav, send-prefix)
+- `.chezmoiscripts/run_onchange_before_15-install-herdr.sh.tmpl`: direct curl installer + brew-uninstall
   guard
-- `.chezmoiscripts/run_onchange_after_50-install-herdr-navigator.sh.tmpl` —
+- `.chezmoiscripts/run_onchange_after_50-install-herdr-navigator.sh.tmpl`:
   `cargo install --git --rev <SHA>` for the Neovim nav helper
-- `private_dot_claude/skills/herdr/SKILL.md` — vendored herdr Agent Skill
-- `private_dot_claude/skills/moshi/SKILL.md` — vendored Moshi Skill
+- `private_dot_claude/skills/herdr/SKILL.md`: vendored herdr Agent Skill
+- `private_dot_claude/skills/moshi/SKILL.md`: vendored Moshi Skill
 - (Already on disk via the stash) `.chezmoiscripts/run_once_after_60-moshi-hook-setup.sh.tmpl`
 
 **Modify:**
 
-- `.chezmoidata/system_packages_autoinstall.yaml` — remove `tmux` (line ~124) and `sesh` (line ~111); the
+- `.chezmoidata/system_packages_autoinstall.yaml`: remove `tmux` (line ~124) and `sesh` (line ~111); the
   stash already adds the `rjyo/moshi` tap + `moshi-hook` formula + `trusted_taps:`
-- `.chezmoiscripts/run_onchange_before_10-system-packages.sh.tmpl` — stash already adds the trust loop;
+- `.chezmoiscripts/run_onchange_before_10-system-packages.sh.tmpl`: stash already adds the trust loop;
   nothing further
-- `dot_bashrc.tmpl` — replace the entire tmux autostart block (lines 310-349), remove the
+- `dot_bashrc.tmpl`: replace the entire tmux autostart block (lines 310-349), remove the
   `tmux-last-proc` precmd (lines 285-301), remove the `TERM='tmux-256color'` export (line 36), remove the
   `tmux-purge-resurrect-session-data` alias (line 192), remove `tmux` from the TUI skip-list (line 271),
-  and rewrite line 196 — replacing the `alias t='sesh connect uriel'` with a new
+  and rewrite line 196, replacing the `alias t='sesh connect uriel'` with a new
   `alias h='herdr workspace create ... homelab ...'` (rename `t` → `h` to match the herdr-era mnemonic;
   `t` was a tmux-era leftover)
-- `CLAUDE.md` — stash already adds the moshi-hook setup script to the interactive-apply list; THIS plan
+- `CLAUDE.md`: stash already adds the moshi-hook setup script to the interactive-apply list; THIS plan
   additionally rewrites the "Tmux Session Management" + "Tmux Window/Pane Status Indicators" + tmux parts
   of "Bashrc Init Ordering" sections, and adds a "Moshi integration" section
-- `~/.claude/CLAUDE.md` (global, outside this repo) — rewrite the Toolchain "Multiplexer: tmux" line to
+- `~/.claude/CLAUDE.md` (global, outside this repo): rewrite the Toolchain "Multiplexer: tmux" line to
   "Multiplexer: herdr"
-- `justfile` — add `update-agent-skills` recipe
+- `justfile`: add `update-agent-skills` recipe
 
 **Delete (git rm + chezmoi apply propagates removal to $HOME):**
 
@@ -131,7 +131,7 @@ head -20 /tmp/render-10.sh /tmp/render-60.sh
 ```
 
 Expected: both render without errors. `/tmp/render-60.sh` contains the bash script with the keepassxc
-password expansion already substituted (KeePassXC unlocked) OR a templating error if locked — in which
+password expansion already substituted (KeePassXC unlocked) OR a templating error if locked, in which
 case unlock KeePassXC and re-render.
 
 - [ ] **Step 3: Shellcheck the rendered output**
@@ -175,7 +175,7 @@ ______________________________________________________________________
 **Files:**
 
 - Create: `.chezmoiscripts/run_onchange_before_15-install-herdr.sh.tmpl`
-- Modify: `.chezmoidata/system_packages_autoinstall.yaml` — remove the `herdr` brew formula entry (it may
+- Modify: `.chezmoidata/system_packages_autoinstall.yaml`: remove the `herdr` brew formula entry (it may
   or may not be present; verify)
 
 **Interfaces:**
@@ -248,7 +248,7 @@ shellcheck /tmp/render-15.sh
 
 Expected: clean shellcheck output.
 
-- [ ] **Step 5: Apply the script (non-interactive — does not touch KeePassXC)**
+- [ ] **Step 5: Apply the script (non-interactive, does not touch KeePassXC)**
 
 ```bash
 chezmoi apply --exclude=templates --force .chezmoiscripts/run_onchange_before_15-install-herdr.sh.tmpl
@@ -281,7 +281,7 @@ git add .chezmoiscripts/run_onchange_before_15-install-herdr.sh.tmpl \
         .chezmoidata/system_packages_autoinstall.yaml
 git commit -m "feat(herdr): install via direct curl installer on the preview channel
 
-The preview channel is unavailable on Homebrew installs (verified — 'herdr
+The preview channel is unavailable on Homebrew installs (verified, 'herdr
 channel set preview' errors with 'preview channel is only available for
 direct Herdr installs'). This chezmoiscript brew-uninstalls any prior copy,
 runs the official curl installer, and sets the channel. Removes herdr from
@@ -320,7 +320,7 @@ command -v cargo && cargo --version
 ```
 
 If cargo missing: run the rustup script manually via `chezmoi apply` of that one file, then
-`source ~/.cargo/env`. If present: skip the install — but check `~/.cargo/env` is sourced from the user's
+`source ~/.cargo/env`. If present: skip the install, but check `~/.cargo/env` is sourced from the user's
 shell init (search `dot_bashrc.tmpl` for `cargo`).
 
 ```bash
@@ -331,15 +331,15 @@ Expected: a grep hit OR a note that this needs fixing in a follow-up. **Decision
 on PATH after rustup install, the herdr-navigator build in Task 7 will fail. Fix bashrc sourcing as part
 of Task 7 if needed.
 
-- [ ] **Step 3: Note Spike #6 status — Xcode CLT prerequisite**
+- [ ] **Step 3: Note Spike #6 status: Xcode CLT prerequisite**
 
 The current rustup script does NOT verify Xcode Command Line Tools are present (they ship `clang`, which
 rustc needs for linking on darwin). On the current machine they're presumably installed (otherwise
-nothing would work). For a fresh-machine run, add a prerequisite check in a follow-up commit — out of
+nothing would work). For a fresh-machine run, add a prerequisite check in a follow-up commit, out of
 scope for this plan if CLT is already present.
 
 ```bash
-xcode-select -p 2>/dev/null && echo "CLT present" || echo "CLT missing — fix before Task 7"
+xcode-select -p 2>/dev/null && echo "CLT present" || echo "CLT missing, fix before Task 7"
 ```
 
 Expected: `/Library/Developer/CommandLineTools` printed.
@@ -381,7 +381,7 @@ Expected: TOML output. Read sections to identify the canonical key names: `[upda
 - [ ] **Step 2: Create the tracked config file**
 
 Create `dot_config/herdr/config.toml` with this exact content (adjust if Step 1 reveals different key
-names — herdr's default-config is authoritative):
+names, herdr's default-config is authoritative):
 
 ```toml
 # Declarative channel. CLI invocation in run_onchange_before_15-install-herdr.sh.tmpl
@@ -392,22 +392,22 @@ channel = "preview"
 [keybindings]
 prefix = "ctrl+d"
 
-# Workspace picker (already the herdr default — set explicitly for documentation).
+# Workspace picker (already the herdr default, set explicitly for documentation).
 goto = "prefix+g"
 
 # Rename current tab.
 rename_tab = "prefix+comma"
 
-# Splits — deliberately crossed against herdr's defaults to preserve tmux muscle memory.
+# Splits: deliberately crossed against herdr's defaults to preserve tmux muscle memory.
 # herdr names splits by divider orientation; tmux by motion direction. Opposite words,
-# same physical result. DO NOT "fix" the cross — it is the intended mapping.
+# same physical result. DO NOT "fix" the cross. It is the intended mapping.
 #   prefix+" → top/bottom stack (tmux: split horizontally with `-`)
 #   prefix+% → side-by-side    (tmux: split vertically with `|`)
 split_horizontal = "prefix+\""
 split_vertical = "prefix+%"
 
 # Workspace sidebar navigation in herdr's built-in navigate mode (NOT a custom
-# key table — built-in modes coexist with the no-multi-step-bindings constraint).
+# key table, built-in modes coexist with the no-multi-step-bindings constraint).
 navigate_workspace_up = "k"
 navigate_workspace_down = "j"
 ```
@@ -420,7 +420,7 @@ just t
 
 Expected: `taplo` green.
 
-- [ ] **Step 4: Apply just this config file (safe — no template, no KeePassXC)**
+- [ ] **Step 4: Apply just this config file (safe, no template, no KeePassXC)**
 
 ```bash
 chezmoi apply --force ~/.config/herdr/config.toml
@@ -431,7 +431,7 @@ Expected: file written to `~/.config/herdr/config.toml`.
 - [ ] **Step 5: Confirm herdr parses the config**
 
 ```bash
-herdr config validate 2>&1 || herdr --check-config 2>&1 || echo "no validate subcommand — start herdr to test parse"
+herdr config validate 2>&1 || herdr --check-config 2>&1 || echo "no validate subcommand, start herdr to test parse"
 ```
 
 Expected: either a validation pass OR an indication the subcommand doesn't exist. If neither, launch
@@ -581,7 +581,7 @@ Maps homelab, dotfiles, casually-concerned, Ivy, justdavis-ansible,
 essential-feed-case-study, netpulse, and plantpulse to their working
 directories. dotfiles has a prefix+. fallback for terminals without CSI-u
 keyboard-protocol support. Spike #2 outcome: [record observed behavior of
-prefix+ctrl+. under Ghostty + herdr — fires reliably, or fallback used]."
+prefix+ctrl+. under Ghostty + herdr, fires reliably, or fallback used]."
 ```
 
 ______________________________________________________________________
@@ -626,7 +626,7 @@ chezmoi apply --force ~/.config/herdr/config.toml
 herdr server restart 2>/dev/null || (herdr kill-server; herdr &)
 ```
 
-- [ ] **Step 3: Verify Spike #1 — does `pane send-keys 'ctrl+d'` trigger shell EOF?**
+- [ ] **Step 3: Verify Spike #1: does `pane send-keys 'ctrl+d'` trigger shell EOF?**
 
 In a herdr pane running bash with no pending input, hit `Ctrl-d Ctrl-d` (double-tap). Expected: the shell
 exits (EOF). If it doesn't: try sending the raw 0x04 byte instead:
@@ -635,7 +635,7 @@ exits (EOF). If it doesn't: try sending the raw 0x04 byte instead:
 command = "$HERDR_BIN_PATH pane send-keys $HERDR_ACTIVE_PANE_ID $'\\x04'"
 ```
 
-If even that fails, document the failure mode and fall back to typing `exit` — no commit blocker, but
+If even that fails, document the failure mode and fall back to typing `exit`, no commit blocker, but
 update the spec spike notes.
 
 - [ ] **Step 4: Run linter**
@@ -657,7 +657,7 @@ prefix+ctrl+d shells out to 'herdr pane send-keys ctrl+d' so double-tapping
 Ctrl-d injects a literal Ctrl-d byte into the focused pane (≈ tmux's
 'bind -n send-prefix'). Spike #1 outcome: [record observed EOF behavior;
 if the 'ctrl+d' alias does not trigger EOF, the binding instead sends the
-raw 0x04 byte — note which form was used]."
+raw 0x04 byte, note which form was used]."
 ```
 
 ______________________________________________________________________
@@ -682,7 +682,7 @@ ______________________________________________________________________
 git ls-remote https://github.com/devxplay/herdr.nvim.git HEAD | awk '{print $1}'
 ```
 
-Expected: a 40-char SHA. Note it — call it `<SHA>` in the rest of the steps. Use the same SHA for the
+Expected: a 40-char SHA. Note it, call it `<SHA>` in the rest of the steps. Use the same SHA for the
 cargo install and for the user's lazy.nvim entry (handoff in Step 7).
 
 - [ ] **Step 2: Create the installer chezmoiscript**
@@ -701,7 +701,7 @@ set -euo pipefail
 # Neovim plugin and the binary stay in sync.
 HERDR_NAV_SHA="<SHA>"
 
-# Bail if cargo isn't on PATH — surface the rustup script as the prerequisite.
+# Bail if cargo isn't on PATH, surface the rustup script as the prerequisite.
 if ! command -v cargo &>/dev/null; then
   echo "ERROR: cargo not found on PATH. Run the rustup bootstrap first" >&2
   echo "(.chezmoiscripts/run_once_before_20-install-rustup.sh.tmpl), then" >&2
@@ -764,7 +764,7 @@ Append to `dot_config/herdr/config.toml`:
 # Neovim ↔ herdr seamless pane navigation
 # Raw Ctrl-h/j/k/l routes through herdr-navigator. The binary checks whether
 # the focused pane is running Neovim (via marker files at
-# ~/.cache/herdr.nvim/panes/) — if so, it forwards the keystroke; if not, it
+# ~/.cache/herdr.nvim/panes/), if so, it forwards the keystroke; if not, it
 # moves focus between herdr panes.
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -801,7 +801,7 @@ chezmoi apply --force ~/.config/herdr/config.toml
 herdr server restart 2>/dev/null || (herdr kill-server; herdr &)
 ```
 
-- [ ] **Step 7: Out-of-repo handoff — document the lazy.nvim entry the user must add manually**
+- [ ] **Step 7: Out-of-repo handoff: document the lazy.nvim entry the user must add manually**
 
 The herdr.nvim Neovim plugin lives outside this chezmoi repo. The user needs to add this entry to their
 lazy.nvim plugin specs (likely under `~/.config/nvim/lua/plugins/` or equivalent):
@@ -1002,7 +1002,7 @@ sed -n '310,349p' dot_bashrc.tmpl
 sed -n '196p' dot_bashrc.tmpl   # the t= alias (to be renamed t → h)
 ```
 
-Expected: matches the spec's recap — the case statement + the bootstrap branches + the
+Expected: matches the spec's recap: the case statement + the bootstrap branches + the
 `alias t='sesh connect uriel'`.
 
 - [ ] **Step 2: Replace the autostart block (lines 310-349)**
@@ -1051,7 +1051,7 @@ alias h='herdr workspace create --cwd "$HOME/workspaces/Ivy/webdavis/homelab" --
 ```
 
 Rationale: `t` was a tmux-era mnemonic; `h` matches herdr and won't collide with the justfile aliases
-(`l/L/s/S/m/n/t/j/y/d/a/c/D` — `h` is free in bash).
+(`l/L/s/S/m/n/t/j/y/d/a/c/D`, `h` is free in bash).
 
 - [ ] **Step 4: Render + shellcheck the template**
 
@@ -1070,7 +1070,7 @@ just l
 
 Expected: green. (The lint script renders this template internally.)
 
-- [ ] **Step 6: Apply just bashrc (no template, but Go template renders; safe — no KeePassXC in this
+- [ ] **Step 6: Apply just bashrc (no template, but Go template renders; safe, no KeePassXC in this
   file)**
 
 ```bash
@@ -1085,7 +1085,7 @@ Expected: bashrc updated.
 bash -i -c 'true' 2>&1 | head -20
 ```
 
-Expected: no errors. Open an actual new terminal — confirm it lands inside the herdr homelab workspace.
+Expected: no errors. Open an actual new terminal, confirm it lands inside the herdr homelab workspace.
 
 - [ ] **Step 8: Commit**
 
@@ -1113,7 +1113,7 @@ ______________________________________________________________________
 
 **Interfaces:**
 
-- Consumes: Happy daemon + moshi-hook (Task 1) cover the mobile bridge — both already exist
+- Consumes: Happy daemon + moshi-hook (Task 1) cover the mobile bridge, both already exist
 
 - Produces: no com.claude.code LaunchAgent on disk; no `--remote-control` supervision
 
@@ -1154,7 +1154,7 @@ Expected: both "No such file".
 just l
 ```
 
-Expected: green. (Fewer files to lint — no failure path here.)
+Expected: green. (Fewer files to lint, no failure path here.)
 
 - [ ] **Step 5: Commit**
 
@@ -1162,8 +1162,8 @@ Expected: green. (Fewer files to lint — no failure path here.)
 git commit -m "chore(claude): remove claude-restart.sh + com.claude.code LaunchAgent
 
 The always-on 'claude --remote-control' supervision is no longer needed.
-Happy daemon (Library/LaunchAgents/com.webdavis.happy-daemon.plist.tmpl
-— kept) and moshi-hook (Task 1) both bridge already-running agent
+Happy daemon (Library/LaunchAgents/com.webdavis.happy-daemon.plist.tmpl,
+kept) and moshi-hook (Task 1) both bridge already-running agent
 sessions, covering the mobile-control use case."
 ```
 
@@ -1184,15 +1184,15 @@ ______________________________________________________________________
 - Delete: `dot_local/bin/executable_tmux-custom-list-keys.sh`
 - Delete: `dot_local/bin/executable_tmux-refresh.sh`
 - Delete: `.chezmoiscripts/run_after_70-install-tmux2k-last-proc.sh.tmpl`
-- Modify: `.chezmoidata/system_packages_autoinstall.yaml` — remove `sesh` (line ~111) and `tmux` (line
+- Modify: `.chezmoidata/system_packages_autoinstall.yaml`: remove `sesh` (line ~111) and `tmux` (line
   ~124) from the formulae list
-- Modify: `dot_bashrc.tmpl` — remove `TERM='tmux-256color'` export (~line 36), the
+- Modify: `dot_bashrc.tmpl`: remove `TERM='tmux-256color'` export (~line 36), the
   `tmux-purge-resurrect-session-data` alias (~line 192), tmux-last-proc precmd (~lines 285-301), and tmux
   from the TUI skip-list (~line 271)
 
 **Interfaces:**
 
-- Consumes: herdr autostart in bashrc (Task 10) — must be working before this commit
+- Consumes: herdr autostart in bashrc (Task 10), must be working before this commit
 
 - Produces: zero tmux/sesh artifacts in source or in `$HOME`
 
@@ -1233,13 +1233,13 @@ Expected: "clean".
 
 - [ ] **Step 3: Hand-edit `dot_bashrc.tmpl` to strip the four tmux-specific snippets**
 
-Remove these lines (line numbers approximate — search for the strings):
+Remove these lines (line numbers approximate, search for the strings):
 
 - `export TERM='tmux-256color'` (~line 36) → delete entire line
 - `alias tmux-purge-resurrect-session-data=...` (~line 192) → delete entire line
 - the `__tmux_last_proc_precmd` function block (~lines 285-301, including the `precmd_functions+=`
   registration) → delete the entire function definition + the `precmd_functions+=` line
-- `tmux|` from the TUI skip-list regex (~line 271) — change
+- `tmux|` from the TUI skip-list regex (~line 271), change
   `^(vim|nvim|less|man|top|btop|ssh|tmux|claude|fzf)` to
   `^(vim|nvim|less|man|top|btop|ssh|herdr|claude|fzf)`
 
@@ -1279,10 +1279,10 @@ command -v tmux sesh 2>&1 | grep -v 'not found' && echo "WARN: binary still on P
 
 Expected: "clean".
 
-- [ ] **Step 7: Optional manual cleanup — TPM plugins under ~/.tmux/plugins/ (not chezmoi-tracked)**
+- [ ] **Step 7: Optional manual cleanup: TPM plugins under ~/.tmux/plugins/ (not chezmoi-tracked)**
 
 ```bash
-ls ~/.tmux/plugins/ 2>/dev/null && echo "tmux plugins still on disk — trash if desired"
+ls ~/.tmux/plugins/ 2>/dev/null && echo "tmux plugins still on disk, trash if desired"
 trash ~/.tmux 2>/dev/null || echo "~/.tmux gone"
 ```
 
@@ -1304,7 +1304,7 @@ Removes dot_tmux.conf, the sesh config tree, all six tmux/sesh helper
 scripts under dot_local/bin/, the tmux2k-last-proc installer chezmoiscript,
 the tmux and sesh formulae from autoinstall YAML, and the four
 tmux-specific snippets in dot_bashrc.tmpl (TERM export, purge-resurrect
-alias, tmux-last-proc precmd, tmux entry in the TUI skip-list — replaced
+alias, tmux-last-proc precmd, tmux entry in the TUI skip-list, replaced
 with 'herdr'). Brew binaries uninstalled separately."
 ```
 
@@ -1315,7 +1315,7 @@ ______________________________________________________________________
 **Files:**
 
 - Modify: `CLAUDE.md` (this repo's root)
-- Modify: `~/.claude/CLAUDE.md` (global — outside this repo)
+- Modify: `~/.claude/CLAUDE.md` (global, outside this repo)
 
 **Interfaces:**
 
@@ -1354,7 +1354,7 @@ on-demand via their jump chords.
 ### Herdr Native Status
 
 Workspace state (per-pane agent status: blocked / working / done / idle) is
-rendered natively by herdr — no third-party plugin or custom script. The sidebar
+rendered natively by herdr, no third-party plugin or custom script. The sidebar
 rolls each workspace up to its most-urgent agent state. Claude Code, Codex,
 Cursor, OpenCode, and others are recognized out of the box.
 ```
@@ -1362,7 +1362,7 @@ Cursor, OpenCode, and others are recognized out of the box.
 - [ ] **Step 4: Rewrite the tmux parts of "### Bashrc Init Ordering"**
 
 In that section, replace tmux references with the herdr equivalent. The autostart block now reads
-"create-or-focus homelab workspace via `herdr workspace create --focus`" — no `tmux ls` probe, no
+"create-or-focus homelab workspace via `herdr workspace create --focus`", no `tmux ls` probe, no
 `sesh-bootstrap.sh` call. The long-running command notifier and the bash-preexec-before-atuin init
 ordering remain (those were not tmux-coupled).
 
@@ -1412,7 +1412,7 @@ just l
 
 Expected: green.
 
-- [ ] **Step 8: Commit (this repo's CLAUDE.md only — global is outside the repo)**
+- [ ] **Step 8: Commit (this repo's CLAUDE.md only, global is outside the repo)**
 
 ```bash
 git add CLAUDE.md
@@ -1425,7 +1425,7 @@ Integration' section covering the declarative install, trust loop, KeePassXC
 pairing, and the asymmetric integration with herdr."
 ```
 
-Manually verify the global CLAUDE.md edit — it lives outside this repo, no commit here.
+Manually verify the global CLAUDE.md edit, it lives outside this repo, no commit here.
 
 ______________________________________________________________________
 
@@ -1459,12 +1459,12 @@ Expected: no diff (clean state).
 - [ ] **Step 3: Record spike outcomes**
 
 Capture results for each spike in a short note appended to the spec under a new "Spike outcomes" section
-(or in this plan's tail — whichever the executor prefers):
+(or in this plan's tail, whichever the executor prefers):
 
-1. **Spike #1 (send-keys EOF):** ✅ / ❌ — what worked.
-1. **Spike #2 (`prefix+ctrl+.` CSI-u):** ✅ / ❌ — `prefix+.` fallback used? yes/no.
-1. **Spike #3 (`[update] channel = "preview"` declarative):** ✅ / ❌ — CLI needed alongside config?
-1. **Spike #4 (`moshi .` post-migration):** what happens — opens herdr workspace, errors, or still opens
+1. **Spike #1 (send-keys EOF):** ✅ / ❌, what worked.
+1. **Spike #2 (`prefix+ctrl+.` CSI-u):** ✅ / ❌, `prefix+.` fallback used? yes/no.
+1. **Spike #3 (`[update] channel = "preview"` declarative):** ✅ / ❌, CLI needed alongside config?
+1. **Spike #4 (`moshi .` post-migration):** what happens: opens herdr workspace, errors, or still opens
    tmux?
 1. **Spike #5 (full tmux→herdr binding collision sweep):** any per-binding decisions made? (Most tmux
    bindings died with the cold drop; collision concern is mostly hypothetical at this point.)
@@ -1519,7 +1519,7 @@ docs/superpowers/specs/2026-06-18-tmux-to-herdr-migration-design.md
 
 ## Test plan
 - [x] just l passes
-- [x] All 6 implementation spikes verified — see spike outcomes section
+- [x] All 6 implementation spikes verified, see spike outcomes section
 - [x] homelab autostart works on fresh terminal
 - [x] All 8 workspace chords functional
 - [x] Seamless Neovim<->herdr nav works
@@ -1538,24 +1538,24 @@ ______________________________________________________________________
 
 | #   | Spike                                           | Outcome                                                                                                                                                                                                                                                              |
 | --- | ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | `pane send-keys 'ctrl+d'` triggers EOF          | Deferred — requires interactive keyboard verification. User to double-tap Ctrl-d in a herdr-managed shell pane and confirm the shell exits.                                                                                                                          |
-| 2   | `prefix+ctrl+.` fires under Ghostty + CSI-u     | Deferred — requires interactive keyboard verification. Both `prefix+ctrl+.` (CSI-u path) and `prefix+.` (fallback) are wired in `dot_config/herdr/config.toml`; user to test which fires under Ghostty's CSI-u mode.                                                 |
-| 3   | `[update] channel = "preview"` declarative-only | Resolved — `herdr channel show` returns bare `preview`; the `herdr channel set preview` CLI invocation in `.chezmoiscripts/run_onchange_before_15-install-herdr.sh.tmpl` is the authoritative guarantee. No declarative-only path exists in the herdr config schema. |
-| 4   | `moshi .` post-migration behavior               | Deferred — depends on whether the moshi-hook brew install completed (Task 1's `run_once_after_60-moshi-hook-setup.sh.tmpl` is interactive-only). User to run `brew services list \| grep moshi` and `moshi-hook status` after applying that script interactively.    |
-| 5   | Full tmux→herdr binding collision sweep         | N/A — Task 12 (tmux/sesh/tmux2k cold drop) is intentionally deferred per user direction. All original tmux and sesh files remain in the source tree. No collision analysis is meaningful until those files are removed; revisit when Task 12 is executed.            |
-| 6   | Rustup bootstrap edge cases                     | Resolved — rustup install script is present in `.chezmoiscripts/run_onchange_before_15-install-herdr.sh.tmpl`; `~/.cargo/bin/cargo` is on PATH; Xcode CLT is present at `/Applications/Xcode.app/Contents/Developer`. Non-issue on this machine.                     |
+| 1   | `pane send-keys 'ctrl+d'` triggers EOF          | Deferred: requires interactive keyboard verification. User to double-tap Ctrl-d in a herdr-managed shell pane and confirm the shell exits.                                                                                                                          |
+| 2   | `prefix+ctrl+.` fires under Ghostty + CSI-u     | Deferred: requires interactive keyboard verification. Both `prefix+ctrl+.` (CSI-u path) and `prefix+.` (fallback) are wired in `dot_config/herdr/config.toml`; user to test which fires under Ghostty's CSI-u mode.                                                 |
+| 3   | `[update] channel = "preview"` declarative-only | Resolved: `herdr channel show` returns bare `preview`; the `herdr channel set preview` CLI invocation in `.chezmoiscripts/run_onchange_before_15-install-herdr.sh.tmpl` is the authoritative guarantee. No declarative-only path exists in the herdr config schema. |
+| 4   | `moshi .` post-migration behavior               | Deferred: depends on whether the moshi-hook brew install completed (Task 1's `run_once_after_60-moshi-hook-setup.sh.tmpl` is interactive-only). User to run `brew services list \| grep moshi` and `moshi-hook status` after applying that script interactively.    |
+| 5   | Full tmux→herdr binding collision sweep         | N/A: Task 12 (tmux/sesh/tmux2k cold drop) is intentionally deferred per user direction. All original tmux and sesh files remain in the source tree. No collision analysis is meaningful until those files are removed; revisit when Task 12 is executed.            |
+| 6   | Rustup bootstrap edge cases                     | Resolved: rustup install script is present in `.chezmoiscripts/run_onchange_before_15-install-herdr.sh.tmpl`; `~/.cargo/bin/cargo` is on PATH; Xcode CLT is present at `/Applications/Xcode.app/Contents/Developer`. Non-issue on this machine.                     |
 
 ### User Verification Checklist
 
 The following checks require interactive keyboard input and cannot be verified from agent context. After
 `chezmoi apply` (with KeePassXC unlocked), confirm:
 
-1. Open a new Ghostty terminal — shell should land in the `homelab` herdr workspace automatically.
-1. Hit each of the 8 `prefix+ctrl+<letter>` workspace chords — each should open its expected workspace.
-1. Open Neovim in a herdr pane, split with `prefix+%`, then navigate with `Ctrl-h/j/k/l` — confirm
+1. Open a new Ghostty terminal, shell should land in the `homelab` herdr workspace automatically.
+1. Hit each of the 8 `prefix+ctrl+<letter>` workspace chords, each should open its expected workspace.
+1. Open Neovim in a herdr pane, split with `prefix+%`, then navigate with `Ctrl-h/j/k/l`, confirm
    seamless movement between Neovim splits and herdr panes via devxplay/herdr.nvim.
-1. Double-tap Ctrl-d in a shell pane — confirm the shell exits (EOF preserved; Spike #1).
-1. Test `prefix+ctrl+.` — confirm it fires under Ghostty's CSI-u mode, or fall back to `prefix+.` (Spike
+1. Double-tap Ctrl-d in a shell pane, confirm the shell exits (EOF preserved; Spike #1).
+1. Test `prefix+ctrl+.`, confirm it fires under Ghostty's CSI-u mode, or fall back to `prefix+.` (Spike
    #2).
-1. Run `brew services list | grep moshi` and `moshi-hook status` — confirm service is running and paired
+1. Run `brew services list | grep moshi` and `moshi-hook status`, confirm service is running and paired
    (Spike #4; only after `run_once_after_60-moshi-hook-setup.sh.tmpl` has run interactively).

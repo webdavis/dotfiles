@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# update-skills-fork-drift.sh — the weekly run must notice when a skip-listed
-# fork's UPSTREAM changes, and must only ever say so — never touch the fork.
+# update-skills-fork-drift.sh, the weekly run must notice when a skip-listed
+# fork's UPSTREAM changes, and must only ever say so, never touch the fork.
 #
 # The real script runs unmodified in a sandbox: a scratch HOME, a local git
 # repo standing in for the fork's upstream, and a fake relay.sh planted in the
@@ -16,7 +16,7 @@
 #   3. After the fixture upstream commits a change to the skill folder, the
 #      run prints a drift alert naming the fork and its upstream, and the
 #      relay notification carries the fork's name.
-#   4. The fork's store content is byte-identical before and after both runs —
+#   4. The fork's store content is byte-identical before and after both runs,
 #      the check observes upstream, it never writes to the store.
 set -euo pipefail
 
@@ -59,7 +59,7 @@ printf -- '---\nname: forkskill\ndescription: local fork\n---\n# Local edits\n' 
 touch "$fork_store_dir/local-edit.marker"
 
 # A fake relay.sh: the script must call it exactly like the real one (which
-# arrives in a later slice) — this shim just records the arguments it got.
+# arrives in a later slice), this shim just records the arguments it got.
 relay_call_log="$scratch_dir/relay-calls.log"
 mkdir -p "$HOME/.local/bin"
 cat >"$HOME/.local/bin/relay.sh" <<EOF
