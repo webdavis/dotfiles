@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 #
-# osquery-results-alerter.sh, fired by launchd (WatchPaths) whenever
+# results-alerter.sh, fired by launchd (WatchPaths) whenever
 # ~/.local/log/osquery/osqueryd.results.log changes. Reads new lines since the
 # last run (byte-offset state file), and surfaces every differential finding
 # from the scheduled packs (intrusion-detection, security-policy-regression,
 # installed-software-drift) AND the file-events query. Each batch becomes a
 # single notification, delivered to both the local notifier and the #osquery
-# Discord channel via osquery-alert-dispatch.sh.
+# Discord channel via alert-dispatch.sh.
 #
 # Supersedes an earlier file-events-only notifier that watched the same log.
 
@@ -129,7 +129,7 @@ printf '%s %s\n' "$inode" "$size" >"$STATE.tmp" && mv -f "$STATE.tmp" "$STATE"
 
 [[ -z $raw_findings ]] && exit 0
 
-# Enrich CRIT/NOTICE findings with deterministic signing facts (osquery-enrich-finding.sh).
+# Enrich CRIT/NOTICE findings with deterministic signing facts (enrich-finding.sh).
 # An UNTRUSTED result promotes NOTICE -> CRIT (louder, never quieter). Fail-open: if the
 # helper is absent or errors, the finding still surfaces, just without a Signing: field.
 # Nothing is ever suppressed here. Each raw line is one compact JSON finding object; we

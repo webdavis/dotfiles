@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# osquery-firewall-gatekeeper-monitor.sh, polled every 60s by a launchd StartInterval
+# firewall-gatekeeper-monitor.sh, polled every 60s by a launchd StartInterval
 # agent. Queries the live firewall (alf) and gatekeeper state via osqueryi,
 # compares against the previous run, and fires alerter only on transitions.
 # Silent in steady state.

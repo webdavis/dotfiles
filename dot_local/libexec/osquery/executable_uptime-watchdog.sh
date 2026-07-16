@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# osquery-uptime-watchdog.sh, polled every 15 min by launchd. Asserts the
+# uptime-watchdog.sh, polled every 15 min by launchd. Asserts the
 # osquery notification pipeline is actually ALIVE, because a dead pipeline
 # otherwise looks identical to "all quiet" (the alerter is edge-triggered and
 # the queries are differential, so genuine silence is normal). Fires a single

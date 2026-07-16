@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 #
-# osquery-enrich-finding.sh, given a path drawn from an osquery finding (a
+# enrich-finding.sh, given a path drawn from an osquery finding (a
 # launchd plist, an app/extension bundle, a Mach-O binary, or a watched config
 # file), emit a SHORT single-line fact string to stdout describing its trust:
 # code-signing authority, ad-hoc/unsigned state, and download (quarantine)
 # origin. Read-only, no network, pure local inspection.
 #
-# The exit status is the machine signal the caller (osquery-results-alerter.sh)
+# The exit status is the machine signal the caller (results-alerter.sh)
 # routes on:
 #   0:  TRUSTED or not-applicable: a binary signed by Apple or a Developer ID,
 #        a config file (signing N/A), or a launchd job whose payload is a script
@@ -19,7 +19,7 @@
 #
 # Nothing is ever suppressed here; the caller always surfaces the finding. This
 # only decides how LOUD it is. Usage:
-#   facts=$(osquery-enrich-finding.sh "$path") || rc=$?
+#   facts=$(enrich-finding.sh "$path") || rc=$?
 
 set -euo pipefail
 

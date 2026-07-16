@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 #
-# osquery-alert-dispatch.sh, sourced helper, not run directly. Provides
+# alert-dispatch.sh, sourced helper, not run directly. Provides
 # send_alert(), which dispatches one finding to BOTH the local macOS notifier
 # (alerter) and a hermes Discord webhook, routing by severity (CRIT -> #priority,
 # else -> #osquery). Signing and dual-channel delivery live here so the three
-# producers (osquery-results-alerter.sh, osquery-firewall-gatekeeper-monitor.sh,
-# and osquery-uptime-watchdog.sh) share one implementation.
+# producers (results-alerter.sh, firewall-gatekeeper-monitor.sh,
+# and uptime-watchdog.sh) share one implementation.
 #
 # Usage (from a sourcing script):
 #   source "$HOME/.local/libexec/osquery/alert-dispatch.sh"
