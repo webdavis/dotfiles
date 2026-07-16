@@ -47,7 +47,8 @@ report_failure() {
 flagged_root="$(mktemp -d)"
 clean_root="$(mktemp -d)"
 no_candidate_root="$(mktemp -d)"
-trap 'rm -rf "$flagged_root" "$clean_root" "$no_candidate_root"' EXIT
+eval_boundary_root="$(mktemp -d)"
+trap 'rm -rf "$flagged_root" "$clean_root" "$no_candidate_root" "$eval_boundary_root"' EXIT
 
 # Writes an executable scratch probe (shebang on line 1, the given body lines
 # after) into <root>/test/unit and echoes its path. Each argument after <name>
@@ -221,6 +222,22 @@ else
   grep -qi 'awk' <<<"$guard_output" ||
     report_failure "awk-failure rejection does not name awk: $guard_output"
 fi
+
+# Assertion 6 (documented boundary, pinned): the scan's guarantee is LITERAL
+# chains in raw text. A BSD-first chain assembled at run time (eval over a
+# variable holding the BSD form, or a string handed to `sh -c`) is out of scope
+# and MUST pass. These tests exist so a future "improvement" that silently
+# widens the scan's scope shows up as a test change.
+eval_probe="$(write_probe "$eval_boundary_root" eval-assembled \
+  "bsd_token='$bsd_form'" \
+  "eval \"\$bsd_token '%Lp' . || $gnu_form '%a' .\"")"
+sh_c_probe="$(write_probe "$eval_boundary_root" sh-c-assembled \
+  "gated_command='$bsd_form'" \
+  "sh -c \"\$gated_command '%Lp' . || $gnu_form '%a' .\"")"
+run_guard "$eval_boundary_root/test"
+[[ $guard_status -eq 0 ]] ||
+  report_failure "runtime-assembled (eval / sh -c) chains are out of scope and must pass: $guard_output"
+: "$eval_probe" "$sh_c_probe"
 
 # Reference the passing fixture paths so shellcheck sees them used; they double as
 # a manifest of what the clean tree contains.

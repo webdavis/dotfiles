@@ -86,6 +86,15 @@ fi
 # left alone. Scans every text file below root (fixtures included) since a sourced
 # lib carries the same trap.
 #
+# Scope guarantee: the scan detects LITERAL chains in raw text, nothing more.
+# Runtime-assembled chains (eval over a variable holding `stat -f`, a string fed
+# to `sh -c`, a here-doc piped to a shell) are out of scope by design; a static
+# text scan cannot see them. Conversely, the scan deliberately reads ALL raw
+# text, comments and fixture prose included: a commented-out example gets
+# copy-pasted, and a sourced fixture carries the same trap, so inert prose
+# holding a BSD-first chain is EXPECTED to trip it; reword the prose or assemble
+# the tokens at run time (as this repo's own guard test does).
+#
 # FX11: a chain split across a backslash continuation (the `||` on the next physical
 # line) slipped past a per-physical-line scan: line 1 held `stat -f` but no `||`,
 # line 2 held `||` but no `stat -f` (and a GNU-first chain split the same way
