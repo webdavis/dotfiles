@@ -36,7 +36,8 @@ report_failure() {
 
 flagged_root="$(mktemp -d)"
 clean_root="$(mktemp -d)"
-trap 'rm -rf "$flagged_root" "$clean_root"' EXIT
+no_candidate_root="$(mktemp -d)"
+trap 'rm -rf "$flagged_root" "$clean_root" "$no_candidate_root"' EXIT
 
 # Writes an executable scratch probe (shebang on line 1, the given body lines
 # after) into <root>/test/unit and echoes its path. Each argument after <name>
@@ -122,6 +123,54 @@ fi
 run_guard "$clean_root/test"
 [[ $guard_status -eq 0 ]] ||
   report_failure "clean tree (GNU-first, bare BSD, no-stat) was wrongly rejected: $guard_output"
+
+# Assertion 3 (fail-closed, part 1): a tree with NO stat candidates at all still
+# exits 0. grep reporting "no match" (exit 1) is a pass, distinct from a tool
+# error (exit above 1), which the next two assertions pin as a failure.
+no_candidate_probe="$(write_probe "$no_candidate_root" no-stat-anywhere \
+  "printf 'not a single stat call below this root\\n'")"
+run_guard "$no_candidate_root/test"
+[[ $guard_status -eq 0 ]] ||
+  report_failure "no-candidate tree (grep exit 1) was wrongly rejected: $guard_output"
+: "$no_candidate_probe"
+
+# Assertion 4 (fail-closed, part 2): a grep tool error (exit above 1) must FAIL
+# the guard, never silently yield an empty candidate list and a green pass. The
+# exported function shadows grep inside the guard child only.
+set +e
+guard_output="$(
+  # shellcheck disable=SC2329,SC2317 # invoked indirectly: exported into the guard child
+  grep() { return 7; }
+  export -f grep
+  bash "$GUARD" "$clean_root/test" 2>&1
+)"
+guard_status=$?
+set -e
+if [[ $guard_status -eq 0 ]]; then
+  report_failure "grep failure (exit 7) did not fail the guard (fails open)"
+else
+  grep -qi 'grep' <<<"$guard_output" ||
+    report_failure "grep-failure rejection does not name grep: $guard_output"
+fi
+
+# Assertion 5 (fail-closed, part 3): an awk tool error must FAIL the guard; a
+# failure inside a process substitution would otherwise never reach the parent.
+# The clean tree has stat candidates (the bare BSD fixture), so awk is reached.
+set +e
+guard_output="$(
+  # shellcheck disable=SC2329,SC2317 # invoked indirectly: exported into the guard child
+  awk() { return 7; }
+  export -f awk
+  bash "$GUARD" "$clean_root/test" 2>&1
+)"
+guard_status=$?
+set -e
+if [[ $guard_status -eq 0 ]]; then
+  report_failure "awk failure (exit 7) did not fail the guard (fails open)"
+else
+  grep -qi 'awk' <<<"$guard_output" ||
+    report_failure "awk-failure rejection does not name awk: $guard_output"
+fi
 
 # Reference the passing fixture paths so shellcheck sees them used; they double as
 # a manifest of what the clean tree contains.

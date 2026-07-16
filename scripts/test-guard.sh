@@ -84,12 +84,27 @@ fi
 # false-POSITIVED on the `|| stat -f` continuation line). Join backslash
 # continuations into one logical line, keyed by the starting physical line number,
 # before matching.
+# Fail closed: candidate discovery and per-file matching are CHECKED commands
+# into temp files, mirroring the discovery pipeline above. grep exit 1 means
+# "no candidates" (a pass); anything above 1 is a tool error and MUST fail the
+# guard, never silently yield an empty candidate list and a green pass. An awk
+# failure likewise fails the guard instead of vanishing inside a process
+# substitution. No `2>/dev/null` -- a real tool error is seen.
+stat_candidates_list="$(mktemp)"
+chain_lines_list="$(mktemp)"
+trap 'rm -f "$links_list" "$files_list" "$stat_candidates_list" "$chain_lines_list"' EXIT
+
+grep_status=0
+grep -rlI 'stat -f' "$root" >"$stat_candidates_list" || grep_status=$?
+if [[ $grep_status -gt 1 ]]; then
+  printf 'FAIL: stat-chain candidate scan of %s/ failed (grep exit %d); refusing to pass on a partial scan\n' "$root" "$grep_status" >&2
+  exit 1
+fi
+
 bsd_first_chains=""
 while IFS= read -r scanned_file; do
   [[ -n $scanned_file ]] || continue
-  while IFS= read -r chain_start_line; do
-    bsd_first_chains+="$scanned_file:$chain_start_line"$'\n'
-  done < <(awk '
+  if ! awk '
     function flush(   bsd_index, gnu_index) {
       if (joined == "") return
       bsd_index = index(joined, "stat -f")
@@ -107,8 +122,14 @@ while IFS= read -r scanned_file; do
       flush()
     }
     END { flush() }
-  ' "$scanned_file")
-done < <(grep -rlI 'stat -f' "$root" 2>/dev/null || true)
+  ' "$scanned_file" >"$chain_lines_list"; then
+    printf 'FAIL: stat-chain scan of %s failed (awk error); refusing to pass on a partial scan\n' "$scanned_file" >&2
+    exit 1
+  fi
+  while IFS= read -r chain_start_line; do
+    bsd_first_chains+="$scanned_file:$chain_start_line"$'\n'
+  done <"$chain_lines_list"
+done <"$stat_candidates_list"
 bsd_first_chains="${bsd_first_chains%$'\n'}"
 
 if [[ -n $bsd_first_chains ]]; then
