@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# osquery-uptime-watchdog.sh, polled every 15 min by launchd. Asserts the
+# uptime-watchdog.sh, polled every 15 min by launchd. Asserts the
 # osquery notification pipeline is actually ALIVE, because a dead pipeline
 # otherwise looks identical to "all quiet" (the alerter is edge-triggered and
 # the queries are differential, so genuine silence is normal). Fires a single
@@ -18,7 +18,7 @@ AGENTS=(
 )
 
 # shellcheck source=/dev/null
-source "$HOME/.local/bin/osquery-alert-dispatch.sh"
+source "$HOME/.local/libexec/osquery/alert-dispatch.sh"
 
 problems=()
 
@@ -39,21 +39,22 @@ done
 
 # 3) hermes gateway reachable (any HTTP status = up; 000 = unreachable). The
 #    local alerter in send_alert still fires even if this is what is down.
-code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 "$HERMES_URL" 2>/dev/null) || code=000
-if [ "$code" = "000" ]; then
+http_status="$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 "$HERMES_URL" 2>/dev/null)" || http_status=000
+if [[ $http_status == "000" ]]; then
   problems+=("hermes gateway unreachable at $HERMES_URL")
 fi
 
-if [ ${#problems[@]} -eq 0 ]; then exit 0; fi
+if [[ ${#problems[@]} -eq 0 ]]; then exit 0; fi
 
 # A dead pipeline is always CRITICAL → #priority. Focused block: what is down
-# (one bullet each) plus instructive diagnostic + restart steps. bt holds a literal
-# backtick so the command renders as Discord inline-code without shell expansion.
-bt='`'
+# (one bullet each) plus instructive diagnostic + restart steps. backtick holds a
+# literal backtick so the command renders as Discord inline-code without shell
+# expansion.
+backtick='`'
 body="**Monitoring is DOWN**"
-for p in "${problems[@]}"; do body+=$'\n'"- $p"; done
-body+=$'\n'"- **Diagnose:** ${bt}launchctl list | grep -i osquery${bt}"
+for problem in "${problems[@]}"; do body+=$'\n'"- $problem"; done
+body+=$'\n'"- **Diagnose:** ${backtick}launchctl list | grep -i osquery${backtick}"
 body+=$'\n'"- Restart the down component, then re-check."
 title="🔴 **CRITICAL**"
-if [ ${#problems[@]} -gt 1 ]; then title="🔴 **CRITICAL** · ${#problems[@]}"; fi
+if [[ ${#problems[@]} -gt 1 ]]; then title="🔴 **CRITICAL** · ${#problems[@]}"; fi
 send_alert CRIT "$title" "$body" "Sosumi"

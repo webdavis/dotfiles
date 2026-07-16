@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 #
-# osquery-results-alerter.sh, fired by launchd (WatchPaths) whenever
+# results-alerter.sh, fired by launchd (WatchPaths) whenever
 # ~/.local/log/osquery/osqueryd.results.log changes. Reads new lines since the
 # last run (byte-offset state file), and surfaces every differential finding
 # from the scheduled packs (intrusion-detection, security-policy-regression,
 # installed-software-drift) AND the file-events query. Each batch becomes a
 # single notification, delivered to both the local notifier and the #osquery
-# Discord channel via osquery-alert-dispatch.sh.
+# Discord channel via alert-dispatch.sh.
 #
 # Supersedes an earlier file-events-only notifier that watched the same log.
 
@@ -16,38 +16,38 @@ LOG="${OSQUERY_RESULTS_LOG:-$HOME/.local/log/osquery/osqueryd.results.log}"
 STATE="${OSQUERY_RESULTS_OFFSET:-$HOME/.local/state/osquery-results-offset}"
 
 # shellcheck source=/dev/null
-source "$HOME/.local/bin/osquery-alert-dispatch.sh"
+source "$HOME/.local/libexec/osquery/alert-dispatch.sh"
 
 mkdir -p "$(dirname "$STATE")"
 [[ -f $LOG ]] || exit 0
 
 # Portable size + inode (wc -c / ls -i work on macOS and Linux; BSD `stat -f`
 # does not). Inode lets us notice a rotated/recreated log at the same path.
-size=$(wc -c <"$LOG")
+size="$(wc -c <"$LOG")"
 size=${size//[[:space:]]/}
 # shellcheck disable=SC2012  # $LOG is a fixed, controlled path; ls -i is safe and portable
-inode=$(ls -i "$LOG" | awk '{print $1}')
+inode="$(ls -i "$LOG" | awk '{print $1}')"
 
 # State holds "<inode> <offset>". Re-seed silently when it is missing or not in
 # that exact two-integer form (first run, or migrating the old single-int file).
-prev_inode=""
-prev_offset=""
-if [[ -f $STATE ]]; then read -r prev_inode prev_offset <"$STATE" || true; fi
+previous_inode=""
+previous_offset=""
+if [[ -f $STATE ]]; then read -r previous_inode previous_offset <"$STATE" || true; fi
 # Capture-then-validate, not branch-on-read: a state file missing its trailing
 # newline makes `read` return non-zero even though it populated the vars, so
 # keying the re-seed on read's exit status would skip a whole differential batch.
-if ! [[ $prev_inode =~ ^[0-9]+$ && $prev_offset =~ ^[0-9]+$ ]]; then
+if ! [[ $previous_inode =~ ^[0-9]+$ && $previous_offset =~ ^[0-9]+$ ]]; then
   printf '%s %s\n' "$inode" "$size" >"$STATE.tmp" && mv -f "$STATE.tmp" "$STATE"
   exit 0
 fi
 
 # New inode (rotation/recreation) or a shrink (truncation) → read the current
 # file from byte 0 so nothing is skipped or replayed from the old file.
-if [[ $inode != "$prev_inode" || $size -lt $prev_offset ]]; then
-  prev_offset=0
+if [[ $inode != "$previous_inode" || $size -lt $previous_offset ]]; then
+  previous_offset=0
 fi
 
-[[ $size -eq $prev_offset ]] && exit 0
+[[ $size -eq $previous_offset ]] && exit 0
 
 # Notify on ALL observed activity, tiered by severity so high-threat events
 # stand out from routine ones. Each row is classified:
@@ -61,15 +61,15 @@ fi
 # captured $size aren't consumed early and re-fired next time; `|| true`
 # absorbs head's SIGPIPE. jq -rR + per-line try/fromjson means one malformed
 # line yields nothing for that line instead of aborting the whole batch.
-# $size > $prev_offset is guaranteed by the shrink-reset and equality-exit guards
-# above, but clamp defensively: an inode-reusing rotation in the window since we
-# captured $size could otherwise hand head -c a non-positive count.
-span=$((size - prev_offset))
+# $size > $previous_offset is guaranteed by the shrink-reset and equality-exit
+# guards above, but clamp defensively: an inode-reusing rotation in the window
+# since we captured $size could otherwise hand head -c a non-positive count.
+span=$((size - previous_offset))
 new_lines=""
 if [[ $span -gt 0 ]]; then
-  new_lines=$(tail -c "+$((prev_offset + 1))" "$LOG" | head -c "$span" || true)
+  new_lines="$(tail -c "+$((previous_offset + 1))" "$LOG" | head -c "$span" || true)"
 fi
-raw_findings=$(printf '%s\n' "$new_lines" | jq -rR '
+raw_findings="$(printf '%s\n' "$new_lines" | jq -rR '
   . as $line | (try ($line | fromjson) catch empty) |
   # A security-policy row is CRITICAL only when the protection turned OFF, not
   # on every change. For the boolean states that is an "added" row carrying the
@@ -121,7 +121,7 @@ raw_findings=$(printf '%s\n' "$new_lines" | jq -rR '
   # Emit one compact JSON object per finding; the bash side enriches, then renders
   # it into a #priority block or an #osquery line via the header/field/step maps.
   | {sev: sev, q: $q, act: $act, cols: (.columns // {}), ep: $ep} | @json
-' 2>/dev/null || true)
+' 2>/dev/null || true)"
 
 # Advance state before notifying so a slow/failed dispatch never re-fires the
 # same batch on the next WatchPaths trigger. Format: "<inode> <offset>".
@@ -129,60 +129,60 @@ printf '%s %s\n' "$inode" "$size" >"$STATE.tmp" && mv -f "$STATE.tmp" "$STATE"
 
 [[ -z $raw_findings ]] && exit 0
 
-# Enrich CRIT/NOTICE findings with deterministic signing facts (osquery-enrich-finding.sh).
+# Enrich CRIT/NOTICE findings with deterministic signing facts (enrich-finding.sh).
 # An UNTRUSTED result promotes NOTICE -> CRIT (louder, never quieter). Fail-open: if the
 # helper is absent or errors, the finding still surfaces, just without a Signing: field.
 # Nothing is ever suppressed here. Each raw line is one compact JSON finding object; we
 # inject .signing and the (possibly promoted) .sev back into it.
-ENRICH="$HOME/.local/bin/osquery-enrich-finding.sh"
+ENRICH_SCRIPT="$HOME/.local/libexec/osquery/enrich-finding.sh"
 
 # Default-deny launch-item allowlist: labels listed here are known-good and are
 # dropped from the quiet #osquery channel (never from #priority, see the
 # CRIT-exempt check in the loop). Load once; fail-open if the file is missing or
 # unreadable (suppress nothing). Strip comments/whitespace/blank lines.
 ALLOWLIST_FILE="${OSQUERY_LAUNCH_ALLOWLIST:-$HOME/.config/osquery/launch-allowlist.txt}"
-allow_set=""
+allowlist_entries=""
 if [[ -r $ALLOWLIST_FILE ]]; then
-  allow_set=$(sed -e 's/#.*//' -e 's/[[:space:]]//g' "$ALLOWLIST_FILE" | grep -v '^$' || true)
+  allowlist_entries="$(sed -e 's/#.*//' -e 's/[[:space:]]//g' "$ALLOWLIST_FILE" | grep -v '^$' || true)"
 fi
-_allowlisted() { [[ -n $allow_set ]] && grep -qxF -- "$1" <<<"$allow_set"; }
+_allowlisted() { [[ -n $allowlist_entries ]] && grep -qxF -- "$1" <<<"$allowlist_entries"; }
 
 enriched=""
-while IFS= read -r obj; do
-  [[ -z $obj ]] && continue
+while IFS= read -r finding; do
+  [[ -z $finding ]] && continue
   # Read the fields we need one-per-line. A tab/space IFS would collapse runs and
   # shift columns when a middle field is empty (e.g. absent category); line-per-
   # field preserves empties. Safe because none of these values contains a newline
-  # (ep had newlines stripped upstream; the rest are tokens/labels).
+  # (enrich_path had newlines stripped upstream; the rest are tokens/labels).
   {
-    read -r sev
-    read -r ep
-    read -r q
-    read -r cat
-    read -r lbl
+    read -r severity
+    read -r enrich_path
+    read -r query_name
+    read -r category
+    read -r label
   } < <(
-    jq -r '.sev, (.ep // ""), .q, (.cols.category // ""), (.cols.label // .cols.name // "")' <<<"$obj"
+    jq -r '.sev, (.ep // ""), .q, (.cols.category // ""), (.cols.label // .cols.name // "")' <<<"$finding"
   )
-  sig=""
-  if [[ -n $ep && ($sev == CRIT || $sev == NOTICE) && -x $ENRICH ]]; then
-    rc=0
-    sig=$("$ENRICH" "$ep" 2>/dev/null) || rc=$?
-    [[ $rc -eq 10 && $sev == NOTICE ]] && sev="CRIT"
+  signing_facts=""
+  if [[ -n $enrich_path && ($severity == CRIT || $severity == NOTICE) && -x $ENRICH_SCRIPT ]]; then
+    enrich_status=0
+    signing_facts="$("$ENRICH_SCRIPT" "$enrich_path" 2>/dev/null)" || enrich_status=$?
+    [[ $enrich_status -eq 10 && $severity == NOTICE ]] && severity="CRIT"
   fi
   # Default-deny allowlist: drop a known-good launch item from #osquery. Checked
   # AFTER enrichment so a promoted CRIT (an untrusted binary behind an allowlisted
   # label) is never suppressed. The allowlist only quiets the non-CRIT channel.
-  if [[ $sev != "CRIT" ]]; then
-    mk=""
-    case "$q" in
-      persistence_launchd | persistence_startup_items_crontab) mk="$lbl" ;;
-      file_events_recent) [[ $cat == "launch_agents" || $cat == "launch_daemons" ]] && mk=$(basename "$ep" .plist) ;;
+  if [[ $severity != "CRIT" ]]; then
+    allowlist_key=""
+    case "$query_name" in
+      persistence_launchd | persistence_startup_items_crontab) allowlist_key="$label" ;;
+      file_events_recent) [[ $category == "launch_agents" || $category == "launch_daemons" ]] && allowlist_key="$(basename "$enrich_path" .plist)" ;;
     esac
-    [[ -n $mk ]] && _allowlisted "$mk" && continue
+    [[ -n $allowlist_key ]] && _allowlisted "$allowlist_key" && continue
   fi
-  obj=$(jq -c --arg sev "$sev" --arg sig "$sig" \
-    '.sev = $sev | (if $sig == "" then . else .signing = $sig end)' <<<"$obj")
-  enriched+="$obj"$'\n'
+  finding="$(jq -c --arg sev "$severity" --arg sig "$signing_facts" \
+    '.sev = $sev | (if $sig == "" then . else .signing = $sig end)' <<<"$finding")"
+  enriched+="$finding"$'\n'
 done <<<"$raw_findings"
 enriched=${enriched%$'\n'}
 
@@ -192,7 +192,7 @@ enriched=${enriched%$'\n'}
 # (header + decision-relevant fields + one "→" next step); #osquery gets one compact
 # humanized line per finding. Layout follows the user's ADHD surfacing research: one
 # thing, glanceable, minimal fields, ending in a single action, no raw query jargon.
-render=$(printf '%s\n' "$enriched" | jq -s '
+render="$(printf '%s\n' "$enriched" | jq -s '
   # Wrap a value in Discord inline-code backticks. The value is attacker-controlled
   # (launchd label, path); strip backticks so it cannot break out of the inline-code
   # span and inject markdown. Display-only, does not affect detection/severity.
@@ -302,27 +302,27 @@ render=$(printf '%s\n' "$enriched" | jq -s '
     obody: (($rest[0:12] | map(line) | join("\n"))
       + (if ($rest | length) > 12 then "\n…\(($rest | length) - 12) more" else "" end))
   }
-')
+')"
 
 # Dispatch each non-empty channel. #priority carries CRIT only; #osquery NOTICE/INFO.
-pcount=$(jq -r '.pcount' <<<"$render")
-ocount=$(jq -r '.ocount' <<<"$render")
+priority_count="$(jq -r '.pcount' <<<"$render")"
+osquery_count="$(jq -r '.ocount' <<<"$render")"
 
-if [[ $pcount -gt 0 ]]; then
+if [[ $priority_count -gt 0 ]]; then
   title="🔴 **CRITICAL**"
-  if [[ $pcount -gt 1 ]]; then title="🔴 **CRITICAL** · $pcount"; fi
+  if [[ $priority_count -gt 1 ]]; then title="🔴 **CRITICAL** · $priority_count"; fi
   send_alert CRIT "$title" "$(jq -r '.pbody' <<<"$render")" "Sosumi"
 fi
 
-if [[ $ocount -gt 0 ]]; then
-  if [[ $(jq -r '.onotice' <<<"$render") == "true" ]]; then
-    osev="NOTICE"
-    otitle="🟡 **Notice** · $ocount"
-    osound="Glass"
+if [[ $osquery_count -gt 0 ]]; then
+  if [[ "$(jq -r '.onotice' <<<"$render")" == "true" ]]; then
+    osquery_severity="NOTICE"
+    osquery_title="🟡 **Notice** · $osquery_count"
+    osquery_sound="Glass"
   else
-    osev="INFO"
-    otitle="🔵 **Info** · $ocount"
-    osound=""
+    osquery_severity="INFO"
+    osquery_title="🔵 **Info** · $osquery_count"
+    osquery_sound=""
   fi
-  send_alert "$osev" "$otitle" "$(jq -r '.obody' <<<"$render")" "$osound"
+  send_alert "$osquery_severity" "$osquery_title" "$(jq -r '.obody' <<<"$render")" "$osquery_sound"
 fi
