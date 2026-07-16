@@ -16,7 +16,7 @@ LOG="${OSQUERY_RESULTS_LOG:-$HOME/.local/log/osquery/osqueryd.results.log}"
 STATE="${OSQUERY_RESULTS_OFFSET:-$HOME/.local/state/osquery-results-offset}"
 
 # shellcheck source=/dev/null
-source "$HOME/.local/bin/osquery-alert-dispatch.sh"
+source "$HOME/.local/libexec/osquery/alert-dispatch.sh"
 
 mkdir -p "$(dirname "$STATE")"
 [[ -f $LOG ]] || exit 0
@@ -134,7 +134,7 @@ printf '%s %s\n' "$inode" "$size" >"$STATE.tmp" && mv -f "$STATE.tmp" "$STATE"
 # helper is absent or errors, the finding still surfaces, just without a Signing: field.
 # Nothing is ever suppressed here. Each raw line is one compact JSON finding object; we
 # inject .signing and the (possibly promoted) .sev back into it.
-ENRICH="$HOME/.local/bin/osquery-enrich-finding.sh"
+ENRICH="$HOME/.local/libexec/osquery/enrich-finding.sh"
 
 # Default-deny launch-item allowlist: labels listed here are known-good and are
 # dropped from the quiet #osquery channel (never from #priority, see the

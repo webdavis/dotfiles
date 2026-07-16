@@ -18,7 +18,7 @@ AGENTS=(
 )
 
 # shellcheck source=/dev/null
-source "$HOME/.local/bin/osquery-alert-dispatch.sh"
+source "$HOME/.local/libexec/osquery/alert-dispatch.sh"
 
 problems=()
 

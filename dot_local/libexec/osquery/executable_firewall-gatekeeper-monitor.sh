@@ -11,7 +11,7 @@ STATE="${OSQUERY_POSTURE_STATE:-$HOME/.local/state/osquery-posture-state.json}"
 OSQUERYI="${OSQUERYI:-$(command -v osqueryi || echo /usr/local/bin/osqueryi)}"
 
 # shellcheck source=/dev/null
-source "$HOME/.local/bin/osquery-alert-dispatch.sh"
+source "$HOME/.local/libexec/osquery/alert-dispatch.sh"
 
 mkdir -p "$(dirname "$STATE")"
 

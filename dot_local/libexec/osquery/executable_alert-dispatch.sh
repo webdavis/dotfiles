@@ -8,7 +8,7 @@
 # and osquery-uptime-watchdog.sh) share one implementation.
 #
 # Usage (from a sourcing script):
-#   source "$HOME/.local/bin/osquery-alert-dispatch.sh"
+#   source "$HOME/.local/libexec/osquery/alert-dispatch.sh"
 #   send_alert CRIT "Firewall disabled" "alf global_state 1 -> 0" Sosumi
 
 # Two routes, same app (osquery), each signed with the one osquery key below.
