@@ -105,8 +105,10 @@ trap 'rm -f "$links_list" "$files_list" "$stat_candidates_list" "$chain_lines_li
 # Token matching is whitespace-tolerant (`stat[[:space:]]+-f`): a tab or a run
 # of spaces between `stat` and its flag is the same command and must not bypass
 # the prefilter or the per-segment matching below.
+# LC_ALL=C pins byte semantics: BSD grep's -I binary/text classification (and
+# regex character classes) vary with the caller's locale, C does not.
 grep_status=0
-grep -rEIl 'stat[[:space:]]+-f' "$root" >"$stat_candidates_list" || grep_status=$?
+LC_ALL=C grep -rEIl 'stat[[:space:]]+-f' "$root" >"$stat_candidates_list" || grep_status=$?
 if [[ $grep_status -gt 1 ]]; then
   printf 'FAIL: stat-chain candidate scan of %s/ failed (grep exit %d); refusing to pass on a partial scan\n' "$root" "$grep_status" >&2
   exit 1
@@ -115,7 +117,7 @@ fi
 bsd_first_chains=""
 while IFS= read -r scanned_file; do
   [[ -n $scanned_file ]] || continue
-  if ! awk '
+  if ! LC_ALL=C awk '
     function flush(   line_copy, segment_count, i, segment, bsd_index, gnu_index) {
       if (joined == "") return
       line_copy = joined
