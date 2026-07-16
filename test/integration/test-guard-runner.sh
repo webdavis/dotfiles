@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test-guard-runner.sh -- regression suite for scripts/test-guard.sh (the
+# test-guard-runner.sh -- regression suite for test/tools/test-guard.sh (the
 # placement / mode / symlink guard). Proves each guard rule catches its evasion:
 #   F1  checked discovery: a find or sort that fails must FAIL the guard.
 #   F4  symlink rejection: a symlinked test file AND a symlinked camp dir must
@@ -10,7 +10,7 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-GUARD="$REPO_ROOT/scripts/test-guard.sh"
+GUARD="$REPO_ROOT/test/tools/test-guard.sh"
 
 fail() {
   printf 'FAIL: %b\n' "$*" >&2

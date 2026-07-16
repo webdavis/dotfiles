@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# run-camp-runner.sh -- regression suite for scripts/run-camp.sh (the shared
+# run-camp-runner.sh -- regression suite for test/tools/run-camp.sh (the shared
 # integration/e2e camp runner). Proves the correctness rules the gate leans on
 # cannot silently regress:
 #   F1  checked discovery: a find or sort that fails mid-discovery must FAIL the
@@ -11,7 +11,7 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-RUN_CAMP="$REPO_ROOT/scripts/run-camp.sh"
+RUN_CAMP="$REPO_ROOT/test/tools/run-camp.sh"
 
 fail() {
   printf 'FAIL: %b\n' "$*" >&2

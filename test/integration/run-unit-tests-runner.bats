@@ -1,5 +1,5 @@
 #!/usr/bin/env bats
-# Regression suite for scripts/run-unit-tests.sh (the commit gate's runner).
+# Regression suite for test/tools/run-unit-tests.sh (the commit gate's runner).
 # Lives in the integration camp: it exercises the runner against scratch camps.
 # Also the repo's first bats suite, so `just test` exercises the bats + GNU
 # parallel path in CI (bats --jobs requires `parallel`, provided by the flake).
@@ -9,8 +9,8 @@ setup() {
   scratch="$(mktemp -d)"
   # A minimal repo skeleton the runner can cd into: the runner anchors on its
   # own script path, so copy it plus a scratch test/unit camp.
-  mkdir -p "$scratch/scripts" "$scratch/test/unit"
-  cp "$REPO_ROOT/scripts/run-unit-tests.sh" "$scratch/scripts/"
+  mkdir -p "$scratch/test/tools" "$scratch/test/unit"
+  cp "$REPO_ROOT/test/tools/run-unit-tests.sh" "$scratch/test/tools/"
 }
 
 teardown() {
@@ -37,20 +37,20 @@ mk_order_test() { # <name>
 @test "all-pass camp exits 0" {
   mk_test a 0
   mk_test b 0
-  run "$scratch/scripts/run-unit-tests.sh"
+  run "$scratch/test/tools/run-unit-tests.sh"
   [ "$status" -eq 0 ]
 }
 
 @test "a failing unit test fails the runner" {
   mk_test a 0
   mk_test zz-fail 1
-  run "$scratch/scripts/run-unit-tests.sh"
+  run "$scratch/test/tools/run-unit-tests.sh"
   [ "$status" -eq 1 ]
   [[ "$output" == *"FAIL: "*zz-fail* ]]
 }
 
 @test "empty camp is a green no-op" {
-  run "$scratch/scripts/run-unit-tests.sh"
+  run "$scratch/test/tools/run-unit-tests.sh"
   [ "$status" -eq 0 ]
   [[ "$output" == *"no unit tests found"* ]]
 }
@@ -66,7 +66,7 @@ mk_order_test() { # <name>
 exit 7
 SHIM
   chmod +x "$scratch/bin/find"
-  PATH="$scratch/bin:$PATH" run "$scratch/scripts/run-unit-tests.sh"
+  PATH="$scratch/bin:$PATH" run "$scratch/test/tools/run-unit-tests.sh"
   [ "$status" -eq 1 ]
   [[ "$output" == *"discovery failed"* ]]
 }
@@ -82,7 +82,7 @@ SHIM
 exit 7
 SHIM
   chmod +x "$scratch/bin/sort"
-  PATH="$scratch/bin:$PATH" run "$scratch/scripts/run-unit-tests.sh"
+  PATH="$scratch/bin:$PATH" run "$scratch/test/tools/run-unit-tests.sh"
   [ "$status" -eq 1 ]
   [[ "$output" == *"sort failed"* ]]
 }
@@ -102,11 +102,11 @@ SHIM
 
   # (1) reproducibility under a fixed seed
   export ORDER_LOG="$scratch/order.a1"; : > "$ORDER_LOG"
-  TEST_SEED=1 run "$scratch/scripts/run-unit-tests.sh"
+  TEST_SEED=1 run "$scratch/test/tools/run-unit-tests.sh"
   [ "$status" -eq 0 ]
   local a1; a1="$(cat "$ORDER_LOG")"
   export ORDER_LOG="$scratch/order.a2"; : > "$ORDER_LOG"
-  TEST_SEED=1 run "$scratch/scripts/run-unit-tests.sh"
+  TEST_SEED=1 run "$scratch/test/tools/run-unit-tests.sh"
   [ "$status" -eq 0 ]
   local a2; a2="$(cat "$ORDER_LOG")"
   [ "$a1" = "$a2" ]
@@ -115,7 +115,7 @@ SHIM
   local s reordered=0 order
   for s in 1 2 3 4 5; do
     export ORDER_LOG="$scratch/order.s$s"; : > "$ORDER_LOG"
-    TEST_SEED="$s" run "$scratch/scripts/run-unit-tests.sh"
+    TEST_SEED="$s" run "$scratch/test/tools/run-unit-tests.sh"
     [ "$status" -eq 0 ]
     order="$(cat "$ORDER_LOG")"
     [ "$order" != "$sorted" ] && reordered=1

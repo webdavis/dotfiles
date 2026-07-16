@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test-guard-bsd-stat.sh. scripts/test-guard.sh must reject a BSD-first stat
+# test-guard-bsd-stat.sh. test/tools/test-guard.sh must reject a BSD-first stat
 # fallback chain in a scanned test file. The BSD form (the `-f` variant) placed
 # first in a chain runs before the GNU form (the `-c` variant); on Linux CI (GNU
 # coreutils) the `-f` variant means "filesystem status" and SUCCEEDS with the
@@ -17,7 +17,7 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-GUARD="$REPO_ROOT/scripts/test-guard.sh"
+GUARD="$REPO_ROOT/test/tools/test-guard.sh"
 
 [[ -x $GUARD ]] || {
   printf 'test-guard-bsd-stat: FAIL -- guard missing or not executable: %s\n' "$GUARD" >&2

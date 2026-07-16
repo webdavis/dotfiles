@@ -46,6 +46,8 @@ bad=""
 while IFS= read -r -d '' f; do
   case "$f" in
     "$root"/fixtures/*) continue ;;
+    # Test infrastructure (this guard and the camp runners), run by just, never discovered as tests.
+    "$root"/tools/*) continue ;;
     "$root"/unit/*/* | "$root"/integration/*/* | "$root"/e2e/*/*)
       bad+="$f (nested; camps are flat)"$'\n'
       ;;
@@ -67,10 +69,12 @@ if [[ -n $bad ]]; then
   exit 1
 fi
 
-# BSD-first stat fallback chains. `stat -f ... || stat -c ...` runs the BSD form
-# first; on Linux CI (GNU coreutils) `stat -f` means "filesystem status" and
-# SUCCEEDS with the wrong output, so the `|| stat -c` fallback never fires and the
-# test silently reads garbage. Two CI failures (PRs #49, #50) came from exactly
+# BSD-first stat fallback chains. A fallback chain that places the BSD form (the
+# `-f` variant) before the GNU form runs BSD first; on Linux CI (GNU coreutils)
+# `stat -f` means "filesystem status" and SUCCEEDS with the wrong output, so the
+# GNU fallback never fires and the test silently reads garbage.
+# (The guard now lives inside its own scan root, so no comment here may spell a
+# literal BSD-first chain; this prose uses the "-f variant" style on purpose.) Two CI failures (PRs #49, #50) came from exactly
 # this. The portable idiom is GNU-first: `stat -c ... || stat -f ...`. The GNU
 # form is `-c`, `--format` (attached `=` or separate argument), or `--printf`;
 # the BSD form is `-f`. Flag a
@@ -95,12 +99,12 @@ fi
 # holding a BSD-first chain is EXPECTED to trip it; reword the prose or assemble
 # the tokens at run time (as this repo's own guard test does).
 #
-# FX11: a chain split across a backslash continuation (the `||` on the next physical
-# line) slipped past a per-physical-line scan: line 1 held `stat -f` but no `||`,
-# line 2 held `||` but no `stat -f` (and a GNU-first chain split the same way
-# false-POSITIVED on the `|| stat -f` continuation line). Join backslash
-# continuations into one logical line, keyed by the starting physical line number,
-# before matching.
+# FX11: a chain split across a backslash continuation (the chain operator opening
+# the next physical line) slipped past a per-physical-line scan: line 1 held the
+# BSD form but no chain operator, line 2 held the operator but no BSD form (and a
+# GNU-first chain split the same way false-POSITIVED on its continuation line).
+# Join backslash continuations into one logical line, keyed by the starting
+# physical line number, before matching.
 # Fail closed: candidate discovery and per-file matching are CHECKED commands
 # into temp files, mirroring the discovery pipeline above. grep exit 1 means
 # "no candidates" (a pass); anything above 1 is a tool error and MUST fail the
