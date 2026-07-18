@@ -145,6 +145,16 @@ run_sh_tests() { # <sh_list_file>
     if [[ -n $shuf_bin ]]; then
       local shuffled="$sh_list.shuffled"
       if "$shuf_bin" -z --random-source=<(yes "$seed") <"$sh_list" >"$shuffled" 2>/dev/null; then
+        # A reordering must not add, drop, or alter entries. Compare the sorted
+        # shuffled list against the sorted discovery list; a mismatch means the
+        # shuffler corrupted the list (an empty list once green-gated a failing
+        # suite as "no tests found"), and a broken shuffler is a broken gate.
+        if ! LC_ALL=C sort -z <"$sh_list" >"$sh_list.expected" ||
+          ! LC_ALL=C sort -z <"$shuffled" >"$sh_list.actual" ||
+          ! cmp -s "$sh_list.expected" "$sh_list.actual"; then
+          printf 'FAIL: shuffle corrupted the test list (%s output does not match discovery); refusing to run\n' "$shuf_bin" >&2
+          exit 1
+        fi
         mv "$shuffled" "$sh_list"
       else
         rm -f "$shuffled"

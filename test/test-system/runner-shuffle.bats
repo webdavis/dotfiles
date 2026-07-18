@@ -96,6 +96,39 @@ mk_order_test() { # <name>
   [ "$status" -eq 0 ]
 }
 
+# A shuffler that exits 0 with bad output must not replace the validated
+# discovery list: an empty list once turned a FAILING suite into a green
+# "no tests found", and a truncated list would silently skip tests. The runner
+# must verify the shuffled list holds exactly the discovered paths and fail
+# the gate on any mismatch.
+@test "a shuffler emitting an empty list fails the gate instead of green-gating" {
+  mk_test zz-fail 1
+  mkdir -p "$scratch/bin"
+  printf '#!/usr/bin/env bash\nexit 0\n' > "$scratch/bin/gshuf"
+  cp "$scratch/bin/gshuf" "$scratch/bin/shuf"
+  chmod +x "$scratch/bin/gshuf" "$scratch/bin/shuf"
+  PATH="$scratch/bin:$PATH" run "$RUNNER" --shuffle=1 "$SUITE"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"shuffle"* ]]
+  [[ "$output" != *"no tests found"* ]]
+}
+
+@test "a shuffler truncating the list fails the gate" {
+  mk_test aa 0
+  mk_test zz-fail 1
+  mkdir -p "$scratch/bin"
+  # Emit only the first discovered entry (NUL-delimited), dropping the rest.
+  cat > "$scratch/bin/gshuf" <<'SHIM'
+#!/usr/bin/env bash
+tr '\0' '\n' | head -n 1 | tr '\n' '\0'
+SHIM
+  cp "$scratch/bin/gshuf" "$scratch/bin/shuf"
+  chmod +x "$scratch/bin/gshuf" "$scratch/bin/shuf"
+  PATH="$scratch/bin:$PATH" run "$RUNNER" --shuffle=1 "$SUITE"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"shuffle"* ]]
+}
+
 @test "--shuffle rejects a non-numeric seed" {
   mk_test a 0
   run "$RUNNER" --shuffle=abc "$SUITE"
