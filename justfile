@@ -104,31 +104,10 @@ test-system: validate-tests
 validate-tests:
   ./test/validate-tests.sh
 
-# All suites: what pre-push and CI run. The per-suite recipes above already run
-# each suite's bats; this aggregate ALSO runs every bats suite (test/**/*.bats)
-# as the backstop. Bats runs inside the Nix devshell when the host lacks it (the
-# flake provides bats + GNU parallel). Discovery is checked and empty-safe.
+# All suites: what pre-push and CI run. Each suite recipe runs its own *.sh
+# and *.bats via the runner, and the checker's placement rules reject any bats
+# outside a suite, so no separate bats backstop is needed here.
 test: test-unit test-integration test-e2e test-system
-  #!/usr/bin/env bash
-  set -euo pipefail
-  bats_list="$(mktemp)"
-  trap 'rm -f "$bats_list"' EXIT
-  if ! find test -type f -name '*.bats' -print0 | sort -z >"$bats_list"; then
-    printf 'FAIL: bats discovery failed; refusing to skip a partial list\n' >&2
-    exit 1
-  fi
-  bats_files=()
-  while IFS= read -r -d '' b; do
-    bats_files+=("$b")
-  done <"$bats_list"
-  if ((${#bats_files[@]} > 0)); then
-    printf "== bats (all suites) ==\n"
-    if command -v bats >/dev/null 2>&1; then
-      bats --jobs 4 "${bats_files[@]}"
-    else
-      nix develop .#run --command bats --jobs 4 "${bats_files[@]}"
-    fi
-  fi
 
 # Run the weekly Homebrew upgrade by hand (formulae + casks + Mac App Store +
 # cleanup). Same job the Monday-noon com.webdavis.homebrew-weekly-upgrade

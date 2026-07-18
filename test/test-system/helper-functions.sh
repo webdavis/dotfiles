@@ -14,6 +14,11 @@ source "$here/helpers/create-test-trees.sh"
 # shellcheck source=helpers/report-test-failures.sh
 source "$here/helpers/report-test-failures.sh"
 
+# Filled by capture_output (from the sourced helper); predeclared so the file
+# reads cleanly on its own.
+captured_status=0
+captured_output=""
+
 # Set in main; global so the EXIT trap can still see it after main returns.
 work=""
 

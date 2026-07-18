@@ -50,7 +50,7 @@ just test-unit          # Unit suite only (fast commit gate, ~2s)
 just test-integration   # Integration suite only
 just test-e2e           # End-to-end suite only
 just test-system        # The suite that tests the checker and runner themselves
-just test               # All suites + bats (pre-push and CI run this)
+just test               # All four suites (pre-push and CI run this)
 ```
 
 Tests live in suites by DESIGN: `test/unit/` (single component, stub/fixture driven, no flows, no sleeps,
@@ -63,9 +63,11 @@ The **commit** gate runs `just test-unit` only, kept fast on purpose: it runs th
 (`test/run-test-suite.sh`) with `--shuffle --warn-slow-ms 200`, so order is seed-shuffled each run
 (replay a failure with `TEST_SEED=<seed>`, printed every run, since Bats 1.11 has no native shuffle) and
 a WARN-ONLY performance summary lists any test over the threshold as a refactor-or-move-suite candidate;
-warnings never fail the run. The **pre-push** hook and **CI** run `just test` (all suites; bats via
-`nix develop .#run --command bats --jobs 4`, whose parallelism doubles as an isolation check). So a
-commit can briefly carry an integration or e2e regression; push and CI block it before `main`.
+warnings never fail the run. The **pre-push** hook and **CI** run `just test`, which is exactly the four
+suite recipes; each suite's runner executes its own `.sh` and `.bats` once (bats via
+`nix develop .#run --command bats --jobs 4` when the host lacks bats, and the checker's placement rules
+keep any bats from hiding outside a suite). So a commit can briefly carry an integration or e2e
+regression; push and CI block it before `main`.
 
 `just validate-tests` (`test/validate-tests.sh`, a dependency of every test recipe) fails if a `*.sh` or
 `*.bats` sits outside a recognized suite. Only `validate-tests.sh` and `run-test-suite.sh` may sit at
