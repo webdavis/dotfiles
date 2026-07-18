@@ -47,6 +47,36 @@ main() {
   [[ -d "$work/ok/test/unit" && -d "$work/ok/test/fixtures/lib" ]] ||
     record_failure "make_test_tree did not create the requested subdirs"
 
+  # ---- capture_output rejects a reserved destination name --------------------
+  # Passing one of the helper's own internal names would make the nameref
+  # circular; it must be a clean rejection, not warnings and a silent zero.
+  local rejection_output rejection_status
+  set +e
+  rejection_output="$(capture_output capture_output_text_destination collision_status true 2>&1)"
+  rejection_status=$?
+  set -e
+  [[ $rejection_status -ne 0 ]] ||
+    record_failure "capture_output must reject the reserved output-destination name (got rc 0)"
+  [[ $rejection_output == *reserved* ]] ||
+    record_failure "the reserved-name rejection should say the name is reserved (got: $rejection_output)"
+  set +e
+  rejection_output="$(capture_output collision_output capture_output_status_destination true 2>&1)"
+  rejection_status=$?
+  set -e
+  [[ $rejection_status -ne 0 ]] ||
+    record_failure "capture_output must reject the reserved status-destination name (got rc 0)"
+
+  # ---- capture_output rejects identical destination names --------------------
+  # One variable for both would let the status write clobber the output.
+  set +e
+  rejection_output="$(capture_output same_variable_name same_variable_name true 2>&1)"
+  rejection_status=$?
+  set -e
+  [[ $rejection_status -ne 0 ]] ||
+    record_failure "capture_output must reject identical output and status destination names (got rc 0)"
+  [[ $rejection_output == *different* ]] ||
+    record_failure "the identical-names rejection should say the names must differ (got: $rejection_output)"
+
   report_failures helper-functions
 }
 
