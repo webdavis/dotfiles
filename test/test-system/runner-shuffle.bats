@@ -64,6 +64,45 @@ mk_order_test() { # <name>
   [[ "$output" == *"usage:"* ]]
 }
 
+# The warn threshold feeds a bash arithmetic comparison, so a non-numeric value
+# is an injection channel: --warn-slow-ms=status=0 once flipped a FAILING suite
+# to exit 0. Values must be unsigned decimal integers, checked before any test
+# runs.
+@test "--warn-slow-ms rejects an arithmetic expression before running any test" {
+  mk_test zz-fail 1
+  run "$RUNNER" --warn-slow-ms=status=0 "$SUITE"
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"usage:"* ]]
+  [[ "$output" != *"zz-fail"* ]]
+}
+
+@test "--warn-slow-ms rejects an empty value" {
+  mk_test a 0
+  run "$RUNNER" --warn-slow-ms= "$SUITE"
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"usage:"* ]]
+}
+
+@test "--warn-slow-ms rejects a following flag as its value" {
+  mk_test a 0
+  run "$RUNNER" --warn-slow-ms --shuffle "$SUITE"
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"usage:"* ]]
+}
+
+@test "--warn-slow-ms normalizes a leading-zero value as base 10" {
+  mk_test a 0
+  run "$RUNNER" --warn-slow-ms=08 "$SUITE"
+  [ "$status" -eq 0 ]
+}
+
+@test "--shuffle rejects a non-numeric seed" {
+  mk_test a 0
+  run "$RUNNER" --shuffle=abc "$SUITE"
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"usage:"* ]]
+}
+
 @test "discovery failure refuses to green-gate" {
   mk_test a 0
   # Shim `find` to emit a partial listing then fail, modeling a truncated

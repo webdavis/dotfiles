@@ -53,6 +53,15 @@ die_usage() {
   exit 2
 }
 
+# Option values that feed arithmetic or the seed must be plain unsigned decimal
+# integers: anything else (an expression, a negative, an empty string, another
+# flag) is a usage error. Checked at parse time, before any test runs, because
+# a crafted value like "status=0" would otherwise be evaluated as bash
+# arithmetic and could flip a failing suite to exit 0.
+require_unsigned_integer() { # <value>
+  [[ $1 =~ ^[0-9]+$ ]] || die_usage
+}
+
 # Milliseconds since epoch from EPOCHREALTIME ("seconds.microseconds"): drop the
 # dot to get integer microseconds, divide by 1000. No external process.
 now_ms() {
@@ -67,16 +76,19 @@ parse_args() {
       --shuffle=*)
         shuffle=1
         seed="${1#*=}"
+        require_unsigned_integer "$seed"
         ;;
       --warn-slow-ms)
         shift
         [[ $# -gt 0 ]] || die_usage
         warn=1
         warn_ms="$1"
+        require_unsigned_integer "$warn_ms"
         ;;
       --warn-slow-ms=*)
         warn=1
         warn_ms="${1#*=}"
+        require_unsigned_integer "$warn_ms"
         ;;
       -*) die_usage ;;
       *)
@@ -93,12 +105,20 @@ parse_args() {
   fi
   if [[ $shuffle -eq 1 && -z $seed ]]; then
     seed="${TEST_SEED:-${RANDOM}${RANDOM}}"
+    require_unsigned_integer "$seed"
   fi
   if [[ $warn -eq 0 && -n ${UNIT_WARN_MS:-} ]]; then
     warn=1
     warn_ms="${UNIT_WARN_MS}"
+    require_unsigned_integer "$warn_ms"
   fi
   [[ -n $warn_ms ]] || warn_ms=200
+  # Force base 10 so a leading zero (e.g. 08) is not read as broken octal by
+  # bash arithmetic later.
+  warn_ms=$((10#$warn_ms))
+  if [[ $shuffle -eq 1 ]]; then
+    seed=$((10#$seed))
+  fi
 }
 
 # Checked discovery of one file kind into <outfile>. The find/sort pipeline runs
