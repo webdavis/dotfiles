@@ -36,67 +36,22 @@ export LC_ALL=C # force EPOCHREALTIME to use a '.' decimal separator
 
 usage='usage: run-test-suite.sh [--shuffle[=seed]] [--warn-slow-ms N] <suite-dir>'
 
+# Parsed by parse_args; declared here so every function can see them.
 shuffle=0
 seed=""
 warn=0
 warn_ms=""
 camp=""
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    --shuffle) shuffle=1 ;;
-    --shuffle=*)
-      shuffle=1
-      seed="${1#*=}"
-      ;;
-    --warn-slow-ms)
-      shift
-      [[ $# -gt 0 ]] || {
-        printf '%s\n' "$usage" >&2
-        exit 2
-      }
-      warn=1
-      warn_ms="$1"
-      ;;
-    --warn-slow-ms=*)
-      warn=1
-      warn_ms="${1#*=}"
-      ;;
-    -*)
-      printf '%s\n' "$usage" >&2
-      exit 2
-      ;;
-    *)
-      [[ -z $camp ]] || {
-        printf '%s\n' "$usage" >&2
-        exit 2
-      }
-      camp="$1"
-      ;;
-  esac
-  shift
-done
+status=0
+any_sh=0
+slow=()
+# Set in main; global so the EXIT trap can still see it after main returns.
+workdir=""
 
-[[ -n $camp ]] || {
+die_usage() {
   printf '%s\n' "$usage" >&2
   exit 2
 }
-if [[ ! -d $camp ]]; then
-  printf 'FAIL: suite dir %s does not exist\n' "$camp" >&2
-  exit 1
-fi
-
-# Env fallbacks (a flag already set above wins). An empty env var is ignored.
-if [[ $shuffle -eq 0 && -n ${TEST_SEED:-} ]]; then
-  shuffle=1
-fi
-if [[ $shuffle -eq 1 && -z $seed ]]; then
-  seed="${TEST_SEED:-${RANDOM}${RANDOM}}"
-fi
-if [[ $warn -eq 0 && -n ${UNIT_WARN_MS:-} ]]; then
-  warn=1
-  warn_ms="${UNIT_WARN_MS}"
-fi
-[[ -n $warn_ms ]] || warn_ms=200
 
 # Milliseconds since epoch from EPOCHREALTIME ("seconds.microseconds"): drop the
 # dot to get integer microseconds, divide by 1000. No external process.
@@ -105,69 +60,109 @@ now_ms() {
   printf '%s' "$((r / 1000))"
 }
 
-sh_list="$(mktemp)"
-bats_list="$(mktemp)"
-trap 'rm -f "$sh_list" "$bats_list"' EXIT
-
-if ! find "$camp" -maxdepth 1 -type f -name '*.sh' -perm -u+x -print0 | sort -z >"$sh_list"; then
-  printf 'FAIL: %s .sh discovery failed; refusing to run a partial list\n' "$camp" >&2
-  exit 1
-fi
-
-# Seeded shuffle when requested and a shuf is available; otherwise keep the
-# sorted order (reproducible, just not randomized).
-if [[ $shuffle -eq 1 ]]; then
-  printf 'suite tests: seed=%s (replay with TEST_SEED=%s)\n' "$seed" "$seed"
-  shuf_bin=""
-  for cand in gshuf shuf; do
-    command -v "$cand" >/dev/null 2>&1 && {
-      shuf_bin="$cand"
-      break
-    }
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --shuffle) shuffle=1 ;;
+      --shuffle=*)
+        shuffle=1
+        seed="${1#*=}"
+        ;;
+      --warn-slow-ms)
+        shift
+        [[ $# -gt 0 ]] || die_usage
+        warn=1
+        warn_ms="$1"
+        ;;
+      --warn-slow-ms=*)
+        warn=1
+        warn_ms="${1#*=}"
+        ;;
+      -*) die_usage ;;
+      *)
+        [[ -z $camp ]] || die_usage
+        camp="$1"
+        ;;
+    esac
+    shift
   done
-  if [[ -n $shuf_bin ]]; then
-    shuffled="$(mktemp)"
-    if "$shuf_bin" -z --random-source=<(yes "$seed") <"$sh_list" >"$shuffled" 2>/dev/null; then
-      mv "$shuffled" "$sh_list"
-    else
-      rm -f "$shuffled"
+
+  # Env fallbacks (a flag already set above wins). An empty env var is ignored.
+  if [[ $shuffle -eq 0 && -n ${TEST_SEED:-} ]]; then
+    shuffle=1
+  fi
+  if [[ $shuffle -eq 1 && -z $seed ]]; then
+    seed="${TEST_SEED:-${RANDOM}${RANDOM}}"
+  fi
+  if [[ $warn -eq 0 && -n ${UNIT_WARN_MS:-} ]]; then
+    warn=1
+    warn_ms="${UNIT_WARN_MS}"
+  fi
+  [[ -n $warn_ms ]] || warn_ms=200
+}
+
+# Checked discovery of one file kind into <outfile>. The find/sort pipeline runs
+# with pipefail on, so a traversal or sort error is the function's exit status.
+discover_tests() { # <camp> <outfile> <find-args...>
+  local camp="$1" outfile="$2"
+  shift 2
+  find "$camp" -maxdepth 1 -type f "$@" -print0 | sort -z >"$outfile"
+}
+
+# Run the suite's *.sh tests from <sh_list_file>: optional seeded shuffle, then
+# each test with fd 3 closed and (when warn is on) timed.
+run_sh_tests() { # <sh_list_file>
+  local sh_list="$1"
+  if [[ $shuffle -eq 1 ]]; then
+    printf 'suite tests: seed=%s (replay with TEST_SEED=%s)\n' "$seed" "$seed"
+    local shuf_bin="" cand
+    for cand in gshuf shuf; do
+      command -v "$cand" >/dev/null 2>&1 && {
+        shuf_bin="$cand"
+        break
+      }
+    done
+    if [[ -n $shuf_bin ]]; then
+      local shuffled="$sh_list.shuffled"
+      if "$shuf_bin" -z --random-source=<(yes "$seed") <"$sh_list" >"$shuffled" 2>/dev/null; then
+        mv "$shuffled" "$sh_list"
+      else
+        rm -f "$shuffled"
+      fi
     fi
   fi
-fi
 
-status=0
-slow=()
-any_sh=0
-while IFS= read -r -u3 -d '' t; do
-  any_sh=1
-  printf '== %s ==\n' "$t"
-  start=0
-  [[ $warn -eq 1 ]] && start="$(now_ms)"
-  if ! "$t" 3<&-; then
-    printf '== FAIL: %s ==\n' "$t"
-    status=1
-  fi
-  if [[ $warn -eq 1 ]]; then
-    ms=$(($(now_ms) - start))
-    ((ms > warn_ms)) && slow+=("$(printf '%6dms  %s' "$ms" "$t")")
-  fi
-done 3<"$sh_list"
+  local t start ms
+  while IFS= read -r -u3 -d '' t; do
+    any_sh=1
+    printf '== %s ==\n' "$t"
+    start=0
+    [[ $warn -eq 1 ]] && start="$(now_ms)"
+    if ! "$t" 3<&-; then
+      printf '== FAIL: %s ==\n' "$t"
+      status=1
+    fi
+    if [[ $warn -eq 1 ]]; then
+      ms=$(($(now_ms) - start))
+      ((ms > warn_ms)) && slow+=("$(printf '%6dms  %s' "$ms" "$t")")
+    fi
+  done 3<"$sh_list"
+  # Return success explicitly: the loop body's last command is an arithmetic
+  # test that is false (exit 1) whenever the final test is under the threshold,
+  # which would otherwise make this function (and `set -e`) treat the run as
+  # failed.
+  return 0
+}
 
-if ! find "$camp" -maxdepth 1 -type f -name '*.bats' -print0 | sort -z >"$bats_list"; then
-  printf 'FAIL: %s .bats discovery failed; refusing to skip a partial list\n' "$camp" >&2
-  exit 1
-fi
-bats_files=()
-while IFS= read -r -d '' b; do
-  bats_files+=("$b")
-done <"$bats_list"
+# Run the suite's *.bats suites from <bats_list_file>.
+run_bats_suites() { # <bats_list_file>
+  local bats_list="$1"
+  local bats_files=() b
+  while IFS= read -r -d '' b; do
+    bats_files+=("$b")
+  done <"$bats_list"
+  ((${#bats_files[@]} > 0)) || return 0
 
-if [[ $any_sh -eq 0 && ${#bats_files[@]} -eq 0 ]]; then
-  printf 'no tests found in %s\n' "$camp"
-  exit 0
-fi
-
-if ((${#bats_files[@]} > 0)); then
   printf '== bats (%s) ==\n' "$camp"
   # bats --jobs needs GNU parallel; the flake provides both. On a host without
   # bats (the usual case -- `just test` runs on the host), fall back into the
@@ -177,11 +172,48 @@ if ((${#bats_files[@]} > 0)); then
   else
     nix develop .#run --command bats --jobs 4 "${bats_files[@]}" || status=1
   fi
-fi
+}
 
-if [[ $warn -eq 1 && ${#slow[@]} -gt 0 ]]; then
-  printf '\nPERFORMANCE WARNING: tests over %sms (refactor, or move to integration/e2e):\n' "$warn_ms"
-  printf '  %s\n' "${slow[@]}"
-fi
+main() {
+  parse_args "$@"
+  [[ -n $camp ]] || die_usage
+  if [[ ! -d $camp ]]; then
+    printf 'FAIL: suite dir %s does not exist\n' "$camp" >&2
+    exit 1
+  fi
 
-exit "$status"
+  workdir="$(mktemp -d)"
+  trap 'rm -rf "$workdir"' EXIT
+  local sh_list="$workdir/sh" bats_list="$workdir/bats"
+
+  if ! discover_tests "$camp" "$sh_list" -name '*.sh' -perm -u+x; then
+    printf 'FAIL: %s .sh discovery failed; refusing to run a partial list\n' "$camp" >&2
+    exit 1
+  fi
+  run_sh_tests "$sh_list"
+
+  if ! discover_tests "$camp" "$bats_list" -name '*.bats'; then
+    printf 'FAIL: %s .bats discovery failed; refusing to skip a partial list\n' "$camp" >&2
+    exit 1
+  fi
+  local bats_files=() b
+  while IFS= read -r -d '' b; do
+    bats_files+=("$b")
+  done <"$bats_list"
+
+  if [[ $any_sh -eq 0 && ${#bats_files[@]} -eq 0 ]]; then
+    printf 'no tests found in %s\n' "$camp"
+    exit 0
+  fi
+
+  run_bats_suites "$bats_list"
+
+  if [[ $warn -eq 1 && ${#slow[@]} -gt 0 ]]; then
+    printf '\nPERFORMANCE WARNING: tests over %sms (refactor, or move to integration/e2e):\n' "$warn_ms"
+    printf '  %s\n' "${slow[@]}"
+  fi
+
+  exit "$status"
+}
+
+main "$@"

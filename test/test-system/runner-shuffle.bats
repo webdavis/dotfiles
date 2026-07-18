@@ -5,7 +5,9 @@
 # requires `parallel`, provided by the flake).
 
 setup() {
-  REPO_ROOT="$(cd "$(dirname "$BATS_TEST_FILENAME")/../.." && pwd)"
+  # shellcheck source=test/test-system/helpers/find-repo-root.sh
+  source "$(dirname "$BATS_TEST_FILENAME")/helpers/find-repo-root.sh"
+  REPO_ROOT="$(find_repo_root)"
   RUNNER="$REPO_ROOT/test/run-test-suite.sh"
   scratch="$(mktemp -d)"
   # The runner takes an explicit suite dir, so point it at a scratch one.
