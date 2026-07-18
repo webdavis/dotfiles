@@ -41,7 +41,7 @@ shuffle=0
 seed=""
 warn=0
 warn_ms=""
-camp=""
+suite_directory=""
 status=0
 any_sh=0
 slow=()
@@ -80,8 +80,8 @@ parse_args() {
         ;;
       -*) die_usage ;;
       *)
-        [[ -z $camp ]] || die_usage
-        camp="$1"
+        [[ -z $suite_directory ]] || die_usage
+        suite_directory="$1"
         ;;
     esac
     shift
@@ -103,10 +103,10 @@ parse_args() {
 
 # Checked discovery of one file kind into <outfile>. The find/sort pipeline runs
 # with pipefail on, so a traversal or sort error is the function's exit status.
-discover_tests() { # <camp> <outfile> <find-args...>
-  local camp="$1" outfile="$2"
+discover_tests() { # <suite_directory> <outfile> <find-args...>
+  local suite_directory="$1" outfile="$2"
   shift 2
-  find "$camp" -maxdepth 1 -type f "$@" -print0 | sort -z >"$outfile"
+  find "$suite_directory" -maxdepth 1 -type f "$@" -print0 | sort -z >"$outfile"
 }
 
 # Run the suite's *.sh tests from <sh_list_file>: optional seeded shuffle, then
@@ -163,7 +163,7 @@ run_bats_suites() { # <bats_list_file>
   done <"$bats_list"
   ((${#bats_files[@]} > 0)) || return 0
 
-  printf '== bats (%s) ==\n' "$camp"
+  printf '== bats (%s) ==\n' "$suite_directory"
   # bats --jobs needs GNU parallel; the flake provides both. On a host without
   # bats (the usual case -- `just test` runs on the host), fall back into the
   # Nix devshell, mirroring the aggregate `test` recipe.
@@ -176,9 +176,9 @@ run_bats_suites() { # <bats_list_file>
 
 main() {
   parse_args "$@"
-  [[ -n $camp ]] || die_usage
-  if [[ ! -d $camp ]]; then
-    printf 'FAIL: suite dir %s does not exist\n' "$camp" >&2
+  [[ -n $suite_directory ]] || die_usage
+  if [[ ! -d $suite_directory ]]; then
+    printf 'FAIL: suite dir %s does not exist\n' "$suite_directory" >&2
     exit 1
   fi
 
@@ -186,14 +186,14 @@ main() {
   trap 'rm -rf "$workdir"' EXIT
   local sh_list="$workdir/sh" bats_list="$workdir/bats"
 
-  if ! discover_tests "$camp" "$sh_list" -name '*.sh' -perm -u+x; then
-    printf 'FAIL: %s .sh discovery failed; refusing to run a partial list\n' "$camp" >&2
+  if ! discover_tests "$suite_directory" "$sh_list" -name '*.sh' -perm -u+x; then
+    printf 'FAIL: %s .sh discovery failed; refusing to run a partial list\n' "$suite_directory" >&2
     exit 1
   fi
   run_sh_tests "$sh_list"
 
-  if ! discover_tests "$camp" "$bats_list" -name '*.bats'; then
-    printf 'FAIL: %s .bats discovery failed; refusing to skip a partial list\n' "$camp" >&2
+  if ! discover_tests "$suite_directory" "$bats_list" -name '*.bats'; then
+    printf 'FAIL: %s .bats discovery failed; refusing to skip a partial list\n' "$suite_directory" >&2
     exit 1
   fi
   local bats_files=() b
@@ -202,7 +202,7 @@ main() {
   done <"$bats_list"
 
   if [[ $any_sh -eq 0 && ${#bats_files[@]} -eq 0 ]]; then
-    printf 'no tests found in %s\n' "$camp"
+    printf 'no tests found in %s\n' "$suite_directory"
     exit 0
   fi
 
