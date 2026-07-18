@@ -196,6 +196,43 @@ SHIM
   [[ "$output" == *"slow.sh"* ]]
 }
 
+# The seed is a validated digit string end to end, never bash arithmetic: a
+# value above the signed 64-bit range would otherwise wrap negative, printing a
+# replay seed the validator rejects.
+@test "a seed above the signed 64-bit max is kept verbatim and its printed replay works" {
+  local names=(00 01 02 03 04 05)
+  local n
+  for n in "${names[@]}"; do mk_order_test "$n"; done
+  local big=9223372036854775808
+  export ORDER_LOG="$scratch/order.big1"; : > "$ORDER_LOG"
+  run "$RUNNER" --shuffle="$big" "$SUITE"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"seed=$big"* ]]
+  local first_order; first_order="$(cat "$ORDER_LOG")"
+  # Replay with the PRINTED seed token, exactly as a user would copy it.
+  local printed="${output#*seed=}"; printed="${printed%% *}"
+  export ORDER_LOG="$scratch/order.big2"; : > "$ORDER_LOG"
+  TEST_SEED="$printed" run "$RUNNER" "$SUITE"
+  [ "$status" -eq 0 ]
+  [ "$(cat "$ORDER_LOG")" = "$first_order" ]
+}
+
+@test "the signed 64-bit max seed replays identically through flag and env" {
+  local names=(00 01 02 03 04 05)
+  local n
+  for n in "${names[@]}"; do mk_order_test "$n"; done
+  local max=9223372036854775807
+  export ORDER_LOG="$scratch/order.max1"; : > "$ORDER_LOG"
+  run "$RUNNER" --shuffle="$max" "$SUITE"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"seed=$max"* ]]
+  local first_order; first_order="$(cat "$ORDER_LOG")"
+  export ORDER_LOG="$scratch/order.max2"; : > "$ORDER_LOG"
+  TEST_SEED="$max" run "$RUNNER" "$SUITE"
+  [ "$status" -eq 0 ]
+  [ "$(cat "$ORDER_LOG")" = "$first_order" ]
+}
+
 # The runner must not rewrite the locale of the tests it runs: a child test
 # has to see the caller's LC_ALL, not a leaked LC_ALL=C from the runner's own
 # timing internals.

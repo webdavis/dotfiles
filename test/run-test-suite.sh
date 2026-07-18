@@ -115,11 +115,11 @@ parse_args() {
   fi
   [[ -n $warn_ms ]] || warn_ms=200
   # Force base 10 so a leading zero (e.g. 08) is not read as broken octal by
-  # bash arithmetic later.
+  # bash arithmetic later. The SEED is deliberately not normalized: it feeds
+  # `yes "$seed"` and the printed replay line as the same validated digit
+  # string, and bash arithmetic on it would wrap values above the signed
+  # 64-bit range into a negative number the validator rejects on replay.
   warn_ms=$((10#$warn_ms))
-  if [[ $shuffle -eq 1 ]]; then
-    seed=$((10#$seed))
-  fi
 }
 
 # Checked discovery of one file kind into <outfile>. The find/sort pipeline runs
