@@ -77,7 +77,7 @@ check:
 # Unit suite only: the commit gate. --shuffle randomizes order to flush hidden
 # ordering deps (seed printed for replay); --warn-slow-ms flags slow tests in a
 # warn-only summary. The other suites run the same runner plain.
-test-unit: test-guard
+test-unit: validate-tests
   ./test/run-test-suite.sh --shuffle --warn-slow-ms 200 test/unit
 
 # One suite at a time, for focused iteration. test/run-test-suite.sh runs the
@@ -85,14 +85,14 @@ test-unit: test-guard
 # cannot swallow the discovery list) then the suite's own *.bats; its discovery
 # is checked so a traversal/sort error fails the gate instead of green-gating a
 # short list.
-test-integration: test-guard
+test-integration: validate-tests
   ./test/run-test-suite.sh test/integration
 
-test-e2e: test-guard
+test-e2e: validate-tests
   ./test/run-test-suite.sh test/e2e
 
 # The suite that tests the checker and the runner themselves.
-test-system: test-guard
+test-system: validate-tests
   ./test/run-test-suite.sh test/test-system
 
 # Placement / mode / symlink guard (test/validate-tests.sh): every *.sh and
@@ -101,7 +101,7 @@ test-system: test-guard
 # no symlinks are allowed anywhere below test/ (a physical find skips them, so
 # they would evade every gate). A suite's helpers/ and test/fixtures/** are
 # exempt.
-test-guard:
+validate-tests:
   ./test/validate-tests.sh
 
 # All suites: what pre-push and CI run. The per-suite recipes above already run

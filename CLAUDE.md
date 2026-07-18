@@ -67,7 +67,7 @@ warnings never fail the run. The **pre-push** hook and **CI** run `just test` (a
 `nix develop .#run --command bats --jobs 4`, whose parallelism doubles as an isolation check). So a
 commit can briefly carry an integration or e2e regression; push and CI block it before `main`.
 
-`just test-guard` (`test/validate-tests.sh`, a dependency of every test recipe) fails if a `*.sh` or
+`just validate-tests` (`test/validate-tests.sh`, a dependency of every test recipe) fails if a `*.sh` or
 `*.bats` sits outside a recognized suite. Only `validate-tests.sh` and `run-test-suite.sh` may sit at
 `test/` root; a suite's `helpers/` and `test/fixtures/**` are exempt. Add a test by dropping a new
 executable `test/<suite>/<name>.sh` in place (with `REPO_ROOT` depth
