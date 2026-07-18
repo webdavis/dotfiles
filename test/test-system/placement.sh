@@ -207,6 +207,16 @@ assert_helper_bats_fails() {
   [[ $guard_output == *"suite.bats"* ]] || record_failure "expected the helper bats named in the message: $guard_output"
 }
 
+assert_fixtures_bats_fails() {
+  local guard_output guard_status root
+  root="$(make_test_tree "$work" fixturesbats unit fixtures)"
+  write_probe_script "$root/unit/a.sh"
+  printf '#!/usr/bin/env bats\n@test "hidden" { false; }\n' >"$root/fixtures/hidden.bats"
+  run_guard guard_output guard_status "$root"
+  [[ $guard_status -ne 0 ]] || record_failure "a *.bats under fixtures/ must fail the guard (it would never run anywhere): $guard_output"
+  [[ $guard_output == *"hidden.bats"* ]] || record_failure "expected the fixtures bats named in the message: $guard_output"
+}
+
 assert_nested_test_system_sh_fails() {
   local guard_output guard_status root
   root="$(make_test_tree "$work" nesttestsystem test-system/sub)"
@@ -236,6 +246,7 @@ main() {
   assert_non_executable_helper_passes
   assert_executable_helper_fails
   assert_helper_bats_fails
+  assert_fixtures_bats_fails
   assert_nested_test_system_sh_fails
 
   report_failures placement

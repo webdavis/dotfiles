@@ -54,6 +54,11 @@ check_placement() { # <root> <workdir>
   local bad="" file
   while IFS= read -r -d '' file; do
     case "$file" in
+      # fixtures/ holds data and sourced libs, and nothing ever runs bats from
+      # there, so a *.bats under fixtures/ is a test that would never run.
+      "$root"/fixtures/*.bats)
+        bad+="$file (bats never run from fixtures/; move it into a suite)"$'\n'
+        ;;
       "$root"/fixtures/*) continue ;;
       # A suite's helpers/ holds sourced, non-executable *.sh only. An
       # executable file there is a misplaced test that no runner would ever
