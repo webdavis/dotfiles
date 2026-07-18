@@ -57,11 +57,16 @@ probe() {
   write_probe_in_suite "$root/test" unit "$name" "$@"
 }
 
-run_guard() { # <scanned-root>: sets captured_output and captured_status
-  capture_output bash "$GUARD" "$1"
+# run_guard <output-variable-name> <status-variable-name> <scanned-root>
+# Run the guard against the scanned root, writing its output and exit code into
+# the two caller-named variables (forwarded to capture_output's namerefs).
+run_guard() {
+  local output_variable_name="$1" status_variable_name="$2"
+  capture_output "$output_variable_name" "$status_variable_name" bash "$GUARD" "$3"
 }
 
 main() {
+  local guard_output="" guard_status=0
   [[ -x $GUARD ]] || {
     printf 'stat-order: guard missing or not executable: %s\n' "$GUARD" >&2
     exit 1
@@ -176,37 +181,37 @@ main() {
 
   # Assertion 1: the flagged tree is rejected, and stderr names each BSD-first
   # chain at line 2 while leaving the GNU-first fixtures unmentioned.
-  run_guard "$flagged_root/test"
-  if [[ $captured_status -eq 0 ]]; then
+  run_guard guard_output guard_status "$flagged_root/test"
+  if [[ $guard_status -eq 0 ]]; then
     record_failure "flagged tree (BSD-first single + split) was NOT rejected (guard exit 0)"
   else
-    grep -qiE 'stat|bsd|gnu-first' <<<"$captured_output" ||
-      record_failure "rejection message does not mention the stat rule: $captured_output"
-    grep -qF "$bsd_single:2" <<<"$captured_output" ||
-      record_failure "BSD-first single-line chain not reported at :2: $captured_output"
-    grep -qF "$bsd_split:2" <<<"$captured_output" ||
-      record_failure "BSD-first split chain not reported at :2: $captured_output"
-    grep -qF "$masked_bsd:2" <<<"$captured_output" ||
-      record_failure "BSD-first chain masked by an earlier GNU call not reported at :2: $captured_output"
-    grep -qF "$bsd_tab:2" <<<"$captured_output" ||
-      record_failure "tab-spelled BSD-first chain not reported at :2: $captured_output"
-    grep -qF "$bsd_then_long:2" <<<"$captured_output" ||
-      record_failure "BSD-first chain with only a long-option GNU fallback not reported at :2: $captured_output"
-    grep -qF "$commented_chain:2" <<<"$captured_output" ||
-      record_failure "BSD-first chain inside a comment not reported at :2: $captured_output"
-    grep -qF "$fixtures_lib:2" <<<"$captured_output" ||
-      record_failure "BSD-first chain inside fixtures/ not reported at :2: $captured_output"
-    grep -qF "$gnu_single_mixed" <<<"$captured_output" &&
-      record_failure "GNU-first single-line chain was wrongly reported: $captured_output"
-    grep -qF "$gnu_split_mixed" <<<"$captured_output" &&
-      record_failure "GNU-first split chain was wrongly reported: $captured_output"
+    grep -qiE 'stat|bsd|gnu-first' <<<"$guard_output" ||
+      record_failure "rejection message does not mention the stat rule: $guard_output"
+    grep -qF "$bsd_single:2" <<<"$guard_output" ||
+      record_failure "BSD-first single-line chain not reported at :2: $guard_output"
+    grep -qF "$bsd_split:2" <<<"$guard_output" ||
+      record_failure "BSD-first split chain not reported at :2: $guard_output"
+    grep -qF "$masked_bsd:2" <<<"$guard_output" ||
+      record_failure "BSD-first chain masked by an earlier GNU call not reported at :2: $guard_output"
+    grep -qF "$bsd_tab:2" <<<"$guard_output" ||
+      record_failure "tab-spelled BSD-first chain not reported at :2: $guard_output"
+    grep -qF "$bsd_then_long:2" <<<"$guard_output" ||
+      record_failure "BSD-first chain with only a long-option GNU fallback not reported at :2: $guard_output"
+    grep -qF "$commented_chain:2" <<<"$guard_output" ||
+      record_failure "BSD-first chain inside a comment not reported at :2: $guard_output"
+    grep -qF "$fixtures_lib:2" <<<"$guard_output" ||
+      record_failure "BSD-first chain inside fixtures/ not reported at :2: $guard_output"
+    grep -qF "$gnu_single_mixed" <<<"$guard_output" &&
+      record_failure "GNU-first single-line chain was wrongly reported: $guard_output"
+    grep -qF "$gnu_split_mixed" <<<"$guard_output" &&
+      record_failure "GNU-first split chain was wrongly reported: $guard_output"
   fi
 
   # Assertion 2: a tree of only passing fixtures (GNU-first single, GNU-first
   # split, bare capability-gated BSD, fully clean) exits 0.
-  run_guard "$clean_root/test"
-  [[ $captured_status -eq 0 ]] ||
-    record_failure "clean tree (GNU-first, bare BSD, no-stat) was wrongly rejected: $captured_output"
+  run_guard guard_output guard_status "$clean_root/test"
+  [[ $guard_status -eq 0 ]] ||
+    record_failure "clean tree (GNU-first, bare BSD, no-stat) was wrongly rejected: $guard_output"
 
   # Assertion 3 (fail-closed, part 1): a tree with NO stat candidates at all still
   # exits 0. grep reporting "no match" (exit 1) is a pass, distinct from a tool
@@ -214,47 +219,47 @@ main() {
   local no_candidate_probe
   no_candidate_probe="$(probe "$no_candidate_root" no-stat-anywhere \
     "printf 'not a single stat call below this root\\n'")"
-  run_guard "$no_candidate_root/test"
-  [[ $captured_status -eq 0 ]] ||
-    record_failure "no-candidate tree (grep exit 1) was wrongly rejected: $captured_output"
+  run_guard guard_output guard_status "$no_candidate_root/test"
+  [[ $guard_status -eq 0 ]] ||
+    record_failure "no-candidate tree (grep exit 1) was wrongly rejected: $guard_output"
   : "$no_candidate_probe"
 
   # Assertion 4 (fail-closed, part 2): a grep tool error (exit above 1) must FAIL
   # the guard, never silently yield an empty candidate list and a green pass. The
   # exported function shadows grep inside the guard child only.
   set +e
-  captured_output="$(
+  guard_output="$(
     # shellcheck disable=SC2329,SC2317 # invoked indirectly: exported into the guard child
     grep() { return 7; }
     export -f grep
     bash "$GUARD" "$clean_root/test" 2>&1
   )"
-  captured_status=$?
+  guard_status=$?
   set -e
-  if [[ $captured_status -eq 0 ]]; then
+  if [[ $guard_status -eq 0 ]]; then
     record_failure "grep failure (exit 7) did not fail the guard (fails open)"
   else
-    grep -qi 'grep' <<<"$captured_output" ||
-      record_failure "grep-failure rejection does not name grep: $captured_output"
+    grep -qi 'grep' <<<"$guard_output" ||
+      record_failure "grep-failure rejection does not name grep: $guard_output"
   fi
 
   # Assertion 5 (fail-closed, part 3): an awk tool error must FAIL the guard; a
   # failure inside a process substitution would otherwise never reach the parent.
   # The clean tree has stat candidates (the bare BSD fixture), so awk is reached.
   set +e
-  captured_output="$(
+  guard_output="$(
     # shellcheck disable=SC2329,SC2317 # invoked indirectly: exported into the guard child
     awk() { return 7; }
     export -f awk
     bash "$GUARD" "$clean_root/test" 2>&1
   )"
-  captured_status=$?
+  guard_status=$?
   set -e
-  if [[ $captured_status -eq 0 ]]; then
+  if [[ $guard_status -eq 0 ]]; then
     record_failure "awk failure (exit 7) did not fail the guard (fails open)"
   else
-    grep -qi 'awk' <<<"$captured_output" ||
-      record_failure "awk-failure rejection does not name awk: $captured_output"
+    grep -qi 'awk' <<<"$guard_output" ||
+      record_failure "awk-failure rejection does not name awk: $guard_output"
   fi
 
   # Assertion 6 (documented boundaries, pinned): the scan's guarantee is LITERAL
@@ -273,9 +278,9 @@ main() {
     "sh -c \"\$gated_command '%Lp' . || $gnu_form '%a' .\"")"
   same_segment_mask="$(probe "$eval_boundary_root" same-segment-mask \
     "a=\$($gnu_form '%a' .) b=\$($bsd_form '%Lp' . || $gnu_form '%a' .)")"
-  run_guard "$eval_boundary_root/test"
-  [[ $captured_status -eq 0 ]] ||
-    record_failure "documented out-of-scope cases (eval, sh -c, same-segment mask) must pass: $captured_output"
+  run_guard guard_output guard_status "$eval_boundary_root/test"
+  [[ $guard_status -eq 0 ]] ||
+    record_failure "documented out-of-scope cases (eval, sh -c, same-segment mask) must pass: $guard_output"
   : "$eval_probe" "$sh_c_probe" "$same_segment_mask"
 
   # Reference the passing fixture paths so shellcheck sees them used; they double
