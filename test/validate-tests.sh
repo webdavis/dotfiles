@@ -6,9 +6,10 @@
 #
 #   - a *.sh OR *.bats not sitting DIRECTLY in a recognized suite
 #     (test/unit, test/integration, test/e2e, test/test-system); a suite's
-#     helpers/ and test/fixtures/** are exempt (sourced libs and fixture data,
-#     never run directly); only validate-tests.sh and run-test-suite.sh may
-#     sit at test/ root;
+#     helpers/ may hold only NON-executable *.sh (sourced libs; an executable
+#     file there is a misplaced test, and bats never belong there);
+#     test/fixtures/** is exempt; only validate-tests.sh and run-test-suite.sh
+#     may sit at test/ root;
 #   - a suite *.sh that is not executable (invisible to the runner's -perm probe);
 #   - ANY symlink below test/. A physical `find -type f` skips symlinked files
 #     and symlinked suite dirs, so a tracked symlink would evade this guard and
@@ -54,9 +55,17 @@ check_placement() { # <root> <workdir>
   while IFS= read -r -d '' file; do
     case "$file" in
       "$root"/fixtures/*) continue ;;
-      # A suite's helpers/ holds sourced, non-executable scripts, never run
-      # directly, so it is exempt like fixtures/.
-      "$root"/unit/helpers/* | "$root"/integration/helpers/* | "$root"/e2e/helpers/* | "$root"/test-system/helpers/*) continue ;;
+      # A suite's helpers/ holds sourced, non-executable *.sh only. An
+      # executable file there is a misplaced test that no runner would ever
+      # discover, and bats never belong there, so both fail the guard.
+      "$root"/unit/helpers/*.sh | "$root"/integration/helpers/*.sh | "$root"/e2e/helpers/*.sh | "$root"/test-system/helpers/*.sh)
+        if [[ -x $file ]]; then
+          bad+="$file (helpers are sourced, not executed; remove the executable bit, or move the test into its suite)"$'\n'
+        fi
+        ;;
+      "$root"/unit/helpers/* | "$root"/integration/helpers/* | "$root"/e2e/helpers/* | "$root"/test-system/helpers/*)
+        bad+="$file (only sourced *.sh belong in a suite's helpers/)"$'\n'
+        ;;
       # The control scripts allowed to sit at test/ root, run by just, never
       # discovered as tests.
       "$root"/validate-tests.sh | "$root"/run-test-suite.sh) continue ;;

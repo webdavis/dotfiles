@@ -169,6 +169,21 @@ main() {
   run_guard "$root"
   [[ $captured_status -eq 0 ]] || record_failure "a sourced helpers/ file in a suite should pass (rc=$captured_status): $captured_output"
 
+  # ---- an EXECUTABLE helpers/ *.sh fails (a misplaced test would never run) ---
+  root="$(make_test_tree "$work" helpersexec unit/helpers)"
+  write_probe_script "$root/unit/helpers/forgotten-test.sh" 'exit 23'
+  run_guard "$root"
+  [[ $captured_status -ne 0 ]] || record_failure "an executable helpers/ *.sh must fail the guard: $captured_output"
+  [[ $captured_output == *"forgotten-test.sh"* ]] || record_failure "expected the executable helper named in the message: $captured_output"
+  [[ $captured_output == *"sourced, not executed"* ]] || record_failure "expected the helpers-are-sourced explanation: $captured_output"
+
+  # ---- a *.bats inside helpers/ fails (bats never belong in helpers/) --------
+  root="$(make_test_tree "$work" helpersbats unit/helpers)"
+  printf '#!/usr/bin/env bats\n@test "x" { true; }\n' >"$root/unit/helpers/suite.bats"
+  run_guard "$root"
+  [[ $captured_status -ne 0 ]] || record_failure "a *.bats inside helpers/ must fail the guard: $captured_output"
+  [[ $captured_output == *"suite.bats"* ]] || record_failure "expected the helper bats named in the message: $captured_output"
+
   # ---- a nested test in test-system still fails ------------------------------
   root="$(make_test_tree "$work" nesttestsystem test-system/sub)"
   write_probe_script "$root/test-system/sub/a.sh"
