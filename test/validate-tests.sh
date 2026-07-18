@@ -116,6 +116,54 @@ check_placement() { # <root> <workdir>
 # test/test-system/stat-order.sh; that test is the authoritative documentation
 # and cannot drift. (The guard lives inside its own scan root, so no comment
 # here may spell a literal BSD-first chain; hence this phrasing.)
+# find_bsd_first_chains_in_file <file> -- print the starting line number of
+# every BSD-first stat fallback chain in the file, one per line. Physical lines
+# are joined across backslash continuations, then split on `;` and `&&`; each
+# segment is judged on its own. Returns awk's exit status so the caller can
+# fail closed on a tool error.
+#
+# awk idiom: awk has no `local`; extra function parameters ARE the locals, and
+# the wide gap in flush()'s parameter list separates real arguments (none here)
+# from those locals.
+find_bsd_first_chains_in_file() { # <file>
+  LC_ALL=C awk '
+    function flush(   line_copy, segment_count, segment_number, segment, bsd_index, gnu_index) {
+      if (joined == "") return
+      # Segment split: `;` and `&&` both terminate a chain, so rewrite
+      # `&&` to `;` and split the logical line once.
+      line_copy = joined
+      gsub(/&&/, ";", line_copy)
+      segment_count = split(line_copy, segments, ";")
+      for (segment_number = 1; segment_number <= segment_count; segment_number++) {
+        segment = segments[segment_number]
+        # BSD hit: skip any segment without the BSD form.
+        bsd_index = match(segment, /stat[[:space:]]+-f/)
+        if (bsd_index == 0) continue
+        # Chain check: a bare capability-gated call is not a fallback chain.
+        if (index(segment, "||") == 0) continue
+        # GNU-before check: a GNU form earlier in the SAME segment means the
+        # chain is GNU-first, the portable order.
+        gnu_index = match(segment, /stat[[:space:]]+(-c|--(format|printf)[=[:space:]])/)
+        if (!(gnu_index > 0 && gnu_index < bsd_index)) {
+          print start_line
+          break
+        }
+      }
+      joined = ""
+    }
+    {
+      if (joined == "") start_line = NR
+      line = $0
+      # Backslash continuation: join into one logical line, keyed to the
+      # starting physical line number.
+      if (line ~ /\\[ \t]*$/) { sub(/\\[ \t]*$/, " ", line); joined = joined line; next }
+      joined = joined line
+      flush()
+    }
+    END { flush() }
+  ' "$1"
+}
+
 check_stat_order() { # <root> <workdir>
   local root="$1"
   local stat_candidates_list="$2/stat-candidates"
@@ -137,45 +185,7 @@ check_stat_order() { # <root> <workdir>
   local bsd_first_chains="" scanned_file chain_start_line
   while IFS= read -r scanned_file; do
     [[ -n $scanned_file ]] || continue
-    # awk idiom: awk has no `local`; extra function parameters ARE the locals,
-    # and the wide gap in flush()'s parameter list separates real arguments
-    # (none here) from those locals.
-    if ! LC_ALL=C awk '
-      function flush(   line_copy, segment_count, segment_number, segment, bsd_index, gnu_index) {
-        if (joined == "") return
-        # Segment split: `;` and `&&` both terminate a chain, so rewrite
-        # `&&` to `;` and split the logical line once.
-        line_copy = joined
-        gsub(/&&/, ";", line_copy)
-        segment_count = split(line_copy, segments, ";")
-        for (segment_number = 1; segment_number <= segment_count; segment_number++) {
-          segment = segments[segment_number]
-          # BSD hit: skip any segment without the BSD form.
-          bsd_index = match(segment, /stat[[:space:]]+-f/)
-          if (bsd_index == 0) continue
-          # Chain check: a bare capability-gated call is not a fallback chain.
-          if (index(segment, "||") == 0) continue
-          # GNU-before check: a GNU form earlier in the SAME segment means the
-          # chain is GNU-first, the portable order.
-          gnu_index = match(segment, /stat[[:space:]]+(-c|--(format|printf)[=[:space:]])/)
-          if (!(gnu_index > 0 && gnu_index < bsd_index)) {
-            print start_line
-            break
-          }
-        }
-        joined = ""
-      }
-      {
-        if (joined == "") start_line = NR
-        line = $0
-        # Backslash continuation: join into one logical line, keyed to the
-        # starting physical line number.
-        if (line ~ /\\[ \t]*$/) { sub(/\\[ \t]*$/, " ", line); joined = joined line; next }
-        joined = joined line
-        flush()
-      }
-      END { flush() }
-    ' "$scanned_file" >"$chain_lines_list"; then
+    if ! find_bsd_first_chains_in_file "$scanned_file" >"$chain_lines_list"; then
       printf 'FAIL: stat-chain scan of %s failed (awk error); refusing to pass on a partial scan\n' "$scanned_file" >&2
       return 1
     fi
