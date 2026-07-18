@@ -129,6 +129,25 @@ SHIM
   [[ "$output" == *"shuffle"* ]]
 }
 
+# A NUL-delimited stream must end with a NUL byte. A shuffler emitting the
+# final record without its terminator slips past a sorted comparison (sort adds
+# the terminator back) while the read loop drops the unterminated record, so a
+# failing suite once came back green as "no tests found".
+@test "a shuffler emitting an unterminated final record fails the gate" {
+  mk_test fail 1
+  mkdir -p "$scratch/bin"
+  cat > "$scratch/bin/gshuf" <<SHIM
+#!/usr/bin/env bash
+printf '%s' "$SUITE/fail.sh"
+SHIM
+  cp "$scratch/bin/gshuf" "$scratch/bin/shuf"
+  chmod +x "$scratch/bin/gshuf" "$scratch/bin/shuf"
+  PATH="$scratch/bin:$PATH" run "$RUNNER" --shuffle=1 "$SUITE"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"shuffle"* ]]
+  [[ "$output" != *"no tests found"* ]]
+}
+
 @test "--shuffle rejects a non-numeric seed" {
   mk_test a 0
   run "$RUNNER" --shuffle=abc "$SUITE"

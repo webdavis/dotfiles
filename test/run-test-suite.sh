@@ -148,6 +148,18 @@ run_sh_tests() { # <sh_list_file>
     if [[ -n $shuf_bin ]]; then
       local shuffled="$sh_list.shuffled"
       if "$shuf_bin" -z --random-source=<(yes "$seed") <"$sh_list" >"$shuffled" 2>/dev/null; then
+        # A NUL-delimited stream must end with a NUL byte. Checked BEFORE the
+        # sorted comparison below: sort restores the missing terminator, so an
+        # unterminated final record would compare equal, yet the read loop
+        # drops it, silently skipping the last test.
+        if [[ -s $shuffled ]]; then
+          local final_byte_value
+          final_byte_value="$(tail -c 1 "$shuffled" | od -An -tu1 | tr -d ' \n')"
+          if [[ $final_byte_value != 0 ]]; then
+            printf 'FAIL: shuffle corrupted the test list (%s output is not NUL-terminated); refusing to run\n' "$shuf_bin" >&2
+            exit 1
+          fi
+        fi
         # A reordering must not add, drop, or alter entries. Compare the sorted
         # shuffled list against the sorted discovery list; a mismatch means the
         # shuffler corrupted the list (an empty list once green-gated a failing
