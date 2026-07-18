@@ -207,44 +207,59 @@ run_bats_suites() { # <bats_list_file>
   fi
 }
 
-main() {
-  parse_args "$@"
+# The suite directory must be given and must exist before anything runs.
+require_suite_directory() {
   [[ -n $suite_directory ]] || die_usage
   if [[ ! -d $suite_directory ]]; then
     printf 'FAIL: suite dir %s does not exist\n' "$suite_directory" >&2
     exit 1
   fi
+}
+
+discover_sh_tests() { # <outfile>
+  if ! discover_tests "$suite_directory" "$1" -name '*.sh' -perm -u+x; then
+    printf 'FAIL: %s .sh discovery failed; refusing to run a partial list\n' "$suite_directory" >&2
+    exit 1
+  fi
+}
+
+discover_bats_tests() { # <outfile>
+  if ! discover_tests "$suite_directory" "$1" -name '*.bats'; then
+    printf 'FAIL: %s .bats discovery failed; refusing to skip a partial list\n' "$suite_directory" >&2
+    exit 1
+  fi
+}
+
+# An empty suite is a green no-op: say so and stop. The bats list file is empty
+# exactly when discovery found no bats files.
+exit_zero_if_no_tests_found() { # <bats_list_file>
+  if [[ $any_sh -eq 0 && ! -s $1 ]]; then
+    printf 'no tests found in %s\n' "$suite_directory"
+    exit 0
+  fi
+}
+
+print_slow_test_summary() {
+  if [[ $warn -eq 1 && ${#slow[@]} -gt 0 ]]; then
+    printf '\nPERFORMANCE WARNING: tests over %sms (refactor, or move to integration/e2e):\n' "$warn_ms"
+    printf '  %s\n' "${slow[@]}"
+  fi
+}
+
+main() {
+  parse_args "$@"
+  require_suite_directory
 
   workdir="$(mktemp -d)"
   trap 'rm -rf "$workdir"' EXIT
   local sh_list="$workdir/sh" bats_list="$workdir/bats"
 
-  if ! discover_tests "$suite_directory" "$sh_list" -name '*.sh' -perm -u+x; then
-    printf 'FAIL: %s .sh discovery failed; refusing to run a partial list\n' "$suite_directory" >&2
-    exit 1
-  fi
+  discover_sh_tests "$sh_list"
   run_sh_tests "$sh_list"
-
-  if ! discover_tests "$suite_directory" "$bats_list" -name '*.bats'; then
-    printf 'FAIL: %s .bats discovery failed; refusing to skip a partial list\n' "$suite_directory" >&2
-    exit 1
-  fi
-  local bats_files=() b
-  while IFS= read -r -d '' b; do
-    bats_files+=("$b")
-  done <"$bats_list"
-
-  if [[ $any_sh -eq 0 && ${#bats_files[@]} -eq 0 ]]; then
-    printf 'no tests found in %s\n' "$suite_directory"
-    exit 0
-  fi
-
+  discover_bats_tests "$bats_list"
+  exit_zero_if_no_tests_found "$bats_list"
   run_bats_suites "$bats_list"
-
-  if [[ $warn -eq 1 && ${#slow[@]} -gt 0 ]]; then
-    printf '\nPERFORMANCE WARNING: tests over %sms (refactor, or move to integration/e2e):\n' "$warn_ms"
-    printf '  %s\n' "${slow[@]}"
-  fi
+  print_slow_test_summary
 
   exit "$status"
 }
