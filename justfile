@@ -81,10 +81,11 @@ test-unit: validate-tests
   ./test/run-test-suite.sh --shuffle --warn-slow-ms 200 test/unit
 
 # One suite at a time, for focused iteration. test/run-test-suite.sh runs the
-# suite's executable *.sh tests (each with fd 3 closed so a test that reads stdin
-# cannot swallow the discovery list) then the suite's own *.bats; its discovery
-# is checked so a traversal/sort error fails the gate instead of green-gating a
-# short list.
+# suite's executable *.sh tests, then its *.bats. The runner reads its own test
+# list on fd 3 and closes fd 3 for each test it launches: a test that inherited
+# the open fd could accidentally read the rest of the list and silently skip
+# tests. Discovery is checked, so a failed file search fails the run instead of
+# green-lighting a partial list.
 test-integration: validate-tests
   ./test/run-test-suite.sh test/integration
 
