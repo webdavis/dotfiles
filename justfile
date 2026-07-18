@@ -75,10 +75,11 @@ check:
 # pre-push hook and CI run `just test` (all camps). A test file sitting
 # directly under test/ fails the guard in both runners so strays cannot hide.
 
-# Unit camp only: the commit gate. Seeded shuffle + per-test timing with a
-# warn-only performance summary live in test/run-unit-tests.sh.
+# Unit camp only: the commit gate. --shuffle randomizes order to flush hidden
+# ordering deps (seed printed for replay); --warn-slow-ms flags slow tests in a
+# warn-only summary. The other suites run the same runner plain.
 test-unit: test-guard
-  ./test/run-unit-tests.sh
+  ./test/run-test-suite.sh --shuffle --warn-slow-ms 200 test/unit
 
 # One camp at a time, for focused iteration. test/run-test-suite.sh runs the
 # camp's executable *.sh tests (each with fd 3 closed so a test that reads stdin

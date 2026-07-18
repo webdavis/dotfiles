@@ -142,9 +142,17 @@ mkdir -p "$root/unit"
 mk_exec "$root/unit/a.sh"
 mk_exec "$root/validate-tests.sh"
 mk_exec "$root/run-test-suite.sh"
-mk_exec "$root/run-unit-tests.sh"
 guard "$root"
 [[ $RC -eq 0 ]] || fail "allowlisted root control scripts should pass (rc=$RC):\n$RC_OUT"
+
+# ---- a former control script no longer allowlisted at test/ root fails -------
+root="$work/rootgone/test"
+mkdir -p "$root/unit"
+mk_exec "$root/unit/a.sh"
+mk_exec "$root/run-unit-tests.sh"
+guard "$root"
+[[ $RC -ne 0 ]] || fail "run-unit-tests.sh at test/ root must fail now that it is merged away (rc=0):\n$RC_OUT"
+[[ $RC_OUT == *"run-unit-tests.sh"* ]] || fail "expected run-unit-tests.sh named in the message:\n$RC_OUT"
 
 # ---- a stray script at test/ root fails -------------------------------------
 root="$work/rootstray/test"

@@ -6,8 +6,8 @@
 #   - a *.sh OR *.bats not sitting DIRECTLY in a recognized suite
 #     (test/unit, test/integration, test/e2e, test/test-system); a suite's
 #     helpers/ and test/fixtures/** are exempt (sourced libs and fixture data,
-#     never run directly); only validate-tests.sh, run-test-suite.sh, and
-#     run-unit-tests.sh may sit at test/ root;
+#     never run directly); only validate-tests.sh and run-test-suite.sh may
+#     sit at test/ root;
 #   - a suite *.sh that is not executable (invisible to the runner's -perm probe);
 #   - ANY symlink below test/. A physical `find -type f` skips symlinked files
 #     and symlinked suite dirs, so a tracked symlink would evade this guard and
@@ -54,7 +54,7 @@ while IFS= read -r -d '' file; do
     "$root"/unit/helpers/* | "$root"/integration/helpers/* | "$root"/e2e/helpers/* | "$root"/test-system/helpers/*) continue ;;
     # The control scripts allowed to sit at test/ root, run by just, never
     # discovered as tests.
-    "$root"/validate-tests.sh | "$root"/run-test-suite.sh | "$root"/run-unit-tests.sh) continue ;;
+    "$root"/validate-tests.sh | "$root"/run-test-suite.sh) continue ;;
     "$root"/unit/*/* | "$root"/integration/*/* | "$root"/e2e/*/* | "$root"/test-system/*/*)
       bad+="$file (nested; camps are flat)"$'\n'
       ;;

@@ -59,11 +59,11 @@ stub/fixture driven, no flows, no sleeps, FAST is the admission rule), `test/int
 tests). All are plain executable `.sh` scripts (source-only, `.chezmoiignore`d) plus optional bats suites
 (`test/**/*.bats`).
 
-The **commit** gate runs `just test-unit` only, kept fast on purpose: the runner
-(`test/run-unit-tests.sh`) seed-shuffles order each run (replay a failure with `TEST_SEED=<seed>`,
-printed every run, since Bats 1.11 has no native shuffle) and prints a WARN-ONLY performance summary
-listing any test over `UNIT_WARN_MS` (default 200) as a refactor-or-move-camp candidate; warnings never
-fail the run. The **pre-push** hook and **CI** run `just test` (all camps; bats via
+The **commit** gate runs `just test-unit` only, kept fast on purpose: it runs the one runner
+(`test/run-test-suite.sh`) with `--shuffle --warn-slow-ms 200`, so order is seed-shuffled each run
+(replay a failure with `TEST_SEED=<seed>`, printed every run, since Bats 1.11 has no native shuffle) and
+a WARN-ONLY performance summary lists any test over the threshold as a refactor-or-move-camp candidate;
+warnings never fail the run. The **pre-push** hook and **CI** run `just test` (all camps; bats via
 `nix develop .#run --command bats --jobs 4`, whose parallelism doubles as an isolation check). So a
 commit can briefly carry an integration or e2e regression; push and CI block it before `main`.
 
