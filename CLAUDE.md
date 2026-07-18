@@ -39,38 +39,39 @@ just lint-actions  # actionlint + zizmor on .github/workflows
 
 `just l` auto-formats in place. `just lint-check` never mutates the working tree or index: treefmt has no
 dry-run mode, so the check runs on a sandboxed copy inside the Nix check derivation. Lint drift is gated
-at pre-push and in CI (the commit hook runs only the unit camp; see Git Hooks and Testing).
+at pre-push and in CI (the commit hook runs only the unit suite; see Git Hooks and Testing).
 
 To enter an interactive dev shell with all tools: `nix develop`.
 
 ### Testing
 
 ```bash
-just test-unit          # Unit camp only (fast commit gate, ~2s)
-just test-integration   # Integration camp only
-just test-e2e           # End-to-end camp only
+just test-unit          # Unit suite only (fast commit gate, ~2s)
+just test-integration   # Integration suite only
+just test-e2e           # End-to-end suite only
 just test-system        # The suite that tests the checker and runner themselves
-just test               # All camps + bats suites (pre-push and CI run this)
+just test               # All suites + bats (pre-push and CI run this)
 ```
 
-Tests live in camps by DESIGN (essential-feed-case-study pyramid): `test/unit/` (single component,
-stub/fixture driven, no flows, no sleeps, FAST is the admission rule), `test/integration/`
-(multi-component with stubbed boundaries), `test/e2e/` (whole-script flows and deliberately timing-bound
-tests). All are plain executable `.sh` scripts (source-only, `.chezmoiignore`d) plus optional bats suites
-(`test/**/*.bats`).
+Tests live in suites by DESIGN: `test/unit/` (single component, stub/fixture driven, no flows, no sleeps,
+FAST is the admission rule), `test/integration/` (multi-component with stubbed boundaries), `test/e2e/`
+(whole-script flows and deliberately timing-bound tests), and `test/test-system/` (tests of the checker
+and runner themselves; its sourced helpers live in `test/test-system/helpers/`). All are plain executable
+`.sh` scripts (source-only, `.chezmoiignore`d) plus optional bats suites (`test/**/*.bats`).
 
 The **commit** gate runs `just test-unit` only, kept fast on purpose: it runs the one runner
 (`test/run-test-suite.sh`) with `--shuffle --warn-slow-ms 200`, so order is seed-shuffled each run
 (replay a failure with `TEST_SEED=<seed>`, printed every run, since Bats 1.11 has no native shuffle) and
-a WARN-ONLY performance summary lists any test over the threshold as a refactor-or-move-camp candidate;
-warnings never fail the run. The **pre-push** hook and **CI** run `just test` (all camps; bats via
+a WARN-ONLY performance summary lists any test over the threshold as a refactor-or-move-suite candidate;
+warnings never fail the run. The **pre-push** hook and **CI** run `just test` (all suites; bats via
 `nix develop .#run --command bats --jobs 4`, whose parallelism doubles as an isolation check). So a
 commit can briefly carry an integration or e2e regression; push and CI block it before `main`.
 
-`just test-guard` (a dependency of every test recipe) fails if a `*.sh` sits directly under `test/`
-instead of in a camp, which usually means a branch merged from the pre-camp layout: move it into a camp
-and fix its `REPO_ROOT` depth to `dirname "${BASH_SOURCE[0]}")/../..`. Add a test by dropping a new
-executable `test/<camp>/<name>.sh` in place; it is picked up automatically.
+`just test-guard` (`test/validate-tests.sh`, a dependency of every test recipe) fails if a `*.sh` or
+`*.bats` sits outside a recognized suite. Only `validate-tests.sh` and `run-test-suite.sh` may sit at
+`test/` root; a suite's `helpers/` and `test/fixtures/**` are exempt. Add a test by dropping a new
+executable `test/<suite>/<name>.sh` in place (with `REPO_ROOT` depth
+`dirname "${BASH_SOURCE[0]}")/../..`); it is picked up automatically.
 
 ### Chezmoi Operations
 
@@ -144,16 +145,16 @@ All four hooks live in the **user-wide** hooks dir (`core.hooksPath = ~/.config/
 - **`pre-commit`: per-repo FAST gate (unit tests + secret scan), via a dispatcher.**
   `dot_config/git/hooks/executable_pre-commit` runs in every repo but only acts when the repository
   tracks an executable `.githooks/pre-commit`, which it then `exec`s. This repo's `.githooks/pre-commit`
-  runs `just test-unit` (the unit camp only, see Testing) then `gitleaks git --staged --redact` (blocks
+  runs `just test-unit` (the unit suite only, see Testing) then `gitleaks git --staged --redact` (blocks
   any staged plaintext secret; gitleaks is provisioned as a Homebrew formula, and the stage is skipped
   when the binary is absent). Both must pass; a failure blocks the commit. Lint drift, the integration
-  and e2e camps, and the full flake check moved to pre-push (below) to keep the commit loop fast. No
+  and e2e suites, and the full flake check moved to pre-push (below) to keep the commit loop fast. No
   install step: the dispatcher is user-wide and the repo hook is committed with its executable bit.
 - **`pre-push`: per-repo full gate, via a dispatcher.** `dot_config/git/hooks/executable_pre-push`
   mirrors the pre-commit dispatcher (user-wide, exec's the repo's executable `.githooks/pre-push` when
   present, no-op otherwise). This repo's `.githooks/pre-push` runs `just lint-check` (the treefmt drift
-  gate) then `just test` (all camps), so everything the commit gate skips runs before anything leaves the
-  machine; CI runs the same as the final backstop.
+  gate) then `just test` (all suites), so everything the commit gate skips runs before anything leaves
+  the machine; CI runs the same as the final backstop.
 - **`post-commit`: per-repo hooks, via a dispatcher.** `dot_config/git/hooks/executable_post-commit`
   mirrors the pre-commit dispatcher (user-wide, exec's the repo's executable `.githooks/post-commit` when
   present, no-op otherwise). Nothing global runs graphify anymore; a repo that wants a knowledge-graph

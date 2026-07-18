@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # runner-discovery.sh -- regression suite for test/run-test-suite.sh (the shared
-# integration/e2e camp runner). Proves the correctness rules the gate leans on
-# cannot silently regress:
-#   F1  checked discovery: a find or sort that fails mid-discovery must FAIL the
-#       camp, never green-gate a truncated list.
-#   F2  fd 3 closed for children: a test that drains fd 3 must NOT swallow the
-#       tests queued behind it.
-#   F5b per-camp bats: the camp's own *.bats suites run and their failure
-#       propagates (not only in the aggregate `test`).
+# suite runner). Proves the correctness rules the gate leans on cannot silently
+# regress:
+#   - checked discovery: a find or sort that fails mid-discovery must fail the
+#     suite, never green-gate a truncated list.
+#   - fd 3 closed for children: a test that drains fd 3 must not swallow the
+#     tests queued behind it.
+#   - per-suite bats: the suite's own *.bats run and their failure propagates
+#     (not only in the aggregate `test`).
 # Collect-then-report: every failed assertion is recorded and the run reports
 # them all at the end.
 set -euo pipefail
@@ -45,18 +45,18 @@ main() {
   work="$(mktemp -d)"
   trap 'rm -rf "$work"' EXIT
 
-  # ---- F2: an fd-3-draining test must not swallow the failing test behind it --
+  # ---- an fd-3-draining test must not swallow the failing test behind it --
   local camp="$work/fd3"
   mkdir -p "$camp"
   # a-drain sorts first; it slurps fd 3 (if the child inherits it) then exits 0.
   write_probe_script "$camp/a-drain.sh" 'cat <&3 >/dev/null 2>&1 || true' 'exit 0'
-  # z-fail sorts last; it must still run and fail the camp.
+  # z-fail sorts last; it must still run and fail the suite.
   write_probe_script "$camp/z-fail.sh" 'exit 1'
   run_camp "$camp"
-  [[ $captured_status -ne 0 ]] || record_failure "fd-3 drain swallowed the failing test; the camp green-gated: $captured_output"
+  [[ $captured_status -ne 0 ]] || record_failure "fd-3 drain swallowed the failing test; the suite green-gated: $captured_output"
   [[ $captured_output == *"z-fail.sh"* ]] || record_failure "z-fail never ran (header absent), so fd 3 was not closed for children: $captured_output"
 
-  # ---- F1: a find that fails the *.sh discovery must fail the camp ------------
+  # ---- a find that fails the *.sh discovery must fail the suite ------------
   # The shim fails ONLY the `-name '*.sh'` discovery (not the later `*.bats` one),
   # so the test isolates the *.sh discovery: an unchecked (process-substitution)
   # *.sh discovery would swallow this failure and green-gate.
@@ -71,10 +71,10 @@ exit 0
 SHIM
   chmod +x "$camp/bin/find"
   run_camp "$camp" "PATH=$camp/bin:$PATH"
-  [[ $captured_status -ne 0 ]] || record_failure "partial *.sh find (exit 7) did not fail the camp: $captured_output"
+  [[ $captured_status -ne 0 ]] || record_failure "partial *.sh find (exit 7) did not fail the suite: $captured_output"
   [[ $captured_output == *"discovery failed"* ]] || record_failure "expected a discovery-failed message on find failure: $captured_output"
 
-  # ---- F1: a sort that fails the *.sh discovery must fail the camp ------------
+  # ---- a sort that fails the *.sh discovery must fail the suite ------------
   # The shim fails ONLY the FIRST sort (the *.sh discovery pipeline; the *.bats
   # discovery sort is the second), isolating the *.sh discovery the same way. Its
   # counter lives beside the shim (${0%/*}), so the heredoc needs no interpolation.
@@ -92,10 +92,10 @@ exit 0
 SHIM
   chmod +x "$camp/bin/sort"
   run_camp "$camp" "PATH=$camp/bin:$PATH"
-  [[ $captured_status -ne 0 ]] || record_failure "partial *.sh sort (exit 7) did not fail the camp: $captured_output"
+  [[ $captured_status -ne 0 ]] || record_failure "partial *.sh sort (exit 7) did not fail the suite: $captured_output"
   [[ $captured_output == *"discovery failed"* ]] || record_failure "expected a discovery-failed message on sort failure: $captured_output"
 
-  # ---- F5b: the camp's own *.bats run, and their failure propagates ----------
+  # ---- the suite's own *.bats run, and their failure propagates ----------
   # The stub records its argv to $BATS_ARGV (passed through the runner's env) and
   # exits nonzero, modeling a failing suite without needing real bats/parallel.
   camp="$work/bats"
@@ -109,18 +109,18 @@ exit 1
 SHIM
   chmod +x "$camp/failbin/bats"
   run_camp "$camp" "PATH=$camp/failbin:$PATH" "BATS_ARGV=$camp/bats.argv"
-  [[ $captured_status -ne 0 ]] || record_failure "a failing camp bats suite did not fail the camp: $captured_output"
+  [[ $captured_status -ne 0 ]] || record_failure "a failing suite bats file did not fail the suite: $captured_output"
   grep -q 'suite.bats' "$camp/bats.argv" 2>/dev/null ||
-    record_failure "the runner did not invoke bats on the camp's suite (argv: $(cat "$camp/bats.argv" 2>/dev/null || echo none))"
+    record_failure "the runner did not invoke bats on the suite's bats (argv: $(cat "$camp/bats.argv" 2>/dev/null || echo none))"
 
-  # ---- F5b positive: a passing camp bats suite leaves the camp green ---------
+  # ---- a passing suite bats file leaves the suite green ---------
   cat >"$camp/passbin/bats" <<'SHIM'
 #!/usr/bin/env bash
 exit 0
 SHIM
   chmod +x "$camp/passbin/bats"
   run_camp "$camp" "PATH=$camp/passbin:$PATH"
-  [[ $captured_status -eq 0 ]] || record_failure "camp with passing .sh and passing bats should be green (rc=$captured_status): $captured_output"
+  [[ $captured_status -eq 0 ]] || record_failure "suite with passing .sh and passing bats should be green (rc=$captured_status): $captured_output"
 
   report_failures runner-discovery
 }

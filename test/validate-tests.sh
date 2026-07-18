@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# validate-tests.sh [root] -- placement / mode / symlink guard for the test pyramid.
+# validate-tests.sh [root] -- placement / mode / symlink guard for the test suites.
 # A dependency of every test recipe (root defaults to `test`). Root is an
 # argument so the test-system suite can point it at scratch trees. It fails when
 # a test file cannot be seen by, or could escape, the gate:
@@ -21,7 +21,7 @@
 set -euo pipefail
 
 # Symlink rejection. `-type l` matches symlinked files AND symlinked dirs (find
-# does not follow symlinks without -L), catching a symlinked camp dir too.
+# does not follow symlinks without -L), catching a symlinked suite dir too.
 check_symlinks() { # <root> <workdir>
   local root="$1"
   local symlink_paths_list="$2/symlinks"
@@ -61,14 +61,14 @@ check_placement() { # <root> <workdir>
       # discovered as tests.
       "$root"/validate-tests.sh | "$root"/run-test-suite.sh) continue ;;
       "$root"/unit/*/* | "$root"/integration/*/* | "$root"/e2e/*/* | "$root"/test-system/*/*)
-        bad+="$file (nested; camps are flat)"$'\n'
+        bad+="$file (nested; suites are flat)"$'\n'
         ;;
       "$root"/unit/*.sh | "$root"/integration/*.sh | "$root"/e2e/*.sh | "$root"/test-system/*.sh)
-        [[ -x $file ]] || bad+="$file (not executable; invisible to the gate)"$'\n'
+        [[ -x $file ]] || bad+="$file (not executable; run chmod +x on it)"$'\n'
         ;;
       "$root"/unit/*.bats | "$root"/integration/*.bats | "$root"/e2e/*.bats | "$root"/test-system/*.bats)
         :
-        ;; # bats live flat in a camp; bats itself runs them (no +x needed)
+        ;; # bats live flat in a suite; bats itself runs them (no +x needed)
       *)
         bad+="$file (outside the unit/integration/e2e/test-system suites and not an allowlisted root script)"$'\n'
         ;;
@@ -77,7 +77,7 @@ check_placement() { # <root> <workdir>
 
   if [[ -n $bad ]]; then
     printf 'FAIL: misplaced or misconfigured test scripts:\n%s' "$bad" >&2
-    printf 'Fix placement/mode (and REPO_ROOT depth is ../.. inside a camp).\n' >&2
+    printf 'Move each into a suite (unit/integration/e2e/test-system) and make suite *.sh executable; a suite test uses REPO_ROOT depth ../.. .\n' >&2
     return 1
   fi
   return 0

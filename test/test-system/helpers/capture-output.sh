@@ -5,7 +5,9 @@
 # Sourced by the test-system suite; no main.
 
 # The globals capture_output sets, predeclared so a sourcer can reference them.
+# shellcheck disable=SC2034 # read by the scripts that source this helper
 captured_output=""
+# shellcheck disable=SC2034 # read by the scripts that source this helper
 captured_status=0
 
 capture_output() {

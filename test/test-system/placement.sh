@@ -1,13 +1,12 @@
 #!/usr/bin/env bash
-# placement.sh -- regression suite for test/validate-tests.sh (the
-# placement / mode / symlink guard). Proves each guard rule catches its evasion:
-#   F1  checked discovery: a find or sort that fails must FAIL the guard.
-#   F4  symlink rejection: a symlinked test file AND a symlinked camp dir must
-#       both fail the guard (a physical `find -type f` would skip them).
-#   F5a bats placement: a *.bats must live DIRECTLY in a camp, same flat rule as
-#       *.sh (nested or stray *.bats fails; flat *.bats passes).
-#   plus the pre-existing placement/mode rules (nested *.sh, non-exec *.sh), the
-#   test-system suite, the root allowlist, and the helpers/ exemption.
+# placement.sh -- regression suite for test/validate-tests.sh (the placement /
+# mode / symlink guard). Proves each guard rule catches its evasion:
+#   - checked discovery: a find or sort that fails must fail the guard.
+#   - symlink rejection: a symlinked test file and a symlinked suite dir both
+#     fail the guard (a physical `find -type f` would skip them).
+#   - flat placement: a *.sh or *.bats must live directly in a suite (nested or
+#     stray fails; a non-executable suite *.sh fails).
+#   - the test-system suite, the root allowlist, and the helpers/ exemption.
 # Collect-then-report: every failed assertion is recorded and the run reports
 # them all at the end.
 set -euo pipefail
@@ -56,7 +55,7 @@ main() {
   run_guard "$root"
   [[ $captured_status -eq 0 ]] || record_failure "clean tree should pass the guard (rc=$captured_status): $captured_output"
 
-  # ---- F4: a symlinked test FILE fails ---------------------------------------
+  # ---- a symlinked test FILE fails ---------------------------------------
   root="$(make_test_tree "$work" symfile unit)"
   write_probe_script "$root/unit/real.sh"
   ln -s real.sh "$root/unit/link.sh"
@@ -64,29 +63,29 @@ main() {
   [[ $captured_status -ne 0 ]] || record_failure "a symlinked test file must fail the guard: $captured_output"
   [[ $captured_output == *"symlink"* ]] || record_failure "expected a symlink rejection message: $captured_output"
 
-  # ---- F4: a symlinked camp DIR fails ----------------------------------------
+  # ---- a symlinked suite DIR fails ----------------------------------------
   root="$(make_test_tree "$work" symdir unit)"
   mkdir -p "$work/symdir/elsewhere"
   write_probe_script "$work/symdir/elsewhere/x.sh"
   ln -s ../elsewhere "$root/e2e"
   run_guard "$root"
-  [[ $captured_status -ne 0 ]] || record_failure "a symlinked camp dir must fail the guard: $captured_output"
-  [[ $captured_output == *"symlink"* ]] || record_failure "expected a symlink rejection message for the camp dir: $captured_output"
+  [[ $captured_status -ne 0 ]] || record_failure "a symlinked suite dir must fail the guard: $captured_output"
+  [[ $captured_output == *"symlink"* ]] || record_failure "expected a symlink rejection message for the suite dir: $captured_output"
 
-  # ---- F5a: a nested *.bats fails (flat-placement rule extends to bats) -------
+  # ---- a nested *.bats fails (flat-placement rule extends to bats) -------
   root="$(make_test_tree "$work" nestbats integration/sub)"
   printf '#!/usr/bin/env bats\n@test "x" { true; }\n' >"$root/integration/sub/suite.bats"
   run_guard "$root"
   [[ $captured_status -ne 0 ]] || record_failure "a nested *.bats must fail the guard: $captured_output"
   [[ $captured_output == *"nested"* ]] || record_failure "expected a nested-placement message for the bats file: $captured_output"
 
-  # ---- F5a: a stray *.bats directly under test/ fails ------------------------
+  # ---- a stray *.bats directly under test/ fails ------------------------
   root="$(make_test_tree "$work" straybats unit)"
   write_probe_script "$root/unit/a.sh"
   printf '#!/usr/bin/env bats\n@test "x" { true; }\n' >"$root/stray.bats"
   run_guard "$root"
   [[ $captured_status -ne 0 ]] || record_failure "a stray *.bats under test/ must fail the guard: $captured_output"
-  [[ $captured_output == *"outside"* ]] || record_failure "expected an outside-the-camps message for the stray bats: $captured_output"
+  [[ $captured_output == *"outside"* ]] || record_failure "expected an outside-the-suites message for the stray bats: $captured_output"
 
   # ---- placement: a nested *.sh fails ----------------------------------------
   root="$(make_test_tree "$work" nestsh unit/sub)"
@@ -95,14 +94,14 @@ main() {
   [[ $captured_status -ne 0 ]] || record_failure "a nested *.sh must fail the guard: $captured_output"
   [[ $captured_output == *"nested"* ]] || record_failure "expected a nested-placement message for the sh file: $captured_output"
 
-  # ---- mode: a non-executable camp *.sh fails --------------------------------
+  # ---- mode: a non-executable suite *.sh fails --------------------------------
   root="$(make_test_tree "$work" nonexec unit)"
   printf '#!/usr/bin/env bash\nexit 0\n' >"$root/unit/a.sh" # no chmod +x
   run_guard "$root"
-  [[ $captured_status -ne 0 ]] || record_failure "a non-executable camp *.sh must fail the guard: $captured_output"
+  [[ $captured_status -ne 0 ]] || record_failure "a non-executable suite *.sh must fail the guard: $captured_output"
   [[ $captured_output == *"not executable"* ]] || record_failure "expected a not-executable message: $captured_output"
 
-  # ---- F1: a find that fails the FILE discovery must fail the guard -----------
+  # ---- a find that fails the FILE discovery must fail the guard -----------
   # The shim passes the -type l symlink scan through, then fails the -name file
   # discovery, so this exercises the files-discovery check specifically.
   root="$(make_test_tree "$work" pfind unit)"
@@ -119,7 +118,7 @@ main() {
   [[ $captured_status -ne 0 ]] || record_failure "partial find (exit 7) did not fail the guard: $captured_output"
   [[ $captured_output == *"discovery failed"* ]] || record_failure "expected a discovery-failed message on find failure: $captured_output"
 
-  # ---- F1: a sort that fails the discovery pipeline must fail the guard -------
+  # ---- a sort that fails the discovery pipeline must fail the guard -------
   # sort is used only in the file discovery pipeline, not the symlink scan.
   root="$(make_test_tree "$work" psort unit)"
   mkdir -p "$work/psort/bin"

@@ -4,7 +4,7 @@
 # first in a chain runs before the GNU form (the `-c` variant); on Linux CI (GNU
 # coreutils) the `-f` variant means "filesystem status" and SUCCEEDS with the
 # wrong output, so the fallback never fires and the test silently reads garbage.
-# Two CI failures (PRs #49, #50) came from exactly this. The portable idiom is
+# This broke CI twice. The portable idiom is
 # GNU-first (the `-c` variant first). A capability-gated bare BSD form with no
 # chain (e.g. a find-exec in a GNU-probed else-branch) is not a fallback chain
 # and must stay allowed. This drives the guard against a scratch fixture tree.
