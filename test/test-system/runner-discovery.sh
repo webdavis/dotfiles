@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# run-camp-runner.sh -- regression suite for test/tools/run-camp.sh (the shared
+# runner-discovery.sh -- regression suite for test/run-test-suite.sh (the shared
 # integration/e2e camp runner). Proves the correctness rules the gate leans on
 # cannot silently regress:
 #   F1  checked discovery: a find or sort that fails mid-discovery must FAIL the
@@ -11,7 +11,7 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-RUN_CAMP="$REPO_ROOT/test/tools/run-camp.sh"
+RUN_CAMP="$REPO_ROOT/test/run-test-suite.sh"
 
 fail() {
   printf 'FAIL: %b\n' "$*" >&2
@@ -92,7 +92,7 @@ run_camp "$camp" "PATH=$camp/bin:$PATH"
 [[ $RC_OUT == *"discovery failed"* ]] || fail "expected a discovery-failed message on sort failure:\n$RC_OUT"
 
 # ---- F5b: the camp's own *.bats run, and their failure propagates -----------
-# The stub records its argv to $BATS_ARGV (passed through run-camp's env) and
+# The stub records its argv to $BATS_ARGV (passed through the runner's env) and
 # exits nonzero, modeling a failing suite without needing real bats/parallel.
 camp="$work/bats"
 mkdir -p "$camp/failbin" "$camp/passbin"
@@ -107,7 +107,7 @@ chmod +x "$camp/failbin/bats"
 run_camp "$camp" "PATH=$camp/failbin:$PATH" "BATS_ARGV=$camp/bats.argv"
 [[ $RC -ne 0 ]] || fail "a failing camp bats suite did not fail the camp:\n$RC_OUT"
 grep -q 'suite.bats' "$camp/bats.argv" 2>/dev/null ||
-  fail "run-camp did not invoke bats on the camp's suite (argv: $(cat "$camp/bats.argv" 2>/dev/null || echo none))"
+  fail "the runner did not invoke bats on the camp's suite (argv: $(cat "$camp/bats.argv" 2>/dev/null || echo none))"
 
 # ---- F5b positive: a passing camp bats suite leaves the camp green ----------
 cat >"$camp/passbin/bats" <<'SHIM'
@@ -118,4 +118,4 @@ chmod +x "$camp/passbin/bats"
 run_camp "$camp" "PATH=$camp/passbin:$PATH"
 [[ $RC -eq 0 ]] || fail "camp with passing .sh and passing bats should be green (rc=$RC):\n$RC_OUT"
 
-echo "run-camp-runner: OK (checked discovery, fd-3 isolation, per-camp bats)"
+echo "runner-discovery: OK (checked discovery, fd-3 isolation, per-camp bats)"

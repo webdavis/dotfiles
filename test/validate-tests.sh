@@ -1,14 +1,16 @@
 #!/usr/bin/env bash
-# test-guard.sh [root] -- placement / mode / symlink guard for the test pyramid.
+# validate-tests.sh [root] -- placement / mode / symlink guard for the test pyramid.
 # A dependency of every test recipe (root defaults to `test`). It fails when a
 # test file cannot be seen by, or could escape, the gate:
 #
-#   - a *.sh OR *.bats not sitting DIRECTLY in a recognized camp
-#     (test/unit, test/integration, test/e2e); test/fixtures/** is exempt
-#     (fixture data and sourced libs, never run directly);
-#   - a camp *.sh that is not executable (invisible to the runner's -perm probe);
+#   - a *.sh OR *.bats not sitting DIRECTLY in a recognized suite
+#     (test/unit, test/integration, test/e2e, test/test-system); a suite's
+#     helpers/ and test/fixtures/** are exempt (sourced libs and fixture data,
+#     never run directly); only validate-tests.sh, run-test-suite.sh, and
+#     run-unit-tests.sh may sit at test/ root;
+#   - a suite *.sh that is not executable (invisible to the runner's -perm probe);
 #   - ANY symlink below test/. A physical `find -type f` skips symlinked files
-#     and symlinked camp dirs, so a tracked symlink would evade this guard and
+#     and symlinked suite dirs, so a tracked symlink would evade this guard and
 #     every gate. Following it risks out-of-tree traversal and cycles, so the
 #     guard REJECTS symlinks rather than resolving them.
 #
@@ -47,19 +49,23 @@ bad=""
 while IFS= read -r -d '' file; do
   case "$file" in
     "$root"/fixtures/*) continue ;;
-    # Test infrastructure (this guard and the camp runners), run by just, never discovered as tests.
-    "$root"/tools/*) continue ;;
-    "$root"/unit/*/* | "$root"/integration/*/* | "$root"/e2e/*/*)
+    # A suite's helpers/ holds sourced, non-executable scripts, never run
+    # directly, so it is exempt like fixtures/.
+    "$root"/unit/helpers/* | "$root"/integration/helpers/* | "$root"/e2e/helpers/* | "$root"/test-system/helpers/*) continue ;;
+    # The control scripts allowed to sit at test/ root, run by just, never
+    # discovered as tests.
+    "$root"/validate-tests.sh | "$root"/run-test-suite.sh | "$root"/run-unit-tests.sh) continue ;;
+    "$root"/unit/*/* | "$root"/integration/*/* | "$root"/e2e/*/* | "$root"/test-system/*/*)
       bad+="$file (nested; camps are flat)"$'\n'
       ;;
-    "$root"/unit/*.sh | "$root"/integration/*.sh | "$root"/e2e/*.sh)
+    "$root"/unit/*.sh | "$root"/integration/*.sh | "$root"/e2e/*.sh | "$root"/test-system/*.sh)
       [[ -x $file ]] || bad+="$file (not executable; invisible to the gate)"$'\n'
       ;;
-    "$root"/unit/*.bats | "$root"/integration/*.bats | "$root"/e2e/*.bats)
+    "$root"/unit/*.bats | "$root"/integration/*.bats | "$root"/e2e/*.bats | "$root"/test-system/*.bats)
       :
       ;; # bats live flat in a camp; bats itself runs them (no +x needed)
     *)
-      bad+="$file (outside the unit/integration/e2e camps)"$'\n'
+      bad+="$file (outside the unit/integration/e2e/test-system suites and not an allowlisted root script)"$'\n'
       ;;
   esac
 done <"$files_list"
@@ -86,7 +92,7 @@ fi
 #   - Fail closed: a grep or awk error fails the guard, never a silent pass.
 #
 # Each rule and boundary here is pinned as a named fixture + assertion in
-# test/integration/test-guard-bsd-stat.sh; that test is the authoritative
+# test/test-system/stat-order.sh; that test is the authoritative
 # documentation and cannot drift. (The guard lives inside its own scan root, so
 # no comment here may spell a literal BSD-first chain; hence this phrasing.)
 stat_candidates_list="$(mktemp)"

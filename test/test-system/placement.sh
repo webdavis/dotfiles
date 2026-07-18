@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test-guard-runner.sh -- regression suite for test/tools/test-guard.sh (the
+# placement.sh -- regression suite for test/validate-tests.sh (the
 # placement / mode / symlink guard). Proves each guard rule catches its evasion:
 #   F1  checked discovery: a find or sort that fails must FAIL the guard.
 #   F4  symlink rejection: a symlinked test file AND a symlinked camp dir must
@@ -10,7 +10,7 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-GUARD="$REPO_ROOT/test/tools/test-guard.sh"
+GUARD="$REPO_ROOT/test/validate-tests.sh"
 
 fail() {
   printf 'FAIL: %b\n' "$*" >&2
@@ -129,4 +129,46 @@ guard "$root" "PATH=$work/psort/bin:$PATH"
 [[ $RC -ne 0 ]] || fail "partial sort (exit 7) did not fail the guard:\n$RC_OUT"
 [[ $RC_OUT == *"discovery failed"* ]] || fail "expected a discovery-failed message on sort failure:\n$RC_OUT"
 
-echo "test-guard-runner: OK (symlink rejection, bats placement, checked discovery)"
+# ---- test-system is a recognized suite: a flat executable *.sh passes -------
+root="$work/testsystem/test"
+mkdir -p "$root/test-system"
+mk_exec "$root/test-system/a.sh"
+guard "$root"
+[[ $RC -eq 0 ]] || fail "a flat executable *.sh in test-system should pass (rc=$RC):\n$RC_OUT"
+
+# ---- allowlisted control scripts at test/ root pass -------------------------
+root="$work/rootallow/test"
+mkdir -p "$root/unit"
+mk_exec "$root/unit/a.sh"
+mk_exec "$root/validate-tests.sh"
+mk_exec "$root/run-test-suite.sh"
+mk_exec "$root/run-unit-tests.sh"
+guard "$root"
+[[ $RC -eq 0 ]] || fail "allowlisted root control scripts should pass (rc=$RC):\n$RC_OUT"
+
+# ---- a stray script at test/ root fails -------------------------------------
+root="$work/rootstray/test"
+mkdir -p "$root/unit"
+mk_exec "$root/unit/a.sh"
+mk_exec "$root/stray.sh"
+guard "$root"
+[[ $RC -ne 0 ]] || fail "a stray script at test/ root must fail (rc=0):\n$RC_OUT"
+[[ $RC_OUT == *"stray.sh"* ]] || fail "expected the stray root script named in the message:\n$RC_OUT"
+
+# ---- a suite helpers/ sourced file passes (sourced, non-executable) ---------
+root="$work/helpers/test"
+mkdir -p "$root/test-system/helpers"
+mk_exec "$root/test-system/a.sh"
+printf '# shellcheck shell=bash\ntrue\n' >"$root/test-system/helpers/lib.sh" # sourced, not executable
+guard "$root"
+[[ $RC -eq 0 ]] || fail "a sourced helpers/ file in a suite should pass (rc=$RC):\n$RC_OUT"
+
+# ---- a nested test in test-system still fails -------------------------------
+root="$work/nesttestsystem/test"
+mkdir -p "$root/test-system/sub"
+mk_exec "$root/test-system/sub/a.sh"
+guard "$root"
+[[ $RC -ne 0 ]] || fail "a nested *.sh in test-system must fail (rc=0):\n$RC_OUT"
+[[ $RC_OUT == *"nested"* ]] || fail "expected a nested-placement message:\n$RC_OUT"
+
+echo "placement: OK (suites, root allowlist, helpers exemption, symlink rejection, checked discovery)"

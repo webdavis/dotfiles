@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# run-camp.sh <camp-dir> -- run one test camp: its executable *.sh tests, then
+# run-test-suite.sh <camp-dir> -- run one test camp: its executable *.sh tests, then
 # its *.bats suites. Shared by the test-integration and test-e2e recipes so the
 # checked-discovery and fd-closing rules below live in ONE place.
 #
@@ -20,7 +20,7 @@
 set -euo pipefail
 
 if [[ $# -ne 1 ]]; then
-  printf 'usage: run-camp.sh <camp-dir>\n' >&2
+  printf 'usage: run-test-suite.sh <camp-dir>\n' >&2
   exit 2
 fi
 camp="$1"

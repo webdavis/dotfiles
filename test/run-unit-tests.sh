@@ -21,7 +21,7 @@
 set -euo pipefail
 export LC_ALL=C # force EPOCHREALTIME to use a '.' decimal separator
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT" || exit 1
 
 UNIT_WARN_MS="${UNIT_WARN_MS:-200}"

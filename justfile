@@ -76,34 +76,39 @@ check:
 # directly under test/ fails the guard in both runners so strays cannot hide.
 
 # Unit camp only: the commit gate. Seeded shuffle + per-test timing with a
-# warn-only performance summary live in test/tools/run-unit-tests.sh.
+# warn-only performance summary live in test/run-unit-tests.sh.
 test-unit: test-guard
-  ./test/tools/run-unit-tests.sh
+  ./test/run-unit-tests.sh
 
-# One camp at a time, for focused iteration. test/tools/run-camp.sh runs the
+# One camp at a time, for focused iteration. test/run-test-suite.sh runs the
 # camp's executable *.sh tests (each with fd 3 closed so a test that reads stdin
 # cannot swallow the discovery list) then the camp's own *.bats suites; its
 # discovery is checked so a traversal/sort error fails the gate instead of
 # green-gating a short list.
 test-integration: test-guard
-  ./test/tools/run-camp.sh test/integration
+  ./test/run-test-suite.sh test/integration
 
 test-e2e: test-guard
-  ./test/tools/run-camp.sh test/e2e
+  ./test/run-test-suite.sh test/e2e
 
-# Placement / mode / symlink guard (test/tools/test-guard.sh): every *.sh and
+# The suite that tests the checker and the runner themselves.
+test-system: test-guard
+  ./test/run-test-suite.sh test/test-system
+
+# Placement / mode / symlink guard (test/validate-tests.sh): every *.sh and
 # *.bats below test/ must sit DIRECTLY in a recognized camp (test/unit,
-# test/integration, test/e2e); camp *.sh must be executable; no symlinks are
-# allowed anywhere below test/ (a physical find skips them, so they would evade
-# every gate). test/fixtures/** is exempt.
+# test/integration, test/e2e, test/test-system); camp *.sh must be executable;
+# no symlinks are allowed anywhere below test/ (a physical find skips them, so
+# they would evade every gate). A suite's helpers/ and test/fixtures/** are
+# exempt.
 test-guard:
-  ./test/tools/test-guard.sh
+  ./test/validate-tests.sh
 
 # All camps: what pre-push and CI run. The per-camp recipes above already run
 # each camp's bats; this aggregate ALSO runs every bats suite (test/**/*.bats)
 # as the backstop. Bats runs inside the Nix devshell when the host lacks it (the
 # flake provides bats + GNU parallel). Discovery is checked and empty-safe.
-test: test-unit test-integration test-e2e
+test: test-unit test-integration test-e2e test-system
   #!/usr/bin/env bash
   set -euo pipefail
   bats_list="$(mktemp)"

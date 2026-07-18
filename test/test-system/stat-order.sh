@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test-guard-bsd-stat.sh. test/tools/test-guard.sh must reject a BSD-first stat
+# stat-order.sh. test/validate-tests.sh must reject a BSD-first stat
 # fallback chain in a scanned test file. The BSD form (the `-f` variant) placed
 # first in a chain runs before the GNU form (the `-c` variant); on Linux CI (GNU
 # coreutils) the `-f` variant means "filesystem status" and SUCCEEDS with the
@@ -17,10 +17,10 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-GUARD="$REPO_ROOT/test/tools/test-guard.sh"
+GUARD="$REPO_ROOT/test/validate-tests.sh"
 
 [[ -x $GUARD ]] || {
-  printf 'test-guard-bsd-stat: FAIL -- guard missing or not executable: %s\n' "$GUARD" >&2
+  printf 'stat-order: FAIL -- guard missing or not executable: %s\n' "$GUARD" >&2
   exit 1
 }
 
@@ -40,7 +40,7 @@ gnu_printf_form='stat --printf'
 
 failures=0
 report_failure() {
-  printf 'test-guard-bsd-stat: FAIL -- %s\n' "$*" >&2
+  printf 'stat-order: FAIL -- %s\n' "$*" >&2
   failures=$((failures + 1))
 }
 
@@ -268,7 +268,7 @@ run_guard "$eval_boundary_root/test"
 : "$gnu_long_attached" "$gnu_long_separate"
 
 if ((failures > 0)); then
-  printf 'test-guard-bsd-stat: %d assertion(s) failed\n' "$failures" >&2
+  printf 'stat-order: %d assertion(s) failed\n' "$failures" >&2
   exit 1
 fi
-printf 'test-guard-bsd-stat: PASS -- guard flags BSD-first stat chains, allows GNU-first and bare BSD\n'
+printf 'stat-order: PASS -- guard flags BSD-first stat chains, allows GNU-first and bare BSD\n'
