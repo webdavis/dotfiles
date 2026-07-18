@@ -67,63 +67,48 @@ apply-no-auth:
 check:
   nix develop .#run --command nix flake check --all-systems
 
-# Test pyramid (operator, 2026-07-11; pattern: essential-feed-case-study).
-# Tests live in camps by DESIGN: test/unit (single component, stub-driven, no
+# Tests live in suites by DESIGN: test/unit (single component, stub-driven, no
 # flows, no sleeps; FAST is the admission rule), test/integration
 # (multi-component with stubbed boundaries), test/e2e (whole-script flows and
 # timing-bound tests). The pre-commit hook runs `just test-unit` only; the
-# pre-push hook and CI run `just test` (all camps). A test file sitting
+# pre-push hook and CI run `just test` (all suites). A test file sitting
 # directly under test/ fails the guard in both runners so strays cannot hide.
 
-# Unit camp only: the commit gate. Seeded shuffle + per-test timing with a
-# warn-only performance summary live in scripts/run-unit-tests.sh.
-test-unit: test-guard
-  ./scripts/run-unit-tests.sh
+# Unit suite only: the commit gate. --shuffle randomizes order to flush hidden
+# ordering deps (seed printed for replay); --warn-slow-ms flags slow tests in a
+# warn-only summary. The other suites run the same runner plain.
+test-unit: validate-tests
+  ./test/run-test-suite.sh --shuffle --warn-slow-ms 200 test/unit
 
-# One camp at a time, for focused iteration. scripts/run-camp.sh runs the
-# camp's executable *.sh tests (each with fd 3 closed so a test that reads stdin
-# cannot swallow the discovery list) then the camp's own *.bats suites; its
-# discovery is checked so a traversal/sort error fails the gate instead of
-# green-gating a short list.
-test-integration: test-guard
-  ./scripts/run-camp.sh test/integration
+# One suite at a time, for focused iteration. test/run-test-suite.sh runs the
+# suite's executable *.sh tests, then its *.bats. The runner reads its own test
+# list on fd 3 and closes fd 3 for each test it launches: a test that inherited
+# the open fd could accidentally read the rest of the list and silently skip
+# tests. Discovery is checked, so a failed file search fails the run instead of
+# green-lighting a partial list.
+test-integration: validate-tests
+  ./test/run-test-suite.sh test/integration
 
-test-e2e: test-guard
-  ./scripts/run-camp.sh test/e2e
+test-e2e: validate-tests
+  ./test/run-test-suite.sh test/e2e
 
-# Placement / mode / symlink guard (scripts/test-guard.sh): every *.sh and
-# *.bats below test/ must sit DIRECTLY in a recognized camp (test/unit,
-# test/integration, test/e2e); camp *.sh must be executable; no symlinks are
-# allowed anywhere below test/ (a physical find skips them, so they would evade
-# every gate). test/fixtures/** is exempt.
-test-guard:
-  ./scripts/test-guard.sh
+# The suite that tests the checker and the runner themselves.
+test-system: validate-tests
+  ./test/run-test-suite.sh test/test-system
 
-# All camps: what pre-push and CI run. The per-camp recipes above already run
-# each camp's bats; this aggregate ALSO runs every bats suite (test/**/*.bats)
-# as the backstop. Bats runs inside the Nix devshell when the host lacks it (the
-# flake provides bats + GNU parallel). Discovery is checked and empty-safe.
-test: test-unit test-integration test-e2e
-  #!/usr/bin/env bash
-  set -euo pipefail
-  bats_list="$(mktemp)"
-  trap 'rm -f "$bats_list"' EXIT
-  if ! find test -type f -name '*.bats' -print0 | sort -z >"$bats_list"; then
-    printf 'FAIL: bats discovery failed; refusing to skip a partial list\n' >&2
-    exit 1
-  fi
-  bats_files=()
-  while IFS= read -r -d '' b; do
-    bats_files+=("$b")
-  done <"$bats_list"
-  if ((${#bats_files[@]} > 0)); then
-    printf "== bats (all camps) ==\n"
-    if command -v bats >/dev/null 2>&1; then
-      bats --jobs 4 "${bats_files[@]}"
-    else
-      nix develop .#run --command bats --jobs 4 "${bats_files[@]}"
-    fi
-  fi
+# Placement / mode / symlink guard (test/validate-tests.sh): every *.sh and
+# *.bats below test/ must sit DIRECTLY in a recognized suite (test/unit,
+# test/integration, test/e2e, test/test-system); suite *.sh must be executable;
+# no symlinks are allowed anywhere below test/ (a physical find skips them, so
+# they would evade every gate). A suite's helpers/ and test/fixtures/** are
+# exempt.
+validate-tests:
+  ./test/validate-tests.sh
+
+# All suites: what pre-push and CI run. Each suite recipe runs its own *.sh
+# and *.bats via the runner, and the checker's placement rules reject any bats
+# outside a suite, so no separate bats backstop is needed here.
+test: test-unit test-integration test-e2e test-system
 
 # Run the weekly Homebrew upgrade by hand (formulae + casks + Mac App Store +
 # cleanup). Same job the Monday-noon com.webdavis.homebrew-weekly-upgrade
