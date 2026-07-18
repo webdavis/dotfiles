@@ -32,7 +32,6 @@
 # process); the shuffle uses gshuf/shuf when present and degrades to sorted
 # order otherwise.
 set -euo pipefail
-export LC_ALL=C # force EPOCHREALTIME to use a '.' decimal separator
 
 usage='usage: run-test-suite.sh [--shuffle[=seed]] [--warn-slow-ms N] <suite-dir>'
 
@@ -62,10 +61,12 @@ require_unsigned_integer() { # <value>
   [[ $1 =~ ^[0-9]+$ ]] || die_usage
 }
 
-# Milliseconds since epoch from EPOCHREALTIME ("seconds.microseconds"): drop the
-# dot to get integer microseconds, divide by 1000. No external process.
+# Milliseconds since epoch from EPOCHREALTIME ("seconds<sep>microseconds"):
+# strip the separator (a dot, or a comma in some locales; stripping every
+# non-digit avoids exporting LC_ALL=C, which would leak into child tests) to
+# get integer microseconds, divide by 1000. No external process.
 now_ms() {
-  local r="${EPOCHREALTIME/./}"
+  local r="${EPOCHREALTIME//[!0-9]/}"
   printf '%s' "$((r / 1000))"
 }
 
@@ -123,10 +124,12 @@ parse_args() {
 
 # Checked discovery of one file kind into <outfile>. The find/sort pipeline runs
 # with pipefail on, so a traversal or sort error is the function's exit status.
+# LC_ALL=C is scoped to the sort only (deterministic ordering for seed replay)
+# so it never leaks into child tests.
 discover_tests() { # <suite_directory> <outfile> <find-args...>
   local suite_directory="$1" outfile="$2"
   shift 2
-  find "$suite_directory" -maxdepth 1 -type f "$@" -print0 | sort -z >"$outfile"
+  find "$suite_directory" -maxdepth 1 -type f "$@" -print0 | LC_ALL=C sort -z >"$outfile"
 }
 
 # Run the suite's *.sh tests from <sh_list_file>: optional seeded shuffle, then

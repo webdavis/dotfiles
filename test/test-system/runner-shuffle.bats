@@ -177,6 +177,21 @@ SHIM
   [[ "$output" == *"slow.sh"* ]]
 }
 
+# The runner must not rewrite the locale of the tests it runs: a child test
+# has to see the caller's LC_ALL, not a leaked LC_ALL=C from the runner's own
+# timing internals.
+@test "child tests inherit the caller's locale" {
+  {
+    printf '#!/usr/bin/env bash\n'
+    printf 'printf "%%s" "${LC_ALL:-unset}" > "$LOCALE_LOG"\n'
+  } > "$SUITE/locale-probe.sh"
+  chmod +x "$SUITE/locale-probe.sh"
+  export LOCALE_LOG="$scratch/locale.log"
+  LC_ALL=de_DE.UTF-8 run "$RUNNER" "$SUITE"
+  [ "$status" -eq 0 ]
+  [ "$(cat "$LOCALE_LOG")" = "de_DE.UTF-8" ]
+}
+
 # The seed test must have TEETH: it has to go RED if the shuffle is removed or
 # TEST_SEED is ignored. It records execution order via mk_order_test fixtures
 # (the runner prints no passing names) and asserts BOTH:
