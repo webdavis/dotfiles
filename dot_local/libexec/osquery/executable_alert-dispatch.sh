@@ -1,22 +1,21 @@
 #!/usr/bin/env bash
 #
 # alert-dispatch.sh, sourced helper, not run directly. Provides
-# send_alert(), which dispatches one finding to BOTH the local macOS notifier
-# (alerter) and a hermes Discord webhook, routing by severity (CRIT -> #priority,
-# else -> #osquery). Signing, dual-channel delivery, and durable handling of an
-# undelivered page all live here so the three producers (results-alerter.sh,
-# firewall-gatekeeper-monitor.sh, and uptime-watchdog.sh) share one
-# implementation.
+# send_alert(), which always fires the local macOS notifier (alerter) and, for a
+# CRIT severity ONLY, POSTs the page to the hermes #priority Discord webhook. v2
+# has NO #osquery channel: there is deliberately no non-priority route for a
+# producer to leak to. Signing and durable handling of an undelivered page live
+# here so the three producers (results-alerter.sh, firewall-gatekeeper-monitor.sh,
+# and uptime-watchdog.sh) share one implementation.
 #
 # Usage (from a sourcing script):
 #   source "$HOME/.local/libexec/osquery/alert-dispatch.sh"
 #   send_alert CRIT "Firewall disabled" "alf global_state 1 -> 0" Sosumi
 
-# Two routes, same app (osquery), each signed with the one osquery key below.
-# CRIT findings go to the #priority channel (the one channel the user watches);
-# everything else goes to the quiet #osquery log channel. send_alert picks the
-# URL from its severity argument.
-OSQUERY_HERMES_URL="${OSQUERY_HERMES_URL:-http://127.0.0.1:8644/webhooks/osquery}"
+# One Discord route: the #priority channel (the one channel the user watches),
+# signed with the osquery HMAC key below. v2 has NO #osquery channel, only a
+# confirmed CRIT page is POSTed; any other severity does the local notification
+# only. There is deliberately no non-priority URL for a producer to leak to.
 OSQUERY_HERMES_PRIORITY_URL="${OSQUERY_HERMES_PRIORITY_URL:-http://127.0.0.1:8644/webhooks/osquery-priority}"
 # The notifier signs with its OWN copy of the HMAC key, read from its own secret
 # file, NOT from hermes's .env. HMAC is symmetric so the value must match the
@@ -138,10 +137,6 @@ retry_undelivered_alerts() {
 send_alert() {
   local severity="$1" title="$2" detail="$3" sound="${4-}" occurrence="${5-}"
 
-  # Route by severity: only CRIT reaches #priority.
-  local webhook_url="$OSQUERY_HERMES_URL"
-  [[ $severity == "CRIT" ]] && webhook_url="$OSQUERY_HERMES_PRIORITY_URL"
-
   # The local notifier renders plain text, so strip Discord markdown (**bold**,
   # `code`) for it; the webhook POST below keeps the markdown intact.
   local plain_title plain_detail
@@ -165,16 +160,28 @@ send_alert() {
     fi
   fi
 
-  # Build the webhook body and an occurrence-stable request id. The request id
-  # derives from OCCURRENCE IDENTITY (threaded from the caller) when present, so
-  # two distinct incidents that render the same body get distinct ids (both
-  # stored, both delivered) while a retry of the same occurrence reuses one id
-  # (the gateway dedups it, the stored filename is idempotent). No occurrence
-  # means a per-call unique seed. Built BEFORE reading the secret so a
+  # v2: only a CRIT page is delivered to Discord. Any other severity stops here,
+  # after the local notification, there is no #osquery channel to POST to.
+  [[ $severity == "CRIT" ]] || return 0
+  local url="$OSQUERY_HERMES_PRIORITY_URL"
+
+  # Build the webhook body and an occurrence-stable request id. tier: a page is
+  # loud (a sound was requested), a digest/heartbeat is muted (no sound). Both
+  # severities are CRIT and both POST; tier lets the Hermes adapter suppress the
+  # notification for muted traffic instead of pinging it like a page. host is
+  # INSIDE the signed body, the spec's body shape and the multi-host migration
+  # seam both require {event_type, host, tier, alert}.
+  #
+  # The request id derives from OCCURRENCE IDENTITY (threaded from the caller)
+  # when present, so two distinct incidents that render the same body get distinct
+  # ids (both stored, both delivered) while a retry of the same occurrence reuses
+  # one id (the gateway dedups it, the stored filename is idempotent). No
+  # occurrence means a per-call unique seed. Built BEFORE reading the secret so a
   # missing-secret page stores with the same id the drain later signs and sends.
-  local body request_id id_seed
-  body="$(jq -cn --arg t "$title" --arg d "$detail" \
-    '{event_type:"osquery.alert", alert:{title:$t, detail:$d}}')"
+  local body request_id id_seed tier
+  if [[ -n $sound ]]; then tier="page"; else tier="muted"; fi
+  body="$(jq -cn --arg h "$(hostname -s)" --arg t "$title" --arg d "$detail" --arg tier "$tier" \
+    '{event_type:"osquery.alert", host:$h, tier:$tier, alert:{title:$t, detail:$d}}')"
   if [[ -n $occurrence ]]; then
     id_seed="$occurrence"
   else
@@ -197,7 +204,7 @@ send_alert() {
     # LOUD local notice naming the broken channel. If storing ALSO fails, the
     # page is neither delivered nor stored, a hard failure that must be loud AND
     # return nonzero, never a bare success that drops the page.
-    if _store_undelivered_alert "$request_id" "$webhook_url" "$body"; then
+    if _store_undelivered_alert "$request_id" "$url" "$body"; then
       _osquery_log "STORED-NOSECRET Discord delivery degraded: request_id=$request_id (no secret in $OSQUERY_WEBHOOK_SECRET_FILE)"
       _loud_local "osquery Discord paging BROKEN" \
         "No webhook secret. This page was stored locally and delivers when the secret is restored."
@@ -214,7 +221,7 @@ send_alert() {
 
   for attempt in 1 2 3; do
     http_status="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 \
-      -X POST "$webhook_url" \
+      -X POST "$url" \
       -H 'Content-Type: application/json' \
       -H "X-Webhook-Signature: $signature" \
       -H "X-Request-ID: $request_id" \
@@ -230,7 +237,7 @@ send_alert() {
   # the drain replays it. If storage ALSO fails, the page is neither delivered
   # nor stored, a hard failure that returns nonzero and fires a loud local alert,
   # so the caller does NOT advance its cursor past a page that was actually lost.
-  if _store_undelivered_alert "$request_id" "$webhook_url" "$body"; then
+  if _store_undelivered_alert "$request_id" "$url" "$body"; then
     _osquery_log "STORED webhook delivery: request_id=$request_id http=$http_status"
     return 0
   fi
