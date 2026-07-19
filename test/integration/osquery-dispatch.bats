@@ -145,3 +145,33 @@ teardown() { teardown_dispatch_harness; }
   run grep -oE '"ts":[0-9]+' "$CURL_LOG"
   [[ $status -eq 0 ]]
 }
+
+@test "T-DISP-secret-not-in-argv: the signing key never reaches any openssl argv (F-B)" {
+  # Shim openssl to log its full argv, then delegate to the real one so signing
+  # still works. A CRIT send must never pass the secret as an openssl argument,
+  # any user's `ps` would otherwise see the key.
+  local real_openssl
+  real_openssl="$(command -v openssl)"
+  export OPENSSL_ARGV_LOG="$HARNESS_HOME/openssl_argv.log"
+  : >"$OPENSSL_ARGV_LOG"
+  {
+    printf '#!/usr/bin/env bash\n'
+    printf 'printf "%%s\\n" "$*" >>"%s"\n' "$OPENSSL_ARGV_LOG"
+    printf 'exec %q "$@"\n' "$real_openssl"
+  } >"$HARNESS_HOME/bin/openssl"
+  chmod +x "$HARNESS_HOME/bin/openssl"
+  export OSQUERY_WEBHOOK_SECRET="SUPERSECRET-argv-probe"
+  send_alert CRIT "🔴 title" "detail" "Sosumi"
+  [[ -s $OPENSSL_ARGV_LOG ]] # openssl WAS invoked (sanity)
+  ! grep -qF 'SUPERSECRET-argv-probe' "$OPENSSL_ARGV_LOG"
+}
+
+@test "T-DISP-sign-matches-openssl: the argv-free signer equals openssl's HMAC output (F-B)" {
+  # Correctness anchor: the manual HMAC must be byte-identical to openssl's -hmac,
+  # or a wrong-but-consistent signature would pass the curl-mocked tests yet be
+  # rejected by the gateway in production.
+  local message="the message" key="k3y" got want
+  got="$(printf '%s' "$message" | _hmac_sha256_hex "$key")"
+  want="$(printf '%s' "$message" | openssl dgst -sha256 -hmac "$key" | awk '{print $NF}')"
+  [[ $got == "$want" ]]
+}

@@ -45,6 +45,40 @@ _osquery_log() {
   printf '%s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$1" >>"$OSQUERY_DELIVERY_LOG" 2>/dev/null || true
 }
 
+# HMAC-SHA256 of the message on STDIN under the key in $1, hex digest on stdout.
+# The key is a FUNCTION argument (it lives in this shell's memory, never a child
+# process argv), and it is never passed to openssl: openssl only ever hashes
+# bytes on stdin (`openssl dgst -sha256`), so the secret cannot appear in any
+# `ps` output. HMAC is built by hand from SHA-256 (the standard
+# H((K'^opad)||H((K'^ipad)||m)) construction); a unit test pins it byte-identical
+# to `openssl dgst -hmac`. openssl `dgst` is used (not the OpenSSL-3-only `mac`)
+# so it works with the host's LibreSSL too.
+_hmac_sha256_hex() {
+  local key="$1" block_size=64 key_hex byte_hex ipad_format="" opad_format="" inner_hex inner_format="" i
+  # Key to hex bytes; if longer than the block size, replace it with its digest.
+  key_hex="$(printf '%s' "$key" | od -v -A n -t x1 | tr -d ' \n')"
+  if ((${#key_hex} > block_size * 2)); then
+    key_hex="$(printf '%s' "$key" | openssl dgst -sha256 | awk '{print $NF}')"
+  fi
+  while ((${#key_hex} < block_size * 2)); do key_hex+="00"; done
+  # Build the padded-key-XOR-pad byte strings as printf \xHH format specifiers.
+  for ((i = 0; i < block_size; i++)); do
+    byte_hex="${key_hex:i*2:2}"
+    printf -v ipad_format '%s\\x%02x' "$ipad_format" "$((16#$byte_hex ^ 0x36))"
+    printf -v opad_format '%s\\x%02x' "$opad_format" "$((16#$byte_hex ^ 0x5c))"
+  done
+  # inner = SHA256( (K' xor ipad) || message ); the message streams from stdin.
+  # shellcheck disable=SC2059 # the format is a fixed \xHH byte string, no user data
+  inner_hex="$({
+    printf "$ipad_format"
+    cat
+  } | openssl dgst -sha256 | awk '{print $NF}')"
+  for ((i = 0; i < ${#inner_hex}; i += 2)); do inner_format+="\\x${inner_hex:i:2}"; done
+  # outer = SHA256( (K' xor opad) || inner ).
+  # shellcheck disable=SC2059 # the format is a fixed \xHH byte string, no user data
+  printf "$opad_format$inner_format" | openssl dgst -sha256 | awk '{print $NF}'
+}
+
 # Store one undelivered page and REPORT persistence success. The file is named by
 # the occurrence-unique request_id, so re-storing the same occurrence is
 # idempotent while two DISTINCT occurrences never collide. The encoded body and
@@ -136,7 +170,7 @@ _deliver_stored_record() {
   esac
   body="$(printf '%s' "$body" | base64 -d 2>/dev/null)" || return 0
   [[ -n $body ]] || return 0
-  signature="$(printf '%s' "$body" | openssl dgst -sha256 -hmac "$secret" | awk '{print $NF}')"
+  signature="$(printf '%s' "$body" | _hmac_sha256_hex "$secret")"
   http_status="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 \
     -X POST "$url" \
     -H 'Content-Type: application/json' \
@@ -297,7 +331,7 @@ send_alert() {
   fi
 
   local signature http_status attempt
-  signature="$(printf '%s' "$body" | openssl dgst -sha256 -hmac "$secret" | awk '{print $NF}')"
+  signature="$(printf '%s' "$body" | _hmac_sha256_hex "$secret")"
 
   for attempt in 1 2 3; do
     http_status="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 \
