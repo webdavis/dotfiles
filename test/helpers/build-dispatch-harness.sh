@@ -19,6 +19,9 @@
 # export the library's inputs, and source the library.
 build_dispatch_harness() {
   HARNESS_HOME="$(mktemp -d)"
+  # Record ownership ONLY after we created our own temp dir, so teardown removes
+  # this path and never a pre-set or inherited HARNESS_HOME.
+  _DISPATCH_HARNESS_OWNED_DIR="$HARNESS_HOME"
   mkdir -p "$HARNESS_HOME/bin" "$HARNESS_HOME/.local/log/osquery"
 
   export ALERTER_LOG="$HARNESS_HOME/alerter.log"
@@ -67,9 +70,13 @@ STUB
   source "$DISPATCH"
 }
 
-# teardown_dispatch_harness -- remove the temp HOME (safe when setup never ran).
+# teardown_dispatch_harness -- remove ONLY a temp dir this harness created. The
+# ownership marker is set by build_dispatch_harness after its own mktemp, so a
+# pre-set or inherited HARNESS_HOME (marker unset) is left untouched.
 teardown_dispatch_harness() {
-  [[ -n ${HARNESS_HOME:-} ]] && rm -rf "$HARNESS_HOME"
+  [[ -n ${_DISPATCH_HARNESS_OWNED_DIR:-} ]] || return 0
+  rm -rf "$_DISPATCH_HARNESS_OWNED_DIR"
+  unset _DISPATCH_HARNESS_OWNED_DIR
 }
 
 # set_curl_codes <code>... -- queue the HTTP codes the curl stub returns, one per
