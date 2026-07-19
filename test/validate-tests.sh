@@ -6,10 +6,10 @@
 #
 #   - a *.sh OR *.bats not sitting DIRECTLY in a recognized suite
 #     (test/unit, test/integration, test/e2e, test/test-system); a suite's
-#     helpers/ may hold only NON-executable *.sh (sourced libs; an executable
-#     file there is a misplaced test, and bats never belong there);
-#     test/fixtures/** is exempt; only validate-tests.sh and run-test-suite.sh
-#     may sit at test/ root;
+#     helpers/ AND the shared, cross-suite test/helpers/ may hold only
+#     NON-executable *.sh (sourced libs; an executable file there is a misplaced
+#     test, and bats never belong there); test/fixtures/** is exempt; only
+#     validate-tests.sh and run-test-suite.sh may sit at test/ root;
 #   - a suite *.sh that is not executable (invisible to the runner's -perm probe);
 #   - ANY symlink below test/. A physical `find -type f` skips symlinked files
 #     and symlinked suite dirs, so a tracked symlink would evade this guard and
@@ -70,6 +70,18 @@ check_placement() { # <root> <workdir>
         ;;
       "$root"/unit/helpers/* | "$root"/integration/helpers/* | "$root"/e2e/helpers/* | "$root"/test-system/helpers/*)
         bad+="$file (only sourced *.sh belong in a suite's helpers/)"$'\n'
+        ;;
+      # The shared, cross-suite test/helpers/ dir (sourced libs used by more than
+      # one suite) follows the same rule as a suite's helpers/: sourced,
+      # non-executable *.sh only. An executable file there is a misplaced test no
+      # runner discovers, and bats never belong there, so both fail the guard.
+      "$root"/helpers/*.sh)
+        if [[ -x $file ]]; then
+          bad+="$file (helpers are sourced, not executed; remove the executable bit, or move the test into a suite)"$'\n'
+        fi
+        ;;
+      "$root"/helpers/*)
+        bad+="$file (only sourced *.sh belong in test/helpers/)"$'\n'
         ;;
       # The control scripts allowed to sit at test/ root, run by just, never
       # discovered as tests.
