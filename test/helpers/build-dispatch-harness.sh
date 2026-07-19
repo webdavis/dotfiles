@@ -25,12 +25,17 @@ build_dispatch_harness() {
   : >"$ALERTER_LOG"
   printf '#!/usr/bin/env bash\nprintf "%%s\\n" "$*" >>"%s"\nexit 0\n' "$ALERTER_LOG" >"$HARNESS_HOME/bin/alerter"
 
-  # curl stub: record the invocation, then emit the next queued HTTP code (one
+  # curl stub: record the invocation and the count of stored undelivered-alert
+  # files AT CALL TIME (so a test can prove the write-ahead record already existed
+  # when the first POST was attempted), then emit the next queued HTTP code (one
   # per line in $CURL_CODES_FILE, popped per call), defaulting to 200 when the
   # queue is empty.
   cat >"$HARNESS_HOME/bin/curl" <<'STUB'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$CURL_LOG"
+if [[ -n "${CURL_PERSIST_WITNESS:-}" ]]; then
+  find "${OSQUERY_UNDELIVERED_ALERTS_DIR:-/nonexistent}" -type f 2>/dev/null | wc -l | tr -d ' ' >>"$CURL_PERSIST_WITNESS"
+fi
 code=200
 if [[ -s "$CURL_CODES_FILE" ]]; then
   code=$(head -1 "$CURL_CODES_FILE")
@@ -44,6 +49,11 @@ STUB
   : >"$CURL_LOG"
   export CURL_CODES_FILE="$HARNESS_HOME/curl_codes"
   : >"$CURL_CODES_FILE"
+  # The write-ahead witness: the curl stub appends the stored-record count seen at
+  # each POST here, one line per call. Empty until a test opts in by pointing it
+  # at a file.
+  export CURL_PERSIST_WITNESS="$HARNESS_HOME/curl_persist_witness"
+  : >"$CURL_PERSIST_WITNESS"
   export PATH="$HARNESS_HOME/bin:$PATH"
   export HOME="$HARNESS_HOME"
 

@@ -137,3 +137,11 @@ teardown() { teardown_dispatch_harness; }
   grep -qF '"tier":"muted"' "$CURL_LOG"
   ! grep -qF '"tier":"page"' "$CURL_LOG"
 }
+
+@test "T-DISP-body-ts: a CRIT body carries a numeric occurrence ts (the drain ordering key)" {
+  # The occurrence time is inside the signed body so a replayed page keeps its
+  # original ordering key and the field is tamper-evident.
+  send_alert CRIT "🔴 title" "detail" "Sosumi"
+  run grep -oE '"ts":[0-9]+' "$CURL_LOG"
+  [[ $status -eq 0 ]]
+}
