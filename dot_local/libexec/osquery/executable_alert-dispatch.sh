@@ -213,6 +213,71 @@ COMMIT;\n" \
   return 0
 }
 
+# Record one FAILED-but-retryable delivery attempt on a pending row: attempts
+# goes up by one and next_attempt_after moves into the future, so the drain
+# leaves the row alone until its wait has passed instead of hammering a failing
+# gateway on every tick. The wait grows with the attempt count (base seconds
+# times the new attempt number; the base is overridable for tests, and DR-B T6
+# adds a random wobble on top). The clock and the arithmetic both live inside
+# the one UPDATE, so the read-modify-write is atomic under concurrent drains.
+# A failed update is reported nonzero for the caller to log but never fail on:
+# the row is still pending, and the only cost is a retry that comes sooner.
+_osquery_record_transient_failure() {
+  local request_id="$1" base="${OSQUERY_DRAIN_RETRY_BASE_SECONDS:-60}"
+  [[ $base =~ ^[0-9]+$ ]] || base=60
+  local request_id_sql="${request_id//\'/\'\'}"
+  printf "UPDATE pending_alerts
+  SET attempts = attempts + 1,
+      next_attempt_after = CAST(strftime('%%s','now') AS INTEGER) + %s * (attempts + 1)
+  WHERE request_id = '%s';\n" "$base" "$request_id_sql" | _osquery_alerts_db_exec
+}
+
+# Move one pending row into the dead_letter_alerts table, in ONE transaction:
+# the insert and the delete commit together, so a crash at any instant leaves
+# the record in exactly one of the two tables, never in neither. Used when
+# delivery can never succeed (a permanent HTTP status; DR-B T4 adds the
+# attempts/age thresholds). The table is bootstrapped lazily inside the same
+# transaction, mirroring the pending_alerts bootstrap. The batch is idempotent
+# (INSERT OR IGNORE plus a DELETE that fires only once the dead-letter copy
+# exists), so the locked-database retry in _osquery_alerts_db_exec may replay
+# it safely, and the delete can never remove a page the insert did not keep.
+_osquery_dead_letter_alert_row() { # <request_id> <last_http_status> <reason>
+  local request_id="$1" last_http_status="$2" reason="$3" dead_lettered_at
+  dead_lettered_at="$(date -u +%s)"
+  [[ $dead_lettered_at =~ ^[0-9]+$ ]] || dead_lettered_at=0
+  local request_id_sql="${request_id//\'/\'\'}"
+  local status_sql="${last_http_status//\'/\'\'}"
+  local reason_sql="${reason//\'/\'\'}"
+  printf "BEGIN IMMEDIATE;
+CREATE TABLE IF NOT EXISTS dead_letter_alerts (
+  sequence_number    INTEGER PRIMARY KEY,
+  request_id         TEXT UNIQUE NOT NULL,
+  occurrence_ts      INTEGER NOT NULL,
+  url                TEXT NOT NULL,
+  body_base64        TEXT NOT NULL,
+  attempts           INTEGER NOT NULL,
+  next_attempt_after INTEGER NOT NULL,
+  created_at         INTEGER NOT NULL,
+  dead_lettered_at   INTEGER NOT NULL,
+  last_http_status   TEXT NOT NULL,
+  reason             TEXT NOT NULL
+);
+INSERT OR IGNORE INTO dead_letter_alerts
+    (sequence_number, request_id, occurrence_ts, url, body_base64,
+     attempts, next_attempt_after, created_at,
+     dead_lettered_at, last_http_status, reason)
+  SELECT sequence_number, request_id, occurrence_ts, url, body_base64,
+         attempts, next_attempt_after, created_at,
+         %s, '%s', '%s'
+    FROM pending_alerts WHERE request_id = '%s';
+DELETE FROM pending_alerts
+  WHERE request_id = '%s'
+    AND request_id IN (SELECT request_id FROM dead_letter_alerts);
+COMMIT;\n" \
+    "$dead_lettered_at" "$status_sql" "$reason_sql" "$request_id_sql" "$request_id_sql" |
+    _osquery_alerts_db_exec
+}
+
 # Delete one delivered page's pending_alerts row, keyed by request_id. Called
 # ONLY after a confirmed 2xx (the write-ahead contract: the row is the page's
 # durable copy until delivery is confirmed). A missing DB is a clean no-op
@@ -228,16 +293,21 @@ _osquery_delete_alert_row() {
   printf "DELETE FROM pending_alerts WHERE request_id = '%s';\n" "$request_id_sql" | _osquery_alerts_db_exec
 }
 
-# Print every pending row as one tab-separated line (request_id, url,
+# Print every DUE pending row as one tab-separated line (request_id, url,
 # body_base64), ordered for the drain: occurrence time first, then the
 # insert-assigned sequence_number as the tiebreaker. The sequence tiebreaker is
 # skew-proof: equal timestamps (or a backward clock step) still drain in insert
-# order. Tabs cannot appear in the fields (a hex-derived request id, a base64
+# order. A row whose next_attempt_after is still in the future is left out:
+# its last attempt failed transiently and its retry wait has not passed yet, so
+# the drain leaves it alone instead of hammering a failing gateway every tick.
+# Tabs cannot appear in the fields (a hex-derived request id, a base64
 # body, and a URL the localhost guard restricts), so the line format is safe.
 _osquery_pending_alert_rows() {
   {
     printf '.separator "\\t"\n'
-    printf 'SELECT request_id, url, body_base64 FROM pending_alerts ORDER BY occurrence_ts, sequence_number;\n'
+    printf "SELECT request_id, url, body_base64 FROM pending_alerts
+  WHERE next_attempt_after <= CAST(strftime('%%s','now') AS INTEGER)
+  ORDER BY occurrence_ts, sequence_number;\n"
   } | _osquery_alerts_db_exec
 }
 
@@ -272,7 +342,24 @@ _deliver_pending_alert_row() {
       _osquery_delete_alert_row "$request_id" ||
         _osquery_log "ROW-DELETE-FAILED delivered page kept a pending row: request_id=$request_id (gateway dedups the re-post)"
       ;;
-    *) : ;;
+    401 | 403 | 404 | 413)
+      # A permanent status: the gateway understood the request and refused it
+      # outright, so no number of retries can ever succeed. Move the record to
+      # the dead-letter table NOW, loudly, so the drain stops re-sending it
+      # forever and the operator can still read the full page there.
+      if _osquery_dead_letter_alert_row "$request_id" "$http_status" "permanent HTTP status $http_status"; then
+        _osquery_log "DEAD-LETTERED request_id=$request_id http=$http_status (permanent status; moved to dead_letter_alerts)"
+      else
+        _osquery_log "DEAD-LETTER-FAILED request_id=$request_id http=$http_status (move failed; row retained in pending_alerts)"
+      fi
+      ;;
+    *)
+      # A transient failure (429, 5xx, or a transport error): count the
+      # attempt and push this row's next try into the future, so the row waits
+      # out its delay instead of being re-POSTed by every drain tick.
+      _osquery_record_transient_failure "$request_id" ||
+        _osquery_log "RETRY-BOOKKEEPING-FAILED request_id=$request_id (attempts not recorded; the row simply retries sooner)"
+      ;;
   esac
   return 0
 }
