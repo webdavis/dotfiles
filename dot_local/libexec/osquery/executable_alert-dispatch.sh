@@ -190,6 +190,21 @@ _osquery_store_alert_row() {
     "$request_id_sql" "$occurrence_timestamp" "$url_sql" "$body_sql" "$created_at" | _osquery_alerts_db_exec
 }
 
+# Delete one delivered page's pending_alerts row, keyed by request_id. Called
+# ONLY after a confirmed 2xx (the write-ahead contract: the row is the page's
+# durable copy until delivery is confirmed). A missing DB is a clean no-op (a
+# drain can replay records that predate the SQLite store). A failed delete is
+# reported nonzero for the caller to LOG but never to fail on: the page was
+# delivered, and a leaked row costs one deduplicated re-post on a later drain
+# (the gateway drops the duplicate by request_id), while failing the caller
+# would wrongly report a delivered page as lost.
+_osquery_delete_alert_row() {
+  local request_id="$1"
+  [[ -f $OSQUERY_UNDELIVERED_ALERTS_DB ]] || return 0
+  local request_id_sql="${request_id//\'/\'\'}"
+  printf "DELETE FROM pending_alerts WHERE request_id = '%s';\n" "$request_id_sql" | _osquery_alerts_db_exec
+}
+
 # Store one undelivered page and REPORT persistence success. The file is named by
 # the occurrence-unique request_id, so re-storing the same occurrence is
 # idempotent while two DISTINCT occurrences never collide. The encoded body and
@@ -356,7 +371,16 @@ _deliver_stored_record() {
   fi
   http_status="$(_post_alert_to_webhook "$url" "$request_id" "$signature" "$body")" || http_status=000
   case "$http_status" in
-    2*) rm -f "$stored_file" ;;
+    2*)
+      # Confirmed delivery: clear BOTH stores. SQLite is authoritative for
+      # delete semantics; the file removal keeps the interim file store in step
+      # until the file machinery is retired. A failed row delete is logged, not
+      # fatal: the page was delivered, and the gateway dedups a leaked row's
+      # re-post by request_id.
+      rm -f "$stored_file"
+      _osquery_delete_alert_row "$request_id" ||
+        _osquery_log "ROW-DELETE-FAILED delivered page kept a pending row: request_id=$request_id (gateway dedups the re-post)"
+      ;;
     *) : ;;
   esac
   return 0
@@ -523,7 +547,14 @@ send_alert() {
 
   local http_status
   if http_status="$(_attempt_alert_delivery "$url" "$request_id" "$secret" "$body")"; then
-    rm -f "$stored_file" # delete ONLY after a confirmed 2xx
+    # Delete ONLY after a confirmed 2xx, from BOTH stores. SQLite is
+    # authoritative for delete semantics; the file removal keeps the interim
+    # file store in step until the file machinery is retired. A failed row
+    # delete is logged, not fatal: the page was delivered, and the gateway
+    # dedups a leaked row's re-post by request_id.
+    rm -f "$stored_file"
+    _osquery_delete_alert_row "$request_id" ||
+      _osquery_log "ROW-DELETE-FAILED delivered page kept a pending row: request_id=$request_id (gateway dedups the re-post)"
     return 0
   fi
   # Delivery failed after retries: the write-ahead record REMAINS on disk and the

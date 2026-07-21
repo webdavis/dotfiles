@@ -134,6 +134,31 @@ teardown() { teardown_dispatch_harness; }
   [[ $first_witnessed_count -ge 1 ]]
 }
 
+@test "T-SEC-sqlite-delete-send: a confirmed 2xx on the SEND path deletes the pending_alerts row" {
+  # Delete only after a confirmed 2xx: a page delivered on the first attempt
+  # must leave ZERO rows behind, or the store grows a leaked row per delivered
+  # page and a later drain re-posts already-delivered pages forever.
+  set_curl_codes 200
+  run_dispatch send_output send_status CRIT "🔴 title" "detail body" "Sosumi" "occ:del-send:1"
+  [[ $send_status -eq 0 ]]
+  assert_post_count 1 # the 2xx really happened (positive anchor)
+  assert_pending_alert_count 0
+}
+
+@test "T-SEC-sqlite-delete-drain: a failed delivery RETAINS the row; the drain's 2xx deletes it" {
+  # Failure retains: the row must survive every failed attempt (it is the only
+  # durable copy of the page). Recovery deletes: once the drain gets its 2xx the
+  # row is gone, so the next drain has nothing to re-post.
+  set_curl_codes 503 503 503
+  run_dispatch send_output send_status CRIT "🔴 title" "detail body" "Sosumi" "occ:del-drain:1"
+  [[ $send_status -eq 0 ]]
+  assert_pending_alert_count 1 # retained across the failed attempts
+  set_curl_codes 200
+  run_retry_undelivered_alerts drain_output drain_status
+  [[ $drain_status -eq 0 ]]
+  assert_pending_alert_count 0 # deleted only after the drain's confirmed 2xx
+}
+
 @test "T-SEC-quarantine-partial: a crashed *.tmp.* partial is quarantined on the next drain, not skipped forever" {
   mkdir -p "$OSQUERY_UNDELIVERED_ALERTS_DIR"
   # A leftover temp from a dead writer (a pid that is not running).
