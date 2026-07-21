@@ -28,17 +28,14 @@ build_dispatch_harness() {
   : >"$ALERTER_LOG"
   printf '#!/usr/bin/env bash\nprintf "%%s\\n" "$*" >>"%s"\nexit 0\n' "$ALERTER_LOG" >"$HARNESS_HOME/bin/alerter"
 
-  # curl stub: record the invocation and the count of stored undelivered-alert
-  # files AT CALL TIME (so a test can prove the write-ahead record already existed
-  # when the first POST was attempted), then emit the next queued HTTP code (one
-  # per line in $CURL_CODES_FILE, popped per call), defaulting to 200 when the
-  # queue is empty.
+  # curl stub: record the invocation and the count of stored pending_alerts rows
+  # AT CALL TIME (so a test can prove the write-ahead row already existed when
+  # the first POST was attempted), then emit the next queued HTTP code (one per
+  # line in $CURL_CODES_FILE, popped per call), defaulting to 200 when the queue
+  # is empty.
   cat >"$HARNESS_HOME/bin/curl" <<'STUB'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$CURL_LOG"
-if [[ -n "${CURL_PERSIST_WITNESS:-}" ]]; then
-  find "${OSQUERY_UNDELIVERED_ALERTS_DIR:-/nonexistent}" -type f 2>/dev/null | wc -l | tr -d ' ' >>"$CURL_PERSIST_WITNESS"
-fi
 if [[ -n "${CURL_DB_PERSIST_WITNESS:-}" && -f "${OSQUERY_UNDELIVERED_ALERTS_DB:-/nonexistent}" ]]; then
   sqlite3 -readonly "$OSQUERY_UNDELIVERED_ALERTS_DB" 'SELECT COUNT(*) FROM pending_alerts;' 2>/dev/null >>"$CURL_DB_PERSIST_WITNESS" || true
 fi
@@ -55,13 +52,8 @@ STUB
   : >"$CURL_LOG"
   export CURL_CODES_FILE="$HARNESS_HOME/curl_codes"
   : >"$CURL_CODES_FILE"
-  # The write-ahead witness: the curl stub appends the stored-record count seen at
-  # each POST here, one line per call. Empty until a test opts in by pointing it
-  # at a file.
-  export CURL_PERSIST_WITNESS="$HARNESS_HOME/curl_persist_witness"
-  : >"$CURL_PERSIST_WITNESS"
-  # The SQLite write-ahead witness: the curl stub appends the pending_alerts row
-  # count seen at each POST here, one line per call. Empty until a test opts in.
+  # The write-ahead witness: the curl stub appends the pending_alerts row count
+  # seen at each POST here, one line per call.
   export CURL_DB_PERSIST_WITNESS="$HARNESS_HOME/curl_db_persist_witness"
   : >"$CURL_DB_PERSIST_WITNESS"
   export PATH="$HARNESS_HOME/bin:$PATH"
@@ -69,7 +61,6 @@ STUB
 
   export OSQUERY_WEBHOOK_SECRET="testsecret"
   export OSQUERY_DELIVERY_LOG="$HARNESS_HOME/.local/log/osquery/webhook-delivery.log"
-  export OSQUERY_UNDELIVERED_ALERTS_DIR="$HARNESS_HOME/.local/state/osquery-undelivered-alerts"
   export OSQUERY_UNDELIVERED_ALERTS_DB="$HARNESS_HOME/.local/state/osquery-undelivered-alerts.sqlite3"
   export OSQUERY_RETRY_BACKOFF_BASE=0 # do not really sleep between retries in tests
 
@@ -93,12 +84,6 @@ set_curl_codes() {
   printf '%s\n' "$@" >"$CURL_CODES_FILE"
 }
 
-# first_undelivered_alert_file -- print the path of one stored undelivered-alert
-# file, or nothing when none exist.
-first_undelivered_alert_file() {
-  find "$OSQUERY_UNDELIVERED_ALERTS_DIR" -type f 2>/dev/null | head -1
-}
-
 # sqlite3_query <sql> -- run a read-only query against the undelivered-alerts DB
 # and print its output. The inspection path for the SQLite store: a fresh
 # read-only connection never mutates what the library persisted.
@@ -115,18 +100,6 @@ assert_pending_alert_count() {
   fi
   if [[ $count -ne $1 ]]; then
     printf 'expected %s pending_alerts row(s), got %s\n' "$1" "$count" >&2
-    return 1
-  fi
-}
-
-# assert_undelivered_alert_count <n> -- exactly <n> undelivered-alert files exist.
-assert_undelivered_alert_count() {
-  local count=0
-  [[ -d $OSQUERY_UNDELIVERED_ALERTS_DIR ]] &&
-    count=$(find "$OSQUERY_UNDELIVERED_ALERTS_DIR" -type f 2>/dev/null | wc -l | tr -d ' ')
-  if [[ $count -ne $1 ]]; then
-    printf 'expected %s undelivered-alert file(s), got %s: %s\n' \
-      "$1" "$count" "$(ls -la "$OSQUERY_UNDELIVERED_ALERTS_DIR" 2>/dev/null)" >&2
     return 1
   fi
 }

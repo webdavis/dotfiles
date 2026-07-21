@@ -18,31 +18,31 @@ teardown() { teardown_dispatch_harness; }
   set_curl_codes 503 503 503
   run_dispatch send_output send_status CRIT "🔴 title" "detail body" "Sosumi"
   [[ $send_status -eq 0 ]] # a down gateway never fails the caller
-  assert_undelivered_alert_count 1 # stored, not lost
-  assert_mode 700 "$OSQUERY_UNDELIVERED_ALERTS_DIR"
-  assert_mode 600 "$(first_undelivered_alert_file)"
+  assert_pending_alert_count 1 # stored, not lost
+  assert_mode 700 "$(dirname "$OSQUERY_UNDELIVERED_ALERTS_DB")"
+  assert_mode 600 "$OSQUERY_UNDELIVERED_ALERTS_DB"
   grep -q STORED "$OSQUERY_DELIVERY_LOG"
   # gateway recovers: the drain delivers and clears the stored alert
   run_retry_undelivered_alerts drain_output drain_status
-  assert_undelivered_alert_count 0
+  assert_pending_alert_count 0
 }
 
-@test "T-SEC-undelivered-idem: re-storing the SAME occurrence stays one file; drain replays once (R2-4)" {
+@test "T-SEC-undelivered-idem: re-storing the SAME occurrence stays one row; drain replays once (R2-4)" {
   # Idempotency is keyed on OCCURRENCE IDENTITY, not body content (R2-4): the SAME
-  # occurrence re-stored stays one file and reuses one request_id, so the gateway
+  # occurrence re-stored stays one row and reuses one request_id, so the gateway
   # dedups a retry. (Two DISTINCT occurrences that render the same body get two
-  # files, the collapse bug this design fixes.)
+  # rows, the collapse bug this design fixes.)
   set_curl_codes 503 503 503 503 503 503
   send_alert CRIT "🔴 title" "same detail" "Sosumi" "occ:disk3:900:1000"
   send_alert CRIT "🔴 title" "same detail" "Sosumi" "occ:disk3:900:1000" # same occurrence, same request_id
-  assert_undelivered_alert_count 1
+  assert_pending_alert_count 1
   local stored_request_id
-  stored_request_id=$(cut -f2 "$(first_undelivered_alert_file)")
+  stored_request_id=$(sqlite3_query 'SELECT request_id FROM pending_alerts;')
   : >"$CURL_LOG"
   retry_undelivered_alerts
   assert_post_count 1
   grep -qF "X-Request-ID: $stored_request_id" "$CURL_LOG" # the stored request_id is reused verbatim
-  assert_undelivered_alert_count 0                        # so the gateway dedups instead of double-posting
+  assert_pending_alert_count 0                            # so the gateway dedups instead of double-posting
   : >"$CURL_LOG"
   retry_undelivered_alerts # nothing left
   assert_post_count 0
@@ -64,26 +64,24 @@ teardown() { teardown_dispatch_harness; }
   assert_pending_alert_count 1     # the off-box entry is RETAINED (skipped), not silently dropped
 }
 
-@test "T-SEC-drain-setE: drain is set -e-safe on empty or malformed input" {
-  mkdir -p "$OSQUERY_UNDELIVERED_ALERTS_DIR"
-  printf 'garbage-no-tabs\n' >"$OSQUERY_UNDELIVERED_ALERTS_DIR/bad"
-  printf '%s\t%s\n' 123 incomplete >"$OSQUERY_UNDELIVERED_ALERTS_DIR/short"
+@test "T-SEC-drain-setE: drain is set -e-safe on an absent, corrupt, or malformed store" {
+  # An absent database (nothing ever stored) is a quiet no-op.
   run bash -c "set -euo pipefail; source '$DISPATCH'; retry_undelivered_alerts; echo DONE"
   [[ $status -eq 0 ]]
   [[ $output == *DONE* ]]
-}
-
-@test "T-SEC-write-ahead: the record is persisted BEFORE the first send attempt" {
-  # The curl stub records the stored-record count seen at each POST. Under the
-  # write-ahead store the FIRST POST must already see the record on disk (count
-  # >= 1); the old attempt-then-persist path showed 0 at the first POST, so a
-  # crash between the attempt and success would have lost the page.
-  set_curl_codes 503 503 503
-  send_alert CRIT "🔴 title" "detail body" "Sosumi" "occ:wa:1"
-  local first_witnessed_count
-  first_witnessed_count=$(head -1 "$CURL_PERSIST_WITNESS")
-  [[ $first_witnessed_count =~ ^[0-9]+$ ]]
-  [[ $first_witnessed_count -ge 1 ]]
+  # A corrupt database file (not SQLite at all) must not abort the caller.
+  mkdir -p "$(dirname "$OSQUERY_UNDELIVERED_ALERTS_DB")"
+  printf 'this is not a sqlite database\n' >"$OSQUERY_UNDELIVERED_ALERTS_DB"
+  run bash -c "set -euo pipefail; source '$DISPATCH'; retry_undelivered_alerts; echo DONE"
+  [[ $status -eq 0 ]]
+  [[ $output == *DONE* ]]
+  # A malformed row (a body that is not decodable base64) is skipped, and the
+  # drain continues to completion.
+  rm -f "$OSQUERY_UNDELIVERED_ALERTS_DB"
+  _osquery_store_alert_row 1000 osquery-malformed 'http://127.0.0.1:8644/webhooks/osquery-priority' '%%%not-base64%%%'
+  run bash -c "set -euo pipefail; source '$DISPATCH'; retry_undelivered_alerts; echo DONE"
+  [[ $status -eq 0 ]]
+  [[ $output == *DONE* ]]
 }
 
 @test "T-SEC-sqlite-write-ahead: a failing CRIT lands as a pending_alerts row (schema, WAL, 600/700) BEFORE the first curl" {
@@ -179,40 +177,11 @@ teardown() { teardown_dispatch_harness; }
   assert_pending_alert_count 0 # every delivered row was deleted
 }
 
-@test "T-SEC-quarantine-partial: a crashed *.tmp.* partial is quarantined on the next drain, not skipped forever" {
-  mkdir -p "$OSQUERY_UNDELIVERED_ALERTS_DIR"
-  # A leftover temp from a dead writer (a pid that is not running).
-  printf '%s\tosquery-crash\thttp://127.0.0.1:8644/x\tYm9keQ==\n' "$(date -u +%s)" \
-    >"$OSQUERY_UNDELIVERED_ALERTS_DIR/osquery-crash.tmp.999999"
-  retry_undelivered_alerts
-  # No *.tmp.* remains in the store dir (it is not skipped and left forever)...
-  [[ -z "$(find "$OSQUERY_UNDELIVERED_ALERTS_DIR" -maxdepth 1 -name '*.tmp.*' 2>/dev/null)" ]]
-  # ...it was moved into the quarantine sibling, not silently deleted.
-  [[ -n "$(find "${OSQUERY_UNDELIVERED_ALERTS_DIR}.quarantine" -type f 2>/dev/null)" ]]
-}
-
-@test "T-SEC-drain-order: the drain delivers in occurrence-time order, not filename order" {
-  mkdir -p "$OSQUERY_UNDELIVERED_ALERTS_DIR"
-  # Two records: z-old has the EARLIER occurrence ts, a-new the later. By filename
-  # glob order a-new sorts first; by occurrence time z-old must deliver first.
-  local body_b64
-  body_b64=$(printf '{"event_type":"osquery.alert"}' | base64 | tr -d '\n')
-  printf '%s\t%s\t%s\t%s\n' 1000 osquery-z-old 'http://127.0.0.1:8644/webhooks/osquery-priority' "$body_b64" \
-    >"$OSQUERY_UNDELIVERED_ALERTS_DIR/osquery-z-old"
-  printf '%s\t%s\t%s\t%s\n' 2000 osquery-a-new 'http://127.0.0.1:8644/webhooks/osquery-priority' "$body_b64" \
-    >"$OSQUERY_UNDELIVERED_ALERTS_DIR/osquery-a-new"
-  set_curl_codes 200 200
-  retry_undelivered_alerts
-  local first_posted_request_id
-  first_posted_request_id=$(grep -oE 'X-Request-ID: osquery-[a-z-]+' "$CURL_LOG" | head -1)
-  [[ $first_posted_request_id == "X-Request-ID: osquery-z-old" ]]
-}
-
-@test "T-SEC-no-secret-log: the webhook secret never appears in any log or stored file" {
+@test "T-SEC-no-secret-log: the webhook secret never appears in any log or the stored database" {
   export OSQUERY_WEBHOOK_SECRET="SUPERSECRET123"
   set_curl_codes 503 503 503
   send_alert CRIT "🔴 title" "detail" "Sosumi"
   retry_undelivered_alerts || true
   ! grep -rqF "SUPERSECRET123" \
-    "$HARNESS_HOME/.local" "$OSQUERY_UNDELIVERED_ALERTS_DIR" "$CURL_LOG" "$OSQUERY_DELIVERY_LOG" 2>/dev/null
+    "$HARNESS_HOME/.local" "$OSQUERY_UNDELIVERED_ALERTS_DB" "$CURL_LOG" "$OSQUERY_DELIVERY_LOG" 2>/dev/null
 }
