@@ -13,6 +13,8 @@ setup() {
   local helpers="$BATS_TEST_DIRNAME/../helpers"
   # shellcheck source=test/helpers/build-dispatch-harness.sh
   source "$helpers/build-dispatch-harness.sh"
+  # shellcheck source=test/helpers/wait-for-log-line.sh
+  source "$helpers/wait-for-log-line.sh"
   build_dispatch_harness
 }
 teardown() { teardown_dispatch_harness; }
@@ -126,4 +128,119 @@ dead_letter_count() {
   # Dead-lettering is loud in the delivery log, never a silent disappearance.
   grep -q 'DEAD-LETTERED' "$OSQUERY_DELIVERY_LOG"
   grep -q 'osquery-perm-401' "$OSQUERY_DELIVERY_LOG"
+}
+
+# --- DR-B T4: attempt/age thresholds + one batched CRIT per pass ---------------
+
+@test "T-DLQ-attempts-threshold: a row that has failed the max number of times dead-letters with an attempts reason, not another POST" {
+  # A transient row is not retried forever: once its attempts reach the max, the
+  # drain gives up and moves it to dead_letter instead of POSTing yet again.
+  export OSQUERY_DRAIN_MAX_ATTEMPTS=5
+  export OSQUERY_DRAIN_MAX_AGE_SECONDS=604800 # large, so ONLY the attempts trigger fires
+  local url='http://127.0.0.1:8644/webhooks/osquery-priority' body_b64
+  body_b64=$(printf '{"event_type":"osquery.alert"}' | base64 | tr -d '\n')
+  _osquery_store_alert_row 1000 osquery-maxed "$url" "$body_b64"
+  # Stand the row up as one that has already failed the max number of times.
+  sqlite3 "$OSQUERY_UNDELIVERED_ALERTS_DB" \
+    "UPDATE pending_alerts SET attempts=5 WHERE request_id='osquery-maxed';"
+  : >"$CURL_LOG"
+  # A 200 is queued on purpose: if the row WERE POSTed it would succeed and be
+  # deleted (dead_letter stays empty). A surviving dead_letter row therefore
+  # proves the give-up happened BEFORE any send.
+  set_curl_codes 200
+
+  retry_undelivered_alerts
+
+  assert_pending_alert_count 0
+  [[ "$(dead_letter_count)" == "1" ]]
+  ! grep -qF 'X-Request-ID: osquery-maxed' "$CURL_LOG" # never POSTed again
+  local reason
+  reason="$(sqlite3_query "SELECT reason FROM dead_letter_alerts WHERE request_id='osquery-maxed';")"
+  [[ $reason == *attempt* ]] # the reason names the attempts threshold it crossed
+  [[ "$(sqlite3_query "SELECT attempts FROM dead_letter_alerts WHERE request_id='osquery-maxed';")" == "5" ]]
+  grep -q 'DEAD-LETTERED' "$OSQUERY_DELIVERY_LOG"
+}
+
+@test "T-DLQ-age-threshold: a row older than the max age dead-letters with an age reason, not another POST" {
+  # A row that has sat undelivered longer than the max age is given up on even
+  # if its attempts count is low: a page nobody could deliver in a week is not
+  # worth retrying forever.
+  export OSQUERY_DRAIN_MAX_ATTEMPTS=1000 # large, so ONLY the age trigger fires
+  export OSQUERY_DRAIN_MAX_AGE_SECONDS=100
+  local url='http://127.0.0.1:8644/webhooks/osquery-priority' body_b64
+  body_b64=$(printf '{"event_type":"osquery.alert"}' | base64 | tr -d '\n')
+  _osquery_store_alert_row 1000 osquery-stale "$url" "$body_b64"
+  # Age its created_at well past the 100s limit.
+  local old_created_at
+  old_created_at=$(($(date -u +%s) - 100000))
+  sqlite3 "$OSQUERY_UNDELIVERED_ALERTS_DB" \
+    "UPDATE pending_alerts SET created_at=$old_created_at WHERE request_id='osquery-stale';"
+  : >"$CURL_LOG"
+  set_curl_codes 200
+
+  retry_undelivered_alerts
+
+  assert_pending_alert_count 0
+  [[ "$(dead_letter_count)" == "1" ]]
+  ! grep -qF 'X-Request-ID: osquery-stale' "$CURL_LOG" # never POSTed again
+  local reason
+  reason="$(sqlite3_query "SELECT reason FROM dead_letter_alerts WHERE request_id='osquery-stale';")"
+  [[ $reason == *age* ]] # the reason names the age threshold it crossed
+  grep -q 'DEAD-LETTERED' "$OSQUERY_DELIVERY_LOG"
+}
+
+@test "T-DLQ-one-crit-per-pass: several dead-letters in one pass fire exactly ONE summary CRIT naming the count" {
+  # Whether one record or many dead-letter in a pass, the operator gets exactly
+  # ONE local CRIT summarizing the pass, never one alert per record.
+  export OSQUERY_DRAIN_MAX_ATTEMPTS=5
+  export OSQUERY_DRAIN_MAX_AGE_SECONDS=604800
+  local url='http://127.0.0.1:8644/webhooks/osquery-priority' body_b64
+  body_b64=$(printf '{"event_type":"osquery.alert"}' | base64 | tr -d '\n')
+  # Two permanent-status rows plus one attempts-maxed row: three dead-letters,
+  # a permanent-and-threshold mix, all in one drain pass.
+  _osquery_store_alert_row 1000 osquery-perm-a "$url" "$body_b64"
+  _osquery_store_alert_row 2000 osquery-perm-b "$url" "$body_b64"
+  _osquery_store_alert_row 3000 osquery-maxed "$url" "$body_b64"
+  sqlite3 "$OSQUERY_UNDELIVERED_ALERTS_DB" \
+    "UPDATE pending_alerts SET attempts=5 WHERE request_id='osquery-maxed';"
+  : >"$ALERTER_LOG"
+  : >"$CURL_LOG"
+  set_curl_codes 401 403 # the two permanent rows; the maxed row never POSTs
+
+  retry_undelivered_alerts
+
+  assert_pending_alert_count 0
+  [[ "$(dead_letter_count)" == "3" ]]
+  # Exactly ONE loud local notification for the whole pass (the alerter stub
+  # logs one line per invocation), and it summarizes the count (3).
+  wait_for_log_line 'dead-letter' "$ALERTER_LOG"
+  local crit_lines
+  crit_lines=$(grep -ciF 'dead-letter' "$ALERTER_LOG")
+  if [[ $crit_lines -ne 1 ]]; then
+    printf 'expected exactly ONE summary CRIT, got %s lines:\n%s\n' "$crit_lines" "$(cat "$ALERTER_LOG")" >&2
+    return 1
+  fi
+  grep -qE '(^|[^0-9])3([^0-9]|$)' "$ALERTER_LOG" # the one CRIT names N=3
+}
+
+@test "T-DLQ-no-crit-on-transient: a pass that dead-letters nothing fires no CRIT" {
+  # Transient failures are NOT dead-letters: a pass where every failure is
+  # retryable must leave the CRIT silent (no dead-letter, no pipeline alert).
+  export OSQUERY_DRAIN_MAX_ATTEMPTS=20
+  export OSQUERY_DRAIN_MAX_AGE_SECONDS=604800
+  export OSQUERY_DRAIN_RETRY_BASE_SECONDS=0
+  local url='http://127.0.0.1:8644/webhooks/osquery-priority' body_b64
+  body_b64=$(printf '{"event_type":"osquery.alert"}' | base64 | tr -d '\n')
+  _osquery_store_alert_row 1000 osquery-soft-a "$url" "$body_b64"
+  _osquery_store_alert_row 2000 osquery-soft-b "$url" "$body_b64"
+  : >"$ALERTER_LOG"
+  set_curl_codes 503 503
+
+  retry_undelivered_alerts
+
+  assert_pending_alert_count 2 # transient: retained, not dead-lettered
+  [[ "$(dead_letter_count)" == "0" ]]
+  # No dead-letter this pass, so the summary CRIT never fires. Nothing spawns a
+  # background notifier, so an immediate emptiness check is race-free.
+  [[ ! -s $ALERTER_LOG ]]
 }
