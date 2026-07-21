@@ -7,12 +7,13 @@
 # producers (results-alerter.sh, firewall-gatekeeper-monitor.sh, and
 # uptime-watchdog.sh) share one implementation.
 #
-# The undelivered-alerts store is WRITE-AHEAD: send_alert persists the page to
-# disk BEFORE the first network attempt and deletes it only after a confirmed 2xx.
-# A crash or kill anywhere between persist and success therefore leaves a
-# recoverable record for the next drain. Durability matters this much because a
-# page that vanishes leaves no trace: the operator sees a quiet system and has no
-# way to tell a lost alert apart from genuinely good news.
+# The undelivered-alerts store is WRITE-AHEAD: send_alert persists the page as a
+# row in a local SQLite database BEFORE the first network attempt and deletes it
+# only after a confirmed 2xx. A crash or kill anywhere between persist and
+# success therefore leaves a recoverable row for the next drain. Durability
+# matters this much because a page that vanishes leaves no trace: the operator
+# sees a quiet system and has no way to tell a lost alert apart from genuinely
+# good news.
 #
 # Usage (from a sourcing script):
 #   source "$HOME/.local/libexec/osquery/alert-dispatch.sh"
@@ -28,10 +29,13 @@ OSQUERY_HERMES_PRIORITY_URL="${OSQUERY_HERMES_PRIORITY_URL:-http://127.0.0.1:864
 # each side owns its own copy. Single-value file, mode 600, runtime (not tracked).
 OSQUERY_WEBHOOK_SECRET_FILE="${OSQUERY_WEBHOOK_SECRET_FILE:-$HOME/.config/osquery/webhook-secret}"
 OSQUERY_DELIVERY_LOG="${OSQUERY_DELIVERY_LOG:-$HOME/.local/log/osquery/webhook-delivery.log}"
-# Undelivered pages are stored here, one mode-600 file per page in a mode-700
-# directory, so a transient gateway outage never loses a page.
-# retry_undelivered_alerts replays them in occurrence-time order.
-OSQUERY_UNDELIVERED_ALERTS_DIR="${OSQUERY_UNDELIVERED_ALERTS_DIR:-$HOME/.local/state/osquery-undelivered-alerts}"
+# The undelivered-alerts store: one pending_alerts row per page in a SQLite
+# database, committed crash-atomically, the file mode 600 in a mode-700 parent,
+# so a transient gateway outage never loses a page. retry_undelivered_alerts
+# replays the rows in occurrence-time order. sqlite3 is the OS-provided binary,
+# and its absence is a hard persist failure (verified fail-closed), never a
+# lost page.
+OSQUERY_UNDELIVERED_ALERTS_DB="${OSQUERY_UNDELIVERED_ALERTS_DB:-$HOME/.local/state/osquery-undelivered-alerts.sqlite3}"
 
 # A monotonic per-process sequence so the fallback request id (when no occurrence
 # identity is threaded) is unique across calls in one process.
@@ -88,20 +92,226 @@ _hmac_sha256_hex() {
   printf "$opad_format$inner_format" | _sha256_hex_of_stdin
 }
 
-# Store one undelivered page and REPORT persistence success. The file is named by
+# Print the path to the sqlite3 CLI, preferring the OS-provided binary. The
+# store is a darwin-only pipeline and macOS always ships /usr/bin/sqlite3; the
+# PATH fallback keeps the library runnable from a test harness on another OS.
+# Prints nothing and returns nonzero when no sqlite3 is found, so the caller can
+# fail the persist closed rather than silently drop the page.
+_osquery_sqlite3_bin() {
+  if [[ -x /usr/bin/sqlite3 ]]; then
+    printf '/usr/bin/sqlite3'
+    return 0
+  fi
+  local found
+  found="$(command -v sqlite3 2>/dev/null)" || return 1
+  [[ -n $found ]] || return 1
+  printf '%s' "$found"
+}
+
+# Run the SQL arriving on STDIN against the undelivered-alerts DB, applying the
+# connection pragmas first: WAL for crash-atomic commits, and a busy_timeout so
+# the several producers (results-alerter, firewall-gatekeeper, watchdog, digest,
+# tailscale) serialize briefly under contention instead of failing outright. The
+# pragmas' own chatter is routed to /dev/null so only the SQL's rows reach
+# stdout. Only non-secret alert fields ever flow through here; the webhook secret
+# is never passed to SQL. Returns sqlite3's exit status.
+#
+# One lock the busy_timeout does NOT absorb: a brand-new database's first
+# conversion into WAL takes an exclusive lock, and when concurrent first-opens
+# race it SQLite reports "database is locked" (SQLITE_BUSY) immediately instead
+# of waiting (observed under an eight-producer stress; the busy handler is not
+# consulted for that transition). A locked failure is therefore retried a few
+# times with a short pause. The retry replays the WHOLE statement batch, which
+# is safe because every statement this library issues is idempotent (CREATE IF
+# NOT EXISTS, INSERT ON CONFLICT DO NOTHING, DELETE by key, SELECT). Query rows
+# are buffered and printed only after a fully successful run, so a failed
+# partial attempt can never leak rows to the caller, and `.bail on` makes an
+# attempt stop cleanly at its first error.
+_osquery_alerts_db_exec() {
+  local sqlite3_bin sql_text query_output error_file sqlite3_status attempt
+  sqlite3_bin="$(_osquery_sqlite3_bin)" || return 1
+  sql_text="$(cat)"
+  error_file="$(mktemp "${TMPDIR:-/tmp}/osquery-alerts-db-error.XXXXXX")" || return 1
+  for attempt in 1 2 3 4 5; do
+    sqlite3_status=0
+    query_output="$(
+      {
+        printf '.bail on\n'
+        printf '.output /dev/null\n'
+        printf 'PRAGMA busy_timeout=5000;\n'
+        printf 'PRAGMA journal_mode=WAL;\n'
+        printf '.output\n'
+        printf '%s\n' "$sql_text"
+      } | "$sqlite3_bin" "$OSQUERY_UNDELIVERED_ALERTS_DB" 2>"$error_file"
+    )" || sqlite3_status=$?
+    if [[ $sqlite3_status -eq 0 ]]; then
+      rm -f "$error_file" 2>/dev/null || true
+      [[ -n $query_output ]] && printf '%s\n' "$query_output"
+      return 0
+    fi
+    if [[ $attempt -eq 5 ]] || ! grep -qi 'database is locked' "$error_file"; then
+      break
+    fi
+    sleep 0.1 2>/dev/null || sleep 1
+  done
+  cat "$error_file" >&2 2>/dev/null || true
+  rm -f "$error_file" 2>/dev/null || true
+  return "$sqlite3_status"
+}
+
+# Persist one undelivered page as a pending_alerts row and report success. The
+# lazy schema bootstrap and THIS alert's INSERT run in ONE atomic sqlite3 batch
+# (BEGIN IMMEDIATE ... COMMIT), so a crash or kill at any instant leaves either
+# the row fully present or no committed change at all; there is no window where
+# the schema exists but this alert vanished. Only a successful COMMIT reports
+# success; any failure rolls back and returns nonzero so the caller treats it
+# as the loud hard failure.
+#
+# Same occurrence re-stored is idempotent (ON CONFLICT(request_id) DO NOTHING),
+# so a retry of one occurrence stays one row while two DISTINCT occurrences
+# never collide. sequence_number is omitted deliberately: the AUTOINCREMENT
+# primary key assigns it inside the insert, race-free under concurrent
+# producers, and serves as the skew-proof drain-order tiebreaker. attempts and
+# next_attempt_after are written by DR-A but consumed by DR-B; storing them now
+# avoids a schema migration one slice later. The text fields are single-quoted
+# with any embedded quote doubled; the values are non-secret and quote-free by
+# construction (a hex request id, a base64 body, a fixed localhost url), and
+# the escape keeps the statement injection-safe regardless.
+_osquery_store_alert_row() {
+  local occurrence_timestamp="$1" request_id="$2" url="$3" encoded_body="$4" created_at database_directory
+  database_directory="$(dirname "$OSQUERY_UNDELIVERED_ALERTS_DB")"
+  mkdir -p "$database_directory" 2>/dev/null || return 1
+  chmod 700 "$database_directory" 2>/dev/null || true
+  created_at="$(date -u +%s)"
+  [[ $created_at =~ ^[0-9]+$ ]] || created_at=0
+  local request_id_sql url_sql body_sql
+  request_id_sql="${request_id//\'/\'\'}"
+  url_sql="${url//\'/\'\'}"
+  body_sql="${encoded_body//\'/\'\'}"
+  if ! printf "BEGIN IMMEDIATE;
+CREATE TABLE IF NOT EXISTS pending_alerts (
+  sequence_number    INTEGER PRIMARY KEY AUTOINCREMENT,
+  request_id         TEXT UNIQUE NOT NULL,
+  occurrence_ts      INTEGER NOT NULL,
+  url                TEXT NOT NULL,
+  body_base64        TEXT NOT NULL,
+  attempts           INTEGER NOT NULL DEFAULT 0,
+  next_attempt_after INTEGER NOT NULL DEFAULT 0,
+  created_at         INTEGER NOT NULL
+);
+INSERT INTO pending_alerts
+    (request_id, occurrence_ts, url, body_base64, attempts, next_attempt_after, created_at)
+  VALUES
+    ('%s', %s, '%s', '%s', 0, 0, %s)
+  ON CONFLICT(request_id) DO NOTHING;
+COMMIT;\n" \
+    "$request_id_sql" "$occurrence_timestamp" "$url_sql" "$body_sql" "$created_at" | _osquery_alerts_db_exec; then
+    return 1
+  fi
+  [[ -f $OSQUERY_UNDELIVERED_ALERTS_DB ]] || return 1
+  chmod 600 "$OSQUERY_UNDELIVERED_ALERTS_DB" 2>/dev/null || true
+  return 0
+}
+
+# Delete one delivered page's pending_alerts row, keyed by request_id. Called
+# ONLY after a confirmed 2xx (the write-ahead contract: the row is the page's
+# durable copy until delivery is confirmed). A missing DB is a clean no-op
+# (nothing was ever stored, so there is nothing to delete). A failed delete is
+# reported nonzero for the caller to LOG but never to fail on: the page was
+# delivered, and a leaked row costs one deduplicated re-post on a later drain
+# (the gateway drops the duplicate by request_id), while failing the caller
+# would wrongly report a delivered page as lost.
+_osquery_delete_alert_row() {
+  local request_id="$1"
+  [[ -f $OSQUERY_UNDELIVERED_ALERTS_DB ]] || return 0
+  local request_id_sql="${request_id//\'/\'\'}"
+  printf "DELETE FROM pending_alerts WHERE request_id = '%s';\n" "$request_id_sql" | _osquery_alerts_db_exec
+}
+
+# Print every pending row as one tab-separated line (request_id, url,
+# body_base64), ordered for the drain: occurrence time first, then the
+# insert-assigned sequence_number as the tiebreaker. The sequence tiebreaker is
+# skew-proof: equal timestamps (or a backward clock step) still drain in insert
+# order. Tabs cannot appear in the fields (a hex-derived request id, a base64
+# body, and a URL the localhost guard restricts), so the line format is safe.
+_osquery_pending_alert_rows() {
+  {
+    printf '.separator "\\t"\n'
+    printf 'SELECT request_id, url, body_base64 FROM pending_alerts ORDER BY occurrence_ts, sequence_number;\n'
+  } | _osquery_alerts_db_exec
+}
+
+# Deliver ONE pending row: skip a non-localhost url (never send an off-box
+# page), decode and sign the stored body, POST it (stored request_id verbatim so
+# the gateway dedups), and delete the row only on a confirmed 2xx. Fully
+# set -e-safe: a malformed row returns 0 so the drain continues, but NEVER
+# silently: a MALFORMED-ROW log line names the stuck row and the reason, so a
+# row the drain can never deliver is visible instead of invisible forever.
+_deliver_pending_alert_row() {
+  local request_id="$1" url="$2" encoded_body="$3" secret="$4" body signature http_status
+  if [[ -z $request_id || -z $url || -z $encoded_body ]]; then
+    _osquery_log "MALFORMED-ROW drain skipped an unreadable row: request_id=${request_id:-unknown} (a required field is empty; row retained)"
+    return 0
+  fi
+  case "$url" in
+    http://127.0.0.1:8644/*) ;;
+    *) return 0 ;;
+  esac
+  if ! body="$(printf '%s' "$encoded_body" | base64 -d 2>/dev/null)" || [[ -z $body ]]; then
+    _osquery_log "MALFORMED-ROW drain skipped an undecodable row: request_id=$request_id (body_base64 does not decode; row retained)"
+    return 0
+  fi
+  # Same signing check as the send path: a failed or empty signature must never
+  # go on the wire. The row stays put and a later drain retries it.
+  if ! signature="$(printf '%s' "$body" | _hmac_sha256_hex "$secret")" || [[ -z $signature ]]; then
+    return 0
+  fi
+  http_status="$(_post_alert_to_webhook "$url" "$request_id" "$signature" "$body")" || http_status=000
+  case "$http_status" in
+    2*)
+      _osquery_delete_alert_row "$request_id" ||
+        _osquery_log "ROW-DELETE-FAILED delivered page kept a pending row: request_id=$request_id (gateway dedups the re-post)"
+      ;;
+    *) : ;;
+  esac
+  return 0
+}
+
+# Drain the SQLite store: deliver every pending row in occurrence-time order
+# with the sequence tiebreaker. A query failure or an empty store is a quiet
+# no-op; a malformed row is skipped. Never returns nonzero (set -e-safe).
+_drain_pending_alert_rows() {
+  local secret="$1" rows request_id url encoded_body
+  rows="$(_osquery_pending_alert_rows)" || return 0
+  [[ -n $rows ]] || return 0
+  while IFS=$'\t' read -r request_id url encoded_body; do
+    [[ -n $request_id ]] || continue
+    _deliver_pending_alert_row "$request_id" "$url" "$encoded_body" "$secret"
+  done <<<"$rows"
+  return 0
+}
+
+# Store one undelivered page and REPORT persistence success. The row is keyed by
 # the occurrence-unique request_id, so re-storing the same occurrence is
 # idempotent while two DISTINCT occurrences never collide. The encoded body and
-# the occurrence timestamp are computed and VALIDATED in checked assignments
-# BEFORE the record file is opened, so an encoder failure fails the store instead
-# of writing an empty body that a later drain would silently skip. Written through
-# a checked temporary file, flushed, then atomically renamed, and it RETURNS
-# NONZERO on any persistence failure so the caller treats a failed store as a
-# hard delivery failure (never "stored" when the file does not exist).
-# Line: <occurrence_timestamp>\t<request_id>\t<url>\t<base64(body)>.
+# the occurrence timestamp are VALIDATED in checked assignments BEFORE the row is
+# written, so an encoder failure fails the store instead of persisting an empty
+# body that a later drain would silently skip. RETURNS NONZERO on any persistence
+# failure so the caller treats a failed store as a hard delivery failure (never
+# "stored" when the row does not exist).
 _store_undelivered_alert() {
-  local occurrence_timestamp="$1" request_id="$2" url="$3" body="$4" stored_file temporary_file encoded_body
+  local occurrence_timestamp="$1" request_id="$2" url="$3" body="$4" encoded_body
   [[ $occurrence_timestamp =~ ^[0-9]+$ ]] || return 1
   [[ -n $request_id ]] || return 1
+  # A URL carrying whitespace or a control character must never enter durable
+  # storage: the drain's row export is tab-separated, so an embedded separator
+  # would garble the row into an undeliverable, undiagnosed shape. Refusing at
+  # persist time turns a misconfigured URL into the loud hard-fail instead of a
+  # silently stuck row.
+  [[ -n $url ]] || return 1
+  case "$url" in
+    *[[:space:][:cntrl:]]*) return 1 ;;
+  esac
   # pipefail inside the subshell so a base64 failure is the assignment's status,
   # not masked by the trailing tr; then reject an empty result defensively.
   if ! encoded_body="$(
@@ -111,50 +321,7 @@ _store_undelivered_alert() {
     return 1
   fi
   [[ -n $encoded_body ]] || return 1
-  mkdir -p "$OSQUERY_UNDELIVERED_ALERTS_DIR" 2>/dev/null || return 1
-  chmod 700 "$OSQUERY_UNDELIVERED_ALERTS_DIR" 2>/dev/null || true
-  stored_file="$OSQUERY_UNDELIVERED_ALERTS_DIR/$request_id"
-  temporary_file="$stored_file.tmp.$$"
-  if ! printf '%s\t%s\t%s\t%s\n' "$occurrence_timestamp" "$request_id" "$url" "$encoded_body" >"$temporary_file" 2>/dev/null; then
-    rm -f "$temporary_file" 2>/dev/null || true
-    return 1
-  fi
-  chmod 600 "$temporary_file" 2>/dev/null || true
-  # Flush the record's bytes before the rename so a crash right after the rename
-  # cannot leave a present-but-empty file. GNU `sync FILE` flushes just this
-  # file; BSD sync takes no argument and flushes everything. If both forms fail
-  # the write continues anyway: the rename below still lands a complete record
-  # in the common case, and refusing to store over a failed flush would trade a
-  # rare torn record for a certain lost page.
-  sync "$temporary_file" 2>/dev/null || sync 2>/dev/null || true
-  if ! mv -f "$temporary_file" "$stored_file" 2>/dev/null; then
-    rm -f "$temporary_file" 2>/dev/null || true
-    return 1
-  fi
-  return 0
-}
-
-# Move any crashed *.tmp.* partial (a temporary file whose writer process is
-# gone) OUT of the store, into a sibling quarantine directory, so a torn write is
-# never replayed and never skipped forever. A temporary file whose writer process
-# is still alive is an in-flight write and is left alone. If the quarantine
-# directory cannot be created or a move fails, the file simply stays where it was
-# and this function still returns 0; the next drain retries the quarantine, and
-# the drain itself must never abort over housekeeping.
-_quarantine_stale_partials() {
-  [[ -d $OSQUERY_UNDELIVERED_ALERTS_DIR ]] || return 0
-  local temporary_file writer_process_id quarantine_directory
-  quarantine_directory="${OSQUERY_UNDELIVERED_ALERTS_DIR%/}.quarantine"
-  for temporary_file in "$OSQUERY_UNDELIVERED_ALERTS_DIR"/*.tmp.*; do
-    [[ -f $temporary_file ]] || continue
-    writer_process_id="${temporary_file##*.tmp.}"
-    if [[ $writer_process_id =~ ^[0-9]+$ ]] && kill -0 "$writer_process_id" 2>/dev/null; then
-      continue # a live writer still owns this temporary file
-    fi
-    mkdir -p "$quarantine_directory" 2>/dev/null || continue
-    mv -f "$temporary_file" "$quarantine_directory/${temporary_file##*/}" 2>/dev/null || true
-  done
-  return 0
+  _osquery_store_alert_row "$occurrence_timestamp" "$request_id" "$url" "$encoded_body"
 }
 
 # Fire the ordinary local macOS notification for one alert (alerter, with an
@@ -225,66 +392,18 @@ _post_alert_to_webhook() { # <url> <request_id> <signature> <body>
     --data "$4"
 }
 
-# Deliver ONE stored record: read it, skip a non-localhost url (never send an
-# off-box page), decode and sign the stored body, POST it (stored request_id
-# verbatim so the gateway dedups), and delete the record only on a confirmed 2xx.
-# Fully set -e-safe: any malformed field returns 0 so the drain continues.
-_deliver_stored_record() {
-  local stored_file="$1" secret="$2" occurrence_timestamp request_id url body signature http_status
-  IFS=$'\t' read -r occurrence_timestamp request_id url body <"$stored_file" || return 0
-  [[ -n $request_id && -n $url && -n $body ]] || return 0
-  case "$url" in
-    http://127.0.0.1:8644/*) ;;
-    *) return 0 ;;
-  esac
-  body="$(printf '%s' "$body" | base64 -d 2>/dev/null)" || return 0
-  [[ -n $body ]] || return 0
-  # Same signing check as the send path: a failed or empty signature must never
-  # go on the wire. The record stays put and a later drain retries it.
-  if ! signature="$(printf '%s' "$body" | _hmac_sha256_hex "$secret")" || [[ -z $signature ]]; then
-    return 0
-  fi
-  http_status="$(_post_alert_to_webhook "$url" "$request_id" "$signature" "$body")" || http_status=000
-  case "$http_status" in
-    2*) rm -f "$stored_file" ;;
-    *) : ;;
-  esac
-  return 0
-}
-
-# Replay stored undelivered pages in OCCURRENCE-TIME order (earliest first, with
-# the file path as a deterministic tie-breaker), so a backlog delivers in the
-# order events happened, not in SHA-derived filename order. Crashed partials are
-# quarantined first. Localhost only. Fully set -e-safe: a malformed entry or an
-# empty directory must NEVER abort the caller (a delivery feature must not cause
+# Replay stored undelivered pages in OCCURRENCE-TIME order, so a backlog
+# delivers in the order events happened (ORDER BY occurrence_ts,
+# sequence_number, skew-proof). A missing database means nothing was ever
+# stored, a quiet no-op. Localhost only. Fully set -e-safe: a malformed entry or
+# an empty store must NEVER abort the caller (a delivery feature must not cause
 # a detection outage).
 retry_undelivered_alerts() {
-  [[ -d $OSQUERY_UNDELIVERED_ALERTS_DIR ]] || return 0
-  _quarantine_stale_partials
+  [[ -f $OSQUERY_UNDELIVERED_ALERTS_DB ]] || return 0
   local secret
   secret="$(_read_webhook_secret)"
   [[ -n $secret ]] || return 0
-
-  # Collect "<occurrence_timestamp>\t<file>" for every well-formed record, then
-  # sort by occurrence time (numeric) with the path as the tie-breaker.
-  local records="" stored_file occurrence_timestamp
-  for stored_file in "$OSQUERY_UNDELIVERED_ALERTS_DIR"/*; do
-    [[ -f $stored_file ]] || continue
-    case "$stored_file" in
-      *.tmp.*) continue ;; # an in-flight write; quarantine handles crashed ones
-    esac
-    IFS=$'\t' read -r occurrence_timestamp _ <"$stored_file" || continue
-    [[ $occurrence_timestamp =~ ^[0-9]+$ ]] || continue
-    records+="$occurrence_timestamp	$stored_file"$'\n'
-  done
-  [[ -n $records ]] || return 0
-
-  local sorted
-  sorted="$(printf '%s' "$records" | sort -t$'\t' -k1,1n -k2,2)" || return 0
-  while IFS=$'\t' read -r _ stored_file; do
-    [[ -n $stored_file ]] || continue
-    _deliver_stored_record "$stored_file" "$secret"
-  done <<<"$sorted"
+  _drain_pending_alert_rows "$secret"
   return 0
 }
 
@@ -392,12 +511,11 @@ send_alert() {
   # is a HARD failure (loud + nonzero): the page can be neither delivered nor
   # stored, and the caller must not advance its cursor past it.
   if ! _store_undelivered_alert "$occurrence_timestamp" "$request_id" "$url" "$body"; then
-    _osquery_log "STORE-FAILED write-ahead persist: request_id=$request_id (storage unwritable: $OSQUERY_UNDELIVERED_ALERTS_DIR)"
+    _osquery_log "STORE-FAILED write-ahead persist: request_id=$request_id (storage unwritable: $OSQUERY_UNDELIVERED_ALERTS_DB)"
     _loud_local "osquery paging FAILED, page LOST" \
-      "The page could not be stored locally. Fix $OSQUERY_UNDELIVERED_ALERTS_DIR."
+      "The page could not be stored locally. Fix $OSQUERY_UNDELIVERED_ALERTS_DB."
     return 1
   fi
-  local stored_file="$OSQUERY_UNDELIVERED_ALERTS_DIR/$request_id"
 
   # Deliver via the hermes webhook (the page is already safe on disk, so a
   # failed delivery here costs latency, not the page). No key means no send: the
@@ -413,12 +531,16 @@ send_alert() {
 
   local http_status
   if http_status="$(_attempt_alert_delivery "$url" "$request_id" "$secret" "$body")"; then
-    rm -f "$stored_file" # delete ONLY after a confirmed 2xx
+    # Delete ONLY after a confirmed 2xx. A failed row delete is logged, not
+    # fatal: the page was delivered, and the gateway dedups a leaked row's
+    # re-post by request_id.
+    _osquery_delete_alert_row "$request_id" ||
+      _osquery_log "ROW-DELETE-FAILED delivered page kept a pending row: request_id=$request_id (gateway dedups the re-post)"
     return 0
   fi
-  # Delivery failed after retries: the write-ahead record REMAINS on disk and the
-  # next drain retries it, so send_alert still returns 0. A down gateway delays
-  # the page; it never fails the caller and never loses the page.
+  # Delivery failed after retries: the write-ahead row REMAINS in the store and
+  # the next drain retries it, so send_alert still returns 0. A down gateway
+  # delays the page; it never fails the caller and never loses the page.
   _osquery_log "STORED webhook delivery pending: request_id=$request_id http=$http_status (retained for retry)"
   return 0
 }

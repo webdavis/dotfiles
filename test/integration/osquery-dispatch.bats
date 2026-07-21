@@ -45,9 +45,9 @@ teardown() { teardown_dispatch_harness; }
   unset OSQUERY_WEBHOOK_SECRET
   : >"$ALERTER_LOG"
   run_dispatch send_output send_status CRIT "🔴 title" "detail body" "Sosumi"
-  [[ $send_status -eq 0 ]]          # still fire-and-forget for its callers
-  assert_undelivered_alert_count 1  # durably stored, not dropped
-  assert_no_post                    # nothing signed/POSTed without a key
+  [[ $send_status -eq 0 ]]        # still fire-and-forget for its callers
+  assert_pending_alert_count 1    # durably stored, not dropped
+  assert_no_post                  # nothing signed/POSTed without a key
   grep -qiE 'secret|degraded|broken' "$OSQUERY_DELIVERY_LOG"
   # The loud local notice fires via a backgrounded alerter (& so it never blocks
   # dispatch), so poll rather than grep once.
@@ -60,61 +60,69 @@ teardown() { teardown_dispatch_harness; }
 # store (the filename is the id). The id must derive from OCCURRENCE IDENTITY, so
 # two same-body incidents survive as two stored files.
 
-@test "T-DISP-occurrence-distinct: two same-body incidents at different occurrences store as TWO files (R2-4)" {
+@test "T-DISP-occurrence-distinct: two same-body incidents at different occurrences store as TWO rows (R2-4)" {
   set_curl_codes 503 503 503 503 503 503
   send_alert CRIT "🔴 firewall" "Firewall turned OFF" "Sosumi" "inode7:100:200"
   send_alert CRIT "🔴 firewall" "Firewall turned OFF" "Sosumi" "inode7:200:300"
-  assert_undelivered_alert_count 2 # both incidents survive, a later same-body incident does not clobber the earlier
+  assert_pending_alert_count 2 # both incidents survive, a later same-body incident does not clobber the earlier
 }
 
 @test "T-DISP-occurrence-retry-stable: the SAME occurrence retried reuses one id (idempotent store) (R2-4)" {
   set_curl_codes 503 503 503 503 503 503
   send_alert CRIT "🔴 firewall" "Firewall turned OFF" "Sosumi" "inode7:100:200"
   send_alert CRIT "🔴 firewall" "Firewall turned OFF" "Sosumi" "inode7:100:200"
-  assert_undelivered_alert_count 1
+  assert_pending_alert_count 1
 }
 
 # --- a store failure is a HARD failure, not a silent success (R2-6) ---------------
-@test "T-DISP-store-hardfail: an unwritable store dir + no secret returns nonzero and loudly alerts (R2-6)" {
-  # Point the store at a path whose parent is a FILE, so mkdir cannot succeed for
+@test "T-DISP-store-hardfail: an unwritable store + no secret returns nonzero and loudly alerts (R2-6)" {
+  # Point the DB at a path whose parent is a FILE, so mkdir cannot succeed for
   # any uid (deterministic, not permission/uid-dependent). With no secret the page
   # cannot be signed either, so it can be neither delivered NOR stored, which MUST
   # be loud and nonzero.
   unset OSQUERY_WEBHOOK_SECRET
   : >"$ALERTER_LOG"
   touch "$HARNESS_HOME/notadir"
-  export OSQUERY_UNDELIVERED_ALERTS_DIR="$HARNESS_HOME/notadir/store"
+  export OSQUERY_UNDELIVERED_ALERTS_DB="$HARNESS_HOME/notadir/store.sqlite3"
   run_dispatch send_output send_status CRIT "🔴 title" "detail body" "Sosumi"
   [[ $send_status -ne 0 ]]                          # hard delivery failure, NOT a silent success
-  assert_undelivered_alert_count 0                  # nothing was stored
+  assert_pending_alert_count 0                      # nothing was stored
   assert_no_post                                    # nothing signed/POSTed without a key
   grep -qiE 'STORE-FAILED' "$OSQUERY_DELIVERY_LOG"  # synchronous: the hard failure is recorded
   wait_for_log_line 'FAILED|lost|could not' "$ALERTER_LOG" # the loud local alert fired
 }
 
-@test "T-DISP-store-hardfail-delivery: delivery failure + unwritable store returns nonzero and loudly alerts (R2-6)" {
-  : >"$ALERTER_LOG"
-  set_curl_codes 503 503 503
-  touch "$HARNESS_HOME/notadir2"
-  export OSQUERY_UNDELIVERED_ALERTS_DIR="$HARNESS_HOME/notadir2/store"
-  run_dispatch send_output send_status CRIT "🔴 title" "detail body" "Sosumi"
-  [[ $send_status -ne 0 ]]
-  assert_undelivered_alert_count 0
-  grep -qiE 'STORE-FAILED' "$OSQUERY_DELIVERY_LOG"
-  wait_for_log_line 'FAILED|lost|could not' "$ALERTER_LOG"
+@test "T-DISP-row-idempotent: the SAME occurrence stored twice keeps exactly ONE pending_alerts row (T5)" {
+  # A producer retrying the same occurrence re-stores the same request_id; the
+  # ON CONFLICT(request_id) DO NOTHING insert must keep exactly one row, and the
+  # re-store is a normal success for the caller, never an error.
+  set_curl_codes 503 503 503 503 503 503
+  run_dispatch send_output send_status CRIT "🔴 title" "same detail" "Sosumi" "occ:row-idem:1"
+  [[ $send_status -eq 0 ]]
+  run_dispatch send_output send_status CRIT "🔴 title" "same detail" "Sosumi" "occ:row-idem:1"
+  [[ $send_status -eq 0 ]] # the idempotent re-store reports success
+  assert_pending_alert_count 1
+  [[ "$(sqlite3_query 'SELECT COUNT(DISTINCT request_id) FROM pending_alerts;')" == "1" ]]
 }
 
-@test "T-DISP-store-atomic: a stored page is written atomically and drains on recovery (R2-6)" {
-  # A store file appears (delivery failed) and drains clean once curl recovers,
-  # proving the temp+rename path produces a well-formed, replayable entry (no torn
-  # temp left behind).
+@test "T-DISP-db-store-hardfail: an unwritable DB path returns nonzero and loudly alerts (T5)" {
+  # The DB parent is a FILE, so its mkdir fails for any uid (deterministic, the
+  # same trick as the file-store hard-fail pins). The write-ahead persist cannot
+  # complete, which must keep the file-store era contract: nonzero return, the
+  # STORE-FAILED log line, the loud local fallback, and NO network attempt (the
+  # write-ahead order forbids a send before a completed persist).
+  : >"$ALERTER_LOG"
   set_curl_codes 503 503 503
-  send_alert CRIT "🔴 title" "detail body" "Sosumi" "occ:1:2"
-  assert_undelivered_alert_count 1
-  [[ -z "$(find "$OSQUERY_UNDELIVERED_ALERTS_DIR" -name '*.tmp.*' 2>/dev/null)" ]] # no torn temp file left
-  set_curl_codes 200
-  retry_undelivered_alerts
-  assert_undelivered_alert_count 0
+  touch "$HARNESS_HOME/dbnotdir"
+  export OSQUERY_UNDELIVERED_ALERTS_DB="$HARNESS_HOME/dbnotdir/store.sqlite3"
+  run_dispatch send_output send_status CRIT "🔴 title" "detail body" "Sosumi" "occ:db-hardfail:1"
+  [[ $send_status -ne 0 ]] # hard delivery failure, NOT a silent success
+  assert_pending_alert_count 0
+  assert_no_post
+  grep -qE 'STORE-FAILED' "$OSQUERY_DELIVERY_LOG"
+  # The failure must name the DB path so the operator fixes the RIGHT storage.
+  grep -qF "$OSQUERY_UNDELIVERED_ALERTS_DB" "$OSQUERY_DELIVERY_LOG"
+  wait_for_log_line 'FAILED|lost|could not' "$ALERTER_LOG"
 }
 
 # --- digest/heartbeat traffic DOES reach the remote POST; mark its tier (R2-11) ---
@@ -124,6 +132,22 @@ teardown() { teardown_dispatch_harness; }
 # identical to a real page on the wire. Thread an explicit tier the Hermes adapter
 # can map to a suppressed notification: a page (non-empty sound) is tier=page, a
 # muted digest/heartbeat (empty sound) is tier=muted. Both still POST (both CRIT).
+
+@test "T-DISP-url-whitespace-hardfail: a URL containing whitespace is refused at persist time (F3)" {
+  # The drain's row export is tab-separated, so a URL carrying a tab (or any
+  # whitespace/control character) would garble its row into an undeliverable,
+  # undiagnosed shape. A malformed URL must never enter durable storage: the
+  # persist refuses it with the loud hard-fail, before any network attempt.
+  : >"$ALERTER_LOG"
+  set_curl_codes 503 503 503
+  export OSQUERY_HERMES_PRIORITY_URL=$'http://127.0.0.1:8644/webhooks/osquery\tpriority'
+  run_dispatch send_output send_status CRIT "🔴 title" "detail body" "Sosumi" "occ:taburl:1"
+  [[ $send_status -ne 0 ]] # refused, not silently stored malformed
+  assert_pending_alert_count 0
+  assert_no_post
+  grep -qE 'STORE-FAILED' "$OSQUERY_DELIVERY_LOG"
+  wait_for_log_line 'FAILED|lost|could not' "$ALERTER_LOG"
+}
 
 @test "T-DISP-tier-page: a real page (non-empty sound) POSTs tier=page (R2-11)" {
   send_alert CRIT "🔴 title" "detail" "Sosumi"
@@ -144,6 +168,82 @@ teardown() { teardown_dispatch_harness; }
   send_alert CRIT "🔴 title" "detail" "Sosumi"
   run grep -oE '"ts":[0-9]+' "$CURL_LOG"
   [[ $status -eq 0 ]]
+}
+
+@test "T-DISP-store-concurrency: parallel producers and drains lose no rows under WAL plus busy_timeout (T4)" {
+  # Eight producers with distinct occurrences send in parallel against an
+  # always-failing sender while two drains run alongside them. Every send must
+  # report success (a swallowed SQLITE_BUSY would surface as send_alert's hard
+  # failure), no writer may hit an unabsorbed lock, and the store must end with
+  # EXACTLY eight rows: no lost insert, no unique-constraint collision, and
+  # eight distinct ids and sequence numbers. The queued-codes curl stub pops its
+  # queue non-atomically, so a deterministic always-503 stub replaces it here.
+  cat >"$HARNESS_HOME/bin/curl" <<'STUB'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"$CURL_LOG"
+printf '503'
+STUB
+  chmod +x "$HARNESS_HOME/bin/curl"
+
+  local producer_count=8 i
+  local status_dir="$HARNESS_HOME/stress-status"
+  mkdir -p "$status_dir"
+  for ((i = 1; i <= producer_count; i++)); do
+    (
+      send_alert CRIT "🔴 stress $i" "detail $i" "Sosumi" "occ:stress:$i" \
+        2>"$status_dir/producer-$i.err"
+      echo $? >"$status_dir/producer-$i.status"
+    ) &
+  done
+  for i in 1 2; do
+    (
+      retry_undelivered_alerts 2>"$status_dir/drain-$i.err"
+      echo $? >"$status_dir/drain-$i.status"
+    ) &
+  done
+  wait
+
+  for ((i = 1; i <= producer_count; i++)); do
+    [[ "$(cat "$status_dir/producer-$i.status")" == "0" ]]
+  done
+  for i in 1 2; do
+    [[ "$(cat "$status_dir/drain-$i.status")" == "0" ]]
+  done
+  ! grep -rqi 'database is locked' "$status_dir" # busy_timeout serializes, never errors
+  [[ "$(sqlite3_query 'SELECT COUNT(*) FROM pending_alerts;')" == "$producer_count" ]]
+  [[ "$(sqlite3_query 'SELECT COUNT(DISTINCT request_id) FROM pending_alerts;')" == "$producer_count" ]]
+  [[ "$(sqlite3_query 'SELECT COUNT(DISTINCT sequence_number) FROM pending_alerts;')" == "$producer_count" ]]
+
+  # Recovery under parallel drains: with the sender succeeding, two drains run
+  # at once. Both must exit 0, the store must fully clear, every page must
+  # deliver at least once, and no request_id may be posted more than once PER
+  # DRAIN PASS (each pass reads its row list once and never re-posts within
+  # itself, so two passes bound the count at two; the gateway dedups by id).
+  local stored_request_ids
+  stored_request_ids="$(sqlite3_query 'SELECT request_id FROM pending_alerts;')"
+  cat >"$HARNESS_HOME/bin/curl" <<'STUB'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"$CURL_LOG"
+printf '200'
+STUB
+  chmod +x "$HARNESS_HOME/bin/curl"
+  : >"$CURL_LOG"
+  for i in 3 4; do
+    (
+      retry_undelivered_alerts 2>"$status_dir/drain-$i.err"
+      echo $? >"$status_dir/drain-$i.status"
+    ) &
+  done
+  wait
+  [[ "$(cat "$status_dir/drain-3.status")" == "0" ]]
+  [[ "$(cat "$status_dir/drain-4.status")" == "0" ]]
+  assert_pending_alert_count 0
+  local request_id post_count
+  while read -r request_id; do
+    [[ -n $request_id ]] || continue
+    post_count=$(grep -cF "X-Request-ID: $request_id" "$CURL_LOG" || true)
+    [[ $post_count -ge 1 && $post_count -le 2 ]]
+  done <<<"$stored_request_ids"
 }
 
 @test "T-DISP-secret-not-in-argv: the signing key never reaches any openssl argv (F-B)" {
@@ -174,9 +274,9 @@ teardown() { teardown_dispatch_harness; }
   # attempt stops before any POST, leaving the record for a later drain.
   _hmac_sha256_hex() { return 17; }
   run_dispatch send_output send_status CRIT "🔴 title" "detail body" "Sosumi" "occ:signfail:1"
-  [[ $send_status -eq 0 ]] # the record is retained, so this is not a hard failure
+  [[ $send_status -eq 0 ]] # the row is retained, so this is not a hard failure
   assert_no_post
-  assert_undelivered_alert_count 1
+  assert_pending_alert_count 1
 }
 
 @test "T-DISP-sign-matches-openssl: the argv-free signer equals openssl's HMAC output (F-B)" {
