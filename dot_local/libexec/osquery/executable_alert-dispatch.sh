@@ -47,20 +47,27 @@ _osquery_log() {
   printf '%s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$1" >>"$OSQUERY_DELIVERY_LOG" 2>/dev/null || true
 }
 
+# Security protocol boundary: every SHA-256 hash in this library flows through
+# here, and the bytes to hash arrive ONLY on stdin, never as a command-line
+# argument, so nothing that gets hashed (a key, a body, a request-id seed) can
+# ever appear in `ps` output. Prints the lowercase hex digest. openssl `dgst` is
+# used (not the OpenSSL-3-only `mac`) so it works with the host's LibreSSL too.
+_sha256_hex_of_stdin() {
+  openssl dgst -sha256 | awk '{print $NF}'
+}
+
 # HMAC-SHA256 of the message on STDIN under the key in $1, hex digest on stdout.
 # The key is a FUNCTION argument (it lives in this shell's memory, never a child
-# process argv), and it is never passed to openssl: openssl only ever hashes
-# bytes on stdin (`openssl dgst -sha256`), so the secret cannot appear in any
-# `ps` output. HMAC is built by hand from SHA-256 (the standard
-# H((K'^opad)||H((K'^ipad)||m)) construction); a unit test pins it byte-identical
-# to `openssl dgst -hmac`. openssl `dgst` is used (not the OpenSSL-3-only `mac`)
-# so it works with the host's LibreSSL too.
+# process argv), and every hash goes through _sha256_hex_of_stdin, so the secret
+# cannot appear in any `ps` output. HMAC is built by hand from SHA-256 (the
+# standard H((K'^opad)||H((K'^ipad)||m)) construction); a test pins it
+# byte-identical to `openssl dgst -hmac`.
 _hmac_sha256_hex() {
   local key="$1" block_size=64 key_hex byte_hex ipad_format="" opad_format="" inner_hex inner_format="" i
   # Key to hex bytes; if longer than the block size, replace it with its digest.
   key_hex="$(printf '%s' "$key" | od -v -A n -t x1 | tr -d ' \n')"
   if ((${#key_hex} > block_size * 2)); then
-    key_hex="$(printf '%s' "$key" | openssl dgst -sha256 | awk '{print $NF}')"
+    key_hex="$(printf '%s' "$key" | _sha256_hex_of_stdin)"
   fi
   while ((${#key_hex} < block_size * 2)); do key_hex+="00"; done
   # Build the padded-key-XOR-pad byte strings as printf \xHH format specifiers.
@@ -74,11 +81,11 @@ _hmac_sha256_hex() {
   inner_hex="$({
     printf "$ipad_format"
     cat
-  } | openssl dgst -sha256 | awk '{print $NF}')"
+  } | _sha256_hex_of_stdin)"
   for ((i = 0; i < ${#inner_hex}; i += 2)); do inner_format+="\\x${inner_hex:i:2}"; done
   # outer = SHA256( (K' xor opad) || inner ).
   # shellcheck disable=SC2059 # the format is a fixed \xHH byte string, no user data
-  printf "$opad_format$inner_format" | openssl dgst -sha256 | awk '{print $NF}'
+  printf "$opad_format$inner_format" | _sha256_hex_of_stdin
 }
 
 # Store one undelivered page and REPORT persistence success. The file is named by
@@ -166,6 +173,19 @@ _loud_local() {
   fi
 }
 
+# The one place a webhook POST is made. Prints the HTTP status code; a transport
+# failure (no connection, timeout) makes curl exit nonzero, which this function
+# passes through for the caller to map to status 000. Every delivery path goes
+# through here so the request shape (method, headers, timeout) lives in one spot.
+_post_alert_to_webhook() { # <url> <request_id> <signature> <body>
+  curl -s -o /dev/null -w '%{http_code}' --max-time 5 \
+    -X POST "$1" \
+    -H 'Content-Type: application/json' \
+    -H "X-Webhook-Signature: $3" \
+    -H "X-Request-ID: $2" \
+    --data "$4"
+}
+
 # Deliver ONE stored record: read it, skip a non-localhost url (never send an
 # off-box page), decode and sign the stored body, POST it (stored request_id
 # verbatim so the gateway dedups), and delete the record only on a confirmed 2xx.
@@ -181,12 +201,7 @@ _deliver_stored_record() {
   body="$(printf '%s' "$body" | base64 -d 2>/dev/null)" || return 0
   [[ -n $body ]] || return 0
   signature="$(printf '%s' "$body" | _hmac_sha256_hex "$secret")"
-  http_status="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 \
-    -X POST "$url" \
-    -H 'Content-Type: application/json' \
-    -H "X-Webhook-Signature: $signature" \
-    -H "X-Request-ID: $request_id" \
-    --data "$body")" || http_status=000
+  http_status="$(_post_alert_to_webhook "$url" "$request_id" "$signature" "$body")" || http_status=000
   case "$http_status" in
     2*) rm -f "$stored_file" ;;
     *) : ;;
@@ -310,7 +325,7 @@ send_alert() {
     _OSQUERY_ALERT_SEQUENCE=$((_OSQUERY_ALERT_SEQUENCE + 1))
     request_id_seed="fallback|$occurrence_timestamp|$$|${_OSQUERY_ALERT_SEQUENCE}|${RANDOM}|$body"
   fi
-  request_id="osquery-$(printf '%s' "$request_id_seed" | openssl dgst -sha256 | awk '{print $NF}' | cut -c1-32)"
+  request_id="osquery-$(printf '%s' "$request_id_seed" | _sha256_hex_of_stdin | cut -c1-32)"
 
   # WRITE-AHEAD: persist the page BEFORE the first network attempt, so a crash or
   # kill before a confirmed success leaves a recoverable record. A persist failure
@@ -347,12 +362,7 @@ send_alert() {
   signature="$(printf '%s' "$body" | _hmac_sha256_hex "$secret")"
 
   for attempt in 1 2 3; do
-    http_status="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 \
-      -X POST "$url" \
-      -H 'Content-Type: application/json' \
-      -H "X-Webhook-Signature: $signature" \
-      -H "X-Request-ID: $request_id" \
-      --data "$body")" || http_status=000
+    http_status="$(_post_alert_to_webhook "$url" "$request_id" "$signature" "$body")" || http_status=000
     case "$http_status" in
       2*)
         rm -f "$stored_file" # delete ONLY after a confirmed 2xx
