@@ -157,6 +157,32 @@ _quarantine_stale_partials() {
   return 0
 }
 
+# Fire the ordinary local macOS notification for one alert (alerter, with an
+# AppleScript fallback). The local notifier renders plain text, so Discord
+# markdown (**bold**, `code`) is stripped first; the webhook body elsewhere
+# keeps the markdown intact. --sound is passed only when a sound is given, so a
+# silent tier stays visible but quiet. The notifier is backgrounded or its
+# failure ignored: a broken notifier must never stall or fail dispatch.
+_notify_locally() {
+  local title="$1" detail="$2" sound="$3" plain_title plain_detail
+  plain_title="$(printf '%s' "$title" | sed -e 's/\*\*//g' -e 's/`//g')"
+  plain_detail="$(printf '%s' "$detail" | sed -e 's/\*\*//g' -e 's/`//g')"
+  if command -v alerter >/dev/null 2>&1; then
+    if [[ -n $sound ]]; then
+      alerter --timeout 60 --title "$plain_title" --message "$plain_detail" --sound "$sound" >/dev/null 2>&1 &
+    else
+      alerter --timeout 60 --title "$plain_title" --message "$plain_detail" >/dev/null 2>&1 &
+    fi
+  else
+    local escaped_detail=${plain_detail//\"/\\\"}
+    if [[ -n $sound ]]; then
+      osascript -e "display notification \"$escaped_detail\" with title \"$plain_title\" sound name \"$sound\"" >/dev/null 2>&1 || true
+    else
+      osascript -e "display notification \"$escaped_detail\" with title \"$plain_title\"" >/dev/null 2>&1 || true
+    fi
+  fi
+}
+
 # Fire ONE loud, interruptive local notification. Used when a page can be neither
 # delivered NOR durably stored: the operator MUST learn that a CRITICAL alert was
 # lost, because a dropped page leaves no trace and would otherwise read as good
@@ -171,6 +197,19 @@ _loud_local() {
     local escaped=${message//\"/\\\"}
     osascript -e "display notification \"$escaped\" with title \"$title\" sound name \"Funk\"" >/dev/null 2>&1 || true
   fi
+}
+
+# Print the webhook signing key: the environment override when set, otherwise
+# the first line of the notifier's own secret file with any carriage return
+# stripped (so a CRLF file cannot corrupt the key). Prints nothing when no key
+# is available; the caller decides what an absent key means for its path.
+_read_webhook_secret() {
+  local secret="${OSQUERY_WEBHOOK_SECRET:-}"
+  if [[ -z $secret && -r $OSQUERY_WEBHOOK_SECRET_FILE ]]; then
+    IFS= read -r secret <"$OSQUERY_WEBHOOK_SECRET_FILE" || true
+    secret="$(printf '%s' "$secret" | tr -d '\r')"
+  fi
+  printf '%s' "$secret"
 }
 
 # The one place a webhook POST is made. Prints the HTTP status code; a transport
@@ -219,11 +258,7 @@ retry_undelivered_alerts() {
   [[ -d $OSQUERY_UNDELIVERED_ALERTS_DIR ]] || return 0
   _quarantine_stale_partials
   local secret
-  secret="${OSQUERY_WEBHOOK_SECRET:-}"
-  if [[ -z $secret && -r $OSQUERY_WEBHOOK_SECRET_FILE ]]; then
-    IFS= read -r secret <"$OSQUERY_WEBHOOK_SECRET_FILE" || true
-    secret="$(printf '%s' "$secret" | tr -d '\r')"
-  fi
+  secret="$(_read_webhook_secret)"
   [[ -n $secret ]] || return 0
 
   # Collect "<occurrence_timestamp>\t<file>" for every well-formed record, then
@@ -249,6 +284,51 @@ retry_undelivered_alerts() {
   return 0
 }
 
+# Build the signed webhook body for one CRIT page and print it. tier: a page is
+# loud (a sound was requested), a digest/heartbeat is muted (no sound). Both
+# POST; tier lets the Hermes adapter suppress the notification for muted traffic
+# instead of pinging it like a page. The host and the occurrence timestamp live
+# INSIDE the signed body, the spec's body shape and the multi-host migration
+# seam both require {event_type, host, tier, ts, alert} (ts is the wire name of
+# the occurrence timestamp).
+_build_webhook_body() { # <title> <detail> <tier> <occurrence_timestamp>
+  jq -cn --arg h "$(hostname -s)" --arg t "$1" --arg d "$2" \
+    --arg tier "$3" --argjson ts "$4" \
+    '{event_type:"osquery.alert", host:$h, tier:$tier, ts:$ts, alert:{title:$t, detail:$d}}'
+}
+
+# Derive and print the occurrence-stable request id from the seed. Two distinct
+# incidents that render the same body get distinct ids (both stored, both
+# delivered) while a retry of the same occurrence reuses one id (the gateway
+# dedups it, and the stored filename is idempotent).
+_derive_request_id() { # <request_id_seed>
+  printf 'osquery-%s' "$(printf '%s' "$1" | _sha256_hex_of_stdin | cut -c1-32)"
+}
+
+# Sign the body and POST it, retrying a transient failure (429, 5xx, or a
+# transport error) up to three times with growing backoff. Prints the final HTTP
+# status and returns 0 exactly when a 2xx confirmed delivery; any other outcome
+# returns 1 with the failing status printed. A non-transient status (401, 413,
+# and the like) stops early, a retry cannot fix it.
+_attempt_alert_delivery() { # <url> <request_id> <secret> <body>
+  local url="$1" request_id="$2" secret="$3" body="$4" signature http_status attempt
+  signature="$(printf '%s' "$body" | _hmac_sha256_hex "$secret")"
+  for attempt in 1 2 3; do
+    http_status="$(_post_alert_to_webhook "$url" "$request_id" "$signature" "$body")" || http_status=000
+    case "$http_status" in
+      2*)
+        printf '%s' "$http_status"
+        return 0
+        ;;
+      429 | 5?? | 000) # transient, back off and retry (base overridable for tests)
+        if [[ $attempt -lt 3 ]]; then sleep "$((attempt * ${OSQUERY_RETRY_BACKOFF_BASE:-1}))"; fi ;;
+      *) break ;; # 401/413/etc, retry won't help
+    esac
+  done
+  printf '%s' "$http_status"
+  return 1
+}
+
 # send_alert <severity> <title> <detail> [sound] [occurrence_id]
 # severity is CRIT | NOTICE | INFO. Only CRIT is delivered to Discord (#priority);
 # any other severity does the local notification and returns. The local
@@ -267,28 +347,7 @@ retry_undelivered_alerts() {
 send_alert() {
   local severity="$1" title="$2" detail="$3" sound="${4-}" occurrence="${5-}"
 
-  # The local notifier renders plain text, so strip Discord markdown (**bold**,
-  # `code`) for it; the webhook POST below keeps the markdown intact.
-  local plain_title plain_detail
-  plain_title="$(printf '%s' "$title" | sed -e 's/\*\*//g' -e 's/`//g')"
-  plain_detail="$(printf '%s' "$detail" | sed -e 's/\*\*//g' -e 's/`//g')"
-
-  # 1) Local macOS notification (alerter, AppleScript fallback). Pass --sound
-  #    only when one is given so INFO-tier alerts are visible but silent.
-  if command -v alerter >/dev/null 2>&1; then
-    if [[ -n $sound ]]; then
-      alerter --timeout 60 --title "$plain_title" --message "$plain_detail" --sound "$sound" >/dev/null 2>&1 &
-    else
-      alerter --timeout 60 --title "$plain_title" --message "$plain_detail" >/dev/null 2>&1 &
-    fi
-  else
-    local escaped_detail=${plain_detail//\"/\\\"}
-    if [[ -n $sound ]]; then
-      osascript -e "display notification \"$escaped_detail\" with title \"$plain_title\" sound name \"$sound\"" >/dev/null 2>&1 || true
-    else
-      osascript -e "display notification \"$escaped_detail\" with title \"$plain_title\"" >/dev/null 2>&1 || true
-    fi
-  fi
+  _notify_locally "$title" "$detail" "$sound"
 
   # Only a CRIT page is delivered to Discord. Any other severity stops here,
   # after the local notification.
@@ -301,31 +360,20 @@ send_alert() {
   occurrence_timestamp="$(date -u +%s)"
   [[ $occurrence_timestamp =~ ^[0-9]+$ ]] || occurrence_timestamp=0
 
-  # Build the webhook body and an occurrence-stable request id. tier: a page is
-  # loud (a sound was requested), a digest/heartbeat is muted (no sound). Both
-  # severities are CRIT and both POST; tier lets the Hermes adapter suppress the
-  # notification for muted traffic instead of pinging it like a page. The host and
-  # the occurrence timestamp live INSIDE the signed body, the spec's body shape
-  # and the multi-host migration seam both require {event_type, host, tier, ts,
-  # alert} (ts is the wire name of the occurrence timestamp).
-  #
-  # The request id derives from OCCURRENCE IDENTITY (threaded from the caller)
-  # when present, so two distinct incidents that render the same body get distinct
-  # ids (both stored, both delivered) while a retry of the same occurrence reuses
-  # one id (the gateway dedups it, the stored filename is idempotent). No
-  # occurrence means a per-call unique seed.
-  local body request_id request_id_seed tier
+  # The body, and the request id from OCCURRENCE IDENTITY (threaded from the
+  # caller) when present, a per-call unique seed otherwise. The sequence
+  # increment happens here, not inside a command substitution, so it survives
+  # the call and keeps fallback ids unique across calls in one process.
+  local tier body request_id request_id_seed
   if [[ -n $sound ]]; then tier="page"; else tier="muted"; fi
-  body="$(jq -cn --arg h "$(hostname -s)" --arg t "$title" --arg d "$detail" \
-    --arg tier "$tier" --argjson ts "$occurrence_timestamp" \
-    '{event_type:"osquery.alert", host:$h, tier:$tier, ts:$ts, alert:{title:$t, detail:$d}}')"
+  body="$(_build_webhook_body "$title" "$detail" "$tier" "$occurrence_timestamp")"
   if [[ -n $occurrence ]]; then
     request_id_seed="$occurrence"
   else
     _OSQUERY_ALERT_SEQUENCE=$((_OSQUERY_ALERT_SEQUENCE + 1))
     request_id_seed="fallback|$occurrence_timestamp|$$|${_OSQUERY_ALERT_SEQUENCE}|${RANDOM}|$body"
   fi
-  request_id="osquery-$(printf '%s' "$request_id_seed" | _sha256_hex_of_stdin | cut -c1-32)"
+  request_id="$(_derive_request_id "$request_id_seed")"
 
   # WRITE-AHEAD: persist the page BEFORE the first network attempt, so a crash or
   # kill before a confirmed success leaves a recoverable record. A persist failure
@@ -339,40 +387,23 @@ send_alert() {
   fi
   local stored_file="$OSQUERY_UNDELIVERED_ALERTS_DIR/$request_id"
 
-  # 2) Discord via the hermes webhook (bounded retry; the page is already safe on
-  #    disk, so a failed delivery here costs latency, not the page). Read the
-  #    HMAC key from the notifier's own secret file (an environment override is
-  #    allowed for tests); strip any carriage return so a CRLF file cannot
-  #    corrupt the key.
-  local secret="${OSQUERY_WEBHOOK_SECRET:-}"
-  if [[ -z $secret && -r $OSQUERY_WEBHOOK_SECRET_FILE ]]; then
-    IFS= read -r secret <"$OSQUERY_WEBHOOK_SECRET_FILE" || true
-    secret="$(printf '%s' "$secret" | tr -d '\r')"
-  fi
+  # Deliver via the hermes webhook (the page is already safe on disk, so a
+  # failed delivery here costs latency, not the page). No key means no send: the
+  # drain signs and sends the stored page once the secret returns.
+  local secret
+  secret="$(_read_webhook_secret)"
   if [[ -z $secret ]]; then
-    # The page is already persisted (write-ahead); the drain signs and sends it
-    # once the secret returns. Name the broken channel loudly.
     _osquery_log "STORED-NOSECRET Discord delivery degraded: request_id=$request_id (no secret in $OSQUERY_WEBHOOK_SECRET_FILE)"
     _loud_local "osquery Discord paging BROKEN" \
       "No webhook secret. This page was stored locally and delivers when the secret is restored."
     return 0
   fi
 
-  local signature http_status attempt
-  signature="$(printf '%s' "$body" | _hmac_sha256_hex "$secret")"
-
-  for attempt in 1 2 3; do
-    http_status="$(_post_alert_to_webhook "$url" "$request_id" "$signature" "$body")" || http_status=000
-    case "$http_status" in
-      2*)
-        rm -f "$stored_file" # delete ONLY after a confirmed 2xx
-        return 0
-        ;;
-      429 | 5?? | 000) # transient, back off and retry (base overridable for tests)
-        if [[ $attempt -lt 3 ]]; then sleep "$((attempt * ${OSQUERY_RETRY_BACKOFF_BASE:-1}))"; fi ;;
-      *) break ;; # 401/413/etc, retry won't help
-    esac
-  done
+  local http_status
+  if http_status="$(_attempt_alert_delivery "$url" "$request_id" "$secret" "$body")"; then
+    rm -f "$stored_file" # delete ONLY after a confirmed 2xx
+    return 0
+  fi
   # Delivery failed after retries: the write-ahead record REMAINS on disk and the
   # next drain retries it, so send_alert still returns 0. A down gateway delays
   # the page; it never fails the caller and never loses the page.
