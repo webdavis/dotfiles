@@ -117,16 +117,48 @@ _osquery_sqlite3_bin() {
 # pragmas' own chatter is routed to /dev/null so only the SQL's rows reach
 # stdout. Only non-secret alert fields ever flow through here; the webhook secret
 # is never passed to SQL. Returns sqlite3's exit status.
+#
+# One lock the busy_timeout does NOT absorb: a brand-new database's first
+# conversion into WAL takes an exclusive lock, and when concurrent first-opens
+# race it SQLite reports "database is locked" (SQLITE_BUSY) immediately instead
+# of waiting (observed under an eight-producer stress; the busy handler is not
+# consulted for that transition). A locked failure is therefore retried a few
+# times with a short pause. The retry replays the WHOLE statement batch, which
+# is safe because every statement this library issues is idempotent (CREATE IF
+# NOT EXISTS, INSERT ON CONFLICT DO NOTHING, DELETE by key, SELECT). Query rows
+# are buffered and printed only after a fully successful run, so a failed
+# partial attempt can never leak rows to the caller, and `.bail on` makes an
+# attempt stop cleanly at its first error.
 _osquery_alerts_db_exec() {
-  local sqlite3_bin
+  local sqlite3_bin sql_text query_output error_file sqlite3_status attempt
   sqlite3_bin="$(_osquery_sqlite3_bin)" || return 1
-  {
-    printf '.output /dev/null\n'
-    printf 'PRAGMA busy_timeout=5000;\n'
-    printf 'PRAGMA journal_mode=WAL;\n'
-    printf '.output\n'
-    cat
-  } | "$sqlite3_bin" "$OSQUERY_UNDELIVERED_ALERTS_DB"
+  sql_text="$(cat)"
+  error_file="$(mktemp "${TMPDIR:-/tmp}/osquery-alerts-db-error.XXXXXX")" || return 1
+  for attempt in 1 2 3 4 5; do
+    sqlite3_status=0
+    query_output="$(
+      {
+        printf '.bail on\n'
+        printf '.output /dev/null\n'
+        printf 'PRAGMA busy_timeout=5000;\n'
+        printf 'PRAGMA journal_mode=WAL;\n'
+        printf '.output\n'
+        printf '%s\n' "$sql_text"
+      } | "$sqlite3_bin" "$OSQUERY_UNDELIVERED_ALERTS_DB" 2>"$error_file"
+    )" || sqlite3_status=$?
+    if [[ $sqlite3_status -eq 0 ]]; then
+      rm -f "$error_file" 2>/dev/null || true
+      [[ -n $query_output ]] && printf '%s\n' "$query_output"
+      return 0
+    fi
+    if [[ $attempt -eq 5 ]] || ! grep -qi 'database is locked' "$error_file"; then
+      break
+    fi
+    sleep 0.1 2>/dev/null || sleep 1
+  done
+  cat "$error_file" >&2 2>/dev/null || true
+  rm -f "$error_file" 2>/dev/null || true
+  return "$sqlite3_status"
 }
 
 # Create the store lazily and idempotently: the mode-700 parent, the

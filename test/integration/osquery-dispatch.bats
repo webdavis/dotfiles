@@ -146,6 +146,82 @@ teardown() { teardown_dispatch_harness; }
   [[ $status -eq 0 ]]
 }
 
+@test "T-DISP-store-concurrency: parallel producers and drains lose no rows under WAL plus busy_timeout (T4)" {
+  # Eight producers with distinct occurrences send in parallel against an
+  # always-failing sender while two drains run alongside them. Every send must
+  # report success (a swallowed SQLITE_BUSY would surface as send_alert's hard
+  # failure), no writer may hit an unabsorbed lock, and the store must end with
+  # EXACTLY eight rows: no lost insert, no unique-constraint collision, and
+  # eight distinct ids and sequence numbers. The queued-codes curl stub pops its
+  # queue non-atomically, so a deterministic always-503 stub replaces it here.
+  cat >"$HARNESS_HOME/bin/curl" <<'STUB'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"$CURL_LOG"
+printf '503'
+STUB
+  chmod +x "$HARNESS_HOME/bin/curl"
+
+  local producer_count=8 i
+  local status_dir="$HARNESS_HOME/stress-status"
+  mkdir -p "$status_dir"
+  for ((i = 1; i <= producer_count; i++)); do
+    (
+      send_alert CRIT "🔴 stress $i" "detail $i" "Sosumi" "occ:stress:$i" \
+        2>"$status_dir/producer-$i.err"
+      echo $? >"$status_dir/producer-$i.status"
+    ) &
+  done
+  for i in 1 2; do
+    (
+      retry_undelivered_alerts 2>"$status_dir/drain-$i.err"
+      echo $? >"$status_dir/drain-$i.status"
+    ) &
+  done
+  wait
+
+  for ((i = 1; i <= producer_count; i++)); do
+    [[ "$(cat "$status_dir/producer-$i.status")" == "0" ]]
+  done
+  for i in 1 2; do
+    [[ "$(cat "$status_dir/drain-$i.status")" == "0" ]]
+  done
+  ! grep -rqi 'database is locked' "$status_dir" # busy_timeout serializes, never errors
+  [[ "$(sqlite3_query 'SELECT COUNT(*) FROM pending_alerts;')" == "$producer_count" ]]
+  [[ "$(sqlite3_query 'SELECT COUNT(DISTINCT request_id) FROM pending_alerts;')" == "$producer_count" ]]
+  [[ "$(sqlite3_query 'SELECT COUNT(DISTINCT sequence_number) FROM pending_alerts;')" == "$producer_count" ]]
+
+  # Recovery under parallel drains: with the sender succeeding, two drains run
+  # at once. Both must exit 0, the store must fully clear, every page must
+  # deliver at least once, and no request_id may be posted more than once PER
+  # DRAIN PASS (each pass reads its row list once and never re-posts within
+  # itself, so two passes bound the count at two; the gateway dedups by id).
+  local stored_request_ids
+  stored_request_ids="$(sqlite3_query 'SELECT request_id FROM pending_alerts;')"
+  cat >"$HARNESS_HOME/bin/curl" <<'STUB'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"$CURL_LOG"
+printf '200'
+STUB
+  chmod +x "$HARNESS_HOME/bin/curl"
+  : >"$CURL_LOG"
+  for i in 3 4; do
+    (
+      retry_undelivered_alerts 2>"$status_dir/drain-$i.err"
+      echo $? >"$status_dir/drain-$i.status"
+    ) &
+  done
+  wait
+  [[ "$(cat "$status_dir/drain-3.status")" == "0" ]]
+  [[ "$(cat "$status_dir/drain-4.status")" == "0" ]]
+  assert_pending_alert_count 0
+  local request_id post_count
+  while read -r request_id; do
+    [[ -n $request_id ]] || continue
+    post_count=$(grep -cF "X-Request-ID: $request_id" "$CURL_LOG" || true)
+    [[ $post_count -ge 1 && $post_count -le 2 ]]
+  done <<<"$stored_request_ids"
+}
+
 @test "T-DISP-secret-not-in-argv: the signing key never reaches any openssl argv (F-B)" {
   # Shim openssl to log its full argv, then delegate to the real one so signing
   # still works. A CRIT send must never pass the secret as an openssl argument,
