@@ -55,14 +55,13 @@ teardown() { teardown_dispatch_harness; }
   assert_posted_to '127.0.0.1:8644'
   run grep -v '127.0.0.1:8644' "$CURL_LOG"
   [[ -z $output ]] # ...and every send POST was to loopback, nothing else
-  local stored_file
-  stored_file=$(first_undelivered_alert_file)
-  awk 'BEGIN{FS=OFS="\t"} {$3="http://10.0.0.5:8644/webhooks/osquery-priority"; print}' \
-    "$stored_file" >"$stored_file.t" && mv "$stored_file.t" "$stored_file"
+  # Tamper the AUTHORITATIVE store (the pending_alerts row) with an off-box url.
+  sqlite3 "$OSQUERY_UNDELIVERED_ALERTS_DB" \
+    "UPDATE pending_alerts SET url='http://10.0.0.5:8644/webhooks/osquery-priority';"
   : >"$CURL_LOG"
   retry_undelivered_alerts
-  ! grep -q '10.0.0.5' "$CURL_LOG"     # never sent off-box
-  assert_undelivered_alert_count 1 # the off-box entry is RETAINED (skipped), not silently dropped
+  ! grep -q '10.0.0.5' "$CURL_LOG" # never sent off-box
+  assert_pending_alert_count 1     # the off-box entry is RETAINED (skipped), not silently dropped
 }
 
 @test "T-SEC-drain-setE: drain is set -e-safe on empty or malformed input" {
@@ -157,6 +156,27 @@ teardown() { teardown_dispatch_harness; }
   run_retry_undelivered_alerts drain_output drain_status
   [[ $drain_status -eq 0 ]]
   assert_pending_alert_count 0 # deleted only after the drain's confirmed 2xx
+}
+
+@test "T-SEC-sqlite-drain-order: rows drain by occurrence_ts then sequence_number, not insert or name order" {
+  # The drain must read the SQLite store and order by occurrence time with the
+  # insert-assigned sequence_number as the tiebreaker. Seeding contradicts every
+  # wrong ordering: the OLDER occurrence is inserted LATER (a backward clock
+  # step), and the equal-timestamp pair is named so lexical order (aa before zz)
+  # contradicts insert order (zz first). Only ORDER BY occurrence_ts,
+  # sequence_number yields the expected delivery sequence.
+  local url='http://127.0.0.1:8644/webhooks/osquery-priority' body_b64
+  body_b64=$(printf '{"event_type":"osquery.alert"}' | base64 | tr -d '\n')
+  _osquery_store_alert_row 2000 osquery-inserted-first-newer "$url" "$body_b64"
+  _osquery_store_alert_row 1000 osquery-inserted-second-older "$url" "$body_b64" # clock stepped back
+  _osquery_store_alert_row 3000 osquery-zz-tie "$url" "$body_b64"                # equal ts, lower sequence
+  _osquery_store_alert_row 3000 osquery-aa-tie "$url" "$body_b64"                # equal ts, higher sequence
+  set_curl_codes 200 200 200 200
+  retry_undelivered_alerts
+  local posted_order
+  posted_order=$(grep -oE 'X-Request-ID: osquery-[a-z-]+' "$CURL_LOG" | sed 's/X-Request-ID: //' | paste -sd, -)
+  [[ $posted_order == "osquery-inserted-second-older,osquery-inserted-first-newer,osquery-zz-tie,osquery-aa-tie" ]]
+  assert_pending_alert_count 0 # every delivered row was deleted
 }
 
 @test "T-SEC-quarantine-partial: a crashed *.tmp.* partial is quarantined on the next drain, not skipped forever" {

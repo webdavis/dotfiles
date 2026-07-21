@@ -205,6 +205,64 @@ _osquery_delete_alert_row() {
   printf "DELETE FROM pending_alerts WHERE request_id = '%s';\n" "$request_id_sql" | _osquery_alerts_db_exec
 }
 
+# Print every pending row as one tab-separated line (request_id, url,
+# body_base64), ordered for the drain: occurrence time first, then the
+# insert-assigned sequence_number as the tiebreaker. The sequence tiebreaker is
+# skew-proof: equal timestamps (or a backward clock step) still drain in insert
+# order. Tabs cannot appear in the fields (a hex-derived request id, a base64
+# body, and a URL the localhost guard restricts), so the line format is safe.
+_osquery_pending_alert_rows() {
+  {
+    printf '.separator "\\t"\n'
+    printf 'SELECT request_id, url, body_base64 FROM pending_alerts ORDER BY occurrence_ts, sequence_number;\n'
+  } | _osquery_alerts_db_exec
+}
+
+# Deliver ONE pending row: skip a non-localhost url (never send an off-box
+# page), decode and sign the stored body, POST it (stored request_id verbatim so
+# the gateway dedups), and delete the row only on a confirmed 2xx. The matching
+# legacy store file is removed with it so the interim file store stays in step.
+# Fully set -e-safe: any malformed field returns 0 so the drain continues.
+_deliver_pending_alert_row() {
+  local request_id="$1" url="$2" encoded_body="$3" secret="$4" body signature http_status
+  [[ -n $request_id && -n $url && -n $encoded_body ]] || return 0
+  case "$url" in
+    http://127.0.0.1:8644/*) ;;
+    *) return 0 ;;
+  esac
+  body="$(printf '%s' "$encoded_body" | base64 -d 2>/dev/null)" || return 0
+  [[ -n $body ]] || return 0
+  # Same signing check as the send path: a failed or empty signature must never
+  # go on the wire. The row stays put and a later drain retries it.
+  if ! signature="$(printf '%s' "$body" | _hmac_sha256_hex "$secret")" || [[ -z $signature ]]; then
+    return 0
+  fi
+  http_status="$(_post_alert_to_webhook "$url" "$request_id" "$signature" "$body")" || http_status=000
+  case "$http_status" in
+    2*)
+      _osquery_delete_alert_row "$request_id" ||
+        _osquery_log "ROW-DELETE-FAILED delivered page kept a pending row: request_id=$request_id (gateway dedups the re-post)"
+      rm -f "$OSQUERY_UNDELIVERED_ALERTS_DIR/$request_id" 2>/dev/null || true
+      ;;
+    *) : ;;
+  esac
+  return 0
+}
+
+# Drain the SQLite store: deliver every pending row in occurrence-time order
+# with the sequence tiebreaker. A query failure or an empty store is a quiet
+# no-op; a malformed row is skipped. Never returns nonzero (set -e-safe).
+_drain_pending_alert_rows() {
+  local secret="$1" rows request_id url encoded_body
+  rows="$(_osquery_pending_alert_rows)" || return 0
+  [[ -n $rows ]] || return 0
+  while IFS=$'\t' read -r request_id url encoded_body; do
+    [[ -n $request_id ]] || continue
+    _deliver_pending_alert_row "$request_id" "$url" "$encoded_body" "$secret"
+  done <<<"$rows"
+  return 0
+}
+
 # Store one undelivered page and REPORT persistence success. The file is named by
 # the occurrence-unique request_id, so re-storing the same occurrence is
 # idempotent while two DISTINCT occurrences never collide. The encoded body and
@@ -386,18 +444,13 @@ _deliver_stored_record() {
   return 0
 }
 
-# Replay stored undelivered pages in OCCURRENCE-TIME order (earliest first, with
-# the file path as a deterministic tie-breaker), so a backlog delivers in the
-# order events happened, not in SHA-derived filename order. Crashed partials are
-# quarantined first. Localhost only. Fully set -e-safe: a malformed entry or an
-# empty directory must NEVER abort the caller (a delivery feature must not cause
-# a detection outage).
-retry_undelivered_alerts() {
+# Drain the LEGACY file store: replay stored record files in occurrence-time
+# order (earliest first, with the file path as a deterministic tie-breaker).
+# Kept only as the fallback for a store that predates the SQLite database; the
+# file machinery retires once the migration completes. Fully set -e-safe.
+_drain_undelivered_alert_files() {
+  local secret="$1"
   [[ -d $OSQUERY_UNDELIVERED_ALERTS_DIR ]] || return 0
-  _quarantine_stale_partials
-  local secret
-  secret="$(_read_webhook_secret)"
-  [[ -n $secret ]] || return 0
 
   # Collect "<occurrence_timestamp>\t<file>" for every well-formed record, then
   # sort by occurrence time (numeric) with the path as the tie-breaker.
@@ -419,6 +472,26 @@ retry_undelivered_alerts() {
     [[ -n $stored_file ]] || continue
     _deliver_stored_record "$stored_file" "$secret"
   done <<<"$sorted"
+  return 0
+}
+
+# Replay stored undelivered pages in OCCURRENCE-TIME order, so a backlog
+# delivers in the order events happened. The SQLite store is the authoritative
+# read path (ORDER BY occurrence_ts, sequence_number, skew-proof); the file
+# store is drained only when no database exists (records predating the SQLite
+# store). Crashed file-store partials are quarantined first in either case.
+# Localhost only. Fully set -e-safe: a malformed entry or an empty store must
+# NEVER abort the caller (a delivery feature must not cause a detection outage).
+retry_undelivered_alerts() {
+  _quarantine_stale_partials
+  local secret
+  secret="$(_read_webhook_secret)"
+  [[ -n $secret ]] || return 0
+  if [[ -f $OSQUERY_UNDELIVERED_ALERTS_DB ]]; then
+    _drain_pending_alert_rows "$secret"
+  else
+    _drain_undelivered_alert_files "$secret"
+  fi
   return 0
 }
 
