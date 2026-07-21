@@ -133,6 +133,22 @@ teardown() { teardown_dispatch_harness; }
 # can map to a suppressed notification: a page (non-empty sound) is tier=page, a
 # muted digest/heartbeat (empty sound) is tier=muted. Both still POST (both CRIT).
 
+@test "T-DISP-url-whitespace-hardfail: a URL containing whitespace is refused at persist time (F3)" {
+  # The drain's row export is tab-separated, so a URL carrying a tab (or any
+  # whitespace/control character) would garble its row into an undeliverable,
+  # undiagnosed shape. A malformed URL must never enter durable storage: the
+  # persist refuses it with the loud hard-fail, before any network attempt.
+  : >"$ALERTER_LOG"
+  set_curl_codes 503 503 503
+  export OSQUERY_HERMES_PRIORITY_URL=$'http://127.0.0.1:8644/webhooks/osquery\tpriority'
+  run_dispatch send_output send_status CRIT "🔴 title" "detail body" "Sosumi" "occ:taburl:1"
+  [[ $send_status -ne 0 ]] # refused, not silently stored malformed
+  assert_pending_alert_count 0
+  assert_no_post
+  grep -qE 'STORE-FAILED' "$OSQUERY_DELIVERY_LOG"
+  wait_for_log_line 'FAILED|lost|could not' "$ALERTER_LOG"
+}
+
 @test "T-DISP-tier-page: a real page (non-empty sound) POSTs tier=page (R2-11)" {
   send_alert CRIT "🔴 title" "detail" "Sosumi"
   assert_post_count 1

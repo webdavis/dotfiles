@@ -177,6 +177,23 @@ teardown() { teardown_dispatch_harness; }
   assert_pending_alert_count 0 # every delivered row was deleted
 }
 
+@test "T-SEC-malformed-row-diagnostic: a row the drain cannot decode is skipped LOUDLY, later rows still drain (F3)" {
+  # A hand-corrupted row (a body that is not decodable base64) must never be
+  # skipped in silence: a silently stuck row is invisible forever. The drain
+  # logs a MALFORMED-ROW line naming the request_id and keeps draining the
+  # rows after it.
+  local url='http://127.0.0.1:8644/webhooks/osquery-priority' body_b64
+  body_b64=$(printf '{"event_type":"osquery.alert"}' | base64 | tr -d '\n')
+  _osquery_store_alert_row 1000 osquery-corrupt "$url" '####'
+  _osquery_store_alert_row 2000 osquery-good "$url" "$body_b64"
+  set_curl_codes 200 200
+  retry_undelivered_alerts
+  grep -q 'MALFORMED-ROW' "$OSQUERY_DELIVERY_LOG"     # loud, never silent
+  grep -q 'osquery-corrupt' "$OSQUERY_DELIVERY_LOG"   # names the stuck row
+  grep -qF 'X-Request-ID: osquery-good' "$CURL_LOG"   # the drain continued past it
+  assert_pending_alert_count 1                        # corrupt retained, good delivered
+}
+
 @test "T-SEC-atomic-persist: a kill during persist never leaves a bootstrapped store missing the alert (F1)" {
   # The persist must be atomic end-to-end: the schema bootstrap and this alert's
   # INSERT commit together, so a kill at ANY instant leaves either no schema at

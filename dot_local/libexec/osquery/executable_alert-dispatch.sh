@@ -244,16 +244,23 @@ _osquery_pending_alert_rows() {
 # Deliver ONE pending row: skip a non-localhost url (never send an off-box
 # page), decode and sign the stored body, POST it (stored request_id verbatim so
 # the gateway dedups), and delete the row only on a confirmed 2xx. Fully
-# set -e-safe: any malformed field returns 0 so the drain continues.
+# set -e-safe: a malformed row returns 0 so the drain continues, but NEVER
+# silently: a MALFORMED-ROW log line names the stuck row and the reason, so a
+# row the drain can never deliver is visible instead of invisible forever.
 _deliver_pending_alert_row() {
   local request_id="$1" url="$2" encoded_body="$3" secret="$4" body signature http_status
-  [[ -n $request_id && -n $url && -n $encoded_body ]] || return 0
+  if [[ -z $request_id || -z $url || -z $encoded_body ]]; then
+    _osquery_log "MALFORMED-ROW drain skipped an unreadable row: request_id=${request_id:-unknown} (a required field is empty; row retained)"
+    return 0
+  fi
   case "$url" in
     http://127.0.0.1:8644/*) ;;
     *) return 0 ;;
   esac
-  body="$(printf '%s' "$encoded_body" | base64 -d 2>/dev/null)" || return 0
-  [[ -n $body ]] || return 0
+  if ! body="$(printf '%s' "$encoded_body" | base64 -d 2>/dev/null)" || [[ -z $body ]]; then
+    _osquery_log "MALFORMED-ROW drain skipped an undecodable row: request_id=$request_id (body_base64 does not decode; row retained)"
+    return 0
+  fi
   # Same signing check as the send path: a failed or empty signature must never
   # go on the wire. The row stays put and a later drain retries it.
   if ! signature="$(printf '%s' "$body" | _hmac_sha256_hex "$secret")" || [[ -z $signature ]]; then
@@ -296,6 +303,15 @@ _store_undelivered_alert() {
   local occurrence_timestamp="$1" request_id="$2" url="$3" body="$4" encoded_body
   [[ $occurrence_timestamp =~ ^[0-9]+$ ]] || return 1
   [[ -n $request_id ]] || return 1
+  # A URL carrying whitespace or a control character must never enter durable
+  # storage: the drain's row export is tab-separated, so an embedded separator
+  # would garble the row into an undeliverable, undiagnosed shape. Refusing at
+  # persist time turns a misconfigured URL into the loud hard-fail instead of a
+  # silently stuck row.
+  [[ -n $url ]] || return 1
+  case "$url" in
+    *[[:space:][:cntrl:]]*) return 1 ;;
+  esac
   # pipefail inside the subshell so a base64 failure is the assignment's status,
   # not masked by the trailing tr; then reject an empty result defensively.
   if ! encoded_body="$(
