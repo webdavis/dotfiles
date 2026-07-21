@@ -159,65 +159,58 @@ _osquery_alerts_db_exec() {
   return "$sqlite3_status"
 }
 
-# Create the store lazily and idempotently: the mode-700 parent, the
-# pending_alerts table (CREATE TABLE IF NOT EXISTS, so a second call is a no-op),
-# and the mode-600 DB file. Returns nonzero when the parent cannot be made, the
-# schema statement fails, or the DB file does not exist afterward, so a caller
-# treats a store it could not stand up as a hard persist failure.
-_osquery_ensure_alerts_db() {
-  local database_directory
+# Persist one undelivered page as a pending_alerts row and report success. The
+# lazy schema bootstrap and THIS alert's INSERT run in ONE atomic sqlite3 batch
+# (BEGIN IMMEDIATE ... COMMIT), so a crash or kill at any instant leaves either
+# the row fully present or no committed change at all; there is no window where
+# the schema exists but this alert vanished. Only a successful COMMIT reports
+# success; any failure rolls back and returns nonzero so the caller treats it
+# as the loud hard failure.
+#
+# Same occurrence re-stored is idempotent (ON CONFLICT(request_id) DO NOTHING),
+# so a retry of one occurrence stays one row while two DISTINCT occurrences
+# never collide. sequence_number is omitted deliberately: the AUTOINCREMENT
+# primary key assigns it inside the insert, race-free under concurrent
+# producers, and serves as the skew-proof drain-order tiebreaker. attempts and
+# next_attempt_after are written by DR-A but consumed by DR-B; storing them now
+# avoids a schema migration one slice later. The text fields are single-quoted
+# with any embedded quote doubled; the values are non-secret and quote-free by
+# construction (a hex request id, a base64 body, a fixed localhost url), and
+# the escape keeps the statement injection-safe regardless.
+_osquery_store_alert_row() {
+  local occurrence_timestamp="$1" request_id="$2" url="$3" encoded_body="$4" created_at database_directory
   database_directory="$(dirname "$OSQUERY_UNDELIVERED_ALERTS_DB")"
   mkdir -p "$database_directory" 2>/dev/null || return 1
   chmod 700 "$database_directory" 2>/dev/null || true
-  # attempts and next_attempt_after are written by DR-A but consumed by DR-B;
-  # storing them now avoids a schema migration one slice later. sequence_number
-  # is the AUTOINCREMENT primary key, so SQLite assigns it atomically inside the
-  # insert (race-free under concurrent producers) and it serves as the
-  # skew-proof drain-order tiebreaker. request_id keeps its uniqueness through
-  # the UNIQUE constraint, which is the ON CONFLICT target for idempotent
-  # re-stores of the same occurrence.
-  if ! printf '%s' 'CREATE TABLE IF NOT EXISTS pending_alerts (
-      sequence_number    INTEGER PRIMARY KEY AUTOINCREMENT,
-      request_id         TEXT UNIQUE NOT NULL,
-      occurrence_ts      INTEGER NOT NULL,
-      url                TEXT NOT NULL,
-      body_base64        TEXT NOT NULL,
-      attempts           INTEGER NOT NULL DEFAULT 0,
-      next_attempt_after INTEGER NOT NULL DEFAULT 0,
-      created_at         INTEGER NOT NULL
-    );' | _osquery_alerts_db_exec; then
-    return 1
-  fi
-  [[ -f $OSQUERY_UNDELIVERED_ALERTS_DB ]] || return 1
-  chmod 600 "$OSQUERY_UNDELIVERED_ALERTS_DB" 2>/dev/null || true
-  return 0
-}
-
-# Persist one undelivered page as a pending_alerts row and report success. Same
-# occurrence re-stored is idempotent (ON CONFLICT(request_id) DO NOTHING), so a
-# retry of one occurrence stays one row while two DISTINCT occurrences never
-# collide. sequence_number is omitted deliberately: the AUTOINCREMENT primary
-# key assigns it inside the insert, race-free under concurrent producers. The
-# text fields are single-quoted with any embedded quote doubled; the values are
-# non-secret and quote-free by construction (a hex request id, a base64 body, a
-# fixed localhost url), and the escape keeps the statement injection-safe
-# regardless. Returns nonzero on any persistence failure so the caller treats
-# it as a hard failure.
-_osquery_store_alert_row() {
-  local occurrence_timestamp="$1" request_id="$2" url="$3" encoded_body="$4" created_at
-  _osquery_ensure_alerts_db || return 1
   created_at="$(date -u +%s)"
   [[ $created_at =~ ^[0-9]+$ ]] || created_at=0
   local request_id_sql url_sql body_sql
   request_id_sql="${request_id//\'/\'\'}"
   url_sql="${url//\'/\'\'}"
   body_sql="${encoded_body//\'/\'\'}"
-  printf "INSERT INTO pending_alerts
-      (request_id, occurrence_ts, url, body_base64, attempts, next_attempt_after, created_at)
-    VALUES
-      ('%s', %s, '%s', '%s', 0, 0, %s)
-    ON CONFLICT(request_id) DO NOTHING;\n" \
-    "$request_id_sql" "$occurrence_timestamp" "$url_sql" "$body_sql" "$created_at" | _osquery_alerts_db_exec
+  if ! printf "BEGIN IMMEDIATE;
+CREATE TABLE IF NOT EXISTS pending_alerts (
+  sequence_number    INTEGER PRIMARY KEY AUTOINCREMENT,
+  request_id         TEXT UNIQUE NOT NULL,
+  occurrence_ts      INTEGER NOT NULL,
+  url                TEXT NOT NULL,
+  body_base64        TEXT NOT NULL,
+  attempts           INTEGER NOT NULL DEFAULT 0,
+  next_attempt_after INTEGER NOT NULL DEFAULT 0,
+  created_at         INTEGER NOT NULL
+);
+INSERT INTO pending_alerts
+    (request_id, occurrence_ts, url, body_base64, attempts, next_attempt_after, created_at)
+  VALUES
+    ('%s', %s, '%s', '%s', 0, 0, %s)
+  ON CONFLICT(request_id) DO NOTHING;
+COMMIT;\n" \
+    "$request_id_sql" "$occurrence_timestamp" "$url_sql" "$body_sql" "$created_at" | _osquery_alerts_db_exec; then
+    return 1
+  fi
+  [[ -f $OSQUERY_UNDELIVERED_ALERTS_DB ]] || return 1
+  chmod 600 "$OSQUERY_UNDELIVERED_ALERTS_DB" 2>/dev/null || true
+  return 0
 }
 
 # Delete one delivered page's pending_alerts row, keyed by request_id. Called

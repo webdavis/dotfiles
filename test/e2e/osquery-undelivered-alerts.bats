@@ -177,6 +177,41 @@ teardown() { teardown_dispatch_harness; }
   assert_pending_alert_count 0 # every delivered row was deleted
 }
 
+@test "T-SEC-atomic-persist: a kill during persist never leaves a bootstrapped store missing the alert (F1)" {
+  # The persist must be atomic end-to-end: the schema bootstrap and this alert's
+  # INSERT commit together, so a kill at ANY instant leaves either no schema at
+  # all (the persist never completed and send_alert never reported success) or
+  # the row fully present. The forbidden half-state is a bootstrapped table
+  # without the alert: that page would be gone with no diagnostic. The killer
+  # fires the moment the schema becomes visible; a non-atomic persist (schema
+  # committed first, row in a second sqlite3 invocation) gets caught in the gap.
+  cat >"$HARNESS_HOME/bin/curl" <<'STUB'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"$CURL_LOG"
+printf '503'
+STUB
+  chmod +x "$HARNESS_HOME/bin/curl"
+  local iteration send_pid schema_present
+  for iteration in 1 2 3 4 5 6 7 8 9 10; do
+    rm -f "$OSQUERY_UNDELIVERED_ALERTS_DB" "$OSQUERY_UNDELIVERED_ALERTS_DB"-*
+    (send_alert CRIT "🔴 kill $iteration" "detail" "Sosumi" "occ:kill:$iteration" >/dev/null 2>&1) &
+    send_pid=$!
+    while kill -0 "$send_pid" 2>/dev/null; do
+      schema_present="$(sqlite3_query "SELECT count(*) FROM sqlite_master WHERE name='pending_alerts';" 2>/dev/null)" || schema_present=""
+      if [[ $schema_present == "1" ]]; then
+        kill -KILL "$send_pid" 2>/dev/null || true
+        break
+      fi
+    done
+    wait "$send_pid" 2>/dev/null || true
+    sleep 0.2 # let any in-flight sqlite3 child of the killed sender settle
+    schema_present="$(sqlite3_query "SELECT count(*) FROM sqlite_master WHERE name='pending_alerts';" 2>/dev/null)" || schema_present=""
+    if [[ $schema_present == "1" ]]; then
+      assert_pending_alert_count 1 # a visible schema MUST mean the row committed with it
+    fi
+  done
+}
+
 @test "T-SEC-no-secret-log: the webhook secret never appears in any log or the stored database" {
   export OSQUERY_WEBHOOK_SECRET="SUPERSECRET123"
   set_curl_codes 503 503 503
