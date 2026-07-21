@@ -99,7 +99,10 @@ teardown() { teardown_dispatch_harness; }
 
   assert_pending_alert_count 1 # stored as a row, not lost
 
-  # The schema carries every column DR-B will consume, with request_id the PK.
+  # The schema carries every column DR-B will consume. sequence_number is the
+  # AUTOINCREMENT primary key (assigned atomically inside the insert, race-free
+  # under concurrent producers); request_id keeps uniqueness through a UNIQUE
+  # constraint, the ON CONFLICT target for idempotent re-stores.
   local columns column
   columns=$(sqlite3_query "SELECT group_concat(name, ',') FROM pragma_table_info('pending_alerts');")
   for column in request_id sequence_number occurrence_ts url body_base64 attempts next_attempt_after created_at; do
@@ -110,7 +113,10 @@ teardown() { teardown_dispatch_harness; }
   done
   local primary_key
   primary_key=$(sqlite3_query "SELECT name FROM pragma_table_info('pending_alerts') WHERE pk=1;")
-  [[ $primary_key == "request_id" ]]
+  [[ $primary_key == "sequence_number" ]]
+  local unique_column
+  unique_column=$(sqlite3_query "SELECT ii.name FROM pragma_index_list('pending_alerts') il JOIN pragma_index_info(il.name) ii WHERE il.origin='u';")
+  [[ $unique_column == "request_id" ]]
 
   # The connection runs in WAL journal mode (crash-atomic commits).
   local journal_mode

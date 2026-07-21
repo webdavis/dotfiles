@@ -141,10 +141,14 @@ _osquery_ensure_alerts_db() {
   chmod 700 "$database_directory" 2>/dev/null || true
   # attempts and next_attempt_after are written by DR-A but consumed by DR-B;
   # storing them now avoids a schema migration one slice later. sequence_number
-  # is a skew-proof tiebreaker for the drain ordering (a later slice's concern).
+  # is the AUTOINCREMENT primary key, so SQLite assigns it atomically inside the
+  # insert (race-free under concurrent producers) and it serves as the
+  # skew-proof drain-order tiebreaker. request_id keeps its uniqueness through
+  # the UNIQUE constraint, which is the ON CONFLICT target for idempotent
+  # re-stores of the same occurrence.
   if ! printf '%s' 'CREATE TABLE IF NOT EXISTS pending_alerts (
-      request_id         TEXT PRIMARY KEY,
-      sequence_number    INTEGER UNIQUE,
+      sequence_number    INTEGER PRIMARY KEY AUTOINCREMENT,
+      request_id         TEXT UNIQUE NOT NULL,
       occurrence_ts      INTEGER NOT NULL,
       url                TEXT NOT NULL,
       body_base64        TEXT NOT NULL,
@@ -162,12 +166,13 @@ _osquery_ensure_alerts_db() {
 # Persist one undelivered page as a pending_alerts row and report success. Same
 # occurrence re-stored is idempotent (ON CONFLICT(request_id) DO NOTHING), so a
 # retry of one occurrence stays one row while two DISTINCT occurrences never
-# collide. sequence_number is the next value above the current maximum, an
-# insert-order tiebreaker that does not depend on the clock. The text fields are
-# single-quoted with any embedded quote doubled; the values are non-secret and
-# quote-free by construction (a hex request id, a base64 body, a fixed localhost
-# url), and the escape keeps the statement injection-safe regardless. Returns
-# nonzero on any persistence failure so the caller treats it as a hard failure.
+# collide. sequence_number is omitted deliberately: the AUTOINCREMENT primary
+# key assigns it inside the insert, race-free under concurrent producers. The
+# text fields are single-quoted with any embedded quote doubled; the values are
+# non-secret and quote-free by construction (a hex request id, a base64 body, a
+# fixed localhost url), and the escape keeps the statement injection-safe
+# regardless. Returns nonzero on any persistence failure so the caller treats
+# it as a hard failure.
 _osquery_store_alert_row() {
   local occurrence_timestamp="$1" request_id="$2" url="$3" encoded_body="$4" created_at
   _osquery_ensure_alerts_db || return 1
@@ -178,9 +183,9 @@ _osquery_store_alert_row() {
   url_sql="${url//\'/\'\'}"
   body_sql="${encoded_body//\'/\'\'}"
   printf "INSERT INTO pending_alerts
-      (request_id, sequence_number, occurrence_ts, url, body_base64, attempts, next_attempt_after, created_at)
+      (request_id, occurrence_ts, url, body_base64, attempts, next_attempt_after, created_at)
     VALUES
-      ('%s', (SELECT COALESCE(MAX(sequence_number), 0) + 1 FROM pending_alerts), %s, '%s', '%s', 0, 0, %s)
+      ('%s', %s, '%s', '%s', 0, 0, %s)
     ON CONFLICT(request_id) DO NOTHING;\n" \
     "$request_id_sql" "$occurrence_timestamp" "$url_sql" "$body_sql" "$created_at" | _osquery_alerts_db_exec
 }
