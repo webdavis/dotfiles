@@ -226,6 +226,39 @@ assert_nested_test_system_sh_fails() {
   [[ $guard_output == *"nested"* ]] || record_failure "expected a nested-placement message: $guard_output"
 }
 
+# The shared, cross-suite test/helpers/ dir sits at test/ root (not inside a
+# suite) and follows the same rule as a suite's helpers/: sourced, non-executable
+# *.sh only.
+
+assert_shared_helpers_non_executable_passes() {
+  local guard_output guard_status root
+  root="$(make_test_tree "$work" sharedhelpers unit helpers)"
+  write_probe_script "$root/unit/a.sh"
+  printf '# shellcheck shell=bash\ntrue\n' >"$root/helpers/build-x.sh" # sourced, not executable
+  run_guard guard_output guard_status "$root"
+  [[ $guard_status -eq 0 ]] || record_failure "a sourced file in the shared test/helpers/ should pass (rc=$guard_status): $guard_output"
+}
+
+assert_shared_helpers_executable_fails() {
+  local guard_output guard_status root
+  root="$(make_test_tree "$work" sharedhelpersexec helpers)"
+  write_probe_script "$root/helpers/forgotten-test.sh" 'exit 23'
+  run_guard guard_output guard_status "$root"
+  [[ $guard_status -ne 0 ]] || record_failure "an executable test/helpers/ *.sh must fail the guard: $guard_output"
+  [[ $guard_output == *"forgotten-test.sh"* ]] || record_failure "expected the executable helper named in the message: $guard_output"
+  [[ $guard_output == *"sourced, not executed"* ]] || record_failure "expected the helpers-are-sourced explanation: $guard_output"
+}
+
+assert_shared_helpers_bats_fails() {
+  local guard_output guard_status root
+  root="$(make_test_tree "$work" sharedhelpersbats helpers)"
+  printf '#!/usr/bin/env bats\n@test "x" { true; }\n' >"$root/helpers/suite.bats"
+  run_guard guard_output guard_status "$root"
+  [[ $guard_status -ne 0 ]] || record_failure "a *.bats inside test/helpers/ must fail the guard: $guard_output"
+  [[ $guard_output == *"suite.bats"* ]] || record_failure "expected the helper bats named in the message: $guard_output"
+  [[ $guard_output == *"only sourced"* ]] || record_failure "expected the only-sourced explanation: $guard_output"
+}
+
 main() {
   work="$(mktemp -d)"
   trap 'rm -rf "$work"' EXIT
@@ -248,6 +281,9 @@ main() {
   assert_helper_bats_fails
   assert_fixtures_bats_fails
   assert_nested_test_system_sh_fails
+  assert_shared_helpers_non_executable_passes
+  assert_shared_helpers_executable_fails
+  assert_shared_helpers_bats_fails
 
   report_failures placement
 }
