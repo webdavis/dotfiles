@@ -3,8 +3,10 @@
 # Run the command, writing its combined stdout+stderr into the first named
 # variable and its exit code into the second. The names are nameref output
 # parameters, so the helper keeps no global state: callers declare locals and
-# pass their names. Wraps the run in `set +e` / `set -e` so a nonzero exit
-# never aborts the caller. Sourced by the test-system suite; no main.
+# pass their names. Runs the command under `set +e` and then restores the
+# caller's ORIGINAL errexit state, so a nonzero exit never aborts the caller
+# and a deliberate set +e caller stays set +e afterward. Sourced by the
+# test-system suite; no main.
 #
 # Naming system: every internal local is prefixed with the full function name
 # (capture_output_*), and the guard below rejects any destination name matching
@@ -29,10 +31,13 @@ capture_output() {
   local -n capture_output_text_destination="$1"
   local -n capture_output_status_destination="$2"
   shift 2
+  local capture_output_errexit_was_on=0
+  [[ $- == *e* ]] && capture_output_errexit_was_on=1
   set +e
   # shellcheck disable=SC2034 # nameref: the assignment writes the caller's variable
   capture_output_text_destination="$("$@" 2>&1)"
   # shellcheck disable=SC2034 # nameref: the assignment writes the caller's variable
   capture_output_status_destination=$?
-  set -e
+  [[ $capture_output_errexit_was_on -eq 1 ]] && set -e
+  return 0
 }

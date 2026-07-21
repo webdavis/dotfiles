@@ -99,10 +99,54 @@ assert_dispatch_capture_normal_names_still_work() {
     record_failure "_capture_dispatch_run with ordinary names should deliver the output (got: $probe_output)"
 }
 
+# capture_output must restore the caller's ORIGINAL errexit state, not force
+# set -e: a caller that deliberately runs under set +e must stay set +e after a
+# capture, so its own later failing commands do not abort the script.
+assert_capture_output_preserves_errexit_off_caller() {
+  local probe_output probe_status
+  set +e
+  probe_output="$(bash -c '
+    source "$1"
+    set +e
+    captured="" status=""
+    capture_output captured status true
+    false
+    echo SURVIVED
+  ' _ "$REPO_ROOT/test/test-system/helpers/capture-output.sh" 2>&1)"
+  probe_status=$?
+  set -e
+  [[ $probe_status -eq 0 && $probe_output == *SURVIVED* ]] ||
+    record_failure "capture_output must not turn a set +e caller into set -e (rc=$probe_status, output: $probe_output)"
+}
+
+# The other direction: a set -e caller keeps errexit after the capture (the
+# capture of a failing command itself must not abort, but a later bare failing
+# command must still do so).
+assert_capture_output_restores_errexit_on_caller() {
+  local probe_output
+  set +e
+  probe_output="$(bash -c '
+    set -e
+    source "$1"
+    captured="" status=""
+    capture_output captured status false
+    echo AFTER
+    false
+    echo NOT_REACHED
+  ' _ "$REPO_ROOT/test/test-system/helpers/capture-output.sh" 2>&1)"
+  set -e
+  [[ $probe_output == *AFTER* ]] ||
+    record_failure "capturing a failing command must not abort a set -e caller (output: $probe_output)"
+  [[ $probe_output != *NOT_REACHED* ]] ||
+    record_failure "capture_output must restore errexit for a set -e caller (output: $probe_output)"
+}
+
 main() {
   assert_capture_output_rejects_its_own_loop_variable_name
   assert_capture_output_rejects_any_prefixed_name
   assert_capture_output_normal_names_still_work
+  assert_capture_output_preserves_errexit_off_caller
+  assert_capture_output_restores_errexit_on_caller
   assert_dispatch_capture_rejects_prefixed_output_name
   assert_dispatch_capture_rejects_prefixed_status_name
   assert_dispatch_capture_rejects_identical_names
