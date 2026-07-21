@@ -2,26 +2,25 @@
 #
 # alert-dispatch.sh, sourced helper, not run directly. Provides
 # send_alert(), which always fires the local macOS notifier (alerter) and, for a
-# CRIT severity ONLY, POSTs the page to the hermes #priority Discord webhook. v2
-# has NO #osquery channel: there is deliberately no non-priority route for a
-# producer to leak to. Signing and durable handling of an undelivered page live
-# here so the three producers (results-alerter.sh, firewall-gatekeeper-monitor.sh,
-# and uptime-watchdog.sh) share one implementation.
+# CRIT severity ONLY, POSTs the page to the hermes #priority Discord webhook.
+# Signing and durable handling of an undelivered page live here so the three
+# producers (results-alerter.sh, firewall-gatekeeper-monitor.sh, and
+# uptime-watchdog.sh) share one implementation.
 #
 # The undelivered-alerts store is WRITE-AHEAD: send_alert persists the page to
 # disk BEFORE the first network attempt and deletes it only after a confirmed 2xx.
 # A crash or kill anywhere between persist and success therefore leaves a
-# recoverable record for the next drain (a lost page is indistinguishable from
-# "all clear").
+# recoverable record for the next drain. Durability matters this much because a
+# page that vanishes leaves no trace: the operator sees a quiet system and has no
+# way to tell a lost alert apart from genuinely good news.
 #
 # Usage (from a sourcing script):
 #   source "$HOME/.local/libexec/osquery/alert-dispatch.sh"
 #   send_alert CRIT "Firewall disabled" "alf global_state 1 -> 0" Sosumi
 
 # One Discord route: the #priority channel (the one channel the user watches),
-# signed with the osquery HMAC key below. v2 has NO #osquery channel, only a
-# confirmed CRIT page is POSTed; any other severity does the local notification
-# only. There is deliberately no non-priority URL for a producer to leak to.
+# signed with the osquery HMAC key below. Only a CRIT page is POSTed; any other
+# severity does the local notification only.
 OSQUERY_HERMES_PRIORITY_URL="${OSQUERY_HERMES_PRIORITY_URL:-http://127.0.0.1:8644/webhooks/osquery-priority}"
 # The notifier signs with its OWN copy of the HMAC key, read from its own secret
 # file, NOT from hermes's .env. HMAC is symmetric so the value must match the
@@ -30,16 +29,19 @@ OSQUERY_HERMES_PRIORITY_URL="${OSQUERY_HERMES_PRIORITY_URL:-http://127.0.0.1:864
 OSQUERY_WEBHOOK_SECRET_FILE="${OSQUERY_WEBHOOK_SECRET_FILE:-$HOME/.config/osquery/webhook-secret}"
 OSQUERY_DELIVERY_LOG="${OSQUERY_DELIVERY_LOG:-$HOME/.local/log/osquery/webhook-delivery.log}"
 # Undelivered pages are stored here, one mode-600 file per page in a mode-700
-# dir, so a transient gateway outage never loses a page. retry_undelivered_alerts
-# replays them in occurrence-time order.
+# directory, so a transient gateway outage never loses a page.
+# retry_undelivered_alerts replays them in occurrence-time order.
 OSQUERY_UNDELIVERED_ALERTS_DIR="${OSQUERY_UNDELIVERED_ALERTS_DIR:-$HOME/.local/state/osquery-undelivered-alerts}"
 
 # A monotonic per-process sequence so the fallback request id (when no occurrence
 # identity is threaded) is unique across calls in one process.
 _OSQUERY_ALERT_SEQUENCE=0
 
-# Append a timestamped line to the delivery log (best-effort; never fails caller).
-# Only metadata is ever logged, never the body or the HMAC secret.
+# Append a timestamped line to the delivery log. If the log directory cannot be
+# created or the append fails, the line is dropped and the function still
+# returns 0: a logging problem must never break alert delivery, so the caller
+# carries on and only this log line is lost. Only metadata is ever logged, never
+# the body or the HMAC secret.
 _osquery_log() {
   mkdir -p "$(dirname "$OSQUERY_DELIVERY_LOG")" 2>/dev/null || true
   printf '%s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$1" >>"$OSQUERY_DELIVERY_LOG" 2>/dev/null || true
@@ -85,13 +87,13 @@ _hmac_sha256_hex() {
 # the occurrence timestamp are computed and VALIDATED in checked assignments
 # BEFORE the record file is opened, so an encoder failure fails the store instead
 # of writing an empty body that a later drain would silently skip. Written through
-# a checked temp file, flushed, then atomically renamed, and it RETURNS NONZERO on
-# any persistence failure so the caller treats a failed store as a hard delivery
-# failure (never "stored" when the file does not exist).
-# Line: <occurrence_ts>\t<request_id>\t<url>\t<base64(body)>.
+# a checked temporary file, flushed, then atomically renamed, and it RETURNS
+# NONZERO on any persistence failure so the caller treats a failed store as a
+# hard delivery failure (never "stored" when the file does not exist).
+# Line: <occurrence_timestamp>\t<request_id>\t<url>\t<base64(body)>.
 _store_undelivered_alert() {
-  local occurrence_ts="$1" request_id="$2" url="$3" body="$4" stored_file temp_file encoded_body
-  [[ $occurrence_ts =~ ^[0-9]+$ ]] || return 1
+  local occurrence_timestamp="$1" request_id="$2" url="$3" body="$4" stored_file temporary_file encoded_body
+  [[ $occurrence_timestamp =~ ^[0-9]+$ ]] || return 1
   [[ -n $request_id ]] || return 1
   # pipefail inside the subshell so a base64 failure is the assignment's status,
   # not masked by the trailing tr; then reject an empty result defensively.
@@ -105,47 +107,55 @@ _store_undelivered_alert() {
   mkdir -p "$OSQUERY_UNDELIVERED_ALERTS_DIR" 2>/dev/null || return 1
   chmod 700 "$OSQUERY_UNDELIVERED_ALERTS_DIR" 2>/dev/null || true
   stored_file="$OSQUERY_UNDELIVERED_ALERTS_DIR/$request_id"
-  temp_file="$stored_file.tmp.$$"
-  if ! printf '%s\t%s\t%s\t%s\n' "$occurrence_ts" "$request_id" "$url" "$encoded_body" >"$temp_file" 2>/dev/null; then
-    rm -f "$temp_file" 2>/dev/null || true
+  temporary_file="$stored_file.tmp.$$"
+  if ! printf '%s\t%s\t%s\t%s\n' "$occurrence_timestamp" "$request_id" "$url" "$encoded_body" >"$temporary_file" 2>/dev/null; then
+    rm -f "$temporary_file" 2>/dev/null || true
     return 1
   fi
-  chmod 600 "$temp_file" 2>/dev/null || true
+  chmod 600 "$temporary_file" 2>/dev/null || true
   # Flush the record's bytes before the rename so a crash right after the rename
-  # cannot leave a present-but-empty file. GNU `sync FILE` fsyncs just this file;
-  # BSD sync takes no argument and flushes all. Best-effort either way.
-  sync "$temp_file" 2>/dev/null || sync 2>/dev/null || true
-  if ! mv -f "$temp_file" "$stored_file" 2>/dev/null; then
-    rm -f "$temp_file" 2>/dev/null || true
+  # cannot leave a present-but-empty file. GNU `sync FILE` flushes just this
+  # file; BSD sync takes no argument and flushes everything. If both forms fail
+  # the write continues anyway: the rename below still lands a complete record
+  # in the common case, and refusing to store over a failed flush would trade a
+  # rare torn record for a certain lost page.
+  sync "$temporary_file" 2>/dev/null || sync 2>/dev/null || true
+  if ! mv -f "$temporary_file" "$stored_file" 2>/dev/null; then
+    rm -f "$temporary_file" 2>/dev/null || true
     return 1
   fi
   return 0
 }
 
-# Move any crashed *.tmp.* partial (a temp whose writer process is gone) OUT of
-# the store, into a sibling quarantine dir, so a torn write is never replayed and
-# never skipped forever. A temp whose writer pid is still alive is an in-flight
-# write and is left alone. Best-effort; never fails the caller.
+# Move any crashed *.tmp.* partial (a temporary file whose writer process is
+# gone) OUT of the store, into a sibling quarantine directory, so a torn write is
+# never replayed and never skipped forever. A temporary file whose writer process
+# is still alive is an in-flight write and is left alone. If the quarantine
+# directory cannot be created or a move fails, the file simply stays where it was
+# and this function still returns 0; the next drain retries the quarantine, and
+# the drain itself must never abort over housekeeping.
 _quarantine_stale_partials() {
   [[ -d $OSQUERY_UNDELIVERED_ALERTS_DIR ]] || return 0
-  local temp_file pid quarantine_dir
-  quarantine_dir="${OSQUERY_UNDELIVERED_ALERTS_DIR%/}.quarantine"
-  for temp_file in "$OSQUERY_UNDELIVERED_ALERTS_DIR"/*.tmp.*; do
-    [[ -f $temp_file ]] || continue
-    pid="${temp_file##*.tmp.}"
-    if [[ $pid =~ ^[0-9]+$ ]] && kill -0 "$pid" 2>/dev/null; then
-      continue # a live writer still owns this temp
+  local temporary_file writer_process_id quarantine_directory
+  quarantine_directory="${OSQUERY_UNDELIVERED_ALERTS_DIR%/}.quarantine"
+  for temporary_file in "$OSQUERY_UNDELIVERED_ALERTS_DIR"/*.tmp.*; do
+    [[ -f $temporary_file ]] || continue
+    writer_process_id="${temporary_file##*.tmp.}"
+    if [[ $writer_process_id =~ ^[0-9]+$ ]] && kill -0 "$writer_process_id" 2>/dev/null; then
+      continue # a live writer still owns this temporary file
     fi
-    mkdir -p "$quarantine_dir" 2>/dev/null || continue
-    mv -f "$temp_file" "$quarantine_dir/${temp_file##*/}" 2>/dev/null || true
+    mkdir -p "$quarantine_directory" 2>/dev/null || continue
+    mv -f "$temporary_file" "$quarantine_directory/${temporary_file##*/}" 2>/dev/null || true
   done
   return 0
 }
 
 # Fire ONE loud, interruptive local notification. Used when a page can be neither
 # delivered NOR durably stored: the operator MUST learn that a CRITICAL alert was
-# lost, since a silently dropped page is indistinguishable from "all clear".
-# Best-effort, never fails caller.
+# lost, because a dropped page leaves no trace and would otherwise read as good
+# news. If no notifier is available or the notification itself fails, nothing
+# further happens and the function still returns 0: the dispatch flow continues,
+# already in its worst case, and must not break over a notifier problem.
 _loud_local() {
   local title="$1" message="$2"
   if command -v alerter >/dev/null 2>&1; then
@@ -161,8 +171,8 @@ _loud_local() {
 # verbatim so the gateway dedups), and delete the record only on a confirmed 2xx.
 # Fully set -e-safe: any malformed field returns 0 so the drain continues.
 _deliver_stored_record() {
-  local stored_file="$1" secret="$2" ts request_id url body signature http_status
-  IFS=$'\t' read -r ts request_id url body <"$stored_file" || return 0
+  local stored_file="$1" secret="$2" occurrence_timestamp request_id url body signature http_status
+  IFS=$'\t' read -r occurrence_timestamp request_id url body <"$stored_file" || return 0
   [[ -n $request_id && -n $url && -n $body ]] || return 0
   case "$url" in
     http://127.0.0.1:8644/*) ;;
@@ -187,9 +197,9 @@ _deliver_stored_record() {
 # Replay stored undelivered pages in OCCURRENCE-TIME order (earliest first, with
 # the file path as a deterministic tie-breaker), so a backlog delivers in the
 # order events happened, not in SHA-derived filename order. Crashed partials are
-# quarantined first. Localhost only. Fully set -e-safe: a malformed entry or empty
-# dir must NEVER abort the caller (a delivery feature must not cause a detection
-# outage).
+# quarantined first. Localhost only. Fully set -e-safe: a malformed entry or an
+# empty directory must NEVER abort the caller (a delivery feature must not cause
+# a detection outage).
 retry_undelivered_alerts() {
   [[ -d $OSQUERY_UNDELIVERED_ALERTS_DIR ]] || return 0
   _quarantine_stale_partials
@@ -201,17 +211,17 @@ retry_undelivered_alerts() {
   fi
   [[ -n $secret ]] || return 0
 
-  # Collect "<occurrence_ts>\t<file>" for every well-formed record, then sort by
-  # occurrence time (numeric) with the path as the tie-breaker.
-  local records="" stored_file ts
+  # Collect "<occurrence_timestamp>\t<file>" for every well-formed record, then
+  # sort by occurrence time (numeric) with the path as the tie-breaker.
+  local records="" stored_file occurrence_timestamp
   for stored_file in "$OSQUERY_UNDELIVERED_ALERTS_DIR"/*; do
     [[ -f $stored_file ]] || continue
     case "$stored_file" in
-      *.tmp.*) continue ;; # an in-flight temp; quarantine handles crashed ones
+      *.tmp.*) continue ;; # an in-flight write; quarantine handles crashed ones
     esac
-    IFS=$'\t' read -r ts _ <"$stored_file" || continue
-    [[ $ts =~ ^[0-9]+$ ]] || continue
-    records+="$ts	$stored_file"$'\n'
+    IFS=$'\t' read -r occurrence_timestamp _ <"$stored_file" || continue
+    [[ $occurrence_timestamp =~ ^[0-9]+$ ]] || continue
+    records+="$occurrence_timestamp	$stored_file"$'\n'
   done
   [[ -n $records ]] || return 0
 
@@ -265,47 +275,48 @@ send_alert() {
     fi
   fi
 
-  # v2: only a CRIT page is delivered to Discord. Any other severity stops here,
-  # after the local notification, there is no #osquery channel to POST to.
+  # Only a CRIT page is delivered to Discord. Any other severity stops here,
+  # after the local notification.
   [[ $severity == "CRIT" ]] || return 0
   local url="$OSQUERY_HERMES_PRIORITY_URL"
 
   # Occurrence time: when this page was raised. It is the drain's ordering key AND
   # part of the signed body. A clock glitch never blocks a page (fall back to 0).
-  local occurrence_ts
-  occurrence_ts="$(date -u +%s)"
-  [[ $occurrence_ts =~ ^[0-9]+$ ]] || occurrence_ts=0
+  local occurrence_timestamp
+  occurrence_timestamp="$(date -u +%s)"
+  [[ $occurrence_timestamp =~ ^[0-9]+$ ]] || occurrence_timestamp=0
 
   # Build the webhook body and an occurrence-stable request id. tier: a page is
   # loud (a sound was requested), a digest/heartbeat is muted (no sound). Both
   # severities are CRIT and both POST; tier lets the Hermes adapter suppress the
-  # notification for muted traffic instead of pinging it like a page. host and the
-  # occurrence ts live INSIDE the signed body, the spec's body shape and the
-  # multi-host migration seam both require {event_type, host, tier, ts, alert}.
+  # notification for muted traffic instead of pinging it like a page. The host and
+  # the occurrence timestamp live INSIDE the signed body, the spec's body shape
+  # and the multi-host migration seam both require {event_type, host, tier, ts,
+  # alert} (ts is the wire name of the occurrence timestamp).
   #
   # The request id derives from OCCURRENCE IDENTITY (threaded from the caller)
   # when present, so two distinct incidents that render the same body get distinct
   # ids (both stored, both delivered) while a retry of the same occurrence reuses
   # one id (the gateway dedups it, the stored filename is idempotent). No
   # occurrence means a per-call unique seed.
-  local body request_id id_seed tier
+  local body request_id request_id_seed tier
   if [[ -n $sound ]]; then tier="page"; else tier="muted"; fi
   body="$(jq -cn --arg h "$(hostname -s)" --arg t "$title" --arg d "$detail" \
-    --arg tier "$tier" --argjson ts "$occurrence_ts" \
+    --arg tier "$tier" --argjson ts "$occurrence_timestamp" \
     '{event_type:"osquery.alert", host:$h, tier:$tier, ts:$ts, alert:{title:$t, detail:$d}}')"
   if [[ -n $occurrence ]]; then
-    id_seed="$occurrence"
+    request_id_seed="$occurrence"
   else
     _OSQUERY_ALERT_SEQUENCE=$((_OSQUERY_ALERT_SEQUENCE + 1))
-    id_seed="fallback|$occurrence_ts|$$|${_OSQUERY_ALERT_SEQUENCE}|${RANDOM}|$body"
+    request_id_seed="fallback|$occurrence_timestamp|$$|${_OSQUERY_ALERT_SEQUENCE}|${RANDOM}|$body"
   fi
-  request_id="osquery-$(printf '%s' "$id_seed" | openssl dgst -sha256 | awk '{print $NF}' | cut -c1-32)"
+  request_id="osquery-$(printf '%s' "$request_id_seed" | openssl dgst -sha256 | awk '{print $NF}' | cut -c1-32)"
 
   # WRITE-AHEAD: persist the page BEFORE the first network attempt, so a crash or
   # kill before a confirmed success leaves a recoverable record. A persist failure
   # is a HARD failure (loud + nonzero): the page can be neither delivered nor
   # stored, and the caller must not advance its cursor past it.
-  if ! _store_undelivered_alert "$occurrence_ts" "$request_id" "$url" "$body"; then
+  if ! _store_undelivered_alert "$occurrence_timestamp" "$request_id" "$url" "$body"; then
     _osquery_log "STORE-FAILED write-ahead persist: request_id=$request_id (storage unwritable: $OSQUERY_UNDELIVERED_ALERTS_DIR)"
     _loud_local "osquery paging FAILED, page LOST" \
       "The page could not be stored locally. Fix $OSQUERY_UNDELIVERED_ALERTS_DIR."
@@ -313,9 +324,11 @@ send_alert() {
   fi
   local stored_file="$OSQUERY_UNDELIVERED_ALERTS_DIR/$request_id"
 
-  # 2) Discord via the hermes webhook (best-effort, bounded retry). Read the HMAC
-  #    key from the notifier's own secret file (env override allowed for tests);
-  #    strip CR so a CRLF file can't corrupt the key.
+  # 2) Discord via the hermes webhook (bounded retry; the page is already safe on
+  #    disk, so a failed delivery here costs latency, not the page). Read the
+  #    HMAC key from the notifier's own secret file (an environment override is
+  #    allowed for tests); strip any carriage return so a CRLF file cannot
+  #    corrupt the key.
   local secret="${OSQUERY_WEBHOOK_SECRET:-}"
   if [[ -z $secret && -r $OSQUERY_WEBHOOK_SECRET_FILE ]]; then
     IFS= read -r secret <"$OSQUERY_WEBHOOK_SECRET_FILE" || true
@@ -350,8 +363,9 @@ send_alert() {
       *) break ;; # 401/413/etc, retry won't help
     esac
   done
-  # Delivery failed after retries: the write-ahead record REMAINS for the next
-  # drain. Best-effort, a down gateway never fails the caller.
+  # Delivery failed after retries: the write-ahead record REMAINS on disk and the
+  # next drain retries it, so send_alert still returns 0. A down gateway delays
+  # the page; it never fails the caller and never loses the page.
   _osquery_log "STORED webhook delivery pending: request_id=$request_id http=$http_status (retained for retry)"
   return 0
 }
