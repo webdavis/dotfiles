@@ -104,6 +104,39 @@ teardown() { teardown_dispatch_harness; }
   wait_for_log_line 'FAILED|lost|could not' "$ALERTER_LOG"
 }
 
+@test "T-DISP-row-idempotent: the SAME occurrence stored twice keeps exactly ONE pending_alerts row (T5)" {
+  # A producer retrying the same occurrence re-stores the same request_id; the
+  # ON CONFLICT(request_id) DO NOTHING insert must keep exactly one row, and the
+  # re-store is a normal success for the caller, never an error.
+  set_curl_codes 503 503 503 503 503 503
+  run_dispatch send_output send_status CRIT "🔴 title" "same detail" "Sosumi" "occ:row-idem:1"
+  [[ $send_status -eq 0 ]]
+  run_dispatch send_output send_status CRIT "🔴 title" "same detail" "Sosumi" "occ:row-idem:1"
+  [[ $send_status -eq 0 ]] # the idempotent re-store reports success
+  assert_pending_alert_count 1
+  [[ "$(sqlite3_query 'SELECT COUNT(DISTINCT request_id) FROM pending_alerts;')" == "1" ]]
+}
+
+@test "T-DISP-db-store-hardfail: an unwritable DB path returns nonzero and loudly alerts (T5)" {
+  # The DB parent is a FILE, so its mkdir fails for any uid (deterministic, the
+  # same trick as the file-store hard-fail pins). The write-ahead persist cannot
+  # complete, which must keep the file-store era contract: nonzero return, the
+  # STORE-FAILED log line, the loud local fallback, and NO network attempt (the
+  # write-ahead order forbids a send before a completed persist).
+  : >"$ALERTER_LOG"
+  set_curl_codes 503 503 503
+  touch "$HARNESS_HOME/dbnotdir"
+  export OSQUERY_UNDELIVERED_ALERTS_DB="$HARNESS_HOME/dbnotdir/store.sqlite3"
+  run_dispatch send_output send_status CRIT "🔴 title" "detail body" "Sosumi" "occ:db-hardfail:1"
+  [[ $send_status -ne 0 ]] # hard delivery failure, NOT a silent success
+  assert_pending_alert_count 0
+  assert_no_post
+  grep -qE 'STORE-FAILED' "$OSQUERY_DELIVERY_LOG"
+  # The failure must name the DB path so the operator fixes the RIGHT storage.
+  grep -qF "$OSQUERY_UNDELIVERED_ALERTS_DB" "$OSQUERY_DELIVERY_LOG"
+  wait_for_log_line 'FAILED|lost|could not' "$ALERTER_LOG"
+}
+
 @test "T-DISP-store-atomic: a stored page is written atomically and drains on recovery (R2-6)" {
   # A store file appears (delivery failed) and drains clean once curl recovers,
   # proving the temp+rename path produces a well-formed, replayable entry (no torn

@@ -631,9 +631,9 @@ send_alert() {
   # is a HARD failure (loud + nonzero): the page can be neither delivered nor
   # stored, and the caller must not advance its cursor past it.
   if ! _store_undelivered_alert "$occurrence_timestamp" "$request_id" "$url" "$body"; then
-    _osquery_log "STORE-FAILED write-ahead persist: request_id=$request_id (storage unwritable: $OSQUERY_UNDELIVERED_ALERTS_DIR)"
+    _osquery_log "STORE-FAILED write-ahead persist: request_id=$request_id (storage unwritable: $OSQUERY_UNDELIVERED_ALERTS_DB or $OSQUERY_UNDELIVERED_ALERTS_DIR)"
     _loud_local "osquery paging FAILED, page LOST" \
-      "The page could not be stored locally. Fix $OSQUERY_UNDELIVERED_ALERTS_DIR."
+      "The page could not be stored locally. Fix $OSQUERY_UNDELIVERED_ALERTS_DB (or $OSQUERY_UNDELIVERED_ALERTS_DIR)."
     return 1
   fi
   local stored_file="$OSQUERY_UNDELIVERED_ALERTS_DIR/$request_id"
