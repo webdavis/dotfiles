@@ -239,7 +239,11 @@ _deliver_stored_record() {
   esac
   body="$(printf '%s' "$body" | base64 -d 2>/dev/null)" || return 0
   [[ -n $body ]] || return 0
-  signature="$(printf '%s' "$body" | _hmac_sha256_hex "$secret")"
+  # Same signing check as the send path: a failed or empty signature must never
+  # go on the wire. The record stays put and a later drain retries it.
+  if ! signature="$(printf '%s' "$body" | _hmac_sha256_hex "$secret")" || [[ -z $signature ]]; then
+    return 0
+  fi
   http_status="$(_post_alert_to_webhook "$url" "$request_id" "$signature" "$body")" || http_status=000
   case "$http_status" in
     2*) rm -f "$stored_file" ;;
@@ -312,7 +316,15 @@ _derive_request_id() { # <request_id_seed>
 # and the like) stops early, a retry cannot fix it.
 _attempt_alert_delivery() { # <url> <request_id> <secret> <body>
   local url="$1" request_id="$2" secret="$3" body="$4" signature http_status attempt
-  signature="$(printf '%s' "$body" | _hmac_sha256_hex "$secret")"
+  # This function runs inside an if condition, where errexit is suppressed, so
+  # a failing signature assignment must be checked explicitly: unchecked, the
+  # code would continue with an EMPTY signature, POST it, and a 2xx would
+  # delete the write-ahead record. A failed or empty signature stops the
+  # attempt BEFORE any POST; the record stays for a later drain.
+  if ! signature="$(printf '%s' "$body" | _hmac_sha256_hex "$secret")" || [[ -z $signature ]]; then
+    printf 'signing-failed'
+    return 1
+  fi
   for attempt in 1 2 3; do
     http_status="$(_post_alert_to_webhook "$url" "$request_id" "$signature" "$body")" || http_status=000
     case "$http_status" in

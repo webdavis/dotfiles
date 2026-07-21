@@ -166,6 +166,19 @@ teardown() { teardown_dispatch_harness; }
   ! grep -qF 'SUPERSECRET-argv-probe' "$OPENSSL_ARGV_LOG"
 }
 
+@test "T-DISP-signing-failure: a failed signature makes NO POST and retains the write-ahead record" {
+  # The delivery attempt runs inside an if condition, where errexit is
+  # suppressed, so a failing signature assignment must be checked explicitly:
+  # otherwise execution continues with an EMPTY signature, POSTs it, and a 2xx
+  # deletes the write-ahead record. Force the signer to fail and assert the
+  # attempt stops before any POST, leaving the record for a later drain.
+  _hmac_sha256_hex() { return 17; }
+  run_dispatch send_output send_status CRIT "🔴 title" "detail body" "Sosumi" "occ:signfail:1"
+  [[ $send_status -eq 0 ]] # the record is retained, so this is not a hard failure
+  assert_no_post
+  assert_undelivered_alert_count 1
+}
+
 @test "T-DISP-sign-matches-openssl: the argv-free signer equals openssl's HMAC output (F-B)" {
   # Correctness anchor: the manual HMAC must be byte-identical to openssl's -hmac,
   # or a wrong-but-consistent signature would pass the curl-mocked tests yet be
