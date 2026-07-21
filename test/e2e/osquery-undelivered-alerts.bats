@@ -87,6 +87,47 @@ teardown() { teardown_dispatch_harness; }
   [[ $first_witnessed_count -ge 1 ]]
 }
 
+@test "T-SEC-sqlite-write-ahead: a failing CRIT lands as a pending_alerts row (schema, WAL, 600/700) BEFORE the first curl" {
+  # DR-A moves the undelivered-alerts store into SQLite. A CRIT whose send fails
+  # must land as a ROW in the pending_alerts table, write-ahead: the row is
+  # present when the FIRST POST fires, so a crash between persist and success
+  # leaves a recoverable record. This pins the schema, the WAL journal mode, and
+  # the 600-file/700-parent permission bits the security invariants require.
+  set_curl_codes 503 503 503
+  run_dispatch send_output send_status CRIT "🔴 title" "detail body" "Sosumi" "occ:sqlite:1"
+  [[ $send_status -eq 0 ]] # a down gateway never fails the caller
+
+  assert_pending_alert_count 1 # stored as a row, not lost
+
+  # The schema carries every column DR-B will consume, with request_id the PK.
+  local columns column
+  columns=$(sqlite3_query "SELECT group_concat(name, ',') FROM pragma_table_info('pending_alerts');")
+  for column in request_id sequence_number occurrence_ts url body_base64 attempts next_attempt_after created_at; do
+    if [[ ",$columns," != *",$column,"* ]]; then
+      printf 'schema is missing column %s (got: %s)\n' "$column" "$columns" >&2
+      return 1
+    fi
+  done
+  local primary_key
+  primary_key=$(sqlite3_query "SELECT name FROM pragma_table_info('pending_alerts') WHERE pk=1;")
+  [[ $primary_key == "request_id" ]]
+
+  # The connection runs in WAL journal mode (crash-atomic commits).
+  local journal_mode
+  journal_mode=$(sqlite3_query "PRAGMA journal_mode;")
+  [[ $journal_mode == "wal" ]]
+
+  # The DB file is mode 600 inside a mode-700 parent, as the file store was.
+  assert_mode 600 "$OSQUERY_UNDELIVERED_ALERTS_DB"
+  assert_mode 700 "$(dirname "$OSQUERY_UNDELIVERED_ALERTS_DB")"
+
+  # Write-ahead: the row was already present when the FIRST POST was attempted.
+  local first_witnessed_count
+  first_witnessed_count=$(head -1 "$CURL_DB_PERSIST_WITNESS")
+  [[ $first_witnessed_count =~ ^[0-9]+$ ]]
+  [[ $first_witnessed_count -ge 1 ]]
+}
+
 @test "T-SEC-quarantine-partial: a crashed *.tmp.* partial is quarantined on the next drain, not skipped forever" {
   mkdir -p "$OSQUERY_UNDELIVERED_ALERTS_DIR"
   # A leftover temp from a dead writer (a pid that is not running).

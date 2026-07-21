@@ -39,6 +39,9 @@ printf '%s\n' "$*" >>"$CURL_LOG"
 if [[ -n "${CURL_PERSIST_WITNESS:-}" ]]; then
   find "${OSQUERY_UNDELIVERED_ALERTS_DIR:-/nonexistent}" -type f 2>/dev/null | wc -l | tr -d ' ' >>"$CURL_PERSIST_WITNESS"
 fi
+if [[ -n "${CURL_DB_PERSIST_WITNESS:-}" && -f "${OSQUERY_UNDELIVERED_ALERTS_DB:-/nonexistent}" ]]; then
+  sqlite3 -readonly "$OSQUERY_UNDELIVERED_ALERTS_DB" 'SELECT COUNT(*) FROM pending_alerts;' 2>/dev/null >>"$CURL_DB_PERSIST_WITNESS" || true
+fi
 code=200
 if [[ -s "$CURL_CODES_FILE" ]]; then
   code=$(head -1 "$CURL_CODES_FILE")
@@ -57,12 +60,17 @@ STUB
   # at a file.
   export CURL_PERSIST_WITNESS="$HARNESS_HOME/curl_persist_witness"
   : >"$CURL_PERSIST_WITNESS"
+  # The SQLite write-ahead witness: the curl stub appends the pending_alerts row
+  # count seen at each POST here, one line per call. Empty until a test opts in.
+  export CURL_DB_PERSIST_WITNESS="$HARNESS_HOME/curl_db_persist_witness"
+  : >"$CURL_DB_PERSIST_WITNESS"
   export PATH="$HARNESS_HOME/bin:$PATH"
   export HOME="$HARNESS_HOME"
 
   export OSQUERY_WEBHOOK_SECRET="testsecret"
   export OSQUERY_DELIVERY_LOG="$HARNESS_HOME/.local/log/osquery/webhook-delivery.log"
   export OSQUERY_UNDELIVERED_ALERTS_DIR="$HARNESS_HOME/.local/state/osquery-undelivered-alerts"
+  export OSQUERY_UNDELIVERED_ALERTS_DB="$HARNESS_HOME/.local/state/osquery-undelivered-alerts.sqlite3"
   export OSQUERY_RETRY_BACKOFF_BASE=0 # do not really sleep between retries in tests
 
   DISPATCH="${BATS_TEST_DIRNAME}/../../dot_local/libexec/osquery/executable_alert-dispatch.sh"
@@ -89,6 +97,26 @@ set_curl_codes() {
 # file, or nothing when none exist.
 first_undelivered_alert_file() {
   find "$OSQUERY_UNDELIVERED_ALERTS_DIR" -type f 2>/dev/null | head -1
+}
+
+# sqlite3_query <sql> -- run a read-only query against the undelivered-alerts DB
+# and print its output. The inspection path for the SQLite store: a fresh
+# read-only connection never mutates what the library persisted.
+sqlite3_query() {
+  sqlite3 -readonly "$OSQUERY_UNDELIVERED_ALERTS_DB" "$1"
+}
+
+# assert_pending_alert_count <n> -- exactly <n> rows sit in the pending_alerts
+# table. A missing DB counts as zero rows (nothing has been stored yet).
+assert_pending_alert_count() {
+  local count=0
+  if [[ -f $OSQUERY_UNDELIVERED_ALERTS_DB ]]; then
+    count=$(sqlite3 -readonly "$OSQUERY_UNDELIVERED_ALERTS_DB" 'SELECT COUNT(*) FROM pending_alerts;' 2>/dev/null || echo 0)
+  fi
+  if [[ $count -ne $1 ]]; then
+    printf 'expected %s pending_alerts row(s), got %s\n' "$1" "$count" >&2
+    return 1
+  fi
 }
 
 # assert_undelivered_alert_count <n> -- exactly <n> undelivered-alert files exist.

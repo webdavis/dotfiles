@@ -32,6 +32,12 @@ OSQUERY_DELIVERY_LOG="${OSQUERY_DELIVERY_LOG:-$HOME/.local/log/osquery/webhook-d
 # directory, so a transient gateway outage never loses a page.
 # retry_undelivered_alerts replays them in occurrence-time order.
 OSQUERY_UNDELIVERED_ALERTS_DIR="${OSQUERY_UNDELIVERED_ALERTS_DIR:-$HOME/.local/state/osquery-undelivered-alerts}"
+# The SQLite-backed undelivered-alerts store: one pending_alerts row per page,
+# committed crash-atomically, mode 600 in a mode-700 parent. This is the store
+# DR-A is migrating to; the file store above stays the delete and drain path
+# until later slices move those over. sqlite3 is the OS-provided binary, and its
+# absence is a hard persist failure (verified fail-closed), never a lost page.
+OSQUERY_UNDELIVERED_ALERTS_DB="${OSQUERY_UNDELIVERED_ALERTS_DB:-$HOME/.local/state/osquery-undelivered-alerts.sqlite3}"
 
 # A monotonic per-process sequence so the fallback request id (when no occurrence
 # identity is threaded) is unique across calls in one process.
@@ -88,6 +94,97 @@ _hmac_sha256_hex() {
   printf "$opad_format$inner_format" | _sha256_hex_of_stdin
 }
 
+# Print the path to the sqlite3 CLI, preferring the OS-provided binary. The
+# store is a darwin-only pipeline and macOS always ships /usr/bin/sqlite3; the
+# PATH fallback keeps the library runnable from a test harness on another OS.
+# Prints nothing and returns nonzero when no sqlite3 is found, so the caller can
+# fail the persist closed rather than silently drop the page.
+_osquery_sqlite3_bin() {
+  if [[ -x /usr/bin/sqlite3 ]]; then
+    printf '/usr/bin/sqlite3'
+    return 0
+  fi
+  local found
+  found="$(command -v sqlite3 2>/dev/null)" || return 1
+  [[ -n $found ]] || return 1
+  printf '%s' "$found"
+}
+
+# Run the SQL arriving on STDIN against the undelivered-alerts DB, applying the
+# connection pragmas first: WAL for crash-atomic commits, and a busy_timeout so
+# the several producers (results-alerter, firewall-gatekeeper, watchdog, digest,
+# tailscale) serialize briefly under contention instead of failing outright. The
+# pragmas' own chatter is routed to /dev/null so only the SQL's rows reach
+# stdout. Only non-secret alert fields ever flow through here; the webhook secret
+# is never passed to SQL. Returns sqlite3's exit status.
+_osquery_alerts_db_exec() {
+  local sqlite3_bin
+  sqlite3_bin="$(_osquery_sqlite3_bin)" || return 1
+  {
+    printf '.output /dev/null\n'
+    printf 'PRAGMA busy_timeout=5000;\n'
+    printf 'PRAGMA journal_mode=WAL;\n'
+    printf '.output\n'
+    cat
+  } | "$sqlite3_bin" "$OSQUERY_UNDELIVERED_ALERTS_DB"
+}
+
+# Create the store lazily and idempotently: the mode-700 parent, the
+# pending_alerts table (CREATE TABLE IF NOT EXISTS, so a second call is a no-op),
+# and the mode-600 DB file. Returns nonzero when the parent cannot be made, the
+# schema statement fails, or the DB file does not exist afterward, so a caller
+# treats a store it could not stand up as a hard persist failure.
+_osquery_ensure_alerts_db() {
+  local database_directory
+  database_directory="$(dirname "$OSQUERY_UNDELIVERED_ALERTS_DB")"
+  mkdir -p "$database_directory" 2>/dev/null || return 1
+  chmod 700 "$database_directory" 2>/dev/null || true
+  # attempts and next_attempt_after are written by DR-A but consumed by DR-B;
+  # storing them now avoids a schema migration one slice later. sequence_number
+  # is a skew-proof tiebreaker for the drain ordering (a later slice's concern).
+  if ! printf '%s' 'CREATE TABLE IF NOT EXISTS pending_alerts (
+      request_id         TEXT PRIMARY KEY,
+      sequence_number    INTEGER UNIQUE,
+      occurrence_ts      INTEGER NOT NULL,
+      url                TEXT NOT NULL,
+      body_base64        TEXT NOT NULL,
+      attempts           INTEGER NOT NULL DEFAULT 0,
+      next_attempt_after INTEGER NOT NULL DEFAULT 0,
+      created_at         INTEGER NOT NULL
+    );' | _osquery_alerts_db_exec; then
+    return 1
+  fi
+  [[ -f $OSQUERY_UNDELIVERED_ALERTS_DB ]] || return 1
+  chmod 600 "$OSQUERY_UNDELIVERED_ALERTS_DB" 2>/dev/null || true
+  return 0
+}
+
+# Persist one undelivered page as a pending_alerts row and report success. Same
+# occurrence re-stored is idempotent (ON CONFLICT(request_id) DO NOTHING), so a
+# retry of one occurrence stays one row while two DISTINCT occurrences never
+# collide. sequence_number is the next value above the current maximum, an
+# insert-order tiebreaker that does not depend on the clock. The text fields are
+# single-quoted with any embedded quote doubled; the values are non-secret and
+# quote-free by construction (a hex request id, a base64 body, a fixed localhost
+# url), and the escape keeps the statement injection-safe regardless. Returns
+# nonzero on any persistence failure so the caller treats it as a hard failure.
+_osquery_store_alert_row() {
+  local occurrence_timestamp="$1" request_id="$2" url="$3" encoded_body="$4" created_at
+  _osquery_ensure_alerts_db || return 1
+  created_at="$(date -u +%s)"
+  [[ $created_at =~ ^[0-9]+$ ]] || created_at=0
+  local request_id_sql url_sql body_sql
+  request_id_sql="${request_id//\'/\'\'}"
+  url_sql="${url//\'/\'\'}"
+  body_sql="${encoded_body//\'/\'\'}"
+  printf "INSERT INTO pending_alerts
+      (request_id, sequence_number, occurrence_ts, url, body_base64, attempts, next_attempt_after, created_at)
+    VALUES
+      ('%s', (SELECT COALESCE(MAX(sequence_number), 0) + 1 FROM pending_alerts), %s, '%s', '%s', 0, 0, %s)
+    ON CONFLICT(request_id) DO NOTHING;\n" \
+    "$request_id_sql" "$occurrence_timestamp" "$url_sql" "$body_sql" "$created_at" | _osquery_alerts_db_exec
+}
+
 # Store one undelivered page and REPORT persistence success. The file is named by
 # the occurrence-unique request_id, so re-storing the same occurrence is
 # idempotent while two DISTINCT occurrences never collide. The encoded body and
@@ -129,6 +226,14 @@ _store_undelivered_alert() {
   sync "$temporary_file" 2>/dev/null || sync 2>/dev/null || true
   if ! mv -f "$temporary_file" "$stored_file" 2>/dev/null; then
     rm -f "$temporary_file" 2>/dev/null || true
+    return 1
+  fi
+  # Also persist the page as a pending_alerts row in the SQLite store DR-A is
+  # migrating to. A DB persist failure is a hard failure, exactly as a file
+  # persist failure is: the caller must never treat an unpersisted page as
+  # stored. (The file store above remains the delete and drain path until later
+  # slices move those onto the DB.)
+  if ! _osquery_store_alert_row "$occurrence_timestamp" "$request_id" "$url" "$encoded_body"; then
     return 1
   fi
   return 0
