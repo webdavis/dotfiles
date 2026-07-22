@@ -32,24 +32,24 @@ _allowlist_verdict_expand_home() { printf '%s' "${1//\~\//$HOME/}"; }
 allowlist_verdict() {
   local want_label="$1" want_path="$2" want_program="$3"
   local file="${OSQUERY_LAUNCHD_ALLOWLIST:-$HOME/.config/osquery/page-launchd-allowlist.txt}"
-  local match jpath jprog jhash disk_hash
+  local match_json jpath jprog jhash disk_hash
   [[ -r $file ]] || return 1
-  # Pull the FIRST tuple whose label matches, in one pass. `-R` reads each line as
-  # a raw string and `fromjson?` parses it, the `?` dropping any line that is not
-  # JSON (comments, blanks) instead of aborting - so one jq handles the whole file.
-  # The tuple's path/program/sha256 come back joined by the ASCII Unit Separator
-  # (0x1F), NOT a tab: a tab is whitespace in IFS, so an empty leading field (a
-  # malformed path-empty tuple) would shift the later fields under `read`. 0x1F is
-  # non-whitespace, so empty fields are preserved, and it cannot occur in a path.
-  match=$(jq -rR --arg want "$want_label" \
-    'fromjson? | select(.label == $want) | [.path // "", .program // "", .sha256 // ""] | join("\u001f")' \
+  # Pull the FIRST tuple whose label matches, as a JSON OBJECT, in one pass. `-R`
+  # reads each line as a raw string and `fromjson?` parses it, the `?` dropping any
+  # line that is not JSON (comments, blanks) instead of aborting - so one jq handles
+  # the whole file. The tuple fields are then extracted per-field from that object
+  # (below), never through an in-band delimiter: a value can hold any byte, and
+  # per-field extraction keeps each opaque so a crafted stored value cannot shift
+  # the path/program/sha256 boundaries.
+  match_json=$(jq -Rc --arg want "$want_label" \
+    'fromjson? | select(.label == $want)' \
     "$file" 2>/dev/null | head -n1)
   # No line matched the label. (A degraded label-only entry, below, also returns 1,
   # so no-match and cannot-vouch are the same not-allowlisted outcome.)
-  [[ -n $match ]] || return 1
-  IFS=$'\x1f' read -r jpath jprog jhash <<<"$match"
-  jpath=$(_allowlist_verdict_expand_home "$jpath")
-  jprog=$(_allowlist_verdict_expand_home "$jprog")
+  [[ -n $match_json ]] || return 1
+  jpath=$(_allowlist_verdict_expand_home "$(jq -r '.path // ""' <<<"$match_json")")
+  jprog=$(_allowlist_verdict_expand_home "$(jq -r '.program // ""' <<<"$match_json")")
+  jhash=$(jq -r '.sha256 // ""' <<<"$match_json")
   # A degraded label-only entry (no captured identity) cannot vouch for a program.
   # Do NOT suppress on the bare label (that is the R2-1 bug); fail safe as absent.
   [[ -n $jpath && -n $jprog ]] || return 1

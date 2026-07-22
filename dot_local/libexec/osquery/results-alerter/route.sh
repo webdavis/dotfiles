@@ -64,29 +64,33 @@ route_severity() {
 # untrusted signing verdict can never be suppressed by the allowlist (the security
 # invariant: an untrusted program behind an allowlisted label still pages).
 #
+# SECURITY: every attacker-controlled field the gate routes on (path, label,
+# program, target_path, ...) is extracted per-field via jq at its point of use and
+# passed as a SEPARATE argv to the verdict helpers. Bash argv is not
+# delimiter-based, so an embedded separator, newline, or tab in a value stays an
+# opaque argument and can never shift field boundaries to make an unknown plist
+# read as an allowlisted tuple. An in-band delimiter over untrusted fields is
+# never safe.
+#
 # digest_append (digest-store.sh), allowlist_verdict (allowlist-verdict.sh),
 # pipeline_verdict (pipeline-verdict.sh), and the enrich-finding.sh script are
 # expected to be available alongside this helper; the entry script sources all
 # helpers into one process.
 route_findings() {
-  local -a objs=() controls=() sevs=()
+  local -a objs=() sevs=()
   local obj
-  # Read the whole batch (a bounded log-tail, already fully in hand), so the two
-  # jq-heavy steps below run ONCE over the batch instead of per finding.
+  # Read the whole batch (a bounded log-tail, already fully in hand). Iterating by
+  # newline is safe: normalize emits one finding per line via @json, which escapes
+  # any newline WITHIN a value as \n inside the JSON string, so a value's newline
+  # never starts a new record.
   while IFS= read -r obj; do
     [[ -n $obj ]] || continue
     objs+=("$obj")
   done
   [[ ${#objs[@]} -gt 0 ]] || return 0
-  # One jq pass extracts the control fields (q, act, category, file basename, path,
-  # label, program) per finding; one route_severity pass gives the base severity.
-  # Both emit exactly one line per input, in order, so they align with objs by
-  # index. The fields are joined with the ASCII Unit Separator (0x1F), NOT a tab:
-  # a tab is whitespace in IFS, so `read` would collapse the empty category/base
-  # fields and shift the later fields off. 0x1F is non-whitespace, so empty fields
-  # are preserved, and it cannot occur in an osquery path/label/program.
-  mapfile -t controls < <(printf '%s\n' "${objs[@]}" |
-    jq -rc '[.q, .act, (.cols.category // ""), ((.cols.target_path // "") | split("/") | last), (.cols.path // ""), (.cols.label // ""), (.cols.program // ""), (.cols.target_path // ""), (.cols.sha256 // ""), (.cols.action // ""), (.ep // "")] | join("\u001f")')
+  # Severity is safe to batch: route_severity emits a fixed-vocabulary token
+  # (CRIT/NOTICE/INFO) per finding, in order, never an attacker-controlled value,
+  # so a newline-delimited mapfile cannot be shifted by a crafted column.
   mapfile -t sevs < <(printf '%s\n' "${objs[@]}" | route_severity)
 
   # The signing enricher (enrich-finding.sh): given an inspectable path it emits a
@@ -95,10 +99,12 @@ route_findings() {
   local enrich_script="${OSQUERY_ENRICH_SCRIPT:-$HOME/.local/libexec/osquery/enrich-finding.sh}"
 
   local -a pages=()
-  local i q act category base path label program target hash verb ep sev av signing enrich_status
+  local i q act path label program category target base hash verb ep sev av signing enrich_status
   for i in "${!objs[@]}"; do
     obj=${objs[i]}
-    IFS=$'\x1f' read -r q act category base path label program target hash verb ep <<<"${controls[i]}"
+    q=$(jq -r '.q' <<<"$obj")
+    act=$(jq -r '.act' <<<"$obj")
+    ep=$(jq -r '.ep // ""' <<<"$obj")
     sev=${sevs[i]}
     # Enrichment runs BEFORE the per-detector case (the security invariant): a
     # finding an untrusted signature promotes to CRIT here can NOT then be
@@ -162,6 +168,9 @@ route_findings() {
         ;;
       persistence_launchd)
         [[ $act == added ]] || continue
+        # Each value is extracted per-field and passed as its own argv (below), so a
+        # crafted column cannot impersonate an allowlisted tuple.
+        path=$(jq -r '.cols.path // ""' <<<"$obj")
         case "$path" in
           /System/Library/*) continue ;;   # Apple's own launchd items, log-only
           */LaunchDaemons/*) sev="CRIT" ;; # a root LaunchDaemon runs at boot -> page by path
@@ -173,6 +182,8 @@ route_findings() {
             # reverted #52 (c69baab), which silently digested an unknown agent.
             # allowlist_verdict: 0 = full-tuple match (known-good) -> suppress;
             # 2 = reused label (identity diverges) -> page; 1 = not-found -> page.
+            label=$(jq -r '.cols.label // ""' <<<"$obj")
+            program=$(jq -r '.cols.program // ""' <<<"$obj")
             av=0
             allowlist_verdict "$label" "$path" "$program" || av=$?
             case "$av" in
@@ -188,6 +199,9 @@ route_findings() {
         esac
         ;;
       file_events_recent)
+        category=$(jq -r '.cols.category // ""' <<<"$obj")
+        target=$(jq -r '.cols.target_path // ""' <<<"$obj")
+        base=${target##*/} # basename via bash param expansion (not delimiter-based)
         case "$category" in
           ssh)
             case "$base" in
@@ -206,6 +220,8 @@ route_findings() {
           # digests - page or silent. Until the manifest slice lands, a tracked
           # change fails open to a page (criterion 6).
           pipeline_integrity | launch_agents | launch_daemons)
+            hash=$(jq -r '.cols.sha256 // ""' <<<"$obj")
+            verb=$(jq -r '.cols.action // ""' <<<"$obj")
             if pipeline_verdict "$target" "$hash" "$verb"; then sev="CRIT"; else continue; fi
             ;;
           sudoers)
