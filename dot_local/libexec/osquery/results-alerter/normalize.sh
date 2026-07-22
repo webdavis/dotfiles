@@ -72,6 +72,20 @@ normalize_findings() {
         or $q == "remote_access_sharing_state"
         or $q == "agent_exposure_changed")
     | (.action // "changed") as $act
-    | {q: $q, act: $act, cols: (.columns // {})} | @json
+    # Enrich-path (ep): the exact plist/bundle/binary the enricher must inspect
+    # for signing/trust facts, chosen per query type. Empty when signing does not
+    # apply (e.g. a new admin account has no path to codesign). Matched on the
+    # stripped q, not the full name. system_extensions_new prefers bundle_path and
+    # falls back to path. A path can carry a tab/newline (an FSEvents oddity), so
+    # squash those to spaces - ep is passed to the enricher and rendered downstream.
+    | ((if $q == "es_launchd_writes" then (.columns.path // "")
+        elif $q == "file_events_recent" then (.columns.target_path // "")
+        elif $q == "persistence_launchd" then (.columns.path // "")
+        elif $q == "persistence_startup_items_crontab" then (.columns.path // "")
+        elif $q == "kernel_extensions_new" then (.columns.path // "")
+        elif $q == "system_extensions_new" then (.columns.bundle_path // .columns.path // "")
+        elif $q == "suid_bin_unexpected" then (.columns.path // "")
+        else "" end) | gsub("[\t\n]"; " ")) as $ep
+    | {q: $q, act: $act, cols: (.columns // {}), ep: $ep} | @json
   ' 2>/dev/null || true
 }

@@ -1,19 +1,30 @@
 #!/usr/bin/env bash
 #
-# normalize_findings (results-alerter/normalize.sh) turns each raw osquery
-# results-log row into exactly one JSON finding per row. This behavior pins the
-# structural core: the query name is stripped of its pack_<pack>_ prefix so a
-# packed query and a top-level query render under the same bare name the routing
-# stage matches, and a row that omits its action defaults to "changed" so a
-# downstream stage never has to special-case a null.
+# normalize_findings (results-alerter/normalize.sh) is the first stage of the
+# alerter pipeline: it turns the raw osquery results-log tail into normalized
+# finding NDJSON, one {q, act, cols, ep} object per surviving row. This suite
+# pins every admission and shaping rule the stage owns:
 #
-# The snapshot-explosion decision (S9): c69baab made the absolute-state *_off
-# queries DIFFERENTIAL, so their off-state now arrives as an ordinary added row.
-# There is therefore no snapshot array to explode; normalize emits ONE finding
-# per row, and a snapshot-action row is a single finding, never fanned out.
+#   B1 structure  - one finding per row; the query name stripped of its
+#                   pack_<pack>_ prefix; an absent action defaulted to "changed";
+#                   the columns object carried through; a snapshot-action row is a
+#                   single finding (NO explosion, since the *_off queries are now
+#                   differential); a malformed line drops out without aborting.
+#   B2 select     - only recognized detector names are admitted; heartbeat_canary
+#                   and any unknown pack/top-level name are dropped.
+#   B3 filters    - renameio atomic-write churn (a target_path in a
+#                   .renameio-TempDir) is dropped; a counter==0 differential
+#                   baseline row is discarded EXCEPT for the three absolute-state
+#                   queries (filevault_off, remote_access_sharing_state,
+#                   agent_exposure_changed) whose first-run row must page.
+#   B4 ep         - each finding carries the enrich-path the enricher must inspect
+#                   (a plist/bundle/binary), per query type; empty when signing
+#                   does not apply; tabs/newlines squashed to spaces.
 #
-# Unit test: fixture-driven. Feed representative raw lines on stdin, read the
-# normalized NDJSON back, assert the shape. No filesystem, no notifier, no sleeps.
+# Performance: the suite batches its fixtures through ONE normalize pass per
+# behavior group and one summary jq per group (not a jq spawn per row), so it
+# stays inside the fast unit-admission budget. Coverage is unchanged; only the
+# subprocess count is reduced.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -33,255 +44,149 @@ make_sut() {
   bash -c "source '$NORMALIZE'; normalize_findings"
 }
 
-# assert_line_count <expected> <ndjson> <context>: exactly N non-empty findings.
-assert_line_count() {
-  local expected="$1" ndjson="$2" context="$3" got
-  got="$(printf '%s' "$ndjson" | grep -c . || true)"
-  [[ $got -eq $expected ]] ||
-    fail "$context: expected $expected finding(s), got $got -- output was: $ndjson"
+# summarize <jq-per-finding-expr> <ndjson>: reduce the normalized findings to a
+# single deterministic block -- a "count=N" line then one sorted line per finding
+# from the given jq expression. One jq spawn per behavior group; the whole block
+# is compared at once, so every finding's shape is asserted together.
+summarize() {
+  local expr="$1" ndjson="$2"
+  printf '%s' "$ndjson" | jq -s -r "
+    (map($expr) | sort) as \$lines
+    | \"count=\(\$lines | length)\" + (if (\$lines | length) > 0 then \"\n\" + (\$lines | join(\"\n\")) else \"\" end)
+  "
 }
 
-# assert_field <jq-filter> <expected> <ndjson> <context>: the filter applied to
-# the (single-finding) NDJSON yields the expected value.
-assert_field() {
-  local filter="$1" expected="$2" ndjson="$3" context="$4" got
-  got="$(printf '%s' "$ndjson" | jq -r "$filter")"
-  [[ $got == "$expected" ]] ||
-    fail "$context: expected '$expected', got '$got' -- output was: $ndjson"
+# assert_block <expected> <actual> <context>: pure-bash equality, no subprocess.
+assert_block() {
+  local expected="$1" actual="$2" context="$3"
+  [[ $actual == "$expected" ]] || fail "$context
+--- expected ---
+$expected
+--- got ---
+$actual
+----------------"
 }
 
-# A packed row strips its pack_<pack>_ prefix to the bare query name.
-a_pack_row_strips_its_prefix() {
+# --- B1: structural normalization --------------------------------------------
+# One pass over: a packed row (prefix strip + cols passthrough), a hyphenated
+# pack (only the pack segment stripped), a bare top-level row, a row with no
+# action (defaults to "changed"), a snapshot-action row (must stay ONE finding,
+# not fan out its snapshot array), and a malformed line (drops out). The summary
+# key is "q|act|<identity>" where identity is the row's username/path/target_path.
+b1_structural_normalization() {
   local out
-  out="$(printf '%s\n' \
-    '{"name":"pack_intrusion-detection_suid_bin_unexpected","action":"added","columns":{"path":"/tmp/x"}}' |
-    make_sut)"
-  assert_line_count 1 "$out" "a packed row produces one finding"
-  assert_field '.q' 'suid_bin_unexpected' "$out" "the pack_<pack>_ prefix is stripped"
-  assert_field '.act' 'added' "$out" "the action is carried through"
-  assert_field '.cols.path' '/tmp/x' "$out" "the columns object is carried through"
+  out="$(
+    make_sut <<'EOF'
+{"name":"pack_intrusion-detection_suid_bin_unexpected","action":"added","columns":{"path":"/tmp/x"}}
+{"name":"pack_agent-attack-surface_agent_exposure_changed","action":"added","columns":{}}
+{"name":"new_admin_user","action":"added","columns":{"username":"alice"}}
+{"name":"new_admin_user","columns":{"username":"bob"}}
+{"name":"pack_security-policy-regression_filevault_state","action":"snapshot","snapshot":[{"path":"/a"},{"path":"/b"}]}
+this is not json
+EOF
+  )"
+  local got expected
+  got="$(summarize '.q + "|" + .act + "|" + (.cols.username // .cols.path // .cols.target_path // "")' "$out")"
+  expected='count=5
+agent_exposure_changed|added|
+filevault_state|snapshot|
+new_admin_user|added|alice
+new_admin_user|changed|bob
+suid_bin_unexpected|added|/tmp/x'
+  assert_block "$expected" "$got" \
+    "B1: prefix strip, hyphenated-pack strip, bare top-level, action default, snapshot stays one finding, malformed drops, cols carried through"
 }
 
-# A pack whose name contains hyphens strips only the pack segment, not the query.
-a_hyphenated_pack_row_strips_only_the_pack_segment() {
+# --- B2: known-query select (security allowlist) -----------------------------
+# Only recognized detectors are admitted. heartbeat_canary (the liveness snapshot
+# the alerter defensively drops) and any unknown pack/top-level name fall out.
+b2_known_query_select() {
   local out
-  out="$(printf '%s\n' \
-    '{"name":"pack_agent-attack-surface_agent_exposure_changed","action":"added","columns":{}}' |
-    make_sut)"
-  assert_field '.q' 'agent_exposure_changed' "$out" "only the pack segment is stripped, the query keeps its underscores"
+  out="$(
+    make_sut <<'EOF'
+{"name":"new_admin_user","action":"added","columns":{}}
+{"name":"heartbeat_canary","action":"snapshot","columns":{}}
+{"name":"pack_agent-attack-surface_agent_secretfile_changed","action":"added","columns":{}}
+{"name":"pack_foo_bar","action":"added","columns":{}}
+{"name":"pack_security-policy-regression_filevault_off","action":"added","columns":{}}
+{"name":"totally_bogus_query","action":"added","columns":{}}
+EOF
+  )"
+  local got expected
+  got="$(summarize '.q' "$out")"
+  expected='count=3
+agent_secretfile_changed
+filevault_off
+new_admin_user'
+  assert_block "$expected" "$got" \
+    "B2: admit new_admin_user + agent_secretfile_changed + filevault_off; drop heartbeat_canary, pack_foo_bar, and an unknown top-level name"
 }
 
-# A top-level (non-pack) row keeps its bare name unchanged.
-a_top_level_row_keeps_its_bare_name() {
+# --- B3: renameio exclusion + counter==0 baseline discard ---------------------
+# A renameio temp target is dropped; a counter==0 membership baseline (username
+# root) is dropped; counter>0 (eve) and no-counter (mallory) survive; the three
+# absolute-state queries keep their counter==0 first-run row.
+b3_renameio_and_baseline() {
   local out
-  out="$(printf '%s\n' \
-    '{"name":"new_admin_user","action":"added","columns":{"username":"eve"}}' |
-    make_sut)"
-  assert_line_count 1 "$out" "a top-level row produces one finding"
-  assert_field '.q' 'new_admin_user' "$out" "a bare top-level name is left intact"
+  out="$(
+    make_sut <<'EOF'
+{"name":"file_events_recent","action":"added","columns":{"target_path":"/Users/x/.config/foo/.renameio-TempDir-abc/bar"}}
+{"name":"file_events_recent","action":"added","columns":{"target_path":"/Users/x/.ssh/authorized_keys"}}
+{"name":"new_admin_user","action":"added","counter":0,"columns":{"username":"root"}}
+{"name":"new_admin_user","action":"added","counter":1,"columns":{"username":"eve"}}
+{"name":"new_admin_user","action":"added","columns":{"username":"mallory"}}
+{"name":"pack_security-policy-regression_filevault_off","action":"added","counter":0,"columns":{}}
+{"name":"pack_security-policy-regression_remote_access_sharing_state","action":"added","counter":0,"columns":{}}
+{"name":"pack_agent-attack-surface_agent_exposure_changed","action":"added","counter":0,"columns":{}}
+EOF
+  )"
+  local got expected
+  got="$(summarize '.q + "|" + (.cols.username // .cols.target_path // "")' "$out")"
+  expected='count=6
+agent_exposure_changed|
+file_events_recent|/Users/x/.ssh/authorized_keys
+filevault_off|
+new_admin_user|eve
+new_admin_user|mallory
+remote_access_sharing_state|'
+  assert_block "$expected" "$got" \
+    "B3: renameio temp dropped, real file survives, counter==0 membership (root) dropped, counter>0/no-counter survive, absolute-state counter==0 kept"
 }
 
-# A row that omits its action defaults the action to "changed".
-a_row_without_an_action_defaults_to_changed() {
+# --- B4: enrich-path (ep) per query type --------------------------------------
+# ep is the exact path the enricher inspects, chosen per query: es_launchd_writes
+# -> path; file_events_recent -> target_path; persistence_launchd -> path;
+# system_extensions_new -> bundle_path (falling back to path); suid_bin_unexpected
+# -> path; a query where signing does not apply -> "". Tabs/newlines are squashed
+# to spaces (the es row carries a tab to pin that).
+b4_enrich_path() {
   local out
-  out="$(printf '%s\n' \
-    '{"name":"new_admin_user","columns":{}}' |
-    make_sut)"
-  assert_field '.act' 'changed' "$out" "an absent action defaults to changed"
+  out="$(
+    make_sut <<'EOF'
+{"name":"es_launchd_writes","action":"added","columns":{"path":"/usr/bin/foo\tbar"}}
+{"name":"file_events_recent","action":"added","columns":{"target_path":"/Users/x/.ssh/authorized_keys"}}
+{"name":"pack_intrusion-detection_persistence_launchd","action":"added","columns":{"path":"/Library/LaunchAgents/com.example.plist","label":"com.example"}}
+{"name":"pack_intrusion-detection_system_extensions_new","action":"added","columns":{"bundle_path":"/Applications/X.app","path":"/ignored"}}
+{"name":"pack_intrusion-detection_suid_bin_unexpected","action":"added","columns":{"path":"/tmp/suid"}}
+{"name":"new_admin_user","action":"added","columns":{"username":"eve"}}
+EOF
+  )"
+  local got expected
+  got="$(summarize '.q + "|" + (.ep // "")' "$out")"
+  expected='count=6
+es_launchd_writes|/usr/bin/foo bar
+file_events_recent|/Users/x/.ssh/authorized_keys
+new_admin_user|
+persistence_launchd|/Library/LaunchAgents/com.example.plist
+suid_bin_unexpected|/tmp/suid
+system_extensions_new|/Applications/X.app'
+  assert_block "$expected" "$got" \
+    "B4: ep per query type (launchd-write path, file-event target_path, persistence path, sysext bundle_path over path, suid path, empty when signing n/a, tab squashed)"
 }
 
-# A snapshot-action row is one finding, never exploded into one-per-snapshot-entry.
-a_snapshot_row_yields_exactly_one_finding() {
-  local out
-  out="$(printf '%s\n' \
-    '{"name":"pack_security-policy-regression_filevault_state","action":"snapshot","snapshot":[{"path":"/a"},{"path":"/b"}]}' |
-    make_sut)"
-  assert_line_count 1 "$out" "a snapshot row is NOT fanned out into one finding per snapshot entry"
-  assert_field '.act' 'snapshot' "$out" "the snapshot action is carried through as-is"
-}
+b1_structural_normalization
+b2_known_query_select
+b3_renameio_and_baseline
+b4_enrich_path
 
-# Every input row yields its own finding: three rows in, three findings out.
-each_row_yields_its_own_finding() {
-  local out
-  out="$(printf '%s\n' \
-    '{"name":"new_admin_user","action":"added","columns":{}}' \
-    '{"name":"pack_intrusion-detection_suid_bin_unexpected","action":"added","columns":{}}' \
-    '{"name":"pack_agent-attack-surface_agent_exposure_changed","action":"removed","columns":{}}' |
-    make_sut)"
-  assert_line_count 3 "$out" "one finding per input row"
-}
-
-# A malformed (non-JSON) line yields no finding for that line and never aborts
-# the batch: the valid rows around it still normalize.
-a_malformed_line_is_skipped_without_aborting_the_batch() {
-  local out
-  out="$(printf '%s\n' \
-    '{"name":"new_admin_user","action":"added","columns":{}}' \
-    'this is not json' \
-    '{"name":"pack_intrusion-detection_suid_bin_unexpected","action":"added","columns":{}}' |
-    make_sut)"
-  assert_line_count 2 "$out" "the malformed line drops out, the two valid rows survive"
-}
-
-# --- B2: normalize admits only recognized osquery query names -----------------
-#
-# The select is a security allowlist: a row whose (prefix-stripped) query name is
-# not a known scheduled detector is dropped before it can ever become an alert.
-# The admitted set is every scheduled detector in the rendered config EXCEPT the
-# heartbeat_canary liveness snapshot (which the alerter defensively drops, and
-# which in practice only ever lands in osqueryd.snapshots.log that this alerter
-# does not read). These fixtures name real query rows the config-base slice ships.
-
-# A newly admitted config-base query (agent_secretfile_changed, the two watched
-# secrets) survives normalize with its bare stripped name.
-an_agent_secretfile_row_is_admitted() {
-  local out
-  out="$(printf '%s\n' \
-    '{"name":"pack_agent-attack-surface_agent_secretfile_changed","action":"added","columns":{}}' |
-    make_sut)"
-  assert_line_count 1 "$out" "agent_secretfile_changed is a recognized detector and is admitted"
-  assert_field '.q' 'agent_secretfile_changed' "$out" "the admitted row keeps its stripped query name"
-}
-
-# The heartbeat_canary liveness snapshot is defensively excluded: even if a canary
-# row appeared in results.log, it never becomes a finding.
-the_heartbeat_canary_is_dropped() {
-  local out
-  out="$(printf '%s\n' \
-    '{"name":"heartbeat_canary","action":"snapshot","columns":{}}' |
-    make_sut)"
-  assert_line_count 0 "$out" "heartbeat_canary is the liveness canary and must never surface as a finding"
-}
-
-# A made-up pack query (a name not in the known set) is dropped: the select is a
-# strict allowlist, not a blanket admit of anything under pack_.
-a_made_up_pack_query_is_dropped() {
-  local out
-  out="$(printf '%s\n' \
-    '{"name":"pack_foo_bar","action":"added","columns":{}}' |
-    make_sut)"
-  assert_line_count 0 "$out" "an unrecognized pack query must not be admitted just because it is packed"
-}
-
-# A made-up top-level query name is dropped.
-a_made_up_top_level_query_is_dropped() {
-  local out
-  out="$(printf '%s\n' \
-    '{"name":"totally_bogus_query","action":"added","columns":{}}' |
-    make_sut)"
-  assert_line_count 0 "$out" "an unrecognized top-level query must not be admitted"
-}
-
-# A mixed batch: only the admitted rows survive, each still one finding with its
-# stripped name; the two non-admitted rows fall out.
-a_mixed_batch_keeps_only_admitted_rows() {
-  local out
-  out="$(printf '%s\n' \
-    '{"name":"new_admin_user","action":"added","columns":{}}' \
-    '{"name":"heartbeat_canary","action":"snapshot","columns":{}}' \
-    '{"name":"pack_agent-attack-surface_agent_secretfile_changed","action":"added","columns":{}}' \
-    '{"name":"pack_foo_bar","action":"added","columns":{}}' \
-    '{"name":"pack_security-policy-regression_filevault_off","action":"added","columns":{}}' |
-    make_sut)"
-  assert_line_count 3 "$out" "only the three recognized detectors survive the select"
-  local names
-  names="$(printf '%s' "$out" | jq -r '.q' | sort | tr '\n' ',')"
-  [[ $names == 'agent_secretfile_changed,filevault_off,new_admin_user,' ]] ||
-    fail "the surviving findings must be exactly the admitted queries -- got: $names"
-}
-
-# --- B3: normalize drops renameio churn and differential baseline rows --------
-#
-# Two admission filters c69baab applied in normalize:
-#  1. renameio exclusion: a row whose columns.target_path is inside osquery's
-#     atomic-write temp dir (the /.renameio-TempDir pattern) is chezmoi/renameio
-#     churn, not a real change, and is dropped. Only file_events_recent carries a
-#     target_path, so the filter is a no-op for the other detectors.
-#  2. baseline (counter==0) discard: osquery emits a differential query's first
-#     full result set with counter 0 (the seeded baseline). Those first-run rows
-#     are discarded so pre-existing state does not page on first observation -
-#     EXCEPT for the three absolute-state queries (filevault_off,
-#     remote_access_sharing_state, agent_exposure_changed) whose very presence is
-#     an unsafe state, so a counter==0 row there is a first-run PAGE, kept.
-
-# A renameio temp-file target is dropped; its non-temp sibling survives.
-a_renameio_temp_target_is_dropped() {
-  local out
-  out="$(printf '%s\n' \
-    '{"name":"file_events_recent","action":"added","columns":{"target_path":"/Users/x/.config/foo/.renameio-TempDir-abc/bar"}}' |
-    make_sut)"
-  assert_line_count 0 "$out" "a renameio atomic-write temp target is churn and must be dropped"
-}
-a_non_temp_target_survives_alongside_the_temp_one() {
-  local out
-  out="$(printf '%s\n' \
-    '{"name":"file_events_recent","action":"added","columns":{"target_path":"/Users/x/.config/foo/.renameio-TempDir-abc/bar"}}' \
-    '{"name":"file_events_recent","action":"added","columns":{"target_path":"/Users/x/.ssh/authorized_keys"}}' |
-    make_sut)"
-  assert_line_count 1 "$out" "the real (non-temp) sibling survives while the temp row drops"
-  assert_field '.cols.target_path' '/Users/x/.ssh/authorized_keys' "$out" "the surviving row is the real file, not the temp one"
-}
-
-# A counter==0 baseline row of a membership query is dropped (first-run seeding).
-a_baseline_counter_zero_row_is_dropped() {
-  local out
-  out="$(printf '%s\n' \
-    '{"name":"new_admin_user","action":"added","counter":0,"columns":{"username":"root"}}' |
-    make_sut)"
-  assert_line_count 0 "$out" "a counter==0 first-run baseline row of a membership query must not page"
-}
-
-# A subsequent (counter>0) row of the same membership query survives.
-a_counter_positive_row_survives() {
-  local out
-  out="$(printf '%s\n' \
-    '{"name":"new_admin_user","action":"added","counter":1,"columns":{"username":"eve"}}' |
-    make_sut)"
-  assert_line_count 1 "$out" "a post-baseline (counter>0) row is a genuine new observation and survives"
-}
-
-# A row with no counter field at all is treated as non-baseline and survives.
-a_row_without_a_counter_survives() {
-  local out
-  out="$(printf '%s\n' \
-    '{"name":"new_admin_user","action":"added","columns":{"username":"eve"}}' |
-    make_sut)"
-  assert_line_count 1 "$out" "an absent counter defaults to non-baseline (kept), never silently dropped"
-}
-
-# The three absolute-state queries KEEP their counter==0 row: a first-run unsafe
-# state (FileVault off / a sharing service enabled / an agent port off-loopback)
-# must page, not seed silently.
-an_absolute_state_counter_zero_row_is_kept() {
-  local out q
-  for q in \
-    'pack_security-policy-regression_filevault_off' \
-    'pack_security-policy-regression_remote_access_sharing_state' \
-    'pack_agent-attack-surface_agent_exposure_changed'; do
-    out="$(printf '%s\n' \
-      "{\"name\":\"$q\",\"action\":\"added\",\"counter\":0,\"columns\":{}}" |
-      make_sut)"
-    assert_line_count 1 "$out" "an absolute-state query ($q) must PAGE on its first-run counter==0 row, not seed"
-  done
-}
-
-a_pack_row_strips_its_prefix
-a_hyphenated_pack_row_strips_only_the_pack_segment
-a_top_level_row_keeps_its_bare_name
-a_row_without_an_action_defaults_to_changed
-a_snapshot_row_yields_exactly_one_finding
-each_row_yields_its_own_finding
-a_malformed_line_is_skipped_without_aborting_the_batch
-an_agent_secretfile_row_is_admitted
-the_heartbeat_canary_is_dropped
-a_made_up_pack_query_is_dropped
-a_made_up_top_level_query_is_dropped
-a_mixed_batch_keeps_only_admitted_rows
-a_renameio_temp_target_is_dropped
-a_non_temp_target_survives_alongside_the_temp_one
-a_baseline_counter_zero_row_is_dropped
-a_counter_positive_row_survives
-a_row_without_a_counter_survives
-an_absolute_state_counter_zero_row_is_kept
-
-printf 'osquery-normalize: OK (B1 prefix strip/action default/one-per-row/malformed-skip; B2 known-query select; B3 renameio-drop + counter==0 baseline discard except the three absolute-state queries)\n'
+printf 'osquery-normalize: OK (B1 structure; B2 known-query select; B3 renameio + counter==0 baseline; B4 enrich-path)\n'
