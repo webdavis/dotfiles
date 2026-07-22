@@ -60,13 +60,12 @@ route_severity() {
 # c69baab's gate, overriding the base tier where the detector demands it. The gate
 # is the authority on the final outcome.
 #
-# NOT WIRED YET (see the TODOs inline): the pipeline verdict for a pipeline file
-# event (B12) and the signing enrichment that can promote a NOTICE to CRIT (B13).
-# Until then a pipeline file event pages unconditionally.
+# NOT WIRED YET (see the TODO inline): the signing enrichment that can promote a
+# NOTICE to CRIT (B13).
 #
-# digest_append (digest-store.sh) and allowlist_verdict (allowlist-verdict.sh) are
-# expected to be sourced alongside this helper; the entry script sources all
-# helpers into one process.
+# digest_append (digest-store.sh), allowlist_verdict (allowlist-verdict.sh), and
+# pipeline_verdict (pipeline-verdict.sh) are expected to be sourced alongside this
+# helper; the entry script sources all helpers into one process.
 route_findings() {
   local -a objs=() controls=() sevs=()
   local obj
@@ -85,14 +84,14 @@ route_findings() {
   # fields and shift the later fields off. 0x1F is non-whitespace, so empty fields
   # are preserved, and it cannot occur in an osquery path/label/program.
   mapfile -t controls < <(printf '%s\n' "${objs[@]}" |
-    jq -rc '[.q, .act, (.cols.category // ""), ((.cols.target_path // "") | split("/") | last), (.cols.path // ""), (.cols.label // ""), (.cols.program // "")] | join("\u001f")')
+    jq -rc '[.q, .act, (.cols.category // ""), ((.cols.target_path // "") | split("/") | last), (.cols.path // ""), (.cols.label // ""), (.cols.program // ""), (.cols.target_path // ""), (.cols.sha256 // ""), (.cols.action // "")] | join("\u001f")')
   mapfile -t sevs < <(printf '%s\n' "${objs[@]}" | route_severity)
 
   local -a pages=()
-  local i q act category base path label program sev av
+  local i q act category base path label program target hash verb sev av
   for i in "${!objs[@]}"; do
     obj=${objs[i]}
-    IFS=$'\x1f' read -r q act category base path label program <<<"${controls[i]}"
+    IFS=$'\x1f' read -r q act category base path label program target hash verb <<<"${controls[i]}"
     sev=${sevs[i]}
     case "$q" in
       # Poller-owned protections: the dedicated 60s poller pages a firewall /
@@ -168,9 +167,15 @@ route_findings() {
             esac
             ;;
           sshd_config) sev="CRIT" ;; # remote-auth policy pages
-          # TODO B12: these categories should consult pipeline_verdict - page a tamper,
-          # stay silent on a known-good apply. For now a pipeline file event pages.
-          pipeline_integrity | launch_agents | launch_daemons) sev="CRIT" ;;
+          # The alerter's own scripts/plists (pipeline_integrity) and our own
+          # LaunchAgents (launch_agents/launch_daemons) consult pipeline_verdict:
+          # 0 = page (tamper / cannot confirm / no manifest -> fail-open), 1 = silent
+          # (an untracked neighbor, or an exact (path, sha256) manifest match). Never
+          # digests - page or silent. Until the manifest slice lands, a tracked
+          # change fails open to a page (criterion 6).
+          pipeline_integrity | launch_agents | launch_daemons)
+            if pipeline_verdict "$target" "$hash" "$verb"; then sev="CRIT"; else continue; fi
+            ;;
           sudoers)
             digest_append "$obj"
             continue

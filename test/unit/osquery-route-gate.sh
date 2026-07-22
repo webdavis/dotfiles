@@ -9,11 +9,11 @@
 #                nothing is emitted.
 #   LOG-ONLY  -> nothing is emitted and nothing is spooled.
 #
-# The tier per detector mirrors c69baab's gate case. This behavior (B10) wires the
-# CORE routing only: the allowlist verdict (a user LaunchAgent), the pipeline
-# verdict (a pipeline file event), and the signing enrichment are NOT wired yet -
-# a launchd add and a pipeline file event page unconditionally for now (TODO
-# B11/B12/B13).
+# The tier per detector mirrors c69baab's gate case. This suite pins the tier
+# TABLE; the fine-grained allowlist (B11) and pipeline (B12) verdict outcomes have
+# their own suites. Here the verdicts are consulted with no allowlist/manifest, so
+# a user LaunchAgent (not-found -> default-deny) and a tracked pipeline file event
+# (fail-open, no manifest) both page.
 #
 # Unit test: fixture normalized findings, each tagged with a unique token, run
 # through ONE gate pass. A token in stdout => paged; in the spool => digested; in
@@ -29,8 +29,11 @@ fail() {
   exit 1
 }
 
+PIPELINE_HELPER="$REPO_ROOT/dot_local/libexec/osquery/results-alerter/pipeline-verdict.sh"
+
 [[ -f $ROUTE ]] || fail "missing helper: $ROUTE"
 [[ -f $ALLOWLIST_HELPER ]] || fail "missing helper: $ALLOWLIST_HELPER"
+[[ -f $PIPELINE_HELPER ]] || fail "missing helper: $PIPELINE_HELPER"
 
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
@@ -71,17 +74,21 @@ findings=(
   '{"q":"filevault_off","act":"removed","cols":{"note":"TAG20"},"ep":""}'
 )
 
-# One gate pass. The spy records every digested finding to the spool file.
-# allowlist_verdict is sourced (the persistence arm consults it); with the
-# allowlist file pointed at a nonexistent path, the user-agent finding (TAG06) is
-# not-found -> pages under default-deny.
+# One gate pass. The spy records every digested finding to the spool file. The
+# allowlist and pipeline verdicts are sourced (the persistence and pipeline arms
+# consult them). HOME is pinned to /Users/x (the fixtures' home prefix) so the
+# TAG09 pipeline path resolves as tracked; with the allowlist and manifest both
+# pointed at nonexistent paths, TAG06 (user agent, not-found) and TAG09 (tracked,
+# no manifest) both page.
 page_out="$(printf '%s\n' "${findings[@]}" |
-  DIGEST_SPY="$spool" OSQUERY_LAUNCHD_ALLOWLIST="$work/no-allowlist.txt" bash -c '
+  HOME="/Users/x" DIGEST_SPY="$spool" OSQUERY_LAUNCHD_ALLOWLIST="$work/no-allowlist.txt" \
+    OSQUERY_PIPELINE_MANIFEST="$work/no-manifest.sha256" bash -c '
     source "$1"
     source "$2"
+    source "$3"
     digest_append() { printf "%s\n" "$1" >>"$DIGEST_SPY"; }
     route_findings
-  ' _ "$ROUTE" "$ALLOWLIST_HELPER")"
+  ' _ "$ROUTE" "$ALLOWLIST_HELPER" "$PIPELINE_HELPER")"
 
 # classify <token> <page|digest|logonly>: assert where the token surfaced.
 classify() {
