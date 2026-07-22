@@ -6,6 +6,8 @@
 # path + program + plist sha256) from the launchd table, so the alerter later suppresses
 # a full-tuple match only and PAGES a label reused with a different identity.
 
+bats_require_minimum_version 1.5.0
+
 load ../fixtures/osquery-allowlist-lib
 
 setup() { setup_allowlist_harness; }
@@ -168,4 +170,64 @@ stub_launchd() {
     echo "expected -l on an absent allowlist to print nothing; got: $output"
     false
   }
+}
+
+# The writer is the security boundary: every mutating verb validates the label first, so a
+# system-daemon page can never be falsely suppressed by an allowlist entry. These pin the
+# is_valid_label contract for BOTH mutating verbs (-a and -d). An empty, malformed, or
+# Apple/system label is refused (non-zero exit, an explanation on stderr, no store touched);
+# a valid non-Apple label using the full allowed charset (. _ @ -) is accepted.
+
+@test "adding (-a) refuses an empty, malformed, or Apple/system label: non-zero exit, stderr explains, no store created" {
+  for bad in '' 'com foo' '*' '../etc' 'a/b' 'com.apple.foo' 'COM.APPLE.FOO' 'com.apple'; do
+    run --separate-stderr run_allowlist -a "$bad"
+    [ "$status" -ne 0 ] || {
+      echo "expected -a '$bad' refused with a non-zero exit, got 0"
+      false
+    }
+    [[ "$stderr" == *refused* ]] || {
+      echo "expected -a '$bad' to explain the refusal on stderr, got: $stderr"
+      false
+    }
+    [ ! -e "$OSQUERY_LAUNCHD_ALLOWLIST" ] || {
+      echo "expected no allowlist created by a refused -a '$bad'; file: $(cat "$OSQUERY_LAUNCHD_ALLOWLIST")"
+      false
+    }
+  done
+}
+
+@test "denying (-d) refuses an empty, malformed, or Apple/system label: non-zero exit, stderr explains, no store created" {
+  for bad in '' 'com foo' '*' '../etc' 'a/b' 'com.apple.foo' 'COM.APPLE.FOO' 'com.apple'; do
+    run --separate-stderr run_allowlist -d "$bad"
+    [ "$status" -ne 0 ] || {
+      echo "expected -d '$bad' refused with a non-zero exit, got 0"
+      false
+    }
+    [[ "$stderr" == *refused* ]] || {
+      echo "expected -d '$bad' to explain the refusal on stderr, got: $stderr"
+      false
+    }
+    [ ! -e "$OSQUERY_LAUNCHD_ALLOWLIST" ] || {
+      echo "expected no allowlist created by a refused -d '$bad'; file: $(cat "$OSQUERY_LAUNCHD_ALLOWLIST")"
+      false
+    }
+  done
+}
+
+@test "a valid non-Apple label using the full allowed charset (. _ @ -) is accepted by both -a and -d" {
+  # -a accepts it and captures a tuple (degraded label-only here, as the stub returns no row).
+  run run_allowlist -a 'homebrew.mxcl.postgresql@17'
+  [ "$status" -eq 0 ] || {
+    echo "expected -a of a valid @-bearing label accepted, got $status: $output"
+    false
+  }
+  assert_allowlisted 'homebrew.mxcl.postgresql@17'
+
+  # -d accepts it too (not refused): removing the just-added label exits 0.
+  run run_allowlist -d 'homebrew.mxcl.postgresql@17'
+  [ "$status" -eq 0 ] || {
+    echo "expected -d of a valid @-bearing label accepted, got $status: $output"
+    false
+  }
+  assert_not_allowlisted 'homebrew.mxcl.postgresql@17'
 }
