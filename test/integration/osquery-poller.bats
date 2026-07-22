@@ -266,12 +266,12 @@ teardown() { teardown_poller_harness; }
 # screenlock 0/1). Applied to the current read (do not poison the baseline) and to
 # the prior-baseline trust check (do not fabricate a transition).
 
-@test "T-POLL-partial-read-preserves-baseline: a partial posture (missing a field) preserves the baseline, and does not poison the next comparison" {
+@test "T-POLL-partial-read-preserves-baseline: a partial posture preserves the baseline (a gap page, not a poisoned baseline), and recovery still detects a real transition" {
   seed_baseline '{"firewall":"1","gatekeeper":"1","screenlock":"1"}'
   snapshot_baseline
 
-  # Tick 1: the screenlock field is absent. That is a monitoring gap, not a
-  # posture: it must NOT persist (which would poison the baseline) and must NOT page.
+  # Tick 1: the screenlock field is absent, a monitoring gap. It pages the gap but
+  # must NOT persist the partial (which would poison the baseline).
   set_posture '[{"firewall":"1","gatekeeper":"1"}]'
   run run_poller
   [[ $status -eq 0 ]] || {
@@ -279,7 +279,7 @@ teardown() { teardown_poller_harness; }
     false
   }
   assert_baseline_unchanged
-  assert_no_page
+  assert_page_body_has 'monitoring gap'
 
   # Tick 2: a healthy read with screenlock now OFF. Because tick 1 did not poison
   # the baseline, the prior is still the good all-ON, so screenlock 1->0 pages.
@@ -289,9 +289,7 @@ teardown() { teardown_poller_harness; }
     echo "expected the poller to exit 0 on tick 2, got $status: $output"
     false
   }
-  assert_page_count 1
-  assert_page_severity_is CRIT
-  assert_page_body_has 'Screen lock turned OFF'
+  assert_page_body_has 'Screen lock turned OFF' # a real transition after recovery: proof of no poisoning
 }
 
 @test "T-POLL-out-of-domain-prior-not-trusted: an out-of-domain prior baseline value is distrusted, so no false transition pages" {
@@ -307,6 +305,92 @@ teardown() { teardown_poller_harness; }
   }
 
   assert_no_page # the untrusted prior is treated as no-prior: seed silently, no false CRIT
+}
+
+# --- B3: a monitoring gap pages once as CRIT and clears on recovery --------------
+# The failed-read path (empty/failed read, or any scalar out of domain) now PAGES
+# once, via a STATE.gap marker, reusing notify-before-persist: page first, write
+# the marker only on success. Recovery (a valid read) clears the marker.
+
+@test "T-POLL-gap-pages-once: a gap read with no marker pages exactly one CRIT naming the gap, writes the marker, and preserves the baseline" {
+  seed_baseline '{"firewall":"1","gatekeeper":"1","screenlock":"1"}'
+  snapshot_baseline
+  set_posture '[{"firewall":"9","gatekeeper":"1","screenlock":"1"}]' # firewall out of domain
+
+  run run_poller
+  [[ $status -eq 0 ]] || {
+    echo "expected the poller to exit 0 after paging the gap, got $status: $output"
+    false
+  }
+
+  assert_page_count 1
+  assert_page_severity_is CRIT
+  assert_page_body_has 'monitoring gap'
+  assert_gap_marker         # the page-once marker now exists
+  assert_baseline_unchanged # a gap never persists the bad posture
+}
+
+@test "T-POLL-gap-no-respam: a second consecutive gap tick does not re-page (one page per gap)" {
+  seed_baseline '{"firewall":"1","gatekeeper":"1","screenlock":"1"}'
+  set_posture '[{"firewall":"9","gatekeeper":"1","screenlock":"1"}]'
+
+  run run_poller # tick 1: pages and writes the marker
+  [[ $status -eq 0 ]] || {
+    echo "tick 1 status $status: $output"
+    false
+  }
+  run run_poller # tick 2: the marker suppresses a re-page
+  [[ $status -eq 0 ]] || {
+    echo "tick 2 status $status: $output"
+    false
+  }
+
+  assert_page_count 1 # still exactly one page across both gap ticks
+}
+
+@test "T-POLL-gap-page-failure-no-marker: a gap whose send_alert fails writes no marker, exits nonzero, and re-pages next tick" {
+  seed_baseline '{"firewall":"1","gatekeeper":"1","screenlock":"1"}'
+  set_posture '[{"firewall":"9","gatekeeper":"1","screenlock":"1"}]'
+  export POLLER_SEND_ALERT_EXIT=1 # dispatch cannot queue the gap page
+
+  run run_poller
+  [[ $status -ne 0 ]] || {
+    echo "expected nonzero when the gap page could not be queued, got $status: $output"
+    false
+  }
+  assert_no_gap_marker # no marker on failure, so the next tick retries
+  assert_page_count 1  # it attempted the page
+
+  export POLLER_SEND_ALERT_EXIT=0
+  run run_poller
+  [[ $status -eq 0 ]] || {
+    echo "retry status $status: $output"
+    false
+  }
+  assert_page_count 2 # re-detected the still-unmarked gap and re-paged (at-least-once)
+  assert_gap_marker
+}
+
+@test "T-POLL-gap-recovery-clears-marker: a valid read after a gap clears the marker, so a later gap pages again" {
+  seed_baseline '{"firewall":"1","gatekeeper":"1","screenlock":"1"}'
+
+  set_posture '[{"firewall":"9","gatekeeper":"1","screenlock":"1"}]'
+  run run_poller # gap 1: pages and writes the marker
+  assert_page_count 1
+  assert_gap_marker
+
+  set_posture '[{"firewall":"1","gatekeeper":"1","screenlock":"1"}]'
+  run run_poller # recovery: a valid read clears the marker, steady state (no page)
+  [[ $status -eq 0 ]] || {
+    echo "recovery status $status: $output"
+    false
+  }
+  assert_no_gap_marker
+
+  set_posture '[{"firewall":"9","gatekeeper":"1","screenlock":"1"}]'
+  run run_poller # gap 2: the marker was cleared, so it pages again
+  assert_page_count 2 # the second gap is not suppressed by a stale marker
+  assert_gap_marker
 }
 
 # --- change-detection and re-enable coverage ------------------------------------

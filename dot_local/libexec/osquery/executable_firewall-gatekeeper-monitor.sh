@@ -15,6 +15,7 @@
 set -euo pipefail
 
 STATE="${OSQUERY_POSTURE_STATE:-$HOME/.local/state/osquery-posture-state.json}"
+GAP="$STATE.gap" # page-once marker for a monitoring gap (R2-9)
 OSQUERYI="${OSQUERYI:-$(command -v osqueryi || echo /usr/local/bin/osqueryi)}"
 
 # shellcheck source=/dev/null
@@ -35,29 +36,35 @@ posture=$("$OSQUERYI" --json "
     (SELECT enabled FROM screenlock) AS screenlock
 " 2>/dev/null | jq -c '.[0] // empty' 2>/dev/null || true)
 
-# A failed or empty read (osqueryi missing, the daemon not up on a fresh boot, or
-# the tables transiently unavailable) leaves posture empty or null. Do NOT persist
-# that over a good baseline: a blank baseline would blind or misfeed the next
-# run's comparison. Exit and let the next tick retry, preserving the last good
-# baseline. Paging on an unreadable posture (the monitoring-gap marker) is a
-# later behavior.
-if [[ -z $posture || $posture == "null" ]]; then
-  exit 0
-fi
-
 cur_fw=$(jq -r '.firewall // empty' <<<"$posture" 2>/dev/null || echo "")
 cur_gk=$(jq -r '.gatekeeper // empty' <<<"$posture" 2>/dev/null || echo "")
 cur_sl=$(jq -r '.screenlock // empty' <<<"$posture" 2>/dev/null || echo "")
 
-# Validate every scalar against its exact domain (firewall 0/1/2, Gatekeeper 0/1,
-# screenlock 0/1). A partial or out-of-domain reading is a monitoring gap: the
-# security state is UNKNOWN, not safe. Treat it as a failed read: do NOT persist it
-# (it would poison the baseline) and do NOT compare it (it would fabricate a
-# transition). Preserve the last good baseline and exit. PAGING this gap is a later
-# behavior (B3).
+# R2-9 monitoring gap. Any scalar missing or out of its exact domain (firewall
+# 0/1/2, Gatekeeper 0/1, screenlock 0/1) means the security state is UNKNOWN, not
+# safe; an empty or failed read leaves all three empty and lands here too. Do NOT
+# persist it (it would poison the baseline) and do NOT compare it (it would
+# fabricate a transition): the last good baseline is preserved. Page ONCE per gap.
+# With no marker, notify FIRST (reusing the notify-before-persist durability) and
+# write the marker only on send_alert success; if send_alert fails, leave no
+# marker, log, and exit nonzero so the next tick retries (at-least-once). An
+# existing marker suppresses re-paging. (Values are bracketed, [] for empty, to
+# keep the page apostrophe-free for the alerting stack.)
 if ! [[ $cur_fw =~ ^[012]$ && $cur_gk =~ ^[01]$ && $cur_sl =~ ^[01]$ ]]; then
+  if [[ ! -f $GAP ]]; then
+    gap_body="**Security-posture monitoring gap**"$'\n'"- The posture query returned an unreadable value (firewall=[$cur_fw] gatekeeper=[$cur_gk] screenlock=[$cur_sl]): the firewall / Gatekeeper / screen-lock state is currently UNKNOWN."$'\n'"- A blind monitor cannot see a protection turn off. Did osqueryi or the LaunchAgent break? **Check now.**"$'\n'"- Diagnose: run the posture query by hand, then re-check."
+    if ! send_alert CRIT "🔴 **CRITICAL**" "$gap_body" "Sosumi"; then
+      printf 'firewall-gatekeeper-monitor: send_alert could not queue the monitoring-gap page; no marker written, retrying next tick\n' >&2
+      exit 1
+    fi
+    : >"$GAP"
+  fi
   exit 0
 fi
+
+# A valid read cleared the gap (recovery): drop the marker so a future gap pages
+# again. Done before the normal transition/persist logic.
+rm -f "$GAP" 2>/dev/null || true
 
 # Validate any existing baseline BEFORE trusting it (and before write_state
 # overwrites it): it must be owner-only (mode 600) AND parse to three in-domain

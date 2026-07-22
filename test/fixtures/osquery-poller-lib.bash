@@ -268,3 +268,20 @@ assert_page_saw_baseline() {
     return 1
   fi
 }
+
+# assert_gap_marker -- the page-once monitoring-gap marker (STATE.gap) exists.
+assert_gap_marker() {
+  if [[ ! -f $OSQUERY_POSTURE_STATE.gap ]]; then
+    printf 'expected the gap marker %s.gap to exist, but it does not\n' "$OSQUERY_POSTURE_STATE" >&2
+    return 1
+  fi
+}
+
+# assert_no_gap_marker -- the monitoring-gap marker does not exist (never paged,
+# or cleared on recovery).
+assert_no_gap_marker() {
+  if [[ -f $OSQUERY_POSTURE_STATE.gap ]]; then
+    printf 'expected NO gap marker, but %s.gap exists\n' "$OSQUERY_POSTURE_STATE" >&2
+    return 1
+  fi
+}
