@@ -60,9 +60,12 @@ route_severity() {
 # c69baab's gate, overriding the base tier where the detector demands it. The gate
 # is the authority on the final outcome.
 #
-# Enrichment runs BEFORE the per-detector case so a finding promoted to CRIT by an
-# untrusted signing verdict can never be suppressed by the allowlist (the security
-# invariant: an untrusted program behind an allowlisted label still pages).
+# Enrichment runs BEFORE the per-detector case so its NOTICE->CRIT promotion (on an
+# untrusted signing verdict) is available to the arms. It is HONORED by
+# persistence_launchd (an untrusted program behind an allowlisted label still pages -
+# the security invariant), kernel_extensions_new, and system_extensions_new, and is
+# INTENTIONALLY NOT consulted by the log-only es_launchd_writes /
+# persistence_startup_items_crontab arms (see their comment for why).
 #
 # SECURITY: every attacker-controlled field the gate routes on (path, label,
 # program, target_path, ...) is extracted per-field via jq at its point of use and
@@ -106,14 +109,16 @@ route_findings() {
     act=$(jq -r '.act' <<<"$obj")
     ep=$(jq -r '.ep // ""' <<<"$obj")
     sev=${sevs[i]}
-    # Enrichment runs BEFORE the per-detector case (the security invariant): a
-    # finding an untrusted signature promotes to CRIT here can NOT then be
-    # suppressed by the allowlist below - a promoted CRIT (an untrusted binary
-    # behind an allowlisted label) always pages. For a finding with an inspectable
-    # path and a CRIT/NOTICE base tier, get the signing verdict, attach it as
-    # .signing for render-page, and promote NOTICE -> CRIT (louder, never quieter)
-    # when the verdict is UNTRUSTED (enricher exit 10). Fail-open: an absent or
-    # erroring enricher leaves the finding surfaced, just without a Signing field.
+    # Enrichment runs BEFORE the per-detector case: for a finding with an inspectable
+    # path and a CRIT/NOTICE base tier, get the signing verdict, attach it as .signing
+    # for render-page, and promote NOTICE -> CRIT (louder, never quieter) when the
+    # verdict is UNTRUSTED (enricher exit 10). A promotion here can NOT then be
+    # suppressed by the allowlist below (the security invariant: an untrusted program
+    # behind an allowlisted label still pages). The promotion is HONORED by the
+    # persistence_launchd, kernel_extensions_new, and system_extensions_new arms and
+    # INTENTIONALLY IGNORED by the log-only es_launchd_writes /
+    # persistence_startup_items_crontab arms. Fail-open: an absent or erroring enricher
+    # leaves the finding surfaced, just without a Signing field.
     signing=""
     if [[ -n $ep && ($sev == "CRIT" || $sev == "NOTICE") && -x $enrich_script ]]; then
       enrich_status=0
@@ -130,9 +135,22 @@ route_findings() {
       # cannot occur and the snapshot floor is pure noise. The poller does NOT cover
       # SIP; this is log-only for that reason, not a poller hand-off. (route_severity
       # still classifies a sip_state-off as CRIT; the gate is the authority here.)
+      # FUTURE (operator note 2026-07-22): if SIP is ever turned back on for this
+      # host, flip this arm to page on the off-transition (mirror the filevault_off
+      # tier, which pages an added off-row).
       sip_state) continue ;;
-      # Wrong-signal or too-noisy-to-surface detectors: log-only.
-      kernel_extensions_new | persistence_startup_items_crontab | es_launchd_writes | agent_binary_changed) continue ;;
+      # Log-only REGARDLESS of the enrichment verdict (the kext/sysext promotion
+      # ruling is scoped to those two detectors only). es_launchd_writes is the raw,
+      # noisy Endpoint-Security write event already covered by the persistence_launchd
+      # differential (which pages via allowlist + enrichment), so honoring its
+      # promotion here would double-signal. persistence_startup_items_crontab is a
+      # low-noise legacy vector kept log-only. agent_binary_changed carries no
+      # inspectable path (no enrichment) and is inherently noisy.
+      persistence_startup_items_crontab | es_launchd_writes | agent_binary_changed) continue ;;
+      # A newly-loaded kernel extension: an UNTRUSTED one (enrichment promoted it to
+      # CRIT above) pages; a signed one stays log-only, its base tier. Operator ruling
+      # 2026-07-22. Mirrors the persistence arm's [[ $sev == CRIT ]] honor-the-promotion.
+      kernel_extensions_new) [[ $sev == "CRIT" ]] || continue ;;
       # Digest tier: suspicious-but-ambiguous, summarized daily, never paged.
       # agent_authfile_changed is the 3 NON-secret configs (.env, config.toml,
       # cli-client-id) - routine churn digests, it never pages (the 2 true secrets
@@ -141,9 +159,14 @@ route_findings() {
         digest_append "$obj"
         continue
         ;;
+      # A new system extension is usually an app upgrade re-activating a sysext, so a
+      # SIGNED one digests (its base tier); an UNTRUSTED one (enrichment promoted it
+      # to CRIT above) pages. Operator ruling 2026-07-22.
       system_extensions_new)
-        digest_append "$obj"
-        continue
+        [[ $sev == "CRIT" ]] || {
+          digest_append "$obj"
+          continue
+        }
         ;;
       listening_ports_non_loopback)
         [[ $act == added ]] && digest_append "$obj"
