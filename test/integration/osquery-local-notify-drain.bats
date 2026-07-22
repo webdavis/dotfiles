@@ -274,6 +274,40 @@ iso8601_of_epoch() {
   grep -q 'LOCAL-NOTIFY-EXPIRED' "$OSQUERY_DELIVERY_LOG"
 }
 
+@test "T-LND-expire-in-backoff: an over-age row expires on schedule even while its retry wait has not passed" {
+  # sol's repro: an over-age row whose next_attempt_after is in the FUTURE. A
+  # due-filtered sweep never sees it, so it silently outlives its own age
+  # ceiling. Expiry must run independently of the due filter: the row is
+  # deleted with the loud EXPIRED line in the SAME pass, while a fresh row in
+  # backoff stays untouched.
+  set_alerter_stub_exit 64
+  _osquery_notify_local_durable "buried title" "buried message" "seed-buried"
+  _osquery_notify_local_durable "fresh backoff title" "fresh backoff message" "seed-freshbackoff"
+  [[ "$(local_row_count)" == "2" ]]
+  local now
+  now="$(date -u +%s)"
+  # The buried row: over-age AND in retry backoff (invisible to a due filter).
+  sqlite3 "$OSQUERY_UNDELIVERED_ALERTS_DB" \
+    "UPDATE pending_local_notifications SET occurrence_ts = $((now - 86401)), next_attempt_after = $((now + 3600)) WHERE title = 'buried title';"
+  # The fresh row: young, also in backoff; expiry must not touch it.
+  sqlite3 "$OSQUERY_UNDELIVERED_ALERTS_DB" \
+    "UPDATE pending_local_notifications SET occurrence_ts = $((now - 60)), next_attempt_after = $((now + 3600)) WHERE title = 'fresh backoff title';"
+  : >"$ALERTER_LOG"
+  set_alerter_stub_exit 0
+
+  retry_undelivered_alerts
+
+  if [[ "$(local_row_count)" != "1" ]]; then
+    printf 'expected the over-age buried row to expire in this pass; rows=%s\n' "$(local_row_count)" >&2
+    return 1
+  fi
+  [[ "$(sqlite3_query 'SELECT title FROM pending_local_notifications;')" == "fresh backoff title" ]] ||
+    printf 'expected only the FRESH backoff row to survive\n' >&2
+  [[ "$(sqlite3_query 'SELECT title FROM pending_local_notifications;')" == "fresh backoff title" ]]
+  grep -q 'LOCAL-NOTIFY-EXPIRED' "$OSQUERY_DELIVERY_LOG" # loud in the same pass
+  [[ ! -s $ALERTER_LOG ]] # neither row was bannered (one expired, one in backoff)
+}
+
 @test "T-LND-late-failure-durable: a redelivered banner that outlives the grace window and then fails keeps its row" {
   # sol's repro on the retry path: the alerter lives past the ~0.6s grace
   # window (advisory says posted) and THEN exits nonzero. The old inline

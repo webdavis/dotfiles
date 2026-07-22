@@ -873,49 +873,62 @@ _osquery_delete_local_notification_row() {
     "$notification_id_sql" | _osquery_alerts_db_exec
 }
 
-# Re-attempt ONE stored local notification: expire it when it is too old to
-# matter, otherwise decode the hex fields and banner via _loud_local WITH the
-# occurrence time as the subtitle, delete the row when the banner was shown,
-# and count the failed attempt otherwise (same base + randomized-delay schedule
-# as the alert queue).
+# Expire every local notification too old to matter, INDEPENDENTLY of the
+# due-row filter: a row sitting in retry backoff (next_attempt_after in the
+# future) is invisible to the due sweep, and without this pass it would
+# silently outlive its own age ceiling. Past
+# OSQUERY_LOCAL_NOTIFY_MAX_AGE_SECONDS (default 86400, one day) the row is
+# DELETED unshown with a loud LOCAL-NOTIFY-EXPIRED line naming the id and its
+# age: the operator has long since seen the durable Discord copy, so a day-old
+# banner is pure noise. There is deliberately NO dead_letter_local table: the
+# local payload merely duplicates content the durable webhook channel already
+# carries, nothing would ever consume such a table (the no-dead-state rule),
+# and the loud log line IS the forensic record. And NO attempts cap: at one
+# attempt per scheduled tick, age is the natural bound, an attempts knob would
+# be a second knob doing the same job. A row with a zero occurrence time (a
+# clock glitch at capture) has an unknowable age and is never expired blind.
+# The age arithmetic and the over-age selection live in ONE SQL statement, so
+# the decision is race-free and the exported fields (a hex-derived id and an
+# integer age) are separator-safe. Never returns nonzero (set -e-safe).
+_osquery_expire_over_age_local_notifications() {
+  local max_age="${OSQUERY_LOCAL_NOTIFY_MAX_AGE_SECONDS:-86400}"
+  [[ $max_age =~ ^[0-9]+$ ]] || max_age=86400
+  local rows notification_id age
+  rows="$({
+    printf '.separator "\\t"\n'
+    printf "SELECT notification_id, (CAST(strftime('%%s','now') AS INTEGER) - occurrence_ts)
+  FROM pending_local_notifications
+  WHERE occurrence_ts > 0
+    AND (CAST(strftime('%%s','now') AS INTEGER) - occurrence_ts) > %s;\n" "$max_age"
+  } | _osquery_alerts_db_exec)" || return 0
+  [[ -n $rows ]] || return 0
+  while IFS=$'\t' read -r notification_id age; do
+    [[ -n $notification_id ]] || continue
+    if _osquery_delete_local_notification_row "$notification_id"; then
+      _osquery_log "LOCAL-NOTIFY-EXPIRED notification too old to matter, deleted unshown: notification_id=$notification_id age=${age}s (max ${max_age}s)"
+    else
+      _osquery_log "LOCAL-NOTIFY-EXPIRE-FAILED over-age row could not be deleted: notification_id=$notification_id age=${age}s (row retained)"
+    fi
+  done <<<"$rows"
+  return 0
+}
+
+# Re-attempt ONE stored local notification: decode the hex fields, banner via
+# the confirmed-delete path WITH the occurrence time as the subtitle, and count
+# a fast failure (same base + randomized-delay schedule as the alert queue).
+# Age-out happens BEFORE this in the sweep's independent expiry pass, so every
+# row reaching here is young enough to show.
 #
-# The two staleness behaviors live here. HONEST TIMESTAMPS: a banner shown
-# minutes or hours late must not read as breaking news, so the retry renders
-# "occurred <UTC ISO 8601>" into the banner (first-attempt banners are fresh
-# and stay unmarked). AGE-OUT: past OSQUERY_LOCAL_NOTIFY_MAX_AGE_SECONDS
-# (default 86400, one day) the row is DELETED with a loud LOCAL-NOTIFY-EXPIRED
-# line naming the id and its age, no banner attempt: the operator has long
-# since seen the durable Discord copy, so a day-old banner is pure noise.
-# There is deliberately NO dead_letter_local table: the local payload merely
-# duplicates content the durable webhook channel already carries, nothing would
-# ever consume such a table (the no-dead-state rule), and the loud log line IS
-# the forensic record. And NO attempts cap: at one attempt per scheduled tick,
-# age is the natural bound, an attempts knob would be a second knob doing the
-# same job. A row with a zero/invalid occurrence time (a clock glitch at
-# capture) cannot have its age known, so it is retried, never expired blind,
-# and gets no made-up timestamp subtitle.
+# HONEST TIMESTAMPS: a banner shown minutes or hours late must not read as
+# breaking news, so the retry renders "occurred <UTC ISO 8601>" into the banner
+# (first-attempt banners are fresh and stay unmarked). An unrenderable
+# occurrence time gets no subtitle, never a made-up one.
 #
 # The local channel is the FALLBACK, so its failures are LOG LINES ONLY: never
 # a webhook CRIT, never a dead-letter tally entry, alerting the broken channel
 # through itself is noise. Always returns 0 (set -e-safe, skip-and-continue).
 _redeliver_pending_local_notification() { # <notification_id> <occurrence_ts> <title_hex> <message_hex> <sound_hex>
   local notification_id="$1" occurrence_ts="$2" title message sound
-  local max_age="${OSQUERY_LOCAL_NOTIFY_MAX_AGE_SECONDS:-86400}"
-  [[ $max_age =~ ^[0-9]+$ ]] || max_age=86400
-  local now age
-  now="$(date -u +%s)"
-  [[ $now =~ ^[0-9]+$ ]] || now=0
-  if [[ $occurrence_ts =~ ^[0-9]+$ ]] && ((occurrence_ts > 0 && now > 0)); then
-    age=$((now - occurrence_ts))
-    if ((age > max_age)); then
-      if _osquery_delete_local_notification_row "$notification_id"; then
-        _osquery_log "LOCAL-NOTIFY-EXPIRED notification too old to matter, deleted unshown: notification_id=$notification_id age=${age}s (max ${max_age}s)"
-      else
-        _osquery_log "LOCAL-NOTIFY-EXPIRE-FAILED over-age row could not be deleted: notification_id=$notification_id age=${age}s (row retained)"
-      fi
-      return 0
-    fi
-  fi
   title="$(_osquery_hex_to_text "$3")" || title=""
   message="$(_osquery_hex_to_text "$4")" || message=""
   sound="$(_osquery_hex_to_text "$5")" || sound=""
@@ -942,13 +955,15 @@ _redeliver_pending_local_notification() { # <notification_id> <occurrence_ts> <t
   return 0
 }
 
-# Sweep the stored local notifications: re-banner every DUE row in occurrence
-# order. Runs from the same scheduled drain as the alert queue (one liveness
-# owner, one lock). A missing table (nothing ever captured), a query failure,
-# or an empty queue is a quiet no-op; a failing row never blocks the rows
-# behind it. Never returns nonzero (set -e-safe).
+# Sweep the stored local notifications: first EXPIRE every over-age row
+# (independently of retry backoff, see the expiry pass), then re-banner every
+# DUE row in occurrence order. Runs from the same scheduled drain as the alert
+# queue (one liveness owner, one lock). A missing table (nothing ever
+# captured), a query failure, or an empty queue is a quiet no-op; a failing row
+# never blocks the rows behind it. Never returns nonzero (set -e-safe).
 _drain_pending_local_notifications() {
   _osquery_table_exists pending_local_notifications || return 0
+  _osquery_expire_over_age_local_notifications
   local rows notification_id occurrence_ts title_hex message_hex sound_hex
   rows="$(_osquery_pending_local_notification_rows)" || return 0
   [[ -n $rows ]] || return 0
