@@ -292,9 +292,11 @@ teardown() { teardown_poller_harness; }
   assert_page_body_has 'Screen lock turned OFF' # a real transition after recovery: proof of no poisoning
 }
 
-@test "T-POLL-out-of-domain-prior-not-trusted: an out-of-domain prior baseline value is distrusted, so no false transition pages" {
+@test "T-POLL-out-of-domain-prior-not-trusted: an out-of-domain prior is distrusted, so it never fabricates a transition (a first-observation page instead)" {
   # A prior firewall of "00" is not a valid domain value. Trusting it via a string
-  # compare against a current "0" would read "00" != "0" and fabricate a CRIT.
+  # compare against a current "0" would read "00" != "0" and fabricate a "turned
+  # OFF" transition. It is distrusted, so there is no trusted prior: this is a
+  # first observation with the firewall already off, not a fabricated transition.
   seed_baseline '{"firewall":"00","gatekeeper":"1","screenlock":"1"}'
   set_posture '[{"firewall":"0","gatekeeper":"1","screenlock":"1"}]'
 
@@ -304,7 +306,8 @@ teardown() { teardown_poller_harness; }
     false
   }
 
-  assert_no_page # the untrusted prior is treated as no-prior: seed silently, no false CRIT
+  assert_page_body_lacks 'turned OFF'                       # no fabricated transition
+  assert_page_body_has 'Firewall is OFF (first observation)' # correct: no trusted prior, already off
 }
 
 # --- B3: a monitoring gap pages once as CRIT and clears on recovery --------------
@@ -434,4 +437,80 @@ teardown() { teardown_poller_harness; }
   }
 
   assert_no_page # a protection turning back ON is not actionable
+}
+
+# --- B4: an already-OFF protection at first observation (no prior) PAGES ---------
+# DIVERGENCE from c69baab (F4, banked from the slice-6 alerter review): with no
+# trusted prior baseline, a protection already off is a first-observation exposure
+# that must page (the alerter log-onlys these and relies on the poller), not be
+# silently baselined. No seed_baseline in these tests: the state file is absent.
+
+@test "T-POLL-first-obs-firewall-off-pages: first run (no prior) with the firewall already OFF pages one CRIT, then seeds the baseline" {
+  set_posture '[{"firewall":"0","gatekeeper":"1","screenlock":"1"}]'
+
+  run run_poller
+  [[ $status -eq 0 ]] || {
+    echo "expected exit 0 after paging the first-observation exposure, got $status: $output"
+    false
+  }
+
+  assert_page_count 1
+  assert_page_severity_is CRIT
+  assert_page_body_has 'Firewall is OFF (first observation)'
+  assert_page_body_lacks 'turned OFF' # a first observation, not a transition
+  # The baseline is seeded (only after the page succeeds), so the next tick is quiet.
+  assert_baseline_scalar firewall 0
+  assert_baseline_scalar gatekeeper 1
+  assert_baseline_scalar screenlock 1
+}
+
+@test "T-POLL-first-obs-multi-off-pages: first run with two protections already OFF pages a single CRIT naming both" {
+  set_posture '[{"firewall":"0","gatekeeper":"0","screenlock":"1"}]'
+
+  run run_poller
+  [[ $status -eq 0 ]] || {
+    echo "status $status: $output"
+    false
+  }
+
+  assert_page_count 1 # one page for the first observation, not one per protection
+  assert_page_severity_is CRIT
+  assert_page_body_has 'Firewall is OFF (first observation)'
+  assert_page_body_has 'Gatekeeper is OFF (first observation)'
+}
+
+@test "T-POLL-first-obs-screenlock-off-pages: first run with the screen lock already OFF pages naming the screen lock" {
+  set_posture '[{"firewall":"1","gatekeeper":"1","screenlock":"0"}]'
+
+  run run_poller
+  [[ $status -eq 0 ]] || {
+    echo "status $status: $output"
+    false
+  }
+
+  assert_page_count 1
+  assert_page_severity_is CRIT
+  assert_page_body_has 'Screen lock is OFF (first observation)'
+}
+
+@test "T-POLL-first-obs-page-failure-no-seed: a first-observation page whose send_alert fails seeds no baseline, exits nonzero, and re-pages next tick" {
+  set_posture '[{"firewall":"0","gatekeeper":"1","screenlock":"1"}]'
+  export POLLER_SEND_ALERT_EXIT=1 # dispatch cannot queue the first-observation page
+
+  run run_poller
+  [[ $status -ne 0 ]] || {
+    echo "expected nonzero when the first-observation page could not be queued, got $status: $output"
+    false
+  }
+  assert_no_baseline  # no baseline seeded on failure, so the exposure is re-detected
+  assert_page_count 1 # it attempted the page
+
+  export POLLER_SEND_ALERT_EXIT=0
+  run run_poller
+  [[ $status -eq 0 ]] || {
+    echo "retry status $status: $output"
+    false
+  }
+  assert_page_count 2               # re-detected the still-unbaselined exposure and re-paged
+  assert_baseline_scalar firewall 0 # now seeded
 }

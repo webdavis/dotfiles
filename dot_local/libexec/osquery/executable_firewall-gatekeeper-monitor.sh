@@ -98,11 +98,50 @@ write_state() {
   ) && mv -f "$STATE.tmp" "$STATE" && chmod 600 "$STATE"
 }
 
-# No trustworthy prior baseline (first run, or a lost/planted/corrupt state file):
-# seed the baseline silently. Paging a protection that is ALREADY off at first
-# sight is a later behavior.
-if [[ $prev_valid -eq 0 ]]; then
+# Emit one CRIT page built from the given blocks, then seed or advance the
+# baseline. Notify-before-persist: send_alert is write-ahead durable, so page
+# FIRST and write_state only on success; on a send_alert failure leave the
+# baseline as-is, log, and exit nonzero so the next tick re-detects and retries
+# (at-least-once). Shared by the first-observation and transition paths so both
+# obey one durability contract.
+page_crit_and_persist() {
+  local body title
+  body=$(printf '%s\n\n' "$@")
+  body=${body%$'\n\n'}
+  title="🔴 **CRITICAL**"
+  if [[ $# -gt 1 ]]; then title="🔴 **CRITICAL** · $#"; fi
+  if ! send_alert CRIT "$title" "$body" "Sosumi"; then
+    printf 'firewall-gatekeeper-monitor: send_alert could not queue the CRIT page; baseline not advanced, retrying next tick\n' >&2
+    exit 1
+  fi
   write_state
+}
+
+# No trustworthy prior baseline (first run, or a lost/deleted/planted/corrupt
+# state file). DIVERGENCE from c69baab's silent first-run seed (F4, banked from
+# the slice-6 alerter review): the alerter log-onlys firewall/Gatekeeper
+# off-events and relies on THIS poller to page them, so a protection ALREADY off
+# with no prior baseline would otherwise be silently accepted and go unpaged
+# forever. Page each already-off protection as a first-observation exposure
+# (screenlock too: it is poller-only, and an already-off lock is a real exposure),
+# with the same notify-before-persist durability. If all three are ON, seed
+# silently.
+if [[ $prev_valid -eq 0 ]]; then
+  first_obs_blocks=()
+  if [[ $cur_fw == "0" ]]; then
+    first_obs_blocks+=("**Firewall is OFF (first observation)**"$'\n'"- **Now:** **OFF**"$'\n'"- The monitor has no prior baseline and the firewall is already off, a pre-existing exposure. Did you turn it off? If not, **investigate now**."$'\n'"- Re-enable it: System Settings → Network → Firewall")
+  fi
+  if [[ $cur_gk == "0" ]]; then
+    first_obs_blocks+=("**Gatekeeper is OFF (first observation)**"$'\n'"- **Now:** **DISABLED**"$'\n'"- The monitor has no prior baseline and Gatekeeper is already disabled, a pre-existing exposure. Did you turn it off? If not, **investigate now**."$'\n'"- Re-enable it: System Settings → Privacy & Security")
+  fi
+  if [[ $cur_sl == "0" ]]; then
+    first_obs_blocks+=("**Screen lock is OFF (first observation)**"$'\n'"- **Now:** **OFF**"$'\n'"- The monitor has no prior baseline and the screen-lock password requirement is already off, anyone at the machine has access. Did you turn it off? If not, **investigate now**."$'\n'"- Re-enable it: System Settings → Lock Screen → Require password")
+  fi
+  if [[ ${#first_obs_blocks[@]} -eq 0 ]]; then
+    write_state # healthy first observation: seed the baseline silently
+    exit 0
+  fi
+  page_crit_and_persist "${first_obs_blocks[@]}"
   exit 0
 fi
 
@@ -151,21 +190,6 @@ if [[ ${#crit_blocks[@]} -eq 0 ]]; then
   exit 0
 fi
 
-# An OFF transition: NOTIFY BEFORE PERSIST. send_alert is write-ahead durable, so
-# durably enqueue the page FIRST, then advance the baseline only once it is safely
-# queued. If send_alert fails (could not persist the page), leave the baseline on
-# its prior value and exit nonzero so the next tick re-detects and retries; do not
-# swallow the failure. A crash in the narrow window after the page is queued but
-# before the baseline advances re-pages next tick (at-least-once), never loses the
-# page. One page for the tick, even when several protections turned off together.
-body=$(printf '%s\n\n' "${crit_blocks[@]}")
-body=${body%$'\n\n'}
-title="🔴 **CRITICAL**"
-if [[ ${#crit_blocks[@]} -gt 1 ]]; then title="🔴 **CRITICAL** · ${#crit_blocks[@]}"; fi
-
-if ! send_alert CRIT "$title" "$body" "Sosumi"; then
-  printf 'firewall-gatekeeper-monitor: send_alert could not queue the CRIT page; baseline not advanced, retrying next tick\n' >&2
-  exit 1
-fi
-
-write_state
+# An OFF transition: page (notify-before-persist), then advance the baseline. One
+# page for the tick, even when several protections turned off together.
+page_crit_and_persist "${crit_blocks[@]}"

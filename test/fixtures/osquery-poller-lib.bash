@@ -285,3 +285,13 @@ assert_no_gap_marker() {
     return 1
   fi
 }
+
+# assert_no_baseline -- no baseline file exists (a first-observation page whose
+# send_alert failed must not have seeded one).
+assert_no_baseline() {
+  if [[ -f $OSQUERY_POSTURE_STATE ]]; then
+    printf 'expected NO baseline file, but %s exists with:\n%s\n' \
+      "$OSQUERY_POSTURE_STATE" "$(cat "$OSQUERY_POSTURE_STATE")" >&2
+    return 1
+  fi
+}
