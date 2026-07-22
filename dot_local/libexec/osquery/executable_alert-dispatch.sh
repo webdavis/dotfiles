@@ -558,20 +558,45 @@ _notify_locally() {
   fi
 }
 
-# Fire ONE loud, interruptive local notification. Used when a page can be neither
-# delivered NOR durably stored: the operator MUST learn that a CRITICAL alert was
-# lost, because a dropped page leaves no trace and would otherwise read as good
-# news. If no notifier is available or the notification itself fails, nothing
-# further happens and the function still returns 0: the dispatch flow continues,
-# already in its worst case, and must not break over a notifier problem.
+# Fire ONE loud, interruptive local notification and report a TRUTHFUL outcome:
+# 0 when the notifier was successfully invoked (the banner posted, or posted and
+# already resolved), nonzero when no notifier exists or the invocation failed.
+# Used when a page can be neither delivered NOR durably stored: the operator
+# MUST learn that a CRITICAL alert was lost, because a dropped page leaves no
+# trace and would otherwise read as good news. The status is the seam durable
+# local notifications build on; a caller that cannot act on a failure guards
+# the call (|| true), a failed banner must never break the dispatch flow.
+#
+# alerter semantics (verified on 26.5): the process lives for the banner's
+# WHOLE lifetime and exits only when the banner resolves (dismissed, clicked,
+# or timed out, exit 0 in every resolved case), while a FAILED invocation exits
+# fast and nonzero (e.g. usage error 64 in ~10ms). There is no post-and-exit
+# mode, so waiting for the exit would block a caller for up to the 60-second
+# banner life, unacceptable inside a drain pass. The bounded grace window below
+# tells the two shapes apart without that wait: a process that DIED inside the
+# window reports its own exit code (nonzero = failed invocation; 0 = posted and
+# already resolved), and one still ALIVE after the window has its banner up,
+# which is success, so it is left running exactly as before.
 _loud_local() {
   local title="$1" message="$2"
   if command -v alerter >/dev/null 2>&1; then
     alerter --timeout 60 --title "$title" --message "$message" --sound Funk >/dev/null 2>&1 &
-  else
-    local escaped=${message//\"/\\\"}
-    osascript -e "display notification \"$escaped\" with title \"$title\" sound name \"Funk\"" >/dev/null 2>&1 || true
+    local notifier_pid=$!
+    for _ in 1 2 3 4 5 6; do
+      kill -0 "$notifier_pid" 2>/dev/null || break
+      sleep 0.1 2>/dev/null || sleep 1
+    done
+    if kill -0 "$notifier_pid" 2>/dev/null; then
+      return 0 # still alive after the window: the banner is up on screen
+    fi
+    local notifier_status=0
+    wait "$notifier_pid" 2>/dev/null || notifier_status=$?
+    return "$notifier_status"
   fi
+  # osascript posts the notification and returns immediately, so its own exit
+  # status IS the outcome; an absent osascript is command-not-found (nonzero).
+  local escaped=${message//\"/\\\"}
+  osascript -e "display notification \"$escaped\" with title \"$title\" sound name \"Funk\"" >/dev/null 2>&1
 }
 
 # Print the webhook signing key: the environment override when set, otherwise
@@ -621,8 +646,11 @@ retry_undelivered_alerts() {
   [[ $dead_letter_count =~ ^[0-9]+$ ]] || dead_letter_count=0
   if ((dead_letter_count > 0)); then
     _osquery_log "PIPELINE-DEGRADED $dead_letter_count record(s) dead-lettered this drain pass"
+    # _loud_local now reports a truthful status; this caller cannot act on a
+    # failed banner yet (durable local notifications consume it later), and a
+    # failed banner must never abort the drain, so the status is discarded.
     _loud_local "osquery alert delivery pipeline degraded" \
-      "$dead_letter_count undeliverable page(s) dead-lettered; the alert delivery pipeline needs attention."
+      "$dead_letter_count undeliverable page(s) dead-lettered; the alert delivery pipeline needs attention." || true
   fi
   return 0
 }
@@ -750,8 +778,11 @@ send_alert() {
   # stored, and the caller must not advance its cursor past it.
   if ! _store_undelivered_alert "$occurrence_timestamp" "$request_id" "$url" "$body"; then
     _osquery_log "STORE-FAILED write-ahead persist: request_id=$request_id (storage unwritable: $OSQUERY_UNDELIVERED_ALERTS_DB)"
+    # The banner status is discarded here (guarded for errexit callers): this
+    # path is already the worst case, and the nonzero return below is the
+    # caller's real signal that the page was lost.
     _loud_local "osquery paging FAILED, page LOST" \
-      "The page could not be stored locally. Fix $OSQUERY_UNDELIVERED_ALERTS_DB."
+      "The page could not be stored locally. Fix $OSQUERY_UNDELIVERED_ALERTS_DB." || true
     return 1
   fi
 
@@ -762,8 +793,10 @@ send_alert() {
   secret="$(_read_webhook_secret)"
   if [[ -z $secret ]]; then
     _osquery_log "STORED-NOSECRET Discord delivery degraded: request_id=$request_id (no secret in $OSQUERY_WEBHOOK_SECRET_FILE)"
+    # Banner status discarded (guarded for errexit callers): the page is safely
+    # stored, so a failed banner here costs visibility, not the page.
     _loud_local "osquery Discord paging BROKEN" \
-      "No webhook secret. This page was stored locally and delivers when the secret is restored."
+      "No webhook secret. This page was stored locally and delivers when the secret is restored." || true
     return 0
   fi
 
