@@ -213,6 +213,63 @@ COMMIT;\n" \
   return 0
 }
 
+# Persist one FAILED local notification as a pending_local_notifications row in
+# the SAME database as the alert queue (one store, one lock domain). Follows the
+# alert row's crash-safety rules exactly: the lazy schema bootstrap and THIS
+# insert commit in ONE atomic batch (BEGIN IMMEDIATE ... COMMIT), so no kill
+# window exists where the table was created but the notification vanished; the
+# batch is idempotent (INSERT OR IGNORE on the UNIQUE notification_id), so the
+# locked-database retry in _osquery_alerts_db_exec may replay it safely and a
+# re-store of the same notification stays one row. title, message, and sound
+# are arbitrary operator-facing text, so each is single-quoted with embedded
+# quotes doubled, the same injection-safe escape the alert rows use. Returns
+# nonzero on any persistence failure for the caller to LOG (never to fail on).
+_osquery_store_local_notification_row() { # <occurrence_ts> <notification_id> <title> <message> <sound>
+  local occurrence_timestamp="$1" notification_id="$2" title="$3" message="$4" sound="$5"
+  [[ $occurrence_timestamp =~ ^[0-9]+$ ]] || return 1
+  [[ -n $notification_id ]] || return 1
+  local database_directory created_at
+  database_directory="$(dirname "$OSQUERY_UNDELIVERED_ALERTS_DB")"
+  mkdir -p "$database_directory" 2>/dev/null || return 1
+  chmod 700 "$database_directory" 2>/dev/null || true
+  created_at="$(date -u +%s)"
+  [[ $created_at =~ ^[0-9]+$ ]] || created_at=0
+  # Escape for a single-quoted SQL literal: every embedded quote is doubled.
+  # The quote lives in a helper variable because spelling it inline inside an
+  # already double-quoted expansion goes wrong in both directions: a \' pattern
+  # keeps its backslash in the replacement, and nested double quotes land as
+  # literal characters (both verified). $single_quote expands cleanly.
+  local single_quote="'"
+  local notification_id_sql="${notification_id//$single_quote/$single_quote$single_quote}"
+  local title_sql="${title//$single_quote/$single_quote$single_quote}"
+  local message_sql="${message//$single_quote/$single_quote$single_quote}"
+  local sound_sql="${sound//$single_quote/$single_quote$single_quote}"
+  if ! printf "BEGIN IMMEDIATE;
+CREATE TABLE IF NOT EXISTS pending_local_notifications (
+  sequence_number    INTEGER PRIMARY KEY AUTOINCREMENT,
+  notification_id    TEXT UNIQUE NOT NULL,
+  occurrence_ts      INTEGER NOT NULL,
+  title              TEXT NOT NULL,
+  message            TEXT NOT NULL,
+  sound              TEXT,
+  attempts           INTEGER NOT NULL DEFAULT 0,
+  next_attempt_after INTEGER NOT NULL DEFAULT 0,
+  created_at         INTEGER NOT NULL
+);
+INSERT OR IGNORE INTO pending_local_notifications
+    (notification_id, occurrence_ts, title, message, sound, attempts, next_attempt_after, created_at)
+  VALUES
+    ('%s', %s, '%s', '%s', '%s', 0, 0, %s);
+COMMIT;\n" \
+    "$notification_id_sql" "$occurrence_timestamp" "$title_sql" "$message_sql" "$sound_sql" "$created_at" |
+    _osquery_alerts_db_exec; then
+    return 1
+  fi
+  [[ -f $OSQUERY_UNDELIVERED_ALERTS_DB ]] || return 1
+  chmod 600 "$OSQUERY_UNDELIVERED_ALERTS_DB" 2>/dev/null || true
+  return 0
+}
+
 # Record one FAILED-but-retryable delivery attempt on a pending row: attempts
 # goes up by one and next_attempt_after moves into the future, so the drain
 # leaves the row alone until its wait has passed instead of hammering a failing
@@ -599,6 +656,43 @@ _loud_local() {
   osascript -e "display notification \"$escaped\" with title \"$title\" sound name \"Funk\"" >/dev/null 2>&1
 }
 
+# Fire the loud local CRIT banner DURABLY: show it via _loud_local and, ONLY
+# when the banner failed, persist it as a pending_local_notifications row so a
+# later drain can retry it (a lost CRIT banner otherwise reads as good news).
+# A shown banner touches no storage at all: the success path never bootstraps
+# the table and never creates the database. The optional third argument is a
+# stable identity seed for THIS notification (a caller with occurrence context
+# passes one, so a retried occurrence dedups to one row); absent, the identity
+# derives from title, message, and the capture time. The id is the seed's hash
+# (same shape as the alert request ids), so it is quote-free by construction.
+#
+# ALWAYS returns 0: the banner was either shown or captured for retry, and when
+# even the capture fails (storage broken) that is logged loudly
+# (LOCAL-NOTIFY-STORE-FAILED) but must never abort the caller, every caller is
+# already on its worst-case path when this fires.
+_osquery_notify_local_durable() { # <title> <message> [notification_seed]
+  local title="$1" message="$2" notification_seed="${3-}"
+  if _loud_local "$title" "$message"; then
+    return 0
+  fi
+  local occurrence_timestamp
+  occurrence_timestamp="$(date -u +%s)"
+  [[ $occurrence_timestamp =~ ^[0-9]+$ ]] || occurrence_timestamp=0
+  [[ -n $notification_seed ]] || notification_seed="$title|$message|$occurrence_timestamp"
+  local notification_id
+  if ! notification_id="local-$(printf '%s' "$notification_seed" | _sha256_hex_of_stdin | cut -c1-32)" ||
+    [[ $notification_id == "local-" ]]; then
+    _osquery_log "LOCAL-NOTIFY-STORE-FAILED banner failed and no id could be derived (hasher broken); notification not persisted: $title"
+    return 0
+  fi
+  if _osquery_store_local_notification_row "$occurrence_timestamp" "$notification_id" "$title" "$message" "Funk"; then
+    _osquery_log "LOCAL-NOTIFY-STORED banner failed, persisted for retry: notification_id=$notification_id"
+  else
+    _osquery_log "LOCAL-NOTIFY-STORE-FAILED banner failed AND could not be persisted (storage unwritable: $OSQUERY_UNDELIVERED_ALERTS_DB): $title"
+  fi
+  return 0
+}
+
 # Print the webhook signing key: the environment override when set, otherwise
 # the first line of the notifier's own secret file with any carriage return
 # stripped (so a CRLF file cannot corrupt the key). Prints nothing when no key
@@ -646,11 +740,12 @@ retry_undelivered_alerts() {
   [[ $dead_letter_count =~ ^[0-9]+$ ]] || dead_letter_count=0
   if ((dead_letter_count > 0)); then
     _osquery_log "PIPELINE-DEGRADED $dead_letter_count record(s) dead-lettered this drain pass"
-    # _loud_local now reports a truthful status; this caller cannot act on a
-    # failed banner yet (durable local notifications consume it later), and a
-    # failed banner must never abort the drain, so the status is discarded.
-    _loud_local "osquery alert delivery pipeline degraded" \
-      "$dead_letter_count undeliverable page(s) dead-lettered; the alert delivery pipeline needs attention." || true
+    # Durable banner: shown, or captured for a later retry. No identity seed:
+    # each degraded pass is its own event, so the default derivation (title,
+    # message, capture time) dedups only a same-second duplicate. Always 0,
+    # a failed banner never aborts the drain.
+    _osquery_notify_local_durable "osquery alert delivery pipeline degraded" \
+      "$dead_letter_count undeliverable page(s) dead-lettered; the alert delivery pipeline needs attention."
   fi
   return 0
 }
@@ -778,11 +873,13 @@ send_alert() {
   # stored, and the caller must not advance its cursor past it.
   if ! _store_undelivered_alert "$occurrence_timestamp" "$request_id" "$url" "$body"; then
     _osquery_log "STORE-FAILED write-ahead persist: request_id=$request_id (storage unwritable: $OSQUERY_UNDELIVERED_ALERTS_DB)"
-    # The banner status is discarded here (guarded for errexit callers): this
-    # path is already the worst case, and the nonzero return below is the
-    # caller's real signal that the page was lost.
-    _loud_local "osquery paging FAILED, page LOST" \
-      "The page could not be stored locally. Fix $OSQUERY_UNDELIVERED_ALERTS_DB." || true
+    # Durable banner, seeded by this page's request id so a retried occurrence
+    # dedups to one row. The capture will usually fail too on this path (the
+    # same storage is broken), which the wrapper logs loudly; the nonzero
+    # return below stays the caller's real lost-page signal.
+    _osquery_notify_local_durable "osquery paging FAILED, page LOST" \
+      "The page could not be stored locally. Fix $OSQUERY_UNDELIVERED_ALERTS_DB." \
+      "store-failed|$request_id"
     return 1
   fi
 
@@ -793,10 +890,12 @@ send_alert() {
   secret="$(_read_webhook_secret)"
   if [[ -z $secret ]]; then
     _osquery_log "STORED-NOSECRET Discord delivery degraded: request_id=$request_id (no secret in $OSQUERY_WEBHOOK_SECRET_FILE)"
-    # Banner status discarded (guarded for errexit callers): the page is safely
-    # stored, so a failed banner here costs visibility, not the page.
-    _loud_local "osquery Discord paging BROKEN" \
-      "No webhook secret. This page was stored locally and delivers when the secret is restored." || true
+    # Durable banner, seeded by this page's request id so a retried occurrence
+    # dedups to one row. The page itself is safely stored, so a failed banner
+    # costs visibility, not the page, and the capture preserves the visibility.
+    _osquery_notify_local_durable "osquery Discord paging BROKEN" \
+      "No webhook secret. This page was stored locally and delivers when the secret is restored." \
+      "stored-nosecret|$request_id"
     return 0
   fi
 
