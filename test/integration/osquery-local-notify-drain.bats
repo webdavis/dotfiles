@@ -1,0 +1,152 @@
+#!/usr/bin/env bats
+# The scheduled drainer sweeps pending_local_notifications too (DR-C T3): a
+# CRIT banner that failed and was persisted is re-attempted on the same 300s
+# tick that drains the alert queue, one liveness owner, no second agent. The
+# local sweep runs BEFORE the alert drain: the alert drain's degraded-pipeline
+# CRIT can persist a NEW local row mid-pass, and sweeping local first means
+# that row waits for the next tick instead of being attempted twice in one
+# pass. The local channel is the FALLBACK: its failures are log lines only,
+# never a webhook CRIT and never a dead-letter tally entry. No thresholds and
+# no staleness rendering yet (T4).
+
+setup() {
+  local helpers="$BATS_TEST_DIRNAME/../helpers"
+  # shellcheck source=test/helpers/build-dispatch-harness.sh
+  source "$helpers/build-dispatch-harness.sh"
+  build_dispatch_harness
+}
+teardown() { teardown_dispatch_harness; }
+
+set_alerter_stub_exit() { # <exit-code> -- keep the argv logging, control the outcome
+  printf '#!/usr/bin/env bash\nprintf "%%s\\n" "$*" >>"%s"\nexit %s\n' \
+    "$ALERTER_LOG" "$1" >"$HARNESS_HOME/bin/alerter"
+  chmod +x "$HARNESS_HOME/bin/alerter"
+}
+
+local_row_count() {
+  sqlite3 -readonly "$OSQUERY_UNDELIVERED_ALERTS_DB" \
+    'SELECT COUNT(*) FROM pending_local_notifications;' 2>/dev/null || echo 0
+}
+
+@test "T-LND-redeliver-success: a due local row banners once (text intact) and is deleted" {
+  # The title carries a tab and apostrophes and the message an apostrophe, so
+  # this also pins the export encoding: arbitrary text must reach the notifier
+  # byte-identical (a naive tab-separated export would garble it).
+  local tricky_title=$'op\'s\tbanner' tricky_message="it's back"
+  set_alerter_stub_exit 64
+  _osquery_notify_local_durable "$tricky_title" "$tricky_message" "seed-redeliver" # persists (banner fails)
+  [[ "$(local_row_count)" == "1" ]]
+  : >"$ALERTER_LOG"
+  set_alerter_stub_exit 0 # the notifier works again
+
+  retry_undelivered_alerts
+
+  [[ "$(local_row_count)" == "0" ]] # delivered -> deleted
+  # Exactly one banner attempt, and the stored text reached it intact.
+  [[ "$(grep -c . "$ALERTER_LOG")" == "1" ]]
+  grep -qF "$tricky_title" "$ALERTER_LOG"
+  grep -qF "$tricky_message" "$ALERTER_LOG"
+}
+
+@test "T-LND-redeliver-failure: a still-failing local row is retained with attempts+1 and a future next_attempt_after" {
+  export OSQUERY_DRAIN_RETRY_BASE_SECONDS=3600
+  export OSQUERY_DRAIN_RETRY_RANDOM_SECONDS=0
+  set_alerter_stub_exit 64
+  _osquery_notify_local_durable "t" "m" "seed-stillfailing"
+  [[ "$(local_row_count)" == "1" ]]
+  local before_drain
+  before_drain="$(date -u +%s)"
+
+  retry_undelivered_alerts
+
+  [[ "$(local_row_count)" == "1" ]] # retained, never lost
+  [[ "$(sqlite3_query 'SELECT attempts FROM pending_local_notifications;')" == "1" ]]
+  local next_attempt_after
+  next_attempt_after="$(sqlite3_query 'SELECT next_attempt_after FROM pending_local_notifications;')"
+  [[ $next_attempt_after -gt $((before_drain + 1800)) ]]
+  grep -q 'LOCAL-NOTIFY-RETRY-FAILED' "$OSQUERY_DELIVERY_LOG" # a log line, not a CRIT
+}
+
+@test "T-LND-not-due: a row whose retry wait has not passed is untouched, no banner attempt" {
+  set_alerter_stub_exit 64
+  _osquery_notify_local_durable "t" "m" "seed-notdue"
+  sqlite3 "$OSQUERY_UNDELIVERED_ALERTS_DB" \
+    "UPDATE pending_local_notifications SET next_attempt_after = $(($(date -u +%s) + 3600));"
+  : >"$ALERTER_LOG"
+  set_alerter_stub_exit 0
+
+  retry_undelivered_alerts
+
+  [[ "$(local_row_count)" == "1" ]]
+  [[ ! -s $ALERTER_LOG ]] # zero attempts on a not-yet-due row
+  [[ "$(sqlite3_query 'SELECT attempts FROM pending_local_notifications;')" == "0" ]]
+}
+
+@test "T-LND-isolation: a failing local row aborts nothing and never feeds the webhook CRIT tally" {
+  # One failing local row + one deliverable alert row in the same pass: the
+  # alert must still deliver, the pass must fire NO degraded-pipeline CRIT
+  # (zero ALERT records dead-lettered; a local failure is not a dead-letter),
+  # and the whole pass survives set -e.
+  set_alerter_stub_exit 64
+  _osquery_notify_local_durable "t" "m" "seed-isolation"
+  local url='http://127.0.0.1:8644/webhooks/osquery-priority' body_b64
+  body_b64=$(printf '{"event_type":"osquery.alert"}' | base64 | tr -d '\n')
+  _osquery_store_alert_row 1000 osquery-deliverable "$url" "$body_b64"
+  : >"$ALERTER_LOG"
+  : >"$CURL_LOG"
+  set_curl_codes 200
+
+  run bash -c "set -euo pipefail; source '$DISPATCH'; retry_undelivered_alerts; echo DONE"
+  [[ $status -eq 0 ]]
+  [[ $output == *DONE* ]]
+
+  grep -qF 'X-Request-ID: osquery-deliverable' "$CURL_LOG" # the alert still delivered
+  assert_pending_alert_count 0
+  [[ "$(local_row_count)" == "1" ]] # the local row is retained for the next tick
+  ! grep -qi 'pipeline degraded' "$ALERTER_LOG" # no CRIT for a local-channel failure
+  grep -q 'LOCAL-NOTIFY-RETRY-FAILED' "$OSQUERY_DELIVERY_LOG"
+}
+
+@test "T-LND-ordering: a local row persisted by THIS pass's degraded CRIT is not attempted until the next tick" {
+  # The alert drain dead-letters a record, fires the pass CRIT, the CRIT banner
+  # FAILS, and the wrapper persists it as a local row mid-pass. The local sweep
+  # already ran (local first), so that fresh row must show zero attempts and
+  # the notifier must have been invoked exactly once (the CRIT attempt itself,
+  # not a same-pass retry of the just-persisted row).
+  export OSQUERY_DRAIN_MAX_ATTEMPTS=1 # the seeded alert row dead-letters pre-POST
+  set_alerter_stub_exit 64
+  local url='http://127.0.0.1:8644/webhooks/osquery-priority' body_b64
+  body_b64=$(printf '{"event_type":"osquery.alert"}' | base64 | tr -d '\n')
+  _osquery_store_alert_row 1000 osquery-doomed "$url" "$body_b64"
+  sqlite3 "$OSQUERY_UNDELIVERED_ALERTS_DB" \
+    "UPDATE pending_alerts SET attempts=1 WHERE request_id='osquery-doomed';"
+  : >"$ALERTER_LOG"
+
+  retry_undelivered_alerts
+
+  [[ "$(local_row_count)" == "1" ]] # the failed CRIT was captured...
+  [[ "$(sqlite3_query 'SELECT attempts FROM pending_local_notifications;')" == "0" ]] # ...but NOT retried this pass
+  [[ "$(grep -c . "$ALERTER_LOG")" == "1" ]] # exactly the one CRIT attempt
+}
+
+@test "T-LND-skip-and-continue: the first local row failing does not block the second" {
+  export OSQUERY_DRAIN_RETRY_BASE_SECONDS=3600
+  export OSQUERY_DRAIN_RETRY_RANDOM_SECONDS=0
+  set_alerter_stub_exit 64
+  _osquery_notify_local_durable "first title" "m1" "seed-first"
+  _osquery_notify_local_durable "second title" "m2" "seed-second"
+  [[ "$(local_row_count)" == "2" ]]
+  # Order the rows deterministically: the first seed strictly older.
+  sqlite3 "$OSQUERY_UNDELIVERED_ALERTS_DB" \
+    "UPDATE pending_local_notifications SET occurrence_ts = CASE WHEN title='first title' THEN 100 ELSE 200 END;"
+  : >"$ALERTER_LOG"
+
+  retry_undelivered_alerts
+
+  # BOTH rows were attempted (the failing first never starves the second)...
+  grep -qF 'first title' "$ALERTER_LOG"
+  grep -qF 'second title' "$ALERTER_LOG"
+  # ...and both were retained with their bookkeeping counted.
+  [[ "$(local_row_count)" == "2" ]]
+  [[ "$(sqlite3_query 'SELECT COUNT(*) FROM pending_local_notifications WHERE attempts=1;')" == "2" ]]
+}
