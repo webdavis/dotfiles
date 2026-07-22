@@ -148,3 +148,35 @@ run_entry() { run bash "$ENTRY"; }
   [ "$(crit_page_count)" -eq 1 ]               # delivered exactly once (no double-send)
   [ "$(cursor_offset)" -eq "$(log_size)" ]     # cursor now advances past the complete record
 }
+
+# (h) A lost/corrupt cursor replays the WHOLE current log, so a page-worthy finding
+#     before the old bounded 256 KiB tail is not silently dropped. osquery caps the
+#     log at 10 MB (logger_rotate), so the full replay is bounded.
+@test "T-ENTRY-reset-lossless: a CRIT before the old 256 KiB tail still pages after a cursor reset" {
+  append_row "$ADMIN_ROW"                       # the early CRIT, at the very start
+  # > 256 KiB of valid, non-paging noise (installed-software drift -> INFO/log-only).
+  seq 1 4000 | awk '{print "{\"name\":\"pack_installed-software-drift_homebrew_packages\",\"action\":\"added\",\"columns\":{\"name\":\"pkg" $1 "\",\"version\":\"1.0\"}}"}' \
+    >>"$OSQUERY_RESULTS_LOG"
+  [ "$(log_size)" -gt 262144 ]                  # the early CRIT is now well before the old tail
+  rm -f "$OSQUERY_RESULTS_OFFSET"               # cursor lost/corrupt
+  run_entry
+  [ "$status" -eq 0 ]
+  [ "$(crit_page_count)" -eq 1 ]               # full replay pages the early CRIT (not dropped)
+}
+
+# (i) A reset never storms per-finding: many simultaneous CRITs on a reset deliver
+#     ONE consolidated, capped page (render_page's 8-block cap), not one page each.
+@test "T-ENTRY-reset-no-storm: a reset with many CRITs delivers ONE capped page" {
+  local i
+  for i in $(seq 1 20); do
+    append_row "{\"name\":\"new_admin_user\",\"action\":\"added\",\"columns\":{\"username\":\"admin$i\",\"uid\":\"$i\"}}"
+  done
+  rm -f "$OSQUERY_RESULTS_OFFSET"
+  run_entry
+  [ "$status" -eq 0 ]
+  # Exactly one batch page (a CRITICAL-titled send_alert), not 20; the cursor-reset
+  # warning is titled separately and does not count.
+  local batch_pages
+  batch_pages=$(grep -c 'title=🔴 \*\*CRITICAL\*\*' "$SEND_ALERT_SPY" 2>/dev/null || true)
+  [ "$batch_pages" -eq 1 ]
+}

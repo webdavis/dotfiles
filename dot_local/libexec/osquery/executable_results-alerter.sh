@@ -70,12 +70,16 @@ main() {
   local prev_inode="" prev_offset="" cursor_reset=0
   if [[ -f $STATE ]]; then read -r prev_inode prev_offset <"$STATE" || true; fi
   if ! [[ $prev_inode =~ ^[0-9]+$ && $prev_offset =~ ^[0-9]+$ ]]; then
-    # Reprocess a BOUNDED recent tail (avoids a multi-MB replay; the page cap bounds
-    # the blast radius) and warn LOUDLY below.
+    # Replay the WHOLE current log from byte 0 so a page-worthy finding is never
+    # silently dropped by a lost cursor - a bounded recent tail skipped anything
+    # before it. This is bounded: osquery caps results.log at 10 MB (logger_rotate),
+    # and render_page consolidates the batch into ONE capped page (8 blocks + an
+    # "N more" marker), so a full replay is one page, not a per-finding storm.
+    # Identical repeated resets share the occurrence id inode:0:size, so the store
+    # (request_id UNIQUE) and the Hermes gateway dedup them. Warn LOUDLY below.
     cursor_reset=1
     prev_inode="$inode"
-    local reset_tail="${OSQUERY_RESULTS_RESET_TAIL_BYTES:-262144}"
-    if [[ $size -gt $reset_tail ]]; then prev_offset=$((size - reset_tail)); else prev_offset=0; fi
+    prev_offset=0
   fi
 
   # New inode (rotation/recreation) or a shrink (truncation) -> read from byte 0 so
@@ -88,13 +92,13 @@ main() {
   [[ $size -eq $prev_offset ]] && exit 0
 
   # Warn LOUDLY that the cursor was reset (a real sound -> a page that reaches the
-  # operator, not a muted note). The reprocessed tail surfaces any queued unsafe row
-  # on its own; this is the meta-signal that the alerter's own state was disturbed.
-  # Best-effort (|| true) so it never blocks the batch; the batch page gates the
-  # checkpoint below.
+  # operator, not a muted note). The full replay below re-surfaces every finding in
+  # the current log on its own; this is the meta-signal that the alerter's own state
+  # was disturbed. Best-effort (|| true) so it never blocks the batch; the batch page
+  # gates the checkpoint below.
   if [[ $cursor_reset -eq 1 ]]; then
     send_alert CRIT "🔴 **osquery cursor reset**" \
-      "**The osquery alerter cursor was missing or corrupt - monitoring state was disturbed.**"$'\n'"- Recent results were reprocessed from a bounded tail; a queued batch may have been briefly skipped before this run."$'\n'"- If you did not clear ~/.local/state, something else reset it - **investigate now**." \
+      "**The osquery alerter cursor was missing or corrupt - monitoring state was disturbed.**"$'\n'"- The current log was replayed in full, so findings are re-surfaced below, not lost."$'\n'"- If you did not clear ~/.local/state, something else reset it - **investigate now**." \
       "Sosumi" "cursor-reset:$inode:$size" || true
   fi
 
