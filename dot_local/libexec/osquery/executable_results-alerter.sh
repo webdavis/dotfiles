@@ -24,22 +24,24 @@ set -euo pipefail
 
 LOG="${OSQUERY_RESULTS_LOG:-$HOME/.local/log/osquery/osqueryd.results.log}"
 STATE="${OSQUERY_RESULTS_OFFSET:-$HOME/.local/state/osquery-results-offset}"
-HELPERS="$HOME/.local/libexec/osquery"
 
+# The dispatch library and the six pipeline helpers, from the libexec home (the
+# same deployed path the other consumers source; literal so the relocation guard
+# can assert it).
 # shellcheck source=/dev/null
-source "$HELPERS/alert-dispatch.sh"
+source "$HOME/.local/libexec/osquery/alert-dispatch.sh"
 # shellcheck source=/dev/null
-source "$HELPERS/results-alerter/normalize.sh"
+source "$HOME/.local/libexec/osquery/results-alerter/normalize.sh"
 # shellcheck source=/dev/null
-source "$HELPERS/results-alerter/route.sh"
+source "$HOME/.local/libexec/osquery/results-alerter/route.sh"
 # shellcheck source=/dev/null
-source "$HELPERS/results-alerter/allowlist-verdict.sh"
+source "$HOME/.local/libexec/osquery/results-alerter/allowlist-verdict.sh"
 # shellcheck source=/dev/null
-source "$HELPERS/results-alerter/pipeline-verdict.sh"
+source "$HOME/.local/libexec/osquery/results-alerter/pipeline-verdict.sh"
 # shellcheck source=/dev/null
-source "$HELPERS/results-alerter/digest-store.sh"
+source "$HOME/.local/libexec/osquery/results-alerter/digest-store.sh"
 # shellcheck source=/dev/null
-source "$HELPERS/results-alerter/render-page.sh"
+source "$HOME/.local/libexec/osquery/results-alerter/render-page.sh"
 
 # _checkpoint <inode> <offset>: atomically write the cursor to the current inode +
 # offset. Called by main ONLY after a batch is durably delivered-or-spooled -
