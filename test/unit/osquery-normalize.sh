@@ -123,6 +123,73 @@ a_malformed_line_is_skipped_without_aborting_the_batch() {
   assert_line_count 2 "$out" "the malformed line drops out, the two valid rows survive"
 }
 
+# --- B2: normalize admits only recognized osquery query names -----------------
+#
+# The select is a security allowlist: a row whose (prefix-stripped) query name is
+# not a known scheduled detector is dropped before it can ever become an alert.
+# The admitted set is every scheduled detector in the rendered config EXCEPT the
+# heartbeat_canary liveness snapshot (which the alerter defensively drops, and
+# which in practice only ever lands in osqueryd.snapshots.log that this alerter
+# does not read). These fixtures name real query rows the config-base slice ships.
+
+# A newly admitted config-base query (agent_secretfile_changed, the two watched
+# secrets) survives normalize with its bare stripped name.
+an_agent_secretfile_row_is_admitted() {
+  local out
+  out="$(printf '%s\n' \
+    '{"name":"pack_agent-attack-surface_agent_secretfile_changed","action":"added","columns":{}}' |
+    make_sut)"
+  assert_line_count 1 "$out" "agent_secretfile_changed is a recognized detector and is admitted"
+  assert_field '.q' 'agent_secretfile_changed' "$out" "the admitted row keeps its stripped query name"
+}
+
+# The heartbeat_canary liveness snapshot is defensively excluded: even if a canary
+# row appeared in results.log, it never becomes a finding.
+the_heartbeat_canary_is_dropped() {
+  local out
+  out="$(printf '%s\n' \
+    '{"name":"heartbeat_canary","action":"snapshot","columns":{}}' |
+    make_sut)"
+  assert_line_count 0 "$out" "heartbeat_canary is the liveness canary and must never surface as a finding"
+}
+
+# A made-up pack query (a name not in the known set) is dropped: the select is a
+# strict allowlist, not a blanket admit of anything under pack_.
+a_made_up_pack_query_is_dropped() {
+  local out
+  out="$(printf '%s\n' \
+    '{"name":"pack_foo_bar","action":"added","columns":{}}' |
+    make_sut)"
+  assert_line_count 0 "$out" "an unrecognized pack query must not be admitted just because it is packed"
+}
+
+# A made-up top-level query name is dropped.
+a_made_up_top_level_query_is_dropped() {
+  local out
+  out="$(printf '%s\n' \
+    '{"name":"totally_bogus_query","action":"added","columns":{}}' |
+    make_sut)"
+  assert_line_count 0 "$out" "an unrecognized top-level query must not be admitted"
+}
+
+# A mixed batch: only the admitted rows survive, each still one finding with its
+# stripped name; the two non-admitted rows fall out.
+a_mixed_batch_keeps_only_admitted_rows() {
+  local out
+  out="$(printf '%s\n' \
+    '{"name":"new_admin_user","action":"added","columns":{}}' \
+    '{"name":"heartbeat_canary","action":"snapshot","columns":{}}' \
+    '{"name":"pack_agent-attack-surface_agent_secretfile_changed","action":"added","columns":{}}' \
+    '{"name":"pack_foo_bar","action":"added","columns":{}}' \
+    '{"name":"pack_security-policy-regression_filevault_off","action":"added","columns":{}}' |
+    make_sut)"
+  assert_line_count 3 "$out" "only the three recognized detectors survive the select"
+  local names
+  names="$(printf '%s' "$out" | jq -r '.q' | sort | tr '\n' ',')"
+  [[ $names == 'agent_secretfile_changed,filevault_off,new_admin_user,' ]] ||
+    fail "the surviving findings must be exactly the admitted queries -- got: $names"
+}
+
 a_pack_row_strips_its_prefix
 a_hyphenated_pack_row_strips_only_the_pack_segment
 a_top_level_row_keeps_its_bare_name
@@ -130,5 +197,10 @@ a_row_without_an_action_defaults_to_changed
 a_snapshot_row_yields_exactly_one_finding
 each_row_yields_its_own_finding
 a_malformed_line_is_skipped_without_aborting_the_batch
+an_agent_secretfile_row_is_admitted
+the_heartbeat_canary_is_dropped
+a_made_up_pack_query_is_dropped
+a_made_up_top_level_query_is_dropped
+a_mixed_batch_keeps_only_admitted_rows
 
-printf 'osquery-normalize: OK (prefix strip, hyphenated pack, bare top-level, action default, no snapshot explosion, one-per-row, malformed-skip)\n'
+printf 'osquery-normalize: OK (B1 prefix strip/action default/one-per-row/malformed-skip; B2 known-query select admits detectors, drops heartbeat_canary and unknown pack/top-level names)\n'

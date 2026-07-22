@@ -30,12 +30,31 @@
 # the pipeline (a swallowed batch is caught by the cursor-retry logic in main).
 normalize_findings() {
   jq -rR '
-    . as $line | (try ($line | fromjson) catch empty)
+    # Known-query allowlist (the security select): the prefix-stripped names of
+    # every scheduled detector the config-base slice ships, EXCEPT heartbeat_canary.
+    # A row whose stripped name is not in this set is dropped before it can become
+    # an alert, so an unknown, renamed, or rogue query name never surfaces. This is
+    # a STRICT allowlist, not a blanket admit of anything under pack_: a made-up
+    # pack_<x> is dropped exactly like an unknown top-level name. heartbeat_canary
+    # is a liveness snapshot that lands only in osqueryd.snapshots.log (which this
+    # alerter does not read); it is excluded defensively so a stray canary row can
+    # never generate noise. Adding a new detector to the config means adding its
+    # name here too (the config and this alerter are co-maintained in one repo).
+    [
+      "new_admin_user", "file_events_recent", "es_launchd_writes",
+      "agent_authfile_changed", "agent_binary_changed", "agent_exposure_changed", "agent_secretfile_changed",
+      "chrome_extensions", "firefox_addons", "homebrew_packages", "installed_apps", "safari_extensions",
+      "kernel_extensions_new", "listening_ports_non_loopback", "persistence_launchd", "persistence_launchd_overrides",
+      "persistence_startup_items_crontab", "recent_logins", "suid_bin_unexpected", "system_extensions_new",
+      "filevault_off", "filevault_state", "firewall_state", "gatekeeper_state", "remote_access_sharing_state", "sip_state"
+    ] as $known
+    | . as $line | (try ($line | fromjson) catch empty)
     | select(.name != null)
     # Strip the pack_<pack>_ prefix. [^_]+ matches the pack name (pack names use
     # hyphens, not underscores) up to the first underscore, so only the pack
     # segment is removed and the query keeps its own underscores.
     | (.name | sub("^pack_[^_]+_"; "")) as $q
+    | select($q | IN($known[]))
     | (.action // "changed") as $act
     | {q: $q, act: $act, cols: (.columns // {})} | @json
   ' 2>/dev/null || true
