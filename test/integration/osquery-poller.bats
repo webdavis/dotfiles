@@ -1,9 +1,12 @@
 #!/usr/bin/env bats
 # The security-posture poller (executable_firewall-gatekeeper-monitor.sh) runs as a
-# gui/501 user LaunchAgent every 60s. B1 scope: it reads the firewall, Gatekeeper,
-# and screen-lock posture in ONE osqueryi query and persists it as an owner-only
-# (0600) baseline, written before any notification. No transition paging yet (B2),
-# no monitoring-gap logic yet (B3).
+# gui/501 user LaunchAgent every 60s. It reads the firewall, Gatekeeper, and
+# screen-lock posture in ONE bounded osqueryi query, treats any unreadable or
+# partial read as a monitoring gap (pages once, never poisons the baseline), and
+# pages CRIT on a protection turning off or an already-off protection at first
+# observation (no trusted prior); it is silent in steady state and on re-enables.
+# Every page precedes the state advance (notify-before-persist), and a persistence
+# failure is itself a loud degraded-monitor gap.
 #
 # R2-3: screen-lock lives HERE, not in the root-daemon pack. The screenlock osquery
 # table is scoped to the logged-in user, so only this user-session poller can read
@@ -65,7 +68,7 @@ teardown() { teardown_poller_harness; }
   assert_baseline_scalar screenlock 0
 }
 
-@test "T-POLL-silent-first-run: a healthy first run persists the baseline and pages nothing, notifying only after the baseline exists" {
+@test "T-POLL-silent-first-run: a healthy first run seeds the baseline and pages nothing" {
   set_posture '[{"firewall":"1","gatekeeper":"1","screenlock":"1"}]'
 
   run run_poller
@@ -74,11 +77,10 @@ teardown() { teardown_poller_harness; }
     false
   }
 
-  assert_no_page               # read+persist only: no transition paging in B1
-  assert_persist_before_notify # any future page fires only AFTER the baseline is written
+  assert_no_page # all protections ON with no prior baseline: seed silently
 }
 
-@test "T-POLL-read-failure-preserves-baseline: a hard osqueryi failure exits 0 and leaves the good baseline byte-for-byte intact at 0600" {
+@test "T-POLL-read-failure-preserves-baseline: a hard osqueryi failure pages the monitoring gap and leaves the good baseline intact at 0600" {
   seed_baseline '{"firewall":"1","gatekeeper":"1","screenlock":"1"}'
   snapshot_baseline
   export POLLER_OSQUERYI_EXIT=1 # osqueryi hard-fails: no output, non-zero exit
@@ -89,13 +91,17 @@ teardown() { teardown_poller_harness; }
     false
   }
 
-  # A blind read must never overwrite a good baseline: it would blind or misfeed
-  # the next run's comparison.
+  # A hard-failed read is a gap: page ONCE (a silent-skip of it would blind the
+  # monitor) and never overwrite the good baseline.
+  assert_page_count 1
+  assert_page_severity_is CRIT
+  assert_page_body_has 'monitoring gap'
+  assert_gap_marker
   assert_baseline_unchanged
   assert_mode 600 "$OSQUERY_POSTURE_STATE"
 }
 
-@test "T-POLL-empty-read-preserves-baseline: an empty osqueryi result exits 0 and leaves the good baseline byte-for-byte intact at 0600" {
+@test "T-POLL-empty-read-preserves-baseline: an empty osqueryi result pages the monitoring gap and leaves the good baseline intact at 0600" {
   seed_baseline '{"firewall":"1","gatekeeper":"1","screenlock":"1"}'
   snapshot_baseline
   set_posture '[]' # osqueryi succeeds but returns no row
@@ -106,7 +112,12 @@ teardown() { teardown_poller_harness; }
     false
   }
 
-  # An empty read must not blank the baseline to a 1-byte file.
+  # An empty read is a gap: page ONCE (a silent-skip of it would blind the monitor)
+  # and never blank the baseline to a 1-byte file.
+  assert_page_count 1
+  assert_page_severity_is CRIT
+  assert_page_body_has 'monitoring gap'
+  assert_gap_marker
   assert_baseline_unchanged
   assert_mode 600 "$OSQUERY_POSTURE_STATE"
 }
@@ -577,4 +588,22 @@ teardown() { teardown_poller_harness; }
   assert_page_body_has 'degraded' # loud degraded-monitor page, not a silent abort
   # Without this, the failed write leaves the stale prior=0 baseline, which would
   # silently mask a later real OFF as steady-off (0 vs stale 0).
+}
+
+@test "T-POLL-mode-644-prior-distrusted: a group/world-readable (0644) prior baseline is distrusted, so an already-off first observation pages" {
+  seed_baseline '{"firewall":"0","gatekeeper":"1","screenlock":"1"}'
+  chmod 644 "$OSQUERY_POSTURE_STATE" # not owner-only: could be planted to mask a disabled protection
+  set_posture '[{"firewall":"0","gatekeeper":"1","screenlock":"1"}]'
+
+  run run_poller
+  [[ $status -eq 0 ]] || {
+    echo "status $status: $output"
+    false
+  }
+
+  # 0644 fails the mode-600 trust check, so there is no trusted prior: this is a
+  # first observation with the firewall already off. If the mode check were
+  # dropped, the 0644 prior would be trusted and firewall 0-vs-0 would read as a
+  # silent steady-off.
+  assert_page_body_has 'Firewall is OFF (first observation)'
 }

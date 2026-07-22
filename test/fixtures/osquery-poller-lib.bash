@@ -76,15 +76,13 @@ SHIM
   export POLLER_OSQUERYI="$POLLER_HOME/bin/osqueryi"
 
   # Recording send_alert spy at the NEW dispatch path the poller sources. It
-  # never delivers; it records each call's argv and whether the baseline already
-  # existed at call time, so a test can prove persist happens before any page.
+  # never delivers; it records each call's argv and the baseline as it stood at
+  # call time, so a test can prove the ordering (notify-before-persist).
   export POLLER_SEND_ALERT_LOG="$POLLER_HOME/send-alert.log"
   export POLLER_SEND_ALERT_SEVERITY="$POLLER_HOME/send-alert-severity.log"
-  export POLLER_SEND_ALERT_STATE_WITNESS="$POLLER_HOME/send-alert-state-witness.log"
   export POLLER_SEND_ALERT_STATE_AT_CALL="$POLLER_HOME/send-alert-state-at-call.log"
   : >"$POLLER_SEND_ALERT_LOG"
   : >"$POLLER_SEND_ALERT_SEVERITY"
-  : >"$POLLER_SEND_ALERT_STATE_WITNESS"
   : >"$POLLER_SEND_ALERT_STATE_AT_CALL"
   cat >"$POLLER_HOME/.local/libexec/osquery/alert-dispatch.sh" <<'SHIM'
 # shellcheck shell=bash
@@ -93,13 +91,10 @@ send_alert() {
   printf '%s\n' "${1:-}" >>"$POLLER_SEND_ALERT_SEVERITY"
   # Full argv (severity, title, body, sound) for body/naming assertions.
   printf '%s\n' "$*" >>"$POLLER_SEND_ALERT_LOG"
+  # The baseline as it stood when the page fired, so a test can prove the ordering
+  # (notify-before-persist: the baseline still holds the PRIOR value).
   if [[ -f ${OSQUERY_POSTURE_STATE:-/nonexistent} ]]; then
-    printf 'state-present\n' >>"$POLLER_SEND_ALERT_STATE_WITNESS"
-    # The baseline as it stood when the page fired, so a test can prove the
-    # ordering (notify-before-persist: the baseline still holds the PRIOR value).
     cat "$OSQUERY_POSTURE_STATE" >>"$POLLER_SEND_ALERT_STATE_AT_CALL"
-  else
-    printf 'state-absent\n' >>"$POLLER_SEND_ALERT_STATE_WITNESS"
   fi
   # POLLER_SEND_ALERT_EXIT models a dispatch that could NOT durably queue the
   # page (nonzero). Default 0 (queued): the poller then advances the baseline.
@@ -178,15 +173,6 @@ assert_no_page() {
   if [[ -s $POLLER_SEND_ALERT_LOG ]]; then
     printf 'expected NO page, but send_alert was called:\n%s\n' \
       "$(cat "$POLLER_SEND_ALERT_LOG")" >&2
-    return 1
-  fi
-}
-
-# assert_persist_before_notify -- no send_alert call ever saw a missing baseline,
-# so every notification (if any) fired only AFTER the baseline was written.
-assert_persist_before_notify() {
-  if grep -qF 'state-absent' "$POLLER_SEND_ALERT_STATE_WITNESS" 2>/dev/null; then
-    printf 'expected the baseline to exist before any notification, but a send_alert call saw it missing\n' >&2
     return 1
   fi
 }
