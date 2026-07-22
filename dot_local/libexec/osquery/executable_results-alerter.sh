@@ -100,37 +100,59 @@ main() {
 
   # Read only the new bytes since the cursor. Bound the read to the snapshot window
   # (head -c) so rows appended after we captured $size are not consumed early and
-  # re-fired next time; || true absorbs head's SIGPIPE. Clamp defensively: an
-  # inode-reusing rotation in the window could otherwise hand head -c a non-positive
-  # count.
-  local span new_lines=""
+  # re-fired next time. A sentinel byte (x) is appended then stripped: a command
+  # substitution strips trailing newlines, and we must know EXACTLY where the last
+  # complete record ends. The `; printf x` runs after the pipeline regardless of a
+  # head SIGPIPE, so no `|| true` is needed.
+  local span snapshot=""
   span=$((size - prev_offset))
   if [[ $span -gt 0 ]]; then
-    new_lines="$(tail -c "+$((prev_offset + 1))" "$LOG" | head -c "$span" || true)"
+    snapshot="$(
+      tail -c "+$((prev_offset + 1))" "$LOG" 2>/dev/null | head -c "$span" 2>/dev/null
+      printf x
+    )"
+    snapshot="${snapshot%x}"
   fi
 
-  # The pipeline: normalize the raw rows into findings, route each to page/digest/
-  # log-only (digest and log-only are handled in-stage), render the CRIT
+  # Advance only through COMPLETE records. osquery writes a row then its newline; a
+  # torn trailing line (mid-write, no newline yet) must be RETAINED, not skipped, so
+  # the next run re-reads it once complete. complete_records is the snapshot through
+  # its last newline; the trailing bytes after it are a partial line, neither fed to
+  # the pipeline nor checkpointed past. This also stops a complete-JSON-without-a-
+  # newline from being processed early and then double-processed once its newline
+  # lands. complete_bytes is BYTE-exact (LC_ALL=C wc -c) since the cursor is a byte
+  # offset.
+  local complete_records="" complete_bytes=0
+  if [[ $snapshot == *$'\n'* ]]; then
+    complete_records="${snapshot%$'\n'*}"$'\n'
+    complete_bytes="$(printf '%s' "$complete_records" | LC_ALL=C wc -c)"
+    complete_bytes="${complete_bytes//[[:space:]]/}"
+  fi
+  local checkpoint_offset=$((prev_offset + complete_bytes))
+
+  # The pipeline: normalize the complete records into findings, route each to
+  # page/digest/log-only (digest and log-only are handled in-stage), render the CRIT
   # page-candidates into the #priority body. A malformed row yields nothing for that
   # row (normalize's per-line try/fromjson), so a garbage batch produces an empty
   # page and never aborts.
   local render pcount pbody
-  render="$(printf '%s\n' "$new_lines" | normalize_findings | route_findings | render_page)"
+  render="$(printf '%s' "$complete_records" | normalize_findings | route_findings | render_page)"
   pcount="$(jq -r '.pcount // 0' <<<"$render" 2>/dev/null || printf '0')"
   [[ $pcount =~ ^[0-9]+$ ]] || pcount=0
 
-  # Checkpoint ONLY after the batch is durably handled. deliver_ok starts true (a
-  # batch with no page consumed only digest/log-only rows, already handled); a page
-  # that hard-fails to deliver AND spool sets it false, so the cursor stays put and
-  # the next run retries the SAME rows (at-least-once). The occurrence id (inode +
-  # this batch's byte range) makes the page's request_id occurrence-unique yet
-  # stable across a retry of this same batch.
+  # Checkpoint ONLY after the batch is durably handled, and only through the last
+  # COMPLETE record (checkpoint_offset), never past a torn trailing line. deliver_ok
+  # starts true (a batch with no page consumed only digest/log-only rows, already
+  # handled); a page that hard-fails to deliver AND spool sets it false, so the
+  # cursor stays put and the next run retries the SAME rows (at-least-once). The
+  # occurrence id (inode + this batch's complete-record byte range) makes the page's
+  # request_id occurrence-unique yet stable across a retry of this same batch.
   local deliver_ok=1
   if [[ $pcount -gt 0 ]]; then
     pbody="$(jq -r '.pbody' <<<"$render")"
     local title="🔴 **CRITICAL**"
     [[ $pcount -gt 1 ]] && title="🔴 **CRITICAL** · $pcount"
-    if ! send_alert CRIT "$title" "$pbody" "Sosumi" "$inode:$prev_offset:$size"; then
+    if ! send_alert CRIT "$title" "$pbody" "Sosumi" "$inode:$prev_offset:$checkpoint_offset"; then
       deliver_ok=0
     fi
   fi
@@ -139,7 +161,7 @@ main() {
   # is already surfaced (send_alert's loud local alert + delivery log). A nonzero
   # exit would false-trip the uptime watchdog's crash-loop check. The cursor simply
   # stays put for a retry.
-  [[ $deliver_ok -eq 1 ]] && _checkpoint "$inode" "$size"
+  [[ $deliver_ok -eq 1 ]] && _checkpoint "$inode" "$checkpoint_offset"
   exit 0
 }
 

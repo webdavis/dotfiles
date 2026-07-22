@@ -49,6 +49,7 @@ log_size() { wc -c <"$OSQUERY_RESULTS_LOG" | tr -d '[:space:]'; }
 seed_cursor() { printf '%s %s\n' "$(log_inode)" "$1" >"$OSQUERY_RESULTS_OFFSET"; }
 cursor_offset() { awk '{print $2}' "$OSQUERY_RESULTS_OFFSET"; }
 append_row() { printf '%s\n' "$1" >>"$OSQUERY_RESULTS_LOG"; }
+append_partial() { printf '%s' "$1" >>"$OSQUERY_RESULTS_LOG"; } # no trailing newline (torn write)
 crit_page_count() { grep -c 'New administrator account' "$SEND_ALERT_SPY" 2>/dev/null || true; }
 send_alert_calls() { grep -c '^CALL' "$SEND_ALERT_SPY" 2>/dev/null || true; }
 
@@ -128,4 +129,22 @@ run_entry() { run bash "$ENTRY"; }
   [ "$status" -eq 0 ]
   [ "$(crit_page_count)" -eq 0 ]               # nothing paged
   [ "$(cursor_offset)" -eq "$(log_size)" ]     # cursor advanced (no wedge)
+}
+
+# (g) A torn final line (osquery mid-write, no trailing newline) is never lost: the
+#     cursor does not advance past the incomplete record; the completed row pages
+#     exactly once on the next run.
+@test "T-ENTRY-torn: a torn trailing line is retained, then pages once when completed" {
+  seed_cursor 0
+  append_partial "$ADMIN_ROW"                  # a row with NO trailing newline yet
+  run_entry
+  [ "$status" -eq 0 ]
+  [ "$(crit_page_count)" -eq 0 ]               # not processed while the record is torn
+  [ "$(cursor_offset)" -eq 0 ]                 # cursor NOT advanced past the partial line
+  # osquery finishes the record (writes the newline). The completed row pages once.
+  printf '\n' >>"$OSQUERY_RESULTS_LOG"
+  run_entry
+  [ "$status" -eq 0 ]
+  [ "$(crit_page_count)" -eq 1 ]               # delivered exactly once (no double-send)
+  [ "$(cursor_offset)" -eq "$(log_size)" ]     # cursor now advances past the complete record
 }
