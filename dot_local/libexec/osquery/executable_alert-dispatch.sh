@@ -333,6 +333,28 @@ _osquery_row_over_threshold_reason() { # <attempts> <created_at>
   return 1
 }
 
+# Print the number of rows in one alert table, read-only and fail-soft. Backs
+# the two public queue-health counters below. A missing database (nothing ever
+# stored), a missing table (bootstrapped later), or an absent sqlite3 all read
+# as zero, printed as a bare integer, never an error: a health probe must report
+# a number, not fail. Uses a READ-ONLY connection so a probe never creates the
+# file, the schema, or a WAL sidecar. The table name is a fixed internal literal
+# (SQLite cannot parameterize an identifier), so there is no injection surface.
+_osquery_alert_row_count() { # <table>
+  local table="$1" sqlite3_bin count
+  [[ -f $OSQUERY_UNDELIVERED_ALERTS_DB ]] || {
+    printf '0'
+    return 0
+  }
+  sqlite3_bin="$(_osquery_sqlite3_bin)" || {
+    printf '0'
+    return 0
+  }
+  count="$("$sqlite3_bin" -readonly "$OSQUERY_UNDELIVERED_ALERTS_DB" "SELECT COUNT(*) FROM $table;" 2>/dev/null)" || count=0
+  [[ $count =~ ^[0-9]+$ ]] || count=0
+  printf '%s' "$count"
+}
+
 # Delete one delivered page's pending_alerts row, keyed by request_id. Called
 # ONLY after a confirmed 2xx (the write-ahead contract: the row is the page's
 # durable copy until delivery is confirmed). A missing DB is a clean no-op
@@ -594,6 +616,23 @@ retry_undelivered_alerts() {
       "$dead_letter_count undeliverable page(s) dead-lettered; the alert delivery pipeline needs attention."
   fi
   return 0
+}
+
+# Print how many undelivered pages are still queued in pending_alerts. A public,
+# read-only counter the watchdog polls to tell a healthy-quiet pipeline (zero
+# queued) from one silently backing up. Zero before anything is stored; a bare
+# integer on stdout; never an error and never a side effect.
+osquery_pending_alert_count() {
+  _osquery_alert_row_count pending_alerts
+}
+
+# Print how many pages the drain has given up on (dead_letter_alerts rows). A
+# public, read-only counter the watchdog polls: a nonzero count means delivery
+# permanently failed for at least one page and the pipeline needs attention.
+# Zero before anything is dead-lettered; a bare integer on stdout; never an error
+# and never a side effect.
+osquery_dead_letter_count() {
+  _osquery_alert_row_count dead_letter_alerts
 }
 
 # Build the signed webhook body for one CRIT page and print it. tier: a page is
