@@ -686,33 +686,69 @@ _notify_locally() {
 # already resolved), and one still ALIVE after the window has its banner up,
 # which is success, so it is left running exactly as before.
 _loud_local() {
-  # The optional third argument is the notification sound; empty or absent
-  # falls back to Funk (the historical loud-path sound), so two-argument
-  # callers keep their exact old behavior while the local-notification retry
-  # can replay a stored row's own sound. The optional fourth argument is a
-  # SUBTITLE, used by the drain retry path to render the occurrence time into
-  # a late banner; empty or absent means no subtitle line at all, so every
-  # existing caller's banner is byte-identical. Both notifier channels support
-  # it (alerter --subtitle per its help; osascript display notification's
-  # subtitle clause, verified to parse and post).
-  local title="$1" message="$2" sound="${3:-Funk}" subtitle="${4-}"
+  # Optional third argument: the notification sound (empty or absent falls
+  # back to Funk, the historical loud-path sound). Optional fourth: a SUBTITLE
+  # (the drain retry renders the occurrence time there); empty means no
+  # subtitle line, so two-argument callers' banners are byte-identical. The
+  # empty first argument to the confirm helper means NO durable row is tied to
+  # this banner, so nothing is ever deleted on its behalf.
+  _osquery_show_banner_confirm_delete "" "$1" "$2" "${3-}" "${4-}"
+}
+
+# Show one banner and, when a durable pending_local_notifications row is tied
+# to it (a non-empty notification_id), delete that row ONLY on CONFIRMED
+# success. The DATABASE is the truth about delivery; the return status is
+# ADVISORY (for log wording): 0 means the banner posted or already resolved
+# successfully, nonzero means the notifier is absent or failed fast.
+#
+# Confirmation is per channel. osascript is synchronous: it posts and returns,
+# so its exit 0 confirms and deletes inline. alerter blocks for the banner's
+# whole LIFETIME (verified on 26.5: exit only at resolve, 0 in every resolved
+# case; a failed invocation exits fast and nonzero), so a WATCHER owns the
+# confirm: a backgrounded subshell runs the alerter to completion (the watcher
+# must own the process, a sibling shell cannot wait on another shell's child)
+# and deletes the row only on exit 0. The watcher may outlive the caller;
+# orphaning is fine because alerter's --timeout 60 bounds its life, and WAL,
+# the busy_timeout, and the idempotent delete-by-id make a late delete safe
+# against concurrent sweeps.
+#
+# The caller-facing grace window below decides LOG WORDING ONLY (posted vs
+# failed fast), never persistence. Accepted consequence: AT-LEAST-ONCE banner
+# display. A retained row for a banner that actually showed can re-banner at
+# the next tick only if the watcher died before its delete; a duplicate banner
+# is minor noise, while the silently lost CRIT banner this design eliminates
+# was the real harm. The 60-second alerter ceiling under the 300-second drain
+# tick makes the normal case exactly-once.
+_osquery_show_banner_confirm_delete() { # <notification_id-or-empty> <title> <message> [sound] [subtitle]
+  local notification_id="$1" title="$2" message="$3" sound="${4:-Funk}" subtitle="${5-}"
   if command -v alerter >/dev/null 2>&1; then
     local alerter_arguments=(--timeout 60 --title "$title" --message "$message" --sound "$sound")
     if [[ -n $subtitle ]]; then
       alerter_arguments+=(--subtitle "$subtitle")
     fi
-    alerter "${alerter_arguments[@]}" >/dev/null 2>&1 &
-    local notifier_pid=$!
+    # The watcher: runs the alerter to completion, deletes only on confirmed
+    # success, and exits with the alerter's own status so a fast failure is
+    # visible to the grace-window check below.
+    (
+      alerter_status=0
+      alerter "${alerter_arguments[@]}" >/dev/null 2>&1 || alerter_status=$?
+      if [[ $alerter_status -eq 0 && -n $notification_id ]]; then
+        _osquery_delete_local_notification_row "$notification_id" ||
+          _osquery_log "LOCAL-NOTIFY-DELETE-FAILED shown banner kept its row: notification_id=$notification_id (a later sweep re-banners it)"
+      fi
+      exit "$alerter_status"
+    ) &
+    local watcher_pid=$!
     for _ in 1 2 3 4 5 6; do
-      kill -0 "$notifier_pid" 2>/dev/null || break
+      kill -0 "$watcher_pid" 2>/dev/null || break
       sleep 0.1 2>/dev/null || sleep 1
     done
-    if kill -0 "$notifier_pid" 2>/dev/null; then
+    if kill -0 "$watcher_pid" 2>/dev/null; then
       return 0 # still alive after the window: the banner is up on screen
     fi
-    local notifier_status=0
-    wait "$notifier_pid" 2>/dev/null || notifier_status=$?
-    return "$notifier_status"
+    local watcher_status=0
+    wait "$watcher_pid" 2>/dev/null || watcher_status=$?
+    return "$watcher_status"
   fi
   # osascript posts the notification and returns immediately, so its own exit
   # status IS the outcome; an absent osascript is command-not-found (nonzero).
@@ -724,28 +760,39 @@ _loud_local() {
     osascript_command+=" subtitle \"$escaped_subtitle\""
   fi
   osascript_command+=" sound name \"$sound\""
-  osascript -e "$osascript_command" >/dev/null 2>&1
-}
-
-# Fire the loud local CRIT banner DURABLY: show it via _loud_local and, ONLY
-# when the banner failed, persist it as a pending_local_notifications row so a
-# later drain can retry it (a lost CRIT banner otherwise reads as good news).
-# A shown banner touches no storage at all: the success path never bootstraps
-# the table and never creates the database. The optional third argument is a
-# stable identity seed for THIS notification (a caller with occurrence context
-# passes one, so a retried occurrence dedups to one row); absent, the identity
-# derives from title, message, and the capture time. The id is the seed's hash
-# (same shape as the alert request ids), so it is quote-free by construction.
-#
-# ALWAYS returns 0: the banner was either shown or captured for retry, and when
-# even the capture fails (storage broken) that is logged loudly
-# (LOCAL-NOTIFY-STORE-FAILED) but must never abort the caller, every caller is
-# already on its worst-case path when this fires.
-_osquery_notify_local_durable() { # <title> <message> [notification_seed]
-  local title="$1" message="$2" notification_seed="${3-}"
-  if _loud_local "$title" "$message"; then
+  if osascript -e "$osascript_command" >/dev/null 2>&1; then
+    if [[ -n $notification_id ]]; then
+      _osquery_delete_local_notification_row "$notification_id" ||
+        _osquery_log "LOCAL-NOTIFY-DELETE-FAILED shown banner kept its row: notification_id=$notification_id (a later sweep re-banners it)"
+    fi
     return 0
   fi
+  return 1
+}
+
+# Fire the loud local CRIT banner DURABLY, write-ahead: persist the
+# pending_local_notifications row FIRST (atomic bootstrap + INSERT), THEN
+# attempt the banner, and let CONFIRMED success delete the row (the watcher /
+# inline confirm in _osquery_show_banner_confirm_delete). A failed or
+# unconfirmed banner therefore always has a durable row: a kill at any instant
+# after the persist cannot lose the banner, and an alerter that outlives the
+# grace window and then fails leaves the row untouched because no confirmation
+# ever arrives. The DB is the truth; the banner attempt's return status is
+# advisory log wording only.
+#
+# The optional third argument is a stable identity seed for THIS notification
+# (a caller with occurrence context passes one, so a retried occurrence dedups
+# to one row); absent, the identity derives from title, message, and the
+# capture time. The id is the seed's hash (same shape as the alert request
+# ids), so it is quote-free by construction.
+#
+# ALWAYS returns 0. When the write-ahead persist itself fails (storage broken,
+# the documented unfixable case: send_alert's STORE-FAILED path fires exactly
+# when this same storage is unwritable), the banner still fires best-effort and
+# the loss of durability is logged loudly (LOCAL-NOTIFY-STORE-FAILED), but the
+# caller is never aborted, it is already on its worst-case path.
+_osquery_notify_local_durable() { # <title> <message> [notification_seed]
+  local title="$1" message="$2" notification_seed="${3-}"
   local occurrence_timestamp
   occurrence_timestamp="$(date -u +%s)"
   [[ $occurrence_timestamp =~ ^[0-9]+$ ]] || occurrence_timestamp=0
@@ -753,13 +800,19 @@ _osquery_notify_local_durable() { # <title> <message> [notification_seed]
   local notification_id
   if ! notification_id="local-$(printf '%s' "$notification_seed" | _sha256_hex_of_stdin | cut -c1-32)" ||
     [[ $notification_id == "local-" ]]; then
-    _osquery_log "LOCAL-NOTIFY-STORE-FAILED banner failed and no id could be derived (hasher broken); notification not persisted: $title"
+    _osquery_log "LOCAL-NOTIFY-STORE-FAILED no id could be derived (hasher broken); banner fired without a durable copy: $title"
+    _loud_local "$title" "$message" || true
     return 0
   fi
-  if _osquery_store_local_notification_row "$occurrence_timestamp" "$notification_id" "$title" "$message" "Funk"; then
-    _osquery_log "LOCAL-NOTIFY-STORED banner failed, persisted for retry: notification_id=$notification_id"
+  if ! _osquery_store_local_notification_row "$occurrence_timestamp" "$notification_id" "$title" "$message" "Funk"; then
+    _osquery_log "LOCAL-NOTIFY-STORE-FAILED banner fired without a durable copy (storage unwritable: $OSQUERY_UNDELIVERED_ALERTS_DB): $title"
+    _loud_local "$title" "$message" || true
+    return 0
+  fi
+  if _osquery_show_banner_confirm_delete "$notification_id" "$title" "$message" "Funk" ""; then
+    : # posted (the watcher confirms and deletes) or already confirmed inline
   else
-    _osquery_log "LOCAL-NOTIFY-STORE-FAILED banner failed AND could not be persisted (storage unwritable: $OSQUERY_UNDELIVERED_ALERTS_DB): $title"
+    _osquery_log "LOCAL-NOTIFY-STORED banner failed, row retained for retry: notification_id=$notification_id"
   fi
   return 0
 }
@@ -876,9 +929,11 @@ _redeliver_pending_local_notification() { # <notification_id> <occurrence_ts> <t
   if occurred_iso8601="$(_osquery_epoch_to_iso8601 "$occurrence_ts")" && [[ -n $occurred_iso8601 ]]; then
     occurred_subtitle="occurred $occurred_iso8601"
   fi
-  if _loud_local "$title" "$message" "$sound" "$occurred_subtitle"; then
-    _osquery_delete_local_notification_row "$notification_id" ||
-      _osquery_log "LOCAL-NOTIFY-DELETE-FAILED shown banner kept its row: notification_id=$notification_id (a later sweep re-banners it)"
+  # The row already exists (write-ahead by construction), so the retry hands it
+  # to the confirmed-delete banner: only a CONFIRMED success removes it (the
+  # watcher, or the synchronous fallback inline). An advisory "posted" leaves
+  # the row for the watcher's verdict; only a fast failure books the attempt.
+  if _osquery_show_banner_confirm_delete "$notification_id" "$title" "$message" "$sound" "$occurred_subtitle"; then
     return 0
   fi
   _osquery_record_local_notify_failure "$notification_id" ||

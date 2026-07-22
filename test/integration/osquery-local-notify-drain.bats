@@ -28,6 +28,19 @@ local_row_count() {
     'SELECT COUNT(*) FROM pending_local_notifications;' 2>/dev/null || echo 0
 }
 
+# The success-delete is owned by the alerter WATCHER (confirmed-exit semantics),
+# which settles asynchronously, so a delete assertion polls instead of racing.
+wait_for_local_row_count() { # <expected>
+  local expected="$1" attempt count
+  for ((attempt = 0; attempt < 30; attempt++)); do
+    count="$(local_row_count)"
+    [[ $count == "$expected" ]] && return 0
+    sleep 0.1
+  done
+  printf 'expected %s local row(s) once the watcher settled, still %s\n' "$expected" "$count" >&2
+  return 1
+}
+
 @test "T-LND-redeliver-success: a due local row banners once (text intact) and is deleted" {
   # The title carries a tab and apostrophes and the message an apostrophe, so
   # this also pins the export encoding: arbitrary text must reach the notifier
@@ -41,7 +54,7 @@ local_row_count() {
 
   retry_undelivered_alerts
 
-  [[ "$(local_row_count)" == "0" ]] # delivered -> deleted
+  wait_for_local_row_count 0 # delivered -> confirmed by the watcher -> deleted
   # Exactly one banner attempt, and the stored text reached it intact.
   [[ "$(grep -c . "$ALERTER_LOG")" == "1" ]]
   grep -qF "$tricky_title" "$ALERTER_LOG"
@@ -178,7 +191,7 @@ iso8601_of_epoch() {
 
   retry_undelivered_alerts
 
-  [[ "$(local_row_count)" == "0" ]] # shown -> deleted
+  wait_for_local_row_count 0 # shown -> confirmed by the watcher -> deleted
   # The banner carried the ORIGINAL occurrence time as its subtitle, so the
   # operator reads a late banner as history, not as breaking news.
   grep -qF -- "--subtitle occurred $(iso8601_of_epoch "$occurrence_ts")" "$ALERTER_LOG"
@@ -226,7 +239,7 @@ iso8601_of_epoch() {
   set_alerter_stub_exit 0
   OSQUERY_LOCAL_NOTIFY_MAX_AGE_SECONDS=999999 retry_undelivered_alerts
   grep -qF 'knob title' "$ALERTER_LOG"
-  [[ "$(local_row_count)" == "0" ]] # shown -> deleted
+  wait_for_local_row_count 0 # shown -> confirmed by the watcher -> deleted
   # Re-seed and shrink the ceiling BELOW the row's age: it expires unseen.
   set_alerter_stub_exit 64
   _osquery_notify_local_durable "knob title 2" "knob message 2" "seed-knob-2"
@@ -254,9 +267,38 @@ iso8601_of_epoch() {
   [[ $status -eq 0 ]]
   [[ $output == *DONE* ]]
 
-  [[ "$(local_row_count)" == "0" ]] # ancient expired, fresh shown-and-deleted
+  wait_for_local_row_count 0 # ancient expired, fresh shown-confirmed-deleted
   grep -qF 'fresh behind title' "$ALERTER_LOG" # the row behind the expiry still bannered
   ! grep -qF 'doomed title' "$ALERTER_LOG"     # the expired one never did
   ! grep -qi 'pipeline degraded' "$ALERTER_LOG" # expiry is not a dead-letter; no CRIT
   grep -q 'LOCAL-NOTIFY-EXPIRED' "$OSQUERY_DELIVERY_LOG"
+}
+
+@test "T-LND-late-failure-durable: a redelivered banner that outlives the grace window and then fails keeps its row" {
+  # sol's repro on the retry path: the alerter lives past the ~0.6s grace
+  # window (advisory says posted) and THEN exits nonzero. The old inline
+  # success-delete would have removed the row on the advisory alone; the
+  # watcher-confirmed delete keeps it, because no confirmation ever arrived.
+  set_alerter_stub_exit 64
+  _osquery_notify_local_durable "late fail title" "late fail message" "seed-latefail"
+  [[ "$(local_row_count)" == "1" ]] # write-ahead: the row exists before any retry
+
+  cat >"$HARNESS_HOME/bin/alerter" <<STUB
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >>"$ALERTER_LOG"
+sleep 0.7
+exit 64
+STUB
+  chmod +x "$HARNESS_HOME/bin/alerter"
+  : >"$ALERTER_LOG"
+
+  retry_undelivered_alerts
+
+  grep -qF 'late fail title' "$ALERTER_LOG" # the retry really attempted the banner
+  sleep 1.2 # let the watcher witness the late nonzero exit
+  if [[ "$(local_row_count)" != "1" ]]; then
+    printf 'expected the row to SURVIVE a banner that failed after the grace window; rows=%s\n' \
+      "$(local_row_count)" >&2
+    return 1
+  fi
 }
