@@ -1,0 +1,83 @@
+#!/usr/bin/env bash
+#
+# The launchd page-allowlist ships as the private NDJSON tuple file
+# dot_config/osquery/private_page-launchd-allowlist.txt (the private_ prefix makes
+# chezmoi deploy it at 0600), and the old flat bare-label list is gone. Pins:
+#   - the tuple file exists and its source basename carries the private_ prefix
+#     (chezmoi sets the 0600 mode from that prefix);
+#   - every non-comment line is valid NDJSON carrying exactly the four tuple fields
+#     (label, path, program, sha256);
+#   - a home-rooted path/program is stored as ~/ , never an absolute /Users/ path,
+#     so the file stays user-agnostic;
+#   - the file contains no em-dash or en-dash;
+#   - the old flat dot_config/osquery/launch-allowlist.txt is absent from the tree.
+set -euo pipefail
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." || exit 1 && pwd)"
+
+new_file="$REPO_ROOT/dot_config/osquery/private_page-launchd-allowlist.txt"
+old_file="$REPO_ROOT/dot_config/osquery/launch-allowlist.txt"
+
+if ! command -v jq >/dev/null 2>&1; then
+  printf 'SKIP: jq not found (run inside the nix dev shell)\n'
+  exit 0
+fi
+
+fails=0
+fail() {
+  printf 'FAIL: %s\n' "$*" >&2
+  fails=$((fails + 1))
+}
+
+entry_count=0
+
+# The tuple file ships, at the private_-prefixed source path (chezmoi -> 0600 target).
+if [[ ! -f $new_file ]]; then
+  fail "the tuple file is missing: $new_file"
+else
+  case "$(basename "$new_file")" in
+    private_*) : ;;
+    *) fail "the source basename must carry the private_ prefix (0600 deploy): $(basename "$new_file")" ;;
+  esac
+
+  # No em-dash (U+2014) or en-dash (U+2013) anywhere in the file.
+  if LC_ALL=C grep -qE $'\xe2\x80\x94|\xe2\x80\x93' "$new_file"; then
+    fail "the tuple file contains an em-dash or en-dash"
+  fi
+
+  # No absolute home leak: a home-rooted path must be stored as ~/ , never /Users/.
+  if grep -q '/Users/' "$new_file"; then
+    fail "the tuple file leaks an absolute /Users/ path (store home as ~/)"
+  fi
+
+  # Every non-comment, non-blank line is valid NDJSON carrying exactly the four fields.
+  while IFS= read -r line || [[ -n $line ]]; do
+    case "$line" in
+      '' | '#'*) continue ;;
+    esac
+    entry_count=$((entry_count + 1))
+    if ! jq -e 'type == "object"' <<<"$line" >/dev/null 2>&1; then
+      fail "not valid NDJSON: $line"
+      continue
+    fi
+    if ! jq -e '(keys_unsorted | sort) == ["label","path","program","sha256"]' <<<"$line" >/dev/null 2>&1; then
+      fail "a tuple must carry exactly label,path,program,sha256: $line"
+    fi
+  done <"$new_file"
+
+  if [[ $entry_count -eq 0 ]]; then
+    fail "the tuple file has no entries (a comments-only seed suppresses nothing)"
+  fi
+fi
+
+# The old flat bare-label allowlist is gone.
+if [[ -e $old_file ]]; then
+  fail "the old flat allowlist must be removed from the tree: $old_file"
+fi
+
+if [[ $fails -gt 0 ]]; then
+  printf '%d check(s) failed\n' "$fails" >&2
+  exit 1
+fi
+
+printf 'osquery-page-allowlist-seed: OK (%d tuple(s), private_ 0600, no /Users/ leak, no dash, old flat file gone)\n' "$entry_count"
