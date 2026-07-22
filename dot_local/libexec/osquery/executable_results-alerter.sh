@@ -1,328 +1,144 @@
 #!/usr/bin/env bash
 #
-# results-alerter.sh, fired by launchd (WatchPaths) whenever
-# ~/.local/log/osquery/osqueryd.results.log changes. Reads new lines since the
-# last run (byte-offset state file), and surfaces every differential finding
-# from the scheduled packs (intrusion-detection, security-policy-regression,
-# installed-software-drift) AND the file-events query. Each batch becomes a
-# single notification, delivered to both the local notifier and the #osquery
-# Discord channel via alert-dispatch.sh.
+# results-alerter.sh - the osquery alerter ENTRY, fired by launchd (WatchPaths)
+# whenever ~/.local/log/osquery/osqueryd.results.log changes. It reads the new
+# results-log rows since its cursor, runs them through the decomposed pipeline
+# (normalize -> route -> render), delivers a confirmed-CRITICAL batch as one
+# #priority page via alert-dispatch.sh, and advances its cursor ONLY after the
+# batch is durably delivered-or-spooled - so a crash between read and checkpoint
+# re-reads the same rows (at-least-once), never skips them.
 #
-# Supersedes an earlier file-events-only notifier that watched the same log.
+# The pipeline stages are sourced single-responsibility helpers under
+# results-alerter/; this file is the entry that owns the snapshot-to-delivery
+# transaction. ONLY main calls send_alert, the cursor checkpoint (_checkpoint),
+# or exit.
+#
+# No startup drain: the scheduled drainer (drain-undelivered-alerts.sh) owns
+# delivery liveness - it sweeps the write-ahead undelivered-alerts store on its
+# own timer - so the alerter stays single-responsibility (detect and page) and
+# never blocks detection behind a delivery retry. A page that cannot be delivered
+# now is persisted by send_alert's write-ahead store and delivered by that drainer
+# later.
 
 set -euo pipefail
 
 LOG="${OSQUERY_RESULTS_LOG:-$HOME/.local/log/osquery/osqueryd.results.log}"
 STATE="${OSQUERY_RESULTS_OFFSET:-$HOME/.local/state/osquery-results-offset}"
+HELPERS="$HOME/.local/libexec/osquery"
 
 # shellcheck source=/dev/null
-source "$HOME/.local/libexec/osquery/alert-dispatch.sh"
+source "$HELPERS/alert-dispatch.sh"
+# shellcheck source=/dev/null
+source "$HELPERS/results-alerter/normalize.sh"
+# shellcheck source=/dev/null
+source "$HELPERS/results-alerter/route.sh"
+# shellcheck source=/dev/null
+source "$HELPERS/results-alerter/allowlist-verdict.sh"
+# shellcheck source=/dev/null
+source "$HELPERS/results-alerter/pipeline-verdict.sh"
+# shellcheck source=/dev/null
+source "$HELPERS/results-alerter/digest-store.sh"
+# shellcheck source=/dev/null
+source "$HELPERS/results-alerter/render-page.sh"
 
-mkdir -p "$(dirname "$STATE")"
-[[ -f $LOG ]] || exit 0
+# _checkpoint <inode> <offset>: atomically write the cursor to the current inode +
+# offset. Called by main ONLY after a batch is durably delivered-or-spooled -
+# never before parsing - so a page that could be neither delivered nor stored
+# leaves the cursor put and the next run retries the same rows.
+_checkpoint() { printf '%s %s\n' "$1" "$2" >"$STATE.tmp" && mv -f "$STATE.tmp" "$STATE"; }
 
-# Portable size + inode (wc -c / ls -i work on macOS and Linux; BSD `stat -f`
-# does not). Inode lets us notice a rotated/recreated log at the same path.
-size="$(wc -c <"$LOG")"
-size=${size//[[:space:]]/}
-# shellcheck disable=SC2012  # $LOG is a fixed, controlled path; ls -i is safe and portable
-inode="$(ls -i "$LOG" | awk '{print $1}')"
+main() {
+  mkdir -p "$(dirname "$STATE")"
+  [[ -f $LOG ]] || exit 0
 
-# State holds "<inode> <offset>". Re-seed silently when it is missing or not in
-# that exact two-integer form (first run, or migrating the old single-int file).
-previous_inode=""
-previous_offset=""
-if [[ -f $STATE ]]; then read -r previous_inode previous_offset <"$STATE" || true; fi
-# Capture-then-validate, not branch-on-read: a state file missing its trailing
-# newline makes `read` return non-zero even though it populated the vars, so
-# keying the re-seed on read's exit status would skip a whole differential batch.
-if ! [[ $previous_inode =~ ^[0-9]+$ && $previous_offset =~ ^[0-9]+$ ]]; then
-  printf '%s %s\n' "$inode" "$size" >"$STATE.tmp" && mv -f "$STATE.tmp" "$STATE"
+  # Portable size + inode (wc -c / ls -i work on macOS and Linux; BSD stat -f does
+  # not). The inode lets us notice a rotated/recreated log at the same path.
+  local size inode
+  size="$(wc -c <"$LOG")"
+  size=${size//[[:space:]]/}
+  # shellcheck disable=SC2012  # $LOG is a fixed, controlled path - ls -i is safe and portable
+  inode="$(ls -i "$LOG" | awk '{print $1}')"
+
+  # The cursor holds "<inode> <offset>". A missing or malformed cursor is an
+  # ALERTING FAILURE, not a silent seek-to-EOF: deleting the cursor must not be a
+  # way to suppress a queued batch. Capture-then-validate (not branch-on-read): a
+  # state file missing its trailing newline makes `read` return non-zero even
+  # though it populated the vars, so keying the re-seed on read's status would skip
+  # a whole batch.
+  local prev_inode="" prev_offset="" cursor_reset=0
+  if [[ -f $STATE ]]; then read -r prev_inode prev_offset <"$STATE" || true; fi
+  if ! [[ $prev_inode =~ ^[0-9]+$ && $prev_offset =~ ^[0-9]+$ ]]; then
+    # Reprocess a BOUNDED recent tail (avoids a multi-MB replay; the page cap bounds
+    # the blast radius) and warn LOUDLY below.
+    cursor_reset=1
+    prev_inode="$inode"
+    local reset_tail="${OSQUERY_RESULTS_RESET_TAIL_BYTES:-262144}"
+    if [[ $size -gt $reset_tail ]]; then prev_offset=$((size - reset_tail)); else prev_offset=0; fi
+  fi
+
+  # New inode (rotation/recreation) or a shrink (truncation) -> read from byte 0 so
+  # nothing is skipped or replayed from the old file.
+  if [[ $inode != "$prev_inode" || $size -lt $prev_offset ]]; then
+    prev_offset=0
+  fi
+
+  # Nothing new since the cursor: exit without touching the cursor.
+  [[ $size -eq $prev_offset ]] && exit 0
+
+  # Warn LOUDLY that the cursor was reset (a real sound -> a page that reaches the
+  # operator, not a muted note). The reprocessed tail surfaces any queued unsafe row
+  # on its own; this is the meta-signal that the alerter's own state was disturbed.
+  # Best-effort (|| true) so it never blocks the batch; the batch page gates the
+  # checkpoint below.
+  if [[ $cursor_reset -eq 1 ]]; then
+    send_alert CRIT "🔴 **osquery cursor reset**" \
+      "**The osquery alerter cursor was missing or corrupt - monitoring state was disturbed.**"$'\n'"- Recent results were reprocessed from a bounded tail; a queued batch may have been briefly skipped before this run."$'\n'"- If you did not clear ~/.local/state, something else reset it - **investigate now**." \
+      "Sosumi" "cursor-reset:$inode:$size" || true
+  fi
+
+  # Read only the new bytes since the cursor. Bound the read to the snapshot window
+  # (head -c) so rows appended after we captured $size are not consumed early and
+  # re-fired next time; || true absorbs head's SIGPIPE. Clamp defensively: an
+  # inode-reusing rotation in the window could otherwise hand head -c a non-positive
+  # count.
+  local span new_lines=""
+  span=$((size - prev_offset))
+  if [[ $span -gt 0 ]]; then
+    new_lines="$(tail -c "+$((prev_offset + 1))" "$LOG" | head -c "$span" || true)"
+  fi
+
+  # The pipeline: normalize the raw rows into findings, route each to page/digest/
+  # log-only (digest and log-only are handled in-stage), render the CRIT
+  # page-candidates into the #priority body. A malformed row yields nothing for that
+  # row (normalize's per-line try/fromjson), so a garbage batch produces an empty
+  # page and never aborts.
+  local render pcount pbody
+  render="$(printf '%s\n' "$new_lines" | normalize_findings | route_findings | render_page)"
+  pcount="$(jq -r '.pcount // 0' <<<"$render" 2>/dev/null || printf '0')"
+  [[ $pcount =~ ^[0-9]+$ ]] || pcount=0
+
+  # Checkpoint ONLY after the batch is durably handled. deliver_ok starts true (a
+  # batch with no page consumed only digest/log-only rows, already handled); a page
+  # that hard-fails to deliver AND spool sets it false, so the cursor stays put and
+  # the next run retries the SAME rows (at-least-once). The occurrence id (inode +
+  # this batch's byte range) makes the page's request_id occurrence-unique yet
+  # stable across a retry of this same batch.
+  local deliver_ok=1
+  if [[ $pcount -gt 0 ]]; then
+    pbody="$(jq -r '.pbody' <<<"$render")"
+    local title="🔴 **CRITICAL**"
+    [[ $pcount -gt 1 ]] && title="🔴 **CRITICAL** · $pcount"
+    if ! send_alert CRIT "$title" "$pbody" "Sosumi" "$inode:$prev_offset:$size"; then
+      deliver_ok=0
+    fi
+  fi
+
+  # Exit 0 even on a delivery hard-failure: the batch was processed and the failure
+  # is already surfaced (send_alert's loud local alert + delivery log). A nonzero
+  # exit would false-trip the uptime watchdog's crash-loop check. The cursor simply
+  # stays put for a retry.
+  [[ $deliver_ok -eq 1 ]] && _checkpoint "$inode" "$size"
   exit 0
-fi
+}
 
-# New inode (rotation/recreation) or a shrink (truncation) → read the current
-# file from byte 0 so nothing is skipped or replayed from the old file.
-if [[ $inode != "$previous_inode" || $size -lt $previous_offset ]]; then
-  previous_offset=0
-fi
-
-[[ $size -eq $previous_offset ]] && exit 0
-
-# Notify on ALL observed activity, tiered by severity so high-threat events
-# stand out from routine ones. Each row is classified:
-#   CRIT (🔴):   a protection turned off (security-policy-regression), a new
-#                 unexpected setuid binary, or ssh-key / sudoers tampering.
-#   NOTICE (🟡): new persistence/auto-start, launchd-dir file changes, or a
-#                 new kernel/system extension.
-#   INFO (🔵):   installed-software drift, listening ports, logins.
-# chezmoi's renameio temp-file churn is excluded. jq emits "<SEV>\t<text>".
-# Bound the read to the snapshot window (head -c) so rows appended after we
-# captured $size aren't consumed early and re-fired next time; `|| true`
-# absorbs head's SIGPIPE. jq -rR + per-line try/fromjson means one malformed
-# line yields nothing for that line instead of aborting the whole batch.
-# $size > $previous_offset is guaranteed by the shrink-reset and equality-exit
-# guards above, but clamp defensively: an inode-reusing rotation in the window
-# since we captured $size could otherwise hand head -c a non-positive count.
-span=$((size - previous_offset))
-new_lines=""
-if [[ $span -gt 0 ]]; then
-  new_lines="$(tail -c "+$((previous_offset + 1))" "$LOG" | head -c "$span" || true)"
-fi
-raw_findings="$(printf '%s\n' "$new_lines" | jq -rR '
-  . as $line | (try ($line | fromjson) catch empty) |
-  # A security-policy row is CRITICAL only when the protection turned OFF, not
-  # on every change. For the boolean states that is an "added" row carrying the
-  # off value; for filevault (the query returns only encrypted volumes) it is a
-  # "removed" row, a volume left the encrypted set. Re-enables, version bumps,
-  # sharing changes, and the paired "removed" old-value rows fall through to
-  # NOTICE. (sharing cannot be direction-classified from a single row, so it is
-  # always NOTICE; the poller covers firewall/Gatekeeper transitions too.)
-  def protection_off:
-    (.name == "pack_security-policy-regression_firewall_state" and .action == "added" and (.columns.global_state // "") == "0")
-    or (.name == "pack_security-policy-regression_gatekeeper_state" and .action == "added" and (.columns.assessments_enabled // "") == "0")
-    or (.name == "pack_security-policy-regression_sip_state" and .action == "added" and (.columns.enabled // "") == "0")
-    or (.name == "pack_security-policy-regression_screenlock_state" and .action == "added" and (.columns.enabled // "") == "0")
-    or (.name == "pack_security-policy-regression_filevault_state" and .action == "removed")
-    or (.action == "currently-off" and (.name | startswith("pack_security-policy-regression_")));
-  def sev:
-    if protection_off
-       or (.name == "pack_intrusion-detection_suid_bin_unexpected")
-       or (.name == "file_events_recent" and ((.columns.category // "") | test("^(ssh|sudoers|sshd_config)$")))
-    then "CRIT"
-    elif (.name | startswith("pack_security-policy-regression_"))
-       or (.name | test("^pack_intrusion-detection_persistence_"))
-       or (.name == "pack_intrusion-detection_kernel_extensions_new")
-       or (.name == "pack_intrusion-detection_system_extensions_new")
-       or (.name == "file_events_recent")
-       or (.name == "es_launchd_writes")
-    then "NOTICE"
-    else "INFO" end;
-  # Snapshot rows (absolute-state floor *_off queries) log under a "snapshot"
-  # array with action "snapshot"; explode each into a synthetic "currently-off"
-  # row so the rest of the pipeline treats it uniformly. Empty snapshot = silent.
-  (if .action == "snapshot"
-   then (.name as $n | .snapshot[]? | {name: $n, action: "currently-off", columns: .})
-   else . end)
-  | select(.name != null and ((.name | startswith("pack_")) or (.name == "file_events_recent") or (.name == "es_launchd_writes")))
-  | select((.columns.target_path // "") | test("/\\.renameio-TempDir") | not)
-  | (.name | sub("^pack_[^_]+_"; "")) as $q
-  | (.action // "changed") as $act
-  # The path the enricher should inspect (a plist, bundle, or binary) per query
-  # type, empty when signing/trust does not apply.
-  | ((if .name == "es_launchd_writes" then (.columns.path // "")
-      elif .name == "file_events_recent" then (.columns.target_path // "")
-      elif (.name | test("_persistence_launchd$")) then (.columns.path // "")
-      elif (.name | test("_persistence_startup_items_crontab$")) then (.columns.path // "")
-      elif (.name | test("_kernel_extensions_new$")) then (.columns.path // "")
-      elif (.name | test("_system_extensions_new$")) then (.columns.bundle_path // .columns.path // "")
-      elif (.name | test("_suid_bin_unexpected$")) then (.columns.path // "")
-      else "" end) | gsub("[\t\n]"; " ")) as $ep
-  # Emit one compact JSON object per finding; the bash side enriches, then renders
-  # it into a #priority block or an #osquery line via the header/field/step maps.
-  | {sev: sev, q: $q, act: $act, cols: (.columns // {}), ep: $ep} | @json
-' 2>/dev/null || true)"
-
-# Advance state before notifying so a slow/failed dispatch never re-fires the
-# same batch on the next WatchPaths trigger. Format: "<inode> <offset>".
-printf '%s %s\n' "$inode" "$size" >"$STATE.tmp" && mv -f "$STATE.tmp" "$STATE"
-
-[[ -z $raw_findings ]] && exit 0
-
-# Enrich CRIT/NOTICE findings with deterministic signing facts (enrich-finding.sh).
-# An UNTRUSTED result promotes NOTICE -> CRIT (louder, never quieter). Fail-open: if the
-# helper is absent or errors, the finding still surfaces, just without a Signing: field.
-# Nothing is ever suppressed here. Each raw line is one compact JSON finding object; we
-# inject .signing and the (possibly promoted) .sev back into it.
-ENRICH_SCRIPT="$HOME/.local/libexec/osquery/enrich-finding.sh"
-
-# Default-deny launch-item allowlist: labels listed here are known-good and are
-# dropped from the quiet #osquery channel (never from #priority, see the
-# CRIT-exempt check in the loop). Load once; fail-open if the file is missing or
-# unreadable (suppress nothing). Strip comments/whitespace/blank lines.
-ALLOWLIST_FILE="${OSQUERY_LAUNCH_ALLOWLIST:-$HOME/.config/osquery/launch-allowlist.txt}"
-allowlist_entries=""
-if [[ -r $ALLOWLIST_FILE ]]; then
-  allowlist_entries="$(sed -e 's/#.*//' -e 's/[[:space:]]//g' "$ALLOWLIST_FILE" | grep -v '^$' || true)"
-fi
-_allowlisted() { [[ -n $allowlist_entries ]] && grep -qxF -- "$1" <<<"$allowlist_entries"; }
-
-enriched=""
-while IFS= read -r finding; do
-  [[ -z $finding ]] && continue
-  # Read the fields we need one-per-line. A tab/space IFS would collapse runs and
-  # shift columns when a middle field is empty (e.g. absent category); line-per-
-  # field preserves empties. Safe because none of these values contains a newline
-  # (enrich_path had newlines stripped upstream; the rest are tokens/labels).
-  {
-    read -r severity
-    read -r enrich_path
-    read -r query_name
-    read -r category
-    read -r label
-  } < <(
-    jq -r '.sev, (.ep // ""), .q, (.cols.category // ""), (.cols.label // .cols.name // "")' <<<"$finding"
-  )
-  signing_facts=""
-  if [[ -n $enrich_path && ($severity == CRIT || $severity == NOTICE) && -x $ENRICH_SCRIPT ]]; then
-    enrich_status=0
-    signing_facts="$("$ENRICH_SCRIPT" "$enrich_path" 2>/dev/null)" || enrich_status=$?
-    [[ $enrich_status -eq 10 && $severity == NOTICE ]] && severity="CRIT"
-  fi
-  # Default-deny allowlist: drop a known-good launch item from #osquery. Checked
-  # AFTER enrichment so a promoted CRIT (an untrusted binary behind an allowlisted
-  # label) is never suppressed. The allowlist only quiets the non-CRIT channel.
-  if [[ $severity != "CRIT" ]]; then
-    allowlist_key=""
-    case "$query_name" in
-      persistence_launchd | persistence_startup_items_crontab) allowlist_key="$label" ;;
-      file_events_recent) [[ $category == "launch_agents" || $category == "launch_daemons" ]] && allowlist_key="$(basename "$enrich_path" .plist)" ;;
-    esac
-    [[ -n $allowlist_key ]] && _allowlisted "$allowlist_key" && continue
-  fi
-  finding="$(jq -c --arg sev "$severity" --arg sig "$signing_facts" \
-    '.sev = $sev | (if $sig == "" then . else .signing = $sig end)' <<<"$finding")"
-  enriched+="$finding"$'\n'
-done <<<"$raw_findings"
-enriched=${enriched%$'\n'}
-
-[[ -z $enriched ]] && exit 0
-
-# Render both channel bodies in one jq pass. #priority gets focused labeled blocks
-# (header + decision-relevant fields + one "→" next step); #osquery gets one compact
-# humanized line per finding. Layout follows the user's ADHD surfacing research: one
-# thing, glanceable, minimal fields, ending in a single action, no raw query jargon.
-render="$(printf '%s\n' "$enriched" | jq -s '
-  # Wrap a value in Discord inline-code backticks. The value is attacker-controlled
-  # (launchd label, path); strip backticks so it cannot break out of the inline-code
-  # span and inject markdown. Display-only, does not affect detection/severity.
-  def code: "`" + (gsub("`"; "") ) + "`";
-  # Plain-English name of a macOS protection query, or null if the finding is not one.
-  def protname:
-    if (.q | test("^firewall")) then "Firewall"
-    elif (.q | test("^gatekeeper")) then "Gatekeeper"
-    elif (.q | test("^sip")) then "System Integrity Protection"
-    elif (.q | test("^filevault")) then "FileVault"
-    elif (.q | test("^screenlock")) then "Screen lock"
-    elif (.q | test("^remote_access_sharing")) then "Sharing"
-    else null end;
-  # Human header for a finding (kernel/system extensions matched before the generic
-  # browser-extension regex so they keep their specific labels).
-  def header:
-    (protname) as $p |
-    if $p != null then (if .sev == "CRIT" then "\($p) turned OFF" else "\($p) changed" end)
-    elif .q == "persistence_launchd" then "New startup item"
-    elif .q == "persistence_launchd_overrides" then "Startup override changed"
-    elif .q == "persistence_startup_items_crontab" then "New startup/cron entry"
-    elif .q == "suid_bin_unexpected" then "New setuid root binary"
-    elif .q == "kernel_extensions_new" then "New kernel extension"
-    elif .q == "system_extensions_new" then "New system extension"
-    elif .q == "listening_ports_non_loopback" then "New network listener"
-    elif .q == "recent_logins" then "Login"
-    elif .q == "installed_apps" then "New app"
-    elif .q == "homebrew_packages" then "New Homebrew package"
-    elif (.q | test("_extensions$|_addons$")) then "New browser extension"
-    elif .q == "file_events_recent" then
-      ((.cols.category // "") as $cat |
-        if $cat == "ssh" then "SSH file changed"
-        elif $cat == "sudoers" then "sudoers changed"
-        elif $cat == "sshd_config" then "sshd_config changed"
-        elif ($cat == "launch_agents" or $cat == "launch_daemons") then "Startup folder changed"
-        else "Watched file changed" end)
-    elif .q == "es_launchd_writes" then "Startup item written by a process"
-    else (.q | gsub("_"; " ")) end;
-  # Best single identifier for a finding.
-  def keyid:
-    .cols as $c |
-    ($c.label // $c.identifier // $c.name // $c.target_path // $c.path // $c.username // "?");
-  # Structured key:value segments for an #osquery single-line entry. Signing rides as
-  # its own segment ("signed: ..." / "UNSIGNED"), not under a redundant "signing:" key.
-  def segs:
-    .cols as $c | (.signing // null) as $sig |
-    (if $sig then [$sig] else [] end) as $sg |
-    if .q == "recent_logins" then ["user: \(($c.username // "?") | code)", "from: \(($c.host // "local") | code)"]
-    elif .q == "listening_ports_non_loopback" then ["process: \(($c.name // "?") | code)", "address: \(("\($c.address // "?"):\($c.port // "?")") | code)"]
-    elif .q == "installed_apps" then ["name: \(($c.name // "?") | code)"] + (if ($c.bundle_short_version // "") != "" then ["version: \(($c.bundle_short_version) | code)"] else [] end)
-    elif .q == "homebrew_packages" then ["name: \(($c.name // "?") | code)", "version: \(($c.version // "?") | code)"]
-    elif (.q | test("_extensions$|_addons$")) then ["name: \(($c.name // "?") | code)", "identifier: \(($c.identifier // "?") | code)"]
-    elif .q == "persistence_launchd" then ["name: \(($c.label // "?") | code)", "program: \(($c.program // "?") | code)"] + $sg
-    elif .q == "persistence_launchd_overrides" then ["label: \(($c.label // "?") | code)", "key: \(($c.key // "?") | code)", "value: \(($c.value // "?") | code)"]
-    elif .q == "persistence_startup_items_crontab" then ["name: \(($c.name // "?") | code)", "command: \(($c.command // "?") | code)"] + $sg
-    elif .q == "system_extensions_new" then ["name: \(($c.identifier // "?") | code)", "team: \(($c.team // "?") | code)"] + $sg
-    elif .q == "kernel_extensions_new" then ["name: \(($c.name // "?") | code)"] + $sg
-    elif .q == "file_events_recent" then ["file: \(($c.target_path // "?") | code)", "action: \((.act) | code)"] + $sg
-    elif .q == "es_launchd_writes" then ["process: \(($c.path // "?") | code)", "wrote: \(($c.filename // $c.dest_filename // "?") | code)"] + $sg
-    elif (protname) != null then ["state: \((.act) | code)"]
-    else ["identifier: \((keyid) | code)"] end;
-  # Decision-relevant "Label: value" lines for a #priority block. Values are wrapped
-  # in Discord inline-code; an untrusted signing verdict is flagged and bolded.
-  def fields:
-    .cols as $c | (.signing // null) as $sig |
-    (if $sig then
-       (if ($sig | test("unsigned|untrusted|ad-hoc|unverified|no authority"; "i"))
-        then ["- **Signing:** ⚠️ **\($sig)**"] else ["- **Signing:** \($sig)"] end)
-     else [] end) as $sg |
-    if .q == "persistence_launchd" then ["- **What:** \(($c.label // "?") | code)", "- **Program:** \(($c.program // "?") | code)"] + $sg
-    elif .q == "persistence_startup_items_crontab" then ["- **What:** \(($c.name // "?") | code)", "- **Command:** \(($c.command // "?") | code)"] + $sg
-    elif .q == "suid_bin_unexpected" then ["- **Path:** \(($c.path // "?") | code)"] + $sg + ["- **Owner:** \(($c.username // "?") | code)"]
-    elif .q == "system_extensions_new" then ["- **Name:** \(($c.identifier // "?") | code)", "- **Team:** \(($c.team // "?") | code)"] + $sg
-    elif .q == "kernel_extensions_new" then ["- **Name:** \(($c.name // "?") | code)", "- **Path:** \(($c.path // "?") | code)"] + $sg
-    elif .q == "file_events_recent" then ["- **File:** \(($c.target_path // "?") | code)", "- **Action:** \(.act)"]
-    elif .q == "es_launchd_writes" then ["- **Process:** \(($c.path // "?") | code)", "- **Wrote:** \(($c.filename // $c.dest_filename // "?") | code)"] + $sg
-    elif (protname) != null then ["- **State:** **OFF**"]
-    else $sg + ["- **What:** \((keyid) | code)"] end;
-  # One or two instructive next-step lines for a #priority (always CRIT) block.
-  def nextstep:
-    (.ep // "") as $ep |
-    if (protname) != null then
-      ["- Did you turn this off? If not, something else did: **investigate now**.", "- Re-enable it in System Settings."]
-    elif (.q == "system_extensions_new" or .q == "kernel_extensions_new") then
-      ["- Did you install this? If not, **remove it**: an extension can intercept traffic or load at boot.", "- Manage at: System Settings → General → Login Items & Extensions"]
-    elif .q == "suid_bin_unexpected" then
-      ["- Did you create this? If not, it lets a program run as **root**, a backdoor.", "- **Inspect:** " + (("codesign -dv \"" + $ep + "\"") | code)]
-    elif .q == "file_events_recent" then
-      ["- Did you change this? If not, someone altered who can log in or run as **root**.", "- **Review:** " + (("sudo cat \"" + $ep + "\"") | code)]
-    elif (.q == "persistence_launchd" or .q == "persistence_startup_items_crontab") then
-      ["- Did you set this up? If not, it **auto-runs at every login**, likely malware.", "- **Inspect:** " + (("cat \"" + $ep + "\"") | code)]
-    elif .q == "es_launchd_writes" then
-      ["- Did you run this? If not, a process is **installing persistence**: investigate it and remove the file.", "- **Inspect the writer:** " + (("codesign -dv \"" + $ep + "\"") | code)]
-    elif ($ep != "") then ["- **Review:** " + ($ep | code)]
-    else [] end;
-  def block:
-    (["**" + header + "**"] + fields + nextstep) | join("\n");
-  def line:
-    "- " + (if .sev == "NOTICE" then "🟡" else "🔵" end) + " **" + header + "**: " + (segs | join(" · "));
-  ([.[] | select(.sev == "CRIT")]) as $crit |
-  ([.[] | select(.sev != "CRIT")] | sort_by(if .sev == "NOTICE" then 0 else 1 end)) as $rest |
-  {
-    pcount: ($crit | length),
-    ocount: ($rest | length),
-    onotice: (any($rest[]; .sev == "NOTICE")),
-    pbody: ($crit | map(block) | join("\n\n")),
-    obody: (($rest[0:12] | map(line) | join("\n"))
-      + (if ($rest | length) > 12 then "\n…\(($rest | length) - 12) more" else "" end))
-  }
-')"
-
-# Dispatch each non-empty channel. #priority carries CRIT only; #osquery NOTICE/INFO.
-priority_count="$(jq -r '.pcount' <<<"$render")"
-osquery_count="$(jq -r '.ocount' <<<"$render")"
-
-if [[ $priority_count -gt 0 ]]; then
-  title="🔴 **CRITICAL**"
-  if [[ $priority_count -gt 1 ]]; then title="🔴 **CRITICAL** · $priority_count"; fi
-  send_alert CRIT "$title" "$(jq -r '.pbody' <<<"$render")" "Sosumi"
-fi
-
-if [[ $osquery_count -gt 0 ]]; then
-  if [[ "$(jq -r '.onotice' <<<"$render")" == "true" ]]; then
-    osquery_severity="NOTICE"
-    osquery_title="🟡 **Notice** · $osquery_count"
-    osquery_sound="Glass"
-  else
-    osquery_severity="INFO"
-    osquery_title="🔵 **Info** · $osquery_count"
-    osquery_sound=""
-  fi
-  send_alert "$osquery_severity" "$osquery_title" "$(jq -r '.obody' <<<"$render")" "$osquery_sound"
-fi
+main "$@"
