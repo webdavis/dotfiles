@@ -26,7 +26,12 @@ render_page() {
     # span and inject markdown. Display-only. Bound each field to 240 chars with an
     # explicit omission marker so one giant value cannot alone blow the 2000-char budget.
     def code:
-      (gsub("`"; "")) as $v
+      # Strip backticks (they end the inline-code span) AND squash \r\n\t to spaces:
+      # a newline also breaks out of the inline-code span, so without this an
+      # attacker-controlled column value could inject extra markdown LINES into the
+      # page (e.g. a forged "- **Signing:** signed: Apple"). Every field value passes
+      # through here, so this is the single sanitize chokepoint.
+      (gsub("`"; "") | gsub("[\r\n\t]"; " ")) as $v
       | "`" + (if ($v | length) > 240 then ($v[0:240] + "…(truncated)") else $v end) + "`";
     # Plain-English name of a macOS protection query, or null if the finding is not one.
     def protname:
@@ -79,7 +84,7 @@ render_page() {
     def fields:
       # Strip markdown metacharacters from the (attacker-influenceable) signing authority
       # so a crafted certificate subject cannot inject backticks/emphasis into the body.
-      .cols as $c | ((.signing // null) | if type == "string" then gsub("[`*]"; "") else . end) as $sig |
+      .cols as $c | ((.signing // null) | if type == "string" then (gsub("[`*]"; "") | gsub("[\r\n\t]"; " ")) else . end) as $sig |
       (if $sig then
          (if ($sig | test("unsigned|untrusted|ad-hoc|unverified|no authority"; "i"))
           then ["- **Signing:** ⚠️ **\($sig)**"] else ["- **Signing:** \($sig)"] end)
@@ -96,7 +101,7 @@ render_page() {
       elif .q == "remote_access_sharing_state" then ["- **Service:** \(($c.service // "?") | code)"]
       elif .q == "system_extensions_new" then ["- **Name:** \(($c.identifier // "?") | code)", "- **Team:** \(($c.team // "?") | code)"] + $sg
       elif .q == "kernel_extensions_new" then ["- **Name:** \(($c.name // "?") | code)", "- **Path:** \(($c.path // "?") | code)"] + $sg
-      elif .q == "file_events_recent" then ["- **File:** \(($c.target_path // "?") | code)", "- **Action:** \($c.action // .act)"]
+      elif .q == "file_events_recent" then ["- **File:** \(($c.target_path // "?") | code)", "- **Action:** \(($c.action // .act) | gsub("[\r\n\t]"; " "))"]
       elif .q == "es_launchd_writes" then ["- **Process:** \(($c.path // "?") | code)", "- **Wrote:** \(($c.filename // $c.dest_filename // "?") | code)"] + $sg
       elif (protname) != null then ["- **State:** **OFF**"]
       else $sg + ["- **What:** \((keyid) | code)"] end;
