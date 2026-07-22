@@ -55,6 +55,22 @@ normalize_findings() {
     # segment is removed and the query keeps its own underscores.
     | (.name | sub("^pack_[^_]+_"; "")) as $q
     | select($q | IN($known[]))
+    # renameio exclusion: chezmoi/renameio writes files via an atomic rename
+    # through a .renameio-TempDir-* scratch dir, so a file_events_recent row whose
+    # target_path is inside one is write churn, not a real change - drop it. Only
+    # file_events_recent carries a target_path, so this is a no-op for other rows.
+    | select((.columns.target_path // "") | test("/\\.renameio-TempDir") | not)
+    # Baseline (counter==0) discard: osquery emits a differential query first full
+    # result set with counter 0 (the seeded baseline). Discard those first-run rows
+    # so pre-existing state does not page on its first observation - EXCEPT the
+    # three absolute-state queries, whose very presence IS an unsafe state (no
+    # volume encrypted / a sharing service enabled / an agent port off-loopback),
+    # so a counter==0 row there is a first-run PAGE that must be kept, not seeded.
+    # An absent counter defaults to 1 (non-baseline), so a row without one is kept.
+    | select((.counter // 1) != 0
+        or $q == "filevault_off"
+        or $q == "remote_access_sharing_state"
+        or $q == "agent_exposure_changed")
     | (.action // "changed") as $act
     | {q: $q, act: $act, cols: (.columns // {})} | @json
   ' 2>/dev/null || true

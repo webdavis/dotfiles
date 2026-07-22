@@ -190,6 +190,81 @@ a_mixed_batch_keeps_only_admitted_rows() {
     fail "the surviving findings must be exactly the admitted queries -- got: $names"
 }
 
+# --- B3: normalize drops renameio churn and differential baseline rows --------
+#
+# Two admission filters c69baab applied in normalize:
+#  1. renameio exclusion: a row whose columns.target_path is inside osquery's
+#     atomic-write temp dir (the /.renameio-TempDir pattern) is chezmoi/renameio
+#     churn, not a real change, and is dropped. Only file_events_recent carries a
+#     target_path, so the filter is a no-op for the other detectors.
+#  2. baseline (counter==0) discard: osquery emits a differential query's first
+#     full result set with counter 0 (the seeded baseline). Those first-run rows
+#     are discarded so pre-existing state does not page on first observation -
+#     EXCEPT for the three absolute-state queries (filevault_off,
+#     remote_access_sharing_state, agent_exposure_changed) whose very presence is
+#     an unsafe state, so a counter==0 row there is a first-run PAGE, kept.
+
+# A renameio temp-file target is dropped; its non-temp sibling survives.
+a_renameio_temp_target_is_dropped() {
+  local out
+  out="$(printf '%s\n' \
+    '{"name":"file_events_recent","action":"added","columns":{"target_path":"/Users/x/.config/foo/.renameio-TempDir-abc/bar"}}' |
+    make_sut)"
+  assert_line_count 0 "$out" "a renameio atomic-write temp target is churn and must be dropped"
+}
+a_non_temp_target_survives_alongside_the_temp_one() {
+  local out
+  out="$(printf '%s\n' \
+    '{"name":"file_events_recent","action":"added","columns":{"target_path":"/Users/x/.config/foo/.renameio-TempDir-abc/bar"}}' \
+    '{"name":"file_events_recent","action":"added","columns":{"target_path":"/Users/x/.ssh/authorized_keys"}}' |
+    make_sut)"
+  assert_line_count 1 "$out" "the real (non-temp) sibling survives while the temp row drops"
+  assert_field '.cols.target_path' '/Users/x/.ssh/authorized_keys' "$out" "the surviving row is the real file, not the temp one"
+}
+
+# A counter==0 baseline row of a membership query is dropped (first-run seeding).
+a_baseline_counter_zero_row_is_dropped() {
+  local out
+  out="$(printf '%s\n' \
+    '{"name":"new_admin_user","action":"added","counter":0,"columns":{"username":"root"}}' |
+    make_sut)"
+  assert_line_count 0 "$out" "a counter==0 first-run baseline row of a membership query must not page"
+}
+
+# A subsequent (counter>0) row of the same membership query survives.
+a_counter_positive_row_survives() {
+  local out
+  out="$(printf '%s\n' \
+    '{"name":"new_admin_user","action":"added","counter":1,"columns":{"username":"eve"}}' |
+    make_sut)"
+  assert_line_count 1 "$out" "a post-baseline (counter>0) row is a genuine new observation and survives"
+}
+
+# A row with no counter field at all is treated as non-baseline and survives.
+a_row_without_a_counter_survives() {
+  local out
+  out="$(printf '%s\n' \
+    '{"name":"new_admin_user","action":"added","columns":{"username":"eve"}}' |
+    make_sut)"
+  assert_line_count 1 "$out" "an absent counter defaults to non-baseline (kept), never silently dropped"
+}
+
+# The three absolute-state queries KEEP their counter==0 row: a first-run unsafe
+# state (FileVault off / a sharing service enabled / an agent port off-loopback)
+# must page, not seed silently.
+an_absolute_state_counter_zero_row_is_kept() {
+  local out q
+  for q in \
+    'pack_security-policy-regression_filevault_off' \
+    'pack_security-policy-regression_remote_access_sharing_state' \
+    'pack_agent-attack-surface_agent_exposure_changed'; do
+    out="$(printf '%s\n' \
+      "{\"name\":\"$q\",\"action\":\"added\",\"counter\":0,\"columns\":{}}" |
+      make_sut)"
+    assert_line_count 1 "$out" "an absolute-state query ($q) must PAGE on its first-run counter==0 row, not seed"
+  done
+}
+
 a_pack_row_strips_its_prefix
 a_hyphenated_pack_row_strips_only_the_pack_segment
 a_top_level_row_keeps_its_bare_name
@@ -202,5 +277,11 @@ the_heartbeat_canary_is_dropped
 a_made_up_pack_query_is_dropped
 a_made_up_top_level_query_is_dropped
 a_mixed_batch_keeps_only_admitted_rows
+a_renameio_temp_target_is_dropped
+a_non_temp_target_survives_alongside_the_temp_one
+a_baseline_counter_zero_row_is_dropped
+a_counter_positive_row_survives
+a_row_without_a_counter_survives
+an_absolute_state_counter_zero_row_is_kept
 
-printf 'osquery-normalize: OK (B1 prefix strip/action default/one-per-row/malformed-skip; B2 known-query select admits detectors, drops heartbeat_canary and unknown pack/top-level names)\n'
+printf 'osquery-normalize: OK (B1 prefix strip/action default/one-per-row/malformed-skip; B2 known-query select; B3 renameio-drop + counter==0 baseline discard except the three absolute-state queries)\n'
