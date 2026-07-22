@@ -15,7 +15,8 @@
 set -euo pipefail
 
 STATE="${OSQUERY_POSTURE_STATE:-$HOME/.local/state/osquery-posture-state.json}"
-GAP="$STATE.gap" # page-once marker for a monitoring gap (R2-9)
+GAP="$STATE.gap"                 # page-once marker for a monitoring gap (R2-9)
+PERSIST_GAP="$STATE.persist-gap" # page-once marker for a baseline-persist failure
 OSQUERYI="${OSQUERYI:-$(command -v osqueryi || echo /usr/local/bin/osqueryi)}"
 
 # shellcheck source=/dev/null
@@ -61,10 +62,11 @@ cur_sl=$(jq -r '.screenlock // empty' <<<"$posture" 2>/dev/null || echo "")
 # persist it (it would poison the baseline) and do NOT compare it (it would
 # fabricate a transition): the last good baseline is preserved. Page ONCE per gap.
 # With no marker, notify FIRST (reusing the notify-before-persist durability) and
-# write the marker only on send_alert success; if send_alert fails, leave no
-# marker, log, and exit nonzero so the next tick retries (at-least-once). An
-# existing marker suppresses re-paging. (Values are bracketed, [] for empty, to
-# keep the page apostrophe-free for the alerting stack.)
+# write the marker only on send_alert success; if send_alert cannot store the
+# page (it still fires a last-resort local banner), leave no marker, log, and exit
+# nonzero so a PERSISTING gap re-pages next tick. An existing marker suppresses
+# re-paging. (Values are bracketed, [] for empty, to keep the page apostrophe-free
+# for the alerting stack.)
 if ! [[ $cur_fw =~ ^[012]$ && $cur_gk =~ ^[01]$ && $cur_sl =~ ^[01]$ ]]; then
   if [[ ! -f $GAP ]]; then
     gap_body="**Security-posture monitoring gap**"$'\n'"- The posture query returned an unreadable value (firewall=[$cur_fw] gatekeeper=[$cur_gk] screenlock=[$cur_sl]): the firewall / Gatekeeper / screen-lock state is currently UNKNOWN."$'\n'"- A blind monitor cannot see a protection turn off. Did osqueryi or the LaunchAgent break? **Check now.**"$'\n'"- Diagnose: run the posture query by hand, then re-check."
@@ -113,12 +115,38 @@ write_state() {
   ) && mv -f "$STATE.tmp" "$STATE" && chmod 600 "$STATE"
 }
 
-# Emit one CRIT page built from the given blocks, then seed or advance the
-# baseline. Notify-before-persist: send_alert is write-ahead durable, so page
-# FIRST and write_state only on success; on a send_alert failure leave the
-# baseline as-is, log, and exit nonzero so the next tick re-detects and retries
-# (at-least-once). Shared by the first-observation and transition paths so both
-# obey one durability contract.
+# Persist the baseline, and make a persistence FAILURE loud rather than silent. If
+# write_state fails the monitor is degraded: it cannot advance its baseline, so a
+# stale baseline could silently mask the next real change (a stale prev=OFF reads
+# the next real OFF as steady-off, silent, permanently). Page a degraded-monitor
+# gap ONCE via its own marker, then exit nonzero so launchd retries and the stale
+# baseline is never silently trusted. On success clear the marker (recovery). The
+# marker lives in the state dir, so if that dir is itself unwritable the marker
+# cannot be written and the degraded page may re-fire, acceptable for a serious
+# ongoing fault (loud beats silently trusting a stale baseline).
+persist_baseline() {
+  if write_state; then
+    rm -f "$PERSIST_GAP" 2>/dev/null || true
+    return 0
+  fi
+  if [[ ! -f $PERSIST_GAP ]]; then
+    degraded_body="**Security-posture monitor degraded**"$'\n'"- The posture monitor could not persist its baseline: it cannot advance state, so a stale baseline could mask the next real change and blind the monitor."$'\n'"- Check the state directory free space and permissions. **Check now.**"
+    if send_alert CRIT "🔴 **CRITICAL**" "$degraded_body" "Sosumi"; then
+      : >"$PERSIST_GAP" 2>/dev/null || true
+    fi
+  fi
+  exit 1
+}
+
+# Emit one CRIT page built from the given blocks, then advance the baseline.
+# Notify-before-persist: send_alert is write-ahead durable (it stores the page
+# before any network attempt and, if it cannot even store, fires a last-resort
+# local banner), so a page is never silently dropped. The baseline advances only
+# after send_alert succeeds; on a send_alert store-failure the baseline is left
+# as-is and the poller exits nonzero, so a PERSISTING condition re-pages next tick
+# and recovers its durable/remote copy (a transient that clears before the retry
+# was still surfaced locally by the banner). Shared by the first-observation and
+# transition paths so both obey one durability contract.
 page_crit_and_persist() {
   local body title
   body=$(printf '%s\n\n' "$@")
@@ -129,7 +157,7 @@ page_crit_and_persist() {
     printf 'firewall-gatekeeper-monitor: send_alert could not queue the CRIT page; baseline not advanced, retrying next tick\n' >&2
     exit 1
   fi
-  write_state
+  persist_baseline
 }
 
 # No trustworthy prior baseline (first run, or a lost/deleted/planted/corrupt
@@ -153,7 +181,7 @@ if [[ $prev_valid -eq 0 ]]; then
     first_obs_blocks+=("**Screen lock is OFF (first observation)**"$'\n'"- **Now:** **OFF**"$'\n'"- The monitor has no prior baseline and the screen-lock password requirement is already off, anyone at the machine has access. Did you turn it off? If not, **investigate now**."$'\n'"- Re-enable it: System Settings → Lock Screen → Require password")
   fi
   if [[ ${#first_obs_blocks[@]} -eq 0 ]]; then
-    write_state # healthy first observation: seed the baseline silently
+    persist_baseline # healthy first observation: seed the baseline silently
     exit 0
   fi
   page_crit_and_persist "${first_obs_blocks[@]}"
@@ -201,7 +229,7 @@ fi
 
 # No OFF transition (steady state or a re-enable): refresh the baseline, silent.
 if [[ ${#crit_blocks[@]} -eq 0 ]]; then
-  write_state
+  persist_baseline
   exit 0
 fi
 

@@ -555,3 +555,26 @@ teardown() { teardown_poller_harness; }
   assert_gap_marker         # the bounded read collapses to empty -> the gap gate
   assert_baseline_unchanged # a wedged read is a gap: it never persists
 }
+
+# --- a persistence failure is loud, never a silently-trusted stale baseline ------
+
+@test "T-POLL-persist-failure-pages-degraded: a baseline-write failure pages a degraded-monitor gap instead of silently trusting a stale baseline" {
+  seed_baseline '{"firewall":"0","gatekeeper":"1","screenlock":"1"}'
+
+  # Firewall re-enabled (0->1): a SILENT re-enable path that must persist the new
+  # baseline. Make the state dir unwritable so write_state fails on this tick.
+  set_posture '[{"firewall":"1","gatekeeper":"1","screenlock":"1"}]'
+  chmod 500 "$(dirname "$OSQUERY_POSTURE_STATE")"
+  run run_poller
+  chmod 700 "$(dirname "$OSQUERY_POSTURE_STATE")" # restore before asserting / teardown
+
+  [[ $status -ne 0 ]] || {
+    echo "expected nonzero when the baseline could not be persisted, got $status: $output"
+    false
+  }
+  assert_page_count 1
+  assert_page_severity_is CRIT
+  assert_page_body_has 'degraded' # loud degraded-monitor page, not a silent abort
+  # Without this, the failed write leaves the stale prior=0 baseline, which would
+  # silently mask a later real OFF as steady-off (0 vs stale 0).
+}
