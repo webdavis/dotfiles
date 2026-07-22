@@ -99,3 +99,73 @@ stub_launchd() {
     false
   }
 }
+
+@test "denying (-d) a label removes its entry and leaves every other label byte-identical" {
+  seed_allowlist_tuple com.foo.agent '~/Library/LaunchAgents/com.foo.agent.plist' /opt/homebrew/opt/foo/bin/foo
+  seed_allowlist_tuple com.bar.agent '~/Library/LaunchAgents/com.bar.agent.plist' /opt/homebrew/opt/bar/bin/bar
+  local bar_line
+  bar_line="$(grep -F '"label":"com.bar.agent"' "$OSQUERY_LAUNCHD_ALLOWLIST")"
+
+  run run_allowlist -d com.foo.agent
+  [ "$status" -eq 0 ] || {
+    echo "expected -d of a present label to exit 0, got $status: $output"
+    false
+  }
+
+  assert_not_allowlisted com.foo.agent
+  assert_allowlist_label_count 1
+  run grep -qxF "$bar_line" "$OSQUERY_LAUNCHD_ALLOWLIST"
+  [ "$status" -eq 0 ] || {
+    echo "expected com.bar.agent's line untouched by the deny; file: $(cat "$OSQUERY_LAUNCHD_ALLOWLIST")"
+    false
+  }
+}
+
+@test "denying (-d) an absent label is a clean no-op: exit 0, file unchanged, nothing on stderr" {
+  seed_allowlist_tuple com.bar.agent '~/Library/LaunchAgents/com.bar.agent.plist' /opt/homebrew/opt/bar/bin/bar
+  local before
+  before="$(cat "$OSQUERY_LAUNCHD_ALLOWLIST")"
+
+  run run_allowlist -d com.absent.agent
+  [ "$status" -eq 0 ] || {
+    echo "expected -d of an absent label to exit 0 (clean no-op), got $status: $output"
+    false
+  }
+  [ -z "$(run_allowlist -d com.absent.agent 2>&1 >/dev/null)" ] || {
+    echo "expected -d of an absent label to write nothing to stderr"
+    false
+  }
+  [ "$(cat "$OSQUERY_LAUNCHD_ALLOWLIST")" = "$before" ] || {
+    echo "expected the allowlist unchanged by a no-op deny; file: $(cat "$OSQUERY_LAUNCHD_ALLOWLIST")"
+    false
+  }
+}
+
+@test "listing (-l) prints exactly the current entry lines to stdout and exits 0" {
+  seed_allowlist_tuple com.foo.agent '~/Library/LaunchAgents/com.foo.agent.plist' /opt/homebrew/opt/foo/bin/foo
+  seed_allowlist_tuple com.bar.agent '~/Library/LaunchAgents/com.bar.agent.plist' /opt/homebrew/opt/bar/bin/bar
+  local expected
+  expected="$(cat "$OSQUERY_LAUNCHD_ALLOWLIST")"
+
+  run run_allowlist -l
+  [ "$status" -eq 0 ] || {
+    echo "expected -l to exit 0, got $status: $output"
+    false
+  }
+  [ "$output" = "$expected" ] || {
+    echo "expected -l to print exactly the two seeded tuple lines; got: $output"
+    false
+  }
+}
+
+@test "listing (-l) on an empty or absent allowlist prints nothing and exits 0" {
+  run run_allowlist -l
+  [ "$status" -eq 0 ] || {
+    echo "expected -l on an absent allowlist to exit 0, got $status: $output"
+    false
+  }
+  [ -z "$output" ] || {
+    echo "expected -l on an absent allowlist to print nothing; got: $output"
+    false
+  }
+}

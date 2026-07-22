@@ -41,6 +41,14 @@ run_allowlist() {
     bash "$ALLOWLIST_TOOL" "$@"
 }
 
+# Seed one NDJSON tuple line into the allowlist directly (bypassing capture), so a
+# deny/list test starts from a known store: seed_allowlist_tuple <label> <path> <program> [sha256].
+seed_allowlist_tuple() {
+  mkdir -p "$(dirname "$OSQUERY_LAUNCHD_ALLOWLIST")"
+  jq -cn --arg label "$1" --arg path "$2" --arg program "$3" --arg sha256 "${4:-}" \
+    '{label:$label, path:$path, program:$program, sha256:$sha256}' >>"$OSQUERY_LAUNCHD_ALLOWLIST"
+}
+
 # Membership by the JSON .label field (the file is NDJSON tuples now, R2-1).
 assert_allowlisted() {
   if ! grep -qF "\"label\":\"$1\"" "$OSQUERY_LAUNCHD_ALLOWLIST" 2>/dev/null; then

@@ -5,7 +5,9 @@
 # tap-button bot and /osquery skill later) goes through this single security boundary, so
 # all validation lives here.
 #
-#   allowlist.sh -a <label>   # allow: capture <label>'s identity and add it
+#   allowlist.sh -a <label>   # allow: capture <label>'s identity and add/refresh it
+#   allowlist.sh -d <label>   # deny: remove the entry for <label>
+#   allowlist.sh -l           # list the current allowlist
 #
 # R2-1: an entry is a TUPLE, not a bare label. Suppressing on the label alone let an attacker
 # reuse an allowlisted label but point the plist at a malicious program and be silently
@@ -22,7 +24,7 @@ ALLOWLIST="${OSQUERY_LAUNCHD_ALLOWLIST:-$HOME/.config/osquery/page-launchd-allow
 OSQUERYI="${OSQUERYI:-$(command -v osqueryi || echo /usr/local/bin/osqueryi)}"
 
 usage() {
-  printf 'usage: %s -a <label>\n' "${0##*/}" >&2
+  printf 'usage: %s -a <label> | -d <label> | -l\n' "${0##*/}" >&2
   exit 2
 }
 
@@ -97,14 +99,51 @@ allow_label() {
   fi
 }
 
+deny_label() {
+  local label="$1"
+  if ! is_valid_label "$label"; then
+    printf 'refused (invalid or system label): %s\n' "$label" >&2
+    exit 1
+  fi
+  # Removing a label that was never allowed is a clean no-op: exit 0, file untouched,
+  # a note on stdout (nothing on stderr), so a caller can deny unconditionally.
+  if [[ ! -f $ALLOWLIST ]] || ! grep -qF "\"label\":\"$label\"" "$ALLOWLIST" 2>/dev/null; then
+    printf 'not present: %s\n' "$label"
+    return 0
+  fi
+  local temp
+  temp=$(mktemp)
+  _without_label "$label" >"$temp"
+  mv -f "$temp" "$ALLOWLIST"
+  printf 'denied: %s\n' "$label"
+}
+
+# Print the current allowlist entries (one NDJSON tuple per line) verbatim to stdout,
+# skipping comment/blank lines. An empty or absent allowlist prints nothing.
+list_entries() {
+  [[ -s $ALLOWLIST ]] || return 0
+  local line
+  while IFS= read -r line || [[ -n $line ]]; do
+    case "$line" in
+      '' | '#'*) continue ;;
+    esac
+    printf '%s\n' "$line"
+  done <"$ALLOWLIST"
+}
+
 action=""
 label=""
-while getopts ':a:' option; do
+while getopts ':a:d:l' option; do
   case "$option" in
     a)
       action="allow"
       label="$OPTARG"
       ;;
+    d)
+      action="deny"
+      label="$OPTARG"
+      ;;
+    l) action="list" ;;
     :)
       printf 'option -%s requires a label\n' "$OPTARG" >&2
       usage
@@ -115,5 +154,7 @@ done
 
 case "$action" in
   allow) allow_label "$label" ;;
+  deny) deny_label "$label" ;;
+  list) list_entries ;;
   *) usage ;;
 esac
