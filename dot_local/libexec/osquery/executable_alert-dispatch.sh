@@ -213,6 +213,157 @@ COMMIT;\n" \
   return 0
 }
 
+# Record one FAILED-but-retryable delivery attempt on a pending row: attempts
+# goes up by one and next_attempt_after moves into the future, so the drain
+# leaves the row alone until its wait has passed instead of hammering a failing
+# gateway on every tick. The wait grows with the attempt count (base seconds
+# times the new attempt number; the base is overridable for tests) plus a
+# bounded RANDOMIZED RETRY DELAY on top.
+#
+# The randomized delay breaks lockstep: when a gateway outage fails a whole
+# batch of rows in the same pass, an identical fixed schedule would make every
+# row come due at the same instant and retry in one synchronized storm the
+# moment the gateway might be recovering. A small random offset added to each
+# row's schedule staggers them so they come back gradually instead. The offset
+# is a non-negative number of seconds in [0, max], so it only ever DELAYS a
+# retry, never pulls one earlier than the base schedule. The max defaults to the
+# base (the spec's "bounded by the base"): a full base-width spread, and setting
+# OSQUERY_DRAIN_RETRY_RANDOM_SECONDS=0 disables it for a deterministic schedule.
+# $RANDOM is the source (portable, no external tool); its 15-bit range caps the
+# effective spread at 32767 seconds, which is well past any useful stagger.
+#
+# The clock and the arithmetic both live inside the one UPDATE, so the
+# read-modify-write is atomic under concurrent drains; the offset is drawn once
+# per call, so two rows failing in the same pass get independent offsets. A
+# failed update is reported nonzero for the caller to log but never fail on: the
+# row is still pending, and the only cost is a retry that comes sooner.
+_osquery_record_transient_failure() {
+  local request_id="$1" base="${OSQUERY_DRAIN_RETRY_BASE_SECONDS:-60}"
+  [[ $base =~ ^[0-9]+$ ]] || base=60
+  local random_max="${OSQUERY_DRAIN_RETRY_RANDOM_SECONDS:-$base}"
+  [[ $random_max =~ ^[0-9]+$ ]] || random_max="$base"
+  local random_offset=0
+  ((random_max > 0)) && random_offset=$((RANDOM % (random_max + 1)))
+  local request_id_sql="${request_id//\'/\'\'}"
+  printf "UPDATE pending_alerts
+  SET attempts = attempts + 1,
+      next_attempt_after = CAST(strftime('%%s','now') AS INTEGER) + %s * (attempts + 1) + %s
+  WHERE request_id = '%s';\n" "$base" "$random_offset" "$request_id_sql" | _osquery_alerts_db_exec
+}
+
+# Move one pending row into the dead_letter_alerts table, in ONE transaction:
+# the insert and the delete commit together, so a crash at any instant leaves
+# the record in exactly one of the two tables, never in neither. Used when
+# delivery can never succeed (a permanent HTTP status; DR-B T4 adds the
+# attempts/age thresholds). The table is bootstrapped lazily inside the same
+# transaction, mirroring the pending_alerts bootstrap. The batch is idempotent
+# (INSERT OR IGNORE plus a DELETE that fires only once the dead-letter copy
+# exists), so the locked-database retry in _osquery_alerts_db_exec may replay
+# it safely, and the delete can never remove a page the insert did not keep.
+_osquery_dead_letter_alert_row() { # <request_id> <last_http_status> <reason>
+  local request_id="$1" last_http_status="$2" reason="$3" dead_lettered_at
+  dead_lettered_at="$(date -u +%s)"
+  [[ $dead_lettered_at =~ ^[0-9]+$ ]] || dead_lettered_at=0
+  local request_id_sql="${request_id//\'/\'\'}"
+  local status_sql="${last_http_status//\'/\'\'}"
+  local reason_sql="${reason//\'/\'\'}"
+  printf "BEGIN IMMEDIATE;
+CREATE TABLE IF NOT EXISTS dead_letter_alerts (
+  sequence_number    INTEGER PRIMARY KEY,
+  request_id         TEXT UNIQUE NOT NULL,
+  occurrence_ts      INTEGER NOT NULL,
+  url                TEXT NOT NULL,
+  body_base64        TEXT NOT NULL,
+  attempts           INTEGER NOT NULL,
+  next_attempt_after INTEGER NOT NULL,
+  created_at         INTEGER NOT NULL,
+  dead_lettered_at   INTEGER NOT NULL,
+  last_http_status   TEXT NOT NULL,
+  reason             TEXT NOT NULL
+);
+INSERT OR IGNORE INTO dead_letter_alerts
+    (sequence_number, request_id, occurrence_ts, url, body_base64,
+     attempts, next_attempt_after, created_at,
+     dead_lettered_at, last_http_status, reason)
+  SELECT sequence_number, request_id, occurrence_ts, url, body_base64,
+         attempts, next_attempt_after, created_at,
+         %s, '%s', '%s'
+    FROM pending_alerts WHERE request_id = '%s';
+DELETE FROM pending_alerts
+  WHERE request_id = '%s'
+    AND request_id IN (SELECT request_id FROM dead_letter_alerts);
+COMMIT;\n" \
+    "$dead_lettered_at" "$status_sql" "$reason_sql" "$request_id_sql" "$request_id_sql" |
+    _osquery_alerts_db_exec
+}
+
+# Decide whether a pending row has exhausted retrying and print WHY. A row is
+# given up on when it has failed too many times (attempts at or past the max) or
+# has sat undelivered too long (created_at older than the max age). Both ceilings
+# are env-overridable and default to sane values: 20 attempts, which with the
+# linear retry backoff is a few hours of trying, and 7 days of age, the outer
+# limit past which a page nobody could deliver in a week is not worth keeping.
+# Prints a plain-language reason and returns 0 when the row is over a threshold,
+# prints nothing and returns 1 when it is still worth retrying. The attempts
+# check comes first so a maxed-out row names attempts even if it is also old.
+_osquery_row_over_threshold_reason() { # <attempts> <created_at>
+  local attempts="$1" created_at="$2"
+  local max_attempts="${OSQUERY_DRAIN_MAX_ATTEMPTS:-20}"
+  local max_age="${OSQUERY_DRAIN_MAX_AGE_SECONDS:-604800}"
+  [[ $attempts =~ ^[0-9]+$ ]] || attempts=0
+  [[ $created_at =~ ^[0-9]+$ ]] || created_at=0
+  [[ $max_attempts =~ ^[0-9]+$ ]] || max_attempts=20
+  [[ $max_age =~ ^[0-9]+$ ]] || max_age=604800
+  if ((attempts >= max_attempts)); then
+    printf 'exceeded max delivery attempts (%s >= %s)' "$attempts" "$max_attempts"
+    return 0
+  fi
+  local now age
+  now="$(date -u +%s)"
+  [[ $now =~ ^[0-9]+$ ]] || now=0
+  # A zero created_at (a clock glitch at store time) or a future one is treated
+  # as not-yet-aged: only a real, positive age past the ceiling gives up.
+  if ((created_at > 0)); then
+    age=$((now - created_at))
+    if ((age > max_age)); then
+      printf 'exceeded max pending age (%ss > %ss)' "$age" "$max_age"
+      return 0
+    fi
+  fi
+  return 1
+}
+
+# Print the number of rows in one alert table, read-only and fail-soft. Backs
+# the two public queue-health counters below. A missing database (nothing ever
+# stored), a missing table (bootstrapped later), or an absent sqlite3 all read
+# as zero, printed as a bare integer, never an error: a health probe must report
+# a number, not fail.
+#
+# The connection is READ-ONLY (sqlite3 -readonly): it never modifies committed
+# data and never creates the main database when it is absent (the -f guard also
+# short-circuits that case). It is NOT free of all filesystem effects, though:
+# reading a LIVE WAL-mode database may open or touch its normal -wal/-shm
+# companion files exactly like any other reader. That plain read-only open is
+# deliberate and correct: it counts committed rows still sitting in the WAL that
+# a checkpoint has not folded back into the main file yet. An immutable=1 open
+# would skip the WAL and MISS those uncheckpointed committed rows, undercounting
+# a live queue, so it is NOT used. The table name is a fixed internal literal
+# (SQLite cannot parameterize an identifier), so there is no injection surface.
+_osquery_alert_row_count() { # <table>
+  local table="$1" sqlite3_bin count
+  [[ -f $OSQUERY_UNDELIVERED_ALERTS_DB ]] || {
+    printf '0'
+    return 0
+  }
+  sqlite3_bin="$(_osquery_sqlite3_bin)" || {
+    printf '0'
+    return 0
+  }
+  count="$("$sqlite3_bin" -readonly "$OSQUERY_UNDELIVERED_ALERTS_DB" "SELECT COUNT(*) FROM $table;" 2>/dev/null)" || count=0
+  [[ $count =~ ^[0-9]+$ ]] || count=0
+  printf '%s' "$count"
+}
+
 # Delete one delivered page's pending_alerts row, keyed by request_id. Called
 # ONLY after a confirmed 2xx (the write-ahead contract: the row is the page's
 # durable copy until delivery is confirmed). A missing DB is a clean no-op
@@ -228,29 +379,52 @@ _osquery_delete_alert_row() {
   printf "DELETE FROM pending_alerts WHERE request_id = '%s';\n" "$request_id_sql" | _osquery_alerts_db_exec
 }
 
-# Print every pending row as one tab-separated line (request_id, url,
-# body_base64), ordered for the drain: occurrence time first, then the
-# insert-assigned sequence_number as the tiebreaker. The sequence tiebreaker is
-# skew-proof: equal timestamps (or a backward clock step) still drain in insert
-# order. Tabs cannot appear in the fields (a hex-derived request id, a base64
-# body, and a URL the localhost guard restricts), so the line format is safe.
+# Print every DUE pending row as one tab-separated line (request_id, url,
+# body_base64, attempts, created_at), ordered for the drain: occurrence time
+# first, then the insert-assigned sequence_number as the tiebreaker. The sequence
+# tiebreaker is skew-proof: equal timestamps (or a backward clock step) still
+# drain in insert order. A row whose next_attempt_after is still in the future is
+# left out: its last attempt failed transiently and its retry wait has not passed
+# yet, so the drain leaves it alone instead of hammering a failing gateway every
+# tick. attempts and created_at ride along so the drain can give up on a row that
+# has failed too many times or sat undelivered too long (the dead-letter
+# thresholds) without a second query. Tabs cannot appear in the fields (a
+# hex-derived request id, a base64 body, a URL the localhost guard restricts, and
+# two integers), so the line format is safe.
 _osquery_pending_alert_rows() {
   {
     printf '.separator "\\t"\n'
-    printf 'SELECT request_id, url, body_base64 FROM pending_alerts ORDER BY occurrence_ts, sequence_number;\n'
+    printf "SELECT request_id, url, body_base64, attempts, created_at FROM pending_alerts
+  WHERE next_attempt_after <= CAST(strftime('%%s','now') AS INTEGER)
+  ORDER BY occurrence_ts, sequence_number;\n"
   } | _osquery_alerts_db_exec
 }
 
-# Deliver ONE pending row: skip a non-localhost url (never send an off-box
-# page), decode and sign the stored body, POST it (stored request_id verbatim so
-# the gateway dedups), and delete the row only on a confirmed 2xx. Fully
-# set -e-safe: a malformed row returns 0 so the drain continues, but NEVER
-# silently: a MALFORMED-ROW log line names the stuck row and the reason, so a
-# row the drain can never deliver is visible instead of invisible forever.
+# Deliver ONE pending row: give up on a row past a dead-letter threshold, skip a
+# non-localhost url (never send an off-box page), decode and sign the stored
+# body, POST it (stored request_id verbatim so the gateway dedups), and delete
+# the row only on a confirmed 2xx. Fully set -e-safe: a malformed row returns 0
+# so the drain continues, but NEVER silently: a MALFORMED-ROW log line names the
+# stuck row and the reason, so a row the drain can never deliver is visible
+# instead of invisible forever. RETURN CONTRACT: 0 when the row was delivered,
+# deferred, or skipped; NONZERO when this call MOVED the row to dead_letter (a
+# permanent status or a crossed threshold), so the drain loop can count the
+# pass's dead-letters for a single end-of-pass CRIT.
 _deliver_pending_alert_row() {
-  local request_id="$1" url="$2" encoded_body="$3" secret="$4" body signature http_status
+  local request_id="$1" url="$2" encoded_body="$3" attempts="$4" created_at="$5" secret="$6"
+  local body signature http_status threshold_reason
   if [[ -z $request_id || -z $url || -z $encoded_body ]]; then
     _osquery_log "MALFORMED-ROW drain skipped an unreadable row: request_id=${request_id:-unknown} (a required field is empty; row retained)"
+    return 0
+  fi
+  # Give up BEFORE any send on a row that has failed too many times or aged out:
+  # a retry cannot help, so move it to dead_letter now instead of POSTing again.
+  if threshold_reason="$(_osquery_row_over_threshold_reason "$attempts" "$created_at")"; then
+    if _osquery_dead_letter_alert_row "$request_id" "none" "$threshold_reason"; then
+      _osquery_log "DEAD-LETTERED request_id=$request_id ($threshold_reason; moved to dead_letter_alerts)"
+      return 1
+    fi
+    _osquery_log "DEAD-LETTER-FAILED request_id=$request_id ($threshold_reason; move failed; row retained in pending_alerts)"
     return 0
   fi
   case "$url" in
@@ -272,22 +446,56 @@ _deliver_pending_alert_row() {
       _osquery_delete_alert_row "$request_id" ||
         _osquery_log "ROW-DELETE-FAILED delivered page kept a pending row: request_id=$request_id (gateway dedups the re-post)"
       ;;
-    *) : ;;
+    401 | 403 | 404 | 413)
+      # A permanent status: the gateway understood the request and refused it
+      # outright, so no number of retries can ever succeed. Move the record to
+      # the dead-letter table NOW, loudly, so the drain stops re-sending it
+      # forever and the operator can still read the full page there. A moved row
+      # returns nonzero so the drain loop counts it toward the pass's one CRIT.
+      if _osquery_dead_letter_alert_row "$request_id" "$http_status" "permanent HTTP status $http_status"; then
+        _osquery_log "DEAD-LETTERED request_id=$request_id http=$http_status (permanent status; moved to dead_letter_alerts)"
+        return 1
+      fi
+      _osquery_log "DEAD-LETTER-FAILED request_id=$request_id http=$http_status (move failed; row retained in pending_alerts)"
+      ;;
+    *)
+      # A transient failure (429, 5xx, or a transport error): count the
+      # attempt and push this row's next try into the future, so the row waits
+      # out its delay instead of being re-POSTed by every drain tick.
+      _osquery_record_transient_failure "$request_id" ||
+        _osquery_log "RETRY-BOOKKEEPING-FAILED request_id=$request_id (attempts not recorded; the row simply retries sooner)"
+      ;;
   esac
   return 0
 }
 
-# Drain the SQLite store: deliver every pending row in occurrence-time order
+# Drain the SQLite store: deliver every DUE pending row in occurrence-time order
 # with the sequence tiebreaker. A query failure or an empty store is a quiet
-# no-op; a malformed row is skipped. Never returns nonzero (set -e-safe).
+# no-op; a malformed row is skipped. PRINTS the number of rows this pass moved to
+# dead_letter (permanent status or crossed threshold) so the caller can fire ONE
+# summary CRIT for the whole pass instead of one per record; the count is the
+# ONLY thing written to stdout. Never returns nonzero (set -e-safe): each row's
+# delivery runs inside an `if` so a per-row dead-letter signal cannot abort the
+# loop, and the loop keeps going past a failing row (skip-and-continue).
 _drain_pending_alert_rows() {
-  local secret="$1" rows request_id url encoded_body
-  rows="$(_osquery_pending_alert_rows)" || return 0
-  [[ -n $rows ]] || return 0
-  while IFS=$'\t' read -r request_id url encoded_body; do
+  local secret="$1" rows request_id url encoded_body attempts created_at dead_letter_count=0
+  rows="$(_osquery_pending_alert_rows)" || {
+    printf '0'
+    return 0
+  }
+  [[ -n $rows ]] || {
+    printf '0'
+    return 0
+  }
+  while IFS=$'\t' read -r request_id url encoded_body attempts created_at; do
     [[ -n $request_id ]] || continue
-    _deliver_pending_alert_row "$request_id" "$url" "$encoded_body" "$secret"
+    if _deliver_pending_alert_row "$request_id" "$url" "$encoded_body" "$attempts" "$created_at" "$secret"; then
+      : # delivered, deferred, or skipped
+    else
+      dead_letter_count=$((dead_letter_count + 1))
+    fi
   done <<<"$rows"
+  printf '%s' "$dead_letter_count"
   return 0
 }
 
@@ -403,8 +611,38 @@ retry_undelivered_alerts() {
   local secret
   secret="$(_read_webhook_secret)"
   [[ -n $secret ]] || return 0
-  _drain_pending_alert_rows "$secret"
+  # The drain reports how many records it moved to dead_letter this pass. Fire
+  # exactly ONE loud local CRIT when that count is positive, never one per
+  # record: a dead-lettered page means the delivery pipeline is degraded, and
+  # the operator needs one clear signal to investigate, not a notification
+  # storm. Zero dead-letters is a healthy pass and stays silent.
+  local dead_letter_count
+  dead_letter_count="$(_drain_pending_alert_rows "$secret")"
+  [[ $dead_letter_count =~ ^[0-9]+$ ]] || dead_letter_count=0
+  if ((dead_letter_count > 0)); then
+    _osquery_log "PIPELINE-DEGRADED $dead_letter_count record(s) dead-lettered this drain pass"
+    _loud_local "osquery alert delivery pipeline degraded" \
+      "$dead_letter_count undeliverable page(s) dead-lettered; the alert delivery pipeline needs attention."
+  fi
   return 0
+}
+
+# Print how many undelivered pages are still queued in pending_alerts. A public,
+# read-only counter the watchdog polls to tell a healthy-quiet pipeline (zero
+# queued) from one silently backing up. Zero before anything is stored; a bare
+# integer on stdout; never an error and never a change to stored data (see
+# _osquery_alert_row_count for the exact read-only contract).
+osquery_pending_alert_count() {
+  _osquery_alert_row_count pending_alerts
+}
+
+# Print how many pages the drain has given up on (dead_letter_alerts rows). A
+# public, read-only counter the watchdog polls: a nonzero count means delivery
+# permanently failed for at least one page and the pipeline needs attention.
+# Zero before anything is dead-lettered; a bare integer on stdout; never an error
+# and never a change to stored data (see _osquery_alert_row_count).
+osquery_dead_letter_count() {
+  _osquery_alert_row_count dead_letter_alerts
 }
 
 # Build the signed webhook body for one CRIT page and print it. tier: a page is
