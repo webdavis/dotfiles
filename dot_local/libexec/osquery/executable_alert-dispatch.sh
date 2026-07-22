@@ -337,8 +337,17 @@ _osquery_row_over_threshold_reason() { # <attempts> <created_at>
 # the two public queue-health counters below. A missing database (nothing ever
 # stored), a missing table (bootstrapped later), or an absent sqlite3 all read
 # as zero, printed as a bare integer, never an error: a health probe must report
-# a number, not fail. Uses a READ-ONLY connection so a probe never creates the
-# file, the schema, or a WAL sidecar. The table name is a fixed internal literal
+# a number, not fail.
+#
+# The connection is READ-ONLY (sqlite3 -readonly): it never modifies committed
+# data and never creates the main database when it is absent (the -f guard also
+# short-circuits that case). It is NOT free of all filesystem effects, though:
+# reading a LIVE WAL-mode database may open or touch its normal -wal/-shm
+# companion files exactly like any other reader. That plain read-only open is
+# deliberate and correct: it counts committed rows still sitting in the WAL that
+# a checkpoint has not folded back into the main file yet. An immutable=1 open
+# would skip the WAL and MISS those uncheckpointed committed rows, undercounting
+# a live queue, so it is NOT used. The table name is a fixed internal literal
 # (SQLite cannot parameterize an identifier), so there is no injection surface.
 _osquery_alert_row_count() { # <table>
   local table="$1" sqlite3_bin count
@@ -621,7 +630,8 @@ retry_undelivered_alerts() {
 # Print how many undelivered pages are still queued in pending_alerts. A public,
 # read-only counter the watchdog polls to tell a healthy-quiet pipeline (zero
 # queued) from one silently backing up. Zero before anything is stored; a bare
-# integer on stdout; never an error and never a side effect.
+# integer on stdout; never an error and never a change to stored data (see
+# _osquery_alert_row_count for the exact read-only contract).
 osquery_pending_alert_count() {
   _osquery_alert_row_count pending_alerts
 }
@@ -630,7 +640,7 @@ osquery_pending_alert_count() {
 # public, read-only counter the watchdog polls: a nonzero count means delivery
 # permanently failed for at least one page and the pipeline needs attention.
 # Zero before anything is dead-lettered; a bare integer on stdout; never an error
-# and never a side effect.
+# and never a change to stored data (see _osquery_alert_row_count).
 osquery_dead_letter_count() {
   _osquery_alert_row_count dead_letter_alerts
 }
