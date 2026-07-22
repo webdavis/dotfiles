@@ -69,9 +69,10 @@ if [[ -f $STATE ]]; then
 fi
 
 # Persist the current posture owner-only (0600) so a later run can trust its own
-# baseline. Written via a private temp file plus an atomic rename, and BEFORE any
-# notification, so a slow alerter cannot double-notify off a half-written state.
-# send_alert is itself write-ahead durable, so persisting first drops no page.
+# baseline. Written via a private temp file plus an atomic rename. Ordering for an
+# OFF transition is notify-before-persist (see below): the baseline advances ONLY
+# after send_alert durably enqueues the page. In steady state (no transition) it
+# just refreshes the baseline.
 write_state() {
   (
     umask 077
@@ -79,12 +80,11 @@ write_state() {
   ) && mv -f "$STATE.tmp" "$STATE" && chmod 600 "$STATE"
 }
 
-write_state
-
 # No trustworthy prior baseline (first run, or a lost/planted/corrupt state file):
 # seed the baseline silently. Paging a protection that is ALREADY off at first
 # sight is a later behavior.
 if [[ $prev_valid -eq 0 ]]; then
+  write_state
   exit 0
 fi
 
@@ -127,12 +127,27 @@ if [[ $cur_sl != "$prev_sl" && $cur_sl == "0" ]]; then
   crit_blocks+=("**Screen lock turned OFF**"$'\n'"- **Was:** $(sl_to_text "$prev_sl")"$'\n'"- **Now:** **OFF**"$'\n'"- Did you turn this off? If not, something else did, **investigate now**."$'\n'"- Re-enable it: System Settings → Lock Screen → Require password")
 fi
 
-# No OFF transition: silent.
-[[ ${#crit_blocks[@]} -eq 0 ]] && exit 0
+# No OFF transition (steady state or a re-enable): refresh the baseline, silent.
+if [[ ${#crit_blocks[@]} -eq 0 ]]; then
+  write_state
+  exit 0
+fi
 
-# One page for the tick, even when several protections turned off together.
+# An OFF transition: NOTIFY BEFORE PERSIST. send_alert is write-ahead durable, so
+# durably enqueue the page FIRST, then advance the baseline only once it is safely
+# queued. If send_alert fails (could not persist the page), leave the baseline on
+# its prior value and exit nonzero so the next tick re-detects and retries; do not
+# swallow the failure. A crash in the narrow window after the page is queued but
+# before the baseline advances re-pages next tick (at-least-once), never loses the
+# page. One page for the tick, even when several protections turned off together.
 body=$(printf '%s\n\n' "${crit_blocks[@]}")
 body=${body%$'\n\n'}
 title="🔴 **CRITICAL**"
 if [[ ${#crit_blocks[@]} -gt 1 ]]; then title="🔴 **CRITICAL** · ${#crit_blocks[@]}"; fi
-send_alert CRIT "$title" "$body" "Sosumi" || true
+
+if ! send_alert CRIT "$title" "$body" "Sosumi"; then
+  printf 'firewall-gatekeeper-monitor: send_alert could not queue the CRIT page; baseline not advanced, retrying next tick\n' >&2
+  exit 1
+fi
+
+write_state

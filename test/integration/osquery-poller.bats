@@ -115,7 +115,7 @@ teardown() { teardown_poller_harness; }
 # With a valid prior baseline, compare per protection and page on an OFF
 # transition. Re-enable (OFF -> ON) is silent, matching c69baab.
 
-@test "T-POLL-firewall-off-pages: firewall 1->0 pages one CRIT naming the firewall, after the new baseline is persisted" {
+@test "T-POLL-firewall-off-pages: firewall 1->0 pages one CRIT naming the firewall, queued BEFORE the baseline advances" {
   seed_baseline '{"firewall":"1","gatekeeper":"1","screenlock":"1"}'
   set_posture '[{"firewall":"0","gatekeeper":"1","screenlock":"1"}]'
 
@@ -130,9 +130,37 @@ teardown() { teardown_poller_harness; }
   assert_page_body_has 'Firewall turned OFF'
   assert_page_body_lacks 'Gatekeeper' # only the protection that changed is named
   assert_page_body_lacks 'Screen lock'
-  # Ordering: the new baseline (firewall 0) was already persisted when the page fired.
-  assert_page_saw_baseline '{"firewall":"0","gatekeeper":"1","screenlock":"1"}'
-  assert_persist_before_notify
+  # Ordering (notify-before-persist): at page time the baseline still holds the
+  # PRIOR value, so a crash before the advance re-detects and re-pages next tick.
+  assert_page_saw_baseline '{"firewall":"1","gatekeeper":"1","screenlock":"1"}'
+  # Once the page is durably queued, the baseline advances to the observed OFF value.
+  assert_baseline_scalar firewall 0
+}
+
+@test "T-POLL-page-failure-keeps-baseline: a send_alert failure does not advance the baseline, so the next tick re-detects and re-pages" {
+  seed_baseline '{"firewall":"1","gatekeeper":"1","screenlock":"1"}'
+  snapshot_baseline
+  export POLLER_SEND_ALERT_EXIT=1 # dispatch cannot durably queue the page
+  set_posture '[{"firewall":"0","gatekeeper":"1","screenlock":"1"}]'
+
+  run run_poller
+  [[ $status -ne 0 ]] || {
+    echo "expected the poller to surface the send_alert failure (nonzero), got $status: $output"
+    false
+  }
+  assert_page_count 1        # it DID attempt the page
+  assert_baseline_unchanged  # but the baseline did NOT advance to the OFF value
+
+  # Next tick: dispatch now succeeds. The still-ON baseline re-detects the OFF
+  # transition and re-pages (at-least-once), then advances. Nothing was lost.
+  export POLLER_SEND_ALERT_EXIT=0
+  run run_poller
+  [[ $status -eq 0 ]] || {
+    echo "expected the retry to exit 0, got $status: $output"
+    false
+  }
+  assert_page_count 2 # re-detected and re-paged, never silently lost
+  assert_baseline_scalar firewall 0
 }
 
 @test "T-POLL-firewall-blockall-off-pages: firewall 2->0 (block-all to off) pages CRIT naming the firewall" {

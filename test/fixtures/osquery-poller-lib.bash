@@ -88,11 +88,15 @@ send_alert() {
   printf '%s\n' "$*" >>"$POLLER_SEND_ALERT_LOG"
   if [[ -f ${OSQUERY_POSTURE_STATE:-/nonexistent} ]]; then
     printf 'state-present\n' >>"$POLLER_SEND_ALERT_STATE_WITNESS"
-    # The baseline as it stood when the page fired: proves write_state ran first.
+    # The baseline as it stood when the page fired, so a test can prove the
+    # ordering (notify-before-persist: the baseline still holds the PRIOR value).
     cat "$OSQUERY_POSTURE_STATE" >>"$POLLER_SEND_ALERT_STATE_AT_CALL"
   else
     printf 'state-absent\n' >>"$POLLER_SEND_ALERT_STATE_WITNESS"
   fi
+  # POLLER_SEND_ALERT_EXIT models a dispatch that could NOT durably queue the
+  # page (nonzero). Default 0 (queued): the poller then advances the baseline.
+  return "${POLLER_SEND_ALERT_EXIT:-0}"
 }
 SHIM
 
