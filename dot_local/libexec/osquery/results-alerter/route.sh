@@ -116,10 +116,15 @@ route_findings() {
     fi
     [[ -n $signing ]] && obj=$(jq -c --arg sig "$signing" '.signing = $sig' <<<"$obj")
     case "$q" in
-      # Poller-owned protections: the dedicated 60s poller pages a firewall /
-      # Gatekeeper / SIP flip, so routing them here too would double-page. Log-only,
-      # overriding route_severity's CRIT for the unsafe transition.
-      firewall_state | gatekeeper_state | sip_state) continue ;;
+      # Poller-owned: the dedicated 60s poller (firewall-gatekeeper-monitor.sh)
+      # pages a firewall or Gatekeeper flip, so routing them here too would
+      # double-page. Log-only, overriding route_severity's protection_off CRIT.
+      firewall_state | gatekeeper_state) continue ;;
+      # SIP is intentionally off on this developer box, so an on->off transition
+      # cannot occur and the snapshot floor is pure noise. The poller does NOT cover
+      # SIP; this is log-only for that reason, not a poller hand-off. (route_severity
+      # still classifies a sip_state-off as CRIT; the gate is the authority here.)
+      sip_state) continue ;;
       # Wrong-signal or too-noisy-to-surface detectors: log-only.
       kernel_extensions_new | persistence_startup_items_crontab | es_launchd_writes | agent_binary_changed) continue ;;
       # Digest tier: suspicious-but-ambiguous, summarized daily, never paged.

@@ -37,14 +37,17 @@ allowlist_verdict() {
   # Pull the FIRST tuple whose label matches, in one pass. `-R` reads each line as
   # a raw string and `fromjson?` parses it, the `?` dropping any line that is not
   # JSON (comments, blanks) instead of aborting - so one jq handles the whole file.
-  # The tuple's path/program/sha256 come back tab-separated (empty for absent).
+  # The tuple's path/program/sha256 come back joined by the ASCII Unit Separator
+  # (0x1F), NOT a tab: a tab is whitespace in IFS, so an empty leading field (a
+  # malformed path-empty tuple) would shift the later fields under `read`. 0x1F is
+  # non-whitespace, so empty fields are preserved, and it cannot occur in a path.
   match=$(jq -rR --arg want "$want_label" \
-    'fromjson? | select(.label == $want) | [.path // "", .program // "", .sha256 // ""] | @tsv' \
+    'fromjson? | select(.label == $want) | [.path // "", .program // "", .sha256 // ""] | join("\u001f")' \
     "$file" 2>/dev/null | head -n1)
   # No line matched the label. (A degraded label-only entry, below, also returns 1,
   # so no-match and cannot-vouch are the same not-allowlisted outcome.)
   [[ -n $match ]] || return 1
-  IFS=$'\t' read -r jpath jprog jhash <<<"$match"
+  IFS=$'\x1f' read -r jpath jprog jhash <<<"$match"
   jpath=$(_allowlist_verdict_expand_home "$jpath")
   jprog=$(_allowlist_verdict_expand_home "$jprog")
   # A degraded label-only entry (no captured identity) cannot vouch for a program.
