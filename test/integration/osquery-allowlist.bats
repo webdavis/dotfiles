@@ -54,7 +54,10 @@ stub_launchd() {
   mkdir -p "$(dirname "$plist")"
 
   # A second, unrelated label is captured first: it must survive the refresh verbatim.
-  stub_launchd "$ALLOWLIST_HOME/Library/LaunchAgents/com.other.agent.plist" /opt/homebrew/bin/other
+  local other_plist="$ALLOWLIST_HOME/Library/LaunchAgents/com.other.agent.plist"
+  mkdir -p "$(dirname "$other_plist")"
+  printf 'other-plist-bytes\n' >"$other_plist"
+  stub_launchd "$other_plist" /opt/homebrew/bin/other
   run_allowlist -a com.other.agent
   local other_line
   other_line="$(grep -F '"label":"com.other.agent"' "$OSQUERY_LAUNCHD_ALLOWLIST")"
@@ -267,8 +270,70 @@ stub_launchd() {
   }
 }
 
+@test "a hash-capture failure during -a fails closed: non-zero exit, no tuple written, the failure named on stderr" {
+  # Sol R1-2: an empty sha256 is reserved for the operator-curated own-agent seed and must
+  # never be writer-produced. If -a captured a real plist path but could not pin its hash,
+  # writing the tuple anyway would let a later plist swap at that same path/program hide
+  # behind the unpinned entry. So the writer refuses instead.
+  local plist="$ALLOWLIST_HOME/Library/LaunchAgents/com.foo.agent.plist"
+  mkdir -p "$(dirname "$plist")"
+  printf 'plist-bytes\n' >"$plist"
+  stub_launchd "$plist" /opt/homebrew/opt/foo/bin/foo
+  seed_allowlist_tuple com.other.agent '~/Library/LaunchAgents/com.other.agent.plist' /opt/homebrew/bin/other
+  local before
+  before="$(cat "$OSQUERY_LAUNCHD_ALLOWLIST")"
+
+  # A broken hash tool, first on PATH (each bats test runs in its own process, so the
+  # export does not leak).
+  mkdir -p "$ALLOWLIST_HOME/shims"
+  printf '#!/usr/bin/env bash\nexit 1\n' >"$ALLOWLIST_HOME/shims/shasum"
+  chmod +x "$ALLOWLIST_HOME/shims/shasum"
+  export PATH="$ALLOWLIST_HOME/shims:$PATH"
+
+  run --separate-stderr run_allowlist -a com.foo.agent
+  [ "$status" -ne 0 ] || {
+    echo "expected -a to fail closed when the plist hash cannot be captured, got exit 0"
+    false
+  }
+  [[ "$stderr" == *sha256* || "$stderr" == *hash* ]] || {
+    echo "expected the hash-capture failure named on stderr, got: $stderr"
+    false
+  }
+  assert_not_allowlisted com.foo.agent
+  [ "$(cat "$OSQUERY_LAUNCHD_ALLOWLIST")" = "$before" ] || {
+    echo "expected the allowlist byte-identical after the refused write; file: $(cat "$OSQUERY_LAUNCHD_ALLOWLIST")"
+    false
+  }
+}
+
+@test "a successful -a capture always pins the tuple with a 64-hex sha256, never an empty one" {
+  # The regression guard for the fail-closed rule: the live capture path (working shasum)
+  # stores a real content pin, so only the operator-curated seed may carry sha256 == "".
+  local plist="$ALLOWLIST_HOME/Library/LaunchAgents/com.foo.agent.plist"
+  mkdir -p "$(dirname "$plist")"
+  printf 'plist-bytes\n' >"$plist"
+  stub_launchd "$plist" /opt/homebrew/opt/foo/bin/foo
+
+  run run_allowlist -a com.foo.agent
+  [ "$status" -eq 0 ] || {
+    echo "expected -a with a working hash tool to exit 0, got $status: $output"
+    false
+  }
+  run jq -e 'select(.label == "com.foo.agent") | .sha256 | test("^[0-9a-f]{64}$")' \
+    "$OSQUERY_LAUNCHD_ALLOWLIST"
+  [ "$status" -eq 0 ] || {
+    echo "expected the stored tuple pinned with a 64-hex sha256; file: $(cat "$OSQUERY_LAUNCHD_ALLOWLIST")"
+    false
+  }
+}
+
 @test "a valid non-Apple label using the full allowed charset (. _ @ -) is accepted by both -a and -d" {
-  # -a accepts it and captures a tuple (degraded label-only here, as the stub returns no row).
+  # -a accepts it and captures its stubbed identity (a live capture must be complete
+  # and sha256-pinned, so the stub provides a real plist + program).
+  local plist="$ALLOWLIST_HOME/Library/LaunchAgents/homebrew.mxcl.postgresql@17.plist"
+  mkdir -p "$(dirname "$plist")"
+  printf 'plist-bytes\n' >"$plist"
+  stub_launchd "$plist" /opt/homebrew/opt/postgresql@17/bin/postgres
   run run_allowlist -a 'homebrew.mxcl.postgresql@17'
   [ "$status" -eq 0 ] || {
     echo "expected -a of a valid @-bearing label accepted, got $status: $output"

@@ -88,37 +88,47 @@ allow_label() {
     printf 'refused (invalid or system label): %s\n' "$label" >&2
     exit 1
   fi
-  mkdir -p "$(dirname "$ALLOWLIST")"
-  touch "$ALLOWLIST"
   # Capture the label's known-good identity from the SAME launchd table the finding comes from,
-  # so a future persistence_launchd row matches the stored tuple exactly. A label with no loaded
-  # LaunchAgent captures a degraded label-only entry (empty path/program) that the alerter will
-  # NOT suppress on - fail-safe, and a warning tells the operator to re-run once it is loaded.
+  # so a future persistence_launchd row matches the stored tuple exactly.
   local row abs_path abs_prog sha rel_path rel_prog
   row=$("$OSQUERYI" --json \
     "SELECT path, COALESCE(NULLIF(program,''), program_arguments) AS program FROM launchd WHERE label = '$label';" \
     2>/dev/null | jq -c '.[0] // empty' 2>/dev/null) || row=""
   abs_path=$(jq -r '.path // ""' <<<"$row" 2>/dev/null || true)
   abs_prog=$(jq -r '.program // ""' <<<"$row" 2>/dev/null || true)
+  # A live capture MUST yield a full, sha256-pinned identity or nothing is written. An
+  # empty sha256 is RESERVED for the operator-curated own-agent entries in the seed file
+  # (their plists change with the dotfiles and are verified by the pipeline-integrity
+  # manifest); it is never writer-produced, so a hash-capture failure fails CLOSED
+  # rather than storing an unpinned tuple a later plist swap at the same path/program
+  # could hide behind.
+  if [[ -z $abs_path || -z $abs_prog ]]; then
+    printf 'refused: %s has no loaded LaunchAgent to capture an identity from; load it and re-run\n' "$label" >&2
+    exit 1
+  fi
   sha=""
-  [[ -n $abs_path && -f $abs_path ]] && sha=$(shasum -a 256 "$abs_path" 2>/dev/null | awk '{print $1}')
+  if [[ -f $abs_path ]]; then
+    sha=$(shasum -a 256 "$abs_path" 2>/dev/null | awk '{print $1}') || sha=""
+  fi
+  if ! [[ $sha =~ ^[0-9a-f]{64}$ ]]; then
+    printf 'refused: sha256 hash capture failed for %s; not writing an unpinned tuple\n' "$abs_path" >&2
+    exit 1
+  fi
   # Relativize a leading $HOME to ~/ (keeps the file user-agnostic; the alerter re-expands it).
   rel_path="${abs_path/#"$HOME"\//\~/}"
   rel_prog="${abs_prog//"$HOME"\//\~/}"
   # Refresh in place: drop any existing tuple for this label (preserving every other line
   # and all comments/blanks), then append the freshly captured tuple, so re-adding a label
   # updates its identity and never duplicates it.
+  mkdir -p "$(dirname "$ALLOWLIST")"
+  touch "$ALLOWLIST"
   local temp
   temp=$(mktemp)
   _without_label "$label" >"$temp"
   jq -cn --arg label "$label" --arg path "$rel_path" --arg program "$rel_prog" --arg sha256 "$sha" \
     '{label:$label, path:$path, program:$program, sha256:$sha256}' >>"$temp"
   mv -f "$temp" "$ALLOWLIST"
-  if [[ -z $abs_path || -z $abs_prog ]]; then
-    printf 'allowed (label-only, degraded): %s - no loaded LaunchAgent found; re-run once it is loaded to capture its identity, or it will NOT be suppressed\n' "$label" >&2
-  else
-    printf 'allowed: %s -> %s\n' "$label" "$abs_prog"
-  fi
+  printf 'allowed: %s -> %s\n' "$label" "$abs_prog"
 }
 
 deny_label() {
