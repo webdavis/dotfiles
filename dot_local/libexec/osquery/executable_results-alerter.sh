@@ -43,23 +43,56 @@ source "$HOME/.local/libexec/osquery/results-alerter/digest-store.sh"
 # shellcheck source=/dev/null
 source "$HOME/.local/libexec/osquery/results-alerter/render-page.sh"
 
+# The single-instance lock file sits beside the cursor it guards, so every alerter
+# invocation contends on one lock no matter what launched it (a WatchPaths burst can
+# fire several). Overridable for tests.
+OSQUERY_RESULTS_LOCK_FILE="${OSQUERY_RESULTS_LOCK_FILE:-${STATE}.lock}"
+
+# _take_single_instance_lock: hold fd 9 open on the lock file and take a nonblocking
+# kernel lock on it (/usr/bin/lockf, the house pattern used by the drainer,
+# hue-pulse, homebrew-weekly-upgrade). Return 0 to proceed, nonzero to skip. The
+# kernel releases the lock on ANY exit (normal or crash), so there is no stale-lock
+# state to clean up. This is MUTUAL EXCLUSION: on a genuine setup error it fails
+# CLOSED (nonzero -> the caller skips), never runs unlocked - two overlapping runs
+# would each read the same cursor+snapshot, double-send the banner, and race the
+# checkpoint. The ONE exception is a host without lockf (any non-darwin box, e.g.
+# Linux CI): there is no kernel lock to take, so the run proceeds unlocked by design.
+_take_single_instance_lock() {
+  local lockf_bin="${OSQUERY_RESULTS_LOCKF_BIN:-/usr/bin/lockf}"
+  [[ -x $lockf_bin ]] || return 0
+  mkdir -p "$(dirname "$OSQUERY_RESULTS_LOCK_FILE")" 2>/dev/null || return 1
+  exec 9>>"$OSQUERY_RESULTS_LOCK_FILE" 2>/dev/null || return 1
+  "$lockf_bin" -s -t 0 9
+}
+
 # _checkpoint <inode> <offset>: atomically write the cursor to the current inode +
 # offset. Called by main ONLY after a batch is durably delivered-or-spooled -
 # never before parsing - so a page that could be neither delivered nor stored
-# leaves the cursor put and the next run retries the same rows.
-_checkpoint() { printf '%s %s\n' "$1" "$2" >"$STATE.tmp" && mv -f "$STATE.tmp" "$STATE"; }
+# leaves the cursor put and the next run retries the same rows. The 9>&- keeps the
+# lock fd out of the mv child (see the fd-hygiene note in main).
+_checkpoint() { printf '%s %s\n' "$1" "$2" >"$STATE.tmp" && mv -f "$STATE.tmp" "$STATE" 9>&-; }
 
 main() {
+  # Take the single-instance lock BEFORE reading the cursor and hold it through
+  # route -> send_alert -> checkpoint, so overlapping WatchPaths invocations
+  # serialize: exactly one run delivers a batch and advances the cursor; a
+  # contended run is a clean no-op. fd HYGIENE: the lock lives on fd 9 (held by
+  # this process); EVERY external command spawned below closes it with 9>&- so a
+  # forked child - especially a backgrounded notifier from send_alert - can never
+  # inherit fd 9 and keep the lock held after this run exits (the latent bug from
+  # the allowlist writer's lock).
+  _take_single_instance_lock || exit 0
+
   mkdir -p "$(dirname "$STATE")"
   [[ -f $LOG ]] || exit 0
 
   # Portable size + inode (wc -c / ls -i work on macOS and Linux; BSD stat -f does
   # not). The inode lets us notice a rotated/recreated log at the same path.
   local size inode
-  size="$(wc -c <"$LOG")"
+  size="$(wc -c <"$LOG" 9>&-)"
   size=${size//[[:space:]]/}
   # shellcheck disable=SC2012  # $LOG is a fixed, controlled path - ls -i is safe and portable
-  inode="$(ls -i "$LOG" | awk '{print $1}')"
+  inode="$({ ls -i "$LOG" | awk '{print $1}'; } 9>&-)"
 
   # The cursor holds "<inode> <offset>". A missing or malformed cursor is an
   # ALERTING FAILURE, not a silent seek-to-EOF: deleting the cursor must not be a
@@ -99,7 +132,7 @@ main() {
   if [[ $cursor_reset -eq 1 ]]; then
     send_alert CRIT "🔴 **osquery cursor reset**" \
       "**The osquery alerter cursor was missing or corrupt - monitoring state was disturbed.**"$'\n'"- The current log was replayed in full, so findings are re-surfaced below, not lost."$'\n'"- If you did not clear ~/.local/state, something else reset it - **investigate now**." \
-      "Sosumi" "cursor-reset:$inode:$size" || true
+      "Sosumi" "cursor-reset:$inode:$size" 9>&- || true
   fi
 
   # Read only the new bytes since the cursor. Bound the read to the snapshot window
@@ -112,8 +145,10 @@ main() {
   span=$((size - prev_offset))
   if [[ $span -gt 0 ]]; then
     snapshot="$(
-      tail -c "+$((prev_offset + 1))" "$LOG" 2>/dev/null | head -c "$span" 2>/dev/null
-      printf x
+      {
+        tail -c "+$((prev_offset + 1))" "$LOG" 2>/dev/null | head -c "$span" 2>/dev/null
+        printf x
+      } 9>&-
     )"
     snapshot="${snapshot%x}"
   fi
@@ -129,7 +164,7 @@ main() {
   local complete_records="" complete_bytes=0
   if [[ $snapshot == *$'\n'* ]]; then
     complete_records="${snapshot%$'\n'*}"$'\n'
-    complete_bytes="$(printf '%s' "$complete_records" | LC_ALL=C wc -c)"
+    complete_bytes="$({ printf '%s' "$complete_records" | LC_ALL=C wc -c; } 9>&-)"
     complete_bytes="${complete_bytes//[[:space:]]/}"
   fi
   local checkpoint_offset=$((prev_offset + complete_bytes))
@@ -140,8 +175,8 @@ main() {
   # row (normalize's per-line try/fromjson), so a garbage batch produces an empty
   # page and never aborts.
   local render pcount pbody
-  render="$(printf '%s' "$complete_records" | normalize_findings | route_findings | render_page)"
-  pcount="$(jq -r '.pcount // 0' <<<"$render" 2>/dev/null || printf '0')"
+  render="$({ printf '%s' "$complete_records" | normalize_findings | route_findings | render_page; } 9>&-)"
+  pcount="$(jq -r '.pcount // 0' 9>&- <<<"$render" 2>/dev/null || printf '0')"
   [[ $pcount =~ ^[0-9]+$ ]] || pcount=0
 
   # Checkpoint ONLY after the batch is durably handled, and only through the last
@@ -153,10 +188,10 @@ main() {
   # request_id occurrence-unique yet stable across a retry of this same batch.
   local deliver_ok=1
   if [[ $pcount -gt 0 ]]; then
-    pbody="$(jq -r '.pbody' <<<"$render")"
+    pbody="$(jq -r '.pbody' 9>&- <<<"$render")"
     local title="🔴 **CRITICAL**"
     [[ $pcount -gt 1 ]] && title="🔴 **CRITICAL** · $pcount"
-    if ! send_alert CRIT "$title" "$pbody" "Sosumi" "$inode:$prev_offset:$checkpoint_offset"; then
+    if ! send_alert CRIT "$title" "$pbody" "Sosumi" "$inode:$prev_offset:$checkpoint_offset" 9>&-; then
       deliver_ok=0
     fi
   fi
