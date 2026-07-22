@@ -46,3 +46,56 @@ stub_launchd() {
     false
   }
 }
+
+@test "re-adding an existing label refreshes its tuple in place: exactly one line for it, carrying the new identity, and other labels untouched" {
+  local plist="$ALLOWLIST_HOME/Library/LaunchAgents/com.foo.agent.plist"
+  mkdir -p "$(dirname "$plist")"
+
+  # A second, unrelated label is captured first: it must survive the refresh verbatim.
+  stub_launchd "$ALLOWLIST_HOME/Library/LaunchAgents/com.other.agent.plist" /opt/homebrew/bin/other
+  run_allowlist -a com.other.agent
+  local other_line
+  other_line="$(grep -F '"label":"com.other.agent"' "$OSQUERY_LAUNCHD_ALLOWLIST")"
+
+  # Seed com.foo.agent with identity A (program A, plist bytes A -> sha A).
+  printf 'plist-bytes-A\n' >"$plist"
+  stub_launchd "$plist" /opt/homebrew/opt/foo/bin/foo-A
+  run_allowlist -a com.foo.agent
+
+  # Re-add com.foo.agent with a DIFFERENT identity B (program B, plist bytes B -> sha B).
+  printf 'plist-bytes-B\n' >"$plist"
+  stub_launchd "$plist" /opt/homebrew/opt/foo/bin/foo-B
+  run run_allowlist -a com.foo.agent
+  [ "$status" -eq 0 ] || {
+    echo "expected the refreshing -a to exit 0, got $status: $output"
+    false
+  }
+
+  # Exactly one line remains for the label (a refresh, not a duplicate append).
+  local foo_count
+  foo_count="$(grep -cF '"label":"com.foo.agent"' "$OSQUERY_LAUNCHD_ALLOWLIST")"
+  [ "$foo_count" -eq 1 ] || {
+    echo "expected exactly one line for com.foo.agent after refresh, got $foo_count: $(cat "$OSQUERY_LAUNCHD_ALLOWLIST")"
+    false
+  }
+
+  # That one line carries identity B (the latest capture), not the stale identity A.
+  local sha_b
+  sha_b="$(shasum -a 256 "$plist" | awk '{print $1}')"
+  run jq -e --arg h "$sha_b" \
+    'select(.label == "com.foo.agent"
+            and .program == "/opt/homebrew/opt/foo/bin/foo-B"
+            and .sha256 == $h)' \
+    "$OSQUERY_LAUNCHD_ALLOWLIST"
+  [ "$status" -eq 0 ] || {
+    echo "expected com.foo.agent refreshed to identity B (program foo-B + sha B); file: $(cat "$OSQUERY_LAUNCHD_ALLOWLIST")"
+    false
+  }
+
+  # The unrelated label's line is byte-for-byte unchanged.
+  run grep -qxF "$other_line" "$OSQUERY_LAUNCHD_ALLOWLIST"
+  [ "$status" -eq 0 ] || {
+    echo "expected com.other.agent's line preserved verbatim through the refresh; file: $(cat "$OSQUERY_LAUNCHD_ALLOWLIST")"
+    false
+  }
+}

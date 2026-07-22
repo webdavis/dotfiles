@@ -26,6 +26,26 @@ usage() {
   exit 2
 }
 
+# The JSON label of an allowlist line, or empty for a comment/blank/non-JSON line.
+entry_label() { jq -r '.label // empty' <<<"$1" 2>/dev/null || true; }
+
+# Rewrite the allowlist, preserving comment/blank lines and dropping any tuple for <label>.
+# Reads $ALLOWLIST, writes the filtered result to stdout (a no-op if the file is absent).
+_without_label() {
+  local drop="$1" line
+  [[ -f $ALLOWLIST ]] || return 0
+  while IFS= read -r line || [[ -n $line ]]; do
+    case "$line" in
+      '' | '#'*)
+        printf '%s\n' "$line"
+        continue
+        ;;
+    esac
+    [[ "$(entry_label "$line")" == "$drop" ]] && continue
+    printf '%s\n' "$line"
+  done <"$ALLOWLIST"
+}
+
 # A real launchd label starts alphanumeric, then allows . _ @ - (so
 # homebrew.mxcl.postgresql@17 passes) and nothing else - no wildcards, paths,
 # spaces, or empties. Apple/system labels are refused outright.
@@ -61,8 +81,15 @@ allow_label() {
   # Relativize a leading $HOME to ~/ (keeps the file user-agnostic; the alerter re-expands it).
   rel_path="${abs_path/#"$HOME"\//\~/}"
   rel_prog="${abs_prog//"$HOME"\//\~/}"
+  # Refresh in place: drop any existing tuple for this label (preserving every other line
+  # and all comments/blanks), then append the freshly captured tuple, so re-adding a label
+  # updates its identity and never duplicates it.
+  local temp
+  temp=$(mktemp)
+  _without_label "$label" >"$temp"
   jq -cn --arg label "$label" --arg path "$rel_path" --arg program "$rel_prog" --arg sha256 "$sha" \
-    '{label:$label, path:$path, program:$program, sha256:$sha256}' >>"$ALLOWLIST"
+    '{label:$label, path:$path, program:$program, sha256:$sha256}' >>"$temp"
+  mv -f "$temp" "$ALLOWLIST"
   if [[ -z $abs_path || -z $abs_prog ]]; then
     printf 'allowed (label-only, degraded): %s - no loaded LaunchAgent found; re-run once it is loaded to capture its identity, or it will NOT be suppressed\n' "$label" >&2
   else
