@@ -231,6 +231,7 @@ teardown() { teardown_poller_harness; }
   assert_page_severity_is CRIT
   assert_page_body_has 'Firewall turned OFF'
   assert_page_body_has 'Gatekeeper turned OFF'
+  assert_page_body_has '· 2' # the count title marks two protections in one page
   # Notify-before-persist: at page time the on-disk baseline still holds the prior all-ON.
   assert_page_saw_baseline '{"firewall":"1","gatekeeper":"1","screenlock":"1"}'
 }
@@ -477,6 +478,7 @@ teardown() { teardown_poller_harness; }
   assert_page_severity_is CRIT
   assert_page_body_has 'Firewall is OFF (first observation)'
   assert_page_body_has 'Gatekeeper is OFF (first observation)'
+  assert_page_body_has '· 2' # the count title marks two protections in one page
 }
 
 @test "T-POLL-first-obs-screenlock-off-pages: first run with the screen lock already OFF pages naming the screen lock" {
@@ -513,4 +515,22 @@ teardown() { teardown_poller_harness; }
   }
   assert_page_count 2               # re-detected the still-unbaselined exposure and re-paged
   assert_baseline_scalar firewall 0 # now seeded
+}
+
+@test "T-POLL-first-obs-continuity: an already-off first observation pages once and seeds, then an identical next tick is silent" {
+  set_posture '[{"firewall":"0","gatekeeper":"1","screenlock":"1"}]'
+
+  run run_poller # first observation: pages the already-off firewall and seeds the baseline
+  [[ $status -eq 0 ]] || {
+    echo "tick 1 status $status: $output"
+    false
+  }
+  assert_page_count 1
+
+  run run_poller # identical next tick: the seeded prior is now trusted, firewall steady off, silent
+  [[ $status -eq 0 ]] || {
+    echo "tick 2 status $status: $output"
+    false
+  }
+  assert_page_count 1 # still one page: a first observation seeds and does not re-page every tick
 }
