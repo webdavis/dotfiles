@@ -108,7 +108,7 @@ render_page() {
       elif (.q == "system_extensions_new" or .q == "kernel_extensions_new") then
         ["- Did you install this? If not, **remove it** - an extension can intercept traffic or load at boot.", "- Manage at: System Settings → General → Login Items & Extensions"]
       elif .q == "suid_bin_unexpected" then
-        ["- Did you create this? If not, it lets a program run as **root** - a backdoor.", "- **Inspect:** " + (("codesign -dv \"" + $ep + "\"") | code)]
+        ["- Did you create this? If not, it lets a program run as **root** - a backdoor.", "- **Inspect:** " + (("codesign -dv -- " + ($ep | @sh)) | code)]
       elif .q == "new_admin_user" then
         ["- Did you create this account? If not, someone gained **admin access** - investigate now.", "- Review accounts: System Settings → Users & Groups"]
       elif .q == "agent_exposure_changed" then
@@ -123,12 +123,12 @@ render_page() {
         (((.cols.target_path // "") | split("/") | last) as $bn |
          if ((.cols.category // "") == "pipeline_integrity")
             or ($bn | test("^osquery-.*\\.sh$")) or ($bn | test("^com\\.webdavis\\.osquery-.*\\.plist$"))
-         then ["- Did you just apply your dotfiles? If not, your **security tooling was modified** - investigate now.", "- **Compare:** " + (("shasum -a 256 \"" + $ep + "\"") | code)]
-         else ["- Did you change this? If not, someone altered who can log in or run as **root**.", "- **Review:** " + (("sudo cat \"" + $ep + "\"") | code)] end)
+         then ["- Did you just apply your dotfiles? If not, your **security tooling was modified** - investigate now.", "- **Compare:** " + (("shasum -a 256 -- " + ($ep | @sh)) | code)]
+         else ["- Did you change this? If not, someone altered who can log in or run as **root**.", "- **Review:** " + (("sudo cat -- " + ($ep | @sh)) | code)] end)
       elif (.q == "persistence_launchd" or .q == "persistence_startup_items_crontab") then
-        ["- Did you set this up? If not, it **auto-runs at every login** - likely malware.", "- **Inspect:** " + (("cat \"" + $ep + "\"") | code)]
+        ["- Did you set this up? If not, it **auto-runs at every login** - likely malware.", "- **Inspect:** " + (("cat -- " + ($ep | @sh)) | code)]
       elif .q == "es_launchd_writes" then
-        ["- Did you run this? If not, a process is **installing persistence** - investigate it and remove the file.", "- **Inspect the writer:** " + (("codesign -dv \"" + $ep + "\"") | code)]
+        ["- Did you run this? If not, a process is **installing persistence** - investigate it and remove the file.", "- **Inspect the writer:** " + (("codesign -dv -- " + ($ep | @sh)) | code)]
       elif ($ep != "") then ["- **Review:** " + ($ep | code)]
       else [] end;
     def block:
