@@ -194,6 +194,8 @@ teardown() { teardown_poller_harness; }
   assert_page_body_has 'Gatekeeper turned OFF'
   assert_page_body_lacks 'Firewall'
   assert_page_body_lacks 'Screen lock'
+  # Notify-before-persist: at page time the on-disk baseline still holds the prior all-ON.
+  assert_page_saw_baseline '{"firewall":"1","gatekeeper":"1","screenlock":"1"}'
 }
 
 @test "T-POLL-screenlock-off-pages: screen-lock 1->0 pages one CRIT naming the screen lock" {
@@ -211,6 +213,8 @@ teardown() { teardown_poller_harness; }
   assert_page_body_has 'Screen lock turned OFF'
   assert_page_body_lacks 'Firewall'
   assert_page_body_lacks 'Gatekeeper'
+  # Notify-before-persist: at page time the on-disk baseline still holds the prior all-ON.
+  assert_page_saw_baseline '{"firewall":"1","gatekeeper":"1","screenlock":"1"}'
 }
 
 @test "T-POLL-multi-off-one-page: two protections turning off in one tick page a single CRIT naming both" {
@@ -227,6 +231,8 @@ teardown() { teardown_poller_harness; }
   assert_page_severity_is CRIT
   assert_page_body_has 'Firewall turned OFF'
   assert_page_body_has 'Gatekeeper turned OFF'
+  # Notify-before-persist: at page time the on-disk baseline still holds the prior all-ON.
+  assert_page_saw_baseline '{"firewall":"1","gatekeeper":"1","screenlock":"1"}'
 }
 
 @test "T-POLL-steady-silent: an all-ON posture unchanged from a valid baseline pages nothing" {
@@ -301,4 +307,47 @@ teardown() { teardown_poller_harness; }
   }
 
   assert_no_page # the untrusted prior is treated as no-prior: seed silently, no false CRIT
+}
+
+# --- change-detection and re-enable coverage ------------------------------------
+
+@test "T-POLL-steady-off-silent: a protection already OFF and unchanged pages nothing" {
+  # firewall is OFF in the baseline AND in the current read: no transition, so no
+  # page. A bare "cur == 0" check without change-detection would page every tick.
+  seed_baseline '{"firewall":"0","gatekeeper":"1","screenlock":"1"}'
+  set_posture '[{"firewall":"0","gatekeeper":"1","screenlock":"1"}]'
+
+  run run_poller
+  [[ $status -eq 0 ]] || {
+    echo "expected the poller to exit 0, got $status: $output"
+    false
+  }
+
+  assert_no_page
+}
+
+@test "T-POLL-gatekeeper-reenable-silent: a Gatekeeper re-enable (0->1) pages nothing" {
+  seed_baseline '{"firewall":"1","gatekeeper":"0","screenlock":"1"}'
+  set_posture '[{"firewall":"1","gatekeeper":"1","screenlock":"1"}]'
+
+  run run_poller
+  [[ $status -eq 0 ]] || {
+    echo "expected the poller to exit 0, got $status: $output"
+    false
+  }
+
+  assert_no_page # a protection turning back ON is not actionable
+}
+
+@test "T-POLL-screenlock-reenable-silent: a screen-lock re-enable (0->1) pages nothing" {
+  seed_baseline '{"firewall":"1","gatekeeper":"1","screenlock":"0"}'
+  set_posture '[{"firewall":"1","gatekeeper":"1","screenlock":"1"}]'
+
+  run run_poller
+  [[ $status -eq 0 ]] || {
+    echo "expected the poller to exit 0, got $status: $output"
+    false
+  }
+
+  assert_no_page # a protection turning back ON is not actionable
 }
