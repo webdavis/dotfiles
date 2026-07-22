@@ -22,6 +22,7 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 ROUTE="$REPO_ROOT/dot_local/libexec/osquery/results-alerter/route.sh"
+ALLOWLIST_HELPER="$REPO_ROOT/dot_local/libexec/osquery/results-alerter/allowlist-verdict.sh"
 
 fail() {
   printf 'osquery-route-gate: FAIL -- %s\n' "$*" >&2
@@ -29,6 +30,7 @@ fail() {
 }
 
 [[ -f $ROUTE ]] || fail "missing helper: $ROUTE"
+[[ -f $ALLOWLIST_HELPER ]] || fail "missing helper: $ALLOWLIST_HELPER"
 
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
@@ -70,12 +72,16 @@ findings=(
 )
 
 # One gate pass. The spy records every digested finding to the spool file.
+# allowlist_verdict is sourced (the persistence arm consults it); with the
+# allowlist file pointed at a nonexistent path, the user-agent finding (TAG06) is
+# not-found -> pages under default-deny.
 page_out="$(printf '%s\n' "${findings[@]}" |
-  DIGEST_SPY="$spool" bash -c '
+  DIGEST_SPY="$spool" OSQUERY_LAUNCHD_ALLOWLIST="$work/no-allowlist.txt" bash -c '
     source "$1"
+    source "$2"
     digest_append() { printf "%s\n" "$1" >>"$DIGEST_SPY"; }
     route_findings
-  ' _ "$ROUTE")"
+  ' _ "$ROUTE" "$ALLOWLIST_HELPER")"
 
 # classify <token> <page|digest|logonly>: assert where the token surfaced.
 classify() {

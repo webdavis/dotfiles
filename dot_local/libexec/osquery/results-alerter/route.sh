@@ -60,13 +60,13 @@ route_severity() {
 # c69baab's gate, overriding the base tier where the detector demands it. The gate
 # is the authority on the final outcome.
 #
-# NOT WIRED YET (see the TODOs inline): the allowlist verdict for a user
-# LaunchAgent (B11), the pipeline verdict for a pipeline file event (B12), and the
-# signing enrichment that can promote a NOTICE to CRIT (B13). Until then a new
-# launchd item and a pipeline file event page unconditionally.
+# NOT WIRED YET (see the TODOs inline): the pipeline verdict for a pipeline file
+# event (B12) and the signing enrichment that can promote a NOTICE to CRIT (B13).
+# Until then a pipeline file event pages unconditionally.
 #
-# digest_append (digest-store.sh) is expected to be sourced alongside this helper;
-# the entry script sources all helpers into one process.
+# digest_append (digest-store.sh) and allowlist_verdict (allowlist-verdict.sh) are
+# expected to be sourced alongside this helper; the entry script sources all
+# helpers into one process.
 route_findings() {
   local -a objs=() controls=() sevs=()
   local obj
@@ -77,18 +77,22 @@ route_findings() {
     objs+=("$obj")
   done
   [[ ${#objs[@]} -gt 0 ]] || return 0
-  # One jq pass extracts the control fields (q, act, category, file basename, path)
-  # per finding, tab-separated; one route_severity pass gives the base severity.
-  # Both emit exactly one line per input, in order, so they align with objs by index.
+  # One jq pass extracts the control fields (q, act, category, file basename, path,
+  # label, program) per finding; one route_severity pass gives the base severity.
+  # Both emit exactly one line per input, in order, so they align with objs by
+  # index. The fields are joined with the ASCII Unit Separator (0x1F), NOT a tab:
+  # a tab is whitespace in IFS, so `read` would collapse the empty category/base
+  # fields and shift the later fields off. 0x1F is non-whitespace, so empty fields
+  # are preserved, and it cannot occur in an osquery path/label/program.
   mapfile -t controls < <(printf '%s\n' "${objs[@]}" |
-    jq -rc '[.q, .act, (.cols.category // ""), ((.cols.target_path // "") | split("/") | last), (.cols.path // "")] | @tsv')
+    jq -rc '[.q, .act, (.cols.category // ""), ((.cols.target_path // "") | split("/") | last), (.cols.path // ""), (.cols.label // ""), (.cols.program // "")] | join("\u001f")')
   mapfile -t sevs < <(printf '%s\n' "${objs[@]}" | route_severity)
 
   local -a pages=()
-  local i q act category base path sev
+  local i q act category base path label program sev av
   for i in "${!objs[@]}"; do
     obj=${objs[i]}
-    IFS=$'\t' read -r q act category base path <<<"${controls[i]}"
+    IFS=$'\x1f' read -r q act category base path label program <<<"${controls[i]}"
     sev=${sevs[i]}
     case "$q" in
       # Poller-owned protections: the dedicated 60s poller pages a firewall /
@@ -133,11 +137,23 @@ route_findings() {
       persistence_launchd)
         [[ $act == added ]] || continue
         case "$path" in
-          /System/Library/*) continue ;; # Apple's own launchd items, log-only
-          # TODO B11: a user LaunchAgent (the default arm below) should consult
-          # allowlist_verdict - suppress a known-good identity, page a reused label,
-          # digest an unknown one. For now a new launchd item pages unconditionally.
-          *) sev="CRIT" ;;
+          /System/Library/*) continue ;;   # Apple's own launchd items, log-only
+          */LaunchDaemons/*) sev="CRIT" ;; # a root LaunchDaemon runs at boot -> page by path
+          *)
+            # A user LaunchAgent. DEFAULT-DENY (operator ruling 2026-07-22): an
+            # unallowlisted user LaunchAgent PAGES; the operator seeds known-good
+            # agents via the allowlist writer (osquery-allowlist.sh) to suppress
+            # them. This is a deliberate hardening over the digest-unknowns of the
+            # reverted #52 (c69baab), which silently digested an unknown agent.
+            # allowlist_verdict: 0 = full-tuple match (known-good) -> suppress;
+            # 2 = reused label (identity diverges) -> page; 1 = not-found -> page.
+            av=0
+            allowlist_verdict "$label" "$path" "$program" || av=$?
+            case "$av" in
+              0) continue ;;   # known-good identity -> suppressed (log-only)
+              *) sev="CRIT" ;; # reused label OR unknown -> page (default-deny)
+            esac
+            ;;
         esac
         ;;
       file_events_recent)
