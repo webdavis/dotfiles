@@ -270,6 +270,44 @@ stub_launchd() {
   }
 }
 
+@test "the writer's lock never leaks to a child, so it releases when the writer exits even if a spawned child lingers" {
+  # Sol R2: exec 9>> leaves the lock fd inheritable. If any child in the locked section
+  # (osqueryi/jq/shasum/mv/...) outlives the writer, it keeps the kernel lock held and
+  # every later -a/-d blocks forever. Here the osqueryi capture spawns a grandchild that
+  # lingers past the writer's exit; with the fd closed in every child (9>&-) the lock
+  # still releases on writer exit, so a fresh acquire succeeds immediately.
+  [[ -x /usr/bin/lockf ]] || skip "no /usr/bin/lockf (the writer runs unlocked on non-darwin by design)"
+  local plist="$ALLOWLIST_HOME/Library/LaunchAgents/com.foo.agent.plist"
+  mkdir -p "$(dirname "$plist")"
+  printf 'plist-bytes\n' >"$plist"
+  stub_launchd "$plist" /opt/homebrew/opt/foo/bin/foo
+
+  export ALLOWLIST_OSQUERYI_LINGER=5
+  export ALLOWLIST_OSQUERYI_LINGER_PID_FILE="$ALLOWLIST_HOME/linger-pid"
+  run run_allowlist -a com.foo.agent
+  [ "$status" -eq 0 ] || {
+    echo "expected -a to exit 0, got $status: $output"
+    false
+  }
+
+  # The lingering grandchild is still alive (guards against a false pass where the child
+  # already exited and freed the fd on its own).
+  local linger_pid
+  linger_pid="$(cat "$ALLOWLIST_HOME/linger-pid")"
+  kill -0 "$linger_pid" 2>/dev/null || {
+    echo "test setup: the lingering child $linger_pid already exited; widen ALLOWLIST_OSQUERYI_LINGER"
+    false
+  }
+
+  # The writer has exited; the lock must be free despite the still-alive child, proving
+  # no child inherited the lock fd.
+  run allowlist_lock_is_free
+  [ "$status" -eq 0 ] || {
+    echo "expected the lock free after the writer exited (a child inherited the lock fd and still holds it), lockf exit $status"
+    false
+  }
+}
+
 @test "a hash-capture failure during -a fails closed: non-zero exit, no tuple written, the failure named on stderr" {
   # Sol R1-2: an empty sha256 is reserved for the operator-curated own-agent seed and must
   # never be writer-produced. If -a captured a real plist path but could not pin its hash,

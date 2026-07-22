@@ -37,6 +37,13 @@ usage() {
 # lock-setup error fails CLOSED (per the DR-B ruling). The ONE exception is a host with
 # no lockf at all (any non-darwin box, e.g. Linux CI): there is no kernel lock to take,
 # so the write proceeds unlocked by design, matching the drainer.
+#
+# fd-inheritance discipline: `exec 9>>` leaves fd 9 inheritable, so EVERY external command
+# spawned while the lock is held closes it with `9>&-`. Otherwise a child (osqueryi/jq/
+# shasum/awk/grep/mkdir/dirname/touch/mktemp/mv) inherits the lock fd; if it outlives the
+# writer it keeps the kernel lock held and every later -a/-d blocks forever. `9>&-` is
+# added ONLY to forked externals - never to a function call or builtin running in this
+# shell, which would close fd 9 in the writer itself and release the lock early.
 take_allowlist_write_lock() {
   local lockf_bin="${OSQUERY_ALLOWLIST_LOCKF_BIN:-/usr/bin/lockf}"
   # No lockf available: the documented non-darwin fallback. Proceed unlocked.
@@ -51,7 +58,9 @@ take_allowlist_write_lock() {
 }
 
 # The JSON label of an allowlist line, or empty for a comment/blank/non-JSON line.
-entry_label() { jq -r '.label // empty' <<<"$1" 2>/dev/null || true; }
+# 9>&- so this jq (spawned under the write lock) never inherits the lock fd - see the
+# fd-inheritance note on take_allowlist_write_lock.
+entry_label() { jq -r '.label // empty' 9>&- <<<"$1" 2>/dev/null || true; }
 
 # Rewrite the allowlist, preserving comment/blank lines and dropping any tuple for <label>.
 # Reads $ALLOWLIST, writes the filtered result to stdout (a no-op if the file is absent).
@@ -93,9 +102,9 @@ allow_label() {
   local row abs_path abs_prog sha rel_path rel_prog
   row=$("$OSQUERYI" --json \
     "SELECT path, COALESCE(NULLIF(program,''), program_arguments) AS program FROM launchd WHERE label = '$label';" \
-    2>/dev/null | jq -c '.[0] // empty' 2>/dev/null) || row=""
-  abs_path=$(jq -r '.path // ""' <<<"$row" 2>/dev/null || true)
-  abs_prog=$(jq -r '.program // ""' <<<"$row" 2>/dev/null || true)
+    9>&- 2>/dev/null | jq -c '.[0] // empty' 9>&- 2>/dev/null) || row=""
+  abs_path=$(jq -r '.path // ""' 9>&- <<<"$row" 2>/dev/null || true)
+  abs_prog=$(jq -r '.program // ""' 9>&- <<<"$row" 2>/dev/null || true)
   # A live capture MUST yield a full, sha256-pinned identity or nothing is written. An
   # empty sha256 is RESERVED for the operator-curated own-agent entries in the seed file
   # (their plists change with the dotfiles and are verified by the pipeline-integrity
@@ -108,7 +117,7 @@ allow_label() {
   fi
   sha=""
   if [[ -f $abs_path ]]; then
-    sha=$(shasum -a 256 "$abs_path" 2>/dev/null | awk '{print $1}') || sha=""
+    sha=$(shasum -a 256 "$abs_path" 9>&- 2>/dev/null | awk '{print $1}' 9>&-) || sha=""
   fi
   if ! [[ $sha =~ ^[0-9a-f]{64}$ ]]; then
     printf 'refused: sha256 hash capture failed for %s; not writing an unpinned tuple\n' "$abs_path" >&2
@@ -120,14 +129,14 @@ allow_label() {
   # Refresh in place: drop any existing tuple for this label (preserving every other line
   # and all comments/blanks), then append the freshly captured tuple, so re-adding a label
   # updates its identity and never duplicates it.
-  mkdir -p "$(dirname "$ALLOWLIST")"
-  touch "$ALLOWLIST"
+  mkdir -p "$(dirname "$ALLOWLIST" 9>&-)" 9>&-
+  touch "$ALLOWLIST" 9>&-
   local temp
-  temp=$(mktemp)
+  temp=$(mktemp 9>&-)
   _without_label "$label" >"$temp"
   jq -cn --arg label "$label" --arg path "$rel_path" --arg program "$rel_prog" --arg sha256 "$sha" \
-    '{label:$label, path:$path, program:$program, sha256:$sha256}' >>"$temp"
-  mv -f "$temp" "$ALLOWLIST"
+    '{label:$label, path:$path, program:$program, sha256:$sha256}' 9>&- >>"$temp"
+  mv -f "$temp" "$ALLOWLIST" 9>&-
   printf 'allowed: %s -> %s\n' "$label" "$abs_prog"
 }
 
@@ -139,14 +148,14 @@ deny_label() {
   fi
   # Removing a label that was never allowed is a clean no-op: exit 0, file untouched,
   # a note on stdout (nothing on stderr), so a caller can deny unconditionally.
-  if [[ ! -f $ALLOWLIST ]] || ! grep -qF "\"label\":\"$label\"" "$ALLOWLIST" 2>/dev/null; then
+  if [[ ! -f $ALLOWLIST ]] || ! grep -qF "\"label\":\"$label\"" "$ALLOWLIST" 9>&- 2>/dev/null; then
     printf 'not present: %s\n' "$label"
     return 0
   fi
   local temp
-  temp=$(mktemp)
+  temp=$(mktemp 9>&-)
   _without_label "$label" >"$temp"
-  mv -f "$temp" "$ALLOWLIST"
+  mv -f "$temp" "$ALLOWLIST" 9>&-
   printf 'denied: %s\n' "$label"
 }
 

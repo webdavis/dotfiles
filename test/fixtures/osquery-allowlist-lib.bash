@@ -28,6 +28,16 @@ setup_allowlist_harness() {
 # the race window is wide enough to be deterministic, not timing-luck.
 [[ -n ${ALLOWLIST_OSQUERYI_STARTED_FILE:-} ]] && : >"$ALLOWLIST_OSQUERYI_STARTED_FILE"
 [[ -n ${ALLOWLIST_OSQUERYI_DELAY:-} ]] && sleep "$ALLOWLIST_OSQUERYI_DELAY"
+# fd-inheritance knob: spawn a background grandchild that outlives the writer. Its stdio
+# is detached from the capture pipeline (</dev/null >/dev/null 2>&1) so the pipeline's
+# teardown cannot reap it, but it does NOT close fd 9 - so if the writer's lock fd leaked
+# into this osqueryi child, the lingerer inherits it and keeps the kernel lock held after
+# the writer exits (the leak this exercises). With the fd closed in every child (9>&-),
+# the lingerer never receives fd 9 and the lock releases on writer exit.
+if [[ -n ${ALLOWLIST_OSQUERYI_LINGER:-} ]]; then
+  ( sleep "$ALLOWLIST_OSQUERYI_LINGER" ) </dev/null >/dev/null 2>&1 &
+  [[ -n ${ALLOWLIST_OSQUERYI_LINGER_PID_FILE:-} ]] && printf '%s\n' "$!" >"$ALLOWLIST_OSQUERYI_LINGER_PID_FILE"
+fi
 printf '%s\n' "${ALLOWLIST_OSQUERYI_ROW:-[]}"
 SHIM
   chmod +x "$ALLOWLIST_HOME/bin/osqueryi"
@@ -67,6 +77,14 @@ assert_not_allowlisted() {
     echo "expected label '$1' NOT in the allowlist: $(cat "$OSQUERY_LAUNCHD_ALLOWLIST")" >&2
     return 1
   fi
+}
+
+# Try to take the writer's lock non-blocking on a FRESH fd. Exit 0 = the lock is free
+# (no leaked, still-held copy); non-zero = still held. Used to prove the lock released
+# when the writer exited (no child inherited the lock fd).
+allowlist_lock_is_free() {
+  local lockf_bin="${OSQUERY_ALLOWLIST_LOCKF_BIN:-/usr/bin/lockf}"
+  (exec 8>>"${OSQUERY_LAUNCHD_ALLOWLIST}.lock" && "$lockf_bin" -s -t 0 8)
 }
 
 # Count of entry lines (non-comment, non-blank): one NDJSON tuple per line.
