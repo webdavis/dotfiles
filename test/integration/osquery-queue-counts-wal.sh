@@ -55,9 +55,12 @@ fi
 # Stand up a WAL-mode store and hold a connection OPEN via a coproc so the
 # close-time checkpoint never runs and the committed rows stay in the -wal.
 coproc HOLDER { sqlite3 "$OSQUERY_UNDELIVERED_ALERTS_DB" 2>&1; }
+# shellcheck disable=SC2153 # HOLDER_PID is assigned implicitly by the coproc above
 holder_pid=$HOLDER_PID
 cleanup() {
-  printf '.quit\n' >&"${HOLDER[1]}" 2>/dev/null || true
+  # The braces keep the fd duplication and the stderr silence as two separate
+  # redirections (a dead holder makes the printf fail; both are best-effort).
+  { printf '.quit\n' >&"${HOLDER[1]}"; } 2>/dev/null || true
   wait "$holder_pid" 2>/dev/null || true
   rm -rf "$work"
 }
