@@ -60,12 +60,14 @@ route_severity() {
 # c69baab's gate, overriding the base tier where the detector demands it. The gate
 # is the authority on the final outcome.
 #
-# NOT WIRED YET (see the TODO inline): the signing enrichment that can promote a
-# NOTICE to CRIT (B13).
+# Enrichment runs BEFORE the per-detector case so a finding promoted to CRIT by an
+# untrusted signing verdict can never be suppressed by the allowlist (the security
+# invariant: an untrusted program behind an allowlisted label still pages).
 #
-# digest_append (digest-store.sh), allowlist_verdict (allowlist-verdict.sh), and
-# pipeline_verdict (pipeline-verdict.sh) are expected to be sourced alongside this
-# helper; the entry script sources all helpers into one process.
+# digest_append (digest-store.sh), allowlist_verdict (allowlist-verdict.sh),
+# pipeline_verdict (pipeline-verdict.sh), and the enrich-finding.sh script are
+# expected to be available alongside this helper; the entry script sources all
+# helpers into one process.
 route_findings() {
   local -a objs=() controls=() sevs=()
   local obj
@@ -84,15 +86,35 @@ route_findings() {
   # fields and shift the later fields off. 0x1F is non-whitespace, so empty fields
   # are preserved, and it cannot occur in an osquery path/label/program.
   mapfile -t controls < <(printf '%s\n' "${objs[@]}" |
-    jq -rc '[.q, .act, (.cols.category // ""), ((.cols.target_path // "") | split("/") | last), (.cols.path // ""), (.cols.label // ""), (.cols.program // ""), (.cols.target_path // ""), (.cols.sha256 // ""), (.cols.action // "")] | join("\u001f")')
+    jq -rc '[.q, .act, (.cols.category // ""), ((.cols.target_path // "") | split("/") | last), (.cols.path // ""), (.cols.label // ""), (.cols.program // ""), (.cols.target_path // ""), (.cols.sha256 // ""), (.cols.action // ""), (.ep // "")] | join("\u001f")')
   mapfile -t sevs < <(printf '%s\n' "${objs[@]}" | route_severity)
 
+  # The signing enricher (enrich-finding.sh): given an inspectable path it emits a
+  # trust fact string and exits 10 when the code is UNTRUSTED. Overridable for tests;
+  # absent/non-executable -> enrichment is skipped (fail-open, the finding still surfaces).
+  local enrich_script="${OSQUERY_ENRICH_SCRIPT:-$HOME/.local/libexec/osquery/enrich-finding.sh}"
+
   local -a pages=()
-  local i q act category base path label program target hash verb sev av
+  local i q act category base path label program target hash verb ep sev av signing enrich_status
   for i in "${!objs[@]}"; do
     obj=${objs[i]}
-    IFS=$'\x1f' read -r q act category base path label program target hash verb <<<"${controls[i]}"
+    IFS=$'\x1f' read -r q act category base path label program target hash verb ep <<<"${controls[i]}"
     sev=${sevs[i]}
+    # Enrichment runs BEFORE the per-detector case (the security invariant): a
+    # finding an untrusted signature promotes to CRIT here can NOT then be
+    # suppressed by the allowlist below - a promoted CRIT (an untrusted binary
+    # behind an allowlisted label) always pages. For a finding with an inspectable
+    # path and a CRIT/NOTICE base tier, get the signing verdict, attach it as
+    # .signing for render-page, and promote NOTICE -> CRIT (louder, never quieter)
+    # when the verdict is UNTRUSTED (enricher exit 10). Fail-open: an absent or
+    # erroring enricher leaves the finding surfaced, just without a Signing field.
+    signing=""
+    if [[ -n $ep && ($sev == "CRIT" || $sev == "NOTICE") && -x $enrich_script ]]; then
+      enrich_status=0
+      signing=$("$enrich_script" "$ep" 2>/dev/null) || enrich_status=$?
+      [[ $enrich_status -eq 10 && $sev == "NOTICE" ]] && sev="CRIT"
+    fi
+    [[ -n $signing ]] && obj=$(jq -c --arg sig "$signing" '.signing = $sig' <<<"$obj")
     case "$q" in
       # Poller-owned protections: the dedicated 60s poller pages a firewall /
       # Gatekeeper / SIP flip, so routing them here too would double-page. Log-only,
@@ -149,7 +171,12 @@ route_findings() {
             av=0
             allowlist_verdict "$label" "$path" "$program" || av=$?
             case "$av" in
-              0) continue ;;   # known-good identity -> suppressed (log-only)
+              # Known-good tuple -> suppress, UNLESS enrichment already promoted this
+              # to CRIT on an untrusted program. A promoted CRIT is never suppressed;
+              # the allowlist only quiets a non-CRIT finding. The tuple's plist-hash
+              # dimension catches a tampered PLIST and the signing verdict catches an
+              # untrusted PROGRAM - separate defenses, both able to page.
+              0) [[ $sev == "CRIT" ]] || continue ;;
               *) sev="CRIT" ;; # reused label OR unknown -> page (default-deny)
             esac
             ;;
@@ -196,8 +223,6 @@ route_findings() {
         # installed-software drift queries, recent_logins, persistence_launchd_overrides)
         # fall through with the base severity route_severity assigned.
     esac
-    # TODO B13: signing enrichment (promote a NOTICE to CRIT on an untrusted signing
-    # verdict) goes here, before the page decision.
     [[ $sev == "CRIT" ]] || continue
     pages+=("$obj")
   done
