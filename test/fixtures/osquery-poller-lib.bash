@@ -56,6 +56,13 @@ setup_poller_harness() {
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$POLLER_OSQUERYI_QUERY"
 printf 'call\n' >>"$POLLER_OSQUERYI_CALLS"
+# POLLER_OSQUERYI_SLEEP models a wedged or slow query. exec into sleep so this is
+# a SINGLE process (no child holding stdout open): a timeout kill then closes the
+# pipe at the bound. It never emits, so a bounded poller reads empty and gaps;
+# an unbounded poller blocks until the sleep ends.
+if [[ -n ${POLLER_OSQUERYI_SLEEP:-} ]]; then
+  exec sleep "$POLLER_OSQUERYI_SLEEP"
+fi
 # POLLER_OSQUERYI_EXIT models a hard osqueryi failure: a non-zero value means no
 # stdout and that exit status (a missing binary, or the daemon not up on a fresh
 # boot). Zero, the default, prints the programmed posture.

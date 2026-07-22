@@ -534,3 +534,24 @@ teardown() { teardown_poller_harness; }
   }
   assert_page_count 1 # still one page: a first observation seeds and does not re-page every tick
 }
+
+# --- bounded posture query: a wedged osqueryi becomes a gap, not silent blindness -
+
+@test "T-POLL-osqueryi-hang-pages-gap: a posture query that outlasts the bound is killed and pages a monitoring gap" {
+  seed_baseline '{"firewall":"1","gatekeeper":"1","screenlock":"1"}'
+  snapshot_baseline
+  export OSQUERY_POSTURE_TIMEOUT=1 # bound the query at 1s
+  export POLLER_OSQUERYI_SLEEP=30  # osqueryi wedges far past the bound
+
+  run run_poller
+  [[ $status -eq 0 ]] || {
+    echo "expected exit 0 after the bounded query gapped, got $status: $output"
+    false
+  }
+
+  assert_page_count 1
+  assert_page_severity_is CRIT
+  assert_page_body_has 'monitoring gap'
+  assert_gap_marker         # the bounded read collapses to empty -> the gap gate
+  assert_baseline_unchanged # a wedged read is a gap: it never persists
+}

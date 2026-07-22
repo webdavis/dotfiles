@@ -29,12 +29,27 @@ trap 'rm -f "$STATE.tmp"' EXIT
 
 # Read the current posture in a single combined query (one osqueryi startup per
 # tick, not one per protection). screenlock is folded in per R2-3.
-posture=$("$OSQUERYI" --json "
+#
+# Bound the query so a WEDGED osqueryi (a hung table never closes its stdout)
+# becomes a monitoring gap, not silent blindness. Without a deadline, `|| true`
+# handles an osqueryi EXIT but not a HANG, launchd skips ticks while the process
+# lives, and the uptime-watchdog cannot catch it (its probe queries a different
+# table that answers while a posture table hangs). gtimeout preferred, timeout
+# fallback (the codebase convention); if neither is on PATH, degrade to an
+# unbounded read (no worse than before; the darwin fleet has one). The bound is
+# well under the 60s tick and env-overridable. On timeout osqueryi is killed, its
+# stdout closes, and the read collapses to empty, which the gap gate below pages.
+posture_query=("$OSQUERYI" --json "
   SELECT
     (SELECT global_state FROM alf) AS firewall,
     (SELECT assessments_enabled FROM gatekeeper) AS gatekeeper,
     (SELECT enabled FROM screenlock) AS screenlock
-" 2>/dev/null | jq -c '.[0] // empty' 2>/dev/null || true)
+")
+posture_timeout_bin="$(command -v gtimeout || command -v timeout || true)"
+if [[ -n $posture_timeout_bin ]]; then
+  posture_query=("$posture_timeout_bin" "${OSQUERY_POSTURE_TIMEOUT:-20}" "${posture_query[@]}")
+fi
+posture=$("${posture_query[@]}" 2>/dev/null | jq -c '.[0] // empty' 2>/dev/null || true)
 
 cur_fw=$(jq -r '.firewall // empty' <<<"$posture" 2>/dev/null || echo "")
 cur_gk=$(jq -r '.gatekeeper // empty' <<<"$posture" 2>/dev/null || echo "")
