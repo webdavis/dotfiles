@@ -174,9 +174,11 @@ _osquery_alerts_db_exec() {
 # producers, and serves as the skew-proof drain-order tiebreaker. attempts and
 # next_attempt_after are written by DR-A but consumed by DR-B; storing them now
 # avoids a schema migration one slice later. The text fields are single-quoted
-# with any embedded quote doubled; the values are non-secret and quote-free by
-# construction (a hex request id, a base64 body, a fixed localhost url), and
-# the escape keeps the statement injection-safe regardless.
+# with any embedded quote doubled via $single_quote (see the escape note on
+# that variable below); the values are non-secret and quote-free by
+# construction today (a hex request id, a base64 body, a localhost url), and
+# the escape now really does keep a quote-carrying value intact if that ever
+# changes (the URL comes from the environment, so it can carry one).
 _osquery_store_alert_row() {
   local occurrence_timestamp="$1" request_id="$2" url="$3" encoded_body="$4" created_at database_directory
   database_directory="$(dirname "$OSQUERY_UNDELIVERED_ALERTS_DB")"
@@ -184,10 +186,15 @@ _osquery_store_alert_row() {
   chmod 700 "$database_directory" 2>/dev/null || true
   created_at="$(date -u +%s)"
   [[ $created_at =~ ^[0-9]+$ ]] || created_at=0
+  # Quote doubling via a helper variable: the inline spellings go wrong (an
+  # unquoted \' pattern keeps its backslash in the replacement under bash 3.2,
+  # the macOS system bash, and nested double quotes land literally), verified
+  # both ways; $single_quote expands identically on every bash.
+  local single_quote="'"
   local request_id_sql url_sql body_sql
-  request_id_sql="${request_id//\'/\'\'}"
-  url_sql="${url//\'/\'\'}"
-  body_sql="${encoded_body//\'/\'\'}"
+  request_id_sql="${request_id//$single_quote/$single_quote$single_quote}"
+  url_sql="${url//$single_quote/$single_quote$single_quote}"
+  body_sql="${encoded_body//$single_quote/$single_quote$single_quote}"
   if ! printf "BEGIN IMMEDIATE;
 CREATE TABLE IF NOT EXISTS pending_alerts (
   sequence_number    INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -301,7 +308,9 @@ _osquery_record_transient_failure() {
   [[ $random_max =~ ^[0-9]+$ ]] || random_max="$base"
   local random_offset=0
   ((random_max > 0)) && random_offset=$((RANDOM % (random_max + 1)))
-  local request_id_sql="${request_id//\'/\'\'}"
+  # Quote doubling via $single_quote: bash-version-safe (see _osquery_store_alert_row).
+  local single_quote="'"
+  local request_id_sql="${request_id//$single_quote/$single_quote$single_quote}"
   printf "UPDATE pending_alerts
   SET attempts = attempts + 1,
       next_attempt_after = CAST(strftime('%%s','now') AS INTEGER) + %s * (attempts + 1) + %s
@@ -321,9 +330,11 @@ _osquery_dead_letter_alert_row() { # <request_id> <last_http_status> <reason>
   local request_id="$1" last_http_status="$2" reason="$3" dead_lettered_at
   dead_lettered_at="$(date -u +%s)"
   [[ $dead_lettered_at =~ ^[0-9]+$ ]] || dead_lettered_at=0
-  local request_id_sql="${request_id//\'/\'\'}"
-  local status_sql="${last_http_status//\'/\'\'}"
-  local reason_sql="${reason//\'/\'\'}"
+  # Quote doubling via $single_quote: bash-version-safe (see _osquery_store_alert_row).
+  local single_quote="'"
+  local request_id_sql="${request_id//$single_quote/$single_quote$single_quote}"
+  local status_sql="${last_http_status//$single_quote/$single_quote$single_quote}"
+  local reason_sql="${reason//$single_quote/$single_quote$single_quote}"
   printf "BEGIN IMMEDIATE;
 CREATE TABLE IF NOT EXISTS dead_letter_alerts (
   sequence_number    INTEGER PRIMARY KEY,
@@ -432,7 +443,9 @@ _osquery_alert_row_count() { # <table>
 _osquery_delete_alert_row() {
   local request_id="$1"
   [[ -f $OSQUERY_UNDELIVERED_ALERTS_DB ]] || return 0
-  local request_id_sql="${request_id//\'/\'\'}"
+  # Quote doubling via $single_quote: bash-version-safe (see _osquery_store_alert_row).
+  local single_quote="'"
+  local request_id_sql="${request_id//$single_quote/$single_quote$single_quote}"
   printf "DELETE FROM pending_alerts WHERE request_id = '%s';\n" "$request_id_sql" | _osquery_alerts_db_exec
 }
 
