@@ -41,17 +41,30 @@ OSQUERY_DRAIN_LOCK_FILE="${OSQUERY_DRAIN_LOCK_FILE:-${OSQUERY_UNDELIVERED_ALERTS
 # SIGKILLed mid-run can never wedge the lock and block every later drain (there
 # is no stale-lock state to clean up). The acquire is non-blocking (-t 0): an
 # overlapping run fails to take the lock and returns nonzero, so the caller skips
-# rather than queueing behind the running drain. A host without /usr/bin/lockf
-# (any non-darwin test box) runs unlocked, matching the library's darwin-only
-# runtime. House precedent: hue-pulse.sh, homebrew-weekly-upgrade.sh, and
-# update-skills.sh all guard with this same kernel-lock shape.
+# rather than queueing behind the running drain. House precedent: hue-pulse.sh,
+# homebrew-weekly-upgrade.sh, and update-skills.sh all guard with this same
+# kernel-lock shape. The lockf binary path is overridable (OSQUERY_DRAIN_LOCKF_BIN)
+# so the platform-fallback and fail-closed paths can be exercised in tests.
+#
+# The lock is MUTUAL EXCLUSION, so on a genuine setup error it must fail CLOSED
+# (return nonzero, the caller skips this sweep), NEVER fall through and run the
+# sweep unlocked: two overlapping launchd runs sweeping at once would each read
+# the same row snapshot and double-POST every page, the exact race this lock
+# exists to prevent. A skipped sweep loses nothing; the next 300-second tick
+# retries. The ONE exception is a host with no lockf at all (any non-darwin box,
+# e.g. Linux CI): there is no kernel lock to take, so the drain proceeds unlocked
+# by design, matching the library's darwin-only runtime.
 take_single_instance_lock() {
+  local lockf_bin="${OSQUERY_DRAIN_LOCKF_BIN:-/usr/bin/lockf}"
+  # No lockf available: the documented non-darwin fallback. Proceed unlocked so
+  # the drain still runs; there is no lock to fail closed on.
+  [[ -x $lockf_bin ]] || return 0
+  # From here the lock is REQUIRED. Any failure to set it up fails CLOSED.
   local lock_directory
   lock_directory="$(dirname "$OSQUERY_DRAIN_LOCK_FILE")"
-  mkdir -p "$lock_directory" 2>/dev/null || true
-  [[ -x /usr/bin/lockf ]] || return 0
-  exec 9>>"$OSQUERY_DRAIN_LOCK_FILE" 2>/dev/null || return 0
-  /usr/bin/lockf -s -t 0 9
+  mkdir -p "$lock_directory" 2>/dev/null || return 1
+  exec 9>>"$OSQUERY_DRAIN_LOCK_FILE" 2>/dev/null || return 1
+  "$lockf_bin" -s -t 0 9
 }
 
 # main -- take the single-instance lock, drain the store once, and exit 0.

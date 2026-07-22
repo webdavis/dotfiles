@@ -77,3 +77,67 @@ STUB
   # Delivery really happened: the store is empty, no row left behind.
   assert_pending_alert_count 0
 }
+
+# --- fail-closed lock setup (a mutual-exclusion lock must never run unlocked) ---
+
+# Seed one deliverable page and queue a 200: if the sweep RUNS it delivers, if it
+# is SKIPPED nothing is POSTed and the row is retained. Sets a present lockf stub
+# so the "lock required" path is reached on any platform (the stub is never
+# actually called; the setup failure happens before the acquire).
+_seed_one_page_and_require_lock() {
+  local url='http://127.0.0.1:8644/webhooks/osquery-priority' body_b64
+  body_b64=$(printf '{"event_type":"osquery.alert"}' | base64 | tr -d '\n')
+  _osquery_store_alert_row 1000 osquery-failclosed "$url" "$body_b64"
+  : >"$CURL_LOG"
+  set_curl_codes 200
+  printf '#!/usr/bin/env bash\nexit 0\n' >"$HARNESS_HOME/bin/lockf-stub"
+  chmod +x "$HARNESS_HOME/bin/lockf-stub"
+  export OSQUERY_DRAIN_LOCKF_BIN="$HARNESS_HOME/bin/lockf-stub"
+}
+
+@test "T-DRAIN-lock-failclosed-exec: a lockfile that cannot be opened SKIPS the sweep, never runs unlocked" {
+  _seed_one_page_and_require_lock
+  # Point the lock file at a DIRECTORY so `exec 9>>` cannot open it for writing:
+  # a genuine lock-setup failure. A fail-closed lock must SKIP the sweep rather
+  # than fall through and run unlocked (two overlapping runs would double-POST).
+  export OSQUERY_DRAIN_LOCK_FILE="$HARNESS_HOME/lock-is-a-directory"
+  mkdir -p "$OSQUERY_DRAIN_LOCK_FILE"
+
+  run bash "$DRAINER"
+
+  [[ $status -eq 0 ]]          # main still exits 0 (a skip is a clean no-op, not an error)
+  assert_no_post               # the sweep was SKIPPED, not run unlocked
+  assert_pending_alert_count 1 # the row is retained for the next 300s tick
+}
+
+@test "T-DRAIN-lock-failclosed-mkdir: a lock dir that cannot be created SKIPS the sweep, never runs unlocked" {
+  _seed_one_page_and_require_lock
+  # Put the lock file UNDER a regular file, so mkdir -p of its parent fails.
+  printf 'i am a file, not a directory\n' >"$HARNESS_HOME/a-file"
+  export OSQUERY_DRAIN_LOCK_FILE="$HARNESS_HOME/a-file/drain.lock"
+
+  run bash "$DRAINER"
+
+  [[ $status -eq 0 ]]
+  assert_no_post
+  assert_pending_alert_count 1
+}
+
+@test "T-DRAIN-lock-absent-proceeds: with no lockf available the drain proceeds UNLOCKED (platform fallback)" {
+  # On a non-darwin host /usr/bin/lockf is absent and the drain must still run,
+  # unlocked, or the Linux path would never drain. Simulate absence via the
+  # lockf-binary override so the documented fallback is pinned on any platform.
+  local url='http://127.0.0.1:8644/webhooks/osquery-priority' body_b64
+  body_b64=$(printf '{"event_type":"osquery.alert"}' | base64 | tr -d '\n')
+  _osquery_store_alert_row 1000 osquery-noflockf "$url" "$body_b64"
+  : >"$CURL_LOG"
+  set_curl_codes 200
+  export OSQUERY_DRAIN_LOCKF_BIN="$HARNESS_HOME/bin/nonexistent-lockf" # not executable -> absent
+
+  run bash "$DRAINER"
+
+  [[ $status -eq 0 ]]
+  # The drain PROCEEDED unlocked: the page was delivered and the store cleared.
+  grep -qF 'X-Request-ID: osquery-noflockf' "$CURL_LOG"
+  assert_pending_alert_count 0
+}
