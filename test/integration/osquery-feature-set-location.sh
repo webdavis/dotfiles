@@ -58,10 +58,14 @@ for name in firewall-gatekeeper-monitor results-alerter uptime-watchdog; do
     "dot_local/libexec/osquery/executable_${name}.sh"
 done
 
-# results-alerter invokes the enricher from the libexec home.
+# The alerter invokes the enricher from the libexec home. Since the S9
+# decomposition (slice 6) the enricher is invoked by the routing helper (route.sh),
+# not the entry: the gate consults it before the allowlist so a promoted CRIT is
+# never suppressed. Assert the enricher path is referenced there, still under the
+# libexec home.
 # shellcheck disable=SC2016
-assert_contains 'ENRICH_SCRIPT="$HOME/.local/libexec/osquery/enrich-finding.sh"' \
-  "dot_local/libexec/osquery/executable_results-alerter.sh"
+assert_contains '$HOME/.local/libexec/osquery/enrich-finding.sh' \
+  "dot_local/libexec/osquery/results-alerter/route.sh"
 
 if [[ $fail -ne 0 ]]; then
   printf 'osquery-feature-set-location: FAIL\n' >&2
