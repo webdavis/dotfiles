@@ -56,6 +56,13 @@ setup_poller_harness() {
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$POLLER_OSQUERYI_QUERY"
 printf 'call\n' >>"$POLLER_OSQUERYI_CALLS"
+# POLLER_OSQUERYI_EXIT models a hard osqueryi failure: a non-zero value means no
+# stdout and that exit status (a missing binary, or the daemon not up on a fresh
+# boot). Zero, the default, prints the programmed posture.
+exit_code="${POLLER_OSQUERYI_EXIT:-0}"
+if [[ $exit_code -ne 0 ]]; then
+  exit "$exit_code"
+fi
 printf '%s\n' "${POLLER_OSQUERYI_JSON:-[]}"
 SHIM
   chmod +x "$POLLER_HOME/bin/osqueryi"
@@ -160,6 +167,31 @@ assert_no_page() {
 assert_persist_before_notify() {
   if grep -qF 'state-absent' "$POLLER_SEND_ALERT_STATE_WITNESS" 2>/dev/null; then
     printf 'expected the baseline to exist before any notification, but a send_alert call saw it missing\n' >&2
+    return 1
+  fi
+}
+
+# seed_baseline <compact-json-object> -- write a known-good posture baseline at
+# 0600, so a sad-path test can prove a failed or empty read leaves it untouched.
+seed_baseline() {
+  mkdir -p "$(dirname "$OSQUERY_POSTURE_STATE")"
+  printf '%s\n' "$1" >"$OSQUERY_POSTURE_STATE"
+  chmod 600 "$OSQUERY_POSTURE_STATE"
+}
+
+# snapshot_baseline -- copy the current baseline aside so assert_baseline_unchanged
+# can compare byte-for-byte after a run.
+snapshot_baseline() {
+  cp "$OSQUERY_POSTURE_STATE" "$POLLER_HOME/baseline.snapshot"
+}
+
+# assert_baseline_unchanged -- the baseline is byte-for-byte identical to the last
+# snapshot (a failed or empty read must neither clobber nor blank it).
+assert_baseline_unchanged() {
+  if ! cmp -s "$POLLER_HOME/baseline.snapshot" "$OSQUERY_POSTURE_STATE"; then
+    printf 'expected the baseline byte-for-byte preserved.\nsnapshot:\n%s\nnow:\n%s\n' \
+      "$(cat "$POLLER_HOME/baseline.snapshot" 2>/dev/null || echo '(no snapshot)')" \
+      "$(cat "$OSQUERY_POSTURE_STATE" 2>/dev/null || echo '(missing)')" >&2
     return 1
   fi
 }

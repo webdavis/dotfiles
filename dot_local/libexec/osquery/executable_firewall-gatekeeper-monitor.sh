@@ -21,6 +21,10 @@ source "$HOME/.local/libexec/osquery/alert-dispatch.sh"
 
 mkdir -p "$(dirname "$STATE")"
 
+# Never leave a partial temp baseline behind, on any exit path (a mid-write
+# failure, or the empty-read guard below).
+trap 'rm -f "$STATE.tmp"' EXIT
+
 # Read the current posture in a single combined query (one osqueryi startup per
 # tick, not one per protection). screenlock is folded in per R2-3.
 posture=$("$OSQUERYI" --json "
@@ -29,6 +33,16 @@ posture=$("$OSQUERYI" --json "
     (SELECT assessments_enabled FROM gatekeeper) AS gatekeeper,
     (SELECT enabled FROM screenlock) AS screenlock
 " 2>/dev/null | jq -c '.[0] // empty' 2>/dev/null || true)
+
+# A failed or empty read (osqueryi missing, the daemon not up on a fresh boot, or
+# the tables transiently unavailable) leaves posture empty or null. Do NOT persist
+# that over a good baseline: a blank baseline would blind or misfeed the next
+# run's comparison. Exit and let the next tick retry, preserving the last good
+# baseline. Paging on an unreadable posture (the monitoring-gap marker) is a
+# later behavior.
+if [[ -z $posture || $posture == "null" ]]; then
+  exit 0
+fi
 
 # Persist the current posture owner-only (0600) so a later run can trust its own
 # baseline. Written via a private temp file plus an atomic rename, and BEFORE any

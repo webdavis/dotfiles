@@ -77,3 +77,36 @@ teardown() { teardown_poller_harness; }
   assert_no_page               # read+persist only: no transition paging in B1
   assert_persist_before_notify # any future page fires only AFTER the baseline is written
 }
+
+@test "T-POLL-read-failure-preserves-baseline: a hard osqueryi failure exits 0 and leaves the good baseline byte-for-byte intact at 0600" {
+  seed_baseline '{"firewall":"1","gatekeeper":"1","screenlock":"1"}'
+  snapshot_baseline
+  export POLLER_OSQUERYI_EXIT=1 # osqueryi hard-fails: no output, non-zero exit
+
+  run run_poller
+  [[ $status -eq 0 ]] || {
+    echo "expected the poller to exit 0 on a failed read (retry next tick), got $status: $output"
+    false
+  }
+
+  # A blind read must never overwrite a good baseline: it would blind or misfeed
+  # the next run's comparison.
+  assert_baseline_unchanged
+  assert_mode 600 "$OSQUERY_POSTURE_STATE"
+}
+
+@test "T-POLL-empty-read-preserves-baseline: an empty osqueryi result exits 0 and leaves the good baseline byte-for-byte intact at 0600" {
+  seed_baseline '{"firewall":"1","gatekeeper":"1","screenlock":"1"}'
+  snapshot_baseline
+  set_posture '[]' # osqueryi succeeds but returns no row
+
+  run run_poller
+  [[ $status -eq 0 ]] || {
+    echo "expected the poller to exit 0 on an empty read, got $status: $output"
+    false
+  }
+
+  # An empty read must not blank the baseline to a 1-byte file.
+  assert_baseline_unchanged
+  assert_mode 600 "$OSQUERY_POSTURE_STATE"
+}
