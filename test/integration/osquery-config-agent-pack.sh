@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 #
 # The agent attack surface is watched: the rendered config ships the
-# agent-attack-surface pack and the root setup installs it. Three queries make
+# agent-attack-surface pack and the root setup installs it. Four queries make
 # up the pack: an off-loopback exposure watch over the agent control-plane
-# ports and patterns (paging), a hash watch over the agent auth/credential
-# files, and an honest log-only signature watch over the agent CLI binaries.
+# ports and patterns (paging), a content-hash watch over the three NON-secret
+# agent config files, a metadata-only watch over the two true secret files (no
+# secret digest may ever reach the group-readable results.log), and an honest
+# log-only signature watch over the agent CLI binaries.
 # Render-driven: chezmoi renders the templates exactly as at apply time and jq
 # asserts the shipped JSON, so a template regression fails here before it
 # silently stops the root daemon from loading its config.
@@ -84,20 +86,71 @@ else
       fail "agent_exposure_changed: lost port $port from the port clause"
   done
 
-  # agent_authfile_changed: the auth/credential file hash watch.
+  # agent_authfile_changed: the content-hash watch over the three NON-secret
+  # agent config files. The two true secrets must NOT be here: their sha256
+  # would land in the group-readable results.log.
   authfile_query="$(query_field agent_authfile_changed .query)"
   [[ -n $authfile_query ]] || fail "agent_authfile_changed: query missing"
   [[ "$(query_field agent_authfile_changed .interval)" == "600" ]] ||
     fail "agent_authfile_changed: expected interval 600"
   for watched_suffix in \
-    "/.config/osquery/webhook-secret" \
-    "/.paseo/daemon-keypair.json" \
     "/.paseo/cli-client-id" \
     "/.hermes/.env" \
     "/.codex/config.toml"; do
     grep -qF "$watched_suffix" <<<"$authfile_query" ||
-      fail "agent_authfile_changed: not watching $watched_suffix"
+      fail "agent_authfile_changed: not content-hashing $watched_suffix"
   done
+  for secret_suffix in \
+    "/.config/osquery/webhook-secret" \
+    "/.paseo/daemon-keypair.json"; do
+    grep -qF "$secret_suffix" <<<"$authfile_query" &&
+      fail "agent_authfile_changed: must not content-hash the secret $secret_suffix"
+  done
+
+  # agent_secretfile_changed: the two true secrets, watched by file-table
+  # METADATA only, so no secret digest is ever computed into results.log.
+  secretfile_query="$(query_field agent_secretfile_changed .query)"
+  [[ -n $secretfile_query ]] || fail "agent_secretfile_changed: query missing"
+  [[ "$(query_field agent_secretfile_changed .interval)" == "600" ]] ||
+    fail "agent_secretfile_changed: expected interval 600"
+  [[ "$(query_field agent_secretfile_changed .platform)" == "darwin" ]] ||
+    fail "agent_secretfile_changed: expected platform darwin"
+  for secret_suffix in \
+    "/.config/osquery/webhook-secret" \
+    "/.paseo/daemon-keypair.json"; do
+    grep -qF "$secret_suffix" <<<"$secretfile_query" ||
+      fail "agent_secretfile_changed: not watching the secret $secret_suffix"
+  done
+  grep -qF "FROM file " <<<"$secretfile_query" ||
+    fail "agent_secretfile_changed: must read the file table (metadata), not a hashing table"
+  for metadata_column in size mtime ctime inode; do
+    grep -qE "(SELECT|,) ?[a-z, ]*\b$metadata_column\b" <<<"$secretfile_query" ||
+      fail "agent_secretfile_changed: lost the $metadata_column metadata column"
+  done
+  grep -qi "sha256" <<<"$secretfile_query" &&
+    fail "agent_secretfile_changed: must not select any content digest (sha256)"
+  grep -qiE "FROM hash\b" <<<"$secretfile_query" &&
+    fail "agent_secretfile_changed: must not read the hash table"
+
+  # Config-wide: no query anywhere in the rendered conf or this pack may put a
+  # secret path and a content digest in the same statement. Each query is one
+  # line in jq -r output (SQL strings carry no newlines), so grep-chain counts.
+  for rendered in "$conf_json" "$pack_json"; do
+    leaky_count="$(jq -r '.. | .query? // empty' <<<"$rendered" |
+      grep -E "webhook-secret|daemon-keypair" |
+      grep -ciE "sha256|FROM hash" || true)"
+    [[ ${leaky_count:-0} -eq 0 ]] ||
+      fail "a rendered query pairs a secret path with a content digest ($leaky_count occurrence(s))"
+  done
+
+  # And the FIM leg: ~/.config/osquery is event-watched but must NOT be in
+  # file_paths_hashes, or file_events rows for webhook-secret would carry a
+  # sha256 into results.log through the side door.
+  if jq -e '.file_paths_hashes | has("allowlist_file")' <<<"$conf_json" >/dev/null; then
+    fail "file_paths_hashes must not hash allowlist_file (webhook-secret digest via file_events)"
+  fi
+  jq -r '.file_paths_hashes[][]' <<<"$conf_json" | grep -qF "/.config/osquery" &&
+    fail "file_paths_hashes must not cover ~/.config/osquery (webhook-secret lives there)"
 
   # agent_binary_changed: the honest log-only binary watch (signature columns
   # are the real signal; the description carries the honest-coverage limits).
@@ -127,4 +180,4 @@ if ((fails > 0)); then
   printf '%d agent-attack-surface config assertion(s) failed\n' "$fails" >&2
   exit 1
 fi
-printf 'PASS: the agent-attack-surface pack ships (three queries, honest exclusions) and the root setup installs it\n'
+printf 'PASS: the agent-attack-surface pack ships (four queries, secrets metadata-only) and the root setup installs it\n'
