@@ -23,3 +23,4 @@
 {"label":"com.webdavis.osquery-results-alerter","path":"~/Library/LaunchAgents/com.webdavis.osquery-results-alerter.plist","program":"/opt/homebrew/bin/bash ~/.local/libexec/osquery/results-alerter.sh","sha256":""}
 {"label":"com.webdavis.osquery-firewall-gatekeeper-monitor","path":"~/Library/LaunchAgents/com.webdavis.osquery-firewall-gatekeeper-monitor.plist","program":"/opt/homebrew/bin/bash ~/.local/libexec/osquery/firewall-gatekeeper-monitor.sh","sha256":""}
 {"label":"com.webdavis.osquery-uptime-watchdog","path":"~/Library/LaunchAgents/com.webdavis.osquery-uptime-watchdog.plist","program":"/opt/homebrew/bin/bash ~/.local/libexec/osquery/uptime-watchdog.sh","sha256":""}
+{"label":"com.webdavis.osquery-alert-drainer","path":"~/Library/LaunchAgents/com.webdavis.osquery-alert-drainer.plist","program":"/opt/homebrew/bin/bash ~/.local/libexec/osquery/drain-undelivered-alerts.sh","sha256":""}

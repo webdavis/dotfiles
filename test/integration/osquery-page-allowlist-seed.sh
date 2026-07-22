@@ -65,8 +65,16 @@ else
     fi
   done <"$new_file"
 
-  if [[ $entry_count -eq 0 ]]; then
-    fail "the tuple file has no entries (a comments-only seed suppresses nothing)"
+  # The seed migrates this host's four own-agents (results-alerter,
+  # firewall-gatekeeper-monitor, uptime-watchdog, alert-drainer) to tuples.
+  if [[ $entry_count -ne 4 ]]; then
+    fail "expected 4 seeded tuples (the host's four own-agents), got $entry_count"
+  fi
+
+  # The alert-drainer is one of the four: a real own-agent of the same class, so it
+  # does not false-page when the alerter goes live at the D1 cutover.
+  if ! grep -qF '"label":"com.webdavis.osquery-alert-drainer"' "$new_file"; then
+    fail "the alert-drainer own-agent tuple is missing from the seed"
   fi
 fi
 
