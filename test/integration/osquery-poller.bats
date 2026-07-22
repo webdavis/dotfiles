@@ -110,3 +110,119 @@ teardown() { teardown_poller_harness; }
   assert_baseline_unchanged
   assert_mode 600 "$OSQUERY_POSTURE_STATE"
 }
+
+# --- B2: a protection turning OFF pages CRIT; steady state is silent -------------
+# With a valid prior baseline, compare per protection and page on an OFF
+# transition. Re-enable (OFF -> ON) is silent, matching c69baab.
+
+@test "T-POLL-firewall-off-pages: firewall 1->0 pages one CRIT naming the firewall, after the new baseline is persisted" {
+  seed_baseline '{"firewall":"1","gatekeeper":"1","screenlock":"1"}'
+  set_posture '[{"firewall":"0","gatekeeper":"1","screenlock":"1"}]'
+
+  run run_poller
+  [[ $status -eq 0 ]] || {
+    echo "expected the poller to exit 0, got $status: $output"
+    false
+  }
+
+  assert_page_count 1
+  assert_page_severity_is CRIT # only a CRIT reaches the #priority webhook
+  assert_page_body_has 'Firewall turned OFF'
+  assert_page_body_lacks 'Gatekeeper' # only the protection that changed is named
+  assert_page_body_lacks 'Screen lock'
+  # Ordering: the new baseline (firewall 0) was already persisted when the page fired.
+  assert_page_saw_baseline '{"firewall":"0","gatekeeper":"1","screenlock":"1"}'
+  assert_persist_before_notify
+}
+
+@test "T-POLL-firewall-blockall-off-pages: firewall 2->0 (block-all to off) pages CRIT naming the firewall" {
+  seed_baseline '{"firewall":"2","gatekeeper":"1","screenlock":"1"}'
+  set_posture '[{"firewall":"0","gatekeeper":"1","screenlock":"1"}]'
+
+  run run_poller
+  [[ $status -eq 0 ]] || {
+    echo "expected the poller to exit 0, got $status: $output"
+    false
+  }
+
+  assert_page_count 1
+  assert_page_severity_is CRIT
+  assert_page_body_has 'Firewall turned OFF'
+  assert_page_body_has 'on (block all)' # the Was: text comes from fw_to_text(2)
+}
+
+@test "T-POLL-gatekeeper-off-pages: gatekeeper 1->0 pages one CRIT naming Gatekeeper" {
+  seed_baseline '{"firewall":"1","gatekeeper":"1","screenlock":"1"}'
+  set_posture '[{"firewall":"1","gatekeeper":"0","screenlock":"1"}]'
+
+  run run_poller
+  [[ $status -eq 0 ]] || {
+    echo "expected the poller to exit 0, got $status: $output"
+    false
+  }
+
+  assert_page_count 1
+  assert_page_severity_is CRIT
+  assert_page_body_has 'Gatekeeper turned OFF'
+  assert_page_body_lacks 'Firewall'
+  assert_page_body_lacks 'Screen lock'
+}
+
+@test "T-POLL-screenlock-off-pages: screen-lock 1->0 pages one CRIT naming the screen lock" {
+  seed_baseline '{"firewall":"1","gatekeeper":"1","screenlock":"1"}'
+  set_posture '[{"firewall":"1","gatekeeper":"1","screenlock":"0"}]'
+
+  run run_poller
+  [[ $status -eq 0 ]] || {
+    echo "expected the poller to exit 0, got $status: $output"
+    false
+  }
+
+  assert_page_count 1
+  assert_page_severity_is CRIT
+  assert_page_body_has 'Screen lock turned OFF'
+  assert_page_body_lacks 'Firewall'
+  assert_page_body_lacks 'Gatekeeper'
+}
+
+@test "T-POLL-multi-off-one-page: two protections turning off in one tick page a single CRIT naming both" {
+  seed_baseline '{"firewall":"1","gatekeeper":"1","screenlock":"1"}'
+  set_posture '[{"firewall":"0","gatekeeper":"0","screenlock":"1"}]'
+
+  run run_poller
+  [[ $status -eq 0 ]] || {
+    echo "expected the poller to exit 0, got $status: $output"
+    false
+  }
+
+  assert_page_count 1 # one page for the tick, not one per protection
+  assert_page_severity_is CRIT
+  assert_page_body_has 'Firewall turned OFF'
+  assert_page_body_has 'Gatekeeper turned OFF'
+}
+
+@test "T-POLL-steady-silent: an all-ON posture unchanged from a valid baseline pages nothing" {
+  seed_baseline '{"firewall":"1","gatekeeper":"1","screenlock":"1"}'
+  set_posture '[{"firewall":"1","gatekeeper":"1","screenlock":"1"}]'
+
+  run run_poller
+  [[ $status -eq 0 ]] || {
+    echo "expected the poller to exit 0, got $status: $output"
+    false
+  }
+
+  assert_no_page # steady state is silent even with a valid prior baseline
+}
+
+@test "T-POLL-reenable-silent: a re-enable (firewall 0->1) pages nothing, matching c69baab" {
+  seed_baseline '{"firewall":"0","gatekeeper":"1","screenlock":"1"}'
+  set_posture '[{"firewall":"1","gatekeeper":"1","screenlock":"1"}]'
+
+  run run_poller
+  [[ $status -eq 0 ]] || {
+    echo "expected the poller to exit 0, got $status: $output"
+    false
+  }
+
+  assert_no_page # a protection turning back ON is not actionable and has no notice channel
+}

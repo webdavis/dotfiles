@@ -72,15 +72,24 @@ SHIM
   # never delivers; it records each call's argv and whether the baseline already
   # existed at call time, so a test can prove persist happens before any page.
   export POLLER_SEND_ALERT_LOG="$POLLER_HOME/send-alert.log"
+  export POLLER_SEND_ALERT_SEVERITY="$POLLER_HOME/send-alert-severity.log"
   export POLLER_SEND_ALERT_STATE_WITNESS="$POLLER_HOME/send-alert-state-witness.log"
+  export POLLER_SEND_ALERT_STATE_AT_CALL="$POLLER_HOME/send-alert-state-at-call.log"
   : >"$POLLER_SEND_ALERT_LOG"
+  : >"$POLLER_SEND_ALERT_SEVERITY"
   : >"$POLLER_SEND_ALERT_STATE_WITNESS"
+  : >"$POLLER_SEND_ALERT_STATE_AT_CALL"
   cat >"$POLLER_HOME/.local/libexec/osquery/alert-dispatch.sh" <<'SHIM'
 # shellcheck shell=bash
 send_alert() {
+  # Severity (arg 1) on its own line: one line per call, so a test counts pages.
+  printf '%s\n' "${1:-}" >>"$POLLER_SEND_ALERT_SEVERITY"
+  # Full argv (severity, title, body, sound) for body/naming assertions.
   printf '%s\n' "$*" >>"$POLLER_SEND_ALERT_LOG"
   if [[ -f ${OSQUERY_POSTURE_STATE:-/nonexistent} ]]; then
     printf 'state-present\n' >>"$POLLER_SEND_ALERT_STATE_WITNESS"
+    # The baseline as it stood when the page fired: proves write_state ran first.
+    cat "$OSQUERY_POSTURE_STATE" >>"$POLLER_SEND_ALERT_STATE_AT_CALL"
   else
     printf 'state-absent\n' >>"$POLLER_SEND_ALERT_STATE_WITNESS"
   fi
@@ -192,6 +201,66 @@ assert_baseline_unchanged() {
     printf 'expected the baseline byte-for-byte preserved.\nsnapshot:\n%s\nnow:\n%s\n' \
       "$(cat "$POLLER_HOME/baseline.snapshot" 2>/dev/null || echo '(no snapshot)')" \
       "$(cat "$OSQUERY_POSTURE_STATE" 2>/dev/null || echo '(missing)')" >&2
+    return 1
+  fi
+}
+
+# assert_page_count <n> -- send_alert was called exactly <n> times (one severity
+# line per call; the body may span many lines, so the severity log is the count).
+assert_page_count() {
+  local count
+  count=$(wc -l <"$POLLER_SEND_ALERT_SEVERITY")
+  count=${count//[[:space:]]/}
+  if [[ $count -ne $1 ]]; then
+    printf 'expected %s page(s), got %s; send_alert log:\n%s\n' \
+      "$1" "$count" "$(cat "$POLLER_SEND_ALERT_LOG")" >&2
+    return 1
+  fi
+}
+
+# assert_page_severity_is <severity> -- a page fired and every page carried
+# <severity> (only a CRIT reaches the #priority webhook, so the severity arg is
+# the security-relevant one, not just the title text).
+assert_page_severity_is() {
+  if [[ ! -s $POLLER_SEND_ALERT_SEVERITY ]]; then
+    printf 'expected a %s page, but send_alert was never called\n' "$1" >&2
+    return 1
+  fi
+  if grep -qvxF "$1" "$POLLER_SEND_ALERT_SEVERITY"; then
+    printf 'expected every page at severity %s, got:\n%s\n' \
+      "$1" "$(cat "$POLLER_SEND_ALERT_SEVERITY")" >&2
+    return 1
+  fi
+}
+
+# assert_page_body_has <substring> -- some page's argv contained <substring> (the
+# body names which protection turned off, or its prior state text).
+assert_page_body_has() {
+  if ! grep -qF -- "$1" "$POLLER_SEND_ALERT_LOG"; then
+    printf 'expected a page naming %s; send_alert log:\n%s\n' \
+      "$1" "$(cat "$POLLER_SEND_ALERT_LOG")" >&2
+    return 1
+  fi
+}
+
+# assert_page_body_lacks <substring> -- no page mentioned <substring> (a steady
+# protection is never named in an unrelated transition's page).
+assert_page_body_lacks() {
+  if grep -qF -- "$1" "$POLLER_SEND_ALERT_LOG"; then
+    printf 'expected NO page mentioning %s; send_alert log:\n%s\n' \
+      "$1" "$(cat "$POLLER_SEND_ALERT_LOG")" >&2
+    return 1
+  fi
+}
+
+# assert_page_saw_baseline <compact-json> -- at the moment send_alert fired, the
+# persisted baseline already held <compact-json>, proving write_state ran before
+# the page (the ordering that lets a slow alerter never double-page off a stale
+# baseline).
+assert_page_saw_baseline() {
+  if ! grep -qF -- "$1" "$POLLER_SEND_ALERT_STATE_AT_CALL"; then
+    printf 'expected the baseline at page time to be %s; saw:\n%s\n' \
+      "$1" "$(cat "$POLLER_SEND_ALERT_STATE_AT_CALL" 2>/dev/null || echo '(none)')" >&2
     return 1
   fi
 }
