@@ -23,6 +23,11 @@ setup_allowlist_harness() {
   mkdir -p "$ALLOWLIST_HOME/bin"
   cat >"$ALLOWLIST_HOME/bin/osqueryi" <<'SHIM'
 #!/usr/bin/env bash
+# Concurrency knobs: the sentinel tells a test the capture has STARTED (so it can
+# launch a racing command deterministically); the delay holds the capture open so
+# the race window is wide enough to be deterministic, not timing-luck.
+[[ -n ${ALLOWLIST_OSQUERYI_STARTED_FILE:-} ]] && : >"$ALLOWLIST_OSQUERYI_STARTED_FILE"
+[[ -n ${ALLOWLIST_OSQUERYI_DELAY:-} ]] && sleep "$ALLOWLIST_OSQUERYI_DELAY"
 printf '%s\n' "${ALLOWLIST_OSQUERYI_ROW:-[]}"
 SHIM
   chmod +x "$ALLOWLIST_HOME/bin/osqueryi"

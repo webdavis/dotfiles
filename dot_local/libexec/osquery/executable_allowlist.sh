@@ -28,6 +28,28 @@ usage() {
   exit 2
 }
 
+# Serialize every mutating run (-a and -d) around its whole read -> capture -> rewrite ->
+# publish critical section, so a slow -a (capture in flight) can never publish after a
+# completed -d and silently restore the denied tuple (lost update). House kernel-lock
+# pattern (mirrors the alert drainer's take_single_instance_lock): /usr/bin/lockf on a
+# held fd. Unlike the drainer this BLOCKS until the lock frees - curation must serialize,
+# not skip - and the lock releases when the process exits (fd 9 closes). A genuine
+# lock-setup error fails CLOSED (per the DR-B ruling). The ONE exception is a host with
+# no lockf at all (any non-darwin box, e.g. Linux CI): there is no kernel lock to take,
+# so the write proceeds unlocked by design, matching the drainer.
+take_allowlist_write_lock() {
+  local lockf_bin="${OSQUERY_ALLOWLIST_LOCKF_BIN:-/usr/bin/lockf}"
+  # No lockf available: the documented non-darwin fallback. Proceed unlocked.
+  [[ -x $lockf_bin ]] || return 0
+  # From here the lock is REQUIRED. Any failure to set it up fails CLOSED. The brace
+  # group scopes the stderr silence to the exec itself; a bare `exec 9>>f 2>/dev/null`
+  # (no command word) would redirect the WHOLE script's stderr to /dev/null for good,
+  # eating every later refusal/failure message.
+  mkdir -p "$(dirname "$ALLOWLIST")" 2>/dev/null || return 1
+  { exec 9>>"${ALLOWLIST}.lock"; } 2>/dev/null || return 1
+  "$lockf_bin" -s 9
+}
+
 # The JSON label of an allowlist line, or empty for a comment/blank/non-JSON line.
 entry_label() { jq -r '.label // empty' <<<"$1" 2>/dev/null || true; }
 
@@ -151,6 +173,16 @@ while getopts ':a:d:l' option; do
     *) usage ;;
   esac
 done
+
+case "$action" in
+  allow | deny)
+    # The lock covers the verb's entire read-modify-write, capture included.
+    if ! take_allowlist_write_lock; then
+      printf 'failed to set up the allowlist write lock (%s.lock)\n' "$ALLOWLIST" >&2
+      exit 1
+    fi
+    ;;
+esac
 
 case "$action" in
   allow) allow_label "$label" ;;

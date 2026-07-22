@@ -214,6 +214,59 @@ stub_launchd() {
   done
 }
 
+@test "a deny that completes during an overlapping add is never silently undone: the writers serialize and the denied label stays out" {
+  # Sol R1-1 (lost update): -a and -d are read-modify-write-publish. Unserialized, a slow
+  # -a (capture in flight) publishes AFTER a completed -d and restores the denied tuple.
+  # With the write lock, the -d blocks until the -a publishes, then removes the label, so
+  # the deny always wins and the final file is the serialized result, never an interleave.
+  local plist="$ALLOWLIST_HOME/Library/LaunchAgents/com.foo.agent.plist"
+  mkdir -p "$(dirname "$plist")"
+  printf 'plist-bytes\n' >"$plist"
+  seed_allowlist_tuple com.other.agent '~/Library/LaunchAgents/com.other.agent.plist' /opt/homebrew/bin/other
+
+  # A slow -a: its osqueryi capture signals start, then holds the capture open.
+  stub_launchd "$plist" /opt/homebrew/opt/foo/bin/foo
+  export ALLOWLIST_OSQUERYI_STARTED_FILE="$ALLOWLIST_HOME/capture-started"
+  export ALLOWLIST_OSQUERYI_DELAY=2
+  run_allowlist -a com.foo.agent &
+  local add_pid=$!
+
+  # Deterministic ordering: wait until the add's capture has actually started (it is
+  # inside its critical section), then run the deny for the same label.
+  local waited=0
+  until [[ -e $ALLOWLIST_OSQUERYI_STARTED_FILE ]]; do
+    sleep 0.1
+    waited=$((waited + 1))
+    [[ $waited -lt 100 ]] || {
+      echo "expected the add's capture to start within 10s (sentinel never appeared)"
+      false
+    }
+  done
+  unset ALLOWLIST_OSQUERYI_STARTED_FILE ALLOWLIST_OSQUERYI_DELAY
+
+  run run_allowlist -d com.foo.agent
+  [ "$status" -eq 0 ] || {
+    echo "expected the racing -d to exit 0, got $status: $output"
+    false
+  }
+  wait "$add_pid" || {
+    echo "expected the overlapped -a to exit 0"
+    false
+  }
+
+  # The deny wins: the label is absent from the final file (the add did not republish it).
+  assert_not_allowlisted com.foo.agent
+  # And the race never interleaved into a corrupt or duplicated file: the untouched
+  # label survives exactly once and every entry line is still valid NDJSON.
+  assert_allowlisted com.other.agent
+  assert_allowlist_label_count 1
+  run jq -e . "$OSQUERY_LAUNCHD_ALLOWLIST"
+  [ "$status" -eq 0 ] || {
+    echo "expected every surviving line to be valid NDJSON; file: $(cat "$OSQUERY_LAUNCHD_ALLOWLIST")"
+    false
+  }
+}
+
 @test "a valid non-Apple label using the full allowed charset (. _ @ -) is accepted by both -a and -d" {
   # -a accepts it and captures a tuple (degraded label-only here, as the stub returns no row).
   run run_allowlist -a 'homebrew.mxcl.postgresql@17'
