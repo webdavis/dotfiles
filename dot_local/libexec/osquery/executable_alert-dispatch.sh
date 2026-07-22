@@ -159,6 +159,21 @@ _osquery_alerts_db_exec() {
   return "$sqlite3_status"
 }
 
+# Report (by exit status) whether the named table exists in the alert store.
+# Both drain sweeps gate on this before their row SELECT: each of the two
+# queues bootstraps its table lazily on first store, so a database created by
+# one queue may legitimately lack the other's table, and a bare SELECT against
+# the missing one would spray a "no such table" error to stderr on every
+# scheduled pass. The table name is a fixed internal literal at every call
+# site, never caller data.
+_osquery_table_exists() { # <table>
+  local table="$1" found
+  [[ -f $OSQUERY_UNDELIVERED_ALERTS_DB ]] || return 1
+  found="$(printf "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='%s';\n" "$table" |
+    _osquery_alerts_db_exec)" || return 1
+  [[ $found == "1" ]]
+}
+
 # Persist one undelivered page as a pending_alerts row and report success. The
 # lazy schema bootstrap and THIS alert's INSERT run in ONE atomic sqlite3 batch
 # (BEGIN IMMEDIATE ... COMMIT), so a crash or kill at any instant leaves either
@@ -174,9 +189,11 @@ _osquery_alerts_db_exec() {
 # producers, and serves as the skew-proof drain-order tiebreaker. attempts and
 # next_attempt_after are written by DR-A but consumed by DR-B; storing them now
 # avoids a schema migration one slice later. The text fields are single-quoted
-# with any embedded quote doubled; the values are non-secret and quote-free by
-# construction (a hex request id, a base64 body, a fixed localhost url), and
-# the escape keeps the statement injection-safe regardless.
+# with any embedded quote doubled via $single_quote (see the escape note on
+# that variable below); the values are non-secret and quote-free by
+# construction today (a hex request id, a base64 body, a localhost url), and
+# the escape now really does keep a quote-carrying value intact if that ever
+# changes (the URL comes from the environment, so it can carry one).
 _osquery_store_alert_row() {
   local occurrence_timestamp="$1" request_id="$2" url="$3" encoded_body="$4" created_at database_directory
   database_directory="$(dirname "$OSQUERY_UNDELIVERED_ALERTS_DB")"
@@ -184,10 +201,15 @@ _osquery_store_alert_row() {
   chmod 700 "$database_directory" 2>/dev/null || true
   created_at="$(date -u +%s)"
   [[ $created_at =~ ^[0-9]+$ ]] || created_at=0
+  # Quote doubling via a helper variable: the inline spellings go wrong (an
+  # unquoted \' pattern keeps its backslash in the replacement under bash 3.2,
+  # the macOS system bash, and nested double quotes land literally), verified
+  # both ways; $single_quote expands identically on every bash.
+  local single_quote="'"
   local request_id_sql url_sql body_sql
-  request_id_sql="${request_id//\'/\'\'}"
-  url_sql="${url//\'/\'\'}"
-  body_sql="${encoded_body//\'/\'\'}"
+  request_id_sql="${request_id//$single_quote/$single_quote$single_quote}"
+  url_sql="${url//$single_quote/$single_quote$single_quote}"
+  body_sql="${encoded_body//$single_quote/$single_quote$single_quote}"
   if ! printf "BEGIN IMMEDIATE;
 CREATE TABLE IF NOT EXISTS pending_alerts (
   sequence_number    INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -206,6 +228,63 @@ INSERT INTO pending_alerts
   ON CONFLICT(request_id) DO NOTHING;
 COMMIT;\n" \
     "$request_id_sql" "$occurrence_timestamp" "$url_sql" "$body_sql" "$created_at" | _osquery_alerts_db_exec; then
+    return 1
+  fi
+  [[ -f $OSQUERY_UNDELIVERED_ALERTS_DB ]] || return 1
+  chmod 600 "$OSQUERY_UNDELIVERED_ALERTS_DB" 2>/dev/null || true
+  return 0
+}
+
+# Persist one FAILED local notification as a pending_local_notifications row in
+# the SAME database as the alert queue (one store, one lock domain). Follows the
+# alert row's crash-safety rules exactly: the lazy schema bootstrap and THIS
+# insert commit in ONE atomic batch (BEGIN IMMEDIATE ... COMMIT), so no kill
+# window exists where the table was created but the notification vanished; the
+# batch is idempotent (INSERT OR IGNORE on the UNIQUE notification_id), so the
+# locked-database retry in _osquery_alerts_db_exec may replay it safely and a
+# re-store of the same notification stays one row. title, message, and sound
+# are arbitrary operator-facing text, so each is single-quoted with embedded
+# quotes doubled, the same injection-safe escape the alert rows use. Returns
+# nonzero on any persistence failure for the caller to LOG (never to fail on).
+_osquery_store_local_notification_row() { # <occurrence_ts> <notification_id> <title> <message> <sound>
+  local occurrence_timestamp="$1" notification_id="$2" title="$3" message="$4" sound="$5"
+  [[ $occurrence_timestamp =~ ^[0-9]+$ ]] || return 1
+  [[ -n $notification_id ]] || return 1
+  local database_directory created_at
+  database_directory="$(dirname "$OSQUERY_UNDELIVERED_ALERTS_DB")"
+  mkdir -p "$database_directory" 2>/dev/null || return 1
+  chmod 700 "$database_directory" 2>/dev/null || true
+  created_at="$(date -u +%s)"
+  [[ $created_at =~ ^[0-9]+$ ]] || created_at=0
+  # Escape for a single-quoted SQL literal: every embedded quote is doubled.
+  # The quote lives in a helper variable because spelling it inline inside an
+  # already double-quoted expansion goes wrong in both directions: a \' pattern
+  # keeps its backslash in the replacement, and nested double quotes land as
+  # literal characters (both verified). $single_quote expands cleanly.
+  local single_quote="'"
+  local notification_id_sql="${notification_id//$single_quote/$single_quote$single_quote}"
+  local title_sql="${title//$single_quote/$single_quote$single_quote}"
+  local message_sql="${message//$single_quote/$single_quote$single_quote}"
+  local sound_sql="${sound//$single_quote/$single_quote$single_quote}"
+  if ! printf "BEGIN IMMEDIATE;
+CREATE TABLE IF NOT EXISTS pending_local_notifications (
+  sequence_number    INTEGER PRIMARY KEY AUTOINCREMENT,
+  notification_id    TEXT UNIQUE NOT NULL,
+  occurrence_ts      INTEGER NOT NULL,
+  title              TEXT NOT NULL,
+  message            TEXT NOT NULL,
+  sound              TEXT,
+  attempts           INTEGER NOT NULL DEFAULT 0,
+  next_attempt_after INTEGER NOT NULL DEFAULT 0,
+  created_at         INTEGER NOT NULL
+);
+INSERT OR IGNORE INTO pending_local_notifications
+    (notification_id, occurrence_ts, title, message, sound, attempts, next_attempt_after, created_at)
+  VALUES
+    ('%s', %s, '%s', '%s', '%s', 0, 0, %s);
+COMMIT;\n" \
+    "$notification_id_sql" "$occurrence_timestamp" "$title_sql" "$message_sql" "$sound_sql" "$created_at" |
+    _osquery_alerts_db_exec; then
     return 1
   fi
   [[ -f $OSQUERY_UNDELIVERED_ALERTS_DB ]] || return 1
@@ -238,17 +317,36 @@ COMMIT;\n" \
 # failed update is reported nonzero for the caller to log but never fail on: the
 # row is still pending, and the only cost is a retry that comes sooner.
 _osquery_record_transient_failure() {
-  local request_id="$1" base="${OSQUERY_DRAIN_RETRY_BASE_SECONDS:-60}"
+  _osquery_record_retry_failure pending_alerts request_id "$1"
+}
+
+# The shared bookkeeping UPDATE behind _osquery_record_transient_failure (the
+# alert queue) and _osquery_record_local_notify_failure (the local-notification
+# queue): both queues wait out the same base plus randomized-delay schedule, so
+# the knob parsing and the atomic UPDATE live once. The table and key column
+# are FIXED INTERNAL LITERALS at the two call sites, never caller data, so
+# interpolating them into the SQL adds no injection surface.
+_osquery_record_retry_failure() { # <table> <key_column> <key_value>
+  local table="$1" key_column="$2" key_value="$3"
+  local base="${OSQUERY_DRAIN_RETRY_BASE_SECONDS:-60}"
   [[ $base =~ ^[0-9]+$ ]] || base=60
   local random_max="${OSQUERY_DRAIN_RETRY_RANDOM_SECONDS:-$base}"
   [[ $random_max =~ ^[0-9]+$ ]] || random_max="$base"
   local random_offset=0
   ((random_max > 0)) && random_offset=$((RANDOM % (random_max + 1)))
-  local request_id_sql="${request_id//\'/\'\'}"
-  printf "UPDATE pending_alerts
+  # Quote doubling via $single_quote: bash-version-safe (see _osquery_store_alert_row).
+  local single_quote="'"
+  local key_value_sql="${key_value//$single_quote/$single_quote$single_quote}"
+  printf "UPDATE %s
   SET attempts = attempts + 1,
       next_attempt_after = CAST(strftime('%%s','now') AS INTEGER) + %s * (attempts + 1) + %s
-  WHERE request_id = '%s';\n" "$base" "$random_offset" "$request_id_sql" | _osquery_alerts_db_exec
+  WHERE %s = '%s';\n" "$table" "$base" "$random_offset" "$key_column" "$key_value_sql" | _osquery_alerts_db_exec
+}
+
+# Count the attempt on one still-failing local notification and push its next
+# banner try into the future (same knobs and schedule as the alert queue).
+_osquery_record_local_notify_failure() {
+  _osquery_record_retry_failure pending_local_notifications notification_id "$1"
 }
 
 # Move one pending row into the dead_letter_alerts table, in ONE transaction:
@@ -264,9 +362,11 @@ _osquery_dead_letter_alert_row() { # <request_id> <last_http_status> <reason>
   local request_id="$1" last_http_status="$2" reason="$3" dead_lettered_at
   dead_lettered_at="$(date -u +%s)"
   [[ $dead_lettered_at =~ ^[0-9]+$ ]] || dead_lettered_at=0
-  local request_id_sql="${request_id//\'/\'\'}"
-  local status_sql="${last_http_status//\'/\'\'}"
-  local reason_sql="${reason//\'/\'\'}"
+  # Quote doubling via $single_quote: bash-version-safe (see _osquery_store_alert_row).
+  local single_quote="'"
+  local request_id_sql="${request_id//$single_quote/$single_quote$single_quote}"
+  local status_sql="${last_http_status//$single_quote/$single_quote$single_quote}"
+  local reason_sql="${reason//$single_quote/$single_quote$single_quote}"
   printf "BEGIN IMMEDIATE;
 CREATE TABLE IF NOT EXISTS dead_letter_alerts (
   sequence_number    INTEGER PRIMARY KEY,
@@ -375,7 +475,9 @@ _osquery_alert_row_count() { # <table>
 _osquery_delete_alert_row() {
   local request_id="$1"
   [[ -f $OSQUERY_UNDELIVERED_ALERTS_DB ]] || return 0
-  local request_id_sql="${request_id//\'/\'\'}"
+  # Quote doubling via $single_quote: bash-version-safe (see _osquery_store_alert_row).
+  local single_quote="'"
+  local request_id_sql="${request_id//$single_quote/$single_quote$single_quote}"
   printf "DELETE FROM pending_alerts WHERE request_id = '%s';\n" "$request_id_sql" | _osquery_alerts_db_exec
 }
 
@@ -479,6 +581,12 @@ _deliver_pending_alert_row() {
 # loop, and the loop keeps going past a failing row (skip-and-continue).
 _drain_pending_alert_rows() {
   local secret="$1" rows request_id url encoded_body attempts created_at dead_letter_count=0
+  # A database created by the local-notification queue alone legitimately has
+  # no pending_alerts table yet; that is an empty alert queue, not an error.
+  _osquery_table_exists pending_alerts || {
+    printf '0'
+    return 0
+  }
   rows="$(_osquery_pending_alert_rows)" || {
     printf '0'
     return 0
@@ -558,20 +666,312 @@ _notify_locally() {
   fi
 }
 
-# Fire ONE loud, interruptive local notification. Used when a page can be neither
-# delivered NOR durably stored: the operator MUST learn that a CRITICAL alert was
-# lost, because a dropped page leaves no trace and would otherwise read as good
-# news. If no notifier is available or the notification itself fails, nothing
-# further happens and the function still returns 0: the dispatch flow continues,
-# already in its worst case, and must not break over a notifier problem.
+# Fire ONE loud, interruptive local notification and report a TRUTHFUL outcome:
+# 0 when the notifier was successfully invoked (the banner posted, or posted and
+# already resolved), nonzero when no notifier exists or the invocation failed.
+# Used when a page can be neither delivered NOR durably stored: the operator
+# MUST learn that a CRITICAL alert was lost, because a dropped page leaves no
+# trace and would otherwise read as good news. The status is the seam durable
+# local notifications build on; a caller that cannot act on a failure guards
+# the call (|| true), a failed banner must never break the dispatch flow.
+#
+# alerter semantics (verified on 26.5): the process lives for the banner's
+# WHOLE lifetime and exits only when the banner resolves (dismissed, clicked,
+# or timed out, exit 0 in every resolved case), while a FAILED invocation exits
+# fast and nonzero (e.g. usage error 64 in ~10ms). There is no post-and-exit
+# mode, so waiting for the exit would block a caller for up to the 60-second
+# banner life, unacceptable inside a drain pass. The bounded grace window below
+# tells the two shapes apart without that wait: a process that DIED inside the
+# window reports its own exit code (nonzero = failed invocation; 0 = posted and
+# already resolved), and one still ALIVE after the window has its banner up,
+# which is success, so it is left running exactly as before.
 _loud_local() {
-  local title="$1" message="$2"
+  # Optional third argument: the notification sound (empty or absent falls
+  # back to Funk, the historical loud-path sound). Optional fourth: a SUBTITLE
+  # (the drain retry renders the occurrence time there); empty means no
+  # subtitle line, so two-argument callers' banners are byte-identical. The
+  # empty first argument to the confirm helper means NO durable row is tied to
+  # this banner, so nothing is ever deleted on its behalf.
+  _osquery_show_banner_confirm_delete "" "$1" "$2" "${3-}" "${4-}"
+}
+
+# Show one banner and, when a durable pending_local_notifications row is tied
+# to it (a non-empty notification_id), delete that row ONLY on CONFIRMED
+# success. The DATABASE is the truth about delivery; the return status is
+# ADVISORY (for log wording): 0 means the banner posted or already resolved
+# successfully, nonzero means the notifier is absent or failed fast.
+#
+# Confirmation is per channel. osascript is synchronous: it posts and returns,
+# so its exit 0 confirms and deletes inline. alerter blocks for the banner's
+# whole LIFETIME (verified on 26.5: exit only at resolve, 0 in every resolved
+# case; a failed invocation exits fast and nonzero), so a WATCHER owns the
+# confirm: a backgrounded subshell runs the alerter to completion (the watcher
+# must own the process, a sibling shell cannot wait on another shell's child)
+# and deletes the row only on exit 0. The watcher may outlive the caller;
+# orphaning is fine because alerter's --timeout 60 bounds its life, and WAL,
+# the busy_timeout, and the idempotent delete-by-id make a late delete safe
+# against concurrent sweeps.
+#
+# The caller-facing grace window below decides LOG WORDING ONLY (posted vs
+# failed fast), never persistence. Accepted consequence: AT-LEAST-ONCE banner
+# display. A retained row for a banner that actually showed can re-banner at
+# the next tick only if the watcher died before its delete; a duplicate banner
+# is minor noise, while the silently lost CRIT banner this design eliminates
+# was the real harm. The 60-second alerter ceiling under the 300-second drain
+# tick makes the normal case exactly-once.
+_osquery_show_banner_confirm_delete() { # <notification_id-or-empty> <title> <message> [sound] [subtitle]
+  local notification_id="$1" title="$2" message="$3" sound="${4:-Funk}" subtitle="${5-}"
   if command -v alerter >/dev/null 2>&1; then
-    alerter --timeout 60 --title "$title" --message "$message" --sound Funk >/dev/null 2>&1 &
-  else
-    local escaped=${message//\"/\\\"}
-    osascript -e "display notification \"$escaped\" with title \"$title\" sound name \"Funk\"" >/dev/null 2>&1 || true
+    local alerter_arguments=(--timeout 60 --title "$title" --message "$message" --sound "$sound")
+    if [[ -n $subtitle ]]; then
+      alerter_arguments+=(--subtitle "$subtitle")
+    fi
+    # The watcher: runs the alerter to completion, deletes only on confirmed
+    # success, and exits with the alerter's own status so a fast failure is
+    # visible to the grace-window check below.
+    (
+      alerter_status=0
+      alerter "${alerter_arguments[@]}" >/dev/null 2>&1 || alerter_status=$?
+      if [[ $alerter_status -eq 0 && -n $notification_id ]]; then
+        _osquery_delete_local_notification_row "$notification_id" ||
+          _osquery_log "LOCAL-NOTIFY-DELETE-FAILED shown banner kept its row: notification_id=$notification_id (a later sweep re-banners it)"
+      fi
+      exit "$alerter_status"
+    ) &
+    local watcher_pid=$!
+    for _ in 1 2 3 4 5 6; do
+      kill -0 "$watcher_pid" 2>/dev/null || break
+      sleep 0.1 2>/dev/null || sleep 1
+    done
+    if kill -0 "$watcher_pid" 2>/dev/null; then
+      return 0 # still alive after the window: the banner is up on screen
+    fi
+    local watcher_status=0
+    wait "$watcher_pid" 2>/dev/null || watcher_status=$?
+    return "$watcher_status"
   fi
+  # osascript posts the notification and returns immediately, so its own exit
+  # status IS the outcome; an absent osascript is command-not-found (nonzero).
+  # The clause order (title, subtitle, sound name) is the verified-parsing one.
+  local escaped=${message//\"/\\\"}
+  local osascript_command="display notification \"$escaped\" with title \"$title\""
+  if [[ -n $subtitle ]]; then
+    local escaped_subtitle=${subtitle//\"/\\\"}
+    osascript_command+=" subtitle \"$escaped_subtitle\""
+  fi
+  osascript_command+=" sound name \"$sound\""
+  if osascript -e "$osascript_command" >/dev/null 2>&1; then
+    if [[ -n $notification_id ]]; then
+      _osquery_delete_local_notification_row "$notification_id" ||
+        _osquery_log "LOCAL-NOTIFY-DELETE-FAILED shown banner kept its row: notification_id=$notification_id (a later sweep re-banners it)"
+    fi
+    return 0
+  fi
+  return 1
+}
+
+# Fire the loud local CRIT banner DURABLY, write-ahead: persist the
+# pending_local_notifications row FIRST (atomic bootstrap + INSERT), THEN
+# attempt the banner, and let CONFIRMED success delete the row (the watcher /
+# inline confirm in _osquery_show_banner_confirm_delete). A failed or
+# unconfirmed banner therefore always has a durable row: a kill at any instant
+# after the persist cannot lose the banner, and an alerter that outlives the
+# grace window and then fails leaves the row untouched because no confirmation
+# ever arrives. The DB is the truth; the banner attempt's return status is
+# advisory log wording only.
+#
+# The optional third argument is a stable identity seed for THIS notification
+# (a caller with occurrence context passes one, so a retried occurrence dedups
+# to one row); absent, the identity derives from title, message, and the
+# capture time. The id is the seed's hash (same shape as the alert request
+# ids), so it is quote-free by construction.
+#
+# ALWAYS returns 0. When the write-ahead persist itself fails (storage broken,
+# the documented unfixable case: send_alert's STORE-FAILED path fires exactly
+# when this same storage is unwritable), the banner still fires best-effort and
+# the loss of durability is logged loudly (LOCAL-NOTIFY-STORE-FAILED), but the
+# caller is never aborted, it is already on its worst-case path.
+_osquery_notify_local_durable() { # <title> <message> [notification_seed]
+  local title="$1" message="$2" notification_seed="${3-}"
+  local occurrence_timestamp
+  occurrence_timestamp="$(date -u +%s)"
+  [[ $occurrence_timestamp =~ ^[0-9]+$ ]] || occurrence_timestamp=0
+  [[ -n $notification_seed ]] || notification_seed="$title|$message|$occurrence_timestamp"
+  local notification_id
+  if ! notification_id="local-$(printf '%s' "$notification_seed" | _sha256_hex_of_stdin | cut -c1-32)" ||
+    [[ $notification_id == "local-" ]]; then
+    _osquery_log "LOCAL-NOTIFY-STORE-FAILED no id could be derived (hasher broken); banner fired without a durable copy: $title"
+    _loud_local "$title" "$message" || true
+    return 0
+  fi
+  if ! _osquery_store_local_notification_row "$occurrence_timestamp" "$notification_id" "$title" "$message" "Funk"; then
+    _osquery_log "LOCAL-NOTIFY-STORE-FAILED banner fired without a durable copy (storage unwritable: $OSQUERY_UNDELIVERED_ALERTS_DB): $title"
+    _loud_local "$title" "$message" || true
+    return 0
+  fi
+  if _osquery_show_banner_confirm_delete "$notification_id" "$title" "$message" "Funk" ""; then
+    : # posted (the watcher confirms and deletes) or already confirmed inline
+  else
+    _osquery_log "LOCAL-NOTIFY-STORED banner failed, row retained for retry: notification_id=$notification_id"
+  fi
+  return 0
+}
+
+# Decode a stream of hex byte pairs (sqlite3's hex() output) back to text.
+# The local-notification export hex-encodes its text columns because title and
+# message are arbitrary operator-facing text: a tab or newline inside them
+# would garble a separator-based row format, while hex output is [0-9A-F] only,
+# separator-safe by construction. sed turns each pair into a \xHH escape and
+# printf %b decodes them; both are boring system tools available everywhere
+# this library runs.
+_osquery_hex_to_text() {
+  local hex_text="$1"
+  [[ -n $hex_text ]] || return 0
+  printf '%b' "$(printf '%s' "$hex_text" | sed 's/../\\x&/g')"
+}
+
+# Print every DUE pending local notification as one tab-separated line
+# (notification_id, occurrence_ts, hex(title), hex(message), hex(sound)),
+# ordered like the alert drain: occurrence time first, sequence as the
+# skew-proof tiebreaker, and rows whose retry wait has not passed are left out.
+# The id is hex-derived and occurrence_ts an integer (both separator-safe); the
+# text fields are hex-encoded IN SQL so embedded tabs or newlines cannot garble
+# the row format (decoded by _osquery_hex_to_text). occurrence_ts rides along
+# for the age-out decision and the honest-timestamp subtitle.
+_osquery_pending_local_notification_rows() {
+  {
+    printf '.separator "\\t"\n'
+    printf "SELECT notification_id, occurrence_ts, hex(title), hex(message), hex(COALESCE(sound, ''))
+  FROM pending_local_notifications
+  WHERE next_attempt_after <= CAST(strftime('%%s','now') AS INTEGER)
+  ORDER BY occurrence_ts, sequence_number;\n"
+  } | _osquery_alerts_db_exec
+}
+
+# Render an epoch as UTC ISO 8601 (2026-07-22T01:15:00Z). BSD date (-r, the
+# macOS runtime) first, GNU date (-d @) as the fallback, so the helper works
+# under either userland. Prints nothing when both fail.
+_osquery_epoch_to_iso8601() {
+  local epoch="$1"
+  [[ $epoch =~ ^[0-9]+$ ]] || return 1
+  date -u -r "$epoch" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null ||
+    date -u -d "@$epoch" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null
+}
+
+# Delete one redelivered local notification's row, keyed by notification_id.
+# Called only after _loud_local reported the banner shown. A missing DB is a
+# clean no-op; a failed delete is reported nonzero for the caller to log, never
+# fail on (the banner was shown; a leaked row costs one duplicate banner on a
+# later sweep).
+_osquery_delete_local_notification_row() {
+  local notification_id="$1"
+  [[ -f $OSQUERY_UNDELIVERED_ALERTS_DB ]] || return 0
+  # Quote doubling via $single_quote: bash-version-safe (see _osquery_store_alert_row).
+  local single_quote="'"
+  local notification_id_sql="${notification_id//$single_quote/$single_quote$single_quote}"
+  printf "DELETE FROM pending_local_notifications WHERE notification_id = '%s';\n" \
+    "$notification_id_sql" | _osquery_alerts_db_exec
+}
+
+# Expire every local notification too old to matter, INDEPENDENTLY of the
+# due-row filter: a row sitting in retry backoff (next_attempt_after in the
+# future) is invisible to the due sweep, and without this pass it would
+# silently outlive its own age ceiling. Past
+# OSQUERY_LOCAL_NOTIFY_MAX_AGE_SECONDS (default 86400, one day) the row is
+# DELETED unshown with a loud LOCAL-NOTIFY-EXPIRED line naming the id and its
+# age: the operator has long since seen the durable Discord copy, so a day-old
+# banner is pure noise. There is deliberately NO dead_letter_local table: the
+# local payload merely duplicates content the durable webhook channel already
+# carries, nothing would ever consume such a table (the no-dead-state rule),
+# and the loud log line IS the forensic record. And NO attempts cap: at one
+# attempt per scheduled tick, age is the natural bound, an attempts knob would
+# be a second knob doing the same job. A row with a zero occurrence time (a
+# clock glitch at capture) has an unknowable age and is never expired blind.
+# The age arithmetic and the over-age selection live in ONE SQL statement, so
+# the decision is race-free and the exported fields (a hex-derived id and an
+# integer age) are separator-safe. Never returns nonzero (set -e-safe).
+_osquery_expire_over_age_local_notifications() {
+  local max_age="${OSQUERY_LOCAL_NOTIFY_MAX_AGE_SECONDS:-86400}"
+  [[ $max_age =~ ^[0-9]+$ ]] || max_age=86400
+  local rows notification_id age
+  rows="$({
+    printf '.separator "\\t"\n'
+    printf "SELECT notification_id, (CAST(strftime('%%s','now') AS INTEGER) - occurrence_ts)
+  FROM pending_local_notifications
+  WHERE occurrence_ts > 0
+    AND (CAST(strftime('%%s','now') AS INTEGER) - occurrence_ts) > %s;\n" "$max_age"
+  } | _osquery_alerts_db_exec)" || return 0
+  [[ -n $rows ]] || return 0
+  while IFS=$'\t' read -r notification_id age; do
+    [[ -n $notification_id ]] || continue
+    if _osquery_delete_local_notification_row "$notification_id"; then
+      _osquery_log "LOCAL-NOTIFY-EXPIRED notification too old to matter, deleted unshown: notification_id=$notification_id age=${age}s (max ${max_age}s)"
+    else
+      _osquery_log "LOCAL-NOTIFY-EXPIRE-FAILED over-age row could not be deleted: notification_id=$notification_id age=${age}s (row retained)"
+    fi
+  done <<<"$rows"
+  return 0
+}
+
+# Re-attempt ONE stored local notification: decode the hex fields, banner via
+# the confirmed-delete path WITH the occurrence time as the subtitle, and count
+# a fast failure (same base + randomized-delay schedule as the alert queue).
+# Age-out happens BEFORE this in the sweep's independent expiry pass, so every
+# row reaching here is young enough to show.
+#
+# HONEST TIMESTAMPS: a banner shown minutes or hours late must not read as
+# breaking news, so the retry renders "occurred <UTC ISO 8601>" into the banner
+# (first-attempt banners are fresh and stay unmarked). An unrenderable
+# occurrence time gets no subtitle, never a made-up one.
+#
+# The local channel is the FALLBACK, so its failures are LOG LINES ONLY: never
+# a webhook CRIT, never a dead-letter tally entry, alerting the broken channel
+# through itself is noise. Always returns 0 (set -e-safe, skip-and-continue).
+_redeliver_pending_local_notification() { # <notification_id> <occurrence_ts> <title_hex> <message_hex> <sound_hex>
+  local notification_id="$1" occurrence_ts="$2" title message sound
+  title="$(_osquery_hex_to_text "$3")" || title=""
+  message="$(_osquery_hex_to_text "$4")" || message=""
+  sound="$(_osquery_hex_to_text "$5")" || sound=""
+  if [[ -z $title && -z $message ]]; then
+    _osquery_log "MALFORMED-ROW local sweep skipped an unreadable notification: notification_id=${notification_id:-unknown} (row retained)"
+    return 0
+  fi
+  # The honest-timestamp subtitle: a retried banner names when its event
+  # actually occurred. An unrenderable time means no subtitle, never a made-up one.
+  local occurred_subtitle="" occurred_iso8601
+  if occurred_iso8601="$(_osquery_epoch_to_iso8601 "$occurrence_ts")" && [[ -n $occurred_iso8601 ]]; then
+    occurred_subtitle="occurred $occurred_iso8601"
+  fi
+  # The row already exists (write-ahead by construction), so the retry hands it
+  # to the confirmed-delete banner: only a CONFIRMED success removes it (the
+  # watcher, or the synchronous fallback inline). An advisory "posted" leaves
+  # the row for the watcher's verdict; only a fast failure books the attempt.
+  if _osquery_show_banner_confirm_delete "$notification_id" "$title" "$message" "$sound" "$occurred_subtitle"; then
+    return 0
+  fi
+  _osquery_record_local_notify_failure "$notification_id" ||
+    _osquery_log "LOCAL-NOTIFY-BOOKKEEPING-FAILED attempts not recorded: notification_id=$notification_id (the row simply retries sooner)"
+  _osquery_log "LOCAL-NOTIFY-RETRY-FAILED banner still failing: notification_id=$notification_id (row retained)"
+  return 0
+}
+
+# Sweep the stored local notifications: first EXPIRE every over-age row
+# (independently of retry backoff, see the expiry pass), then re-banner every
+# DUE row in occurrence order. Runs from the same scheduled drain as the alert
+# queue (one liveness owner, one lock). A missing table (nothing ever
+# captured), a query failure, or an empty queue is a quiet no-op; a failing row
+# never blocks the rows behind it. Never returns nonzero (set -e-safe).
+_drain_pending_local_notifications() {
+  _osquery_table_exists pending_local_notifications || return 0
+  _osquery_expire_over_age_local_notifications
+  local rows notification_id occurrence_ts title_hex message_hex sound_hex
+  rows="$(_osquery_pending_local_notification_rows)" || return 0
+  [[ -n $rows ]] || return 0
+  while IFS=$'\t' read -r notification_id occurrence_ts title_hex message_hex sound_hex; do
+    [[ -n $notification_id ]] || continue
+    _redeliver_pending_local_notification "$notification_id" "$occurrence_ts" "$title_hex" "$message_hex" "$sound_hex"
+  done <<<"$rows"
+  return 0
 }
 
 # Print the webhook signing key: the environment override when set, otherwise
@@ -608,6 +1008,13 @@ _post_alert_to_webhook() { # <url> <request_id> <signature> <body>
 # a detection outage).
 retry_undelivered_alerts() {
   [[ -f $OSQUERY_UNDELIVERED_ALERTS_DB ]] || return 0
+  # Sweep the stored LOCAL notifications FIRST, and before the secret gate
+  # below (a banner needs no webhook secret). Local-first ordering matters:
+  # the alert drain's degraded-pipeline CRIT can persist a NEW local row
+  # mid-pass (via _osquery_notify_local_durable), and with the local sweep
+  # already done that fresh row simply waits for the next scheduled tick
+  # instead of being attempted twice in one pass.
+  _drain_pending_local_notifications
   local secret
   secret="$(_read_webhook_secret)"
   [[ -n $secret ]] || return 0
@@ -621,7 +1028,11 @@ retry_undelivered_alerts() {
   [[ $dead_letter_count =~ ^[0-9]+$ ]] || dead_letter_count=0
   if ((dead_letter_count > 0)); then
     _osquery_log "PIPELINE-DEGRADED $dead_letter_count record(s) dead-lettered this drain pass"
-    _loud_local "osquery alert delivery pipeline degraded" \
+    # Durable banner: shown, or captured for a later retry. No identity seed:
+    # each degraded pass is its own event, so the default derivation (title,
+    # message, capture time) dedups only a same-second duplicate. Always 0,
+    # a failed banner never aborts the drain.
+    _osquery_notify_local_durable "osquery alert delivery pipeline degraded" \
       "$dead_letter_count undeliverable page(s) dead-lettered; the alert delivery pipeline needs attention."
   fi
   return 0
@@ -750,8 +1161,13 @@ send_alert() {
   # stored, and the caller must not advance its cursor past it.
   if ! _store_undelivered_alert "$occurrence_timestamp" "$request_id" "$url" "$body"; then
     _osquery_log "STORE-FAILED write-ahead persist: request_id=$request_id (storage unwritable: $OSQUERY_UNDELIVERED_ALERTS_DB)"
-    _loud_local "osquery paging FAILED, page LOST" \
-      "The page could not be stored locally. Fix $OSQUERY_UNDELIVERED_ALERTS_DB."
+    # Durable banner, seeded by this page's request id so a retried occurrence
+    # dedups to one row. The capture will usually fail too on this path (the
+    # same storage is broken), which the wrapper logs loudly; the nonzero
+    # return below stays the caller's real lost-page signal.
+    _osquery_notify_local_durable "osquery paging FAILED, page LOST" \
+      "The page could not be stored locally. Fix $OSQUERY_UNDELIVERED_ALERTS_DB." \
+      "store-failed|$request_id"
     return 1
   fi
 
@@ -762,8 +1178,12 @@ send_alert() {
   secret="$(_read_webhook_secret)"
   if [[ -z $secret ]]; then
     _osquery_log "STORED-NOSECRET Discord delivery degraded: request_id=$request_id (no secret in $OSQUERY_WEBHOOK_SECRET_FILE)"
-    _loud_local "osquery Discord paging BROKEN" \
-      "No webhook secret. This page was stored locally and delivers when the secret is restored."
+    # Durable banner, seeded by this page's request id so a retried occurrence
+    # dedups to one row. The page itself is safely stored, so a failed banner
+    # costs visibility, not the page, and the capture preserves the visibility.
+    _osquery_notify_local_durable "osquery Discord paging BROKEN" \
+      "No webhook secret. This page was stored locally and delivers when the secret is restored." \
+      "stored-nosecret|$request_id"
     return 0
   fi
 
