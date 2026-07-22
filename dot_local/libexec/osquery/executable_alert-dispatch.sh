@@ -217,19 +217,38 @@ COMMIT;\n" \
 # goes up by one and next_attempt_after moves into the future, so the drain
 # leaves the row alone until its wait has passed instead of hammering a failing
 # gateway on every tick. The wait grows with the attempt count (base seconds
-# times the new attempt number; the base is overridable for tests, and DR-B T6
-# adds a random wobble on top). The clock and the arithmetic both live inside
-# the one UPDATE, so the read-modify-write is atomic under concurrent drains.
-# A failed update is reported nonzero for the caller to log but never fail on:
-# the row is still pending, and the only cost is a retry that comes sooner.
+# times the new attempt number; the base is overridable for tests) plus a
+# bounded RANDOMIZED RETRY DELAY on top.
+#
+# The randomized delay breaks lockstep: when a gateway outage fails a whole
+# batch of rows in the same pass, an identical fixed schedule would make every
+# row come due at the same instant and retry in one synchronized storm the
+# moment the gateway might be recovering. A small random offset added to each
+# row's schedule staggers them so they come back gradually instead. The offset
+# is a non-negative number of seconds in [0, max], so it only ever DELAYS a
+# retry, never pulls one earlier than the base schedule. The max defaults to the
+# base (the spec's "bounded by the base"): a full base-width spread, and setting
+# OSQUERY_DRAIN_RETRY_RANDOM_SECONDS=0 disables it for a deterministic schedule.
+# $RANDOM is the source (portable, no external tool); its 15-bit range caps the
+# effective spread at 32767 seconds, which is well past any useful stagger.
+#
+# The clock and the arithmetic both live inside the one UPDATE, so the
+# read-modify-write is atomic under concurrent drains; the offset is drawn once
+# per call, so two rows failing in the same pass get independent offsets. A
+# failed update is reported nonzero for the caller to log but never fail on: the
+# row is still pending, and the only cost is a retry that comes sooner.
 _osquery_record_transient_failure() {
   local request_id="$1" base="${OSQUERY_DRAIN_RETRY_BASE_SECONDS:-60}"
   [[ $base =~ ^[0-9]+$ ]] || base=60
+  local random_max="${OSQUERY_DRAIN_RETRY_RANDOM_SECONDS:-$base}"
+  [[ $random_max =~ ^[0-9]+$ ]] || random_max="$base"
+  local random_offset=0
+  ((random_max > 0)) && random_offset=$((RANDOM % (random_max + 1)))
   local request_id_sql="${request_id//\'/\'\'}"
   printf "UPDATE pending_alerts
   SET attempts = attempts + 1,
-      next_attempt_after = CAST(strftime('%%s','now') AS INTEGER) + %s * (attempts + 1)
-  WHERE request_id = '%s';\n" "$base" "$request_id_sql" | _osquery_alerts_db_exec
+      next_attempt_after = CAST(strftime('%%s','now') AS INTEGER) + %s * (attempts + 1) + %s
+  WHERE request_id = '%s';\n" "$base" "$random_offset" "$request_id_sql" | _osquery_alerts_db_exec
 }
 
 # Move one pending row into the dead_letter_alerts table, in ONE transaction:

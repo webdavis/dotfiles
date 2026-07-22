@@ -244,3 +244,67 @@ dead_letter_count() {
   # background notifier, so an immediate emptiness check is race-free.
   [[ ! -s $ALERTER_LOG ]]
 }
+
+# --- DR-B T6: randomized retry delay (breaks synchronized retry storms) --------
+
+@test "T-DLQ-random-delay-spread: rows failing transiently in one pass get spread-out next_attempt_after, not identical" {
+  # A batch of rows that all fail in the SAME pass must not schedule an identical
+  # retry time, or they retry in one synchronized storm. The randomized delay
+  # staggers them. Base is 0 here so the ONLY source of spread is the random
+  # offset, and the bound is wide so the spread is unmistakable (clock drift
+  # across a sub-second pass could account for at most a second or two).
+  export OSQUERY_DRAIN_RETRY_BASE_SECONDS=0
+  export OSQUERY_DRAIN_RETRY_RANDOM_SECONDS=20000
+  export OSQUERY_DRAIN_MAX_ATTEMPTS=1000 # keep every row a transient, none dead-lettered
+  export OSQUERY_DRAIN_MAX_AGE_SECONDS=604800
+  local url='http://127.0.0.1:8644/webhooks/osquery-priority' body_b64 i
+  body_b64=$(printf '{"event_type":"osquery.alert"}' | base64 | tr -d '\n')
+  for i in 1 2 3 4 5 6 7 8; do
+    _osquery_store_alert_row "$((1000 + i))" "osquery-lockstep-$i" "$url" "$body_b64"
+  done
+  set_curl_codes 503 503 503 503 503 503 503 503
+
+  retry_undelivered_alerts
+
+  assert_pending_alert_count 8 # all retained as transients
+  # The eight scheduled times must span a wide window; with base 0 that spread is
+  # the randomized delay itself, not the base schedule or clock drift.
+  local spread
+  spread=$(sqlite3_query 'SELECT MAX(next_attempt_after) - MIN(next_attempt_after) FROM pending_alerts;')
+  if [[ ! $spread -ge 60 ]]; then
+    printf 'expected the randomized delay to spread next_attempt_after by >= 60s, got spread=%s\n' "$spread" >&2
+    return 1
+  fi
+  # ...and more than one distinct scheduled time (no lockstep).
+  [[ "$(sqlite3_query 'SELECT COUNT(DISTINCT next_attempt_after) FROM pending_alerts;')" -gt 1 ]]
+}
+
+@test "T-DLQ-random-delay-zero-deterministic: with the random knob at 0 the schedule is exactly base*attempt, no offset" {
+  # Setting the random bound to 0 must reproduce the pure deterministic schedule
+  # the earlier tests rely on: next_attempt_after = update_time + base*attempt,
+  # with no offset added.
+  export OSQUERY_DRAIN_RETRY_BASE_SECONDS=1000
+  export OSQUERY_DRAIN_RETRY_RANDOM_SECONDS=0
+  export OSQUERY_DRAIN_MAX_ATTEMPTS=1000
+  export OSQUERY_DRAIN_MAX_AGE_SECONDS=604800
+  local url='http://127.0.0.1:8644/webhooks/osquery-priority' body_b64
+  body_b64=$(printf '{"event_type":"osquery.alert"}' | base64 | tr -d '\n')
+  _osquery_store_alert_row 1000 osquery-det "$url" "$body_b64"
+  set_curl_codes 503
+
+  local before after next_attempt
+  before=$(date -u +%s)
+  retry_undelivered_alerts
+  after=$(date -u +%s)
+
+  [[ "$(sqlite3_query "SELECT attempts FROM pending_alerts WHERE request_id='osquery-det';")" == "1" ]]
+  next_attempt=$(sqlite3_query "SELECT next_attempt_after FROM pending_alerts WHERE request_id='osquery-det';")
+  # With no offset, next_attempt = update_time + 1000, and update_time is inside
+  # the [before, after] pass window. A nonzero offset would push it past after+1000.
+  local implied_update_time=$((next_attempt - 1000))
+  if [[ ! ($implied_update_time -ge $before && $implied_update_time -le $after) ]]; then
+    printf 'expected next_attempt = update_time + 1000 with NO random offset; before=%s after=%s next_attempt=%s (implied update_time=%s)\n' \
+      "$before" "$after" "$next_attempt" "$implied_update_time" >&2
+    return 1
+  fi
+}
