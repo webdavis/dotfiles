@@ -38,6 +38,9 @@ PACK_POLICY
 install_root /var/osquery/packs/installed-software-drift.conf <<'PACK_DRIFT'
 {{ includeTemplate "osquery/packs/installed-software-drift.conf" . }}
 PACK_DRIFT
+install_root /var/osquery/packs/agent-attack-surface.conf <<'PACK_AGENT'
+{{ includeTemplate "osquery/packs/agent-attack-surface.conf" . }}
+PACK_AGENT
 
 # CLI flags (event flags are CLI-only and ignored if set only in the config's
 # "options" block). --config_path now points at the root-owned copy;
