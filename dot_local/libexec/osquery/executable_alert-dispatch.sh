@@ -689,10 +689,19 @@ _loud_local() {
   # The optional third argument is the notification sound; empty or absent
   # falls back to Funk (the historical loud-path sound), so two-argument
   # callers keep their exact old behavior while the local-notification retry
-  # can replay a stored row's own sound.
-  local title="$1" message="$2" sound="${3:-Funk}"
+  # can replay a stored row's own sound. The optional fourth argument is a
+  # SUBTITLE, used by the drain retry path to render the occurrence time into
+  # a late banner; empty or absent means no subtitle line at all, so every
+  # existing caller's banner is byte-identical. Both notifier channels support
+  # it (alerter --subtitle per its help; osascript display notification's
+  # subtitle clause, verified to parse and post).
+  local title="$1" message="$2" sound="${3:-Funk}" subtitle="${4-}"
   if command -v alerter >/dev/null 2>&1; then
-    alerter --timeout 60 --title "$title" --message "$message" --sound "$sound" >/dev/null 2>&1 &
+    local alerter_arguments=(--timeout 60 --title "$title" --message "$message" --sound "$sound")
+    if [[ -n $subtitle ]]; then
+      alerter_arguments+=(--subtitle "$subtitle")
+    fi
+    alerter "${alerter_arguments[@]}" >/dev/null 2>&1 &
     local notifier_pid=$!
     for _ in 1 2 3 4 5 6; do
       kill -0 "$notifier_pid" 2>/dev/null || break
@@ -707,8 +716,15 @@ _loud_local() {
   fi
   # osascript posts the notification and returns immediately, so its own exit
   # status IS the outcome; an absent osascript is command-not-found (nonzero).
+  # The clause order (title, subtitle, sound name) is the verified-parsing one.
   local escaped=${message//\"/\\\"}
-  osascript -e "display notification \"$escaped\" with title \"$title\" sound name \"$sound\"" >/dev/null 2>&1
+  local osascript_command="display notification \"$escaped\" with title \"$title\""
+  if [[ -n $subtitle ]]; then
+    local escaped_subtitle=${subtitle//\"/\\\"}
+    osascript_command+=" subtitle \"$escaped_subtitle\""
+  fi
+  osascript_command+=" sound name \"$sound\""
+  osascript -e "$osascript_command" >/dev/null 2>&1
 }
 
 # Fire the loud local CRIT banner DURABLY: show it via _loud_local and, ONLY
@@ -762,19 +778,31 @@ _osquery_hex_to_text() {
 }
 
 # Print every DUE pending local notification as one tab-separated line
-# (notification_id, hex(title), hex(message), hex(sound)), ordered like the
-# alert drain: occurrence time first, sequence as the skew-proof tiebreaker,
-# and rows whose retry wait has not passed are left out. The id is hex-derived
-# (separator-safe); the text fields are hex-encoded IN SQL so embedded tabs or
-# newlines cannot garble the row format (decoded by _osquery_hex_to_text).
+# (notification_id, occurrence_ts, hex(title), hex(message), hex(sound)),
+# ordered like the alert drain: occurrence time first, sequence as the
+# skew-proof tiebreaker, and rows whose retry wait has not passed are left out.
+# The id is hex-derived and occurrence_ts an integer (both separator-safe); the
+# text fields are hex-encoded IN SQL so embedded tabs or newlines cannot garble
+# the row format (decoded by _osquery_hex_to_text). occurrence_ts rides along
+# for the age-out decision and the honest-timestamp subtitle.
 _osquery_pending_local_notification_rows() {
   {
     printf '.separator "\\t"\n'
-    printf "SELECT notification_id, hex(title), hex(message), hex(COALESCE(sound, ''))
+    printf "SELECT notification_id, occurrence_ts, hex(title), hex(message), hex(COALESCE(sound, ''))
   FROM pending_local_notifications
   WHERE next_attempt_after <= CAST(strftime('%%s','now') AS INTEGER)
   ORDER BY occurrence_ts, sequence_number;\n"
   } | _osquery_alerts_db_exec
+}
+
+# Render an epoch as UTC ISO 8601 (2026-07-22T01:15:00Z). BSD date (-r, the
+# macOS runtime) first, GNU date (-d @) as the fallback, so the helper works
+# under either userland. Prints nothing when both fail.
+_osquery_epoch_to_iso8601() {
+  local epoch="$1"
+  [[ $epoch =~ ^[0-9]+$ ]] || return 1
+  date -u -r "$epoch" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null ||
+    date -u -d "@$epoch" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null
 }
 
 # Delete one redelivered local notification's row, keyed by notification_id.
@@ -792,22 +820,63 @@ _osquery_delete_local_notification_row() {
     "$notification_id_sql" | _osquery_alerts_db_exec
 }
 
-# Re-attempt ONE stored local notification: decode the hex fields, banner via
-# _loud_local, delete the row when the banner was shown, and count the failed
-# attempt otherwise (same base + randomized-delay schedule as the alert queue).
+# Re-attempt ONE stored local notification: expire it when it is too old to
+# matter, otherwise decode the hex fields and banner via _loud_local WITH the
+# occurrence time as the subtitle, delete the row when the banner was shown,
+# and count the failed attempt otherwise (same base + randomized-delay schedule
+# as the alert queue).
+#
+# The two staleness behaviors live here. HONEST TIMESTAMPS: a banner shown
+# minutes or hours late must not read as breaking news, so the retry renders
+# "occurred <UTC ISO 8601>" into the banner (first-attempt banners are fresh
+# and stay unmarked). AGE-OUT: past OSQUERY_LOCAL_NOTIFY_MAX_AGE_SECONDS
+# (default 86400, one day) the row is DELETED with a loud LOCAL-NOTIFY-EXPIRED
+# line naming the id and its age, no banner attempt: the operator has long
+# since seen the durable Discord copy, so a day-old banner is pure noise.
+# There is deliberately NO dead_letter_local table: the local payload merely
+# duplicates content the durable webhook channel already carries, nothing would
+# ever consume such a table (the no-dead-state rule), and the loud log line IS
+# the forensic record. And NO attempts cap: at one attempt per scheduled tick,
+# age is the natural bound, an attempts knob would be a second knob doing the
+# same job. A row with a zero/invalid occurrence time (a clock glitch at
+# capture) cannot have its age known, so it is retried, never expired blind,
+# and gets no made-up timestamp subtitle.
+#
 # The local channel is the FALLBACK, so its failures are LOG LINES ONLY: never
 # a webhook CRIT, never a dead-letter tally entry, alerting the broken channel
 # through itself is noise. Always returns 0 (set -e-safe, skip-and-continue).
-_redeliver_pending_local_notification() { # <notification_id> <title_hex> <message_hex> <sound_hex>
-  local notification_id="$1" title message sound
-  title="$(_osquery_hex_to_text "$2")" || title=""
-  message="$(_osquery_hex_to_text "$3")" || message=""
-  sound="$(_osquery_hex_to_text "$4")" || sound=""
+_redeliver_pending_local_notification() { # <notification_id> <occurrence_ts> <title_hex> <message_hex> <sound_hex>
+  local notification_id="$1" occurrence_ts="$2" title message sound
+  local max_age="${OSQUERY_LOCAL_NOTIFY_MAX_AGE_SECONDS:-86400}"
+  [[ $max_age =~ ^[0-9]+$ ]] || max_age=86400
+  local now age
+  now="$(date -u +%s)"
+  [[ $now =~ ^[0-9]+$ ]] || now=0
+  if [[ $occurrence_ts =~ ^[0-9]+$ ]] && ((occurrence_ts > 0 && now > 0)); then
+    age=$((now - occurrence_ts))
+    if ((age > max_age)); then
+      if _osquery_delete_local_notification_row "$notification_id"; then
+        _osquery_log "LOCAL-NOTIFY-EXPIRED notification too old to matter, deleted unshown: notification_id=$notification_id age=${age}s (max ${max_age}s)"
+      else
+        _osquery_log "LOCAL-NOTIFY-EXPIRE-FAILED over-age row could not be deleted: notification_id=$notification_id age=${age}s (row retained)"
+      fi
+      return 0
+    fi
+  fi
+  title="$(_osquery_hex_to_text "$3")" || title=""
+  message="$(_osquery_hex_to_text "$4")" || message=""
+  sound="$(_osquery_hex_to_text "$5")" || sound=""
   if [[ -z $title && -z $message ]]; then
     _osquery_log "MALFORMED-ROW local sweep skipped an unreadable notification: notification_id=${notification_id:-unknown} (row retained)"
     return 0
   fi
-  if _loud_local "$title" "$message" "$sound"; then
+  # The honest-timestamp subtitle: a retried banner names when its event
+  # actually occurred. An unrenderable time means no subtitle, never a made-up one.
+  local occurred_subtitle="" occurred_iso8601
+  if occurred_iso8601="$(_osquery_epoch_to_iso8601 "$occurrence_ts")" && [[ -n $occurred_iso8601 ]]; then
+    occurred_subtitle="occurred $occurred_iso8601"
+  fi
+  if _loud_local "$title" "$message" "$sound" "$occurred_subtitle"; then
     _osquery_delete_local_notification_row "$notification_id" ||
       _osquery_log "LOCAL-NOTIFY-DELETE-FAILED shown banner kept its row: notification_id=$notification_id (a later sweep re-banners it)"
     return 0
@@ -825,12 +894,12 @@ _redeliver_pending_local_notification() { # <notification_id> <title_hex> <messa
 # behind it. Never returns nonzero (set -e-safe).
 _drain_pending_local_notifications() {
   _osquery_table_exists pending_local_notifications || return 0
-  local rows notification_id title_hex message_hex sound_hex
+  local rows notification_id occurrence_ts title_hex message_hex sound_hex
   rows="$(_osquery_pending_local_notification_rows)" || return 0
   [[ -n $rows ]] || return 0
-  while IFS=$'\t' read -r notification_id title_hex message_hex sound_hex; do
+  while IFS=$'\t' read -r notification_id occurrence_ts title_hex message_hex sound_hex; do
     [[ -n $notification_id ]] || continue
-    _redeliver_pending_local_notification "$notification_id" "$title_hex" "$message_hex" "$sound_hex"
+    _redeliver_pending_local_notification "$notification_id" "$occurrence_ts" "$title_hex" "$message_hex" "$sound_hex"
   done <<<"$rows"
   return 0
 }

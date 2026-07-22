@@ -136,9 +136,11 @@ local_row_count() {
   _osquery_notify_local_durable "first title" "m1" "seed-first"
   _osquery_notify_local_durable "second title" "m2" "seed-second"
   [[ "$(local_row_count)" == "2" ]]
-  # Order the rows deterministically: the first seed strictly older.
+  # Order the rows deterministically: the first seed strictly older, but both
+  # RECENT (seconds old), so the age-out behavior added later never expires
+  # them; this pin is about ordering under failure, not staleness.
   sqlite3 "$OSQUERY_UNDELIVERED_ALERTS_DB" \
-    "UPDATE pending_local_notifications SET occurrence_ts = CASE WHEN title='first title' THEN 100 ELSE 200 END;"
+    "UPDATE pending_local_notifications SET occurrence_ts = CASE WHEN title='first title' THEN $(($(date -u +%s) - 200)) ELSE $(($(date -u +%s) - 100)) END;"
   : >"$ALERTER_LOG"
 
   retry_undelivered_alerts
@@ -149,4 +151,112 @@ local_row_count() {
   # ...and both were retained with their bookkeeping counted.
   [[ "$(local_row_count)" == "2" ]]
   [[ "$(sqlite3_query 'SELECT COUNT(*) FROM pending_local_notifications WHERE attempts=1;')" == "2" ]]
+}
+
+# --- DR-C T4: two staleness behaviors ------------------------------------------
+# Behavior 1: a late-redelivered banner tells the truth about WHEN its event
+# occurred (the occurrence time is rendered into the banner, so a banner shown
+# hours late cannot read as breaking news).
+# Behavior 2: a local notification too old to matter is EXPIRED loudly instead
+# of retried forever (deleted with a forensic log line; the operator has long
+# since seen the durable Discord copy, so a day-old banner is pure noise).
+
+# Render an epoch as the banner subtitle's UTC ISO 8601 form, the same both
+# date flavors: BSD (-r) first, GNU (-d @) as the fallback.
+iso8601_of_epoch() {
+  date -u -r "$1" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -d "@$1" +%Y-%m-%dT%H:%M:%SZ
+}
+
+@test "T-LND-late-banner-honest-timestamp: a redelivered banner names its occurrence time" {
+  set_alerter_stub_exit 64
+  _osquery_notify_local_durable "late title" "late message" "seed-late-honest"
+  [[ "$(local_row_count)" == "1" ]]
+  local occurrence_ts
+  occurrence_ts="$(sqlite3_query 'SELECT occurrence_ts FROM pending_local_notifications;')"
+  : >"$ALERTER_LOG"
+  set_alerter_stub_exit 0
+
+  retry_undelivered_alerts
+
+  [[ "$(local_row_count)" == "0" ]] # shown -> deleted
+  # The banner carried the ORIGINAL occurrence time as its subtitle, so the
+  # operator reads a late banner as history, not as breaking news.
+  grep -qF -- "--subtitle occurred $(iso8601_of_epoch "$occurrence_ts")" "$ALERTER_LOG"
+}
+
+@test "T-LND-fresh-banner-unmarked: a FIRST-ATTEMPT banner carries no staleness subtitle" {
+  # The honest-timestamp marking belongs to the drain retry path ONLY: a fresh
+  # first-attempt banner IS breaking news and must render exactly as before.
+  set_alerter_stub_exit 0
+  : >"$ALERTER_LOG"
+  _osquery_notify_local_durable "fresh title" "fresh message" "seed-fresh"
+  [[ "$(grep -c . "$ALERTER_LOG")" == "1" ]]
+  ! grep -qF -- '--subtitle' "$ALERTER_LOG"
+  ! grep -qF 'occurred' "$ALERTER_LOG"
+}
+
+@test "T-LND-expired-loudly: an over-age row is deleted with a forensic log line, never bannered" {
+  set_alerter_stub_exit 64
+  _osquery_notify_local_durable "old title" "old message" "seed-expired"
+  local notification_id
+  notification_id="$(sqlite3_query 'SELECT notification_id FROM pending_local_notifications;')"
+  # Age the row past the 1-day default.
+  sqlite3 "$OSQUERY_UNDELIVERED_ALERTS_DB" \
+    "UPDATE pending_local_notifications SET occurrence_ts = $(($(date -u +%s) - 200000));"
+  : >"$ALERTER_LOG"
+  set_alerter_stub_exit 0 # a working notifier must still NOT be handed the stale banner
+
+  retry_undelivered_alerts
+
+  [[ ! -s $ALERTER_LOG ]]          # zero banner attempts
+  [[ "$(local_row_count)" == "0" ]] # expired -> deleted
+  grep -q 'LOCAL-NOTIFY-EXPIRED' "$OSQUERY_DELIVERY_LOG"       # loud, never silent
+  grep -qF "$notification_id" "$OSQUERY_DELIVERY_LOG"          # names the row
+  grep -qE 'LOCAL-NOTIFY-EXPIRED.*age[=_ ][0-9]+' "$OSQUERY_DELIVERY_LOG" # and its age
+}
+
+@test "T-LND-age-knob: the age ceiling is the operator's knob (small expires, large retries)" {
+  set_alerter_stub_exit 64
+  _osquery_notify_local_durable "knob title" "knob message" "seed-knob"
+  # Make the row 60 seconds old.
+  sqlite3 "$OSQUERY_UNDELIVERED_ALERTS_DB" \
+    "UPDATE pending_local_notifications SET occurrence_ts = $(($(date -u +%s) - 60));"
+  # A LARGE ceiling: the 60s-old row is fresh enough and banners.
+  : >"$ALERTER_LOG"
+  set_alerter_stub_exit 0
+  OSQUERY_LOCAL_NOTIFY_MAX_AGE_SECONDS=999999 retry_undelivered_alerts
+  grep -qF 'knob title' "$ALERTER_LOG"
+  [[ "$(local_row_count)" == "0" ]] # shown -> deleted
+  # Re-seed and shrink the ceiling BELOW the row's age: it expires unseen.
+  set_alerter_stub_exit 64
+  _osquery_notify_local_durable "knob title 2" "knob message 2" "seed-knob-2"
+  sqlite3 "$OSQUERY_UNDELIVERED_ALERTS_DB" \
+    "UPDATE pending_local_notifications SET occurrence_ts = $(($(date -u +%s) - 60));"
+  : >"$ALERTER_LOG"
+  set_alerter_stub_exit 0
+  OSQUERY_LOCAL_NOTIFY_MAX_AGE_SECONDS=10 retry_undelivered_alerts
+  [[ ! -s $ALERTER_LOG ]]
+  [[ "$(local_row_count)" == "0" ]]
+  grep -q 'LOCAL-NOTIFY-EXPIRED' "$OSQUERY_DELIVERY_LOG"
+}
+
+@test "T-LND-expiry-isolation: expiring a row aborts nothing, fires no CRIT, and later rows still banner" {
+  set_alerter_stub_exit 64
+  _osquery_notify_local_durable "doomed title" "doomed message" "seed-doomed"
+  sqlite3 "$OSQUERY_UNDELIVERED_ALERTS_DB" \
+    "UPDATE pending_local_notifications SET occurrence_ts = 1000;" # ancient
+  _osquery_notify_local_durable "fresh behind title" "fresh behind message" "seed-behind"
+  [[ "$(local_row_count)" == "2" ]]
+  : >"$ALERTER_LOG"
+  set_alerter_stub_exit 0
+
+  run bash -c "set -euo pipefail; source '$DISPATCH'; retry_undelivered_alerts; echo DONE"
+  [[ $status -eq 0 ]]
+  [[ $output == *DONE* ]]
+
+  [[ "$(local_row_count)" == "0" ]] # ancient expired, fresh shown-and-deleted
+  grep -qF 'fresh behind title' "$ALERTER_LOG" # the row behind the expiry still bannered
+  ! grep -qF 'doomed title' "$ALERTER_LOG"     # the expired one never did
+  ! grep -qi 'pipeline degraded' "$ALERTER_LOG" # expiry is not a dead-letter; no CRIT
+  grep -q 'LOCAL-NOTIFY-EXPIRED' "$OSQUERY_DELIVERY_LOG"
 }
