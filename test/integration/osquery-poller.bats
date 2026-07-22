@@ -254,3 +254,51 @@ teardown() { teardown_poller_harness; }
 
   assert_no_page # a protection turning back ON is not actionable and has no notice channel
 }
+
+# --- strict scalar validation: a partial/out-of-domain value is a failed read ----
+# Each scalar must be in its exact domain (firewall 0/1/2, gatekeeper 0/1,
+# screenlock 0/1). Applied to the current read (do not poison the baseline) and to
+# the prior-baseline trust check (do not fabricate a transition).
+
+@test "T-POLL-partial-read-preserves-baseline: a partial posture (missing a field) preserves the baseline, and does not poison the next comparison" {
+  seed_baseline '{"firewall":"1","gatekeeper":"1","screenlock":"1"}'
+  snapshot_baseline
+
+  # Tick 1: the screenlock field is absent. That is a monitoring gap, not a
+  # posture: it must NOT persist (which would poison the baseline) and must NOT page.
+  set_posture '[{"firewall":"1","gatekeeper":"1"}]'
+  run run_poller
+  [[ $status -eq 0 ]] || {
+    echo "expected the poller to exit 0 on a partial read, got $status: $output"
+    false
+  }
+  assert_baseline_unchanged
+  assert_no_page
+
+  # Tick 2: a healthy read with screenlock now OFF. Because tick 1 did not poison
+  # the baseline, the prior is still the good all-ON, so screenlock 1->0 pages.
+  set_posture '[{"firewall":"1","gatekeeper":"1","screenlock":"0"}]'
+  run run_poller
+  [[ $status -eq 0 ]] || {
+    echo "expected the poller to exit 0 on tick 2, got $status: $output"
+    false
+  }
+  assert_page_count 1
+  assert_page_severity_is CRIT
+  assert_page_body_has 'Screen lock turned OFF'
+}
+
+@test "T-POLL-out-of-domain-prior-not-trusted: an out-of-domain prior baseline value is distrusted, so no false transition pages" {
+  # A prior firewall of "00" is not a valid domain value. Trusting it via a string
+  # compare against a current "0" would read "00" != "0" and fabricate a CRIT.
+  seed_baseline '{"firewall":"00","gatekeeper":"1","screenlock":"1"}'
+  set_posture '[{"firewall":"0","gatekeeper":"1","screenlock":"1"}]'
+
+  run run_poller
+  [[ $status -eq 0 ]] || {
+    echo "expected the poller to exit 0, got $status: $output"
+    false
+  }
+
+  assert_no_page # the untrusted prior is treated as no-prior: seed silently, no false CRIT
+}

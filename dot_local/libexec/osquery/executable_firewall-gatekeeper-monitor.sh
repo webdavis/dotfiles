@@ -49,10 +49,21 @@ cur_fw=$(jq -r '.firewall // empty' <<<"$posture" 2>/dev/null || echo "")
 cur_gk=$(jq -r '.gatekeeper // empty' <<<"$posture" 2>/dev/null || echo "")
 cur_sl=$(jq -r '.screenlock // empty' <<<"$posture" 2>/dev/null || echo "")
 
+# Validate every scalar against its exact domain (firewall 0/1/2, Gatekeeper 0/1,
+# screenlock 0/1). A partial or out-of-domain reading is a monitoring gap: the
+# security state is UNKNOWN, not safe. Treat it as a failed read: do NOT persist it
+# (it would poison the baseline) and do NOT compare it (it would fabricate a
+# transition). Preserve the last good baseline and exit. PAGING this gap is a later
+# behavior (B3).
+if ! [[ $cur_fw =~ ^[012]$ && $cur_gk =~ ^[01]$ && $cur_sl =~ ^[01]$ ]]; then
+  exit 0
+fi
+
 # Validate any existing baseline BEFORE trusting it (and before write_state
-# overwrites it): it must be owner-only (mode 600) AND parse to three integer
-# states. A group/world-readable or corrupt baseline is not trustworthy (it could
-# be planted to mask a disabled protection), so it is treated as no prior
+# overwrites it): it must be owner-only (mode 600) AND parse to three in-domain
+# scalars (same domains as above). A group/world-readable, corrupt, or
+# out-of-domain baseline is not trustworthy (it could be planted to mask a
+# disabled protection, or fabricate a transition), so it is treated as no prior
 # baseline. GNU-first stat, BSD fallback.
 prev_valid=0
 prev_fw=""
@@ -63,7 +74,7 @@ if [[ -f $STATE ]]; then
   prev_fw=$(jq -r '.firewall // empty' <"$STATE" 2>/dev/null || echo "")
   prev_gk=$(jq -r '.gatekeeper // empty' <"$STATE" 2>/dev/null || echo "")
   prev_sl=$(jq -r '.screenlock // empty' <"$STATE" 2>/dev/null || echo "")
-  if [[ $st_mode == "600" && $prev_fw =~ ^[0-9]+$ && $prev_gk =~ ^[0-9]+$ && $prev_sl =~ ^[0-9]+$ ]]; then
+  if [[ $st_mode == "600" && $prev_fw =~ ^[012]$ && $prev_gk =~ ^[01]$ && $prev_sl =~ ^[01]$ ]]; then
     prev_valid=1
   fi
 fi
