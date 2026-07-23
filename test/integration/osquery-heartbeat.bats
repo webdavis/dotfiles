@@ -148,6 +148,18 @@ run_heartbeat() {
   [ -z "$(cat "$SEND_ALERT_SOUND")" ]
 }
 
+@test "B6: the healthy message is honest about what it verified (R2-8)" {
+  # R2-8 honesty: the healthy body claims only what the canary proves (the ROOT
+  # DAEMON is alive and running its schedule), points at the watchdog for per-agent
+  # liveness, and must NOT overclaim that every monitor is scheduled or loaded.
+  seed_canary 30
+  run run_heartbeat
+  [ "$status" -eq 0 ]
+  grep -qiE "daemon|schedule|canary" "$SEND_ALERT_BODY" # it verified the daemon, not a one-shot
+  grep -qiF "watchdog" "$SEND_ALERT_BODY"               # points at who owns agent liveness
+  ! grep -qiF "all monitors scheduled" "$SEND_ALERT_BODY"
+}
+
 @test "B5: no canary at all reports unhealthy as MISSING, never a blind checkmark" {
   # GATE (fail-safe): an empty or absent snapshots log (fresh deploy, or the daemon
   # never ran the schedule) carries no canary row. Not-fresh means unhealthy, the
