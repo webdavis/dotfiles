@@ -33,31 +33,37 @@ OSQUERY_SNAPSHOTS_LOG="${OSQUERY_SNAPSHOTS_LOG:-$HOME/.local/log/osquery/osquery
 canary_max_age="${OSQUERY_CANARY_MAX_AGE:-1800}"
 [[ $canary_max_age =~ ^[0-9]+$ ]] || canary_max_age=1800
 
+# newest_canary_timestamp - print the NEWEST heartbeat_canary row's timestamp as a
+# plain integer, or nothing when there is no readable, well-formed canary. Select the
+# canary rows by PARSED .name and take the last (newest). fromjson? drops a torn or
+# non-JSON line instead of aborting (the resilient idiom normalize.sh uses to read
+# these same logs), and matching the PARSED .name is whitespace-tolerant, so the read
+# does not couple to osquery's compact serialization. Prefer the envelope unixTime (an
+# integer); fall back to the snapshot column. This is the ONE place the log-derived
+# value is read AND validated numeric, so a non-numeric or malformed value can never
+# reach the freshness decision or the rendered message.
+newest_canary_timestamp() {
+  local candidate
+  [[ -r $OSQUERY_SNAPSHOTS_LOG ]] || return 0
+  candidate="$(jq -rR 'fromjson? | select(.name == "heartbeat_canary")
+    | (.unixTime // .snapshot[0].unix_time) // empty' "$OSQUERY_SNAPSHOTS_LOG" 2>/dev/null |
+    tail -1 || true)"
+  [[ $candidate =~ ^[0-9]+$ ]] || return 0
+  printf '%s' "$candidate"
+}
+
 main() {
-  local now last_ts age title detail
+  local now last_canary_timestamp age title detail
   now="$(date -u +%s)"
   [[ $now =~ ^[0-9]+$ ]] || now=0
 
-  # The NEWEST heartbeat_canary row's timestamp. Select the canary rows by PARSED
-  # .name and take the last (newest). fromjson? drops a torn or non-JSON line
-  # instead of aborting (the resilient idiom normalize.sh uses to read these same
-  # logs), and matching the PARSED .name is whitespace-tolerant, so the read does
-  # not couple to osquery's compact serialization. Prefer the envelope unixTime (an
-  # integer); fall back to the snapshot column. The extracted value is used ONLY
-  # after the numeric validation below, so no free-text log field can ever reach the
-  # rendered message.
-  last_ts=""
-  if [[ -r $OSQUERY_SNAPSHOTS_LOG ]]; then
-    last_ts="$(jq -rR 'fromjson? | select(.name == "heartbeat_canary")
-      | (.unixTime // .snapshot[0].unix_time) // empty' "$OSQUERY_SNAPSHOTS_LOG" 2>/dev/null |
-      tail -1 || true)"
-  fi
+  last_canary_timestamp="$(newest_canary_timestamp)"
 
-  if [[ $last_ts =~ ^[0-9]+$ ]] && ((now - last_ts <= canary_max_age)); then
-    age=$((now - last_ts))
-    # A future-dated canary (an NTP step-back leaving last_ts slightly ahead of now)
-    # is still fresh, but its age is negative; clamp it so the message never renders a
-    # nonsensical "(-120s ago)". An if (not `&& age=0`) keeps it set -e safe.
+  if [[ -n $last_canary_timestamp ]] && ((now - last_canary_timestamp <= canary_max_age)); then
+    age=$((now - last_canary_timestamp))
+    # A future-dated canary (an NTP step-back leaving the timestamp slightly ahead of
+    # now) is still fresh, but its age is negative; clamp it so the message never
+    # renders a nonsensical "(-120s ago)". An if (not `&& age=0`) keeps it set -e safe.
     if ((age < 0)); then age=0; fi
     title="✅ osquery pipeline healthy · $(date -u +%Y-%m-%d)"
     detail="- osqueryd is alive and running its schedule: its heartbeat canary is fresh (${age}s ago). This verifies the root daemon itself. The uptime watchdog verifies each monitor agent is loaded and pages if one is down. Silence since the last message means all clear."
@@ -73,8 +79,8 @@ main() {
     # no elapsed age, so it must not be dressed up as a stale age. Only the
     # arithmetic AGE (validated-numeric operands) is ever rendered, no raw log field.
     title="⚠️ osquery heartbeat · $(date -u +%Y-%m-%d)"
-    if [[ $last_ts =~ ^[0-9]+$ ]]; then
-      age=$((now - last_ts))
+    if [[ -n $last_canary_timestamp ]]; then
+      age=$((now - last_canary_timestamp))
       detail="- osqueryd scheduled heartbeat canary is STALE (last ${age}s ago, over ${canary_max_age}s). The root daemon is not producing scheduled results (stopped or wedged). The uptime watchdog pages on this; this note is the silent daily record."
     else
       detail="- osqueryd scheduled heartbeat canary is MISSING (no canary snapshot found). The root daemon is not producing scheduled results, or has never run the schedule. The uptime watchdog pages on this; this note is the silent daily record."
@@ -85,8 +91,8 @@ main() {
   fi
 }
 
-# Run only when executed, not when sourced: a test may source this file to
-# exercise an individual helper without launching the whole flow.
+# Run only when executed, not when sourced: a test sources this file to exercise
+# newest_canary_timestamp in isolation without launching the whole flow.
 if [[ ${BASH_SOURCE[0]} == "${0}" ]]; then
   main "$@"
 fi

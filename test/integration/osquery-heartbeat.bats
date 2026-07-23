@@ -265,3 +265,20 @@ run_heartbeat() {
   grep -qiF "healthy" "$SEND_ALERT_TITLE"
   refute_file_contains "(-" "$SEND_ALERT_BODY" # never a negative age such as "(-120s ago)"
 }
+
+@test "seam: newest_canary_timestamp returns the newest validated integer, else empty" {
+  # The read is extracted into a directly testable seam; the source-guard lets a test
+  # source the script without launching main. An empty log -> empty; a well-formed
+  # canary -> a plain integer; a non-numeric value -> validated to empty at this one site.
+  source "$HEARTBEAT"
+  run newest_canary_timestamp
+  [ "$status" -eq 0 ]
+  [ -z "$output" ] # no canary row yet
+  seed_canary 42
+  run newest_canary_timestamp
+  [[ "$output" =~ ^[0-9]+$ ]] # a plain integer
+  : >"$OSQUERY_SNAPSHOTS_LOG"
+  seed_raw_canary "not-a-number"
+  run newest_canary_timestamp
+  [ -z "$output" ] # malformed -> validated to empty, never reaches the decision
+}
