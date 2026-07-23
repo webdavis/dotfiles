@@ -1,0 +1,478 @@
+# Test harness for the uptime watchdog
+# (dot_local/libexec/osquery/executable_uptime-watchdog.sh).
+#
+# The watchdog runs as a user LaunchAgent every 15 min. It asserts the osquery
+# notification pipeline is ALIVE (a dead pipeline looks identical to "all quiet"),
+# and pages ONE CRIT if any component is down or wedged, silent when healthy. It
+# has four probes: osqueryd present-and-answering, every OTHER osquery LaunchAgent
+# loaded-and-not-crash-looping, the hermes #priority route reachable, and the
+# delivery backlog (dead-letter count and a sustained pending-growth streak).
+#
+# This harness stands the watchdog up in isolation against recording spies, with
+# no real launchd / osquery / hermes dependency:
+#
+#   - stub `pgrep`, `launchctl`, `curl` on a sandbox PATH, plus a stub `osqueryi`
+#     via OSQUERYI. The launchctl stub answers `print gui/<uid>/<label>` from a
+#     per-agent spec dir (a `runs` counter and a `last exit code`), or exits
+#     nonzero for an unloaded agent, so a test programs each agent's launchd state;
+#   - a recording send_alert spy plus the two read-only queue counters, installed
+#     as a stand-in dispatch library at the libexec path the watchdog sources.
+#     send_alert never delivers; it records each call's severity, sound, and argv,
+#     and the state file as it stood at call time (to prove notify-before-persist).
+#
+# A fresh temp HOME keeps every run off the operator's real ~/.local/state and
+# ~/.local/libexec. Sourced by the watchdog suite; no main.
+
+WD_TOOL="${BATS_TEST_DIRNAME}/../../dot_local/libexec/osquery/executable_uptime-watchdog.sh"
+
+# The six watched agents (every deployed osquery LaunchAgent except the watchdog
+# itself). Kept here so a test can iterate them; the watchdog owns its own copy.
+WD_WATCHED_AGENTS=(
+  "com.webdavis.osquery-results-alerter"
+  "com.webdavis.osquery-firewall-gatekeeper-monitor"
+  "com.webdavis.osquery-alert-drainer"
+  "com.webdavis.osquery-digest"
+  "com.webdavis.osquery-heartbeat"
+  "com.webdavis.osquery-tailscale-monitor"
+)
+
+setup_watchdog_harness() {
+  export WD_HOME
+  WD_HOME="$(mktemp -d)"
+  # Ownership marker set only after our own mktemp, so teardown removes this path
+  # and never a pre-set or inherited WD_HOME.
+  _WD_HARNESS_OWNED_DIR="$WD_HOME"
+
+  mkdir -p "$WD_HOME/bin" \
+    "$WD_HOME/.local/libexec/osquery" \
+    "$WD_HOME/.local/state" \
+    "$WD_HOME/.local/log/osquery" \
+    "$WD_HOME/agents"
+
+  export WD_AGENTS_DIR="$WD_HOME/agents"
+  export OSQUERY_WATCHDOG_STATE="$WD_HOME/.local/state/osquery-watchdog-state.json"
+  # The daemon-scheduled canary snapshot log the watchdog reads for real-time
+  # osqueryd liveness (the real artifact, R2-8). Seeded fresh by default below.
+  export OSQUERY_SNAPSHOTS_LOG="$WD_HOME/.local/log/osquery/osqueryd.snapshots.log"
+
+  # Default programmable knobs (a healthy pipeline): osqueryd running with a fresh
+  # scheduled canary, a readable clock, the #priority route present (405 to a GET),
+  # an empty queue.
+  export WATCHDOG_OSQUERYD_RUNNING=1
+  export WATCHDOG_CLOCK_OK=1
+  export WATCHDOG_HTTP_CODE=405
+  export WATCHDOG_PENDING_COUNT=0
+  export WATCHDOG_DEAD_LETTER_COUNT=0
+  export WD_SEND_ALERT_EXIT=0
+
+  # pgrep stub: the watchdog calls `pgrep -fq '<osqueryd pattern>'`. Exit 0 when
+  # osqueryd is "running", nonzero otherwise.
+  cat >"$WD_HOME/bin/pgrep" <<'SHIM'
+#!/usr/bin/env bash
+[[ ${WATCHDOG_OSQUERYD_RUNNING:-1} == 1 ]] && exit 0
+exit 1
+SHIM
+
+  # osqueryi tripwire (R2-8): the watchdog must NEVER shell a standalone one-shot to
+  # judge daemon liveness, since a fresh osqueryi answers even when osqueryd is
+  # wedged (a blind checkmark). If the watchdog ever calls it, this leaves a marker
+  # a test fails on; it sits on PATH for exactly that trap.
+  export OSQUERYI_CALLED="$WD_HOME/osqueryi-was-called"
+  cat >"$WD_HOME/bin/osqueryi" <<'SHIM'
+#!/usr/bin/env bash
+touch "$OSQUERYI_CALLED"
+printf '[{"ok":1}]\n'
+SHIM
+
+  # date stub: models a failed system-clock read (WATCHDOG_CLOCK_OK=0 -> nonzero), so
+  # the watchdog's fail-safe clock-unreadable path is testable; otherwise delegates
+  # to the system date so freshness arithmetic uses the real clock.
+  cat >"$WD_HOME/bin/date" <<'SHIM'
+#!/usr/bin/env bash
+[[ ${WATCHDOG_CLOCK_OK:-1} == 1 ]] || exit 1
+exec /bin/date "$@"
+SHIM
+
+  # launchctl stub: only `print gui/<uid>/<label>` is used. Each loaded agent has a
+  # `<label>.runs` file (the launchd run counter) and an optional `<label>.exit`
+  # file (the raw last-exit-code line value, so an injection test can plant a
+  # hostile string). An absent `.runs` file models an UNLOADED agent (exit 113,
+  # the real not-found status). The stub prints the two fields the watchdog reads.
+  cat >"$WD_HOME/bin/launchctl" <<'SHIM'
+#!/usr/bin/env bash
+if [[ ${1:-} == print ]]; then
+  target="${2:-}"
+  label="${target##*/}"
+  runs_file="$WD_AGENTS_DIR/$label.runs"
+  exit_file="$WD_AGENTS_DIR/$label.exit"
+  [[ -f $runs_file ]] || exit 113
+  printf '\tstate = not running\n'
+  printf '\truns = %s\n' "$(cat "$runs_file")"
+  if [[ -f "$WD_AGENTS_DIR/$label.noexit" ]]; then
+    : # the last-exit-code field is ABSENT (models a launchctl output-shape change)
+  elif [[ -f $exit_file ]]; then
+    printf '\tlast exit code = %s\n' "$(cat "$exit_file")"
+  else
+    printf '\tlast exit code = 0\n'
+  fi
+  exit 0
+fi
+exit 0
+SHIM
+
+  # curl stub: the route probe is `curl -s -o /dev/null -w '%{http_code}' ... URL`.
+  # Record the argv (so a test can prove NO signing header / secret is on the wire)
+  # and print the programmed HTTP code, exactly as the real -w would.
+  export WD_CURL_ARGS="$WD_HOME/curl-args.log"
+  : >"$WD_CURL_ARGS"
+  cat >"$WD_HOME/bin/curl" <<'SHIM'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"$WD_CURL_ARGS"
+printf '%s' "${WATCHDOG_HTTP_CODE:-405}"
+SHIM
+
+  chmod +x "$WD_HOME/bin/pgrep" "$WD_HOME/bin/osqueryi" \
+    "$WD_HOME/bin/launchctl" "$WD_HOME/bin/curl" "$WD_HOME/bin/date"
+
+  # The watchdog sources the shared canary-freshness seam from the deployed libexec
+  # path (real-time osqueryd liveness); install the real helper into the sandbox so
+  # that source resolves, exactly as the deploy would.
+  cp "${BATS_TEST_DIRNAME}/../../dot_local/libexec/osquery/executable_canary-freshness.sh" \
+    "$WD_HOME/.local/libexec/osquery/canary-freshness.sh"
+
+  # The fake dispatch library the watchdog sources. It SOURCES the REAL library so
+  # the queue-health counters (osquery_pending_alert_count / osquery_dead_letter_count)
+  # are the REAL ones reading the real SQLite store, then overrides ONLY send_alert
+  # with a recording spy that never delivers. So a test drives the counters through a
+  # real database (seeded rows, or an on-disk corruption) and still asserts exactly
+  # what the watchdog dispatched. send_alert records each call's severity (one line
+  # per call, so a test counts pages), sound (the page/muted tier), and full argv (for
+  # body assertions); WD_SEND_ALERT_EXIT models a hard store failure (nonzero return).
+  export WD_SEND_ALERT_SEVERITY="$WD_HOME/send-alert-severity.log"
+  export WD_SEND_ALERT_SOUND="$WD_HOME/send-alert-sound.log"
+  export WD_SEND_ALERT_LOG="$WD_HOME/send-alert.log"
+  : >"$WD_SEND_ALERT_SEVERITY"
+  : >"$WD_SEND_ALERT_SOUND"
+  : >"$WD_SEND_ALERT_LOG"
+  export WD_REAL_DISPATCH="${BATS_TEST_DIRNAME}/../../dot_local/libexec/osquery/executable_alert-dispatch.sh"
+  # The real store the real counters poll; absent by default (a fresh machine reads
+  # zero), seeded to rows or corrupted by the helpers below.
+  export OSQUERY_UNDELIVERED_ALERTS_DB="$WD_HOME/.local/state/osquery-undelivered-alerts.sqlite3"
+  cat >"$WD_HOME/.local/libexec/osquery/alert-dispatch.sh" <<'SHIM'
+# shellcheck shell=bash
+# shellcheck source=/dev/null
+source "$WD_REAL_DISPATCH"
+send_alert() {
+  printf '%s\n' "${1:-}" >>"$WD_SEND_ALERT_SEVERITY"
+  printf '%s\n' "${4:-}" >>"$WD_SEND_ALERT_SOUND"
+  printf '%s\n' "$*" >>"$WD_SEND_ALERT_LOG"
+  return "${WD_SEND_ALERT_EXIT:-0}"
+}
+SHIM
+
+  # Default: every watched agent loaded, one clean run each.
+  local label
+  for label in "${WD_WATCHED_AGENTS[@]}"; do
+    set_agent "$label" 1 0
+  done
+
+  # Default: a fresh scheduled canary (osqueryd alive and producing results).
+  seed_canary 30
+}
+
+teardown_watchdog_harness() {
+  [[ -n ${_WD_HARNESS_OWNED_DIR:-} ]] || return 0
+  rm -rf "$_WD_HARNESS_OWNED_DIR"
+  unset _WD_HARNESS_OWNED_DIR
+}
+
+# ---- programming the launchd state ----------------------------------------
+
+# set_agent <label> <runs> [exit-code] -- the agent is loaded; launchctl print
+# reports <runs> and the given last exit code (default 0).
+set_agent() {
+  printf '%s' "$2" >"$WD_AGENTS_DIR/$1.runs"
+  printf '%s' "${3:-0}" >"$WD_AGENTS_DIR/$1.exit"
+  rm -f "$WD_AGENTS_DIR/$1.noexit"
+}
+
+# set_agent_raw_exit <label> <runs> <raw-exit-value> -- like set_agent but the raw
+# text after "last exit code = " is planted verbatim: a non-numeric sentinel such as
+# "(never exited)", garbage, or an injection payload, so a test proves the watchdog
+# classifies it (number / never-exited / unknown) and renders only validated data.
+set_agent_raw_exit() {
+  printf '%s' "$2" >"$WD_AGENTS_DIR/$1.runs"
+  printf '%s' "$3" >"$WD_AGENTS_DIR/$1.exit"
+  rm -f "$WD_AGENTS_DIR/$1.noexit"
+}
+
+# set_agent_no_exit_field <label> <runs> -- the agent is loaded and has RUN, but its
+# launchctl print output carries NO last-exit-code field at all (an output-shape
+# change): the watchdog cannot read the exit state, an UNKNOWN state it must page.
+set_agent_no_exit_field() {
+  printf '%s' "$2" >"$WD_AGENTS_DIR/$1.runs"
+  rm -f "$WD_AGENTS_DIR/$1.exit"
+  : >"$WD_AGENTS_DIR/$1.noexit"
+}
+
+# unload_agent <label> -- the agent is not loaded (launchctl print exits nonzero).
+unload_agent() {
+  rm -f "$WD_AGENTS_DIR/$1.runs" "$WD_AGENTS_DIR/$1.exit" "$WD_AGENTS_DIR/$1.noexit"
+}
+
+# ---- programming the osqueryd scheduled canary -----------------------------
+
+# seed_canary <seconds-ago> -- append a heartbeat_canary snapshot row timestamped
+# that many seconds in the past, in the shape osqueryd writes to the snapshot log.
+# A small age is a FRESH canary (osqueryd alive and scheduling); a large one is
+# STALE (the daemon stopped or wedged, producing no scheduled results).
+seed_canary() {
+  local ts
+  ts=$(($(date -u +%s) - $1))
+  jq -cn --argjson t "$ts" \
+    '{name:"heartbeat_canary",action:"snapshot",snapshot:[{unix_time:($t|tostring)}],unixTime:$t,hostIdentifier:"dresden"}' \
+    >>"$OSQUERY_SNAPSHOTS_LOG"
+}
+
+# seed_future_canary <seconds-ahead> -- a canary timestamped in the FUTURE (clock
+# skew or a tampered row): an implausible, untrustworthy liveness signal.
+seed_future_canary() {
+  local ts
+  ts=$(($(date -u +%s) + $1))
+  jq -cn --argjson t "$ts" \
+    '{name:"heartbeat_canary",action:"snapshot",snapshot:[{unix_time:($t|tostring)}],unixTime:$t,hostIdentifier:"dresden"}' \
+    >>"$OSQUERY_SNAPSHOTS_LOG"
+}
+
+# clear_canary -- empty the snapshot log (no canary row at all: the daemon has
+# produced no scheduled result, MISSING).
+clear_canary() {
+  : >"$OSQUERY_SNAPSHOTS_LOG"
+}
+
+# seed_raw_canary <unixtime-value> -- append a heartbeat_canary row whose timestamp
+# is the given RAW string, to model a value that would break a naive consumer's bash
+# arithmetic: a huge over-range epoch (64-bit overflow) or a leading-zero value (read
+# as octal). The seam must range-bound it so the value can never fall through silent.
+seed_raw_canary() {
+  jq -cn --arg t "$1" \
+    '{name:"heartbeat_canary",action:"snapshot",snapshot:[{unix_time:$t}],unixTime:$t,hostIdentifier:"dresden"}' \
+    >>"$OSQUERY_SNAPSHOTS_LOG"
+}
+
+# ---- programming prior cross-run state ------------------------------------
+
+# seed_watchdog_state <compact-json> -- write the prior state file at 0600, so a
+# streak/growth test starts from a known baseline.
+seed_watchdog_state() {
+  mkdir -p "$(dirname "$OSQUERY_WATCHDOG_STATE")"
+  printf '%s\n' "$1" >"$OSQUERY_WATCHDOG_STATE"
+  chmod 600 "$OSQUERY_WATCHDOG_STATE"
+}
+
+# ---- running ---------------------------------------------------------------
+
+# run_watchdog -- run the watchdog under the sandbox env. HOME is the temp home so
+# the sourced dispatch spy and the default state path resolve inside the sandbox;
+# the stub bin dir shadows pgrep/launchctl/curl; OSQUERYI points at the stub.
+run_watchdog() {
+  HOME="$WD_HOME" \
+    PATH="$WD_HOME/bin:$PATH" \
+    OSQUERY_HERMES_PRIORITY_URL="http://127.0.0.1:8644/webhooks/osquery-priority" \
+    OSQUERY_WATCHDOG_STATE="$OSQUERY_WATCHDOG_STATE" \
+    OSQUERY_SNAPSHOTS_LOG="$OSQUERY_SNAPSHOTS_LOG" \
+    OSQUERY_UNDELIVERED_ALERTS_DB="$OSQUERY_UNDELIVERED_ALERTS_DB" \
+    bash "$WD_TOOL"
+}
+
+# ---- programming the real alert store (the counters read it read-only) ------
+
+# _wd_sqlite3 -- the sqlite3 the real counters prefer (macOS always ships
+# /usr/bin/sqlite3; fall back to PATH), so a test seeds the same store the probe reads.
+_wd_sqlite3() {
+  if [[ -x /usr/bin/sqlite3 ]]; then
+    /usr/bin/sqlite3 "$@"
+  else
+    sqlite3 "$@"
+  fi
+}
+
+# seed_pending_alerts <n> / seed_dead_letter_alerts <n> -- create the real store (if
+# absent) with a minimal table and <n> rows, so the REAL queue counter the watchdog
+# polls returns <n>. Only COUNT(*) is exercised, so a minimal table suffices.
+seed_pending_alerts() {
+  local n="$1" i
+  _wd_sqlite3 "$OSQUERY_UNDELIVERED_ALERTS_DB" \
+    'CREATE TABLE IF NOT EXISTS pending_alerts (request_id TEXT, next_attempt_after INTEGER);'
+  for ((i = 0; i < n; i++)); do
+    _wd_sqlite3 "$OSQUERY_UNDELIVERED_ALERTS_DB" \
+      "INSERT INTO pending_alerts (request_id, next_attempt_after) VALUES ('p$i', 0);"
+  done
+}
+
+seed_dead_letter_alerts() {
+  local n="$1" i
+  _wd_sqlite3 "$OSQUERY_UNDELIVERED_ALERTS_DB" \
+    'CREATE TABLE IF NOT EXISTS dead_letter_alerts (request_id TEXT);'
+  for ((i = 0; i < n; i++)); do
+    _wd_sqlite3 "$OSQUERY_UNDELIVERED_ALERTS_DB" \
+      "INSERT INTO dead_letter_alerts (request_id) VALUES ('d$i');"
+  done
+}
+
+# seed_corrupt_alert_db -- write a garbage (non-SQLite) file at the store path, so the
+# REAL counter's read fails and returns the present-but-unreadable signal (the watchdog
+# then fail-safe pages). Models an on-disk corruption of the alert store.
+seed_corrupt_alert_db() {
+  rm -f "$OSQUERY_UNDELIVERED_ALERTS_DB" \
+    "$OSQUERY_UNDELIVERED_ALERTS_DB-wal" "$OSQUERY_UNDELIVERED_ALERTS_DB-shm"
+  printf 'this is not a sqlite database, it is garbage\n' >"$OSQUERY_UNDELIVERED_ALERTS_DB"
+}
+
+# ---- assertions ------------------------------------------------------------
+
+# refute_file_contains <fixed-substring> <file> -- fail (return 1) when the
+# substring (fixed, case-insensitive) appears in the file. The robust NEGATIVE
+# assertion: a bare `! grep` is exempted from set -e in bats and silently no-ops,
+# so a plain function whose nonzero return set -e DOES catch closes that gap.
+refute_file_contains() {
+  if grep -qiF -- "$1" "$2"; then
+    printf 'expected %q NOT to appear in %s, but it does:\n%s\n' "$1" "$2" "$(cat "$2")" >&2
+    return 1
+  fi
+  return 0
+}
+
+# assert_mode <octal> <path> -- the path carries the expected permission bits.
+# GNU stat first (the nix shell), BSD stat as the fallback (the portable order).
+assert_mode() {
+  local mode
+  mode=$(stat -c '%a' "$2" 2>/dev/null || stat -f '%Lp' "$2" 2>/dev/null)
+  if [[ $mode != "$1" ]]; then
+    printf 'expected mode %s on %s, got %s\n' "$1" "$2" "$mode" >&2
+    return 1
+  fi
+}
+
+# assert_no_page -- the watchdog did not call send_alert at all (silent).
+assert_no_page() {
+  if [[ -s $WD_SEND_ALERT_LOG ]]; then
+    printf 'expected NO page, but send_alert was called:\n%s\n' \
+      "$(cat "$WD_SEND_ALERT_LOG")" >&2
+    return 1
+  fi
+}
+
+# assert_page_count <n> -- send_alert was called exactly <n> times (one severity
+# line per call; the body may span many lines, so the severity log is the count).
+assert_page_count() {
+  local count
+  count=$(wc -l <"$WD_SEND_ALERT_SEVERITY")
+  count=${count//[[:space:]]/}
+  if [[ $count -ne $1 ]]; then
+    printf 'expected %s page(s), got %s; send_alert log:\n%s\n' \
+      "$1" "$count" "$(cat "$WD_SEND_ALERT_LOG")" >&2
+    return 1
+  fi
+}
+
+# assert_page_severity_is <severity> -- a page fired and every page carried
+# <severity> (only a CRIT reaches the #priority webhook, so the severity arg is the
+# security-relevant one, not just the title text).
+assert_page_severity_is() {
+  if [[ ! -s $WD_SEND_ALERT_SEVERITY ]]; then
+    printf 'expected a %s page, but send_alert was never called\n' "$1" >&2
+    return 1
+  fi
+  if grep -qvxF "$1" "$WD_SEND_ALERT_SEVERITY"; then
+    printf 'expected every page at severity %s, got:\n%s\n' \
+      "$1" "$(cat "$WD_SEND_ALERT_SEVERITY")" >&2
+    return 1
+  fi
+}
+
+# assert_page_sound_nonempty -- a page fired and every page carried a NON-EMPTY
+# sound (the page tier). An empty sound is the muted tier: a down-pipeline page
+# must ping, never mute.
+assert_page_sound_nonempty() {
+  if [[ ! -s $WD_SEND_ALERT_SOUND ]]; then
+    printf 'expected a page with a non-empty sound, but send_alert was never called\n' >&2
+    return 1
+  fi
+  if grep -qxF '' "$WD_SEND_ALERT_SOUND"; then
+    printf 'expected every page to carry a non-empty sound (page tier), got a muted call:\n%s\n' \
+      "$(sed 's/^$/<empty>/' "$WD_SEND_ALERT_SOUND")" >&2
+    return 1
+  fi
+  return 0
+}
+
+# assert_page_body_has <substring> -- some page's argv contained <substring>.
+assert_page_body_has() {
+  if ! grep -qF -- "$1" "$WD_SEND_ALERT_LOG"; then
+    printf 'expected a page naming %s; send_alert log:\n%s\n' \
+      "$1" "$(cat "$WD_SEND_ALERT_LOG")" >&2
+    return 1
+  fi
+}
+
+# assert_curl_probe_unsigned -- the recorded route-probe argv carries NO webhook
+# signing header and no secret: it is a bare reachability GET, so the HMAC key can
+# never leak onto the wire through it.
+assert_curl_probe_unsigned() {
+  if [[ ! -s $WD_CURL_ARGS ]]; then
+    printf 'expected the route probe to call curl, but it did not\n' >&2
+    return 1
+  fi
+  if grep -qiE 'X-Webhook-Signature|X-Request-ID|Authorization' "$WD_CURL_ARGS"; then
+    printf 'expected the route probe to carry NO signing header, but the argv has one:\n%s\n' \
+      "$(cat "$WD_CURL_ARGS")" >&2
+    return 1
+  fi
+  return 0
+}
+
+# assert_osqueryi_not_called -- the watchdog never shelled a standalone osqueryi
+# one-shot (R2-8: it answers even when osqueryd is wedged, so using it to judge
+# daemon liveness is a blind checkmark; the watchdog reads the scheduled canary).
+assert_osqueryi_not_called() {
+  if [[ -e $OSQUERYI_CALLED ]]; then
+    printf 'expected the watchdog NOT to shell a one-shot osqueryi (R2-8 blind checkmark), but it did\n' >&2
+    return 1
+  fi
+  return 0
+}
+
+# assert_file_absent <path> -- the path does not exist (an injection payload must
+# not have executed and created its marker file).
+assert_file_absent() {
+  if [[ -e $1 ]]; then
+    printf 'expected %s NOT to exist, but it does\n' "$1" >&2
+    return 1
+  fi
+}
+
+# snapshot_watchdog_state / assert_watchdog_state_unchanged -- copy the state file
+# aside, then prove a run left it byte-for-byte identical (notify-before-persist: a
+# page that could not be queued must not advance the persisted baseline).
+snapshot_watchdog_state() {
+  cp "$OSQUERY_WATCHDOG_STATE" "$WD_HOME/state.snapshot"
+}
+
+assert_watchdog_state_unchanged() {
+  if ! cmp -s "$WD_HOME/state.snapshot" "$OSQUERY_WATCHDOG_STATE"; then
+    printf 'expected the state byte-for-byte preserved.\nsnapshot:\n%s\nnow:\n%s\n' \
+      "$(cat "$WD_HOME/state.snapshot" 2>/dev/null || echo '(no snapshot)')" \
+      "$(cat "$OSQUERY_WATCHDOG_STATE" 2>/dev/null || echo '(missing)')" >&2
+    return 1
+  fi
+}
+
+# assert_state_has <substring> -- the persisted state file contains <substring>.
+assert_state_has() {
+  if ! grep -qF -- "$1" "$OSQUERY_WATCHDOG_STATE" 2>/dev/null; then
+    printf 'expected the state to contain %s; state:\n%s\n' \
+      "$1" "$(cat "$OSQUERY_WATCHDOG_STATE" 2>/dev/null || echo '(no state file)')" >&2
+    return 1
+  fi
+}

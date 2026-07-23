@@ -433,11 +433,18 @@ _osquery_row_over_threshold_reason() { # <attempts> <created_at>
   return 1
 }
 
-# Print the number of rows in one alert table, read-only and fail-soft. Backs
-# the two public queue-health counters below. A missing database (nothing ever
-# stored), a missing table (bootstrapped later), or an absent sqlite3 all read
-# as zero, printed as a bare integer, never an error: a health probe must report
-# a number, not fail.
+# Print the number of rows in one alert table, read-only. Backs the two public
+# queue-health counters below. It distinguishes a VERIFIED-EMPTY zero from an
+# UNREADABLE store, because a health probe that reports zero on a read failure
+# would hide a real backlog behind a false all-clear (the watchdog then reads a
+# broken store as healthy). Prints a bare integer and returns 0 for the two
+# legitimately-empty cases: a MISSING database (nothing ever stored, a fresh
+# machine) and a present database whose table has not been bootstrapped yet (each
+# queue creates its table lazily on first store; SQLite reports "no such table").
+# For any OTHER failure once the database FILE EXISTS (sqlite3 absent, or the
+# SELECT erroring on a corrupt or malformed database), it prints NOTHING and
+# returns NONZERO, a present-but-unreadable signal the caller must fail safe on,
+# never a false zero.
 #
 # The connection is READ-ONLY (sqlite3 -readonly): it never modifies committed
 # data and never creates the main database when it is absent (the -f guard also
@@ -450,18 +457,34 @@ _osquery_row_over_threshold_reason() { # <attempts> <created_at>
 # a live queue, so it is NOT used. The table name is a fixed internal literal
 # (SQLite cannot parameterize an identifier), so there is no injection surface.
 _osquery_alert_row_count() { # <table>
-  local table="$1" sqlite3_bin count
+  local table="$1" sqlite3_bin count error_file status
+  # A legitimately absent database is a verified-empty zero (nothing ever stored).
   [[ -f $OSQUERY_UNDELIVERED_ALERTS_DB ]] || {
     printf '0'
     return 0
   }
-  sqlite3_bin="$(_osquery_sqlite3_bin)" || {
+  # From here the database FILE EXISTS, so an absent sqlite3 means the present
+  # store cannot be read at all: unreadable, not empty. Fail safe (nonzero).
+  sqlite3_bin="$(_osquery_sqlite3_bin)" || return 1
+  error_file="$(mktemp "${TMPDIR:-/tmp}/osquery-count-error.XXXXXX")" || return 1
+  status=0
+  count="$("$sqlite3_bin" -readonly "$OSQUERY_UNDELIVERED_ALERTS_DB" "SELECT COUNT(*) FROM $table;" 2>"$error_file")" || status=$?
+  if [[ $status -eq 0 && $count =~ ^[0-9]+$ ]]; then
+    rm -f "$error_file"
+    printf '%s' "$count"
+    return 0
+  fi
+  # The SELECT failed. A MISSING TABLE is a legitimately-empty queue (lazy
+  # bootstrap), so it reads zero. Any other error (a corrupt or malformed
+  # database, an I/O error) is an UNREADABLE store: print nothing, return nonzero,
+  # so the health probe fails safe instead of hiding real rows behind a zero.
+  if grep -qi 'no such table' "$error_file"; then
+    rm -f "$error_file"
     printf '0'
     return 0
-  }
-  count="$("$sqlite3_bin" -readonly "$OSQUERY_UNDELIVERED_ALERTS_DB" "SELECT COUNT(*) FROM $table;" 2>/dev/null)" || count=0
-  [[ $count =~ ^[0-9]+$ ]] || count=0
-  printf '%s' "$count"
+  fi
+  rm -f "$error_file"
+  return 1
 }
 
 # Delete one delivered page's pending_alerts row, keyed by request_id. Called

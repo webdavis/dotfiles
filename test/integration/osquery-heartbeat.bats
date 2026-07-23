@@ -53,6 +53,12 @@ send_alert() {
 }
 SPY
 
+  # The heartbeat sources the shared canary-freshness seam from the deployed libexec
+  # path (newest_canary_timestamp lives there now, shared with the uptime watchdog);
+  # install the real helper into the sandbox so that source resolves.
+  cp "${BATS_TEST_DIRNAME}/../../dot_local/libexec/osquery/executable_canary-freshness.sh" \
+    "$dispatch_dir/canary-freshness.sh"
+
   # The daemon snapshot log the heartbeat reads for canary freshness. Left EMPTY by
   # default (a fresh deploy: the daemon has written no canary yet), so a test opts in
   # to a fresh, stale, or malformed canary.
@@ -224,6 +230,33 @@ run_heartbeat() {
   refute_file_contains "touch" "$SEND_ALERT_TITLE"
   [ ! -e "$HARNESS_HOME/PWNED" ]  # no command execution from the payload
   [ ! -e "$HARNESS_HOME/PWNED2" ] # no command execution from the payload
+}
+
+@test "B7a: an over-range canary epoch is rejected (fail-safe MISSING), never a 64-bit-overflow false fresh" {
+  # A timestamp of 2^64 + now wraps in bash's signed 64-bit back to ~now, so both
+  # freshness bounds read fresh and the heartbeat would false-report HEALTHY. The
+  # shared seam range-bounds the value, so it is rejected and the heartbeat reports
+  # MISSING (unhealthy) instead.
+  local overflow
+  overflow="$(/usr/bin/bc <<<"$(date -u +%s) + 18446744073709551616")"
+  seed_raw_canary "$overflow"
+  run run_heartbeat
+  [ "$status" -eq 0 ]
+  [ "$(grep -c '^CALL$' "$SEND_ALERT_LOG")" -eq 1 ]
+  grep -qiE "missing|no canary" "$SEND_ALERT_BODY"
+  refute_file_contains "pipeline healthy" "$SEND_ALERT_TITLE"
+}
+
+@test "B7b: a leading-zero canary epoch is rejected (fail-safe MISSING), never an octal-parse fall-through" {
+  # A leading-zero value (09999999999) makes bash arithmetic parse it as octal and
+  # error. The shared seam rejects it, so the heartbeat reports MISSING (unhealthy)
+  # instead of aborting or falling through.
+  seed_raw_canary '09999999999'
+  run run_heartbeat
+  [ "$status" -eq 0 ]
+  [ "$(grep -c '^CALL$' "$SEND_ALERT_LOG")" -eq 1 ]
+  grep -qiE "missing|no canary" "$SEND_ALERT_BODY"
+  refute_file_contains "pipeline healthy" "$SEND_ALERT_TITLE"
 }
 
 @test "B8: freshness is judged from the NEWEST canary row when several exist" {
