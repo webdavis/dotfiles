@@ -277,6 +277,15 @@ assert_sent_body_has() {
   fi
 }
 
+# assert_sent_title_has <fixed-needle> - the recorded send title contains the needle.
+assert_sent_title_has() {
+  local needle="$1"
+  if ! grep -qF -- "$needle" "$SEND_ALERT_TITLE" 2>/dev/null; then
+    printf 'expected the sent title to contain %q, title was:\n%s\n' "$needle" "$(cat "$SEND_ALERT_TITLE" 2>/dev/null || true)" >&2
+    return 1
+  fi
+}
+
 # assert_batch_in_last <n> - the built batch was preserved as $store.last with <n> records.
 assert_batch_in_last() {
   local want="$1" got
@@ -323,11 +332,13 @@ assert_last_mode_600() {
     return 1
   fi
   assert_sent_once
-  assert_sent_silent_crit # CRIT route + EMPTY sound => tier=muted (non-paging)
+  assert_sent_silent_crit             # CRIT route + EMPTY sound => tier=muted (non-paging)
+  assert_sent_title_has '· 2 item(s)' # the title carries the true item count (2 records)
   assert_sent_body_has '**persistence_launchd** (1)'
   assert_sent_body_has '**sudoers** (1)'
-  assert_live_store_freed # the live store is fresh for the next run
-  assert_batch_in_last 2  # the built batch is preserved for forensics
+  assert_live_store_freed  # the live store is fresh for the next run
+  assert_batch_in_last 2   # the built batch is preserved for forensics
+  assert_no_work_file_left # the .build is cleaned on the success path (no mv->cp leak)
   assert_last_mode_600
 }
 

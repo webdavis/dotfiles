@@ -42,6 +42,10 @@ restore_batch() { mv -f "$1" "$2" 2>/dev/null || true; }
 # persists indefinitely, so keep it 600 (defensive: mv preserves mode, but a store
 # written before the 600 hardening might not have carried it).
 rotate_to_last() {
+  # A failed same-dir rename DELETES the work file (unlike restore_batch's mv || true,
+  # which keeps the batch to retry): a rename failure within one directory implies a
+  # broken filesystem, and the findings also live in results.log, so a lost .last is
+  # low-stakes forensic loss, not a lost digest.
   mv -f "$1" "$2.last" 2>/dev/null || rm -f "$1"
   chmod 600 "$2.last" 2>/dev/null || true
 }
@@ -165,10 +169,11 @@ main() {
   # CRIT selects the #priority route; the EMPTY sound makes it locally silent AND
   # threads tier=muted into the POST so the Hermes adapter suppresses the ping (a
   # digest must never notify like a page). No occurrence id is threaded, so send_alert
-  # derives a per-send-unique request id (distinct days never collide), and the
-  # rotate-to-.last below keeps a re-run from re-sending this batch. || true: a hard
-  # send failure is low-stakes (send_alert already stored the page and alerted
-  # locally), so keep it off set -e's abort path and still rotate to .last.
+  # derives a per-send-unique request id (distinct days never collide); a re-run does
+  # not re-send this batch because the CLAIM at the start already emptied the live
+  # store (the .last rotate below is forensic, not the dedup). || true: a hard send
+  # failure is low-stakes (send_alert already stored the page and alerted locally), so
+  # keep it off set -e's abort path and still rotate to .last.
   send_alert CRIT "$title" "$body" "" || true
 
   # Preserve the built batch as .last for forensics regardless of send outcome.
