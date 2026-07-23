@@ -46,15 +46,20 @@ setup_watchdog_harness() {
   mkdir -p "$WD_HOME/bin" \
     "$WD_HOME/.local/libexec/osquery" \
     "$WD_HOME/.local/state" \
+    "$WD_HOME/.local/log/osquery" \
     "$WD_HOME/agents"
 
   export WD_AGENTS_DIR="$WD_HOME/agents"
   export OSQUERY_WATCHDOG_STATE="$WD_HOME/.local/state/osquery-watchdog-state.json"
+  # The daemon-scheduled canary snapshot log the watchdog reads for real-time
+  # osqueryd liveness (the real artifact, R2-8). Seeded fresh by default below.
+  export OSQUERY_SNAPSHOTS_LOG="$WD_HOME/.local/log/osquery/osqueryd.snapshots.log"
 
-  # Default programmable knobs (a healthy pipeline): osqueryd running and
-  # answering, the #priority route present (405 to a GET), an empty queue.
+  # Default programmable knobs (a healthy pipeline): osqueryd running with a fresh
+  # scheduled canary, a readable clock, the #priority route present (405 to a GET),
+  # an empty queue.
   export WATCHDOG_OSQUERYD_RUNNING=1
-  export WATCHDOG_OSQUERYI_OK=1
+  export WATCHDOG_CLOCK_OK=1
   export WATCHDOG_HTTP_CODE=405
   export WATCHDOG_PENDING_COUNT=0
   export WATCHDOG_DEAD_LETTER_COUNT=0
@@ -68,12 +73,24 @@ setup_watchdog_harness() {
 exit 1
 SHIM
 
-  # osqueryi stub (via OSQUERYI): a one-shot query succeeds (answering) or fails
-  # (a wedged daemon that passes pgrep but cannot answer).
+  # osqueryi tripwire (R2-8): the watchdog must NEVER shell a standalone one-shot to
+  # judge daemon liveness, since a fresh osqueryi answers even when osqueryd is
+  # wedged (a blind checkmark). If the watchdog ever calls it, this leaves a marker
+  # a test fails on; it sits on PATH for exactly that trap.
+  export OSQUERYI_CALLED="$WD_HOME/osqueryi-was-called"
   cat >"$WD_HOME/bin/osqueryi" <<'SHIM'
 #!/usr/bin/env bash
-[[ ${WATCHDOG_OSQUERYI_OK:-1} == 1 ]] && exit 0
-exit 1
+touch "$OSQUERYI_CALLED"
+printf '[{"ok":1}]\n'
+SHIM
+
+  # date stub: models a failed system-clock read (WATCHDOG_CLOCK_OK=0 -> nonzero), so
+  # the watchdog's fail-safe clock-unreadable path is testable; otherwise delegates
+  # to the system date so freshness arithmetic uses the real clock.
+  cat >"$WD_HOME/bin/date" <<'SHIM'
+#!/usr/bin/env bash
+[[ ${WATCHDOG_CLOCK_OK:-1} == 1 ]] || exit 1
+exec /bin/date "$@"
 SHIM
 
   # launchctl stub: only `print gui/<uid>/<label>` is used. Each loaded agent has a
@@ -113,7 +130,13 @@ printf '%s' "${WATCHDOG_HTTP_CODE:-405}"
 SHIM
 
   chmod +x "$WD_HOME/bin/pgrep" "$WD_HOME/bin/osqueryi" \
-    "$WD_HOME/bin/launchctl" "$WD_HOME/bin/curl"
+    "$WD_HOME/bin/launchctl" "$WD_HOME/bin/curl" "$WD_HOME/bin/date"
+
+  # The watchdog sources the shared canary-freshness seam from the deployed libexec
+  # path (real-time osqueryd liveness); install the real helper into the sandbox so
+  # that source resolves, exactly as the deploy would.
+  cp "${BATS_TEST_DIRNAME}/../../dot_local/libexec/osquery/executable_canary-freshness.sh" \
+    "$WD_HOME/.local/libexec/osquery/canary-freshness.sh"
 
   # Recording send_alert spy plus the two public read-only queue counters, at the
   # NEW dispatch path the watchdog sources. send_alert records each call's severity
@@ -151,6 +174,9 @@ SHIM
   for label in "${WD_WATCHED_AGENTS[@]}"; do
     set_agent "$label" 1 0
   done
+
+  # Default: a fresh scheduled canary (osqueryd alive and producing results).
+  seed_canary 30
 }
 
 teardown_watchdog_harness() {
@@ -181,6 +207,36 @@ unload_agent() {
   rm -f "$WD_AGENTS_DIR/$1.runs" "$WD_AGENTS_DIR/$1.exit"
 }
 
+# ---- programming the osqueryd scheduled canary -----------------------------
+
+# seed_canary <seconds-ago> -- append a heartbeat_canary snapshot row timestamped
+# that many seconds in the past, in the shape osqueryd writes to the snapshot log.
+# A small age is a FRESH canary (osqueryd alive and scheduling); a large one is
+# STALE (the daemon stopped or wedged, producing no scheduled results).
+seed_canary() {
+  local ts
+  ts=$(($(date -u +%s) - $1))
+  jq -cn --argjson t "$ts" \
+    '{name:"heartbeat_canary",action:"snapshot",snapshot:[{unix_time:($t|tostring)}],unixTime:$t,hostIdentifier:"dresden"}' \
+    >>"$OSQUERY_SNAPSHOTS_LOG"
+}
+
+# seed_future_canary <seconds-ahead> -- a canary timestamped in the FUTURE (clock
+# skew or a tampered row): an implausible, untrustworthy liveness signal.
+seed_future_canary() {
+  local ts
+  ts=$(($(date -u +%s) + $1))
+  jq -cn --argjson t "$ts" \
+    '{name:"heartbeat_canary",action:"snapshot",snapshot:[{unix_time:($t|tostring)}],unixTime:$t,hostIdentifier:"dresden"}' \
+    >>"$OSQUERY_SNAPSHOTS_LOG"
+}
+
+# clear_canary -- empty the snapshot log (no canary row at all: the daemon has
+# produced no scheduled result, MISSING).
+clear_canary() {
+  : >"$OSQUERY_SNAPSHOTS_LOG"
+}
+
 # ---- programming prior cross-run state ------------------------------------
 
 # seed_watchdog_state <compact-json> -- write the prior state file at 0600, so a
@@ -199,9 +255,9 @@ seed_watchdog_state() {
 run_watchdog() {
   HOME="$WD_HOME" \
     PATH="$WD_HOME/bin:$PATH" \
-    OSQUERYI="$WD_HOME/bin/osqueryi" \
     OSQUERY_HERMES_PRIORITY_URL="http://127.0.0.1:8644/webhooks/osquery-priority" \
     OSQUERY_WATCHDOG_STATE="$OSQUERY_WATCHDOG_STATE" \
+    OSQUERY_SNAPSHOTS_LOG="$OSQUERY_SNAPSHOTS_LOG" \
     bash "$WD_TOOL"
 }
 
@@ -303,6 +359,17 @@ assert_curl_probe_unsigned() {
   if grep -qiE 'X-Webhook-Signature|X-Request-ID|Authorization' "$WD_CURL_ARGS"; then
     printf 'expected the route probe to carry NO signing header, but the argv has one:\n%s\n' \
       "$(cat "$WD_CURL_ARGS")" >&2
+    return 1
+  fi
+  return 0
+}
+
+# assert_osqueryi_not_called -- the watchdog never shelled a standalone osqueryi
+# one-shot (R2-8: it answers even when osqueryd is wedged, so using it to judge
+# daemon liveness is a blind checkmark; the watchdog reads the scheduled canary).
+assert_osqueryi_not_called() {
+  if [[ -e $OSQUERYI_CALLED ]]; then
+    printf 'expected the watchdog NOT to shell a one-shot osqueryi (R2-8 blind checkmark), but it did\n' >&2
     return 1
   fi
   return 0

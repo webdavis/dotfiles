@@ -20,11 +20,15 @@
 
 set -euo pipefail
 
-OSQUERYI="${OSQUERYI:-$(command -v osqueryi || echo /usr/local/bin/osqueryi)}"
 # The #priority route the pages actually use (the one send_alert POSTs). Probed
 # with a bare GET: no signing header, so the HMAC key never reaches this wire.
 HERMES_PRIORITY_URL="${OSQUERY_HERMES_PRIORITY_URL:-http://127.0.0.1:8644/webhooks/osquery-priority}"
 ROUTE_TIMEOUT="${OSQUERY_WATCHDOG_ROUTE_TIMEOUT:-3}"
+# Canary freshness bound (shared with the heartbeat via OSQUERY_CANARY_MAX_AGE): the
+# scheduled canary runs every 600s, so 1800s (three intervals) tolerates a missed
+# tick while still catching a stopped or wedged daemon within one watchdog cycle.
+canary_max_age="${OSQUERY_CANARY_MAX_AGE:-1800}"
+[[ $canary_max_age =~ ^[0-9]+$ ]] || canary_max_age=1800
 # Cross-run state: per-agent {runs, streak} (so a crash-loop needs a genuine
 # RE-RUN, not a frozen daily exit) and the pending backlog {count, growth_streak}
 # (so a sustained backlog, not a one-tick burst, pages). Owner-only, atomic.
@@ -45,6 +49,11 @@ AGENTS=(
 
 # shellcheck source=/dev/null
 source "$HOME/.local/libexec/osquery/alert-dispatch.sh"
+# The shared canary-freshness seam (newest_canary_timestamp), the same one the daily
+# heartbeat uses, so the watchdog judges the root daemon by the REAL artifact (a live
+# daemon's scheduled canary), never a blind osqueryi one-shot.
+# shellcheck source=/dev/null
+source "$HOME/.local/libexec/osquery/canary-freshness.sh"
 
 # Never leave a partial temp state behind, on any exit path.
 trap 'rm -f "$STATE.tmp"' EXIT
@@ -86,12 +95,29 @@ printf '%s' "$prev_state" | jq -e . >/dev/null 2>&1 || prev_state="{}"
 uid="$(id -u)"
 problems=()
 
-# 1) osqueryd present AND answering. A wedged daemon passes pgrep but cannot answer
-#    a one-shot query, the failure mode KeepAlive would not catch.
-if ! pgrep -fq '/opt/osquery/.*osqueryd'; then
+# 1) osqueryd present AND actually PRODUCING SCHEDULED RESULTS. pgrep proves the
+#    process exists; the daemon's OWN scheduled heartbeat canary proves it is alive
+#    AND running its schedule. A standalone osqueryi one-shot is deliberately NOT
+#    used: it spins up its own ephemeral engine and answers even when the running
+#    daemon is wedged or stopped (R2-8, a blind checkmark). A missing, stale, or
+#    future-dated canary means the daemon is not scheduling. The freshness read needs
+#    a trustworthy clock first: a failed clock read cannot judge freshness, so it
+#    fails safe to a page rather than treating every old canary as fresh. Only
+#    validated numerics reach the message.
+now="$(date -u +%s 2>/dev/null || true)"
+if [[ ! $now =~ ^[0-9]+$ ]]; then
+  problems+=("the watchdog cannot read the system clock, so it cannot verify osqueryd is producing scheduled results")
+elif ! pgrep -fq '/opt/osquery/.*osqueryd'; then
   problems+=("osqueryd is not running")
-elif ! "$OSQUERYI" --json "SELECT 1 AS ok FROM time" >/dev/null 2>&1; then
-  problems+=("osqueryd is wedged (not answering queries)")
+else
+  canary_timestamp="$(newest_canary_timestamp)"
+  if [[ -z $canary_timestamp ]]; then
+    problems+=("osqueryd is not producing scheduled results (the heartbeat canary is MISSING); the daemon is stopped or wedged")
+  elif ((now - canary_timestamp > canary_max_age)); then
+    problems+=("osqueryd is not producing scheduled results (the heartbeat canary is STALE, $((now - canary_timestamp))s old); the daemon is stopped or wedged")
+  elif ((canary_timestamp - now > canary_max_age)); then
+    problems+=("osqueryd heartbeat canary timestamp is IMPLAUSIBLE ($((canary_timestamp - now))s in the future); clock skew or a bad row, not a trustworthy liveness signal")
+  fi
 fi
 
 # 2) Every watched agent is loaded AND not crash-looping. `launchctl print` failing

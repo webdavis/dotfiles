@@ -53,6 +53,12 @@ send_alert() {
 }
 SPY
 
+  # The heartbeat sources the shared canary-freshness seam from the deployed libexec
+  # path (newest_canary_timestamp lives there now, shared with the uptime watchdog);
+  # install the real helper into the sandbox so that source resolves.
+  cp "${BATS_TEST_DIRNAME}/../../dot_local/libexec/osquery/executable_canary-freshness.sh" \
+    "$dispatch_dir/canary-freshness.sh"
+
   # The daemon snapshot log the heartbeat reads for canary freshness. Left EMPTY by
   # default (a fresh deploy: the daemon has written no canary yet), so a test opts in
   # to a fresh, stale, or malformed canary.

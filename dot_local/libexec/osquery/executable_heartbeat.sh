@@ -21,10 +21,10 @@ set -euo pipefail
 # heartbeat inherits that durability without its own delivery machinery.
 # shellcheck source=/dev/null
 source "$HOME/.local/libexec/osquery/alert-dispatch.sh"
-
-# The daemon-scheduled canary snapshot log. osqueryd writes one heartbeat_canary
-# row here per interval; the heartbeat reads its freshness, never a one-shot.
-OSQUERY_SNAPSHOTS_LOG="${OSQUERY_SNAPSHOTS_LOG:-$HOME/.local/log/osquery/osqueryd.snapshots.log}"
+# The shared canary-freshness seam (OSQUERY_SNAPSHOTS_LOG + newest_canary_timestamp),
+# reused by the uptime watchdog so both judge the root daemon by the same artifact.
+# shellcheck source=/dev/null
+source "$HOME/.local/libexec/osquery/canary-freshness.sh"
 
 # Freshness bound: the canary runs every 600s, so 1800s (three intervals)
 # tolerates a missed tick or two while still catching a genuinely stopped or
@@ -32,25 +32,6 @@ OSQUERY_SNAPSHOTS_LOG="${OSQUERY_SNAPSHOTS_LOG:-$HOME/.local/log/osquery/osquery
 # override can never render as free text or break the arithmetic.
 canary_max_age="${OSQUERY_CANARY_MAX_AGE:-1800}"
 [[ $canary_max_age =~ ^[0-9]+$ ]] || canary_max_age=1800
-
-# newest_canary_timestamp - print the NEWEST heartbeat_canary row's timestamp as a
-# plain integer, or nothing when there is no readable, well-formed canary. Select the
-# canary rows by PARSED .name and take the last (newest). fromjson? drops a torn or
-# non-JSON line instead of aborting (the resilient idiom normalize.sh uses to read
-# these same logs), and matching the PARSED .name is whitespace-tolerant, so the read
-# does not couple to osquery's compact serialization. Prefer the envelope unixTime (an
-# integer); fall back to the snapshot column. This is the ONE place the log-derived
-# value is read AND validated numeric, so a non-numeric or malformed value can never
-# reach the freshness decision or the rendered message.
-newest_canary_timestamp() {
-  local candidate
-  [[ -r $OSQUERY_SNAPSHOTS_LOG ]] || return 0
-  candidate="$(jq -rR 'fromjson? | select(.name == "heartbeat_canary")
-    | (.unixTime // .snapshot[0].unix_time) // empty' "$OSQUERY_SNAPSHOTS_LOG" 2>/dev/null |
-    tail -1 || true)"
-  [[ $candidate =~ ^[0-9]+$ ]] || return 0
-  printf '%s' "$candidate"
-}
 
 main() {
   local now last_canary_timestamp age skew title detail

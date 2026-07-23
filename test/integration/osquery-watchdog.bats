@@ -18,13 +18,14 @@ teardown() { teardown_watchdog_harness; }
 
 # --- a healthy pipeline is silent -----------------------------------------------
 
-@test "T-WATCH-all-healthy: osqueryd answering, all agents loaded, route 405, empty queue -> no page" {
+@test "T-WATCH-all-healthy: fresh canary, all agents loaded, route 405, empty queue -> no page (and no blind osqueryi)" {
   run run_watchdog
   [[ $status -eq 0 ]] || {
     echo "status $status: $output"
     false
   }
   assert_no_page
+  assert_osqueryi_not_called # daemon liveness comes from the scheduled canary, R2-8
 }
 
 # --- an unloaded agent pages CRIT, naming it; the full six-agent set -------------
@@ -90,8 +91,12 @@ teardown() { teardown_watchdog_harness; }
   assert_page_body_has 'osqueryd'
 }
 
-@test "T-WATCH-osqueryd-wedged: osqueryd running but not answering a one-shot query pages CRIT" {
-  export WATCHDOG_OSQUERYI_OK=0
+@test "T-WATCH-osqueryd-wedged-stale-canary: osqueryd running but its scheduled canary is STALE pages CRIT (R2-8, the wedge a one-shot would miss)" {
+  # osqueryd is alive (pgrep passes) but not producing scheduled results: its
+  # heartbeat canary has gone stale. A standalone osqueryi one-shot would answer and
+  # hide this, so the watchdog reads the daemon's OWN scheduled canary instead.
+  clear_canary
+  seed_canary 4000 # last scheduled result ~67 min ago, well past the freshness bound
   run run_watchdog
   [[ $status -eq 0 ]] || {
     echo "status $status: $output"
@@ -99,7 +104,45 @@ teardown() { teardown_watchdog_harness; }
   }
   assert_page_count 1
   assert_page_severity_is CRIT
-  assert_page_body_has 'wedged'
+  assert_page_body_has 'scheduled results'
+  assert_osqueryi_not_called # never a blind one-shot checkmark
+}
+
+@test "T-WATCH-osqueryd-canary-missing: no scheduled canary at all pages CRIT (daemon never produced a result)" {
+  clear_canary
+  run run_watchdog
+  [[ $status -eq 0 ]] || {
+    echo "status $status: $output"
+    false
+  }
+  assert_page_count 1
+  assert_page_severity_is CRIT
+  assert_page_body_has 'scheduled results'
+  assert_osqueryi_not_called
+}
+
+@test "T-WATCH-osqueryd-canary-implausible-future: a future-dated canary is NOT trusted as healthy (two-sided freshness)" {
+  clear_canary
+  seed_future_canary 4000 # ~67 min in the future: clock skew or a tampered row
+  run run_watchdog
+  [[ $status -eq 0 ]] || {
+    echo "status $status: $output"
+    false
+  }
+  assert_page_count 1
+  assert_page_severity_is CRIT
+}
+
+@test "T-WATCH-clock-unreadable-pages: a failed system-clock read is a CRIT gap, never a silent healthy" {
+  export WATCHDOG_CLOCK_OK=0
+  run run_watchdog
+  [[ $status -eq 0 ]] || {
+    echo "status $status: $output"
+    false
+  }
+  assert_page_count 1
+  assert_page_severity_is CRIT
+  assert_page_body_has 'clock'
 }
 
 # --- route health (the R2-7 strictening) ----------------------------------------
