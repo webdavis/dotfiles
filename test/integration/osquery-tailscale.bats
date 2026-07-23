@@ -162,6 +162,25 @@ SERVE_ONLY='{"Web":{"dresden.tailnet.ts.net:443":{"Handlers":{"/":{"Proxy":"http
   assert_baseline_funnel inactive
 }
 
+@test "T-TS-allowfunnel-nonboolean-gaps: a non-boolean AllowFunnel value is an unexpected shape and pages a gap, not a silent inactive" {
+  # AllowFunnel is map[HostPort]bool: tailscale always serializes booleans. A
+  # non-boolean value (a serialization change or a tampered read) is an
+  # unclassifiable funnel state, so fail-safe to a CRIT gap, never a silent
+  # inactive that could miss a real public exposure (R2-5).
+  seed_funnel_state inactive
+  set_funnel '{"AllowFunnel":{"dresden.tailnet.ts.net:443":"true"}}'
+  run run_tailscale_monitor
+  [[ $status -eq 0 ]] || {
+    echo "status $status: $output"
+    false
+  }
+  assert_page_count 1
+  assert_page_severity_is CRIT
+  assert_page_body_has 'BLIND'
+  assert_gap_marker
+  assert_baseline_funnel inactive # a gap never advances the baseline
+}
+
 @test "T-TS-foreground-funnel-pages: a funnel in a Foreground session is detected and pages" {
   # `tailscale funnel <port>` (no --bg) nests the config under Foreground.<session>,
   # each a ServeConfig that itself carries AllowFunnel. A funnel there is still a

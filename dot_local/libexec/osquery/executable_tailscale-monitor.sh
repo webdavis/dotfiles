@@ -196,17 +196,29 @@ if ! printf '%s' "$funnel_json" | jq empty >/dev/null 2>&1; then
   gap_and_exit "- ${bt}tailscale funnel status --json${bt} returned output that is not valid JSON, so the funnel state is unreadable."
 fi
 
-# Valid JSON: classify. A PUBLIC funnel is active iff any AllowFunnel entry is true
-# at ANY depth (top-level, a Foreground session, or a Service), so a tailnet-only
-# serve (Web/TCP without AllowFunnel) is correctly inactive.
-active=$(printf '%s' "$funnel_json" |
-  jq -r '[.. | objects | .AllowFunnel // empty | .[]?] | any(. == true)' 2>/dev/null || printf 'error')
-case "$active" in
-  true) cur="active" ;;
-  false) cur="inactive" ;;
+# Valid JSON: classify into active / inactive / gap. A PUBLIC funnel is active iff
+# an AllowFunnel entry is boolean true at ANY depth (top-level, a Foreground
+# session, or a Service), so a tailnet-only serve (Web/TCP without AllowFunnel) is
+# correctly inactive. AllowFunnel is map[HostPort]bool: an entry value that is NOT a
+# boolean, or an AllowFunnel that is not a map, is an UNEXPECTED shape and resolves
+# to a gap (fail-safe), never a silent inactive that could miss a real exposure.
+classification=$(printf '%s' "$funnel_json" | jq -r '
+  [.. | objects | .AllowFunnel // empty] as $funnels
+  | if ($funnels | any(type != "object")) then "gap"
+    else ([$funnels[] | .[]?]) as $values
+      | if ($values | any(type != "boolean")) then "gap"
+        elif ($values | any(. == true)) then "active"
+        else "inactive" end
+    end
+' 2>/dev/null || printf 'error')
+case "$classification" in
+  active) cur="active" ;;
+  inactive) cur="inactive" ;;
   *)
-    # An unexpected classifier result is a gap (fail-safe), never a silent inactive.
-    gap_and_exit "- the funnel status JSON could not be classified, so the funnel state is unreadable."
+    # "gap" (an unexpected AllowFunnel shape) or an unclassifiable/empty result: a
+    # public-exposure detector treats an unreadable funnel state as a gap, never a
+    # silent inactive (R2-5).
+    gap_and_exit "- the funnel status JSON has an unexpected AllowFunnel shape, so the funnel state is unclassifiable and unreadable."
     ;;
 esac
 
