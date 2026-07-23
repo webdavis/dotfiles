@@ -55,13 +55,16 @@ source "$HOME/.local/libexec/osquery/alert-dispatch.sh"
 # shellcheck source=/dev/null
 source "$HOME/.local/libexec/osquery/canary-freshness.sh"
 
-# Never leave a partial temp state behind, on any exit path.
-trap 'rm -f "$STATE.tmp"' EXIT
+# Never leave a partial temp state (or the writability probe) behind, on any exit path.
+trap 'rm -f "$STATE.tmp" "$STATE.probe"' EXIT
 
 # write_state <compact-json>, atomically persist the cross-run state owner-only
-# (0600) via a private temp file plus an atomic rename. Returns nonzero on failure
-# so the caller can log it (a lost state file only costs one cycle of streak
-# memory, never a page: every unhealthy condition re-pages next tick regardless).
+# (0600) via a private temp file plus an atomic rename. Returns nonzero on failure.
+# A persistently unpersistable state is NOT harmless: it resets prev_state to {}
+# every tick, so a crash-loop or backlog-growth streak can never accrue and its
+# alarm is silently disabled. That is why writability is probed up front and an
+# unpersistable state PAGES (see the state-persistability probe below), rather than
+# being swallowed as a best-effort log.
 write_state() {
   local dir
   dir="$(dirname "$STATE")"
@@ -94,6 +97,19 @@ printf '%s' "$prev_state" | jq -e . >/dev/null 2>&1 || prev_state="{}"
 
 uid="$(id -u)"
 problems=()
+
+# The cross-run state must be writable, or the streak alarms silently degrade: an
+# unpersistable state resets prev_state to {} every tick (see write_state), so a
+# crash-looping agent's streak resets to 1 each run and never reaches the loop
+# threshold, and a backlog's growth streak likewise never accrues. Probe writability
+# up front and treat an unpersistable state as an unhealthy condition that PAGES.
+if ! mkdir -p "$(dirname "$STATE")" 2>/dev/null || ! (
+  umask 077
+  : >"$STATE.probe"
+) 2>/dev/null; then
+  problems+=("the watchdog cannot persist its state ($STATE); the crash-loop and backlog-growth alarms are degraded until this is fixed")
+fi
+rm -f "$STATE.probe" 2>/dev/null || true
 
 # 1) osqueryd present AND actually PRODUCING SCHEDULED RESULTS. pgrep proves the
 #    process exists; the daemon's OWN scheduled heartbeat canary proves it is alive
@@ -253,8 +269,11 @@ body+=$'\n'"- Restart the down component, then re-check."
 # failure it returns nonzero: leave the state as-is and exit nonzero, so launchd
 # logs the failure and the next tick re-detects instead of masking the signal.
 if send_alert CRIT "$title" "$body" "Sosumi"; then
-  write_state "$new_state" || printf 'uptime-watchdog: could not persist state (%s)\n' "$STATE" >&2
-  exit 0
+  if write_state "$new_state"; then
+    exit 0
+  fi
+  printf 'uptime-watchdog: state could not be persisted (%s); the streak alarms are degraded, retrying next tick\n' "$STATE" >&2
+  exit 1
 fi
 printf 'uptime-watchdog: send_alert could not durably queue the CRIT page; state not advanced, retrying next tick\n' >&2
 exit 1

@@ -364,6 +364,25 @@ teardown() { teardown_watchdog_harness; }
   }
 }
 
+@test "T-WATCH-state-unpersistable-pages: an unwritable state dir pages CRIT (the streak alarms would otherwise silently degrade)" {
+  # With the state unwritable, prev_state resets to {} every tick, so a crash-looping
+  # agent's streak resets to 1 each run and never reaches the loop threshold: the
+  # alarm is silently disabled. So an unpersistable state is itself a paging condition,
+  # and the run surfaces nonzero.
+  local state_dir
+  state_dir="$(dirname "$OSQUERY_WATCHDOG_STATE")"
+  chmod 500 "$state_dir"
+  run run_watchdog
+  chmod 700 "$state_dir" # restore before asserting / teardown
+  [[ $status -ne 0 ]] || {
+    echo "expected nonzero when the state cannot be persisted, got $status: $output"
+    false
+  }
+  assert_page_count 1
+  assert_page_severity_is CRIT
+  assert_page_body_has 'persist'
+}
+
 # --- injection defeated by validation -------------------------------------------
 
 @test "T-WATCH-injection-inert: a hostile launchctl LastExitStatus is numeric-sanitized and never reaches the body or executes" {
