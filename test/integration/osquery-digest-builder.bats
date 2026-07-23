@@ -6,15 +6,13 @@
 # send_alert, so a test asserts whether (and how) the builder dispatched without
 # touching the network or the real SQLite store.
 #
-# Behaviors covered so far:
-#   B1 empty-suppression: an absent, zero-byte, or whitespace-only store produces
-#      no message and no error.
-#   B2 atomic rotate + ERR-restore: a store with real records is claimed into a
-#      unique work file (freeing the live store for concurrent appends), and a
-#      build failure BEFORE the send restores the batch so nothing is lost.
-#   B3 grouped, capped, injection-safe body: findings group by detector into
-#      capped Discord-safe blocks, and a crafted field cannot inject extra lines.
-# The silent send and the rotation to .last land in later behaviors.
+# Covered end to end: empty-suppression (absent/zero-byte/whitespace/all-torn); the atomic claim
+# and append-restore (a build failure or a hard send failure restores the batch, preserving a
+# finding appended during the build); grouped, capped, injection-safe rendering (each attacker field
+# wrapped in a code span, four env-overridable caps with a non-numeric fallback, a codepoint body cap
+# with an honest marker); torn-line and valid-JSON wrong-shape resilience; the silent tier=muted send
+# with restore on a hard failure and rotation to .last on a stored one; and orphan recovery of a
+# killed run's work file. The launchd schedule wiring is covered by the sibling launchagent test.
 
 setup() { setup_digest_harness; }
 teardown() { teardown_digest_harness; }
@@ -636,6 +634,20 @@ assert_last_mode_600() {
   assert_sent_once
   assert_sent_body_has '`com.orphan.finding`' # the orphan finding recovered and sent
   assert_sent_body_has '`/etc/sudoers.d/new`' # and the current finding too
+}
+
+@test "a non-numeric cap env value falls back to the default instead of failing the render" {
+  # A typo'd env cap (DIGEST_MAX_GROUPS=abc) reaches --argjson as invalid JSON and fails the render,
+  # which would silently kill the daily digest. A non-integer must fall back to the default and send.
+  seed_store "$(digest_record persistence_launchd com.foo.agent 'foo')"
+  export DIGEST_MAX_GROUPS=abc
+  run run_digest
+  if [[ $status -ne 0 ]]; then
+    printf 'expected exit 0 (fall back to the default), got %s: %s\n' "$status" "$output" >&2
+    return 1
+  fi
+  assert_sent_once
+  assert_sent_body_has '`com.foo.agent`'
 }
 
 @test "an all-torn store renders an empty body, so it sends nothing and preserves the batch to .last" {

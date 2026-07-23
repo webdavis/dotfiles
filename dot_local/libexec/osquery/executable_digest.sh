@@ -18,11 +18,19 @@ set -euo pipefail
 # shellcheck source=/dev/null
 source "$HOME/.local/libexec/osquery/alert-dispatch.sh"
 
-# The digest spool the alerter's digest_append accumulates into, one NDJSON line
-# per non-paging finding. Same default path and OSQUERY_DIGEST_STORE override as
-# the write side (results-alerter/digest-store.sh), so reader and writer agree on
-# the file without a shared constant that could drift between them.
+# The digest spool the alerter's digest_append accumulates into, one NDJSON line per non-paging
+# finding. This default and the OSQUERY_DIGEST_STORE override MUST match the write side
+# (results-alerter/digest-store.sh): they are two INDEPENDENT literals, so if they ever diverge the
+# reader watches a path nobody writes and the digest is silently empty forever. A parity assertion in
+# test/integration/osquery-feature-set-location.sh keeps the two literals byte-identical.
 OSQUERY_DIGEST_STORE_DEFAULT="$HOME/.local/state/osquery-digest-spool/digest.ndjson"
+
+# numeric_or <value> <default> - the value if it is a non-negative integer, else the default. A
+# typo'd env cap (DIGEST_MAX_GROUPS=abc) would otherwise reach jq's --argjson as invalid JSON and
+# fail the render, silently killing the daily digest; fall back so a bad env never does that.
+numeric_or() {
+  if [[ $1 =~ ^[0-9]+$ ]]; then printf '%s' "$1"; else printf '%s' "$2"; fi
+}
 
 # rotated_work_file <store> - the work-file path this run claims its batch into. Derived from the
 # store path plus a UTC unix timestamp, the PROCESS ID, and a .build suffix. The pid makes it
@@ -82,10 +90,11 @@ digest_title() { printf '🗒️ osquery daily digest · %s · %s item(s)' "$(da
 # link renders as literal inline-code text, never a live Discord mention or link.
 render_digest_body() {
   local work_file="$1"
-  local max_bullets="${DIGEST_MAX_BULLETS_PER_GROUP:-10}"
-  local max_groups="${DIGEST_MAX_GROUPS:-12}"
-  local max_body_chars="${DIGEST_MAX_BODY_CHARS:-1800}"
-  local max_field="${DIGEST_MAX_FIELD_CHARS:-240}"
+  local max_bullets max_groups max_body_chars max_field
+  max_bullets="$(numeric_or "${DIGEST_MAX_BULLETS_PER_GROUP:-}" 10)"
+  max_groups="$(numeric_or "${DIGEST_MAX_GROUPS:-}" 12)"
+  max_body_chars="$(numeric_or "${DIGEST_MAX_BODY_CHARS:-}" 1800)"
+  max_field="$(numeric_or "${DIGEST_MAX_FIELD_CHARS:-}" 240)"
   jq -rRs \
     --argjson max_bullets "$max_bullets" \
     --argjson max_groups "$max_groups" \

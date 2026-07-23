@@ -67,6 +67,15 @@ done
 assert_contains '$HOME/.local/libexec/osquery/enrich-finding.sh' \
   "dot_local/libexec/osquery/results-alerter/route.sh"
 
+# Digest spool path parity: the digest builder (read side) and digest-store.sh (write side) each
+# define OSQUERY_DIGEST_STORE_DEFAULT as an INDEPENDENT literal. They must stay byte-identical, or
+# the reader watches a path nobody writes and the digest is silently empty forever. Pin the exact
+# literal in both. The needle carries a literal $HOME that must NOT expand here.
+# shellcheck disable=SC2016
+digest_store_default='OSQUERY_DIGEST_STORE_DEFAULT="$HOME/.local/state/osquery-digest-spool/digest.ndjson"'
+assert_contains "$digest_store_default" "dot_local/libexec/osquery/executable_digest.sh"
+assert_contains "$digest_store_default" "dot_local/libexec/osquery/results-alerter/digest-store.sh"
+
 if [[ $fail -ne 0 ]]; then
   printf 'osquery-feature-set-location: FAIL\n' >&2
   exit 1
