@@ -9,8 +9,11 @@
 # healthy silence are expected.
 #
 # Cardinal invariant: FAIL-SAFE toward paging. Any ambiguous or failed check (an
-# unloaded agent, a wedged osqueryd, an unhealthy route) resolves to a CRIT, never
-# a silent all-healthy. A watchdog that fails quietly is worse than no watchdog.
+# unloaded or unknown-state agent, a wedged osqueryd, an unhealthy route) resolves
+# to a CRIT, never a silent all-healthy. A watchdog that fails quietly is worse
+# than no watchdog. It renders only KNOWN agent labels plus validated-numeric exit
+# codes plus static text, so a value influenced by a compromised launchd cannot
+# inject into the page.
 
 set -euo pipefail
 
@@ -19,6 +22,9 @@ OSQUERYI="${OSQUERYI:-$(command -v osqueryi || echo /usr/local/bin/osqueryi)}"
 # with a bare GET: no signing header, so the HMAC key never reaches this wire.
 HERMES_PRIORITY_URL="${OSQUERY_HERMES_PRIORITY_URL:-http://127.0.0.1:8644/webhooks/osquery-priority}"
 ROUTE_TIMEOUT="${OSQUERY_WATCHDOG_ROUTE_TIMEOUT:-3}"
+# Cross-run state: per-agent {runs, streak}, so a crash-loop needs a genuine
+# RE-RUN, not a frozen daily exit. Owner-only, atomic.
+STATE="${OSQUERY_WATCHDOG_STATE:-$HOME/.local/state/osquery-watchdog-state.json}"
 # Every deployed osquery LaunchAgent EXCEPT this watchdog (which, if running, is
 # loaded by definition). No osquery plist sets KeepAlive, so launchd will not
 # reload an unloaded agent: this list is the sole liveness backstop. A calendar or
@@ -36,6 +42,43 @@ AGENTS=(
 # shellcheck source=/dev/null
 source "$HOME/.local/libexec/osquery/alert-dispatch.sh"
 
+# Never leave a partial temp state behind, on any exit path.
+trap 'rm -f "$STATE.tmp"' EXIT
+
+# write_state <compact-json>, atomically persist the cross-run state owner-only
+# (0600) via a private temp file plus an atomic rename. Returns nonzero on failure
+# so the caller can log it (a lost state file only costs one cycle of streak
+# memory, never a page: every unhealthy condition re-pages next tick regardless).
+write_state() {
+  local dir
+  dir="$(dirname "$STATE")"
+  mkdir -p "$dir" 2>/dev/null || return 1
+  (
+    umask 077
+    printf '%s\n' "$1" >"$STATE.tmp"
+  ) && mv -f "$STATE.tmp" "$STATE" && chmod 600 "$STATE"
+}
+
+# agent_field <launchctl-print-output> <field-label>, print the validated integer
+# value of a launchctl-print field ("runs" or "last exit code"). Only the leading
+# signed integer after "= " is taken, so a hostile value appended to the line by an
+# influenced launchctl cannot inject: the number is all that is ever used, and a
+# non-numeric or absent field prints nothing and returns nonzero.
+agent_field() {
+  local text="$1" label="$2" line
+  line="$(printf '%s\n' "$text" | grep -m1 -F "$label = ")" || return 1
+  [[ $line =~ =\ *(-?[0-9]+) ]] || return 1
+  printf '%s' "${BASH_REMATCH[1]}"
+}
+
+# Prior cross-run state. Absent or corrupt (unparseable) starts fresh, never a
+# crash: a fresh start means empty streaks and no false growth signal.
+prev_state="{}"
+if [[ -r $STATE ]]; then
+  prev_state="$(cat "$STATE" 2>/dev/null || printf '{}')"
+fi
+printf '%s' "$prev_state" | jq -e . >/dev/null 2>&1 || prev_state="{}"
+
 uid="$(id -u)"
 problems=()
 
@@ -47,11 +90,40 @@ elif ! "$OSQUERYI" --json "SELECT 1 AS ok FROM time" >/dev/null 2>&1; then
   problems+=("osqueryd is wedged (not answering queries)")
 fi
 
-# 2) Every watched agent is loaded. `launchctl print` failing means the agent is
-#    not loaded (fail-safe: page).
+# 2) Every watched agent is loaded AND not crash-looping. `launchctl print` failing
+#    means the agent is not loaded (fail-safe: page). A loaded agent that exits
+#    nonzero is a crash-loop candidate, but ONLY when it actually RE-RAN: launchd's
+#    `runs` counter must have advanced since the last check. A daily agent's exit
+#    is FROZEN between the 15-min checks, so gating on `runs` stops a single daily
+#    failure from paging every tick forever. Two failing re-runs (streak >= 2) is
+#    the loop; one is a tolerated transient.
+agent_state_json="{}"
 for label in "${AGENTS[@]}"; do
-  if ! launchctl print "gui/$uid/$label" >/dev/null 2>&1; then
+  if ! print_out="$(launchctl print "gui/$uid/$label" 2>/dev/null)"; then
     problems+=("LaunchAgent not loaded: $label")
+    continue
+  fi
+  runs_readable=1
+  runs="$(agent_field "$print_out" 'runs')" || {
+    runs=-1
+    runs_readable=0
+  }
+  exit_code="$(agent_field "$print_out" 'last exit code')" || exit_code=0
+  prev_runs="$(jq -r --arg l "$label" '.agents[$l].runs // -1' <<<"$prev_state" 2>/dev/null || printf -- '-1')"
+  [[ $prev_runs =~ ^-?[0-9]+$ ]] || prev_runs=-1
+  prev_streak="$(jq -r --arg l "$label" '.agents[$l].streak // 0' <<<"$prev_state" 2>/dev/null || printf '0')"
+  [[ $prev_streak =~ ^[0-9]+$ ]] || prev_streak=0
+  if [[ $exit_code -eq 0 ]]; then
+    streak=0 # healthy or recovered
+  elif [[ $runs_readable -eq 1 && $runs -eq $prev_runs ]]; then
+    streak=$prev_streak # a FROZEN nonzero exit (no re-run): do not accumulate
+  else
+    streak=$((prev_streak + 1)) # a fresh failing re-run (or unreadable runs: fail-safe)
+  fi
+  agent_state_json="$(jq -c --arg l "$label" --argjson r "$runs" --argjson s "$streak" \
+    '. + {($l): {runs: $r, streak: $s}}' <<<"$agent_state_json")"
+  if [[ $streak -ge 2 ]]; then
+    problems+=("LaunchAgent crash-looping (last exit $exit_code, $streak failing re-runs): $label")
   fi
 done
 
@@ -65,13 +137,23 @@ case "$route_code" in
   *) problems+=("hermes #priority route unhealthy (HTTP $route_code) at $HERMES_PRIORITY_URL") ;;
 esac
 
-if [[ ${#problems[@]} -eq 0 ]]; then exit 0; fi
+# The refreshed state to persist once the tick is resolved. Built now, written only
+# AFTER a page is durably queued (notify-before-persist), so a page that cannot be
+# stored never advances a streak baseline and masks the signal.
+new_state="$(jq -cn --argjson agents "$agent_state_json" '{agents: $agents}')"
+
+# Healthy: persist the refreshed baselines (no page to order against) and exit
+# silent. A persist failure here only forgets one cycle of streak memory.
+if [[ ${#problems[@]} -eq 0 ]]; then
+  write_state "$new_state" || printf 'uptime-watchdog: could not persist state (%s)\n' "$STATE" >&2
+  exit 0
+fi
 
 # Unhealthy: page ONE CRIT (level-triggered, so a persisting outage keeps
 # reminding every tick). A dead pipeline is always CRITICAL and always carries a
 # sound, so it reaches the #priority channel and pings. bt holds a literal backtick
 # so a command name renders as Discord inline-code without shell expansion. The
-# body renders only known labels + a validated numeric route code + static text.
+# body renders only known labels + validated numerics + static text, no raw output.
 bt='`'
 title="🔴 **CRITICAL**"
 if [[ ${#problems[@]} -gt 1 ]]; then title="🔴 **CRITICAL** (${#problems[@]} issues)"; fi
@@ -80,6 +162,13 @@ for problem in "${problems[@]}"; do body+=$'\n'"- $problem"; done
 body+=$'\n'"- **Diagnose:** ${bt}launchctl list | grep -i osquery${bt}"
 body+=$'\n'"- Restart the down component, then re-check."
 
-# send_alert is write-ahead durable, so a hard delivery failure is already loudly
-# surfaced: keep it off set -e's abort path (the page is fire-and-forget here).
-send_alert CRIT "$title" "$body" "Sosumi" || true
+# Notify-before-persist: only advance the persisted baselines after send_alert
+# durably queues the page. send_alert is write-ahead durable, so on a hard store
+# failure it returns nonzero: leave the state as-is and exit nonzero, so launchd
+# logs the failure and the next tick re-detects instead of masking the signal.
+if send_alert CRIT "$title" "$body" "Sosumi"; then
+  write_state "$new_state" || printf 'uptime-watchdog: could not persist state (%s)\n' "$STATE" >&2
+  exit 0
+fi
+printf 'uptime-watchdog: send_alert could not durably queue the CRIT page; state not advanced, retrying next tick\n' >&2
+exit 1
