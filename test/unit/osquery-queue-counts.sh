@@ -64,4 +64,21 @@ SQL
 assert_eq 3 "$(osquery_pending_alert_count)" "seeded: pending count"
 assert_eq 2 "$(osquery_dead_letter_count)" "seeded: dead-letter count"
 
-printf 'osquery-queue-counts: OK (missing-DB, missing-table, and populated all counted read-only)\n'
+# (d) The DB file EXISTS but is CORRUPT (not a valid SQLite database). A health
+# probe must NOT report a false zero here (that would hide a real backlog behind an
+# all-clear). The counters print NOTHING and return NONZERO, the present-but-
+# unreadable fail-safe signal the watchdog turns into a page.
+rm -f "$OSQUERY_UNDELIVERED_ALERTS_DB" "$OSQUERY_UNDELIVERED_ALERTS_DB-wal" "$OSQUERY_UNDELIVERED_ALERTS_DB-shm"
+printf 'this is not a sqlite database, it is garbage\n' >"$OSQUERY_UNDELIVERED_ALERTS_DB"
+if osquery_pending_alert_count >/dev/null 2>&1; then
+  fail "corrupt DB: pending count returned success (a false zero hides a real backlog)"
+fi
+[[ -z "$(osquery_pending_alert_count 2>/dev/null)" ]] ||
+  fail "corrupt DB: pending count printed a value instead of nothing"
+if osquery_dead_letter_count >/dev/null 2>&1; then
+  fail "corrupt DB: dead-letter count returned success (a false zero hides a real backlog)"
+fi
+[[ -z "$(osquery_dead_letter_count 2>/dev/null)" ]] ||
+  fail "corrupt DB: dead-letter count printed a value instead of nothing"
+
+printf 'osquery-queue-counts: OK (missing-DB, missing-table, populated, and corrupt-store fail-safe, all read-only)\n'

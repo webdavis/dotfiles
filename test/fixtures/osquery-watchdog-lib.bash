@@ -140,35 +140,34 @@ SHIM
   cp "${BATS_TEST_DIRNAME}/../../dot_local/libexec/osquery/executable_canary-freshness.sh" \
     "$WD_HOME/.local/libexec/osquery/canary-freshness.sh"
 
-  # Recording send_alert spy plus the two public read-only queue counters, at the
-  # NEW dispatch path the watchdog sources. send_alert records each call's severity
-  # (one line per call, so a test counts pages), sound (the page/muted tier), full
-  # argv (for body assertions), and the state file as it stood at call time (to
-  # prove notify-before-persist). The counters echo the programmed values; a
-  # non-numeric value models an unreadable count (the fail-safe path).
+  # The fake dispatch library the watchdog sources. It SOURCES the REAL library so
+  # the queue-health counters (osquery_pending_alert_count / osquery_dead_letter_count)
+  # are the REAL ones reading the real SQLite store, then overrides ONLY send_alert
+  # with a recording spy that never delivers. So a test drives the counters through a
+  # real database (seeded rows, or an on-disk corruption) and still asserts exactly
+  # what the watchdog dispatched. send_alert records each call's severity (one line
+  # per call, so a test counts pages), sound (the page/muted tier), and full argv (for
+  # body assertions); WD_SEND_ALERT_EXIT models a hard store failure (nonzero return).
   export WD_SEND_ALERT_SEVERITY="$WD_HOME/send-alert-severity.log"
   export WD_SEND_ALERT_SOUND="$WD_HOME/send-alert-sound.log"
   export WD_SEND_ALERT_LOG="$WD_HOME/send-alert.log"
-  export WD_SEND_ALERT_STATE_AT_CALL="$WD_HOME/send-alert-state-at-call.log"
   : >"$WD_SEND_ALERT_SEVERITY"
   : >"$WD_SEND_ALERT_SOUND"
   : >"$WD_SEND_ALERT_LOG"
-  : >"$WD_SEND_ALERT_STATE_AT_CALL"
+  export WD_REAL_DISPATCH="${BATS_TEST_DIRNAME}/../../dot_local/libexec/osquery/executable_alert-dispatch.sh"
+  # The real store the real counters poll; absent by default (a fresh machine reads
+  # zero), seeded to rows or corrupted by the helpers below.
+  export OSQUERY_UNDELIVERED_ALERTS_DB="$WD_HOME/.local/state/osquery-undelivered-alerts.sqlite3"
   cat >"$WD_HOME/.local/libexec/osquery/alert-dispatch.sh" <<'SHIM'
 # shellcheck shell=bash
+# shellcheck source=/dev/null
+source "$WD_REAL_DISPATCH"
 send_alert() {
   printf '%s\n' "${1:-}" >>"$WD_SEND_ALERT_SEVERITY"
   printf '%s\n' "${4:-}" >>"$WD_SEND_ALERT_SOUND"
   printf '%s\n' "$*" >>"$WD_SEND_ALERT_LOG"
-  if [[ -f ${OSQUERY_WATCHDOG_STATE:-/nonexistent} ]]; then
-    cat "$OSQUERY_WATCHDOG_STATE" >>"$WD_SEND_ALERT_STATE_AT_CALL"
-  else
-    printf '(no-state-file)\n' >>"$WD_SEND_ALERT_STATE_AT_CALL"
-  fi
   return "${WD_SEND_ALERT_EXIT:-0}"
 }
-osquery_pending_alert_count() { printf '%s' "${WATCHDOG_PENDING_COUNT:-0}"; }
-osquery_dead_letter_count() { printf '%s' "${WATCHDOG_DEAD_LETTER_COUNT:-0}"; }
 SHIM
 
   # Default: every watched agent loaded, one clean run each.
@@ -272,7 +271,52 @@ run_watchdog() {
     OSQUERY_HERMES_PRIORITY_URL="http://127.0.0.1:8644/webhooks/osquery-priority" \
     OSQUERY_WATCHDOG_STATE="$OSQUERY_WATCHDOG_STATE" \
     OSQUERY_SNAPSHOTS_LOG="$OSQUERY_SNAPSHOTS_LOG" \
+    OSQUERY_UNDELIVERED_ALERTS_DB="$OSQUERY_UNDELIVERED_ALERTS_DB" \
     bash "$WD_TOOL"
+}
+
+# ---- programming the real alert store (the counters read it read-only) ------
+
+# _wd_sqlite3 -- the sqlite3 the real counters prefer (macOS always ships
+# /usr/bin/sqlite3; fall back to PATH), so a test seeds the same store the probe reads.
+_wd_sqlite3() {
+  if [[ -x /usr/bin/sqlite3 ]]; then
+    /usr/bin/sqlite3 "$@"
+  else
+    sqlite3 "$@"
+  fi
+}
+
+# seed_pending_alerts <n> / seed_dead_letter_alerts <n> -- create the real store (if
+# absent) with a minimal table and <n> rows, so the REAL queue counter the watchdog
+# polls returns <n>. Only COUNT(*) is exercised, so a minimal table suffices.
+seed_pending_alerts() {
+  local n="$1" i
+  _wd_sqlite3 "$OSQUERY_UNDELIVERED_ALERTS_DB" \
+    'CREATE TABLE IF NOT EXISTS pending_alerts (request_id TEXT, next_attempt_after INTEGER);'
+  for ((i = 0; i < n; i++)); do
+    _wd_sqlite3 "$OSQUERY_UNDELIVERED_ALERTS_DB" \
+      "INSERT INTO pending_alerts (request_id, next_attempt_after) VALUES ('p$i', 0);"
+  done
+}
+
+seed_dead_letter_alerts() {
+  local n="$1" i
+  _wd_sqlite3 "$OSQUERY_UNDELIVERED_ALERTS_DB" \
+    'CREATE TABLE IF NOT EXISTS dead_letter_alerts (request_id TEXT);'
+  for ((i = 0; i < n; i++)); do
+    _wd_sqlite3 "$OSQUERY_UNDELIVERED_ALERTS_DB" \
+      "INSERT INTO dead_letter_alerts (request_id) VALUES ('d$i');"
+  done
+}
+
+# seed_corrupt_alert_db -- write a garbage (non-SQLite) file at the store path, so the
+# REAL counter's read fails and returns the present-but-unreadable signal (the watchdog
+# then fail-safe pages). Models an on-disk corruption of the alert store.
+seed_corrupt_alert_db() {
+  rm -f "$OSQUERY_UNDELIVERED_ALERTS_DB" \
+    "$OSQUERY_UNDELIVERED_ALERTS_DB-wal" "$OSQUERY_UNDELIVERED_ALERTS_DB-shm"
+  printf 'this is not a sqlite database, it is garbage\n' >"$OSQUERY_UNDELIVERED_ALERTS_DB"
 }
 
 # ---- assertions ------------------------------------------------------------

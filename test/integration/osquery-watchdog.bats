@@ -396,7 +396,7 @@ teardown() { teardown_watchdog_harness; }
 # --- delivery-backlog health: dead-letters, unreadable counts, sustained growth --
 
 @test "T-WATCH-deadletter-pages: any dead-letter entry pages CRIT (delivery permanently failed)" {
-  export WATCHDOG_DEAD_LETTER_COUNT=2
+  seed_dead_letter_alerts 2 # two real rows in the real store the counter reads
   run run_watchdog
   [[ $status -eq 0 ]] || {
     echo "status $status: $output"
@@ -408,8 +408,11 @@ teardown() { teardown_watchdog_harness; }
   assert_page_body_has 'dead-letter'
 }
 
-@test "T-WATCH-count-unreadable-pages: an unreadable queue count is a CRIT gap, never a silent healthy" {
-  export WATCHDOG_DEAD_LETTER_COUNT='not-a-number'
+@test "T-WATCH-count-unreadable-pages: a corrupt alert store is a CRIT gap, never a silent healthy" {
+  # Drive the REAL counter's failure path: an on-disk corruption of the store makes
+  # the read fail, so the counter returns the present-but-unreadable signal and the
+  # watchdog fail-safe pages. A store hiding real dead-letters must never read healthy.
+  seed_corrupt_alert_db
   run run_watchdog
   [[ $status -eq 0 ]] || {
     echo "status $status: $output"
@@ -421,10 +424,10 @@ teardown() { teardown_watchdog_harness; }
 }
 
 @test "T-WATCH-backlog-growing-pages: a backlog that grows across two consecutive checks pages CRIT" {
-  # Seed a prior growth (count 5, growth_streak 1); this tick grows again to 8, so
-  # the streak reaches the sustained-growth threshold and pages.
+  # Seed a prior growth (count 5, growth_streak 1); this tick grows again to 8 real
+  # rows, so the streak reaches the sustained-growth threshold and pages.
   seed_watchdog_state '{"agents":{},"pending":{"count":5,"growth_streak":1}}'
-  export WATCHDOG_PENDING_COUNT=8
+  seed_pending_alerts 8
   run run_watchdog
   [[ $status -eq 0 ]] || {
     echo "status $status: $output"
@@ -436,10 +439,10 @@ teardown() { teardown_watchdog_harness; }
 }
 
 @test "T-WATCH-backlog-steady-silent: a non-growing backlog (even a large one) does not page" {
-  # A prior growth streak, but this tick did NOT grow (count flat at 5): a transient
-  # burst the drainer absorbs must not false-page. Only SUSTAINED growth pages.
+  # A prior growth streak, but this tick did NOT grow (count flat at 5 real rows): a
+  # transient burst the drainer absorbs must not false-page. Only SUSTAINED growth pages.
   seed_watchdog_state '{"agents":{},"pending":{"count":5,"growth_streak":1}}'
-  export WATCHDOG_PENDING_COUNT=5
+  seed_pending_alerts 5
   run run_watchdog
   [[ $status -eq 0 ]] || {
     echo "status $status: $output"
