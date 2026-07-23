@@ -218,3 +218,17 @@ run_heartbeat() {
   [ ! -e "$HARNESS_HOME/PWNED" ]  # no command execution from the payload
   [ ! -e "$HARNESS_HOME/PWNED2" ] # no command execution from the payload
 }
+
+@test "B8: freshness is judged from the NEWEST canary row when several exist" {
+  # osqueryd appends one canary per interval, so the LAST line is the newest. A run
+  # of rows (an old one from before a gap, then a fresh one) must be judged by the
+  # freshest (last), not the first: a daemon that stopped and is producing again is
+  # healthy now. This pins the tail-1 selection (a head-1 bug would see only the old
+  # row and false-alarm).
+  seed_canary 5000 # an old canary, from before a gap
+  seed_canary 30   # the newest canary: the daemon is producing again
+  run run_heartbeat
+  [ "$status" -eq 0 ]
+  [ "$(grep -c '^CALL$' "$SEND_ALERT_LOG")" -eq 1 ]
+  grep -qiF "healthy" "$SEND_ALERT_TITLE"
+}
