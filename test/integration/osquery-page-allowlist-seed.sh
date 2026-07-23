@@ -65,16 +65,24 @@ else
     fi
   done <"$new_file"
 
-  # The seed migrates this host's four own-agents (results-alerter,
-  # firewall-gatekeeper-monitor, uptime-watchdog, alert-drainer) to tuples.
-  if [[ $entry_count -ne 4 ]]; then
-    fail "expected 4 seeded tuples (the host's four own-agents), got $entry_count"
+  # The seed migrates this host's own-agents (results-alerter,
+  # firewall-gatekeeper-monitor, uptime-watchdog, alert-drainer, heartbeat) to tuples,
+  # so none false-pages the alerter's persistence_launchd detector (which
+  # default-denies an unallowlisted user LaunchAgent) when its plist first appears.
+  if [[ $entry_count -ne 5 ]]; then
+    fail "expected 5 seeded tuples (the host's own-agents), got $entry_count"
   fi
 
-  # The alert-drainer is one of the four: a real own-agent of the same class, so it
-  # does not false-page when the alerter goes live at the D1 cutover.
+  # The alert-drainer is one own-agent of the class: a real own-agent, so it does not
+  # false-page when the alerter goes live at the D1 cutover.
   if ! grep -qF '"label":"com.webdavis.osquery-alert-drainer"' "$new_file"; then
     fail "the alert-drainer own-agent tuple is missing from the seed"
+  fi
+
+  # The heartbeat is an own-agent added after the cutover: without its own tuple its
+  # plist would self-page the alerter (default-deny), so its tuple is seeded here too.
+  if ! grep -qF '"label":"com.webdavis.osquery-heartbeat"' "$new_file"; then
+    fail "the heartbeat own-agent tuple is missing from the seed"
   fi
 fi
 
