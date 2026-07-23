@@ -381,3 +381,22 @@ body_byte_length() { printf '%s' "$1" | wc -c | tr -d '[:space:]'; }
   # And the forged field marker never becomes its own line.
   assert_no_injected_line "$body"
 }
+
+@test "an oversized field is truncated in the sanitize chokepoint and cannot crowd out other groups" {
+  local giant
+  giant="$(printf 'x%.0s' {1..5000})" # one field far larger than the whole body cap
+  local body
+  body="$(render_body \
+    "$(digest_record aaa_giant id_giant "$giant")" \
+    "$(digest_record zzz_small id_small 'a small summary')")"
+  # The oversized field is truncated in place with the per-field marker (DIGEST_MAX_FIELD_CHARS).
+  assert_body_has "$body" '…(truncated)'
+  # ... so it cannot alone consume the whole body cap: the later detector group still renders.
+  assert_body_has "$body" '**zzz_small** (1)'
+  assert_body_has "$body" '- id_small - a small summary'
+  # And the full oversized value never survives into the body.
+  if grep -qF -- "$giant" <<<"$body"; then
+    printf 'expected the oversized field truncated, but the full value survived\n' >&2
+    return 1
+  fi
+}

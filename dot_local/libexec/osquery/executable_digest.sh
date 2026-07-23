@@ -42,9 +42,11 @@ restore_batch() { mv -f "$1" "$2" 2>/dev/null || true; }
 # header with its true count, up to DIGEST_MAX_BULLETS_PER_GROUP bullets, then a
 # "+K more" roll-up. At most DIGEST_MAX_GROUPS groups render (the rest collapse to
 # an "and K more" marker), and a hard head -c backstop caps the whole body at
-# DIGEST_MAX_BODY_CHARS, well under Discord's 2000-char limit. The three caps are
-# env-overridable named knobs, not magic numbers, and the group cap keeps a busy
-# day from losing whole trailing groups to a silent mid-line cut.
+# DIGEST_MAX_BODY_CHARS, well under Discord's 2000-char limit. Each field is
+# truncated at DIGEST_MAX_FIELD_CHARS so one giant value cannot fill the body cap
+# and crowd every other detector out. The four caps are env-overridable named
+# knobs, not magic numbers, and the group cap keeps a busy day from losing whole
+# trailing groups to a silent mid-line cut.
 #
 # Injection safety: .identity and .summary originate from findings with
 # attacker-influenceable columns, so every rendered field flows through sanitize
@@ -56,14 +58,19 @@ render_digest_body() {
   local max_bullets="${DIGEST_MAX_BULLETS_PER_GROUP:-10}"
   local max_groups="${DIGEST_MAX_GROUPS:-12}"
   local max_body_chars="${DIGEST_MAX_BODY_CHARS:-1800}"
+  local max_field="${DIGEST_MAX_FIELD_CHARS:-240}"
   jq -rRs \
     --argjson max_bullets "$max_bullets" \
-    --argjson max_groups "$max_groups" '
+    --argjson max_groups "$max_groups" \
+    --argjson max_field "$max_field" '
     # The single sanitize chokepoint every attacker-influenceable field passes
-    # through: strip backticks (they open an inline-code span) and squash CR,
-    # newline, and tab to a space (a newline would break the value out of its
-    # bullet into a forged line). Values are data, never structure.
-    def sanitize: gsub("`"; "") | gsub("[\r\n\t]"; " ");
+    # through: strip backticks (they open an inline-code span), squash CR, newline,
+    # and tab to a space (a newline would break the value out of its bullet into a
+    # forged line), and truncate at $max_field so one crafted or huge value cannot
+    # fill the body cap and crowd every other detector out. Data, never structure.
+    def sanitize:
+      gsub("`"; "") | gsub("[\r\n\t]"; " ")
+      | if length > $max_field then .[0:$max_field] + "…(truncated)" else . end;
     # One block per detector group: header with the true count, up to $max_bullets
     # bullets, then a "+K more" roll-up for the overflow, then a blank separator.
     def render_group:
