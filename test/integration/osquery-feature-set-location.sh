@@ -11,9 +11,9 @@ cd "$REPO_ROOT"
 
 fail=0
 
-# 1. The libexec home holds the five scripts (prefix dropped). A git ls-files
+# 1. The libexec home holds the six scripts (prefix dropped). A git ls-files
 # failure fails the test.
-for f in alert-dispatch enrich-finding firewall-gatekeeper-monitor results-alerter uptime-watchdog; do
+for f in alert-dispatch digest enrich-finding firewall-gatekeeper-monitor results-alerter uptime-watchdog; do
   path="dot_local/libexec/osquery/executable_${f}.sh"
   if ! listed="$(git ls-files "$path")"; then
     printf 'FAIL: git ls-files failed while checking %s\n' "$path" >&2
@@ -44,15 +44,15 @@ assert_contains() {
   esac
 }
 
-# The three launchd plists' ProgramArguments point at the libexec home.
-for name in firewall-gatekeeper-monitor results-alerter uptime-watchdog; do
+# The four launchd plists' ProgramArguments point at the libexec home.
+for name in digest firewall-gatekeeper-monitor results-alerter uptime-watchdog; do
   assert_contains ".local/libexec/osquery/${name}.sh" \
     "Library/LaunchAgents/com.webdavis.osquery-${name}.plist.tmpl"
 done
 
-# The three consumers source the dispatch library from the libexec home.
+# The four consumers source the dispatch library from the libexec home.
 # The needles below are literal source lines; $HOME must NOT expand here.
-for name in firewall-gatekeeper-monitor results-alerter uptime-watchdog; do
+for name in digest firewall-gatekeeper-monitor results-alerter uptime-watchdog; do
   # shellcheck disable=SC2016
   assert_contains 'source "$HOME/.local/libexec/osquery/alert-dispatch.sh"' \
     "dot_local/libexec/osquery/executable_${name}.sh"
@@ -66,6 +66,15 @@ done
 # shellcheck disable=SC2016
 assert_contains '$HOME/.local/libexec/osquery/enrich-finding.sh' \
   "dot_local/libexec/osquery/results-alerter/route.sh"
+
+# Digest spool path parity: the digest builder (read side) and digest-store.sh (write side) each
+# define OSQUERY_DIGEST_STORE_DEFAULT as an INDEPENDENT literal. They must stay byte-identical, or
+# the reader watches a path nobody writes and the digest is silently empty forever. Pin the exact
+# literal in both. The needle carries a literal $HOME that must NOT expand here.
+# shellcheck disable=SC2016
+digest_store_default='OSQUERY_DIGEST_STORE_DEFAULT="$HOME/.local/state/osquery-digest-spool/digest.ndjson"'
+assert_contains "$digest_store_default" "dot_local/libexec/osquery/executable_digest.sh"
+assert_contains "$digest_store_default" "dot_local/libexec/osquery/results-alerter/digest-store.sh"
 
 if [[ $fail -ne 0 ]]; then
   printf 'osquery-feature-set-location: FAIL\n' >&2
