@@ -1,6 +1,11 @@
 # osquery alerting configuration consumed by templates.
 # digestHour/digestMinute drive the daily digest agent's StartCalendarInterval
 # (local time). 18:00 is an end-of-day glance; empty days stay silent.
+# heartbeatHour/heartbeatMinute drive the daily heartbeat agent's
+# StartCalendarInterval (local time). 09:00 is a morning proof-of-life: if the
+# silent daily message arrives, the osquery pipeline is scheduled and alive.
 osquery:
   digestHour: 18
   digestMinute: 0
+  heartbeatHour: 9
+  heartbeatMinute: 0
