@@ -137,3 +137,13 @@ run_heartbeat() {
   ! grep -qiF "healthy" "$SEND_ALERT_BODY"
   [ ! -e "$OSQUERYI_CALLED" ] # never shelled a one-shot; it read the scheduled canary
 }
+
+@test "B4: the unhealthy message is also silent, the heartbeat never pings even degraded" {
+  # GATE (never-pings): even when it reports a problem the heartbeat stays muted. The
+  # watchdog owns paging; a degraded heartbeat that pinged would double-signal what
+  # the watchdog already pages, and desensitize the operator to real pages.
+  seed_canary 3600
+  run run_heartbeat
+  [ "$status" -eq 0 ]
+  [ -z "$(cat "$SEND_ALERT_SOUND")" ]
+}

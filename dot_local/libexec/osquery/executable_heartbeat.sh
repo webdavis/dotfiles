@@ -64,7 +64,9 @@ main() {
     age=$((now - last_ts))
     detail="- osqueryd scheduled heartbeat canary is STALE (last ${age}s ago, over ${canary_max_age}s). The root daemon is not producing scheduled results (stopped or wedged). The uptime watchdog pages on this; this note is the silent daily record."
     title="⚠️ osquery heartbeat · $(date -u +%Y-%m-%d)"
-    send_alert CRIT "$title" "$detail" "Glass" || true
+    # Muted too (empty sound): the heartbeat never pings, even when it reports a
+    # problem. The watchdog is what pages; this note is the silent daily record.
+    send_alert CRIT "$title" "$detail" "" || true
   fi
 }
 
