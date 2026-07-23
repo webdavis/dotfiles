@@ -81,7 +81,7 @@ main() {
     # "just now" (0s), never a nonsensical "(-120s ago)". An if keeps it set -e safe.
     if ((age < 0)); then age=0; fi
     title="✅ osquery pipeline healthy · $(date -u +%Y-%m-%d)"
-    detail="- osqueryd is alive and running its schedule: its heartbeat canary is fresh (${age}s ago). This verifies the root daemon itself. The uptime watchdog verifies each monitor agent is loaded and pages if one is down. Silence since the last message means all clear."
+    detail="- The root osqueryd daemon produced a scheduled heartbeat canary ${age}s ago, so it was scheduling and producing results as recently as that. This is a recent observation, not a real-time check: the uptime watchdog owns real-time liveness and pages if a monitor is down. Silence since the last message means all clear."
     # The EMPTY sound is deliberate: it keeps the message locally silent AND makes
     # send_alert thread tier=muted into the webhook body. A proof-of-life must never
     # ping like a real page. Fire-and-forget: the heartbeat advances no state, so a

@@ -157,8 +157,9 @@ run_heartbeat() {
   [ "$status" -eq 0 ]
   [ "$(grep -c '^CALL$' "$SEND_ALERT_LOG")" -eq 1 ]
   grep -qiE "stale|not producing" "$SEND_ALERT_BODY"
-  refute_file_contains "healthy" "$SEND_ALERT_TITLE"
-  refute_file_contains "healthy" "$SEND_ALERT_BODY"
+  # Precise: refute the healthy TITLE signal, not the bare substring "healthy" (which
+  # also matches "unhealthy" - a case-insensitive substring would false-forbid it).
+  refute_file_contains "pipeline healthy" "$SEND_ALERT_TITLE"
   [ ! -e "$OSQUERYI_CALLED" ] # never shelled a one-shot; it read the scheduled canary
 }
 
@@ -183,8 +184,8 @@ run_heartbeat() {
   [ "$(grep -c '^CALL$' "$SEND_ALERT_LOG")" -eq 1 ]
   grep -qiE "missing|no canary" "$SEND_ALERT_BODY"
   refute_file_contains "stale" "$SEND_ALERT_BODY"
-  refute_file_contains "healthy" "$SEND_ALERT_TITLE"
-  refute_file_contains "healthy" "$SEND_ALERT_BODY"
+  # Precise healthy-signal refute (not the bare "healthy" substring, which matches "unhealthy").
+  refute_file_contains "pipeline healthy" "$SEND_ALERT_TITLE"
 }
 
 @test "B6: the healthy message is honest about what it verified (R2-8)" {
@@ -264,6 +265,20 @@ run_heartbeat() {
   [ "$status" -eq 0 ]
   grep -qiF "healthy" "$SEND_ALERT_TITLE"
   refute_file_contains "(-" "$SEND_ALERT_BODY" # never a negative age such as "(-120s ago)"
+}
+
+@test "healthy-honesty: the healthy body is a recent observation, not a present-tense overclaim" {
+  # A fresh canary proves only that osqueryd produced a scheduled result up to
+  # canary_max_age AGO, not that it is alive RIGHT NOW (real-time liveness is the
+  # watchdog's job). The healthy body must state that recent observation, not
+  # present-tense current liveness.
+  seed_canary 30
+  run run_heartbeat
+  [ "$status" -eq 0 ]
+  grep -qiF "produced a scheduled heartbeat canary" "$SEND_ALERT_BODY" # honest recent observation
+  grep -qiF "as recently as that" "$SEND_ALERT_BODY"
+  refute_file_contains "is alive and running its schedule" "$SEND_ALERT_BODY" # present-tense overclaim
+  refute_file_contains "verifies the root daemon" "$SEND_ALERT_BODY"
 }
 
 @test "implausible-future: a canary far in the future reports unhealthy IMPLAUSIBLE, not healthy" {
