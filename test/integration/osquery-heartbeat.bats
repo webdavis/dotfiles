@@ -232,3 +232,20 @@ run_heartbeat() {
   [ "$(grep -c '^CALL$' "$SEND_ALERT_LOG")" -eq 1 ]
   grep -qiF "healthy" "$SEND_ALERT_TITLE"
 }
+
+@test "format-tolerance: a spaced-JSON canary reads the same as compact (JSON-semantic reader)" {
+  # osquery 5.23.1 emits COMPACT single-line JSON (verified against the real deployed
+  # osqueryd.snapshots.log on this host), but the reader must not couple to that byte
+  # layout: it selects the canary by PARSED .name via fromjson? (the same idiom
+  # normalize.sh uses), so a spaced serialization is read identically. A compact
+  # grep -F would MISS a spaced line and false-report the canary MISSING (fail-safe,
+  # but perpetual daily noise). This line is deliberately spaced (space after each colon).
+  local ts
+  ts=$(($(date -u +%s) - 30))
+  printf '{"name": "heartbeat_canary", "action": "snapshot", "unixTime": %s, "snapshot": [{"unix_time": "%s"}]}\n' \
+    "$ts" "$ts" >>"$OSQUERY_SNAPSHOTS_LOG"
+  run run_heartbeat
+  [ "$status" -eq 0 ]
+  [ "$(grep -c '^CALL$' "$SEND_ALERT_LOG")" -eq 1 ]
+  grep -qiF "healthy" "$SEND_ALERT_TITLE"
+}

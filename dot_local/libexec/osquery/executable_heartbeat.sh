@@ -38,14 +38,19 @@ main() {
   now="$(date -u +%s)"
   [[ $now =~ ^[0-9]+$ ]] || now=0
 
-  # The NEWEST heartbeat_canary row's timestamp. Prefer the envelope unixTime (the
-  # daemon log-write instant); fall back to the snapshot column. The extracted
-  # value is used ONLY after the numeric validation below, so no free-text log
-  # field can ever reach the rendered message.
+  # The NEWEST heartbeat_canary row's timestamp. Select the canary rows by PARSED
+  # .name and take the last (newest). fromjson? drops a torn or non-JSON line
+  # instead of aborting (the resilient idiom normalize.sh uses to read these same
+  # logs), and matching the PARSED .name is whitespace-tolerant, so the read does
+  # not couple to osquery's compact serialization. Prefer the envelope unixTime (an
+  # integer); fall back to the snapshot column. The extracted value is used ONLY
+  # after the numeric validation below, so no free-text log field can ever reach the
+  # rendered message.
   last_ts=""
   if [[ -r $OSQUERY_SNAPSHOTS_LOG ]]; then
-    last_ts="$(grep -F '"name":"heartbeat_canary"' "$OSQUERY_SNAPSHOTS_LOG" 2>/dev/null | tail -1 |
-      jq -r '(.unixTime // .snapshot[0].unix_time) // empty' 2>/dev/null || true)"
+    last_ts="$(jq -rR 'fromjson? | select(.name == "heartbeat_canary")
+      | (.unixTime // .snapshot[0].unix_time) // empty' "$OSQUERY_SNAPSHOTS_LOG" 2>/dev/null |
+      tail -1 || true)"
   fi
 
   if [[ $last_ts =~ ^[0-9]+$ ]] && ((now - last_ts <= canary_max_age)); then
