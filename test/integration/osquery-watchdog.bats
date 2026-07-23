@@ -255,6 +255,50 @@ teardown() { teardown_watchdog_harness; }
   assert_no_page # the frozen exit is not a fresh failure, so it never streaks to a page
 }
 
+@test "T-WATCH-agent-never-exited-healthy: a loaded agent that has not exited (running or never run) is healthy, not a gap" {
+  # launchctl reports "last exit code = (never exited)" for a process that is
+  # currently running or has never run: a legitimate not-a-failure state, not an
+  # unreadable one, so it must NOT page.
+  set_agent_raw_exit com.webdavis.osquery-tailscale-monitor 3 '(never exited)'
+  run run_watchdog
+  [[ $status -eq 0 ]] || {
+    echo "status $status: $output"
+    false
+  }
+  assert_no_page
+}
+
+@test "T-WATCH-agent-exit-garbage-pages: a loaded agent whose exit field is unparseable garbage pages a fail-safe gap (never silent-healthy)" {
+  # If the last-exit-code value is neither a number nor the never-exited sentinel,
+  # the agent state is UNKNOWN. The watchdog must fail safe to a page, not default
+  # the exit code to 0 and read every agent as healthy (the fail-open trap).
+  set_agent_raw_exit com.webdavis.osquery-digest 5 'wat-not-a-code'
+  run run_watchdog
+  [[ $status -eq 0 ]] || {
+    echo "status $status: $output"
+    false
+  }
+  assert_page_count 1
+  assert_page_severity_is CRIT
+  assert_page_body_has 'unreadable'
+  assert_page_body_has 'com.webdavis.osquery-digest'
+}
+
+@test "T-WATCH-agent-exit-field-absent-pages: a loaded agent whose launchctl output lacks the exit field pages a fail-safe gap" {
+  # A launchctl output-shape change that drops the last-exit-code field would, under
+  # a default-to-0, silently disable crash-loop detection for every agent. Instead
+  # the absent field is an unknown state that pages.
+  set_agent_no_exit_field com.webdavis.osquery-heartbeat 5
+  run run_watchdog
+  [[ $status -eq 0 ]] || {
+    echo "status $status: $output"
+    false
+  }
+  assert_page_count 1
+  assert_page_severity_is CRIT
+  assert_page_body_has 'unreadable'
+}
+
 # --- notify-before-persist ------------------------------------------------------
 
 @test "T-WATCH-notify-before-persist: a page that cannot be durably queued does not advance the state" {

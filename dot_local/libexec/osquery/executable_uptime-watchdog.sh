@@ -72,16 +72,16 @@ write_state() {
   ) && mv -f "$STATE.tmp" "$STATE" && chmod 600 "$STATE"
 }
 
-# agent_field <launchctl-print-output> <field-label>, print the validated integer
-# value of a launchctl-print field ("runs" or "last exit code"). Only the leading
-# signed integer after "= " is taken, so a hostile value appended to the line by an
-# influenced launchctl cannot inject: the number is all that is ever used, and a
-# non-numeric or absent field prints nothing and returns nonzero.
-agent_field() {
+# field_raw <launchctl-print-output> <field-label>, print the RAW text after
+# "<label> = " on its first matching line, or return nonzero when the field line is
+# absent. Extraction is kept separate from policy so the caller can demand an integer
+# for "runs" while CLASSIFYING "last exit code" (a number, the "(never exited)"
+# sentinel, or an unknown value that must fail safe). Every caller validates before
+# use, so nothing raw is ever used in arithmetic or rendered into a page.
+field_raw() {
   local text="$1" label="$2" line
   line="$(printf '%s\n' "$text" | grep -m1 -F "$label = ")" || return 1
-  [[ $line =~ =\ *(-?[0-9]+) ]] || return 1
-  printf '%s' "${BASH_REMATCH[1]}"
+  printf '%s' "${line#*"$label = "}"
 }
 
 # Prior cross-run state. Absent or corrupt (unparseable) starts fresh, never a
@@ -134,27 +134,45 @@ for label in "${AGENTS[@]}"; do
     continue
   fi
   runs_readable=1
-  runs="$(agent_field "$print_out" 'runs')" || {
+  runs_raw="$(field_raw "$print_out" 'runs')" || runs_raw=""
+  if [[ $runs_raw =~ ^[0-9]+$ ]]; then
+    runs=$runs_raw
+  else
     runs=-1
     runs_readable=0
-  }
-  exit_code="$(agent_field "$print_out" 'last exit code')" || exit_code=0
+  fi
   prev_runs="$(jq -r --arg l "$label" '.agents[$l].runs // -1' <<<"$prev_state" 2>/dev/null || printf -- '-1')"
   [[ $prev_runs =~ ^-?[0-9]+$ ]] || prev_runs=-1
   prev_streak="$(jq -r --arg l "$label" '.agents[$l].streak // 0' <<<"$prev_state" 2>/dev/null || printf '0')"
   [[ $prev_streak =~ ^[0-9]+$ ]] || prev_streak=0
-  if [[ $exit_code -eq 0 ]]; then
-    streak=0 # healthy or recovered
-  elif [[ $runs_readable -eq 1 && $runs -eq $prev_runs ]]; then
-    streak=$prev_streak # a FROZEN nonzero exit (no re-run): do not accumulate
+  # Classify the last-exit-code field. An ABSENT field, or one present but neither a
+  # number nor the "(never exited)" sentinel, is an UNKNOWN agent state: fail SAFE to
+  # a page, never default the exit to 0 (which would read every agent as healthy and
+  # silently disable crash-loop detection, the fail-open trap). "(never exited)" is a
+  # running or never-run process, a legitimate not-a-failure. A number drives the
+  # runs-gated streak. Only the validated leading integer is ever used or rendered.
+  streak=$prev_streak
+  if ! exit_raw="$(field_raw "$print_out" 'last exit code')"; then
+    problems+=("LaunchAgent state is unreadable (launchctl print has no last-exit-code field): $label")
+  elif [[ $exit_raw =~ ^[[:space:]]*(-?[0-9]+) ]]; then
+    exit_code="${BASH_REMATCH[1]}"
+    if [[ $exit_code -eq 0 ]]; then
+      streak=0 # healthy or recovered
+    elif [[ $runs_readable -eq 1 && $runs -eq $prev_runs ]]; then
+      streak=$prev_streak # a FROZEN nonzero exit (no re-run): do not accumulate
+    else
+      streak=$((prev_streak + 1)) # a fresh failing re-run (or unreadable runs: fail-safe)
+    fi
+    if [[ $streak -ge 2 ]]; then
+      problems+=("LaunchAgent crash-looping (last exit $exit_code, $streak failing re-runs): $label")
+    fi
+  elif [[ $exit_raw == *"never exited"* ]]; then
+    streak=0 # not exited: currently running or never run, not a failure
   else
-    streak=$((prev_streak + 1)) # a fresh failing re-run (or unreadable runs: fail-safe)
+    problems+=("LaunchAgent exit state is unreadable (unexpected last-exit-code value): $label")
   fi
   agent_state_json="$(jq -c --arg l "$label" --argjson r "$runs" --argjson s "$streak" \
     '. + {($l): {runs: $r, streak: $s}}' <<<"$agent_state_json")"
-  if [[ $streak -ge 2 ]]; then
-    problems+=("LaunchAgent crash-looping (last exit $exit_code, $streak failing re-runs): $label")
-  fi
 done
 
 # 3) The hermes #priority route is configured and reachable. A GET to the POST-only

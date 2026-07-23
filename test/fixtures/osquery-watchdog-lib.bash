@@ -108,7 +108,9 @@ if [[ ${1:-} == print ]]; then
   [[ -f $runs_file ]] || exit 113
   printf '\tstate = not running\n'
   printf '\truns = %s\n' "$(cat "$runs_file")"
-  if [[ -f $exit_file ]]; then
+  if [[ -f "$WD_AGENTS_DIR/$label.noexit" ]]; then
+    : # the last-exit-code field is ABSENT (models a launchctl output-shape change)
+  elif [[ -f $exit_file ]]; then
     printf '\tlast exit code = %s\n' "$(cat "$exit_file")"
   else
     printf '\tlast exit code = 0\n'
@@ -192,19 +194,31 @@ teardown_watchdog_harness() {
 set_agent() {
   printf '%s' "$2" >"$WD_AGENTS_DIR/$1.runs"
   printf '%s' "${3:-0}" >"$WD_AGENTS_DIR/$1.exit"
+  rm -f "$WD_AGENTS_DIR/$1.noexit"
 }
 
-# set_agent_raw_exit <label> <runs> <raw-exit-line> -- like set_agent but the raw
-# text after "last exit code = " is planted verbatim (an injection payload), so a
-# test proves the watchdog extracts only the validated number, never the raw line.
+# set_agent_raw_exit <label> <runs> <raw-exit-value> -- like set_agent but the raw
+# text after "last exit code = " is planted verbatim: a non-numeric sentinel such as
+# "(never exited)", garbage, or an injection payload, so a test proves the watchdog
+# classifies it (number / never-exited / unknown) and renders only validated data.
 set_agent_raw_exit() {
   printf '%s' "$2" >"$WD_AGENTS_DIR/$1.runs"
   printf '%s' "$3" >"$WD_AGENTS_DIR/$1.exit"
+  rm -f "$WD_AGENTS_DIR/$1.noexit"
+}
+
+# set_agent_no_exit_field <label> <runs> -- the agent is loaded and has RUN, but its
+# launchctl print output carries NO last-exit-code field at all (an output-shape
+# change): the watchdog cannot read the exit state, an UNKNOWN state it must page.
+set_agent_no_exit_field() {
+  printf '%s' "$2" >"$WD_AGENTS_DIR/$1.runs"
+  rm -f "$WD_AGENTS_DIR/$1.exit"
+  : >"$WD_AGENTS_DIR/$1.noexit"
 }
 
 # unload_agent <label> -- the agent is not loaded (launchctl print exits nonzero).
 unload_agent() {
-  rm -f "$WD_AGENTS_DIR/$1.runs" "$WD_AGENTS_DIR/$1.exit"
+  rm -f "$WD_AGENTS_DIR/$1.runs" "$WD_AGENTS_DIR/$1.exit" "$WD_AGENTS_DIR/$1.noexit"
 }
 
 # ---- programming the osqueryd scheduled canary -----------------------------
