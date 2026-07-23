@@ -147,3 +147,18 @@ run_heartbeat() {
   [ "$status" -eq 0 ]
   [ -z "$(cat "$SEND_ALERT_SOUND")" ]
 }
+
+@test "B5: no canary at all reports unhealthy as MISSING, never a blind checkmark" {
+  # GATE (fail-safe): an empty or absent snapshots log (fresh deploy, or the daemon
+  # never ran the schedule) carries no canary row. Not-fresh means unhealthy, the
+  # safe direction. The harness default snapshots log is empty, so seed nothing. The
+  # message must say MISSING honestly, never mislabel it STALE with a bogus age
+  # (an absent timestamp is not a real elapsed age).
+  run run_heartbeat
+  [ "$status" -eq 0 ]
+  [ "$(grep -c '^CALL$' "$SEND_ALERT_LOG")" -eq 1 ]
+  grep -qiE "missing|no canary" "$SEND_ALERT_BODY"
+  ! grep -qiF "stale" "$SEND_ALERT_BODY"
+  ! grep -qiF "healthy" "$SEND_ALERT_TITLE"
+  ! grep -qiF "healthy" "$SEND_ALERT_BODY"
+}

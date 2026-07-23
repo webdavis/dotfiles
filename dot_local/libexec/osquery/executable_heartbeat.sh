@@ -58,12 +58,18 @@ main() {
     # send failure is low-stakes (the next day re-fires; the watchdog is the pager).
     send_alert CRIT "$title" "$detail" "" || true
   else
-    # A stale canary: osqueryd is not producing scheduled results (stopped or
-    # wedged). Report unhealthy, never a blind checkmark. Only the arithmetic AGE
-    # (validated-numeric operands) is rendered, no raw log field.
-    age=$((now - last_ts))
-    detail="- osqueryd scheduled heartbeat canary is STALE (last ${age}s ago, over ${canary_max_age}s). The root daemon is not producing scheduled results (stopped or wedged). The uptime watchdog pages on this; this note is the silent daily record."
+    # Not fresh: osqueryd is not producing scheduled results. Report unhealthy,
+    # never a blind checkmark. STALE (a real, over-bound age) and MISSING (no canary
+    # row at all) are reported HONESTLY as distinct states: an absent timestamp has
+    # no elapsed age, so it must not be dressed up as a stale age. Only the
+    # arithmetic AGE (validated-numeric operands) is ever rendered, no raw log field.
     title="⚠️ osquery heartbeat · $(date -u +%Y-%m-%d)"
+    if [[ $last_ts =~ ^[0-9]+$ ]]; then
+      age=$((now - last_ts))
+      detail="- osqueryd scheduled heartbeat canary is STALE (last ${age}s ago, over ${canary_max_age}s). The root daemon is not producing scheduled results (stopped or wedged). The uptime watchdog pages on this; this note is the silent daily record."
+    else
+      detail="- osqueryd scheduled heartbeat canary is MISSING (no canary snapshot found). The root daemon is not producing scheduled results, or has never run the schedule. The uptime watchdog pages on this; this note is the silent daily record."
+    fi
     # Muted too (empty sound): the heartbeat never pings, even when it reports a
     # problem. The watchdog is what pages; this note is the silent daily record.
     send_alert CRIT "$title" "$detail" "" || true
