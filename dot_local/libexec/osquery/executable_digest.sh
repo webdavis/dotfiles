@@ -78,8 +78,11 @@ render_digest_body() {
       (.[0:$max_bullets][] | "- \(.identity | sanitize) - \(.summary | sanitize)"),
       (if length > $max_bullets then "… +\(length - $max_bullets) more" else empty end),
       "";
+    # Parse per line and DROP a torn or malformed line (try/catch), never
+    # slurp-and-abort: one interrupted digest_append must not fail the whole run
+    # and drop the whole day of findings. Mirrors the resilient results.log reader.
     split("\n")
-    | map(select(length > 0) | fromjson)
+    | map(select(length > 0) | (try fromjson catch empty))
     | group_by(.detector) as $groups
     # Cap the NUMBER of groups and mark the overflow, so a busy day cannot drop
     # whole trailing groups to a silent mid-line head -c cut (the dropped content

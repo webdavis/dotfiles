@@ -400,3 +400,33 @@ body_byte_length() { printf '%s' "$1" | wc -c | tr -d '[:space:]'; }
     return 1
   fi
 }
+
+@test "a torn or malformed spool line is skipped, so the day's digest still builds" {
+  local records=(
+    "$(digest_record persistence_launchd com.good.one 'persistence_launchd com.good.one')"
+    '{"detector":"persistence_launchd","identity":"com.tor' # a truncated (torn) append
+    'this is not json at all'                               # non-JSON garbage
+    "$(digest_record persistence_launchd com.good.two 'persistence_launchd com.good.two')"
+    "$(digest_record sudoers /etc/sudoers.d/foo 'sudoers /etc/sudoers.d/foo')"
+  )
+  # The parse drops the torn and garbage lines; the valid findings still group and render.
+  local body
+  body="$(render_body "${records[@]}")"
+  assert_body_has "$body" '**persistence_launchd** (2)' # the two GOOD launchd findings; the torn one skipped
+  assert_body_has "$body" '- com.good.one - persistence_launchd com.good.one'
+  assert_body_has "$body" '- com.good.two - persistence_launchd com.good.two'
+  assert_body_has "$body" '**sudoers** (1)'
+  if grep -qF -- 'com.tor' <<<"$body"; then
+    printf 'expected the torn line skipped, but its fragment appeared:\n%s\n' "$body" >&2
+    return 1
+  fi
+  # The FULL builder survives the torn line: it exits 0 (no set -e abort), so the B2 ERR
+  # trap never restores the batch and the digest is not silently lost until the line ages out.
+  seed_store "${records[@]}"
+  run run_digest
+  if [[ $status -ne 0 ]]; then
+    printf 'expected the build to survive the torn line (exit 0), got %s: %s\n' "$status" "$output" >&2
+    return 1
+  fi
+  assert_live_store_freed
+}
