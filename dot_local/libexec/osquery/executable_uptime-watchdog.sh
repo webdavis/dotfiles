@@ -150,6 +150,10 @@ fi
 #    is FROZEN between the 15-min checks, so gating on `runs` stops a single daily
 #    failure from paging every tick forever. Two failing re-runs (streak >= 2) is
 #    the loop; one is a tolerated transient.
+# The EXACT (whitespace-tolerant) launchd not-exited sentinel. Matched anchored, not
+# as a substring, so a malformed value that merely CONTAINS "(never exited)" with junk
+# around it is an unknown state that pages, not a healthy free pass.
+never_exited_re='^[[:space:]]*\(never exited\)[[:space:]]*$'
 agent_state_json="{}"
 for label in "${AGENTS[@]}"; do
   if ! print_out="$(launchctl print "gui/$uid/$label" 2>/dev/null)"; then
@@ -189,8 +193,8 @@ for label in "${AGENTS[@]}"; do
     if [[ $streak -ge 2 ]]; then
       problems+=("LaunchAgent crash-looping (last exit $exit_code, $streak failing re-runs): $label")
     fi
-  elif [[ $exit_raw == *"never exited"* ]]; then
-    streak=0 # not exited: currently running or never run, not a failure
+  elif [[ $exit_raw =~ $never_exited_re ]]; then
+    streak=0 # exactly "(never exited)": currently running or never run, not a failure
   else
     problems+=("LaunchAgent exit state is unreadable (unexpected last-exit-code value): $label")
   fi

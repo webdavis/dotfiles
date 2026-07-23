@@ -303,6 +303,22 @@ teardown() { teardown_watchdog_harness; }
   assert_no_page
 }
 
+@test "T-WATCH-agent-never-exited-with-junk-pages: an exit value CONTAINING '(never exited)' plus junk is UNKNOWN and pages (not a substring free pass)" {
+  # A substring match would read 'unknown (never exited) trailing-junk' as the healthy
+  # never-exited sentinel and reset the streak. Only an EXACT, whitespace-tolerant
+  # sentinel is healthy; anything else is an unknown state that fails safe to a page.
+  set_agent_raw_exit com.webdavis.osquery-digest 5 'unknown (never exited) trailing-junk'
+  run run_watchdog
+  [[ $status -eq 0 ]] || {
+    echo "status $status: $output"
+    false
+  }
+  assert_page_count 1
+  assert_page_severity_is CRIT
+  assert_page_body_has 'unreadable'
+  assert_page_body_has 'com.webdavis.osquery-digest'
+}
+
 @test "T-WATCH-agent-exit-garbage-pages: a loaded agent whose exit field is unparseable garbage pages a fail-safe gap (never silent-healthy)" {
   # If the last-exit-code value is neither a number nor the never-exited sentinel,
   # the agent state is UNKNOWN. The watchdog must fail safe to a page, not default
