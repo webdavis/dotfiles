@@ -56,25 +56,41 @@ cur_fw=$(jq -r '.firewall // empty' <<<"$posture" 2>/dev/null || echo "")
 cur_gk=$(jq -r '.gatekeeper // empty' <<<"$posture" 2>/dev/null || echo "")
 cur_sl=$(jq -r '.screenlock // empty' <<<"$posture" 2>/dev/null || echo "")
 
+# page_gap_once <marker_path> <title> <body> -- the shared page-once-via-marker
+# discipline for both the monitoring-gap and the persistence-gap paths: the same
+# notify-before-persist contract page_crit_and_persist gives the transition and
+# first-observation paths, in ONE place so the two markers cannot diverge. If the
+# marker is absent, send_alert FIRST and write the marker ONLY on success (best
+# effort: a marker in an unwritable dir cannot be written, so the page may
+# re-fire); return 0 when paged or already marked, nonzero when send_alert could
+# not store the page (so a persisting condition re-pages). The per-path bodies,
+# recovery-clear placement, and caller exit code stay OUTSIDE this helper.
+page_gap_once() {
+  local marker="$1" title="$2" body="$3"
+  if [[ -f $marker ]]; then
+    return 0
+  fi
+  if send_alert CRIT "$title" "$body" "Sosumi"; then
+    : >"$marker" 2>/dev/null || true
+    return 0
+  fi
+  return 1
+}
+
 # R2-9 monitoring gap. Any scalar missing or out of its exact domain (firewall
 # 0/1/2, Gatekeeper 0/1, screenlock 0/1) means the security state is UNKNOWN, not
 # safe; an empty or failed read leaves all three empty and lands here too. Do NOT
 # persist it (it would poison the baseline) and do NOT compare it (it would
-# fabricate a transition): the last good baseline is preserved. Page ONCE per gap.
-# With no marker, notify FIRST (reusing the notify-before-persist durability) and
-# write the marker only on send_alert success; if send_alert cannot store the
-# page (it still fires a last-resort local banner), leave no marker, log, and exit
-# nonzero so a PERSISTING gap re-pages next tick. An existing marker suppresses
-# re-paging. (Values are bracketed, [] for empty, to keep the page apostrophe-free
+# fabricate a transition): the last good baseline is preserved. Page ONCE per gap
+# (page_gap_once); if send_alert cannot store the page (it still fires a
+# last-resort local banner), log and exit nonzero so a PERSISTING gap re-pages
+# next tick. (Values are bracketed, [] for empty, to keep the page apostrophe-free
 # for the alerting stack.)
 if ! [[ $cur_fw =~ ^[012]$ && $cur_gk =~ ^[01]$ && $cur_sl =~ ^[01]$ ]]; then
-  if [[ ! -f $GAP ]]; then
-    gap_body="**Security-posture monitoring gap**"$'\n'"- The posture query returned an unreadable value (firewall=[$cur_fw] gatekeeper=[$cur_gk] screenlock=[$cur_sl]): the firewall / Gatekeeper / screen-lock state is currently UNKNOWN."$'\n'"- A blind monitor cannot see a protection turn off. Did osqueryi or the LaunchAgent break? **Check now.**"$'\n'"- Diagnose: run the posture query by hand, then re-check."
-    if ! send_alert CRIT "🔴 **CRITICAL**" "$gap_body" "Sosumi"; then
-      printf 'firewall-gatekeeper-monitor: send_alert could not queue the monitoring-gap page; no marker written, retrying next tick\n' >&2
-      exit 1
-    fi
-    : >"$GAP"
+  gap_body="**Security-posture monitoring gap**"$'\n'"- The posture query returned an unreadable value (firewall=[$cur_fw] gatekeeper=[$cur_gk] screenlock=[$cur_sl]): the firewall / Gatekeeper / screen-lock state is currently UNKNOWN."$'\n'"- A blind monitor cannot see a protection turn off. Did osqueryi or the LaunchAgent break? **Check now.**"$'\n'"- Diagnose: run the posture query by hand, then re-check."
+  if ! page_gap_once "$GAP" "🔴 **CRITICAL**" "$gap_body"; then
+    printf 'firewall-gatekeeper-monitor: send_alert could not queue the monitoring-gap page; no marker written, retrying next tick\n' >&2
+    exit 1
   fi
   exit 0
 fi
@@ -129,12 +145,8 @@ persist_baseline() {
     rm -f "$PERSIST_GAP" 2>/dev/null || true
     return 0
   fi
-  if [[ ! -f $PERSIST_GAP ]]; then
-    degraded_body="**Security-posture monitor degraded**"$'\n'"- The posture monitor could not persist its baseline: it cannot advance state, so a stale baseline could mask the next real change and blind the monitor."$'\n'"- Check the state directory free space and permissions. **Check now.**"
-    if send_alert CRIT "🔴 **CRITICAL**" "$degraded_body" "Sosumi"; then
-      : >"$PERSIST_GAP" 2>/dev/null || true
-    fi
-  fi
+  degraded_body="**Security-posture monitor degraded**"$'\n'"- The posture monitor could not persist its baseline: it cannot advance state, so a stale baseline could mask the next real change and blind the monitor."$'\n'"- Check the state directory free space and permissions. **Check now.**"
+  page_gap_once "$PERSIST_GAP" "🔴 **CRITICAL**" "$degraded_body" || true
   exit 1
 }
 
