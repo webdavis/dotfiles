@@ -84,6 +84,20 @@ teardown_heartbeat_harness() {
   unset _HEARTBEAT_HARNESS_OWNED_DIR
 }
 
+# refute_file_contains <fixed-substring> <file> - fail (return 1) when the substring
+# (fixed, case-insensitive) appears in the file. This is the robust NEGATIVE
+# assertion: a bare `! grep ...` is NOT reliable in bats, because bats runs each test
+# under set -e and bash exempts a `!`-inverted command from set -e ("the return
+# status is being inverted with !"), so `! grep` NEVER fails the test - a silent
+# no-op. A plain function whose non-zero return set -e DOES catch closes that gap.
+refute_file_contains() {
+  if grep -qiF -- "$1" "$2"; then
+    printf 'expected %q NOT to appear in %s, but it does:\n%s\n' "$1" "$2" "$(cat "$2")" >&2
+    return 1
+  fi
+  return 0
+}
+
 # seed_canary <seconds-ago> - append a heartbeat_canary snapshot row timestamped
 # that many seconds in the past, in the shape osqueryd writes to the snapshot log.
 seed_canary() {
@@ -91,6 +105,16 @@ seed_canary() {
   ts=$(($(date -u +%s) - $1))
   jq -cn --argjson t "$ts" \
     '{name:"heartbeat_canary",action:"snapshot",snapshot:[{unix_time:($t|tostring)}],unixTime:$t,hostIdentifier:"dresden"}' \
+    >>"$OSQUERY_SNAPSHOTS_LOG"
+}
+
+# seed_raw_canary <unix_time-value> - append a heartbeat_canary row whose unix_time
+# and unixTime carry an ARBITRARY (possibly attacker-controlled) string, to model a
+# tampered or malformed snapshot log. jq JSON-encodes the value, so the heartbeat
+# reads it back verbatim as a string via jq -r.
+seed_raw_canary() {
+  jq -cn --arg t "$1" \
+    '{name:"heartbeat_canary",action:"snapshot",snapshot:[{unix_time:$t}],unixTime:$t,hostIdentifier:"dresden"}' \
     >>"$OSQUERY_SNAPSHOTS_LOG"
 }
 
@@ -133,8 +157,8 @@ run_heartbeat() {
   [ "$status" -eq 0 ]
   [ "$(grep -c '^CALL$' "$SEND_ALERT_LOG")" -eq 1 ]
   grep -qiE "stale|not producing" "$SEND_ALERT_BODY"
-  ! grep -qiF "healthy" "$SEND_ALERT_TITLE"
-  ! grep -qiF "healthy" "$SEND_ALERT_BODY"
+  refute_file_contains "healthy" "$SEND_ALERT_TITLE"
+  refute_file_contains "healthy" "$SEND_ALERT_BODY"
   [ ! -e "$OSQUERYI_CALLED" ] # never shelled a one-shot; it read the scheduled canary
 }
 
@@ -148,18 +172,6 @@ run_heartbeat() {
   [ -z "$(cat "$SEND_ALERT_SOUND")" ]
 }
 
-@test "B6: the healthy message is honest about what it verified (R2-8)" {
-  # R2-8 honesty: the healthy body claims only what the canary proves (the ROOT
-  # DAEMON is alive and running its schedule), points at the watchdog for per-agent
-  # liveness, and must NOT overclaim that every monitor is scheduled or loaded.
-  seed_canary 30
-  run run_heartbeat
-  [ "$status" -eq 0 ]
-  grep -qiE "daemon|schedule|canary" "$SEND_ALERT_BODY" # it verified the daemon, not a one-shot
-  grep -qiF "watchdog" "$SEND_ALERT_BODY"               # points at who owns agent liveness
-  ! grep -qiF "all monitors scheduled" "$SEND_ALERT_BODY"
-}
-
 @test "B5: no canary at all reports unhealthy as MISSING, never a blind checkmark" {
   # GATE (fail-safe): an empty or absent snapshots log (fresh deploy, or the daemon
   # never ran the schedule) carries no canary row. Not-fresh means unhealthy, the
@@ -170,7 +182,39 @@ run_heartbeat() {
   [ "$status" -eq 0 ]
   [ "$(grep -c '^CALL$' "$SEND_ALERT_LOG")" -eq 1 ]
   grep -qiE "missing|no canary" "$SEND_ALERT_BODY"
-  ! grep -qiF "stale" "$SEND_ALERT_BODY"
-  ! grep -qiF "healthy" "$SEND_ALERT_TITLE"
-  ! grep -qiF "healthy" "$SEND_ALERT_BODY"
+  refute_file_contains "stale" "$SEND_ALERT_BODY"
+  refute_file_contains "healthy" "$SEND_ALERT_TITLE"
+  refute_file_contains "healthy" "$SEND_ALERT_BODY"
+}
+
+@test "B6: the healthy message is honest about what it verified (R2-8)" {
+  # R2-8 honesty: the healthy body claims only what the canary proves (the ROOT
+  # DAEMON is alive and running its schedule), points at the watchdog for per-agent
+  # liveness, and must NOT overclaim that every monitor is scheduled or loaded.
+  seed_canary 30
+  run run_heartbeat
+  [ "$status" -eq 0 ]
+  grep -qiE "daemon|schedule|canary" "$SEND_ALERT_BODY" # it verified the daemon, not a one-shot
+  grep -qiF "watchdog" "$SEND_ALERT_BODY"               # points at who owns agent liveness
+  refute_file_contains "all monitors scheduled" "$SEND_ALERT_BODY"
+}
+
+@test "B7: a malformed canary timestamp is rejected, unhealthy, and cannot inject" {
+  # GATE (injection-safety): the ONLY log-derived value the heartbeat touches is the
+  # canary timestamp, used solely as $((now - last_ts)) AFTER a ^[0-9]+$ check. A
+  # metacharacter-laden value is rejected (treated as MISSING -> unhealthy), never
+  # rendered into the message, and never executed. This is why the heartbeat needs
+  # no sanitize + code-span wrap: it renders no free-text field, only static text
+  # plus a validated-numeric age.
+  local payload='$(touch '"$HARNESS_HOME"'/PWNED)`touch '"$HARNESS_HOME"'/PWNED2`; DROP 9999'
+  seed_raw_canary "$payload"
+  run run_heartbeat
+  [ "$status" -eq 0 ]
+  [ "$(grep -c '^CALL$' "$SEND_ALERT_LOG")" -eq 1 ]
+  grep -qiE "missing|no canary" "$SEND_ALERT_BODY" # rejected -> treated as missing
+  refute_file_contains "touch" "$SEND_ALERT_BODY"  # the raw value never reaches the body
+  refute_file_contains "$payload" "$SEND_ALERT_BODY"
+  refute_file_contains "touch" "$SEND_ALERT_TITLE"
+  [ ! -e "$HARNESS_HOME/PWNED" ]  # no command execution from the payload
+  [ ! -e "$HARNESS_HOME/PWNED2" ] # no command execution from the payload
 }
