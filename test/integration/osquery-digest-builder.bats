@@ -367,8 +367,8 @@ assert_last_mode_600() {
   assert_body_has "$body" '**persistence_launchd** (2)'
   assert_body_has "$body" '**system_extensions_new** (1)'
   assert_body_has "$body" '**sudoers** (1)'
-  assert_body_has "$body" '- com.foo.agent - persistence_launchd com.foo.agent'
-  assert_body_has "$body" '- io.tailscale - system_extensions_new io.tailscale'
+  assert_body_has "$body" '- `com.foo.agent` - `persistence_launchd com.foo.agent`'
+  assert_body_has "$body" '- `io.tailscale` - `system_extensions_new io.tailscale`'
 }
 
 @test "a detector with more findings than the bullet cap shows N bullets and a +K more roll-up" {
@@ -379,7 +379,7 @@ assert_last_mode_600() {
   local body
   body="$(render_body "${records[@]}")"
   assert_body_has "$body" '**persistence_launchd** (14)' # the header counts the true total
-  assert_line_count "$body" '^- com\.item\.' 10          # DIGEST_MAX_BULLETS_PER_GROUP default
+  assert_line_count "$body" '^- `com\.item\.' 10         # DIGEST_MAX_BULLETS_PER_GROUP default
   assert_body_has "$body" '+4 more'
 }
 
@@ -440,9 +440,20 @@ assert_last_mode_600() {
   local body
   body="$(render_body "$(digest_record persistence_launchd "$evil" 'malicious finding')")"
   # The crafted newline is squashed to a space, so the value stays inert INSIDE one bullet.
-  assert_body_has "$body" '- evil - **Signing:** signed: Apple - malicious finding'
+  assert_body_has "$body" '- `evil - **Signing:** signed: Apple` - `malicious finding`'
   # And the forged field marker never becomes its own line.
   assert_no_injected_line "$body"
+}
+
+@test "an attacker-controlled field renders inside a code span, so a mention or link is inert" {
+  # render-page wraps every attacker-influenceable field in backticks; the digest does the
+  # same, so a crafted mention or link renders as literal inline-code text, not a live
+  # Discord @everyone or a clickable link. (The line/block-forging guard above is separate.)
+  local body
+  body="$(render_body "$(digest_record persistence_launchd '@everyone' '[click](http://evil.example)')")"
+  assert_body_has "$body" '- `@everyone` - `[click](http://evil.example)`' # both fields inside code spans
+  assert_body_has "$body" '`@everyone`'                                     # the mention is inert inline code, not bare
+  assert_body_has "$body" '`[click](http://evil.example)`'                  # the link markdown is inert inline code too
 }
 
 @test "an oversized field is truncated in the sanitize chokepoint and cannot crowd out other groups" {
@@ -456,7 +467,7 @@ assert_last_mode_600() {
   assert_body_has "$body" '…(truncated)'
   # ... so it cannot alone consume the whole body cap: the later detector group still renders.
   assert_body_has "$body" '**zzz_small** (1)'
-  assert_body_has "$body" '- id_small - a small summary'
+  assert_body_has "$body" '- `id_small` - `a small summary`'
   # And the full oversized value never survives into the body.
   if grep -qF -- "$giant" <<<"$body"; then
     printf 'expected the oversized field truncated, but the full value survived\n' >&2
@@ -476,8 +487,8 @@ assert_last_mode_600() {
   local body
   body="$(render_body "${records[@]}")"
   assert_body_has "$body" '**persistence_launchd** (2)' # the two GOOD launchd findings; the torn one skipped
-  assert_body_has "$body" '- com.good.one - persistence_launchd com.good.one'
-  assert_body_has "$body" '- com.good.two - persistence_launchd com.good.two'
+  assert_body_has "$body" '- `com.good.one` - `persistence_launchd com.good.one`'
+  assert_body_has "$body" '- `com.good.two` - `persistence_launchd com.good.two`'
   assert_body_has "$body" '**sudoers** (1)'
   if grep -qF -- 'com.tor' <<<"$body"; then
     printf 'expected the torn line skipped, but its fragment appeared:\n%s\n' "$body" >&2

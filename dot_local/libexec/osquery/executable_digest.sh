@@ -67,10 +67,12 @@ digest_title() { printf '🗒️ osquery daily digest · %s · %s item(s)' "$(da
 # trailing groups to a silent mid-line cut.
 #
 # Injection safety: .identity and .summary originate from findings with
-# attacker-influenceable columns, so every rendered field flows through sanitize
-# (strip backticks, squash CR/newline/tab to spaces), the same chokepoint the
-# alerter's render-page uses. A crafted newline or backtick therefore stays inert
-# inside its own bullet and can never forge an extra markdown line or block.
+# attacker-influenceable columns, so every rendered field is WRAPPED in an inline
+# code span and flows through sanitize first (strip backticks so the value cannot
+# close that span, squash CR/newline/tab to spaces, per-field cap), exactly the
+# treatment the alerter's render-page gives these same fields. A crafted newline can
+# never forge an extra markdown line or block, and a crafted mention (@everyone) or
+# link renders as literal inline-code text, never a live Discord mention or link.
 render_digest_body() {
   local work_file="$1"
   local max_bullets="${DIGEST_MAX_BULLETS_PER_GROUP:-10}"
@@ -82,18 +84,22 @@ render_digest_body() {
     --argjson max_groups "$max_groups" \
     --argjson max_field "$max_field" '
     # The single sanitize chokepoint every attacker-influenceable field passes
-    # through: strip backticks (they open an inline-code span), squash CR, newline,
-    # and tab to a space (a newline would break the value out of its bullet into a
-    # forged line), and truncate at $max_field so one crafted or huge value cannot
-    # fill the body cap and crowd every other detector out. Data, never structure.
+    # through before it is wrapped in an inline-code span below: strip backticks (so
+    # a crafted value cannot close its wrapping span and escape to live markdown),
+    # squash CR, newline, and tab to a space (a newline would forge an extra line),
+    # and truncate at $max_field so one crafted or huge value cannot fill the body
+    # cap and crowd every other detector out. Data, never structure.
     def sanitize:
       gsub("`"; "") | gsub("[\r\n\t]"; " ")
       | if length > $max_field then .[0:$max_field] + "…(truncated)" else . end;
     # One block per detector group: header with the true count, up to $max_bullets
     # bullets, then a "+K more" roll-up for the overflow, then a blank separator.
+    # Each attacker-influenceable field is WRAPPED in backticks (an inline-code
+    # span), exactly as the alerter render-page does, so a crafted mention or link
+    # renders as literal inert text, never a live Discord @everyone or clickable link.
     def render_group:
       "**\(.[0].detector)** (\(length))",
-      (.[0:$max_bullets][] | "- \(.identity | sanitize) - \(.summary | sanitize)"),
+      (.[0:$max_bullets][] | "- `\(.identity | sanitize)` - `\(.summary | sanitize)`"),
       (if length > $max_bullets then "… +\(length - $max_bullets) more" else empty end),
       "";
     # Parse per line and DROP a torn or malformed line (try/catch), never
