@@ -250,6 +250,16 @@ clear_canary() {
   : >"$OSQUERY_SNAPSHOTS_LOG"
 }
 
+# seed_raw_canary <unixtime-value> -- append a heartbeat_canary row whose timestamp
+# is the given RAW string, to model a value that would break a naive consumer's bash
+# arithmetic: a huge over-range epoch (64-bit overflow) or a leading-zero value (read
+# as octal). The seam must range-bound it so the value can never fall through silent.
+seed_raw_canary() {
+  jq -cn --arg t "$1" \
+    '{name:"heartbeat_canary",action:"snapshot",snapshot:[{unix_time:$t}],unixTime:$t,hostIdentifier:"dresden"}' \
+    >>"$OSQUERY_SNAPSHOTS_LOG"
+}
+
 # ---- programming prior cross-run state ------------------------------------
 
 # seed_watchdog_state <compact-json> -- write the prior state file at 0600, so a

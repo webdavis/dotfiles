@@ -127,12 +127,19 @@ elif ! pgrep -fq '/opt/osquery/.*osqueryd'; then
   problems+=("osqueryd is not running")
 else
   canary_timestamp="$(newest_canary_timestamp)"
+  # Fail-safe structure, mirroring the heartbeat: HEALTHY only when a canary sits
+  # inside the freshness window in EITHER direction; anything else PAGES. The default
+  # (else) is to page, so an unexpected value cannot fall through silent. The seam
+  # range-bounds the timestamp, so the arithmetic below can never overflow or be
+  # misread as octal; the fail-safe default is defense in depth on top of that.
   if [[ -z $canary_timestamp ]]; then
     problems+=("osqueryd is not producing scheduled results (the heartbeat canary is MISSING); the daemon is stopped or wedged")
-  elif ((now - canary_timestamp > canary_max_age)); then
-    problems+=("osqueryd is not producing scheduled results (the heartbeat canary is STALE, $((now - canary_timestamp))s old); the daemon is stopped or wedged")
-  elif ((canary_timestamp - now > canary_max_age)); then
+  elif ((now - canary_timestamp <= canary_max_age)) && ((canary_timestamp - now <= canary_max_age)); then
+    : # a canary within the window in either direction: osqueryd is alive and scheduling
+  elif ((canary_timestamp > now)); then
     problems+=("osqueryd heartbeat canary timestamp is IMPLAUSIBLE ($((canary_timestamp - now))s in the future); clock skew or a bad row, not a trustworthy liveness signal")
+  else
+    problems+=("osqueryd is not producing scheduled results (the heartbeat canary is STALE, $((now - canary_timestamp))s old); the daemon is stopped or wedged")
   fi
 fi
 

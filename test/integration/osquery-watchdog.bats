@@ -133,6 +133,41 @@ teardown() { teardown_watchdog_harness; }
   assert_page_severity_is CRIT
 }
 
+@test "T-WATCH-osqueryd-canary-huge-epoch-pages: an over-range canary epoch cannot 64-bit-overflow into a false fresh" {
+  # sol's overflow: a timestamp of 2^64 + now wraps in bash's signed 64-bit back to
+  # ~now (verified: (( now - (2^64+now) )) == 0), so BOTH freshness bounds read fresh
+  # and the watchdog stays SILENT. The seam range-bounds it (>10 digits rejected), so
+  # it is treated as no valid canary and pages instead.
+  clear_canary
+  local overflow
+  overflow="$(/usr/bin/bc <<<"$(date -u +%s) + 18446744073709551616")"
+  seed_raw_canary "$overflow"
+  run run_watchdog
+  [[ $status -eq 0 ]] || {
+    echo "status $status: $output"
+    false
+  }
+  assert_page_count 1
+  assert_page_severity_is CRIT
+  assert_page_body_has 'scheduled results'
+}
+
+@test "T-WATCH-osqueryd-canary-leading-zero-pages: a leading-zero canary epoch cannot break arithmetic into a silent fall-through" {
+  # A leading-zero value (09999999999) makes bash arithmetic parse it as octal and
+  # error, which a naive elif chain swallows into silence. The seam rejects it, so the
+  # watchdog pages instead of falling through.
+  clear_canary
+  seed_raw_canary '09999999999'
+  run run_watchdog
+  [[ $status -eq 0 ]] || {
+    echo "status $status: $output"
+    false
+  }
+  assert_page_count 1
+  assert_page_severity_is CRIT
+  assert_page_body_has 'scheduled results'
+}
+
 @test "T-WATCH-clock-unreadable-pages: a failed system-clock read is a CRIT gap, never a silent healthy" {
   export WATCHDOG_CLOCK_OK=0
   run run_watchdog

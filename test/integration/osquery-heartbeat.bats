@@ -232,6 +232,33 @@ run_heartbeat() {
   [ ! -e "$HARNESS_HOME/PWNED2" ] # no command execution from the payload
 }
 
+@test "B7a: an over-range canary epoch is rejected (fail-safe MISSING), never a 64-bit-overflow false fresh" {
+  # A timestamp of 2^64 + now wraps in bash's signed 64-bit back to ~now, so both
+  # freshness bounds read fresh and the heartbeat would false-report HEALTHY. The
+  # shared seam range-bounds the value, so it is rejected and the heartbeat reports
+  # MISSING (unhealthy) instead.
+  local overflow
+  overflow="$(/usr/bin/bc <<<"$(date -u +%s) + 18446744073709551616")"
+  seed_raw_canary "$overflow"
+  run run_heartbeat
+  [ "$status" -eq 0 ]
+  [ "$(grep -c '^CALL$' "$SEND_ALERT_LOG")" -eq 1 ]
+  grep -qiE "missing|no canary" "$SEND_ALERT_BODY"
+  refute_file_contains "pipeline healthy" "$SEND_ALERT_TITLE"
+}
+
+@test "B7b: a leading-zero canary epoch is rejected (fail-safe MISSING), never an octal-parse fall-through" {
+  # A leading-zero value (09999999999) makes bash arithmetic parse it as octal and
+  # error. The shared seam rejects it, so the heartbeat reports MISSING (unhealthy)
+  # instead of aborting or falling through.
+  seed_raw_canary '09999999999'
+  run run_heartbeat
+  [ "$status" -eq 0 ]
+  [ "$(grep -c '^CALL$' "$SEND_ALERT_LOG")" -eq 1 ]
+  grep -qiE "missing|no canary" "$SEND_ALERT_BODY"
+  refute_file_contains "pipeline healthy" "$SEND_ALERT_TITLE"
+}
+
 @test "B8: freshness is judged from the NEWEST canary row when several exist" {
   # osqueryd appends one canary per interval, so the LAST line is the newest. A run
   # of rows (an old one from before a gap, then a fresh one) must be judged by the

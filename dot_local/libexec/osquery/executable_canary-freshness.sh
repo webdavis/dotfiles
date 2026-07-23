@@ -28,14 +28,20 @@ OSQUERY_SNAPSHOTS_LOG="${OSQUERY_SNAPSHOTS_LOG:-$HOME/.local/log/osquery/osquery
 # these same logs), and matching the PARSED .name is whitespace-tolerant, so the read
 # does not couple to osquery's compact serialization. Prefer the envelope unixTime (an
 # integer); fall back to the snapshot column. This is the ONE place the log-derived
-# value is read AND validated numeric, so a non-numeric or malformed value can never
-# reach the freshness decision or the rendered message.
+# value is read AND validated, protecting BOTH consumers.
+#
+# The value is range-bound to a PLAUSIBLE base-10 unix epoch so it can never break a
+# consumer's bash arithmetic and let a freshness check fall through silent: a leading
+# zero is rejected (bash reads 09999999999 as octal and errors), and the value is
+# capped at 10 digits (<= 9999999999, year 2286), well inside signed 64-bit, so an
+# over-range epoch cannot overflow and wrap both freshness bounds to "fresh". A
+# rejected value returns empty, which every consumer treats as MISSING (fail-safe).
 newest_canary_timestamp() {
   local candidate
   [[ -r $OSQUERY_SNAPSHOTS_LOG ]] || return 0
   candidate="$(jq -rR 'fromjson? | select(.name == "heartbeat_canary")
     | (.unixTime // .snapshot[0].unix_time) // empty' "$OSQUERY_SNAPSHOTS_LOG" 2>/dev/null |
     tail -1 || true)"
-  [[ $candidate =~ ^[0-9]+$ ]] || return 0
+  [[ $candidate =~ ^(0|[1-9][0-9]{0,9})$ ]] || return 0
   printf '%s' "$candidate"
 }
