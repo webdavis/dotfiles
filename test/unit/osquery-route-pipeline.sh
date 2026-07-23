@@ -6,8 +6,8 @@
 #   pipeline_verdict 0 (page: tamper / cannot confirm / no manifest) -> sev=CRIT
 #   pipeline_verdict 1 (silent: untracked neighbor, or an exact manifest match) -> continue
 #
-# The manifest slice (15) does not exist yet, so a tracked change fails open to a
-# PAGE (criterion 6). This test pins both halves: the fail-open page (no manifest)
+# With NO manifest present (missing or unreadable), a tracked change fails safe to a
+# PAGE (criterion 6). This test pins both halves: the fail-safe page (no manifest)
 # AND that the verdict is genuinely consulted - an untracked neighbor stays silent,
 # and a stubbed exact (path, sha256) manifest match suppresses the page.
 #
@@ -58,8 +58,9 @@ run_gate() {
       ' _ "$ROUTE" "$PIPELINE_HELPER" "$ALLOWLIST_HELPER"
 }
 
-# ---- Pass A: NO manifest. Tracked changes fail open to a page; an untracked
-#      neighbor is silent (proving the verdict is consulted, not page-always). ----
+# ---- Pass A: NO manifest. A tracked change (a libexec script, our own plist)
+#      fails open to a page; an untracked neighbor (a ~/.local/bin tool, a
+#      non-osquery plist) is silent, proving the verdict is consulted. ----
 page_a="$(run_gate "$absent_manifest" \
   "$(fe pipeline_integrity "$home/.local/libexec/osquery/results-alerterTAG01.sh" abc UPDATED)" \
   "$(fe pipeline_integrity "$home/.local/bin/relayTAG02.sh" abc UPDATED)" \
@@ -68,7 +69,7 @@ page_a="$(run_gate "$absent_manifest" \
 
 in_a() { grep -qF "$1" <<<"$page_a"; }
 in_a TAG01 || fail "a ~/.local/libexec/osquery script change must PAGE (fail-open, no manifest)"
-in_a TAG02 || fail "a ~/.local/bin script change must PAGE (fail-open, second prefix)"
+in_a TAG02 && fail "a ~/.local/bin change must NOT page the osquery pipeline_integrity path (Relay subsystem, an untracked neighbor)"
 in_a TAG03 || fail "our own osquery LaunchAgent change must PAGE (fail-open)"
 in_a TAG04 && fail "an untracked neighbor plist must be SILENT (the verdict is consulted, not page-always)"
 
@@ -97,4 +98,4 @@ for out in "$page_a" "$page_b"; do
     fail "every paged pipeline finding must carry .sev == CRIT"
 done
 
-printf 'osquery-route-pipeline: OK (fail-open PAGE under both prefixes + own plist; neighbor SILENT; manifest exact match SILENT; delete PAGES; none digest)\n'
+printf 'osquery-route-pipeline: OK (fail-safe PAGE for a libexec file + our own plist; a ~/.local/bin neighbor and a non-osquery plist SILENT; manifest exact match SILENT; delete PAGES; none digest)\n'

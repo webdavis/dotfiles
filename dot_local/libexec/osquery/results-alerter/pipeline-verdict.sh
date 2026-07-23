@@ -11,12 +11,12 @@
 # manifest; a legit chezmoi apply regenerates the manifest in the same apply, so
 # a deployed known-good file matches and stays silent.
 #
-# Fail-open (criterion 6): the manifest slice is LAST in the stack and does not
-# exist yet. With no manifest present, _pipeline_manifest_has_tuple returns
-# not-found, so a tracked change cannot be confirmed legitimate and PAGES. That
-# is the conservative direction - a pipeline-script change is never silently
-# suppressed without a manifest to justify it, and a missing/empty/mismatched
-# hash pages too. Over-paging until the manifest lands is the accepted tradeoff.
+# Fail-safe (criterion 6): the manifest is regenerated from the deployed pipeline
+# tree on every apply, but a missing or unreadable manifest still makes
+# _pipeline_manifest_has_tuple return not-found, so a tracked change that cannot be
+# confirmed legitimate PAGES. That is the conservative direction - a pipeline-script
+# change is never silently suppressed without a manifest tuple to justify it, and a
+# missing/empty/mismatched hash pages too.
 #
 # Return-code contract (from c69baab _pipeline_verdict):
 #   0 = PAGE   (tamper / cannot confirm legit / no manifest / delete)
@@ -44,15 +44,17 @@ _pipeline_manifest_has_tuple() {
 
 # _pipeline_is_tracked <target>: 0 when the path is pipeline infrastructure. The
 # watches fire for every file in a watched dir, so the tracked set is filtered
-# here: a script under either watched script dir (~/.local/libexec/osquery or
-# ~/.local/bin), or one of our own osquery LaunchAgents by basename. Anything else
-# in a watched dir is a neighbor. Dual-prefix: c69baab only knew the flat
-# ~/.local/bin/osquery-*.sh layout; the scripts now live under libexec/osquery too
-# (with the osquery- prefix dropped), and ~/.local/bin is a root-of-trust dir.
+# here: a file under the dedicated pipeline home (~/.local/libexec/osquery, where
+# the whole osquery delivery path lives), or one of our own osquery LaunchAgents by
+# basename. Anything else in a watched dir is a neighbor. ~/.local/bin is NOT
+# tracked: those operator tools are the Relay/shell-notifier subsystem's, not
+# osquery pipeline files, and the manifest never covers them, so a bin edit is a
+# silent neighbor here, never a pipeline tamper. This keeps the tracked set, the
+# manifest's coverage, and the osquery.conf watch on the identical file set.
 _pipeline_is_tracked() {
   local target="$1" base="${1##*/}"
   case "$target" in
-    "$HOME"/.local/libexec/osquery/* | "$HOME"/.local/bin/*) return 0 ;;
+    "$HOME"/.local/libexec/osquery/*) return 0 ;;
   esac
   case "$base" in
     com.webdavis.osquery-*.plist) return 0 ;;

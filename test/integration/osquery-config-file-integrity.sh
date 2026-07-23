@@ -3,14 +3,18 @@
 # File-integrity watches cover the alerting pipeline's own homes and the
 # alerter's config directory. The rendered osquery.conf must:
 #
-#   - watch BOTH pipeline homes under one pipeline_integrity category (no
-#     split): ~/.local/libexec/osquery (the pipeline scripts' home) AND
-#     ~/.local/bin (root-of-trust operator tools: relay.sh, hue-pulse.sh,
-#     the weekly upgrade, update-skills all run unattended from there);
+#   - watch ONLY the dedicated pipeline home under pipeline_integrity:
+#     ~/.local/libexec/osquery. The entire osquery delivery path lives there
+#     (send_alert's local banner and the curl-to-Hermes webhook are both under
+#     it), so the manifest covers exactly what is watched. ~/.local/bin is NOT
+#     watched here: those operator tools (relay.sh, hue-pulse.sh, the weekly
+#     upgrade, update-skills) belong to the Relay/shell-notifier subsystem, not
+#     the osquery integrity domain, and the manifest never covers them, so
+#     watching them would page forever on a legitimate edit (a fail-open);
 #   - watch the alerter's config directory (~/.config/osquery, where the
 #     page-launchd allowlist lives) as allowlist_file;
-#   - hash pipeline_integrity (both homes) and ~/Library/LaunchAgents, so
-#     pipeline-script and LaunchAgent events carry the sha256 the alerter's
+#   - hash pipeline_integrity (the dedicated home) and ~/Library/LaunchAgents,
+#     so pipeline-script and LaunchAgent events carry the sha256 the alerter's
 #     (path, hash) tuple check needs;
 #   - keep the ~/.ssh directory EVENT watch but carry no ssh hashes entry:
 #     the hash maps are consumer-driven (the tuple check) and nothing reads
@@ -56,18 +60,23 @@ has_path() {
   jq -e --arg c "$2" --arg p "$3" ".${1}[\$c] // [] | index(\$p) != null" <<<"$conf_json" >/dev/null
 }
 
-# Both pipeline homes, one category, in the EVENT-watch map...
+# The dedicated pipeline home is watched in the EVENT map...
 has_path file_paths pipeline_integrity "$render_home/.local/libexec/osquery/%%" ||
-  fail "file_paths.pipeline_integrity must watch ~/.local/libexec/osquery/%% (the pipeline scripts' home)"
-has_path file_paths pipeline_integrity "$render_home/.local/bin/%%" ||
-  fail "file_paths.pipeline_integrity must watch ~/.local/bin/%% (root-of-trust operator tools)"
-
-# ...and both in the HASH map, so their events carry the sha256 the alerter's
-# (path, hash) tuple check needs.
+  fail "file_paths.pipeline_integrity must watch ~/.local/libexec/osquery/%% (the osquery delivery path's home)"
+# ...and hashed, so its events carry the sha256 the alerter's (path, hash) check needs.
 has_path file_paths_hashes pipeline_integrity "$render_home/.local/libexec/osquery/%%" ||
   fail "file_paths_hashes.pipeline_integrity must hash ~/.local/libexec/osquery/%%"
-has_path file_paths_hashes pipeline_integrity "$render_home/.local/bin/%%" ||
-  fail "file_paths_hashes.pipeline_integrity must hash ~/.local/bin/%%"
+
+# ~/.local/bin is NOT under pipeline_integrity, in either map: those operator tools
+# are the Relay/shell-notifier subsystem's, not osquery pipeline files, and the
+# manifest never covers them, so watching them would page forever on a legit edit.
+# Watch == manifest: the dedicated home only.
+if has_path file_paths pipeline_integrity "$render_home/.local/bin/%%"; then
+  fail "file_paths.pipeline_integrity must NOT watch ~/.local/bin (Relay subsystem, not an osquery pipeline home)"
+fi
+if has_path file_paths_hashes pipeline_integrity "$render_home/.local/bin/%%"; then
+  fail "file_paths_hashes.pipeline_integrity must NOT hash ~/.local/bin"
+fi
 
 # The alerter's config directory is event-watched.
 has_path file_paths allowlist_file "$render_home/.config/osquery/%%" ||
@@ -91,4 +100,4 @@ if ((fails > 0)); then
   printf '%d file-integrity watch assertion(s) failed\n' "$fails" >&2
   exit 1
 fi
-printf 'PASS: file-integrity watches cover both pipeline homes, the alerter config dir, and hash only what the tuple check reads\n'
+printf 'PASS: file-integrity watches cover the dedicated pipeline home (not ~/.local/bin), the alerter config dir, and hash only what the tuple check reads\n'

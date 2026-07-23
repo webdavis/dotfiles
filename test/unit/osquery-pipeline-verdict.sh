@@ -13,17 +13,18 @@
 #   1 = SILENT - an untracked neighbor in a watched dir, OR a tracked change whose
 #                exact (path, sha256) tuple is present in the manifest.
 #
-# Criterion 6, the headline this behavior pins: the integrity manifest slice is
-# LAST in the stack and does not exist yet, so with NO manifest present a change
-# to a tracked pipeline file PAGES. That is the conservative fail-open direction -
-# a pipeline-script change is never silently suppressed without a manifest to
-# justify it.
+# Criterion 6, the headline this behavior pins: with NO manifest present (a missing
+# or unreadable manifest), a change to a tracked pipeline file PAGES. That is the
+# conservative fail-safe direction - a pipeline-script change is never silently
+# suppressed without a manifest tuple to justify it.
 #
-# Dual tuple-prefix: the tracked pipeline scripts now live under BOTH
-# ~/.local/libexec/osquery/ (the relocated alerter scripts, osquery- prefix
-# dropped) and ~/.local/bin/ (root-of-trust operator tools); our own LaunchAgents
-# are matched by the com.webdavis.osquery-*.plist basename. c69baab only knew
-# ~/.local/bin/osquery-*.sh; the identification is rebased onto the new layout.
+# Tracked set: the pipeline scripts live under ~/.local/libexec/osquery/ (the
+# relocated alerter scripts, osquery- prefix dropped) and our own LaunchAgents are
+# matched by the com.webdavis.osquery-*.plist basename. ~/.local/bin is NOT
+# tracked: those operator tools are the Relay/shell-notifier subsystem's, not
+# osquery pipeline files (the whole osquery delivery path is under libexec), and
+# the manifest never covers them, so a bin edit is an untracked neighbor (SILENT),
+# never a pipeline tamper.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -65,9 +66,10 @@ absent_manifest="$work/no-such-manifest.sha256"
 # Each case: <expected-rc> TAB <manifest> TAB <target> TAB <hash> TAB <verb> TAB <label>.
 # An empty manifest field means "no manifest" (points at a nonexistent path).
 cases=(
-  # -- Fail-open headline: NO manifest, a tracked change under either prefix PAGES --
+  # -- Fail-open headline: NO manifest, a tracked libexec change PAGES --
   $'0\t'"$absent_manifest"$'\t'"$libexec_script"$'\t'"$hash_libexec"$'\tUPDATED\ttracked libexec script, no manifest -> PAGE (fail-open, criterion 6)'
-  $'0\t'"$absent_manifest"$'\t'"$bin_script"$'\t'"$hash_bin"$'\tUPDATED\ttracked ~/.local/bin script, no manifest -> PAGE (fail-open, second prefix)'
+  # -- A ~/.local/bin tool is NOT an osquery pipeline file: untracked -> SILENT --
+  $'1\t'"$absent_manifest"$'\t'"$bin_script"$'\t'"$hash_bin"$'\tUPDATED\ta ~/.local/bin neighbor is untracked -> SILENT (Relay subsystem, not an osquery pipeline file)'
   # -- An untracked neighbor in a watched dir is SILENT --
   $'1\t'"$absent_manifest"$'\t'"$home/Library/LaunchAgents/com.apple.something.plist"$'\t'"$hash_libexec"$'\tUPDATED\tan untracked neighbor plist -> SILENT (not pipeline infrastructure)'
   # -- Our own osquery LaunchAgent (basename branch), no manifest -> PAGE --
@@ -117,4 +119,4 @@ for i in "${!expected[@]}"; do
     fail "${labels[i]}: expected return ${expected[i]}, got ${got[i]}"
 done
 
-printf 'osquery-pipeline-verdict: OK (fail-open PAGE without a manifest under both prefixes; neighbor SILENT; delete PAGES; manifest tuple match SILENT, mismatch/swap-in-place PAGE)\n'
+printf 'osquery-pipeline-verdict: OK (fail-open PAGE for a tracked libexec file without a manifest; a ~/.local/bin neighbor is SILENT; delete PAGES; manifest tuple match SILENT, mismatch/swap-in-place PAGE)\n'
