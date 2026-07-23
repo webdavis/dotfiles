@@ -14,7 +14,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Install Upstream Nix using the NixOS-maintained Nix Installer
-        uses: NixOS/nix-installer-action@6b8548fe06acfb0155a50ab5d561accb215764cc # main @ 2026-04-06
+        uses: NixOS/nix-installer-action@62c1943b776c509394b550f3f983adc14e9212d6 # main @ 2026-04-06
       - name: Run Nix flake checks for all platforms (includes the treefmt drift gate)
         run: nix flake check --all-systems
       - name: Run the repo test suite
