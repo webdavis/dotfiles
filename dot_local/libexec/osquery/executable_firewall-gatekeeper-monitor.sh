@@ -1,13 +1,22 @@
 #!/usr/bin/env bash
 #
 # firewall-gatekeeper-monitor.sh, polled every 60s by a launchd StartInterval
-# agent. Queries the live firewall (alf) and gatekeeper state via osqueryi,
-# compares against the previous run, and fires alerter only on transitions.
-# Silent in steady state.
+# agent. The security-posture monitor: it reads the live firewall (alf),
+# Gatekeeper, AND screen-lock state via osqueryi in the gui/501 user session,
+# compares against the previous run's baseline, and pages CRIT only on a
+# protection turning OFF. Silent in steady state.
+#
+# R2-3: screen-lock-off detection lives HERE, not in the root-daemon pack. The
+# screenlock osquery table is scoped to the logged-in user, so the ROOT osqueryd
+# daemon (no user session) never returns a screenlock row (the pack's screenlock
+# queries were dead). This poller runs as a gui/501 user LaunchAgent whose
+# osqueryi DOES have the user session, so it is the correct place to read it.
 
 set -euo pipefail
 
 STATE="${OSQUERY_POSTURE_STATE:-$HOME/.local/state/osquery-posture-state.json}"
+GAP="$STATE.gap"                 # page-once marker for a monitoring gap (R2-9)
+PERSIST_GAP="$STATE.persist-gap" # page-once marker for a baseline-persist failure
 OSQUERYI="${OSQUERYI:-$(command -v osqueryi || echo /usr/local/bin/osqueryi)}"
 
 # shellcheck source=/dev/null
@@ -15,39 +24,184 @@ source "$HOME/.local/libexec/osquery/alert-dispatch.sh"
 
 mkdir -p "$(dirname "$STATE")"
 
-# Read current posture in a single combined query so we get one osqueryi
-# startup per tick instead of two.
-posture="$("$OSQUERYI" --json "
+# Never leave a partial temp baseline behind, on any exit path (a mid-write
+# failure, or the empty-read guard below).
+trap 'rm -f "$STATE.tmp"' EXIT
+
+# Read the current posture in a single combined query (one osqueryi startup per
+# tick, not one per protection). screenlock is folded in per R2-3.
+#
+# Bound the query so a WEDGED osqueryi (a hung table never closes its stdout)
+# becomes a monitoring gap, not silent blindness. Without a deadline, `|| true`
+# handles an osqueryi EXIT but not a HANG, launchd skips ticks while the process
+# lives, and the uptime-watchdog cannot catch it (its probe queries a different
+# table that answers while a posture table hangs). gtimeout preferred, timeout
+# fallback (the codebase convention); if neither is on PATH, degrade to an
+# unbounded read (no worse than before; the darwin fleet has one). The bound is
+# well under the 60s tick and env-overridable. On timeout osqueryi is killed, its
+# stdout closes, and the read collapses to empty, which the gap gate below pages.
+posture_query=("$OSQUERYI" --json "
   SELECT
     (SELECT global_state FROM alf) AS firewall,
-    (SELECT assessments_enabled FROM gatekeeper) AS gatekeeper
-" 2>/dev/null | jq -c '.[0]')"
+    (SELECT assessments_enabled FROM gatekeeper) AS gatekeeper,
+    (SELECT enabled FROM screenlock) AS screenlock
+")
+posture_timeout_bin="$(command -v gtimeout || command -v timeout || true)"
+if [[ -n $posture_timeout_bin ]]; then
+  posture_query=("$posture_timeout_bin" "${OSQUERY_POSTURE_TIMEOUT:-20}" "${posture_query[@]}")
+fi
+posture=$("${posture_query[@]}" 2>/dev/null | jq -c '.[0] // empty' 2>/dev/null || true)
 
-if [[ -z $posture || $posture == "null" ]]; then
-  # osqueryi failed (daemon not up yet on fresh boot, or alf/gatekeeper
-  # tables transiently unavailable). Exit silently; next tick will retry.
+cur_fw=$(jq -r '.firewall // empty' <<<"$posture" 2>/dev/null || echo "")
+cur_gk=$(jq -r '.gatekeeper // empty' <<<"$posture" 2>/dev/null || echo "")
+cur_sl=$(jq -r '.screenlock // empty' <<<"$posture" 2>/dev/null || echo "")
+
+# page_gap_once <marker_path> <title> <body> -- the shared page-once-via-marker
+# discipline for both the monitoring-gap and the persistence-gap paths: the same
+# notify-before-persist contract page_crit_and_persist gives the transition and
+# first-observation paths, in ONE place so the two markers cannot diverge. If the
+# marker is absent, send_alert FIRST and write the marker ONLY on success (best
+# effort: a marker in an unwritable dir cannot be written, so the page may
+# re-fire); return 0 when paged or already marked, nonzero when send_alert could
+# not store the page (so a persisting condition re-pages). The per-path bodies,
+# recovery-clear placement, and caller exit code stay OUTSIDE this helper.
+page_gap_once() {
+  local marker="$1" title="$2" body="$3"
+  if [[ -f $marker ]]; then
+    return 0
+  fi
+  if send_alert CRIT "$title" "$body" "Sosumi"; then
+    : >"$marker" 2>/dev/null || true
+    return 0
+  fi
+  return 1
+}
+
+# R2-9 monitoring gap. Any scalar missing or out of its exact domain (firewall
+# 0/1/2, Gatekeeper 0/1, screenlock 0/1) means the security state is UNKNOWN, not
+# safe; an empty or failed read leaves all three empty and lands here too. Do NOT
+# persist it (it would poison the baseline) and do NOT compare it (it would
+# fabricate a transition): the last good baseline is preserved. Page ONCE per gap
+# (page_gap_once); if send_alert cannot store the page (it still fires a
+# last-resort local banner), log and exit nonzero so a PERSISTING gap re-pages
+# next tick. (Values are bracketed, [] for empty, to keep the page apostrophe-free
+# for the alerting stack.)
+if ! [[ $cur_fw =~ ^[012]$ && $cur_gk =~ ^[01]$ && $cur_sl =~ ^[01]$ ]]; then
+  gap_body="**Security-posture monitoring gap**"$'\n'"- The posture query returned an unreadable value (firewall=[$cur_fw] gatekeeper=[$cur_gk] screenlock=[$cur_sl]): the firewall / Gatekeeper / screen-lock state is currently UNKNOWN."$'\n'"- A blind monitor cannot see a protection turn off. Did osqueryi or the LaunchAgent break? **Check now.**"$'\n'"- Diagnose: run the posture query by hand, then re-check."
+  if ! page_gap_once "$GAP" "🔴 **CRITICAL**" "$gap_body"; then
+    printf 'firewall-gatekeeper-monitor: send_alert could not queue the monitoring-gap page; no marker written, retrying next tick\n' >&2
+    exit 1
+  fi
   exit 0
 fi
 
-current_firewall="$(jq -r '.firewall' <<<"$posture")"
-current_gatekeeper="$(jq -r '.gatekeeper' <<<"$posture")"
+# A valid read cleared the gap (recovery): drop the marker so a future gap pages
+# again. Done before the normal transition/persist logic.
+rm -f "$GAP" 2>/dev/null || true
 
-# First run: write state and exit. No notification: we don't know what the
-# previous state was, so we can't claim a transition.
-if [[ ! -f $STATE ]]; then
-  printf '%s\n' "$posture" >"$STATE"
+# Validate any existing baseline BEFORE trusting it (and before write_state
+# overwrites it): it must be owner-only (mode 600) AND parse to three in-domain
+# scalars (same domains as above). A group/world-readable, corrupt, or
+# out-of-domain baseline is not trustworthy (it could be planted to mask a
+# disabled protection, or fabricate a transition), so it is treated as no prior
+# baseline. GNU-first stat, BSD fallback.
+prev_valid=0
+prev_fw=""
+prev_gk=""
+prev_sl=""
+if [[ -f $STATE ]]; then
+  st_mode=$(stat -c '%a' "$STATE" 2>/dev/null || stat -f '%Lp' "$STATE" 2>/dev/null || echo "")
+  prev_fw=$(jq -r '.firewall // empty' <"$STATE" 2>/dev/null || echo "")
+  prev_gk=$(jq -r '.gatekeeper // empty' <"$STATE" 2>/dev/null || echo "")
+  prev_sl=$(jq -r '.screenlock // empty' <"$STATE" 2>/dev/null || echo "")
+  if [[ $st_mode == "600" && $prev_fw =~ ^[012]$ && $prev_gk =~ ^[01]$ && $prev_sl =~ ^[01]$ ]]; then
+    prev_valid=1
+  fi
+fi
+
+# Persist the current posture owner-only (0600) so a later run can trust its own
+# baseline. Written via a private temp file plus an atomic rename. Ordering for an
+# OFF transition is notify-before-persist (see below): the baseline advances ONLY
+# after send_alert durably enqueues the page. In steady state (no transition) it
+# just refreshes the baseline.
+write_state() {
+  (
+    umask 077
+    printf '%s\n' "$posture" >"$STATE.tmp"
+  ) && mv -f "$STATE.tmp" "$STATE" && chmod 600 "$STATE"
+}
+
+# Persist the baseline, and make a persistence FAILURE loud rather than silent. If
+# write_state fails the monitor is degraded: it cannot advance its baseline, so a
+# stale baseline could silently mask the next real change (a stale prev=OFF reads
+# the next real OFF as steady-off, silent, permanently). Page a degraded-monitor
+# gap ONCE via its own marker, then exit nonzero so launchd retries and the stale
+# baseline is never silently trusted. On success clear the marker (recovery). The
+# marker lives in the state dir, so if that dir is itself unwritable the marker
+# cannot be written and the degraded page may re-fire, acceptable for a serious
+# ongoing fault (loud beats silently trusting a stale baseline).
+persist_baseline() {
+  if write_state; then
+    rm -f "$PERSIST_GAP" 2>/dev/null || true
+    return 0
+  fi
+  degraded_body="**Security-posture monitor degraded**"$'\n'"- The posture monitor could not persist its baseline: it cannot advance state, so a stale baseline could mask the next real change and blind the monitor."$'\n'"- Check the state directory free space and permissions. **Check now.**"
+  page_gap_once "$PERSIST_GAP" "🔴 **CRITICAL**" "$degraded_body" || true
+  exit 1
+}
+
+# Emit one CRIT page built from the given blocks, then advance the baseline.
+# Notify-before-persist: send_alert is write-ahead durable (it stores the page
+# before any network attempt and, if it cannot even store, fires a last-resort
+# local banner), so a page is never silently dropped. The baseline advances only
+# after send_alert succeeds; on a send_alert store-failure the baseline is left
+# as-is and the poller exits nonzero, so a PERSISTING condition re-pages next tick
+# and recovers its durable/remote copy (a transient that clears before the retry
+# was still surfaced locally by the banner). Shared by the first-observation and
+# transition paths so both obey one durability contract.
+page_crit_and_persist() {
+  local body title
+  body=$(printf '%s\n\n' "$@")
+  body=${body%$'\n\n'}
+  title="🔴 **CRITICAL**"
+  if [[ $# -gt 1 ]]; then title="🔴 **CRITICAL** · $#"; fi
+  if ! send_alert CRIT "$title" "$body" "Sosumi"; then
+    printf 'firewall-gatekeeper-monitor: send_alert could not queue the CRIT page; baseline not advanced, retrying next tick\n' >&2
+    exit 1
+  fi
+  persist_baseline
+}
+
+# No trustworthy prior baseline (first run, or a lost/deleted/planted/corrupt
+# state file). DIVERGENCE from c69baab's silent first-run seed (F4, banked from
+# the slice-6 alerter review): the alerter log-onlys firewall/Gatekeeper
+# off-events and relies on THIS poller to page them, so a protection ALREADY off
+# with no prior baseline would otherwise be silently accepted and go unpaged
+# forever. Page each already-off protection as a first-observation exposure
+# (screenlock too: it is poller-only, and an already-off lock is a real exposure),
+# with the same notify-before-persist durability. If all three are ON, seed
+# silently.
+if [[ $prev_valid -eq 0 ]]; then
+  first_obs_blocks=()
+  if [[ $cur_fw == "0" ]]; then
+    first_obs_blocks+=("**Firewall is OFF (first observation)**"$'\n'"- **Now:** **OFF**"$'\n'"- The monitor has no prior baseline and the firewall is already off, a pre-existing exposure. Did you turn it off? If not, **investigate now**."$'\n'"- Re-enable it: System Settings → Network → Firewall")
+  fi
+  if [[ $cur_gk == "0" ]]; then
+    first_obs_blocks+=("**Gatekeeper is OFF (first observation)**"$'\n'"- **Now:** **DISABLED**"$'\n'"- The monitor has no prior baseline and Gatekeeper is already disabled, a pre-existing exposure. Did you turn it off? If not, **investigate now**."$'\n'"- Re-enable it: System Settings → Privacy & Security")
+  fi
+  if [[ $cur_sl == "0" ]]; then
+    first_obs_blocks+=("**Screen lock is OFF (first observation)**"$'\n'"- **Now:** **OFF**"$'\n'"- The monitor has no prior baseline and the screen-lock password requirement is already off, anyone at the machine has access. Did you turn it off? If not, **investigate now**."$'\n'"- Re-enable it: System Settings → Lock Screen → Require password")
+  fi
+  if [[ ${#first_obs_blocks[@]} -eq 0 ]]; then
+    persist_baseline # healthy first observation: seed the baseline silently
+    exit 0
+  fi
+  page_crit_and_persist "${first_obs_blocks[@]}"
   exit 0
 fi
 
-previous_firewall="$(jq -r '.firewall' <"$STATE")"
-previous_gatekeeper="$(jq -r '.gatekeeper' <"$STATE")"
-
-# Update state file BEFORE notification so a slow alerter can't cause duplicate
-# notifications on the next tick.
-printf '%s\n' "$posture" >"$STATE"
-
-# Build human-readable messages for each transition.
-firewall_state_text() {
+# Human-readable state text for the Was: line of each transition block.
+fw_to_text() {
   case "$1" in
     0) echo "OFF" ;;
     1) echo "on (allow signed)" ;;
@@ -55,48 +209,42 @@ firewall_state_text() {
     *) echo "?($1)" ;;
   esac
 }
-gatekeeper_state_text() {
+gk_to_text() {
   case "$1" in
     0) echo "DISABLED" ;;
     1) echo "enabled" ;;
     *) echo "?($1)" ;;
   esac
 }
+sl_to_text() {
+  case "$1" in
+    0) echo "OFF" ;;
+    1) echo "on" ;;
+    *) echo "?($1)" ;;
+  esac
+}
 
-# A protection turning OFF is CRITICAL → a focused #priority block; a re-enable is
-# a NOTICE → a compact #osquery line. The block mirrors osquery-results-alerter's
-# protection-off shape: bold header, Was/Now state, then a decision-first next step
-# ("Did you turn this off? …") ahead of the re-enable line.
-critical_blocks=()
-notice_lines=()
-
-if [[ $current_firewall != "$previous_firewall" ]]; then
-  if [[ $current_firewall == "0" ]]; then
-    critical_blocks+=("**Firewall turned OFF**"$'\n'"- **Was:** $(firewall_state_text "$previous_firewall")"$'\n'"- **Now:** **OFF**"$'\n'"- Did you turn this off? If not, something else did: **investigate now**."$'\n'"- Re-enable it: System Settings → Network → Firewall")
-  else
-    notice_lines+=("🟡 **Firewall**: from: $(firewall_state_text "$previous_firewall"), to: $(firewall_state_text "$current_firewall")")
-  fi
+# A trusted baseline exists: page CRIT only on a protection turning OFF. A
+# re-enable (OFF -> ON) is good news, not actionable, and there is no notice
+# channel, so it is silent. Each block mirrors the results-alerter protection-off
+# shape: bold header, Was/Now state, then a decision-first next step.
+crit_blocks=()
+if [[ $cur_fw != "$prev_fw" && $cur_fw == "0" ]]; then
+  crit_blocks+=("**Firewall turned OFF**"$'\n'"- **Was:** $(fw_to_text "$prev_fw")"$'\n'"- **Now:** **OFF**"$'\n'"- Did you turn this off? If not, something else did, **investigate now**."$'\n'"- Re-enable it: System Settings → Network → Firewall")
 fi
-if [[ $current_gatekeeper != "$previous_gatekeeper" ]]; then
-  if [[ $current_gatekeeper == "0" ]]; then
-    critical_blocks+=("**Gatekeeper turned OFF**"$'\n'"- **Was:** $(gatekeeper_state_text "$previous_gatekeeper")"$'\n'"- **Now:** **DISABLED**"$'\n'"- Did you turn this off? If not, something else did: **investigate now**."$'\n'"- Re-enable it: System Settings → Privacy & Security")
-  else
-    notice_lines+=("🟡 **Gatekeeper**: from: $(gatekeeper_state_text "$previous_gatekeeper"), to: $(gatekeeper_state_text "$current_gatekeeper")")
-  fi
+if [[ $cur_gk != "$prev_gk" && $cur_gk == "0" ]]; then
+  crit_blocks+=("**Gatekeeper turned OFF**"$'\n'"- **Was:** $(gk_to_text "$prev_gk")"$'\n'"- **Now:** **DISABLED**"$'\n'"- Did you turn this off? If not, something else did, **investigate now**."$'\n'"- Re-enable it: System Settings → Privacy & Security")
+fi
+if [[ $cur_sl != "$prev_sl" && $cur_sl == "0" ]]; then
+  crit_blocks+=("**Screen lock turned OFF**"$'\n'"- **Was:** $(sl_to_text "$prev_sl")"$'\n'"- **Now:** **OFF**"$'\n'"- Did you turn this off? If not, something else did, **investigate now**."$'\n'"- Re-enable it: System Settings → Lock Screen → Require password")
 fi
 
-# No transitions. Silent.
-[[ ${#critical_blocks[@]} -eq 0 && ${#notice_lines[@]} -eq 0 ]] && exit 0
+# No OFF transition (steady state or a re-enable): refresh the baseline, silent.
+if [[ ${#crit_blocks[@]} -eq 0 ]]; then
+  persist_baseline
+  exit 0
+fi
 
-if [[ ${#critical_blocks[@]} -gt 0 ]]; then
-  body="$(printf '%s\n\n' "${critical_blocks[@]}")"
-  body=${body%$'\n\n'}
-  title="🔴 **CRITICAL**"
-  if [[ ${#critical_blocks[@]} -gt 1 ]]; then title="🔴 **CRITICAL** · ${#critical_blocks[@]}"; fi
-  send_alert CRIT "$title" "$body" "Sosumi"
-fi
-if [[ ${#notice_lines[@]} -gt 0 ]]; then
-  body="$(printf '%s\n' "${notice_lines[@]}")"
-  body=${body%$'\n'}
-  send_alert NOTICE "🟡 **Notice** · ${#notice_lines[@]}" "$body" "Glass"
-fi
+# An OFF transition: page (notify-before-persist), then advance the baseline. One
+# page for the tick, even when several protections turned off together.
+page_crit_and_persist "${crit_blocks[@]}"
