@@ -129,11 +129,15 @@ run_heartbeat() {
     bash "$HEARTBEAT"
 }
 
-@test "B1: a fresh canary sends exactly one message that reads healthy" {
+@test "B1: a fresh canary sends exactly one CRIT message that reads healthy" {
   seed_canary 30 # the daemon wrote a canary 30s ago -> alive and scheduling
   run run_heartbeat
   [ "$status" -eq 0 ]
   [ "$(grep -c '^CALL$' "$SEND_ALERT_LOG")" -eq 1 ]
+  # CRIT is load-bearing: only a CRIT reaches the #priority webhook, so a non-CRIT
+  # send would return after the local notification and the daily-message-means-alive
+  # protocol would die silently.
+  [ "$(cat "$SEND_ALERT_SEVERITY")" = "CRIT" ]
   grep -qiF "healthy" "$SEND_ALERT_TITLE"
 }
 
@@ -156,6 +160,7 @@ run_heartbeat() {
   run run_heartbeat
   [ "$status" -eq 0 ]
   [ "$(grep -c '^CALL$' "$SEND_ALERT_LOG")" -eq 1 ]
+  [ "$(cat "$SEND_ALERT_SEVERITY")" = "CRIT" ] # only CRIT reaches #priority
   grep -qiE "stale|not producing" "$SEND_ALERT_BODY"
   # Precise: refute the healthy TITLE signal, not the bare substring "healthy" (which
   # also matches "unhealthy" - a case-insensitive substring would false-forbid it).
@@ -182,6 +187,7 @@ run_heartbeat() {
   run run_heartbeat
   [ "$status" -eq 0 ]
   [ "$(grep -c '^CALL$' "$SEND_ALERT_LOG")" -eq 1 ]
+  [ "$(cat "$SEND_ALERT_SEVERITY")" = "CRIT" ] # only CRIT reaches #priority
   grep -qiE "missing|no canary" "$SEND_ALERT_BODY"
   refute_file_contains "stale" "$SEND_ALERT_BODY"
   # Precise healthy-signal refute (not the bare "healthy" substring, which matches "unhealthy").
@@ -334,4 +340,15 @@ STUB
   seed_raw_canary "not-a-number"
   run newest_canary_timestamp
   [ -z "$output" ] # malformed -> validated to empty, never reaches the decision
+}
+
+@test "fire-and-forget: a hard send failure never fails the heartbeat (exit 0)" {
+  # The heartbeat advances no state and delegates durability to send_alert, so a send
+  # that returns nonzero (a hard persist failure) must not fail the launchd job: the
+  # next day re-fires and the watchdog is the real safety net. SEND_ALERT_RC=1 forces
+  # the spy to fail; the heartbeat's `|| true` swallows it and still exits 0.
+  seed_canary 30
+  SEND_ALERT_RC=1 run run_heartbeat
+  [ "$status" -eq 0 ]
+  [ "$(grep -c '^CALL$' "$SEND_ALERT_LOG")" -eq 1 ] # it did attempt the send
 }
