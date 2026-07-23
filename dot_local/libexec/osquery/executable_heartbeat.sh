@@ -52,7 +52,11 @@ main() {
     age=$((now - last_ts))
     title="✅ osquery pipeline healthy · $(date -u +%Y-%m-%d)"
     detail="- osqueryd is alive and running its schedule: its heartbeat canary is fresh (${age}s ago). This verifies the root daemon itself. The uptime watchdog verifies each monitor agent is loaded and pages if one is down. Silence since the last message means all clear."
-    send_alert CRIT "$title" "$detail" "Glass" || true
+    # The EMPTY sound is deliberate: it keeps the message locally silent AND makes
+    # send_alert thread tier=muted into the webhook body. A proof-of-life must never
+    # ping like a real page. Fire-and-forget: the heartbeat advances no state, so a
+    # send failure is low-stakes (the next day re-fires; the watchdog is the pager).
+    send_alert CRIT "$title" "$detail" "" || true
   fi
 }
 

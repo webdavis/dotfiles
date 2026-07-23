@@ -95,3 +95,13 @@ run_heartbeat() {
   [ "$(grep -c '^CALL$' "$SEND_ALERT_LOG")" -eq 1 ]
   grep -qiF "healthy" "$SEND_ALERT_TITLE"
 }
+
+@test "B2: the healthy message is silent (empty sound), a proof-of-life never pings" {
+  # GATE (never-pings): the muted tier is the security invariant. An empty sound
+  # keeps the message locally silent AND threads tier=muted into the webhook body,
+  # so a daily proof-of-life can never desensitize the operator to a real page.
+  seed_canary 30
+  run run_heartbeat
+  [ "$status" -eq 0 ]
+  [ -z "$(cat "$SEND_ALERT_SOUND")" ]
+}
