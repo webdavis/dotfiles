@@ -53,17 +53,32 @@ newest_canary_timestamp() {
 }
 
 main() {
-  local now last_canary_timestamp age title detail
-  now="$(date -u +%s)"
-  [[ $now =~ ^[0-9]+$ ]] || now=0
+  local now last_canary_timestamp age skew title detail
+
+  # A trustworthy clock is required FIRST. A failed or non-numeric `date` means
+  # freshness cannot be judged at all, so report unhealthy rather than fall back to
+  # now=0, which would make every historical canary look fresh: a false-healthy. The
+  # capture is guarded (|| true) so a date that exits nonzero does not abort under
+  # set -e; the numeric check then catches both a failed and a garbage read.
+  now="$(date -u +%s 2>/dev/null || true)"
+  if [[ ! $now =~ ^[0-9]+$ ]]; then
+    detail="- The heartbeat cannot determine the current time (the system clock read failed), so it cannot judge whether osqueryd is producing scheduled results. Treat this as unverified, not healthy. The uptime watchdog pages on a real outage; this note is the silent daily record."
+    send_alert CRIT "⚠️ osquery heartbeat · time unknown" "$detail" "" || true
+    return 0
+  fi
 
   last_canary_timestamp="$(newest_canary_timestamp)"
 
-  if [[ -n $last_canary_timestamp ]] && ((now - last_canary_timestamp <= canary_max_age)); then
+  # HEALTHY iff a canary sits within the freshness window in EITHER direction
+  # (|now - timestamp| <= canary_max_age): a small clock skew still counts, but a far
+  # future OR far past timestamp does not. Two-sided on purpose, so a future-dated row
+  # can never false-healthy the way a one-sided `now - ts <= max` would.
+  if [[ -n $last_canary_timestamp ]] &&
+    ((now - last_canary_timestamp <= canary_max_age)) &&
+    ((last_canary_timestamp - now <= canary_max_age)); then
     age=$((now - last_canary_timestamp))
-    # A future-dated canary (an NTP step-back leaving the timestamp slightly ahead of
-    # now) is still fresh, but its age is negative; clamp it so the message never
-    # renders a nonsensical "(-120s ago)". An if (not `&& age=0`) keeps it set -e safe.
+    # A within-window future skew has a negative age; clamp so the message renders
+    # "just now" (0s), never a nonsensical "(-120s ago)". An if keeps it set -e safe.
     if ((age < 0)); then age=0; fi
     title="✅ osquery pipeline healthy · $(date -u +%Y-%m-%d)"
     detail="- osqueryd is alive and running its schedule: its heartbeat canary is fresh (${age}s ago). This verifies the root daemon itself. The uptime watchdog verifies each monitor agent is loaded and pages if one is down. Silence since the last message means all clear."
@@ -73,17 +88,20 @@ main() {
     # send failure is low-stakes (the next day re-fires; the watchdog is the pager).
     send_alert CRIT "$title" "$detail" "" || true
   else
-    # Not fresh: osqueryd is not producing scheduled results. Report unhealthy,
-    # never a blind checkmark. STALE (a real, over-bound age) and MISSING (no canary
-    # row at all) are reported HONESTLY as distinct states: an absent timestamp has
-    # no elapsed age, so it must not be dressed up as a stale age. Only the
-    # arithmetic AGE (validated-numeric operands) is ever rendered, no raw log field.
+    # UNHEALTHY. Three honest sub-cases, each rendered with a POSITIVE number so the
+    # message never shows a negative or garbage age: MISSING (no canary row),
+    # IMPLAUSIBLE (a timestamp implausibly far in the future, i.e. clock skew or a bad
+    # row), or STALE (a real, over-bound elapsed age). Only validated arithmetic is
+    # rendered, never a raw log field.
     title="⚠️ osquery heartbeat · $(date -u +%Y-%m-%d)"
-    if [[ -n $last_canary_timestamp ]]; then
+    if [[ -z $last_canary_timestamp ]]; then
+      detail="- osqueryd scheduled heartbeat canary is MISSING (no canary snapshot found). The root daemon is not producing scheduled results, or has never run the schedule. The uptime watchdog pages on this; this note is the silent daily record."
+    elif ((last_canary_timestamp - now > canary_max_age)); then
+      skew=$((last_canary_timestamp - now))
+      detail="- osqueryd scheduled heartbeat canary timestamp is IMPLAUSIBLE (${skew}s in the future, over ${canary_max_age}s). This is clock skew or a bad row, not a trustworthy liveness signal. The uptime watchdog pages on a real outage; this note is the silent daily record."
+    else
       age=$((now - last_canary_timestamp))
       detail="- osqueryd scheduled heartbeat canary is STALE (last ${age}s ago, over ${canary_max_age}s). The root daemon is not producing scheduled results (stopped or wedged). The uptime watchdog pages on this; this note is the silent daily record."
-    else
-      detail="- osqueryd scheduled heartbeat canary is MISSING (no canary snapshot found). The root daemon is not producing scheduled results, or has never run the schedule. The uptime watchdog pages on this; this note is the silent daily record."
     fi
     # Muted too (empty sound): the heartbeat never pings, even when it reports a
     # problem. The watchdog is what pages; this note is the silent daily record.

@@ -266,6 +266,44 @@ run_heartbeat() {
   refute_file_contains "(-" "$SEND_ALERT_BODY" # never a negative age such as "(-120s ago)"
 }
 
+@test "implausible-future: a canary far in the future reports unhealthy IMPLAUSIBLE, not healthy" {
+  # GATE (fail-safe): the freshness window is TWO-SIDED. A canary timestamped well
+  # beyond the window in the FUTURE (clock skew or a bad row) is not a trustworthy
+  # liveness signal, so it fails the future half and reports unhealthy IMPLAUSIBLE,
+  # never healthy. (A small +120s skew stays healthy; see clock-skew.) The rendered
+  # skew is a POSITIVE number.
+  local ts
+  ts=$(($(date -u +%s) + 100000)) # far beyond any reasonable freshness window
+  jq -cn --argjson t "$ts" \
+    '{name:"heartbeat_canary",action:"snapshot",snapshot:[{unix_time:($t|tostring)}],unixTime:$t,hostIdentifier:"dresden"}' \
+    >>"$OSQUERY_SNAPSHOTS_LOG"
+  run run_heartbeat
+  [ "$status" -eq 0 ]
+  [ "$(grep -c '^CALL$' "$SEND_ALERT_LOG")" -eq 1 ]
+  refute_file_contains "pipeline healthy" "$SEND_ALERT_TITLE"
+  grep -qiE "implausible|future" "$SEND_ALERT_BODY"
+  refute_file_contains "(-" "$SEND_ALERT_BODY" # a positive skew, never a negative number
+}
+
+@test "clock-failure: a non-numeric clock reports unhealthy, never false-healthy via now=0" {
+  # GATE (fail-safe): if the system clock read returns non-numeric (or fails), the
+  # heartbeat cannot judge freshness. It must NOT fall back to now=0 (which makes
+  # every historical canary look fresh, a false-healthy); it reports unhealthy that it
+  # cannot determine the current time. A real, fresh canary is seeded to prove even
+  # that does not read healthy without a trustworthy clock.
+  seed_canary 30
+  cat >"$HARNESS_HOME/bin/date" <<'STUB'
+#!/usr/bin/env bash
+printf 'not-a-time\n'
+STUB
+  chmod +x "$HARNESS_HOME/bin/date"
+  run run_heartbeat
+  [ "$status" -eq 0 ]
+  [ "$(grep -c '^CALL$' "$SEND_ALERT_LOG")" -eq 1 ]
+  refute_file_contains "pipeline healthy" "$SEND_ALERT_TITLE"
+  grep -qiE "cannot determine|current time" "$SEND_ALERT_BODY"
+}
+
 @test "seam: newest_canary_timestamp returns the newest validated integer, else empty" {
   # The read is extracted into a directly testable seam; the source-guard lets a test
   # source the script without launching main. An empty log -> empty; a well-formed
