@@ -59,8 +59,9 @@ digest_title() { printf '🗒️ osquery daily digest · %s · %s item(s)' "$(da
 # the body string, never send. Findings group by detector; each group renders a
 # header with its true count, up to DIGEST_MAX_BULLETS_PER_GROUP bullets, then a
 # "+K more" roll-up. At most DIGEST_MAX_GROUPS groups render (the rest collapse to
-# an "and K more" marker), and a hard head -c backstop caps the whole body at
-# DIGEST_MAX_BODY_CHARS, well under Discord's 2000-char limit. Each field is
+# an "and K more" marker), and a codepoint-wise cap inside jq truncates the whole
+# body at DIGEST_MAX_BODY_CHARS with a marker (no `head -c` pipe, so no silent
+# byte-cut and no SIGPIPE), well under Discord's 2000-char limit. Each field is
 # truncated at DIGEST_MAX_FIELD_CHARS so one giant value cannot fill the body cap
 # and crowd every other detector out. The four caps are env-overridable named
 # knobs, not magic numbers, and the group cap keeps a busy day from losing whole
@@ -82,7 +83,8 @@ render_digest_body() {
   jq -rRs \
     --argjson max_bullets "$max_bullets" \
     --argjson max_groups "$max_groups" \
-    --argjson max_field "$max_field" '
+    --argjson max_field "$max_field" \
+    --argjson max_body_chars "$max_body_chars" '
     # The single sanitize chokepoint every attacker-influenceable field passes
     # through before it is wrapped in an inline-code span below: strip backticks (so
     # a crafted value cannot close its wrapping span and escape to live markdown),
@@ -110,14 +112,19 @@ render_digest_body() {
     split("\n")
     | map(select(length > 0) | (try fromjson catch empty))
     | group_by(.detector) as $groups
-    # Cap the NUMBER of groups and mark the overflow, so a busy day cannot drop
-    # whole trailing groups to a silent mid-line head -c cut (the dropped content
-    # still lives in the spool/.last). head -c below is the final hard backstop.
-    | ($groups[0:$max_groups][] | render_group),
-      (if ($groups | length) > $max_groups
-       then "… and \(($groups | length) - $max_groups) more detector group(s) - see results.log"
-       else empty end)
-  ' "$work_file" | head -c "$max_body_chars"
+    # Cap the NUMBER of groups and mark the overflow, so a busy day cannot drop whole
+    # trailing groups to a silent mid-line cut (the dropped content still lives in the
+    # spool/.last). Collect the whole stream into one string, then codepoint-slice it
+    # to $max_body_chars with a marker: the cap lives INSIDE jq (no `| head -c`), so it
+    # truncates honestly (no lost tail markers, no mid-multibyte cut) and there is no
+    # pipe to block on a huge body and take SIGPIPE.
+    | [ ($groups[0:$max_groups][] | render_group),
+        (if ($groups | length) > $max_groups
+         then "… and \(($groups | length) - $max_groups) more detector group(s) - see results.log"
+         else empty end) ]
+    | join("\n")
+    | if length > $max_body_chars then .[0:$max_body_chars] + "\n… (truncated)" else . end
+  ' "$work_file"
 }
 
 main() {

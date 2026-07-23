@@ -394,28 +394,52 @@ assert_last_mode_600() {
   assert_body_has "$body" 'and 3 more detector group(s)'
 }
 
-@test "the body stays under the char cap even with many findings" {
+@test "the body is codepoint-capped with an honest truncation marker" {
   local records=() i
   for i in $(seq 1 150); do
     records+=("$(printf '{"timestamp":"t","detector":"det_%s","category":"","identity":"identity_number_%s","action":"added","summary":"a summary long enough to add real bytes for finding number %s"}' "$((i % 15))" "$i" "$i")")
   done
-  # Default cap: the body renders content yet stays well under Discord's 2000.
-  local body bytes
+  # Default cap: content renders, the truncation is MARKED (a silent head -c byte cut is a bug),
+  # and the body stays well under Discord's 2000. Length is codepoints (jq slices codepoints).
+  local body cp
   body="$(render_body "${records[@]}")"
   assert_body_has "$body" '**det_'
-  bytes="$(body_byte_length "$body")"
-  if [[ $bytes -gt 1800 ]]; then
-    printf 'expected body <= the 1800 default cap (well under 2000), got %s\n' "$bytes" >&2
+  assert_body_has "$body" '(truncated)'
+  cp="$(printf '%s' "$body" | wc -m | tr -d '[:space:]')"
+  if [[ $cp -gt 1830 ]]; then
+    printf 'expected body <= ~1830 codepoints (1800 cap + marker), got %s\n' "$cp" >&2
     return 1
   fi
-  # Overridable: a tighter cap is honored, proving the hard head -c backstop and the knob.
+  # Overridable and still honest: a tighter cap is honored with the same marker.
   export DIGEST_MAX_BODY_CHARS=500
   body="$(render_body "${records[@]}")"
-  bytes="$(body_byte_length "$body")"
-  if [[ $bytes -gt 500 ]]; then
-    printf 'expected body <= the 500 override cap, got %s\n' "$bytes" >&2
+  assert_body_has "$body" '(truncated)'
+  cp="$(printf '%s' "$body" | wc -m | tr -d '[:space:]')"
+  if [[ $cp -gt 530 ]]; then
+    printf 'expected body <= ~530 codepoints (500 cap + marker), got %s\n' "$cp" >&2
     return 1
   fi
+}
+
+@test "an oversized body is capped inside jq and sent once, with no broken-pipe failure" {
+  # A body far larger than the macOS pipe buffer (which grows to ~64KB) made `jq | head -c` block
+  # on write and take SIGPIPE (rc 141), which tripped the ERR trap and sent nothing on busy days.
+  # Raise the field cap and seed large fields so the body far exceeds the buffer; the body cap must
+  # live INSIDE jq (no pipe) so an over-cap body truncates and sends exactly once.
+  local big records=() i
+  big="$(printf 'x%.0s' {1..5000})"
+  for i in $(seq 1 20); do # 2 detectors x 10 findings, ~10KB per bullet -> ~200KB pre-cap
+    records+=("$(digest_record "det_$((i % 2))" "id${i}_$big" "sum${i}_$big")")
+  done
+  export DIGEST_MAX_FIELD_CHARS=6000 # let the big fields through, so the body blows past the buffer
+  seed_store "${records[@]}"
+  run run_digest
+  if [[ $status -ne 0 ]]; then
+    printf 'expected the oversized body to cap and send (exit 0), got %s: %s\n' "$status" "$output" >&2
+    return 1
+  fi
+  assert_sent_once
+  assert_sent_body_has '(truncated)' # capped, and the truncation is marked
 }
 
 @test "the group and bullet caps are env-overridable named constants" {
