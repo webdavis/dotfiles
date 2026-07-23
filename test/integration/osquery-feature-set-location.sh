@@ -11,9 +11,9 @@ cd "$REPO_ROOT"
 
 fail=0
 
-# 1. The libexec home holds the six scripts (prefix dropped). A git ls-files
+# 1. The libexec home holds the seven scripts (prefix dropped). A git ls-files
 # failure fails the test.
-for f in alert-dispatch digest enrich-finding firewall-gatekeeper-monitor results-alerter uptime-watchdog; do
+for f in alert-dispatch digest enrich-finding firewall-gatekeeper-monitor heartbeat results-alerter uptime-watchdog; do
   path="dot_local/libexec/osquery/executable_${f}.sh"
   if ! listed="$(git ls-files "$path")"; then
     printf 'FAIL: git ls-files failed while checking %s\n' "$path" >&2
@@ -44,15 +44,15 @@ assert_contains() {
   esac
 }
 
-# The four launchd plists' ProgramArguments point at the libexec home.
-for name in digest firewall-gatekeeper-monitor results-alerter uptime-watchdog; do
+# The five launchd plists' ProgramArguments point at the libexec home.
+for name in digest firewall-gatekeeper-monitor heartbeat results-alerter uptime-watchdog; do
   assert_contains ".local/libexec/osquery/${name}.sh" \
     "Library/LaunchAgents/com.webdavis.osquery-${name}.plist.tmpl"
 done
 
-# The four consumers source the dispatch library from the libexec home.
+# The five consumers source the dispatch library from the libexec home.
 # The needles below are literal source lines; $HOME must NOT expand here.
-for name in digest firewall-gatekeeper-monitor results-alerter uptime-watchdog; do
+for name in digest firewall-gatekeeper-monitor heartbeat results-alerter uptime-watchdog; do
   # shellcheck disable=SC2016
   assert_contains 'source "$HOME/.local/libexec/osquery/alert-dispatch.sh"' \
     "dot_local/libexec/osquery/executable_${name}.sh"
