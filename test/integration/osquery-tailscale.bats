@@ -547,6 +547,41 @@ SERVE_ONLY='{"Web":{"dresden.tailnet.ts.net:443":{"Handlers":{"/":{"Proxy":"http
 
 # --- B23: a baseline-write failure is a loud degraded-monitor gap ----------------
 
+@test "T-TS-reopen-after-failed-close-pages: a funnel reopen after a failed close-write is not masked by the stale baseline" {
+  # FIX A (fail-open): a failed close-write leaves a stale "active" baseline. Without
+  # distrusting it, a later reopen (cur=active, stale prev=active) is silently
+  # suppressed - a MISSED public re-exposure. The persist-gap marker makes the on-disk
+  # baseline untrustworthy, so the reopen pages.
+  seed_funnel_state active
+
+  # Tick 1: the funnel closes, but write_state FAILS (the dir stays writable so the
+  # persist-gap marker IS recorded), leaving the stale "active" baseline.
+  set_funnel '{}'
+  block_state_write
+  run run_tailscale_monitor
+  [[ $status -ne 0 ]] || {
+    echo "tick1 expected nonzero on the failed persist, got $status: $output"
+    false
+  }
+  assert_page_count 1           # the degraded-monitor page
+  assert_persist_gap_marker     # the marker was written (dir stayed writable)
+  assert_baseline_funnel active # the stale "active" baseline remains (write failed)
+  unblock_state_write
+
+  # Tick 2: storage recovered; the funnel REOPENS active. The stale "active" baseline
+  # must NOT suppress the exposure page.
+  set_funnel "$FUNNEL_ON"
+  run run_tailscale_monitor
+  [[ $status -eq 0 ]] || {
+    echo "tick2 status $status: $output"
+    false
+  }
+  assert_page_count 2 # a SECOND page: the reopen exposure (reds now - stale prev=active suppresses it)
+  assert_page_body_has 'Funnel'
+  assert_baseline_funnel active
+  assert_no_persist_gap_marker # the successful persist cleared the marker (recovery)
+}
+
 @test "T-TS-persist-failure-pages-degraded: a baseline-write failure pages a degraded-monitor gap, never silently trusts a stale baseline" {
   # A funnel closing (active->inactive) is a SILENT path that still must persist the
   # new baseline. Make the state dir unwritable so write_state fails on this tick.

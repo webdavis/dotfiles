@@ -320,6 +320,31 @@ assert_no_gap_marker() {
   fi
 }
 
+# assert_persist_gap_marker / assert_no_persist_gap_marker -- the baseline-persist
+# failure page-once marker (STATE.persist-gap): set when write_state fails, cleared
+# on the next successful persist.
+assert_persist_gap_marker() {
+  if [[ ! -f $OSQUERY_TAILSCALE_STATE.persist-gap ]]; then
+    printf 'expected the persist-gap marker %s.persist-gap to exist, but it does not\n' "$OSQUERY_TAILSCALE_STATE" >&2
+    return 1
+  fi
+}
+
+assert_no_persist_gap_marker() {
+  if [[ -f $OSQUERY_TAILSCALE_STATE.persist-gap ]]; then
+    printf 'expected NO persist-gap marker, but %s.persist-gap exists\n' "$OSQUERY_TAILSCALE_STATE" >&2
+    return 1
+  fi
+}
+
+# block_state_write / unblock_state_write -- make write_state FAIL while keeping the
+# state DIR writable, so the persist-gap marker can still be written (the failure mode
+# FIX A protects: a failed close-write that DID record the marker). write_state
+# redirects into "$STATE.tmp"; pre-creating that path as a DIRECTORY makes the redirect
+# fail, so the atomic write fails without touching the dir permissions.
+block_state_write() { mkdir -p "$OSQUERY_TAILSCALE_STATE.tmp"; }
+unblock_state_write() { rmdir "$OSQUERY_TAILSCALE_STATE.tmp" 2>/dev/null || true; }
+
 # assert_page_saw_prior_not_active -- at the moment send_alert fired, the persisted
 # baseline was NOT yet active (either absent, or holding the prior inactive value),
 # proving the page fired BEFORE the baseline advanced (notify-before-persist).

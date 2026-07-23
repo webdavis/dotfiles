@@ -160,6 +160,18 @@ case "$prev_funnel" in
   *) prev_funnel="" ;;
 esac
 
+# If the LAST persist FAILED (the persist-gap marker is present), the on-disk baseline
+# is stale and untrustworthy: a failed close-write can leave an "active" baseline that
+# would mask a later reopen (a missed public re-exposure). Distrust it, so an active
+# read pages after any persist failure - a duplicate page is safe, a missed one is not.
+# persist_baseline clears the marker on the next successful write (recovery). Honest
+# residual: if storage is so broken the marker itself cannot be written, the durable
+# degraded-monitor page (send_alert is durable independent of local state) is the
+# safety signal; unsolvable local-storage loss is not solved here.
+if [[ -f $PERSIST_GAP ]]; then
+  prev_funnel=""
+fi
+
 # A missing binary is a monitoring gap (the regression that left this monitor dead
 # on the formula install). CRIT so it reaches the remote channel, page-once. The
 # body names the local binary PATH (operator/env-controlled, not network data).
