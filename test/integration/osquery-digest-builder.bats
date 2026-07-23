@@ -548,26 +548,63 @@ assert_last_mode_600() {
   assert_sent_body_has '`42`'           # the numeric identity coerced to a string
 }
 
-@test "a failed send still rotates the batch to .last and never restores it for a re-send" {
-  seed_store "$(digest_record persistence_launchd com.foo.agent 'persistence_launchd com.foo.agent')"
-  export SEND_ALERT_RC=1 # the spy simulates a HARD send failure
+@test "a hard send failure (persist failed) restores the batch to the live store for retry" {
+  # send_alert returns nonzero ONLY when its write-ahead persist failed: the page was neither
+  # delivered NOR stored ("the caller must not advance its cursor past it"), so the batch must be
+  # RESTORED, not rotated to .last, and the next run retries it. Restoring cannot double-store
+  # because nothing was stored.
+  seed_store "$(digest_record persistence_launchd com.foo.agent 'foo')"
+  export SEND_ALERT_RC=1
   run run_digest
   if [[ $status -ne 0 ]]; then
-    printf 'expected fire-and-forget exit 0 despite the failed send, got %s: %s\n' "$status" "$output" >&2
+    printf 'expected exit 0 despite the hard send failure, got %s: %s\n' "$status" "$output" >&2
     return 1
   fi
-  assert_sent_once        # exactly one send ATTEMPT, no restore-and-retry loop
-  assert_batch_in_last 1  # preserved to .last, NOT restored to the live store
-  assert_live_store_freed # durability lives in send_alert's write-ahead store, not a batch restore
-  # A second run finds a fresh (empty) store and is silent: this batch is never re-sent.
-  : >"$SEND_ALERT_LOG"
-  unset SEND_ALERT_RC
+  assert_sent_once
+  assert_live_store_restored 1 # RESTORED for retry (the page was neither delivered nor stored)
+  if [[ -e $OSQUERY_DIGEST_STORE.last ]]; then
+    printf 'expected NO .last on a hard-fail restore, but it exists\n' >&2
+    return 1
+  fi
+}
+
+@test "a stored send (delivery pending, rc 0) rotates the batch to .last, not restored" {
+  # send_alert returns 0 on every STORED outcome (delivered, stored-nosecret, stored-delivery-
+  # pending): durability is delegated to its write-ahead store + drainer, so the batch is rotated
+  # to .last, NOT restored (a restore would double-store and re-send a duplicate next run).
+  seed_store "$(digest_record persistence_launchd com.foo.agent 'foo')"
+  export SEND_ALERT_RC=0
   run run_digest
   if [[ $status -ne 0 ]]; then
-    printf 'expected the second run silent (exit 0), got %s\n' "$status" >&2
+    printf 'expected exit 0, got %s: %s\n' "$status" "$output" >&2
     return 1
   fi
-  assert_no_send
+  assert_sent_once
+  assert_batch_in_last 1  # rotated to .last (durability delegated to send_alert)
+  assert_live_store_freed # NOT restored
+}
+
+@test "restore preserves a finding appended to the fresh store during the build" {
+  # The alerter can append a NEW finding to the fresh live store WHILE the build runs. A restore
+  # that OVERWRITES the store (mv -f) destroys that concurrent append; an append-restore keeps it.
+  # Order within a grouped digest is irrelevant, so appending is safe.
+  seed_store \
+    "$(digest_record persistence_launchd com.batch.a 'A')" \
+    "$(digest_record persistence_launchd com.batch.b 'B')"
+  local concurrent
+  concurrent="$(digest_record sudoers /etc/sudoers.d/c 'C')"
+  # Drive the builder with a render step that appends a concurrent finding to the fresh store, then
+  # fails to force the pre-send restore.
+  CONCURRENT_RECORD="$concurrent" bash -c '
+    source "$DIGEST_BUILDER"
+    render_digest_body() { printf "%s\n" "$CONCURRENT_RECORD" >>"$OSQUERY_DIGEST_STORE"; return 1; }
+    main
+  ' digest-concurrent-restore-probe || true
+  local store_content
+  store_content="$(cat "$OSQUERY_DIGEST_STORE" 2>/dev/null || true)"
+  assert_body_has "$store_content" 'com.batch.a'     # the claimed batch is restored
+  assert_body_has "$store_content" 'com.batch.b'
+  assert_body_has "$store_content" '/etc/sudoers.d/c' # AND the concurrent append survives
 }
 
 @test "an all-torn store renders an empty body, so it sends nothing and preserves the batch to .last" {

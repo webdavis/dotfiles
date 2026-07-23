@@ -30,11 +30,16 @@ OSQUERY_DIGEST_STORE_DEFAULT="$HOME/.local/state/osquery-digest-spool/digest.ndj
 # and .build names the in-flight batch for forensics.
 rotated_work_file() { printf '%s.%s.build' "$1" "$(date -u +%s)"; }
 
-# restore_batch <work_file> <store> - put the claimed batch back as the live store
-# so the next daily run retries it. This is the ERR trap's action for a build
-# failure BEFORE the send: a silently dropped digest is invisible to this single
-# user, so a failed build must leave the findings for another run, not lose them.
-restore_batch() { mv -f "$1" "$2" 2>/dev/null || true; }
+# restore_batch <work_file> <store> - put the claimed batch back as the live store so the next
+# daily run retries it. It APPENDS rather than mv -f overwrites: the alerter can append a new
+# finding to the fresh store DURING the build, and an overwrite would destroy that concurrent
+# append, whereas an append cannot clobber it (order within a grouped digest is irrelevant). The
+# work file is removed only if the append succeeded, so a failed append leaves the batch to retry.
+# This is the ERR trap's action for a build failure before the send AND the hard-send-failure
+# branch: a silently dropped digest is invisible to this single user.
+restore_batch() {
+  if cat -- "$1" >>"$2" 2>/dev/null; then rm -f -- "$1" || true; fi
+}
 
 # rotate_to_last <work_file> <store> - preserve the built batch as $store.last for
 # forensics, regardless of send outcome; the live store is already fresh (rotated at
@@ -175,24 +180,24 @@ main() {
   item_count="$(grep -c . "$work_file" 2>/dev/null)" || item_count=0
   title="$(digest_title "$item_count")"
 
-  # Fire-and-forget from here: CLEAR the pre-send restore trap so a failed send never
-  # restores the batch. send_alert is write-ahead durable on its own (it persists a
-  # pending_alerts row and the scheduled drainer retries it, exactly as the page path),
-  # so restoring would double-store and re-send a duplicate on the next run.
+  # Clear the pre-send restore trap: item_count and title above were the last trap-guarded build
+  # steps, and the send outcome is handled EXPLICITLY below, not by the trap.
   trap - ERR
 
-  # CRIT selects the #priority route; the EMPTY sound makes it locally silent AND
-  # threads tier=muted into the POST so the Hermes adapter suppresses the ping (a
-  # digest must never notify like a page). No occurrence id is threaded, so send_alert
-  # derives a per-send-unique request id (distinct days never collide); a re-run does
-  # not re-send this batch because the CLAIM at the start already emptied the live
-  # store (the .last rotate below is forensic, not the dedup). || true: a hard send
-  # failure is low-stakes (send_alert already stored the page and alerted locally), so
-  # keep it off set -e's abort path and still rotate to .last.
-  send_alert CRIT "$title" "$body" "" || true
-
-  # Preserve the built batch as .last for forensics regardless of send outcome.
-  rotate_to_last "$work_file" "$store"
+  # CRIT selects the #priority route; the EMPTY sound makes it locally silent AND threads tier=muted
+  # into the POST so the Hermes adapter suppresses the ping (a digest must never notify like a page).
+  # No occurrence id is threaded, so send_alert derives a per-send-unique request id (distinct days
+  # never collide); the dedup is the atomic CLAIM at the start (which already emptied the live store),
+  # not this rotate. send_alert returns nonzero ONLY when its write-ahead persist FAILED (the page was
+  # neither delivered nor stored, "the caller must not advance its cursor past it"), so on failure
+  # RESTORE the batch for the next run; restoring cannot double-store because nothing was stored. On
+  # success (any STORED outcome: delivered / stored-nosecret / stored-delivery-pending) durability is
+  # delegated to send_alert's own store + drainer, so rotate the batch to .last for forensics.
+  if send_alert CRIT "$title" "$body" ""; then
+    rotate_to_last "$work_file" "$store"
+  else
+    restore_batch "$work_file" "$store"
+  fi
 }
 
 # Run only when executed, not when sourced: a test sources this file to exercise
