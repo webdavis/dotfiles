@@ -57,6 +57,14 @@ main() {
     # ping like a real page. Fire-and-forget: the heartbeat advances no state, so a
     # send failure is low-stakes (the next day re-fires; the watchdog is the pager).
     send_alert CRIT "$title" "$detail" "" || true
+  else
+    # A stale canary: osqueryd is not producing scheduled results (stopped or
+    # wedged). Report unhealthy, never a blind checkmark. Only the arithmetic AGE
+    # (validated-numeric operands) is rendered, no raw log field.
+    age=$((now - last_ts))
+    detail="- osqueryd scheduled heartbeat canary is STALE (last ${age}s ago, over ${canary_max_age}s). The root daemon is not producing scheduled results (stopped or wedged). The uptime watchdog pages on this; this note is the silent daily record."
+    title="⚠️ osquery heartbeat · $(date -u +%Y-%m-%d)"
+    send_alert CRIT "$title" "$detail" "Glass" || true
   fi
 }
 

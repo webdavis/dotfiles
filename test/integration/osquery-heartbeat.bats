@@ -59,6 +59,20 @@ SPY
   export OSQUERY_SNAPSHOTS_LOG="$HARNESS_HOME/.local/log/osquery/osqueryd.snapshots.log"
   mkdir -p "$(dirname "$OSQUERY_SNAPSHOTS_LOG")"
   : >"$OSQUERY_SNAPSHOTS_LOG"
+
+  # A recording osqueryi stub on PATH (R2-8): if the heartbeat ever shelled a
+  # one-shot osqueryi (the reverted anti-pattern), this stub answers FRESH and
+  # leaves a marker. The heartbeat must NEVER call it: it reads the daemon's OWN
+  # scheduled canary log, so a stopped daemon (a stale canary) is still caught even
+  # though a one-shot osqueryi would lie with a fresh answer.
+  mkdir -p "$HARNESS_HOME/bin"
+  export OSQUERYI_CALLED="$HARNESS_HOME/osqueryi-was-called"
+  cat >"$HARNESS_HOME/bin/osqueryi" <<'STUB'
+#!/usr/bin/env bash
+touch "$OSQUERYI_CALLED"
+printf '[{"unix_time":"%s"}]\n' "$(date -u +%s)"
+STUB
+  chmod +x "$HARNESS_HOME/bin/osqueryi"
 }
 
 # teardown_heartbeat_harness - remove ONLY a temp dir this harness created. The
@@ -81,10 +95,13 @@ seed_canary() {
 }
 
 # run_heartbeat - run the real heartbeat under the harness env (HOME is the temp
-# home so the sourced spy and default paths resolve inside the sandbox).
+# home so the sourced spy and default paths resolve inside the sandbox; the temp
+# bin is first on PATH so the osqueryi one-shot stub would be found IF the heartbeat
+# ever called it, which it must not).
 run_heartbeat() {
   HOME="$HARNESS_HOME" \
     OSQUERY_SNAPSHOTS_LOG="$OSQUERY_SNAPSHOTS_LOG" \
+    PATH="$HARNESS_HOME/bin:$PATH" \
     bash "$HEARTBEAT"
 }
 
@@ -104,4 +121,19 @@ run_heartbeat() {
   run run_heartbeat
   [ "$status" -eq 0 ]
   [ -z "$(cat "$SEND_ALERT_SOUND")" ]
+}
+
+@test "B3: a stale canary reports unhealthy, the stopped-daemon case a one-shot would miss" {
+  # GATE (fail-safe, R2-8): osqueryd stopped an hour ago, so the newest scheduled
+  # canary is an hour old. A standalone osqueryi one-shot (the stub on PATH) would
+  # still answer FRESH and give a blind checkmark; reading the daemon's own canary
+  # freshness catches the stopped daemon instead. Reports unhealthy, never healthy.
+  seed_canary 3600
+  run run_heartbeat
+  [ "$status" -eq 0 ]
+  [ "$(grep -c '^CALL$' "$SEND_ALERT_LOG")" -eq 1 ]
+  grep -qiE "stale|not producing" "$SEND_ALERT_BODY"
+  ! grep -qiF "healthy" "$SEND_ALERT_TITLE"
+  ! grep -qiF "healthy" "$SEND_ALERT_BODY"
+  [ ! -e "$OSQUERYI_CALLED" ] # never shelled a one-shot; it read the scheduled canary
 }
