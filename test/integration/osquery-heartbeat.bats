@@ -249,3 +249,19 @@ run_heartbeat() {
   [ "$(grep -c '^CALL$' "$SEND_ALERT_LOG")" -eq 1 ]
   grep -qiF "healthy" "$SEND_ALERT_TITLE"
 }
+
+@test "clock-skew: a future-dated canary reads healthy with a non-negative rendered age" {
+  # An NTP step-back can leave the newest canary timestamped slightly AHEAD of now. It
+  # is still fresh (the daemon is producing recent results), so it reads healthy; the
+  # rendered age is clamped to >= 0 so the silent daily message never shows a
+  # nonsensical negative age like "(-120s ago)".
+  local ts
+  ts=$(($(date -u +%s) + 120)) # 2 minutes in the future (the clock stepped back)
+  jq -cn --argjson t "$ts" \
+    '{name:"heartbeat_canary",action:"snapshot",snapshot:[{unix_time:($t|tostring)}],unixTime:$t,hostIdentifier:"dresden"}' \
+    >>"$OSQUERY_SNAPSHOTS_LOG"
+  run run_heartbeat
+  [ "$status" -eq 0 ]
+  grep -qiF "healthy" "$SEND_ALERT_TITLE"
+  refute_file_contains "(-" "$SEND_ALERT_BODY" # never a negative age such as "(-120s ago)"
+}

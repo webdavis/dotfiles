@@ -55,6 +55,10 @@ main() {
 
   if [[ $last_ts =~ ^[0-9]+$ ]] && ((now - last_ts <= canary_max_age)); then
     age=$((now - last_ts))
+    # A future-dated canary (an NTP step-back leaving last_ts slightly ahead of now)
+    # is still fresh, but its age is negative; clamp it so the message never renders a
+    # nonsensical "(-120s ago)". An if (not `&& age=0`) keeps it set -e safe.
+    if ((age < 0)); then age=0; fi
     title="✅ osquery pipeline healthy · $(date -u +%Y-%m-%d)"
     detail="- osqueryd is alive and running its schedule: its heartbeat canary is fresh (${age}s ago). This verifies the root daemon itself. The uptime watchdog verifies each monitor agent is loaded and pages if one is down. Silence since the last message means all clear."
     # The EMPTY sound is deliberate: it keeps the message locally silent AND makes
