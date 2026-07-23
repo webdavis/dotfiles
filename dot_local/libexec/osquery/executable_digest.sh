@@ -97,9 +97,11 @@ render_digest_body() {
     # Each attacker-influenceable field is WRAPPED in backticks (an inline-code
     # span), exactly as the alerter render-page does, so a crafted mention or link
     # renders as literal inert text, never a live Discord @everyone or clickable link.
+    # A null, missing, or numeric field is coerced first (via // and tostring), so a
+    # valid-JSON wrong-shape line cannot abort the render with a non-string gsub error.
     def render_group:
-      "**\(.[0].detector)** (\(length))",
-      (.[0:$max_bullets][] | "- `\(.identity | sanitize)` - `\(.summary | sanitize)`"),
+      "**\(.[0].detector // "?" | tostring)** (\(length))",
+      (.[0:$max_bullets][] | "- `\(.identity // "?" | tostring | sanitize)` - `\(.summary // "?" | tostring | sanitize)`"),
       (if length > $max_bullets then "… +\(length - $max_bullets) more" else empty end),
       "";
     # Parse per line and DROP a torn or malformed line (try/catch), never

@@ -505,6 +505,25 @@ assert_last_mode_600() {
   assert_live_store_freed
 }
 
+@test "a valid-JSON wrong-shape line is coerced, not fatal, and the digest still sends" {
+  # These lines PARSE (survive try/catch) but carry a null/missing or numeric identity; a bare
+  # .identity | gsub aborts jq rc=5 ("cannot be matched, not a string") -> ERR-trap restore ->
+  # permanent silent digest death + an unbounded store. The field access must coerce, not abort.
+  seed_store \
+    "$(digest_record persistence_launchd com.good.one 'good one')" \
+    '{"detector":"persistence_launchd","summary":"missing identity"}' \
+    '{"detector":"persistence_launchd","identity":42,"summary":"numeric identity"}'
+  run run_digest
+  if [[ $status -ne 0 ]]; then
+    printf 'expected exit 0 (no abort on the wrong-shape lines), got %s: %s\n' "$status" "$output" >&2
+    return 1
+  fi
+  assert_sent_once
+  assert_sent_body_has '`com.good.one`' # the good finding still rendered
+  assert_sent_body_has '`?`'            # the missing-identity line coerced to ?
+  assert_sent_body_has '`42`'           # the numeric identity coerced to a string
+}
+
 @test "a failed send still rotates the batch to .last and never restores it for a re-send" {
   seed_store "$(digest_record persistence_launchd com.foo.agent 'persistence_launchd com.foo.agent')"
   export SEND_ALERT_RC=1 # the spy simulates a HARD send failure
