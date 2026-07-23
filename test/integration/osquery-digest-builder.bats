@@ -607,6 +607,37 @@ assert_last_mode_600() {
   assert_body_has "$store_content" '/etc/sudoers.d/c' # AND the concurrent append survives
 }
 
+@test "the work-file name includes the pid, so same-second claims from different runs do not collide" {
+  # date +%s is per-second: two invocations in the same second would derive the same work file and
+  # the second mv -f would clobber the first. The name must carry the process id too.
+  local out wf pid
+  out="$(bash -c 'source "$DIGEST_BUILDER"; printf "%s\n%s" "$(rotated_work_file /tmp/store)" "$$"' digest-wf-probe)"
+  wf="$(printf '%s' "$out" | head -1)"
+  pid="$(printf '%s' "$out" | tail -1)"
+  if [[ $wf != *".$pid.build" ]]; then
+    printf 'expected the work file to end with .%s.build (per-process pid), got %s\n' "$pid" "$wf" >&2
+    return 1
+  fi
+}
+
+@test "an orphaned .build from a killed run is swept back into the next digest" {
+  # A run killed by a signal (SIGKILL, power loss, or the SIGTERM launchd sends gui agents at
+  # logout) between claim and rotate leaves a .build orphan the ERR trap could not restore (signals
+  # do not fire it) and no later run would consult. The next run must sweep it back and deliver it.
+  mkdir -p "$(dirname "$OSQUERY_DIGEST_STORE")"
+  printf '%s\n' "$(digest_record persistence_launchd com.orphan.finding 'orphaned')" \
+    >"$OSQUERY_DIGEST_STORE.1700000000.999.build"
+  seed_store "$(digest_record sudoers /etc/sudoers.d/new 'current')"
+  run run_digest
+  if [[ $status -ne 0 ]]; then
+    printf 'expected exit 0, got %s: %s\n' "$status" "$output" >&2
+    return 1
+  fi
+  assert_sent_once
+  assert_sent_body_has '`com.orphan.finding`' # the orphan finding recovered and sent
+  assert_sent_body_has '`/etc/sudoers.d/new`' # and the current finding too
+}
+
 @test "an all-torn store renders an empty body, so it sends nothing and preserves the batch to .last" {
   # Every line unparseable: Guard 2 (non-whitespace bytes) passes and the raw lines are
   # counted, but the rendered body is empty. The builder must NOT send a misleading

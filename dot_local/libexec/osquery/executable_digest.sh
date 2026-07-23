@@ -24,11 +24,12 @@ source "$HOME/.local/libexec/osquery/alert-dispatch.sh"
 # the file without a shared constant that could drift between them.
 OSQUERY_DIGEST_STORE_DEFAULT="$HOME/.local/state/osquery-digest-spool/digest.ndjson"
 
-# rotated_work_file <store> - the unique work-file path this run claims its batch
-# into. Derived from the store path plus a UTC unix timestamp and a .build suffix:
-# unique-per-run so a stale work file from a crashed run is never silently reused,
-# and .build names the in-flight batch for forensics.
-rotated_work_file() { printf '%s.%s.build' "$1" "$(date -u +%s)"; }
+# rotated_work_file <store> - the work-file path this run claims its batch into. Derived from the
+# store path plus a UTC unix timestamp, the PROCESS ID, and a .build suffix. The pid makes it
+# per-invocation unique: date +%s is only per-second, so two runs in the same second would collide
+# on the timestamp alone and the second claim would clobber the first. .build names the in-flight
+# batch for forensics and for the orphan sweep in main.
+rotated_work_file() { printf '%s.%s.%s.build' "$1" "$(date -u +%s)" "$$"; }
 
 # restore_batch <work_file> <store> - put the claimed batch back as the live store so the next
 # daily run retries it. It APPENDS rather than mv -f overwrites: the alerter can append a new
@@ -133,8 +134,19 @@ render_digest_body() {
 }
 
 main() {
-  local store work_file body item_count title
+  local store work_file body item_count title orphan
   store="${OSQUERY_DIGEST_STORE:-$OSQUERY_DIGEST_STORE_DEFAULT}"
+
+  # Recover orphaned work files first: a run killed by a signal (SIGKILL, power loss, or the SIGTERM
+  # launchd sends gui agents at logout, which is ~18:00-adjacent) between claim and rotate leaves a
+  # .build orphan the ERR trap could not restore (signals do not fire it) and no later run would
+  # consult. Fold each back into the live store before the empty gate. Steady state sweeps nothing: a
+  # normal run leaves no .build (it rotates to .last or restores). nullglob is not set, so guard the
+  # literal-pattern no-match case with -e.
+  for orphan in "$store".*.build; do
+    [[ -e $orphan ]] || continue
+    if cat -- "$orphan" >>"$store" 2>/dev/null; then rm -f -- "$orphan" || true; fi
+  done
 
   # Empty-suppression, first gate: an absent or zero-byte store has nothing to
   # summarize, so stay silent. -s is false for both a missing and an empty file.
