@@ -401,6 +401,26 @@ SERVE_ONLY='{"Web":{"dresden.tailnet.ts.net:443":{"Handlers":{"/":{"Proxy":"http
   assert_baseline_funnel active
 }
 
+@test "T-TS-corrupt-state-idle-gaps: a corrupt existing state on an idle read pages a CRIT corruption gap and recovers the baseline" {
+  # FIX B (visibility, B13): a present-but-corrupt state file is a monitor-integrity
+  # anomaly the operator should SEE (no-silent-failures). A corrupt+ACTIVE read
+  # already pages the exposure; a corrupt+IDLE read must not silently repair the
+  # garbage - it fires a CRIT corruption gap, then recovers. An ABSENT state (a first
+  # run) stays silent; only a PRESENT corrupt file signals.
+  seed_funnel_state corrupt
+  set_funnel '{}' # idle: nothing to expose, but the corruption must be surfaced
+  run run_tailscale_monitor
+  [[ $status -eq 0 ]] || {
+    echo "status $status: $output"
+    false
+  }
+  assert_page_count 1
+  assert_page_severity_is CRIT
+  assert_page_sound_nonempty
+  assert_page_body_has 'CORRUPT'
+  assert_baseline_funnel inactive # the garbage is recovered to a valid baseline
+}
+
 # --- B14: a funnel found active on recovery from a blind window pages ------------
 
 @test "T-TS-funnel-after-blind-pages: a funnel found active on recovery from a blind window pages" {

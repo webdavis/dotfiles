@@ -152,12 +152,21 @@ page_exposure_and_persist() {
 # Read the prior baseline. Only active/inactive is a valid funnel baseline; a
 # corrupt/absent value is treated as no trustworthy baseline (R2-5b).
 prev_funnel=""
+state_was_corrupt=0
 if [[ -f $STATE ]]; then
   prev_funnel=$(jq -r '.funnel // empty' <"$STATE" 2>/dev/null || echo "")
 fi
 case "$prev_funnel" in
   active | inactive) ;;
-  *) prev_funnel="" ;;
+  *)
+    # A PRESENT state file whose value is not active/inactive is CORRUPT, distinct from
+    # an ABSENT file (a first run). Flag it so a later non-paging tick surfaces the
+    # monitor-integrity anomaly instead of silently repairing it.
+    if [[ -f $STATE ]]; then
+      state_was_corrupt=1
+    fi
+    prev_funnel=""
+    ;;
 esac
 
 # If the LAST persist FAILED (the persist-gap marker is present), the on-disk baseline
@@ -245,6 +254,17 @@ rm -f "$GAP" 2>/dev/null || true
 if [[ $cur == "active" && $prev_funnel != "active" ]]; then
   page_exposure_and_persist "$funnel_json"
   exit 0
+fi
+
+# A present-but-corrupt state file is a monitor-integrity anomaly the operator should
+# SEE (no-silent-failures), even when there is nothing to page (an idle read has no
+# exposure). Fire ONE CRIT corruption gap before persist_baseline recovers the state,
+# so it does not repeat (the next tick reads a valid baseline). A corrupt+ACTIVE read
+# already paged the exposure at the transition path above and exited, so this never
+# double-pages. send_alert is durable, so a store failure is not lost.
+if [[ $state_was_corrupt -eq 1 ]]; then
+  corrupt_body="$GAP_LEAD"$'\n'"- The funnel monitor state file was CORRUPT (an unreadable baseline); it is being reset."$'\n'"$GAP_CLOSE"
+  send_alert CRIT "$CRIT_TITLE" "$corrupt_body" "Sosumi" || true
 fi
 
 # No transition to page: refresh the baseline (steady active, steady inactive, or a
