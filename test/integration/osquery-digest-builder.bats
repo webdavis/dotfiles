@@ -12,7 +12,9 @@
 #   B2 atomic rotate + ERR-restore: a store with real records is claimed into a
 #      unique work file (freeing the live store for concurrent appends), and a
 #      build failure BEFORE the send restores the batch so nothing is lost.
-# Grouping, the silent send, and the rotation to .last land in later behaviors.
+#   B3 grouped, capped, injection-safe body: findings group by detector into
+#      capped Discord-safe blocks, and a crafted field cannot inject extra lines.
+# The silent send and the rotation to .last land in later behaviors.
 
 setup() { setup_digest_harness; }
 teardown() { teardown_digest_harness; }
@@ -199,6 +201,55 @@ assert_no_work_file_left() {
   fi
 }
 
+# render_digest_body_on <work_file> - source the builder (its source-guard keeps
+# main from running) and call the build step directly on a fixture work file,
+# printing the rendered body. The unit seam for the body render: B3 has no send
+# yet, so a test reads the body from stdout.
+render_digest_body_on() {
+  bash -c 'source "$DIGEST_BUILDER"; render_digest_body "$1"' digest-render-probe "$1"
+}
+
+# render_body <record>... - build a fixture work file from the given NDJSON
+# records and print the rendered digest body.
+render_body() {
+  local work_file="$HARNESS_HOME/fixture.build"
+  printf '%s\n' "$@" >"$work_file"
+  render_digest_body_on "$work_file"
+}
+
+# assert_body_has <body> <fixed-needle> - the body contains the needle.
+assert_body_has() {
+  local body="$1" needle="$2"
+  if ! grep -qF -- "$needle" <<<"$body"; then
+    printf 'expected the digest body to contain %q, body was:\n%s\n' "$needle" "$body" >&2
+    return 1
+  fi
+}
+
+# assert_line_count <body> <regex> <n> - exactly <n> body lines match the regex.
+assert_line_count() {
+  local body="$1" regex="$2" want="$3" got
+  got="$(grep -cE -- "$regex" <<<"$body" || true)"
+  if [[ $got -ne $want ]]; then
+    printf 'expected %s line(s) matching /%s/, got %s, body was:\n%s\n' "$want" "$regex" "$got" "$body" >&2
+    return 1
+  fi
+}
+
+# assert_no_injected_line <body> - no body line BEGINS with a forged field marker.
+# A sanitized field keeps crafted "- **Signing:**" text inline within its own
+# bullet; only a sanitize regression would push it to the start of a new line.
+assert_no_injected_line() {
+  local body="$1"
+  if grep -qE '^- \*\*Signing:\*\*' <<<"$body"; then
+    printf 'INJECTION: a body line begins with a forged "- **Signing:**" marker:\n%s\n' "$body" >&2
+    return 1
+  fi
+}
+
+# body_byte_length <body> - the body length in bytes (the head -c cap's unit).
+body_byte_length() { printf '%s' "$1" | wc -c | tr -d '[:space:]'; }
+
 @test "an absent digest store produces no message and exits 0" {
   given_absent_store
   assert_silent_success
@@ -241,4 +292,92 @@ assert_no_work_file_left() {
   assert_live_store_restored 2
   assert_no_work_file_left
   assert_no_send
+}
+
+@test "findings across three detectors render as three grouped blocks with header and count" {
+  local body
+  body="$(render_body \
+    "$(digest_record persistence_launchd com.foo.agent 'persistence_launchd com.foo.agent')" \
+    "$(digest_record persistence_launchd com.bar.agent 'persistence_launchd com.bar.agent')" \
+    "$(digest_record system_extensions_new io.tailscale 'system_extensions_new io.tailscale')" \
+    "$(digest_record sudoers /etc/sudoers.d/foo 'sudoers /etc/sudoers.d/foo')")"
+  assert_body_has "$body" '**persistence_launchd** (2)'
+  assert_body_has "$body" '**system_extensions_new** (1)'
+  assert_body_has "$body" '**sudoers** (1)'
+  assert_body_has "$body" '- com.foo.agent - persistence_launchd com.foo.agent'
+  assert_body_has "$body" '- io.tailscale - system_extensions_new io.tailscale'
+}
+
+@test "a detector with more findings than the bullet cap shows N bullets and a +K more roll-up" {
+  local records=() i
+  for i in $(seq 1 14); do
+    records+=("$(digest_record persistence_launchd "com.item.$i" "summary $i")")
+  done
+  local body
+  body="$(render_body "${records[@]}")"
+  assert_body_has "$body" '**persistence_launchd** (14)' # the header counts the true total
+  assert_line_count "$body" '^- com\.item\.' 10          # DIGEST_MAX_BULLETS_PER_GROUP default
+  assert_body_has "$body" '+4 more'
+}
+
+@test "more detector groups than the group cap show M blocks and an and-K-more marker" {
+  local records=() i
+  for i in $(seq 1 15); do
+    records+=("$(digest_record "detector_$i" "id_$i" "summary $i")")
+  done
+  local body
+  body="$(render_body "${records[@]}")"
+  assert_line_count "$body" '^\*\*detector_' 12 # DIGEST_MAX_GROUPS default
+  assert_body_has "$body" 'and 3 more detector group(s)'
+}
+
+@test "the body stays under the char cap even with many findings" {
+  local records=() i
+  for i in $(seq 1 150); do
+    records+=("$(printf '{"timestamp":"t","detector":"det_%s","category":"","identity":"identity_number_%s","action":"added","summary":"a summary long enough to add real bytes for finding number %s"}' "$((i % 15))" "$i" "$i")")
+  done
+  # Default cap: the body renders content yet stays well under Discord's 2000.
+  local body bytes
+  body="$(render_body "${records[@]}")"
+  assert_body_has "$body" '**det_'
+  bytes="$(body_byte_length "$body")"
+  if [[ $bytes -gt 1800 ]]; then
+    printf 'expected body <= the 1800 default cap (well under 2000), got %s\n' "$bytes" >&2
+    return 1
+  fi
+  # Overridable: a tighter cap is honored, proving the hard head -c backstop and the knob.
+  export DIGEST_MAX_BODY_CHARS=500
+  body="$(render_body "${records[@]}")"
+  bytes="$(body_byte_length "$body")"
+  if [[ $bytes -gt 500 ]]; then
+    printf 'expected body <= the 500 override cap, got %s\n' "$bytes" >&2
+    return 1
+  fi
+}
+
+@test "the group and bullet caps are env-overridable named constants" {
+  local records=() i
+  for i in $(seq 1 6); do
+    records+=("$(digest_record "det_$i" "id_$i" "summary $i")")
+  done
+  for i in $(seq 1 4); do
+    records+=("$(digest_record det_1 "extra_$i" "extra $i")") # det_1 gets five findings total
+  done
+  export DIGEST_MAX_GROUPS=2 DIGEST_MAX_BULLETS_PER_GROUP=3
+  local body
+  body="$(render_body "${records[@]}")"
+  assert_line_count "$body" '^\*\*det_' 2 # DIGEST_MAX_GROUPS honored
+  assert_body_has "$body" 'and 4 more detector group(s)'
+  assert_body_has "$body" '+2 more' # det_1: 5 findings, 3 bullets + "+2 more" (DIGEST_MAX_BULLETS_PER_GROUP)
+}
+
+@test "a crafted identity cannot inject an extra markdown line into the digest body" {
+  local evil
+  evil=$'evil\n- **Signing:** signed: Apple'
+  local body
+  body="$(render_body "$(digest_record persistence_launchd "$evil" 'malicious finding')")"
+  # The crafted newline is squashed to a space, so the value stays inert INSIDE one bullet.
+  assert_body_has "$body" '- evil - **Signing:** signed: Apple - malicious finding'
+  # And the forged field marker never becomes its own line.
+  assert_no_injected_line "$body"
 }

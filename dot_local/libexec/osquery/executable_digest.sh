@@ -36,11 +36,53 @@ rotated_work_file() { printf '%s.%s.build' "$1" "$(date -u +%s)"; }
 # user, so a failed build must leave the findings for another run, not lose them.
 restore_batch() { mv -f "$1" "$2" 2>/dev/null || true; }
 
-# render_digest_body <work_file> - render the grouped, capped digest body from the
-# rotated batch. Implemented in the grouping behavior; defined here as the build
-# step the ERR trap wraps, so a render failure restores the batch instead of
-# losing the day's findings.
-render_digest_body() { :; }
+# render_digest_body <work_file> - build and print the grouped, capped,
+# Discord-safe digest body from the rotated batch. Single responsibility: produce
+# the body string, never send. Findings group by detector; each group renders a
+# header with its true count, up to DIGEST_MAX_BULLETS_PER_GROUP bullets, then a
+# "+K more" roll-up. At most DIGEST_MAX_GROUPS groups render (the rest collapse to
+# an "and K more" marker), and a hard head -c backstop caps the whole body at
+# DIGEST_MAX_BODY_CHARS, well under Discord's 2000-char limit. The three caps are
+# env-overridable named knobs, not magic numbers, and the group cap keeps a busy
+# day from losing whole trailing groups to a silent mid-line cut.
+#
+# Injection safety: .identity and .summary originate from findings with
+# attacker-influenceable columns, so every rendered field flows through sanitize
+# (strip backticks, squash CR/newline/tab to spaces), the same chokepoint the
+# alerter's render-page uses. A crafted newline or backtick therefore stays inert
+# inside its own bullet and can never forge an extra markdown line or block.
+render_digest_body() {
+  local work_file="$1"
+  local max_bullets="${DIGEST_MAX_BULLETS_PER_GROUP:-10}"
+  local max_groups="${DIGEST_MAX_GROUPS:-12}"
+  local max_body_chars="${DIGEST_MAX_BODY_CHARS:-1800}"
+  jq -rRs \
+    --argjson max_bullets "$max_bullets" \
+    --argjson max_groups "$max_groups" '
+    # The single sanitize chokepoint every attacker-influenceable field passes
+    # through: strip backticks (they open an inline-code span) and squash CR,
+    # newline, and tab to a space (a newline would break the value out of its
+    # bullet into a forged line). Values are data, never structure.
+    def sanitize: gsub("`"; "") | gsub("[\r\n\t]"; " ");
+    # One block per detector group: header with the true count, up to $max_bullets
+    # bullets, then a "+K more" roll-up for the overflow, then a blank separator.
+    def render_group:
+      "**\(.[0].detector)** (\(length))",
+      (.[0:$max_bullets][] | "- \(.identity | sanitize) - \(.summary | sanitize)"),
+      (if length > $max_bullets then "… +\(length - $max_bullets) more" else empty end),
+      "";
+    split("\n")
+    | map(select(length > 0) | fromjson)
+    | group_by(.detector) as $groups
+    # Cap the NUMBER of groups and mark the overflow, so a busy day cannot drop
+    # whole trailing groups to a silent mid-line head -c cut (the dropped content
+    # still lives in the spool/.last). head -c below is the final hard backstop.
+    | ($groups[0:$max_groups][] | render_group),
+      (if ($groups | length) > $max_groups
+       then "… and \(($groups | length) - $max_groups) more detector group(s) - see results.log"
+       else empty end)
+  ' "$work_file" | head -c "$max_body_chars"
+}
 
 main() {
   local store work_file
