@@ -305,3 +305,58 @@ teardown() { teardown_watchdog_harness; }
   refute_file_contains '`touch' "$WD_SEND_ALERT_LOG"
   refute_file_contains 'injected **bold**' "$WD_SEND_ALERT_LOG"
 }
+
+# --- delivery-backlog health: dead-letters, unreadable counts, sustained growth --
+
+@test "T-WATCH-deadletter-pages: any dead-letter entry pages CRIT (delivery permanently failed)" {
+  export WATCHDOG_DEAD_LETTER_COUNT=2
+  run run_watchdog
+  [[ $status -eq 0 ]] || {
+    echo "status $status: $output"
+    false
+  }
+  assert_page_count 1
+  assert_page_severity_is CRIT
+  assert_page_sound_nonempty
+  assert_page_body_has 'dead-letter'
+}
+
+@test "T-WATCH-count-unreadable-pages: an unreadable queue count is a CRIT gap, never a silent healthy" {
+  export WATCHDOG_DEAD_LETTER_COUNT='not-a-number'
+  run run_watchdog
+  [[ $status -eq 0 ]] || {
+    echo "status $status: $output"
+    false
+  }
+  assert_page_count 1
+  assert_page_severity_is CRIT
+  assert_page_body_has 'unreadable'
+}
+
+@test "T-WATCH-backlog-growing-pages: a backlog that grows across two consecutive checks pages CRIT" {
+  # Seed a prior growth (count 5, growth_streak 1); this tick grows again to 8, so
+  # the streak reaches the sustained-growth threshold and pages.
+  seed_watchdog_state '{"agents":{},"pending":{"count":5,"growth_streak":1}}'
+  export WATCHDOG_PENDING_COUNT=8
+  run run_watchdog
+  [[ $status -eq 0 ]] || {
+    echo "status $status: $output"
+    false
+  }
+  assert_page_count 1
+  assert_page_severity_is CRIT
+  assert_page_body_has 'backlog'
+}
+
+@test "T-WATCH-backlog-steady-silent: a non-growing backlog (even a large one) does not page" {
+  # A prior growth streak, but this tick did NOT grow (count flat at 5): a transient
+  # burst the drainer absorbs must not false-page. Only SUSTAINED growth pages.
+  seed_watchdog_state '{"agents":{},"pending":{"count":5,"growth_streak":1}}'
+  export WATCHDOG_PENDING_COUNT=5
+  run run_watchdog
+  [[ $status -eq 0 ]] || {
+    echo "status $status: $output"
+    false
+  }
+  assert_no_page
+}
