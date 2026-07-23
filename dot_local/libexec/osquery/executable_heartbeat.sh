@@ -82,10 +82,13 @@ main() {
     if ((age < 0)); then age=0; fi
     title="✅ osquery pipeline healthy · $(date -u +%Y-%m-%d)"
     detail="- The root osqueryd daemon produced a scheduled heartbeat canary ${age}s ago, so it was scheduling and producing results as recently as that. This is a recent observation, not a real-time check: the uptime watchdog owns real-time liveness and pages if a monitor is down. Silence since the last message means all clear."
-    # The EMPTY sound is deliberate: it keeps the message locally silent AND makes
-    # send_alert thread tier=muted into the webhook body. A proof-of-life must never
-    # ping like a real page. Fire-and-forget: the heartbeat advances no state, so a
-    # send failure is low-stakes (the next day re-fires; the watchdog is the pager).
+    # The EMPTY sound keeps the message locally silent AND makes send_alert thread
+    # tier=muted into the webhook body: a proof-of-life must never ping like a real
+    # page. One honest exception, out of this slice's control: if send_alert's
+    # write-ahead persist itself FAILS (storage broken), it fires a shared loud
+    # durable "page LOST" banner (every producer's systemic last resort), which is not
+    # muted. Fire-and-forget otherwise: the heartbeat advances no state, so a send
+    # failure is low-stakes (the next day re-fires; the watchdog is the pager).
     send_alert CRIT "$title" "$detail" "" || true
   else
     # UNHEALTHY. Three honest sub-cases, each rendered with a POSITIVE number so the
