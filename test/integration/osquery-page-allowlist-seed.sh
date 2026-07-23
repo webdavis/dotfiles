@@ -66,11 +66,12 @@ else
   done <"$new_file"
 
   # The seed migrates this host's own-agents (results-alerter,
-  # firewall-gatekeeper-monitor, uptime-watchdog, alert-drainer, heartbeat) to tuples,
-  # so none false-pages the alerter's persistence_launchd detector (which
-  # default-denies an unallowlisted user LaunchAgent) when its plist first appears.
-  if [[ $entry_count -ne 5 ]]; then
-    fail "expected 5 seeded tuples (the host's own-agents), got $entry_count"
+  # firewall-gatekeeper-monitor, uptime-watchdog, alert-drainer, heartbeat,
+  # tailscale-monitor) to tuples, so none false-pages the alerter's
+  # persistence_launchd detector (which default-denies an unallowlisted user
+  # LaunchAgent) when its plist first appears.
+  if [[ $entry_count -ne 6 ]]; then
+    fail "expected 6 seeded tuples (the host's own-agents), got $entry_count"
   fi
 
   # The alert-drainer is one own-agent of the class: a real own-agent, so it does not
@@ -83,6 +84,12 @@ else
   # plist would self-page the alerter (default-deny), so its tuple is seeded here too.
   if ! grep -qF '"label":"com.webdavis.osquery-heartbeat"' "$new_file"; then
     fail "the heartbeat own-agent tuple is missing from the seed"
+  fi
+
+  # The tailscale funnel monitor is an own-agent added after the cutover too: its
+  # plist would self-page the alerter (default-deny) without its own tuple.
+  if ! grep -qF '"label":"com.webdavis.osquery-tailscale-monitor"' "$new_file"; then
+    fail "the tailscale-monitor own-agent tuple is missing from the seed"
   fi
 fi
 
