@@ -60,6 +60,13 @@ setup_tailscale_harness() {
   cat >"$TS_HOME/bin/tailscale" <<'SHIM'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$TS_TAILSCALE_ARGS"
+# TAILSCALE_FUNNEL_SLEEP models a wedged tailscaled (the CLI blocks on the local
+# API socket). exec into sleep so this is a SINGLE process (no child holding
+# stdout open): a timeout kill then closes the pipe at the bound. It never emits,
+# so a bounded monitor reads empty and gaps.
+if [[ -n ${TAILSCALE_FUNNEL_SLEEP:-} ]]; then
+  exec sleep "$TAILSCALE_FUNNEL_SLEEP"
+fi
 printf '%s' "${TAILSCALE_FUNNEL_JSON:-}"
 exit "${TAILSCALE_FUNNEL_RC:-0}"
 SHIM

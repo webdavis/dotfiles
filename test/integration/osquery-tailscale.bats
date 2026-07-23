@@ -294,6 +294,27 @@ SERVE_ONLY='{"Web":{"dresden.tailnet.ts.net:443":{"Handlers":{"/":{"Proxy":"http
   assert_gap_marker
 }
 
+@test "T-TS-status-hang-pages-gap: a funnel status that outlasts the bound is killed and pages a gap (R2-5)" {
+  # A wedged tailscaled (the CLI blocks on the local API socket) must become a
+  # monitoring gap, not silent blindness: without a bound, launchd skips ticks
+  # while the process lives and the monitor never pages. The bound kills the read
+  # and the gap gate pages it.
+  seed_funnel_state active
+  snapshot_baseline
+  export OSQUERY_TAILSCALE_TIMEOUT=1 # bound the read at 1s
+  export TAILSCALE_FUNNEL_SLEEP=30   # tailscaled wedges far past the bound
+  run run_tailscale_monitor
+  [[ $status -eq 0 ]] || {
+    echo "status $status: $output"
+    false
+  }
+  assert_page_count 1
+  assert_page_severity_is CRIT
+  assert_page_body_has 'BLIND'
+  assert_gap_marker
+  assert_baseline_unchanged # a wedged read is a gap: it never persists
+}
+
 @test "T-TS-status-fail-preserves-baseline: a status failure preserves the prior valid funnel baseline (R2-5)" {
   # rc=1 must not overwrite a known-active baseline with a false "inactive": the
   # prior state is preserved so a real transition is still detectable on recovery.

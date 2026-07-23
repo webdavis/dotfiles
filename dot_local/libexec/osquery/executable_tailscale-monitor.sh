@@ -169,9 +169,20 @@ if [[ ! -x $TAILSCALE ]]; then
 fi
 
 # Run the status command, capturing its exit code (do NOT || true a failure into a
-# false inactive).
+# false inactive). Bound it so a WEDGED tailscaled (the CLI blocks on the local API
+# socket) becomes a monitoring gap, not silent blindness: without a bound, launchd
+# skips ticks while the process lives and the monitor never pages. gtimeout
+# preferred, timeout fallback (the codebase convention); if neither is on PATH,
+# degrade to an unbounded read (no worse than before). The bound is well under the
+# 60s tick and env-overridable. On timeout the CLI is killed (nonzero rc), which
+# the gap gate below pages.
+status_command=("$TAILSCALE" funnel status --json)
+timeout_bin="$(command -v gtimeout || command -v timeout || true)"
+if [[ -n $timeout_bin ]]; then
+  status_command=("$timeout_bin" "${OSQUERY_TAILSCALE_TIMEOUT:-10}" "${status_command[@]}")
+fi
 rc=0
-funnel_json=$("$TAILSCALE" funnel status --json 2>/dev/null) || rc=$?
+funnel_json=$("${status_command[@]}" 2>/dev/null) || rc=$?
 
 if [[ $rc -ne 0 ]]; then
   gap_and_exit "- ${bt}tailscale funnel status --json${bt} exited $rc, so the funnel state is unreadable."
