@@ -1,0 +1,32 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/bin/bash
+# run_after_67-osquery-pipeline-manifest.sh
+# Refresh the root-owned pipeline-integrity manifest: the known-good sha256 of the
+# alerter's own scripts and plists. osqueryd (root) hashes those files; the alerter
+# PAGES a file_events change whose (path, hash) is NOT in this manifest (tamper) and
+# stays silent when it matches (a legit chezmoi apply). Root-owned 0644 so a process
+# running as the user cannot self-whitelist a file it just tampered.
+#
+# generate-pipeline-manifest.sh derives the file set by globbing the REAL deployed
+# tree, so the manifest cannot drift from what ships and a data-driven plist is
+# captured as rendered on disk (no re-key bookkeeping). This runs after-phase, so it
+# hashes the freshly-applied targets, and on EVERY apply (a runtime-glob generator
+# has a static body, so run_onchange would fire once and then leave a stale manifest
+# after any pipeline edit). The diff-guard keeps the privileged write to real changes.
+set -euo pipefail
+
+generator="$HOME/.local/libexec/osquery/generate-pipeline-manifest.sh"
+manifest="${OSQUERY_PIPELINE_MANIFEST:-/var/osquery/pipeline-known-good.sha256}"
+
+fresh="$(mktemp)"
+trap 'rm -f "$fresh"' EXIT
+"$generator" >"$fresh"
+
+# The deployed manifest is root-owned 0644 (world-readable), so the compare needs no
+# privilege; only a real content change warrants the sudo write. A missing manifest
+# (fresh machine) compares unequal and installs.
+if cmp -s "$fresh" "$manifest" 2>/dev/null; then
+  exit 0
+fi
+sudo install -o root -g wheel -m 0644 "$fresh" "$manifest"
+{{- end }}
