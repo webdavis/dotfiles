@@ -36,6 +36,20 @@ rotated_work_file() { printf '%s.%s.build' "$1" "$(date -u +%s)"; }
 # user, so a failed build must leave the findings for another run, not lose them.
 restore_batch() { mv -f "$1" "$2" 2>/dev/null || true; }
 
+# rotate_to_last <work_file> <store> - preserve the built batch as $store.last for
+# forensics, regardless of send outcome; the live store is already fresh (rotated at
+# the start), so a re-run is silent. The .last holds full filesystem paths and
+# persists indefinitely, so keep it 600 (defensive: mv preserves mode, but a store
+# written before the 600 hardening might not have carried it).
+rotate_to_last() {
+  mv -f "$1" "$2.last" 2>/dev/null || rm -f "$1"
+  chmod 600 "$2.last" 2>/dev/null || true
+}
+
+# digest_title <item_count> - the one-line digest header: a notebook glyph, the UTC
+# date, and the item count. Sent as the CRIT title of the silent (muted) message.
+digest_title() { printf '🗒️ osquery daily digest · %s · %s item(s)' "$(date -u +%Y-%m-%d)" "$1"; }
+
 # render_digest_body <work_file> - build and print the grouped, capped,
 # Discord-safe digest body from the rotated batch. Single responsibility: produce
 # the body string, never send. Findings group by detector; each group renders a
@@ -95,7 +109,7 @@ render_digest_body() {
 }
 
 main() {
-  local store work_file
+  local store work_file body item_count title
   store="${OSQUERY_DIGEST_STORE:-$OSQUERY_DIGEST_STORE_DEFAULT}"
 
   # Empty-suppression, first gate: an absent or zero-byte store has nothing to
@@ -124,7 +138,41 @@ main() {
     return 0
   }
 
-  render_digest_body "$work_file"
+  # Build the grouped, capped, sanitized body from the claimed batch. Under the ERR
+  # trap: a render failure here restores the batch for the next run (pre-send).
+  body="$(render_digest_body "$work_file")"
+
+  # Empty-body second gate: if every line was torn/dropped the body renders empty
+  # even though Guard 2 (non-whitespace bytes) passed. Do NOT send a misleading silent
+  # "N item(s)" with an empty body; preserve the unrecoverable batch to .last and stay
+  # silent (re-rendering it would only render empty again).
+  if ! printf '%s' "$body" | grep -q '[^[:space:]]'; then
+    rotate_to_last "$work_file" "$store"
+    return 0
+  fi
+
+  # The item count for the title, from a torn-safe line count (grep -c, never a JSON
+  # parse), so a torn line never breaks it. || guards the (here impossible) empty case.
+  item_count="$(grep -c . "$work_file" 2>/dev/null)" || item_count=0
+  title="$(digest_title "$item_count")"
+
+  # Fire-and-forget from here: CLEAR the pre-send restore trap so a failed send never
+  # restores the batch. send_alert is write-ahead durable on its own (it persists a
+  # pending_alerts row and the scheduled drainer retries it, exactly as the page path),
+  # so restoring would double-store and re-send a duplicate on the next run.
+  trap - ERR
+
+  # CRIT selects the #priority route; the EMPTY sound makes it locally silent AND
+  # threads tier=muted into the POST so the Hermes adapter suppresses the ping (a
+  # digest must never notify like a page). No occurrence id is threaded, so send_alert
+  # derives a per-send-unique request id (distinct days never collide), and the
+  # rotate-to-.last below keeps a re-run from re-sending this batch. || true: a hard
+  # send failure is low-stakes (send_alert already stored the page and alerted
+  # locally), so keep it off set -e's abort path and still rotate to .last.
+  send_alert CRIT "$title" "$body" "" || true
+
+  # Preserve the built batch as .last for forensics regardless of send outcome.
+  rotate_to_last "$work_file" "$store"
 }
 
 # Run only when executed, not when sourced: a test sources this file to exercise

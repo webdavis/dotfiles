@@ -30,18 +30,31 @@ setup_digest_harness() {
   _DIGEST_HARNESS_OWNED_DIR="$HARNESS_HOME"
   export HOME="$HARNESS_HOME"
 
-  # The recording spy for send_alert, at the exact libexec path the builder
-  # sources. It appends each call's argv to $SEND_ALERT_LOG, so "no dispatch" is
-  # an empty log and a later behavior can grep the log for the rendered body.
+  # The recording spy for send_alert, at the exact libexec path the builder sources.
+  # It writes one CALL marker per call to $SEND_ALERT_LOG (so a test counts calls and
+  # "no dispatch" is an empty log) plus the severity/title/body/sound of the call, so
+  # a test can assert HOW the builder dispatched without a real send. SEND_ALERT_RC
+  # (default 0) lets a test force a hard send failure to exercise fire-and-forget.
   local dispatch_dir="$HARNESS_HOME/.local/libexec/osquery"
   mkdir -p "$dispatch_dir"
   export SEND_ALERT_LOG="$HARNESS_HOME/send-alert.log"
+  export SEND_ALERT_SEVERITY="$HARNESS_HOME/send-alert.severity"
+  export SEND_ALERT_TITLE="$HARNESS_HOME/send-alert.title"
+  export SEND_ALERT_BODY="$HARNESS_HOME/send-alert.body"
+  export SEND_ALERT_SOUND="$HARNESS_HOME/send-alert.sound"
   : >"$SEND_ALERT_LOG"
   cat >"$dispatch_dir/alert-dispatch.sh" <<'SPY'
 # Recording spy for alert-dispatch.sh: capture each send_alert call so a test can
-# assert whether the builder dispatched, and with what, without a real send.
+# assert whether, and how, the builder dispatched without a real send. One CALL
+# marker per call (for counting) plus the severity/title/body/sound of the call.
+# SEND_ALERT_RC (default 0) lets a test force a hard send failure.
 send_alert() {
-  printf '%s\n' "$*" >>"$SEND_ALERT_LOG"
+  printf 'CALL\n' >>"$SEND_ALERT_LOG"
+  printf '%s' "${1-}" >"$SEND_ALERT_SEVERITY"
+  printf '%s' "${2-}" >"$SEND_ALERT_TITLE"
+  printf '%s' "${3-}" >"$SEND_ALERT_BODY"
+  printf '%s' "${4-}" >"$SEND_ALERT_SOUND"
+  return "${SEND_ALERT_RC:-0}"
 }
 SPY
 
@@ -148,27 +161,6 @@ assert_live_store_freed() {
   fi
 }
 
-# assert_work_file_holds <n> - exactly one .build work file exists and carries
-# the <n> rotated records.
-assert_work_file_holds() {
-  local want="$1"
-  local work_files=("$OSQUERY_DIGEST_STORE".*.build)
-  if [[ ! -e ${work_files[0]} ]]; then
-    printf 'expected one .build work file holding the rotated batch, found none\n' >&2
-    return 1
-  fi
-  if [[ ${#work_files[@]} -ne 1 ]]; then
-    printf 'expected exactly one .build work file, found %s: %s\n' "${#work_files[@]}" "${work_files[*]}" >&2
-    return 1
-  fi
-  local got
-  got="$(count_records "${work_files[0]}")"
-  if [[ $got -ne $want ]]; then
-    printf 'expected the work file to hold %s record(s), got %s\n' "$want" "$got" >&2
-    return 1
-  fi
-}
-
 # assert_build_ran_against_work_file - the build step ran against the CLAIMED
 # batch, proving the rotate happened before the build (not against the live store).
 assert_build_ran_against_work_file() {
@@ -250,6 +242,62 @@ assert_no_injected_line() {
 # body_byte_length <body> - the body length in bytes (the head -c cap's unit).
 body_byte_length() { printf '%s' "$1" | wc -c | tr -d '[:space:]'; }
 
+# assert_sent_once - exactly one send_alert call was recorded.
+assert_sent_once() {
+  local calls
+  calls="$(grep -c 'CALL' "$SEND_ALERT_LOG" 2>/dev/null || printf '0')"
+  if [[ $calls -ne 1 ]]; then
+    printf 'expected exactly one send_alert call, got %s\n' "$calls" >&2
+    return 1
+  fi
+}
+
+# assert_sent_silent_crit - the recorded send is CRIT (selects the #priority route)
+# with an EMPTY sound (silent/muted -> tier=muted, so Hermes suppresses the ping).
+assert_sent_silent_crit() {
+  local severity sound
+  severity="$(cat "$SEND_ALERT_SEVERITY" 2>/dev/null || true)"
+  sound="$(cat "$SEND_ALERT_SOUND" 2>/dev/null || true)"
+  if [[ $severity != CRIT ]]; then
+    printf 'expected CRIT severity (selects #priority), got %q\n' "$severity" >&2
+    return 1
+  fi
+  if [[ -n $sound ]]; then
+    printf 'expected an EMPTY sound (silent/muted, not a page ping), got %q\n' "$sound" >&2
+    return 1
+  fi
+}
+
+# assert_sent_body_has <fixed-needle> - the recorded send body contains the needle.
+assert_sent_body_has() {
+  local needle="$1"
+  if ! grep -qF -- "$needle" "$SEND_ALERT_BODY" 2>/dev/null; then
+    printf 'expected the sent body to contain %q, body was:\n%s\n' "$needle" "$(cat "$SEND_ALERT_BODY" 2>/dev/null || true)" >&2
+    return 1
+  fi
+}
+
+# assert_batch_in_last <n> - the built batch was preserved as $store.last with <n> records.
+assert_batch_in_last() {
+  local want="$1" got
+  got="$(count_records "$OSQUERY_DIGEST_STORE.last")"
+  if [[ ! -s $OSQUERY_DIGEST_STORE.last || $got -ne $want ]]; then
+    printf 'expected the batch preserved to .last with %s record(s), got %s\n' "$want" "$got" >&2
+    return 1
+  fi
+}
+
+# assert_last_mode_600 - the .last forensic file is mode 600 (it holds full paths).
+# GNU stat first (the nix shell), BSD stat as the fallback (the portable order).
+assert_last_mode_600() {
+  local mode
+  mode=$(stat -c '%a' "$OSQUERY_DIGEST_STORE.last" 2>/dev/null || stat -f '%Lp' "$OSQUERY_DIGEST_STORE.last" 2>/dev/null)
+  if [[ $mode != 600 ]]; then
+    printf 'expected .last mode 600 (holds full paths), got %s\n' "$mode" >&2
+    return 1
+  fi
+}
+
 @test "an absent digest store produces no message and exits 0" {
   given_absent_store
   assert_silent_success
@@ -265,18 +313,22 @@ body_byte_length() { printf '%s' "$1" | wc -c | tr -d '[:space:]'; }
   assert_silent_success
 }
 
-@test "a store with real records is rotated to a work file, freeing the live store" {
+@test "a store with records sends exactly one silent digest, then rotates the batch to .last" {
   seed_store \
     "$(digest_record persistence_launchd com.foo.agent 'persistence_launchd com.foo.agent')" \
-    "$(digest_record persistence_launchd com.bar.agent 'persistence_launchd com.bar.agent')"
+    "$(digest_record sudoers /etc/sudoers.d/foo 'sudoers /etc/sudoers.d/foo')"
   run run_digest
   if [[ $status -ne 0 ]]; then
-    printf 'expected exit 0 after the rotate, got %s: %s\n' "$status" "$output" >&2
+    printf 'expected exit 0, got %s: %s\n' "$status" "$output" >&2
     return 1
   fi
-  assert_live_store_freed
-  assert_work_file_holds 2
-  assert_no_send
+  assert_sent_once
+  assert_sent_silent_crit # CRIT route + EMPTY sound => tier=muted (non-paging)
+  assert_sent_body_has '**persistence_launchd** (1)'
+  assert_sent_body_has '**sudoers** (1)'
+  assert_live_store_freed # the live store is fresh for the next run
+  assert_batch_in_last 2  # the built batch is preserved for forensics
+  assert_last_mode_600
 }
 
 @test "a build failure before the send restores the rotated batch to the live store" {
@@ -428,5 +480,42 @@ body_byte_length() { printf '%s' "$1" | wc -c | tr -d '[:space:]'; }
     printf 'expected the build to survive the torn line (exit 0), got %s: %s\n' "$status" "$output" >&2
     return 1
   fi
+  assert_live_store_freed
+}
+
+@test "a failed send still rotates the batch to .last and never restores it for a re-send" {
+  seed_store "$(digest_record persistence_launchd com.foo.agent 'persistence_launchd com.foo.agent')"
+  export SEND_ALERT_RC=1 # the spy simulates a HARD send failure
+  run run_digest
+  if [[ $status -ne 0 ]]; then
+    printf 'expected fire-and-forget exit 0 despite the failed send, got %s: %s\n' "$status" "$output" >&2
+    return 1
+  fi
+  assert_sent_once        # exactly one send ATTEMPT, no restore-and-retry loop
+  assert_batch_in_last 1  # preserved to .last, NOT restored to the live store
+  assert_live_store_freed # durability lives in send_alert's write-ahead store, not a batch restore
+  # A second run finds a fresh (empty) store and is silent: this batch is never re-sent.
+  : >"$SEND_ALERT_LOG"
+  unset SEND_ALERT_RC
+  run run_digest
+  if [[ $status -ne 0 ]]; then
+    printf 'expected the second run silent (exit 0), got %s\n' "$status" >&2
+    return 1
+  fi
+  assert_no_send
+}
+
+@test "an all-torn store renders an empty body, so it sends nothing and preserves the batch to .last" {
+  # Every line unparseable: Guard 2 (non-whitespace bytes) passes and the raw lines are
+  # counted, but the rendered body is empty. The builder must NOT send a misleading
+  # silent "N item(s)" with an empty body; it preserves the batch to .last and stays silent.
+  seed_store '{"detector":"persistence_launchd","identity":"x' '{"oops'
+  run run_digest
+  if [[ $status -ne 0 ]]; then
+    printf 'expected exit 0, got %s: %s\n' "$status" "$output" >&2
+    return 1
+  fi
+  assert_no_send
+  assert_batch_in_last 2  # the unrecoverable batch is preserved for forensics
   assert_live_store_freed
 }
