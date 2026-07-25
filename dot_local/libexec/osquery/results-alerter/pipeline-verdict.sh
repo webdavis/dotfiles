@@ -88,6 +88,19 @@ _pipeline_mtime() {
   stat -c '%Y' "$1" 2>/dev/null || stat -f '%m' "$1" 2>/dev/null
 }
 
+# _pipeline_change_time <path>: epoch inode CHANGE time, or empty when it cannot be
+# read. Same portable order as _pipeline_mtime.
+#
+# This, not mtime, is what "when did this file last change" means once mode and
+# owner are part of the tuple: a chmod or a chown moves ctime and leaves mtime
+# alone, while a content write moves both. Asking for mtime would make an
+# attribute-only apply look older than the manifest and skip the settle window
+# entirely, which the alerter cannot recover from - it judges each finding exactly
+# once, so the false CRIT would never be reconsidered.
+_pipeline_change_time() {
+  stat -c '%Z' "$1" 2>/dev/null || stat -f '%c' "$1" 2>/dev/null
+}
+
 # _pipeline_file_mode <path>: the file's permission bits as EXACTLY four octal
 # digits (0755, or 4755 for a setuid file), non-zero and empty output when they
 # cannot be read.
@@ -220,23 +233,28 @@ _pipeline_deployed_state_is_known_good() {
   _pipeline_manifest_has_tuple "$target" "$disk_hash" "$disk_mode" "$disk_uid"
 }
 
-# _pipeline_tuple_settles <path>: the current-content check, plus a bounded wait for
-# an in-flight manifest regeneration. It waits only when the manifest EXISTS but is
-# OLDER than the file that changed, which is exactly the apply-race shape (the file
+# _pipeline_tuple_settles <path>: the current-state check, plus a bounded wait for
+# an in-flight manifest regeneration. It waits only when the manifest EXISTS but
+# PREDATES the change to the file, which is exactly the apply-race shape (the file
 # landed, the manifest has not been reinstalled yet). A missing manifest pages
-# immediately, and a manifest newer than the target is already the final word. The
-# content is re-read on every retry, so a file still settling is judged on what it
+# immediately, and a manifest newer than the change is already the final word. The
+# state is re-read on every retry, so a file still settling is judged on what it
 # finally holds, not on a mid-write snapshot.
+#
+# The target side is its CHANGE time, not its modification time, because a chmod or
+# a chown moves only the former and both are now part of the tuple. The manifest
+# side stays mtime: the runner installs a fresh file, so its mtime is the moment
+# that manifest became current.
 _pipeline_tuple_settles() {
   local target="$1"
   _pipeline_deployed_state_is_known_good "$target" && return 0
   local manifest="${OSQUERY_PIPELINE_MANIFEST:-$PIPELINE_MANIFEST}"
   [[ -r $manifest ]] || return 1
-  local manifest_mtime target_mtime
+  local manifest_mtime target_ctime
   manifest_mtime=$(_pipeline_mtime "$manifest") || true
-  target_mtime=$(_pipeline_mtime "$target") || true
-  [[ -n $manifest_mtime && -n $target_mtime ]] || return 1
-  ((manifest_mtime < target_mtime)) || return 1
+  target_ctime=$(_pipeline_change_time "$target") || true
+  [[ -n $manifest_mtime && -n $target_ctime ]] || return 1
+  ((manifest_mtime < target_ctime)) || return 1
   # Open the shared window on the first miss of this invocation; a later miss
   # inherits whatever is left of it, and answers at once when it is spent.
   [[ -n $_pipeline_settle_deadline ]] ||

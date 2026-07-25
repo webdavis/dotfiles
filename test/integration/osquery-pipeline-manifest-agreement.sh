@@ -203,6 +203,36 @@ elapsed=$(($(date +%s) - start))
 [[ $got -eq 0 ]] || fail "a tuple that never arrives must still PAGE (got rc $got)"
 ((elapsed <= 6)) || fail "the settle wait is not bounded (${elapsed}s for a 2s window)"
 
+# --- an ATTRIBUTE-only apply can settle too ----------------------------------
+# A chmod moves a file's inode CHANGE time, not its modification time. Keying the
+# settle guard on mtime therefore made an attribute-only apply skip the window
+# outright: the file lands, the manifest has not been reinstalled yet, and the
+# alerter judges that finding exactly once, so the false CRIT is never
+# reconsidered. Now that mode is part of the tuple, that race is reachable
+# whenever a source attribute changes without the bytes changing.
+#
+# The fixture back-dates the target's mtime and leaves its ctime at now, which is
+# the shape a chmod produces. The filesystem state is set up BEFORE the call, so
+# run_verdict's subshell sees it: a subshell inherits the filesystem and isolates
+# only shell state, which is exactly the split this case needs.
+chmod_settle_target="$MF_HOME/.local/libexec/osquery/chmod-settle.sh"
+printf 'echo chmod settle\n' >"$chmod_settle_target"
+chmod 755 "$chmod_settle_target"
+touch -t 200001010000 "$chmod_settle_target"
+chmod_settle_hash="$(hash_of "$chmod_settle_target")"
+printf 'deadbeef 0755 %s /nowhere\n' "$(id -u)" >"$MF_MANIFEST"
+touch -t 200001010000 "$MF_MANIFEST"
+(
+  sleep 1
+  printf '%s 0755 %s %s\n' "$chmod_settle_hash" "$(id -u)" "$chmod_settle_target" >"$MF_MANIFEST"
+) &
+chmod_settle_pid=$!
+got=0
+run_verdict "$chmod_settle_target" "$chmod_settle_hash" ATTRIBUTES_MODIFIED 5 || got=$?
+wait "$chmod_settle_pid"
+[[ $got -eq 1 ]] ||
+  fail "an attribute-only change whose manifest lands inside the settle window must resolve to SILENT (got rc $got)"
+
 # --- the settle budget is per ALERTER RUN, not per finding -------------------
 # route_findings judges findings sequentially while the alerter holds its
 # single-instance lock, and a contended WatchPaths invocation exits without
@@ -242,4 +272,4 @@ if [[ $fails -gt 0 ]]; then
   printf '%d check(s) failed\n' "$fails" >&2
   exit 1
 fi
-printf 'osquery-pipeline-manifest-agreement: OK (generated manifest and real verdict agree, including a chmod on unchanged content; watch/tracked/manifest cover the identical set across BOTH launch agent roots; a /Library twin is untracked; the settle window resolves a live regeneration, stays bounded, and spends ONE budget per alerter run across many misses)\n'
+printf 'osquery-pipeline-manifest-agreement: OK (generated manifest and real verdict agree, including a chmod on unchanged content; watch/tracked/manifest cover the identical set across BOTH launch agent roots; a /Library twin is untracked; the settle window resolves a live regeneration for a content AND an attribute-only change, stays bounded, and spends ONE budget per alerter run across many misses)\n'
