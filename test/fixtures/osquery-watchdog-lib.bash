@@ -4,9 +4,11 @@
 # The watchdog runs as a user LaunchAgent every 15 min. It asserts the osquery
 # notification pipeline is ALIVE (a dead pipeline looks identical to "all quiet"),
 # and pages ONE CRIT if any component is down or wedged, silent when healthy. It
-# has four probes: osqueryd present-and-answering, every OTHER osquery LaunchAgent
-# loaded-and-not-crash-looping, the hermes #priority route reachable, and the
-# delivery backlog (dead-letter count and a sustained pending-growth streak).
+# has five probes: osqueryd present-and-answering, every OTHER osquery LaunchAgent
+# loaded-and-not-crash-looping, the hermes #priority route reachable, the delivery
+# backlog (dead-letter count and a sustained pending-growth streak), and a periodic
+# content audit of the pipeline-integrity manifest (the backstop for tampering that
+# generates no file event at all).
 #
 # This harness stands the watchdog up in isolation against recording spies, with
 # no real launchd / osquery / hermes dependency:
@@ -18,7 +20,10 @@
 #   - a recording send_alert spy plus the two read-only queue counters, installed
 #     as a stand-in dispatch library at the libexec path the watchdog sources.
 #     send_alert never delivers; it records each call's severity, sound, and argv,
-#     and the state file as it stood at call time (to prove notify-before-persist).
+#     and the state file as it stood at call time (to prove notify-before-persist);
+#   - a fixture pipeline home with a real manifest over it, so the content audit
+#     runs against real files and real hashes. A test tampers with a deployed file,
+#     or the manifest, and the audit judges what is actually on disk.
 #
 # A fresh temp HOME keeps every run off the operator's real ~/.local/state and
 # ~/.local/libexec. Sourced by the watchdog suite; no main.
@@ -140,6 +145,25 @@ SHIM
   cp "${BATS_TEST_DIRNAME}/../../dot_local/libexec/osquery/executable_canary-freshness.sh" \
     "$WD_HOME/.local/libexec/osquery/canary-freshness.sh"
 
+  # The periodic content audit and the verdict helper it reuses the manifest
+  # constant and root-ownership check from, both at their deployed paths.
+  mkdir -p "$WD_HOME/.local/libexec/osquery/results-alerter"
+  cp "${BATS_TEST_DIRNAME}/../../dot_local/libexec/osquery/executable_pipeline-audit.sh" \
+    "$WD_HOME/.local/libexec/osquery/pipeline-audit.sh"
+  cp "${BATS_TEST_DIRNAME}/../../dot_local/libexec/osquery/results-alerter/pipeline-verdict.sh" \
+    "$WD_HOME/.local/libexec/osquery/results-alerter/pipeline-verdict.sh"
+  # A stand-in deployed pipeline script for the tamper cases: tampering with a file
+  # the watchdog does not itself source keeps the audit's behavior separable from
+  # the harness's own machinery.
+  export WD_MANIFESTED_SCRIPT="$WD_HOME/.local/libexec/osquery/digest.sh"
+  printf 'echo digest\n' >"$WD_MANIFESTED_SCRIPT"
+  # A second one, so a test can make the divergence SET change without touching a
+  # file the watchdog sources.
+  export WD_MANIFESTED_SCRIPT_ALT="$WD_HOME/.local/libexec/osquery/enrich-finding.sh"
+  printf 'echo enrich\n' >"$WD_MANIFESTED_SCRIPT_ALT"
+  export OSQUERY_PIPELINE_MANIFEST="$WD_HOME/pipeline-known-good.sha256"
+  regenerate_pipeline_manifest
+
   # The fake dispatch library the watchdog sources. It SOURCES the REAL library so
   # the queue-health counters (osquery_pending_alert_count / osquery_dead_letter_count)
   # are the REAL ones reading the real SQLite store, then overrides ONLY send_alert
@@ -260,6 +284,57 @@ seed_raw_canary() {
     >>"$OSQUERY_SNAPSHOTS_LOG"
 }
 
+# ---- programming the pipeline-integrity manifest ---------------------------
+
+# regenerate_pipeline_manifest -- rewrite the fixture manifest from the sandbox's
+# CURRENT deployed pipeline tree, the way a legitimate `chezmoi apply` regenerates
+# the real one after writing the files. Discovery is materialized under a checked
+# status: a `find` that failed midway would otherwise yield a short manifest and a
+# green audit over an unexamined tail.
+regenerate_pipeline_manifest() {
+  local listing target file_hash
+  listing="$WD_HOME/manifest-listing"
+  find "$WD_HOME/.local/libexec/osquery" -type f | LC_ALL=C sort >"$listing" || return 1
+  : >"$OSQUERY_PIPELINE_MANIFEST"
+  while IFS= read -r target; do
+    file_hash="$(shasum -a 256 -- "$target")"
+    printf '%s  %s\n' "${file_hash%% *}" "$target" >>"$OSQUERY_PIPELINE_MANIFEST"
+  done <"$listing"
+}
+
+# tamper_manifested_file -- overwrite the stand-in pipeline script IN PLACE, with
+# the manifest left untouched: exactly what an attacker who writes through a hard
+# link outside the watched tree achieves, and exactly what generates NO file event
+# on the watched path.
+tamper_manifested_file() {
+  printf 'echo tampered\n' >"$WD_MANIFESTED_SCRIPT"
+}
+
+# tamper_second_manifested_file -- the same, on the OTHER stand-in script, so a
+# test can enlarge the divergence set (a genuinely new condition) mid-run.
+tamper_second_manifested_file() {
+  printf 'echo also-tampered\n' >"$WD_MANIFESTED_SCRIPT_ALT"
+}
+
+# restore_manifested_file -- put the known-good bytes back.
+restore_manifested_file() {
+  printf 'echo digest\n' >"$WD_MANIFESTED_SCRIPT"
+}
+
+# symlink_manifested_file -- replace the manifested regular file with a SYMLINK to
+# a copy holding the exact bytes the manifest vouches for. Hashing through the link
+# would call this clean; the executed bytes now live outside the watched tree.
+symlink_manifested_file() {
+  mv "$WD_MANIFESTED_SCRIPT" "$WD_HOME/relocated-payload.sh"
+  ln -s "$WD_HOME/relocated-payload.sh" "$WD_MANIFESTED_SCRIPT"
+}
+
+# remove_pipeline_manifest -- the audit's input is gone (a monitor whose known-good
+# list disappeared must not read as all-clear).
+remove_pipeline_manifest() {
+  rm -f "$OSQUERY_PIPELINE_MANIFEST"
+}
+
 # ---- programming prior cross-run state ------------------------------------
 
 # seed_watchdog_state <compact-json> -- write the prior state file at 0600, so a
@@ -282,6 +357,7 @@ run_watchdog() {
     OSQUERY_WATCHDOG_STATE="$OSQUERY_WATCHDOG_STATE" \
     OSQUERY_SNAPSHOTS_LOG="$OSQUERY_SNAPSHOTS_LOG" \
     OSQUERY_UNDELIVERED_ALERTS_DB="$OSQUERY_UNDELIVERED_ALERTS_DB" \
+    OSQUERY_PIPELINE_MANIFEST="$OSQUERY_PIPELINE_MANIFEST" \
     bash "$WD_TOOL"
 }
 
