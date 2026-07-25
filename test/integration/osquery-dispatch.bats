@@ -197,7 +197,7 @@ teardown() { teardown_dispatch_harness; }
   send_alert CRIT "🗒️ daily digest" "detail" ""
   assert_post_count 1 # it DOES reach the remote POST (not moot)
   grep -qF '"tier":"muted"' "$CURL_LOG"
-  ! grep -qF '"tier":"page"' "$CURL_LOG"
+  refute_file_contains '"tier":"page"' "$CURL_LOG"
 }
 
 @test "T-DISP-body-ts: a CRIT body carries a numeric occurrence ts (the drain ordering key)" {
@@ -259,7 +259,9 @@ STUB
   for i in 1 2; do
     [[ "$(cat "$status_dir/drain-$i.status")" == "0" ]]
   done
-  ! grep -rqi 'database is locked' "$status_dir" # busy_timeout serializes, never errors
+  # busy_timeout plus the locked-retry serialize the writers: no producer or drain
+  # ever SAW a locked error, not merely "recovered from one".
+  refute_tree_contains 'database is locked' "$status_dir"
   [[ "$(sqlite3_query 'SELECT COUNT(*) FROM pending_alerts;')" == "$producer_count" ]]
   [[ "$(sqlite3_query 'SELECT COUNT(DISTINCT request_id) FROM pending_alerts;')" == "$producer_count" ]]
   [[ "$(sqlite3_query 'SELECT COUNT(DISTINCT sequence_number) FROM pending_alerts;')" == "$producer_count" ]]
@@ -340,7 +342,7 @@ STUB
   export OSQUERY_WEBHOOK_SECRET="SUPERSECRET-argv-probe"
   send_alert CRIT "🔴 title" "detail" "Sosumi"
   [[ -s $OPENSSL_ARGV_LOG ]] # openssl WAS invoked (sanity)
-  ! grep -qF 'SUPERSECRET-argv-probe' "$OPENSSL_ARGV_LOG"
+  refute_file_contains 'SUPERSECRET-argv-probe' "$OPENSSL_ARGV_LOG"
 }
 
 @test "T-DISP-signing-failure: a failed signature makes NO POST and retains the write-ahead record" {

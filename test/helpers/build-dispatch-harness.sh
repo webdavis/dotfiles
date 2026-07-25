@@ -157,6 +157,31 @@ refute_banner_sound() {
   fi
 }
 
+# refute_file_contains <fixed-substring> <file> -- fail when the substring appears.
+# The house negative-assertion shape (same spelling as the tailscale and watchdog
+# fixtures). A bare `! grep -q ...` must never be used instead: set -e ignores a
+# status inverted by `!`, so such a line only fails a test when it happens to be
+# the LAST command in the body, and silently guards nothing anywhere else.
+refute_file_contains() {
+  if grep -qiF -- "$1" "$2"; then
+    printf 'expected %q NOT to appear in %s, but it does:\n%s\n' "$1" "$2" "$(cat "$2")" >&2
+    return 1
+  fi
+  return 0
+}
+
+# refute_tree_contains <fixed-substring> <directory> -- fail when the substring
+# appears in ANY file under the directory. The recursive companion to
+# refute_file_contains, for assertions over a directory of captured output.
+refute_tree_contains() {
+  if grep -rqiF -- "$1" "$2"; then
+    printf 'expected %q NOT to appear anywhere under %s, but it does:\n%s\n' \
+      "$1" "$2" "$(grep -riF -- "$1" "$2")" >&2
+    return 1
+  fi
+  return 0
+}
+
 # assert_post_count <n> -- the curl stub recorded exactly <n> POSTs.
 assert_post_count() {
   local count
