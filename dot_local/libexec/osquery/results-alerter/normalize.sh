@@ -24,10 +24,20 @@
 # action row is a single finding, carried through unexploded.
 
 # normalize_findings: raw results-log lines on stdin -> normalized finding NDJSON
-# on stdout. jq -rR reads each line as a raw string; the per-line try/fromjson
-# means one malformed line yields nothing for that line instead of aborting the
-# whole batch, and a `2>/dev/null || true` keeps a jq-level hiccup from killing
-# the pipeline (a swallowed batch is caught by the cursor-retry logic in main).
+# on stdout. jq -rR reads each line as a raw string, and the per-line try/fromjson
+# means one malformed line yields nothing for THAT line instead of aborting the
+# whole batch - garbage rows drop out and the surrounding rows still normalize.
+#
+# jq's exit status is PROPAGATED, not swallowed. A jq that cannot run or is killed
+# partway (out of memory on a large batch, say) leaves the rows it never emitted
+# unjudged, and this stage cannot tell which. Reporting success there would hand
+# main a short batch that looks like a complete one: it would page nothing and
+# then checkpoint the cursor past those very rows, and nothing re-reads a byte
+# range the cursor has passed, so the findings would be gone. Failing instead
+# reaches main through its pipefail, which leaves the cursor put and re-reads the
+# same rows on the next tick (at-least-once). stderr is still suppressed: jq
+# reports a per-input error for any line that parses as valid non-object JSON, and
+# those are recovered from, not failures.
 normalize_findings() {
   jq -rR '
     # Known-query allowlist (the security select): the prefix-stripped names of
@@ -87,5 +97,5 @@ normalize_findings() {
         elif $q == "suid_bin_unexpected" then (.columns.path // "")
         else "" end) | gsub("[\t\n]"; " ")) as $ep
     | {q: $q, act: $act, cols: (.columns // {}), ep: $ep} | @json
-  ' 2>/dev/null || true
+  ' 2>/dev/null
 }
