@@ -42,6 +42,17 @@
 # rewrite local refs. The boundary this buys is post-deployment integrity, not
 # supply-chain integrity of the source.
 #
+# Nor is the root install a boundary against a user-level attacker on this host.
+# The manifest is written root-owned 0644 so a process at the user's privilege
+# level cannot rewrite it, and the consumer refuses a manifest that is not (see
+# _pipeline_manifest_is_trustworthy in pipeline-verdict.sh). That raises the bar and
+# stops an unprivileged process from whitelisting a file it just tampered, but the
+# operator account here has passwordless sudo, so a process running AS the operator
+# can escalate with no prompt and rewrite the manifest at will. Every unattended
+# chezmoi script depends on that sudo configuration, this one included, so the limit
+# is recorded rather than closed: root ownership buys a higher bar and a loud
+# failure mode, not integrity against a determined user-level attacker.
+#
 # Blind spot, recorded honestly: the manifest binds CONTENT only. An
 # ATTRIBUTES_MODIFIED event (for example `chmod g+w` on a pipeline script) carries
 # the unchanged hash, matches its tuple, and stays silent. A mode/owner column is a
