@@ -6,8 +6,8 @@
 #   pipeline_verdict 0 (page: tamper / cannot confirm / no manifest) -> sev=CRIT
 #   pipeline_verdict 1 (silent: untracked neighbor, or an exact manifest match) -> continue
 #
-# The manifest slice (15) does not exist yet, so a tracked change fails open to a
-# PAGE (criterion 6). This test pins both halves: the fail-open page (no manifest)
+# With NO manifest present (missing or unreadable), a tracked change fails safe to a
+# PAGE (criterion 6). This test pins both halves: the fail-safe page (no manifest)
 # AND that the verdict is genuinely consulted - an untracked neighbor stays silent,
 # and a stubbed exact (path, sha256) manifest match suppresses the page.
 #
@@ -58,24 +58,34 @@ run_gate() {
       ' _ "$ROUTE" "$PIPELINE_HELPER" "$ALLOWLIST_HELPER"
 }
 
-# ---- Pass A: NO manifest. Tracked changes fail open to a page; an untracked
-#      neighbor is silent (proving the verdict is consulted, not page-always). ----
+# ---- Pass A: NO manifest. A tracked change (a libexec script, our own plist)
+#      fails safe to a page; an untracked neighbor (a ~/.local/bin tool, a
+#      non-osquery plist, a /Library twin of one of our plists) is silent, proving
+#      the verdict is consulted. The event hashes are real 64-hex digests: osquery
+#      never emits a short hash, so a fixture must stay in the producible input
+#      space. ----
+event_hash="2222222222222222222222222222222222222222222222222222222222222222"
 page_a="$(run_gate "$absent_manifest" \
-  "$(fe pipeline_integrity "$home/.local/libexec/osquery/results-alerterTAG01.sh" abc UPDATED)" \
-  "$(fe pipeline_integrity "$home/.local/bin/relayTAG02.sh" abc UPDATED)" \
-  "$(fe launch_agents "$home/Library/LaunchAgents/com.webdavis.osquery-uptimeTAG03.plist" abc UPDATED)" \
-  "$(fe launch_agents "$home/Library/LaunchAgents/com.apple.somethingTAG04.plist" abc UPDATED)")"
+  "$(fe pipeline_integrity "$home/.local/libexec/osquery/results-alerterTAG01.sh" "$event_hash" UPDATED)" \
+  "$(fe pipeline_integrity "$home/.local/bin/relayTAG02.sh" "$event_hash" UPDATED)" \
+  "$(fe launch_agents "$home/Library/LaunchAgents/com.webdavis.osquery-uptimeTAG03.plist" "$event_hash" UPDATED)" \
+  "$(fe launch_agents "$home/Library/LaunchAgents/com.apple.somethingTAG04.plist" "$event_hash" UPDATED)" \
+  "$(fe launch_agents "/Library/LaunchAgents/com.webdavis.osquery-uptimeTAG07.plist" "$event_hash" UPDATED)")"
 
 in_a() { grep -qF "$1" <<<"$page_a"; }
-in_a TAG01 || fail "a ~/.local/libexec/osquery script change must PAGE (fail-open, no manifest)"
-in_a TAG02 || fail "a ~/.local/bin script change must PAGE (fail-open, second prefix)"
-in_a TAG03 || fail "our own osquery LaunchAgent change must PAGE (fail-open)"
+in_a TAG01 || fail "a ~/.local/libexec/osquery script change must PAGE (fail-safe, no manifest)"
+in_a TAG02 && fail "a ~/.local/bin change must NOT page the osquery pipeline_integrity path (Relay subsystem, an untracked neighbor)"
+in_a TAG03 || fail "our own osquery LaunchAgent change must PAGE (fail-safe)"
 in_a TAG04 && fail "an untracked neighbor plist must be SILENT (the verdict is consulted, not page-always)"
+in_a TAG07 && fail "a com.webdavis.osquery-*.plist under /Library must NOT be tracked (the manifest can never cover it; persistence default-deny owns it)"
 
 # ---- Pass B: a stubbed manifest with an exact (path, sha256) match. That event
 #      is confirmed known-good and stays silent; a DELETE still pages. ----
+# The verdict rehashes the target at judgment time, so the known-good file has to
+# actually exist and the manifest has to bind its REAL content hash.
 known_target="$home/.local/libexec/osquery/knownTAG05.sh"
-known_hash="1111111111111111111111111111111111111111111111111111111111111111"
+printf 'echo known-good\n' >"$known_target"
+known_hash="$(shasum -a 256 "$known_target" | awk '{print $1}')"
 manifest="$work/pipeline-known-good.sha256"
 printf '%s  %s\n' "$known_hash" "$known_target" >"$manifest"
 
@@ -97,4 +107,4 @@ for out in "$page_a" "$page_b"; do
     fail "every paged pipeline finding must carry .sev == CRIT"
 done
 
-printf 'osquery-route-pipeline: OK (fail-open PAGE under both prefixes + own plist; neighbor SILENT; manifest exact match SILENT; delete PAGES; none digest)\n'
+printf 'osquery-route-pipeline: OK (fail-safe PAGE for a libexec file + our own home-dir plist; a ~/.local/bin neighbor, a non-osquery plist and a /Library twin SILENT; manifest exact match SILENT; delete PAGES; none digest)\n'

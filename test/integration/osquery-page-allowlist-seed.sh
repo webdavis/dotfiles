@@ -10,7 +10,10 @@
 #   - a home-rooted path/program is stored as ~/ , never an absolute /Users/ path,
 #     so the file stays user-agnostic;
 #   - the file contains no em-dash or en-dash;
-#   - the old flat dot_config/osquery/launch-allowlist.txt is absent from the tree.
+#   - the old flat dot_config/osquery/launch-allowlist.txt is absent from the tree;
+#   - COMPLETENESS: every shipped com.webdavis.osquery-* LaunchAgent has a tuple, so
+#     no own-agent self-pages the alerter's default-deny detector (a count-only check
+#     let the digest agent's missing tuple slip; enumerate the real agents instead).
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." || exit 1 && pwd)"
@@ -65,32 +68,24 @@ else
     fi
   done <"$new_file"
 
-  # The seed migrates this host's own-agents (results-alerter,
-  # firewall-gatekeeper-monitor, uptime-watchdog, alert-drainer, heartbeat,
-  # tailscale-monitor) to tuples, so none false-pages the alerter's
-  # persistence_launchd detector (which default-denies an unallowlisted user
-  # LaunchAgent) when its plist first appears.
-  if [[ $entry_count -ne 6 ]]; then
-    fail "expected 6 seeded tuples (the host's own-agents), got $entry_count"
+  # Completeness guard: every own-agent LaunchAgent that ships MUST carry a
+  # page-allowlist tuple, or its plist self-pages the alerter's default-deny
+  # persistence_launchd detector the first time launchd surfaces it. Enumerate the
+  # REAL agent templates and assert each label is allowlisted. This replaces a
+  # count-only check, which passed with the WRONG six and let the digest agent's
+  # missing tuple slip through; a future agent added without a tuple now fails here.
+  shopt -s nullglob
+  agent_templates=("$REPO_ROOT"/Library/LaunchAgents/com.webdavis.osquery-*.plist.tmpl)
+  shopt -u nullglob
+  if [[ ${#agent_templates[@]} -eq 0 ]]; then
+    fail "no com.webdavis.osquery-* LaunchAgent templates found (path or glob drift)"
   fi
-
-  # The alert-drainer is one own-agent of the class: a real own-agent, so it does not
-  # false-page when the alerter goes live at the D1 cutover.
-  if ! grep -qF '"label":"com.webdavis.osquery-alert-drainer"' "$new_file"; then
-    fail "the alert-drainer own-agent tuple is missing from the seed"
-  fi
-
-  # The heartbeat is an own-agent added after the cutover: without its own tuple its
-  # plist would self-page the alerter (default-deny), so its tuple is seeded here too.
-  if ! grep -qF '"label":"com.webdavis.osquery-heartbeat"' "$new_file"; then
-    fail "the heartbeat own-agent tuple is missing from the seed"
-  fi
-
-  # The tailscale funnel monitor is an own-agent added after the cutover too: its
-  # plist would self-page the alerter (default-deny) without its own tuple.
-  if ! grep -qF '"label":"com.webdavis.osquery-tailscale-monitor"' "$new_file"; then
-    fail "the tailscale-monitor own-agent tuple is missing from the seed"
-  fi
+  for template in "${agent_templates[@]}"; do
+    label="$(basename "$template" .plist.tmpl)"
+    if ! grep -qF "\"label\":\"$label\"" "$new_file"; then
+      fail "own-agent $label ships a LaunchAgent but has no page-allowlist tuple (it would self-page the default-deny persistence detector)"
+    fi
+  done
 fi
 
 # The old flat bare-label allowlist is gone.

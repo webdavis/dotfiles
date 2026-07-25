@@ -62,10 +62,10 @@ render_page() {
       elif (.q | test("_extensions$|_addons$")) then "New browser extension"
       elif .q == "file_events_recent" then
         ((.cols.category // "") as $cat | ((.cols.target_path // "") | split("/") | last) as $bn |
-          # A tracked pipeline file can arrive under pipeline_integrity OR (for our own
-          # LaunchAgents) launch_agents/launch_daemons, so key the tooling header on the
-          # basename, not only the category.
-          if ($bn | test("^osquery-.*\\.sh$")) or ($bn | test("^com\\.webdavis\\.osquery-.*\\.plist$")) then "Security tooling changed"
+          # Our own LaunchAgent plists arrive under launch_agents (not
+          # pipeline_integrity), so flag them as tooling by basename; a pipeline
+          # SCRIPT arrives under pipeline_integrity and hits the category branch below.
+          if ($bn | test("^com\\.webdavis\\.osquery-.*\\.plist$")) then "Security tooling changed"
           elif ($cat == "ssh" or $cat == "authorized_keys") then "SSH key file changed"
           elif $cat == "sudoers" then "sudoers changed"
           elif $cat == "sshd_config" then "sshd_config changed"
@@ -127,7 +127,7 @@ render_page() {
       elif .q == "file_events_recent" then
         (((.cols.target_path // "") | split("/") | last) as $bn |
          if ((.cols.category // "") == "pipeline_integrity")
-            or ($bn | test("^osquery-.*\\.sh$")) or ($bn | test("^com\\.webdavis\\.osquery-.*\\.plist$"))
+            or ($bn | test("^com\\.webdavis\\.osquery-.*\\.plist$"))
          then ["- Did you just apply your dotfiles? If not, your **security tooling was modified** - investigate now.", "- **Compare:** " + (("shasum -a 256 -- " + ($ep | @sh)) | code)]
          else ["- Did you change this? If not, someone altered who can log in or run as **root**.", "- **Review:** " + (("sudo cat -- " + ($ep | @sh)) | code)] end)
       elif (.q == "persistence_launchd" or .q == "persistence_startup_items_crontab") then

@@ -13,7 +13,7 @@
 # TABLE; the fine-grained allowlist (B11) and pipeline (B12) verdict outcomes have
 # their own suites. Here the verdicts are consulted with no allowlist/manifest, so
 # a user LaunchAgent (not-found -> default-deny) and a tracked pipeline file event
-# (fail-open, no manifest) both page.
+# (fail-safe, no manifest) both page.
 #
 # Unit test: fixture normalized findings, each tagged with a unique token, run
 # through ONE gate pass. A token in stdout => paged; in the spool => digested; in

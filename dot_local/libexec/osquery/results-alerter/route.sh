@@ -238,7 +238,7 @@ route_findings() {
           sshd_config) sev="CRIT" ;; # remote-auth policy pages
           # The alerter's own scripts/plists (pipeline_integrity) and our own
           # LaunchAgents (launch_agents/launch_daemons) consult pipeline_verdict:
-          # 0 = page (tamper / cannot confirm / no manifest -> fail-open), 1 = silent
+          # 0 = page (tamper / cannot confirm / no manifest -> fail-safe), 1 = silent
           # (an untracked neighbor, or an exact (path, sha256) manifest match). Never
           # digests - page or silent. Until the manifest slice lands, a tracked
           # change fails open to a page (criterion 6).
