@@ -17,8 +17,8 @@
 # earlier revision matched that basename anywhere and had exactly this divergence.
 #
 # It also pins the end-to-end agreement between the real generated manifest and the
-# real verdict (unchanged is SILENT, a one-byte tamper PAGES) and the bounded
-# apply-race settle window.
+# real verdict (unchanged is SILENT, a one-byte tamper PAGES, and a chmod on
+# otherwise unchanged content PAGES) and the bounded apply-race settle window.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -110,6 +110,15 @@ expect_verdict 1 "an unchanged pipeline script is SILENT" "$script_target" "$(ha
 printf 'echo tampered\n' >>"$script_target"
 expect_verdict 0 "a one-byte tamper PAGES" "$script_target" "$(hash_of "$script_target")" UPDATED
 manifest_fixture_apply # restore
+expect_verdict 1 "the restored script is SILENT again" "$script_target" "$(hash_of "$script_target")" UPDATED
+
+# A chmod PAGES end to end, against the REAL generated manifest. osquery reports
+# this as ATTRIBUTES_MODIFIED carrying the file's UNCHANGED digest, which is why
+# the event hash below is the same one that was just SILENT: only the mode moved.
+chmod g+w "$script_target"
+expect_verdict 0 "a chmod g+w on a manifested script PAGES" "$script_target" "$(hash_of "$script_target")" ATTRIBUTES_MODIFIED
+chmod 755 "$script_target"
+expect_verdict 1 "restoring the intended mode is SILENT again" "$script_target" "$(hash_of "$script_target")" ATTRIBUTES_MODIFIED
 
 # --- THE THREE-WAY AGREEMENT, across BOTH launch agent watch roots ------------
 # Every launch-agent path the WATCH reports is classified, and the TRACKED verdict
@@ -153,7 +162,7 @@ done <<<"$watch_roots"
 
 # Every path the manifest holds must be one the verdict tracks (no manifested-but-
 # unchecked file).
-while read -r _ manifested_path; do
+while read -r _ _ _ manifested_path; do
   [[ -n $manifested_path ]] || continue
   t=0
   HOME="$MF_HOME" _pipeline_is_tracked "$manifested_path" || t=$?
@@ -165,13 +174,17 @@ done <"$MF_MANIFEST"
 # is reinstalled must not page a false CRIT that is never reconsidered.
 settle_target="$script_target"
 settle_hash="$(hash_of "$settle_target")"
+settle_mode="$(manifest_mode_of "$settle_target")"
+settle_uid="$(manifest_uid_of "$settle_target")"
+[[ -n $settle_mode && -n $settle_uid ]] ||
+  fail "the settle fixture could not read the generated mode/owner columns"
 # A manifest that PREDATES the target and lacks the tuple: the verdict waits, and
 # goes SILENT when the regeneration lands inside the window.
-printf 'deadbeef  /nowhere\n' >"$MF_MANIFEST"
+printf 'deadbeef 0755 %s /nowhere\n' "$(id -u)" >"$MF_MANIFEST"
 touch -t 200001010000 "$MF_MANIFEST"
 (
   sleep 1
-  printf '%s  %s\n' "$settle_hash" "$settle_target" >"$MF_MANIFEST"
+  printf '%s %s %s %s\n' "$settle_hash" "$settle_mode" "$settle_uid" "$settle_target" >"$MF_MANIFEST"
 ) &
 settle_pid=$!
 got=0
@@ -181,7 +194,7 @@ wait "$settle_pid"
   fail "a manifest that lands during the settle window must resolve to SILENT (got rc $got)"
 
 # ...but the wait is BOUNDED: a tuple that never arrives still PAGES.
-printf 'deadbeef  /nowhere\n' >"$MF_MANIFEST"
+printf 'deadbeef 0755 %s /nowhere\n' "$(id -u)" >"$MF_MANIFEST"
 touch -t 200001010000 "$MF_MANIFEST"
 start=$(date +%s)
 got=0
@@ -203,7 +216,7 @@ elapsed=$(($(date +%s) - start))
 # land in a single invocation. run_verdict isolates CASES from each other; this
 # asserts what happens WITHIN one case. The two are the same rule from both sides.
 miss_manifest="$MF_ROOT/miss.sha256"
-printf 'deadbeef  /nowhere\n' >"$miss_manifest"
+printf 'deadbeef 0755 %s /nowhere\n' "$(id -u)" >"$miss_manifest"
 touch -t 200001010000 "$miss_manifest"
 # The targets must EXIST and post-date the manifest, or the mtime guard short
 # circuits and nothing settles (the shape a real apply produces).
@@ -229,4 +242,4 @@ if [[ $fails -gt 0 ]]; then
   printf '%d check(s) failed\n' "$fails" >&2
   exit 1
 fi
-printf 'osquery-pipeline-manifest-agreement: OK (generated manifest and real verdict agree; watch/tracked/manifest cover the identical set across BOTH launch agent roots; a /Library twin is untracked; the settle window resolves a live regeneration, stays bounded, and spends ONE budget per alerter run across many misses)\n'
+printf 'osquery-pipeline-manifest-agreement: OK (generated manifest and real verdict agree, including a chmod on unchanged content; watch/tracked/manifest cover the identical set across BOTH launch agent roots; a /Library twin is untracked; the settle window resolves a live regeneration, stays bounded, and spends ONE budget per alerter run across many misses)\n'

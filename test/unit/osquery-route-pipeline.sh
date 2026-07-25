@@ -79,15 +79,16 @@ in_a TAG03 || fail "our own osquery LaunchAgent change must PAGE (fail-safe)"
 in_a TAG04 && fail "an untracked neighbor plist must be SILENT (the verdict is consulted, not page-always)"
 in_a TAG07 && fail "a com.webdavis.osquery-*.plist under /Library must NOT be tracked (the manifest can never cover it; persistence default-deny owns it)"
 
-# ---- Pass B: a stubbed manifest with an exact (path, sha256) match. That event
-#      is confirmed known-good and stays silent; a DELETE still pages. ----
-# The verdict rehashes the target at judgment time, so the known-good file has to
-# actually exist and the manifest has to bind its REAL content hash.
+# ---- Pass B: a stubbed manifest with an exact (path, sha256, mode, uid) match.
+#      That event is confirmed known-good and stays silent; a DELETE still pages. --
+# The verdict re-reads the target at judgment time, so the known-good file has to
+# actually exist and the manifest has to bind its REAL content hash, mode and owner.
 known_target="$home/.local/libexec/osquery/knownTAG05.sh"
 printf 'echo known-good\n' >"$known_target"
+chmod 755 "$known_target"
 known_hash="$(shasum -a 256 "$known_target" | awk '{print $1}')"
 manifest="$work/pipeline-known-good.sha256"
-printf '%s  %s\n' "$known_hash" "$known_target" >"$manifest"
+printf '%s 0755 %s %s\n' "$known_hash" "$(id -u)" "$known_target" >"$manifest"
 
 page_b="$(run_gate "$manifest" \
   "$(fe pipeline_integrity "$known_target" "$known_hash" UPDATED)" \

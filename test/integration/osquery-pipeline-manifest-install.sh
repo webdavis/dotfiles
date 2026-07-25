@@ -12,6 +12,12 @@
 # interactive apply. Pinned end to end below: the runner is dropped into a fixture
 # chezmoi source and must actually execute under --exclude=templates.
 #
+# That end-to-end step is also the only place a NESTED chezmoi call runs under a
+# real apply, which is where the persistent state lock is already held. `chezmoi
+# dump` takes that lock and fails without a throwaway --persistent-state; every
+# other check here invokes the runner directly, so none of them would notice. It
+# caught exactly that, so do not weaken it to a direct invocation.
+#
 # Also pinned: root:wheel 0644, the diff-guard (no privileged write when nothing
 # changed), re-install after a real change, refusal to install an empty manifest,
 # a generation failure leaving the previous manifest intact, and that the producer

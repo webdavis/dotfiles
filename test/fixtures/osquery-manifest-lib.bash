@@ -102,9 +102,24 @@ manifest_fixture_run_runner() {
 # manifest_fixture_installed: did this run perform a privileged install?
 manifest_fixture_installed() { [[ -s $MF_SUDO_LOG ]]; }
 
+# The manifest is "<sha256> <mode> <uid> <path>", path LAST. awk splits on runs of
+# whitespace, so field 4 is the path only while the path itself has no spaces; the
+# fixture never creates one, and the runner's own reader takes the remainder of the
+# line rather than a fixed field.
+
 # manifest_hash_of <target-path>: the manifest's recorded hash for a path, or empty.
 manifest_hash_of() {
-  awk -v p="$1" '$2 == p {print $1}' "$MF_MANIFEST" 2>/dev/null
+  awk -v p="$1" '$4 == p {print $1}' "$MF_MANIFEST" 2>/dev/null
+}
+
+# manifest_mode_of <target-path>: the manifest's recorded mode (four octal digits).
+manifest_mode_of() {
+  awk -v p="$1" '$4 == p {print $2}' "$MF_MANIFEST" 2>/dev/null
+}
+
+# manifest_uid_of <target-path>: the manifest's recorded owner uid (decimal).
+manifest_uid_of() {
+  awk -v p="$1" '$4 == p {print $3}' "$MF_MANIFEST" 2>/dev/null
 }
 
 # verdict_says_page <target> [verdict-helper]: run the REAL pipeline_verdict over
