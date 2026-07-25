@@ -94,7 +94,20 @@ route_findings() {
   # Severity is safe to batch: route_severity emits a fixed-vocabulary token
   # (CRIT/NOTICE/INFO) per finding, in order, never an attacker-controlled value,
   # so a newline-delimited mapfile cannot be shifted by a crafted column.
-  mapfile -t sevs < <(printf '%s\n' "${objs[@]}" | route_severity)
+  #
+  # The batch is taken through a CHECKED command substitution, not a process
+  # substitution: `< <(... | route_severity)` discards the producer's exit status
+  # entirely, so a route_severity that died partway (its jq killed on a huge batch,
+  # say) would return fewer severities than there are findings with nothing to show
+  # for it. The status is captured here and reported by the per-finding fail-safe
+  # read below; it is NOT used to abort the pass, because a batch that cannot be
+  # fully classified must still be routed rather than left to a retry that would
+  # re-run the same failing classification on the same rows forever.
+  local sev_batch="" sev_status=0
+  sev_batch=$(printf '%s\n' "${objs[@]}" | route_severity) || sev_status=$?
+  # Guarded because a herestring of an empty batch is one empty LINE, which would
+  # read back as a severity slot that exists but says nothing.
+  if [[ -n $sev_batch ]]; then mapfile -t sevs <<<"$sev_batch"; fi
 
   # The signing enricher (enrich-finding.sh): given an inspectable path it emits a
   # trust fact string and exits 10 when the code is UNTRUSTED. Overridable for tests;
@@ -108,7 +121,23 @@ route_findings() {
     q=$(jq -r '.q' <<<"$obj")
     act=$(jq -r '.act' <<<"$obj")
     ep=$(jq -r '.ep // ""' <<<"$obj")
-    sev=${sevs[i]}
+    # FAIL-SAFE severity read. route_severity owes exactly one fixed-vocabulary
+    # token per finding, so an empty slot or an off-vocabulary value means the
+    # batch came back short or corrupted - never that the finding is benign.
+    # Resolve it to CRIT so the finding PAGES (over-paging is recoverable; a
+    # dropped security finding is not) and say so on stderr, which lands in the
+    # alerter's launchd log. Reading the slot with :- also keeps a short batch from
+    # tripping the entry's `set -u` and aborting mid-loop, which would lose the
+    # findings already classified in this pass as well as the unclassified ones.
+    sev=${sevs[i]:-}
+    case "$sev" in
+      CRIT | NOTICE | INFO) ;;
+      *)
+        printf 'route.sh: no severity for finding %d of %d (route_severity exit %d, %d severities returned); treating it as CRITICAL so it pages\n' \
+          "$((i + 1))" "${#objs[@]}" "$sev_status" "${#sevs[@]}" >&2
+        sev="CRIT"
+        ;;
+    esac
     # Enrichment runs BEFORE the per-detector case: for a finding with an inspectable
     # path and a CRIT/NOTICE base tier, get the signing verdict, attach it as .signing
     # for render-page, and promote NOTICE -> CRIT (louder, never quieter) when the
