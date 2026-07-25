@@ -621,6 +621,25 @@ teardown() { teardown_watchdog_harness; }
   assert_page_body_has 'pipeline-integrity manifest'
 }
 
+@test "T-WATCH-audit-helper-missing-pages: the audit's own dependency going missing pages, instead of killing the tick silently" {
+  # The audit reuses the verdict helper for the manifest constant and the ownership
+  # check. Under the watchdog's errexit shell, sourcing a deleted helper would abort
+  # the whole tick: no probe would report, and nothing would page. A monitor that
+  # dies quietly when part of it is removed is worse than no monitor, so the missing
+  # dependency has to come out as a page.
+  rm -f "$WD_HOME/.local/libexec/osquery/results-alerter/pipeline-verdict.sh"
+  run run_watchdog
+  run run_watchdog
+  [[ $status -eq 0 ]] || {
+    echo "tick2 status $status: $output"
+    false
+  }
+  assert_page_count 1
+  assert_page_severity_is CRIT
+  assert_page_sound_nonempty
+  assert_page_body_has 'not installed'
+}
+
 @test "T-WATCH-audit-page-once: a persistent divergence pages once, not every 15 minutes forever" {
   tamper_manifested_file
   run run_watchdog # tick 1: confirming

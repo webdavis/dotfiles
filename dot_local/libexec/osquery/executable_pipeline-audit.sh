@@ -23,11 +23,19 @@
 # The manifest path constant and the root-ownership check are REUSED from the
 # verdict helper rather than copied: the producer/consumer agreement on a
 # security-critical file is already pinned by a test, and a third copy of either
-# would be a third thing to drift. Sourced unconditionally, exactly as the
-# watchdog sources its other two helpers: if a pipeline helper is missing, the
-# subsystem is already broken and the alerter pages the DELETED file event.
-# shellcheck source=/dev/null
-source "$HOME/.local/libexec/osquery/results-alerter/pipeline-verdict.sh"
+# would be a third thing to drift.
+#
+# Sourced CONDITIONALLY, and its absence is reported by the scan rather than
+# thrown. Every caller runs under `set -euo pipefail`, so an unconditional source
+# of a file someone had deleted would abort the caller mid-run: the watchdog would
+# die in the middle of its tick and page nothing at all, which is precisely the
+# silent-monitor failure this audit exists to prevent. A missing dependency has to
+# be loud, and the only way to be loud is to survive long enough to say so.
+_pipeline_audit_verdict_helper="$HOME/.local/libexec/osquery/results-alerter/pipeline-verdict.sh"
+if [[ -r $_pipeline_audit_verdict_helper ]]; then
+  # shellcheck source=/dev/null
+  source "$_pipeline_audit_verdict_helper"
+fi
 
 # COST, measured rather than assumed. The real manifest lists 25 files totalling
 # about 224 KiB, and a full scan of them takes ~0.75s wall clock on this host: one
@@ -98,6 +106,7 @@ _pipeline_audit_size() {
 #                unreadable  present and regular, but its size or hash failed
 #   return 1 - the scan could NOT be completed, and stdout is a single reason
 #              TOKEN: missing (absent, unreadable, or empty manifest),
+#              unavailable (the verdict helper it reuses is not installed),
 #              untrustworthy (not root-owned, or group/world-writable),
 #              malformed (a line that is not "<sha256>  <absolute-path>"),
 #              overlong (more entries than the audit will examine), budget (the
@@ -112,7 +121,13 @@ _pipeline_audit_size() {
 # pipeline home that the manifest does not list is not found here; that direction
 # is the alerter's, which pages any tracked path whose tuple it cannot confirm.
 pipeline_audit_scan() {
-  local manifest="${OSQUERY_PIPELINE_MANIFEST:-$PIPELINE_MANIFEST}"
+  # The reused seam has to actually be here. Checked by NAME rather than assumed,
+  # so a partial deploy reports a broken audit instead of an all-clear.
+  if ! declare -F _pipeline_manifest_is_trustworthy >/dev/null 2>&1; then
+    printf 'unavailable\n'
+    return 1
+  fi
+  local manifest="${OSQUERY_PIPELINE_MANIFEST:-${PIPELINE_MANIFEST:-}}"
   local max_entries max_bytes budget
   max_entries="$(_pipeline_audit_clamp "$OSQUERY_PIPELINE_AUDIT_MAX_ENTRIES" 1 100000 500)"
   max_bytes="$(_pipeline_audit_clamp "$OSQUERY_PIPELINE_AUDIT_MAX_BYTES" 1 1073741824 8388608)"

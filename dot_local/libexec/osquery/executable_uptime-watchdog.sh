@@ -364,6 +364,9 @@ if [[ $audit_should_page -eq 1 ]]; then
       missing)
         problems+=("the pipeline-integrity manifest is missing or unreadable, so the periodic content audit cannot verify the deployed pipeline; tampering would go unseen until it is restored")
         ;;
+      unavailable)
+        problems+=("the periodic content audit is not installed completely (the pipeline-integrity manifest helper it reads is missing), so the deployed pipeline is unverified")
+        ;;
       untrustworthy)
         problems+=("the pipeline-integrity manifest is no longer root-owned (or is group/world-writable), so it can no longer vouch for the deployed pipeline")
         ;;

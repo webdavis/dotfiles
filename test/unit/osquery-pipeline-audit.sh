@@ -95,7 +95,8 @@ run_scan() {
   # analysis, hence the explicit directive.
   # shellcheck disable=SC2016
   SCAN_OUT="$(env HOME="$home" OSQUERY_PIPELINE_MANIFEST="$manifest" "$@" \
-    bash -c 'source "$1"
+    bash -c 'set -euo pipefail
+      source "$1"
       pipeline_audit_scan' _ "$pipeline/pipeline-audit.sh")" || SCAN_RC=$?
 }
 
@@ -213,6 +214,17 @@ run_scan OSQUERY_PIPELINE_MANIFEST="$rel_manifest"
 expect_rc "a relative manifested path refuses" 1
 expect_out "a relative manifested path reports the malformed token" "malformed"
 
+# --- the audit's own dependency going missing is a REFUSAL, not a silent death --
+# The scan reuses the verdict helper for the manifest constant and the ownership
+# check. Sourcing that helper unconditionally would abort the caller under errexit
+# if it were absent, and the caller here is the watchdog: it would die mid-tick and
+# page nothing, which is the exact failure mode this subsystem exists to prevent.
+mv "$pipeline/results-alerter/pipeline-verdict.sh" "$work/verdict.stashed"
+run_scan
+expect_rc "an absent verdict helper refuses instead of aborting the caller" 1
+expect_out "an absent verdict helper reports the unavailable token" "unavailable"
+mv "$work/verdict.stashed" "$pipeline/results-alerter/pipeline-verdict.sh"
+
 # --- the manifest must be root-owned before its verdict means anything --------
 # Driven with the OSQUERY_PIPELINE_MANIFEST override UNSET, because that override
 # is the test seam that skips the ownership check for fixture manifests (the same
@@ -221,6 +233,7 @@ expect_out "a relative manifested path reports the malformed token" "malformed"
 trust_rc=0
 # shellcheck disable=SC2016 # $1/$2 are expanded by the child shell, as above
 trust_out="$(env HOME="$home" bash -c '
+  set -euo pipefail
   source "$1"
   unset OSQUERY_PIPELINE_MANIFEST
   PIPELINE_MANIFEST="$2"
@@ -234,4 +247,4 @@ if [[ $fails -gt 0 ]]; then
   printf '%d check(s) failed\n' "$fails" >&2
   exit 1
 fi
-printf 'osquery-pipeline-audit: OK (a matching tree is clean; tampered content, a missing path, a symlink whose referent matches, a directory, and an over-cap file are each reported without any file event; spaced paths are read whole; an absent, empty, malformed, relative-path, over-long, or non-root-owned manifest and an exhausted budget all refuse LOUDLY)\n'
+printf 'osquery-pipeline-audit: OK (a matching tree is clean; tampered content, a missing path, a symlink whose referent matches, a directory, and an over-cap file are each reported without any file event; spaced paths are read whole; an absent, empty, malformed, relative-path, over-long, or non-root-owned manifest, an absent verdict helper, and an exhausted budget all refuse LOUDLY)\n'
