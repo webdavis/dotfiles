@@ -4091,7 +4091,7 @@
       "label": "_pipeline_now()",
       "file_type": "code",
       "source_file": "dot_local/libexec/osquery/results-alerter/pipeline-verdict.sh",
-      "source_location": "L53",
+      "source_location": "L70",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -4105,7 +4105,7 @@
       "label": "_pipeline_mtime()",
       "file_type": "code",
       "source_file": "dot_local/libexec/osquery/results-alerter/pipeline-verdict.sh",
-      "source_location": "L60",
+      "source_location": "L77",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -4119,7 +4119,7 @@
       "label": "_pipeline_manifest_is_trustworthy()",
       "file_type": "code",
       "source_file": "dot_local/libexec/osquery/results-alerter/pipeline-verdict.sh",
-      "source_location": "L75",
+      "source_location": "L92",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -4133,7 +4133,7 @@
       "label": "_pipeline_manifest_has_tuple()",
       "file_type": "code",
       "source_file": "dot_local/libexec/osquery/results-alerter/pipeline-verdict.sh",
-      "source_location": "L95",
+      "source_location": "L112",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -4144,10 +4144,24 @@
       "norm_label": "_pipeline_manifest_has_tuple()"
     },
     {
+      "label": "_pipeline_content_is_known_good()",
+      "file_type": "code",
+      "source_file": "dot_local/libexec/osquery/results-alerter/pipeline-verdict.sh",
+      "source_location": "L132",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_libexec_osquery_results_alerter_pipeline_verdict_pipeline_content_is_known_good",
+      "community": 311,
+      "norm_label": "_pipeline_content_is_known_good()"
+    },
+    {
       "label": "_pipeline_tuple_settles()",
       "file_type": "code",
       "source_file": "dot_local/libexec/osquery/results-alerter/pipeline-verdict.sh",
-      "source_location": "L112",
+      "source_location": "L146",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -4161,7 +4175,7 @@
       "label": "_pipeline_is_tracked()",
       "file_type": "code",
       "source_file": "dot_local/libexec/osquery/results-alerter/pipeline-verdict.sh",
-      "source_location": "L150",
+      "source_location": "L184",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -4175,7 +4189,7 @@
       "label": "pipeline_verdict()",
       "file_type": "code",
       "source_file": "dot_local/libexec/osquery/results-alerter/pipeline-verdict.sh",
-      "source_location": "L160",
+      "source_location": "L199",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -16374,6 +16388,20 @@
       "norm_label": "fail()"
     },
     {
+      "label": "sha_of()",
+      "file_type": "code",
+      "source_file": "test/unit/osquery-pipeline-verdict.sh",
+      "source_location": "L48",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_osquery_pipeline_verdict_sha_of",
+      "community": 352,
+      "norm_label": "sha_of()"
+    },
+    {
       "label": "osquery-queue-counts.sh",
       "file_type": "code",
       "source_file": "test/unit/osquery-queue-counts.sh",
@@ -17049,7 +17077,7 @@
       "label": "in_b()",
       "file_type": "code",
       "source_file": "test/unit/osquery-route-pipeline.sh",
-      "source_location": "L93",
+      "source_location": "L96",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -36635,7 +36663,7 @@
       "label": "Step-by-step over `git diff 8809a39..HEAD`",
       "file_type": "document",
       "source_file": "slice-pipeline-manifest-report.md",
-      "source_location": "L21",
+      "source_location": "L22",
       "_origin": "ast",
       "id": "slice_pipeline_manifest_report_step_by_step_over_git_diff_8809a39_head",
       "community": 351,
@@ -36645,17 +36673,27 @@
       "label": "Invariants: stated, located, pinned",
       "file_type": "document",
       "source_file": "slice-pipeline-manifest-report.md",
-      "source_location": "L53",
+      "source_location": "L54",
       "_origin": "ast",
       "id": "slice_pipeline_manifest_report_invariants_stated_located_pinned",
       "community": 351,
       "norm_label": "invariants: stated, located, pinned"
     },
     {
+      "label": "Test-harness defect found while fixing R3-F4",
+      "file_type": "document",
+      "source_file": "slice-pipeline-manifest-report.md",
+      "source_location": "L169",
+      "_origin": "ast",
+      "id": "slice_pipeline_manifest_report_test_harness_defect_found_while_fixing_r3_f4",
+      "community": 351,
+      "norm_label": "test-harness defect found while fixing r3-f4"
+    },
+    {
       "label": "Status-loss sweep (whole slice)",
       "file_type": "document",
       "source_file": "slice-pipeline-manifest-report.md",
-      "source_location": "L152",
+      "source_location": "L181",
       "_origin": "ast",
       "id": "slice_pipeline_manifest_report_status_loss_sweep_whole_slice",
       "community": 351,
@@ -36665,17 +36703,27 @@
       "label": "Corrections to the previous report",
       "file_type": "document",
       "source_file": "slice-pipeline-manifest-report.md",
-      "source_location": "L173",
+      "source_location": "L202",
       "_origin": "ast",
       "id": "slice_pipeline_manifest_report_corrections_to_the_previous_report",
       "community": 351,
       "norm_label": "corrections to the previous report"
     },
     {
+      "label": "Adjudicated limits: what this layer does NOT cover, and why not here",
+      "file_type": "document",
+      "source_file": "slice-pipeline-manifest-report.md",
+      "source_location": "L215",
+      "_origin": "ast",
+      "id": "slice_pipeline_manifest_report_adjudicated_limits_what_this_layer_does_not_cover_and_why_not_here",
+      "community": 351,
+      "norm_label": "adjudicated limits: what this layer does not cover, and why not here"
+    },
+    {
       "label": "Documented, not fixed (filed as follow-ups)",
       "file_type": "document",
       "source_file": "slice-pipeline-manifest-report.md",
-      "source_location": "L186",
+      "source_location": "L247",
       "_origin": "ast",
       "id": "slice_pipeline_manifest_report_documented_not_fixed_filed_as_follow_ups",
       "community": 351,
@@ -36685,7 +36733,7 @@
       "label": "Code-quality summary",
       "file_type": "document",
       "source_file": "slice-pipeline-manifest-report.md",
-      "source_location": "L197",
+      "source_location": "L258",
       "_origin": "ast",
       "id": "slice_pipeline_manifest_report_code_quality_summary",
       "community": 351,
@@ -36695,7 +36743,7 @@
       "label": "Gate evidence",
       "file_type": "document",
       "source_file": "slice-pipeline-manifest-report.md",
-      "source_location": "L213",
+      "source_location": "L274",
       "_origin": "ast",
       "id": "slice_pipeline_manifest_report_gate_evidence",
       "community": 351,
@@ -42324,7 +42372,17 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/osquery/results-alerter/pipeline-verdict.sh",
-      "source_location": "L150",
+      "source_location": "L132",
+      "weight": 1.0,
+      "source": "dot_local_libexec_osquery_results_alerter_pipeline_verdict",
+      "target": "dot_local_libexec_osquery_results_alerter_pipeline_verdict_pipeline_content_is_known_good",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/libexec/osquery/results-alerter/pipeline-verdict.sh",
+      "source_location": "L184",
       "weight": 1.0,
       "source": "dot_local_libexec_osquery_results_alerter_pipeline_verdict",
       "target": "dot_local_libexec_osquery_results_alerter_pipeline_verdict_pipeline_is_tracked",
@@ -42334,7 +42392,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/osquery/results-alerter/pipeline-verdict.sh",
-      "source_location": "L95",
+      "source_location": "L112",
       "weight": 1.0,
       "source": "dot_local_libexec_osquery_results_alerter_pipeline_verdict",
       "target": "dot_local_libexec_osquery_results_alerter_pipeline_verdict_pipeline_manifest_has_tuple",
@@ -42344,7 +42402,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/osquery/results-alerter/pipeline-verdict.sh",
-      "source_location": "L75",
+      "source_location": "L92",
       "weight": 1.0,
       "source": "dot_local_libexec_osquery_results_alerter_pipeline_verdict",
       "target": "dot_local_libexec_osquery_results_alerter_pipeline_verdict_pipeline_manifest_is_trustworthy",
@@ -42354,7 +42412,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/osquery/results-alerter/pipeline-verdict.sh",
-      "source_location": "L60",
+      "source_location": "L77",
       "weight": 1.0,
       "source": "dot_local_libexec_osquery_results_alerter_pipeline_verdict",
       "target": "dot_local_libexec_osquery_results_alerter_pipeline_verdict_pipeline_mtime",
@@ -42364,7 +42422,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/osquery/results-alerter/pipeline-verdict.sh",
-      "source_location": "L53",
+      "source_location": "L70",
       "weight": 1.0,
       "source": "dot_local_libexec_osquery_results_alerter_pipeline_verdict",
       "target": "dot_local_libexec_osquery_results_alerter_pipeline_verdict_pipeline_now",
@@ -42374,7 +42432,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/osquery/results-alerter/pipeline-verdict.sh",
-      "source_location": "L112",
+      "source_location": "L146",
       "weight": 1.0,
       "source": "dot_local_libexec_osquery_results_alerter_pipeline_verdict",
       "target": "dot_local_libexec_osquery_results_alerter_pipeline_verdict_pipeline_tuple_settles",
@@ -42384,7 +42442,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/osquery/results-alerter/pipeline-verdict.sh",
-      "source_location": "L160",
+      "source_location": "L199",
       "weight": 1.0,
       "source": "dot_local_libexec_osquery_results_alerter_pipeline_verdict",
       "target": "dot_local_libexec_osquery_results_alerter_pipeline_verdict_pipeline_verdict",
@@ -42404,7 +42462,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/osquery/results-alerter/pipeline-verdict.sh",
-      "source_location": "L98",
+      "source_location": "L115",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_libexec_osquery_results_alerter_pipeline_verdict_pipeline_manifest_has_tuple",
@@ -42415,10 +42473,10 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/osquery/results-alerter/pipeline-verdict.sh",
-      "source_location": "L114",
+      "source_location": "L136",
       "weight": 1.0,
       "context": "call",
-      "source": "dot_local_libexec_osquery_results_alerter_pipeline_verdict_pipeline_tuple_settles",
+      "source": "dot_local_libexec_osquery_results_alerter_pipeline_verdict_pipeline_content_is_known_good",
       "target": "dot_local_libexec_osquery_results_alerter_pipeline_verdict_pipeline_manifest_has_tuple",
       "confidence_score": 1.0
     },
@@ -42426,7 +42484,18 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/osquery/results-alerter/pipeline-verdict.sh",
-      "source_location": "L169",
+      "source_location": "L148",
+      "weight": 1.0,
+      "context": "call",
+      "source": "dot_local_libexec_osquery_results_alerter_pipeline_verdict_pipeline_tuple_settles",
+      "target": "dot_local_libexec_osquery_results_alerter_pipeline_verdict_pipeline_content_is_known_good",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/libexec/osquery/results-alerter/pipeline-verdict.sh",
+      "source_location": "L214",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_libexec_osquery_results_alerter_pipeline_verdict_pipeline_verdict",
@@ -42437,7 +42506,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/osquery/results-alerter/pipeline-verdict.sh",
-      "source_location": "L163",
+      "source_location": "L202",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_libexec_osquery_results_alerter_pipeline_verdict_pipeline_verdict",
@@ -54847,6 +54916,16 @@
       "confidence_score": 1.0
     },
     {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/osquery-pipeline-verdict.sh",
+      "source_location": "L48",
+      "weight": 1.0,
+      "source": "test_unit_osquery_pipeline_verdict",
+      "target": "test_unit_osquery_pipeline_verdict_sha_of",
+      "confidence_score": 1.0
+    },
+    {
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/osquery-pipeline-verdict.sh",
@@ -55539,7 +55618,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/osquery-route-pipeline.sh",
-      "source_location": "L93",
+      "source_location": "L96",
       "weight": 1.0,
       "source": "test_unit_osquery_route_pipeline",
       "target": "test_unit_osquery_route_pipeline_in_b",
@@ -55591,7 +55670,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/osquery-route-pipeline.sh",
-      "source_location": "L94",
+      "source_location": "L97",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_osquery_route_pipeline_sh__entry",
@@ -74484,7 +74563,17 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "slice-pipeline-manifest-report.md",
-      "source_location": "L197",
+      "source_location": "L215",
+      "weight": 1.0,
+      "source": "slice_pipeline_manifest_report_slice_15_pipeline_manifest_full_branch_chain_of_thought_report",
+      "target": "slice_pipeline_manifest_report_adjudicated_limits_what_this_layer_does_not_cover_and_why_not_here",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "slice-pipeline-manifest-report.md",
+      "source_location": "L258",
       "weight": 1.0,
       "source": "slice_pipeline_manifest_report_slice_15_pipeline_manifest_full_branch_chain_of_thought_report",
       "target": "slice_pipeline_manifest_report_code_quality_summary",
@@ -74504,7 +74593,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "slice-pipeline-manifest-report.md",
-      "source_location": "L173",
+      "source_location": "L202",
       "weight": 1.0,
       "source": "slice_pipeline_manifest_report_slice_15_pipeline_manifest_full_branch_chain_of_thought_report",
       "target": "slice_pipeline_manifest_report_corrections_to_the_previous_report",
@@ -74514,7 +74603,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "slice-pipeline-manifest-report.md",
-      "source_location": "L186",
+      "source_location": "L247",
       "weight": 1.0,
       "source": "slice_pipeline_manifest_report_slice_15_pipeline_manifest_full_branch_chain_of_thought_report",
       "target": "slice_pipeline_manifest_report_documented_not_fixed_filed_as_follow_ups",
@@ -74524,7 +74613,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "slice-pipeline-manifest-report.md",
-      "source_location": "L213",
+      "source_location": "L274",
       "weight": 1.0,
       "source": "slice_pipeline_manifest_report_slice_15_pipeline_manifest_full_branch_chain_of_thought_report",
       "target": "slice_pipeline_manifest_report_gate_evidence",
@@ -74534,7 +74623,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "slice-pipeline-manifest-report.md",
-      "source_location": "L53",
+      "source_location": "L54",
       "weight": 1.0,
       "source": "slice_pipeline_manifest_report_slice_15_pipeline_manifest_full_branch_chain_of_thought_report",
       "target": "slice_pipeline_manifest_report_invariants_stated_located_pinned",
@@ -74544,7 +74633,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "slice-pipeline-manifest-report.md",
-      "source_location": "L152",
+      "source_location": "L181",
       "weight": 1.0,
       "source": "slice_pipeline_manifest_report_slice_15_pipeline_manifest_full_branch_chain_of_thought_report",
       "target": "slice_pipeline_manifest_report_status_loss_sweep_whole_slice",
@@ -74554,13 +74643,23 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "slice-pipeline-manifest-report.md",
-      "source_location": "L21",
+      "source_location": "L22",
       "weight": 1.0,
       "source": "slice_pipeline_manifest_report_slice_15_pipeline_manifest_full_branch_chain_of_thought_report",
       "target": "slice_pipeline_manifest_report_step_by_step_over_git_diff_8809a39_head",
       "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "slice-pipeline-manifest-report.md",
+      "source_location": "L169",
+      "weight": 1.0,
+      "source": "slice_pipeline_manifest_report_slice_15_pipeline_manifest_full_branch_chain_of_thought_report",
+      "target": "slice_pipeline_manifest_report_test_harness_defect_found_while_fixing_r3_f4",
+      "confidence_score": 1.0
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "689086aee6a408853b39fe1a1fda0c35aec36022"
+  "built_at_commit": "173222935e48d7e2e654394b41b46a3626ac5fa5"
 }

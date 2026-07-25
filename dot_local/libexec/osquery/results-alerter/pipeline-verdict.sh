@@ -17,10 +17,27 @@
 # without a manifest tuple to justify it, and a missing/empty/mismatched hash pages
 # too.
 #
-# Blind spot, recorded honestly: the manifest binds CONTENT only. An
-# ATTRIBUTES_MODIFIED event (for example `chmod g+w` on a pipeline script) carries
-# the unchanged hash, matches its tuple, and stays silent. A mode/owner column is a
-# follow-up, not part of this change.
+# Blind spots, recorded honestly. This check judges EVENTS about the deployed tree,
+# so it is bounded by what generates events and by what the manifest binds:
+#
+#   - CONTENT ONLY. An ATTRIBUTES_MODIFIED event (for example `chmod g+w` on a
+#     pipeline script) carries unchanged content, matches its tuple, and stays
+#     silent. A mode/owner column is a follow-up.
+#   - HARD LINKS / EVENT GENERATION. The watch is path-based, so an attacker who
+#     hard-links a manifested script to a writable path outside the pipeline home
+#     can overwrite the SAME INODE through the outside alias: the filesystem event
+#     names that path, nothing fires for the watched one, and no verdict runs at
+#     all. This is a property of path-based file-integrity monitoring, not of the
+#     judgment below (before the manifest existed, no event meant no page either).
+#     Closing it needs a PERIODIC CONTENT AUDIT that hashes every manifested path on
+#     a schedule and compares, which is a scheduled feature in its own right; the
+#     symlink and regular-file checks below are the cheap partial. Filed as a
+#     follow-up (the uptime watchdog is its natural home: it already runs every
+#     15 minutes).
+#   - SOURCE COMPROMISE. The manifest is generated from chezmoi's source state,
+#     which is user-writable, so tampering with a managed file's SOURCE and letting
+#     a legitimate apply deploy it is signed as known-good. See the runner's
+#     docblock: this layer buys post-deployment integrity, not source integrity.
 #
 # Return-code contract (from c69baab _pipeline_verdict):
 #   0 = PAGE   (tamper / cannot confirm legit / no manifest / delete)
@@ -104,14 +121,31 @@ _pipeline_manifest_has_tuple() {
   return 1
 }
 
-# _pipeline_tuple_settles <path> <hash>: the tuple check, plus a bounded wait for
+# _pipeline_content_is_known_good <path>: hash the file AS IT IS NOW and require
+# that current content to be the manifest's tuple for this exact path. Re-reading
+# here (rather than trusting the digest osquery recorded when the event fired) is
+# what closes the swap-after-the-event race: an attacker could otherwise let a
+# known-good event be recorded, replace the file, run it, and restore it before the
+# next collection, and the stale digest would have vouched for bytes that were not
+# on disk when the decision was made. A file that cannot be hashed returns 1, so it
+# pages.
+_pipeline_content_is_known_good() {
+  local target="$1" disk_hash
+  disk_hash=$(shasum -a 256 "$target" 2>/dev/null | awk '{print $1}')
+  [[ -n $disk_hash ]] || return 1
+  _pipeline_manifest_has_tuple "$target" "$disk_hash"
+}
+
+# _pipeline_tuple_settles <path>: the current-content check, plus a bounded wait for
 # an in-flight manifest regeneration. It waits only when the manifest EXISTS but is
 # OLDER than the file that changed, which is exactly the apply-race shape (the file
 # landed, the manifest has not been reinstalled yet). A missing manifest pages
-# immediately, and a manifest newer than the target is already the final word.
+# immediately, and a manifest newer than the target is already the final word. The
+# content is re-read on every retry, so a file still settling is judged on what it
+# finally holds, not on a mid-write snapshot.
 _pipeline_tuple_settles() {
-  local target="$1" hash_value="$2"
-  _pipeline_manifest_has_tuple "$target" "$hash_value" && return 0
+  local target="$1"
+  _pipeline_content_is_known_good "$target" && return 0
   local manifest="${OSQUERY_PIPELINE_MANIFEST:-$PIPELINE_MANIFEST}"
   [[ -r $manifest ]] || return 1
   local manifest_mtime target_mtime
@@ -125,7 +159,7 @@ _pipeline_tuple_settles() {
     _pipeline_settle_deadline=$(($(_pipeline_now) + OSQUERY_PIPELINE_SETTLE_SECONDS))
   while (($(_pipeline_now) < _pipeline_settle_deadline)); do
     sleep 1
-    _pipeline_manifest_has_tuple "$target" "$hash_value" && return 0
+    _pipeline_content_is_known_good "$target" && return 0
   done
   return 1
 }
@@ -157,25 +191,26 @@ _pipeline_is_tracked() {
 }
 
 # pipeline_verdict <target> <event_hash> <verb>: 0 = page, 1 = silent.
+#
+# The event digest is NOT a trust input. It is used only to recognize the
+# atomic-rename shape (osquery does not content-hash a rename, so that event
+# arrives with an empty hash and the write may still be settling). Every
+# suppression decision is made against the file's CURRENT content.
 pipeline_verdict() {
-  local target="$1" hash_value="$2" verb="$3" disk_hash
+  local target="$1" hash_value="$2" verb="$3"
   # Not pipeline infrastructure -> a neighbor in the watched dir, log-only.
   _pipeline_is_tracked "$target" || return 1
   # A destructive removal of a tracked file has no bytes to confirm -> always page.
   [[ $verb == DELETED ]] && return 0
-  # A non-empty EVENT hash (CREATED/UPDATED carry one): validate the exact
-  # (path, hash) tuple directly. No manifest -> not-found -> page (fail-safe).
-  if [[ -n $hash_value ]]; then
-    _pipeline_tuple_settles "$target" "$hash_value" && return 1
-    return 0
-  fi
-  # Empty event hash: the live atomic-rename shape (chezmoi writes via rename, and
-  # osquery does not content-hash a rename). Debounce briefly - the rename may
-  # still be settling - then re-hash the on-disk target and check its (path, hash)
-  # tuple. A known-good deployed file matches the same-apply manifest -> silent; a
-  # mismatch, a missing file, or no manifest -> page.
-  sleep "${OSQUERY_PIPELINE_REHASH_DELAY:-0.3}"
-  disk_hash=$(shasum -a 256 "$target" 2>/dev/null | awk '{print $1}')
-  [[ -n $disk_hash ]] && _pipeline_tuple_settles "$target" "$disk_hash" && return 1
+  # A manifested path must hold a REGULAR FILE, and links are never followed: a
+  # symlink standing where a pipeline script belongs would otherwise be hashed
+  # through to content the manifest vouches for while the executed bytes live
+  # somewhere the manifest does not cover.
+  [[ -L $target ]] && return 0
+  [[ -f $target ]] || return 0
+  # The atomic-rename shape: give the rename a moment to land before hashing. Only
+  # on that shape, so a normal event adds no latency.
+  [[ -n $hash_value ]] || sleep "${OSQUERY_PIPELINE_REHASH_DELAY:-0.3}"
+  _pipeline_tuple_settles "$target" && return 1
   return 0
 }

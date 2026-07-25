@@ -81,8 +81,11 @@ in_a TAG07 && fail "a com.webdavis.osquery-*.plist under /Library must NOT be tr
 
 # ---- Pass B: a stubbed manifest with an exact (path, sha256) match. That event
 #      is confirmed known-good and stays silent; a DELETE still pages. ----
+# The verdict rehashes the target at judgment time, so the known-good file has to
+# actually exist and the manifest has to bind its REAL content hash.
 known_target="$home/.local/libexec/osquery/knownTAG05.sh"
-known_hash="1111111111111111111111111111111111111111111111111111111111111111"
+printf 'echo known-good\n' >"$known_target"
+known_hash="$(shasum -a 256 "$known_target" | awk '{print $1}')"
 manifest="$work/pipeline-known-good.sha256"
 printf '%s  %s\n' "$known_hash" "$known_target" >"$manifest"
 

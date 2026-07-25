@@ -19,6 +19,15 @@
 #   allowlist.sh -l            # list
 # System daemons (/Library/LaunchDaemons) page by path regardless and are NOT allowlistable
 # here; Apple/system (com.apple.*) labels are refused by the writer. This file is mode 0600.
+#
+# KNOWN GAP (filed as a follow-up, not covered by this file's own rules). Under the
+# default-deny ruling this allowlist IS a security boundary: an entry suppresses a
+# persistence page. But the file is user-writable, it is NOT in the pipeline-integrity
+# manifest, and a change to it only DIGESTS rather than pages, so an attacker running as
+# the operator can append a tuple with an empty sha256 and silence the page for their own
+# LaunchAgent. Closing it needs design work rather than a one-line fix: the writer
+# (allowlist.sh) legitimately rewrites this file outside a chezmoi apply, so simply adding
+# it to the manifest would page on every legitimate seed.
 
 {"label":"com.webdavis.osquery-results-alerter","path":"~/Library/LaunchAgents/com.webdavis.osquery-results-alerter.plist","program":"/opt/homebrew/bin/bash ~/.local/libexec/osquery/results-alerter.sh","sha256":""}
 {"label":"com.webdavis.osquery-firewall-gatekeeper-monitor","path":"~/Library/LaunchAgents/com.webdavis.osquery-firewall-gatekeeper-monitor.plist","program":"/opt/homebrew/bin/bash ~/.local/libexec/osquery/firewall-gatekeeper-monitor.sh","sha256":""}

@@ -25,11 +25,22 @@
 #   - each file's CONTENT hash comes from `chezmoi cat` (the source state rendered
 #     as chezmoi would write it), so a managed file tampered on disk is signed with
 #     its INTENDED hash and the tampered bytes then fail the tuple check and page.
-# Nothing here reads or executes a user-writable deployed file, so an unprivileged
-# process running as the operator cannot influence what the root install blesses.
+# Nothing here reads or executes a user-writable DEPLOYED file.
 # (`chezmoi status`/`verify` are not usable for this: nested inside an apply they
 # fail with "timeout obtaining persistent state lock". `managed` and `cat` read the
 # source state without that lock and work nested; this was verified empirically.)
+#
+# WHAT THIS DOES AND DOES NOT COVER. It detects tampering of the DEPLOYED tree
+# after generation: bytes that differ from what chezmoi would write, and files that
+# chezmoi does not manage at all. It does NOT defend against a compromised chezmoi
+# SOURCE. The source is user-writable, and it is the authority an apply deploys
+# from, so an attacker who edits a managed source file and then waits for (or
+# races) a legitimate apply gets their bytes both deployed AND manifested, and this
+# root install signs them. That is not fixable at this layer on a single-user
+# machine, where the operator's own authority is what deploys; a git-dirty tripwire
+# would not be a trust boundary either, since the same attacker can commit or
+# rewrite local refs. The boundary this buys is post-deployment integrity, not
+# supply-chain integrity of the source.
 #
 # Blind spot, recorded honestly: the manifest binds CONTENT only. An
 # ATTRIBUTES_MODIFIED event (for example `chmod g+w` on a pipeline script) carries
