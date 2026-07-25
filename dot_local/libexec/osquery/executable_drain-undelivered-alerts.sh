@@ -61,11 +61,17 @@ take_single_instance_lock() {
   # No lockf available: the documented non-darwin fallback. Proceed unlocked so
   # the drain still runs; there is no lock to fail closed on.
   [[ -x $lockf_bin ]] || return 0
-  # From here the lock is REQUIRED. Any failure to set it up fails CLOSED.
+  # From here the lock is REQUIRED. Any failure to set it up fails CLOSED. The brace
+  # group scopes the stderr silence to the exec itself; a bare `exec 9>>f 2>/dev/null`
+  # (no command word) would redirect the WHOLE script's stderr to /dev/null for good,
+  # eating every diagnostic the sweep prints afterwards. That matters more here than
+  # almost anywhere: the drain always exits 0 by design, so stderr is its ONLY channel
+  # for an unreadable or broken store. Same shape and same reason as the allowlist
+  # writer's take_allowlist_write_lock.
   local lock_directory
   lock_directory="$(dirname "$OSQUERY_DRAIN_LOCK_FILE")"
   mkdir -p "$lock_directory" 2>/dev/null || return 1
-  exec 9>>"$OSQUERY_DRAIN_LOCK_FILE" 2>/dev/null || return 1
+  { exec 9>>"$OSQUERY_DRAIN_LOCK_FILE"; } 2>/dev/null || return 1
   "$lockf_bin" -s -t 0 9
 }
 

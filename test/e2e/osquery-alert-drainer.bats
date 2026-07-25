@@ -164,6 +164,40 @@ STUB
   fi
 }
 
+@test "T-DRAIN-stderr-audible: a store failure inside the locked sweep reaches stderr" {
+  # The lock is taken with `exec 9>>FILE`, and an `exec` carrying NO COMMAND WORD
+  # applies its redirections to the SHELL, permanently. A `2>/dev/null` on that line
+  # is therefore not scoped to the open: it silences the whole rest of the script, so
+  # every diagnostic the sweep would print afterwards is eaten. That is fail-quiet on
+  # a delivery-path component, where the drain's only channel for an unreadable store
+  # is exactly that stderr line (the drain always exits 0 by design, so the exit
+  # status can never carry the news).
+  #
+  # A lockf stub makes the "lock is REQUIRED" path run on any platform, so the exec
+  # is reached here exactly as it is in production.
+  printf '#!/usr/bin/env bash\nexit 0\n' >"$HARNESS_HOME/bin/lockf-stub"
+  chmod +x "$HARNESS_HOME/bin/lockf-stub"
+  export OSQUERY_DRAIN_LOCKF_BIN="$HARNESS_HOME/bin/lockf-stub"
+
+  # A store that EXISTS but is not a database: the sweep gets past its missing-store
+  # guard, sqlite3 then fails, and the library reports that on stderr.
+  mkdir -p "$(dirname "$OSQUERY_UNDELIVERED_ALERTS_DB")"
+  printf 'this file is not a sqlite database\n' >"$OSQUERY_UNDELIVERED_ALERTS_DB"
+
+  local captured="$HARNESS_HOME/drain-stderr.txt" drain_status=0
+  bash "$DRAINER" >/dev/null 2>"$captured" || drain_status=$?
+  [[ $drain_status -eq 0 ]] # still a best-effort sweep: the news is on stderr, not in the status
+
+  if [[ ! -s $captured ]]; then
+    printf 'the drain said NOTHING on stderr about an unreadable store: the lock exec redirected the whole script to /dev/null\n' >&2
+    return 1
+  fi
+  if ! grep -qiE 'not a database' "$captured"; then
+    printf 'the drain wrote to stderr but not the store failure; got: %s\n' "$(cat "$captured")" >&2
+    return 1
+  fi
+}
+
 # --- fail-closed lock setup (a mutual-exclusion lock must never run unlocked) ---
 
 # Seed one deliverable page and queue a 200: if the sweep RUNS it delivers, if it
