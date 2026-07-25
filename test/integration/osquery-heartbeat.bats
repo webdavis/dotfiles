@@ -3,9 +3,11 @@
 # sends ONE silent message to #priority so the operator can trust silence = safe.
 # R2-8: it must verify the ROOT DAEMON. A standalone osqueryi one-shot answers even
 # while osqueryd is stopped or wedged, so instead the heartbeat checks that the
-# daemon's OWN scheduled heartbeat_canary snapshot is FRESH. Always muted (never
-# pings), honest (reports a stale canary rather than a blind checkmark); the uptime
-# watchdog is what PAGES.
+# daemon's OWN scheduled heartbeat_canary snapshot is FRESH. Always muted (its
+# message never pings; send_alert's pipeline-broken alarms are audible for every
+# producer by design, and this suite stubs send_alert so it judges only the sound
+# the heartbeat ASKS for), honest (reports a stale canary rather than a blind
+# checkmark); the uptime watchdog is what PAGES.
 #
 # This suite exercises the script as a black box against a stubbed dispatch: a
 # message-recording spy replaces the real send_alert at the exact libexec path the

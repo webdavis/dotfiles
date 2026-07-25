@@ -5,7 +5,11 @@
 # trust that silence means safe: if the daily message arrives, the osquery
 # pipeline is scheduled and alive. It is the POSITIVE complement of the uptime
 # watchdog (every 15 min), which is the ALARM that pages when a component is down.
-# This proof-of-life is always muted: it must never ping like a real page.
+# This proof-of-life is always muted: its message must never ping like a real page.
+# The mute is a property of the MESSAGE, not of the process: send_alert's two
+# pipeline-broken alarms (a failed write-ahead persist, a missing webhook secret)
+# stay audible for every producer by design, so a dead delivery pipeline is never
+# reported silently. Each send site below repeats the qualifier where it applies.
 #
 # R2-8: it verifies the ROOT DAEMON, not a fresh osqueryi. A standalone osqueryi
 # one-shot answers even while osqueryd is stopped or wedged (a blind checkmark).
@@ -63,13 +67,16 @@ main() {
     if ((age < 0)); then age=0; fi
     title="✅ osquery pipeline healthy · $(date -u +%Y-%m-%d)"
     detail="- The root osqueryd daemon produced a scheduled heartbeat canary ${age}s ago, so it was scheduling and producing results as recently as that. This is a recent observation, not a real-time check: the uptime watchdog owns real-time liveness and pages if a monitor is down. Silence since the last message means all clear."
-    # The EMPTY sound keeps the message locally silent AND makes send_alert thread
+    # The EMPTY sound keeps THIS MESSAGE locally silent AND makes send_alert thread
     # tier=muted into the webhook body: a proof-of-life must never ping like a real
-    # page. One honest exception, out of this slice's control: if send_alert's
-    # write-ahead persist itself FAILS (storage broken), it fires a shared loud
-    # durable "page LOST" banner (every producer's systemic last resort), which is not
-    # muted. Fire-and-forget otherwise: the heartbeat advances no state, so a send
-    # failure is low-stakes (the next day re-fires; the watchdog is the pager).
+    # page. The mute covers this message, not the two shared alarms send_alert
+    # raises when the delivery pipeline itself is broken (a failed write-ahead
+    # persist, or a missing webhook secret): those stay audible for every producer,
+    # deliberately, because a dead pipeline on a machine whose only regular traffic
+    # is this heartbeat would otherwise be indistinguishable from a quiet, healthy
+    # one. See the loud-for-every-caller note on _osquery_notify_local_durable.
+    # Fire-and-forget otherwise: the heartbeat advances no state, so a send failure
+    # is low-stakes (the next day re-fires; the watchdog is the pager).
     send_alert CRIT "$title" "$detail" "" || true
   else
     # UNHEALTHY. Three honest sub-cases, each rendered with a POSITIVE number so the
@@ -87,8 +94,10 @@ main() {
       age=$((now - last_canary_timestamp))
       detail="- osqueryd scheduled heartbeat canary is STALE (last ${age}s ago, over ${canary_max_age}s). The root daemon is not producing scheduled results (stopped or wedged). The uptime watchdog pages on this; this note is the silent daily record."
     fi
-    # Muted too (empty sound): the heartbeat never pings, even when it reports a
-    # problem. The watchdog is what pages; this note is the silent daily record.
+    # Muted too (empty sound): the heartbeat's own message never pings, even when it
+    # reports a problem. The watchdog is what pages; this note is the silent daily
+    # record. The same pipeline-broken exception as the healthy branch applies here,
+    # and for the same reason.
     send_alert CRIT "$title" "$detail" "" || true
   fi
 }

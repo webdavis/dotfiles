@@ -814,6 +814,18 @@ _osquery_show_banner_confirm_delete() { # <notification_id-or-empty> <title> <me
 # when this same storage is unwritable), the banner still fires best-effort and
 # the loss of durability is logged loudly (LOCAL-NOTIFY-STORE-FAILED), but the
 # caller is never aborted, it is already on its worst-case path.
+#
+# DELIBERATELY LOUD FOR EVERY CALLER. The sound is fixed here rather than taken
+# from the caller, so a MUTED caller (the heartbeat and the digest, which pass an
+# empty sound) still gets an audible banner from this path. That is not an
+# oversight and it does not break their promise: a caller's mute covers ITS OWN
+# message, while every call reaching this function reports the delivery pipeline
+# itself as broken, which is systemic and belongs to no single caller. It matters
+# most exactly where it is most surprising: on a machine whose only regular
+# traffic is the muted heartbeat and digest, a silent alarm would leave a dead
+# pipeline indistinguishable from a quiet, healthy one, which is the failure the
+# whole durable design exists to prevent. Two pins in the dispatch suite hold the
+# split honest, the caller's own banner silent and this alarm loud.
 _osquery_notify_local_durable() { # <title> <message> [notification_seed]
   local title="$1" message="$2" notification_seed="${3-}"
   local occurrence_timestamp
