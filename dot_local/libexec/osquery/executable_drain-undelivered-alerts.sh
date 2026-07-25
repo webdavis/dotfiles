@@ -37,9 +37,11 @@ OSQUERY_DRAIN_LOCK_FILE="${OSQUERY_DRAIN_LOCK_FILE:-${OSQUERY_UNDELIVERED_ALERTS
 
 # Take the single-instance lock and report whether this run may proceed (0 to
 # proceed, nonzero to skip). Uses the kernel lock /usr/bin/lockf on a held file
-# descriptor: the kernel releases it on ANY exit, normal or crash, so a drain
-# SIGKILLed mid-run can never wedge the lock and block every later drain (there
-# is no stale-lock state to clean up). The acquire is non-blocking (-t 0): an
+# descriptor: the kernel releases it once the LAST descriptor on that open file
+# description closes, which for a drain that keeps fd 9 to itself (see main) is
+# any exit, normal or crash, so a drain SIGKILLed mid-run can never wedge the lock
+# and block every later drain (there is no stale-lock state to clean up). The
+# acquire is non-blocking (-t 0): an
 # overlapping run fails to take the lock and returns nonzero, so the caller skips
 # rather than queueing behind the running drain. House precedent: hue-pulse.sh,
 # homebrew-weekly-upgrade.sh, and update-skills.sh all guard with this same
@@ -68,12 +70,39 @@ take_single_instance_lock() {
 }
 
 # main -- take the single-instance lock, drain the store once, and exit 0.
+#
+# fd-inheritance discipline: `exec 9>>` leaves fd 9 inheritable, so every process
+# forked under the lock inherits it, and the kernel lock releases only once EVERY
+# descriptor on that open file description is closed. One child that outlives this
+# run would therefore keep the lock held, and the drain is not free of such
+# children by design: the degraded-pipeline banner backgrounds an alerter watcher
+# that blocks for the banner's whole 60-second life and is documented as free to
+# outlive its caller. The non-blocking acquire keeps the damage bounded (a later
+# tick SKIPS its sweep instead of hanging), but a skipped sweep still delays every
+# queued page, so the sweep runs with fd 9 CLOSED.
+#
+# The whole sweep runs in a SUBSHELL that closes fd 9 with `exec`, so the close is
+# real and inherited by every descendant. A redirection scoped to the call
+# (`retry_undelivered_alerts 9>&-`) is NOT enough and was measured failing here:
+# bash implements a scoped close by first duplicating fd 9 to a high fd so it can
+# restore it afterwards, and a forked subshell inherits that DUPLICATE. The
+# banner watcher is exactly such a subshell (several commands, so bash cannot
+# collapse it into a bare exec), and it was observed still holding the lock file
+# on fd 10 after the drainer exited. Closing inside the subshell leaves no
+# duplicate to inherit; the parent shell keeps its own fd 9, so the lock stays
+# held for the whole sweep (both halves verified). Nothing needs to escape the
+# subshell: retry_undelivered_alerts always returns 0 and all its effects are in
+# the store and on the wire. The library stays free of any knowledge of this
+# script's lock fd.
 main() {
   if ! take_single_instance_lock; then
     # Another drain already holds the lock and covers every stored row; skip.
     return 0
   fi
-  retry_undelivered_alerts
+  (
+    exec 9>&-
+    retry_undelivered_alerts
+  )
   return 0
 }
 

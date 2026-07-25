@@ -23,7 +23,20 @@ setup() {
   cp "$DISPATCH" "$HARNESS_HOME/.local/libexec/osquery/alert-dispatch.sh"
   DRAINER="$BATS_TEST_DIRNAME/../../dot_local/libexec/osquery/executable_drain-undelivered-alerts.sh"
 }
-teardown() { teardown_dispatch_harness; }
+# Reap any banner stub the fd-leak pin left running before the harness HOME is
+# removed, so a failed assertion cannot orphan a sleeping process on the machine.
+# Guarded on the pid file existing, so every other test in this file is unaffected.
+teardown() {
+  if [[ -n ${BANNER_PID_FILE:-} && -s ${BANNER_PID_FILE:-} ]]; then
+    local banner_pid
+    while read -r banner_pid || [[ -n $banner_pid ]]; do
+      if [[ -n $banner_pid ]]; then
+        kill "$banner_pid" 2>/dev/null || true
+      fi
+    done <"$BANNER_PID_FILE"
+  fi
+  teardown_dispatch_harness
+}
 
 @test "T-DRAIN-lock-single-send: two overlapping drains deliver each stored page exactly once" {
   # The single-instance lock is a kernel lock (/usr/bin/lockf). A host without
@@ -76,6 +89,79 @@ STUB
   done
   # Delivery really happened: the store is empty, no row left behind.
   assert_pending_alert_count 0
+}
+
+@test "T-DRAIN-lock-fd-leak: a banner child outliving the drain does not keep the lock held" {
+  # The lock lives on fd 9, and a fork inherits an open fd. Every child the drain
+  # spawns while the lock is held therefore inherits fd 9, and flock releases only
+  # once EVERY descriptor on that open file description is closed, so one surviving
+  # child keeps the lock after the drainer exits. The acquire is non-blocking, so
+  # the damage is a SKIPPED sweep on each later tick until that child dies, not a
+  # hang; a skipped sweep still delays every queued page.
+  #
+  # The child used here is the real one, not a contrived stub: the drain's
+  # PIPELINE-DEGRADED path fires a durable banner whose alerter watcher is
+  # BACKGROUNDED on purpose and documented as free to outlive its caller (alerter
+  # blocks for the banner's whole 60-second life). darwin-only, like the lock.
+  [[ -x /usr/bin/lockf ]] || skip "no /usr/bin/lockf; the single-instance lock is a darwin-only guarantee"
+
+  # A max-attempts ceiling of zero puts the seeded row past the dead-letter
+  # threshold immediately, so the drain dead-letters it BEFORE any POST and fires
+  # the one PIPELINE-DEGRADED banner for the pass. No network stubbing needed.
+  export OSQUERY_DRAIN_MAX_ATTEMPTS=0
+  local url='http://127.0.0.1:8644/webhooks/osquery-priority' body_b64
+  body_b64=$(printf '{"event_type":"osquery.alert"}' | base64 | tr -d '\n')
+  _osquery_store_alert_row 1000 osquery-fd-leak "$url" "$body_b64"
+
+  # An alerter stub shaped like the real binary: it stays alive for the banner's
+  # lifetime instead of exiting at once, which is what lets it outlive the drainer.
+  # It records its pid so the test can prove it is still running (and teardown can
+  # reap it) rather than assume it.
+  export BANNER_PID_FILE="$HARNESS_HOME/banner.pid"
+  : >"$BANNER_PID_FILE"
+  cat >"$HARNESS_HOME/bin/alerter" <<'STUB'
+#!/usr/bin/env bash
+printf '%s\n' "$$" >>"$BANNER_PID_FILE"
+sleep 30
+STUB
+  chmod +x "$HARNESS_HOME/bin/alerter"
+
+  # Run the drainer DIRECTLY, not through bats `run`: `run` reaps the command's
+  # whole process group, which would kill the very surviving child this pin needs
+  # (verified: a backgrounded grandchild is dead after `run` and alive after a
+  # direct call).
+  local drain_status=0
+  bash "$DRAINER" >/dev/null 2>&1 || drain_status=$?
+  [[ $drain_status -eq 0 ]] # a drain always exits 0
+
+  # The banner child must genuinely still be running, or this pin proves nothing
+  # about fd inheritance and would pass for the wrong reason.
+  local banner_pid=""
+  local attempt
+  for ((attempt = 0; attempt < 40; attempt++)); do
+    [[ -s $BANNER_PID_FILE ]] && break
+    sleep 0.05
+  done
+  read -r banner_pid <"$BANNER_PID_FILE" || true
+  if [[ -z $banner_pid ]]; then
+    printf 'the drain never fired the degraded-pipeline banner, so no surviving child exists to test\n' >&2
+    return 1
+  fi
+  if ! kill -0 "$banner_pid" 2>/dev/null; then
+    printf 'the banner child (pid %s) already exited; the test cannot prove fd release\n' "$banner_pid" >&2
+    return 1
+  fi
+
+  # The bound: with the drainer gone, the lock is free. A surviving child holding
+  # an inherited fd 9 would keep it and this acquisition would fail (75).
+  local lock_file="${OSQUERY_UNDELIVERED_ALERTS_DB}.drain.lock"
+  local probe_status=0
+  (exec 7>>"$lock_file" && /usr/bin/lockf -s -t 0 7) || probe_status=$?
+  if [[ $probe_status -ne 0 ]]; then
+    printf 'the drain lock is STILL held after the drainer exited (rc %s): a surviving child inherited fd 9\n' \
+      "$probe_status" >&2
+    return 1
+  fi
 }
 
 # --- fail-closed lock setup (a mutual-exclusion lock must never run unlocked) ---
