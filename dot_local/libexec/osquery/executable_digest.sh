@@ -4,6 +4,10 @@
 # written by the alerter's digest_append) into ONE grouped, silent, non-paging
 # message, then rotates the live store aside for forensics. Empty-suppressed: an
 # absent, zero-byte, or whitespace-only store produces no message and no error.
+# The silence is a property of the MESSAGE, not of the run: send_alert's two
+# pipeline-broken alarms (a failed write-ahead persist, a missing webhook secret)
+# stay audible for every producer by design, so a dead delivery pipeline is never
+# reported silently. The send site below carries the same qualifier.
 #
 # Cadence is owned by the daily launchd agent, NOT this script: there is no
 # internal time gate, so a manual invocation builds (or stays silent) exactly the
@@ -205,8 +209,13 @@ main() {
   # steps, and the send outcome is handled EXPLICITLY below, not by the trap.
   trap - ERR
 
-  # CRIT selects the #priority route; the EMPTY sound makes it locally silent AND threads tier=muted
-  # into the POST so the Hermes adapter suppresses the ping (a digest must never notify like a page).
+  # CRIT selects the #priority route; the EMPTY sound makes THIS MESSAGE locally silent AND threads
+  # tier=muted into the POST so the Hermes adapter suppresses the ping (a digest must never notify
+  # like a page). The mute covers this message, not the two shared alarms send_alert raises when the
+  # delivery pipeline itself is broken (a failed write-ahead persist, or a missing webhook secret):
+  # those stay audible for every producer, deliberately, because a dead pipeline on a machine whose
+  # only regular traffic is muted would otherwise read as a quiet, healthy one. See the
+  # loud-for-every-caller note on _osquery_notify_local_durable.
   # No occurrence id is threaded, so send_alert derives a per-send-unique request id (distinct days
   # never collide); the dedup is the atomic CLAIM at the start (which already emptied the live store),
   # not this rotate. send_alert returns nonzero ONLY when its write-ahead persist FAILED (the page was

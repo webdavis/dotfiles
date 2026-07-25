@@ -149,6 +149,44 @@ teardown() { teardown_dispatch_harness; }
   wait_for_log_line 'FAILED|lost|could not' "$ALERTER_LOG"
 }
 
+# --- what MUTED covers, and what it deliberately does not -------------------------
+# A muted caller (the heartbeat, the digest) passes an empty sound so its own
+# message is locally silent and goes on the wire as tier=muted. That promise covers
+# THAT MESSAGE. It does not cover the two shared alarms send_alert raises when the
+# delivery pipeline itself is broken, which stay audible for every caller: a broken
+# pipeline is a systemic condition, and on a machine whose only regular traffic is
+# the muted heartbeat and digest a silent alarm would leave a dead pipeline
+# indistinguishable from a quiet, healthy one, the exact failure the whole durable
+# design exists to prevent. These two pins hold that split honest in both
+# directions: the caller's own banner silent, the systemic alarm loud.
+
+@test "T-DISP-muted-store-broken-loud: a muted caller stays silent while the store-broken alarm is LOUD" {
+  # The DB parent is a FILE, so the write-ahead persist fails for any uid (the same
+  # deterministic trick the other hard-fail pins use).
+  : >"$ALERTER_LOG"
+  set_curl_codes 503 503 503
+  touch "$HARNESS_HOME/mutednotdir"
+  export OSQUERY_UNDELIVERED_ALERTS_DB="$HARNESS_HOME/mutednotdir/store.sqlite3"
+  run_dispatch send_output send_status CRIT "🗒️ daily digest" "detail body" "" "occ:muted-hardfail:1"
+  [[ $send_status -ne 0 ]] # the page was neither delivered nor stored
+  wait_for_log_line 'page LOST' "$ALERTER_LOG"
+  refute_banner_sound "daily digest"        # the caller's OWN message keeps its promise
+  assert_banner_sound "page LOST" "Funk"    # the systemic alarm breaks silence on purpose
+}
+
+@test "T-DISP-muted-no-secret-loud: a muted caller stays silent while the missing-key alarm is LOUD" {
+  # No signing key: the page is stored durably, but the Discord channel is broken
+  # until the secret is restored, which is the second systemic alarm.
+  unset OSQUERY_WEBHOOK_SECRET
+  : >"$ALERTER_LOG"
+  run_dispatch send_output send_status CRIT "🗒️ daily digest" "detail body" "" "occ:muted-nosecret:1"
+  [[ $send_status -eq 0 ]]     # the page is safely stored, so the caller is not failed
+  assert_pending_alert_count 1
+  wait_for_log_line 'paging BROKEN' "$ALERTER_LOG"
+  refute_banner_sound "daily digest"
+  assert_banner_sound "paging BROKEN" "Funk"
+}
+
 @test "T-DISP-tier-page: a real page (non-empty sound) POSTs tier=page (R2-11)" {
   send_alert CRIT "🔴 title" "detail" "Sosumi"
   assert_post_count 1
@@ -159,7 +197,7 @@ teardown() { teardown_dispatch_harness; }
   send_alert CRIT "🗒️ daily digest" "detail" ""
   assert_post_count 1 # it DOES reach the remote POST (not moot)
   grep -qF '"tier":"muted"' "$CURL_LOG"
-  ! grep -qF '"tier":"page"' "$CURL_LOG"
+  refute_file_contains '"tier":"page"' "$CURL_LOG"
 }
 
 @test "T-DISP-body-ts: a CRIT body carries a numeric occurrence ts (the drain ordering key)" {
@@ -221,7 +259,9 @@ STUB
   for i in 1 2; do
     [[ "$(cat "$status_dir/drain-$i.status")" == "0" ]]
   done
-  ! grep -rqi 'database is locked' "$status_dir" # busy_timeout serializes, never errors
+  # busy_timeout plus the locked-retry serialize the writers: no producer or drain
+  # ever SAW a locked error, not merely "recovered from one".
+  refute_tree_contains 'database is locked' "$status_dir"
   [[ "$(sqlite3_query 'SELECT COUNT(*) FROM pending_alerts;')" == "$producer_count" ]]
   [[ "$(sqlite3_query 'SELECT COUNT(DISTINCT request_id) FROM pending_alerts;')" == "$producer_count" ]]
   [[ "$(sqlite3_query 'SELECT COUNT(DISTINCT sequence_number) FROM pending_alerts;')" == "$producer_count" ]]
@@ -302,7 +342,7 @@ STUB
   export OSQUERY_WEBHOOK_SECRET="SUPERSECRET-argv-probe"
   send_alert CRIT "🔴 title" "detail" "Sosumi"
   [[ -s $OPENSSL_ARGV_LOG ]] # openssl WAS invoked (sanity)
-  ! grep -qF 'SUPERSECRET-argv-probe' "$OPENSSL_ARGV_LOG"
+  refute_file_contains 'SUPERSECRET-argv-probe' "$OPENSSL_ARGV_LOG"
 }
 
 @test "T-DISP-signing-failure: a failed signature makes NO POST and retains the write-ahead record" {

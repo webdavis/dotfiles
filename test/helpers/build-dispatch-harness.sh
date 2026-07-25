@@ -115,6 +115,73 @@ assert_mode() {
   fi
 }
 
+# _alerter_banner_line <title-substring> -- print the recorded alerter invocation
+# whose argv contains <title-substring>, or nothing when none did. The stub records
+# one line per invocation, so a substring unique to a banner's title selects it.
+_alerter_banner_line() {
+  grep -F -- "$1" "$ALERTER_LOG" 2>/dev/null || true
+}
+
+# assert_banner_sound <title-substring> <sound> -- the named banner was fired WITH
+# that notification sound (an audible banner). A banner that never fired fails,
+# so this can never pass vacuously.
+assert_banner_sound() {
+  local line
+  line="$(_alerter_banner_line "$1")"
+  if [[ -z $line ]]; then
+    printf 'no alerter banner matching %s was fired; alerter log: %s\n' "$1" "$(cat "$ALERTER_LOG")" >&2
+    return 1
+  fi
+  if [[ $line != *"--sound $2"* ]]; then
+    printf 'expected the %s banner to carry --sound %s; recorded: %s\n' "$1" "$2" "$line" >&2
+    return 1
+  fi
+}
+
+# refute_banner_sound <title-substring> -- the named banner was fired with NO
+# notification sound at all (a silent banner). A plain refute helper, never a bare
+# `! grep`: an inverted status is ignored under set -e, so the assertion would be a
+# silent no-op. The banner must have FIRED, or this fails rather than passing on
+# its absence.
+refute_banner_sound() {
+  local line
+  line="$(_alerter_banner_line "$1")"
+  if [[ -z $line ]]; then
+    printf 'no alerter banner matching %s was fired, so its silence proves nothing; alerter log: %s\n' \
+      "$1" "$(cat "$ALERTER_LOG")" >&2
+    return 1
+  fi
+  if [[ $line == *--sound* ]]; then
+    printf 'expected the %s banner to be SILENT (no --sound); recorded: %s\n' "$1" "$line" >&2
+    return 1
+  fi
+}
+
+# refute_file_contains <fixed-substring> <file> -- fail when the substring appears.
+# The house negative-assertion shape (same spelling as the tailscale and watchdog
+# fixtures). A bare `! grep -q ...` must never be used instead: set -e ignores a
+# status inverted by `!`, so such a line only fails a test when it happens to be
+# the LAST command in the body, and silently guards nothing anywhere else.
+refute_file_contains() {
+  if grep -qiF -- "$1" "$2"; then
+    printf 'expected %q NOT to appear in %s, but it does:\n%s\n' "$1" "$2" "$(cat "$2")" >&2
+    return 1
+  fi
+  return 0
+}
+
+# refute_tree_contains <fixed-substring> <directory> -- fail when the substring
+# appears in ANY file under the directory. The recursive companion to
+# refute_file_contains, for assertions over a directory of captured output.
+refute_tree_contains() {
+  if grep -rqiF -- "$1" "$2"; then
+    printf 'expected %q NOT to appear anywhere under %s, but it does:\n%s\n' \
+      "$1" "$2" "$(grep -riF -- "$1" "$2")" >&2
+    return 1
+  fi
+  return 0
+}
+
 # assert_post_count <n> -- the curl stub recorded exactly <n> POSTs.
 assert_post_count() {
   local count

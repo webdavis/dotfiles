@@ -79,11 +79,21 @@ _pipeline_mtime() {
 }
 
 # _pipeline_manifest_is_trustworthy <path>: 0 when the manifest may be trusted to
-# SUPPRESS a page. The whole design rests on the manifest being root-owned and not
-# group/world-writable (an attacker who could write it could self-whitelist a file
-# they just tampered), so verify that rather than assume it: a permissions drift
-# then degrades LOUDLY (everything pages) instead of silently (anything can be
-# blessed).
+# SUPPRESS a page. Whoever can write the manifest can self-whitelist a file they
+# just tampered, so root ownership and a not-group/world-writable mode are VERIFIED
+# here rather than assumed: a permissions drift then degrades LOUDLY (everything
+# pages) instead of silently (anything can be blessed).
+#
+# What that ownership actually buys, stated without overclaiming. It stops a process
+# that stays at the user's privilege level, which cannot rewrite a root-owned 0644
+# file, and it turns a drifted mode into loud pages. It is NOT a boundary against a
+# determined user-level attacker on a host with passwordless sudo, which this one
+# is: a process running as the operator can escalate with no prompt and rewrite the
+# manifest at will, whitelisting whatever it just tampered. Requiring a password
+# would be the only thing that changed that, and every unattended chezmoi script
+# depends on the current configuration, so this is a recorded limit of the layer,
+# not a defect to fix here. The honest summary is a raised bar plus a loud failure
+# mode, not an integrity guarantee that survives a user-level attacker.
 #
 # Test seam: the check applies only at the PRODUCTION DEFAULT path. Tests point
 # OSQUERY_PIPELINE_MANIFEST at a fixture manifest they own, which is by definition
