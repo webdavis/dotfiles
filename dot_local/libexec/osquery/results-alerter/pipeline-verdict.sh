@@ -39,6 +39,21 @@ PIPELINE_MANIFEST="${OSQUERY_PIPELINE_MANIFEST:-/var/osquery/pipeline-known-good
 # Bounded and small: a real tamper is delayed by at most this, and still pages.
 OSQUERY_PIPELINE_SETTLE_SECONDS="${OSQUERY_PIPELINE_SETTLE_SECONDS:-5}"
 
+# The settle budget is spent ONCE PER ALERTER INVOCATION, not once per finding.
+# route_findings judges findings sequentially while the alerter holds its
+# single-instance lock, and a contended WatchPaths invocation exits without
+# processing, so a per-finding wait would let anyone who creates N files under the
+# tracked home stall the pipeline for N times the bound and delay UNRELATED
+# security findings. The first miss opens the window; once it has elapsed every
+# later miss is answered immediately. The alerter sources this file per run, so the
+# deadline starts empty each invocation.
+_pipeline_settle_deadline=""
+
+# _pipeline_now: current epoch seconds, without a fork where bash 5 provides it.
+_pipeline_now() {
+  printf '%s' "${EPOCHSECONDS:-$(date +%s)}"
+}
+
 # _pipeline_mtime <path>: epoch mtime, or empty when it cannot be read. GNU stat
 # first (the nix shell), BSD stat as the fallback (the portable order used
 # elsewhere in this feature-set).
@@ -99,14 +114,17 @@ _pipeline_tuple_settles() {
   _pipeline_manifest_has_tuple "$target" "$hash_value" && return 0
   local manifest="${OSQUERY_PIPELINE_MANIFEST:-$PIPELINE_MANIFEST}"
   [[ -r $manifest ]] || return 1
-  local manifest_mtime target_mtime waited=0
+  local manifest_mtime target_mtime
   manifest_mtime=$(_pipeline_mtime "$manifest") || true
   target_mtime=$(_pipeline_mtime "$target") || true
   [[ -n $manifest_mtime && -n $target_mtime ]] || return 1
   ((manifest_mtime < target_mtime)) || return 1
-  while ((waited < OSQUERY_PIPELINE_SETTLE_SECONDS)); do
+  # Open the shared window on the first miss of this invocation; a later miss
+  # inherits whatever is left of it, and answers at once when it is spent.
+  [[ -n $_pipeline_settle_deadline ]] ||
+    _pipeline_settle_deadline=$(($(_pipeline_now) + OSQUERY_PIPELINE_SETTLE_SECONDS))
+  while (($(_pipeline_now) < _pipeline_settle_deadline)); do
     sleep 1
-    waited=$((waited + 1))
     _pipeline_manifest_has_tuple "$target" "$hash_value" && return 0
   done
   return 1

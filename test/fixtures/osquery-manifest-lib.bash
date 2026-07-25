@@ -27,8 +27,17 @@ manifest_fixture_setup() {
   # Stub sudo: record argv, then emulate `install ... <src> <dest>` by copying.
   cat >"$MF_ROOT/bin/sudo" <<'STUB'
 #!/usr/bin/env bash
+# Record argv, then emulate the two `install` shapes the runner uses without any
+# privilege: `install -d ... <dir>` creates the directory, and
+# `install ... <src> <dest>` copies the file.
 printf '%s\n' "$*" >>"$SUDO_LOG"
 dest="${!#}"
+for arg in "$@"; do
+  if [[ $arg == -d ]]; then
+    mkdir -p "$dest"
+    exit $?
+  fi
+done
 src_pos=$(($# - 1))
 src="${!src_pos}"
 cp "$src" "$dest"

@@ -160,8 +160,38 @@ elapsed=$(($(date +%s) - start))
 [[ $got -eq 0 ]] || fail "a tuple that never arrives must still PAGE (got rc $got)"
 ((elapsed <= 6)) || fail "the settle wait is not bounded (${elapsed}s for a 2s window)"
 
+# --- the settle budget is per ALERTER RUN, not per finding -------------------
+# route_findings judges findings sequentially while the alerter holds its
+# single-instance lock, and a contended WatchPaths invocation exits without
+# processing. A per-tuple wait would therefore let anyone who creates N files
+# under the tracked home stall the whole pipeline for N x the bound, delaying
+# UNRELATED security findings. The budget is one shared deadline per invocation:
+# the first miss opens it, and once it is spent every later miss answers at once.
+miss_manifest="$MF_ROOT/miss.sha256"
+printf 'deadbeef  /nowhere\n' >"$miss_manifest"
+touch -t 200001010000 "$miss_manifest"
+# The targets must EXIST and post-date the manifest, or the mtime guard short
+# circuits and nothing settles (the shape a real apply produces).
+misses=10
+for i in $(seq 1 "$misses"); do
+  printf 'echo miss\n' >"$MF_HOME/.local/libexec/osquery/miss-$i.sh"
+done
+start=$(date +%s)
+HOME="$MF_HOME" OSQUERY_PIPELINE_MANIFEST="$miss_manifest" \
+  OSQUERY_PIPELINE_REHASH_DELAY=0 OSQUERY_PIPELINE_SETTLE_SECONDS=3 \
+  bash -c '
+    source "$1"
+    for i in $(seq 1 "$2"); do
+      pipeline_verdict "$HOME/.local/libexec/osquery/miss-$i.sh" \
+        "3333333333333333333333333333333333333333333333333333333333333333" UPDATED || true
+    done
+  ' _ "$VERDICT" "$misses" >/dev/null 2>&1
+elapsed=$(($(date +%s) - start))
+((elapsed <= 8)) ||
+  fail "$misses misses took ${elapsed}s: the settle budget is per finding, not per alerter run (a stall vector)"
+
 if [[ $fails -gt 0 ]]; then
   printf '%d check(s) failed\n' "$fails" >&2
   exit 1
 fi
-printf 'osquery-pipeline-manifest-agreement: OK (generated manifest and real verdict agree; watch/tracked/manifest cover the identical set across BOTH launch agent roots; a /Library twin is untracked; the settle window resolves a live regeneration and stays bounded)\n'
+printf 'osquery-pipeline-manifest-agreement: OK (generated manifest and real verdict agree; watch/tracked/manifest cover the identical set across BOTH launch agent roots; a /Library twin is untracked; the settle window resolves a live regeneration, stays bounded, and spends ONE budget per alerter run across many misses)\n'

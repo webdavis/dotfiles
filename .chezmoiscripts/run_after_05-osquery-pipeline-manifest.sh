@@ -58,16 +58,35 @@ chezmoi_args=()
 # is the same set _pipeline_is_tracked matches and the same set osquery.conf
 # watches; all three must stay identical or a watched-but-unmanifested file pages
 # forever and a manifested-but-unwatched file is never checked.
+#
+# The listing is materialized to a file under an EXPLICIT status check rather than
+# piped straight into the loop: a process substitution discards the producer's exit
+# status, so a `chezmoi managed` that emitted some paths and THEN failed would hand
+# the loop a PARTIAL set, pass the non-empty guard below, and root-install a
+# manifest missing tuples over a complete one - making every later legitimate
+# change to a dropped file page forever.
+managed_list="$(mktemp)"
+sorted_list="$(mktemp)"
+trap 'rm -f "$managed_list" "$sorted_list" "${fresh:-}"' EXIT
+
+if ! chezmoi "${chezmoi_args[@]}" managed --path-style=absolute --include=files >"$managed_list"; then
+  printf 'osquery pipeline manifest: could not list managed files, refusing to rewrite the manifest\n' >&2
+  exit 1
+fi
+if ! LC_ALL=C sort "$managed_list" >"$sorted_list"; then
+  printf 'osquery pipeline manifest: could not sort the managed listing, refusing to rewrite the manifest\n' >&2
+  exit 1
+fi
+
 paths=()
 while IFS= read -r target; do
   case "$target" in
     "$home"/.local/libexec/osquery/*) paths+=("$target") ;;
     "$home"/Library/LaunchAgents/com.webdavis.osquery-*.plist) paths+=("$target") ;;
   esac
-done < <(chezmoi "${chezmoi_args[@]}" managed --path-style=absolute --include=files | LC_ALL=C sort)
+done <"$sorted_list"
 
 fresh="$(mktemp)"
-trap 'rm -f "$fresh"' EXIT
 
 # shasum format ("<sha256>  <path>"), path-sorted above for a byte-reproducible
 # manifest. The hash is captured into a VARIABLE first, deliberately: a command
@@ -96,4 +115,16 @@ fi
 if cmp -s "$fresh" "$manifest"; then
   exit 0
 fi
+
+# Fresh host: /var/osquery is created by the osquery setup script, which is a
+# TEMPLATE and so is skipped by `chezmoi apply --exclude=templates` - the very
+# command this runner is plain in order to run under. Create the manifest's parent
+# ourselves rather than fail the apply and leave the host with no manifest at all.
+# Only when it is actually missing, so a normal apply performs no extra privileged
+# call, and idempotent either way.
+manifest_dir="$(dirname "$manifest")"
+if [[ ! -d $manifest_dir ]]; then
+  sudo install -d -o root -g wheel -m 0755 "$manifest_dir"
+fi
+
 sudo install -o root -g wheel -m 0644 "$fresh" "$manifest"

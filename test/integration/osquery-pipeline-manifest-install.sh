@@ -134,8 +134,50 @@ env -u XDG_CONFIG_HOME -u XDG_DATA_HOME HOME="$MF_HOME" CI=1 PATH="$MF_ROOT/bin:
 [[ -s $MF_MANIFEST ]] ||
   fail "the runner did NOT run under 'chezmoi apply --exclude=templates' (the mandated agent apply path)"
 
+# --- 7. FRESH MACHINE: the manifest's parent directory may not exist yet ------
+# /var/osquery is created by the osquery setup script, which is a TEMPLATE and so
+# is skipped by `chezmoi apply --exclude=templates` - the very command this runner
+# was made plain in order to run under. On a fresh host the runner therefore
+# reaches its install with no parent directory, so it must create it (root-owned,
+# 0755) rather than fail the apply and leave the host with no manifest at all.
+absent_parent="$MF_ROOT/fresh/var/osquery"
+saved_manifest="$MF_MANIFEST"
+MF_MANIFEST="$absent_parent/pipeline-known-good.sha256"
+[[ ! -d $absent_parent ]] || fail "the fresh-machine fixture is not actually absent"
+status=0
+manifest_fixture_run_runner "$RUNNER" >/dev/null 2>&1 || status=$?
+[[ $status -eq 0 ]] || fail "the runner failed on a fresh host whose manifest directory does not exist yet"
+[[ -s $MF_MANIFEST ]] || fail "the runner did not create the manifest on a fresh host"
+grep -qF -- 'install -d -o root -g wheel -m 0755' "$MF_SUDO_LOG" ||
+  fail "the manifest directory must be created root:wheel 0755 (sudo argv: $(cat "$MF_SUDO_LOG"))"
+MF_MANIFEST="$saved_manifest"
+
+# --- 8. a PARTIAL managed listing must never be installed --------------------
+# `chezmoi managed` feeding a loop through a pipe hides its exit status: if it
+# emits some paths and then fails, the runner would build a manifest missing
+# tuples, pass the non-empty guard, and root-install it over a complete one -
+# making every later legitimate change to a dropped file page forever.
+good="$(cat "$MF_MANIFEST")"
+cat >"$MF_ROOT/bin/chezmoi" <<STUB
+#!/usr/bin/env bash
+if [[ \$* == *managed* ]]; then
+  printf '%s\n' "$MF_HOME/.local/libexec/osquery/digest.sh"
+  exit 1
+fi
+exec $(command -v chezmoi) "\$@"
+STUB
+chmod +x "$MF_ROOT/bin/chezmoi"
+status=0
+manifest_fixture_run_runner "$RUNNER" >/dev/null 2>&1 || status=$?
+rm -f "$MF_ROOT/bin/chezmoi"
+[[ $status -ne 0 ]] || fail "a failing 'chezmoi managed' must abort the runner, not install a partial manifest"
+manifest_fixture_installed &&
+  fail "a partial managed listing must not be installed (sudo argv: $(cat "$MF_SUDO_LOG"))"
+[[ "$(cat "$MF_MANIFEST")" == "$good" ]] ||
+  fail "a partial managed listing must leave the previous manifest untouched"
+
 if [[ $fails -gt 0 ]]; then
   printf '%d check(s) failed\n' "$fails" >&2
   exit 1
 fi
-printf 'osquery-pipeline-manifest-install: OK (plain script, runs under --exclude=templates; root:wheel 0644; diff-guard skips an unchanged run; re-installs on change; a generation failure or an empty result never overwrites a good manifest; producer and consumer name one path)\n'
+printf 'osquery-pipeline-manifest-install: OK (plain script, runs under --exclude=templates; creates its root-owned manifest dir on a fresh host; root:wheel 0644; diff-guard skips an unchanged run; re-installs on change; a generation failure, a partial managed listing or an empty result never overwrites a good manifest; producer and consumer name one path)\n'
