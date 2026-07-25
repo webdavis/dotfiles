@@ -10,7 +10,7 @@
 #     watched here: those operator tools (relay.sh, hue-pulse.sh, the weekly
 #     upgrade, update-skills) belong to the Relay/shell-notifier subsystem, not
 #     the osquery integrity domain, and the manifest never covers them, so
-#     watching them would page forever on a legitimate edit (a fail-open);
+#     watching them would page forever on a legitimate edit;
 #   - watch the alerter's config directory (~/.config/osquery, where the
 #     page-launchd allowlist lives) as allowlist_file;
 #   - hash pipeline_integrity (the dedicated home) and ~/Library/LaunchAgents,

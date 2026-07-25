@@ -59,19 +59,25 @@ run_gate() {
 }
 
 # ---- Pass A: NO manifest. A tracked change (a libexec script, our own plist)
-#      fails open to a page; an untracked neighbor (a ~/.local/bin tool, a
-#      non-osquery plist) is silent, proving the verdict is consulted. ----
+#      fails safe to a page; an untracked neighbor (a ~/.local/bin tool, a
+#      non-osquery plist, a /Library twin of one of our plists) is silent, proving
+#      the verdict is consulted. The event hashes are real 64-hex digests: osquery
+#      never emits a short hash, so a fixture must stay in the producible input
+#      space. ----
+event_hash="2222222222222222222222222222222222222222222222222222222222222222"
 page_a="$(run_gate "$absent_manifest" \
-  "$(fe pipeline_integrity "$home/.local/libexec/osquery/results-alerterTAG01.sh" abc UPDATED)" \
-  "$(fe pipeline_integrity "$home/.local/bin/relayTAG02.sh" abc UPDATED)" \
-  "$(fe launch_agents "$home/Library/LaunchAgents/com.webdavis.osquery-uptimeTAG03.plist" abc UPDATED)" \
-  "$(fe launch_agents "$home/Library/LaunchAgents/com.apple.somethingTAG04.plist" abc UPDATED)")"
+  "$(fe pipeline_integrity "$home/.local/libexec/osquery/results-alerterTAG01.sh" "$event_hash" UPDATED)" \
+  "$(fe pipeline_integrity "$home/.local/bin/relayTAG02.sh" "$event_hash" UPDATED)" \
+  "$(fe launch_agents "$home/Library/LaunchAgents/com.webdavis.osquery-uptimeTAG03.plist" "$event_hash" UPDATED)" \
+  "$(fe launch_agents "$home/Library/LaunchAgents/com.apple.somethingTAG04.plist" "$event_hash" UPDATED)" \
+  "$(fe launch_agents "/Library/LaunchAgents/com.webdavis.osquery-uptimeTAG07.plist" "$event_hash" UPDATED)")"
 
 in_a() { grep -qF "$1" <<<"$page_a"; }
-in_a TAG01 || fail "a ~/.local/libexec/osquery script change must PAGE (fail-open, no manifest)"
+in_a TAG01 || fail "a ~/.local/libexec/osquery script change must PAGE (fail-safe, no manifest)"
 in_a TAG02 && fail "a ~/.local/bin change must NOT page the osquery pipeline_integrity path (Relay subsystem, an untracked neighbor)"
-in_a TAG03 || fail "our own osquery LaunchAgent change must PAGE (fail-open)"
+in_a TAG03 || fail "our own osquery LaunchAgent change must PAGE (fail-safe)"
 in_a TAG04 && fail "an untracked neighbor plist must be SILENT (the verdict is consulted, not page-always)"
+in_a TAG07 && fail "a com.webdavis.osquery-*.plist under /Library must NOT be tracked (the manifest can never cover it; persistence default-deny owns it)"
 
 # ---- Pass B: a stubbed manifest with an exact (path, sha256) match. That event
 #      is confirmed known-good and stays silent; a DELETE still pages. ----
@@ -98,4 +104,4 @@ for out in "$page_a" "$page_b"; do
     fail "every paged pipeline finding must carry .sev == CRIT"
 done
 
-printf 'osquery-route-pipeline: OK (fail-safe PAGE for a libexec file + our own plist; a ~/.local/bin neighbor and a non-osquery plist SILENT; manifest exact match SILENT; delete PAGES; none digest)\n'
+printf 'osquery-route-pipeline: OK (fail-safe PAGE for a libexec file + our own home-dir plist; a ~/.local/bin neighbor, a non-osquery plist and a /Library twin SILENT; manifest exact match SILENT; delete PAGES; none digest)\n'

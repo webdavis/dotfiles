@@ -1,106 +1,141 @@
 #!/usr/bin/env bash
 #
-# The pipeline-manifest runner (.chezmoiscripts/run_after_67-osquery-pipeline-
-# manifest.sh.tmpl) regenerates the manifest from the real deployed tree on every
-# apply and installs it root-owned, but only when the content actually changed - so
-# a no-op apply does no privileged write. It runs as root via `sudo install`, which
-# this test must NOT actually run: a PATH-shadowed `sudo` stub records the argv and
-# emulates the copy without privilege, so the diff-guard and the exact ownership/
-# mode are pinned without touching /var.
+# The pipeline-manifest runner installs the manifest root-owned, but only when the
+# content actually changed, and it must run on the apply path this repository
+# mandates for agents: `chezmoi apply --exclude=templates`.
 #
-# Integration test (rendered runner, stubbed privilege): render the darwin-gated
-# runner, point it at a fixture HOME (the deployed generator + a pipeline tree) and
-# a scratch manifest dest, and drive three applies:
-#   1. dest absent          -> installs (root:wheel 0644), dest = generator output;
-#   2. tree unchanged        -> NO privileged write (the diff-guard holds);
-#   3. one pipeline file edited -> installs again, dest refreshed.
+# That last point is why the runner is a PLAIN script and not a .tmpl. Template
+# scripts are skipped by --exclude=templates while the pipeline's plain
+# executable_*.sh files are still applied, so a templated runner would leave every
+# agent apply updating the watched files without refreshing the manifest - each
+# changed pipeline file would then page a false CRIT until someone ran a full
+# interactive apply. Pinned end to end below: the runner is dropped into a fixture
+# chezmoi source and must actually execute under --exclude=templates.
+#
+# Also pinned: root:wheel 0644, the diff-guard (no privileged write when nothing
+# changed), re-install after a real change, refusal to install an empty manifest,
+# a generation failure leaving the previous manifest intact, and that the producer
+# and the consumer name the same default manifest path.
+#
+# `sudo` is PATH-shadowed by a stub that records argv and emulates the copy, so no
+# real privilege is used and nothing is written under /var.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-RUNNER="$REPO_ROOT/.chezmoiscripts/run_after_67-osquery-pipeline-manifest.sh.tmpl"
-GENERATOR_SRC="$REPO_ROOT/dot_local/libexec/osquery/executable_generate-pipeline-manifest.sh"
+RUNNER="$REPO_ROOT/.chezmoiscripts/run_after_05-osquery-pipeline-manifest.sh"
+VERDICT="$REPO_ROOT/dot_local/libexec/osquery/results-alerter/pipeline-verdict.sh"
+# shellcheck source=../fixtures/osquery-manifest-lib.bash
+source "$REPO_ROOT/test/fixtures/osquery-manifest-lib.bash"
 
+fails=0
 fail() {
   printf 'osquery-pipeline-manifest-install: FAIL -- %s\n' "$*" >&2
+  fails=$((fails + 1))
+}
+
+# --- the runner is not a template, and is executable -------------------------
+# (asserted first: this is the property that makes it run at all)
+[[ -f $RUNNER ]] || {
+  printf 'osquery-pipeline-manifest-install: FAIL -- missing runner: %s\n' "$RUNNER" >&2
   exit 1
 }
+case "$RUNNER" in
+  *.tmpl) fail "the runner must NOT be a template: --exclude=templates would skip it on every agent apply" ;;
+esac
+[[ -x $RUNNER ]] || fail "the runner must be executable"
+grep -q 'uname' "$RUNNER" ||
+  fail "a plain runner must gate darwin at RUNTIME (no Go-template guard is available)"
 
-[[ -f $RUNNER ]] || fail "missing runner: $RUNNER"
-[[ -f $GENERATOR_SRC ]] || fail "missing generator: $GENERATOR_SRC"
-command -v chezmoi >/dev/null 2>&1 || {
-  printf 'osquery-pipeline-manifest-install: SKIP -- chezmoi not on PATH\n'
+# --- the producer and the consumer agree on the manifest path ----------------
+runner_path="$(grep -o '/var/osquery/[a-z-]*\.sha256' "$RUNNER" | head -1)"
+verdict_path="$(grep -o '/var/osquery/[a-z-]*\.sha256' "$VERDICT" | head -1)"
+[[ -n $runner_path && $runner_path == "$verdict_path" ]] ||
+  fail "producer ($runner_path) and consumer ($verdict_path) must name the same default manifest path"
+
+for tool in chezmoi shasum; do
+  command -v "$tool" >/dev/null 2>&1 || {
+    printf 'osquery-pipeline-manifest-install: SKIP -- %s is required\n' "$tool"
+    exit 0
+  }
+done
+[[ "$(uname)" == Darwin ]] || {
+  printf 'osquery-pipeline-manifest-install: SKIP -- the runner is darwin-gated\n'
   exit 0
 }
 
-# Render the runner exactly as at apply time. On a non-darwin host it renders to
-# nothing (the darwin gate), so there is nothing to drive: skip.
-rendered="$(CI=1 chezmoi --source "$REPO_ROOT" execute-template --no-tty <"$RUNNER")" ||
-  fail "chezmoi failed to render the runner"
-if [[ -z ${rendered//[[:space:]]/} ]]; then
-  printf 'osquery-pipeline-manifest-install: SKIP -- runner renders empty (non-darwin host)\n'
-  exit 0
+manifest_fixture_setup
+trap manifest_fixture_teardown EXIT
+
+manifest_fixture_add_script digest.sh 'echo digest'
+manifest_fixture_add_plist com.webdavis.osquery-digest '<plist>{{ .chezmoi.os }}</plist>'
+manifest_fixture_apply
+
+# --- 1. first run: a privileged install, root:wheel 0644 ---------------------
+manifest_fixture_run_runner "$RUNNER" || fail "the runner exited non-zero on the first run"
+manifest_fixture_installed || fail "the first run did not install the manifest"
+grep -qF -- 'install -o root -g wheel -m 0644' "$MF_SUDO_LOG" ||
+  fail "the install is not root:wheel 0644 (sudo argv: $(cat "$MF_SUDO_LOG"))"
+[[ -s $MF_MANIFEST ]] || fail "the first run did not create the manifest"
+
+# --- 2. nothing changed: the diff-guard skips the privileged write ------------
+manifest_fixture_run_runner "$RUNNER" || fail "the runner exited non-zero on an unchanged run"
+manifest_fixture_installed &&
+  fail "an unchanged tree still triggered a privileged write (sudo argv: $(cat "$MF_SUDO_LOG"))"
+
+# --- 3. a real change re-installs -------------------------------------------
+previous="$(cat "$MF_MANIFEST")"
+manifest_fixture_add_script digest.sh 'echo digest v2'
+manifest_fixture_apply
+manifest_fixture_run_runner "$RUNNER" || fail "the runner exited non-zero after a pipeline change"
+manifest_fixture_installed || fail "a changed pipeline file did not trigger a re-install"
+[[ "$(cat "$MF_MANIFEST")" != "$previous" ]] || fail "the manifest was not refreshed after a change"
+
+# --- 4. a generation failure leaves the previous manifest in force -----------
+# An unreadable SOURCE file makes `chezmoi cat` fail; under set -o pipefail the
+# runner must abort rather than install a partial manifest. Without this pin a
+# future `|| true` would silently truncate the manifest and bless nothing.
+good="$(cat "$MF_MANIFEST")"
+chmod 000 "$MF_SRC/dot_local/libexec/osquery/executable_digest.sh"
+status=0
+manifest_fixture_run_runner "$RUNNER" >/dev/null 2>&1 || status=$?
+chmod 644 "$MF_SRC/dot_local/libexec/osquery/executable_digest.sh"
+[[ $status -ne 0 ]] || fail "an unreadable managed file must abort the runner, not install a partial manifest"
+manifest_fixture_installed &&
+  fail "a generation failure must not perform a privileged write (sudo argv: $(cat "$MF_SUDO_LOG"))"
+[[ "$(cat "$MF_MANIFEST")" == "$good" ]] ||
+  fail "a generation failure must leave the previous manifest untouched"
+
+# --- 5. an empty result is refused, never installed over a good manifest -----
+# Pointing the home at a tree with no managed pipeline files resolves zero paths.
+empty_home="$MF_ROOT/empty-home"
+mkdir -p "$empty_home"
+status=0
+: >"$MF_SUDO_LOG"
+env -u XDG_CONFIG_HOME -u XDG_DATA_HOME HOME="$MF_HOME" PATH="$MF_ROOT/bin:$PATH" \
+  CHEZMOI_SOURCE_DIR="$MF_SRC" CHEZMOI_HOME_DIR="$empty_home" \
+  OSQUERY_PIPELINE_MANIFEST="$MF_MANIFEST" SUDO_LOG="$MF_SUDO_LOG" \
+  bash "$RUNNER" >/dev/null 2>&1 || status=$?
+[[ $status -ne 0 ]] || fail "an empty manifest must be refused with a non-zero exit"
+manifest_fixture_installed && fail "an empty manifest must never be installed"
+[[ "$(cat "$MF_MANIFEST")" == "$good" ]] || fail "an empty result must leave the good manifest in place"
+
+# --- 6. END TO END: the runner actually executes under --exclude=templates ----
+# The whole point of it not being a .tmpl. Drop it into the fixture source and run
+# the mandated agent apply; the manifest must be produced by chezmoi itself.
+mkdir -p "$MF_SRC/.chezmoiscripts"
+cp "$RUNNER" "$MF_SRC/.chezmoiscripts/run_after_05-osquery-pipeline-manifest.sh"
+chmod +x "$MF_SRC/.chezmoiscripts/run_after_05-osquery-pipeline-manifest.sh"
+rm -f "$MF_MANIFEST"
+: >"$MF_SUDO_LOG"
+env -u XDG_CONFIG_HOME -u XDG_DATA_HOME HOME="$MF_HOME" CI=1 PATH="$MF_ROOT/bin:$PATH" \
+  OSQUERY_PIPELINE_MANIFEST="$MF_MANIFEST" SUDO_LOG="$MF_SUDO_LOG" \
+  chezmoi --config "$MF_HOME/.config/chezmoi/chezmoi.toml" --source "$MF_SRC" \
+  --destination "$MF_HOME" apply --exclude=templates --force >/dev/null 2>&1 || true
+[[ -s $MF_MANIFEST ]] ||
+  fail "the runner did NOT run under 'chezmoi apply --exclude=templates' (the mandated agent apply path)"
+
+if [[ $fails -gt 0 ]]; then
+  printf '%d check(s) failed\n' "$fails" >&2
+  exit 1
 fi
-
-work="$(mktemp -d)"
-trap 'rm -rf "$work"' EXIT
-home="$work/home"
-libexec="$home/.local/libexec/osquery"
-agents="$home/Library/LaunchAgents"
-mkdir -p "$libexec/results-alerter" "$agents" "$work/bin"
-
-# The deployed generator (executable_ prefix dropped in the target) + a pipeline tree.
-install -m 0755 "$GENERATOR_SRC" "$libexec/generate-pipeline-manifest.sh"
-printf 'echo digest\n' >"$libexec/digest.sh"
-printf 'true\n' >"$libexec/results-alerter/normalize.sh"
-printf '<plist>digest</plist>\n' >"$agents/com.webdavis.osquery-digest.plist"
-
-# PATH-shadowed sudo: record argv, then emulate `install ... <src> <dest>` by
-# copying, so no real privilege is used and no /var write happens.
-sudo_log="$work/sudo.log"
-cat >"$work/bin/sudo" <<'STUB'
-#!/usr/bin/env bash
-printf '%s\n' "$*" >>"$SUDO_LOG"
-dest="${!#}"
-src_pos=$(($# - 1))
-src="${!src_pos}"
-cp "$src" "$dest"
-STUB
-chmod +x "$work/bin/sudo"
-
-runner="$work/runner.sh"
-printf '%s\n' "$rendered" >"$runner"
-dest="$work/pipeline-known-good.sha256"
-
-# apply <fresh-log>: run the rendered runner with the stub sudo first on PATH and
-# the manifest dest redirected into the scratch dir.
-apply() {
-  : >"$sudo_log"
-  HOME="$home" PATH="$work/bin:$PATH" \
-    OSQUERY_PIPELINE_MANIFEST="$dest" SUDO_LOG="$sudo_log" \
-    bash "$runner" || fail "the runner exited non-zero"
-}
-
-# 1. First apply: dest is absent -> a privileged install of the freshly generated
-#    manifest, root:wheel 0644.
-apply
-[[ -s $sudo_log ]] || fail "first apply did not install the manifest (no sudo call)"
-grep -qF -- 'install -o root -g wheel -m 0644' "$sudo_log" ||
-  fail "the install is not root:wheel 0644 (sudo argv: $(cat "$sudo_log"))"
-[[ -f $dest ]] || fail "first apply did not create the manifest dest"
-diff <(HOME="$home" "$libexec/generate-pipeline-manifest.sh") "$dest" >/dev/null ||
-  fail "the installed manifest does not equal the generator's output"
-
-# 2. Second apply, nothing changed: the diff-guard must skip the privileged write.
-apply
-[[ ! -s $sudo_log ]] ||
-  fail "an unchanged tree still triggered a privileged write (sudo argv: $(cat "$sudo_log"))"
-
-# 3. Edit one pipeline file: the manifest content changes -> install fires again.
-printf 'echo changed\n' >>"$libexec/digest.sh"
-apply
-[[ -s $sudo_log ]] ||
-  fail "a changed pipeline file did not trigger a re-install (the diff-guard is stuck)"
-diff <(HOME="$home" "$libexec/generate-pipeline-manifest.sh") "$dest" >/dev/null ||
-  fail "after an edit the installed manifest was not refreshed to the new content"
-
-printf 'osquery-pipeline-manifest-install: OK (installs root:wheel 0644 on first apply; the diff-guard skips the privileged write when unchanged; re-installs after a pipeline file changes)\n'
+printf 'osquery-pipeline-manifest-install: OK (plain script, runs under --exclude=templates; root:wheel 0644; diff-guard skips an unchanged run; re-installs on change; a generation failure or an empty result never overwrites a good manifest; producer and consumer name one path)\n'
