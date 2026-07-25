@@ -35,6 +35,27 @@ send_alert() {
 }
 STUB
 
+  # A jq shim for the normalize-failure case. It fails ONLY the `-rR` invocation,
+  # which is normalize_findings' program and nothing else in the pipeline (routing
+  # uses plain -r, the allowlist -Rc, render -s, the entry -r), and execs the real
+  # jq for every other call. One PATH entry therefore breaks normalization alone,
+  # leaving the rest of the flow real.
+  SHIM_BIN="$HOME/shim-bin"
+  mkdir -p "$SHIM_BIN"
+  REAL_JQ="$(command -v jq)"
+  export REAL_JQ
+  cat >"$SHIM_BIN/jq" <<'SHIM'
+#!/usr/bin/env bash
+for arg in "$@"; do
+  if [[ $arg == -rR ]]; then
+    printf 'jq shim: simulated normalize failure\n' >&2
+    exit 5
+  fi
+done
+exec "$REAL_JQ" "$@"
+SHIM
+  chmod +x "$SHIM_BIN/jq"
+
   export OSQUERY_RESULTS_LOG="$HOME/.local/log/osquery/osqueryd.results.log"
   export OSQUERY_RESULTS_OFFSET="$HOME/.local/state/osquery-results-offset"
   : >"$OSQUERY_RESULTS_LOG"
@@ -179,4 +200,23 @@ run_entry() { run bash "$ENTRY"; }
   local batch_pages
   batch_pages=$(grep -c 'title=🔴 \*\*CRITICAL\*\*' "$SEND_ALERT_SPY" 2>/dev/null || true)
   [ "$batch_pages" -eq 1 ]
+}
+
+# (j) A normalize stage that FAILS is not an all-clear. When jq dies partway the
+#     batch is truncated or empty, so the rows it never emitted were never judged;
+#     treating that as "no findings" and checkpointing past them loses them for
+#     good, because nothing re-reads a byte range the cursor has passed. The run
+#     must fail loudly and leave the cursor put so the next tick re-reads the rows.
+@test "T-ENTRY-normalize-failure: a failed normalize keeps the cursor put and the row is re-read" {
+  seed_cursor 0
+  append_row "$ADMIN_ROW"
+  PATH="$SHIM_BIN:$PATH" run bash "$ENTRY"     # normalization cannot run
+  [ "$status" -ne 0 ]                           # the failure is not swallowed
+  [ "$(crit_page_count)" -eq 0 ]                # nothing was paged
+  [ "$(cursor_offset)" -eq 0 ]                  # cursor did NOT advance past the row
+  # With normalization working again the SAME row is re-read and pages once.
+  run_entry
+  [ "$status" -eq 0 ]
+  [ "$(crit_page_count)" -eq 1 ]
+  [ "$(cursor_offset)" -eq "$(log_size)" ]
 }
