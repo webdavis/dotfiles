@@ -77,6 +77,38 @@ _pipeline_mtime() {
   stat -c '%Y' "$1" 2>/dev/null || stat -f '%m' "$1" 2>/dev/null
 }
 
+# _pipeline_file_mode <path>: the file's permission bits as EXACTLY four octal
+# digits (0755, or 4755 for a setuid file), non-zero and empty output when they
+# cannot be read.
+#
+# The two platforms are deliberately asked for DIFFERENT fields. GNU %a already
+# prints all twelve permission bits. BSD has no equivalent: %Lp prints only the
+# low NINE, so a setuid, setgid or sticky bit set on a pipeline script would read
+# back as an ordinary mode. %p prints the full mode including the file type
+# (100755), so the low four octal digits are taken from whichever form answered
+# and both platforms yield the same string for the same file.
+#
+# The value is range-bound by a regex BEFORE it is sliced, so a stat that printed
+# something unexpected fails the read instead of producing a plausible-looking
+# mode.
+_pipeline_file_mode() {
+  local raw
+  raw=$(stat -c '%a' "$1" 2>/dev/null || stat -f '%p' "$1" 2>/dev/null) || return 1
+  [[ $raw =~ ^[0-7]{1,7}$ ]] || return 1
+  raw="000$raw"
+  printf '%s' "${raw: -4}"
+}
+
+# _pipeline_file_uid <path>: the file's owner uid in decimal, non-zero and empty
+# output when it cannot be read. Validated as digits so a caller never compares
+# against a stat error string.
+_pipeline_file_uid() {
+  local raw
+  raw=$(stat -c '%u' "$1" 2>/dev/null || stat -f '%u' "$1" 2>/dev/null) || return 1
+  [[ $raw =~ ^[0-9]{1,10}$ ]] || return 1
+  printf '%s' "$raw"
+}
+
 # _pipeline_manifest_is_trustworthy <path>: 0 when the manifest may be trusted to
 # SUPPRESS a page. Whoever can write the manifest can self-whitelist a file they
 # just tampered, so root ownership and a not-group/world-writable mode are VERIFIED
@@ -101,12 +133,12 @@ _pipeline_mtime() {
 _pipeline_manifest_is_trustworthy() {
   [[ -n ${OSQUERY_PIPELINE_MANIFEST:-} ]] && return 0
   local owner mode
-  owner=$(stat -c '%u' "$1" 2>/dev/null || stat -f '%u' "$1" 2>/dev/null) || true
-  mode=$(stat -c '%a' "$1" 2>/dev/null || stat -f '%Lp' "$1" 2>/dev/null) || true
+  owner=$(_pipeline_file_uid "$1") || true
+  mode=$(_pipeline_file_mode "$1") || true
   [[ $owner == 0 ]] || return 1
   # Refuse a group- or world-writable manifest. The mode is OCTAL, so both operands
-  # are read base 8; an unreadable mode defaults to 777 and is refused.
-  ((8#${mode:-777} & 8#22)) && return 1
+  # are read base 8; an unreadable mode defaults to 7777 and is refused.
+  ((8#${mode:-7777} & 8#22)) && return 1
   return 0
 }
 
