@@ -66,8 +66,17 @@ source "$HOME/.local/libexec/osquery/canary-freshness.sh"
 # The periodic content audit of the pipeline-integrity manifest (probe 5). It also
 # pulls in the verdict helper, which owns the manifest path and the root-ownership
 # check both consumers share.
-# shellcheck source=/dev/null
-source "$HOME/.local/libexec/osquery/pipeline-audit.sh"
+#
+# Sourced CONDITIONALLY, unlike the two helpers above. Those are hard dependencies:
+# without the dispatcher nothing can page at all, and without the canary seam probe
+# 1 has nothing to read. Probe 5 is not: the other four probes work perfectly well
+# without it, so a missing audit seam must degrade to a LOUD probe-5 failure rather
+# than abort the tick under errexit and leave a genuinely down pipeline unreported.
+_watchdog_audit_seam="$HOME/.local/libexec/osquery/pipeline-audit.sh"
+if [[ -r $_watchdog_audit_seam ]]; then
+  # shellcheck source=/dev/null
+  source "$_watchdog_audit_seam"
+fi
 
 # Never leave a partial temp state (or the writability probe) behind, on any exit path.
 trap 'rm -f "$STATE.tmp" "$STATE.probe"' EXIT
@@ -274,7 +283,12 @@ fi
 #    token) rather than report a false all-clear when the manifest itself cannot be
 #    used, and it is bounded on entries, per-file bytes, and wall clock.
 audit_rc=0
-audit_report="$(pipeline_audit_scan 2>/dev/null)" || audit_rc=$?
+if declare -F pipeline_audit_scan >/dev/null 2>&1; then
+  audit_report="$(pipeline_audit_scan 2>/dev/null)" || audit_rc=$?
+else
+  audit_rc=1
+  audit_report="unavailable"
+fi
 audit_reason=""
 audit_divergence_count=0
 if [[ $audit_rc -ne 0 ]]; then
@@ -365,7 +379,7 @@ if [[ $audit_should_page -eq 1 ]]; then
         problems+=("the pipeline-integrity manifest is missing or unreadable, so the periodic content audit cannot verify the deployed pipeline; tampering would go unseen until it is restored")
         ;;
       unavailable)
-        problems+=("the periodic content audit is not installed completely (the pipeline-integrity manifest helper it reads is missing), so the deployed pipeline is unverified")
+        problems+=("the periodic content audit is not installed completely (a helper it needs is missing), so the deployed pipeline is unverified against the pipeline-integrity manifest")
         ;;
       untrustworthy)
         problems+=("the pipeline-integrity manifest is no longer root-owned (or is group/world-writable), so it can no longer vouch for the deployed pipeline")

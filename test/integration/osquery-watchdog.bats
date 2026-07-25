@@ -640,6 +640,23 @@ teardown() { teardown_watchdog_harness; }
   assert_page_body_has 'not installed'
 }
 
+@test "T-WATCH-audit-seam-missing-pages: the audit seam itself going missing pages, instead of killing the tick silently" {
+  # One level up from the case above, and the same rule: the watchdog sources the
+  # audit seam, so a deleted seam would abort the tick before ANY probe reported.
+  # Probes 1 to 4 do not depend on it, so the tick must survive and say so.
+  rm -f "$WD_HOME/.local/libexec/osquery/pipeline-audit.sh"
+  run run_watchdog
+  run run_watchdog
+  [[ $status -eq 0 ]] || {
+    echo "tick2 status $status: $output"
+    false
+  }
+  assert_page_count 1
+  assert_page_severity_is CRIT
+  assert_page_sound_nonempty
+  assert_page_body_has 'not installed'
+}
+
 @test "T-WATCH-audit-page-once: a persistent divergence pages once, not every 15 minutes forever" {
   tamper_manifested_file
   run run_watchdog # tick 1: confirming
