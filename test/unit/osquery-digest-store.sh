@@ -83,4 +83,42 @@ jq -e 'has("sha256")' <<<"$l3" >/dev/null 2>&1 && fail "the digest line must not
 grep -q 'deadbeef' "$store" && fail "a raw sha256 leaked into the spool file"
 grep -q 'SUPERSECRETTOKEN' "$store" && fail "a secret value leaked into the spool file"
 
-printf 'osquery-digest-store: OK (one NDJSON line per append, accumulation, dir 700 / file 600, listening-port identity, no secret/sha256 leak)\n'
+# -- A FAILED append stays best-effort but must not be silent. The append is
+#    deliberately swallowed so a spool problem can never abort the detection path,
+#    which means the finding is recorded nowhere and is never retried. That loss
+#    has to leave a trace in the alerter's launchd log, or a digest-tier finding
+#    disappears with no signal at all. jq is shimmed to fail, which is the silent
+#    shape: the helper's own `2>/dev/null` hides jq's complaint, so the ONLY thing
+#    that can reach the log is the helper's own diagnostic. --
+fail_work="$work/append-failure"
+mkdir -p "$fail_work/bin"
+fail_store="$fail_work/spool/digest.ndjson"
+cat >"$fail_work/bin/jq" <<'SHIM'
+#!/usr/bin/env bash
+printf 'jq shim: simulated digest append failure\n' >&2
+exit 5
+SHIM
+chmod +x "$fail_work/bin/jq"
+
+fail_status=0
+fail_err="$(
+  OSQUERY_DIGEST_STORE="$fail_store" PATH="$fail_work/bin:$PATH" bash -c '
+    source "$1"
+    digest_append "{\"q\":\"system_extensions_new\",\"act\":\"added\",\"cols\":{\"identifier\":\"com.example.ext\"},\"ep\":\"\"}"
+    printf "APPEND_RC=%s\n" "$?" >&2
+  ' _ "$HELPER" 2>&1 >/dev/null
+)" || fail_status=$?
+
+[[ $fail_status -eq 0 ]] ||
+  fail "a failed append must never abort the caller, the pass exited $fail_status ($fail_err)"
+[[ $fail_err == *"APPEND_RC=0"* ]] ||
+  fail "digest_append must still return 0 on a failed append (best-effort), got: $fail_err"
+[[ $fail_err == *digest-store* ]] ||
+  fail "a failed append must announce itself on stderr; got: ${fail_err:-<nothing>}"
+[[ $fail_err == *"$fail_store"* ]] ||
+  fail "the diagnostic must name the spool it could not write, got: $fail_err"
+if [[ -s $fail_store ]]; then
+  fail "the failed append must not have written a line, got: $(cat "$fail_store")"
+fi
+
+printf 'osquery-digest-store: OK (one NDJSON line per append, accumulation, dir 700 / file 600, listening-port identity, no secret/sha256 leak, failed append stays best-effort but is logged)\n'
