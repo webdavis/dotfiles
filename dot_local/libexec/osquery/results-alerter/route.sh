@@ -300,6 +300,18 @@ route_findings() {
     pages+=("$obj")
   done
   # Emit the page-candidates, in input order, with .sev stamped CRIT - one jq pass.
-  [[ ${#pages[@]} -gt 0 ]] && printf '%s\n' "${pages[@]}" | jq -c '.sev = "CRIT"'
-  return 0
+  #
+  # The emit's status is RETURNED, not swallowed by a blanket `return 0`. This is
+  # the last point at which a confirmed page can be lost: render_page counts only
+  # what it receives, and the entry checkpoints the cursor once the page is
+  # delivered or spooled, so a jq that died here while route_findings reported
+  # success would advance the cursor past rows whose pages were never written.
+  # Returning nonzero makes the entry's pipefail see it, which leaves the cursor
+  # put for the next tick. A batch with nothing to page skips the emit and is a
+  # plain success.
+  local emit_status=0
+  if [[ ${#pages[@]} -gt 0 ]]; then
+    printf '%s\n' "${pages[@]}" | jq -c '.sev = "CRIT"' || emit_status=$?
+  fi
+  return "$emit_status"
 }
