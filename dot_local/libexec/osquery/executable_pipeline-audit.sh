@@ -38,10 +38,10 @@ if [[ -r $_pipeline_audit_verdict_helper ]]; then
 fi
 
 # COST, measured rather than assumed. The real manifest lists 25 files totalling
-# about 224 KiB, and a full scan of them takes ~0.75s wall clock on this host: one
-# stat (~4ms) and one shasum (~28ms) fork per file, with the hashing itself lost in
-# the noise. shasum is a Perl script, so its startup, not the SHA-256, is nearly all
-# of that. A single batched shasum over every path would cut it to ~0.05s, and is
+# about 230 KiB, and a full scan of them takes 0.6 to 0.8s wall clock on this host:
+# one stat (~4ms) and one shasum (~28ms) fork per file, with the hashing itself lost
+# in the noise. shasum is a Perl script, so its startup, not the SHA-256, is nearly
+# all of that. A single batched shasum over every path would cut it to ~0.05s, and is
 # deliberately not done: it would have to be parsed back by path (an output line is
 # absent for a file that vanished mid-scan, and some implementations escape unusual
 # filenames), which trades an obviously-correct loop for a false-page vector. At one
