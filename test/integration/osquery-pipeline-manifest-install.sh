@@ -28,7 +28,7 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-RUNNER="$REPO_ROOT/.chezmoiscripts/run_after_05-osquery-pipeline-manifest.sh"
+RUNNER="$REPO_ROOT/.chezmoiscripts/run_after_05-osquery-known-good-manifests.sh"
 VERDICT="$REPO_ROOT/dot_local/libexec/osquery/results-alerter/pipeline-verdict.sh"
 # shellcheck source=../fixtures/osquery-manifest-lib.bash
 source "$REPO_ROOT/test/fixtures/osquery-manifest-lib.bash"
@@ -74,6 +74,10 @@ trap manifest_fixture_teardown EXIT
 
 manifest_fixture_add_script digest.sh 'echo digest'
 manifest_fixture_add_plist com.webdavis.osquery-digest '<plist>{{ .chezmoi.os }}</plist>'
+# The runner's other arm writes the managed-bin manifest and refuses to install an
+# EMPTY one, so a fixture with no managed ~/.local/bin tool would make every run
+# here exit non-zero for a reason this file is not about. One tool satisfies it.
+manifest_fixture_add_bin_script relay.sh 'echo relay'
 manifest_fixture_apply
 
 # --- 1. first run: a privileged install, root:wheel 0644 ---------------------
@@ -129,8 +133,8 @@ manifest_fixture_installed && fail "an empty manifest must never be installed"
 # The whole point of it not being a .tmpl. Drop it into the fixture source and run
 # the mandated agent apply; the manifest must be produced by chezmoi itself.
 mkdir -p "$MF_SRC/.chezmoiscripts"
-cp "$RUNNER" "$MF_SRC/.chezmoiscripts/run_after_05-osquery-pipeline-manifest.sh"
-chmod +x "$MF_SRC/.chezmoiscripts/run_after_05-osquery-pipeline-manifest.sh"
+cp "$RUNNER" "$MF_SRC/.chezmoiscripts/run_after_05-osquery-known-good-manifests.sh"
+chmod +x "$MF_SRC/.chezmoiscripts/run_after_05-osquery-known-good-manifests.sh"
 rm -f "$MF_MANIFEST"
 : >"$MF_SUDO_LOG"
 env -u XDG_CONFIG_HOME -u XDG_DATA_HOME HOME="$MF_HOME" CI=1 PATH="$MF_ROOT/bin:$PATH" \

@@ -5,7 +5,7 @@
 #
 #   WATCH    (.chezmoitemplates/osquery/osquery.conf file_paths)      what osquery reports
 #   TRACKED  (results-alerter/pipeline-verdict.sh _pipeline_is_tracked) what the alerter judges
-#   MANIFEST (.chezmoiscripts/run_after_05-osquery-pipeline-manifest.sh) what can be vouched for
+#   MANIFEST (.chezmoiscripts/run_after_05-osquery-known-good-manifests.sh) what can be vouched for
 #
 # The manifest has a SECOND consumer, the periodic audit (pipeline-audit.sh), which
 # parses the file directly instead of going through the verdict. It is driven here
@@ -28,7 +28,7 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-RUNNER="$REPO_ROOT/.chezmoiscripts/run_after_05-osquery-pipeline-manifest.sh"
+RUNNER="$REPO_ROOT/.chezmoiscripts/run_after_05-osquery-known-good-manifests.sh"
 VERDICT="$REPO_ROOT/dot_local/libexec/osquery/results-alerter/pipeline-verdict.sh"
 CONF="$REPO_ROOT/.chezmoitemplates/osquery/osquery.conf"
 # shellcheck source=../fixtures/osquery-manifest-lib.bash
@@ -63,6 +63,10 @@ trap manifest_fixture_teardown EXIT
 manifest_fixture_add_script digest.sh 'echo digest'
 manifest_fixture_add_script results-alerter/normalize.sh 'true'
 manifest_fixture_add_plist com.webdavis.osquery-digest '<plist>{{ .chezmoi.os }}</plist>'
+# A managed ~/.local/bin tool, so the runner's managed-bin arm has something to
+# manifest (it refuses to install an EMPTY manifest) and so the agreement checks
+# below can drive that arm too.
+manifest_fixture_add_bin_script update-skills.sh 'echo update-skills'
 manifest_fixture_apply
 manifest_fixture_run_runner "$RUNNER" || fail "the runner exited non-zero"
 

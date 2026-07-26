@@ -80,7 +80,7 @@
 #               manifest match)
 
 # Keep this default in sync with the manifest path in
-# .chezmoiscripts/run_after_05-osquery-pipeline-manifest.sh (the producer). A test
+# .chezmoiscripts/run_after_05-osquery-known-good-manifests.sh (the producer). A test
 # pins the two literals equal, because the producer and the consumer of a
 # security-critical file must not agree only by copy-paste.
 PIPELINE_MANIFEST="${OSQUERY_PIPELINE_MANIFEST:-/var/osquery/pipeline-known-good.sha256}"
