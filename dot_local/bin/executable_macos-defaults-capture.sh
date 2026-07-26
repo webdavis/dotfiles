@@ -18,7 +18,8 @@
 
 set -euo pipefail
 
-DATA_FILE="${HOME}/workspaces/Ivy/webdavis/dotfiles/.chezmoidata/macos_defaults.yaml"
+# shellcheck source=dot_local/bin/macos-defaults-lib.sh
+source "$(dirname "${BASH_SOURCE[0]}")/macos-defaults-lib.sh"
 
 usage() {
   printf 'usage: macos-defaults-capture <domain> <key> [--host current]\n' >&2
@@ -65,10 +66,10 @@ done
   exit 3
 }
 
-if [[ ! -r $DATA_FILE ]]; then
-  printf 'error: cannot read %s\n' "$DATA_FILE" >&2
-  exit 2
-fi
+# Resolved after argument validation so a malformed invocation still exits 3, not
+# 2, whatever state the chezmoi source directory is in.
+DATA_FILE="$(macos_defaults_data_file)" || exit $?
+require_readable_data_file "$DATA_FILE" || exit $?
 
 # Read live type. `defaults read-type` outputs e.g. "Type is boolean".
 host_flag=()
