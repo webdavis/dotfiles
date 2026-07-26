@@ -59,14 +59,22 @@ findings=(
   '{"q":"file_events_recent","act":"added","cols":{"category":"sshd_config","target_path":"/etc/ssh/sshd_configTAG07"},"ep":"/etc/ssh/sshd_configTAG07"}'
   '{"q":"file_events_recent","act":"added","cols":{"category":"ssh","target_path":"/Users/x/.ssh/authorized_keys","note":"TAG08"},"ep":"/Users/x/.ssh/authorized_keys"}'
   '{"q":"file_events_recent","act":"added","cols":{"category":"pipeline_integrity","target_path":"/Users/x/.local/libexec/osquery/results-alerterTAG09.sh","sha256":"abc","action":"UPDATED"},"ep":"/Users/x/.local/libexec/osquery/results-alerterTAG09.sh"}'
+  # The page-allowlist edit itself. It decides whether an unknown user LaunchAgent
+  # pages, so with no manifest to confirm the edit it PAGES like any other tracked
+  # pipeline file. The token rides in a note column because the path has to be the
+  # REAL tracked path for the tracked-set match to mean anything.
+  '{"q":"file_events_recent","act":"added","cols":{"category":"allowlist_file","target_path":"/Users/x/.config/osquery/page-launchd-allowlist.txt","sha256":"abc","action":"UPDATED","note":"TAG15"},"ep":""}'
   # -- DIGEST --
   '{"q":"agent_authfile_changed","act":"added","cols":{"path":"/Users/x/.codex/config.tomlTAG10"},"ep":""}'
   '{"q":"system_extensions_new","act":"added","cols":{"identifier":"com.ext.TAG11"},"ep":""}'
   '{"q":"listening_ports_non_loopback","act":"added","cols":{"name":"procTAG12","address":"0.0.0.0","port":"9999"},"ep":""}'
   '{"q":"file_events_recent","act":"added","cols":{"category":"ssh","target_path":"/Users/x/.ssh/id_rsaTAG13"},"ep":"/Users/x/.ssh/id_rsaTAG13"}'
   '{"q":"file_events_recent","act":"added","cols":{"category":"sudoers","target_path":"/etc/sudoersTAG14"},"ep":"/etc/sudoersTAG14"}'
-  '{"q":"file_events_recent","act":"added","cols":{"category":"allowlist_file","target_path":"/Users/x/.config/osquery-TAG15/page-launchd-allowlist.txt"},"ep":""}'
   # -- LOG-ONLY --
+  # A neighbour in the SAME watched directory as the allowlist. The watch is a
+  # directory watch, so this event really does arrive; the tracked set is what keeps
+  # a secret file from becoming a CRIT nobody can ever confirm.
+  '{"q":"file_events_recent","act":"added","cols":{"category":"allowlist_file","target_path":"/Users/x/.config/osquery/webhook-secret","sha256":"abc","action":"UPDATED","note":"TAG21"},"ep":""}'
   '{"q":"agent_exposure_changed","act":"removed","cols":{"name":"ncTAG16","address":"0.0.0.0","port":"4444"},"ep":""}'
   '{"q":"firewall_state","act":"added","cols":{"global_state":"0","note":"TAG17"},"ep":""}'
   '{"q":"homebrew_packages","act":"added","cols":{"name":"pkgTAG18"},"ep":""}'
@@ -112,6 +120,7 @@ classify TAG06 page # persistence_launchd added (unconditional now; TODO B11 all
 classify TAG07 page # file_events sshd_config
 classify TAG08 page # file_events ssh authorized_keys
 classify TAG09 page # file_events pipeline_integrity (unconditional now; TODO B12 pipeline)
+classify TAG15 page # file_events allowlist_file (the page-allowlist edit, no manifest to vouch)
 
 # -- DIGEST --
 classify TAG10 digest # agent_authfile_changed (criterion 3: the 3 non-secret configs)
@@ -119,9 +128,9 @@ classify TAG11 digest # system_extensions_new
 classify TAG12 digest # listening_ports_non_loopback added
 classify TAG13 digest # file_events ssh (a non-authorized_keys file)
 classify TAG14 digest # file_events sudoers
-classify TAG15 digest # file_events allowlist_file (the page-allowlist edit itself)
 
 # -- LOG-ONLY --
+classify TAG21 logonly # an allowlist_file neighbour (webhook-secret) is untracked
 classify TAG16 logonly # agent_exposure_changed removed (the exposure being fixed)
 classify TAG17 logonly # firewall_state (poller-owned; routing here would double-page)
 classify TAG18 logonly # homebrew_packages (INFO drift)
@@ -130,10 +139,10 @@ classify TAG20 logonly # filevault_off removed (encryption restored)
 
 # -- Contract: every paged line is exactly one CRIT finding; counts add up. --
 page_count="$(grep -c . <<<"$page_out" || true)"
-[[ $page_count -eq 9 ]] || fail "expected 9 page-candidates, got $page_count"
+[[ $page_count -eq 10 ]] || fail "expected 10 page-candidates, got $page_count"
 [[ "$(jq -s 'all(.[]; .sev == "CRIT")' <<<"$page_out")" == true ]] ||
   fail "every page-candidate must carry .sev == CRIT"
 digest_count="$(grep -c . "$spool" 2>/dev/null || true)"
-[[ $digest_count -eq 6 ]] || fail "expected 6 digested findings, got $digest_count"
+[[ $digest_count -eq 5 ]] || fail "expected 5 digested findings, got $digest_count"
 
-printf 'osquery-route-gate: OK (9 page-candidates all CRIT, 6 digested, 5 log-only; criteria 1-3 tiers pinned; poller-owned + drift are log-only)\n'
+printf 'osquery-route-gate: OK (10 page-candidates all CRIT, 5 digested, 6 log-only; criteria 1-3 tiers pinned; the page-allowlist edit pages and its neighbours stay log-only)\n'

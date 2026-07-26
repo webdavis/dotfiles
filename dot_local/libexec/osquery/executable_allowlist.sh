@@ -9,6 +9,11 @@
 #   allowlist.sh -d <label>   # deny: remove the entry for <label>
 #   allowlist.sh -l           # list the current allowlist
 #
+# -a and -d curate the CHEZMOI SOURCE and then deploy: edit the source, apply that one
+# target, refresh the pipeline-integrity manifest. See publish_allowlist for why all
+# three steps are required and what each failure leaves behind. -l reads the DEPLOYED
+# file, because that is the one the alerter actually consults.
+#
 # R2-1: an entry is a TUPLE, not a bare label. Suppressing on the label alone let an attacker
 # reuse an allowlisted label but point the plist at a malicious program and be silently
 # suppressed. `-a` captures the label's KNOWN-GOOD identity (canonical plist path + program +
@@ -22,6 +27,11 @@ set -euo pipefail
 
 ALLOWLIST="${OSQUERY_LAUNCHD_ALLOWLIST:-$HOME/.config/osquery/page-launchd-allowlist.txt}"
 OSQUERYI="${OSQUERYI:-$(command -v osqueryi || echo /usr/local/bin/osqueryi)}"
+CHEZMOI="${CHEZMOI:-$(command -v chezmoi || echo chezmoi)}"
+
+# The manifest runner, which is a chezmoi SOURCE script and is therefore never
+# deployed into $HOME; it is located inside the source tree. Overridable for tests.
+MANIFEST_RUNNER_REL=".chezmoiscripts/run_after_05-osquery-known-good-manifests.sh"
 
 usage() {
   printf 'usage: %s -a <label> | -d <label> | -l\n' "${0##*/}" >&2
@@ -62,11 +72,11 @@ take_allowlist_write_lock() {
 # fd-inheritance note on take_allowlist_write_lock.
 entry_label() { jq -r '.label // empty' 9>&- <<<"$1" 2>/dev/null || true; }
 
-# Rewrite the allowlist, preserving comment/blank lines and dropping any tuple for <label>.
-# Reads $ALLOWLIST, writes the filtered result to stdout (a no-op if the file is absent).
+# Rewrite an allowlist file, preserving comment/blank lines and dropping any tuple for
+# <label>. Reads <file>, writes the filtered result to stdout (a no-op if it is absent).
 _without_label() {
-  local drop="$1" line
-  [[ -f $ALLOWLIST ]] || return 0
+  local drop="$1" file="$2" line
+  [[ -f $file ]] || return 0
   while IFS= read -r line || [[ -n $line ]]; do
     case "$line" in
       '' | '#'*)
@@ -76,7 +86,101 @@ _without_label() {
     esac
     [[ "$(entry_label "$line")" == "$drop" ]] && continue
     printf '%s\n' "$line"
-  done <"$ALLOWLIST"
+  done <"$file"
+}
+
+# THE DEPLOY PATH, and why curation goes through chezmoi rather than writing the
+# deployed file.
+#
+# The allowlist is a chezmoi-managed plain file, so an apply rewrites it from source
+# every time (verified empirically). A tuple written straight to
+# ~/.config/osquery/page-launchd-allowlist.txt therefore survives only until the next
+# apply and then vanishes, taking its suppression with it and leaving the operator
+# with an agent that pages again for no visible reason. The file is also covered by
+# the pipeline-integrity manifest now, and allowlist_verdict refuses to honor an
+# allowlist the manifest cannot vouch for, so an out-of-band write suppresses nothing
+# even before the next apply erases it.
+#
+# So a seed is a SOURCE change: edit the source, apply that one target, refresh the
+# manifest. That order is the one a real apply uses (files land, then the run_after
+# runner signs them), so the brief disagreement in between is exactly the shape
+# _pipeline_tuple_settles already waits out.
+#
+# The runner is invoked DIRECTLY rather than left to the apply, because a targeted
+# `chezmoi apply <one-file>` does NOT run run_after scripts (verified empirically:
+# a full apply fires the runner, a single-target apply does not). Without this call
+# the deployed allowlist would sit ahead of the manifest, and the verdict would then
+# refuse to honor it - the seed would appear to do nothing.
+
+# allowlist_source_path: the chezmoi SOURCE file backing the deployed allowlist.
+# Fails closed: a target chezmoi does not manage, or an unavailable chezmoi, must
+# stop the run rather than silently fall back to writing the deployed file.
+allowlist_source_path() { "$CHEZMOI" source-path "$ALLOWLIST" 9>&-; }
+
+# manifest_runner_path: the known-good-manifests runner inside the chezmoi source
+# tree. It refreshes BOTH arms (pipeline and managed-bin) from one managed listing;
+# the allowlist rides in the pipeline arm, which is the one that has to be current
+# before the deployed allowlist can be honored again.
+manifest_runner_path() {
+  if [[ -n ${OSQUERY_PIPELINE_MANIFEST_RUNNER:-} ]]; then
+    printf '%s' "$OSQUERY_PIPELINE_MANIFEST_RUNNER"
+    return 0
+  fi
+  local source_dir
+  source_dir="$("$CHEZMOI" source-path 9>&-)" || return 1
+  printf '%s/%s' "$source_dir" "$MANIFEST_RUNNER_REL"
+}
+
+# publish_allowlist <staged-file> <source-file>: install the staged content as the
+# new source, deploy it, and refresh the manifest. All-or-nothing as far as it can
+# be, and loud where it cannot.
+#
+# A FAILED APPLY is fully recoverable, so it is rolled back: the source returns to
+# its previous bytes and nothing was deployed, which is indistinguishable from the
+# command never having run.
+#
+# A FAILED MANIFEST REFRESH is not recoverable that way, and it is the one outcome
+# that matters most to say out loud. The source and the deployed file are updated
+# but the manifest still describes the old bytes, so until it is refreshed the
+# deployed allowlist is unbound and the verdict refuses to honor it: every user
+# LaunchAgent pages. That fails in the SAFE direction, which is why it is reported
+# rather than papered over, and the exit status is non-zero so no caller can mistake
+# it for a completed seed. The runner's own stderr (sudo's, usually) is deliberately
+# NOT redirected: it is the only thing that says why.
+publish_allowlist() {
+  local staged="$1" source_file="$2" backup runner
+  backup="$(mktemp 9>&-)" || {
+    printf 'refused: could not stage a rollback copy of the allowlist source\n' >&2
+    return 1
+  }
+  cp "$source_file" "$backup" 9>&- 2>/dev/null || : >"$backup"
+  if ! mv -f "$staged" "$source_file" 9>&-; then
+    printf 'refused: could not write the allowlist source at %s\n' "$source_file" >&2
+    rm -f "$backup" 9>&-
+    return 1
+  fi
+  if ! "$CHEZMOI" apply --force "$ALLOWLIST" 9>&-; then
+    cp "$backup" "$source_file" 9>&-
+    rm -f "$backup" 9>&-
+    printf 'FAILED: chezmoi apply of %s did not succeed. The allowlist source has been rolled back and nothing was deployed.\n' \
+      "$ALLOWLIST" >&2
+    return 1
+  fi
+  rm -f "$backup" 9>&-
+  if ! runner="$(manifest_runner_path)" || [[ ! -f $runner ]]; then
+    printf 'FAILED: the allowlist was deployed but the known-good-manifests runner could not be located (%s). The manifest is now STALE: until it is refreshed the deployed allowlist is unbound and every user LaunchAgent will page. Run a full chezmoi apply to refresh it.\n' \
+      "${runner:-unresolved}" >&2
+    return 1
+  fi
+  # No CHEZMOI_SOURCE_DIR is set: the runner treats an absent one as a direct
+  # invocation and resolves the configured source itself, which is the same source
+  # the apply above just used.
+  if ! bash "$runner" 9>&-; then
+    printf 'FAILED: the allowlist was deployed but refreshing the known-good manifests failed (%s). The manifest is now STALE: until it is refreshed the deployed allowlist is unbound and every user LaunchAgent will page. Re-run this command, or run a full chezmoi apply.\n' \
+      "$runner" >&2
+    return 1
+  fi
+  return 0
 }
 
 # A real launchd label starts alphanumeric, then allows . _ @ - (so
@@ -128,15 +232,22 @@ allow_label() {
   rel_prog="${abs_prog//"$HOME"\//\~/}"
   # Refresh in place: drop any existing tuple for this label (preserving every other line
   # and all comments/blanks), then append the freshly captured tuple, so re-adding a label
-  # updates its identity and never duplicates it.
-  mkdir -p "$(dirname "$ALLOWLIST" 9>&-)" 9>&-
-  touch "$ALLOWLIST" 9>&-
+  # updates its identity and never duplicates it. An unchanged identity therefore
+  # reproduces the source byte for byte, which makes a repeated -a a true no-op: the
+  # apply writes identical bytes and the manifest runner compares equal and installs
+  # nothing.
+  local source_file
+  if ! source_file="$(allowlist_source_path)" || [[ -z $source_file ]]; then
+    printf 'refused: could not resolve the chezmoi source for %s; the allowlist is chezmoi-managed and must be curated through its source\n' \
+      "$ALLOWLIST" >&2
+    exit 1
+  fi
   local temp
   temp=$(mktemp 9>&-)
-  _without_label "$label" >"$temp"
+  _without_label "$label" "$source_file" >"$temp"
   jq -cn --arg label "$label" --arg path "$rel_path" --arg program "$rel_prog" --arg sha256 "$sha" \
     '{label:$label, path:$path, program:$program, sha256:$sha256}' 9>&- >>"$temp"
-  mv -f "$temp" "$ALLOWLIST" 9>&-
+  publish_allowlist "$temp" "$source_file" || exit 1
   printf 'allowed: %s -> %s\n' "$label" "$abs_prog"
 }
 
@@ -146,16 +257,24 @@ deny_label() {
     printf 'refused (invalid or system label): %s\n' "$label" >&2
     exit 1
   fi
-  # Removing a label that was never allowed is a clean no-op: exit 0, file untouched,
-  # a note on stdout (nothing on stderr), so a caller can deny unconditionally.
-  if [[ ! -f $ALLOWLIST ]] || ! grep -qF "\"label\":\"$label\"" "$ALLOWLIST" 9>&- 2>/dev/null; then
+  local source_file
+  if ! source_file="$(allowlist_source_path)" || [[ -z $source_file ]]; then
+    printf 'refused: could not resolve the chezmoi source for %s; the allowlist is chezmoi-managed and must be curated through its source\n' \
+      "$ALLOWLIST" >&2
+    exit 1
+  fi
+  # Removing a label that was never allowed is a clean no-op: exit 0, nothing
+  # deployed, no manifest refresh, a note on stdout (nothing on stderr), so a caller
+  # can deny unconditionally. The SOURCE is what is consulted, because the source is
+  # the authority an apply deploys from.
+  if [[ ! -f $source_file ]] || ! grep -qF "\"label\":\"$label\"" "$source_file" 9>&- 2>/dev/null; then
     printf 'not present: %s\n' "$label"
     return 0
   fi
   local temp
   temp=$(mktemp 9>&-)
-  _without_label "$label" >"$temp"
-  mv -f "$temp" "$ALLOWLIST" 9>&-
+  _without_label "$label" "$source_file" >"$temp"
+  publish_allowlist "$temp" "$source_file" || exit 1
   printf 'denied: %s\n' "$label"
 }
 

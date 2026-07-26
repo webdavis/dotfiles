@@ -18,6 +18,7 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 ROUTE="$REPO_ROOT/dot_local/libexec/osquery/results-alerter/route.sh"
 ALLOWLIST_HELPER="$REPO_ROOT/dot_local/libexec/osquery/results-alerter/allowlist-verdict.sh"
+PIPELINE_HELPER="$REPO_ROOT/dot_local/libexec/osquery/results-alerter/pipeline-verdict.sh"
 
 fail() {
   printf 'osquery-route-enrichment: FAIL -- %s\n' "$*" >&2
@@ -26,6 +27,7 @@ fail() {
 
 [[ -f $ROUTE ]] || fail "missing helper: $ROUTE"
 [[ -f $ALLOWLIST_HELPER ]] || fail "missing helper: $ALLOWLIST_HELPER"
+[[ -f $PIPELINE_HELPER ]] || fail "missing helper: $PIPELINE_HELPER"
 command -v shasum >/dev/null 2>&1 || fail "shasum is required for this test"
 
 work="$(mktemp -d)"
@@ -62,6 +64,15 @@ allowlist="$home/.config/osquery/page-launchd-allowlist.txt"
   printf '{"label":"com.evil","path":"~/Library/LaunchAgents/com.evilUNTRUSTED.plist","program":"~/bin/evil","sha256":"%s"}\n' "$untrusted_hash"
   printf '{"label":"com.good","path":"~/Library/LaunchAgents/com.good.plist","program":"~/bin/good","sha256":"%s"}\n' "$trusted_hash"
 } >"$allowlist"
+chmod 600 "$allowlist"
+
+# The allowlist is pipeline infrastructure, so allowlist_verdict refuses to
+# suppress unless the root-owned manifest vouches for the file it just read. This
+# fixture is the state a legitimate apply leaves behind; without it the TAGB
+# suppression assertion would pass for the wrong reason.
+manifest="$work/pipeline-known-good.sha256"
+printf '%s 0600 %s %s\n' \
+  "$(shasum -a 256 "$allowlist" | awk '{print $1}')" "$(id -u)" "$allowlist" >"$manifest"
 
 findings=(
   # HEADLINE: fully allowlisted (label+path+program+hash all match) BUT the program
@@ -78,12 +89,14 @@ findings=(
 )
 
 page_out="$(printf '%s\n' "${findings[@]}" |
-  HOME="$home" OSQUERY_LAUNCHD_ALLOWLIST="$allowlist" OSQUERY_ENRICH_SCRIPT="$enricher" DIGEST_SPY="$spy" bash -c '
+  HOME="$home" OSQUERY_LAUNCHD_ALLOWLIST="$allowlist" OSQUERY_ENRICH_SCRIPT="$enricher" DIGEST_SPY="$spy" \
+    OSQUERY_PIPELINE_MANIFEST="$manifest" OSQUERY_PIPELINE_SETTLE_SECONDS=0 bash -c '
     source "$1"
     source "$2"
+    source "$3"
     digest_append() { printf "%s\n" "$1" >>"$DIGEST_SPY"; }
     route_findings
-  ' _ "$ROUTE" "$ALLOWLIST_HELPER")"
+  ' _ "$ROUTE" "$ALLOWLIST_HELPER" "$PIPELINE_HELPER")"
 
 # signing_of <tag> -> the .signing value of the paged finding with that tag ("" if absent).
 signing_of() { jq -rs --arg t "$1" 'map(select(.cols.tag == $t)) | (.[0].signing // "")' <<<"$page_out"; }

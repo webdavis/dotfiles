@@ -27,6 +27,7 @@ manifest_fixture_setup() {
   mkdir -p "$MF_SRC/dot_local/libexec/osquery/results-alerter" \
     "$MF_SRC/dot_local/bin" \
     "$MF_SRC/Library/LaunchAgents" \
+    "$MF_SRC/dot_config/osquery" \
     "$MF_HOME/.config/chezmoi" \
     "$MF_ROOT/bin"
   printf 'sourceDir = "%s"\ndestDir = "%s"\n' "$MF_SRC" "$MF_HOME" \
@@ -76,6 +77,14 @@ manifest_fixture_add_bin_script() {
 # (the real plists are templates, so the fixture mirrors that shape).
 manifest_fixture_add_plist() {
   printf '%s\n' "$2" >"$MF_SRC/Library/LaunchAgents/$1.plist.tmpl"
+}
+
+# manifest_fixture_add_config <source-basename> <content>: add a MANAGED file under
+# ~/.config/osquery. The basename is passed with its chezmoi attribute prefix
+# intact (private_ for the 0600 files), because the mode those prefixes encode is
+# exactly what the manifest's mode column has to come from.
+manifest_fixture_add_config() {
+  printf '%s\n' "$2" >"$MF_SRC/dot_config/osquery/$1"
 }
 
 # manifest_fixture_chezmoi <args...>: run chezmoi against the fixture, isolated.

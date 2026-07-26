@@ -20,14 +20,21 @@
 # System daemons (/Library/LaunchDaemons) page by path regardless and are NOT allowlistable
 # here; Apple/system (com.apple.*) labels are refused by the writer. This file is mode 0600.
 #
-# KNOWN GAP (filed as a follow-up, not covered by this file's own rules). Under the
-# default-deny ruling this allowlist IS a security boundary: an entry suppresses a
-# persistence page. But the file is user-writable, it is NOT in the pipeline-integrity
-# manifest, and a change to it only DIGESTS rather than pages, so an attacker running as
-# the operator can append a tuple with an empty sha256 and silence the page for their own
-# LaunchAgent. Closing it needs design work rather than a one-line fix: the writer
-# (allowlist.sh) legitimately rewrites this file outside a chezmoi apply, so simply adding
-# it to the manifest would page on every legitimate seed.
+# DO NOT EDIT THE DEPLOYED COPY. This is the chezmoi SOURCE; the deployed file at
+# ~/.config/osquery/page-launchd-allowlist.txt is rewritten from here on every apply, so a
+# tuple added there directly is erased by the next one. The writer edits this source, applies
+# that one target, and refreshes the pipeline-integrity manifest, in that order.
+#
+# THIS FILE IS A SECURITY BOUNDARY, and is protected like one. Under the default-deny ruling
+# an entry here SUPPRESSES a persistence page, so the file is covered by the root-owned
+# pipeline-integrity manifest (both the event-time verdict and the 15-minute audit judge it),
+# and allowlist_verdict refuses to honor an allowlist the manifest cannot vouch for. A tuple
+# appended out of band therefore suppresses nothing and pages twice over: once as a tamper of
+# this file, once as the unallowlisted agent it was meant to hide.
+#
+# What that is NOT: a boundary that survives this host's passwordless sudo. The manifest is
+# root-owned, and a process running as the operator escalates with no prompt and rewrites it.
+# See the coverage map in results-alerter/pipeline-verdict.sh.
 
 {"label":"com.webdavis.osquery-results-alerter","path":"~/Library/LaunchAgents/com.webdavis.osquery-results-alerter.plist","program":"/opt/homebrew/bin/bash ~/.local/libexec/osquery/results-alerter.sh","sha256":""}
 {"label":"com.webdavis.osquery-firewall-gatekeeper-monitor","path":"~/Library/LaunchAgents/com.webdavis.osquery-firewall-gatekeeper-monitor.plist","program":"/opt/homebrew/bin/bash ~/.local/libexec/osquery/firewall-gatekeeper-monitor.sh","sha256":""}

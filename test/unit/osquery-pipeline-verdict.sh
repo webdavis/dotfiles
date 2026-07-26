@@ -56,7 +56,8 @@ command -v shasum >/dev/null 2>&1 || fail "shasum is required for this test"
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 home="$work/home"
-mkdir -p "$home/.local/libexec/osquery/results-alerter" "$home/.local/bin" "$home/Library/LaunchAgents"
+mkdir -p "$home/.local/libexec/osquery/results-alerter" "$home/.local/bin" \
+  "$home/Library/LaunchAgents" "$home/.config/osquery/packs"
 
 # REAL files with REAL hashes: the verdict rehashes the target at judgment time,
 # so a fixture manifest has to bind the content that is actually on disk. Mode and
@@ -101,6 +102,17 @@ chown_script="$home/.local/libexec/osquery/chown-probe.sh"
 # manifest line that would vouch for them is not parseable as a full tuple.
 legacy_script="$home/.local/libexec/osquery/legacy-line.sh"
 garbage_script="$home/.local/libexec/osquery/garbage-line.sh"
+# The page-launchd allowlist. It DECIDES whether an unknown user LaunchAgent pages,
+# so it is pipeline infrastructure and joins the tracked set at its EXACT path.
+# Its neighbors in the same watched directory must stay untracked: the watch is a
+# directory watch, and tracking the directory would put webhook-secret (a secret)
+# and the writer's own lock file into the manifest's coverage, where neither can
+# ever be confirmed and both would page forever.
+allowlist_file="$home/.config/osquery/page-launchd-allowlist.txt"
+allowlist_lock="$home/.config/osquery/page-launchd-allowlist.txt.lock"
+neighbor_secret="$home/.config/osquery/webhook-secret"
+neighbor_conf="$home/.config/osquery/osquery.conf"
+neighbor_pack="$home/.config/osquery/packs/intrusion-detection.conf"
 
 printf 'echo libexec\n' >"$libexec_script"
 printf 'echo bin\n' >"$bin_script"
@@ -117,6 +129,14 @@ printf 'echo setuid probe\n' >"$setuid_script"
 printf 'echo chown probe\n' >"$chown_script"
 printf 'echo legacy line\n' >"$legacy_script"
 printf 'echo garbage line\n' >"$garbage_script"
+printf '{"label":"com.seed","path":"~/x.plist","program":"~/x","sha256":""}\n' >"$allowlist_file"
+printf 'lock\n' >"$allowlist_lock"
+printf 'hunter2\n' >"$neighbor_secret"
+printf '{}\n' >"$neighbor_conf"
+printf '{}\n' >"$neighbor_pack"
+# The allowlist deploys 0600 (chezmoi's private_ prefix), which is what its
+# manifest tuple below records literally.
+chmod 600 "$allowlist_file"
 
 # Every manifested regular file is deployed 0755, which is what the manifest lines
 # below record LITERALLY. The literal is deliberate: deriving the expected column
@@ -138,6 +158,7 @@ hash_setuid="$(sha_of "$setuid_script")"
 hash_chown="$(sha_of "$chown_script")"
 hash_legacy="$(sha_of "$legacy_script")"
 hash_garbage="$(sha_of "$garbage_script")"
+hash_allowlist="$(sha_of "$allowlist_file")"
 hash_wrong="0000000000000000000000000000000000000000000000000000000000000000"
 
 # The manifest binds content, mode AND owner to ITS path, one space-separated
@@ -156,6 +177,8 @@ manifest="$work/pipeline-known-good.sha256"
   # The chown probe: a correct content hash and mode, bound to an owner the
   # deployed file does not have.
   printf '%s 0755 %s %s\n' "$hash_chown" "$foreign_uid" "$chown_script"
+  # The allowlist, at the 0600 its private_ source prefix deploys.
+  printf '%s 0600 %s %s\n' "$hash_allowlist" "$uid_self" "$allowlist_file"
   # The OLD two-column shape. A manifest left over from before mode and owner were
   # bound must not be honored as a match, in either direction.
   printf '%s  %s\n' "$hash_legacy" "$legacy_script"
@@ -174,6 +197,14 @@ bin_manifest="$work/managed-bin-known-good.sha256"
   printf '%s 0755 %s %s\n' "$hash_bin_linked" "$uid_self" "$bin_symlink"
 } >"$bin_manifest"
 absent_bin_manifest="$work/no-such-bin-manifest.sha256"
+
+# A bin manifest that DOES hold a correct tuple for the allowlist. It must still
+# vouch for nothing: _pipeline_manifest_for sends every non-bin path to the pipeline
+# manifest, so the two lists can never bless each other's files. Without this fixture
+# the allowlist cases would pass even if the routing were removed.
+allowlist_in_bin_manifest="$work/allowlist-in-bin-manifest.sha256"
+printf '%s 0600 %s %s\n' "$hash_allowlist" "$uid_self" "$allowlist_file" \
+  >"$allowlist_in_bin_manifest"
 
 # Now drift the two attribute probes AWAY from the mode their tuple records. Their
 # CONTENT still matches, which is precisely the ATTRIBUTES_MODIFIED shape: osquery
@@ -211,8 +242,26 @@ cases=(
   #    would be a watched-but-unmanifested file that pages forever. It falls through
   #    to the persistence detector, which default-denies it. --
   "1|$absent_manifest|$bin_manifest|/Library/LaunchAgents/com.webdavis.osquery-uptime-watchdog.plist|$hash_libexec|UPDATED|a com.webdavis.osquery-*.plist under /Library is NOT tracked -> SILENT (tracked set == manifest set)"
+  # -- THE PAGE-LAUNCHD ALLOWLIST is tracked at its EXACT path. It decides whether
+  #    an unknown user LaunchAgent pages, so an edit nobody can confirm is a tamper
+  #    of the deciding component, not a note for tomorrow's digest. It is judged
+  #    against the PIPELINE manifest, which is where every non-bin path routes. --
+  "0|$absent_manifest|$bin_manifest|$allowlist_file|$hash_allowlist|UPDATED|the page-launchd allowlist, no pipeline manifest -> PAGE (it decides whether persistence pages)"
+  "1|$manifest|$bin_manifest|$allowlist_file|$hash_allowlist|UPDATED|the allowlist at its manifested content, mode and owner -> SILENT (a legitimate apply)"
+  # -- ...and the BIN manifest can never vouch for it. One target is judged against
+  #    exactly one manifest, so a tuple in the wrong list blesses nothing. --
+  "0|$absent_manifest|$allowlist_in_bin_manifest|$allowlist_file|$hash_allowlist|UPDATED|an allowlist tuple sitting in the BIN manifest does not vouch for it -> PAGE (one target, one manifest)"
+  # -- ITS NEIGHBOURS in the same watched directory stay untracked. The watch is a
+  #    DIRECTORY watch, so tracking the directory rather than the one file would pull
+  #    in webhook-secret and the writer's own lock: neither is manifested, so both
+  #    would page forever, and the secret's every touch would become a CRIT. --
+  "1|$absent_manifest|$bin_manifest|$neighbor_secret|$hash_allowlist|UPDATED|the webhook-secret neighbor is untracked -> SILENT (never manifested, and not ours to judge)"
+  "1|$absent_manifest|$bin_manifest|$allowlist_lock|$hash_allowlist|UPDATED|the writer's own .lock neighbor is untracked -> SILENT (it is created on every -a/-d)"
+  "1|$absent_manifest|$bin_manifest|$neighbor_conf|$hash_allowlist|UPDATED|the osquery.conf neighbor is untracked -> SILENT (root serves the daemon config from /var)"
+  "1|$absent_manifest|$bin_manifest|$neighbor_pack|$hash_allowlist|UPDATED|a packs/ neighbor is untracked -> SILENT"
   # -- A DELETE of a tracked file always PAGES, even with a manifest present --
   "0|$manifest|$bin_manifest|$libexec_script||DELETED|a delete of a tracked file -> PAGE (destructive, manifest cannot vouch)"
+  "0|$manifest|$bin_manifest|$allowlist_file||DELETED|a delete of the allowlist -> PAGE (the deciding component vanished)"
   # -- Empty event hash (atomic-rename shape): debounce, rehash disk; no manifest -> PAGE --
   "0|$absent_manifest|$bin_manifest|$libexec_script||MOVED_TO|atomic-rename empty-hash event, no manifest -> PAGE after rehash"
   # -- Manifest present: the file's CURRENT content is known-good -> SILENT --

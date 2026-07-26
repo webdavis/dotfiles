@@ -61,8 +61,16 @@ manifest_fixture_add_script digest.sh 'echo digest'
 manifest_fixture_add_script results-alerter.sh 'echo entry'
 manifest_fixture_add_script results-alerter/normalize.sh 'true'
 manifest_fixture_add_plist com.webdavis.osquery-digest '<plist>{{ .chezmoi.os }}</plist>'
+# The page-launchd allowlist: managed, 0600 via the private_ prefix, and covered
+# because it decides whether an unknown user LaunchAgent pages.
+manifest_fixture_add_config private_page-launchd-allowlist.txt \
+  '{"label":"com.seed","path":"~/x.plist","program":"~/x","sha256":""}'
 # Decoys the manifest must never cover.
 manifest_fixture_add_plist com.webdavis.atuin-daemon '<plist>atuin</plist>'
+# A MANAGED neighbour of the allowlist, in the same watched directory. Covering the
+# directory rather than the one file would manifest a secret, and every touch of it
+# would then be judged by the alerter.
+manifest_fixture_add_config private_webhook-secret 'hunter2'
 mkdir -p "$MF_SRC/dot_local/bin"
 printf 'echo relay\n' >"$MF_SRC/dot_local/bin/executable_relay.sh"
 
@@ -72,6 +80,9 @@ manifest_fixture_run_runner "$RUNNER" || fail "the runner exited non-zero on a c
 script_target="$MF_HOME/.local/libexec/osquery/digest.sh"
 helper_target="$MF_HOME/.local/libexec/osquery/results-alerter/normalize.sh"
 plist_target="$MF_HOME/Library/LaunchAgents/com.webdavis.osquery-digest.plist"
+allowlist_target="$MF_HOME/.config/osquery/page-launchd-allowlist.txt"
+secret_target="$MF_HOME/.config/osquery/webhook-secret"
+lock_target="$MF_HOME/.config/osquery/page-launchd-allowlist.txt.lock"
 
 # 1. Every managed pipeline file is covered, including the recursive helper and the
 #    plist (a TEMPLATE, excluded from this apply, so it is covered from intent even
@@ -79,6 +90,26 @@ plist_target="$MF_HOME/Library/LaunchAgents/com.webdavis.osquery-digest.plist"
 for t in "$script_target" "$helper_target" "$plist_target"; do
   [[ -n "$(manifest_hash_of "$t")" ]] || fail "no manifest tuple for $t"
 done
+
+# 1a. THE ALLOWLIST IS COVERED, at the 0600 its private_ prefix encodes. It decides
+#     whether an unknown user LaunchAgent pages, so leaving it out of the manifest
+#     leaves the deciding component the only unwatched part of the pipeline.
+[[ -n "$(manifest_hash_of "$allowlist_target")" ]] ||
+  fail "no manifest tuple for the page-launchd allowlist ($allowlist_target)"
+[[ "$(manifest_mode_of "$allowlist_target")" == 0600 ]] ||
+  fail "the allowlist must be manifested 0600 (its private_ prefix), got '$(manifest_mode_of "$allowlist_target")'"
+
+# 1b. ITS NEIGHBOURS ARE NOT. The alerter watches the whole ~/.config/osquery
+#     directory, so the manifest has to name the ONE file rather than the directory:
+#     manifesting webhook-secret would bind a secret's digest into a world-readable
+#     root file, and manifesting the writer's lock would page on every -a/-d.
+[[ -z "$(manifest_hash_of "$secret_target")" ]] ||
+  fail "SECURITY: the webhook-secret neighbour leaked into the manifest (cover the file, never the directory)"
+printf 'lock\n' >"$lock_target"
+manifest_fixture_run_runner "$RUNNER" || fail "the runner exited non-zero with the writer's lock present"
+[[ -z "$(manifest_hash_of "$lock_target")" ]] ||
+  fail "the writer's .lock neighbour leaked into the manifest"
+rm -f "$lock_target"
 
 # 2. Content is INTENT: the recorded hash equals chezmoi's rendered bytes.
 want="$(manifest_fixture_chezmoi cat "$script_target" | shasum -a 256 | awk '{print $1}')"

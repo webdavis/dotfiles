@@ -100,6 +100,19 @@
 #     which is user-writable, so tampering with a managed file's SOURCE and letting
 #     a legitimate apply deploy it is signed as known-good by BOTH layers. See the
 #     runner's docblock: this buys post-deployment integrity, not source integrity.
+#   - A USER-LEVEL ATTACKER, INCLUDING AGAINST THE PAGE-LAUNCHD ALLOWLIST. The
+#     allowlist is covered here now, and allowlist_verdict additionally refuses to
+#     suppress anything when this manifest cannot vouch for it, so a tuple appended
+#     out of band neither silences a persistence page nor passes unnoticed. What
+#     that is worth, stated narrowly: the allowlist stops being the softest
+#     component and becomes exactly as hard as the alerter's own scripts,
+#     inheriting their recorded exposures rather than adding a bare user-writable
+#     append that nothing reads. It is NOT a boundary that survives this host's
+#     passwordless sudo. Every layer here roots trust in a root-owned manifest, and
+#     a process running as the operator escalates with no prompt and rewrites it,
+#     blessing whatever it just wrote. Requiring a sudo password is the only thing
+#     that would change that, and every unattended chezmoi script depends on the
+#     current configuration, so this is a recorded limit rather than a defect.
 #
 # Return-code contract (from c69baab _pipeline_verdict):
 #   0 = PAGE   (tamper / cannot confirm legit / no manifest / delete)
@@ -355,11 +368,21 @@ _pipeline_tuple_settles() {
 # osquery.conf watch on the identical file set.
 #
 # ~/.local/bin is tracked on a DIFFERENT rule: see _managed_bin_is_tracked below.
+#
+# The page-launchd allowlist is tracked as ONE EXACT FILE, never by its directory.
+# It decides whether an unknown user LaunchAgent pages, so it is infrastructure and
+# belongs here; but the watch on ~/.config/osquery is a DIRECTORY watch, and that
+# directory also holds webhook-secret, the daemon config, packs/, and the lock file
+# the allowlist writer recreates on every -a/-d. None of those is manifested, so a
+# directory pattern here would page on each of them forever and would route a
+# secret's every touch through the pipeline. It is judged against the PIPELINE
+# manifest, which is what _pipeline_manifest_for routes every non-bin path to.
 _pipeline_is_tracked() {
   local target="$1"
   case "$target" in
     "$HOME"/.local/libexec/osquery/*) return 0 ;;
     "$HOME"/Library/LaunchAgents/com.webdavis.osquery-*.plist) return 0 ;;
+    "$HOME"/.config/osquery/page-launchd-allowlist.txt) return 0 ;;
     "$HOME"/.local/bin/*) _managed_bin_is_tracked "$target" ;;
     *) return 1 ;;
   esac

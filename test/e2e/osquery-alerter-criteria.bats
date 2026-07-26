@@ -52,6 +52,23 @@ STUB
 {"label":"com.evil","path":"~/Library/LaunchAgents/com.evilUNTRUSTED.plist","program":"~/bin/evil","sha256":""}
 EOF
 
+  # The allowlist decides whether an unknown user LaunchAgent pages, so the verdict
+  # refuses to suppress unless the root-owned pipeline-integrity manifest vouches
+  # for the file it just read. bind_allowlist writes the tuple a real apply's
+  # manifest refresh leaves behind, for whichever allowlist a test points the
+  # alerter at; the seeded default is bound here so the suppression criteria are
+  # exercised in the state production is actually in. The manifest never names the
+  # pipeline scripts, so criterion 6 still sees no tuple for them and pages.
+  export OSQUERY_PIPELINE_MANIFEST="$HOME/pipeline-known-good.sha256"
+  export OSQUERY_PIPELINE_SETTLE_SECONDS=0
+  bind_allowlist() {
+    chmod 600 "$1"
+    printf '%s 0600 %s %s\n' \
+      "$(shasum -a 256 "$1" | awk '{print $1}')" "$(id -u)" "$1" \
+      >"$OSQUERY_PIPELINE_MANIFEST"
+  }
+  bind_allowlist "$HOME/.config/osquery/page-launchd-allowlist.txt"
+
   export OSQUERY_RESULTS_LOG="$HOME/.local/log/osquery/osqueryd.results.log"
   export OSQUERY_RESULTS_OFFSET="$HOME/.local/state/osquery-results-offset"
   export OSQUERY_DIGEST_STORE="$HOME/.local/state/osquery-digest-spool/digest.ndjson"
@@ -157,6 +174,7 @@ EOF
 {"label":"com.good","path":"~/Library/LaunchAgents/com.good.plist","program":"~/bin/good","sha256":""}
 EOF
   export OSQUERY_LAUNCHD_ALLOWLIST="$custom"
+  bind_allowlist "$custom" # the verdict only honors an allowlist the manifest vouches for
   feed "{\"name\":\"pack_intrusion-detection_persistence_launchd\",\"action\":\"added\",\"columns\":{\"label\":\"com.good\",\"path\":\"$HOME/Library/LaunchAgents/com.good.plist\",\"program\":\"$HOME/bin/good\"}}"
   assert_no_page   # suppressed via the env-var path
 }
