@@ -521,7 +521,7 @@ teardown() { teardown_watchdog_harness; }
   assert_no_page
 }
 
-# --- the periodic content audit: tamper that generates NO file event ------------
+# --- the periodic manifest audit: tamper that generates NO file event -----------
 #
 # osquery watches PATHS. An attacker who hard-links a manifested pipeline script to
 # a writable path outside the pipeline home and overwrites that alias mutates the

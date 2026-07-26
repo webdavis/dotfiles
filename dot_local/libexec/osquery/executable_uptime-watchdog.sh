@@ -349,10 +349,14 @@ fi
 #   - a CHANGED fingerprint restarts the confirmation, so new tampering is reported;
 #   - a clean audit forgets both, so a recurrence pages again.
 #
-# The fingerprint covers WHICH paths disagree and HOW, not the bytes they now hold,
-# so re-tampering with an already-reported file does not page a second time. That is
-# deliberate: the operator has already been told that file is compromised, and the
-# alternative re-pages on every keystroke an attacker makes.
+# The fingerprint covers WHICH paths disagree and HOW (the divergence KIND per
+# path), not the bytes or the mode they now hold. So re-tampering an already-reported
+# file the SAME way does not page a second time, and that is deliberate: the operator
+# has already been told that file is compromised, and the alternative re-pages on
+# every keystroke an attacker makes. Escalating to a DIFFERENT kind does page again,
+# which is why the audit reports one line per diverging column: a file already
+# reported for its permissions and then rewritten gains a content divergence, the
+# report changes, and the confirmation starts over.
 audit_fingerprint=""
 audit_fingerprint_is_valid=1
 if [[ $audit_rc -ne 0 || -n $audit_report ]]; then
