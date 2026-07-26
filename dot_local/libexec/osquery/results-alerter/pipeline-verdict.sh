@@ -100,6 +100,19 @@
 #     which is user-writable, so tampering with a managed file's SOURCE and letting
 #     a legitimate apply deploy it is signed as known-good by BOTH layers. See the
 #     runner's docblock: this buys post-deployment integrity, not source integrity.
+#   - A USER-LEVEL ATTACKER, INCLUDING AGAINST THE PAGE-LAUNCHD ALLOWLIST. The
+#     allowlist is covered here now, and allowlist_verdict additionally refuses to
+#     suppress anything when this manifest cannot vouch for it, so a tuple appended
+#     out of band neither silences a persistence page nor passes unnoticed. What
+#     that is worth, stated narrowly: the allowlist stops being the softest
+#     component and becomes exactly as hard as the alerter's own scripts,
+#     inheriting their recorded exposures rather than adding a bare user-writable
+#     append that nothing reads. It is NOT a boundary that survives this host's
+#     passwordless sudo. Every layer here roots trust in a root-owned manifest, and
+#     a process running as the operator escalates with no prompt and rewrites it,
+#     blessing whatever it just wrote. Requiring a sudo password is the only thing
+#     that would change that, and every unattended chezmoi script depends on the
+#     current configuration, so this is a recorded limit rather than a defect.
 #
 # Return-code contract (from c69baab _pipeline_verdict):
 #   0 = PAGE   (tamper / cannot confirm legit / no manifest / delete)

@@ -443,8 +443,75 @@ elapsed=$(($(date +%s) - start))
 ((elapsed <= 8)) ||
   fail "$misses misses took ${elapsed}s: the settle budget is per finding, not per alerter run (a stall vector)"
 
+# --- THE ALLOWLIST BINDING SURVIVES THE SAME APPLY RACE ----------------------
+# allowlist_verdict refuses to suppress unless the manifest vouches for the
+# allowlist it just read, so it inherits the apply race the settle window exists
+# for: the new allowlist lands, the manifest is reinstalled a moment later, and a
+# persistence finding judged in between would otherwise be told the allowlist
+# cannot be trusted and would page for a known-good own agent. The alerter judges
+# each finding exactly once, so that false CRIT would never be reconsidered.
+#
+# The binding reuses _pipeline_tuple_settles rather than waiting its own way, and
+# this is what pins that: the same back-dated-manifest fixture that resolves for a
+# pipeline script has to resolve for the allowlist.
+ALLOWLIST_VERDICT="$REPO_ROOT/dot_local/libexec/osquery/results-alerter/allowlist-verdict.sh"
+[[ -f $ALLOWLIST_VERDICT ]] || fail "missing the allowlist verdict: $ALLOWLIST_VERDICT"
+# The settle sections above deliberately leave $MF_MANIFEST holding a back-dated
+# stub, so regenerate it here rather than reading columns out of that wreckage.
+manifest_fixture_apply
+manifest_fixture_run_runner "$RUNNER" || fail "the runner exited non-zero before the allowlist race case"
+allowlist_target="$MF_HOME/.config/osquery/page-launchd-allowlist.txt"
+[[ -r $allowlist_target ]] || fail "the fixture apply did not deploy the allowlist to $allowlist_target"
+
+# run_allowlist_verdict <settle-seconds> -- one verdict for the fixture's com.seed
+# tuple, in a SUBSHELL for the reason run_verdict uses one: the settle budget is
+# one per alerter run, and a case that spends it must not answer for the next.
+run_allowlist_verdict() {
+  (
+    # shellcheck disable=SC2030,SC2031
+    export HOME="$MF_HOME" OSQUERY_PIPELINE_SETTLE_SECONDS="$1"
+    export OSQUERY_LAUNCHD_ALLOWLIST="$allowlist_target"
+    # shellcheck source=/dev/null
+    source "$ALLOWLIST_VERDICT"
+    allowlist_verdict com.seed "$MF_HOME/x.plist" "$MF_HOME/x"
+  )
+}
+
+allowlist_hash="$(hash_of "$allowlist_target")"
+allowlist_mode="$(manifest_mode_of "$allowlist_target")"
+allowlist_uid="$(manifest_uid_of "$allowlist_target")"
+[[ $allowlist_mode == 0600 ]] ||
+  fail "the generated manifest records the allowlist at '$allowlist_mode', expected 0600 (its private_ prefix)"
+
+# A manifest that PREDATES the allowlist and does not yet name it: the verdict
+# waits, and suppresses once the regeneration lands inside the window.
+printf 'deadbeef 0755 %s /nowhere\n' "$(id -u)" >"$MF_MANIFEST"
+touch -t 200001010000 "$MF_MANIFEST"
+(
+  sleep 1
+  printf '%s %s %s %s\n' "$allowlist_hash" "$allowlist_mode" "$allowlist_uid" "$allowlist_target" >"$MF_MANIFEST"
+) &
+allowlist_settle_pid=$!
+got=0
+run_allowlist_verdict 4 || got=$?
+wait "$allowlist_settle_pid"
+[[ $got -eq 0 ]] ||
+  fail "a legitimate apply must NOT false-page: the allowlist binding has to settle when the manifest lands (got rc $got)"
+
+# ...and the wait is bounded the same way: a binding that never arrives refuses to
+# suppress, so the finding pages rather than trusting an unaccountable allowlist.
+printf 'deadbeef 0755 %s /nowhere\n' "$(id -u)" >"$MF_MANIFEST"
+touch -t 200001010000 "$MF_MANIFEST"
+start=$(date +%s)
+got=0
+run_allowlist_verdict 2 || got=$?
+elapsed=$(($(date +%s) - start))
+[[ $got -eq 1 ]] ||
+  fail "an allowlist the manifest never vouches for must not suppress (got rc $got)"
+((elapsed <= 6)) || fail "the allowlist binding wait is not bounded (${elapsed}s for a 2s window)"
+
 if [[ $fails -gt 0 ]]; then
   printf '%d check(s) failed\n' "$fails" >&2
   exit 1
 fi
-printf 'osquery-pipeline-manifest-agreement: OK (both generated manifests and the real verdict agree, including a chmod on unchanged content; the periodic audit parses the same generated manifests and reports a real tamper; watch/tracked/manifest cover the identical set across BOTH launch agent roots; a /Library twin is untracked; the managed-bin arm is contained by its watch root, tracks exactly what it manifests, stays disjoint from the pipeline manifest, and pages a tamper and a chmod while an unmanaged neighbor is silent; producer and consumer name both default paths; the settle window resolves a live regeneration for a content AND an attribute-only change, stays bounded, and spends ONE budget per alerter run across many misses)\n'
+printf 'osquery-pipeline-manifest-agreement: OK (both generated manifests and the real verdict agree, including a chmod on unchanged content; the periodic audit parses the same generated manifests and reports a real tamper; watch/tracked/manifest cover the identical set across BOTH launch agent roots; a /Library twin is untracked; the managed-bin arm is contained by its watch root, tracks exactly what it manifests, stays disjoint from the pipeline manifest, and pages a tamper and a chmod while an unmanaged neighbor is silent; producer and consumer name both default paths; the settle window resolves a live regeneration for a content AND an attribute-only change, stays bounded, and spends ONE budget per alerter run across many misses; the allowlist binding settles through the same apply race and stays bounded)\n'

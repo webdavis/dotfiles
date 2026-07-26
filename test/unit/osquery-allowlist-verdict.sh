@@ -30,6 +30,7 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 HELPER="$REPO_ROOT/dot_local/libexec/osquery/results-alerter/allowlist-verdict.sh"
+PIPELINE_HELPER="$REPO_ROOT/dot_local/libexec/osquery/results-alerter/pipeline-verdict.sh"
 
 fail() {
   printf 'osquery-allowlist-verdict: FAIL -- %s\n' "$*" >&2
@@ -37,6 +38,7 @@ fail() {
 }
 
 [[ -f $HELPER ]] || fail "missing helper: $HELPER"
+[[ -f $PIPELINE_HELPER ]] || fail "missing helper: $PIPELINE_HELPER"
 command -v shasum >/dev/null 2>&1 || fail "shasum is required for this test"
 
 work="$(mktemp -d)"
@@ -66,55 +68,89 @@ allowlist="$home/.config/osquery/page-launchd-allowlist.txt"
   printf '{"label":"com.seed","path":"~/Library/LaunchAgents/com.seed.plist","program":"~/bin/seed","sha256":""}\n'
   printf '{"label":"com.degraded","path":"","program":"","sha256":""}\n'
 } >"$allowlist"
+# The allowlist deploys 0600 (chezmoi's private_ prefix).
+chmod 600 "$allowlist"
 
-# Each case: <expected-rc> <TAB> <allowlist-file> <TAB> <label> <TAB> <path>
-# <TAB> <program> <TAB> <behavior label>. Every case runs in ONE sourcing subshell
-# (below) instead of a subshell per case, so the suite stays under the fast unit
-# bar while the live on-disk re-hash is still exercised for real.
+# THE MANIFEST BINDING (D-prime). The allowlist decides whether an unknown user
+# LaunchAgent pages, so an allowlist the root-owned pipeline-integrity manifest
+# cannot vouch for may not suppress ANYTHING. This is the fixture for the bound
+# (post-apply) state: a manifest tuple naming the allowlist's current content, its
+# 0600 mode and its owner.
+bound_manifest="$work/pipeline-known-good.sha256"
+write_bound_manifest() {
+  printf '%s 0600 %s %s\n' \
+    "$(shasum -a 256 "$allowlist" | awk '{print $1}')" "$(id -u)" "$allowlist" \
+    >"$bound_manifest"
+}
+write_bound_manifest
+absent_manifest="$work/no-such-manifest.sha256"
+
+# Each case: <expected-rc> <TAB> <manifest> <TAB> <allowlist-file> <TAB> <label>
+# <TAB> <path> <TAB> <program> <TAB> <behavior label>. Every case runs in ONE
+# sourcing subshell (below) instead of a subshell per case, so the suite stays under
+# the fast unit bar while the live on-disk re-hash is still exercised for real.
+#
+# The manifest column is what pins D-prime: a suppress verdict is only reachable
+# when the root-owned manifest vouches for the allowlist the verdict just read.
 missing="$work/does-not-exist.txt"
 cases=(
   # (a) full tuple match, on-disk hash matches the pin -> suppress.
-  $'0\t'"$allowlist"$'\tcom.full\t'"$home/Library/LaunchAgents/com.full.plist"$'\t'"$home/bin/full"$'\tfull tuple match (label+path+program+matching on-disk hash) suppresses'
+  $'0\t'"$bound_manifest"$'\t'"$allowlist"$'\tcom.full\t'"$home/Library/LaunchAgents/com.full.plist"$'\t'"$home/bin/full"$'\tfull tuple match (label+path+program+matching on-disk hash) suppresses'
   # (b) same label, different program -> reused-label page (diverges before the hash check).
-  $'2\t'"$allowlist"$'\tcom.full\t'"$home/Library/LaunchAgents/com.full.plist"$'\t'"$home/bin/EVIL"$'\tan allowlisted label with a different program pages (reused label)'
+  $'2\t'"$bound_manifest"$'\t'"$allowlist"$'\tcom.full\t'"$home/Library/LaunchAgents/com.full.plist"$'\t'"$home/bin/EVIL"$'\tan allowlisted label with a different program pages (reused label)'
   # (b2) same label, same program, different path -> reused-label page.
-  $'2\t'"$allowlist"$'\tcom.full\t'"$home/Library/LaunchAgents/EVIL.plist"$'\t'"$home/bin/full"$'\tan allowlisted label with a different path pages (reused label)'
+  $'2\t'"$bound_manifest"$'\t'"$allowlist"$'\tcom.full\t'"$home/Library/LaunchAgents/EVIL.plist"$'\t'"$home/bin/full"$'\tan allowlisted label with a different path pages (reused label)'
   # (c) same label/path/program but the on-disk plist no longer matches the pin -> page.
-  $'2\t'"$allowlist"$'\tcom.hashpin\t'"$home/Library/LaunchAgents/com.hashpin.plist"$'\t'"$home/bin/hp"$'\ta pinned-hash entry whose on-disk plist was rewritten pages (hash mismatch)'
+  $'2\t'"$bound_manifest"$'\t'"$allowlist"$'\tcom.hashpin\t'"$home/Library/LaunchAgents/com.hashpin.plist"$'\t'"$home/bin/hp"$'\ta pinned-hash entry whose on-disk plist was rewritten pages (hash mismatch)'
   # (d) unknown label -> not allowlisted.
-  $'1\t'"$allowlist"$'\tcom.unknown\t'"$home/Library/LaunchAgents/com.unknown.plist"$'\t'"$home/bin/unknown"$'\tan unknown label is not allowlisted'
+  $'1\t'"$bound_manifest"$'\t'"$allowlist"$'\tcom.unknown\t'"$home/Library/LaunchAgents/com.unknown.plist"$'\t'"$home/bin/unknown"$'\tan unknown label is not allowlisted'
   # (e) empty-sha256 seed entry -> suppress on label+path+program, skipping the hash dimension
   #     (the seed plist need not even exist).
-  $'0\t'"$allowlist"$'\tcom.seed\t'"$home/Library/LaunchAgents/com.seed.plist"$'\t'"$home/bin/seed"$'\tan empty-sha256 seed entry suppresses on label+path+program, skipping the hash dimension'
+  $'0\t'"$bound_manifest"$'\t'"$allowlist"$'\tcom.seed\t'"$home/Library/LaunchAgents/com.seed.plist"$'\t'"$home/bin/seed"$'\tan empty-sha256 seed entry suppresses on label+path+program, skipping the hash dimension'
   # (f) degraded label-only entry (no path/program) cannot vouch -> not allowlisted (fail-safe).
-  $'1\t'"$allowlist"$'\tcom.degraded\t'"$home/Library/LaunchAgents/com.degraded.plist"$'\t'"$home/bin/degraded"$'\ta degraded label-only entry cannot vouch and does not suppress (fail-safe)'
+  $'1\t'"$bound_manifest"$'\t'"$allowlist"$'\tcom.degraded\t'"$home/Library/LaunchAgents/com.degraded.plist"$'\t'"$home/bin/degraded"$'\ta degraded label-only entry cannot vouch and does not suppress (fail-safe)'
   # (g) missing allowlist file -> not allowlisted, cleanly, no error.
-  $'1\t'"$missing"$'\tcom.full\t'"$home/Library/LaunchAgents/com.full.plist"$'\t'"$home/bin/full"$'\ta missing allowlist file yields not-allowlisted for everything, no error'
+  $'1\t'"$bound_manifest"$'\t'"$missing"$'\tcom.full\t'"$home/Library/LaunchAgents/com.full.plist"$'\t'"$home/bin/full"$'\ta missing allowlist file yields not-allowlisted for everything, no error'
+  # -- D-PRIME: an allowlist the manifest cannot vouch for suppresses NOTHING. --
+  # (h) NO MANIFEST. Detection after the fact is nearly worthless for a component
+  #     whose whole job is to suppress, so an unbindable allowlist fails toward
+  #     paging instead of quietly vouching for its entries.
+  $'1\t'"$absent_manifest"$'\t'"$allowlist"$'\tcom.full\t'"$home/Library/LaunchAgents/com.full.plist"$'\t'"$home/bin/full"$'\ta full tuple match with NO manifest does not suppress (an unbound allowlist vouches for nothing)'
+  $'1\t'"$absent_manifest"$'\t'"$allowlist"$'\tcom.seed\t'"$home/Library/LaunchAgents/com.seed.plist"$'\t'"$home/bin/seed"$'\tan own-agent seed entry with NO manifest does not suppress'
+  # (i) A reused label still pages with no manifest: the gate is on the SUPPRESS
+  #     path only, so the louder verdict is never softened into a quieter one.
+  $'2\t'"$absent_manifest"$'\t'"$allowlist"$'\tcom.full\t'"$home/Library/LaunchAgents/com.full.plist"$'\t'"$home/bin/EVIL"$'\ta reused label still pages when the manifest is absent (the gate only blocks suppression)'
 )
 
-# Split into parallel arrays and feed the (file, label, path, program) tuples
-# through ONE sourcing subshell that prints a return code per line, in order.
+# Split into parallel arrays and feed the (manifest, file, label, path, program)
+# tuples through ONE sourcing subshell that prints a return code per line, in order.
 expected=()
 labels=()
 feed=""
 for row in "${cases[@]}"; do
-  IFS=$'\t' read -r rc file label path program label_text <<<"$row"
+  IFS=$'\t' read -r rc case_manifest file label path program label_text <<<"$row"
   expected+=("$rc")
   labels+=("$label_text")
-  feed+="$file"$'\t'"$label"$'\t'"$path"$'\t'"$program"$'\n'
+  feed+="$case_manifest"$'\t'"$file"$'\t'"$label"$'\t'"$path"$'\t'"$program"$'\n'
 done
 
+# Both helpers are sourced, in the order results-alerter.sh sources them, because
+# the manifest binding is a real dependency of the verdict and not a test fixture.
+# The settle window is zeroed so a miss answers immediately: the window's own
+# behavior belongs to the manifest-agreement suite, and a unit test must not sleep.
 got=()
 mapfile -t got < <(
-  printf '%s' "$feed" | HOME="$home" bash -c '
+  printf '%s' "$feed" | HOME="$home" OSQUERY_PIPELINE_SETTLE_SECONDS=0 bash -c '
     source "$1"
-    while IFS="$(printf "\t")" read -r file label path program; do
+    source "$2"
+    while IFS="$(printf "\t")" read -r case_manifest file label path program; do
       OSQUERY_LAUNCHD_ALLOWLIST="$file"
+      OSQUERY_PIPELINE_MANIFEST="$case_manifest"
       rc=0
       allowlist_verdict "$label" "$path" "$program" || rc=$?
       printf "%s\n" "$rc"
     done
-  ' _ "$HELPER"
+  ' _ "$HELPER" "$PIPELINE_HELPER"
 )
 
 [[ ${#got[@]} -eq ${#expected[@]} ]] ||
@@ -125,4 +161,58 @@ for i in "${!expected[@]}"; do
     fail "${labels[i]}: expected return ${expected[i]}, got ${got[i]}"
 done
 
-printf 'osquery-allowlist-verdict: OK (full-tuple suppress, reused-label page on path/program/hash divergence, empty-sha256 seed suppress, unknown/degraded/missing not-allowlisted)\n'
+# --- THE ATTACK THIS EXISTS TO STOP ------------------------------------------
+# A process running as the operator appends a tuple naming its own LaunchAgent,
+# with the empty sha256 that skips the hash dimension, and installs that agent.
+# Before D-prime the verdict returned suppress, the persistence finding was
+# dropped, and the edit itself only reached the next day's digest.
+#
+# Appending changes the allowlist's bytes, so it no longer matches the tuple the
+# root-owned manifest holds for it, and an allowlist nothing can vouch for
+# suppresses NOTHING: not the attacker's freshly added entry, and not the
+# legitimate entry that was suppressing a moment ago. The manifest is NOT
+# regenerated here, which is the whole point: regenerating it is an apply, and an
+# apply is the operator's authority, not the attacker's.
+verdict_with() { # <label> <path> <program> -> prints the return code
+  local rc=0
+  HOME="$home" OSQUERY_PIPELINE_SETTLE_SECONDS=0 \
+    OSQUERY_LAUNCHD_ALLOWLIST="$allowlist" OSQUERY_PIPELINE_MANIFEST="$bound_manifest" \
+    bash -c 'source "$1"; source "$2"; allowlist_verdict "$3" "$4" "$5"' \
+    _ "$HELPER" "$PIPELINE_HELPER" "$1" "$2" "$3" || rc=$?
+  printf '%s' "$rc"
+}
+
+# Baseline: bound allowlist, the legitimate entry suppresses.
+[[ "$(verdict_with com.full "$home/Library/LaunchAgents/com.full.plist" "$home/bin/full")" == 0 ]] ||
+  fail "the bound-allowlist baseline does not suppress, so the attack pin below would pass vacuously"
+
+printf '{"label":"com.evil","path":"~/Library/LaunchAgents/com.evil.plist","program":"~/bin/evil","sha256":""}\n' \
+  >>"$allowlist"
+
+[[ "$(verdict_with com.evil "$home/Library/LaunchAgents/com.evil.plist" "$home/bin/evil")" == 1 ]] ||
+  fail "SECURITY: a tuple appended to the allowlist out of band SUPPRESSED its own agent (D-prime is not enforcing)"
+[[ "$(verdict_with com.full "$home/Library/LaunchAgents/com.full.plist" "$home/bin/full")" == 1 ]] ||
+  fail "SECURITY: a tampered allowlist still vouched for its pre-existing entries"
+
+# ...and a legitimate apply restores suppression: the operator's edit regenerates
+# the manifest in the same flow, so the file is bound again and nothing false-pages.
+write_bound_manifest
+[[ "$(verdict_with com.full "$home/Library/LaunchAgents/com.full.plist" "$home/bin/full")" == 0 ]] ||
+  fail "a legitimate apply (allowlist edited, manifest regenerated) must restore suppression, not false-page"
+[[ "$(verdict_with com.evil "$home/Library/LaunchAgents/com.evil.plist" "$home/bin/evil")" == 0 ]] ||
+  fail "an entry seeded through the writer (source edit + apply + manifest refresh) must suppress"
+
+# --- A PARTIAL INSTALL FAILS TOWARD PAGING -----------------------------------
+# results-alerter.sh sources both helpers, so a missing pipeline verdict aborts the
+# alerter outright and this state is not reachable in production. It is checked by
+# NAME anyway, for the reason the periodic audit checks its own reused seam: a
+# monitor that goes quiet when its own dependency is absent is the failure mode
+# this whole subsystem exists to avoid.
+rc=0
+HOME="$home" OSQUERY_LAUNCHD_ALLOWLIST="$allowlist" OSQUERY_PIPELINE_MANIFEST="$bound_manifest" \
+  bash -c 'source "$1"; allowlist_verdict "$2" "$3" "$4"' \
+  _ "$HELPER" com.full "$home/Library/LaunchAgents/com.full.plist" "$home/bin/full" || rc=$?
+[[ $rc == 1 ]] ||
+  fail "SECURITY: with the pipeline verdict helper absent the allowlist still suppressed (expected 1, got $rc)"
+
+printf 'osquery-allowlist-verdict: OK (full-tuple suppress, reused-label page on path/program/hash divergence, empty-sha256 seed suppress, unknown/degraded/missing not-allowlisted; D-prime: an allowlist the manifest cannot vouch for suppresses nothing, an out-of-band appended tuple never silences its own agent, a legitimate apply restores suppression, and a missing verdict helper fails toward paging)\n'

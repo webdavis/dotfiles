@@ -234,6 +234,10 @@ route_findings() {
             # reverted #52 (c69baab), which silently digested an unknown agent.
             # allowlist_verdict: 0 = full-tuple match (known-good) -> suppress;
             # 2 = reused label (identity diverges) -> page; 1 = not-found -> page.
+            # A suppress verdict additionally requires the allowlist FILE to be
+            # vouched for by the root-owned pipeline-integrity manifest, so a tuple
+            # appended to it out of band silences nothing; that case arrives here
+            # as 1 and pages under the same default-deny branch as an unknown.
             label=$(jq -r '.cols.label // ""' <<<"$obj")
             program=$(jq -r '.cols.program // ""' <<<"$obj")
             av=0
