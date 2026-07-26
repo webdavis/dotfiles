@@ -212,6 +212,33 @@ case "$audit_body" in
 esac
 manifest_fixture_apply # restore
 
+# ...and the PAGE-LAUNCHD ALLOWLIST is audited on the same tick, because it rides in
+# the pipeline manifest and the audit is a driver over every manifested path. That
+# matters beyond tidiness: the event-time verdict is path-based, so an attacker who
+# edits the allowlist through a hard link outside ~/.config/osquery fires no event on
+# the watched path and layer 1 never runs. This is the layer that still finds it,
+# within two ticks, and it reports content and mode as SEPARATE kinds, so an edit
+# that later widens the file's permissions is a new fingerprint rather than a
+# condition already reported.
+allowlist_audit_target="$MF_HOME/.config/osquery/page-launchd-allowlist.txt"
+[[ -r $allowlist_audit_target ]] || fail "the fixture did not deploy an allowlist to audit"
+printf '{"label":"com.evil","path":"~/e.plist","program":"~/e","sha256":""}\n' >>"$allowlist_audit_target"
+chmod 644 "$allowlist_audit_target"
+audit_out="$(run_audit)"
+audit_rc="${audit_out%%$'\n'*}"
+audit_body="${audit_out#*$'\n'}"
+[[ $audit_rc == 0 ]] ||
+  fail "the audit could not complete over a tampered allowlist (reason token: $audit_body)"
+case "$audit_body" in
+  *"content $allowlist_audit_target"*) ;;
+  *) fail "the periodic audit does not cover the page-launchd allowlist: $audit_body" ;;
+esac
+case "$audit_body" in
+  *"mode $allowlist_audit_target"*) ;;
+  *) fail "the audit did not report the widened allowlist mode as its own divergence kind: $audit_body" ;;
+esac
+manifest_fixture_apply # restore
+
 # --- THE THREE-WAY AGREEMENT, across BOTH launch agent watch roots ------------
 # Every launch-agent path the WATCH reports is classified, and the TRACKED verdict
 # must say yes exactly when the MANIFEST can contain it.
@@ -514,4 +541,4 @@ if [[ $fails -gt 0 ]]; then
   printf '%d check(s) failed\n' "$fails" >&2
   exit 1
 fi
-printf 'osquery-pipeline-manifest-agreement: OK (both generated manifests and the real verdict agree, including a chmod on unchanged content; the periodic audit parses the same generated manifests and reports a real tamper; watch/tracked/manifest cover the identical set across BOTH launch agent roots; a /Library twin is untracked; the managed-bin arm is contained by its watch root, tracks exactly what it manifests, stays disjoint from the pipeline manifest, and pages a tamper and a chmod while an unmanaged neighbor is silent; producer and consumer name both default paths; the settle window resolves a live regeneration for a content AND an attribute-only change, stays bounded, and spends ONE budget per alerter run across many misses; the allowlist binding settles through the same apply race and stays bounded)\n'
+printf 'osquery-pipeline-manifest-agreement: OK (both generated manifests and the real verdict agree, including a chmod on unchanged content; the periodic audit parses the same generated manifests and reports a real tamper; watch/tracked/manifest cover the identical set across BOTH launch agent roots; a /Library twin is untracked; the managed-bin arm is contained by its watch root, tracks exactly what it manifests, stays disjoint from the pipeline manifest, and pages a tamper and a chmod while an unmanaged neighbor is silent; producer and consumer name both default paths; the settle window resolves a live regeneration for a content AND an attribute-only change, stays bounded, and spends ONE budget per alerter run across many misses; the allowlist binding settles through the same apply race and stays bounded; the periodic audit covers the allowlist and reports its content and mode divergences as separate kinds)\n'
