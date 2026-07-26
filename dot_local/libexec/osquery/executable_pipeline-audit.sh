@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 #
-# pipeline-audit.sh, sourced helper, not run directly. The PERIODIC CONTENT AUDIT
-# of the osquery pipeline: it reads the root-owned pipeline-integrity manifest,
-# hashes every path the manifest lists, and reports each path whose CURRENT state
-# disagrees with its recorded tuple. Sourced by the uptime watchdog, which runs it
-# once per 15-minute tick.
+# pipeline-audit.sh, sourced helper, not run directly. The PERIODIC MANIFEST AUDIT
+# of the osquery pipeline: it reads the root-owned pipeline-integrity manifest and
+# reports each path whose CURRENT content, mode or owner disagrees with the tuple
+# recorded for it. Sourced by the uptime watchdog, which runs it once per 15-minute
+# tick.
 #
 # WHY A SCHEDULED AUDIT AND NOT ANOTHER EVENT CHECK. Until this existed, the
 # manifest was enforced only through osquery file_events, and osquery watches
@@ -12,9 +12,10 @@
 # the pipeline home and then overwrites the outside alias mutates the SAME INODE:
 # the filesystem event names the attacker's path, nothing fires for the watched
 # path, no verdict runs, and the tampered script executes with nothing paged. A
-# symlink referent gives the same blind spot. That is a gap in EVENT GENERATION,
-# not in the verdict, so no amount of judging events can close it. Comparing bytes
-# on a schedule can, because it never depends on an event having fired.
+# chmod or chown through that same alias does it without changing a byte. A symlink
+# referent gives the same blind spot. That is a gap in EVENT GENERATION, not in the
+# verdict, so no amount of judging events can close it. Re-reading the files on a
+# schedule can, because it never depends on an event having fired.
 #
 # Usage (from a sourcing script):
 #   source "$HOME/.local/libexec/osquery/pipeline-audit.sh"
@@ -39,14 +40,25 @@ fi
 
 # COST, measured rather than assumed. The real manifest lists 25 files totalling
 # about 230 KiB, and a full scan of them takes 0.6 to 0.8s wall clock on this host:
-# one stat (~4ms) and one shasum (~28ms) fork per file, with the hashing itself lost
-# in the noise. shasum is a Perl script, so its startup, not the SHA-256, is nearly
-# all of that. A single batched shasum over every path would cut it to ~0.05s, and is
-# deliberately not done: it would have to be parsed back by path (an output line is
-# absent for a file that vanished mid-scan, and some implementations escape unusual
-# filenames), which trades an obviously-correct loop for a false-page vector. At one
-# scan per 15-minute tick this is a 0.08% duty cycle, and the audit runs LAST, so it
-# delays none of the other probes.
+# a size stat, a mode read, an owner read (~4ms each) and one shasum (~28ms) fork per
+# file, with the hashing itself lost in the noise. shasum is a Perl script, so its
+# startup, not the SHA-256, is nearly all of that. A single batched shasum over every
+# path would cut it to ~0.05s, and is deliberately not done: it would have to be
+# parsed back by path (an output line is absent for a file that vanished mid-scan,
+# and some implementations escape unusual filenames), which trades an
+# obviously-correct loop for a false-page vector. At one scan per 15-minute tick this
+# is a 0.09% duty cycle, and the audit runs LAST, so it delays none of the other
+# probes.
+#
+# Comparing the two ATTRIBUTE columns is what the mode and owner reads cost, measured
+# side by side over a 25-file fixture on this host: 0.70 to 0.73s, against 0.46 to
+# 0.48s for the same scan comparing content alone. Each read is a fork, and on BSD
+# each pays a failed GNU-stat attempt before the BSD form answers. Folding all three
+# values into one stat call would recover most of that quarter-second and is not
+# done: the mode reader exists because BSD `stat -f '%Lp'` prints only the low NINE
+# permission bits, so a hand-rolled stat here would read a setuid bit back as an
+# ordinary mode and compare EQUAL. A quarter-second per 15-minute tick is not worth
+# re-introducing that.
 #
 # Bounds, so one tick cannot become a long-running process. Every one of them
 # fails toward a page, never toward a quiet skip:
@@ -98,12 +110,17 @@ _pipeline_audit_size() {
 #
 #   return 0 - the scan COMPLETED. Each divergence is one stdout line,
 #              "<kind> <path>", in manifest order; no output means the deployed
-#              tree matches the manifest exactly. Kinds:
+#              tree matches the manifest exactly. One line PER DIVERGING COLUMN, so
+#              a path that drifted on two of them is reported twice, under two
+#              kinds. Kinds:
 #                content     the bytes on disk differ from the recorded hash
+#                mode        the permission bits differ from the recorded mode
+#                owner       the owning uid differs from the recorded one
 #                missing     nothing exists at the manifested path
 #                irregular   a symlink or a non-regular file stands there
 #                oversize    too large to hash within the tick's bound
-#                unreadable  present and regular, but its size or hash failed
+#                unreadable  present and regular, but its size, mode, owner or
+#                            hash could not be read
 #   return 1 - the scan could NOT be completed, and stdout is a single reason
 #              TOKEN: missing (absent, unreadable, or empty manifest),
 #              unavailable (the verdict helper it reuses is not installed),
@@ -118,18 +135,20 @@ _pipeline_audit_size() {
 # monitor that goes quiet when its own input breaks is the failure mode this whole
 # subsystem exists to avoid. Every refusal is the caller's cue to page.
 #
-# SCOPE, recorded honestly. This audits MANIFEST -> DISK, and only the CONTENT
-# column of it. Two consequences, both real:
+# SCOPE, recorded honestly. This audits MANIFEST -> DISK, across ALL THREE bound
+# columns: content, mode and owner. What that does and does not reach:
 #   - A file planted under the pipeline home that the manifest does not list is not
 #     found here; that direction is the alerter's, which pages any tracked path
 #     whose tuple it cannot confirm.
-#   - The manifest also binds MODE and OWNER, and this scan does not compare them.
-#     Attribute drift on a watched path is caught at EVENT time by the verdict, so
-#     the residue is attribute drift that fires no event at all: a chmod or chown
-#     applied through a hard-link alias outside the pipeline home changes the shared
-#     inode while the event names the outside path. Comparing the two columns here
-#     would close that; it is deliberately left to the owner of this scan rather
-#     than bolted on by the change that added the columns.
+#   - Comparing mode and owner here is what covers ATTRIBUTE DRIFT THAT FIRES NO
+#     EVENT: a chmod or chown applied through a hard-link alias outside the pipeline
+#     home changes the shared inode while the event names the outside path, so the
+#     event-time verdict never judges it and no byte of content moves for a
+#     content-only comparison to notice. It is now a divergence here, within one
+#     tick of the change.
+#   - GROUP OWNERSHIP is still not compared, because the manifest does not bind it.
+#     See the coverage map in results-alerter/pipeline-verdict.sh for why, and for
+#     what remains uncovered across both layers.
 pipeline_audit_scan() {
   # The reused seam has to actually be here. Checked by NAME rather than assumed,
   # so a partial deploy reports a broken audit instead of an all-clear.
@@ -166,13 +185,15 @@ pipeline_audit_scan() {
   # would be read against whatever directory launchd happened to start the caller
   # in.
   #
-  # The mode and owner columns are MATCHED but not compared here; see the scope note
-  # in this function's docblock for which layer covers attribute drift. Requiring
-  # them to be present and well-formed is what keeps this fail-closed: a manifest in
-  # the older content-only format does not match, so it reports malformed and the
-  # caller pages, rather than being read as if the missing columns did not matter.
+  # All four columns are matched, and all four are compared below. Requiring the
+  # attribute columns to be present and well-formed is what keeps this fail-closed:
+  # a manifest in the older content-only format does not match, so it reports
+  # malformed and the caller pages, rather than being read as if the missing columns
+  # did not matter. The pattern is also what BOUNDS the two attribute columns, so
+  # the comparisons below are string equalities over already-constrained values.
   local line_pattern='^([0-9a-fA-F]{64}) ([0-7]{4}) ([0-9]{1,10}) (/.+)$'
-  local deadline entries=0 line want_hash target size disk_hash
+  local deadline entries=0 line want_hash want_mode want_uid target
+  local size disk_hash disk_mode disk_uid
   deadline=$(($(_pipeline_audit_now) + budget))
 
   # `|| [[ -n $line ]]` so a final line with no trailing newline is still examined
@@ -193,7 +214,13 @@ pipeline_audit_scan() {
     fi
     # Lower-cased on both sides: shasum and osquery both emit lowercase, so this is
     # documented defense in depth against a future producer, and it costs nothing.
+    #
+    # All four columns are captured HERE, in one go. BASH_REMATCH is global and is
+    # overwritten by the next [[ =~ ]] anywhere in this loop, so reading a column
+    # later would read whatever pattern matched most recently.
     want_hash="${BASH_REMATCH[1],,}"
+    want_mode="${BASH_REMATCH[2]}"
+    want_uid="${BASH_REMATCH[3]}"
     target="${BASH_REMATCH[4]}"
     # A manifested path must hold a REGULAR FILE, and links are never followed. A
     # symlink standing where a pipeline script belongs would otherwise be hashed
@@ -207,24 +234,48 @@ pipeline_audit_scan() {
     elif [[ ! -f $target ]]; then
       printf 'irregular %s\n' "$target"
     else
+      # The three columns are read BEFORE anything is judged, so an attribute that
+      # cannot be read reports unreadable ONCE for the path rather than once per
+      # failing reader. The mode and owner come from the verdict helper's readers,
+      # never from a stat here: BSD `stat -f '%Lp'` prints only the low NINE
+      # permission bits, so a setuid, setgid or sticky bit added to a pipeline
+      # script would read back as an ordinary mode and compare equal. The helpers
+      # ask each platform for a field that carries all twelve.
       size="$(_pipeline_audit_size "$target")"
-      if [[ ! $size =~ ^(0|[1-9][0-9]{0,18})$ ]]; then
+      disk_mode="$(_pipeline_file_mode "$target")" || disk_mode=""
+      disk_uid="$(_pipeline_file_uid "$target")" || disk_uid=""
+      if [[ ! $size =~ ^(0|[1-9][0-9]{0,18})$ ]] ||
+        [[ ! $disk_mode =~ ^[0-7]{4}$ ]] || [[ ! $disk_uid =~ ^[0-9]{1,10}$ ]]; then
         printf 'unreadable %s\n' "$target"
-      elif ((size > max_bytes)); then
-        printf 'oversize %s\n' "$target"
       else
-        # The hash is cut with parameter expansion rather than piped through awk:
-        # the audit runs this once per manifested file, and a saved fork per file is
-        # most of the tick's cost. shasum prints "<hash>  <path>", so everything from
-        # the first space on is dropped.
-        disk_hash="$(shasum -a 256 -- "$target" 2>/dev/null)"
-        disk_hash="${disk_hash%% *}"
-        disk_hash="${disk_hash,,}"
-        if [[ ! $disk_hash =~ ^[0-9a-f]{64}$ ]]; then
-          printf 'unreadable %s\n' "$target"
-        elif [[ $disk_hash != "$want_hash" ]]; then
-          printf 'content %s\n' "$target"
+        if ((size > max_bytes)); then
+          printf 'oversize %s\n' "$target"
+        else
+          # The hash is cut with parameter expansion rather than piped through awk:
+          # the audit runs this once per manifested file, and a saved fork per file is
+          # most of the tick's cost. shasum prints "<hash>  <path>", so everything from
+          # the first space on is dropped.
+          disk_hash="$(shasum -a 256 -- "$target" 2>/dev/null)"
+          disk_hash="${disk_hash%% *}"
+          disk_hash="${disk_hash,,}"
+          if [[ ! $disk_hash =~ ^[0-9a-f]{64}$ ]]; then
+            printf 'unreadable %s\n' "$target"
+          elif [[ $disk_hash != "$want_hash" ]]; then
+            printf 'content %s\n' "$target"
+          fi
         fi
+        # Mode and owner are compared for every readable regular file, INCLUDING one
+        # too large to hash: the size bound caps hashing, and an attacker who grows a
+        # manifested file must not buy silence on its permissions with it. Both are
+        # STRING equalities against columns the line pattern already constrained
+        # (four octal digits, up to ten decimal digits), so neither side reaches
+        # arithmetic and a manifest value that is merely unusual cannot be read as
+        # octal or overflow. A divergence per COLUMN, each with its own kind: the
+        # watchdog dedupes on a fingerprint of this report, and folding both into one
+        # per-path line would make an escalation from mode drift to content tamper
+        # look like the condition already reported.
+        [[ $disk_mode == "$want_mode" ]] || printf 'mode %s\n' "$target"
+        [[ $disk_uid == "$want_uid" ]] || printf 'owner %s\n' "$target"
       fi
     fi
   done <"$manifest"

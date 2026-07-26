@@ -605,6 +605,56 @@ teardown() { teardown_watchdog_harness; }
   assert_page_body_has 'pipeline-integrity manifest'
 }
 
+@test "T-WATCH-audit-attr-hardlink-pages: a chmod made through a hard link outside the pipeline home pages, with no file event and no content change" {
+  # The attribute half of the same blind spot, and the one neither layer used to
+  # catch. The alias and the manifested script are one inode, so the watched path
+  # is now group-writable; the change was made to the attacker's path, so nothing
+  # fires for the watched one and the event layer never judges it; and no byte of
+  # content moved, so a content-only audit called it clean.
+  chmod_manifested_file_through_hard_link
+  run run_watchdog # tick 1: first observation, a transient is tolerated
+  [[ $status -eq 0 ]] || {
+    echo "tick1 status $status: $output"
+    false
+  }
+  assert_no_page
+
+  run run_watchdog # tick 2: the same divergence is still there
+  [[ $status -eq 0 ]] || {
+    echo "tick2 status $status: $output"
+    false
+  }
+  assert_page_count 1
+  assert_page_severity_is CRIT
+  assert_page_sound_nonempty
+  assert_page_body_has 'pipeline-integrity manifest'
+  # The path stays out of the body for an attribute divergence too: same rule, and
+  # the manifest is just as attacker-influenceable in this shape as in the others.
+  refute_file_contains "$WD_MANIFESTED_SCRIPT" "$WD_SEND_ALERT_LOG"
+}
+
+@test "T-WATCH-audit-attr-then-content-repages: a file already reported for its MODE pages again when its content is tampered too" {
+  # The escalation case. Page-once dedupes on a fingerprint of the report, so the
+  # second, more serious drift is suppressed unless the report itself changes. It
+  # changes only because mode and content are DISTINCT kinds, each on its own line:
+  # one generic per-path divergence line would be byte-identical before and after,
+  # and the content tamper would page nothing.
+  chmod_manifested_file_through_hard_link
+  run run_watchdog # tick 1: confirming
+  run run_watchdog # tick 2: pages for the mode drift
+  assert_page_count 1
+
+  tamper_manifested_file # the SAME file, now rewritten as well
+  run run_watchdog       # the divergence set changed: confirming again
+  assert_page_count 1
+  run run_watchdog # confirmed: a second page for the escalation
+  [[ $status -eq 0 ]] || {
+    echo "status $status: $output"
+    false
+  }
+  assert_page_count 2
+}
+
 @test "T-WATCH-audit-manifest-missing-pages: an absent manifest pages instead of reading as all-clear" {
   # A monitor must not go quiet because its own input broke: with no known-good list
   # there is nothing to compare against, so tampering would pass unseen.
