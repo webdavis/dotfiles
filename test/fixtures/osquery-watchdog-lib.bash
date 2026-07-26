@@ -7,7 +7,7 @@
 # has five probes: osqueryd present-and-answering, every OTHER osquery LaunchAgent
 # loaded-and-not-crash-looping, the hermes #priority route reachable, the delivery
 # backlog (dead-letter count and a sustained pending-growth streak), and a periodic
-# content audit of the pipeline-integrity manifest (the backstop for tampering that
+# manifest audit of the pipeline-integrity manifest (the backstop for tampering that
 # generates no file event at all).
 #
 # This harness stands the watchdog up in isolation against recording spies, with
@@ -21,9 +21,9 @@
 #     as a stand-in dispatch library at the libexec path the watchdog sources.
 #     send_alert never delivers; it records each call's severity, sound, and argv,
 #     and the state file as it stood at call time (to prove notify-before-persist);
-#   - a fixture pipeline home with a real manifest over it, so the content audit
-#     runs against real files and real hashes. A test tampers with a deployed file,
-#     or the manifest, and the audit judges what is actually on disk.
+#   - a fixture pipeline home with a real manifest over it, so the manifest audit
+#     runs against real files, hashes, modes and owners. A test tampers with a
+#     deployed file, or the manifest, and the audit judges what is actually on disk.
 #
 # A fresh temp HOME keeps every run off the operator's real ~/.local/state and
 # ~/.local/libexec. Sourced by the watchdog suite; no main.
@@ -145,7 +145,7 @@ SHIM
   cp "${BATS_TEST_DIRNAME}/../../dot_local/libexec/osquery/executable_canary-freshness.sh" \
     "$WD_HOME/.local/libexec/osquery/canary-freshness.sh"
 
-  # The periodic content audit and the verdict helper it reuses the manifest
+  # The periodic manifest audit and the verdict helper it reuses the manifest
   # constant and root-ownership check from, both at their deployed paths.
   mkdir -p "$WD_HOME/.local/libexec/osquery/results-alerter"
   cp "${BATS_TEST_DIRNAME}/../../dot_local/libexec/osquery/executable_pipeline-audit.sh" \
@@ -318,6 +318,19 @@ tamper_manifested_file() {
 # test can enlarge the divergence set (a genuinely new condition) mid-run.
 tamper_second_manifested_file() {
   printf 'echo also-tampered\n' >"$WD_MANIFESTED_SCRIPT_ALT"
+}
+
+# chmod_manifested_file_through_hard_link -- make the stand-in pipeline script
+# group-writable by chmod-ing a HARD LINK to it, created OUTSIDE the pipeline home.
+# The two names are ONE INODE, so the watched path's mode changes while the change
+# is made to the attacker's path: no file event names the watched path, and not one
+# byte of content moves. This is the attribute half of the hard-link blind spot,
+# and the step an attacker takes before rewriting the script from a less
+# privileged context later.
+chmod_manifested_file_through_hard_link() {
+  local alias_path="$WD_HOME/attacker-alias.sh"
+  ln "$WD_MANIFESTED_SCRIPT" "$alias_path" || return 1
+  chmod g+w "$alias_path"
 }
 
 # restore_manifested_file -- put the known-good bytes back.

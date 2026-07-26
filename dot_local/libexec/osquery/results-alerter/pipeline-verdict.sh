@@ -25,24 +25,33 @@
 # without a manifest tuple to justify it, and a missing/empty/mismatched hash pages
 # too.
 #
-# COVERAGE MAP. Two layers now enforce the manifest, and they cover DIFFERENT
-# things. For any given tamper, this says which one is supposed to catch it.
+# COVERAGE MAP. Two layers enforce the manifest. They compare the SAME three
+# columns and differ in what TRIGGERS them, so for any given tamper this says which
+# one catches it, and how fast.
 #
 #   LAYER 1, this file, at EVENT time. Judges a filesystem event against the full
 #   tuple, so it catches CONTENT, PERMISSION and OWNERSHIP drift, but only on a
 #   change that produces an event on a watched path. It is the fast answer:
 #   whatever fires an event is judged within seconds.
 #
-#   LAYER 2, the PERIODIC CONTENT AUDIT in ../pipeline-audit.sh, which the uptime
-#   watchdog runs every 15 minutes. Re-hashes every manifested path on a schedule,
-#   so it catches drift that produces NO EVENT AT ALL and that layer 1 therefore
-#   never sees. The two shapes that matters for are hard links and symlink
-#   referents: the watch is path-based, so an attacker who hard-links a manifested
-#   script to a writable path outside the pipeline home overwrites the SAME INODE
-#   through the outside alias, the event names that path, and nothing fires for the
-#   watched one. That is a property of path-based file-integrity monitoring, not of
-#   the judgment below. The symlink and regular-file checks below remain the
-#   immediate answer on the event path.
+#   LAYER 2, the PERIODIC MANIFEST AUDIT in ../pipeline-audit.sh, which the uptime
+#   watchdog runs every 15 minutes. Re-reads every manifested path on a schedule and
+#   compares all three columns itself, so it catches drift that produces NO EVENT AT
+#   ALL and that layer 1 therefore never sees. The two shapes that matters for are
+#   hard links and symlink referents: the watch is path-based, so an attacker who
+#   hard-links a manifested script to a writable path outside the pipeline home acts
+#   on the SAME INODE through the outside alias, the event names that path, and
+#   nothing fires for the watched one. That covers both rewriting the file and
+#   merely chmod-ing or chown-ing it, which moves no bytes at all. It is a property
+#   of path-based file-integrity monitoring, not of the judgment below. Slower by
+#   design: a divergence must repeat on two consecutive ticks before it pages (so an
+#   in-flight apply cannot false-page), which puts detection at 15 to 30 minutes.
+#   The symlink and regular-file checks below remain the immediate answer on the
+#   event path.
+#
+# So: anything that fires an event on a watched path is judged in seconds by layer
+# 1, on all three columns; anything that fires no event is found within two ticks by
+# layer 2, on the same three columns.
 #
 # WHAT NEITHER LAYER COVERS, recorded honestly:
 #
@@ -51,16 +60,15 @@
 #     a file writable that the bound mode does not already grant group write to (a
 #     bound 0755 or 0644 grants none), so the case a group column would add on its
 #     own is chgrp plus chmod, which the mode column already pages.
-#   - ATTRIBUTE DRIFT THAT FIRES NO EVENT. The two layers overlap on content but not
-#     on attributes: layer 2 compares only the content column. So a chmod or chown
-#     applied through a hard-link alias outside the pipeline home lands in the gap
-#     between them - layer 1 sees no event, layer 2 does not look at those columns.
-#     Closing it means comparing mode and owner in the audit as well.
-#   - RE-TAMPERING AN ALREADY-REPORTED FILE. Layer 2 dedupes on a fingerprint of
-#     WHICH paths disagree and HOW, not of the bytes they now hold, so a path already
-#     reported as a content divergence can be rewritten again with different content
-#     without paging a second time. Deliberate (it is what stops a persistent
-#     divergence paging every 15 minutes forever), and worth knowing.
+#   - RE-TAMPERING WITHIN THE SAME SET OF DIVERGENCES. Layer 2 dedupes on a
+#     fingerprint of WHICH paths disagree and HOW (the divergence KIND per path), not
+#     of the bytes or the mode they now hold. So a path already reported as a content
+#     divergence can be rewritten again, with different content, without paging a
+#     second time, and a mode already reported as drifted can drift further. What
+#     DOES page again is any change to the kind set: a file reported for its mode and
+#     then rewritten adds a content divergence, which is a new fingerprint and a
+#     fresh confirmation. Deliberate (it is what stops one persistent divergence
+#     paging every 15 minutes forever), and worth knowing.
 #   - SOURCE COMPROMISE. The manifest is generated from chezmoi's source state,
 #     which is user-writable, so tampering with a managed file's SOURCE and letting
 #     a legitimate apply deploy it is signed as known-good by BOTH layers. See the
