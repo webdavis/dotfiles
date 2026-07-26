@@ -11,7 +11,12 @@
 #     as known-good permanently);
 #   - each file's CONTENT hash comes from `chezmoi cat` (the source state as
 #     chezmoi would write it), so a managed file TAMPERED on disk is recorded with
-#     its INTENDED hash and the tampered bytes then fail the tuple check and page.
+#     its INTENDED hash and the tampered bytes then fail the tuple check and page;
+#   - each file's MODE comes from `chezmoi dump` (the perm the source attributes
+#     encode), so a managed file CHMOD-ed on disk is recorded with its INTENDED
+#     mode and the drifted mode then fails the tuple check and pages;
+#   - each file's OWNER is the uid the apply runs as, which is the uid chezmoi
+#     writes target files as.
 #
 # Also pinned here: the manifest is path-sorted and byte-stable, covers the
 # recursive results-alerter/ helpers, excludes a non-osquery LaunchAgent and
@@ -80,8 +85,22 @@ want="$(manifest_fixture_chezmoi cat "$script_target" | shasum -a 256 | awk '{pr
 [[ "$(manifest_hash_of "$script_target")" == "$want" ]] ||
   fail "the manifest hash for $script_target is not the chezmoi-rendered (intent) hash"
 
+# 2a. MODE is INTENT too, and it is the mode the source ATTRIBUTES encode, not a
+#     policy this test and the runner both guess at. The fixture adds scripts with
+#     chezmoi's executable_ prefix (0755) and the plists as plain templates (0644),
+#     so the two literals below are the attribute semantics, asserted independently
+#     of however the runner obtains them.
+[[ "$(manifest_mode_of "$script_target")" == 0755 ]] ||
+  fail "an executable_ pipeline script must be manifested 0755, got '$(manifest_mode_of "$script_target")'"
+[[ "$(manifest_mode_of "$plist_target")" == 0644 ]] ||
+  fail "a plain managed plist must be manifested 0644, got '$(manifest_mode_of "$plist_target")'"
+
+# 2b. OWNER is the uid this apply runs as: the uid chezmoi writes target files as.
+[[ "$(manifest_uid_of "$script_target")" == "$(id -u)" ]] ||
+  fail "the manifest owner column is not the uid the apply runs as"
+
 # 3. Path-sorted and byte-stable across runs.
-LC_ALL=C sort -c <(awk '{print $2}' "$MF_MANIFEST") 2>/dev/null ||
+LC_ALL=C sort -c <(awk '{print $4}' "$MF_MANIFEST") 2>/dev/null ||
   fail "the manifest is not sorted by path"
 before="$(cat "$MF_MANIFEST")"
 manifest_fixture_run_runner "$RUNNER" || fail "the runner exited non-zero on the second run"
@@ -116,6 +135,21 @@ verdict_says_page "$script_target" "$VERDICT" ||
   fail "a tampered managed pipeline file must PAGE"
 manifest_fixture_apply # restore the intended bytes
 
+# 6a. THE CHMOD-ED FILE PIN, the mode-column twin of 6: a managed file whose mode
+#     was changed on disk is still recorded with its INTENDED mode, so the drifted
+#     mode fails the tuple check and pages. Deriving the mode column from the
+#     DEPLOYED file would bless the chmod instead - the exact flaw taking the
+#     content hash from disk would have.
+chmod g+w "$script_target"
+manifest_fixture_run_runner "$RUNNER" || fail "the runner exited non-zero with a chmod-ed file present"
+[[ "$(manifest_mode_of "$script_target")" == 0755 ]] ||
+  fail "SECURITY: the manifest recorded the CHMOD-ed mode instead of chezmoi's intent"
+verdict_says_page "$script_target" "$VERDICT" ||
+  fail "a chmod-ed managed pipeline file must PAGE (its content is unchanged)"
+chmod 755 "$script_target"
+verdict_says_page "$script_target" "$VERDICT" &&
+  fail "restoring the intended mode must return the file to SILENT"
+
 # 7. No drift: a newly-added managed file is covered with no change to the runner.
 manifest_fixture_add_script heartbeat.sh 'echo heartbeat'
 manifest_fixture_apply
@@ -127,4 +161,4 @@ if [[ $fails -gt 0 ]]; then
   printf '%d check(s) failed\n' "$fails" >&2
   exit 1
 fi
-printf 'osquery-pipeline-manifest-generation: OK (set and content from chezmoi intent; a PLANTED file is never blessed and pages; a TAMPERED managed file is signed with its intended hash and pages; sorted, stable, exclusions honored, new file auto-covered)\n'
+printf 'osquery-pipeline-manifest-generation: OK (set, content and mode from chezmoi intent, owner from the applying uid; a PLANTED file is never blessed and pages; a TAMPERED managed file is signed with its intended hash and pages; a CHMOD-ed one is signed with its intended mode and pages; sorted, stable, exclusions honored, new file auto-covered)\n'

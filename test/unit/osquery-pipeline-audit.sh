@@ -74,12 +74,18 @@ printf 'echo digest\n' >"$good_script"
 printf 'echo spaced\n' >"$spaced_script"
 printf '<plist/>\n' >"$plist"
 
+# The manifest binds content, mode and owner: "<sha256> <mode> <uid> <path>", path
+# LAST so a path containing spaces is still read whole. The audit compares only the
+# content column, but it REQUIRES all four to be present and well-formed, so these
+# fixtures carry the real shape rather than the content-only one they had before.
 manifest="$work/pipeline-known-good.sha256"
+manifest_uid="$(id -u)"
+[[ $manifest_uid =~ ^[0-9]+$ ]] || fail "id -u did not report a numeric uid: $manifest_uid"
 write_manifest() {
   {
-    printf '%s  %s\n' "$(sha_of "$good_script")" "$good_script"
-    printf '%s  %s\n' "$(sha_of "$spaced_script")" "$spaced_script"
-    printf '%s  %s\n' "$(sha_of "$plist")" "$plist"
+    printf '%s 0755 %s %s\n' "$(sha_of "$good_script")" "$manifest_uid" "$good_script"
+    printf '%s 0755 %s %s\n' "$(sha_of "$spaced_script")" "$manifest_uid" "$spaced_script"
+    printf '%s 0644 %s %s\n' "$(sha_of "$plist")" "$manifest_uid" "$plist"
   } >"$manifest"
 }
 write_manifest
@@ -200,7 +206,7 @@ expect_rc "an empty manifest refuses" 1
 expect_out "an empty manifest reports the missing token" "missing"
 
 bad_manifest="$work/malformed.sha256"
-printf 'not-a-hash  /some/path\n' >"$bad_manifest"
+printf 'not-a-hash 0755 %s /some/path\n' "$manifest_uid" >"$bad_manifest"
 run_scan OSQUERY_PIPELINE_MANIFEST="$bad_manifest"
 expect_rc "a malformed manifest line refuses" 1
 expect_out "a malformed manifest reports the malformed token" "malformed"
@@ -209,7 +215,7 @@ expect_out "a malformed manifest reports the malformed token" "malformed"
 # itself, so a relative path would be read against whatever directory launchd
 # happened to start the watchdog in.
 rel_manifest="$work/relative.sha256"
-printf '%s  digest.sh\n' "$(sha_of "$good_script")" >"$rel_manifest"
+printf '%s 0755 %s digest.sh\n' "$(sha_of "$good_script")" "$manifest_uid" >"$rel_manifest"
 run_scan OSQUERY_PIPELINE_MANIFEST="$rel_manifest"
 expect_rc "a relative manifested path refuses" 1
 expect_out "a relative manifested path reports the malformed token" "malformed"

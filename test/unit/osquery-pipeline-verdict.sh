@@ -3,15 +3,17 @@
 # pipeline_verdict (results-alerter/pipeline-verdict.sh) decides whether a file
 # change under the watched pipeline directories is a tamper to PAGE, a known-good
 # apply to stay SILENT, or an untracked neighbor to log only. It checks the
-# change against the pipeline-integrity manifest, a root-owned sha256 list of the
-# alerter's own scripts/plists.
+# change against the pipeline-integrity manifest, a root-owned list of the
+# alerter's own scripts/plists binding each path to its content hash, mode and
+# owner ("<sha256> <mode> <uid> <path>", path last).
 #
 # Return-code contract (from c69baab _pipeline_verdict), inverted vs the
 # allowlist verdict on purpose:
 #   0 = PAGE   - a tracked file changed and we cannot confirm it legitimate
-#                (tamper, a delete, an empty/mismatched hash, or NO manifest).
+#                (tamper, a chmod, a chown, a delete, an empty/mismatched hash, a
+#                manifest line that is not a full tuple, or NO manifest).
 #   1 = SILENT - an untracked neighbor in a watched dir, OR a tracked change whose
-#                exact (path, sha256) tuple is present in the manifest.
+#                exact (path, sha256, mode, uid) tuple is present in the manifest.
 #
 # Criterion 6, the headline this behavior pins: with NO manifest present (a missing
 # or unreadable manifest), a change to a tracked pipeline file PAGES. That is the
@@ -44,8 +46,17 @@ home="$work/home"
 mkdir -p "$home/.local/libexec/osquery/results-alerter" "$home/.local/bin" "$home/Library/LaunchAgents"
 
 # REAL files with REAL hashes: the verdict rehashes the target at judgment time,
-# so a fixture manifest has to bind the content that is actually on disk.
+# so a fixture manifest has to bind the content that is actually on disk. Mode and
+# owner are re-read at judgment time for the same reason.
 sha_of() { shasum -a 256 "$1" | awk '{print $1}'; }
+
+uid_self="$(id -u)"
+[[ $uid_self =~ ^[0-9]+$ ]] || fail "id -u did not report a numeric uid: $uid_self"
+# A uid this fixture's files provably do NOT have. Tests cannot chown without
+# privilege, so an ownership change is simulated from the manifest side: a tuple
+# that names an owner the deployed file does not have is exactly the state a chown
+# produces, and it is the state the verdict has to refuse.
+foreign_uid=$((uid_self + 1))
 
 libexec_script="$home/.local/libexec/osquery/results-alerter.sh"
 bin_script="$home/.local/bin/relay.sh"
@@ -59,6 +70,14 @@ stale_script="$home/.local/libexec/osquery/stale.sh"
 # that WOULD match the manifest if the verdict followed it.
 symlink_path="$home/.local/libexec/osquery/linked.sh"
 symlink_data="$work/outside-payload.sh"
+# Attribute probes: content matches the manifest exactly, only mode or owner drift.
+chmod_script="$home/.local/libexec/osquery/chmod-probe.sh"
+setuid_script="$home/.local/libexec/osquery/setuid-probe.sh"
+chown_script="$home/.local/libexec/osquery/chown-probe.sh"
+# Malformed-manifest probes: content, mode and owner on disk are all fine, but the
+# manifest line that would vouch for them is not parseable as a full tuple.
+legacy_script="$home/.local/libexec/osquery/legacy-line.sh"
+garbage_script="$home/.local/libexec/osquery/garbage-line.sh"
 
 printf 'echo libexec\n' >"$libexec_script"
 printf 'echo bin\n' >"$bin_script"
@@ -66,24 +85,66 @@ printf 'echo libexec\n' >"$twin_script" # same bytes as libexec_script
 printf 'echo original\n' >"$stale_script"
 printf 'echo linked\n' >"$symlink_data"
 ln -s "$symlink_data" "$symlink_path"
+printf 'echo chmod probe\n' >"$chmod_script"
+printf 'echo setuid probe\n' >"$setuid_script"
+printf 'echo chown probe\n' >"$chown_script"
+printf 'echo legacy line\n' >"$legacy_script"
+printf 'echo garbage line\n' >"$garbage_script"
+
+# Every manifested regular file is deployed 0755, which is what the manifest lines
+# below record LITERALLY. The literal is deliberate: deriving the expected column
+# from the same reader the implementation uses would make the mode comparison
+# vacuous.
+chmod 755 "$libexec_script" "$twin_script" "$stale_script" \
+  "$chmod_script" "$setuid_script" "$chown_script" "$legacy_script" "$garbage_script"
+chmod 755 "$bin_script"
 
 hash_libexec="$(sha_of "$libexec_script")"
 hash_bin="$(sha_of "$bin_script")"
 hash_stale_original="$(sha_of "$stale_script")"
 hash_linked="$(sha_of "$symlink_data")"
+hash_chmod="$(sha_of "$chmod_script")"
+hash_setuid="$(sha_of "$setuid_script")"
+hash_chown="$(sha_of "$chown_script")"
+hash_legacy="$(sha_of "$legacy_script")"
+hash_garbage="$(sha_of "$garbage_script")"
 hash_wrong="0000000000000000000000000000000000000000000000000000000000000000"
 
-# The manifest binds each hash to ITS path (shasum format: "<hash>  <path>").
+# The manifest binds content, mode AND owner to ITS path, one space-separated
+# tuple per line: "<sha256> <mode> <uid> <path>". The path stays LAST so a path
+# containing spaces is still read whole by `read -r hash mode uid path`.
+#
 # twin_script is deliberately ABSENT: its content hash exists in the manifest, but
 # bound to libexec_script, so a hash-only check would wrongly bless it.
 manifest="$work/pipeline-known-good.sha256"
 {
-  printf '%s  %s\n' "$hash_libexec" "$libexec_script"
-  printf '%s  %s\n' "$hash_bin" "$bin_script"
-  printf '%s  %s\n' "$hash_stale_original" "$stale_script"
-  printf '%s  %s\n' "$hash_linked" "$symlink_path"
+  printf '%s 0755 %s %s\n' "$hash_libexec" "$uid_self" "$libexec_script"
+  printf '%s 0755 %s %s\n' "$hash_bin" "$uid_self" "$bin_script"
+  printf '%s 0755 %s %s\n' "$hash_stale_original" "$uid_self" "$stale_script"
+  printf '%s 0755 %s %s\n' "$hash_linked" "$uid_self" "$symlink_path"
+  printf '%s 0755 %s %s\n' "$hash_chmod" "$uid_self" "$chmod_script"
+  printf '%s 0755 %s %s\n' "$hash_setuid" "$uid_self" "$setuid_script"
+  # The chown probe: a correct content hash and mode, bound to an owner the
+  # deployed file does not have.
+  printf '%s 0755 %s %s\n' "$hash_chown" "$foreign_uid" "$chown_script"
+  # The OLD two-column shape. A manifest left over from before mode and owner were
+  # bound must not be honored as a match, in either direction.
+  printf '%s  %s\n' "$hash_legacy" "$legacy_script"
+  # A line that is not a tuple at all.
+  printf '%s\n' "$hash_garbage"
 } >"$manifest"
 absent_manifest="$work/no-such-manifest.sha256"
+
+# Now drift the two attribute probes AWAY from the mode their tuple records. Their
+# CONTENT still matches, which is precisely the ATTRIBUTES_MODIFIED shape: osquery
+# reports the change carrying the file's unchanged digest.
+chmod 775 "$chmod_script"   # group-writable: the documented setup-for-later-tamper
+chmod 4755 "$setuid_script" # setuid: only the low nine bits would miss this one
+# GNU stat prints 4755 and BSD stat prints 104755 (the file type is included), so
+# the suffix match accepts either. GNU first, BSD as the fallback, the portable
+# order this repository requires.
+[[ "$(stat -c '%a' "$setuid_script" 2>/dev/null || stat -f '%p' "$setuid_script")" == *4755 ]] ||
+  fail "the fixture could not set the setuid bit, so that probe would pass vacuously"
 
 # Now replace the stale file's content. The manifest still records its ORIGINAL
 # hash, and the event below still carries that original (known-good) digest, but
@@ -133,6 +194,24 @@ cases=(
   #    twin has the same bytes as libexec_script, so a hash-only check would bless
   #    it; the (path, hash) binding is what refuses it. --
   "0|$manifest|$twin_script|$hash_libexec|UPDATED|swap-in-place (real content whose tuple is bound to another path) -> PAGE (tuple binding)"
+  # -- ATTRIBUTES: a chmod on a manifested file PAGES. The content is byte-for-byte
+  #    what the manifest records and the event carries that unchanged digest, so a
+  #    content-only manifest returns SILENT here. Making a pipeline script
+  #    group-writable is a plausible setup step for a later tamper from a less
+  #    privileged context, so it has to page on its own. --
+  "0|$manifest|$chmod_script|$hash_chmod|ATTRIBUTES_MODIFIED|a chmod g+w on a manifested file -> PAGE (mode is bound, not just content)"
+  # -- ATTRIBUTES: the setuid bit is inside the bound mode. It lives above the low
+  #    nine permission bits, so a mode reader that keeps only those (BSD stat %Lp)
+  #    reads 4755 back as 0755 and blesses it. --
+  "0|$manifest|$setuid_script|$hash_setuid|ATTRIBUTES_MODIFIED|a setuid bit set on a manifested file -> PAGE (all twelve mode bits are bound)"
+  # -- OWNERSHIP: a file whose owner is not the one its tuple records PAGES, with
+  #    content and mode both matching. --
+  "0|$manifest|$chown_script|$hash_chown|ATTRIBUTES_MODIFIED|a manifested file owned by someone other than its tuple records -> PAGE (owner is bound)"
+  # -- MALFORMED MANIFEST LINES resolve to PAGE, never to silence. Both probes have
+  #    correct content, mode and owner on disk; only the line that would vouch for
+  #    them is short. A pre-mode/owner manifest is exactly the two-column case. --
+  "0|$manifest|$legacy_script|$hash_legacy|UPDATED|a two-column (pre mode/owner) manifest line -> PAGE (a short line never vouches)"
+  "0|$manifest|$garbage_script|$hash_garbage|UPDATED|a one-field manifest line -> PAGE (an unparseable line never vouches)"
 )
 
 expected=()
@@ -187,4 +266,4 @@ HOME="$home" bash -c '
 [[ $trust_rc -ne 0 ]] ||
   fail "a manifest that is not root-owned must not be trusted to suppress a page"
 
-printf 'osquery-pipeline-verdict: OK (fail-safe PAGE for a tracked libexec file without a manifest; a ~/.local/bin neighbor and a /Library plist twin are SILENT; delete PAGES; manifest tuple match SILENT, mismatch/swap-in-place PAGE; a non-root-owned manifest is refused)\n'
+printf 'osquery-pipeline-verdict: OK (fail-safe PAGE for a tracked libexec file without a manifest; a ~/.local/bin neighbor and a /Library plist twin are SILENT; delete PAGES; manifest tuple match SILENT, mismatch/swap-in-place PAGE; chmod, setuid and a foreign owner PAGE on unchanged content; short and unparseable manifest lines PAGE; a non-root-owned manifest is refused)\n'

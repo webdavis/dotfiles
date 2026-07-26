@@ -7,6 +7,12 @@
 #   TRACKED  (results-alerter/pipeline-verdict.sh _pipeline_is_tracked) what the alerter judges
 #   MANIFEST (.chezmoiscripts/run_after_05-osquery-pipeline-manifest.sh) what can be vouched for
 #
+# The manifest has a SECOND consumer, the periodic audit (pipeline-audit.sh), which
+# parses the file directly instead of going through the verdict. It is driven here
+# against the real generated manifest for the same reason: a format change that only
+# the hand-built fixtures in its own suite kept up with would leave it refusing every
+# real manifest.
+#
 # A watched-and-tracked file the manifest can never contain pages FOREVER; a
 # manifested file nothing watches is never checked at all. This test drives all
 # three against the same fixture and pins their agreement, including the launch
@@ -17,8 +23,8 @@
 # earlier revision matched that basename anywhere and had exactly this divergence.
 #
 # It also pins the end-to-end agreement between the real generated manifest and the
-# real verdict (unchanged is SILENT, a one-byte tamper PAGES) and the bounded
-# apply-race settle window.
+# real verdict (unchanged is SILENT, a one-byte tamper PAGES, and a chmod on
+# otherwise unchanged content PAGES) and the bounded apply-race settle window.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -93,6 +99,8 @@ hash_of() { shasum -a 256 "$1" | awk '{print $1}'; }
 run_verdict() {
   local target="$1" hash_value="$2" verb="$3" settle="${4:-$OSQUERY_PIPELINE_SETTLE_SECONDS}"
   (
+    # Subshell-local by design; run_audit below scopes HOME the same way.
+    # shellcheck disable=SC2030
     export HOME="$MF_HOME" OSQUERY_PIPELINE_SETTLE_SECONDS="$settle"
     pipeline_verdict "$target" "$hash_value" "$verb"
   )
@@ -109,6 +117,70 @@ expect_verdict() {
 expect_verdict 1 "an unchanged pipeline script is SILENT" "$script_target" "$(hash_of "$script_target")" UPDATED
 printf 'echo tampered\n' >>"$script_target"
 expect_verdict 0 "a one-byte tamper PAGES" "$script_target" "$(hash_of "$script_target")" UPDATED
+manifest_fixture_apply # restore
+expect_verdict 1 "the restored script is SILENT again" "$script_target" "$(hash_of "$script_target")" UPDATED
+
+# A chmod PAGES end to end, against the REAL generated manifest. osquery reports
+# this as ATTRIBUTES_MODIFIED carrying the file's UNCHANGED digest, which is why
+# the event hash below is the same one that was just SILENT: only the mode moved.
+chmod g+w "$script_target"
+expect_verdict 0 "a chmod g+w on a manifested script PAGES" "$script_target" "$(hash_of "$script_target")" ATTRIBUTES_MODIFIED
+chmod 755 "$script_target"
+expect_verdict 1 "restoring the intended mode is SILENT again" "$script_target" "$(hash_of "$script_target")" ATTRIBUTES_MODIFIED
+
+# --- THE PERIODIC AUDIT READS THE SAME GENERATED MANIFEST --------------------
+# The audit is the manifest's OTHER consumer, and it parses the file itself rather
+# than going through the verdict. Its own suite builds fixture manifests by hand, so
+# it stayed green through a producer format change that left it reporting
+# "malformed" against every real manifest: a loud break, but a permanent one. This
+# drives the REAL scan over the REAL generated manifest, which is the only check
+# that fails when producer and consumer drift apart.
+AUDIT="$REPO_ROOT/dot_local/libexec/osquery/executable_pipeline-audit.sh"
+[[ -f $AUDIT ]] || fail "missing the periodic audit: $AUDIT"
+
+# run_audit -- one scan, in a subshell, for the same reason run_verdict uses one.
+# Prints the scan return code on the first line, then the scan's stdout.
+run_audit() {
+  (
+    # HOME is meant to be subshell-local here, exactly as it is in run_verdict:
+    # that scoping is the isolation, not an accident of it.
+    # shellcheck disable=SC2030,SC2031
+    export HOME="$MF_HOME"
+    # shellcheck source=/dev/null
+    source "$AUDIT"
+    local rc=0 out
+    out="$(pipeline_audit_scan)" || rc=$?
+    printf '%s\n%s' "$rc" "$out"
+  )
+}
+
+# A plain refute helper. `! grep` inside a test body is a silent no-op under set -e,
+# so absence is asserted with an explicit case instead.
+refute_line() { # <haystack> <needle> <label>
+  case "$1" in
+    *"$2"*) fail "$3" ;;
+  esac
+}
+
+audit_out="$(run_audit)"
+audit_rc="${audit_out%%$'\n'*}"
+audit_body="${audit_out#*$'\n'}"
+[[ $audit_rc == 0 ]] ||
+  fail "the audit could not complete against the generated manifest (reason token: $audit_body)"
+refute_line "$audit_body" "$script_target" \
+  "the audit reported a divergence for an untampered manifested script: $audit_body"
+
+# ...and it actually LOOKS at the file, rather than passing everything by default.
+printf 'echo audit tamper\n' >>"$script_target"
+audit_out="$(run_audit)"
+audit_rc="${audit_out%%$'\n'*}"
+audit_body="${audit_out#*$'\n'}"
+[[ $audit_rc == 0 ]] ||
+  fail "the audit could not complete over a tampered tree (reason token: $audit_body)"
+case "$audit_body" in
+  *"content $script_target"*) ;;
+  *) fail "the audit did not report the tampered script as a content divergence: $audit_body" ;;
+esac
 manifest_fixture_apply # restore
 
 # --- THE THREE-WAY AGREEMENT, across BOTH launch agent watch roots ------------
@@ -153,7 +225,7 @@ done <<<"$watch_roots"
 
 # Every path the manifest holds must be one the verdict tracks (no manifested-but-
 # unchecked file).
-while read -r _ manifested_path; do
+while read -r _ _ _ manifested_path; do
   [[ -n $manifested_path ]] || continue
   t=0
   HOME="$MF_HOME" _pipeline_is_tracked "$manifested_path" || t=$?
@@ -165,13 +237,17 @@ done <"$MF_MANIFEST"
 # is reinstalled must not page a false CRIT that is never reconsidered.
 settle_target="$script_target"
 settle_hash="$(hash_of "$settle_target")"
+settle_mode="$(manifest_mode_of "$settle_target")"
+settle_uid="$(manifest_uid_of "$settle_target")"
+[[ -n $settle_mode && -n $settle_uid ]] ||
+  fail "the settle fixture could not read the generated mode/owner columns"
 # A manifest that PREDATES the target and lacks the tuple: the verdict waits, and
 # goes SILENT when the regeneration lands inside the window.
-printf 'deadbeef  /nowhere\n' >"$MF_MANIFEST"
+printf 'deadbeef 0755 %s /nowhere\n' "$(id -u)" >"$MF_MANIFEST"
 touch -t 200001010000 "$MF_MANIFEST"
 (
   sleep 1
-  printf '%s  %s\n' "$settle_hash" "$settle_target" >"$MF_MANIFEST"
+  printf '%s %s %s %s\n' "$settle_hash" "$settle_mode" "$settle_uid" "$settle_target" >"$MF_MANIFEST"
 ) &
 settle_pid=$!
 got=0
@@ -181,7 +257,7 @@ wait "$settle_pid"
   fail "a manifest that lands during the settle window must resolve to SILENT (got rc $got)"
 
 # ...but the wait is BOUNDED: a tuple that never arrives still PAGES.
-printf 'deadbeef  /nowhere\n' >"$MF_MANIFEST"
+printf 'deadbeef 0755 %s /nowhere\n' "$(id -u)" >"$MF_MANIFEST"
 touch -t 200001010000 "$MF_MANIFEST"
 start=$(date +%s)
 got=0
@@ -189,6 +265,36 @@ run_verdict "$settle_target" "$settle_hash" UPDATED 2 || got=$?
 elapsed=$(($(date +%s) - start))
 [[ $got -eq 0 ]] || fail "a tuple that never arrives must still PAGE (got rc $got)"
 ((elapsed <= 6)) || fail "the settle wait is not bounded (${elapsed}s for a 2s window)"
+
+# --- an ATTRIBUTE-only apply can settle too ----------------------------------
+# A chmod moves a file's inode CHANGE time, not its modification time. Keying the
+# settle guard on mtime therefore made an attribute-only apply skip the window
+# outright: the file lands, the manifest has not been reinstalled yet, and the
+# alerter judges that finding exactly once, so the false CRIT is never
+# reconsidered. Now that mode is part of the tuple, that race is reachable
+# whenever a source attribute changes without the bytes changing.
+#
+# The fixture back-dates the target's mtime and leaves its ctime at now, which is
+# the shape a chmod produces. The filesystem state is set up BEFORE the call, so
+# run_verdict's subshell sees it: a subshell inherits the filesystem and isolates
+# only shell state, which is exactly the split this case needs.
+chmod_settle_target="$MF_HOME/.local/libexec/osquery/chmod-settle.sh"
+printf 'echo chmod settle\n' >"$chmod_settle_target"
+chmod 755 "$chmod_settle_target"
+touch -t 200001010000 "$chmod_settle_target"
+chmod_settle_hash="$(hash_of "$chmod_settle_target")"
+printf 'deadbeef 0755 %s /nowhere\n' "$(id -u)" >"$MF_MANIFEST"
+touch -t 200001010000 "$MF_MANIFEST"
+(
+  sleep 1
+  printf '%s 0755 %s %s\n' "$chmod_settle_hash" "$(id -u)" "$chmod_settle_target" >"$MF_MANIFEST"
+) &
+chmod_settle_pid=$!
+got=0
+run_verdict "$chmod_settle_target" "$chmod_settle_hash" ATTRIBUTES_MODIFIED 5 || got=$?
+wait "$chmod_settle_pid"
+[[ $got -eq 1 ]] ||
+  fail "an attribute-only change whose manifest lands inside the settle window must resolve to SILENT (got rc $got)"
 
 # --- the settle budget is per ALERTER RUN, not per finding -------------------
 # route_findings judges findings sequentially while the alerter holds its
@@ -203,7 +309,7 @@ elapsed=$(($(date +%s) - start))
 # land in a single invocation. run_verdict isolates CASES from each other; this
 # asserts what happens WITHIN one case. The two are the same rule from both sides.
 miss_manifest="$MF_ROOT/miss.sha256"
-printf 'deadbeef  /nowhere\n' >"$miss_manifest"
+printf 'deadbeef 0755 %s /nowhere\n' "$(id -u)" >"$miss_manifest"
 touch -t 200001010000 "$miss_manifest"
 # The targets must EXIST and post-date the manifest, or the mtime guard short
 # circuits and nothing settles (the shape a real apply produces).
@@ -229,4 +335,4 @@ if [[ $fails -gt 0 ]]; then
   printf '%d check(s) failed\n' "$fails" >&2
   exit 1
 fi
-printf 'osquery-pipeline-manifest-agreement: OK (generated manifest and real verdict agree; watch/tracked/manifest cover the identical set across BOTH launch agent roots; a /Library twin is untracked; the settle window resolves a live regeneration, stays bounded, and spends ONE budget per alerter run across many misses)\n'
+printf 'osquery-pipeline-manifest-agreement: OK (generated manifest and real verdict agree, including a chmod on unchanged content; the periodic audit parses the same generated manifest and reports a real tamper; watch/tracked/manifest cover the identical set across BOTH launch agent roots; a /Library twin is untracked; the settle window resolves a live regeneration for a content AND an attribute-only change, stays bounded, and spends ONE budget per alerter run across many misses)\n'

@@ -5,11 +5,19 @@
 # directories: is this a tamper to PAGE, a known-good apply to stay SILENT, or an
 # untracked neighbor to log only?
 #
-# The pipeline-integrity manifest is a root-owned sha256 list of the alerter's own
-# scripts and plists (shasum format: "<sha256>  <path>"), regenerated on every
-# apply from chezmoi's managed intent. A change is legitimate only when its EXACT
-# (path, sha256) tuple is in the manifest, so a deployed known-good file matches
-# and stays silent while a tampered one does not.
+# The pipeline-integrity manifest is a root-owned list of the alerter's own scripts
+# and plists, regenerated on every apply from chezmoi's managed intent. One
+# whitespace-separated tuple per line, PATH LAST so a path containing spaces is
+# still read whole:
+#
+#   <sha256> <mode> <uid> <path>
+#
+# A change is legitimate only when the file's CURRENT content hash, mode AND owner
+# all equal the columns bound to its exact path, so a deployed known-good file
+# matches and stays silent while a tampered one does not. Binding mode and owner is
+# what makes a `chmod g+w` or a chown page: osquery reports those as
+# ATTRIBUTES_MODIFIED events carrying the file's unchanged digest, which a
+# content-only manifest matched and suppressed.
 #
 # Fail-safe (criterion 6): a missing, unreadable, or untrustworthy manifest makes
 # _pipeline_manifest_has_tuple return not-found, so a tracked change that cannot be
@@ -17,30 +25,51 @@
 # without a manifest tuple to justify it, and a missing/empty/mismatched hash pages
 # too.
 #
-# Blind spots, recorded honestly. This check judges EVENTS about the deployed tree,
-# so it is bounded by what generates events and by what the manifest binds:
+# COVERAGE MAP. Two layers now enforce the manifest, and they cover DIFFERENT
+# things. For any given tamper, this says which one is supposed to catch it.
 #
-#   - CONTENT ONLY. An ATTRIBUTES_MODIFIED event (for example `chmod g+w` on a
-#     pipeline script) carries unchanged content, matches its tuple, and stays
-#     silent. A mode/owner column is a follow-up.
-#   - HARD LINKS / EVENT GENERATION. The watch is path-based, so an attacker who
-#     hard-links a manifested script to a writable path outside the pipeline home
-#     can overwrite the SAME INODE through the outside alias: the filesystem event
-#     names that path, nothing fires for the watched one, and no verdict runs at
-#     all. This is a property of path-based file-integrity monitoring, not of the
-#     judgment below (before the manifest existed, no event meant no page either).
-#     Now covered by the PERIODIC CONTENT AUDIT in ../pipeline-audit.sh, which the
-#     uptime watchdog runs every 15 minutes: it hashes every manifested path and
-#     pages on a divergence, needing no event to have fired. The symlink and
-#     regular-file checks below remain the immediate answer on the event path.
+#   LAYER 1, this file, at EVENT time. Judges a filesystem event against the full
+#   tuple, so it catches CONTENT, PERMISSION and OWNERSHIP drift, but only on a
+#   change that produces an event on a watched path. It is the fast answer:
+#   whatever fires an event is judged within seconds.
+#
+#   LAYER 2, the PERIODIC CONTENT AUDIT in ../pipeline-audit.sh, which the uptime
+#   watchdog runs every 15 minutes. Re-hashes every manifested path on a schedule,
+#   so it catches drift that produces NO EVENT AT ALL and that layer 1 therefore
+#   never sees. The two shapes that matters for are hard links and symlink
+#   referents: the watch is path-based, so an attacker who hard-links a manifested
+#   script to a writable path outside the pipeline home overwrites the SAME INODE
+#   through the outside alias, the event names that path, and nothing fires for the
+#   watched one. That is a property of path-based file-integrity monitoring, not of
+#   the judgment below. The symlink and regular-file checks below remain the
+#   immediate answer on the event path.
+#
+# WHAT NEITHER LAYER COVERS, recorded honestly:
+#
+#   - GROUP OWNERSHIP. Content, mode and owner are bound; the owning GROUP is not.
+#     chezmoi has no group intent to derive one from, and a chgrp alone cannot make
+#     a file writable that the bound mode does not already grant group write to (a
+#     bound 0755 or 0644 grants none), so the case a group column would add on its
+#     own is chgrp plus chmod, which the mode column already pages.
+#   - ATTRIBUTE DRIFT THAT FIRES NO EVENT. The two layers overlap on content but not
+#     on attributes: layer 2 compares only the content column. So a chmod or chown
+#     applied through a hard-link alias outside the pipeline home lands in the gap
+#     between them - layer 1 sees no event, layer 2 does not look at those columns.
+#     Closing it means comparing mode and owner in the audit as well.
+#   - RE-TAMPERING AN ALREADY-REPORTED FILE. Layer 2 dedupes on a fingerprint of
+#     WHICH paths disagree and HOW, not of the bytes they now hold, so a path already
+#     reported as a content divergence can be rewritten again with different content
+#     without paging a second time. Deliberate (it is what stops a persistent
+#     divergence paging every 15 minutes forever), and worth knowing.
 #   - SOURCE COMPROMISE. The manifest is generated from chezmoi's source state,
 #     which is user-writable, so tampering with a managed file's SOURCE and letting
-#     a legitimate apply deploy it is signed as known-good. See the runner's
-#     docblock: this layer buys post-deployment integrity, not source integrity.
+#     a legitimate apply deploy it is signed as known-good by BOTH layers. See the
+#     runner's docblock: this buys post-deployment integrity, not source integrity.
 #
 # Return-code contract (from c69baab _pipeline_verdict):
 #   0 = PAGE   (tamper / cannot confirm legit / no manifest / delete)
-#   1 = SILENT (an untracked neighbor, or an exact (path, sha256) manifest match)
+#   1 = SILENT (an untracked neighbor, or an exact (path, sha256, mode, uid)
+#               manifest match)
 
 # Keep this default in sync with the manifest path in
 # .chezmoiscripts/run_after_05-osquery-pipeline-manifest.sh (the producer). A test
@@ -77,6 +106,51 @@ _pipeline_mtime() {
   stat -c '%Y' "$1" 2>/dev/null || stat -f '%m' "$1" 2>/dev/null
 }
 
+# _pipeline_change_time <path>: epoch inode CHANGE time, or empty when it cannot be
+# read. Same portable order as _pipeline_mtime.
+#
+# This, not mtime, is what "when did this file last change" means once mode and
+# owner are part of the tuple: a chmod or a chown moves ctime and leaves mtime
+# alone, while a content write moves both. Asking for mtime would make an
+# attribute-only apply look older than the manifest and skip the settle window
+# entirely, which the alerter cannot recover from - it judges each finding exactly
+# once, so the false CRIT would never be reconsidered.
+_pipeline_change_time() {
+  stat -c '%Z' "$1" 2>/dev/null || stat -f '%c' "$1" 2>/dev/null
+}
+
+# _pipeline_file_mode <path>: the file's permission bits as EXACTLY four octal
+# digits (0755, or 4755 for a setuid file), non-zero and empty output when they
+# cannot be read.
+#
+# The two platforms are deliberately asked for DIFFERENT fields. GNU %a already
+# prints all twelve permission bits. BSD has no equivalent: %Lp prints only the
+# low NINE, so a setuid, setgid or sticky bit set on a pipeline script would read
+# back as an ordinary mode. %p prints the full mode including the file type
+# (100755), so the low four octal digits are taken from whichever form answered
+# and both platforms yield the same string for the same file.
+#
+# The value is range-bound by a regex BEFORE it is sliced, so a stat that printed
+# something unexpected fails the read instead of producing a plausible-looking
+# mode.
+_pipeline_file_mode() {
+  local raw
+  raw=$(stat -c '%a' "$1" 2>/dev/null || stat -f '%p' "$1" 2>/dev/null) || return 1
+  [[ $raw =~ ^[0-7]{1,7}$ ]] || return 1
+  raw="000$raw"
+  printf '%s' "${raw: -4}"
+}
+
+# _pipeline_file_uid <path>: the file's owner uid in decimal, non-zero and empty
+# output when it cannot be read. Validated as digits so a caller never compares
+# against a stat error string.
+_pipeline_file_uid() {
+  local raw
+  raw=$(stat -c '%u' "$1" 2>/dev/null || stat -f '%u' "$1" 2>/dev/null) || return 1
+  [[ $raw =~ ^[0-9]{1,10}$ ]] || return 1
+  printf '%s' "$raw"
+}
+
 # _pipeline_manifest_is_trustworthy <path>: 0 when the manifest may be trusted to
 # SUPPRESS a page. Whoever can write the manifest can self-whitelist a file they
 # just tampered, so root ownership and a not-group/world-writable mode are VERIFIED
@@ -101,74 +175,111 @@ _pipeline_mtime() {
 _pipeline_manifest_is_trustworthy() {
   [[ -n ${OSQUERY_PIPELINE_MANIFEST:-} ]] && return 0
   local owner mode
-  owner=$(stat -c '%u' "$1" 2>/dev/null || stat -f '%u' "$1" 2>/dev/null) || true
-  mode=$(stat -c '%a' "$1" 2>/dev/null || stat -f '%Lp' "$1" 2>/dev/null) || true
+  owner=$(_pipeline_file_uid "$1") || true
+  mode=$(_pipeline_file_mode "$1") || true
   [[ $owner == 0 ]] || return 1
   # Refuse a group- or world-writable manifest. The mode is OCTAL, so both operands
-  # are read base 8; an unreadable mode defaults to 777 and is refused.
-  ((8#${mode:-777} & 8#22)) && return 1
+  # are read base 8; an unreadable mode defaults to 7777 and is refused.
+  ((8#${mode:-7777} & 8#22)) && return 1
   return 0
 }
 
-# _pipeline_manifest_has_tuple <path> <hash>: 0 when the manifest holds a line
-# binding exactly this hash to exactly this path, else 1. Legitimacy is the EXACT
-# (path, sha256) tuple, not the hash alone: binding the hash to ITS path defeats a
-# swap-in-place (a valid hash lifted onto a different tracked path). Hashes are
-# compared case-insensitively via bash case-folding (no forks): shasum and osquery
-# both emit lowercase, so this is documented defense-in-depth against a future
-# producer, kept because it now costs nothing. A missing, unreadable, or
-# untrustworthy manifest returns 1 - the fail-safe hinge.
+# _pipeline_manifest_has_tuple <path> <hash> <mode> <uid>: 0 when the manifest
+# holds a line binding exactly this content hash, mode and owner to exactly this
+# path, else 1. Legitimacy is the EXACT tuple, not any one column:
+#
+#   - binding the hash to ITS path defeats a swap-in-place (a valid hash lifted
+#     onto a different tracked path);
+#   - binding MODE and OWNER alongside the content defeats an attribute-only
+#     change. osquery reports a chmod or a chown as an ATTRIBUTES_MODIFIED event
+#     carrying the file's UNCHANGED digest, so a content-only manifest matched it
+#     and stayed silent. Making a pipeline script group-writable now, to modify it
+#     later from a less privileged context, was therefore invisible.
+#
+# Manifest line shape, four whitespace-separated fields with the PATH LAST:
+#
+#   <sha256> <mode> <uid> <path>
+#
+# Path last is load-bearing: `read -r` assigns the remainder of the line to the
+# final variable, so a path containing spaces is still read whole. It also makes a
+# SHORT line inert rather than dangerous - a two-column line (the shape this
+# manifest had before mode and owner were bound) leaves uid and path empty, and an
+# empty path can never equal a real target, so the line vouches for nothing and
+# the change pages. The non-empty guard below states that explicitly rather than
+# leaving it to fall out of the comparison.
+#
+# Hashes are compared case-insensitively via bash case-folding (no forks): shasum
+# and osquery both emit lowercase, so this is documented defense-in-depth against a
+# future producer, kept because it now costs nothing. Mode and uid are compared
+# verbatim: the producer writes mode as exactly four octal digits and uid in
+# decimal, and _pipeline_file_mode / _pipeline_file_uid normalize the observed
+# values to the same form. A missing, unreadable, or untrustworthy manifest
+# returns 1 - the fail-safe hinge.
 _pipeline_manifest_has_tuple() {
   local manifest="${OSQUERY_PIPELINE_MANIFEST:-$PIPELINE_MANIFEST}"
   [[ -r $manifest ]] || return 1
   _pipeline_manifest_is_trustworthy "$manifest" || return 1
-  local want_path="$1" want_hash="${2,,}" h p
+  local want_path="$1" want_hash="${2,,}" want_mode="$3" want_uid="$4" h m u p
+  # An observed column that could not be read must never be matched against, or an
+  # equally empty manifest column would vouch for a file nothing was learned about.
+  [[ -n $want_hash && -n $want_mode && -n $want_uid && -n $want_path ]] || return 1
   # `|| [[ -n $h ]]` so a final line with no trailing newline is still examined.
-  while read -r h p || [[ -n $h ]]; do
-    [[ ${h,,} == "$want_hash" && $p == "$want_path" ]] && return 0
+  while read -r h m u p || [[ -n $h ]]; do
+    [[ -n $h && -n $m && -n $u && -n $p ]] || continue
+    [[ ${h,,} == "$want_hash" && $m == "$want_mode" &&
+      $u == "$want_uid" && $p == "$want_path" ]] && return 0
   done <"$manifest"
   return 1
 }
 
-# _pipeline_content_is_known_good <path>: hash the file AS IT IS NOW and require
-# that current content to be the manifest's tuple for this exact path. Re-reading
-# here (rather than trusting the digest osquery recorded when the event fired) is
-# what closes the swap-after-the-event race: an attacker could otherwise let a
-# known-good event be recorded, replace the file, run it, and restore it before the
-# next collection, and the stale digest would have vouched for bytes that were not
-# on disk when the decision was made. A file that cannot be hashed returns 1, so it
+# _pipeline_deployed_state_is_known_good <path>: read the file's content hash, mode
+# and owner AS THEY ARE NOW and require that state to be the manifest's tuple for
+# this exact path. Re-reading here (rather than trusting what osquery recorded when
+# the event fired) is what closes the swap-after-the-event race: an attacker could
+# otherwise let a known-good event be recorded, replace the file, run it, and
+# restore it before the next collection, and the stale digest would have vouched
+# for bytes that were not on disk when the decision was made. The same argument
+# applies to the attributes, which is why they are stat-ed here and not taken from
+# the event. A file whose hash, mode or owner cannot be read returns 1, so it
 # pages.
-_pipeline_content_is_known_good() {
-  local target="$1" disk_hash
+_pipeline_deployed_state_is_known_good() {
+  local target="$1" disk_hash disk_mode disk_uid
   disk_hash=$(shasum -a 256 "$target" 2>/dev/null | awk '{print $1}')
   [[ -n $disk_hash ]] || return 1
-  _pipeline_manifest_has_tuple "$target" "$disk_hash"
+  disk_mode=$(_pipeline_file_mode "$target") || return 1
+  disk_uid=$(_pipeline_file_uid "$target") || return 1
+  _pipeline_manifest_has_tuple "$target" "$disk_hash" "$disk_mode" "$disk_uid"
 }
 
-# _pipeline_tuple_settles <path>: the current-content check, plus a bounded wait for
-# an in-flight manifest regeneration. It waits only when the manifest EXISTS but is
-# OLDER than the file that changed, which is exactly the apply-race shape (the file
+# _pipeline_tuple_settles <path>: the current-state check, plus a bounded wait for
+# an in-flight manifest regeneration. It waits only when the manifest EXISTS but
+# PREDATES the change to the file, which is exactly the apply-race shape (the file
 # landed, the manifest has not been reinstalled yet). A missing manifest pages
-# immediately, and a manifest newer than the target is already the final word. The
-# content is re-read on every retry, so a file still settling is judged on what it
+# immediately, and a manifest newer than the change is already the final word. The
+# state is re-read on every retry, so a file still settling is judged on what it
 # finally holds, not on a mid-write snapshot.
+#
+# The target side is its CHANGE time, not its modification time, because a chmod or
+# a chown moves only the former and both are now part of the tuple. The manifest
+# side stays mtime: the runner installs a fresh file, so its mtime is the moment
+# that manifest became current.
 _pipeline_tuple_settles() {
   local target="$1"
-  _pipeline_content_is_known_good "$target" && return 0
+  _pipeline_deployed_state_is_known_good "$target" && return 0
   local manifest="${OSQUERY_PIPELINE_MANIFEST:-$PIPELINE_MANIFEST}"
   [[ -r $manifest ]] || return 1
-  local manifest_mtime target_mtime
+  local manifest_mtime target_ctime
   manifest_mtime=$(_pipeline_mtime "$manifest") || true
-  target_mtime=$(_pipeline_mtime "$target") || true
-  [[ -n $manifest_mtime && -n $target_mtime ]] || return 1
-  ((manifest_mtime < target_mtime)) || return 1
+  target_ctime=$(_pipeline_change_time "$target") || true
+  [[ -n $manifest_mtime && -n $target_ctime ]] || return 1
+  ((manifest_mtime < target_ctime)) || return 1
   # Open the shared window on the first miss of this invocation; a later miss
   # inherits whatever is left of it, and answers at once when it is spent.
   [[ -n $_pipeline_settle_deadline ]] ||
     _pipeline_settle_deadline=$(($(_pipeline_now) + OSQUERY_PIPELINE_SETTLE_SECONDS))
   while (($(_pipeline_now) < _pipeline_settle_deadline)); do
     sleep 1
-    _pipeline_content_is_known_good "$target" && return 0
+    _pipeline_deployed_state_is_known_good "$target" && return 0
   done
   return 1
 }
