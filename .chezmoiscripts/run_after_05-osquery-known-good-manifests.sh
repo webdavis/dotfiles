@@ -172,7 +172,11 @@ fi
 # These filters are one leg of the three-way agreement: the others are the
 # osquery.conf WATCH set and _pipeline_is_tracked in pipeline-verdict.sh, and an
 # integration test drives all three against one fixture so they cannot drift apart
-# silently.
+# silently. The WATCH leg is the loosest of the three: osquery watches directories,
+# so it reports neighbors of the covered files too, and _pipeline_is_tracked is what
+# classifies those as untracked. What must match exactly is this filter and the
+# tracked set, or a watched-and-tracked file the manifest can never contain pages
+# forever and a manifested file nothing watches is never checked.
 #
 # The bin arm is NON-RECURSIVE on purpose: ~/.local/bin holds tools, and a managed
 # file in a SUBDIRECTORY of it would be a different kind of thing that nothing has
@@ -184,6 +188,16 @@ while IFS= read -r target; do
   case "$target" in
     "$home"/.local/libexec/osquery/*) pipeline_paths+=("$target") ;;
     "$home"/Library/LaunchAgents/com.webdavis.osquery-*.plist) pipeline_paths+=("$target") ;;
+    # The page-launchd allowlist joins the PIPELINE arm, named as ONE EXACT FILE
+    # rather than by its directory. It decides whether an unknown user LaunchAgent
+    # pages, so it is infrastructure the alerter judges, and the verdict routes any
+    # path outside ~/.local/bin to the pipeline manifest, so this is the only arm
+    # that can vouch for it. The exact path matters: ~/.config/osquery also holds
+    # webhook-secret, the daemon config, packs/ and the allowlist writer's lock
+    # file, and a directory pattern would bind a secret's digest into this
+    # world-readable root-owned manifest and sign a lock file that is recreated on
+    # every curation run.
+    "$home"/.config/osquery/page-launchd-allowlist.txt) pipeline_paths+=("$target") ;;
     "$home"/.local/bin/*/*) : ;; # a managed file in a subdirectory: not covered
     "$home"/.local/bin/*) managed_bin_paths+=("$target") ;;
   esac

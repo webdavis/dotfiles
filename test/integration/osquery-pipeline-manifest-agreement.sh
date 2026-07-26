@@ -75,6 +75,10 @@ manifest_fixture_add_plist com.webdavis.osquery-digest '<plist>{{ .chezmoi.os }}
 # manifest (it refuses to install an EMPTY manifest) and so the agreement checks
 # below can drive that arm too.
 manifest_fixture_add_bin_script update-skills.sh 'echo update-skills'
+# The page-launchd allowlist, so the manifested-implies-tracked sweep below covers
+# the one manifested file that lives outside both the pipeline home and bin.
+manifest_fixture_add_config private_page-launchd-allowlist.txt \
+  '{"label":"com.seed","path":"~/x.plist","program":"~/x","sha256":""}'
 manifest_fixture_apply
 manifest_fixture_run_runner "$RUNNER" || fail "the runner exited non-zero"
 

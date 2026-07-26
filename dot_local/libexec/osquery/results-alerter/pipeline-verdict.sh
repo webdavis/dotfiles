@@ -355,11 +355,21 @@ _pipeline_tuple_settles() {
 # osquery.conf watch on the identical file set.
 #
 # ~/.local/bin is tracked on a DIFFERENT rule: see _managed_bin_is_tracked below.
+#
+# The page-launchd allowlist is tracked as ONE EXACT FILE, never by its directory.
+# It decides whether an unknown user LaunchAgent pages, so it is infrastructure and
+# belongs here; but the watch on ~/.config/osquery is a DIRECTORY watch, and that
+# directory also holds webhook-secret, the daemon config, packs/, and the lock file
+# the allowlist writer recreates on every -a/-d. None of those is manifested, so a
+# directory pattern here would page on each of them forever and would route a
+# secret's every touch through the pipeline. It is judged against the PIPELINE
+# manifest, which is what _pipeline_manifest_for routes every non-bin path to.
 _pipeline_is_tracked() {
   local target="$1"
   case "$target" in
     "$HOME"/.local/libexec/osquery/*) return 0 ;;
     "$HOME"/Library/LaunchAgents/com.webdavis.osquery-*.plist) return 0 ;;
+    "$HOME"/.config/osquery/page-launchd-allowlist.txt) return 0 ;;
     "$HOME"/.local/bin/*) _managed_bin_is_tracked "$target" ;;
     *) return 1 ;;
   esac

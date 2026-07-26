@@ -266,11 +266,12 @@ route_findings() {
             ;;
           sshd_config) sev="CRIT" ;; # remote-auth policy pages
           # The alerter's own scripts/plists (pipeline_integrity), the managed
-          # scripts in ~/.local/bin (managed_bin) and our own LaunchAgents
-          # (launch_agents/launch_daemons) consult pipeline_verdict:
+          # scripts in ~/.local/bin (managed_bin), our own LaunchAgents
+          # (launch_agents/launch_daemons) and the page-launchd allowlist
+          # (allowlist_file) consult pipeline_verdict:
           # 0 = page (tamper / cannot confirm / no manifest -> fail-safe), 1 = silent
-          # (an untracked neighbor, or an exact (path, sha256) manifest match). Never
-          # digests - page or silent.
+          # (an untracked neighbor, or an exact (path, sha256, mode, uid) manifest
+          # match). Never digests - page or silent.
           #
           # managed_bin shares this arm rather than getting its own because the
           # decision is identical; what differs is WHICH manifest vouches for the
@@ -280,7 +281,17 @@ route_findings() {
           # hash hundreds of megabytes of third-party binaries), which the verdict
           # already handles: an absent event digest is the atomic-rename shape, and
           # it re-reads the file's current bytes either way.
-          pipeline_integrity | managed_bin | launch_agents | launch_daemons)
+          #
+          # allowlist_file joins them for the same reason. The page-launchd allowlist
+          # DECIDES whether an unknown user LaunchAgent pages, so an edit to it that
+          # the manifest cannot vouch for is a tamper of the deciding component, not
+          # a line for tomorrow's digest. Routing it here leaves _pipeline_is_tracked
+          # the single authority on which files in the watched directories are ours:
+          # its neighbors (webhook-secret, the daemon config, packs/, the writer's
+          # lock) are untracked and come back SILENT, so no second copy of the
+          # allowlist's basename lives in this file. Its events carry no sha256
+          # either, for the same reason managed_bin's do not.
+          pipeline_integrity | managed_bin | launch_agents | launch_daemons | allowlist_file)
             hash=$(jq -r '.cols.sha256 // ""' <<<"$obj")
             verb=$(jq -r '.cols.action // ""' <<<"$obj")
             if pipeline_verdict "$target" "$hash" "$verb"; then sev="CRIT"; else continue; fi
@@ -288,15 +299,6 @@ route_findings() {
           sudoers)
             digest_append "$obj"
             continue
-            ;;
-          allowlist_file)
-            case "$base" in
-              page-launchd-allowlist.txt)
-                digest_append "$obj" # the page-suppressor edit itself digests
-                continue
-                ;;
-              *) continue ;; # other ~/.config/osquery neighbors, log-only
-            esac
             ;;
           *) continue ;;
         esac
