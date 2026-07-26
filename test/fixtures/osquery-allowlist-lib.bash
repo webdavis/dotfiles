@@ -21,6 +21,7 @@ setup_allowlist_harness() {
   ALLOWLIST_HOME="$(mktemp -d)"
   export OSQUERY_LAUNCHD_ALLOWLIST="$ALLOWLIST_HOME/.config/osquery/page-launchd-allowlist.txt"
   mkdir -p "$ALLOWLIST_HOME/bin"
+  setup_allowlist_chezmoi
   cat >"$ALLOWLIST_HOME/bin/osqueryi" <<'SHIM'
 #!/usr/bin/env bash
 # Concurrency knobs: the sentinel tells a test the capture has STARTED (so it can
@@ -44,6 +45,56 @@ SHIM
   export ALLOWLIST_OSQUERYI="$ALLOWLIST_HOME/bin/osqueryi"
 }
 
+# The writer edits the chezmoi SOURCE and deploys with an apply, so the harness needs
+# a REAL (tiny) chezmoi source and its own config, isolated from the operator's. A
+# stub would only prove the writer calls something named chezmoi; the real binary is
+# what proves the target is actually MANAGED (so `source-path` resolves) and that the
+# apply really lands the source bytes at the deployed path.
+#
+# Two more seams the writer needs, both recorded rather than hidden:
+#   ALLOWLIST_CHEZMOI          - a wrapper pinning source/dest/config/state, so nested
+#                                calls can never touch the operator's real chezmoi.
+#   ALLOWLIST_MANIFEST_RUNNER  - a spy for the pipeline-manifest runner. It records
+#                                that it ran and exits ALLOWLIST_MANIFEST_RC, so the
+#                                loud-failure paths are exercised without sudo. The
+#                                real runner has its own suites; what belongs here is
+#                                whether the writer invokes it and how it reacts.
+setup_allowlist_chezmoi() {
+  export ALLOWLIST_SRC="$ALLOWLIST_HOME/chezmoi-src"
+  export ALLOWLIST_SOURCE_FILE="$ALLOWLIST_SRC/dot_config/osquery/private_page-launchd-allowlist.txt"
+  mkdir -p "$ALLOWLIST_SRC/dot_config/osquery" "$ALLOWLIST_HOME/.config/chezmoi"
+  printf 'sourceDir = "%s"\ndestDir = "%s"\n' "$ALLOWLIST_SRC" "$ALLOWLIST_HOME" \
+    >"$ALLOWLIST_HOME/.config/chezmoi/chezmoi.toml"
+  # The target must exist in the source, or it is not managed and source-path fails.
+  : >"$ALLOWLIST_SOURCE_FILE"
+
+  cat >"$ALLOWLIST_HOME/bin/chezmoi" <<EOF
+#!/usr/bin/env bash
+exec env -u XDG_CONFIG_HOME -u XDG_DATA_HOME chezmoi \\
+  --config "$ALLOWLIST_HOME/.config/chezmoi/chezmoi.toml" \\
+  --source "$ALLOWLIST_SRC" --destination "$ALLOWLIST_HOME" \\
+  --persistent-state "$ALLOWLIST_HOME/chezmoi-state.boltdb" "\$@"
+EOF
+  chmod +x "$ALLOWLIST_HOME/bin/chezmoi"
+  export ALLOWLIST_CHEZMOI="$ALLOWLIST_HOME/bin/chezmoi"
+
+  export ALLOWLIST_MANIFEST_LOG="$ALLOWLIST_HOME/manifest-runner.log"
+  : >"$ALLOWLIST_MANIFEST_LOG"
+  cat >"$ALLOWLIST_HOME/bin/manifest-runner" <<'SPY'
+#!/usr/bin/env bash
+printf 'RAN source=%s\n' "${CHEZMOI_SOURCE_DIR:-}" >>"$ALLOWLIST_MANIFEST_LOG"
+if [[ -n ${ALLOWLIST_MANIFEST_RC:-} ]] && [[ $ALLOWLIST_MANIFEST_RC -ne 0 ]]; then
+  printf 'sudo: a password is required\n' >&2
+  exit "$ALLOWLIST_MANIFEST_RC"
+fi
+SPY
+  chmod +x "$ALLOWLIST_HOME/bin/manifest-runner"
+  export ALLOWLIST_MANIFEST_RUNNER="$ALLOWLIST_HOME/bin/manifest-runner"
+
+  # Deploy the (empty) source so the harness starts from an applied, consistent state.
+  "$ALLOWLIST_CHEZMOI" apply --force >/dev/null 2>&1 || true
+}
+
 teardown_allowlist_harness() { [[ -n ${ALLOWLIST_HOME:-} ]] && rm -rf "$ALLOWLIST_HOME"; }
 
 # Run the writer with the harness env (args passed verbatim). HOME is the temp harness
@@ -53,15 +104,44 @@ run_allowlist() {
   HOME="$ALLOWLIST_HOME" \
     OSQUERY_LAUNCHD_ALLOWLIST="$OSQUERY_LAUNCHD_ALLOWLIST" \
     OSQUERYI="$ALLOWLIST_OSQUERYI" \
+    CHEZMOI="$ALLOWLIST_CHEZMOI" \
+    OSQUERY_PIPELINE_MANIFEST_RUNNER="$ALLOWLIST_MANIFEST_RUNNER" \
+    ALLOWLIST_MANIFEST_LOG="$ALLOWLIST_MANIFEST_LOG" \
+    ALLOWLIST_MANIFEST_RC="${ALLOWLIST_MANIFEST_RC:-0}" \
     bash "$ALLOWLIST_TOOL" "$@"
 }
 
-# Seed one NDJSON tuple line into the allowlist directly (bypassing capture), so a
-# deny/list test starts from a known store: seed_allowlist_tuple <label> <path> <program> [sha256].
+# The chezmoi SOURCE file's entry lines: what the writer must actually be editing.
+source_entry_lines() {
+  grep -vE '^[[:space:]]*(#|$)' "$ALLOWLIST_SOURCE_FILE" 2>/dev/null || true
+}
+
+# Did this run invoke the pipeline-manifest runner?
+assert_manifest_refreshed() {
+  if ! grep -q '^RAN' "$ALLOWLIST_MANIFEST_LOG" 2>/dev/null; then
+    echo "expected the writer to refresh the pipeline manifest; runner log: $(cat "$ALLOWLIST_MANIFEST_LOG" 2>/dev/null || echo '(none)')" >&2
+    return 1
+  fi
+}
+
+refute_manifest_refreshed() {
+  if grep -q '^RAN' "$ALLOWLIST_MANIFEST_LOG" 2>/dev/null; then
+    echo "expected NO manifest refresh, but the runner ran: $(cat "$ALLOWLIST_MANIFEST_LOG")" >&2
+    return 1
+  fi
+}
+
+# Seed one NDJSON tuple line into the allowlist (bypassing capture), so a deny/list
+# test starts from a known store: seed_allowlist_tuple <label> <path> <program> [sha256].
+#
+# The tuple goes into the chezmoi SOURCE and is then applied, because the source is
+# the authority the deployed file is rewritten from on every apply. Seeding the
+# deployed file alone would build a state chezmoi erases and the writer does not
+# consider present, which is precisely the shape this design removed.
 seed_allowlist_tuple() {
-  mkdir -p "$(dirname "$OSQUERY_LAUNCHD_ALLOWLIST")"
   jq -cn --arg label "$1" --arg path "$2" --arg program "$3" --arg sha256 "${4:-}" \
-    '{label:$label, path:$path, program:$program, sha256:$sha256}' >>"$OSQUERY_LAUNCHD_ALLOWLIST"
+    '{label:$label, path:$path, program:$program, sha256:$sha256}' >>"$ALLOWLIST_SOURCE_FILE"
+  "$ALLOWLIST_CHEZMOI" apply --force >/dev/null 2>&1
 }
 
 # Membership by the JSON .label field (the file is NDJSON tuples now, R2-1).

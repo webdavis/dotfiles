@@ -387,3 +387,173 @@ stub_launchd() {
   }
   assert_not_allowlisted 'homebrew.mxcl.postgresql@17'
 }
+
+# --- The writer deploys through chezmoi, not by hand -------------------------
+# The allowlist is chezmoi-managed, so a tuple written straight to the deployed
+# file is erased by the next apply (verified: a plain managed file is rewritten
+# from source every time) and the seed silently stops working. It is also
+# manifest-covered now, so an out-of-band write no longer suppresses anything
+# even before that. The writer therefore edits the SOURCE, applies that one
+# target, and refreshes the manifest, in that order.
+
+@test "-a writes the chezmoi SOURCE and deploys it, so the seed survives a later apply" {
+  local plist="$ALLOWLIST_HOME/Library/LaunchAgents/com.foo.agent.plist"
+  mkdir -p "$(dirname "$plist")"
+  printf 'plist-bytes\n' >"$plist"
+  stub_launchd "$plist" "$ALLOWLIST_HOME/bin/foo.sh"
+
+  run run_allowlist -a com.foo.agent
+  [ "$status" -eq 0 ] || {
+    echo "expected exit 0, got $status: $output"
+    false
+  }
+
+  # The SOURCE holds the tuple (this is the authority the manifest is derived from).
+  run grep -qF '"label":"com.foo.agent"' "$ALLOWLIST_SOURCE_FILE"
+  [ "$status" -eq 0 ] || {
+    echo "the tuple is not in the chezmoi source: $(cat "$ALLOWLIST_SOURCE_FILE")"
+    false
+  }
+  # ...and the deployed file matches it, so the alerter sees the seed immediately.
+  assert_allowlisted com.foo.agent
+
+  # THE HEADLINE: an independent apply does not undo the seed. Writing the deployed
+  # file directly would lose it here, which is the bug this shape removes.
+  "$ALLOWLIST_CHEZMOI" apply --force >/dev/null 2>&1
+  assert_allowlisted com.foo.agent
+}
+
+@test "-a refreshes the pipeline manifest after the apply, so the deployed allowlist is bound and can still suppress" {
+  local plist="$ALLOWLIST_HOME/Library/LaunchAgents/com.foo.agent.plist"
+  mkdir -p "$(dirname "$plist")"
+  printf 'plist-bytes\n' >"$plist"
+  stub_launchd "$plist" "$ALLOWLIST_HOME/bin/foo.sh"
+
+  run run_allowlist -a com.foo.agent
+  [ "$status" -eq 0 ]
+  assert_manifest_refreshed
+}
+
+@test "-d removes from the SOURCE and refreshes the manifest, so the removal survives an apply" {
+  local plist="$ALLOWLIST_HOME/Library/LaunchAgents/com.foo.agent.plist"
+  mkdir -p "$(dirname "$plist")"
+  printf 'plist-bytes\n' >"$plist"
+  stub_launchd "$plist" "$ALLOWLIST_HOME/bin/foo.sh"
+  run run_allowlist -a com.foo.agent
+  [ "$status" -eq 0 ]
+
+  : >"$ALLOWLIST_MANIFEST_LOG"
+  run run_allowlist -d com.foo.agent
+  [ "$status" -eq 0 ] || {
+    echo "expected exit 0 on deny, got $status: $output"
+    false
+  }
+  assert_not_allowlisted com.foo.agent
+  assert_manifest_refreshed
+  "$ALLOWLIST_CHEZMOI" apply --force >/dev/null 2>&1
+  assert_not_allowlisted com.foo.agent
+}
+
+@test "-a is idempotent: re-adding an unchanged identity leaves the source byte-identical and adds no duplicate" {
+  local plist="$ALLOWLIST_HOME/Library/LaunchAgents/com.foo.agent.plist"
+  mkdir -p "$(dirname "$plist")"
+  printf 'plist-bytes\n' >"$plist"
+  stub_launchd "$plist" "$ALLOWLIST_HOME/bin/foo.sh"
+
+  run run_allowlist -a com.foo.agent
+  [ "$status" -eq 0 ]
+  local first
+  first="$(cat "$ALLOWLIST_SOURCE_FILE")"
+
+  run run_allowlist -a com.foo.agent
+  [ "$status" -eq 0 ] || {
+    echo "a repeated -a must succeed, got $status: $output"
+    false
+  }
+  [ "$(cat "$ALLOWLIST_SOURCE_FILE")" = "$first" ] || {
+    echo "a repeated -a changed the source; before: $first  after: $(cat "$ALLOWLIST_SOURCE_FILE")"
+    false
+  }
+  assert_allowlist_label_count 1
+  [ "$(source_entry_lines | grep -cF '"label":"com.foo.agent"')" -eq 1 ] || {
+    echo "the source gained a duplicate tuple: $(cat "$ALLOWLIST_SOURCE_FILE")"
+    false
+  }
+}
+
+@test "a failed apply rolls the source back and reports non-zero, leaving no half-applied state" {
+  local plist="$ALLOWLIST_HOME/Library/LaunchAgents/com.foo.agent.plist"
+  mkdir -p "$(dirname "$plist")"
+  printf 'plist-bytes\n' >"$plist"
+  stub_launchd "$plist" "$ALLOWLIST_HOME/bin/foo.sh"
+
+  local before
+  before="$(cat "$ALLOWLIST_SOURCE_FILE")"
+
+  # A chezmoi that resolves the source path but fails the apply.
+  cat >"$ALLOWLIST_HOME/bin/chezmoi-badapply" <<EOF
+#!/usr/bin/env bash
+[[ \$1 == apply ]] && { printf 'chezmoi: apply exploded\n' >&2; exit 1; }
+exec "$ALLOWLIST_CHEZMOI" "\$@"
+EOF
+  chmod +x "$ALLOWLIST_HOME/bin/chezmoi-badapply"
+
+  run env HOME="$ALLOWLIST_HOME" OSQUERY_LAUNCHD_ALLOWLIST="$OSQUERY_LAUNCHD_ALLOWLIST" \
+    OSQUERYI="$ALLOWLIST_OSQUERYI" CHEZMOI="$ALLOWLIST_HOME/bin/chezmoi-badapply" \
+    OSQUERY_PIPELINE_MANIFEST_RUNNER="$ALLOWLIST_MANIFEST_RUNNER" \
+    ALLOWLIST_MANIFEST_LOG="$ALLOWLIST_MANIFEST_LOG" \
+    bash "$ALLOWLIST_TOOL" -a com.foo.agent
+  [ "$status" -ne 0 ] || {
+    echo "a failed apply must exit non-zero, got 0: $output"
+    false
+  }
+  [[ $output == *"apply"* ]] || {
+    echo "the failure must name the failed step; got: $output"
+    false
+  }
+  [ "$(cat "$ALLOWLIST_SOURCE_FILE")" = "$before" ] || {
+    echo "the source was left edited after a failed apply: $(cat "$ALLOWLIST_SOURCE_FILE")"
+    false
+  }
+  # A manifest refresh over a source that was rolled back would sign a state the
+  # operator never asked for, so the step must not have run at all.
+  refute_manifest_refreshed
+}
+
+@test "a failed manifest refresh is LOUD and non-zero, names the stale manifest, and does not swallow sudo's message" {
+  local plist="$ALLOWLIST_HOME/Library/LaunchAgents/com.foo.agent.plist"
+  mkdir -p "$(dirname "$plist")"
+  printf 'plist-bytes\n' >"$plist"
+  stub_launchd "$plist" "$ALLOWLIST_HOME/bin/foo.sh"
+
+  ALLOWLIST_MANIFEST_RC=1 run run_allowlist -a com.foo.agent
+  [ "$status" -ne 0 ] || {
+    echo "a failed manifest refresh must exit non-zero, got 0: $output"
+    false
+  }
+  # The runner's own stderr (here sudo's) must reach the operator, not /dev/null.
+  [[ $output == *"password is required"* ]] || {
+    echo "the manifest runner's stderr was swallowed; got: $output"
+    false
+  }
+  # ...and the message has to say what state the host is in, because this is the
+  # one failure that leaves the deployed allowlist ahead of the manifest.
+  [[ $output == *manifest* ]] || {
+    echo "the failure must name the manifest as the stale component; got: $output"
+    false
+  }
+}
+
+@test "the default manifest runner is the real known-good-manifests script inside the chezmoi source" {
+  # The seam above is a test double. Pin the DEFAULT so it cannot drift from the
+  # runner that actually exists in the source tree.
+  run grep -qF 'run_after_05-osquery-known-good-manifests.sh' "$ALLOWLIST_TOOL"
+  [ "$status" -eq 0 ] || {
+    echo "the writer does not name the real manifest runner as its default"
+    false
+  }
+  [ -f "${BATS_TEST_DIRNAME}/../../.chezmoiscripts/run_after_05-osquery-known-good-manifests.sh" ] || {
+    echo "the runner the writer names does not exist in the source tree"
+    false
+  }
+}
