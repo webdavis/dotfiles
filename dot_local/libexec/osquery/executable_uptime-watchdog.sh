@@ -8,15 +8,24 @@
 # healthy. Deliberately does NOT use results.log mtime as a signal: hours of
 # healthy silence are expected.
 #
+# It also carries the pipeline's only SCHEDULED integrity check. The rest of the
+# pipeline-integrity manifest is enforced through osquery file_events, and osquery
+# watches PATHS, so tampering that generates no event on a watched path (a hard link
+# or a symlink pointing the executed bytes somewhere else) is invisible to it. The
+# content audit below hashes every manifested path on each tick, which needs no
+# event to have fired.
+#
 # Cardinal invariant: FAIL-SAFE toward paging. Any ambiguous or failed check (an
 # unloaded or unknown-state agent, a wedged osqueryd, an unhealthy route, an
-# unreadable queue count) resolves to a CRIT, never a silent all-healthy. A
-# watchdog that fails quietly is worse than no watchdog.
+# unreadable queue count, a manifest the audit cannot use) resolves to a CRIT, never
+# a silent all-healthy. A watchdog that fails quietly is worse than no watchdog.
 #
 # The watchdog only READS: it probes the delivery queue counts but never drains it
-# (the scheduled alert-drainer owns draining), and it renders only KNOWN agent
-# labels plus validated-numeric exit codes and counts plus static text, so a value
-# influenced by a compromised launchd cannot inject into the page.
+# (the scheduled alert-drainer owns draining), it hashes the manifested files but
+# never repairs them, and it renders only KNOWN agent labels plus validated-numeric
+# exit codes and counts plus static text, so a value influenced by a compromised
+# launchd, or a path influenced by whoever tampered with the pipeline, cannot inject
+# into the page.
 
 set -euo pipefail
 
@@ -54,6 +63,20 @@ source "$HOME/.local/libexec/osquery/alert-dispatch.sh"
 # daemon's scheduled canary), never a blind osqueryi one-shot.
 # shellcheck source=/dev/null
 source "$HOME/.local/libexec/osquery/canary-freshness.sh"
+# The periodic content audit of the pipeline-integrity manifest (probe 5). It also
+# pulls in the verdict helper, which owns the manifest path and the root-ownership
+# check both consumers share.
+#
+# Sourced CONDITIONALLY, unlike the two helpers above. Those are hard dependencies:
+# without the dispatcher nothing can page at all, and without the canary seam probe
+# 1 has nothing to read. Probe 5 is not: the other four probes work perfectly well
+# without it, so a missing audit seam must degrade to a LOUD probe-5 failure rather
+# than abort the tick under errexit and leave a genuinely down pipeline unreported.
+_watchdog_audit_seam="$HOME/.local/libexec/osquery/pipeline-audit.sh"
+if [[ -r $_watchdog_audit_seam ]]; then
+  # shellcheck source=/dev/null
+  source "$_watchdog_audit_seam"
+fi
 
 # Never leave a partial temp state (or the writability probe) behind, on any exit path.
 trap 'rm -f "$STATE.tmp" "$STATE.probe"' EXIT
@@ -248,12 +271,146 @@ else
   growth_streak=0
 fi
 
+# 5) Periodic CONTENT AUDIT of the pipeline-integrity manifest. Every other check
+#    of that manifest hangs off osquery file_events, and osquery watches PATHS: an
+#    attacker who hard-links a manifested pipeline script to a writable path outside
+#    the pipeline home and overwrites the outside alias mutates the SAME INODE, so
+#    the event names their path, nothing fires for the watched one, no verdict runs,
+#    and the tampered script executes with nothing paged. A symlink referent is the
+#    same blind spot in a second shape. That gap is in event GENERATION, so it can
+#    only be closed by comparing bytes on a SCHEDULE. The seam hashes every
+#    manifested path and reports what disagrees; it refuses (nonzero, with a reason
+#    token) rather than report a false all-clear when the manifest itself cannot be
+#    used, and it is bounded on entries, per-file bytes, and wall clock.
+audit_rc=0
+if declare -F pipeline_audit_scan >/dev/null 2>&1; then
+  audit_report="$(pipeline_audit_scan 2>/dev/null)" || audit_rc=$?
+else
+  audit_rc=1
+  audit_report="unavailable"
+fi
+audit_reason=""
+audit_divergence_count=0
+if [[ $audit_rc -ne 0 ]]; then
+  # A refusal token, validated against the shape of the fixed vocabulary before it
+  # can select a message; anything unexpected still pages, via the default arm.
+  audit_reason="$audit_report"
+  [[ $audit_reason =~ ^[a-z]{1,32}$ ]] || audit_reason="unknown"
+elif [[ -n $audit_report ]]; then
+  audit_divergence_count="$(printf '%s\n' "$audit_report" | wc -l | tr -d '[:space:]')"
+  # A count that cannot be read must not read as ZERO (that would silently discard a
+  # real divergence): fall back to the refusal path, which pages.
+  if [[ ! $audit_divergence_count =~ ^[1-9][0-9]{0,5}$ ]]; then
+    audit_reason="unknown"
+    audit_divergence_count=0
+  fi
+fi
+
+# Page-once discipline, on the watchdog's existing streak conventions. The audit is
+# LEVEL-triggered against a condition that can persist for days, so re-paging every
+# 15 minutes would train the operator to ignore it. The findings are reduced to a
+# FINGERPRINT (a sha256 over the sorted report), which is what the state remembers:
+# the raw report holds attacker-influenceable paths, and a hash both keeps them out
+# of the persisted state and answers the only question that matters across ticks -
+# is this the same condition as last time?
+#
+#   - the SAME fingerprint on two consecutive ticks is the confirmation threshold;
+#     one tick alone is the in-flight-apply shape (the deployed files have changed
+#     and the manifest has not been regenerated yet), and it resolves itself;
+#   - a fingerprint already paged for does not page again;
+#   - a CHANGED fingerprint restarts the confirmation, so new tampering is reported;
+#   - a clean audit forgets both, so a recurrence pages again.
+#
+# The fingerprint covers WHICH paths disagree and HOW, not the bytes they now hold,
+# so re-tampering with an already-reported file does not page a second time. That is
+# deliberate: the operator has already been told that file is compromised, and the
+# alternative re-pages on every keystroke an attacker makes.
+audit_fingerprint=""
+audit_fingerprint_is_valid=1
+if [[ $audit_rc -ne 0 || -n $audit_report ]]; then
+  audit_fingerprint="$(printf '%s\n' "$audit_report" | LC_ALL=C sort | shasum -a 256 2>/dev/null)"
+  audit_fingerprint="${audit_fingerprint%% *}"
+  if [[ ! $audit_fingerprint =~ ^[0-9a-f]{64}$ ]]; then
+    audit_fingerprint=""
+    audit_fingerprint_is_valid=0
+  fi
+fi
+
+prev_audit_fingerprint="$(jq -r '.pipeline_audit.fingerprint // ""' <<<"$prev_state" 2>/dev/null || printf '')"
+[[ $prev_audit_fingerprint =~ ^[0-9a-f]{64}$ ]] || prev_audit_fingerprint=""
+prev_audit_paged="$(jq -r '.pipeline_audit.paged_fingerprint // ""' <<<"$prev_state" 2>/dev/null || printf '')"
+[[ $prev_audit_paged =~ ^[0-9a-f]{64}$ ]] || prev_audit_paged=""
+prev_audit_streak="$(jq -r '.pipeline_audit.streak // 0' <<<"$prev_state" 2>/dev/null || printf '0')"
+[[ $prev_audit_streak =~ ^[0-9]{1,3}$ ]] || prev_audit_streak=0
+if [[ $prev_audit_streak -gt 99 ]]; then prev_audit_streak=99; fi
+
+audit_should_page=0
+audit_streak=0
+audit_paged_fingerprint=""
+if [[ $audit_rc -eq 0 && -z $audit_report ]]; then
+  : # a completed, clean audit: forget the streak and the paged marker
+elif [[ $audit_fingerprint_is_valid -eq 0 ]]; then
+  # Without a fingerprint a repeat cannot be told from a new condition, so the
+  # page-once machinery cannot run. Page every tick rather than risk going silent.
+  audit_should_page=1
+else
+  if [[ $audit_fingerprint == "$prev_audit_fingerprint" ]]; then
+    audit_streak=$((prev_audit_streak + 1))
+    if [[ $audit_streak -gt 99 ]]; then audit_streak=99; fi
+  else
+    audit_streak=1
+  fi
+  audit_paged_fingerprint="$prev_audit_paged"
+  if [[ $audit_streak -ge 2 && $audit_fingerprint != "$prev_audit_paged" ]]; then
+    audit_should_page=1
+    audit_paged_fingerprint="$audit_fingerprint"
+  fi
+fi
+
+# The rendered problem carries a VALIDATED COUNT and static text only. The
+# manifested paths are deliberately not rendered: in the very scenario this audit
+# exists to catch they are attacker-influenceable, and the operator's next step is
+# the same either way. That keeps this watchdog's rule intact - known labels,
+# validated numerics, and static text reach a page body, nothing else.
+if [[ $audit_should_page -eq 1 ]]; then
+  if [[ -n $audit_reason ]]; then
+    case "$audit_reason" in
+      missing)
+        problems+=("the pipeline-integrity manifest is missing or unreadable, so the periodic content audit cannot verify the deployed pipeline; tampering would go unseen until it is restored")
+        ;;
+      unavailable)
+        problems+=("the periodic content audit is not installed completely (a helper it needs is missing), so the deployed pipeline is unverified against the pipeline-integrity manifest")
+        ;;
+      untrustworthy)
+        problems+=("the pipeline-integrity manifest is no longer root-owned (or is group/world-writable), so it can no longer vouch for the deployed pipeline")
+        ;;
+      malformed)
+        problems+=("the pipeline-integrity manifest holds a malformed entry, so the periodic content audit cannot verify the deployed pipeline")
+        ;;
+      overlong)
+        problems+=("the pipeline-integrity manifest lists more files than one audit tick will examine, so the deployed pipeline cannot be fully verified")
+        ;;
+      budget)
+        problems+=("the periodic content audit ran out of its time budget before checking every file in the pipeline-integrity manifest, so the deployed pipeline cannot be fully verified")
+        ;;
+      *)
+        problems+=("the periodic content audit could not verify the deployed pipeline against the pipeline-integrity manifest")
+        ;;
+    esac
+  else
+    problems+=("$audit_divergence_count file(s) in the pipeline-integrity manifest no longer match it (content changed, missing, or not a regular file); no file event reported this, which is what a hard-linked or relocated pipeline script looks like")
+  fi
+fi
+
 # The refreshed state to persist once the tick is resolved. Built now, written only
 # AFTER a page is durably queued (notify-before-persist), so a page that cannot be
 # stored never advances a streak or growth baseline and masks the signal.
 new_state="$(jq -cn --argjson agents "$agent_state_json" \
   --argjson pc "$pending_for_state" --argjson gs "$growth_streak" \
-  '{agents: $agents, pending: {count: $pc, growth_streak: $gs}}')"
+  --arg afp "$audit_fingerprint" --argjson as "$audit_streak" \
+  --arg apfp "$audit_paged_fingerprint" \
+  '{agents: $agents, pending: {count: $pc, growth_streak: $gs},
+    pipeline_audit: {fingerprint: $afp, streak: $as, paged_fingerprint: $apfp}}')"
 
 # Healthy: persist the refreshed baselines (no page to order against) and exit
 # silent. A persist failure here only forgets one cycle of streak memory.

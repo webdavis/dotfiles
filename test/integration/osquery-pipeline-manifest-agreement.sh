@@ -68,10 +68,40 @@ export OSQUERY_PIPELINE_MANIFEST="$MF_MANIFEST" OSQUERY_PIPELINE_REHASH_DELAY=0
 export OSQUERY_PIPELINE_SETTLE_SECONDS=0
 
 hash_of() { shasum -a 256 "$1" | awk '{print $1}'; }
+
+# run_verdict <target> <hash> <verb> [settle-seconds] -- invoke the real verdict for
+# ONE case, in a SUBSHELL. Every call site below goes through here; nothing in this
+# file calls pipeline_verdict directly.
+#
+# Why the subshell, and why this is not a workaround for a production bug. The settle
+# budget is deliberately ONE per alerter INVOCATION, not one per finding: findings are
+# judged sequentially while the alerter holds its single-instance lock, so a per-finding
+# wait would let anyone who plants N files stall the pipeline for N times the bound and
+# delay unrelated security findings. The alerter sources this helper once per run, so in
+# production every invocation genuinely starts with an empty _pipeline_settle_deadline.
+#
+# This file drives many cases inside ONE shell, which production never does. Without
+# isolation, a case that opens the window (a tuple miss on a target NEWER than the
+# manifest) leaves the deadline SPENT in the shell, and every later case inherits it and
+# answers immediately: the 4-second settle case below then returns PAGE where it must
+# return SILENT. Whether the earlier case opens the window at all depends on whole-second
+# stat mtime granularity, so the leak surfaced as an intermittent failure under load.
+#
+# A subshell per case gives each one its own copy of that global, which is exactly what
+# re-sourcing gives a real alerter run. It is structural rather than a reset someone has
+# to remember, so a case added to this file later cannot silently inherit a spent budget.
+run_verdict() {
+  local target="$1" hash_value="$2" verb="$3" settle="${4:-$OSQUERY_PIPELINE_SETTLE_SECONDS}"
+  (
+    export HOME="$MF_HOME" OSQUERY_PIPELINE_SETTLE_SECONDS="$settle"
+    pipeline_verdict "$target" "$hash_value" "$verb"
+  )
+}
+
 # expect_verdict <expected-rc> <label> <target> <hash> <verb>
 expect_verdict() {
   local want="$1" label="$2" got=0
-  HOME="$MF_HOME" pipeline_verdict "$3" "$4" "$5" || got=$?
+  run_verdict "$3" "$4" "$5" || got=$?
   [[ $got == "$want" ]] || fail "$label: expected rc $want, got $got"
 }
 
@@ -145,7 +175,7 @@ touch -t 200001010000 "$MF_MANIFEST"
 ) &
 settle_pid=$!
 got=0
-HOME="$MF_HOME" OSQUERY_PIPELINE_SETTLE_SECONDS=4 pipeline_verdict "$settle_target" "$settle_hash" UPDATED || got=$?
+run_verdict "$settle_target" "$settle_hash" UPDATED 4 || got=$?
 wait "$settle_pid"
 [[ $got -eq 1 ]] ||
   fail "a manifest that lands during the settle window must resolve to SILENT (got rc $got)"
@@ -155,7 +185,7 @@ printf 'deadbeef  /nowhere\n' >"$MF_MANIFEST"
 touch -t 200001010000 "$MF_MANIFEST"
 start=$(date +%s)
 got=0
-HOME="$MF_HOME" OSQUERY_PIPELINE_SETTLE_SECONDS=2 pipeline_verdict "$settle_target" "$settle_hash" UPDATED || got=$?
+run_verdict "$settle_target" "$settle_hash" UPDATED 2 || got=$?
 elapsed=$(($(date +%s) - start))
 [[ $got -eq 0 ]] || fail "a tuple that never arrives must still PAGE (got rc $got)"
 ((elapsed <= 6)) || fail "the settle wait is not bounded (${elapsed}s for a 2s window)"
@@ -167,6 +197,11 @@ elapsed=$(($(date +%s) - start))
 # under the tracked home stall the whole pipeline for N x the bound, delaying
 # UNRELATED security findings. The budget is one shared deadline per invocation:
 # the first miss opens it, and once it is spent every later miss answers at once.
+#
+# This case runs its misses inside ONE `bash -c`, deliberately NOT through
+# run_verdict: it is the case that asserts the budget IS shared, so its misses must
+# land in a single invocation. run_verdict isolates CASES from each other; this
+# asserts what happens WITHIN one case. The two are the same rule from both sides.
 miss_manifest="$MF_ROOT/miss.sha256"
 printf 'deadbeef  /nowhere\n' >"$miss_manifest"
 touch -t 200001010000 "$miss_manifest"

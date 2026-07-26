@@ -29,11 +29,10 @@
 #     names that path, nothing fires for the watched one, and no verdict runs at
 #     all. This is a property of path-based file-integrity monitoring, not of the
 #     judgment below (before the manifest existed, no event meant no page either).
-#     Closing it needs a PERIODIC CONTENT AUDIT that hashes every manifested path on
-#     a schedule and compares, which is a scheduled feature in its own right; the
-#     symlink and regular-file checks below are the cheap partial. Filed as a
-#     follow-up (the uptime watchdog is its natural home: it already runs every
-#     15 minutes).
+#     Now covered by the PERIODIC CONTENT AUDIT in ../pipeline-audit.sh, which the
+#     uptime watchdog runs every 15 minutes: it hashes every manifested path and
+#     pages on a divergence, needing no event to have fired. The symlink and
+#     regular-file checks below remain the immediate answer on the event path.
 #   - SOURCE COMPROMISE. The manifest is generated from chezmoi's source state,
 #     which is user-writable, so tampering with a managed file's SOURCE and letting
 #     a legitimate apply deploy it is signed as known-good. See the runner's

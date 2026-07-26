@@ -520,3 +520,186 @@ teardown() { teardown_watchdog_harness; }
   }
   assert_no_page
 }
+
+# --- the periodic content audit: tamper that generates NO file event ------------
+#
+# osquery watches PATHS. An attacker who hard-links a manifested pipeline script to
+# a writable path outside the pipeline home and overwrites that alias mutates the
+# SAME INODE: the filesystem event names the attacker's path, nothing fires for the
+# watched one, no verdict runs, and the tampered script executes with nothing paged.
+# The audit closes that by comparing bytes on a schedule, so it never depends on an
+# event having fired. Every case below tampers IN PLACE with no event involved.
+#
+# A divergence must persist across two consecutive ticks before it pages. A
+# legitimate `chezmoi apply` writes the deployed files and then regenerates the
+# manifest, so a tick landing inside that window sees a divergence that is gone by
+# the next one; requiring the SAME divergence twice spends 15 minutes of detection
+# delay on a backstop (the event path already pages instantly for tamper it can see)
+# and buys immunity from false-paging every apply.
+
+@test "T-WATCH-audit-tamper-pages: a manifested file whose content diverges pages CRIT, with no file event anywhere" {
+  tamper_manifested_file
+  run run_watchdog # tick 1: first observation, a transient is tolerated
+  [[ $status -eq 0 ]] || {
+    echo "tick1 status $status: $output"
+    false
+  }
+  assert_no_page
+
+  run run_watchdog # tick 2: the same divergence is still there
+  [[ $status -eq 0 ]] || {
+    echo "tick2 status $status: $output"
+    false
+  }
+  assert_page_count 1
+  assert_page_severity_is CRIT
+  assert_page_sound_nonempty
+  assert_page_body_has 'pipeline-integrity manifest'
+}
+
+@test "T-WATCH-audit-tamper-body-inert: the diverging PATH never reaches the page body" {
+  # The manifest is attacker-influenceable in the shape this audit exists to catch,
+  # so its paths are counted, never rendered. The body carries a validated count and
+  # static text only, exactly like every other probe in this watchdog.
+  tamper_manifested_file
+  run run_watchdog
+  run run_watchdog
+  assert_page_count 1
+  refute_file_contains "$WD_MANIFESTED_SCRIPT" "$WD_SEND_ALERT_LOG"
+}
+
+@test "T-WATCH-audit-apply-race-silent: a divergence that resolves before the next tick never pages" {
+  # The in-flight apply: the deployed file has changed, the manifest has not been
+  # regenerated yet. One tick sees it, the next sees a regenerated manifest. A
+  # legitimate apply must not page.
+  tamper_manifested_file
+  run run_watchdog # tick 1 lands inside the window
+  [[ $status -eq 0 ]] || {
+    echo "tick1 status $status: $output"
+    false
+  }
+  assert_no_page
+
+  regenerate_pipeline_manifest # the apply finishes: the manifest now covers the new bytes
+  run run_watchdog
+  [[ $status -eq 0 ]] || {
+    echo "tick2 status $status: $output"
+    false
+  }
+  assert_no_page
+}
+
+@test "T-WATCH-audit-symlink-pages: a symlink at a manifested path pages even when its referent matches" {
+  # The second shape of the same blind spot: the bytes the manifest vouches for are
+  # still readable THROUGH the link, but the file that executes now lives outside
+  # the watched tree. An audit that followed links would call this clean.
+  symlink_manifested_file
+  run run_watchdog
+  run run_watchdog
+  [[ $status -eq 0 ]] || {
+    echo "tick2 status $status: $output"
+    false
+  }
+  assert_page_count 1
+  assert_page_severity_is CRIT
+  assert_page_body_has 'pipeline-integrity manifest'
+}
+
+@test "T-WATCH-audit-manifest-missing-pages: an absent manifest pages instead of reading as all-clear" {
+  # A monitor must not go quiet because its own input broke: with no known-good list
+  # there is nothing to compare against, so tampering would pass unseen.
+  remove_pipeline_manifest
+  run run_watchdog
+  run run_watchdog
+  [[ $status -eq 0 ]] || {
+    echo "tick2 status $status: $output"
+    false
+  }
+  assert_page_count 1
+  assert_page_severity_is CRIT
+  assert_page_sound_nonempty
+  assert_page_body_has 'pipeline-integrity manifest'
+}
+
+@test "T-WATCH-audit-helper-missing-pages: the audit's own dependency going missing pages, instead of killing the tick silently" {
+  # The audit reuses the verdict helper for the manifest constant and the ownership
+  # check. Under the watchdog's errexit shell, sourcing a deleted helper would abort
+  # the whole tick: no probe would report, and nothing would page. A monitor that
+  # dies quietly when part of it is removed is worse than no monitor, so the missing
+  # dependency has to come out as a page.
+  rm -f "$WD_HOME/.local/libexec/osquery/results-alerter/pipeline-verdict.sh"
+  run run_watchdog
+  run run_watchdog
+  [[ $status -eq 0 ]] || {
+    echo "tick2 status $status: $output"
+    false
+  }
+  assert_page_count 1
+  assert_page_severity_is CRIT
+  assert_page_sound_nonempty
+  assert_page_body_has 'not installed'
+}
+
+@test "T-WATCH-audit-seam-missing-pages: the audit seam itself going missing pages, instead of killing the tick silently" {
+  # One level up from the case above, and the same rule: the watchdog sources the
+  # audit seam, so a deleted seam would abort the tick before ANY probe reported.
+  # Probes 1 to 4 do not depend on it, so the tick must survive and say so.
+  rm -f "$WD_HOME/.local/libexec/osquery/pipeline-audit.sh"
+  run run_watchdog
+  run run_watchdog
+  [[ $status -eq 0 ]] || {
+    echo "tick2 status $status: $output"
+    false
+  }
+  assert_page_count 1
+  assert_page_severity_is CRIT
+  assert_page_sound_nonempty
+  assert_page_body_has 'not installed'
+}
+
+@test "T-WATCH-audit-page-once: a persistent divergence pages once, not every 15 minutes forever" {
+  tamper_manifested_file
+  run run_watchdog # tick 1: confirming
+  run run_watchdog # tick 2: pages
+  assert_page_count 1
+  run run_watchdog # tick 3: the SAME divergence, already reported
+  [[ $status -eq 0 ]] || {
+    echo "tick3 status $status: $output"
+    false
+  }
+  assert_page_count 1
+  run run_watchdog # tick 4: still the same
+  assert_page_count 1
+}
+
+@test "T-WATCH-audit-repages-on-change: a divergence that CHANGES after being reported pages again" {
+  # Page-once must not become page-never: a second file going bad after the first
+  # was reported is new information, so it pages on its own confirmation.
+  tamper_manifested_file
+  run run_watchdog
+  run run_watchdog
+  assert_page_count 1
+
+  tamper_second_manifested_file
+  run run_watchdog # the divergence set changed: confirming
+  assert_page_count 1
+  run run_watchdog # confirmed: a second page
+  [[ $status -eq 0 ]] || {
+    echo "status $status: $output"
+    false
+  }
+  assert_page_count 2
+}
+
+@test "T-WATCH-audit-clean-silent: an untampered manifested tree is silent across many ticks" {
+  # The audit must not itself become a source of noise: nothing diverges, so no
+  # amount of ticking produces a page.
+  run run_watchdog
+  run run_watchdog
+  run run_watchdog
+  [[ $status -eq 0 ]] || {
+    echo "status $status: $output"
+    false
+  }
+  assert_no_page
+}
