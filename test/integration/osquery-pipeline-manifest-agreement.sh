@@ -7,6 +7,12 @@
 #   TRACKED  (results-alerter/pipeline-verdict.sh _pipeline_is_tracked) what the alerter judges
 #   MANIFEST (.chezmoiscripts/run_after_05-osquery-pipeline-manifest.sh) what can be vouched for
 #
+# The manifest has a SECOND consumer, the periodic audit (pipeline-audit.sh), which
+# parses the file directly instead of going through the verdict. It is driven here
+# against the real generated manifest for the same reason: a format change that only
+# the hand-built fixtures in its own suite kept up with would leave it refusing every
+# real manifest.
+#
 # A watched-and-tracked file the manifest can never contain pages FOREVER; a
 # manifested file nothing watches is never checked at all. This test drives all
 # three against the same fixture and pins their agreement, including the launch
@@ -93,6 +99,8 @@ hash_of() { shasum -a 256 "$1" | awk '{print $1}'; }
 run_verdict() {
   local target="$1" hash_value="$2" verb="$3" settle="${4:-$OSQUERY_PIPELINE_SETTLE_SECONDS}"
   (
+    # Subshell-local by design; run_audit below scopes HOME the same way.
+    # shellcheck disable=SC2030
     export HOME="$MF_HOME" OSQUERY_PIPELINE_SETTLE_SECONDS="$settle"
     pipeline_verdict "$target" "$hash_value" "$verb"
   )
@@ -119,6 +127,61 @@ chmod g+w "$script_target"
 expect_verdict 0 "a chmod g+w on a manifested script PAGES" "$script_target" "$(hash_of "$script_target")" ATTRIBUTES_MODIFIED
 chmod 755 "$script_target"
 expect_verdict 1 "restoring the intended mode is SILENT again" "$script_target" "$(hash_of "$script_target")" ATTRIBUTES_MODIFIED
+
+# --- THE PERIODIC AUDIT READS THE SAME GENERATED MANIFEST --------------------
+# The audit is the manifest's OTHER consumer, and it parses the file itself rather
+# than going through the verdict. Its own suite builds fixture manifests by hand, so
+# it stayed green through a producer format change that left it reporting
+# "malformed" against every real manifest: a loud break, but a permanent one. This
+# drives the REAL scan over the REAL generated manifest, which is the only check
+# that fails when producer and consumer drift apart.
+AUDIT="$REPO_ROOT/dot_local/libexec/osquery/executable_pipeline-audit.sh"
+[[ -f $AUDIT ]] || fail "missing the periodic audit: $AUDIT"
+
+# run_audit -- one scan, in a subshell, for the same reason run_verdict uses one.
+# Prints the scan return code on the first line, then the scan's stdout.
+run_audit() {
+  (
+    # HOME is meant to be subshell-local here, exactly as it is in run_verdict:
+    # that scoping is the isolation, not an accident of it.
+    # shellcheck disable=SC2030,SC2031
+    export HOME="$MF_HOME"
+    # shellcheck source=/dev/null
+    source "$AUDIT"
+    local rc=0 out
+    out="$(pipeline_audit_scan)" || rc=$?
+    printf '%s\n%s' "$rc" "$out"
+  )
+}
+
+# A plain refute helper. `! grep` inside a test body is a silent no-op under set -e,
+# so absence is asserted with an explicit case instead.
+refute_line() { # <haystack> <needle> <label>
+  case "$1" in
+    *"$2"*) fail "$3" ;;
+  esac
+}
+
+audit_out="$(run_audit)"
+audit_rc="${audit_out%%$'\n'*}"
+audit_body="${audit_out#*$'\n'}"
+[[ $audit_rc == 0 ]] ||
+  fail "the audit could not complete against the generated manifest (reason token: $audit_body)"
+refute_line "$audit_body" "$script_target" \
+  "the audit reported a divergence for an untampered manifested script: $audit_body"
+
+# ...and it actually LOOKS at the file, rather than passing everything by default.
+printf 'echo audit tamper\n' >>"$script_target"
+audit_out="$(run_audit)"
+audit_rc="${audit_out%%$'\n'*}"
+audit_body="${audit_out#*$'\n'}"
+[[ $audit_rc == 0 ]] ||
+  fail "the audit could not complete over a tampered tree (reason token: $audit_body)"
+case "$audit_body" in
+  *"content $script_target"*) ;;
+  *) fail "the audit did not report the tampered script as a content divergence: $audit_body" ;;
+esac
+manifest_fixture_apply # restore
 
 # --- THE THREE-WAY AGREEMENT, across BOTH launch agent watch roots ------------
 # Every launch-agent path the WATCH reports is classified, and the TRACKED verdict
@@ -272,4 +335,4 @@ if [[ $fails -gt 0 ]]; then
   printf '%d check(s) failed\n' "$fails" >&2
   exit 1
 fi
-printf 'osquery-pipeline-manifest-agreement: OK (generated manifest and real verdict agree, including a chmod on unchanged content; watch/tracked/manifest cover the identical set across BOTH launch agent roots; a /Library twin is untracked; the settle window resolves a live regeneration for a content AND an attribute-only change, stays bounded, and spends ONE budget per alerter run across many misses)\n'
+printf 'osquery-pipeline-manifest-agreement: OK (generated manifest and real verdict agree, including a chmod on unchanged content; the periodic audit parses the same generated manifest and reports a real tamper; watch/tracked/manifest cover the identical set across BOTH launch agent roots; a /Library twin is untracked; the settle window resolves a live regeneration for a content AND an attribute-only change, stays bounded, and spends ONE budget per alerter run across many misses)\n'

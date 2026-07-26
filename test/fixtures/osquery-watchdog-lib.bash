@@ -292,13 +292,17 @@ seed_raw_canary() {
 # status: a `find` that failed midway would otherwise yield a short manifest and a
 # green audit over an unexamined tail.
 regenerate_pipeline_manifest() {
-  local listing target file_hash
+  local listing target file_hash file_mode file_uid
   listing="$WD_HOME/manifest-listing"
   find "$WD_HOME/.local/libexec/osquery" -type f | LC_ALL=C sort >"$listing" || return 1
   : >"$OSQUERY_PIPELINE_MANIFEST"
   while IFS= read -r target; do
     file_hash="$(shasum -a 256 -- "$target")"
-    printf '%s  %s\n' "${file_hash%% *}" "$target" >>"$OSQUERY_PIPELINE_MANIFEST"
+    file_mode="$(stat -c '%a' "$target" 2>/dev/null || stat -f '%p' "$target")" || return 1
+    file_mode="000$file_mode"
+    file_uid="$(stat -c '%u' "$target" 2>/dev/null || stat -f '%u' "$target")" || return 1
+    printf '%s %s %s %s\n' "${file_hash%% *}" "${file_mode: -4}" "$file_uid" "$target" \
+      >>"$OSQUERY_PIPELINE_MANIFEST"
   done <"$listing"
 }
 

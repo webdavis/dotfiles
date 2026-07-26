@@ -108,7 +108,8 @@ _pipeline_audit_size() {
 #              TOKEN: missing (absent, unreadable, or empty manifest),
 #              unavailable (the verdict helper it reuses is not installed),
 #              untrustworthy (not root-owned, or group/world-writable),
-#              malformed (a line that is not "<sha256>  <absolute-path>"),
+#              malformed (a line that is not
+#              "<sha256> <mode> <uid> <absolute-path>"),
 #              overlong (more entries than the audit will examine), budget (the
 #              wall-clock ceiling was reached first).
 #
@@ -117,9 +118,18 @@ _pipeline_audit_size() {
 # monitor that goes quiet when its own input breaks is the failure mode this whole
 # subsystem exists to avoid. Every refusal is the caller's cue to page.
 #
-# SCOPE, recorded honestly: this audits MANIFEST -> DISK. A file planted under the
-# pipeline home that the manifest does not list is not found here; that direction
-# is the alerter's, which pages any tracked path whose tuple it cannot confirm.
+# SCOPE, recorded honestly. This audits MANIFEST -> DISK, and only the CONTENT
+# column of it. Two consequences, both real:
+#   - A file planted under the pipeline home that the manifest does not list is not
+#     found here; that direction is the alerter's, which pages any tracked path
+#     whose tuple it cannot confirm.
+#   - The manifest also binds MODE and OWNER, and this scan does not compare them.
+#     Attribute drift on a watched path is caught at EVENT time by the verdict, so
+#     the residue is attribute drift that fires no event at all: a chmod or chown
+#     applied through a hard-link alias outside the pipeline home changes the shared
+#     inode while the event names the outside path. Comparing the two columns here
+#     would close that; it is deliberately left to the owner of this scan rather
+#     than bolted on by the change that added the columns.
 pipeline_audit_scan() {
   # The reused seam has to actually be here. Checked by NAME rather than assumed,
   # so a partial deploy reports a broken audit instead of an all-clear.
@@ -148,13 +158,20 @@ pipeline_audit_scan() {
     return 1
   }
 
-  # The manifest is shasum format, "<sha256>  <path>" with exactly two spaces. The
-  # line is matched WHOLE rather than split into fields: a path may contain spaces,
-  # and word-splitting would silently truncate it into a path that exists nowhere
-  # (which would then report as a bogus divergence forever). The path must be
-  # absolute, because the audit resolves nothing itself and a relative path would be
-  # read against whatever directory launchd happened to start the caller in.
-  local line_pattern='^([0-9a-fA-F]{64}) {2}(/.+)$'
+  # The manifest is "<sha256> <mode> <uid> <path>", single-space separated with the
+  # PATH LAST. The line is matched WHOLE rather than split into fields: a path may
+  # contain spaces, and word-splitting would silently truncate it into a path that
+  # exists nowhere (which would then report as a bogus divergence forever). The path
+  # must be absolute, because the audit resolves nothing itself and a relative path
+  # would be read against whatever directory launchd happened to start the caller
+  # in.
+  #
+  # The mode and owner columns are MATCHED but not compared here; see the scope note
+  # in this function's docblock for which layer covers attribute drift. Requiring
+  # them to be present and well-formed is what keeps this fail-closed: a manifest in
+  # the older content-only format does not match, so it reports malformed and the
+  # caller pages, rather than being read as if the missing columns did not matter.
+  local line_pattern='^([0-9a-fA-F]{64}) ([0-7]{4}) ([0-9]{1,10}) (/.+)$'
   local deadline entries=0 line want_hash target size disk_hash
   deadline=$(($(_pipeline_audit_now) + budget))
 
@@ -177,7 +194,7 @@ pipeline_audit_scan() {
     # Lower-cased on both sides: shasum and osquery both emit lowercase, so this is
     # documented defense in depth against a future producer, and it costs nothing.
     want_hash="${BASH_REMATCH[1],,}"
-    target="${BASH_REMATCH[2]}"
+    target="${BASH_REMATCH[4]}"
     # A manifested path must hold a REGULAR FILE, and links are never followed. A
     # symlink standing where a pipeline script belongs would otherwise be hashed
     # THROUGH to content the manifest vouches for, while the bytes that actually
