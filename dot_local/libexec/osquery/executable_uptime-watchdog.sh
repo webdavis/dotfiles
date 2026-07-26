@@ -11,9 +11,9 @@
 # It also carries the pipeline's only SCHEDULED integrity check. The rest of the
 # pipeline-integrity manifest is enforced through osquery file_events, and osquery
 # watches PATHS, so tampering that generates no event on a watched path (a hard link
-# or a symlink pointing the executed bytes somewhere else) is invisible to it. The
-# content audit below hashes every manifested path on each tick, which needs no
-# event to have fired.
+# or a symlink pointing the executed bytes somewhere else, or a chmod through either)
+# is invisible to it. The manifest audit below re-reads every manifested path on each
+# tick and compares content, mode and owner, which needs no event to have fired.
 #
 # Cardinal invariant: FAIL-SAFE toward paging. Any ambiguous or failed check (an
 # unloaded or unknown-state agent, a wedged osqueryd, an unhealthy route, an
@@ -63,7 +63,7 @@ source "$HOME/.local/libexec/osquery/alert-dispatch.sh"
 # daemon's scheduled canary), never a blind osqueryi one-shot.
 # shellcheck source=/dev/null
 source "$HOME/.local/libexec/osquery/canary-freshness.sh"
-# The periodic content audit of the pipeline-integrity manifest (probe 5). It also
+# The periodic manifest audit of the pipeline-integrity manifest (probe 5). It also
 # pulls in the verdict helper, which owns the manifest path and the root-ownership
 # check both consumers share.
 #
@@ -271,17 +271,19 @@ else
   growth_streak=0
 fi
 
-# 5) Periodic CONTENT AUDIT of the pipeline-integrity manifest. Every other check
+# 5) Periodic MANIFEST AUDIT of the pipeline-integrity manifest. Every other check
 #    of that manifest hangs off osquery file_events, and osquery watches PATHS: an
 #    attacker who hard-links a manifested pipeline script to a writable path outside
 #    the pipeline home and overwrites the outside alias mutates the SAME INODE, so
 #    the event names their path, nothing fires for the watched one, no verdict runs,
-#    and the tampered script executes with nothing paged. A symlink referent is the
-#    same blind spot in a second shape. That gap is in event GENERATION, so it can
-#    only be closed by comparing bytes on a SCHEDULE. The seam hashes every
-#    manifested path and reports what disagrees; it refuses (nonzero, with a reason
-#    token) rather than report a false all-clear when the manifest itself cannot be
-#    used, and it is bounded on entries, per-file bytes, and wall clock.
+#    and the tampered script executes with nothing paged. A chmod or chown through
+#    that alias does it without moving a byte, and a symlink referent is the same
+#    blind spot in a third shape. That gap is in event GENERATION, so it can only be
+#    closed by re-reading the files on a SCHEDULE. The seam compares each manifested
+#    path's content, mode and owner and reports what disagrees; it refuses (nonzero,
+#    with a reason token) rather than report a false all-clear when the manifest
+#    itself cannot be used, and it is bounded on entries, per-file bytes, and wall
+#    clock.
 audit_rc=0
 if declare -F pipeline_audit_scan >/dev/null 2>&1; then
   audit_report="$(pipeline_audit_scan 2>/dev/null)" || audit_rc=$?
@@ -291,12 +293,15 @@ else
 fi
 audit_reason=""
 audit_divergence_count=0
+audit_kind_text=""
 if [[ $audit_rc -ne 0 ]]; then
   # A refusal token, validated against the shape of the fixed vocabulary before it
   # can select a message; anything unexpected still pages, via the default arm.
   audit_reason="$audit_report"
   [[ $audit_reason =~ ^[a-z]{1,32}$ ]] || audit_reason="unknown"
 elif [[ -n $audit_report ]]; then
+  # One report line per diverging COLUMN, so this counts DIVERGENCES, not files: a
+  # path whose mode and content both drifted is two of them, under two kinds.
   audit_divergence_count="$(printf '%s\n' "$audit_report" | wc -l | tr -d '[:space:]')"
   # A count that cannot be read must not read as ZERO (that would silently discard a
   # real divergence): fall back to the refusal path, which pages.
@@ -304,6 +309,29 @@ elif [[ -n $audit_report ]]; then
     audit_reason="unknown"
     audit_divergence_count=0
   fi
+  # WHICH KINDS the report holds, as this watchdog's own static labels. The loop
+  # walks a FIXED vocabulary and asks whether each kind appears as a line PREFIX
+  # (the leading newline anchors the match to a line start, and a manifested path
+  # cannot contain one because the audit reads the manifest line by line). So what
+  # reaches a page body is one of seven literals written here, never a token lifted
+  # out of the report, and the paths beside them stay unrendered exactly as before.
+  # Naming the kinds is worth this much because the operator's next move differs by
+  # kind: a permission or ownership change is the step BEFORE a rewrite, and it is
+  # reversible; a content change means the script already executes attacker bytes.
+  for audit_kind in content mode owner missing irregular oversize unreadable; do
+    [[ $'\n'$audit_report == *$'\n'"$audit_kind "* ]] || continue
+    case "$audit_kind" in
+      content) audit_kind_label="content changed" ;;
+      mode) audit_kind_label="permissions changed" ;;
+      owner) audit_kind_label="ownership changed" ;;
+      missing) audit_kind_label="file missing" ;;
+      irregular) audit_kind_label="not a regular file" ;;
+      oversize) audit_kind_label="too large to hash" ;;
+      unreadable) audit_kind_label="unreadable" ;;
+      *) continue ;;
+    esac
+    audit_kind_text+="${audit_kind_text:+, }$audit_kind_label"
+  done
 fi
 
 # Page-once discipline, on the watchdog's existing streak conventions. The audit is
@@ -367,38 +395,41 @@ else
   fi
 fi
 
-# The rendered problem carries a VALIDATED COUNT and static text only. The
-# manifested paths are deliberately not rendered: in the very scenario this audit
-# exists to catch they are attacker-influenceable, and the operator's next step is
-# the same either way. That keeps this watchdog's rule intact - known labels,
-# validated numerics, and static text reach a page body, nothing else.
+# The rendered problem carries a VALIDATED COUNT, KNOWN LABELS, and static text
+# only. The manifested paths are deliberately not rendered: in the very scenario
+# this audit exists to catch they are attacker-influenceable, and knowing WHICH
+# pipeline file is compromised does not change the first move (stop trusting the
+# pipeline, then read the manifest by hand). The kind labels are not the paths -
+# each is a literal chosen above from a closed vocabulary - so this keeps the
+# watchdog's rule intact: known labels, validated numerics, and static text reach a
+# page body, nothing else.
 if [[ $audit_should_page -eq 1 ]]; then
   if [[ -n $audit_reason ]]; then
     case "$audit_reason" in
       missing)
-        problems+=("the pipeline-integrity manifest is missing or unreadable, so the periodic content audit cannot verify the deployed pipeline; tampering would go unseen until it is restored")
+        problems+=("the pipeline-integrity manifest is missing or unreadable, so the periodic manifest audit cannot verify the deployed pipeline; tampering would go unseen until it is restored")
         ;;
       unavailable)
-        problems+=("the periodic content audit is not installed completely (a helper it needs is missing), so the deployed pipeline is unverified against the pipeline-integrity manifest")
+        problems+=("the periodic manifest audit is not installed completely (a helper it needs is missing), so the deployed pipeline is unverified against the pipeline-integrity manifest")
         ;;
       untrustworthy)
         problems+=("the pipeline-integrity manifest is no longer root-owned (or is group/world-writable), so it can no longer vouch for the deployed pipeline")
         ;;
       malformed)
-        problems+=("the pipeline-integrity manifest holds a malformed entry, so the periodic content audit cannot verify the deployed pipeline")
+        problems+=("the pipeline-integrity manifest holds a malformed entry, so the periodic manifest audit cannot verify the deployed pipeline")
         ;;
       overlong)
         problems+=("the pipeline-integrity manifest lists more files than one audit tick will examine, so the deployed pipeline cannot be fully verified")
         ;;
       budget)
-        problems+=("the periodic content audit ran out of its time budget before checking every file in the pipeline-integrity manifest, so the deployed pipeline cannot be fully verified")
+        problems+=("the periodic manifest audit ran out of its time budget before checking every file in the pipeline-integrity manifest, so the deployed pipeline cannot be fully verified")
         ;;
       *)
-        problems+=("the periodic content audit could not verify the deployed pipeline against the pipeline-integrity manifest")
+        problems+=("the periodic manifest audit could not verify the deployed pipeline against the pipeline-integrity manifest")
         ;;
     esac
   else
-    problems+=("$audit_divergence_count file(s) in the pipeline-integrity manifest no longer match it (content changed, missing, or not a regular file); no file event reported this, which is what a hard-linked or relocated pipeline script looks like")
+    problems+=("$audit_divergence_count divergence(s) from the pipeline-integrity manifest${audit_kind_text:+ ($audit_kind_text)}; no file event reported this, which is what a hard-linked or relocated pipeline script, or a chmod through such an alias, looks like")
   fi
 fi
 

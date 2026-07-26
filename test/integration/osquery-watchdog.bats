@@ -555,6 +555,8 @@ teardown() { teardown_watchdog_harness; }
   assert_page_severity_is CRIT
   assert_page_sound_nonempty
   assert_page_body_has 'pipeline-integrity manifest'
+  assert_page_body_has 'content changed'
+  refute_file_contains 'permissions changed' "$WD_SEND_ALERT_LOG"
 }
 
 @test "T-WATCH-audit-tamper-body-inert: the diverging PATH never reaches the page body" {
@@ -628,6 +630,12 @@ teardown() { teardown_watchdog_harness; }
   assert_page_severity_is CRIT
   assert_page_sound_nonempty
   assert_page_body_has 'pipeline-integrity manifest'
+  # The KIND is named, from the watchdog's own closed vocabulary, because the
+  # operator's next move differs: this is the step before a rewrite, and it is
+  # reversible. A body that said only "no longer matches" would read the same for a
+  # permission change and for a script already executing attacker bytes.
+  assert_page_body_has 'permissions changed'
+  refute_file_contains 'content changed' "$WD_SEND_ALERT_LOG"
   # The path stays out of the body for an attribute divergence too: same rule, and
   # the manifest is just as attacker-influenceable in this shape as in the others.
   refute_file_contains "$WD_MANIFESTED_SCRIPT" "$WD_SEND_ALERT_LOG"
