@@ -265,13 +265,22 @@ route_findings() {
             esac
             ;;
           sshd_config) sev="CRIT" ;; # remote-auth policy pages
-          # The alerter's own scripts/plists (pipeline_integrity) and our own
-          # LaunchAgents (launch_agents/launch_daemons) consult pipeline_verdict:
+          # The alerter's own scripts/plists (pipeline_integrity), the managed
+          # scripts in ~/.local/bin (managed_bin) and our own LaunchAgents
+          # (launch_agents/launch_daemons) consult pipeline_verdict:
           # 0 = page (tamper / cannot confirm / no manifest -> fail-safe), 1 = silent
           # (an untracked neighbor, or an exact (path, sha256) manifest match). Never
-          # digests - page or silent. Until the manifest slice lands, a tracked
-          # change fails open to a page (criterion 6).
-          pipeline_integrity | launch_agents | launch_daemons)
+          # digests - page or silent.
+          #
+          # managed_bin shares this arm rather than getting its own because the
+          # decision is identical; what differs is WHICH manifest vouches for the
+          # path and how the tracked set is derived, and both of those belong to the
+          # verdict, not to the router. A managed_bin event carries no sha256 (that
+          # directory is deliberately not in file_paths_hashes, so osqueryd does not
+          # hash hundreds of megabytes of third-party binaries), which the verdict
+          # already handles: an absent event digest is the atomic-rename shape, and
+          # it re-reads the file's current bytes either way.
+          pipeline_integrity | managed_bin | launch_agents | launch_daemons)
             hash=$(jq -r '.cols.sha256 // ""' <<<"$obj")
             verb=$(jq -r '.cols.action // ""' <<<"$obj")
             if pipeline_verdict "$target" "$hash" "$verb"; then sev="CRIT"; else continue; fi

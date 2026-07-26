@@ -6,11 +6,19 @@
 #   - watch ONLY the dedicated pipeline home under pipeline_integrity:
 #     ~/.local/libexec/osquery. The entire osquery delivery path lives there
 #     (send_alert's local banner and the curl-to-Hermes webhook are both under
-#     it), so the manifest covers exactly what is watched. ~/.local/bin is NOT
-#     watched here: those operator tools (relay.sh, hue-pulse.sh, the weekly
-#     upgrade, update-skills) belong to the Relay/shell-notifier subsystem, not
-#     the osquery integrity domain, and the manifest never covers them, so
-#     watching them would page forever on a legitimate edit;
+#     it), so the pipeline manifest covers exactly what is watched. ~/.local/bin
+#     is NOT under pipeline_integrity: it has its own category and its own
+#     manifest, so neither list is made responsible for the other's files;
+#   - watch ~/.local/bin under its OWN managed_bin category, so the
+#     chezmoi-managed scripts that run unattended there (update-skills.sh,
+#     homebrew-weekly-upgrade.sh, the claude-* hooks) generate events at all.
+#     The verdict tracks only the paths the managed-bin manifest lists, so the
+#     self-updating third-party shims sharing the directory stay silent;
+#   - NOT hash ~/.local/bin. The hash maps are consumer-driven and the verdict
+#     re-reads the file at judgment time (the event digest is explicitly not a
+#     trust input), while the directory holds several hundred megabytes of
+#     third-party binaries (zig, packer, mise, herdr, yt-dlp) that osqueryd would
+#     otherwise sha256 on every change;
 #   - watch the alerter's config directory (~/.config/osquery, where the
 #     page-launchd allowlist lives) as allowlist_file;
 #   - hash pipeline_integrity (the dedicated home) and ~/Library/LaunchAgents,
@@ -67,15 +75,28 @@ has_path file_paths pipeline_integrity "$render_home/.local/libexec/osquery/%%" 
 has_path file_paths_hashes pipeline_integrity "$render_home/.local/libexec/osquery/%%" ||
   fail "file_paths_hashes.pipeline_integrity must hash ~/.local/libexec/osquery/%%"
 
-# ~/.local/bin is NOT under pipeline_integrity, in either map: those operator tools
-# are the Relay/shell-notifier subsystem's, not osquery pipeline files, and the
-# manifest never covers them, so watching them would page forever on a legit edit.
-# Watch == manifest: the dedicated home only.
+# ~/.local/bin is NOT under pipeline_integrity, in either map. It has its own
+# category and its own manifest; folding it in here would put unrelated operator
+# tools inside the file whose whole framing is the pipeline's own integrity.
 if has_path file_paths pipeline_integrity "$render_home/.local/bin/%%"; then
-  fail "file_paths.pipeline_integrity must NOT watch ~/.local/bin (Relay subsystem, not an osquery pipeline home)"
+  fail "file_paths.pipeline_integrity must NOT watch ~/.local/bin (it has its own category and manifest)"
 fi
 if has_path file_paths_hashes pipeline_integrity "$render_home/.local/bin/%%"; then
   fail "file_paths_hashes.pipeline_integrity must NOT hash ~/.local/bin"
+fi
+
+# ...but ~/.local/bin IS watched, under managed_bin. Without an event the verdict
+# never runs, and the chezmoi-managed scripts that fire unattended from
+# LaunchAgents and shell hooks would have no integrity coverage at all.
+has_path file_paths managed_bin "$render_home/.local/bin/%%" ||
+  fail "file_paths.managed_bin must watch ~/.local/bin/%% (the managed unattended operator scripts live there)"
+
+# ...and deliberately NOT hashed. The verdict re-reads the file at judgment time
+# and treats the event digest as untrusted, so a hash entry buys nothing, while
+# ~/.local/bin holds hundreds of megabytes of third-party binaries (zig, packer,
+# mise, herdr, yt-dlp) that osqueryd would sha256 on every change.
+if has_path file_paths_hashes managed_bin "$render_home/.local/bin/%%"; then
+  fail "file_paths_hashes must NOT hash ~/.local/bin (no consumer; hundreds of MB of third-party binaries)"
 fi
 
 # The alerter's config directory is event-watched.
@@ -100,4 +121,4 @@ if ((fails > 0)); then
   printf '%d file-integrity watch assertion(s) failed\n' "$fails" >&2
   exit 1
 fi
-printf 'PASS: file-integrity watches cover the dedicated pipeline home (not ~/.local/bin), the alerter config dir, and hash only what the tuple check reads\n'
+printf 'PASS: file-integrity watches cover the dedicated pipeline home, ~/.local/bin under its own managed_bin category, and the alerter config dir, hashing only what the tuple check reads\n'

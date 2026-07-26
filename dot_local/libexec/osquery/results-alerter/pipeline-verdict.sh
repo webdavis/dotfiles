@@ -5,12 +5,27 @@
 # directories: is this a tamper to PAGE, a known-good apply to stay SILENT, or an
 # untracked neighbor to log only?
 #
-# The pipeline-integrity manifest is a root-owned list of the alerter's own scripts
-# and plists, regenerated on every apply from chezmoi's managed intent. One
-# whitespace-separated tuple per line, PATH LAST so a path containing spaces is
-# still read whole:
+# TWO known-good manifests, each root-owned and regenerated on every apply from
+# chezmoi's managed intent. One whitespace-separated tuple per line, PATH LAST so a
+# path containing spaces is still read whole:
 #
 #   <sha256> <mode> <uid> <path>
+#
+#   pipeline-known-good.sha256     the alerter's own scripts and plists. The
+#                                  monitor's body: everything under the pipeline
+#                                  home is tracked, so a planted file pages.
+#   managed-bin-known-good.sha256  the chezmoi-managed scripts under ~/.local/bin.
+#                                  Not pipeline files, but update-skills.sh,
+#                                  homebrew-weekly-upgrade.sh and the claude-*
+#                                  hooks run unattended from LaunchAgents and shell
+#                                  hooks, so a tamper there executes on a timer.
+#                                  Only manifested paths are tracked, because the
+#                                  same directory holds self-updating third-party
+#                                  shims that chezmoi cannot vouch for.
+#
+# The manifests are separate files on purpose: the pipeline manifest's single
+# responsibility is the pipeline's own integrity, and neither list can vouch for
+# the other's paths, because _pipeline_manifest_for picks exactly one per target.
 #
 # A change is legitimate only when the file's CURRENT content hash, mode AND owner
 # all equal the columns bound to its exact path, so a deployed known-good file
@@ -21,9 +36,11 @@
 #
 # Fail-safe (criterion 6): a missing, unreadable, or untrustworthy manifest makes
 # _pipeline_manifest_has_tuple return not-found, so a tracked change that cannot be
-# confirmed legitimate PAGES. A pipeline-script change is never silently suppressed
-# without a manifest tuple to justify it, and a missing/empty/mismatched hash pages
-# too.
+# confirmed legitimate PAGES. A tracked change is never silently suppressed without
+# a manifest tuple to justify it, and a missing/empty/mismatched hash pages too. On
+# the bin arm the same rule reaches one step further back: a broken managed-bin
+# manifest makes every bin path TRACKED (see _managed_bin_is_tracked), so a monitor
+# whose known-good list failed gets louder rather than un-watching the directory.
 #
 # COVERAGE MAP. Two layers enforce the manifest. They compare the SAME three
 # columns and differ in what TRIGGERS them, so for any given tamper this says which
@@ -51,7 +68,10 @@
 #
 # So: anything that fires an event on a watched path is judged in seconds by layer
 # 1, on all three columns; anything that fires no event is found within two ticks by
-# layer 2, on the same three columns.
+# layer 2, on the same three columns. Both layers cover BOTH manifests: the managed
+# ~/.local/bin scripts are judged on the event path here and re-read on the same
+# audit tick, because nothing about either argument is specific to the pipeline
+# home.
 #
 # WHAT NEITHER LAYER COVERS, recorded honestly:
 #
@@ -69,6 +89,13 @@
 #     then rewritten adds a content divergence, which is a new fingerprint and a
 #     fresh confirmation. Deliberate (it is what stops one persistent divergence
 #     paging every 15 minutes forever), and worth knowing.
+#   - NEW FILES IN ~/.local/bin. Nothing here pages for a file that simply appears
+#     in ~/.local/bin, because the tracked set is the manifest and an unmanaged
+#     neighbor is exactly what a third-party install looks like. Planting a script
+#     there does not by itself get it executed; what does is tampering with the
+#     managed scripts the LaunchAgents already invoke, and that is what the bin arm
+#     catches. The pipeline home has the opposite rule, because anything appearing
+#     inside the monitor's own body is a tamper.
 #   - SOURCE COMPROMISE. The manifest is generated from chezmoi's source state,
 #     which is user-writable, so tampering with a managed file's SOURCE and letting
 #     a legitimate apply deploy it is signed as known-good by BOTH layers. See the
@@ -79,11 +106,14 @@
 #   1 = SILENT (an untracked neighbor, or an exact (path, sha256, mode, uid)
 #               manifest match)
 
-# Keep this default in sync with the manifest path in
-# .chezmoiscripts/run_after_05-osquery-known-good-manifests.sh (the producer). A test
-# pins the two literals equal, because the producer and the consumer of a
+# Keep these defaults in sync with the manifest paths in
+# .chezmoiscripts/run_after_05-osquery-known-good-manifests.sh (the producer). Tests
+# pin the literals equal, because the producer and the consumer of a
 # security-critical file must not agree only by copy-paste.
+#
+# A target is judged against exactly one of them, chosen by _pipeline_manifest_for.
 PIPELINE_MANIFEST="${OSQUERY_PIPELINE_MANIFEST:-/var/osquery/pipeline-known-good.sha256}"
+MANAGED_BIN_MANIFEST="${OSQUERY_MANAGED_BIN_MANIFEST:-/var/osquery/managed-bin-known-good.sha256}"
 
 # How long to let an in-flight manifest regeneration settle before paging on a
 # tuple miss (seconds). The alerter is WatchPaths-triggered and judges a finding
@@ -181,7 +211,8 @@ _pipeline_file_uid() {
 # neither root-owned nor at the protected path, so an explicit override skips the
 # check. Production never sets that variable.
 _pipeline_manifest_is_trustworthy() {
-  [[ -n ${OSQUERY_PIPELINE_MANIFEST:-} ]] && return 0
+  [[ -n ${OSQUERY_PIPELINE_MANIFEST:-} && $1 == "${OSQUERY_PIPELINE_MANIFEST}" ]] && return 0
+  [[ -n ${OSQUERY_MANAGED_BIN_MANIFEST:-} && $1 == "${OSQUERY_MANAGED_BIN_MANIFEST}" ]] && return 0
   local owner mode
   owner=$(_pipeline_file_uid "$1") || true
   mode=$(_pipeline_file_mode "$1") || true
@@ -223,8 +254,24 @@ _pipeline_manifest_is_trustworthy() {
 # decimal, and _pipeline_file_mode / _pipeline_file_uid normalize the observed
 # values to the same form. A missing, unreadable, or untrustworthy manifest
 # returns 1 - the fail-safe hinge.
+# _pipeline_manifest_for <target>: print the manifest path that governs <target>.
+# One target is judged against exactly one manifest, so the two lists can never
+# vouch for each other's files: a tuple lifted out of the bin manifest cannot bless
+# a pipeline path, and the reverse holds too.
+#
+# Read through the environment overrides at CALL time rather than through the
+# constants alone: tests source this helper first and set the override afterwards,
+# which is the seam that keeps every fixture out of /var.
+_pipeline_manifest_for() {
+  case "$1" in
+    "$HOME"/.local/bin/*) printf '%s' "${OSQUERY_MANAGED_BIN_MANIFEST:-$MANAGED_BIN_MANIFEST}" ;;
+    *) printf '%s' "${OSQUERY_PIPELINE_MANIFEST:-$PIPELINE_MANIFEST}" ;;
+  esac
+}
+
 _pipeline_manifest_has_tuple() {
-  local manifest="${OSQUERY_PIPELINE_MANIFEST:-$PIPELINE_MANIFEST}"
+  local manifest
+  manifest="$(_pipeline_manifest_for "$1")"
   [[ -r $manifest ]] || return 1
   _pipeline_manifest_is_trustworthy "$manifest" || return 1
   local want_path="$1" want_hash="${2,,}" want_mode="$3" want_uid="$4" h m u p
@@ -274,7 +321,8 @@ _pipeline_deployed_state_is_known_good() {
 _pipeline_tuple_settles() {
   local target="$1"
   _pipeline_deployed_state_is_known_good "$target" && return 0
-  local manifest="${OSQUERY_PIPELINE_MANIFEST:-$PIPELINE_MANIFEST}"
+  local manifest
+  manifest="$(_pipeline_manifest_for "$target")"
   [[ -r $manifest ]] || return 1
   local manifest_mtime target_ctime
   manifest_mtime=$(_pipeline_mtime "$manifest") || true
@@ -306,15 +354,54 @@ _pipeline_tuple_settles() {
 # default-denies it. This keeps the tracked set, the manifest's coverage, and the
 # osquery.conf watch on the identical file set.
 #
-# ~/.local/bin is NOT tracked: those operator tools are the Relay/shell-notifier
-# subsystem's, not osquery pipeline files, and the manifest never covers them, so a
-# bin edit is a silent neighbor here, never a pipeline tamper.
+# ~/.local/bin is tracked on a DIFFERENT rule: see _managed_bin_is_tracked below.
 _pipeline_is_tracked() {
   local target="$1"
   case "$target" in
     "$HOME"/.local/libexec/osquery/*) return 0 ;;
     "$HOME"/Library/LaunchAgents/com.webdavis.osquery-*.plist) return 0 ;;
+    "$HOME"/.local/bin/*) _managed_bin_is_tracked "$target" ;;
+    *) return 1 ;;
   esac
+}
+
+# _managed_bin_is_tracked <target>: 0 when a ~/.local/bin path is ours to judge.
+#
+# MANIFEST-DRIVEN, not directory-driven, and that is the whole reason covering this
+# directory is affordable. ~/.local/bin holds the chezmoi-managed operator scripts
+# (update-skills.sh, homebrew-weekly-upgrade.sh, the claude-* hooks, the Relay
+# tools) side by side with third-party shims that chezmoi does not manage and that
+# rewrite themselves on their own schedule: herdr, mise, bob, hermes, yt-dlp, and a
+# pile of symlinks into pipx and uv tool directories. Tracking the whole directory
+# the way the pipeline home is tracked would page on every one of those
+# self-updates, which is the churn objection that kept this directory unwatched.
+# Taking the tracked set FROM the manifest instead makes tracked and manifested
+# identical by construction, so the two cannot drift apart the way a second
+# hand-maintained filter would.
+#
+# THE FAIL-SAFE HINGE. A manifest that is missing, unreadable, empty or
+# untrustworthy tracks EVERYTHING under ~/.local/bin rather than nothing. The
+# tempting reading of "not in the manifest" is "not ours", but applied to a broken
+# manifest that reads as "un-watch the directory", which is a monitor going quiet
+# exactly when its own inputs failed. Loud is the only safe direction: every bin
+# event then pages, the tuple check that follows cannot confirm any of them either,
+# and the periodic audit refuses on the same manifest within the tick. The noise is
+# the alarm.
+#
+# The membership scan reads the four-column line with the PATH LAST, so a path
+# holding spaces is taken whole by the final field. A SHORT line leaves that field
+# empty, and an empty path can never equal a real target, so a malformed line
+# vouches for nothing here either.
+_managed_bin_is_tracked() {
+  local manifest manifest_path
+  manifest="${OSQUERY_MANAGED_BIN_MANIFEST:-$MANAGED_BIN_MANIFEST}"
+  [[ -r $manifest && -s $manifest ]] || return 0
+  _pipeline_manifest_is_trustworthy "$manifest" || return 0
+  # `|| [[ -n $manifest_path ]]` so a final line with no trailing newline is still
+  # examined (the same idiom the tuple check reads the manifest with).
+  while read -r _ _ _ manifest_path || [[ -n $manifest_path ]]; do
+    [[ -n $manifest_path && $manifest_path == "$1" ]] && return 0
+  done <"$manifest"
   return 1
 }
 
