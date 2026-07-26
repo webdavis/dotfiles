@@ -8,8 +8,9 @@
 # healthy. Deliberately does NOT use results.log mtime as a signal: hours of
 # healthy silence are expected.
 #
-# It also carries the pipeline's only SCHEDULED integrity check. The rest of the
-# pipeline-integrity manifest is enforced through osquery file_events, and osquery
+# It also carries the only SCHEDULED integrity check for both known-good manifests
+# (the pipeline's own and the managed ~/.local/bin scripts'). The rest of each
+# manifest is enforced through osquery file_events, and osquery
 # watches PATHS, so tampering that generates no event on a watched path (a hard link
 # or a symlink pointing the executed bytes somewhere else, or a chmod through either)
 # is invisible to it. The manifest audit below re-reads every manifested path on each
@@ -63,9 +64,9 @@ source "$HOME/.local/libexec/osquery/alert-dispatch.sh"
 # daemon's scheduled canary), never a blind osqueryi one-shot.
 # shellcheck source=/dev/null
 source "$HOME/.local/libexec/osquery/canary-freshness.sh"
-# The periodic manifest audit of the pipeline-integrity manifest (probe 5). It also
-# pulls in the verdict helper, which owns the manifest path and the root-ownership
-# check both consumers share.
+# The periodic manifest audit of the known-good manifests (probe 5). It also pulls
+# in the verdict helper, which owns the manifest paths and the root-ownership check
+# both consumers share.
 #
 # Sourced CONDITIONALLY, unlike the two helpers above. Those are hard dependencies:
 # without the dispatcher nothing can page at all, and without the canary seam probe
@@ -271,19 +272,22 @@ else
   growth_streak=0
 fi
 
-# 5) Periodic MANIFEST AUDIT of the pipeline-integrity manifest. Every other check
-#    of that manifest hangs off osquery file_events, and osquery watches PATHS: an
-#    attacker who hard-links a manifested pipeline script to a writable path outside
-#    the pipeline home and overwrites the outside alias mutates the SAME INODE, so
+# 5) Periodic MANIFEST AUDIT of the known-good manifests: the osquery pipeline's own
+#    and the one covering the chezmoi-managed scripts in ~/.local/bin. Every other
+#    check of those manifests hangs off osquery file_events, and osquery watches
+#    PATHS: an attacker who hard-links a manifested script to a writable path
+#    outside the watched home and overwrites the outside alias mutates the SAME
+#    INODE, so
 #    the event names their path, nothing fires for the watched one, no verdict runs,
 #    and the tampered script executes with nothing paged. A chmod or chown through
 #    that alias does it without moving a byte, and a symlink referent is the same
 #    blind spot in a third shape. That gap is in event GENERATION, so it can only be
-#    closed by re-reading the files on a SCHEDULE. The seam compares each manifested
-#    path's content, mode and owner and reports what disagrees; it refuses (nonzero,
-#    with a reason token) rather than report a false all-clear when the manifest
-#    itself cannot be used, and it is bounded on entries, per-file bytes, and wall
-#    clock.
+#    closed by re-reading the files on a SCHEDULE, and it applies to the unattended
+#    operator scripts as much as to the pipeline's own. The seam compares each
+#    manifested path's content, mode and owner across BOTH lists and reports what
+#    disagrees; it refuses (nonzero, with a reason token) rather than report a false
+#    all-clear when a manifest itself cannot be used, and it is bounded on entries,
+#    per-file bytes, and wall clock.
 audit_rc=0
 if declare -F pipeline_audit_scan >/dev/null 2>&1; then
   audit_report="$(pipeline_audit_scan 2>/dev/null)" || audit_rc=$?
@@ -411,29 +415,29 @@ if [[ $audit_should_page -eq 1 ]]; then
   if [[ -n $audit_reason ]]; then
     case "$audit_reason" in
       missing)
-        problems+=("the pipeline-integrity manifest is missing or unreadable, so the periodic manifest audit cannot verify the deployed pipeline; tampering would go unseen until it is restored")
+        problems+=("a known-good manifest is missing or unreadable, so the periodic manifest audit cannot verify the files it covers; tampering would go unseen until it is restored")
         ;;
       unavailable)
-        problems+=("the periodic manifest audit is not installed completely (a helper it needs is missing), so the deployed pipeline is unverified against the pipeline-integrity manifest")
+        problems+=("the periodic manifest audit is not installed completely (a helper it needs is missing), so the deployed files are unverified against their known-good manifests")
         ;;
       untrustworthy)
-        problems+=("the pipeline-integrity manifest is no longer root-owned (or is group/world-writable), so it can no longer vouch for the deployed pipeline")
+        problems+=("a known-good manifest is no longer root-owned (or is group/world-writable), so it can no longer vouch for the files it covers")
         ;;
       malformed)
-        problems+=("the pipeline-integrity manifest holds a malformed entry, so the periodic manifest audit cannot verify the deployed pipeline")
+        problems+=("a known-good manifest holds a malformed entry, so the periodic manifest audit cannot verify the files it covers")
         ;;
       overlong)
-        problems+=("the pipeline-integrity manifest lists more files than one audit tick will examine, so the deployed pipeline cannot be fully verified")
+        problems+=("a known-good manifest lists more files than one audit tick will examine, so the files it covers cannot be fully verified")
         ;;
       budget)
-        problems+=("the periodic manifest audit ran out of its time budget before checking every file in the pipeline-integrity manifest, so the deployed pipeline cannot be fully verified")
+        problems+=("the periodic manifest audit ran out of its time budget before checking every manifested file, so the files it covers cannot be fully verified")
         ;;
       *)
-        problems+=("the periodic manifest audit could not verify the deployed pipeline against the pipeline-integrity manifest")
+        problems+=("the periodic manifest audit could not verify the deployed files against their known-good manifests")
         ;;
     esac
   else
-    problems+=("$audit_divergence_count divergence(s) from the pipeline-integrity manifest${audit_kind_text:+ ($audit_kind_text)}; no file event reported this, which is what a hard-linked or relocated pipeline script, or a chmod through such an alias, looks like")
+    problems+=("$audit_divergence_count divergence(s) from a known-good manifest${audit_kind_text:+ ($audit_kind_text)}; no file event reported this, which is what a hard-linked or relocated script, or a chmod through such an alias, looks like")
   fi
 fi
 

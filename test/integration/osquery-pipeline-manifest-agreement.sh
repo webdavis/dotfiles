@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 #
-# The pipeline-integrity mechanism has three layers that must cover the IDENTICAL
-# file set, or it breaks in one of two silent ways:
+# The file-integrity mechanism has three layers that must cover the IDENTICAL file
+# set, or it breaks in one of two silent ways:
 #
 #   WATCH    (.chezmoitemplates/osquery/osquery.conf file_paths)      what osquery reports
 #   TRACKED  (results-alerter/pipeline-verdict.sh _pipeline_is_tracked) what the alerter judges
-#   MANIFEST (.chezmoiscripts/run_after_05-osquery-pipeline-manifest.sh) what can be vouched for
+#   MANIFEST (.chezmoiscripts/run_after_05-osquery-known-good-manifests.sh) what can be vouched for
 #
 # The manifest has a SECOND consumer, the periodic audit (pipeline-audit.sh), which
 # parses the file directly instead of going through the verdict. It is driven here
@@ -22,13 +22,21 @@
 # be tracked (it belongs to the persistence detector's default-deny instead). An
 # earlier revision matched that basename anywhere and had exactly this divergence.
 #
+# The MANAGED-BIN arm is pinned the same way, with one structural difference worth
+# stating plainly. ~/.local/bin is watched WHOLE, because osquery watches
+# directories, while only the chezmoi-managed files in it are manifested. TRACKED
+# is therefore derived from the manifest rather than from a second path filter, so
+# tracked and manifested are identical by construction and the agreement that has
+# to be checked here is the containment one: every manifested bin path must fall
+# under a watched root, and an unmanaged neighbor must be watched but untracked.
+#
 # It also pins the end-to-end agreement between the real generated manifest and the
 # real verdict (unchanged is SILENT, a one-byte tamper PAGES, and a chmod on
 # otherwise unchanged content PAGES) and the bounded apply-race settle window.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-RUNNER="$REPO_ROOT/.chezmoiscripts/run_after_05-osquery-pipeline-manifest.sh"
+RUNNER="$REPO_ROOT/.chezmoiscripts/run_after_05-osquery-known-good-manifests.sh"
 VERDICT="$REPO_ROOT/dot_local/libexec/osquery/results-alerter/pipeline-verdict.sh"
 CONF="$REPO_ROOT/.chezmoitemplates/osquery/osquery.conf"
 # shellcheck source=../fixtures/osquery-manifest-lib.bash
@@ -63,14 +71,24 @@ trap manifest_fixture_teardown EXIT
 manifest_fixture_add_script digest.sh 'echo digest'
 manifest_fixture_add_script results-alerter/normalize.sh 'true'
 manifest_fixture_add_plist com.webdavis.osquery-digest '<plist>{{ .chezmoi.os }}</plist>'
+# A managed ~/.local/bin tool, so the runner's managed-bin arm has something to
+# manifest (it refuses to install an EMPTY manifest) and so the agreement checks
+# below can drive that arm too.
+manifest_fixture_add_bin_script update-skills.sh 'echo update-skills'
 manifest_fixture_apply
 manifest_fixture_run_runner "$RUNNER" || fail "the runner exited non-zero"
 
 script_target="$MF_HOME/.local/libexec/osquery/digest.sh"
+bin_target="$MF_HOME/.local/bin/update-skills.sh"
+# An UNMANAGED neighbor on disk only, the way mise and herdr sit in the real
+# ~/.local/bin: watched (the whole directory is), but nothing can vouch for it.
+bin_unmanaged="$MF_HOME/.local/bin/mise"
+printf 'unmanaged self-updating binary\n' >"$bin_unmanaged"
 
 # shellcheck source=/dev/null
 source "$VERDICT"
 export OSQUERY_PIPELINE_MANIFEST="$MF_MANIFEST" OSQUERY_PIPELINE_REHASH_DELAY=0
+export OSQUERY_MANAGED_BIN_MANIFEST="$MF_BIN_MANIFEST"
 export OSQUERY_PIPELINE_SETTLE_SECONDS=0
 
 hash_of() { shasum -a 256 "$1" | awk '{print $1}'; }
@@ -104,6 +122,13 @@ run_verdict() {
     export HOME="$MF_HOME" OSQUERY_PIPELINE_SETTLE_SECONDS="$settle"
     pipeline_verdict "$target" "$hash_value" "$verb"
   )
+}
+
+# tracked_rc <target> -- the real _pipeline_is_tracked, under the fixture HOME.
+tracked_rc() {
+  local rc=0
+  HOME="$MF_HOME" _pipeline_is_tracked "$1" || rc=$?
+  printf '%s' "$rc"
 }
 
 # expect_verdict <expected-rc> <label> <target> <hash> <verb>
@@ -223,14 +248,97 @@ done <<<"$watch_roots"
 [[ $saw_home_root -eq 1 ]] ||
   fail "the watch no longer covers ~/Library/LaunchAgents; this test's agreement check went blind"
 
-# Every path the manifest holds must be one the verdict tracks (no manifested-but-
-# unchecked file).
+# Every path EITHER manifest holds must be one the verdict tracks (no manifested-
+# but-unchecked file, in either trust domain).
+for agreement_manifest in "$MF_MANIFEST" "$MF_BIN_MANIFEST"; do
+  while read -r _ _ _ manifested_path; do
+    [[ -n $manifested_path ]] || continue
+    [[ "$(tracked_rc "$manifested_path")" -eq 0 ]] ||
+      fail "manifested but NOT tracked (never checked): $manifested_path"
+  done <"$agreement_manifest"
+done
+
+# --- THE THREE-WAY AGREEMENT for the MANAGED-BIN arm --------------------------
+# ~/.local/bin is watched WHOLE (osquery watches directories) while only the
+# chezmoi-managed files in it are manifested, so the property to pin is
+# containment, in both directions:
+#
+#   WATCH covers MANIFEST   - a manifested path nothing watches is never checked
+#                             on the event path at all.
+#   TRACKED == MANIFEST     - an unmanaged neighbor is watched but untracked, or it
+#                             would page on every third-party self-update.
+bin_watch_roots="$(jq -r '.file_paths.managed_bin // [] | .[]' <<<"$conf_json")"
+[[ -n $bin_watch_roots ]] ||
+  fail "the config declares no managed_bin watch root; the managed ~/.local/bin scripts generate no events at all"
+
+saw_bin_root=0
+while IFS= read -r root; do
+  [[ -n $root ]] || continue
+  dir="${root%/%%}" # strip the osquery recursive-watch suffix
+  # The rendered config names the RENDER home; the fixture manifest names the
+  # fixture home. Compare the HOME-relative suffix, which is what has to agree.
+  [[ ${dir#"$render_home"/} == ".local/bin" ]] ||
+    fail "the managed_bin watch root is $dir, not ~/.local/bin; the manifest covers ~/.local/bin only"
+  saw_bin_root=1
+done <<<"$bin_watch_roots"
+[[ $saw_bin_root -eq 1 ]] ||
+  fail "no managed_bin watch root resolved; this test's containment check went blind"
+
+# WATCH covers MANIFEST: every manifested bin path is under the watched directory.
 while read -r _ _ _ manifested_path; do
   [[ -n $manifested_path ]] || continue
-  t=0
-  HOME="$MF_HOME" _pipeline_is_tracked "$manifested_path" || t=$?
-  [[ $t -eq 0 ]] || fail "manifested but NOT tracked (never checked): $manifested_path"
-done <"$MF_MANIFEST"
+  [[ $manifested_path == "$MF_HOME"/.local/bin/* ]] ||
+    fail "the managed-bin manifest holds $manifested_path, which the managed_bin watch root does not cover (a blind spot: never checked on the event path)"
+done <"$MF_BIN_MANIFEST"
+
+# TRACKED == MANIFEST: the manifested tool is tracked, the unmanaged neighbor in
+# the same watched directory is NOT. Getting this backwards is the two silent
+# failure modes: a shim that pages on every self-update, or a managed script whose
+# tamper is judged as somebody else's business.
+[[ -n "$(bin_manifest_hash_of "$bin_target")" ]] ||
+  fail "the managed-bin manifest does not cover the managed tool under ~/.local/bin"
+[[ "$(tracked_rc "$bin_target")" -eq 0 ]] ||
+  fail "the managed bin tool is manifested but NOT tracked (a blind spot: never checked)"
+[[ -z "$(bin_manifest_hash_of "$bin_unmanaged")" ]] ||
+  fail "an UNMANAGED ~/.local/bin neighbor was signed into the managed-bin manifest"
+[[ "$(tracked_rc "$bin_unmanaged")" -ne 0 ]] ||
+  fail "an UNMANAGED ~/.local/bin neighbor is TRACKED but can never be manifested (it would page on every self-update)"
+
+# ...and neither manifest may claim the other's paths, or one list could vouch for
+# a file the other is responsible for.
+[[ -z "$(manifest_hash_of "$bin_target")" ]] ||
+  fail "a ~/.local/bin tool is in the osquery PIPELINE manifest (the two trust domains must stay disjoint)"
+[[ -z "$(bin_manifest_hash_of "$script_target")" ]] ||
+  fail "an osquery pipeline file is in the MANAGED-BIN manifest (the two trust domains must stay disjoint)"
+
+# The bin arm binds all four columns too, from the same generator.
+[[ "$(bin_manifest_mode_of "$bin_target")" == 0755 ]] ||
+  fail "an executable_ managed bin tool must be manifested 0755, got '$(bin_manifest_mode_of "$bin_target")'"
+[[ "$(bin_manifest_uid_of "$bin_target")" == "$(id -u)" ]] ||
+  fail "the managed-bin owner column is not the uid the apply runs as"
+
+# End to end, through the real verdict: unchanged is SILENT, a one-byte tamper
+# PAGES, a chmod on unchanged content PAGES, and the unmanaged neighbor stays
+# SILENT throughout.
+expect_verdict 1 "an unchanged managed bin tool is SILENT" "$bin_target" "$(hash_of "$bin_target")" UPDATED
+expect_verdict 1 "an unmanaged ~/.local/bin neighbor is SILENT" "$bin_unmanaged" "$(hash_of "$bin_unmanaged")" UPDATED
+printf 'echo tampered\n' >>"$bin_target"
+expect_verdict 0 "a one-byte tamper of a managed bin tool PAGES" "$bin_target" "$(hash_of "$bin_target")" UPDATED
+manifest_fixture_apply # restore
+chmod g+w "$bin_target"
+expect_verdict 0 "a chmod g+w on a managed bin tool PAGES" "$bin_target" "$(hash_of "$bin_target")" ATTRIBUTES_MODIFIED
+chmod 755 "$bin_target"
+expect_verdict 1 "restoring the intended mode is SILENT again" "$bin_target" "$(hash_of "$bin_target")" ATTRIBUTES_MODIFIED
+
+# --- the producer and the consumer name the SAME default manifest paths -------
+# A security-critical file whose writer and reader agree only by copy-paste is one
+# rename away from a monitor that watches nothing. Both defaults are pinned.
+for manifest_literal in pipeline-known-good managed-bin-known-good; do
+  runner_literal="$(grep -o "/var/osquery/$manifest_literal\.sha256" "$RUNNER" | head -1)"
+  verdict_literal="$(grep -o "/var/osquery/$manifest_literal\.sha256" "$VERDICT" | head -1)"
+  [[ -n $runner_literal && $runner_literal == "$verdict_literal" ]] ||
+    fail "producer ($runner_literal) and consumer ($verdict_literal) must name the same default /var/osquery/$manifest_literal.sha256"
+done
 
 # --- the bounded apply-race settle window ------------------------------------
 # The alerter judges a finding exactly once, so a change seen before the manifest
@@ -335,4 +443,4 @@ if [[ $fails -gt 0 ]]; then
   printf '%d check(s) failed\n' "$fails" >&2
   exit 1
 fi
-printf 'osquery-pipeline-manifest-agreement: OK (generated manifest and real verdict agree, including a chmod on unchanged content; the periodic audit parses the same generated manifest and reports a real tamper; watch/tracked/manifest cover the identical set across BOTH launch agent roots; a /Library twin is untracked; the settle window resolves a live regeneration for a content AND an attribute-only change, stays bounded, and spends ONE budget per alerter run across many misses)\n'
+printf 'osquery-pipeline-manifest-agreement: OK (both generated manifests and the real verdict agree, including a chmod on unchanged content; the periodic audit parses the same generated manifests and reports a real tamper; watch/tracked/manifest cover the identical set across BOTH launch agent roots; a /Library twin is untracked; the managed-bin arm is contained by its watch root, tracks exactly what it manifests, stays disjoint from the pipeline manifest, and pages a tamper and a chmod while an unmanaged neighbor is silent; producer and consumer name both default paths; the settle window resolves a live regeneration for a content AND an attribute-only change, stays bounded, and spends ONE budget per alerter run across many misses)\n'

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
-# osquery-manifest-lib.bash - fixture harness for the pipeline-integrity manifest
-# runner (.chezmoiscripts/run_after_05-osquery-pipeline-manifest.sh).
+# osquery-manifest-lib.bash - fixture harness for the known-good manifest runner
+# (.chezmoiscripts/run_after_05-osquery-known-good-manifests.sh).
 #
 # The runner derives the manifest from chezmoi's managed intent, so a fixture needs
 # a REAL (tiny) chezmoi source tree plus its own config, isolated from the
@@ -11,14 +11,21 @@
 # privilege and nothing is written under /var.
 
 # manifest_fixture_setup: build the scratch source, dest HOME, config, and stubs.
-# Exports MF_ROOT, MF_SRC, MF_HOME, MF_MANIFEST, MF_SUDO_LOG.
+# Exports MF_ROOT, MF_SRC, MF_HOME, MF_MANIFEST, MF_BIN_MANIFEST, MF_SUDO_LOG.
+#
+# TWO manifest destinations, because the runner writes two: the osquery pipeline's
+# own known-good list and the separate one for the chezmoi-managed scripts under
+# ~/.local/bin. Both are redirected into the scratch dir, so no test ever needs
+# privilege and nothing is written under /var.
 manifest_fixture_setup() {
   MF_ROOT="$(mktemp -d)"
   MF_SRC="$MF_ROOT/src"
   MF_HOME="$MF_ROOT/home"
   MF_MANIFEST="$MF_ROOT/pipeline-known-good.sha256"
+  MF_BIN_MANIFEST="$MF_ROOT/managed-bin-known-good.sha256"
   MF_SUDO_LOG="$MF_ROOT/sudo.log"
   mkdir -p "$MF_SRC/dot_local/libexec/osquery/results-alerter" \
+    "$MF_SRC/dot_local/bin" \
     "$MF_SRC/Library/LaunchAgents" \
     "$MF_HOME/.config/chezmoi" \
     "$MF_ROOT/bin"
@@ -59,6 +66,12 @@ manifest_fixture_add_script() {
   printf '%s\n' "$content" >"$dir/executable_$(basename "$rel")"
 }
 
+# manifest_fixture_add_bin_script <name> <content>: add a MANAGED ~/.local/bin tool
+# (chezmoi's executable_ prefix is dropped in the target).
+manifest_fixture_add_bin_script() {
+  printf '%s\n' "$2" >"$MF_SRC/dot_local/bin/executable_$1"
+}
+
 # manifest_fixture_add_plist <label> <content>: add a MANAGED LaunchAgent template
 # (the real plists are templates, so the fixture mirrors that shape).
 manifest_fixture_add_plist() {
@@ -95,6 +108,7 @@ manifest_fixture_run_runner() {
     CHEZMOI_SOURCE_DIR="$MF_SRC" \
     CHEZMOI_HOME_DIR="$MF_HOME" \
     OSQUERY_PIPELINE_MANIFEST="$MF_MANIFEST" \
+    OSQUERY_MANAGED_BIN_MANIFEST="$MF_BIN_MANIFEST" \
     SUDO_LOG="$MF_SUDO_LOG" \
     bash "$runner"
 }
@@ -120,6 +134,23 @@ manifest_mode_of() {
 # manifest_uid_of <target-path>: the manifest's recorded owner uid (decimal).
 manifest_uid_of() {
   awk -v p="$1" '$4 == p {print $3}' "$MF_MANIFEST" 2>/dev/null
+}
+
+# bin_manifest_hash_of <target-path>: the MANAGED-BIN manifest's recorded hash for a
+# path, or empty. A separate reader rather than a parameter on manifest_hash_of, so a
+# call site names which manifest it means and a copy-paste cannot silently assert
+# against the wrong one.
+bin_manifest_hash_of() {
+  awk -v p="$1" '$4 == p {print $1}' "$MF_BIN_MANIFEST" 2>/dev/null
+}
+
+# bin_manifest_mode_of / bin_manifest_uid_of: the other two bound columns, for the
+# managed-bin manifest. Same four-column shape as the pipeline manifest.
+bin_manifest_mode_of() {
+  awk -v p="$1" '$4 == p {print $2}' "$MF_BIN_MANIFEST" 2>/dev/null
+}
+bin_manifest_uid_of() {
+  awk -v p="$1" '$4 == p {print $3}' "$MF_BIN_MANIFEST" 2>/dev/null
 }
 
 # verdict_says_page <target> [verdict-helper]: run the REAL pipeline_verdict over
