@@ -554,7 +554,7 @@ teardown() { teardown_watchdog_harness; }
   assert_page_count 1
   assert_page_severity_is CRIT
   assert_page_sound_nonempty
-  assert_page_body_has 'pipeline-integrity manifest'
+  assert_page_body_has 'known-good manifest'
   assert_page_body_has 'content changed'
   refute_file_contains 'permissions changed' "$WD_SEND_ALERT_LOG"
 }
@@ -604,7 +604,7 @@ teardown() { teardown_watchdog_harness; }
   }
   assert_page_count 1
   assert_page_severity_is CRIT
-  assert_page_body_has 'pipeline-integrity manifest'
+  assert_page_body_has 'known-good manifest'
 }
 
 @test "T-WATCH-audit-attr-hardlink-pages: a chmod made through a hard link outside the pipeline home pages, with no file event and no content change" {
@@ -629,7 +629,7 @@ teardown() { teardown_watchdog_harness; }
   assert_page_count 1
   assert_page_severity_is CRIT
   assert_page_sound_nonempty
-  assert_page_body_has 'pipeline-integrity manifest'
+  assert_page_body_has 'known-good manifest'
   # The KIND is named, from the watchdog's own closed vocabulary, because the
   # operator's next move differs: this is the step before a rewrite, and it is
   # reversible. A body that said only "no longer matches" would read the same for a
@@ -676,7 +676,7 @@ teardown() { teardown_watchdog_harness; }
   assert_page_count 1
   assert_page_severity_is CRIT
   assert_page_sound_nonempty
-  assert_page_body_has 'pipeline-integrity manifest'
+  assert_page_body_has 'known-good manifest'
 }
 
 @test "T-WATCH-audit-helper-missing-pages: the audit's own dependency going missing pages, instead of killing the tick silently" {
@@ -760,4 +760,84 @@ teardown() { teardown_watchdog_harness; }
     false
   }
   assert_no_page
+}
+
+# --- the same audit, over the managed ~/.local/bin scripts ----------------------
+#
+# update-skills.sh, homebrew-weekly-upgrade.sh and the claude-* hooks run unattended
+# from LaunchAgents and shell hooks. The event path can miss a hard-linked or
+# relocated tamper there for exactly the reasons it can in the pipeline home, and
+# there is nobody at the keyboard when those fire, so the schedule-driven audit is
+# the backstop that matters most for them. All three bound columns are compared, so
+# an attribute-only change reports under its own kind rather than passing as clean.
+
+@test "T-WATCH-audit-managed-bin-tamper-pages: a tampered managed ~/.local/bin script pages CRIT, with no file event anywhere" {
+  tamper_managed_bin_file
+  run run_watchdog # tick 1: first observation, a transient is tolerated
+  [[ $status -eq 0 ]] || {
+    echo "tick1 status $status: $output"
+    false
+  }
+  assert_no_page
+
+  run run_watchdog # tick 2: the same divergence is still there
+  [[ $status -eq 0 ]] || {
+    echo "tick2 status $status: $output"
+    false
+  }
+  assert_page_count 1
+  assert_page_severity_is CRIT
+  assert_page_body_has 'known-good manifest'
+  assert_page_body_has 'content changed'
+}
+
+@test "T-WATCH-audit-managed-bin-attr-hardlink-pages: a chmod made through a hard link outside ~/.local/bin pages as a PERMISSION divergence, with no file event and no content change" {
+  # The attribute half of the blind spot, on the bin arm. The alias and the managed
+  # script are ONE INODE, so the watched path's mode moves while the event names the
+  # attacker's path, and not a byte of content changes. A content-only comparison
+  # would call this clean; the mode column is what does not.
+  chmod_managed_bin_file_through_hard_link
+  run run_watchdog
+  run run_watchdog
+  [[ $status -eq 0 ]] || {
+    echo "status $status: $output"
+    false
+  }
+  assert_page_count 1
+  assert_page_severity_is CRIT
+  assert_page_body_has 'permissions changed'
+  # ...and it is NOT reported as a content change: no byte moved, and conflating the
+  # two would tell the operator the script already executes attacker bytes.
+  refute_file_contains 'content changed' "$WD_SEND_ALERT_LOG"
+}
+
+@test "T-WATCH-audit-managed-bin-shim-silent: a third-party shim updating itself in ~/.local/bin never pages" {
+  # The churn case the manifest-driven coverage exists to avoid. mise, herdr, bob
+  # and yt-dlp rewrite themselves on their own schedule; no manifest lists them, so
+  # the audit has nothing to compare and must stay quiet. If this paged, the whole
+  # probe would become noise the operator learns to ignore.
+  update_unmanaged_bin_shim
+  run run_watchdog
+  run run_watchdog
+  run run_watchdog
+  [[ $status -eq 0 ]] || {
+    echo "status $status: $output"
+    false
+  }
+  assert_no_page
+}
+
+@test "T-WATCH-audit-managed-bin-manifest-missing-pages: losing the managed-bin manifest pages, even while the pipeline manifest is fine" {
+  # Half an audit reporting "clean" is a lie about the half it never read, so a
+  # refusal on either manifest refuses the tick.
+  remove_managed_bin_manifest
+  run run_watchdog
+  run run_watchdog
+  [[ $status -eq 0 ]] || {
+    echo "status $status: $output"
+    false
+  }
+  assert_page_count 1
+  assert_page_severity_is CRIT
+  assert_page_body_has 'known-good manifest'
 }

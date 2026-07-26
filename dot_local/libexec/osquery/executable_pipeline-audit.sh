@@ -1,10 +1,21 @@
 #!/usr/bin/env bash
 #
-# pipeline-audit.sh, sourced helper, not run directly. The PERIODIC MANIFEST AUDIT
-# of the osquery pipeline: it reads the root-owned pipeline-integrity manifest and
-# reports each path whose CURRENT content, mode or owner disagrees with the tuple
-# recorded for it. Sourced by the uptime watchdog, which runs it once per 15-minute
-# tick.
+# pipeline-audit.sh, sourced helper, not run directly. The PERIODIC MANIFEST AUDIT:
+# it reads every root-owned known-good manifest and reports each path whose CURRENT
+# content, mode or owner disagrees with the tuple recorded for it. Sourced by the
+# uptime watchdog, which runs it once per 15-minute tick.
+#
+# BOTH manifests are audited on the same tick: the osquery pipeline's own
+# (pipeline-known-good.sha256) and the chezmoi-managed scripts under ~/.local/bin
+# (managed-bin-known-good.sha256). The blind spot below is a property of path-based
+# event GENERATION, not of any one directory, so it applies to the managed bin
+# scripts exactly as it does to the pipeline home - and those scripts run
+# unattended from LaunchAgents and shell hooks, which is precisely the case where
+# nobody is present to notice a missing event. All three columns are compared for
+# both, so a chmod or chown on a managed operator script is a divergence here under
+# its own kind, not a content-only blind spot. The manifests stay separate files
+# (see the runner), but a monitor is only as good as its least-covered input, so
+# the audit reads them all and a refusal on either one refuses the whole tick.
 #
 # WHY A SCHEDULED AUDIT AND NOT ANOTHER EVENT CHECK. Until this existed, the
 # manifest was enforced only through osquery file_events, and osquery watches
@@ -38,7 +49,7 @@ if [[ -r $_pipeline_audit_verdict_helper ]]; then
   source "$_pipeline_audit_verdict_helper"
 fi
 
-# COST, measured rather than assumed. The real manifest lists 25 files totalling
+# COST, measured rather than assumed. The pipeline manifest lists 25 files totalling
 # about 230 KiB, and a full scan of them takes 0.6 to 0.8s wall clock on this host:
 # a size stat, a mode read, an owner read (~4ms each) and one shasum (~28ms) fork per
 # file, with the hashing itself lost in the noise. shasum is a Perl script, so its
@@ -48,7 +59,8 @@ fi
 # and some implementations escape unusual filenames), which trades an
 # obviously-correct loop for a false-page vector. At one scan per 15-minute tick this
 # is a 0.09% duty cycle, and the audit runs LAST, so it delays none of the other
-# probes.
+# probes. The managed-bin manifest adds roughly 19 small scripts, so a tick reading
+# both costs about 1.2s, still under a 0.14% duty cycle.
 #
 # Comparing the two ATTRIBUTE columns is what the mode and owner reads cost, measured
 # side by side over a 25-file fixture on this host: 0.70 to 0.73s, against 0.46 to
@@ -64,11 +76,14 @@ fi
 # fails toward a page, never toward a quiet skip:
 #   MAX_ENTRIES  - a manifest longer than this is refused whole (a partial audit
 #                  that reported "clean" would be a lie about the unread tail).
-#                  The real manifest lists roughly 25 files.
+#                  Applied PER MANIFEST, which is what the overlong token means.
+#                  The real manifests list roughly 25 and 19 files.
 #   MAX_BYTES    - a manifested file larger than this is NOT hashed; hashing is
 #                  the only work an attacker can inflate, and a pipeline script
 #                  that suddenly weighs megabytes is itself a divergence.
-#   BUDGET       - a wall-clock ceiling for the whole scan.
+#   BUDGET       - a wall-clock ceiling for the whole scan, SHARED across the
+#                  manifests: it bounds the tick, not each list, so adding a
+#                  manifest can never extend how long one tick may run.
 # Each is validated as a plain decimal and clamped on BOTH sides, so a hostile or
 # fat-fingered environment cannot turn a bound into unbounded work (or into
 # nonsense arithmetic).
@@ -149,6 +164,9 @@ _pipeline_audit_size() {
 #   - GROUP OWNERSHIP is still not compared, because the manifest does not bind it.
 #     See the coverage map in results-alerter/pipeline-verdict.sh for why, and for
 #     what remains uncovered across both layers.
+#   - A path is judged against exactly ONE manifest, the one that lists it. The two
+#     lists are disjoint by construction (the runner's arms select disjoint sets),
+#     so nothing is read twice and neither can vouch for the other's files.
 pipeline_audit_scan() {
   # The reused seam has to actually be here. Checked by NAME rather than assumed,
   # so a partial deploy reports a broken audit instead of an all-clear.
@@ -157,13 +175,37 @@ pipeline_audit_scan() {
     return 1
   fi
   local manifest="${OSQUERY_PIPELINE_MANIFEST:-${PIPELINE_MANIFEST:-}}"
-  local max_entries max_bytes budget
+  local max_entries max_bytes budget deadline manifest
   max_entries="$(_pipeline_audit_clamp "$OSQUERY_PIPELINE_AUDIT_MAX_ENTRIES" 1 100000 500)"
   max_bytes="$(_pipeline_audit_clamp "$OSQUERY_PIPELINE_AUDIT_MAX_BYTES" 1 1073741824 8388608)"
   # A zero budget is a legitimate (if drastic) setting: it refuses immediately and
   # therefore pages, which is the safe direction, and it makes the exhausted-budget
   # path testable without a sleep.
   budget="$(_pipeline_audit_clamp "$OSQUERY_PIPELINE_AUDIT_BUDGET_SECONDS" 0 300 60)"
+  # ONE deadline for the whole tick, computed before the first manifest is opened.
+  deadline=$(($(_pipeline_audit_now) + budget))
+
+  # Every known-good manifest, in audit order. A REFUSAL on any of them refuses the
+  # whole scan immediately and drops the findings gathered so far: the caller pages
+  # on a refusal anyway, and reporting a partial list beside a refusal token would
+  # invite reading it as the complete picture. Findings from a COMPLETED manifest
+  # accumulate, so a divergence in one is never hidden by the other being clean.
+  local manifests=(
+    "${OSQUERY_PIPELINE_MANIFEST:-${PIPELINE_MANIFEST:-}}"
+    "${OSQUERY_MANAGED_BIN_MANIFEST:-${MANAGED_BIN_MANIFEST:-}}"
+  )
+  for manifest in "${manifests[@]}"; do
+    _pipeline_audit_scan_manifest "$manifest" "$deadline" "$max_entries" "$max_bytes" || return 1
+  done
+  return 0
+}
+
+# _pipeline_audit_scan_manifest <manifest> <deadline> <max-entries> <max-bytes>:
+# audit ONE manifest. Same contract as pipeline_audit_scan for a single list:
+# return 0 having printed a "<kind> <path>" line per diverging COLUMN, or return 1
+# having printed a single refusal token.
+_pipeline_audit_scan_manifest() {
+  local manifest="$1" deadline="$2" max_entries="$3" max_bytes="$4"
 
   # An unusable manifest is refused before anything is judged: without a trustworthy
   # list there is no known-good to compare against, and "found nothing" would be a
@@ -192,9 +234,8 @@ pipeline_audit_scan() {
   # did not matter. The pattern is also what BOUNDS the two attribute columns, so
   # the comparisons below are string equalities over already-constrained values.
   local line_pattern='^([0-9a-fA-F]{64}) ([0-7]{4}) ([0-9]{1,10}) (/.+)$'
-  local deadline entries=0 line want_hash want_mode want_uid target
+  local entries=0 line want_hash want_mode want_uid target
   local size disk_hash disk_mode disk_uid
-  deadline=$(($(_pipeline_audit_now) + budget))
 
   # `|| [[ -n $line ]]` so a final line with no trailing newline is still examined
   # (the same idiom the verdict helper reads the manifest with).

