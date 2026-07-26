@@ -25,28 +25,46 @@
 # without a manifest tuple to justify it, and a missing/empty/mismatched hash pages
 # too.
 #
-# Blind spots, recorded honestly. This check judges EVENTS about the deployed tree,
-# so it is bounded by what generates events and by what the manifest binds:
+# COVERAGE MAP. Two layers now enforce the manifest, and they cover DIFFERENT
+# things. For any given tamper, this says which one is supposed to catch it.
 #
-#   - NO GROUP COLUMN. Content, mode and owner are bound; the owning GROUP is not.
+#   LAYER 1, this file, at EVENT time. Judges a filesystem event against the full
+#   tuple, so it catches CONTENT, PERMISSION and OWNERSHIP drift, but only on a
+#   change that produces an event on a watched path. It is the fast answer:
+#   whatever fires an event is judged within seconds.
+#
+#   LAYER 2, the PERIODIC CONTENT AUDIT in ../pipeline-audit.sh, which the uptime
+#   watchdog runs every 15 minutes. Re-hashes every manifested path on a schedule,
+#   so it catches drift that produces NO EVENT AT ALL and that layer 1 therefore
+#   never sees. The two shapes that matters for are hard links and symlink
+#   referents: the watch is path-based, so an attacker who hard-links a manifested
+#   script to a writable path outside the pipeline home overwrites the SAME INODE
+#   through the outside alias, the event names that path, and nothing fires for the
+#   watched one. That is a property of path-based file-integrity monitoring, not of
+#   the judgment below. The symlink and regular-file checks below remain the
+#   immediate answer on the event path.
+#
+# WHAT NEITHER LAYER COVERS, recorded honestly:
+#
+#   - GROUP OWNERSHIP. Content, mode and owner are bound; the owning GROUP is not.
 #     chezmoi has no group intent to derive one from, and a chgrp alone cannot make
 #     a file writable that the bound mode does not already grant group write to (a
 #     bound 0755 or 0644 grants none), so the case a group column would add on its
 #     own is chgrp plus chmod, which the mode column already pages.
-#   - HARD LINKS / EVENT GENERATION. The watch is path-based, so an attacker who
-#     hard-links a manifested script to a writable path outside the pipeline home
-#     can overwrite the SAME INODE through the outside alias: the filesystem event
-#     names that path, nothing fires for the watched one, and no verdict runs at
-#     all. This is a property of path-based file-integrity monitoring, not of the
-#     judgment below (before the manifest existed, no event meant no page either).
-#     Now covered by the PERIODIC CONTENT AUDIT in ../pipeline-audit.sh, which the
-#     uptime watchdog runs every 15 minutes: it hashes every manifested path and
-#     pages on a divergence, needing no event to have fired. The symlink and
-#     regular-file checks below remain the immediate answer on the event path.
+#   - ATTRIBUTE DRIFT THAT FIRES NO EVENT. The two layers overlap on content but not
+#     on attributes: layer 2 compares only the content column. So a chmod or chown
+#     applied through a hard-link alias outside the pipeline home lands in the gap
+#     between them - layer 1 sees no event, layer 2 does not look at those columns.
+#     Closing it means comparing mode and owner in the audit as well.
+#   - RE-TAMPERING AN ALREADY-REPORTED FILE. Layer 2 dedupes on a fingerprint of
+#     WHICH paths disagree and HOW, not of the bytes they now hold, so a path already
+#     reported as a content divergence can be rewritten again with different content
+#     without paging a second time. Deliberate (it is what stops a persistent
+#     divergence paging every 15 minutes forever), and worth knowing.
 #   - SOURCE COMPROMISE. The manifest is generated from chezmoi's source state,
 #     which is user-writable, so tampering with a managed file's SOURCE and letting
-#     a legitimate apply deploy it is signed as known-good. See the runner's
-#     docblock: this layer buys post-deployment integrity, not source integrity.
+#     a legitimate apply deploy it is signed as known-good by BOTH layers. See the
+#     runner's docblock: this buys post-deployment integrity, not source integrity.
 #
 # Return-code contract (from c69baab _pipeline_verdict):
 #   0 = PAGE   (tamper / cannot confirm legit / no manifest / delete)
