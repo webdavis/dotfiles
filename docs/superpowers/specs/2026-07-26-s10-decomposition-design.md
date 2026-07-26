@@ -38,7 +38,7 @@ a control it cannot actually set as if it had set it.
 
 ## Goal
 
-Land S10 as eight small, self-supporting, dependency-ordered pull requests that each survive a single
+Land S10 as ten small, self-supporting, dependency-ordered pull requests that each survive a single
 sitting of review, and end with a macOS security posture that is declared in data, enforced where the
 operating system still permits enforcement, verified and alerted on where it does not, and written down
 in the runbook where neither is possible.
@@ -51,9 +51,10 @@ Each pull request:
 1. states every intentional divergence from pull request #53 in its own description.
 
 Behavior drift from `cfaa446` is expected and welcome. Pull request #53 is a starting reference, not a
-fidelity target. Three of the eight slices (2, 3, 5) have no counterpart in the monolith at all; they are
-net-new design from the product requirements document. The remaining five (1, 4, 6, 7, 8) draw on
-monolith content and improve it under review.
+fidelity target. Three of the ten slices (2, 3, 5) have no counterpart in the monolith at all; they are
+net-new design from the product requirements document. Five (1, 4, 6, 7, 8) draw on monolith content and
+improve it under review. Two (9, 10) take a single cask line each from the monolith and build the
+posture work around it that the monolith never had.
 
 ## Constraints and standing policy
 
@@ -102,7 +103,7 @@ Every implementer brief carries this checklist, and every reviewer checks agains
   suite guard rejects strays.
 - Explicit staging paths on every `git add`. Never `git add -A`.
 - The generated `graphify-out/graph.json` is not carried per slice. It is regenerated once, after slice
-  8, in its own chore commit.
+  10, in its own chore commit.
 - The SSH slices (7 and 8) run under `#!/bin/bash`, which on macOS is bash 3.2. No associative arrays, no
   `compgen -G`. Their tests invoke the script through `/bin/bash` explicitly so a 3.2-only regression
   fails in the test rather than in production.
@@ -193,12 +194,14 @@ Per-slice assessment:
 | 6     | Yes, for live proof | Partly   | Poller runs standalone; end-to-end apply wiring cannot be shown. |
 | 7     | No                  | No       | Sandbox drop-in tree plus the real `sshd -G` parser.             |
 | 8     | No                  | No       | Fully stubbed daemon; the live drill is manual regardless.       |
+| 9     | Yes, for live proof | Partly   | Render tests pass; cask install and running-state need an apply. |
+| 10    | Yes, for live proof | Partly   | Same, and its drill needs the extension actually enforcing.      |
 
-So the blocker never stops a slice from building or from passing its tests. It stops slices 4, 5, and 6
-from demonstrating the applied end state on the live machine. Two consequences:
+So the blocker never stops a slice from building or from passing its tests. It stops slices 4, 5, 6, 9,
+and 10 from demonstrating the applied end state on the live machine. Two consequences:
 
-1. Slices 4, 5, and 6 must each state, in their pull request description, that the applied end state was
-   not demonstrated and which specific assertion is therefore deferred.
+1. Slices 4, 5, 6, 9, and 10 must each state, in their pull request description, that the applied end
+   state was not demonstrated and which specific assertion is therefore deferred.
 1. Resolving the duplicate directories is a prerequisite for the S10 acceptance drill, not for any
    individual slice. It is tracked separately and must be resolved before the drill. Removing the
    duplicates is a source-tree decision with its own blast radius (which of each pair is authoritative,
@@ -206,18 +209,20 @@ from demonstrating the applied end state on the live machine. Two consequences:
 
 ## The slice stack
 
-Eight self-supporting pull requests in dependency order.
+Ten self-supporting pull requests in dependency order.
 
-| # | Pull request                     | Monolith source          | Blast radius        |
-| - | -------------------------------- | ------------------------ | ------------------- |
-| 1 | macOS defaults shared library    | yes (3 commits)          | developer tooling   |
-| 2 | System-domain support            | none (net new)           | developer tooling   |
-| 3 | Tiered control model             | none (net new)           | apply-time refusal  |
-| 4 | Firewall baseline                | partial                  | network reachability |
-| 5 | Security defaults baseline       | none (net new)           | update and download policy |
-| 6 | Posture verification and alerting | partial                 | alerting fidelity   |
-| 7 | SSH config generation            | yes (most of #53)        | sshd config on disk |
-| 8 | SSH apply safety                 | yes                      | remote access       |
+| #  | Pull request                      | Monolith source   | Blast radius               |
+| -- | --------------------------------- | ----------------- | -------------------------- |
+| 1  | macOS defaults shared library     | yes (3 commits)   | developer tooling          |
+| 2  | System-domain support             | none (net new)    | developer tooling          |
+| 3  | Tiered control model              | none (net new)    | apply-time refusal         |
+| 4  | Firewall baseline                 | partial           | network reachability       |
+| 5  | Security defaults baseline        | none (net new)    | update and download policy |
+| 6  | Posture verification and alerting | partial           | alerting fidelity          |
+| 7  | SSH config generation             | yes (most of #53) | sshd config on disk        |
+| 8  | SSH apply safety                  | yes               | remote access              |
+| 9  | OverSight                         | one cask line     | notification noise         |
+| 10 | LuLu                              | one cask line     | outbound network, alerting |
 
 ______________________________________________________________________
 
@@ -394,8 +399,8 @@ Firewall logging is declared `tier: manual` with a runbook pointer, because `soc
 no logging-mode flag. This is the first real use of the `manual` tier and it is the concrete demonstration
 that the tier model earns its keep.
 
-**Deliberately not in scope.** No per-application allow or block rules. No LuLu or OverSight
-configuration (see risks). No firewall log ingestion.
+**Deliberately not in scope.** No per-application allow or block rules. No LuLu or OverSight work; those
+are slices 10 and 9. No firewall log ingestion.
 
 **Self-supporting proof.** The records are ordinary `system_setup` entries in the schema slice 3 already
 shipped, consumed by a runner that already knows how to render them. The test renders the real runner
@@ -494,6 +499,13 @@ store and page-once markers already solved. Slice 6 extends it rather than build
 
 Extensions:
 
+- Introduce `.chezmoidata/macos_posture_controls.yaml`, the declaration home for `verify`-tier controls
+  that are neither a `defaults` key nor a `system_setup` command. A posture control that reads "process X
+  is running" or "rule Y exists" has no natural place in either existing data file, and hardcoding the
+  set inside the poller would put the controls somewhere the tier model cannot see them. Each record
+  carries its identifier, its tier, how it is read, and the value it must hold. The poller reads the file
+  rather than carrying the list in its body, so adding a control is a data change. Slices 9 and 10 each
+  add records here.
 - Add auto-login and guest-account state to the posture read.
 - Add FileVault and System Integrity Protection state to the posture read, both as report-only controls
   (`verify` tier: neither can be enabled from the command line, and SIP is deliberately disabled on this
@@ -537,6 +549,10 @@ are not dependencies: the poller reads live state, not the declared enforce reco
   on any non-status invocation, and asserts the log is empty.
 - The Gatekeeper remedy text names System Settings and does not name `spctl --master-enable`.
 - No value read from the system reaches a notification body or a shell command without neutralization.
+- A record in `macos_posture_controls.yaml` with a tier other than `verify` is rejected, since an
+  enforce-tier control does not belong in a file the poller only reads from.
+- The poller's monitored set and the file's record set are enumerated and diffed by a test, so a control
+  declared in data but never read, or read but never declared, fails rather than passing quietly.
 - The pull request description records which reader was chosen for each new field and the evidence for
   it, and states which assertions were deferred because of the known blocker.
 
@@ -546,7 +562,8 @@ are notify-before-persist ordering on every new marker, the indeterminate classi
 data crossing into the notification body.
 
 **Files.** Changes `dot_local/libexec/osquery/executable_firewall-gatekeeper-monitor.sh`. Adds
-`test/unit/macos-posture-indeterminate.sh`, `test/integration/osquery-poller-posture-fields.bats` (or
+`.chezmoidata/macos_posture_controls.yaml`, `test/unit/macos-posture-indeterminate.sh`,
+`test/integration/osquery-poller-posture-fields.bats` (or
 extends `test/integration/osquery-poller.bats`, whichever the existing harness makes cleaner). Does not
 add `.chezmoiscripts/run_after_67-macos-security-posture.sh.tmpl`.
 
@@ -710,6 +727,229 @@ merge, and it does not merge until the live drill below has been run.
 `docs/runbooks/macos-fresh-machine-quickstart.md`. Adds
 `test/integration/ssh-hardening-reload-failclosed.sh`, `test/integration/ssh-hardening-rollback.sh`.
 
+______________________________________________________________________
+
+### Slice 9: OverSight
+
+**Scope.** Add the `oversight` cask to `.chezmoidata/system_packages_autoinstall.yaml` in alphabetical
+order, and declare one `verify`-tier posture control in `macos_posture_controls.yaml` asserting that
+OverSight's monitoring process is actually running.
+
+The split of tiers is the point. Installing the cask is `enforce`, because Homebrew can genuinely do it.
+Whether the tool is running is `verify`, because a login item that the operator can quit is not something
+an apply-time runner should silently restart, and the microphone and camera permission grants it needs
+are interactive. Those grants get a `manual` record with a runbook pointer.
+
+OverSight is passive. It observes microphone and camera activation and raises a notification; it filters
+no traffic and carries no network extension. So it has no interactions with any other slice to manage,
+and it cannot degrade the alerting channel the way slice 10 can. That is why it ships before slice 10 and
+gets a fraction of the review.
+
+**Deliberately not in scope.** Any OverSight configuration beyond installation. Any attempt to grant its
+permissions programmatically. Any rule or allowlist.
+
+**Self-supporting proof.** The cask line is consumed by the Brewfile generator in
+`run_onchange_before_10-system-packages.sh.tmpl`, which has been on `main` since long before S10 and
+needs no change to accept another cask. The posture record uses the tier field from slice 3 and the
+declaration file and reader loop from slice 6, both already shipped by the time slice 9 builds. Nothing
+in the slice references anything unshipped, and its tests render the real generator and drive the real
+poller against a stubbed process probe, so they pass with OverSight absent from the machine.
+
+**Dependencies.** Slice 3, for the tier field the records carry. Slice 6, for
+`macos_posture_controls.yaml` and the poller loop that reads it. Both are already merged at this point in
+the stack, so neither constrains the ordering further.
+
+**Acceptance criteria.**
+
+- The generated Brewfile contains the `oversight` cask, and the casks list is still in alphabetical
+  order. The ordering assertion compares the parsed list against its own sorted copy rather than eyeballing
+  the diff.
+- The running-state record is declared `verify` and is rejected by the tier guard if changed to
+  `enforce`.
+- With a stubbed probe reporting OverSight not running, the poller pages exactly once and stays quiet
+  while it remains down.
+- With the probe restored, the marker clears so a later stop pages again.
+- A probe that exits nonzero is reported indeterminate, never as running. The slice must pin the actual
+  process name or bundle identifier it probes for, with evidence from the installed application, rather
+  than assuming one.
+- The permission-grant record is `manual` and its runbook section exists.
+- The pull request description states which assertions were deferred because of the known blocker.
+
+**Review weight.** Low. Blast radius is notification noise: the worst realistic outcome is a banner the
+operator did not want, or a posture page for a tool that is merely quit. The code-quality dimension
+applies as it does everywhere, with the reviewer checking that the running-state probe is a real check
+rather than a proxy such as the presence of the application bundle on disk.
+
+**Files.** Changes `.chezmoidata/system_packages_autoinstall.yaml`,
+`.chezmoidata/macos_posture_controls.yaml`, `docs/runbooks/macos-fresh-machine-quickstart.md`. Adds
+`test/integration/oversight-cask-and-posture.sh`.
+
+______________________________________________________________________
+
+### Slice 10: LuLu
+
+**Scope.** Add the `lulu` cask, declare the system-extension approval as a `manual` control, and declare
+`verify` controls for the extension running and for the required allow rules existing. LuLu is an
+outbound firewall: it prompts on outbound connections and blocks what is not allowed.
+
+**Why it is last, in dependency terms.** Three reasons, none of them a matter of caution:
+
+1. **It needs slice 3.** LuLu's system-extension approval is interactive, so it is a `manual`-tier
+   control. Slice 3 is what creates a place to declare that honestly, instead of a script that pretends to
+   apply something it cannot.
+1. **It needs slice 6.** LuLu filters outbound traffic and the osquery alerting reaches Discord over
+   outbound traffic, so slice 10's acceptance has to prove a page still arrives with LuLu enforcing. That
+   proof is only meaningful if the alerting path was already proven working without LuLu, otherwise a
+   failure cannot be attributed to a layer.
+1. **It is the only slice that can degrade the alerting channel.** Running it last means every other
+   slice was already proven through an unfiltered network, so any delivery failure observed during slice
+   10 has exactly one new suspect.
+
+**The blast radius is bounded by an S9 mitigation that already exists.** A blocked webhook is not silent.
+`send_alert` is write-ahead durable: it persists the page before attempting delivery, so a blocked POST
+queues rather than vanishing, the scheduled drainer retries it, and it eventually dead-letters. The
+uptime watchdog pages on any nonzero dead-letter count, so a persistently blocked channel surfaces as its
+own alert. Separately, the durable local notification channel fires a banner regardless, because that
+path never touches the network at all. Both facts are properties of code already on `main`, and slice 10
+should verify they still hold rather than re-establish them.
+
+#### The gate slice 10 resolves before it designs anything
+
+**Question.** Can LuLu allow rules be pre-seeded declaratively, or are they only creatable by answering
+an interactive prompt?
+
+**Resolved: they cannot be pre-seeded through any supported interface.** Verified against LuLu's own
+source, without installing it:
+
+- `LuLu/Shared/consts.h` defines `INSTALL_DIRECTORY @"/Library/Objective-See/LuLu"`,
+  `RULES_FILE @"rules.plist"`, and `PREFS_FILE @"preferences.plist"`. So rules live at
+  `/Library/Objective-See/LuLu/rules.plist`.
+- `LuLu/Extension/Rules.m` writes that file with
+  `[NSKeyedArchiver archivedDataWithRootObject:persistentRules requiringSecureCoding:YES ...]` followed by
+  `writeToFile:atomically:YES`, and reads it back with `NSKeyedUnarchiver unarchivedObjectOfClasses:` over
+  a class set that includes LuLu's own private `Rule` class.
+- A keyed archive of a private Objective-C class is not a hand-authorable property list. `defaults write`,
+  `PlistBuddy`, `plutil`, and `yq` cannot produce a valid one. The header also carries a
+  `RULES_FILE_V1 @"rules_v1.plist"` migration constant, so the layout has already changed once and any
+  reimplementation would be version-fragile.
+- LuLu does expose an `import:userOnly:` method, but it consumes a file LuLu itself exported, and the
+  documented interface is the graphical Rules menu. The product ships no command-line entry point.
+- A third-party command-line tool writes the archive directly and then requires its own reload, which
+  restarts the system extension and opens a brief window with no filtering. That is an unofficial writer
+  against an undocumented format, and the standing rule against depending on modified or unofficial
+  interfaces to third-party tools applies.
+
+**So the design is the interactive-only branch:** a runbook entry that walks the operator through
+creating each required rule by hand, plus `verify`-tier controls asserting those rules exist, paging when
+one goes missing. The slice does not automate rule creation and does not pretend to.
+
+**A second gate the slice must also resolve.** LuLu's preferences surface is distinct from its rules
+surface. `consts.h` defines `PREF_ALLOW_LOCALHOST`, `PREF_ALLOW_APPLE`, `PREF_ALLOW_INSTALLED`,
+`PREF_USE_ALLOW_LIST` with `PREF_ALLOW_LIST`, and `PREF_PASSIVE_MODE`, all stored in `preferences.plist`
+in the same directory. If that file is a plain property list rather than another keyed archive, then some
+policy is declaratively settable even though individual rules are not. This must be settled by reading
+the file's actual format on a machine that has LuLu, not assumed, and it matters directly:
+`allowLocalHost` is what determines whether the alerting path's loopback POST is filtered at all.
+
+#### The allow-rule set, and a correction to how the alerting path egresses
+
+The minimum enumerated set, with a correction the slice must not skip past. The osquery alerter does not
+POST to Discord. `alert-dispatch.sh` POSTs to
+`http://127.0.0.1:8644/webhooks/osquery-priority`, a Hermes gateway running locally, and Hermes performs
+the internet egress. The uptime watchdog's route probe hits the same loopback URL. So:
+
+| Talker                       | What it needs                                              |
+| ---------------------------- | ---------------------------------------------------------- |
+| Hermes gateway               | Outbound. This is the alerting channel's real egress hop.  |
+| The alerter's own `curl`     | Loopback only, so a preference (`allowLocalHost`), not a rule. |
+| `tailscaled`                 | Outbound. Also recovery path 2 in the slice 8 story.       |
+| Homebrew, npm, nix, and `gh` | Outbound, unattended, on their own schedules.               |
+
+Two consequences. First, anyone who writes an allow rule for the alerter's `curl` has solved the wrong
+problem; the rule that protects paging is the one on Hermes. Second, `tailscaled` is safety-critical
+rather than convenience: blocking it removes one of the two remote recovery channels slice 8 depends on.
+
+**The granularity tension, and which way to lean.** LuLu keys a rule on the executing binary's path and
+code-signing identity. Several talkers above are not distinct binaries; they are scripts that reach the
+network through a shared client such as `/usr/bin/curl` or git's HTTPS transport. LuLu cannot see which
+script invoked the shared client, so a rule allowing `/usr/bin/curl` allows it for every process on the
+machine. On a box running many unattended agents that is close to allowing arbitrary outbound. The
+opposite lean, a rule per binary, means more prompts.
+
+**Lean narrow, and accept the prompt cost.** Concretely: do not create blanket allow rules for shared
+interpreters and shared clients (`/usr/bin/curl`, `/bin/bash`, `node`, `python3`, `/usr/bin/ssh`). Those
+are exactly the binaries an unexpected outbound connection would ride, so allowing them wholesale removes
+the reason the tool was installed. Prefer rules on binaries that are themselves the thing being allowed:
+`tailscaled`, the Hermes gateway, `nix`. The reasoning is an asymmetry, not a preference: the prompt cost
+is bounded and one-time, because the unattended talker set is small, known, and enumerated above, so the
+prompts land during the drill rather than becoming an ongoing tax; whereas a wholesale `curl` allow is
+permanent, unbounded, and silently forfeits the layer's entire detection value.
+
+Where a talker only reaches the network through a shared client, do not widen the shared client. Either
+leave it prompting, or give that path its own dedicated client so it can carry its own narrow rule. If
+the drill shows the alerting path itself would ride a shared client outbound, those two options are the
+honest ones, and quietly widening `curl` to make a page go through is not.
+
+**Deliberately not in scope.** Automating rule creation. Passive mode or block mode. Any LuLu block
+rules. Changing how `alert-dispatch.sh` reaches Hermes.
+
+**Self-supporting proof.** The cask line is consumed by the existing Brewfile generator. Every declared
+control uses the tier field from slice 3 and the declaration file and reader loop from slice 6. The
+runbook section is prose in a file that already exists. Nothing references anything unshipped. The tests
+drive the poller against a stubbed rule-file reader and a stubbed extension probe, so they pass on a
+machine where LuLu is not installed, which is the state of the machine when the slice is built.
+
+**Dependencies.** Slice 3 and slice 6, for the three reasons given above. Slice 8 is not a build
+dependency, but slice 10's rule set must include `tailscaled` precisely because slice 8's recovery story
+leans on the tailnet.
+
+**Acceptance criteria.**
+
+- The generated Brewfile contains the `lulu` cask and the casks list is still alphabetically ordered,
+  asserted against a sorted copy.
+- The system-extension approval is declared `manual` with a runbook section that exists, and the runner
+  emits no command for it.
+- Every talker in the enumerated set above has either an allow rule declared as a `verify` control or an
+  explicit written reason it needs none. The set of talkers and the set of declared controls are
+  enumerated and diffed by a test, so adding a talker without a control fails.
+- With a stubbed rule reader reporting a required rule missing, the poller pages once, names the missing
+  rule, and stays quiet while it remains missing.
+- The rule-existence check states its own limitation honestly. The archive is readable enough to
+  enumerate the binary paths it references, so the check can prove a rule mentioning a binary exists; the
+  slice must determine whether the rule's action is recoverable from the archive, and if it is not, the
+  control is documented as existence-only and explicitly does not prove the rule allows rather than
+  blocks. A check that cannot see the action must not claim it did.
+- The preferences-surface gate is resolved in writing, with the evidence, before any control is declared.
+- The pull request description states which assertions were deferred because of the known blocker.
+
+**Live drill, run before slice 10 merges.** With the alerting path already proven working in slice 6, and
+performed in this order:
+
+1. Confirm a test CRIT page reaches Discord with LuLu installed but its extension not yet approved.
+1. Approve the extension. Create the enumerated allow rules by hand, following the runbook, and confirm
+   the runbook's steps actually match what the interface presents.
+1. Send a second test CRIT page and confirm it reaches Discord with the extension enforcing.
+1. Confirm the tailnet still works, since it is a slice 8 recovery path.
+1. Delete one required rule deliberately and confirm the poller pages that it is missing, then restore
+   it.
+1. Confirm the S9 mitigation end to end: block the egress, confirm the page queues rather than vanishing,
+   confirm the local banner still fires, and confirm the watchdog eventually pages on the dead-letter
+   count.
+
+The drill's results go in the slice 10 pull request description. Step 6 is the one that turns the
+bounded-blast-radius claim from an assertion into evidence.
+
+**Review weight.** High, and second only to slice 8 in this program. Slice 10 cannot lock the operator
+out of the machine, which is why it ranks below slice 8, but it is the only slice that can degrade the
+channel by which every other failure is reported, and a broken alerting channel is a silent failure that
+hides the next one. The reviewer's specific hunts: any allow rule broader than the talker it exists for,
+especially on a shared client; any claim about a rule's action the archive cannot actually support; and
+any place the runbook and the declared control set could drift apart.
+
+**Files.** Changes `.chezmoidata/system_packages_autoinstall.yaml`,
+`.chezmoidata/macos_posture_controls.yaml`, `docs/runbooks/macos-fresh-machine-quickstart.md`. Adds
+`test/integration/lulu-cask-and-rules.sh`, `test/unit/lulu-rule-existence-reader.sh`.
+
 ## The recovery story for slice 8
 
 A reload restarts the daemon that serves remote access, on a machine whose sudo is passwordless and whose
@@ -802,7 +1042,8 @@ For each slice, in order:
    verified correctness. This goes in the slice report, never in the pull request description.
 1. Adversarial review, weighted per the slice's review weight. The code-quality dimension runs on every
    slice regardless, ranked below correctness.
-1. Slice 8 additionally gets a personal operator review and the live drill before merge.
+1. Slice 8 additionally gets a personal operator review and its live drill before merge. Slice 10
+   additionally gets its live drill before merge.
 1. Merge on approval; move to the next slice.
 
 Where review turns up a bug or a worthwhile improvement, fix it in that slice and call it out in the pull
@@ -816,7 +1057,10 @@ request description.
   directories.
 - Slice 5 states the Safari read-back evidence and the tier it justified.
 - Slice 6 states which reader was chosen for each new posture field and the evidence for it.
-- Slice 8 states the live drill's results.
+- Slice 8 states its live drill's results.
+- Slice 9 states the process identifier its running-state probe uses and the evidence for it.
+- Slice 10 states the resolution of both gates (rule pre-seeding, and the preferences surface) with its
+  evidence, and its live drill's results including the blocked-egress step.
 - End state, after the blocker is resolved: a `chezmoi apply` renders both runners without abort, writes
   only `enforce` controls, and the poller pages on a `verify` control turning off. Every `manual` control
   has a runbook section, and the set of `manual` records and the set of runbook sections are enumerated
@@ -824,9 +1068,11 @@ request description.
 
 ## Risks and open items
 
-### Work in pull request #53 the eight-slice plan does not currently account for
+### Work in pull request #53 the original eight-slice plan did not account for
 
-This is the section to read before starting slice 1, not after reaching slice 7.
+This is the section to read before starting slice 1, not after reaching slice 7. Item 2 has since been
+resolved by an operator ruling and is recorded here with its resolution, because the reasoning still
+applies to how slices 9 and 10 are scoped.
 
 1. **Slice 1 is not a pure refactor.** The plan describes it as "extract the lib, three consumers adopt
    it", but the monolith's corresponding commits also fix a real bug: the tools hardcoded the primary
@@ -834,12 +1080,13 @@ This is the section to read before starting slice 1, not after reaching slice 7.
    exist for that bug. This design resolves the contradiction by putting the fix in slice 1 and saying so,
    because splitting a bug fix from the extraction that enables it would produce two half-slices. The
    reviewer should expect behavior change in slice 1 and not treat it as scope creep.
-1. **LuLu and OverSight casks are unowned.** The monolith adds two endpoint-security casks to
-   `.chezmoidata/system_packages_autoinstall.yaml` under an "R8 endpoint hardening" commit. No slice in
-   the eight covers package installation. They are independent of everything else in S10 and should be
-   their own trivial slice (or explicitly dropped), not smuggled into slice 4. Note that installing a
-   network-filtering tool like LuLu is not inert: it adds a system extension that prompts and can block
-   traffic.
+1. **The LuLu and OverSight casks were unowned; they are now slices 9 and 10.** The monolith adds two
+   endpoint-security casks to `.chezmoidata/system_packages_autoinstall.yaml` under an "R8 endpoint
+   hardening" commit, and no slice in the original eight covered package installation. The operator has
+   ruled that both are required, so they became slices 9 and 10 rather than being dropped or smuggled
+   into slice 4. The observation that drove the concern still stands and is why they are two slices at
+   opposite ends of the review-weight scale: OverSight is passive and inert, while LuLu adds a system
+   extension that prompts and can block traffic, including the traffic that carries the alerts.
 1. **The Tier 2 runner's `{{ if .sudo }}` bug is a prerequisite, not a detail.** The monolith fixes it in
    its own commit with its own test. This design pulls it into slice 3, because slice 3 introduces new
    optional per-record fields and would otherwise reintroduce the identical absent-key throw for `tier`.
@@ -856,9 +1103,11 @@ This is the section to read before starting slice 1, not after reaching slice 7.
    `--rollback` in slice 8. That is new work, not a re-land, and it is the largest single addition the
    plan makes to the monolith.
 1. **Three slices have no monolith source at all.** Slices 2, 3, and 5 are net-new from the product
-   requirements document. Estimating S10 from the monolith's line count will understate it. Conversely,
-   slice 4's signed-application policy record is an addition the monolith does not contain (it declares
-   only global state and stealth), and slice 6 deliberately does not re-land the monolith's
+   requirements document. Estimating S10 from the monolith's line count will understate it badly, and
+   slices 9 and 10 make that worse rather than better: the monolith contributes one cask line to each,
+   while the posture controls, the runbook entries, and slice 10's whole rule-existence design are new.
+   Conversely, slice 4's signed-application policy record is an addition the monolith does not contain
+   (it declares only global state and stealth), and slice 6 deliberately does not re-land the monolith's
    `run_after_67` script.
 1. **The monolith wires `ssh-hardening.sh` into `macos_system_setup.yaml` with `sudo: false`, so the
    script self-escalates.** That means a `chezmoi apply` triggered by a change to that data file runs a
@@ -883,6 +1132,15 @@ This is the section to read before starting slice 1, not after reaching slice 7.
 - **Screen lock cannot be enforced.** `sysadminctl -screenLock` requires `-password`, so screen lock is a
   `verify` control. It is currently immediate on this machine, and slice 6 will page if that changes, but
   nothing in S10 can set it back.
+- **The alerting path does not egress where a reader would assume.** `alert-dispatch.sh` POSTs to a
+  Hermes gateway on `127.0.0.1:8644`, and Hermes performs the Discord egress. Anyone reasoning about
+  outbound filtering from the alerter's own `curl` call will protect the wrong hop. This is written into
+  slice 10, but it also affects any future work that assumes the alerter talks to the internet directly.
+- **The readability of LuLu's rules file is unresolved.** `/Library/Objective-See/LuLu/rules.plist` lives
+  under `/Library` and its ownership and mode are unknown without installing the product. If it is
+  root-only, slice 10's rule-existence check needs privilege to read it, which puts a `sudo` in a poller
+  that currently runs unprivileged as a user agent. Slice 10 must settle this early, because "the check
+  needs root" would change its design rather than its implementation.
 
 ## Out of scope
 
