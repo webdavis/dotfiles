@@ -38,7 +38,8 @@ a control it cannot actually set as if it had set it.
 
 ## Goal
 
-Land S10 as ten small, self-supporting, dependency-ordered pull requests that each survive a single
+Land S10 as slice 0 plus ten small, self-supporting, dependency-ordered pull requests that each survive a
+single
 sitting of review, and end with a macOS security posture that is declared in data, enforced where the
 operating system still permits enforcement, verified and alerted on where it does not, and written down
 in the runbook where neither is possible.
@@ -51,10 +52,10 @@ Each pull request:
 1. states every intentional divergence from pull request #53 in its own description.
 
 Behavior drift from `cfaa446` is expected and welcome. Pull request #53 is a starting reference, not a
-fidelity target. Three of the ten slices (2, 3, 5) have no counterpart in the monolith at all; they are
-net-new design from the product requirements document. Five (1, 4, 6, 7, 8) draw on monolith content and
-improve it under review. Two (9, 10) take a single cask line each from the monolith and build the
-posture work around it that the monolith never had.
+fidelity target. Five of the slices (2, 3, 5, 9, 10) have no counterpart in the monolith at all; they are
+net-new design from the product requirements document and from what the live machine turned out to be
+carrying. Five (1, 4, 6, 7, 8) draw on monolith content and improve it under review. Slice 0 takes two
+cask lines from the monolith and nothing else.
 
 ## Constraints and standing policy
 
@@ -168,11 +169,16 @@ the tier model Gatekeeper is declared `tier: verify` because it cannot be set fr
 runner will not emit a write for it, so nobody can add that command without also lying about the tier,
 and lying about the tier is caught by the `verify`-with-a-payload render abort.
 
-## Known blocker: duplicate hermes profile source directories
+## Known blockers
 
-`main` at `d331171` carries both `dot_hermes/profiles/{butters,concerned,elaine,nicodemus}` and a
-`private_` variant of each. chezmoi treats the pair as two source entries for one target and rejects the
-entire source state.
+Two, and they share a shape: both are invisible while the live branch and `main` are apart, and both bite
+when the branches converge. Neither is caused by S10; both constrain it.
+
+### Blocker one: duplicate hermes profile source directories
+
+`main` carries both `dot_hermes/profiles/{butters,concerned,elaine,nicodemus}` and a `private_` variant
+of each. chezmoi treats the pair as two source entries for one target and rejects the entire source
+state.
 
 Verified on the base commit:
 
@@ -186,6 +192,7 @@ Per-slice assessment:
 
 | Slice | Wants a real apply? | Blocked? | Why                                                             |
 | ----- | ------------------- | -------- | --------------------------------------------------------------- |
+| 0     | No                  | No       | The Brewfile render and cleanup preview need no applied state.   |
 | 1     | No                  | No       | Scripts are executed directly from the source tree by the tests. |
 | 2     | No                  | No       | Same, plus template renders via `execute-template`.              |
 | 3     | No                  | No       | The render-abort behavior is proved by `execute-template`.       |
@@ -194,8 +201,8 @@ Per-slice assessment:
 | 6     | Yes, for live proof | Partly   | Poller runs standalone; end-to-end apply wiring cannot be shown. |
 | 7     | No                  | No       | Sandbox drop-in tree plus the real `sshd -G` parser.             |
 | 8     | No                  | No       | Fully stubbed daemon; the live drill is manual regardless.       |
-| 9     | Yes, for live proof | Partly   | Render tests pass; cask install and running-state need an apply. |
-| 10    | Yes, for live proof | Partly   | Same, and its drill needs the extension actually enforcing.      |
+| 9     | Yes, for live proof | Partly   | Poller runs standalone; the running-state proof needs an apply.  |
+| 10    | Yes, for live proof | Partly   | Same, plus its policy records cannot be applied to prove them.   |
 
 So the blocker never stops a slice from building or from passing its tests. It stops slices 4, 5, 6, 9,
 and 10 from demonstrating the applied end state on the live machine. Two consequences:
@@ -207,12 +214,33 @@ and 10 from demonstrating the applied end state on the live machine. Two consequ
    duplicates is a source-tree decision with its own blast radius (which of each pair is authoritative,
    and whether the profiles should be private), so it does not get folded into an S10 slice.
 
+### Blocker two: `main` does not declare the endpoint-security casks (task #45)
+
+`main` declares neither `lulu` nor `oversight` in `.chezmoidata/system_packages_autoinstall.yaml`, while
+the live branch does and both tools are installed and running on the machine today.
+
+`run_onchange_before_10-system-packages.sh.tmpl` generates a Brewfile from that data and then runs
+`brew bundle cleanup --force`, documented in the file itself as uninstalling "anything not declared". So
+the first package run after the D1 cutover would uninstall both tools. That takes LuLu's system-extension
+approval and its entire accumulated rule set with it, and OverSight's permission grants with it, none of
+which come back by reinstalling. The failure has the silent-regression shape this program keeps finding:
+the apply succeeds, reports nothing unusual, and two security tools quietly disappear.
+
+The existing bulk-cleanup guard does not cover this, and it is worth being precise about why rather than
+assuming it does. `brew_bundle_cleanup_guarded` refuses only when the would-be removal count exceeds a
+threshold that defaults to 5. Two undeclared casks is two removals, comfortably under it, so the guard
+permits the cleanup and both tools go. The guard exists to stop a partial or empty Brewfile from
+mass-uninstalling; it is not a per-package safety net and was never meant to be.
+
+Filed as task #45, blocking D1. Slice 0 is the fix.
+
 ## The slice stack
 
-Ten self-supporting pull requests in dependency order.
+Slice 0 plus ten self-supporting pull requests in dependency order.
 
 | #  | Pull request                      | Monolith source   | Blast radius               |
 | -- | --------------------------------- | ----------------- | -------------------------- |
+| 0  | Declare endpoint-security casks   | two cask lines    | prevents a cutover removal |
 | 1  | macOS defaults shared library     | yes (3 commits)   | developer tooling          |
 | 2  | System-domain support             | none (net new)    | developer tooling          |
 | 3  | Tiered control model              | none (net new)    | apply-time refusal         |
@@ -221,8 +249,59 @@ Ten self-supporting pull requests in dependency order.
 | 6  | Posture verification and alerting | partial           | alerting fidelity          |
 | 7  | SSH config generation             | yes (most of #53) | sshd config on disk        |
 | 8  | SSH apply safety                  | yes               | remote access              |
-| 9  | OverSight                         | one cask line     | notification noise         |
-| 10 | LuLu                              | one cask line     | outbound network, alerting |
+| 9  | OverSight posture                 | none (net new)    | notification noise         |
+| 10 | LuLu policy and posture           | none (net new)    | outbound network, alerting |
+
+Slice 0 is the only one that does not depend on, and is not depended on by, anything else. It ships
+first because it is a live blocker, not because anything is waiting for it.
+
+______________________________________________________________________
+
+### Slice 0: declare the endpoint-security casks
+
+**Scope.** Add `lulu` and `oversight` to the casks list in
+`.chezmoidata/system_packages_autoinstall.yaml`, in alphabetical order. Two lines.
+
+**Why it is separated from slices 9 and 10, and why it goes first.** Its entire value is preventing the
+task #45 cutover regression described above, and that value is time-sensitive in a way the rest of S10 is
+not. Every day it waits is a day the D1 cutover would uninstall two security tools. The configuration
+work in slices 9 and 10 has real dependencies on slices 2, 3, and 6 and belongs where it is; the
+declaration has none, so making it wait behind eight slices would trade an immediate fix for nothing.
+
+**Slice 0, not a pull request outside the stack.** Both options were considered. Outside the stack it
+would lose its traceability to the reasoning here, and S10 is where the reasoning lives. As slice 0 it
+keeps that link, and the number is precedent rather than invention: the S9 re-land used slice 0 for
+exactly this shape, a mechanical, dependency-free change at the front. It can be built, reviewed, and
+merged in parallel with slice 1, since nothing in the stack reads the casks list.
+
+**Deliberately not in scope.** Any posture control, any policy record, any runbook entry, any tier
+declaration. Those are slices 9 and 10. This slice changes two lines of data and nothing else. It also
+does not install anything: both tools are already installed, so the declaration makes the data match the
+machine rather than changing the machine.
+
+**Self-supporting proof.** The casks list is consumed by the Brewfile generator that has been on `main`
+since long before S10 and needs no change to accept two more entries. The slice references nothing from
+any other slice, and nothing in any other slice reads the casks list. Its test renders the real generator
+against the real data, so it needs no applied state.
+
+**Dependencies.** None, in either direction.
+
+**Acceptance criteria.**
+
+- The generated Brewfile contains both `lulu` and `oversight`.
+- The casks list is alphabetically ordered, asserted by comparing the parsed list against its own sorted
+  copy rather than eyeballing the diff.
+- A cleanup preview against the generated Brewfile would not remove either tool. This is the assertion
+  that actually pins the regression, so it must be written to fail if a cask line is removed, and
+  mutation-verified by removing one and watching it fail.
+- The pull request description names task #45 and states that both tools are already installed, so the
+  change is a declaration rather than an install.
+
+**Review weight.** Low, and deliberately so. Two data lines with a render test. The reviewer's one real
+check is that the ordering assertion and the cleanup-preview assertion can both actually fail.
+
+**Files.** Changes `.chezmoidata/system_packages_autoinstall.yaml`. Adds
+`test/integration/endpoint-security-casks-declared.sh`.
 
 ______________________________________________________________________
 
@@ -282,11 +361,16 @@ record has a scope. A record gains an optional `scope` field with values `user` 
 field, preserving every existing record unchanged) and `system` (a `/Library/Preferences` domain).
 
 - `apply` and the Tier 1 runner write a system-scope record via
-  `sudo defaults write /Library/Preferences/<domain> <key> -<type> <value>`.
-- `drift` reads a system-scope record from `/Library/Preferences/<domain>` and distinguishes three
-  outcomes, not two: the value, genuinely unset, and unreadable. An unreadable read must never collapse
-  into `<unset>` and be reported as drift, and must never be silently skipped. It is reported as its own
-  indeterminate row.
+  `sudo defaults write <plist-path> <key> -<type> <value>`.
+- The plist path defaults to `/Library/Preferences/<domain>`, but a record may name an explicit absolute
+  path instead, for a product that stores its preferences elsewhere. This is not speculative generality:
+  slice 10 needs it, because LuLu keeps its policy in
+  `/Library/Objective-See/LuLu/preferences.plist`. Building the `/Library/Preferences` shape only, then
+  widening it at slice 10, would put the change in the slice least able to absorb it.
+- `drift` reads a system-scope record from the same resolved path and distinguishes three outcomes, not
+  two: the value, genuinely unset, and unreadable. An unreadable read must never collapse into `<unset>`
+  and be reported as drift, and must never be silently skipped. It is reported as its own indeterminate
+  row.
 - `capture` accepts `--scope system` and writes the field.
 - The Tier 1 runner emits a single `sudo -v` prelude only when at least one system-scope record exists,
   so the common all-user-scope case still prompts for nothing.
@@ -298,7 +382,7 @@ declares nothing. No tier field yet.
 every existing test are unchanged in meaning. The runner's `sudo -v` prelude is conditional on a record
 that does not yet exist, so on merge it renders exactly the same script it does today, which the render
 test asserts byte for byte. The new behavior is proved by fixture data files under
-`chezmoi execute-template`, which the known blocker does not affect, plus direct script runs against a
+`chezmoi execute-template`, which the duplicate-profile blocker does not affect, plus direct script runs against a
 stubbed `defaults`.
 
 **Dependencies.** Slice 1. The scope-aware read and write live in the shared library, so they must have a
@@ -310,6 +394,8 @@ library to live in. Adding them to three copies and then extracting would double
   no `sudo` invocation.
 - With a system-scope record present, the rendered runner contains exactly one `sudo -v`, before any
   write, and the record's write is prefixed with `sudo` and targets `/Library/Preferences/<domain>`.
+- A system-scope record naming an explicit absolute plist path writes to that path instead, and a record
+  naming a relative path is rejected rather than resolved against an ambient working directory.
 - `drift` on a system-scope record that is unreadable reports it as indeterminate, with a distinct marker
   from `<unset>`, and does not count it as drift.
 - `drift` on a system-scope record that is set and matching reports no drift.
@@ -405,7 +491,7 @@ are slices 10 and 9. No firewall log ingestion.
 **Self-supporting proof.** The records are ordinary `system_setup` entries in the schema slice 3 already
 shipped, consumed by a runner that already knows how to render them. The test renders the real runner
 against the real `.chezmoidata` via `execute-template` and asserts the emitted commands and their
-relative order, which needs no live machine and is unaffected by the known blocker.
+relative order, which needs no live machine and is unaffected by the duplicate-profile blocker.
 
 **Dependencies.** Slice 3, for the tier field the records carry and for the `manual` tier the logging
 record uses. Slice 2 is a transitive dependency only.
@@ -421,7 +507,7 @@ record uses. Slice 2 is a transitive dependency only.
 - The runbook section named by the logging record exists and describes how to enable firewall logging by
   hand on 26.2.
 - The pull request description states that the applied firewall state was not demonstrated on the live
-  machine, and why (the known blocker).
+  machine, and why (the duplicate-profile blocker).
 
 **Review weight.** Medium security. Blast radius is network reachability: an incorrectly ordered or
 malformed record leaves the machine less protected than the operator believes, but cannot lock anyone
@@ -474,7 +560,7 @@ the user-domain-only tooling.
   from under it. The drift assertion is mutation-verified.
 - The Safari record's tier matches the read-back evidence recorded in the description.
 - Neither record disturbs the seven Aerospace records.
-- The pull request description states which assertions were deferred because of the known blocker.
+- The pull request description states which assertions were deferred because of the duplicate-profile blocker.
 
 **Review weight.** Medium-low security. Blast radius is update and download policy. The reviewer's
 specific hunt is the silent-no-op class: does each declared write actually land, and is there evidence
@@ -554,7 +640,7 @@ are not dependencies: the poller reads live state, not the declared enforce reco
 - The poller's monitored set and the file's record set are enumerated and diffed by a test, so a control
   declared in data but never read, or read but never declared, fails rather than passing quietly.
 - The pull request description records which reader was chosen for each new field and the evidence for
-  it, and states which assertions were deferred because of the known blocker.
+  it, and states which assertions were deferred because of the duplicate-profile blocker.
 
 **Review weight.** Medium security, high correctness. Blast radius is alerting fidelity: a bug here means
 a real posture regression goes unpaged, which is a silent failure with a long tail. The reviewer's hunts
@@ -729,41 +815,39 @@ merge, and it does not merge until the live drill below has been run.
 
 ______________________________________________________________________
 
-### Slice 9: OverSight
+### Slice 9: OverSight posture
 
-**Scope.** Add the `oversight` cask to `.chezmoidata/system_packages_autoinstall.yaml` in alphabetical
-order, and declare one `verify`-tier posture control in `macos_posture_controls.yaml` asserting that
-OverSight's monitoring process is actually running.
+**Scope.** Declare one `verify`-tier posture control in `macos_posture_controls.yaml` asserting that
+OverSight's monitoring process is actually running, and one `manual` record for its microphone and camera
+permission grants with a runbook pointer.
 
-The split of tiers is the point. Installing the cask is `enforce`, because Homebrew can genuinely do it.
-Whether the tool is running is `verify`, because a login item that the operator can quit is not something
-an apply-time runner should silently restart, and the microphone and camera permission grants it needs
-are interactive. Those grants get a `manual` record with a runbook pointer.
+This slice installs nothing. OverSight is already installed on the machine and its cask is declared by
+slice 0.
+
+Whether the tool is running is `verify` because a login item the operator can quit is not something an
+apply-time runner should silently restart, and because starting it is not the runner's business. The
+permission grants are `manual` because they are interactive and cannot be granted programmatically.
 
 OverSight is passive. It observes microphone and camera activation and raises a notification; it filters
 no traffic and carries no network extension. So it has no interactions with any other slice to manage,
 and it cannot degrade the alerting channel the way slice 10 can. That is why it ships before slice 10 and
 gets a fraction of the review.
 
-**Deliberately not in scope.** Any OverSight configuration beyond installation. Any attempt to grant its
-permissions programmatically. Any rule or allowlist.
+**Deliberately not in scope.** The cask declaration, which is slice 0. Any OverSight configuration. Any
+attempt to grant its permissions programmatically. Any rule or allowlist.
 
-**Self-supporting proof.** The cask line is consumed by the Brewfile generator in
-`run_onchange_before_10-system-packages.sh.tmpl`, which has been on `main` since long before S10 and
-needs no change to accept another cask. The posture record uses the tier field from slice 3 and the
-declaration file and reader loop from slice 6, both already shipped by the time slice 9 builds. Nothing
-in the slice references anything unshipped, and its tests render the real generator and drive the real
-poller against a stubbed process probe, so they pass with OverSight absent from the machine.
+**Self-supporting proof.** The records use the tier field from slice 3 and the declaration file and
+reader loop from slice 6, both already shipped by the time slice 9 builds. Nothing in the slice
+references anything unshipped. Its tests drive the real poller against a stubbed process probe, so they
+pass regardless of whether OverSight is running on the machine the tests run on.
 
 **Dependencies.** Slice 3, for the tier field the records carry. Slice 6, for
 `macos_posture_controls.yaml` and the poller loop that reads it. Both are already merged at this point in
-the stack, so neither constrains the ordering further.
+the stack, so neither constrains the ordering further. Slice 0 is not a dependency: a posture control can
+name a tool whose cask is declared elsewhere, and the two slices touch different files.
 
 **Acceptance criteria.**
 
-- The generated Brewfile contains the `oversight` cask, and the casks list is still in alphabetical
-  order. The ordering assertion compares the parsed list against its own sorted copy rather than eyeballing
-  the diff.
 - The running-state record is declared `verify` and is rejected by the tier guard if changed to
   `enforce`.
 - With a stubbed probe reporting OverSight not running, the poller pages exactly once and stays quiet
@@ -772,25 +856,31 @@ the stack, so neither constrains the ordering further.
 - A probe that exits nonzero is reported indeterminate, never as running. The slice must pin the actual
   process name or bundle identifier it probes for, with evidence from the installed application, rather
   than assuming one.
+- The check is a real running-state probe, not the presence of `/Applications/OverSight.app` on disk. The
+  bundle is present on this machine right now while saying nothing about whether the monitor is running,
+  so a bundle-existence check would report healthy for a tool that is not watching anything.
 - The permission-grant record is `manual` and its runbook section exists.
-- The pull request description states which assertions were deferred because of the known blocker.
+- The pull request description states which assertions were deferred because of the known blockers.
 
 **Review weight.** Low. Blast radius is notification noise: the worst realistic outcome is a banner the
 operator did not want, or a posture page for a tool that is merely quit. The code-quality dimension
-applies as it does everywhere, with the reviewer checking that the running-state probe is a real check
-rather than a proxy such as the presence of the application bundle on disk.
+applies as it does everywhere.
 
-**Files.** Changes `.chezmoidata/system_packages_autoinstall.yaml`,
-`.chezmoidata/macos_posture_controls.yaml`, `docs/runbooks/macos-fresh-machine-quickstart.md`. Adds
-`test/integration/oversight-cask-and-posture.sh`.
+**Files.** Changes `.chezmoidata/macos_posture_controls.yaml`,
+`docs/runbooks/macos-fresh-machine-quickstart.md`. Adds `test/integration/oversight-posture.sh`.
 
 ______________________________________________________________________
 
-### Slice 10: LuLu
+### Slice 10: LuLu policy and posture
 
-**Scope.** Add the `lulu` cask, declare the system-extension approval as a `manual` control, and declare
-`verify` controls for the extension running and for the required allow rules existing. LuLu is an
-outbound firewall: it prompts on outbound connections and blocks what is not allowed.
+**Scope.** Declare LuLu's policy preferences as `enforce` controls, its system-extension approval and
+rule creation as `manual` controls, and the extension running and the required allow rules existing as
+`verify` controls. LuLu is an outbound firewall: it prompts on outbound connections and blocks what is
+not allowed.
+
+This slice installs nothing. LuLu is already installed on the machine, its extension is already approved,
+and it already carries an accumulated rule set. Its cask is declared by slice 0. What is missing is that
+none of its policy or posture is declared anywhere, so it drifts unobserved.
 
 **Why it is last, in dependency terms.** Three reasons, none of them a matter of caution:
 
@@ -813,13 +903,16 @@ own alert. Separately, the durable local notification channel fires a banner reg
 path never touches the network at all. Both facts are properties of code already on `main`, and slice 10
 should verify they still hold rather than re-establish them.
 
-#### The gate slice 10 resolves before it designs anything
+#### The two gates, both resolved
 
-**Question.** Can LuLu allow rules be pre-seeded declaratively, or are they only creatable by answering
+Both were resolved before any of the design below was written, first from LuLu's source and then
+confirmed against the live machine. They resolve in opposite directions, and that split is what gives
+slice 10 its shape: the rules surface is interactive-only, the policy surface is not.
+
+**Gate one.** Can LuLu allow rules be pre-seeded declaratively, or are they only creatable by answering
 an interactive prompt?
 
-**Resolved: they cannot be pre-seeded through any supported interface.** Verified against LuLu's own
-source, without installing it:
+**Resolved: they cannot be pre-seeded through any supported interface.** From LuLu's own source:
 
 - `LuLu/Shared/consts.h` defines `INSTALL_DIRECTORY @"/Library/Objective-See/LuLu"`,
   `RULES_FILE @"rules.plist"`, and `PREFS_FILE @"preferences.plist"`. So rules live at
@@ -839,17 +932,58 @@ source, without installing it:
   against an undocumented format, and the standing rule against depending on modified or unofficial
   interfaces to third-party tools applies.
 
-**So the design is the interactive-only branch:** a runbook entry that walks the operator through
-creating each required rule by hand, plus `verify`-tier controls asserting those rules exist, paging when
-one goes missing. The slice does not automate rule creation and does not pretend to.
+Confirmed on the live machine: `file /Library/Objective-See/LuLu/rules.plist` reports an Apple binary
+property list, the container format a keyed archive is stored in. So the header reading and the disk
+reality agree.
 
-**A second gate the slice must also resolve.** LuLu's preferences surface is distinct from its rules
-surface. `consts.h` defines `PREF_ALLOW_LOCALHOST`, `PREF_ALLOW_APPLE`, `PREF_ALLOW_INSTALLED`,
-`PREF_USE_ALLOW_LIST` with `PREF_ALLOW_LIST`, and `PREF_PASSIVE_MODE`, all stored in `preferences.plist`
-in the same directory. If that file is a plain property list rather than another keyed archive, then some
-policy is declaratively settable even though individual rules are not. This must be settled by reading
-the file's actual format on a machine that has LuLu, not assumed, and it matters directly:
-`allowLocalHost` is what determines whether the alerting path's loopback POST is filtered at all.
+**So rules take the interactive-only branch:** a runbook entry that walks the operator through creating
+each required rule by hand, plus `verify`-tier controls asserting those rules exist, paging when one goes
+missing. The slice does not automate rule creation and does not pretend to.
+
+**Gate two.** LuLu's policy surface is distinct from its rules surface. `consts.h` defines
+`PREF_ALLOW_LOCALHOST`, `PREF_ALLOW_APPLE`, `PREF_ALLOW_INSTALLED`, `PREF_ALLOW_DNS`,
+`PREF_USE_ALLOW_LIST` with `PREF_ALLOW_LIST`, `PREF_PASSIVE_MODE`, and `PREF_BLOCK_MODE`, all stored in
+`preferences.plist` in the same directory. Is that file declaratively manageable?
+
+**Resolved: yes.** On the live machine `/Library/Objective-See/LuLu/preferences.plist` is a plain XML
+property list, `plutil -lint` reports OK, and it is mode 0644 owned by `root:wheel`, so it is
+world-readable and root-writable. Live values include `allowLocalHost => true`, `allowApple => true`,
+`allowDNS => true`, `allowInstalled => true`, `blockMode => false`, and `passiveMode => false`.
+
+That is what gives slice 10 real `enforce`-tier content rather than only `verify` and `manual`. The
+policy is declarable; only the individual rules are not.
+
+#### The enforce-tier policy controls, and why `allowLocalHost` is the critical one
+
+Each policy preference above becomes an `enforce` record whose declared value is the value the machine
+carries today, so the slice codifies the current posture rather than changing it. The point is not to
+alter LuLu's behavior; it is to make a later change to that behavior visible instead of silent.
+
+**`allowLocalHost` is the single most safety-critical preference on this machine, and the reason must be
+written down where anyone tempted to tidy it will read it.** `alert-dispatch.sh` POSTs every page to a
+Hermes gateway on `127.0.0.1:8644`, and the uptime watchdog's route probe hits the same loopback URL.
+`allowLocalHost` is `true` today, which is precisely why that hop is unfiltered and why paging works at
+all. Flipping it to `false` would put LuLu in front of the alerting path itself: the mechanism that
+reports every other failure would become the thing being filtered. It is declared `enforce` with that
+reason stated inline, so it cannot be quietly flipped during a cleanup and cannot be dropped as
+redundant.
+
+The remaining policy records (`allowApple`, `allowDNS`, `allowInstalled`, `blockMode`, `passiveMode`)
+carry their live values with a one-line reason each.
+
+Two mechanics the slice must settle rather than assume:
+
+- **The write path.** `preferences.plist` is a plist at an absolute path, not a preference domain under
+  `/Library/Preferences`, so it needs slice 2's system-scope support to accept an explicit absolute plist
+  path. Slice 2's acceptance criteria cover that form; slice 10 must confirm it works here rather than
+  assume the `/Library/Preferences` shape generalizes.
+- **Whether the running extension honors an external write.** Writing a preference file underneath a
+  running application is the same class of footgun this repository already documents for System Settings
+  and `cfprefsd`: the application may cache the old values and write them back, silently reverting the
+  change. Slice 10 must determine empirically whether LuLu re-reads the file, needs a restart, or
+  overwrites it, and declare the records only in the form that actually takes effect. A record that
+  writes a file the application immediately reverts is the silent-no-op failure the tier model exists to
+  prevent.
 
 #### The allow-rule set, and a correction to how the alerting path egresses
 
@@ -890,25 +1024,33 @@ leave it prompting, or give that path its own dedicated client so it can carry i
 the drill shows the alerting path itself would ride a shared client outbound, those two options are the
 honest ones, and quietly widening `curl` to make a page go through is not.
 
-**Deliberately not in scope.** Automating rule creation. Passive mode or block mode. Any LuLu block
-rules. Changing how `alert-dispatch.sh` reaches Hermes.
+**Deliberately not in scope.** The cask declaration, which is slice 0. Installing or approving anything.
+Automating rule creation. Changing any live policy value away from what the machine carries today. Any
+LuLu block rules. Changing how `alert-dispatch.sh` reaches Hermes.
 
-**Self-supporting proof.** The cask line is consumed by the existing Brewfile generator. Every declared
-control uses the tier field from slice 3 and the declaration file and reader loop from slice 6. The
-runbook section is prose in a file that already exists. Nothing references anything unshipped. The tests
-drive the poller against a stubbed rule-file reader and a stubbed extension probe, so they pass on a
-machine where LuLu is not installed, which is the state of the machine when the slice is built.
+**Self-supporting proof.** Every declared control uses the tier field from slice 3, the system-scope
+write path from slice 2, and the declaration file and reader loop from slice 6. The runbook section is
+prose in a file that already exists. Nothing references anything unshipped. The tests drive the poller
+against a stubbed rule-file reader and a stubbed extension probe, and render the policy records against a
+fixture rather than the live plist, so they pass on a machine regardless of LuLu's state.
 
-**Dependencies.** Slice 3 and slice 6, for the three reasons given above. Slice 8 is not a build
-dependency, but slice 10's rule set must include `tailscaled` precisely because slice 8's recovery story
-leans on the tailnet.
+**Dependencies.** Slice 3 and slice 6, for the three reasons given above. Slice 2, for the system-scope
+write path the policy records need. Slice 8 is not a build dependency, but slice 10's rule set must
+include `tailscaled` precisely because slice 8's recovery story leans on the tailnet. Slice 0 is not a
+dependency: it declares the cask, this slice declares the policy, and they touch different files.
 
 **Acceptance criteria.**
 
-- The generated Brewfile contains the `lulu` cask and the casks list is still alphabetically ordered,
-  asserted against a sorted copy.
-- The system-extension approval is declared `manual` with a runbook section that exists, and the runner
-  emits no command for it.
+- Every policy record is declared `enforce`, its declared value matches what the machine carries today,
+  and each carries its one-line reason.
+- The `allowLocalHost` record carries the alerting-path reason inline, and a test asserts that reason
+  text is present, so the justification cannot be dropped while the record survives.
+- The rendered runner writes each policy record to the absolute plist path, under `sudo`, and a record
+  naming a path outside LuLu's install directory is rejected.
+- Whether the running extension honors an external write is settled with evidence, and the records take
+  the form that actually takes effect.
+- The system-extension approval and rule creation are declared `manual` with runbook sections that exist,
+  and the runner emits no command for either.
 - Every talker in the enumerated set above has either an allow rule declared as a `verify` control or an
   explicit written reason it needs none. The set of talkers and the set of declared controls are
   enumerated and diffed by a test, so adding a talker without a control fails.
@@ -919,16 +1061,19 @@ leans on the tailnet.
   slice must determine whether the rule's action is recoverable from the archive, and if it is not, the
   control is documented as existence-only and explicitly does not prove the rule allows rather than
   blocks. A check that cannot see the action must not claim it did.
-- The preferences-surface gate is resolved in writing, with the evidence, before any control is declared.
-- The pull request description states which assertions were deferred because of the known blocker.
+- The pull request description states which assertions were deferred because of the known blockers.
 
-**Live drill, run before slice 10 merges.** With the alerting path already proven working in slice 6, and
-performed in this order:
+**Live drill, run before slice 10 merges.** LuLu is already installed and enforcing on this machine, so
+the drill validates a running system rather than a fresh one. With the alerting path already proven
+working in slice 6, and performed in this order:
 
-1. Confirm a test CRIT page reaches Discord with LuLu installed but its extension not yet approved.
-1. Approve the extension. Create the enumerated allow rules by hand, following the runbook, and confirm
-   the runbook's steps actually match what the interface presents.
-1. Send a second test CRIT page and confirm it reaches Discord with the extension enforcing.
+1. Confirm a test CRIT page reaches Discord as things stand today, before any record is applied.
+1. Apply the policy records and confirm the live values are unchanged, since every declared value is the
+   value already present. Confirm LuLu did not revert the file.
+1. Walk the runbook's rule-creation steps against the real interface and confirm they match what it
+   presents. The existing rule set was accumulated by prompt, so the runbook is being written from
+   behind; it must be checked against the interface rather than from memory.
+1. Send a second test CRIT page and confirm it still reaches Discord with the extension enforcing.
 1. Confirm the tailnet still works, since it is a slice 8 recovery path.
 1. Delete one required rule deliberately and confirm the poller pages that it is missing, then restore
    it.
@@ -936,19 +1081,20 @@ performed in this order:
    confirm the local banner still fires, and confirm the watchdog eventually pages on the dead-letter
    count.
 
-The drill's results go in the slice 10 pull request description. Step 6 is the one that turns the
+The drill's results go in the slice 10 pull request description. Step 7 is the one that turns the
 bounded-blast-radius claim from an assertion into evidence.
 
 **Review weight.** High, and second only to slice 8 in this program. Slice 10 cannot lock the operator
 out of the machine, which is why it ranks below slice 8, but it is the only slice that can degrade the
 channel by which every other failure is reported, and a broken alerting channel is a silent failure that
 hides the next one. The reviewer's specific hunts: any allow rule broader than the talker it exists for,
-especially on a shared client; any claim about a rule's action the archive cannot actually support; and
-any place the runbook and the declared control set could drift apart.
+especially on a shared client; any claim about a rule's action the archive cannot actually support; any
+policy record whose declared value silently differs from the live one, since that turns a codification
+into a change; and any place the runbook and the declared control set could drift apart.
 
-**Files.** Changes `.chezmoidata/system_packages_autoinstall.yaml`,
+**Files.** Changes `.chezmoidata/macos_defaults.yaml` (the policy records, system scope),
 `.chezmoidata/macos_posture_controls.yaml`, `docs/runbooks/macos-fresh-machine-quickstart.md`. Adds
-`test/integration/lulu-cask-and-rules.sh`, `test/unit/lulu-rule-existence-reader.sh`.
+`test/integration/lulu-policy-records.sh`, `test/unit/lulu-rule-existence-reader.sh`.
 
 ## The recovery story for slice 8
 
@@ -1053,18 +1199,22 @@ request description.
 
 - Each slice: its own tests and the repository check command pass. A slice that intentionally diverges
   from pull request #53 states the divergence and its reason.
-- Slices 4, 5, and 6 each state which assertion was deferred because of the duplicate hermes profile
-  directories.
+- Slice 0 shows a cleanup preview against the generated Brewfile that would remove neither tool, which is
+  the assertion that closes task #45.
+- Slices 4, 5, 6, 9, and 10 each state which assertion was deferred because of the duplicate hermes
+  profile directories.
 - Slice 5 states the Safari read-back evidence and the tier it justified.
 - Slice 6 states which reader was chosen for each new posture field and the evidence for it.
 - Slice 8 states its live drill's results.
 - Slice 9 states the process identifier its running-state probe uses and the evidence for it.
-- Slice 10 states the resolution of both gates (rule pre-seeding, and the preferences surface) with its
-  evidence, and its live drill's results including the blocked-egress step.
-- End state, after the blocker is resolved: a `chezmoi apply` renders both runners without abort, writes
-  only `enforce` controls, and the poller pages on a `verify` control turning off. Every `manual` control
-  has a runbook section, and the set of `manual` records and the set of runbook sections are enumerated
-  and diffed by a test rather than eyeballed.
+- Slice 10 states whether the running extension honors an external policy write, and its live drill's
+  results including the blocked-egress step. Both gates were resolved before the spec was written and
+  their evidence is recorded above, so the slice confirms rather than re-derives them.
+- End state, after both blockers are resolved: a `chezmoi apply` renders both runners without abort,
+  writes only `enforce` controls, and the poller pages on a `verify` control turning off. Every `manual`
+  control has a runbook section, and the set of `manual` records and the set of runbook sections are
+  enumerated and diffed by a test rather than eyeballed. A package run uninstalls neither endpoint
+  security tool.
 
 ## Risks and open items
 
@@ -1080,13 +1230,16 @@ applies to how slices 9 and 10 are scoped.
    exist for that bug. This design resolves the contradiction by putting the fix in slice 1 and saying so,
    because splitting a bug fix from the extraction that enables it would produce two half-slices. The
    reviewer should expect behavior change in slice 1 and not treat it as scope creep.
-1. **The LuLu and OverSight casks were unowned; they are now slices 9 and 10.** The monolith adds two
-   endpoint-security casks to `.chezmoidata/system_packages_autoinstall.yaml` under an "R8 endpoint
-   hardening" commit, and no slice in the original eight covered package installation. The operator has
-   ruled that both are required, so they became slices 9 and 10 rather than being dropped or smuggled
-   into slice 4. The observation that drove the concern still stands and is why they are two slices at
-   opposite ends of the review-weight scale: OverSight is passive and inert, while LuLu adds a system
-   extension that prompts and can block traffic, including the traffic that carries the alerts.
+1. **The LuLu and OverSight casks were unowned; they are now slice 0 plus slices 9 and 10.** The monolith
+   adds two endpoint-security casks to `.chezmoidata/system_packages_autoinstall.yaml` under an "R8
+   endpoint hardening" commit, and no slice in the original eight covered them. The operator ruled that
+   both are required, and a subsequent check of the live machine found both already installed and `main`
+   declaring neither, which is task #45. So the work split in two: the declaration became slice 0 at the
+   front, because it fixes a live cutover blocker and depends on nothing, and the configuration became
+   slices 9 and 10, where its real dependencies are. The observation that drove the original concern
+   still stands and is why the configuration is two slices at opposite ends of the review-weight scale:
+   OverSight is passive and inert, while LuLu filters outbound traffic, including the traffic that
+   carries the alerts.
 1. **The Tier 2 runner's `{{ if .sudo }}` bug is a prerequisite, not a detail.** The monolith fixes it in
    its own commit with its own test. This design pulls it into slice 3, because slice 3 introduces new
    optional per-record fields and would otherwise reintroduce the identical absent-key throw for `tier`.
@@ -1102,13 +1255,13 @@ applies to how slices 9 and 10 are scoped.
 1. **No rollback mode exists anywhere in the monolith.** Its recovery story is comments. This design adds
    `--rollback` in slice 8. That is new work, not a re-land, and it is the largest single addition the
    plan makes to the monolith.
-1. **Three slices have no monolith source at all.** Slices 2, 3, and 5 are net-new from the product
-   requirements document. Estimating S10 from the monolith's line count will understate it badly, and
-   slices 9 and 10 make that worse rather than better: the monolith contributes one cask line to each,
-   while the posture controls, the runbook entries, and slice 10's whole rule-existence design are new.
-   Conversely, slice 4's signed-application policy record is an addition the monolith does not contain
-   (it declares only global state and stealth), and slice 6 deliberately does not re-land the monolith's
-   `run_after_67` script.
+1. **Five slices have no monolith source at all.** Slices 2, 3, and 5 are net-new from the product
+   requirements document, and slices 9 and 10 are net-new from what the live machine turned out to be
+   carrying: the monolith contributes only the two cask lines that became slice 0, while every posture
+   control, policy record, runbook entry, and slice 10's whole rule-existence design is new. Estimating
+   S10 from the monolith's line count will understate it badly. Conversely, slice 4's signed-application
+   policy record is an addition the monolith does not contain (it declares only global state and
+   stealth), and slice 6 deliberately does not re-land the monolith's `run_after_67` script.
 1. **The monolith wires `ssh-hardening.sh` into `macos_system_setup.yaml` with `sudo: false`, so the
    script self-escalates.** That means a `chezmoi apply` triggered by a change to that data file runs a
    script that calls `sudo` and writes to `/etc/ssh`. From automation with no interactive terminal that
@@ -1127,7 +1280,7 @@ applies to how slices 9 and 10 are scoped.
   change here, but it is the reason the render-abort refusal in slice 3 matters: there is no password
   prompt standing between a malformed record and a privileged write.
 - **The duplicate hermes profile directories block the acceptance drill**, as detailed in the known
-  blocker section. They must be resolved before the end-state verification, and their resolution is its
+  blockers section. They must be resolved before the end-state verification, and their resolution is its
   own change with its own review.
 - **Screen lock cannot be enforced.** `sysadminctl -screenLock` requires `-password`, so screen lock is a
   `verify` control. It is currently immediate on this machine, and slice 6 will page if that changes, but
@@ -1136,11 +1289,16 @@ applies to how slices 9 and 10 are scoped.
   Hermes gateway on `127.0.0.1:8644`, and Hermes performs the Discord egress. Anyone reasoning about
   outbound filtering from the alerter's own `curl` call will protect the wrong hop. This is written into
   slice 10, but it also affects any future work that assumes the alerter talks to the internet directly.
-- **The readability of LuLu's rules file is unresolved.** `/Library/Objective-See/LuLu/rules.plist` lives
-  under `/Library` and its ownership and mode are unknown without installing the product. If it is
-  root-only, slice 10's rule-existence check needs privilege to read it, which puts a `sudo` in a poller
-  that currently runs unprivileged as a user agent. Slice 10 must settle this early, because "the check
-  needs root" would change its design rather than its implementation.
+- **The readability of LuLu's rules file is resolved, in the convenient direction.** Both
+  `/Library/Objective-See/LuLu/rules.plist` and `preferences.plist` are mode 0644 owned by `root:wheel`,
+  so slice 10's rule-existence and policy-drift checks can read them unprivileged. The poller stays a
+  user agent with no `sudo`, which was the open question. Writing the policy file still needs root, but
+  that happens in the Tier 1 runner, which slice 2 already primes.
+- **Applying a policy record could be reverted by the running application.** LuLu owns
+  `preferences.plist` while its extension is running, so an external write may be cached over and written
+  back, the same class of footgun the repository documents for System Settings and `cfprefsd`. Slice 10
+  must settle this empirically before declaring the records, since a record the application silently
+  reverts is a control that reports success while enforcing nothing.
 
 ## Out of scope
 
