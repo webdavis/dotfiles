@@ -165,6 +165,13 @@ done
 keyscan_attempts="$(grep -c . "$KEYSCAN_SPY_LOG")" || true
 [[ $keyscan_attempts -eq $SSH_HARDENING_READY_ATTEMPTS ]] ||
   fail "8: the probe must retry to the attempt bound and then STOP, got $keyscan_attempts attempts (want $SSH_HARDENING_READY_ATTEMPTS)"
+# The probe port comes from `sshd -G`, but on macOS launchd owns Remote
+# Login's listening socket and the Port directive does not move it, so a
+# nonstandard Port makes this exact alarm fire against a HEALTHY daemon. The
+# lockout text must hand the operator that diagnosis instead of only an
+# emergency.
+grep -qi 'launchd' <<<"$SSH_RUN_ERR" ||
+  fail "8: the lockout failure must name the launchd-socket possibility so a port mismatch reads as a diagnosis, not a false emergency (stderr: $SSH_RUN_ERR)"
 
 # A probe that exits 0 with NO banner output proved nothing: the exit status
 # is a proxy, the banner is the artifact, and trusting the proxy would report
@@ -215,6 +222,51 @@ run_ssh_reload
   fail "12: install must never touch launchctl (spy: $(cat "$LAUNCHCTL_SPY_LOG"))"
 [[ ! -s $KEYSCAN_SPY_LOG ]] ||
   fail "12: install must never probe the listener (spy: $(cat "$KEYSCAN_SPY_LOG"))"
+
+# --- 17: port resolution fails closed BEFORE the kickstart --------------------
+# The port branch had no test at all; every shape that cannot be probed must
+# refuse while nothing has been disturbed, and every DECLARED port must be
+# probed rather than silently the first (two Port directives produce two
+# `port` lines from the real binary, measured).
+
+# 17a: `sshd -G` itself fails at the port-resolution call (the fourth -G of
+# the run; the three before it belong to the child verify and must succeed).
+SSHD_STUB_RESOLVE_STATUSES='0 0 0 3' run_ssh_reload --reload
+[[ $SSH_RUN_STATUS -ne 0 ]] ||
+  fail '17a: a failed port resolution must fail the reload'
+assert_no_kickstart '17a'
+grep -qi 'could not resolve the effective sshd port' <<<"$SSH_RUN_ERR" ||
+  fail "17a: the failure must name the port resolution (stderr: $SSH_RUN_ERR)"
+
+# 17b: -G output with NO port line at all.
+SSHD_STUB_PORT='' run_ssh_reload --reload
+[[ $SSH_RUN_STATUS -ne 0 ]] ||
+  fail '17b: portless -G output must fail the reload'
+assert_no_kickstart '17b'
+grep -qi 'no port' <<<"$SSH_RUN_ERR" ||
+  fail "17b: the failure must say no port resolved (stderr: $SSH_RUN_ERR)"
+
+# 17c: ports outside the valid range, both sides, plus a non-number.
+for bad_port in 0 70000 007 abc; do
+  SSHD_STUB_PORT="$bad_port" run_ssh_reload --reload
+  [[ $SSH_RUN_STATUS -ne 0 ]] ||
+    fail "17c: port '$bad_port' must be refused"
+  assert_no_kickstart "17c: port '$bad_port'"
+  grep -qF "'$bad_port'" <<<"$SSH_RUN_ERR" ||
+    fail "17c: the refusal must name the bad port '$bad_port' (stderr: $SSH_RUN_ERR)"
+done
+
+# 17d: TWO declared ports, only the second answering: the probe must walk
+# both and succeed, naming the port that answered.
+SSHD_STUB_PORT='2222 2223' KEYSCAN_STUB_ANSWER_PORT=2223 run_ssh_reload --reload
+[[ $SSH_RUN_STATUS -eq 0 ]] ||
+  fail "17d: with the second declared port answering, the reload must succeed (stderr: $SSH_RUN_ERR)"
+grep -qF -- '-p 2222' "$KEYSCAN_SPY_LOG" ||
+  fail "17d: the first declared port must have been probed (spy: $(cat "$KEYSCAN_SPY_LOG"))"
+grep -qF -- '-p 2223' "$KEYSCAN_SPY_LOG" ||
+  fail "17d: the second declared port must have been probed (spy: $(cat "$KEYSCAN_SPY_LOG"))"
+grep -qF 'port 2223' <<<"$SSH_RUN_OUT" ||
+  fail "17d: success must name the port that actually answered (stdout: $SSH_RUN_OUT)"
 
 # --- 16: the retry delay is a validated seam, never a bare sleep --------------
 # sleep is /bin/sleep on this platform, an external binary and not a builtin,

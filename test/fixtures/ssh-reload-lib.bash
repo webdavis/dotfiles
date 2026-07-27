@@ -41,10 +41,16 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/ssh-hardening-lib.bash"
 #
 # Stub behavior knobs, all exported and overridable per invocation:
 #   SSHD_STUB_SYNTAX_STATUS          exit status of `sshd -t` (default 0)
-#   SSHD_STUB_RESOLVE_STATUS         exit status of every `sshd -G` call
-#                                    (default 0; nonzero models a verifier
-#                                    binary that runs but ERRORS)
-#   SSHD_STUB_PORT                   the `port` line `sshd -G` prints (2222)
+#   SSHD_STUB_RESOLVE_STATUSES       space-separated exit statuses for
+#                                    successive `sshd -G` calls within one
+#                                    run; the last entry repeats (default 0;
+#                                    a uniform nonzero models a verifier
+#                                    binary that runs but ERRORS, a trailing
+#                                    nonzero fails only a later call such as
+#                                    the reload's port resolution)
+#   SSHD_STUB_PORT                   space-separated list of `port` lines
+#                                    `sshd -G` prints (default 2222; empty
+#                                    prints NO port line)
 #   SSHD_STUB_FORCE_HARDENED         nonempty: -G prints hardened values even
 #                                    with the drop-in absent (models a second
 #                                    file still enforcing the policy)
@@ -59,6 +65,8 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/ssh-hardening-lib.bash"
 #                                    one run; the last entry repeats
 #   LAUNCHCTL_STUB_KICKSTART_STATUS  exit status of `launchctl kickstart` (0)
 #   KEYSCAN_STUB_MODE                banner | refuse | silent-zero
+#   KEYSCAN_STUB_ANSWER_PORT         banner mode only: refuse every requested
+#                                    port except this one (empty: answer any)
 #
 # The sshd stub keys its -G output off the PRESENCE of the sandbox drop-in, so
 # --verify (which the reload and rollback paths re-run in a child) tracks what
@@ -111,11 +119,23 @@ case " $* " in
     exit 0
     ;;
 esac
-if [[ ${SSHD_STUB_RESOLVE_STATUS:-0} -ne 0 ]]; then
-  echo 'sshd stub: -G resolution failure injected' >&2
-  exit "${SSHD_STUB_RESOLVE_STATUS}"
+count_file="${SSH_STUB_STATE:?}/sshd-resolve-count"
+count="$(cat "$count_file" 2>/dev/null || printf '0')"
+count=$((count + 1))
+printf '%s' "$count" >"$count_file"
+# shellcheck disable=SC2206  # deliberate word split of the status list
+statuses=(${SSHD_STUB_RESOLVE_STATUSES:-0})
+index=$((count - 1))
+if [[ $index -ge ${#statuses[@]} ]]; then
+  index=$((${#statuses[@]} - 1))
 fi
-printf 'port %s\n' "${SSHD_STUB_PORT:-2222}"
+if [[ ${statuses[$index]} -ne 0 ]]; then
+  echo 'sshd stub: -G resolution failure injected' >&2
+  exit "${statuses[$index]}"
+fi
+for stub_port in ${SSHD_STUB_PORT-2222}; do
+  printf 'port %s\n' "$stub_port"
+done
 if [[ -f "${SSHD_CONFIG_D:?}/000-ssh-hardening.conf" || -n ${SSHD_STUB_FORCE_HARDENED:-} ]]; then
   printf '%s\n' 'passwordauthentication no' 'kbdinteractiveauthentication no' \
     'usepam yes' 'pubkeyauthentication yes' 'permitrootlogin no' \
@@ -177,17 +197,32 @@ STUB
   chmod +x "$SSH_STUB_DIR/launchctl"
 
   # Controlled ssh-keyscan: `banner` completes the exchange (a key line on
-  # stdout, exit 0); `refuse` models connection refused (exit 1, nothing on
-  # stdout); `silent-zero` exits 0 with NO output, the shape of a probe that
-  # ran but proved nothing, so a reload that trusts the exit status alone and
-  # not the banner itself is convicted by it.
+  # stdout naming the REQUESTED port, exit 0), unless KEYSCAN_STUB_ANSWER_PORT
+  # names a different port, in which case the request is refused (multi-port
+  # cases prove the probe walks every resolved port); `refuse` models
+  # connection refused (exit 1, nothing on stdout); `silent-zero` exits 0
+  # with NO output, the shape of a probe that ran but proved nothing, so a
+  # reload that trusts the exit status alone and not the banner itself is
+  # convicted by it.
   cat >"$SSH_STUB_DIR/ssh-keyscan" <<'STUB'
 #!/bin/bash
 set -euo pipefail
 printf '%s\n' "$*" >>"${KEYSCAN_SPY_LOG:?}"
+requested_port=''
+previous=''
+for argument in "$@"; do
+  if [[ $previous == '-p' ]]; then
+    requested_port="$argument"
+  fi
+  previous="$argument"
+done
 case "${KEYSCAN_STUB_MODE:-banner}" in
   banner)
-    printf '[127.0.0.1]:%s ssh-ed25519 AAAA-stub-host-key\n' "${SSHD_STUB_PORT:-2222}"
+    if [[ -n ${KEYSCAN_STUB_ANSWER_PORT:-} && $requested_port != "${KEYSCAN_STUB_ANSWER_PORT}" ]]; then
+      printf 'ssh-keyscan stub: connect to 127.0.0.1 port %s: Connection refused\n' "$requested_port" >&2
+      exit 1
+    fi
+    printf '[127.0.0.1]:%s ssh-ed25519 AAAA-stub-host-key\n' "$requested_port"
     exit 0
     ;;
   refuse)
@@ -246,21 +281,22 @@ STUB
   SLEEP_BIN="$SSH_STUB_DIR/sleep"
   SSH_HARDENING_SUDO="$SSH_STUB_DIR/sudo-ok"
   SSHD_STUB_SYNTAX_STATUS=0
-  SSHD_STUB_RESOLVE_STATUS=0
+  SSHD_STUB_RESOLVE_STATUSES=0
   SSHD_STUB_PORT=2222
   SSHD_STUB_FORCE_HARDENED=""
   SSHD_STUB_PARTIAL_HARDENED=""
   LAUNCHCTL_STUB_PRINT_STATUSES='0'
   LAUNCHCTL_STUB_KICKSTART_STATUS=0
   KEYSCAN_STUB_MODE=banner
+  KEYSCAN_STUB_ANSWER_PORT=""
   export SSH_STUB_DIR SSH_STUB_STATE SSH_SUDO_DENY_STUB \
     LAUNCHCTL_SPY_LOG KEYSCAN_SPY_LOG SLEEP_SPY_LOG SUDO_OK_SPY_LOG \
     SUDO_DENY_SPY_LOG SSH_BARE_TOOL_SPY_LOG \
     SSHD_BIN LAUNCHCTL_BIN KEYSCAN_BIN SLEEP_BIN SSH_HARDENING_SUDO \
-    SSHD_STUB_SYNTAX_STATUS SSHD_STUB_RESOLVE_STATUS SSHD_STUB_PORT \
+    SSHD_STUB_SYNTAX_STATUS SSHD_STUB_RESOLVE_STATUSES SSHD_STUB_PORT \
     SSHD_STUB_FORCE_HARDENED SSHD_STUB_PARTIAL_HARDENED \
     LAUNCHCTL_STUB_PRINT_STATUSES LAUNCHCTL_STUB_KICKSTART_STATUS \
-    KEYSCAN_STUB_MODE
+    KEYSCAN_STUB_MODE KEYSCAN_STUB_ANSWER_PORT
 }
 
 # run_ssh_reload <args...>: run_ssh_hardening with fresh per-run spy state,
@@ -272,7 +308,7 @@ run_ssh_reload() {
   : >"$SLEEP_SPY_LOG"
   : >"$SUDO_OK_SPY_LOG"
   : >"$SUDO_DENY_SPY_LOG"
-  rm -f "$SSH_STUB_STATE/launchctl-print-count"
+  rm -f "$SSH_STUB_STATE/launchctl-print-count" "$SSH_STUB_STATE/sshd-resolve-count"
   run_ssh_hardening "$@"
   if [[ -s $SSH_BARE_TOOL_SPY_LOG ]]; then
     printf 'FAIL: the script called a tool by bare name instead of its seam during %s; tripwire log:\n%s\n' \

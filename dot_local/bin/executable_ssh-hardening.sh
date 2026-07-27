@@ -994,8 +994,113 @@ validate_readiness_knobs() {
   esac
 }
 
+# resolve_probe_ports: every `Port` the effective configuration declares,
+# validated and deduplicated, into the PROBE_PORTS array.
+#
+# A NOTE ON AUTHORITY, and why this is a best effort rather than the truth:
+# macOS Remote Login is launchd SOCKET ACTIVATION. ssh.plist declares
+# inetdCompatibility with Sockets.Listeners.SockServiceName = ssh, so launchd
+# owns the listening socket and sshd never binds one; the Port directive that
+# `sshd -G` reports is inert for the live listener. On a machine whose
+# configuration carries a nonstandard Port, every port resolved here can be
+# wrong while the daemon is healthy on launchd's socket (normally 22).
+# Deriving the probe target from launchd instead was considered and rejected:
+# `launchctl print` output is an undocumented human-oriented format with no
+# stability guarantee, and parsing it in the one path that must not misfire
+# is a worse risk than an honest diagnosis. So the resolved ports stay the
+# probe target (on a stock machine the two authorities agree), and the
+# LOCKOUT failure names the launchd-socket possibility so a port mismatch
+# reads as a diagnosis rather than a false emergency.
+#
+# Every declared Port is kept: two Port directives produce two `port` lines
+# from the real binary (measured), and probing only the first would prove
+# readiness for one listener while the success message speaks for the
+# daemon. Each value is checked as a canonical integer and range-bounded on
+# BOTH sides (1-65535) before it reaches arithmetic or a probe argv.
+PROBE_PORTS=()
+resolve_probe_ports() {
+  local status=0 output listing port existing duplicate
+  PROBE_PORTS=()
+  output="$("$SSHD_BIN" -G -f "$SSHD_MAIN_CONFIG" 2>&1)" || status=$?
+  if [[ $status -ne 0 ]]; then
+    die "could not resolve the effective sshd port ('$SSHD_BIN -G' exited $status); refusing to restart a daemon whose readiness could not then be probed. sshd was not touched. Output: $output"
+  fi
+  status=0
+  listing="$(printf '%s\n' "$output" | awk '$1 == "port" { print $2 }')" ||
+    status=$?
+  if [[ $status -ne 0 ]]; then
+    die "could not read the port out of the sshd -G output (exit $status); failing closed before the disruptive step. sshd was not touched."
+  fi
+  if [[ -z $listing ]]; then
+    die "the effective configuration resolved NO port at all; refusing to probe readiness blind. sshd was not touched."
+  fi
+  # A here-string materializes in TMPDIR; if that fails the loop reads zero
+  # lines, PROBE_PORTS stays empty, and the guard below refuses -- the
+  # failure direction is closed either way.
+  while IFS= read -r port; do
+    case $port in
+      '' | *[!0-9]* | 0*)
+        die "the effective sshd port resolved to '$port', which is not a canonical port number; refusing to probe readiness blind. sshd was not touched."
+        ;;
+    esac
+    if [[ ${#port} -gt 5 || $port -gt 65535 ]]; then
+      die "the effective sshd port resolved to '$port', which is outside 1-65535; refusing to probe readiness blind. sshd was not touched."
+    fi
+    duplicate=0
+    if [[ ${#PROBE_PORTS[@]} -gt 0 ]]; then
+      for existing in "${PROBE_PORTS[@]}"; do
+        if [[ $existing == "$port" ]]; then
+          duplicate=1
+          break
+        fi
+      done
+    fi
+    if [[ $duplicate -eq 0 ]]; then
+      PROBE_PORTS+=("$port")
+    fi
+  done <<<"$listing"
+  if [[ ${#PROBE_PORTS[@]} -eq 0 ]]; then
+    die "the effective configuration resolved no usable port; refusing to probe readiness blind. sshd was not touched."
+  fi
+}
+
+# wait_for_ssh_banner: the readiness loop. One attempt probes EVERY resolved
+# port once; the bound is SSH_HARDENING_READY_ATTEMPTS attempts (see the seam
+# comment for what that bound does and does not promise). On success sets
+# READY_PORT to the port that answered and returns 0; after the bound is
+# exhausted returns 1 with READY_PORT empty. Success requires the probe's
+# exit status AND a banner on stdout: the status alone is a proxy, and a
+# probe that printed no key line proved nothing, whatever it exited. Every
+# child status is captured explicitly, so the loop's answer does not depend
+# on errexit (callers judging it inside `if !` have errexit off).
+READY_PORT=''
+wait_for_ssh_banner() {
+  local attempt=1 keyscan_status banner_output port status
+  READY_PORT=''
+  while [[ $attempt -le $SSH_HARDENING_READY_ATTEMPTS ]]; do
+    for port in "${PROBE_PORTS[@]}"; do
+      keyscan_status=0
+      banner_output="$("$KEYSCAN_BIN" -T "$SSH_HARDENING_PROBE_TIMEOUT" -p "$port" 127.0.0.1 2>/dev/null)" ||
+        keyscan_status=$?
+      if [[ $keyscan_status -eq 0 && -n $banner_output ]]; then
+        READY_PORT="$port"
+        return 0
+      fi
+    done
+    if [[ $attempt -lt $SSH_HARDENING_READY_ATTEMPTS && $SSH_HARDENING_READY_INTERVAL != 0 ]]; then
+      status=0
+      "$SLEEP_BIN" "$SSH_HARDENING_READY_INTERVAL" || status=$?
+      if [[ $status -ne 0 ]]; then
+        die "the retry delay '$SLEEP_BIN $SSH_HARDENING_READY_INTERVAL' failed (exit $status) between readiness probes, so readiness cannot be awaited; the restart HAS already happened. $(recovery_instructions)"
+      fi
+    fi
+    attempt=$((attempt + 1))
+  done
+  return 1
+}
+
 reload_sshd() {
-  local status output port
+  local status output
 
   validate_readiness_knobs
 
@@ -1040,23 +1145,10 @@ reload_sshd() {
     die "the effective configuration is not fully hardened (the verify failures are above); refusing to restart sshd onto it. sshd was not touched."
   fi
 
-  # 5. Resolve the port now, while nothing has been disturbed: a reload that
-  # cannot name the port to probe must fail BEFORE the kickstart, not after.
-  status=0
-  output="$("$SSHD_BIN" -G -f "$SSHD_MAIN_CONFIG" 2>&1)" || status=$?
-  if [[ $status -ne 0 ]]; then
-    die "could not resolve the effective sshd port ('$SSHD_BIN -G' exited $status); refusing to restart a daemon whose readiness could not then be probed. sshd was not touched. Output: $output"
-  fi
-  status=0
-  port="$(printf '%s\n' "$output" | awk '$1 == "port" { print $2; exit }')" || status=$?
-  if [[ $status -ne 0 ]]; then
-    die "could not read the port out of the sshd -G output (exit $status); failing closed before the disruptive step. sshd was not touched."
-  fi
-  case $port in
-    '' | *[!0-9]*)
-      die "the effective sshd port resolved to '$port', which is not a port number; refusing to probe readiness blind. sshd was not touched."
-      ;;
-  esac
+  # 5. Resolve the probe ports now, while nothing has been disturbed: a
+  # reload that cannot name what to probe must fail BEFORE the kickstart,
+  # not after.
+  resolve_probe_ports
 
   # 6. Probe the service, separating THREE outcomes, not two.
   probe_sshd_service
@@ -1083,35 +1175,15 @@ reload_sshd() {
     die "the sshd launchd service did not reload: after the kickstart, '$LAUNCHCTL_BIN print' exited $SERVICE_PROBE_STATUS instead of confirming a loaded job. $(recovery_instructions)"
   fi
 
-  # 9. The artifact: a completed SSH banner exchange on the resolved port.
-  # ssh-keyscan's exit status alone is not trusted either; a probe that
-  # produced no key line proved nothing, whatever it exited. The probe
-  # targets loopback, so a green result proves the daemon answers, NOT that a
-  # remote client can reach it (the application firewall does not filter
-  # loopback); the runbook's keep-a-session-open step is what covers that
-  # gap.
-  local attempt=1 ready=0 keyscan_status banner_output
-  while [[ $attempt -le $SSH_HARDENING_READY_ATTEMPTS ]]; do
-    keyscan_status=0
-    banner_output="$("$KEYSCAN_BIN" -T "$SSH_HARDENING_PROBE_TIMEOUT" -p "$port" 127.0.0.1 2>/dev/null)" ||
-      keyscan_status=$?
-    if [[ $keyscan_status -eq 0 && -n $banner_output ]]; then
-      ready=1
-      break
-    fi
-    if [[ $attempt -lt $SSH_HARDENING_READY_ATTEMPTS && $SSH_HARDENING_READY_INTERVAL != 0 ]]; then
-      status=0
-      "$SLEEP_BIN" "$SSH_HARDENING_READY_INTERVAL" || status=$?
-      if [[ $status -ne 0 ]]; then
-        die "the retry delay '$SLEEP_BIN $SSH_HARDENING_READY_INTERVAL' failed (exit $status) between readiness probes, so readiness cannot be awaited; the restart HAS already happened. $(recovery_instructions)"
-      fi
-    fi
-    attempt=$((attempt + 1))
-  done
-  if [[ $ready -ne 1 ]]; then
-    die "POSSIBLE LOCKOUT: the launchd job reports loaded, but no SSH banner arrived on port $port after $SSH_HARDENING_READY_ATTEMPTS attempt(s). A loaded job with a silent listener is what a crashed sshd looks like, so this is a failure, not a maybe. $(recovery_instructions)"
+  # 9. The artifact: a completed SSH banner exchange on a resolved port (see
+  # wait_for_ssh_banner for what counts). The probe targets loopback, so a
+  # green result proves the daemon answers, NOT that a remote client can
+  # reach it (the application firewall does not filter loopback); the
+  # runbook's keep-a-session-open step is what covers that gap.
+  if ! wait_for_ssh_banner; then
+    die "POSSIBLE LOCKOUT: the launchd job reports loaded, but no SSH banner arrived on port(s) ${PROBE_PORTS[*]} after $SSH_HARDENING_READY_ATTEMPTS attempt(s). A loaded job with a silent listener is what a crashed sshd looks like, so treat this as a failure. One more possibility BEFORE assuming an outage: on macOS, launchd owns Remote Login's listening socket (ssh.plist inetdCompatibility) and sshd's Port directive does not move it, so if this configuration carries a nonstandard Port the daemon may be healthy on launchd's socket (normally 22) while every probe watched the wrong port; check with '$KEYSCAN_BIN -p 22 127.0.0.1' before treating this as a lockout. $(recovery_instructions)"
   fi
-  printf '[ssh-hardening] reload complete: sshd restarted and is accepting connections on port %s (SSH banner exchange completed).\n' "$port"
+  printf '[ssh-hardening] reload complete: sshd restarted and is accepting connections on port %s (SSH banner exchange completed).\n' "$READY_PORT"
 }
 
 # --- rollback ----------------------------------------------------------------

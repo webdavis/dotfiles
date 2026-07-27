@@ -174,7 +174,7 @@ assert_no_reload_side_effects '6'
 # status as "the hardening is gone" and claimed success.
 
 write_hardened_dropin
-SSHD_STUB_RESOLVE_STATUS=1 run_ssh_reload --rollback
+SSHD_STUB_RESOLVE_STATUSES=1 run_ssh_reload --rollback
 [[ $SSH_RUN_STATUS -ne 0 ]] ||
   fail '7: an ERRORING verifier must fail the rollback, not pass as proof of access'
 [[ ! -e $dropin ]] ||
