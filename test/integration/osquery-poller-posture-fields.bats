@@ -54,9 +54,14 @@ healthy_seed='{"firewall":"1","gatekeeper":"1","screenlock":"1","filevault":"on"
   }
 
   assert_no_page
-  # One status probe per declared control.
-  assert_probe_calls fdesetup 1
-  assert_probe_calls csrutil 1
+  # One status probe per declared control, asserted by EXACT argv: the
+  # per-tool count alone would pass under a doubled probe of one subcommand
+  # that starved another.
+  assert_probe_argv 'fdesetup status' 1
+  assert_probe_argv 'csrutil status' 1
+  assert_probe_argv 'sysadminctl -guestAccount status' 1
+  assert_probe_argv 'defaults read /Library/Preferences/com.apple.loginwindow autoLoginUser' 1
+  # And no OTHER invocation of the shared tools beyond those exact reads.
   assert_probe_calls sysadminctl 1
   assert_probe_calls defaults 1
   # The baseline carries the legacy trio AND one field per declared control.

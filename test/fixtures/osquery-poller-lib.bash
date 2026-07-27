@@ -453,6 +453,20 @@ assert_probe_calls() {
   fi
 }
 
+# assert_probe_argv <exact-line> <n> -- the probe log holds exactly <n> lines
+# matching "<tool> <argv>" WHOLE. A per-member property, not a per-tool count:
+# a bare count would pass under a doubled probe of one subcommand that starved
+# another (e.g. autologin probed twice, guest never).
+assert_probe_argv() {
+  local count
+  count=$(grep -cxF -- "$1" "$POLLER_PROBE_CALLS" || true)
+  if [[ $count -ne $2 ]]; then
+    printf 'expected %s exact call(s) of [%s], got %s; probe log:\n%s\n' \
+      "$2" "$1" "$count" "$(cat "$POLLER_PROBE_CALLS")" >&2
+    return 1
+  fi
+}
+
 # assert_no_probe_calls -- the poller invoked no probe stub at all (a refused
 # controls file must be rejected BEFORE any read runs).
 assert_no_probe_calls() {
