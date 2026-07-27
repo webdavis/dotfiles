@@ -212,7 +212,17 @@ load_controls() {
     controls_problem="posture-controls file missing at [$(sanitize "$CONTROLS_FILE")]"
     return 0
   fi
-  if ! count=$(jq -er 'if type == "array" then length else error("not an array") end' <"$CONTROLS_FILE" 2>/dev/null); then
+  # Slurp (-s) so the WHOLE file must be exactly ONE top-level array: a
+  # multi-document file (say, two arrays back to back) parses per document,
+  # would emit one length per document, poison the loop arithmetic, and
+  # silently monitor zero controls. The integer guard is belt-and-braces for
+  # the same reason: count feeds bash arithmetic, so anything but one plain
+  # integer is refused before it can be evaluated.
+  if ! count=$(jq -ser 'if (length == 1 and (.[0] | type == "array")) then (.[0] | length) else error("not one array") end' <"$CONTROLS_FILE" 2>/dev/null); then
+    controls_problem="the posture-controls file is not a JSON array"
+    return 0
+  fi
+  if ! [[ $count =~ ^[0-9]+$ ]]; then
     controls_problem="the posture-controls file is not a JSON array"
     return 0
   fi

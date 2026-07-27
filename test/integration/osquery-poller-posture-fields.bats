@@ -357,6 +357,30 @@ healthy_seed='{"firewall":"1","gatekeeper":"1","screenlock":"1","filevault":"on"
   assert_baseline_unchanged
 }
 
+@test "T-PCTL-multidoc-controls-file-gaps: a controls file holding two top-level arrays pages a gap instead of silently monitoring zero controls" {
+  seed_baseline '{"firewall":"1","gatekeeper":"1","screenlock":"1"}'
+  snapshot_baseline
+  # Two JSON documents: an empty array, then the real record list. Each parses
+  # alone, so a per-document validation passes both; only a whole-file
+  # single-array rule can refuse this shape, under which every declared
+  # control would otherwise silently vanish.
+  printf '%s\n%s\n' '[]' '[{"id":"guest","description":"The macOS Guest account","tier":"verify","reader":"sysadminctl_guest","expect":"disabled"}]' \
+    >"$OSQUERY_POSTURE_CONTROLS"
+  set_posture '[{"firewall":"1","gatekeeper":"1","screenlock":"1"}]'
+
+  run run_poller
+  [[ $status -eq 0 ]] || {
+    echo "status $status: $output"
+    false
+  }
+
+  assert_page_count 1
+  assert_page_body_has 'monitoring gap'
+  assert_page_body_has 'not a JSON array'
+  assert_no_probe_calls # the refused file is refused whole, before any read
+  assert_baseline_unchanged
+}
+
 @test "T-PCTL-nonverify-tier-refused-before-reads: an enforce-tier record pages a gap naming it and no probe ever runs" {
   seed_baseline '{"firewall":"1","gatekeeper":"1","screenlock":"1"}'
   snapshot_baseline
