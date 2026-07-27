@@ -570,3 +570,41 @@ healthy_seed='{"firewall":"1","gatekeeper":"1","screenlock":"1","filevault":"on"
   assert_baseline_unchanged
 }
 
+# --- the Gatekeeper remedy names System Settings, never the removed CLI flag ---
+
+@test "T-PCTL-gatekeeper-remedy-names-system-settings: the Gatekeeper-off page points at System Settings and says the CLI cannot re-enable it" {
+  seed_baseline '{"firewall":"1","gatekeeper":"1","screenlock":"1"}'
+  set_posture '[{"firewall":"1","gatekeeper":"0","screenlock":"1"}]'
+
+  run run_poller
+  [[ $status -eq 0 ]] || {
+    echo "status $status: $output"
+    false
+  }
+
+  assert_page_body_has 'Gatekeeper turned OFF'
+  assert_page_body_has 'System Settings → Privacy & Security'
+  assert_page_body_has 'cannot enable Gatekeeper from the CLI'
+  assert_page_body_lacks '--master-enable' # removed on macOS 15+; naming it would be a lie
+}
+
+@test "T-PCTL-gatekeeper-first-observation-remedy: the first-observation Gatekeeper page carries the same System Settings remedy" {
+  set_posture '[{"firewall":"1","gatekeeper":"0","screenlock":"1"}]'
+
+  run run_poller
+  [[ $status -eq 0 ]] || {
+    echo "status $status: $output"
+    false
+  }
+
+  assert_page_body_has 'Gatekeeper is OFF (first observation)'
+  assert_page_body_has 'cannot enable Gatekeeper from the CLI'
+  assert_page_body_lacks '--master-enable'
+}
+
+@test "T-PCTL-no-master-enable-in-source: the poller source never mentions spctl --master-enable" {
+  if grep -qF -- 'master-enable' "$POLLER_TOOL"; then
+    echo "the poller source still names the removed spctl --master-enable flag"
+    false
+  fi
+}
