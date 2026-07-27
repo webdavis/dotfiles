@@ -1186,6 +1186,15 @@ reload_sshd() {
     die "could not determine the state of the sshd launchd service: '$LAUNCHCTL_BIN print $SSHD_LAUNCHD_SERVICE' exited $SERVICE_PROBE_STATUS, which is neither 0 (loaded) nor $LAUNCHCTL_STATUS_SERVICE_ABSENT (confirmed absent). A probe error is not evidence the daemon is stopped; refusing to guess. sshd was not touched. Output: $SERVICE_PROBE_OUTPUT"
   fi
 
+  # KNOWN RESIDUAL RACE, deliberately not closed in this change: the syntax
+  # check, the verify, and the port resolution above all read the
+  # configuration BEFORE this point, and nothing stops another writer from
+  # changing the tree between those reads and the kickstart below, so the
+  # daemon could restart onto a tree the preflight never saw. Closing it
+  # needs a re-read-and-compare design (fingerprint the tree at step 3,
+  # recheck it here) that is its own piece of work; a follow-up task carries
+  # it.
+  #
   # 7. The disruptive step. The keep-open warning and the COMPLETE recovery
   # command are printed FIRST: the kickstart is the step that can kill the
   # SSH session carrying this output, so anything printed only after it may
