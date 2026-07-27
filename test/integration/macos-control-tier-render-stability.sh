@@ -13,14 +13,15 @@
 #   2. Byte identity: the Tier 1 and Tier 2 runners, rendered against the
 #      repo's REAL data, match the goldens below exactly.
 #
-# The Tier 1 golden is the render of that template at commit 5774ce0 (the
-# tier slice's base, before the tier field existed) against the real data of
-# that commit, captured byte for byte including the trailing blank line: the
-# tier MECHANISM changed nothing about what the existing controls execute.
-# The Tier 2 golden was re-derived by the firewall-baseline slice after it
-# declared the firewall records, so it pins the 5774ce0 render PLUS exactly
-# those records' lines and nothing else. A later slice that declares NEW
-# records changes the real render legitimately; it must re-derive these
+# The Tier 1 golden was re-derived by the security-defaults slice after it
+# declared the SoftwareUpdate and Safari records: it pins the 5774ce0 render
+# (the tier slice's base, before the tier field existed) PLUS the sudo -v
+# prelude the system-scope record triggers and exactly those two records'
+# write lines, nothing else, byte for byte including the trailing blank
+# line. The Tier 2 golden was re-derived by the firewall-baseline slice
+# after it declared the firewall records, so it pins the 5774ce0 render PLUS
+# exactly those records' lines and nothing else. A later slice that declares
+# NEW records changes the real render legitimately; it must re-derive these
 # goldens as part of its own render assertions.
 #
 # Real chezmoi and yq; nothing is executed, only rendered.
@@ -82,7 +83,9 @@ invalid_setup_tiers="$(yq eval -r \
 
 # ---- 2: both runners render byte-identically to their goldens ----------------
 
-# The Tier 1 runner at 5774ce0, rendered against that commit's real data.
+# The Tier 1 runner's 5774ce0 render plus the security-defaults records: the
+# sudo -v prelude, the sudo-routed system-scope SoftwareUpdate write, and the
+# user-scope Safari write.
 tier1_golden="$work/tier1.golden"
 cat >"$tier1_golden" <<'GOLDEN_EOF'
 #!/bin/bash
@@ -96,6 +99,9 @@ set -euo pipefail
 # Settings and writes them back on close, silently overwriting our writes.
 osascript -e 'tell application "System Settings" to quit' 2>/dev/null || true
 
+# Sudo prelude: at least one record targets a root-owned system plist, so
+# validate sudo once, up front, before any write.
+sudo -v
 # Main loop: one `defaults write` per record.
 defaults write 'com.apple.dock' 'mru-spaces' -bool 'false'
 defaults write 'com.apple.dock' 'expose-group-apps' -bool 'false'
@@ -104,6 +110,8 @@ defaults write 'com.apple.WindowManager' 'EnableStandardClickToShowDesktop' -boo
 defaults write 'com.apple.WindowManager' 'EnableTilingByEdgeDrag' -bool 'false'
 defaults write 'com.apple.WindowManager' 'EnableTilingOptionAccelerator' -bool 'false'
 defaults write 'com.apple.WindowManager' 'EnableTopTilingByEdgeDrag' -bool 'false'
+sudo defaults write '/Library/Preferences/com.apple.SoftwareUpdate' 'AutomaticCheckEnabled' -bool 'true'
+defaults write 'com.apple.Safari' 'AutoOpenSafeDownloads' -bool 'false'
 # Post-loop: restart user-facing processes so changes take effect immediately.
 # cfprefsd kill is non-negotiable (caches plist values in memory).
 killall 'Dock' 2>/dev/null || true

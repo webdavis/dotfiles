@@ -86,6 +86,34 @@ macos:
       type: bool
       value: false
       tier: enforce
+    # Software-update parent switch. The live machine carried the latent
+    # inconsistency this record pins: AutomaticCheckEnabled was unset while
+    # its dependents (AutomaticDownload, CriticalUpdateInstall,
+    # ConfigDataInstall) were all on, so turning the unset parent off would
+    # silently disable every one of them. System scope: the plist is
+    # root-owned, /Library/Preferences/com.apple.SoftwareUpdate, written
+    # under sudo.
+    - domain: com.apple.SoftwareUpdate
+      key: AutomaticCheckEnabled
+      type: bool
+      value: true
+      scope: system
+      tier: enforce
+    # Never auto-open "safe" Safari downloads. Enforce rests on read-back
+    # evidence from this machine (macOS 26.2, Safari not running): a probe
+    # key written to this domain exited 0, reached the container plist on
+    # disk (~/Library/Containers/com.apple.Safari/Data/Library/Preferences),
+    # and read back through `defaults read`. One refinement the evidence does
+    # not cover: the probing process had Full Disk Access, and the process
+    # applying this record later may not. That does not change the tier,
+    # because the value is readable either way (`defaults read` resolves into
+    # the container), so a write that fails for any reason, missing access
+    # included, surfaces as drift in `just D` rather than as silent success.
+    - domain: com.apple.Safari
+      key: AutoOpenSafeDownloads
+      type: bool
+      value: false
+      tier: enforce
   killall:
     - Dock
     - Finder
