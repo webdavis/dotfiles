@@ -181,18 +181,20 @@ output="$(call_function system_defaults_read_actual /Library/Preferences/com.exa
 
 # case 13: a does-not-exist failure is the ONE failure that means unset.
 write_defaults_read_stub unset
-output="$(call_function system_defaults_read_actual /Library/Preferences/com.example.sys SysKey)" ||
-  fail "read unset: the three-outcome read must not return nonzero (stderr: $(cat "$work/err"))"
-[[ $output == '<unset>' ]] ||
-  fail "read unset: a does-not-exist failure must print <unset> (got '$output')"
+status=0
+output="$(call_function system_defaults_read_actual /Library/Preferences/com.example.sys SysKey)" || status=$?
+[[ $status -eq 1 ]] ||
+  fail "read unset: a does-not-exist failure must report the unset STATUS 1 (got $status, stderr: $(cat "$work/err"))"
+[[ -z $output ]] ||
+  fail "read unset: the unset outcome must print no value, so no value can impersonate it (got '$output')"
 
 # case 14: any OTHER failure is indeterminate, with a marker DISTINCT from
 # <unset>. Collapsing it into <unset> would report drift on an unread value.
 write_defaults_read_stub denied
-output="$(call_function system_defaults_read_actual /Library/Preferences/com.example.sys SysKey)" ||
-  fail "read denied: the three-outcome read must not return nonzero (stderr: $(cat "$work/err"))"
-[[ $output == '<unreadable>' ]] ||
-  fail "read denied: an unknown failure must print <unreadable>, never <unset> or a value (got '$output')"
+status=0
+output="$(call_function system_defaults_read_actual /Library/Preferences/com.example.sys SysKey)" || status=$?
+[[ $status -eq 2 ]] ||
+  fail "read denied: an unknown failure must report the unreadable STATUS 2, never unset (got $status, stderr: $(cat "$work/err"))"
 
 # case 15: a plist file that exists but cannot be read is indeterminate BEFORE
 # defaults is consulted. The stub would report a matching value, so a read that
@@ -202,14 +204,14 @@ write_defaults_read_stub ok
 locked_plist="$work/locked.plist"
 : >"$locked_plist"
 chmod 000 "$locked_plist"
-output="$(call_function system_defaults_read_actual "$work/locked" SysKey)" ||
-  fail "read locked (.plist candidate): must not return nonzero (stderr: $(cat "$work/err"))"
-[[ $output == '<unreadable>' ]] ||
-  fail "read locked (.plist candidate): an existing unreadable <path>.plist must print <unreadable> (got '$output')"
-output="$(call_function system_defaults_read_actual "$locked_plist" SysKey)" ||
-  fail "read locked (exact path): must not return nonzero (stderr: $(cat "$work/err"))"
-[[ $output == '<unreadable>' ]] ||
-  fail "read locked (exact path): an existing unreadable plist must print <unreadable> (got '$output')"
+status=0
+output="$(call_function system_defaults_read_actual "$work/locked" SysKey)" || status=$?
+[[ $status -eq 2 ]] ||
+  fail "read locked (.plist candidate): an existing unreadable <path>.plist must report status 2 (got $status)"
+status=0
+output="$(call_function system_defaults_read_actual "$locked_plist" SysKey)" || status=$?
+[[ $status -eq 2 ]] ||
+  fail "read locked (exact path): an existing unreadable plist must report status 2 (got $status)"
 chmod u+rw "$locked_plist"
 
 # ---- system_defaults_write -----------------------------------------------------
@@ -240,4 +242,4 @@ mapfile -t sudo_arguments <"$sudo_log"
 [[ ${sudo_arguments[4]} == -bool ]] || fail "write: argument 5 must be the dashed type (got '${sudo_arguments[4]}')"
 [[ ${sudo_arguments[5]} == false ]] || fail "write: argument 6 must be the value (got '${sudo_arguments[5]}')"
 
-printf 'macos-defaults-scope-read: OK (plist path defaults, passes absolute, rejects relative; scope enum and pairings validated fail-closed; the system read distinguishes value/<unset>/<unreadable> and never collapses unknown failures; the system write goes through sudo with the exact argument shape)\n'
+printf 'macos-defaults-scope-read: OK (plist path defaults, passes absolute, rejects relative; scope enum and pairings validated fail-closed; the system read distinguishes value/unset/unreadable by STATUS, so no live value can impersonate an outcome and never collapses unknown failures; the system write goes through sudo with the exact argument shape)\n'

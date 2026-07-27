@@ -27,6 +27,38 @@ system, and system cannot pair with host (ByHost storage is per-user). */ -}}
 {{ if and (eq $scope "system") (index . "host") -}}
 {{ fail (printf "macos_defaults.yaml: record %s %s combines scope system with host; ByHost storage is per-user" .domain .key) -}}
 {{ end -}}
+{{- /* The type is the ONE field rendered into shell source unquoted, because it
+becomes an option word (-bool, -int). Unquoted interpolation of data into shell
+syntax is command injection: a type of `bool true; some-command #` renders a
+valid write followed by an attacker's command, and on a system record that runs
+under the sudo credential the prelude just cached. Quoting is not the fix, since
+`defaults` needs a bare option word, so the type is constrained to a closed set
+instead. Everything else on these lines goes through `quote`. */ -}}
+{{ if not (has .type (list "array" "bool" "data" "date" "dict" "float" "int" "string")) -}}
+{{ fail (printf "macos_defaults.yaml: unsupported type %q on record %s %s; expected one of array bool data date dict float int string" .type .domain .key) -}}
+{{ end -}}
+{{- /* A plist_path is meaningful only for a system record. The shared tools
+reject the pairing already; without this the template would silently IGNORE the
+declared path and write the user domain, which is a malformed record producing a
+plausible-looking result. */ -}}
+{{ if and (ne $scope "system") (index . "plist_path") -}}
+{{ fail (printf "macos_defaults.yaml: record %s %s declares plist_path outside scope system" .domain .key) -}}
+{{ end -}}
+{{- /* Containment. `hasPrefix "/"` answers "does this start with a slash", which
+is a PROXY for the real question, "does this resolve where I intend to write".
+They diverge exactly where it matters: /Library/Preferences/../../etc/x starts
+with a slash and resolves to /etc/x, written as root. A defaults domain is
+reverse-DNS and never legitimately contains a slash, so rejecting one keeps the
+default construction contained by construction rather than by a later check. */ -}}
+{{ if eq $scope "system" -}}
+{{ if contains "/" .domain -}}
+{{ fail (printf "macos_defaults.yaml: system-scope domain %q on record %s contains a slash; it would escape the default plist directory" .domain .key) -}}
+{{ end -}}
+{{ $declaredPath := index . "plist_path" | default "" -}}
+{{ if or (hasPrefix "../" $declaredPath) (contains "/../" $declaredPath) (hasSuffix "/.." $declaredPath) -}}
+{{ fail (printf "macos_defaults.yaml: system-scope plist_path %q on record %s %s contains a parent-directory component" $declaredPath .domain .key) -}}
+{{ end -}}
+{{ end -}}
 {{ if eq $scope "system" }}{{ $hasSystemScopeRecord = true }}{{ end -}}
 {{ end -}}
 {{ if $hasSystemScopeRecord -}}

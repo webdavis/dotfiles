@@ -152,14 +152,42 @@ validate_record_scope() { # <scope> <host> <plist_path>
 # the default, /Library/Preferences/<domain>. A declared path must be
 # ABSOLUTE: a relative path would resolve against whatever directory the tool
 # happens to run from, so it is rejected, never resolved.
+# The three outcomes of reading a system-scope setting, carried as an exit STATUS
+# rather than a marker string. A string sentinel is representable as a real value:
+# a tracked setting whose live value happened to be the marker would be reported
+# indeterminate, hiding both a match and a genuine drift. A status cannot be
+# impersonated by any value, so the two channels stay separate.
+readonly SYSTEM_READ_OK=0
+readonly SYSTEM_READ_UNSET=1
+readonly SYSTEM_READ_UNREADABLE=2
+
 resolve_system_plist_path() { # <domain> <plist_path>
   local domain="$1" plist_path="$2"
   if [[ -z $plist_path ]]; then
+    # A defaults domain is reverse-DNS and never legitimately contains a slash.
+    # Rejecting one keeps the default construction inside /Library/Preferences BY
+    # CONSTRUCTION: without it, a domain of ../../tmp/owned resolves to
+    # /Library/Preferences/../../tmp/owned, which is /tmp/owned, written as root.
+    if [[ $domain == */* ]]; then
+      printf 'error: system-scope domain %q contains a slash; it would escape %s\n' \
+        "$domain" '/Library/Preferences' >&2
+      return 1
+    fi
     printf '/Library/Preferences/%s\n' "$domain"
     return 0
   fi
   if [[ $plist_path != /* ]]; then
     printf 'error: relative plist_path %q (domain %s); an absolute path is required\n' \
+      "$plist_path" "$domain" >&2
+    return 1
+  fi
+  # Leading-slash is a PROXY for "resolves where I intend", and the two diverge
+  # exactly where it matters: /Library/Preferences/../../etc/x passes the check
+  # above and resolves to /etc/x. Reject parent-directory components outright
+  # rather than canonicalizing, so the rejection does not depend on the path
+  # existing yet.
+  if [[ $plist_path == *"/../"* || $plist_path == *"/.." ]]; then
+    printf 'error: plist_path %q (domain %s) contains a parent-directory component\n' \
       "$plist_path" "$domain" >&2
     return 1
   fi
@@ -191,23 +219,27 @@ system_defaults_read_actual() { # <plist_path> <key>
   local file_candidate
   for file_candidate in "$plist_path" "$plist_path.plist"; do
     if [[ -e $file_candidate && ! -r $file_candidate ]]; then
-      printf '<unreadable>'
-      return 0
+      return "$SYSTEM_READ_UNREADABLE"
     fi
   done
   local value read_error_file read_status=0
-  read_error_file="$(mktemp)"
+  # A failed mktemp must not become an ambiguous redirect that silently loses the
+  # classifier's only input. Refuse toward indeterminate, the safe direction.
+  read_error_file="$(mktemp)" || return "$SYSTEM_READ_UNREADABLE"
   value="$(defaults read "$plist_path" "$key" 2>"$read_error_file")" || read_status=$?
   if [[ $read_status -eq 0 ]]; then
     rm -f "$read_error_file"
     printf '%s' "$value"
-    return 0
+    return "$SYSTEM_READ_OK"
   fi
+  # Only a genuinely absent domain or key is "unset". Every other failure, an
+  # unparseable plist, a traversal-blocked parent, a `defaults` that is missing or
+  # errors, or a message this does not recognize on a future macOS, stays
+  # indeterminate rather than being reported as a known state.
   if grep -q 'does not exist' "$read_error_file"; then
     rm -f "$read_error_file"
-    printf '<unset>'
-    return 0
+    return "$SYSTEM_READ_UNSET"
   fi
   rm -f "$read_error_file"
-  printf '<unreadable>'
+  return "$SYSTEM_READ_UNREADABLE"
 }

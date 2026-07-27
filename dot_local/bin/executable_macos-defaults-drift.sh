@@ -68,12 +68,17 @@ defaults_records_unit_separated "$DATA_FILE" |
     expected="$(normalize "$type" "$value")"
     if [[ $scope == system ]]; then
       resolved_plist_path="$(resolve_system_plist_path "$domain" "$plist_path")" || exit 2
-      actual="$(system_defaults_read_actual "$resolved_plist_path" "$key")"
-      if [[ $actual == '<unreadable>' ]]; then
+      # The outcome arrives as a STATUS, so no live value can impersonate it.
+      read_status=0
+      actual="$(system_defaults_read_actual "$resolved_plist_path" "$key")" || read_status=$?
+      if [[ $read_status -eq $SYSTEM_READ_UNREADABLE ]]; then
         print_header
         printf '%s\t%s\t%s\t%s\n' "$domain" "$key" "$expected" '<unreadable>'
         indeterminate_count=$((indeterminate_count + 1))
         continue
+      fi
+      if [[ $read_status -eq $SYSTEM_READ_UNSET ]]; then
+        actual='<unset>'
       fi
     elif [[ -n $host ]]; then
       actual="$(defaults -currentHost read "$domain" "$key" 2>/dev/null || printf '<unset>')"
