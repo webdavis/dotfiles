@@ -157,16 +157,24 @@ render_current() { # <template> <out-file>
 tier1_rendered="$work/tier1.rendered"
 render_current "$TIER1_TEMPLATE" "$tier1_rendered" ||
   fail "the Tier 1 runner must render against the real data (stderr: $(cat "$render_error"))"
-if [[ -z "$(tr -d '[:space:]' <"$tier1_rendered")" ]]; then
-  printf 'SKIP: empty render (non-darwin host); nothing to exercise\n'
+# The skip is gated on the ACTUAL host OS, never on the render coming out
+# empty: emptiness conflates "non-darwin host" (skip, by design) with "the
+# template's OS guard is broken on darwin" (a failure this test exists to
+# catch). An empty render on darwin must fail loudly, not skip.
+[[ "$(uname)" == Darwin ]] || {
+  printf 'SKIP: non-darwin host; the runners render empty by design off darwin\n'
   exit 0
-fi
+}
+[[ -n "$(tr -d '[:space:]' <"$tier1_rendered")" ]] ||
+  fail "the Tier 1 runner rendered EMPTY on a darwin host; its OS guard is broken (template: $TIER1_TEMPLATE; stderr: $(cat "$render_error"))"
 cmp -s "$tier1_golden" "$tier1_rendered" ||
   fail "the Tier 1 runner must render byte-identically to its pre-tier golden (diff: $(diff "$tier1_golden" "$tier1_rendered" | head -20))"
 
 tier2_rendered="$work/tier2.rendered"
 render_current "$TIER2_TEMPLATE" "$tier2_rendered" ||
   fail "the Tier 2 runner must render against the real data (stderr: $(cat "$render_error"))"
+[[ -n "$(tr -d '[:space:]' <"$tier2_rendered")" ]] ||
+  fail "the Tier 2 runner rendered EMPTY on a darwin host; its OS guard is broken (template: $TIER2_TEMPLATE; stderr: $(cat "$render_error"))"
 cmp -s "$tier2_golden" "$tier2_rendered" ||
   fail "the Tier 2 runner must render byte-identically to its golden (diff: $(diff "$tier2_golden" "$tier2_rendered" | head -20))"
 

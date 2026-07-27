@@ -157,10 +157,16 @@ render_error="$work/render.err"
 HOME="$render_home" chezmoi --source "$REPO_ROOT" execute-template --no-tty \
   <"$TEMPLATE" >"$rendered" 2>"$render_error" ||
   fail "the Tier 2 runner must render against the real data (stderr: $(cat "$render_error"))"
-if [[ -z "$(tr -d '[:space:]' <"$rendered")" ]]; then
-  printf 'SKIP: empty render (non-darwin host); render assertions not exercised\n'
+# The skip is gated on the ACTUAL host OS, never on the render coming out
+# empty: emptiness conflates "non-darwin host" (skip, by design) with "the
+# template's OS guard is broken on darwin" (a failure this test exists to
+# catch). An empty render on darwin must fail loudly, not skip.
+[[ "$(uname)" == Darwin ]] || {
+  printf 'SKIP: non-darwin host; render assertions not exercised\n'
   exit 0
-fi
+}
+[[ -n "$(tr -d '[:space:]' <"$rendered")" ]] ||
+  fail "the Tier 2 runner rendered EMPTY on a darwin host; its OS guard is broken (template: $TEMPLATE; stderr: $(cat "$render_error"))"
 
 # Whole-line match (-x) pins the sudo prefix; uniqueness makes the returned
 # line number meaningful for the order comparison.
