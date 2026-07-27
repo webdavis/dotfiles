@@ -23,12 +23,11 @@ fail() {
   exit 0
 }
 
-file_mode() { # <path> -> octal mode, portable across BSD and GNU stat
-  if stat -f '%Lp' "$1" 2>/dev/null; then
-    return 0
-  fi
-  stat -c '%a' "$1"
-}
+# file_mode <path> -> octal mode. GNU form first, BSD form as the fallback:
+# under the nix dev shell GNU coreutils shadows the system stat even on macOS,
+# and GNU's `-f` flag means "filesystem status", which SUCCEEDS with garbage
+# output instead of failing over. See test/test-system/stat-order.sh.
+file_mode() { stat -c '%a' "$1" 2>/dev/null || stat -f '%Lp' "$1"; }
 
 ssh_sandbox_setup
 trap 'ssh_sandbox_teardown' EXIT
