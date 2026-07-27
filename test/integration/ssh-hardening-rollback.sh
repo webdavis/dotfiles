@@ -203,4 +203,23 @@ grep -qi 'NOT restored' <<<"$SSH_RUN_ERR" ||
   fail "8: the failure must say password access is NOT restored (stderr: $SSH_RUN_ERR)"
 assert_no_reload_side_effects '8'
 
+# --- 9: a removal command that LIES produces no success claim -----------------
+# The wrapper reports rm succeeded without running it; the post-removal
+# existence re-check must convict the lie by looking at the file itself,
+# BEFORE any recovery proof runs against a tree that still carries the
+# drop-in.
+
+write_hardened_dropin
+SSH_HARDENING_SUDO="$SSH_SUDO_SWALLOW_RM_STUB" run_ssh_reload --rollback
+[[ $SSH_RUN_STATUS -ne 0 ]] ||
+  fail '9: a swallowed rm must fail the rollback'
+[[ -e $dropin ]] ||
+  fail '9: the drop-in must still be in place (the stub never removed it)'
+grep -qi 'still exists after the removal command reported success' <<<"$SSH_RUN_ERR" ||
+  fail "9: the failure must convict the lying removal specifically (stderr: $SSH_RUN_ERR)"
+refute_contains "$SSH_RUN_OUT" 'rollback complete' \
+  '9: a swallowed removal must not produce a completion claim'
+assert_no_reload_side_effects '9'
+rm -f "$dropin"
+
 printf 'ssh-hardening-rollback: OK (success means a PROVEN password channel, on both the removal and the already-absent path; blocked, errored, and unverifiable are three distinct loud failures)\n'

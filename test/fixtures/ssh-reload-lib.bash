@@ -317,6 +317,22 @@ STUB
   chmod +x "$SSH_STUB_DIR/sudo-launchctl-113"
   SSH_SUDO_LAUNCHCTL_113_STUB="$SSH_STUB_DIR/sudo-launchctl-113"
 
+  # A wrapper that SWALLOWS rm: reports success without executing it, the
+  # shape of a removal command that lies. Everything else passes through.
+  cat >"$SSH_STUB_DIR/sudo-swallow-rm" <<'STUB'
+#!/bin/bash
+if [[ ${1:-} == '-v' ]]; then
+  exit 0
+fi
+if [[ ${1:-} == 'rm' ]]; then
+  printf '%s\n' "$*" >>"${SUDO_DENY_SPY_LOG:?}"
+  exit 0
+fi
+exec "$@"
+STUB
+  chmod +x "$SSH_STUB_DIR/sudo-swallow-rm"
+  SSH_SUDO_SWALLOW_RM_STUB="$SSH_STUB_DIR/sudo-swallow-rm"
+
   # Denying sudo: logs and fails the way a passwordless-sudo revocation or a
   # missing terminal does. Nothing it is asked to run ever runs.
   cat >"$SSH_STUB_DIR/sudo-deny" <<'STUB'
@@ -343,7 +359,7 @@ STUB
   KEYSCAN_STUB_MODE=banner
   KEYSCAN_STUB_ANSWER_PORT=""
   export SSH_STUB_DIR SSH_STUB_STATE SSH_SUDO_DENY_STUB \
-    SSH_SUDO_LAUNCHCTL_113_STUB \
+    SSH_SUDO_LAUNCHCTL_113_STUB SSH_SUDO_SWALLOW_RM_STUB \
     SSHD_SPY_LOG LAUNCHCTL_SPY_LOG KEYSCAN_SPY_LOG SLEEP_SPY_LOG \
     SUDO_OK_SPY_LOG SUDO_DENY_SPY_LOG SSH_BARE_TOOL_SPY_LOG \
     SSH_SEAM_CALL_LOG \
