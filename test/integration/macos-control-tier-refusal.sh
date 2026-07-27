@@ -13,19 +13,29 @@
 #
 # The refusal is the load-bearing part, so it is pinned as TOTAL:
 #   1. A record with no tier ABORTS the render, naming the record. Not a
-#      warning, not a skipped record; a mixed file emits no write at all.
-#   2. An unrecognized tier value aborts the render naming the value. A blank
+#      warning, not a skipped record: a fixture that skipped the offender
+#      would render cleanly, and the required failure catches it. (That a
+#      failed render emits no write at all is chezmoi's own guarantee; see
+#      the note on the reject helpers.)
+#   2. An unrecognized tier value aborts the render naming the value, from
+#      the VALIDATION pass, never the render loop's distinctly-marked
+#      fail-closed arm (whose presence is pinned in source form). A blank
 #      tier and a set-but-empty tier are rejected as their own cases, never
-#      conflated with absent, and nothing ever renders the literal text <nil>.
+#      conflated with absent, and nothing ever renders the literal text
+#      <nil>. Blank is pinned against BOTH templates.
 #   3. A verify record renders no mutating command, asserted as the ABSENCE of
 #      the specific write string beside a control record that proves writes
 #      render, and contributes no sudo prelude.
 #   4. A verify or manual record carrying a mutating payload aborts the render
-#      (defaults: a manual record carrying any write field; system_setup: a
-#      command or sudo on any non-enforce record). On a verify defaults record
-#      type/value are the READ expectation the drift checker compares, the one
-#      payload shape that is legitimate there.
-#   5. A manual record without a runbook (absent, blank, or empty) aborts.
+#      (defaults: a manual record carrying any of the five forbidden write
+#      fields, one fixture per member so the list is pinned by completeness;
+#      system_setup: a command or sudo on any non-enforce record). On a verify
+#      defaults record type/value are the READ expectation the drift checker
+#      compares, the one payload shape that is legitimate there. The inverse
+#      lie aborts too: an enforce system_setup record with no command (absent,
+#      blank, or empty).
+#   5. A manual record without a runbook (absent, blank, or empty) aborts,
+#      empty pinned against BOTH templates.
 #   6. A manual record renders a runbook pointer and no command, and the
 #      pointer goes through the single-quoting helper, so hostile runbook or
 #      description text arrives literal and executes nothing.
@@ -33,6 +43,8 @@
 #      apply writes ONLY enforce records, drift checks enforce AND verify but
 #      never manual, capture appends tier: enforce, and an unknown tier makes
 #      every one of them refuse the whole file before acting on any of it.
+#      Behind that gate, apply's and drift's own in-loop refusal is reached
+#      via a doctored stream and refuses fail-closed on its own.
 #
 # Real chezmoi and yq; `defaults`, `sudo`, `osascript`, and `killall` are
 # stubbed. Never runs real sudo, never touches /Library.
@@ -137,10 +149,15 @@ if [[ -z "$(tr -d '[:space:]' <"$sandbox/rendered-probe")" ]]; then
 fi
 
 # assert_tier1_rejects / assert_tier2_rejects <label> <stderr-fragment...> --
-# feed a fixture on stdin, require the render to FAIL, require the message to
-# carry every named fragment, and require that nothing executable leaked into
-# the output: a render that failed only after emitting a write has already
-# written the attacker's script.
+# feed a fixture on stdin, require the render to FAIL, and require the message
+# to carry every named fragment.
+#
+# Deliberately NOT asserted: that the rejected render's stdout carries no
+# write or command line. chezmoi buffers the whole render and discards it on
+# failure (verified empirically: a template that emits two lines and then
+# calls fail exits 1 with ZERO bytes on stdout), so that assertion is
+# satisfied by chezmoi's buffering no matter where our validation sits, and
+# an assertion that cannot fail reads as coverage while pinning nothing.
 assert_tier1_rejects() { # <label> <stderr-fragment...>   (fixture on stdin)
   local label="$1"
   shift
@@ -154,9 +171,6 @@ assert_tier1_rejects() { # <label> <stderr-fragment...>   (fixture on stdin)
     assert_file_contains "$render_error" "$fragment" \
       "$label: the failure must name '$fragment' (stderr: $(cat "$render_error"))"
   done
-  if grep -qE '^(sudo )?defaults ' "$out_file"; then
-    fail "$label: a rejected render must emit no write line (got: $(grep -E '^(sudo )?defaults ' "$out_file"))"
-  fi
 }
 
 assert_tier2_rejects() { # <label> <stderr-fragment...>   (fixture on stdin)
@@ -172,15 +186,13 @@ assert_tier2_rejects() { # <label> <stderr-fragment...>   (fixture on stdin)
     assert_file_contains "$render_error" "$fragment" \
       "$label: the failure must name '$fragment' (stderr: $(cat "$render_error"))"
   done
-  refute_file_matches "$out_file" '^(sudo )?[^#[:space:]]' \
-    "$label: a rejected render must emit no command line (render: $(cat "$out_file"))"
 }
 
 # ---- 1: a record with no tier aborts the render -------------------------------
 
-# The valid enforce record comes FIRST, so a runner that warned and continued,
-# or skipped the offender, would have emitted that record's write; the
-# no-write-emitted check inside the helper is what makes the abort total.
+# The valid enforce record comes FIRST, so a template that warned and skipped
+# the offender instead of aborting would render the file cleanly, and the
+# helper's required render failure is what catches it.
 assert_tier1_rejects 'defaults record with no tier' \
   'has no tier' 'com.example.untiered' 'UntieredKey' <<'EOF'
 macos:
@@ -221,6 +233,13 @@ macos:
       tier: enforced
   killall: []
 EOF
+# The unrecognized-tier check exists at TWO sites per template: the validation
+# pass and the render loop's fail-closed else arm, with deliberately distinct
+# messages. The refusal above must come from the VALIDATION pass: if the loop
+# marker shows up here, the validation copy is gone and the loop copy is
+# masking its absence.
+refute_file_contains "$render_error" 'reached the render loop' \
+  'an unrecognized defaults tier must be refused by the validation pass, not the render loop'
 
 # A blank scalar is nil, and stringifying nil yields the literal text <nil>.
 # It must be rejected as its own case, and the message must not carry <nil>.
@@ -275,6 +294,31 @@ macos:
       command: 'printf bogus-ran'
       tier: bogus
 EOF
+# Same two-site rule as Tier 1: the refusal must come from the validation
+# pass, never the render loop's distinctly-marked else arm.
+refute_file_contains "$render_error" 'reached the render loop' \
+  'an unrecognized system_setup tier must be refused by the validation pass, not the render loop'
+
+# The Tier 2 blank tier is its own case too, tested here directly rather than
+# assumed covered by the Tier 1 case above: the two templates carry separate
+# copies of the branch, and one of them silently rotting is exactly what
+# per-template pins exist to catch.
+blank_tier_setup_src="$(
+  make_setup_source <<'EOF'
+macos:
+  system_setup:
+    - description: "blank-tier setup record"
+      tier:
+EOF
+)"
+blank_tier_setup_status=0
+render_template "$TIER2_TEMPLATE" "$blank_tier_setup_src" "$sandbox/rendered-blank-tier-setup" "$render_error" ||
+  blank_tier_setup_status=$?
+[[ $blank_tier_setup_status -ne 0 ]] || fail 'a blank system_setup tier must fail the render'
+assert_file_contains "$render_error" 'has a blank tier' \
+  "a blank system_setup tier must be named as blank (stderr: $(cat "$render_error"))"
+refute_file_contains "$render_error" '<nil>' \
+  'a blank system_setup tier must never surface as the stringified literal <nil>'
 
 # ---- 3: a verify record renders no mutating command ---------------------------
 
@@ -398,6 +442,46 @@ macos:
   killall: []
 EOF
 
+# The forbidden-field list on a manual defaults record is pinned by
+# COMPLETENESS: one fixture per member (type, value, host, scope, plist_path,
+# each carried alone so the refusal names exactly that field), so removing ANY
+# single member from the template's list fails the member's own case here.
+assert_tier1_rejects 'manual defaults record carrying type' \
+  'carries type' 'com.example.manualtype' <<'EOF'
+macos:
+  defaults:
+    - domain: com.example.manualtype
+      key: ManualTypeKey
+      type: bool
+      tier: manual
+      runbook: Some section
+  killall: []
+EOF
+
+assert_tier1_rejects 'manual defaults record carrying host' \
+  'carries host' 'com.example.manualhost' <<'EOF'
+macos:
+  defaults:
+    - domain: com.example.manualhost
+      key: ManualHostKey
+      tier: manual
+      runbook: Some section
+      host: current
+  killall: []
+EOF
+
+assert_tier1_rejects 'manual defaults record carrying plist_path' \
+  'carries plist_path' 'com.example.manualplist' <<'EOF'
+macos:
+  defaults:
+    - domain: com.example.manualplist
+      key: ManualPlistKey
+      tier: manual
+      runbook: Some section
+      plist_path: /Library/Preferences/com.example.manualplist.plist
+  killall: []
+EOF
+
 verify_payload_src="$(
   make_setup_source <<'EOF'
 macos:
@@ -434,6 +518,36 @@ macos:
     - description: "verify record smuggling sudo"
       sudo: true
       tier: verify
+EOF
+
+# The inverse lie: an enforce record IS a command, so a record that declares
+# the tier without one aborts. Absent, blank (nil), and empty-string are three
+# ways of declaring no command; each aborts on its own fixture, so the branch
+# cannot rot down to a sampled subset.
+assert_tier2_rejects 'enforce system_setup record with no command' \
+  'has no command' 'enforce record without a command' <<'EOF'
+macos:
+  system_setup:
+    - description: "enforce record without a command"
+      tier: enforce
+EOF
+
+assert_tier2_rejects 'enforce system_setup record with a blank command' \
+  'has no command' 'enforce record with a blank command' <<'EOF'
+macos:
+  system_setup:
+    - description: "enforce record with a blank command"
+      command:
+      tier: enforce
+EOF
+
+assert_tier2_rejects 'enforce system_setup record with an empty command' \
+  'has no command' 'enforce record with an empty command' <<'EOF'
+macos:
+  system_setup:
+    - description: "enforce record with an empty command"
+      command: ""
+      tier: enforce
 EOF
 
 # ---- 5: a manual record without a runbook aborts -------------------------------
@@ -485,6 +599,17 @@ macos:
   system_setup:
     - description: "manual record without a runbook"
       tier: manual
+EOF
+
+# Pinned against Tier 2 directly, not assumed covered by the Tier 1 case
+# above: the empty-runbook branch is a separate copy in each template.
+assert_tier2_rejects 'manual system_setup record with an empty runbook' \
+  'has an empty runbook' 'manual record with an empty runbook' <<'EOF'
+macos:
+  system_setup:
+    - description: "manual record with an empty runbook"
+      tier: manual
+      runbook: ""
 EOF
 
 # An enforce record has no consumer for a runbook, and silently ignored data
@@ -625,6 +750,13 @@ for guarded_template in "$TIER1_TEMPLATE" "$TIER2_TEMPLATE"; do
     "$(basename "$guarded_template") must not use the bare dotted tier field form anywhere"
   refute_file_matches "$guarded_template" '\.runbook' \
     "$(basename "$guarded_template") must not use the bare dotted runbook field form anywhere"
+  # The render loop's fail-closed else arm is unreachable while the validation
+  # pass holds, so no fixture can reach it; its distinctly-marked fail is
+  # pinned here in source form. Together with the validation-site refutes in
+  # section 2, each of the two copies is individually removable only by
+  # turning a test red.
+  assert_file_contains "$guarded_template" 'reached the render loop' \
+    "$(basename "$guarded_template") must keep the render loop's distinctly-marked fail-closed tier refusal"
 done
 
 # ---- 7: the tools inherit the refusal through the shared record stream ---------
@@ -821,6 +953,53 @@ run_tool "$unknown_tier_stream_src" "$DRIFT" >"$drift_out" 2>"$sandbox/drift.err
 [[ $drift_unknown_status -eq 2 ]] ||
   fail "drift must exit 2 on a file carrying an unrecognized tier (got $drift_unknown_status)"
 
+# ---- the tools' OWN in-loop tier refusal, reached by bypassing the stream --------
+
+# The refusals above pin the shared stream's gate: an unknown tier never
+# reaches a tool's loop through the real library. Apply and drift each carry
+# their own case arm behind that gate as defence in depth for the day the
+# stream's rules drift, and an arm no test can reach reads as protection
+# while providing none. So reach it: copy each tool beside a doctored lib
+# whose stream emits the one record the real gate refuses, and require the
+# tool's own arm to refuse it, fail-closed, before acting on the record.
+bypass_dir="$sandbox/bypass-tools"
+mkdir -p "$bypass_dir"
+cp "$APPLY" "$bypass_dir/macos-defaults-apply.sh"
+cp "$DRIFT" "$bypass_dir/macos-defaults-drift.sh"
+cp "$LIB" "$bypass_dir/macos-defaults-lib.sh"
+cat >>"$bypass_dir/macos-defaults-lib.sh" <<'EOF'
+
+# TEST DOUBLE: emit one record with a tier the real stream's gate refuses,
+# so the calling tool's own case arm is the only guard left standing.
+defaults_records_unit_separated() {
+  printf 'com.example.bypassgate\x1fBypassGateKey\x1fbool\x1ftrue\x1f\x1fuser\x1f\x1fmystery\n'
+}
+EOF
+
+: >"$defaults_log"
+: >"$sudo_log"
+apply_bypass_status=0
+run_tool "$mixed_stream_src" "$bypass_dir/macos-defaults-apply.sh" \
+  2>"$sandbox/apply-bypass.err" || apply_bypass_status=$?
+[[ $apply_bypass_status -eq 2 ]] ||
+  fail "apply's own loop must refuse an unknown tier with status 2 when the stream gate is bypassed (got $apply_bypass_status)"
+assert_file_contains "$sandbox/apply-bypass.err" 'unrecognized tier' \
+  "apply's own refusal must name the tier as the problem (stderr: $(cat "$sandbox/apply-bypass.err"))"
+assert_file_contains "$sandbox/apply-bypass.err" 'refusing to write' \
+  "the refusal must be apply's own arm, not the stream's (stderr: $(cat "$sandbox/apply-bypass.err"))"
+refute_file_contains "$defaults_log" 'com.example.bypassgate' \
+  'apply must not fall through to the write path on a tier it cannot classify'
+
+drift_bypass_status=0
+run_tool "$mixed_stream_src" "$bypass_dir/macos-defaults-drift.sh" \
+  >"$drift_out" 2>"$sandbox/drift-bypass.err" || drift_bypass_status=$?
+[[ $drift_bypass_status -eq 2 ]] ||
+  fail "drift's own loop must refuse an unknown tier with status 2 when the stream gate is bypassed (got $drift_bypass_status)"
+assert_file_contains "$sandbox/drift-bypass.err" 'refusing to report on it' \
+  "the refusal must be drift's own arm, not the stream's (stderr: $(cat "$sandbox/drift-bypass.err"))"
+refute_file_contains "$drift_out" 'com.example.bypassgate' \
+  'drift must not report a comparison for a tier it cannot classify'
+
 # ---- capture appends tier: enforce, and the result round-trips -------------------
 
 capture_src="$(
@@ -842,4 +1021,4 @@ bash -c 'source "$1"; defaults_records_unit_separated "$2"' _ \
   "$LIB" "$capture_data_file" >/dev/null ||
   fail 'a captured record must round-trip through the tier-validating stream'
 
-printf 'macos-control-tier-refusal: OK (missing, blank, empty, and unrecognized tiers abort both renders naming the record; verify renders no write and no sudo; mutating payloads on verify/manual abort; manual requires a runbook and renders a literal-quoted pointer only; apply writes only enforce, drift checks verify and skips manual, capture appends tier: enforce; the stream refuses whole files fail-closed)\n'
+printf 'macos-control-tier-refusal: OK (missing, blank, empty, and unrecognized tiers abort both renders naming the record; every forbidden manual field and a commandless enforce record abort; verify renders no write and no sudo; manual requires a runbook and renders a literal-quoted pointer only; apply writes only enforce, drift checks verify and skips manual, capture appends tier: enforce; the stream refuses whole files fail-closed and apply/drift refuse on their own arms behind it)\n'
