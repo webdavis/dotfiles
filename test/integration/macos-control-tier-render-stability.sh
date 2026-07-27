@@ -3,7 +3,7 @@
 # record in .chezmoidata/macos_defaults.yaml and
 # .chezmoidata/macos_system_setup.yaml, and backfilling `tier: enforce` onto the
 # records that existed before the field did is RENDER-NEUTRAL: both runner
-# templates render byte-identically to their pre-tier renders.
+# templates render byte-identically to their goldens below.
 #
 # The properties pinned:
 #   1. Completeness, not a count: EVERY record in both real data files declares
@@ -13,12 +13,15 @@
 #   2. Byte identity: the Tier 1 and Tier 2 runners, rendered against the
 #      repo's REAL data, match the goldens below exactly.
 #
-# The goldens are the renders of both templates at commit 5774ce0 (this slice's
-# base, before the tier field existed) against the real data of that commit,
-# captured byte for byte including the trailing blank line. They pin that the
-# tier MECHANISM changed nothing about what the existing controls execute. A
-# later slice that declares NEW records changes the real render legitimately;
-# it must re-derive these goldens as part of its own render assertions.
+# The Tier 1 golden is the render of that template at commit 5774ce0 (the
+# tier slice's base, before the tier field existed) against the real data of
+# that commit, captured byte for byte including the trailing blank line: the
+# tier MECHANISM changed nothing about what the existing controls execute.
+# The Tier 2 golden was re-derived by the firewall-baseline slice after it
+# declared the firewall records, so it pins the 5774ce0 render PLUS exactly
+# those records' lines and nothing else. A later slice that declares NEW
+# records changes the real render legitimately; it must re-derive these
+# goldens as part of its own render assertions.
 #
 # Real chezmoi and yq; nothing is executed, only rendered.
 set -euo pipefail
@@ -77,7 +80,7 @@ invalid_setup_tiers="$(yq eval -r \
 [[ -z $invalid_setup_tiers ]] ||
   fail "every macos_system_setup.yaml tier must be enforce, verify, or manual; violated on: $invalid_setup_tiers"
 
-# ---- 2: both runners render byte-identically to the pre-tier goldens ---------
+# ---- 2: both runners render byte-identically to their goldens ----------------
 
 # The Tier 1 runner at 5774ce0, rendered against that commit's real data.
 tier1_golden="$work/tier1.golden"
@@ -110,7 +113,9 @@ killall 'cfprefsd' 2>/dev/null || true
 
 GOLDEN_EOF
 
-# The Tier 2 runner at 5774ce0, rendered against that commit's real data.
+# The Tier 2 runner's 5774ce0 render plus the firewall-baseline records
+# (global state first; stealth and both signed-software policies after it;
+# the manual logging record as a pointer, never a command).
 tier2_golden="$work/tier2.golden"
 cat >"$tier2_golden" <<'GOLDEN_EOF'
 #!/bin/bash
@@ -126,6 +131,15 @@ sudo -v
 
 echo "→ Install self-healing nix-installer repair LaunchDaemon (NixOS fork)"
 sudo "$HOME/.local/bin/install-nix-repair-hook.sh"
+echo "→ Firewall: enable the application firewall (must stay before the records below, which are inert while it is off)"
+sudo /usr/libexec/ApplicationFirewall/socketfilterfw --setglobalstate on
+echo "→ Firewall: enable stealth mode (drop unsolicited probes silently)"
+sudo /usr/libexec/ApplicationFirewall/socketfilterfw --setstealthmode on
+echo "→ Firewall: auto-allow incoming connections for built-in signed software"
+sudo /usr/libexec/ApplicationFirewall/socketfilterfw --setallowsigned on
+echo "→ Firewall: auto-allow incoming connections for downloaded signed software"
+sudo /usr/libexec/ApplicationFirewall/socketfilterfw --setallowsignedapp on
+echo '→ MANUAL Firewall: logging (no logging flag on macOS 26.2): see the runbook section Firewall logging'
 echo "→ MagicDNS fallback pin: mister.tail2f2430.ts.net (per CLAUDE.md Tailscale DNS section)"
 sudo sh -c 'grep -qF "mister.tail2f2430.ts.net" /etc/hosts || printf "100.109.58.54\tmister.tail2f2430.ts.net\tmister\n" >>/etc/hosts'
 
@@ -154,6 +168,6 @@ tier2_rendered="$work/tier2.rendered"
 render_current "$TIER2_TEMPLATE" "$tier2_rendered" ||
   fail "the Tier 2 runner must render against the real data (stderr: $(cat "$render_error"))"
 cmp -s "$tier2_golden" "$tier2_rendered" ||
-  fail "the Tier 2 runner must render byte-identically to its pre-tier golden (diff: $(diff "$tier2_golden" "$tier2_rendered" | head -20))"
+  fail "the Tier 2 runner must render byte-identically to its golden (diff: $(diff "$tier2_golden" "$tier2_rendered" | head -20))"
 
-printf 'macos-control-tier-render-stability: OK (every real record declares a recognized tier; both runners render byte-identically to their 5774ce0 goldens)\n'
+printf 'macos-control-tier-render-stability: OK (every real record declares a recognized tier; both runners render byte-identically to their goldens)\n'
