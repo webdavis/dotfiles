@@ -44,7 +44,7 @@ run_case() { # <control-id> <exit-override-env-var>
     {"id":"autologin","description":"Automatic login at the login window","tier":"verify","reader":"sysadminctl_autologin","expect":"off"},
     {"id":"guest","description":"The macOS Guest account","tier":"verify","reader":"sysadminctl_guest","expect":"disabled"}
   ]'
-  seed_baseline '{"firewall":"1","gatekeeper":"1","screenlock":"1","filevault":"on","sip":"disabled","autologin":"off","guest":"disabled"}'
+  seed_baseline '{"firewall":"1","gatekeeper":"1","screenlock":"1","filevault":"on","filevault:expect":"on","sip":"disabled","sip:expect":"disabled","autologin":"off","autologin:expect":"off","guest":"disabled","guest:expect":"disabled"}'
   snapshot_baseline
 
   export "$exit_env=1" # healthy default output + nonzero exit

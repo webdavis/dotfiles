@@ -101,6 +101,10 @@ actual_keys="$POLLER_HOME/actual-keys"
 {
   printf '%s\n' firewall gatekeeper screenlock
   jq -r '.[].id' <<<"$records_json"
+  # One recorded-declaration field per control: the poller persists the expect
+  # each value was recorded under, so a changed declaration re-arms the control
+  # instead of reading as a silent steady-deviant.
+  jq -r '.[].id + ":expect"' <<<"$records_json"
 } | LC_ALL=C sort >"$expected_keys"
 jq -r 'keys_unsorted[]' "$OSQUERY_POSTURE_STATE" | LC_ALL=C sort >"$actual_keys"
 diff -u "$expected_keys" "$actual_keys" >&2 ||

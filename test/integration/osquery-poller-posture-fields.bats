@@ -39,7 +39,9 @@ declare_posture_controls() {
 }
 
 # A baseline where every legacy field and every declared control is healthy.
-healthy_seed='{"firewall":"1","gatekeeper":"1","screenlock":"1","filevault":"on","sip":"disabled","autologin":"off","guest":"disabled"}'
+# Each control persists as a value plus the "<id>:expect" it was recorded
+# under, so a changed declaration re-arms the control (first observation).
+healthy_seed='{"firewall":"1","gatekeeper":"1","screenlock":"1","filevault":"on","filevault:expect":"on","sip":"disabled","sip:expect":"disabled","autologin":"off","autologin:expect":"off","guest":"disabled","guest:expect":"disabled"}'
 
 @test "T-PCTL-healthy-reads-and-baseline: a healthy tick reads every declared control once and persists each value into the baseline" {
   declare_posture_controls
@@ -245,12 +247,45 @@ healthy_seed='{"firewall":"1","gatekeeper":"1","screenlock":"1","filevault":"on"
   assert_page_count 1
 }
 
+@test "T-PCTL-expect-change-rearms-control: changing a declared expect makes the next tick a first observation, never a silent steady-deviant" {
+  # Baseline and live SIP are both disabled, recorded under expect=disabled;
+  # the operator then TIGHTENS the declaration to expect=enabled. The prior
+  # was recorded under the OLD declaration, so it must not read as
+  # steady-deviant: that would turn a hardening change into a silent no-op.
+  seed_baseline "$healthy_seed"
+  set_posture_controls '[
+    {"id":"filevault","description":"FileVault disk encryption","tier":"verify","reader":"fdesetup_status","expect":"on","remedy":"Re-enable it: System Settings, Privacy & Security, FileVault"},
+    {"id":"sip","description":"System Integrity Protection","tier":"verify","reader":"csrutil_status","expect":"enabled","remedy":"Update the declared expect or investigate"},
+    {"id":"autologin","description":"Automatic login at the login window","tier":"verify","reader":"sysadminctl_autologin","expect":"off","remedy":"Turn it off: System Settings, Users & Groups"},
+    {"id":"guest","description":"The macOS Guest account","tier":"verify","reader":"sysadminctl_guest","expect":"disabled","remedy":"Disable it: System Settings, Users & Groups"}
+  ]'
+  set_posture '[{"firewall":"1","gatekeeper":"1","screenlock":"1"}]'
+
+  run run_poller # tick 1: live sip=disabled deviates from the NEW declaration
+  [[ $status -eq 0 ]] || {
+    echo "tick 1 status $status: $output"
+    false
+  }
+  assert_page_count 1
+  assert_page_severity_is CRIT
+  assert_page_body_has 'System Integrity Protection: disabled at first observation, declared enabled'
+  assert_baseline_scalar sip disabled
+  assert_baseline_scalar 'sip:expect' enabled # the new declaration is recorded
+
+  run run_poller # tick 2: recorded under the new declaration: steady-deviant, silent
+  [[ $status -eq 0 ]] || {
+    echo "tick 2 status $status: $output"
+    false
+  }
+  assert_page_count 1
+}
+
 @test "T-PCTL-out-of-domain-control-prior-distrusted: an out-of-domain prior for one control becomes a first observation, never a fabricated transition" {
   # A prior of "wombat" is outside the fdesetup_status domain. Trusting it
   # would fabricate a "now off" transition line reading Was: wombat; the prior
   # is distrusted instead, so this is a first observation of an already-off
   # control.
-  seed_baseline '{"firewall":"1","gatekeeper":"1","screenlock":"1","filevault":"wombat","sip":"disabled","autologin":"off","guest":"disabled"}'
+  seed_baseline '{"firewall":"1","gatekeeper":"1","screenlock":"1","filevault":"wombat","filevault:expect":"on","sip":"disabled","sip:expect":"disabled","autologin":"off","autologin:expect":"off","guest":"disabled","guest:expect":"disabled"}'
   declare_posture_controls
   set_posture '[{"firewall":"1","gatekeeper":"1","screenlock":"1"}]'
   export POLLER_FDESETUP_OUTPUT="FileVault is Off."

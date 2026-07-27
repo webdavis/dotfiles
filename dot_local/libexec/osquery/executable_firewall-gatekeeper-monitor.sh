@@ -409,22 +409,32 @@ if [[ $trio_clean -eq 0 && $prev_valid -eq 0 ]]; then
 fi
 
 # Per-control priors, each trusted independently: a control's prior field must
-# exist in a trusted baseline AND sit inside its reader's domain, else that ONE
-# control has no trusted prior (first-observation semantics for it) while the
-# others keep theirs. This is what makes adding a control to the data file a
-# quiet upgrade on a healthy machine instead of a page storm or a global
-# baseline reset. An out-of-domain prior is never compared: comparing it would
-# fabricate a transition, and it never reaches a page.
+# exist in a trusted baseline, sit inside its reader's domain, AND have been
+# recorded under the SAME declared expect (the baseline stores it as
+# "<id>:expect" beside each value; ':' cannot appear in an id, so the pair can
+# never collide). Any miss means that ONE control has no trusted prior
+# (first-observation semantics for it) while the others keep theirs. This is
+# what makes adding a control to the data file a quiet upgrade on a healthy
+# machine instead of a page storm or a global baseline reset. An out-of-domain
+# prior is never compared: comparing it would fabricate a transition, and it
+# never reaches a page. A prior recorded under a DIFFERENT expect is never
+# compared either: an operator tightening a declaration over a steady-deviant
+# value would otherwise read as steady-deviant and stay silent, turning a
+# hardening change into a silent no-op.
 control_prevs=()
 for control_index in "${!control_ids[@]}"; do
   control_prev=""
   if [[ $prev_valid -eq 1 ]]; then
     control_prev=$(jq -r --arg key "${control_ids[$control_index]}" '.[$key] // empty' <<<"$prev_json" 2>/dev/null || echo "")
+    control_prev_expect=$(jq -r --arg key "${control_ids[$control_index]}" '.[$key + ":expect"] // empty' <<<"$prev_json" 2>/dev/null || echo "")
     domain=$(reader_domain "${control_readers[$control_index]}")
     case " $domain " in
       *" $control_prev "*) ;;
       *) control_prev="" ;;
     esac
+    if [[ $control_prev_expect != "${control_expects[$control_index]}" ]]; then
+      control_prev=""
+    fi
   fi
   control_prevs+=("$control_prev")
 done
@@ -450,10 +460,13 @@ for control_index in "${!control_ids[@]}"; do
     control_field="${control_prevs[$control_index]}" # trusted prior, may be empty
   fi
   if [[ -n $control_field ]]; then
+    # The value AND the expect it was recorded under: the pair is what lets
+    # the next run detect a changed declaration and re-arm the control.
     baseline_json=$(jq -c \
       --arg key "${control_ids[$control_index]}" \
       --arg value "$control_field" \
-      '. + {($key): $value}' <<<"$baseline_json")
+      --arg expect "${control_expects[$control_index]}" \
+      '. + {($key): $value, ($key + ":expect"): $expect}' <<<"$baseline_json")
   fi
 done
 
