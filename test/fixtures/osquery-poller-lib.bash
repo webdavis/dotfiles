@@ -113,13 +113,19 @@ SHIM
   # fdesetup: only `status` is legitimate. Output FIRST, then the exit status:
   # the indeterminate-on-nonzero tests need a probe that prints healthy-looking
   # text AND fails. ${VAR-default} (not :-) so a test can program deliberately
-  # empty output.
+  # empty output. POLLER_FDESETUP_SLEEP models a WEDGED tool exactly like the
+  # osqueryi stub's hook: exec into sleep (a single process, no child holding
+  # stdout), so a bounded poller kills it at the bound and gaps while an
+  # unbounded poller blocks. Every probe stub below carries the same hook.
   cat >"$POLLER_HOME/bin/fdesetup" <<'SHIM'
 #!/usr/bin/env bash
 printf 'fdesetup %s\n' "$*" >>"$POLLER_PROBE_CALLS"
 if [[ "$*" != "status" ]]; then
   printf 'fdesetup %s\n' "$*" >>"$POLLER_MUTATION_LOG"
   exit 97
+fi
+if [[ -n ${POLLER_FDESETUP_SLEEP:-} ]]; then
+  exec sleep "$POLLER_FDESETUP_SLEEP"
 fi
 printf '%s\n' "${POLLER_FDESETUP_OUTPUT-FileVault is On.}"
 exit "${POLLER_FDESETUP_EXIT:-0}"
@@ -135,6 +141,9 @@ if [[ "$*" != "status" ]]; then
   printf 'csrutil %s\n' "$*" >>"$POLLER_MUTATION_LOG"
   exit 97
 fi
+if [[ -n ${POLLER_CSRUTIL_SLEEP:-} ]]; then
+  exec sleep "$POLLER_CSRUTIL_SLEEP"
+fi
 printf '%s\n' "${POLLER_CSRUTIL_OUTPUT-System Integrity Protection status: disabled.}"
 exit "${POLLER_CSRUTIL_EXIT:-0}"
 SHIM
@@ -149,6 +158,9 @@ SHIM
 printf 'sysadminctl %s\n' "$*" >>"$POLLER_PROBE_CALLS"
 case "$*" in
   "-guestAccount status")
+    if [[ -n ${POLLER_SYSADMINCTL_SLEEP:-} ]]; then
+      exec sleep "$POLLER_SYSADMINCTL_SLEEP"
+    fi
     printf '%s\n' "${POLLER_SYSADMINCTL_GUEST_OUTPUT-2026-07-27 00:00:00.000 sysadminctl[100:100] Guest account disabled.}" >&2
     exit "${POLLER_SYSADMINCTL_GUEST_EXIT:-0}"
     ;;
@@ -173,6 +185,9 @@ printf 'defaults %s\n' "$*" >>"$POLLER_PROBE_CALLS"
 if [[ "$*" != "read /Library/Preferences/com.apple.loginwindow autoLoginUser" ]]; then
   printf 'defaults %s\n' "$*" >>"$POLLER_MUTATION_LOG"
   exit 97
+fi
+if [[ -n ${POLLER_DEFAULTS_SLEEP:-} ]]; then
+  exec sleep "$POLLER_DEFAULTS_SLEEP"
 fi
 case "${POLLER_DEFAULTS_AUTOLOGIN_MODE:-absent}" in
   present)

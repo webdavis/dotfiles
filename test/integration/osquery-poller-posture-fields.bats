@@ -719,6 +719,95 @@ healthy_seed='{"firewall":"1","gatekeeper":"1","screenlock":"1","filevault":"on"
   assert_page_body_has '`FileVault disk encryption`: now off, declared on'
 }
 
+# --- bounded probes: a WEDGED status tool becomes a gap, not silent blindness ---
+# One hang test per probe path (fdesetup, csrutil, sysadminctl, defaults),
+# mirroring the osqueryi hang test: the stub execs into a 30s sleep, the 1s
+# bound kills it, and the control gaps. The wallclock guard is what makes an
+# UNBOUNDED probe fail here: without it, the 30s sleep would end, the probe
+# would return empty at exit 0, and the very same gap assertions would pass
+# late, hiding a removed run_bounded.
+
+assert_bounded_hang_gaps() { # <control-id> <started-seconds>
+  local elapsed=$((SECONDS - $2))
+  [[ $elapsed -lt 10 ]] || {
+    echo "the poller ran ${elapsed}s: the wedged probe was not killed at the bound"
+    false
+  }
+  assert_page_count 1
+  assert_page_severity_is CRIT
+  assert_page_body_has 'monitoring gap'
+  assert_page_body_has "$1"
+  assert_baseline_unchanged
+}
+
+@test "T-PCTL-fdesetup-hang-pages-gap: a wedged fdesetup is killed at the bound and gaps the filevault control" {
+  seed_baseline "$healthy_seed"
+  declare_posture_controls
+  snapshot_baseline
+  set_posture '[{"firewall":"1","gatekeeper":"1","screenlock":"1"}]'
+  export OSQUERY_POSTURE_TIMEOUT=1
+  export POLLER_FDESETUP_SLEEP=30
+
+  local started=$SECONDS
+  run run_poller
+  [[ $status -eq 0 ]] || {
+    echo "status $status: $output"
+    false
+  }
+  assert_bounded_hang_gaps filevault "$started"
+}
+
+@test "T-PCTL-csrutil-hang-pages-gap: a wedged csrutil is killed at the bound and gaps the sip control" {
+  seed_baseline "$healthy_seed"
+  declare_posture_controls
+  snapshot_baseline
+  set_posture '[{"firewall":"1","gatekeeper":"1","screenlock":"1"}]'
+  export OSQUERY_POSTURE_TIMEOUT=1
+  export POLLER_CSRUTIL_SLEEP=30
+
+  local started=$SECONDS
+  run run_poller
+  [[ $status -eq 0 ]] || {
+    echo "status $status: $output"
+    false
+  }
+  assert_bounded_hang_gaps sip "$started"
+}
+
+@test "T-PCTL-sysadminctl-hang-pages-gap: a wedged sysadminctl is killed at the bound and gaps the guest control" {
+  seed_baseline "$healthy_seed"
+  declare_posture_controls
+  snapshot_baseline
+  set_posture '[{"firewall":"1","gatekeeper":"1","screenlock":"1"}]'
+  export OSQUERY_POSTURE_TIMEOUT=1
+  export POLLER_SYSADMINCTL_SLEEP=30
+
+  local started=$SECONDS
+  run run_poller
+  [[ $status -eq 0 ]] || {
+    echo "status $status: $output"
+    false
+  }
+  assert_bounded_hang_gaps guest "$started"
+}
+
+@test "T-PCTL-defaults-hang-pages-gap: a wedged defaults read is killed at the bound and gaps the autologin control" {
+  seed_baseline "$healthy_seed"
+  declare_posture_controls
+  snapshot_baseline
+  set_posture '[{"firewall":"1","gatekeeper":"1","screenlock":"1"}]'
+  export OSQUERY_POSTURE_TIMEOUT=1
+  export POLLER_DEFAULTS_SLEEP=30
+
+  local started=$SECONDS
+  run run_poller
+  [[ $status -eq 0 ]] || {
+    echo "status $status: $output"
+    false
+  }
+  assert_bounded_hang_gaps autologin "$started"
+}
+
 # --- the poller never mutates, and system-read text never reaches a page raw ---
 
 @test "T-PCTL-no-mutating-invocation: healthy, deviant, and gap ticks invoke only status probes; the violation log stays empty" {
