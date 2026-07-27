@@ -66,12 +66,14 @@ ignores it reads back as configured while doing nothing.
 `ssh-hardening.sh` writes `/etc/ssh/sshd_config.d/000-ssh-hardening.conf` (public-key-only sshd policy)
 and verifies it, but never restarts sshd. The running daemon picks the drop-in up only via the separate,
 deliberately disruptive `ssh-hardening.sh --reload`, which validates the complete configuration first,
-restarts the launchd service, and refuses to report success until an SSH banner exchange completes on the
-resolved port.
+restarts the launchd service, and refuses to report a restart as successful until an SSH banner exchange
+completes on the resolved port. One documented exception: when Remote Login is off (the launchd service
+is confirmed absent), `--reload` exits 0 as a clean no-op, with no restart and no banner; the drop-in
+applies when Remote Login is next enabled.
 
 Before running `--reload` on a machine you are not sitting at:
 
-1. Keep an existing SSH session open until a brand-new session has succeeded.
+1. Above all, keep any SSH session you still have OPEN until a new login succeeds.
 1. Confirm Screen Sharing over the tailnet works BEFORE the reload, not during the incident.
 
 If `--reload` fails, warns about a possible lockout, or a new session cannot connect: from the physical

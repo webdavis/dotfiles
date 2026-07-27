@@ -42,6 +42,8 @@ RECOVERY_PHRASES=(
   'ssh-hardening.sh --rollback'
   'Screen Sharing over the tailnet'
   'Remote Login off and back on'
+  'keep any SSH session you still have OPEN until a new login succeeds'
+  'sudo rm'
 )
 
 # The reload's retry loop is attempt-bounded through these knobs; every case
@@ -183,6 +185,10 @@ keyscan_attempts="$(grep -c . "$KEYSCAN_SPY_LOG")" || true
 # emergency.
 grep -qi 'launchd' <<<"$SSH_RUN_ERR" ||
   fail "8: the lockout failure must name the launchd-socket possibility so a port mismatch reads as a diagnosis, not a false emergency (stderr: $SSH_RUN_ERR)"
+# The sudo rm fallback must name the CONCRETE file, so it works when the
+# script itself is broken.
+grep -qF "sudo rm $SSHD_CONFIG_D/000-ssh-hardening.conf" <<<"$SSH_RUN_ERR" ||
+  fail "8: the sudo rm fallback must name the exact drop-in path (stderr: $SSH_RUN_ERR)"
 
 # A probe that exits 0 with NO banner output proved nothing: the exit status
 # is a proxy, the banner is the artifact, and trusting the proxy would report
@@ -479,5 +485,7 @@ for phrase in "${RECOVERY_PHRASES[@]}"; do
   grep -qF -- "$phrase" <<<"$runbook_content" ||
     fail "13: the runbook must carry the recovery instruction '$phrase'"
 done
+grep -qF 'sudo rm /etc/ssh/sshd_config.d/000-ssh-hardening.conf' <<<"$runbook_content" ||
+  fail '13: the runbook sudo rm fallback must name the LIVE drop-in path'
 
 printf 'ssh-hardening-reload-failclosed: OK (every unprovable step refuses before the kickstart, every failure after it names the way back in)\n'

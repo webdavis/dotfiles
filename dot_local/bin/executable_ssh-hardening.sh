@@ -12,9 +12,13 @@
 #   --verify        read-only three-way check that the EFFECTIVE sshd
 #                   configuration is fully hardened (see the verify section)
 #   --reload        validate the complete configuration, then restart the sshd
-#                   launchd service and refuse to claim success until a real
-#                   SSH banner exchange proves the listener answers; the ONLY
-#                   mode that restarts anything, and it never writes
+#                   launchd service and refuse to claim a RESTART succeeded
+#                   until a real SSH banner exchange proves the listener
+#                   answers; the ONLY mode that restarts anything, and it
+#                   never writes. One documented exception to "no success
+#                   without a banner": a CONFIRMED-ABSENT service (Remote
+#                   Login off) exits 0 as a clean no-op, with no restart and
+#                   no banner (spec-mandated)
 #   --rollback      remove the managed drop-in and prove the hardening is gone
 #                   from the effective configuration (the way back in); never
 #                   restarts sshd
