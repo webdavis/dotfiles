@@ -1,0 +1,77 @@
+{{- /* posture-controls.json: the runtime rendering of
+.chezmoidata/macos_posture_controls.yaml, read on every tick by
+firewall-gatekeeper-monitor.sh. It lives in ~/.local/libexec/osquery so the
+pipeline-integrity watch and the known-good manifest cover it: this file
+decides WHAT the posture poller monitors, so it is part of the monitor's body.
+
+NOTE for agents: this is a template, so the mandated agent apply
+(`chezmoi apply --exclude=templates`) skips it; a posture_controls data change
+reaches the machine at the next interactive apply, the same lag every
+macos_defaults / macos_system_setup data change already has.
+
+Validation mirrors the tier-guard discipline of the Tier 1/2 runners: any
+malformed record ABORTS the render (and with it the apply), naming the record.
+A posture control is verify BY DEFINITION (the poller only READS state), so
+any other tier is refused outright. The poller re-validates the deployed file
+at runtime and pages a monitoring gap on a bad one, so both halves fail
+closed. `index`, never the bare dotted form, for every optional field: the
+dotted form errors on absent keys; a blank scalar is nil and would stringify
+to the literal text <nil>, so blank is its own refusal, never conflated with
+absent. The reader/domain table below must match the poller's reader_domain
+function; the poller-vs-data agreement test holds the two together. */ -}}
+{{- if not (hasKey .macos "posture_controls") -}}
+{{-   fail "macos_posture_controls.yaml: macos.posture_controls is missing" -}}
+{{- end -}}
+{{- $seenIds := dict -}}
+{{- $readerDomains := dict
+      "fdesetup_status" (list "on" "off")
+      "csrutil_status" (list "enabled" "disabled")
+      "defaults_autologin" (list "on" "off")
+      "sysadminctl_guest" (list "enabled" "disabled") -}}
+{{- range .macos.posture_controls -}}
+{{-   if not (hasKey . "id") -}}
+{{-     fail "macos_posture_controls.yaml: a record has no id; every control needs one, it is the identity in every error and every page" -}}
+{{-   end -}}
+{{-   if kindIs "invalid" (index . "id") -}}
+{{-     fail "macos_posture_controls.yaml: a record has a blank id; every control needs one" -}}
+{{-   end -}}
+{{-   $id := toString (index . "id") -}}
+{{-   if not (regexMatch "^[a-z0-9_]+$" $id) -}}
+{{-     fail (printf "macos_posture_controls.yaml: id %q is not lowercase [a-z0-9_]; it becomes a baseline field name and page text, so it stays strict" $id) -}}
+{{-   end -}}
+{{-   if has $id (list "firewall" "gatekeeper" "screenlock") -}}
+{{-     fail (printf "macos_posture_controls.yaml: id %q collides with a built-in poller field" $id) -}}
+{{-   end -}}
+{{-   if hasKey $seenIds $id -}}
+{{-     fail (printf "macos_posture_controls.yaml: duplicate id %q; ids are baseline field names, so each may appear once" $id) -}}
+{{-   end -}}
+{{-   $_ := set $seenIds $id true -}}
+{{-   if not (hasKey . "tier") -}}
+{{-     fail (printf "macos_posture_controls.yaml: record %q has no tier; a posture control is verify by definition, declare tier: verify" $id) -}}
+{{-   end -}}
+{{-   if kindIs "invalid" (index . "tier") -}}
+{{-     fail (printf "macos_posture_controls.yaml: record %q has a blank tier; declare tier: verify" $id) -}}
+{{-   end -}}
+{{-   $tier := toString (index . "tier") -}}
+{{-   if ne $tier "verify" -}}
+{{-     fail (printf "macos_posture_controls.yaml: record %q declares tier %q, not verify; the poller only READS controls, so an enforce or manual control does not belong in this file" $id $tier) -}}
+{{-   end -}}
+{{-   if or (not (hasKey . "reader")) (kindIs "invalid" (index . "reader")) -}}
+{{-     fail (printf "macos_posture_controls.yaml: record %q has no reader; name how the poller reads it" $id) -}}
+{{-   end -}}
+{{-   $reader := toString (index . "reader") -}}
+{{-   if not (hasKey $readerDomains $reader) -}}
+{{-     fail (printf "macos_posture_controls.yaml: record %q names unknown reader %q (known: %s)" $id $reader (keys $readerDomains | sortAlpha | join ", ")) -}}
+{{-   end -}}
+{{-   if or (not (hasKey . "expect")) (kindIs "invalid" (index . "expect")) -}}
+{{-     fail (printf "macos_posture_controls.yaml: record %q has no expect; declare the value the control must hold" $id) -}}
+{{-   end -}}
+{{-   $expect := toString (index . "expect") -}}
+{{-   if not (has $expect (get $readerDomains $reader)) -}}
+{{-     fail (printf "macos_posture_controls.yaml: record %q expects %q, outside the %s domain %v (a bare YAML boolean stringifies to true/false, which no reader returns)" $id $expect $reader (get $readerDomains $reader)) -}}
+{{-   end -}}
+{{-   if or (not (hasKey . "description")) (kindIs "invalid" (index . "description")) (eq (toString (index . "description")) "") -}}
+{{-     fail (printf "macos_posture_controls.yaml: record %q has no description; a page must name the control" $id) -}}
+{{-   end -}}
+{{- end -}}
+{{ toJson .macos.posture_controls }}

@@ -101,6 +101,30 @@ teardown() { teardown_poller_harness; }
   assert_mode 600 "$OSQUERY_POSTURE_STATE"
 }
 
+@test "T-POLL-failed-read-healthy-output-gaps: a nonzero osqueryi exit with healthy-looking JSON is a monitoring gap, never a trusted read" {
+  seed_baseline '{"firewall":"1","gatekeeper":"1","screenlock":"1"}'
+  snapshot_baseline
+  # The printed posture is healthy AND in-domain but DIFFERS from the baseline
+  # (firewall 2, block-all): a poller that trusted the output of a failed query
+  # would silently advance the baseline on untrustworthy data.
+  set_posture '[{"firewall":"2","gatekeeper":"1","screenlock":"1"}]'
+  export POLLER_OSQUERYI_EXIT_AFTER_OUTPUT=1 # healthy JSON printed, then a nonzero exit
+
+  run run_poller
+  [[ $status -eq 0 ]] || {
+    echo "expected exit 0 after paging the gap, got $status: $output"
+    false
+  }
+
+  # Indeterminate-on-nonzero for the built-in trio too: gap page, marker, and a
+  # byte-for-byte untouched baseline (no advance on a failed probe's output).
+  assert_page_count 1
+  assert_page_severity_is CRIT
+  assert_page_body_has 'monitoring gap'
+  assert_gap_marker
+  assert_baseline_unchanged
+}
+
 @test "T-POLL-empty-read-preserves-baseline: an empty osqueryi result pages the monitoring gap and leaves the good baseline intact at 0600" {
   seed_baseline '{"firewall":"1","gatekeeper":"1","screenlock":"1"}'
   snapshot_baseline

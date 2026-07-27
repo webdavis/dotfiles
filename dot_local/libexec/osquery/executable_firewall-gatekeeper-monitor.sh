@@ -3,8 +3,11 @@
 # firewall-gatekeeper-monitor.sh, polled every 60s by a launchd StartInterval
 # agent. The security-posture monitor: it reads the live firewall (alf),
 # Gatekeeper, AND screen-lock state via osqueryi in the gui/501 user session,
-# compares against the previous run's baseline, and pages CRIT only on a
-# protection turning OFF. Silent in steady state.
+# plus every control declared in posture-controls.json (the chezmoi render of
+# .chezmoidata/macos_posture_controls.yaml: FileVault, SIP, automatic login,
+# the Guest account, and whatever later slices declare), compares against the
+# previous run's baseline, and pages CRIT only on a protection turning OFF or
+# a declared control deviating from its declared value. Silent in steady state.
 #
 # R2-3: screen-lock-off detection lives HERE, not in the root-daemon pack. The
 # screenlock osquery table is scoped to the logged-in user, so the ROOT osqueryd
@@ -18,6 +21,20 @@ STATE="${OSQUERY_POSTURE_STATE:-$HOME/.local/state/osquery-posture-state.json}"
 GAP="$STATE.gap"                 # page-once marker for a monitoring gap (R2-9)
 PERSIST_GAP="$STATE.persist-gap" # page-once marker for a baseline-persist failure
 OSQUERYI="${OSQUERYI:-$(command -v osqueryi || echo /usr/local/bin/osqueryi)}"
+# The declared posture controls, rendered by chezmoi from
+# .chezmoidata/macos_posture_controls.yaml. The poller reads the FILE rather
+# than carrying the control list in its body, so adding a control is a data
+# change. It lives beside this script so the pipeline-integrity watch and the
+# known-good manifest cover it: the file decides WHAT gets monitored, so it is
+# part of the monitor's body.
+CONTROLS_FILE="${OSQUERY_POSTURE_CONTROLS:-$HOME/.local/libexec/osquery/posture-controls.json}"
+# Absolute probe paths by default: the LaunchAgent PATH is minimal, and a
+# status probe that silently resolved to something unexpected would be an
+# untrustworthy read. The env overrides are the test seam.
+FDESETUP="${OSQUERY_POSTURE_FDESETUP:-/usr/bin/fdesetup}"
+CSRUTIL="${OSQUERY_POSTURE_CSRUTIL:-/usr/bin/csrutil}"
+SYSADMINCTL="${OSQUERY_POSTURE_SYSADMINCTL:-/usr/sbin/sysadminctl}"
+DEFAULTS="${OSQUERY_POSTURE_DEFAULTS:-/usr/bin/defaults}"
 
 # shellcheck source=/dev/null
 source "$HOME/.local/libexec/osquery/alert-dispatch.sh"
@@ -28,96 +45,496 @@ mkdir -p "$(dirname "$STATE")"
 # failure, or the empty-read guard below).
 trap 'rm -f "$STATE.tmp"' EXIT
 
-# Read the current posture in a single combined query (one osqueryi startup per
-# tick, not one per protection). screenlock is folded in per R2-3.
-#
-# Bound the query so a WEDGED osqueryi (a hung table never closes its stdout)
-# becomes a monitoring gap, not silent blindness. Without a deadline, `|| true`
-# handles an osqueryi EXIT but not a HANG, launchd skips ticks while the process
-# lives, and the uptime-watchdog cannot catch it (its probe queries a different
-# table that answers while a posture table hangs). gtimeout preferred, timeout
-# fallback (the codebase convention); if neither is on PATH, degrade to an
-# unbounded read (no worse than before; the darwin fleet has one). The bound is
-# well under the 60s tick and env-overridable. On timeout osqueryi is killed, its
-# stdout closes, and the read collapses to empty, which the gap gate below pages.
-posture_query=("$OSQUERYI" --json "
+# sanitize <text> -- neutralize a value before it reaches a notification body:
+# newlines/CR/tabs flatten to spaces; backslash, backtick, dollar, and both
+# quote characters are removed (apostrophes because the downstream render jq is
+# bash single-quoted); the result is length-capped. System-read text is DATA,
+# never structure. The normalized enum values a reader returns bypass this only
+# because they are this script's own fixed constants, never probe output.
+sanitize() {
+  local text="${1//$'\n'/ }"
+  text=${text//$'\r'/ }
+  text=${text//$'\t'/ }
+  text=${text//\\/}
+  text=${text//\`/}
+  text=${text//\$/}
+  text=${text//\'/}
+  text=${text//\"/}
+  printf '%s' "${text:0:160}"
+}
+
+# sanitize_span <text> -- sanitize, then wrap in a Discord inline-code span:
+# the same chokepoint treatment render-page.sh gives attacker-influenceable
+# fields (backticks stripped so the span cannot be broken out of, newlines and
+# tabs squashed, length-capped, wrapped in backticks). Character-stripping
+# alone leaves markdown STRUCTURE intact -- emphasis, [links](...), @mentions
+# survive sanitize as plain characters -- so every value that crosses into a
+# notification body goes through here and renders inert inside the span.
+sanitize_span() {
+  # shellcheck disable=SC2016 # literal Discord inline-code backticks, no expansion intended
+  printf '`%s`' "$(sanitize "$1")"
+}
+
+# Bound every probe so a WEDGED tool (a hung table or a stuck status call never
+# closing stdout) becomes a monitoring gap, not silent blindness. Without a
+# deadline, `|| true` handles an EXIT but not a HANG, launchd skips ticks while
+# the process lives, and the uptime-watchdog cannot catch it (its probe queries
+# a different table that answers while a posture read hangs). gtimeout
+# preferred, timeout fallback (the codebase convention); if neither is on PATH,
+# degrade to an unbounded read (no worse than before; the darwin fleet has
+# one). The bound is PER PROBE (20s default, env-overridable): a tick running
+# the combined query plus four control probes all wedged can total ~100s, past
+# the 60s interval, in which case launchd (which never overlaps runs) simply
+# starts the next tick late. The bound's job is to guarantee the tick ENDS and
+# the gap gate pages, not to keep a worst-case tick under the interval. On
+# timeout the probe is killed and exits nonzero, which classifies as
+# indeterminate (or, for the combined osqueryi read, collapses to empty), and
+# the gap gate pages.
+posture_timeout_bin="$(command -v gtimeout || command -v timeout || true)"
+run_bounded() {
+  if [[ -n $posture_timeout_bin ]]; then
+    "$posture_timeout_bin" "${OSQUERY_POSTURE_TIMEOUT:-20}" "$@"
+  else
+    "$@"
+  fi
+}
+
+# Read the built-in posture trio in a single combined query (one osqueryi
+# startup per tick, not one per protection). screenlock is folded in per R2-3.
+# The exit status is captured, never erased: a FAILED osqueryi can still print
+# healthy-looking JSON, and believing it would advance the baseline on
+# untrustworthy data. Any nonzero exit, like any parse failure, empties the
+# read, so the whole trio routes to the monitoring-gap gate below -- the same
+# indeterminate-on-nonzero discipline the declared-control readers follow.
+posture_rc=0
+posture_raw=$(run_bounded "$OSQUERYI" --json "
   SELECT
     (SELECT global_state FROM alf) AS firewall,
     (SELECT assessments_enabled FROM gatekeeper) AS gatekeeper,
     (SELECT enabled FROM screenlock) AS screenlock
-")
-posture_timeout_bin="$(command -v gtimeout || command -v timeout || true)"
-if [[ -n $posture_timeout_bin ]]; then
-  posture_query=("$posture_timeout_bin" "${OSQUERY_POSTURE_TIMEOUT:-20}" "${posture_query[@]}")
+" 2>/dev/null) || posture_rc=$?
+posture=""
+if [[ $posture_rc -eq 0 ]]; then
+  posture=$(jq -c '.[0] // empty' <<<"$posture_raw" 2>/dev/null) || posture=""
 fi
-posture=$("${posture_query[@]}" 2>/dev/null | jq -c '.[0] // empty' 2>/dev/null || true)
 
 cur_fw=$(jq -r '.firewall // empty' <<<"$posture" 2>/dev/null || echo "")
 cur_gk=$(jq -r '.gatekeeper // empty' <<<"$posture" 2>/dev/null || echo "")
 cur_sl=$(jq -r '.screenlock // empty' <<<"$posture" 2>/dev/null || echo "")
 
-# page_gap_once <marker_path> <title> <body> -- the shared page-once-via-marker
-# discipline for both the monitoring-gap and the persistence-gap paths: the same
-# notify-before-persist contract page_crit_and_persist gives the transition and
-# first-observation paths, in ONE place so the two markers cannot diverge. If the
-# marker is absent, send_alert FIRST and write the marker ONLY on success (best
-# effort: a marker in an unwritable dir cannot be written, so the page may
-# re-fire); return 0 when paged or already marked, nonzero when send_alert could
-# not store the page (so a persisting condition re-pages). The per-path bodies,
-# recovery-clear placement, and caller exit code stay OUTSIDE this helper.
+# ---- declared posture controls ----------------------------------------------
+
+# reader_domain <reader> -> the reader's space-separated value domain, empty
+# for an unknown reader. This table, the template's $readerDomains, and
+# read_control below name the same reader set; the render test and the
+# poller-vs-data agreement test hold them together.
+reader_domain() {
+  case "$1" in
+    fdesetup_status | defaults_autologin) printf 'on off' ;;
+    csrutil_status | sysadminctl_guest) printf 'enabled disabled' ;;
+  esac
+}
+
+# classify_probe <output> <rc> <needle> <value> [<needle> <value>]...
+# The indeterminate-on-nonzero discipline (absorbed from the retired
+# apply-time posture reminder): a probe that exits NONZERO is INDETERMINATE
+# regardless of what it printed, because a failed probe's output is
+# untrustworthy; it may print healthy-looking text yet have failed. A
+# zero-exit probe's needle hits must all agree on EXACTLY ONE value; no hit,
+# or hits mapping to conflicting values, is indeterminate too (an ambiguous
+# probe is never guessed at). Needles are exact message forms enumerated from
+# each binary's strings, so no needle is a substring of a different value's
+# form.
+classify_probe() {
+  local output="$1" rc="$2"
+  local needle value matched=""
+  shift 2
+  if [[ $rc -ne 0 ]]; then
+    printf 'indeterminate'
+    return 0
+  fi
+  while [[ $# -ge 2 ]]; do
+    needle="$1"
+    value="$2"
+    shift 2
+    if [[ $output == *"$needle"* ]]; then
+      if [[ -z $matched ]]; then
+        matched="$value"
+      elif [[ $matched != "$value" ]]; then
+        matched="conflict:" # ':' cannot appear in a domain value
+      fi
+    fi
+  done
+  if [[ -n $matched && $matched != "conflict:" ]]; then
+    printf '%s' "$matched"
+  else
+    printf 'indeterminate'
+  fi
+}
+
+# read_control <reader> -> the normalized value, or "indeterminate". One
+# read-only status invocation of the authoritative tool per control, bounded
+# like the combined query, with stdout and stderr captured together
+# (sysadminctl and defaults report on stderr; verified on the target machine).
+# Raw probe text NEVER leaves this function: only the fixed normalized values
+# do.
+#
+# Reader choices (each verified from the poller's gui/501 session context):
+#   - fdesetup, NOT osquery's disk_encryption table: FileVault lives on the
+#     APFS data volumes, so the obvious /dev/disk0 query reports 0 on a
+#     FileVault-on machine, a false negative that would page a healthy system.
+#   - csrutil: agrees with osquery's sip_config; the authoritative tool needs
+#     no osqueryi startup.
+#   - defaults read of loginwindow's autoLoginUser for automatic login: the
+#     control means "auto-login is not DECLARED", so the reader asks the
+#     declaration itself. `sysadminctl -autologin status` was rejected: it
+#     reports the EFFECTIVE state and prints "Automatic login is disabled
+#     because FileVault is enabled." (in the binary's message strings) even
+#     when autoLoginUser IS set, so a configured auto-login would read healthy
+#     until FileVault went off and it silently activated.
+#   - sysadminctl for the Guest account: it reports the state on stderr and
+#     exits 0 in both states.
+read_control() {
+  local reader="$1" output="" rc=0
+  case "$reader" in
+    fdesetup_status)
+      # Every zero-exit status form enumerated from the binary's strings
+      # (macOS 26.2): the plain On./Off. pair plus the restart-transition
+      # variants. "Off, but will be enabled after the next restart." is OFF:
+      # deferred enablement means the data is not yet encrypted, a real
+      # exposure until the restart completes; "On, but needs to be restarted
+      # to finish." reports the protection on. Error-prefixed forms exit
+      # nonzero and stay indeterminate.
+      output=$(run_bounded "$FDESETUP" status 2>&1) || rc=$?
+      classify_probe "$output" "$rc" \
+        "FileVault is On." on \
+        "FileVault is On, but needs to be restarted to finish." on \
+        "FileVault is Off." off \
+        "FileVault is Off, but will be enabled after the next restart." off \
+        "FileVault is Off, but needs to be restarted to finish." off
+      ;;
+    csrutil_status)
+      output=$(run_bounded "$CSRUTIL" status 2>&1) || rc=$?
+      classify_probe "$output" "$rc" \
+        "System Integrity Protection status: enabled." enabled \
+        "System Integrity Protection status: disabled." disabled
+      ;;
+    defaults_autologin)
+      # Declared intent, three outcomes. Exit 0 means the autoLoginUser key
+      # EXISTS: a user is declared for automatic login (on), whatever the
+      # value. `defaults read` exits nonzero BOTH for an absent key (the
+      # healthy state) and for a hard read failure, so only the canonical
+      # does-not-exist diagnostic (which also covers a wholly absent
+      # loginwindow domain: nothing declared either way) maps to off; any
+      # other nonzero, a timeout kill included, is indeterminate. Absent is
+      # thereby distinguished from unreadable, never conflated.
+      output=$(run_bounded "$DEFAULTS" read /Library/Preferences/com.apple.loginwindow autoLoginUser 2>&1) || rc=$?
+      if [[ $rc -eq 0 ]]; then
+        printf 'on'
+      elif [[ $output == *"autoLoginUser) does not exist"* ]]; then
+        printf 'off'
+      else
+        printf 'indeterminate'
+      fi
+      ;;
+    sysadminctl_guest)
+      output=$(run_bounded "$SYSADMINCTL" -guestAccount status 2>&1) || rc=$?
+      classify_probe "$output" "$rc" "Guest account enabled." enabled "Guest account disabled." disabled
+      ;;
+    *)
+      # Unreachable behind load_controls' reader validation; fail closed
+      # anyway rather than fabricate a value.
+      printf 'indeterminate'
+      ;;
+  esac
+}
+
+# load_controls -- read and validate the declared-controls file into the
+# control_* arrays, fail-closed BEFORE any probe runs: an unreadable file, a
+# non-verify tier, an unknown reader, a malformed or colliding id, an
+# out-of-domain expect, or a missing description sets controls_problem (which
+# the gap gate pages) and stops. The poller must never guess what to monitor.
+# The template already refuses these at render time; this re-validation
+# defends the deployed file itself.
+control_ids=()
+control_descriptions=()
+control_readers=()
+control_expects=()
+control_remedies=()
+controls_problem=""
+load_controls() {
+  local count index record id tier reader expect description remedy domain
+  if [[ ! -f $CONTROLS_FILE ]]; then
+    controls_problem="posture-controls file missing at $(sanitize_span "$CONTROLS_FILE")"
+    return 0
+  fi
+  # Slurp (-s) so the WHOLE file must be exactly ONE top-level array: a
+  # multi-document file (say, two arrays back to back) parses per document,
+  # would emit one length per document, poison the loop arithmetic, and
+  # silently monitor zero controls. The integer guard is belt-and-braces for
+  # the same reason: count feeds bash arithmetic, so anything but one plain
+  # integer is refused before it can be evaluated.
+  if ! count=$(jq -ser 'if (length == 1 and (.[0] | type == "array")) then (.[0] | length) else error("not one array") end' <"$CONTROLS_FILE" 2>/dev/null); then
+    controls_problem="the posture-controls file is not a JSON array"
+    return 0
+  fi
+  if ! [[ $count =~ ^[0-9]+$ ]]; then
+    controls_problem="the posture-controls file is not a JSON array"
+    return 0
+  fi
+  for ((index = 0; index < count; index++)); do
+    record=$(jq -c ".[$index]" <"$CONTROLS_FILE" 2>/dev/null || echo "")
+    id=$(jq -r '.id // empty' <<<"$record" 2>/dev/null || echo "")
+    tier=$(jq -r '.tier // empty' <<<"$record" 2>/dev/null || echo "")
+    reader=$(jq -r '.reader // empty' <<<"$record" 2>/dev/null || echo "")
+    expect=$(jq -r '.expect // empty' <<<"$record" 2>/dev/null || echo "")
+    description=$(sanitize "$(jq -r '.description // empty' <<<"$record" 2>/dev/null || echo "")")
+    remedy=$(sanitize "$(jq -r '.remedy // empty' <<<"$record" 2>/dev/null || echo "")")
+    if ! [[ $id =~ ^[a-z0-9_]+$ ]]; then
+      controls_problem="posture-controls record $index has a missing or malformed id"
+      return 0
+    fi
+    # ids become baseline field names, so they may appear once and must not
+    # shadow the built-in trio.
+    case " firewall gatekeeper screenlock ${control_ids[*]-} " in
+      *" $id "*)
+        controls_problem="posture-controls record [$id] collides with another monitored field"
+        return 0
+        ;;
+    esac
+    if [[ $tier != "verify" ]]; then
+      controls_problem="posture-controls record [$id] declares tier $(sanitize_span "$tier"), not verify; the poller only reads controls, so the record does not belong in its file"
+      return 0
+    fi
+    domain=$(reader_domain "$reader")
+    if [[ -z $domain ]]; then
+      controls_problem="posture-controls record [$id] names unknown reader $(sanitize_span "$reader")"
+      return 0
+    fi
+    case " $domain " in
+      *" $expect "*) ;;
+      *)
+        controls_problem="posture-controls record [$id] expects $(sanitize_span "$expect"), outside the $reader domain ($domain)"
+        return 0
+        ;;
+    esac
+    if [[ -z $description ]]; then
+      controls_problem="posture-controls record [$id] has no description"
+      return 0
+    fi
+    control_ids+=("$id")
+    control_descriptions+=("$description")
+    control_readers+=("$reader")
+    control_expects+=("$expect")
+    control_remedies+=("$remedy")
+  done
+  return 0
+}
+load_controls
+if [[ -n $controls_problem ]]; then
+  # A refused file is refused WHOLE: records loaded before the offender must
+  # not be consulted by any later step, or a half-validated file would be
+  # half-monitored.
+  control_ids=()
+  control_descriptions=()
+  control_readers=()
+  control_expects=()
+  control_remedies=()
+fi
+
+# Read every declared control, only behind a clean load: a refused file must
+# page BEFORE any probe runs, and a probe driven by an invalid record would be
+# a read nothing declared.
+control_values=()
+if [[ -z $controls_problem ]]; then
+  for control_index in "${!control_ids[@]}"; do
+    control_values+=("$(read_control "${control_readers[$control_index]}")")
+  done
+fi
+
+# page_gap_once <marker_path> <members> <title> <body> -- the shared
+# page-once-via-marker discipline for the monitoring-gap and persistence-gap
+# paths, refined to page-once-PER-MEMBER: the marker stores the space-separated
+# set of gapped members already paged for, so an ONGOING gap stays quiet while
+# a NEW member gapping during it still pages (one broken probe must never
+# silence word of a second one breaking). Same notify-before-persist contract
+# as page_crit_and_persist: send_alert FIRST, record the member set ONLY on
+# success (best effort: a marker in an unwritable dir cannot be written, so
+# the page may re-fire). When every current member is already covered, refresh
+# the marker to the CURRENT set so a member that recovers and later re-gaps
+# pages again. Return 0 when paged or already covered, nonzero when send_alert
+# could not store the page (so a persisting condition re-pages). The per-path
+# bodies, recovery-clear placement, and caller exit code stay OUTSIDE this
+# helper.
 page_gap_once() {
-  local marker="$1" title="$2" body="$3"
+  local marker="$1" members="$2" title="$3" body="$4"
+  local covered="" member_list=() member new_member=0
+  read -ra member_list <<<"$members"
   if [[ -f $marker ]]; then
+    covered=" $(cat "$marker" 2>/dev/null || true) "
+    for member in "${member_list[@]}"; do
+      if [[ $covered != *" $member "* ]]; then
+        new_member=1
+      fi
+    done
+  else
+    new_member=1
+  fi
+  if [[ $new_member -eq 0 ]]; then
+    printf '%s\n' "$members" >"$marker" 2>/dev/null || true
     return 0
   fi
   if send_alert CRIT "$title" "$body" "Sosumi"; then
-    : >"$marker" 2>/dev/null || true
+    printf '%s\n' "$members" >"$marker" 2>/dev/null || true
     return 0
   fi
   return 1
 }
 
-# R2-9 monitoring gap. Any scalar missing or out of its exact domain (firewall
-# 0/1/2, Gatekeeper 0/1, screenlock 0/1) means the security state is UNKNOWN, not
-# safe; an empty or failed read leaves all three empty and lands here too. Do NOT
-# persist it (it would poison the baseline) and do NOT compare it (it would
-# fabricate a transition): the last good baseline is preserved. Page ONCE per gap
-# (page_gap_once); if send_alert cannot store the page (it still fires a
-# last-resort local banner), log and exit nonzero so a PERSISTING gap re-pages
-# next tick. (Values are bracketed, [] for empty, to keep the page apostrophe-free
-# for the alerting stack.)
-if ! [[ $cur_fw =~ ^[012]$ && $cur_gk =~ ^[01]$ && $cur_sl =~ ^[01]$ ]]; then
-  gap_body="**Security-posture monitoring gap**"$'\n'"- The posture query returned an unreadable value (firewall=[$cur_fw] gatekeeper=[$cur_gk] screenlock=[$cur_sl]): the firewall / Gatekeeper / screen-lock state is currently UNKNOWN."$'\n'"- A blind monitor cannot see a protection turn off. Did osqueryi or the LaunchAgent break? **Check now.**"$'\n'"- Diagnose: run the posture query by hand, then re-check."
-  if ! page_gap_once "$GAP" "🔴 **CRITICAL**" "$gap_body"; then
-    printf 'firewall-gatekeeper-monitor: send_alert could not queue the monitoring-gap page; no marker written, retrying next tick\n' >&2
-    exit 1
-  fi
-  exit 0
-fi
-
-# A valid read cleared the gap (recovery): drop the marker so a future gap pages
-# again. Done before the normal transition/persist logic.
-rm -f "$GAP" 2>/dev/null || true
-
 # Validate any existing baseline BEFORE trusting it (and before write_state
 # overwrites it): it must be owner-only (mode 600) AND parse to three in-domain
-# scalars (same domains as above). A group/world-readable, corrupt, or
-# out-of-domain baseline is not trustworthy (it could be planted to mask a
-# disabled protection, or fabricate a transition), so it is treated as no prior
-# baseline. GNU-first stat, BSD fallback.
+# built-in scalars (same domains as the gap gate below). A group/world-readable,
+# corrupt, or out-of-domain baseline is not trustworthy (it could be planted to
+# mask a disabled protection, or fabricate a transition), so it is treated as no
+# prior baseline. GNU-first stat, BSD fallback.
 prev_valid=0
 prev_fw=""
 prev_gk=""
 prev_sl=""
+prev_json=""
 if [[ -f $STATE ]]; then
   st_mode=$(stat -c '%a' "$STATE" 2>/dev/null || stat -f '%Lp' "$STATE" 2>/dev/null || echo "")
-  prev_fw=$(jq -r '.firewall // empty' <"$STATE" 2>/dev/null || echo "")
-  prev_gk=$(jq -r '.gatekeeper // empty' <"$STATE" 2>/dev/null || echo "")
-  prev_sl=$(jq -r '.screenlock // empty' <"$STATE" 2>/dev/null || echo "")
+  prev_json=$(cat "$STATE" 2>/dev/null || echo "")
+  prev_fw=$(jq -r '.firewall // empty' <<<"$prev_json" 2>/dev/null || echo "")
+  prev_gk=$(jq -r '.gatekeeper // empty' <<<"$prev_json" 2>/dev/null || echo "")
+  prev_sl=$(jq -r '.screenlock // empty' <<<"$prev_json" 2>/dev/null || echo "")
   if [[ $st_mode == "600" && $prev_fw =~ ^[012]$ && $prev_gk =~ ^[01]$ && $prev_sl =~ ^[01]$ ]]; then
     prev_valid=1
   fi
 fi
+
+# R2-9 monitoring gap, extended to the declared controls and made PER MEMBER.
+# The members: the built-in trio (ONE combined probe, trusted or distrusted as
+# a unit), the controls file, and each declared control. A gapped member's
+# state is UNKNOWN, not safe: page (once per member, via the marker's member
+# set), do NOT persist its read (it would poison the baseline), and do NOT
+# compare it (it would fabricate a transition). But a gap on one member must
+# NEVER blind the others: every member that read cleanly is still compared,
+# paged, and persisted below, with only the gapped members' baseline fields
+# preserved from the prior. A monitor that went blind on unrelated controls
+# because one probe broke would lose a real regression during the outage --
+# permanently, because the baseline moves on after the deviant control
+# recovers. A built-in scalar missing or out of its exact domain (firewall
+# 0/1/2, Gatekeeper 0/1, screenlock 0/1) gaps the trio; an empty or failed
+# osqueryi read leaves all three empty and lands there too. If send_alert
+# cannot store the gap page (it still fires a last-resort local banner), log
+# and exit nonzero so a PERSISTING gap re-pages next tick. (Values cross into
+# the body only through sanitize_span: raw system-read text is data, never
+# structure, and never reaches the page whole or outside an inline-code span.)
+trio_clean=1
+gap_detail=""
+gap_members=""
+if ! [[ $cur_fw =~ ^[012]$ && $cur_gk =~ ^[01]$ && $cur_sl =~ ^[01]$ ]]; then
+  trio_clean=0
+  gap_members="posture_query"
+  gap_detail="the posture query returned an unreadable value (firewall=$(sanitize_span "$cur_fw") gatekeeper=$(sanitize_span "$cur_gk") screenlock=$(sanitize_span "$cur_sl"))"
+fi
+if [[ -n $controls_problem ]]; then
+  gap_members+="${gap_members:+ }controls_file"
+  gap_detail+="${gap_detail:+; }$controls_problem"
+fi
+indeterminate_ids=""
+for control_index in "${!control_ids[@]}"; do
+  if [[ ${control_values[$control_index]} == "indeterminate" ]]; then
+    indeterminate_ids+="${indeterminate_ids:+ }${control_ids[$control_index]}"
+  fi
+done
+if [[ -n $indeterminate_ids ]]; then
+  gap_members+="${gap_members:+ }$indeterminate_ids"
+  gap_detail+="${gap_detail:+; }indeterminate posture control read(s): [$indeterminate_ids]"
+fi
+if [[ -n $gap_detail ]]; then
+  gap_body="**Security-posture monitoring gap**"$'\n'"- $gap_detail: the security posture there is currently UNKNOWN."$'\n'"- A blind monitor cannot see a protection turn off. Did osqueryi, a posture probe, or the LaunchAgent break? **Check now.**"$'\n'"- Diagnose: run the posture query and the control probes by hand, then re-check."
+  if ! page_gap_once "$GAP" "$gap_members" "🔴 **CRITICAL**" "$gap_body"; then
+    printf 'firewall-gatekeeper-monitor: send_alert could not queue the monitoring-gap page; no marker written, retrying next tick\n' >&2
+    exit 1
+  fi
+else
+  # A fully clean read cleared every gap (recovery): drop the marker so a
+  # future gap pages again. Done before the normal transition/persist logic.
+  rm -f "$GAP" 2>/dev/null || true
+fi
+
+# With the trio unreadable AND no trusted prior baseline there is nothing to
+# anchor a comparison or a persist to: any baseline written now would carry no
+# valid trio and be distrusted next tick, so comparing the declared controls
+# would re-page the same first observation every tick. The gap page above
+# already said the posture is unknown; stop here and retry next tick.
+if [[ $trio_clean -eq 0 && $prev_valid -eq 0 ]]; then
+  exit 0
+fi
+
+# Per-control priors, each trusted independently: a control's prior field must
+# exist in a trusted baseline, sit inside its reader's domain, AND have been
+# recorded under the SAME declared expect (the baseline stores it as
+# "<id>:expect" beside each value; ':' cannot appear in an id, so the pair can
+# never collide). Any miss means that ONE control has no trusted prior
+# (first-observation semantics for it) while the others keep theirs. This is
+# what makes adding a control to the data file a quiet upgrade on a healthy
+# machine instead of a page storm or a global baseline reset. An out-of-domain
+# prior is never compared: comparing it would fabricate a transition, and it
+# never reaches a page. A prior recorded under a DIFFERENT expect is never
+# compared either: an operator tightening a declaration over a steady-deviant
+# value would otherwise read as steady-deviant and stay silent, turning a
+# hardening change into a silent no-op.
+control_prevs=()
+for control_index in "${!control_ids[@]}"; do
+  control_prev=""
+  if [[ $prev_valid -eq 1 ]]; then
+    control_prev=$(jq -r --arg key "${control_ids[$control_index]}" '.[$key] // empty' <<<"$prev_json" 2>/dev/null || echo "")
+    control_prev_expect=$(jq -r --arg key "${control_ids[$control_index]}" '.[$key + ":expect"] // empty' <<<"$prev_json" 2>/dev/null || echo "")
+    domain=$(reader_domain "${control_readers[$control_index]}")
+    case " $domain " in
+      *" $control_prev "*) ;;
+      *) control_prev="" ;;
+    esac
+    if [[ $control_prev_expect != "${control_expects[$control_index]}" ]]; then
+      control_prev=""
+    fi
+  fi
+  control_prevs+=("$control_prev")
+done
+
+# The baseline to persist: for every member that read cleanly, the value read
+# THIS tick; for every gapped member, the trusted prior field preserved
+# unchanged, so a member's real transitions are still detected across another
+# member's outage. With a refused controls file the declared set is unknown,
+# so a trusted prior's fields are preserved wholesale under the fresh trio.
+# Normalized enum values only, in-domain by construction.
+if [[ $trio_clean -eq 1 ]]; then
+  baseline_json="$posture"
+else
+  baseline_json=$(jq -cn --arg fw "$prev_fw" --arg gk "$prev_gk" --arg sl "$prev_sl" \
+    '{firewall: $fw, gatekeeper: $gk, screenlock: $sl}')
+fi
+if [[ -n $controls_problem && $prev_valid -eq 1 ]]; then
+  baseline_json=$(jq -c --argjson trio "$baseline_json" '. + $trio' <<<"$prev_json")
+fi
+for control_index in "${!control_ids[@]}"; do
+  control_field="${control_values[$control_index]}"
+  if [[ $control_field == "indeterminate" ]]; then
+    control_field="${control_prevs[$control_index]}" # trusted prior, may be empty
+  fi
+  if [[ -n $control_field ]]; then
+    # The value AND the expect it was recorded under: the pair is what lets
+    # the next run detect a changed declaration and re-arm the control.
+    baseline_json=$(jq -c \
+      --arg key "${control_ids[$control_index]}" \
+      --arg value "$control_field" \
+      --arg expect "${control_expects[$control_index]}" \
+      '. + {($key): $value, ($key + ":expect"): $expect}' <<<"$baseline_json")
+  fi
+done
 
 # Persist the current posture owner-only (0600) so a later run can trust its own
 # baseline. Written via a private temp file plus an atomic rename. Ordering for an
@@ -127,7 +544,7 @@ fi
 write_state() {
   (
     umask 077
-    printf '%s\n' "$posture" >"$STATE.tmp"
+    printf '%s\n' "$baseline_json" >"$STATE.tmp"
   ) && mv -f "$STATE.tmp" "$STATE" && chmod 600 "$STATE"
 }
 
@@ -146,7 +563,7 @@ persist_baseline() {
     return 0
   fi
   degraded_body="**Security-posture monitor degraded**"$'\n'"- The posture monitor could not persist its baseline: it cannot advance state, so a stale baseline could mask the next real change and blind the monitor."$'\n'"- Check the state directory free space and permissions. **Check now.**"
-  page_gap_once "$PERSIST_GAP" "🔴 **CRITICAL**" "$degraded_body" || true
+  page_gap_once "$PERSIST_GAP" "baseline_persist" "🔴 **CRITICAL**" "$degraded_body" || true
   exit 1
 }
 
@@ -172,26 +589,58 @@ page_crit_and_persist() {
   persist_baseline
 }
 
+# control_block <index> <first_observation:0|1> -- the CRIT block for a
+# declared control deviating from its declared value. Everything in it is
+# either this script's own text, a normalized enum value, or a sanitized
+# record field wrapped in an inline-code span (description and remedy come
+# from the data file, so they are data, never notification structure); raw
+# probe output never appears.
+control_block() {
+  local control_index="$1" first_observation="$2"
+  local description="\`${control_descriptions[$control_index]}\`"
+  local expect="${control_expects[$control_index]}"
+  local value="${control_values[$control_index]}"
+  local remedy="${control_remedies[$control_index]}"
+  local block
+  if [[ $first_observation -eq 1 ]]; then
+    block="**${description}: ${value} at first observation, declared ${expect}**"$'\n'"- **Now:** **${value}**"$'\n'"- The monitor has no prior baseline for this control and it already deviates from its declared value, a pre-existing exposure. Did you change it? If not, **investigate now**."
+  else
+    block="**${description}: now ${value}, declared ${expect}**"$'\n'"- **Was:** ${control_prevs[$control_index]}"$'\n'"- **Now:** **${value}**"$'\n'"- Did you change this? If not, something else did, **investigate now**."
+  fi
+  if [[ -n $remedy ]]; then
+    block+=$'\n'"- \`${remedy}\`"
+  fi
+  printf '%s' "$block"
+}
+
 # No trustworthy prior baseline (first run, or a lost/deleted/planted/corrupt
 # state file). DIVERGENCE from c69baab's silent first-run seed (F4, banked from
 # the slice-6 alerter review): the alerter log-onlys firewall/Gatekeeper
 # off-events and relies on THIS poller to page them, so a protection ALREADY off
 # with no prior baseline would otherwise be silently accepted and go unpaged
-# forever. Page each already-off protection as a first-observation exposure
-# (screenlock too: it is poller-only, and an already-off lock is a real exposure),
-# with the same notify-before-persist durability. If all three are ON, seed
-# silently.
+# forever. Page each already-off protection and each already-deviant declared
+# control as a first-observation exposure (screenlock too: it is poller-only,
+# and an already-off lock is a real exposure), with the same
+# notify-before-persist durability. If everything is healthy, seed silently.
 if [[ $prev_valid -eq 0 ]]; then
   first_obs_blocks=()
   if [[ $cur_fw == "0" ]]; then
     first_obs_blocks+=("**Firewall is OFF (first observation)**"$'\n'"- **Now:** **OFF**"$'\n'"- The monitor has no prior baseline and the firewall is already off, a pre-existing exposure. Did you turn it off? If not, **investigate now**."$'\n'"- Re-enable it: System Settings → Network → Firewall")
   fi
   if [[ $cur_gk == "0" ]]; then
-    first_obs_blocks+=("**Gatekeeper is OFF (first observation)**"$'\n'"- **Now:** **DISABLED**"$'\n'"- The monitor has no prior baseline and Gatekeeper is already disabled, a pre-existing exposure. Did you turn it off? If not, **investigate now**."$'\n'"- Re-enable it: System Settings → Privacy & Security")
+    first_obs_blocks+=("**Gatekeeper is OFF (first observation)**"$'\n'"- **Now:** **DISABLED**"$'\n'"- The monitor has no prior baseline and Gatekeeper is already disabled, a pre-existing exposure. Did you turn it off? If not, **investigate now**."$'\n'"- Re-enable it: System Settings → Privacy & Security (spctl cannot enable Gatekeeper from the CLI on macOS 15+)")
   fi
   if [[ $cur_sl == "0" ]]; then
     first_obs_blocks+=("**Screen lock is OFF (first observation)**"$'\n'"- **Now:** **OFF**"$'\n'"- The monitor has no prior baseline and the screen-lock password requirement is already off, anyone at the machine has access. Did you turn it off? If not, **investigate now**."$'\n'"- Re-enable it: System Settings → Lock Screen → Require password")
   fi
+  for control_index in "${!control_ids[@]}"; do
+    if [[ ${control_values[$control_index]} == "indeterminate" ]]; then
+      continue # gapped member: paged above, never compared
+    fi
+    if [[ ${control_values[$control_index]} != "${control_expects[$control_index]}" ]]; then
+      first_obs_blocks+=("$(control_block "$control_index" 1)")
+    fi
+  done
   if [[ ${#first_obs_blocks[@]} -eq 0 ]]; then
     persist_baseline # healthy first observation: seed the baseline silently
     exit 0
@@ -224,27 +673,53 @@ sl_to_text() {
   esac
 }
 
-# A trusted baseline exists: page CRIT only on a protection turning OFF. A
-# re-enable (OFF -> ON) is good news, not actionable, and there is no notice
-# channel, so it is silent. Each block mirrors the results-alerter protection-off
-# shape: bold header, Was/Now state, then a decision-first next step.
+# A trusted baseline exists: page CRIT only on a protection turning OFF or a
+# declared control leaving its declared value. A re-enable (a return to the
+# declared/on state) is good news, not actionable, and there is no notice
+# channel, so it is silent. Each block mirrors the results-alerter
+# protection-off shape: bold header, Was/Now state, then a decision-first next
+# step.
 crit_blocks=()
-if [[ $cur_fw != "$prev_fw" && $cur_fw == "0" ]]; then
-  crit_blocks+=("**Firewall turned OFF**"$'\n'"- **Was:** $(fw_to_text "$prev_fw")"$'\n'"- **Now:** **OFF**"$'\n'"- Did you turn this off? If not, something else did, **investigate now**."$'\n'"- Re-enable it: System Settings → Network → Firewall")
+if [[ $trio_clean -eq 1 ]]; then
+  if [[ $cur_fw != "$prev_fw" && $cur_fw == "0" ]]; then
+    crit_blocks+=("**Firewall turned OFF**"$'\n'"- **Was:** $(fw_to_text "$prev_fw")"$'\n'"- **Now:** **OFF**"$'\n'"- Did you turn this off? If not, something else did, **investigate now**."$'\n'"- Re-enable it: System Settings → Network → Firewall")
+  fi
+  if [[ $cur_gk != "$prev_gk" && $cur_gk == "0" ]]; then
+    crit_blocks+=("**Gatekeeper turned OFF**"$'\n'"- **Was:** $(gk_to_text "$prev_gk")"$'\n'"- **Now:** **DISABLED**"$'\n'"- Did you turn this off? If not, something else did, **investigate now**."$'\n'"- Re-enable it: System Settings → Privacy & Security (spctl cannot enable Gatekeeper from the CLI on macOS 15+)")
+  fi
+  if [[ $cur_sl != "$prev_sl" && $cur_sl == "0" ]]; then
+    crit_blocks+=("**Screen lock turned OFF**"$'\n'"- **Was:** $(sl_to_text "$prev_sl")"$'\n'"- **Now:** **OFF**"$'\n'"- Did you turn this off? If not, something else did, **investigate now**."$'\n'"- Re-enable it: System Settings → Lock Screen → Require password")
+  fi
 fi
-if [[ $cur_gk != "$prev_gk" && $cur_gk == "0" ]]; then
-  crit_blocks+=("**Gatekeeper turned OFF**"$'\n'"- **Was:** $(gk_to_text "$prev_gk")"$'\n'"- **Now:** **DISABLED**"$'\n'"- Did you turn this off? If not, something else did, **investigate now**."$'\n'"- Re-enable it: System Settings → Privacy & Security")
-fi
-if [[ $cur_sl != "$prev_sl" && $cur_sl == "0" ]]; then
-  crit_blocks+=("**Screen lock turned OFF**"$'\n'"- **Was:** $(sl_to_text "$prev_sl")"$'\n'"- **Now:** **OFF**"$'\n'"- Did you turn this off? If not, something else did, **investigate now**."$'\n'"- Re-enable it: System Settings → Lock Screen → Require password")
-fi
+# Declared controls: page on a REGRESSION (the prior held the declared value,
+# the current does not) and on a first observation of a deviation (no trusted
+# prior for this one control). Steady-deviant is silent (the regression already
+# paged once; the baseline is the page-once marker), and a return to the
+# declared value is silent recovery that re-arms the marker via the persist
+# below.
+for control_index in "${!control_ids[@]}"; do
+  control_value="${control_values[$control_index]}"
+  control_expect="${control_expects[$control_index]}"
+  control_prev="${control_prevs[$control_index]}"
+  if [[ $control_value == "indeterminate" ]]; then
+    continue # gapped member: paged above, never compared
+  fi
+  if [[ $control_value == "$control_expect" ]]; then
+    continue
+  fi
+  if [[ -z $control_prev ]]; then
+    crit_blocks+=("$(control_block "$control_index" 1)")
+  elif [[ $control_prev == "$control_expect" ]]; then
+    crit_blocks+=("$(control_block "$control_index" 0)")
+  fi
+done
 
-# No OFF transition (steady state or a re-enable): refresh the baseline, silent.
+# No deviation (steady state or a recovery): refresh the baseline, silent.
 if [[ ${#crit_blocks[@]} -eq 0 ]]; then
   persist_baseline
   exit 0
 fi
 
-# An OFF transition: page (notify-before-persist), then advance the baseline. One
-# page for the tick, even when several protections turned off together.
+# A deviation: page (notify-before-persist), then advance the baseline. One
+# page for the tick, even when several protections deviated together.
 page_crit_and_persist "${crit_blocks[@]}"

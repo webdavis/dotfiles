@@ -22,13 +22,23 @@
 # A fresh temp HOME keeps every run off the operator's real ~/.local/state and
 # ~/.local/libexec. Sourced by the poller suite; no main.
 
-POLLER_TOOL="${BATS_TEST_DIRNAME}/../../dot_local/libexec/osquery/executable_firewall-gatekeeper-monitor.sh"
+# BATS_TEST_DIRNAME under bats; the lib's own location when a plain suite *.sh
+# sources this file directly (both are exactly two levels below the repo root).
+POLLER_TOOL="${BATS_TEST_DIRNAME:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}/../../dot_local/libexec/osquery/executable_firewall-gatekeeper-monitor.sh"
 
 # set_posture <json-array> -- the JSON array of row objects the osqueryi stub
 # returns. osquery --json emits an array and the poller reads .[0]; scalars are
 # strings, matching osquery's JSON output for these integer columns.
 set_posture() {
   export POLLER_OSQUERYI_JSON="$1"
+}
+
+# set_posture_controls <json-array> -- the declared-controls file the poller
+# reads (normally the chezmoi render of macos_posture_controls.yaml). The
+# harness default is an EMPTY declaration; a posture-controls test installs its
+# own records.
+set_posture_controls() {
+  printf '%s\n' "$1" >"$OSQUERY_POSTURE_CONTROLS"
 }
 
 setup_poller_harness() {
@@ -70,10 +80,144 @@ exit_code="${POLLER_OSQUERYI_EXIT:-0}"
 if [[ $exit_code -ne 0 ]]; then
   exit "$exit_code"
 fi
+# POLLER_OSQUERYI_EXIT_AFTER_OUTPUT models a FAILED query that still printed
+# healthy-looking JSON (rows emitted, then a nonzero death). A failed probe's
+# output is untrustworthy; the poller must refuse it, not baseline it.
+if [[ -n ${POLLER_OSQUERYI_EXIT_AFTER_OUTPUT:-} ]]; then
+  printf '%s\n' "${POLLER_OSQUERYI_JSON:-[]}"
+  exit "$POLLER_OSQUERYI_EXIT_AFTER_OUTPUT"
+fi
 printf '%s\n' "${POLLER_OSQUERYI_JSON:-[]}"
 SHIM
   chmod +x "$POLLER_HOME/bin/osqueryi"
   export POLLER_OSQUERYI="$POLLER_HOME/bin/osqueryi"
+
+  # The declared-controls file. Default: an EMPTY declaration (no extra
+  # controls), so the legacy firewall/Gatekeeper/screen-lock tests exercise
+  # exactly the pre-controls surface; posture-controls tests install records
+  # via set_posture_controls.
+  export OSQUERY_POSTURE_CONTROLS="$POLLER_HOME/posture-controls.json"
+  printf '[]\n' >"$OSQUERY_POSTURE_CONTROLS"
+
+  # Recording, programmable probe stubs for the declared-control readers, plus
+  # always-refuse spies for tools the poller must never touch. EVERY invocation
+  # lands in $POLLER_PROBE_CALLS ("tool argv"); any argv that is not the exact
+  # read-only status query lands in $POLLER_MUTATION_LOG and fails with exit
+  # 97. The poller must never invoke a mutating command, and
+  # assert_no_mutation_attempt pins that the violation log stayed empty.
+  export POLLER_PROBE_CALLS="$POLLER_HOME/probe-calls.log"
+  export POLLER_MUTATION_LOG="$POLLER_HOME/mutation-violations.log"
+  : >"$POLLER_PROBE_CALLS"
+  : >"$POLLER_MUTATION_LOG"
+
+  # fdesetup: only `status` is legitimate. Output FIRST, then the exit status:
+  # the indeterminate-on-nonzero tests need a probe that prints healthy-looking
+  # text AND fails. ${VAR-default} (not :-) so a test can program deliberately
+  # empty output. POLLER_FDESETUP_SLEEP models a WEDGED tool exactly like the
+  # osqueryi stub's hook: exec into sleep (a single process, no child holding
+  # stdout), so a bounded poller kills it at the bound and gaps while an
+  # unbounded poller blocks. Every probe stub below carries the same hook.
+  cat >"$POLLER_HOME/bin/fdesetup" <<'SHIM'
+#!/usr/bin/env bash
+printf 'fdesetup %s\n' "$*" >>"$POLLER_PROBE_CALLS"
+if [[ "$*" != "status" ]]; then
+  printf 'fdesetup %s\n' "$*" >>"$POLLER_MUTATION_LOG"
+  exit 97
+fi
+if [[ -n ${POLLER_FDESETUP_SLEEP:-} ]]; then
+  exec sleep "$POLLER_FDESETUP_SLEEP"
+fi
+printf '%s\n' "${POLLER_FDESETUP_OUTPUT-FileVault is On.}"
+exit "${POLLER_FDESETUP_EXIT:-0}"
+SHIM
+  chmod +x "$POLLER_HOME/bin/fdesetup"
+
+  # csrutil: only `status`. Default matches the repo declaration (SIP is
+  # deliberately disabled on this machine, expect: disabled).
+  cat >"$POLLER_HOME/bin/csrutil" <<'SHIM'
+#!/usr/bin/env bash
+printf 'csrutil %s\n' "$*" >>"$POLLER_PROBE_CALLS"
+if [[ "$*" != "status" ]]; then
+  printf 'csrutil %s\n' "$*" >>"$POLLER_MUTATION_LOG"
+  exit 97
+fi
+if [[ -n ${POLLER_CSRUTIL_SLEEP:-} ]]; then
+  exec sleep "$POLLER_CSRUTIL_SLEEP"
+fi
+printf '%s\n' "${POLLER_CSRUTIL_OUTPUT-System Integrity Protection status: disabled.}"
+exit "${POLLER_CSRUTIL_EXIT:-0}"
+SHIM
+  chmod +x "$POLLER_HOME/bin/csrutil"
+
+  # sysadminctl: only `-guestAccount status` (automatic login reads the
+  # loginwindow DECLARATION via the defaults stub below, never sysadminctl's
+  # effective state). The real tool reports on STDERR with an NSLog prefix
+  # (verified on the target machine), so the stub mirrors that.
+  cat >"$POLLER_HOME/bin/sysadminctl" <<'SHIM'
+#!/usr/bin/env bash
+printf 'sysadminctl %s\n' "$*" >>"$POLLER_PROBE_CALLS"
+case "$*" in
+  "-guestAccount status")
+    if [[ -n ${POLLER_SYSADMINCTL_SLEEP:-} ]]; then
+      exec sleep "$POLLER_SYSADMINCTL_SLEEP"
+    fi
+    printf '%s\n' "${POLLER_SYSADMINCTL_GUEST_OUTPUT-2026-07-27 00:00:00.000 sysadminctl[100:100] Guest account disabled.}" >&2
+    exit "${POLLER_SYSADMINCTL_GUEST_EXIT:-0}"
+    ;;
+  *)
+    printf 'sysadminctl %s\n' "$*" >>"$POLLER_MUTATION_LOG"
+    exit 97
+    ;;
+esac
+SHIM
+  chmod +x "$POLLER_HOME/bin/sysadminctl"
+
+  # defaults: only the exact read of loginwindow's autoLoginUser key (the
+  # declared-intent auto-login reader) is legitimate; every other argv is a
+  # recorded violation. POLLER_DEFAULTS_AUTOLOGIN_MODE models the three real
+  # outcomes (each verified on the target machine): absent (the canonical
+  # does-not-exist diagnostic on stderr, exit 1 -- the healthy no-declaration
+  # state, and the default), present (a username on stdout, exit 0),
+  # unreadable (a non-canonical failure, exit 1).
+  cat >"$POLLER_HOME/bin/defaults" <<'SHIM'
+#!/usr/bin/env bash
+printf 'defaults %s\n' "$*" >>"$POLLER_PROBE_CALLS"
+if [[ "$*" != "read /Library/Preferences/com.apple.loginwindow autoLoginUser" ]]; then
+  printf 'defaults %s\n' "$*" >>"$POLLER_MUTATION_LOG"
+  exit 97
+fi
+if [[ -n ${POLLER_DEFAULTS_SLEEP:-} ]]; then
+  exec sleep "$POLLER_DEFAULTS_SLEEP"
+fi
+case "${POLLER_DEFAULTS_AUTOLOGIN_MODE:-absent}" in
+  present)
+    printf '%s\n' "${POLLER_DEFAULTS_AUTOLOGIN_USER-stephen}"
+    exit 0
+    ;;
+  unreadable)
+    printf '2026-07-27 00:00:00.000 defaults[100:100]\nCould not read domain /Library/Preferences/com.apple.loginwindow\n' >&2
+    exit 1
+    ;;
+  *)
+    printf '2026-07-27 00:00:00.000 defaults[100:100]\nThe domain/default pair of (/Library/Preferences/com.apple.loginwindow, autoLoginUser) does not exist\n' >&2
+    exit 1
+    ;;
+esac
+SHIM
+  chmod +x "$POLLER_HOME/bin/defaults"
+
+  # Tools the poller has NO business invoking at all, status or otherwise: any
+  # call is a recorded violation. run_poller prepends this bin dir to PATH, so
+  # a stray PATH-resolved invocation is caught even without an env override.
+  local forbidden_tool
+  for forbidden_tool in sudo spctl socketfilterfw launchctl; do
+    cat >"$POLLER_HOME/bin/$forbidden_tool" <<'SHIM'
+#!/usr/bin/env bash
+printf '%s %s\n' "$(basename "$0")" "$*" >>"$POLLER_MUTATION_LOG"
+exit 97
+SHIM
+    chmod +x "$POLLER_HOME/bin/$forbidden_tool"
+  done
 
   # Recording send_alert spy at the NEW dispatch path the poller sources. It
   # never delivers; it records each call's argv and the baseline as it stood at
@@ -115,11 +259,19 @@ teardown_poller_harness() {
 
 # run_poller [args...] -- run the poller under the harness env. HOME is the temp
 # home so the sourced dispatch spy and the default state path resolve inside the
-# sandbox; OSQUERYI points at the recording stub.
+# sandbox; OSQUERYI and the posture-probe overrides point at the recording
+# stubs, and the stub bin dir leads PATH so any stray PATH-resolved tool call
+# hits a spy instead of the real system.
 run_poller() {
   HOME="$POLLER_HOME" \
+    PATH="$POLLER_HOME/bin:$PATH" \
     OSQUERYI="$POLLER_OSQUERYI" \
     OSQUERY_POSTURE_STATE="$OSQUERY_POSTURE_STATE" \
+    OSQUERY_POSTURE_CONTROLS="$OSQUERY_POSTURE_CONTROLS" \
+    OSQUERY_POSTURE_FDESETUP="$POLLER_HOME/bin/fdesetup" \
+    OSQUERY_POSTURE_CSRUTIL="$POLLER_HOME/bin/csrutil" \
+    OSQUERY_POSTURE_SYSADMINCTL="$POLLER_HOME/bin/sysadminctl" \
+    OSQUERY_POSTURE_DEFAULTS="$POLLER_HOME/bin/defaults" \
     bash "$POLLER_TOOL" "$@"
 }
 
@@ -285,6 +437,53 @@ assert_no_baseline() {
   if [[ -f $OSQUERY_POSTURE_STATE ]]; then
     printf 'expected NO baseline file, but %s exists with:\n%s\n' \
       "$OSQUERY_POSTURE_STATE" "$(cat "$OSQUERY_POSTURE_STATE")" >&2
+    return 1
+  fi
+}
+
+# assert_probe_calls <tool> <n> -- the poller invoked the stubbed <tool>
+# exactly <n> times (each stub logs "tool argv", one line per call).
+assert_probe_calls() {
+  local count
+  count=$(grep -c "^$1 " "$POLLER_PROBE_CALLS" || true)
+  if [[ $count -ne $2 ]]; then
+    printf 'expected %s call(s) to %s, got %s; probe log:\n%s\n' \
+      "$2" "$1" "$count" "$(cat "$POLLER_PROBE_CALLS")" >&2
+    return 1
+  fi
+}
+
+# assert_probe_argv <exact-line> <n> -- the probe log holds exactly <n> lines
+# matching "<tool> <argv>" WHOLE. A per-member property, not a per-tool count:
+# a bare count would pass under a doubled probe of one subcommand that starved
+# another (e.g. autologin probed twice, guest never).
+assert_probe_argv() {
+  local count
+  count=$(grep -cxF -- "$1" "$POLLER_PROBE_CALLS" || true)
+  if [[ $count -ne $2 ]]; then
+    printf 'expected %s exact call(s) of [%s], got %s; probe log:\n%s\n' \
+      "$2" "$1" "$count" "$(cat "$POLLER_PROBE_CALLS")" >&2
+    return 1
+  fi
+}
+
+# assert_no_probe_calls -- the poller invoked no probe stub at all (a refused
+# controls file must be rejected BEFORE any read runs).
+assert_no_probe_calls() {
+  if [[ -s $POLLER_PROBE_CALLS ]]; then
+    printf 'expected NO probe invocation, but the stubs recorded:\n%s\n' \
+      "$(cat "$POLLER_PROBE_CALLS")" >&2
+    return 1
+  fi
+}
+
+# assert_no_mutation_attempt -- no stubbed tool ever saw a non-status argv, and
+# no always-refuse spy (sudo, spctl, defaults, socketfilterfw, launchctl) was
+# invoked at all: the poller never runs a mutating command.
+assert_no_mutation_attempt() {
+  if [[ -s $POLLER_MUTATION_LOG ]]; then
+    printf 'expected NO mutating invocation, but the spies recorded:\n%s\n' \
+      "$(cat "$POLLER_MUTATION_LOG")" >&2
     return 1
   fi
 }
