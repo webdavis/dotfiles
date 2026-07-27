@@ -71,6 +71,7 @@ sanitize() {
 # survive sanitize as plain characters -- so every value that crosses into a
 # notification body goes through here and renders inert inside the span.
 sanitize_span() {
+  # shellcheck disable=SC2016 # literal Discord inline-code backticks, no expansion intended
   printf '`%s`' "$(sanitize "$1")"
 }
 
