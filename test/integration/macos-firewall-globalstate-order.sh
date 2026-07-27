@@ -100,7 +100,11 @@ cmp -s "$expected_firewall_commands" "$declared_firewall_commands" ||
 
 # Criterion 4: EVERY declared firewall command is a set-to-state form with an
 # explicit trailing state. A completeness loop, not a count: a fifth command
-# sneaking in as a toggle must fail here by name.
+# sneaking in as a toggle must fail here by name. Against TODAY'S data this
+# loop is shadowed: the exact-command set compare above fires first on any
+# deviation from the four baseline commands. It is a forward-looking layer,
+# not dead code: it fails when a future toggle command lands alongside a
+# co-evolved whitelist, so keep it.
 set_to_state_pattern='^/usr/libexec/ApplicationFirewall/socketfilterfw --set[a-z]+ (on|off)$'
 while IFS= read -r firewall_command; do
   [[ $firewall_command =~ $set_to_state_pattern ]] ||
