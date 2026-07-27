@@ -192,7 +192,13 @@ record straight from the data file), and manual renders only a pointer at the
 runbook section that sets it by hand, through the same single-quoting helper
 as every other data field. The trailing refusal is unreachable while the
 validation pass above holds, and stays so this loop can never fail open into
-a write if the two passes ever drift apart. */}}
+a write if the two passes ever drift apart. Its message deliberately differs
+from the validation pass's, naming this loop as the site that caught the
+record: with byte-identical messages either copy could vanish and every test
+would stay green on the other's output, so the distinct marker is what lets
+each site be pinned alone. Do not quote the marker text in this comment; the
+source-form pin greps for it and a comment copy would satisfy the grep with
+the refusal gone. */}}
 {{ range .macos.defaults -}}
 {{ $tier := toString (index . "tier") -}}
 {{ if eq $tier "enforce" -}}
@@ -213,7 +219,7 @@ defaults {{ if index . "host" }}-currentHost {{ end }}write {{ template "shellSi
 {{ else if eq $tier "manual" -}}
 echo {{ template "shellSingleQuoted" (printf "manual control %s %s: not settable here; see the runbook section %s" .domain .key (toString (index . "runbook"))) }}
 {{ else -}}
-{{ fail (printf "macos_defaults.yaml: unrecognized tier %q on record %s %s (expected enforce, verify, or manual)" $tier .domain .key) -}}
+{{ fail (printf "macos_defaults.yaml: unrecognized tier %q on record %s %s reached the render loop; the validation pass no longer rejects it" $tier .domain .key) -}}
 {{ end -}}
 {{ end -}}
 

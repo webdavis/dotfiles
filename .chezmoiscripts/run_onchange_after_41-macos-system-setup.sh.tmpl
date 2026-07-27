@@ -102,7 +102,13 @@ at all (the command branch is not taken, so this runner physically cannot
 set a verify control), and manual renders only a pointer at the runbook
 section that sets it by hand. The trailing refusal is unreachable while the
 validation pass above holds, and stays so this loop can never fail open into
-running a command if the two passes ever drift apart. */ -}}
+running a command if the two passes ever drift apart. Its message deliberately
+differs from the validation pass's, naming this loop as the site that caught
+the record: with byte-identical messages either copy could vanish and every
+test would stay green on the other's output, so the distinct marker is what
+lets each site be pinned alone. Do not quote the marker text in this comment;
+the source-form pin greps for it and a comment copy would satisfy the grep
+with the refusal gone. */ -}}
 {{ range .macos.system_setup -}}
 {{ $tier := toString (index . "tier") -}}
 {{ if eq $tier "enforce" -}}
@@ -112,7 +118,7 @@ echo "→ {{ .description }}"
 {{ else if eq $tier "manual" -}}
 echo {{ template "shellSingleQuoted" (printf "→ MANUAL %s: see the runbook section %s" .description (toString (index . "runbook"))) }}
 {{ else -}}
-{{ fail (printf "macos_system_setup.yaml: unrecognized tier %q on record %q (expected enforce, verify, or manual)" $tier .description) -}}
+{{ fail (printf "macos_system_setup.yaml: unrecognized tier %q on record %q reached the render loop; the validation pass no longer rejects it" $tier .description) -}}
 {{ end -}}
 {{ end -}}
 {{/* Generated MagicDNS /etc/hosts fallback pins (structured tailnet_pins data).
