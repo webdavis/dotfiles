@@ -18,6 +18,9 @@
 #     "<unreadable>" for every other failure AND for a plist file that exists
 #     but cannot be read. An unknown failure must never collapse into
 #     "<unset>": that would report drift on a value nobody actually read.
+#   - The library survives being sourced twice under `set -euo pipefail`. Its
+#     read-outcome constants were `readonly`, so a second `source` failed the
+#     assignment, and under `set -e` that failure killed the CALLER outright.
 #
 # Pure stubs: no real chezmoi, git, or yq. The only binary the functions under
 # test invoke is `defaults` (and `sudo`), both stubbed per case.
@@ -214,6 +217,30 @@ output="$(call_function system_defaults_read_actual "$locked_plist" SysKey)" || 
   fail "read locked (exact path): an existing unreadable plist must report status 2 (got $status)"
 chmod u+rw "$locked_plist"
 
+# ---- re-sourcing the library --------------------------------------------------
+
+# case 16: sourcing the library twice under `set -euo pipefail` must survive.
+# `readonly` constants make the second source's assignment fail, and under
+# `set -e` that failure kills the CALLER, not just the source. Latent while no
+# caller sources twice, and a trap for the first one that does.
+status=0
+double_source_output="$(bash -c 'set -euo pipefail; source "$1"; source "$1"; printf "SURVIVED\n"' _ "$LIB" 2>"$work/err")" || status=$?
+[[ $status -eq 0 ]] ||
+  fail "double source: sourcing the library twice under set -euo pipefail must succeed (got $status, stderr: $(cat "$work/err"))"
+[[ $double_source_output == SURVIVED ]] ||
+  fail "double source: the caller must run past the second source (got '$double_source_output')"
+
+# case 17: the constants must still carry their documented values after a
+# re-source. A guard that skipped the assignment on an already-set value would
+# satisfy case 16 while leaving the caller reading whatever status codes the
+# environment handed it.
+status=0
+constants_output="$(SYSTEM_READ_OK=9 SYSTEM_READ_UNSET=9 SYSTEM_READ_UNREADABLE=9 \
+  bash -c 'set -euo pipefail; source "$1"; source "$1"; printf "%s %s %s\n" "$SYSTEM_READ_OK" "$SYSTEM_READ_UNSET" "$SYSTEM_READ_UNREADABLE"' \
+  _ "$LIB" 2>"$work/err")" || status=$?
+[[ $status -eq 0 && $constants_output == '0 1 2' ]] ||
+  fail "double source: the read-outcome constants must be 0 1 2 even when the environment presets them (got status $status, output '$constants_output')"
+
 # ---- system_defaults_write -----------------------------------------------------
 
 # case 16: the write goes through sudo with the exact argument shape
@@ -242,4 +269,4 @@ mapfile -t sudo_arguments <"$sudo_log"
 [[ ${sudo_arguments[4]} == -bool ]] || fail "write: argument 5 must be the dashed type (got '${sudo_arguments[4]}')"
 [[ ${sudo_arguments[5]} == false ]] || fail "write: argument 6 must be the value (got '${sudo_arguments[5]}')"
 
-printf 'macos-defaults-scope-read: OK (plist path defaults, passes absolute, rejects relative; scope enum and pairings validated fail-closed; the system read distinguishes value/unset/unreadable by STATUS, so no live value can impersonate an outcome and never collapses unknown failures; the system write goes through sudo with the exact argument shape)\n'
+printf 'macos-defaults-scope-read: OK (plist path defaults, passes absolute, rejects relative; re-sourcing under set -euo pipefail is a no-op that still fixes the constants; scope enum and pairings validated fail-closed; the system read distinguishes value/unset/unreadable by STATUS, so no live value can impersonate an outcome and never collapses unknown failures; the system write goes through sudo with the exact argument shape)\n'

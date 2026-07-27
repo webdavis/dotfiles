@@ -152,15 +152,6 @@ validate_record_scope() { # <scope> <host> <plist_path>
 # the default, /Library/Preferences/<domain>. A declared path must be
 # ABSOLUTE: a relative path would resolve against whatever directory the tool
 # happens to run from, so it is rejected, never resolved.
-# The three outcomes of reading a system-scope setting, carried as an exit STATUS
-# rather than a marker string. A string sentinel is representable as a real value:
-# a tracked setting whose live value happened to be the marker would be reported
-# indeterminate, hiding both a match and a genuine drift. A status cannot be
-# impersonated by any value, so the two channels stay separate.
-readonly SYSTEM_READ_OK=0
-readonly SYSTEM_READ_UNSET=1
-readonly SYSTEM_READ_UNREADABLE=2
-
 resolve_system_plist_path() { # <domain> <plist_path>
   local domain="$1" plist_path="$2"
   if [[ -z $plist_path ]]; then
@@ -193,6 +184,22 @@ resolve_system_plist_path() { # <domain> <plist_path>
   fi
   printf '%s\n' "$plist_path"
 }
+
+# The three outcomes of reading a system-scope setting, carried as an exit STATUS
+# rather than a marker string. A string sentinel is representable as a real value:
+# a tracked setting whose live value happened to be the marker would be reported
+# indeterminate, hiding both a match and a genuine drift. A status cannot be
+# impersonated by any value, so the two channels stay separate.
+#
+# NOT readonly, deliberately. This file is a library: sourcing it twice must be a
+# no-op, and `readonly` makes the second source's assignment fail. Every tool
+# runs under `set -euo pipefail`, so that failure does not just skip the
+# assignment, it kills the CALLER. Plain assignment also beats `readonly` on the
+# other axis that matters here: it OVERWRITES an inherited value, so a hostile
+# environment cannot hand the tools a different set of status codes.
+SYSTEM_READ_OK=0
+SYSTEM_READ_UNSET=1
+SYSTEM_READ_UNREADABLE=2
 
 # system_defaults_write <plist_path> <key> <type> <value>, one system-scope
 # write. /Library plists are root-owned, so the write goes through sudo;
