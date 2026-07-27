@@ -9,6 +9,14 @@
 #     type:   bool|int|float|string
 #     value:  <scalar>   # must match `type`
 #     host:   current    # OPTIONAL, if set, runner uses `defaults -currentHost`
+#     scope:  user|system  # OPTIONAL, absent means user. A system record is
+#                          # written with sudo to a root-owned plist,
+#                          # /Library/Preferences/<domain> by default. Cannot
+#                          # be combined with `host` (ByHost is per-user).
+#     plist_path: <path>   # OPTIONAL, system scope only: an explicit ABSOLUTE
+#                          # plist path for a product that stores preferences
+#                          # outside /Library/Preferences (e.g. LuLu).
+#                          # Relative paths are rejected.
 #
 # Each entry in `killall:` runs after the defaults loop. cfprefsd is required
 # for changes to take effect immediately (long-standing macOS plist-cache
