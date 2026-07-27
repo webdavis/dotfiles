@@ -128,6 +128,17 @@ refute_contains "$SSH_RUN_ERR" 'not loaded' \
 refute_contains "$SSH_RUN_ERR" 'not running' \
   '5: an errored probe must never be reported as not running'
 
+# --- 5b: a wrapper failure must never read as "Remote Login is off" -----------
+# A privilege wrapper that exits 113 for launchctl WITHOUT running it used to
+# be read as the confirmed-absent status: the reload printed its clean no-op
+# and exited 0 having restarted nothing. Only a status proven to come from
+# launchctl may mean absent.
+
+SSH_HARDENING_SUDO="$SSH_SUDO_LAUNCHCTL_113_STUB" run_ssh_reload --reload
+[[ $SSH_RUN_STATUS -ne 0 ]] ||
+  fail '5b: a wrapper exiting 113 without running launchctl must not produce the clean no-op'
+refute_contains "$SSH_RUN_OUT" 'no daemon to restart'   '5b: a wrapper failure must never be reported as Remote Login being off'
+
 # --- 6: kickstart fails: nonzero, kickstart WAS attempted, named --------------
 
 LAUNCHCTL_STUB_KICKSTART_STATUS=9 run_ssh_reload --reload

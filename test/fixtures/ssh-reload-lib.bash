@@ -283,6 +283,27 @@ exec "$@"
 STUB
   chmod +x "$SSH_STUB_DIR/sudo-ok"
 
+  # A wrapper that primes fine but fails ONLY for launchctl, with the exact
+  # status the reload reads as "service absent", without ever running it:
+  # the shape of a wrapper failure masquerading as a confirmed-absent
+  # service. Everything else it is asked to run passes through.
+  cat >"$SSH_STUB_DIR/sudo-launchctl-113" <<'STUB'
+#!/bin/bash
+if [[ ${1:-} == '-v' ]]; then
+  exit 0
+fi
+case "${1:-}" in
+  *launchctl*)
+    printf '%s\n' "$*" >>"${SUDO_DENY_SPY_LOG:?}"
+    printf 'sudo stub: refusing to run launchctl (exit 113 without executing it)\n' >&2
+    exit 113
+    ;;
+esac
+exec "$@"
+STUB
+  chmod +x "$SSH_STUB_DIR/sudo-launchctl-113"
+  SSH_SUDO_LAUNCHCTL_113_STUB="$SSH_STUB_DIR/sudo-launchctl-113"
+
   # Denying sudo: logs and fails the way a passwordless-sudo revocation or a
   # missing terminal does. Nothing it is asked to run ever runs.
   cat >"$SSH_STUB_DIR/sudo-deny" <<'STUB'
@@ -309,6 +330,7 @@ STUB
   KEYSCAN_STUB_MODE=banner
   KEYSCAN_STUB_ANSWER_PORT=""
   export SSH_STUB_DIR SSH_STUB_STATE SSH_SUDO_DENY_STUB \
+    SSH_SUDO_LAUNCHCTL_113_STUB \
     LAUNCHCTL_SPY_LOG KEYSCAN_SPY_LOG SLEEP_SPY_LOG SUDO_OK_SPY_LOG \
     SUDO_DENY_SPY_LOG SSH_BARE_TOOL_SPY_LOG \
     SSHD_BIN LAUNCHCTL_BIN KEYSCAN_BIN SLEEP_BIN SSH_HARDENING_SUDO \

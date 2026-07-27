@@ -933,16 +933,24 @@ recovery_instructions() {
   printf 'Recovery: keep any SSH session you still have OPEN until a new login succeeds. From the physical console, or Screen Sharing over the tailnet, run: ssh-hardening.sh --rollback (or: sudo rm %s), then turn Remote Login off and back on in System Settings > General > Sharing.' "$(dropin_path)"
 }
 
-# probe_sshd_service: one `launchctl print` of the sshd service, through the
-# privilege wrapper. Results land in globals rather than an exit status,
-# because the caller needs the EXACT status to separate three outcomes:
-# loaded (0), confirmed absent (113), and everything else, which is a probe
-# error and must never be read as "the daemon is stopped".
+# probe_sshd_service: one `launchctl print` of the sshd service, run DIRECTLY
+# and not through the privilege wrapper -- deliberately. Measured on macOS
+# 26.2: unprivileged `launchctl print system/<service>` exits 0 for a loaded
+# job and 113 for an absent one, the same statuses the privileged probe
+# returns. Running it bare removes the wrapper's own exit status from this
+# channel entirely, so a wrapper failing with 113 cannot masquerade as
+# "Remote Login is off": every status seen here is launchctl's own answer
+# (or bash's 126/127 for an unrunnable LAUNCHCTL_BIN, neither of which is 0
+# or 113, so both land in the probe-error branch). Results land in globals
+# rather than an exit status, because the caller needs the EXACT status to
+# separate three outcomes: loaded (0), confirmed absent (113), and
+# everything else, which is a probe error and must never be read as "the
+# daemon is stopped".
 SERVICE_PROBE_STATUS=0
 SERVICE_PROBE_OUTPUT=''
 probe_sshd_service() {
   SERVICE_PROBE_STATUS=0
-  SERVICE_PROBE_OUTPUT="$(run_privileged "$LAUNCHCTL_BIN" print "$SSHD_LAUNCHD_SERVICE" 2>&1)" ||
+  SERVICE_PROBE_OUTPUT="$("$LAUNCHCTL_BIN" print "$SSHD_LAUNCHD_SERVICE" 2>&1)" ||
     SERVICE_PROBE_STATUS=$?
 }
 
