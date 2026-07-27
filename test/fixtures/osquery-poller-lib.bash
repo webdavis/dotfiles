@@ -80,6 +80,13 @@ exit_code="${POLLER_OSQUERYI_EXIT:-0}"
 if [[ $exit_code -ne 0 ]]; then
   exit "$exit_code"
 fi
+# POLLER_OSQUERYI_EXIT_AFTER_OUTPUT models a FAILED query that still printed
+# healthy-looking JSON (rows emitted, then a nonzero death). A failed probe's
+# output is untrustworthy; the poller must refuse it, not baseline it.
+if [[ -n ${POLLER_OSQUERYI_EXIT_AFTER_OUTPUT:-} ]]; then
+  printf '%s\n' "${POLLER_OSQUERYI_JSON:-[]}"
+  exit "$POLLER_OSQUERYI_EXIT_AFTER_OUTPUT"
+fi
 printf '%s\n' "${POLLER_OSQUERYI_JSON:-[]}"
 SHIM
   chmod +x "$POLLER_HOME/bin/osqueryi"

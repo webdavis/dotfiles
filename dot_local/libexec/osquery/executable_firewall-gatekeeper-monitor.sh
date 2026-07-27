@@ -83,12 +83,22 @@ run_bounded() {
 
 # Read the built-in posture trio in a single combined query (one osqueryi
 # startup per tick, not one per protection). screenlock is folded in per R2-3.
-posture=$(run_bounded "$OSQUERYI" --json "
+# The exit status is captured, never erased: a FAILED osqueryi can still print
+# healthy-looking JSON, and believing it would advance the baseline on
+# untrustworthy data. Any nonzero exit, like any parse failure, empties the
+# read, so the whole trio routes to the monitoring-gap gate below -- the same
+# indeterminate-on-nonzero discipline the declared-control readers follow.
+posture_rc=0
+posture_raw=$(run_bounded "$OSQUERYI" --json "
   SELECT
     (SELECT global_state FROM alf) AS firewall,
     (SELECT assessments_enabled FROM gatekeeper) AS gatekeeper,
     (SELECT enabled FROM screenlock) AS screenlock
-" 2>/dev/null | jq -c '.[0] // empty' 2>/dev/null || true)
+" 2>/dev/null) || posture_rc=$?
+posture=""
+if [[ $posture_rc -eq 0 ]]; then
+  posture=$(jq -c '.[0] // empty' <<<"$posture_raw" 2>/dev/null) || posture=""
+fi
 
 cur_fw=$(jq -r '.firewall // empty' <<<"$posture" 2>/dev/null || echo "")
 cur_gk=$(jq -r '.gatekeeper // empty' <<<"$posture" 2>/dev/null || echo "")
