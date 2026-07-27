@@ -69,6 +69,37 @@ run_ssh_hardening() {
   SSH_RUN_ERR="$(cat "$err_file")"
 }
 
+# run_ssh_hardening_bounded <seconds> <args...>: run_ssh_hardening with a wall
+# clock. If the script has not finished inside <seconds> it is killed and
+# SSH_RUN_TIMED_OUT is set to 1, so a test can assert TERMINATION as a
+# property instead of hanging the whole suite.
+#
+# No timeout(1): coreutils is not on a stock macOS runner, and a bound that
+# only holds where Homebrew is installed is not a bound.
+# shellcheck disable=SC2034  # the run results are read by the sourcing test
+run_ssh_hardening_bounded() {
+  local limit="$1"
+  shift
+  local out_file="$SSH_SANDBOX/run.out" err_file="$SSH_SANDBOX/run.err"
+  local child waited=0 deadline=$((limit * 10))
+  SSH_RUN_TIMED_OUT=0
+  SSH_RUN_STATUS=0
+  /bin/bash "$SSH_HARDENING_SCRIPT" "$@" >"$out_file" 2>"$err_file" &
+  child=$!
+  while kill -0 "$child" 2>/dev/null; do
+    if [[ $waited -ge $deadline ]]; then
+      kill -9 "$child" 2>/dev/null || true
+      SSH_RUN_TIMED_OUT=1
+      break
+    fi
+    sleep 0.1
+    waited=$((waited + 1))
+  done
+  wait "$child" 2>/dev/null || SSH_RUN_STATUS=$?
+  SSH_RUN_OUT="$(cat "$out_file")"
+  SSH_RUN_ERR="$(cat "$err_file")"
+}
+
 # write_hostile_apple_conf: a 100-macos.conf that reopens EVERY hole the
 # drop-in closes. Deliberately hostile, unlike the benign file Apple really
 # ships (which sets only UsePAM, AcceptEnv, and the sftp Subsystem): the

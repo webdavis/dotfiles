@@ -45,8 +45,30 @@ SSHD_BIN="${SSHD_BIN:-/usr/sbin/sshd}"
 # which is how tests write into a user-owned sandbox without privilege.
 SSH_HARDENING_SUDO="${SSH_HARDENING_SUDO-sudo}"
 
+# sshd resolves a RELATIVE Include argument against its compiled-in
+# configuration directory, not the working directory (verified two ways: a
+# matching file in the working directory is ignored, and `Include
+# sshd_config.d/*` from a sandbox main config reproduces the live /etc/ssh
+# resolution exactly). That directory is the one holding the default main
+# config, so deriving it from SSHD_MAIN_CONFIG is faithful in production and
+# follows the seam in a sandbox.
+SSHD_CONFIG_DIR="${SSHD_MAIN_CONFIG%/*}"
+if [[ $SSHD_CONFIG_DIR == "$SSHD_MAIN_CONFIG" ]]; then
+  SSHD_CONFIG_DIR='.'
+fi
+
 DROPIN_NAME="000-ssh-hardening.conf"
 LEGACY_DROPIN_NAME="50-no-password-auth.conf"
+
+# sshd refuses a configuration nested deeper than this many Include levels
+# ("Too many recursive configuration includes"; measured: a chain of 16 files
+# below the main config is refused, 15 is accepted). The scan stops at the
+# same depth and FAILS rather than returning quietly, so an include bomb
+# cannot shrink the scanned set into a pass. Drop-in roots are entered at
+# depth 0 where sshd reaches them at depth 1, which makes the scan tolerate
+# one level more than sshd from that root -- harmless, because a tree sshd
+# refuses fails check_global anyway.
+MAX_INCLUDE_DEPTH=15
 
 # The five protected directives and their required values, lowercase exactly
 # as `sshd -G` prints them. Parallel arrays because the deployed interpreter
@@ -127,13 +149,28 @@ EOF
 #      Catches a global re-enable anywhere in the include chain, including a
 #      sibling that sorts before the drop-in (first-value-wins). It cannot
 #      see Match blocks at all, which is why the next two exist.
-#   2. check_match_scan: a raw scan of the main config and every drop-in for
-#      a Match block that re-enables a protected directive. The completeness
-#      net: it flags ANY Match-scoped re-enable, including forms on subnets
-#      or users the connection samples below never probe.
+#   2. check_match_scan: a text scan for a Match block that re-enables a
+#      protected directive, walking the SAME include graph sshd walks.
 #   3. check_connection_specs: per-connection resolution via
 #      `sshd -G -T -C`. Proves Match blocks RESOLVE hardened for concrete
-#      connections (root and the invoking user); samples only, by nature.
+#      connections (root and the invoking user).
+#
+# What these three do and do NOT cover, stated plainly because the comment
+# that used to sit here claimed a completeness the code did not have. It
+# called the scan "the completeness net", and readers stopped checking:
+#
+#   - The connection specs are SAMPLES. Two loopback connections. A Match
+#     block scoped to any other address or user is not resolved by them at
+#     all, by construction, and no number of samples changes that.
+#   - The scan is not a completeness proof either. It is a text scan whose
+#     fidelity is bounded by how exactly the tokenizer matches sshd's own
+#     parser and how exactly the Include walk matches sshd's. Both were
+#     derived from the behaviour of the real binary rather than from the
+#     manual page, and the forms sshd REJECTS are left to check_global: a
+#     file sshd refuses fails `sshd -G`, which is check_global's whole job.
+#   - Where the scan cannot see -- an unreadable file, a listing it could not
+#     build, an Include cycle, a chain deeper than sshd accepts -- it FAILS
+#     rather than scanning a subset and reporting clean.
 #
 # Any check that cannot run FAILS the verify. A skip exists only behind the
 # SSH_HARDENING_ALLOW_MISSING_SSHD test seam and never claims verified.
@@ -141,7 +178,19 @@ EOF
 VERIFY_FAILURES=()
 VERIFY_SKIPPED=0
 
+# add_failure <message>: record a problem once. The include graph is walked
+# from both roots, so a drop-in reached through the main config's Include and
+# again as a root of its own would otherwise report every problem twice and
+# inflate the count the summary prints.
 add_failure() {
+  local existing
+  if [[ ${#VERIFY_FAILURES[@]} -gt 0 ]]; then
+    for existing in "${VERIFY_FAILURES[@]}"; do
+      if [[ $existing == "$1" ]]; then
+        return 0
+      fi
+    done
+  fi
   VERIFY_FAILURES+=("$1")
 }
 
@@ -319,13 +368,83 @@ parse_config_line() {
   return 0
 }
 
-# scan_file_for_match_reenable <file>: flag every protected directive set to a
-# non-required value inside a Match block. The deprecated
-# ChallengeResponseAuthentication alias still flips kbdinteractiveauthentication
-# in sshd, so it is folded onto its target. A Match block does NOT extend into
-# the next included file, so the in-Match state is per file.
-scan_file_for_match_reenable() {
-  local file="$1" in_match=0 key value status=0 line
+# scan_included_files <including file> <in-match> <depth> <chain>: follow the
+# Include whose arguments are sitting in PARSED_ARGS.
+#
+# Include semantics, every one measured against OpenSSH 10.0p2 rather than
+# assumed:
+#
+#   - The Match state in force where the Include appears APPLIES INSIDE the
+#     included file. An `Include` under `Match Address *,!127.0.0.1` really
+#     does re-enable password authentication for off-loopback addresses. The
+#     comment that used to sit here claimed the opposite, and it was wrong:
+#     the probe behind it tested a Match not reaching the NEXT included file,
+#     which is a different question with a different answer.
+#   - A Match opened inside the included file does NOT persist back into the
+#     including file once the Include returns. The state is therefore passed
+#     down by value, and the caller's copy is deliberately left alone.
+#   - One Include line may carry several paths, applied left to right.
+#   - A relative path resolves against sshd's configuration directory, not the
+#     working directory.
+#   - A path matching nothing is ignored, exactly as sshd ignores it. A file
+#     that exists but cannot be read is fatal to sshd, and scan_config_file
+#     treats it as fatal too.
+scan_included_files() {
+  local from="$1" in_match="$2" depth="$3" chain="$4"
+  local pattern resolved old_ifs
+  local -a patterns matches
+  patterns=()
+  if [[ ${#PARSED_ARGS[@]} -gt 0 ]]; then
+    patterns=("${PARSED_ARGS[@]}")
+  fi
+  if [[ ${#patterns[@]} -eq 0 ]]; then
+    add_failure "match scan: '$from' has an Include with no path; failing closed rather than guessing what it pulls in"
+    return 0
+  fi
+  for pattern in "${patterns[@]}"; do
+    case $pattern in
+      /*) ;;
+      *) pattern="$SSHD_CONFIG_DIR/$pattern" ;;
+    esac
+    # IFS=newline so a path containing spaces survives the split while the
+    # glob still expands: pathname expansion produces its own fields whatever
+    # IFS holds. A pattern matching nothing stays literal and is dropped by
+    # the -f test below, which is what sshd does with it.
+    old_ifs="$IFS"
+    IFS=$'\n'
+    # shellcheck disable=SC2206  # deliberate glob expansion of the Include pattern
+    matches=($pattern)
+    IFS="$old_ifs"
+    if [[ ${#matches[@]} -eq 0 ]]; then
+      continue
+    fi
+    for resolved in "${matches[@]}"; do
+      if [[ ! -f $resolved ]]; then
+        continue
+      fi
+      scan_config_file "$resolved" "$in_match" "$((depth + 1))" "$chain"
+    done
+  done
+}
+
+# scan_config_file <file> <in-match> <depth> <chain>: flag every protected
+# directive set to a non-required value inside a Match block, following Include
+# as it goes. <chain> is the '|'-delimited list of files already open on this
+# include path, so a cycle is reported rather than walked.
+scan_config_file() {
+  local file="$1" in_match="$2" depth="$3" chain="$4"
+  local key value status=0 line
+  if [[ $depth -gt $MAX_INCLUDE_DEPTH ]]; then
+    add_failure "match scan: '$file' sits more than $MAX_INCLUDE_DEPTH Include levels deep; sshd refuses a tree that deep and this scan refuses to report on part of one"
+    return 0
+  fi
+  case $chain in
+    *"|$file|"*)
+      add_failure "match scan: Include cycle returning to '$file'; failing closed rather than scanning part of the tree"
+      return 0
+      ;;
+  esac
+  chain="$chain$file|"
   if [[ ! -r $file ]]; then
     add_failure "match scan: cannot read '$file'; failing closed rather than treating it as clean"
     return 0
@@ -333,6 +452,10 @@ scan_file_for_match_reenable() {
   # Read the file directly. No here-string: bash materializes one in a
   # temporary file, so a full or unwritable TMPDIR would feed the loop zero
   # lines and the scan would report a hostile file clean.
+  #
+  # shellcheck disable=SC2094  # $file is passed to the recursive call for the
+  # message it prints; nothing in this verifier ever opens a config file for
+  # writing, and the scan is read-only by design.
   while IFS= read -r line || [[ -n $line ]]; do
     if ! parse_config_line "$line"; then
       continue
@@ -340,6 +463,10 @@ scan_file_for_match_reenable() {
     key="$PARSED_KEYWORD"
     if [[ $key == match ]]; then
       in_match=1
+      continue
+    fi
+    if [[ $key == include ]]; then
+      scan_included_files "$file" "$in_match" "$depth" "$chain"
       continue
     fi
     if [[ $in_match -ne 1 ]]; then
@@ -362,12 +489,19 @@ scan_file_for_match_reenable() {
 
 check_match_scan() {
   local file
+  # Two roots, each walked with Include followed from it. The main config is
+  # where sshd starts, so everything sshd reads is reachable from it. The
+  # drop-in directory is kept as a second root so a drop-in stays covered even
+  # if the main config is unreadable or its Include pattern resolves
+  # differently than this scan computes; a file reached from both roots
+  # reports once (see add_failure).
+  #
   # The include order is lexical byte order; LC_ALL=C sort mirrors it. A
   # config file name containing a newline would break this listing; sshd's
   # own glob handling shares the no-newline assumption.
   while IFS= read -r file; do
     [[ -n $file && -f $file ]] || continue
-    scan_file_for_match_reenable "$file"
+    scan_config_file "$file" 0 0 '|'
   done < <(printf '%s\n' "$SSHD_MAIN_CONFIG" "$SSHD_CONFIG_D"/* | LC_ALL=C sort -u)
 }
 
