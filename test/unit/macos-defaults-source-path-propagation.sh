@@ -268,45 +268,4 @@ grep -qF 'set but empty' "$work/err" ||
 [[ -z $output ]] ||
   fail "empty override: a rejected override must print no directory (got '$output')"
 
-# ---- case 8: every record field maps to its documented column ---------------
-# defaults_records_tsv is the one function all three tools share, so a field-order
-# or field-selection slip in its yq expression corrupts every tool at once. The
-# per-field assertions below fail on any swap; a whole-line substring match would
-# not, because a swapped domain and key still contain both strings.
-records_yaml="$work/records.yaml"
-cat >"$records_yaml" <<'EOF'
-macos:
-  defaults:
-    - domain: com.example.alpha
-      key: AlphaKey
-      type: bool
-      value: "true"
-      host: currentHost
-    - domain: com.example.beta
-      key: BetaKey
-      type: string
-      value: BetaValue
-EOF
-status=0
-records="$(bash -c 'source "$1"; defaults_records_tsv "$2"' _ "$LIB" "$records_yaml" 2>"$work/err")" || status=$?
-[[ $status -eq 0 ]] ||
-  fail "record shape: defaults_records_tsv must succeed on a well-formed file (got $status, stderr: $(cat "$work/err"))"
-
-line_one="$(printf '%s\n' "$records" | sed -n '1p')"
-IFS=$'\t' read -r got_domain got_key got_type got_value got_host <<<"$line_one"
-[[ $got_domain == com.example.alpha ]] || fail "record shape: column 1 must be the domain (got '$got_domain')"
-[[ $got_key == AlphaKey ]] || fail "record shape: column 2 must be the key (got '$got_key')"
-[[ $got_type == bool ]] || fail "record shape: column 3 must be the type (got '$got_type')"
-[[ $got_value == true ]] || fail "record shape: column 4 must be the value (got '$got_value')"
-[[ $got_host == currentHost ]] || fail "record shape: column 5 must be the host (got '$got_host')"
-
-# A record with no host must still yield the other four columns, with host empty.
-line_two="$(printf '%s\n' "$records" | sed -n '2p')"
-IFS=$'\t' read -r got_domain got_key got_type got_value got_host <<<"$line_two"
-[[ $got_domain == com.example.beta ]] || fail "record shape: hostless column 1 must be the domain (got '$got_domain')"
-[[ $got_key == BetaKey ]] || fail "record shape: hostless column 2 must be the key (got '$got_key')"
-[[ $got_type == string ]] || fail "record shape: hostless column 3 must be the type (got '$got_type')"
-[[ $got_value == BetaValue ]] || fail "record shape: hostless column 4 must be the value (got '$got_value')"
-[[ -z $got_host ]] || fail "record shape: an absent host must read back empty (got '$got_host')"
-
-printf 'macos-defaults-source-path-propagation: OK (control resolves; both branches propagate a failed source-path; an empty resolution fails closed with status 2; an inherited git context cannot retarget; a marked tree without data resolves to itself; a set-but-empty override is rejected; every record column maps to its documented field)\n'
+printf 'macos-defaults-source-path-propagation: OK (control resolves; both branches propagate a failed source-path; an empty resolution fails closed with status 2; an inherited git context cannot retarget; a marked tree without data resolves to itself; a set-but-empty override is rejected)\n'

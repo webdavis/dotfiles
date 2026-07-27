@@ -99,24 +99,6 @@ require_readable_data_file() { # <path>
   fi
 }
 
-# defaults_records_tsv <path>, emit each tracked record as one tab-separated line:
-#   domain<TAB>key<TAB>type<TAB>value<TAB>host    (host empty when global).
-# yq emits a single blank line for an empty array, which callers skip.
-#
-# KNOWN LIMITATION, carried unchanged from the pre-extraction code so this
-# refactor stays behavior-preserving. Callers read with IFS=$'\t', and tab is IFS
-# *whitespace*, so bash collapses runs of tabs. Only a TRAILING empty field
-# survives: an empty host reads back empty as intended. An empty INTERIOR field
-# does not. A record with an empty value would collapse its two adjacent tabs and
-# shift host left into value, applying the host string as the setting's value
-# against the global domain. No tracked record has an empty value today, so this
-# is latent rather than live. The fix is a non-whitespace delimiter and is its own
-# slice, which now changes this one function instead of every caller.
-defaults_records_tsv() { # <path>
-  local data_file="$1"
-  yq eval -r '.macos.defaults[] | [.domain, .key, .type, .value, (.host // "")] | @tsv' "$data_file"
-}
-
 # defaults_records_unit_separated <path>, emit each tracked record as one line
 # of SEVEN fields joined by the ASCII unit separator (0x1f):
 #   domain, key, type, value, host, scope, plist_path
