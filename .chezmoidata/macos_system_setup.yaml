@@ -86,6 +86,15 @@ macos:
     # macOS version there is nothing to enable. socketfilterfw has no logging
     # flag, and firewall activity already flows to the unified log by default
     # (see the runbook section "Firewall log diagnostics" for viewing it).
+    #
+    # SSH: the drop-in write is enforce-tier because it is INERT for a running
+    # sshd (the configuration is re-read only on restart); the disruptive
+    # reload is a separate control and is deliberately not declared here. No
+    # sudo prefix: the script escalates per operation itself (covered by the
+    # runner's upfront sudo -v), and its verification runs unprivileged.
+    - description: "SSH: install the public-key-only sshd drop-in (000-ssh-hardening.conf) and verify the effective configuration"
+      command: '"$HOME/.local/bin/ssh-hardening.sh"'
+      tier: enforce
   tailnet_pins:
     - fqdn: mister.tail2f2430.ts.net
       ip: "100.109.58.54"
