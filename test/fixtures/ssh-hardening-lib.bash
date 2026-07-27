@@ -113,8 +113,38 @@ KbdInteractiveAuthentication yes
 UsePAM no
 PubkeyAuthentication no
 PermitRootLogin yes
+GSSAPIAuthentication yes
+HostbasedAuthentication yes
 EOF
 }
+
+# The protected directives and the value policy demands, as one list every
+# test iterates. Kept here so adding a directive to the policy cannot leave a
+# guard silently checking the old, shorter set.
+# shellcheck disable=SC2034  # read by the sourcing tests, not by this library
+SSH_HARDENED_PAIRS=(
+  'passwordauthentication no'
+  'kbdinteractiveauthentication no'
+  'usepam yes'
+  'pubkeyauthentication yes'
+  'permitrootlogin no'
+  'gssapiauthentication no'
+  'hostbasedauthentication no'
+)
+
+# The value the hostile 100-macos.conf above sets for each of those, in the
+# same order: the exact opposite, so precedence is proven against the worst
+# case rather than against a file that agrees with policy by accident.
+# shellcheck disable=SC2034  # read by the sourcing tests, not by this library
+SSH_HOSTILE_PAIRS=(
+  'passwordauthentication yes'
+  'kbdinteractiveauthentication yes'
+  'usepam no'
+  'pubkeyauthentication no'
+  'permitrootlogin yes'
+  'gssapiauthentication yes'
+  'hostbasedauthentication yes'
+)
 
 # effective_global_value <lowercase-key>: the test's OWN sshd -G resolution
 # against the sandbox tree, independent of the script under test. Prints the

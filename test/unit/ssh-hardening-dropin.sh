@@ -3,7 +3,7 @@
 # seam everything else stands on (slice 7).
 #
 # The properties pinned, one per acceptance criterion:
-#   1. --print-config emits ALL FIVE accepted directives (asserted one by one:
+#   1. --print-config emits EVERY accepted directive (asserted one by one:
 #      completeness over counting), each exactly once among the non-comment
 #      lines with its accepted value, so no conflicting directive can hide.
 #      No privilege escalation, no write.
@@ -42,13 +42,16 @@ run_ssh_hardening --print-config
 [[ $SSH_RUN_STATUS -eq 0 ]] ||
   fail "--print-config must exit 0, got $SSH_RUN_STATUS (stderr: $SSH_RUN_ERR)"
 
-# All five accepted lines, each asserted individually.
+# Every accepted line, each asserted individually. The list is the shared one,
+# so a directive added to policy cannot leave this guard checking a short set.
 for accepted_line in \
   'PasswordAuthentication no' \
   'KbdInteractiveAuthentication no' \
   'UsePAM yes' \
   'PubkeyAuthentication yes' \
-  'PermitRootLogin no'; do
+  'PermitRootLogin no' \
+  'GSSAPIAuthentication no' \
+  'HostbasedAuthentication no'; do
   grep -qxF "$accepted_line" <<<"$SSH_RUN_OUT" ||
     fail "--print-config must emit '$accepted_line' (got: $SSH_RUN_OUT)"
 done
@@ -58,7 +61,8 @@ done
 # second occurrence with a hostile value cannot ride along.
 noncomment_lines="$(grep -Ev '^[[:space:]]*(#|$)' <<<"$SSH_RUN_OUT")"
 for keyword in PasswordAuthentication KbdInteractiveAuthentication UsePAM \
-  PubkeyAuthentication PermitRootLogin; do
+  PubkeyAuthentication PermitRootLogin GSSAPIAuthentication \
+  HostbasedAuthentication; do
   occurrences="$(grep -icE "^[[:space:]]*${keyword}([[:space:]=]|$)" \
     <<<"$noncomment_lines")" || true
   [[ $occurrences -eq 1 ]] ||
@@ -91,4 +95,4 @@ first_sorted="$(printf '%s\n%s\n' "$dropin_name" '100-macos.conf' |
 assert_no_sudo_and_no_sandbox_write '--print-path' "$baseline_listing" ||
   fail '--print-path must be pure'
 
-printf 'ssh-hardening-dropin: OK (both pure modes: five directives exactly once, 000- name sorts before 100-macos.conf, no escalation, no writes)\n'
+printf 'ssh-hardening-dropin: OK (both pure modes: every directive exactly once, 000- name sorts before 100-macos.conf, no escalation, no writes)\n'

@@ -61,12 +61,7 @@ grep -qi 'verified' <<<"$SSH_RUN_OUT" ||
   fail "install must report the effective configuration verified (stdout: $SSH_RUN_OUT)"
 
 # The independent judge: the test's own sshd -G, not the script's verifier.
-for pair in \
-  'passwordauthentication no' \
-  'kbdinteractiveauthentication no' \
-  'usepam yes' \
-  'pubkeyauthentication yes' \
-  'permitrootlogin no'; do
+for pair in "${SSH_HARDENED_PAIRS[@]}"; do
   key="${pair%% *}"
   want="${pair##* }"
   got="$(effective_global_value "$key")" ||

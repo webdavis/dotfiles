@@ -70,13 +70,34 @@ LEGACY_DROPIN_NAME="50-no-password-auth.conf"
 # refuses fails check_global anyway.
 MAX_INCLUDE_DEPTH=15
 
-# The five protected directives and their required values, lowercase exactly
-# as `sshd -G` prints them. Parallel arrays because the deployed interpreter
-# is the system bash 3.2, which has no associative arrays; every test drives
-# this script through /bin/bash so a newer-bash-ism fails there.
+# The protected directives and their required values, lowercase exactly as
+# `sshd -G` prints them. Parallel arrays because the deployed interpreter is
+# the system bash 3.2, which has no associative arrays; every test drives this
+# script through /bin/bash so a newer-bash-ism fails there.
+#
+# The set is derived from the userauth methods this sshd actually offers, not
+# from a list of familiar directives. `strings /usr/sbin/sshd` names six:
+# none, password, keyboard-interactive, publickey, gssapi-with-mic, hostbased.
+#
+#   password              closed by passwordauthentication no
+#   keyboard-interactive  closed by kbdinteractiveauthentication no
+#   none                  succeeds only when PasswordAuthentication and
+#                         PermitEmptyPasswords are BOTH on, so the first
+#                         directive closes it
+#   publickey             the one method deliberately left open
+#   gssapi-with-mic       closed by nothing above
+#   hostbased             closed by nothing above
+#
+# The last two are why this list is seven long and not five. Both default to
+# no, and a default is not a policy: both are settable inside a Match block
+# (verified by resolving `sshd -G -T -C` against a tree that sets them there),
+# so with only the first five named, `Match Address *,!127.0.0.1` plus
+# `GSSAPIAuthentication yes` gave a second authentication method on every
+# off-loopback connection while the verify reported the tree fully hardened.
 PROTECTED_KEYS=(passwordauthentication kbdinteractiveauthentication usepam
-  pubkeyauthentication permitrootlogin)
-PROTECTED_VALUES=(no no yes yes no)
+  pubkeyauthentication permitrootlogin gssapiauthentication
+  hostbasedauthentication)
+PROTECTED_VALUES=(no no yes yes no no no)
 
 # Keywords sshd accepts as ALIASES for a protected directive. Enumerated, not
 # recalled: every lowercase keyword string in the sshd binary was extracted and
@@ -133,11 +154,19 @@ print_config() {
 # precisely because no password path remains for PAM to authenticate.
 # PermitRootLogin no is strictly tighter than the without-password default,
 # which still allows root login BY KEY.
+#
+# GSSAPIAuthentication and HostbasedAuthentication are the other two userauth
+# methods this sshd offers. Both default to no, but a default is not a policy:
+# both can be turned on inside a Match block, and none of the directives above
+# constrain them. Naming them is what makes "public-key-only" a statement
+# about this file rather than a hope about the defaults.
 PasswordAuthentication no
 KbdInteractiveAuthentication no
 UsePAM yes
 PubkeyAuthentication yes
 PermitRootLogin no
+GSSAPIAuthentication no
+HostbasedAuthentication no
 EOF
 }
 
@@ -234,7 +263,7 @@ required_value() {
 
 # assert_output_hardened <check-label> <sshd -G output>: every protected
 # directive must be present with its required value. Three outcomes per key,
-# each named: correct, wrong value, absent. All five are asserted
+# each named: correct, wrong value, absent. Every one is asserted
 # individually; completeness beats counting.
 assert_output_hardened() {
   local label="$1" output="$2" i key want got
@@ -548,7 +577,9 @@ verify() {
     printf '  - %s\n' "${VERIFY_FAILURES[@]}" >&2
     return 1
   fi
-  printf '[ssh-hardening] verify: PASS: all five directives hold globally, no Match block re-enables any of them, and both sampled connections resolve hardened.\n'
+  # The count comes from the array, so a directive added to policy cannot
+  # leave the success line claiming a number nobody checked.
+  printf '[ssh-hardening] verify: PASS: all %d protected directives hold globally, no Match block in the include graph re-enables any of them, and both sampled connections resolve hardened.\n' "${#PROTECTED_KEYS[@]}"
 }
 
 # --- install -----------------------------------------------------------------

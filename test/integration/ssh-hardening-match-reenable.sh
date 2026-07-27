@@ -218,4 +218,22 @@ run_reenable_case 'm: DSAAuthentication alias' \
   "$off_sample_spec" pubkeyauthentication no \
   'Match all' 'DSAAuthentication no'
 
+# n and o. The two userauth methods the password-and-key directives do not
+# reach. `strings /usr/sbin/sshd` lists six methods this binary offers -- none,
+# password, keyboard-interactive, publickey, gssapi-with-mic, hostbased -- and
+# the first four are settled by PasswordAuthentication,
+# KbdInteractiveAuthentication and PubkeyAuthentication. gssapi-with-mic and
+# hostbased are settled by nothing, and both default to no. A default is not a
+# policy: both are settable inside a Match block, which is exactly what these
+# two cases do.
+run_reenable_case 'n: GSSAPIAuthentication inside a Match block' \
+  "match scan: '$hostile_file' sets 'gssapiauthentication yes'" \
+  "$off_sample_spec" gssapiauthentication yes \
+  'Match Address *,!127.0.0.1' 'GSSAPIAuthentication yes'
+
+run_reenable_case 'o: HostbasedAuthentication inside a Match block' \
+  "match scan: '$hostile_file' sets 'hostbasedauthentication yes'" \
+  "$off_sample_spec" hostbasedauthentication yes \
+  'Match Address *,!127.0.0.1' 'HostbasedAuthentication yes'
+
 printf 'ssh-hardening-match-reenable: OK (every Match bypass form resolves unsafe under real sshd and fails --verify loudly; clean tree passes before and after every case)\n'

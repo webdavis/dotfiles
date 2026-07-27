@@ -48,12 +48,7 @@ hardened_content="$SSH_RUN_OUT"
 old_name_file="$SSHD_CONFIG_D/50-no-password-auth.conf"
 printf '%s\n' "$hardened_content" >"$old_name_file"
 
-for pair in \
-  'passwordauthentication yes' \
-  'kbdinteractiveauthentication yes' \
-  'usepam no' \
-  'pubkeyauthentication no' \
-  'permitrootlogin yes'; do
+for pair in "${SSH_HOSTILE_PAIRS[@]}"; do
   key="${pair%% *}"
   hostile_value="${pair##* }"
   got="$(effective_global_value "$key")" || fail 'sshd -G failed in phase A'
@@ -72,12 +67,7 @@ new_name_file="$SSH_RUN_OUT"
   fail "--print-path must resolve inside the sandbox tree, got '$new_name_file'"
 printf '%s\n' "$hardened_content" >"$new_name_file"
 
-for pair in \
-  'passwordauthentication no' \
-  'kbdinteractiveauthentication no' \
-  'usepam yes' \
-  'pubkeyauthentication yes' \
-  'permitrootlogin no'; do
+for pair in "${SSH_HARDENED_PAIRS[@]}"; do
   key="${pair%% *}"
   want="${pair##* }"
   got="$(effective_global_value "$key")" || fail 'sshd -G failed in phase B'
