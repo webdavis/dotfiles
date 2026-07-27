@@ -498,8 +498,10 @@ render_template "$TIER2_TEMPLATE" "$verify_payload_src" "$sandbox/rendered-smugg
   fail 'a verify system_setup record carrying a command must fail the render'
 assert_file_contains "$render_error" 'carries command' \
   "the refusal must name the smuggled command field (stderr: $(cat "$render_error"))"
-refute_file_contains "$sandbox/rendered-smuggled" 'printf smuggled-write-ran' \
-  'the smuggled command must never reach the rendered runner'
+# Deliberately NOT asserted: that the rejected render's output file lacks the
+# smuggled command. The required failure above already dies if the render
+# succeeds, and a failed render's stdout is empty by chezmoi's buffering (see
+# the note on the reject helpers), so that refute could never fail.
 
 assert_tier2_rejects 'manual system_setup record carrying command' \
   'carries command' 'manual record smuggling a command' <<'EOF'
