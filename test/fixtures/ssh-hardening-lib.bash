@@ -22,6 +22,12 @@
 # Path to the script under test, resolved from this library's location.
 SSH_HARDENING_SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/dot_local/bin/executable_ssh-hardening.sh"
 
+# A literal carriage return, for fixtures that exercise sshd's whitespace set
+# (misc.c WHITESPACE is " \t\r\n"). Named because a bare $'\r' inside a
+# fixture line is invisible in a diff and in a terminal.
+# shellcheck disable=SC2034  # read by the sourcing test, not by this library
+SSH_CARRIAGE_RETURN=$'\r'
+
 # ssh_sandbox_setup: build the scratch tree and export the seams.
 # Exports SSH_SANDBOX, SSHD_CONFIG_D, SSHD_MAIN_CONFIG, SSH_HARDENING_SUDO,
 # SSH_SUDO_SPY_LOG; prepends the failing sudo stub to PATH.
@@ -89,6 +95,19 @@ effective_global_value() {
     return 1
   }
   printf '%s\n' "$output" | awk -v k="$1" '$1 == k { print $2; exit }'
+}
+
+# effective_spec_value <connection-spec> <lowercase-key>: the same independent
+# resolution, but for one CONNECTION, so a Match block is applied. This is what
+# turns a hostile fixture from an assertion about text into a demonstration:
+# real sshd really does resolve the unsafe value for that spec.
+effective_spec_value() {
+  local output
+  output="$(/usr/sbin/sshd -G -T -C "$1" -f "$SSHD_MAIN_CONFIG" 2>&1)" || {
+    printf 'sshd -G -T -C %s failed: %s\n' "$1" "$output" >&2
+    return 1
+  }
+  printf '%s\n' "$output" | awk -v k="$2" '$1 == k { print $2; exit }'
 }
 
 # assert_no_sudo_and_no_sandbox_write <label> <expected-listing>: the sudo spy

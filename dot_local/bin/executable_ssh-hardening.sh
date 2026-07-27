@@ -31,6 +31,13 @@
 #                       unrunnable verifier fails closed.
 set -euo pipefail
 
+# sshd matches configuration keywords AND their yes/no arguments
+# case-insensitively: `PASSWORDauthentication YES` inside a Match block
+# resolves to yes on OpenSSH 10.0p2. nocasematch lets every [[ ]] and case
+# comparison below mirror that. The raw line is NEVER case-folded, because
+# Include arguments are filenames and must keep their case.
+shopt -s nocasematch
+
 SSHD_CONFIG_D="${SSHD_CONFIG_D:-/etc/ssh/sshd_config.d}"
 SSHD_MAIN_CONFIG="${SSHD_MAIN_CONFIG:-/etc/ssh/sshd_config}"
 SSHD_BIN="${SSHD_BIN:-/usr/sbin/sshd}"
@@ -118,13 +125,23 @@ add_failure() {
   VERIFY_FAILURES+=("$1")
 }
 
-# required_value <lowercase-key>: print the required value, or return 1 for a
-# key that is not protected.
+# required_value <key>: for a protected directive, set MATCHED_PROTECTED_KEY to
+# its canonical lowercase spelling and REQUIRED_VALUE to the value policy
+# demands, then return 0. Return 1 for a key that is not protected.
+#
+# Globals rather than a printed result for two reasons: this runs once per
+# in-Match directive line, and a command substitution per line is a fork per
+# line; and the canonical spelling is what every failure message should name,
+# so a file writing `PASSWORDauthentication` is reported against the same
+# directive name as one writing it in lowercase.
+MATCHED_PROTECTED_KEY=''
+REQUIRED_VALUE=''
 required_value() {
   local i
   for i in "${!PROTECTED_KEYS[@]}"; do
     if [[ $1 == "${PROTECTED_KEYS[$i]}" ]]; then
-      printf '%s\n' "${PROTECTED_VALUES[$i]}"
+      MATCHED_PROTECTED_KEY="${PROTECTED_KEYS[$i]}"
+      REQUIRED_VALUE="${PROTECTED_VALUES[$i]}"
       return 0
     fi
   done
@@ -161,37 +178,153 @@ check_global() {
   assert_output_hardened 'global check' "$output"
 }
 
+# --- sshd configuration tokenizer --------------------------------------------
+# OpenSSH 10.0p2 splits a configuration line the way strdelim() does: space,
+# tab and CARRIAGE RETURN all separate tokens; a token that opens with a
+# double quote runs to its closing quote; and a single '=' may stand in for
+# the whitespace after the keyword. Every one of those forms was confirmed to
+# parse AND to resolve the unsafe value against the real binary, including the
+# two that defeated the previous scanner:
+#
+#   "PasswordAuthentication" yes      quotes around the KEYWORD, not the value
+#   Match<CR>Address *,!127.0.0.1     a carriage return inside the Match line
+#
+# Vertical tab, form feed, a second '=', a quote in the middle of a keyword
+# and a whole-line quote are all REJECTED by sshd (also verified), so they
+# need no handling here: a file carrying them fails `sshd -G`, and reporting
+# that is check_global's job.
+#
+# The line is tokenized rather than bulk-normalized. Bulk normalization is
+# what let the quoted keyword through: quotes were stripped from the value
+# only, and a `tr` that folded case and separators could not tell a keyword
+# from a value in the first place.
+
+CONFIG_TAB=$'\t'
+CONFIG_CR=$'\r'
+TOKEN=''
+REST=''
+
+# next_token <break-on-equals: 0|1>: pull the next token off REST into TOKEN.
+# Returns 1 at end of line and 2 for an unterminated quote (a form sshd
+# rejects outright, so the file fails check_global).
+next_token() {
+  local break_equals="$1" char start_length="${#REST}"
+  while [[ -n $REST ]]; do
+    case $REST in
+      ' '* | "$CONFIG_TAB"* | "$CONFIG_CR"*) REST="${REST:1}" ;;
+      *) break ;;
+    esac
+  done
+  if [[ -z $REST ]]; then
+    return 1
+  fi
+  TOKEN=''
+  if [[ $REST == '"'* ]]; then
+    REST="${REST:1}"
+    case $REST in
+      *'"'*) ;;
+      *) return 2 ;;
+    esac
+    TOKEN="${REST%%\"*}"
+    REST="${REST#*\"}"
+    return 0
+  fi
+  while [[ -n $REST ]]; do
+    char="${REST:0:1}"
+    case $char in
+      ' ' | "$CONFIG_TAB" | "$CONFIG_CR" | '"') break ;;
+    esac
+    if [[ $break_equals -eq 1 && $char == '=' ]]; then
+      break
+    fi
+    TOKEN="$TOKEN$char"
+    REST="${REST:1}"
+  done
+  # A successful token must have consumed input. Reporting success without
+  # advancing REST would spin the caller's loop forever, and a verifier that
+  # HANGS never reports -- strictly worse than one that misreads a line. The
+  # quoted branch above means no input reaches here without advancing, so this
+  # is a guard against a future edit to that branch, not a live condition.
+  if [[ ${#REST} -eq $start_length ]]; then
+    return 1
+  fi
+  return 0
+}
+
+# parse_config_line <raw line>: fill PARSED_KEYWORD (quotes stripped) and
+# PARSED_ARGS. Returns 1 for a blank line, a comment, or a line sshd itself
+# would reject.
+PARSED_KEYWORD=''
+PARSED_ARGS=()
+parse_config_line() {
+  REST="$1"
+  PARSED_KEYWORD=''
+  PARSED_ARGS=()
+  if ! next_token 1; then
+    return 1
+  fi
+  PARSED_KEYWORD="$TOKEN"
+  # Only a '#' at the start of the first token opens a comment.
+  case $PARSED_KEYWORD in
+    '#'*) return 1 ;;
+  esac
+  # A single '=' may replace the whitespace after the keyword.
+  while [[ -n $REST ]]; do
+    case $REST in
+      ' '* | "$CONFIG_TAB"* | "$CONFIG_CR"*) REST="${REST:1}" ;;
+      *) break ;;
+    esac
+  done
+  if [[ $REST == '='* ]]; then
+    REST="${REST:1}"
+  fi
+  while next_token 0; do
+    PARSED_ARGS+=("$TOKEN")
+  done
+  return 0
+}
+
 # scan_file_for_match_reenable <file>: flag every protected directive set to a
-# non-required value inside a Match block. Normalization mirrors sshd's parser
-# (all verified against OpenSSH 10.0p2): keywords are case-insensitive, one
-# '=' may replace the separating whitespace, arguments may be double-quoted,
-# and the deprecated ChallengeResponseAuthentication alias still flips
-# kbdinteractiveauthentication. A Match block does NOT extend into the next
-# included file (verified empirically), so the in-Match state is per file.
+# non-required value inside a Match block. The deprecated
+# ChallengeResponseAuthentication alias still flips kbdinteractiveauthentication
+# in sshd, so it is folded onto its target. A Match block does NOT extend into
+# the next included file, so the in-Match state is per file.
 scan_file_for_match_reenable() {
-  local file="$1" in_match=0 key value _ want content status=0
-  content="$(tr '=\t' '  ' <"$file" | tr '[:upper:]' '[:lower:]')" || status=$?
-  if [[ $status -ne 0 ]]; then
+  local file="$1" in_match=0 key value status=0 line
+  if [[ ! -r $file ]]; then
     add_failure "match scan: cannot read '$file'; failing closed rather than treating it as clean"
     return 0
   fi
-  while read -r key value _; do
-    [[ -n $key ]] || continue
-    case $key in '#'*) continue ;; esac
+  # Read the file directly. No here-string: bash materializes one in a
+  # temporary file, so a full or unwritable TMPDIR would feed the loop zero
+  # lines and the scan would report a hostile file clean.
+  while IFS= read -r line || [[ -n $line ]]; do
+    if ! parse_config_line "$line"; then
+      continue
+    fi
+    key="$PARSED_KEYWORD"
     if [[ $key == match ]]; then
       in_match=1
       continue
     fi
-    [[ $in_match -eq 1 ]] || continue
-    value="${value#\"}"
-    value="${value%\"}"
+    if [[ $in_match -ne 1 ]]; then
+      continue
+    fi
+    if [[ ${#PARSED_ARGS[@]} -gt 0 ]]; then
+      value="${PARSED_ARGS[0]}"
+    else
+      value=''
+    fi
     if [[ $key == challengeresponseauthentication ]]; then
       key=kbdinteractiveauthentication
     fi
-    if want="$(required_value "$key")" && [[ $value != "$want" ]]; then
-      add_failure "match scan: '$file' sets '$key $value' inside a Match block (want '$want'); a Match-scoped re-enable bypasses the global check"
+    if required_value "$key" && [[ $value != "$REQUIRED_VALUE" ]]; then
+      add_failure "match scan: '$file' sets '$MATCHED_PROTECTED_KEY $value' inside a Match block (want '$REQUIRED_VALUE'); a Match-scoped re-enable bypasses the global check"
     fi
-  done <<<"$content"
+  done <"$file" || status=$?
+  if [[ $status -ne 0 ]]; then
+    add_failure "match scan: reading '$file' failed (exit $status); failing closed rather than treating a partial read as clean"
+  fi
 }
 
 check_match_scan() {
