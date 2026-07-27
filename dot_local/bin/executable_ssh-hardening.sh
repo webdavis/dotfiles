@@ -1064,15 +1064,28 @@ resolve_probe_ports() {
   fi
 }
 
+# banner_output_names_host_key <output>: at least one stdout line shaped like
+# a host-key record: three or more fields (host, key type, key material), not
+# opening a comment. The real ssh-keyscan prints exactly that shape for a
+# completed exchange and sends its chatter to stderr, so this is a
+# seam-contract check: an overridden KEYSCAN_BIN exiting 0 with arbitrary
+# text must not satisfy readiness. Deliberately loose beyond the shape (no
+# key-type allowlist): the artifact required is "a host-key record arrived",
+# not a catalogue of algorithms.
+banner_output_names_host_key() {
+  printf '%s\n' "$1" |
+    awk 'NF >= 3 && $1 !~ /^#/ { found = 1 } END { exit found ? 0 : 1 }'
+}
+
 # wait_for_ssh_banner: the readiness loop. One attempt probes EVERY resolved
 # port once; the bound is SSH_HARDENING_READY_ATTEMPTS attempts (see the seam
 # comment for what that bound does and does not promise). On success sets
 # READY_PORT to the port that answered and returns 0; after the bound is
 # exhausted returns 1 with READY_PORT empty. Success requires the probe's
-# exit status AND a banner on stdout: the status alone is a proxy, and a
-# probe that printed no key line proved nothing, whatever it exited. Every
-# child status is captured explicitly, so the loop's answer does not depend
-# on errexit (callers judging it inside `if !` have errexit off).
+# exit status AND a host-key record on stdout: the status alone is a proxy,
+# and a probe that printed no key record proved nothing, whatever it exited.
+# Every child status is captured explicitly, so the loop's answer does not
+# depend on errexit (callers judging it inside `if !` have errexit off).
 READY_PORT=''
 wait_for_ssh_banner() {
   local attempt=1 keyscan_status banner_output port status
@@ -1082,7 +1095,8 @@ wait_for_ssh_banner() {
       keyscan_status=0
       banner_output="$("$KEYSCAN_BIN" -T "$SSH_HARDENING_PROBE_TIMEOUT" -p "$port" 127.0.0.1 2>/dev/null)" ||
         keyscan_status=$?
-      if [[ $keyscan_status -eq 0 && -n $banner_output ]]; then
+      if [[ $keyscan_status -eq 0 ]] &&
+        banner_output_names_host_key "$banner_output"; then
         READY_PORT="$port"
         return 0
       fi

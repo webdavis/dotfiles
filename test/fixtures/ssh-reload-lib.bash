@@ -64,7 +64,10 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/ssh-hardening-lib.bash"
 #                                    successive `launchctl print` calls within
 #                                    one run; the last entry repeats
 #   LAUNCHCTL_STUB_KICKSTART_STATUS  exit status of `launchctl kickstart` (0)
-#   KEYSCAN_STUB_MODE                banner | refuse | silent-zero
+#   KEYSCAN_STUB_MODE                banner | refuse | silent-zero |
+#                                    garbage-zero (exit 0 with output that is
+#                                    NOT a host-key record) | banner-nonzero
+#                                    (a real record but a nonzero status)
 #   KEYSCAN_STUB_ANSWER_PORT         banner mode only: refuse every requested
 #                                    port except this one (empty: answer any)
 #
@@ -231,6 +234,14 @@ case "${KEYSCAN_STUB_MODE:-banner}" in
     ;;
   silent-zero)
     exit 0
+    ;;
+  garbage-zero)
+    printf 'stub-noise-not-a-key-record\n'
+    exit 0
+    ;;
+  banner-nonzero)
+    printf '[127.0.0.1]:%s ssh-ed25519 AAAA-stub-host-key\n' "$requested_port"
+    exit 1
     ;;
   *)
     printf 'ssh-keyscan stub: unknown KEYSCAN_STUB_MODE %s\n' "${KEYSCAN_STUB_MODE}" >&2

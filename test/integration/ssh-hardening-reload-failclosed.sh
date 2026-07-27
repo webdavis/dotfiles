@@ -182,6 +182,27 @@ KEYSCAN_STUB_MODE=silent-zero run_ssh_reload --reload
 grep -qi 'possible lockout' <<<"$SSH_RUN_ERR" ||
   fail "8: the silent-success probe must also warn about a possible lockout (stderr: $SSH_RUN_ERR)"
 
+# A probe that exits 0 printing text that is NOT a host-key record proved
+# nothing either: the real tool prints host/type/key lines for a completed
+# exchange, so arbitrary output through an overridden seam must not satisfy
+# readiness.
+KEYSCAN_STUB_MODE=garbage-zero run_ssh_reload --reload
+[[ $SSH_RUN_STATUS -ne 0 ]] ||
+  fail '8: a keyscan that exits 0 with non-record output must still fail the reload'
+grep -qi 'possible lockout' <<<"$SSH_RUN_ERR" ||
+  fail "8: the garbage-output probe must also warn about a possible lockout (stderr: $SSH_RUN_ERR)"
+
+# The STATUS half of the readiness conjunction: a valid-looking record with a
+# nonzero exit must not count. This shape is HYPOTHETICAL for the real tool
+# (measured: a reachable host prints 8 lines and exits 0, an unreachable one
+# prints 0 lines and exits 1; no output-plus-nonzero combination could be
+# produced), so this pins the seam contract, not a live defect.
+KEYSCAN_STUB_MODE=banner-nonzero run_ssh_reload --reload
+[[ $SSH_RUN_STATUS -ne 0 ]] ||
+  fail '8: a keyscan that prints a record but exits nonzero must still fail the reload'
+grep -qi 'possible lockout' <<<"$SSH_RUN_ERR" ||
+  fail "8: the nonzero-status probe must also warn about a possible lockout (stderr: $SSH_RUN_ERR)"
+
 # --- 9: readiness prover unavailable: refuse BEFORE anything disruptive -------
 
 KEYSCAN_BIN="$SSH_SANDBOX/no-such-keyscan" run_ssh_reload --reload
