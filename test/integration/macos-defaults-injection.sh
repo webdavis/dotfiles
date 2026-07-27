@@ -318,6 +318,62 @@ assert_file_contains "$stub_log" "it's \$(touch apostrophe-marker) done" \
 
 # ---- C: the template refuses targets it cannot vouch for --------------------
 
+# A blank YAML scalar parses as nil, and rendering it stringifies to the literal
+# text <nil>. That would be WRITTEN, as root on a system record. It is caught
+# here rather than left to look like a value, and each field is asserted
+# separately so a guard covering only one of them fails.
+assert_render_rejects 'blank value' 'has a blank value' <<'EOF'
+macos:
+  defaults:
+    - domain: com.example.blankvalue
+      key: BlankValueKey
+      type: string
+      value:
+      scope: system
+  killall: []
+EOF
+
+assert_render_rejects 'blank key' 'has a blank key' <<'EOF'
+macos:
+  defaults:
+    - domain: com.example.blankkey
+      key:
+      type: string
+      value: v
+  killall: []
+EOF
+
+assert_render_rejects 'blank domain' 'has a blank domain' <<'EOF'
+macos:
+  defaults:
+    - domain:
+      key: BlankDomainKey
+      type: string
+      value: v
+  killall: []
+EOF
+
+# The distinction the guard above must NOT lose: an empty STRING is a legitimate
+# value, not a missing one, and has to keep rendering. A guard written as a
+# plain truthiness test would reject both and this case is what catches that.
+empty_string_src="$(
+  make_source_dir <<'EOF'
+macos:
+  defaults:
+    - domain: com.example.emptystring
+      key: EmptyStringKey
+      type: string
+      value: ""
+      scope: system
+  killall: []
+EOF
+)"
+rendered_empty_string="$sandbox/rendered-empty-string"
+render_template "$empty_string_src" "$rendered_empty_string" "$render_error" ||
+  fail "an empty-string value must still render (stderr: $(cat "$render_error"))"
+assert_file_contains "$rendered_empty_string" "-string ''" \
+  'an empty-string value must render as an empty quoted argument, not be rejected'
+
 assert_render_rejects 'traversal domain' 'contains a slash' <<'EOF'
 macos:
   defaults:
@@ -488,15 +544,20 @@ refute_file_contains "$stub_log" 'EVIL.DOMAIN' \
 refute_file_contains "$stub_log" '[write]' \
   'apply must perform NO write at all once the record stream is known to be malformed'
 
-# The template renders this same file as ONE write, which is exactly the
-# disagreement the check above removes: the tools now refuse rather than seeing
-# a record the template never rendered.
+# The template must refuse the same file, at the EARLIER boundary. It used to
+# render it as one write and leave the tools to refuse, which meant one data file
+# rendered cleanly and then made every tool fail; the operator met the problem
+# through a broken drift report rather than at apply time. Both consumers now
+# reject the same record, and this asserts the template is the one that says so
+# first.
 rendered_forging="$sandbox/rendered-forging"
-render_template "$forging_src" "$rendered_forging" "$render_error" ||
-  fail "the forging fixture still renders as one record (stderr: $(cat "$render_error"))"
-template_write_count="$(grep -cE '^(sudo )?defaults ' "$rendered_forging" || true)"
-[[ $template_write_count -eq 1 ]] ||
-  fail "the template must render exactly one write for one record (got $template_write_count)"
+if render_template "$forging_src" "$rendered_forging" "$render_error"; then
+  fail "the forging fixture must FAIL the render, not be left for the tools to catch"
+fi
+assert_file_contains "$render_error" 'newline or a unit separator' \
+  "the render's refusal must name the reason (stderr: $(cat "$render_error"))"
+refute_file_contains "$rendered_forging" 'EVIL' \
+  'a refused render must not leave the forged record in its output'
 
 # A lone unit separator, no newline, is caught by the field count rather than by
 # the line count, so both halves of the guard are exercised.

@@ -171,6 +171,19 @@ defaults_records_unit_separated() { # <path>
     printf 'error: cannot count the records in %s\n' "$data_file" >&2
     return 2
   fi
+  # The count is a STRING from yq, and it is about to drive both `((...))` loop
+  # bounds and the `-ne` comparison that catches a forged record. Bash arithmetic
+  # on a non-numeric string raises a syntax error and evaluates FALSE, so the
+  # comparison would fall through and emit the very stream it exists to reject.
+  # A multi-document file is the one input observed to produce a multi-line count,
+  # and it is caught earlier only because yq also prints a separator line that
+  # trips the field-count check. That is the guard holding by accident of another
+  # tool's output format, so bound it here by construction instead.
+  if [[ ! $declared_record_count =~ ^(0|[1-9][0-9]{0,6})$ ]]; then
+    printf 'error: %s produced an unusable record count %q; refusing to emit a stream that cannot be checked\n' \
+      "$data_file" "$declared_record_count" >&2
+    return 2
+  fi
   if ! raw_records="$(yq eval -r "$(defaults_records_join_expression '.macos.defaults[]')" "$data_file")"; then
     printf 'error: cannot read the records in %s\n' "$data_file" >&2
     return 2

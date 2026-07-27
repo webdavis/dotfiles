@@ -54,6 +54,31 @@ the only thing guarding the type. */ -}}
 {{ if not (has .type (list "array" "bool" "data" "date" "dict" "float" "int" "string")) -}}
 {{ fail (printf "macos_defaults.yaml: unsupported type %q on record %s %s; expected one of array bool data date dict float int string" .type .domain .key) -}}
 {{ end -}}
+{{- /* A blank YAML scalar parses as nil, and `toString nil` is the literal text
+"<nil>". Left alone, a mistyped `value:` would be WRITTEN, as root on a system
+record, as the four characters <nil>. The previous quoting happened to render
+nothing there, which made `defaults` reject the line and abort the run, so
+silently accepting it now would be a fail-open regression rather than a new
+convenience. Reject it instead, which is louder than either behavior and says
+which field is at fault. An empty STRING is still legitimate and unaffected: it
+is a value, not a missing one. */ -}}
+{{ $record := . -}}
+{{ range $blankField := list "domain" "key" "value" -}}
+{{ if kindIs "invalid" (index $record $blankField) -}}
+{{ fail (printf "macos_defaults.yaml: record %v %v has a blank %s; give it a value or remove the field" (index $record "domain") (index $record "key") $blankField) -}}
+{{ end -}}
+{{ end -}}
+{{- /* The shared library refuses a whole data file whose record stream would be
+ambiguous, because a newline or a unit separator inside a field can forge a
+second record. Without the same rule here, one file would RENDER cleanly and
+then make every tool refuse it, and the operator would learn about it from a
+broken `just D` rather than at apply time. Reject at the same boundary. */ -}}
+{{ range $streamField := list "domain" "key" "value" "plist_path" -}}
+{{ $streamValue := toString (index $record $streamField | default "") -}}
+{{ if or (contains "\n" $streamValue) (contains "\x1f" $streamValue) -}}
+{{ fail (printf "macos_defaults.yaml: record %v %v has a %s containing a newline or a unit separator, which the record stream cannot represent unambiguously" (index $record "domain") (index $record "key") $streamField) -}}
+{{ end -}}
+{{ end -}}
 {{- /* A plist_path is meaningful only for a system record. The shared tools
 reject the pairing already; without this the template would silently IGNORE the
 declared path and write the user domain, which is a malformed record producing a
