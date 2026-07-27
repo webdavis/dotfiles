@@ -131,7 +131,8 @@ refute_contains "$SSH_RUN_ERR" 'not running' \
 SSH_HARDENING_SUDO="$SSH_SUDO_LAUNCHCTL_113_STUB" run_ssh_reload --reload
 [[ $SSH_RUN_STATUS -ne 0 ]] ||
   fail '5b: a wrapper exiting 113 without running launchctl must not produce the clean no-op'
-refute_contains "$SSH_RUN_OUT" 'no daemon to restart'   '5b: a wrapper failure must never be reported as Remote Login being off'
+refute_contains "$SSH_RUN_OUT" 'no daemon to restart' \
+  '5b: a wrapper failure must never be reported as Remote Login being off'
 
 # --- 6: kickstart fails: nonzero, kickstart WAS attempted, named --------------
 

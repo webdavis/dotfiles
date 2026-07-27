@@ -417,7 +417,7 @@ run_ssh_reload() {
 # Remote Login being off.
 assert_kickstart_attempted() {
   if ! grep -qxF 'kickstart -k system/com.openssh.sshd' "$LAUNCHCTL_SPY_LOG"; then
-    printf 'FAIL: %s: expected exactly `kickstart -k system/com.openssh.sshd`; launchctl spy log:\n%s\n' \
+    printf 'FAIL: %s: expected exactly "kickstart -k system/com.openssh.sshd"; launchctl spy log:\n%s\n' \
       "$1" "$(cat "$LAUNCHCTL_SPY_LOG")" >&2
     exit 1
   fi
