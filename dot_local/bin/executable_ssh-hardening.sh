@@ -36,11 +36,16 @@
 #                       the readiness prover, only --reload uses it
 #   SSH_HARDENING_SUDO  privilege wrapper for writes; set EMPTY to run
 #                       unprivileged against a sandbox tree (default sudo)
-#   SSH_HARDENING_READY_ATTEMPTS / SSH_HARDENING_READY_INTERVAL
-#                       how many banner probes --reload makes and the seconds
-#                       between them (defaults 30 and 1); the bound is by
-#                       ATTEMPT COUNT, so a probe that never answers cannot
-#                       hang the reload forever
+#   SSH_HARDENING_READY_ATTEMPTS / SSH_HARDENING_READY_INTERVAL /
+#   SSH_HARDENING_PROBE_TIMEOUT
+#                       how many banner probes --reload makes, the seconds
+#                       between them, and each probe's connection timeout
+#                       (defaults 30, 1 and 5). The bound is by ATTEMPT
+#                       COUNT, not wall clock: with the real ssh-keyscan each
+#                       attempt is capped by the connection timeout, but an
+#                       overridden KEYSCAN_BIN that never returns holds the
+#                       reload for as long as it blocks -- the bound limits
+#                       how many times a probe runs, not how long one takes.
 #   SSH_HARDENING_ALLOW_MISSING_SSHD
 #                       explicit test seam: when set to a TRUE-ish value AND
 #                       $SSHD_BIN cannot run, --verify skips (exit 0) WITHOUT a
@@ -64,8 +69,14 @@ SSHD_BIN="${SSHD_BIN:-/usr/sbin/sshd}"
 SSH_HARDENING_SUDO="${SSH_HARDENING_SUDO-sudo}"
 LAUNCHCTL_BIN="${LAUNCHCTL_BIN:-/bin/launchctl}"
 KEYSCAN_BIN="${KEYSCAN_BIN:-/usr/bin/ssh-keyscan}"
-SSH_HARDENING_READY_ATTEMPTS="${SSH_HARDENING_READY_ATTEMPTS:-30}"
-SSH_HARDENING_READY_INTERVAL="${SSH_HARDENING_READY_INTERVAL:-1}"
+# `-` not `:-` for the three readiness knobs, matching SSH_HARDENING_SUDO
+# above: unset means "use the default", but SET-BUT-EMPTY is an operator
+# statement and validate_readiness_knobs REFUSES it rather than silently
+# rewriting it to the default (`:-` did exactly that, which also made the
+# empty-string arm of the old validation unreachable dead code).
+SSH_HARDENING_READY_ATTEMPTS="${SSH_HARDENING_READY_ATTEMPTS-30}"
+SSH_HARDENING_READY_INTERVAL="${SSH_HARDENING_READY_INTERVAL-1}"
+SSH_HARDENING_PROBE_TIMEOUT="${SSH_HARDENING_PROBE_TIMEOUT-5}"
 
 # The launchd service behind macOS Remote Login. `launchctl print` on it exits
 # 0 when the job is loaded and 113 when the service is genuinely absent
@@ -934,19 +945,49 @@ probe_sshd_service() {
 # just failed to restart cleanly is exactly the machine that must not receive
 # a second unattended state change; the failure names the recovery path and
 # leaves the operator in control.
+# validate_readiness_knobs: refuse every knob shape that would not mean what
+# the operator asked, BEFORE anything else runs. The property, not a list of
+# last time's bad examples:
+#
+#   - attempts and the probe timeout: one canonical base-10 positive integer,
+#     short enough for safe bash arithmetic. No leading zero, because bash
+#     arithmetic reads one as base-8 (measured on bash 3.2: ATTEMPTS=010 made
+#     8 probes, ATTEMPTS=08 died mid-loop with "value too great for base",
+#     and ATTEMPTS=00 bounded the loop at ZERO probes and reported POSSIBLE
+#     LOCKOUT on a healthy machine).
+#   - the interval: a canonical non-negative decimal number of seconds
+#     (fractions are legal; the delay tool accepts them). It never enters
+#     bash arithmetic -- it is only compared to the literal 0 and handed to
+#     the delay tool -- so it needs no length bound, but leading-zero integer
+#     forms are refused for the same one-canonical-spelling rule.
+validate_readiness_knobs() {
+  case $SSH_HARDENING_READY_ATTEMPTS in
+    '' | *[!0-9]* | 0*)
+      die "SSH_HARDENING_READY_ATTEMPTS must be a positive base-10 integer with no leading zero, got '$SSH_HARDENING_READY_ATTEMPTS'; refusing to run with a readiness bound that does not mean what it says"
+      ;;
+  esac
+  if [[ ${#SSH_HARDENING_READY_ATTEMPTS} -gt 9 ]]; then
+    die "SSH_HARDENING_READY_ATTEMPTS ('$SSH_HARDENING_READY_ATTEMPTS') is too long to stay inside safe bash arithmetic; refusing to run with it"
+  fi
+  case $SSH_HARDENING_PROBE_TIMEOUT in
+    '' | *[!0-9]* | 0*)
+      die "SSH_HARDENING_PROBE_TIMEOUT must be a positive base-10 integer number of seconds with no leading zero, got '$SSH_HARDENING_PROBE_TIMEOUT'"
+      ;;
+  esac
+  if [[ ${#SSH_HARDENING_PROBE_TIMEOUT} -gt 9 ]]; then
+    die "SSH_HARDENING_PROBE_TIMEOUT ('$SSH_HARDENING_PROBE_TIMEOUT') is too long to stay inside safe bash arithmetic; refusing to run with it"
+  fi
+  case $SSH_HARDENING_READY_INTERVAL in
+    '' | . | *.*.* | *[!0-9.]* | 0[0-9]*)
+      die "SSH_HARDENING_READY_INTERVAL must be a canonical non-negative decimal number of seconds, got '$SSH_HARDENING_READY_INTERVAL'"
+      ;;
+  esac
+}
+
 reload_sshd() {
   local status output port
 
-  case $SSH_HARDENING_READY_ATTEMPTS in
-    '' | 0 | *[!0-9]*)
-      die "SSH_HARDENING_READY_ATTEMPTS must be a positive integer, got '$SSH_HARDENING_READY_ATTEMPTS'; refusing to run with a readiness bound that means nothing"
-      ;;
-  esac
-  case $SSH_HARDENING_READY_INTERVAL in
-    '' | . | *.*.* | *[!0-9.]*)
-      die "SSH_HARDENING_READY_INTERVAL must be a non-negative number of seconds, got '$SSH_HARDENING_READY_INTERVAL'"
-      ;;
-  esac
+  validate_readiness_knobs
 
   # 1. Privilege first, VISIBLY (a password prompt, if any, lands on the
   # terminal). Everything disruptive below runs through the wrapper, so a
@@ -1032,11 +1073,11 @@ reload_sshd() {
   # targets loopback, so a green result proves the daemon answers, NOT that a
   # remote client can reach it (the application firewall does not filter
   # loopback); the runbook's keep-a-session-open step is what covers that
-  # gap. The 5 is ssh-keyscan's per-attempt connection timeout in seconds.
+  # gap.
   local attempt=1 ready=0 keyscan_status banner_output
   while [[ $attempt -le $SSH_HARDENING_READY_ATTEMPTS ]]; do
     keyscan_status=0
-    banner_output="$("$KEYSCAN_BIN" -T 5 -p "$port" 127.0.0.1 2>/dev/null)" ||
+    banner_output="$("$KEYSCAN_BIN" -T "$SSH_HARDENING_PROBE_TIMEOUT" -p "$port" 127.0.0.1 2>/dev/null)" ||
       keyscan_status=$?
     if [[ $keyscan_status -eq 0 && -n $banner_output ]]; then
       ready=1

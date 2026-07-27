@@ -216,6 +216,63 @@ run_ssh_reload
 [[ ! -s $KEYSCAN_SPY_LOG ]] ||
   fail "12: install must never probe the listener (spy: $(cat "$KEYSCAN_SPY_LOG"))"
 
+# --- 15: readiness knobs are validated BEFORE anything runs -------------------
+# The property: attempts and the probe timeout are one canonical base-10
+# positive integer (bash arithmetic reads a leading zero as base-8, so 010
+# meant 8 probes and 08 died mid-loop; 0 and 00 bounded the loop at zero
+# probes and reported POSSIBLE LOCKOUT on a healthy machine); the interval is
+# a canonical non-negative decimal. Set-but-EMPTY is an operator statement
+# and is refused, never silently rewritten to the default.
+
+for bad_attempts in '' '0' '00' '08' '010' '+1' '1x' '1 0'; do
+  SSH_HARDENING_READY_ATTEMPTS="$bad_attempts" run_ssh_reload --reload
+  [[ $SSH_RUN_STATUS -ne 0 ]] ||
+    fail "15: SSH_HARDENING_READY_ATTEMPTS='$bad_attempts' must be refused"
+  assert_no_kickstart "15: attempts '$bad_attempts'"
+  [[ ! -s $LAUNCHCTL_SPY_LOG ]] ||
+    fail "15: attempts '$bad_attempts' must be refused before the service is probed"
+  grep -q 'SSH_HARDENING_READY_ATTEMPTS' <<<"$SSH_RUN_ERR" ||
+    fail "15: the refusal of attempts '$bad_attempts' must name the knob (stderr: $SSH_RUN_ERR)"
+done
+
+for bad_interval in '' '.' '1.2.3' 'abc' '00' '01'; do
+  SSH_HARDENING_READY_INTERVAL="$bad_interval" run_ssh_reload --reload
+  [[ $SSH_RUN_STATUS -ne 0 ]] ||
+    fail "15: SSH_HARDENING_READY_INTERVAL='$bad_interval' must be refused"
+  assert_no_kickstart "15: interval '$bad_interval'"
+  grep -q 'SSH_HARDENING_READY_INTERVAL' <<<"$SSH_RUN_ERR" ||
+    fail "15: the refusal of interval '$bad_interval' must name the knob (stderr: $SSH_RUN_ERR)"
+done
+
+for bad_timeout in '' '0' '05' '5x'; do
+  SSH_HARDENING_PROBE_TIMEOUT="$bad_timeout" run_ssh_reload --reload
+  [[ $SSH_RUN_STATUS -ne 0 ]] ||
+    fail "15: SSH_HARDENING_PROBE_TIMEOUT='$bad_timeout' must be refused"
+  assert_no_kickstart "15: timeout '$bad_timeout'"
+  grep -q 'SSH_HARDENING_PROBE_TIMEOUT' <<<"$SSH_RUN_ERR" ||
+    fail "15: the refusal of timeout '$bad_timeout' must name the knob (stderr: $SSH_RUN_ERR)"
+done
+
+# Accepted shapes. attempts=10 must mean TEN probes (base-10, not base-8);
+# the probe timeout must reach the keyscan argv; a fractional interval is
+# legal (the global interval stays 0 elsewhere so the suite never sleeps).
+SSH_HARDENING_READY_ATTEMPTS=10 KEYSCAN_STUB_MODE=refuse run_ssh_reload --reload
+[[ $SSH_RUN_STATUS -ne 0 ]] ||
+  fail '15: ten refused probes must still be a lockout failure'
+keyscan_attempts="$(grep -c . "$KEYSCAN_SPY_LOG")" || true
+[[ $keyscan_attempts -eq 10 ]] ||
+  fail "15: SSH_HARDENING_READY_ATTEMPTS=10 must probe exactly 10 times, got $keyscan_attempts"
+
+SSH_HARDENING_PROBE_TIMEOUT=7 run_ssh_reload --reload
+[[ $SSH_RUN_STATUS -eq 0 ]] ||
+  fail "15: a legal probe timeout must not break the happy path (stderr: $SSH_RUN_ERR)"
+grep -qF -- '-T 7' "$KEYSCAN_SPY_LOG" ||
+  fail "15: the probe timeout knob must reach the keyscan argv (spy: $(cat "$KEYSCAN_SPY_LOG"))"
+
+SSH_HARDENING_READY_INTERVAL=0.5 run_ssh_reload --reload
+[[ $SSH_RUN_STATUS -eq 0 ]] ||
+  fail "15: a fractional interval is legal and must not be refused (stderr: $SSH_RUN_ERR)"
+
 # --- 14: mode dispatch is case-sensitive --------------------------------------
 # nocasematch is on at file scope for sshd keyword matching; if it reaches
 # main's case, a mistyped `--RELOAD` invokes the ONE disruptive mode in the
