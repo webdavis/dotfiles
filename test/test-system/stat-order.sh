@@ -1,19 +1,26 @@
 #!/usr/bin/env bash
-# stat-order.sh. test/validate-tests.sh must reject a BSD-first stat
-# fallback chain in a scanned test file. The BSD form (the `-f` variant) placed
-# first in a chain runs before the GNU form (the `-c` variant); on Linux CI (GNU
-# coreutils) the `-f` variant means "filesystem status" and SUCCEEDS with the
-# wrong output, so the fallback never fires and the test silently reads garbage.
-# This broke CI twice. The portable idiom is
-# GNU-first (the `-c` variant first). A capability-gated bare BSD form with no
-# chain (e.g. a find-exec in a GNU-probed else-branch) is not a fallback chain
-# and must stay allowed. This drives the guard against a scratch fixture tree.
+# stat-order.sh. test/validate-tests.sh must reject any control flow that
+# tries a BSD-form stat before a GNU-form stat in a scanned test file. The BSD
+# form (the `-f` variant) reached first runs before the GNU form (the `-c`
+# variant); on Linux CI (GNU coreutils), and on macOS whenever the nix dev
+# shell puts GNU coreutils first on PATH, the `-f` variant means "filesystem
+# status" and SUCCEEDS with the wrong output, so the GNU form never runs and
+# the test silently reads garbage. This broke CI twice as a `||` fallback
+# chain, then a third time as an `if`-gated probe the chain-only scan could
+# not see. The property is ORDER, not one syntax: the portable idiom is
+# GNU-first (the `-c` variant first) in any shape -- chain, `if` probe, `&&`
+# probe, case branch, or a variable holding the command. A capability-gated
+# bare BSD form with no GNU form after it in scope (e.g. a find-exec in a
+# GNU-probed else-branch) must stay allowed. This drives the guard against a
+# scratch fixture tree.
 #
 # Self-immunity trick: the two stat tokens are assembled from the variables
-# below, never written as a literal BSD-first chain in THIS file. `just test`
-# runs the real guard over test/, which scans this very file; keeping every line
-# that also carries `||` off the literal tokens lets the fixtures stay honest
-# without the guard flagging its own test.
+# below, GNU token declared FIRST, and never written as a literal BSD-first
+# sequence in THIS file. `just test` runs the real guard over test/, which
+# scans this very file in raw-text order, so declaring the GNU token before
+# the BSD token is what keeps the fixtures honest without the guard flagging
+# its own test. The gnu-token-first boundary fixture below pins this exact
+# escape hatch.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -68,9 +75,10 @@ run_guard() {
 # create_flagged_tree_fixtures <associative-array-name>
 # Build the flagged tree's fixtures under $flagged_root and record each fixture
 # path in the caller-named associative array (nameref), keyed by fixture name,
-# for the assertions that grep the guard's rejection output. The chain always
-# starts on physical line 2 (right after the shebang), so a flagged file is
-# reported at ":2".
+# for the assertions that grep the guard's rejection output. The offending
+# line usually sits on physical line 2 (right after the shebang), so most
+# flagged files are reported at ":2"; the case and masked-function fixtures
+# place it deeper and assert their own line number.
 # shellcheck disable=SC2034 # nameref: every write lands in the caller's array
 create_flagged_tree_fixtures() {
   local -n flagged_fixture_destination="$1"
@@ -115,6 +123,63 @@ create_flagged_tree_fixtures() {
     printf '%s\n' "perms() { $bsd_form '%Lp' \"\$1\" || $gnu_form '%a' \"\$1\"; }"
   } >"$fixtures_lib"
   flagged_fixture_destination["fixtures_lib"]="$fixtures_lib"
+
+  # An `if`-gated BSD probe with the GNU form after the `fi` -- MUST be
+  # flagged. This is the exact shape that broke CI a third time: no `||`
+  # anywhere, yet the BSD form is tried first and its SUCCESS short-circuits
+  # the GNU form.
+  flagged_fixture_destination["if_gated"]="$(probe "$flagged_root" if-gated \
+    "if $bsd_form '%Lp' . 2>/dev/null; then" \
+    "  exit 0" \
+    "fi" \
+    "$gnu_form '%a' .")"
+
+  # A `&&`-early-exit BSD probe with the GNU form on the next line -- MUST be
+  # flagged (same order, third spelling).
+  flagged_fixture_destination["and_exit"]="$(probe "$flagged_root" and-exit \
+    "$bsd_form '%Lp' . 2>/dev/null && exit 0" \
+    "$gnu_form '%a' .")"
+
+  # A case dispatch whose BSD branch precedes its GNU branch -- MUST be
+  # flagged: a uname gate still picks the BSD form on macOS while the nix
+  # shell has put GNU stat first on PATH. Reported at the BSD branch, line 3.
+  # shellcheck disable=SC2016 # the fixture wants a literal $(uname), run-time expanded
+  flagged_fixture_destination["case_dispatch"]="$(probe "$flagged_root" case-dispatch \
+    'case "$(uname)" in' \
+    "  Darwin) $bsd_form '%Lp' . ;;" \
+    "  *) $gnu_form '%a' . ;;" \
+    "esac")"
+
+  # A variable assigned the BSD command, used in a chain with a GNU fallback
+  # -- MUST be flagged at the assignment: the token declaration is where the
+  # BSD form enters the file first.
+  flagged_fixture_destination["variable_token"]="$(probe "$flagged_root" variable-token \
+    "stat_command='$bsd_form'" \
+    "\$stat_command '%Lp' . || $gnu_form '%a' .")"
+
+  # The same BSD token feeding eval / sh -c assembled chains -- MUST be
+  # flagged at the assignment. (Formerly documented out of scope; the ordered
+  # raw-text scan sees the token declaration precede the GNU form. A token
+  # file that declares the GNU token FIRST remains the documented escape
+  # hatch; see the boundary tree.)
+  flagged_fixture_destination["eval_assembled"]="$(probe "$flagged_root" eval-assembled \
+    "bsd_token='$bsd_form'" \
+    "eval \"\$bsd_token '%Lp' . || $gnu_form '%a' .\"")"
+  flagged_fixture_destination["sh_c_assembled"]="$(probe "$flagged_root" sh-c-assembled \
+    "gated_command='$bsd_form'" \
+    "sh -c \"\$gated_command '%Lp' . || $gnu_form '%a' .\"")"
+
+  # A GNU-first function must NOT absolve a BSD-first probe in a LATER
+  # function: scopes reset at each function definition line, so the second
+  # function is judged on its own and MUST be flagged at its BSD line (4).
+  flagged_fixture_destination["masked_function"]="$(probe "$flagged_root" masked-function \
+    "good() { $gnu_form '%a' .; }" \
+    "bad() {" \
+    "  if $bsd_form '%Lp' . 2>/dev/null; then" \
+    "    return 0" \
+    "  fi" \
+    "  $gnu_form '%a' ." \
+    "}")"
 
   # The flagged tree also carries passing single-line and split GNU-first
   # fixtures so one guard run proves the scan flags only the BSD-first chains
@@ -173,8 +238,28 @@ create_clean_tree_fixtures() {
   gnu_long_separate="$(probe "$clean_root" gnu-long-separate \
     "size() { $gnu_printf_form '%s' \"\$1\" || $bsd_form '%z' \"\$1\"; }")"
 
+  # An `if`-gated GNU probe with the BSD form after the `fi` -- MUST pass:
+  # the correct order in the same shape the flagged if-gated fixture uses.
+  local gnu_first_if
+  gnu_first_if="$(probe "$clean_root" gnu-first-if \
+    "if $gnu_form '%a' . 2>/dev/null; then" \
+    "  exit 0" \
+    "fi" \
+    "$bsd_form '%Lp' .")"
+
+  # A GNU capability probe gating a bare BSD call in the else-branch -- MUST
+  # pass: this is the allowed capability-gate pattern (the GNU form appears
+  # first, and the BSD call carries no chain).
+  local gnu_probe_gated_bsd
+  gnu_probe_gated_bsd="$(probe "$clean_root" gnu-probe-gated-bsd \
+    "if $gnu_form '%n' . >/dev/null 2>&1; then" \
+    "  find . -exec $gnu_form '%n %a' {} +" \
+    "else" \
+    "  find . -exec $bsd_form '%N %Lp' {} +" \
+    "fi")"
+
   : "$gnu_single" "$gnu_split" "$bare_bsd" "$clean_file" "$double_safe" "$gnu_wide"
-  : "$gnu_long_attached" "$gnu_long_separate"
+  : "$gnu_long_attached" "$gnu_long_separate" "$gnu_first_if" "$gnu_probe_gated_bsd"
 }
 
 # Build the no-candidate tree (not a single stat call) under $no_candidate_root.
@@ -185,21 +270,49 @@ create_no_candidate_fixture() {
   : "$no_candidate_probe"
 }
 
-# Build the documented out-of-scope fixtures under $eval_boundary_root: chains
-# assembled at run time (eval, sh -c) and a same-segment mask. These exist so a
-# future "improvement" that silently widens the scan's scope shows up as a test
-# change.
+# Build the documented out-of-scope fixtures under $eval_boundary_root: the
+# shapes the scan is KNOWN not to catch, pinned so a future "improvement" that
+# silently widens or narrows the scan's scope shows up as a test change.
 create_boundary_tree_fixtures() {
-  local eval_probe sh_c_probe same_segment_mask
-  eval_probe="$(probe "$eval_boundary_root" eval-assembled \
-    "bsd_token='$bsd_form'" \
-    "eval \"\$bsd_token '%Lp' . || $gnu_form '%a' .\"")"
-  sh_c_probe="$(probe "$eval_boundary_root" sh-c-assembled \
-    "gated_command='$bsd_form'" \
-    "sh -c \"\$gated_command '%Lp' . || $gnu_form '%a' .\"")"
+  # A masking GNU call inside the same unseparated segment: the ordered scan
+  # sees the GNU form first and absolves the BSD-first chain after it.
+  local same_segment_mask
   same_segment_mask="$(probe "$eval_boundary_root" same-segment-mask \
     "a=\$($gnu_form '%a' .) b=\$($bsd_form '%Lp' . || $gnu_form '%a' .)")"
-  : "$eval_probe" "$sh_c_probe" "$same_segment_mask"
+
+  # An UNRELATED GNU call earlier in the same scope absolves a later
+  # BSD-first probe: the scan tracks form order, not data flow, so it cannot
+  # tell a real capability gate from a coincidental earlier GNU call. This is
+  # the scope-level analog of the same-segment mask.
+  local scope_mask
+  scope_mask="$(probe "$eval_boundary_root" scope-mask \
+    "a=\"\$($gnu_form '%s' .)\"" \
+    "if $bsd_form '%Lp' . 2>/dev/null; then exit 0; fi" \
+    "$gnu_form '%a' .")"
+
+  # Runtime assembly with the GNU token declared FIRST: the raw-text scan
+  # reads declaration order, so a BSD-first chain assembled at run time from
+  # GNU-token-first declarations is invisible. This is the exact escape hatch
+  # THIS test file relies on for self-immunity; pinned so it cannot silently
+  # close (closing it means this test flags itself).
+  local gnu_token_first_assembly
+  gnu_token_first_assembly="$(probe "$eval_boundary_root" gnu-token-first-assembly \
+    "gnu_token='$gnu_form'" \
+    "bsd_token='$bsd_form'" \
+    "eval \"\$bsd_token '%Lp' . || \$gnu_token '%a' .\"")"
+
+  # A case dispatch listing the GNU branch BEFORE a BSD fallback branch: the
+  # scan does not understand dispatch conditions, so this passes even though
+  # the `*)` branch still runs the BSD form on macOS under a GNU-first PATH.
+  local reversed_case_dispatch
+  # shellcheck disable=SC2016 # the fixture wants a literal $(uname), run-time expanded
+  reversed_case_dispatch="$(probe "$eval_boundary_root" reversed-case-dispatch \
+    'case "$(uname)" in' \
+    "  Linux) $gnu_form '%a' . ;;" \
+    "  *) $bsd_form '%Lp' . ;;" \
+    "esac")"
+
+  : "$same_segment_mask" "$scope_mask" "$gnu_token_first_assembly" "$reversed_case_dispatch"
 }
 
 # assert_flagged_tree_rejected <associative-array-name>
@@ -229,6 +342,20 @@ assert_flagged_tree_rejected() {
     record_failure "BSD-first chain inside a comment not reported at :2: $guard_output"
   grep -qF "${flagged_fixture_paths_reference["fixtures_lib"]}:2" <<<"$guard_output" ||
     record_failure "BSD-first chain inside fixtures/ not reported at :2: $guard_output"
+  grep -qF "${flagged_fixture_paths_reference["if_gated"]}:2" <<<"$guard_output" ||
+    record_failure "if-gated BSD probe (the third CI breakage shape) not reported at :2: $guard_output"
+  grep -qF "${flagged_fixture_paths_reference["and_exit"]}:2" <<<"$guard_output" ||
+    record_failure "and-exit BSD probe not reported at :2: $guard_output"
+  grep -qF "${flagged_fixture_paths_reference["case_dispatch"]}:3" <<<"$guard_output" ||
+    record_failure "case dispatch with the BSD branch first not reported at :3: $guard_output"
+  grep -qF "${flagged_fixture_paths_reference["variable_token"]}:2" <<<"$guard_output" ||
+    record_failure "BSD command held in a variable not reported at its assignment (:2): $guard_output"
+  grep -qF "${flagged_fixture_paths_reference["eval_assembled"]}:2" <<<"$guard_output" ||
+    record_failure "eval-assembled chain fed by a BSD token not reported at the assignment (:2): $guard_output"
+  grep -qF "${flagged_fixture_paths_reference["sh_c_assembled"]}:2" <<<"$guard_output" ||
+    record_failure "sh -c assembled chain fed by a BSD token not reported at the assignment (:2): $guard_output"
+  grep -qF "${flagged_fixture_paths_reference["masked_function"]}:4" <<<"$guard_output" ||
+    record_failure "BSD-first probe in a later function masked by an earlier GNU-first function not reported at :4: $guard_output"
   grep -qF "${flagged_fixture_paths_reference["gnu_single_mixed"]}" <<<"$guard_output" &&
     record_failure "GNU-first single-line chain was wrongly reported: $guard_output"
   grep -qF "${flagged_fixture_paths_reference["gnu_split_mixed"]}" <<<"$guard_output" &&
@@ -299,13 +426,14 @@ assert_awk_failure_fails_guard() {
   fi
 }
 
-# The documented boundary: runtime-assembled chains and a same-segment mask are
-# out of scope and MUST pass.
+# The documented boundary: the same-segment mask, the scope-level mask, the
+# gnu-token-first assembly, and the reversed case dispatch are out of scope
+# and MUST pass.
 assert_out_of_scope_cases_pass() {
   local guard_output guard_status
   run_guard guard_output guard_status "$eval_boundary_root/test"
   [[ $guard_status -eq 0 ]] ||
-    record_failure "documented out-of-scope cases (eval, sh -c, same-segment mask) must pass: $guard_output"
+    record_failure "documented out-of-scope cases (same-segment mask, scope mask, gnu-token-first assembly, reversed case dispatch) must pass: $guard_output"
 }
 
 main() {
