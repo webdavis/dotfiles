@@ -72,9 +72,9 @@ macos:
       command: "/usr/libexec/ApplicationFirewall/socketfilterfw --setallowsigned on"
       sudo: true
       tier: enforce
-    # Settable but not readable: socketfilterfw on macOS 26.2 has no
-    # --getallowsignedapp, so this record's applied state can never be
-    # drift-checked; the apply is fire-and-forget.
+    # There is no --getallowsignedapp getter; BOTH signed-software states read
+    # back through the single --getallowsigned getter, one per output line, so
+    # a drift check must parse two lines rather than expect one per flag.
     - description: "Firewall: auto-allow incoming connections for downloaded signed software"
       command: "/usr/libexec/ApplicationFirewall/socketfilterfw --setallowsignedapp on"
       sudo: true
