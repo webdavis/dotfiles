@@ -56,4 +56,5 @@ Library
 .local/bin/macos-defaults-drift.sh
 .local/bin/macos-defaults-apply.sh
 .local/bin/macos-defaults-capture.sh
+.local/bin/macos-defaults-lib.sh
 {{- end -}}
