@@ -1,0 +1,80 @@
+# macOS runtime posture controls, declarative source of truth.
+#
+# The declaration home for verify-tier controls that are neither a `defaults`
+# key nor a `system_setup` command ("FileVault is on", "the Guest account is
+# disabled"). Records here are rendered to
+# ~/.local/libexec/osquery/posture-controls.json (by
+# dot_local/libexec/osquery/posture-controls.json.tmpl) and consumed at RUNTIME
+# by the security-posture poller (firewall-gatekeeper-monitor.sh), which reads
+# the rendered file on every 60s tick: adding a control is a data change here
+# plus a `chezmoi apply`, never a poller edit. Slices 9 and 10 add records.
+#
+# Every record is tier: verify BY DEFINITION: the poller only ever READS state
+# and pages CRIT on a deviation from the declared value; it never fixes
+# anything. A record with any other tier is rejected at render time (the
+# template aborts the apply) AND at runtime (the poller pages a monitoring gap
+# and refuses the whole file): an enforce or manual control does not belong in
+# a file a read-only poller consumes.
+#
+# Schema (all fields required except remedy):
+#   - id:          <string>  # ^[a-z0-9_]+$, unique; the control's baseline
+#                            # field name. Must not collide with the poller's
+#                            # built-in fields (firewall, gatekeeper,
+#                            # screenlock).
+#     description: <string>  # noun phrase naming the control in a page
+#     tier:        verify    # the only accepted value
+#     reader:      <name>    # HOW the poller reads it; one of the poller's
+#                            # reader functions and its value domain:
+#                            #   fdesetup_status       -> on|off
+#                            #   csrutil_status        -> enabled|disabled
+#                            #   sysadminctl_autologin -> on|off
+#                            #   sysadminctl_guest     -> enabled|disabled
+#     expect:      <value>   # the value the control must hold, inside the
+#                            # reader's domain; ANY in-domain deviation pages
+#     remedy:      <string>  # OPTIONAL: the page's fix-it line. Keep it
+#                            # apostrophe-free (the alerting stack's render jq
+#                            # is bash single-quoted).
+#
+# Reader notes (each verified from the poller's gui/501 session context):
+#   - fdesetup_status runs `fdesetup status`, NOT osquery's disk_encryption
+#     table: FileVault lives on the APFS data volumes, so the obvious
+#     `WHERE name='/dev/disk0'` query reports 0 on a FileVault-on machine, a
+#     false negative that would page "FileVault off" on a healthy system.
+#   - csrutil_status runs `csrutil status`. osquery's sip_config agrees with
+#     it, but the authoritative tool needs no osqueryi startup. SIP is
+#     DELIBERATELY disabled on this machine, so the declared expect is
+#     `disabled`: the control asserts the operator-declared posture, not a
+#     blanket "enabled". Change the declaration when the intent changes.
+#   - sysadminctl_autologin / sysadminctl_guest run `sysadminctl ... status`,
+#     which reports the EFFECTIVE state on stderr and exits 0 in both states.
+#     `defaults read` was rejected as the reader: an absent autoLoginUser key
+#     (the healthy state) exits nonzero, which collides with the poller's
+#     indeterminate-on-nonzero discipline (a nonzero probe is never
+#     classified, so absence could never read as healthy).
+
+macos:
+  posture_controls:
+    - id: filevault
+      description: "FileVault disk encryption"
+      tier: verify
+      reader: fdesetup_status
+      expect: "on"
+      remedy: "Re-enable it: System Settings → Privacy & Security → FileVault"
+    - id: sip
+      description: "System Integrity Protection"
+      tier: verify
+      reader: csrutil_status
+      expect: "disabled"
+      remedy: "This machine declares SIP deliberately disabled; if enabling it was intended, update expect in macos_posture_controls.yaml, otherwise investigate (csrutil changes state from Recovery only)"
+    - id: autologin
+      description: "Automatic login at the login window"
+      tier: verify
+      reader: sysadminctl_autologin
+      expect: "off"
+      remedy: "Turn it off: System Settings → Users & Groups → Automatically log in as"
+    - id: guest
+      description: "The macOS Guest account"
+      tier: verify
+      reader: sysadminctl_guest
+      expect: "disabled"
+      remedy: "Disable it: System Settings → Users & Groups → Guest User"
