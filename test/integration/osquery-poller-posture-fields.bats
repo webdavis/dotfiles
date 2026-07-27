@@ -33,7 +33,7 @@ declare_posture_controls() {
   set_posture_controls '[
     {"id":"filevault","description":"FileVault disk encryption","tier":"verify","reader":"fdesetup_status","expect":"on","remedy":"Re-enable it: System Settings, Privacy & Security, FileVault"},
     {"id":"sip","description":"System Integrity Protection","tier":"verify","reader":"csrutil_status","expect":"disabled","remedy":"Update the declared expect or investigate"},
-    {"id":"autologin","description":"Automatic login at the login window","tier":"verify","reader":"sysadminctl_autologin","expect":"off","remedy":"Turn it off: System Settings, Users & Groups"},
+    {"id":"autologin","description":"Automatic login at the login window","tier":"verify","reader":"defaults_autologin","expect":"off","remedy":"Turn it off: System Settings, Users & Groups"},
     {"id":"guest","description":"The macOS Guest account","tier":"verify","reader":"sysadminctl_guest","expect":"disabled","remedy":"Disable it: System Settings, Users & Groups"}
   ]'
 }
@@ -54,10 +54,11 @@ healthy_seed='{"firewall":"1","gatekeeper":"1","screenlock":"1","filevault":"on"
   }
 
   assert_no_page
-  # One status probe per declared control (sysadminctl serves two controls).
+  # One status probe per declared control.
   assert_probe_calls fdesetup 1
   assert_probe_calls csrutil 1
-  assert_probe_calls sysadminctl 2
+  assert_probe_calls sysadminctl 1
+  assert_probe_calls defaults 1
   # The baseline carries the legacy trio AND one field per declared control.
   assert_baseline_scalar firewall 1
   assert_baseline_scalar filevault on
@@ -167,12 +168,12 @@ healthy_seed='{"firewall":"1","gatekeeper":"1","screenlock":"1","filevault":"on"
   assert_page_count 2
 }
 
-@test "T-PCTL-autologin-lifecycle: automatic login turning on pages once naming it, stays quiet, and re-pages after restore-then-regress" {
+@test "T-PCTL-autologin-lifecycle: a DECLARED auto-login user pages once naming it, stays quiet, and re-pages after restore-then-regress" {
   seed_baseline "$healthy_seed"
   declare_posture_controls
   set_posture '[{"firewall":"1","gatekeeper":"1","screenlock":"1"}]'
 
-  export POLLER_SYSADMINCTL_AUTOLOGIN_OUTPUT="2026-07-27 00:00:00.000 sysadminctl[100:100] Automatic login user: stephen"
+  export POLLER_DEFAULTS_AUTOLOGIN_MODE=present # autoLoginUser declared: stephen
   run run_poller
   [[ $status -eq 0 ]] || {
     echo "tick 1 status $status: $output"
@@ -188,14 +189,56 @@ healthy_seed='{"firewall":"1","gatekeeper":"1","screenlock":"1","filevault":"on"
   run run_poller
   assert_page_count 1
 
-  unset POLLER_SYSADMINCTL_AUTOLOGIN_OUTPUT
+  unset POLLER_DEFAULTS_AUTOLOGIN_MODE # back to absent: the declaration removed
   run run_poller
   assert_page_count 1
   assert_baseline_scalar autologin off
 
-  export POLLER_SYSADMINCTL_AUTOLOGIN_OUTPUT="2026-07-27 00:00:00.000 sysadminctl[100:100] Automatic login user: stephen"
+  export POLLER_DEFAULTS_AUTOLOGIN_MODE=present
   run run_poller
   assert_page_count 2
+}
+
+@test "T-PCTL-autologin-reads-declared-intent: a declared auto-login pages even while FileVault forces manual login (the effective state is not the question)" {
+  seed_baseline "$healthy_seed"
+  declare_posture_controls
+  set_posture '[{"firewall":"1","gatekeeper":"1","screenlock":"1"}]'
+  # autoLoginUser IS set while sysadminctl would report "Automatic login is
+  # disabled because FileVault is enabled." (a FileVault-driven message printed
+  # regardless of the declaration; verified in the binary's strings). An
+  # effective-state reader reads this machine healthy, and the auto-login
+  # activates unflagged the moment FileVault goes off. The control means
+  # "auto-login is not DECLARED", so the declaration must win.
+  export POLLER_DEFAULTS_AUTOLOGIN_MODE=present
+  export POLLER_SYSADMINCTL_AUTOLOGIN_OUTPUT="2026-07-27 00:00:00.000 sysadminctl[100:100] Automatic login is disabled because FileVault is enabled."
+
+  run run_poller
+  [[ $status -eq 0 ]] || {
+    echo "status $status: $output"
+    false
+  }
+  assert_page_count 1
+  assert_page_body_has 'Automatic login at the login window: now on, declared off'
+}
+
+@test "T-PCTL-autologin-unreadable-gaps: a defaults failure that is NOT the canonical absent diagnostic is indeterminate, never a silent healthy" {
+  seed_baseline "$healthy_seed"
+  declare_posture_controls
+  snapshot_baseline
+  set_posture '[{"firewall":"1","gatekeeper":"1","screenlock":"1"}]'
+  # Nonzero exit without "autoLoginUser) does not exist": absent must be
+  # distinguished from unreadable, so this is a monitoring gap.
+  export POLLER_DEFAULTS_AUTOLOGIN_MODE=unreadable
+
+  run run_poller
+  [[ $status -eq 0 ]] || {
+    echo "status $status: $output"
+    false
+  }
+  assert_page_count 1
+  assert_page_body_has 'monitoring gap'
+  assert_page_body_has 'autologin'
+  assert_baseline_unchanged
 }
 
 @test "T-PCTL-guest-lifecycle: the Guest account turning on pages once naming it, stays quiet, and re-pages after restore-then-regress" {
@@ -256,7 +299,7 @@ healthy_seed='{"firewall":"1","gatekeeper":"1","screenlock":"1","filevault":"on"
   set_posture_controls '[
     {"id":"filevault","description":"FileVault disk encryption","tier":"verify","reader":"fdesetup_status","expect":"on","remedy":"Re-enable it: System Settings, Privacy & Security, FileVault"},
     {"id":"sip","description":"System Integrity Protection","tier":"verify","reader":"csrutil_status","expect":"enabled","remedy":"Update the declared expect or investigate"},
-    {"id":"autologin","description":"Automatic login at the login window","tier":"verify","reader":"sysadminctl_autologin","expect":"off","remedy":"Turn it off: System Settings, Users & Groups"},
+    {"id":"autologin","description":"Automatic login at the login window","tier":"verify","reader":"defaults_autologin","expect":"off","remedy":"Turn it off: System Settings, Users & Groups"},
     {"id":"guest","description":"The macOS Guest account","tier":"verify","reader":"sysadminctl_guest","expect":"disabled","remedy":"Disable it: System Settings, Users & Groups"}
   ]'
   set_posture '[{"firewall":"1","gatekeeper":"1","screenlock":"1"}]'
@@ -659,7 +702,8 @@ healthy_seed='{"firewall":"1","gatekeeper":"1","screenlock":"1","filevault":"on"
   # read-only status queries was ever invoked.
   assert_probe_calls fdesetup 3
   assert_probe_calls csrutil 3
-  assert_probe_calls sysadminctl 6
+  assert_probe_calls sysadminctl 3
+  assert_probe_calls defaults 3
   assert_no_mutation_attempt
 }
 

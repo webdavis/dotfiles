@@ -70,11 +70,11 @@ while IFS=$'\t' read -r reader expect; do
     csrutil_status)
       export POLLER_CSRUTIL_OUTPUT="System Integrity Protection status: ${expect}."
       ;;
-    sysadminctl_autologin)
+    defaults_autologin)
       if [[ $expect == "on" ]]; then
-        export POLLER_SYSADMINCTL_AUTOLOGIN_OUTPUT="stub sysadminctl Automatic login user: stub"
+        export POLLER_DEFAULTS_AUTOLOGIN_MODE=present
       else
-        export POLLER_SYSADMINCTL_AUTOLOGIN_OUTPUT="stub sysadminctl Automatic login is OFF."
+        export POLLER_DEFAULTS_AUTOLOGIN_MODE=absent
       fi
       ;;
     sysadminctl_guest)

@@ -34,6 +34,7 @@ CONTROLS_FILE="${OSQUERY_POSTURE_CONTROLS:-$HOME/.local/libexec/osquery/posture-
 FDESETUP="${OSQUERY_POSTURE_FDESETUP:-/usr/bin/fdesetup}"
 CSRUTIL="${OSQUERY_POSTURE_CSRUTIL:-/usr/bin/csrutil}"
 SYSADMINCTL="${OSQUERY_POSTURE_SYSADMINCTL:-/usr/sbin/sysadminctl}"
+DEFAULTS="${OSQUERY_POSTURE_DEFAULTS:-/usr/bin/defaults}"
 
 # shellcheck source=/dev/null
 source "$HOME/.local/libexec/osquery/alert-dispatch.sh"
@@ -112,7 +113,7 @@ cur_sl=$(jq -r '.screenlock // empty' <<<"$posture" 2>/dev/null || echo "")
 # poller-vs-data agreement test hold them together.
 reader_domain() {
   case "$1" in
-    fdesetup_status | sysadminctl_autologin) printf 'on off' ;;
+    fdesetup_status | defaults_autologin) printf 'on off' ;;
     csrutil_status | sysadminctl_guest) printf 'enabled disabled' ;;
   esac
 }
@@ -145,8 +146,9 @@ classify_probe() {
 # read_control <reader> -> the normalized value, or "indeterminate". One
 # read-only status invocation of the authoritative tool per control, bounded
 # like the combined query, with stdout and stderr captured together
-# (sysadminctl reports on stderr; verified on the target machine). Raw probe
-# text NEVER leaves this function: only the fixed normalized values do.
+# (sysadminctl and defaults report on stderr; verified on the target machine).
+# Raw probe text NEVER leaves this function: only the fixed normalized values
+# do.
 #
 # Reader choices (each verified from the poller's gui/501 session context):
 #   - fdesetup, NOT osquery's disk_encryption table: FileVault lives on the
@@ -154,10 +156,15 @@ classify_probe() {
 #     FileVault-on machine, a false negative that would page a healthy system.
 #   - csrutil: agrees with osquery's sip_config; the authoritative tool needs
 #     no osqueryi startup.
-#   - sysadminctl for automatic login and the Guest account: it reports the
-#     EFFECTIVE state and exits 0 in both states. `defaults read` was rejected
-#     because an absent autoLoginUser key (the healthy state) exits nonzero,
-#     which the discipline above must refuse to classify.
+#   - defaults read of loginwindow's autoLoginUser for automatic login: the
+#     control means "auto-login is not DECLARED", so the reader asks the
+#     declaration itself. `sysadminctl -autologin status` was rejected: it
+#     reports the EFFECTIVE state and prints "Automatic login is disabled
+#     because FileVault is enabled." (in the binary's message strings) even
+#     when autoLoginUser IS set, so a configured auto-login would read healthy
+#     until FileVault went off and it silently activated.
+#   - sysadminctl for the Guest account: it reports the state on stderr and
+#     exits 0 in both states.
 read_control() {
   local reader="$1" output="" rc=0
   case "$reader" in
@@ -171,15 +178,23 @@ read_control() {
         "System Integrity Protection status: enabled." enabled \
         "System Integrity Protection status: disabled." disabled
       ;;
-    sysadminctl_autologin)
-      # ON prints "Automatic login user: <name>"; every OFF form prints
-      # "Automatic login is ..." (OFF., disabled because FileVault is
-      # enabled., disabled by your system administrator.), enumerated from
-      # the binary's message strings. A username that happens to contain the
-      # off needle trips the both-needles arm: indeterminate, never a silent
-      # all-clear.
-      output=$(run_bounded "$SYSADMINCTL" -autologin status 2>&1) || rc=$?
-      classify_probe "$output" "$rc" "Automatic login user:" on "Automatic login is" off
+    defaults_autologin)
+      # Declared intent, three outcomes. Exit 0 means the autoLoginUser key
+      # EXISTS: a user is declared for automatic login (on), whatever the
+      # value. `defaults read` exits nonzero BOTH for an absent key (the
+      # healthy state) and for a hard read failure, so only the canonical
+      # does-not-exist diagnostic (which also covers a wholly absent
+      # loginwindow domain: nothing declared either way) maps to off; any
+      # other nonzero, a timeout kill included, is indeterminate. Absent is
+      # thereby distinguished from unreadable, never conflated.
+      output=$(run_bounded "$DEFAULTS" read /Library/Preferences/com.apple.loginwindow autoLoginUser 2>&1) || rc=$?
+      if [[ $rc -eq 0 ]]; then
+        printf 'on'
+      elif [[ $output == *"autoLoginUser) does not exist"* ]]; then
+        printf 'off'
+      else
+        printf 'indeterminate'
+      fi
       ;;
     sysadminctl_guest)
       output=$(run_bounded "$SYSADMINCTL" -guestAccount status 2>&1) || rc=$?

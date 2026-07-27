@@ -140,17 +140,14 @@ exit "${POLLER_CSRUTIL_EXIT:-0}"
 SHIM
   chmod +x "$POLLER_HOME/bin/csrutil"
 
-  # sysadminctl: only `-autologin status` and `-guestAccount status`. The real
-  # tool reports on STDERR with an NSLog prefix (verified on the target
-  # machine), so the stub mirrors that.
+  # sysadminctl: only `-guestAccount status` (automatic login reads the
+  # loginwindow DECLARATION via the defaults stub below, never sysadminctl's
+  # effective state). The real tool reports on STDERR with an NSLog prefix
+  # (verified on the target machine), so the stub mirrors that.
   cat >"$POLLER_HOME/bin/sysadminctl" <<'SHIM'
 #!/usr/bin/env bash
 printf 'sysadminctl %s\n' "$*" >>"$POLLER_PROBE_CALLS"
 case "$*" in
-  "-autologin status")
-    printf '%s\n' "${POLLER_SYSADMINCTL_AUTOLOGIN_OUTPUT-2026-07-27 00:00:00.000 sysadminctl[100:100] Automatic login is OFF.}" >&2
-    exit "${POLLER_SYSADMINCTL_AUTOLOGIN_EXIT:-0}"
-    ;;
   "-guestAccount status")
     printf '%s\n' "${POLLER_SYSADMINCTL_GUEST_OUTPUT-2026-07-27 00:00:00.000 sysadminctl[100:100] Guest account disabled.}" >&2
     exit "${POLLER_SYSADMINCTL_GUEST_EXIT:-0}"
@@ -163,11 +160,42 @@ esac
 SHIM
   chmod +x "$POLLER_HOME/bin/sysadminctl"
 
+  # defaults: only the exact read of loginwindow's autoLoginUser key (the
+  # declared-intent auto-login reader) is legitimate; every other argv is a
+  # recorded violation. POLLER_DEFAULTS_AUTOLOGIN_MODE models the three real
+  # outcomes (each verified on the target machine): absent (the canonical
+  # does-not-exist diagnostic on stderr, exit 1 -- the healthy no-declaration
+  # state, and the default), present (a username on stdout, exit 0),
+  # unreadable (a non-canonical failure, exit 1).
+  cat >"$POLLER_HOME/bin/defaults" <<'SHIM'
+#!/usr/bin/env bash
+printf 'defaults %s\n' "$*" >>"$POLLER_PROBE_CALLS"
+if [[ "$*" != "read /Library/Preferences/com.apple.loginwindow autoLoginUser" ]]; then
+  printf 'defaults %s\n' "$*" >>"$POLLER_MUTATION_LOG"
+  exit 97
+fi
+case "${POLLER_DEFAULTS_AUTOLOGIN_MODE:-absent}" in
+  present)
+    printf '%s\n' "${POLLER_DEFAULTS_AUTOLOGIN_USER-stephen}"
+    exit 0
+    ;;
+  unreadable)
+    printf '2026-07-27 00:00:00.000 defaults[100:100]\nCould not read domain /Library/Preferences/com.apple.loginwindow\n' >&2
+    exit 1
+    ;;
+  *)
+    printf '2026-07-27 00:00:00.000 defaults[100:100]\nThe domain/default pair of (/Library/Preferences/com.apple.loginwindow, autoLoginUser) does not exist\n' >&2
+    exit 1
+    ;;
+esac
+SHIM
+  chmod +x "$POLLER_HOME/bin/defaults"
+
   # Tools the poller has NO business invoking at all, status or otherwise: any
   # call is a recorded violation. run_poller prepends this bin dir to PATH, so
   # a stray PATH-resolved invocation is caught even without an env override.
   local forbidden_tool
-  for forbidden_tool in sudo spctl defaults socketfilterfw launchctl; do
+  for forbidden_tool in sudo spctl socketfilterfw launchctl; do
     cat >"$POLLER_HOME/bin/$forbidden_tool" <<'SHIM'
 #!/usr/bin/env bash
 printf '%s %s\n' "$(basename "$0")" "$*" >>"$POLLER_MUTATION_LOG"
@@ -228,6 +256,7 @@ run_poller() {
     OSQUERY_POSTURE_FDESETUP="$POLLER_HOME/bin/fdesetup" \
     OSQUERY_POSTURE_CSRUTIL="$POLLER_HOME/bin/csrutil" \
     OSQUERY_POSTURE_SYSADMINCTL="$POLLER_HOME/bin/sysadminctl" \
+    OSQUERY_POSTURE_DEFAULTS="$POLLER_HOME/bin/defaults" \
     bash "$POLLER_TOOL" "$@"
 }
 

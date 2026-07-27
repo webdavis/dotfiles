@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
-# macos-posture-indeterminate.sh -- the indeterminate-on-nonzero discipline,
+# macos-posture-indeterminate.sh -- the untrustworthy-failure discipline,
 # asserted PER declared posture control (slice 6, absorbed from the retired
-# apply-time posture reminder): a probe that exits NONZERO is INDETERMINATE
-# regardless of what it printed, because a failed probe's output is
-# untrustworthy. Untrustworthy means it may print healthy-looking text yet have
-# failed, so each stub here prints EXACTLY the healthy text for its control and
-# exits 1. The required outcome, per control:
+# apply-time posture reminder): a probe failure is INDETERMINATE regardless of
+# what it printed, because a failed probe's output is untrustworthy. For the
+# classify_probe readers that means a nonzero exit with EXACTLY the healthy
+# text; for defaults_autologin (whose healthy absent state is itself nonzero,
+# gated on the canonical does-not-exist diagnostic) it means a nonzero exit
+# WITHOUT that diagnostic. The required outcome, per control:
 #
 #   - a monitoring-gap page fires, naming the control (never a silent pass:
 #     fail-open is the cardinal sin);
@@ -29,27 +30,31 @@ fail() {
   exit 1
 }
 
-# One case per control: <control-id> <healthy-looking-output-env> <exit-env>.
-# The healthy text is the stub default, so only the exit override is set; the
-# point is exactly that healthy-looking output plus a nonzero exit must never
-# read as healthy.
-run_case() { # <control-id> <exit-override-env-var>
-  local control_id="$1" exit_env="$2" poller_status=0
+# One case per control: <control-id> <env-assignment>. For the classify_probe
+# readers the assignment is an exit override with the stub's healthy default
+# output kept: the point is exactly that healthy-looking output plus a nonzero
+# exit must never read as healthy. For the defaults_autologin reader the
+# HEALTHY state is itself a nonzero exit carrying the canonical does-not-exist
+# diagnostic, so its untrustworthy-failure form is a nonzero exit WITHOUT that
+# diagnostic (the stub's unreadable mode): only the canonical needle may ever
+# map a failure to healthy.
+run_case() { # <control-id> <env-assignment VAR=VALUE>
+  local control_id="$1" env_assignment="$2" poller_status=0
 
   setup_poller_harness
   set_posture '[{"firewall":"1","gatekeeper":"1","screenlock":"1"}]'
   set_posture_controls '[
     {"id":"filevault","description":"FileVault disk encryption","tier":"verify","reader":"fdesetup_status","expect":"on"},
     {"id":"sip","description":"System Integrity Protection","tier":"verify","reader":"csrutil_status","expect":"disabled"},
-    {"id":"autologin","description":"Automatic login at the login window","tier":"verify","reader":"sysadminctl_autologin","expect":"off"},
+    {"id":"autologin","description":"Automatic login at the login window","tier":"verify","reader":"defaults_autologin","expect":"off"},
     {"id":"guest","description":"The macOS Guest account","tier":"verify","reader":"sysadminctl_guest","expect":"disabled"}
   ]'
   seed_baseline '{"firewall":"1","gatekeeper":"1","screenlock":"1","filevault":"on","filevault:expect":"on","sip":"disabled","sip:expect":"disabled","autologin":"off","autologin:expect":"off","guest":"disabled","guest:expect":"disabled"}'
   snapshot_baseline
 
-  export "$exit_env=1" # healthy default output + nonzero exit
+  export "${env_assignment?}" # the untrustworthy-failure form for this control
   run_poller >/dev/null 2>&1 || poller_status=$?
-  unset "$exit_env"
+  unset "${env_assignment%%=*}"
 
   # The gap page fired (exit 0 after a queued page) and named the control.
   [[ $poller_status -eq 0 ]] ||
@@ -73,9 +78,9 @@ run_case() { # <control-id> <exit-override-env-var>
   teardown_poller_harness
 }
 
-run_case filevault POLLER_FDESETUP_EXIT
-run_case sip POLLER_CSRUTIL_EXIT
-run_case autologin POLLER_SYSADMINCTL_AUTOLOGIN_EXIT
-run_case guest POLLER_SYSADMINCTL_GUEST_EXIT
+run_case filevault POLLER_FDESETUP_EXIT=1
+run_case sip POLLER_CSRUTIL_EXIT=1
+run_case autologin POLLER_DEFAULTS_AUTOLOGIN_MODE=unreadable
+run_case guest POLLER_SYSADMINCTL_GUEST_EXIT=1
 
-printf 'ok: nonzero probes are indeterminate for every declared control\n'
+printf 'ok: untrustworthy probe failures are indeterminate for every declared control\n'

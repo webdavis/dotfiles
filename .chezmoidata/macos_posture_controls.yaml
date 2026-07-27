@@ -25,10 +25,10 @@
 #     tier:        verify    # the only accepted value
 #     reader:      <name>    # HOW the poller reads it; one of the poller's
 #                            # reader functions and its value domain:
-#                            #   fdesetup_status       -> on|off
-#                            #   csrutil_status        -> enabled|disabled
-#                            #   sysadminctl_autologin -> on|off
-#                            #   sysadminctl_guest     -> enabled|disabled
+#                            #   fdesetup_status     -> on|off
+#                            #   csrutil_status      -> enabled|disabled
+#                            #   defaults_autologin  -> on|off
+#                            #   sysadminctl_guest   -> enabled|disabled
 #     expect:      <value>   # the value the control must hold, inside the
 #                            # reader's domain; ANY in-domain deviation pages
 #     remedy:      <string>  # OPTIONAL: the page's fix-it line. Keep it
@@ -45,12 +45,18 @@
 #     DELIBERATELY disabled on this machine, so the declared expect is
 #     `disabled`: the control asserts the operator-declared posture, not a
 #     blanket "enabled". Change the declaration when the intent changes.
-#   - sysadminctl_autologin / sysadminctl_guest run `sysadminctl ... status`,
-#     which reports the EFFECTIVE state on stderr and exits 0 in both states.
-#     `defaults read` was rejected as the reader: an absent autoLoginUser key
-#     (the healthy state) exits nonzero, which collides with the poller's
-#     indeterminate-on-nonzero discipline (a nonzero probe is never
-#     classified, so absence could never read as healthy).
+#   - defaults_autologin runs `defaults read` on loginwindow's autoLoginUser
+#     key: the control means "auto-login is not DECLARED", so the reader asks
+#     the declaration itself. An absent key (or a wholly absent loginwindow
+#     domain) is the healthy off; a present key is on whatever the value; any
+#     other read failure is indeterminate, distinguished by the canonical
+#     does-not-exist diagnostic. `sysadminctl -autologin status` was rejected:
+#     it reports the EFFECTIVE state and prints "Automatic login is disabled
+#     because FileVault is enabled." even with autoLoginUser set, so a
+#     configured auto-login would read healthy until FileVault went off and it
+#     silently activated.
+#   - sysadminctl_guest runs `sysadminctl -guestAccount status`, which reports
+#     the state on stderr and exits 0 in both states.
 
 macos:
   posture_controls:
@@ -69,7 +75,7 @@ macos:
     - id: autologin
       description: "Automatic login at the login window"
       tier: verify
-      reader: sysadminctl_autologin
+      reader: defaults_autologin
       expect: "off"
       remedy: "Turn it off: System Settings → Users & Groups → Automatically log in as"
     - id: guest
