@@ -99,6 +99,45 @@ require_readable_data_file() { # <path>
   fi
 }
 
+# defaults_records_join_expression <record-selector>, the yq expression that
+# joins one record selection into SEVEN fields separated by the ASCII unit
+# separator (0x1f): domain, key, type, value, host, scope, plist_path. Shared by
+# the stream below and by the per-record locator, so the two can never drift into
+# describing different records.
+defaults_records_join_expression() { # <record-selector>
+  local unit_separator=$'\x1f'
+  printf '%s | [.domain, .key, .type, .value, (.host // ""), (.scope // "user"), (.plist_path // "")] | join("%s")' \
+    "$1" "$unit_separator"
+}
+
+# defaults_records_field_count <line>, how many unit-separated fields one line
+# carries. Pure bash: the substitution keeps only the separators, so the field
+# count is one more than what is left.
+defaults_records_field_count() { # <line>
+  local unit_separator=$'\x1f'
+  local separators_only="${1//[!$unit_separator]/}"
+  printf '%s' "$((${#separators_only} + 1))"
+}
+
+# defaults_records_locate_malformed <path> <declared-count>, describe the FIRST
+# record that does not render as exactly one seven-field line. Only ever called
+# on the failure path, so its per-record yq calls cost nothing in the normal case.
+defaults_records_locate_malformed() { # <path> <declared-count>
+  local data_file="$1" declared_record_count="$2"
+  local index record_render line_count
+  for ((index = 0; index < declared_record_count; index++)); do
+    record_render="$(yq eval -r "$(defaults_records_join_expression ".macos.defaults[$index]")" "$data_file")" || continue
+    line_count="$(printf '%s\n' "$record_render" | wc -l | tr -d ' ')"
+    if [[ $line_count -ne 1 || $(defaults_records_field_count "$record_render") -ne 7 ]]; then
+      printf 'record %d (domain %s, key %s)' "$index" \
+        "$(yq eval -r ".macos.defaults[$index].domain" "$data_file" | head -1)" \
+        "$(yq eval -r ".macos.defaults[$index].key" "$data_file" | head -1)"
+      return 0
+    fi
+  done
+  printf 'a record this locator could not identify'
+}
+
 # defaults_records_unit_separated <path>, emit each tracked record as one line
 # of SEVEN fields joined by the ASCII unit separator (0x1f):
 #   domain, key, type, value, host, scope, plist_path
@@ -106,14 +145,63 @@ require_readable_data_file() { # <path>
 # "user" here, so a scope that reaches a caller empty was explicitly empty in
 # the record (a record error, rejected by validate_record_scope below). The
 # unit separator is not IFS whitespace, so an empty INTERIOR field survives
-# `IFS=$'\x1f' read` intact, unlike the tab-separated stream above, whose
-# collapse is exactly why the new optional columns do not extend it. A value
-# containing a literal 0x1f byte would still split; no macOS preference value
-# carries one.
+# `IFS=$'\x1f' read` intact, unlike a tab-separated stream, whose collapse is
+# exactly why the optional columns do not extend one.
+#
+# The stream is SELF-VALIDATING, because the separator on its own guarantees
+# nothing. A field value carrying a literal 0x1f byte, a NEWLINE, or both is not
+# a formatting nuisance, it is record forgery. One record whose value was
+#   v<0x1f><0x1f>system<0x1f>\nEVIL.DOMAIN<0x1f>EVILKEY<0x1f>bool<0x1f>true
+# emitted two well-formed-LOOKING lines and made apply perform TWO root writes,
+# the second fully attacker-controlled, while the template rendered only one.
+# Both halves of that payload carry exactly seven fields, so a per-line field
+# count does not catch it on its own. Two checks together do:
+#   - every line must carry exactly seven fields, which catches a separator
+#     injected without a newline;
+#   - the number of emitted lines must equal the number of DECLARED records,
+#     which catches a newline whether or not the halves are balanced.
+# A violation returns 2, the tools' shared "data file unusable" status, names the
+# offending record, and emits NOTHING: a caller must not act on part of a stream
+# it has just been told is malformed. A legitimate multi-line preference value is
+# therefore refused loudly rather than silently corrupted.
 defaults_records_unit_separated() { # <path>
   local data_file="$1"
-  local unit_separator=$'\x1f'
-  yq eval -r ".macos.defaults[] | [.domain, .key, .type, .value, (.host // \"\"), (.scope // \"user\"), (.plist_path // \"\")] | join(\"$unit_separator\")" "$data_file"
+  local declared_record_count raw_records
+  if ! declared_record_count="$(yq eval -r '(.macos.defaults // []) | length' "$data_file")"; then
+    printf 'error: cannot count the records in %s\n' "$data_file" >&2
+    return 2
+  fi
+  if ! raw_records="$(yq eval -r "$(defaults_records_join_expression '.macos.defaults[]')" "$data_file")"; then
+    printf 'error: cannot read the records in %s\n' "$data_file" >&2
+    return 2
+  fi
+
+  local line field_count emitted_line_count=0
+  local -a validated_lines=()
+  while IFS= read -r line; do
+    # yq prints a single empty line for an empty array; that is not a record.
+    [[ -z $line ]] && continue
+    field_count="$(defaults_records_field_count "$line")"
+    if [[ $field_count -ne 7 ]]; then
+      printf 'error: %s: %s renders %s fields, not 7; a field value contains a unit separator (0x1f) or a newline\n' \
+        "$data_file" "$(defaults_records_locate_malformed "$data_file" "$declared_record_count")" \
+        "$field_count" >&2
+      return 2
+    fi
+    validated_lines+=("$line")
+    emitted_line_count=$((emitted_line_count + 1))
+  done <<<"$raw_records"
+
+  if [[ $emitted_line_count -ne $declared_record_count ]]; then
+    printf 'error: %s declares %s record(s) but the record stream has %s line(s); %s contains a newline\n' \
+      "$data_file" "$declared_record_count" "$emitted_line_count" \
+      "$(defaults_records_locate_malformed "$data_file" "$declared_record_count")" >&2
+    return 2
+  fi
+
+  if [[ ${#validated_lines[@]} -gt 0 ]]; then
+    printf '%s\n' "${validated_lines[@]}"
+  fi
 }
 
 # validate_record_scope <scope> <host> <plist_path>, print the validated scope.

@@ -23,6 +23,10 @@
 #   C. The template refuses the targets it cannot vouch for: a traversal domain,
 #      a traversal plist_path, a plist_path on a user-scope record, and the
 #      degenerate targets (empty/all-dot domain, a plist_path of exactly "/").
+#   D. One YAML record produces exactly one write. A record whose value carries
+#      unit separators and a newline can otherwise forge a SECOND, fully
+#      attacker-controlled root write that the template never renders, leaving
+#      the tools and the runner disagreeing about how many records exist.
 #
 # Real chezmoi and yq; `defaults`, `sudo`, `osascript`, and `killall` are
 # stubbed. Never runs real sudo, never touches /Library.
@@ -40,6 +44,7 @@ unset MACOS_DEFAULTS_SOURCE_DIR GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_INDEX_F
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 TEMPLATE="$REPO_ROOT/.chezmoiscripts/run_onchange_after_30-macos-defaults.sh.tmpl"
 LIB="$REPO_ROOT/dot_local/bin/macos-defaults-lib.sh"
+APPLY="$REPO_ROOT/dot_local/bin/executable_macos-defaults-apply.sh"
 
 fail() {
   printf 'FAIL: %s\n' "$*" >&2
@@ -64,7 +69,7 @@ for tool in chezmoi yq; do
     exit 0
   }
 done
-for required_file in "$TEMPLATE" "$LIB"; do
+for required_file in "$TEMPLATE" "$LIB" "$APPLY"; do
   [[ -f $required_file ]] || fail "missing file: $required_file"
 done
 
@@ -411,5 +416,108 @@ render_template "$lulu_src" "$sandbox/rendered-lulu" "$render_error" ||
 assert_file_contains "$sandbox/rendered-lulu" '/Library/Objective-See/LuLu/preferences.plist' \
   'the tracked Objective-See path must be the write target'
 
-printf 'macos-defaults-injection: OK (a hostile type fails the render on both scopes with no write emitted; command substitution, backticks and $VAR in every data field arrive as literal text and execute nothing; traversal, user-scope and degenerate targets are refused while the tracked Objective-See path still renders)
-'
+# ---- D: one record, one write ------------------------------------------------
+
+# run_apply <source-dir> <err-file> -- run apply with the stubs first on PATH,
+# from inside the sandbox so a path bug lands somewhere observable.
+run_apply() { # <source-dir> <err-file>
+  (
+    cd "$sandbox" || exit 1
+    MACOS_DEFAULTS_SOURCE_DIR="$1" HOME="$sandbox/apply-home" \
+      PATH="$stub_bin:$PATH" bash "$APPLY"
+  ) 2>"$2"
+}
+mkdir -p "$sandbox/apply-home"
+
+# Control: one benign system record yields exactly one write. Without this row
+# the rejection below is satisfied by an apply that writes nothing ever.
+one_record_src="$(
+  make_source_dir <<'EOF'
+macos:
+  defaults:
+    - domain: com.example.sys
+      key: SysKey
+      type: string
+      value: v
+      scope: system
+  killall: []
+EOF
+)"
+: >"$stub_log"
+run_apply "$one_record_src" "$sandbox/apply-benign.err" ||
+  fail "apply must succeed on one benign system record (stderr: $(cat "$sandbox/apply-benign.err"))"
+benign_write_count="$(grep -cF 'sudo [defaults] [write]' "$stub_log" || true)"
+[[ $benign_write_count -eq 1 ]] ||
+  fail "one system record must produce exactly one root write (got $benign_write_count; log: $(cat "$stub_log"))"
+
+# The forging payload: unit separators plus a newline inside ONE record's value.
+# It is BALANCED on purpose, so both halves carry exactly seven fields and a
+# field-count check alone waves them through; only comparing the number of
+# emitted lines against the number of DECLARED records catches it.
+forging_src="$(
+  make_source_dir <<'EOF'
+macos:
+  defaults:
+    - domain: com.example.sys
+      key: SysKey
+      type: string
+      value: "v\x1f\x1fsystem\x1f\nEVIL.DOMAIN\x1fEVILKEY\x1fbool\x1ftrue"
+      scope: system
+  killall: []
+EOF
+)"
+forging_data_file="$forging_src/.chezmoidata/macos_defaults.yaml"
+
+stream_status=0
+stream_output="$(bash -c 'source "$1"; defaults_records_unit_separated "$2"' _ \
+  "$LIB" "$forging_data_file" 2>"$sandbox/stream.err")" || stream_status=$?
+[[ $stream_status -ne 0 ]] ||
+  fail "the record stream must reject a forged record (got 0, stream: $(printf '%s' "$stream_output" | cat -v))"
+assert_file_contains "$sandbox/stream.err" 'com.example.sys' \
+  "the rejection must name the offending record (stderr: $(cat "$sandbox/stream.err"))"
+refute_file_contains "$sandbox/stream.err" 'EVIL.DOMAIN' \
+  'the rejection must name the real record, not the forged one it produced'
+
+: >"$stub_log"
+forging_status=0
+run_apply "$forging_src" "$sandbox/apply-forging.err" || forging_status=$?
+[[ $forging_status -ne 0 ]] ||
+  fail "apply must refuse a data file carrying a forged record (log: $(cat "$stub_log"))"
+refute_file_contains "$stub_log" 'EVIL.DOMAIN' \
+  'apply must never perform the forged root write'
+refute_file_contains "$stub_log" '[write]' \
+  'apply must perform NO write at all once the record stream is known to be malformed'
+
+# The template renders this same file as ONE write, which is exactly the
+# disagreement the check above removes: the tools now refuse rather than seeing
+# a record the template never rendered.
+rendered_forging="$sandbox/rendered-forging"
+render_template "$forging_src" "$rendered_forging" "$render_error" ||
+  fail "the forging fixture still renders as one record (stderr: $(cat "$render_error"))"
+template_write_count="$(grep -cE '^(sudo )?defaults ' "$rendered_forging" || true)"
+[[ $template_write_count -eq 1 ]] ||
+  fail "the template must render exactly one write for one record (got $template_write_count)"
+
+# A lone unit separator, no newline, is caught by the field count rather than by
+# the line count, so both halves of the guard are exercised.
+separator_only_src="$(
+  make_source_dir <<'EOF'
+macos:
+  defaults:
+    - domain: com.example.sep
+      key: SepKey
+      type: string
+      value: "a\x1fb"
+  killall: []
+EOF
+)"
+stream_status=0
+bash -c 'source "$1"; defaults_records_unit_separated "$2"' _ \
+  "$LIB" "$separator_only_src/.chezmoidata/macos_defaults.yaml" \
+  >/dev/null 2>"$sandbox/stream-separator.err" || stream_status=$?
+[[ $stream_status -ne 0 ]] ||
+  fail 'the record stream must reject a value containing a bare unit separator'
+assert_file_contains "$sandbox/stream-separator.err" 'com.example.sep' \
+  "the bare-separator rejection must name the record (stderr: $(cat "$sandbox/stream-separator.err"))"
+
+printf 'macos-defaults-injection: OK (a hostile type fails the render on both scopes with no write emitted; command substitution, backticks and $VAR in every data field arrive as literal text and execute nothing; traversal, user-scope and degenerate targets are refused while the tracked Objective-See path still renders; one record yields exactly one write and a separator/newline forgery is refused before anything is written)\n'
