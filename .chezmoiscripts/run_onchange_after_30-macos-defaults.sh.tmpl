@@ -1,3 +1,16 @@
+{{- /* shellSingleQuoted, the one place a data field becomes a shell word. It
+wraps the value in POSIX single quotes and rewrites every embedded single quote
+as the four characters '\'' (close, escaped quote, reopen). Bash performs NO
+expansion of any kind inside single quotes, so a field carrying $(...), a
+backtick or $VAR arrives at `defaults` as literal text.
+Two near-misses this deliberately avoids. sprig's `quote` emits a Go %q
+DOUBLE-quoted string: it escapes " and \, so nothing can break OUT of the
+quotes, but bash still expands $(...), backticks and $VAR INSIDE them, so a
+value of $(id -un) executed. sprig's `squote` wraps in single quotes WITHOUT
+escaping embedded ones, so a value containing an apostrophe breaks out.
+Defined at file scope because Go's text/template only accepts {{ define }} at
+the top level of a file, never nested inside an action. */ -}}
+{{- define "shellSingleQuoted" }}{{ printf "'%s'" (replace "'" "'\\''" (toString .)) }}{{ end -}}
 {{ if eq .chezmoi.os "darwin" -}}
 #!/bin/bash
 # Tier 1, macOS user defaults runner.
@@ -33,7 +46,11 @@ syntax is command injection: a type of `bool true; some-command #` renders a
 valid write followed by an attacker's command, and on a system record that runs
 under the sudo credential the prelude just cached. Quoting is not the fix, since
 `defaults` needs a bare option word, so the type is constrained to a closed set
-instead. Everything else on these lines goes through `quote`. */ -}}
+instead. Every OTHER field goes through the shellSingleQuoted template defined
+at the top of this file, which stops bash from expanding anything inside it.
+What that does NOT promise: the field still reaches `defaults` as an argument,
+so it must still be a value `defaults` accepts, and the closed set above remains
+the only thing guarding the type. */ -}}
 {{ if not (has .type (list "array" "bool" "data" "date" "dict" "float" "int" "string")) -}}
 {{ fail (printf "macos_defaults.yaml: unsupported type %q on record %s %s; expected one of array bool data date dict float int string" .type .domain .key) -}}
 {{ end -}}
@@ -54,9 +71,20 @@ default construction contained by construction rather than by a later check. */ 
 {{ if contains "/" .domain -}}
 {{ fail (printf "macos_defaults.yaml: system-scope domain %q on record %s contains a slash; it would escape the default plist directory" .domain .key) -}}
 {{ end -}}
+{{- /* Degenerate targets. A domain that is empty or nothing but dots resolves
+to /Library/Preferences/, /Library/Preferences/. or /Library/Preferences/..,
+none of which escape the directory (`defaults` appends .plist) and none of which
+name a file anybody meant to write. Hygiene, not containment, but the stated
+rule is "does this resolve where I intend to write" and these do not. */ -}}
+{{ if eq (trimAll "." .domain) "" -}}
+{{ fail (printf "macos_defaults.yaml: system-scope domain %q on record %s is empty or nothing but dots; it names no plist" .domain .key) -}}
+{{ end -}}
 {{ $declaredPath := index . "plist_path" | default "" -}}
 {{ if or (hasPrefix "../" $declaredPath) (contains "/../" $declaredPath) (hasSuffix "/.." $declaredPath) -}}
 {{ fail (printf "macos_defaults.yaml: system-scope plist_path %q on record %s %s contains a parent-directory component" $declaredPath .domain .key) -}}
+{{ end -}}
+{{ if eq $declaredPath "/" -}}
+{{ fail (printf "macos_defaults.yaml: system-scope plist_path %q on record %s %s is the filesystem root; it names no plist" $declaredPath .domain .key) -}}
 {{ end -}}
 {{ end -}}
 {{ if eq $scope "system" }}{{ $hasSystemScopeRecord = true }}{{ end -}}
@@ -77,15 +105,15 @@ declared path must be absolute, never resolved against a working directory. */ -
 {{ if not (hasPrefix "/" $plistPath) -}}
 {{ fail (printf "macos_defaults.yaml: relative plist_path %q on record %s %s; an absolute path is required" $plistPath .domain .key) -}}
 {{ end -}}
-sudo defaults write {{ $plistPath | quote }} {{ .key | quote }} -{{ .type }} {{ .value | quote }}
+sudo defaults write {{ template "shellSingleQuoted" $plistPath }} {{ template "shellSingleQuoted" .key }} -{{ .type }} {{ template "shellSingleQuoted" .value }}
 {{ else -}}
-defaults {{ if index . "host" }}-currentHost {{ end }}write {{ .domain | quote }} {{ .key | quote }} -{{ .type }} {{ .value | quote }}
+defaults {{ if index . "host" }}-currentHost {{ end }}write {{ template "shellSingleQuoted" .domain }} {{ template "shellSingleQuoted" .key }} -{{ .type }} {{ template "shellSingleQuoted" .value }}
 {{ end -}}
 {{ end -}}
 
 # Post-loop: restart user-facing processes so changes take effect immediately.
 # cfprefsd kill is non-negotiable (caches plist values in memory).
 {{ range .macos.killall -}}
-killall {{ . | quote }} 2>/dev/null || true
+killall {{ template "shellSingleQuoted" . }} 2>/dev/null || true
 {{ end }}
 {{- end }}

@@ -7,12 +7,17 @@
 # meaning of an absent field) or `system` (a root-owned plist, written through
 # sudo). The properties pinned here, one per acceptance criterion:
 #
-#   1. With no system-scope record the rendered runner is byte-identical to the
-#      pre-slice render and contains no `sudo` (the golden below was rendered
-#      from main's template before this slice changed it).
+#   1. With no system-scope record the rendered runner is SEMANTICALLY identical
+#      to the pre-slice render and contains no `sudo`. Byte-identity was the
+#      original claim and it no longer holds, deliberately: hardening every data
+#      field from Go's %q double-quoting to POSIX single-quoting changes the
+#      quote character on every write line. Both goldens are kept below, and the
+#      two are run under identical stubs so the argument vectors `defaults` and
+#      `killall` receive must match exactly. Argument vectors are what the claim
+#      was ever about; the quote characters are not.
 #   2. With a system-scope record the rendered runner contains exactly one
 #      `sudo -v`, before any write, and that record's write is `sudo defaults
-#      write "/Library/Preferences/<domain>" ...`.
+#      write '/Library/Preferences/<domain>' ...`.
 #   3. An explicit ABSOLUTE plist_path is written instead of the default.
 #   4. A RELATIVE plist_path is rejected (render fails; apply refuses), never
 #      resolved against the ambient working directory.
@@ -95,7 +100,7 @@ render_template() { # <source-dir> <out-file> <err-file>
   HOME="$render_home" chezmoi --source "$1" execute-template --no-tty <"$TEMPLATE" >"$2" 2>"$3"
 }
 
-# ---- criterion 1: user-only data renders byte-identical to main -------------
+# ---- criterion 1: user-only data renders with unchanged behavior ------------
 
 user_only_src="$(
   make_source_dir <<'EOF'
@@ -116,10 +121,13 @@ macos:
 EOF
 )"
 
-# The golden render: main's template (pre-slice, commit 5d70c94) rendered
-# against the fixture above. Byte for byte, including the trailing blank line.
-golden="$sandbox/golden-user-only"
-cat >"$golden" <<'EOF'
+# The PRE-SLICE golden: main's template (commit 5d70c94) rendered against the
+# fixture above, byte for byte including the trailing blank line. It is no
+# longer the byte-target, it is the BEHAVIORAL reference: the section below runs
+# it and the current render under the same stubs and compares what `defaults`
+# and `killall` actually receive.
+pre_slice_golden="$sandbox/golden-user-only-pre-slice"
+cat >"$pre_slice_golden" <<'EOF'
 #!/bin/bash
 # Tier 1, macOS user defaults runner.
 # chezmoi hash-gates on the rendered template body; this script re-runs only
@@ -141,6 +149,33 @@ killall "cfprefsd" 2>/dev/null || true
 
 EOF
 
+# The CURRENT golden: the same fixture through the hardened template. Every data
+# field is POSIX single-quoted, so bash performs no expansion inside it at all.
+# Keeping this as a byte pin means any future change to the quoting shows up as
+# a diff in this file rather than as a silent change in what gets executed.
+hardened_golden="$sandbox/golden-user-only-hardened"
+cat >"$hardened_golden" <<'EOF'
+#!/bin/bash
+# Tier 1, macOS user defaults runner.
+# chezmoi hash-gates on the rendered template body; this script re-runs only
+# when .chezmoidata/macos_defaults.yaml changes.
+
+set -euo pipefail
+
+# Pre-flight: close System Settings if open. macOS caches plist values inside
+# Settings and writes them back on close, silently overwriting our writes.
+osascript -e 'tell application "System Settings" to quit' 2>/dev/null || true
+
+# Main loop: one `defaults write` per record.
+defaults write 'com.example.alpha' 'AlphaKey' -bool 'true'
+defaults -currentHost write 'com.example.beta' 'BetaKey' -string 'BetaValue'
+# Post-loop: restart user-facing processes so changes take effect immediately.
+# cfprefsd kill is non-negotiable (caches plist values in memory).
+killall 'Dock' 2>/dev/null || true
+killall 'cfprefsd' 2>/dev/null || true
+
+EOF
+
 rendered="$sandbox/rendered-user-only"
 render_error="$sandbox/render.err"
 render_template "$user_only_src" "$rendered" "$render_error" ||
@@ -149,10 +184,42 @@ if [[ -z "$(tr -d '[:space:]' <"$rendered")" ]]; then
   printf 'SKIP: empty render (non-darwin host); nothing to exercise\n'
   exit 0
 fi
-cmp -s "$golden" "$rendered" ||
-  fail "user-only render must be byte-identical to the pre-slice render (diff: $(diff "$golden" "$rendered" | head -20))"
+cmp -s "$hardened_golden" "$rendered" ||
+  fail "user-only render must match the hardened golden (diff: $(diff "$hardened_golden" "$rendered" | head -20))"
 refute_file_contains "$rendered" 'sudo' \
   'user-only render must contain no sudo invocation'
+
+# Semantic identity with the pre-slice render, the claim byte-identity was
+# standing in for. Both scripts run under the same stubs and the recorded
+# argument vectors must be identical: same commands, same arguments, same order.
+# The fixture is benign, so a quoting change that altered ANY argument, or
+# reordered anything, shows up here.
+equivalence_bin="$sandbox/equivalence-bin"
+mkdir -p "$equivalence_bin"
+for stubbed_command in defaults killall osascript; do
+  cat >"$equivalence_bin/$stubbed_command" <<EOF
+#!/bin/bash
+printf '$stubbed_command'
+printf ' [%s]' "\$@"
+printf '\n'
+exit 0
+EOF
+  chmod +x "$equivalence_bin/$stubbed_command"
+done
+run_render_capturing_arguments() { # <script> <out-file>
+  (
+    cd "$sandbox" || exit 1
+    PATH="$equivalence_bin:$PATH" bash "$1"
+  ) >"$2" 2>&1
+}
+run_render_capturing_arguments "$pre_slice_golden" "$sandbox/argv-pre-slice" ||
+  fail 'the pre-slice golden must run cleanly under the stubs'
+run_render_capturing_arguments "$rendered" "$sandbox/argv-hardened" ||
+  fail 'the hardened render must run cleanly under the stubs'
+cmp -s "$sandbox/argv-pre-slice" "$sandbox/argv-hardened" ||
+  fail "the hardened render must pass byte-identical arguments to every command (diff: $(diff "$sandbox/argv-pre-slice" "$sandbox/argv-hardened" | head -20))"
+[[ -s $sandbox/argv-hardened ]] ||
+  fail 'the argument-vector capture is empty; the comparison above would pass on two dead runs'
 
 # The repo's REAL data file declares no system-scope record in this slice, so
 # the shipped render must contain no sudo either.
@@ -203,11 +270,11 @@ first_write_line="$(grep -nE '^(sudo )?defaults ' "$rendered_system" | head -1 |
 [[ -n $first_write_line ]] || fail 'system-record render must contain defaults writes'
 [[ $sudo_validate_line -lt $first_write_line ]] ||
   fail "the sudo -v prelude must come before any write (sudo -v at line $sudo_validate_line, first write at line $first_write_line)"
-grep -qxF 'sudo defaults write "/Library/Preferences/com.example.sys" "SysKey" -bool "false"' "$rendered_system" ||
+grep -qxF "sudo defaults write '/Library/Preferences/com.example.sys' 'SysKey' -bool 'false'" "$rendered_system" ||
   fail "the system record's write must be sudo-prefixed and target /Library/Preferences/<domain> (got: $(grep -F 'com.example.sys' "$rendered_system"))"
-grep -qxF 'defaults write "com.example.alpha" "AlphaKey" -bool "true"' "$rendered_system" ||
+grep -qxF "defaults write 'com.example.alpha' 'AlphaKey' -bool 'true'" "$rendered_system" ||
   fail 'the user record must keep its plain, un-sudoed write'
-refute_file_contains "$rendered_system" 'sudo defaults write "com.example.alpha"' \
+refute_file_contains "$rendered_system" "sudo defaults write 'com.example.alpha'" \
   'the user record must not be written through sudo'
 
 # ---- criterion 3: an explicit absolute plist_path wins over the default -----
@@ -229,7 +296,7 @@ EOF
 rendered_explicit="$sandbox/rendered-explicit"
 render_template "$explicit_path_src" "$rendered_explicit" "$render_error" ||
   fail "explicit-path render must succeed (stderr: $(cat "$render_error"))"
-grep -qxF 'sudo defaults write "/Library/Objective-See/LuLu/preferences.plist" "LuLuKey" -string "block"' "$rendered_explicit" ||
+grep -qxF "sudo defaults write '/Library/Objective-See/LuLu/preferences.plist' 'LuLuKey' -string 'block'" "$rendered_explicit" ||
   fail "an explicit absolute plist_path must be the write target (got: $(grep -F LuLuKey "$rendered_explicit"))"
 refute_file_contains "$rendered_explicit" '/Library/Preferences/com.example.lulu' \
   'an explicit plist_path must replace the /Library/Preferences default, not coexist with it'
@@ -693,4 +760,4 @@ run_tool "$capture_reject_src" "$CAPTURE" com.example.cap CapKey --scope=bogus \
 [[ $capture_status -eq 3 ]] ||
   fail "capture --scope=bogus must exit 3 (got $capture_status)"
 
-printf 'macos-defaults-system-scope: OK (user-only render byte-identical with no sudo; one sudo -v before any write; explicit absolute plist_path honored, relative rejected everywhere; drift distinguishes value/<unset>/<unreadable> and never counts indeterminate as drift; capture appends scope: system and rejects the --host pairing)\n'
+printf 'macos-defaults-system-scope: OK (user-only render matches the hardened golden, passes byte-identical arguments to the pre-slice render, and contains no sudo; one sudo -v before any write; explicit absolute plist_path honored, relative rejected everywhere; drift distinguishes value/<unset>/<unreadable> and never counts indeterminate as drift; capture appends scope: system and rejects the --host pairing)\n'
