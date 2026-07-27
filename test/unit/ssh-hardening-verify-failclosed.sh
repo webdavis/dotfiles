@@ -88,4 +88,83 @@ grep -qi 'cannot read' <<<"$SSH_RUN_ERR" ||
 refute_contains "$SSH_RUN_OUT" 'verify: PASS' \
   'an unreadable drop-in must never produce a pass claim'
 
-printf 'ssh-hardening-verify-failclosed: OK (missing verifier fails closed, seam skips without a verified claim, unreadable drop-in fails and is named)\n'
+# --- 4: the skip seam is ON only for a TRUE-ish value ------------------------
+# The seam was tested for being NONEMPTY, so every value enabled it -- setting
+# it to `0`, the value that reads as "off", switched verification off. Both
+# directions are asserted, because "ignore the seam entirely" would satisfy
+# only half of this.
+
+for off_value in 0 false no off FALSE Off; do
+  SSHD_BIN="$SSH_SANDBOX/no-such-sshd" \
+    SSH_HARDENING_ALLOW_MISSING_SSHD="$off_value" run_ssh_hardening --verify
+  [[ $SSH_RUN_STATUS -ne 0 ]] ||
+    fail "seam='$off_value' reads as OFF and must NOT enable the skip; --verify exited 0 (stdout: $SSH_RUN_OUT)"
+  grep -qi 'failing closed' <<<"$SSH_RUN_ERR" ||
+    fail "seam='$off_value': the failure must say it is failing closed (stderr: $SSH_RUN_ERR)"
+  refute_contains "$SSH_RUN_OUT" 'skip' \
+    "seam='$off_value' must not report a skip"
+done
+
+for on_value in 1 true yes on TRUE On; do
+  SSHD_BIN="$SSH_SANDBOX/no-such-sshd" \
+    SSH_HARDENING_ALLOW_MISSING_SSHD="$on_value" run_ssh_hardening --verify
+  [[ $SSH_RUN_STATUS -eq 0 ]] ||
+    fail "seam='$on_value' reads as ON and must still skip cleanly, got $SSH_RUN_STATUS (stderr: $SSH_RUN_ERR)"
+  grep -qi 'skip' <<<"$SSH_RUN_OUT" ||
+    fail "seam='$on_value': the seam path must say it skipped (stdout: $SSH_RUN_OUT)"
+  refute_contains "$SSH_RUN_OUT" 'verified' \
+    "seam='$on_value' must not print a verified claim"
+done
+
+# --- 5: a file listing that could not be built is not an empty tree ----------
+# The list of files to scan was produced by a pipeline inside a process
+# substitution, whose exit status nothing can observe. A failing `sort` there
+# yields ZERO files, and a scan of nothing finds nothing wrong: --verify
+# printed PASS over a tree it had never read. The tree here is fully hardened
+# on purpose, so the listing failure is the only thing that can fail it.
+
+write_hardened_dropin
+run_ssh_hardening --verify
+[[ $SSH_RUN_STATUS -eq 0 ]] ||
+  fail "positive control: the hardened sandbox must verify before the listing is broken (stderr: $SSH_RUN_ERR)"
+
+ssh_break_command sort
+run_ssh_hardening --verify
+ssh_restore_commands
+[[ $SSH_RUN_STATUS -ne 0 ]] ||
+  fail 'a configuration listing that could not be built must FAIL the verify, not pass it as an empty tree'
+grep -qi 'list the configuration files' <<<"$SSH_RUN_ERR" ||
+  fail "the failure must name the listing it could not build (stderr: $SSH_RUN_ERR)"
+refute_contains "$SSH_RUN_OUT" 'verify: PASS' \
+  'a scan that read no files must never produce a pass claim'
+
+run_ssh_hardening --verify
+[[ $SSH_RUN_STATUS -eq 0 ]] ||
+  fail "--verify must PASS again once the listing works; state leaked (stderr: $SSH_RUN_ERR)"
+
+# --- 6: every command the verify depends on is checked BY NAME ---------------
+# Each of these used to be visible only through errexit, which the install path
+# switched off. Asserting the WORDING and not merely the exit status is what
+# pins the individual guard: without it the run still fails, but for a reason
+# nobody can act on -- a spec built from an empty user name, or an unset value
+# read as an absent directive.
+
+assert_named_failure() { # <broken command> <message needle>
+  ssh_break_command "$1"
+  run_ssh_hardening --verify
+  ssh_restore_commands
+  [[ $SSH_RUN_STATUS -ne 0 ]] ||
+    fail "a failing '$1' must FAIL the verify (stdout: $SSH_RUN_OUT)"
+  grep -qi -- "$2" <<<"$SSH_RUN_ERR" ||
+    fail "a failing '$1' must be reported as '$2' rather than left to surface as some downstream confusion (stderr: $SSH_RUN_ERR)"
+  refute_contains "$SSH_RUN_OUT" 'verify: PASS' \
+    "a failing '$1' must never produce a pass claim"
+  run_ssh_hardening --verify
+  [[ $SSH_RUN_STATUS -eq 0 ]] ||
+    fail "--verify must PASS again once '$1' works (stderr: $SSH_RUN_ERR)"
+}
+
+assert_named_failure id 'could not determine the invoking user'
+assert_named_failure awk 'could not read'
+
+printf 'ssh-hardening-verify-failclosed: OK (missing verifier fails closed, the skip seam honours only true-ish values, an unreadable drop-in and an unbuildable listing both fail and are named)\n'

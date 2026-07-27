@@ -100,6 +100,38 @@ run_ssh_hardening_bounded() {
   SSH_RUN_ERR="$(cat "$err_file")"
 }
 
+# ssh_break_command <name>: shadow one external command with a stub that always
+# exits 91, at the FRONT of PATH, for every later invocation until
+# ssh_restore_commands runs. Used to inject the kind of environmental failure a
+# verifier must never step over.
+ssh_break_command() {
+  SSH_BROKEN_BIN="$SSH_SANDBOX/broken"
+  mkdir -p "$SSH_BROKEN_BIN"
+  printf '#!/bin/bash\nexit 91\n' >"$SSH_BROKEN_BIN/$1"
+  chmod +x "$SSH_BROKEN_BIN/$1"
+  case ":$PATH:" in
+    *":$SSH_BROKEN_BIN:"*) ;;
+    *)
+      PATH="$SSH_BROKEN_BIN:$PATH"
+      export PATH
+      ;;
+  esac
+}
+
+ssh_restore_commands() {
+  if [[ -n ${SSH_BROKEN_BIN:-} && -d ${SSH_BROKEN_BIN:-} ]]; then
+    rm -f "$SSH_BROKEN_BIN"/*
+  fi
+}
+
+# write_hardened_dropin: put the policy file in place WITHOUT running install,
+# so a test can rebuild a known-good tree between cases without depending on
+# the very install path it is about to examine.
+write_hardened_dropin() {
+  /bin/bash "$SSH_HARDENING_SCRIPT" --print-config \
+    >"$SSHD_CONFIG_D/000-ssh-hardening.conf"
+}
+
 # write_hostile_apple_conf: a 100-macos.conf that reopens EVERY hole the
 # drop-in closes. Deliberately hostile, unlike the benign file Apple really
 # ships (which sets only UsePAM, AcceptEnv, and the sftp Subsystem): the

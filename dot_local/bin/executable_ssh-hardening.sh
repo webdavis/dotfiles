@@ -25,10 +25,11 @@
 #   SSH_HARDENING_SUDO  privilege wrapper for writes; set EMPTY to run
 #                       unprivileged against a sandbox tree (default sudo)
 #   SSH_HARDENING_ALLOW_MISSING_SSHD
-#                       explicit test seam: when set AND $SSHD_BIN cannot run,
-#                       --verify skips (exit 0) WITHOUT a verified claim.
-#                       Never set in the default path; absent it, an
-#                       unrunnable verifier fails closed.
+#                       explicit test seam: when set to a TRUE-ish value AND
+#                       $SSHD_BIN cannot run, --verify skips (exit 0) WITHOUT a
+#                       verified claim. '0', 'false', 'no', 'off' and the empty
+#                       string all read as OFF. Never set in the default path;
+#                       absent it, an unrunnable verifier fails closed.
 set -euo pipefail
 
 # sshd matches configuration keywords AND their yes/no arguments
@@ -44,6 +45,10 @@ SSHD_BIN="${SSHD_BIN:-/usr/sbin/sshd}"
 # `-` not `:-`: set-but-empty means "no wrapper, run the commands directly",
 # which is how tests write into a user-owned sandbox without privilege.
 SSH_HARDENING_SUDO="${SSH_HARDENING_SUDO-sudo}"
+
+# This file, for the install path's strict child verify. BASH_SOURCE and not
+# $0, so a caller that rewrites $0 cannot redirect the re-invocation.
+SSH_HARDENING_SELF="${BASH_SOURCE[0]}"
 
 # sshd resolves a RELATIVE Include argument against its compiled-in
 # configuration directory, not the working directory (verified two ways: a
@@ -205,7 +210,18 @@ EOF
 # SSH_HARDENING_ALLOW_MISSING_SSHD test seam and never claims verified.
 
 VERIFY_FAILURES=()
-VERIFY_SKIPPED=0
+
+# verify_skip_allowed: the SSH_HARDENING_ALLOW_MISSING_SSHD seam is ON only for
+# an explicitly TRUE-ish value. It used to be tested for being NONEMPTY, so
+# every value turned it on -- including `0`, the one value a reader would
+# expect to turn it OFF. A seam that disables verification when set to "off" is
+# a trap, and this is the whole list of values that arm it.
+verify_skip_allowed() {
+  case "${SSH_HARDENING_ALLOW_MISSING_SSHD:-}" in
+    1 | true | yes | on) return 0 ;;
+    *) return 1 ;;
+  esac
+}
 
 # add_failure <message>: record a problem once. The include graph is walked
 # from both roots, so a drop-in reached through the main config's Include and
@@ -266,12 +282,16 @@ required_value() {
 # each named: correct, wrong value, absent. Every one is asserted
 # individually; completeness beats counting.
 assert_output_hardened() {
-  local label="$1" output="$2" i key want got
+  local label="$1" output="$2" i key want got status
   for i in "${!PROTECTED_KEYS[@]}"; do
     key="${PROTECTED_KEYS[$i]}"
     want="${PROTECTED_VALUES[$i]}"
-    got="$(printf '%s\n' "$output" | awk -v k="$key" '$1 == k { print $2; exit }')"
-    if [[ -z $got ]]; then
+    status=0
+    got="$(printf '%s\n' "$output" | awk -v k="$key" '$1 == k { print $2; exit }')" ||
+      status=$?
+    if [[ $status -ne 0 ]]; then
+      add_failure "$label: could not read '$key' out of the sshd output (exit $status); failing closed rather than reading an unset value as absent"
+    elif [[ -z $got ]]; then
       add_failure "$label: '$key' is absent from the effective configuration"
     elif [[ $got != "$want" ]]; then
       add_failure "$label: '$key' is '$got', want '$want'"
@@ -517,7 +537,8 @@ scan_config_file() {
 }
 
 check_match_scan() {
-  local file
+  local listing status=0 file old_ifs
+  local -a files
   # Two roots, each walked with Include followed from it. The main config is
   # where sshd starts, so everything sshd reads is reachable from it. The
   # drop-in directory is kept as a second root so a drop-in stays covered even
@@ -528,15 +549,47 @@ check_match_scan() {
   # The include order is lexical byte order; LC_ALL=C sort mirrors it. A
   # config file name containing a newline would break this listing; sshd's
   # own glob handling shares the no-newline assumption.
-  while IFS= read -r file; do
-    [[ -n $file && -f $file ]] || continue
+  #
+  # The listing is CAPTURED, not streamed from a process substitution. A
+  # process substitution discards its exit status, so a failing sort produced
+  # zero files, the loop ran over nothing, and a scan of nothing reported the
+  # tree clean.
+  listing="$(printf '%s\n' "$SSHD_MAIN_CONFIG" "$SSHD_CONFIG_D"/* | LC_ALL=C sort -u)" ||
+    status=$?
+  if [[ $status -ne 0 ]]; then
+    add_failure "match scan: could not list the configuration files to scan (exit $status); failing closed rather than scanning none"
+    return 0
+  fi
+  # Split on newlines only, with globbing off so a file name containing a glob
+  # character is not expanded a second time.
+  old_ifs="$IFS"
+  IFS=$'\n'
+  set -f
+  # shellcheck disable=SC2206  # deliberate newline split of the captured listing
+  files=($listing)
+  set +f
+  IFS="$old_ifs"
+  if [[ ${#files[@]} -eq 0 ]]; then
+    add_failure 'match scan: the configuration file listing came back empty; failing closed rather than scanning none'
+    return 0
+  fi
+  for file in "${files[@]}"; do
+    if [[ -z $file || ! -f $file ]]; then
+      continue
+    fi
     scan_config_file "$file" 0 0 '|'
-  done < <(printf '%s\n' "$SSHD_MAIN_CONFIG" "$SSHD_CONFIG_D"/* | LC_ALL=C sort -u)
+  done
 }
 
 check_connection_specs() {
-  local invoking_user spec output status
-  invoking_user="$(id -un)"
+  local invoking_user spec output status=0
+  # Guarded, not assumed: the status of this substitution used to be visible
+  # only through errexit, which the install path switched off.
+  invoking_user="$(id -un)" || status=$?
+  if [[ $status -ne 0 || -z $invoking_user ]]; then
+    add_failure "connection check: could not determine the invoking user ('id -un' exited $status); failing closed rather than probing a spec built from an empty name"
+    return 0
+  fi
   # Two samples: root (the account PermitRootLogin exists to keep out) and
   # the invoking user (so a 'Match User <name>' aimed at the operator's own
   # account fails RESOLUTION, not only the raw scan). Samples cannot be
@@ -559,10 +612,8 @@ check_connection_specs() {
 
 verify() {
   VERIFY_FAILURES=()
-  VERIFY_SKIPPED=0
   if [[ ! -x $SSHD_BIN ]]; then
-    if [[ -n ${SSH_HARDENING_ALLOW_MISSING_SSHD:-} ]]; then
-      VERIFY_SKIPPED=1
+    if verify_skip_allowed; then
       printf '[ssh-hardening] verify SKIPPED: %s is not executable and the SSH_HARDENING_ALLOW_MISSING_SSHD test seam is set. The configuration was NOT checked.\n' "$SSHD_BIN"
       return 0
     fi
@@ -613,10 +664,29 @@ install_dropin() {
     fi
     printf '[ssh-hardening] removed legacy drop-in %s\n' "$legacy"
   fi
-  if ! verify; then
+  # Verify in a CHILD shell. bash suppresses `set -e` for everything inside an
+  # `if !` or `||` test, and that suppression reaches into called functions and
+  # even into subshells (confirmed on bash 3.2), so calling verify in-process
+  # here ran every check with errexit switched off: a failure mid-flight was
+  # stepped over and the success line still printed. A separate process gets
+  # its own `set -euo pipefail`, so install judges the tree by exactly the
+  # rules --verify applies on its own. The seams are passed explicitly so the
+  # child inspects the tree this install just wrote whether or not the caller
+  # exported them.
+  local verify_status=0
+  SSHD_CONFIG_D="$SSHD_CONFIG_D" \
+    SSHD_MAIN_CONFIG="$SSHD_MAIN_CONFIG" \
+    SSHD_BIN="$SSHD_BIN" \
+    SSH_HARDENING_SUDO="$SSH_HARDENING_SUDO" \
+    SSH_HARDENING_ALLOW_MISSING_SSHD="${SSH_HARDENING_ALLOW_MISSING_SSHD:-}" \
+    "${BASH:-/bin/bash}" "$SSH_HARDENING_SELF" --verify || verify_status=$?
+  if [[ $verify_status -ne 0 ]]; then
     die "wrote '$target' but the effective configuration did NOT verify as fully hardened; refusing to claim success"
   fi
-  if [[ $VERIFY_SKIPPED -eq 1 ]]; then
+  # The child's skip cannot be read out of its exit status, so the same
+  # predicate decides the wording here. One function, two callers, no second
+  # copy of the rule to drift.
+  if [[ ! -x $SSHD_BIN ]] && verify_skip_allowed; then
     printf '[ssh-hardening] wrote %s, but verification was SKIPPED via the test seam; the effective configuration is NOT verified.\n' "$target"
     return 0
   fi
