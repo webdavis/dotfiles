@@ -34,10 +34,14 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/ssh-hardening-lib.bash"
 #                                            at SSH_SUDO_DENY_STUB for the
 #                                            privilege-failure case
 # and the spy logs:
-#   LAUNCHCTL_SPY_LOG, KEYSCAN_SPY_LOG, SLEEP_SPY_LOG, SUDO_OK_SPY_LOG,
-#   SUDO_DENY_SPY_LOG, SSH_BARE_TOOL_SPY_LOG (the PATH tripwires for bare
-#   sshd / launchctl / ssh-keyscan; bare sudo keeps slice 7's
-#   SSH_SUDO_SPY_LOG).
+#   SSHD_SPY_LOG, LAUNCHCTL_SPY_LOG, KEYSCAN_SPY_LOG, SLEEP_SPY_LOG,
+#   SUDO_OK_SPY_LOG, SUDO_DENY_SPY_LOG, SSH_BARE_TOOL_SPY_LOG (the PATH
+#   tripwires for bare sshd / launchctl / ssh-keyscan; bare sudo keeps slice
+#   7's SSH_SUDO_SPY_LOG), and SSH_SEAM_CALL_LOG, one SHARED ordered log
+#   every controlled stub appends `<tool> <argv>` to, so tests can assert
+#   the exact sequence of seam calls across tools (a spy that records THAT a
+#   call happened but not WHAT it asked lets a dropped flag, a typo'd label,
+#   a wrong -f target, or a reordered step survive).
 #
 # Stub behavior knobs, all exported and overridable per invocation:
 #   SSHD_STUB_SYNTAX_STATUS          exit status of `sshd -t` (default 0)
@@ -79,18 +83,22 @@ reload_sandbox_setup() {
   SSH_STUB_DIR="$SSH_SANDBOX/stubs"
   SSH_STUB_STATE="$SSH_SANDBOX/stub-state"
   mkdir -p "$SSH_STUB_DIR" "$SSH_STUB_STATE"
+  SSHD_SPY_LOG="$SSH_SANDBOX/sshd-spy.log"
   LAUNCHCTL_SPY_LOG="$SSH_SANDBOX/launchctl-spy.log"
   KEYSCAN_SPY_LOG="$SSH_SANDBOX/keyscan-spy.log"
   SLEEP_SPY_LOG="$SSH_SANDBOX/sleep-spy.log"
   SUDO_OK_SPY_LOG="$SSH_SANDBOX/sudo-ok-spy.log"
   SUDO_DENY_SPY_LOG="$SSH_SANDBOX/sudo-deny-spy.log"
   SSH_BARE_TOOL_SPY_LOG="$SSH_SANDBOX/bare-tool-spy.log"
+  SSH_SEAM_CALL_LOG="$SSH_SANDBOX/seam-call.log"
+  : >"$SSHD_SPY_LOG"
   : >"$LAUNCHCTL_SPY_LOG"
   : >"$KEYSCAN_SPY_LOG"
   : >"$SLEEP_SPY_LOG"
   : >"$SUDO_OK_SPY_LOG"
   : >"$SUDO_DENY_SPY_LOG"
   : >"$SSH_BARE_TOOL_SPY_LOG"
+  : >"$SSH_SEAM_CALL_LOG"
 
   # PATH tripwires: a bare-name call to any tool the reload modes touch must
   # fail loudly, never reach the real tool. $SSH_SANDBOX/bin is already first
@@ -113,6 +121,8 @@ STUB
   cat >"$SSH_STUB_DIR/sshd" <<'STUB'
 #!/bin/bash
 set -euo pipefail
+printf '%s\n' "$*" >>"${SSHD_SPY_LOG:?}"
+printf 'sshd %s\n' "$*" >>"${SSH_SEAM_CALL_LOG:?}"
 case " $* " in
   *' -t '*)
     if [[ ${SSHD_STUB_SYNTAX_STATUS:-0} -ne 0 ]]; then
@@ -164,6 +174,7 @@ STUB
 #!/bin/bash
 set -euo pipefail
 printf '%s\n' "$*" >>"${LAUNCHCTL_SPY_LOG:?}"
+printf 'launchctl %s\n' "$*" >>"${SSH_SEAM_CALL_LOG:?}"
 case "${1:-}" in
   print)
     count_file="${SSH_STUB_STATE:?}/launchctl-print-count"
@@ -219,6 +230,7 @@ STUB
 #!/bin/bash
 set -euo pipefail
 printf '%s\n' "$*" >>"${KEYSCAN_SPY_LOG:?}"
+printf 'ssh-keyscan %s\n' "$*" >>"${SSH_SEAM_CALL_LOG:?}"
 requested_port=''
 previous=''
 for argument in "$@"; do
@@ -266,6 +278,7 @@ STUB
   cat >"$SSH_STUB_DIR/sleep" <<'STUB'
 #!/bin/bash
 printf '%s\n' "$*" >>"${SLEEP_SPY_LOG:?}"
+printf 'sleep %s\n' "$*" >>"${SSH_SEAM_CALL_LOG:?}"
 exit 0
 STUB
   chmod +x "$SSH_STUB_DIR/sleep"
@@ -331,8 +344,9 @@ STUB
   KEYSCAN_STUB_ANSWER_PORT=""
   export SSH_STUB_DIR SSH_STUB_STATE SSH_SUDO_DENY_STUB \
     SSH_SUDO_LAUNCHCTL_113_STUB \
-    LAUNCHCTL_SPY_LOG KEYSCAN_SPY_LOG SLEEP_SPY_LOG SUDO_OK_SPY_LOG \
-    SUDO_DENY_SPY_LOG SSH_BARE_TOOL_SPY_LOG \
+    SSHD_SPY_LOG LAUNCHCTL_SPY_LOG KEYSCAN_SPY_LOG SLEEP_SPY_LOG \
+    SUDO_OK_SPY_LOG SUDO_DENY_SPY_LOG SSH_BARE_TOOL_SPY_LOG \
+    SSH_SEAM_CALL_LOG \
     SSHD_BIN LAUNCHCTL_BIN KEYSCAN_BIN SLEEP_BIN SSH_HARDENING_SUDO \
     SSHD_STUB_SYNTAX_STATUS SSHD_STUB_RESOLVE_STATUSES SSHD_STUB_PORT \
     SSHD_STUB_FORCE_HARDENED SSHD_STUB_PARTIAL_HARDENED \
@@ -344,11 +358,13 @@ STUB
 # then assert no bare-name tripwire fired. Every reload/rollback invocation
 # goes through here so no run can reach a real tool unobserved.
 run_ssh_reload() {
+  : >"$SSHD_SPY_LOG"
   : >"$LAUNCHCTL_SPY_LOG"
   : >"$KEYSCAN_SPY_LOG"
   : >"$SLEEP_SPY_LOG"
   : >"$SUDO_OK_SPY_LOG"
   : >"$SUDO_DENY_SPY_LOG"
+  : >"$SSH_SEAM_CALL_LOG"
   rm -f "$SSH_STUB_STATE/launchctl-print-count" "$SSH_STUB_STATE/sshd-resolve-count" \
     "$SSH_STUB_STATE/stdout-at-kickstart" "$SSH_STUB_STATE/stderr-at-kickstart"
   run_ssh_hardening "$@"
@@ -361,11 +377,31 @@ run_ssh_reload() {
 
 # assert_kickstart_attempted <label> / assert_no_kickstart <label>: whether
 # `launchctl kickstart` was invoked during the LAST run_ssh_reload, judged by
-# the stub's own spy log, never by the script's output.
+# the stub's own spy log, never by the script's output. The attempted form
+# asserts the EXACT argv: without -k a running instance is never terminated
+# (a reload "succeeds" while sshd serves the old configuration), and a
+# typo'd label makes real launchctl exit 113, which the reload reads as
+# Remote Login being off.
 assert_kickstart_attempted() {
-  if ! grep -q '^kickstart ' "$LAUNCHCTL_SPY_LOG"; then
-    printf 'FAIL: %s: expected a kickstart attempt; launchctl spy log:\n%s\n' \
+  if ! grep -qxF 'kickstart -k system/com.openssh.sshd' "$LAUNCHCTL_SPY_LOG"; then
+    printf 'FAIL: %s: expected exactly `kickstart -k system/com.openssh.sshd`; launchctl spy log:\n%s\n' \
       "$1" "$(cat "$LAUNCHCTL_SPY_LOG")" >&2
+    exit 1
+  fi
+}
+
+# assert_seam_calls <label> <expected-line>...: the ORDERED argv of every
+# seam call in the last run, diffed whole against the shared seam log. One
+# assertion covers the argument of every call AND the order between them
+# (syntax check before verify before port resolution before the kickstart
+# before the probes), so none of those can regress individually.
+assert_seam_calls() {
+  local label="$1" expected_file="$SSH_SANDBOX/expected-seam-calls"
+  shift
+  printf '%s\n' "$@" >"$expected_file"
+  if ! diff -u "$expected_file" "$SSH_SEAM_CALL_LOG" >&2; then
+    printf 'FAIL: %s: seam calls differ from expected (diff above: - expected, + actual)\n' \
+      "$label" >&2
     exit 1
   fi
 }

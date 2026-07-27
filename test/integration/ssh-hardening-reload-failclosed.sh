@@ -242,6 +242,35 @@ grep -qF -- '-p 2222' "$KEYSCAN_SPY_LOG" ||
 [[ "$(config_tree_fingerprint)" == "$baseline_fingerprint" ]] ||
   fail '10: a reload must leave the configuration tree byte-for-byte untouched (criterion 12)'
 
+# The complete ordered argv of every seam call in the happy path, diffed as
+# one list: the syntax check names the REAL main config (sshd -G -f
+# /dev/null exits 0, measured, so a wrong -f target passes the gate), the
+# child verify resolves both connection samples, port resolution happens
+# BEFORE the kickstart, the kickstart carries -k and the exact service
+# label, and the readiness probe targets loopback on the resolved port with
+# the configured timeout.
+invoking_user="$(id -un)"
+assert_seam_calls '10' \
+  "sshd -t -f $SSHD_MAIN_CONFIG" \
+  "sshd -G -f $SSHD_MAIN_CONFIG" \
+  "sshd -G -T -C user=root,host=localhost,addr=127.0.0.1 -f $SSHD_MAIN_CONFIG" \
+  "sshd -G -T -C user=$invoking_user,host=localhost,addr=127.0.0.1 -f $SSHD_MAIN_CONFIG" \
+  "sshd -G -f $SSHD_MAIN_CONFIG" \
+  'launchctl print system/com.openssh.sshd' \
+  'launchctl kickstart -k system/com.openssh.sshd' \
+  'launchctl print system/com.openssh.sshd' \
+  'ssh-keyscan -T 5 -p 2222 127.0.0.1'
+
+# What ran through the privilege wrapper, exactly and in order: the priming
+# -v, the syntax check, and the kickstart. The service probes are absent
+# deliberately (they run unprivileged so their status is launchctl's own).
+expected_sudo_calls="$SSH_SANDBOX/expected-sudo-calls"
+printf '%s\n' '-v' \
+  "$SSHD_BIN -t -f $SSHD_MAIN_CONFIG" \
+  "$LAUNCHCTL_BIN kickstart -k system/com.openssh.sshd" >"$expected_sudo_calls"
+diff -u "$expected_sudo_calls" "$SUDO_OK_SPY_LOG" >&2 ||
+  fail '10: the privileged calls (or their order/argv) differ from expected (diff above)'
+
 # --- 11: the keep-open warning is printed BEFORE the kickstart ----------------
 # The kickstart is the step that can kill the SSH session carrying the
 # output, so the warning and the COMPLETE recovery command must already be
