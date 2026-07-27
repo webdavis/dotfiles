@@ -154,18 +154,39 @@ validate_record_scope() { # <scope> <host> <plist_path>
 # happens to run from, so it is rejected, never resolved.
 resolve_system_plist_path() { # <domain> <plist_path>
   local domain="$1" plist_path="$2"
+  # A defaults domain is reverse-DNS and never legitimately contains a slash.
+  # Rejecting one keeps the default construction inside /Library/Preferences BY
+  # CONSTRUCTION: without it, a domain of ../../tmp/owned resolves to
+  # /Library/Preferences/../../tmp/owned, which is /tmp/owned, written as root.
+  #
+  # Checked for EVERY system-scope record, not only the ones that omit
+  # plist_path. The domain rule is a property of the record, and the template
+  # rejects such a record outright: a library that only checked it on the
+  # default-path branch was the MORE PERMISSIVE of the two consumers, so the same
+  # YAML rendered one way and applied another.
+  if [[ $domain == */* ]]; then
+    printf 'error: system-scope domain %q contains a slash; it would escape %s\n' \
+      "$domain" '/Library/Preferences' >&2
+    return 1
+  fi
+  # Degenerate domains: "", ".", "..", and any run of nothing but dots. None of
+  # them escape a directory (`defaults` appends .plist), so this is hygiene
+  # rather than containment, but none of them name a plist anybody meant to write
+  # either, and the rule this function enforces is "does this resolve where I
+  # intend to write".
+  if [[ -z ${domain//./} ]]; then
+    printf 'error: system-scope domain %q is empty or nothing but dots; it names no plist\n' \
+      "$domain" >&2
+    return 1
+  fi
   if [[ -z $plist_path ]]; then
-    # A defaults domain is reverse-DNS and never legitimately contains a slash.
-    # Rejecting one keeps the default construction inside /Library/Preferences BY
-    # CONSTRUCTION: without it, a domain of ../../tmp/owned resolves to
-    # /Library/Preferences/../../tmp/owned, which is /tmp/owned, written as root.
-    if [[ $domain == */* ]]; then
-      printf 'error: system-scope domain %q contains a slash; it would escape %s\n' \
-        "$domain" '/Library/Preferences' >&2
-      return 1
-    fi
     printf '/Library/Preferences/%s\n' "$domain"
     return 0
+  fi
+  if [[ $plist_path == / ]]; then
+    printf 'error: plist_path %q (domain %s) is the filesystem root; it names no plist\n' \
+      "$plist_path" "$domain" >&2
+    return 1
   fi
   if [[ $plist_path != /* ]]; then
     printf 'error: relative plist_path %q (domain %s); an absolute path is required\n' \

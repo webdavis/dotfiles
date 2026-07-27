@@ -9,6 +9,15 @@
 #     /Library/Preferences/<domain>, passes an absolute path through verbatim,
 #     and REJECTS a relative path rather than resolving it against whatever
 #     directory the caller happens to be standing in.
+#   - resolve_system_plist_path enforces the domain rule for EVERY system-scope
+#     record, not only for the ones that omit plist_path. The template rejects a
+#     traversal domain unconditionally, so a library that only checked it on the
+#     default-path branch was the MORE PERMISSIVE of the two consumers and the
+#     same YAML rendered one way and applied another.
+#   - Degenerate targets are rejected rather than resolved: a domain that is
+#     empty or nothing but dots, and a plist_path of exactly "/". None of them
+#     escape a directory, but none of them answer "does this resolve where I
+#     intend to write" either.
 #   - validate_record_scope accepts only user/system, rejects the set-but-empty
 #     scope "" (yq already defaulted an ABSENT field to "user", so "" can only
 #     mean an explicitly empty field), and rejects the meaningless pairs
@@ -89,6 +98,53 @@ status=0
 output="$(call_function resolve_system_plist_path com.example.rel './prefs.plist')" || status=$?
 [[ $status -ne 0 ]] ||
   fail "dot-relative path: resolve_system_plist_path must reject ./prefs.plist (got 0, stdout: '$output')"
+
+# reject_resolved_path <label> <domain> <plist_path> -- assert the pair is
+# refused with a nonzero status AND an empty stdout. Empty stdout matters as much
+# as the status: every caller reads the resolved path from stdout, so a refusal
+# that still printed something would hand a caller the very target it rejected.
+reject_resolved_path() { # <label> <domain> <plist_path>
+  local label="$1" domain="$2" declared_path="$3"
+  local reject_status=0 reject_output
+  reject_output="$(call_function resolve_system_plist_path "$domain" "$declared_path")" || reject_status=$?
+  [[ $reject_status -ne 0 ]] ||
+    fail "$label: resolve_system_plist_path must reject domain '$domain' plist_path '$declared_path' (got 0, stdout: '$reject_output')"
+  [[ -z $reject_output ]] ||
+    fail "$label: a rejected pair must print nothing on stdout (got '$reject_output')"
+}
+
+# case 4a: a traversal domain is rejected on the DEFAULT-path branch. Without the
+# slash rule, /Library/Preferences/../../tmp/owned is /tmp/owned, written as root.
+reject_resolved_path 'traversal domain, default path' '../../tmp/owned' ''
+
+# case 4b: the same traversal domain is rejected when the record ALSO declares a
+# plist_path. The template rejects this record outright, so a library that
+# accepted it made the two consumers disagree about the same YAML.
+reject_resolved_path 'traversal domain, declared path' '../../tmp/owned' \
+  '/Library/Preferences/com.example.sys.plist'
+
+# case 4c: a declared plist_path that walks back out is rejected in every
+# spelling, including the ones a bare "starts with /" check waves through.
+reject_resolved_path 'traversal path, interior' com.example.sys '/Library/Preferences/../../etc/x'
+reject_resolved_path 'traversal path, bare root parent' com.example.sys '/..'
+reject_resolved_path 'traversal path, trailing parent' com.example.sys '/Library/Preferences/..'
+reject_resolved_path 'traversal path, doubled slashes' com.example.sys '//Library/..//etc/x'
+
+# case 4d: degenerate targets. None of these escape a directory (`defaults`
+# appends .plist), so they are hygiene rather than traversal, but none of them
+# name a file anybody meant to write either.
+reject_resolved_path 'empty domain' '' ''
+reject_resolved_path 'dot domain' '.' ''
+reject_resolved_path 'dot-dot domain' '..' ''
+reject_resolved_path 'root plist_path' com.example.sys '/'
+
+# case 4e (control for 4a-4d): the real path a later slice depends on stays
+# ACCEPTED. Without this row every rejection above is satisfied by a function
+# that refuses everything.
+status=0
+output="$(call_function resolve_system_plist_path com.example.lulu '/Library/Objective-See/LuLu/preferences.plist')" || status=$?
+[[ $status -eq 0 && $output == '/Library/Objective-See/LuLu/preferences.plist' ]] ||
+  fail "LuLu path: the tracked Objective-See path must stay accepted verbatim (got status $status, output '$output')"
 
 # ---- validate_record_scope ---------------------------------------------------
 
@@ -290,4 +346,4 @@ mapfile -t sudo_arguments <"$sudo_log"
 [[ ${sudo_arguments[4]} == -bool ]] || fail "write: argument 5 must be the dashed type (got '${sudo_arguments[4]}')"
 [[ ${sudo_arguments[5]} == false ]] || fail "write: argument 6 must be the value (got '${sudo_arguments[5]}')"
 
-printf 'macos-defaults-scope-read: OK (plist path defaults, passes absolute, rejects relative; re-sourcing under set -euo pipefail is a no-op that still fixes the constants; scope enum and pairings validated fail-closed; the system read distinguishes value/unset/unreadable by STATUS, so no live value can impersonate an outcome and never collapses unknown failures; the system write goes through sudo with the exact argument shape)\n'
+printf 'macos-defaults-scope-read: OK (plist path defaults, passes absolute, rejects relative, traversal and degenerate targets on BOTH branches while the tracked Objective-See path still resolves; re-sourcing under set -euo pipefail is a no-op that still fixes the constants; scope enum and pairings validated fail-closed; the system read distinguishes value/unset/unreadable by STATUS, so no live value can impersonate an outcome and never collapses unknown failures; the system write goes through sudo with the exact argument shape)\n'
