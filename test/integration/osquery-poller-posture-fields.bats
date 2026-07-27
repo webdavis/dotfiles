@@ -456,6 +456,105 @@ healthy_seed='{"firewall":"1","gatekeeper":"1","screenlock":"1","filevault":"on"
   assert_baseline_unchanged
 }
 
+@test "T-PCTL-gap-on-one-control-never-blinds-another: a SIP probe outage never suppresses a FileVault regression on a later tick (per-member gaps)" {
+  seed_baseline "$healthy_seed"
+  declare_posture_controls
+  set_posture '[{"firewall":"1","gatekeeper":"1","screenlock":"1"}]'
+
+  export POLLER_CSRUTIL_EXIT=1
+  run run_poller # tick 1: the SIP probe fails, one gap page naming sip
+  [[ $status -eq 0 ]] || {
+    echo "tick 1 status $status: $output"
+    false
+  }
+  assert_page_count 1
+  assert_page_body_has 'sip'
+  assert_gap_marker
+
+  export POLLER_FDESETUP_OUTPUT="FileVault is Off."
+  run run_poller # tick 2: SIP still failing AND FileVault regresses: the regression pages
+  [[ $status -eq 0 ]] || {
+    echo "tick 2 status $status: $output"
+    false
+  }
+  assert_page_count 2
+  assert_page_body_has 'FileVault disk encryption: now off, declared on'
+  assert_baseline_scalar filevault off
+  assert_baseline_scalar sip disabled # the gapped member's prior is preserved, never dropped
+
+  unset POLLER_FDESETUP_OUTPUT
+  run run_poller # tick 3: FileVault restores while SIP still gaps: silent recovery
+  [[ $status -eq 0 ]] || {
+    echo "tick 3 status $status: $output"
+    false
+  }
+  assert_page_count 2
+  assert_baseline_scalar filevault on
+
+  unset POLLER_CSRUTIL_EXIT
+  run run_poller # tick 4: SIP recovers: clean tick, marker clears, no page
+  [[ $status -eq 0 ]] || {
+    echo "tick 4 status $status: $output"
+    false
+  }
+  assert_page_count 2
+  assert_no_gap_marker
+}
+
+@test "T-PCTL-new-gap-member-pages-during-ongoing-gap: a second probe breaking during an ongoing gap pages again (the marker covers members, not the world)" {
+  seed_baseline "$healthy_seed"
+  declare_posture_controls
+  set_posture '[{"firewall":"1","gatekeeper":"1","screenlock":"1"}]'
+
+  export POLLER_CSRUTIL_EXIT=1
+  run run_poller # tick 1: sip gaps, pages once
+  [[ $status -eq 0 ]] || {
+    echo "tick 1 status $status: $output"
+    false
+  }
+  assert_page_count 1
+
+  export POLLER_FDESETUP_EXIT=1
+  run run_poller # tick 2: filevault ALSO gaps: a new member, so it pages
+  [[ $status -eq 0 ]] || {
+    echo "tick 2 status $status: $output"
+    false
+  }
+  assert_page_count 2
+  assert_page_body_has 'filevault'
+
+  run run_poller # tick 3: same two members gapped: covered, no re-page
+  [[ $status -eq 0 ]] || {
+    echo "tick 3 status $status: $output"
+    false
+  }
+  assert_page_count 2
+}
+
+@test "T-PCTL-controls-file-gap-never-blinds-builtins: a refused controls file never suppresses a firewall-off page (the trio still compares)" {
+  seed_baseline '{"firewall":"1","gatekeeper":"1","screenlock":"1"}'
+  rm "$OSQUERY_POSTURE_CONTROLS"
+  set_posture '[{"firewall":"1","gatekeeper":"1","screenlock":"1"}]'
+
+  run run_poller # tick 1: the controls file is missing, gap page
+  [[ $status -eq 0 ]] || {
+    echo "tick 1 status $status: $output"
+    false
+  }
+  assert_page_count 1
+  assert_page_body_has 'posture-controls file missing'
+
+  set_posture '[{"firewall":"0","gatekeeper":"1","screenlock":"1"}]'
+  run run_poller # tick 2: file still missing AND the firewall turns off: it pages
+  [[ $status -eq 0 ]] || {
+    echo "tick 2 status $status: $output"
+    false
+  }
+  assert_page_count 2
+  assert_page_body_has 'Firewall turned OFF'
+  assert_baseline_scalar firewall 0
+}
+
 @test "T-PCTL-gap-recovery-then-regression-pages: after a control gap recovers, a real later regression still pages (the gap never poisoned the baseline)" {
   seed_baseline "$healthy_seed"
   declare_posture_controls

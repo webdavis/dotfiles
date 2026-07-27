@@ -286,43 +286,95 @@ if [[ -z $controls_problem ]]; then
   done
 fi
 
-# page_gap_once <marker_path> <title> <body> -- the shared page-once-via-marker
-# discipline for both the monitoring-gap and the persistence-gap paths: the same
-# notify-before-persist contract page_crit_and_persist gives the transition and
-# first-observation paths, in ONE place so the two markers cannot diverge. If the
-# marker is absent, send_alert FIRST and write the marker ONLY on success (best
-# effort: a marker in an unwritable dir cannot be written, so the page may
-# re-fire); return 0 when paged or already marked, nonzero when send_alert could
-# not store the page (so a persisting condition re-pages). The per-path bodies,
-# recovery-clear placement, and caller exit code stay OUTSIDE this helper.
+# page_gap_once <marker_path> <members> <title> <body> -- the shared
+# page-once-via-marker discipline for the monitoring-gap and persistence-gap
+# paths, refined to page-once-PER-MEMBER: the marker stores the space-separated
+# set of gapped members already paged for, so an ONGOING gap stays quiet while
+# a NEW member gapping during it still pages (one broken probe must never
+# silence word of a second one breaking). Same notify-before-persist contract
+# as page_crit_and_persist: send_alert FIRST, record the member set ONLY on
+# success (best effort: a marker in an unwritable dir cannot be written, so
+# the page may re-fire). When every current member is already covered, refresh
+# the marker to the CURRENT set so a member that recovers and later re-gaps
+# pages again. Return 0 when paged or already covered, nonzero when send_alert
+# could not store the page (so a persisting condition re-pages). The per-path
+# bodies, recovery-clear placement, and caller exit code stay OUTSIDE this
+# helper.
 page_gap_once() {
-  local marker="$1" title="$2" body="$3"
+  local marker="$1" members="$2" title="$3" body="$4"
+  local covered="" member_list=() member new_member=0
+  read -ra member_list <<<"$members"
   if [[ -f $marker ]]; then
+    covered=" $(cat "$marker" 2>/dev/null || true) "
+    for member in "${member_list[@]}"; do
+      if [[ $covered != *" $member "* ]]; then
+        new_member=1
+      fi
+    done
+  else
+    new_member=1
+  fi
+  if [[ $new_member -eq 0 ]]; then
+    printf '%s\n' "$members" >"$marker" 2>/dev/null || true
     return 0
   fi
   if send_alert CRIT "$title" "$body" "Sosumi"; then
-    : >"$marker" 2>/dev/null || true
+    printf '%s\n' "$members" >"$marker" 2>/dev/null || true
     return 0
   fi
   return 1
 }
 
-# R2-9 monitoring gap, extended to the declared controls. Any built-in scalar
-# missing or out of its exact domain (firewall 0/1/2, Gatekeeper 0/1,
-# screenlock 0/1), an unloadable or refused controls file, or any control probe
-# that came back indeterminate means the security state is UNKNOWN, not safe;
-# an empty or failed osqueryi read leaves all three built-ins empty and lands
-# here too. Do NOT persist (it would poison the baseline) and do NOT compare
-# (it would fabricate a transition): the last good baseline is preserved. Page
-# ONCE per gap (page_gap_once); if send_alert cannot store the page (it still
-# fires a last-resort local banner), log and exit nonzero so a PERSISTING gap
-# re-pages next tick. (Values are bracketed, [] for empty, and sanitized: raw
-# system-read text is data, never structure, and never reaches the page whole.)
+# Validate any existing baseline BEFORE trusting it (and before write_state
+# overwrites it): it must be owner-only (mode 600) AND parse to three in-domain
+# built-in scalars (same domains as the gap gate below). A group/world-readable,
+# corrupt, or out-of-domain baseline is not trustworthy (it could be planted to
+# mask a disabled protection, or fabricate a transition), so it is treated as no
+# prior baseline. GNU-first stat, BSD fallback.
+prev_valid=0
+prev_fw=""
+prev_gk=""
+prev_sl=""
+prev_json=""
+if [[ -f $STATE ]]; then
+  st_mode=$(stat -c '%a' "$STATE" 2>/dev/null || stat -f '%Lp' "$STATE" 2>/dev/null || echo "")
+  prev_json=$(cat "$STATE" 2>/dev/null || echo "")
+  prev_fw=$(jq -r '.firewall // empty' <<<"$prev_json" 2>/dev/null || echo "")
+  prev_gk=$(jq -r '.gatekeeper // empty' <<<"$prev_json" 2>/dev/null || echo "")
+  prev_sl=$(jq -r '.screenlock // empty' <<<"$prev_json" 2>/dev/null || echo "")
+  if [[ $st_mode == "600" && $prev_fw =~ ^[012]$ && $prev_gk =~ ^[01]$ && $prev_sl =~ ^[01]$ ]]; then
+    prev_valid=1
+  fi
+fi
+
+# R2-9 monitoring gap, extended to the declared controls and made PER MEMBER.
+# The members: the built-in trio (ONE combined probe, trusted or distrusted as
+# a unit), the controls file, and each declared control. A gapped member's
+# state is UNKNOWN, not safe: page (once per member, via the marker's member
+# set), do NOT persist its read (it would poison the baseline), and do NOT
+# compare it (it would fabricate a transition). But a gap on one member must
+# NEVER blind the others: every member that read cleanly is still compared,
+# paged, and persisted below, with only the gapped members' baseline fields
+# preserved from the prior. A monitor that went blind on unrelated controls
+# because one probe broke would lose a real regression during the outage --
+# permanently, because the baseline moves on after the deviant control
+# recovers. A built-in scalar missing or out of its exact domain (firewall
+# 0/1/2, Gatekeeper 0/1, screenlock 0/1) gaps the trio; an empty or failed
+# osqueryi read leaves all three empty and lands there too. If send_alert
+# cannot store the gap page (it still fires a last-resort local banner), log
+# and exit nonzero so a PERSISTING gap re-pages next tick. (Values are
+# bracketed, [] for empty, and sanitized: raw system-read text is data, never
+# structure, and never reaches the page whole.)
+trio_clean=1
 gap_detail=""
+gap_members=""
 if ! [[ $cur_fw =~ ^[012]$ && $cur_gk =~ ^[01]$ && $cur_sl =~ ^[01]$ ]]; then
+  trio_clean=0
+  gap_members="posture_query"
   gap_detail="the posture query returned an unreadable value (firewall=[$(sanitize "$cur_fw")] gatekeeper=[$(sanitize "$cur_gk")] screenlock=[$(sanitize "$cur_sl")])"
 fi
 if [[ -n $controls_problem ]]; then
+  gap_members+="${gap_members:+ }controls_file"
   gap_detail+="${gap_detail:+; }$controls_problem"
 fi
 indeterminate_ids=""
@@ -332,39 +384,28 @@ for control_index in "${!control_ids[@]}"; do
   fi
 done
 if [[ -n $indeterminate_ids ]]; then
+  gap_members+="${gap_members:+ }$indeterminate_ids"
   gap_detail+="${gap_detail:+; }indeterminate posture control read(s): [$indeterminate_ids]"
 fi
 if [[ -n $gap_detail ]]; then
-  gap_body="**Security-posture monitoring gap**"$'\n'"- $gap_detail: the security posture is currently UNKNOWN."$'\n'"- A blind monitor cannot see a protection turn off. Did osqueryi, a posture probe, or the LaunchAgent break? **Check now.**"$'\n'"- Diagnose: run the posture query and the control probes by hand, then re-check."
-  if ! page_gap_once "$GAP" "🔴 **CRITICAL**" "$gap_body"; then
+  gap_body="**Security-posture monitoring gap**"$'\n'"- $gap_detail: the security posture there is currently UNKNOWN."$'\n'"- A blind monitor cannot see a protection turn off. Did osqueryi, a posture probe, or the LaunchAgent break? **Check now.**"$'\n'"- Diagnose: run the posture query and the control probes by hand, then re-check."
+  if ! page_gap_once "$GAP" "$gap_members" "🔴 **CRITICAL**" "$gap_body"; then
     printf 'firewall-gatekeeper-monitor: send_alert could not queue the monitoring-gap page; no marker written, retrying next tick\n' >&2
     exit 1
   fi
-  exit 0
+else
+  # A fully clean read cleared every gap (recovery): drop the marker so a
+  # future gap pages again. Done before the normal transition/persist logic.
+  rm -f "$GAP" 2>/dev/null || true
 fi
 
-# A fully valid read cleared the gap (recovery): drop the marker so a future
-# gap pages again. Done before the normal transition/persist logic.
-rm -f "$GAP" 2>/dev/null || true
-
-# Validate any existing baseline BEFORE trusting it (and before write_state
-# overwrites it): it must be owner-only (mode 600) AND parse to three in-domain
-# built-in scalars (same domains as above). A group/world-readable, corrupt, or
-# out-of-domain baseline is not trustworthy (it could be planted to mask a
-# disabled protection, or fabricate a transition), so it is treated as no prior
-# baseline. GNU-first stat, BSD fallback.
-prev_valid=0
-prev_fw=""
-prev_gk=""
-prev_sl=""
-if [[ -f $STATE ]]; then
-  st_mode=$(stat -c '%a' "$STATE" 2>/dev/null || stat -f '%Lp' "$STATE" 2>/dev/null || echo "")
-  prev_fw=$(jq -r '.firewall // empty' <"$STATE" 2>/dev/null || echo "")
-  prev_gk=$(jq -r '.gatekeeper // empty' <"$STATE" 2>/dev/null || echo "")
-  prev_sl=$(jq -r '.screenlock // empty' <"$STATE" 2>/dev/null || echo "")
-  if [[ $st_mode == "600" && $prev_fw =~ ^[012]$ && $prev_gk =~ ^[01]$ && $prev_sl =~ ^[01]$ ]]; then
-    prev_valid=1
-  fi
+# With the trio unreadable AND no trusted prior baseline there is nothing to
+# anchor a comparison or a persist to: any baseline written now would carry no
+# valid trio and be distrusted next tick, so comparing the declared controls
+# would re-page the same first observation every tick. The gap page above
+# already said the posture is unknown; stop here and retry next tick.
+if [[ $trio_clean -eq 0 && $prev_valid -eq 0 ]]; then
+  exit 0
 fi
 
 # Per-control priors, each trusted independently: a control's prior field must
@@ -378,7 +419,7 @@ control_prevs=()
 for control_index in "${!control_ids[@]}"; do
   control_prev=""
   if [[ $prev_valid -eq 1 ]]; then
-    control_prev=$(jq -r --arg key "${control_ids[$control_index]}" '.[$key] // empty' <"$STATE" 2>/dev/null || echo "")
+    control_prev=$(jq -r --arg key "${control_ids[$control_index]}" '.[$key] // empty' <<<"$prev_json" 2>/dev/null || echo "")
     domain=$(reader_domain "${control_readers[$control_index]}")
     case " $domain " in
       *" $control_prev "*) ;;
@@ -388,15 +429,32 @@ for control_index in "${!control_ids[@]}"; do
   control_prevs+=("$control_prev")
 done
 
-# The baseline to persist: the built-in trio plus one field per declared
-# control (normalized enum values only), so the next run can trust per-control
-# priors. Built AFTER the gap gate, so every merged value is in-domain.
-baseline_json="$posture"
+# The baseline to persist: for every member that read cleanly, the value read
+# THIS tick; for every gapped member, the trusted prior field preserved
+# unchanged, so a member's real transitions are still detected across another
+# member's outage. With a refused controls file the declared set is unknown,
+# so a trusted prior's fields are preserved wholesale under the fresh trio.
+# Normalized enum values only, in-domain by construction.
+if [[ $trio_clean -eq 1 ]]; then
+  baseline_json="$posture"
+else
+  baseline_json=$(jq -cn --arg fw "$prev_fw" --arg gk "$prev_gk" --arg sl "$prev_sl" \
+    '{firewall: $fw, gatekeeper: $gk, screenlock: $sl}')
+fi
+if [[ -n $controls_problem && $prev_valid -eq 1 ]]; then
+  baseline_json=$(jq -c --argjson trio "$baseline_json" '. + $trio' <<<"$prev_json")
+fi
 for control_index in "${!control_ids[@]}"; do
-  baseline_json=$(jq -c \
-    --arg key "${control_ids[$control_index]}" \
-    --arg value "${control_values[$control_index]}" \
-    '. + {($key): $value}' <<<"$baseline_json")
+  control_field="${control_values[$control_index]}"
+  if [[ $control_field == "indeterminate" ]]; then
+    control_field="${control_prevs[$control_index]}" # trusted prior, may be empty
+  fi
+  if [[ -n $control_field ]]; then
+    baseline_json=$(jq -c \
+      --arg key "${control_ids[$control_index]}" \
+      --arg value "$control_field" \
+      '. + {($key): $value}' <<<"$baseline_json")
+  fi
 done
 
 # Persist the current posture owner-only (0600) so a later run can trust its own
@@ -426,7 +484,7 @@ persist_baseline() {
     return 0
   fi
   degraded_body="**Security-posture monitor degraded**"$'\n'"- The posture monitor could not persist its baseline: it cannot advance state, so a stale baseline could mask the next real change and blind the monitor."$'\n'"- Check the state directory free space and permissions. **Check now.**"
-  page_gap_once "$PERSIST_GAP" "🔴 **CRITICAL**" "$degraded_body" || true
+  page_gap_once "$PERSIST_GAP" "baseline_persist" "🔴 **CRITICAL**" "$degraded_body" || true
   exit 1
 }
 
@@ -495,6 +553,9 @@ if [[ $prev_valid -eq 0 ]]; then
     first_obs_blocks+=("**Screen lock is OFF (first observation)**"$'\n'"- **Now:** **OFF**"$'\n'"- The monitor has no prior baseline and the screen-lock password requirement is already off, anyone at the machine has access. Did you turn it off? If not, **investigate now**."$'\n'"- Re-enable it: System Settings → Lock Screen → Require password")
   fi
   for control_index in "${!control_ids[@]}"; do
+    if [[ ${control_values[$control_index]} == "indeterminate" ]]; then
+      continue # gapped member: paged above, never compared
+    fi
     if [[ ${control_values[$control_index]} != "${control_expects[$control_index]}" ]]; then
       first_obs_blocks+=("$(control_block "$control_index" 1)")
     fi
@@ -538,14 +599,16 @@ sl_to_text() {
 # protection-off shape: bold header, Was/Now state, then a decision-first next
 # step.
 crit_blocks=()
-if [[ $cur_fw != "$prev_fw" && $cur_fw == "0" ]]; then
-  crit_blocks+=("**Firewall turned OFF**"$'\n'"- **Was:** $(fw_to_text "$prev_fw")"$'\n'"- **Now:** **OFF**"$'\n'"- Did you turn this off? If not, something else did, **investigate now**."$'\n'"- Re-enable it: System Settings → Network → Firewall")
-fi
-if [[ $cur_gk != "$prev_gk" && $cur_gk == "0" ]]; then
-  crit_blocks+=("**Gatekeeper turned OFF**"$'\n'"- **Was:** $(gk_to_text "$prev_gk")"$'\n'"- **Now:** **DISABLED**"$'\n'"- Did you turn this off? If not, something else did, **investigate now**."$'\n'"- Re-enable it: System Settings → Privacy & Security (spctl cannot enable Gatekeeper from the CLI on macOS 15+)")
-fi
-if [[ $cur_sl != "$prev_sl" && $cur_sl == "0" ]]; then
-  crit_blocks+=("**Screen lock turned OFF**"$'\n'"- **Was:** $(sl_to_text "$prev_sl")"$'\n'"- **Now:** **OFF**"$'\n'"- Did you turn this off? If not, something else did, **investigate now**."$'\n'"- Re-enable it: System Settings → Lock Screen → Require password")
+if [[ $trio_clean -eq 1 ]]; then
+  if [[ $cur_fw != "$prev_fw" && $cur_fw == "0" ]]; then
+    crit_blocks+=("**Firewall turned OFF**"$'\n'"- **Was:** $(fw_to_text "$prev_fw")"$'\n'"- **Now:** **OFF**"$'\n'"- Did you turn this off? If not, something else did, **investigate now**."$'\n'"- Re-enable it: System Settings → Network → Firewall")
+  fi
+  if [[ $cur_gk != "$prev_gk" && $cur_gk == "0" ]]; then
+    crit_blocks+=("**Gatekeeper turned OFF**"$'\n'"- **Was:** $(gk_to_text "$prev_gk")"$'\n'"- **Now:** **DISABLED**"$'\n'"- Did you turn this off? If not, something else did, **investigate now**."$'\n'"- Re-enable it: System Settings → Privacy & Security (spctl cannot enable Gatekeeper from the CLI on macOS 15+)")
+  fi
+  if [[ $cur_sl != "$prev_sl" && $cur_sl == "0" ]]; then
+    crit_blocks+=("**Screen lock turned OFF**"$'\n'"- **Was:** $(sl_to_text "$prev_sl")"$'\n'"- **Now:** **OFF**"$'\n'"- Did you turn this off? If not, something else did, **investigate now**."$'\n'"- Re-enable it: System Settings → Lock Screen → Require password")
+  fi
 fi
 # Declared controls: page on a REGRESSION (the prior held the declared value,
 # the current does not) and on a first observation of a deviation (no trusted
@@ -557,6 +620,9 @@ for control_index in "${!control_ids[@]}"; do
   control_value="${control_values[$control_index]}"
   control_expect="${control_expects[$control_index]}"
   control_prev="${control_prevs[$control_index]}"
+  if [[ $control_value == "indeterminate" ]]; then
+    continue # gapped member: paged above, never compared
+  fi
   if [[ $control_value == "$control_expect" ]]; then
     continue
   fi
