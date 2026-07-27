@@ -323,6 +323,12 @@ drift_err="$sandbox/drift.err"
 # Matching: every live read equals its declared value; no drift, and BOTH new
 # records were genuinely read. The full read log is compared, so a record
 # silently skipped, or read from the wrong place, fails here.
+# The `cmp` below is load-bearing: the stub's `*` fallthrough answers 0 and
+# exits 0 for ANY unexpected read, so a drift that read the wrong key or the
+# wrong place would get a fabricated match and still exit 0. Only this exact
+# log comparison catches that (proven by mutation: drift reading a truncated
+# key still exited 0; only this cmp failed). Never weaken it into a count or
+# a grep.
 write_drift_defaults_stub 1 0
 : >"$combined_log"
 run_drift "$drift_out" "$drift_err" ||
