@@ -1,3 +1,11 @@
+{{- /* shellSingleQuoted, same helper and same rationale as the Tier 1 runner:
+the one way a data field becomes a shell word. POSIX single quotes with every
+embedded single quote rewritten to '\'', so bash performs no expansion of any
+kind inside it. The enforce branch below is EXEMPT by design: an enforce
+record's command field IS shell source, declared as such in the schema, and
+its description keeps its historical double-quoted echo. Every NEW emission of
+data (the manual runbook pointer) goes through this helper. */ -}}
+{{- define "shellSingleQuoted" }}{{ printf "'%s'" (replace "'" "'\\''" (toString .)) }}{{ end -}}
 {{ if eq .chezmoi.os "darwin" -}}
 #!/bin/bash
 # Tier 2, macOS sudo system-setup runner.
@@ -6,21 +14,112 @@
 
 set -euo pipefail
 
-{{/* `index`, not `.macos.tailnet_pins`: Go's text/template errors on an absent
-     key with the .field form; `index` returns the empty value (falsy in `if`,
-     a no-op under `range`), the repo's documented Tier-1 runner gotcha. */ -}}
+{{/* `index`, not the dotted-field form, for every optional key: Go's
+     text/template errors on an absent key with the dotted form; `index`
+     returns the empty value (falsy in `if`, a no-op under `range`), the
+     repo's documented Tier-1 runner gotcha. */ -}}
 {{ $pins := index .macos "tailnet_pins" -}}
+{{- /* Validation pass: every record must declare which control tier it
+belongs to, and its payload must MATCH the declared tier, before anything
+renders. The tier decides what the record IS; the payload never does. Any
+violation ABORTS the render via fail, so chezmoi refuses the whole apply: no
+warning, no skipped record, no partial best-effort script. */ -}}
+{{ $enforceRecordCount := 0 -}}
+{{ range .macos.system_setup -}}
+{{- /* Identity first: the description names the record in every error below
+and in the runner's own trace output, so it is required on every record. */ -}}
+{{ if or (not (hasKey . "description")) (kindIs "invalid" (index . "description")) (eq (toString (index . "description")) "") -}}
+{{ fail "macos_system_setup.yaml: a record has no description; every record needs one, it is the identity in every error and trace line" -}}
+{{ end -}}
+{{- /* The control tier is REQUIRED: enforce (render the command), verify
+(drift detection only, render NO command), or manual (render a runbook
+pointer only). Three distinct refusals so the error names what is actually
+wrong; a blank scalar is nil and would otherwise stringify to the literal
+text <nil>, and a set-but-empty tier is rejected as an unrecognized VALUE,
+never conflated with an absent field. */ -}}
+{{ if not (hasKey . "tier") -}}
+{{ fail (printf "macos_system_setup.yaml: record %q has no tier; declare tier: enforce, verify, or manual" .description) -}}
+{{ end -}}
+{{ if kindIs "invalid" (index . "tier") -}}
+{{ fail (printf "macos_system_setup.yaml: record %q has a blank tier; declare tier: enforce, verify, or manual" .description) -}}
+{{ end -}}
+{{ $tier := toString (index . "tier") -}}
+{{ if not (has $tier (list "enforce" "verify" "manual")) -}}
+{{ fail (printf "macos_system_setup.yaml: unrecognized tier %q on record %q (expected enforce, verify, or manual)" $tier .description) -}}
+{{ end -}}
+{{ if eq $tier "enforce" -}}
+{{ if or (not (hasKey . "command")) (kindIs "invalid" (index . "command")) (eq (toString (index . "command")) "") -}}
+{{ fail (printf "macos_system_setup.yaml: enforce record %q has no command; an enforce control is a command, so declare one or change the tier" .description) -}}
+{{ end -}}
+{{- /* Nothing consumes a runbook on an enforced control, and silently
+ignored data is how a mislabeled tier hides; refuse it. On a verify record a
+runbook is allowed: the posture check that consumes verify records can point
+the operator at the fix for a detected drift. */ -}}
+{{ if hasKey . "runbook" -}}
+{{ fail (printf "macos_system_setup.yaml: enforce record %q carries runbook; either drop the field or declare the tier that consumes it" .description) -}}
+{{ end -}}
+{{ $enforceRecordCount = add $enforceRecordCount 1 -}}
+{{ else -}}
+{{- /* verify and manual controls are the ones this runner must never run a
+command for; a record that declares one is lying about its tier, and the
+whole point of declaring tiers in data is that the lie aborts the render
+instead of executing. The sudo flag only qualifies a command, so it is
+refused on the same grounds. */ -}}
+{{ if hasKey . "command" -}}
+{{ fail (printf "macos_system_setup.yaml: %s record %q carries command, a mutating payload; the runner never runs a command for a %s control, so the declared tier is wrong" $tier .description $tier) -}}
+{{ end -}}
+{{ if hasKey . "sudo" -}}
+{{ fail (printf "macos_system_setup.yaml: %s record %q carries sudo; sudo qualifies a command and a %s control has none" $tier .description $tier) -}}
+{{ end -}}
+{{ if eq $tier "manual" -}}
+{{ if not (hasKey . "runbook") -}}
+{{ fail (printf "macos_system_setup.yaml: manual record %q has no runbook; a manual control must name its runbook section" .description) -}}
+{{ end -}}
+{{ if kindIs "invalid" (index . "runbook") -}}
+{{ fail (printf "macos_system_setup.yaml: manual record %q has a blank runbook; name the runbook section" .description) -}}
+{{ end -}}
+{{ if eq (toString (index . "runbook")) "" -}}
+{{ fail (printf "macos_system_setup.yaml: manual record %q has an empty runbook; name the runbook section" .description) -}}
+{{ end -}}
+{{ end -}}
+{{ end -}}
+{{ end -}}
 {{ if and (eq (len .macos.system_setup) 0) (not $pins) -}}
 # Early-return if nothing is configured (avoids spurious sudo prompt).
 exit 0
 {{ else -}}
+{{- /* The sudo prelude is only worth a password prompt when something will
+use the credential: an enforce command or a generated pin command. A file of
+only verify/manual records renders its pointers and asks for nothing. */ -}}
+{{ if or (gt $enforceRecordCount 0) $pins -}}
 # Pre-flight: refresh sudo timestamp upfront. One password prompt at start;
 # none during the loop, it covers the generated tailnet-pin commands too.
 sudo -v
 
+{{ end -}}
+{{- /* The branch below decides by the DECLARED tier: verify renders nothing
+at all (the command branch is not taken, so this runner physically cannot
+set a verify control), and manual renders only a pointer at the runbook
+section that sets it by hand. The trailing refusal is unreachable while the
+validation pass above holds, and stays so this loop can never fail open into
+running a command if the two passes ever drift apart. Its message deliberately
+differs from the validation pass's, naming this loop as the site that caught
+the record: with byte-identical messages either copy could vanish and every
+test would stay green on the other's output, so the distinct marker is what
+lets each site be pinned alone. Do not quote the marker text in this comment;
+the source-form pin greps for it and a comment copy would satisfy the grep
+with the refusal gone. */ -}}
 {{ range .macos.system_setup -}}
+{{ $tier := toString (index . "tier") -}}
+{{ if eq $tier "enforce" -}}
 echo "→ {{ .description }}"
-{{ if .sudo }}sudo {{ end }}{{ .command }}
+{{ if index . "sudo" }}sudo {{ end }}{{ .command }}
+{{ else if eq $tier "verify" -}}
+{{ else if eq $tier "manual" -}}
+echo {{ template "shellSingleQuoted" (printf "→ MANUAL %s: see the runbook section %s" .description (toString (index . "runbook"))) }}
+{{ else -}}
+{{ fail (printf "macos_system_setup.yaml: unrecognized tier %q on record %q reached the render loop; the validation pass no longer rejects it" $tier .description) -}}
+{{ end -}}
 {{ end -}}
 {{/* Generated MagicDNS /etc/hosts fallback pins (structured tailnet_pins data).
      Guard-then-append keeps each idempotent across runner re-runs. The sh -c

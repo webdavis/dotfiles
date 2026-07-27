@@ -18,14 +18,30 @@ require_readable_data_file "$DATA_FILE" || exit $?
 # Pre-flight: close System Settings if open (same reason as runner).
 osascript -e 'tell application "System Settings" to quit' 2>/dev/null || true
 
-# Main loop: one `defaults write` per record. A system-scope record goes
-# through sudo to its resolved plist path; user-scope records write exactly as
-# before. A record that fails validation (unknown scope, a meaningless field
-# pairing, a relative plist_path) aborts the run with the data-file status 2
-# before anything is written for it.
+# Main loop: one `defaults write` per ENFORCE record. The tier decides what
+# happens, before any payload field is even looked at: verify records are
+# read-only by declaration and manual records are runbook-applied, so both are
+# skipped without a write, and an unrecognized tier refuses the run (the
+# stream already refused the whole file; the case here keeps this loop from
+# ever failing open into a write if the stream's rules drift). A system-scope
+# record goes through sudo to its resolved plist path; user-scope records
+# write exactly as before. A record that fails validation (unknown scope, a
+# meaningless field pairing, a relative plist_path) aborts the run with the
+# data-file status 2 before anything is written for it.
 defaults_records_unit_separated "$DATA_FILE" |
-  while IFS=$'\x1f' read -r domain key type value host scope plist_path; do
+  while IFS=$'\x1f' read -r domain key type value host scope plist_path tier; do
     [[ -z $domain ]] && continue
+    case "$tier" in
+      enforce) ;;
+      verify | manual)
+        continue
+        ;;
+      *)
+        printf 'error: unrecognized tier %q on record %s %s; refusing to write\n' \
+          "$tier" "$domain" "$key" >&2
+        exit 2
+        ;;
+    esac
     scope="$(validate_record_scope "$scope" "$host" "$plist_path")" || exit 2
     if [[ $scope == system ]]; then
       resolved_plist_path="$(resolve_system_plist_path "$domain" "$plist_path")" || exit 2

@@ -53,17 +53,34 @@ print_header() {
 }
 
 # Each record arrives as one unit-separated line: domain, key, type, value,
-# host, scope, plist_path. A record that fails validation (unknown scope, a
-# meaningless field pairing, a relative plist_path) aborts with the data-file
-# status 2 rather than being misread. A system-scope record has THREE read
-# outcomes: the value, <unset> (genuinely not set, compared as drift like any
-# other value), and <unreadable> (indeterminate: reported as its own row,
-# counted separately, never as drift and never skipped).
+# host, scope, plist_path, tier. The tier decides what happens first: enforce
+# AND verify records are both compared (detecting drift on a control nobody
+# can set from here is the verify tier's whole purpose), manual records have
+# no check by design (they carry no expected value, only a runbook pointer)
+# and are skipped, and an unrecognized tier aborts rather than guessing (the
+# stream already refused the whole file; the case here keeps this loop honest
+# if the stream's rules ever drift). A record that fails validation (unknown
+# scope, a meaningless field pairing, a relative plist_path) aborts with the
+# data-file status 2 rather than being misread. A system-scope record has
+# THREE read outcomes: the value, <unset> (genuinely not set, compared as
+# drift like any other value), and <unreadable> (indeterminate: reported as
+# its own row, counted separately, never as drift and never skipped).
 # Note: yq emits a single newline for an empty array; the inline guard below
 # skips that empty row so the script exits 0 cleanly when nothing is tracked.
 defaults_records_unit_separated "$DATA_FILE" |
-  while IFS=$'\x1f' read -r domain key type value host scope plist_path; do
+  while IFS=$'\x1f' read -r domain key type value host scope plist_path tier; do
     [[ -z $domain ]] && continue
+    case "$tier" in
+      enforce | verify) ;;
+      manual)
+        continue
+        ;;
+      *)
+        printf 'error: unrecognized tier %q on record %s %s; refusing to report on it\n' \
+          "$tier" "$domain" "$key" >&2
+        exit 2
+        ;;
+    esac
     scope="$(validate_record_scope "$scope" "$host" "$plist_path")" || exit 2
     expected="$(normalize "$type" "$value")"
     if [[ $scope == system ]]; then

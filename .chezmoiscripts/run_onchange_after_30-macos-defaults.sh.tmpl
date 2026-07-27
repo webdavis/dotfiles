@@ -24,14 +24,81 @@ set -euo pipefail
 osascript -e 'tell application "System Settings" to quit' 2>/dev/null || true
 
 {{ $hasSystemScopeRecord := false -}}
-{{- /* Scope pass: validate every record's optional scope field and detect
-whether any record is system-scope. The field is read through hasKey/index,
-NEVER the bare dotted-field form: Go's text/template errors with `map has no
-entry for key "scope"` on that form when a record omits the key, which is the
-common case (same class of bug as the `index . "host"` guard below). An
-absent field means user scope; a present field must be exactly user or
-system, and system cannot pair with host (ByHost storage is per-user). */ -}}
+{{- /* Validation pass: every record must declare which control tier it
+belongs to, and its payload must MATCH the declared tier, before anything
+renders. The tier decides what the record IS; the payload never does
+(identity is not presence). Every optional field is read through
+hasKey/index, NEVER the bare dotted-field form: Go's text/template errors
+with `map has no entry for key "scope"` on that form when a record omits the
+key, which turns a loud, specific refusal into an opaque template panic. Any
+violation ABORTS the render via fail, so chezmoi refuses the whole apply:
+no warning, no skipped record, no partial best-effort script. */ -}}
 {{ range .macos.defaults -}}
+{{ $record := . -}}
+{{- /* Identity first. The domain and key name the record in every error
+below, and a blank one (an absent key and a blank scalar are both nil) would
+otherwise surface as the stringified literal <nil>. */ -}}
+{{ range $identityField := list "domain" "key" -}}
+{{ if kindIs "invalid" (index $record $identityField) -}}
+{{ fail (printf "macos_defaults.yaml: record %v %v has a blank %s; give it a value or remove the field" (index $record "domain") (index $record "key") $identityField) -}}
+{{ end -}}
+{{ end -}}
+{{- /* The control tier is REQUIRED: enforce (settable, render the write),
+verify (readable but not settable, drift detection only, render NO write), or
+manual (interactive or profile-managed, render a runbook pointer only). Three
+distinct refusals so the error names what is actually wrong: a missing field,
+a blank scalar (nil, which would otherwise stringify to the literal text
+<nil>), or a value outside the closed set. A set-but-empty tier is rejected
+as an unrecognized VALUE, never conflated with an absent field. */ -}}
+{{ if not (hasKey . "tier") -}}
+{{ fail (printf "macos_defaults.yaml: record %s %s has no tier; declare tier: enforce, verify, or manual" .domain .key) -}}
+{{ end -}}
+{{ if kindIs "invalid" (index . "tier") -}}
+{{ fail (printf "macos_defaults.yaml: record %s %s has a blank tier; declare tier: enforce, verify, or manual" .domain .key) -}}
+{{ end -}}
+{{ $tier := toString (index . "tier") -}}
+{{ if not (has $tier (list "enforce" "verify" "manual")) -}}
+{{ fail (printf "macos_defaults.yaml: unrecognized tier %q on record %s %s (expected enforce, verify, or manual)" $tier .domain .key) -}}
+{{ end -}}
+{{- /* The shared library refuses a whole data file whose record stream would be
+ambiguous, because a newline or a unit separator inside a field can forge a
+second record. Without the same rule here, one file would RENDER cleanly and
+then make every tool refuse it, and the operator would learn about it from a
+broken `just D` rather than at apply time. Reject at the same boundary. */ -}}
+{{ range $streamField := list "domain" "key" "value" "plist_path" -}}
+{{ $streamValue := toString (index $record $streamField | default "") -}}
+{{ if or (contains "\n" $streamValue) (contains "\x1f" $streamValue) -}}
+{{ fail (printf "macos_defaults.yaml: record %v %v has a %s containing a newline or a unit separator, which the record stream cannot represent unambiguously" (index $record "domain") (index $record "key") $streamField) -}}
+{{ end -}}
+{{ end -}}
+{{ if eq $tier "manual" -}}
+{{- /* A manual control is an identity plus a runbook pointer, nothing else.
+The runbook section name is REQUIRED, and absent, blank, and empty are three
+ways of pointing nowhere, each refused by name. Every write and read
+qualifier is refused too: a payload on a control the runner must never touch
+means the declared tier is wrong, and catching the lie here is the whole
+point of declaring tiers in data. */ -}}
+{{ if not (hasKey . "runbook") -}}
+{{ fail (printf "macos_defaults.yaml: manual record %s %s has no runbook; a manual control must name its runbook section" .domain .key) -}}
+{{ end -}}
+{{ if kindIs "invalid" (index . "runbook") -}}
+{{ fail (printf "macos_defaults.yaml: manual record %s %s has a blank runbook; name the runbook section" .domain .key) -}}
+{{ end -}}
+{{ if eq (toString (index . "runbook")) "" -}}
+{{ fail (printf "macos_defaults.yaml: manual record %s %s has an empty runbook; name the runbook section" .domain .key) -}}
+{{ end -}}
+{{ range $forbiddenField := list "type" "value" "host" "scope" "plist_path" -}}
+{{ if hasKey $record $forbiddenField -}}
+{{ fail (printf "macos_defaults.yaml: manual record %v %v carries %s; a manual control renders no write, so a write payload means the declared tier is wrong" (index $record "domain") (index $record "key") $forbiddenField) -}}
+{{ end -}}
+{{ end -}}
+{{ else -}}
+{{- /* enforce and verify records carry the full read/write payload: for
+enforce it is the write, for verify it is the read the drift checker compares
+and the value it must hold. The same validation covers both, so a control
+moving between the two tiers is a one-line data change. An absent scope means
+user; a present one must be exactly user or system, and system cannot pair
+with host (ByHost storage is per-user). */ -}}
 {{ $scope := "user" -}}
 {{ if hasKey . "scope" }}{{ $scope = index . "scope" }}{{ end -}}
 {{ if and (ne $scope "user") (ne $scope "system") -}}
@@ -62,22 +129,8 @@ silently accepting it now would be a fail-open regression rather than a new
 convenience. Reject it instead, which is louder than either behavior and says
 which field is at fault. An empty STRING is still legitimate and unaffected: it
 is a value, not a missing one. */ -}}
-{{ $record := . -}}
-{{ range $blankField := list "domain" "key" "value" -}}
-{{ if kindIs "invalid" (index $record $blankField) -}}
-{{ fail (printf "macos_defaults.yaml: record %v %v has a blank %s; give it a value or remove the field" (index $record "domain") (index $record "key") $blankField) -}}
-{{ end -}}
-{{ end -}}
-{{- /* The shared library refuses a whole data file whose record stream would be
-ambiguous, because a newline or a unit separator inside a field can forge a
-second record. Without the same rule here, one file would RENDER cleanly and
-then make every tool refuse it, and the operator would learn about it from a
-broken `just D` rather than at apply time. Reject at the same boundary. */ -}}
-{{ range $streamField := list "domain" "key" "value" "plist_path" -}}
-{{ $streamValue := toString (index $record $streamField | default "") -}}
-{{ if or (contains "\n" $streamValue) (contains "\x1f" $streamValue) -}}
-{{ fail (printf "macos_defaults.yaml: record %v %v has a %s containing a newline or a unit separator, which the record stream cannot represent unambiguously" (index $record "domain") (index $record "key") $streamField) -}}
-{{ end -}}
+{{ if kindIs "invalid" (index $record "value") -}}
+{{ fail (printf "macos_defaults.yaml: record %v %v has a blank value; give it a value or remove the field" (index $record "domain") (index $record "key")) -}}
 {{ end -}}
 {{- /* A plist_path is meaningful only for a system record. The shared tools
 reject the pairing already; without this the template would silently IGNORE the
@@ -112,7 +165,19 @@ rule is "does this resolve where I intend to write" and these do not. */ -}}
 {{ fail (printf "macos_defaults.yaml: system-scope plist_path %q on record %s %s is the filesystem root; it names no plist" $declaredPath .domain .key) -}}
 {{ end -}}
 {{ end -}}
+{{ if eq $tier "enforce" -}}
+{{- /* Nothing consumes a runbook on an enforced control, and silently
+ignored data is how a mislabeled tier hides; refuse it. On a verify record a
+runbook is allowed: the posture check that consumes verify records can point
+the operator at the fix for a detected drift. */ -}}
+{{ if hasKey . "runbook" -}}
+{{ fail (printf "macos_defaults.yaml: enforce record %s %s carries runbook; either drop the field or declare the tier that consumes it" .domain .key) -}}
+{{ end -}}
+{{- /* Only an ENFORCED system record needs the sudo prelude: a verify record
+never writes, so it must never cost a credential prompt either. */ -}}
 {{ if eq $scope "system" }}{{ $hasSystemScopeRecord = true }}{{ end -}}
+{{ end -}}
+{{ end -}}
 {{ end -}}
 {{ if $hasSystemScopeRecord -}}
 # Sudo prelude: at least one record targets a root-owned system plist, so
@@ -120,7 +185,23 @@ rule is "does this resolve where I intend to write" and these do not. */ -}}
 sudo -v
 {{ end -}}
 # Main loop: one `defaults write` per record.
+{{- /* Per ENFORCE record, that is. The branch below decides by the DECLARED
+tier: verify renders nothing at all (the write branch is not taken, so this
+runner physically cannot set a verify control; the drift checker reads the
+record straight from the data file), and manual renders only a pointer at the
+runbook section that sets it by hand, through the same single-quoting helper
+as every other data field. The trailing refusal is unreachable while the
+validation pass above holds, and stays so this loop can never fail open into
+a write if the two passes ever drift apart. Its message deliberately differs
+from the validation pass's, naming this loop as the site that caught the
+record: with byte-identical messages either copy could vanish and every test
+would stay green on the other's output, so the distinct marker is what lets
+each site be pinned alone. Do not quote the marker text in this comment; the
+source-form pin greps for it and a comment copy would satisfy the grep with
+the refusal gone. */}}
 {{ range .macos.defaults -}}
+{{ $tier := toString (index . "tier") -}}
+{{ if eq $tier "enforce" -}}
 {{ $scope := "user" -}}
 {{ if hasKey . "scope" }}{{ $scope = index . "scope" }}{{ end -}}
 {{ if eq $scope "system" -}}
@@ -133,6 +214,12 @@ declared path must be absolute, never resolved against a working directory. */ -
 sudo defaults write {{ template "shellSingleQuoted" $plistPath }} {{ template "shellSingleQuoted" .key }} -{{ .type }} {{ template "shellSingleQuoted" .value }}
 {{ else -}}
 defaults {{ if index . "host" }}-currentHost {{ end }}write {{ template "shellSingleQuoted" .domain }} {{ template "shellSingleQuoted" .key }} -{{ .type }} {{ template "shellSingleQuoted" .value }}
+{{ end -}}
+{{ else if eq $tier "verify" -}}
+{{ else if eq $tier "manual" -}}
+echo {{ template "shellSingleQuoted" (printf "manual control %s %s: not settable here; see the runbook section %s" .domain .key (toString (index . "runbook"))) }}
+{{ else -}}
+{{ fail (printf "macos_defaults.yaml: unrecognized tier %q on record %s %s reached the render loop; the validation pass no longer rejects it" $tier .domain .key) -}}
 {{ end -}}
 {{ end -}}
 
