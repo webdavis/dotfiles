@@ -24,14 +24,20 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/ssh-hardening-lib.bash"
 #
 # Exports the seams (all absolute paths into the sandbox):
 #   SSHD_BIN / LAUNCHCTL_BIN / KEYSCAN_BIN   controlled stubs
+#   SLEEP_BIN                                a sleep spy that logs the delay
+#                                            and returns immediately, so
+#                                            nonzero-interval cases observe
+#                                            their pacing without slowing the
+#                                            suite
 #   SSH_HARDENING_SUDO                       passthrough sudo stub (logs the
 #                                            call, then executes it); point it
 #                                            at SSH_SUDO_DENY_STUB for the
 #                                            privilege-failure case
 # and the spy logs:
-#   LAUNCHCTL_SPY_LOG, KEYSCAN_SPY_LOG, SUDO_OK_SPY_LOG, SUDO_DENY_SPY_LOG,
-#   SSH_BARE_TOOL_SPY_LOG (the PATH tripwires for bare sshd / launchctl /
-#   ssh-keyscan; bare sudo keeps slice 7's SSH_SUDO_SPY_LOG).
+#   LAUNCHCTL_SPY_LOG, KEYSCAN_SPY_LOG, SLEEP_SPY_LOG, SUDO_OK_SPY_LOG,
+#   SUDO_DENY_SPY_LOG, SSH_BARE_TOOL_SPY_LOG (the PATH tripwires for bare
+#   sshd / launchctl / ssh-keyscan; bare sudo keeps slice 7's
+#   SSH_SUDO_SPY_LOG).
 #
 # Stub behavior knobs, all exported and overridable per invocation:
 #   SSHD_STUB_SYNTAX_STATUS          exit status of `sshd -t` (default 0)
@@ -64,11 +70,13 @@ reload_sandbox_setup() {
   mkdir -p "$SSH_STUB_DIR" "$SSH_STUB_STATE"
   LAUNCHCTL_SPY_LOG="$SSH_SANDBOX/launchctl-spy.log"
   KEYSCAN_SPY_LOG="$SSH_SANDBOX/keyscan-spy.log"
+  SLEEP_SPY_LOG="$SSH_SANDBOX/sleep-spy.log"
   SUDO_OK_SPY_LOG="$SSH_SANDBOX/sudo-ok-spy.log"
   SUDO_DENY_SPY_LOG="$SSH_SANDBOX/sudo-deny-spy.log"
   SSH_BARE_TOOL_SPY_LOG="$SSH_SANDBOX/bare-tool-spy.log"
   : >"$LAUNCHCTL_SPY_LOG"
   : >"$KEYSCAN_SPY_LOG"
+  : >"$SLEEP_SPY_LOG"
   : >"$SUDO_OK_SPY_LOG"
   : >"$SUDO_DENY_SPY_LOG"
   : >"$SSH_BARE_TOOL_SPY_LOG"
@@ -197,6 +205,17 @@ esac
 STUB
   chmod +x "$SSH_STUB_DIR/ssh-keyscan"
 
+  # Controlled sleep: logs the requested delay and returns immediately. The
+  # script's SLEEP_BIN default is the real /bin/sleep; tests point the seam
+  # here so pacing is observable and a regression back to a bare `sleep`
+  # (ignoring the seam) shows up as an empty spy log.
+  cat >"$SSH_STUB_DIR/sleep" <<'STUB'
+#!/bin/bash
+printf '%s\n' "$*" >>"${SLEEP_SPY_LOG:?}"
+exit 0
+STUB
+  chmod +x "$SSH_STUB_DIR/sleep"
+
   # Passthrough sudo: logs, handles the -v priming call, then executes the
   # wrapped command directly (the sandbox is user-owned, so no privilege is
   # needed or taken).
@@ -224,6 +243,7 @@ STUB
   SSHD_BIN="$SSH_STUB_DIR/sshd"
   LAUNCHCTL_BIN="$SSH_STUB_DIR/launchctl"
   KEYSCAN_BIN="$SSH_STUB_DIR/ssh-keyscan"
+  SLEEP_BIN="$SSH_STUB_DIR/sleep"
   SSH_HARDENING_SUDO="$SSH_STUB_DIR/sudo-ok"
   SSHD_STUB_SYNTAX_STATUS=0
   SSHD_STUB_RESOLVE_STATUS=0
@@ -234,9 +254,9 @@ STUB
   LAUNCHCTL_STUB_KICKSTART_STATUS=0
   KEYSCAN_STUB_MODE=banner
   export SSH_STUB_DIR SSH_STUB_STATE SSH_SUDO_DENY_STUB \
-    LAUNCHCTL_SPY_LOG KEYSCAN_SPY_LOG SUDO_OK_SPY_LOG SUDO_DENY_SPY_LOG \
-    SSH_BARE_TOOL_SPY_LOG \
-    SSHD_BIN LAUNCHCTL_BIN KEYSCAN_BIN SSH_HARDENING_SUDO \
+    LAUNCHCTL_SPY_LOG KEYSCAN_SPY_LOG SLEEP_SPY_LOG SUDO_OK_SPY_LOG \
+    SUDO_DENY_SPY_LOG SSH_BARE_TOOL_SPY_LOG \
+    SSHD_BIN LAUNCHCTL_BIN KEYSCAN_BIN SLEEP_BIN SSH_HARDENING_SUDO \
     SSHD_STUB_SYNTAX_STATUS SSHD_STUB_RESOLVE_STATUS SSHD_STUB_PORT \
     SSHD_STUB_FORCE_HARDENED SSHD_STUB_PARTIAL_HARDENED \
     LAUNCHCTL_STUB_PRINT_STATUSES LAUNCHCTL_STUB_KICKSTART_STATUS \
@@ -249,6 +269,7 @@ STUB
 run_ssh_reload() {
   : >"$LAUNCHCTL_SPY_LOG"
   : >"$KEYSCAN_SPY_LOG"
+  : >"$SLEEP_SPY_LOG"
   : >"$SUDO_OK_SPY_LOG"
   : >"$SUDO_DENY_SPY_LOG"
   rm -f "$SSH_STUB_STATE/launchctl-print-count"

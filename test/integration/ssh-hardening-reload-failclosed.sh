@@ -216,6 +216,53 @@ run_ssh_reload
 [[ ! -s $KEYSCAN_SPY_LOG ]] ||
   fail "12: install must never probe the listener (spy: $(cat "$KEYSCAN_SPY_LOG"))"
 
+# --- 16: the retry delay is a validated seam, never a bare sleep --------------
+# sleep is /bin/sleep on this platform, an external binary and not a builtin,
+# so under a stripped PATH a bare `sleep` is exit 127 INSIDE the readiness
+# loop: an abort AFTER the disruptive step, under set -e, printing nothing.
+# The delay tool must be resolved and validated BEFORE the kickstart, and a
+# nonzero interval must pace through the seam, observably.
+
+# 16a: a nonzero interval paces through SLEEP_BIN: three refused probes make
+# exactly two inter-probe delays of the requested length.
+SSH_HARDENING_READY_ATTEMPTS=3 SSH_HARDENING_READY_INTERVAL=1 \
+  KEYSCAN_STUB_MODE=refuse run_ssh_reload --reload
+[[ $SSH_RUN_STATUS -ne 0 ]] ||
+  fail '16a: three refused probes must still be a lockout failure'
+keyscan_attempts="$(grep -c . "$KEYSCAN_SPY_LOG")" || true
+[[ $keyscan_attempts -eq 3 ]] ||
+  fail "16a: expected 3 probes, got $keyscan_attempts"
+sleep_calls="$(grep -c . "$SLEEP_SPY_LOG")" || true
+[[ $sleep_calls -eq 2 ]] ||
+  fail "16a: 3 attempts must sleep exactly twice through the seam, got $sleep_calls (spy: $(cat "$SLEEP_SPY_LOG"))"
+grep -qx '1' "$SLEEP_SPY_LOG" ||
+  fail "16a: the delay must be the requested interval (spy: $(cat "$SLEEP_SPY_LOG"))"
+
+# 16b: an unavailable delay tool must refuse BEFORE the kickstart, not abort
+# silently after it.
+SSH_HARDENING_READY_INTERVAL=1 SLEEP_BIN="$SSH_SANDBOX/no-such-sleep" \
+  run_ssh_reload --reload
+[[ $SSH_RUN_STATUS -ne 0 ]] ||
+  fail '16b: a missing delay tool must fail the reload'
+assert_no_kickstart '16b'
+grep -qF "$SSH_SANDBOX/no-such-sleep" <<<"$SSH_RUN_ERR" ||
+  fail "16b: the refusal must name the missing delay tool (stderr: $SSH_RUN_ERR)"
+
+# 16c: a delay tool that fails MID-loop (after the kickstart) must die
+# NAMING the delay failure and carrying the recovery text, never abort bare.
+failing_sleep="$SSH_SANDBOX/failing-sleep"
+printf '#!/bin/bash\nexit 9\n' >"$failing_sleep"
+chmod +x "$failing_sleep"
+SSH_HARDENING_READY_ATTEMPTS=2 SSH_HARDENING_READY_INTERVAL=1 \
+  SLEEP_BIN="$failing_sleep" KEYSCAN_STUB_MODE=refuse run_ssh_reload --reload
+[[ $SSH_RUN_STATUS -ne 0 ]] ||
+  fail '16c: a mid-loop delay failure must fail the reload'
+assert_kickstart_attempted '16c'
+grep -qi 'retry delay' <<<"$SSH_RUN_ERR" ||
+  fail "16c: the failure must be attributed to the retry delay (stderr: $SSH_RUN_ERR)"
+grep -qF 'ssh-hardening.sh --rollback' <<<"$SSH_RUN_ERR" ||
+  fail "16c: a failure after the disruptive step must carry the recovery path (stderr: $SSH_RUN_ERR)"
+
 # --- 15: readiness knobs are validated BEFORE anything runs -------------------
 # The property: attempts and the probe timeout are one canonical base-10
 # positive integer (bash arithmetic reads a leading zero as base-8, so 010

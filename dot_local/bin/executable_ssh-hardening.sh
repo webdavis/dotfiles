@@ -34,6 +34,10 @@
 #                       stripped-PATH rationale; only --reload uses it
 #   KEYSCAN_BIN         ssh-keyscan, ABSOLUTE  (default /usr/bin/ssh-keyscan);
 #                       the readiness prover, only --reload uses it
+#   SLEEP_BIN           the retry delay, ABSOLUTE (default /bin/sleep); only
+#                       --reload uses it, BETWEEN readiness probes, which is
+#                       AFTER the disruptive step -- exactly where a bare
+#                       `sleep` under a stripped PATH aborted with no message
 #   SSH_HARDENING_SUDO  privilege wrapper for writes; set EMPTY to run
 #                       unprivileged against a sandbox tree (default sudo)
 #   SSH_HARDENING_READY_ATTEMPTS / SSH_HARDENING_READY_INTERVAL /
@@ -69,6 +73,12 @@ SSHD_BIN="${SSHD_BIN:-/usr/sbin/sshd}"
 SSH_HARDENING_SUDO="${SSH_HARDENING_SUDO-sudo}"
 LAUNCHCTL_BIN="${LAUNCHCTL_BIN:-/bin/launchctl}"
 KEYSCAN_BIN="${KEYSCAN_BIN:-/usr/bin/ssh-keyscan}"
+# ABSOLUTE like the other seams, and doubly so: sleep is NOT a bash builtin
+# (measured: /bin/sleep), it is the only tool the readiness loop runs after
+# the kickstart, and under `set -e` a PATH-resolved `sleep` that is missing
+# kills the script mid-loop with no output at all -- the one failure mode
+# where the operator most needs the recovery text printed none.
+SLEEP_BIN="${SLEEP_BIN:-/bin/sleep}"
 # `-` not `:-` for the three readiness knobs, matching SSH_HARDENING_SUDO
 # above: unset means "use the default", but SET-BUT-EMPTY is an operator
 # statement and validate_readiness_knobs REFUSES it rather than silently
@@ -1003,11 +1013,17 @@ reload_sshd() {
     fi
   fi
 
-  # 2. The readiness prover must exist BEFORE anything disruptive happens. A
-  # reload that cannot prove the daemon came back is a reload that leaves the
-  # operator guessing, so its absence is a refusal, not a warning.
+  # 2. The readiness prover AND the retry delay must exist BEFORE anything
+  # disruptive happens. A reload that cannot prove the daemon came back
+  # leaves the operator guessing, so the prover's absence is a refusal; and
+  # the delay tool runs only BETWEEN probes, after the kickstart, so ITS
+  # absence would surface as a silent post-restart abort unless it is
+  # validated here, where nothing has been disturbed yet.
   if [[ ! -x $KEYSCAN_BIN ]]; then
     die "the readiness prover '$KEYSCAN_BIN' is not runnable, so there would be no way to prove sshd came back after a restart; refusing to kickstart blind. sshd was not touched."
+  fi
+  if [[ ! -x $SLEEP_BIN ]]; then
+    die "the retry delay tool '$SLEEP_BIN' is not runnable, so the readiness loop could only abort after the restart; refusing to kickstart. sshd was not touched."
   fi
 
   # 3. Syntax: never restart onto a configuration sshd cannot parse.
@@ -1084,7 +1100,11 @@ reload_sshd() {
       break
     fi
     if [[ $attempt -lt $SSH_HARDENING_READY_ATTEMPTS && $SSH_HARDENING_READY_INTERVAL != 0 ]]; then
-      sleep "$SSH_HARDENING_READY_INTERVAL"
+      status=0
+      "$SLEEP_BIN" "$SSH_HARDENING_READY_INTERVAL" || status=$?
+      if [[ $status -ne 0 ]]; then
+        die "the retry delay '$SLEEP_BIN $SSH_HARDENING_READY_INTERVAL' failed (exit $status) between readiness probes, so readiness cannot be awaited; the restart HAS already happened. $(recovery_instructions)"
+      fi
     fi
     attempt=$((attempt + 1))
   done
