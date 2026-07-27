@@ -971,6 +971,16 @@ assert_bounded_hang_gaps() { # <control-id> <started-seconds>
   assert_page_body_lacks '--master-enable'
 }
 
+@test "T-PCTL-honest-timeout-comment: the source never claims the probe bound keeps a worst-case tick under the 60s interval" {
+  # Five sequential probes at the 20s default total ~100s; the bound
+  # guarantees the tick ENDS, not that it fits the interval. The old claim
+  # ('well under the 60s tick') was false and must not return.
+  if grep -qF -- 'well under the 60s tick' "$POLLER_TOOL"; then
+    echo "the poller source again claims the per-probe bound keeps the tick under 60s"
+    false
+  fi
+}
+
 @test "T-PCTL-no-master-enable-in-source: the poller source never mentions spctl --master-enable" {
   if grep -qF -- 'master-enable' "$POLLER_TOOL"; then
     echo "the poller source still names the removed spctl --master-enable flag"

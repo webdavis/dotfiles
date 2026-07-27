@@ -81,9 +81,14 @@ sanitize_span() {
 # a different table that answers while a posture read hangs). gtimeout
 # preferred, timeout fallback (the codebase convention); if neither is on PATH,
 # degrade to an unbounded read (no worse than before; the darwin fleet has
-# one). The bound is well under the 60s tick and env-overridable. On timeout
-# the probe is killed and exits nonzero, which classifies as indeterminate (or,
-# for the combined osqueryi read, collapses to empty), and the gap gate pages.
+# one). The bound is PER PROBE (20s default, env-overridable): a tick running
+# the combined query plus four control probes all wedged can total ~100s, past
+# the 60s interval, in which case launchd (which never overlaps runs) simply
+# starts the next tick late. The bound's job is to guarantee the tick ENDS and
+# the gap gate pages, not to keep a worst-case tick under the interval. On
+# timeout the probe is killed and exits nonzero, which classifies as
+# indeterminate (or, for the combined osqueryi read, collapses to empty), and
+# the gap gate pages.
 posture_timeout_bin="$(command -v gtimeout || command -v timeout || true)"
 run_bounded() {
   if [[ -n $posture_timeout_bin ]]; then
