@@ -182,10 +182,16 @@ rendered="$sandbox/rendered-user-only"
 render_error="$sandbox/render.err"
 render_template "$user_only_src" "$rendered" "$render_error" ||
   fail "user-only render must succeed (stderr: $(cat "$render_error"))"
-if [[ -z "$(tr -d '[:space:]' <"$rendered")" ]]; then
-  printf 'SKIP: empty render (non-darwin host); nothing to exercise\n'
+# The skip is gated on the ACTUAL host OS, never on the render coming out
+# empty: emptiness conflates "non-darwin host" (skip, by design) with "the
+# template's OS guard is broken on darwin" (a failure this test exists to
+# catch). An empty render on darwin must fail loudly, not skip.
+[[ "$(uname)" == Darwin ]] || {
+  printf 'SKIP: non-darwin host; the runner renders empty by design off darwin\n'
   exit 0
-fi
+}
+[[ -n "$(tr -d '[:space:]' <"$rendered")" ]] ||
+  fail "the Tier 1 runner rendered EMPTY on a darwin host; its OS guard is broken (template: $TEMPLATE; stderr: $(cat "$render_error"))"
 cmp -s "$hardened_golden" "$rendered" ||
   fail "user-only render must match the hardened golden (diff: $(diff "$hardened_golden" "$rendered" | head -20))"
 refute_file_contains "$rendered" 'sudo' \
@@ -223,13 +229,18 @@ cmp -s "$sandbox/argv-pre-slice" "$sandbox/argv-hardened" ||
 [[ -s $sandbox/argv-hardened ]] ||
   fail 'the argument-vector capture is empty; the comparison above would pass on two dead runs'
 
-# The repo's REAL data file declares no system-scope record in this slice, so
-# the shipped render must contain no sudo either.
+# The repo's REAL data file declares exactly one enforced system-scope record
+# (SoftwareUpdate AutomaticCheckEnabled, the security-defaults baseline), so
+# the shipped render must carry exactly one sudo -v prelude. The per-field
+# pins on that record live in macos-security-defaults-render.sh; this section
+# keeps the real-data claim current at the site that originally asserted its
+# inverse (no system record, no sudo).
 rendered_real="$sandbox/rendered-real-data"
 render_template "$REPO_ROOT" "$rendered_real" "$render_error" ||
   fail "render against the repo's real data must succeed (stderr: $(cat "$render_error"))"
-refute_file_contains "$rendered_real" 'sudo' \
-  "render against the repo's real data must contain no sudo invocation"
+real_sudo_validate_count="$(grep -cxF 'sudo -v' "$rendered_real" || true)"
+[[ $real_sudo_validate_count -eq 1 ]] ||
+  fail "render against the repo's real data must contain exactly one 'sudo -v' prelude (got $real_sudo_validate_count)"
 
 # Criterion 9, source form: the guard reads the optional field through
 # `index . "scope"`; the `.scope` field form aborts on every record without
