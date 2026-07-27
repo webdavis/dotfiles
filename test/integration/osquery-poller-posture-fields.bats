@@ -1,0 +1,572 @@
+#!/usr/bin/env bats
+# The security-posture poller's DECLARED controls (slice 6): the poller reads
+# ~/.local/libexec/osquery/posture-controls.json (the chezmoi render of
+# .chezmoidata/macos_posture_controls.yaml) and monitors each record with the
+# reader it names, against the value it declares. Adding a control is a data
+# change; the poller carries no control list in its body.
+#
+# The rules pinned here:
+#   - a control deviating from its declared value pages EXACTLY ONE CRIT naming
+#     it, stays quiet while the deviation persists, and re-pages after a
+#     restore-then-regress (the persisted baseline is the page-once marker);
+#   - a probe that exits nonzero is INDETERMINATE regardless of what it printed
+#     (unit suite: macos-posture-indeterminate.sh asserts this per control);
+#   - a missing/malformed/mis-tiered controls file, an unknown reader, and an
+#     unparseable or ambiguous probe are all MONITORING GAPS: page once,
+#     preserve the baseline, never a silent pass (fail-open is the cardinal
+#     sin);
+#   - a non-verify tier is refused BEFORE any probe runs: the poller only READS
+#     controls, so an enforce record in its file is a declaration error;
+#   - the poller never invokes a mutating command (recording spies + an empty
+#     violation log), and no system-read value reaches a notification body
+#     unneutralized.
+
+load ../fixtures/osquery-poller-lib
+
+setup() { setup_poller_harness; }
+teardown() { teardown_poller_harness; }
+
+# The four repo-like records (same ids/readers/expects as
+# .chezmoidata/macos_posture_controls.yaml; remedies shortened). The
+# poller-vs-repo-data agreement lives in macos-posture-controls-agreement.sh.
+declare_posture_controls() {
+  set_posture_controls '[
+    {"id":"filevault","description":"FileVault disk encryption","tier":"verify","reader":"fdesetup_status","expect":"on","remedy":"Re-enable it: System Settings, Privacy & Security, FileVault"},
+    {"id":"sip","description":"System Integrity Protection","tier":"verify","reader":"csrutil_status","expect":"disabled","remedy":"Update the declared expect or investigate"},
+    {"id":"autologin","description":"Automatic login at the login window","tier":"verify","reader":"sysadminctl_autologin","expect":"off","remedy":"Turn it off: System Settings, Users & Groups"},
+    {"id":"guest","description":"The macOS Guest account","tier":"verify","reader":"sysadminctl_guest","expect":"disabled","remedy":"Disable it: System Settings, Users & Groups"}
+  ]'
+}
+
+# A baseline where every legacy field and every declared control is healthy.
+healthy_seed='{"firewall":"1","gatekeeper":"1","screenlock":"1","filevault":"on","sip":"disabled","autologin":"off","guest":"disabled"}'
+
+@test "T-PCTL-healthy-reads-and-baseline: a healthy tick reads every declared control once and persists each value into the baseline" {
+  declare_posture_controls
+  set_posture '[{"firewall":"1","gatekeeper":"1","screenlock":"1"}]'
+
+  run run_poller
+  [[ $status -eq 0 ]] || {
+    echo "expected exit 0 on a healthy tick, got $status: $output"
+    false
+  }
+
+  assert_no_page
+  # One status probe per declared control (sysadminctl serves two controls).
+  assert_probe_calls fdesetup 1
+  assert_probe_calls csrutil 1
+  assert_probe_calls sysadminctl 2
+  # The baseline carries the legacy trio AND one field per declared control.
+  assert_baseline_scalar firewall 1
+  assert_baseline_scalar filevault on
+  assert_baseline_scalar sip disabled
+  assert_baseline_scalar autologin off
+  assert_baseline_scalar guest disabled
+}
+
+@test "T-PCTL-legacy-baseline-gains-control-fields: a valid legacy-only baseline plus healthy controls stays silent and gains the control fields (the add-a-control-later path)" {
+  seed_baseline '{"firewall":"1","gatekeeper":"1","screenlock":"1"}'
+  declare_posture_controls
+  set_posture '[{"firewall":"1","gatekeeper":"1","screenlock":"1"}]'
+
+  run run_poller
+  [[ $status -eq 0 ]] || {
+    echo "expected exit 0, got $status: $output"
+    false
+  }
+
+  assert_no_page # healthy first observation of the new controls: silent seed
+  assert_baseline_scalar filevault on
+  assert_baseline_scalar guest disabled
+}
+
+# --- one page per regression, quiet while it persists, re-page after restore ---
+# The persisted baseline is the page-once marker: a deviation pages on the
+# transition tick, the baseline advances to the deviant value (quiet ticks
+# follow), a restore advances it back (clearing the marker), and a second
+# regression pages again.
+
+@test "T-PCTL-filevault-lifecycle: FileVault off pages one CRIT naming it, stays quiet while off, and re-pages after restore-then-regress" {
+  seed_baseline "$healthy_seed"
+  declare_posture_controls
+  set_posture '[{"firewall":"1","gatekeeper":"1","screenlock":"1"}]'
+
+  export POLLER_FDESETUP_OUTPUT="FileVault is Off."
+  run run_poller # tick 1: the regression pages
+  [[ $status -eq 0 ]] || {
+    echo "tick 1 status $status: $output"
+    false
+  }
+  assert_page_count 1
+  assert_page_severity_is CRIT
+  assert_page_body_has 'FileVault disk encryption: now off, declared on'
+  assert_page_body_has 'Re-enable it: System Settings, Privacy & Security, FileVault'
+  assert_page_body_lacks 'Guest'            # only the control that changed is named
+  assert_page_body_lacks 'Automatic login'
+  # Notify-before-persist: at page time the baseline still held the prior value.
+  assert_page_saw_baseline "$healthy_seed"
+  assert_baseline_scalar filevault off
+
+  run run_poller # tick 2: still off, quiet
+  [[ $status -eq 0 ]] || {
+    echo "tick 2 status $status: $output"
+    false
+  }
+  assert_page_count 1
+
+  unset POLLER_FDESETUP_OUTPUT
+  run run_poller # tick 3: restored, silent, the marker (baseline) clears
+  [[ $status -eq 0 ]] || {
+    echo "tick 3 status $status: $output"
+    false
+  }
+  assert_page_count 1
+  assert_baseline_scalar filevault on
+
+  export POLLER_FDESETUP_OUTPUT="FileVault is Off."
+  run run_poller # tick 4: a later regression pages again
+  [[ $status -eq 0 ]] || {
+    echo "tick 4 status $status: $output"
+    false
+  }
+  assert_page_count 2
+}
+
+@test "T-PCTL-sip-lifecycle: SIP deviating from its DECLARED state (disabled) pages once, stays quiet, and re-pages after restore-then-regress" {
+  # SIP is deliberately disabled on this machine: expect is the operator's
+  # declaration, not a blanket enabled. SIP turning ON is therefore the
+  # deviation here.
+  seed_baseline "$healthy_seed"
+  declare_posture_controls
+  set_posture '[{"firewall":"1","gatekeeper":"1","screenlock":"1"}]'
+
+  export POLLER_CSRUTIL_OUTPUT="System Integrity Protection status: enabled."
+  run run_poller
+  [[ $status -eq 0 ]] || {
+    echo "tick 1 status $status: $output"
+    false
+  }
+  assert_page_count 1
+  assert_page_severity_is CRIT
+  assert_page_body_has 'System Integrity Protection: now enabled, declared disabled'
+  assert_page_saw_baseline "$healthy_seed"
+  assert_baseline_scalar sip enabled
+
+  run run_poller # still deviant, quiet
+  assert_page_count 1
+
+  unset POLLER_CSRUTIL_OUTPUT
+  run run_poller # restored to the declared state, silent
+  assert_page_count 1
+  assert_baseline_scalar sip disabled
+
+  export POLLER_CSRUTIL_OUTPUT="System Integrity Protection status: enabled."
+  run run_poller
+  assert_page_count 2
+}
+
+@test "T-PCTL-autologin-lifecycle: automatic login turning on pages once naming it, stays quiet, and re-pages after restore-then-regress" {
+  seed_baseline "$healthy_seed"
+  declare_posture_controls
+  set_posture '[{"firewall":"1","gatekeeper":"1","screenlock":"1"}]'
+
+  export POLLER_SYSADMINCTL_AUTOLOGIN_OUTPUT="2026-07-27 00:00:00.000 sysadminctl[100:100] Automatic login user: stephen"
+  run run_poller
+  [[ $status -eq 0 ]] || {
+    echo "tick 1 status $status: $output"
+    false
+  }
+  assert_page_count 1
+  assert_page_severity_is CRIT
+  assert_page_body_has 'Automatic login at the login window: now on, declared off'
+  # The username from the probe output is data the page must NOT carry.
+  assert_page_body_lacks 'stephen'
+  assert_baseline_scalar autologin on
+
+  run run_poller
+  assert_page_count 1
+
+  unset POLLER_SYSADMINCTL_AUTOLOGIN_OUTPUT
+  run run_poller
+  assert_page_count 1
+  assert_baseline_scalar autologin off
+
+  export POLLER_SYSADMINCTL_AUTOLOGIN_OUTPUT="2026-07-27 00:00:00.000 sysadminctl[100:100] Automatic login user: stephen"
+  run run_poller
+  assert_page_count 2
+}
+
+@test "T-PCTL-guest-lifecycle: the Guest account turning on pages once naming it, stays quiet, and re-pages after restore-then-regress" {
+  seed_baseline "$healthy_seed"
+  declare_posture_controls
+  set_posture '[{"firewall":"1","gatekeeper":"1","screenlock":"1"}]'
+
+  export POLLER_SYSADMINCTL_GUEST_OUTPUT="2026-07-27 00:00:00.000 sysadminctl[100:100] Guest account enabled."
+  run run_poller
+  [[ $status -eq 0 ]] || {
+    echo "tick 1 status $status: $output"
+    false
+  }
+  assert_page_count 1
+  assert_page_severity_is CRIT
+  assert_page_body_has 'The macOS Guest account: now enabled, declared disabled'
+  assert_baseline_scalar guest enabled
+
+  run run_poller
+  assert_page_count 1
+
+  unset POLLER_SYSADMINCTL_GUEST_OUTPUT
+  run run_poller
+  assert_page_count 1
+  assert_baseline_scalar guest disabled
+
+  export POLLER_SYSADMINCTL_GUEST_OUTPUT="2026-07-27 00:00:00.000 sysadminctl[100:100] Guest account enabled."
+  run run_poller
+  assert_page_count 2
+}
+
+@test "T-PCTL-first-observation-deviation-pages: a control already deviant with no prior baseline pages as a first observation, then seeds and quiets" {
+  declare_posture_controls
+  set_posture '[{"firewall":"1","gatekeeper":"1","screenlock":"1"}]'
+  export POLLER_FDESETUP_OUTPUT="FileVault is Off."
+
+  run run_poller
+  [[ $status -eq 0 ]] || {
+    echo "tick 1 status $status: $output"
+    false
+  }
+  assert_page_count 1
+  assert_page_severity_is CRIT
+  assert_page_body_has 'FileVault disk encryption: off at first observation, declared on'
+  assert_page_body_lacks 'now off' # a first observation, not a transition
+  assert_baseline_scalar filevault off
+
+  run run_poller # identical next tick: seeded, steady-deviant, silent
+  assert_page_count 1
+}
+
+@test "T-PCTL-out-of-domain-control-prior-distrusted: an out-of-domain prior for one control becomes a first observation, never a fabricated transition" {
+  # A prior of "wombat" is outside the fdesetup_status domain. Trusting it
+  # would fabricate a "now off" transition line reading Was: wombat; the prior
+  # is distrusted instead, so this is a first observation of an already-off
+  # control.
+  seed_baseline '{"firewall":"1","gatekeeper":"1","screenlock":"1","filevault":"wombat","sip":"disabled","autologin":"off","guest":"disabled"}'
+  declare_posture_controls
+  set_posture '[{"firewall":"1","gatekeeper":"1","screenlock":"1"}]'
+  export POLLER_FDESETUP_OUTPUT="FileVault is Off."
+
+  run run_poller
+  [[ $status -eq 0 ]] || {
+    echo "status $status: $output"
+    false
+  }
+  assert_page_body_has 'off at first observation'
+  assert_page_body_lacks 'wombat' # the untrusted prior never reaches a page
+}
+
+@test "T-PCTL-multi-deviation-single-page: a legacy protection and a declared control regressing in one tick share a single counted CRIT page" {
+  seed_baseline "$healthy_seed"
+  declare_posture_controls
+  set_posture '[{"firewall":"0","gatekeeper":"1","screenlock":"1"}]'
+  export POLLER_FDESETUP_OUTPUT="FileVault is Off."
+
+  run run_poller
+  [[ $status -eq 0 ]] || {
+    echo "status $status: $output"
+    false
+  }
+
+  assert_page_count 1 # one page for the tick, never one per control
+  assert_page_body_has 'Firewall turned OFF'
+  assert_page_body_has 'FileVault disk encryption: now off, declared on'
+  assert_page_body_has '· 2' # the count title marks two deviations in one page
+}
+
+# --- gaps: a control the poller cannot read or trust is NEVER a silent pass ---
+
+@test "T-PCTL-missing-controls-file-gaps: a missing controls file pages a monitoring gap and preserves the baseline" {
+  seed_baseline '{"firewall":"1","gatekeeper":"1","screenlock":"1"}'
+  snapshot_baseline
+  rm "$OSQUERY_POSTURE_CONTROLS"
+  set_posture '[{"firewall":"1","gatekeeper":"1","screenlock":"1"}]'
+
+  run run_poller
+  [[ $status -eq 0 ]] || {
+    echo "status $status: $output"
+    false
+  }
+
+  assert_page_count 1
+  assert_page_severity_is CRIT
+  assert_page_body_has 'monitoring gap'
+  assert_page_body_has 'posture-controls file missing'
+  assert_gap_marker
+  assert_baseline_unchanged # a blind poller must never advance state
+}
+
+@test "T-PCTL-malformed-controls-file-gaps: a controls file that is not a JSON array pages a monitoring gap" {
+  seed_baseline '{"firewall":"1","gatekeeper":"1","screenlock":"1"}'
+  snapshot_baseline
+  set_posture_controls '{"not":"an array"}'
+  set_posture '[{"firewall":"1","gatekeeper":"1","screenlock":"1"}]'
+
+  run run_poller
+  [[ $status -eq 0 ]] || {
+    echo "status $status: $output"
+    false
+  }
+
+  assert_page_count 1
+  assert_page_body_has 'monitoring gap'
+  assert_page_body_has 'not a JSON array'
+  assert_baseline_unchanged
+}
+
+@test "T-PCTL-nonverify-tier-refused-before-reads: an enforce-tier record pages a gap naming it and no probe ever runs" {
+  seed_baseline '{"firewall":"1","gatekeeper":"1","screenlock":"1"}'
+  snapshot_baseline
+  set_posture_controls '[{"id":"guest","description":"The macOS Guest account","tier":"enforce","reader":"sysadminctl_guest","expect":"disabled"}]'
+  set_posture '[{"firewall":"1","gatekeeper":"1","screenlock":"1"}]'
+
+  run run_poller
+  [[ $status -eq 0 ]] || {
+    echo "status $status: $output"
+    false
+  }
+
+  assert_page_count 1
+  assert_page_body_has 'monitoring gap'
+  assert_page_body_has 'guest'
+  assert_page_body_has 'not verify'
+  assert_no_probe_calls # refusal precedes every read
+  assert_baseline_unchanged
+}
+
+@test "T-PCTL-unknown-reader-gaps: a record naming a reader the poller lacks pages a gap and no probe ever runs" {
+  seed_baseline '{"firewall":"1","gatekeeper":"1","screenlock":"1"}'
+  snapshot_baseline
+  set_posture_controls '[{"id":"guest","description":"The macOS Guest account","tier":"verify","reader":"wombat_status","expect":"disabled"}]'
+  set_posture '[{"firewall":"1","gatekeeper":"1","screenlock":"1"}]'
+
+  run run_poller
+  [[ $status -eq 0 ]] || {
+    echo "status $status: $output"
+    false
+  }
+
+  assert_page_count 1
+  assert_page_body_has 'monitoring gap'
+  assert_page_body_has 'unknown reader'
+  assert_no_probe_calls
+  assert_baseline_unchanged
+}
+
+@test "T-PCTL-duplicate-id-gaps: two records sharing an id page a gap (ids are baseline field names)" {
+  seed_baseline '{"firewall":"1","gatekeeper":"1","screenlock":"1"}'
+  snapshot_baseline
+  set_posture_controls '[
+    {"id":"guest","description":"The macOS Guest account","tier":"verify","reader":"sysadminctl_guest","expect":"disabled"},
+    {"id":"guest","description":"A second guest record","tier":"verify","reader":"sysadminctl_guest","expect":"disabled"}
+  ]'
+  set_posture '[{"firewall":"1","gatekeeper":"1","screenlock":"1"}]'
+
+  run run_poller
+  [[ $status -eq 0 ]] || {
+    echo "status $status: $output"
+    false
+  }
+
+  assert_page_count 1
+  assert_page_body_has 'monitoring gap'
+  assert_page_body_has 'collides'
+  assert_baseline_unchanged
+}
+
+@test "T-PCTL-builtin-id-collision-gaps: a record whose id shadows a built-in field pages a gap" {
+  seed_baseline '{"firewall":"1","gatekeeper":"1","screenlock":"1"}'
+  snapshot_baseline
+  set_posture_controls '[{"id":"firewall","description":"A collision","tier":"verify","reader":"sysadminctl_guest","expect":"disabled"}]'
+  set_posture '[{"firewall":"1","gatekeeper":"1","screenlock":"1"}]'
+
+  run run_poller
+  [[ $status -eq 0 ]] || {
+    echo "status $status: $output"
+    false
+  }
+
+  assert_page_count 1
+  assert_page_body_has 'monitoring gap'
+  assert_page_body_has 'collides'
+  assert_baseline_unchanged
+}
+
+@test "T-PCTL-out-of-domain-expect-gaps: a record expecting a value outside its reader domain pages a gap" {
+  seed_baseline '{"firewall":"1","gatekeeper":"1","screenlock":"1"}'
+  snapshot_baseline
+  set_posture_controls '[{"id":"guest","description":"The macOS Guest account","tier":"verify","reader":"sysadminctl_guest","expect":"wombat"}]'
+  set_posture '[{"firewall":"1","gatekeeper":"1","screenlock":"1"}]'
+
+  run run_poller
+  [[ $status -eq 0 ]] || {
+    echo "status $status: $output"
+    false
+  }
+
+  assert_page_count 1
+  assert_page_body_has 'monitoring gap'
+  assert_page_body_has 'outside'
+  assert_baseline_unchanged
+}
+
+@test "T-PCTL-unparseable-probe-gaps: a zero-exit probe whose output matches no known state is indeterminate and pages a gap naming the control" {
+  seed_baseline "$healthy_seed"
+  declare_posture_controls
+  snapshot_baseline
+  set_posture '[{"firewall":"1","gatekeeper":"1","screenlock":"1"}]'
+  export POLLER_FDESETUP_OUTPUT="FileVault is Wombat."
+
+  run run_poller
+  [[ $status -eq 0 ]] || {
+    echo "status $status: $output"
+    false
+  }
+
+  assert_page_count 1
+  assert_page_body_has 'monitoring gap'
+  assert_page_body_has 'filevault'
+  assert_baseline_unchanged
+}
+
+@test "T-PCTL-ambiguous-probe-gaps: a probe printing BOTH state needles is indeterminate (never guessed at) and pages a gap" {
+  seed_baseline "$healthy_seed"
+  declare_posture_controls
+  snapshot_baseline
+  set_posture '[{"firewall":"1","gatekeeper":"1","screenlock":"1"}]'
+  export POLLER_FDESETUP_OUTPUT=$'FileVault is On.\nFileVault is Off.'
+
+  run run_poller
+  [[ $status -eq 0 ]] || {
+    echo "status $status: $output"
+    false
+  }
+
+  assert_page_count 1
+  assert_page_body_has 'monitoring gap'
+  assert_page_body_has 'filevault'
+  assert_baseline_unchanged
+}
+
+@test "T-PCTL-gap-recovery-then-regression-pages: after a control gap recovers, a real later regression still pages (the gap never poisoned the baseline)" {
+  seed_baseline "$healthy_seed"
+  declare_posture_controls
+  set_posture '[{"firewall":"1","gatekeeper":"1","screenlock":"1"}]'
+
+  export POLLER_FDESETUP_EXIT=1
+  run run_poller # tick 1: indeterminate probe, gap page
+  assert_page_count 1
+  assert_gap_marker
+
+  unset POLLER_FDESETUP_EXIT
+  run run_poller # tick 2: recovered, marker clears, steady state
+  [[ $status -eq 0 ]] || {
+    echo "tick 2 status $status: $output"
+    false
+  }
+  assert_page_count 1
+  assert_no_gap_marker
+
+  export POLLER_FDESETUP_OUTPUT="FileVault is Off."
+  run run_poller # tick 3: a REAL regression against the preserved baseline
+  assert_page_count 2
+  assert_page_body_has 'FileVault disk encryption: now off, declared on'
+}
+
+# --- the poller never mutates, and system-read text never reaches a page raw ---
+
+@test "T-PCTL-no-mutating-invocation: healthy, deviant, and gap ticks invoke only status probes; the violation log stays empty" {
+  seed_baseline "$healthy_seed"
+  declare_posture_controls
+  set_posture '[{"firewall":"1","gatekeeper":"1","screenlock":"1"}]'
+
+  run run_poller # healthy tick
+  [[ $status -eq 0 ]]
+  export POLLER_FDESETUP_OUTPUT="FileVault is Off."
+  run run_poller # deviant tick (pages)
+  [[ $status -eq 0 ]]
+  export POLLER_CSRUTIL_EXIT=1
+  run run_poller # gap tick (indeterminate probe)
+  [[ $status -eq 0 ]]
+
+  # The probes DID run (the spies are live), and nothing but the exact
+  # read-only status queries was ever invoked.
+  assert_probe_calls fdesetup 3
+  assert_probe_calls csrutil 3
+  assert_probe_calls sysadminctl 6
+  assert_no_mutation_attempt
+}
+
+@test "T-PCTL-legacy-gap-values-neutralized: hostile bytes in an osqueryi scalar never reach the gap page body raw" {
+  seed_baseline '{"firewall":"1","gatekeeper":"1","screenlock":"1"}'
+  snapshot_baseline
+  # An out-of-domain firewall value carrying shell metacharacters: the gap body
+  # quotes the offending values, so they must arrive neutralized (no backtick,
+  # no dollar, no backslash, no quotes) with the page still firing.
+  set_posture '[{"firewall":"0`touch HOME-pwned`$(reboot)\\\"x","gatekeeper":"1","screenlock":"1"}]'
+
+  run run_poller
+  [[ $status -eq 0 ]] || {
+    echo "status $status: $output"
+    false
+  }
+
+  assert_page_count 1
+  assert_page_body_has 'monitoring gap'
+  if grep -qF -- '`' "$POLLER_SEND_ALERT_LOG"; then
+    echo "a backtick from the system read reached the page body: $(cat "$POLLER_SEND_ALERT_LOG")"
+    false
+  fi
+  if grep -qF -- '$(' "$POLLER_SEND_ALERT_LOG"; then
+    echo "a command substitution from the system read reached the page body"
+    false
+  fi
+  if grep -qF -- '\' "$POLLER_SEND_ALERT_LOG"; then
+    echo "a backslash from the system read reached the page body"
+    false
+  fi
+  [[ ! -e HOME-pwned && ! -e $POLLER_HOME/HOME-pwned ]] || {
+    echo "the hostile value executed"
+    false
+  }
+  assert_baseline_unchanged
+}
+
+@test "T-PCTL-probe-output-never-in-page: a hostile probe output is normalized away; only the fixed enum or a gap ever reaches a page" {
+  seed_baseline "$healthy_seed"
+  declare_posture_controls
+  snapshot_baseline
+  set_posture '[{"firewall":"1","gatekeeper":"1","screenlock":"1"}]'
+  export POLLER_FDESETUP_OUTPUT='`touch probe-pwned`$(reboot) "hostile" FileVault is Wombat.'
+
+  run run_poller
+  [[ $status -eq 0 ]] || {
+    echo "status $status: $output"
+    false
+  }
+
+  assert_page_count 1 # indeterminate -> gap page, never silent
+  assert_page_body_has 'monitoring gap'
+  if grep -qF -- '`' "$POLLER_SEND_ALERT_LOG"; then
+    echo "a backtick from the probe output reached the page body: $(cat "$POLLER_SEND_ALERT_LOG")"
+    false
+  fi
+  if grep -qF -- '$(' "$POLLER_SEND_ALERT_LOG"; then
+    echo "a command substitution from the probe output reached the page body"
+    false
+  fi
+  [[ ! -e probe-pwned && ! -e $POLLER_HOME/probe-pwned ]] || {
+    echo "the hostile probe output executed"
+    false
+  }
+  assert_baseline_unchanged
+}
+
