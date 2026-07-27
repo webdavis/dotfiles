@@ -109,38 +109,103 @@ check_placement() { # <root> <workdir>
   return 0
 }
 
-# BSD-first stat fallback chains. The BSD form of stat (the `-f` variant) placed
-# first in a fallback chain does not fail on Linux (GNU coreutils), where that
-# flag means "filesystem status": it succeeds with the wrong output, the GNU
-# fallback never fires, and the caller silently reads garbage (this broke CI
-# twice). The scan's contract, applied per chain segment (physical lines joined
-# across backslash continuations, then split on `;` and `&&`):
+# BSD-first stat usage. The BSD form of stat (the `-f` variant) tried before
+# the GNU form does not fail on Linux (GNU coreutils), or on macOS whenever
+# the nix dev shell puts GNU coreutils first on PATH: there that flag means
+# "filesystem status", so it succeeds with the wrong output, the GNU form
+# never runs, and the caller silently reads garbage (this broke CI twice as a
+# `||` chain, then a third time as an `if`-gated probe the chain-only scan
+# could not see). The property enforced is ORDER, not one syntax: no control
+# flow may try the BSD form before a GNU form (`-c`, `--format`, `--printf`)
+# has appeared. Two analyses over raw text (comments and fixture prose count;
+# the scan reads raw text on purpose, since examples get copy-pasted), both on
+# chain segments (physical lines joined across backslash continuations, then
+# split on `;` and `&&`):
 #
-#   - FLAGGED: a segment whose BSD-form stat sits in a `||` chain with no
-#     GNU-form stat (`-c`, `--format`, `--printf`) before it. Comments and
-#     fixture prose count; the scan reads raw text on purpose (copy-paste risk).
-#   - ALLOWED: GNU-first chains, and capability-gated bare BSD-form calls.
-#   - Boundary: literal chains in raw text only. Runtime-assembled chains and a
-#     masking GNU call inside the same unseparated segment are out of scope.
+#   - Per segment: a BSD-form stat sitting in a `||` chain with no GNU-form
+#     stat before it in the same segment is FLAGGED (catches a chain masked
+#     by an earlier GNU call elsewhere in the file).
+#   - Per scope, reading every segment's stat forms in raw-text order (two
+#     scopes: the whole file, and afresh from each function-definition line):
+#     a BSD form seen before any GNU form is FLAGGED at its line as soon as a
+#     GNU form follows in the same scope. This catches `if`-gated probes,
+#     `&&`-early-exit probes, a case dispatch with the BSD branch first, and
+#     a variable assigned the BSD command before the GNU form appears.
+#   - ALLOWED: GNU-first order in any shape, and a bare BSD-form call with no
+#     GNU form after it in scope (capability-gated, darwin-only use).
+#   - Boundary (documented misses): an unrelated GNU call earlier in the same
+#     segment or scope absolves a later BSD-first construct (order, not data
+#     flow); runtime-assembled commands whose tokens are declared GNU-first
+#     are invisible; dispatch conditions are not understood, so a case
+#     listing a GNU branch before a BSD fallback branch passes; function
+#     scopes reset at each function-definition line, not at closing braces.
 #   - Fail closed: a grep or awk error fails the guard, never a silent pass.
 #
 # Each rule and boundary here is pinned as a named fixture + assertion in
 # test/test-system/stat-order.sh; that test is the authoritative documentation
 # and cannot drift. (The guard lives inside its own scan root, so no comment
-# here may spell a literal BSD-first chain; hence this phrasing.)
-# find_bsd_first_chains_in_file <file> -- print the starting line number of
-# every BSD-first stat fallback chain in the file, one per line. Physical lines
-# are joined across backslash continuations, then split on `;` and `&&`; each
-# segment is judged on its own. Returns awk's exit status so the caller can
-# fail closed on a tool error.
+# here may spell a literal BSD-first sequence; hence this phrasing.)
+# find_bsd_first_chains_in_file <file> -- print the line number of every
+# BSD-first stat usage in the file, one per line, ascending, deduplicated.
+# Returns awk's exit status so the caller can fail closed on a tool error.
 #
 # awk idiom: awk has no `local`; extra function parameters ARE the locals, and
-# the wide gap in flush()'s parameter list separates real arguments (none here)
-# from those locals.
+# the wide gap in each parameter list separates real arguments from those
+# locals.
 find_bsd_first_chains_in_file() { # <file>
   LC_ALL=C awk '
+    BEGIN {
+      bsd_regex = "stat[[:space:]]+-f"
+      gnu_regex = "stat[[:space:]]+(-c|--(format|printf)[=[:space:]])"
+      function_definition_regex = "^[[:space:]]*(function[[:space:]]+)?[A-Za-z_][A-Za-z0-9_]*[[:space:]]*\\(\\)[[:space:]]*\\{"
+    }
+    function report(line_number) {
+      if (line_number in reported) return
+      reported[line_number] = 1
+      reported_lines[++reported_count] = line_number
+    }
+    # One stat-form occurrence, in raw-text order, feeding two identical
+    # state machines: file scope (never resets) and function scope (reset at
+    # each function-definition line). A GNU form flags any pending BSD form
+    # and absolves every later one; a BSD form seen before any GNU form
+    # becomes the pending line of each scope that has not seen a GNU form.
+    function process_occurrence(is_gnu_form, line_number) {
+      if (is_gnu_form) {
+        if (file_pending) { report(file_pending); file_pending = 0 }
+        if (func_pending) { report(func_pending); func_pending = 0 }
+        file_gnu_seen = 1
+        func_gnu_seen = 1
+        return
+      }
+      if (!file_gnu_seen && !file_pending) file_pending = line_number
+      if (!func_gnu_seen && !func_pending) func_pending = line_number
+    }
+    # Feed the stat forms of one segment to process_occurrence in position
+    # order (a segment may hold both forms in either order).
+    function scan_segment_forms(segment, line_number,   gnu_position, gnu_length, bsd_position, bsd_length) {
+      while (1) {
+        gnu_position = 0
+        bsd_position = 0
+        if (match(segment, gnu_regex)) { gnu_position = RSTART; gnu_length = RLENGTH }
+        if (match(segment, bsd_regex)) { bsd_position = RSTART; bsd_length = RLENGTH }
+        if (!gnu_position && !bsd_position) return
+        if (gnu_position && (!bsd_position || gnu_position < bsd_position)) {
+          process_occurrence(1, line_number)
+          segment = substr(segment, gnu_position + gnu_length)
+        } else {
+          process_occurrence(0, line_number)
+          segment = substr(segment, bsd_position + bsd_length)
+        }
+      }
+    }
     function flush(   line_copy, segment_count, segment_number, segment, bsd_index, gnu_index) {
       if (joined == "") return
+      # Function boundary: a function-definition line starts a fresh function
+      # scope, judged on its own even when an earlier function was GNU-first.
+      if (joined ~ function_definition_regex) {
+        func_gnu_seen = 0
+        func_pending = 0
+      }
       # Segment split: `;` and `&&` both terminate a chain, so rewrite
       # `&&` to `;` and split the logical line once.
       line_copy = joined
@@ -148,18 +213,16 @@ find_bsd_first_chains_in_file() { # <file>
       segment_count = split(line_copy, segments, ";")
       for (segment_number = 1; segment_number <= segment_count; segment_number++) {
         segment = segments[segment_number]
-        # BSD hit: skip any segment without the BSD form.
-        bsd_index = match(segment, /stat[[:space:]]+-f/)
-        if (bsd_index == 0) continue
-        # Chain check: a bare capability-gated call is not a fallback chain.
-        if (index(segment, "||") == 0) continue
-        # GNU-before check: a GNU form earlier in the SAME segment means the
-        # chain is GNU-first, the portable order.
-        gnu_index = match(segment, /stat[[:space:]]+(-c|--(format|printf)[=[:space:]])/)
-        if (!(gnu_index > 0 && gnu_index < bsd_index)) {
-          print start_line
-          break
+        # Per-segment chain analysis: a BSD form in a `||` chain with no GNU
+        # form earlier in the SAME segment is BSD-first regardless of scope
+        # state (an earlier GNU call elsewhere must not mask it).
+        bsd_index = match(segment, bsd_regex)
+        if (bsd_index > 0 && index(segment, "||") > 0) {
+          gnu_index = match(segment, gnu_regex)
+          if (!(gnu_index > 0 && gnu_index < bsd_index)) report(start_line)
         }
+        # Scope analysis: every stat form feeds the ordered state machines.
+        scan_segment_forms(segment, start_line)
       }
       joined = ""
     }
@@ -172,7 +235,17 @@ find_bsd_first_chains_in_file() { # <file>
       joined = joined line
       flush()
     }
-    END { flush() }
+    END {
+      flush()
+      for (i = 1; i <= reported_count; i++)
+        for (j = i + 1; j <= reported_count; j++)
+          if (reported_lines[j] + 0 < reported_lines[i] + 0) {
+            swap = reported_lines[i]
+            reported_lines[i] = reported_lines[j]
+            reported_lines[j] = swap
+          }
+      for (i = 1; i <= reported_count; i++) print reported_lines[i]
+    }
   ' "$1"
 }
 
@@ -208,7 +281,7 @@ check_stat_order() { # <root> <workdir>
   bsd_first_chains="${bsd_first_chains%$'\n'}"
 
   if [[ -n $bsd_first_chains ]]; then
-    printf 'FAIL: BSD-first stat fallback chain(s) below %s/ (break on Linux CI; put the GNU -c form first, the BSD -f form as the fallback):\n' "$root" >&2
+    printf 'FAIL: BSD-first stat usage(s) below %s/ (the BSD form does not fail under GNU coreutils, it succeeds with garbage; try the GNU -c form first, in any control flow, and fall back to the BSD -f form):\n' "$root" >&2
     printf '%s\n' "$bsd_first_chains" | sed 's/^/  /' >&2
     return 1
   fi
