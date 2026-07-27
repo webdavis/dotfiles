@@ -215,6 +215,24 @@ EOF
 
 VERIFY_FAILURES=()
 
+# run_verify_child: re-run this script's --verify in a CHILD shell. bash
+# suppresses `set -e` for everything inside an `if !` or `||` test, and that
+# suppression reaches into called functions and even into subshells (confirmed
+# on bash 3.2), so a caller judging the tree from inside such a test would run
+# every check with errexit switched off: a failure mid-flight would be stepped
+# over and the success line still printed. A separate process gets its own
+# `set -euo pipefail`, so every caller judges the tree by exactly the rules
+# --verify applies on its own. The seams are passed explicitly so the child
+# inspects the tree the caller just changed whether or not they were exported.
+run_verify_child() {
+  SSHD_CONFIG_D="$SSHD_CONFIG_D" \
+    SSHD_MAIN_CONFIG="$SSHD_MAIN_CONFIG" \
+    SSHD_BIN="$SSHD_BIN" \
+    SSH_HARDENING_SUDO="$SSH_HARDENING_SUDO" \
+    SSH_HARDENING_ALLOW_MISSING_SSHD="${SSH_HARDENING_ALLOW_MISSING_SSHD:-}" \
+    "${BASH:-/bin/bash}" "$SSH_HARDENING_SELF" --verify
+}
+
 # verify_skip_allowed: the SSH_HARDENING_ALLOW_MISSING_SSHD seam is ON only for
 # an explicitly TRUE-ish value. It used to be tested for being NONEMPTY, so
 # every value turned it on -- including `0`, the one value a reader would
@@ -754,22 +772,10 @@ install_dropin() {
     fi
     printf '[ssh-hardening] removed legacy drop-in %s\n' "$legacy"
   fi
-  # Verify in a CHILD shell. bash suppresses `set -e` for everything inside an
-  # `if !` or `||` test, and that suppression reaches into called functions and
-  # even into subshells (confirmed on bash 3.2), so calling verify in-process
-  # here ran every check with errexit switched off: a failure mid-flight was
-  # stepped over and the success line still printed. A separate process gets
-  # its own `set -euo pipefail`, so install judges the tree by exactly the
-  # rules --verify applies on its own. The seams are passed explicitly so the
-  # child inspects the tree this install just wrote whether or not the caller
-  # exported them.
+  # Verify in a child shell (see run_verify_child for why in-process
+  # verification under an `if !` or `||` test would run with errexit off).
   local verify_status=0
-  SSHD_CONFIG_D="$SSHD_CONFIG_D" \
-    SSHD_MAIN_CONFIG="$SSHD_MAIN_CONFIG" \
-    SSHD_BIN="$SSHD_BIN" \
-    SSH_HARDENING_SUDO="$SSH_HARDENING_SUDO" \
-    SSH_HARDENING_ALLOW_MISSING_SSHD="${SSH_HARDENING_ALLOW_MISSING_SSHD:-}" \
-    "${BASH:-/bin/bash}" "$SSH_HARDENING_SELF" --verify || verify_status=$?
+  run_verify_child || verify_status=$?
   if [[ $verify_status -ne 0 ]]; then
     rollback_install
     die "the effective configuration did NOT verify as fully hardened; the tree was rolled back to the state this install found it in, and no success is claimed"
