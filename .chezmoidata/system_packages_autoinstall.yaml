@@ -12,6 +12,7 @@ packages:
         - openhue/cli
         - oven-sh/bun
         - owenthereal/upterm
+        - rjyo/moshi
         - steipete/tap
         - vjeantet/tap
         - xdevplatform/tap
@@ -34,6 +35,7 @@ packages:
         - openhue/cli
         - oven-sh/bun
         - owenthereal/upterm
+        - rjyo/moshi
         - steipete/tap
         - vjeantet/tap
         - xdevplatform/tap
@@ -126,6 +128,7 @@ packages:
         - pv
         - restic
         - ripgrep
+        - rjyo/moshi/moshi-hook
         - ruff
         - sd
         - sevenzip
@@ -156,6 +159,7 @@ packages:
         - xcode-build-server
         - xcodegen
         - xz
+        - yakitrak/yakitrak/notesmd-cli
         - yq
         - zoxide
       casks:
@@ -168,6 +172,8 @@ packages:
         - chatgpt
         - claude
         - claude-code@latest
+        - codex
+        - codex-app
         - discord
         - docker-desktop
         - espanso
@@ -193,6 +199,7 @@ packages:
         - openemu
         - osquery
         - oversight
+        - paseo
         - proton-drive
         - proton-mail
         - proton-mail-bridge
