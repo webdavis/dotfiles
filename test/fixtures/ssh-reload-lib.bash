@@ -354,9 +354,12 @@ STUB
     KEYSCAN_STUB_MODE KEYSCAN_STUB_ANSWER_PORT
 }
 
-# run_ssh_reload <args...>: run_ssh_hardening with fresh per-run spy state,
-# then assert no bare-name tripwire fired. Every reload/rollback invocation
-# goes through here so no run can reach a real tool unobserved.
+# run_ssh_reload <args...>: run_ssh_hardening_bounded with fresh per-run spy
+# state, then assert no bare-name tripwire fired. Every reload/rollback
+# invocation goes through here so no run can reach a real tool unobserved,
+# and every run is WALL-CLOCK BOUNDED (SSH_RELOAD_TIME_LIMIT seconds,
+# default 30): a regression that makes the readiness loop infinite fails the
+# gate instead of hanging it.
 run_ssh_reload() {
   : >"$SSHD_SPY_LOG"
   : >"$LAUNCHCTL_SPY_LOG"
@@ -367,7 +370,12 @@ run_ssh_reload() {
   : >"$SSH_SEAM_CALL_LOG"
   rm -f "$SSH_STUB_STATE/launchctl-print-count" "$SSH_STUB_STATE/sshd-resolve-count" \
     "$SSH_STUB_STATE/stdout-at-kickstart" "$SSH_STUB_STATE/stderr-at-kickstart"
-  run_ssh_hardening "$@"
+  run_ssh_hardening_bounded "${SSH_RELOAD_TIME_LIMIT:-30}" "$@"
+  if [[ ${SSH_RUN_TIMED_OUT:-0} -eq 1 ]]; then
+    printf 'FAIL: run_ssh_reload %s exceeded its %ss wall clock; a reload that can hang is itself a regression\n' \
+      "$*" "${SSH_RELOAD_TIME_LIMIT:-30}" >&2
+    exit 1
+  fi
   if [[ -s $SSH_BARE_TOOL_SPY_LOG ]]; then
     printf 'FAIL: the script called a tool by bare name instead of its seam during %s; tripwire log:\n%s\n' \
       "run_ssh_reload $*" "$(cat "$SSH_BARE_TOOL_SPY_LOG")" >&2
