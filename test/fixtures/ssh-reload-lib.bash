@@ -6,16 +6,25 @@
 # PATH `sudo` tripwire).
 #
 # Every tool the disruptive modes drive is a FULLY CONTROLLED stub reached
-# through the SSH_HARDENING_SUDO / SSHD_BIN / LAUNCHCTL_BIN / KEYSCAN_BIN
-# seams, and every seam is MIRRORED on PATH by a tripwire that always fails
-# loudly (exit 96) and records the call: a regressed script that drops a seam
-# and calls a bare tool name hits the tripwire, never the real tool. No test
-# sourcing this library requires a real sshd, launchctl, ssh-keyscan, or sudo,
-# so none can skip, and none can reach the live daemon. On top of the seams
-# and the tripwires, the tests run UNPRIVILEGED: even if every layer above
-# regressed at once, launchd refuses an unprivileged kickstart of the real
-# system/com.openssh.sshd, and /etc/ssh is root-owned, so the violation would
-# be loud and harmless rather than a live restart.
+# through the SSH_HARDENING_SUDO / SSHD_BIN / LAUNCHCTL_BIN / KEYSCAN_BIN /
+# SLEEP_BIN seams, and every seam is MIRRORED on PATH by a tripwire that
+# always fails loudly (exit 96) and records the call: a regressed script that
+# drops a seam and calls a bare tool name hits the tripwire, never the real
+# tool. No test sourcing this library requires a real sshd, launchctl,
+# ssh-keyscan, or sudo, so none can skip, and none can reach the live daemon
+# through those routes.
+#
+# What the barriers do NOT guarantee, stated so nobody leans on more than is
+# there: the tripwires shadow only PATH-RESOLVED bare names, so a regression
+# that hard-codes /usr/bin/sudo or /bin/launchctl walks straight past them,
+# and if the developer's sudo timestamp happens to be cached (or sudo is
+# passwordless) such a call could really escalate. The backstop is narrower
+# than "unprivileged execution makes violations impossible": it is that the
+# specific dangerous actions here are root-gated by the OS itself -- launchd
+# refuses an unprivileged kickstart of system/com.openssh.sshd and /etc/ssh
+# is root-owned 0755 -- so THOSE fail loudly even if every layer above
+# regressed at once. Keeping absolute-path escalation out of the script is a
+# review property, not something this harness can enforce.
 
 # shellcheck source=./ssh-hardening-lib.bash
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/ssh-hardening-lib.bash"
@@ -149,7 +158,7 @@ fi
 for stub_port in ${SSHD_STUB_PORT-2222}; do
   printf 'port %s\n' "$stub_port"
 done
-if [[ -f "${SSHD_CONFIG_D:?}/000-ssh-hardening.conf" || -n ${SSHD_STUB_FORCE_HARDENED:-} ]]; then
+if [[ -f "${SSHD_CONFIG_D:?}/${SSH_DROPIN_NAME:?}" || -n ${SSHD_STUB_FORCE_HARDENED:-} ]]; then
   printf '%s\n' 'passwordauthentication no' 'kbdinteractiveauthentication no' \
     'usepam yes' 'pubkeyauthentication yes' 'permitrootlogin no' \
     'gssapiauthentication no' 'hostbasedauthentication no'
@@ -438,9 +447,12 @@ assert_no_kickstart() {
   fi
 }
 
-# config_tree_fingerprint: every file under the sandbox drop-in directory with
-# its checksum, so "this mode wrote nothing" is judged byte-for-byte rather
-# than by file count.
+# config_tree_fingerprint: every REGULAR FILE under the sandbox drop-in
+# directory with its checksum, so "this mode wrote nothing" is judged by
+# content rather than by file count. Stated coverage: paths and contents of
+# regular files only -- not modes, ownership, symlinks, directories, the
+# main config, or Include targets outside the drop-in directory -- and the
+# suites compare it on the happy path, not after every case.
 config_tree_fingerprint() {
   local file
   find "$SSHD_CONFIG_D" -type f -print0 | LC_ALL=C sort -z |

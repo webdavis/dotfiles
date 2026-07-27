@@ -35,18 +35,8 @@ unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_INDEX_FILE
 # shellcheck source=../fixtures/ssh-reload-lib.bash
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/../fixtures" && pwd)/ssh-reload-lib.bash"
 
-fail() {
-  printf 'FAIL: %s\n' "$*" >&2
-  exit 1
-}
-
-# A bare `! grep` is dead under `set -e` unless it is the last statement, so
-# every negative goes through this helper.
-refute_contains() { # <haystack> <fixed-string> <message>
-  if grep -qiF -- "$2" <<<"$1"; then
-    fail "$3"
-  fi
-}
+# fail and refute_contains come from ssh-hardening-lib.bash (via the reload
+# lib).
 
 assert_no_reload_side_effects() { # <label>
   [[ ! -s $LAUNCHCTL_SPY_LOG ]] ||
@@ -58,7 +48,7 @@ assert_no_reload_side_effects() { # <label>
 reload_sandbox_setup
 trap 'ssh_sandbox_teardown' EXIT
 
-dropin="$SSHD_CONFIG_D/000-ssh-hardening.conf"
+dropin="$SSHD_CONFIG_D/$SSH_DROPIN_NAME"
 
 # --- 1: remove, and the hardening really is gone ------------------------------
 

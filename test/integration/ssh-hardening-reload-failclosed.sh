@@ -22,22 +22,14 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")/../fixtures" && pwd)/ssh-reload-lib
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 RUNBOOK="$REPO_ROOT/docs/runbooks/macos-fresh-machine-quickstart.md"
 
-fail() {
-  printf 'FAIL: %s\n' "$*" >&2
-  exit 1
-}
+# fail and refute_contains come from ssh-hardening-lib.bash (via the reload
+# lib).
 
-# A bare `! grep` is dead under `set -e` unless it is the last statement, so
-# every negative goes through this helper.
-refute_contains() { # <haystack> <fixed-string> <message>
-  if grep -qiF -- "$2" <<<"$1"; then
-    fail "$3"
-  fi
-}
-
-# The recovery instruction, pinned as LITERAL text in both the script's
-# lockout failure and the runbook (criterion 13). One list, asserted against
-# both, so the two cannot drift apart without this test failing.
+# Fragments of the recovery instruction, pinned as LITERAL text that must
+# appear in the script's lockout failure AND somewhere in the runbook
+# (criterion 13). Honest scope: this keeps each fragment from being dropped
+# or reworded on either side; it does not prove the two render one identical
+# complete sentence.
 RECOVERY_PHRASES=(
   'ssh-hardening.sh --rollback'
   'Screen Sharing over the tailnet'
@@ -55,7 +47,7 @@ export SSH_HARDENING_READY_INTERVAL=0
 reload_sandbox_setup
 trap 'ssh_sandbox_teardown' EXIT
 
-dropin="$SSHD_CONFIG_D/000-ssh-hardening.conf"
+dropin="$SSHD_CONFIG_D/$SSH_DROPIN_NAME"
 write_hardened_dropin
 baseline_fingerprint="$(config_tree_fingerprint)"
 
@@ -187,7 +179,7 @@ grep -qi 'launchd' <<<"$SSH_RUN_ERR" ||
   fail "8: the lockout failure must name the launchd-socket possibility so a port mismatch reads as a diagnosis, not a false emergency (stderr: $SSH_RUN_ERR)"
 # The sudo rm fallback must name the CONCRETE file, so it works when the
 # script itself is broken.
-grep -qF "sudo rm $SSHD_CONFIG_D/000-ssh-hardening.conf" <<<"$SSH_RUN_ERR" ||
+grep -qF "sudo rm $SSHD_CONFIG_D/$SSH_DROPIN_NAME" <<<"$SSH_RUN_ERR" ||
   fail "8: the sudo rm fallback must name the exact drop-in path (stderr: $SSH_RUN_ERR)"
 
 # A probe that exits 0 with NO banner output proved nothing: the exit status
@@ -246,7 +238,7 @@ grep -qF 'port 2222' <<<"$SSH_RUN_OUT" ||
 grep -qF -- '-p 2222' "$KEYSCAN_SPY_LOG" ||
   fail "10: the readiness probe must target the resolved port (keyscan spy: $(cat "$KEYSCAN_SPY_LOG"))"
 [[ "$(config_tree_fingerprint)" == "$baseline_fingerprint" ]] ||
-  fail '10: a reload must leave the configuration tree byte-for-byte untouched (criterion 12)'
+  fail '10: a reload must leave every regular file under the drop-in directory unchanged in path and content (criterion 12; see config_tree_fingerprint for what this does not cover)'
 
 # The complete ordered argv of every seam call in the happy path, diffed as
 # one list: the syntax check names the REAL main config (sshd -G -f
