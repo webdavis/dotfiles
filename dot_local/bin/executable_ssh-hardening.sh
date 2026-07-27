@@ -10,6 +10,9 @@
 #   --print-path    print the drop-in target path (pure)
 #   --verify        read-only three-way check that the EFFECTIVE sshd
 #                   configuration is fully hardened (see the verify section)
+#   --rollback      remove the managed drop-in and prove the hardening is gone
+#                   from the effective configuration (the way back in); never
+#                   restarts sshd
 #   (no argument)   install: stage the drop-in, publish it with one rename,
 #                   move the legacy 50-no-password-auth.conf aside, verify, and
 #                   roll the whole tree back to what it found if that fails
@@ -793,14 +796,65 @@ install_dropin() {
   printf '[ssh-hardening] install complete: %s is in place and the effective configuration verified fully hardened.\n' "$target"
 }
 
+# --- rollback ----------------------------------------------------------------
+
+# rollback_dropin: the way back in, as code. Remove the managed drop-in, then
+# prove the hardening is GONE from the effective configuration, because a
+# rollback exists for exactly one moment: the operator is locked out and needs
+# password authentication back at the next sshd start. Every step it cannot
+# prove is a nonzero failure. The removal itself still happens before any
+# verification, so even a failing rollback has already done the one thing the
+# locked-out operator needs.
+#
+# Deliberately NOT here: restarting sshd. Rollback changes the tree only; the
+# RUNNING daemon keeps its configuration until sshd restarts (--reload, a
+# Remote Login toggle, or a reboot), and pairing an automatic restart with an
+# emergency path would make the emergency path disruptive too.
+rollback_dropin() {
+  local target
+  target="$(dropin_path)"
+  if [[ ! -e $target && ! -L $target ]]; then
+    printf '[ssh-hardening] rollback: %s is already absent; nothing to remove.\n' "$target"
+    return 0
+  fi
+  if ! run_privileged rm -f -- "$target"; then
+    die "could not remove '$target'; the hardening is still in place. Remove it by hand (sudo rm $target) and re-run --rollback to confirm."
+  fi
+  if [[ -e $target || -L $target ]]; then
+    die "'$target' still exists after the removal command reported success; refusing to claim the hardening is gone"
+  fi
+  printf '[ssh-hardening] rollback: removed %s\n' "$target"
+  if [[ ! -x $SSHD_BIN ]]; then
+    if verify_skip_allowed; then
+      printf '[ssh-hardening] rollback: %s is removed, but verification was SKIPPED via the test seam; the effective configuration was NOT checked.\n' "$target"
+      return 0
+    fi
+    die "removed '$target', but '$SSHD_BIN' cannot run, so whether the hardening is really gone from the effective configuration cannot be checked; failing closed rather than claiming it is"
+  fi
+  # The child verify is EXPECTED to fail here: a tree without the drop-in must
+  # no longer verify fully hardened. Its (noisy, failure-listing) output is
+  # discarded because failure is the good outcome; only the unexpected PASS is
+  # reported, loudly, since it means a sibling file still enforces the policy
+  # and password access is NOT back.
+  local verify_status=0
+  run_verify_child >/dev/null 2>&1 || verify_status=$?
+  if [[ $verify_status -eq 0 ]]; then
+    die "the effective configuration still verifies fully hardened after removing '$target'; something else under '$SSHD_CONFIG_D' (or the main config) is enforcing the policy, and password access is NOT restored"
+  fi
+  printf '[ssh-hardening] rollback complete: the drop-in is removed and the effective configuration no longer verifies fully hardened. The running daemon keeps the old configuration until sshd restarts (--reload, or toggle Remote Login).\n'
+}
+
 usage() {
   cat <<'EOF'
-usage: ssh-hardening.sh [--print-config | --print-path | --verify]
+usage: ssh-hardening.sh [--print-config | --print-path | --verify | --rollback]
 
   --print-config  print the generated drop-in content and exit
   --print-path    print the drop-in target path and exit
   --verify        read-only check that the effective sshd configuration is
                   fully hardened; never writes, never escalates
+  --rollback      remove the managed drop-in and confirm the hardening is
+                  gone from the effective configuration (the way back in);
+                  never restarts sshd
   (no argument)   install the drop-in and verify
 
 Reloading a running sshd is deliberately not provided here; the drop-in
@@ -817,6 +871,7 @@ main() {
     --print-config) print_config ;;
     --print-path) dropin_path ;;
     --verify) verify ;;
+    --rollback) rollback_dropin ;;
     '') install_dropin ;;
     --help | -h) usage ;;
     *)
