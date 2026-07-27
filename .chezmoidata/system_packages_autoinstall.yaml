@@ -181,6 +181,7 @@ packages:
         - google-chrome
         - karabiner-elements
         - keepassxc
+        - lulu
         - lunar
         - mediosz/tap/swipeaerospace
         - microsoft-auto-update
@@ -191,6 +192,7 @@ packages:
         - obsidian
         - openemu
         - osquery
+        - oversight
         - proton-drive
         - proton-mail
         - proton-mail-bridge
