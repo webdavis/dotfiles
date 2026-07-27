@@ -1,15 +1,20 @@
 #!/bin/bash
-# ssh-hardening.sh -- generate, install, and verify a public-key-only sshd
-# drop-in. Everything here is inert for the RUNNING daemon: sshd re-reads its
-# configuration only on restart, so writing the drop-in changes nothing until
-# Remote Login (re)starts sshd. The reload is a deliberately separate,
-# disruptive step and is NOT provided by this script.
+# ssh-hardening.sh -- generate, install, verify, reload, and roll back a
+# public-key-only sshd drop-in. Install is INERT for the running service: it
+# only writes files, and nothing here ever restarts sshd behind the operator's
+# back. Restarting the service so it demonstrably serves the new policy is its
+# own explicit, disruptive mode (--reload), removing the policy is another
+# (--rollback), and neither ever happens as a side effect of install.
 #
 # Modes:
 #   --print-config  print the drop-in content (pure: no privilege, no writes)
 #   --print-path    print the drop-in target path (pure)
 #   --verify        read-only three-way check that the EFFECTIVE sshd
 #                   configuration is fully hardened (see the verify section)
+#   --reload        validate the complete configuration, then restart the sshd
+#                   launchd service and refuse to claim success until a real
+#                   SSH banner exchange proves the listener answers; the ONLY
+#                   mode that restarts anything, and it never writes
 #   --rollback      remove the managed drop-in and prove the hardening is gone
 #                   from the effective configuration (the way back in); never
 #                   restarts sshd
@@ -25,8 +30,17 @@
 #   SSHD_MAIN_CONFIG    main sshd config       (default /etc/ssh/sshd_config)
 #   SSHD_BIN            sshd binary, ABSOLUTE  (default /usr/sbin/sshd) so a
 #                       stripped PATH cannot turn the verifier into a no-op
+#   LAUNCHCTL_BIN       launchctl, ABSOLUTE    (default /bin/launchctl), same
+#                       stripped-PATH rationale; only --reload uses it
+#   KEYSCAN_BIN         ssh-keyscan, ABSOLUTE  (default /usr/bin/ssh-keyscan);
+#                       the readiness prover, only --reload uses it
 #   SSH_HARDENING_SUDO  privilege wrapper for writes; set EMPTY to run
 #                       unprivileged against a sandbox tree (default sudo)
+#   SSH_HARDENING_READY_ATTEMPTS / SSH_HARDENING_READY_INTERVAL
+#                       how many banner probes --reload makes and the seconds
+#                       between them (defaults 30 and 1); the bound is by
+#                       ATTEMPT COUNT, so a probe that never answers cannot
+#                       hang the reload forever
 #   SSH_HARDENING_ALLOW_MISSING_SSHD
 #                       explicit test seam: when set to a TRUE-ish value AND
 #                       $SSHD_BIN cannot run, --verify skips (exit 0) WITHOUT a
@@ -48,6 +62,17 @@ SSHD_BIN="${SSHD_BIN:-/usr/sbin/sshd}"
 # `-` not `:-`: set-but-empty means "no wrapper, run the commands directly",
 # which is how tests write into a user-owned sandbox without privilege.
 SSH_HARDENING_SUDO="${SSH_HARDENING_SUDO-sudo}"
+LAUNCHCTL_BIN="${LAUNCHCTL_BIN:-/bin/launchctl}"
+KEYSCAN_BIN="${KEYSCAN_BIN:-/usr/bin/ssh-keyscan}"
+SSH_HARDENING_READY_ATTEMPTS="${SSH_HARDENING_READY_ATTEMPTS:-30}"
+SSH_HARDENING_READY_INTERVAL="${SSH_HARDENING_READY_INTERVAL:-1}"
+
+# The launchd service behind macOS Remote Login. `launchctl print` on it exits
+# 0 when the job is loaded and 113 when the service is genuinely absent
+# (Remote Login off); both measured on macOS 26.2. Any OTHER status is a probe
+# ERROR, and the reload path refuses to read one as "the daemon is stopped".
+SSHD_LAUNCHD_SERVICE='system/com.openssh.sshd'
+LAUNCHCTL_STATUS_SERVICE_ABSENT=113
 
 # This file, for the install path's strict child verify. BASH_SOURCE and not
 # $0, so a caller that rewrites $0 cannot redirect the re-invocation.
@@ -796,6 +821,157 @@ install_dropin() {
   printf '[ssh-hardening] install complete: %s is in place and the effective configuration verified fully hardened.\n' "$target"
 }
 
+# --- reload ------------------------------------------------------------------
+
+# recovery_instructions: the way back in, in one sentence, printed verbatim in
+# every failure after the disruptive step. The exact wording is pinned by a
+# test against the runbook's copy, so shortening it to "investigate" (or
+# letting the two drift apart) fails the suite.
+recovery_instructions() {
+  printf 'Recovery: keep any SSH session you still have OPEN until a new login succeeds. From the physical console, or Screen Sharing over the tailnet, run: ssh-hardening.sh --rollback (or: sudo rm %s), then turn Remote Login off and back on in System Settings > General > Sharing.' "$(dropin_path)"
+}
+
+# probe_sshd_service: one `launchctl print` of the sshd service, through the
+# privilege wrapper. Results land in globals rather than an exit status,
+# because the caller needs the EXACT status to separate three outcomes:
+# loaded (0), confirmed absent (113), and everything else, which is a probe
+# error and must never be read as "the daemon is stopped".
+SERVICE_PROBE_STATUS=0
+SERVICE_PROBE_OUTPUT=''
+probe_sshd_service() {
+  SERVICE_PROBE_STATUS=0
+  SERVICE_PROBE_OUTPUT="$(run_privileged "$LAUNCHCTL_BIN" print "$SSHD_LAUNCHD_SERVICE" 2>&1)" ||
+    SERVICE_PROBE_STATUS=$?
+}
+
+# reload_sshd: restart the sshd launchd service so it demonstrably serves the
+# drop-in. This is the one disruptive mode in the script: on a remote machine
+# the daemon being restarted is the daemon carrying the session, so every step
+# fails CLOSED, everything that can be validated is validated BEFORE the
+# restart, and success is claimed only after a real SSH banner exchange. What
+# is deliberately NOT here: any automatic rollback on failure. A machine that
+# just failed to restart cleanly is exactly the machine that must not receive
+# a second unattended state change; the failure names the recovery path and
+# leaves the operator in control.
+reload_sshd() {
+  local status output port
+
+  case $SSH_HARDENING_READY_ATTEMPTS in
+    '' | 0 | *[!0-9]*)
+      die "SSH_HARDENING_READY_ATTEMPTS must be a positive integer, got '$SSH_HARDENING_READY_ATTEMPTS'; refusing to run with a readiness bound that means nothing"
+      ;;
+  esac
+  case $SSH_HARDENING_READY_INTERVAL in
+    '' | . | *.*.* | *[!0-9.]*)
+      die "SSH_HARDENING_READY_INTERVAL must be a non-negative number of seconds, got '$SSH_HARDENING_READY_INTERVAL'"
+      ;;
+  esac
+
+  # 1. Privilege first, VISIBLY (a password prompt, if any, lands on the
+  # terminal). Everything disruptive below runs through the wrapper, so a
+  # sudo failure aborts here, named as what it is: without this, a failed
+  # `sudo launchctl print` exits nonzero and reads exactly like a service
+  # problem. An empty wrapper means the caller already runs with whatever
+  # privilege it has (the sandbox case), so there is nothing to prime.
+  if [[ -n $SSH_HARDENING_SUDO ]]; then
+    status=0
+    "$SSH_HARDENING_SUDO" -v || status=$?
+    if [[ $status -ne 0 ]]; then
+      die "privilege escalation is unavailable ('$SSH_HARDENING_SUDO -v' exited $status), and the reload needs it before it can do anything, so nothing was attempted. This is a sudo failure, not a statement about the sshd service."
+    fi
+  fi
+
+  # 2. The readiness prover must exist BEFORE anything disruptive happens. A
+  # reload that cannot prove the daemon came back is a reload that leaves the
+  # operator guessing, so its absence is a refusal, not a warning.
+  if [[ ! -x $KEYSCAN_BIN ]]; then
+    die "the readiness prover '$KEYSCAN_BIN' is not runnable, so there would be no way to prove sshd came back after a restart; refusing to kickstart blind. sshd was not touched."
+  fi
+
+  # 3. Syntax: never restart onto a configuration sshd cannot parse.
+  # Privileged, because -t reads the root-owned host keys.
+  status=0
+  output="$(run_privileged "$SSHD_BIN" -t -f "$SSHD_MAIN_CONFIG" 2>&1)" || status=$?
+  if [[ $status -ne 0 ]]; then
+    die "the configuration failed sshd's syntax check ('$SSHD_BIN -t' exited $status); refusing to restart onto it. sshd was not touched. Output: $output"
+  fi
+
+  # 4. The full three-way verify: never restart onto a configuration that
+  # parses but has lost the hardening.
+  if ! run_verify_child; then
+    die "the effective configuration is not fully hardened (the verify failures are above); refusing to restart sshd onto it. sshd was not touched."
+  fi
+
+  # 5. Resolve the port now, while nothing has been disturbed: a reload that
+  # cannot name the port to probe must fail BEFORE the kickstart, not after.
+  status=0
+  output="$("$SSHD_BIN" -G -f "$SSHD_MAIN_CONFIG" 2>&1)" || status=$?
+  if [[ $status -ne 0 ]]; then
+    die "could not resolve the effective sshd port ('$SSHD_BIN -G' exited $status); refusing to restart a daemon whose readiness could not then be probed. sshd was not touched. Output: $output"
+  fi
+  status=0
+  port="$(printf '%s\n' "$output" | awk '$1 == "port" { print $2; exit }')" || status=$?
+  if [[ $status -ne 0 ]]; then
+    die "could not read the port out of the sshd -G output (exit $status); failing closed before the disruptive step. sshd was not touched."
+  fi
+  case $port in
+    '' | *[!0-9]*)
+      die "the effective sshd port resolved to '$port', which is not a port number; refusing to probe readiness blind. sshd was not touched."
+      ;;
+  esac
+
+  # 6. Probe the service, separating THREE outcomes, not two.
+  probe_sshd_service
+  if [[ $SERVICE_PROBE_STATUS -eq $LAUNCHCTL_STATUS_SERVICE_ABSENT ]]; then
+    printf '[ssh-hardening] reload: the sshd launchd service is confirmed absent, which is what Remote Login being off looks like, so there is no daemon to restart. The installed drop-in applies when Remote Login is next enabled.\n'
+    return 0
+  fi
+  if [[ $SERVICE_PROBE_STATUS -ne 0 ]]; then
+    die "could not determine the state of the sshd launchd service: '$LAUNCHCTL_BIN print $SSHD_LAUNCHD_SERVICE' exited $SERVICE_PROBE_STATUS, which is neither 0 (loaded) nor $LAUNCHCTL_STATUS_SERVICE_ABSENT (confirmed absent). A probe error is not evidence the daemon is stopped; refusing to guess. sshd was not touched. Output: $SERVICE_PROBE_OUTPUT"
+  fi
+
+  # 7. The disruptive step.
+  status=0
+  output="$(run_privileged "$LAUNCHCTL_BIN" kickstart -k "$SSHD_LAUNCHD_SERVICE" 2>&1)" || status=$?
+  if [[ $status -ne 0 ]]; then
+    die "'launchctl kickstart -k $SSHD_LAUNCHD_SERVICE' failed (exit $status), so sshd may now be in any state between untouched and stopped. $(recovery_instructions) Output: $output"
+  fi
+
+  # 8. The job must be loaded again. FIRST SIGNAL ONLY: `launchctl print`
+  # returns 0 for a loaded-but-crashed service, so this can refute success
+  # but never establish it.
+  probe_sshd_service
+  if [[ $SERVICE_PROBE_STATUS -ne 0 ]]; then
+    die "the sshd launchd service did not reload: after the kickstart, '$LAUNCHCTL_BIN print' exited $SERVICE_PROBE_STATUS instead of confirming a loaded job. $(recovery_instructions)"
+  fi
+
+  # 9. The artifact: a completed SSH banner exchange on the resolved port.
+  # ssh-keyscan's exit status alone is not trusted either; a probe that
+  # produced no key line proved nothing, whatever it exited. The probe
+  # targets loopback, so a green result proves the daemon answers, NOT that a
+  # remote client can reach it (the application firewall does not filter
+  # loopback); the runbook's keep-a-session-open step is what covers that
+  # gap. The 5 is ssh-keyscan's per-attempt connection timeout in seconds.
+  local attempt=1 ready=0 keyscan_status banner_output
+  while [[ $attempt -le $SSH_HARDENING_READY_ATTEMPTS ]]; do
+    keyscan_status=0
+    banner_output="$("$KEYSCAN_BIN" -T 5 -p "$port" 127.0.0.1 2>/dev/null)" ||
+      keyscan_status=$?
+    if [[ $keyscan_status -eq 0 && -n $banner_output ]]; then
+      ready=1
+      break
+    fi
+    if [[ $attempt -lt $SSH_HARDENING_READY_ATTEMPTS && $SSH_HARDENING_READY_INTERVAL != 0 ]]; then
+      sleep "$SSH_HARDENING_READY_INTERVAL"
+    fi
+    attempt=$((attempt + 1))
+  done
+  if [[ $ready -ne 1 ]]; then
+    die "POSSIBLE LOCKOUT: the launchd job reports loaded, but no SSH banner arrived on port $port after $SSH_HARDENING_READY_ATTEMPTS attempt(s). A loaded job with a silent listener is what a crashed sshd looks like, so this is a failure, not a maybe. $(recovery_instructions)"
+  fi
+  printf '[ssh-hardening] reload complete: sshd restarted and is accepting connections on port %s (SSH banner exchange completed).\n' "$port"
+}
+
 # --- rollback ----------------------------------------------------------------
 
 # rollback_dropin: the way back in, as code. Remove the managed drop-in, then
@@ -846,19 +1022,24 @@ rollback_dropin() {
 
 usage() {
   cat <<'EOF'
-usage: ssh-hardening.sh [--print-config | --print-path | --verify | --rollback]
+usage: ssh-hardening.sh [--print-config | --print-path | --verify | --reload | --rollback]
 
   --print-config  print the generated drop-in content and exit
   --print-path    print the drop-in target path and exit
   --verify        read-only check that the effective sshd configuration is
                   fully hardened; never writes, never escalates
+  --reload        validate the complete configuration, then restart the sshd
+                  launchd service and prove it answers with an SSH banner
+                  before claiming success; DISRUPTIVE, and fails closed at
+                  every step
   --rollback      remove the managed drop-in and confirm the hardening is
                   gone from the effective configuration (the way back in);
                   never restarts sshd
   (no argument)   install the drop-in and verify
 
-Reloading a running sshd is deliberately not provided here; the drop-in
-takes effect when sshd next starts.
+--reload is the only mode that restarts sshd, and it never writes; install
+writes and never restarts. The disruptive step only ever happens because an
+operator typed it.
 EOF
 }
 
@@ -871,6 +1052,7 @@ main() {
     --print-config) print_config ;;
     --print-path) dropin_path ;;
     --verify) verify ;;
+    --reload) reload_sshd ;;
     --rollback) rollback_dropin ;;
     '') install_dropin ;;
     --help | -h) usage ;;
