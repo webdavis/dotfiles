@@ -18,11 +18,19 @@ require_readable_data_file "$DATA_FILE" || exit $?
 # Pre-flight: close System Settings if open (same reason as runner).
 osascript -e 'tell application "System Settings" to quit' 2>/dev/null || true
 
-# Main loop: one `defaults write` per record.
-defaults_records_tsv "$DATA_FILE" |
-  while IFS=$'\t' read -r domain key type value host; do
+# Main loop: one `defaults write` per record. A system-scope record goes
+# through sudo to its resolved plist path; user-scope records write exactly as
+# before. A record that fails validation (unknown scope, a meaningless field
+# pairing, a relative plist_path) aborts the run with the data-file status 2
+# before anything is written for it.
+defaults_records_unit_separated "$DATA_FILE" |
+  while IFS=$'\x1f' read -r domain key type value host scope plist_path; do
     [[ -z $domain ]] && continue
-    if [[ -n $host ]]; then
+    scope="$(validate_record_scope "$scope" "$host" "$plist_path")" || exit 2
+    if [[ $scope == system ]]; then
+      resolved_plist_path="$(resolve_system_plist_path "$domain" "$plist_path")" || exit 2
+      system_defaults_write "$resolved_plist_path" "$key" "$type" "$value"
+    elif [[ -n $host ]]; then
       defaults -currentHost write "$domain" "$key" "-$type" "$value"
     else
       defaults write "$domain" "$key" "-$type" "$value"

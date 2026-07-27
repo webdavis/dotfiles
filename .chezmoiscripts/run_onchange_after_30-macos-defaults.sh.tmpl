@@ -10,9 +10,45 @@ set -euo pipefail
 # Settings and writes them back on close, silently overwriting our writes.
 osascript -e 'tell application "System Settings" to quit' 2>/dev/null || true
 
+{{ $hasSystemScopeRecord := false -}}
+{{- /* Scope pass: validate every record's optional scope field and detect
+whether any record is system-scope. The field is read through hasKey/index,
+NEVER the bare dotted-field form: Go's text/template errors with `map has no
+entry for key "scope"` on that form when a record omits the key, which is the
+common case (same class of bug as the `index . "host"` guard below). An
+absent field means user scope; a present field must be exactly user or
+system, and system cannot pair with host (ByHost storage is per-user). */ -}}
+{{ range .macos.defaults -}}
+{{ $scope := "user" -}}
+{{ if hasKey . "scope" }}{{ $scope = index . "scope" }}{{ end -}}
+{{ if and (ne $scope "user") (ne $scope "system") -}}
+{{ fail (printf "macos_defaults.yaml: unknown scope %q on record %s %s (expected user or system)" $scope .domain .key) -}}
+{{ end -}}
+{{ if and (eq $scope "system") (index . "host") -}}
+{{ fail (printf "macos_defaults.yaml: record %s %s combines scope system with host; ByHost storage is per-user" .domain .key) -}}
+{{ end -}}
+{{ if eq $scope "system" }}{{ $hasSystemScopeRecord = true }}{{ end -}}
+{{ end -}}
+{{ if $hasSystemScopeRecord -}}
+# Sudo prelude: at least one record targets a root-owned system plist, so
+# validate sudo once, up front, before any write.
+sudo -v
+{{ end -}}
 # Main loop: one `defaults write` per record.
 {{ range .macos.defaults -}}
+{{ $scope := "user" -}}
+{{ if hasKey . "scope" }}{{ $scope = index . "scope" }}{{ end -}}
+{{ if eq $scope "system" -}}
+{{- /* An absent or empty plist_path means the default system location; a
+declared path must be absolute, never resolved against a working directory. */ -}}
+{{ $plistPath := index . "plist_path" | default (printf "/Library/Preferences/%s" .domain) -}}
+{{ if not (hasPrefix "/" $plistPath) -}}
+{{ fail (printf "macos_defaults.yaml: relative plist_path %q on record %s %s; an absolute path is required" $plistPath .domain .key) -}}
+{{ end -}}
+sudo defaults write {{ $plistPath | quote }} {{ .key | quote }} -{{ .type }} {{ .value | quote }}
+{{ else -}}
 defaults {{ if index . "host" }}-currentHost {{ end }}write {{ .domain | quote }} {{ .key | quote }} -{{ .type }} {{ .value | quote }}
+{{ end -}}
 {{ end -}}
 
 # Post-loop: restart user-facing processes so changes take effect immediately.
