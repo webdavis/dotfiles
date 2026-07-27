@@ -208,19 +208,25 @@ system_defaults_write() { # <plist_path> <key> <type> <value>
   sudo defaults write "$1" "$2" "-$3" "$4"
 }
 
-# system_defaults_read_actual <plist_path> <key>, the three-outcome
-# system-scope read for drift. Prints exactly one of:
-#   - the live value, when `defaults read` succeeds;
-#   - "<unset>", ONLY when defaults itself reports the domain/default pair
-#     does not exist, the one failure that genuinely means "not set";
-#   - "<unreadable>", up front when the plist file exists but this user cannot
-#     read it (defaults would answer from a stale cache or misreport), and for
-#     every other read failure. Unknown failures land here, never in
-#     "<unset>": collapsing them would report drift against a value nobody
-#     actually read, and skipping them would hide the record entirely.
-# Always returns 0; the outcome is the printed marker. Documented limit: a
-# plist whose PARENT directory blocks traversal cannot be file-checked, so
-# that case rides on the stderr classification alone.
+# system_defaults_read_actual <plist_path> <key>, the three-outcome system-scope
+# read for drift. The outcome is the EXIT STATUS, named by the constants above,
+# and only ONE of the three prints anything:
+#   - SYSTEM_READ_OK (0): `defaults read` succeeded. The live value is printed on
+#     stdout, with no trailing newline.
+#   - SYSTEM_READ_UNSET (1): `defaults` itself reported the domain/default pair
+#     does not exist, the one failure that genuinely means "not set". Prints
+#     nothing.
+#   - SYSTEM_READ_UNREADABLE (2): indeterminate. Returned up front when the plist
+#     file exists but this user cannot read it (defaults would answer from a
+#     stale cache or misreport), when the temp file that captures defaults'
+#     stderr cannot be created, and for every OTHER read failure. Unknown
+#     failures land here, never in unset: collapsing them would report drift
+#     against a value nobody read, and skipping them would hide the record
+#     entirely. Prints nothing.
+# Turning the outcome into a display marker is the caller's job; that is the
+# whole point of using a status. Documented limit: a plist whose PARENT directory
+# blocks traversal cannot be file-checked, so that case rides on the stderr
+# classification alone.
 system_defaults_read_actual() { # <plist_path> <key>
   local plist_path="$1" key="$2"
   local file_candidate
@@ -231,8 +237,15 @@ system_defaults_read_actual() { # <plist_path> <key>
   done
   local value read_error_file read_status=0
   # A failed mktemp must not become an ambiguous redirect that silently loses the
-  # classifier's only input. Refuse toward indeterminate, the safe direction.
-  read_error_file="$(mktemp)" || return "$SYSTEM_READ_UNREADABLE"
+  # classifier's only input. Refuse toward indeterminate, the safe direction, and
+  # SAY SO: the ambiguous redirect ends at this same status by accident, so
+  # without the message the deliberate refusal and the accident are
+  # indistinguishable to a caller and to a test.
+  if ! read_error_file="$(mktemp)"; then
+    printf 'error: cannot classify the system read of %s %s; mktemp failed\n' \
+      "$plist_path" "$key" >&2
+    return "$SYSTEM_READ_UNREADABLE"
+  fi
   value="$(defaults read "$plist_path" "$key" 2>"$read_error_file")" || read_status=$?
   if [[ $read_status -eq 0 ]]; then
     rm -f "$read_error_file"

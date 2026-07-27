@@ -217,6 +217,27 @@ output="$(call_function system_defaults_read_actual "$locked_plist" SysKey)" || 
   fail "read locked (exact path): an existing unreadable plist must report status 2 (got $status)"
 chmod u+rw "$locked_plist"
 
+# case 15a: a failed mktemp refuses toward indeterminate AND says why. Status
+# alone cannot pin this: with the guard deleted the empty filename becomes an
+# ambiguous redirect, which ALSO ends at status 2, so the deliberate refusal and
+# the accident are indistinguishable by status. The explicit message is what
+# separates them.
+write_defaults_read_stub ok
+printf '#!/bin/bash\nexit 1\n' >"$stub_bin/mktemp"
+chmod +x "$stub_bin/mktemp"
+status=0
+output="$(call_function system_defaults_read_actual "$work/no-such-plist" SysKey)" || status=$?
+[[ $status -eq 2 ]] ||
+  fail "read mktemp failure: a failed mktemp must report the unreadable status 2 (got $status, stderr: $(cat "$work/err"))"
+grep -qF 'cannot classify' "$work/err" ||
+  fail "read mktemp failure: the refusal must name its reason, not fall through silently (stderr: $(cat "$work/err"))"
+if grep -qF 'ambiguous redirect' "$work/err"; then
+  fail "read mktemp failure: the temp file must never become an ambiguous redirect (stderr: $(cat "$work/err"))"
+fi
+[[ -z $output ]] ||
+  fail "read mktemp failure: an indeterminate read must print no value (got '$output')"
+rm -f "$stub_bin/mktemp"
+
 # ---- re-sourcing the library --------------------------------------------------
 
 # case 16: sourcing the library twice under `set -euo pipefail` must survive.
