@@ -135,6 +135,43 @@ healthy_seed='{"firewall":"1","gatekeeper":"1","screenlock":"1","filevault":"on"
   assert_page_count 2
 }
 
+@test "T-PCTL-filevault-restart-forms-classify: the real fdesetup restart-transition outputs classify explicitly instead of gapping forever" {
+  seed_baseline "$healthy_seed"
+  declare_posture_controls
+  set_posture '[{"firewall":"1","gatekeeper":"1","screenlock":"1"}]'
+
+  # Deferred enablement: the data is NOT yet encrypted, so this is off, a
+  # real deviation page, never a permanently-indeterminate monitoring gap.
+  export POLLER_FDESETUP_OUTPUT="FileVault is Off, but will be enabled after the next restart."
+  run run_poller
+  [[ $status -eq 0 ]] || {
+    echo "tick 1 status $status: $output"
+    false
+  }
+  assert_page_count 1
+  assert_page_body_has 'FileVault disk encryption: now off, declared on'
+  assert_page_body_lacks 'monitoring gap'
+  assert_baseline_scalar filevault off
+
+  export POLLER_FDESETUP_OUTPUT="FileVault is On, but needs to be restarted to finish."
+  run run_poller # an On transition form: classifies on, silent recovery
+  [[ $status -eq 0 ]] || {
+    echo "tick 2 status $status: $output"
+    false
+  }
+  assert_page_count 1
+  assert_baseline_scalar filevault on
+
+  export POLLER_FDESETUP_OUTPUT="FileVault is Off, but needs to be restarted to finish."
+  run run_poller # the Off transition form: a regression again
+  [[ $status -eq 0 ]] || {
+    echo "tick 3 status $status: $output"
+    false
+  }
+  assert_page_count 2
+  assert_baseline_scalar filevault off
+}
+
 @test "T-PCTL-sip-lifecycle: SIP deviating from its DECLARED state (disabled) pages once, stays quiet, and re-pages after restore-then-regress" {
   # SIP is deliberately disabled on this machine: expect is the operator's
   # declaration, not a blanket enabled. SIP turning ON is therefore the

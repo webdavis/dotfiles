@@ -118,26 +118,38 @@ reader_domain() {
   esac
 }
 
-# classify_probe <output> <rc> <needle_a> <value_a> <needle_b> <value_b>
+# classify_probe <output> <rc> <needle> <value> [<needle> <value>]...
 # The indeterminate-on-nonzero discipline (absorbed from the retired
 # apply-time posture reminder): a probe that exits NONZERO is INDETERMINATE
 # regardless of what it printed, because a failed probe's output is
 # untrustworthy; it may print healthy-looking text yet have failed. A
-# zero-exit probe must match EXACTLY ONE of the two needles; both or neither
-# is indeterminate too (an ambiguous probe is never guessed at).
+# zero-exit probe's needle hits must all agree on EXACTLY ONE value; no hit,
+# or hits mapping to conflicting values, is indeterminate too (an ambiguous
+# probe is never guessed at). Needles are exact message forms enumerated from
+# each binary's strings, so no needle is a substring of a different value's
+# form.
 classify_probe() {
-  local output="$1" rc="$2" needle_a="$3" value_a="$4" needle_b="$5" value_b="$6"
-  local hit_a=0 hit_b=0
+  local output="$1" rc="$2"
+  local needle value matched=""
+  shift 2
   if [[ $rc -ne 0 ]]; then
     printf 'indeterminate'
     return 0
   fi
-  if [[ $output == *"$needle_a"* ]]; then hit_a=1; fi
-  if [[ $output == *"$needle_b"* ]]; then hit_b=1; fi
-  if [[ $hit_a -eq 1 && $hit_b -eq 0 ]]; then
-    printf '%s' "$value_a"
-  elif [[ $hit_b -eq 1 && $hit_a -eq 0 ]]; then
-    printf '%s' "$value_b"
+  while [[ $# -ge 2 ]]; do
+    needle="$1"
+    value="$2"
+    shift 2
+    if [[ $output == *"$needle"* ]]; then
+      if [[ -z $matched ]]; then
+        matched="$value"
+      elif [[ $matched != "$value" ]]; then
+        matched="conflict:" # ':' cannot appear in a domain value
+      fi
+    fi
+  done
+  if [[ -n $matched && $matched != "conflict:" ]]; then
+    printf '%s' "$matched"
   else
     printf 'indeterminate'
   fi
@@ -169,8 +181,20 @@ read_control() {
   local reader="$1" output="" rc=0
   case "$reader" in
     fdesetup_status)
+      # Every zero-exit status form enumerated from the binary's strings
+      # (macOS 26.2): the plain On./Off. pair plus the restart-transition
+      # variants. "Off, but will be enabled after the next restart." is OFF:
+      # deferred enablement means the data is not yet encrypted, a real
+      # exposure until the restart completes; "On, but needs to be restarted
+      # to finish." reports the protection on. Error-prefixed forms exit
+      # nonzero and stay indeterminate.
       output=$(run_bounded "$FDESETUP" status 2>&1) || rc=$?
-      classify_probe "$output" "$rc" "FileVault is On." on "FileVault is Off." off
+      classify_probe "$output" "$rc" \
+        "FileVault is On." on \
+        "FileVault is On, but needs to be restarted to finish." on \
+        "FileVault is Off." off \
+        "FileVault is Off, but will be enabled after the next restart." off \
+        "FileVault is Off, but needs to be restarted to finish." off
       ;;
     csrutil_status)
       output=$(run_bounded "$CSRUTIL" status 2>&1) || rc=$?
