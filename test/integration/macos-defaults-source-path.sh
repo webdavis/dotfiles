@@ -21,6 +21,16 @@
 # private copy of the hardcoded path fails here rather than passing by association.
 set -euo pipefail
 
+# Scrubbed at SCRIPT scope, before any git call, not just around the tools under
+# test. Git exports GIT_DIR to every hook it runs, and this suite runs from the
+# pre-push hook. Under an inherited GIT_DIR the sandbox's `git init` silently
+# targets that directory instead, so the sandbox never becomes a repository at
+# all, resolution finds no worktree, and the run fails somewhere far from the
+# cause. Verified directly: `GIT_DIR=<repo>/.git git -C <tmp> init` leaves <tmp>
+# with no .git. The same applies to the library's own override, which a developer
+# machine may already export.
+unset MACOS_DEFAULTS_SOURCE_DIR GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_INDEX_FILE
+
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 APPLY="$REPO_ROOT/dot_local/bin/executable_macos-defaults-apply.sh"
 CAPTURE="$REPO_ROOT/dot_local/bin/executable_macos-defaults-capture.sh"
