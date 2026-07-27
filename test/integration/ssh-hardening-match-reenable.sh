@@ -36,6 +36,15 @@
 #      whitespace to sshd, so the line opens a Match block, but a scanner
 #      that only knows spaces and tabs never sees a Match at all and treats
 #      every directive under it as global.
+#   r-w. MIXED-QUOTE keywords: `Ma"tch"`, `Pubkey"Authentication"`,
+#      `Inc"lude"`, and friends. sshd CONCATENATES an unquoted prefix with
+#      one double-quoted segment and ends the keyword at the closing quote
+#      (measured; the previous scanner believed a mid-keyword quote was
+#      rejected, and that belief certified a tree with no usable off-loopback
+#      authentication method at all). Each protected directive that sshd
+#      allows inside a Match block gets its own mixed-quote case; UsePAM is
+#      global-only in sshd, so its mixed-quote case is asserted through the
+#      global check instead.
 #
 # Cases i, j and k assert on the SCAN's own attribution string, not merely on
 # the file name, so each pins the scan rather than any other layer that
@@ -267,5 +276,89 @@ cp "$main_config_backup" "$SSHD_MAIN_CONFIG"
 run_ssh_hardening --verify
 [[ $SSH_RUN_STATUS -eq 0 ]] ||
   fail "q: --verify must PASS again once the main config is restored (stderr: $SSH_RUN_ERR)"
+
+# r. Match ITSELF with a mid-keyword quote. sshd reads `Ma"tch"` as `Match`
+# (unquoted prefix + quoted segment concatenate, measured on OpenSSH 10.0p2),
+# so the block opens and the directive under it applies off-loopback. A
+# scanner that treats '"' as a token terminator reads `Ma`, never enters
+# Match state, and certifies the tree.
+run_reenable_case 'r: mid-quote Match keyword' \
+  "match scan: '$hostile_file' sets 'passwordauthentication yes'" \
+  "$off_sample_spec" passwordauthentication yes \
+  'Ma"tch" Address *,!127.0.0.1' 'PasswordAuthentication yes'
+
+# s. Every protected directive sshd allows inside a Match block, each with a
+# mid-keyword quote closing at the keyword's end (the only mixed-quote shape
+# sshd accepts: the token ENDS at the closing quote, so `Pass"word"Auth...`
+# is the unknown keyword `Password` and is rejected, while `Password"Authentication"`
+# is the full keyword). UsePAM is absent here because sshd refuses it inside
+# any Match block; its mixed-quote form is case t below.
+run_reenable_case 's: mid-quote PasswordAuthentication' \
+  "match scan: '$hostile_file' sets 'passwordauthentication yes'" \
+  "$off_sample_spec" passwordauthentication yes \
+  'Match Address *,!127.0.0.1' 'Password"Authentication" yes'
+run_reenable_case 's: mid-quote KbdInteractiveAuthentication' \
+  "match scan: '$hostile_file' sets 'kbdinteractiveauthentication yes'" \
+  "$off_sample_spec" kbdinteractiveauthentication yes \
+  'Match Address *,!127.0.0.1' 'KbdInteractive"Authentication" yes'
+run_reenable_case 's: mid-quote PubkeyAuthentication' \
+  "match scan: '$hostile_file' sets 'pubkeyauthentication no'" \
+  "$off_sample_spec" pubkeyauthentication no \
+  'Match Address *,!127.0.0.1' 'Pubkey"Authentication" no'
+run_reenable_case 's: mid-quote PermitRootLogin' \
+  "match scan: '$hostile_file' sets 'permitrootlogin yes'" \
+  "$off_sample_spec" permitrootlogin yes \
+  'Match Address *,!127.0.0.1' 'PermitRoot"Login" yes'
+run_reenable_case 's: mid-quote GSSAPIAuthentication' \
+  "match scan: '$hostile_file' sets 'gssapiauthentication yes'" \
+  "$off_sample_spec" gssapiauthentication yes \
+  'Match Address *,!127.0.0.1' 'GSSAPI"Authentication" yes'
+run_reenable_case 's: mid-quote HostbasedAuthentication' \
+  "match scan: '$hostile_file' sets 'hostbasedauthentication yes'" \
+  "$off_sample_spec" hostbasedauthentication yes \
+  'Match Address *,!127.0.0.1' 'Hostbased"Authentication" yes'
+
+# t. UsePAM with a mid-keyword quote, GLOBAL (sshd refuses it in Match
+# blocks). Real sshd resolves `Use"PAM" no` as usepam no, so the global
+# check must flag it; this pins the mixed-quote form on the one protected
+# directive the scan can never see inside a Match block.
+printf '%s\n' 'Use"PAM" no' >"$SSHD_CONFIG_D/00-quoted-usepam.conf"
+got="$(effective_global_value usepam)" || fail 't: sshd -G failed on the quoted-UsePAM fixture'
+[[ $got == no ]] ||
+  fail "t: real sshd must resolve 'Use\"PAM\" no' as usepam no globally, got '$got'; the fixture proves nothing"
+run_ssh_hardening --verify
+[[ $SSH_RUN_STATUS -ne 0 ]] ||
+  fail 't: a mixed-quote global UsePAM re-enable must fail --verify'
+grep -qF 'usepam' <<<"$SSH_RUN_ERR" ||
+  fail "t: stderr must name usepam (stderr: $SSH_RUN_ERR)"
+rm -f "$SSHD_CONFIG_D/00-quoted-usepam.conf"
+run_ssh_hardening --verify
+[[ $SSH_RUN_STATUS -eq 0 ]] ||
+  fail 't: --verify must PASS again once the quoted-UsePAM fixture is removed'
+
+# u. An ALIAS with a mid-keyword quote: sshd reads `Skey"Authentication"` as
+# the undocumented SkeyAuthentication alias and flips
+# kbdinteractiveauthentication (measured). The needle names the CANONICAL
+# directive, so this pins the alias fold THROUGH the mixed-quote tokenizer.
+run_reenable_case 'u: mid-quote SkeyAuthentication alias' \
+  "match scan: '$hostile_file' sets 'kbdinteractiveauthentication yes'" \
+  "$off_sample_spec" kbdinteractiveauthentication yes \
+  'Match Address *,!127.0.0.1' 'Skey"Authentication" yes'
+
+# v and w. Include through the mixed-quote tokenizer, with the hostile file
+# OUTSIDE both scan roots so ONLY following the Include can reach it: v puts
+# the quote in the Include keyword itself, w puts it inside the path argument
+# (argument tokens concatenate any number of quoted segments, measured).
+outside_dir="$SSH_SANDBOX/outside"
+mkdir -p "$outside_dir"
+printf 'Match Address *,!127.0.0.1\nPasswordAuthentication yes\n' >"$outside_dir/evil.conf"
+run_reenable_case 'v: mid-quote Include keyword' \
+  "match scan: '$outside_dir/evil.conf' sets 'passwordauthentication yes'" \
+  "$off_sample_spec" passwordauthentication yes \
+  "Inc\"lude\" $outside_dir/evil.conf"
+run_reenable_case 'w: quoted fragment inside the Include path' \
+  "match scan: '$outside_dir/evil.conf' sets 'passwordauthentication yes'" \
+  "$off_sample_spec" passwordauthentication yes \
+  "Include $SSH_SANDBOX/out\"side\"/evil.conf"
 
 printf 'ssh-hardening-match-reenable: OK (every Match bypass form resolves unsafe under real sshd and fails --verify loudly; clean tree passes before and after every case)\n'

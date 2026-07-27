@@ -362,20 +362,42 @@ check_global() {
 }
 
 # --- sshd configuration tokenizer --------------------------------------------
-# OpenSSH 10.0p2 splits a configuration line the way strdelim() does: space,
-# tab and CARRIAGE RETURN all separate tokens; a token that opens with a
-# double quote runs to its closing quote; and a single '=' may stand in for
-# the whitespace after the keyword. Every one of those forms was confirmed to
-# parse AND to resolve the unsafe value against the real binary, including the
-# two that defeated the previous scanner:
+# OpenSSH 10.0p2 tokenizes the KEYWORD and the ARGUMENTS of a configuration
+# line with two DIFFERENT rules. Every claim below was measured against the
+# real binary (`sshd -G` accepts/rejects, `sshd -G -T -C` resolves), not read
+# out of the manual page:
 #
-#   "PasswordAuthentication" yes      quotes around the KEYWORD, not the value
-#   Match<CR>Address *,!127.0.0.1     a carriage return inside the Match line
+#   KEYWORD (strdelim semantics): space, tab and CARRIAGE RETURN separate
+#   tokens; a single '=' may end the keyword; and ONE double-quoted segment
+#   may sit anywhere in the token -- the unquoted prefix and the quoted
+#   content CONCATENATE, and the token ENDS at the closing quote. Measured:
+#     Ma"tch" Address ...        reads as Match                    (accepted)
+#     Pubkey"Authentication" no  reads as the full keyword         (accepted)
+#     "PasswordAuthentication"   reads as the full keyword         (accepted)
+#     Pass"word"Authentication   reads as Password + a stray token (rejected:
+#                                unknown keyword)
+#     Ma'tch'                    single quotes are NOT special in keywords
+#                                (rejected: unknown keyword)
+#   The previous tokenizer treated '"' as a terminator in the middle of a
+#   token, so it read `Ma"tch"` as `Ma`, never entered Match state, and
+#   certified a tree whose off-loopback clients had no authentication method
+#   at all. The comment that stood here claiming a mid-keyword quote is
+#   rejected by sshd was FALSE.
 #
-# Vertical tab, form feed, a second '=', a quote in the middle of a keyword
-# and a whole-line quote are all REJECTED by sshd (also verified), so they
-# need no handling here: a file carrying them fails `sshd -G`, and reporting
-# that is check_global's job.
+#   ARGUMENTS (argv_split semantics): any number of double- OR single-quoted
+#   segments concatenate with unquoted text into one token ("y"e"s" and
+#   ye's' both read as yes, measured); an unquoted '#' OPENING a token
+#   comments out the rest of the line, while a mid-token '#' stays literal
+#   (measured with an Include path carrying one); the token ends only at
+#   unquoted whitespace.
+#
+# Forms sshd REJECTS outright, re-measured for this list: a single-quoted
+# keyword, a whole-line quote, an unterminated quote, vertical tab or form
+# feed in the keyword, a second '=', and '"Keyword"=value' (no '=' is
+# consumed after a quote-terminated keyword). A file carrying one fails
+# `sshd -G`, and reporting that is check_global's job, so this scan may read
+# those lines any way it likes; what it must NEVER do is read an ACCEPTED
+# line differently from sshd.
 #
 # The line is tokenized rather than bulk-normalized. Bulk normalization is
 # what let the quoted keyword through: quotes were stripped from the value
@@ -386,39 +408,51 @@ CONFIG_TAB=$'\t'
 CONFIG_CR=$'\r'
 TOKEN=''
 REST=''
+# Set by next_keyword_token when the keyword was ENDED by a closing double
+# quote: sshd consumes no '=' after such a keyword (measured:
+# `"PasswordAuthentication"=yes` is rejected as `unsupported option "=yes"`),
+# so parse_config_line must not strip one either.
+TOKEN_ENDED_AT_QUOTE=0
 
-# next_token <break-on-equals: 0|1>: pull the next token off REST into TOKEN.
-# Returns 1 at end of line and 2 for an unterminated quote (a form sshd
-# rejects outright, so the file fails check_global).
-next_token() {
-  local break_equals="$1" char start_length="${#REST}"
+# skip_leading_whitespace: drop sshd's token separators (space, tab, CR) off
+# the front of REST.
+skip_leading_whitespace() {
   while [[ -n $REST ]]; do
     case $REST in
       ' '* | "$CONFIG_TAB"* | "$CONFIG_CR"*) REST="${REST:1}" ;;
       *) break ;;
     esac
   done
+}
+
+# next_keyword_token: pull the KEYWORD off REST into TOKEN with strdelim
+# semantics (prefix plus at most one double-quoted segment; the token ends at
+# the closing quote). Returns 1 at end of line and 2 for an unterminated
+# quote (a form sshd rejects outright, so the file fails check_global).
+next_keyword_token() {
+  local char start_length
+  skip_leading_whitespace
+  start_length="${#REST}"
   if [[ -z $REST ]]; then
     return 1
   fi
   TOKEN=''
-  if [[ $REST == '"'* ]]; then
-    REST="${REST:1}"
-    case $REST in
-      *'"'*) ;;
-      *) return 2 ;;
-    esac
-    TOKEN="${REST%%\"*}"
-    REST="${REST#*\"}"
-    return 0
-  fi
+  TOKEN_ENDED_AT_QUOTE=0
   while [[ -n $REST ]]; do
     char="${REST:0:1}"
     case $char in
-      ' ' | "$CONFIG_TAB" | "$CONFIG_CR" | '"') break ;;
+      ' ' | "$CONFIG_TAB" | "$CONFIG_CR" | '=') break ;;
     esac
-    if [[ $break_equals -eq 1 && $char == '=' ]]; then
-      break
+    if [[ $char == '"' ]]; then
+      REST="${REST:1}"
+      case $REST in
+        *'"'*) ;;
+        *) return 2 ;;
+      esac
+      TOKEN="$TOKEN${REST%%\"*}"
+      REST="${REST#*\"}"
+      TOKEN_ENDED_AT_QUOTE=1
+      return 0
     fi
     TOKEN="$TOKEN$char"
     REST="${REST:1}"
@@ -426,10 +460,57 @@ next_token() {
   # A successful token must have consumed input. Reporting success without
   # advancing REST would spin the caller's loop forever, and a verifier that
   # HANGS never reports -- strictly worse than one that misreads a line. The
-  # quoted branch above means no input reaches here without advancing, so this
-  # is a guard against a future edit to that branch, not a live condition.
+  # quoted branch above always advances, so this is a guard against a future
+  # edit, not a live condition.
   if [[ ${#REST} -eq $start_length ]]; then
     return 1
+  fi
+  return 0
+}
+
+# next_argument_token: pull one ARGUMENT off REST into TOKEN with argv_split
+# semantics (any number of single- or double-quoted segments concatenate with
+# unquoted text; an unquoted '#' opening a token ends the argument list).
+# Returns 1 at end of line or at a comment and 2 for an unterminated quote (a
+# form sshd rejects outright, so the file fails check_global). Every loop
+# iteration consumes one character, so this cannot spin.
+next_argument_token() {
+  local char quote=''
+  skip_leading_whitespace
+  if [[ -z $REST ]]; then
+    return 1
+  fi
+  case $REST in
+    '#'*)
+      REST=''
+      return 1
+      ;;
+  esac
+  TOKEN=''
+  while [[ -n $REST ]]; do
+    char="${REST:0:1}"
+    if [[ -n $quote ]]; then
+      REST="${REST:1}"
+      if [[ $char == "$quote" ]]; then
+        quote=''
+      else
+        TOKEN="$TOKEN$char"
+      fi
+      continue
+    fi
+    case $char in
+      ' ' | "$CONFIG_TAB" | "$CONFIG_CR") break ;;
+      '"' | "'")
+        quote="$char"
+        REST="${REST:1}"
+        continue
+        ;;
+    esac
+    TOKEN="$TOKEN$char"
+    REST="${REST:1}"
+  done
+  if [[ -n $quote ]]; then
+    return 2
   fi
   return 0
 }
@@ -440,10 +521,12 @@ next_token() {
 PARSED_KEYWORD=''
 PARSED_ARGS=()
 parse_config_line() {
+  local keyword_status=0
   REST="$1"
   PARSED_KEYWORD=''
   PARSED_ARGS=()
-  if ! next_token 1; then
+  next_keyword_token || keyword_status=$?
+  if [[ $keyword_status -ne 0 ]]; then
     return 1
   fi
   PARSED_KEYWORD="$TOKEN"
@@ -451,17 +534,15 @@ parse_config_line() {
   case $PARSED_KEYWORD in
     '#'*) return 1 ;;
   esac
-  # A single '=' may replace the whitespace after the keyword.
-  while [[ -n $REST ]]; do
-    case $REST in
-      ' '* | "$CONFIG_TAB"* | "$CONFIG_CR"*) REST="${REST:1}" ;;
-      *) break ;;
-    esac
-  done
-  if [[ $REST == '='* ]]; then
-    REST="${REST:1}"
+  # A single '=' may replace the whitespace after the keyword -- but not
+  # after a quote-terminated keyword (see TOKEN_ENDED_AT_QUOTE above).
+  if [[ $TOKEN_ENDED_AT_QUOTE -ne 1 ]]; then
+    skip_leading_whitespace
+    if [[ $REST == '='* ]]; then
+      REST="${REST:1}"
+    fi
   fi
-  while next_token 0; do
+  while next_argument_token; do
     PARSED_ARGS+=("$TOKEN")
   done
   return 0
