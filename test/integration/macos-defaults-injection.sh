@@ -103,6 +103,7 @@ macos:
       key: ProbeKey
       type: bool
       value: true
+      tier: enforce
   killall: []
 EOF
 )"
@@ -146,6 +147,7 @@ macos:
       key: UserTypeKey
       type: 'bool true; touch hostile-user-type-marker #'
       value: true
+      tier: enforce
   killall: []
 EOF
 
@@ -157,6 +159,7 @@ macos:
       type: 'bool true; touch hostile-system-type-marker #'
       value: true
       scope: system
+      tier: enforce
   killall: []
 EOF
 
@@ -170,34 +173,42 @@ macos:
       key: K1
       type: array
       value: v
+      tier: enforce
     - domain: com.example.t2
       key: K2
       type: bool
       value: true
+      tier: enforce
     - domain: com.example.t3
       key: K3
       type: data
       value: v
+      tier: enforce
     - domain: com.example.t4
       key: K4
       type: date
       value: v
+      tier: enforce
     - domain: com.example.t5
       key: K5
       type: dict
       value: v
+      tier: enforce
     - domain: com.example.t6
       key: K6
       type: float
       value: 1.5
+      tier: enforce
     - domain: com.example.t7
       key: K7
       type: int
       value: 7
+      tier: enforce
     - domain: com.example.t8
       key: K8
       type: string
       value: v
+      tier: enforce
   killall: []
 EOF
 )"
@@ -221,17 +232,20 @@ macos:
       key: "UserKey$(touch user-key-marker)"
       type: string
       value: "$(touch user-value-marker)`touch user-tick-marker`$INJECTED_VARIABLE"
+      tier: enforce
     - domain: "com.example.sysdomain$(touch system-domain-marker)"
       key: SysDomainKey
       type: bool
       value: true
       scope: system
+      tier: enforce
     - domain: com.example.syspath
       key: "SysPathKey$(touch system-key-marker)"
       type: string
       value: "$(touch system-value-marker)"
       scope: system
       plist_path: "/Library/Preferences/sys$(touch system-path-marker).plist"
+      tier: enforce
   killall:
     - "Dock$(touch killall-marker)`touch killall-tick-marker`"
 EOF
@@ -299,6 +313,7 @@ macos:
       key: ApostropheKey
       type: string
       value: "it's $(touch apostrophe-marker) done"
+      tier: enforce
   killall: []
 EOF
 )"
@@ -330,6 +345,7 @@ macos:
       type: string
       value:
       scope: system
+      tier: enforce
   killall: []
 EOF
 
@@ -340,6 +356,7 @@ macos:
       key:
       type: string
       value: v
+      tier: enforce
   killall: []
 EOF
 
@@ -350,6 +367,7 @@ macos:
       key: BlankDomainKey
       type: string
       value: v
+      tier: enforce
   killall: []
 EOF
 
@@ -365,6 +383,7 @@ macos:
       type: string
       value: ""
       scope: system
+      tier: enforce
   killall: []
 EOF
 )"
@@ -382,6 +401,7 @@ macos:
       type: bool
       value: true
       scope: system
+      tier: enforce
   killall: []
 EOF
 
@@ -394,6 +414,7 @@ macos:
       value: true
       scope: system
       plist_path: /Library/Preferences/../../etc/owned.plist
+      tier: enforce
 EOF
 
 assert_render_rejects 'plist_path on a user-scope record' 'outside scope system' <<'EOF'
@@ -404,6 +425,7 @@ macos:
       type: bool
       value: true
       plist_path: /Library/Preferences/com.example.userpath.plist
+      tier: enforce
   killall: []
 EOF
 
@@ -415,6 +437,7 @@ macos:
       type: bool
       value: true
       scope: system
+      tier: enforce
   killall: []
 EOF
 
@@ -426,6 +449,7 @@ macos:
       type: bool
       value: true
       scope: system
+      tier: enforce
   killall: []
 EOF
 
@@ -437,6 +461,7 @@ macos:
       type: bool
       value: true
       scope: system
+      tier: enforce
   killall: []
 EOF
 
@@ -449,6 +474,7 @@ macos:
       value: true
       scope: system
       plist_path: "/"
+      tier: enforce
   killall: []
 EOF
 
@@ -464,6 +490,7 @@ macos:
       value: block
       scope: system
       plist_path: /Library/Objective-See/LuLu/preferences.plist
+      tier: enforce
   killall: []
 EOF
 )"
@@ -496,6 +523,7 @@ macos:
       type: string
       value: v
       scope: system
+      tier: enforce
   killall: []
 EOF
 )"
@@ -507,7 +535,7 @@ benign_write_count="$(grep -cF 'sudo [defaults] [write]' "$stub_log" || true)"
   fail "one system record must produce exactly one root write (got $benign_write_count; log: $(cat "$stub_log"))"
 
 # The forging payload: unit separators plus a newline inside ONE record's value.
-# It is BALANCED on purpose, so both halves carry exactly seven fields and a
+# It is BALANCED on purpose, so both halves carry exactly eight fields and a
 # field-count check alone waves them through; only comparing the number of
 # emitted lines against the number of DECLARED records catches it.
 forging_src="$(
@@ -517,8 +545,9 @@ macos:
     - domain: com.example.sys
       key: SysKey
       type: string
-      value: "v\x1f\x1fsystem\x1f\nEVIL.DOMAIN\x1fEVILKEY\x1fbool\x1ftrue"
+      value: "v\x1f\x1fsystem\x1f\x1fenforce\nEVIL.DOMAIN\x1fEVILKEY\x1fbool\x1ftrue"
       scope: system
+      tier: enforce
   killall: []
 EOF
 )"
@@ -569,6 +598,7 @@ macos:
       key: SepKey
       type: string
       value: "a\x1fb"
+      tier: enforce
   killall: []
 EOF
 )"

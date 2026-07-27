@@ -100,13 +100,21 @@ require_readable_data_file() { # <path>
 }
 
 # defaults_records_join_expression <record-selector>, the yq expression that
-# joins one record selection into SEVEN fields separated by the ASCII unit
-# separator (0x1f): domain, key, type, value, host, scope, plist_path. Shared by
-# the stream below and by the per-record locator, so the two can never drift into
-# describing different records.
+# joins one record selection into EIGHT fields separated by the ASCII unit
+# separator (0x1f): domain, key, type, value, host, scope, plist_path, tier.
+# Shared by the stream below and by the per-record locator, so the two can
+# never drift into describing different records.
+#
+# type, value, and tier are BARE selectors, deliberately. join renders a null
+# (absent on a manual-tier record) as the empty string already, and the
+# tempting explicit spelling, `.value // ""`, is WRONG here: yq's alternative
+# operator fires on false as well as null, so a legitimate `value: false`
+# (most of the tracked records) would collapse to an empty write. The
+# defaulted fields below are safe with // only because none of them can hold
+# a legitimate false.
 defaults_records_join_expression() { # <record-selector>
   local unit_separator=$'\x1f'
-  printf '%s | [.domain, .key, .type, .value, (.host // ""), (.scope // "user"), (.plist_path // "")] | join("%s")' \
+  printf '%s | [.domain, .key, .type, .value, (.host // ""), (.scope // "user"), (.plist_path // ""), .tier] | join("%s")' \
     "$1" "$unit_separator"
 }
 
@@ -120,7 +128,7 @@ defaults_records_field_count() { # <line>
 }
 
 # defaults_records_locate_malformed <path> <declared-count>, describe the FIRST
-# record that does not render as exactly one seven-field line. Only ever called
+# record that does not render as exactly one eight-field line. Only ever called
 # on the failure path, so its per-record yq calls cost nothing in the normal case.
 defaults_records_locate_malformed() { # <path> <declared-count>
   local data_file="$1" declared_record_count="$2"
@@ -128,7 +136,7 @@ defaults_records_locate_malformed() { # <path> <declared-count>
   for ((index = 0; index < declared_record_count; index++)); do
     record_render="$(yq eval -r "$(defaults_records_join_expression ".macos.defaults[$index]")" "$data_file")" || continue
     line_count="$(printf '%s\n' "$record_render" | wc -l | tr -d ' ')"
-    if [[ $line_count -ne 1 || $(defaults_records_field_count "$record_render") -ne 7 ]]; then
+    if [[ $line_count -ne 1 || $(defaults_records_field_count "$record_render") -ne 8 ]]; then
       printf 'record %d (domain %s, key %s)' "$index" \
         "$(yq eval -r ".macos.defaults[$index].domain" "$data_file" | head -1)" \
         "$(yq eval -r ".macos.defaults[$index].key" "$data_file" | head -1)"
@@ -139,24 +147,32 @@ defaults_records_locate_malformed() { # <path> <declared-count>
 }
 
 # defaults_records_unit_separated <path>, emit each tracked record as one line
-# of SEVEN fields joined by the ASCII unit separator (0x1f):
-#   domain, key, type, value, host, scope, plist_path
-# host and plist_path are empty when absent; an ABSENT scope defaults to
-# "user" here, so a scope that reaches a caller empty was explicitly empty in
-# the record (a record error, rejected by validate_record_scope below). The
-# unit separator is not IFS whitespace, so an empty INTERIOR field survives
-# `IFS=$'\x1f' read` intact, unlike a tab-separated stream, whose collapse is
-# exactly why the optional columns do not extend one.
+# of EIGHT fields joined by the ASCII unit separator (0x1f):
+#   domain, key, type, value, host, scope, plist_path, tier
+# host, plist_path, and (on manual records) type and value are empty when
+# absent; an ABSENT scope defaults to "user" here, so a scope that reaches a
+# caller empty was explicitly empty in the record (a record error, rejected by
+# validate_record_scope below). The unit separator is not IFS whitespace, so an
+# empty INTERIOR field survives `IFS=$'\x1f' read` intact, unlike a
+# tab-separated stream, whose collapse is exactly why the optional columns do
+# not extend one.
+#
+# The TIER is validated here, for the whole file, before a single record is
+# emitted: every record must declare enforce, verify, or manual, and a missing
+# or blank tier arrives as the empty string and is refused like any other
+# unrecognized value. Refusing in the stream is what makes every tool
+# fail-closed at once: no caller can act on a record whose tier is unknown,
+# because no such record ever reaches a caller.
 #
 # The stream is SELF-VALIDATING, because the separator on its own guarantees
 # nothing. A field value carrying a literal 0x1f byte, a NEWLINE, or both is not
 # a formatting nuisance, it is record forgery. One record whose value was
-#   v<0x1f><0x1f>system<0x1f>\nEVIL.DOMAIN<0x1f>EVILKEY<0x1f>bool<0x1f>true
+#   v<0x1f><0x1f>system<0x1f><0x1f>enforce<0x1f>\nEVIL.DOMAIN<0x1f>EVILKEY<0x1f>bool<0x1f>true
 # emitted two well-formed-LOOKING lines and made apply perform TWO root writes,
 # the second fully attacker-controlled, while the template rendered only one.
-# Both halves of that payload carry exactly seven fields, so a per-line field
+# Both halves of that payload carry exactly eight fields, so a per-line field
 # count does not catch it on its own. Two checks together do:
-#   - every line must carry exactly seven fields, which catches a separator
+#   - every line must carry exactly eight fields, which catches a separator
 #     injected without a newline;
 #   - the number of emitted lines must equal the number of DECLARED records,
 #     which catches a newline whether or not the halves are balanced.
@@ -190,17 +206,32 @@ defaults_records_unit_separated() { # <path>
   fi
 
   local line field_count emitted_line_count=0
+  local record_domain record_key record_tier
   local -a validated_lines=()
   while IFS= read -r line; do
     # yq prints a single empty line for an empty array; that is not a record.
     [[ -z $line ]] && continue
     field_count="$(defaults_records_field_count "$line")"
-    if [[ $field_count -ne 7 ]]; then
-      printf 'error: %s: %s renders %s fields, not 7; a field value contains a unit separator (0x1f) or a newline\n' \
+    if [[ $field_count -ne 8 ]]; then
+      printf 'error: %s: %s renders %s fields, not 8; a field value contains a unit separator (0x1f) or a newline\n' \
         "$data_file" "$(defaults_records_locate_malformed "$data_file" "$declared_record_count")" \
         "$field_count" >&2
       return 2
     fi
+    # The tier gate. Only the three declared tiers pass; a record whose tier
+    # is missing or blank arrives here as the empty string and lands in the
+    # same refusal, so absent, blank, and unrecognized all fail closed. The
+    # refusal covers the WHOLE file (nothing has been emitted yet), because a
+    # caller must not act on the records beside one it cannot classify.
+    IFS=$'\x1f' read -r record_domain record_key _ _ _ _ _ record_tier <<<"$line"
+    case "$record_tier" in
+      enforce | verify | manual) ;;
+      *)
+        printf 'error: %s: record (domain %s, key %s) has a missing, blank, or unrecognized tier %q; declare tier: enforce, verify, or manual\n' \
+          "$data_file" "$record_domain" "$record_key" "$record_tier" >&2
+        return 2
+        ;;
+    esac
     validated_lines+=("$line")
     emitted_line_count=$((emitted_line_count + 1))
   done <<<"$raw_records"

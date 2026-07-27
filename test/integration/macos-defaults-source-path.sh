@@ -86,6 +86,7 @@ macos:
       key: s10flag
       type: bool
       value: true
+      tier: enforce
   killall: []
 EOF
 }

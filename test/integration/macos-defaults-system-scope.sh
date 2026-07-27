@@ -110,11 +110,13 @@ macos:
       key: AlphaKey
       type: bool
       value: true
+      tier: enforce
     - domain: com.example.beta
       key: BetaKey
       type: string
       value: BetaValue
       host: current
+      tier: enforce
   killall:
     - Dock
     - cfprefsd
@@ -248,11 +250,13 @@ macos:
       key: AlphaKey
       type: bool
       value: true
+      tier: enforce
     - domain: com.example.sys
       key: SysKey
       type: bool
       value: false
       scope: system
+      tier: enforce
   killall:
     - cfprefsd
 EOF
@@ -289,6 +293,7 @@ macos:
       value: block
       scope: system
       plist_path: /Library/Objective-See/LuLu/preferences.plist
+      tier: enforce
   killall: []
 EOF
 )"
@@ -313,6 +318,7 @@ macos:
       value: true
       scope: system
       plist_path: Library/Preferences/rel.plist
+      tier: enforce
   killall: []
 EOF
 )"
@@ -336,6 +342,7 @@ macos:
       value: true
       scope: system
       host: current
+      tier: enforce
   killall: []
 EOF
 )"
@@ -354,6 +361,7 @@ macos:
       type: bool
       value: true
       scope: bogus
+      tier: enforce
   killall: []
 EOF
 )"
@@ -364,12 +372,14 @@ render_template "$bogus_scope_src" "$sandbox/rendered-bogus" "$render_error" || 
 assert_file_contains "$render_error" 'unknown scope' \
   "the unknown-scope render failure must say so (stderr: $(cat "$render_error"))"
 
-# ---- the shared record stream: one line, seven fields, empties survive ------
+# ---- the shared record stream: one line, eight fields, empties survive ------
 
 # The unit separator (0x1f) is not IFS whitespace, so an empty INTERIOR field
 # (here: host absent while scope and plist_path follow it) must survive the
 # read intact. Under a tab-separated stream the empty host would collapse and
-# shift scope left into host, which is the regression this section pins.
+# shift scope left into host, which is the regression this section pins. The
+# tier travels as field 8, so every tool decides by DECLARED tier rather than
+# by which payload fields happen to exist.
 columns_src="$(
   make_source_dir <<'EOF'
 macos:
@@ -380,15 +390,18 @@ macos:
       value: FullValue
       scope: system
       plist_path: /Library/Objective-See/full.plist
+      tier: enforce
     - domain: com.example.minimal
       key: MinimalKey
       type: bool
       value: true
+      tier: enforce
     - domain: com.example.byhost
       key: ByHostKey
       type: int
       value: 7
       host: current
+      tier: enforce
   killall: []
 EOF
 )"
@@ -396,7 +409,7 @@ record_stream="$(bash -c 'source "$1"; defaults_records_unit_separated "$2"' _ \
   "$LIB" "$columns_src/.chezmoidata/macos_defaults.yaml")" ||
   fail 'defaults_records_unit_separated must succeed on a well-formed file'
 
-IFS=$'\x1f' read -r got_domain got_key got_type got_value got_host got_scope got_plist_path \
+IFS=$'\x1f' read -r got_domain got_key got_type got_value got_host got_scope got_plist_path got_tier \
   <<<"$(printf '%s\n' "$record_stream" | sed -n '1p')"
 [[ $got_domain == com.example.full ]] || fail "record stream: field 1 must be the domain (got '$got_domain')"
 [[ $got_key == FullKey ]] || fail "record stream: field 2 must be the key (got '$got_key')"
@@ -407,19 +420,22 @@ IFS=$'\x1f' read -r got_domain got_key got_type got_value got_host got_scope got
 [[ $got_scope == system ]] || fail "record stream: field 6 must be the scope (got '$got_scope')"
 [[ $got_plist_path == /Library/Objective-See/full.plist ]] ||
   fail "record stream: field 7 must be the plist path (got '$got_plist_path')"
+[[ $got_tier == enforce ]] || fail "record stream: field 8 must be the tier (got '$got_tier')"
 
-IFS=$'\x1f' read -r got_domain got_key got_type got_value got_host got_scope got_plist_path \
+IFS=$'\x1f' read -r got_domain got_key got_type got_value got_host got_scope got_plist_path got_tier \
   <<<"$(printf '%s\n' "$record_stream" | sed -n '2p')"
 [[ $got_domain == com.example.minimal ]] || fail "record stream: minimal field 1 must be the domain (got '$got_domain')"
 [[ -z $got_host ]] || fail "record stream: minimal host must be empty (got '$got_host')"
 [[ $got_scope == user ]] ||
   fail "record stream: an ABSENT scope must default to user in the stream (got '$got_scope')"
 [[ -z $got_plist_path ]] || fail "record stream: minimal plist path must be empty (got '$got_plist_path')"
+[[ $got_tier == enforce ]] || fail "record stream: minimal tier must survive as field 8 (got '$got_tier')"
 
-IFS=$'\x1f' read -r got_domain got_key got_type got_value got_host got_scope got_plist_path \
+IFS=$'\x1f' read -r got_domain got_key got_type got_value got_host got_scope got_plist_path got_tier \
   <<<"$(printf '%s\n' "$record_stream" | sed -n '3p')"
 [[ $got_host == current ]] || fail "record stream: field 5 must be the host (got '$got_host')"
 [[ $got_scope == user ]] || fail "record stream: byhost scope must default to user (got '$got_scope')"
+[[ $got_tier == enforce ]] || fail "record stream: byhost tier must survive as field 8 (got '$got_tier')"
 
 # ---- tool stubs --------------------------------------------------------------
 
@@ -497,17 +513,20 @@ macos:
       key: AlphaKey
       type: bool
       value: true
+      tier: enforce
     - domain: com.example.sys
       key: SysKey
       type: bool
       value: false
       scope: system
+      tier: enforce
     - domain: com.example.lulu
       key: LuLuKey
       type: string
       value: block
       scope: system
       plist_path: /Library/Objective-See/LuLu/preferences.plist
+      tier: enforce
   killall: []
 EOF
 )"
@@ -550,6 +569,7 @@ macos:
       value: true
       scope: system
       plist_path: Library/Preferences/rel.plist
+      tier: enforce
   killall: []
 EOF
 )"
@@ -576,6 +596,7 @@ macos:
       type: bool
       value: true
       scope: bogus
+      tier: enforce
   killall: []
 EOF
 )"
@@ -597,6 +618,7 @@ macos:
       type: bool
       value: true
       scope: system
+      tier: enforce
   killall: []
 EOF
 )"
@@ -650,6 +672,7 @@ macos:
       value: true
       scope: system
       plist_path: $locked_plist
+      tier: enforce
   killall: []
 EOF
 )"
@@ -683,6 +706,7 @@ macos:
       type: bool
       value: true
       scope: bogus
+      tier: enforce
   killall: []
 EOF
 )"
@@ -705,6 +729,7 @@ macos:
       key: CapKey
       type: bool
       value: true
+      tier: enforce
   killall: []
 EOF
 )"

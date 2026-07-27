@@ -1,13 +1,31 @@
 # macOS user defaults, declarative source of truth.
 #
-# Each record under `defaults:` becomes one `defaults write` invocation at
+# Each record under `defaults:` is one declared control, applied at
 # `chezmoi apply` time (Tier 1 runner: run_onchange_after_30-macos-defaults).
+# What the runner renders for a record is decided by its REQUIRED `tier`:
 #
-# Schema:
+#   tier: enforce   settable from the command line; renders one `defaults
+#                   write`. The only tier the runner (or any tool) ever
+#                   writes.
+#   tier: verify    readable but NOT settable on this macOS version; drift
+#                   detection only. Renders NO command; `just D` compares the
+#                   record's type/value against the live read.
+#   tier: manual    needs an interactive step or a device-management profile.
+#                   Renders a runbook pointer line and no command. Carries a
+#                   REQUIRED `runbook` field naming the runbook section, and
+#                   NO type/value/host/scope/plist_path.
+#
+# The tier is a property of the control on this OS version, not a preference:
+# when Apple removes a flag, the control moves enforce -> verify as a
+# one-line data change. A record with a missing or unrecognized tier, or a
+# payload that does not match its tier, ABORTS the render.
+#
+# Schema (enforce and verify):
 #   - domain: <string>   # com.apple.dock, NSGlobalDomain, etc.
 #     key:    <string>
 #     type:   bool|int|float|string
 #     value:  <scalar>   # must match `type`
+#     tier:   enforce|verify
 #     host:   current    # OPTIONAL, if set, runner uses `defaults -currentHost`
 #     scope:  user|system  # OPTIONAL, absent means user. A system record is
 #                          # written with sudo to a root-owned plist,
@@ -17,6 +35,15 @@
 #                          # plist path for a product that stores preferences
 #                          # outside /Library/Preferences (e.g. LuLu).
 #                          # Relative paths are rejected.
+#     runbook: <string>    # verify only, OPTIONAL: the runbook section that
+#                          # fixes a detected drift by hand. Forbidden on
+#                          # enforce records (nothing consumes it there).
+#
+# Schema (manual):
+#   - domain: <string>
+#     key:    <string>
+#     tier:   manual
+#     runbook: <string>  # REQUIRED: the runbook section that sets it by hand
 #
 # Each entry in `killall:` runs after the defaults loop. cfprefsd is required
 # for changes to take effect immediately (long-standing macOS plist-cache
@@ -28,30 +55,37 @@ macos:
       key: mru-spaces
       type: bool
       value: false
+      tier: enforce
     - domain: com.apple.dock
       key: expose-group-apps
       type: bool
       value: false
+      tier: enforce
     - domain: com.apple.WindowManager
       key: GloballyEnabled
       type: bool
       value: false
+      tier: enforce
     - domain: com.apple.WindowManager
       key: EnableStandardClickToShowDesktop
       type: bool
       value: false
+      tier: enforce
     - domain: com.apple.WindowManager
       key: EnableTilingByEdgeDrag
       type: bool
       value: false
+      tier: enforce
     - domain: com.apple.WindowManager
       key: EnableTilingOptionAccelerator
       type: bool
       value: false
+      tier: enforce
     - domain: com.apple.WindowManager
       key: EnableTopTilingByEdgeDrag
       type: bool
       value: false
+      tier: enforce
   killall:
     - Dock
     - Finder

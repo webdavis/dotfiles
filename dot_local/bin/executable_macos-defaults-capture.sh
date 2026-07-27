@@ -7,6 +7,11 @@
 # is already tracked but the live value DIVERGES: exit 4 (drift), resolve
 # via `just defaults-apply` (revert) or hand-edit YAML (capture intent).
 #
+# Every appended record declares `tier: enforce`: capture exists to track a
+# value the operator just set and read back, which is the definition of a
+# settable control. A control that belongs to another tier is declared by
+# hand-editing the YAML, not through this tool.
+#
 # Usage: macos-defaults-capture.sh <domain> <key> [--host current] [--scope user|system]
 #
 # --scope system captures from the record's system plist path
@@ -187,7 +192,7 @@ tmp="$(mktemp "${DATA_FILE}.XXXXXX")"
 trap 'rm -f "$tmp"' EXIT
 
 yq eval \
-  ".macos.defaults += [{\"domain\": \"$domain\", \"key\": \"$key\", \"type\": \"$schema_type\", \"value\": $yaml_value$([[ -n $host ]] && printf ', "host": "%s"' "$host")$([[ $scope == system ]] && printf ', "scope": "system"')}]" \
+  ".macos.defaults += [{\"domain\": \"$domain\", \"key\": \"$key\", \"type\": \"$schema_type\", \"value\": $yaml_value, \"tier\": \"enforce\"$([[ -n $host ]] && printf ', "host": "%s"' "$host")$([[ $scope == system ]] && printf ', "scope": "system"')}]" \
   "$DATA_FILE" >"$tmp"
 
 mv "$tmp" "$DATA_FILE"
