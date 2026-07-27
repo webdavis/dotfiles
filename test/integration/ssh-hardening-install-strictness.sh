@@ -59,18 +59,20 @@ assert_install_no_weaker_than_verify() {
 
   reset_tree
   if [[ -n $broken ]]; then
-    ssh_break_command "$broken"
+    run_ssh_hardening_without "$broken" --verify
+  else
+    run_ssh_hardening --verify
   fi
-
-  run_ssh_hardening --verify
   verify_status=$SSH_RUN_STATUS
 
   reset_tree
-  run_ssh_hardening
+  if [[ -n $broken ]]; then
+    run_ssh_hardening_without "$broken"
+  else
+    run_ssh_hardening
+  fi
   install_status=$SSH_RUN_STATUS
   install_output="$SSH_RUN_OUT"
-
-  ssh_restore_commands
 
   if [[ $verify_status -eq 0 ]]; then
     [[ $install_status -eq 0 ]] ||

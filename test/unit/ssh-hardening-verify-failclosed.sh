@@ -128,9 +128,7 @@ run_ssh_hardening --verify
 [[ $SSH_RUN_STATUS -eq 0 ]] ||
   fail "positive control: the hardened sandbox must verify before the listing is broken (stderr: $SSH_RUN_ERR)"
 
-ssh_break_command sort
-run_ssh_hardening --verify
-ssh_restore_commands
+run_ssh_hardening_without sort --verify
 [[ $SSH_RUN_STATUS -ne 0 ]] ||
   fail 'a configuration listing that could not be built must FAIL the verify, not pass it as an empty tree'
 grep -qi 'list the configuration files' <<<"$SSH_RUN_ERR" ||
@@ -150,9 +148,7 @@ run_ssh_hardening --verify
 # read as an absent directive.
 
 assert_named_failure() { # <broken command> <message needle>
-  ssh_break_command "$1"
-  run_ssh_hardening --verify
-  ssh_restore_commands
+  run_ssh_hardening_without "$1" --verify
   [[ $SSH_RUN_STATUS -ne 0 ]] ||
     fail "a failing '$1' must FAIL the verify (stdout: $SSH_RUN_OUT)"
   grep -qi -- "$2" <<<"$SSH_RUN_ERR" ||

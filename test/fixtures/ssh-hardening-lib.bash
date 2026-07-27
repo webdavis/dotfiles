@@ -100,28 +100,29 @@ run_ssh_hardening_bounded() {
   SSH_RUN_ERR="$(cat "$err_file")"
 }
 
-# ssh_break_command <name>: shadow one external command with a stub that always
-# exits 91, at the FRONT of PATH, for every later invocation until
-# ssh_restore_commands runs. Used to inject the kind of environmental failure a
-# verifier must never step over.
-ssh_break_command() {
-  SSH_BROKEN_BIN="$SSH_SANDBOX/broken"
-  mkdir -p "$SSH_BROKEN_BIN"
-  printf '#!/bin/bash\nexit 91\n' >"$SSH_BROKEN_BIN/$1"
-  chmod +x "$SSH_BROKEN_BIN/$1"
-  case ":$PATH:" in
-    *":$SSH_BROKEN_BIN:"*) ;;
-    *)
-      PATH="$SSH_BROKEN_BIN:$PATH"
-      export PATH
-      ;;
-  esac
-}
-
-ssh_restore_commands() {
-  if [[ -n ${SSH_BROKEN_BIN:-} && -d ${SSH_BROKEN_BIN:-} ]]; then
-    rm -f "$SSH_BROKEN_BIN"/*
-  fi
+# run_ssh_hardening_without <command> <args...>: run the script with ONE
+# external command shadowed by a stub that always exits 91, so an
+# environmental failure can be injected exactly where it matters.
+#
+# The stub is on PATH only for the script's own invocation. Mutating the
+# test's PATH instead would break the harness itself the moment the injected
+# command is one the harness uses -- `cat`, for instance, which reads the
+# captured output back.
+# shellcheck disable=SC2034  # the run results are read by the sourcing test
+run_ssh_hardening_without() {
+  local broken="$1"
+  shift
+  local stub_dir="$SSH_SANDBOX/broken"
+  local out_file="$SSH_SANDBOX/run.out" err_file="$SSH_SANDBOX/run.err"
+  mkdir -p "$stub_dir"
+  printf '#!/bin/bash\nexit 91\n' >"$stub_dir/$broken"
+  chmod +x "$stub_dir/$broken"
+  SSH_RUN_STATUS=0
+  PATH="$stub_dir:$PATH" /bin/bash "$SSH_HARDENING_SCRIPT" "$@" \
+    >"$out_file" 2>"$err_file" || SSH_RUN_STATUS=$?
+  rm -f "$stub_dir/$broken"
+  SSH_RUN_OUT="$(cat "$out_file")"
+  SSH_RUN_ERR="$(cat "$err_file")"
 }
 
 # write_hardened_dropin: put the policy file in place WITHOUT running install,

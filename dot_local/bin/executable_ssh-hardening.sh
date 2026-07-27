@@ -10,9 +10,9 @@
 #   --print-path    print the drop-in target path (pure)
 #   --verify        read-only three-way check that the EFFECTIVE sshd
 #                   configuration is fully hardened (see the verify section)
-#   (no argument)   install: write the drop-in, pin mode 0644, migrate the
-#                   legacy 50-no-password-auth.conf away, then run the verify
-#                   and refuse to claim success unless it passes
+#   (no argument)   install: stage the drop-in, publish it with one rename,
+#                   move the legacy 50-no-password-auth.conf aside, verify, and
+#                   roll the whole tree back to what it found if that fails
 #
 # The drop-in file IS the lock; leave it in place permanently. Without it,
 # sshd reverts to its defaults at the next restart.
@@ -127,6 +127,10 @@ DIRECTIVE_ALIAS_TARGETS=(kbdinteractiveauthentication
 die() {
   printf '[ssh-hardening] ERROR: %s\n' "$*" >&2
   exit 1
+}
+
+warn() {
+  printf '[ssh-hardening] WARNING: %s\n' "$*" >&2
 }
 
 run_privileged() {
@@ -635,14 +639,81 @@ verify() {
 
 # --- install -----------------------------------------------------------------
 
+# Install is a TRANSACTION. It stages the new drop-in beside the target,
+# publishes it with one rename, moves the legacy file aside rather than
+# deleting it, and only then verifies. If any step fails the tree goes back
+# exactly as it was found, because refusing to CLAIM success is not the same
+# as refusing to CAUSE harm and the previous version did only the first.
+#
+# The working files are DOT-PREFIXED deliberately: sshd's Include glob does not
+# match a leading dot (glob(3) semantics, verified), so a half-written staging
+# file is never part of the effective configuration and neither is a rollback
+# copy. This scan skips them for the same reason.
+
+# The transaction's state, so rollback undoes what THIS run actually did
+# rather than inferring it from what happens to be on disk. Inferring is how a
+# rollback deletes a drop-in the run never published: the backup copy is
+# absent both before the publish step and when there was nothing to back up.
+INSTALL_TARGET=''
+INSTALL_LEGACY=''
+INSTALL_STAGING=''
+INSTALL_SAVED_TARGET=''
+INSTALL_SAVED_LEGACY=''
+INSTALL_PUBLISHED=0
+
+# rollback_install: undo everything install did, and nothing it did not. Every
+# step reports on its own rather than aborting the rollback, because a rollback
+# that stops half way leaves exactly the state it exists to prevent.
+rollback_install() {
+  if [[ -e $INSTALL_STAGING || -L $INSTALL_STAGING ]]; then
+    run_privileged rm -f -- "$INSTALL_STAGING" ||
+      warn "rollback could not remove the staging file '$INSTALL_STAGING'"
+  fi
+  # Only if this run replaced the target is the target this run's to undo.
+  if [[ $INSTALL_PUBLISHED -eq 1 ]]; then
+    if [[ -e $INSTALL_SAVED_TARGET || -L $INSTALL_SAVED_TARGET ]]; then
+      run_privileged mv -f -- "$INSTALL_SAVED_TARGET" "$INSTALL_TARGET" ||
+        warn "rollback could not restore the previous drop-in from '$INSTALL_SAVED_TARGET'"
+    else
+      # No drop-in existed before this run, so removing the one it created is
+      # what "as it was found" means.
+      run_privileged rm -f -- "$INSTALL_TARGET" ||
+        warn "rollback could not remove the drop-in '$INSTALL_TARGET' this run created"
+    fi
+  fi
+  if [[ -e $INSTALL_SAVED_LEGACY || -L $INSTALL_SAVED_LEGACY ]]; then
+    run_privileged mv -f -- "$INSTALL_SAVED_LEGACY" "$INSTALL_LEGACY" ||
+      warn "rollback could not restore the legacy drop-in from '$INSTALL_SAVED_LEGACY'"
+  fi
+}
+
 install_dropin() {
-  local target legacy
+  local target legacy staging saved_target saved_legacy
   target="$(dropin_path)"
   legacy="$SSHD_CONFIG_D/$LEGACY_DROPIN_NAME"
+  staging="$SSHD_CONFIG_D/.$DROPIN_NAME.staging"
+  saved_target="$SSHD_CONFIG_D/.$DROPIN_NAME.saved"
+  saved_legacy="$SSHD_CONFIG_D/.$LEGACY_DROPIN_NAME.saved"
+  INSTALL_TARGET="$target"
+  INSTALL_LEGACY="$legacy"
+  INSTALL_STAGING="$staging"
+  INSTALL_SAVED_TARGET="$saved_target"
+  INSTALL_SAVED_LEGACY="$saved_legacy"
+  INSTALL_PUBLISHED=0
+
   [[ -d $SSHD_CONFIG_D ]] ||
     die "drop-in directory '$SSHD_CONFIG_D' does not exist"
-  if ! print_config | run_privileged tee -- "$target" >/dev/null; then
-    die "could not write '$target'"
+  if ! run_privileged rm -f -- "$staging" "$saved_target" "$saved_legacy"; then
+    die "could not clear the working files under '$SSHD_CONFIG_D'; refusing to begin an install that could not be rolled back"
+  fi
+
+  # Stage first, publish second. `tee` truncates its target the instant it
+  # opens it, so writing the drop-in directly EMPTIED a perfectly good file
+  # whenever the pipeline feeding it failed afterwards -- which a PATH without
+  # `cat` does, and did.
+  if ! print_config | run_privileged tee -- "$staging" >/dev/null; then
+    rollback_install
+    die "could not stage the new drop-in at '$staging'; '$target' is untouched"
   fi
   # Explicit mode, never the ambient umask: under e.g. umask 0077 tee lands
   # the file 0600, and a root-owned 0600 drop-in makes UNPRIVILEGED `sshd -G`
@@ -650,17 +721,36 @@ install_dropin() {
   # safe: the file holds no credential and sshd must be able to read it.
   # `--` BEFORE the mode: BSD chmod treats a `--` after the mode as a file
   # operand and fails.
-  if ! run_privileged chmod -- 0644 "$target"; then
-    die "could not set mode 0644 on '$target'"
+  if ! run_privileged chmod -- 0644 "$staging"; then
+    rollback_install
+    die "could not set mode 0644 on '$staging'; '$target' is untouched"
   fi
+  # Copy the existing drop-in aside BEFORE replacing it, so the target itself
+  # is never absent: the copy is the backup, and the rename below is atomic.
+  if [[ -e $target || -L $target ]]; then
+    if ! run_privileged cp -p -- "$target" "$saved_target"; then
+      rollback_install
+      die "could not copy the existing '$target' aside; refusing to replace a file that could not then be restored"
+    fi
+  fi
+  if ! run_privileged mv -f -- "$staging" "$target"; then
+    rollback_install
+    die "could not publish the staged drop-in as '$target'"
+  fi
+  INSTALL_PUBLISHED=1
   printf '[ssh-hardening] wrote %s (mode 0644)\n' "$target"
-  # Migrate the legacy drop-in away. Two reasons: one lock in one file (two
-  # files declaring the same policy is drift waiting to happen), and the
-  # legacy file was created 0600 under the umask, which breaks unprivileged
-  # verification for the entire tree (see the chmod comment above).
+
+  # Retire the legacy drop-in, reversibly. Two reasons it has to go: one lock
+  # in one file (two files declaring the same policy is drift waiting to
+  # happen), and the legacy file was created 0600 under the umask, which breaks
+  # unprivileged verification for the entire tree (see the chmod comment
+  # above). It is MOVED, not deleted, until the replacement is proven good --
+  # deleting the only effective policy and then failing verification is exactly
+  # how an install leaves a machine worse than it found it.
   if [[ -e $legacy || -L $legacy ]]; then
-    if ! run_privileged rm -f -- "$legacy"; then
-      die "could not remove the legacy drop-in '$legacy'"
+    if ! run_privileged mv -f -- "$legacy" "$saved_legacy"; then
+      rollback_install
+      die "could not move the legacy drop-in '$legacy' aside"
     fi
     printf '[ssh-hardening] removed legacy drop-in %s\n' "$legacy"
   fi
@@ -681,7 +771,11 @@ install_dropin() {
     SSH_HARDENING_ALLOW_MISSING_SSHD="${SSH_HARDENING_ALLOW_MISSING_SSHD:-}" \
     "${BASH:-/bin/bash}" "$SSH_HARDENING_SELF" --verify || verify_status=$?
   if [[ $verify_status -ne 0 ]]; then
-    die "wrote '$target' but the effective configuration did NOT verify as fully hardened; refusing to claim success"
+    rollback_install
+    die "the effective configuration did NOT verify as fully hardened; the tree was rolled back to the state this install found it in, and no success is claimed"
+  fi
+  if ! run_privileged rm -f -- "$saved_target" "$saved_legacy"; then
+    warn "could not remove the rollback copies under '$SSHD_CONFIG_D'; they are dot-prefixed and inert, but should be cleaned up"
   fi
   # The child's skip cannot be read out of its exit status, so the same
   # predicate decides the wording here. One function, two callers, no second

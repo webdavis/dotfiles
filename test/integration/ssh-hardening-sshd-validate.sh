@@ -10,9 +10,11 @@
 #   2. The judge is not the script: the test's own `/usr/sbin/sshd -G` on the
 #      same tree confirms all five effective values, one by one.
 #   3. Install REFUSES to claim success when verification cannot pass: with a
-#      hostile `Match all` re-enable present, install still writes the drop-in
-#      but exits nonzero and does not print its success line, because the
-#      effective configuration is not fully hardened.
+#      hostile `Match all` re-enable present it exits nonzero and does not
+#      print its success line, because the effective configuration is not fully
+#      hardened. The tree is rolled back to what that run found, which here is
+#      the drop-in the previous run left; ssh-hardening-install-safety.sh is
+#      where the rollback itself is pinned.
 set -euo pipefail
 
 # Scrubbed at SCRIPT scope. Git exports GIT_DIR to every hook it runs and this
