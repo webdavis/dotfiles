@@ -4,16 +4,29 @@
 #
 # Every test drives the script against a scratch sshd_config.d tree through the
 # SSHD_CONFIG_D / SSHD_MAIN_CONFIG / SSH_HARDENING_SUDO seams and NEVER touches
-# /etc/ssh. Two independent guards keep even a regressed script away from the
-# live tree:
+# /etc/ssh. Three layers keep even a regressed script away from the live tree.
+# They are NOT equivalent, and the difference matters, so each is described by
+# what it actually covers rather than by how reassuring it sounds:
 #
 #   1. SSH_HARDENING_SUDO is exported EMPTY, so the script performs its writes
-#      unprivileged inside the user-owned sandbox; a write to /etc/ssh would
-#      need privilege the test never grants.
-#   2. A deliberately FAILING `sudo` stub is prepended to PATH and records every
-#      invocation, so a regressed script that runs a bare `sudo tee
-#      /etc/ssh/...` fails loudly (exit 97) instead of reaching the live tree,
-#      and the spy log convicts it.
+#      directly instead of through a privilege wrapper. This is what lets the
+#      sandbox be written at all without privilege. It does NOT stop a
+#      regression that hard-codes a path: today every write goes through the
+#      seams, and that is a property of the script, not something this layer
+#      enforces.
+#   2. A deliberately FAILING `sudo` stub is prepended to PATH and records
+#      every invocation, so a regression that runs `sudo tee /etc/ssh/...`
+#      fails loudly (exit 97) and the spy log convicts it. It shadows only a
+#      PATH-RESOLVED `sudo`: a call to `/usr/bin/sudo` by absolute path, or one
+#      made after resetting PATH, walks straight past this layer.
+#   3. The layer that actually holds: the tests run UNPRIVILEGED and /etc/ssh
+#      is root-owned 0755, so a write there fails with EACCES no matter how the
+#      script attempts it. Layers 1 and 2 turn a violation into a loud, named
+#      failure; layer 3 is what makes the violation harmless in the first
+#      place.
+#
+# The spy log is checked after EVERY invocation, not only in the tests that are
+# about purity: escalation is a regression whatever a given test was measuring.
 #
 # Every invocation goes through run_ssh_hardening below, which runs the script
 # via /bin/bash: the deployed script runs under the system bash 3.2, so a
@@ -52,6 +65,16 @@ STUB
     SSH_SUDO_SPY_LOG PATH
 }
 
+# assert_no_escalation <context>: the sudo spy never fired. Called at the end
+# of every runner below, so no invocation can escalate unobserved.
+assert_no_escalation() {
+  if [[ -s ${SSH_SUDO_SPY_LOG:-/dev/null} ]]; then
+    printf 'FAIL: the script escalated privilege during %s; sudo spy log:\n%s\n' \
+      "$1" "$(cat "$SSH_SUDO_SPY_LOG")" >&2
+    exit 1
+  fi
+}
+
 ssh_sandbox_teardown() {
   [[ -n ${SSH_SANDBOX:-} ]] && rm -rf "$SSH_SANDBOX"
 }
@@ -67,6 +90,7 @@ run_ssh_hardening() {
     SSH_RUN_STATUS=$?
   SSH_RUN_OUT="$(cat "$out_file")"
   SSH_RUN_ERR="$(cat "$err_file")"
+  assert_no_escalation "run_ssh_hardening $*"
 }
 
 # run_ssh_hardening_bounded <seconds> <args...>: run_ssh_hardening with a wall
@@ -98,6 +122,7 @@ run_ssh_hardening_bounded() {
   wait "$child" 2>/dev/null || SSH_RUN_STATUS=$?
   SSH_RUN_OUT="$(cat "$out_file")"
   SSH_RUN_ERR="$(cat "$err_file")"
+  assert_no_escalation "run_ssh_hardening_bounded $*"
 }
 
 # run_ssh_hardening_without <command> <args...>: run the script with ONE
@@ -123,6 +148,7 @@ run_ssh_hardening_without() {
   rm -f "$stub_dir/$broken"
   SSH_RUN_OUT="$(cat "$out_file")"
   SSH_RUN_ERR="$(cat "$err_file")"
+  assert_no_escalation "run_ssh_hardening_without $broken $*"
 }
 
 # write_hardened_dropin: put the policy file in place WITHOUT running install,

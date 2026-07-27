@@ -45,6 +45,20 @@ refute_contains() { # <haystack> <fixed-string> <message>
   exit 0
 }
 
+# working_file_leftovers: any staging or rollback file still sitting in the
+# drop-in directory, dot-prefixed or not. Globs rather than `ls | grep`, so a
+# file name containing anything unusual is still matched by the shell.
+working_file_leftovers() {
+  local candidate found=''
+  for candidate in "$SSHD_CONFIG_D"/*.staging "$SSHD_CONFIG_D"/*.saved \
+    "$SSHD_CONFIG_D"/.*.staging "$SSHD_CONFIG_D"/.*.saved; do
+    if [[ -e $candidate ]]; then
+      found="$found $candidate"
+    fi
+  done
+  printf '%s\n' "$found"
+}
+
 file_fingerprint() { # <path> -> size and checksum, or the word absent
   if [[ -e $1 ]]; then
     cksum <"$1"
@@ -127,7 +141,7 @@ done
 # match them (glob(3) does not match a leading dot), but leaving them lying
 # around is still litter in a directory that is supposed to hold policy only.
 
-leftovers="$(ls -A "$SSHD_CONFIG_D" | grep -E '\.(staging|saved)$' || true)"
+leftovers="$(working_file_leftovers)"
 [[ -z $leftovers ]] ||
   fail "c: a failed install left working files behind: $leftovers"
 
@@ -136,7 +150,7 @@ rm -f "$SSHD_CONFIG_D"/* "$SSHD_CONFIG_D"/.[!.]* 2>/dev/null || true
 run_ssh_hardening
 [[ $SSH_RUN_STATUS -eq 0 ]] ||
   fail "c: install on a clean tree must succeed (stderr: $SSH_RUN_ERR)"
-leftovers="$(ls -A "$SSHD_CONFIG_D" | grep -E '\.(staging|saved)$' || true)"
+leftovers="$(working_file_leftovers)"
 [[ -z $leftovers ]] ||
   fail "c: a successful install left working files behind: $leftovers"
 

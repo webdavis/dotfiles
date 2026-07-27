@@ -236,4 +236,36 @@ run_reenable_case 'o: HostbasedAuthentication inside a Match block' \
   "$off_sample_spec" hostbasedauthentication yes \
   'Match Address *,!127.0.0.1' 'HostbasedAuthentication yes'
 
+# p. The ROOT connection sample, pinned the way case d pins the invoking-user
+# sample. Without this, deleting the root spec from the connection check broke
+# nothing: every other case is caught by the scan or by the invoking-user
+# sample. root is the account PermitRootLogin exists to keep out, so it is the
+# one sample that must not quietly disappear.
+run_reenable_case 'p: Match User root' \
+  'connection check (user=root' \
+  'user=root,host=localhost,addr=127.0.0.1' passwordauthentication yes \
+  'Match User root' 'PasswordAuthentication yes'
+
+# q. The re-enable in the MAIN CONFIG rather than a drop-in. Every other
+# hostile fixture in this file writes into the drop-in directory, so dropping
+# $SSHD_MAIN_CONFIG from the scan roots broke nothing at all -- and the main
+# config is the one file sshd is guaranteed to read.
+main_config_backup="$SSH_SANDBOX/sshd_config.backup"
+cp "$SSHD_MAIN_CONFIG" "$main_config_backup"
+printf 'Match Address 198.51.100.0/24\nPasswordAuthentication yes\n' >>"$SSHD_MAIN_CONFIG"
+
+resolved="$(effective_spec_value "$off_sample_spec" passwordauthentication)" ||
+  fail 'q: the test sshd could not resolve the main-config fixture'
+[[ $resolved == 'yes' ]] ||
+  fail "q: real sshd must resolve passwordauthentication yes off-loopback, got '$resolved'"
+run_ssh_hardening --verify
+[[ $SSH_RUN_STATUS -ne 0 ]] ||
+  fail "q: a Match re-enable in the MAIN config must fail --verify (stdout: $SSH_RUN_OUT)"
+grep -qF -- "match scan: '$SSHD_MAIN_CONFIG' sets 'passwordauthentication yes'" <<<"$SSH_RUN_ERR" ||
+  fail "q: the scan must name the main config itself (stderr: $SSH_RUN_ERR)"
+cp "$main_config_backup" "$SSHD_MAIN_CONFIG"
+run_ssh_hardening --verify
+[[ $SSH_RUN_STATUS -eq 0 ]] ||
+  fail "q: --verify must PASS again once the main config is restored (stderr: $SSH_RUN_ERR)"
+
 printf 'ssh-hardening-match-reenable: OK (every Match bypass form resolves unsafe under real sshd and fails --verify loudly; clean tree passes before and after every case)\n'
