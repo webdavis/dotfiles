@@ -175,8 +175,10 @@ keyscan_attempts="$(grep -c . "$KEYSCAN_SPY_LOG")" || true
 # nonstandard Port makes this exact alarm fire against a HEALTHY daemon. The
 # lockout text must hand the operator that diagnosis instead of only an
 # emergency.
-grep -qi 'launchd' <<<"$SSH_RUN_ERR" ||
+grep -qi 'launchd owns Remote Login' <<<"$SSH_RUN_ERR" ||
   fail "8: the lockout failure must name the launchd-socket possibility so a port mismatch reads as a diagnosis, not a false emergency (stderr: $SSH_RUN_ERR)"
+grep -qF -- '-p 22 127.0.0.1' <<<"$SSH_RUN_ERR" ||
+  fail "8: the lockout failure must hand the operator the exact port-22 check command (stderr: $SSH_RUN_ERR)"
 # The sudo rm fallback must name the CONCRETE file, so it works when the
 # script itself is broken.
 grep -qF "sudo rm $SSHD_CONFIG_D/$SSH_DROPIN_NAME" <<<"$SSH_RUN_ERR" ||
