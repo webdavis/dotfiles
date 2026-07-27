@@ -197,4 +197,25 @@ run_reenable_case 'k: carriage return inside the Match line' \
   "$off_sample_spec" passwordauthentication yes \
   "Match${SSH_CARRIAGE_RETURN}Address *,!127.0.0.1" 'PasswordAuthentication yes'
 
+# l. SkeyAuthentication: an alias sshd_config(5) does not document at all,
+# still wired to kbdinteractiveauthentication in the parser. The needle names
+# the CANONICAL directive, so a scan that does not fold the alias cannot
+# produce it.
+run_reenable_case 'l: SkeyAuthentication alias' \
+  "match scan: '$hostile_file' sets 'kbdinteractiveauthentication yes'" \
+  "$off_sample_spec" kbdinteractiveauthentication yes \
+  'Match Address *,!127.0.0.1' 'SkeyAuthentication yes'
+
+# m. DSAAuthentication, the third alias, aimed at pubkeyauthentication. Unlike
+# the other two it is GLOBAL-only: put it under `Match Address ...` and sshd
+# refuses the whole configuration ("Directive 'DSAAuthentication' is not
+# allowed within a Match block"). Under `Match all` sshd accepts it and
+# applies it globally, which is the form used here. The needle is the SCAN's
+# attribution naming pubkeyauthentication, so the case pins the alias fold
+# even though the global check independently sees the same value move.
+run_reenable_case 'm: DSAAuthentication alias' \
+  "match scan: '$hostile_file' sets 'pubkeyauthentication no'" \
+  "$off_sample_spec" pubkeyauthentication no \
+  'Match all' 'DSAAuthentication no'
+
 printf 'ssh-hardening-match-reenable: OK (every Match bypass form resolves unsafe under real sshd and fails --verify loudly; clean tree passes before and after every case)\n'

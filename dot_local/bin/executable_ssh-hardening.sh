@@ -56,6 +56,26 @@ PROTECTED_KEYS=(passwordauthentication kbdinteractiveauthentication usepam
   pubkeyauthentication permitrootlogin)
 PROTECTED_VALUES=(no no yes yes no)
 
+# Keywords sshd accepts as ALIASES for a protected directive. Enumerated, not
+# recalled: every lowercase keyword string in the sshd binary was extracted and
+# each one set to yes and to no inside a real `Match Address` block over a
+# hardened tree, then resolved with `sshd -G -T -C`. These are the only
+# keywords in the whole binary that move a protected value.
+#
+# Two of them work inside a genuine Match block, and SkeyAuthentication is the
+# dangerous one: sshd_config(5) does not document it at all, and it still
+# flips kbdinteractiveauthentication to yes.
+#
+# DSAAuthentication is GLOBAL-only -- inside a real Match block sshd refuses
+# the entire configuration, which check_global reports as a failed `sshd -G`.
+# It is folded here for the `Match all` form, which sshd does accept and apply
+# globally, so that the scan names the directive it moves instead of passing
+# over a keyword it does not recognize.
+DIRECTIVE_ALIASES=(challengeresponseauthentication skeyauthentication
+  dsaauthentication)
+DIRECTIVE_ALIAS_TARGETS=(kbdinteractiveauthentication
+  kbdinteractiveauthentication pubkeyauthentication)
+
 die() {
   printf '[ssh-hardening] ERROR: %s\n' "$*" >&2
   exit 1
@@ -136,6 +156,21 @@ add_failure() {
 # directive name as one writing it in lowercase.
 MATCHED_PROTECTED_KEY=''
 REQUIRED_VALUE=''
+# canonical_key <keyword>: set CANONICAL_KEY to the protected directive this
+# keyword reaches, folding sshd's aliases onto their target so an alias is
+# reported, and compared, against the directive it actually moves.
+CANONICAL_KEY=''
+canonical_key() {
+  local i
+  CANONICAL_KEY="$1"
+  for i in "${!DIRECTIVE_ALIASES[@]}"; do
+    if [[ $1 == "${DIRECTIVE_ALIASES[$i]}" ]]; then
+      CANONICAL_KEY="${DIRECTIVE_ALIAS_TARGETS[$i]}"
+      return 0
+    fi
+  done
+}
+
 required_value() {
   local i
   for i in "${!PROTECTED_KEYS[@]}"; do
@@ -315,10 +350,8 @@ scan_file_for_match_reenable() {
     else
       value=''
     fi
-    if [[ $key == challengeresponseauthentication ]]; then
-      key=kbdinteractiveauthentication
-    fi
-    if required_value "$key" && [[ $value != "$REQUIRED_VALUE" ]]; then
+    canonical_key "$key"
+    if required_value "$CANONICAL_KEY" && [[ $value != "$REQUIRED_VALUE" ]]; then
       add_failure "match scan: '$file' sets '$MATCHED_PROTECTED_KEY $value' inside a Match block (want '$REQUIRED_VALUE'); a Match-scoped re-enable bypasses the global check"
     fi
   done <"$file" || status=$?
