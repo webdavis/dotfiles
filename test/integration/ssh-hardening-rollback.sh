@@ -7,9 +7,12 @@
 # /etc/ssh.
 #
 # Properties pinned:
-#   1. rollback removes the drop-in and a following --verify reports the
-#      hardening absent
-#   2. a second rollback is a clean no-op (exit 0, nothing to remove)
+#   1. rollback removes the drop-in, PROVES an interactive password channel
+#      resolves ON for the sampled connections, and says which restart route
+#      actually works (--reload refuses an unhardened tree, so it is never
+#      advertised)
+#   2. a second rollback re-runs the same proof on the already-absent path:
+#      "nothing to remove" is never "access is back" by itself
 #   3. rollback never restarts anything: no launchctl call, no keyscan call
 #   4. a removal that fails leaves a loud nonzero failure, not a success claim
 #   5. a tree that STILL verifies hardened after the removal is a loud
@@ -17,6 +20,12 @@
 #      password access is NOT back
 #   6. an unrunnable verifier after the removal fails closed: the file is
 #      gone, but rollback refuses to CLAIM the hardening is gone unchecked
+#   7. a PARTIAL policy that still closes both password channels fails loudly
+#      even though the tree no longer verifies fully hardened (negating
+#      --verify is not proof of access)
+#   8. a verifier that runs but ERRORS is the error outcome, distinct from
+#      "still blocked" and never a success
+#   9. the already-absent path with the policy still in force fails loudly
 set -euo pipefail
 
 # Scrubbed at SCRIPT scope. Git exports GIT_DIR to every hook it runs and this
@@ -65,21 +74,33 @@ run_ssh_reload --rollback
   fail '1: rollback must remove the drop-in'
 grep -qF "$dropin" <<<"$SSH_RUN_OUT" ||
   fail "1: rollback must name the file it removed (stdout: $SSH_RUN_OUT)"
-grep -qi 'no longer verifies fully hardened' <<<"$SSH_RUN_OUT" ||
-  fail "1: rollback must report the hardening gone from the effective configuration (stdout: $SSH_RUN_OUT)"
+grep -qi 'password access is restored' <<<"$SSH_RUN_OUT" ||
+  fail "1: rollback must claim success as PROVEN password access, not as policy drift (stdout: $SSH_RUN_OUT)"
+grep -qi 'resolves ON' <<<"$SSH_RUN_OUT" ||
+  fail "1: the success claim must name what was proven, a password channel resolving ON (stdout: $SSH_RUN_OUT)"
+# The restart guidance must name a route that can actually run: --reload
+# refuses a tree that is not fully hardened, which is exactly the state a
+# successful rollback leaves, so it must only ever appear as the thing that
+# CANNOT perform this restart.
+grep -qi 'toggle Remote Login off and back on' <<<"$SSH_RUN_OUT" ||
+  fail "1: the success message must name the reachable restart route (stdout: $SSH_RUN_OUT)"
+grep -qF -- '--reload cannot perform this restart' <<<"$SSH_RUN_OUT" ||
+  fail "1: the success message must explain that --reload refuses an unhardened tree (stdout: $SSH_RUN_OUT)"
 assert_no_reload_side_effects '1'
 
 run_ssh_reload --verify
 [[ $SSH_RUN_STATUS -ne 0 ]] ||
   fail '1: after rollback, --verify must report the hardening ABSENT (it exited 0)'
 
-# --- 2: a second rollback is a clean no-op ------------------------------------
+# --- 2: a second rollback re-proves access on the already-absent path ---------
 
 run_ssh_reload --rollback
 [[ $SSH_RUN_STATUS -eq 0 ]] ||
   fail "2: a second rollback must be a clean no-op (stderr: $SSH_RUN_ERR)"
 grep -qi 'already absent' <<<"$SSH_RUN_OUT" ||
   fail "2: the no-op must say there was nothing to remove (stdout: $SSH_RUN_OUT)"
+grep -qi 'password access is restored' <<<"$SSH_RUN_OUT" ||
+  fail "2: even with nothing to remove, success must rest on the SAME access proof (stdout: $SSH_RUN_OUT)"
 [[ ! -e $dropin ]] ||
   fail '2: the second rollback must leave the drop-in absent'
 assert_no_reload_side_effects '2'
@@ -108,8 +129,8 @@ SSHD_STUB_FORCE_HARDENED=1 run_ssh_reload --rollback
   fail '4: rollback must fail when the tree still verifies hardened after the removal'
 [[ ! -e $dropin ]] ||
   fail '4: the drop-in itself must still have been removed'
-grep -qi 'still verifies fully hardened' <<<"$SSH_RUN_ERR" ||
-  fail "4: the failure must say the hardening is still in effect (stderr: $SSH_RUN_ERR)"
+grep -qi 'NOT restored' <<<"$SSH_RUN_ERR" ||
+  fail "4: the failure must say password access is NOT restored (stderr: $SSH_RUN_ERR)"
 refute_contains "$SSH_RUN_OUT" 'rollback complete' \
   '4: a still-hardened tree must not produce a completion claim'
 assert_no_reload_side_effects '4'
@@ -128,4 +149,58 @@ refute_contains "$SSH_RUN_OUT" 'rollback complete' \
   '5: an unverified removal must not claim completion'
 assert_no_reload_side_effects '5'
 
-printf 'ssh-hardening-rollback: OK (removal proven, no-op idempotent, every unprovable step fails closed)\n'
+# --- 6: partial policy still closes both channels -> loud failure -------------
+# The drop-in is gone and the tree no longer verifies fully hardened
+# (permitrootlogin drifted back to its default), yet PasswordAuthentication
+# and KbdInteractiveAuthentication both still resolve no. The previous
+# rollback treated ANY failed child verify as proof of restored access and
+# claimed success here; the exact fail-open this case exists to keep dead.
+
+write_hardened_dropin
+SSHD_STUB_PARTIAL_HARDENED=1 run_ssh_reload --rollback
+[[ $SSH_RUN_STATUS -ne 0 ]] ||
+  fail '6: with both password channels still OFF, rollback must fail even though the tree no longer verifies fully hardened'
+[[ ! -e $dropin ]] ||
+  fail '6: the removal itself must still happen'
+grep -qi 'NOT restored' <<<"$SSH_RUN_ERR" ||
+  fail "6: the failure must say password access is NOT restored (stderr: $SSH_RUN_ERR)"
+refute_contains "$SSH_RUN_OUT" 'rollback complete' \
+  '6: a blocked password path must not produce a completion claim'
+assert_no_reload_side_effects '6'
+
+# --- 7: verifier runs but ERRORS -> the error outcome, never success ----------
+# Distinct from case 5: the binary IS executable and its failure is an exit
+# status, not a missing file. The previous rollback read this nonzero child
+# status as "the hardening is gone" and claimed success.
+
+write_hardened_dropin
+SSHD_STUB_RESOLVE_STATUS=1 run_ssh_reload --rollback
+[[ $SSH_RUN_STATUS -ne 0 ]] ||
+  fail '7: an ERRORING verifier must fail the rollback, not pass as proof of access'
+[[ ! -e $dropin ]] ||
+  fail '7: the removal itself must still happen'
+grep -qi 'errored' <<<"$SSH_RUN_ERR" ||
+  fail "7: the failure must name the ERROR outcome, distinct from a blocked channel (stderr: $SSH_RUN_ERR)"
+refute_contains "$SSH_RUN_ERR" 'NOT restored' \
+  '7: an errored check must not claim to know the channels are blocked'
+refute_contains "$SSH_RUN_OUT" 'rollback complete' \
+  '7: an errored check must not produce a completion claim'
+assert_no_reload_side_effects '7'
+
+# --- 8: already absent, policy still in force -> loud failure -----------------
+# The exact scenario the old already-absent branch fail-opened on: nothing to
+# remove, but a sibling (modeled by SSHD_STUB_FORCE_HARDENED) still enforces
+# the full policy, so the operator is told "nothing to remove" while password
+# access is NOT back.
+
+rm -f "$dropin"
+SSHD_STUB_FORCE_HARDENED=1 run_ssh_reload --rollback
+[[ $SSH_RUN_STATUS -ne 0 ]] ||
+  fail '8: an already-absent drop-in with the policy still in force must fail the rollback'
+grep -qi 'already absent' <<<"$SSH_RUN_OUT" ||
+  fail "8: the run must still report there was nothing to remove (stdout: $SSH_RUN_OUT)"
+grep -qi 'NOT restored' <<<"$SSH_RUN_ERR" ||
+  fail "8: the failure must say password access is NOT restored (stderr: $SSH_RUN_ERR)"
+assert_no_reload_side_effects '8'
+
+printf 'ssh-hardening-rollback: OK (success means a PROVEN password channel, on both the removal and the already-absent path; blocked, errored, and unverifiable are three distinct loud failures)\n'

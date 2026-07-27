@@ -1055,23 +1055,118 @@ reload_sshd() {
 
 # --- rollback ----------------------------------------------------------------
 
+# The recovery gate's three outcomes, named because the caller must branch on
+# all three: collapsing "still blocked" and "errored" into one nonzero status
+# is how the previous rollback read an sshd crash as proof of restored access.
+PASSWORD_CHANNEL_OPEN=0
+PASSWORD_CHANNEL_BLOCKED=1
+PASSWORD_CHANNEL_ERROR=2
+
+# check_password_channel: the recovery gate's question, asked of the real
+# binary. "Access restored" is DEFINED as: for each sampled connection (the
+# invoking user at loopback, and the invoking user at an off-loopback
+# documentation address, because the locked-out operator this gate exists for
+# connects from OFF the machine), `sshd -G -T -C` reports
+# passwordauthentication yes OR kbdinteractiveauthentication yes -- the two
+# interactive password channels; either one open means a password prompt can
+# be reached. Negating --verify would not do: "not fully hardened" is true
+# the moment ANY of the seven directives drifts, which proves nothing about
+# whether a password login can now succeed.
+#
+# The samples are samples: a Match block scoped to an address neither sample
+# hits can still block one specific network path, and the runbook's
+# keep-a-session-open step covers what sampling cannot. Every anomaly (a
+# failed `id`, a failed resolution, an unreadable output, a value that is
+# neither yes nor no) is the ERROR outcome, never a quiet pass, and every
+# command's status is captured explicitly so the answer does not depend on
+# errexit, which callers judging a status have switched off.
+check_password_channel() {
+  local invoking_user status=0 output spec key value channel_open
+  invoking_user="$(id -un)" || status=$?
+  if [[ $status -ne 0 || -z $invoking_user ]]; then
+    return "$PASSWORD_CHANNEL_ERROR"
+  fi
+  for spec in \
+    "user=$invoking_user,host=localhost,addr=127.0.0.1" \
+    "user=$invoking_user,host=recovery.invalid,addr=198.51.100.23"; do
+    status=0
+    output="$("$SSHD_BIN" -G -T -C "$spec" -f "$SSHD_MAIN_CONFIG" 2>&1)" ||
+      status=$?
+    if [[ $status -ne 0 ]]; then
+      return "$PASSWORD_CHANNEL_ERROR"
+    fi
+    channel_open=0
+    for key in passwordauthentication kbdinteractiveauthentication; do
+      status=0
+      value="$(printf '%s\n' "$output" | awk -v k="$key" '$1 == k { print $2; exit }')" ||
+        status=$?
+      if [[ $status -ne 0 ]]; then
+        return "$PASSWORD_CHANNEL_ERROR"
+      fi
+      case $value in
+        yes) channel_open=1 ;;
+        no) ;;
+        *) return "$PASSWORD_CHANNEL_ERROR" ;;
+      esac
+    done
+    if [[ $channel_open -ne 1 ]]; then
+      return "$PASSWORD_CHANNEL_BLOCKED"
+    fi
+  done
+  return "$PASSWORD_CHANNEL_OPEN"
+}
+
+# confirm_password_access_restored <target>: rollback's success gate, run on
+# BOTH paths (after a removal, and when the drop-in was already absent --
+# "nothing to remove" is not "access is back": a sibling file or the main
+# config can enforce the policy with the managed drop-in long gone). Success
+# is claimed only on the OPEN outcome; BLOCKED and ERROR are distinct, loud,
+# nonzero failures.
+confirm_password_access_restored() {
+  local target="$1" channel_status=0
+  if [[ ! -x $SSHD_BIN ]]; then
+    if verify_skip_allowed; then
+      printf '[ssh-hardening] rollback: %s is absent, but verification was SKIPPED via the test seam; whether password access is restored was NOT checked.\n' "$target"
+      return 0
+    fi
+    die "'$target' is absent, but '$SSHD_BIN' cannot run, so whether password access is really restored cannot be checked; failing closed rather than claiming the way back in is open"
+  fi
+  check_password_channel || channel_status=$?
+  case $channel_status in
+    "$PASSWORD_CHANNEL_OPEN")
+      # The restart guidance names only routes that can actually run:
+      # --reload refuses a tree that is not fully hardened, which is exactly
+      # the state a successful rollback leaves, so advertising it here would
+      # send the operator down a path that refuses on arrival.
+      printf '[ssh-hardening] rollback complete: %s is absent and an interactive password channel (PasswordAuthentication or KbdInteractiveAuthentication) resolves ON for the sampled loopback and off-loopback connections, so password access is restored at the next sshd start. The running daemon keeps its current configuration until sshd restarts: toggle Remote Login off and back on in System Settings > General > Sharing (or reboot). --reload cannot perform this restart, because it refuses to restart onto a tree that is no longer hardened; reinstall first if the hardened policy should return.\n' "$target"
+      ;;
+    "$PASSWORD_CHANNEL_BLOCKED")
+      die "'$target' is absent, but the interactive password channels (PasswordAuthentication and KbdInteractiveAuthentication) still resolve OFF for a sampled connection, so something else under '$SSHD_CONFIG_D' (or the main config) is still enforcing the policy and password access is NOT restored. Inspect the remaining files there."
+      ;;
+    *)
+      die "could not verify that password access is restored: the recovery check errored (sshd resolution or its parsing failed) instead of answering; refusing to guess either way"
+      ;;
+  esac
+}
+
 # rollback_dropin: the way back in, as code. Remove the managed drop-in, then
-# prove the hardening is GONE from the effective configuration, because a
-# rollback exists for exactly one moment: the operator is locked out and needs
-# password authentication back at the next sshd start. Every step it cannot
-# prove is a nonzero failure. The removal itself still happens before any
-# verification, so even a failing rollback has already done the one thing the
-# locked-out operator needs.
+# PROVE password access is restored, because a rollback exists for exactly
+# one moment: the operator is locked out and needs password authentication
+# back at the next sshd start. Every step it cannot prove is a nonzero
+# failure. The removal itself still happens before any verification, so even
+# a failing rollback has already done the one thing the locked-out operator
+# needs.
 #
 # Deliberately NOT here: restarting sshd. Rollback changes the tree only; the
-# RUNNING daemon keeps its configuration until sshd restarts (--reload, a
-# Remote Login toggle, or a reboot), and pairing an automatic restart with an
-# emergency path would make the emergency path disruptive too.
+# RUNNING daemon keeps its configuration until sshd restarts (a Remote Login
+# toggle, or a reboot), and pairing an automatic restart with an emergency
+# path would make the emergency path disruptive too.
 rollback_dropin() {
   local target
   target="$(dropin_path)"
   if [[ ! -e $target && ! -L $target ]]; then
     printf '[ssh-hardening] rollback: %s is already absent; nothing to remove.\n' "$target"
+    confirm_password_access_restored "$target"
     return 0
   fi
   if ! run_privileged rm -f -- "$target"; then
@@ -1081,24 +1176,7 @@ rollback_dropin() {
     die "'$target' still exists after the removal command reported success; refusing to claim the hardening is gone"
   fi
   printf '[ssh-hardening] rollback: removed %s\n' "$target"
-  if [[ ! -x $SSHD_BIN ]]; then
-    if verify_skip_allowed; then
-      printf '[ssh-hardening] rollback: %s is removed, but verification was SKIPPED via the test seam; the effective configuration was NOT checked.\n' "$target"
-      return 0
-    fi
-    die "removed '$target', but '$SSHD_BIN' cannot run, so whether the hardening is really gone from the effective configuration cannot be checked; failing closed rather than claiming it is"
-  fi
-  # The child verify is EXPECTED to fail here: a tree without the drop-in must
-  # no longer verify fully hardened. Its (noisy, failure-listing) output is
-  # discarded because failure is the good outcome; only the unexpected PASS is
-  # reported, loudly, since it means a sibling file still enforces the policy
-  # and password access is NOT back.
-  local verify_status=0
-  run_verify_child >/dev/null 2>&1 || verify_status=$?
-  if [[ $verify_status -eq 0 ]]; then
-    die "the effective configuration still verifies fully hardened after removing '$target'; something else under '$SSHD_CONFIG_D' (or the main config) is enforcing the policy, and password access is NOT restored"
-  fi
-  printf '[ssh-hardening] rollback complete: the drop-in is removed and the effective configuration no longer verifies fully hardened. The running daemon keeps the old configuration until sshd restarts (--reload, or toggle Remote Login).\n'
+  confirm_password_access_restored "$target"
 }
 
 usage() {

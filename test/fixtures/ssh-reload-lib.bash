@@ -35,10 +35,19 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/ssh-hardening-lib.bash"
 #
 # Stub behavior knobs, all exported and overridable per invocation:
 #   SSHD_STUB_SYNTAX_STATUS          exit status of `sshd -t` (default 0)
+#   SSHD_STUB_RESOLVE_STATUS         exit status of every `sshd -G` call
+#                                    (default 0; nonzero models a verifier
+#                                    binary that runs but ERRORS)
 #   SSHD_STUB_PORT                   the `port` line `sshd -G` prints (2222)
 #   SSHD_STUB_FORCE_HARDENED         nonempty: -G prints hardened values even
 #                                    with the drop-in absent (models a second
 #                                    file still enforcing the policy)
+#   SSHD_STUB_PARTIAL_HARDENED       nonempty: -G keeps BOTH interactive
+#                                    password channels closed but leaves the
+#                                    rest at defaults (models a sibling that
+#                                    still blocks passwords after the drop-in
+#                                    is gone, without verifying fully
+#                                    hardened)
 #   LAUNCHCTL_STUB_PRINT_STATUSES    space-separated exit statuses for
 #                                    successive `launchctl print` calls within
 #                                    one run; the last entry repeats
@@ -94,10 +103,18 @@ case " $* " in
     exit 0
     ;;
 esac
+if [[ ${SSHD_STUB_RESOLVE_STATUS:-0} -ne 0 ]]; then
+  echo 'sshd stub: -G resolution failure injected' >&2
+  exit "${SSHD_STUB_RESOLVE_STATUS}"
+fi
 printf 'port %s\n' "${SSHD_STUB_PORT:-2222}"
 if [[ -f "${SSHD_CONFIG_D:?}/000-ssh-hardening.conf" || -n ${SSHD_STUB_FORCE_HARDENED:-} ]]; then
   printf '%s\n' 'passwordauthentication no' 'kbdinteractiveauthentication no' \
     'usepam yes' 'pubkeyauthentication yes' 'permitrootlogin no' \
+    'gssapiauthentication no' 'hostbasedauthentication no'
+elif [[ -n ${SSHD_STUB_PARTIAL_HARDENED:-} ]]; then
+  printf '%s\n' 'passwordauthentication no' 'kbdinteractiveauthentication no' \
+    'usepam yes' 'pubkeyauthentication yes' 'permitrootlogin prohibit-password' \
     'gssapiauthentication no' 'hostbasedauthentication no'
 else
   printf '%s\n' 'passwordauthentication yes' 'kbdinteractiveauthentication yes' \
@@ -209,8 +226,10 @@ STUB
   KEYSCAN_BIN="$SSH_STUB_DIR/ssh-keyscan"
   SSH_HARDENING_SUDO="$SSH_STUB_DIR/sudo-ok"
   SSHD_STUB_SYNTAX_STATUS=0
+  SSHD_STUB_RESOLVE_STATUS=0
   SSHD_STUB_PORT=2222
   SSHD_STUB_FORCE_HARDENED=""
+  SSHD_STUB_PARTIAL_HARDENED=""
   LAUNCHCTL_STUB_PRINT_STATUSES='0'
   LAUNCHCTL_STUB_KICKSTART_STATUS=0
   KEYSCAN_STUB_MODE=banner
@@ -218,7 +237,8 @@ STUB
     LAUNCHCTL_SPY_LOG KEYSCAN_SPY_LOG SUDO_OK_SPY_LOG SUDO_DENY_SPY_LOG \
     SSH_BARE_TOOL_SPY_LOG \
     SSHD_BIN LAUNCHCTL_BIN KEYSCAN_BIN SSH_HARDENING_SUDO \
-    SSHD_STUB_SYNTAX_STATUS SSHD_STUB_PORT SSHD_STUB_FORCE_HARDENED \
+    SSHD_STUB_SYNTAX_STATUS SSHD_STUB_RESOLVE_STATUS SSHD_STUB_PORT \
+    SSHD_STUB_FORCE_HARDENED SSHD_STUB_PARTIAL_HARDENED \
     LAUNCHCTL_STUB_PRINT_STATUSES LAUNCHCTL_STUB_KICKSTART_STATUS \
     KEYSCAN_STUB_MODE
 }
