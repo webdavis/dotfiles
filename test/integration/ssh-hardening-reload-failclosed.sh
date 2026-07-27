@@ -216,6 +216,28 @@ run_ssh_reload
 [[ ! -s $KEYSCAN_SPY_LOG ]] ||
   fail "12: install must never probe the listener (spy: $(cat "$KEYSCAN_SPY_LOG"))"
 
+# --- 14: mode dispatch is case-sensitive --------------------------------------
+# nocasematch is on at file scope for sshd keyword matching; if it reaches
+# main's case, a mistyped `--RELOAD` invokes the ONE disruptive mode in the
+# script. Both disruptive spellings must be refused as unknown flags while
+# the exact lowercase spelling keeps working (the happy-path case above pins
+# that side).
+
+run_ssh_reload --RELOAD
+[[ $SSH_RUN_STATUS -eq 2 ]] ||
+  fail "14: --RELOAD must be an unknown-flag usage error (exit 2), got $SSH_RUN_STATUS"
+assert_no_kickstart '14'
+[[ ! -s $LAUNCHCTL_SPY_LOG ]] ||
+  fail "14: --RELOAD must not touch the service at all (spy: $(cat "$LAUNCHCTL_SPY_LOG"))"
+grep -qi 'usage' <<<"$SSH_RUN_ERR" ||
+  fail "14: --RELOAD must print usage (stderr: $SSH_RUN_ERR)"
+
+run_ssh_reload --Rollback
+[[ $SSH_RUN_STATUS -eq 2 ]] ||
+  fail "14: --Rollback must be an unknown-flag usage error (exit 2), got $SSH_RUN_STATUS"
+grep -qi 'usage' <<<"$SSH_RUN_ERR" ||
+  fail "14: --Rollback must print usage (stderr: $SSH_RUN_ERR)"
+
 # --- 13: the recovery path lives in the runbook, as the same literal text -----
 
 [[ -f $RUNBOOK ]] ||

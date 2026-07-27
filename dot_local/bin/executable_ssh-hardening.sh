@@ -1207,6 +1207,20 @@ main() {
     usage >&2
     exit 2
   fi
+  # Dispatch is CASE-SENSITIVE. nocasematch is on at file scope because the
+  # sshd keyword matching needs it, and left alone it reaches this case too:
+  # measured, a mistyped `--RELOAD` invoked the one disruptive mode in the
+  # script. The flag is validated with matching off, then switched back on
+  # before any mode function runs, because the verify machinery depends on it.
+  shopt -u nocasematch
+  case "${1-}" in
+    --print-config | --print-path | --verify | --reload | --rollback | '' | --help | -h) ;;
+    *)
+      usage >&2
+      exit 2
+      ;;
+  esac
+  shopt -s nocasematch
   case "${1-}" in
     --print-config) print_config ;;
     --print-path) dropin_path ;;
