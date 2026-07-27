@@ -42,6 +42,26 @@ System Settings → Privacy & Security → grant the following:
 Each grant requires opening the Privacy sheet and dragging the app into the listed sheet. There's no CLI
 surface.
 
+### Firewall logging
+
+Declared `tier: manual` in `.chezmoidata/macos_system_setup.yaml` because there is nothing to automate:
+on macOS 26.2 `socketfilterfw` has no logging flag (older releases had `--setloggingmode`; 26.2 lists
+none in `-h` or its man page), and the Firewall pane in System Settings exposes no logging toggle. The
+firewall daemon already writes its activity to the unified log, so enabling logging by hand means
+capturing that stream:
+
+```bash
+# Watch firewall activity live:
+log stream --predicate 'process == "socketfilterfw"' --info
+
+# Review recent history:
+log show --last 1h --predicate 'process == "socketfilterfw"' --info
+```
+
+Do not resurrect the legacy `defaults write /Library/Preferences/com.apple.alf loggingenabled` toggle:
+nothing on 26.2 documents that the daemon still reads it, and a preference written under a subsystem that
+ignores it reads back as configured while doing nothing.
+
 ### Hardware pairing
 
 - **Bluetooth**: pair AirPods, mice, keyboards via System Settings → Bluetooth.
