@@ -63,6 +63,17 @@ sanitize() {
   printf '%s' "${text:0:160}"
 }
 
+# sanitize_span <text> -- sanitize, then wrap in a Discord inline-code span:
+# the same chokepoint treatment render-page.sh gives attacker-influenceable
+# fields (backticks stripped so the span cannot be broken out of, newlines and
+# tabs squashed, length-capped, wrapped in backticks). Character-stripping
+# alone leaves markdown STRUCTURE intact -- emphasis, [links](...), @mentions
+# survive sanitize as plain characters -- so every value that crosses into a
+# notification body goes through here and renders inert inside the span.
+sanitize_span() {
+  printf '`%s`' "$(sanitize "$1")"
+}
+
 # Bound every probe so a WEDGED tool (a hung table or a stuck status call never
 # closing stdout) becomes a monitoring gap, not silent blindness. Without a
 # deadline, `|| true` handles an EXIT but not a HANG, launchd skips ticks while
@@ -248,7 +259,7 @@ controls_problem=""
 load_controls() {
   local count index record id tier reader expect description remedy domain
   if [[ ! -f $CONTROLS_FILE ]]; then
-    controls_problem="posture-controls file missing at [$(sanitize "$CONTROLS_FILE")]"
+    controls_problem="posture-controls file missing at $(sanitize_span "$CONTROLS_FILE")"
     return 0
   fi
   # Slurp (-s) so the WHOLE file must be exactly ONE top-level array: a
@@ -286,18 +297,18 @@ load_controls() {
         ;;
     esac
     if [[ $tier != "verify" ]]; then
-      controls_problem="posture-controls record [$id] declares tier [$(sanitize "$tier")], not verify; the poller only reads controls, so the record does not belong in its file"
+      controls_problem="posture-controls record [$id] declares tier $(sanitize_span "$tier"), not verify; the poller only reads controls, so the record does not belong in its file"
       return 0
     fi
     domain=$(reader_domain "$reader")
     if [[ -z $domain ]]; then
-      controls_problem="posture-controls record [$id] names unknown reader [$(sanitize "$reader")]"
+      controls_problem="posture-controls record [$id] names unknown reader $(sanitize_span "$reader")"
       return 0
     fi
     case " $domain " in
       *" $expect "*) ;;
       *)
-        controls_problem="posture-controls record [$id] expects [$(sanitize "$expect")], outside the $reader domain ($domain)"
+        controls_problem="posture-controls record [$id] expects $(sanitize_span "$expect"), outside the $reader domain ($domain)"
         return 0
         ;;
     esac
@@ -411,16 +422,16 @@ fi
 # 0/1/2, Gatekeeper 0/1, screenlock 0/1) gaps the trio; an empty or failed
 # osqueryi read leaves all three empty and lands there too. If send_alert
 # cannot store the gap page (it still fires a last-resort local banner), log
-# and exit nonzero so a PERSISTING gap re-pages next tick. (Values are
-# bracketed, [] for empty, and sanitized: raw system-read text is data, never
-# structure, and never reaches the page whole.)
+# and exit nonzero so a PERSISTING gap re-pages next tick. (Values cross into
+# the body only through sanitize_span: raw system-read text is data, never
+# structure, and never reaches the page whole or outside an inline-code span.)
 trio_clean=1
 gap_detail=""
 gap_members=""
 if ! [[ $cur_fw =~ ^[012]$ && $cur_gk =~ ^[01]$ && $cur_sl =~ ^[01]$ ]]; then
   trio_clean=0
   gap_members="posture_query"
-  gap_detail="the posture query returned an unreadable value (firewall=[$(sanitize "$cur_fw")] gatekeeper=[$(sanitize "$cur_gk")] screenlock=[$(sanitize "$cur_sl")])"
+  gap_detail="the posture query returned an unreadable value (firewall=$(sanitize_span "$cur_fw") gatekeeper=$(sanitize_span "$cur_gk") screenlock=$(sanitize_span "$cur_sl"))"
 fi
 if [[ -n $controls_problem ]]; then
   gap_members+="${gap_members:+ }controls_file"
@@ -575,10 +586,12 @@ page_crit_and_persist() {
 # control_block <index> <first_observation:0|1> -- the CRIT block for a
 # declared control deviating from its declared value. Everything in it is
 # either this script's own text, a normalized enum value, or a sanitized
-# record field; raw probe output never appears.
+# record field wrapped in an inline-code span (description and remedy come
+# from the data file, so they are data, never notification structure); raw
+# probe output never appears.
 control_block() {
   local control_index="$1" first_observation="$2"
-  local description="${control_descriptions[$control_index]}"
+  local description="\`${control_descriptions[$control_index]}\`"
   local expect="${control_expects[$control_index]}"
   local value="${control_values[$control_index]}"
   local remedy="${control_remedies[$control_index]}"
@@ -589,7 +602,7 @@ control_block() {
     block="**${description}: now ${value}, declared ${expect}**"$'\n'"- **Was:** ${control_prevs[$control_index]}"$'\n'"- **Now:** **${value}**"$'\n'"- Did you change this? If not, something else did, **investigate now**."
   fi
   if [[ -n $remedy ]]; then
-    block+=$'\n'"- ${remedy}"
+    block+=$'\n'"- \`${remedy}\`"
   fi
   printf '%s' "$block"
 }

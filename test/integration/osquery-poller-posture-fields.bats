@@ -102,7 +102,7 @@ healthy_seed='{"firewall":"1","gatekeeper":"1","screenlock":"1","filevault":"on"
   }
   assert_page_count 1
   assert_page_severity_is CRIT
-  assert_page_body_has 'FileVault disk encryption: now off, declared on'
+  assert_page_body_has '`FileVault disk encryption`: now off, declared on'
   assert_page_body_has 'Re-enable it: System Settings, Privacy & Security, FileVault'
   assert_page_body_lacks 'Guest'            # only the control that changed is named
   assert_page_body_lacks 'Automatic login'
@@ -149,7 +149,7 @@ healthy_seed='{"firewall":"1","gatekeeper":"1","screenlock":"1","filevault":"on"
     false
   }
   assert_page_count 1
-  assert_page_body_has 'FileVault disk encryption: now off, declared on'
+  assert_page_body_has '`FileVault disk encryption`: now off, declared on'
   assert_page_body_lacks 'monitoring gap'
   assert_baseline_scalar filevault off
 
@@ -188,7 +188,7 @@ healthy_seed='{"firewall":"1","gatekeeper":"1","screenlock":"1","filevault":"on"
   }
   assert_page_count 1
   assert_page_severity_is CRIT
-  assert_page_body_has 'System Integrity Protection: now enabled, declared disabled'
+  assert_page_body_has '`System Integrity Protection`: now enabled, declared disabled'
   assert_page_saw_baseline "$healthy_seed"
   assert_baseline_scalar sip enabled
 
@@ -218,7 +218,7 @@ healthy_seed='{"firewall":"1","gatekeeper":"1","screenlock":"1","filevault":"on"
   }
   assert_page_count 1
   assert_page_severity_is CRIT
-  assert_page_body_has 'Automatic login at the login window: now on, declared off'
+  assert_page_body_has '`Automatic login at the login window`: now on, declared off'
   # The username from the probe output is data the page must NOT carry.
   assert_page_body_lacks 'stephen'
   assert_baseline_scalar autologin on
@@ -255,7 +255,7 @@ healthy_seed='{"firewall":"1","gatekeeper":"1","screenlock":"1","filevault":"on"
     false
   }
   assert_page_count 1
-  assert_page_body_has 'Automatic login at the login window: now on, declared off'
+  assert_page_body_has '`Automatic login at the login window`: now on, declared off'
 }
 
 @test "T-PCTL-autologin-unreadable-gaps: a defaults failure that is NOT the canonical absent diagnostic is indeterminate, never a silent healthy" {
@@ -291,7 +291,7 @@ healthy_seed='{"firewall":"1","gatekeeper":"1","screenlock":"1","filevault":"on"
   }
   assert_page_count 1
   assert_page_severity_is CRIT
-  assert_page_body_has 'The macOS Guest account: now enabled, declared disabled'
+  assert_page_body_has '`The macOS Guest account`: now enabled, declared disabled'
   assert_baseline_scalar guest enabled
 
   run run_poller
@@ -319,7 +319,7 @@ healthy_seed='{"firewall":"1","gatekeeper":"1","screenlock":"1","filevault":"on"
   }
   assert_page_count 1
   assert_page_severity_is CRIT
-  assert_page_body_has 'FileVault disk encryption: off at first observation, declared on'
+  assert_page_body_has '`FileVault disk encryption`: off at first observation, declared on'
   assert_page_body_lacks 'now off' # a first observation, not a transition
   assert_baseline_scalar filevault off
 
@@ -348,7 +348,7 @@ healthy_seed='{"firewall":"1","gatekeeper":"1","screenlock":"1","filevault":"on"
   }
   assert_page_count 1
   assert_page_severity_is CRIT
-  assert_page_body_has 'System Integrity Protection: disabled at first observation, declared enabled'
+  assert_page_body_has '`System Integrity Protection`: disabled at first observation, declared enabled'
   assert_baseline_scalar sip disabled
   assert_baseline_scalar 'sip:expect' enabled # the new declaration is recorded
 
@@ -393,7 +393,7 @@ healthy_seed='{"firewall":"1","gatekeeper":"1","screenlock":"1","filevault":"on"
 
   assert_page_count 1 # one page for the tick, never one per control
   assert_page_body_has 'Firewall turned OFF'
-  assert_page_body_has 'FileVault disk encryption: now off, declared on'
+  assert_page_body_has '`FileVault disk encryption`: now off, declared on'
   assert_page_body_has '· 2' # the count title marks two deviations in one page
 }
 
@@ -617,7 +617,7 @@ healthy_seed='{"firewall":"1","gatekeeper":"1","screenlock":"1","filevault":"on"
     false
   }
   assert_page_count 2
-  assert_page_body_has 'FileVault disk encryption: now off, declared on'
+  assert_page_body_has '`FileVault disk encryption`: now off, declared on'
   assert_baseline_scalar filevault off
   assert_baseline_scalar sip disabled # the gapped member's prior is preserved, never dropped
 
@@ -716,7 +716,7 @@ healthy_seed='{"firewall":"1","gatekeeper":"1","screenlock":"1","filevault":"on"
   export POLLER_FDESETUP_OUTPUT="FileVault is Off."
   run run_poller # tick 3: a REAL regression against the preserved baseline
   assert_page_count 2
-  assert_page_body_has 'FileVault disk encryption: now off, declared on'
+  assert_page_body_has '`FileVault disk encryption`: now off, declared on'
 }
 
 # --- the poller never mutates, and system-read text never reaches a page raw ---
@@ -748,8 +748,9 @@ healthy_seed='{"firewall":"1","gatekeeper":"1","screenlock":"1","filevault":"on"
   seed_baseline '{"firewall":"1","gatekeeper":"1","screenlock":"1"}'
   snapshot_baseline
   # An out-of-domain firewall value carrying shell metacharacters: the gap body
-  # quotes the offending values, so they must arrive neutralized (no backtick,
-  # no dollar, no backslash, no quotes) with the page still firing.
+  # quotes the offending values, so they must arrive neutralized (no dollar, no
+  # backslash, no quotes, the value's OWN backticks stripped) inside the body's
+  # inline-code span, with the page still firing.
   set_posture '[{"firewall":"0`touch HOME-pwned`$(reboot)\\\"x","gatekeeper":"1","screenlock":"1"}]'
 
   run run_poller
@@ -760,10 +761,9 @@ healthy_seed='{"firewall":"1","gatekeeper":"1","screenlock":"1","filevault":"on"
 
   assert_page_count 1
   assert_page_body_has 'monitoring gap'
-  if grep -qF -- '`' "$POLLER_SEND_ALERT_LOG"; then
-    echo "a backtick from the system read reached the page body: $(cat "$POLLER_SEND_ALERT_LOG")"
-    false
-  fi
+  # The exact sanitized value inside our span: had any of the value's own
+  # backticks survived, the span content (and this match) would break.
+  assert_page_body_has '(firewall=`0touch HOME-pwned(reboot)x`'
   if grep -qF -- '$(' "$POLLER_SEND_ALERT_LOG"; then
     echo "a command substitution from the system read reached the page body"
     false
@@ -807,6 +807,42 @@ healthy_seed='{"firewall":"1","gatekeeper":"1","screenlock":"1","filevault":"on"
     false
   }
   assert_baseline_unchanged
+}
+
+@test "T-PCTL-gap-values-inline-code-span: a system-read value crosses into a gap page only inside an inline-code span (no structure forgery)" {
+  seed_baseline '{"firewall":"1","gatekeeper":"1","screenlock":"1"}'
+  snapshot_baseline
+  # Markdown that survives character-stripping unchanged: emphasis, a link, a
+  # mention. It must arrive WRAPPED in an inline-code span so none of it can
+  # render as notification structure (a fake header, a live link, a ping).
+  set_posture '[{"firewall":"x] **FAKE CRITICAL** [open](https://example.invalid) @everyone [","gatekeeper":"1","screenlock":"1"}]'
+
+  run run_poller
+  [[ $status -eq 0 ]] || {
+    echo "status $status: $output"
+    false
+  }
+
+  assert_page_count 1
+  assert_page_body_has 'monitoring gap'
+  assert_page_body_has '`x] **FAKE CRITICAL** [open](https://example.invalid) @everyone [`'
+  assert_baseline_unchanged
+}
+
+@test "T-PCTL-description-inline-code-span: description and remedy from the data file reach a page only inside inline-code spans" {
+  set_posture_controls '[{"id":"guest","description":"x] **FAKE CRITICAL** [open](https://example.invalid) @everyone [","tier":"verify","reader":"sysadminctl_guest","expect":"disabled","remedy":"r] **FAKE REMEDY** [r"}]'
+  set_posture '[{"firewall":"1","gatekeeper":"1","screenlock":"1"}]'
+  export POLLER_SYSADMINCTL_GUEST_OUTPUT="2026-07-27 00:00:00.000 sysadminctl[100:100] Guest account enabled."
+
+  run run_poller # first observation of a deviant control: pages
+  [[ $status -eq 0 ]] || {
+    echo "status $status: $output"
+    false
+  }
+
+  assert_page_count 1
+  assert_page_body_has '`x] **FAKE CRITICAL** [open](https://example.invalid) @everyone [`'
+  assert_page_body_has '`r] **FAKE REMEDY** [r`'
 }
 
 # --- the Gatekeeper remedy names System Settings, never the removed CLI flag ---
