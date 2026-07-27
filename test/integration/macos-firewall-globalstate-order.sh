@@ -5,16 +5,18 @@
 # command STRICTLY first, and the logging control renders as a runbook
 # pointer, never a command.
 #
-# Why the order is a correctness property, not cosmetics: stealth mode and the
-# signed-software policies are preferences that are inert while the firewall's
-# global state is off. On a fresh or drifted machine a record that renders
-# before the global-state record writes a setting with no protection behind
-# it: it reads back as set and nothing enforces it.
+# Why the order is a correctness property, not cosmetics: partial-execution
+# safety. The subordinate setters store their configuration independently and
+# enabling the global state consumes it, so a run that completes lands
+# identically in any order; a run that dies partway does not. Global-first
+# leaves the machine with the firewall ON (at worst missing a subordinate
+# policy), while any other order can stop with subordinate policies stored
+# and the firewall still OFF.
 #
 # The properties pinned, one per acceptance criterion:
 #   1. Global state renders strictly before stealth (and before both
-#      signed-software commands, the same inert-preference class), compared by
-#      LINE NUMBER in the render; a presence-only assertion would pass with
+#      signed-software commands, the same subordinate-policy class), compared
+#      by LINE NUMBER in the render; a presence-only assertion would pass with
 #      the order reversed. Each command is pinned sudo-prefixed as a whole
 #      line.
 #   2. BOTH signed-software commands render, each asserted individually:
@@ -185,11 +187,11 @@ line_number_of_unique_line() { # <exact-line> <label>
 
 # Criterion 1: global state strictly before stealth, by line number. The two
 # signed-software policies are held behind the global-state line too: they are
-# the same inert-while-off preference class.
+# the same subordinate-policy class, with the same partial-run exposure.
 global_state_line="$(line_number_of_unique_line "sudo $GLOBAL_STATE_COMMAND" "the sudo-prefixed global-state command")"
 stealth_line="$(line_number_of_unique_line "sudo $STEALTH_COMMAND" "the sudo-prefixed stealth command")"
 ((global_state_line < stealth_line)) ||
-  fail "global state (line $global_state_line) must render STRICTLY BEFORE stealth (line $stealth_line); stealth is inert while the firewall is off"
+  fail "global state (line $global_state_line) must render STRICTLY BEFORE stealth (line $stealth_line); a partial run must not stop with stealth stored and the firewall still off"
 
 # Criterion 2: each signed-software command individually, sudo-prefixed.
 allow_builtin_signed_line="$(line_number_of_unique_line "sudo $ALLOW_BUILTIN_SIGNED_COMMAND" "the sudo-prefixed built-in signed-software command")"

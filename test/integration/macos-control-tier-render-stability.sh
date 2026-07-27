@@ -131,7 +131,7 @@ sudo -v
 
 echo "→ Install self-healing nix-installer repair LaunchDaemon (NixOS fork)"
 sudo "$HOME/.local/bin/install-nix-repair-hook.sh"
-echo "→ Firewall: enable the application firewall (must stay before the records below, which are inert while it is off)"
+echo "→ Firewall: enable the application firewall (must stay before the records below so a partial run leaves the firewall on, never policies stored with the firewall off)"
 sudo /usr/libexec/ApplicationFirewall/socketfilterfw --setglobalstate on
 echo "→ Firewall: enable stealth mode (drop unsolicited probes silently)"
 sudo /usr/libexec/ApplicationFirewall/socketfilterfw --setstealthmode on
