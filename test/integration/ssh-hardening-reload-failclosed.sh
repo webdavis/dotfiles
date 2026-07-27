@@ -231,6 +231,21 @@ grep -qF -- '-p 2222' "$KEYSCAN_SPY_LOG" ||
 [[ "$(config_tree_fingerprint)" == "$baseline_fingerprint" ]] ||
   fail '10: a reload must leave the configuration tree byte-for-byte untouched (criterion 12)'
 
+# --- 11: the keep-open warning is printed BEFORE the kickstart ----------------
+# The kickstart is the step that can kill the SSH session carrying the
+# output, so the warning and the COMPLETE recovery command must already be
+# out before it runs. Asserted against the launchctl stub's snapshot of the
+# script's output taken AT the kickstart call, so moving the warning back
+# after the kickstart fails here even though the final output still carries
+# it.
+pre_kickstart_output="$( (cat "$SSH_STUB_STATE/stdout-at-kickstart" && cat "$SSH_STUB_STATE/stderr-at-kickstart") 2>/dev/null || :)"
+grep -qi 'about to restart sshd' <<<"$pre_kickstart_output" ||
+  fail "11: the warning must be printed before the kickstart (snapshot: $pre_kickstart_output)"
+for phrase in "${RECOVERY_PHRASES[@]}"; do
+  grep -qF -- "$phrase" <<<"$pre_kickstart_output" ||
+    fail "11: the recovery instruction '$phrase' must be printed before the kickstart (snapshot: $pre_kickstart_output)"
+done
+
 # --- 12: the default install mode never reloads -------------------------------
 
 rm -f "$dropin"

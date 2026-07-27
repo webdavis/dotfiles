@@ -1174,7 +1174,11 @@ reload_sshd() {
     die "could not determine the state of the sshd launchd service: '$LAUNCHCTL_BIN print $SSHD_LAUNCHD_SERVICE' exited $SERVICE_PROBE_STATUS, which is neither 0 (loaded) nor $LAUNCHCTL_STATUS_SERVICE_ABSENT (confirmed absent). A probe error is not evidence the daemon is stopped; refusing to guess. sshd was not touched. Output: $SERVICE_PROBE_OUTPUT"
   fi
 
-  # 7. The disruptive step.
+  # 7. The disruptive step. The keep-open warning and the COMPLETE recovery
+  # command are printed FIRST: the kickstart is the step that can kill the
+  # SSH session carrying this output, so anything printed only after it may
+  # never arrive. Every failure path below repeats the same instructions.
+  printf '[ssh-hardening] reload: about to restart sshd; on a remote machine this can drop the SSH session carrying this output. %s\n' "$(recovery_instructions)"
   status=0
   output="$(run_privileged "$LAUNCHCTL_BIN" kickstart -k "$SSHD_LAUNCHD_SERVICE" 2>&1)" || status=$?
   if [[ $status -ne 0 ]]; then

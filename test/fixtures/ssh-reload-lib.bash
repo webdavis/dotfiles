@@ -185,6 +185,14 @@ case "${1:-}" in
     exit "$status"
     ;;
   kickstart)
+    # Snapshot the script's captured output AT the moment of the disruptive
+    # step: the kickstart is what can kill the session carrying the output,
+    # so anything that must reach the operator has to be in these files
+    # BEFORE this call. The runners redirect the script's stdout/stderr to
+    # $SSH_SANDBOX/run.out and run.err, so copying them here gives tests a
+    # pre-kickstart view to assert against.
+    cat "${SSH_SANDBOX:?}/run.out" >"${SSH_STUB_STATE:?}/stdout-at-kickstart" 2>/dev/null || :
+    cat "${SSH_SANDBOX:?}/run.err" >"${SSH_STUB_STATE:?}/stderr-at-kickstart" 2>/dev/null || :
     status="${LAUNCHCTL_STUB_KICKSTART_STATUS:-0}"
     if [[ $status -ne 0 ]]; then
       printf 'launchctl stub: kickstart refused (exit %s)\n' "$status" >&2
@@ -319,7 +327,8 @@ run_ssh_reload() {
   : >"$SLEEP_SPY_LOG"
   : >"$SUDO_OK_SPY_LOG"
   : >"$SUDO_DENY_SPY_LOG"
-  rm -f "$SSH_STUB_STATE/launchctl-print-count" "$SSH_STUB_STATE/sshd-resolve-count"
+  rm -f "$SSH_STUB_STATE/launchctl-print-count" "$SSH_STUB_STATE/sshd-resolve-count" \
+    "$SSH_STUB_STATE/stdout-at-kickstart" "$SSH_STUB_STATE/stderr-at-kickstart"
   run_ssh_hardening "$@"
   if [[ -s $SSH_BARE_TOOL_SPY_LOG ]]; then
     printf 'FAIL: the script called a tool by bare name instead of its seam during %s; tripwire log:\n%s\n' \
