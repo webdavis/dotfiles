@@ -42,6 +42,25 @@ System Settings → Privacy & Security → grant the following:
 Each grant requires opening the Privacy sheet and dragging the app into the listed sheet. There's no CLI
 surface.
 
+### Firewall log diagnostics
+
+Nothing to enable here, this section is view-only. Firewall logging is on by default on macOS 26.2 and
+its activity flows to the unified log automatically. `socketfilterfw` has no logging flag (older releases
+had `--setloggingmode`; 26.2 lists none in `-h` or its man page), the Firewall pane in System Settings
+exposes no logging toggle, and `/var/log/appfirewall.log` no longer exists. To view the activity:
+
+```bash
+# Watch firewall activity live:
+log stream --predicate 'process == "socketfilterfw"' --info
+
+# Review recent history:
+log show --last 1h --predicate 'process == "socketfilterfw"' --info
+```
+
+Do not resurrect the legacy `defaults write /Library/Preferences/com.apple.alf loggingenabled` toggle:
+nothing on 26.2 documents that the daemon still reads it, and a preference written under a subsystem that
+ignores it reads back as configured while doing nothing.
+
 ### Hardware pairing
 
 - **Bluetooth**: pair AirPods, mice, keyboards via System Settings → Bluetooth.
