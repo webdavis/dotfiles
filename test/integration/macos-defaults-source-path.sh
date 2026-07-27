@@ -92,10 +92,13 @@ hardcoded_primary="$sandbox/workspaces/Ivy/webdavis/dotfiles/.chezmoidata/macos_
 seed_data_file "$hardcoded_primary" "$PRIMARY_DOMAIN"
 
 # The secondary worktree the operator is standing in: a real git repo carrying its
-# own macos_defaults.yaml.
+# own macos_defaults.yaml and the .chezmoiversion marker that identifies a chezmoi
+# source tree. The marker, not the data file, is what the resolver keys on, so the
+# unreadable-file cases below still resolve THIS tree rather than falling through.
 worktree="$sandbox/wt"
 worktree_data_file="$worktree/.chezmoidata/macos_defaults.yaml"
 seed_data_file "$worktree_data_file" "$WORKTREE_DOMAIN"
+printf '2.62.3\n' >"$worktree/.chezmoiversion"
 git -C "$worktree" init -q
 # Pre-flight: the worktree branch of resolution fires only when git reports this
 # directory as its own top level. Assert it, so a green pass cannot hide a silent
@@ -133,10 +136,16 @@ chmod +x "$stub_bin/defaults" "$stub_bin/osascript" "$stub_bin/killall"
 
 # run_from_worktree <script> [args...] -- run a tool with the operator standing in
 # the worktree, against the sandbox HOME and the stub PATH.
+# The caller's own environment is scrubbed. This suite runs on developer machines
+# where the very override the library invites, and git's context variables, may
+# already be exported; inheriting any of them resolves a different tree and fails
+# the run for a reason that has nothing to do with the code. That is a false RED,
+# so the sandbox is made explicit rather than assumed.
 run_from_worktree() { # <script> [args...]
   (
     cd "$worktree" || exit 1
-    HOME="$sandbox" PATH="$stub_bin:$PATH" bash "$@"
+    unset MACOS_DEFAULTS_SOURCE_DIR GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_INDEX_FILE
+    HOME="$sandbox" XDG_CONFIG_HOME="$sandbox/.config" PATH="$stub_bin:$PATH" bash "$@"
   )
 }
 
@@ -174,4 +183,27 @@ chmod u+rw "$worktree_data_file"
 assert_file_contains "$drift_stderr" "$worktree_data_file" \
   "drift's exit-2 message must name the WORKTREE yaml, proving it resolved the worktree (stderr: $(cat "$drift_stderr"))"
 
-printf 'macos-defaults-source-path: OK (apply, capture and drift all resolve the worktree; both decoy primaries untouched)\n'
+# ---- apply and capture, unreadable data file --------------------------------
+# require_readable_data_file RETURNS its status rather than exiting, so each call
+# site has to propagate it. Only drift's site was exercised above; a site that
+# dropped the propagation would degrade a clean exit 2 into yq's own failure with
+# a different status and message, and nothing would have noticed. Every tool gets
+# the same assertion so this stays a property of the set, not of one member.
+assert_unreadable_exits_two() { # <label> <script> [args...]
+  local label="$1" script="$2"
+  shift 2
+  local err="$sandbox/$label.err" status=0
+  chmod 000 "$worktree_data_file"
+  run_from_worktree "$script" "$@" 2>"$err" || status=$?
+  chmod u+rw "$worktree_data_file"
+
+  [[ $status -eq 2 ]] ||
+    fail "$label with an unreadable worktree yaml must exit 2, the documented status (got $status, stderr: $(cat "$err"))"
+  assert_file_contains "$err" "$worktree_data_file" \
+    "$label's exit-2 message must name the WORKTREE yaml (stderr: $(cat "$err"))"
+}
+
+assert_unreadable_exits_two apply "$APPLY"
+assert_unreadable_exits_two capture "$CAPTURE" "$CAPTURED_DOMAIN" s10flag
+
+printf 'macos-defaults-source-path: OK (apply, capture and drift all resolve the worktree; both decoy primaries untouched; all three exit 2 naming the worktree yaml when it is unreadable)\n'
