@@ -82,9 +82,10 @@ macos:
       command: "/usr/libexec/ApplicationFirewall/socketfilterfw --setallowsignedapp on"
       sudo: true
       tier: enforce
-    - description: "Firewall: logging (no logging flag on macOS 26.2)"
-      tier: manual
-      runbook: "Firewall logging"
+    # Firewall logging is deliberately NOT declared, in any tier: on this
+    # macOS version there is nothing to enable. socketfilterfw has no logging
+    # flag, and firewall activity already flows to the unified log by default
+    # (see the runbook section "Firewall log diagnostics" for viewing it).
   tailnet_pins:
     - fqdn: mister.tail2f2430.ts.net
       ip: "100.109.58.54"

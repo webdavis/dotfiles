@@ -42,13 +42,12 @@ System Settings → Privacy & Security → grant the following:
 Each grant requires opening the Privacy sheet and dragging the app into the listed sheet. There's no CLI
 surface.
 
-### Firewall logging
+### Firewall log diagnostics
 
-Declared `tier: manual` in `.chezmoidata/macos_system_setup.yaml` because there is nothing to automate:
-on macOS 26.2 `socketfilterfw` has no logging flag (older releases had `--setloggingmode`; 26.2 lists
-none in `-h` or its man page), and the Firewall pane in System Settings exposes no logging toggle. The
-firewall daemon already writes its activity to the unified log, so enabling logging by hand means
-capturing that stream:
+Nothing to enable here, this section is view-only. Firewall logging is on by default on macOS 26.2 and
+its activity flows to the unified log automatically. `socketfilterfw` has no logging flag (older releases
+had `--setloggingmode`; 26.2 lists none in `-h` or its man page), the Firewall pane in System Settings
+exposes no logging toggle, and `/var/log/appfirewall.log` no longer exists. To view the activity:
 
 ```bash
 # Watch firewall activity live:

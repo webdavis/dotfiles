@@ -2,8 +2,7 @@
 # macos-firewall-globalstate-order.sh -- the firewall baseline declared in
 # .chezmoidata/macos_system_setup.yaml renders through the Tier 2 runner as
 # four sudo-prefixed, idempotent socketfilterfw commands with the global-state
-# command STRICTLY first, and the logging control renders as a runbook
-# pointer, never a command.
+# command STRICTLY first.
 #
 # Why the order is a correctness property, not cosmetics: partial-execution
 # safety. The subordinate setters store their configuration independently and
@@ -23,17 +22,18 @@
 #      --setallowsigned (built-in) and --setallowsignedapp (downloaded) are
 #      independent policies, and a single "a signed-app command is present"
 #      assertion passes with one of the two missing.
-#   3. The logging record renders NO command and DOES render its runbook
-#      pointer; a completeness diff pins the render's socketfilterfw lines to
-#      exactly the four declared commands, so the logging record cannot
-#      contribute one.
+#   3. The render's socketfilterfw lines are EXACTLY the four declared
+#      commands, byte for byte; a completeness diff, so an extra or altered
+#      line is reported by name.
 #   4. Every socketfilterfw command in the data is an idempotent set-to-state
 #      form with an explicit trailing state, never a toggle: the runner
 #      re-runs the whole list on any data change, so a toggle would flip
 #      protection OFF on the second run. Asserted over EVERY declared firewall
 #      command, not a count.
-#   5. Every manual record's runbook field resolves to a real markdown heading
-#      in the runbook, so the logging pointer cannot dangle.
+#   5. The data declares NO manual records. The only one ever declared here
+#      (firewall logging) described an action that does not exist on this
+#      macOS version, and a manual record no reader can complete is worse
+#      than no record; this pins its removal.
 #
 # Real chezmoi against the REAL .chezmoidata; nothing is executed, only
 # rendered.
@@ -46,7 +46,6 @@ unset MACOS_DEFAULTS_SOURCE_DIR GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_INDEX_F
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 TEMPLATE="$REPO_ROOT/.chezmoiscripts/run_onchange_after_41-macos-system-setup.sh.tmpl"
 SETUP_YAML="$REPO_ROOT/.chezmoidata/macos_system_setup.yaml"
-RUNBOOK="$REPO_ROOT/docs/runbooks/macos-fresh-machine-quickstart.md"
 
 # The tool is not on PATH; every declared command carries the absolute path.
 SOCKETFILTERFW="/usr/libexec/ApplicationFirewall/socketfilterfw"
@@ -54,11 +53,6 @@ GLOBAL_STATE_COMMAND="$SOCKETFILTERFW --setglobalstate on"
 STEALTH_COMMAND="$SOCKETFILTERFW --setstealthmode on"
 ALLOW_BUILTIN_SIGNED_COMMAND="$SOCKETFILTERFW --setallowsigned on"
 ALLOW_DOWNLOADED_SIGNED_COMMAND="$SOCKETFILTERFW --setallowsignedapp on"
-
-# The logging record's identity in the data, and the pointer line the manual
-# tier renders for it (byte-exact, shellSingleQuoted by the runner).
-LOGGING_DESCRIPTION="Firewall: logging (no logging flag on macOS 26.2)"
-LOGGING_RUNBOOK_SECTION="Firewall logging"
 
 fail() {
   printf 'FAIL: %s\n' "$*" >&2
@@ -71,7 +65,7 @@ for tool in chezmoi yq; do
     exit 0
   }
 done
-for required_file in "$TEMPLATE" "$SETUP_YAML" "$RUNBOOK"; do
+for required_file in "$TEMPLATE" "$SETUP_YAML"; do
   [[ -f $required_file ]] || fail "missing file: $required_file"
 done
 
@@ -113,46 +107,19 @@ while IFS= read -r firewall_command; do
     fail "firewall command is not an idempotent set-to-state form: $firewall_command"
 done <"$declared_firewall_commands"
 
-# The logging record exists exactly once, is tier manual, and carries no
-# mutating payload (no command, no sudo). Its runbook field names the
-# expected section.
-logging_record_count="$(LOGGING_DESCRIPTION="$LOGGING_DESCRIPTION" yq eval -r \
-  '[.macos.system_setup[] | select(.description == strenv(LOGGING_DESCRIPTION))] | length' \
+# Criterion 5: this data file declares NO manual records, asserted explicitly
+# so nothing here passes by iterating an empty set. The only manual record
+# ever declared (firewall logging) described an action that cannot be
+# performed: socketfilterfw on 26.2 has no logging flag, and firewall
+# activity flows to the unified log by default, so there is nothing to enable
+# by hand. If a legitimate manual record lands later, replace this assertion
+# with a check that its runbook field resolves to a real markdown heading in
+# the runbook (see git history for the loop this replaced).
+manual_record_descriptions="$(yq eval -r \
+  '[.macos.system_setup[] | select(.tier == "manual") | .description] | join(", ")' \
   "$SETUP_YAML")"
-[[ $logging_record_count -eq 1 ]] ||
-  fail "expected exactly one logging record (description: $LOGGING_DESCRIPTION); found $logging_record_count"
-
-logging_tier="$(LOGGING_DESCRIPTION="$LOGGING_DESCRIPTION" yq eval -r \
-  '.macos.system_setup[] | select(.description == strenv(LOGGING_DESCRIPTION)) | .tier' \
-  "$SETUP_YAML")"
-[[ $logging_tier == "manual" ]] ||
-  fail "the logging record must be tier: manual (socketfilterfw on 26.2 has no logging flag); found tier: $logging_tier"
-
-logging_payload_keys="$(LOGGING_DESCRIPTION="$LOGGING_DESCRIPTION" yq eval -r \
-  '[.macos.system_setup[] | select(.description == strenv(LOGGING_DESCRIPTION)) | keys | .[] | select(. == "command" or . == "sudo")] | join(",")' \
-  "$SETUP_YAML")"
-[[ -z $logging_payload_keys ]] ||
-  fail "the logging record must carry no mutating payload; found: $logging_payload_keys"
-
-logging_runbook="$(LOGGING_DESCRIPTION="$LOGGING_DESCRIPTION" yq eval -r \
-  '.macos.system_setup[] | select(.description == strenv(LOGGING_DESCRIPTION)) | .runbook' \
-  "$SETUP_YAML")"
-[[ $logging_runbook == "$LOGGING_RUNBOOK_SECTION" ]] ||
-  fail "the logging record must point at the runbook section \"$LOGGING_RUNBOOK_SECTION\"; found: $logging_runbook"
-
-# Criterion 5: EVERY manual record's runbook field resolves to a real markdown
-# heading in the runbook. An absent runbook field surfaces as the literal text
-# null and fails the heading lookup, so a dangling or missing pointer cannot
-# pass.
-runbook_headings="$work/runbook-headings"
-sed -E -n 's/^#{1,6} //p' "$RUNBOOK" >"$runbook_headings"
-manual_runbook_sections="$work/manual-runbook-sections"
-yq eval -r '[.macos.system_setup[] | select(.tier == "manual") | .runbook] | .[]' \
-  "$SETUP_YAML" >"$manual_runbook_sections"
-while IFS= read -r runbook_section; do
-  grep -qxF -- "$runbook_section" "$runbook_headings" ||
-    fail "manual record points at runbook section \"$runbook_section\", which is not a heading in $RUNBOOK"
-done <"$manual_runbook_sections"
+[[ -z $manual_record_descriptions ]] ||
+  fail "this data file must declare no manual records (nothing firewall-manual exists to perform on this macOS version); found: $manual_record_descriptions"
 
 # ---- render properties (criteria 1, 2, 3; darwin render only) ---------------
 
@@ -201,14 +168,9 @@ allow_downloaded_signed_line="$(line_number_of_unique_line "sudo $ALLOW_DOWNLOAD
 ((global_state_line < allow_downloaded_signed_line)) ||
   fail "global state (line $global_state_line) must render before the downloaded signed-software policy (line $allow_downloaded_signed_line)"
 
-# Criterion 3: the logging record renders its runbook pointer...
-manual_pointer_line="echo '→ MANUAL ${LOGGING_DESCRIPTION}: see the runbook section ${LOGGING_RUNBOOK_SECTION}'"
-grep -qxF -- "$manual_pointer_line" "$rendered" ||
-  fail "the logging record must render its runbook pointer (expected: $manual_pointer_line)"
-
-# ...and NO command: every socketfilterfw line in the render is one of the
-# four declared sudo-prefixed commands, byte for byte. A completeness diff,
-# not a count, so an extra or altered line is reported by name.
+# Criterion 3: every socketfilterfw line in the render is one of the four
+# declared sudo-prefixed commands, byte for byte. A completeness diff, not a
+# count, so an extra or altered line is reported by name.
 rendered_firewall_lines="$work/rendered-firewall-lines"
 { grep -F 'socketfilterfw' "$rendered" || true; } | LC_ALL=C sort >"$rendered_firewall_lines"
 expected_rendered_firewall_lines="$work/expected-rendered-firewall-lines"
@@ -221,4 +183,4 @@ EOF
 cmp -s "$expected_rendered_firewall_lines" "$rendered_firewall_lines" ||
   fail "the render must contain exactly the four declared socketfilterfw command lines (diff: $(diff "$expected_rendered_firewall_lines" "$rendered_firewall_lines" || true))"
 
-printf 'macos-firewall-globalstate-order: OK (global state renders first; both signed-software policies render sudo-prefixed; the logging record renders a pointer and no command; every declared firewall command is set-to-state; every manual runbook pointer resolves)\n'
+printf 'macos-firewall-globalstate-order: OK (global state renders first; both signed-software policies render sudo-prefixed; the render carries exactly the four declared commands; every declared firewall command is set-to-state; the data declares no manual records)\n'

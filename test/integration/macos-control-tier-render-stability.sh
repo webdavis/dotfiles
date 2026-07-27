@@ -114,8 +114,9 @@ killall 'cfprefsd' 2>/dev/null || true
 GOLDEN_EOF
 
 # The Tier 2 runner's 5774ce0 render plus the firewall-baseline records
-# (global state first; stealth and both signed-software policies after it;
-# the manual logging record as a pointer, never a command).
+# (global state first; stealth and both signed-software policies after it).
+# No manual logging record: firewall logging on this macOS version is on by
+# default and cannot be enabled by hand, so nothing renders for it.
 tier2_golden="$work/tier2.golden"
 cat >"$tier2_golden" <<'GOLDEN_EOF'
 #!/bin/bash
@@ -139,7 +140,6 @@ echo "→ Firewall: auto-allow incoming connections for built-in signed software
 sudo /usr/libexec/ApplicationFirewall/socketfilterfw --setallowsigned on
 echo "→ Firewall: auto-allow incoming connections for downloaded signed software"
 sudo /usr/libexec/ApplicationFirewall/socketfilterfw --setallowsignedapp on
-echo '→ MANUAL Firewall: logging (no logging flag on macOS 26.2): see the runbook section Firewall logging'
 echo "→ MagicDNS fallback pin: mister.tail2f2430.ts.net (per CLAUDE.md Tailscale DNS section)"
 sudo sh -c 'grep -qF "mister.tail2f2430.ts.net" /etc/hosts || printf "100.109.58.54\tmister.tail2f2430.ts.net\tmister\n" >>/etc/hosts'
 
