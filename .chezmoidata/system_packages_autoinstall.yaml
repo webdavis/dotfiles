@@ -12,6 +12,7 @@ packages:
         - openhue/cli
         - oven-sh/bun
         - owenthereal/upterm
+        - silverstein/tap
         - rjyo/moshi
         - steipete/tap
         - vjeantet/tap
@@ -35,6 +36,7 @@ packages:
         - openhue/cli
         - oven-sh/bun
         - owenthereal/upterm
+        - silverstein/tap
         - rjyo/moshi
         - steipete/tap
         - vjeantet/tap
@@ -112,6 +114,7 @@ packages:
         - nmap
         - node
         - obsidian-cli
+        - ollama
         - onefetch
         - openai-whisper
         - openhue/cli/openhue-cli
@@ -179,6 +182,7 @@ packages:
         - espanso
         - fantastical
         - firefox
+        - fluidvoice
         - font-fira-code
         - font-fira-code-nerd-font
         - font-symbols-only-nerd-font
@@ -192,6 +196,7 @@ packages:
         - mediosz/tap/swipeaerospace
         - microsoft-auto-update
         - microsoft-office
+        - minutes
         - mitmproxy
         - nikitabobko/tap/aerospace
         - obs
