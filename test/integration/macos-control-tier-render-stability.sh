@@ -52,7 +52,15 @@ for required_file in "$TIER1_TEMPLATE" "$TIER2_TEMPLATE" "$DEFAULTS_YAML" "$SETU
   [[ -f $required_file ]] || fail "missing file: $required_file"
 done
 
-work="$(cd "$(mktemp -d)" && pwd -P)"
+# Validated BEFORE any trap is armed and before any cd: on bash 3.2 `cd ""`
+# succeeds without moving, so an unguarded `cd "$(mktemp -d)"` after a failed
+# mktemp would leave the suite in the worktree with an `rm -rf` trap aimed at
+# it. The second assignment canonicalizes away macOS's /var -> /private/var
+# symlink.
+work="$(mktemp -d)"
+[[ -n $work && -d $work ]] ||
+  fail "mktemp -d produced no usable work directory (got '$work')"
+work="$(cd "$work" && pwd -P)"
 trap 'rm -rf "$work"' EXIT
 
 # ---- 1: every real record declares a recognized tier -------------------------

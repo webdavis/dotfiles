@@ -44,6 +44,13 @@ set_posture_controls() {
 setup_poller_harness() {
   export POLLER_HOME
   POLLER_HOME="$(mktemp -d)"
+  # Refuse an empty or non-directory result BEFORE anything is built under it
+  # (or later torn down from it): a pathological mktemp that exits 0 with no
+  # output would otherwise send every path below to /.
+  [[ -n $POLLER_HOME && -d $POLLER_HOME ]] || {
+    printf 'setup_poller_harness: mktemp -d produced no usable directory (got %q)\n' "$POLLER_HOME" >&2
+    return 1
+  }
   # Ownership marker set only after our own mktemp, so teardown removes this
   # path and never a pre-set or inherited POLLER_HOME.
   _POLLER_HARNESS_OWNED_DIR="$POLLER_HOME"

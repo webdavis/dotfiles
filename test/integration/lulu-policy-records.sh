@@ -94,8 +94,25 @@ for required_file in "$DEFAULTS_YAML" "$SETUP_YAML" "$CONTROLS_YAML" "$TIER1_TEM
   [[ -f $required_file ]] || fail "missing file: $required_file"
 done
 
-sandbox="$(cd "$(mktemp -d)" && pwd -P)"
-trap 'rm -rf "$sandbox"' EXIT
+# The sandbox is validated BEFORE any trap is armed and before any cd: on
+# bash 3.2 `cd ""` succeeds without moving, so an unguarded
+# `cd "$(mktemp -d)"` after a failed mktemp would leave the suite standing in
+# the worktree with an `rm -rf` trap aimed at it.
+sandbox="$(mktemp -d)"
+[[ -n $sandbox && -d $sandbox ]] ||
+  fail "mktemp -d produced no usable sandbox directory (got '$sandbox')"
+# Canonicalize away macOS's /var -> /private/var symlink.
+sandbox="$(cd "$sandbox" && pwd -P)"
+# The ONE exit trap for the whole suite. Per-section `trap ... EXIT` installs
+# would REPLACE it (and a final `trap - EXIT` would clear it), leaking the
+# sandbox on every successful run, so sections below call
+# teardown_poller_harness explicitly instead of touching the trap; the
+# teardown is a no-op when no harness is live.
+cleanup() {
+  teardown_poller_harness
+  rm -rf "$sandbox"
+}
+trap cleanup EXIT
 render_home="$sandbox/render-home"
 mkdir -p "$render_home"
 render_error="$sandbox/render.err"
@@ -273,7 +290,6 @@ EOF
 # The poller re-validates the deployed file itself: a target its reader does
 # not consume is refused BEFORE any probe runs, as a monitoring gap.
 setup_poller_harness
-trap 'teardown_poller_harness' EXIT
 set_posture '[{"firewall":"1","gatekeeper":"1","screenlock":"1"}]'
 set_posture_controls '[{"id":"demo_guest","description":"A guest control carrying a target","tier":"verify","reader":"sysadminctl_guest","expect":"disabled","target":"/usr/local/bin/tailscaled"}]'
 seed_baseline '{"firewall":"1","gatekeeper":"1","screenlock":"1"}'
@@ -282,7 +298,6 @@ assert_page_count 1 || fail "B2 poller: a mis-paired deployed file must page a m
 assert_page_body_has 'demo_guest' || fail "B2 poller: the refusal page must name the record"
 assert_no_probe_calls || fail "B2 poller: a refused file must be rejected BEFORE any probe runs"
 teardown_poller_harness
-trap - EXIT
 
 # ---- C: the manual records and their runbook sections ------------------------
 
@@ -390,7 +405,6 @@ extension_probe_argv="pgrep -x -U 0 com.objective-see.lulu.extension"
 extension_healthy_seed='{"firewall":"1","gatekeeper":"1","screenlock":"1","lulu_extension":"running","lulu_extension:expect":"running"}'
 
 setup_poller_harness
-trap 'teardown_poller_harness' EXIT
 set_posture '[{"firewall":"1","gatekeeper":"1","screenlock":"1"}]'
 set_posture_controls "$extension_record"
 export POLLER_PGREP_LULU_MODE=running
@@ -405,10 +419,8 @@ assert_baseline_scalar lulu_extension running ||
   fail "E healthy: the baseline must record the extension as running"
 assert_no_mutation_attempt || fail "E healthy: a posture read must never mutate"
 teardown_poller_harness
-trap - EXIT
 
 setup_poller_harness
-trap 'teardown_poller_harness' EXIT
 set_posture '[{"firewall":"1","gatekeeper":"1","screenlock":"1"}]'
 set_posture_controls "$extension_record"
 seed_baseline "$extension_healthy_seed"
@@ -433,7 +445,6 @@ assert_page_count 2 || fail "E re-stop: a LATER stop must page again"
 assert_no_mutation_attempt || fail "E: the lifecycle must never mutate"
 unset POLLER_PGREP_LULU_MODE
 teardown_poller_harness
-trap - EXIT
 
 # ---- F: a missing required rule pages once, names the rule, stays quiet ------
 
@@ -454,7 +465,6 @@ archive_xml_mentioning() {
 }
 
 setup_poller_harness
-trap 'teardown_poller_harness' EXIT
 set_posture '[{"firewall":"1","gatekeeper":"1","screenlock":"1"}]'
 set_posture_controls "$tailscaled_record"
 seed_baseline "$rule_healthy_seed"
@@ -476,12 +486,10 @@ assert_baseline_scalar lulu_rule_tailscaled present ||
 assert_no_mutation_attempt || fail "F: the rule check must never mutate"
 unset POLLER_PLUTIL_XML
 teardown_poller_harness
-trap - EXIT
 
 # ---- G: a changed declared target re-arms the control ------------------------
 
 setup_poller_harness
-trap 'teardown_poller_harness' EXIT
 set_posture '[{"firewall":"1","gatekeeper":"1","screenlock":"1"}]'
 set_posture_controls "$tailscaled_record"
 POLLER_PLUTIL_XML="$(archive_xml_mentioning "$tailscaled_target")"
@@ -500,7 +508,6 @@ assert_page_body_has 'first observation' ||
   fail "G repoint: the page must be a first observation under the new target, not a transition from the old one"
 unset POLLER_PLUTIL_XML
 teardown_poller_harness
-trap - EXIT
 
 # ---- H: the existence-only limitation is stated, in data and runbook ---------
 

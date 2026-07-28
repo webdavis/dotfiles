@@ -45,6 +45,16 @@ command -v jq >/dev/null 2>&1 || {
   exit 0
 }
 
+# The ONE exit trap for the whole suite: per-section `trap ... EXIT` installs
+# would replace each other (and a `trap - EXIT` would clear the last one), so
+# a failure inside a section without its own trap would leak that section's
+# harness. Sections call teardown_poller_harness explicitly; the teardown is a
+# no-op when no harness is live.
+cleanup() {
+  teardown_poller_harness
+}
+trap cleanup EXIT
+
 # archive_xml_mentioning <path>... -- a minimal plutil-shaped XML body whose
 # $objects array mentions each (already-escaped) path string.
 archive_xml_mentioning() {
@@ -72,7 +82,6 @@ run_reader_case() {
 # ---- R1: present / absent, via the exact read-only plutil argv ---------------
 
 setup_poller_harness
-trap 'teardown_poller_harness' EXIT
 POLLER_PLUTIL_XML="$(archive_xml_mentioning /usr/local/bin/tailscaled)"
 export POLLER_PLUTIL_XML
 run_reader_case "$(rule_control demo_rule lulu_rule_present /usr/local/bin/tailscaled)" ||
@@ -83,10 +92,8 @@ assert_probe_argv "plutil -convert xml1 -o - $OSQUERY_POSTURE_LULU_RULES" 1 ||
   fail "R1 present: the reader must run exactly one read-only plutil conversion"
 assert_no_mutation_attempt || fail "R1 present: the reader must never mutate"
 teardown_poller_harness
-trap - EXIT
 
 setup_poller_harness
-trap 'teardown_poller_harness' EXIT
 POLLER_PLUTIL_XML="$(archive_xml_mentioning /opt/unrelated/binary)"
 export POLLER_PLUTIL_XML
 run_reader_case "$(rule_control demo_rule lulu_rule_present /usr/local/bin/tailscaled)" ||
@@ -94,12 +101,10 @@ run_reader_case "$(rule_control demo_rule lulu_rule_present /usr/local/bin/tails
 assert_page_count 1 || fail "R1 absent: an unmentioned target is a deviation (first observation)"
 assert_baseline_scalar demo_rule absent || fail "R1 absent: baseline must record absent"
 teardown_poller_harness
-trap - EXIT
 
 # ---- R2: a longer path containing the target is NOT the target ---------------
 
 setup_poller_harness
-trap 'teardown_poller_harness' EXIT
 POLLER_PLUTIL_XML="$(archive_xml_mentioning /usr/local/bin/tailscaled-helper)"
 export POLLER_PLUTIL_XML
 run_reader_case "$(rule_control demo_rule lulu_rule_present /usr/local/bin/tailscaled)" ||
@@ -107,12 +112,10 @@ run_reader_case "$(rule_control demo_rule lulu_rule_present /usr/local/bin/tails
 assert_page_count 1 || fail "R2: a superstring path must not satisfy the target (absent must page)"
 assert_baseline_scalar demo_rule absent || fail "R2: baseline must record absent"
 teardown_poller_harness
-trap - EXIT
 
 # ---- R3: the target is matched in its XML-escaped form -----------------------
 
 setup_poller_harness
-trap 'teardown_poller_harness' EXIT
 POLLER_PLUTIL_XML="$(archive_xml_mentioning '/opt/tools/fetch &amp; sync')"
 export POLLER_PLUTIL_XML
 run_reader_case "$(rule_control demo_rule lulu_rule_present '/opt/tools/fetch & sync')" ||
@@ -120,7 +123,6 @@ run_reader_case "$(rule_control demo_rule lulu_rule_present '/opt/tools/fetch & 
 assert_no_page || fail "R3: an ampersand target must match its XML-escaped archive form"
 assert_baseline_scalar demo_rule present || fail "R3: baseline must record present"
 teardown_poller_harness
-trap - EXIT
 
 # ---- R4: plutil failures are indeterminate, never absent ---------------------
 
@@ -161,7 +163,6 @@ run_plutil_failure_case 'exit-0-without-output' POLLER_PLUTIL_XML= POLLER_PLUTIL
 # resolution and require the RESOLVED path, not the declared launcher, to be
 # what the archive is searched for.
 setup_poller_harness
-trap 'teardown_poller_harness' EXIT
 export POLLER_READLINK_OUTPUT='/real/interpreters/cpython-3.11/python3.11'
 POLLER_PLUTIL_XML="$(archive_xml_mentioning /real/interpreters/cpython-3.11/python3.11)"
 export POLLER_PLUTIL_XML
@@ -173,12 +174,10 @@ assert_baseline_scalar demo_resolved present ||
 assert_probe_argv 'readlink -f /opt/venv/bin/python' 1 ||
   fail "R5 resolved-present: the reader must resolve the declared launcher exactly once"
 teardown_poller_harness
-trap - EXIT
 
 # The archive mentioning only the LAUNCHER path while the resolution points
 # elsewhere reads absent: the rule must cover the binary that executes.
 setup_poller_harness
-trap 'teardown_poller_harness' EXIT
 export POLLER_READLINK_OUTPUT='/real/interpreters/cpython-3.11/python3.11'
 POLLER_PLUTIL_XML="$(archive_xml_mentioning /opt/venv/bin/python)"
 export POLLER_PLUTIL_XML
@@ -189,11 +188,9 @@ assert_page_count 1 ||
 assert_baseline_scalar demo_resolved absent ||
   fail "R5 launcher-only: baseline must record absent"
 teardown_poller_harness
-trap - EXIT
 
 # An unresolvable target (the launcher is gone) is indeterminate, never absent.
 setup_poller_harness
-trap 'teardown_poller_harness' EXIT
 export POLLER_READLINK_EXIT=1
 POLLER_PLUTIL_XML="$(archive_xml_mentioning /real/interpreters/cpython-3.11/python3.11)"
 export POLLER_PLUTIL_XML
@@ -208,6 +205,5 @@ assert_baseline_unchanged ||
   fail "R5 unresolvable: an unresolvable target must never advance the baseline"
 unset POLLER_READLINK_EXIT POLLER_READLINK_OUTPUT POLLER_PLUTIL_XML
 teardown_poller_harness
-trap - EXIT
 
 printf 'ok: LuLu rule-existence readers (exact-element existence claim, XML escaping, indeterminate-on-failure, resolved-target following)\n'
