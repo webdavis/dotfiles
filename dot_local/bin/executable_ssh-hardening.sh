@@ -387,42 +387,53 @@ check_global() {
 }
 
 # --- sshd configuration tokenizer --------------------------------------------
-# OpenSSH 10.0p2 tokenizes the KEYWORD and the ARGUMENTS of a configuration
-# line with two DIFFERENT rules. Every claim below was measured against the
-# real binary (`sshd -G` accepts/rejects, `sshd -G -T -C` resolves), not read
-# out of the manual page:
+# OpenSSH 10.0p2 reads a configuration line with TWO different tokenizers, and
+# the scan mirrors both. Every rule below was derived from the behaviour of the
+# real binary -- `sshd -G` for accept/reject and `sshd -G -T -C` for what the
+# line resolves to -- and not from sshd_config(5), which documents almost none
+# of it.
 #
-#   KEYWORD (strdelim semantics): space, tab and CARRIAGE RETURN separate
-#   tokens; a single '=' may end the keyword; and ONE double-quoted segment
-#   may sit anywhere in the token -- the unquoted prefix and the quoted
-#   content CONCATENATE, and the token ENDS at the closing quote. Measured:
-#     Ma"tch" Address ...        reads as Match                    (accepted)
-#     Pubkey"Authentication" no  reads as the full keyword         (accepted)
-#     "PasswordAuthentication"   reads as the full keyword         (accepted)
-#     Pass"word"Authentication   reads as Password + a stray token (rejected:
-#                                unknown keyword)
-#     Ma'tch'                    single quotes are NOT special in keywords
-#                                (rejected: unknown keyword)
-#   The previous tokenizer treated '"' as a terminator in the middle of a
-#   token, so it read `Ma"tch"` as `Ma`, never entered Match state, and
-#   certified a tree whose off-loopback clients had no authentication method
-#   at all. The comment that stood here claiming a mid-keyword quote is
-#   rejected by sshd was FALSE.
+#   THE LINE. Trailing space, tab, carriage return and FORM FEED are trimmed
+#   off the whole line before either tokenizer runs; vertical tab, BEL and BS
+#   are NOT in the set (all seven measured). A CRLF line ending -- every line
+#   of a file with Windows line endings -- is the everyday case this trim
+#   exists for. Leading whitespace is stripped next, and a line that is then
+#   empty or opens with '#' is dropped.
 #
-#   ARGUMENTS (argv_split semantics): any number of double- OR single-quoted
-#   segments concatenate with unquoted text into one token ("y"e"s" and
-#   ye's' both read as yes, measured); an unquoted '#' OPENING a token
-#   comments out the rest of the line, while a mid-token '#' stays literal
-#   (measured with an Include path carrying one); the token ends only at
-#   unquoted whitespace.
+#   THE KEYWORD (strdelim semantics). Space, tab and CARRIAGE RETURN separate;
+#   a single '=' may stand in for the separating whitespace and is consumed
+#   with it; a double-quoted segment may sit ANYWHERE in the token, its content
+#   appending to what came before, and the keyword ENDS at the closing quote.
+#   The one rule with no counterpart in any other config format: an EMPTY first
+#   token is DISCARDED and the next token becomes the keyword, which is why
+#   `=PasswordAuthentication yes` and `""PasswordAuthentication yes` are live
+#   directives. Exactly one empty token is discarded; a line still keyword-less
+#   after that is ignored.
 #
-# Forms sshd REJECTS outright, re-measured for this list: a single-quoted
-# keyword, a whole-line quote, an unterminated quote, vertical tab or form
-# feed in the keyword, a second '=', and '"Keyword"=value' (no '=' is
-# consumed after a quote-terminated keyword). A file carrying one fails
-# `sshd -G`, and reporting that is check_global's job, so this scan may read
-# those lines any way it likes; what it must NEVER do is read an ACCEPTED
-# line differently from sshd.
+#   THE ARGUMENTS (argv_split semantics). Only space and tab separate -- a
+#   carriage return does NOT. Any number of single- OR double-quoted segments
+#   concatenate with unquoted text into one argument. A backslash escapes
+#   either quote, another backslash, and (outside quotes) a SPACE -- not a
+#   tab: `\<TAB>` keeps the backslash and the tab still separates, so the text
+#   after it is a further argument (measured; only a quoted segment carries a
+#   tab into an argument). Every other backslash is kept literally. A '#'
+#   OPENING an argument comments out the rest of the line, while a '#' inside
+#   one stays literal.
+#
+# Both sides matter to security, not just the keyword: an Include path is an
+# argument, so the argument rules decide which files the scan walks at all.
+#
+# What this comment does NOT claim is completeness. Four earlier versions of it
+# listed the forms sshd was believed to reject and each list turned out to be
+# wrong about at least one form, so the guarantee now lives in a test rather
+# than in a paragraph: test/integration/ssh-hardening-tokenizer-differential.sh
+# runs a corpus of forms past the REAL binary and requires --verify to refuse
+# every one that sshd accepts and resolves unsafe. That corpus is bounded, so
+# it is evidence and not a proof; what it buys is that the next divergence is
+# found by running the suite instead of by reading this comment closely enough.
+#
+# Forms sshd REJECTS may be read here any way at all: a file carrying one fails
+# `sshd -G`, and reporting that is check_global's job.
 #
 # The line is tokenized rather than bulk-normalized. Bulk normalization is
 # what let the quoted keyword through: quotes were stripped from the value
@@ -431,17 +442,44 @@ check_global() {
 
 CONFIG_TAB=$'\t'
 CONFIG_CR=$'\r'
+CONFIG_FF=$'\f'
+# Written in ANSI-C quoting like the two constants above, and not as a plain
+# quoted backslash: shellcheck reads '\' as a botched attempt to escape a
+# single quote (SC1003) and refuses it, while shfmt -s rewrites "\\" into
+# exactly that '\'. This spelling is the one both tools accept.
+CONFIG_BACKSLASH=$'\\'
 TOKEN=''
 REST=''
-# Set by next_keyword_token when the keyword was ENDED by a closing double
-# quote: sshd consumes no '=' after such a keyword (measured:
-# `"PasswordAuthentication"=yes` is rejected as `unsupported option "=yes"`),
-# so parse_config_line must not strip one either.
-TOKEN_ENDED_AT_QUOTE=0
 
-# skip_leading_whitespace: drop sshd's token separators (space, tab, CR) off
+# trim_trailing_line_whitespace: strip trailing space, tab, carriage return
+# and form feed off the WHOLE line, before either tokenizer sees it, exactly
+# as sshd does. Measured on the binary: `PasswordAuthentication yes<B>` is
+# accepted and resolves yes for each of the four, and an Include ending in one
+# still pulls its file in, while the VT, BEL and BS variants are refused as
+# part of the argument. A CRLF-terminated line is the everyday carrier;
+# without this trim the CR rides into the Include pattern (so the scan walks
+# past a file sshd reads) and into the compared value (so a hardened
+# restatement written with Windows line endings raises a false alarm, and
+# install rolls its own hardening back).
+#
+# sshd's own trim loop never touches position 0. Trimming ALL trailing bytes
+# is still faithful for every form sshd accepts: a line that is ONLY trim-set
+# bytes either tokenizes empty here anyway (space, tab and CR are keyword
+# separators) or is a form sshd rejects outright (a lone form feed is refused
+# as `no argument after keyword "\014"`, measured), and rejected forms are
+# check_global's job.
+trim_trailing_line_whitespace() {
+  while [[ -n $REST ]]; do
+    case $REST in
+      *' ' | *"$CONFIG_TAB" | *"$CONFIG_CR" | *"$CONFIG_FF") REST="${REST%?}" ;;
+      *) break ;;
+    esac
+  done
+}
+
+# skip_keyword_separators: drop sshd's keyword separators (space, tab, CR) off
 # the front of REST.
-skip_leading_whitespace() {
+skip_keyword_separators() {
   while [[ -n $REST ]]; do
     case $REST in
       ' '* | "$CONFIG_TAB"* | "$CONFIG_CR"*) REST="${REST:1}" ;;
@@ -450,88 +488,141 @@ skip_leading_whitespace() {
   done
 }
 
-# next_keyword_token: pull the KEYWORD off REST into TOKEN with strdelim
-# semantics (prefix plus at most one double-quoted segment; the token ends at
-# the closing quote). Returns 1 at end of line and 2 for an unterminated
-# quote (a form sshd rejects outright, so the file fails check_global).
-next_keyword_token() {
-  local char start_length
-  skip_leading_whitespace
-  start_length="${#REST}"
+# consume_keyword_separator: strdelim ends the keyword at a separator and then
+# consumes the WHOLE run: the whitespace, at most one '=' standing in for it,
+# and the whitespace after that. Consuming it here rather than in the caller is
+# what keeps `"Keyword"=value` faithful -- a keyword ended by a closing quote
+# consumes no '=' at all (measured: sshd rejects that form as
+# `unsupported option "=yes"`), and the quoted branch below reflects that by
+# skipping only whitespace.
+consume_keyword_separator() {
+  skip_keyword_separators
+  if [[ $REST == '='* ]]; then
+    REST="${REST:1}"
+    skip_keyword_separators
+  fi
+}
+
+# read_keyword_token: pull the KEYWORD off REST into TOKEN with strdelim
+# semantics. Returns 1 at end of line and 2 for an unterminated quote (sshd
+# ignores such a line entirely, which is what the caller does with a nonzero
+# status).
+read_keyword_token() {
+  local character
+  skip_keyword_separators
   if [[ -z $REST ]]; then
     return 1
   fi
   TOKEN=''
-  TOKEN_ENDED_AT_QUOTE=0
   while [[ -n $REST ]]; do
-    char="${REST:0:1}"
-    case $char in
-      ' ' | "$CONFIG_TAB" | "$CONFIG_CR" | '=') break ;;
+    character="${REST:0:1}"
+    case $character in
+      ' ' | "$CONFIG_TAB" | "$CONFIG_CR" | '=')
+        consume_keyword_separator
+        return 0
+        ;;
+      '"')
+        # A double-quoted segment may sit ANYWHERE in the keyword: its content
+        # appends to what came before it, and the keyword ENDS at the closing
+        # quote. `Ma"tch"` is therefore the keyword Match, and
+        # `Pass"word"Authentication` is the keyword Password followed by a
+        # stray token (which is why sshd rejects that one).
+        REST="${REST:1}"
+        case $REST in
+          *'"'*) ;;
+          *) return 2 ;;
+        esac
+        TOKEN="$TOKEN${REST%%\"*}"
+        REST="${REST#*\"}"
+        skip_keyword_separators
+        return 0
+        ;;
     esac
-    if [[ $char == '"' ]]; then
-      REST="${REST:1}"
-      case $REST in
-        *'"'*) ;;
-        *) return 2 ;;
-      esac
-      TOKEN="$TOKEN${REST%%\"*}"
-      REST="${REST#*\"}"
-      TOKEN_ENDED_AT_QUOTE=1
-      return 0
-    fi
-    TOKEN="$TOKEN$char"
+    TOKEN="$TOKEN$character"
     REST="${REST:1}"
   done
-  # A successful token must have consumed input. Reporting success without
-  # advancing REST would spin the caller's loop forever, and a verifier that
-  # HANGS never reports -- strictly worse than one that misreads a line. The
-  # quoted branch above always advances, so this is a guard against a future
-  # edit, not a live condition.
-  if [[ ${#REST} -eq $start_length ]]; then
-    return 1
-  fi
   return 0
 }
 
-# next_argument_token: pull one ARGUMENT off REST into TOKEN with argv_split
-# semantics (any number of single- or double-quoted segments concatenate with
-# unquoted text; an unquoted '#' opening a token ends the argument list).
-# Returns 1 at end of line or at a comment and 2 for an unterminated quote (a
-# form sshd rejects outright, so the file fails check_global). Every loop
-# iteration consumes one character, so this cannot spin.
-next_argument_token() {
-  local char quote=''
-  skip_leading_whitespace
+# skip_argument_separators: only space and tab separate ARGUMENTS. A carriage
+# return does NOT, unlike in the keyword (measured: `Match Address<CR>*` is
+# refused as one run-together criterion, and `PasswordAuthentication yes<CR>x`
+# as one run-together value).
+skip_argument_separators() {
+  while [[ -n $REST ]]; do
+    case $REST in
+      ' '* | "$CONFIG_TAB"*) REST="${REST:1}" ;;
+      *) break ;;
+    esac
+  done
+}
+
+# read_argument_token: pull one ARGUMENT off REST into TOKEN with argv_split
+# semantics. Returns 1 at end of line or at a comment, and 2 for an
+# unterminated quote.
+read_argument_token() {
+  local character escaped quote=''
+  skip_argument_separators
   if [[ -z $REST ]]; then
     return 1
   fi
-  case $REST in
-    '#'*)
-      REST=''
-      return 1
-      ;;
-  esac
+  # An unquoted '#' OPENING an argument comments out the rest of the line. A
+  # '#' inside an argument stays literal (measured both ways:
+  # `PasswordAuthentication yes #note` resolves yes, while
+  # `PasswordAuthentication yes#note` is refused as the unsupported option
+  # `yes#note`).
+  if [[ $REST == '#'* ]]; then
+    REST=''
+    return 1
+  fi
   TOKEN=''
   while [[ -n $REST ]]; do
-    char="${REST:0:1}"
-    if [[ -n $quote ]]; then
+    character="${REST:0:1}"
+    if [[ $character == "$CONFIG_BACKSLASH" ]]; then
+      # A backslash escapes either quote character, another backslash, and --
+      # outside a quoted segment -- a SPACE. NOT a tab: measured against a
+      # file literally named pay<TAB>load.conf, `Include .../pay\<TAB>load.conf`
+      # does not reach it (the backslash stays literal and the tab separates,
+      # so what follows is a further argument sshd DOES follow), while
+      # `Include ".../pay<TAB>load.conf"` does reach it. Any other backslash
+      # is kept literally and the character after it is read on its own.
+      escaped="${REST:1:1}"
+      case $escaped in
+        '"' | "'" | "$CONFIG_BACKSLASH")
+          TOKEN="$TOKEN$escaped"
+          REST="${REST:2}"
+          continue
+          ;;
+        ' ')
+          if [[ -z $quote ]]; then
+            TOKEN="$TOKEN$escaped"
+            REST="${REST:2}"
+            continue
+          fi
+          ;;
+      esac
+      TOKEN="$TOKEN$character"
       REST="${REST:1}"
-      if [[ $char == "$quote" ]]; then
-        quote=''
-      else
-        TOKEN="$TOKEN$char"
-      fi
       continue
     fi
-    case $char in
-      ' ' | "$CONFIG_TAB" | "$CONFIG_CR") break ;;
-      '"' | "'")
-        quote="$char"
-        REST="${REST:1}"
-        continue
-        ;;
-    esac
-    TOKEN="$TOKEN$char"
+    if [[ -z $quote ]]; then
+      case $character in
+        ' ' | "$CONFIG_TAB") break ;;
+        '"' | "'")
+          # Any number of single- OR double-quoted segments concatenate with
+          # unquoted text into ONE argument, so `y"es"`, `"y"es`, `'yes'` and
+          # `""yes` all read as yes (measured).
+          quote="$character"
+          REST="${REST:1}"
+          continue
+          ;;
+      esac
+    elif [[ $character == "$quote" ]]; then
+      quote=''
+      REST="${REST:1}"
+      continue
+    fi
+    TOKEN="$TOKEN$character"
     REST="${REST:1}"
   done
   if [[ -n $quote ]]; then
@@ -540,33 +631,58 @@ next_argument_token() {
   return 0
 }
 
+# next_keyword_token / next_argument_token: the two readers above, each behind
+# a PROGRESS guard. A reader that reports a token without consuming input would
+# spin the caller's loop forever, and a verifier that HANGS never reports --
+# strictly worse than one that misreads a line. Every path through both readers
+# does consume, so this guards a future edit rather than a live condition.
+read_token_with_progress_guard() { # <reader function>
+  local reader="$1" start_length="${#REST}" status=0
+  "$reader" || status=$?
+  if [[ $status -eq 0 && ${#REST} -eq $start_length ]]; then
+    return 1
+  fi
+  return "$status"
+}
+
+next_keyword_token() {
+  read_token_with_progress_guard read_keyword_token
+}
+
+next_argument_token() {
+  read_token_with_progress_guard read_argument_token
+}
+
 # parse_config_line <raw line>: fill PARSED_KEYWORD (quotes stripped) and
 # PARSED_ARGS. Returns 1 for a blank line, a comment, or a line sshd itself
-# would reject.
+# ignores or rejects.
 PARSED_KEYWORD=''
 PARSED_ARGS=()
 parse_config_line() {
-  local keyword_status=0
   REST="$1"
+  trim_trailing_line_whitespace
   PARSED_KEYWORD=''
   PARSED_ARGS=()
-  next_keyword_token || keyword_status=$?
-  if [[ $keyword_status -ne 0 ]]; then
+  if ! next_keyword_token; then
+    return 1
+  fi
+  # sshd discards ONE empty keyword token and reads the NEXT token as the
+  # keyword, so `=PasswordAuthentication yes` and `""PasswordAuthentication
+  # yes` are both real directives to the daemon. A second empty token is not
+  # discarded: the line is ignored instead.
+  if [[ -z $TOKEN ]] && ! next_keyword_token; then
     return 1
   fi
   PARSED_KEYWORD="$TOKEN"
-  # Only a '#' at the start of the first token opens a comment.
+  if [[ -z $PARSED_KEYWORD ]]; then
+    return 1
+  fi
+  # Only a '#' at the start of the keyword opens a comment, and it is tested
+  # AFTER the discard above because sshd tests it there too (`=#Keyword arg`
+  # is a comment, measured).
   case $PARSED_KEYWORD in
     '#'*) return 1 ;;
   esac
-  # A single '=' may replace the whitespace after the keyword -- but not
-  # after a quote-terminated keyword (see TOKEN_ENDED_AT_QUOTE above).
-  if [[ $TOKEN_ENDED_AT_QUOTE -ne 1 ]]; then
-    skip_leading_whitespace
-    if [[ $REST == '='* ]]; then
-      REST="${REST:1}"
-    fi
-  fi
   while next_argument_token; do
     PARSED_ARGS+=("$TOKEN")
   done
