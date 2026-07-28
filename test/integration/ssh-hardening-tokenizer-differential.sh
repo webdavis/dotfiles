@@ -81,6 +81,10 @@ CARRIAGE_RETURN="$SSH_CARRIAGE_RETURN"
 HORIZONTAL_TAB=$'\t'
 VERTICAL_TAB=$'\v'
 FORM_FEED=$'\f'
+# ANSI-C quoted, not a plain quoted backslash: shellcheck reads '\' as a botched
+# escape of a single quote (SC1003), and shfmt -s rewrites "\\" into exactly
+# that. This spelling is the one both tools accept.
+BACKSLASH=$'\\'
 
 # Pulled in by an Include from inside a Match block. It lives OUTSIDE the
 # drop-in directory so the main config's own Include glob does not read it: the
@@ -111,6 +115,49 @@ printf 'PasswordAuthentication yes\n' >"$carriage_return_include"
 # QUOTED segment carries a tab into an Include path.
 tab_include="$SSH_SANDBOX/pay${HORIZONTAL_TAB}load.conf"
 printf 'PasswordAuthentication yes\n' >"$tab_include"
+
+# The double-unescape family. sshd hands the argv_split token to glob(3), which
+# unescapes it a SECOND time, so a backslash the tokenizer preserved is gone
+# before the daemon opens the file. Each name below is what one Include form
+# resolves to after BOTH stages, measured against OpenSSH 10.0p2.
+#
+# The backslash-named copy sits in a subdirectory of its own. Beside
+# payload.conf it would mask the single-backslash bypass: a scan that models
+# only stage 1 tests the un-unescaped word, and a same-named neighbour lets it
+# open SOME file, so the case would stop separating "reached the right file"
+# from "reached any file at all".
+backslash_named_include="$SSH_SANDBOX/nested/pay${BACKSLASH}load.conf"
+mkdir -p "$SSH_SANDBOX/nested"
+printf 'PasswordAuthentication yes\n' >"$backslash_named_include"
+
+# Names carrying a real glob metacharacter. glob(3) reads `\*`, `\?` and `\[`
+# as the literal character, so each of these forms names exactly one file --
+# while bash performs no pathname expansion at all on a word whose only
+# metacharacter is escaped, and leaves the backslash sitting in the path.
+star_named_include="$SSH_SANDBOX/pay*load.conf"
+question_named_include="$SSH_SANDBOX/pay?load.conf"
+bracket_named_include="$SSH_SANDBOX/pay[ab]load.conf"
+open_bracket_named_include="$SSH_SANDBOX/pay[load.conf"
+# A trailing backslash is NOT dropped: glob(3) keeps it as a protected literal
+# and the pattern names a file whose own name ends in a backslash (measured). It
+# lives in the nested directory, beside no payload.conf of its own, so that a
+# scan which DID drop the backslash resolves to nothing instead of landing on a
+# same-named neighbour and passing the case by accident.
+trailing_backslash_include="$SSH_SANDBOX/nested/payload.conf${BACKSLASH}"
+# An unescaped '[' opens a bracket only when an UNESCAPED ']' sits at least one
+# character further on. With the only ']' escaped the whole run is literal text;
+# with a live ']' after it the escaped one is a MEMBER of the set; and a ']'
+# sitting immediately after the '[' is a member too, not a closing bracket, so
+# `z[]load.conf` is literal text as well.
+escaped_close_include="$SSH_SANDBOX/z[ab]load.conf"
+close_member_include="$SSH_SANDBOX/z]load.conf"
+empty_bracket_include="$SSH_SANDBOX/z[]load.conf"
+for glob_named_include in "$star_named_include" "$question_named_include" \
+  "$bracket_named_include" "$open_bracket_named_include" \
+  "$trailing_backslash_include" "$escaped_close_include" \
+  "$close_member_include" "$empty_bracket_include"; do
+  printf 'PasswordAuthentication yes\n' >"$glob_named_include"
+done
 
 # An inert file whose name begins with '#', for the mirror-image rule: a '#'
 # opening an argument is a COMMENT to sshd, so a scan that reads it as another
@@ -334,17 +381,77 @@ differential_case 'argument: a # comment naming a file that exists' \
 differential_case 'argument: Match criteria with a quoted segment' \
   'Match Addr"ess" *,!127.0.0.1' 'PasswordAuthentication yes'
 
-# --- the backslash-and-glob class, filed separately ---------------------------
-# Recorded, not asserted: sshd unescapes `\\` to `\` and the following space
-# then SEPARATES, so this Include resolves nothing on this binary and the tree
-# stays hardened -- the case lands in the 'safe' bin and exercises no walk.
-# The scanner's real divergence in this family (sshd unescapes an Include path
-# TWICE, argv_split then glob(3), while the scan unescapes once) predates this
-# branch, is live on main, and is filed as its own task. This entry only pins
-# that the form is inert today, so an OpenSSH that starts following it flips
-# the case to unsafe and the assertion fires on its own.
-differential_case 'inert today (backslash-glob class, filed separately): with\\ space' \
-  "$MATCH_OFF_LOOPBACK" "Include ${SSH_SANDBOX}/with\\\\ space/payload.conf"
+# --- the double-unescape class ------------------------------------------------
+# sshd unescapes an Include path TWICE. argv_split consumes `\"`, `\'`, `\\`
+# and (outside a quoted segment) `\<space>`, keeping every other backslash
+# literally; sshd then hands that token to glob(3), which consumes EVERY
+# remaining `\X` and yields a literal X. bash pathname expansion performs the
+# second unescape only when the word still carries a LIVE metacharacter -- a
+# word without one is left exactly as it was found, backslash and all -- so a
+# scan that models argv_split and then globs in bash tests a path that no file
+# has and walks past the file the daemon opens.
+#
+# The rules, each measured on OpenSSH 10.0p2 and each carried by an entry here:
+#   `\X`                 X survives, the backslash does not, whatever X is
+#   `\\`                 one backslash survives BOTH stages, so the pair reads
+#                        as an ordinary escape and three read as a real one
+#   `\<space>` in quotes argv_split declines it, glob(3) takes it
+#   `\*` `\?` `\[`       the metacharacter goes literal and names one file
+#   trailing `\`         kept, as a protected literal backslash
+#   `[` ... `]`          a bracket only when the closing ']' is UNESCAPED and
+#                        at least one character past the opening '['
+differential_case 'include escape: single backslash before an ordinary character' \
+  "$MATCH_OFF_LOOPBACK" "Include ${SSH_SANDBOX}/pay${BACKSLASH}load.conf"
+differential_case 'include escape: single backslash inside a quoted path' \
+  "$MATCH_OFF_LOOPBACK" "Include \"${SSH_SANDBOX}/pay${BACKSLASH}load.conf\""
+differential_case 'include escape: doubled backslash, unquoted' \
+  "$MATCH_OFF_LOOPBACK" "Include ${SSH_SANDBOX}/pay${BACKSLASH}${BACKSLASH}load.conf"
+differential_case 'include escape: doubled backslash, quoted' \
+  "$MATCH_OFF_LOOPBACK" "Include \"${SSH_SANDBOX}/pay${BACKSLASH}${BACKSLASH}load.conf\""
+differential_case 'include escape: tripled backslash reaches the backslash-named file' \
+  "$MATCH_OFF_LOOPBACK" "Include ${SSH_SANDBOX}/nested/pay${BACKSLASH}${BACKSLASH}${BACKSLASH}load.conf"
+differential_case 'include escape: quoted backslash-space' \
+  "$MATCH_OFF_LOOPBACK" "Include \"${SSH_SANDBOX}/with${BACKSLASH} space/payload.conf\""
+differential_case 'include escape: quoted backslash-tab' \
+  "$MATCH_OFF_LOOPBACK" "Include \"${SSH_SANDBOX}/pay${BACKSLASH}${HORIZONTAL_TAB}load.conf\""
+differential_case 'include escape: escaped asterisk names the literal file' \
+  "$MATCH_OFF_LOOPBACK" "Include ${SSH_SANDBOX}/pay${BACKSLASH}*load.conf"
+differential_case 'include escape: escaped question mark names the literal file' \
+  "$MATCH_OFF_LOOPBACK" "Include ${SSH_SANDBOX}/pay${BACKSLASH}?load.conf"
+differential_case 'include escape: escaped bracket pair names the literal file' \
+  "$MATCH_OFF_LOOPBACK" "Include ${SSH_SANDBOX}/pay${BACKSLASH}[ab${BACKSLASH}]load.conf"
+differential_case 'include escape: escaped unmatched bracket names the literal file' \
+  "$MATCH_OFF_LOOPBACK" "Include ${SSH_SANDBOX}/pay${BACKSLASH}[load.conf"
+differential_case 'include escape: bracket closed only by an escaped ] is literal' \
+  "$MATCH_OFF_LOOPBACK" "Include ${SSH_SANDBOX}/z[ab${BACKSLASH}]load.conf"
+differential_case 'include escape: ] immediately after [ is a member, so the run is literal' \
+  "$MATCH_OFF_LOOPBACK" "Include ${SSH_SANDBOX}/z[]load.conf"
+
+# The three forms bash and glob(3) already agree on, kept as regression cover:
+# a fix that discarded backslashes wholesale, or that answered every form with
+# a literal path test instead of a pattern expansion, breaks these instead of
+# passing quietly.
+differential_case 'include escape: trailing backslash stays a literal backslash' \
+  "$MATCH_OFF_LOOPBACK" "Include ${SSH_SANDBOX}/nested/payload.conf${BACKSLASH}"
+differential_case 'include escape: escape beside a live metacharacter still expands' \
+  "$MATCH_OFF_LOOPBACK" "Include ${SSH_SANDBOX}/pa${BACKSLASH}yload*.conf"
+differential_case 'include escape: escaped ] is a MEMBER when a live ] closes the bracket' \
+  "$MATCH_OFF_LOOPBACK" "Include ${SSH_SANDBOX}/z[ab${BACKSLASH}]c]load.conf"
+
+# The mirror image, and the reason the fix is not "unescape and stop globbing":
+# a live bracket really is a pattern. Nothing named payaload.conf or
+# paybload.conf exists, so sshd opens no file at all -- even though a file whose
+# NAME is the pattern text is sitting right beside it.
+differential_case 'include escape: live bracket matching nothing opens nothing' \
+  "$MATCH_OFF_LOOPBACK" "Include ${SSH_SANDBOX}/pa${BACKSLASH}y[ab]load.conf"
+
+# Still inert, and still worth an entry. argv_split turns `\\` into one
+# backslash and the following space then SEPARATES, leaving `<dir>/with\` (a
+# protected literal backslash to glob(3), matching nothing) and a relative
+# `space/payload.conf` that resolves nowhere. The day an OpenSSH starts
+# following it, the case flips to unsafe and the assertion fires on its own.
+differential_case 'inert: with\\ space splits at the space and resolves nothing' \
+  "$MATCH_OFF_LOOPBACK" "Include ${SSH_SANDBOX}/with${BACKSLASH}${BACKSLASH} space/payload.conf"
 
 # --- line-trailing whitespace -------------------------------------------------
 # sshd trims trailing space, tab, carriage return and FORM FEED off the whole
@@ -436,8 +543,8 @@ printf '\ncorpus outcomes: %d accepted-and-unsafe, %d accepted-and-inert, %d rej
 # corpus would have passed. Adding forms raises the count and should raise the
 # floor with it; a count BELOW the floor means forms stopped being exercised
 # (or this OpenSSH stopped resolving one unsafe), and either way a human looks.
-[[ $unsafe_count -ge 52 ]] ||
-  fail "only $unsafe_count corpus forms resolved unsafe, below the pinned floor of 52; forms have dropped out of the corpus or the parser changed, and neither may pass silently"
+[[ $unsafe_count -ge 68 ]] ||
+  fail "only $unsafe_count corpus forms resolved unsafe, below the pinned floor of 68; forms have dropped out of the corpus or the parser changed, and neither may pass silently"
 
 status=0
 if [[ ${#bypass_forms[@]} -gt 0 ]]; then

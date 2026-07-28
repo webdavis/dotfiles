@@ -689,6 +689,120 @@ parse_config_line() {
   return 0
 }
 
+# --- Include path resolution --------------------------------------------------
+# An Include path is unescaped TWICE before sshd opens anything.
+#
+#   Stage 1, argv_split, tokenizes the line (see read_argument_token): it
+#   consumes `\"`, `\'`, `\\` and, OUTSIDE a quoted segment, `\<space>`, and
+#   keeps every other backslash literally.
+#   Stage 2, glob(3), is handed that token: it consumes EVERY remaining `\X`
+#   and yields a literal X, metacharacter or not.
+#
+# Both stages were measured on OpenSSH 10.0p2 against temporary trees, one
+# marker file per candidate name, asking `sshd -G` which file it ended up
+# reading. `<dir>/pay\load.conf`, `<dir>/pay\\load.conf` and
+# `"<dir>/with\ space/payload.conf"` all reach a file with no backslash in its
+# name; `<dir>/pay\\\load.conf` reaches one whose name really does contain a
+# backslash, which is what pins the count at exactly two.
+#
+# Bash pathname expansion is NOT a substitute for stage 2. It performs that
+# unescaping only when it expands at all, and it does not expand a word whose
+# metacharacters are all escaped (or which has none): such a word is left
+# exactly as it was found, backslash and all. Handing the token straight to
+# bash therefore tested a path no file has, the -f test failed, and the scan
+# walked past a file sshd reads -- a Match block inside it re-enabled password
+# authentication with --verify still reporting the tree clean.
+#
+# So the token is analysed here instead, and bash is used only where it is
+# faithful: for a token carrying a LIVE metacharacter, where it does expand and
+# does unescape exactly as glob(3) does (measured on `pa\y[ab]load.conf`,
+# `pa\y?load.conf`, `z\*load?.conf` and `z[ab\]c]load.conf`, which resolve
+# identically both ways).
+#
+# Two known glob-semantics divergences are deliberately NOT addressed here,
+# because neither belongs to this class and both are filed as their own work:
+# bash reads a leading `^` in a bracket as negation while glob(3) reads it as
+# an ordinary member, and a bash pattern matching nothing is left in place as a
+# literal word (glob(3) returns no match). Both are reachable only through a
+# bracket, and both leave the token stream untouched, so nothing below changes
+# their behaviour either way.
+
+# include_bracket_opens_a_set <text following an unescaped '['>: does that '['
+# open a bracket, or is it literal text? glob(3) wants a closing ']' that is
+# UNESCAPED and sits at least one character past the '['. Measured: `z[]load`
+# is the literal text `z[]load`, `z[]]load` is a bracket whose one member is
+# ']', `z[ab\]load` is literal, and `z[ab\]c]load` is a bracket whose members
+# include ']'. One leading '!' is glob(3)'s negation marker and is skipped
+# before that count.
+include_bracket_opens_a_set() {
+  local rest="$1" character
+  case $rest in
+    '!'*) rest="${rest:1}" ;;
+  esac
+  # The first body character is a member whatever it is, ']' included, so the
+  # search for the closing bracket starts after it.
+  if [[ ${rest:0:1} == "$CONFIG_BACKSLASH" ]]; then
+    rest="${rest:2}"
+  else
+    rest="${rest:1}"
+  fi
+  while [[ -n $rest ]]; do
+    character="${rest:0:1}"
+    if [[ $character == "$CONFIG_BACKSLASH" ]]; then
+      rest="${rest:2}"
+      continue
+    fi
+    if [[ $character == ']' ]]; then
+      return 0
+    fi
+    rest="${rest:1}"
+  done
+  return 1
+}
+
+# unescape_include_pattern <argv_split token>: apply stage 2 to the token.
+# INCLUDE_UNESCAPED_PATH is the path with every `\X` reduced to X, which is
+# what glob(3) stats when nothing in the pattern is live.
+# INCLUDE_HAS_METACHARACTER says whether anything IS live, so the caller knows
+# whether it is holding a path or a pattern.
+#
+# The case patterns below are QUOTED on purpose: unquoted, `*` and `?` in a
+# case pattern match any character and every byte of every path would look
+# live.
+INCLUDE_UNESCAPED_PATH=''
+INCLUDE_HAS_METACHARACTER=0
+unescape_include_pattern() {
+  local rest="$1" character
+  INCLUDE_UNESCAPED_PATH=''
+  INCLUDE_HAS_METACHARACTER=0
+  while [[ -n $rest ]]; do
+    character="${rest:0:1}"
+    if [[ $character == "$CONFIG_BACKSLASH" ]]; then
+      if [[ ${#rest} -eq 1 ]]; then
+        # A TRAILING backslash escapes nothing: glob(3) keeps it as a protected
+        # literal backslash, and the pattern names a file whose own name ends
+        # in one (measured). Dropping it here would send the scan to a
+        # different file entirely.
+        INCLUDE_UNESCAPED_PATH="$INCLUDE_UNESCAPED_PATH$CONFIG_BACKSLASH"
+        break
+      fi
+      INCLUDE_UNESCAPED_PATH="$INCLUDE_UNESCAPED_PATH${rest:1:1}"
+      rest="${rest:2}"
+      continue
+    fi
+    case $character in
+      '*' | '?') INCLUDE_HAS_METACHARACTER=1 ;;
+      '[')
+        if include_bracket_opens_a_set "${rest:1}"; then
+          INCLUDE_HAS_METACHARACTER=1
+        fi
+        ;;
+    esac
+    INCLUDE_UNESCAPED_PATH="$INCLUDE_UNESCAPED_PATH$character"
+    rest="${rest:1}"
+  done
+}
+
 # scan_included_files <including file> <in-match> <depth> <chain>: follow the
 # Include whose arguments are sitting in PARSED_ARGS.
 #
@@ -723,19 +837,34 @@ scan_included_files() {
     return 0
   fi
   for pattern in "${patterns[@]}"; do
+    # The relative test is on the RAW token, before any unescaping, because
+    # that is where sshd makes it: `Include \/etc/ssh/x.conf` is RELATIVE to
+    # the daemon (its first byte is a backslash, not a slash) and resolves
+    # under the configuration directory, not at the root (measured).
     case $pattern in
       /*) ;;
       *) pattern="$SSHD_CONFIG_DIR/$pattern" ;;
     esac
-    # IFS=newline so a path containing spaces survives the split while the
-    # glob still expands: pathname expansion produces its own fields whatever
-    # IFS holds. A pattern matching nothing stays literal and is dropped by
-    # the -f test below, which is what sshd does with it.
-    old_ifs="$IFS"
-    IFS=$'\n'
-    # shellcheck disable=SC2206  # deliberate glob expansion of the Include pattern
-    matches=($pattern)
-    IFS="$old_ifs"
+    unescape_include_pattern "$pattern"
+    matches=()
+    if [[ $INCLUDE_HAS_METACHARACTER -eq 0 ]]; then
+      # Nothing live in the pattern, so glob(3) matches nothing: it stats the
+      # unescaped path and returns that one file if it is there. Testing that
+      # path directly is what reaches the file the daemon opens; bash would
+      # have left the backslashes standing in the path it tested.
+      matches=("$INCLUDE_UNESCAPED_PATH")
+    else
+      # A real pattern, and bash expands it exactly as glob(3) does. IFS=newline
+      # so a path containing spaces survives the split while the glob still
+      # expands: pathname expansion produces its own fields whatever IFS holds.
+      # A pattern matching nothing stays literal and is dropped by the -f test
+      # below, which is what sshd does with it.
+      old_ifs="$IFS"
+      IFS=$'\n'
+      # shellcheck disable=SC2206  # deliberate glob expansion of the Include pattern
+      matches=($pattern)
+      IFS="$old_ifs"
+    fi
     if [[ ${#matches[@]} -eq 0 ]]; then
       continue
     fi
