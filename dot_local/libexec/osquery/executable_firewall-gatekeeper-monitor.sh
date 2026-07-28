@@ -391,8 +391,10 @@ read_control() {
       # impersonate the extension. The exact 32-character name match was
       # verified live 2026-07-27 (pid 636). Deliberately a process probe,
       # not `systemextensionsctl list`: the list reports REGISTRATION state,
-      # which persists while a wedged extension filters nothing; the process
-      # is the artifact that filters (verify the artifact, never a proxy).
+      # which persists even when the extension process is gone. What pgrep
+      # proves is only that the process EXISTS: a wedged process can exist
+      # and filter nothing, so this probe narrows the registration-versus-
+      # running gap without closing the running-versus-filtering one.
       output=$(run_bounded "$PGREP" -x -U 0 com.objective-see.lulu.extension 2>&1) || rc=$?
       classify_pgrep "$output" "$rc"
       ;;

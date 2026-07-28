@@ -131,8 +131,11 @@ macos:
     #     poller needs no privilege). Same status/output symmetry as
     #     pgrep_oversight. Deliberately a PROCESS probe, not
     #     `systemextensionsctl list`: the list reports registration state,
-    #     which persists while a wedged extension filters nothing; the
-    #     process is the artifact that filters.
+    #     which persists even when the extension process is gone. The probe
+    #     proves only that the process EXISTS, not that it is filtering (a
+    #     wedged process can exist and filter nothing); it narrows the
+    #     registration-versus-running gap without closing the
+    #     running-versus-filtering one.
     #   - the lulu_rule readers are existence-only, stated here so nobody
     #     upgrades the claim: rules.plist is a keyed archive of LuLu's
     #     private Rule class, readable only as the path strings it mentions
