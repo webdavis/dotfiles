@@ -1,0 +1,68 @@
+#!/bin/bash
+# Generate a WORKING bash completion for himalaya into the XDG completions
+# directory.
+#
+# Why this exists: himalaya 2.0.0's `completion bash` does not print the script
+# to stdout. It WRITES `himalaya.bash` into the current working directory and
+# prints a status line ("1 completion script(s) successfully generated in ...")
+# to stdout. The Homebrew formula redirects stdout into
+# etc/bash_completion.d/himalaya, so the installed file is that prose, and bash
+# reports a syntax error on its `(` in every new shell. bash-completion sources
+# that directory eagerly, which is why dot_bashrc.tmpl also sets
+# BASH_COMPLETION_COMPAT_IGNORE=himalaya to skip the broken file.
+#
+# This script takes the file the subcommand actually writes. It is a
+# run_onchange keyed on the installed version, so a himalaya upgrade
+# regenerates the completion, and a future release that fixes the subcommand
+# does not silently leave a stale copy behind.
+#
+# himalaya version: {{ output "sh" "-c" "himalaya --version 2>/dev/null | head -1 || echo none" | trim }}
+#
+# `head -1` is load-bearing: `himalaya --version` prints THREE lines (version,
+# build platform, git revision). Interpolating all of them here left lines two
+# and three OUTSIDE the comment, where the shell tried to execute them.
+set -euo pipefail
+
+readonly COMPLETION_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/bash-completion/completions"
+readonly TARGET="$COMPLETION_DIR/himalaya"
+
+if ! command -v himalaya >/dev/null 2>&1; then
+  printf 'himalaya-completion: himalaya is not installed; nothing to generate.\n'
+  exit 0
+fi
+
+work_dir="$(mktemp -d)"
+if [[ -z $work_dir || ! -d $work_dir ]]; then
+  printf 'himalaya-completion: could not create a working directory; refusing to continue.\n' >&2
+  exit 1
+fi
+trap 'rm -rf "$work_dir"' EXIT
+
+# The subcommand writes into the working directory, so run it from there.
+if ! (cd "$work_dir" && himalaya completion bash >/dev/null 2>&1); then
+  printf 'himalaya-completion: the completion subcommand failed; leaving any existing completion alone.\n' >&2
+  exit 1
+fi
+
+generated="$work_dir/himalaya.bash"
+if [[ ! -s $generated ]]; then
+  printf 'himalaya-completion: the subcommand produced no completion file; leaving any existing completion alone.\n' >&2
+  exit 1
+fi
+
+# Reject the prose the formula captured, in case a future release starts
+# printing to stdout AND writing the file: a completion script defines the
+# function, a status line does not.
+if ! grep -q '^_himalaya()' "$generated"; then
+  printf 'himalaya-completion: the generated file does not define _himalaya; refusing to install it.\n' >&2
+  exit 1
+fi
+
+mkdir -p "$COMPLETION_DIR"
+# Publish with one rename so a partially written file is never sourced.
+staging="$COMPLETION_DIR/.himalaya.staging"
+cp -- "$generated" "$staging"
+chmod 0644 "$staging"
+mv -f -- "$staging" "$TARGET"
+
+printf 'himalaya-completion: installed %s\n' "$TARGET"
