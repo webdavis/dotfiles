@@ -10,9 +10,13 @@
 # Never writes.
 #
 # Exit codes:
-#   0: no drift (indeterminate rows, if any, are reported but not counted)
+#   0: every tracked record was read and matches
 #   1: drift detected
 #   2: data file missing or unreadable, or a record failed validation
+#   3: indeterminate row(s) and no confirmed drift. FAIL-CLOSED: an
+#      unreadable control is not a passing control, so a run that could not
+#      verify what it tracks must never exit 0. Distinct from 1 because the
+#      operator action differs: fix readability, not revert a value.
 
 set -euo pipefail
 shopt -s lastpipe
@@ -110,10 +114,13 @@ defaults_records_unit_separated "$DATA_FILE" |
   done
 
 if ((indeterminate_count > 0)); then
-  printf '\n%d indeterminate row(s): unreadable, not counted as drift.\n' "$indeterminate_count" >&2
+  printf '\n%d indeterminate row(s): unreadable, not counted as drift, and NOT passing; the gate fails closed.\n' "$indeterminate_count" >&2
 fi
 if ((drift_count > 0)); then
   printf '\n%d drift row(s) detected.\n' "$drift_count" >&2
   exit 1
+fi
+if ((indeterminate_count > 0)); then
+  exit 3
 fi
 exit 0

@@ -36,6 +36,17 @@ CSRUTIL="${OSQUERY_POSTURE_CSRUTIL:-/usr/bin/csrutil}"
 SYSADMINCTL="${OSQUERY_POSTURE_SYSADMINCTL:-/usr/sbin/sysadminctl}"
 DEFAULTS="${OSQUERY_POSTURE_DEFAULTS:-/usr/bin/defaults}"
 PGREP="${OSQUERY_POSTURE_PGREP:-/usr/bin/pgrep}"
+PLUTIL="${OSQUERY_POSTURE_PLUTIL:-/usr/bin/plutil}"
+READLINK="${OSQUERY_POSTURE_READLINK:-/usr/bin/readlink}"
+# LuLu's rules archive, world-readable (0644 root:wheel, verified 2026-07-27),
+# so this user-agent poller reads it unprivileged. READ-ONLY: the conversion
+# below goes to stdout; the archive file itself is never written.
+LULU_RULES_FILE="${OSQUERY_POSTURE_LULU_RULES:-/Library/Objective-See/LuLu/rules.plist}"
+# LuLu's BASE preferences file, read (read-only, the same conversion-to-stdout
+# discipline) by the active-profile guard below: when this file's
+# currentProfile key names a profile, LuLu consults the profile's own
+# preferences and rules instead of the base files.
+LULU_PREFERENCES_FILE="${OSQUERY_POSTURE_LULU_PREFERENCES:-/Library/Objective-See/LuLu/preferences.plist}"
 
 # shellcheck source=/dev/null
 source "$HOME/.local/libexec/osquery/alert-dispatch.sh"
@@ -133,7 +144,31 @@ reader_domain() {
   case "$1" in
     fdesetup_status | defaults_autologin) printf 'on off' ;;
     csrutil_status | sysadminctl_guest) printf 'enabled disabled' ;;
-    pgrep_oversight) printf 'running stopped' ;;
+    pgrep_oversight | pgrep_lulu_extension) printf 'running stopped' ;;
+    lulu_rule_present | lulu_rule_resolved_present) printf 'present absent' ;;
+  esac
+}
+
+# reader_requires_target <reader> -- status 0 when the reader consumes a
+# per-record target (the absolute binary path whose LuLu rule must exist).
+# This table, the template's $readerTargets, and read_control below must
+# agree; the render test and the agreement test hold them together.
+reader_requires_target() {
+  case "$1" in
+    lulu_rule_present | lulu_rule_resolved_present) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# reader_reads_lulu_base_rules <reader> -- status 0 when the reader consults
+# LuLu's BASE rules archive and therefore depends on no LuLu profile being
+# active (see the profile guard below). Coincides with the target-requiring
+# set today, but the two predicates answer different questions and must be
+# free to diverge.
+reader_reads_lulu_base_rules() {
+  case "$1" in
+    lulu_rule_present | lulu_rule_resolved_present) return 0 ;;
+    *) return 1 ;;
   esac
 }
 
@@ -174,12 +209,94 @@ classify_probe() {
   fi
 }
 
-# read_control <reader> -> the normalized value, or "indeterminate". One
-# read-only status invocation of the authoritative tool per control, bounded
-# like the combined query, with stdout and stderr captured together
+# classify_pgrep <output> <rc> -- the shared classification for a pgrep
+# process probe (documented statuses: 0 matched, 1 no match, 2 invalid
+# options), with the status/output pairing symmetric: exit 0 with a
+# WELL-FORMED pid list on stdout (digits, one pid per line, pgrep's only
+# success output) is running; the no-match exit 1 with no output at all is
+# stopped; every other outcome (usage or internal error, a timeout kill, a
+# status/output mismatch in either direction) is indeterminate. A probe whose
+# status and output disagree is never believed, whatever it printed.
+classify_pgrep() {
+  local output="$1" rc="$2"
+  local pid_list_pattern=$'^[0-9]+(\n[0-9]+)*$'
+  if [[ $rc -eq 0 && $output =~ $pid_list_pattern ]]; then
+    printf 'running'
+  elif [[ $rc -eq 1 && -z $output ]]; then
+    printf 'stopped'
+  else
+    printf 'indeterminate'
+  fi
+}
+
+# The active-profile guard. LuLu 4.x reads its preferences AND rules from an
+# ACTIVE PROFILE directory when the base preferences file names one
+# (Preferences.m getCurrentProfile reads the currentProfile key from the BASE
+# file; Rules.m getPath prefers <currentProfile>/rules.plist). The rule
+# readers below read the BASE archive, so while a profile is active they
+# would be reading a file LuLu no longer consults: a stale base mention must
+# never satisfy a control whose deciding rule set lives elsewhere. The guard
+# converts the base preferences to stdout ONCE per tick, lazily, and any
+# outcome other than a readable document with NO currentProfile key makes
+# every lulu_rule read indeterminate (which the gap gate pages, naming the
+# cause). Key PRESENCE is the trigger, fail-closed: nothing establishes what
+# an empty currentProfile would mean, so only its absence is trusted.
+lulu_profile_checked=0
+lulu_profile_state="no_profile"
+lulu_base_rules_authoritative() {
+  if [[ $lulu_profile_checked -eq 0 ]]; then
+    lulu_profile_checked=1
+    local preferences_xml="" rc=0
+    preferences_xml=$(run_bounded "$PLUTIL" -convert xml1 -o - "$LULU_PREFERENCES_FILE" 2>/dev/null) || rc=$?
+    if [[ $rc -ne 0 || -z $preferences_xml ]]; then
+      lulu_profile_state="indeterminate"
+    elif grep -qF '<key>currentProfile</key>' <<<"$preferences_xml"; then
+      lulu_profile_state="profile_active"
+    else
+      lulu_profile_state="no_profile"
+    fi
+  fi
+  [[ $lulu_profile_state == "no_profile" ]]
+}
+
+# lulu_rule_in_archive <absolute-binary-path> -- the EXISTENCE-ONLY LuLu rule
+# check: present when LuLu's rules archive mentions the path, absent when a
+# readable archive does not, indeterminate when the archive cannot be read.
+# The archive is an NSKeyedArchiver archive of LuLu's private Rule class, so
+# this deliberately claims no more than "a rule mentioning this binary
+# exists": the rule's action (allow vs block) is not recoverable without
+# reimplementing the private keyed-archive layout, and this check must not
+# pretend it did. The read is `plutil -convert xml1 -o -` (conversion to
+# stdout, the file is never written), and the match is the exact <string>
+# element in its XML-escaped form, so a longer path containing the target can
+# never satisfy it. A zero-exit conversion that printed nothing is a
+# status/output mismatch and stays indeterminate (plutil always prints the
+# converted document on success), never absent: absent is a claim about a
+# document that was actually read.
+lulu_rule_in_archive() {
+  local binary_path="$1" archive_xml="" rc=0 escaped_path
+  archive_xml=$(run_bounded "$PLUTIL" -convert xml1 -o - "$LULU_RULES_FILE" 2>/dev/null) || rc=$?
+  if [[ $rc -ne 0 || -z $archive_xml ]]; then
+    printf 'indeterminate'
+    return 0
+  fi
+  escaped_path=${binary_path//&/&amp;}
+  escaped_path=${escaped_path//</&lt;}
+  escaped_path=${escaped_path//>/&gt;}
+  if grep -qF "<string>$escaped_path</string>" <<<"$archive_xml"; then
+    printf 'present'
+  else
+    printf 'absent'
+  fi
+}
+
+# read_control <reader> <target> -> the normalized value, or "indeterminate".
+# One read-only status invocation of the authoritative tool per control,
+# bounded like the combined query, with stdout and stderr captured together
 # (sysadminctl and defaults report on stderr; verified on the target machine).
-# Raw probe text NEVER leaves this function: only the fixed normalized values
-# do.
+# The target argument is consumed only by the lulu_rule readers (load_controls
+# validates the pairing). Raw probe text NEVER leaves this function: only the
+# fixed normalized values do.
 #
 # Reader choices (each verified from the poller's gui/501 session context):
 #   - fdesetup, NOT osquery's disk_encryption table: FileVault lives on the
@@ -197,7 +314,7 @@ classify_probe() {
 #   - sysadminctl for the Guest account: it reports the state on stderr and
 #     exits 0 in both states.
 read_control() {
-  local reader="$1" output="" rc=0
+  local reader="$1" target="${2:-}" output="" rc=0
   case "$reader" in
     fdesetup_status)
       # Every zero-exit status form enumerated from the binary's strings
@@ -264,15 +381,50 @@ read_control() {
       # probe whose status and output disagree is never believed, whatever
       # it printed. The pairing is symmetric: exit 0 requires well-formed
       # pid output exactly as exit 1 requires empty output.
-      local pid_list_pattern=$'^[0-9]+(\n[0-9]+)*$'
       output=$(run_bounded "$PGREP" -x -U "$UID" OverSight 2>&1) || rc=$?
-      if [[ $rc -eq 0 && $output =~ $pid_list_pattern ]]; then
-        printf 'running'
-      elif [[ $rc -eq 1 && -z $output ]]; then
-        printf 'stopped'
-      else
+      classify_pgrep "$output" "$rc"
+      ;;
+    pgrep_lulu_extension)
+      # The LuLu network extension is a ROOT process (-U 0): the process
+      # table is world-readable, so the user-agent poller reads it
+      # unprivileged, and the root scope means no user process can
+      # impersonate the extension. The exact 32-character name match was
+      # verified live 2026-07-27 (pid 636). Deliberately a process probe,
+      # not `systemextensionsctl list`: the list reports REGISTRATION state,
+      # which persists even when the extension process is gone. What pgrep
+      # proves is only that the process EXISTS: a wedged process can exist
+      # and filter nothing, so this probe narrows the registration-versus-
+      # running gap without closing the running-versus-filtering one.
+      output=$(run_bounded "$PGREP" -x -U 0 com.objective-see.lulu.extension 2>&1) || rc=$?
+      classify_pgrep "$output" "$rc"
+      ;;
+    lulu_rule_present)
+      if ! lulu_base_rules_authoritative; then
         printf 'indeterminate'
+        return 0
       fi
+      lulu_rule_in_archive "$target"
+      ;;
+    lulu_rule_resolved_present)
+      # The profile guard first: with an active (or unconfirmable) profile
+      # the base archive is not the deciding rule set, so neither the
+      # resolution nor the archive read should even run.
+      if ! lulu_base_rules_authoritative; then
+        printf 'indeterminate'
+        return 0
+      fi
+      # Resolve the declared launcher FIRST, then require the archive to
+      # mention the RESOLVED binary: LuLu keys rules on the executing
+      # Mach-O, so a rule on a launcher symlink's own path protects nothing.
+      # An unresolvable launcher is indeterminate (nothing was read), never
+      # absent (absent is a claim about a rule set actually searched).
+      local resolved_target="" resolve_rc=0
+      resolved_target=$(run_bounded "$READLINK" -f "$target" 2>/dev/null) || resolve_rc=$?
+      if [[ $resolve_rc -ne 0 || -z $resolved_target ]]; then
+        printf 'indeterminate'
+        return 0
+      fi
+      lulu_rule_in_archive "$resolved_target"
       ;;
     *)
       # Unreachable behind load_controls' reader validation; fail closed
@@ -293,10 +445,11 @@ control_ids=()
 control_descriptions=()
 control_readers=()
 control_expects=()
+control_targets=()
 control_remedies=()
 controls_problem=""
 load_controls() {
-  local count index record id tier reader expect description remedy domain
+  local count index record id tier reader expect target description remedy domain
   if [[ ! -f $CONTROLS_FILE ]]; then
     controls_problem="posture-controls file missing at $(sanitize_span "$CONTROLS_FILE")"
     return 0
@@ -321,6 +474,7 @@ load_controls() {
     tier=$(jq -r '.tier // empty' <<<"$record" 2>/dev/null || echo "")
     reader=$(jq -r '.reader // empty' <<<"$record" 2>/dev/null || echo "")
     expect=$(jq -r '.expect // empty' <<<"$record" 2>/dev/null || echo "")
+    target=$(jq -r '.target // empty' <<<"$record" 2>/dev/null || echo "")
     description=$(sanitize "$(jq -r '.description // empty' <<<"$record" 2>/dev/null || echo "")")
     remedy=$(sanitize "$(jq -r '.remedy // empty' <<<"$record" 2>/dev/null || echo "")")
     if ! [[ $id =~ ^[a-z0-9_]+$ ]]; then
@@ -351,6 +505,28 @@ load_controls() {
         return 0
         ;;
     esac
+    # The target pairing, both directions: a lulu_rule reader without an
+    # absolute target has nothing to check, and a target on any other reader
+    # is silently ignored data, which is how a mislabeled record hides. A
+    # multi-line target is refused because the archive match is line-based:
+    # a pattern spanning lines would match archive lines it never named.
+    if reader_requires_target "$reader"; then
+      if [[ -z $target ]]; then
+        controls_problem="posture-controls record [$id] names reader $reader, which requires a target (the absolute binary path whose rule must exist)"
+        return 0
+      fi
+      if [[ $target != /* ]]; then
+        controls_problem="posture-controls record [$id] target $(sanitize_span "$target") must be an absolute path"
+        return 0
+      fi
+      if [[ $target == *$'\n'* || $target == *$'\x1f'* ]]; then
+        controls_problem="posture-controls record [$id] target contains a newline or a unit separator"
+        return 0
+      fi
+    elif [[ -n $target ]]; then
+      controls_problem="posture-controls record [$id] declares a target its reader $reader does not consume"
+      return 0
+    fi
     if [[ -z $description ]]; then
       controls_problem="posture-controls record [$id] has no description"
       return 0
@@ -359,6 +535,7 @@ load_controls() {
     control_descriptions+=("$description")
     control_readers+=("$reader")
     control_expects+=("$expect")
+    control_targets+=("$target")
     control_remedies+=("$remedy")
   done
   return 0
@@ -372,6 +549,7 @@ if [[ -n $controls_problem ]]; then
   control_descriptions=()
   control_readers=()
   control_expects=()
+  control_targets=()
   control_remedies=()
 fi
 
@@ -380,8 +558,20 @@ fi
 # a read nothing declared.
 control_values=()
 if [[ -z $controls_problem ]]; then
+  # The profile guard runs HERE, in the parent shell, before any read:
+  # read_control runs inside a command substitution, so state set there dies
+  # with the subshell; a guard first triggered inside one could neither
+  # memoize (one preferences read per tick) nor reach the gap report with
+  # its cause. Each read_control subshell inherits the settled state by
+  # fork, so its own guard call is a pure lookup.
   for control_index in "${!control_ids[@]}"; do
-    control_values+=("$(read_control "${control_readers[$control_index]}")")
+    if reader_reads_lulu_base_rules "${control_readers[$control_index]}"; then
+      lulu_base_rules_authoritative || true
+      break
+    fi
+  done
+  for control_index in "${!control_ids[@]}"; do
+    control_values+=("$(read_control "${control_readers[$control_index]}" "${control_targets[$control_index]}")")
   done
 fi
 
@@ -486,6 +676,15 @@ if [[ -n $indeterminate_ids ]]; then
   gap_members+="${gap_members:+ }$indeterminate_ids"
   gap_detail+="${gap_detail:+; }indeterminate posture control read(s): [$indeterminate_ids]"
 fi
+# The profile guard's cause, spelled out beside the ids it blinded: an
+# indeterminate whose reason is "LuLu is consulting different files" needs a
+# different response (deactivate the profile, or teach the monitor the
+# profile paths) than a failed probe. Fixed script text, never probe output.
+if [[ $lulu_profile_checked -eq 1 && $lulu_profile_state == "profile_active" ]]; then
+  gap_detail+="${gap_detail:+; }a LuLu profile is ACTIVE (the base preferences carry a currentProfile key), so LuLu is consulting the profile's own files and the base rules archive these controls read is not the one deciding traffic"
+elif [[ $lulu_profile_checked -eq 1 && $lulu_profile_state == "indeterminate" ]]; then
+  gap_detail+="${gap_detail:+; }the LuLu base preferences could not be read to confirm no profile is active"
+fi
 if [[ -n $gap_detail ]]; then
   gap_body="**Security-posture monitoring gap**"$'\n'"- $gap_detail: the security posture there is currently UNKNOWN."$'\n'"- A blind monitor cannot see a protection turn off. Did osqueryi, a posture probe, or the LaunchAgent break? **Check now.**"$'\n'"- Diagnose: run the posture query and the control probes by hand, then re-check."
   if ! page_gap_once "$GAP" "$gap_members" "🔴 **CRITICAL**" "$gap_body"; then
@@ -526,12 +725,21 @@ for control_index in "${!control_ids[@]}"; do
   if [[ $prev_valid -eq 1 ]]; then
     control_prev=$(jq -r --arg key "${control_ids[$control_index]}" '.[$key] // empty' <<<"$prev_json" 2>/dev/null || echo "")
     control_prev_expect=$(jq -r --arg key "${control_ids[$control_index]}" '.[$key + ":expect"] // empty' <<<"$prev_json" 2>/dev/null || echo "")
+    control_prev_target=$(jq -r --arg key "${control_ids[$control_index]}" '.[$key + ":target"] // empty' <<<"$prev_json" 2>/dev/null || echo "")
     domain=$(reader_domain "${control_readers[$control_index]}")
     case " $domain " in
       *" $control_prev "*) ;;
       *) control_prev="" ;;
     esac
     if [[ $control_prev_expect != "${control_expects[$control_index]}" ]]; then
+      control_prev=""
+    fi
+    # A prior recorded under a DIFFERENT target is never compared, for the
+    # same reason as a different expect: an operator repointing a rule
+    # control at a new binary declared a new intent, and the old baseline
+    # would read a steady-deviant new target as already-paged. Targetless
+    # readers store no :target key, so both sides are empty and match.
+    if [[ $control_prev_target != "${control_targets[$control_index]}" ]]; then
       control_prev=""
     fi
   fi
@@ -559,13 +767,20 @@ for control_index in "${!control_ids[@]}"; do
     control_field="${control_prevs[$control_index]}" # trusted prior, may be empty
   fi
   if [[ -n $control_field ]]; then
-    # The value AND the expect it was recorded under: the pair is what lets
-    # the next run detect a changed declaration and re-arm the control.
+    # The value AND the declaration it was recorded under (expect, and the
+    # target for the targeted readers): the pairing is what lets the next
+    # run detect a changed declaration and re-arm the control.
     baseline_json=$(jq -c \
       --arg key "${control_ids[$control_index]}" \
       --arg value "$control_field" \
       --arg expect "${control_expects[$control_index]}" \
       '. + {($key): $value, ($key + ":expect"): $expect}' <<<"$baseline_json")
+    if [[ -n ${control_targets[$control_index]} ]]; then
+      baseline_json=$(jq -c \
+        --arg key "${control_ids[$control_index]}" \
+        --arg target "${control_targets[$control_index]}" \
+        '. + {($key + ":target"): $target}' <<<"$baseline_json")
+    fi
   fi
 done
 

@@ -338,6 +338,36 @@ resolve_system_plist_path() { # <domain> <plist_path>
   printf '%s\n' "$plist_path"
 }
 
+# The directories an EXPLICIT plist_path may name at WRITE time, grown
+# deliberately, one product at a time. The render-time gate in
+# run_onchange_after_30-macos-defaults.sh.tmpl carries the same list
+# ($plistPathAllowedDirectories) and refuses the record before anything
+# renders; this list closes the path AROUND the render: `just defaults-apply`
+# reads the YAML directly, so without it a record the render would refuse was
+# still handed to `sudo defaults write` (verified against
+# /etc/example.evil.plist before the fix). The system-scope suite pins the
+# two lists identical. Plain assignment, not readonly, for the same
+# re-source reason as the read-status constants below.
+MACOS_DEFAULTS_PLIST_PATH_ALLOWED_DIRECTORIES=("/Library/Objective-See/LuLu/" "/Library/Preferences/")
+
+# require_system_plist_path_permitted <plist_path>, refuse (status 1, with a
+# message naming the path and the rule) any WRITE target outside the
+# permitted directories above. Called by apply for every system-scope record
+# before anything is written. Reads are deliberately NOT gated: drift
+# consulting an odd path mutates nothing, and refusing it would only hide
+# the row from the report.
+require_system_plist_path_permitted() { # <plist_path>
+  local plist_path="$1" allowed_directory
+  for allowed_directory in "${MACOS_DEFAULTS_PLIST_PATH_ALLOWED_DIRECTORIES[@]}"; do
+    if [[ $plist_path == "$allowed_directory"* ]]; then
+      return 0
+    fi
+  done
+  printf 'error: plist_path %q is outside every permitted plist directory (%s); grant the directory deliberately in BOTH the Tier 1 template and macos-defaults-lib.sh, or use the default /Library/Preferences form\n' \
+    "$plist_path" "${MACOS_DEFAULTS_PLIST_PATH_ALLOWED_DIRECTORIES[*]}" >&2
+  return 1
+}
+
 # The three outcomes of reading a system-scope setting, carried as an exit STATUS
 # rather than a marker string. A string sentinel is representable as a real value:
 # a tracked setting whose live value happened to be the marker would be reported
@@ -357,8 +387,32 @@ SYSTEM_READ_UNREADABLE=2
 # system_defaults_write <plist_path> <key> <type> <value>, one system-scope
 # write. /Library plists are root-owned, so the write goes through sudo;
 # keeping it here keeps apply and any future caller on one code path.
+#
+# After the write, the written file's ownership and mode are repaired to
+# root:wheel 0644 IN THE SAME CALL: `defaults write` recreates its target as
+# a root-owned 0600 binary plist (verified on a copy, 2026-07-27), and a 0600
+# plist reads back SYSTEM_READ_UNREADABLE for the unprivileged drift checker
+# on every later run, so an unrepaired write defeats the very drift gate that
+# verifies it. The repair is PER WRITE, never a trailing cleanup in a caller:
+# under set -e a failed later write ends the caller at that record, and a
+# trailing cleanup would never run for the writes that DID land. The write's
+# own failure is captured and re-raised AFTER the repair; a failed write that
+# left no file behind skips the repair rather than failing on the missing
+# path. The file repaired is the one `defaults` actually writes: the declared
+# path when it already ends in .plist, the .plist beside it otherwise (an
+# extensionless absolute path gets .plist appended by `defaults`, verified on
+# a copy, 2026-07-27). The rendered Tier 1 runner carries the same function
+# for the same reason; the render tests and the apply test pin both.
 system_defaults_write() { # <plist_path> <key> <type> <value>
-  sudo defaults write "$1" "$2" "-$3" "$4"
+  local plist_path="$1" key="$2" value_type="$3" value="$4"
+  local write_status=0 written_file="$plist_path"
+  [[ $written_file == *.plist ]] || written_file="$written_file.plist"
+  sudo defaults write "$plist_path" "$key" "-$value_type" "$value" || write_status=$?
+  if [[ $write_status -eq 0 || -e $written_file ]]; then
+    sudo chown root:wheel "$written_file"
+    sudo chmod 644 "$written_file"
+  fi
+  return "$write_status"
 }
 
 # system_defaults_read_actual <plist_path> <key>, the three-outcome system-scope

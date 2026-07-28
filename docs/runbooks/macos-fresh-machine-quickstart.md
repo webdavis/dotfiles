@@ -63,6 +63,90 @@ interactive-only; no supported command line writes it:
    one here; the poller verifies this continuously (the `oversight` record in
    `.chezmoidata/macos_posture_controls.yaml`) and pages if the process stops.
 
+### LuLu system extension approval
+
+LuLu (the Objective-See outbound firewall, installed as a cask) filters through a network system
+extension that macOS only activates after an interactive security consent. No supported command line
+writes that approval:
+
+1. Launch LuLu once (`open -a LuLu`) and follow its prompts.
+1. Approve the extension: System Settings → General → Login Items & Extensions → Network Extensions →
+   enable LuLu. macOS may also raise a "System Extension Blocked" dialog with an Allow button; allow it.
+1. When prompted "LuLu would like to Filter Network Content", click Allow. This is the network-content
+   filter consent, separate from the extension approval.
+1. Confirm it took: `systemextensionsctl list` shows `com.objective-see.lulu.extension` with
+   `[activated enabled]`, and `pgrep -x -U 0 com.objective-see.lulu.extension` prints a PID. The
+   security-posture poller verifies the process continuously (the `lulu_extension` record in
+   `.chezmoidata/macos_posture_controls.yaml`) and pages if it stops.
+
+### LuLu rule creation
+
+Rules cannot be pre-seeded: `rules.plist` is an NSKeyedArchiver archive of LuLu's private `Rule` class,
+not hand-authorable by any supported tool, so every rule is created interactively, by answering LuLu's
+prompt when a binary first makes an outbound connection or ahead of time via the app's Rules window (LuLu
+menu bar icon → Rules → the plus button, which takes a binary path).
+
+The required rules, from the talker table in `.chezmoidata/macos_posture_controls.yaml`
+(`macos.lulu_talkers`):
+
+1. **tailscaled** (`/usr/local/bin/tailscaled`): allow. Slice 8's remote recovery path 2 rides the
+   tailnet; blocking this removes it.
+1. **The Hermes gateway interpreter**: allow. This is the alerting channel's real egress hop. The gateway
+   runs under the venv launcher `~/.hermes/hermes-agent/venv/bin/python`, a symlink into a uv-managed
+   CPython; LuLu keys the rule on the RESOLVED binary
+   (`readlink -f ~/.hermes/hermes-agent/venv/bin/python`), so create the rule for that resolved path.
+   After a python upgrade moves the interpreter, the `lulu_rule_hermes_gateway` control pages and this
+   step is repeated for the new path.
+
+Both rules are verified continuously by the security-posture poller as existence-only checks: the archive
+is readable enough to prove a rule mentioning the binary exists, but the rule action (allow vs block) is
+not recoverable by supported tooling, so the poller does not claim it. When either control pages,
+recreate the rule here and the poller re-arms on its own.
+
+Lean narrow, and accept the prompt cost. Do NOT create blanket allow rules for shared interpreters and
+clients (`/usr/bin/curl`, `/bin/bash`, `node`, `python3`, `/usr/bin/ssh`): LuLu keys rules on the
+executing binary and cannot see which script invoked a shared client, so allowing `curl` allows it for
+every process on the machine. Where a talker only reaches the network through a shared client, either
+leave it prompting or give that path its own dedicated client. Version-pinned paths (Homebrew Cellar,
+`/nix/store`) go stale on every upgrade; expect a one-time prompt after upgrades and answer it narrowly.
+
+The alerter's own `curl` needs NO rule: it POSTs to `http://127.0.0.1:8644` and loopback is kept
+unfiltered by the `allowLocalHost` preference (declared verify-tier in `.chezmoidata/macos_defaults.yaml`
+and drift-checked by `just D`; see the LuLu preference changes section below). A curl rule would not
+protect that hop and would allow every process on the machine.
+
+### LuLu preference changes
+
+The six LuLu policy records in `.chezmoidata/macos_defaults.yaml` are `tier: verify`: `just D` compares
+them against the live base file, and nothing in this repo ever writes that file. That is a finding, not a
+gap, grounded in LuLu's source (`LuLu/Extension/Preferences.m`, v4.3.2): the extension loads
+`preferences.plist` ONCE at start into an in-memory dictionary, never watches or re-reads it, and writes
+that whole dictionary back to disk on every preference change it processes. An external `defaults write`
+is therefore invisible to the running extension AND clobbered by its next save. Supporting read-only
+evidence from this machine: LuLu rewrote both of its files spontaneously on 2026-07-27 at 13:25:06,
+fifteen seconds after a display wake; and on a COPY, `defaults write` converted the XML file to a binary
+plist, reset mode 0644 to 0600 (which blinds the unprivileged drift reader), added a quarantine xattr,
+and replaced the inode.
+
+To change one of the six declared values:
+
+1. Change it in the LuLu app (menu bar icon → Preferences), which updates the running extension over its
+   own channel and persists the file itself.
+1. Update the record's `value` in `.chezmoidata/macos_defaults.yaml` to the new intent.
+1. Run `just D` and confirm the declaration and the live file agree again.
+
+Promotion gate: return these records to `tier: enforce` only when a LuLu version demonstrably re-reads an
+external write to the file (a reload mechanism in its source or release notes, verified by observing a
+CONSULTED preference take effect). Until then an enforce tier would claim an enforcement the machine
+cannot deliver: the write would land, change nothing, and be silently reverted, the exact silent no-op
+the tier model exists to surface.
+
+Scope note: LuLu reads preferences and rules from an active profile directory when the base file's
+`currentProfile` key names one (`Preferences.m`, `Rules.m`). The tracked records and the rule-existence
+checks describe the BASE files, so the security-posture poller treats an active (or unconfirmable)
+profile as a monitoring gap and pages; deactivate the profile, or extend the monitor to the profile
+paths, before trusting those checks again.
+
 ### Firewall log diagnostics
 
 Nothing to enable here, this section is view-only. Firewall logging is on by default on macOS 26.2 and

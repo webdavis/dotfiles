@@ -45,6 +45,10 @@ defaults_records_unit_separated "$DATA_FILE" |
     scope="$(validate_record_scope "$scope" "$host" "$plist_path")" || exit 2
     if [[ $scope == system ]]; then
       resolved_plist_path="$(resolve_system_plist_path "$domain" "$plist_path")" || exit 2
+      # The same write-directory allowlist the render enforces, at the tool
+      # that bypasses the render: apply reads the YAML directly, so this is
+      # the only gate between a hand-edited record and a root write.
+      require_system_plist_path_permitted "$resolved_plist_path" || exit 2
       system_defaults_write "$resolved_plist_path" "$key" "$type" "$value"
     elif [[ -n $host ]]; then
       defaults -currentHost write "$domain" "$key" "-$type" "$value"

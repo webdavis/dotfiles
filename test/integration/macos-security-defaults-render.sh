@@ -43,6 +43,7 @@ DRIFT="$REPO_ROOT/dot_local/bin/executable_macos-defaults-drift.sh"
 DEFAULTS_YAML="$REPO_ROOT/.chezmoidata/macos_defaults.yaml"
 
 SOFTWAREUPDATE_PLIST_PATH='/Library/Preferences/com.apple.SoftwareUpdate'
+LULU_PLIST_PATH='/Library/Objective-See/LuLu/preferences.plist'
 
 fail() {
   printf 'FAIL: %s\n' "$*" >&2
@@ -65,8 +66,15 @@ for required_file in "$TEMPLATE" "$DRIFT" "$DEFAULTS_YAML"; do
   [[ -f $required_file ]] || fail "missing file: $required_file"
 done
 
-# Canonicalize away macOS's /var -> /private/var symlink.
-sandbox="$(cd "$(mktemp -d)" && pwd -P)"
+# Validated BEFORE any trap is armed and before any cd: on bash 3.2 `cd ""`
+# succeeds without moving, so an unguarded `cd "$(mktemp -d)"` after a failed
+# mktemp would leave the suite in the worktree with an `rm -rf` trap aimed at
+# it. The second assignment canonicalizes away macOS's /var -> /private/var
+# symlink.
+sandbox="$(mktemp -d)"
+[[ -n $sandbox && -d $sandbox ]] ||
+  fail "mktemp -d produced no usable sandbox directory (got '$sandbox')"
+sandbox="$(cd "$sandbox" && pwd -P)"
 trap 'rm -rf "$sandbox"' EXIT
 render_home="$sandbox/render-home"
 mkdir -p "$render_home"
@@ -143,11 +151,22 @@ sudo_prelude_count="$(grep -cxF "$sudo_prelude_pattern" "$combined_log" || true)
 [[ $sudo_prelude_count -eq 1 ]] ||
   fail "the runner must validate sudo exactly once up front (got $sudo_prelude_count 'sudo -v' invocations)"
 
+# The sudo-routed defaults-write set is exactly the enforced system-scope
+# records: the SoftwareUpdate record alone. The six LuLu policy records are
+# tier: verify (LuLu's extension loads its preferences once at start and
+# writes them back from memory, so an external write is unobserved and
+# clobbered) and must execute NOTHING, so nothing else may escalate.
 sudo_write_lines="$(grep -F "$(printf 'sudo\x1fdefaults')" "$combined_log" || true)"
 sudo_write_count=0
 [[ -n $sudo_write_lines ]] && sudo_write_count="$(printf '%s\n' "$sudo_write_lines" | wc -l | tr -d ' ')"
 [[ $sudo_write_count -eq 1 ]] ||
   fail "exactly one write must be routed through sudo, the SoftwareUpdate record (got $sudo_write_count: $sudo_write_lines)"
+lulu_executed_lines="$(grep -F "$LULU_PLIST_PATH" "$combined_log" || true)"
+[[ -z $lulu_executed_lines ]] ||
+  fail "the six verify-tier LuLu policy records must execute NO command (got: $lulu_executed_lines)"
+sudo_write_lines="$(grep -F "$(printf 'sudo\x1fdefaults')" "$combined_log" | grep -F 'AutomaticCheckEnabled' || true)"
+[[ -n $sudo_write_lines ]] ||
+  fail 'the SoftwareUpdate record must execute under sudo'
 IFS=$'\x1f' read -r -a sudo_write_fields <<<"$sudo_write_lines"
 [[ ${#sudo_write_fields[@]} -eq 7 ]] ||
   fail "the sudo write must carry exactly 7 fields, command plus 6 arguments (got ${#sudo_write_fields[@]})"
@@ -251,6 +270,8 @@ expected_execution_log="$sandbox/execution.expected"
   log_line defaults write com.apple.WindowManager EnableTilingOptionAccelerator -bool false
   log_line defaults write com.apple.WindowManager EnableTopTilingByEdgeDrag -bool false
   log_line sudo defaults write "$SOFTWAREUPDATE_PLIST_PATH" AutomaticCheckEnabled -bool true
+  log_line sudo chown root:wheel "$SOFTWAREUPDATE_PLIST_PATH.plist"
+  log_line sudo chmod 644 "$SOFTWAREUPDATE_PLIST_PATH.plist"
   log_line defaults write com.apple.Safari AutoOpenSafeDownloads -bool false
   log_line killall Dock
   log_line killall Finder
@@ -279,7 +300,7 @@ new_record_tiers="$(yq eval -r \
 # stubbed read, so the real path must be absent or readable (on macOS it is a
 # root-owned 0644 plist). An unreadable one is an environment this test
 # cannot run in, and saying so beats a silent wrong answer.
-for plist_candidate in "$SOFTWAREUPDATE_PLIST_PATH" "$SOFTWAREUPDATE_PLIST_PATH.plist"; do
+for plist_candidate in "$SOFTWAREUPDATE_PLIST_PATH" "$SOFTWAREUPDATE_PLIST_PATH.plist" "$LULU_PLIST_PATH"; do
   if [[ -e $plist_candidate && ! -r $plist_candidate ]]; then
     fail "environment: $plist_candidate exists but is unreadable; the drift scenarios would be classified indeterminate for reasons outside the code under test"
   fi
@@ -287,8 +308,10 @@ done
 
 # write_drift_defaults_stub <softwareupdate-answer> <safari-answer> -- replace
 # the defaults stub with a read-answering one: every `read` is logged, the two
-# security records answer as told, every other record answers its declared
-# value (the seven Aerospace records are all bool false, normalized 0).
+# security records answer as told, the four true-valued LuLu policy records
+# answer their declared 1, and every other record answers its declared value
+# (the seven Aerospace records and the two false-valued LuLu records are all
+# bool false, normalized 0).
 write_drift_defaults_stub() { # <softwareupdate-answer> <safari-answer>
   local softwareupdate_answer="$1" safari_answer="$2"
   cat >"$stub_bin/defaults" <<EOF
@@ -302,6 +325,10 @@ if [[ \$1 == read ]]; then
   case "\$2 \$3" in
     '$SOFTWAREUPDATE_PLIST_PATH AutomaticCheckEnabled') printf '%s\\n' '$softwareupdate_answer' ;;
     'com.apple.Safari AutoOpenSafeDownloads') printf '%s\\n' '$safari_answer' ;;
+    '$LULU_PLIST_PATH allowLocalHost') printf '1\\n' ;;
+    '$LULU_PLIST_PATH allowApple') printf '1\\n' ;;
+    '$LULU_PLIST_PATH allowDNS') printf '1\\n' ;;
+    '$LULU_PLIST_PATH allowInstalled') printf '1\\n' ;;
     *) printf '0\\n' ;;
   esac
 fi
@@ -346,6 +373,12 @@ expected_drift_reads="$sandbox/drift-reads.expected"
   log_line defaults read com.apple.WindowManager EnableTopTilingByEdgeDrag
   log_line defaults read "$SOFTWAREUPDATE_PLIST_PATH" AutomaticCheckEnabled
   log_line defaults read com.apple.Safari AutoOpenSafeDownloads
+  log_line defaults read "$LULU_PLIST_PATH" allowLocalHost
+  log_line defaults read "$LULU_PLIST_PATH" allowApple
+  log_line defaults read "$LULU_PLIST_PATH" allowDNS
+  log_line defaults read "$LULU_PLIST_PATH" allowInstalled
+  log_line defaults read "$LULU_PLIST_PATH" blockMode
+  log_line defaults read "$LULU_PLIST_PATH" passiveMode
 } >"$expected_drift_reads"
 cmp -s "$expected_drift_reads" "$combined_log" ||
   fail "drift must read every tracked record, the two security records included, from its declared place (diff: $(diff <(cat -v "$expected_drift_reads") <(cat -v "$combined_log") | head -20))"

@@ -22,7 +22,9 @@
 #   4. A RELATIVE plist_path is rejected (render fails; apply refuses), never
 #      resolved against the ambient working directory.
 #   5. drift reports an unreadable system-scope record as indeterminate, with a
-#      marker distinct from <unset>, and does NOT count it as drift.
+#      marker distinct from <unset>, never counted as drift, and FAILS CLOSED:
+#      an unreadable control is not a passing control, so indeterminate rows
+#      exit 3 (their own status, distinct from drift's 1 and the data-error 2).
 #   6. drift on a set-and-matching system-scope record reports no drift.
 #   7. capture --scope system appends a record carrying `scope: system`.
 #   8. capture rejects --scope system combined with --host current.
@@ -281,12 +283,12 @@ sudo_validate_count="$(grep -cxF 'sudo -v' "$rendered_system" || true)"
 [[ $sudo_validate_count -eq 1 ]] ||
   fail "system-record render must contain exactly one 'sudo -v' (got $sudo_validate_count)"
 sudo_validate_line="$(grep -nxF 'sudo -v' "$rendered_system" | cut -d: -f1)"
-first_write_line="$(grep -nE '^(sudo )?defaults ' "$rendered_system" | head -1 | cut -d: -f1)"
+first_write_line="$(grep -nE '^(sudo )?defaults |^system_defaults_write ' "$rendered_system" | head -1 | cut -d: -f1)"
 [[ -n $first_write_line ]] || fail 'system-record render must contain defaults writes'
 [[ $sudo_validate_line -lt $first_write_line ]] ||
   fail "the sudo -v prelude must come before any write (sudo -v at line $sudo_validate_line, first write at line $first_write_line)"
-grep -qxF "sudo defaults write '/Library/Preferences/com.example.sys' 'SysKey' -bool 'false'" "$rendered_system" ||
-  fail "the system record's write must be sudo-prefixed and target /Library/Preferences/<domain> (got: $(grep -F 'com.example.sys' "$rendered_system"))"
+grep -qxF "system_defaults_write '/Library/Preferences/com.example.sys' 'SysKey' -bool 'false'" "$rendered_system" ||
+  fail "the system record's write must ride the repairing write helper and target /Library/Preferences/<domain> (got: $(grep -F 'com.example.sys' "$rendered_system"))"
 grep -qxF "defaults write 'com.example.alpha' 'AlphaKey' -bool 'true'" "$rendered_system" ||
   fail 'the user record must keep its plain, un-sudoed write'
 refute_file_contains "$rendered_system" "sudo defaults write 'com.example.alpha'" \
@@ -312,7 +314,7 @@ EOF
 rendered_explicit="$sandbox/rendered-explicit"
 render_template "$explicit_path_src" "$rendered_explicit" "$render_error" ||
   fail "explicit-path render must succeed (stderr: $(cat "$render_error"))"
-grep -qxF "sudo defaults write '/Library/Objective-See/LuLu/preferences.plist' 'LuLuKey' -string 'block'" "$rendered_explicit" ||
+grep -qxF "system_defaults_write '/Library/Objective-See/LuLu/preferences.plist' 'LuLuKey' -string 'block'" "$rendered_explicit" ||
   fail "an explicit absolute plist_path must be the write target (got: $(grep -F LuLuKey "$rendered_explicit"))"
 refute_file_contains "$rendered_explicit" '/Library/Preferences/com.example.lulu' \
   'an explicit plist_path must replace the /Library/Preferences default, not coexist with it'
@@ -457,7 +459,9 @@ sudo_log="$sandbox/sudo.log"
 
 # sudo stub: records the space-joined invocation, then runs it (so the
 # defaults stub behind it still answers). Fixture values contain no spaces, so
-# the space-joined log parses back per field unambiguously.
+# the space-joined log parses back per field unambiguously. chown and chmod
+# are stubbed no-ops so the per-write root:wheel 0644 repair is observable in
+# the sudo log without touching anything real.
 cat >"$stub_bin/sudo" <<EOF
 #!/bin/bash
 printf '%s\n' "\$*" >>"$sudo_log"
@@ -465,7 +469,10 @@ exec "\$@"
 EOF
 printf '#!/bin/bash\nexit 0\n' >"$stub_bin/osascript"
 printf '#!/bin/bash\nexit 0\n' >"$stub_bin/killall"
-chmod +x "$stub_bin/sudo" "$stub_bin/osascript" "$stub_bin/killall"
+printf '#!/bin/bash\nexit 0\n' >"$stub_bin/chown"
+printf '#!/bin/bash\nexit 0\n' >"$stub_bin/chmod"
+chmod +x "$stub_bin/sudo" "$stub_bin/osascript" "$stub_bin/killall" \
+  "$stub_bin/chown" "$stub_bin/chmod"
 
 # write_defaults_stub <write-only|read-value|read-unset|read-denied|capture-bool>
 # -- the per-section behavior of the `defaults` stub. Every variant logs its
@@ -569,6 +576,67 @@ assert_file_contains "$defaults_log" 'write com.example.alpha AlphaKey -bool tru
 refute_file_contains "$sudo_log" 'com.example.alpha' \
   'apply must not route a user-scope write through sudo'
 
+# Each system write is followed IMMEDIATELY by its own root:wheel 0644 repair:
+# `defaults write` recreates the target as a root-owned 0600 binary plist, and
+# an unrepaired one reads back <unreadable> for the unprivileged drift checker
+# forever after. The extensionless record is repaired on the .plist file
+# `defaults` actually writes; the explicit .plist record is repaired as itself.
+sys_write_line="$(grep -nxF 'defaults write /Library/Preferences/com.example.sys SysKey -bool false' "$sudo_log" | cut -d: -f1)"
+sys_chown_line="$(grep -nxF 'chown root:wheel /Library/Preferences/com.example.sys.plist' "$sudo_log" | cut -d: -f1)"
+sys_chmod_line="$(grep -nxF 'chmod 644 /Library/Preferences/com.example.sys.plist' "$sudo_log" | cut -d: -f1)"
+[[ -n $sys_write_line && -n $sys_chown_line && -n $sys_chmod_line ]] ||
+  fail "apply must repair root:wheel 0644 on the extensionless system record's .plist (sudo log: $(cat "$sudo_log"))"
+[[ $sys_chown_line -eq $((sys_write_line + 1)) && $sys_chmod_line -eq $((sys_write_line + 2)) ]] ||
+  fail "the repair must follow its own write immediately, per write (write at $sys_write_line, chown at $sys_chown_line, chmod at $sys_chmod_line)"
+assert_file_contains "$sudo_log" 'chmod 644 /Library/Objective-See/LuLu/preferences.plist' \
+  "apply must repair the explicit .plist record as itself (sudo log: $(cat "$sudo_log"))"
+refute_file_contains "$sudo_log" 'preferences.plist.plist' \
+  'the repair must never append a second .plist to an explicit .plist path'
+
+# A write that FAILS midway must not cost the EARLIER write its repair: under
+# set -e apply ends at the failing record, so a trailing cleanup would never
+# run; only per-write repair survives. The failing record's own repair is
+# skipped because no file exists at its path.
+apply_midfail_src="$(
+  make_source_dir <<'EOF'
+macos:
+  defaults:
+    - domain: com.example.first
+      key: FirstKey
+      type: bool
+      value: true
+      scope: system
+      tier: enforce
+    - domain: com.example.fail
+      key: FailKey
+      type: bool
+      value: true
+      scope: system
+      tier: enforce
+  killall: []
+EOF
+)"
+# defaults stub that fails only the FailKey write, after both records validated.
+cat >"$stub_bin/defaults" <<EOF
+#!/bin/bash
+printf '%s\n' "\$*" >>"$defaults_log"
+if [[ \$* == *FailKey* ]]; then exit 9; fi
+exit 0
+EOF
+chmod +x "$stub_bin/defaults"
+: >"$defaults_log"
+: >"$sudo_log"
+apply_midfail_status=0
+run_tool "$apply_midfail_src" "$APPLY" 2>"$sandbox/apply-midfail.err" || apply_midfail_status=$?
+[[ $apply_midfail_status -ne 0 ]] ||
+  fail 'apply must fail when a write fails'
+assert_file_contains "$sudo_log" 'chmod 644 /Library/Preferences/com.example.first.plist' \
+  "the EARLIER write must keep its repair when a later write fails (sudo log: $(cat "$sudo_log"))"
+assert_file_contains "$sudo_log" 'defaults write /Library/Preferences/com.example.fail FailKey -bool true' \
+  "the failing write must have been attempted (sudo log: $(cat "$sudo_log"))"
+refute_file_contains "$sudo_log" 'chmod 644 /Library/Preferences/com.example.fail.plist' \
+  'a failed write that left no file behind must not be repaired'
+
 # apply refuses a relative plist_path and never writes it.
 apply_relative_src="$(
   make_source_dir <<'EOF'
@@ -596,6 +664,54 @@ refute_file_contains "$defaults_log" 'rel.plist' \
   'apply must not write a relative plist_path record at all'
 refute_file_contains "$sudo_log" 'rel.plist' \
   'apply must not sudo-write a relative plist_path record at all'
+
+# apply refuses a plist_path outside the permitted write directories and
+# never writes it: the render-time allowlist alone did not cover this path
+# (`just defaults-apply` reads the YAML directly, and the resolver accepted
+# /etc/example.evil.plist before the fix).
+for evil_plist_path in /etc/example.evil.plist /Library/LaunchDaemons/com.example.evil.plist; do
+  apply_escape_src="$(
+    make_source_dir <<EOF
+macos:
+  defaults:
+    - domain: com.example.evil
+      key: EvilKey
+      type: bool
+      value: true
+      scope: system
+      plist_path: $evil_plist_path
+      tier: enforce
+  killall: []
+EOF
+  )"
+  : >"$defaults_log"
+  : >"$sudo_log"
+  apply_escape_status=0
+  run_tool "$apply_escape_src" "$APPLY" 2>"$sandbox/apply-escape.err" || apply_escape_status=$?
+  [[ $apply_escape_status -eq 2 ]] ||
+    fail "apply must refuse the out-of-allowlist path $evil_plist_path with the validation status 2 (got $apply_escape_status)"
+  assert_file_contains "$sandbox/apply-escape.err" 'permitted plist director' \
+    "the refusal must name the containment rule (stderr: $(cat "$sandbox/apply-escape.err"))"
+  assert_file_contains "$sandbox/apply-escape.err" "$evil_plist_path" \
+    "the refusal must name the offending path (stderr: $(cat "$sandbox/apply-escape.err"))"
+  refute_file_contains "$defaults_log" 'example.evil' \
+    "apply must not write $evil_plist_path at all"
+  refute_file_contains "$sudo_log" 'example.evil' \
+    "apply must not sudo-anything for $evil_plist_path"
+done
+
+# The render-time allowlist in the template and the write-time allowlist in
+# the library must be the SAME list: two lists that can drift apart is
+# exactly how apply accepted a path the render refused. Source-form pin,
+# beside the behavioral pins above and in the render sections.
+template_allowlist="$(grep -F 'plistPathAllowedDirectories := list' "$TEMPLATE" | grep -o '"[^"]*"' | tr -d '"' | LC_ALL=C sort)"
+lib_allowlist="$(bash -c 'source "$1"; printf "%s\n" "${MACOS_DEFAULTS_PLIST_PATH_ALLOWED_DIRECTORIES[@]}"' _ "$LIB" 2>/dev/null | LC_ALL=C sort)"
+[[ -n $template_allowlist ]] ||
+  fail 'could not extract the render-time allowlist from the template'
+[[ -n $lib_allowlist ]] ||
+  fail 'could not extract the write-time allowlist from the library'
+[[ $template_allowlist == "$lib_allowlist" ]] ||
+  fail "the render-time and write-time plist_path allowlists have drifted apart (template: $template_allowlist; lib: $lib_allowlist)"
 
 # apply refuses an unknown scope rather than guessing a write target.
 apply_bogus_src="$(
@@ -646,12 +762,14 @@ assert_file_contains "$defaults_log" 'read /Library/Preferences/com.example.sys 
   "drift must read the system record from its resolved plist path (defaults log: $(cat "$defaults_log"))"
 
 # criterion 5, defaults-failure route: an unknown read failure is indeterminate,
-# marked distinctly from <unset>, and NOT counted as drift.
+# marked distinctly from <unset>, never counted as drift, and FAILS the gate
+# with its own status 3: an unreadable control is not a passing control, and a
+# drift run that cannot verify what it tracks must not exit 0.
 write_defaults_stub read-denied
 drift_status=0
 run_tool "$drift_system_src" "$DRIFT" >"$drift_out" 2>"$drift_err" || drift_status=$?
-[[ $drift_status -eq 0 ]] ||
-  fail "an unreadable system record must not count as drift (got exit $drift_status, stderr: $(cat "$drift_err"))"
+[[ $drift_status -eq 3 ]] ||
+  fail "an unreadable system record must fail the gate with the indeterminate status 3, never 0 and never drift's 1 (got exit $drift_status, stderr: $(cat "$drift_err"))"
 indeterminate_row="$(grep -F 'com.example.sys' "$drift_out" || true)"
 [[ -n $indeterminate_row ]] ||
   fail "an unreadable system record must be reported as its own row, not silently skipped (stdout: $(cat "$drift_out"))"
@@ -691,8 +809,8 @@ write_defaults_stub read-value
 drift_status=0
 run_tool "$drift_locked_src" "$DRIFT" >"$drift_out" 2>"$drift_err" || drift_status=$?
 chmod u+rw "$locked_plist"
-[[ $drift_status -eq 0 ]] ||
-  fail "an unreadable plist file must not count as drift (got exit $drift_status, stderr: $(cat "$drift_err"))"
+[[ $drift_status -eq 3 ]] ||
+  fail "an unreadable plist file must fail the gate with the indeterminate status 3, never 0 and never drift's 1 (got exit $drift_status, stderr: $(cat "$drift_err"))"
 assert_file_contains "$drift_out" '<unreadable>' \
   "an existing-but-unreadable plist must be reported indeterminate even when a read would have answered (stdout: $(cat "$drift_out"))"
 

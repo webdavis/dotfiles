@@ -52,7 +52,15 @@ for required_file in "$TIER1_TEMPLATE" "$TIER2_TEMPLATE" "$DEFAULTS_YAML" "$SETU
   [[ -f $required_file ]] || fail "missing file: $required_file"
 done
 
-work="$(cd "$(mktemp -d)" && pwd -P)"
+# Validated BEFORE any trap is armed and before any cd: on bash 3.2 `cd ""`
+# succeeds without moving, so an unguarded `cd "$(mktemp -d)"` after a failed
+# mktemp would leave the suite in the worktree with an `rm -rf` trap aimed at
+# it. The second assignment canonicalizes away macOS's /var -> /private/var
+# symlink.
+work="$(mktemp -d)"
+[[ -n $work && -d $work ]] ||
+  fail "mktemp -d produced no usable work directory (got '$work')"
+work="$(cd "$work" && pwd -P)"
 trap 'rm -rf "$work"' EXIT
 
 # ---- 1: every real record declares a recognized tier -------------------------
@@ -83,9 +91,12 @@ invalid_setup_tiers="$(yq eval -r \
 
 # ---- 2: both runners render byte-identically to their goldens ----------------
 
-# The Tier 1 runner's 5774ce0 render plus the security-defaults records: the
+# The Tier 1 runner's 5774ce0 render plus the security-defaults records (the
 # sudo -v prelude, the sudo-routed system-scope SoftwareUpdate write, and the
-# user-scope Safari write.
+# user-scope Safari write). The six LuLu policy records the LuLu-posture
+# slice declared are tier: verify (LuLu's extension loads its preferences
+# once at start and writes them back from memory, so an external write is
+# unobserved and clobbered) and render NO line here at all.
 tier1_golden="$work/tier1.golden"
 cat >"$tier1_golden" <<'GOLDEN_EOF'
 #!/bin/bash
@@ -102,6 +113,29 @@ osascript -e 'tell application "System Settings" to quit' 2>/dev/null || true
 # Sudo prelude: at least one record targets a root-owned system plist, so
 # validate sudo once, up front, before any write.
 sudo -v
+# system_defaults_write <plist_path> <key> <-type> <value>: one system-scope
+# write, then a root:wheel 0644 repair of the file `defaults` just replaced.
+# `defaults write` recreates its target as a root-owned 0600 binary plist
+# (verified on a copy, 2026-07-27), and an unreadable plist blinds the
+# unprivileged drift reader (`just D`) on every later run, so an unrepaired
+# write defeats the very drift check that verifies it. The repair is PER
+# WRITE, never a trailing chmod: under set -e a failed later write ends this
+# run before any trailing cleanup, leaving the writes that DID land
+# unreadable. The write's own failure is re-raised AFTER the repair; a failed
+# write that left no file behind skips the repair rather than failing on the
+# missing path. Mirrors system_defaults_write in macos-defaults-lib.sh, which
+# repairs the apply tool's writes the same way.
+system_defaults_write() {
+  local plist_path="$1" key="$2" type_option="$3" value="$4"
+  local write_status=0 written_file="$plist_path"
+  [[ $written_file == *.plist ]] || written_file="$written_file.plist"
+  sudo defaults write "$plist_path" "$key" "$type_option" "$value" || write_status=$?
+  if [[ $write_status -eq 0 || -e $written_file ]]; then
+    sudo chown root:wheel "$written_file"
+    sudo chmod 644 "$written_file"
+  fi
+  return "$write_status"
+}
 # Main loop: one `defaults write` per record.
 defaults write 'com.apple.dock' 'mru-spaces' -bool 'false'
 defaults write 'com.apple.dock' 'expose-group-apps' -bool 'false'
@@ -110,7 +144,7 @@ defaults write 'com.apple.WindowManager' 'EnableStandardClickToShowDesktop' -boo
 defaults write 'com.apple.WindowManager' 'EnableTilingByEdgeDrag' -bool 'false'
 defaults write 'com.apple.WindowManager' 'EnableTilingOptionAccelerator' -bool 'false'
 defaults write 'com.apple.WindowManager' 'EnableTopTilingByEdgeDrag' -bool 'false'
-sudo defaults write '/Library/Preferences/com.apple.SoftwareUpdate' 'AutomaticCheckEnabled' -bool 'true'
+system_defaults_write '/Library/Preferences/com.apple.SoftwareUpdate' 'AutomaticCheckEnabled' -bool 'true'
 defaults write 'com.apple.Safari' 'AutoOpenSafeDownloads' -bool 'false'
 # Post-loop: restart user-facing processes so changes take effect immediately.
 # cfprefsd kill is non-negotiable (caches plist values in memory).
@@ -128,7 +162,10 @@ GOLDEN_EOF
 # MANUAL pointer for OverSight's Notification Center delivery, its only
 # output channel (a runbook echo and no command, the OverSight-posture
 # slice; deliberately NOT a microphone or camera grant, which macOS never
-# presents for OverSight: no usage-description keys, no entitlements).
+# presents for OverSight: no usage-description keys, no entitlements), plus
+# the two MANUAL LuLu pointers the LuLu-posture slice declared (the
+# system-extension approval and interactive-only rule creation; a runbook
+# echo each and no command).
 # No manual logging record: firewall logging on this macOS version is on by
 # default and cannot be enabled by hand, so nothing renders for it.
 tier2_golden="$work/tier2.golden"
@@ -157,6 +194,8 @@ sudo /usr/libexec/ApplicationFirewall/socketfilterfw --setallowsignedapp on
 echo "→ SSH: install the public-key-only sshd drop-in (000-ssh-hardening.conf) and verify the effective configuration"
 "$HOME/.local/bin/ssh-hardening.sh"
 echo '→ MANUAL OverSight: allow its Notification Center alerts (its only output channel): see the runbook section OverSight notification delivery'
+echo '→ MANUAL LuLu: approve its system extension (a one-time macOS security consent): see the runbook section LuLu system extension approval'
+echo '→ MANUAL LuLu: create the required outbound allow rules by answering its prompts: see the runbook section LuLu rule creation'
 echo "→ MagicDNS fallback pin: mister.tail2f2430.ts.net (per CLAUDE.md Tailscale DNS section)"
 sudo sh -c 'grep -qF "mister.tail2f2430.ts.net" /etc/hosts || printf "100.109.58.54\tmister.tail2f2430.ts.net\tmister\n" >>/etc/hosts'
 

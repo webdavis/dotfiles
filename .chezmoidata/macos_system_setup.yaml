@@ -110,6 +110,21 @@ macos:
     - description: "OverSight: allow its Notification Center alerts (its only output channel)"
       tier: manual
       runbook: "OverSight notification delivery"
+    # LuLu (the outbound firewall, slice 10): both of its interactive-only
+    # surfaces. The system-extension approval is a macOS security consent
+    # (System Settings, no supported command line writes it), and rule
+    # creation is interactive BY CONSTRUCTION: rules.plist is an
+    # NSKeyedArchiver archive of LuLu's private Rule class, so rules cannot
+    # be pre-seeded by any supported interface, only created by answering
+    # LuLu's prompts or through its Rules window. Whether the extension is
+    # RUNNING and whether the required rules EXIST are separate verify
+    # records in macos_posture_controls.yaml.
+    - description: "LuLu: approve its system extension (a one-time macOS security consent)"
+      tier: manual
+      runbook: "LuLu system extension approval"
+    - description: "LuLu: create the required outbound allow rules by answering its prompts"
+      tier: manual
+      runbook: "LuLu rule creation"
   tailnet_pins:
     - fqdn: mister.tail2f2430.ts.net
       ip: "100.109.58.54"
