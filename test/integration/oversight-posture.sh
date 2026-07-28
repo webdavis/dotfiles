@@ -285,5 +285,14 @@ grep -qF 'System Settings → Notifications' <<<"$manual_runbook_body" ||
 if grep -qE 'Privacy & Security → (Microphone|Camera)' <<<"$manual_runbook_body"; then
   fail "B5: the runbook section must not direct a Privacy & Security microphone or camera grant; macOS never presents that pane entry for OverSight, so the step cannot be completed"
 fi
+# The runbook's running check must be the poller's own probe, user-scoped:
+# an un-scoped pgrep would count another user's OverSight, so an operator
+# following the runbook could read running while this user's monitor is
+# stopped and the poller pages.
+grep -qF 'pgrep -x -U "$(id -u)" OverSight' <<<"$manual_runbook_body" ||
+  fail 'B5: the runbook running check must be user-scoped exactly like the poller probe: pgrep -x -U "$(id -u)" OverSight'
+if grep -qE 'pgrep -x OverSight' <<<"$manual_runbook_body"; then
+  fail "B5: the runbook section still carries the un-scoped running check (pgrep -x OverSight), which another user's OverSight can satisfy"
+fi
 
 printf 'ok: OverSight posture records (process probe, page-once lifecycle, indeterminate discipline, tier guard, manual notification delivery)\n'

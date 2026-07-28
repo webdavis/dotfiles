@@ -58,9 +58,10 @@ interactive-only; no supported command line writes it:
    property listeners), never microphone or camera content; the installed 2.4.0 bundle declares no
    usage-description keys and no entitlements, so macOS never lists it under Microphone or Camera and
    no such grant exists to give.
-1. Confirm the monitor is running: `pgrep -x OverSight` prints a PID. The security-posture poller
-   verifies this continuously (the `oversight` record in `.chezmoidata/macos_posture_controls.yaml`) and
-   pages if the process stops.
+1. Confirm the monitor is running: `pgrep -x -U "$(id -u)" OverSight` prints a PID. User-scoped (`-U`)
+   exactly like the security-posture poller's probe, so another user's OverSight cannot mask a stopped
+   one here; the poller verifies this continuously (the `oversight` record in
+   `.chezmoidata/macos_posture_controls.yaml`) and pages if the process stops.
 
 ### Firewall log diagnostics
 
