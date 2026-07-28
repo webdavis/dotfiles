@@ -22,6 +22,15 @@ function; the poller-vs-data agreement test holds the two together. */ -}}
 {{- if not (hasKey .macos "posture_controls") -}}
 {{-   fail "macos_posture_controls.yaml: macos.posture_controls is missing" -}}
 {{- end -}}
+{{- /* The top-level shape, fail-closed: a blank key (nil) and an empty list
+would both render cleanly (range over either is zero iterations) into a file
+that monitors nothing. A blank control set is not an empty control set. */ -}}
+{{- if kindIs "invalid" .macos.posture_controls -}}
+{{-   fail "macos_posture_controls.yaml: macos.posture_controls is blank; a blank control set is not an empty one, declare the verify-tier records" -}}
+{{- end -}}
+{{- if eq (len .macos.posture_controls) 0 -}}
+{{-   fail "macos_posture_controls.yaml: macos.posture_controls declares zero controls; the poller refuses a zero-control file, so an empty list must not render" -}}
+{{- end -}}
 {{- $seenIds := dict -}}
 {{- $readerDomains := dict
       "fdesetup_status" (list "on" "off")
