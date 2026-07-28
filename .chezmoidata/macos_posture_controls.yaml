@@ -29,6 +29,7 @@
 #                            #   csrutil_status      -> enabled|disabled
 #                            #   defaults_autologin  -> on|off
 #                            #   sysadminctl_guest   -> enabled|disabled
+#                            #   pgrep_oversight     -> running|stopped
 #     expect:      <value>   # the value the control must hold, inside the
 #                            # reader's domain; ANY in-domain deviation pages
 #     remedy:      <string>  # OPTIONAL: the page's fix-it line. Keep it
@@ -57,6 +58,23 @@
 #     silently activated.
 #   - sysadminctl_guest runs `sysadminctl -guestAccount status`, which reports
 #     the state on stderr and exits 0 in both states.
+#   - pgrep_oversight runs `pgrep -x -U <uid> OverSight`, a live process-table
+#     read scoped to the poller's own user session. The identity is pinned
+#     from the installed bundle (verified 2026-07-27): /Applications/
+#     OverSight.app carries exactly one executable, Contents/MacOS/OverSight
+#     (CFBundleExecutable "OverSight", CFBundleIdentifier
+#     com.objective-see.oversight), and no LoginItems/ or XPCServices/
+#     helpers, so the application process IS the monitor and its exact
+#     process name is OverSight (ps -o ucomm= on the live pid agrees).
+#     Deliberately NOT a bundle-presence check: the .app directory sits on
+#     disk whether or not the monitor is watching anything, so presence
+#     would report healthy for a quit monitor (verify the artifact, never a
+#     proxy for it). Classification follows pgrep's documented exit
+#     statuses, and the status/output pairing is symmetric: 0 with a
+#     well-formed pid list on stdout (digits, one pid per line, pgrep's only
+#     success output) is running; the no-match exit 1 with no output at all
+#     is stopped; every other outcome (usage or internal error, a timeout
+#     kill, a status/output mismatch in either direction) is indeterminate.
 
 macos:
   posture_controls:
@@ -84,3 +102,15 @@ macos:
       reader: sysadminctl_guest
       expect: "disabled"
       remedy: "Disable it: System Settings → Users & Groups → Guest User"
+    # verify, not enforce: OverSight is a login item the operator may quit on
+    # purpose, and silently restarting it is not a read-only poller's (or an
+    # apply-time runner's) business; the deviation pages instead. Its
+    # Notification Center delivery (the alert channel, the one interactive
+    # authorization it has) is a separate manual record in
+    # macos_system_setup.yaml.
+    - id: oversight
+      description: "The OverSight microphone and camera monitor process"
+      tier: verify
+      reader: pgrep_oversight
+      expect: "running"
+      remedy: "Relaunch it: open -a OverSight, and keep it in System Settings → General → Login Items so it returns at login"

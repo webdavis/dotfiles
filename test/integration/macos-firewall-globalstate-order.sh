@@ -30,10 +30,14 @@
 #      re-runs the whole list on any data change, so a toggle would flip
 #      protection OFF on the second run. Asserted over EVERY declared firewall
 #      command, not a count.
-#   5. The data declares NO manual records. The only one ever declared here
+#   5. Every manual record's runbook field resolves to a real markdown
+#      heading in the runbook, so no manual pointer can dangle. No FIREWALL
+#      manual record may exist at all: the only one ever declared here
 #      (firewall logging) described an action that does not exist on this
 #      macOS version, and a manual record no reader can complete is worse
-#      than no record; this pins its removal.
+#      than no record. (Non-firewall manual records are legitimate; the
+#      OverSight permission-grant record's own pins live in
+#      oversight-posture.sh.)
 #
 # Real chezmoi against the REAL .chezmoidata; nothing is executed, only
 # rendered.
@@ -46,6 +50,7 @@ unset MACOS_DEFAULTS_SOURCE_DIR GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_INDEX_F
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 TEMPLATE="$REPO_ROOT/.chezmoiscripts/run_onchange_after_41-macos-system-setup.sh.tmpl"
 SETUP_YAML="$REPO_ROOT/.chezmoidata/macos_system_setup.yaml"
+RUNBOOK="$REPO_ROOT/docs/runbooks/macos-fresh-machine-quickstart.md"
 
 # The tool is not on PATH; every declared command carries the absolute path.
 SOCKETFILTERFW="/usr/libexec/ApplicationFirewall/socketfilterfw"
@@ -107,19 +112,31 @@ while IFS= read -r firewall_command; do
     fail "firewall command is not an idempotent set-to-state form: $firewall_command"
 done <"$declared_firewall_commands"
 
-# Criterion 5: this data file declares NO manual records, asserted explicitly
-# so nothing here passes by iterating an empty set. The only manual record
-# ever declared (firewall logging) described an action that cannot be
-# performed: socketfilterfw on 26.2 has no logging flag, and firewall
-# activity flows to the unified log by default, so there is nothing to enable
-# by hand. If a legitimate manual record lands later, replace this assertion
-# with a check that its runbook field resolves to a real markdown heading in
-# the runbook (see git history for the loop this replaced).
-manual_record_descriptions="$(yq eval -r \
-  '[.macos.system_setup[] | select(.tier == "manual") | .description] | join(", ")' \
+# Criterion 5: every manual record's runbook field resolves to a real
+# markdown heading in the runbook, so no manual pointer can dangle; and no
+# FIREWALL manual record exists. The only firewall manual record ever
+# declared (firewall logging) described an action that cannot be performed:
+# socketfilterfw on 26.2 has no logging flag, and firewall activity flows to
+# the unified log by default, so there is nothing to enable by hand.
+# Legitimate non-firewall manual records (the OverSight permission grants)
+# are validated by the resolution loop, not refused.
+firewall_manual_descriptions="$(yq eval -r \
+  '[.macos.system_setup[] | select(.tier == "manual" and (.description | test("(?i)firewall"))) | .description] | join(", ")' \
   "$SETUP_YAML")"
-[[ -z $manual_record_descriptions ]] ||
-  fail "this data file must declare no manual records (nothing firewall-manual exists to perform on this macOS version); found: $manual_record_descriptions"
+[[ -z $firewall_manual_descriptions ]] ||
+  fail "no firewall manual record may exist (nothing firewall-manual is performable on this macOS version); found: $firewall_manual_descriptions"
+
+manual_runbook_sections="$work/manual-runbook-sections"
+yq eval -r \
+  '.macos.system_setup[] | select(.tier == "manual") | .runbook // ""' \
+  "$SETUP_YAML" >"$manual_runbook_sections" ||
+  fail "could not enumerate the manual records' runbook fields"
+while IFS= read -r manual_runbook_section; do
+  [[ -n $manual_runbook_section ]] ||
+    fail "a manual record has an empty runbook field (the render would refuse it; this names the gap first)"
+  grep -qxF "### $manual_runbook_section" "$RUNBOOK" ||
+    fail "manual runbook pointer dangles: no '### $manual_runbook_section' heading in $RUNBOOK"
+done <"$manual_runbook_sections"
 
 # ---- render properties (criteria 1, 2, 3; darwin render only) ---------------
 
@@ -183,4 +200,4 @@ EOF
 cmp -s "$expected_rendered_firewall_lines" "$rendered_firewall_lines" ||
   fail "the render must contain exactly the four declared socketfilterfw command lines (diff: $(diff "$expected_rendered_firewall_lines" "$rendered_firewall_lines" || true))"
 
-printf 'macos-firewall-globalstate-order: OK (global state renders first; both signed-software policies render sudo-prefixed; the render carries exactly the four declared commands; every declared firewall command is set-to-state; the data declares no manual records)\n'
+printf 'macos-firewall-globalstate-order: OK (global state renders first; both signed-software policies render sudo-prefixed; the render carries exactly the four declared commands; every declared firewall command is set-to-state; no firewall manual record exists and every manual runbook pointer resolves)\n'
