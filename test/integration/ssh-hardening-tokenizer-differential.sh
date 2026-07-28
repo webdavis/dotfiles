@@ -245,18 +245,26 @@ differential_case 'empty token: ""HostbasedAuthentication yes' \
   "$MATCH_OFF_LOOPBACK" '""HostbasedAuthentication yes'
 differential_case 'empty token: =SkeyAuthentication yes (undocumented alias)' \
   "$MATCH_OFF_LOOPBACK" '=SkeyAuthentication yes'
-differential_case 'empty token: =DSAAuthentication no under Match all' \
-  'Match all' '=DSAAuthentication no'
 
 # The discard applied to the Match line itself hides the whole block.
 differential_case 'empty token: =Match opens the block' \
   '=Match Address *,!127.0.0.1' 'PasswordAuthentication yes'
 differential_case 'empty token: ""Match opens the block' \
   '""Match Address *,!127.0.0.1' 'PasswordAuthentication yes'
-differential_case 'empty token: =Match=all opens the block' \
-  '=Match=all' 'PasswordAuthentication yes'
 differential_case 'empty token: =Include pulls the payload in' \
   "$MATCH_OFF_LOOPBACK" "=Include $include_payload"
+
+# --- regression cover OUTSIDE the empty-token property ------------------------
+# These two carry '=' forms but do NOT exercise the discard: `Match all`
+# applies to the GLOBAL resolution (measured: plain `sshd -G` with no -C
+# resolves a Match-all block's directives), so even a scan with no discard at
+# all still refuses both through check_global. They were filed under the
+# empty-token family and read as evidence for a property they never tested;
+# they stay as regression cover for the global path.
+differential_case 'global path (discard not exercised): =DSAAuthentication no under Match all' \
+  'Match all' '=DSAAuthentication no'
+differential_case 'global path (discard not exercised): =Match=all opens the block' \
+  '=Match=all' 'PasswordAuthentication yes'
 
 # --- the four divergences found before this one, as regression fixtures ------
 differential_case 'regression 1: Include followed from inside a Match block' \
@@ -307,8 +315,6 @@ differential_case 'argument: Include path with a backslash-escaped space' \
   "$MATCH_OFF_LOOPBACK" "Include ${SSH_SANDBOX}/with\\ space/payload.conf"
 differential_case 'argument: Include path with the space inside quotes' \
   "$MATCH_OFF_LOOPBACK" "Include \"$spaced_include_directory/payload.conf\""
-differential_case 'argument: Include path with an escaped backslash' \
-  "$MATCH_OFF_LOOPBACK" "Include ${SSH_SANDBOX}/with\\\\ space/payload.conf"
 differential_case 'argument: Include path whose file name contains a CR' \
   "$MATCH_OFF_LOOPBACK" "Include $carriage_return_include"
 # The backslash-tab asymmetry, both directions. `\<TAB>` is a SEPARATOR:
@@ -327,6 +333,18 @@ differential_case 'argument: a # comment naming a file that exists' \
   "$MATCH_OFF_LOOPBACK" "Include $harmless_include #hash-named.conf"
 differential_case 'argument: Match criteria with a quoted segment' \
   'Match Addr"ess" *,!127.0.0.1' 'PasswordAuthentication yes'
+
+# --- the backslash-and-glob class, filed separately ---------------------------
+# Recorded, not asserted: sshd unescapes `\\` to `\` and the following space
+# then SEPARATES, so this Include resolves nothing on this binary and the tree
+# stays hardened -- the case lands in the 'safe' bin and exercises no walk.
+# The scanner's real divergence in this family (sshd unescapes an Include path
+# TWICE, argv_split then glob(3), while the scan unescapes once) predates this
+# branch, is live on main, and is filed as its own task. This entry only pins
+# that the form is inert today, so an OpenSSH that starts following it flips
+# the case to unsafe and the assertion fires on its own.
+differential_case 'inert today (backslash-glob class, filed separately): with\\ space' \
+  "$MATCH_OFF_LOOPBACK" "Include ${SSH_SANDBOX}/with\\\\ space/payload.conf"
 
 # --- line-trailing whitespace -------------------------------------------------
 # sshd trims trailing space, tab, carriage return and FORM FEED off the whole
@@ -413,8 +431,13 @@ printf '\ncorpus outcomes: %d accepted-and-unsafe, %d accepted-and-inert, %d rej
 # being a bypass, measures nothing while still reporting green.
 [[ $control_outcome == 'unsafe' ]] ||
   fail "the control form (plain 'PasswordAuthentication yes' inside a Match block) came back '$control_outcome', not 'unsafe'; the fixture no longer measures anything"
-[[ $unsafe_count -ge 20 ]] ||
-  fail "only $unsafe_count corpus forms resolved unsafe; this suite is meant to exercise the tokenizer against dozens, so something has changed the fixture or the parser"
+# The floor is TODAY'S exact accepted-and-unsafe count, not a round number a
+# shrunken corpus could still clear: at 20 a change that silently halved the
+# corpus would have passed. Adding forms raises the count and should raise the
+# floor with it; a count BELOW the floor means forms stopped being exercised
+# (or this OpenSSH stopped resolving one unsafe), and either way a human looks.
+[[ $unsafe_count -ge 52 ]] ||
+  fail "only $unsafe_count corpus forms resolved unsafe, below the pinned floor of 52; forms have dropped out of the corpus or the parser changed, and neither may pass silently"
 
 status=0
 if [[ ${#bypass_forms[@]} -gt 0 ]]; then
