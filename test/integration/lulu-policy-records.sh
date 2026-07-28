@@ -513,10 +513,38 @@ assert_page_body_has 'first observation' ||
 unset POLLER_PLUTIL_XML
 teardown_poller_harness
 
-# ---- H: the existence-only limitation is stated, in data and runbook ---------
+# ---- H: the existence-only limitation is stated where it binds ---------------
 
-grep -qF 'existence-only' "$CONTROLS_YAML" ||
-  fail "H: the rule records must state the existence-only limitation in the data file"
+# The record DESCRIPTIONS are what a page prints, so the honesty must live in
+# them, not only in adjacent comments: each rule record states the
+# existence-only limit itself, and claims no rule ACTION the reader cannot
+# see (a blocked, disabled, expired, endpoint-limited, or signing-mismatched
+# rule all read present in the archive).
+for rule_control_id in lulu_rule_tailscaled lulu_rule_hermes_gateway; do
+  rule_description="$(jq -r --arg id "$rule_control_id" '.[] | select(.id == $id) | .description' <<<"$controls_json")"
+  grep -qF 'existence-only' <<<"$rule_description" ||
+    fail "H: the $rule_control_id description must state the existence-only limit (got: $rule_description)"
+  if grep -qiF 'allow' <<<"$rule_description"; then
+    fail "H: the $rule_control_id description must not claim a rule action the reader cannot see (got: $rule_description)"
+  fi
+done
+
+# And the page a missing mention produces carries that limited claim, because
+# the description IS the page's header: one first-observation tick against an
+# archive that does not mention the target.
+setup_poller_harness
+set_posture '[{"firewall":"1","gatekeeper":"1","screenlock":"1"}]'
+set_posture_controls "$tailscaled_record"
+POLLER_PLUTIL_XML="$(archive_xml_mentioning /opt/unrelated/binary)"
+export POLLER_PLUTIL_XML
+run_poller >/dev/null 2>&1 || fail "H page: expected exit 0"
+assert_page_count 1 || fail "H page: an unmentioned target must page (first observation)"
+assert_page_body_has 'existence-only' ||
+  fail "H page: the page must carry the existence-only limitation through the description"
+unset POLLER_PLUTIL_XML
+teardown_poller_harness
+
+# The comment-level statements hold too, beside the per-record pins above.
 grep -qF 'does not prove the rule allows' "$CONTROLS_YAML" ||
   fail "H: the data file must state the check cannot see the rule action"
 grep -qF 'existence-only' "$RUNBOOK" ||

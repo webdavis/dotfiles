@@ -77,7 +77,7 @@ archive_xml_mentioning() {
 
 rule_control() { # <id> <reader> <target> -- one verify record as a JSON array
   jq -cn --arg id "$1" --arg reader "$2" --arg target "$3" \
-    '[{id: $id, description: ("The LuLu allow rule for " + $id), tier: "verify", reader: $reader, expect: "present", target: $target}]'
+    '[{id: $id, description: ("The LuLu rule-archive mention for " + $id + ", existence-only"), tier: "verify", reader: $reader, expect: "present", target: $target}]'
 }
 
 # run_reader_case <controls-json> -> runs one first-observation tick; the

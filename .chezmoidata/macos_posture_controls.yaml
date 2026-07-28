@@ -164,15 +164,20 @@ macos:
       reader: pgrep_lulu_extension
       expect: "running"
       remedy: "Re-enable it: System Settings → General → Login Items & Extensions → Network Extensions, then open -a LuLu (runbook: LuLu system extension approval)"
+    # The two rule-record descriptions are what a page prints, so they claim
+    # only what the reader proves: the archive MENTIONS the binary,
+    # existence-only. Never word them as "the allow rule": the reader cannot
+    # see the rule action or state, and a blocked, disabled, expired,
+    # endpoint-limited, or signing-mismatched rule all read present.
     - id: lulu_rule_tailscaled
-      description: "The LuLu allow rule for tailscaled (remote recovery path 2)"
+      description: "The LuLu rule-archive mention of /usr/local/bin/tailscaled, existence-only (remote recovery path 2)"
       tier: verify
       reader: lulu_rule_present
       expect: "present"
       target: /usr/local/bin/tailscaled
       remedy: "Recreate the allow rule for /usr/local/bin/tailscaled in the LuLu Rules window; see the runbook section LuLu rule creation"
     - id: lulu_rule_hermes_gateway
-      description: "The LuLu allow rule for the Hermes gateway interpreter (the alerting egress hop)"
+      description: "The LuLu rule-archive mention of the resolved Hermes gateway interpreter, existence-only (the alerting egress hop)"
       tier: verify
       reader: lulu_rule_resolved_present
       expect: "present"
