@@ -35,6 +35,7 @@ FDESETUP="${OSQUERY_POSTURE_FDESETUP:-/usr/bin/fdesetup}"
 CSRUTIL="${OSQUERY_POSTURE_CSRUTIL:-/usr/bin/csrutil}"
 SYSADMINCTL="${OSQUERY_POSTURE_SYSADMINCTL:-/usr/sbin/sysadminctl}"
 DEFAULTS="${OSQUERY_POSTURE_DEFAULTS:-/usr/bin/defaults}"
+PGREP="${OSQUERY_POSTURE_PGREP:-/usr/bin/pgrep}"
 
 # shellcheck source=/dev/null
 source "$HOME/.local/libexec/osquery/alert-dispatch.sh"
@@ -132,6 +133,7 @@ reader_domain() {
   case "$1" in
     fdesetup_status | defaults_autologin) printf 'on off' ;;
     csrutil_status | sysadminctl_guest) printf 'enabled disabled' ;;
+    pgrep_oversight) printf 'running stopped' ;;
   esac
 }
 
@@ -240,6 +242,33 @@ read_control() {
     sysadminctl_guest)
       output=$(run_bounded "$SYSADMINCTL" -guestAccount status 2>&1) || rc=$?
       classify_probe "$output" "$rc" "Guest account enabled." enabled "Guest account disabled." disabled
+      ;;
+    pgrep_oversight)
+      # A live process-table read: OverSight's monitor is the application
+      # process itself. The installed bundle carries exactly one executable,
+      # Contents/MacOS/OverSight (CFBundleExecutable "OverSight",
+      # CFBundleIdentifier com.objective-see.oversight), and no LoginItems/
+      # or XPCServices/ helpers (verified 2026-07-27), so an exact-name match
+      # scoped to this user's session (-x -U) IS the running state.
+      # Deliberately NOT a bundle-presence check: /Applications/OverSight.app
+      # sits on disk whether or not the monitor is watching anything, so
+      # presence would report healthy for a quit monitor. classify_probe
+      # cannot express pgrep, whose documented healthy-off form is a status,
+      # not a needle (man page: exit 0 matched, 1 no match, 2 invalid
+      # options): exit 0 with pids on stdout is running; the no-match exit 1
+      # with no output at all is stopped; every other outcome (usage or
+      # internal error, a timeout kill, a status/output mismatch) is
+      # indeterminate, the same untrustworthy-failure discipline as the
+      # readers above -- a failed probe is never believed, whatever it
+      # printed.
+      output=$(run_bounded "$PGREP" -x -U "$UID" OverSight 2>&1) || rc=$?
+      if [[ $rc -eq 0 && -n $output ]]; then
+        printf 'running'
+      elif [[ $rc -eq 1 && -z $output ]]; then
+        printf 'stopped'
+      else
+        printf 'indeterminate'
+      fi
       ;;
     *)
       # Unreachable behind load_controls' reader validation; fail closed

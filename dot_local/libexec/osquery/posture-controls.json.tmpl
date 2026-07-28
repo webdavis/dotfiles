@@ -27,7 +27,8 @@ function; the poller-vs-data agreement test holds the two together. */ -}}
       "fdesetup_status" (list "on" "off")
       "csrutil_status" (list "enabled" "disabled")
       "defaults_autologin" (list "on" "off")
-      "sysadminctl_guest" (list "enabled" "disabled") -}}
+      "sysadminctl_guest" (list "enabled" "disabled")
+      "pgrep_oversight" (list "running" "stopped") -}}
 {{- range .macos.posture_controls -}}
 {{-   if not (hasKey . "id") -}}
 {{-     fail "macos_posture_controls.yaml: a record has no id; every control needs one, it is the identity in every error and every page" -}}

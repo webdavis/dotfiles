@@ -80,6 +80,13 @@ while IFS=$'\t' read -r reader expect; do
     sysadminctl_guest)
       export POLLER_SYSADMINCTL_GUEST_OUTPUT="stub sysadminctl Guest account ${expect}."
       ;;
+    pgrep_oversight)
+      if [[ $expect == "running" ]]; then
+        export POLLER_PGREP_MODE=running
+      else
+        export POLLER_PGREP_MODE=stopped
+      fi
+      ;;
     *)
       fail "record reader '$reader' has no mapping here: add the poller reader, the harness stub, and this mapping together"
       ;;

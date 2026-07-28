@@ -206,6 +206,49 @@ esac
 SHIM
   chmod +x "$POLLER_HOME/bin/defaults"
 
+  # pgrep: only the exact user-scoped process-name read of OverSight (the
+  # oversight running-state reader) is legitimate; every other argv is a
+  # recorded violation. POLLER_PGREP_MODE models three outcomes (pgrep exit
+  # statuses verified against the installed binary and its man page: 0
+  # matched, 1 no match with no output, 2 invalid options): running (a pid on
+  # stdout, exit 0, the default), stopped (no output at all, exit 1), and
+  # error (a pid on stdout AND exit 2, the untrustworthy-failure form: output
+  # that LOOKS running with a failed status must never be believed).
+  # POLLER_PGREP_OUTPUT/POLLER_PGREP_EXIT override output and status directly
+  # for the remaining forms (exit 1 that still printed something, exit 0 that
+  # printed nothing); ${VAR+x} so a deliberately empty output is programmable.
+  cat >"$POLLER_HOME/bin/pgrep" <<'SHIM'
+#!/usr/bin/env bash
+printf 'pgrep %s\n' "$*" >>"$POLLER_PROBE_CALLS"
+if [[ "$*" != "-x -U $(id -u) OverSight" ]]; then
+  printf 'pgrep %s\n' "$*" >>"$POLLER_MUTATION_LOG"
+  exit 97
+fi
+if [[ -n ${POLLER_PGREP_SLEEP:-} ]]; then
+  exec sleep "$POLLER_PGREP_SLEEP"
+fi
+if [[ -n ${POLLER_PGREP_OUTPUT+x} || -n ${POLLER_PGREP_EXIT:-} ]]; then
+  if [[ -n ${POLLER_PGREP_OUTPUT:-} ]]; then
+    printf '%s\n' "$POLLER_PGREP_OUTPUT"
+  fi
+  exit "${POLLER_PGREP_EXIT:-0}"
+fi
+case "${POLLER_PGREP_MODE:-running}" in
+  stopped)
+    exit 1
+    ;;
+  error)
+    printf '3424\n'
+    exit 2
+    ;;
+  *)
+    printf '3424\n'
+    exit 0
+    ;;
+esac
+SHIM
+  chmod +x "$POLLER_HOME/bin/pgrep"
+
   # Tools the poller has NO business invoking at all, status or otherwise: any
   # call is a recorded violation. run_poller prepends this bin dir to PATH, so
   # a stray PATH-resolved invocation is caught even without an env override.
@@ -272,6 +315,7 @@ run_poller() {
     OSQUERY_POSTURE_CSRUTIL="$POLLER_HOME/bin/csrutil" \
     OSQUERY_POSTURE_SYSADMINCTL="$POLLER_HOME/bin/sysadminctl" \
     OSQUERY_POSTURE_DEFAULTS="$POLLER_HOME/bin/defaults" \
+    OSQUERY_POSTURE_PGREP="$POLLER_HOME/bin/pgrep" \
     bash "$POLLER_TOOL" "$@"
 }
 

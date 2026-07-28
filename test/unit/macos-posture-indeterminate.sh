@@ -47,9 +47,10 @@ run_case() { # <control-id> <env-assignment VAR=VALUE>
     {"id":"filevault","description":"FileVault disk encryption","tier":"verify","reader":"fdesetup_status","expect":"on"},
     {"id":"sip","description":"System Integrity Protection","tier":"verify","reader":"csrutil_status","expect":"disabled"},
     {"id":"autologin","description":"Automatic login at the login window","tier":"verify","reader":"defaults_autologin","expect":"off"},
-    {"id":"guest","description":"The macOS Guest account","tier":"verify","reader":"sysadminctl_guest","expect":"disabled"}
+    {"id":"guest","description":"The macOS Guest account","tier":"verify","reader":"sysadminctl_guest","expect":"disabled"},
+    {"id":"oversight","description":"The OverSight microphone and camera monitor process","tier":"verify","reader":"pgrep_oversight","expect":"running"}
   ]'
-  seed_baseline '{"firewall":"1","gatekeeper":"1","screenlock":"1","filevault":"on","filevault:expect":"on","sip":"disabled","sip:expect":"disabled","autologin":"off","autologin:expect":"off","guest":"disabled","guest:expect":"disabled"}'
+  seed_baseline '{"firewall":"1","gatekeeper":"1","screenlock":"1","filevault":"on","filevault:expect":"on","sip":"disabled","sip:expect":"disabled","autologin":"off","autologin:expect":"off","guest":"disabled","guest:expect":"disabled","oversight":"running","oversight:expect":"running"}'
   snapshot_baseline
 
   export "${env_assignment?}" # the untrustworthy-failure form for this control
@@ -82,5 +83,8 @@ run_case filevault POLLER_FDESETUP_EXIT=1
 run_case sip POLLER_CSRUTIL_EXIT=1
 run_case autologin POLLER_DEFAULTS_AUTOLOGIN_MODE=unreadable
 run_case guest POLLER_SYSADMINCTL_GUEST_EXIT=1
+# pgrep's untrustworthy-failure form: a pid on stdout (running-looking) with a
+# failed exit status. Only exit 0 may ever read as running.
+run_case oversight POLLER_PGREP_MODE=error
 
 printf 'ok: untrustworthy probe failures are indeterminate for every declared control\n'
