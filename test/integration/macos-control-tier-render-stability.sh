@@ -93,9 +93,10 @@ invalid_setup_tiers="$(yq eval -r \
 
 # The Tier 1 runner's 5774ce0 render plus the security-defaults records (the
 # sudo -v prelude, the sudo-routed system-scope SoftwareUpdate write, and the
-# user-scope Safari write), plus the six LuLu policy writes the LuLu-posture
-# slice declared (system scope with an explicit plist_path, each value the
-# live machine carried when declared).
+# user-scope Safari write). The six LuLu policy records the LuLu-posture
+# slice declared are tier: verify (LuLu's extension loads its preferences
+# once at start and writes them back from memory, so an external write is
+# unobserved and clobbered) and render NO line here at all.
 tier1_golden="$work/tier1.golden"
 cat >"$tier1_golden" <<'GOLDEN_EOF'
 #!/bin/bash
@@ -122,12 +123,6 @@ defaults write 'com.apple.WindowManager' 'EnableTilingOptionAccelerator' -bool '
 defaults write 'com.apple.WindowManager' 'EnableTopTilingByEdgeDrag' -bool 'false'
 sudo defaults write '/Library/Preferences/com.apple.SoftwareUpdate' 'AutomaticCheckEnabled' -bool 'true'
 defaults write 'com.apple.Safari' 'AutoOpenSafeDownloads' -bool 'false'
-sudo defaults write '/Library/Objective-See/LuLu/preferences.plist' 'allowLocalHost' -bool 'true'
-sudo defaults write '/Library/Objective-See/LuLu/preferences.plist' 'allowApple' -bool 'true'
-sudo defaults write '/Library/Objective-See/LuLu/preferences.plist' 'allowDNS' -bool 'true'
-sudo defaults write '/Library/Objective-See/LuLu/preferences.plist' 'allowInstalled' -bool 'true'
-sudo defaults write '/Library/Objective-See/LuLu/preferences.plist' 'blockMode' -bool 'false'
-sudo defaults write '/Library/Objective-See/LuLu/preferences.plist' 'passiveMode' -bool 'false'
 # Post-loop: restart user-facing processes so changes take effect immediately.
 # cfprefsd kill is non-negotiable (caches plist values in memory).
 killall 'Dock' 2>/dev/null || true

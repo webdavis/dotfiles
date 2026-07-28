@@ -115,24 +115,28 @@ macos:
       value: false
       tier: enforce
     # LuLu outbound-firewall policy (slice 10). Six records, one per policy
-    # preference, each declaring the value the live machine carried on
-    # 2026-07-27: the slice codifies todays posture so a later change is
-    # visible instead of silent; it changes nothing. The plist is LuLu's own
-    # absolute path (plain XML, world-readable, root-writable), not a
+    # preference, each declaring the value the live base file carried on
+    # 2026-07-27; `just D` compares each against the live plist, so a later
+    # change is visible instead of silent. The plist is LuLu's own absolute
+    # path (plain XML, world-readable, root-writable), not a
     # /Library/Preferences domain, so each record rides slice 2's explicit
-    # plist_path form. The .plist extension in the declared path is
-    # load-bearing: `defaults write` on the extensionless form creates a NEW
-    # file beside the real one (verified on a copy, 2026-07-27).
+    # plist_path form. The .plist extension in the declared path is part of
+    # the real filename: `defaults` on the extensionless form addresses a
+    # DIFFERENT file beside it (verified on a copy, 2026-07-27).
     #
-    # CAUTION, unsettled until the operator drill in the runbook section
-    # "LuLu preference write drill" runs: whether the RUNNING extension
-    # honours an external write to this file is unknown (LuLu rewrites both
-    # of its files at runtime, observed at wake 2026-07-27 13:25:06), and a
-    # `defaults write` to it converts the XML file to a binary plist, resets
-    # its mode 0644 -> 0600, and replaces the inode (all verified on a copy).
-    # Every declared value equals the live one, so the first apply is
-    # value-neutral, but the drill must settle the mechanics before these
-    # records are trusted as enforcement rather than drift declarations.
+    # tier: verify, NOT enforce, from LuLu's own source (LuLu/Extension/
+    # Preferences.m, v4.3.2): the extension loads this file ONCE at start
+    # into an in-memory dictionary, never watches or re-reads it, and writes
+    # that whole dictionary back to disk on every preference change it
+    # processes. An external `defaults write` here is therefore both
+    # invisible to the running extension and clobbered by its next save; on a
+    # copy it also converted the XML file to a binary plist, reset mode 0644
+    # to 0600 (which blinds the unprivileged drift reader), and replaced the
+    # inode (verified 2026-07-27; LuLu also rewrote both of its files
+    # spontaneously at a display wake, 2026-07-27 13:25:06). The supported
+    # way to change these values is the LuLu app; see the runbook section
+    # "LuLu preference changes", which also states the promotion gate for
+    # ever returning these records to enforce.
     #
     # allowLocalHost is the single most safety-critical preference on this
     # machine, because
@@ -149,7 +153,7 @@ macos:
       value: true
       scope: system
       plist_path: /Library/Objective-See/LuLu/preferences.plist
-      tier: enforce
+      tier: verify
     # Apple-signed system processes stay allowed: blocking them breaks core
     # OS services, and the accumulated rule set already allows them anyway.
     - domain: com.objective-see.lulu
@@ -158,7 +162,7 @@ macos:
       value: true
       scope: system
       plist_path: /Library/Objective-See/LuLu/preferences.plist
-      tier: enforce
+      tier: verify
     # DNS stays unprompted: every outbound connection needs resolution first,
     # so filtering DNS would gate all egress behind interactive prompts.
     - domain: com.objective-see.lulu
@@ -167,7 +171,7 @@ macos:
       value: true
       scope: system
       plist_path: /Library/Objective-See/LuLu/preferences.plist
-      tier: enforce
+      tier: verify
     # Applications already installed at LuLu install time keep their baseline
     # allow rules; flipping this only affects future installs, but declaring
     # it pins the posture the accumulated rule set was built under.
@@ -177,7 +181,7 @@ macos:
       value: true
       scope: system
       plist_path: /Library/Objective-See/LuLu/preferences.plist
-      tier: enforce
+      tier: verify
     # Prompt-and-decide, never block-all: blockMode true would sever every
     # unruled outbound flow on an unattended machine, the alerting egress
     # included.
@@ -187,19 +191,19 @@ macos:
       value: false
       scope: system
       plist_path: /Library/Objective-See/LuLu/preferences.plist
-      tier: enforce
+      tier: verify
     # Prompts stay on: passive mode would silently apply a default action to
     # every new flow, removing the interactive gate that makes the accumulated
     # rule set deliberate. (passiveModeAction and passiveModeRules are NOT
-    # declared: both are 0 and unconsulted while passiveMode is false, which
-    # is exactly what makes them the safe toggles for the write drill.)
+    # declared: both are 0 and unconsulted while passiveMode is false, so
+    # tracking them would verify values LuLu never reads.)
     - domain: com.objective-see.lulu
       key: passiveMode
       type: bool
       value: false
       scope: system
       plist_path: /Library/Objective-See/LuLu/preferences.plist
-      tier: enforce
+      tier: verify
   killall:
     - Dock
     - Finder

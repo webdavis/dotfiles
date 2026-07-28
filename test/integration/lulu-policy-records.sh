@@ -7,9 +7,13 @@
 # NSKeyedArchiver archive of LuLu's private Rule class) is interactive-only.
 # The slice therefore declares:
 #
-#   - the six policy preferences as enforce records in macos_defaults.yaml,
+#   - the six policy preferences as verify records in macos_defaults.yaml,
 #     scope system with an explicit plist_path, each carrying the value the
-#     machine holds today (the slice codifies posture, it never changes it);
+#     live base file holds today. Verify, not enforce, from LuLu's own source
+#     (Extension/Preferences.m): the extension loads this file once at start
+#     and writes its in-memory dictionary back on every change, so an
+#     external write is both unobserved and clobbered. The records buy drift
+#     detection (`just D`); the runner renders no write for them.
 #   - the system-extension approval and rule creation as manual records in
 #     macos_system_setup.yaml with runbook sections that exist;
 #   - the extension running and the required allow rules existing as verify
@@ -21,11 +25,12 @@
 # reader, a stubbed extension probe), so the suite passes on any machine
 # regardless of LuLu's state:
 #
-#   A  the six policy records: enforce, scope system, the LuLu plist_path,
+#   A  the six policy records: verify, scope system, the LuLu plist_path,
 #      todays live values, and the allowLocalHost record carries the
 #      alerting-path reason inline so it cannot be quietly flipped or dropped.
-#      The rendered Tier 1 runner writes each record to the absolute plist
-#      path under sudo.
+#      The rendered Tier 1 runner touches the LuLu plist with NO command at
+#      all: a rendered write would claim an enforcement LuLu silently
+#      reverts.
 #   B  containment: a system record naming a plist_path outside the permitted
 #      plist directories (LuLu's install directory) aborts the render.
 #   C  manual records: the system-extension approval and rule creation are
@@ -142,8 +147,8 @@ for expectation in "${policy_expectations[@]}"; do
   record="$(jq --arg key "$policy_key" '[.[] | select(.key == $key)]' <<<"$lulu_records")"
   jq -e 'length == 1' <<<"$record" >/dev/null ||
     fail "A: exactly one record for $policy_key must be declared"
-  jq -e '.[0].tier == "enforce"' <<<"$record" >/dev/null ||
-    fail "A: the $policy_key record must be tier: enforce (got $(jq -r '.[0].tier' <<<"$record"))"
+  jq -e '.[0].tier == "verify"' <<<"$record" >/dev/null ||
+    fail "A: the $policy_key record must be tier: verify (got $(jq -r '.[0].tier' <<<"$record"))"
   jq -e '.[0].scope == "system"' <<<"$record" >/dev/null ||
     fail "A: the $policy_key record must be scope: system"
   jq -e --arg path "$LULU_PLIST_PATH" '.[0].plist_path == $path' <<<"$record" >/dev/null ||
@@ -162,20 +167,19 @@ grep -qF 'alert-dispatch.sh POSTs every page to a Hermes gateway on 127.0.0.1:86
 grep -qF 'Flipping it to false would put LuLu in front of the alerting path itself' "$DEFAULTS_YAML" ||
   fail "A: the allowLocalHost record must carry the alerting-path consequence inline"
 
-# The rendered Tier 1 runner writes each record to the absolute plist path,
-# under sudo (the slice 2 system-scope form, confirmed for this exact path).
+# The six records are tier: verify, so the rendered Tier 1 runner must not
+# touch the LuLu plist with any command at all. LuLu's extension loads its
+# preferences ONCE at start and writes its in-memory dictionary back on every
+# change it processes (Extension/Preferences.m), so a rendered write would be
+# both unobserved by the running extension and clobbered by its next save: an
+# enforcement claim the machine cannot deliver.
 if [[ "$(uname)" == Darwin ]]; then
   tier1_rendered="$sandbox/tier1.rendered"
   HOME="$render_home" chezmoi --source "$REPO_ROOT" execute-template --no-tty \
     <"$TIER1_TEMPLATE" >"$tier1_rendered" 2>"$render_error" ||
     fail "A: the Tier 1 runner must render against the real data (stderr: $(cat "$render_error"))"
-  for expectation in "${policy_expectations[@]}"; do
-    policy_key="${expectation%%|*}"
-    policy_value="${expectation##*|}"
-    write_line="sudo defaults write '$LULU_PLIST_PATH' '$policy_key' -bool '$policy_value'"
-    grep -qxF -- "$write_line" "$tier1_rendered" ||
-      fail "A: the rendered runner must write $policy_key to the absolute plist path under sudo: [$write_line]"
-  done
+  refute_file_contains "$tier1_rendered" "$LULU_PLIST_PATH" \
+    "A: the rendered runner must render NO command naming the LuLu plist (the records are verify tier)"
 fi
 
 # ---- B: a plist_path outside the permitted directories aborts the render ----
@@ -518,4 +522,4 @@ grep -qF 'does not prove the rule allows' "$CONTROLS_YAML" ||
 grep -qF 'existence-only' "$RUNBOOK" ||
   fail "H: the runbook must state the existence-only limitation"
 
-printf 'ok: LuLu policy and posture (six enforce policy records with the inline alerting-path reason, plist_path containment, manual approval and rule-creation records, talker-vs-control diff, extension lifecycle, missing-rule paging, target re-arm, existence-only honesty)\n'
+printf 'ok: LuLu policy and posture (six verify policy records with the inline alerting-path reason and no rendered write, plist_path containment, manual approval and rule-creation records, talker-vs-control diff, extension lifecycle, missing-rule paging, target re-arm, existence-only honesty)\n'

@@ -151,24 +151,19 @@ sudo_prelude_count="$(grep -cxF "$sudo_prelude_pattern" "$combined_log" || true)
 [[ $sudo_prelude_count -eq 1 ]] ||
   fail "the runner must validate sudo exactly once up front (got $sudo_prelude_count 'sudo -v' invocations)"
 
-# The sudo-routed set is exactly the system-scope records: the SoftwareUpdate
-# record plus the six LuLu policy records the LuLu-posture slice declared
-# (each asserted per argv below). Nothing else may escalate.
+# The sudo-routed defaults-write set is exactly the enforced system-scope
+# records: the SoftwareUpdate record alone. The six LuLu policy records are
+# tier: verify (LuLu's extension loads its preferences once at start and
+# writes them back from memory, so an external write is unobserved and
+# clobbered) and must execute NOTHING, so nothing else may escalate.
 sudo_write_lines="$(grep -F "$(printf 'sudo\x1fdefaults')" "$combined_log" || true)"
 sudo_write_count=0
 [[ -n $sudo_write_lines ]] && sudo_write_count="$(printf '%s\n' "$sudo_write_lines" | wc -l | tr -d ' ')"
-[[ $sudo_write_count -eq 7 ]] ||
-  fail "exactly seven writes must be routed through sudo, SoftwareUpdate plus the six LuLu policy records (got $sudo_write_count: $sudo_write_lines)"
-for lulu_expectation in 'allowLocalHost|true' 'allowApple|true' 'allowDNS|true' \
-  'allowInstalled|true' 'blockMode|false' 'passiveMode|false'; do
-  lulu_key="${lulu_expectation%%|*}"
-  lulu_value="${lulu_expectation##*|}"
-  lulu_argv_line="$(printf 'sudo\x1fdefaults\x1fwrite\x1f%s\x1f%s\x1f-bool\x1f%s' \
-    "$LULU_PLIST_PATH" "$lulu_key" "$lulu_value")"
-  lulu_line_count="$(grep -cxF "$lulu_argv_line" "$combined_log" || true)"
-  [[ $lulu_line_count -eq 1 ]] ||
-    fail "the LuLu $lulu_key record must execute exactly once as [sudo defaults write $LULU_PLIST_PATH $lulu_key -bool $lulu_value] (got $lulu_line_count)"
-done
+[[ $sudo_write_count -eq 1 ]] ||
+  fail "exactly one write must be routed through sudo, the SoftwareUpdate record (got $sudo_write_count: $sudo_write_lines)"
+lulu_executed_lines="$(grep -F "$LULU_PLIST_PATH" "$combined_log" || true)"
+[[ -z $lulu_executed_lines ]] ||
+  fail "the six verify-tier LuLu policy records must execute NO command (got: $lulu_executed_lines)"
 sudo_write_lines="$(grep -F "$(printf 'sudo\x1fdefaults')" "$combined_log" | grep -F 'AutomaticCheckEnabled' || true)"
 [[ -n $sudo_write_lines ]] ||
   fail 'the SoftwareUpdate record must execute under sudo'
@@ -276,12 +271,6 @@ expected_execution_log="$sandbox/execution.expected"
   log_line defaults write com.apple.WindowManager EnableTopTilingByEdgeDrag -bool false
   log_line sudo defaults write "$SOFTWAREUPDATE_PLIST_PATH" AutomaticCheckEnabled -bool true
   log_line defaults write com.apple.Safari AutoOpenSafeDownloads -bool false
-  log_line sudo defaults write /Library/Objective-See/LuLu/preferences.plist allowLocalHost -bool true
-  log_line sudo defaults write /Library/Objective-See/LuLu/preferences.plist allowApple -bool true
-  log_line sudo defaults write /Library/Objective-See/LuLu/preferences.plist allowDNS -bool true
-  log_line sudo defaults write /Library/Objective-See/LuLu/preferences.plist allowInstalled -bool true
-  log_line sudo defaults write /Library/Objective-See/LuLu/preferences.plist blockMode -bool false
-  log_line sudo defaults write /Library/Objective-See/LuLu/preferences.plist passiveMode -bool false
   log_line killall Dock
   log_line killall Finder
   log_line killall SystemUIServer

@@ -115,39 +115,31 @@ unfiltered by the `allowLocalHost` preference (declared enforce-tier in
 `.chezmoidata/macos_defaults.yaml`). A curl rule would not protect that hop and would allow every process
 on the machine.
 
-### LuLu preference write drill
+### LuLu preference changes
 
-OPERATOR-GATED, run once before trusting the enforce-tier LuLu policy records as enforcement. The open
-question it settles: does the RUNNING extension honour an external write to
-`/Library/Objective-See/LuLu/preferences.plist`, or does it cache old values and write them back (the
-System Settings / `cfprefsd` footgun this repo already documents)? Read-only evidence so far: LuLu
-rewrote both of its files at runtime on 2026-07-27 at 13:25:06, fifteen seconds after a display wake,
-with the extension up since 2026-07-25; and on a COPY, `defaults write` converted the XML file to a
-binary plist, reset mode 0644 to 0600, added a quarantine xattr, and replaced the inode. The toggles used
-here are `passiveModeAction` and `passiveModeRules`: both are 0 and are not consulted while `passiveMode`
-is false, so the drill never changes effective filtering behaviour.
+The six LuLu policy records in `.chezmoidata/macos_defaults.yaml` are `tier: verify`: `just D` compares
+them against the live base file, and nothing in this repo ever writes that file. That is a finding, not
+a gap, grounded in LuLu's source (`LuLu/Extension/Preferences.m`, v4.3.2): the extension loads
+`preferences.plist` ONCE at start into an in-memory dictionary, never watches or re-reads it, and writes
+that whole dictionary back to disk on every preference change it processes. An external `defaults write`
+is therefore invisible to the running extension AND clobbered by its next save. Supporting read-only
+evidence from this machine: LuLu rewrote both of its files spontaneously on 2026-07-27 at 13:25:06,
+fifteen seconds after a display wake; and on a COPY, `defaults write` converted the XML file to a binary
+plist, reset mode 0644 to 0600 (which blinds the unprivileged drift reader), added a quarantine xattr,
+and replaced the inode.
 
-1. Baseline: `shasum -a 256 /Library/Objective-See/LuLu/preferences.plist`, `stat -f '%Sp %z %Sm'` on it,
-   and `plutil -p` output saved aside. Confirm a test CRIT page delivers end to end BEFORE touching
-   anything.
-1. Write the inert toggle exactly as the Tier 1 runner would:
-   `sudo defaults write /Library/Objective-See/LuLu/preferences.plist passiveModeAction -int 1`.
-1. Immediately re-read: `defaults read /Library/Objective-See/LuLu/preferences.plist passiveModeAction`
-   (expect 1) and note `file`, mode, and owner. If mode became 0600, restore readability now:
-   `sudo chmod 644 /Library/Objective-See/LuLu/preferences.plist` (the LuLu app runs as the user and the
-   drift checker reads unprivileged; both need the 0644 the file normally carries).
-1. Watch for a revert: re-read the value at one, five, and fifteen minutes. Then force LuLu's own write
-   path: open the LuLu app, change any preference in its UI, change it back, and quit; sleep and wake the
-   machine once (the observed self-rewrite trigger). After each, re-read `passiveModeAction`.
-1. Interpret: value still 1 everywhere means the extension tolerates external writes and the enforce
-   records take effect as written (also note whether LuLu's own rewrite restored the XML format). Value
-   back at 0 at any point means LuLu reverted the external write: flip the six policy records to
-   `tier: verify` (drift detection stays, the runner writes nothing) and record the finding here.
-1. Restore: `sudo defaults write /Library/Objective-See/LuLu/preferences.plist passiveModeAction -int 0`,
-   re-apply `sudo chmod 644` if needed, and if LuLu has not rewritten the file itself, restore the XML
-   format: `sudo plutil -convert xml1 /Library/Objective-See/LuLu/preferences.plist`. Confirm `plutil -p`
-   matches the saved baseline, `systemextensionsctl list` still shows `[activated enabled]`, and a final
-   test CRIT page delivers.
+To change one of the six declared values:
+
+1. Change it in the LuLu app (menu bar icon → Preferences), which updates the running extension over its
+   own channel and persists the file itself.
+1. Update the record's `value` in `.chezmoidata/macos_defaults.yaml` to the new intent.
+1. Run `just D` and confirm the declaration and the live file agree again.
+
+Promotion gate: return these records to `tier: enforce` only when a LuLu version demonstrably re-reads
+an external write to the file (a reload mechanism in its source or release notes, verified by observing
+a CONSULTED preference take effect). Until then an enforce tier would claim an enforcement the machine
+cannot deliver: the write would land, change nothing, and be silently reverted, the exact silent no-op
+the tier model exists to surface.
 
 ### Firewall log diagnostics
 
