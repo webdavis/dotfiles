@@ -22,7 +22,12 @@ auto_sync = false
 records = true
 
 [ai]
-enabled = true
+# enabled=false: with this on, `atuin init bash` wires an `atuin ai inline --hook`
+# call, and that hook prompts for Atuin Hub authentication on every new shell when
+# no Hub session exists. The features it gates (natural-language command generation
+# on the `?` key) are not in use. Revisit via issue #91, which records what the
+# feature does and the self-hosted-endpoint option.
+enabled = false
 
 [daemon]
 enabled = true
