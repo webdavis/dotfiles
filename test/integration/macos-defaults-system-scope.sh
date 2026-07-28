@@ -22,7 +22,9 @@
 #   4. A RELATIVE plist_path is rejected (render fails; apply refuses), never
 #      resolved against the ambient working directory.
 #   5. drift reports an unreadable system-scope record as indeterminate, with a
-#      marker distinct from <unset>, and does NOT count it as drift.
+#      marker distinct from <unset>, never counted as drift, and FAILS CLOSED:
+#      an unreadable control is not a passing control, so indeterminate rows
+#      exit 3 (their own status, distinct from drift's 1 and the data-error 2).
 #   6. drift on a set-and-matching system-scope record reports no drift.
 #   7. capture --scope system appends a record carrying `scope: system`.
 #   8. capture rejects --scope system combined with --host current.
@@ -712,12 +714,14 @@ assert_file_contains "$defaults_log" 'read /Library/Preferences/com.example.sys 
   "drift must read the system record from its resolved plist path (defaults log: $(cat "$defaults_log"))"
 
 # criterion 5, defaults-failure route: an unknown read failure is indeterminate,
-# marked distinctly from <unset>, and NOT counted as drift.
+# marked distinctly from <unset>, never counted as drift, and FAILS the gate
+# with its own status 3: an unreadable control is not a passing control, and a
+# drift run that cannot verify what it tracks must not exit 0.
 write_defaults_stub read-denied
 drift_status=0
 run_tool "$drift_system_src" "$DRIFT" >"$drift_out" 2>"$drift_err" || drift_status=$?
-[[ $drift_status -eq 0 ]] ||
-  fail "an unreadable system record must not count as drift (got exit $drift_status, stderr: $(cat "$drift_err"))"
+[[ $drift_status -eq 3 ]] ||
+  fail "an unreadable system record must fail the gate with the indeterminate status 3, never 0 and never drift's 1 (got exit $drift_status, stderr: $(cat "$drift_err"))"
 indeterminate_row="$(grep -F 'com.example.sys' "$drift_out" || true)"
 [[ -n $indeterminate_row ]] ||
   fail "an unreadable system record must be reported as its own row, not silently skipped (stdout: $(cat "$drift_out"))"
@@ -757,8 +761,8 @@ write_defaults_stub read-value
 drift_status=0
 run_tool "$drift_locked_src" "$DRIFT" >"$drift_out" 2>"$drift_err" || drift_status=$?
 chmod u+rw "$locked_plist"
-[[ $drift_status -eq 0 ]] ||
-  fail "an unreadable plist file must not count as drift (got exit $drift_status, stderr: $(cat "$drift_err"))"
+[[ $drift_status -eq 3 ]] ||
+  fail "an unreadable plist file must fail the gate with the indeterminate status 3, never 0 and never drift's 1 (got exit $drift_status, stderr: $(cat "$drift_err"))"
 assert_file_contains "$drift_out" '<unreadable>' \
   "an existing-but-unreadable plist must be reported indeterminate even when a read would have answered (stdout: $(cat "$drift_out"))"
 
