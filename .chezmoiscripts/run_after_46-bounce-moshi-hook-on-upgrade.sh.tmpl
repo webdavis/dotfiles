@@ -1,0 +1,56 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/bin/bash
+# When brew upgrades moshi-hook in place, the running daemon keeps executing
+# its old image. On Unix an open executable survives being unlinked, so the
+# daemon runs happily on a version that no longer exists on disk: nothing
+# crashes, KeepAlive sees a healthy process, and `moshi-hook --version` reports
+# the NEW version while the process bridging to the phone is the old one.
+# Observed 2026-07-27 going 0.2.37 -> 0.2.61: pid 3399 was still serving code
+# from a Cellar directory brew had already deleted in the same command.
+#
+# This is the atuin failure again (see run_after_45), and the weekly Homebrew
+# upgrade recipe reproduces it unattended, because nothing restarts moshi-hook
+# after an upgrade.
+#
+# STALENESS IS DECIDED BY INODE, NOT BY A VERSION STRING. `moshi-hook probe`
+# prints a version, but whether that is the DAEMON's version or the CLI's own
+# was never established, and comparing the CLI against itself is a tautology
+# that always reports healthy. The inode of the executable the process actually
+# holds open is the artifact: if brew replaced the binary, it differs from the
+# inode on disk today. That is true whatever any version string says.
+set -euo pipefail
+
+readonly SERVICE_LABEL='homebrew.mxcl.moshi-hook'
+readonly BREW_LINK='/opt/homebrew/bin/moshi-hook'
+
+[[ -x $BREW_LINK ]] || exit 0
+
+pid="$(pgrep -f 'moshi-hook serve' 2>/dev/null | head -1)"
+[[ -n $pid ]] || exit 0
+
+# The txt entry is the executable image the process is running. Capturing the
+# status separately: a failed lsof must not be read as a matching inode.
+lsof_status=0
+running_inode="$(lsof -p "$pid" 2>/dev/null | awk '$4 == "txt" { print $(NF-1); exit }')" || lsof_status=$?
+if [[ $lsof_status -ne 0 || -z $running_inode ]]; then
+  printf 'moshi-hook: could not read the running image of pid %s; not bouncing a daemon whose state is unknown.\n' "$pid" >&2
+  exit 0
+fi
+
+resolved="$(readlink -f "$BREW_LINK" 2>/dev/null || true)"
+[[ -n $resolved && -e $resolved ]] || exit 0
+
+disk_inode="$(stat -f '%i' "$resolved" 2>/dev/null || true)"
+[[ -n $disk_inode ]] || exit 0
+
+# Both sides must be plain digits before comparing, so a surprising lsof or
+# stat format cannot produce a false match.
+case $running_inode in '' | *[!0-9]*) exit 0 ;; esac
+case $disk_inode in '' | *[!0-9]*) exit 0 ;; esac
+
+if [[ $running_inode != "$disk_inode" ]]; then
+  printf 'moshi-hook daemon is running a replaced binary (image %s, on disk %s); bouncing the LaunchAgent...\n' \
+    "$running_inode" "$disk_inode"
+  launchctl kickstart -k "gui/$(id -u)/$SERVICE_LABEL"
+fi
+{{ end -}}
