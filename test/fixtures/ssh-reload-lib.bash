@@ -73,6 +73,16 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/ssh-hardening-lib.bash"
 #                                    still blocks passwords after the drop-in
 #                                    is gone, without verifying fully
 #                                    hardened)
+#   SSHD_STUB_BLOCKED_ADDRESSES      space-separated addr values: a `-G -T -C`
+#                                    resolution whose spec carries one of
+#                                    these addresses keeps BOTH interactive
+#                                    password channels closed even when the
+#                                    tree is otherwise open (models a Match
+#                                    block scoped to that address). This is
+#                                    what makes the stub's output VARY by
+#                                    connection spec, so a recovery gate that
+#                                    drops one of its two samples is caught
+#                                    by a test instead of staying green
 #   LAUNCHCTL_STUB_PRINT_STATUSES    space-separated exit statuses for
 #                                    successive `launchctl print` calls within
 #                                    one run; the last entry repeats
@@ -126,7 +136,10 @@ STUB
   # Controlled sshd: -t exits SSHD_STUB_SYNTAX_STATUS; -G (with or without
   # -T -C) prints a `port` line plus the seven protected directives, hardened
   # exactly when the sandbox drop-in exists (or SSHD_STUB_FORCE_HARDENED is
-  # set), unhardened defaults otherwise.
+  # set), unhardened defaults otherwise. A `-C` spec whose addr is listed in
+  # SSHD_STUB_BLOCKED_ADDRESSES resolves the two password channels closed
+  # even on an otherwise-open tree, so the output varies by connection spec
+  # the way the real resolver does under an address-scoped Match block.
   cat >"$SSH_STUB_DIR/sshd" <<'STUB'
 #!/bin/bash
 set -euo pipefail
@@ -155,6 +168,33 @@ if [[ ${statuses[$index]} -ne 0 ]]; then
   echo 'sshd stub: -G resolution failure injected' >&2
   exit "${statuses[$index]}"
 fi
+# The connection spec, when this call is a per-connection resolution
+# (`-G -T -C user=...,host=...,addr=...`). The addr field is what
+# SSHD_STUB_BLOCKED_ADDRESSES keys on.
+specification=''
+previous=''
+for argument in "$@"; do
+  if [[ $previous == '-C' ]]; then
+    specification="$argument"
+  fi
+  previous="$argument"
+done
+specification_address=''
+case $specification in
+  *addr=*)
+    specification_address="${specification##*addr=}"
+    specification_address="${specification_address%%,*}"
+    ;;
+esac
+blocked_for_specification=0
+if [[ -n ${SSHD_STUB_BLOCKED_ADDRESSES:-} && -n $specification_address ]]; then
+  for blocked_address in ${SSHD_STUB_BLOCKED_ADDRESSES}; do
+    if [[ $specification_address == "$blocked_address" ]]; then
+      blocked_for_specification=1
+      break
+    fi
+  done
+fi
 for stub_port in ${SSHD_STUB_PORT-2222}; do
   printf 'port %s\n' "$stub_port"
 done
@@ -162,7 +202,7 @@ if [[ -f "${SSHD_CONFIG_D:?}/${SSH_DROPIN_NAME:?}" || -n ${SSHD_STUB_FORCE_HARDE
   printf '%s\n' 'passwordauthentication no' 'kbdinteractiveauthentication no' \
     'usepam yes' 'pubkeyauthentication yes' 'permitrootlogin no' \
     'gssapiauthentication no' 'hostbasedauthentication no'
-elif [[ -n ${SSHD_STUB_PARTIAL_HARDENED:-} ]]; then
+elif [[ -n ${SSHD_STUB_PARTIAL_HARDENED:-} || $blocked_for_specification -eq 1 ]]; then
   printf '%s\n' 'passwordauthentication no' 'kbdinteractiveauthentication no' \
     'usepam yes' 'pubkeyauthentication yes' 'permitrootlogin prohibit-password' \
     'gssapiauthentication no' 'hostbasedauthentication no'
@@ -363,6 +403,7 @@ STUB
   SSHD_STUB_PORT=2222
   SSHD_STUB_FORCE_HARDENED=""
   SSHD_STUB_PARTIAL_HARDENED=""
+  SSHD_STUB_BLOCKED_ADDRESSES=""
   LAUNCHCTL_STUB_PRINT_STATUSES='0'
   LAUNCHCTL_STUB_KICKSTART_STATUS=0
   KEYSCAN_STUB_MODE=banner
@@ -375,6 +416,7 @@ STUB
     SSHD_BIN LAUNCHCTL_BIN KEYSCAN_BIN SLEEP_BIN SSH_HARDENING_SUDO \
     SSHD_STUB_SYNTAX_STATUS SSHD_STUB_RESOLVE_STATUSES SSHD_STUB_PORT \
     SSHD_STUB_FORCE_HARDENED SSHD_STUB_PARTIAL_HARDENED \
+    SSHD_STUB_BLOCKED_ADDRESSES \
     LAUNCHCTL_STUB_PRINT_STATUSES LAUNCHCTL_STUB_KICKSTART_STATUS \
     KEYSCAN_STUB_MODE KEYSCAN_STUB_ANSWER_PORT
 }
