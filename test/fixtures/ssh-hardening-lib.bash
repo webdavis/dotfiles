@@ -115,16 +115,21 @@ ssh_sandbox_teardown() {
 
 # run_ssh_hardening <args...>: run the script under /bin/bash, capturing
 # stdout, stderr, and the exit status into SSH_RUN_OUT / SSH_RUN_ERR /
-# SSH_RUN_STATUS. Never lets a nonzero status kill the calling test.
-# shellcheck disable=SC2034  # the three run results are read by the sourcing test
+# SSH_RUN_STATUS. Never lets a nonzero status kill the calling test -- but a
+# script that HANGS does, loudly: every run goes through
+# run_ssh_hardening_bounded below with a wall clock of
+# SSH_HARDENING_TIME_LIMIT seconds (default 30), and exceeding it ABORTS the
+# suite naming the run that spun. A hang is strictly worse than a failure: it
+# blocks the pre-push gate with no diagnosis, and on CI it burns the job's
+# whole time budget before being killed. Observed, not hypothetical: under a
+# tokenizer mutation the --verify child spun and the whole suite hung here.
 run_ssh_hardening() {
-  local out_file="$SSH_SANDBOX/run.out" err_file="$SSH_SANDBOX/run.err"
-  SSH_RUN_STATUS=0
-  /bin/bash "$SSH_HARDENING_SCRIPT" "$@" >"$out_file" 2>"$err_file" ||
-    SSH_RUN_STATUS=$?
-  SSH_RUN_OUT="$(cat "$out_file")"
-  SSH_RUN_ERR="$(cat "$err_file")"
-  assert_no_escalation "run_ssh_hardening $*"
+  run_ssh_hardening_bounded "${SSH_HARDENING_TIME_LIMIT:-30}" "$@"
+  if [[ ${SSH_RUN_TIMED_OUT:-0} -eq 1 ]]; then
+    printf 'FAIL: run_ssh_hardening %s exceeded its %ss wall clock; a script that can spin must fail the suite, not hang it\n' \
+      "$*" "${SSH_HARDENING_TIME_LIMIT:-30}" >&2
+    exit 1
+  fi
 }
 
 # run_ssh_hardening_bounded <seconds> <args...>: run_ssh_hardening with a wall

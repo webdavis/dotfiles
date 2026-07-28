@@ -26,6 +26,13 @@
 #   8. a verifier that runs but ERRORS is the error outcome, distinct from
 #      "still blocked" and never a success
 #   9. the already-absent path with the policy still in force fails loudly
+#   10. the OFF-LOOPBACK recovery sample is load-bearing: a tree that blocks
+#       passwords only for the off-loopback sample fails the gate, so a
+#       rollback verified over loopback alone can never claim success (the
+#       locked-out operator this gate exists for connects from OFF the
+#       machine, where loopback proves nothing)
+#   11. the LOOPBACK sample is load-bearing the same way, so neither sample
+#       can be deleted with the suite still green
 set -euo pipefail
 
 # Scrubbed at SCRIPT scope. Git exports GIT_DIR to every hook it runs and this
@@ -212,4 +219,42 @@ refute_contains "$SSH_RUN_OUT" 'rollback complete' \
 assert_no_reload_side_effects '9'
 rm -f "$dropin"
 
-printf 'ssh-hardening-rollback: OK (success means a PROVEN password channel, on both the removal and the already-absent path; blocked, errored, and unverifiable are three distinct loud failures)\n'
+# --- 10: the off-loopback sample is load-bearing ------------------------------
+# The stub resolves the two password channels CLOSED for the off-loopback
+# recovery sample (SSHD_STUB_BLOCKED_ADDRESSES) while loopback resolves them
+# open -- the shape of a Match block scoped away from loopback still enforcing
+# the password block for the address the locked-out operator actually
+# connects from. The gate must report BLOCKED. A gate sampling only loopback
+# claims success here, so deleting the off-loopback sample fails this case.
+# The address is pinned to the script's documented RFC 5737 recovery sample.
+
+write_hardened_dropin
+SSHD_STUB_BLOCKED_ADDRESSES='198.51.100.23' run_ssh_reload --rollback
+[[ $SSH_RUN_STATUS -ne 0 ]] ||
+  fail '10: with passwords still blocked for the OFF-LOOPBACK sample, rollback must fail even though loopback resolves open'
+[[ ! -e $dropin ]] ||
+  fail '10: the removal itself must still happen'
+grep -qi 'NOT restored' <<<"$SSH_RUN_ERR" ||
+  fail "10: the failure must say password access is NOT restored (stderr: $SSH_RUN_ERR)"
+refute_contains "$SSH_RUN_OUT" 'rollback complete' \
+  '10: a loopback-only proof must not produce a completion claim'
+assert_no_reload_side_effects '10'
+
+# --- 11: the loopback sample is load-bearing the same way ---------------------
+# The mirror image: loopback still blocks passwords while the off-loopback
+# sample resolves open. Together with case 10 this pins BOTH samples: neither
+# can be deleted from the gate with the suite still green.
+
+write_hardened_dropin
+SSHD_STUB_BLOCKED_ADDRESSES='127.0.0.1' run_ssh_reload --rollback
+[[ $SSH_RUN_STATUS -ne 0 ]] ||
+  fail '11: with passwords still blocked for the LOOPBACK sample, rollback must fail even though off-loopback resolves open'
+[[ ! -e $dropin ]] ||
+  fail '11: the removal itself must still happen'
+grep -qi 'NOT restored' <<<"$SSH_RUN_ERR" ||
+  fail "11: the failure must say password access is NOT restored (stderr: $SSH_RUN_ERR)"
+refute_contains "$SSH_RUN_OUT" 'rollback complete' \
+  '11: an off-loopback-only proof must not produce a completion claim'
+assert_no_reload_side_effects '11'
+
+printf 'ssh-hardening-rollback: OK (success means a PROVEN password channel, on both the removal and the already-absent path; blocked, errored, and unverifiable are three distinct loud failures; both recovery samples are load-bearing)\n'
