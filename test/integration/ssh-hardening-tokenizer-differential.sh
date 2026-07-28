@@ -105,6 +105,13 @@ printf 'PasswordAuthentication yes\n' >"$spaced_include_directory/payload.conf"
 carriage_return_include="$SSH_SANDBOX/payload${CARRIAGE_RETURN}cr.conf"
 printf 'PasswordAuthentication yes\n' >"$carriage_return_include"
 
+# A fourth copy whose FILE NAME carries a horizontal tab, for the backslash
+# asymmetry: `\<space>` is an escape to argv_split but `\<TAB>` is NOT -- the
+# backslash stays literal and the tab still separates (both measured). Only a
+# QUOTED segment carries a tab into an Include path.
+tab_include="$SSH_SANDBOX/pay${HORIZONTAL_TAB}load.conf"
+printf 'PasswordAuthentication yes\n' >"$tab_include"
+
 # An inert file whose name begins with '#', for the mirror-image rule: a '#'
 # opening an argument is a COMMENT to sshd, so a scan that reads it as another
 # Include pattern would resolve this file and raise an alarm about a directive
@@ -304,6 +311,18 @@ differential_case 'argument: Include path with an escaped backslash' \
   "$MATCH_OFF_LOOPBACK" "Include ${SSH_SANDBOX}/with\\\\ space/payload.conf"
 differential_case 'argument: Include path whose file name contains a CR' \
   "$MATCH_OFF_LOOPBACK" "Include $carriage_return_include"
+# The backslash-tab asymmetry, both directions. `\<TAB>` is a SEPARATOR:
+# sshd keeps the backslash, ends the argument at the tab, and reads what
+# follows as a FURTHER Include argument -- which it follows. A scanner that
+# reads `\<TAB>` as an escaped tab merges the two into one bogus path: it
+# walks a file sshd never reads (false alarm) and walks PAST the second
+# argument sshd does read (bypass).
+differential_case 'argument: backslash-tab merged path names a real file sshd never reads' \
+  "$MATCH_OFF_LOOPBACK" "Include ${SSH_SANDBOX}/pay\\${HORIZONTAL_TAB}load.conf"
+differential_case 'argument: backslash-tab separates; sshd follows the second path' \
+  "$MATCH_OFF_LOOPBACK" "Include ${SSH_SANDBOX}/absent\\${HORIZONTAL_TAB}${include_payload}"
+differential_case 'argument: Include path with the tab inside quotes' \
+  "$MATCH_OFF_LOOPBACK" "Include \"$tab_include\""
 differential_case 'argument: a # comment naming a file that exists' \
   "$MATCH_OFF_LOOPBACK" "Include $harmless_include #hash-named.conf"
 differential_case 'argument: Match criteria with a quoted segment' \

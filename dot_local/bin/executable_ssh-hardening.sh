@@ -413,9 +413,12 @@ check_global() {
 #   THE ARGUMENTS (argv_split semantics). Only space and tab separate -- a
 #   carriage return does NOT. Any number of single- OR double-quoted segments
 #   concatenate with unquoted text into one argument. A backslash escapes
-#   either quote, another backslash, and (outside quotes) a space or tab; every
-#   other backslash is kept literally. A '#' OPENING an argument comments out
-#   the rest of the line, while a '#' inside one stays literal.
+#   either quote, another backslash, and (outside quotes) a SPACE -- not a
+#   tab: `\<TAB>` keeps the backslash and the tab still separates, so the text
+#   after it is a further argument (measured; only a quoted segment carries a
+#   tab into an argument). Every other backslash is kept literally. A '#'
+#   OPENING an argument comments out the rest of the line, while a '#' inside
+#   one stays literal.
 #
 # Both sides matter to security, not just the keyword: an Include path is an
 # argument, so the argument rules decide which files the scan walks at all.
@@ -577,8 +580,12 @@ read_argument_token() {
     character="${REST:0:1}"
     if [[ $character == "$CONFIG_BACKSLASH" ]]; then
       # A backslash escapes either quote character, another backslash, and --
-      # outside a quoted segment -- a space or a tab. Any other backslash is
-      # kept, along with the character after it.
+      # outside a quoted segment -- a SPACE. NOT a tab: measured against a
+      # file literally named pay<TAB>load.conf, `Include .../pay\<TAB>load.conf`
+      # does not reach it (the backslash stays literal and the tab separates,
+      # so what follows is a further argument sshd DOES follow), while
+      # `Include ".../pay<TAB>load.conf"` does reach it. Any other backslash
+      # is kept literally and the character after it is read on its own.
       escaped="${REST:1:1}"
       case $escaped in
         '"' | "'" | "$CONFIG_BACKSLASH")
@@ -586,7 +593,7 @@ read_argument_token() {
           REST="${REST:2}"
           continue
           ;;
-        ' ' | "$CONFIG_TAB")
+        ' ')
           if [[ -z $quote ]]; then
             TOKEN="$TOKEN$escaped"
             REST="${REST:2}"
