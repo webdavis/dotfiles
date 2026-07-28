@@ -24,6 +24,15 @@
 #      probe time and the RESOLVED path is matched, so the control follows
 #      the live binary behind a launcher symlink; an unresolvable target is
 #      indeterminate, never absent.
+#   R6 profile guard: LuLu reads preferences AND rules from an ACTIVE
+#      PROFILE directory when the base preferences name one (currentProfile;
+#      Preferences.m getCurrentProfile, Rules.m getPath), so with a profile
+#      active the base archive these readers consult is not the one deciding
+#      traffic. Both rule readers go indeterminate, the gap page names the
+#      profile as the cause, the base archive is not even read, and an
+#      UNREADABLE base preferences file is the same fail-closed
+#      indeterminate. One preferences read per tick, however many rule
+#      controls are declared.
 set -euo pipefail
 
 # Scrubbed at SCRIPT scope. Git exports GIT_DIR to every hook it runs and this
@@ -206,4 +215,80 @@ assert_baseline_unchanged ||
 unset POLLER_READLINK_EXIT POLLER_READLINK_OUTPUT POLLER_PLUTIL_XML
 teardown_poller_harness
 
-printf 'ok: LuLu rule-existence readers (exact-element existence claim, XML escaping, indeterminate-on-failure, resolved-target following)\n'
+# ---- R6: an active LuLu profile makes the base archive non-authoritative -----
+
+# preferences_xml_with_profile -- a base preferences document whose
+# currentProfile key names an active profile directory, the way LuLu stores
+# the selection (full path under Profiles/).
+preferences_xml_with_profile() {
+  printf '<?xml version="1.0" encoding="UTF-8"?>\n<plist version="1.0">\n<dict>\n	<key>currentProfile</key>\n	<string>/Library/Objective-See/LuLu/Profiles/travel</string>\n</dict>\n</plist>\n'
+}
+
+# A STALE base mention must not read present while a profile is active: the
+# profile's own rules.plist is the one deciding traffic. Indeterminate, one
+# gap page naming the profile, baseline untouched, and the base archive is
+# never even read.
+setup_poller_harness
+POLLER_PLUTIL_PREFS_XML="$(preferences_xml_with_profile)"
+export POLLER_PLUTIL_PREFS_XML
+POLLER_PLUTIL_XML="$(archive_xml_mentioning /usr/local/bin/tailscaled)"
+export POLLER_PLUTIL_XML
+set_posture '[{"firewall":"1","gatekeeper":"1","screenlock":"1"}]'
+set_posture_controls "$(rule_control demo_rule lulu_rule_present /usr/local/bin/tailscaled)"
+seed_baseline '{"firewall":"1","gatekeeper":"1","screenlock":"1","demo_rule":"present","demo_rule:expect":"present","demo_rule:target":"/usr/local/bin/tailscaled"}'
+snapshot_baseline
+run_poller >/dev/null 2>&1 || fail "R6 active: expected exit 0 after paging the gap"
+assert_page_count 1 || fail "R6 active: an active profile must page a monitoring gap"
+assert_page_body_has 'monitoring gap' || fail "R6 active: the page must name the gap"
+assert_page_body_has 'LuLu profile is ACTIVE' ||
+  fail "R6 active: the page must name the active profile as the cause"
+assert_page_body_has 'demo_rule' || fail "R6 active: the page must name the blinded control"
+assert_baseline_unchanged ||
+  fail "R6 active: a non-authoritative read must never advance the baseline"
+assert_probe_argv "plutil -convert xml1 -o - $OSQUERY_POSTURE_LULU_RULES" 0 ||
+  fail "R6 active: the base archive must not be read while a profile is active"
+assert_probe_argv "plutil -convert xml1 -o - $OSQUERY_POSTURE_LULU_PREFERENCES" 1 ||
+  fail "R6 active: the profile check must read the base preferences exactly once"
+unset POLLER_PLUTIL_PREFS_XML POLLER_PLUTIL_XML
+teardown_poller_harness
+
+# An UNREADABLE base preferences file cannot confirm no profile is active:
+# same fail-closed indeterminate, page names the unconfirmed check.
+setup_poller_harness
+export POLLER_PLUTIL_PREFS_EXIT=1
+POLLER_PLUTIL_XML="$(archive_xml_mentioning /usr/local/bin/tailscaled)"
+export POLLER_PLUTIL_XML
+set_posture '[{"firewall":"1","gatekeeper":"1","screenlock":"1"}]'
+set_posture_controls "$(rule_control demo_rule lulu_rule_present /usr/local/bin/tailscaled)"
+seed_baseline '{"firewall":"1","gatekeeper":"1","screenlock":"1","demo_rule":"present","demo_rule:expect":"present","demo_rule:target":"/usr/local/bin/tailscaled"}'
+snapshot_baseline
+run_poller >/dev/null 2>&1 || fail "R6 unreadable: expected exit 0 after paging the gap"
+assert_page_count 1 || fail "R6 unreadable: an unconfirmable profile state must page a gap"
+assert_page_body_has 'confirm no profile is active' ||
+  fail "R6 unreadable: the page must say the profile state could not be confirmed"
+assert_baseline_unchanged ||
+  fail "R6 unreadable: an unconfirmable read must never advance the baseline"
+unset POLLER_PLUTIL_PREFS_EXIT POLLER_PLUTIL_XML
+teardown_poller_harness
+
+# Healthy control: NO profile (the harness default preferences carry no
+# currentProfile key), two rule controls, one tick: the preferences are read
+# exactly ONCE (memoized per tick), both rule reads proceed, silence.
+setup_poller_harness
+POLLER_PLUTIL_XML="$(archive_xml_mentioning /usr/local/bin/tailscaled /usr/local/bin/other)"
+export POLLER_PLUTIL_XML
+set_posture '[{"firewall":"1","gatekeeper":"1","screenlock":"1"}]'
+set_posture_controls "$(jq -cn '[
+  {id: "demo_rule", description: "rule one", tier: "verify", reader: "lulu_rule_present", expect: "present", target: "/usr/local/bin/tailscaled"},
+  {id: "demo_rule_two", description: "rule two", tier: "verify", reader: "lulu_rule_present", expect: "present", target: "/usr/local/bin/other"}]')"
+run_poller >/dev/null 2>&1 || fail "R6 healthy: expected exit 0"
+assert_no_page || fail "R6 healthy: no profile and both rules mentioned must stay silent"
+assert_probe_argv "plutil -convert xml1 -o - $OSQUERY_POSTURE_LULU_PREFERENCES" 1 ||
+  fail "R6 healthy: the profile check must run exactly once per tick, however many rule controls exist"
+assert_probe_argv "plutil -convert xml1 -o - $OSQUERY_POSTURE_LULU_RULES" 2 ||
+  fail "R6 healthy: both rule controls must still read the base archive"
+assert_no_mutation_attempt || fail "R6 healthy: the profile check must never mutate"
+unset POLLER_PLUTIL_XML
+teardown_poller_harness
+
+printf 'ok: LuLu rule-existence readers (exact-element existence claim, XML escaping, indeterminate-on-failure, resolved-target following, active-profile fail-closed guard)\n'

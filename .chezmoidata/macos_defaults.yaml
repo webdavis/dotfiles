@@ -138,6 +138,11 @@ macos:
     # "LuLu preference changes", which also states the promotion gate for
     # ever returning these records to enforce.
     #
+    # Residual, monitored elsewhere: when this file's currentProfile key
+    # names an active LuLu profile, LuLu consults the profile's own files
+    # and these records describe only the base file; the security-posture
+    # poller's active-profile guard pages the moment that key appears.
+    #
     # allowLocalHost is the single most safety-critical preference on this
     # machine, because
     # alert-dispatch.sh POSTs every page to a Hermes gateway on 127.0.0.1:8644

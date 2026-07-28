@@ -152,6 +152,12 @@ macos:
     #     Hermes venv launcher is a symlink chain into a uv-managed CPython,
     #     so a python upgrade that moves the interpreter pages here instead
     #     of silently stranding the alerting egress behind a prompt.
+    #   - both lulu_rule readers consult the BASE rules archive, behind the
+    #     poller's active-profile guard: when the base preferences carry a
+    #     currentProfile key, LuLu consults the named profile's own files
+    #     instead (Preferences.m, Rules.m), so the readers go indeterminate
+    #     and the poller pages the gap rather than trusting a file LuLu no
+    #     longer reads.
     - id: lulu_extension
       description: "The LuLu outbound-firewall system extension process"
       tier: verify

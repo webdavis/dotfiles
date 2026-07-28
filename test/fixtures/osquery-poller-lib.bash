@@ -288,28 +288,28 @@ esac
 SHIM
   chmod +x "$POLLER_HOME/bin/pgrep"
 
-  # plutil: only the exact read-only conversion of the LuLu rules archive to
-  # stdout is legitimate (the archive file is never written); every other
-  # argv is a recorded violation. POLLER_PLUTIL_XML programs the converted
-  # document (default: an archive mentioning nothing); ${VAR-default} so a
-  # deliberately empty output (the status/output-mismatch form) is
-  # programmable. POLLER_PLUTIL_EXIT models a failed conversion (missing or
-  # corrupt archive).
+  # plutil: exactly two read-only conversions to stdout are legitimate, the
+  # LuLu rules archive and the LuLu base preferences (the active-profile
+  # guard's read); neither file is ever written, and every other argv is a
+  # recorded violation. POLLER_PLUTIL_XML / POLLER_PLUTIL_EXIT program the
+  # rules conversion (default: an archive mentioning nothing);
+  # POLLER_PLUTIL_PREFS_XML / POLLER_PLUTIL_PREFS_EXIT program the
+  # preferences conversion (default: a document WITHOUT a currentProfile
+  # key, the no-profile healthy state). ${VAR-default} so a deliberately
+  # empty output (the status/output-mismatch form) is programmable on both.
   cat >"$POLLER_HOME/bin/plutil" <<'SHIM'
 #!/usr/bin/env bash
 printf 'plutil %s\n' "$*" >>"$POLLER_PROBE_CALLS"
-if [[ "$*" != "-convert xml1 -o - ${OSQUERY_POSTURE_LULU_RULES:-}" ]]; then
-  printf 'plutil %s\n' "$*" >>"$POLLER_MUTATION_LOG"
-  exit 97
-fi
-if [[ -n ${POLLER_PLUTIL_SLEEP:-} ]]; then
-  exec sleep "$POLLER_PLUTIL_SLEEP"
-fi
-exit_code="${POLLER_PLUTIL_EXIT:-0}"
-if [[ $exit_code -ne 0 ]]; then
-  exit "$exit_code"
-fi
-default_archive='<?xml version="1.0" encoding="UTF-8"?>
+case "$*" in
+  "-convert xml1 -o - ${OSQUERY_POSTURE_LULU_RULES:-}")
+    if [[ -n ${POLLER_PLUTIL_SLEEP:-} ]]; then
+      exec sleep "$POLLER_PLUTIL_SLEEP"
+    fi
+    exit_code="${POLLER_PLUTIL_EXIT:-0}"
+    if [[ $exit_code -ne 0 ]]; then
+      exit "$exit_code"
+    fi
+    default_archive='<?xml version="1.0" encoding="UTF-8"?>
 <plist version="1.0">
 <dict>
 	<key>$objects</key>
@@ -317,7 +317,30 @@ default_archive='<?xml version="1.0" encoding="UTF-8"?>
 	</array>
 </dict>
 </plist>'
-printf '%s\n' "${POLLER_PLUTIL_XML-$default_archive}"
+    printf '%s\n' "${POLLER_PLUTIL_XML-$default_archive}"
+    ;;
+  "-convert xml1 -o - ${OSQUERY_POSTURE_LULU_PREFERENCES:-}")
+    if [[ -n ${POLLER_PLUTIL_PREFS_SLEEP:-} ]]; then
+      exec sleep "$POLLER_PLUTIL_PREFS_SLEEP"
+    fi
+    exit_code="${POLLER_PLUTIL_PREFS_EXIT:-0}"
+    if [[ $exit_code -ne 0 ]]; then
+      exit "$exit_code"
+    fi
+    default_preferences='<?xml version="1.0" encoding="UTF-8"?>
+<plist version="1.0">
+<dict>
+	<key>allowLocalHost</key>
+	<true/>
+</dict>
+</plist>'
+    printf '%s\n' "${POLLER_PLUTIL_PREFS_XML-$default_preferences}"
+    ;;
+  *)
+    printf 'plutil %s\n' "$*" >>"$POLLER_MUTATION_LOG"
+    exit 97
+    ;;
+esac
 SHIM
   chmod +x "$POLLER_HOME/bin/plutil"
 
@@ -344,10 +367,11 @@ printf '%s\n' "${POLLER_READLINK_OUTPUT-$2}"
 SHIM
   chmod +x "$POLLER_HOME/bin/readlink"
 
-  # The LuLu rules-archive path handed to the poller (and embedded in the
-  # plutil stub's accepted argv): a sandbox path, so no test ever depends on
-  # the real /Library/Objective-See archive.
+  # The LuLu rules-archive and base-preferences paths handed to the poller
+  # (and embedded in the plutil stub's accepted argvs): sandbox paths, so no
+  # test ever depends on the real /Library/Objective-See files.
   export OSQUERY_POSTURE_LULU_RULES="$POLLER_HOME/lulu-rules.plist"
+  export OSQUERY_POSTURE_LULU_PREFERENCES="$POLLER_HOME/lulu-preferences.plist"
 
   # Tools the poller has NO business invoking at all, status or otherwise: any
   # call is a recorded violation. run_poller prepends this bin dir to PATH, so
@@ -419,6 +443,7 @@ run_poller() {
     OSQUERY_POSTURE_PLUTIL="$POLLER_HOME/bin/plutil" \
     OSQUERY_POSTURE_READLINK="$POLLER_HOME/bin/readlink" \
     OSQUERY_POSTURE_LULU_RULES="$OSQUERY_POSTURE_LULU_RULES" \
+    OSQUERY_POSTURE_LULU_PREFERENCES="$OSQUERY_POSTURE_LULU_PREFERENCES" \
     bash "$POLLER_TOOL" "$@"
 }
 

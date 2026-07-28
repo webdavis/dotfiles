@@ -42,6 +42,11 @@ READLINK="${OSQUERY_POSTURE_READLINK:-/usr/bin/readlink}"
 # so this user-agent poller reads it unprivileged. READ-ONLY: the conversion
 # below goes to stdout; the archive file itself is never written.
 LULU_RULES_FILE="${OSQUERY_POSTURE_LULU_RULES:-/Library/Objective-See/LuLu/rules.plist}"
+# LuLu's BASE preferences file, read (read-only, the same conversion-to-stdout
+# discipline) by the active-profile guard below: when this file's
+# currentProfile key names a profile, LuLu consults the profile's own
+# preferences and rules instead of the base files.
+LULU_PREFERENCES_FILE="${OSQUERY_POSTURE_LULU_PREFERENCES:-/Library/Objective-See/LuLu/preferences.plist}"
 
 # shellcheck source=/dev/null
 source "$HOME/.local/libexec/osquery/alert-dispatch.sh"
@@ -155,6 +160,18 @@ reader_requires_target() {
   esac
 }
 
+# reader_reads_lulu_base_rules <reader> -- status 0 when the reader consults
+# LuLu's BASE rules archive and therefore depends on no LuLu profile being
+# active (see the profile guard below). Coincides with the target-requiring
+# set today, but the two predicates answer different questions and must be
+# free to diverge.
+reader_reads_lulu_base_rules() {
+  case "$1" in
+    lulu_rule_present | lulu_rule_resolved_present) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 # classify_probe <output> <rc> <needle> <value> [<needle> <value>]...
 # The indeterminate-on-nonzero discipline (absorbed from the retired
 # apply-time posture reminder): a probe that exits NONZERO is INDETERMINATE
@@ -210,6 +227,36 @@ classify_pgrep() {
   else
     printf 'indeterminate'
   fi
+}
+
+# The active-profile guard. LuLu 4.x reads its preferences AND rules from an
+# ACTIVE PROFILE directory when the base preferences file names one
+# (Preferences.m getCurrentProfile reads the currentProfile key from the BASE
+# file; Rules.m getPath prefers <currentProfile>/rules.plist). The rule
+# readers below read the BASE archive, so while a profile is active they
+# would be reading a file LuLu no longer consults: a stale base mention must
+# never satisfy a control whose deciding rule set lives elsewhere. The guard
+# converts the base preferences to stdout ONCE per tick, lazily, and any
+# outcome other than a readable document with NO currentProfile key makes
+# every lulu_rule read indeterminate (which the gap gate pages, naming the
+# cause). Key PRESENCE is the trigger, fail-closed: nothing establishes what
+# an empty currentProfile would mean, so only its absence is trusted.
+lulu_profile_checked=0
+lulu_profile_state="no_profile"
+lulu_base_rules_authoritative() {
+  if [[ $lulu_profile_checked -eq 0 ]]; then
+    lulu_profile_checked=1
+    local preferences_xml="" rc=0
+    preferences_xml=$(run_bounded "$PLUTIL" -convert xml1 -o - "$LULU_PREFERENCES_FILE" 2>/dev/null) || rc=$?
+    if [[ $rc -ne 0 || -z $preferences_xml ]]; then
+      lulu_profile_state="indeterminate"
+    elif grep -qF '<key>currentProfile</key>' <<<"$preferences_xml"; then
+      lulu_profile_state="profile_active"
+    else
+      lulu_profile_state="no_profile"
+    fi
+  fi
+  [[ $lulu_profile_state == "no_profile" ]]
 }
 
 # lulu_rule_in_archive <absolute-binary-path> -- the EXISTENCE-ONLY LuLu rule
@@ -350,9 +397,20 @@ read_control() {
       classify_pgrep "$output" "$rc"
       ;;
     lulu_rule_present)
+      if ! lulu_base_rules_authoritative; then
+        printf 'indeterminate'
+        return 0
+      fi
       lulu_rule_in_archive "$target"
       ;;
     lulu_rule_resolved_present)
+      # The profile guard first: with an active (or unconfirmable) profile
+      # the base archive is not the deciding rule set, so neither the
+      # resolution nor the archive read should even run.
+      if ! lulu_base_rules_authoritative; then
+        printf 'indeterminate'
+        return 0
+      fi
       # Resolve the declared launcher FIRST, then require the archive to
       # mention the RESOLVED binary: LuLu keys rules on the executing
       # Mach-O, so a rule on a launcher symlink's own path protects nothing.
@@ -498,6 +556,18 @@ fi
 # a read nothing declared.
 control_values=()
 if [[ -z $controls_problem ]]; then
+  # The profile guard runs HERE, in the parent shell, before any read:
+  # read_control runs inside a command substitution, so state set there dies
+  # with the subshell; a guard first triggered inside one could neither
+  # memoize (one preferences read per tick) nor reach the gap report with
+  # its cause. Each read_control subshell inherits the settled state by
+  # fork, so its own guard call is a pure lookup.
+  for control_index in "${!control_ids[@]}"; do
+    if reader_reads_lulu_base_rules "${control_readers[$control_index]}"; then
+      lulu_base_rules_authoritative || true
+      break
+    fi
+  done
   for control_index in "${!control_ids[@]}"; do
     control_values+=("$(read_control "${control_readers[$control_index]}" "${control_targets[$control_index]}")")
   done
@@ -603,6 +673,15 @@ done
 if [[ -n $indeterminate_ids ]]; then
   gap_members+="${gap_members:+ }$indeterminate_ids"
   gap_detail+="${gap_detail:+; }indeterminate posture control read(s): [$indeterminate_ids]"
+fi
+# The profile guard's cause, spelled out beside the ids it blinded: an
+# indeterminate whose reason is "LuLu is consulting different files" needs a
+# different response (deactivate the profile, or teach the monitor the
+# profile paths) than a failed probe. Fixed script text, never probe output.
+if [[ $lulu_profile_checked -eq 1 && $lulu_profile_state == "profile_active" ]]; then
+  gap_detail+="${gap_detail:+; }a LuLu profile is ACTIVE (the base preferences carry a currentProfile key), so LuLu is consulting the profile's own files and the base rules archive these controls read is not the one deciding traffic"
+elif [[ $lulu_profile_checked -eq 1 && $lulu_profile_state == "indeterminate" ]]; then
+  gap_detail+="${gap_detail:+; }the LuLu base preferences could not be read to confirm no profile is active"
 fi
 if [[ -n $gap_detail ]]; then
   gap_body="**Security-posture monitoring gap**"$'\n'"- $gap_detail: the security posture there is currently UNKNOWN."$'\n'"- A blind monitor cannot see a protection turn off. Did osqueryi, a posture probe, or the LaunchAgent break? **Check now.**"$'\n'"- Diagnose: run the posture query and the control probes by hand, then re-check."

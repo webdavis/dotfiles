@@ -141,6 +141,12 @@ a CONSULTED preference take effect). Until then an enforce tier would claim an e
 cannot deliver: the write would land, change nothing, and be silently reverted, the exact silent no-op
 the tier model exists to surface.
 
+Scope note: LuLu reads preferences and rules from an active profile directory when the base file's
+`currentProfile` key names one (`Preferences.m`, `Rules.m`). The tracked records and the rule-existence
+checks describe the BASE files, so the security-posture poller treats an active (or unconfirmable)
+profile as a monitoring gap and pages; deactivate the profile, or extend the monitor to the profile
+paths, before trusting those checks again.
+
 ### Firewall log diagnostics
 
 Nothing to enable here, this section is view-only. Firewall logging is on by default on macOS 26.2 and
