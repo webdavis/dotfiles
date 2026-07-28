@@ -466,6 +466,31 @@ healthy_seed='{"firewall":"1","gatekeeper":"1","screenlock":"1","filevault":"on"
   assert_baseline_unchanged
 }
 
+@test "T-PCTL-empty-controls-file-gaps: a controls file declaring zero controls pages a gap instead of silently watching nothing" {
+  seed_baseline '{"firewall":"1","gatekeeper":"1","screenlock":"1"}'
+  snapshot_baseline
+  # The render of a blank declaration: a well-formed JSON array with no
+  # records. Every control the machine declares has silently vanished, which
+  # must read as a monitoring gap, never as a healthy zero-control tick (a
+  # blank control set is not an empty control set).
+  printf '[]\n' >"$OSQUERY_POSTURE_CONTROLS"
+  set_posture '[{"firewall":"1","gatekeeper":"1","screenlock":"1"}]'
+
+  run run_poller
+  [[ $status -eq 0 ]] || {
+    echo "status $status: $output"
+    false
+  }
+
+  assert_page_count 1
+  assert_page_severity_is CRIT
+  assert_page_body_has 'monitoring gap'
+  assert_page_body_has 'declares zero controls'
+  assert_gap_marker
+  assert_no_probe_calls # the refused file is refused whole, before any read
+  assert_baseline_unchanged
+}
+
 @test "T-PCTL-nonverify-tier-refused-before-reads: an enforce-tier record pages a gap naming it and no probe ever runs" {
   seed_baseline '{"firewall":"1","gatekeeper":"1","screenlock":"1"}'
   snapshot_baseline
@@ -839,7 +864,7 @@ assert_bounded_hang_gaps() { # <control-id> <started-seconds>
 }
 
 @test "T-PCTL-legacy-gap-values-neutralized: hostile bytes in an osqueryi scalar never reach the gap page body raw" {
-  seed_baseline '{"firewall":"1","gatekeeper":"1","screenlock":"1"}'
+  seed_baseline '{"firewall":"1","gatekeeper":"1","screenlock":"1","filevault":"on","filevault:expect":"on"}'
   snapshot_baseline
   # An out-of-domain firewall value carrying shell metacharacters: the gap body
   # quotes the offending values, so they must arrive neutralized (no dollar, no
@@ -904,7 +929,7 @@ assert_bounded_hang_gaps() { # <control-id> <started-seconds>
 }
 
 @test "T-PCTL-gap-values-inline-code-span: a system-read value crosses into a gap page only inside an inline-code span (no structure forgery)" {
-  seed_baseline '{"firewall":"1","gatekeeper":"1","screenlock":"1"}'
+  seed_baseline '{"firewall":"1","gatekeeper":"1","screenlock":"1","filevault":"on","filevault:expect":"on"}'
   snapshot_baseline
   # Markdown that survives character-stripping unchanged: emphasis, a link, a
   # mention. It must arrive WRAPPED in an inline-code span so none of it can
