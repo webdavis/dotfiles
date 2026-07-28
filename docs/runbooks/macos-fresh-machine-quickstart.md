@@ -111,15 +111,15 @@ leave it prompting or give that path its own dedicated client. Version-pinned pa
 `/nix/store`) go stale on every upgrade; expect a one-time prompt after upgrades and answer it narrowly.
 
 The alerter's own `curl` needs NO rule: it POSTs to `http://127.0.0.1:8644` and loopback is kept
-unfiltered by the `allowLocalHost` preference (declared enforce-tier in
-`.chezmoidata/macos_defaults.yaml`). A curl rule would not protect that hop and would allow every process
-on the machine.
+unfiltered by the `allowLocalHost` preference (declared verify-tier in `.chezmoidata/macos_defaults.yaml`
+and drift-checked by `just D`; see the LuLu preference changes section below). A curl rule would not
+protect that hop and would allow every process on the machine.
 
 ### LuLu preference changes
 
 The six LuLu policy records in `.chezmoidata/macos_defaults.yaml` are `tier: verify`: `just D` compares
-them against the live base file, and nothing in this repo ever writes that file. That is a finding, not
-a gap, grounded in LuLu's source (`LuLu/Extension/Preferences.m`, v4.3.2): the extension loads
+them against the live base file, and nothing in this repo ever writes that file. That is a finding, not a
+gap, grounded in LuLu's source (`LuLu/Extension/Preferences.m`, v4.3.2): the extension loads
 `preferences.plist` ONCE at start into an in-memory dictionary, never watches or re-reads it, and writes
 that whole dictionary back to disk on every preference change it processes. An external `defaults write`
 is therefore invisible to the running extension AND clobbered by its next save. Supporting read-only
@@ -135,9 +135,9 @@ To change one of the six declared values:
 1. Update the record's `value` in `.chezmoidata/macos_defaults.yaml` to the new intent.
 1. Run `just D` and confirm the declaration and the live file agree again.
 
-Promotion gate: return these records to `tier: enforce` only when a LuLu version demonstrably re-reads
-an external write to the file (a reload mechanism in its source or release notes, verified by observing
-a CONSULTED preference take effect). Until then an enforce tier would claim an enforcement the machine
+Promotion gate: return these records to `tier: enforce` only when a LuLu version demonstrably re-reads an
+external write to the file (a reload mechanism in its source or release notes, verified by observing a
+CONSULTED preference take effect). Until then an enforce tier would claim an enforcement the machine
 cannot deliver: the write would land, change nothing, and be silently reverted, the exact silent no-op
 the tier model exists to surface.
 
