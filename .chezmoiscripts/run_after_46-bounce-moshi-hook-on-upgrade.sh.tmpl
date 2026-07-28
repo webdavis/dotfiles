@@ -21,9 +21,14 @@
 set -euo pipefail
 
 readonly SERVICE_LABEL='homebrew.mxcl.moshi-hook'
-readonly BREW_LINK='/opt/homebrew/bin/moshi-hook'
+# Seam, so the test can point this at a fixture. Without it the test silently
+# depends on the HOST having moshi-hook installed: on a machine without it the
+# script exits at the check below, the bounce path is never reached, and the
+# suite passes locally while failing on a clean runner. That is the
+# skips-itself-when-absent class this repository has already filed twice.
+MOSHI_HOOK_BIN="${MOSHI_HOOK_BIN:-/opt/homebrew/bin/moshi-hook}"
 
-[[ -x $BREW_LINK ]] || exit 0
+[[ -x $MOSHI_HOOK_BIN ]] || exit 0
 
 pid="$(pgrep -f 'moshi-hook serve' 2>/dev/null | head -1)"
 [[ -n $pid ]] || exit 0
@@ -37,7 +42,7 @@ if [[ $lsof_status -ne 0 || -z $running_inode ]]; then
   exit 0
 fi
 
-resolved="$(readlink -f "$BREW_LINK" 2>/dev/null || true)"
+resolved="$(readlink -f "$MOSHI_HOOK_BIN" 2>/dev/null || true)"
 [[ -n $resolved && -e $resolved ]] || exit 0
 
 disk_inode="$(stat -f '%i' "$resolved" 2>/dev/null || true)"

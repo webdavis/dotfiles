@@ -62,8 +62,15 @@ printf '%s\n' "\$*" >>'$kickstart_log'
 STUB
   chmod +x "$sandbox/bin"/*
   : >"$sandbox/fake-binary"
+  chmod +x "$sandbox/fake-binary"
 
-  PATH="$sandbox/bin:$PATH" bash "$rendered" >"$sandbox/out" 2>&1 || true
+  # MOSHI_HOOK_BIN is a seam, and setting it is what keeps this test honest on
+  # a machine where moshi-hook is NOT installed. Without it the script exits at
+  # its own executable check, the bounce path is never reached, and this suite
+  # passes on the developer machine while failing on a clean CI runner. That is
+  # exactly what happened on the first attempt.
+  PATH="$sandbox/bin:$PATH" MOSHI_HOOK_BIN="$sandbox/fake-binary" \
+    bash "$rendered" >"$sandbox/out" 2>&1 || true
 }
 
 kickstarted() { [[ -s $kickstart_log ]]; }
@@ -107,11 +114,27 @@ exit 1
 STUB
 chmod +x "$sandbox/bin/lsof"
 : >"$kickstart_log"
-PATH="$sandbox/bin:$PATH" bash "$rendered" >"$sandbox/out" 2>&1 || true
+PATH="$sandbox/bin:$PATH" MOSHI_HOOK_BIN="$sandbox/fake-binary" \
+  bash "$rendered" >"$sandbox/out" 2>&1 || true
 if kickstarted; then
   fail '4: an unreadable running image must not trigger a bounce'
 fi
 grep -qi 'could not read the running image' "$sandbox/out" ||
   fail "4: an unreadable running image must say so (out: $(cat "$sandbox/out"))"
+
+# --- 5: moshi-hook not installed at all: exit quietly, bounce nothing --------
+# This case is why the seam exists. It also proves the suite is not silently
+# passing because the HOST happens to have moshi-hook: point the seam at a path
+# that does not exist and the script must take its own not-installed exit.
+
+run_case 111 222
+: >"$kickstart_log"
+PATH="$sandbox/bin:$PATH" MOSHI_HOOK_BIN="$sandbox/definitely-not-installed" \
+  bash "$rendered" >"$sandbox/out" 2>&1 || true
+if kickstarted; then
+  fail '5: with moshi-hook absent the script must bounce nothing'
+fi
+[[ ! -s $sandbox/out ]] ||
+  fail "5: the not-installed exit must be silent (out: $(cat "$sandbox/out"))"
 
 printf 'moshi-hook-bounce-on-upgrade: OK (replaced binary bounces, current daemon is left alone, unparseable and unreadable states refuse)\n'
