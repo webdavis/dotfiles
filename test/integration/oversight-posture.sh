@@ -312,8 +312,10 @@ fi
 # an un-scoped pgrep would count another user's OverSight, so an operator
 # following the runbook could read running while this user's monitor is
 # stopped and the poller pages.
-grep -qF 'pgrep -x -U "$(id -u)" OverSight' <<<"$manual_runbook_body" ||
-  fail 'B5: the runbook running check must be user-scoped exactly like the poller probe: pgrep -x -U "$(id -u)" OverSight'
+# shellcheck disable=SC2016  # the non-expanding $(id -u) literal is the point
+user_scoped_runbook_probe='pgrep -x -U "$(id -u)" OverSight'
+grep -qF "$user_scoped_runbook_probe" <<<"$manual_runbook_body" ||
+  fail "B5: the runbook running check must be user-scoped exactly like the poller probe: $user_scoped_runbook_probe"
 if grep -qE 'pgrep -x OverSight' <<<"$manual_runbook_body"; then
   fail "B5: the runbook section still carries the un-scoped running check (pgrep -x OverSight), which another user's OverSight can satisfy"
 fi
