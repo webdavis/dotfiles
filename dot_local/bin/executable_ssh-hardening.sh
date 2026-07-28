@@ -393,8 +393,12 @@ check_global() {
 # line resolves to -- and not from sshd_config(5), which documents almost none
 # of it.
 #
-#   THE LINE. Leading whitespace is stripped before anything else, and a line
-#   that is then empty or opens with '#' is dropped.
+#   THE LINE. Trailing space, tab, carriage return and FORM FEED are trimmed
+#   off the whole line before either tokenizer runs; vertical tab, BEL and BS
+#   are NOT in the set (all seven measured). A CRLF line ending -- every line
+#   of a file with Windows line endings -- is the everyday case this trim
+#   exists for. Leading whitespace is stripped next, and a line that is then
+#   empty or opens with '#' is dropped.
 #
 #   THE KEYWORD (strdelim semantics). Space, tab and CARRIAGE RETURN separate;
 #   a single '=' may stand in for the separating whitespace and is consumed
@@ -435,6 +439,7 @@ check_global() {
 
 CONFIG_TAB=$'\t'
 CONFIG_CR=$'\r'
+CONFIG_FF=$'\f'
 # Written in ANSI-C quoting like the two constants above, and not as a plain
 # quoted backslash: shellcheck reads '\' as a botched attempt to escape a
 # single quote (SC1003) and refuses it, while shfmt -s rewrites "\\" into
@@ -442,6 +447,32 @@ CONFIG_CR=$'\r'
 CONFIG_BACKSLASH=$'\\'
 TOKEN=''
 REST=''
+
+# trim_trailing_line_whitespace: strip trailing space, tab, carriage return
+# and form feed off the WHOLE line, before either tokenizer sees it, exactly
+# as sshd does. Measured on the binary: `PasswordAuthentication yes<B>` is
+# accepted and resolves yes for each of the four, and an Include ending in one
+# still pulls its file in, while the VT, BEL and BS variants are refused as
+# part of the argument. A CRLF-terminated line is the everyday carrier;
+# without this trim the CR rides into the Include pattern (so the scan walks
+# past a file sshd reads) and into the compared value (so a hardened
+# restatement written with Windows line endings raises a false alarm, and
+# install rolls its own hardening back).
+#
+# sshd's own trim loop never touches position 0. Trimming ALL trailing bytes
+# is still faithful for every form sshd accepts: a line that is ONLY trim-set
+# bytes either tokenizes empty here anyway (space, tab and CR are keyword
+# separators) or is a form sshd rejects outright (a lone form feed is refused
+# as `no argument after keyword "\014"`, measured), and rejected forms are
+# check_global's job.
+trim_trailing_line_whitespace() {
+  while [[ -n $REST ]]; do
+    case $REST in
+      *' ' | *"$CONFIG_TAB" | *"$CONFIG_CR" | *"$CONFIG_FF") REST="${REST%?}" ;;
+      *) break ;;
+    esac
+  done
+}
 
 # skip_keyword_separators: drop sshd's keyword separators (space, tab, CR) off
 # the front of REST.
@@ -622,6 +653,7 @@ PARSED_KEYWORD=''
 PARSED_ARGS=()
 parse_config_line() {
   REST="$1"
+  trim_trailing_line_whitespace
   PARSED_KEYWORD=''
   PARSED_ARGS=()
   if ! next_keyword_token; then

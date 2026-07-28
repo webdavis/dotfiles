@@ -309,6 +309,26 @@ differential_case 'argument: a # comment naming a file that exists' \
 differential_case 'argument: Match criteria with a quoted segment' \
   'Match Addr"ess" *,!127.0.0.1' 'PasswordAuthentication yes'
 
+# --- line-trailing whitespace -------------------------------------------------
+# sshd trims trailing space, tab, carriage return and FORM FEED off the whole
+# line before either tokenizer runs; vertical tab, BEL and BS are NOT in the
+# set (all seven measured against the binary). The CRLF line ending is the
+# everyday carrier: every line of a file with Windows line endings ends in
+# <CR>. A scanner without the trim carries the CR into the Include pattern it
+# globs (walking past a file sshd reads) and into the value it compares
+# (raising a false alarm on a hardened restatement, which makes install roll
+# its own hardening back).
+differential_case 'line trim: Include payload<CR> (CRLF line ending)' \
+  "$MATCH_OFF_LOOPBACK" "Include ${include_payload}${CARRIAGE_RETURN}"
+differential_case 'line trim: Include payload<FF>' \
+  "$MATCH_OFF_LOOPBACK" "Include ${include_payload}${FORM_FEED}"
+differential_case 'line trim: hardened restatement PasswordAuthentication no<CR>' \
+  "$MATCH_OFF_LOOPBACK" "PasswordAuthentication no${CARRIAGE_RETURN}"
+differential_case 'line trim: PasswordAuthentication yes<CR>' \
+  "$MATCH_OFF_LOOPBACK" "PasswordAuthentication yes${CARRIAGE_RETURN}"
+differential_case 'line trim boundary: Include payload<VT>, NOT trimmed by sshd' \
+  "$MATCH_OFF_LOOPBACK" "Include ${include_payload}${VERTICAL_TAB}"
+
 # --- accepted but INERT: sshd discards only ONE empty token -------------------
 # Each of these leaves the keyword still empty after the single retry, so sshd
 # ignores the line. They are here because the day a future OpenSSH starts
