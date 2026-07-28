@@ -52,7 +52,8 @@ archive_xml_mentioning() {
   for mentioned_path in "$@"; do
     body+="		<string>$mentioned_path</string>"$'\n'
   done
-  printf '<?xml version="1.0" encoding="UTF-8"?>\n<plist version="1.0">\n<dict>\n	<key>\$objects</key>\n	<array>\n%s	</array>\n</dict>\n</plist>\n' "$body"
+  # shellcheck disable=SC2016 # the literal $objects key is the archive format
+  printf '<?xml version="1.0" encoding="UTF-8"?>\n<plist version="1.0">\n<dict>\n	<key>$objects</key>\n	<array>\n%s	</array>\n</dict>\n</plist>\n' "$body"
 }
 
 rule_control() { # <id> <reader> <target> -- one verify record as a JSON array
