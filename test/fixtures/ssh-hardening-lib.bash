@@ -33,7 +33,20 @@
 # bashism from a newer bash must fail here, not on the machine.
 
 # Path to the script under test, resolved from this library's location.
-SSH_HARDENING_SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/dot_local/bin/executable_ssh-hardening.sh"
+#
+# Overridable ONLY so a suite can be pointed at a DIFFERENT checkout of the same
+# script and the two outcomes compared form by form. That comparison is not a
+# nicety: the previous fix in the tokenizer family closed 27 bypasses and opened
+# a regression at the same time, because it was judged against its own targets
+# and never against the version it replaced. With this seam the check is one
+# command:
+#
+#   SSH_HARDENING_SCRIPT=<other checkout>/dot_local/bin/executable_ssh-hardening.sh \
+#     ./test/integration/ssh-hardening-tokenizer-differential.sh
+#
+# and the per-form outcome lines of the two runs diff directly. Nothing in the
+# repo sets it, so `just T` and CI always exercise the script beside this file.
+SSH_HARDENING_SCRIPT="${SSH_HARDENING_SCRIPT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/dot_local/bin/executable_ssh-hardening.sh}"
 
 # The managed drop-in's file name, in ONE place (exported: the reload lib's
 # sshd stub reads it at run time). Must match DROPIN_NAME in the script.
