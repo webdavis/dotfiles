@@ -338,6 +338,36 @@ resolve_system_plist_path() { # <domain> <plist_path>
   printf '%s\n' "$plist_path"
 }
 
+# The directories an EXPLICIT plist_path may name at WRITE time, grown
+# deliberately, one product at a time. The render-time gate in
+# run_onchange_after_30-macos-defaults.sh.tmpl carries the same list
+# ($plistPathAllowedDirectories) and refuses the record before anything
+# renders; this list closes the path AROUND the render: `just defaults-apply`
+# reads the YAML directly, so without it a record the render would refuse was
+# still handed to `sudo defaults write` (verified against
+# /etc/example.evil.plist before the fix). The system-scope suite pins the
+# two lists identical. Plain assignment, not readonly, for the same
+# re-source reason as the read-status constants below.
+MACOS_DEFAULTS_PLIST_PATH_ALLOWED_DIRECTORIES=("/Library/Objective-See/LuLu/" "/Library/Preferences/")
+
+# require_system_plist_path_permitted <plist_path>, refuse (status 1, with a
+# message naming the path and the rule) any WRITE target outside the
+# permitted directories above. Called by apply for every system-scope record
+# before anything is written. Reads are deliberately NOT gated: drift
+# consulting an odd path mutates nothing, and refusing it would only hide
+# the row from the report.
+require_system_plist_path_permitted() { # <plist_path>
+  local plist_path="$1" allowed_directory
+  for allowed_directory in "${MACOS_DEFAULTS_PLIST_PATH_ALLOWED_DIRECTORIES[@]}"; do
+    if [[ $plist_path == "$allowed_directory"* ]]; then
+      return 0
+    fi
+  done
+  printf 'error: plist_path %q is outside every permitted plist directory (%s); grant the directory deliberately in BOTH the Tier 1 template and macos-defaults-lib.sh, or use the default /Library/Preferences form\n' \
+    "$plist_path" "${MACOS_DEFAULTS_PLIST_PATH_ALLOWED_DIRECTORIES[*]}" >&2
+  return 1
+}
+
 # The three outcomes of reading a system-scope setting, carried as an exit STATUS
 # rather than a marker string. A string sentinel is representable as a real value:
 # a tracked setting whose live value happened to be the marker would be reported

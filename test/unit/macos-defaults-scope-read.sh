@@ -318,6 +318,34 @@ constants_output="$(SYSTEM_READ_OK=9 SYSTEM_READ_UNSET=9 SYSTEM_READ_UNREADABLE=
 [[ $status -eq 0 && $constants_output == '0 1 2' ]] ||
   fail "double source: the read-outcome constants must be 0 1 2 even when the environment presets them (got status $status, output '$constants_output')"
 
+# ---- require_system_plist_path_permitted ------------------------------------
+
+# case 18: the WRITE-path allowlist. Rendering already refuses an
+# out-of-allowlist plist_path, but `just defaults-apply` reads the YAML
+# directly, so without this gate a record the render would refuse was still
+# handed to `sudo defaults write` (verified against /etc/example.evil.plist
+# before the fix). Absolute and parent-free is not enough: membership in the
+# deliberately granted directories is its own rule.
+for evil_path in /etc/example.evil.plist /Library/LaunchDaemons/com.example.evil.plist; do
+  status=0
+  output="$(call_function require_system_plist_path_permitted "$evil_path")" || status=$?
+  [[ $status -ne 0 ]] ||
+    fail "allowlist: $evil_path must be refused as a write target (got 0)"
+  grep -qF 'permitted plist director' "$work/err" ||
+    fail "allowlist: the refusal must name the containment rule (stderr: $(cat "$work/err"))"
+  grep -qF "$evil_path" "$work/err" ||
+    fail "allowlist: the refusal must name the offending path (stderr: $(cat "$work/err"))"
+done
+
+# Positive controls: the default construction and the tracked Objective-See
+# path both pass, so the refusals above were not bought with a blanket deny.
+for permitted_path in /Library/Preferences/com.example.sys /Library/Objective-See/LuLu/preferences.plist; do
+  status=0
+  call_function require_system_plist_path_permitted "$permitted_path" >/dev/null || status=$?
+  [[ $status -eq 0 ]] ||
+    fail "allowlist: $permitted_path must be permitted (got $status, stderr: $(cat "$work/err"))"
+done
+
 # ---- system_defaults_write -----------------------------------------------------
 
 # case 16: the write goes through sudo with the exact argument shape

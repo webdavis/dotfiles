@@ -665,6 +665,54 @@ refute_file_contains "$defaults_log" 'rel.plist' \
 refute_file_contains "$sudo_log" 'rel.plist' \
   'apply must not sudo-write a relative plist_path record at all'
 
+# apply refuses a plist_path outside the permitted write directories and
+# never writes it: the render-time allowlist alone did not cover this path
+# (`just defaults-apply` reads the YAML directly, and the resolver accepted
+# /etc/example.evil.plist before the fix).
+for evil_plist_path in /etc/example.evil.plist /Library/LaunchDaemons/com.example.evil.plist; do
+  apply_escape_src="$(
+    make_source_dir <<EOF
+macos:
+  defaults:
+    - domain: com.example.evil
+      key: EvilKey
+      type: bool
+      value: true
+      scope: system
+      plist_path: $evil_plist_path
+      tier: enforce
+  killall: []
+EOF
+  )"
+  : >"$defaults_log"
+  : >"$sudo_log"
+  apply_escape_status=0
+  run_tool "$apply_escape_src" "$APPLY" 2>"$sandbox/apply-escape.err" || apply_escape_status=$?
+  [[ $apply_escape_status -eq 2 ]] ||
+    fail "apply must refuse the out-of-allowlist path $evil_plist_path with the validation status 2 (got $apply_escape_status)"
+  assert_file_contains "$sandbox/apply-escape.err" 'permitted plist director' \
+    "the refusal must name the containment rule (stderr: $(cat "$sandbox/apply-escape.err"))"
+  assert_file_contains "$sandbox/apply-escape.err" "$evil_plist_path" \
+    "the refusal must name the offending path (stderr: $(cat "$sandbox/apply-escape.err"))"
+  refute_file_contains "$defaults_log" 'example.evil' \
+    "apply must not write $evil_plist_path at all"
+  refute_file_contains "$sudo_log" 'example.evil' \
+    "apply must not sudo-anything for $evil_plist_path"
+done
+
+# The render-time allowlist in the template and the write-time allowlist in
+# the library must be the SAME list: two lists that can drift apart is
+# exactly how apply accepted a path the render refused. Source-form pin,
+# beside the behavioral pins above and in the render sections.
+template_allowlist="$(grep -F 'plistPathAllowedDirectories := list' "$TEMPLATE" | grep -o '"[^"]*"' | tr -d '"' | LC_ALL=C sort)"
+lib_allowlist="$(bash -c 'source "$1"; printf "%s\n" "${MACOS_DEFAULTS_PLIST_PATH_ALLOWED_DIRECTORIES[@]}"' _ "$LIB" 2>/dev/null | LC_ALL=C sort)"
+[[ -n $template_allowlist ]] ||
+  fail 'could not extract the render-time allowlist from the template'
+[[ -n $lib_allowlist ]] ||
+  fail 'could not extract the write-time allowlist from the library'
+[[ $template_allowlist == "$lib_allowlist" ]] ||
+  fail "the render-time and write-time plist_path allowlists have drifted apart (template: $template_allowlist; lib: $lib_allowlist)"
+
 # apply refuses an unknown scope rather than guessing a write target.
 apply_bogus_src="$(
   make_source_dir <<'EOF'
