@@ -321,12 +321,17 @@ constants_output="$(SYSTEM_READ_OK=9 SYSTEM_READ_UNSET=9 SYSTEM_READ_UNREADABLE=
 # ---- system_defaults_write -----------------------------------------------------
 
 # case 16: the write goes through sudo with the exact argument shape
-# `defaults write <plist-path> <key> -<type> <value>`, asserted PER FIELD. The
-# sudo stub records each argument on its own line and does not execute anything.
+# `defaults write <plist-path> <key> -<type> <value>`, then repairs the
+# written file to root:wheel 0644 IN THE SAME CALL. `defaults write` recreates
+# the target as a root-owned 0600 binary plist (verified on a copy,
+# 2026-07-27), and a 0600 plist reads back SYSTEM_READ_UNREADABLE for the
+# unprivileged drift checker forever after, so an unrepaired write defeats the
+# very drift gate that verifies it. The sudo stub records one line per CALL
+# and does not execute anything.
 sudo_log="$work/sudo.log"
 cat >"$stub_bin/sudo" <<EOF
 #!/bin/bash
-printf '%s\n' "\$@" >>"$sudo_log"
+printf '%s\n' "\$*" >>"$sudo_log"
 exit 0
 EOF
 chmod +x "$stub_bin/sudo"
@@ -335,15 +340,61 @@ status=0
 call_function system_defaults_write /Library/Preferences/com.example.sys SysKey bool false >/dev/null || status=$?
 [[ $status -eq 0 ]] ||
   fail "write: system_defaults_write must succeed when sudo succeeds (got $status, stderr: $(cat "$work/err"))"
-mapfile -t sudo_arguments <"$sudo_log"
-[[ ${#sudo_arguments[@]} -eq 6 ]] ||
-  fail "write: sudo must receive exactly 6 arguments (got ${#sudo_arguments[@]}: $(cat "$sudo_log"))"
-[[ ${sudo_arguments[0]} == defaults ]] || fail "write: argument 1 must be 'defaults' (got '${sudo_arguments[0]}')"
-[[ ${sudo_arguments[1]} == write ]] || fail "write: argument 2 must be 'write' (got '${sudo_arguments[1]}')"
-[[ ${sudo_arguments[2]} == /Library/Preferences/com.example.sys ]] ||
-  fail "write: argument 3 must be the plist path (got '${sudo_arguments[2]}')"
-[[ ${sudo_arguments[3]} == SysKey ]] || fail "write: argument 4 must be the key (got '${sudo_arguments[3]}')"
-[[ ${sudo_arguments[4]} == -bool ]] || fail "write: argument 5 must be the dashed type (got '${sudo_arguments[4]}')"
-[[ ${sudo_arguments[5]} == false ]] || fail "write: argument 6 must be the value (got '${sudo_arguments[5]}')"
+mapfile -t sudo_calls <"$sudo_log"
+[[ ${#sudo_calls[@]} -eq 3 ]] ||
+  fail "write: one write must make exactly 3 sudo calls, the write plus its two-step repair (got ${#sudo_calls[@]}: $(cat "$sudo_log"))"
+[[ ${sudo_calls[0]} == 'defaults write /Library/Preferences/com.example.sys SysKey -bool false' ]] ||
+  fail "write: call 1 must be the exact defaults write (got '${sudo_calls[0]}')"
+[[ ${sudo_calls[1]} == 'chown root:wheel /Library/Preferences/com.example.sys.plist' ]] ||
+  fail "write: call 2 must repair ownership on the file defaults actually writes, the .plist beside the extensionless path (got '${sudo_calls[1]}')"
+[[ ${sudo_calls[2]} == 'chmod 644 /Library/Preferences/com.example.sys.plist' ]] ||
+  fail "write: call 3 must repair the mode to 0644 so the unprivileged drift reader can read the value back (got '${sudo_calls[2]}')"
 
-printf 'macos-defaults-scope-read: OK (plist path defaults, passes absolute, rejects relative, traversal and degenerate targets on BOTH branches while the tracked Objective-See path still resolves; re-sourcing under set -euo pipefail is a no-op that still fixes the constants; scope enum and pairings validated fail-closed; the system read distinguishes value/unset/unreadable by STATUS, so no live value can impersonate an outcome and never collapses unknown failures; the system write goes through sudo with the exact argument shape)\n'
+# case 16b: a declared path already ending in .plist is repaired AS ITSELF,
+# never with a second .plist appended.
+: >"$sudo_log"
+status=0
+call_function system_defaults_write /Library/Objective-See/LuLu/preferences.plist LuLuKey bool true >/dev/null || status=$?
+[[ $status -eq 0 ]] ||
+  fail "write .plist: system_defaults_write must succeed (got $status, stderr: $(cat "$work/err"))"
+grep -qxF 'chmod 644 /Library/Objective-See/LuLu/preferences.plist' "$sudo_log" ||
+  fail "write .plist: the repair must target the declared .plist file itself (log: $(cat "$sudo_log"))"
+if grep -qF 'preferences.plist.plist' "$sudo_log"; then
+  fail "write .plist: the repair must not append a second .plist (log: $(cat "$sudo_log"))"
+fi
+
+# case 16c: a FAILED write that left no file behind re-raises the write's
+# status and skips the repair rather than failing on the missing path.
+cat >"$stub_bin/sudo" <<EOF
+#!/bin/bash
+printf '%s\n' "\$*" >>"$sudo_log"
+if [[ \$1 == defaults ]]; then exit 7; fi
+exit 0
+EOF
+chmod +x "$stub_bin/sudo"
+: >"$sudo_log"
+status=0
+call_function system_defaults_write /Library/Preferences/com.example.absent AbsentKey bool true >/dev/null || status=$?
+[[ $status -eq 7 ]] ||
+  fail "write failure: the write's own exit status must be re-raised (got $status)"
+if grep -qE '^(chown|chmod) ' "$sudo_log"; then
+  fail "write failure: no file was left behind, so no repair call may run (log: $(cat "$sudo_log"))"
+fi
+
+# case 16d: a FAILED write whose target file EXISTS still repairs it before
+# re-raising the failure: a write can die after replacing the file, and under
+# set -e the caller ends at this record, so a trailing cleanup would never
+# run. Per-write repair is the property that survives that.
+existing_target="$work/failed-write.plist"
+: >"$existing_target"
+: >"$sudo_log"
+status=0
+call_function system_defaults_write "$existing_target" FailKey bool true >/dev/null || status=$?
+[[ $status -eq 7 ]] ||
+  fail "write failure with file: the write's exit status must be re-raised (got $status)"
+grep -qxF "chown root:wheel $existing_target" "$sudo_log" ||
+  fail "write failure with file: ownership must still be repaired on the failure path (log: $(cat "$sudo_log"))"
+grep -qxF "chmod 644 $existing_target" "$sudo_log" ||
+  fail "write failure with file: the mode must still be repaired on the failure path (log: $(cat "$sudo_log"))"
+
+printf 'macos-defaults-scope-read: OK (plist path defaults, passes absolute, rejects relative, traversal and degenerate targets on BOTH branches while the tracked Objective-See path still resolves; re-sourcing under set -euo pipefail is a no-op that still fixes the constants; scope enum and pairings validated fail-closed; the system read distinguishes value/unset/unreadable by STATUS, so no live value can impersonate an outcome and never collapses unknown failures; the system write goes through sudo with the exact argument shape and repairs root:wheel 0644 per write, success and failure alike)\n'

@@ -113,6 +113,29 @@ osascript -e 'tell application "System Settings" to quit' 2>/dev/null || true
 # Sudo prelude: at least one record targets a root-owned system plist, so
 # validate sudo once, up front, before any write.
 sudo -v
+# system_defaults_write <plist_path> <key> <-type> <value>: one system-scope
+# write, then a root:wheel 0644 repair of the file `defaults` just replaced.
+# `defaults write` recreates its target as a root-owned 0600 binary plist
+# (verified on a copy, 2026-07-27), and an unreadable plist blinds the
+# unprivileged drift reader (`just D`) on every later run, so an unrepaired
+# write defeats the very drift check that verifies it. The repair is PER
+# WRITE, never a trailing chmod: under set -e a failed later write ends this
+# run before any trailing cleanup, leaving the writes that DID land
+# unreadable. The write's own failure is re-raised AFTER the repair; a failed
+# write that left no file behind skips the repair rather than failing on the
+# missing path. Mirrors system_defaults_write in macos-defaults-lib.sh, which
+# repairs the apply tool's writes the same way.
+system_defaults_write() {
+  local plist_path="$1" key="$2" type_option="$3" value="$4"
+  local write_status=0 written_file="$plist_path"
+  [[ $written_file == *.plist ]] || written_file="$written_file.plist"
+  sudo defaults write "$plist_path" "$key" "$type_option" "$value" || write_status=$?
+  if [[ $write_status -eq 0 || -e $written_file ]]; then
+    sudo chown root:wheel "$written_file"
+    sudo chmod 644 "$written_file"
+  fi
+  return "$write_status"
+}
 # Main loop: one `defaults write` per record.
 defaults write 'com.apple.dock' 'mru-spaces' -bool 'false'
 defaults write 'com.apple.dock' 'expose-group-apps' -bool 'false'
@@ -121,7 +144,7 @@ defaults write 'com.apple.WindowManager' 'EnableStandardClickToShowDesktop' -boo
 defaults write 'com.apple.WindowManager' 'EnableTilingByEdgeDrag' -bool 'false'
 defaults write 'com.apple.WindowManager' 'EnableTilingOptionAccelerator' -bool 'false'
 defaults write 'com.apple.WindowManager' 'EnableTopTilingByEdgeDrag' -bool 'false'
-sudo defaults write '/Library/Preferences/com.apple.SoftwareUpdate' 'AutomaticCheckEnabled' -bool 'true'
+system_defaults_write '/Library/Preferences/com.apple.SoftwareUpdate' 'AutomaticCheckEnabled' -bool 'true'
 defaults write 'com.apple.Safari' 'AutoOpenSafeDownloads' -bool 'false'
 # Post-loop: restart user-facing processes so changes take effect immediately.
 # cfprefsd kill is non-negotiable (caches plist values in memory).

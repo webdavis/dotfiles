@@ -270,6 +270,8 @@ expected_execution_log="$sandbox/execution.expected"
   log_line defaults write com.apple.WindowManager EnableTilingOptionAccelerator -bool false
   log_line defaults write com.apple.WindowManager EnableTopTilingByEdgeDrag -bool false
   log_line sudo defaults write "$SOFTWAREUPDATE_PLIST_PATH" AutomaticCheckEnabled -bool true
+  log_line sudo chown root:wheel "$SOFTWAREUPDATE_PLIST_PATH.plist"
+  log_line sudo chmod 644 "$SOFTWAREUPDATE_PLIST_PATH.plist"
   log_line defaults write com.apple.Safari AutoOpenSafeDownloads -bool false
   log_line killall Dock
   log_line killall Finder

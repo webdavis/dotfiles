@@ -281,12 +281,12 @@ sudo_validate_count="$(grep -cxF 'sudo -v' "$rendered_system" || true)"
 [[ $sudo_validate_count -eq 1 ]] ||
   fail "system-record render must contain exactly one 'sudo -v' (got $sudo_validate_count)"
 sudo_validate_line="$(grep -nxF 'sudo -v' "$rendered_system" | cut -d: -f1)"
-first_write_line="$(grep -nE '^(sudo )?defaults ' "$rendered_system" | head -1 | cut -d: -f1)"
+first_write_line="$(grep -nE '^(sudo )?defaults |^system_defaults_write ' "$rendered_system" | head -1 | cut -d: -f1)"
 [[ -n $first_write_line ]] || fail 'system-record render must contain defaults writes'
 [[ $sudo_validate_line -lt $first_write_line ]] ||
   fail "the sudo -v prelude must come before any write (sudo -v at line $sudo_validate_line, first write at line $first_write_line)"
-grep -qxF "sudo defaults write '/Library/Preferences/com.example.sys' 'SysKey' -bool 'false'" "$rendered_system" ||
-  fail "the system record's write must be sudo-prefixed and target /Library/Preferences/<domain> (got: $(grep -F 'com.example.sys' "$rendered_system"))"
+grep -qxF "system_defaults_write '/Library/Preferences/com.example.sys' 'SysKey' -bool 'false'" "$rendered_system" ||
+  fail "the system record's write must ride the repairing write helper and target /Library/Preferences/<domain> (got: $(grep -F 'com.example.sys' "$rendered_system"))"
 grep -qxF "defaults write 'com.example.alpha' 'AlphaKey' -bool 'true'" "$rendered_system" ||
   fail 'the user record must keep its plain, un-sudoed write'
 refute_file_contains "$rendered_system" "sudo defaults write 'com.example.alpha'" \
@@ -312,7 +312,7 @@ EOF
 rendered_explicit="$sandbox/rendered-explicit"
 render_template "$explicit_path_src" "$rendered_explicit" "$render_error" ||
   fail "explicit-path render must succeed (stderr: $(cat "$render_error"))"
-grep -qxF "sudo defaults write '/Library/Objective-See/LuLu/preferences.plist' 'LuLuKey' -string 'block'" "$rendered_explicit" ||
+grep -qxF "system_defaults_write '/Library/Objective-See/LuLu/preferences.plist' 'LuLuKey' -string 'block'" "$rendered_explicit" ||
   fail "an explicit absolute plist_path must be the write target (got: $(grep -F LuLuKey "$rendered_explicit"))"
 refute_file_contains "$rendered_explicit" '/Library/Preferences/com.example.lulu' \
   'an explicit plist_path must replace the /Library/Preferences default, not coexist with it'
@@ -457,7 +457,9 @@ sudo_log="$sandbox/sudo.log"
 
 # sudo stub: records the space-joined invocation, then runs it (so the
 # defaults stub behind it still answers). Fixture values contain no spaces, so
-# the space-joined log parses back per field unambiguously.
+# the space-joined log parses back per field unambiguously. chown and chmod
+# are stubbed no-ops so the per-write root:wheel 0644 repair is observable in
+# the sudo log without touching anything real.
 cat >"$stub_bin/sudo" <<EOF
 #!/bin/bash
 printf '%s\n' "\$*" >>"$sudo_log"
@@ -465,7 +467,10 @@ exec "\$@"
 EOF
 printf '#!/bin/bash\nexit 0\n' >"$stub_bin/osascript"
 printf '#!/bin/bash\nexit 0\n' >"$stub_bin/killall"
-chmod +x "$stub_bin/sudo" "$stub_bin/osascript" "$stub_bin/killall"
+printf '#!/bin/bash\nexit 0\n' >"$stub_bin/chown"
+printf '#!/bin/bash\nexit 0\n' >"$stub_bin/chmod"
+chmod +x "$stub_bin/sudo" "$stub_bin/osascript" "$stub_bin/killall" \
+  "$stub_bin/chown" "$stub_bin/chmod"
 
 # write_defaults_stub <write-only|read-value|read-unset|read-denied|capture-bool>
 # -- the per-section behavior of the `defaults` stub. Every variant logs its
@@ -568,6 +573,67 @@ assert_file_contains "$defaults_log" 'write com.example.alpha AlphaKey -bool tru
   "apply must still write the user record (defaults log: $(cat "$defaults_log"))"
 refute_file_contains "$sudo_log" 'com.example.alpha' \
   'apply must not route a user-scope write through sudo'
+
+# Each system write is followed IMMEDIATELY by its own root:wheel 0644 repair:
+# `defaults write` recreates the target as a root-owned 0600 binary plist, and
+# an unrepaired one reads back <unreadable> for the unprivileged drift checker
+# forever after. The extensionless record is repaired on the .plist file
+# `defaults` actually writes; the explicit .plist record is repaired as itself.
+sys_write_line="$(grep -nxF 'defaults write /Library/Preferences/com.example.sys SysKey -bool false' "$sudo_log" | cut -d: -f1)"
+sys_chown_line="$(grep -nxF 'chown root:wheel /Library/Preferences/com.example.sys.plist' "$sudo_log" | cut -d: -f1)"
+sys_chmod_line="$(grep -nxF 'chmod 644 /Library/Preferences/com.example.sys.plist' "$sudo_log" | cut -d: -f1)"
+[[ -n $sys_write_line && -n $sys_chown_line && -n $sys_chmod_line ]] ||
+  fail "apply must repair root:wheel 0644 on the extensionless system record's .plist (sudo log: $(cat "$sudo_log"))"
+[[ $sys_chown_line -eq $((sys_write_line + 1)) && $sys_chmod_line -eq $((sys_write_line + 2)) ]] ||
+  fail "the repair must follow its own write immediately, per write (write at $sys_write_line, chown at $sys_chown_line, chmod at $sys_chmod_line)"
+assert_file_contains "$sudo_log" 'chmod 644 /Library/Objective-See/LuLu/preferences.plist' \
+  "apply must repair the explicit .plist record as itself (sudo log: $(cat "$sudo_log"))"
+refute_file_contains "$sudo_log" 'preferences.plist.plist' \
+  'the repair must never append a second .plist to an explicit .plist path'
+
+# A write that FAILS midway must not cost the EARLIER write its repair: under
+# set -e apply ends at the failing record, so a trailing cleanup would never
+# run; only per-write repair survives. The failing record's own repair is
+# skipped because no file exists at its path.
+apply_midfail_src="$(
+  make_source_dir <<'EOF'
+macos:
+  defaults:
+    - domain: com.example.first
+      key: FirstKey
+      type: bool
+      value: true
+      scope: system
+      tier: enforce
+    - domain: com.example.fail
+      key: FailKey
+      type: bool
+      value: true
+      scope: system
+      tier: enforce
+  killall: []
+EOF
+)"
+# defaults stub that fails only the FailKey write, after both records validated.
+cat >"$stub_bin/defaults" <<EOF
+#!/bin/bash
+printf '%s\n' "\$*" >>"$defaults_log"
+if [[ \$* == *FailKey* ]]; then exit 9; fi
+exit 0
+EOF
+chmod +x "$stub_bin/defaults"
+: >"$defaults_log"
+: >"$sudo_log"
+apply_midfail_status=0
+run_tool "$apply_midfail_src" "$APPLY" 2>"$sandbox/apply-midfail.err" || apply_midfail_status=$?
+[[ $apply_midfail_status -ne 0 ]] ||
+  fail 'apply must fail when a write fails'
+assert_file_contains "$sudo_log" 'chmod 644 /Library/Preferences/com.example.first.plist' \
+  "the EARLIER write must keep its repair when a later write fails (sudo log: $(cat "$sudo_log"))"
+assert_file_contains "$sudo_log" 'defaults write /Library/Preferences/com.example.fail FailKey -bool true' \
+  "the failing write must have been attempted (sudo log: $(cat "$sudo_log"))"
+refute_file_contains "$sudo_log" 'chmod 644 /Library/Preferences/com.example.fail.plist' \
+  'a failed write that left no file behind must not be repaired'
 
 # apply refuses a relative plist_path and never writes it.
 apply_relative_src="$(

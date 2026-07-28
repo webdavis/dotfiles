@@ -357,8 +357,32 @@ SYSTEM_READ_UNREADABLE=2
 # system_defaults_write <plist_path> <key> <type> <value>, one system-scope
 # write. /Library plists are root-owned, so the write goes through sudo;
 # keeping it here keeps apply and any future caller on one code path.
+#
+# After the write, the written file's ownership and mode are repaired to
+# root:wheel 0644 IN THE SAME CALL: `defaults write` recreates its target as
+# a root-owned 0600 binary plist (verified on a copy, 2026-07-27), and a 0600
+# plist reads back SYSTEM_READ_UNREADABLE for the unprivileged drift checker
+# on every later run, so an unrepaired write defeats the very drift gate that
+# verifies it. The repair is PER WRITE, never a trailing cleanup in a caller:
+# under set -e a failed later write ends the caller at that record, and a
+# trailing cleanup would never run for the writes that DID land. The write's
+# own failure is captured and re-raised AFTER the repair; a failed write that
+# left no file behind skips the repair rather than failing on the missing
+# path. The file repaired is the one `defaults` actually writes: the declared
+# path when it already ends in .plist, the .plist beside it otherwise (an
+# extensionless absolute path gets .plist appended by `defaults`, verified on
+# a copy, 2026-07-27). The rendered Tier 1 runner carries the same function
+# for the same reason; the render tests and the apply test pin both.
 system_defaults_write() { # <plist_path> <key> <type> <value>
-  sudo defaults write "$1" "$2" "-$3" "$4"
+  local plist_path="$1" key="$2" value_type="$3" value="$4"
+  local write_status=0 written_file="$plist_path"
+  [[ $written_file == *.plist ]] || written_file="$written_file.plist"
+  sudo defaults write "$plist_path" "$key" "-$value_type" "$value" || write_status=$?
+  if [[ $write_status -eq 0 || -e $written_file ]]; then
+    sudo chown root:wheel "$written_file"
+    sudo chmod 644 "$written_file"
+  fi
+  return "$write_status"
 }
 
 # system_defaults_read_actual <plist_path> <key>, the three-outcome system-scope
