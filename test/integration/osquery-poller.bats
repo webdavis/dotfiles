@@ -81,7 +81,10 @@ teardown() { teardown_poller_harness; }
 }
 
 @test "T-POLL-read-failure-preserves-baseline: a hard osqueryi failure pages the monitoring gap and leaves the good baseline intact at 0600" {
-  seed_baseline '{"firewall":"1","gatekeeper":"1","screenlock":"1"}'
+  # The seed carries the harness default control's fields: a clean member is
+  # persisted even while the trio gaps (per-member gaps), so byte-for-byte
+  # preservation needs the control present in the prior too.
+  seed_baseline '{"firewall":"1","gatekeeper":"1","screenlock":"1","filevault":"on","filevault:expect":"on"}'
   snapshot_baseline
   export POLLER_OSQUERYI_EXIT=1 # osqueryi hard-fails: no output, non-zero exit
 
@@ -102,7 +105,7 @@ teardown() { teardown_poller_harness; }
 }
 
 @test "T-POLL-failed-read-healthy-output-gaps: a nonzero osqueryi exit with healthy-looking JSON is a monitoring gap, never a trusted read" {
-  seed_baseline '{"firewall":"1","gatekeeper":"1","screenlock":"1"}'
+  seed_baseline '{"firewall":"1","gatekeeper":"1","screenlock":"1","filevault":"on","filevault:expect":"on"}'
   snapshot_baseline
   # The printed posture is healthy AND in-domain but DIFFERS from the baseline
   # (firewall 2, block-all): a poller that trusted the output of a failed query
@@ -126,7 +129,7 @@ teardown() { teardown_poller_harness; }
 }
 
 @test "T-POLL-empty-read-preserves-baseline: an empty osqueryi result pages the monitoring gap and leaves the good baseline intact at 0600" {
-  seed_baseline '{"firewall":"1","gatekeeper":"1","screenlock":"1"}'
+  seed_baseline '{"firewall":"1","gatekeeper":"1","screenlock":"1","filevault":"on","filevault:expect":"on"}'
   snapshot_baseline
   set_posture '[]' # osqueryi succeeds but returns no row
 
@@ -303,7 +306,7 @@ teardown() { teardown_poller_harness; }
 # the prior-baseline trust check (do not fabricate a transition).
 
 @test "T-POLL-partial-read-preserves-baseline: a partial posture preserves the baseline (a gap page, not a poisoned baseline), and recovery still detects a real transition" {
-  seed_baseline '{"firewall":"1","gatekeeper":"1","screenlock":"1"}'
+  seed_baseline '{"firewall":"1","gatekeeper":"1","screenlock":"1","filevault":"on","filevault:expect":"on"}'
   snapshot_baseline
 
   # Tick 1: the screenlock field is absent, a monitoring gap. It pages the gap but
@@ -352,7 +355,7 @@ teardown() { teardown_poller_harness; }
 # the marker only on success. Recovery (a valid read) clears the marker.
 
 @test "T-POLL-gap-pages-once: a gap read with no marker pages exactly one CRIT naming the gap, writes the marker, and preserves the baseline" {
-  seed_baseline '{"firewall":"1","gatekeeper":"1","screenlock":"1"}'
+  seed_baseline '{"firewall":"1","gatekeeper":"1","screenlock":"1","filevault":"on","filevault:expect":"on"}'
   snapshot_baseline
   set_posture '[{"firewall":"9","gatekeeper":"1","screenlock":"1"}]' # firewall out of domain
 
@@ -573,7 +576,7 @@ teardown() { teardown_poller_harness; }
 # --- bounded posture query: a wedged osqueryi becomes a gap, not silent blindness -
 
 @test "T-POLL-osqueryi-hang-pages-gap: a posture query that outlasts the bound is killed and pages a monitoring gap" {
-  seed_baseline '{"firewall":"1","gatekeeper":"1","screenlock":"1"}'
+  seed_baseline '{"firewall":"1","gatekeeper":"1","screenlock":"1","filevault":"on","filevault:expect":"on"}'
   snapshot_baseline
   export OSQUERY_POSTURE_TIMEOUT=1 # bound the query at 1s
   export POLLER_OSQUERYI_SLEEP=30  # osqueryi wedges far past the bound

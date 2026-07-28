@@ -108,6 +108,21 @@ bad_tiers="$(jq -r '.[] | select(.tier != "verify") | .id' "$sandbox/rendered.js
 
 # ---- 2: refusal, fail-closed ------------------------------------------------
 
+# The top-level shape first: a present-but-blank key (nil) and a
+# present-but-empty list both used to render CLEANLY (hasKey passes, and range
+# over nil or an empty list is zero iterations), deploying a file that
+# monitors nothing. A blank control set is not an empty control set: both
+# shapes must abort the render.
+assert_rejects 'blank posture_controls key' 'is blank' <<EOF
+macos:
+  posture_controls:
+EOF
+
+assert_rejects 'empty posture_controls list' 'declares zero controls' <<EOF
+macos:
+  posture_controls: []
+EOF
+
 # A valid record comes FIRST in each fixture, so a template that warned and
 # skipped the offender instead of aborting would render cleanly, and the
 # required render failure is what catches it.

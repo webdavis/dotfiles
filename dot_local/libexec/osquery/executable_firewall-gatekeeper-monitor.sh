@@ -468,6 +468,16 @@ load_controls() {
     controls_problem="the posture-controls file is not a JSON array"
     return 0
   fi
+  # A zero-record array is refused, not accepted as nothing-to-monitor: the
+  # declaration is never empty (the repo data always carries records and the
+  # render refuses a blank set), so an empty deployed file means the pipeline
+  # that produces it broke. A blank control set is not an empty control set;
+  # silently watching nothing would be the fail-quiet path this gate exists
+  # to close.
+  if [[ $count -eq 0 ]]; then
+    controls_problem="the posture-controls file declares zero controls; the declaration is never empty, so a blank render is refused instead of silently watching nothing"
+    return 0
+  fi
   for ((index = 0; index < count; index++)); do
     record=$(jq -c ".[$index]" <"$CONTROLS_FILE" 2>/dev/null || echo "")
     id=$(jq -r '.id // empty' <<<"$record" 2>/dev/null || echo "")

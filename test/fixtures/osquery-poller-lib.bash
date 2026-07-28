@@ -99,12 +99,15 @@ SHIM
   chmod +x "$POLLER_HOME/bin/osqueryi"
   export POLLER_OSQUERYI="$POLLER_HOME/bin/osqueryi"
 
-  # The declared-controls file. Default: an EMPTY declaration (no extra
-  # controls), so the legacy firewall/Gatekeeper/screen-lock tests exercise
-  # exactly the pre-controls surface; posture-controls tests install records
-  # via set_posture_controls.
+  # The declared-controls file. Default: ONE healthy-by-default record (the
+  # fdesetup stub reports FileVault on), NEVER an empty list: the poller
+  # refuses a zero-control file as a monitoring gap (a blank render must not
+  # read as a healthy tick), so an empty default would gap-page every legacy
+  # test. Posture-controls tests install their own records via
+  # set_posture_controls.
   export OSQUERY_POSTURE_CONTROLS="$POLLER_HOME/posture-controls.json"
-  printf '[]\n' >"$OSQUERY_POSTURE_CONTROLS"
+  printf '%s\n' '[{"id":"filevault","description":"FileVault disk encryption","tier":"verify","reader":"fdesetup_status","expect":"on"}]' \
+    >"$OSQUERY_POSTURE_CONTROLS"
 
   # Recording, programmable probe stubs for the declared-control readers, plus
   # always-refuse spies for tools the poller must never touch. EVERY invocation
