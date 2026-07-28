@@ -42,15 +42,22 @@ System Settings → Privacy & Security → grant the following:
 Each grant requires opening the Privacy sheet and dragging the app into the listed sheet. There's no CLI
 surface.
 
-### OverSight microphone and camera permission grants
+### OverSight notification delivery
 
-OverSight (the Objective-See microphone and camera activation monitor, installed as a cask) can only
-identify which process is using a device once macOS grants it the matching recording permissions. The
-grants are interactive-only; no supported command line writes them:
+OverSight (the Objective-See microphone and camera activation monitor, installed as a cask) alerts
+through Notification Center, and that alert is its ONLY output: with delivery denied the monitor still
+observes correctly and tells nobody, so a dead alert channel reads as healthy. The authorization is
+interactive-only; no supported command line writes it:
 
-1. Launch OverSight once (`open -a OverSight`) so it registers with the privacy database and prompts.
-1. System Settings → Privacy & Security → Microphone: enable OverSight.
-1. System Settings → Privacy & Security → Camera: enable OverSight.
+1. Launch OverSight once (`open -a OverSight`). First launch registers it with Notification Center and
+   prompts to allow notifications; click Allow.
+1. If the prompt was dismissed or denied: System Settings → Notifications → OverSight → turn on Allow
+   notifications, and pick the Alerts style so an activation that fires while you are away stays on
+   screen (banners dismiss themselves).
+1. Grant nothing under Privacy & Security. OverSight watches device activation events (CoreMediaIO
+   property listeners), never microphone or camera content; the installed 2.4.0 bundle declares no
+   usage-description keys and no entitlements, so macOS never lists it under Microphone or Camera and
+   no such grant exists to give.
 1. Confirm the monitor is running: `pgrep -x OverSight` prints a PID. The security-posture poller
    verifies this continuously (the `oversight` record in `.chezmoidata/macos_posture_controls.yaml`) and
    pages if the process stops.

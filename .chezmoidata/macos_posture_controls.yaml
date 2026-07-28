@@ -103,7 +103,8 @@ macos:
     # verify, not enforce: OverSight is a login item the operator may quit on
     # purpose, and silently restarting it is not a read-only poller's (or an
     # apply-time runner's) business; the deviation pages instead. Its
-    # interactive permission grants are a separate manual record in
+    # Notification Center delivery (the alert channel, the one interactive
+    # authorization it has) is a separate manual record in
     # macos_system_setup.yaml.
     - id: oversight
       description: "The OverSight microphone and camera monitor process"

@@ -13,10 +13,13 @@
 #      is itself the proof that the state comes from the probe and not the
 #      disk, because on the development machine the bundle exists while the
 #      stub says stopped, and the poller pages anyway.
-#   2. A manual record for OverSight's microphone and camera permission
-#      grants (interactive-only; no supported command line writes them),
-#      declared in macos_system_setup.yaml with a runbook pointer whose
-#      section must exist.
+#   2. A manual record for OverSight's Notification Center delivery
+#      (interactive-only; no supported command line writes it), declared in
+#      macos_system_setup.yaml with a runbook pointer whose section must
+#      exist. Deliberately NOT a microphone or camera permission record: the
+#      installed bundle declares no usage-description keys and no
+#      entitlements, so macOS never offers those grants and OverSight never
+#      asks (it observes device activation events, not device content).
 #
 # The behaviours, each against the REAL repo record (extracted from
 # .chezmoidata/macos_posture_controls.yaml, so a fixture cannot drift from
@@ -34,9 +37,11 @@
 #   B4 tier guard: the shipped record is tier: verify; flipped to enforce it
 #      is refused by the render template AND by the poller before any probe
 #      runs.
-#   B5 manual record: the permission-grant record exists in
-#      macos_system_setup.yaml at tier: manual with no mutating payload, and
-#      the runbook section it names exists.
+#   B5 manual record: the notification-delivery record exists in
+#      macos_system_setup.yaml at tier: manual with no mutating payload, the
+#      runbook section it names exists, the section directs the operator at
+#      the Notifications pane, and neither the record nor the section directs
+#      the ungrantable microphone or camera privacy step.
 set -euo pipefail
 
 # Scrubbed at SCRIPT scope. Git exports GIT_DIR to every hook it runs and this
@@ -237,20 +242,48 @@ assert_page_body_has 'oversight' || fail "B4: the refusal page must name the rec
 assert_no_probe_calls || fail "B4: a refused file must be rejected BEFORE any probe runs"
 teardown_poller_harness
 
-# ---- B5: the manual permission-grant record and its runbook section ----------
+# ---- B5: the manual notification-delivery record and its runbook section -----
+
+# The interactive dependency is Notification Center delivery, NOT a
+# microphone or camera privacy grant. Measured on the installed 2.4.0 bundle:
+# no NS*UsageDescription keys in Info.plist and an empty entitlements dict
+# under the hardened runtime, so macOS never presents a Microphone or Camera
+# grant for it (its TCC table is empty on a working install); it observes
+# device ACTIVATION EVENTS through CoreMediaIO property listeners, never
+# device content. Its only output is a notification: with delivery denied the
+# monitor observes correctly and tells nobody, a dead alert channel that
+# reads as healthy. So the record must direct the operator at notification
+# delivery, and the runbook section must name the pane an operator can
+# actually use, never the Privacy & Security step no reader can complete.
 
 manual_records="$(yq -o=json '[.macos.system_setup[] | select(.tier == "manual" and (.description | contains("OverSight")))]' "$SETUP_FILE")" ||
   fail "B5: could not read macos_system_setup.yaml"
 jq -e 'length == 1' <<<"$manual_records" >/dev/null ||
-  fail "B5: exactly one manual OverSight permission-grant record must be declared in macos_system_setup.yaml"
+  fail "B5: exactly one manual OverSight record must be declared in macos_system_setup.yaml"
 echo "$manual_records" | jq -e '.[0] | (has("command") or has("sudo")) | not' >/dev/null ||
-  fail "B5: the manual record must carry no mutating payload (the grants are interactive-only)"
+  fail "B5: the manual record must carry no mutating payload (the authorization is interactive-only)"
+manual_description="$(jq -r '.[0].description' <<<"$manual_records")"
+grep -qiE 'notification' <<<"$manual_description" ||
+  fail "B5: the manual record must direct the operator at notification delivery (the monitor's only output channel); got '$manual_description'"
+if grep -qiE 'microphone|camera' <<<"$manual_description"; then
+  fail "B5: the manual record must not describe a microphone or camera grant; macOS never presents one for OverSight (no usage-description keys, no entitlements) and it needs none; got '$manual_description'"
+fi
 manual_runbook="$(jq -r '.[0].runbook // empty' <<<"$manual_records")"
 [[ -n $manual_runbook ]] ||
   fail "B5: the manual record must name its runbook section"
 grep -qxF "### $manual_runbook" "$RUNBOOK" ||
   fail "B5: the runbook section '### $manual_runbook' must exist in $RUNBOOK"
-grep -qiE 'microphone' <<<"$(jq -r '.[0].description' <<<"$manual_records")" ||
-  fail "B5: the manual record's description must say what is being granted (microphone)"
+manual_runbook_body="$(awk -v heading="### $manual_runbook" '
+  $0 == heading { in_section = 1; next }
+  in_section && /^### / { exit }
+  in_section { print }
+' "$RUNBOOK")"
+[[ -n ${manual_runbook_body//[[:space:]]/} ]] ||
+  fail "B5: the runbook section '### $manual_runbook' has an empty body"
+grep -qF 'System Settings → Notifications' <<<"$manual_runbook_body" ||
+  fail "B5: the runbook section must name the concrete pane the operator uses (System Settings → Notifications)"
+if grep -qE 'Privacy & Security → (Microphone|Camera)' <<<"$manual_runbook_body"; then
+  fail "B5: the runbook section must not direct a Privacy & Security microphone or camera grant; macOS never presents that pane entry for OverSight, so the step cannot be completed"
+fi
 
-printf 'ok: OverSight posture records (process probe, page-once lifecycle, indeterminate discipline, tier guard, manual grants)\n'
+printf 'ok: OverSight posture records (process probe, page-once lifecycle, indeterminate discipline, tier guard, manual notification delivery)\n'

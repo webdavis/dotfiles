@@ -95,16 +95,21 @@ macos:
     - description: "SSH: install the public-key-only sshd drop-in (000-ssh-hardening.conf) and verify the effective configuration"
       command: '"$HOME/.local/bin/ssh-hardening.sh"'
       tier: enforce
-    # OverSight (the microphone and camera activation monitor) only identifies
-    # which process is using a device once macOS grants it the matching
-    # recording permissions, and those grants are interactive-only: System
-    # Settings prompts per application and no supported command line writes
-    # them. Declared manual so the runbook owns the steps; whether the monitor
+    # OverSight (the microphone and camera activation monitor) needs NO
+    # privacy permission: the installed 2.4.0 bundle declares no
+    # NS*UsageDescription keys and no entitlements, so macOS never presents a
+    # Microphone or Camera grant for it, and it never asks for one. It
+    # observes device ACTIVATION EVENTS through CoreMediaIO property
+    # listeners, never device content. What IS interactive-only is
+    # Notification Center delivery, its single output channel: with delivery
+    # denied the monitor observes correctly and tells nobody, a dead alert
+    # channel that reads as healthy. No supported command line writes that
+    # authorization, so the runbook owns the steps; whether the monitor
     # process is RUNNING is a separate verify control in
     # macos_posture_controls.yaml.
-    - description: "OverSight: grant the microphone and camera permissions its monitoring needs"
+    - description: "OverSight: allow its Notification Center alerts (its only output channel)"
       tier: manual
-      runbook: "OverSight microphone and camera permission grants"
+      runbook: "OverSight notification delivery"
   tailnet_pins:
     - fqdn: mister.tail2f2430.ts.net
       ip: "100.109.58.54"
