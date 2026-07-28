@@ -394,8 +394,13 @@ jq -e '[.[] | select(.id == "lulu_extension")] | .[0].reader == "pgrep_lulu_exte
   fail "D: lulu_extension must be verify tier, read by pgrep_lulu_extension, expecting running"
 jq -e '[.[] | select(.id == "lulu_rule_tailscaled")] | .[0].reader == "lulu_rule_present" and .[0].expect == "present" and .[0].target == "/usr/local/bin/tailscaled"' <<<"$controls_json" >/dev/null ||
   fail "D: lulu_rule_tailscaled must check the stable tailscaled path via lulu_rule_present"
-jq -e '[.[] | select(.id == "lulu_rule_hermes_gateway")] | .[0].reader == "lulu_rule_resolved_present" and .[0].expect == "present" and (.[0].target | startswith("/"))' <<<"$controls_json" >/dev/null ||
-  fail "D: lulu_rule_hermes_gateway must resolve the venv launcher via lulu_rule_resolved_present"
+# The target is pinned EXACTLY, not merely absolute: the agreement test
+# generates its archive fixture from this same declaration, so any absolute
+# path would satisfy both tests while the control watched the wrong binary.
+# This is the venv launcher the Hermes gateway actually runs under (the
+# runbook's rule-creation section names the same path).
+jq -e '[.[] | select(.id == "lulu_rule_hermes_gateway")] | .[0].reader == "lulu_rule_resolved_present" and .[0].expect == "present" and .[0].target == "/Users/stephen/.hermes/hermes-agent/venv/bin/python"' <<<"$controls_json" >/dev/null ||
+  fail "D: lulu_rule_hermes_gateway must watch the real venv launcher /Users/stephen/.hermes/hermes-agent/venv/bin/python via lulu_rule_resolved_present (got target: $(jq -r '.[] | select(.id == "lulu_rule_hermes_gateway") | .target' <<<"$controls_json"))"
 
 # ---- E: extension lifecycle against a stubbed probe --------------------------
 
