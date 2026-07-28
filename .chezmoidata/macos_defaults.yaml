@@ -114,6 +114,92 @@ macos:
       type: bool
       value: false
       tier: enforce
+    # LuLu outbound-firewall policy (slice 10). Six records, one per policy
+    # preference, each declaring the value the live machine carried on
+    # 2026-07-27: the slice codifies todays posture so a later change is
+    # visible instead of silent; it changes nothing. The plist is LuLu's own
+    # absolute path (plain XML, world-readable, root-writable), not a
+    # /Library/Preferences domain, so each record rides slice 2's explicit
+    # plist_path form. The .plist extension in the declared path is
+    # load-bearing: `defaults write` on the extensionless form creates a NEW
+    # file beside the real one (verified on a copy, 2026-07-27).
+    #
+    # CAUTION, unsettled until the operator drill in the runbook section
+    # "LuLu preference write drill" runs: whether the RUNNING extension
+    # honours an external write to this file is unknown (LuLu rewrites both
+    # of its files at runtime, observed at wake 2026-07-27 13:25:06), and a
+    # `defaults write` to it converts the XML file to a binary plist, resets
+    # its mode 0644 -> 0600, and replaces the inode (all verified on a copy).
+    # Every declared value equals the live one, so the first apply is
+    # value-neutral, but the drill must settle the mechanics before these
+    # records are trusted as enforcement rather than drift declarations.
+    #
+    # allowLocalHost is the single most safety-critical preference on this
+    # machine, because
+    # alert-dispatch.sh POSTs every page to a Hermes gateway on 127.0.0.1:8644
+    # and the uptime watchdog route probe hits the same loopback URL.
+    # allowLocalHost is true, which is why that hop is unfiltered and why
+    # paging works at all.
+    # Flipping it to false would put LuLu in front of the alerting path itself:
+    # the mechanism that reports every other failure becomes the thing being
+    # filtered. Do not flip it, and do not drop this record as redundant.
+    - domain: com.objective-see.lulu
+      key: allowLocalHost
+      type: bool
+      value: true
+      scope: system
+      plist_path: /Library/Objective-See/LuLu/preferences.plist
+      tier: enforce
+    # Apple-signed system processes stay allowed: blocking them breaks core
+    # OS services, and the accumulated rule set already allows them anyway.
+    - domain: com.objective-see.lulu
+      key: allowApple
+      type: bool
+      value: true
+      scope: system
+      plist_path: /Library/Objective-See/LuLu/preferences.plist
+      tier: enforce
+    # DNS stays unprompted: every outbound connection needs resolution first,
+    # so filtering DNS would gate all egress behind interactive prompts.
+    - domain: com.objective-see.lulu
+      key: allowDNS
+      type: bool
+      value: true
+      scope: system
+      plist_path: /Library/Objective-See/LuLu/preferences.plist
+      tier: enforce
+    # Applications already installed at LuLu install time keep their baseline
+    # allow rules; flipping this only affects future installs, but declaring
+    # it pins the posture the accumulated rule set was built under.
+    - domain: com.objective-see.lulu
+      key: allowInstalled
+      type: bool
+      value: true
+      scope: system
+      plist_path: /Library/Objective-See/LuLu/preferences.plist
+      tier: enforce
+    # Prompt-and-decide, never block-all: blockMode true would sever every
+    # unruled outbound flow on an unattended machine, the alerting egress
+    # included.
+    - domain: com.objective-see.lulu
+      key: blockMode
+      type: bool
+      value: false
+      scope: system
+      plist_path: /Library/Objective-See/LuLu/preferences.plist
+      tier: enforce
+    # Prompts stay on: passive mode would silently apply a default action to
+    # every new flow, removing the interactive gate that makes the accumulated
+    # rule set deliberate. (passiveModeAction and passiveModeRules are NOT
+    # declared: both are 0 and unconsulted while passiveMode is false, which
+    # is exactly what makes them the safe toggles for the write drill.)
+    - domain: com.objective-see.lulu
+      key: passiveMode
+      type: bool
+      value: false
+      scope: system
+      plist_path: /Library/Objective-See/LuLu/preferences.plist
+      tier: enforce
   killall:
     - Dock
     - Finder

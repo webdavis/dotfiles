@@ -63,6 +63,92 @@ interactive-only; no supported command line writes it:
    one here; the poller verifies this continuously (the `oversight` record in
    `.chezmoidata/macos_posture_controls.yaml`) and pages if the process stops.
 
+### LuLu system extension approval
+
+LuLu (the Objective-See outbound firewall, installed as a cask) filters through a network system
+extension that macOS only activates after an interactive security consent. No supported command line
+writes that approval:
+
+1. Launch LuLu once (`open -a LuLu`) and follow its prompts.
+1. Approve the extension: System Settings → General → Login Items & Extensions → Network Extensions →
+   enable LuLu. macOS may also raise a "System Extension Blocked" dialog with an Allow button; allow it.
+1. When prompted "LuLu would like to Filter Network Content", click Allow. This is the network-content
+   filter consent, separate from the extension approval.
+1. Confirm it took: `systemextensionsctl list` shows `com.objective-see.lulu.extension` with
+   `[activated enabled]`, and `pgrep -x -U 0 com.objective-see.lulu.extension` prints a PID. The
+   security-posture poller verifies the process continuously (the `lulu_extension` record in
+   `.chezmoidata/macos_posture_controls.yaml`) and pages if it stops.
+
+### LuLu rule creation
+
+Rules cannot be pre-seeded: `rules.plist` is an NSKeyedArchiver archive of LuLu's private `Rule` class,
+not hand-authorable by any supported tool, so every rule is created interactively, by answering LuLu's
+prompt when a binary first makes an outbound connection or ahead of time via the app's Rules window (LuLu
+menu bar icon → Rules → the plus button, which takes a binary path).
+
+The required rules, from the talker table in `.chezmoidata/macos_posture_controls.yaml`
+(`macos.lulu_talkers`):
+
+1. **tailscaled** (`/usr/local/bin/tailscaled`): allow. Slice 8's remote recovery path 2 rides the
+   tailnet; blocking this removes it.
+1. **The Hermes gateway interpreter**: allow. This is the alerting channel's real egress hop. The gateway
+   runs under the venv launcher `~/.hermes/hermes-agent/venv/bin/python`, a symlink into a uv-managed
+   CPython; LuLu keys the rule on the RESOLVED binary
+   (`readlink -f ~/.hermes/hermes-agent/venv/bin/python`), so create the rule for that resolved path.
+   After a python upgrade moves the interpreter, the `lulu_rule_hermes_gateway` control pages and this
+   step is repeated for the new path.
+
+Both rules are verified continuously by the security-posture poller as existence-only checks: the archive
+is readable enough to prove a rule mentioning the binary exists, but the rule action (allow vs block) is
+not recoverable by supported tooling, so the poller does not claim it. When either control pages,
+recreate the rule here and the poller re-arms on its own.
+
+Lean narrow, and accept the prompt cost. Do NOT create blanket allow rules for shared interpreters and
+clients (`/usr/bin/curl`, `/bin/bash`, `node`, `python3`, `/usr/bin/ssh`): LuLu keys rules on the
+executing binary and cannot see which script invoked a shared client, so allowing `curl` allows it for
+every process on the machine. Where a talker only reaches the network through a shared client, either
+leave it prompting or give that path its own dedicated client. Version-pinned paths (Homebrew Cellar,
+`/nix/store`) go stale on every upgrade; expect a one-time prompt after upgrades and answer it narrowly.
+
+The alerter's own `curl` needs NO rule: it POSTs to `http://127.0.0.1:8644` and loopback is kept
+unfiltered by the `allowLocalHost` preference (declared enforce-tier in
+`.chezmoidata/macos_defaults.yaml`). A curl rule would not protect that hop and would allow every process
+on the machine.
+
+### LuLu preference write drill
+
+OPERATOR-GATED, run once before trusting the enforce-tier LuLu policy records as enforcement. The open
+question it settles: does the RUNNING extension honour an external write to
+`/Library/Objective-See/LuLu/preferences.plist`, or does it cache old values and write them back (the
+System Settings / `cfprefsd` footgun this repo already documents)? Read-only evidence so far: LuLu
+rewrote both of its files at runtime on 2026-07-27 at 13:25:06, fifteen seconds after a display wake,
+with the extension up since 2026-07-25; and on a COPY, `defaults write` converted the XML file to a
+binary plist, reset mode 0644 to 0600, added a quarantine xattr, and replaced the inode. The toggles used
+here are `passiveModeAction` and `passiveModeRules`: both are 0 and are not consulted while `passiveMode`
+is false, so the drill never changes effective filtering behaviour.
+
+1. Baseline: `shasum -a 256 /Library/Objective-See/LuLu/preferences.plist`, `stat -f '%Sp %z %Sm'` on it,
+   and `plutil -p` output saved aside. Confirm a test CRIT page delivers end to end BEFORE touching
+   anything.
+1. Write the inert toggle exactly as the Tier 1 runner would:
+   `sudo defaults write /Library/Objective-See/LuLu/preferences.plist passiveModeAction -int 1`.
+1. Immediately re-read: `defaults read /Library/Objective-See/LuLu/preferences.plist passiveModeAction`
+   (expect 1) and note `file`, mode, and owner. If mode became 0600, restore readability now:
+   `sudo chmod 644 /Library/Objective-See/LuLu/preferences.plist` (the LuLu app runs as the user and the
+   drift checker reads unprivileged; both need the 0644 the file normally carries).
+1. Watch for a revert: re-read the value at one, five, and fifteen minutes. Then force LuLu's own write
+   path: open the LuLu app, change any preference in its UI, change it back, and quit; sleep and wake the
+   machine once (the observed self-rewrite trigger). After each, re-read `passiveModeAction`.
+1. Interpret: value still 1 everywhere means the extension tolerates external writes and the enforce
+   records take effect as written (also note whether LuLu's own rewrite restored the XML format). Value
+   back at 0 at any point means LuLu reverted the external write: flip the six policy records to
+   `tier: verify` (drift detection stays, the runner writes nothing) and record the finding here.
+1. Restore: `sudo defaults write /Library/Objective-See/LuLu/preferences.plist passiveModeAction -int 0`,
+   re-apply `sudo chmod 644` if needed, and if LuLu has not rewritten the file itself, restore the XML
+   format: `sudo plutil -convert xml1 /Library/Objective-See/LuLu/preferences.plist`. Confirm `plutil -p`
+   matches the saved baseline, `systemextensionsctl list` still shows `[activated enabled]`, and a final
+   test CRIT page delivers.
+
 ### Firewall log diagnostics
 
 Nothing to enable here, this section is view-only. Firewall logging is on by default on macOS 26.2 and

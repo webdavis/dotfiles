@@ -43,6 +43,7 @@ DRIFT="$REPO_ROOT/dot_local/bin/executable_macos-defaults-drift.sh"
 DEFAULTS_YAML="$REPO_ROOT/.chezmoidata/macos_defaults.yaml"
 
 SOFTWAREUPDATE_PLIST_PATH='/Library/Preferences/com.apple.SoftwareUpdate'
+LULU_PLIST_PATH='/Library/Objective-See/LuLu/preferences.plist'
 
 fail() {
   printf 'FAIL: %s\n' "$*" >&2
@@ -143,11 +144,27 @@ sudo_prelude_count="$(grep -cxF "$sudo_prelude_pattern" "$combined_log" || true)
 [[ $sudo_prelude_count -eq 1 ]] ||
   fail "the runner must validate sudo exactly once up front (got $sudo_prelude_count 'sudo -v' invocations)"
 
+# The sudo-routed set is exactly the system-scope records: the SoftwareUpdate
+# record plus the six LuLu policy records the LuLu-posture slice declared
+# (each asserted per argv below). Nothing else may escalate.
 sudo_write_lines="$(grep -F "$(printf 'sudo\x1fdefaults')" "$combined_log" || true)"
 sudo_write_count=0
 [[ -n $sudo_write_lines ]] && sudo_write_count="$(printf '%s\n' "$sudo_write_lines" | wc -l | tr -d ' ')"
-[[ $sudo_write_count -eq 1 ]] ||
-  fail "exactly one write must be routed through sudo, the SoftwareUpdate record (got $sudo_write_count: $sudo_write_lines)"
+[[ $sudo_write_count -eq 7 ]] ||
+  fail "exactly seven writes must be routed through sudo, SoftwareUpdate plus the six LuLu policy records (got $sudo_write_count: $sudo_write_lines)"
+for lulu_expectation in 'allowLocalHost|true' 'allowApple|true' 'allowDNS|true' \
+  'allowInstalled|true' 'blockMode|false' 'passiveMode|false'; do
+  lulu_key="${lulu_expectation%%|*}"
+  lulu_value="${lulu_expectation##*|}"
+  lulu_argv_line="$(printf 'sudo\x1fdefaults\x1fwrite\x1f%s\x1f%s\x1f-bool\x1f%s' \
+    "$LULU_PLIST_PATH" "$lulu_key" "$lulu_value")"
+  lulu_line_count="$(grep -cxF "$lulu_argv_line" "$combined_log" || true)"
+  [[ $lulu_line_count -eq 1 ]] ||
+    fail "the LuLu $lulu_key record must execute exactly once as [sudo defaults write $LULU_PLIST_PATH $lulu_key -bool $lulu_value] (got $lulu_line_count)"
+done
+sudo_write_lines="$(grep -F "$(printf 'sudo\x1fdefaults')" "$combined_log" | grep -F 'AutomaticCheckEnabled' || true)"
+[[ -n $sudo_write_lines ]] ||
+  fail 'the SoftwareUpdate record must execute under sudo'
 IFS=$'\x1f' read -r -a sudo_write_fields <<<"$sudo_write_lines"
 [[ ${#sudo_write_fields[@]} -eq 7 ]] ||
   fail "the sudo write must carry exactly 7 fields, command plus 6 arguments (got ${#sudo_write_fields[@]})"
@@ -252,6 +269,12 @@ expected_execution_log="$sandbox/execution.expected"
   log_line defaults write com.apple.WindowManager EnableTopTilingByEdgeDrag -bool false
   log_line sudo defaults write "$SOFTWAREUPDATE_PLIST_PATH" AutomaticCheckEnabled -bool true
   log_line defaults write com.apple.Safari AutoOpenSafeDownloads -bool false
+  log_line sudo defaults write /Library/Objective-See/LuLu/preferences.plist allowLocalHost -bool true
+  log_line sudo defaults write /Library/Objective-See/LuLu/preferences.plist allowApple -bool true
+  log_line sudo defaults write /Library/Objective-See/LuLu/preferences.plist allowDNS -bool true
+  log_line sudo defaults write /Library/Objective-See/LuLu/preferences.plist allowInstalled -bool true
+  log_line sudo defaults write /Library/Objective-See/LuLu/preferences.plist blockMode -bool false
+  log_line sudo defaults write /Library/Objective-See/LuLu/preferences.plist passiveMode -bool false
   log_line killall Dock
   log_line killall Finder
   log_line killall SystemUIServer
@@ -279,7 +302,7 @@ new_record_tiers="$(yq eval -r \
 # stubbed read, so the real path must be absent or readable (on macOS it is a
 # root-owned 0644 plist). An unreadable one is an environment this test
 # cannot run in, and saying so beats a silent wrong answer.
-for plist_candidate in "$SOFTWAREUPDATE_PLIST_PATH" "$SOFTWAREUPDATE_PLIST_PATH.plist"; do
+for plist_candidate in "$SOFTWAREUPDATE_PLIST_PATH" "$SOFTWAREUPDATE_PLIST_PATH.plist" "$LULU_PLIST_PATH"; do
   if [[ -e $plist_candidate && ! -r $plist_candidate ]]; then
     fail "environment: $plist_candidate exists but is unreadable; the drift scenarios would be classified indeterminate for reasons outside the code under test"
   fi
@@ -287,8 +310,10 @@ done
 
 # write_drift_defaults_stub <softwareupdate-answer> <safari-answer> -- replace
 # the defaults stub with a read-answering one: every `read` is logged, the two
-# security records answer as told, every other record answers its declared
-# value (the seven Aerospace records are all bool false, normalized 0).
+# security records answer as told, the four true-valued LuLu policy records
+# answer their declared 1, and every other record answers its declared value
+# (the seven Aerospace records and the two false-valued LuLu records are all
+# bool false, normalized 0).
 write_drift_defaults_stub() { # <softwareupdate-answer> <safari-answer>
   local softwareupdate_answer="$1" safari_answer="$2"
   cat >"$stub_bin/defaults" <<EOF
@@ -302,6 +327,10 @@ if [[ \$1 == read ]]; then
   case "\$2 \$3" in
     '$SOFTWAREUPDATE_PLIST_PATH AutomaticCheckEnabled') printf '%s\\n' '$softwareupdate_answer' ;;
     'com.apple.Safari AutoOpenSafeDownloads') printf '%s\\n' '$safari_answer' ;;
+    '$LULU_PLIST_PATH allowLocalHost') printf '1\\n' ;;
+    '$LULU_PLIST_PATH allowApple') printf '1\\n' ;;
+    '$LULU_PLIST_PATH allowDNS') printf '1\\n' ;;
+    '$LULU_PLIST_PATH allowInstalled') printf '1\\n' ;;
     *) printf '0\\n' ;;
   esac
 fi
@@ -346,6 +375,12 @@ expected_drift_reads="$sandbox/drift-reads.expected"
   log_line defaults read com.apple.WindowManager EnableTopTilingByEdgeDrag
   log_line defaults read "$SOFTWAREUPDATE_PLIST_PATH" AutomaticCheckEnabled
   log_line defaults read com.apple.Safari AutoOpenSafeDownloads
+  log_line defaults read "$LULU_PLIST_PATH" allowLocalHost
+  log_line defaults read "$LULU_PLIST_PATH" allowApple
+  log_line defaults read "$LULU_PLIST_PATH" allowDNS
+  log_line defaults read "$LULU_PLIST_PATH" allowInstalled
+  log_line defaults read "$LULU_PLIST_PATH" blockMode
+  log_line defaults read "$LULU_PLIST_PATH" passiveMode
 } >"$expected_drift_reads"
 cmp -s "$expected_drift_reads" "$combined_log" ||
   fail "drift must read every tracked record, the two security records included, from its declared place (diff: $(diff <(cat -v "$expected_drift_reads") <(cat -v "$combined_log") | head -20))"

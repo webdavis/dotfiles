@@ -83,9 +83,11 @@ invalid_setup_tiers="$(yq eval -r \
 
 # ---- 2: both runners render byte-identically to their goldens ----------------
 
-# The Tier 1 runner's 5774ce0 render plus the security-defaults records: the
+# The Tier 1 runner's 5774ce0 render plus the security-defaults records (the
 # sudo -v prelude, the sudo-routed system-scope SoftwareUpdate write, and the
-# user-scope Safari write.
+# user-scope Safari write), plus the six LuLu policy writes the LuLu-posture
+# slice declared (system scope with an explicit plist_path, each value the
+# live machine carried when declared).
 tier1_golden="$work/tier1.golden"
 cat >"$tier1_golden" <<'GOLDEN_EOF'
 #!/bin/bash
@@ -112,6 +114,12 @@ defaults write 'com.apple.WindowManager' 'EnableTilingOptionAccelerator' -bool '
 defaults write 'com.apple.WindowManager' 'EnableTopTilingByEdgeDrag' -bool 'false'
 sudo defaults write '/Library/Preferences/com.apple.SoftwareUpdate' 'AutomaticCheckEnabled' -bool 'true'
 defaults write 'com.apple.Safari' 'AutoOpenSafeDownloads' -bool 'false'
+sudo defaults write '/Library/Objective-See/LuLu/preferences.plist' 'allowLocalHost' -bool 'true'
+sudo defaults write '/Library/Objective-See/LuLu/preferences.plist' 'allowApple' -bool 'true'
+sudo defaults write '/Library/Objective-See/LuLu/preferences.plist' 'allowDNS' -bool 'true'
+sudo defaults write '/Library/Objective-See/LuLu/preferences.plist' 'allowInstalled' -bool 'true'
+sudo defaults write '/Library/Objective-See/LuLu/preferences.plist' 'blockMode' -bool 'false'
+sudo defaults write '/Library/Objective-See/LuLu/preferences.plist' 'passiveMode' -bool 'false'
 # Post-loop: restart user-facing processes so changes take effect immediately.
 # cfprefsd kill is non-negotiable (caches plist values in memory).
 killall 'Dock' 2>/dev/null || true
@@ -128,7 +136,10 @@ GOLDEN_EOF
 # MANUAL pointer for OverSight's Notification Center delivery, its only
 # output channel (a runbook echo and no command, the OverSight-posture
 # slice; deliberately NOT a microphone or camera grant, which macOS never
-# presents for OverSight: no usage-description keys, no entitlements).
+# presents for OverSight: no usage-description keys, no entitlements), plus
+# the two MANUAL LuLu pointers the LuLu-posture slice declared (the
+# system-extension approval and interactive-only rule creation; a runbook
+# echo each and no command).
 # No manual logging record: firewall logging on this macOS version is on by
 # default and cannot be enabled by hand, so nothing renders for it.
 tier2_golden="$work/tier2.golden"
@@ -157,6 +168,8 @@ sudo /usr/libexec/ApplicationFirewall/socketfilterfw --setallowsignedapp on
 echo "→ SSH: install the public-key-only sshd drop-in (000-ssh-hardening.conf) and verify the effective configuration"
 "$HOME/.local/bin/ssh-hardening.sh"
 echo '→ MANUAL OverSight: allow its Notification Center alerts (its only output channel): see the runbook section OverSight notification delivery'
+echo '→ MANUAL LuLu: approve its system extension (a one-time macOS security consent): see the runbook section LuLu system extension approval'
+echo '→ MANUAL LuLu: create the required outbound allow rules by answering its prompts: see the runbook section LuLu rule creation'
 echo "→ MagicDNS fallback pin: mister.tail2f2430.ts.net (per CLAUDE.md Tailscale DNS section)"
 sudo sh -c 'grep -qF "mister.tail2f2430.ts.net" /etc/hosts || printf "100.109.58.54\tmister.tail2f2430.ts.net\tmister\n" >>/etc/hosts'
 

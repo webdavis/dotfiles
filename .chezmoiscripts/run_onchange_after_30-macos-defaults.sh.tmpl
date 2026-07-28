@@ -24,6 +24,14 @@ set -euo pipefail
 osascript -e 'tell application "System Settings" to quit' 2>/dev/null || true
 
 {{ $hasSystemScopeRecord := false -}}
+{{- /* The directories an EXPLICIT plist_path may name, grown deliberately,
+one product at a time. An explicit path bypasses the domain construction that
+keeps default system records inside /Library/Preferences, so without this
+list a single record could aim the sudo write at any absolute path on the
+disk. Containment first (the .. checks below), then membership here.
+/Library/Preferences/ is permitted because an explicit path there names
+nothing the default construction could not already reach. */ -}}
+{{ $plistPathAllowedDirectories := list "/Library/Objective-See/LuLu/" "/Library/Preferences/" -}}
 {{- /* Validation pass: every record must declare which control tier it
 belongs to, and its payload must MATCH the declared tier, before anything
 renders. The tier decides what the record IS; the payload never does
@@ -163,6 +171,19 @@ rule is "does this resolve where I intend to write" and these do not. */ -}}
 {{ end -}}
 {{ if eq $declaredPath "/" -}}
 {{ fail (printf "macos_defaults.yaml: system-scope plist_path %q on record %s %s is the filesystem root; it names no plist" $declaredPath .domain .key) -}}
+{{ end -}}
+{{- /* Membership: an explicit path must sit under one of the permitted plist
+directories above. The .. checks keep the path from ESCAPING what it names;
+this keeps what it names inside the directories that were granted on
+purpose. */ -}}
+{{ if ne $declaredPath "" -}}
+{{ $plistPathPermitted := false -}}
+{{ range $allowedDirectory := $plistPathAllowedDirectories -}}
+{{ if hasPrefix $allowedDirectory $declaredPath }}{{ $plistPathPermitted = true }}{{ end -}}
+{{ end -}}
+{{ if not $plistPathPermitted -}}
+{{ fail (printf "macos_defaults.yaml: plist_path %q on record %s %s is outside every permitted plist directory (%s); grant the directory deliberately in the template or use the default /Library/Preferences form" $declaredPath .domain .key (join ", " $plistPathAllowedDirectories)) -}}
+{{ end -}}
 {{ end -}}
 {{ end -}}
 {{ if eq $tier "enforce" -}}
