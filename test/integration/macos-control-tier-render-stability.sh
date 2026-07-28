@@ -124,7 +124,9 @@ GOLDEN_EOF
 # The Tier 2 runner's 5774ce0 render plus the firewall-baseline records
 # (global state first; stealth and both signed-software policies after it),
 # plus the SSH drop-in record the ssh-configuration slice declared (no sudo
-# prefix by design: the script escalates per operation itself).
+# prefix by design: the script escalates per operation itself), plus the
+# MANUAL pointer for OverSight's interactive permission grants (a runbook
+# echo and no command, the OverSight-posture slice).
 # No manual logging record: firewall logging on this macOS version is on by
 # default and cannot be enabled by hand, so nothing renders for it.
 tier2_golden="$work/tier2.golden"
@@ -152,6 +154,7 @@ echo "→ Firewall: auto-allow incoming connections for downloaded signed softwa
 sudo /usr/libexec/ApplicationFirewall/socketfilterfw --setallowsignedapp on
 echo "→ SSH: install the public-key-only sshd drop-in (000-ssh-hardening.conf) and verify the effective configuration"
 "$HOME/.local/bin/ssh-hardening.sh"
+echo '→ MANUAL OverSight: grant the microphone and camera permissions its monitoring needs: see the runbook section OverSight microphone and camera permission grants'
 echo "→ MagicDNS fallback pin: mister.tail2f2430.ts.net (per CLAUDE.md Tailscale DNS section)"
 sudo sh -c 'grep -qF "mister.tail2f2430.ts.net" /etc/hosts || printf "100.109.58.54\tmister.tail2f2430.ts.net\tmister\n" >>/etc/hosts'
 

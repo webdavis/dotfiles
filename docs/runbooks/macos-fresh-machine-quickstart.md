@@ -42,6 +42,19 @@ System Settings → Privacy & Security → grant the following:
 Each grant requires opening the Privacy sheet and dragging the app into the listed sheet. There's no CLI
 surface.
 
+### OverSight microphone and camera permission grants
+
+OverSight (the Objective-See microphone and camera activation monitor, installed as a cask) can only
+identify which process is using a device once macOS grants it the matching recording permissions. The
+grants are interactive-only; no supported command line writes them:
+
+1. Launch OverSight once (`open -a OverSight`) so it registers with the privacy database and prompts.
+1. System Settings → Privacy & Security → Microphone: enable OverSight.
+1. System Settings → Privacy & Security → Camera: enable OverSight.
+1. Confirm the monitor is running: `pgrep -x OverSight` prints a PID. The security-posture poller
+   verifies this continuously (the `oversight` record in `.chezmoidata/macos_posture_controls.yaml`) and
+   pages if the process stops.
+
 ### Firewall log diagnostics
 
 Nothing to enable here, this section is view-only. Firewall logging is on by default on macOS 26.2 and

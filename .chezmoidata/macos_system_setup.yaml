@@ -95,6 +95,16 @@ macos:
     - description: "SSH: install the public-key-only sshd drop-in (000-ssh-hardening.conf) and verify the effective configuration"
       command: '"$HOME/.local/bin/ssh-hardening.sh"'
       tier: enforce
+    # OverSight (the microphone and camera activation monitor) only identifies
+    # which process is using a device once macOS grants it the matching
+    # recording permissions, and those grants are interactive-only: System
+    # Settings prompts per application and no supported command line writes
+    # them. Declared manual so the runbook owns the steps; whether the monitor
+    # process is RUNNING is a separate verify control in
+    # macos_posture_controls.yaml.
+    - description: "OverSight: grant the microphone and camera permissions its monitoring needs"
+      tier: manual
+      runbook: "OverSight microphone and camera permission grants"
   tailnet_pins:
     - fqdn: mister.tail2f2430.ts.net
       ip: "100.109.58.54"
