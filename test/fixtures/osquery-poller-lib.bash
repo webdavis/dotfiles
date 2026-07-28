@@ -206,48 +206,141 @@ esac
 SHIM
   chmod +x "$POLLER_HOME/bin/defaults"
 
-  # pgrep: only the exact user-scoped process-name read of OverSight (the
-  # oversight running-state reader) is legitimate; every other argv is a
-  # recorded violation. POLLER_PGREP_MODE models three outcomes (pgrep exit
-  # statuses verified against the installed binary and its man page: 0
-  # matched, 1 no match with no output, 2 invalid options): running (a pid on
-  # stdout, exit 0, the default), stopped (no output at all, exit 1), and
-  # error (a pid on stdout AND exit 2, the untrustworthy-failure form: output
-  # that LOOKS running with a failed status must never be believed).
-  # POLLER_PGREP_OUTPUT/POLLER_PGREP_EXIT override output and status directly
-  # for the remaining forms (exit 1 that still printed something, exit 0 that
-  # printed nothing); ${VAR+x} so a deliberately empty output is programmable.
+  # pgrep: exactly two read-only argvs are legitimate, the user-scoped
+  # OverSight probe and the root-scoped LuLu extension probe; every other
+  # argv is a recorded violation. Each probe has its own programming
+  # variables (POLLER_PGREP_* for OverSight, POLLER_PGREP_LULU_* for the
+  # extension) so one control's state never leaks into the other's.
+  # POLLER_PGREP_MODE models three outcomes (pgrep exit statuses verified
+  # against the installed binary and its man page: 0 matched, 1 no match
+  # with no output, 2 invalid options): running (a pid on stdout, exit 0,
+  # the default), stopped (no output at all, exit 1), and error (a pid on
+  # stdout AND exit 2, the untrustworthy-failure form: output that LOOKS
+  # running with a failed status must never be believed).
+  # POLLER_PGREP_OUTPUT/POLLER_PGREP_EXIT override output and status
+  # directly for the remaining forms (exit 1 that still printed something,
+  # exit 0 that printed nothing); ${VAR+x} so a deliberately empty output is
+  # programmable. The LuLu variables mirror all of it.
   cat >"$POLLER_HOME/bin/pgrep" <<'SHIM'
 #!/usr/bin/env bash
 printf 'pgrep %s\n' "$*" >>"$POLLER_PROBE_CALLS"
-if [[ "$*" != "-x -U $(id -u) OverSight" ]]; then
-  printf 'pgrep %s\n' "$*" >>"$POLLER_MUTATION_LOG"
-  exit 97
-fi
-if [[ -n ${POLLER_PGREP_SLEEP:-} ]]; then
-  exec sleep "$POLLER_PGREP_SLEEP"
-fi
-if [[ -n ${POLLER_PGREP_OUTPUT+x} || -n ${POLLER_PGREP_EXIT:-} ]]; then
-  if [[ -n ${POLLER_PGREP_OUTPUT:-} ]]; then
-    printf '%s\n' "$POLLER_PGREP_OUTPUT"
-  fi
-  exit "${POLLER_PGREP_EXIT:-0}"
-fi
-case "${POLLER_PGREP_MODE:-running}" in
-  stopped)
-    exit 1
+case "$*" in
+  "-x -U $(id -u) OverSight")
+    if [[ -n ${POLLER_PGREP_SLEEP:-} ]]; then
+      exec sleep "$POLLER_PGREP_SLEEP"
+    fi
+    if [[ -n ${POLLER_PGREP_OUTPUT+x} || -n ${POLLER_PGREP_EXIT:-} ]]; then
+      if [[ -n ${POLLER_PGREP_OUTPUT:-} ]]; then
+        printf '%s\n' "$POLLER_PGREP_OUTPUT"
+      fi
+      exit "${POLLER_PGREP_EXIT:-0}"
+    fi
+    case "${POLLER_PGREP_MODE:-running}" in
+      stopped)
+        exit 1
+        ;;
+      error)
+        printf '3424\n'
+        exit 2
+        ;;
+      *)
+        printf '3424\n'
+        exit 0
+        ;;
+    esac
     ;;
-  error)
-    printf '3424\n'
-    exit 2
+  "-x -U 0 com.objective-see.lulu.extension")
+    if [[ -n ${POLLER_PGREP_LULU_SLEEP:-} ]]; then
+      exec sleep "$POLLER_PGREP_LULU_SLEEP"
+    fi
+    if [[ -n ${POLLER_PGREP_LULU_OUTPUT+x} || -n ${POLLER_PGREP_LULU_EXIT:-} ]]; then
+      if [[ -n ${POLLER_PGREP_LULU_OUTPUT:-} ]]; then
+        printf '%s\n' "$POLLER_PGREP_LULU_OUTPUT"
+      fi
+      exit "${POLLER_PGREP_LULU_EXIT:-0}"
+    fi
+    case "${POLLER_PGREP_LULU_MODE:-running}" in
+      stopped)
+        exit 1
+        ;;
+      error)
+        printf '636\n'
+        exit 2
+        ;;
+      *)
+        printf '636\n'
+        exit 0
+        ;;
+    esac
     ;;
   *)
-    printf '3424\n'
-    exit 0
+    printf 'pgrep %s\n' "$*" >>"$POLLER_MUTATION_LOG"
+    exit 97
     ;;
 esac
 SHIM
   chmod +x "$POLLER_HOME/bin/pgrep"
+
+  # plutil: only the exact read-only conversion of the LuLu rules archive to
+  # stdout is legitimate (the archive file is never written); every other
+  # argv is a recorded violation. POLLER_PLUTIL_XML programs the converted
+  # document (default: an archive mentioning nothing); ${VAR-default} so a
+  # deliberately empty output (the status/output-mismatch form) is
+  # programmable. POLLER_PLUTIL_EXIT models a failed conversion (missing or
+  # corrupt archive).
+  cat >"$POLLER_HOME/bin/plutil" <<'SHIM'
+#!/usr/bin/env bash
+printf 'plutil %s\n' "$*" >>"$POLLER_PROBE_CALLS"
+if [[ "$*" != "-convert xml1 -o - ${OSQUERY_POSTURE_LULU_RULES:-}" ]]; then
+  printf 'plutil %s\n' "$*" >>"$POLLER_MUTATION_LOG"
+  exit 97
+fi
+if [[ -n ${POLLER_PLUTIL_SLEEP:-} ]]; then
+  exec sleep "$POLLER_PLUTIL_SLEEP"
+fi
+exit_code="${POLLER_PLUTIL_EXIT:-0}"
+if [[ $exit_code -ne 0 ]]; then
+  exit "$exit_code"
+fi
+default_archive='<?xml version="1.0" encoding="UTF-8"?>
+<plist version="1.0">
+<dict>
+	<key>$objects</key>
+	<array>
+	</array>
+</dict>
+</plist>'
+printf '%s\n' "${POLLER_PLUTIL_XML-$default_archive}"
+SHIM
+  chmod +x "$POLLER_HOME/bin/plutil"
+
+  # readlink: only the -f resolution the lulu_rule_resolved_present reader
+  # performs is legitimate. Identity resolution by default (the path resolves
+  # to itself); POLLER_READLINK_OUTPUT programs a distinct resolution and
+  # POLLER_READLINK_EXIT a resolution failure (a dangling or missing
+  # launcher).
+  cat >"$POLLER_HOME/bin/readlink" <<'SHIM'
+#!/usr/bin/env bash
+printf 'readlink %s\n' "$*" >>"$POLLER_PROBE_CALLS"
+if [[ $1 != "-f" || $# -ne 2 ]]; then
+  printf 'readlink %s\n' "$*" >>"$POLLER_MUTATION_LOG"
+  exit 97
+fi
+if [[ -n ${POLLER_READLINK_SLEEP:-} ]]; then
+  exec sleep "$POLLER_READLINK_SLEEP"
+fi
+exit_code="${POLLER_READLINK_EXIT:-0}"
+if [[ $exit_code -ne 0 ]]; then
+  exit "$exit_code"
+fi
+printf '%s\n' "${POLLER_READLINK_OUTPUT-$2}"
+SHIM
+  chmod +x "$POLLER_HOME/bin/readlink"
+
+  # The LuLu rules-archive path handed to the poller (and embedded in the
+  # plutil stub's accepted argv): a sandbox path, so no test ever depends on
+  # the real /Library/Objective-See archive.
+  export OSQUERY_POSTURE_LULU_RULES="$POLLER_HOME/lulu-rules.plist"
 
   # Tools the poller has NO business invoking at all, status or otherwise: any
   # call is a recorded violation. run_poller prepends this bin dir to PATH, so
@@ -316,6 +409,9 @@ run_poller() {
     OSQUERY_POSTURE_SYSADMINCTL="$POLLER_HOME/bin/sysadminctl" \
     OSQUERY_POSTURE_DEFAULTS="$POLLER_HOME/bin/defaults" \
     OSQUERY_POSTURE_PGREP="$POLLER_HOME/bin/pgrep" \
+    OSQUERY_POSTURE_PLUTIL="$POLLER_HOME/bin/plutil" \
+    OSQUERY_POSTURE_READLINK="$POLLER_HOME/bin/readlink" \
+    OSQUERY_POSTURE_LULU_RULES="$OSQUERY_POSTURE_LULU_RULES" \
     bash "$POLLER_TOOL" "$@"
 }
 

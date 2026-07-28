@@ -25,13 +25,21 @@
 #     tier:        verify    # the only accepted value
 #     reader:      <name>    # HOW the poller reads it; one of the poller's
 #                            # reader functions and its value domain:
-#                            #   fdesetup_status     -> on|off
-#                            #   csrutil_status      -> enabled|disabled
-#                            #   defaults_autologin  -> on|off
-#                            #   sysadminctl_guest   -> enabled|disabled
-#                            #   pgrep_oversight     -> running|stopped
+#                            #   fdesetup_status            -> on|off
+#                            #   csrutil_status             -> enabled|disabled
+#                            #   defaults_autologin         -> on|off
+#                            #   sysadminctl_guest          -> enabled|disabled
+#                            #   pgrep_oversight            -> running|stopped
+#                            #   pgrep_lulu_extension       -> running|stopped
+#                            #   lulu_rule_present          -> present|absent
+#                            #   lulu_rule_resolved_present -> present|absent
 #     expect:      <value>   # the value the control must hold, inside the
 #                            # reader's domain; ANY in-domain deviation pages
+#     target:      <path>    # REQUIRED by the lulu_rule readers (the absolute
+#                            # binary path whose rule must exist), FORBIDDEN
+#                            # on every other reader. The baseline records the
+#                            # target each value was observed under, so
+#                            # repointing a control re-arms it.
 #     remedy:      <string>  # OPTIONAL: the page's fix-it line. Keep it
 #                            # apostrophe-free (the alerting stack's render jq
 #                            # is bash single-quoted).
@@ -114,3 +122,82 @@ macos:
       reader: pgrep_oversight
       expect: "running"
       remedy: "Relaunch it: open -a OverSight, and keep it in System Settings → General → Login Items so it returns at login"
+    # LuLu (slice 10). Three verify records: the outbound-filtering extension
+    # process, and the two safety-critical allow rules. Reader notes:
+    #   - pgrep_lulu_extension runs `pgrep -x -U 0
+    #     com.objective-see.lulu.extension`, root-scoped because the network
+    #     extension runs as root (verified 2026-07-27: pid 636, exact 32-char
+    #     name matches; the process table is world-readable so the user-agent
+    #     poller needs no privilege). Same status/output symmetry as
+    #     pgrep_oversight. Deliberately a PROCESS probe, not
+    #     `systemextensionsctl list`: the list reports registration state,
+    #     which persists while a wedged extension filters nothing; the
+    #     process is the artifact that filters.
+    #   - the lulu_rule readers are existence-only, stated here so nobody
+    #     upgrades the claim: rules.plist is a keyed archive of LuLu's
+    #     private Rule class, readable only as the path strings it mentions
+    #     (via a read-only `plutil -convert xml1 -o -`). The check proves a
+    #     rule MENTIONING the declared binary exists; it
+    #     does not prove the rule allows rather than blocks,
+    #     and it must not claim to. (Today
+    #     that gap is small: all 251 live rules were action=allow when
+    #     measured 2026-07-27, and LuLu offers no unattended way to flip
+    #     one.) Recovering the action would mean reimplementing
+    #     NSKeyedUnarchiver over a private, already-once-migrated format,
+    #     which the standing rule against depending on unofficial interfaces
+    #     forbids.
+    #   - lulu_rule_resolved_present resolves the declared launcher with
+    #     `readlink -f` at probe time and searches the archive for the
+    #     RESOLVED binary: LuLu keys rules on the executing Mach-O, and the
+    #     Hermes venv launcher is a symlink chain into a uv-managed CPython,
+    #     so a python upgrade that moves the interpreter pages here instead
+    #     of silently stranding the alerting egress behind a prompt.
+    - id: lulu_extension
+      description: "The LuLu outbound-firewall system extension process"
+      tier: verify
+      reader: pgrep_lulu_extension
+      expect: "running"
+      remedy: "Re-enable it: System Settings → General → Login Items & Extensions → Network Extensions, then open -a LuLu (runbook: LuLu system extension approval)"
+    - id: lulu_rule_tailscaled
+      description: "The LuLu allow rule for tailscaled (remote recovery path 2)"
+      tier: verify
+      reader: lulu_rule_present
+      expect: "present"
+      target: /usr/local/bin/tailscaled
+      remedy: "Recreate the allow rule for /usr/local/bin/tailscaled in the LuLu Rules window; see the runbook section LuLu rule creation"
+    - id: lulu_rule_hermes_gateway
+      description: "The LuLu allow rule for the Hermes gateway interpreter (the alerting egress hop)"
+      tier: verify
+      reader: lulu_rule_resolved_present
+      expect: "present"
+      target: /Users/stephen/.hermes/hermes-agent/venv/bin/python
+      remedy: "A python upgrade likely moved the interpreter; recreate its allow rule in the LuLu Rules window (runbook: LuLu rule creation)"
+
+  # The outbound talker set for the LuLu layer (slice 10), enumerated so a
+  # test can diff it against the declared lulu_rule controls: every talker
+  # carries EXACTLY ONE of `control` (a posture_controls id above) or
+  # `no_rule_reason` (why it deliberately has no rule-existence control).
+  # The alerting channel's real egress hop is the Hermes gateway; the
+  # osquery alerter itself never leaves loopback.
+  lulu_talkers:
+    - talker: "Hermes gateway"
+      needs: "Outbound; the alerting channel real egress hop (Discord delivery)"
+      control: lulu_rule_hermes_gateway
+    - talker: "the alerter curl"
+      needs: "Loopback only: alert-dispatch.sh POSTs to http://127.0.0.1:8644"
+      no_rule_reason: "The hop is loopback, kept unfiltered by the allowLocalHost PREFERENCE, so no rule is ever consulted; a rule on curl would allow every process on the machine to egress and would still not touch this path. Anyone writing a curl rule for the alerter has solved the wrong problem."
+    - talker: "tailscaled"
+      needs: "Outbound; slice 8 remote recovery path 2 (Screen Sharing over the tailnet)"
+      control: lulu_rule_tailscaled
+    - talker: "Homebrew"
+      needs: "Outbound, unattended (weekly upgrade LaunchAgent)"
+      no_rule_reason: "Its egress rides version-pinned Cellar paths plus Apple-signed system tools already covered by allowApple; every upgrade moves the Cellar path while the stale rule lingers in the archive, so a pinned-path existence check reads green forever and proves nothing about the live binary (the live archive carries three atuin and six codex versions). Failure mode is a visible one-time prompt, and Homebrew is neither the alerting nor the recovery path."
+    - talker: "npm"
+      needs: "Outbound, unattended (package installs ride node)"
+      no_rule_reason: "Same version-drift false green as Homebrew: node lives at a Cellar path that moves on every upgrade (the live archive already carries two node versions). A blanket rule on node would cover every node process on a machine running many unattended agents, which forfeits the layer."
+    - talker: "nix"
+      needs: "Outbound, unattended (flake evaluation and store fetches)"
+      no_rule_reason: "The nix binary lives at a hash-pinned /nix/store path that moves on every nix upgrade while the stale rule lingers (the live archive mentions nix-2.34.6), the same false green as Homebrew. Failure mode is a visible prompt; nix is neither the alerting nor the recovery path."
+    - talker: "gh"
+      needs: "Outbound, unattended (workflow polling and API reads)"
+      no_rule_reason: "Same version-pinned Cellar drift as Homebrew (the live archive mentions gh 2.96.0 only); an existence check on a pinned path cannot prove the live binary is ruled. Failure mode is a visible prompt; gh is neither the alerting nor the recovery path."

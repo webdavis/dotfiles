@@ -28,7 +28,17 @@ function; the poller-vs-data agreement test holds the two together. */ -}}
       "csrutil_status" (list "enabled" "disabled")
       "defaults_autologin" (list "on" "off")
       "sysadminctl_guest" (list "enabled" "disabled")
-      "pgrep_oversight" (list "running" "stopped") -}}
+      "pgrep_oversight" (list "running" "stopped")
+      "pgrep_lulu_extension" (list "running" "stopped")
+      "lulu_rule_present" (list "present" "absent")
+      "lulu_rule_resolved_present" (list "present" "absent") -}}
+{{- /* The readers that consume a per-record target (the absolute binary path
+whose LuLu rule must exist). Required there, forbidden everywhere else: a
+target on a targetless reader would be silently ignored data, which is how a
+mislabeled record hides. */ -}}
+{{- $readerTargets := dict
+      "lulu_rule_present" true
+      "lulu_rule_resolved_present" true -}}
 {{- range .macos.posture_controls -}}
 {{-   if not (hasKey . "id") -}}
 {{-     fail "macos_posture_controls.yaml: a record has no id; every control needs one, it is the identity in every error and every page" -}}
@@ -70,6 +80,20 @@ function; the poller-vs-data agreement test holds the two together. */ -}}
 {{-   $expect := toString (index . "expect") -}}
 {{-   if not (has $expect (get $readerDomains $reader)) -}}
 {{-     fail (printf "macos_posture_controls.yaml: record %q expects %q, outside the %s domain %v (a bare YAML boolean stringifies to true/false, which no reader returns)" $id $expect $reader (get $readerDomains $reader)) -}}
+{{-   end -}}
+{{-   if hasKey $readerTargets $reader -}}
+{{-     if or (not (hasKey . "target")) (kindIs "invalid" (index . "target")) -}}
+{{-       fail (printf "macos_posture_controls.yaml: record %q names reader %s, which requires a target (the absolute binary path whose rule must exist)" $id $reader) -}}
+{{-     end -}}
+{{-     $target := toString (index . "target") -}}
+{{-     if not (hasPrefix "/" $target) -}}
+{{-       fail (printf "macos_posture_controls.yaml: record %q target %q must be an absolute path" $id $target) -}}
+{{-     end -}}
+{{-     if or (contains "\n" $target) (contains "\x1f" $target) -}}
+{{-       fail (printf "macos_posture_controls.yaml: record %q target contains a newline or a unit separator; a multi-line pattern would match archive lines it never named" $id) -}}
+{{-     end -}}
+{{-   else if hasKey . "target" -}}
+{{-     fail (printf "macos_posture_controls.yaml: record %q declares a target its reader %s does not consume; drop the field or use a lulu_rule reader" $id $reader) -}}
 {{-   end -}}
 {{-   if or (not (hasKey . "description")) (kindIs "invalid" (index . "description")) (eq (toString (index . "description")) "") -}}
 {{-     fail (printf "macos_posture_controls.yaml: record %q has no description; a page must name the control" $id) -}}

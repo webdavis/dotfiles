@@ -58,7 +58,11 @@ set_posture_controls "$records_json"
 
 # Program every stub HEALTHY from the record's own reader and expect, so the
 # run is silent and the baseline seeds. An unmapped reader fails the gate.
-while IFS=$'\t' read -r reader expect; do
+# The lulu_rule readers accumulate their targets into one stubbed archive
+# document (the harness readlink stub resolves identically by default, so a
+# resolved reader's target is its own resolution here).
+lulu_archive_mentions=""
+while IFS=$'\t' read -r reader expect target; do
   case "$reader" in
     fdesetup_status)
       if [[ $expect == "on" ]]; then
@@ -87,11 +91,28 @@ while IFS=$'\t' read -r reader expect; do
         export POLLER_PGREP_MODE=stopped
       fi
       ;;
+    pgrep_lulu_extension)
+      if [[ $expect == "running" ]]; then
+        export POLLER_PGREP_LULU_MODE=running
+      else
+        export POLLER_PGREP_LULU_MODE=stopped
+      fi
+      ;;
+    lulu_rule_present | lulu_rule_resolved_present)
+      if [[ $expect == "present" ]]; then
+        lulu_archive_mentions+="		<string>$target</string>"$'\n'
+      fi
+      ;;
     *)
       fail "record reader '$reader' has no mapping here: add the poller reader, the harness stub, and this mapping together"
       ;;
   esac
-done < <(jq -r '.[] | [.reader, .expect] | @tsv' <<<"$records_json")
+done < <(jq -r '.[] | [.reader, .expect, .target // ""] | @tsv' <<<"$records_json")
+if [[ -n $lulu_archive_mentions ]]; then
+  # shellcheck disable=SC2016 # the literal $objects key is the archive format
+  POLLER_PLUTIL_XML="$(printf '<?xml version="1.0" encoding="UTF-8"?>\n<plist version="1.0">\n<dict>\n	<key>$objects</key>\n	<array>\n%s	</array>\n</dict>\n</plist>\n' "$lulu_archive_mentions")"
+  export POLLER_PLUTIL_XML
+fi
 
 poller_status=0
 poller_output="$(run_poller 2>&1)" || poller_status=$?
@@ -110,8 +131,11 @@ actual_keys="$POLLER_HOME/actual-keys"
   jq -r '.[].id' <<<"$records_json"
   # One recorded-declaration field per control: the poller persists the expect
   # each value was recorded under, so a changed declaration re-arms the control
-  # instead of reading as a silent steady-deviant.
+  # instead of reading as a silent steady-deviant. Targeted (lulu_rule)
+  # controls additionally persist the target the value was observed under,
+  # for the same re-arm reason.
   jq -r '.[].id + ":expect"' <<<"$records_json"
+  jq -r '.[] | select(has("target")) | .id + ":target"' <<<"$records_json"
 } | LC_ALL=C sort >"$expected_keys"
 jq -r 'keys_unsorted[]' "$OSQUERY_POSTURE_STATE" | LC_ALL=C sort >"$actual_keys"
 diff -u "$expected_keys" "$actual_keys" >&2 ||
