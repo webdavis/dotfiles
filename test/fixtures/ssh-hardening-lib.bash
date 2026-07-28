@@ -35,6 +35,27 @@
 # Path to the script under test, resolved from this library's location.
 SSH_HARDENING_SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/dot_local/bin/executable_ssh-hardening.sh"
 
+# The managed drop-in's file name, in ONE place (exported: the reload lib's
+# sshd stub reads it at run time). Must match DROPIN_NAME in the script.
+SSH_DROPIN_NAME='000-ssh-hardening.conf'
+export SSH_DROPIN_NAME
+
+# fail <message...>: print and abort the test. Shared by every suite that
+# sources this library.
+fail() {
+  printf 'FAIL: %s\n' "$*" >&2
+  exit 1
+}
+
+# refute_contains <haystack> <fixed-string> <message>: a bare `! grep` is
+# dead under `set -e` unless it is the last statement, so every negative
+# assertion goes through this helper.
+refute_contains() {
+  if grep -qiF -- "$2" <<<"$1"; then
+    fail "$3"
+  fi
+}
+
 # A literal carriage return, for fixtures that exercise sshd's whitespace set
 # (misc.c WHITESPACE is " \t\r\n"). Named because a bare $'\r' inside a
 # fixture line is invisible in a diff and in a terminal.
@@ -156,7 +177,7 @@ run_ssh_hardening_without() {
 # the very install path it is about to examine.
 write_hardened_dropin() {
   /bin/bash "$SSH_HARDENING_SCRIPT" --print-config \
-    >"$SSHD_CONFIG_D/000-ssh-hardening.conf"
+    >"$SSHD_CONFIG_D/$SSH_DROPIN_NAME"
 }
 
 # write_hostile_apple_conf: a 100-macos.conf that reopens EVERY hole the
