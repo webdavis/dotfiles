@@ -700,6 +700,39 @@ healthy_seed='{"firewall":"1","gatekeeper":"1","screenlock":"1","filevault":"on"
   assert_page_count 2
 }
 
+@test "T-PCTL-partial-recovery-rearms-member: a member recovering during another members ongoing gap re-pages when it re-gaps" {
+  seed_baseline "$healthy_seed"
+  declare_posture_controls
+  set_posture '[{"firewall":"1","gatekeeper":"1","screenlock":"1"}]'
+
+  export POLLER_FDESETUP_EXIT=1 POLLER_CSRUTIL_EXIT=1
+  run run_poller # tick 1: filevault AND sip gap together, one page covering both
+  [[ $status -eq 0 ]] || {
+    echo "tick 1 status $status: $output"
+    false
+  }
+  assert_page_count 1
+
+  unset POLLER_FDESETUP_EXIT
+  run run_poller # tick 2: filevault recovers while sip stays gapped: covered, no
+  # page, but the marker must SHRINK to the still-gapped member
+  [[ $status -eq 0 ]] || {
+    echo "tick 2 status $status: $output"
+    false
+  }
+  assert_page_count 1
+
+  export POLLER_FDESETUP_EXIT=1
+  run run_poller # tick 3: filevault gaps AGAIN during the same sip outage: a
+  # marker still covering the recovered member would silence this real failure
+  [[ $status -eq 0 ]] || {
+    echo "tick 3 status $status: $output"
+    false
+  }
+  assert_page_count 2
+  assert_page_body_has 'filevault'
+}
+
 @test "T-PCTL-controls-file-gap-never-blinds-builtins: a refused controls file never suppresses a firewall-off page (the trio still compares)" {
   seed_baseline '{"firewall":"1","gatekeeper":"1","screenlock":"1"}'
   rm "$OSQUERY_POSTURE_CONTROLS"
