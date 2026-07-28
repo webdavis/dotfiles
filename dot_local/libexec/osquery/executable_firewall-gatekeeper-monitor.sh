@@ -255,14 +255,18 @@ read_control() {
       # presence would report healthy for a quit monitor. classify_probe
       # cannot express pgrep, whose documented healthy-off form is a status,
       # not a needle (man page: exit 0 matched, 1 no match, 2 invalid
-      # options): exit 0 with pids on stdout is running; the no-match exit 1
-      # with no output at all is stopped; every other outcome (usage or
-      # internal error, a timeout kill, a status/output mismatch) is
-      # indeterminate, the same untrustworthy-failure discipline as the
-      # readers above -- a failed probe is never believed, whatever it
-      # printed.
+      # options): exit 0 with a WELL-FORMED pid list on stdout (digits, one
+      # pid per line, nothing else -- pgrep's only success output) is
+      # running; the no-match exit 1 with no output at all is stopped; every
+      # other outcome (usage or internal error, a timeout kill, a
+      # status/output mismatch in either direction) is indeterminate, the
+      # same untrustworthy-failure discipline as the readers above -- a
+      # probe whose status and output disagree is never believed, whatever
+      # it printed. The pairing is symmetric: exit 0 requires well-formed
+      # pid output exactly as exit 1 requires empty output.
+      local pid_list_pattern=$'^[0-9]+(\n[0-9]+)*$'
       output=$(run_bounded "$PGREP" -x -U "$UID" OverSight 2>&1) || rc=$?
-      if [[ $rc -eq 0 && -n $output ]]; then
+      if [[ $rc -eq 0 && $output =~ $pid_list_pattern ]]; then
         printf 'running'
       elif [[ $rc -eq 1 && -z $output ]]; then
         printf 'stopped'

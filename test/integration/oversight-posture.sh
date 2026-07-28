@@ -30,10 +30,12 @@
 #   B2 lifecycle: stopped pages EXACTLY ONE CRIT naming the control and its
 #      remedy, stays quiet while stopped, silently re-arms on restore, and a
 #      LATER stop pages again.
-#   B3 indeterminate: a probe that exits nonzero is INDETERMINATE, never
-#      running (and never stopped): pid-looking output with a failed status,
-#      the no-match status that still printed, and a zero exit with no output
-#      all gap; the baseline is byte-for-byte untouched.
+#   B3 indeterminate: a status/output MISMATCH is INDETERMINATE, never
+#      running (and never stopped), in BOTH directions: pid-looking output
+#      with a failed status, the no-match status that still printed, a zero
+#      exit with no output, and a zero exit with non-pid output all gap; the
+#      baseline is byte-for-byte untouched. Exit 0 requires a well-formed pid
+#      list exactly as exit 1 requires empty output.
 #   B4 tier guard: the shipped record is tier: verify; flipped to enforce it
 #      is refused by the render template AND by the poller before any probe
 #      runs.
@@ -117,6 +119,22 @@ assert_probe_argv "$probe_argv" 1 ||
 assert_baseline_scalar oversight running ||
   fail "B1: the baseline must record the oversight control as running"
 assert_no_mutation_attempt || fail "B1: a posture read must never mutate"
+teardown_poller_harness
+trap - EXIT
+
+# A multi-pid match is still well-formed running output: pgrep prints one pid
+# per line, so the well-formedness gate must accept the multi-line form, not
+# just a single pid (over-tightening it would gap a healthy monitor).
+setup_poller_harness
+trap 'teardown_poller_harness' EXIT
+set_posture '[{"firewall":"1","gatekeeper":"1","screenlock":"1"}]'
+set_posture_controls "$oversight_records"
+export POLLER_PGREP_OUTPUT=$'3424\n3425' POLLER_PGREP_EXIT=0
+run_poller >/dev/null 2>&1 || fail "B1 multi-pid: expected exit 0"
+assert_no_page || fail "B1 multi-pid: a multi-pid zero-exit match is running, never a gap"
+assert_baseline_scalar oversight running ||
+  fail "B1 multi-pid: the baseline must record the oversight control as running"
+unset POLLER_PGREP_OUTPUT POLLER_PGREP_EXIT
 teardown_poller_harness
 trap - EXIT
 
@@ -204,6 +222,11 @@ run_indeterminate_case 'exit-1-with-output' POLLER_PGREP_OUTPUT=3424 POLLER_PGRE
 # A zero exit that printed nothing: pgrep always prints the matched pids on
 # success, so an empty success is unreadable, not running.
 run_indeterminate_case 'exit-0-without-output' POLLER_PGREP_OUTPUT= POLLER_PGREP_EXIT=0
+# A zero exit whose output is not a pid list: the mismatch in the other
+# direction. pgrep's success output is one pid per line and nothing else, so
+# a success that printed anything else is unreadable, never running; exit 0
+# requires well-formed pid output exactly as exit 1 requires empty output.
+run_indeterminate_case 'exit-0-with-malformed-output' POLLER_PGREP_OUTPUT='pgrep: not a pid list' POLLER_PGREP_EXIT=0
 
 # ---- B4: the tier guard refuses the record flipped to enforce ----------------
 

@@ -70,9 +70,11 @@
 #     disk whether or not the monitor is watching anything, so presence
 #     would report healthy for a quit monitor (verify the artifact, never a
 #     proxy for it). Classification follows pgrep's documented exit
-#     statuses: 0 with pids on stdout is running; the no-match exit 1 with
-#     no output at all is stopped; every other outcome (usage or internal
-#     error, a timeout kill, a status/output mismatch) is indeterminate.
+#     statuses, and the status/output pairing is symmetric: 0 with a
+#     well-formed pid list on stdout (digits, one pid per line, pgrep's only
+#     success output) is running; the no-match exit 1 with no output at all
+#     is stopped; every other outcome (usage or internal error, a timeout
+#     kill, a status/output mismatch in either direction) is indeterminate.
 
 macos:
   posture_controls:
