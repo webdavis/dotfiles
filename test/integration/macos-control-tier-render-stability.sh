@@ -197,7 +197,7 @@ echo '→ MANUAL OverSight: allow its Notification Center alerts (its only outpu
 echo '→ MANUAL LuLu: approve its system extension (a one-time macOS security consent): see the runbook section LuLu system extension approval'
 echo '→ MANUAL LuLu: create the required outbound allow rules by answering its prompts: see the runbook section LuLu rule creation'
 echo '→ MagicDNS fallback pin: mister.tail2f2430.ts.net (per CLAUDE.md Tailscale DNS section)'
-sudo sh -c 'grep -qF "$1" /etc/hosts || printf "%s\t%s\t%s\n" "$2" "$1" "$3" >>/etc/hosts' sh 'mister.tail2f2430.ts.net' '100.109.58.54' 'mister'
+sudo sh -c 'want=$(printf "%s\t%s\t%s" "$2" "$1" "$3"); grep -qxF "$want" /etc/hosts && exit 0; tmp=$(mktemp) || exit 1; grep -vwF "$1" /etc/hosts >"$tmp"; printf "%s\n" "$want" >>"$tmp"; if grep -qE "^127\.0\.0\.1[[:space:]]" "$tmp"; then cat "$tmp" >/etc/hosts; else echo "refusing to rewrite /etc/hosts for $1: the filtered result lost its loopback entry" >&2; fi; rm -f "$tmp"' sh 'mister.tail2f2430.ts.net' '100.109.58.54' 'mister'
 
 GOLDEN_EOF
 

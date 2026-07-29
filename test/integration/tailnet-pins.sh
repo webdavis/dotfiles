@@ -85,7 +85,7 @@ fi
 # shellcheck disable=SC2016  # the literal $1/$2/$3 ARE the property under test:
 # they must survive into the inner shell as parameters, so expanding them here
 # would assert the opposite of what this pins.
-pin_script='grep -qF "$1" /etc/hosts || printf "%s\t%s\t%s\n" "$2" "$1" "$3" >>/etc/hosts'
+pin_script='want=$(printf "%s\t%s\t%s" "$2" "$1" "$3"); grep -qxF "$want" /etc/hosts && exit 0; tmp=$(mktemp) || exit 1; grep -vwF "$1" /etc/hosts >"$tmp"; printf "%s\n" "$want" >>"$tmp"; if grep -qE "^127\.0\.0\.1[[:space:]]" "$tmp"; then cat "$tmp" >/etc/hosts; else echo "refusing to rewrite /etc/hosts for $1: the filtered result lost its loopback entry" >&2; fi; rm -f "$tmp"'
 expected_1="sudo sh -c '$pin_script' sh 'pin.example.test' '192.0.2.7' 'pin'"
 expected_2="sudo sh -c '$pin_script' sh 'pin2.example.test' '192.0.2.8' 'pin2'"
 grep -qxF "$expected_1" "$rendered" ||
@@ -133,6 +133,42 @@ cmp -s "$hosts" "$work/hosts.after1" ||
   fail "NOT idempotent: round 2 changed the file ($(grep -cF example.test "$hosts") pin lines)"
 grep -qxF $'127.0.0.1\tlocalhost' "$hosts" || fail "pre-existing hosts content was clobbered"
 
+# ---------- LAYER 1c2: a pin whose IP changed must be CORRECTED --------------
+# The guard used to ask only "does this fqdn appear anywhere", so once a line
+# existed the pin was never touched again. A tailnet address that changed left
+# the OLD one in place forever. That is worse than having no pin: the pin exists
+# to be the fallback when MagicDNS is down, and a stale fallback resolves
+# confidently to the wrong host.
+stale="$work/stale-hosts"
+printf '127.0.0.1\tlocalhost\n198.51.100.1\tpin.example.test\tpin\n10.0.0.1\txpin.example.test\tunrelated\n' >"$stale"
+run_against() { # <command> <hosts-file>
+  local cmd="${1#sudo }"
+  cmd="${cmd///etc\/hosts/$2}"
+  bash -c "$cmd" || fail "pin command failed (rc=$?) against $2"
+}
+run_against "$expected_1" "$stale"
+grep -qxF $'192.0.2.7\tpin.example.test\tpin' "$stale" ||
+  fail "a changed pin IP was not corrected; hosts still reads: $(grep -F pin.example.test "$stale")"
+if grep -qF '198.51.100.1' "$stale"; then
+  fail "the stale pin line survived alongside the new one, so resolution is now ambiguous"
+fi
+grep -qxF $'127.0.0.1\tlocalhost' "$stale" || fail "correcting a pin clobbered unrelated hosts content"
+grep -qxF $'10.0.0.1\txpin.example.test\tunrelated' "$stale" ||
+  fail "correcting a pin removed a DIFFERENT host whose name merely contains the pinned one"
+cp "$stale" "$work/stale.after1"
+run_against "$expected_1" "$stale"
+cmp -s "$stale" "$work/stale.after1" || fail "correcting a pin is not idempotent on a second run"
+
+# Correcting a pin rewrites /etc/hosts as root, the one step here that can break
+# the machine. It is gated on the result still carrying a loopback entry and must
+# refuse rather than install a file that lost it.
+noloop="$work/noloop-hosts"
+printf '198.51.100.1\tpin.example.test\tpin\n' >"$noloop"
+cp "$noloop" "$work/noloop.before"
+run_against "$expected_1" "$noloop"
+cmp -s "$noloop" "$work/noloop.before" ||
+  fail "a rewrite that would drop the loopback entry was installed instead of refused: $(cat "$noloop")"
+
 # ---------- LAYER 1d: pin data is DATA, never source, in either shell --------
 # The generated command runs `sudo sh -c`, so there are TWO shells: the outer one
 # this runner is written in, and the inner ROOT one sudo starts. Interpolating a
@@ -170,7 +206,9 @@ if [[ -s $hostile_rendered ]]; then
   # Executing it must move bytes, not run them. sudo stripped, hosts redirected.
   rm -f "$marker"
   hostile_hosts="$work/hostile-hosts"
-  : >"$hostile_hosts"
+  # Seeded with loopback because installing the result is gated on it: an edit
+  # that would leave /etc/hosts without 127.0.0.1 is refused by design.
+  printf '127.0.0.1\tlocalhost\n' >"$hostile_hosts"
   # Both emitted lines, not just the sudo one. The trace `echo` runs in the OUTER
   # user shell, so an unquoted field there is its own injection, at user rather
   # than root privilege. Running only the sh -c line would leave that uncovered.
