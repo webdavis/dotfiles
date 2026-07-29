@@ -200,6 +200,26 @@ defaults_records_unit_separated() { # <path>
       "$data_file" "$declared_record_count" >&2
     return 2
   fi
+  # The SHAPE, before the content. `.macos.defaults[]` yields values from a map
+  # just as happily as from a list, and `length` counts a map's keys, so every
+  # check above passes on a map and the stream comes out in document order. The
+  # runner template reads the same file with Go's `range`, which iterates a map
+  # in sorted KEY order. Two readers, two orders, neither complaining, and order
+  # decides which write lands last when records share a domain and key.
+  #
+  # Refused rather than reconciled: a map is not the declared schema, and
+  # standardizing on one order would leave the other reader's agreement a
+  # coincidence instead of a guarantee. The template refuses the same shape.
+  local records_kind
+  if ! records_kind="$(yq eval -r '(.macos.defaults // []) | tag' "$data_file")"; then
+    printf 'error: cannot determine the shape of .macos.defaults in %s\n' "$data_file" >&2
+    return 2
+  fi
+  if [[ $records_kind != '!!seq' ]]; then
+    printf 'error: %s declares .macos.defaults as %s, but it must be a LIST of records; a map is read in sorted key order by the runner template and in document order here, so the two would apply records in different orders\n' \
+      "$data_file" "$records_kind" >&2
+    return 2
+  fi
   if ! raw_records="$(yq eval -r "$(defaults_records_join_expression '.macos.defaults[]')" "$data_file")"; then
     printf 'error: cannot read the records in %s\n' "$data_file" >&2
     return 2

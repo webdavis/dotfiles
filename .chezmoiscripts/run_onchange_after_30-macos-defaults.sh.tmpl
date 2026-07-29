@@ -41,6 +41,16 @@ with `map has no entry for key "scope"` on that form when a record omits the
 key, which turns a loud, specific refusal into an opaque template panic. Any
 violation ABORTS the render via fail, so chezmoi refuses the whole apply:
 no warning, no skipped record, no partial best-effort script. */ -}}
+{{- /* The SHAPE, before any record. `range` accepts a map as readily as a list
+and iterates it in sorted KEY order, while macos-defaults-lib.sh reads the same
+file through yq in DOCUMENT order. Both would accept a map, silently, and apply
+the records in different orders; order is what decides which write lands last
+when two records share a domain and key. Refused rather than reconciled, because
+a map is not the declared schema and standardizing on one order would leave the
+other reader's agreement a coincidence. The library refuses the same shape. */ -}}
+{{ if ne (kindOf .macos.defaults) "slice" -}}
+{{ fail (printf "macos_defaults.yaml: .macos.defaults is a %s, but it must be a LIST of records; a map is iterated in sorted key order here and in document order by macos-defaults-lib.sh, so the two would apply records in different orders" (kindOf .macos.defaults)) -}}
+{{ end -}}
 {{ range .macos.defaults -}}
 {{ $record := . -}}
 {{- /* Identity first. The domain and key name the record in every error
