@@ -81,6 +81,13 @@ HOME="$render_home" chezmoi --source "$source_dir" execute-template --no-tty \
   <"$TEMPLATE" >"$rendered" 2>"$render_error" ||
   fail "a record without a sudo key must render, not abort the template (stderr: $(cat "$render_error"))"
 if [[ -z "$(tr -d '[:space:]' <"$rendered")" ]]; then
+  # An empty render is only legitimate OFF darwin. On darwin this template
+  # must produce output, so empty means the template broke, and skipping
+  # would report a broken render as a pass. Assert the host, do not infer it.
+  if [[ $(uname -s) == Darwin ]]; then
+    printf 'FAIL: the render came back EMPTY on darwin, where this template must produce output; a broken darwin render must not pass as a skip\n' >&2
+    exit 1
+  fi
   printf 'SKIP: empty render (non-darwin host); nothing to exercise\n'
   exit 0
 fi
