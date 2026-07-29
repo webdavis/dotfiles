@@ -854,6 +854,57 @@ assert_bounded_hang_gaps() { # <control-id> <started-seconds>
   assert_bounded_hang_gaps guest "$started"
 }
 
+# The two process-table controls, declared SEPARATELY from
+# declare_posture_controls on purpose: adding them there would change the
+# control set every other test's $healthy_seed was written against, so a
+# coverage addition would have rewritten unrelated expectations.
+#
+# These exist because the fixture ships a wedge hook for every probe tool and
+# the suite only ever set half of them. An unused hook is an unpinned bound: the
+# per-probe timeout on these readers could be deleted and nothing would fail.
+declare_process_controls() {
+  set_posture_controls '[
+    {"id":"oversight","description":"The OverSight monitor process","tier":"verify","reader":"pgrep_oversight","expect":"running","remedy":"Launch OverSight"},
+    {"id":"lulu_extension","description":"The LuLu system extension process","tier":"verify","reader":"pgrep_lulu_extension","expect":"running","remedy":"Reinstall LuLu and approve its system extension"}
+  ]'
+}
+
+process_healthy_seed='{"firewall":"1","gatekeeper":"1","screenlock":"1","oversight":"running","oversight:expect":"running","lulu_extension":"running","lulu_extension:expect":"running"}'
+
+@test "T-PCTL-pgrep-oversight-hang-pages-gap: a wedged pgrep is killed at the bound and gaps the OverSight control" {
+  seed_baseline "$process_healthy_seed"
+  declare_process_controls
+  snapshot_baseline
+  set_posture '[{"firewall":"1","gatekeeper":"1","screenlock":"1"}]'
+  export OSQUERY_POSTURE_TIMEOUT=1
+  export POLLER_PGREP_SLEEP=30
+
+  local started=$SECONDS
+  run run_poller
+  [[ $status -eq 0 ]] || {
+    echo "status $status: $output"
+    false
+  }
+  assert_bounded_hang_gaps oversight "$started"
+}
+
+@test "T-PCTL-pgrep-lulu-hang-pages-gap: a wedged pgrep for the LuLu extension is killed at the bound and gaps that control" {
+  seed_baseline "$process_healthy_seed"
+  declare_process_controls
+  snapshot_baseline
+  set_posture '[{"firewall":"1","gatekeeper":"1","screenlock":"1"}]'
+  export OSQUERY_POSTURE_TIMEOUT=1
+  export POLLER_PGREP_LULU_SLEEP=30
+
+  local started=$SECONDS
+  run run_poller
+  [[ $status -eq 0 ]] || {
+    echo "status $status: $output"
+    false
+  }
+  assert_bounded_hang_gaps lulu_extension "$started"
+}
+
 @test "T-PCTL-defaults-hang-pages-gap: a wedged defaults read is killed at the bound and gaps the autologin control" {
   seed_baseline "$healthy_seed"
   declare_posture_controls
