@@ -196,8 +196,8 @@ echo "→ SSH: install the public-key-only sshd drop-in (000-ssh-hardening.conf)
 echo '→ MANUAL OverSight: allow its Notification Center alerts (its only output channel): see the runbook section OverSight notification delivery'
 echo '→ MANUAL LuLu: approve its system extension (a one-time macOS security consent): see the runbook section LuLu system extension approval'
 echo '→ MANUAL LuLu: create the required outbound allow rules by answering its prompts: see the runbook section LuLu rule creation'
-echo "→ MagicDNS fallback pin: mister.tail2f2430.ts.net (per CLAUDE.md Tailscale DNS section)"
-sudo sh -c 'grep -qF "mister.tail2f2430.ts.net" /etc/hosts || printf "100.109.58.54\tmister.tail2f2430.ts.net\tmister\n" >>/etc/hosts'
+echo '→ MagicDNS fallback pin: mister.tail2f2430.ts.net (per CLAUDE.md Tailscale DNS section)'
+sudo sh -c 'grep -qF "$1" /etc/hosts || printf "%s\t%s\t%s\n" "$2" "$1" "$3" >>/etc/hosts' sh 'mister.tail2f2430.ts.net' '100.109.58.54' 'mister'
 
 GOLDEN_EOF
 

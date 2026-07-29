@@ -78,8 +78,16 @@ if [[ ! -s $rendered ]]; then
 fi
 
 # Independent expectation: the exact command the template must generate per pin.
-expected_1='sudo sh -c '\''grep -qF "pin.example.test" /etc/hosts || printf "192.0.2.7\tpin.example.test\tpin\n" >>/etc/hosts'\'''
-expected_2='sudo sh -c '\''grep -qF "pin2.example.test" /etc/hosts || printf "192.0.2.8\tpin2.example.test\tpin2\n" >>/etc/hosts'\'''
+# The sh -c script is a CONSTANT, identical for every pin; only the trailing
+# arguments differ. Single-quoted here so $1/$2/$3 stay literal, which is the
+# property under test: they must reach the inner shell as parameters, not as
+# text the template substituted.
+# shellcheck disable=SC2016  # the literal $1/$2/$3 ARE the property under test:
+# they must survive into the inner shell as parameters, so expanding them here
+# would assert the opposite of what this pins.
+pin_script='grep -qF "$1" /etc/hosts || printf "%s\t%s\t%s\n" "$2" "$1" "$3" >>/etc/hosts'
+expected_1="sudo sh -c '$pin_script' sh 'pin.example.test' '192.0.2.7' 'pin'"
+expected_2="sudo sh -c '$pin_script' sh 'pin2.example.test' '192.0.2.8' 'pin2'"
 grep -qxF "$expected_1" "$rendered" ||
   fail "generated pin command 1 missing or wrong; expected exactly: $expected_1 (rendered: $(cat "$rendered"))"
 grep -qxF "$expected_2" "$rendered" ||
@@ -124,6 +132,64 @@ grep -qxF $'192.0.2.8\tpin2.example.test\tpin2' "$hosts" ||
 cmp -s "$hosts" "$work/hosts.after1" ||
   fail "NOT idempotent: round 2 changed the file ($(grep -cF example.test "$hosts") pin lines)"
 grep -qxF $'127.0.0.1\tlocalhost' "$hosts" || fail "pre-existing hosts content was clobbered"
+
+# ---------- LAYER 1d: pin data is DATA, never source, in either shell --------
+# The generated command runs `sudo sh -c`, so there are TWO shells: the outer one
+# this runner is written in, and the inner ROOT one sudo starts. Interpolating a
+# pin field into the sh -c string put it inside double quotes in that inner root
+# shell, so a command substitution in the data executed AS ROOT. The fix carries
+# each field as a positional argument, which no shell re-parses as source.
+refute_contains() { # <file> <literal> <message>
+  if grep -qF -- "$2" "$1"; then
+    fail "$3 (found the literal: $2)"
+  fi
+}
+
+# Three hostile shapes, one per field, so a fix that closes only one is caught:
+# command substitution, backtick substitution, and a printf format directive.
+# The last one matters because the old command put pin data in printf's FORMAT
+# position, where a % is a directive rather than a character.
+marker="$work/PIN_INJECTION_EXECUTED"
+hostile_fqdn="a\$(touch $marker).example.test"
+hostile_ip='192.0.2.9%s'
+hostile_short="s\`touch $marker\`"
+render_fixture hostile <<EOF
+macos:
+  system_setup: []
+  tailnet_pins:
+    - fqdn: "$hostile_fqdn"
+      ip: "$hostile_ip"
+      short: "$hostile_short"
+EOF
+hostile_rendered="$work/hostile.rendered"
+if [[ -s $hostile_rendered ]]; then
+  # The rendered SOURCE must not place the substitution where a shell expands it.
+  refute_contains "$hostile_rendered" "sh -c 'grep -qF \"a\$(touch" \
+    "pin fqdn is interpolated into the sudo sh -c string, so the ROOT shell expands it"
+
+  # Executing it must move bytes, not run them. sudo stripped, hosts redirected.
+  rm -f "$marker"
+  hostile_hosts="$work/hostile-hosts"
+  : >"$hostile_hosts"
+  # Both emitted lines, not just the sudo one. The trace `echo` runs in the OUTER
+  # user shell, so an unquoted field there is its own injection, at user rather
+  # than root privilege. Running only the sh -c line would leave that uncovered.
+  while IFS= read -r line; do
+    cmd="${line#sudo }"
+    cmd="${cmd///etc\/hosts/$hostile_hosts}"
+    bash -c "$cmd" >/dev/null 2>&1 || true
+  done < <(grep -E '^(echo |sudo sh -c )' "$hostile_rendered")
+  [[ -e $marker ]] &&
+    fail "pin data EXECUTED: the generated command ran a substitution from the data (this is root under sudo)"
+
+  # Every field must arrive byte-for-byte, which is what proves each was carried
+  # as data rather than as text some shell re-read. The whole-line comparison is
+  # also what pins the printf FORMAT: move data back into the format position and
+  # the %s in the ip is consumed as a directive, so the line comes out truncated.
+  expected_line="$(printf '%s\t%s\t%s' "$hostile_ip" "$hostile_fqdn" "$hostile_short")"
+  grep -qxF -- "$expected_line" "$hostile_hosts" ||
+    fail "hostile pin line wrong; expected exactly $(printf '%q' "$expected_line"), got $(printf '%q' "$(cat "$hostile_hosts")")"
+fi
 
 # ---------- LAYER 2: shape of the REAL pins data -----------------------------
 pin_count="$(yq eval '.macos.tailnet_pins | length' "$YAML")"
