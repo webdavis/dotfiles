@@ -146,7 +146,15 @@ defaults_records_locate_malformed() { # <path> <declared-count>
   printf 'a record this locator could not identify'
 }
 
-# defaults_records_unit_separated <path>, emit each tracked record as one line
+# THE RECORD STREAM. Four functions below share this contract, split so each has
+# one job: defaults_records_declared_count validates the file's shape and size,
+# defaults_records_raw_stream reads it, defaults_records_validate_stream is a
+# PREDICATE over what was read, and defaults_records_unit_separated emits. They
+# were one function, in which the validation loop accumulated the very lines it
+# was checking and then printed them, so asking "is this file usable" was
+# inseparable from producing its output.
+#
+# The contract: emit each tracked record as one line
 # of EIGHT fields joined by the ASCII unit separator (0x1f):
 #   domain, key, type, value, host, scope, plist_path, tier
 # host, plist_path, and (on manual records) type and value are empty when
@@ -180,9 +188,9 @@ defaults_records_locate_malformed() { # <path> <declared-count>
 # offending record, and emits NOTHING: a caller must not act on part of a stream
 # it has just been told is malformed. A legitimate multi-line preference value is
 # therefore refused loudly rather than silently corrupted.
-defaults_records_unit_separated() { # <path>
+defaults_records_declared_count() { # <path>, print the validated record count
   local data_file="$1"
-  local declared_record_count raw_records
+  local declared_record_count records_kind
   if ! declared_record_count="$(yq eval -r '(.macos.defaults // []) | length' "$data_file")"; then
     printf 'error: cannot count the records in %s\n' "$data_file" >&2
     return 2
@@ -210,7 +218,6 @@ defaults_records_unit_separated() { # <path>
   # Refused rather than reconciled: a map is not the declared schema, and
   # standardizing on one order would leave the other reader's agreement a
   # coincidence instead of a guarantee. The template refuses the same shape.
-  local records_kind
   if ! records_kind="$(yq eval -r '(.macos.defaults // []) | tag' "$data_file")"; then
     printf 'error: cannot determine the shape of .macos.defaults in %s\n' "$data_file" >&2
     return 2
@@ -220,14 +227,33 @@ defaults_records_unit_separated() { # <path>
       "$data_file" "$records_kind" >&2
     return 2
   fi
-  if ! raw_records="$(yq eval -r "$(defaults_records_join_expression '.macos.defaults[]')" "$data_file")"; then
+  printf '%s\n' "$declared_record_count"
+}
+
+# defaults_records_raw_stream <path>, the unvalidated joined records from yq.
+# Separated so the reader can fail on its own terms; every check that follows
+# assumes it has the whole stream, and a partial read must never reach them.
+defaults_records_raw_stream() { # <path>
+  local data_file="$1"
+  if ! yq eval -r "$(defaults_records_join_expression '.macos.defaults[]')" "$data_file"; then
     printf 'error: cannot read the records in %s\n' "$data_file" >&2
     return 2
   fi
+}
 
-  local line field_count emitted_line_count=0
+# defaults_records_validate_stream <path> <declared-count> <raw-stream>, a
+# PREDICATE: 0 when every line is well-formed and the line count matches what the
+# file declares, 2 otherwise, naming the offending record on stderr.
+#
+# It emits no records, deliberately. Validation used to accumulate the very lines
+# it was checking and then print them, which meant the only way to ask "is this
+# file usable" was to also produce its output. A caller that just wants to know
+# now asks a question instead of running a producer, and the emission below has
+# one job.
+defaults_records_validate_stream() { # <path> <declared-count> <raw-stream>
+  local data_file="$1" declared_record_count="$2" raw_records="$3"
+  local line field_count checked_line_count=0
   local record_domain record_key record_tier
-  local -a validated_lines=()
   while IFS= read -r line; do
     # yq prints a single empty line for an empty array; that is not a record.
     [[ -z $line ]] && continue
@@ -241,8 +267,8 @@ defaults_records_unit_separated() { # <path>
     # The tier gate. Only the three declared tiers pass; a record whose tier
     # is missing or blank arrives here as the empty string and lands in the
     # same refusal, so absent, blank, and unrecognized all fail closed. The
-    # refusal covers the WHOLE file (nothing has been emitted yet), because a
-    # caller must not act on the records beside one it cannot classify.
+    # refusal covers the WHOLE file, because a caller must not act on the
+    # records beside one it cannot classify.
     IFS=$'\x1f' read -r record_domain record_key _ _ _ _ _ record_tier <<<"$line"
     case "$record_tier" in
       enforce | verify | manual) ;;
@@ -252,20 +278,30 @@ defaults_records_unit_separated() { # <path>
         return 2
         ;;
     esac
-    validated_lines+=("$line")
-    emitted_line_count=$((emitted_line_count + 1))
+    checked_line_count=$((checked_line_count + 1))
   done <<<"$raw_records"
 
-  if [[ $emitted_line_count -ne $declared_record_count ]]; then
+  if [[ $checked_line_count -ne $declared_record_count ]]; then
     printf 'error: %s declares %s record(s) but the record stream has %s line(s); %s contains a newline\n' \
-      "$data_file" "$declared_record_count" "$emitted_line_count" \
+      "$data_file" "$declared_record_count" "$checked_line_count" \
       "$(defaults_records_locate_malformed "$data_file" "$declared_record_count")" >&2
     return 2
   fi
+}
 
-  if [[ ${#validated_lines[@]} -gt 0 ]]; then
-    printf '%s\n' "${validated_lines[@]}"
-  fi
+defaults_records_unit_separated() { # <path>
+  local data_file="$1"
+  local declared_record_count raw_records line
+  declared_record_count="$(defaults_records_declared_count "$data_file")" || return 2
+  raw_records="$(defaults_records_raw_stream "$data_file")" || return 2
+  defaults_records_validate_stream "$data_file" "$declared_record_count" "$raw_records" || return 2
+  # Emission, and only emission, and only once the WHOLE file has passed. A
+  # caller must never act on part of a stream it is about to be told is
+  # malformed, which is why nothing is printed before the predicate returns.
+  while IFS= read -r line; do
+    [[ -z $line ]] && continue
+    printf '%s\n' "$line"
+  done <<<"$raw_records"
 }
 
 # validate_record_scope <scope> <host> <plist_path>, print the validated scope.
