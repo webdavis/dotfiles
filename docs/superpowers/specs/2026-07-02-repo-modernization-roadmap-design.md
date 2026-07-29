@@ -728,9 +728,79 @@ phone is the strong one.
   thresholds (≥60 s local, ≥300 s full) move into the **stateless per-event executable's** config.
 - **Lights quiet window.** Hue has no Focus-mode equivalent, so pulses respect a configured quiet window
   (e.g. mirroring Sleep-Focus hours); anything missed during it is healed by catch-up-on-return.
-- **Channels are a pluggable boundary** (moshi = today's phone channel). A future custom iOS app,
-  actionable notifications (approve/deny from the lock screen) + native presence reporting, is deferred;
+- **Channels are a pluggable boundary** (moshi = today's phone channel). Actionable notifications
+  (approve/deny from the phone) are **no longer deferred for Claude Code and Codex**: moshi-hook already
+  delivers them, per the moshi-hook integration contract below. A future custom iOS app remains the path
+  to actionable notifications on the harnesses moshi cannot round-trip, plus native presence reporting;
   the $99 dev account + TestFlight-internal path avoids App Store review. Nothing gets locked out.
+
+### moshi-hook integration, the harness hook contract
+
+**Decision (locked with the operator 2026-07-28):** the Rust service registers itself as the hook in
+every harness and **forwards to `moshi-hook`** rather than competing with it. moshi keeps the phone
+round-trip that a one-way webhook POST structurally cannot do; the service keeps presence gating, which
+moshi has none of (measured: zero occurrences of `HIDIdleTime` or `ioreg` in the binary, and no idle or
+away configuration keys). **Operator requirement: nothing ships that does not carry moshi's full feature
+set for every harness in use.** Minimum set: Claude Code, Codex, pi, Hermes.
+
+**Measured interface** (established by installing every target into a throwaway `HOME`, reading the
+generated files, then deleting it, 2026-07-28):
+
+- Eleven harness subcommands: `antigravity-hook`, `claude-hook`, `codex-hook`, `cursor-hook`,
+  `gemini-hook`, `grok-hook`, `hermes-hook`, `kimi-hook`, `omp-hook`, `pi-hook`, `qwen-hook`. **None of
+  them appear in `moshi-hook --help`.**
+- **The event is not an argv argument.** Every event for a given harness runs the identical command;
+  moshi parses stdin and reads `hook_event_name` out of the JSON payload.
+- One canonical event vocabulary spans all harnesses: `SessionStart`, `UserPromptSubmit`, `AgentStart`,
+  `AgentEnd`, `SessionEnd`, `Stop`, `PreToolUse`, `PostToolUse`, `PermissionRequest`,
+  `PermissionResolved`, `TurnInterrupted`. **The service adopts this vocabulary** instead of inventing
+  its own, so the router stays one dispatcher rather than eleven.
+
+**Feature ceiling per harness, set by moshi itself:**
+
+| Harness | Seam | Notifications | Approve/deny from phone |
+| --- | --- | --- | --- |
+| Claude Code | command string in `settings.json` | yes | **yes**, `PermissionRequest`, `async: false` |
+| Codex | command string in `hooks.json` | yes | **yes**, `PermissionRequest`, `async: false` |
+| pi | generated TypeScript extension spawning `pi-hook` | yes | no |
+| Hermes | generated Python plugin spawning `hermes-hook` | yes | no |
+
+pi spawns with `stdio: ["pipe", "ignore", "ignore"]`, `detached: true`, `unref()`. Hermes uses
+`stdout=subprocess.DEVNULL` on a single-worker thread pool. Both discard moshi's reply by construction,
+so neither can carry a decision back. Hermes's `PermissionRequest`/`PermissionResolved` pair mirrors an
+approval its own command line already decided, correlated by `action_id` so the phone card raises and
+then dismisses; it is not remote control. **Matching moshi's feature set for pi and Hermes therefore
+means forwarding the notification, and no capability is lost by doing only that.**
+
+**Two interposition mechanisms, because the harnesses differ:**
+
+1. **Config-declared command** (Claude Code, Codex, and likewise cursor, gemini, grok, kimi, qwen,
+   antigravity). The service registers itself as the hook command. On a blocking event it behaves as a
+   **pipe, not an interpreter**: stdin in, stdout and exit code out, unmodified. Where it must inspect
+   the payload it captures once and writes it back (`printf '%s' "$payload" | moshi-hook claude-hook`).
+   Consuming stdin without forwarding leaves moshi with an empty parse, and it silently does nothing.
+1. **Generated code file** (pi, omp, Hermes). moshi writes an extension that hard-codes
+   `helperBinary = "/opt/homebrew/bin/moshi-hook"`. A chezmoi script repoints that single line at the
+   service, which gates and then execs the real binary with the same argv and stdin. **Operator decision
+   2026-07-28: repoint the one line rather than have the service generate its own extension**, because
+   moshi's event translation is the part most likely to change when a harness updates, and
+   reimplementing it guarantees drift.
+
+**Durability, the two ways this breaks silently:**
+
+- `moshi-hook install` and upgrades **regenerate** the extension files, reverting the repoint. That is
+  not an error, it is unfiltered phone pushes while the operator sits at the keyboard. The repoint is
+  re-applied and verified by `run_after_46-bounce-moshi-hook-on-upgrade.sh.tmpl`, which already runs on
+  upgrade.
+- The subcommands are undocumented, so a rename would ship as a silent no-op. The same script asserts
+  that the subcommand for each installed harness still exists, and fails loudly when one does not.
+
+**Presence gating needs no special case.** When the operator is at the keyboard the service skips moshi;
+the hook returns nothing and the harness falls back to its own terminal prompt.
+
+**Conflict already live:** the service must take over Codex's `PermissionRequest` slot, which
+`run_after_72-relay-codex-hooks.sh.tmpl` owns outright today. Codex, not Claude Code, is where the two
+systems actually compete.
 
 ### The empty-`(main) done` "spam", resolved
 
