@@ -340,8 +340,16 @@ validate_record_scope() { # <scope> <host> <plist_path>
 # the default, /Library/Preferences/<domain>. A declared path must be
 # ABSOLUTE: a relative path would resolve against whatever directory the tool
 # happens to run from, so it is rejected, never resolved.
-resolve_system_plist_path() { # <domain> <plist_path>
-  local domain="$1" plist_path="$2"
+# validate_system_domain <domain>, a PREDICATE over the domain alone: 0 when it
+# can name a plist under /Library/Preferences, 1 with a message otherwise.
+#
+# Separated from resolution because the two rules below are properties of the
+# RECORD, true or false before anything is resolved, and they apply to every
+# system-scope record whether or not it declares an explicit plist_path. Folded
+# into the resolver they sat above an early return, which is the shape that once
+# let them apply to only one of the two branches.
+validate_system_domain() { # <domain>
+  local domain="$1"
   # A defaults domain is reverse-DNS and never legitimately contains a slash.
   # Rejecting one keeps the default construction inside /Library/Preferences BY
   # CONSTRUCTION: without it, a domain of ../../tmp/owned resolves to
@@ -367,10 +375,14 @@ resolve_system_plist_path() { # <domain> <plist_path>
       "$domain" >&2
     return 1
   fi
-  if [[ -z $plist_path ]]; then
-    printf '/Library/Preferences/%s\n' "$domain"
-    return 0
-  fi
+}
+
+# validate_explicit_plist_path <plist_path> <domain>, a PREDICATE over a declared
+# path: 0 when it names an absolute plist that cannot climb out of where it
+# appears to sit, 1 with a message otherwise. The domain is carried for the
+# messages only; it is validated separately, by validate_system_domain.
+validate_explicit_plist_path() { # <plist_path> <domain>
+  local plist_path="$1" domain="$2"
   if [[ $plist_path == / ]]; then
     printf 'error: plist_path %q (domain %s) is the filesystem root; it names no plist\n' \
       "$plist_path" "$domain" >&2
@@ -391,6 +403,24 @@ resolve_system_plist_path() { # <domain> <plist_path>
       "$plist_path" "$domain" >&2
     return 1
   fi
+}
+
+# resolve_system_plist_path <domain> <plist_path>, print the plist a system-scope
+# record writes to, or fail with a message.
+#
+# Resolution only. Each input is put to its own predicate first, and what remains
+# here is the one decision this function actually makes: an absent plist_path
+# means the default under /Library/Preferences, and a declared one is used as
+# given. Previously those two lines sat among five validation blocks, with the
+# default-path branch returning from the middle of them.
+resolve_system_plist_path() { # <domain> <plist_path>
+  local domain="$1" plist_path="$2"
+  validate_system_domain "$domain" || return 1
+  if [[ -z $plist_path ]]; then
+    printf '/Library/Preferences/%s\n' "$domain"
+    return 0
+  fi
+  validate_explicit_plist_path "$plist_path" "$domain" || return 1
   printf '%s\n' "$plist_path"
 }
 
