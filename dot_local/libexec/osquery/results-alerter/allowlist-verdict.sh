@@ -22,9 +22,14 @@
 # Namespaced so it does not collide with the other sourced helpers.
 _allowlist_verdict_expand_home() { printf '%s' "${1//\~\//$HOME/}"; }
 
-# _allowlist_is_manifest_bound <allowlist-file>: 0 when the root-owned
-# pipeline-integrity manifest vouches for THIS allowlist file as it stands right
+# _allowlist_path_is_manifest_vouched <path>: 0 when the root-owned
+# pipeline-integrity manifest vouches for the file at THIS path as it stands right
 # now (content, mode and owner), else 1.
+#
+# Asked about TWO different paths, for two different reasons: the allowlist file
+# itself (is this list trustworthy at all), and an individual entry's plist when
+# that entry carries no pin of its own (does the manifest vouch for these bytes).
+# Same question, same comparison, so it is one function rather than two.
 #
 # WHY THE VERDICT ASKS THIS AT ALL. The allowlist is deployed user-writable, and
 # under default-deny an entry in it SUPPRESSES a persistence page. A process
@@ -40,13 +45,17 @@ _allowlist_verdict_expand_home() { printf '%s' "${1//\~\//$HOME/}"; }
 # comparison the file_events verdict makes, including the bounded wait for an
 # in-flight manifest regeneration. That wait is what keeps a legitimate apply from
 # false-paging in the window between the new allowlist landing and the manifest
-# being reinstalled a moment later.
+# being reinstalled a moment later. The refusal to judge anything but a regular
+# file rides along too, because it lives in _pipeline_deployed_state_is_known_good,
+# the state reader that comparison re-runs on every retry - not in this caller. A
+# symlink standing at the asked-about path is therefore never hashed through to a
+# referent's pristine bytes, here or in any other consumer.
 #
 # Checked by NAME rather than assumed. results-alerter.sh sources both helpers, so
 # a missing pipeline verdict aborts the alerter and this branch is unreachable in
 # production; a partial install must still fail toward paging rather than toward a
 # quiet suppression nobody can account for.
-_allowlist_is_manifest_bound() {
+_allowlist_path_is_manifest_vouched() {
   declare -F _pipeline_tuple_settles >/dev/null 2>&1 || return 1
   _pipeline_tuple_settles "$1"
 }
@@ -59,7 +68,7 @@ _allowlist_is_manifest_bound() {
 #       or the pinned hash no longer matches the on-disk plist)
 #   1 = not allowlisted (no label match, a degraded label-only entry that cannot
 #       vouch, a missing/unreadable allowlist file, or an allowlist the manifest
-#       cannot vouch for - see _allowlist_is_manifest_bound)
+#       cannot vouch for - see _allowlist_path_is_manifest_vouched)
 allowlist_verdict() {
   local want_label="$1" want_path="$2" want_program="$3"
   local file="${OSQUERY_LAUNCHD_ALLOWLIST:-$HOME/.config/osquery/page-launchd-allowlist.txt}"
@@ -86,12 +95,33 @@ allowlist_verdict() {
   [[ -n $jpath && -n $jprog ]] || return 1
   # The tuple must match on path AND program; any divergence is a reused label.
   [[ $want_path == "$jpath" && $want_program == "$jprog" ]] || return 2
-  # When the entry pins the plist hash, the on-disk plist must still match it
-  # (defeats a same-path/same-program plist rewrite). An empty pin skips this
-  # dimension, which is how the own-agent seed entries are stored.
+  # The bytes at the path must be accounted for, by one of two authorities.
+  #
+  # A PINNED entry carries its own: the on-disk plist must still hash to the pin,
+  # which defeats a same-path/same-program rewrite. That is how third-party agents
+  # captured by `allowlist.sh -a` are held.
+  #
+  # An UNPINNED entry is an own-agent seed. It has no pin because chezmoi rewrites
+  # those plists on every apply, so a pin recorded once is wrong by the next one.
+  # What vouches for them instead is the root-owned manifest, which chezmoi
+  # refreshes in the same breath. Until now nothing ASKED it: an empty pin simply
+  # skipped the dimension, so "no pin because the manifest covers this" and "no pin
+  # at all" were the same thing, and a rewritten own-agent plist was suppressed.
+  #
+  # Note this is deliberately not a presence check. The plist is listed in the
+  # manifest whether or not it has since been edited, so membership would vouch for
+  # exactly the bytes an attacker just replaced. The comparison is on current
+  # content, mode and owner.
   if [[ -n $jhash ]]; then
     disk_hash=$(shasum -a 256 "$want_path" 2>/dev/null | awk '{print $1}')
     [[ $disk_hash == "$jhash" ]] || return 2
+  else
+    # 1, not 2. An unpinned entry the manifest cannot vouch for is a DEGRADED
+    # entry: it carries no evidence of its own and its backing authority has
+    # nothing to say, so it cannot vouch for this finding at all. That is the same
+    # answer the label-only entry above gets, and it keeps 2 meaning what it means
+    # everywhere else, that a specific identity DIVERGED.
+    _allowlist_path_is_manifest_vouched "$want_path" || return 1
   fi
   # LAST GATE, and only on the suppress path. Everything above has agreed this
   # entry vouches for the finding; what is left is whether the FILE that entry came
@@ -102,6 +132,6 @@ allowlist_verdict() {
   # outcome the binding can change: a reused label (2) and a miss (1) both page
   # already, and gating them too would spend a hash and a stat on every finding to
   # reach an answer that was never in doubt.
-  _allowlist_is_manifest_bound "$file" || return 1
+  _allowlist_path_is_manifest_vouched "$file" || return 1
   return 0 # full tuple match, from an allowlist the manifest vouches for -> suppress
 }

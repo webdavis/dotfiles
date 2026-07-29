@@ -310,8 +310,24 @@ _pipeline_manifest_has_tuple() {
 # applies to the attributes, which is why they are stat-ed here and not taken from
 # the event. A file whose hash, mode or owner cannot be read returns 1, so it
 # pages.
+#
+# ONLY A REGULAR FILE, NEVER A LINK, and the refusal lives HERE, in the one state
+# reader every consumer of the comparison shares. shasum hashes THROUGH a symlink
+# to the referent's bytes, and the mode/uid readers lstat the link itself, whose
+# mode macOS `chmod -h` will happily set to the manifested one - so a symlink to
+# an attacker-owned copy of the pristine bytes reads back matching on all three
+# columns, while the bytes that actually load live at a referent nothing watches
+# and that can be rewritten afterwards. Checking -L only in the callers is how
+# that gap opened: pipeline_verdict and the audit each carried their own refusal,
+# and the allowlist vouch, a new consumer of this comparison, inherited neither.
+# Inside THIS function rather than its _pipeline_tuple_settles wrapper so the
+# settle loop re-judges the file KIND on every retry too: a link swapped in
+# mid-window is refused by the re-read, not blessed by a check that ran once at
+# entry.
 _pipeline_deployed_state_is_known_good() {
   local target="$1" disk_hash disk_mode disk_uid
+  [[ -L $target ]] && return 1
+  [[ -f $target ]] || return 1
   disk_hash=$(shasum -a 256 "$target" 2>/dev/null | awk '{print $1}')
   [[ -n $disk_hash ]] || return 1
   disk_mode=$(_pipeline_file_mode "$target") || return 1
@@ -443,7 +459,11 @@ pipeline_verdict() {
   # A manifested path must hold a REGULAR FILE, and links are never followed: a
   # symlink standing where a pipeline script belongs would otherwise be hashed
   # through to content the manifest vouches for while the executed bytes live
-  # somewhere the manifest does not cover.
+  # somewhere the manifest does not cover. The authoritative refusal lives in
+  # _pipeline_deployed_state_is_known_good, which every consumer of the tuple
+  # comparison shares; this early copy is the event path's fast answer, paging a
+  # link or a non-file immediately instead of after the rehash delay and the
+  # settle wait below.
   [[ -L $target ]] && return 0
   [[ -f $target ]] || return 0
   # The atomic-rename shape: give the rename a moment to land before hashing. Only

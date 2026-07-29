@@ -66,6 +66,8 @@ allowlist="$home/.config/osquery/page-launchd-allowlist.txt"
   printf '{"label":"com.full","path":"~/Library/LaunchAgents/com.full.plist","program":"~/bin/full","sha256":"%s"}\n' "$full_hash"
   printf '{"label":"com.hashpin","path":"~/Library/LaunchAgents/com.hashpin.plist","program":"~/bin/hp","sha256":"%s"}\n' "$wrong_hash"
   printf '{"label":"com.seed","path":"~/Library/LaunchAgents/com.seed.plist","program":"~/bin/seed","sha256":""}\n'
+  printf '{"label":"com.seedtampered","path":"~/Library/LaunchAgents/com.seedtampered.plist","program":"~/bin/seed","sha256":""}\n'
+  printf '{"label":"com.seedlink","path":"~/Library/LaunchAgents/com.seedlink.plist","program":"~/bin/seed","sha256":""}\n'
   printf '{"label":"com.degraded","path":"","program":"","sha256":""}\n'
 } >"$allowlist"
 # The allowlist deploys 0600 (chezmoi's private_ prefix).
@@ -77,12 +79,51 @@ chmod 600 "$allowlist"
 # (post-apply) state: a manifest tuple naming the allowlist's current content, its
 # 0600 mode and its owner.
 bound_manifest="$work/pipeline-known-good.sha256"
+# The seed plist is a REAL file here, and the manifest vouches for it alongside the
+# allowlist. An empty-sha256 entry carries no pin of its own, so the manifest is the
+# only thing that can say anything about the bytes at that path; a fixture where the
+# manifest does not cover the plist cannot tell a vouched plist from a rewritten one.
+printf 'SEED PLIST CONTENT\n' >"$home/Library/LaunchAgents/com.seed.plist"
 write_bound_manifest() {
-  printf '%s 0600 %s %s\n' \
-    "$(shasum -a 256 "$allowlist" | awk '{print $1}')" "$(id -u)" "$allowlist" \
-    >"$bound_manifest"
+  {
+    printf '%s 0600 %s %s\n' \
+      "$(shasum -a 256 "$allowlist" | awk '{print $1}')" "$(id -u)" "$allowlist"
+    printf '%s 0644 %s %s\n' \
+      "$(shasum -a 256 "$home/Library/LaunchAgents/com.seed.plist" | awk '{print $1}')" \
+      "$(id -u)" "$home/Library/LaunchAgents/com.seed.plist"
+  } >"$bound_manifest"
 }
 write_bound_manifest
+chmod 0644 "$home/Library/LaunchAgents/com.seed.plist"
+
+# The tampered case. Its plist is recorded in the manifest as it was, then REWRITTEN.
+# The allowlist file is not touched, so the D-prime binding still passes; only the
+# plist's own bytes have moved out from under the manifest.
+printf 'SEEDTAMPERED ORIGINAL\n' >"$home/Library/LaunchAgents/com.seedtampered.plist"
+chmod 0644 "$home/Library/LaunchAgents/com.seedtampered.plist"
+printf '%s 0644 %s %s\n' \
+  "$(shasum -a 256 "$home/Library/LaunchAgents/com.seedtampered.plist" | awk '{print $1}')" \
+  "$(id -u)" "$home/Library/LaunchAgents/com.seedtampered.plist" >>"$bound_manifest"
+printf 'SEEDTAMPERED REWRITTEN BY AN ATTACKER\n' >"$home/Library/LaunchAgents/com.seedtampered.plist"
+
+# The symlink case. com.seedlink's plist path holds a SYMLINK to an attacker-owned
+# copy of the manifested bytes, outside the watched tree, where nothing pages when
+# it is rewritten afterwards. The manifest tuple is written FROM THE LINK with the
+# production readers, so every column matches exactly what the verdict reads back:
+# shasum hashes THROUGH the link to the referent's pristine content, and the
+# mode/uid readers lstat the link itself. Nothing distinguishes this from the bound
+# com.seed case except the file kind, which is the point: only a refusal to judge a
+# non-regular file can tell them apart.
+seedlink="$home/Library/LaunchAgents/com.seedlink.plist"
+seedlink_referent="$work/attacker-copy.plist"
+printf 'SEEDLINK PLIST CONTENT\n' >"$seedlink_referent"
+chmod 0644 "$seedlink_referent"
+ln -s "$seedlink_referent" "$seedlink"
+printf '%s %s %s %s\n' \
+  "$(shasum -a 256 "$seedlink" | awk '{print $1}')" \
+  "$(bash -c 'source "$1"; _pipeline_file_mode "$2"' _ "$PIPELINE_HELPER" "$seedlink")" \
+  "$(bash -c 'source "$1"; _pipeline_file_uid "$2"' _ "$PIPELINE_HELPER" "$seedlink")" \
+  "$seedlink" >>"$bound_manifest"
 absent_manifest="$work/no-such-manifest.sha256"
 
 # Each case: <expected-rc> <TAB> <manifest> <TAB> <allowlist-file> <TAB> <label>
@@ -104,9 +145,22 @@ cases=(
   $'2\t'"$bound_manifest"$'\t'"$allowlist"$'\tcom.hashpin\t'"$home/Library/LaunchAgents/com.hashpin.plist"$'\t'"$home/bin/hp"$'\ta pinned-hash entry whose on-disk plist was rewritten pages (hash mismatch)'
   # (d) unknown label -> not allowlisted.
   $'1\t'"$bound_manifest"$'\t'"$allowlist"$'\tcom.unknown\t'"$home/Library/LaunchAgents/com.unknown.plist"$'\t'"$home/bin/unknown"$'\tan unknown label is not allowlisted'
-  # (e) empty-sha256 seed entry -> suppress on label+path+program, skipping the hash dimension
-  #     (the seed plist need not even exist).
+  # (e) empty-sha256 seed entry, on-disk plist STILL MATCHES the manifest -> suppress.
+  #     The entry carries no pin, so the manifest is what vouches for the bytes.
   $'0\t'"$bound_manifest"$'\t'"$allowlist"$'\tcom.seed\t'"$home/Library/LaunchAgents/com.seed.plist"$'\t'"$home/bin/seed"$'\tan empty-sha256 seed entry suppresses on label+path+program, skipping the hash dimension'
+  # (e2) THE HOLE. Same empty-sha256 entry, but the plist at that path has been
+  #      REWRITTEN since the manifest recorded it. The allowlist file itself is
+  #      untouched, so the D-prime binding is satisfied and cannot help here.
+  #      Carrying no pin must mean "the manifest vouches for this", not "trust
+  #      whatever is at this path", or a rewritten own-agent plist is silenced.
+  $'1\t'"$bound_manifest"$'\t'"$allowlist"$'\tcom.seedtampered\t'"$home/Library/LaunchAgents/com.seedtampered.plist"$'\t'"$home/bin/seed"$'\tan empty-sha256 entry whose on-disk plist no longer matches the manifest cannot vouch'
+  # (e3) THE SAME HOLE IN A SECOND SHAPE. The unpinned entry plist path holds a
+  #      SYMLINK to an attacker-owned copy of the manifested bytes. shasum hashes
+  #      THROUGH the link and the mode/uid readers lstat a link whose tuple the
+  #      fixture recorded verbatim, so content, mode and owner all read back
+  #      matching; only refusing to judge a non-regular file tells the link from
+  #      the file, and the referent stays rewritable where nothing watches it.
+  $'1\t'"$bound_manifest"$'\t'"$allowlist"$'\tcom.seedlink\t'"$home/Library/LaunchAgents/com.seedlink.plist"$'\t'"$home/bin/seed"$'\ta symlink standing at an unpinned entry plist path is never vouched, even with the manifested bytes at its referent'
   # (f) degraded label-only entry (no path/program) cannot vouch -> not allowlisted (fail-safe).
   $'1\t'"$bound_manifest"$'\t'"$allowlist"$'\tcom.degraded\t'"$home/Library/LaunchAgents/com.degraded.plist"$'\t'"$home/bin/degraded"$'\ta degraded label-only entry cannot vouch and does not suppress (fail-safe)'
   # (g) missing allowlist file -> not allowlisted, cleanly, no error.
@@ -196,6 +250,21 @@ printf '{"label":"com.evil","path":"~/Library/LaunchAgents/com.evil.plist","prog
 
 # ...and a legitimate apply restores suppression: the operator's edit regenerates
 # the manifest in the same flow, so the file is bound again and nothing false-pages.
+#
+# The entry is REWRITTEN WITH A PIN here, because that is the only form the writer
+# can produce: `allowlist.sh -a` refuses to write an unpinned tuple, so a
+# third-party agent adopted through it always carries a captured hash. An unpinned
+# tuple is reserved for the own-agent seeds, whose plists chezmoi manages and the
+# manifest therefore covers; com.evil's plist is neither. Modelling the adopted
+# entry as unpinned would be modelling something the writer cannot emit.
+printf 'EVIL PLIST CONTENT\n' >"$home/Library/LaunchAgents/com.evil.plist"
+evil_hash="$(shasum -a 256 "$home/Library/LaunchAgents/com.evil.plist" | awk '{print $1}')"
+grep -vF '"label":"com.evil"' "$allowlist" >"$allowlist.tmp" && mv "$allowlist.tmp" "$allowlist"
+# mv brings the temp file's mode with it; the manifest tuple pins 0600, and mode is
+# part of what it vouches for, so restore it or the file reads as tampered.
+chmod 0600 "$allowlist"
+printf '{"label":"com.evil","path":"~/Library/LaunchAgents/com.evil.plist","program":"~/bin/evil","sha256":"%s"}\n' \
+  "$evil_hash" >>"$allowlist"
 write_bound_manifest
 [[ "$(verdict_with com.full "$home/Library/LaunchAgents/com.full.plist" "$home/bin/full")" == 0 ]] ||
   fail "a legitimate apply (allowlist edited, manifest regenerated) must restore suppression, not false-page"

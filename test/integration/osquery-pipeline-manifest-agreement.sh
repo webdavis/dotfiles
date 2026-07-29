@@ -504,6 +504,31 @@ run_allowlist_verdict() {
   )
 }
 
+# com.seed is an UNPINNED entry, so the manifest is what vouches for the bytes at
+# its path. That is true on a real machine (chezmoi deploys those plists and
+# manifests them in the same apply), so the fixture has to hold it too, or the
+# allowlist settle window below is exercised against an entry that could never
+# suppress for an unrelated reason.
+seed_plist="$MF_HOME/x.plist"
+printf 'SEED PLIST\n' >"$seed_plist"
+chmod 0644 "$seed_plist"
+# Read mode and owner from the FILESYSTEM, the way the verdict does. The
+# manifest_*_of helpers look a path up inside the GENERATED manifest, and this
+# plist is a fixture that was never generated, so they would return empty columns
+# and the tuple would never match.
+# Mode and owner come from the PRODUCTION probes, not a hand-rolled stat. They
+# normalise (four-digit mode, GNU-then-BSD stat), and a fixture that computed its
+# own would drift from what the verdict actually compares against.
+seed_plist_mode="$(
+  source "$VERDICT" >/dev/null 2>&1
+  _pipeline_file_mode "$seed_plist"
+)"
+seed_plist_uid="$(
+  source "$VERDICT" >/dev/null 2>&1
+  _pipeline_file_uid "$seed_plist"
+)"
+seed_plist_line="$(hash_of "$seed_plist") $seed_plist_mode $seed_plist_uid $seed_plist"
+
 allowlist_hash="$(hash_of "$allowlist_target")"
 allowlist_mode="$(manifest_mode_of "$allowlist_target")"
 allowlist_uid="$(manifest_uid_of "$allowlist_target")"
@@ -516,7 +541,8 @@ printf 'deadbeef 0755 %s /nowhere\n' "$(id -u)" >"$MF_MANIFEST"
 touch -t 200001010000 "$MF_MANIFEST"
 (
   sleep 1
-  printf '%s %s %s %s\n' "$allowlist_hash" "$allowlist_mode" "$allowlist_uid" "$allowlist_target" >"$MF_MANIFEST"
+  printf '%s %s %s %s\n%s\n' "$allowlist_hash" "$allowlist_mode" "$allowlist_uid" "$allowlist_target" \
+    "$seed_plist_line" >"$MF_MANIFEST"
 ) &
 allowlist_settle_pid=$!
 got=0
