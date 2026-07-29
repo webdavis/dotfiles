@@ -60,7 +60,10 @@ teardown() { teardown_dispatch_harness; }
     "UPDATE pending_alerts SET url='http://10.0.0.5:8644/webhooks/osquery-priority';"
   : >"$CURL_LOG"
   retry_undelivered_alerts
-  ! grep -q '10.0.0.5' "$CURL_LOG" # never sent off-box
+  if grep -q '10.0.0.5' "$CURL_LOG"; then
+    echo "never sent off-box"
+    false
+  fi
   assert_pending_alert_count 1     # the off-box entry is RETAINED (skipped), not silently dropped
 }
 
