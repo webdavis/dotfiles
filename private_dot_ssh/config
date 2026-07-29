@@ -1,6 +1,18 @@
-Host github
+# Both the alias and the real host name. Git remotes are written
+# git@github.com:..., which ssh matches against github.com, so a block naming
+# only the alias never applies to a push.
+#
+# The keepalive is load-bearing, not tuning. Git opens the connection to GitHub
+# BEFORE it runs the pre-push hook, and this repo's hook runs lint plus the whole
+# test suite, several minutes. GitHub closes the idle connection in the meantime,
+# so when the hook finally returns git writes into a dead socket and exits 141
+# with no error text and no branch pushed. Traffic every 20s keeps the connection
+# from going idle while the hook works.
+Host github github.com
   HostName github.com
   User git
+  ServerAliveInterval 20
+  ServerAliveCountMax 30
 
 Host unprovisioned_yoshimo
   HostName 192.168.1.70
