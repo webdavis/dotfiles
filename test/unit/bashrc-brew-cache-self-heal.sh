@@ -14,9 +14,13 @@
 #   3. it regenerates when Homebrew's shellenv GENERATOR is newer than the cache
 #      (which also covers a missing cache: `-nt` is true when its right-hand
 #      operand does not exist)
-#   4. the guard forks NOTHING: it is stat tests only, on every interactive shell
-#   5. regeneration runs the DEPLOYED writer, not a second copy of the write
-#   6. regeneration is detached (`( ... & )`) and logged, so a fresh host sees no
+#   4. it regenerates when ${HOMEBREW_PREFIX}/etc/paths is missing. `brew
+#      shellenv` recreates that file and the cached path_helper line READS it at
+#      runtime, so losing it drops ${HOMEBREW_PREFIX}/bin and /sbin from PATH,
+#      and losing it does not change the generator's mtime
+#   5. the guard forks NOTHING: it is stat tests only, on every interactive shell
+#   6. regeneration runs the DEPLOYED writer, not a second copy of the write
+#   7. regeneration is detached (`( ... & )`) and logged, so a fresh host sees no
 #      job-control noise and no error text at the prompt
 #
 # Unit test: render dot_bashrc.tmpl and inspect the block. Darwin-only, because
@@ -32,6 +36,7 @@ TEMPLATE="$REPO_ROOT/dot_bashrc.tmpl"
 WRITER_SOURCE="$REPO_ROOT/dot_local/bin/executable_brew-shellenv-cache-refresh.sh"
 WRITER_TARGET_PATH='.local/bin/brew-shellenv-cache-refresh.sh'
 CACHE_PATH_EXPRESSION='${XDG_CACHE_HOME:-$HOME/.cache}/brew-shellenv.sh'
+PATHS_FILE_SUFFIX='/etc/paths'
 DELETED_APPLY_TIME_SCRIPT='run_after_44-cache-brew-shellenv'
 
 fail() {
@@ -91,13 +96,21 @@ assert_contains "$rendered" "\"$CACHE_PATH_EXPRESSION\"" \
 assert_contains "$guard" '$__be_gen -nt $__be_cache' \
   'guard no longer regenerates when the shellenv generator is newer than the cache'
 
-# 4. No fork in the guard: it runs on every interactive shell.
+# 4. Missing-paths-file term.
+assert_contains "$block_code" "__be_paths=" \
+  'self-heal does not track ${HOMEBREW_PREFIX}/etc/paths at all'
+assert_contains "$block_code" "$PATHS_FILE_SUFFIX\"" \
+  "the tracked paths file is not ${PATHS_FILE_SUFFIX}"
+assert_contains "$guard" '! -f $__be_paths' \
+  'guard no longer regenerates when ${HOMEBREW_PREFIX}/etc/paths is missing'
+
+# 5. No fork in the guard: it runs on every interactive shell.
 refute_contains "$guard" '$(' \
   'guard contains a command substitution, so it forks on every interactive shell'
 refute_contains "$guard" '`' \
   'guard contains a backtick substitution, so it forks on every interactive shell'
 
-# 5. Regeneration runs the DEPLOYED writer, not an inlined copy of the write.
+# 6. Regeneration runs the DEPLOYED writer, not an inlined copy of the write.
 assert_contains "$block_code" "\$HOME/$WRITER_TARGET_PATH" \
   'self-heal does not run the deployed brew-shellenv cache writer'
 assert_contains "$block_code" '"$__be_writer"' \
@@ -107,7 +120,7 @@ for inlined in 'mktemp' 'shellenv >' 'command mv'; do
     'self-heal still inlines its own copy of the atomic write'
 done
 
-# 6. Detached and logged.
+# 7. Detached and logged.
 assert_contains "$block_code" '&)' \
   'regeneration is not launched in a detached ( ... & ) subshell, so the prompt shows job noise'
 assert_contains "$block_code" '>>"$__be_log" 2>&1' \
@@ -119,4 +132,4 @@ assert_contains "$guard" 'mkdir -p "${__be_log%/*}"' \
 refute_contains "$rendered" "$DELETED_APPLY_TIME_SCRIPT" \
   'rendered ~/.bashrc still references the deleted apply-time regen script'
 
-printf 'bashrc-brew-cache-self-heal: OK (fork-free generator-staleness guard; detached, logged, deployed writer)\n'
+printf 'bashrc-brew-cache-self-heal: OK (fork-free guard on generator + paths file; detached, logged, deployed writer)\n'

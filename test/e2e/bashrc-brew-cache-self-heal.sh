@@ -11,6 +11,10 @@
 # Fires:
 #   - cache missing (fresh host): `-nt` is true when its right operand is absent
 #   - Homebrew's shellenv generator is newer than the cache
+#   - ${HOMEBREW_PREFIX}/etc/paths is missing. `brew shellenv` recreates that
+#     file and the cached path_helper line reads it at runtime, so without it
+#     ${HOMEBREW_PREFIX}/bin and /sbin drop out of PATH; its disappearance does
+#     not change the generator's mtime, so nothing else would notice
 # Stays quiet:
 #   - everything present and current (the common path, every shell)
 #   - Homebrew not installed, even with no paths file to find
@@ -225,6 +229,23 @@ start_shell "$host"
 assert_shell_was_silent "$host" 'stale after brew update'
 assert_regenerated "$host" 'stale after brew update'
 
+# --- D. the prefix paths file vanished (cache itself is current) -------------
+host="$(new_host missingpathsfile)"
+seed_current_cache "$host"
+rm "$host/prefix/$PATHS_RELATIVE"
+start_shell "$host"
+assert_shell_was_silent "$host" 'missing paths file'
+assert_regenerated "$host" 'missing paths file'
+[[ -f $host/prefix/$PATHS_RELATIVE ]] ||
+  fail 'missing paths file: regenerating did not recreate the prefix paths file'
+# ...and it converges: the next shell has nothing left to fix.
+first_count="$(invocation_count "$host")"
+start_shell "$host"
+assert_shell_was_silent "$host" 'missing paths file, second shell'
+sleep "$SETTLE_SECONDS"
+[[ "$(invocation_count "$host")" == "$first_count" ]] ||
+  fail 'missing paths file: the guard kept regenerating after the file was restored'
+
 # --- E. the deployed writer is not installed ---------------------------------
 host="$(new_host nowriter)"
 rm "$host/home/$WRITER_RELATIVE"
@@ -264,4 +285,4 @@ fi
 [[ "$(invocation_count "$host")" == 0 ]] ||
   fail 'warm start: brew was spawned even though a usable cache was present'
 
-printf 'bashrc-brew-cache-self-heal(e2e): OK (fires on missing cache and a new generator; quiet and job-free otherwise; cold start falls back to a live eval)\n'
+printf 'bashrc-brew-cache-self-heal(e2e): OK (fires on missing cache, new generator, missing paths file; quiet and job-free otherwise; cold start falls back to a live eval)\n'

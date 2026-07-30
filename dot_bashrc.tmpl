@@ -307,6 +307,11 @@ if [[ $- == *i* ]]; then
   #     when its right-hand operand does not exist.
   #   - Homebrew shipped a new shellenv generator (e.g. `brew autoupdate` ran
   #     `brew update`): the generator is newer than the cache.
+  #   - ${HOMEBREW_PREFIX}/etc/paths disappeared: `brew shellenv` RECREATES that
+  #     file, and the path_helper line in the cached output READS it at runtime,
+  #     so without it ${HOMEBREW_PREFIX}/bin and /sbin drop out of PATH and no
+  #     Homebrew tool resolves, `brew` included. Losing that file does not touch
+  #     the generator's mtime, so it needs a test of its own.
   # Term order is a measured cost decision, not style: the staleness test settles
   # the common path in three stat calls (~3.4us, the same as the two-term guard it
   # replaces) and short-circuits before the installed-and-deployed test. No fork
@@ -320,18 +325,19 @@ if [[ $- == *i* ]]; then
   # backstop.
   __be_cache="${XDG_CACHE_HOME:-$HOME/.cache}/brew-shellenv.sh"
   __be_gen="${HOMEBREW_REPOSITORY:-/opt/homebrew/Homebrew}/Library/Homebrew/cmd/shellenv.sh"
+  __be_paths="${HOMEBREW_PREFIX:-/opt/homebrew}/etc/paths"
   __be_writer="$HOME/.local/bin/brew-shellenv-cache-refresh.sh"
   __be_log="$HOME/.local/log/brew-shellenv-selfheal.log"
   # Gate the whole detached launch on the log mkdir SUCCEEDING: if that dir is not
   # creatable, launch nothing and print nothing (otherwise the outer subshell's
   # `>>$log` open would fail straight to the interactive terminal before its own
   # 2>&1 applies). The writer creates the cache dir itself.
-  if [[ $__be_gen -nt $__be_cache ]] &&
+  if [[ $__be_gen -nt $__be_cache || ! -f $__be_paths ]] &&
     [[ -f $__be_gen && -x $__be_writer ]] &&
     mkdir -p "${__be_log%/*}" 2>/dev/null; then
     ("$__be_writer" >>"$__be_log" 2>&1 &)
   fi
-  unset __be_cache __be_gen __be_writer __be_log
+  unset __be_cache __be_gen __be_paths __be_writer __be_log
   {{- end }}
 
   # ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
