@@ -22,9 +22,11 @@
 #      fine and deliberate: that rescues a legacy remote by rewriting it away.
 #   3. Global ignores resolve to a file this repo actually deploys. Either
 #      core.excludesfile names a deployed path, or the key is absent and the
-#      repo ships git's documented default, dot_config/git/ignore. Without this
-#      the setting can point at a file nothing creates and silently ignore
-#      nothing, which is what it did.
+#      repo deploys git's documented default, dot_config/git/ignore. Deployment
+#      is decided by `chezmoi managed`, not by the source file's presence on
+#      disk: a source file hidden behind .chezmoiignore is present but never
+#      delivered, and git would then load no global ignores at all, which is the
+#      failure this invariant exists to catch.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -40,7 +42,11 @@ PLACEHOLDER="CHEZMOI_TEMPLATE_PLACEHOLDER"
 CONTROL_FLOW_ACTIONS='{{-?[[:space:]]*(if|else|end|range|with|block|define|template)\b'
 
 # Bug class 11: git exports GIT_DIR and friends into every hook, and a stale one
-# would redirect the config reads below at the wrong repository.
+# would redirect the config reads below at the wrong repository. chezmoi needs no
+# equivalent scrub: it has no environment override for sourceDir or destDir
+# (measured: CHEZMOI_SOURCE_DIR is ignored), and both are passed explicitly
+# below, so the only environment input left is where its own config file is
+# found, which the listing does not depend on.
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY \
   GIT_CONFIG GIT_CONFIG_GLOBAL GIT_CONFIG_SYSTEM GIT_CONFIG_COUNT GIT_PREFIX
 export GIT_CONFIG_NOSYSTEM=1 GIT_PAGER=cat PAGER=cat
@@ -50,18 +56,23 @@ fail() {
   exit 1
 }
 
-# Answers "does the repo deploy this target path?" for a $HOME-relative path,
-# by translating it back to its chezmoi source name (leading dot -> dot_ on
-# every path component).
-repo_deploys_target_path() {
-  local target="$1" relative source_path component
-  relative="${target#"$HOME"/}"
-  [[ $relative != "$target" ]] || return 1
-  source_path="$REPO_ROOT"
-  while IFS= read -r -d '/' component; do
-    source_path="$source_path/${component/#./dot_}"
-  done < <(printf '%s/' "$relative")
-  [[ -e $source_path ]]
+# Answers "which absolute target paths does chezmoi deliver as files from this
+# source tree?". This is the authority on deployment: it applies .chezmoiignore
+# and every source-name prefix, neither of which a source-path existence test
+# can see. Read-only, and it lists the target state without rendering file
+# contents, so the keepassxc templates in this repo are never unlocked.
+list_chezmoi_delivered_target_paths() {
+  chezmoi managed \
+    --source "$REPO_ROOT" \
+    --destination "$HOME" \
+    --include=files \
+    --path-style=absolute
+}
+
+# Answers "does chezmoi deliver exactly this target path?".
+chezmoi_delivers_target_path() {
+  local target="$1"
+  printf '%s\n' "$DELIVERED_TARGET_PATHS" | grep -Fxq -- "$target"
 }
 
 # Answers "can git resolve this tool name?" for the given mode, by asking git.
@@ -76,6 +87,15 @@ git_resolves_tool_name() {
 
 [[ -f $GITCONFIG_TEMPLATE ]] || fail "missing template: $GITCONFIG_TEMPLATE"
 command -v git >/dev/null 2>&1 || fail "git is not on PATH"
+command -v chezmoi >/dev/null 2>&1 ||
+  fail "chezmoi is not on PATH; invariant 3 cannot tell which target paths this repo delivers"
+
+# Fail closed: an unreadable or empty listing must not read as "nothing is
+# missing". Collected once, since both branches of invariant 3 consult it.
+DELIVERED_TARGET_PATHS="$(list_chezmoi_delivered_target_paths)" ||
+  fail "chezmoi managed failed against source $REPO_ROOT; invariant 3 cannot be decided"
+[[ -n $DELIVERED_TARGET_PATHS ]] ||
+  fail "chezmoi managed listed no files at all for source $REPO_ROOT; invariant 3 cannot be decided"
 
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
@@ -108,11 +128,11 @@ done < <(git config --file "$parsed" --name-only --list)
 # ---- 3: global ignores resolve to a file this repo deploys ----------------
 excludes="$(git config --file "$parsed" --get core.excludesfile || true)"
 if [[ -n $excludes ]]; then
-  repo_deploys_target_path "${excludes/#\~/$HOME}" ||
-    fail "core.excludesfile = '$excludes' names a path this repo never deploys, so git would load no global ignores at all"
+  chezmoi_delivers_target_path "${excludes/#\~/$HOME}" ||
+    fail "core.excludesfile = '$excludes' names a path chezmoi does not deliver, so git would load no global ignores at all"
 else
-  [[ -f $REPO_ROOT/$XDG_IGNORE_SOURCE ]] ||
-    fail "core.excludesfile is unset, so git falls back to $XDG_IGNORE_TARGET, but this repo does not ship $XDG_IGNORE_SOURCE; global ignores would be empty on a fresh machine"
+  chezmoi_delivers_target_path "$XDG_IGNORE_TARGET" ||
+    fail "core.excludesfile is unset, so git falls back to $XDG_IGNORE_TARGET, but chezmoi does not deliver that path from $XDG_IGNORE_SOURCE (present in the source tree is not enough; check .chezmoiignore); global ignores would be empty on a fresh machine"
 fi
 
 printf 'gitconfig-tool-and-url-hygiene: OK (diff.tool/merge.tool resolve, no git:// rewrite target, global ignores are deployed)\n'
