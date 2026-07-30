@@ -16195,7 +16195,7 @@
       "label": "fail()",
       "file_type": "code",
       "source_file": "test/integration/tailnet-pins.sh",
-      "source_location": "L92",
+      "source_location": "L95",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -16209,7 +16209,7 @@
       "label": "interpreter_label()",
       "file_type": "code",
       "source_file": "test/integration/tailnet-pins.sh",
-      "source_location": "L123",
+      "source_location": "L126",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -16223,7 +16223,7 @@
       "label": "stage_fixture_source()",
       "file_type": "code",
       "source_file": "test/integration/tailnet-pins.sh",
-      "source_location": "L133",
+      "source_location": "L136",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -16237,7 +16237,7 @@
       "label": "render_fixture()",
       "file_type": "code",
       "source_file": "test/integration/tailnet-pins.sh",
-      "source_location": "L143",
+      "source_location": "L146",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -16251,7 +16251,7 @@
       "label": "render_fixture_must_fail()",
       "file_type": "code",
       "source_file": "test/integration/tailnet-pins.sh",
-      "source_location": "L158",
+      "source_location": "L161",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -16265,7 +16265,7 @@
       "label": "run_pin()",
       "file_type": "code",
       "source_file": "test/integration/tailnet-pins.sh",
-      "source_location": "L467",
+      "source_location": "L470",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -16279,7 +16279,7 @@
       "label": "run_pin1()",
       "file_type": "code",
       "source_file": "test/integration/tailnet-pins.sh",
-      "source_location": "L473",
+      "source_location": "L476",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -16293,7 +16293,7 @@
       "label": "run_expect_refusal()",
       "file_type": "code",
       "source_file": "test/integration/tailnet-pins.sh",
-      "source_location": "L481",
+      "source_location": "L484",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -16307,7 +16307,7 @@
       "label": "run_with_shims()",
       "file_type": "code",
       "source_file": "test/integration/tailnet-pins.sh",
-      "source_location": "L495",
+      "source_location": "L498",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -16321,7 +16321,7 @@
       "label": "run_pin_under()",
       "file_type": "code",
       "source_file": "test/integration/tailnet-pins.sh",
-      "source_location": "L502",
+      "source_location": "L505",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -16335,7 +16335,7 @@
       "label": "file_mode()",
       "file_type": "code",
       "source_file": "test/integration/tailnet-pins.sh",
-      "source_location": "L510",
+      "source_location": "L513",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -16349,7 +16349,7 @@
       "label": "file_owner()",
       "file_type": "code",
       "source_file": "test/integration/tailnet-pins.sh",
-      "source_location": "L514",
+      "source_location": "L517",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -16363,7 +16363,7 @@
       "label": "file_inode()",
       "file_type": "code",
       "source_file": "test/integration/tailnet-pins.sh",
-      "source_location": "L521",
+      "source_location": "L524",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -16377,7 +16377,7 @@
       "label": "reconciler_cleaned_up_signal_names()",
       "file_type": "code",
       "source_file": "test/integration/tailnet-pins.sh",
-      "source_location": "L787",
+      "source_location": "L790",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -16391,7 +16391,7 @@
       "label": "signal_list_contains()",
       "file_type": "code",
       "source_file": "test/integration/tailnet-pins.sh",
-      "source_location": "L802",
+      "source_location": "L805",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -16405,7 +16405,7 @@
       "label": "run_pin_capture()",
       "file_type": "code",
       "source_file": "test/integration/tailnet-pins.sh",
-      "source_location": "L1050",
+      "source_location": "L1053",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -26905,7 +26905,7 @@
       "label": "fail()",
       "file_type": "code",
       "source_file": "test/unit/tailnet-pin-hosts-predicates.sh",
-      "source_location": "L83",
+      "source_location": "L88",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -26919,7 +26919,7 @@
       "label": "assert_predicate()",
       "file_type": "code",
       "source_file": "test/unit/tailnet-pin-hosts-predicates.sh",
-      "source_location": "L99",
+      "source_location": "L104",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -26933,7 +26933,7 @@
       "label": "assert_equal()",
       "file_type": "code",
       "source_file": "test/unit/tailnet-pin-hosts-predicates.sh",
-      "source_location": "L111",
+      "source_location": "L116",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -26947,7 +26947,7 @@
       "label": "survey_of()",
       "file_type": "code",
       "source_file": "test/unit/tailnet-pin-hosts-predicates.sh",
-      "source_location": "L445",
+      "source_location": "L499",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -27281,7 +27281,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L7",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_claude_md",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_claude_md",
       "community": 323,
       "norm_label": "claude.md"
     },
@@ -27291,7 +27291,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L11",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_what_this_is",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_what_this_is",
       "community": 323,
       "norm_label": "what this is"
     },
@@ -27301,7 +27301,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L18",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_key_commands",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_key_commands",
       "community": 323,
       "norm_label": "key commands"
     },
@@ -27311,7 +27311,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L20",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_linting_formatting",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_linting_formatting",
       "community": 323,
       "norm_label": "linting & formatting"
     },
@@ -27321,7 +27321,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L46",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_testing",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_testing",
       "community": 323,
       "norm_label": "testing"
     },
@@ -27331,7 +27331,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L86",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_chezmoi_operations",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_chezmoi_operations",
       "community": 323,
       "norm_label": "chezmoi operations"
     },
@@ -27341,7 +27341,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L114",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_claude_code_settings",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_claude_code_settings",
       "community": 323,
       "norm_label": "claude code settings"
     },
@@ -27351,7 +27351,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L147",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_git_hooks",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_git_hooks",
       "community": 323,
       "norm_label": "git hooks"
     },
@@ -27361,7 +27361,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L214",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_architecture",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_architecture",
       "community": 323,
       "norm_label": "architecture"
     },
@@ -27371,7 +27371,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L216",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_source_only_files",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_source_only_files",
       "community": 323,
       "norm_label": "source-only files"
     },
@@ -27381,7 +27381,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L224",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_minimum_chezmoi_version",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_minimum_chezmoi_version",
       "community": 323,
       "norm_label": "minimum chezmoi version"
     },
@@ -27391,7 +27391,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L228",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_secrets_management",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_secrets_management",
       "community": 323,
       "norm_label": "secrets management"
     },
@@ -27401,7 +27401,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L235",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_system_package_management",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_system_package_management",
       "community": 323,
       "norm_label": "system package management"
     },
@@ -27411,7 +27411,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L260",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_macos_defaults_management",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_macos_defaults_management",
       "community": 323,
       "norm_label": "macos defaults management"
     },
@@ -27421,7 +27421,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L305",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_template_files",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_template_files",
       "community": 323,
       "norm_label": "template files"
     },
@@ -27431,7 +27431,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L311",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_template_shellcheck_workaround",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_template_shellcheck_workaround",
       "community": 323,
       "norm_label": "template shellcheck workaround"
     },
@@ -27441,7 +27441,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L332",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_os_targeting",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_os_targeting",
       "community": 323,
       "norm_label": "os targeting"
     },
@@ -27451,7 +27451,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L337",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_dev_environment_nix_flake",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_dev_environment_nix_flake",
       "community": 323,
       "norm_label": "dev environment (nix flake)"
     },
@@ -27461,7 +27461,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L348",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_ci",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_ci",
       "community": 323,
       "norm_label": "ci"
     },
@@ -27471,7 +27471,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L358",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_agent_skills_cross_harness_store",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_agent_skills_cross_harness_store",
       "community": 323,
       "norm_label": "agent skills (cross-harness store)"
     },
@@ -27481,7 +27481,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L528",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_herdr_workspace_management",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_herdr_workspace_management",
       "community": 323,
       "norm_label": "herdr workspace management"
     },
@@ -27491,7 +27491,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L548",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_git_worktrees_worktrunk",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_git_worktrees_worktrunk",
       "community": 323,
       "norm_label": "git worktrees (worktrunk)"
     },
@@ -27501,7 +27501,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L555",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_bashrc_init_ordering",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_bashrc_init_ordering",
       "community": 323,
       "norm_label": "bashrc init ordering"
     },
@@ -27511,7 +27511,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L563",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_shell_history_atuin",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_shell_history_atuin",
       "community": 323,
       "norm_label": "shell history (atuin)"
     },
@@ -27521,7 +27521,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L592",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_happy_daemon_remote_agent_control",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_happy_daemon_remote_agent_control",
       "community": 323,
       "norm_label": "happy daemon (remote agent control)"
     },
@@ -27531,7 +27531,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L619",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_tailscale_headless_daemon",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_tailscale_headless_daemon",
       "community": 323,
       "norm_label": "tailscale (headless daemon)"
     },
@@ -27541,7 +27541,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L656",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_ai_commit_messages",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_ai_commit_messages",
       "community": 323,
       "norm_label": "ai commit messages"
     },
@@ -27551,7 +27551,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L669",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_long_running_command_notifier",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_long_running_command_notifier",
       "community": 323,
       "norm_label": "long-running command notifier"
     },
@@ -27561,7 +27561,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L675",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_herdr_native_status",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_herdr_native_status",
       "community": 323,
       "norm_label": "herdr native status"
     },
@@ -27571,7 +27571,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L681",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_code_style",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_code_style",
       "community": 323,
       "norm_label": "code style"
     },
@@ -27581,7 +27581,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L707",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_git_commits",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_git_commits",
       "community": 323,
       "norm_label": "git commits"
     },
@@ -27591,7 +27591,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L714",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_security",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_security",
       "community": 323,
       "norm_label": "security"
     },
@@ -65803,7 +65803,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/tailnet-pins.sh",
-      "source_location": "L92",
+      "source_location": "L95",
       "weight": 1.0,
       "source": "test_integration_tailnet_pins",
       "target": "test_integration_tailnet_pins_fail",
@@ -65813,7 +65813,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/tailnet-pins.sh",
-      "source_location": "L521",
+      "source_location": "L524",
       "weight": 1.0,
       "source": "test_integration_tailnet_pins",
       "target": "test_integration_tailnet_pins_file_inode",
@@ -65823,7 +65823,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/tailnet-pins.sh",
-      "source_location": "L510",
+      "source_location": "L513",
       "weight": 1.0,
       "source": "test_integration_tailnet_pins",
       "target": "test_integration_tailnet_pins_file_mode",
@@ -65833,7 +65833,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/tailnet-pins.sh",
-      "source_location": "L514",
+      "source_location": "L517",
       "weight": 1.0,
       "source": "test_integration_tailnet_pins",
       "target": "test_integration_tailnet_pins_file_owner",
@@ -65843,7 +65843,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/tailnet-pins.sh",
-      "source_location": "L123",
+      "source_location": "L126",
       "weight": 1.0,
       "source": "test_integration_tailnet_pins",
       "target": "test_integration_tailnet_pins_interpreter_label",
@@ -65853,7 +65853,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/tailnet-pins.sh",
-      "source_location": "L787",
+      "source_location": "L790",
       "weight": 1.0,
       "source": "test_integration_tailnet_pins",
       "target": "test_integration_tailnet_pins_reconciler_cleaned_up_signal_names",
@@ -65863,7 +65863,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/tailnet-pins.sh",
-      "source_location": "L143",
+      "source_location": "L146",
       "weight": 1.0,
       "source": "test_integration_tailnet_pins",
       "target": "test_integration_tailnet_pins_render_fixture",
@@ -65873,7 +65873,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/tailnet-pins.sh",
-      "source_location": "L158",
+      "source_location": "L161",
       "weight": 1.0,
       "source": "test_integration_tailnet_pins",
       "target": "test_integration_tailnet_pins_render_fixture_must_fail",
@@ -65883,7 +65883,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/tailnet-pins.sh",
-      "source_location": "L481",
+      "source_location": "L484",
       "weight": 1.0,
       "source": "test_integration_tailnet_pins",
       "target": "test_integration_tailnet_pins_run_expect_refusal",
@@ -65893,7 +65893,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/tailnet-pins.sh",
-      "source_location": "L467",
+      "source_location": "L470",
       "weight": 1.0,
       "source": "test_integration_tailnet_pins",
       "target": "test_integration_tailnet_pins_run_pin",
@@ -65903,7 +65903,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/tailnet-pins.sh",
-      "source_location": "L473",
+      "source_location": "L476",
       "weight": 1.0,
       "source": "test_integration_tailnet_pins",
       "target": "test_integration_tailnet_pins_run_pin1",
@@ -65913,7 +65913,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/tailnet-pins.sh",
-      "source_location": "L1050",
+      "source_location": "L1053",
       "weight": 1.0,
       "source": "test_integration_tailnet_pins",
       "target": "test_integration_tailnet_pins_run_pin_capture",
@@ -65923,7 +65923,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/tailnet-pins.sh",
-      "source_location": "L502",
+      "source_location": "L505",
       "weight": 1.0,
       "source": "test_integration_tailnet_pins",
       "target": "test_integration_tailnet_pins_run_pin_under",
@@ -65933,7 +65933,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/tailnet-pins.sh",
-      "source_location": "L495",
+      "source_location": "L498",
       "weight": 1.0,
       "source": "test_integration_tailnet_pins",
       "target": "test_integration_tailnet_pins_run_with_shims",
@@ -65953,7 +65953,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/tailnet-pins.sh",
-      "source_location": "L802",
+      "source_location": "L805",
       "weight": 1.0,
       "source": "test_integration_tailnet_pins",
       "target": "test_integration_tailnet_pins_signal_list_contains",
@@ -65963,7 +65963,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/tailnet-pins.sh",
-      "source_location": "L133",
+      "source_location": "L136",
       "weight": 1.0,
       "source": "test_integration_tailnet_pins",
       "target": "test_integration_tailnet_pins_stage_fixture_source",
@@ -65973,7 +65973,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/tailnet-pins.sh",
-      "source_location": "L104",
+      "source_location": "L107",
       "weight": 1.0,
       "context": "call",
       "source": "test_integration_tailnet_pins_sh__entry",
@@ -65984,7 +65984,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/tailnet-pins.sh",
-      "source_location": "L175",
+      "source_location": "L178",
       "weight": 1.0,
       "context": "call",
       "source": "test_integration_tailnet_pins_sh__entry",
@@ -65995,7 +65995,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/tailnet-pins.sh",
-      "source_location": "L301",
+      "source_location": "L304",
       "weight": 1.0,
       "context": "call",
       "source": "test_integration_tailnet_pins_sh__entry",
@@ -66006,7 +66006,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/tailnet-pins.sh",
-      "source_location": "L620",
+      "source_location": "L623",
       "weight": 1.0,
       "context": "call",
       "source": "test_integration_tailnet_pins_sh__entry",
@@ -66017,7 +66017,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/tailnet-pins.sh",
-      "source_location": "L531",
+      "source_location": "L534",
       "weight": 1.0,
       "context": "call",
       "source": "test_integration_tailnet_pins_sh__entry",
@@ -66028,7 +66028,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/tailnet-pins.sh",
-      "source_location": "L530",
+      "source_location": "L533",
       "weight": 1.0,
       "context": "call",
       "source": "test_integration_tailnet_pins_sh__entry",
@@ -66039,7 +66039,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/tailnet-pins.sh",
-      "source_location": "L1061",
+      "source_location": "L1064",
       "weight": 1.0,
       "context": "call",
       "source": "test_integration_tailnet_pins_sh__entry",
@@ -66050,7 +66050,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/tailnet-pins.sh",
-      "source_location": "L904",
+      "source_location": "L907",
       "weight": 1.0,
       "context": "call",
       "source": "test_integration_tailnet_pins_sh__entry",
@@ -66061,7 +66061,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/tailnet-pins.sh",
-      "source_location": "L751",
+      "source_location": "L754",
       "weight": 1.0,
       "context": "call",
       "source": "test_integration_tailnet_pins_sh__entry",
@@ -66072,7 +66072,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/tailnet-pins.sh",
-      "source_location": "L811",
+      "source_location": "L814",
       "weight": 1.0,
       "context": "call",
       "source": "test_integration_tailnet_pins_sh__entry",
@@ -66083,7 +66083,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/tailnet-pins.sh",
-      "source_location": "L152",
+      "source_location": "L155",
       "weight": 1.0,
       "context": "call",
       "source": "test_integration_tailnet_pins_render_fixture",
@@ -66094,7 +66094,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/tailnet-pins.sh",
-      "source_location": "L168",
+      "source_location": "L171",
       "weight": 1.0,
       "context": "call",
       "source": "test_integration_tailnet_pins_render_fixture_must_fail",
@@ -66105,7 +66105,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/tailnet-pins.sh",
-      "source_location": "L489",
+      "source_location": "L492",
       "weight": 1.0,
       "context": "call",
       "source": "test_integration_tailnet_pins_run_expect_refusal",
@@ -66116,7 +66116,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/tailnet-pins.sh",
-      "source_location": "L475",
+      "source_location": "L478",
       "weight": 1.0,
       "context": "call",
       "source": "test_integration_tailnet_pins_run_pin1",
@@ -66127,7 +66127,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/tailnet-pins.sh",
-      "source_location": "L1054",
+      "source_location": "L1057",
       "weight": 1.0,
       "context": "call",
       "source": "test_integration_tailnet_pins_run_pin_capture",
@@ -66138,7 +66138,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/tailnet-pins.sh",
-      "source_location": "L488",
+      "source_location": "L491",
       "weight": 1.0,
       "context": "call",
       "source": "test_integration_tailnet_pins_run_expect_refusal",
@@ -66149,7 +66149,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/tailnet-pins.sh",
-      "source_location": "L474",
+      "source_location": "L477",
       "weight": 1.0,
       "context": "call",
       "source": "test_integration_tailnet_pins_run_pin1",
@@ -77332,7 +77332,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/tailnet-pin-hosts-predicates.sh",
-      "source_location": "L111",
+      "source_location": "L116",
       "weight": 1.0,
       "source": "test_unit_tailnet_pin_hosts_predicates",
       "target": "test_unit_tailnet_pin_hosts_predicates_assert_equal",
@@ -77342,7 +77342,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/tailnet-pin-hosts-predicates.sh",
-      "source_location": "L99",
+      "source_location": "L104",
       "weight": 1.0,
       "source": "test_unit_tailnet_pin_hosts_predicates",
       "target": "test_unit_tailnet_pin_hosts_predicates_assert_predicate",
@@ -77352,7 +77352,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/tailnet-pin-hosts-predicates.sh",
-      "source_location": "L83",
+      "source_location": "L88",
       "weight": 1.0,
       "source": "test_unit_tailnet_pin_hosts_predicates",
       "target": "test_unit_tailnet_pin_hosts_predicates_fail",
@@ -77372,7 +77372,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/tailnet-pin-hosts-predicates.sh",
-      "source_location": "L445",
+      "source_location": "L499",
       "weight": 1.0,
       "source": "test_unit_tailnet_pin_hosts_predicates",
       "target": "test_unit_tailnet_pin_hosts_predicates_survey_of",
@@ -77382,7 +77382,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/tailnet-pin-hosts-predicates.sh",
-      "source_location": "L267",
+      "source_location": "L321",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_tailnet_pin_hosts_predicates_sh__entry",
@@ -77393,7 +77393,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/tailnet-pin-hosts-predicates.sh",
-      "source_location": "L122",
+      "source_location": "L131",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_tailnet_pin_hosts_predicates_sh__entry",
@@ -77404,7 +77404,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/tailnet-pin-hosts-predicates.sh",
-      "source_location": "L347",
+      "source_location": "L401",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_tailnet_pin_hosts_predicates_sh__entry",
@@ -77415,7 +77415,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/tailnet-pin-hosts-predicates.sh",
-      "source_location": "L113",
+      "source_location": "L118",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_tailnet_pin_hosts_predicates_assert_equal",
@@ -77426,7 +77426,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/tailnet-pin-hosts-predicates.sh",
-      "source_location": "L104",
+      "source_location": "L109",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_tailnet_pin_hosts_predicates_assert_predicate",
@@ -77817,7 +77817,7 @@
       "source_location": "L7",
       "weight": 1.0,
       "source": "agents",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_claude_md",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_claude_md",
       "confidence_score": 1.0
     },
     {
@@ -77826,8 +77826,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L214",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_claude_md",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_architecture",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_claude_md",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_architecture",
       "confidence_score": 1.0
     },
     {
@@ -77836,8 +77836,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L681",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_claude_md",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_code_style",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_claude_md",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_code_style",
       "confidence_score": 1.0
     },
     {
@@ -77846,8 +77846,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L707",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_claude_md",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_git_commits",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_claude_md",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_git_commits",
       "confidence_score": 1.0
     },
     {
@@ -77856,8 +77856,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L18",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_claude_md",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_key_commands",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_claude_md",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_key_commands",
       "confidence_score": 1.0
     },
     {
@@ -77866,8 +77866,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L714",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_claude_md",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_security",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_claude_md",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_security",
       "confidence_score": 1.0
     },
     {
@@ -77876,8 +77876,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L11",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_claude_md",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_what_this_is",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_claude_md",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_what_this_is",
       "confidence_score": 1.0
     },
     {
@@ -77886,8 +77886,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L86",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_key_commands",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_chezmoi_operations",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_key_commands",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_chezmoi_operations",
       "confidence_score": 1.0
     },
     {
@@ -77896,8 +77896,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L114",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_key_commands",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_claude_code_settings",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_key_commands",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_claude_code_settings",
       "confidence_score": 1.0
     },
     {
@@ -77906,8 +77906,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L147",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_key_commands",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_git_hooks",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_key_commands",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_git_hooks",
       "confidence_score": 1.0
     },
     {
@@ -77916,8 +77916,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L20",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_key_commands",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_linting_formatting",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_key_commands",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_linting_formatting",
       "confidence_score": 1.0
     },
     {
@@ -77926,8 +77926,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L46",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_key_commands",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_testing",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_key_commands",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_testing",
       "confidence_score": 1.0
     },
     {
@@ -77936,8 +77936,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L358",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_agent_skills_cross_harness_store",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_agent_skills_cross_harness_store",
       "confidence_score": 1.0
     },
     {
@@ -77946,8 +77946,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L656",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_ai_commit_messages",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_ai_commit_messages",
       "confidence_score": 1.0
     },
     {
@@ -77956,8 +77956,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L555",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_bashrc_init_ordering",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_bashrc_init_ordering",
       "confidence_score": 1.0
     },
     {
@@ -77966,8 +77966,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L348",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_ci",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_ci",
       "confidence_score": 1.0
     },
     {
@@ -77976,8 +77976,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L337",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_dev_environment_nix_flake",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_dev_environment_nix_flake",
       "confidence_score": 1.0
     },
     {
@@ -77986,8 +77986,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L548",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_git_worktrees_worktrunk",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_git_worktrees_worktrunk",
       "confidence_score": 1.0
     },
     {
@@ -77996,8 +77996,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L592",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_happy_daemon_remote_agent_control",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_happy_daemon_remote_agent_control",
       "confidence_score": 1.0
     },
     {
@@ -78006,8 +78006,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L675",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_herdr_native_status",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_herdr_native_status",
       "confidence_score": 1.0
     },
     {
@@ -78016,8 +78016,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L528",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_herdr_workspace_management",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_herdr_workspace_management",
       "confidence_score": 1.0
     },
     {
@@ -78026,8 +78026,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L669",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_long_running_command_notifier",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_long_running_command_notifier",
       "confidence_score": 1.0
     },
     {
@@ -78036,8 +78036,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L260",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_macos_defaults_management",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_macos_defaults_management",
       "confidence_score": 1.0
     },
     {
@@ -78046,8 +78046,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L224",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_minimum_chezmoi_version",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_minimum_chezmoi_version",
       "confidence_score": 1.0
     },
     {
@@ -78056,8 +78056,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L332",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_os_targeting",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_os_targeting",
       "confidence_score": 1.0
     },
     {
@@ -78066,8 +78066,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L228",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_secrets_management",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_secrets_management",
       "confidence_score": 1.0
     },
     {
@@ -78076,8 +78076,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L563",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_shell_history_atuin",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_shell_history_atuin",
       "confidence_score": 1.0
     },
     {
@@ -78086,8 +78086,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L216",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_source_only_files",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_source_only_files",
       "confidence_score": 1.0
     },
     {
@@ -78096,8 +78096,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L235",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_system_package_management",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_system_package_management",
       "confidence_score": 1.0
     },
     {
@@ -78106,8 +78106,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L619",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_tailscale_headless_daemon",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_tailscale_headless_daemon",
       "confidence_score": 1.0
     },
     {
@@ -78116,8 +78116,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L305",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_template_files",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_template_files",
       "confidence_score": 1.0
     },
     {
@@ -78126,8 +78126,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L311",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_template_shellcheck_workaround",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_template_shellcheck_workaround",
       "confidence_score": 1.0
     },
     {
@@ -96662,5 +96662,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "708205ea8aeb320d73f6feffa1b7093e0700c938"
+  "built_at_commit": "13d260fc35fd282c21a7290093c4b7e2ba733077"
 }

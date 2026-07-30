@@ -191,16 +191,55 @@
 #
 # KNOWN LIMITATION, CRLF. hosts(5) on this machine says items are separated by
 # blanks and tabs, so a carriage return is NOT a field separator and this script
-# does not treat one as a field boundary. A record written with CRLF line
-# endings therefore claims the name "pin<CR>", not "pin": it is neither dropped
-# as the pin's nor counted toward convergence, so it survives every run while
-# the file still reports as converged. That used to rest on an unmeasured guess
+# does not treat one as a field boundary. A TERMINATED record written with CRLF
+# line endings therefore claims the name "pin<CR>", not "pin": it is neither
+# dropped as the pin's nor counted toward convergence, so it survives while the
+# file still reports as converged. That used to rest on an unmeasured guess
 # about the resolver. It no longer does: `_fsi_tokenize` separates on " \t" and
 # skips only ' ', '\t' and '\n', so a CR is an ordinary name character there
 # too, and the resolver reads that record as naming "pin<CR>" exactly as this
-# script does. The two AGREE, which makes leaving such a line alone correct
-# rather than a coin flip: it does not answer for the pin's name on either
-# reading. Convert such a file to LF endings if you want the record gone.
+# script does. The two AGREE, which is what makes leaving such a line alone
+# correct rather than a coin flip. It is dead litter: measured, a lookup for the
+# pin's name walks past it and is answered by the appended record, and in a file
+# holding only that line the lookup finds nothing at all. The file converges on
+# the next run and is not rewritten again, so the litter costs one rebuild
+# rather than one per apply. Convert such a file to LF endings if you want the
+# record gone.
+#
+# THE ONE CRLF RECORD THAT IS NOT DEAD is an UNTERMINATED FINAL one, and this
+# paragraph exists because the sentence above used to be written as an
+# unconditional "it does not answer on either reading", which is false here.
+# `_fsi_get_line` chops the last character of every non-comment line whether or
+# not there is a newline to chop (fact 4), so on a final line that ends
+# "...pin<CR>" with no newline the character it eats is the CR ITSELF and the
+# resolver reads a CLEAN "pin". Measured: such a file answers the STALE address
+# for the pin's name, which is the confidently-wrong fallback this script
+# exists to prevent.
+# Nothing extra is needed to repair it, and that is worth stating rather than
+# leaving to be rediscovered: the missing terminator already makes the file
+# unconverged, so the rebuild runs, the normalization gives that line its
+# newline, the CR stops being last, the record demotes to naming "pin<CR>", and
+# the correct record is appended below it. Measured after: the lookup answers
+# the pin's own address.
+#
+# WHY THE OBVIOUS REPAIR IS REFUSED. Two present themselves, and both were
+# measured rather than argued. Stripping a trailing CR per field inside
+# `hosts_line_claims_name`, and adding \r to HOSTS_ITEM_SEPARATOR_CHARACTERS,
+# each make this script claim a THIRD PARTY's CRLF record: "10.0.0.5 nas.home
+# pin<CR>" belongs to nas.home, the resolver answers 10.0.0.5 for that name and
+# answers nothing for the pin's names from that line, and under either repair
+# the rebuild drops it, so root deletes an unrelated record from /etc/hosts.
+# That is the same trade refused for comment-borne names below, and refused for
+# the same reason: a divergence-free filter is worth more than the removal of a
+# line that answers nothing. The separator-set version is worse still, because
+# both predicates read that set: "127.0.0.1<CR><TAB>localhost" would read as a
+# valid loopback record here while `inet_pton` refuses that first token in the
+# resolver, so THE LOOPBACK GATE would vouch for a file the machine has no
+# localhost in. Measured: with \r in the set, a run over such a file rewrites it
+# and exits 0 where it refuses today. Both directions are pinned, in
+# test/unit/tailnet-pin-hosts-predicates.sh (p1-carriage-return-in-address,
+# p2-crlf-third-party-short-name, p2-crlf-stale-pin-fqdn) and in LAYER 2j3 of
+# test/integration/tailnet-pins.sh.
 #
 # KNOWN LIMITATION, A NAME INSIDE COMMENT TEXT. This one is a real divergence,
 # measured. Because every predicate reads `hosts_line_record_text`, a line like
