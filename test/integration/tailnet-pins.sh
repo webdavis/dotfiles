@@ -49,8 +49,8 @@
 # set-but-empty seam never falls back to the real /etc/hosts, the installed file
 # keeps the target's mode, a
 # symlinked target keeps its indirection and its referent's metadata, a missing
-# trailing newline never produces a joined line, and a field that is not one
-# hosts column is refused at the entry point too.
+# trailing newline never produces a joined line and never reads as CONVERGED,
+# and a field that is not one hosts column is refused at the entry point too.
 #
 # TWO INTERPRETERS. sudo on this machine has no secure_path, so the `bash` that
 # runs the deployed helper as root is whichever the invoking PATH resolves:
@@ -506,6 +506,13 @@ run_pin_under() { # <interpreter> <hosts-file> <fqdn> <ip> <short>
 # SUCCEED with useless output, so the GNU form must be the one tried first.
 file_mode() { # <file>
   stat -L -c '%a' "$1" 2>/dev/null || stat -L -f '%Lp' "$1"
+}
+
+# The inode is how "was this file replaced?" is asked without reading it: an
+# install that happened to produce identical bytes still renamed a new file into
+# place, so bytes alone cannot tell a converged run from a rebuilt one.
+file_inode() { # <file>
+  stat -L -c '%i' "$1" 2>/dev/null || stat -L -f '%i' "$1"
 }
 
 # ---------- LAYER 2a: idempotence -------------------------------------------
@@ -968,6 +975,96 @@ printf '127.0.0.1\tlocalhost\n10.0.0.9\tkeeper.example.test\n%s\n' "$want1" >"$n
 cmp -s "$nonl" "$nonl_expected" ||
   fail "a hosts file without a trailing newline was corrupted by the rebuild; got: $(diff "$nonl_expected" "$nonl" | head -5)"
 
+# ---------- LAYER 2j2: an unterminated final line is NOT convergence ---------
+# THE LIVE DEFECT THIS LAYER EXISTS FOR. A hosts file whose final line is the
+# pin's exact record with no trailing newline satisfied both convergence
+# conditions, so the run printed "already converged", exited 0 and changed
+# nothing. Apple's `_fsi_get_line` runs
+# `if (s[0] != '#') s[strlen(s) - 1] = '\0';` over whatever fgets returned, so
+# it eats a REAL character when there is no newline to eat: the resolver read
+# that record as naming "pi", and the pin's short name did not answer. The
+# rebuild is the only thing that writes a terminator and the converged path
+# never reaches the rebuild, so the repair the reconciler's header promises was
+# unreachable exactly where it was promised.
+#
+# Each fixture below is asserted on its MESSAGE as well as its bytes. Without
+# that, "converged" and "written" are indistinguishable whenever the resulting
+# file is the same, which is precisely this case.
+run_pin_capture() { # <hosts-file> <label>: output lands in $work/<label>.out
+  local hosts_file="$1" label="$2"
+  TAILNET_PIN_HOSTS_FILE="$hosts_file" "$RECONCILER" \
+    pin.example.test 192.0.2.7 pin >"$work/$label.out" 2>&1 ||
+    fail "$label: the reconciler failed (rc=$?) against $hosts_file: $(cat "$work/$label.out")"
+}
+
+unterminated_dir="$work/unterminated"
+mkdir -p "$unterminated_dir"
+unterminated="$unterminated_dir/hosts"
+printf '127.0.0.1\tlocalhost\n%s' "$want1" >"$unterminated"
+run_pin_capture "$unterminated" unterminated
+grep -qF 'written to' "$work/unterminated.out" ||
+  fail "a hosts file whose UNTERMINATED final line is the pin record was reported converged instead of repaired; the resolver reads that record as naming 'pi': $(cat "$work/unterminated.out")"
+unterminated_expected="$work/unterminated-expected"
+printf '127.0.0.1\tlocalhost\n%s\n' "$want1" >"$unterminated_expected"
+cmp -s "$unterminated" "$unterminated_expected" ||
+  fail "the repaired file is not the pin record plus a terminator; got: $(diff "$unterminated_expected" "$unterminated" | head -5)"
+[[ $(find "$unterminated_dir" -maxdepth 1 -type f -name 'hosts.*' | wc -l) -eq 0 ]] ||
+  fail "repairing an unterminated final line left temp droppings: $(ls "$unterminated_dir")"
+
+# IDEMPOTENCE, the other half. One rebuild repairs it; the next run must report
+# converged and rewrite nothing, or every apply would rewrite /etc/hosts forever.
+cp "$unterminated" "$work/unterminated.after1"
+run_pin_capture "$unterminated" unterminated-again
+grep -qF 'already converged' "$work/unterminated-again.out" ||
+  fail "the run after the terminator repair did not report the file converged: $(cat "$work/unterminated-again.out")"
+cmp -s "$unterminated" "$work/unterminated.after1" ||
+  fail "the run after the terminator repair rewrote the file again; the repair does not converge"
+
+# The false-positive direction, and the assertion that keeps the fix from being
+# "always rebuild": a file that is genuinely converged AND properly terminated
+# must report converged and be left alone, byte for byte and inode for inode.
+# The inode is what proves no rebuild ran at all, since an install that produced
+# identical bytes would still have renamed a new file into place.
+terminated_converged="$work/terminated-converged-hosts"
+printf '127.0.0.1\tlocalhost\n%s\n' "$want1" >"$terminated_converged"
+cp "$terminated_converged" "$work/terminated-converged.before"
+converged_inode_before="$(file_inode "$terminated_converged")"
+run_pin_capture "$terminated_converged" terminated-converged
+grep -qF 'already converged' "$work/terminated-converged.out" ||
+  fail "a converged, properly terminated hosts file was rebuilt instead of reported converged: $(cat "$work/terminated-converged.out")"
+cmp -s "$terminated_converged" "$work/terminated-converged.before" ||
+  fail "a converged, properly terminated hosts file was modified"
+[[ $(file_inode "$terminated_converged") == "$converged_inode_before" ]] ||
+  fail "a converged, properly terminated hosts file was reinstalled (its inode changed), so every apply would rewrite /etc/hosts"
+
+# An unterminated final line that is NOT the pin's is repaired too, and this is
+# the case that makes the whole-file rule worth having rather than a narrower
+# "the pin's own record must be terminated". Measured with Libinfo's parser: a
+# file ending "127.0.0.1<tab>localhost" with no newline resolves as naming
+# "localhos", so the machine has no localhost at all while the pin itself is
+# perfect. Reporting that file converged is the same fail-quiet one door over.
+unterminated_loopback="$work/unterminated-loopback-hosts"
+printf '%s\n127.0.0.1\tlocalhost' "$want1" >"$unterminated_loopback"
+run_pin_capture "$unterminated_loopback" unterminated-loopback
+grep -qF 'written to' "$work/unterminated-loopback.out" ||
+  fail "a hosts file whose UNTERMINATED final line is the LOOPBACK record was reported converged; the resolver reads it as naming 'localhos': $(cat "$work/unterminated-loopback.out")"
+unterminated_loopback_expected="$work/unterminated-loopback-expected"
+printf '127.0.0.1\tlocalhost\n%s\n' "$want1" >"$unterminated_loopback_expected"
+cmp -s "$unterminated_loopback" "$unterminated_loopback_expected" ||
+  fail "the unterminated loopback record was not repaired; got: $(diff "$unterminated_loopback_expected" "$unterminated_loopback" | head -5)"
+
+# An unterminated final line still COUNTS as a claiming line. Drop it from the
+# survey instead and this file reads as one exact claiming line in a terminated
+# file, so it reports converged with the stale duplicate still in it.
+unterminated_duplicate="$work/unterminated-duplicate-hosts"
+printf '127.0.0.1\tlocalhost\n%s\n10.0.0.9\tpin.example.test' "$want1" \
+  >"$unterminated_duplicate"
+run_pin_capture "$unterminated_duplicate" unterminated-duplicate
+unterminated_duplicate_expected="$work/unterminated-duplicate-expected"
+printf '127.0.0.1\tlocalhost\n%s\n' "$want1" >"$unterminated_duplicate_expected"
+cmp -s "$unterminated_duplicate" "$unterminated_duplicate_expected" ||
+  fail "an unterminated final line claiming the pin survived the rebuild; got: $(diff "$unterminated_duplicate_expected" "$unterminated_duplicate" | head -5)"
+
 # ---------- LAYER 2k: a leading-dash field stays DATA in every parser --------
 # Shell-inert is not enough: a field that reached grep unbound became an OPTION
 # (-eunrelated.ts.net turned into `-e unrelated.ts.net` and deleted the REAL
@@ -1074,4 +1171,4 @@ while IFS=$'\t' read -r fqdn ip short; do
     fail "pin short name '$short' is not the first label of '$fqdn'"
 done < <(yq eval '.macos.tailnet_pins[] | [.fqdn, .ip, .short] | @tsv' "$YAML")
 
-echo "tailnet-pins: OK (exact render per pin against the deployed reconciler, gated on its sha256; malformed, non-string and name-colliding pins refuse to render; the real reconciler converges, refuses loudly, refuses an unreadable source and a self-satisfied loopback gate, accepts an indented loopback record while still refusing an indented decoy, leaves no temp after any trappable signal under ${#INTERPRETERS[@]} interpreter(s), survives symlinks; hostile fields stay inert; $pin_count real pin(s) well-formed)"
+echo "tailnet-pins: OK (exact render per pin against the deployed reconciler, gated on its sha256; malformed, non-string and name-colliding pins refuse to render; the real reconciler converges, repairs an unterminated final line rather than reporting it converged, refuses loudly, refuses an unreadable source and a self-satisfied loopback gate, accepts an indented loopback record while still refusing an indented decoy, leaves no temp after any trappable signal under ${#INTERPRETERS[@]} interpreter(s), survives symlinks; hostile fields stay inert; $pin_count real pin(s) well-formed)"

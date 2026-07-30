@@ -36,7 +36,15 @@
 #   P4 column shape      - what may be one hosts column, and what may not.
 #   P5 record rendering  - the canonical tab-separated line, with pin data kept
 #                          out of the printf format.
-#   P6 convergence       - exactly one claiming line AND that line exact.
+#   P6 convergence       - exactly one claiming line, that line exact, AND the
+#                          file ending with a line terminator. The third
+#                          condition is not cosmetic: Apple's `_fsi_get_line`
+#                          chops the last character of every non-comment line it
+#                          reads, so an unterminated final "...\tpin" record
+#                          resolves as naming "pi". Only the rebuild writes a
+#                          terminator, and the converged path skips the rebuild,
+#                          so without this a file the resolver mis-reads was
+#                          reported converged and left alone.
 #   P7 symlink chains    - absolute and relative hops, and a bounded refusal.
 #   P8 metadata readers  - mode and owner describe the file a path NAMES, not a
 #                          symlink standing in front of it.
@@ -61,6 +69,10 @@
 #                          it, and a name written after a # is cut away, which
 #                          is what the ownership filter's known limitation is
 #                          made of.
+#   P14 survey facts     - the three facts the survey reports, each pinned on
+#                          its own, including whether the file ends with a line
+#                          terminator. A whole-tuple assertion over one fixture
+#                          would let two of the three drift.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -284,12 +296,24 @@ assert_equal "192.0.2.9%s${tab}a.example.test${tab}s" \
   "$(pin_record_line "192.0.2.9%s" "a.example.test" "s")" p5-percent-in-data
 
 # ---------- P6: converged? ---------------------------------------------------
-assert_predicate expect-true p6-one-exact pin_is_converged 1 1
+# Arguments: <claiming-line-count> <desired-record-present> <ends-with-terminator>
+assert_predicate expect-true p6-one-exact pin_is_converged 1 1 1
 # "At least one correct line exists" is the wrong property: it reads a correct
 # line plus a stale duplicate as converged and leaves two lines naming the pin.
-assert_predicate expect-false p6-two-lines-one-exact pin_is_converged 2 1
-assert_predicate expect-false p6-one-line-not-exact pin_is_converged 1 0
-assert_predicate expect-false p6-absent pin_is_converged 0 0
+assert_predicate expect-false p6-two-lines-one-exact pin_is_converged 2 1 1
+assert_predicate expect-false p6-one-line-not-exact pin_is_converged 1 0 1
+assert_predicate expect-false p6-absent pin_is_converged 0 0 1
+# THE THIRD CONDITION, and the live defect it closes. A file whose correct pin
+# record is its UNTERMINATED final line satisfied both of the other two, so the
+# run reported "already converged" and changed nothing, while the resolver read
+# that record as naming "pi": `_fsi_get_line` does
+# `if (s[0] != '#') s[strlen(s) - 1] = '\0';` on whatever fgets returned, which
+# eats a real character when there is no newline to eat. The rebuild is the only
+# thing that writes a terminator and the converged path never reaches it, so
+# without this the repair the reconciler's header promises was unreachable
+# exactly where it was promised.
+assert_predicate expect-false p6-exact-but-unterminated pin_is_converged 1 1 0
+assert_predicate expect-false p6-unterminated-and-duplicated pin_is_converged 2 1 0
 
 # ---------- P7: symlink chains -----------------------------------------------
 work="$(mktemp -d)"
@@ -389,7 +413,7 @@ else
   # The same walkers must still SUCCEED once the source is readable, or P10
   # would pass on a helper that fails unconditionally.
   chmod 644 "$unreadable"
-  assert_equal "1 0" \
+  assert_equal "1 0 1" \
     "$(survey_hosts_file "$unreadable" pin.example.test pin "x")" p10-control-survey
   assert_predicate expect-true p10-control-loopback \
     hosts_file_has_valid_loopback_record "$unreadable"
@@ -399,6 +423,62 @@ else
   assert_equal "127.0.0.1${tab}localhost
 10.0.0.5${tab}nas.home" "$(cat "$filtered")" p10-control-filter-content
 fi
+
+# ---------- P14: the three facts the survey reports ---------------------------
+# "<claiming-line-count> <desired-record-present> <file-ends-with-terminator>".
+# The fixtures below differ from the first one in ONE fact each, so a change to
+# any single field shows up as a named failure rather than being absorbed by the
+# other two.
+survey_of() { # <fixture-file>
+  survey_hosts_file "$1" pin.example.test pin \
+    "$(pin_record_line 192.0.2.7 pin.example.test pin)"
+}
+
+printf '127.0.0.1\t%s\n192.0.2.7\tpin.example.test\tpin\n' localhost >"$work/sv-converged"
+assert_equal "1 1 1" "$(survey_of "$work/sv-converged")" p14-converged
+
+# THE LIVE DEFECT, at the level the reconciler decides on. Identical bytes to the
+# fixture above minus the final newline: two of the three facts are unchanged, so
+# the terminator is the only thing that can tell "the resolver reads this record
+# as naming pin" apart from "the resolver reads it as naming pi".
+printf '127.0.0.1\t%s\n192.0.2.7\tpin.example.test\tpin' localhost >"$work/sv-unterminated"
+assert_equal "1 1 0" "$(survey_of "$work/sv-unterminated")" p14-unterminated-pin-record
+
+# The unterminated final line is counted and compared like any other, not
+# dropped. Drop it instead and this stale duplicate reads as one exact claiming
+# line, so the file reports converged with the duplicate still in it.
+printf '127.0.0.1\tlocalhost\n192.0.2.7\tpin.example.test\tpin\n10.0.0.9\tpin.example.test' \
+  >"$work/sv-unterminated-duplicate"
+assert_equal "2 1 0" "$(survey_of "$work/sv-unterminated-duplicate")" p14-unterminated-duplicate
+
+# An unterminated final COMMENT is harmless to the resolver (the chop skips a
+# line whose first character is '#') but still leaves the file unterminated, and
+# "ends with a terminator" is the property the rebuild can actually guarantee.
+printf '127.0.0.1\tlocalhost\n192.0.2.7\tpin.example.test\tpin\n# note' \
+  >"$work/sv-unterminated-comment"
+assert_equal "1 1 0" "$(survey_of "$work/sv-unterminated-comment")" p14-unterminated-comment
+
+# Whitespace with no newline is still an unterminated final line.
+printf '127.0.0.1\tlocalhost\n192.0.2.7\tpin.example.test\tpin\n  ' \
+  >"$work/sv-unterminated-blanks"
+assert_equal "1 1 0" "$(survey_of "$work/sv-unterminated-blanks")" p14-unterminated-blanks
+
+# A trailing EMPTY line is terminated: the file's last byte is the newline.
+printf '127.0.0.1\tlocalhost\n192.0.2.7\tpin.example.test\tpin\n\n' \
+  >"$work/sv-trailing-blank-line"
+assert_equal "1 1 1" "$(survey_of "$work/sv-trailing-blank-line")" p14-trailing-blank-line
+
+# An EMPTY file has no final line to be missing a terminator, so it answers YES.
+# Answering NO would route every run of one through a rebuild, which the
+# loopback gate refuses anyway, turning a clear "lost its loopback entry" into a
+# rebuild that never converges.
+: >"$work/sv-empty"
+assert_equal "0 0 1" "$(survey_of "$work/sv-empty")" p14-empty-file
+
+# A file that is one unterminated line, and not the pin's: every field differs
+# from the converged fixture.
+printf '127.0.0.1\tlocalhost' >"$work/sv-only-unterminated"
+assert_equal "0 0 0" "$(survey_of "$work/sv-only-unterminated")" p14-single-unterminated-line
 
 # ---------- P12: sourcing changes nothing about the caller's shell ------------
 # `set -euo pipefail` at file scope turned errexit, nounset and pipefail on in
@@ -435,4 +515,4 @@ if ((failures > 0)); then
   printf 'tailnet-pin-hosts-predicates: %d assertion(s) failed\n' "$failures" >&2
   exit 1
 fi
-echo "tailnet-pin-hosts-predicates: OK (loopback validity including indented records, record text, name claims, pin ownership, column shape, record rendering, convergence, symlink chains, referent metadata, seam states, unreadable sources, source-time shell-option isolation, message paths)"
+echo "tailnet-pin-hosts-predicates: OK (loopback validity including indented records, record text, name claims, pin ownership, column shape, record rendering, convergence including the line terminator, survey facts, symlink chains, referent metadata, seam states, unreadable sources, source-time shell-option isolation, message paths)"

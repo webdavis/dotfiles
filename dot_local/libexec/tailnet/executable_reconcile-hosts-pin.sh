@@ -27,19 +27,25 @@
 #
 #   sudo "$tailnet_pin_helper" '<fqdn>' '<ip>' '<short>'
 #
-# CONVERGENCE is "exactly one line names this pin, and that line is exactly
-# ip<TAB>fqdn<TAB>short". Testing only that a correct line EXISTS let a correct
-# line plus a stale duplicate read as converged, leaving two lines naming the
-# pin. When not converged the file is rebuilt: every line whose NAME FIELDS
-# claim the fqdn OR the short name is dropped, every other line (comments and
-# blanks included) is copied through with its bytes unchanged, and the one
-# correct record is appended. The single difference the rebuild can make to a
-# kept line is that a final line with NO terminator gains one. That
-# normalization is required, or the appended record would join onto it, and it
-# also REPAIRS such a line: `_fsi_get_line` chops the last character of every
-# line it reads, which is the newline on all but an unterminated final one, so
-# the resolver reads a trailing "192.0.2.7<tab>pin.example.test<tab>pin" with no
-# newline as naming "pi" (measured, see READING A HOSTS LINE for the method).
+# CONVERGENCE is "exactly one line names this pin, that line is exactly
+# ip<TAB>fqdn<TAB>short, and the file ENDS WITH A LINE TERMINATOR". Testing only
+# that a correct line EXISTS let a correct line plus a stale duplicate read as
+# converged, leaving two lines naming the pin. The terminator is the third
+# condition because the rebuild is the only thing that writes one and the
+# converged path never reaches the rebuild: a file whose UNTERMINATED final line
+# was the pin's own record read as converged, so the run exited 0 and changed
+# nothing, while the resolver read that record as naming "pi" (fact 4 below).
+# Reporting success on a file the resolver reads differently from its bytes is
+# the same fail-quiet this script exists to close, one door over, so a file is
+# not converged until the terminator is there. When not converged the file is
+# rebuilt: every line whose NAME FIELDS claim the fqdn OR the short name is
+# dropped, every other line (comments and blanks included) is copied through
+# with its bytes unchanged, and the one correct record is appended. The single
+# difference the rebuild can make to a kept line is that a final line with NO
+# terminator gains one; that normalization is required, or the appended record
+# would join onto it, and it is what REPAIRS the line the resolver was
+# mis-reading. An installed file therefore always ends terminated, so the
+# repair costs at most one rebuild and the next run converges.
 #
 # Field equality, never grep word boundaries: to grep, `.` and `-` end a word,
 # so a -w filter also deleted pin.example.test.evil and other-pin.example.test,
@@ -101,6 +107,21 @@
 #      is refused loudly instead of vouched for. For the OWNERSHIP FILTER it is
 #      the unsafe direction, recorded below as a known limitation rather than
 #      pretended away.
+#
+#   4. THE LAST CHARACTER OF AN UNTERMINATED FINAL LINE IS EATEN, and this is
+#      the fact CONVERGENCE above turns on. `_fsi_get_line` runs
+#      `if (s[0] != '#') s[strlen(s) - 1] = '\0';` over whatever `fgets`
+#      returned, unconditionally: on every terminated line that removes the
+#      newline, and on an unterminated final line it removes a REAL character.
+#      Measured: a file ending "192.0.2.7<tab>pin.example.test<tab>pin" with no
+#      newline reads as naming "pi", so the pin's short name does not answer,
+#      and a file ending "127.0.0.1<tab>localhost" reads as naming "localhos",
+#      so the machine has no localhost at all. A line whose first character is
+#      '#' is exempt from the chop and is skipped anyway, so an unterminated
+#      final COMMENT is read whole and harms nothing; convergence still requires
+#      the terminator there, because "the file ends terminated" is one property
+#      a rebuild can guarantee and "the file ends terminated unless the last
+#      line happens to be a comment" is not.
 #
 # INSTALL is atomic: chmod/chown the temp file to the target's own mode and
 # owner, then rename it INTO the target path. mktemp creates the temp beside the
@@ -397,10 +418,18 @@ pin_record_line() { # <ip> <fqdn> <short>
 }
 
 # Is the file converged, given what the survey found?
-pin_is_converged() { # <claiming-line-count> <desired-record-present>
+#
+# The terminator is a convergence condition, not a cosmetic one, and it is the
+# one only the rebuild can satisfy. A file the resolver reads differently from
+# its bytes (READING A HOSTS LINE, fact 4) is not a file this script may report
+# success over, and the converged path is the only path that reports success
+# without rebuilding.
+pin_is_converged() { # <claiming-line-count> <desired-record-present> <file-ends-with-terminator>
   local claiming_line_count=$1 desired_record_present=$2
+  local file_ends_with_terminator=$3
   [[ $claiming_line_count -eq $CONVERGED_CLAIMING_LINE_COUNT ]] &&
-    [[ $desired_record_present -eq $BOOLEAN_TRUE ]]
+    [[ $desired_record_present -eq $BOOLEAN_TRUE ]] &&
+    [[ $file_ends_with_terminator -eq $BOOLEAN_TRUE ]]
 }
 
 # ---------------------------------------------------------------------------
@@ -466,19 +495,31 @@ read_file_owner() { # <path>
   stat -L -c '%u:%g' "$1" 2>/dev/null || stat -L -f '%u:%g' "$1"
 }
 
-# DETECTION. Reports "<claiming-line-count> <desired-record-present>" and
-# changes nothing. Returns NONZERO and reports nothing when the source cannot be
-# opened: a source that cannot be read is not an empty source, and treating it
-# as one collapsed the rebuild to the pin record alone.
+# DETECTION. Reports
+# "<claiming-line-count> <desired-record-present> <file-ends-with-terminator>"
+# and changes nothing. Returns NONZERO and reports nothing when the source
+# cannot be opened: a source that cannot be read is not an empty source, and
+# treating it as one collapsed the rebuild to the pin record alone.
+#
+# An EMPTY file ends with a terminator by this accounting: it has no final line
+# to be missing one, and answering NO there would send every run of an empty
+# hosts file through a rebuild the loopback gate refuses anyway.
 survey_hosts_file() { # <path> <fqdn> <short> <desired-record>
   local path=$1 fqdn=$2 short=$3 desired_record=$4
-  local claiming_line_count=0 desired_record_present=$BOOLEAN_FALSE line
+  local claiming_line_count=0 desired_record_present=$BOOLEAN_FALSE
+  local file_ends_with_terminator=$BOOLEAN_TRUE line
   # The `|| return 1` on the group is what refuses an unopenable source. The
   # trailing `:` pins the group's status to the REDIRECT rather than to whatever
   # the loop body last returned; see FAILURE IS CHECKED in the header for why it
   # is here even though nothing today can tell it apart.
+  #
+  # The `|| [[ -n $line ]]` half of the condition is what feeds an UNTERMINATED
+  # final line to the body at all, and it is the ONLY place that fact can be
+  # observed: one more `read` runs before the loop exits and clears `line`, so a
+  # check after `done` always sees an empty one. Hence the assignment here.
   {
-    while IFS= read -r line || [[ -n $line ]]; do
+    while IFS= read -r line ||
+      { [[ -n $line ]] && file_ends_with_terminator=$BOOLEAN_FALSE; }; do
       if hosts_line_is_claimed_by_pin "$line" "$fqdn" "$short"; then
         claiming_line_count=$((claiming_line_count + 1))
         if [[ $line == "$desired_record" ]]; then
@@ -488,7 +529,8 @@ survey_hosts_file() { # <path> <fqdn> <short> <desired-record>
     done
     :
   } <"$path" || return 1
-  printf '%s %s\n' "$claiming_line_count" "$desired_record_present"
+  printf '%s %s %s\n' \
+    "$claiming_line_count" "$desired_record_present" "$file_ends_with_terminator"
 }
 
 # VALIDATION. Does this file carry a record a machine can resolve localhost
@@ -656,13 +698,16 @@ main() {
   desired_record=$(pin_record_line "$ip" "$fqdn" "$short")
 
   local survey claiming_line_count desired_record_present
+  local file_ends_with_terminator
   if ! survey=$(survey_hosts_file \
     "$resolved_hosts_file" "$fqdn" "$short" "$desired_record"); then
     refuse "refusing to edit $hosts_file_label for $fqdn: it could not be read, and an unreadable hosts file is not an empty one"
   fi
-  read -r claiming_line_count desired_record_present <<<"$survey"
+  read -r claiming_line_count desired_record_present file_ends_with_terminator \
+    <<<"$survey"
 
-  if pin_is_converged "$claiming_line_count" "$desired_record_present"; then
+  if pin_is_converged "$claiming_line_count" "$desired_record_present" \
+    "$file_ends_with_terminator"; then
     report "MagicDNS fallback pin $fqdn already converged in $hosts_file_label"
     exit "$EXIT_STATUS_OK"
   fi
