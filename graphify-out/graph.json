@@ -4236,6 +4236,34 @@
       "norm_label": "hue-pulse-lock.sh script"
     },
     {
+      "label": "j-completion.sh",
+      "file_type": "code",
+      "source_file": "test/e2e/j-completion.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "test_e2e_j_completion",
+      "community": 110,
+      "norm_label": "j-completion.sh"
+    },
+    {
+      "label": "j-completion.sh script",
+      "file_type": "code",
+      "source_file": "test/e2e/j-completion.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "test_e2e_j_completion_sh__entry",
+      "community": 110,
+      "norm_label": "j-completion.sh script"
+    },
+    {
       "label": "osquery-agent-binary-signal.sh",
       "file_type": "code",
       "source_file": "test/e2e/osquery-agent-binary-signal.sh",
@@ -37015,6 +37043,16 @@
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
+      "source_file": "test/e2e/j-completion.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "test_e2e_j_completion",
+      "target": "test_e2e_j_completion_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
       "source_file": "test/e2e/osquery-agent-binary-signal.sh",
       "source_location": "L1",
       "weight": 1.0,
@@ -62577,5 +62615,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "f479d153460f995495670b4a6dd69be38ead3707"
+  "built_at_commit": "543e057c23f1cfe69d393603566a9597d80b8640"
 }
