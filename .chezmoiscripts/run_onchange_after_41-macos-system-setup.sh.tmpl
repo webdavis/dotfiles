@@ -176,8 +176,9 @@ echo {{ template "shellSingleQuoted" (printf "→ MANUAL %s: see the runbook sec
      single-line `sudo sh -c` body with one-letter variable names, and a
      fail-open loopback gate survived three review passes inside it: the gate
      grepped ^127\.0\.0\.1[[:space:]], which a COMMENT-ONLY line satisfies
-     while mapping nothing, so a rebuild that filtered away the real localhost
-     record installed a hosts file with no working loopback and exited 0.
+     while naming nothing a machine could resolve localhost through, so a
+     rebuild that filtered away the real localhost record installed a hosts
+     file where nothing named localhost and exited 0.
      Patching that regex in place would have left the next one just as
      invisible. The logic now lives in a deployed script with named constants
      and pure, individually testable predicates:

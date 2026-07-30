@@ -621,17 +621,29 @@ cmp -s "$decoy" "$work/decoy.before" ||
   fail "a rebuild whose only 127.0.0.1 match is the decoy 127.0.0.100 was installed instead of refused: $(cat "$decoy")"
 
 # THE DEFECT THIS FILE WAS REOPENED FOR. `127.0.0.1  # comment-only decoy`
-# satisfies ^127\.0\.0\.1[[:space:]] and maps NOTHING: hosts(5) says characters
-# from # to end of line are not interpreted, and a record needs an official host
-# name after the address. With the real loopback line carrying the pin's owned
-# short name (so the rebuild drops it), the old gate installed a hosts file with
-# ZERO valid loopback records, exit 0, no stderr. The machine loses localhost.
+# satisfies ^127\.0\.0\.1[[:space:]] while naming nothing a machine could
+# resolve localhost through. With the real loopback line carrying the pin's
+# owned short name (so the rebuild drops it), the old gate installed a hosts
+# file with ZERO records naming localhost, exit 0, no stderr.
+#
+# WHY IT IS REFUSED, corrected. The reconciler used to say such a line "maps
+# nothing", citing hosts(5). The resolver disagrees, measured against Libinfo's
+# own parser: only a line whose FIRST character is '#' is skipped, so this one
+# parses as a valid record mapping 127.0.0.1 to the official name "#" with the
+# alias "decoy". It is refused because it does not map localhost, not because it
+# maps nothing, and the reconciler's message now says so.
 comment_decoy="$work/comment-decoy-hosts"
 printf '127.0.0.1\tlocalhost\tpin\n127.0.0.1\t# comment-only decoy\n' >"$comment_decoy"
 cp "$comment_decoy" "$work/comment-decoy.before"
 run_expect_refusal "$comment_decoy" "lost its loopback entry" comment-decoy
 cmp -s "$comment_decoy" "$work/comment-decoy.before" ||
   fail "a rebuild whose only 127.0.0.1 line is COMMENT-ONLY was installed instead of refused; the machine would have no localhost: $(cat "$comment_decoy")"
+
+# And the refusal must give the REAL reason. Pinned because nothing else can
+# catch a regression to the false one: the outcome is byte-identical either way,
+# so only the sentence the operator reads changes, and a wrong explanation sends
+# whoever hits this looking for a record that is right there in the file.
+run_expect_refusal "$comment_decoy" "name written before a #" comment-decoy-reason
 
 # The same hole with no comment at all: a bare address is not a mapping either.
 address_only="$work/address-only-hosts"

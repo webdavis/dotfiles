@@ -15,12 +15,13 @@
 # reviewers independently called it the hardest artifact in the repo to
 # re-review, and a fail-open loopback gate lived inside it through three review
 # passes: the gate asked `grep -qE "^127\.0\.0\.1[[:space:]]"`, which a
-# COMMENT-ONLY line ("127.0.0.1  # decoy") satisfies while mapping nothing. With
-# the real "127.0.0.1 localhost pin" line filtered away for carrying the pin's
-# owned short name, the rebuild installed a hosts file with ZERO working
-# loopback records and exited 0. The question "is this line a valid loopback
-# record?" only existed as a grep inside a pipeline, so nothing could test it.
-# Here it is `hosts_line_is_valid_loopback_record`, one input and one answer.
+# COMMENT-ONLY line ("127.0.0.1  # decoy") satisfies while leaving the machine
+# no name to resolve localhost through. With the real "127.0.0.1 localhost pin"
+# line filtered away for carrying the pin's owned short name, the rebuild
+# installed a hosts file where nothing named localhost, and exited 0. The
+# question "is this line a valid loopback record?" only existed as a grep inside
+# a pipeline, so nothing could test it. Here it is
+# `hosts_line_is_valid_loopback_record`, one input and one answer.
 #
 # The runner template now renders one short, reviewable line per pin:
 #
@@ -33,8 +34,12 @@
 # claim the fqdn OR the short name is dropped, every other line (comments and
 # blanks included) is copied through with its bytes unchanged, and the one
 # correct record is appended. The single difference the rebuild can make to a
-# kept line is that a final line with NO terminator gains one; that
-# normalization is required, or the appended record would join onto it.
+# kept line is that a final line with NO terminator gains one. That
+# normalization is required, or the appended record would join onto it, and it
+# also REPAIRS such a line: `_fsi_get_line` chops the last character of every
+# line it reads, which is the newline on all but an unterminated final one, so
+# the resolver reads a trailing "192.0.2.7<tab>pin.example.test<tab>pin" with no
+# newline as naming "pi" (measured, see READING A HOSTS LINE for the method).
 #
 # Field equality, never grep word boundaries: to grep, `.` and `-` end a word,
 # so a -w filter also deleted pin.example.test.evil and other-pin.example.test,
@@ -53,18 +58,20 @@
 # exactly that file. Note what "valid" means and what it does not. lo0 reports
 # netmask 0xff000000, so ALL of 127.0.0.0/8 is loopback and 127.0.0.100 is a
 # loopback address; the gate wants the exact 127.0.0.1 that localhost must map
-# to. It requires that address to map to at least one NAME, and does not require
-# the name to be `localhost`: this script has no way to know which name a given
-# machine resolves localhost through, and refusing to vouch for a file it cannot
-# read the intent of would be a guess in the unsafe direction. A missing hosts
+# to. It requires that address to map to at least one name written BEFORE any
+# comment, and does not require the name to be `localhost`: this script has no
+# way to know which name a given machine resolves localhost through, and
+# refusing to vouch for a file it cannot read the intent of would be a guess in
+# the unsafe direction. The "before any comment" half is stricter than the
+# resolver itself, deliberately; see READING A HOSTS LINE. A missing hosts
 # file is refused the same way rather than seeded pin-only.
 #
 # READING A HOSTS LINE, measured against the resolver instead of assumed. The
 # source is Apple's own hosts reader, lookup.subproj/file_module.c in
-# apple-oss-distributions/Libinfo, and the fact below was re-verified by
+# apple-oss-distributions/Libinfo, and each fact below was re-verified by
 # compiling its `_fsi_tokenize` verbatim and running fixtures through it rather
-# than by reading it. hosts(5) is silent on the question, so the man page is not
-# the authority.
+# than by reading it. hosts(5) is silent on the first and wrong about the
+# second, so the man page is not the authority here.
 #
 #   1. LEADING BLANKS ARE SKIPPED, so AN INDENTED RECORD WORKS. `_fsi_tokenize`
 #      runs "skip leading white space" over ' ', '\t' and '\n' at the top of its
@@ -75,6 +82,25 @@
 #      require the address to be the FIRST FIELD, which is a different question
 #      from it starting the line: "  10.0.0.1<tab>127.0.0.1" maps the NAME
 #      "127.0.0.1" and is refused.
+#
+#   2. A '#' DOES NOT END A RECORD FOR THE RESOLVER. Only a line whose FIRST
+#      character is '#' is skipped: `_fsi_get_line` strips the trailing newline
+#      and nothing else, and the read loop tests `line[0] == '#'`. Anywhere else
+#      a '#' is an ordinary token character. Measured: "127.0.0.1  # decoy"
+#      parses as a VALID record mapping 127.0.0.1 to the official name "#" with
+#      the alias "decoy", and "127.0.0.1 #localhost" maps it to the single name
+#      "#localhost". Refusing those is still right, because neither gives the
+#      machine `localhost`, but they do not "map nothing" and this file no
+#      longer says they do.
+#
+#   3. THIS SCRIPT CUTS AT THE '#' ANYWAY, and that is a DIVERGENCE from the
+#      resolver rather than compliance with it. `hosts_line_record_text` is the
+#      one place it happens, so both predicates read the same text and a name
+#      that exists only inside comment text is invisible to both. For the GATE
+#      that is the safe direction: a file whose only 127.0.0.1 record names "#"
+#      is refused loudly instead of vouched for. For the OWNERSHIP FILTER it is
+#      the unsafe direction, recorded below as a known limitation rather than
+#      pretended away.
 #
 # INSTALL is atomic: chmod/chown the temp file to the target's own mode and
 # owner, then rename it INTO the target path. mktemp creates the temp beside the
@@ -126,11 +152,26 @@
 # does not treat one as a field boundary. A record written with CRLF line
 # endings therefore claims the name "pin<CR>", not "pin": it is neither dropped
 # as the pin's nor counted toward convergence, so it survives every run while
-# the file still reports as converged. Whether mDNSResponder's own parser stops
-# a host name at CR was not measured, so a CRLF hosts file can carry a stale
-# record this script will not clean up. Convert such a file to LF endings; the
-# reconciler deliberately does not guess which side of that ambiguity to act on,
-# because guessing wrong deletes a record belonging to a DIFFERENT host.
+# the file still reports as converged. That used to rest on an unmeasured guess
+# about the resolver. It no longer does: `_fsi_tokenize` separates on " \t" and
+# skips only ' ', '\t' and '\n', so a CR is an ordinary name character there
+# too, and the resolver reads that record as naming "pin<CR>" exactly as this
+# script does. The two AGREE, which makes leaving such a line alone correct
+# rather than a coin flip: it does not answer for the pin's name on either
+# reading. Convert such a file to LF endings if you want the record gone.
+#
+# KNOWN LIMITATION, A NAME INSIDE COMMENT TEXT. This one is a real divergence,
+# measured. Because every predicate reads `hosts_line_record_text`, a line like
+# "10.0.0.5 nas.home # pin" does not read as claiming the pin's short name here,
+# so the rebuild keeps it. The resolver reads that same line as mapping 10.0.0.5
+# to the aliases "#" and "pin" (fact 2 above), and `_fsi_get_host` returns the
+# FIRST matching record and stops reading the file, so such a line ABOVE the
+# appended pin answers for the pin's name INSTEAD of the pin, while this script
+# reports the file converged. Nothing here cleans that up. Matching the resolver
+# in the filter would mean deleting root-owned records on the strength of
+# comment text, a far larger blast radius than the gate's under-acceptance, so
+# that change is deliberately not made in the same pass that measured it. Move
+# the name out of the comment, or delete the line by hand.
 
 # Shell options belong to the EXECUTED script. Sourcing this file (the unit
 # suite does, to call its predicates one at a time) must define functions and
@@ -164,12 +205,16 @@ readonly HOSTS_FILE_SEAM_EMPTY=empty
 readonly HOSTS_FILE_SEAM_PATH=path
 
 # hosts(5): "A '#' indicates the beginning of a comment; characters up to the
-# end of the line are not interpreted by routines which search the file."
+# end of the line are not interpreted by routines which search the file." The
+# routine that actually searches the file does not honour that (READING A HOSTS
+# LINE, fact 2). This script honours the man page anyway, deliberately, and fact
+# 3 says what that costs and buys.
 readonly HOSTS_COMMENT_CHARACTER='#'
 
-# hosts(5): each record is "Internet address / Official host name / Aliases",
-# so an address with no name after it is not a mapping at all. That is exactly
-# what the old gate accepted.
+# hosts(5) and the resolver agree that a record is "Internet address / Official
+# host name / Aliases", and `_fsi_parse_host` rejects outright below two tokens,
+# so an address with no name after it maps nothing. Counted here over the
+# COMMENT-STRIPPED text, which is the stricter reading.
 readonly HOSTS_RECORD_MINIMUM_FIELD_COUNT=2
 
 # What separates one hosts item from the next, taken from the resolver rather
@@ -262,6 +307,18 @@ hosts_file_description() { # <configured-path> <resolved-path>
 # Each is callable and testable on its own, which the old inline grep was not.
 # ---------------------------------------------------------------------------
 
+# The part of <line> that carries the record: everything before the first
+# comment character. The one place comment text is cut, so both predicates below
+# read the same text and the divergence that cut creates has one home and one
+# set of tests. See READING A HOSTS LINE, fact 3.
+#
+# It writes into the caller's <destination-variable> instead of printing,
+# because printing would fork a subshell per line per predicate on every file
+# walk, and this runs as root over the whole of /etc/hosts.
+hosts_line_record_text() { # <destination-variable> <line>
+  printf -v "$1" '%s' "${2%%"${HOSTS_COMMENT_CHARACTER}"*}"
+}
+
 # Is this line a record mapping exactly <address> to at least one name?
 #
 # Two conditions, and both matter. Once comment text is removed the line must
@@ -276,9 +333,8 @@ hosts_file_description() { # <configured-path> <resolved-path>
 # is measured now (READING A HOSTS LINE, fact 1). The first-FIELD half is
 # what still refuses "10.0.0.1<tab>127.0.0.1", where the address is a NAME.
 hosts_line_is_record_for_address() { # <line> <address>
-  local line=$1 address=$2
-  # The part of the line a resolver actually reads: comment text removed.
-  local record_text=${line%%"${HOSTS_COMMENT_CHARACTER}"*}
+  local line=$1 address=$2 record_text
+  hosts_line_record_text record_text "$line"
   local -a fields=()
   # Split on the separators the resolver uses, so `fields[0]` is the first field
   # here for the same reason it is there, and a leading run of blanks is skipped
@@ -299,9 +355,14 @@ hosts_line_is_valid_loopback_record() { # <line>
 # columns AFTER the address, with comment text stripped. Field equality, so a
 # different host whose name merely contains this one is not a claim. Leading
 # blanks do not hide a claim, for the same reason they do not hide a record.
+#
+# This is the predicate the comment-stripping divergence UNDER-serves: the
+# resolver would read a name written after a '#' as a real alias and this does
+# not, so such a line survives the rebuild. See KNOWN LIMITATION, A NAME INSIDE
+# COMMENT TEXT.
 hosts_line_claims_name() { # <line> <name>
-  local line=$1 name=$2
-  local record_text=${line%%"${HOSTS_COMMENT_CHARACTER}"*}
+  local line=$1 name=$2 record_text
+  hosts_line_record_text record_text "$line"
   local -a fields=()
   local IFS=$HOSTS_ITEM_SEPARATOR_CHARACTERS
   read -r -a fields <<<"$record_text"
@@ -616,7 +677,7 @@ main() {
 
   # THE GATE, on the KEPT lines and before this script's own record joins them.
   if ! hosts_file_has_valid_loopback_record "$temporary_hosts_file"; then
-    refuse "refusing to rewrite $hosts_file_label for $fqdn: the filtered result lost its loopback entry (no line this rebuild KEEPS maps $LOOPBACK_ADDRESS to a name)"
+    refuse "refusing to rewrite $hosts_file_label for $fqdn: the filtered result lost its loopback entry (no line this rebuild KEEPS maps $LOOPBACK_ADDRESS to a name written before a #, so nothing is left for localhost to resolve through)"
   fi
 
   if ! append_hosts_record "$temporary_hosts_file" "$desired_record"; then
