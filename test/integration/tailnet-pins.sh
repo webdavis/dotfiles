@@ -63,6 +63,10 @@ RECONCILER_SOURCE_PATH="dot_local/libexec/tailnet/executable_reconcile-hosts-pin
 RECONCILER="$REPO_ROOT/$RECONCILER_SOURCE_PATH"
 # The target path the rendered runner must name for that source file.
 RECONCILER_TARGET_SUFFIX=".local/libexec/tailnet/reconcile-hosts-pin.sh"
+# Declared here rather than read from the reconciler: this suite must be able to
+# disagree with the implementation, which is the whole reason the old suite's
+# copy-of-the-body approach was thrown away.
+LOOPBACK_ADDRESS_UNDER_TEST="127.0.0.1"
 
 fail() {
   printf 'FAIL: %s\n' "$*" >&2
@@ -82,6 +86,24 @@ done
 
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
+
+# Every bash on this host, because which one runs the helper as root is decided
+# by the invoking PATH (see TWO INTERPRETERS above). The list is built from what
+# actually exists, so a machine with only the system bash still runs the suite;
+# it is never empty, because this script is itself running under a bash.
+INTERPRETERS=()
+for candidate in /bin/bash /opt/homebrew/bin/bash /usr/local/bin/bash; do
+  [[ -x $candidate ]] && INTERPRETERS+=("$candidate")
+done
+if [[ ${#INTERPRETERS[@]} -eq 0 ]]; then
+  INTERPRETERS=("$(command -v bash)")
+fi
+
+interpreter_label() { # <path>
+  # shellcheck disable=SC2016  # $BASH_VERSION must be read by the interpreter
+  # being labelled, not by this shell, so it stays unexpanded here.
+  printf '%s (%s)' "$1" "$("$1" -c 'echo "$BASH_VERSION"')"
+}
 
 # stage_fixture_source <name>: a chezmoi source dir holding the REAL template
 # and the REAL reconciler. The reconciler must be there because the template
@@ -337,6 +359,14 @@ run_with_shims() { # <hosts-file> <shim-dir>: force tool failures
     pin.example.test 192.0.2.7 pin
 }
 
+# The same reconciler under a NAMED interpreter, bypassing its shebang. Used by
+# every case whose outcome the two bash versions disagreed about.
+run_pin_under() { # <interpreter> <hosts-file> <fqdn> <ip> <short>
+  local interpreter="$1" hosts_file="$2"
+  shift 2
+  TAILNET_PIN_HOSTS_FILE="$hosts_file" "$interpreter" "$RECONCILER" "$@"
+}
+
 # GNU stat first, BSD fallback: GNU's -f means "filesystem status" and would
 # SUCCEED with useless output, so the GNU form must be the one tried first.
 file_mode() { # <file>
@@ -533,26 +563,175 @@ cmp -s "$atomic_hosts" "$work/atomic.before" ||
 # returned 143 and preserved the target, but left a mode-0600 hosts.XXXXXXXX
 # beside it forever. The shim fires the signal from inside the install step, so
 # the temp file definitely exists when it arrives.
-signal_dir="$work/signal"
-mkdir -p "$signal_dir"
-signal_hosts="$signal_dir/hosts"
-printf '127.0.0.1\tlocalhost\n198.51.100.1\tpin.example.test\tpin\n' >"$signal_hosts"
-cp "$signal_hosts" "$work/signal.before"
-signal_shimdir="$work/signal-shims"
-mkdir -p "$signal_shimdir"
-# shellcheck disable=SC2016  # $PPID must stay literal: it is the SHIM's own
-# parent (the reconciler), resolved when the shim runs, not this test's parent.
-printf '#!/bin/sh\nkill -TERM "$PPID"\nsleep 1\n' >"$signal_shimdir/chmod"
-chmod +x "$signal_shimdir/chmod"
-signal_status=0
-PATH="$signal_shimdir:$PATH" TAILNET_PIN_HOSTS_FILE="$signal_hosts" \
-  "$RECONCILER" pin.example.test 192.0.2.7 pin >/dev/null 2>&1 || signal_status=$?
-[[ $signal_status -ne 0 ]] ||
-  fail "a SIGTERM mid-install still exited 0"
-cmp -s "$signal_hosts" "$work/signal.before" ||
-  fail "a SIGTERM mid-install altered the target hosts file: $(cat "$signal_hosts")"
-[[ $(find "$signal_dir" -type f | wc -l) -eq 1 ]] ||
-  fail "a SIGTERM mid-install left temp droppings next to the target: $(ls "$signal_dir")"
+#
+# EVERY trappable signal, under EVERY interpreter, because a set that "should"
+# be covered by the EXIT trap is exactly what hid the last two leaks: an EXIT
+# trap alone runs before bash 3.2 dies from SIGQUIT and before bash 5.3 dies
+# from a write-triggered SIGXFSZ in neither case, and each left a mode-0600
+# hosts.XXXXXXXX beside the target while the file's own comment claimed
+# "signals included". This is a completeness guard, not a count: every member of
+# the list must leave no temp, exit nonzero, and preserve the target.
+# SIGKILL and SIGSTOP are absent because no process can trap them; the helper's
+# header says so rather than claiming otherwise.
+signal_case_number=0
+for signal_name in HUP INT QUIT TERM PIPE; do
+  for interpreter in "${INTERPRETERS[@]}"; do
+    signal_case_number=$((signal_case_number + 1))
+    signal_dir="$work/signal-$signal_case_number"
+    mkdir -p "$signal_dir"
+    signal_hosts="$signal_dir/hosts"
+    printf '127.0.0.1\tlocalhost\n198.51.100.1\tpin.example.test\tpin\n' >"$signal_hosts"
+    cp "$signal_hosts" "$signal_dir/before"
+    signal_shimdir="$signal_dir/shims"
+    mkdir -p "$signal_shimdir"
+    # shellcheck disable=SC2016  # $PPID must stay literal: it is the SHIM's own
+    # parent (the reconciler), resolved when the shim runs, not this test's.
+    printf '#!/bin/sh\nkill -%s "$PPID"\nsleep 1\n' "$signal_name" \
+      >"$signal_shimdir/chmod"
+    chmod +x "$signal_shimdir/chmod"
+    signal_status=0
+    PATH="$signal_shimdir:$PATH" TAILNET_PIN_HOSTS_FILE="$signal_hosts" \
+      "$interpreter" "$RECONCILER" pin.example.test 192.0.2.7 pin \
+      >/dev/null 2>&1 || signal_status=$?
+    [[ $signal_status -ne 0 ]] ||
+      fail "a SIG$signal_name mid-install still exited 0 under $(interpreter_label "$interpreter")"
+    cmp -s "$signal_hosts" "$signal_dir/before" ||
+      fail "a SIG$signal_name mid-install altered the target hosts file under $(interpreter_label "$interpreter"): $(cat "$signal_hosts")"
+    [[ $(find "$signal_dir" -maxdepth 1 -type f -name 'hosts.*' | wc -l) -eq 0 ]] ||
+      fail "a SIG$signal_name mid-install left temp droppings next to the target under $(interpreter_label "$interpreter"): $(ls "$signal_dir")"
+  done
+done
+
+# SIGXFSZ is the write-triggered one, so it needs no shim: `ulimit -f 0` stands
+# in for a full filesystem and the kernel raises it from inside the rebuild's
+# own write. Measured leaking 3 runs out of 3 under bash 5.3 with only an EXIT
+# trap installed.
+for interpreter in "${INTERPRETERS[@]}"; do
+  xfsz_dir="$work/xfsz-$(basename "$(dirname "$interpreter")")"
+  mkdir -p "$xfsz_dir"
+  xfsz_hosts="$xfsz_dir/hosts"
+  printf '127.0.0.1\tlocalhost\n198.51.100.1\tpin.example.test\tpin\n' >"$xfsz_hosts"
+  cp "$xfsz_hosts" "$xfsz_dir/before"
+  xfsz_status=0
+  (
+    ulimit -f 0 2>/dev/null || exit 0
+    TAILNET_PIN_HOSTS_FILE="$xfsz_hosts" "$interpreter" "$RECONCILER" \
+      pin.example.test 192.0.2.7 pin >/dev/null 2>&1
+  ) || xfsz_status=$?
+  [[ $xfsz_status -ne 0 ]] ||
+    fail "a write-triggered SIGXFSZ still exited 0 under $(interpreter_label "$interpreter")"
+  cmp -s "$xfsz_hosts" "$xfsz_dir/before" ||
+    fail "a write-triggered SIGXFSZ altered the target hosts file under $(interpreter_label "$interpreter"): $(cat "$xfsz_hosts")"
+  [[ $(find "$xfsz_dir" -maxdepth 1 -type f -name 'hosts.*' | wc -l) -eq 0 ]] ||
+    fail "a write-triggered SIGXFSZ left temp droppings next to the target under $(interpreter_label "$interpreter"): $(ls "$xfsz_dir")"
+done
+
+# ---------- LAYER 2g2: an UNREADABLE source is refused, never read as empty ---
+# The walkers ended in a `printf` after their loop, so a failed `done <"$path"`
+# redirect never became the function's status. Under bash 3.2 a chmod-000 hosts
+# file with four records surveyed as zero claiming lines, the rebuild became the
+# pin record ALONE, and the run printed a success message and exited 0.
+#
+# The second fixture is the COMPOSITION that made it destructive rather than
+# merely wrong, and it is the case that must not regress: with the pin's ip
+# mistyped as 127.0.0.1, the rebuild's own appended record satisfied the
+# loopback gate, so nothing stood between an unreadable /etc/hosts and a
+# one-line replacement of it. Both halves are pinned together, because either
+# fix alone leaves the pair reachable.
+if [[ $(id -u) -eq 0 ]]; then
+  printf 'NOTE: skipping the unreadable-source cases; uid 0 reads a mode-000 fixture regardless\n'
+else
+  unreadable_case_number=0
+  for interpreter in "${INTERPRETERS[@]}"; do
+    for pin_ip in 192.0.2.7 127.0.0.1; do
+      unreadable_case_number=$((unreadable_case_number + 1))
+      unreadable_dir="$work/unreadable-$unreadable_case_number"
+      mkdir -p "$unreadable_dir"
+      unreadable_hosts="$unreadable_dir/hosts"
+      printf '127.0.0.1\tlocalhost\n255.255.255.255\tbroadcasthost\n::1\tlocalhost\n10.0.0.5\tnas.home\n' \
+        >"$unreadable_hosts"
+      cp "$unreadable_hosts" "$unreadable_dir/before"
+      chmod 000 "$unreadable_hosts"
+      unreadable_status=0
+      unreadable_output="$unreadable_dir/out"
+      run_pin_under "$interpreter" "$unreadable_hosts" \
+        pin.example.test "$pin_ip" pin >"$unreadable_output" 2>&1 ||
+        unreadable_status=$?
+      chmod 644 "$unreadable_hosts"
+      [[ $unreadable_status -ne 0 ]] ||
+        fail "an unreadable hosts file was reconciled 'successfully' (ip $pin_ip, $(interpreter_label "$interpreter")): $(cat "$unreadable_output")"
+      grep -qF 'an unreadable hosts file is not an empty one' "$unreadable_output" ||
+        fail "the refusal for an unreadable hosts file did not say why (ip $pin_ip, $(interpreter_label "$interpreter")): $(cat "$unreadable_output")"
+      if grep -qF 'written to' "$unreadable_output"; then
+        fail "an unreadable hosts file produced a SUCCESS message (ip $pin_ip, $(interpreter_label "$interpreter")): $(cat "$unreadable_output")"
+      fi
+      cmp -s "$unreadable_hosts" "$unreadable_dir/before" ||
+        fail "an unreadable hosts file was REWRITTEN (ip $pin_ip, $(interpreter_label "$interpreter")); it now reads: $(cat "$unreadable_hosts")"
+      [[ $(find "$unreadable_dir" -maxdepth 1 -type f -name 'hosts.*' | wc -l) -eq 0 ]] ||
+        fail "the refusal left temp droppings beside the target: $(ls "$unreadable_dir")"
+    done
+  done
+fi
+
+# ---------- LAYER 2g3: the gate may not be satisfied by the pin's own record --
+# The loopback gate ran on the temp file AFTER the desired record was appended,
+# and nothing constrains a pin's ip. One mistyped YAML field (ip: "127.0.0.1")
+# plus a localhost line carrying the pin's owned short name therefore passed the
+# gate on the very line the rebuild had just written: localhost's record was
+# deleted, the file's only 127.0.0.1 record became the pin's, and the run exited
+# 0 with a success message. That is the same catastrophic outcome the gate
+# exists to prevent, reached one door over. The gate now runs on the lines the
+# rebuild KEEPS, before its own record joins them.
+for interpreter in "${INTERPRETERS[@]}"; do
+  self_gate_dir="$work/self-gate-$(basename "$(dirname "$interpreter")")"
+  mkdir -p "$self_gate_dir"
+  self_gate_hosts="$self_gate_dir/hosts"
+  printf '127.0.0.1\tlocalhost\tpin\n' >"$self_gate_hosts"
+  cp "$self_gate_hosts" "$self_gate_dir/before"
+  self_gate_status=0
+  self_gate_output="$self_gate_dir/out"
+  run_pin_under "$interpreter" "$self_gate_hosts" \
+    pin.example.test 127.0.0.1 pin >"$self_gate_output" 2>&1 || self_gate_status=$?
+  [[ $self_gate_status -ne 0 ]] ||
+    fail "a pin whose ip is $LOOPBACK_ADDRESS_UNDER_TEST satisfied the loopback gate with its own appended record under $(interpreter_label "$interpreter"): $(cat "$self_gate_output")"
+  grep -qF 'lost its loopback entry' "$self_gate_output" ||
+    fail "the loopback refusal did not say why under $(interpreter_label "$interpreter"): $(cat "$self_gate_output")"
+  cmp -s "$self_gate_hosts" "$self_gate_dir/before" ||
+    fail "localhost's record was deleted by a pin claiming its address under $(interpreter_label "$interpreter"); the file now reads: $(cat "$self_gate_hosts")"
+done
+
+# The false-positive direction: a pin whose ip is the loopback address is still
+# reconciled when a loopback record the pin does NOT own survives the filter. It
+# is the DESTRUCTION that is refused, not the address.
+loop_ok="$work/loopback-ok-hosts"
+printf '127.0.0.1\tlocalhost\n192.168.1.5\tpin\n' >"$loop_ok"
+run_pin "$loop_ok" pin.example.test 127.0.0.1 pin >/dev/null ||
+  fail "a pin at the loopback address must still apply when a loopback record it does not own survives the rebuild"
+loop_ok_expected="$work/loopback-ok-expected"
+printf '127.0.0.1\tlocalhost\n127.0.0.1\tpin.example.test\tpin\n' >"$loop_ok_expected"
+cmp -s "$loop_ok" "$loop_ok_expected" ||
+  fail "the loopback gate is now refusing legitimate rebuilds; got: $(diff "$loop_ok_expected" "$loop_ok" | head -5)"
+
+# ---------- LAYER 2g4: a set-but-empty seam never falls back to /etc/hosts ----
+# `${VAR:-$DEFAULT}` reads an empty value as "not configured", so one caller
+# passing an empty first argument aimed a root-capable rewrite at the machine's
+# real /etc/hosts. SET and EMPTY are different states and the empty one is
+# refused. The real /etc/hosts is hashed either side of the call as the proof
+# that nothing touched it.
+etc_hosts_before=""
+[[ -r /etc/hosts ]] && etc_hosts_before="$(shasum -a 256 /etc/hosts)"
+empty_seam_output="$work/empty-seam.out"
+empty_seam_status=0
+TAILNET_PIN_HOSTS_FILE="" "$RECONCILER" pin.example.test 192.0.2.7 pin \
+  >"$empty_seam_output" 2>&1 || empty_seam_status=$?
+[[ $empty_seam_status -ne 0 ]] ||
+  fail "an empty TAILNET_PIN_HOSTS_FILE was accepted: $(cat "$empty_seam_output")"
+grep -qF 'is set but EMPTY' "$empty_seam_output" ||
+  fail "the empty-seam refusal did not name the variable or the reason: $(cat "$empty_seam_output")"
+if [[ -n $etc_hosts_before ]]; then
+  [[ "$(shasum -a 256 /etc/hosts)" == "$etc_hosts_before" ]] ||
+    fail "an empty TAILNET_PIN_HOSTS_FILE reached the real /etc/hosts and changed it"
+fi
 
 # ---------- LAYER 2h: the installed file keeps the target's mode -------------
 # mktemp creates 0600 and /etc/hosts is 0644, so an install that ships the temp

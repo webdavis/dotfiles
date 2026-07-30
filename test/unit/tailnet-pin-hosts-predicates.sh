@@ -30,6 +30,22 @@
 #   P7 symlink chains    - absolute and relative hops, and a bounded refusal.
 #   P8 metadata readers  - mode and owner describe the file a path NAMES, not a
 #                          symlink standing in front of it.
+#   P9 seam states       - absent, set-to-a-path and SET-BUT-EMPTY are three
+#                          answers, not two. An empty TAILNET_PIN_HOSTS_FILE
+#                          used to resolve to the real /etc/hosts.
+#   P10 unreadable input - every file walker FAILS on a source it cannot open,
+#                          and none reports it as an empty file. Each walker
+#                          ended in a `printf` after its loop, so the failed
+#                          `done <"$path"` redirect never became the function's
+#                          status: a chmod-000 hosts file surveyed as "0
+#                          claiming lines" and the rebuild collapsed to the pin
+#                          record alone.
+#   P11 message paths    - one description of the file under edit, so a refusal
+#                          and a success never name two different paths for the
+#                          same operation.
+#   P12 source-time purity - sourcing this library defines functions and changes
+#                          no shell option in the caller, while EXECUTING it
+#                          still runs under errexit, nounset and pipefail.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -236,8 +252,108 @@ link_own_mode="$(stat -c '%a' "$work/absolute-link" 2>/dev/null ||
 [[ $link_own_mode != 640 ]] ||
   fail "p8-link-mode-differs: the fixture link happens to carry the referent's mode, so P8 proves nothing"
 
+# ---------- P9: the hosts-path seam has THREE states -------------------------
+# `${VAR:-$DEFAULT}` gives an empty value the same answer as an absent one, so a
+# caller passing an empty path silently aimed a root-owned rewrite at the real
+# /etc/hosts. The classifier answers the question the refusal needs.
+saved_seam_is_set=0
+if [[ -n ${TAILNET_PIN_HOSTS_FILE+x} ]]; then
+  saved_seam_is_set=1
+  saved_seam_value=$TAILNET_PIN_HOSTS_FILE
+fi
+
+unset TAILNET_PIN_HOSTS_FILE
+assert_equal "$HOSTS_FILE_SEAM_ABSENT" "$(classify_hosts_file_seam)" p9-absent
+assert_equal "$DEFAULT_HOSTS_FILE" "$(configured_hosts_file_path)" p9-absent-path
+
+TAILNET_PIN_HOSTS_FILE=""
+assert_equal "$HOSTS_FILE_SEAM_EMPTY" "$(classify_hosts_file_seam)" p9-set-but-empty
+
+TAILNET_PIN_HOSTS_FILE="$work/fixture-hosts"
+assert_equal "$HOSTS_FILE_SEAM_PATH" "$(classify_hosts_file_seam)" p9-set-to-path
+assert_equal "$work/fixture-hosts" "$(configured_hosts_file_path)" p9-set-to-path-value
+
+unset TAILNET_PIN_HOSTS_FILE
+if [[ $saved_seam_is_set -eq 1 ]]; then
+  TAILNET_PIN_HOSTS_FILE=$saved_seam_value
+  export TAILNET_PIN_HOSTS_FILE
+fi
+
+# ---------- P10: a source that cannot be OPENED is not an empty source --------
+# Every walker must FAIL rather than report a count over zero lines. Skipped for
+# uid 0, which reads a mode-000 file regardless and would make the fixture prove
+# nothing.
+if [[ $(id -u) -eq 0 ]]; then
+  printf 'tailnet-pin-hosts-predicates: NOTE -- P10 skipped, running as uid 0 reads a mode-000 fixture\n'
+else
+  unreadable="$work/unreadable-hosts"
+  printf '127.0.0.1\tlocalhost\n10.0.0.5\tnas.home\n192.0.2.7\tpin.example.test\tpin\n' \
+    >"$unreadable"
+  chmod 000 "$unreadable"
+
+  survey_output=""
+  if survey_output="$(survey_hosts_file "$unreadable" pin.example.test pin "x" 2>/dev/null)"; then
+    fail "p10-survey: an unreadable hosts file was surveyed successfully as '$survey_output'; a source that cannot be read is not an empty one"
+  fi
+  [[ -z $survey_output ]] ||
+    fail "p10-survey-silent: a failed survey still printed a count ('$survey_output'), which a caller reading stdout would use"
+
+  if hosts_file_has_valid_loopback_record "$unreadable" 2>/dev/null; then
+    fail "p10-loopback-gate: an unreadable file vouched for a loopback record it could not read"
+  fi
+
+  filtered="$work/filtered-hosts"
+  if write_kept_hosts_lines "$unreadable" "$filtered" pin.example.test pin 2>/dev/null; then
+    fail "p10-filter: an unreadable source produced a 'successful' rebuild; the result would be the pin record alone"
+  fi
+
+  # The same walkers must still SUCCEED once the source is readable, or P10
+  # would pass on a helper that fails unconditionally.
+  chmod 644 "$unreadable"
+  assert_equal "1 0" \
+    "$(survey_hosts_file "$unreadable" pin.example.test pin "x")" p10-control-survey
+  assert_predicate expect-true p10-control-loopback \
+    hosts_file_has_valid_loopback_record "$unreadable"
+  if ! write_kept_hosts_lines "$unreadable" "$filtered" pin.example.test pin; then
+    fail "p10-control-filter: a readable source must rebuild successfully"
+  fi
+  assert_equal "127.0.0.1${tab}localhost
+10.0.0.5${tab}nas.home" "$(cat "$filtered")" p10-control-filter-content
+fi
+
+# ---------- P12: sourcing changes nothing about the caller's shell ------------
+# `set -euo pipefail` at file scope turned errexit, nounset and pipefail on in
+# whatever sourced this file. A test that sources a library to reach its
+# predicates must not have its own shell reconfigured underneath it, and this
+# suite could never catch that because it sets the same options itself.
+sourced_shell_flags="$(bash -c 'set +e +u +o pipefail; . "$1"; printf "%s\n" "$-"' _ "$RECONCILE")"
+[[ $sourced_shell_flags != *e* ]] ||
+  fail "p12-errexit: sourcing the reconciler turned errexit on in the caller (flags: $sourced_shell_flags)"
+[[ $sourced_shell_flags != *u* ]] ||
+  fail "p12-nounset: sourcing the reconciler turned nounset on in the caller (flags: $sourced_shell_flags)"
+sourced_pipefail="$(bash -c 'set +e +u +o pipefail; . "$1"; set -o | grep "^pipefail"' _ "$RECONCILE")"
+[[ $sourced_pipefail != *on* ]] ||
+  fail "p12-pipefail: sourcing the reconciler turned pipefail on in the caller ($sourced_pipefail)"
+# The control: EXECUTING it must still run with those options on, or P12 would
+# pass on a script that simply dropped them.
+# shellcheck disable=SC2016  # this is the reconciler's literal source text,
+# matched byte for byte; expanding it here would search for something else.
+grep -qxF 'if [[ ${BASH_SOURCE[0]} == "$0" ]]; then' "$RECONCILE" ||
+  fail "p12-guard-shape: the reconciler no longer guards on being the entry point"
+grep -qxF '  set -euo pipefail' "$RECONCILE" ||
+  fail "p12-options-present: the reconciler no longer sets errexit/nounset/pipefail for its executed path"
+
+# ---------- P11: one path description per operation --------------------------
+# Refusals named the CONFIGURED path and reports named the RESOLVED one, so
+# through a symlink the same operation was described with two different files
+# depending on how it ended.
+assert_equal "/etc/hosts" \
+  "$(hosts_file_description /etc/hosts /etc/hosts)" p11-same-path
+assert_equal "/etc/hosts (resolved through its symlink chain to /etc/hosts.real)" \
+  "$(hosts_file_description /etc/hosts /etc/hosts.real)" p11-through-symlink
+
 if ((failures > 0)); then
   printf 'tailnet-pin-hosts-predicates: %d assertion(s) failed\n' "$failures" >&2
   exit 1
 fi
-echo "tailnet-pin-hosts-predicates: OK (loopback validity, name claims, pin ownership, column shape, record rendering, convergence, symlink chains, referent metadata)"
+echo "tailnet-pin-hosts-predicates: OK (loopback validity, name claims, pin ownership, column shape, record rendering, convergence, symlink chains, referent metadata, seam states, unreadable sources, source-time shell-option isolation, message paths)"

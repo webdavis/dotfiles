@@ -45,11 +45,19 @@
 # makes the ordering question moot).
 #
 # THE LOOPBACK GATE refuses, on stderr and nonzero, to install a rebuild with no
-# valid loopback record. Note what "valid" means and what it does not: lo0
-# reports netmask 0xff000000, so ALL of 127.0.0.0/8 is loopback and 127.0.0.100
-# is a loopback address. It simply is not the exact 127.0.0.1 that localhost
-# must map to, which is what this gate requires. A missing hosts file is refused
-# the same way rather than seeded pin-only.
+# valid loopback record. It runs on the lines the rebuild KEEPS, before this
+# script's own record is appended to them, and that ordering is the gate: a pin
+# whose ip is 127.0.0.1 (one mistyped YAML field) would otherwise be checked
+# against the very line the rebuild had just written, so a hosts file whose only
+# 127.0.0.1 record is the pin's own would pass the gate that exists to prevent
+# exactly that file. Note what "valid" means and what it does not. lo0 reports
+# netmask 0xff000000, so ALL of 127.0.0.0/8 is loopback and 127.0.0.100 is a
+# loopback address; the gate wants the exact 127.0.0.1 that localhost must map
+# to. It requires that address to map to at least one NAME, and does not require
+# the name to be `localhost`: this script has no way to know which name a given
+# machine resolves localhost through, and refusing to vouch for a file it cannot
+# read the intent of would be a guess in the unsafe direction. A missing hosts
+# file is refused the same way rather than seeded pin-only.
 #
 # INSTALL is atomic: chmod/chown the temp file to the target's own mode and
 # owner, then rename it INTO the target path. mktemp creates the temp beside the
@@ -62,15 +70,58 @@
 # is the one that changes; metadata is read from the referent too, because a
 # symlink's own mode is 0755 on macOS and means nothing.
 #
-# Every failure path exits nonzero, and one EXIT trap removes the temporary file
-# on every one of them, signals included (bash runs the EXIT trap before dying
-# from a fatal signal). Under the runner's `set -e` a pin that cannot converge
-# therefore fails the whole apply loudly instead of reporting success.
+# FAILURE IS CHECKED, NEVER INFERRED. Every step that can fail has its status
+# tested at the call site rather than left to `set -e`, because the interpreter
+# that runs this as root is chosen by PATH (see INTERPRETER below) and the two
+# candidates disagree about when a failed redirect aborts a function. That
+# disagreement already cost this file a fail-open: a `while ... done <"$path"`
+# followed by a `printf` reported an UNREADABLE hosts file as an EMPTY one, so
+# the rebuild collapsed to the pin record alone, with a success message and exit
+# 0 under bash 3.2. Moving the redirect onto a GROUP whose status is tested,
+# `{ ... } <"$path" || return 1`, is what fixes that. The trailing `:` inside
+# those groups is not what makes today's code correct and no test can tell it
+# apart: it pins the group's status to the redirect instead of inheriting it
+# from whatever the loop body last returned, which is 0 today only because both
+# bodies happen to end in an `if`. It is there so a later edit to a body cannot
+# turn a successful read into a refusal, or a failed one into a success, without
+# anyone noticing. That is the exact accident being fixed here, one edit later.
 #
-# bash 3.2 is the deployed interpreter (/bin/bash on macOS, and sudo's
-# secure_path resolves `bash` there): no associative arrays, no mapfile.
+# THE TEMPORARY FILE is removed by an EXIT trap plus one explicit handler per
+# signal in CLEANED_UP_SIGNAL_NAMES, and every member of that list is exercised
+# by test/integration/tailnet-pins.sh under both interpreters. The EXIT trap
+# alone is NOT enough, which is what this comment used to claim: bash 3.2 dies
+# from SIGQUIT, and bash 5.3 dies from a write-triggered SIGXFSZ, without
+# running it, each leaving a mode-0600 hosts.XXXXXXXX beside the target. SIGKILL
+# and SIGSTOP cannot be trapped by any process, so those two can still leave the
+# temporary file behind; nothing here prevents that.
+#
+# INTERPRETER. Both bash 3.2 and bash 5.3 run this, so neither is assumed. sudo
+# on this machine sets no secure_path and passes the invoking PATH through, so
+# `sudo ... bash` resolves to whatever comes first there: measured
+# `sudo -n /usr/bin/env bash -c 'echo $BASH_VERSION $BASH'` -> 5.3.15 from
+# /opt/homebrew/bin/bash at uid 0, while a PATH without Homebrew resolves
+# /bin/bash 3.2.57. No associative arrays and no mapfile, so 3.2 stays
+# supported, and no safety decision rests on errexit, because the two versions
+# do not agree about it.
+#
+# KNOWN LIMITATION, CRLF. hosts(5) on this machine says items are separated by
+# blanks and tabs, so a carriage return is NOT a field separator and this script
+# does not treat one as a field boundary. A record written with CRLF line
+# endings therefore claims the name "pin<CR>", not "pin": it is neither dropped
+# as the pin's nor counted toward convergence, so it survives every run while
+# the file still reports as converged. Whether mDNSResponder's own parser stops
+# a host name at CR was not measured, so a CRLF hosts file can carry a stale
+# record this script will not clean up. Convert such a file to LF endings; the
+# reconciler deliberately does not guess which side of that ambiguity to act on,
+# because guessing wrong deletes a record belonging to a DIFFERENT host.
 
-set -euo pipefail
+# Shell options belong to the EXECUTED script. Sourcing this file (the unit
+# suite does, to call its predicates one at a time) must define functions and
+# change nothing else about the caller, so this is guarded on the same condition
+# as the entry point at the bottom of the file.
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+  set -euo pipefail
+fi
 
 readonly PROGRAM_NAME="${0##*/}"
 
@@ -78,13 +129,22 @@ readonly PROGRAM_NAME="${0##*/}"
 # Named constants. Nothing below buries one of these in an expression.
 # ---------------------------------------------------------------------------
 
-# The file this reconciles. The seam exists so the test suite exercises THIS
-# code against a fixture instead of a copy of it extracted with string surgery,
-# which is how the old suite and the old implementation were able to drift.
-# `sudo` resets the environment (env_reset), so the deployed invocation cannot
-# be redirected through it.
+# The file this reconciles, and the seam that redirects it. The seam exists so
+# the test suite exercises THIS code against a fixture instead of a copy of it
+# extracted with string surgery, which is how the old suite and the old
+# implementation were able to drift. `sudo` resets the environment (env_reset),
+# so the deployed invocation cannot be redirected through it.
 readonly DEFAULT_HOSTS_FILE=/etc/hosts
-readonly HOSTS_FILE="${TAILNET_PIN_HOSTS_FILE:-$DEFAULT_HOSTS_FILE}"
+readonly HOSTS_FILE_SEAM_VARIABLE_NAME='TAILNET_PIN_HOSTS_FILE'
+
+# The three answers the seam can give. SET-BUT-EMPTY IS NOT UNSET: a plain
+# `${VAR:-$DEFAULT}` reads an empty value as "not configured" and quietly aims a
+# root-owned rewrite at the real /etc/hosts, which is precisely what a caller
+# passing an empty path did not ask for. Three named states, so the empty case
+# has somewhere to be refused instead of somewhere to hide.
+readonly HOSTS_FILE_SEAM_ABSENT=absent
+readonly HOSTS_FILE_SEAM_EMPTY=empty
+readonly HOSTS_FILE_SEAM_PATH=path
 
 # hosts(5): "A '#' indicates the beginning of a comment; characters up to the
 # end of the line are not interpreted by routines which search the file."
@@ -103,13 +163,18 @@ readonly LOOPBACK_ADDRESS='127.0.0.1'
 # "Items are separated by any number of blanks and/or tab characters."
 readonly HOSTS_FIELD_SEPARATOR=$'\t'
 
-# Characters a pin field may not contain: the ones that split one record into
-# extra columns or extra LINES when the file is read, plus the comment
-# character, which truncates the record. Deliberately the same set the runner
-# template refuses at render time (Go's \s class plus #), so a field that
-# renders can never be refused here and vice versa. Other Unicode spaces
-# (vertical tab, U+00A0, U+2003) are absent on purpose: none of them splits a
-# hosts record, so none of them can smuggle a column.
+# Characters a pin field may not contain. Space, tab, form feed and newline
+# split one record into extra columns or extra LINES when the file is read, and
+# # starts a hosts comment that truncates the record. Carriage return is in the
+# set for a DIFFERENT reason and the old comment got this wrong: a CR does not
+# split a record when this script reads a file (see KNOWN LIMITATION above), but
+# a field carrying one would be written out as a name these same predicates then
+# read as a different name, so the record could never converge and every apply
+# would rewrite the file. Deliberately the same set the runner template refuses
+# at render time (Go's \s class plus #), so a field that renders can never be
+# refused here and vice versa. Other Unicode spaces (vertical tab, U+00A0,
+# U+2003) are absent on purpose: none of them splits a hosts record, so none of
+# them can smuggle a column, and neither check refuses them.
 readonly HOSTS_COLUMN_FORBIDDEN_CHARACTERS=$' \t\n\r\f#'
 
 # A file is converged when EXACTLY this many lines name the pin.
@@ -126,6 +191,18 @@ readonly EXIT_STATUS_OK=0
 readonly EXIT_STATUS_REFUSED=1
 readonly EXIT_STATUS_USAGE=2
 
+# What the shell itself reports for a process killed by signal N, and therefore
+# what this script reports for one it cleaned up after. See finish_after_signal.
+readonly SIGNAL_EXIT_STATUS_BASE=128
+
+# Signals after which the temporary file must not survive. Every member is
+# exercised in test/integration/tailnet-pins.sh under both interpreters, because
+# WHICH fatal signals let the EXIT trap run first differs between them and an
+# assumed one is how the leak this list exists for went unnoticed. SIGKILL and
+# SIGSTOP are absent because no process can trap them.
+CLEANED_UP_SIGNAL_NAMES=(HUP INT QUIT TERM PIPE XFSZ)
+readonly CLEANED_UP_SIGNAL_NAMES
+
 readonly EXPECTED_ARGUMENT_COUNT=3
 
 # ---------------------------------------------------------------------------
@@ -141,16 +218,24 @@ refuse() { # <message>
   exit "$EXIT_STATUS_REFUSED"
 }
 
+# How every message names the file being reconciled. A refusal that names
+# /etc/hosts and a success that names /etc/hosts.real are two reports about the
+# same operation that read as two different files, so when a symlink chain moves
+# the real file the operator is told both paths, always, in both directions.
+hosts_file_description() { # <configured-path> <resolved-path>
+  local configured_path=$1 resolved_path=$2
+  if [[ $configured_path == "$resolved_path" ]]; then
+    printf '%s\n' "$configured_path"
+  else
+    printf '%s (resolved through its symlink chain to %s)\n' \
+      "$configured_path" "$resolved_path"
+  fi
+}
+
 # ---------------------------------------------------------------------------
 # Pure predicates and accessors: one question each, no side effects, no I/O.
 # Each is callable and testable on its own, which the old inline grep was not.
 # ---------------------------------------------------------------------------
-
-# The part of a hosts line a resolver actually reads, with comment text removed.
-hosts_line_record_text() { # <line>
-  local line=$1
-  printf '%s\n' "${line%%"${HOSTS_COMMENT_CHARACTER}"*}"
-}
 
 # Is this line a record mapping exactly <address> to at least one name?
 #
@@ -165,10 +250,12 @@ hosts_line_record_text() { # <line>
 # that the resolver ignores is not.
 hosts_line_is_record_for_address() { # <line> <address>
   local line=$1 address=$2
+  # The part of the line a resolver actually reads: comment text removed.
+  local record_text=${line%%"${HOSTS_COMMENT_CHARACTER}"*}
   local -a fields=()
   # read -r -a splits on IFS WITHOUT globbing, so a '*' in a hosts file stays
   # literal text with no reliance on the shell's noglob state.
-  read -r -a fields <<<"$(hosts_line_record_text "$line")"
+  read -r -a fields <<<"$record_text"
   ((${#fields[@]} >= HOSTS_RECORD_MINIMUM_FIELD_COUNT)) || return 1
   [[ ${fields[0]} == "$address" ]] || return 1
   [[ $line == "$address"* ]]
@@ -184,8 +271,9 @@ hosts_line_is_valid_loopback_record() { # <line>
 # different host whose name merely contains this one is not a claim.
 hosts_line_claims_name() { # <line> <name>
   local line=$1 name=$2
+  local record_text=${line%%"${HOSTS_COMMENT_CHARACTER}"*}
   local -a fields=()
-  read -r -a fields <<<"$(hosts_line_record_text "$line")"
+  read -r -a fields <<<"$record_text"
   ((${#fields[@]} >= HOSTS_RECORD_MINIMUM_FIELD_COUNT)) || return 1
   local index
   for ((index = 1; index < ${#fields[@]}; index++)); do
@@ -224,6 +312,33 @@ pin_is_converged() { # <claiming-line-count> <desired-record-present>
 }
 
 # ---------------------------------------------------------------------------
+# The hosts-path seam.
+# ---------------------------------------------------------------------------
+
+# Which of the three seam states is this run in? `${VAR+x}` answers SET (empty
+# or not); `${VAR:-}` cannot, and conflating the two is what aims a root rewrite
+# at the real /etc/hosts when a caller passes an empty path.
+classify_hosts_file_seam() {
+  if [[ -z ${TAILNET_PIN_HOSTS_FILE+x} ]]; then
+    printf '%s\n' "$HOSTS_FILE_SEAM_ABSENT"
+  elif [[ -z $TAILNET_PIN_HOSTS_FILE ]]; then
+    printf '%s\n' "$HOSTS_FILE_SEAM_EMPTY"
+  else
+    printf '%s\n' "$HOSTS_FILE_SEAM_PATH"
+  fi
+}
+
+# The path this run reconciles. Only ever called for the ABSENT and PATH states;
+# the EMPTY state is refused by the caller before this is reached.
+configured_hosts_file_path() {
+  if [[ -z ${TAILNET_PIN_HOSTS_FILE+x} ]]; then
+    printf '%s\n' "$DEFAULT_HOSTS_FILE"
+  else
+    printf '%s\n' "$TAILNET_PIN_HOSTS_FILE"
+  fi
+}
+
+# ---------------------------------------------------------------------------
 # Filesystem readers. No mutation.
 # ---------------------------------------------------------------------------
 
@@ -236,7 +351,7 @@ resolve_symlink_chain() { # <path>
     if ((hop > MAXIMUM_SYMLINK_HOPS)); then
       return 1
     fi
-    link_target=$(readlink "$path")
+    link_target=$(readlink "$path") || return 1
     case $link_target in
       /*) path=$link_target ;;
       *) path="$(dirname "$path")/$link_target" ;;
@@ -260,29 +375,42 @@ read_file_owner() { # <path>
 }
 
 # DETECTION. Reports "<claiming-line-count> <desired-record-present>" and
-# changes nothing.
+# changes nothing. Returns NONZERO and reports nothing when the source cannot be
+# opened: a source that cannot be read is not an empty source, and treating it
+# as one collapsed the rebuild to the pin record alone.
 survey_hosts_file() { # <path> <fqdn> <short> <desired-record>
   local path=$1 fqdn=$2 short=$3 desired_record=$4
   local claiming_line_count=0 desired_record_present=$BOOLEAN_FALSE line
-  while IFS= read -r line || [[ -n $line ]]; do
-    if hosts_line_is_claimed_by_pin "$line" "$fqdn" "$short"; then
-      claiming_line_count=$((claiming_line_count + 1))
-      if [[ $line == "$desired_record" ]]; then
-        desired_record_present=$BOOLEAN_TRUE
+  # The `|| return 1` on the group is what refuses an unopenable source. The
+  # trailing `:` pins the group's status to the REDIRECT rather than to whatever
+  # the loop body last returned; see FAILURE IS CHECKED in the header for why it
+  # is here even though nothing today can tell it apart.
+  {
+    while IFS= read -r line || [[ -n $line ]]; do
+      if hosts_line_is_claimed_by_pin "$line" "$fqdn" "$short"; then
+        claiming_line_count=$((claiming_line_count + 1))
+        if [[ $line == "$desired_record" ]]; then
+          desired_record_present=$BOOLEAN_TRUE
+        fi
       fi
-    fi
-  done <"$path"
+    done
+    :
+  } <"$path" || return 1
   printf '%s %s\n' "$claiming_line_count" "$desired_record_present"
 }
 
-# VALIDATION.
+# VALIDATION. Does this file carry a record a machine can resolve localhost
+# through? A file that cannot be opened answers NO, which is the safe direction
+# for every caller (they refuse), and is stated here rather than accidental.
 hosts_file_has_valid_loopback_record() { # <path>
   local path=$1 line
-  while IFS= read -r line || [[ -n $line ]]; do
-    if hosts_line_is_valid_loopback_record "$line"; then
-      return 0
-    fi
-  done <"$path"
+  {
+    while IFS= read -r line || [[ -n $line ]]; do
+      if hosts_line_is_valid_loopback_record "$line"; then
+        return 0
+      fi
+    done
+  } <"$path"
   return 1
 }
 
@@ -291,30 +419,42 @@ hosts_file_has_valid_loopback_record() { # <path>
 # ---------------------------------------------------------------------------
 
 # FILTERING. Drop every line the pin claims, copy everything else through
-# unchanged, append the one correct record last.
-write_reconciled_hosts_file() { # <source> <destination> <fqdn> <short> <desired-record>
-  local source_path=$1 destination_path=$2 fqdn=$3 short=$4 desired_record=$5
+# unchanged. Nonzero when the source cannot be opened, when the destination
+# cannot be opened, or when any single line fails to write: a half-copied
+# rebuild is not a rebuild, and the gate that runs on the result would then be
+# vouching for a truncated file.
+write_kept_hosts_lines() { # <source> <destination> <fqdn> <short>
+  local source_path=$1 destination_path=$2 fqdn=$3 short=$4
   local line
-  while IFS= read -r line || [[ -n $line ]]; do
-    if ! hosts_line_is_claimed_by_pin "$line" "$fqdn" "$short"; then
-      printf '%s\n' "$line"
-    fi
-  done <"$source_path" >"$destination_path"
-  printf '%s\n' "$desired_record" >>"$destination_path"
+  {
+    while IFS= read -r line || [[ -n $line ]]; do
+      if ! hosts_line_is_claimed_by_pin "$line" "$fqdn" "$short"; then
+        printf '%s\n' "$line" || return 1
+      fi
+    done
+    :
+  } <"$source_path" >"$destination_path" || return 1
 }
 
-# INSTALLATION. Metadata from the target, then an atomic rename onto it.
+# APPENDING. The one correct record, last, on its own line.
+append_hosts_record() { # <destination> <record>
+  printf '%s\n' "$2" >>"$1"
+}
+
+# INSTALLATION. Metadata from the target, then an atomic rename onto it. Each
+# step's status is tested here rather than left to the caller's errexit, which
+# the two supported interpreters do not apply identically.
 install_hosts_file_atomically() { # <source> <target>
   local source_path=$1 target_path=$2 mode owner
-  mode=$(read_file_mode "$target_path")
-  owner=$(read_file_owner "$target_path")
-  chmod "$mode" "$source_path"
-  chown "$owner" "$source_path"
-  mv -f "$source_path" "$target_path"
+  mode=$(read_file_mode "$target_path") || return 1
+  owner=$(read_file_owner "$target_path") || return 1
+  chmod "$mode" "$source_path" || return 1
+  chown "$owner" "$source_path" || return 1
+  mv -f "$source_path" "$target_path" || return 1
 }
 
 # ---------------------------------------------------------------------------
-# Temporary-file lifetime. A trap, not bail-only cleanup: the old body removed
+# Temporary-file lifetime. Traps, not bail-only cleanup: the old body removed
 # the temp on its explicit failure paths only, so a SIGTERM after mktemp left a
 # mode-0600 hosts.XXXXXXXX beside the target, and the converged path ignored its
 # own `rm` status and then hid the leftover behind `exit 0`.
@@ -334,24 +474,45 @@ remove_temporary_hosts_file() {
   fi
 }
 
-# ONE trap covers every exit, signals included. bash runs the EXIT trap before
-# dying from a fatal signal and still reports 128 + the signal number, verified
-# on bash 3.2.57 (the deployed interpreter: sudo's secure_path resolves `bash`
-# to /bin/bash) for HUP, INT and TERM. Separate per-signal handlers would add
-# nothing here, and an untested defence is worse than none.
-#
-# Clearing the trap first is what keeps `exit` from re-entering this handler.
+# Clearing every trap first is what keeps `exit` from re-entering this handler,
+# and what stops a second signal arriving mid-cleanup from starting a third.
 finish() { # <exit-status>
-  trap - EXIT
+  trap - EXIT "${CLEANED_UP_SIGNAL_NAMES[@]}"
   local status=$1
   remove_temporary_hosts_file || status=$EXIT_STATUS_REFUSED
   exit "$status"
 }
 
+# A signal-killed run must exit NONZERO. `$?` at the moment a signal arrives is
+# the status of the last COMPLETED command, which is 0 far more often than not,
+# so a handler forwarding it would turn a killed run into a reported success and
+# the caller's `set -e` would carry on to the next pin. 128 + the signal number
+# is what the shell itself reports when no handler runs, so trapping a signal
+# does not change the status an operator sees. An unrecognized name falls back
+# to the base alone, which is still nonzero.
+finish_after_signal() { # <signal-name>
+  local signal_number=0 reported_number
+  reported_number=$(kill -l "$1" 2>/dev/null) || reported_number=
+  if [[ $reported_number =~ ^[0-9]+$ ]]; then
+    signal_number=$reported_number
+  fi
+  finish $((SIGNAL_EXIT_STATUS_BASE + signal_number))
+}
+
+install_temporary_file_traps() {
+  trap 'finish "$?"' EXIT
+  local signal_name
+  for signal_name in "${CLEANED_UP_SIGNAL_NAMES[@]}"; do
+    # shellcheck disable=SC2064  # the name must expand NOW: one trap is
+    # installed per signal, each naming its own signal from a constant list.
+    trap "finish_after_signal $signal_name" "$signal_name"
+  done
+}
+
 # ---------------------------------------------------------------------------
 
 main() {
-  trap 'finish "$?"' EXIT
+  install_temporary_file_traps
 
   # Belt and braces for the mutating path: nothing here expands unquoted, and
   # the predicates split with `read -r -a` rather than the shell's splitting, so
@@ -365,6 +526,14 @@ main() {
 
   local fqdn=$1 ip=$2 short=$3
 
+  local seam_state
+  seam_state=$(classify_hosts_file_seam)
+  if [[ $seam_state == "$HOSTS_FILE_SEAM_EMPTY" ]]; then
+    refuse "refusing to edit any hosts file: $HOSTS_FILE_SEAM_VARIABLE_NAME is set but EMPTY, which is not the same as unset; unset it to reconcile $DEFAULT_HOSTS_FILE, or give it a path"
+  fi
+  local configured_hosts_file
+  configured_hosts_file=$(configured_hosts_file_path)
+
   # The runner template refuses these at render time. Re-checked here because
   # this script is a standalone component with its own contract, and because a
   # field that is not one column would write extra columns, or extra LINES, into
@@ -377,41 +546,57 @@ main() {
       short) field_value=$short ;;
     esac
     if ! is_single_hosts_column "$field_value"; then
-      refuse "refusing to edit $HOSTS_FILE: pin $field_name is not a single hosts column"
+      refuse "refusing to edit $configured_hosts_file: pin $field_name is not a single hosts column"
     fi
   done
 
-  local hosts_file
-  if ! hosts_file=$(resolve_symlink_chain "$HOSTS_FILE"); then
-    refuse "refusing to edit $HOSTS_FILE for $fqdn: its symlink chain does not resolve"
+  local resolved_hosts_file
+  if ! resolved_hosts_file=$(resolve_symlink_chain "$configured_hosts_file"); then
+    refuse "refusing to edit $configured_hosts_file for $fqdn: its symlink chain does not resolve"
   fi
-  if [[ ! -f $hosts_file ]]; then
-    refuse "refusing to edit $HOSTS_FILE for $fqdn: the file is missing"
+  local hosts_file_label
+  hosts_file_label=$(hosts_file_description "$configured_hosts_file" "$resolved_hosts_file")
+  if [[ ! -f $resolved_hosts_file ]]; then
+    refuse "refusing to edit $hosts_file_label for $fqdn: the file is missing"
   fi
 
   local desired_record
   desired_record=$(pin_record_line "$ip" "$fqdn" "$short")
 
   local survey claiming_line_count desired_record_present
-  survey=$(survey_hosts_file "$hosts_file" "$fqdn" "$short" "$desired_record")
+  if ! survey=$(survey_hosts_file \
+    "$resolved_hosts_file" "$fqdn" "$short" "$desired_record"); then
+    refuse "refusing to edit $hosts_file_label for $fqdn: it could not be read, and an unreadable hosts file is not an empty one"
+  fi
   read -r claiming_line_count desired_record_present <<<"$survey"
 
   if pin_is_converged "$claiming_line_count" "$desired_record_present"; then
-    report "MagicDNS fallback pin $fqdn already converged in $hosts_file"
+    report "MagicDNS fallback pin $fqdn already converged in $hosts_file_label"
     exit "$EXIT_STATUS_OK"
   fi
 
-  temporary_hosts_file=$(mktemp "$hosts_file.XXXXXXXX")
-  write_reconciled_hosts_file \
-    "$hosts_file" "$temporary_hosts_file" "$fqdn" "$short" "$desired_record"
-
-  if ! hosts_file_has_valid_loopback_record "$temporary_hosts_file"; then
-    refuse "refusing to rewrite $HOSTS_FILE for $fqdn: the filtered result lost its loopback entry (no line maps $LOOPBACK_ADDRESS to a name)"
+  if ! temporary_hosts_file=$(mktemp "$resolved_hosts_file.XXXXXXXX"); then
+    refuse "refusing to rewrite $hosts_file_label for $fqdn: no temporary file could be created beside it"
+  fi
+  if ! write_kept_hosts_lines \
+    "$resolved_hosts_file" "$temporary_hosts_file" "$fqdn" "$short"; then
+    refuse "refusing to rewrite $hosts_file_label for $fqdn: reading it or writing the rebuild failed, and a partial rebuild is not a rebuild"
   fi
 
-  install_hosts_file_atomically "$temporary_hosts_file" "$hosts_file"
+  # THE GATE, on the KEPT lines and before this script's own record joins them.
+  if ! hosts_file_has_valid_loopback_record "$temporary_hosts_file"; then
+    refuse "refusing to rewrite $hosts_file_label for $fqdn: the filtered result lost its loopback entry (no line this rebuild KEEPS maps $LOOPBACK_ADDRESS to a name)"
+  fi
+
+  if ! append_hosts_record "$temporary_hosts_file" "$desired_record"; then
+    refuse "refusing to rewrite $hosts_file_label for $fqdn: the pin record could not be appended to the rebuild"
+  fi
+
+  if ! install_hosts_file_atomically "$temporary_hosts_file" "$resolved_hosts_file"; then
+    refuse "refusing to report success for $fqdn: installing the rebuilt $hosts_file_label failed"
+  fi
   temporary_hosts_file=
-  report "MagicDNS fallback pin $fqdn written to $hosts_file"
+  report "MagicDNS fallback pin $fqdn written to $hosts_file_label"
 }
 
 if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
