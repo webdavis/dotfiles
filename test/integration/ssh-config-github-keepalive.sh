@@ -2,12 +2,18 @@
 # ssh-config-github-keepalive.sh, the managed ssh config must keep a GitHub
 # connection alive while a slow pre-push hook runs.
 #
-# Git opens the connection to GitHub BEFORE running the pre-push hook. This
-# repo's hook runs lint plus the whole test suite, several minutes, and GitHub
-# closes the connection it considers idle in the meantime. When the hook finally
-# returns, git writes into a dead socket and exits 141 with NO error text and no
-# branch pushed, while the hook's own "checks passed" line is the last thing on
-# screen. Traffic on an interval keeps the connection from going idle.
+# Git starts the remote helper and reads the ref advertisement BEFORE running
+# the pre-push hook, so the connection sits idle for the hook's whole runtime.
+# Idle long enough and GitHub closes it; when the hook returns, git writes into
+# a dead socket and exits 141 with NO error text and no branch pushed, while the
+# hook's own "checks passed" line is the last thing on screen. Traffic on an
+# interval keeps the connection from going idle.
+#
+# This config is MACHINE-WIDE while the hook is per-repository: the user-wide
+# pre-push dispatcher runs whatever hook a repository ships. So this asserts a
+# machine-wide property and is deliberately not sized to any one repository's
+# hook (the dotfiles hook is 21s today; that is not what these numbers protect).
+# The reasoning is recorded in private_dot_ssh/config, next to the setting.
 #
 # Asserted through ssh's OWN parser (`ssh -G`), never by grepping the file: the
 # question is what ssh RESOLVES for the name git actually connects to, and a
@@ -21,6 +27,12 @@ CONFIG="$REPO_ROOT/private_dot_ssh/config"
 # reads the system-wide config, so a nonzero check could pass on someone else's
 # setting while this file said nothing.
 WANT_INTERVAL=20
+# Floor on interval x CountMax, the span of server silence ssh rides out before
+# it declares the connection dead. This is NOT what defeats GitHub's idle close
+# (the interval is), so the floor is not sized to any hook's runtime: it keeps a
+# future edit from shrinking the tolerance to where a transient stall kills the
+# push, which is the same silent failure the keepalive exists to prevent.
+MINIMUM_TOLERATED_SILENCE_SECONDS=600
 
 fail() {
   printf 'FAIL: %s\n' "$*" >&2
@@ -58,15 +70,15 @@ got="$(resolved github serveraliveinterval)"
 [[ $got == "$WANT_INTERVAL" ]] ||
   fail "the github alias resolves ServerAliveInterval=$got, want $WANT_INTERVAL"
 
-# ---- 3: the interval must survive long enough to cover the hook ------------
-# Interval times CountMax is how long ssh tolerates silence. It has to exceed the
-# hook's runtime or the client gives up mid-gate, trading one silent failure for
-# another.
+# ---- 3: ssh must ride out a stall rather than tear the connection down ------
+# Interval times CountMax is how long ssh keeps going without a reply from the
+# server. Too small and a transient stall drops the push mid-hook, trading one
+# silent failure for another.
 count_max="$(resolved github.com serveralivecountmax)"
 [[ $count_max =~ ^[0-9]+$ ]] || fail "ServerAliveCountMax is not numeric: $count_max"
 tolerated=$((WANT_INTERVAL * count_max))
-[[ $tolerated -ge 600 ]] ||
-  fail "keepalives tolerate only ${tolerated}s of silence (interval $WANT_INTERVAL x count $count_max); the pre-push gate runs longer than that, so the connection can still drop"
+[[ $tolerated -ge $MINIMUM_TOLERATED_SILENCE_SECONDS ]] ||
+  fail "keepalives tolerate only ${tolerated}s of server silence (interval $WANT_INTERVAL x count $count_max), want at least ${MINIMUM_TOLERATED_SILENCE_SECONDS}s; below that a stall drops the connection on its own"
 
 printf 'ssh-config-github-keepalive: OK (github.com resolves User=git with ServerAliveInterval=%s, alias intact, %ss tolerated)\n' \
   "$WANT_INTERVAL" "$tolerated"
