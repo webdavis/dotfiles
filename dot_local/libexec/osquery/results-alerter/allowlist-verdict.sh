@@ -62,8 +62,9 @@ _allowlist_path_is_manifest_vouched() {
 
 # allowlist_verdict <label> <path> <program>:
 #   0 = suppress (full tuple match, FROM AN ALLOWLIST THE PIPELINE-INTEGRITY
-#       MANIFEST VOUCHES FOR; an empty stored sha256 skips only the hash
-#       dimension, the own-agent seed entries)
+#       MANIFEST VOUCHES FOR; an empty stored sha256, the own-agent seed
+#       entries, carries no per-entry hash evidence, so the manifest must
+#       vouch for the plist bytes instead before it can suppress anything)
 #   2 = reused label -> page (the label is allowlisted but path/program diverges,
 #       or the pinned hash no longer matches the on-disk plist)
 #   1 = not allowlisted (no label match, a degraded label-only entry that cannot
