@@ -843,7 +843,7 @@
       "label": "DEFAULT_HOMEBREW_PREFIX",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_brew-shellenv-cache-refresh.sh",
-      "source_location": "L29",
+      "source_location": "L34",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -857,7 +857,7 @@
       "label": "CACHE_FILE_NAME",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_brew-shellenv-cache-refresh.sh",
-      "source_location": "L30",
+      "source_location": "L35",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -871,7 +871,7 @@
       "label": "EXIT_USAGE",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_brew-shellenv-cache-refresh.sh",
-      "source_location": "L31",
+      "source_location": "L36",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -885,7 +885,7 @@
       "label": "usage()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_brew-shellenv-cache-refresh.sh",
-      "source_location": "L50",
+      "source_location": "L55",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -899,7 +899,7 @@
       "label": "fail()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_brew-shellenv-cache-refresh.sh",
-      "source_location": "L57",
+      "source_location": "L62",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -913,7 +913,7 @@
       "label": "remove_temporary_cache_file()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_brew-shellenv-cache-refresh.sh",
-      "source_location": "L62",
+      "source_location": "L67",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -927,7 +927,7 @@
       "label": "homebrew_is_installed()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_brew-shellenv-cache-refresh.sh",
-      "source_location": "L70",
+      "source_location": "L75",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -938,10 +938,38 @@
       "norm_label": "homebrew_is_installed()"
     },
     {
+      "label": "cache_path_is_replaceable()",
+      "file_type": "code",
+      "source_file": "dot_local/bin/executable_brew-shellenv-cache-refresh.sh",
+      "source_location": "L85",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_bin_executable_brew_shellenv_cache_refresh_cache_path_is_replaceable",
+      "community": 12,
+      "norm_label": "cache_path_is_replaceable()"
+    },
+    {
+      "label": "brew_emitted_an_environment()",
+      "file_type": "code",
+      "source_file": "dot_local/bin/executable_brew-shellenv-cache-refresh.sh",
+      "source_location": "L100",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_bin_executable_brew_shellenv_cache_refresh_brew_emitted_an_environment",
+      "community": 12,
+      "norm_label": "brew_emitted_an_environment()"
+    },
+    {
       "label": "write_cache_atomically()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_brew-shellenv-cache-refresh.sh",
-      "source_location": "L78",
+      "source_location": "L110",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -955,7 +983,7 @@
       "label": "reject_unknown_arguments()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_brew-shellenv-cache-refresh.sh",
-      "source_location": "L86",
+      "source_location": "L121",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -969,7 +997,7 @@
       "label": "main()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_brew-shellenv-cache-refresh.sh",
-      "source_location": "L103",
+      "source_location": "L138",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -6535,7 +6563,7 @@
       "label": "fail()",
       "file_type": "code",
       "source_file": "test/e2e/bashrc-brew-cache-self-heal.sh",
-      "source_location": "L44",
+      "source_location": "L53",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -6549,7 +6577,7 @@
       "label": "new_host()",
       "file_type": "code",
       "source_file": "test/e2e/bashrc-brew-cache-self-heal.sh",
-      "source_location": "L95",
+      "source_location": "L109",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -6563,7 +6591,7 @@
       "label": "seed_current_cache()",
       "file_type": "code",
       "source_file": "test/e2e/bashrc-brew-cache-self-heal.sh",
-      "source_location": "L122",
+      "source_location": "L136",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -6574,10 +6602,24 @@
       "norm_label": "seed_current_cache()"
     },
     {
+      "label": "clear_attempt_stamp()",
+      "file_type": "code",
+      "source_file": "test/e2e/bashrc-brew-cache-self-heal.sh",
+      "source_location": "L146",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_e2e_bashrc_brew_cache_self_heal_clear_attempt_stamp",
+      "community": 401,
+      "norm_label": "clear_attempt_stamp()"
+    },
+    {
       "label": "start_shell_over()",
       "file_type": "code",
       "source_file": "test/e2e/bashrc-brew-cache-self-heal.sh",
-      "source_location": "L131",
+      "source_location": "L152",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -6591,7 +6633,7 @@
       "label": "start_shell()",
       "file_type": "code",
       "source_file": "test/e2e/bashrc-brew-cache-self-heal.sh",
-      "source_location": "L144",
+      "source_location": "L165",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -6605,7 +6647,7 @@
       "label": "assert_shell_was_silent()",
       "file_type": "code",
       "source_file": "test/e2e/bashrc-brew-cache-self-heal.sh",
-      "source_location": "L148",
+      "source_location": "L169",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -6619,7 +6661,7 @@
       "label": "invocation_count()",
       "file_type": "code",
       "source_file": "test/e2e/bashrc-brew-cache-self-heal.sh",
-      "source_location": "L160",
+      "source_location": "L181",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -6630,24 +6672,24 @@
       "norm_label": "invocation_count()"
     },
     {
-      "label": "wait_for_regeneration()",
+      "label": "wait_for_invocations()",
       "file_type": "code",
       "source_file": "test/e2e/bashrc-brew-cache-self-heal.sh",
-      "source_location": "L169",
+      "source_location": "L190",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
       },
       "_origin": "ast",
-      "id": "test_e2e_bashrc_brew_cache_self_heal_wait_for_regeneration",
+      "id": "test_e2e_bashrc_brew_cache_self_heal_wait_for_invocations",
       "community": 401,
-      "norm_label": "wait_for_regeneration()"
+      "norm_label": "wait_for_invocations()"
     },
     {
       "label": "assert_regenerated()",
       "file_type": "code",
       "source_file": "test/e2e/bashrc-brew-cache-self-heal.sh",
-      "source_location": "L178",
+      "source_location": "L199",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -6661,7 +6703,7 @@
       "label": "assert_did_not_regenerate()",
       "file_type": "code",
       "source_file": "test/e2e/bashrc-brew-cache-self-heal.sh",
-      "source_location": "L189",
+      "source_location": "L210",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -19947,7 +19989,7 @@
       "label": "fail()",
       "file_type": "code",
       "source_file": "test/unit/bashrc-brew-cache-self-heal.sh",
-      "source_location": "L42",
+      "source_location": "L55",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -19961,7 +20003,7 @@
       "label": "assert_contains()",
       "file_type": "code",
       "source_file": "test/unit/bashrc-brew-cache-self-heal.sh",
-      "source_location": "L47",
+      "source_location": "L60",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -19975,7 +20017,7 @@
       "label": "refute_contains()",
       "file_type": "code",
       "source_file": "test/unit/bashrc-brew-cache-self-heal.sh",
-      "source_location": "L54",
+      "source_location": "L67",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -19984,6 +20026,34 @@
       "id": "test_unit_bashrc_brew_cache_self_heal_refute_contains",
       "community": 403,
       "norm_label": "refute_contains()"
+    },
+    {
+      "label": "usability_operators_for()",
+      "file_type": "code",
+      "source_file": "test/unit/bashrc-brew-cache-self-heal.sh",
+      "source_location": "L78",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_bashrc_brew_cache_self_heal_usability_operators_for",
+      "community": 403,
+      "norm_label": "usability_operators_for()"
+    },
+    {
+      "label": "assert_predicate()",
+      "file_type": "code",
+      "source_file": "test/unit/bashrc-brew-cache-self-heal.sh",
+      "source_location": "L229",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_bashrc_brew_cache_self_heal_assert_predicate",
+      "community": 403,
+      "norm_label": "assert_predicate()"
     },
     {
       "label": "bashrc-shell-foundation.sh",
@@ -20115,7 +20185,7 @@
       "label": "fail()",
       "file_type": "code",
       "source_file": "test/unit/brew-shellenv-cache-writer.sh",
-      "source_location": "L31",
+      "source_location": "L38",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -20129,7 +20199,7 @@
       "label": "refute_contains()",
       "file_type": "code",
       "source_file": "test/unit/brew-shellenv-cache-writer.sh",
-      "source_location": "L38",
+      "source_location": "L45",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -20143,7 +20213,7 @@
       "label": "assert_contains()",
       "file_type": "code",
       "source_file": "test/unit/brew-shellenv-cache-writer.sh",
-      "source_location": "L45",
+      "source_location": "L52",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -20157,7 +20227,7 @@
       "label": "make_stub_brew()",
       "file_type": "code",
       "source_file": "test/unit/brew-shellenv-cache-writer.sh",
-      "source_location": "L60",
+      "source_location": "L67",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -20171,7 +20241,7 @@
       "label": "new_case_dir()",
       "file_type": "code",
       "source_file": "test/unit/brew-shellenv-cache-writer.sh",
-      "source_location": "L76",
+      "source_location": "L83",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -20185,7 +20255,7 @@
       "label": "run_writer()",
       "file_type": "code",
       "source_file": "test/unit/brew-shellenv-cache-writer.sh",
-      "source_location": "L87",
+      "source_location": "L94",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -20199,7 +20269,7 @@
       "label": "temp_siblings()",
       "file_type": "code",
       "source_file": "test/unit/brew-shellenv-cache-writer.sh",
-      "source_location": "L98",
+      "source_location": "L105",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -32569,7 +32639,7 @@
       "label": "4. Integration maturity: today (mid-2026), with citations",
       "file_type": "document",
       "source_file": "docs/research/2026-07-09-sp4-nushell-evaluation.md",
-      "source_location": "L120",
+      "source_location": "L121",
       "_origin": "ast",
       "id": "docs_research_2026_07_09_sp4_nushell_evaluation_4_integration_maturity_today_mid_2026_with_citations",
       "community": 82,
@@ -32579,7 +32649,7 @@
       "label": "5. What this verdict means for SP3's shell-hook seam",
       "file_type": "document",
       "source_file": "docs/research/2026-07-09-sp4-nushell-evaluation.md",
-      "source_location": "L138",
+      "source_location": "L139",
       "_origin": "ast",
       "id": "docs_research_2026_07_09_sp4_nushell_evaluation_5_what_this_verdict_means_for_sp3_s_shell_hook_seam",
       "community": 82,
@@ -32589,7 +32659,7 @@
       "label": "6. Sources",
       "file_type": "document",
       "source_file": "docs/research/2026-07-09-sp4-nushell-evaluation.md",
-      "source_location": "L162",
+      "source_location": "L163",
       "_origin": "ast",
       "id": "docs_research_2026_07_09_sp4_nushell_evaluation_6_sources",
       "community": 82,
@@ -44169,7 +44239,17 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_brew-shellenv-cache-refresh.sh",
-      "source_location": "L30",
+      "source_location": "L100",
+      "weight": 1.0,
+      "source": "dot_local_bin_executable_brew_shellenv_cache_refresh",
+      "target": "dot_local_bin_executable_brew_shellenv_cache_refresh_brew_emitted_an_environment",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_brew-shellenv-cache-refresh.sh",
+      "source_location": "L35",
       "weight": 1.0,
       "source": "dot_local_bin_executable_brew_shellenv_cache_refresh",
       "target": "dot_local_bin_executable_brew_shellenv_cache_refresh_cache_file_name",
@@ -44179,7 +44259,17 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_brew-shellenv-cache-refresh.sh",
-      "source_location": "L29",
+      "source_location": "L85",
+      "weight": 1.0,
+      "source": "dot_local_bin_executable_brew_shellenv_cache_refresh",
+      "target": "dot_local_bin_executable_brew_shellenv_cache_refresh_cache_path_is_replaceable",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_brew-shellenv-cache-refresh.sh",
+      "source_location": "L34",
       "weight": 1.0,
       "source": "dot_local_bin_executable_brew_shellenv_cache_refresh",
       "target": "dot_local_bin_executable_brew_shellenv_cache_refresh_default_homebrew_prefix",
@@ -44189,7 +44279,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_brew-shellenv-cache-refresh.sh",
-      "source_location": "L31",
+      "source_location": "L36",
       "weight": 1.0,
       "source": "dot_local_bin_executable_brew_shellenv_cache_refresh",
       "target": "dot_local_bin_executable_brew_shellenv_cache_refresh_exit_usage",
@@ -44199,7 +44289,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_brew-shellenv-cache-refresh.sh",
-      "source_location": "L57",
+      "source_location": "L62",
       "weight": 1.0,
       "source": "dot_local_bin_executable_brew_shellenv_cache_refresh",
       "target": "dot_local_bin_executable_brew_shellenv_cache_refresh_fail",
@@ -44209,7 +44299,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_brew-shellenv-cache-refresh.sh",
-      "source_location": "L70",
+      "source_location": "L75",
       "weight": 1.0,
       "source": "dot_local_bin_executable_brew_shellenv_cache_refresh",
       "target": "dot_local_bin_executable_brew_shellenv_cache_refresh_homebrew_is_installed",
@@ -44219,7 +44309,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_brew-shellenv-cache-refresh.sh",
-      "source_location": "L103",
+      "source_location": "L138",
       "weight": 1.0,
       "source": "dot_local_bin_executable_brew_shellenv_cache_refresh",
       "target": "dot_local_bin_executable_brew_shellenv_cache_refresh_main",
@@ -44229,7 +44319,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_brew-shellenv-cache-refresh.sh",
-      "source_location": "L86",
+      "source_location": "L121",
       "weight": 1.0,
       "source": "dot_local_bin_executable_brew_shellenv_cache_refresh",
       "target": "dot_local_bin_executable_brew_shellenv_cache_refresh_reject_unknown_arguments",
@@ -44239,7 +44329,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_brew-shellenv-cache-refresh.sh",
-      "source_location": "L62",
+      "source_location": "L67",
       "weight": 1.0,
       "source": "dot_local_bin_executable_brew_shellenv_cache_refresh",
       "target": "dot_local_bin_executable_brew_shellenv_cache_refresh_remove_temporary_cache_file",
@@ -44259,7 +44349,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_brew-shellenv-cache-refresh.sh",
-      "source_location": "L50",
+      "source_location": "L55",
       "weight": 1.0,
       "source": "dot_local_bin_executable_brew_shellenv_cache_refresh",
       "target": "dot_local_bin_executable_brew_shellenv_cache_refresh_usage",
@@ -44269,7 +44359,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_brew-shellenv-cache-refresh.sh",
-      "source_location": "L78",
+      "source_location": "L110",
       "weight": 1.0,
       "source": "dot_local_bin_executable_brew_shellenv_cache_refresh",
       "target": "dot_local_bin_executable_brew_shellenv_cache_refresh_write_cache_atomically",
@@ -44279,7 +44369,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_brew-shellenv-cache-refresh.sh",
-      "source_location": "L112",
+      "source_location": "L149",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_brew_shellenv_cache_refresh_sh__entry",
@@ -44290,7 +44380,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_brew-shellenv-cache-refresh.sh",
-      "source_location": "L91",
+      "source_location": "L126",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_brew_shellenv_cache_refresh_reject_unknown_arguments",
@@ -44301,7 +44391,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_brew-shellenv-cache-refresh.sh",
-      "source_location": "L106",
+      "source_location": "L141",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_brew_shellenv_cache_refresh_main",
@@ -44312,7 +44402,18 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_brew-shellenv-cache-refresh.sh",
-      "source_location": "L105",
+      "source_location": "L115",
+      "weight": 1.0,
+      "context": "call",
+      "source": "dot_local_bin_executable_brew_shellenv_cache_refresh_write_cache_atomically",
+      "target": "dot_local_bin_executable_brew_shellenv_cache_refresh_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_brew-shellenv-cache-refresh.sh",
+      "source_location": "L140",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_brew_shellenv_cache_refresh_main",
@@ -44323,7 +44424,29 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_brew-shellenv-cache-refresh.sh",
-      "source_location": "L107",
+      "source_location": "L142",
+      "weight": 1.0,
+      "context": "call",
+      "source": "dot_local_bin_executable_brew_shellenv_cache_refresh_main",
+      "target": "dot_local_bin_executable_brew_shellenv_cache_refresh_cache_path_is_replaceable",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_brew-shellenv-cache-refresh.sh",
+      "source_location": "L114",
+      "weight": 1.0,
+      "context": "call",
+      "source": "dot_local_bin_executable_brew_shellenv_cache_refresh_write_cache_atomically",
+      "target": "dot_local_bin_executable_brew_shellenv_cache_refresh_brew_emitted_an_environment",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_brew-shellenv-cache-refresh.sh",
+      "source_location": "L144",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_brew_shellenv_cache_refresh_main",
@@ -44334,7 +44457,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_brew-shellenv-cache-refresh.sh",
-      "source_location": "L104",
+      "source_location": "L139",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_brew_shellenv_cache_refresh_main",
@@ -52263,7 +52386,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/e2e/bashrc-brew-cache-self-heal.sh",
-      "source_location": "L189",
+      "source_location": "L210",
       "weight": 1.0,
       "source": "test_e2e_bashrc_brew_cache_self_heal",
       "target": "test_e2e_bashrc_brew_cache_self_heal_assert_did_not_regenerate",
@@ -52273,7 +52396,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/e2e/bashrc-brew-cache-self-heal.sh",
-      "source_location": "L178",
+      "source_location": "L199",
       "weight": 1.0,
       "source": "test_e2e_bashrc_brew_cache_self_heal",
       "target": "test_e2e_bashrc_brew_cache_self_heal_assert_regenerated",
@@ -52283,7 +52406,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/e2e/bashrc-brew-cache-self-heal.sh",
-      "source_location": "L148",
+      "source_location": "L169",
       "weight": 1.0,
       "source": "test_e2e_bashrc_brew_cache_self_heal",
       "target": "test_e2e_bashrc_brew_cache_self_heal_assert_shell_was_silent",
@@ -52293,7 +52416,17 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/e2e/bashrc-brew-cache-self-heal.sh",
-      "source_location": "L44",
+      "source_location": "L146",
+      "weight": 1.0,
+      "source": "test_e2e_bashrc_brew_cache_self_heal",
+      "target": "test_e2e_bashrc_brew_cache_self_heal_clear_attempt_stamp",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/e2e/bashrc-brew-cache-self-heal.sh",
+      "source_location": "L53",
       "weight": 1.0,
       "source": "test_e2e_bashrc_brew_cache_self_heal",
       "target": "test_e2e_bashrc_brew_cache_self_heal_fail",
@@ -52303,7 +52436,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/e2e/bashrc-brew-cache-self-heal.sh",
-      "source_location": "L160",
+      "source_location": "L181",
       "weight": 1.0,
       "source": "test_e2e_bashrc_brew_cache_self_heal",
       "target": "test_e2e_bashrc_brew_cache_self_heal_invocation_count",
@@ -52313,7 +52446,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/e2e/bashrc-brew-cache-self-heal.sh",
-      "source_location": "L95",
+      "source_location": "L109",
       "weight": 1.0,
       "source": "test_e2e_bashrc_brew_cache_self_heal",
       "target": "test_e2e_bashrc_brew_cache_self_heal_new_host",
@@ -52323,7 +52456,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/e2e/bashrc-brew-cache-self-heal.sh",
-      "source_location": "L122",
+      "source_location": "L136",
       "weight": 1.0,
       "source": "test_e2e_bashrc_brew_cache_self_heal",
       "target": "test_e2e_bashrc_brew_cache_self_heal_seed_current_cache",
@@ -52343,7 +52476,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/e2e/bashrc-brew-cache-self-heal.sh",
-      "source_location": "L144",
+      "source_location": "L165",
       "weight": 1.0,
       "source": "test_e2e_bashrc_brew_cache_self_heal",
       "target": "test_e2e_bashrc_brew_cache_self_heal_start_shell",
@@ -52353,7 +52486,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/e2e/bashrc-brew-cache-self-heal.sh",
-      "source_location": "L131",
+      "source_location": "L152",
       "weight": 1.0,
       "source": "test_e2e_bashrc_brew_cache_self_heal",
       "target": "test_e2e_bashrc_brew_cache_self_heal_start_shell_over",
@@ -52363,17 +52496,17 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/e2e/bashrc-brew-cache-self-heal.sh",
-      "source_location": "L169",
+      "source_location": "L190",
       "weight": 1.0,
       "source": "test_e2e_bashrc_brew_cache_self_heal",
-      "target": "test_e2e_bashrc_brew_cache_self_heal_wait_for_regeneration",
+      "target": "test_e2e_bashrc_brew_cache_self_heal_wait_for_invocations",
       "confidence_score": 1.0
     },
     {
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/e2e/bashrc-brew-cache-self-heal.sh",
-      "source_location": "L207",
+      "source_location": "L230",
       "weight": 1.0,
       "context": "call",
       "source": "test_e2e_bashrc_brew_cache_self_heal_sh__entry",
@@ -52384,7 +52517,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/e2e/bashrc-brew-cache-self-heal.sh",
-      "source_location": "L219",
+      "source_location": "L242",
       "weight": 1.0,
       "context": "call",
       "source": "test_e2e_bashrc_brew_cache_self_heal_sh__entry",
@@ -52395,7 +52528,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/e2e/bashrc-brew-cache-self-heal.sh",
-      "source_location": "L206",
+      "source_location": "L229",
       "weight": 1.0,
       "context": "call",
       "source": "test_e2e_bashrc_brew_cache_self_heal_sh__entry",
@@ -52406,7 +52539,18 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/e2e/bashrc-brew-cache-self-heal.sh",
-      "source_location": "L57",
+      "source_location": "L269",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_e2e_bashrc_brew_cache_self_heal_sh__entry",
+      "target": "test_e2e_bashrc_brew_cache_self_heal_clear_attempt_stamp",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/e2e/bashrc-brew-cache-self-heal.sh",
+      "source_location": "L66",
       "weight": 1.0,
       "context": "call",
       "source": "test_e2e_bashrc_brew_cache_self_heal_sh__entry",
@@ -52417,7 +52561,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/e2e/bashrc-brew-cache-self-heal.sh",
-      "source_location": "L204",
+      "source_location": "L227",
       "weight": 1.0,
       "context": "call",
       "source": "test_e2e_bashrc_brew_cache_self_heal_sh__entry",
@@ -52428,7 +52572,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/e2e/bashrc-brew-cache-self-heal.sh",
-      "source_location": "L205",
+      "source_location": "L228",
       "weight": 1.0,
       "context": "call",
       "source": "test_e2e_bashrc_brew_cache_self_heal_sh__entry",
@@ -52439,7 +52583,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/e2e/bashrc-brew-cache-self-heal.sh",
-      "source_location": "L269",
+      "source_location": "L296",
       "weight": 1.0,
       "context": "call",
       "source": "test_e2e_bashrc_brew_cache_self_heal_sh__entry",
@@ -52450,7 +52594,18 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/e2e/bashrc-brew-cache-self-heal.sh",
-      "source_location": "L193",
+      "source_location": "L349",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_e2e_bashrc_brew_cache_self_heal_sh__entry",
+      "target": "test_e2e_bashrc_brew_cache_self_heal_wait_for_invocations",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/e2e/bashrc-brew-cache-self-heal.sh",
+      "source_location": "L214",
       "weight": 1.0,
       "context": "call",
       "source": "test_e2e_bashrc_brew_cache_self_heal_assert_did_not_regenerate",
@@ -52461,7 +52616,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/e2e/bashrc-brew-cache-self-heal.sh",
-      "source_location": "L181",
+      "source_location": "L202",
       "weight": 1.0,
       "context": "call",
       "source": "test_e2e_bashrc_brew_cache_self_heal_assert_regenerated",
@@ -52472,7 +52627,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/e2e/bashrc-brew-cache-self-heal.sh",
-      "source_location": "L152",
+      "source_location": "L173",
       "weight": 1.0,
       "context": "call",
       "source": "test_e2e_bashrc_brew_cache_self_heal_assert_shell_was_silent",
@@ -52483,7 +52638,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/e2e/bashrc-brew-cache-self-heal.sh",
-      "source_location": "L145",
+      "source_location": "L166",
       "weight": 1.0,
       "context": "call",
       "source": "test_e2e_bashrc_brew_cache_self_heal_start_shell",
@@ -52494,11 +52649,11 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/e2e/bashrc-brew-cache-self-heal.sh",
-      "source_location": "L180",
+      "source_location": "L201",
       "weight": 1.0,
       "context": "call",
       "source": "test_e2e_bashrc_brew_cache_self_heal_assert_regenerated",
-      "target": "test_e2e_bashrc_brew_cache_self_heal_wait_for_regeneration",
+      "target": "test_e2e_bashrc_brew_cache_self_heal_wait_for_invocations",
       "confidence_score": 1.0
     },
     {
@@ -65825,7 +65980,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/bashrc-brew-cache-self-heal.sh",
-      "source_location": "L47",
+      "source_location": "L60",
       "weight": 1.0,
       "source": "test_unit_bashrc_brew_cache_self_heal",
       "target": "test_unit_bashrc_brew_cache_self_heal_assert_contains",
@@ -65835,7 +65990,17 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/bashrc-brew-cache-self-heal.sh",
-      "source_location": "L42",
+      "source_location": "L229",
+      "weight": 1.0,
+      "source": "test_unit_bashrc_brew_cache_self_heal",
+      "target": "test_unit_bashrc_brew_cache_self_heal_assert_predicate",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/bashrc-brew-cache-self-heal.sh",
+      "source_location": "L55",
       "weight": 1.0,
       "source": "test_unit_bashrc_brew_cache_self_heal",
       "target": "test_unit_bashrc_brew_cache_self_heal_fail",
@@ -65845,7 +66010,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/bashrc-brew-cache-self-heal.sh",
-      "source_location": "L54",
+      "source_location": "L67",
       "weight": 1.0,
       "source": "test_unit_bashrc_brew_cache_self_heal",
       "target": "test_unit_bashrc_brew_cache_self_heal_refute_contains",
@@ -65862,10 +66027,20 @@
       "confidence_score": 1.0
     },
     {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/bashrc-brew-cache-self-heal.sh",
+      "source_location": "L78",
+      "weight": 1.0,
+      "source": "test_unit_bashrc_brew_cache_self_heal",
+      "target": "test_unit_bashrc_brew_cache_self_heal_usability_operators_for",
+      "confidence_score": 1.0
+    },
+    {
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/bashrc-brew-cache-self-heal.sh",
-      "source_location": "L90",
+      "source_location": "L303",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_bashrc_brew_cache_self_heal_sh__entry",
@@ -65876,7 +66051,18 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/bashrc-brew-cache-self-heal.sh",
-      "source_location": "L69",
+      "source_location": "L240",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_bashrc_brew_cache_self_heal_sh__entry",
+      "target": "test_unit_bashrc_brew_cache_self_heal_assert_predicate",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/bashrc-brew-cache-self-heal.sh",
+      "source_location": "L95",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_bashrc_brew_cache_self_heal_sh__entry",
@@ -65887,7 +66073,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/bashrc-brew-cache-self-heal.sh",
-      "source_location": "L108",
+      "source_location": "L313",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_bashrc_brew_cache_self_heal_sh__entry",
@@ -65898,7 +66084,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/bashrc-brew-cache-self-heal.sh",
-      "source_location": "L49",
+      "source_location": "L62",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_bashrc_brew_cache_self_heal_assert_contains",
@@ -65909,7 +66095,18 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/bashrc-brew-cache-self-heal.sh",
-      "source_location": "L57",
+      "source_location": "L234",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_bashrc_brew_cache_self_heal_assert_predicate",
+      "target": "test_unit_bashrc_brew_cache_self_heal_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/bashrc-brew-cache-self-heal.sh",
+      "source_location": "L70",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_bashrc_brew_cache_self_heal_refute_contains",
@@ -66014,7 +66211,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/brew-shellenv-cache-writer.sh",
-      "source_location": "L45",
+      "source_location": "L52",
       "weight": 1.0,
       "source": "test_unit_brew_shellenv_cache_writer",
       "target": "test_unit_brew_shellenv_cache_writer_assert_contains",
@@ -66024,7 +66221,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/brew-shellenv-cache-writer.sh",
-      "source_location": "L31",
+      "source_location": "L38",
       "weight": 1.0,
       "source": "test_unit_brew_shellenv_cache_writer",
       "target": "test_unit_brew_shellenv_cache_writer_fail",
@@ -66034,7 +66231,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/brew-shellenv-cache-writer.sh",
-      "source_location": "L60",
+      "source_location": "L67",
       "weight": 1.0,
       "source": "test_unit_brew_shellenv_cache_writer",
       "target": "test_unit_brew_shellenv_cache_writer_make_stub_brew",
@@ -66044,7 +66241,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/brew-shellenv-cache-writer.sh",
-      "source_location": "L76",
+      "source_location": "L83",
       "weight": 1.0,
       "source": "test_unit_brew_shellenv_cache_writer",
       "target": "test_unit_brew_shellenv_cache_writer_new_case_dir",
@@ -66054,7 +66251,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/brew-shellenv-cache-writer.sh",
-      "source_location": "L38",
+      "source_location": "L45",
       "weight": 1.0,
       "source": "test_unit_brew_shellenv_cache_writer",
       "target": "test_unit_brew_shellenv_cache_writer_refute_contains",
@@ -66064,7 +66261,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/brew-shellenv-cache-writer.sh",
-      "source_location": "L87",
+      "source_location": "L94",
       "weight": 1.0,
       "source": "test_unit_brew_shellenv_cache_writer",
       "target": "test_unit_brew_shellenv_cache_writer_run_writer",
@@ -66084,7 +66281,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/brew-shellenv-cache-writer.sh",
-      "source_location": "L98",
+      "source_location": "L105",
       "weight": 1.0,
       "source": "test_unit_brew_shellenv_cache_writer",
       "target": "test_unit_brew_shellenv_cache_writer_temp_siblings",
@@ -66094,7 +66291,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/brew-shellenv-cache-writer.sh",
-      "source_location": "L134",
+      "source_location": "L141",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_brew_shellenv_cache_writer_sh__entry",
@@ -66105,7 +66302,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/brew-shellenv-cache-writer.sh",
-      "source_location": "L50",
+      "source_location": "L57",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_brew_shellenv_cache_writer_sh__entry",
@@ -66116,7 +66313,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/brew-shellenv-cache-writer.sh",
-      "source_location": "L108",
+      "source_location": "L115",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_brew_shellenv_cache_writer_sh__entry",
@@ -66127,7 +66324,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/brew-shellenv-cache-writer.sh",
-      "source_location": "L136",
+      "source_location": "L143",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_brew_shellenv_cache_writer_sh__entry",
@@ -66138,7 +66335,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/brew-shellenv-cache-writer.sh",
-      "source_location": "L110",
+      "source_location": "L117",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_brew_shellenv_cache_writer_sh__entry",
@@ -66149,7 +66346,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/brew-shellenv-cache-writer.sh",
-      "source_location": "L47",
+      "source_location": "L54",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_brew_shellenv_cache_writer_assert_contains",
@@ -66160,7 +66357,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/brew-shellenv-cache-writer.sh",
-      "source_location": "L41",
+      "source_location": "L48",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_brew_shellenv_cache_writer_refute_contains",
@@ -78418,7 +78615,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "docs/research/2026-07-09-sp4-nushell-evaluation.md",
-      "source_location": "L120",
+      "source_location": "L121",
       "weight": 1.0,
       "source": "docs_research_2026_07_09_sp4_nushell_evaluation_no_go",
       "target": "docs_research_2026_07_09_sp4_nushell_evaluation_4_integration_maturity_today_mid_2026_with_citations",
@@ -78428,7 +78625,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "docs/research/2026-07-09-sp4-nushell-evaluation.md",
-      "source_location": "L138",
+      "source_location": "L139",
       "weight": 1.0,
       "source": "docs_research_2026_07_09_sp4_nushell_evaluation_no_go",
       "target": "docs_research_2026_07_09_sp4_nushell_evaluation_5_what_this_verdict_means_for_sp3_s_shell_hook_seam",
@@ -78438,7 +78635,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "docs/research/2026-07-09-sp4-nushell-evaluation.md",
-      "source_location": "L162",
+      "source_location": "L163",
       "weight": 1.0,
       "source": "docs_research_2026_07_09_sp4_nushell_evaluation_no_go",
       "target": "docs_research_2026_07_09_sp4_nushell_evaluation_6_sources",
@@ -88596,5 +88793,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "2ffb58877d25280fc4443420fe8c697858cf3b92"
+  "built_at_commit": "4f786c5b64f0f489c8aff5e7c59510d11c8efbb3"
 }
