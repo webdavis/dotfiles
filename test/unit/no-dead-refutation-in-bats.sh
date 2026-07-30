@@ -104,6 +104,8 @@
 #     would otherwise swallow every body after it;
 #   - [unterminated-case] a case...esac opened inside a bats-executed body and
 #     never closed, which would otherwise freeze the region tracker;
+#   - [unbalanced-compound] a bats-executed body whose braces balance while an
+#     if/loop/group frame is still open, so the two bracket models disagree;
 #   - [unreadable-file] a source file that cannot be opened;
 #   - [non-utf8-source] a source file that is not valid UTF-8, so its text
 #     cannot be read at all;
@@ -994,15 +996,24 @@ def find_body_open_brace(tokens, index, first_on_line, comment_test_lines):
 def analyze_body(tokens, index, open_line, relpath, lines):
     """Analyze the body whose contents start at `index` (just past its opening
     brace on `open_line`). Returns (findings, index just past its closing
-    brace). Either structure the scan cannot resolve is REFUSED rather than
-    reported clean: both of them swallow the rest of the file silently."""
+    brace). Any structure the scan cannot resolve is REFUSED rather than
+    reported clean: each of them swallows the rest of the file silently.
+
+    `{` and `}` delimit the body only in COMMAND POSITION, which is bash's own
+    rule for them as reserved words: `echo }` prints a brace, it does not close
+    a group (measured). Counting them anywhere had an asymmetry that failed
+    OPEN in the direction that matters -- a `}` in argument position ended the
+    body early and every later line, dead refutations included, was silently
+    reread as unscanned file scope and reported clean, while a `{` in argument
+    position merely refused."""
     analyzer = BodyAnalyzer(relpath, lines)
     depth = 1
     total = len(tokens)
     closed = False
     while index < total:
         kind, value, line = tokens[index]
-        if kind == "WORD" and analyzer.case_depth == 0:
+        if (kind == "WORD" and analyzer.case_depth == 0
+                and analyzer.at_command_position):
             if value == "{":
                 depth += 1
             elif value == "}":
@@ -1020,6 +1031,15 @@ def analyze_body(tokens, index, open_line, relpath, lines):
     if not closed:
         raise UnanalyzableSource(
             "line %d: this bats-executed body is never closed" % open_line)
+    if analyzer.frames:
+        # The body's braces balanced while the analyzer still holds an open
+        # if/loop/group frame, so the two bracket models disagree and the
+        # positional verdicts computed from the frames cannot be trusted.
+        # Valid input never reaches this (bash requires fi/done/} first), so it
+        # is a desync net, and a desync must refuse rather than report clean.
+        raise UnanalyzableSource(
+            "line %d: a compound command opened in this bats-executed body is "
+            "never closed" % open_line)
     return analyzer.finish(), index
 
 

@@ -332,6 +332,17 @@ create_flagged_tree_fixtures() {
     '  ! test -e /nope' \
     '  true')" 5 "$REASON_DISCARDED")"
 
+  # A `}` in ARGUMENT position is a literal brace, not a group closer
+  # (measured: `bash -c "{ echo }; }"` prints a brace). Counting it as a closer
+  # ended the body early and reread every later line as unscanned file scope,
+  # so the dead inversion below was reported clean -- the guard's own
+  # fail-open. The inversion is reachable only while the brace stays an
+  # argument.
+  flagged_expected_destination["argument_close_brace"]="$(expect_finding "$(write_test_body "$flagged_root" argument-close-brace \
+    '  printf "%s" } >/dev/null' \
+    '  ! test -e /nope' \
+    '  true')" 3 "$REASON_DISCARDED")"
+
   # A brace-shaped case PATTERN is a pattern, not a brace (`case "}" in }) ...`
   # matches, measured). Counting it would close the body inside the region and
   # leave the rest of it unscanned, so the dead inversion after `esac` is
@@ -471,6 +482,12 @@ create_clean_tree_fixtures() {
     '    ! grep -q x /etc/hosts' \
     '  }' \
     '  refute_x')"
+  # A `{` in ARGUMENT position is a literal brace, not a group opener, so it
+  # must neither open a frame nor make the body look unclosed. Refusing here
+  # was the fail-open's mirror image: same misreading, louder outcome.
+  fixture_path="$(write_test_body "$clean_root" argument-open-brace \
+    '  printf "%s" { >/dev/null' \
+    '  ! test -e /nope')"
   # Final compound statements are presumed live (each branch here IS live).
   fixture_path="$(write_test_body "$clean_root" else-branch-final \
     '  if false; then true; else ! true; fi')"
@@ -793,6 +810,16 @@ write_unclosed_body_refusal() {
     '  true'
 }
 
+write_unbalanced_compound_refusal() {
+  # The braces balance while the `if` frame is still open, so the scan's two
+  # bracket models disagree and its positional verdicts cannot be trusted.
+  write_bats_file "$1" unbalanced-compound \
+    '@test "t" {' \
+    '  if true; then' \
+    '    ! true' \
+    '}'
+}
+
 write_heredoc_in_substitution_refusal() {
   write_test_body "$1" heredoc-in-substitution \
     '  x="$(cat <<EOF' \
@@ -864,6 +891,7 @@ write_unlistable_directory_refusal() {
 declare -A REFUSAL_FIXTURE_WRITERS=(
   ["unterminated-case"]=write_unterminated_case_refusal
   ["unclosed-body"]=write_unclosed_body_refusal
+  ["unbalanced-compound"]=write_unbalanced_compound_refusal
   ["heredoc-in-substitution"]=write_heredoc_in_substitution_refusal
   ["unterminated-quote"]=write_unterminated_quote_refusal
   ["unbalanced-parens"]=write_unbalanced_parens_refusal
@@ -874,6 +902,7 @@ declare -A REFUSAL_FIXTURE_WRITERS=(
 declare -A REFUSAL_DIAGNOSTICS=(
   ["unterminated-case"]='a case...esac opened in this bats-executed body'
   ["unclosed-body"]='this bats-executed body is never closed'
+  ["unbalanced-compound"]='a compound command opened in this bats-executed body is never closed'
   ["heredoc-in-substitution"]='unterminated single quote'
   ["unterminated-quote"]='unterminated single quote'
   ["unbalanced-parens"]='unterminated (...)'
