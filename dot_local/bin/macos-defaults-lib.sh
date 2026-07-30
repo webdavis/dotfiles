@@ -197,34 +197,52 @@ defaults_records_declared_count() { # <path>, print the validated record count
   fi
   # The count is a STRING from yq, and it is about to drive both `((...))` loop
   # bounds and the `-ne` comparison that catches a forged record. The pattern
-  # below does TWO jobs, and only one of them is unique to it. Saying which is
-  # which is the point of this comment: a check that reads as load-bearing when
-  # it is not gets "simplified" away by the next reader.
+  # below does THREE things, and only one of them is uniquely reachable. Saying
+  # which is which is the point of this comment: a check that reads as
+  # load-bearing when it is not gets "simplified" away by the next reader.
   #
-  # Rejecting a NON-NUMERIC count is defence in depth. Bash arithmetic on a
-  # non-numeric string raises a syntax error and evaluates FALSE, so the
-  # comparison would fall through and emit the very stream it exists to reject.
-  # No input is known that arrives here non-numeric with an otherwise clean
-  # shape, and none is expected: this expression and the shape expression below
-  # share the producer `(.macos.defaults // [])`, so they always emit the same
-  # NUMBER of lines, and a single-result `!!seq` always has an integer length.
-  # A multi-document file, the one input observed to produce a multi-line count,
+  # Rejecting a NON-NUMERIC count and rejecting a LEADING ZERO (which bash would
+  # read as octal: $((0010)) is 8) are both defence in depth. `length` answers
+  # with an integer node, so neither shape reaches here from this producer.
+  # Neither is expected to: this expression and the shape expression below share
+  # the producer `(.macos.defaults // [])`, so they always emit the same NUMBER
+  # of lines, and a single-result `!!seq` always has an integer length. A
+  # multi-document file, the one input observed to produce a multi-line count,
   # therefore trips the shape check as well; removing this pattern leaves that
   # file refused.
+  #
+  # What a multi-line count WOULD do if it got past here is worth recording
+  # correctly, because the obvious guess is wrong and an earlier version of this
+  # comment asserted it: bash raises no syntax error. It reads the whole value
+  # as ONE arithmetic expression and the `---` separator as a run of unary minus
+  # signs, so $'1\n---\n0' evaluates to 1 and $'0\n---\n9' to -9 (measured, bash
+  # 5.3.15). The `-ne` comparison below would answer on the DIFFERENCE of the
+  # per-document counts, silently, and on $'1\n---\n0' it answers "no mismatch"
+  # and emits the very stream it exists to reject.
   #
   # The SEVEN-DIGIT CEILING is the half nothing else enforces, so this check
   # stays. `!!seq` is a tag, not a proof: an explicit `!!seq` on a scalar makes
   # the shape check below answer `!!seq` while yq's `length` reports the
-  # SCALAR's character count, so a count of 10000000 reaches here with the shape
-  # check fully satisfied (measured, yq v4.53.3). The ceiling caps what this
-  # function publishes as a validated count, and with it the
-  # `defaults_records_locate_malformed` loop, which runs `declared_record_count`
-  # times and forks yq per iteration (measured at about 13 ms each).
+  # SCALAR's length in BYTES, so a count of 10000000 reaches here with the shape
+  # check fully satisfied (measured, yq v4.53.3). Bytes is what makes the
+  # ceiling worth having: without it the only bound on the count this function
+  # publishes is the SIZE OF THE DATA FILE, so a 10 MB file would publish
+  # 10000000 and a 1 GB file a billion. That count is the upper bound of the
+  # `defaults_records_locate_malformed` loop, which forks yq per iteration
+  # (measured at about 11 ms each). The loop returns at the FIRST record that
+  # does not render as one eight-field line, so on the tagged-scalar input above
+  # it returns at index 0; a file whose records all render cleanly is the one
+  # that walks the whole range.
   #
   # Bounding by DIGIT COUNT rather than by comparison is deliberate: it refuses
-  # an oversized value BEFORE any arithmetic touches it, so a value past bash's
-  # integer range is never evaluated. `^[0-9]+$` plus a numeric comparison would
-  # have to evaluate the value in order to reject it.
+  # an oversized value BEFORE any arithmetic touches it. A comparison has to
+  # evaluate the value in order to reject it, and bash's integer arithmetic
+  # WRAPS without complaint, so `^[0-9]+$` plus `-gt` ACCEPTS
+  # 18446744073709551616, which evaluates to 0 (measured). The bound stays in
+  # the quantifier rather than in a named constant because
+  # `^(0|[1-9][0-9]{0,N})$` is the form four other guards in this repo already
+  # use, and naming it at this one site alone would leave five spellings of one
+  # idiom.
   #
   # test/unit/macos-defaults-count-guard.sh pins both boundaries of the ceiling
   # and the multi-document behaviour.

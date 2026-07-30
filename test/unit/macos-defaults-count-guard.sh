@@ -3,8 +3,16 @@
 # every count it cannot use, and must still answer for a file it can.
 #
 # The function holds two independent checks, a numeric-count check and a
-# list-shape check. This file pins each on an input where it is the ONLY one
-# that fires, so neither can be dropped on the strength of the other.
+# list-shape check. This file pins the NUMERIC check on an input where it is the
+# only one that fires, so it cannot be dropped on the strength of the other.
+#
+# It does NOT pin the shape check's refusal, and does not claim to. Deleting the
+# shape check outright leaves every case in this file green (verified by
+# mutation); what catches that is
+# test/integration/macos-defaults-shape-agreement.sh, which feeds a MAP-valued
+# .macos.defaults to this library and to the runner template together. What this
+# file does hold on the shape check is the false-positive direction: inverting it
+# so that it refuses a list dies at case 2.
 #
 # NEITHER check owns the multi-document case (case 1) on its own. yq answers
 # once per document and separates the answers, so a two-document file makes the
@@ -16,11 +24,19 @@
 # The NUMERIC check owns the digit ceiling (cases 4 and 5), and there it is the
 # only barrier. `!!seq` is a tag, not a proof: an explicit `!!seq` on a scalar
 # makes the shape check answer a clean `!!seq` while yq's `length` reports the
-# SCALAR's character count (measured, yq v4.53.3). A count of 10000000 therefore
-# reaches the numeric check with the shape check fully satisfied, and nothing
-# else in the function refuses it. Both boundary cases are required: the refusal
-# on its own still passes against a guard whose ceiling has been LOWERED,
-# because every other fixture in this file counts 0, 1, or 2.
+# SCALAR's length in BYTES (measured, yq v4.53.3: three two-byte runes answer 6).
+# A count of 10000000 therefore reaches the numeric check with the shape check
+# fully satisfied, and nothing else in the function refuses it. Both boundary
+# cases are required: the refusal on its own still passes against a guard whose
+# ceiling has been LOWERED, because no other fixture in this file produces a
+# count of more than one digit.
+#
+# Bytes is also why this file costs about 0.6 s (608 to 670 ms over four runs),
+# over the unit suite's 200 ms warn threshold, alongside a dozen other unit
+# tests already there: the count IS the scalar's byte length, so pinning a
+# seven-digit ceiling against real yq needs a ten-megabyte scalar, and no
+# smaller fixture reaches the bound. Shrinking the fixtures does not make this
+# test faster, it makes it stop testing the ceiling.
 set -euo pipefail
 
 # The guard admits at most seven digits, so these are the largest count it
@@ -36,17 +52,18 @@ fail() {
   exit 1
 }
 
-# write_seq_tagged_scalar <path> <character-count>, write a data file whose
+# write_seq_tagged_scalar <path> <byte-count>, write a data file whose
 # .macos.defaults is a SCALAR carrying an explicit !!seq tag. yq then reports the
-# shape as a clean !!seq while `length` answers with the scalar's character
-# count, which is what lets the boundary cases below vary the count while
-# holding the shape check satisfied. The body is spaces from a single printf, so
+# shape as a clean !!seq while `length` answers with the scalar's length in
+# BYTES, which is what lets the boundary cases below vary the count while
+# holding the shape check satisfied. The body is ASCII spaces from a single
+# printf, so the byte count and the requested count are the same number, and
 # even a ten-megabyte fixture costs no second process.
-write_seq_tagged_scalar() { # <path> <character-count>
-  local path="$1" character_count="$2"
+write_seq_tagged_scalar() { # <path> <byte-count>
+  local path="$1" byte_count="$2"
   {
     printf 'macos:\n  defaults: !!seq "'
-    printf '%*s' "$character_count" ''
+    printf '%*s' "$byte_count" ''
     printf '"\n'
   } >"$path"
 }
@@ -128,9 +145,16 @@ printf '%s' "$output" | grep -q -- "count $SMALLEST_REFUSED_RECORD_COUNT" ||
   fail "the refusal does not name the offending count $SMALLEST_REFUSED_RECORD_COUNT: $output"
 
 # ---- 5: the largest in-range count is still accepted ------------------------
-# The other side of the ceiling. Without it, lowering the guard's digit bound
-# would leave every case above green: the fixtures elsewhere in this file count
-# 0, 1, and 2, and case 4 only gets stricter as the bound drops.
+# The other side of the ceiling, and the ONLY case that catches a bound the next
+# reader lowers. Every case above stays green as the bound drops: no other
+# fixture here produces a count of more than one digit, and case 4 only gets
+# stricter. Verified by mutation, `{0,6}` to `{0,5}` and to `{0,0}` both die
+# here and nowhere else.
+#
+# The shape assertion is kept even though acceptance already implies it (the
+# function returns 2 when the shape is not !!seq), because it holds
+# independently of the library: it reads the fixture's tag with yq directly, so
+# it still reports an untagged fixture if the shape check itself is ever removed.
 write_seq_tagged_scalar "$work/at-ceiling.yaml" "$LARGEST_ACCEPTED_RECORD_COUNT"
 require_clean_seq_shape "$work/at-ceiling.yaml"
 status=0
