@@ -69,11 +69,14 @@ print_header() {
 # THREE read outcomes: the value, <unset> (genuinely not set, compared as
 # drift like any other value), and <unreadable> (indeterminate: reported as
 # its own row, counted separately, never as drift and never skipped).
-# Note: yq emits a single newline for an empty array; the inline guard below
-# skips that empty row so the script exits 0 cleanly when nothing is tracked.
+# A record with no domain or no key aborts too, rather than being skipped: the
+# stream refuses such a file already, and a silent skip here would report "no
+# drift" for a control nobody actually read. An empty stream is not that case,
+# and needs no guard: the stream emits no line at all when nothing is tracked, so
+# this loop simply never runs and the script exits 0.
 defaults_records_unit_separated "$DATA_FILE" |
   while IFS=$'\x1f' read -r domain key type value host scope plist_path tier; do
-    [[ -z $domain ]] && continue
+    validate_record_identity "$domain" "$key" || exit 2
     case "$tier" in
       enforce | verify) ;;
       manual)
