@@ -65,22 +65,42 @@ HOMEBREW_PREFIX='/opt/homebrew'
 # Brew PATH/env, sourced from a cache that ~/.local/bin/brew-shellenv-cache-refresh.sh
 # generates from the real `brew shellenv`. The self-heal block in the interactive
 # half of this file is what runs it automatically, whenever the cache is missing
-# or stale; `just brew-cache-refresh` runs it on demand. The non-interactive login
-# doors that reach ~/.bashrc (bash -lc via ~/.bash_profile, `ssh host cmd` via
-# Apple /bin/bash's SSH_SOURCE_BASHRC) need brew on PATH (/etc/paths lacks
-# /opt/homebrew/bin). `eval "$(brew shellenv)"` would spawn brew (~50ms) on each;
-# sourcing the pre-generated cache is ~1ms. Regenerating from the real generator
-# (rather than hardcoding its output) keeps us in sync with upstream Homebrew's
-# shellenv abstraction and recreates ${HOMEBREW_PREFIX}/etc/paths when it is
-# missing. Fall back to a live eval whenever the cache is not usable, which on a
-# fresh host is the FIRST shell only: that shell pays ~50ms once and launches the
-# regeneration, and every later shell sources the cache.
+# or unusable or stale; `just brew-cache-refresh` runs it on demand. The
+# non-interactive login doors that reach ~/.bashrc (bash -lc via ~/.bash_profile,
+# `ssh host cmd` via Apple /bin/bash's SSH_SOURCE_BASHRC) need brew on PATH
+# (/etc/paths lacks /opt/homebrew/bin). A live `eval "$(brew shellenv)"` costs
+# tens of milliseconds on each of them; sourcing the pre-generated cache costs
+# roughly an order of magnitude less, and what remains is the /usr/libexec/
+# path_helper fork the CACHED TEXT ITSELF performs, not the file read. No
+# committed artifact regenerates those figures, so no absolute number is quoted
+# here; the measurements behind the design live in the commit that introduced it.
+# Regenerating from the real generator (rather than hardcoding its output) keeps
+# us in sync with upstream Homebrew's shellenv abstraction and recreates
+# ${HOMEBREW_PREFIX}/etc/paths when it is missing. Fall back to a live eval
+# whenever the cache is not usable, which on a fresh host is the FIRST shell
+# only: that shell pays the live cost once and launches the regeneration, and
+# every later shell sources the cache.
+#
+# KNOWN AND DELIBERATE GAP: only INTERACTIVE shells self-heal (the writer launch
+# lives under the `[[ $- == *i* ]]` guard below), so a host driven ONLY through
+# `ssh host cmd` and `bash -lc` never writes the cache and pays the live cost on
+# every shell, forever. Closing that would mean either a second, non-atomic copy
+# of the write inlined here (the branch just consolidated the write into ONE
+# atomic implementation) or launching a detached background process out of every
+# `ssh host cmd`, which is the classic way to leave an ssh channel hanging. The
+# supported answer for a headless host is to run the writer once from
+# provisioning: ~/.local/bin/brew-shellenv-cache-refresh.sh (it is idempotent),
+# or `just brew-cache-refresh`.
 __brew_shellenv="${XDG_CACHE_HOME:-$HOME/.cache}/brew-shellenv.sh"
-# Guard on -s (non-empty), NOT -r: an EMPTY cache is readable, so -r would source
-# nothing and skip the live fallback, leaving brew off PATH with no self-recovery
-# (e.g. a 0-byte cache left by an interrupted write). -s falls through to the live
-# eval so a truncated/empty cache always heals.
-if [[ -s $__brew_shellenv ]]; then
+# USABLE means all three: a regular file (-f, so a directory named like the cache
+# is rejected), readable (-r), and non-empty (-s). Any one of them alone lets a
+# broken cache through, and two of those failures are LOUD: `.` on an unreadable
+# file or on a directory prints a bash diagnostic to the terminal on EVERY shell
+# start. An empty cache is silent but sources nothing, which would leave brew off
+# PATH. All three cases fall through to the live eval instead, and the self-heal
+# guard below asks this SAME question so the reader and the writer cannot
+# disagree about what "usable" means.
+if [[ -f $__brew_shellenv && -r $__brew_shellenv && -s $__brew_shellenv ]]; then
   . "$__brew_shellenv"
 else
   eval "$("${HOMEBREW_PREFIX}/bin/brew" shellenv 2>/dev/null)"
@@ -302,20 +322,44 @@ if [[ $- == *i* ]]; then
   # sourced above: `chezmoi apply --exclude=templates` (what `just a` runs, and
   # what CLAUDE.md requires of automation) does not run templated scripts, so the
   # apply-time regen script only ever fired on a rare full interactive apply and
-  # was deleted. Every case that needs a rewrite makes this guard true:
-  #   - no cache yet, on a fresh host or after someone deletes it: `-nt` is TRUE
-  #     when its right-hand operand does not exist.
-  #   - Homebrew shipped a new shellenv generator (e.g. `brew autoupdate` ran
-  #     `brew update`): the generator is newer than the cache.
-  #   - ${HOMEBREW_PREFIX}/etc/paths disappeared: `brew shellenv` RECREATES that
-  #     file, and the path_helper line in the cached output READS it at runtime,
-  #     so without it ${HOMEBREW_PREFIX}/bin and /sbin drop out of PATH and no
-  #     Homebrew tool resolves, `brew` included. Losing that file does not touch
-  #     the generator's mtime, so it needs a test of its own.
-  # Term order is a measured cost decision, not style: the staleness test settles
-  # the common path in three stat calls (~3.4us, the same as the two-term guard it
-  # replaces) and short-circuits before the installed-and-deployed test. No fork
-  # here on any shell; only the rare regeneration branch forks.
+  # was deleted. Two named predicates below answer the two separate questions:
+  # does anything need repairing, and are we allowed to try again yet.
+  #
+  # WHAT COUNTS AS NEEDING REPAIR (__brew_shellenv_cache_needs_repair):
+  #   - the cache is not USABLE: absent, a directory, unreadable, or empty. This
+  #     is the same three-part question the consumer half of this file asks
+  #     before sourcing it, so the two cannot disagree about what "usable" means.
+  #     A staleness-only guard left every one of those states stuck forever, and
+  #     two of them (unreadable, directory) make `.` print a bash diagnostic to
+  #     the terminal on every single shell start.
+  #   - the cache is STALE: Homebrew shipped a new shellenv generator (e.g.
+  #     `brew autoupdate` ran `brew update`), so the generator is newer than the
+  #     cache.
+  #   - ${HOMEBREW_PREFIX}/etc/paths is not READABLE. The path_helper line in the
+  #     cached output reads that file at runtime, so without it
+  #     ${HOMEBREW_PREFIX}/bin and /sbin drop out of PATH and no Homebrew tool
+  #     resolves, `brew` included. The test is -r and NOT -f on purpose: a paths
+  #     file that exists but cannot be read collapses PATH exactly like a missing
+  #     one (path_helper prints "Permission denied", exits 0, and returns a PATH
+  #     with the Homebrew entries gone), and -f reports such a file as fine.
+  #     Losing or locking the file does not touch the generator's mtime, so this
+  #     needs a term of its own.
+  #
+  # WHY ATTEMPTS ARE RATE-LIMITED (__brew_shellenv_repair_is_due):
+  #   regenerating the cache fixes the first two conditions directly, but it
+  #   fixes the paths file only as a SIDE EFFECT of `brew shellenv`, and upstream
+  #   gates that side effect: Homebrew's Library/Homebrew/cmd/shellenv.sh writes
+  #   the file only on macOS 14 or newer, only when /usr/libexec/path_helper is
+  #   present, only when the file is MISSING rather than merely unreadable, and
+  #   it discards any write error. Whenever the side effect cannot happen (an
+  #   unreadable paths file, a read-only ${HOMEBREW_PREFIX}/etc, an older macOS),
+  #   an unconditional guard forks a brew and appends a log line on EVERY
+  #   interactive shell, forever, with nothing to converge on. The stamp bounds
+  #   that to one attempt per interval per host for EVERY repair reason, and it
+  #   also collapses the thundering herd: opening ten panes on a fresh host used
+  #   to launch ten concurrent regenerations. Nothing here is on the hot path:
+  #   the stamp is only read once a repair is already indicated.
+  #
   # Regeneration runs the DEPLOYED writer, the same artifact
   # `just brew-cache-refresh` runs, so the atomic mktemp + success-gated mv has
   # exactly one implementation and no caller can truncate the live cache. It is
@@ -323,21 +367,61 @@ if [[ $- == *i* ]]; then
   # uses) so it never enters this interactive shell's job table: no `[N] pid`
   # start line and no failed-job notice at the prompt. `just test` is the drift
   # backstop.
-  __be_cache="${XDG_CACHE_HOME:-$HOME/.cache}/brew-shellenv.sh"
-  __be_gen="${HOMEBREW_REPOSITORY:-/opt/homebrew/Homebrew}/Library/Homebrew/cmd/shellenv.sh"
-  __be_paths="${HOMEBREW_PREFIX:-/opt/homebrew}/etc/paths"
-  __be_writer="$HOME/.local/bin/brew-shellenv-cache-refresh.sh"
-  __be_log="$HOME/.local/log/brew-shellenv-selfheal.log"
-  # Gate the whole detached launch on the log mkdir SUCCEEDING: if that dir is not
-  # creatable, launch nothing and print nothing (otherwise the outer subshell's
-  # `>>$log` open would fail straight to the interactive terminal before its own
-  # 2>&1 applies). The writer creates the cache dir itself.
-  if [[ $__be_gen -nt $__be_cache || ! -f $__be_paths ]] &&
-    [[ -f $__be_gen && -x $__be_writer ]] &&
-    mkdir -p "${__be_log%/*}" 2>/dev/null; then
-    ("$__be_writer" >>"$__be_log" 2>&1 &)
+  __brew_shellenv_cache="${XDG_CACHE_HOME:-$HOME/.cache}/brew-shellenv.sh"
+  __brew_shellenv_generator="${HOMEBREW_REPOSITORY:-/opt/homebrew/Homebrew}/Library/Homebrew/cmd/shellenv.sh"
+  __brew_shellenv_paths_file="${HOMEBREW_PREFIX:-/opt/homebrew}/etc/paths"
+  __brew_shellenv_writer="$HOME/.local/bin/brew-shellenv-cache-refresh.sh"
+  __brew_shellenv_log="$HOME/.local/log/brew-shellenv-selfheal.log"
+  __brew_shellenv_attempt_stamp="$HOME/.local/log/brew-shellenv-selfheal.attempt"
+  __brew_shellenv_retry_interval_seconds=3600
+
+  # Is the cache unusable, stale, or is the paths file it depends on unreadable?
+  # Stat tests only: this runs on every interactive shell and must not fork.
+  __brew_shellenv_cache_needs_repair() {
+    [[ -f $__brew_shellenv_cache && -r $__brew_shellenv_cache && -s $__brew_shellenv_cache ]] ||
+      return 0
+    [[ $__brew_shellenv_generator -nt $__brew_shellenv_cache ]] && return 0
+    [[ ! -r $__brew_shellenv_paths_file ]]
+  }
+
+  # Has enough time passed since the last repair attempt to try another one?
+  # Only reached once a repair is indicated, so its file read is off the hot path.
+  __brew_shellenv_repair_is_due() {
+    local last_attempt_epoch
+    # No clock, no bound. EPOCHSECONDS arrived in bash 5.0, and an interactive
+    # Apple /bin/bash (3.2) would compare against 0 and never repair anyway.
+    # Refusing is the safe direction: the consumer half still falls back to a
+    # live eval, and `just brew-cache-refresh` still repairs on demand.
+    [[ -n ${EPOCHSECONDS:-} ]] || return 1
+    [[ -f $__brew_shellenv_attempt_stamp && -r $__brew_shellenv_attempt_stamp ]] || return 0
+    read -r last_attempt_epoch 2>/dev/null <"$__brew_shellenv_attempt_stamp" || return 0
+    # Anything but a plain unpadded epoch re-arms the repair: a leading zero
+    # parses as octal and a longer digit run overflows the arithmetic below.
+    [[ $last_attempt_epoch =~ ^(0|[1-9][0-9]{0,9})$ ]] || return 0
+    # Bound BOTH sides. A stamp dated in the future (clock jump, restored
+    # backup) would otherwise block every repair from here on.
+    ((last_attempt_epoch > EPOCHSECONDS)) && return 0
+    ((EPOCHSECONDS - last_attempt_epoch >= __brew_shellenv_retry_interval_seconds))
+  }
+
+  # Gate the launch on the log mkdir AND the stamp write succeeding. If the log
+  # dir is not creatable the outer subshell's `>>$log` open would fail straight
+  # to the interactive terminal before its own 2>&1 applies; if the stamp is not
+  # writable the rate limit above cannot bound anything, so launching would be
+  # the unbounded loop this block exists to avoid. Both redirect stderr BEFORE
+  # the failing redirection, so a refusal is silent. The writer creates the cache
+  # dir itself.
+  if __brew_shellenv_cache_needs_repair &&
+    [[ -f $__brew_shellenv_generator && -x $__brew_shellenv_writer ]] &&
+    __brew_shellenv_repair_is_due &&
+    mkdir -p "${__brew_shellenv_log%/*}" 2>/dev/null &&
+    printf '%s\n' "$EPOCHSECONDS" 2>/dev/null >"$__brew_shellenv_attempt_stamp"; then
+    ("$__brew_shellenv_writer" >>"$__brew_shellenv_log" 2>&1 &)
   fi
-  unset __be_cache __be_gen __be_paths __be_writer __be_log
+  unset __brew_shellenv_cache __brew_shellenv_generator __brew_shellenv_paths_file
+  unset __brew_shellenv_writer __brew_shellenv_log __brew_shellenv_attempt_stamp
+  unset __brew_shellenv_retry_interval_seconds
+  unset -f __brew_shellenv_cache_needs_repair __brew_shellenv_repair_is_due
   {{- end }}
 
   # ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
