@@ -824,17 +824,30 @@ unescape_include_pattern() {
 #   - A path matching nothing is ignored, exactly as sshd ignores it. A file
 #     that exists but cannot be read is fatal to sshd, and scan_config_file
 #     treats it as fatal too.
-scan_included_files() {
-  local from="$1" in_match="$2" depth="$3" chain="$4"
+#
+# The resolution itself lives in resolve_include_paths below, and the walk in
+# scan_included_files; the split is what keeps the ONE resolver honest. sshd's
+# own walk is what defines the effective tree, so a second, divergent resolver
+# would quietly judge a different one.
+
+# resolve_include_paths: the concrete REGULAR FILES the Include whose arguments
+# are sitting in PARSED_ARGS names, into INCLUDE_RESOLVED_PATHS. Returns 1 for
+# an Include carrying no path at all, so each caller reports that in its own
+# words.
+#
+# The caller must COPY the result before recursing: this is a global, and a
+# recursive walk overwrites it.
+INCLUDE_RESOLVED_PATHS=()
+resolve_include_paths() {
   local pattern resolved old_ifs
   local -a patterns matches
+  INCLUDE_RESOLVED_PATHS=()
   patterns=()
   if [[ ${#PARSED_ARGS[@]} -gt 0 ]]; then
     patterns=("${PARSED_ARGS[@]}")
   fi
   if [[ ${#patterns[@]} -eq 0 ]]; then
-    add_failure "match scan: '$from' has an Include with no path; failing closed rather than guessing what it pulls in"
-    return 0
+    return 1
   fi
   for pattern in "${patterns[@]}"; do
     # The relative test is on the RAW token, before any unescaping, because
@@ -869,11 +882,35 @@ scan_included_files() {
       continue
     fi
     for resolved in "${matches[@]}"; do
+      # Regular files only. A path that is not one is skipped rather than
+      # opened, which is also what keeps a named pipe out of every reader
+      # downstream: a `read` from one blocks forever, and a verifier that HANGS
+      # reports nothing at all. -f is false for a symlink to a pipe too, so the
+      # guard holds through a link.
       if [[ ! -f $resolved ]]; then
         continue
       fi
-      scan_config_file "$resolved" "$in_match" "$((depth + 1))" "$chain"
+      INCLUDE_RESOLVED_PATHS+=("$resolved")
     done
+  done
+  return 0
+}
+
+scan_included_files() {
+  local from="$1" in_match="$2" depth="$3" chain="$4"
+  local resolved
+  local -a resolved_paths
+  if ! resolve_include_paths; then
+    add_failure "match scan: '$from' has an Include with no path; failing closed rather than guessing what it pulls in"
+    return 0
+  fi
+  if [[ ${#INCLUDE_RESOLVED_PATHS[@]} -eq 0 ]]; then
+    return 0
+  fi
+  # Copied before the recursive call below overwrites the global.
+  resolved_paths=("${INCLUDE_RESOLVED_PATHS[@]}")
+  for resolved in "${resolved_paths[@]}"; do
+    scan_config_file "$resolved" "$in_match" "$((depth + 1))" "$chain"
   done
 }
 
@@ -937,29 +974,37 @@ scan_config_file() {
   fi
 }
 
-check_match_scan() {
+# config_tree_roots: where a walk of the effective configuration STARTS, into
+# CONFIG_TREE_ROOTS. Returns 1 with CONFIG_TREE_ROOTS_ERROR naming the reason
+# when the listing cannot be built, so each caller phrases the refusal in its
+# own terms.
+#
+# Two roots, each walked with Include followed from it. The main config is
+# where sshd starts, so everything sshd reads is reachable from it. The
+# drop-in directory is kept as a second root so a drop-in stays covered even
+# if the main config is unreadable or its Include pattern resolves differently
+# than this walk computes; a file reached from both roots reports once (see
+# add_failure).
+#
+# The include order is lexical byte order; LC_ALL=C sort mirrors it. A config
+# file name containing a newline would break this listing; sshd's own glob
+# handling shares the no-newline assumption.
+#
+# The listing is CAPTURED, not streamed from a process substitution. A process
+# substitution discards its exit status, so a failing sort produced zero files,
+# the loop ran over nothing, and a scan of nothing reported the tree clean.
+CONFIG_TREE_ROOTS=()
+CONFIG_TREE_ROOTS_ERROR=''
+config_tree_roots() {
   local listing status=0 file old_ifs
-  local -a files
-  # Two roots, each walked with Include followed from it. The main config is
-  # where sshd starts, so everything sshd reads is reachable from it. The
-  # drop-in directory is kept as a second root so a drop-in stays covered even
-  # if the main config is unreadable or its Include pattern resolves
-  # differently than this scan computes; a file reached from both roots
-  # reports once (see add_failure).
-  #
-  # The include order is lexical byte order; LC_ALL=C sort mirrors it. A
-  # config file name containing a newline would break this listing; sshd's
-  # own glob handling shares the no-newline assumption.
-  #
-  # The listing is CAPTURED, not streamed from a process substitution. A
-  # process substitution discards its exit status, so a failing sort produced
-  # zero files, the loop ran over nothing, and a scan of nothing reported the
-  # tree clean.
+  local -a candidates
+  CONFIG_TREE_ROOTS=()
+  CONFIG_TREE_ROOTS_ERROR=''
   listing="$(printf '%s\n' "$SSHD_MAIN_CONFIG" "$SSHD_CONFIG_D"/* | LC_ALL=C sort -u)" ||
     status=$?
   if [[ $status -ne 0 ]]; then
-    add_failure "match scan: could not list the configuration files to scan (exit $status); failing closed rather than scanning none"
-    return 0
+    CONFIG_TREE_ROOTS_ERROR="could not list the configuration files to scan (exit $status)"
+    return 1
   fi
   # Split on newlines only, with globbing off so a file name containing a glob
   # character is not expanded a second time.
@@ -967,17 +1012,36 @@ check_match_scan() {
   IFS=$'\n'
   set -f
   # shellcheck disable=SC2206  # deliberate newline split of the captured listing
-  files=($listing)
+  candidates=($listing)
   set +f
   IFS="$old_ifs"
-  if [[ ${#files[@]} -eq 0 ]]; then
-    add_failure 'match scan: the configuration file listing came back empty; failing closed rather than scanning none'
-    return 0
+  if [[ ${#candidates[@]} -eq 0 ]]; then
+    CONFIG_TREE_ROOTS_ERROR='the configuration file listing came back empty'
+    return 1
   fi
-  for file in "${files[@]}"; do
+  for file in "${candidates[@]}"; do
+    # Regular files only, for the reason spelled out in resolve_include_paths:
+    # a named pipe here would block every reader downstream forever.
     if [[ -z $file || ! -f $file ]]; then
       continue
     fi
+    CONFIG_TREE_ROOTS+=("$file")
+  done
+  return 0
+}
+
+check_match_scan() {
+  local file
+  local -a roots
+  if ! config_tree_roots; then
+    add_failure "match scan: $CONFIG_TREE_ROOTS_ERROR; failing closed rather than scanning none"
+    return 0
+  fi
+  if [[ ${#CONFIG_TREE_ROOTS[@]} -eq 0 ]]; then
+    return 0
+  fi
+  roots=("${CONFIG_TREE_ROOTS[@]}")
+  for file in "${roots[@]}"; do
     scan_config_file "$file" 0 0 '|'
   done
 }
