@@ -253,7 +253,8 @@ defaults_records_raw_stream() { # <path>
 defaults_records_validate_stream() { # <path> <declared-count> <raw-stream>
   local data_file="$1" declared_record_count="$2" raw_records="$3"
   local line field_count checked_line_count=0
-  local record_domain record_key record_tier
+  local record_domain record_key record_type record_value
+  local record_host record_scope record_plist_path record_tier
   while IFS= read -r line; do
     # yq prints a single empty line for an empty array; that is not a record.
     [[ -z $line ]] && continue
@@ -269,7 +270,8 @@ defaults_records_validate_stream() { # <path> <declared-count> <raw-stream>
     # same refusal, so absent, blank, and unrecognized all fail closed. The
     # refusal covers the WHOLE file, because a caller must not act on the
     # records beside one it cannot classify.
-    IFS=$'\x1f' read -r record_domain record_key _ _ _ _ _ record_tier <<<"$line"
+    IFS=$'\x1f' read -r record_domain record_key record_type record_value \
+      record_host record_scope record_plist_path record_tier <<<"$line"
     case "$record_tier" in
       enforce | verify | manual) ;;
       *)
@@ -278,6 +280,18 @@ defaults_records_validate_stream() { # <path> <declared-count> <raw-stream>
         return 2
         ;;
     esac
+    # The rest of the record's rules, for the WHOLE file, before the emission
+    # below prints a single line. This is the ordering the runner template has
+    # always had (a complete validation pass, then a render) and the ordering the
+    # tools lacked: apply validated scope and plist_path inside its own write
+    # loop, so a file whose second record was malformed had its first record
+    # written before anyone noticed, and a declarative settings file was left
+    # half applied.
+    if ! validate_defaults_record "$record_domain" "$record_key" "$record_type" \
+      "$record_value" "$record_host" "$record_scope" "$record_plist_path" "$record_tier"; then
+      printf 'error: %s: the record above is not usable; the whole file is refused\n' "$data_file" >&2
+      return 2
+    fi
     checked_line_count=$((checked_line_count + 1))
   done <<<"$raw_records"
 
@@ -289,12 +303,48 @@ defaults_records_validate_stream() { # <path> <declared-count> <raw-stream>
   fi
 }
 
+# defaults_records_declare_a_value <path>, a PREDICATE over the FILE: 0 when
+# every enforce and verify record DECLARES a value, 2 otherwise, naming the first
+# record that does not.
+#
+# Asked of the file rather than of the joined record line, because the line
+# cannot answer it. join renders an ABSENT value and an explicitly EMPTY one
+# identically, as the empty string, and the two are not the same record error:
+#   value: ""   is a legitimate empty string, which the runner template renders
+#               and which a `type: string` record may genuinely want;
+#   value:      (or no value key at all) is a record that names no value, and it
+#               reached `defaults write <domain> <key> -bool ''` here while the
+#               template refused the same record outright.
+# Reading presence from the file is what lets this reader refuse exactly what the
+# template refuses instead of narrowing to "empty is fatal", which would refuse a
+# file the template renders happily and teach the operator about it through a
+# broken drift report.
+#
+# Only enforce and verify records are asked: a manual record carries a runbook
+# pointer and no write payload, and the template forbids it a value entirely.
+defaults_records_declare_a_value() { # <path>
+  local data_file="$1"
+  local valueless_indices first_valueless_index
+  if ! valueless_indices="$(yq eval -r '.macos.defaults | to_entries | .[] | select(.value.tier == "enforce" or .value.tier == "verify") | select((.value | has("value") | not) or (.value.value == null)) | .key' "$data_file")"; then
+    printf 'error: cannot check which records in %s declare a value\n' "$data_file" >&2
+    return 2
+  fi
+  [[ -z $valueless_indices ]] && return 0
+  first_valueless_index="$(printf '%s\n' "$valueless_indices" | head -1)"
+  printf 'error: %s: record %s (domain %s, key %s) has a blank value; give it a value or remove the field\n' \
+    "$data_file" "$first_valueless_index" \
+    "$(yq eval -r ".macos.defaults[$first_valueless_index].domain" "$data_file" | head -1)" \
+    "$(yq eval -r ".macos.defaults[$first_valueless_index].key" "$data_file" | head -1)" >&2
+  return 2
+}
+
 defaults_records_unit_separated() { # <path>
   local data_file="$1"
   local declared_record_count raw_records line
   declared_record_count="$(defaults_records_declared_count "$data_file")" || return 2
   raw_records="$(defaults_records_raw_stream "$data_file")" || return 2
   defaults_records_validate_stream "$data_file" "$declared_record_count" "$raw_records" || return 2
+  defaults_records_declare_a_value "$data_file" || return 2
   # Emission, and only emission, and only once the WHOLE file has passed. A
   # caller must never act on part of a stream it is about to be told is
   # malformed, which is why nothing is printed before the predicate returns.
@@ -333,6 +383,69 @@ validate_record_scope() { # <scope> <host> <plist_path>
     return 1
   fi
   printf '%s\n' "$scope"
+}
+
+# validate_record_identity <domain> <key>, a PREDICATE over the two fields that
+# NAME a record: 0 when both carry text, 1 with a message otherwise. It applies
+# to every record whatever its tier, because a record with no domain or no key
+# names no control that any tool could act on or report.
+#
+# Refused, never skipped. apply and drift both used to `continue` past a record
+# with an empty domain, which turned a malformed record into a silent no-op: a
+# file whose second record had no domain applied its first record and exited 0,
+# reporting success for a file it had only partly applied. The runner template
+# refuses the same record outright.
+validate_record_identity() { # <domain> <key>
+  local domain="$1" key="$2"
+  if [[ -z $domain ]]; then
+    printf 'error: record with key %q has a blank domain; give it a value or remove the field\n' \
+      "$key" >&2
+    return 1
+  fi
+  if [[ -z $key ]]; then
+    printf 'error: record %q has a blank key; give it a value or remove the field\n' \
+      "$domain" >&2
+    return 1
+  fi
+}
+
+# The value types a record may declare. The SAME closed set the Tier 1 runner
+# template constrains .type to; test/integration/macos-defaults-validate-before-write.sh
+# pins the two lists identical, the way the system-scope suite pins the two
+# plist_path allowlists.
+#
+# Closed rather than free-form because the type is the one field BOTH readers put
+# into a command as a BARE option word (-bool, -int): the template renders it
+# into shell source unquoted, and the tools pass it to `defaults` as "-$type".
+# Quoting is not available (`defaults` needs a bare option word), so constraining
+# the set is what stands in for it. Plain assignment, not readonly, for the same
+# re-source reason as the read-status constants below.
+MACOS_DEFAULTS_SUPPORTED_TYPES=("array" "bool" "data" "date" "dict" "float" "int" "string")
+
+# validate_record_type <type> <domain> <key>, a PREDICATE over the declared type:
+# 0 when it names a supported type, 1 with a message otherwise. A blank type
+# lands in the same refusal as an unrecognized one; both name no type, and a
+# blank one reached `defaults write <domain> <key> - <value>` before this existed.
+validate_record_type() { # <type> <domain> <key>
+  local value_type="$1" domain="$2" key="$3" supported_type
+  for supported_type in "${MACOS_DEFAULTS_SUPPORTED_TYPES[@]}"; do
+    if [[ $value_type == "$supported_type" ]]; then
+      return 0
+    fi
+  done
+  printf 'error: unsupported type %q on record %s %s; expected one of %s\n' \
+    "$value_type" "$domain" "$key" "${MACOS_DEFAULTS_SUPPORTED_TYPES[*]}" >&2
+  return 1
+}
+
+# print_offending_record_reference <domain> <key>, name the record a refusal
+# belongs to. The scope and plist_path predicates judge ONE field each and are
+# pure functions of it, so they cannot name the record the field came from;
+# without this, a refusal reads "unknown scope bogus" and the operator has
+# nothing to search the data file for. The predicates that already name the
+# record do not get a second reference.
+print_offending_record_reference() { # <domain> <key>
+  printf 'error: the refusal above is on record (domain %s, key %s)\n' "$1" "$2" >&2
 }
 
 # resolve_system_plist_path <domain> <plist_path>, print the plist path a
@@ -452,6 +565,73 @@ require_system_plist_path_permitted() { # <plist_path>
   printf 'error: plist_path %q is outside every permitted plist directory (%s); grant the directory deliberately in BOTH the Tier 1 template and macos-defaults-lib.sh, or use the default /Library/Preferences form\n' \
     "$plist_path" "${MACOS_DEFAULTS_PLIST_PATH_ALLOWED_DIRECTORIES[*]}" >&2
   return 1
+}
+
+# validate_defaults_record <domain> <key> <type> <value> <host> <scope>
+# <plist_path> <tier>, THE per-record gate: 0 when the record is usable, 1 with a
+# message on stderr otherwise. Its eight arguments are one record stream line, in
+# stream order.
+#
+# A PREDICATE, and it prints nothing on stdout. That matters: the two functions
+# it composes which DO print (validate_record_scope, resolve_system_plist_path)
+# are called with their output discarded here, so no caller can mistake this for
+# a producer and read a resolved value off a record that was just refused.
+#
+# Composing the record's rules in one place is what lets a caller ask the
+# question ONCE PER FILE, before acting on any record. The tools used to ask it
+# one record at a time inside their own consuming loops, which meant a file whose
+# second record was malformed had its first record applied before the second was
+# even looked at.
+#
+# The rules are grouped by what the DECLARED tier means, mirroring the runner
+# template's validation pass:
+#   - identity applies to every record; a record with no domain or no key names
+#     no control, whatever its tier;
+#   - enforce and verify records carry the read/write payload, so the type,
+#     scope, host and plist_path rules apply to them. For enforce the payload is
+#     the write; for verify it is the read the drift checker compares.
+#   - manual records carry a runbook pointer and no payload, so only identity
+#     applies. Their runbook rules (a runbook is REQUIRED, and no write field may
+#     appear) live in the runner template alone: the runbook is not one of the
+#     eight fields the record stream carries, so this gate cannot see it.
+#
+# Two rules are deliberately NOT here:
+#   - the value rule, which needs to tell an absent value from an empty one and
+#     so is asked of the FILE, by defaults_records_declare_a_value;
+#   - the write-time plist_path allowlist. Reads are not gated (drift consulting
+#     an odd path mutates nothing, and refusing it would hide the row instead of
+#     reporting it), so that rule belongs to apply, ahead of apply's first write.
+validate_defaults_record() { # <domain> <key> <type> <value> <host> <scope> <plist_path> <tier>
+  # The fourth argument, the record's value, is deliberately not read: telling an
+  # absent value from a legitimately empty one is impossible from the joined
+  # line, so that rule is asked of the file instead. The argument stays in the
+  # signature so callers pass a whole record rather than a subset of one.
+  local domain="$1" key="$2" value_type="$3" host="$5"
+  local scope="$6" plist_path="$7" tier="$8"
+  validate_record_identity "$domain" "$key" || return 1
+  case "$tier" in
+    manual) return 0 ;;
+    enforce | verify) ;;
+    *)
+      # Unreachable while the stream's tier gate holds, and fail-closed so that
+      # if it ever stops holding this gate refuses rather than falling through
+      # to "no payload rule applies to this tier".
+      printf 'error: record %s %s has an unrecognized tier %q; declare tier: enforce, verify, or manual\n' \
+        "$domain" "$key" "$tier" >&2
+      return 1
+      ;;
+  esac
+  validate_record_type "$value_type" "$domain" "$key" || return 1
+  if ! validate_record_scope "$scope" "$host" "$plist_path" >/dev/null; then
+    print_offending_record_reference "$domain" "$key"
+    return 1
+  fi
+  if [[ $scope == system ]]; then
+    if ! resolve_system_plist_path "$domain" "$plist_path" >/dev/null; then
+      print_offending_record_reference "$domain" "$key"
+      return 1
+    fi
+  fi
 }
 
 # The three outcomes of reading a system-scope setting, carried as an exit STATUS
