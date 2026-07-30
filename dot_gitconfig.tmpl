@@ -15,7 +15,14 @@
 [core]
   editor = nvim
   autocrlf = input
-  excludesfile = ~/.gitignore_global
+  # No core.excludesfile on purpose. It used to name ~/.gitignore_global, which
+  # nothing in this repo deploys and which does not exist on the machine, and a
+  # missing excludesfile does not fall back: measured with `git check-ignore -v`,
+  # the setting suppressed global ignores entirely and shadowed the patterns
+  # already sitting in ~/.config/git/ignore. Leaving the key unset lets git use
+  # its documented default, $XDG_CONFIG_HOME/git/ignore, which both
+  # dot_bashrc.tmpl and dot_profile resolve to ~/.config, and which this repo now
+  # ships as dot_config/git/ignore.
   pager = delta
   hooksPath = ~/.config/git/hooks
   fsmonitor = true
@@ -36,7 +43,43 @@
 [status]
   submodulesummary = true
 
+# diff.tool and merge.tool take a tool NAME, never a command. Measured on git
+# 2.55.0: with a command string in merge.tool, `git mergetool` prints
+#     git config option merge.tool set to unknown tool: <the whole string>
+#     Resetting to default...
+# then guesses a tool and offers `vimdiff`, so conflicts open in Vim rather than
+# Neovim. A command belongs in <difftool|mergetool>.<name>.cmd instead.
+#
+# `nvimdiff` is a git built-in name (`git mergetool --tool-help`), used below for
+# both modes. Git resolves the two modes from separate keys, so the difftool cmd
+# here governs `git difftool` alone and merges never see it:
+#   diff mode : difftool.<name>.cmd, else mergetool.<name>.cmd, else the built-in
+#   merge mode: mergetool.<name>.cmd, else the built-in
+# There is deliberately NO mergetool.nvimdiff.cmd. A cmd key replaces the
+# built-in outright, and the built-in is what opens all four buffers
+# (LOCAL BASE REMOTE MERGED) and lets git read the resolution back out of
+# MERGED. A two-file `nvim -d "$LOCAL" "$REMOTE"` never opens MERGED, so nothing
+# done in it would reach the conflicted file.
+#
+# There is deliberately no mergetool.nvimdiff.path either, and adding one is a
+# regression, not hardening. Read from git-mergetool--lib (get_merge_tool_path)
+# and mergetools/vimdiff (translate_merge_tool_path) on git 2.55.0, then
+# measured on a real conflict:
+#   without the key, git translates the tool name nvimdiff to a bare `nvim` and
+#     resolves it with `type`, i.e. a $PATH lookup, which is the same assumption
+#     core.editor = nvim above already makes;
+#   with the key, that $PATH lookup is replaced by a literal filesystem path and
+#     there is no fallback, so a different Homebrew prefix aborts the merge with
+#     "The merge tool nvimdiff is not available as '<path>'" even when a working
+#     nvim is on $PATH, leaving the file conflicted.
+# A difftool.<name>.path key is inert here only for as long as the
+# difftool.nvimdiff.cmd below stays non-empty, since a non-empty cmd is what
+# makes git skip the availability check in diff mode. Remove the cmd and the same
+# abort appears on that side too (measured: git difftool exits 128 with "The diff
+# tool nvimdiff is not available as '<path>'"), so neither key is safe to add.
+# test/unit/gitconfig-tool-and-url-hygiene.sh asserts that both stay absent.
 [difftool "nvimdiff"]
+  # Shadows the built-in nvimdiff diff command, for `git difftool` only.
   cmd = /opt/homebrew/bin/nvim -d -u ~/.config/nvim/init.lua \"$LOCAL\" \"$REMOTE\"
 
 [diff]
@@ -47,7 +90,7 @@
 
 [merge]
   conflictstyle = zdiff3
-  tool = /opt/homebrew/bin/nvim -d -u ~/.config/nvim/init.lua \"$LOCAL\" \"$REMOTE\"
+  tool = nvimdiff
 
 # Union-merges the committed graphify map (wired via .gitattributes in the
 # dotfiles repo: graphify-out/graph.json merge=graphify-union).
@@ -102,28 +145,36 @@
   helper =
   helper = !/opt/homebrew/bin/gh auth git-credential
 
-# Reference: https://github.com/jessfraz/dotfiles/blob/30c4d026bfc71df60f7b05d0bdbb3cc34049c017/.gitconfig#L159
-[url "git@github.com:github"]
-  insteadOf = "https://github.com/github"
-  insteadOf = "github:github"
-  insteadOf = "git://github.com/github"
-
+# Shorthand and legacy-URL rewrites. Every one of them lands on SSH, because SSH
+# and HTTPS are the only transports GitHub still answers. GitHub permanently
+# disabled the unauthenticated git:// protocol on 2022-03-15: "The deprecated
+# MACs, ciphers, and unencrypted Git protocol will be permanently disabled"
+# (https://github.blog/security/application-security/improving-git-protocol-security-github/).
+#
+# What this replaces, traced with `git remote -v` and `git ls-remote --get-url`
+# over every input the old sections matched:
+#   - `github:` and `gist:` rewrote to git:// on FETCH while pushing over SSH, so
+#     both shorthands could push to a repository they could never clone.
+#   - A literal git:// URL was rewritten on PUSH only, which is the one direction
+#     git:// never supported; the fetch that actually breaks was left alone.
+#   - A separate [url "git@github.com:github"] section mapped the github org
+#     specially. Under the generic rules below each of its three inputs resolves
+#     to the identical URL, so it was doing nothing.
+#
+# insteadOf rewrites BOTH directions, and each base here accepts pushes, so the
+# pushInsteadOf lines these replace are unnecessary: measured over all nine
+# inputs, the resulting push URLs are unchanged. insteadOf also still applies
+# when a remote sets an explicit pushurl, which pushInsteadOf is documented to
+# skip.
 [url "git@github.com:"]
-  pushInsteadOf = "https://github.com/"
-  pushInsteadOf = "github:"
-  pushInsteadOf = "git://github.com/"
   insteadOf = https://github.com/
-
-[url "git://github.com/"]
   insteadOf = "github:"
+  insteadOf = "git://github.com/"
 
 [url "git@gist.github.com:"]
-  insteadOf = "gst:"
-  pushInsteadOf = "gist:"
-  pushInsteadOf = "git://gist.github.com/"
-
-[url "git://gist.github.com/"]
   insteadOf = "gist:"
+  insteadOf = "gst:"
+  insteadOf = "git://gist.github.com/"
 
 [include]
   path = ~/.config/delta/themes.gitconfig
