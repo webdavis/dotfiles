@@ -3,22 +3,28 @@
 # dead-refutation-shapes.sh. test/unit/no-dead-refutation-in-bats.sh must flag
 # every position where a bare inverted command's status is DISCARDED inside a
 # bats test body, not just an inversion sitting alone on a non-final line. The
-# property (measured, see the guard's header): an inverted pipeline can fail
-# the test only as the last command the body executes, because `set -e` and
-# bats' ERR trap both ignore a `!` pipeline, and that exemption propagates
-# through brace groups, if/loop bodies, and and-or lists -- but not through
-# subshells, command substitutions, or function calls.
+# property (measured, see the guard's header): the status of an inverted
+# command must REACH something that can act on it, because `set -e` and bats'
+# ERR trap both ignore a `!` pipeline, and that exemption propagates through
+# brace groups, if/loop bodies, and and-or lists -- but not through subshells,
+# command substitutions, or function calls.
 #
-# The flagged tree plants one fixture per dead shape (mid-line `! cmd; other`,
-# tail `other; ! cmd`, backgrounded, and-or tails, compound bodies, `time`
-# prefix, continuations); the clean tree holds every live spelling the guard
-# must leave alone (final-position inversions, conditions, `|| handler`
-# consumption, subshells, [[ ! ... ]], heredoc text, quoted separators); the
-# boundary tree pins the shapes the static scan is KNOWN to presume live or
-# consumed (dead inversions inside a FINAL compound statement, case branches,
-# process substitutions, function bodies), so a future widening or narrowing
-# of the scan's scope shows up as a test change. This drives the guard against
-# scratch fixture trees via its optional scan-root argument.
+# The guard has two obligations and this suite exercises both. COVERAGE: every
+# body bats executes must actually be analyzed, so the trees below cover each
+# spelling of a body definition bats accepts, both file suffixes a body can
+# live in, symlinked and unreadable directories, and the structures that used
+# to desync the scan. JUDGEMENT: inside an analyzed body, only a status that
+# genuinely reaches a consumer is left alone.
+#
+# The flagged tree plants one fixture per dead shape; the clean tree holds
+# every live spelling the guard must leave alone plus the lexing hazards
+# (heredocs, quotes, parameter expansions, escaped semicolons, a file with no
+# trailing newline) that must not confuse the scan into a false positive; the
+# boundary tree pins the shapes the static scan is KNOWN to presume live, one
+# fixture per bracketed limit identifier in the guard's header, and
+# assert_documented_limits_are_all_pinned diffs those two lists so neither can
+# drift. This drives the guard against scratch fixture trees via its optional
+# scan-root argument.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -32,23 +38,60 @@ source "$here/helpers/report-test-failures.sh"
 REPO_ROOT="$(find_repo_root)" || exit 1
 GUARD="$REPO_ROOT/test/unit/no-dead-refutation-in-bats.sh"
 
+# Limits the guard REFUSES (exit 2 with a diagnostic) rather than presumes
+# live, so they are pinned by their own assertion instead of by a
+# boundary-tree fixture. Named here because assert_documented_limits_are_all_
+# pinned diffs the union of both kinds against the guard's header.
+REFUSED_LIMIT_IDENTIFIERS=(heredoc-in-substitution)
+
+# The spellings the guard's failure message tells people to use. Each was
+# measured live under bats with a violated refutation (the guard header records
+# the measurements), and each must also PASS the guard. A guard that recommends
+# a shape it would flag, or a shape the shell discards, trains people to switch
+# it off: that is exactly how `|| echo ...` came to be recommended by a guard
+# whose whole purpose is catching refutations that cannot fail. The two arrays
+# are index-aligned and their lengths are asserted.
+RECOMMENDED_ADVICE_MARKERS=(
+  'if cmd; then echo "why this is wrong"; false; fi'
+  'call a single-command refute helper'
+  '|| { echo "why this is wrong"; false; }'
+)
+RECOMMENDED_ADVICE_FIXTURE_LINES=(
+  '  if grep -q zzz /etc/hosts; then echo why; false; fi'
+  '  refute_absent() { ! grep -q zzz /etc/hosts; }; refute_absent'
+  '  ! grep -q zzz /etc/hosts || { echo why; false; }'
+)
+
 # Set in main; global so the EXIT trap can still see them after main returns.
 flagged_root=""
 clean_root=""
 boundary_root=""
 empty_root=""
+refusal_root=""
+unreadable_root=""
+symlink_root=""
 
-# write_bats_file <root> <name> <line>... -- write <root>/test/integration/
-# <name>.bats containing the given lines verbatim and print its SCAN-RELATIVE
-# path (what the guard's report names). The fixture trees are scan targets
-# only; nothing ever executes these bats files.
+# write_scan_fixture <root> <scan-relative-path> <line>... -- write
+# <root>/test/<path> containing the given lines verbatim and print the
+# SCAN-RELATIVE path (what the guard's report names). Used directly when the
+# FILENAME is load-bearing (a .bash helper, a non-scanned suffix); most
+# fixtures go through write_bats_file. The fixture trees are scan targets only;
+# nothing ever executes these files.
+write_scan_fixture() {
+  local root="$1" relative_path="$2"
+  shift 2
+  local path="$root/test/$relative_path"
+  mkdir -p "$(dirname "$path")"
+  printf '%s\n' "$@" >"$path"
+  printf '%s\n' "$relative_path"
+}
+
+# write_bats_file <root> <name> <line>... -- the common case: an integration
+# suite .bats file.
 write_bats_file() {
   local root="$1" name="$2"
   shift 2
-  local path="$root/test/integration/$name.bats"
-  mkdir -p "$(dirname "$path")"
-  printf '%s\n' "$@" >"$path"
-  printf 'integration/%s.bats\n' "$name"
+  write_scan_fixture "$root" "integration/$name.bats" "$@"
 }
 
 # write_test_body <root> <name> <body-line>... -- write a fixture whose line 1
@@ -57,6 +100,27 @@ write_test_body() {
   local root="$1" name="$2"
   shift 2
   write_bats_file "$root" "$name" "@test \"$name\" {" "$@" "}"
+}
+
+# write_fixture_without_trailing_newline <root> <name> <line>... -- the same,
+# minus the final newline. A file that stops mid-token used to abort the whole
+# scan with a Python traceback, because peeking past the end returns the empty
+# string and the empty string is a substring of every character class.
+write_fixture_without_trailing_newline() {
+  local root="$1" name="$2"
+  shift 2
+  local path="$root/test/integration/$name.bats" line first=1
+  mkdir -p "$(dirname "$path")"
+  : >"$path"
+  for line in "$@"; do
+    if [[ $first -eq 1 ]]; then
+      first=0
+      printf '%s' "$line" >>"$path"
+    else
+      printf '\n%s' "$line" >>"$path"
+    fi
+  done
+  printf 'integration/%s.bats\n' "$name"
 }
 
 # run_guard <output-variable-name> <status-variable-name> <scanned-root>
@@ -130,6 +194,23 @@ create_flagged_tree_fixtures() {
     '  for i in 1; do ! test -e /nope; done' \
     '  true'):2"
 
+  # Only the LAST command of an if/while/until condition list decides the
+  # compound, so an inversion in any earlier command of that list is discarded
+  # (measured: both of these pass under bats with the refutation violated).
+  flagged_expected_destination["condition_nonfinal_if"]="$(write_test_body "$flagged_root" condition-nonfinal-if \
+    '  if ! test -e /nope; true; then :; fi' \
+    '  true'):2"
+  flagged_expected_destination["condition_nonfinal_while"]="$(write_test_body "$flagged_root" condition-nonfinal-while \
+    '  while ! test -e /nope; false; do break; done' \
+    '  true'):2"
+  flagged_expected_destination["condition_nonfinal_multiline"]="$(write_test_body "$flagged_root" condition-nonfinal-multiline \
+    '  if ! test -e /nope' \
+    '     true' \
+    '  then' \
+    '    :' \
+    '  fi' \
+    '  true'):2"
+
   # `time` is pipeline syntax, so `time ! cmd` mid-body is the same dead shape.
   flagged_expected_destination["time_prefix_mid"]="$(write_test_body "$flagged_root" time-prefix-mid \
     '  time ! test -e /nope' \
@@ -168,6 +249,73 @@ create_flagged_tree_fixtures() {
     '@test "t" {' \
     '  true' \
     '}'):2"
+
+  # Every spelling of a body definition bash and bats accept reaches the same
+  # analysis. A brace on the next line, the `function` keyword, and the spaced
+  # parens are all ordinary bash; skipping any of them skips a whole body.
+  flagged_expected_destination["setup_brace_next_line"]="$(write_bats_file "$flagged_root" setup-brace-next-line \
+    'setup()' \
+    '{' \
+    '  ! test -e /nope' \
+    '  true' \
+    '}' \
+    '@test "t" {' \
+    '  true' \
+    '}'):3"
+  flagged_expected_destination["setup_function_keyword"]="$(write_bats_file "$flagged_root" setup-function-keyword \
+    'function teardown {' \
+    '  ! test -e /nope' \
+    '  true' \
+    '}' \
+    '@test "t" {' \
+    '  true' \
+    '}'):2"
+  flagged_expected_destination["setup_spaced_parens"]="$(write_bats_file "$flagged_root" setup-spaced-parens \
+    'setup_file ()' \
+    '{' \
+    '  ! test -e /nope' \
+    '  true' \
+    '}' \
+    '@test "t" {' \
+    '  true' \
+    '}'):3"
+
+  # bats' SECOND documented test syntax (bats-preprocess BATS_TEST_PATTERN_
+  # COMMENT): the declaration is a comment, which the lexer strips, so it has
+  # to be recognized from the raw line.
+  flagged_expected_destination["comment_syntax_test"]="$(write_bats_file "$flagged_root" comment-syntax-test \
+    'refutes_the_thing() { # @test' \
+    '  ! test -e /nope' \
+    '  true' \
+    '}'):2"
+
+  # setup_suite/teardown_suite live in setup_suite.bash by bats' own design, so
+  # a scan restricted to *.bats would never see them.
+  flagged_expected_destination["setup_suite_bash_file"]="$(write_scan_fixture "$flagged_root" integration/setup_suite.bash \
+    'setup_suite() {' \
+    '  ! test -e /nope' \
+    '  true' \
+    '}'):2"
+
+  # A `case` or `esac` used as an ARGUMENT must not move the case tracker. It
+  # once did, and the desync froze brace counting, so every remaining body in
+  # the file went unanalyzed with no diagnostic. The dead inversion here sits
+  # AFTER the case, and is only reachable if the region closed correctly.
+  flagged_expected_destination["case_argument_resync"]="$(write_test_body "$flagged_root" case-argument-resync \
+    '  case x in' \
+    '    x) grep -q case /etc/hosts || true ;;' \
+    '    y) echo esac ;;' \
+    '  esac' \
+    '  ! test -e /nope' \
+    '  true'):6"
+
+  # A file that stops mid-token used to abort the entire scan.
+  flagged_expected_destination["no_trailing_newline"]="$(write_fixture_without_trailing_newline "$flagged_root" no-trailing-newline \
+    '@test "t" {' \
+    '  ! test -e /nope' \
+    '  true' \
+    '}' \
+    'true;'):2"
 
   # Live decoys inside the flagged tree: final-position inversions that must
   # stay OUT of the rejection report.
@@ -209,11 +357,18 @@ create_clean_tree_fixtures() {
   fixture_path="$(write_test_body "$clean_root" until-condition \
     '  until ! test -e /nope; do break; done' \
     '  true')"
-  fixture_path="$(write_test_body "$clean_root" consumed-by-or-handler \
-    '  ! test -e /nope || echo caught' \
+  # The inversion IS the final command of the condition list, spread over two
+  # lines and joined by &&: the whole and-or list decides the compound, so no
+  # element of it is discarded.
+  fixture_path="$(write_test_body "$clean_root" condition-final-andor \
+    '  if true && ! test -e /nope; then :; fi' \
     '  true')"
-  fixture_path="$(write_test_body "$clean_root" consumed-by-later-or \
-    '  ! test -e /nope && echo held || echo violated' \
+  fixture_path="$(write_test_body "$clean_root" condition-final-multiline \
+    '  if true' \
+    '     ! test -e /nope' \
+    '  then' \
+    '    :' \
+    '  fi' \
     '  true')"
   # Subshells and command substitutions surface the status to errexit at the
   # enclosing simple command (measured live).
@@ -257,9 +412,29 @@ create_clean_tree_fixtures() {
   fixture_path="$(write_test_body "$clean_root" escaped-semicolon \
     '  find /var/empty -maxdepth 0 -name x -exec true {} \;' \
     '  ! test -e /nope')"
-  # A single-command refute helper defined in the body: the CALL is live.
+  # A single-command refute helper defined in the body: the CALL is live. All
+  # four definition spellings mean the same thing to bash, so all four must be
+  # recognized; a spelling the scan does not know reads as a bare brace group
+  # and its inversion is reported as dead, which is a FALSE POSITIVE against
+  # working code.
   fixture_path="$(write_test_body "$clean_root" refute-helper-in-body \
     '  refute_x() { ! grep -q x /etc/hosts; }' \
+    '  refute_x')"
+  fixture_path="$(write_test_body "$clean_root" refute-helper-spaced-parens \
+    '  refute_x () {' \
+    '    ! grep -q x /etc/hosts' \
+    '  }' \
+    '  refute_x')"
+  fixture_path="$(write_test_body "$clean_root" refute-helper-function-keyword \
+    '  function refute_x {' \
+    '    ! grep -q x /etc/hosts' \
+    '  }' \
+    '  refute_x')"
+  fixture_path="$(write_test_body "$clean_root" refute-helper-brace-next-line \
+    '  refute_x()' \
+    '  {' \
+    '    ! grep -q x /etc/hosts' \
+    '  }' \
     '  refute_x')"
   # Final compound statements are presumed live (each branch here IS live).
   fixture_path="$(write_test_body "$clean_root" else-branch-final \
@@ -267,6 +442,25 @@ create_clean_tree_fixtures() {
   fixture_path="$(write_test_body "$clean_root" case-branch-final \
     '  true' \
     '  case x in x) ! true ;; esac')"
+  # A case PATTERN spelled `case` or `esac` is not a keyword, and neither is a
+  # `case` word in argument position; the region must still close, leaving the
+  # final inversion visible and unreported.
+  # The dead inversion sits in the branch guarded by the keyword-shaped
+  # PATTERN, so closing the region there would expose it as an ordinary
+  # non-final statement and report it: the fixture is clean only while the
+  # pattern is read as a pattern.
+  fixture_path="$(write_test_body "$clean_root" case-pattern-shaped-like-keywords \
+    '  case x in' \
+    '    case) ! test -e /nope ;;' \
+    '    *) grep -q esac /etc/hosts || true ;;' \
+    '  esac' \
+    '  true')"
+  # A nested case inside a branch body must nest, not close the outer region.
+  fixture_path="$(write_test_body "$clean_root" case-nested \
+    '  case x in' \
+    '    x) case y in y) true ;; esac ;;' \
+    '  esac' \
+    '  ! test -e /nope')"
   # Parameter expansion braces and separators must not corrupt the scan.
   fixture_path="$(write_test_body "$clean_root" parameter-expansion-in-final-if \
     '  if true; then' \
@@ -278,7 +472,8 @@ create_clean_tree_fixtures() {
     '@test "a name with ! inside" {' \
     '  ! test -e /nope' \
     '}')"
-  # A clean setup body: final-position inversion is live there too.
+  # A clean setup body: final-position inversion is live there too, in every
+  # definition spelling.
   fixture_path="$(write_bats_file "$clean_root" setup-final-clean \
     'setup() {' \
     '  ! test -e /nope' \
@@ -286,44 +481,83 @@ create_clean_tree_fixtures() {
     '@test "t" {' \
     '  true' \
     '}')"
+  fixture_path="$(write_bats_file "$clean_root" setup-final-clean-brace-next-line \
+    'setup()' \
+    '{' \
+    '  ! test -e /nope' \
+    '}' \
+    '@test "t" {' \
+    '  true' \
+    '}')"
+  # bats' comment test syntax, final position: live, so unreported.
+  fixture_path="$(write_bats_file "$clean_root" comment-syntax-final \
+    'refutes_the_thing() { # @test' \
+    '  ! test -e /nope' \
+    '}')"
+  # A file with no trailing newline must still be analyzed, not crash the scan.
+  fixture_path="$(write_fixture_without_trailing_newline "$clean_root" clean-no-trailing-newline \
+    '@test "t" {' \
+    '  ! test -e /nope' \
+    '}' \
+    'true;')"
+  # bats anchors @test to the start of a line, so a @test WORD in argument
+  # position is not a declaration. Treating it as one opens a body that never
+  # closes and swallows the real @test below it.
+  fixture_path="$(write_bats_file "$clean_root" at-test-word-in-argument-position \
+    'printf "%s\n" @test "x" { >/dev/null' \
+    '@test "t" {' \
+    '  ! test -e /nope' \
+    '}')"
   : "$fixture_path"
 }
 
 # Build the boundary tree under $boundary_root: shapes that are DEAD in
-# reality but that the static scan deliberately presumes live or consumed,
-# pinned so a scope change shows up here.
+# reality but that the static scan deliberately presumes live. The caller-named
+# associative array is keyed by the bracketed limit identifier in the guard's
+# header, and assert_documented_limits_are_all_pinned diffs the two lists, so a
+# limit added to the header without a fixture (or the reverse) fails here.
+# shellcheck disable=SC2034 # nameref: every write lands in the caller's array
 create_boundary_tree_fixtures() {
-  local fixture_path
+  local -n boundary_limits_destination="$1"
+
   # Inside the body's FINAL compound statement the scan presumes the inversion
   # live, because which inner command runs last is data-dependent; these two
   # are the dead variants of that presumption.
-  fixture_path="$(write_test_body "$boundary_root" final-group-inner-dead \
+  local final_compound_fixtures=()
+  final_compound_fixtures+=("$(write_test_body "$boundary_root" final-group-inner-dead \
     '  true' \
-    '  { ! true; true; }')"
-  fixture_path="$(write_test_body "$boundary_root" final-if-inner-dead \
+    '  { ! true; true; }')")
+  final_compound_fixtures+=("$(write_test_body "$boundary_root" final-if-inner-dead \
     '  true' \
     '  if true; then' \
     '    ! true' \
     '    true' \
-    '  fi')"
-  # case bodies are scanned opaquely (their `)` patterns defeat the lexer's
-  # paren tracking), so a dead branch inversion passes.
-  fixture_path="$(write_test_body "$boundary_root" case-branch-mid-dead \
+    '  fi')")
+  final_compound_fixtures+=("$(write_test_body "$boundary_root" final-select-inner-dead \
+    '  true' \
+    '  select choice in a; do' \
+    '    ! true' \
+    '    break' \
+    '  done')")
+  boundary_limits_destination["final-compound"]="${final_compound_fixtures[*]}"
+  # case bodies are scanned opaquely (the region is tracked, never analyzed),
+  # so a dead branch inversion passes.
+  boundary_limits_destination["case-body"]="$(write_test_body "$boundary_root" case-branch-mid-dead \
     '  case x in x) ! true ;; esac' \
     '  true')"
   # Parenthesized contexts are presumed consumed; a process substitution
   # discards the status yet passes.
-  fixture_path="$(write_test_body "$boundary_root" process-substitution-mid-dead \
+  boundary_limits_destination["parenthesized"]="$(write_test_body "$boundary_root" process-substitution-mid-dead \
     '  cat <(! true) >/dev/null' \
     '  true')"
   # Function BODIES are exempt (the call is what matters, and the common
   # single-command helper is live); a multi-command body hiding a dead
   # inversion passes.
-  fixture_path="$(write_test_body "$boundary_root" function-body-inner-dead \
+  boundary_limits_destination["function-body"]="$(write_test_body "$boundary_root" function-body-inner-dead \
     '  f() { ! true; true; }' \
     '  f')"
   # File-scope helper functions are outside the scanned bodies entirely.
-  fixture_path="$(write_bats_file "$boundary_root" file-scope-helper-inner-dead \
+  boundary_limits_destination["file-scope-helper"]="$(write_bats_file "$boundary_root" file-scope-helper-inner-dead \
     'helper() {' \
     '  ! true' \
     '  true' \
@@ -331,7 +565,32 @@ create_boundary_tree_fixtures() {
     '@test "t" {' \
     '  helper' \
     '}')"
-  : "$fixture_path"
+  # A `||` handler CONSUMES the status, so the handler decides whether the test
+  # can fail. Measured under bats: `|| echo caught` passes with the refutation
+  # violated, `|| { echo why; false; }` fails. The scan cannot tell which a
+  # given handler is, so it presumes the handler may fail. These two are the
+  # dead variants; the live spelling is in the clean tree and in the advice.
+  local or_handler_fixtures=()
+  or_handler_fixtures+=("$(write_test_body "$boundary_root" or-handler-cannot-fail \
+    '  ! test -e /nope || echo caught' \
+    '  true')")
+  or_handler_fixtures+=("$(write_test_body "$boundary_root" or-handler-after-and \
+    '  ! test -e /nope && echo held || echo violated' \
+    '  true')")
+  boundary_limits_destination["or-handler"]="${or_handler_fixtures[*]}"
+  # The same presumption for the other consumer: an inversion that is the final
+  # command of a condition selects a branch, and the branch decides. Measured:
+  # `if ! true; then echo yes; fi` passes with the refutation violated.
+  boundary_limits_destination["condition-consumer"]="$(write_test_body "$boundary_root" condition-branch-cannot-fail \
+    '  if ! true; then echo yes; fi' \
+    '  true')"
+  # Only SCANNED_FILE_SUFFIXES are read. bats `load` accepts any path, so a
+  # body in a helper with another suffix is invisible to the scan.
+  boundary_limits_destination["unscanned-suffix"]="$(write_scan_fixture "$boundary_root" integration/helper-lib.sh \
+    'setup() {' \
+    '  ! true' \
+    '  true' \
+    '}')"
 }
 
 # The flagged tree is rejected, each dead shape is named at its exact
@@ -376,6 +635,34 @@ assert_boundary_tree_passes() {
     record_failure "documented boundary shapes must pass (scope change?): $guard_output"
 }
 
+# The guard's header, the boundary fixtures and the refusal assertions are
+# three lists describing ONE set of limits, so enumerate and diff them: a limit
+# documented without a fixture is an unverified claim, and a fixture without a
+# documented limit is an undocumented blind spot.
+assert_documented_limits_are_all_pinned() {
+  local -n boundary_limits_reference="$1"
+  local documented=() pinned=() identifier
+  mapfile -t documented < <(
+    sed -n 's/^#   - \[\([a-z][a-z-]*\)\].*/\1/p' "$GUARD" | LC_ALL=C sort
+  )
+  mapfile -t pinned < <(
+    printf '%s\n' "${!boundary_limits_reference[@]}" "${REFUSED_LIMIT_IDENTIFIERS[@]}" |
+      LC_ALL=C sort
+  )
+  if [[ ${#documented[@]} -eq 0 ]]; then
+    record_failure "no bracketed limit identifiers found in the guard header (format changed?)"
+    return 0
+  fi
+  for identifier in "${documented[@]}"; do
+    printf '%s\n' "${pinned[@]}" | grep -qxF "$identifier" ||
+      record_failure "guard header documents limit [$identifier] with no fixture pinning it"
+  done
+  for identifier in "${pinned[@]}"; do
+    printf '%s\n' "${documented[@]}" | grep -qxF "$identifier" ||
+      record_failure "fixture pins limit [$identifier] that the guard header does not document"
+  done
+}
+
 # A root with no bats files at all is a green no-op.
 assert_empty_tree_passes() {
   local guard_output guard_status
@@ -403,6 +690,129 @@ assert_python_failure_fails_guard() {
     record_failure "python3 failure (exit 7) did not fail the guard (fails open)"
 }
 
+# Fail-closed: a directory the scan cannot list must REFUSE the whole run.
+# os.walk's default swallows the error, which turned a tree holding a dead
+# refutation into a green pass after one chmod.
+assert_unreadable_directory_refuses_the_scan() {
+  local guard_output guard_status hidden="$unreadable_root/test/hidden"
+  mkdir -p "$hidden"
+  write_scan_fixture "$unreadable_root" integration/ok.bats \
+    '@test "t" {' '  true' '}' >/dev/null
+  printf '@test "t" {\n  ! true\n  true\n}\n' >"$hidden/dead.bats"
+  chmod 000 "$hidden"
+  if ls "$hidden" >/dev/null 2>&1; then
+    chmod 755 "$hidden"
+    record_failure "cannot test the unreadable-directory path: chmod 000 left $hidden listable (running as root?)"
+    return 0
+  fi
+  run_guard guard_output guard_status "$unreadable_root/test"
+  chmod 755 "$hidden"
+  [[ $guard_status -eq 2 ]] ||
+    record_failure "an unlistable directory must refuse the scan (exit 2), got $guard_status: $guard_output"
+  grep -qF 'refusing to report a partial scan' <<<"$guard_output" ||
+    record_failure "the refusal must say the scan was partial: $guard_output"
+}
+
+# A symlinked suite directory is still a suite directory: its bodies run under
+# bats, so skipping them would hide real defects. The cycle back to the scan
+# root proves the walk terminates and reports each file once.
+assert_symlinked_suite_directory_is_scanned() {
+  local guard_output guard_status
+  mkdir -p "$symlink_root/test" "$symlink_root/outside"
+  printf '@test "t" {\n  ! true\n  true\n}\n' >"$symlink_root/outside/dead.bats"
+  ln -s "$symlink_root/outside" "$symlink_root/test/linked"
+  ln -s "$symlink_root/test" "$symlink_root/test/cycle"
+  run_guard guard_output guard_status "$symlink_root/test"
+  [[ $guard_status -eq 1 ]] ||
+    record_failure "a dead refutation behind a symlinked suite dir must be reported, got $guard_status: $guard_output"
+  grep -qF 'linked/dead.bats:2' <<<"$guard_output" ||
+    record_failure "the finding behind the symlink was not reported: $guard_output"
+  [[ "$(grep -cF 'dead.bats:2' <<<"$guard_output")" == "1" ]] ||
+    record_failure "the symlink cycle produced duplicate findings: $guard_output"
+}
+
+# Structures the scan cannot resolve must be REFUSED with a diagnostic naming
+# the file, never reported clean. Each of these silently swallowed the rest of
+# the file before: an unterminated case froze brace counting, an unclosed body
+# consumed every later body, and a heredoc inside a command substitution is
+# read as substitution text (limit [heredoc-in-substitution]).
+# The diagnostic is asserted, not just the exit code: these structures overlap
+# (an unterminated case leaves the body unclosed too), so a check that only
+# looked at exit 2 would keep passing after the specific detection was removed.
+# The two arrays are keyed by the same descriptions and both are walked.
+assert_unresolvable_structures_refuse_the_scan() {
+  local guard_output guard_status relative_path single_root description
+  local -A refusal_fixtures=()
+  local -A refusal_diagnostics=()
+
+  refusal_fixtures["unterminated case"]="$(write_test_body "$refusal_root" unterminated-case \
+    '  case x in' \
+    '    x) true ;;')"
+  refusal_diagnostics["unterminated case"]='a case...esac opened in this bats-executed body'
+
+  refusal_fixtures["unclosed body"]="$(write_bats_file "$refusal_root" unclosed-body \
+    '@test "t" {' \
+    '  ! true' \
+    '  true')"
+  refusal_diagnostics["unclosed body"]='this bats-executed body is never closed'
+
+  refusal_fixtures["heredoc in a command substitution"]="$(write_test_body "$refusal_root" heredoc-in-substitution \
+    '  x="$(cat <<EOF' \
+    "it is data with an apostrophe: don't" \
+    'EOF' \
+    ')"' \
+    '  true')"
+  refusal_diagnostics["heredoc in a command substitution"]='unterminated single quote'
+
+  for description in "${!refusal_fixtures[@]}"; do
+    if [[ -z ${refusal_diagnostics[$description]+set} ]]; then
+      record_failure "refusal fixture $description has no expected diagnostic"
+      continue
+    fi
+    relative_path="${refusal_fixtures[$description]}"
+    single_root="$(mktemp -d)"
+    mkdir -p "$single_root/test/integration"
+    cp "$refusal_root/test/$relative_path" "$single_root/test/$relative_path"
+    run_guard guard_output guard_status "$single_root/test"
+    rm -rf "$single_root"
+    [[ $guard_status -eq 2 ]] ||
+      record_failure "$description must refuse the scan (exit 2), got $guard_status: $guard_output"
+    grep -qF "$relative_path" <<<"$guard_output" ||
+      record_failure "the refusal for $description must name the file: $guard_output"
+    grep -qF "${refusal_diagnostics[$description]}" <<<"$guard_output" ||
+      record_failure "the refusal for $description must say why: $guard_output"
+  done
+}
+
+# The failure message's advice and the shapes the guard accepts are two
+# statements of one contract. Every recommended spelling must pass the guard,
+# and every recommended spelling must appear in the message that recommends it.
+assert_advice_recommends_only_accepted_spellings() {
+  local guard_output guard_status index marker
+  if [[ ${#RECOMMENDED_ADVICE_MARKERS[@]} -ne ${#RECOMMENDED_ADVICE_FIXTURE_LINES[@]} ]]; then
+    record_failure "the advice marker and fixture-line arrays must be index-aligned"
+    return 0
+  fi
+  local advice_root
+  advice_root="$(mktemp -d)"
+  write_test_body "$advice_root" advice-spellings \
+    "${RECOMMENDED_ADVICE_FIXTURE_LINES[@]}" \
+    '  true' >/dev/null
+  run_guard guard_output guard_status "$advice_root/test"
+  rm -rf "$advice_root"
+  [[ $guard_status -eq 0 ]] ||
+    record_failure "the guard flags a spelling its own failure message recommends: $guard_output"
+
+  run_guard guard_output guard_status "$flagged_root/test"
+  for index in "${!RECOMMENDED_ADVICE_MARKERS[@]}"; do
+    marker="${RECOMMENDED_ADVICE_MARKERS[$index]}"
+    grep -qF "$marker" <<<"$guard_output" ||
+      record_failure "the failure message no longer recommends: $marker"
+  done
+  grep -qF '|| echo' <<<"$guard_output" ||
+    record_failure "the failure message must warn that a bare || echo handler cannot fail the test"
+}
+
 main() {
   [[ -x $GUARD ]] || {
     printf 'dead-refutation-shapes: guard missing or not executable: %s\n' "$GUARD" >&2
@@ -413,19 +823,31 @@ main() {
   clean_root="$(mktemp -d)"
   boundary_root="$(mktemp -d)"
   empty_root="$(mktemp -d)"
-  trap 'rm -rf "$flagged_root" "$clean_root" "$boundary_root" "$empty_root"' EXIT
+  refusal_root="$(mktemp -d)"
+  unreadable_root="$(mktemp -d)"
+  symlink_root="$(mktemp -d)"
+  trap 'chmod -R u+rwX "$unreadable_root" 2>/dev/null || true
+        rm -rf "$flagged_root" "$clean_root" "$boundary_root" "$empty_root" \
+               "$refusal_root" "$unreadable_root" "$symlink_root"' EXIT
 
   # shellcheck disable=SC2034 # filled and read through namerefs by name
   local -A flagged_expected=()
+  # shellcheck disable=SC2034 # filled and read through namerefs by name
+  local -A boundary_limits=()
   create_flagged_tree_fixtures flagged_expected
   create_clean_tree_fixtures
-  create_boundary_tree_fixtures
+  create_boundary_tree_fixtures boundary_limits
 
   assert_flagged_tree_rejected flagged_expected
   assert_clean_tree_passes
   assert_boundary_tree_passes
+  assert_documented_limits_are_all_pinned boundary_limits
   assert_empty_tree_passes
   assert_python_failure_fails_guard
+  assert_unreadable_directory_refuses_the_scan
+  assert_symlinked_suite_directory_is_scanned
+  assert_unresolvable_structures_refuse_the_scan
+  assert_advice_recommends_only_accepted_spellings
 
   report_failures dead-refutation-shapes
 }
