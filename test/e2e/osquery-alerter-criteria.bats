@@ -61,11 +61,32 @@ EOF
   # pipeline scripts, so criterion 6 still sees no tuple for them and pages.
   export OSQUERY_PIPELINE_MANIFEST="$HOME/pipeline-known-good.sha256"
   export OSQUERY_PIPELINE_SETTLE_SECONDS=0
+  # An UNPINNED entry carries no hash of its own, so the manifest is what vouches
+  # for the bytes at its path. On a real machine that holds because chezmoi deploys
+  # those own-agent plists and manifests them in the same apply, so the fixture
+  # blesses them too. Without this an unpinned entry could never suppress here, for
+  # a reason that has nothing to do with the criterion under test.
+  _bless_path() { # <path>  -- append its current tuple to the manifest
+    local raw mode
+    raw=$(stat -c '%a' "$1" 2>/dev/null || stat -f '%OLp' "$1" 2>/dev/null) || return 0
+    mode="000$raw"
+    printf '%s %s %s %s\n' \
+      "$(shasum -a 256 "$1" | awk '{print $1}')" "${mode: -4}" "$(id -u)" "$1" \
+      >>"$OSQUERY_PIPELINE_MANIFEST"
+  }
   bind_allowlist() {
     chmod 600 "$1"
     printf '%s 0600 %s %s\n' \
       "$(shasum -a 256 "$1" | awk '{print $1}')" "$(id -u)" "$1" \
       >"$OSQUERY_PIPELINE_MANIFEST"
+    # Every unpinned entry's plist, created if the fixture never made one.
+    local plist
+    while IFS= read -r plist; do
+      [[ -n $plist ]] || continue
+      plist="${plist/#\~\//$HOME/}"
+      [[ -e $plist ]] || { mkdir -p "$(dirname "$plist")"; printf 'FIXTURE PLIST\n' >"$plist"; }
+      _bless_path "$plist"
+    done < <(jq -r 'select((.sha256 // "") == "") | .path' "$1" 2>/dev/null || true)
   }
   bind_allowlist "$HOME/.config/osquery/page-launchd-allowlist.txt"
 
