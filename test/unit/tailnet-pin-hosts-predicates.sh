@@ -341,6 +341,17 @@ assert_equal "10.0.0.5${tab}nas.home " "$record_text" p13-cuts-at-first-hash
 assert_predicate expect-true p4-plain is_single_hosts_column "pin.example.test"
 assert_predicate expect-true p4-leading-dash is_single_hosts_column "-eunrelated.ts.net"
 assert_predicate expect-true p4-percent is_single_hosts_column "192.0.2.9%s"
+# An IPv6 address is one column, and the COLONS are what a future tightening of
+# the forbidden set toward "address-shaped characters only" would take out. That
+# would refuse every IPv6 pin at the reconciler's own entry point, which is an
+# aborted apply rather than a near miss. Pinned here as well as in the
+# integration suite, so the fast gate catches it.
+assert_predicate expect-true p4-ipv6-address is_single_hosts_column "2001:db8::7"
+# Uppercase, a fully qualified trailing dot and an underscore are all one column
+# too. None of them splits a hosts record, so none is refused here or at render.
+assert_predicate expect-true p4-uppercase is_single_hosts_column "Upper.Example.Test"
+assert_predicate expect-true p4-trailing-dot is_single_hosts_column "trailing.example.test."
+assert_predicate expect-true p4-underscore is_single_hosts_column "under_score.example.test"
 assert_predicate expect-false p4-empty is_single_hosts_column ""
 assert_predicate expect-false p4-space is_single_hosts_column "pin space"
 assert_predicate expect-false p4-tab is_single_hosts_column "pin${tab}space"
