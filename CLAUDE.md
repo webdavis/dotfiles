@@ -51,7 +51,7 @@ just test-integration   # Integration suite only
 just test-e2e           # End-to-end suite only
 just test-system        # The suite that tests the checker and runner themselves
 just test               # All four suites (CI runs this)
-just ship               # lint-check + all four suites, the explicit pre-PR sweep
+just ship               # the three gates CI runs, in CI order, the explicit pre-PR sweep
 ```
 
 Tests live in suites by DESIGN: `test/unit/` (single component, stub/fixture driven, no flows, no sleeps,
@@ -65,11 +65,15 @@ The **commit** gate runs `just test-unit` only, kept fast on purpose: it runs th
 (replay a failure with `TEST_SEED=<seed>`, printed every run, since Bats 1.11 has no native shuffle) and
 a WARN-ONLY performance summary lists any test over the threshold as a refactor-or-move-suite candidate;
 warnings never fail the run. **CI** runs `just test`, which is exactly the four suite recipes, and
-`just ship` runs the same thing plus the lint gate on demand. The pre-push hook deliberately does NOT run
-it (see Git Hooks). Each suite's runner executes its own `.sh` and `.bats` once (bats via
-`nix develop .#run --command bats --jobs 4` when the host lacks bats, and the checker's placement rules
-keep any bats from hiding outside a suite). So a commit can briefly carry an integration or e2e
-regression; push and CI block it before `main`.
+`just ship` runs CI's whole gate list on demand (the `--all-systems` flake check, `just test` inside the
+flake's `run` shell, and the zizmor workflow audit, in that order; `test/unit/ship-ci-gate-parity.sh`
+fails when `ship` and `.github/workflows/lint.yml` stop describing the same work). The pre-push hook
+deliberately does NOT run any suite (see Git Hooks). Each suite's runner executes its own `.sh` and
+`.bats` once (bats via `nix develop .#run --command bats --jobs 4` when the host lacks bats, and the
+checker's placement rules keep any bats from hiding outside a suite). So a commit can briefly carry an
+integration or e2e regression, and so can a push: **CI is the only gate that runs the suite**, and it
+runs on pull requests and on pushes to `main` only. A push to a topic branch with no open pull request
+runs the suite nowhere; `just ship` is how you cover that window deliberately.
 
 `just validate-tests` (`test/validate-tests.sh`, a dependency of every test recipe) fails if a `*.sh` or
 `*.bats` sits outside a recognized suite. Only `validate-tests.sh` and `run-test-suite.sh` may sit at
@@ -164,11 +168,20 @@ All four hooks live in the **user-wide** hooks dir (`core.hooksPath = ~/.config/
   with `just ship`.
 
   It used to run `just test` as well. Measured 2026-07-29, that made a push cost 7m20s to 7m37s, of which
-  about 6m30s was integration + e2e + test-system (integration alone is 216s across 102 files, run
-  serially). CI then ran the identical recipe 10 to 12 minutes later and the commit hook had already run
-  the unit camp, so one suite ran three times per push and every round of rework paid for all three. It
-  also could not do the job it was there for: this hook tests the WORKING TREE while CI tests the COMMIT,
-  and on PR #116 the local gate passed while CI failed, on an edit that was never staged.
+  about 6m30s was integration + e2e + test-system (integration alone is 216s across 103 files: 92 `.sh`
+  run one at a time, then 11 `.bats` under `bats --jobs 4`). CI then ran the identical recipe 10 to 12
+  minutes later and the commit hook had already run the unit camp, so one suite ran three times per push
+  and every round of rework paid for all three. It also could not do the job it was there for: this hook
+  tests the WORKING TREE while CI tests the COMMIT, and on PR #116 the local gate passed while CI failed,
+  on an edit that was never staged.
+
+  **What this narrowed:** every push used to run the whole suite locally, whatever the branch. CI runs on
+  pull requests and on pushes to `main`, so a push to a topic branch with no open pull request now runs
+  the suite nowhere. Merge safety is unchanged, `lint` is still a required status check on `main`, so
+  nothing reaches `main` unverified. Widening the workflow's `push` trigger to every branch was weighed
+  and rejected: `push` and `pull_request` both fire once a branch has a pull request, so it would run two
+  identical macOS jobs per push for the whole life of every branch, to cover the window before a pull
+  request exists. `just ship` covers that window on demand instead.
 
 - **`post-commit`: per-repo hooks, via a dispatcher.** `dot_config/git/hooks/executable_post-commit`
   mirrors the pre-commit dispatcher (user-wide, exec's the repo's executable `.githooks/post-commit` when

@@ -36,7 +36,7 @@
 set -euo pipefail
 
 # Scrubbed at SCRIPT scope. Git exports GIT_DIR to every hook it runs and this
-# suite runs from the pre-push hook; the library's own override may be exported
+# suite runs from the pre-commit hook; the library's own override may be exported
 # on a developer machine.
 unset MACOS_DEFAULTS_SOURCE_DIR GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_INDEX_FILE
 

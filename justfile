@@ -86,8 +86,9 @@ check:
 # flows, no sleeps; FAST is the admission rule), test/integration
 # (multi-component with stubbed boundaries), test/e2e (whole-script flows and
 # timing-bound tests). The pre-commit hook runs `just test-unit` only; the
-# pre-push hook and CI run `just test` (all suites). A test file sitting
-# directly under test/ fails the guard in both runners so strays cannot hide.
+# pre-push hook runs no suite at all (lint drift only); CI and `just ship` run
+# `just test` (all suites). A test file sitting directly under test/ fails the
+# guard in both runners so strays cannot hide.
 
 # Unit suite only: the commit gate. --shuffle randomizes order to flush hidden
 # ordering deps (seed printed for replay); --warn-slow-ms flags slow tests in a

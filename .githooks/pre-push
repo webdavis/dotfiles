@@ -1,24 +1,18 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# Pre-push gate. Cheap checks only.
+# Pre-push gate. Lint drift only, 21 seconds.
 #
-# This hook used to run `just test`, every camp, on every push. Measured
-# 2026-07-29: a push cost 7m20s to 7m37s, of which roughly 6m30s was the
-# integration, e2e and test-system camps. CI then ran the identical `just test`
-# recipe again 10 to 12 minutes later, and the commit hook had already run the
-# unit camp a third time. Three runs of one suite per push, and every round of
-# rework paid for all three: a nine-line test fix on PR #116 cost about 37
-# minutes of waiting.
+# No suite runs here. CI is the authority on the suite: it blocks the merge, and
+# it tests the pushed COMMIT while this hook can only test the working tree, so
+# a local pass never meant what it looked like (PR #116 passed here and failed
+# on CI, on an edit that was never staged). The timings and the rest of the
+# history are in CLAUDE.md under Git Hooks.
 #
-# CI is the authority on the suite. It is what blocks the merge, and it tests
-# the COMMIT, while this hook tests the working tree. Those are different
-# artifacts, which is why the local copy cannot substitute: on PR #116 this gate
-# passed and CI failed, on an edit that was never staged.
-#
-# What stays is the 21-second format and flake drift check, worth catching
-# before the push rather than 11 minutes later on CI.
-#
-# Run the whole suite deliberately with `just ship` before a PR you care about.
+# KNOW THE GAP THIS LEAVES: CI runs on pull requests and on pushes to `main`, so
+# pushing a topic branch that has no open pull request runs the suite NOWHERE.
+# Nothing unverified can reach `main` (the `lint` check is required there), but
+# do not read a clean push as a tested branch. Run `just ship` when you want the
+# suite, before a PR you care about.
 #
 # Invoked by the user-wide pre-push dispatcher
 # (dot_config/git/hooks/executable_pre-push) with git's ref list on stdin;
