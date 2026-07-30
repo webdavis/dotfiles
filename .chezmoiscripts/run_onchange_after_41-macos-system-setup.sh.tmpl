@@ -19,6 +19,23 @@ set -euo pipefail
      returns the empty value (falsy in `if`, a no-op under `range`), the
      repo's documented Tier-1 runner gotcha. */ -}}
 {{ $pins := index .macos "tailnet_pins" -}}
+{{- /* Tailnet-pin field validation: fqdn, ip and short must each be exactly
+one /etc/hosts column. Any whitespace would split one pin into extra columns
+or, for a newline, extra LINES in the file the generated command rewrites as
+root; a # starts a hosts comment and silently truncates the record; an empty
+or absent field renders a malformed line. Same contract as the system_setup
+validation below: any violation aborts the render, so chezmoi refuses the
+whole apply. */ -}}
+{{ range $pin := $pins -}}
+{{ range $field := list "fqdn" "ip" "short" -}}
+{{ if or (not (hasKey $pin $field)) (kindIs "invalid" (index $pin $field)) (eq (toString (index $pin $field)) "") -}}
+{{ fail (printf "macos_system_setup.yaml: a tailnet pin is missing %s (or has it empty); every pin declares fqdn, ip and short" $field) -}}
+{{ end -}}
+{{ if regexMatch "[\\s#]" (toString (index $pin $field)) -}}
+{{ fail (printf "macos_system_setup.yaml: tailnet pin %s %q is not a single hosts column (whitespace splits the record, # truncates it)" $field (toString (index $pin $field))) -}}
+{{ end -}}
+{{ end -}}
+{{ end -}}
 {{- /* Validation pass: every record must declare which control tier it
 belongs to, and its payload must MATCH the declared tier, before anything
 renders. The tier decides what the record IS; the payload never does. Any
@@ -122,13 +139,59 @@ echo {{ template "shellSingleQuoted" (printf "→ MANUAL %s: see the runbook sec
 {{ end -}}
 {{ end -}}
 {{/* Generated MagicDNS /etc/hosts fallback pins (structured tailnet_pins data).
-     Guard-then-append keeps each idempotent across runner re-runs. The sh -c
-     wrapper is load-bearing: this script inlines the command after `sudo`, so a
-     bare >>/etc/hosts redirect would run in the outer USER shell and be denied;
-     `sudo sh -c '...'` puts the guard AND the append inside the root shell. */ -}}
+     The sh -c wrapper is load-bearing: this script inlines the command after
+     `sudo`, so a bare >/etc/hosts redirect would run in the outer USER shell
+     and be denied; `sudo sh -c '...'` puts the whole edit inside the root shell.
+
+     Convergence is "exactly one line names this pin, and that line is exactly
+     ip<TAB>fqdn<TAB>short". Testing only that a correct line EXISTS let a
+     correct line plus a stale duplicate read as converged, leaving two lines
+     naming the pin. When not converged, the file is rebuilt: every line whose
+     NAME FIELDS (whitespace-split columns after the address, comment text
+     stripped) claim the fqdn OR the short name is dropped, every other line,
+     comments and blanks included, is kept byte-for-byte, and the one correct
+     line is appended. Field equality, not grep word boundaries: to grep, `.`
+     and `-` end a word, so a -w filter also deleted pin.example.test.evil and
+     other-pin.example.test, DIFFERENT hosts that merely contain the name. The
+     pin owns the short name too, by decision: the fallback exists to answer
+     for both names, so an unrelated line claiming the short name is dropped
+     rather than left to compete (macOS resolution order between two such
+     lines was not measured; ownership makes the ordering question moot).
+
+     Install: chmod/chown the temp file to the target's own mode and owner,
+     then mv (rename) it INTO the target path; mktemp creates it next to the
+     target so the rename never crosses filesystems and is atomic. The old
+     `cat "$tmp" > target` kept the inode but TRUNCATED first, so a failure or
+     interrupt mid-write left an EMPTY /etc/hosts and still exited 0. The
+     rename trades the inode away (a watcher pinning the vnode must re-open,
+     and a symlinked target would be replaced by a regular file) for never
+     exposing a partial or empty file. Every write and the install itself are
+     status-checked and every failure path exits nonzero via bail (which also
+     removes the temp file), so under this script's set -e a pin that cannot
+     converge fails the whole apply loudly instead of reporting success. The
+     loopback gate refuses (stderr + nonzero) to install a rebuild that lost
+     its anchored 127.0.0.1 line, 127.0.0.100 is not loopback; a missing
+     /etc/hosts is refused the same way rather than seeded pin-only. GNU stat
+     (-c) is tried before BSD stat (-f) because GNU's -f means "filesystem
+     status" and would SUCCEED with useless output, hiding the fallback.
+
+     The wrapper means TWO shells see this line, and pin data must be inert in
+     both, and in every parser downstream: inert in one interpreter is not
+     inert. Earlier versions made the fields safe in the shell and then let
+     them become grep PATTERNS, where a leading dash turned a field into a
+     grep OPTION and a newline turned a -xF pattern into a pattern LIST. Now
+     the sh -c script text is a FIXED constant with no interpolation at all,
+     every field travels as a positional argument ($1/$2/$3; the literal `sh`
+     is the conventional $0, without which the first field would be swallowed
+     as the program name), fields are only ever compared with [ = ] inside the
+     script, the one grep keeps a CONSTANT pattern, and the printf format is
+     constant, so a % in the data is not a directive. Render-time validation
+     above guarantees the fields are single hosts columns, so set -f plus the
+     unquoted $IFS split in `set -- ${l%%#*}` only ever splits FILE lines,
+     never pin data. */ -}}
 {{ range $pins -}}
-echo "→ MagicDNS fallback pin: {{ .fqdn }} (per CLAUDE.md Tailscale DNS section)"
-sudo sh -c 'grep -qF "{{ .fqdn }}" /etc/hosts || printf "{{ .ip }}\t{{ .fqdn }}\t{{ .short }}\n" >>/etc/hosts'
+echo {{ template "shellSingleQuoted" (printf "→ MagicDNS fallback pin: %s (per CLAUDE.md Tailscale DNS section)" (toString .fqdn)) }}
+sudo sh -c 'f=$1; s=$3; tmp=; bail(){ [ -n "$tmp" ] && rm -f "$tmp"; exit 1; }; w=$(printf "%s\t%s\t%s" "$2" "$1" "$3"); [ -f /etc/hosts ] || { echo "refusing to edit /etc/hosts for $f: the file is missing" >&2; exit 1; }; tmp=$(mktemp /etc/hosts.XXXXXXXX) || exit 1; mc=0; ex=0; set -f; while IFS= read -r l || [ -n "$l" ]; do hit=0; set -- ${l%%#*}; if [ $# -gt 1 ]; then shift; for n in "$@"; do if [ "$n" = "$f" ] || [ "$n" = "$s" ]; then hit=1; fi; done; fi; if [ "$hit" = 1 ]; then mc=$((mc+1)); if [ "$l" = "$w" ]; then ex=1; fi; else printf "%s\n" "$l" || bail; fi; done </etc/hosts >"$tmp" || bail; if [ "$mc" = 1 ] && [ "$ex" = 1 ]; then rm -f "$tmp"; exit 0; fi; printf "%s\n" "$w" >>"$tmp" || bail; grep -qE "^127\.0\.0\.1[[:space:]]" "$tmp" || { echo "refusing to rewrite /etc/hosts for $f: the filtered result lost its loopback entry" >&2; bail; }; m=$(stat -c "%a" /etc/hosts 2>/dev/null) || m=$(stat -f "%Lp" /etc/hosts) || bail; o=$(stat -c "%u:%g" /etc/hosts 2>/dev/null) || o=$(stat -f "%u:%g" /etc/hosts) || bail; chmod "$m" "$tmp" || bail; chown "$o" "$tmp" || bail; mv -f "$tmp" /etc/hosts || bail' sh {{ template "shellSingleQuoted" .fqdn }} {{ template "shellSingleQuoted" .ip }} {{ template "shellSingleQuoted" .short }}
 {{ end -}}
 {{ end -}}
 {{- end }}
