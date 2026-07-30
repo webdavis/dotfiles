@@ -34,7 +34,17 @@
 #      defect this file dropped the key to fix. Deployment is decided by `chezmoi
 #      managed`, not by the source file's presence on disk: a source file hidden
 #      behind .chezmoiignore is present but never delivered, and git would then
-#      load no global ignores either.
+#      load no global ignores either. Being LISTED by chezmoi is not enough on
+#      its own: the delivered path has to resolve to a readable regular file,
+#      because two of the shapes chezmoi can legitimately deliver are not one.
+#      Measured on git 2.55.0 with `git check-ignore -v` against a matching path:
+#        symlink -> regular file : the patterns apply, exit 0
+#        symlink -> missing      : nothing applies, exit 1, global ignores are
+#                                  dead and nothing on stderr says so
+#        symlink -> directory    : "fatal: cannot use <path> as an exclude file",
+#                                  exit 128
+#      So the delivered shape is classified, one arm per state, and anything that
+#      is not a readable regular file is a failure with its own message.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -49,11 +59,17 @@ GIT_DEFAULT_EXCLUDES_SOURCE="dot_config/git/ignore"
 # would read. dot_bashrc.tmpl and dot_profile both export $HOME/.config, so on a
 # machine this repo has deployed the two agree.
 GIT_DEFAULT_EXCLUDES_TARGET="${XDG_CONFIG_HOME:-$HOME/.config}/git/ignore"
-# The chezmoi entry types that put a readable file at a target path. Symlinks
-# count: git follows a symlinked ignore file (measured), so a symlink_ source
-# satisfies invariant 4 exactly as a plain file does. Directories and scripts do
-# not, which is why this is not simply `all`.
-CHEZMOI_FILE_DELIVERING_ENTRY_TYPES="files,symlinks"
+# The two chezmoi entry types that can put a readable file at a target path, kept
+# apart because they are answerable from different places. A `files` entry writes
+# a regular file, which is settled by the source state alone, so its verdict is
+# the same on this machine, in CI, and on a machine chezmoi has never run on. A
+# `symlinks` entry writes a symlink, and where that symlink lands is NOT in the
+# source state: git follows one to a regular file, reads nothing at all through a
+# dangling one, and refuses one that points at a directory, so it has to be
+# resolved on the machine. Every other entry type (dirs, scripts, remove) puts no
+# readable file anywhere, which is why this is not simply `all`.
+CHEZMOI_REGULAR_FILE_ENTRY_TYPE="files"
+CHEZMOI_SYMLINK_ENTRY_TYPE="symlinks"
 # `git config --get` exits 1 when the key is ABSENT and 0 when it is present,
 # including when its value is the empty string (measured). Both print nothing on
 # stdout, so this exit code is the only signal separating two states that mean
@@ -82,23 +98,106 @@ fail() {
   exit 1
 }
 
-# Answers "which absolute target paths does chezmoi deliver a readable file to
+# Answers "which absolute target paths does chezmoi deliver, of one entry type,
 # from this source tree?". This is the authority on deployment: it applies
 # .chezmoiignore and every source-name prefix, neither of which a source-path
 # existence test can see. Read-only, and it lists the target state without
 # rendering file contents, so the keepassxc templates here are never unlocked.
 list_chezmoi_delivered_target_paths() {
+  local entry_type="$1"
   chezmoi managed \
     --source "$REPO_ROOT" \
     --destination "$HOME" \
-    --include="$CHEZMOI_FILE_DELIVERING_ENTRY_TYPES" \
+    --include="$entry_type" \
     --path-style=absolute
 }
 
-# Answers "does chezmoi deliver exactly this target path?".
-chezmoi_delivers_target_path() {
-  local target="$1"
-  printf '%s\n' "$DELIVERED_TARGET_PATHS" | grep -Fxq -- "$target"
+# Answers "is this exact target path in this listing?".
+listing_contains_target_path() {
+  local listing="$1" target="$2"
+  printf '%s\n' "$listing" | grep -Fxq -- "$target"
+}
+
+# Answers "what does this path resolve to on this machine?", printing exactly one
+# of: readable-file, dangling-symlink, directory, missing, not-a-regular-file,
+# unreadable. Only readable-file is a file git can load as an exclude file; every
+# other state gets its own arm, so a shape nobody anticipated cannot fall through
+# to a pass. A symlink loop reports dangling-symlink, which is what it is in
+# effect: the path resolves to nothing.
+classify_path_resolution() {
+  local path="$1"
+  if [[ -L $path && ! -e $path ]]; then
+    printf 'dangling-symlink\n'
+  elif [[ ! -e $path ]]; then
+    printf 'missing\n'
+  elif [[ -d $path ]]; then
+    printf 'directory\n'
+  elif [[ ! -f $path ]]; then
+    printf 'not-a-regular-file\n'
+  elif [[ ! -r $path ]]; then
+    printf 'unreadable\n'
+  else
+    printf 'readable-file\n'
+  fi
+}
+
+# Answers "does this repo put a file git could load at this target path?",
+# printing readable-file when it does, not-delivered when chezmoi delivers
+# nothing there, and otherwise the resolution state that disqualifies it. The two
+# listings are arguments rather than globals so this stays a pure function of its
+# inputs and the fixtures below can hand it a listing of their own.
+classify_delivered_target_path() {
+  local regular_file_listing="$1" symlink_listing="$2" target="$3"
+  if listing_contains_target_path "$regular_file_listing" "$target"; then
+    # A regular-file entry needs no filesystem lookup: chezmoi writes a regular
+    # file at that path by construction, whether or not it has run here yet.
+    printf 'readable-file\n'
+  elif listing_contains_target_path "$symlink_listing" "$target"; then
+    classify_path_resolution "$target"
+  else
+    printf 'not-delivered\n'
+  fi
+}
+
+# Answers "why is this target path not a file git can load?" for one rejected
+# verdict. Separate from the classifier so the verdict stays a pure function of
+# the path and both invariant-4 arms share one set of explanations.
+explain_rejected_delivery() {
+  local verdict="$1" target="$2"
+  case "$verdict" in
+    not-delivered)
+      printf 'chezmoi delivers nothing to %s (present in the source tree is not enough; check .chezmoiignore)' "$target"
+      ;;
+    dangling-symlink)
+      printf 'chezmoi delivers %s as a symlink that points at nothing, and git reads no patterns through it at all: measured on git 2.55.0, check-ignore exits 1 and matches nothing, with no diagnostic' "$target"
+      ;;
+    directory)
+      printf 'chezmoi delivers %s as a symlink to a directory, which git refuses outright: measured on git 2.55.0, "fatal: cannot use %s as an exclude file"' "$target" "$target"
+      ;;
+    missing)
+      printf 'chezmoi delivers a symlink to %s but nothing exists there, so this machine cannot say what it resolves to; apply the symlink, then re-run' "$target"
+      ;;
+    not-a-regular-file)
+      printf '%s exists but is not a regular file, so git cannot read exclude patterns out of it' "$target"
+      ;;
+    unreadable)
+      printf '%s is a regular file this user cannot read, so git loads no patterns from it' "$target"
+      ;;
+    *)
+      printf 'the delivered shape of %s classified as an unrecognized verdict (%s); classify_delivered_target_path and explain_rejected_delivery have drifted apart' "$target" "$verdict"
+      ;;
+  esac
+}
+
+# Fails the test unless this repo puts a readable regular file at the target
+# path. The single place the passing verdict is named, so the two invariant-4
+# arms cannot drift apart on what counts as delivered.
+require_delivered_readable_file() {
+  local target="$1" preamble="$2" verdict
+  verdict="$(classify_delivered_target_path \
+    "$DELIVERED_REGULAR_FILE_TARGET_PATHS" "$DELIVERED_SYMLINK_TARGET_PATHS" "$target")"
+  [[ $verdict == readable-file ]] ||
+    fail "$preamble: $(explain_rejected_delivery "$verdict" "$target")"
 }
 
 # Answers "does this config key pin a diff or merge tool to a literal binary
@@ -141,11 +240,16 @@ command -v chezmoi >/dev/null 2>&1 ||
   fail "chezmoi is not on PATH; invariant 4 cannot tell which target paths this repo delivers"
 
 # Fail closed: an unreadable or empty listing must not read as "nothing is
-# missing". Collected once, since every branch of invariant 4 consults it.
-DELIVERED_TARGET_PATHS="$(list_chezmoi_delivered_target_paths)" ||
+# missing". Collected once, since every branch of invariant 4 consults them. Only
+# the regular-file listing is required to be non-empty: this repo certainly
+# delivers regular files, so an empty one means chezmoi read the wrong source
+# tree, while a repo with no symlink entries at all is a legitimate state.
+DELIVERED_REGULAR_FILE_TARGET_PATHS="$(list_chezmoi_delivered_target_paths "$CHEZMOI_REGULAR_FILE_ENTRY_TYPE")" ||
   fail "chezmoi managed failed against source $REPO_ROOT; invariant 4 cannot be decided"
-[[ -n $DELIVERED_TARGET_PATHS ]] ||
-  fail "chezmoi managed listed no entries at all for source $REPO_ROOT; invariant 4 cannot be decided"
+[[ -n $DELIVERED_REGULAR_FILE_TARGET_PATHS ]] ||
+  fail "chezmoi managed listed no file entries at all for source $REPO_ROOT; invariant 4 cannot be decided"
+DELIVERED_SYMLINK_TARGET_PATHS="$(list_chezmoi_delivered_target_paths "$CHEZMOI_SYMLINK_ENTRY_TYPE")" ||
+  fail "chezmoi managed failed to list symlink entries for source $REPO_ROOT; invariant 4 cannot be decided"
 
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
@@ -177,19 +281,86 @@ while IFS= read -r key; do
     fail "a url rewrite targets the git:// protocol ($key); GitHub permanently disabled it on 2022-03-15, so fetches through this base cannot connect"
 done < <(git config --file "$parsed" --name-only --list)
 
-# ---- 4: global ignores resolve to a file this repo deploys ----------------
+# ---- 4a: the delivered-shape classifier discriminates ---------------------
+# The three symlink shapes chezmoi can legitimately deliver, one fixture each,
+# because only the first of them is an ignore file git can load and the other two
+# are the states a bare "is it listed?" test silently admitted. Two non-symlink
+# controls sit alongside them so a classifier that answered readable-file (or
+# directory) for everything is caught here too, at the predicate, rather than
+# twenty lines later as a mystery verdict from the real config.
+fixtures="$work/path-resolution-fixtures"
+mkdir -p "$fixtures/a-directory"
+printf 'ignored-pattern\n' >"$fixtures/a-regular-file"
+ln -s "$fixtures/a-regular-file" "$fixtures/symlink-to-file"
+ln -s "$fixtures/nothing-here" "$fixtures/symlink-to-missing"
+ln -s "$fixtures/a-directory" "$fixtures/symlink-to-directory"
+
+assert_path_resolution() {
+  local name="$1" expected="$2" actual
+  actual="$(classify_path_resolution "$fixtures/$name")"
+  [[ $actual == "$expected" ]] ||
+    fail "classify_path_resolution answered '$actual' for the $name fixture, expected '$expected'; the check that keeps a symlink-delivered core.excludesfile honest no longer discriminates the shapes git treats differently"
+}
+assert_path_resolution symlink-to-file readable-file
+assert_path_resolution symlink-to-missing dangling-symlink
+assert_path_resolution symlink-to-directory directory
+assert_path_resolution a-regular-file readable-file
+assert_path_resolution a-directory directory
+assert_path_resolution nothing-here missing
+
+# The same three shapes again, this time through the function invariant 4 calls,
+# with a synthetic chezmoi listing. Classifying a path correctly is worth nothing
+# if the delivery check never consults the classifier, which is exactly how a
+# widened `--include=files,symlinks` membership test passed a dangling symlink.
+assert_delivered_classification() {
+  local regular_file_listing="$1" symlink_listing="$2" name="$3" expected="$4" actual
+  actual="$(classify_delivered_target_path \
+    "$regular_file_listing" "$symlink_listing" "$fixtures/$name")"
+  [[ $actual == "$expected" ]] ||
+    fail "classify_delivered_target_path answered '$actual' for the $name fixture, expected '$expected'; a chezmoi entry is being accepted or rejected on membership alone rather than on what it resolves to"
+}
+assert_delivered_classification "" "$fixtures/symlink-to-file" symlink-to-file readable-file
+assert_delivered_classification "" "$fixtures/symlink-to-missing" symlink-to-missing dangling-symlink
+assert_delivered_classification "" "$fixtures/symlink-to-directory" symlink-to-directory directory
+assert_delivered_classification "" "" symlink-to-file not-delivered
+# A regular-file entry is trusted from the source state alone, deliberately: it
+# is what keeps the verdict identical on this machine, in CI, and on a machine
+# chezmoi has never run on. Pinned so the asymmetry stays a decision.
+assert_delivered_classification "$fixtures/nothing-here" "" nothing-here readable-file
+
+# The guard the two invariant-4 arms call must act on those verdicts. fail() exits,
+# so a subshell is the only way to observe that it fired; `if` runs the subshell
+# without set -e deciding the outcome for us.
+assert_guard_verdict() {
+  local symlink_listing="$1" name="$2" expected="$3" actual=accepted
+  if ! (
+    DELIVERED_REGULAR_FILE_TARGET_PATHS=""
+    DELIVERED_SYMLINK_TARGET_PATHS="$symlink_listing"
+    require_delivered_readable_file "$fixtures/$name" "fixture probe" 2>/dev/null
+  ); then
+    actual=rejected
+  fi
+  [[ $actual == "$expected" ]] ||
+    fail "require_delivered_readable_file $actual the $name fixture, expected $expected; invariant 4 no longer acts on the verdict it computes"
+}
+assert_guard_verdict "$fixtures/symlink-to-file" symlink-to-file accepted
+assert_guard_verdict "$fixtures/symlink-to-missing" symlink-to-missing rejected
+assert_guard_verdict "$fixtures/symlink-to-directory" symlink-to-directory rejected
+assert_guard_verdict "" symlink-to-file rejected
+
+# ---- 4b: global ignores resolve to a file this repo deploys ---------------
 case "$(classify_core_excludesfile "$parsed")" in
   set)
     excludes="$(git config --file "$parsed" --get core.excludesfile)"
-    chezmoi_delivers_target_path "${excludes/#\~/$HOME}" ||
-      fail "core.excludesfile = '$excludes' names a path chezmoi does not deliver, so git would load no global ignores at all"
+    require_delivered_readable_file "${excludes/#\~/$HOME}" \
+      "core.excludesfile = '$excludes' does not name a readable file this repo delivers, so git would load no global ignores at all"
     ;;
   empty)
     fail "core.excludesfile is present with an empty value, which git does not treat as absent: it loads no global ignores at all rather than falling back to $GIT_DEFAULT_EXCLUDES_TARGET (measured with git check-ignore), which is the exact defect this file dropped the key to fix. Remove the key, do not blank it"
     ;;
   absent)
-    chezmoi_delivers_target_path "$GIT_DEFAULT_EXCLUDES_TARGET" ||
-      fail "core.excludesfile is unset, so git falls back to $GIT_DEFAULT_EXCLUDES_TARGET, but chezmoi does not deliver that path from $GIT_DEFAULT_EXCLUDES_SOURCE (present in the source tree is not enough; check .chezmoiignore); global ignores would be empty on a fresh machine"
+    require_delivered_readable_file "$GIT_DEFAULT_EXCLUDES_TARGET" \
+      "core.excludesfile is unset, so git falls back to $GIT_DEFAULT_EXCLUDES_TARGET, which this repo ships from $GIT_DEFAULT_EXCLUDES_SOURCE, but global ignores would be empty on a fresh machine"
     ;;
   *)
     fail "core.excludesfile could not be read out of $parsed; invariant 4 cannot be decided"
