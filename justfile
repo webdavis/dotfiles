@@ -27,9 +27,10 @@ lint:
 # the flake's treefmt check derivation, which runs treefmt on a sandboxed copy
 # of the tree, reports drift, never mutates the working tree or index (treefmt
 # itself has no dry-run mode, so the sandbox copy is what makes this
-# check-only). NOT CI's command: CI runs `just check`, which adds
-# --all-systems. Both build the same drift derivation for this host (measured:
-# the same .drv path from either recipe on one tree), but without the flag nix
+# check-only). NOT CI's command: CI's first gate is a bare
+# `nix flake check --all-systems`, which the `check` recipe below carries
+# verbatim. Both build the same drift derivation for this host (measured: the
+# same .drv path from either recipe on one tree), but without the flag nix
 # evaluates only this host's flake outputs and says so: "the check omitted
 # these incompatible systems: x86_64-linux".
 lint-check:
