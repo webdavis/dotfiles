@@ -3696,10 +3696,52 @@
       "norm_label": "defaults_records_locate_malformed()"
     },
     {
+      "label": "records_declaration_verdict()",
+      "file_type": "code",
+      "source_file": "dot_local/bin/macos-defaults-lib.sh",
+      "source_location": "L236",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_bin_macos_defaults_lib_records_declaration_verdict",
+      "community": 351,
+      "norm_label": "records_declaration_verdict()"
+    },
+    {
+      "label": "data_file_begins_with_byte_order_mark()",
+      "file_type": "code",
+      "source_file": "dot_local/bin/macos-defaults-lib.sh",
+      "source_location": "L290",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_bin_macos_defaults_lib_data_file_begins_with_byte_order_mark",
+      "community": 351,
+      "norm_label": "data_file_begins_with_byte_order_mark()"
+    },
+    {
+      "label": "declared_record_count_is_usable()",
+      "file_type": "code",
+      "source_file": "dot_local/bin/macos-defaults-lib.sh",
+      "source_location": "L341",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_bin_macos_defaults_lib_declared_record_count_is_usable",
+      "community": 351,
+      "norm_label": "declared_record_count_is_usable()"
+    },
+    {
       "label": "defaults_records_declared_count()",
       "file_type": "code",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L191",
+      "source_location": "L345",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -3713,7 +3755,7 @@
       "label": "defaults_records_raw_stream()",
       "file_type": "code",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L279",
+      "source_location": "L414",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -3727,7 +3769,7 @@
       "label": "defaults_records_validate_stream()",
       "file_type": "code",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L296",
+      "source_location": "L431",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -3741,7 +3783,7 @@
       "label": "defaults_records_declare_a_value()",
       "file_type": "code",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L368",
+      "source_location": "L503",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -3755,7 +3797,7 @@
       "label": "defaults_records_unit_separated()",
       "file_type": "code",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L384",
+      "source_location": "L519",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -3769,7 +3811,7 @@
       "label": "validate_record_scope()",
       "file_type": "code",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L411",
+      "source_location": "L546",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -3783,7 +3825,7 @@
       "label": "validate_record_identity()",
       "file_type": "code",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L441",
+      "source_location": "L576",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -3797,7 +3839,7 @@
       "label": "validate_record_type()",
       "file_type": "code",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L472",
+      "source_location": "L607",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -3811,7 +3853,7 @@
       "label": "print_offending_record_reference()",
       "file_type": "code",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L490",
+      "source_location": "L625",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -3825,7 +3867,7 @@
       "label": "validate_system_domain()",
       "file_type": "code",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L507",
+      "source_location": "L642",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -3839,7 +3881,7 @@
       "label": "validate_explicit_plist_path()",
       "file_type": "code",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L540",
+      "source_location": "L675",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -3853,7 +3895,7 @@
       "label": "resolve_system_plist_path()",
       "file_type": "code",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L572",
+      "source_location": "L707",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -3867,7 +3909,7 @@
       "label": "require_system_plist_path_permitted()",
       "file_type": "code",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L601",
+      "source_location": "L736",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -3881,7 +3923,7 @@
       "label": "validate_defaults_record()",
       "file_type": "code",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L647",
+      "source_location": "L782",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -3895,7 +3937,7 @@
       "label": "system_defaults_write()",
       "file_type": "code",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L715",
+      "source_location": "L850",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -3909,7 +3951,7 @@
       "label": "system_defaults_read_actual()",
       "file_type": "code",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L746",
+      "source_location": "L881",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -23181,7 +23223,7 @@
       "label": "LARGEST_ACCEPTED_RECORD_COUNT",
       "file_type": "code",
       "source_file": "test/unit/macos-defaults-count-guard.sh",
-      "source_location": "L44",
+      "source_location": "L42",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -23195,7 +23237,7 @@
       "label": "SMALLEST_REFUSED_RECORD_COUNT",
       "file_type": "code",
       "source_file": "test/unit/macos-defaults-count-guard.sh",
-      "source_location": "L45",
+      "source_location": "L43",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -23209,7 +23251,7 @@
       "label": "fail()",
       "file_type": "code",
       "source_file": "test/unit/macos-defaults-count-guard.sh",
-      "source_location": "L50",
+      "source_location": "L48",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -23220,32 +23262,200 @@
       "norm_label": "fail()"
     },
     {
-      "label": "write_seq_tagged_scalar()",
+      "label": "require_count_accepted()",
       "file_type": "code",
       "source_file": "test/unit/macos-defaults-count-guard.sh",
-      "source_location": "L62",
+      "source_location": "L55",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
       },
       "_origin": "ast",
-      "id": "test_unit_macos_defaults_count_guard_write_seq_tagged_scalar",
+      "id": "test_unit_macos_defaults_count_guard_require_count_accepted",
       "community": 416,
-      "norm_label": "write_seq_tagged_scalar()"
+      "norm_label": "require_count_accepted()"
     },
     {
-      "label": "require_clean_seq_shape()",
+      "label": "refute_count_accepted()",
       "file_type": "code",
       "source_file": "test/unit/macos-defaults-count-guard.sh",
-      "source_location": "L75",
+      "source_location": "L67",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
       },
       "_origin": "ast",
-      "id": "test_unit_macos_defaults_count_guard_require_clean_seq_shape",
+      "id": "test_unit_macos_defaults_count_guard_refute_count_accepted",
       "community": 416,
-      "norm_label": "require_clean_seq_shape()"
+      "norm_label": "refute_count_accepted()"
+    },
+    {
+      "label": "macos-defaults-declaration-guard.sh",
+      "file_type": "code",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "test_unit_macos_defaults_declaration_guard",
+      "community": 422,
+      "norm_label": "macos-defaults-declaration-guard.sh"
+    },
+    {
+      "label": "macos-defaults-declaration-guard.sh script",
+      "file_type": "code",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "test_unit_macos_defaults_declaration_guard_sh__entry",
+      "community": 422,
+      "norm_label": "macos-defaults-declaration-guard.sh script"
+    },
+    {
+      "label": "fail()",
+      "file_type": "code",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L49",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_macos_defaults_declaration_guard_fail",
+      "community": 422,
+      "norm_label": "fail()"
+    },
+    {
+      "label": "SUPERSEDED_SHAPE_EXPRESSION",
+      "file_type": "code",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L56",
+      "metadata": {
+        "language": "bash",
+        "kind": "code"
+      },
+      "_origin": "ast",
+      "id": "test_unit_macos_defaults_declaration_guard_superseded_shape_expression",
+      "community": 422,
+      "norm_label": "superseded_shape_expression"
+    },
+    {
+      "label": "SUPERSEDED_COUNT_EXPRESSION",
+      "file_type": "code",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L57",
+      "metadata": {
+        "language": "bash",
+        "kind": "code"
+      },
+      "_origin": "ast",
+      "id": "test_unit_macos_defaults_declaration_guard_superseded_count_expression",
+      "community": 422,
+      "norm_label": "superseded_count_expression"
+    },
+    {
+      "label": "require_superseded_read_as_zero_records()",
+      "file_type": "code",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L66",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_macos_defaults_declaration_guard_require_superseded_read_as_zero_records",
+      "community": 422,
+      "norm_label": "require_superseded_read_as_zero_records()"
+    },
+    {
+      "label": "refute_declaration_accepted()",
+      "file_type": "code",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L83",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_macos_defaults_declaration_guard_refute_declaration_accepted",
+      "community": 422,
+      "norm_label": "refute_declaration_accepted()"
+    },
+    {
+      "label": "require_names_the_empty_list_spelling()",
+      "file_type": "code",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L94",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_macos_defaults_declaration_guard_require_names_the_empty_list_spelling",
+      "community": 422,
+      "norm_label": "require_names_the_empty_list_spelling()"
+    },
+    {
+      "label": "require_declaration_accepted()",
+      "file_type": "code",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L102",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_macos_defaults_declaration_guard_require_declaration_accepted",
+      "community": 422,
+      "norm_label": "require_declaration_accepted()"
+    },
+    {
+      "label": "require_verdict()",
+      "file_type": "code",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L113",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_macos_defaults_declaration_guard_require_verdict",
+      "community": 422,
+      "norm_label": "require_verdict()"
+    },
+    {
+      "label": "require_byte_order_mark_detected()",
+      "file_type": "code",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L125",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_macos_defaults_declaration_guard_require_byte_order_mark_detected",
+      "community": 422,
+      "norm_label": "require_byte_order_mark_detected()"
+    },
+    {
+      "label": "refute_byte_order_mark_detected()",
+      "file_type": "code",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L130",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_macos_defaults_declaration_guard_refute_byte_order_mark_detected",
+      "community": 422,
+      "norm_label": "refute_byte_order_mark_detected()"
     },
     {
       "label": "macos-defaults-record-validation.sh",
@@ -23428,6 +23638,132 @@
       "id": "test_unit_macos_defaults_scope_read_write_defaults_read_stub",
       "community": 373,
       "norm_label": "write_defaults_read_stub()"
+    },
+    {
+      "label": "macos-defaults-shape-guard.sh",
+      "file_type": "code",
+      "source_file": "test/unit/macos-defaults-shape-guard.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "test_unit_macos_defaults_shape_guard",
+      "community": 419,
+      "norm_label": "macos-defaults-shape-guard.sh"
+    },
+    {
+      "label": "macos-defaults-shape-guard.sh script",
+      "file_type": "code",
+      "source_file": "test/unit/macos-defaults-shape-guard.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "test_unit_macos_defaults_shape_guard_sh__entry",
+      "community": 419,
+      "norm_label": "macos-defaults-shape-guard.sh script"
+    },
+    {
+      "label": "fail()",
+      "file_type": "code",
+      "source_file": "test/unit/macos-defaults-shape-guard.sh",
+      "source_location": "L45",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_macos_defaults_shape_guard_fail",
+      "community": 419,
+      "norm_label": "fail()"
+    },
+    {
+      "label": "SUPERSEDED_SHAPE_EXPRESSION",
+      "file_type": "code",
+      "source_file": "test/unit/macos-defaults-shape-guard.sh",
+      "source_location": "L54",
+      "metadata": {
+        "language": "bash",
+        "kind": "code"
+      },
+      "_origin": "ast",
+      "id": "test_unit_macos_defaults_shape_guard_superseded_shape_expression",
+      "community": 419,
+      "norm_label": "superseded_shape_expression"
+    },
+    {
+      "label": "require_superseded_check_satisfied()",
+      "file_type": "code",
+      "source_file": "test/unit/macos-defaults-shape-guard.sh",
+      "source_location": "L60",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_macos_defaults_shape_guard_require_superseded_check_satisfied",
+      "community": 419,
+      "norm_label": "require_superseded_check_satisfied()"
+    },
+    {
+      "label": "refute_shape_accepted()",
+      "file_type": "code",
+      "source_file": "test/unit/macos-defaults-shape-guard.sh",
+      "source_location": "L75",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_macos_defaults_shape_guard_refute_shape_accepted",
+      "community": 419,
+      "norm_label": "refute_shape_accepted()"
+    },
+    {
+      "label": "refute_output_contains()",
+      "file_type": "code",
+      "source_file": "test/unit/macos-defaults-shape-guard.sh",
+      "source_location": "L90",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_macos_defaults_shape_guard_refute_output_contains",
+      "community": 419,
+      "norm_label": "refute_output_contains()"
+    },
+    {
+      "label": "require_shape_accepted()",
+      "file_type": "code",
+      "source_file": "test/unit/macos-defaults-shape-guard.sh",
+      "source_location": "L99",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_macos_defaults_shape_guard_require_shape_accepted",
+      "community": 419,
+      "norm_label": "require_shape_accepted()"
+    },
+    {
+      "label": "require_verdict()",
+      "file_type": "code",
+      "source_file": "test/unit/macos-defaults-shape-guard.sh",
+      "source_location": "L115",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_macos_defaults_shape_guard_require_verdict",
+      "community": 419,
+      "norm_label": "require_verdict()"
     },
     {
       "label": "macos-defaults-source-path-propagation.sh",
@@ -52131,7 +52467,27 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L368",
+      "source_location": "L290",
+      "weight": 1.0,
+      "source": "dot_local_bin_macos_defaults_lib",
+      "target": "dot_local_bin_macos_defaults_lib_data_file_begins_with_byte_order_mark",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/macos-defaults-lib.sh",
+      "source_location": "L341",
+      "weight": 1.0,
+      "source": "dot_local_bin_macos_defaults_lib",
+      "target": "dot_local_bin_macos_defaults_lib_declared_record_count_is_usable",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/macos-defaults-lib.sh",
+      "source_location": "L503",
       "weight": 1.0,
       "source": "dot_local_bin_macos_defaults_lib",
       "target": "dot_local_bin_macos_defaults_lib_defaults_records_declare_a_value",
@@ -52141,7 +52497,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L191",
+      "source_location": "L345",
       "weight": 1.0,
       "source": "dot_local_bin_macos_defaults_lib",
       "target": "dot_local_bin_macos_defaults_lib_defaults_records_declared_count",
@@ -52181,7 +52537,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L279",
+      "source_location": "L414",
       "weight": 1.0,
       "source": "dot_local_bin_macos_defaults_lib",
       "target": "dot_local_bin_macos_defaults_lib_defaults_records_raw_stream",
@@ -52191,7 +52547,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L384",
+      "source_location": "L519",
       "weight": 1.0,
       "source": "dot_local_bin_macos_defaults_lib",
       "target": "dot_local_bin_macos_defaults_lib_defaults_records_unit_separated",
@@ -52201,7 +52557,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L296",
+      "source_location": "L431",
       "weight": 1.0,
       "source": "dot_local_bin_macos_defaults_lib",
       "target": "dot_local_bin_macos_defaults_lib_defaults_records_validate_stream",
@@ -52221,10 +52577,20 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L490",
+      "source_location": "L625",
       "weight": 1.0,
       "source": "dot_local_bin_macos_defaults_lib",
       "target": "dot_local_bin_macos_defaults_lib_print_offending_record_reference",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/macos-defaults-lib.sh",
+      "source_location": "L236",
+      "weight": 1.0,
+      "source": "dot_local_bin_macos_defaults_lib",
+      "target": "dot_local_bin_macos_defaults_lib_records_declaration_verdict",
       "confidence_score": 1.0
     },
     {
@@ -52241,7 +52607,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L601",
+      "source_location": "L736",
       "weight": 1.0,
       "source": "dot_local_bin_macos_defaults_lib",
       "target": "dot_local_bin_macos_defaults_lib_require_system_plist_path_permitted",
@@ -52261,7 +52627,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L572",
+      "source_location": "L707",
       "weight": 1.0,
       "source": "dot_local_bin_macos_defaults_lib",
       "target": "dot_local_bin_macos_defaults_lib_resolve_system_plist_path",
@@ -52281,7 +52647,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L746",
+      "source_location": "L881",
       "weight": 1.0,
       "source": "dot_local_bin_macos_defaults_lib",
       "target": "dot_local_bin_macos_defaults_lib_system_defaults_read_actual",
@@ -52291,7 +52657,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L715",
+      "source_location": "L850",
       "weight": 1.0,
       "source": "dot_local_bin_macos_defaults_lib",
       "target": "dot_local_bin_macos_defaults_lib_system_defaults_write",
@@ -52301,7 +52667,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L647",
+      "source_location": "L782",
       "weight": 1.0,
       "source": "dot_local_bin_macos_defaults_lib",
       "target": "dot_local_bin_macos_defaults_lib_validate_defaults_record",
@@ -52311,7 +52677,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L540",
+      "source_location": "L675",
       "weight": 1.0,
       "source": "dot_local_bin_macos_defaults_lib",
       "target": "dot_local_bin_macos_defaults_lib_validate_explicit_plist_path",
@@ -52321,7 +52687,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L441",
+      "source_location": "L576",
       "weight": 1.0,
       "source": "dot_local_bin_macos_defaults_lib",
       "target": "dot_local_bin_macos_defaults_lib_validate_record_identity",
@@ -52331,7 +52697,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L411",
+      "source_location": "L546",
       "weight": 1.0,
       "source": "dot_local_bin_macos_defaults_lib",
       "target": "dot_local_bin_macos_defaults_lib_validate_record_scope",
@@ -52341,7 +52707,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L472",
+      "source_location": "L607",
       "weight": 1.0,
       "source": "dot_local_bin_macos_defaults_lib",
       "target": "dot_local_bin_macos_defaults_lib_validate_record_type",
@@ -52351,7 +52717,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L507",
+      "source_location": "L642",
       "weight": 1.0,
       "source": "dot_local_bin_macos_defaults_lib",
       "target": "dot_local_bin_macos_defaults_lib_validate_system_domain",
@@ -52361,7 +52727,29 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L389",
+      "source_location": "L355",
+      "weight": 1.0,
+      "context": "call",
+      "source": "dot_local_bin_macos_defaults_lib_defaults_records_declared_count",
+      "target": "dot_local_bin_macos_defaults_lib_data_file_begins_with_byte_order_mark",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/macos-defaults-lib.sh",
+      "source_location": "L403",
+      "weight": 1.0,
+      "context": "call",
+      "source": "dot_local_bin_macos_defaults_lib_defaults_records_declared_count",
+      "target": "dot_local_bin_macos_defaults_lib_declared_record_count_is_usable",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/macos-defaults-lib.sh",
+      "source_location": "L524",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_macos_defaults_lib_defaults_records_unit_separated",
@@ -52372,7 +52760,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L333",
+      "source_location": "L468",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_macos_defaults_lib_defaults_records_validate_stream",
@@ -52383,7 +52771,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L390",
+      "source_location": "L525",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_macos_defaults_lib_defaults_records_unit_separated",
@@ -52394,7 +52782,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L668",
+      "source_location": "L803",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_macos_defaults_lib_validate_defaults_record",
@@ -52405,7 +52793,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L654",
+      "source_location": "L789",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_macos_defaults_lib_validate_defaults_record",
@@ -52416,7 +52804,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L667",
+      "source_location": "L802",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_macos_defaults_lib_validate_defaults_record",
@@ -52427,7 +52815,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L669",
+      "source_location": "L804",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_macos_defaults_lib_validate_defaults_record",
@@ -52438,7 +52826,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L574",
+      "source_location": "L709",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_macos_defaults_lib_resolve_system_plist_path",
@@ -52449,7 +52837,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L579",
+      "source_location": "L714",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_macos_defaults_lib_resolve_system_plist_path",
@@ -52460,7 +52848,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L673",
+      "source_location": "L808",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_macos_defaults_lib_validate_defaults_record",
@@ -73029,7 +73417,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/macos-defaults-count-guard.sh",
-      "source_location": "L50",
+      "source_location": "L48",
       "weight": 1.0,
       "source": "test_unit_macos_defaults_count_guard",
       "target": "test_unit_macos_defaults_count_guard_fail",
@@ -73039,7 +73427,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/macos-defaults-count-guard.sh",
-      "source_location": "L44",
+      "source_location": "L42",
       "weight": 1.0,
       "source": "test_unit_macos_defaults_count_guard",
       "target": "test_unit_macos_defaults_count_guard_largest_accepted_record_count",
@@ -73049,10 +73437,20 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/macos-defaults-count-guard.sh",
-      "source_location": "L75",
+      "source_location": "L67",
       "weight": 1.0,
       "source": "test_unit_macos_defaults_count_guard",
-      "target": "test_unit_macos_defaults_count_guard_require_clean_seq_shape",
+      "target": "test_unit_macos_defaults_count_guard_refute_count_accepted",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-count-guard.sh",
+      "source_location": "L55",
+      "weight": 1.0,
+      "source": "test_unit_macos_defaults_count_guard",
+      "target": "test_unit_macos_defaults_count_guard_require_count_accepted",
       "confidence_score": 1.0
     },
     {
@@ -73069,64 +73467,329 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/macos-defaults-count-guard.sh",
-      "source_location": "L45",
+      "source_location": "L43",
       "weight": 1.0,
       "source": "test_unit_macos_defaults_count_guard",
       "target": "test_unit_macos_defaults_count_guard_smallest_refused_record_count",
       "confidence_score": 1.0
     },
     {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-count-guard.sh",
+      "source_location": "L74",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_defaults_count_guard_sh__entry",
+      "target": "test_unit_macos_defaults_count_guard_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-count-guard.sh",
+      "source_location": "L128",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_defaults_count_guard_sh__entry",
+      "target": "test_unit_macos_defaults_count_guard_refute_count_accepted",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-count-guard.sh",
+      "source_location": "L134",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_defaults_count_guard_sh__entry",
+      "target": "test_unit_macos_defaults_count_guard_require_count_accepted",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-count-guard.sh",
+      "source_location": "L70",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_defaults_count_guard_refute_count_accepted",
+      "target": "test_unit_macos_defaults_count_guard_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-count-guard.sh",
+      "source_location": "L58",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_defaults_count_guard_require_count_accepted",
+      "target": "test_unit_macos_defaults_count_guard_fail",
+      "confidence_score": 1.0
+    },
+    {
       "relation": "defines",
       "confidence": "EXTRACTED",
-      "source_file": "test/unit/macos-defaults-count-guard.sh",
-      "source_location": "L62",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L49",
       "weight": 1.0,
-      "source": "test_unit_macos_defaults_count_guard",
-      "target": "test_unit_macos_defaults_count_guard_write_seq_tagged_scalar",
+      "source": "test_unit_macos_defaults_declaration_guard",
+      "target": "test_unit_macos_defaults_declaration_guard_fail",
       "confidence_score": 1.0
     },
     {
-      "relation": "calls",
+      "relation": "defines",
       "confidence": "EXTRACTED",
-      "source_file": "test/unit/macos-defaults-count-guard.sh",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L130",
+      "weight": 1.0,
+      "source": "test_unit_macos_defaults_declaration_guard",
+      "target": "test_unit_macos_defaults_declaration_guard_refute_byte_order_mark_detected",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
       "source_location": "L83",
       "weight": 1.0,
-      "context": "call",
-      "source": "test_unit_macos_defaults_count_guard_sh__entry",
-      "target": "test_unit_macos_defaults_count_guard_fail",
+      "source": "test_unit_macos_defaults_declaration_guard",
+      "target": "test_unit_macos_defaults_declaration_guard_refute_declaration_accepted",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L125",
+      "weight": 1.0,
+      "source": "test_unit_macos_defaults_declaration_guard",
+      "target": "test_unit_macos_defaults_declaration_guard_require_byte_order_mark_detected",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L102",
+      "weight": 1.0,
+      "source": "test_unit_macos_defaults_declaration_guard",
+      "target": "test_unit_macos_defaults_declaration_guard_require_declaration_accepted",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L94",
+      "weight": 1.0,
+      "source": "test_unit_macos_defaults_declaration_guard",
+      "target": "test_unit_macos_defaults_declaration_guard_require_names_the_empty_list_spelling",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L66",
+      "weight": 1.0,
+      "source": "test_unit_macos_defaults_declaration_guard",
+      "target": "test_unit_macos_defaults_declaration_guard_require_superseded_read_as_zero_records",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L113",
+      "weight": 1.0,
+      "source": "test_unit_macos_defaults_declaration_guard",
+      "target": "test_unit_macos_defaults_declaration_guard_require_verdict",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "test_unit_macos_defaults_declaration_guard",
+      "target": "test_unit_macos_defaults_declaration_guard_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L57",
+      "weight": 1.0,
+      "source": "test_unit_macos_defaults_declaration_guard",
+      "target": "test_unit_macos_defaults_declaration_guard_superseded_count_expression",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L56",
+      "weight": 1.0,
+      "source": "test_unit_macos_defaults_declaration_guard",
+      "target": "test_unit_macos_defaults_declaration_guard_superseded_shape_expression",
       "confidence_score": 1.0
     },
     {
       "relation": "calls",
       "confidence": "EXTRACTED",
-      "source_file": "test/unit/macos-defaults-count-guard.sh",
-      "source_location": "L139",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L136",
       "weight": 1.0,
       "context": "call",
-      "source": "test_unit_macos_defaults_count_guard_sh__entry",
-      "target": "test_unit_macos_defaults_count_guard_require_clean_seq_shape",
+      "source": "test_unit_macos_defaults_declaration_guard_sh__entry",
+      "target": "test_unit_macos_defaults_declaration_guard_fail",
       "confidence_score": 1.0
     },
     {
       "relation": "calls",
       "confidence": "EXTRACTED",
-      "source_file": "test/unit/macos-defaults-count-guard.sh",
-      "source_location": "L138",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L234",
       "weight": 1.0,
       "context": "call",
-      "source": "test_unit_macos_defaults_count_guard_sh__entry",
-      "target": "test_unit_macos_defaults_count_guard_write_seq_tagged_scalar",
+      "source": "test_unit_macos_defaults_declaration_guard_sh__entry",
+      "target": "test_unit_macos_defaults_declaration_guard_refute_byte_order_mark_detected",
       "confidence_score": 1.0
     },
     {
       "relation": "calls",
       "confidence": "EXTRACTED",
-      "source_file": "test/unit/macos-defaults-count-guard.sh",
-      "source_location": "L78",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L233",
       "weight": 1.0,
       "context": "call",
-      "source": "test_unit_macos_defaults_count_guard_require_clean_seq_shape",
-      "target": "test_unit_macos_defaults_count_guard_fail",
+      "source": "test_unit_macos_defaults_declaration_guard_sh__entry",
+      "target": "test_unit_macos_defaults_declaration_guard_require_byte_order_mark_detected",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L154",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_defaults_declaration_guard_sh__entry",
+      "target": "test_unit_macos_defaults_declaration_guard_require_declaration_accepted",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L179",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_defaults_declaration_guard_sh__entry",
+      "target": "test_unit_macos_defaults_declaration_guard_require_names_the_empty_list_spelling",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L175",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_defaults_declaration_guard_sh__entry",
+      "target": "test_unit_macos_defaults_declaration_guard_require_superseded_read_as_zero_records",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L224",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_defaults_declaration_guard_sh__entry",
+      "target": "test_unit_macos_defaults_declaration_guard_require_verdict",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L132",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_defaults_declaration_guard_refute_byte_order_mark_detected",
+      "target": "test_unit_macos_defaults_declaration_guard_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L87",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_defaults_declaration_guard_refute_declaration_accepted",
+      "target": "test_unit_macos_defaults_declaration_guard_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L127",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_defaults_declaration_guard_require_byte_order_mark_detected",
+      "target": "test_unit_macos_defaults_declaration_guard_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L106",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_defaults_declaration_guard_require_declaration_accepted",
+      "target": "test_unit_macos_defaults_declaration_guard_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L97",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_defaults_declaration_guard_require_names_the_empty_list_spelling",
+      "target": "test_unit_macos_defaults_declaration_guard_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L69",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_defaults_declaration_guard_require_superseded_read_as_zero_records",
+      "target": "test_unit_macos_defaults_declaration_guard_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L117",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_defaults_declaration_guard_require_verdict",
+      "target": "test_unit_macos_defaults_declaration_guard_fail",
       "confidence_score": 1.0
     },
     {
@@ -73358,6 +74021,196 @@
       "context": "call",
       "source": "test_unit_macos_defaults_scope_read_reject_resolved_path",
       "target": "test_unit_macos_defaults_scope_read_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-shape-guard.sh",
+      "source_location": "L45",
+      "weight": 1.0,
+      "source": "test_unit_macos_defaults_shape_guard",
+      "target": "test_unit_macos_defaults_shape_guard_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-shape-guard.sh",
+      "source_location": "L90",
+      "weight": 1.0,
+      "source": "test_unit_macos_defaults_shape_guard",
+      "target": "test_unit_macos_defaults_shape_guard_refute_output_contains",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-shape-guard.sh",
+      "source_location": "L75",
+      "weight": 1.0,
+      "source": "test_unit_macos_defaults_shape_guard",
+      "target": "test_unit_macos_defaults_shape_guard_refute_shape_accepted",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-shape-guard.sh",
+      "source_location": "L99",
+      "weight": 1.0,
+      "source": "test_unit_macos_defaults_shape_guard",
+      "target": "test_unit_macos_defaults_shape_guard_require_shape_accepted",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-shape-guard.sh",
+      "source_location": "L60",
+      "weight": 1.0,
+      "source": "test_unit_macos_defaults_shape_guard",
+      "target": "test_unit_macos_defaults_shape_guard_require_superseded_check_satisfied",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-shape-guard.sh",
+      "source_location": "L115",
+      "weight": 1.0,
+      "source": "test_unit_macos_defaults_shape_guard",
+      "target": "test_unit_macos_defaults_shape_guard_require_verdict",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-shape-guard.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "test_unit_macos_defaults_shape_guard",
+      "target": "test_unit_macos_defaults_shape_guard_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-shape-guard.sh",
+      "source_location": "L54",
+      "weight": 1.0,
+      "source": "test_unit_macos_defaults_shape_guard",
+      "target": "test_unit_macos_defaults_shape_guard_superseded_shape_expression",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-shape-guard.sh",
+      "source_location": "L122",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_defaults_shape_guard_sh__entry",
+      "target": "test_unit_macos_defaults_shape_guard_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-shape-guard.sh",
+      "source_location": "L195",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_defaults_shape_guard_sh__entry",
+      "target": "test_unit_macos_defaults_shape_guard_refute_output_contains",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-shape-guard.sh",
+      "source_location": "L140",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_defaults_shape_guard_sh__entry",
+      "target": "test_unit_macos_defaults_shape_guard_require_shape_accepted",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-shape-guard.sh",
+      "source_location": "L161",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_defaults_shape_guard_sh__entry",
+      "target": "test_unit_macos_defaults_shape_guard_require_superseded_check_satisfied",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-shape-guard.sh",
+      "source_location": "L206",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_defaults_shape_guard_sh__entry",
+      "target": "test_unit_macos_defaults_shape_guard_require_verdict",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-shape-guard.sh",
+      "source_location": "L93",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_defaults_shape_guard_refute_output_contains",
+      "target": "test_unit_macos_defaults_shape_guard_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-shape-guard.sh",
+      "source_location": "L79",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_defaults_shape_guard_refute_shape_accepted",
+      "target": "test_unit_macos_defaults_shape_guard_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-shape-guard.sh",
+      "source_location": "L103",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_defaults_shape_guard_require_shape_accepted",
+      "target": "test_unit_macos_defaults_shape_guard_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-shape-guard.sh",
+      "source_location": "L63",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_defaults_shape_guard_require_superseded_check_satisfied",
+      "target": "test_unit_macos_defaults_shape_guard_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-shape-guard.sh",
+      "source_location": "L119",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_defaults_shape_guard_require_verdict",
+      "target": "test_unit_macos_defaults_shape_guard_fail",
       "confidence_score": 1.0
     },
     {
@@ -96141,5 +96994,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "0d5a612f063cbe086fb0946b48aefbef416e50e2"
+  "built_at_commit": "69a9838328861e01603d9b521b7367de34a430e6"
 }
