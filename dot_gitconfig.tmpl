@@ -15,7 +15,14 @@
 [core]
   editor = nvim
   autocrlf = input
-  excludesfile = ~/.gitignore_global
+  # No core.excludesfile on purpose. It used to name ~/.gitignore_global, which
+  # nothing in this repo deploys and which does not exist on the machine, and a
+  # missing excludesfile does not fall back: measured with `git check-ignore -v`,
+  # the setting suppressed global ignores entirely and shadowed the patterns
+  # already sitting in ~/.config/git/ignore. Leaving the key unset lets git use
+  # its documented default, $XDG_CONFIG_HOME/git/ignore, which both
+  # dot_bashrc.tmpl and dot_profile resolve to ~/.config, and which this repo now
+  # ships as dot_config/git/ignore.
   pager = delta
   hooksPath = ~/.config/git/hooks
   fsmonitor = true
