@@ -2,11 +2,21 @@
 # no-dead-refutation-in-bats.sh, a REPO-WIDE guard.
 #
 # THE PROPERTY: inside a bats-executed body (@test, setup, teardown, and their
-# file/suite variants), a bare inverted command's exit status must be ABLE to
-# fail the test by some path. bash's `set -e` and bats' ERR trap both ignore a
-# `!` pipeline, and bats takes the body's LAST status as the result, so an
-# inverted command decides the test ONLY as the last command the body executes.
-# Everywhere else it reads like a working check and cannot fail.
+# file/suite variants), the exit status of a bare inverted command must REACH
+# something that can act on it -- the body's final status, errexit, or a branch
+# or handler that the status selects. bash's `set -e` and bats' ERR trap both
+# ignore a `!` pipeline, and bats takes the body's LAST status as the result,
+# so an inverted command that is neither last nor consumed reads like a working
+# check and can never fail the test.
+#
+# The guard therefore has TWO obligations, and the second is worthless without
+# the first:
+#
+#   1. COVERAGE. Every body bats executes must actually be analyzed. Any file,
+#      directory, definition spelling or region this scan cannot handle is
+#      reported loudly (exit 2), never skipped into a green pass.
+#   2. JUDGEMENT. Within an analyzed body, an inversion is left alone only when
+#      its status genuinely reaches a consumer.
 #
 # The mechanism, measured rather than assumed (each shape was run under the
 # repo's bats with a VIOLATED refutation; "dead" means the test still passed):
@@ -20,42 +30,69 @@
 #                                                      exempt inverted status)
 #   ! cmd && x  (no || after)   non-final statement    DEAD  (violation short-
 #                                                      circuits to that status)
-#   ! cmd || handler            anywhere               LIVE  (handler failure is
-#                                                      NOT exempt)
 #   { ! cmd; } / if,loop bodies non-final statement    DEAD  (the exemption
 #                                                      propagates through
 #                                                      non-subshell compounds)
 #   time ! cmd                  non-final statement    DEAD  (time is pipeline
 #                                                      syntax)
+#   if ! cmd; other; then       non-final in the       DEAD  (only the LAST
+#                               condition list               command of the list
+#                                                      decides the compound)
 #   ( ! cmd ) / x=$(! cmd)      anywhere               LIVE  (a subshell or
 #                                                      substitution surfaces the
 #                                                      status to errexit)
 #   f() { ! cmd; }; f           anywhere               LIVE  (the call is a plain
 #                                                      command)
-#   if ! cmd; then / while !    anywhere               LIVE  (condition
-#                                                      consumption)
 #   [[ ! -e x ]]                anywhere               LIVE  (fails via the [[
 #                                                      compound, which errexit
 #                                                      sees)
+#   ! cmd || handler            anywhere               THE HANDLER DECIDES:
+#                                                      `|| echo why` passed,
+#                                                      `|| { echo why; false; }`
+#                                                      failed. So a `||` handler
+#                                                      does NOT make a refutation
+#                                                      live by itself.
+#   if ! cmd; then h; fi        anywhere               THE BRANCH DECIDES, for
+#   while ! cmd; do h; done                            the same reason: `then
+#                                                      echo why` passed.
 #
 # So the guard flags an inverted pipeline when its status is discarded: it is
-# backgrounded, or it sits outside the body's final top-level statement with
-# nothing consuming it (no condition, no following `||` handler, no enclosing
-# subshell or substitution, not a function-definition body).
+# backgrounded, or it is a non-final command of an if/while/until condition
+# list, or it sits outside the body's final top-level statement with nothing
+# consuming it (no condition, no following `||` handler, no enclosing subshell
+# or substitution, not a function-definition body).
 #
-# CLAIMED EXACTLY, NO MORE -- the scan's known limits, each pinned as a
-# boundary fixture in test/test-system/dead-refutation-shapes.sh:
-#   - inside the body's FINAL compound statement (e.g. `{ ! cmd; true; }` as
-#     the last statement) the inversion is presumed live, because which inner
-#     command runs last is data-dependent;
-#   - case...esac bodies are scanned opaquely, so a dead inversion in a case
-#     branch passes;
-#   - parenthesized contexts are presumed consumed, so a dead inversion in a
-#     process substitution passes;
-#   - function BODIES are exempt (calls are live; a multi-command body hiding
-#     a dead inversion passes), and file-scope helper functions other than the
-#     bats setup/teardown family are not scanned at all;
-#   - heredocs inside command substitutions are not tracked.
+# CLAIMED EXACTLY, NO MORE. Two kinds of limit, deliberately separated because
+# they behave differently and were once described as if they were the same:
+#
+# (a) PRESUMED LIVE -- input that is dead in reality and passes anyway. Each is
+#     pinned as a boundary fixture in test/test-system/dead-refutation-shapes.sh
+#     and the identifier in brackets is what ties the two lists together:
+#   - [final-compound] inside the body's FINAL compound statement (e.g.
+#     `{ ! cmd; true; }` as the last statement) the inversion is presumed live,
+#     because which inner command runs last is data-dependent;
+#   - [case-body] case...esac bodies are scanned opaquely, so a dead inversion
+#     in a case branch passes;
+#   - [parenthesized] parenthesized contexts are presumed consumed, so a dead
+#     inversion in a process substitution passes;
+#   - [function-body] function BODIES are exempt (calls are live; a
+#     multi-command body hiding a dead inversion passes);
+#   - [file-scope-helper] file-scope helper functions other than the bats
+#     setup/teardown family are not scanned at all;
+#   - [or-handler] an inversion whose status is consumed by a following `||`
+#     is presumed live, because the handler MAY fail; a handler that cannot
+#     fail (`|| echo why`) leaves the refutation dead;
+#   - [condition-consumer] an inversion that is the FINAL command of an
+#     if/while/until condition is presumed live for the same reason: the branch
+#     it selects may or may not fail;
+#   - [unscanned-suffix] only the suffixes in SCANNED_FILE_SUFFIXES are read,
+#     so a bats body in a helper `load`ed under another suffix is not seen.
+#
+# (b) REFUSED -- input this scan cannot read correctly, reported with exit 2 and
+#     a diagnostic naming the file, never a green pass:
+#   - [heredoc-in-substitution] a heredoc body inside a command substitution is
+#     swallowed as substitution text, so an apostrophe or an unbalanced paren
+#     in it aborts the scan.
 #
 # Why a guard and not just the fix: a dead assertion is invisible in a green
 # run. It reads as coverage, it costs a reviewer real attention to spot, and
@@ -83,10 +120,52 @@ import os, re, sys
 
 scan_root = sys.argv[1]
 
-BODY_OPENERS = {"setup", "teardown", "setup_file", "teardown_file",
-                "setup_suite", "teardown_suite"}
-COMPOUND_OPEN = {"if", "for", "while", "until"}
-FUNCDEF_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*\(\)$")
+# --------------------------------------------------------------- constants
+
+# bats runs these function bodies around every test, so a dead refutation in
+# one is the same defect as a dead refutation in a @test body.
+BATS_BODY_FUNCTION_NAMES = frozenset((
+    "setup", "teardown", "setup_file", "teardown_file",
+    "setup_suite", "teardown_suite",
+))
+
+# bats' preprocessor recognizes TWO test-declaration syntaxes (read from
+# bats-core 1.11.1, libexec/bats-core/bats-preprocess): BATS_TEST_PATTERN for
+# `@test <description> {` and BATS_TEST_PATTERN_COMMENT for `name() { # @test`.
+# Both anchor the opening brace to the declaration LINE, which is why the brace
+# search never crosses a newline for them. The comment form is invisible to the
+# lexer (comments are stripped), so it is matched against the raw line here,
+# with bats' own regex transcribed ([[:blank:]] is space and tab).
+BATS_TEST_KEYWORD = "@test"
+BATS_COMMENT_TEST_LINE_RE = re.compile(
+    r"[ \t]*[^ \t()]+[ \t]*\(?\)?[ \t]+\{[ \t]+#[ \t]*@test[ \t]*$")
+
+# bats' `load` appends .bash when the given path does not exist, and
+# setup_suite/teardown_suite live in setup_suite.bash by design, so a bats body
+# is not confined to a .bats file. Other suffixes are limit [unscanned-suffix].
+SCANNED_FILE_SUFFIXES = (".bats", ".bash")
+
+# Compound commands whose body the analyzer frames. The value says whether the
+# words between the opener and `then`/`do` are a CONDITION list, whose LAST
+# command is the one the compound consumes.
+COMPOUND_OPENERS = {
+    "if": True, "while": True, "until": True, "for": False, "select": False,
+}
+CONDITION_CLOSERS = frozenset(("then", "do"))
+FUNCTION_KEYWORD = "function"
+
+# `name()` arrives glued into one word by the lexer; `name ()` and
+# `function name` arrive as a bare name.
+GLUED_FUNCTION_DEFINITION_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*\(\)$")
+FUNCTION_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+REASON_BACKGROUNDED = "backgrounded"
+REASON_DISCARDED = "status discarded"
+REASON_DISCARDED_IN_CONDITION = "discarded in condition list"
+
+
+class UnanalyzableSource(Exception):
+    """This file's scan cannot be trusted, so it must never be reported clean."""
 
 
 class Lexer:
@@ -102,7 +181,7 @@ class Lexer:
         self.heredocs = []  # pending (delimiter, strip_tabs)
 
     def error(self, message):
-        raise SyntaxError("line %d: %s" % (self.line, message))
+        raise UnanalyzableSource("line %d: %s" % (self.line, message))
 
     def take(self):
         ch = self.text[self.i]
@@ -114,6 +193,15 @@ class Lexer:
     def peek(self, k=0):
         j = self.i + k
         return self.text[j] if j < self.n else ""
+
+    def peek_is(self, characters, k=0):
+        """Is the k-th unread character one of these? End of input is NOT: the
+        empty string is a substring of every string, so a bare
+        `self.peek() in "..."` is True at end of input and the take() behind it
+        raises IndexError on any file that stops mid-token (no trailing newline
+        is enough)."""
+        ch = self.peek(k)
+        return ch != "" and ch in characters
 
     def skip_single_quote(self):  # after the opening '
         while self.i < self.n:
@@ -137,7 +225,7 @@ class Lexer:
                 self.take()
             elif ch == "`":
                 self.skip_backtick()
-            elif ch == "$" and self.peek() in "({":
+            elif ch == "$" and self.peek_is("({"):
                 opener = self.take()
                 self.skip_matched(opener, ")" if opener == "(" else "}")
             elif ch == '"':
@@ -166,7 +254,7 @@ class Lexer:
                 self.skip_double_quote()
             elif ch == "`":
                 self.skip_backtick()
-            elif ch == "$" and self.peek() in "({'":
+            elif ch == "$" and self.peek_is("({'"):
                 opener = self.take()
                 if opener == "'":
                     self.skip_ansi_quote()
@@ -189,7 +277,7 @@ class Lexer:
                 self.skip_single_quote()
             elif ch == '"':
                 self.skip_double_quote()
-            elif ch == "$" and self.peek() in "({":
+            elif ch == "$" and self.peek_is("({"):
                 opener = self.take()
                 self.skip_matched(opener, ")" if opener == "(" else "}")
             elif ch == "]" and self.peek() == "]":
@@ -218,10 +306,10 @@ class Lexer:
         if self.peek() == "-":
             self.take()
             strip_tabs = True
-        while self.peek() in " \t":
+        while self.peek_is(" \t"):
             self.take()
         delimiter = ""
-        while self.i < self.n and self.peek() not in " \t\n;&|<>()":
+        while self.i < self.n and not self.peek_is(" \t\n;&|<>()"):
             ch = self.take()
             if ch == "\\" and self.i < self.n:
                 delimiter += self.take()
@@ -326,7 +414,7 @@ class Lexer:
                 line = self.line
                 self.take()
                 value = ";"
-                while self.peek() in ";&":  # ;; ;& ;;& all end a list
+                while self.peek_is(";&"):  # ;; ;& ;;& all end a list
                     value += self.take()
                 yield ("OP", value, line)
                 continue
@@ -358,7 +446,7 @@ class Lexer:
                 line = self.line
                 self.take()
                 value = "|"
-                if self.peek() in "|&":
+                if self.peek_is("|&"):
                     value += self.take()
                 yield ("OP", value, line)
                 continue
@@ -402,7 +490,7 @@ class Lexer:
                 if word_line is None:
                     word_line = self.line
                 word += self.take()
-                if self.peek() in ">&":
+                if self.peek_is(">&"):
                     word += self.take()
                 continue
             if ch == "(":
@@ -420,19 +508,23 @@ class Lexer:
                 yield ("PARENGROUP", self.text[start:self.i], line)
                 continue
             if ch == ")":
-                # A stray closer: a case-branch pattern terminator. Tolerated;
-                # case bodies are analyzed opaquely.
+                # An unmatched closer: a case-branch pattern terminator (every
+                # other paren context is swallowed above). Emitted rather than
+                # dropped, because it is what tells the case tracker that a
+                # branch BODY has started.
                 token = flush()
                 if token:
                     yield token
+                line = self.line
                 self.take()
+                yield ("OP", ")", line)
                 continue
             # A plain word character.
             if word_line is None:
                 word_line = self.line
             word += self.take()
             # A completed [[ word triggers an opaque swallow to ]].
-            if word == "[[" and self.peek() in " \t\n":
+            if word == "[[" and self.peek_is(" \t\n"):
                 line = word_line
                 self.skip_dbrackets()
                 yield ("WORD", "[[...]]", line)
@@ -443,25 +535,83 @@ class Lexer:
             yield token
 
 
+class CaseRegionTracker:
+    """Follow a case...esac region without analyzing it (limit [case-body]).
+
+    Tracked as a state machine rather than by counting bare `case`/`esac`
+    words, because a word count cannot tell a KEYWORD from an ARGUMENT: one
+    `grep -q case file` inside a branch would raise the depth forever, and the
+    rest of the file would be swallowed with no diagnostic. States mirror
+    bash's grammar, so only a keyword in keyword position moves the region."""
+
+    AWAITING_IN, PATTERN, BODY = "awaiting-in", "pattern", "body"
+    BRANCH_TERMINATORS = frozenset((";;", ";&", ";;&"))
+
+    def __init__(self):
+        self.states = []
+
+    @property
+    def depth(self):
+        return len(self.states)
+
+    def open_region(self):
+        self.states.append(self.AWAITING_IN)
+
+    def feed(self, kind, value, at_command_position):
+        """Advance the region. Returns True when the OUTERMOST case closed."""
+        state = self.states[-1]
+        if state == self.AWAITING_IN:
+            if kind == "WORD" and value == "in":
+                self.states[-1] = self.PATTERN
+            return False
+        if state == self.PATTERN:
+            # `esac` right after `in` or after a branch terminator ends the
+            # region; a `)` or a parenthesized `(a|b)` pattern starts a body.
+            if kind == "WORD" and value == "esac":
+                self.states.pop()
+                return not self.states
+            if (kind == "OP" and value == ")") or kind == "PARENGROUP":
+                self.states[-1] = self.BODY
+            return False
+        if kind == "OP" and value in self.BRANCH_TERMINATORS:
+            self.states[-1] = self.PATTERN
+        elif kind == "WORD" and at_command_position:
+            if value == "case":
+                self.open_region()
+            elif value == "esac":
+                self.states.pop()
+                return not self.states
+        return False
+
+
 class BodyAnalyzer:
     """Positional analysis of one bats-executed body's token stream."""
 
-    CONTINUATION_OPS = {"&&", "||", "|", "|&"}
+    CONTINUATION_OPS = frozenset(("&&", "||", "|", "|&"))
 
     def __init__(self, relpath, lines):
         self.relpath = relpath
         self.lines = lines
-        self.frames = []      # {"kind": group|funcdef|if|loop, "cond": bool}
+        self.frames = []      # {"kind": group|funcdef|if|loop, "cond": bool, ...}
         self.statement = 0    # top-level statement counter
         self.need_new_statement = True
         self.at_command_position = True
-        self.case_depth = 0   # inside case...esac: analyzed opaquely
-        self.open_inversions = []  # sites not yet terminated
-        self.candidates = []       # closed sites pending the final-statement check
-        self.flagged = []          # (line, reason) definite findings
+        self.case_region = CaseRegionTracker()
+        self.open_inversions = []       # sites not yet terminated
+        self.candidates = []            # closed, pending the final-statement check
+        self.condition_candidates = []  # closed, pending the condition-list check
+        self.flagged = []               # (line, reason) definite findings
         self.pending_funcdef = False
+        self.awaiting_function_name = False
+        self.candidate_function_name = None
         self.previous_word = None
         self.last_significant = None
+
+    # ---------------------------------------------------------- predicates
+
+    @property
+    def case_depth(self):
+        return self.case_region.depth
 
     def in_condition(self):
         return bool(self.frames) and self.frames[-1].get("cond", False)
@@ -469,13 +619,21 @@ class BodyAnalyzer:
     def in_funcdef(self):
         return any(frame["kind"] == "funcdef" for frame in self.frames)
 
+    def current_condition_group(self):
+        return self.frames[-1]["condition_group"] if self.in_condition() else None
+
+    # ------------------------------------------------------ site lifecycle
+
+    def flag(self, line, reason):
+        self.flagged.append((line, reason))
+
     def open_inversion(self, line):
         self.open_inversions.append({
             "line": line,
             "level": len(self.frames),
             "statement": self.statement,
             "or_after": False,
-            "cond": self.in_condition(),
+            "condition_group": self.current_condition_group(),
             "funcdef": self.in_funcdef(),
         })
 
@@ -486,43 +644,106 @@ class BodyAnalyzer:
             if inversion["level"] != level:
                 remaining.append(inversion)
                 continue
-            if inversion["funcdef"] or inversion["cond"] or inversion["or_after"]:
+            if inversion["funcdef"]:
                 continue
             if backgrounded:
-                self.flagged.append((inversion["line"], "backgrounded"))
+                self.flag(inversion["line"], REASON_BACKGROUNDED)
+            elif inversion["condition_group"] is not None:
+                # Only the LAST command of the condition list decides the
+                # compound; which one that is is known at `then`/`do`.
+                self.condition_candidates.append(inversion)
+            elif inversion["or_after"]:
+                pass  # limit [or-handler]: the handler may fail
             else:
                 self.candidates.append(inversion)
         self.open_inversions = remaining
 
-    def begin_statement_if_needed(self):
-        if not self.frames and self.need_new_statement:
-            self.statement += 1
-            self.need_new_statement = False
+    def resolve_condition_candidates(self):
+        """A condition list has ended. Its final command is what the compound
+        consumes (limit [condition-consumer]); every earlier command's status is
+        discarded, so an inversion there is dead."""
+        if not self.frames:
+            return
+        final_group = self.frames[-1]["condition_group"]
+        level = len(self.frames)
+        remaining = []
+        for inversion in self.condition_candidates:
+            if inversion["level"] != level:
+                remaining.append(inversion)
+            elif inversion["condition_group"] != final_group:
+                self.flag(inversion["line"], REASON_DISCARDED_IN_CONDITION)
+        self.condition_candidates = remaining
+
+    # ------------------------------------------------------- frame handling
+
+    def push_frame(self, kind, cond):
+        self.frames.append({
+            "kind": kind,
+            "cond": cond,
+            "condition_group": 0,
+            "condition_needs_new_group": True,
+        })
+
+    def pop_frame(self):
+        """Close and resolve everything the frame still owns BEFORE dropping it,
+        the close-then-pop order the end-of-body sweep has always used. A site
+        left open across a pop would never match a frame level again and would
+        vanish from the report. No fixture reaches that: bash requires a list
+        terminator before `}`, `fi` and `done`, so in valid input every site is
+        already closed here. This is the net for input that is not."""
+        self.close_inversions(backgrounded=False)
+        self.resolve_condition_candidates()
+        if self.frames:
+            self.frames.pop()
+
+    def begin_command_group_if_needed(self):
+        """A command word starts a new top-level statement, or a new command in
+        the enclosing condition list. Both are 'which group am I in' counters
+        and both are bumped lazily, so a trailing separator before `then` or
+        before the body's end does not invent an empty final group."""
+        if not self.frames:
+            if self.need_new_statement:
+                self.statement += 1
+                self.need_new_statement = False
+            return
+        frame = self.frames[-1]
+        if frame["cond"] and frame["condition_needs_new_group"]:
+            frame["condition_group"] += 1
+            frame["condition_needs_new_group"] = False
+
+    def end_command_group(self):
+        if not self.frames:
+            self.need_new_statement = True
+        elif self.frames[-1]["cond"]:
+            self.frames[-1]["condition_needs_new_group"] = True
+
+    def forget_pending_definition(self):
+        self.awaiting_function_name = False
+        self.candidate_function_name = None
+
+    # --------------------------------------------------------------- feed
 
     def feed(self, kind, value, line):
-        if self.case_depth > 0:
-            # Opaque case scan: only track nested case/esac words.
-            if kind == "WORD":
-                if value == "case":
-                    self.case_depth += 1
-                elif value == "esac":
-                    self.case_depth -= 1
-                    if self.case_depth == 0:
-                        self.at_command_position = False
-                        self.last_significant = value
+        if self.case_region.depth:
+            closed = self.case_region.feed(kind, value, self.at_command_position)
+            self.at_command_position = kind in ("NL", "OP")
+            if closed:
+                self.at_command_position = False
+                self.last_significant = value
             return
         if kind == "NL":
+            self.candidate_function_name = None
             if self.last_significant in self.CONTINUATION_OPS:
                 return  # the list continues on the next line
             self.close_inversions(backgrounded=False)
-            if not self.frames:
-                self.need_new_statement = True
+            self.end_command_group()
             self.at_command_position = True
             return
         if kind == "OP":
             self.last_significant = value
             self.previous_word = None
             self.pending_funcdef = False
+            self.forget_pending_definition()
             if value == "&&":
                 # Violation short-circuits to the exempt inverted status, so
                 # && does NOT consume it (measured).
@@ -533,101 +754,132 @@ class BodyAnalyzer:
                         inversion["or_after"] = True
             elif value in ("|", "|&"):
                 pass  # same pipeline: the leading ! still covers it
-            else:  # ; ;; ;& ;;& &
+            else:  # ; ;; ;& ;;& & )
                 backgrounded = value == "&"
                 self.close_inversions(backgrounded)
-                if not self.frames:
-                    self.need_new_statement = True
+                self.end_command_group()
             self.at_command_position = True
             return
 
         # WORD / PARENGROUP tokens.
+        was_at_command_position = self.at_command_position
         self.last_significant = value
-        if kind == "WORD" and self.at_command_position:
-            if value == "!":
-                self.begin_statement_if_needed()
-                self.open_inversion(line)
-                self.previous_word = "!"
-                self.pending_funcdef = False
+        if kind == "WORD" and was_at_command_position:
+            if self.feed_command_word(value, line):
                 return
-            if value == "case":
-                self.begin_statement_if_needed()
-                self.case_depth = 1
-                self.previous_word = value
-                self.pending_funcdef = False
-                return
-            if value in COMPOUND_OPEN:
-                self.begin_statement_if_needed()
-                self.frames.append({
-                    "kind": "if" if value == "if" else "loop",
-                    "cond": value != "for",
-                })
-                self.previous_word = value
-                self.pending_funcdef = False
-                return
-            if value in ("then", "do"):
-                if self.frames:
-                    self.frames[-1]["cond"] = False
-                self.previous_word = value
-                return
-            if value == "elif":
-                if self.frames:
-                    self.frames[-1]["cond"] = True
-                self.previous_word = value
-                return
-            if value == "else":
-                self.previous_word = value
-                return
-            if value in ("fi", "done"):
-                if self.frames:
-                    self.frames.pop()
-                self.previous_word = value
-                self.at_command_position = False
-                return
-            if value == "{":
-                self.begin_statement_if_needed()
-                frame_kind = "funcdef" if self.pending_funcdef else "group"
-                self.pending_funcdef = False
-                self.frames.append({"kind": frame_kind, "cond": False})
-                self.previous_word = value
-                return
-            if value == "}":
-                if self.frames:
-                    self.frames.pop()
-                self.previous_word = value
-                self.at_command_position = False
-                return
-            if value == "time" or (value == "-p" and self.previous_word == "time"):
-                self.begin_statement_if_needed()
-                self.previous_word = "time"
-                return
-            if FUNCDEF_RE.match(value):
-                self.begin_statement_if_needed()
+        if kind == "PARENGROUP" and value.strip("() \t\n") == "":
+            # The standalone parens of `name ()` or `function name ()`.
+            if self.pending_funcdef or self.candidate_function_name is not None:
                 self.pending_funcdef = True
-                self.previous_word = value
-                return
-        if kind == "PARENGROUP" and self.pending_funcdef:
-            # `f () { ... }`: the standalone parens keep the pending funcdef.
-            if value.strip("() \t\n") == "":
+                self.forget_pending_definition()
                 self.previous_word = value
                 self.at_command_position = True
                 return
         # Any other content: an argument or a plain command word.
-        self.begin_statement_if_needed()
+        self.begin_command_group_if_needed()
         self.previous_word = value
         self.pending_funcdef = False
+        self.candidate_function_name = (
+            value if was_at_command_position and kind == "WORD"
+            and FUNCTION_NAME_RE.match(value) else None)
+        self.awaiting_function_name = False
         self.at_command_position = False
+
+    def feed_command_word(self, value, line):
+        """Handle a WORD in command position. Returns True when it was handled
+        here and feed() must not fall through to the argument path."""
+        if value == "!":
+            self.begin_command_group_if_needed()
+            self.open_inversion(line)
+            self.previous_word = "!"
+            self.pending_funcdef = False
+            self.forget_pending_definition()
+            return True
+        if self.awaiting_function_name and FUNCTION_NAME_RE.match(value):
+            # `function name` and `function name ()` both define a function;
+            # command position is kept for the `()` or the body brace.
+            self.awaiting_function_name = False
+            self.pending_funcdef = True
+            self.previous_word = value
+            return True
+        if value == FUNCTION_KEYWORD:
+            self.begin_command_group_if_needed()
+            self.awaiting_function_name = True
+            self.previous_word = value
+            return True
+        if value == "case":
+            self.begin_command_group_if_needed()
+            self.case_region.open_region()
+            self.previous_word = value
+            self.pending_funcdef = False
+            self.forget_pending_definition()
+            return True
+        if value in COMPOUND_OPENERS:
+            self.begin_command_group_if_needed()
+            self.push_frame("if" if value == "if" else "loop",
+                            COMPOUND_OPENERS[value])
+            self.previous_word = value
+            self.pending_funcdef = False
+            self.forget_pending_definition()
+            return True
+        if value in CONDITION_CLOSERS:
+            self.close_inversions(backgrounded=False)
+            self.resolve_condition_candidates()
+            if self.frames:
+                self.frames[-1]["cond"] = False
+            self.previous_word = value
+            return True
+        if value == "elif":
+            if self.frames:
+                frame = self.frames[-1]
+                frame["cond"] = True
+                frame["condition_group"] = 0
+                frame["condition_needs_new_group"] = True
+            self.previous_word = value
+            return True
+        if value == "else":
+            self.previous_word = value
+            return True
+        if value in ("fi", "done"):
+            self.pop_frame()
+            self.previous_word = value
+            self.at_command_position = False
+            return True
+        if value == "{":
+            self.begin_command_group_if_needed()
+            frame_kind = "funcdef" if self.pending_funcdef else "group"
+            self.pending_funcdef = False
+            self.forget_pending_definition()
+            self.push_frame(frame_kind, False)
+            self.previous_word = value
+            return True
+        if value == "}":
+            self.pop_frame()
+            self.previous_word = value
+            self.at_command_position = False
+            return True
+        if value == "time" or (value == "-p" and self.previous_word == "time"):
+            self.begin_command_group_if_needed()
+            self.previous_word = "time"
+            return True
+        if GLUED_FUNCTION_DEFINITION_RE.match(value):
+            self.begin_command_group_if_needed()
+            self.pending_funcdef = True
+            self.previous_word = value
+            self.forget_pending_definition()
+            return True
+        return False
 
     def finish(self):
         while self.frames:
-            self.close_inversions(backgrounded=False)
-            self.frames.pop()
+            self.pop_frame()
         self.close_inversions(backgrounded=False)
+        self.resolve_condition_candidates()
         final_statement = self.statement
         results = list(self.flagged)
         for inversion in self.candidates:
             if inversion["statement"] != final_statement:
-                results.append((inversion["line"], "status discarded"))
+                results.append((inversion["line"], REASON_DISCARDED))
         findings = []
         for line, reason in sorted(results):
             snippet = self.lines[line - 1].strip() if line - 1 < len(self.lines) else ""
@@ -636,65 +888,208 @@ class BodyAnalyzer:
         return findings
 
 
-def scan_file(path, relpath):
-    with open(path) as handle:
-        text = handle.read()
-    lines = text.splitlines()
-    findings = []
-    tokens = list(Lexer(text).tokens())
-    index = 0
+def bats_comment_test_lines(text):
+    """Line numbers that bats' preprocessor turns into a test function through
+    its comment syntax (`name() { # @test`)."""
+    return frozenset(
+        number for number, line in enumerate(text.splitlines(), start=1)
+        if BATS_COMMENT_TEST_LINE_RE.search(line))
+
+
+def first_token_on_line_flags(tokens):
+    """Per-token: is this the first token on its line? bats anchors both test
+    syntaxes to the start of the line, so `@test` must be too."""
+    flags = []
+    previous_line = None
+    for _, _, line in tokens:
+        flags.append(line != previous_line)
+        previous_line = line
+    return flags
+
+
+def find_brace_on_same_line(tokens, index, line):
+    """The index of a `{` token on `line`, scanning forward from index. A
+    newline or an operator means this was not a body definition after all."""
+    while index < len(tokens):
+        kind, value, token_line = tokens[index]
+        if kind in ("NL", "OP") or token_line != line:
+            return None
+        if kind == "WORD" and value == "{":
+            return index
+        index += 1
+    return None
+
+
+def find_function_body_brace(tokens, index):
+    """The index of the `{` opening a bats body function defined at `index`, in
+    any spelling bash accepts:
+
+        setup() {        setup () {        function setup {        function setup () {
+
+    and with newlines before the brace, which bash allows for a function
+    definition (bats' two test syntaxes, by contrast, need it on the same line).
+    A bare `setup {` is NOT a definition: it is the command `setup` with the
+    argument `{`, so parens or the `function` keyword are required."""
     total = len(tokens)
+    saw_function_keyword = False
+    kind, value, _ = tokens[index]
+    if kind != "WORD":
+        return None
+    if value == FUNCTION_KEYWORD:
+        saw_function_keyword = True
+        index += 1
+        if index >= total or tokens[index][0] != "WORD":
+            return None
+        value = tokens[index][1]
+    if GLUED_FUNCTION_DEFINITION_RE.match(value):
+        name, saw_parens = value[:-2], True
+    else:
+        name, saw_parens = value, False
+    if name not in BATS_BODY_FUNCTION_NAMES:
+        return None
+    index += 1
+    if (not saw_parens and index < total and tokens[index][0] == "PARENGROUP"
+            and tokens[index][1].strip("() \t\n") == ""):
+        saw_parens = True
+        index += 1
+    if not (saw_parens or saw_function_keyword):
+        return None
+    while index < total and tokens[index][0] == "NL":
+        index += 1
+    if index < total and tokens[index][0] == "WORD" and tokens[index][1] == "{":
+        return index
+    return None
+
+
+def find_body_open_brace(tokens, index, first_on_line, comment_test_lines):
+    """The index of the `{` that opens a bats-executed body declared at
+    `index`, or None. Discovery only: what is inside the body is
+    BodyAnalyzer's job."""
+    kind, value, line = tokens[index]
+    if kind != "WORD":
+        return None
+    if value == BATS_TEST_KEYWORD and first_on_line[index]:
+        return find_brace_on_same_line(tokens, index + 1, line)
+    if value == "{" and line in comment_test_lines:
+        return index
+    return find_function_body_brace(tokens, index)
+
+
+def analyze_body(tokens, index, open_line, relpath, lines):
+    """Analyze the body whose contents start at `index` (just past its opening
+    brace on `open_line`). Returns (findings, index just past its closing
+    brace). Either structure the scan cannot resolve is REFUSED rather than
+    reported clean: both of them swallow the rest of the file silently."""
+    analyzer = BodyAnalyzer(relpath, lines)
+    depth = 1
+    total = len(tokens)
+    closed = False
     while index < total:
         kind, value, line = tokens[index]
-        opener = None
-        if kind == "WORD" and value == "@test":
-            opener = value
-        elif kind == "WORD" and (value in BODY_OPENERS
-                                 or (FUNCDEF_RE.match(value) is not None
-                                     and value[:-2] in BODY_OPENERS)):
-            opener = value
-        if opener is None:
-            index += 1
-            continue
-        # Find the body-opening brace on this definition line.
-        index += 1
-        while index < total and not (tokens[index][0] == "WORD"
-                                     and tokens[index][1] == "{"):
-            if tokens[index][0] in ("NL", "OP"):
-                break  # not a body definition after all
-            index += 1
-        if index >= total or tokens[index][1] != "{":
-            continue
-        index += 1
-        depth = 1
-        analyzer = BodyAnalyzer(relpath, lines)
-        while index < total and depth > 0:
-            kind, value, line = tokens[index]
-            if kind == "WORD" and value == "{" and analyzer.case_depth == 0:
+        if kind == "WORD" and analyzer.case_depth == 0:
+            if value == "{":
                 depth += 1
-            elif kind == "WORD" and value == "}" and analyzer.case_depth == 0:
+            elif value == "}":
                 depth -= 1
                 if depth == 0:
                     index += 1
+                    closed = True
                     break
-            analyzer.feed(kind, value, line)
+        analyzer.feed(kind, value, line)
+        index += 1
+    if analyzer.case_depth != 0:
+        raise UnanalyzableSource(
+            "line %d: a case...esac opened in this bats-executed body is never "
+            "closed" % open_line)
+    if not closed:
+        raise UnanalyzableSource(
+            "line %d: this bats-executed body is never closed" % open_line)
+    return analyzer.finish(), index
+
+
+def scan_file(relpath, text):
+    lines = text.splitlines()
+    comment_test_lines = bats_comment_test_lines(text)
+    tokens = list(Lexer(text).tokens())
+    first_on_line = first_token_on_line_flags(tokens)
+    findings = []
+    index = 0
+    while index < len(tokens):
+        brace = find_body_open_brace(tokens, index, first_on_line,
+                                     comment_test_lines)
+        if brace is None:
             index += 1
-        findings.extend(analyzer.finish())
+            continue
+        body_findings, index = analyze_body(
+            tokens, brace + 1, tokens[brace][2], relpath, lines)
+        findings.extend(body_findings)
     return findings
 
 
-dead = []
-for dirpath, _, names in os.walk(scan_root):
-    for name in sorted(names):
-        if not name.endswith(".bats"):
-            continue
-        path = os.path.join(dirpath, name)
-        relpath = os.path.relpath(path, scan_root)
+def collect_source_files(root):
+    """Every file to scan, plus the errors that made the walk incomplete.
+
+    Symlinked directories ARE followed: a symlinked suite directory is still a
+    suite directory, and skipping it would hide bodies bats runs. Each
+    directory is visited at most once, keyed by (device, inode), so a symlink
+    cycle terminates instead of looping. A directory the walk cannot read is an
+    ERROR, never a silent skip: os.walk's default swallows it and turns a
+    failing tree into a green one."""
+    errors = []
+    visited_directories = set()
+
+    def visit_once(path):
         try:
-            dead.extend(scan_file(path, relpath))
-        except SyntaxError as error:
-            print("%s: unlexable: %s" % (relpath, error), file=sys.stderr)
-            sys.exit(2)
+            info = os.stat(path)
+        except OSError as error:
+            errors.append(error)
+            return False
+        key = (info.st_dev, info.st_ino)
+        if key in visited_directories:
+            return False
+        visited_directories.add(key)
+        return True
+
+    visit_once(root)
+    found = []
+    for dirpath, dirnames, filenames in os.walk(
+            root, onerror=errors.append, followlinks=True):
+        kept = []
+        for name in sorted(dirnames):
+            if visit_once(os.path.join(dirpath, name)):
+                kept.append(name)
+        dirnames[:] = kept
+        for name in sorted(filenames):
+            if name.endswith(SCANNED_FILE_SUFFIXES):
+                path = os.path.join(dirpath, name)
+                found.append((path, os.path.relpath(path, root)))
+    return found, errors
+
+
+def refuse(message):
+    print(message, file=sys.stderr)
+    sys.exit(2)
+
+
+source_files, walk_errors = collect_source_files(scan_root)
+if walk_errors:
+    for walk_error in walk_errors:
+        print("cannot list %s: %s"
+              % (getattr(walk_error, "filename", scan_root), walk_error),
+              file=sys.stderr)
+    refuse("refusing to report a partial scan of %s" % scan_root)
+
+dead = []
+for source_path, source_relpath in source_files:
+    try:
+        with open(source_path, encoding="utf-8") as handle:
+            source_text = handle.read()
+    except (OSError, UnicodeDecodeError) as read_error:
+        refuse("%s: cannot read: %s" % (source_relpath, read_error))
+    try:
+        dead.extend(scan_file(source_relpath, source_text))
+    except UnanalyzableSource as scan_error:
+        refuse("%s: cannot analyze: %s" % (source_relpath, scan_error))
 
 for entry in dead:
     print(entry)
@@ -705,7 +1100,7 @@ if [[ -n $report ]]; then
   printf 'FAIL: %s bats assertion(s) invert a command where the status cannot fail the test:\n' \
     "$(printf '%s\n' "$report" | wc -l | tr -d ' ')" >&2
   printf '%s\n' "$report" | sed 's/^/  /' >&2
-  printf 'An inverted command only decides the test as the LAST command the body executes; backgrounding, a following command, a non-final statement, or an enclosing brace/if/loop compound all discard its status. Wrap it: if cmd; then echo "why this is wrong"; false; fi, or use a refute helper, or add a || handler.\n' >&2
+  printf 'An inverted command only decides the test as the LAST command the body executes; backgrounding, a following command, a non-final statement, a non-final command of an if/while condition, or an enclosing brace/if/loop compound all discard its status. Give the status somewhere to go, and make that somewhere FAIL: if cmd; then echo "why this is wrong"; false; fi, or call a single-command refute helper, or add a handler that fails: || { echo "why this is wrong"; false; }. A bare || echo handler cannot fail the test.\n' >&2
   exit 1
 fi
 
