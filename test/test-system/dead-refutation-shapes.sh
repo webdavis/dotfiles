@@ -23,19 +23,32 @@
 # not confuse the scan into a false positive; the boundary tree pins the shapes
 # the static scan is KNOWN to presume live; and the refusal table pins the
 # input it refuses to read at all. The last two are keyed by the bracketed
-# limit identifiers in the guard's header, and
-# assert_documented_limits_are_all_pinned diffs the union against that header
-# so no limit can be documented without a fixture or pinned without being
-# documented. This drives the guard against scratch fixture trees via its
-# optional scan-root argument.
+# limit identifiers in the guard's header. This drives the guard against
+# scratch fixture trees via its optional scan-root argument.
 #
-# Two things here are MEASURED rather than asserted from wording, because a
-# pin that restates the code cannot fail with it: the liveness of every
-# spelling the guard's failure message recommends (run under a bats-faithful
-# harness with the refutation violated), and the fixture shapes themselves,
-# each of which was checked against the defect it exists to catch. A fixture
-# that passes identically with and without the fix pins nothing, which is
-# exactly what a balanced case...esac fixture did here before.
+# The limits are THREE lists describing one contract, so all three are
+# enumerated and diffed: the guard's header, the fixtures here, and THE GUARD'S
+# CODE. The code is the leg that fails open without the other two noticing.
+# Header and fixtures agreed exactly while four of the lexer's six fail-closed
+# nets had no fixture at all, and deleting any of the four turned a tree holding
+# a dead refutation into a green pass. So every refusal in the guard names its
+# limit at the raising site, assert_every_code_refusal_is_documented_and_exercised
+# reads those names back out of the source, and a refusal fixture has to make
+# each one actually print before this suite passes.
+#
+# Three things here are MEASURED rather than asserted from wording, because a
+# pin that restates the code cannot fail with it:
+#
+#   - the liveness of every spelling the guard's failure message recommends,
+#     lifted out of the REAL message and run with its refutation violated, so a
+#     spelling nobody here anticipated is still measured;
+#   - the liveness model itself, against controls that pin errexit, the ABSENCE
+#     of pipefail, the function wrapper and the `!` exemption, so a weaker
+#     model cannot answer for it;
+#   - the fixture shapes, each checked against the defect it exists to catch. A
+#     fixture that passes identically with and without the fix pins nothing,
+#     which is what a balanced case...esac fixture did here before, and what
+#     four helper-name fixtures did after that.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -88,45 +101,34 @@ BATS_EXECUTED_BODY_NAMES=(
   setup teardown setup_file teardown_file setup_suite teardown_suite
 )
 
-# The spellings the guard's failure message tells people to use, and the
-# near-miss it must warn about. Liveness is MEASURED here rather than taken
-# from the message's wording: each runnable line is the spelling with its
-# refutation VIOLATED, so running it answers the only question that matters,
-# can this spelling fail. A guard that recommends a shape the shell discards
-# trains people to switch it off, which is exactly how `|| echo ...` came to be
-# recommended by a guard whose whole purpose is catching refutations that
-# cannot fail. The three recommendation arrays are index-aligned and their
-# lengths are asserted, as are the two discouraged ones.
-RECOMMENDED_ADVICE_MARKERS=(
-  'if cmd; then echo "why this is wrong"; false; fi'
-  'call a single-command refute helper'
-  '|| { echo "why this is wrong"; false; }'
-)
-RECOMMENDED_ADVICE_FIXTURE_LINES=(
-  '  if grep -q zzz /etc/hosts; then echo why; false; fi'
-  '  refute_absent() { ! grep -q zzz /etc/hosts; }; refute_absent'
-  '  ! grep -q zzz /etc/hosts || { echo why; false; }'
-)
-RECOMMENDED_ADVICE_RUNNABLE_LINES=(
-  'if true; then echo why; false; fi'
-  'refute_absent() { ! true; }; refute_absent'
-  '! true || { echo why; false; }'
-)
+# Where the guard's advice splits into regions, and how its spellings are
+# spelled. NOTHING here lists the spellings themselves: they are lifted out of
+# the guard's real output and measured, so a spelling that no list here
+# anticipates is still checked. Naming them in a fixed list is how a guard whose
+# whole purpose is catching refutations that cannot fail came to recommend
+# `|| echo ...`, twice: first by trading the recommendation with the warning
+# (which keeps every substring of the honest message), then by appending a
+# fourth, dead spelling that the fixed list did not mention.
+ADVICE_MECHANISM_LEAD_IN='An inverted command only decides the test as the LAST command the body executes'
+ADVICE_RECOMMENDATION_LEAD_IN='Give the status somewhere to go, and make that somewhere FAIL (CMD stands for the check):'
+ADVICE_WARNING_LEAD_IN='These read like a fix and cannot fail the test, so they are not fixes:'
+ADVICE_SPELLING_PLACEHOLDER='CMD'
+ADVICE_SPELLING_INDENT='    '
 
-# The spelling the message must name as unable to fail, in marker and runnable
-# form. `|| echo ` is the substring that separates it from the recommended
-# `|| { echo ...; false; }`, which is what lets the recommendation region be
-# checked for its ABSENCE.
-DISCOURAGED_ADVICE_MARKERS=('|| echo ')
-DISCOURAGED_ADVICE_RUNNABLE_LINES=('! true || echo why')
+# What the placeholder becomes. The RUNNABLE substitution makes the check HOLD,
+# which is the violated refutation: `! CMD` then fails, and whether that failure
+# reaches the test is the question each spelling is measured on. The FIXTURE
+# substitution turns the same spelling into a line the guard must accept.
+VIOLATED_REFUTATION_COMMAND='true'
+FIXTURE_REFUTATION_COMMAND='grep -q zzz /etc/hosts'
 
-# Where the guard's advice splits into regions. The recommendation and the
-# warning are separate lines so that trading their contents cannot be hidden: a
-# message recommending `|| echo` and warning about the handler that fails still
-# contains every substring of the honest one, so a whole-output substring
-# search cannot tell the two apart.
-ADVICE_RECOMMENDATION_LEAD_IN='Give the status somewhere to go, and make that somewhere FAIL:'
-ADVICE_WARNING_LEAD_IN='cannot fail the test'
+# The three verdicts of the liveness measurement. `unrunnable` is not a
+# formality: a line that does not parse exits nonzero, which reads as `live`
+# under a two-state model, and `live` is the direction that makes a
+# recommendation look validated when nothing ran at all.
+LIVENESS_LIVE='live'
+LIVENESS_DEAD='dead'
+LIVENESS_UNRUNNABLE='unrunnable'
 
 # Set in main; global so the EXIT trap can still see them after main returns.
 # The refusal fixtures do not appear here: each is built into a private root
@@ -205,20 +207,59 @@ expect_finding() {
 
 # measure_refutation_liveness <body-line>... -- run the lines the way bats runs
 # a test body (a function under errexit whose return status is the verdict) and
-# print live when that status can fail the test, dead when it cannot. This is
-# the ground truth the advice assertions rest on, so the message's honesty is
-# measured instead of pattern-matched. The model was validated against the
-# repo's bats 1.11.1 over a 98-shape corpus with zero disagreements, and
-# assert_liveness_measurement_discriminates re-checks it against a known-live
-# and a known-dead control on every run.
+# print live when that status can fail the test, dead when it cannot, or
+# unrunnable when the lines do not even parse. This is the ground truth the
+# advice assertions rest on, so the message's honesty is measured instead of
+# pattern-matched.
+#
+# `set -eET` is bats' own flag set, read from bats-core 1.11.1
+# (libexec/bats-core/bats-exec-test line 2). It notably does NOT include
+# pipefail. This model carried `-o pipefail` until it was run against real bats:
+# a body of `false | true` then `true` PASSES under bats and the model called it
+# live, so every pipeline verdict it produced was wrong in the direction that
+# makes a dead spelling look live.
+# assert_liveness_measurement_discriminates now pins that. Every control row
+# below that bats can run was re-checked against
+# `nix develop .#run --command bats` and agreed; the unrunnable row is about
+# input bats cannot be asked to run at all.
+#
+# The syntax check comes first and is the difference between a measurement and a
+# coincidence: with output discarded, a malformed line exits nonzero exactly
+# like a live one, so `unrunnable` is the only honest verdict for input that
+# never ran. stdin is closed so a body that reads it cannot hang the suite.
 measure_refutation_liveness() {
   local script
-  script="$(printf '%s\n' 'set -eET -o pipefail' 'bats_test_body() {' "$@" '}' 'bats_test_body')"
-  if bash -c "$script" >/dev/null 2>&1; then
-    printf 'dead\n'
-  else
-    printf 'live\n'
+  script="$(printf '%s\n' 'set -eET' 'bats_test_body() {' "$@" '}' 'bats_test_body')"
+  if ! bash -n <<<"$script" 2>/dev/null; then
+    printf '%s\n' "$LIVENESS_UNRUNNABLE"
+    return 0
   fi
+  if bash -c "$script" </dev/null >/dev/null 2>&1; then
+    printf '%s\n' "$LIVENESS_DEAD"
+  else
+    printf '%s\n' "$LIVENESS_LIVE"
+  fi
+}
+
+# substitute_advice_placeholder <spelling> <command> -- the spelling with its
+# placeholder replaced, which is what makes the runnable line and the fixture
+# line DERIVED from the message instead of listed beside it. A hand-kept list
+# can be edited out of step with the message it claims to validate; this cannot.
+substitute_advice_placeholder() {
+  printf '%s\n' "${1//"$ADVICE_SPELLING_PLACEHOLDER"/$2}"
+}
+
+# advice_spellings <lead-in> -- read the guard's rejection message on stdin and
+# print the indented spelling lines that follow <lead-in>, one per line. The
+# region ends at the first line that is not indented, so the two regions cannot
+# bleed into each other and a message that puts its spellings back into prose
+# yields nothing at all.
+advice_spellings() {
+  awk -v lead="$1" -v indent="$ADVICE_SPELLING_INDENT" '
+    index($0, lead) == 1 { collecting = 1; next }
+    collecting && index($0, indent) == 1 { print substr($0, length(indent) + 1); next }
+    collecting { collecting = 0 }
+  '
 }
 
 # Build the flagged tree's fixtures under $flagged_root and record each
@@ -935,6 +976,13 @@ assert_guard_scans_every_bats_executed_body() {
   done
 }
 
+# documented_limit_identifiers -- the bracketed limit identifiers the guard's
+# header documents, sorted and deduplicated. The single reader of the header's
+# format, so both diffs below see the same list.
+documented_limit_identifiers() {
+  sed -n 's/^#   - \[\([a-z][a-z0-9-]*\)\].*/\1/p' "$GUARD" | LC_ALL=C sort -u
+}
+
 # The guard's header, the boundary fixtures and the refusal assertions are
 # three lists describing ONE set of limits, so enumerate and diff them: a limit
 # documented without a fixture is an unverified claim, and a fixture without a
@@ -942,9 +990,7 @@ assert_guard_scans_every_bats_executed_body() {
 assert_documented_limits_are_all_pinned() {
   local -n boundary_limits_reference="$1"
   local documented=() pinned=() identifier
-  mapfile -t documented < <(
-    sed -n 's/^#   - \[\([a-z][a-z0-9-]*\)\].*/\1/p' "$GUARD" | LC_ALL=C sort
-  )
+  mapfile -t documented < <(documented_limit_identifiers)
   mapfile -t pinned < <(
     printf '%s\n' "${!boundary_limits_reference[@]}" "${!REFUSAL_FIXTURE_WRITERS[@]}" |
       LC_ALL=C sort
@@ -960,6 +1006,83 @@ assert_documented_limits_are_all_pinned() {
   for identifier in "${pinned[@]}"; do
     printf '%s\n' "${documented[@]}" | grep -qxF "$identifier" ||
       record_failure "fixture pins limit [$identifier] that the guard header does not document"
+  done
+}
+
+# The guard's refusal primitives. A call to one of these is a refusal SITE, and
+# every site must either NAME the limit it raises (a quoted identifier, an
+# origin) or forward one it was handed (an expression ending in
+# limit_identifier, a relay). Definitions of the primitives themselves are not
+# sites.
+REFUSAL_SITE_RE='(self\.error|refuse|UnanalyzableSource)\('
+REFUSAL_ORIGIN_RE='(self\.error|refuse|UnanalyzableSource)\("([a-z][a-z0-9-]*)"'
+REFUSAL_RELAY_RE='(self\.error|refuse|UnanalyzableSource)\([A-Za-z_0-9.]*limit_identifier'
+REFUSAL_SITE_DEFINITION_RE='^[0-9]+:[[:space:]]*(def|class) '
+
+# guard_refusal_sites -- one record per refusal site in the guard, as
+# `origin <identifier>`, `relay`, or `unnamed <numbered source line>`. Pure: the
+# caller decides what to record, because this runs in a subshell where a
+# recorded failure would be thrown away.
+guard_refusal_sites() {
+  local numbered_line
+  while IFS= read -r numbered_line; do
+    if [[ $numbered_line =~ $REFUSAL_SITE_DEFINITION_RE ]]; then
+      continue
+    fi
+    if [[ $numbered_line =~ $REFUSAL_ORIGIN_RE ]]; then
+      printf 'origin %s\n' "${BASH_REMATCH[2]}"
+    elif [[ $numbered_line =~ $REFUSAL_RELAY_RE ]]; then
+      printf 'relay\n'
+    else
+      printf 'unnamed %s\n' "$numbered_line"
+    fi
+  done < <(grep -nE "$REFUSAL_SITE_RE" "$GUARD")
+}
+
+# The third leg of the limits contract, and the one whose absence fails OPEN.
+# The header and the fixtures are diffed against each other above, and they
+# agreed exactly while four of the lexer's six fail-closed nets had no fixture:
+# neither list mentioned them, so neither list could miss them. Deleting any of
+# the four then turned a tree holding a dead refutation into `OK`, exit 0, which
+# is the one outcome this guard exists to prevent.
+#
+# So the refusals are enumerated from the CODE and required to be (a) named at
+# the raising site, (b) named UNIQUELY, (c) documented in the header, and (d)
+# actually printed by a refusal fixture. (d) is what makes a deleted net fail
+# here rather than pass: the identifier stops appearing. (b) is what makes (d)
+# mean what it says: with one identifier per site, an identifier that was
+# printed proves THAT site ran, where two sites sharing a name would let one
+# fixture vouch for a path it never reached.
+assert_every_code_refusal_is_documented_and_exercised() {
+  local documented=() sites=() seen=() record identifier
+  mapfile -t documented < <(documented_limit_identifiers)
+  mapfile -t sites < <(guard_refusal_sites)
+  if [[ ${#sites[@]} -eq 0 ]]; then
+    record_failure "no refusal sites found in $GUARD (did the primitives get renamed?)"
+    return 0
+  fi
+  if [[ ${#OBSERVED_REFUSAL_LIMIT_IDENTIFIERS[@]} -eq 0 ]]; then
+    record_failure "no refusal fixture made the guard print a limit identifier, so nothing can be shown to be exercised"
+    return 0
+  fi
+  for record in "${sites[@]}"; do
+    case "$record" in
+      relay) ;;
+      origin\ *)
+        identifier="${record#origin }"
+        if [[ ${#seen[@]} -gt 0 ]] && printf '%s\n' "${seen[@]}" | grep -qxF "$identifier"; then
+          record_failure "two refusals in the guard both name limit [$identifier], so one fixture would vouch for a path it never reached"
+        fi
+        seen+=("$identifier")
+        printf '%s\n' "${documented[@]}" | grep -qxF "$identifier" ||
+          record_failure "the guard can refuse with limit [$identifier], which its header does not document"
+        printf '%s\n' "${OBSERVED_REFUSAL_LIMIT_IDENTIFIERS[@]}" | grep -qxF "$identifier" ||
+          record_failure "no refusal fixture makes the guard raise limit [$identifier], so deleting that net would pass unnoticed"
+        ;;
+      *)
+        record_failure "a refusal in the guard names no limit identifier, so it is invisible to this check: ${record#unnamed }"
+        ;;
+    esac
   done
 }
 
@@ -1062,6 +1185,30 @@ write_unterminated_quote_refusal() {
     '  true'
 }
 
+write_unterminated_double_quote_refusal() {
+  write_test_body "$1" unterminated-double-quote \
+    '  echo "this quote never closes' \
+    '  true'
+}
+
+write_unterminated_ansi_quote_refusal() {
+  write_test_body "$1" unterminated-ansi-quote \
+    "  echo \$'this quote never closes" \
+    '  true'
+}
+
+write_unterminated_backtick_refusal() {
+  write_test_body "$1" unterminated-backtick \
+    '  echo `this substitution never closes' \
+    '  true'
+}
+
+write_unterminated_dbracket_refusal() {
+  write_test_body "$1" unterminated-dbracket \
+    '  [[ -e /nope' \
+    '  true'
+}
+
 write_unbalanced_parens_refusal() {
   write_test_body "$1" unbalanced-parens \
     '  x=$(printf %s hi' \
@@ -1121,6 +1268,10 @@ declare -A REFUSAL_FIXTURE_WRITERS=(
   ["unbalanced-compound"]=write_unbalanced_compound_refusal
   ["heredoc-in-substitution"]=write_heredoc_in_substitution_refusal
   ["unterminated-quote"]=write_unterminated_quote_refusal
+  ["unterminated-double-quote"]=write_unterminated_double_quote_refusal
+  ["unterminated-ansi-quote"]=write_unterminated_ansi_quote_refusal
+  ["unterminated-backtick"]=write_unterminated_backtick_refusal
+  ["unterminated-dbracket"]=write_unterminated_dbracket_refusal
   ["unbalanced-parens"]=write_unbalanced_parens_refusal
   ["non-utf8-source"]=write_non_utf8_source_refusal
   ["unreadable-file"]=write_unreadable_file_refusal
@@ -1132,19 +1283,39 @@ declare -A REFUSAL_DIAGNOSTICS=(
   ["unbalanced-compound"]='a compound command opened in this bats-executed body is never closed'
   ["heredoc-in-substitution"]='unterminated single quote'
   ["unterminated-quote"]='unterminated single quote'
+  ["unterminated-double-quote"]='unterminated double quote'
+  ["unterminated-ansi-quote"]="unterminated \$'...' quote"
+  ["unterminated-backtick"]='unterminated backtick'
+  ["unterminated-dbracket"]='unterminated [[ ... ]]'
   ["unbalanced-parens"]='unterminated (...)'
   ["non-utf8-source"]='cannot read'
   ["unreadable-file"]='cannot read'
   ["unlistable-directory"]='refusing to report a partial scan'
 )
 
+# Fixture keys whose INPUT class has no fail-closed net of its own and routes
+# into another limit's, with the identifier the guard therefore prints. Anything
+# absent from this table must print its own key, and that is what proves the
+# fixture reached the net it claims to pin rather than some neighbouring one:
+# two of these diagnostics are deliberately identical strings, and before the
+# guard printed identifiers they were the whole assertion.
+declare -A REFUSAL_ROUTED_LIMIT_IDENTIFIERS=(
+  ["heredoc-in-substitution"]="unterminated-quote"
+)
+
+# Every limit identifier the refusal fixtures made the guard actually print.
+# assert_every_code_refusal_is_documented_and_exercised diffs this against the
+# refusals the guard's CODE can raise, so it must be filled before that runs.
+OBSERVED_REFUSAL_LIMIT_IDENTIFIERS=()
+
 assert_unresolvable_input_refuses_the_scan() {
-  local guard_output guard_status relative_path single_root identifier
+  local guard_output guard_status relative_path single_root identifier printed
   for identifier in "${!REFUSAL_FIXTURE_WRITERS[@]}"; do
     if [[ -z ${REFUSAL_DIAGNOSTICS[$identifier]+set} ]]; then
       record_failure "refusal limit [$identifier] has no expected diagnostic"
       continue
     fi
+    printed="${REFUSAL_ROUTED_LIMIT_IDENTIFIERS[$identifier]:-$identifier}"
     single_root="$(mktemp -d)"
     if ! relative_path="$("${REFUSAL_FIXTURE_WRITERS[$identifier]}" "$single_root")"; then
       chmod -R u+rwX "$single_root" 2>/dev/null || true
@@ -1154,107 +1325,150 @@ assert_unresolvable_input_refuses_the_scan() {
     run_guard guard_output guard_status "$single_root/test"
     chmod -R u+rwX "$single_root" 2>/dev/null || true
     rm -rf "$single_root"
+    mapfile -t -O "${#OBSERVED_REFUSAL_LIMIT_IDENTIFIERS[@]}" \
+      OBSERVED_REFUSAL_LIMIT_IDENTIFIERS < <(
+        printf '%s\n' "$guard_output" |
+          sed -n 's/^\[\([a-z][a-z0-9-]*\)\].*/\1/p'
+      )
     [[ $guard_status -eq 2 ]] ||
       record_failure "limit [$identifier] must refuse the scan (exit 2), got $guard_status: $guard_output"
     grep -qF "$relative_path" <<<"$guard_output" ||
       record_failure "the refusal for [$identifier] must name the path $relative_path: $guard_output"
     grep -qF "${REFUSAL_DIAGNOSTICS[$identifier]}" <<<"$guard_output" ||
       record_failure "the refusal for [$identifier] must say why: $guard_output"
+    grep -qF "[$printed]" <<<"$guard_output" ||
+      record_failure "the refusal for [$identifier] must name limit [$printed], so the fixture is known to have reached that net: $guard_output"
   done
 }
 
-# The liveness measurement is the ground truth every advice assertion rests
-# on, so run the control first: a harness that answers the same way for
-# everything makes each advice check pass for no reason at all.
+# expect_liveness <expected> <property> <body-line>... -- one control row. The
+# property is named in the failure so a broken model says which of bats'
+# semantics it stopped reproducing.
+expect_liveness() {
+  local expected="$1" property="$2" measured
+  shift 2
+  measured="$(measure_refutation_liveness "$@")"
+  [[ $measured == "$expected" ]] ||
+    record_failure "the liveness model answers $measured, not $expected, for a body that pins $property: $*"
+}
+
+# The liveness measurement is the ground truth every advice assertion rests on,
+# so run the control first. The first two rows only prove it answers both ways,
+# which every weaker model also does; the rest are the rows where a weaker model
+# gives a DIFFERENT answer, and those are what say this one is still bats'.
+# Rows 1 to 6 have their expected verdict from real bats
+# (`nix develop .#run --command bats` on a file of these bodies), not from
+# reading the model; row 7 is input bats cannot be asked to run:
+#
+#   row 3 dropping errexit answers dead      (measured)
+#   row 4 adding pipefail answers live       (measured; bats has no pipefail)
+#   row 5 aborting on any nonzero status answers live, which is what makes the
+#         `!` exemption the whole guard rests on visible here
+#   row 6 running the lines at top level instead of in a function answers live
+#         (measured)
+#   row 7 a two-state model answers live for input that never ran
 assert_liveness_measurement_discriminates() {
-  local measured
-  measured="$(measure_refutation_liveness 'false')"
-  [[ $measured == live ]] ||
-    record_failure "the liveness measurement calls a failing body $measured, so it cannot discriminate"
-  measured="$(measure_refutation_liveness 'true')"
-  [[ $measured == dead ]] ||
-    record_failure "the liveness measurement calls a passing body $measured, so it cannot discriminate"
+  expect_liveness "$LIVENESS_LIVE" \
+    'a body whose last command fails fails the test' 'false'
+  expect_liveness "$LIVENESS_DEAD" \
+    'a body whose last command succeeds passes' 'true'
+  expect_liveness "$LIVENESS_LIVE" \
+    'errexit: a mid-body failure aborts the body' 'false' 'true'
+  expect_liveness "$LIVENESS_DEAD" \
+    'bats does NOT set pipefail, so a failure left of a pipe is not the status' \
+    'false | true' 'true'
+  expect_liveness "$LIVENESS_DEAD" \
+    'the exemption errexit grants an inverted pipeline' '! true' 'true'
+  expect_liveness "$LIVENESS_DEAD" \
+    'the body runs as a FUNCTION, so local is legal in it' \
+    'local marker=1' 'true'
+  expect_liveness "$LIVENESS_UNRUNNABLE" \
+    'input that does not parse is not a measurement' 'fi'
 }
 
-# The failure message's advice, the shapes the guard accepts, and what the
-# shell actually does are three statements of ONE contract, so all three are
-# checked against each other rather than against the message's own wording:
+# assert_advice_spelling_measures <expected-verdict> <region-name> <spelling>
+# -- one spelling, taken from the real message, run with its refutation
+# violated. Returns 1 when the spelling could not be measured at all, so the
+# caller can skip the checks that would otherwise read a non-measurement as a
+# pass.
+assert_advice_spelling_measures() {
+  local expected="$1" region="$2" spelling="$3" measured
+  if [[ $spelling != *"$ADVICE_SPELLING_PLACEHOLDER"* ]]; then
+    record_failure "the $region spelling names no $ADVICE_SPELLING_PLACEHOLDER placeholder, so it cannot be run: $spelling"
+    return 1
+  fi
+  measured="$(measure_refutation_liveness \
+    "$(substitute_advice_placeholder "$spelling" "$VIOLATED_REFUTATION_COMMAND")")"
+  if [[ $measured == "$LIVENESS_UNRUNNABLE" ]]; then
+    record_failure "the $region spelling does not parse, so nothing about it was measured: $spelling"
+    return 1
+  fi
+  [[ $measured == "$expected" ]] ||
+    record_failure "the $region spelling measures $measured, not $expected: $spelling"
+  return 0
+}
+
+# The failure message's advice, the shapes the guard accepts, and what the shell
+# actually does are three statements of ONE contract, so all three are checked
+# against each other rather than against the message's own wording:
 #
-#   1. every recommended spelling, with its refutation violated, must FAIL
-#      (measured, not asserted);
-#   2. the spelling the message warns about must PASS, or the warning is wrong;
-#   3. the recommendation region must name every recommended spelling and NONE
-#      of the discouraged ones, and the warning region the reverse.
+#   1. every spelling the message RECOMMENDS, with its refutation violated,
+#      must FAIL (measured, not asserted);
+#   2. every spelling it WARNS about must pass, or the warning is wrong;
+#   3. every recommended spelling must itself get past the guard, since a guard
+#      that flags what it tells people to write trains them to switch it off.
 #
-# Checking (3) against the whole message instead of its regions is what let the
-# highest-severity defect this guard exists to prevent come back: trading the
-# recommendation and the warning leaves every substring of the honest message
-# in place, so a message recommending the dead `|| echo` spelling satisfied a
-# whole-output search word for word.
+# The spellings are read out of the REAL message, which is what closes this on
+# the property instead of on a list. Checking a fixed list of markers left two
+# ways back to recommending the dead `|| echo` spelling with every gate green:
+# trading the recommendation and the warning (a whole-message substring search
+# cannot tell the two apart, since trading them changes no substring), and,
+# after the regions were separated, appending a fourth spelling that the list
+# did not mention. Lifting the spellings out of the output covers both, and any
+# other spelling anyone adds later.
 assert_advice_recommends_only_accepted_spellings() {
-  local guard_output guard_status index marker measured
-  local recommendation_region warning_region
-  if [[ ${#RECOMMENDED_ADVICE_MARKERS[@]} -ne ${#RECOMMENDED_ADVICE_FIXTURE_LINES[@]} ]] ||
-    [[ ${#RECOMMENDED_ADVICE_MARKERS[@]} -ne ${#RECOMMENDED_ADVICE_RUNNABLE_LINES[@]} ]]; then
-    record_failure "the advice marker, fixture-line and runnable-line arrays must be index-aligned"
+  local guard_output guard_status spelling discouraged_spelling advice_root
+  local spelling_index=0
+  local recommended=() discouraged=()
+  run_guard guard_output guard_status "$flagged_root/test"
+
+  grep -qF "$ADVICE_MECHANISM_LEAD_IN" <<<"$guard_output" ||
+    record_failure "the failure message no longer explains the mechanism ($ADVICE_MECHANISM_LEAD_IN): $guard_output"
+
+  mapfile -t recommended < <(advice_spellings "$ADVICE_RECOMMENDATION_LEAD_IN" <<<"$guard_output")
+  mapfile -t discouraged < <(advice_spellings "$ADVICE_WARNING_LEAD_IN" <<<"$guard_output")
+  if [[ ${#recommended[@]} -eq 0 ]]; then
+    record_failure "the failure message recommends no runnable spelling under $ADVICE_RECOMMENDATION_LEAD_IN: $guard_output"
     return 0
   fi
-  if [[ ${#DISCOURAGED_ADVICE_MARKERS[@]} -ne ${#DISCOURAGED_ADVICE_RUNNABLE_LINES[@]} ]]; then
-    record_failure "the discouraged marker and runnable-line arrays must be index-aligned"
+  if [[ ${#discouraged[@]} -eq 0 ]]; then
+    record_failure "the failure message warns about no spelling under $ADVICE_WARNING_LEAD_IN: $guard_output"
     return 0
   fi
 
-  # (1) and (2): what the shell does with each spelling.
-  for index in "${!RECOMMENDED_ADVICE_RUNNABLE_LINES[@]}"; do
-    measured="$(measure_refutation_liveness "${RECOMMENDED_ADVICE_RUNNABLE_LINES[$index]}")"
-    [[ $measured == live ]] ||
-      record_failure "the message recommends a spelling that cannot fail the test: ${RECOMMENDED_ADVICE_MARKERS[$index]}"
-  done
-  for index in "${!DISCOURAGED_ADVICE_RUNNABLE_LINES[@]}"; do
-    measured="$(measure_refutation_liveness "${DISCOURAGED_ADVICE_RUNNABLE_LINES[$index]}")"
-    [[ $measured == dead ]] ||
-      record_failure "the message warns about a spelling that CAN fail the test: ${DISCOURAGED_ADVICE_MARKERS[$index]}"
-  done
-
-  # Every recommended spelling must also pass the guard: a guard that flags the
-  # shape it tells people to write trains them to switch it off.
-  local advice_root
+  # (1) and (2): what the shell does with each spelling the message prints.
   advice_root="$(mktemp -d)"
-  write_test_body "$advice_root" advice-spellings \
-    "${RECOMMENDED_ADVICE_FIXTURE_LINES[@]}" \
-    '  true' >/dev/null
+  for spelling in "${recommended[@]}"; do
+    spelling_index=$((spelling_index + 1))
+    for discouraged_spelling in "${discouraged[@]}"; do
+      [[ $spelling != "$discouraged_spelling" ]] ||
+        record_failure "the message both recommends and warns about the same spelling: $spelling"
+    done
+    assert_advice_spelling_measures "$LIVENESS_LIVE" recommended "$spelling" || continue
+    # (3): the same spelling as the only statement of a body the guard must
+    # accept. One file each, so a spelling is judged on its own and not on
+    # whichever position it happened to land in.
+    write_test_body "$advice_root" "advice-spelling-$spelling_index" \
+      "  $(substitute_advice_placeholder "$spelling" "$FIXTURE_REFUTATION_COMMAND")" >/dev/null
+  done
+  for spelling in "${discouraged[@]}"; do
+    assert_advice_spelling_measures "$LIVENESS_DEAD" 'warned-about' "$spelling" || true
+  done
+
   run_guard guard_output guard_status "$advice_root/test"
   rm -rf "$advice_root"
   [[ $guard_status -eq 0 ]] ||
     record_failure "the guard flags a spelling its own failure message recommends: $guard_output"
-
-  # (3): the regions of the message that rejects the flagged tree.
-  run_guard guard_output guard_status "$flagged_root/test"
-  recommendation_region="$(grep -F "$ADVICE_RECOMMENDATION_LEAD_IN" <<<"$guard_output" || true)"
-  warning_region="$(grep -F "$ADVICE_WARNING_LEAD_IN" <<<"$guard_output" || true)"
-  if [[ -z $recommendation_region ]]; then
-    record_failure "the failure message has no recommendation line ($ADVICE_RECOMMENDATION_LEAD_IN): $guard_output"
-    return 0
-  fi
-  if [[ -z $warning_region ]]; then
-    record_failure "the failure message has no warning line ($ADVICE_WARNING_LEAD_IN): $guard_output"
-    return 0
-  fi
-  [[ $recommendation_region != "$warning_region" ]] ||
-    record_failure "the recommendation and the warning must be separate lines, or trading them cannot be detected: $recommendation_region"
-
-  for index in "${!RECOMMENDED_ADVICE_MARKERS[@]}"; do
-    marker="${RECOMMENDED_ADVICE_MARKERS[$index]}"
-    grep -qF "$marker" <<<"$recommendation_region" ||
-      record_failure "the failure message no longer recommends: $marker"
-  done
-  for marker in "${DISCOURAGED_ADVICE_MARKERS[@]}"; do
-    if grep -qF "$marker" <<<"$recommendation_region"; then
-      record_failure "the failure message recommends a spelling measured unable to fail: $marker"
-    fi
-    grep -qF "$marker" <<<"$warning_region" ||
-      record_failure "the failure message must warn that $marker cannot fail the test: $warning_region"
-  done
 }
 
 main() {
@@ -1289,6 +1503,8 @@ main() {
   assert_python_failure_fails_guard
   assert_symlinked_suite_directory_is_scanned
   assert_unresolvable_input_refuses_the_scan
+  # Reads what the refusal fixtures made the guard print, so it must follow.
+  assert_every_code_refusal_is_documented_and_exercised
   assert_advice_recommends_only_accepted_spellings
 
   report_failures dead-refutation-shapes

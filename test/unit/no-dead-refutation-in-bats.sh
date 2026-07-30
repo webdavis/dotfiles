@@ -89,17 +89,26 @@
 #     so a bats body in a helper `load`ed under another suffix is not seen.
 #
 # (b) REFUSED -- input this scan cannot read correctly, reported with exit 2 and
-#     a diagnostic naming the file, never a green pass. The list is exhaustive
-#     on purpose: every refusal the code can raise is named here and pinned by
-#     its own fixture, because a refusal set that is documented in part makes
-#     the "these lists describe one contract" diff a partial one:
+#     a diagnostic that opens with the bracketed identifier and names the file,
+#     never a green pass. Every refusal the code can raise NAMES its limit at
+#     the raising site, and test/test-system/dead-refutation-shapes.sh reads
+#     those names out of this file and requires each one to be documented here
+#     AND produced by a fixture. That third leg is the point: a header and a
+#     fixture list can agree perfectly while a code path neither mentions
+#     silently reports a tree holding a dead refutation as clean, which is
+#     exactly what four of the lexer's nets did while this list looked complete:
 #   - [heredoc-in-substitution] a heredoc body inside a command substitution is
 #     swallowed as substitution text, so an apostrophe or an unbalanced paren
-#     in it aborts the scan;
-#   - [unterminated-quote] a quote the lexer never sees closed, which would
-#     otherwise swallow the rest of the file as quoted text;
-#   - [unbalanced-parens] a $(...), ${...}, <(...) or [[ ... ]] the lexer never
+#     in it aborts the scan (it has no net of its own: what refuses is whichever
+#     quote or paren net the swallowed text runs into);
+#   - [unterminated-quote] a single-quoted string the lexer never sees closed,
+#     which would otherwise swallow the rest of the file as quoted text;
+#   - [unterminated-double-quote] a double-quoted string never seen closed;
+#   - [unterminated-ansi-quote] a $'...' string never seen closed;
+#   - [unterminated-backtick] a `...` substitution never seen closed;
+#   - [unbalanced-parens] a $(...), ${...}, <(...) or >(...) the lexer never
 #     sees closed, for the same reason;
+#   - [unterminated-dbracket] a [[ ... ]] test the lexer never sees closed;
 #   - [unclosed-body] a bats-executed body whose braces never balance, which
 #     would otherwise swallow every body after it;
 #   - [unterminated-case] a case...esac opened inside a bats-executed body and
@@ -125,18 +134,45 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SCAN_ROOT="${1:-$REPO_ROOT/test}"
 
-# The advice printed with a rejection, in three separately named lines because
-# the three say different things and a test has to be able to tell them apart.
-# The mechanism explains why the status vanished; the RECOMMENDATION lists the
-# spellings that were measured to fail when the refutation is violated; the
-# WARNING names the near-miss spelling that reads like a fix and cannot fail.
-# Keeping them on one line let a swap of the last two keep every substring of
-# the original, so a message that recommended the dead `|| echo` spelling and
-# warned about the live one still satisfied its pin. The line split is what
-# gives test/test-system/dead-refutation-shapes.sh a region to check.
+# The advice printed with a rejection. The spellings are DATA, one per indented
+# line, with the placeholder standing in for the check, because
+# test/test-system/dead-refutation-shapes.sh lifts each one back out of the real
+# output, substitutes a violated refutation for the placeholder and RUNS it. A
+# spelling that cannot fail the test then fails the suite, whoever adds it and
+# whatever the surrounding prose claims about it.
+#
+# That derivation is the whole design. Naming the accepted spellings in a fixed
+# list inside the test instead let this message go back to recommending the dead
+# `|| echo` spelling with every gate green: first by trading the recommendation
+# and the warning (which keeps every substring of the honest message), then, once
+# the regions were separated, by appending a new dead spelling that no fixed list
+# mentioned.
+ADVICE_SPELLING_PLACEHOLDER='CMD'
+ADVICE_SPELLING_INDENT='    '
 ADVICE_MECHANISM_LINE='An inverted command only decides the test as the LAST command the body executes; backgrounding, a following command, a non-final statement, a non-final command of an if/while condition, or an enclosing brace/if/loop compound all discard its status.'
-ADVICE_RECOMMENDATION_LINE='Give the status somewhere to go, and make that somewhere FAIL: if cmd; then echo "why this is wrong"; false; fi, or call a single-command refute helper, or add a handler that fails: || { echo "why this is wrong"; false; }.'
-ADVICE_WARNING_LINE='A bare || echo handler cannot fail the test: it reports the violation and returns success.'
+ADVICE_RECOMMENDATION_LEAD_IN="Give the status somewhere to go, and make that somewhere FAIL ($ADVICE_SPELLING_PLACEHOLDER stands for the check):"
+ADVICE_RECOMMENDED_SPELLINGS=(
+  'if CMD; then echo "why this is wrong"; false; fi'
+  'refute_it() { ! CMD; }; refute_it'
+  '! CMD || { echo "why this is wrong"; false; }'
+)
+ADVICE_WARNING_LEAD_IN='These read like a fix and cannot fail the test, so they are not fixes:'
+ADVICE_DISCOURAGED_SPELLINGS=(
+  '! CMD || echo "why this is wrong"'
+)
+
+print_advice() {
+  local spelling
+  printf '%s\n' "$ADVICE_MECHANISM_LINE"
+  printf '%s\n' "$ADVICE_RECOMMENDATION_LEAD_IN"
+  for spelling in "${ADVICE_RECOMMENDED_SPELLINGS[@]}"; do
+    printf '%s%s\n' "$ADVICE_SPELLING_INDENT" "$spelling"
+  done
+  printf '%s\n' "$ADVICE_WARNING_LEAD_IN"
+  for spelling in "${ADVICE_DISCOURAGED_SPELLINGS[@]}"; do
+    printf '%s%s\n' "$ADVICE_SPELLING_INDENT" "$spelling"
+  done
+}
 
 fail() {
   printf 'FAIL: %s\n' "$*" >&2
@@ -211,7 +247,18 @@ REASON_DISCARDED_IN_CONDITION = "discarded in condition list"
 
 
 class UnanalyzableSource(Exception):
-    """This file's scan cannot be trusted, so it must never be reported clean."""
+    """This file's scan cannot be trusted, so it must never be reported clean.
+
+    Every instance NAMES the limit it raises, using one of the bracketed
+    identifiers in this file's header. The name travels with the exception so
+    the relay that reports it can print it, and so the test suite can read the
+    identifiers straight out of this source and require each to be documented
+    and exercised. A refusal that named nothing was invisible to that check,
+    which is how four of the lexer's nets below sat unpinned."""
+
+    def __init__(self, limit_identifier, message):
+        super().__init__(message)
+        self.limit_identifier = limit_identifier
 
 
 class Lexer:
@@ -226,8 +273,9 @@ class Lexer:
         self.line = 1
         self.heredocs = []  # pending (delimiter, strip_tabs)
 
-    def error(self, message):
-        raise UnanalyzableSource("line %d: %s" % (self.line, message))
+    def error(self, limit_identifier, message):
+        raise UnanalyzableSource(limit_identifier,
+                                 "line %d: %s" % (self.line, message))
 
     def take(self):
         ch = self.text[self.i]
@@ -253,7 +301,7 @@ class Lexer:
         while self.i < self.n:
             if self.take() == "'":
                 return
-        self.error("unterminated single quote")
+        self.error("unterminated-quote", "unterminated single quote")
 
     def skip_ansi_quote(self):  # after the opening $'
         while self.i < self.n:
@@ -262,7 +310,7 @@ class Lexer:
                 self.take()
             elif ch == "'":
                 return
-        self.error("unterminated $'...' quote")
+        self.error("unterminated-ansi-quote", "unterminated $'...' quote")
 
     def skip_double_quote(self):  # after the opening "
         while self.i < self.n:
@@ -276,7 +324,7 @@ class Lexer:
                 self.skip_matched(opener, ")" if opener == "(" else "}")
             elif ch == '"':
                 return
-        self.error("unterminated double quote")
+        self.error("unterminated-double-quote", "unterminated double quote")
 
     def skip_backtick(self):  # after the opening `
         while self.i < self.n:
@@ -285,7 +333,7 @@ class Lexer:
                 self.take()
             elif ch == "`":
                 return
-        self.error("unterminated backtick")
+        self.error("unterminated-backtick", "unterminated backtick")
 
     def skip_matched(self, open_ch, close_ch):
         """After an opening delimiter: skip to its match, quote-aware."""
@@ -312,7 +360,8 @@ class Lexer:
                 depth -= 1
                 if depth == 0:
                     return
-        self.error("unterminated %s...%s" % (open_ch, close_ch))
+        self.error("unbalanced-parens",
+                   "unterminated %s...%s" % (open_ch, close_ch))
 
     def skip_dbrackets(self):  # after the word [[
         while self.i < self.n:
@@ -329,7 +378,7 @@ class Lexer:
             elif ch == "]" and self.peek() == "]":
                 self.take()
                 return
-        self.error("unterminated [[ ... ]]")
+        self.error("unterminated-dbracket", "unterminated [[ ... ]]")
 
     def consume_pending_heredocs(self):
         """Called just after a newline: swallow heredoc bodies line by line."""
@@ -1053,21 +1102,24 @@ def analyze_body(tokens, index, open_line, relpath, lines):
         analyzer.feed(kind, value, line)
         index += 1
     if analyzer.case_depth != 0:
-        raise UnanalyzableSource(
-            "line %d: a case...esac opened in this bats-executed body is never "
-            "closed" % open_line)
+        raise UnanalyzableSource("unterminated-case",
+                                 "line %d: a case...esac opened in this "
+                                 "bats-executed body is never closed"
+                                 % open_line)
     if not closed:
-        raise UnanalyzableSource(
-            "line %d: this bats-executed body is never closed" % open_line)
+        raise UnanalyzableSource("unclosed-body",
+                                 "line %d: this bats-executed body is never "
+                                 "closed" % open_line)
     if analyzer.frames:
         # The body's braces balanced while the analyzer still holds an open
         # if/loop/group frame, so the two bracket models disagree and the
         # positional verdicts computed from the frames cannot be trusted.
         # Valid input never reaches this (bash requires fi/done/} first), so it
         # is a desync net, and a desync must refuse rather than report clean.
-        raise UnanalyzableSource(
-            "line %d: a compound command opened in this bats-executed body is "
-            "never closed" % open_line)
+        raise UnanalyzableSource("unbalanced-compound",
+                                 "line %d: a compound command opened in this "
+                                 "bats-executed body is never closed"
+                                 % open_line)
     return analyzer.finish(), index
 
 
@@ -1130,8 +1182,11 @@ def collect_source_files(root):
     return found, errors
 
 
-def refuse(message):
-    print(message, file=sys.stderr)
+def refuse(limit_identifier, message):
+    """Report a refusal and exit 2. The bracketed limit identifier opens the
+    line so the reader, and the suite, can see WHICH documented refusal this
+    is; a relay passes on the identifier of the refusal it is reporting."""
+    print("[%s] %s" % (limit_identifier, message), file=sys.stderr)
     sys.exit(2)
 
 
@@ -1141,19 +1196,25 @@ if walk_errors:
         print("cannot list %s: %s"
               % (getattr(walk_error, "filename", scan_root), walk_error),
               file=sys.stderr)
-    refuse("refusing to report a partial scan of %s" % scan_root)
+    refuse("unlistable-directory",
+           "refusing to report a partial scan of %s" % scan_root)
 
 dead = []
 for source_path, source_relpath in source_files:
     try:
         with open(source_path, encoding="utf-8") as handle:
             source_text = handle.read()
-    except (OSError, UnicodeDecodeError) as read_error:
-        refuse("%s: cannot read: %s" % (source_relpath, read_error))
+    except UnicodeDecodeError as decode_error:
+        refuse("non-utf8-source",
+               "%s: cannot read: %s" % (source_relpath, decode_error))
+    except OSError as open_error:
+        refuse("unreadable-file",
+               "%s: cannot read: %s" % (source_relpath, open_error))
     try:
         dead.extend(scan_file(source_relpath, source_text))
     except UnanalyzableSource as scan_error:
-        refuse("%s: cannot analyze: %s" % (source_relpath, scan_error))
+        refuse(scan_error.limit_identifier,
+               "%s: cannot analyze: %s" % (source_relpath, scan_error))
 
 for entry in dead:
     print(entry)
@@ -1164,8 +1225,7 @@ if [[ -n $report ]]; then
   printf 'FAIL: %s bats assertion(s) invert a command where the status cannot fail the test:\n' \
     "$(printf '%s\n' "$report" | wc -l | tr -d ' ')" >&2
   printf '%s\n' "$report" | sed 's/^/  /' >&2
-  printf '%s\n%s\n%s\n' \
-    "$ADVICE_MECHANISM_LINE" "$ADVICE_RECOMMENDATION_LINE" "$ADVICE_WARNING_LINE" >&2
+  print_advice >&2
   exit 1
 fi
 
