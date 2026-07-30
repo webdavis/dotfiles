@@ -58,6 +58,36 @@ REASON_BACKGROUNDED='backgrounded'
 REASON_DISCARDED='status discarded'
 REASON_DISCARDED_IN_CONDITION='discarded in condition list'
 
+# Helper names that are legal in bash but are NOT POSIX identifiers, one per
+# name class the guard's own comment enumerates (verified with
+# `bash -c '<name>() { :; }'`). Both trees build a fixture per class from this
+# one list, so a class cannot be covered in the direction that is easy to get
+# right (the clean tree, where a missed definition is a false positive) while
+# the direction that fails open (the flagged tree, where a missed definition
+# closes the body early and hides everything after it) is left to one name.
+# KEEP THE KEYS QUOTED: shfmt reads an unquoted associative-array subscript as
+# arithmetic and would rewrite `[leading-digit]` into `[leading - digit]`.
+declare -A BASH_LEGAL_HELPER_NAMES=(
+  ["hyphenated"]='refute-x'
+  ["dotted"]='refute.x'
+  ["colon"]='refute:x'
+  ["leading-digit"]='2fa'
+)
+
+# The functions bats executes around a test, from bats-core's documented
+# lifecycle: setup/teardown per test, setup_file/teardown_file per file,
+# setup_suite/teardown_suite per suite. A dead refutation in any of them is the
+# same defect as one in a @test body.
+#
+# This is the WANTED set and it is deliberately INDEPENDENT of the guard's list,
+# which it is diffed against. Deriving the fixtures from the guard's own list
+# instead was measured to be worthless: dropping two names from the guard
+# dropped their fixtures with them and the suite stayed green, which is the very
+# fail-open the check was added to catch.
+BATS_EXECUTED_BODY_NAMES=(
+  setup teardown setup_file teardown_file setup_suite teardown_suite
+)
+
 # The spellings the guard's failure message tells people to use, and the
 # near-miss it must warn about. Liveness is MEASURED here rather than taken
 # from the message's wording: each runnable line is the spelling with its
@@ -301,16 +331,32 @@ create_flagged_tree_fixtures() {
     '  ! [[ -e /nope ]]' \
     '  true')" 2 "$REASON_DISCARDED")"
 
-  # setup() runs under the same mechanism, so a dead inversion there is the
-  # same defect; the guard scans setup/teardown bodies too.
-  flagged_expected_destination["setup_body_mid"]="$(expect_finding "$(write_bats_file "$flagged_root" setup-body-mid \
-    'setup() {' \
-    '  ! test -e /nope' \
-    '  true' \
-    '}' \
-    '@test "t" {' \
-    '  true' \
-    '}')" 2 "$REASON_DISCARDED")"
+  # Every function bats executes around a test runs under the same mechanism, so
+  # a dead inversion in any of them is the same defect. One fixture per name in
+  # BATS_EXECUTED_BODY_NAMES, which is the wanted set and NOT the guard's own
+  # list: a name dropped from the guard leaves this fixture in place and
+  # unreported. The suite variants live in setup_suite.bash, which is where bats
+  # requires them and which is also what proves the .bash suffix is scanned.
+  local body_name body_fixture
+  for body_name in "${BATS_EXECUTED_BODY_NAMES[@]}"; do
+    if [[ $body_name == *_suite ]]; then
+      body_fixture="$(write_scan_fixture "$flagged_root" "integration/$body_name/setup_suite.bash" \
+        "$body_name() {" \
+        '  ! test -e /nope' \
+        '  true' \
+        '}')"
+    else
+      body_fixture="$(write_bats_file "$flagged_root" "body-$body_name" \
+        "$body_name() {" \
+        '  ! test -e /nope' \
+        '  true' \
+        '}' \
+        '@test "t" {' \
+        '  true' \
+        '}')"
+    fi
+    flagged_expected_destination["body_name_$body_name"]="$(expect_finding "$body_fixture" 2 "$REASON_DISCARDED")"
+  done
 
   # Every spelling of a body definition bash and bats accept reaches the same
   # analysis. A brace on the next line, the `function` keyword, and the spaced
@@ -347,14 +393,6 @@ create_flagged_tree_fixtures() {
   # to be recognized from the raw line.
   flagged_expected_destination["comment_syntax_test"]="$(expect_finding "$(write_bats_file "$flagged_root" comment-syntax-test \
     'refutes_the_thing() { # @test' \
-    '  ! test -e /nope' \
-    '  true' \
-    '}')" 2 "$REASON_DISCARDED")"
-
-  # setup_suite/teardown_suite live in setup_suite.bash by bats' own design, so
-  # a scan restricted to *.bats would never see them.
-  flagged_expected_destination["setup_suite_bash_file"]="$(expect_finding "$(write_scan_fixture "$flagged_root" integration/setup_suite.bash \
-    'setup_suite() {' \
     '  ! test -e /nope' \
     '  true' \
     '}')" 2 "$REASON_DISCARDED")"
@@ -404,14 +442,18 @@ create_flagged_tree_fixtures() {
   # inversion below sits after the call, where only a correctly recognized
   # definition leaves it visible. This is the coverage half of the same defect
   # whose judgement half (a false positive on the helper's own inversion) the
-  # clean tree pins.
-  flagged_expected_destination["helper_with_bash_legal_name"]="$(expect_finding "$(write_test_body "$flagged_root" helper-with-bash-legal-name \
-    '  refute-x() {' \
-    '    ! grep -q x /etc/hosts' \
-    '  }' \
-    '  refute-x' \
-    '  ! test -e /nope' \
-    '  true')" 6 "$REASON_DISCARDED")"
+  # clean tree pins, and it runs over every name class rather than one, because
+  # one name class covered is not the same as the rule covered.
+  local helper_name_class
+  for helper_name_class in "${!BASH_LEGAL_HELPER_NAMES[@]}"; do
+    flagged_expected_destination["helper_name_$helper_name_class"]="$(expect_finding "$(write_test_body "$flagged_root" "helper-name-$helper_name_class" \
+      "  ${BASH_LEGAL_HELPER_NAMES[$helper_name_class]}() {" \
+      '    ! grep -q x /etc/hosts' \
+      '  }' \
+      "  ${BASH_LEGAL_HELPER_NAMES[$helper_name_class]}" \
+      '  ! test -e /nope' \
+      '  true')" 6 "$REASON_DISCARDED")"
+  done
 
   # A brace-shaped case PATTERN is a pattern, not a brace (`case "}" in }) ...`
   # matches, measured). Counting it would close the body inside the region and
@@ -552,32 +594,29 @@ create_clean_tree_fixtures() {
     '    ! grep -q x /etc/hosts' \
     '  }' \
     '  refute_x')"
-  # bash's function names are much wider than a POSIX identifier: each of these
-  # defines a function and each call is live (measured with
-  # `bash -c "<name>() { :; }"`). A scan that recognizes only
+  # bash's function names are much wider than a POSIX identifier: each name in
+  # BASH_LEGAL_HELPER_NAMES defines a function and each call is live (measured
+  # with `bash -c "<name>() { :; }"`). A scan that recognizes only
   # [A-Za-z_][A-Za-z0-9_]* reads these bodies as bare brace groups and reports
   # their inversions dead, a FALSE POSITIVE against working code that also
   # contradicts the header's [function-body] limit.
-  fixture_path="$(write_test_body "$clean_root" refute-helper-hyphenated-name \
-    '  refute-x() {' \
-    '    ! grep -q x /etc/hosts' \
-    '  }' \
-    '  refute-x')"
-  fixture_path="$(write_test_body "$clean_root" refute-helper-dotted-name \
-    '  refute.x() {' \
-    '    ! grep -q x /etc/hosts' \
-    '  }' \
-    '  refute.x')"
-  fixture_path="$(write_test_body "$clean_root" refute-helper-colon-name \
-    '  refute:x() {' \
-    '    ! grep -q x /etc/hosts' \
-    '  }' \
-    '  refute:x')"
-  fixture_path="$(write_test_body "$clean_root" refute-helper-leading-digit-name \
-    '  2fa() {' \
-    '    ! grep -q x /etc/hosts' \
-    '  }' \
-    '  2fa')"
+  #
+  # KEEP THE HELPER BODY AT TWO COMMANDS. With ONE, this fixture pinned nothing:
+  # an unrecognized definition does not become a false positive, it becomes a
+  # silent early close, because the helper's `}` closes the BODY instead and the
+  # single inversion is then the body's own final statement, which is presumed
+  # live. Measured: all four name classes passed identically with and without
+  # the fix. The second command is what makes the inversion non-final in that
+  # misreading, so an unrecognized name is reported and this fixture bites.
+  local name_class
+  for name_class in "${!BASH_LEGAL_HELPER_NAMES[@]}"; do
+    fixture_path="$(write_test_body "$clean_root" "refute-helper-$name_class-name" \
+      "  ${BASH_LEGAL_HELPER_NAMES[$name_class]}() {" \
+      '    ! grep -q x /etc/hosts' \
+      '    true' \
+      '  }' \
+      "  ${BASH_LEGAL_HELPER_NAMES[$name_class]}")"
+  done
   # A `{` in ARGUMENT position is a literal brace, not a group opener, so it
   # must neither open a frame nor make the body look unclosed. Refusing here
   # was the fail-open's mirror image: same misreading, louder outcome.
@@ -677,6 +716,68 @@ create_clean_tree_fixtures() {
     '  ! test -e /nope' \
     '}' \
     'printf "%s\n" @test "y" { >/dev/null')"
+
+  # The five fixtures below pin PRECISION rules: each names a way the guard
+  # decides something is NOT a bats body. Loosening any of them costs nothing in
+  # coverage and turns the guard into a false accuser against ordinary code,
+  # which is why each was measured to pass here and to be reported once the rule
+  # is loosened. They are all clean because the shape is legitimate; the dead
+  # inversion inside each one is what the loosened rule would report.
+  #
+  # bats' comment test syntax requires the comment to END at `@test`, so a
+  # mention of @test in a longer comment is just a comment on a file-scope
+  # helper (limit [file-scope-helper]).
+  fixture_path="$(write_bats_file "$clean_root" at-test-mentioned-in-a-comment \
+    'helper() { # @test is mentioned in this comment' \
+    '  ! true' \
+    '  true' \
+    '}' \
+    '@test "t" {' \
+    '  true' \
+    '}')"
+  # A body function name must match EXACTLY. A helper whose name merely starts
+  # with one is an ordinary file-scope helper.
+  fixture_path="$(write_bats_file "$clean_root" body-name-prefix-is-not-a-body \
+    'setup_the_harness() {' \
+    '  ! true' \
+    '  true' \
+    '}' \
+    '@test "t" {' \
+    '  true' \
+    '}')"
+  # `setup {` is the command `setup` with the argument `{`, not a definition:
+  # bash needs parens or the `function` keyword. (Not runnable bash, and that is
+  # the point -- the closing brace matches nothing. The fixture trees are scan
+  # targets only.)
+  fixture_path="$(write_bats_file "$clean_root" bare-name-brace-is-not-a-definition \
+    'setup {' \
+    '  ! true' \
+    '  true' \
+    '}' \
+    '@test "t" {' \
+    '  true' \
+    '}')"
+  # bats anchors the opening brace of a @test to the DECLARATION LINE
+  # (BATS_TEST_PATTERN in bats-preprocess), so a brace on the next line means
+  # bats never made a test out of this and neither may the guard.
+  fixture_path="$(write_bats_file "$clean_root" at-test-brace-on-the-next-line \
+    '@test "not a declaration without the brace"' \
+    '{' \
+    '  ! true' \
+    '  true' \
+    '}')"
+  # A line ending in a continuation operator continues the SAME statement, so
+  # the inversion below is still the body's final statement and still live.
+  # Reading the newline as a statement end reports it. `||` cannot be pinned
+  # this way and is not claimed to be: an inversion followed by `||` is presumed
+  # live by limit [or-handler] whichever way the newline is read.
+  local continuation_operator continuation_index=0
+  for continuation_operator in '|' '&&' '|&'; do
+    continuation_index=$((continuation_index + 1))
+    fixture_path="$(write_test_body "$clean_root" "continuation-operator-$continuation_index" \
+      "  ! grep -q x /etc/hosts $continuation_operator" \
+      '    cat')"
+  done
   : "$fixture_path"
 }
 
@@ -802,6 +903,36 @@ assert_boundary_tree_passes() {
   run_guard guard_output guard_status "$boundary_root/test"
   [[ $guard_status -eq 0 ]] ||
     record_failure "documented boundary shapes must pass (scope change?): $guard_output"
+}
+
+# guard_body_function_names -- the function names the GUARD treats as
+# bats-executed bodies, read out of its own list.
+guard_body_function_names() {
+  sed -n '/^BATS_BODY_FUNCTION_NAMES = frozenset((/,/^))/p' "$GUARD" |
+    grep -oE '"[a-z_]+"' | tr -d '"' | LC_ALL=C sort
+}
+
+# The guard's list and the wanted list must be the same set, and every wanted
+# name must have a flagged fixture. A name quietly dropped from the guard takes
+# its whole body out of the scan with nothing else to notice: dropping
+# teardown_file and teardown_suite was measured to leave this suite green while
+# two dead refutations went unreported. The FIRST attempt at this check derived
+# the fixtures from the guard's own list, which meant a dropped name lost its
+# fixture too and the check stayed green -- the same fail-open, one level up.
+assert_guard_scans_every_bats_executed_body() {
+  local -n flagged_expected_reference="$1"
+  local body_name guard_names=()
+  mapfile -t guard_names < <(guard_body_function_names)
+  for body_name in "${BATS_EXECUTED_BODY_NAMES[@]}"; do
+    printf '%s\n' "${guard_names[@]}" | grep -qxF "$body_name" ||
+      record_failure "bats executes $body_name and the guard's body list does not name it, so those bodies go unscanned"
+    [[ -n ${flagged_expected_reference["body_name_$body_name"]+set} ]] ||
+      record_failure "bats executes $body_name with no flagged fixture pinning it"
+  done
+  for body_name in "${guard_names[@]}"; do
+    printf '%s\n' "${BATS_EXECUTED_BODY_NAMES[@]}" | grep -qxF "$body_name" ||
+      record_failure "the guard scans $body_name, which is not a body bats executes"
+  done
 }
 
 # The guard's header, the boundary fixtures and the refusal assertions are
@@ -1150,6 +1281,7 @@ main() {
 
   assert_liveness_measurement_discriminates
   assert_flagged_tree_rejected flagged_expected
+  assert_guard_scans_every_bats_executed_body flagged_expected
   assert_clean_tree_passes
   assert_boundary_tree_passes
   assert_documented_limits_are_all_pinned boundary_limits
