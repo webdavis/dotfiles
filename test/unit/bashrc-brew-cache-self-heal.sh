@@ -342,14 +342,32 @@ assert_contains "$block_code" 'mkdir -p "${__brew_shellenv_log%/*}"' \
 assert_contains "$block_code" '2>/dev/null >"$__brew_shellenv_attempt_stamp"' \
   'the guard does not record the attempt before launching, so nothing bounds the retries'
 
-# The stamp write comes BEFORE the launch, so concurrent shells cannot each
-# launch a regeneration and a host that cannot record an attempt launches none.
+# The stamp write is a TERM OF THE GATE, not a statement inside it: it sits in
+# the `if` condition, above the `; then`. That placement is what makes a host
+# which cannot record an attempt launch NOTHING, instead of forking a brew on
+# every shell with no rate limit left to bound it. Moving the write into the gate
+# body keeps it textually before the launch and still deletes the guarantee, so
+# the check is against the gate, not against the launch line. What the ordering
+# buys is narrow and worth stating exactly: a shell that starts while an earlier
+# regeneration is still running already sees the attempt. It is not a lock, so
+# shells that start at the same instant all read a stamp-free host and all
+# launch. The behavior behind both halves is pinned in
+# test/e2e/bashrc-brew-cache-self-heal.sh; this is the structural check the
+# commit gate can afford.
 launch_line_number="$(grep -nF '"$__brew_shellenv_writer" >>' <<<"$block_code" | cut -d: -f1 || true)"
 stamp_line_number="$(grep -nF '>"$__brew_shellenv_attempt_stamp"' <<<"$block_code" | cut -d: -f1 || true)"
 [[ -n $launch_line_number && -n $stamp_line_number ]] ||
   fail 'could not locate the launch and the stamp write in the self-heal block'
+mapfile -t gate_end_line_numbers < <(grep -nF '; then' <<<"$block_code" | cut -d: -f1)
+((${#gate_end_line_numbers[@]} == 1)) ||
+  fail "the self-heal block no longer has exactly one gate (found ${#gate_end_line_numbers[@]} '; then' lines), so which condition guards the launch is ambiguous"
+# At or before the closing `; then`, i.e. inside the condition. The write is
+# currently the LAST term, so it shares that line; anything in the gate body
+# lands after it.
+((stamp_line_number <= gate_end_line_numbers[0])) ||
+  fail 'the attempt is recorded inside the gate body instead of as a term of the gate, so a host that cannot record one launches a regeneration on every shell'
 ((stamp_line_number < launch_line_number)) ||
-  fail 'the attempt is recorded after the launch, so concurrent shells all launch a regeneration'
+  fail 'the attempt is recorded after the launch, so a shell starting while a regeneration runs sees no attempt and launches another'
 
 # ---------------------------------------------------------------------------
 # 7. The block is interactive-only, which is a documented limitation.
