@@ -23,13 +23,20 @@
 #   - everything present and current (the common path, every shell)
 #   - Homebrew not installed, even with no paths file to find
 #   - the deployed writer is not there to run
+#   - the attempt stamp cannot be written, so nothing could bound a retry: the
+#     guard then launches NOTHING, rather than fork a brew on every shell forever
 # And STOPS: every repair is rate-limited by an attempt stamp, so a condition the
 # writer cannot fix (an unreadable paths file, a directory on the cache path)
-# costs one attempt per interval instead of one per shell forever, and a burst of
-# new shells on a fresh host launches ONE regeneration rather than one each.
+# costs one attempt per interval instead of one per shell forever, and repeated
+# shell starts on a fresh host launch ONE regeneration rather than one each. The
+# stamp is an ordering, not a lock, so shells that start at the SAME INSTANT are
+# not collapsed; that limit is documented at the block itself and is not claimed
+# here.
 # On every path: nothing on stdout or stderr, and no entry in the shell's job
 # table (a tracked background job would print `[N] pid` and a failed-job notice
-# at an interactive prompt).
+# at an interactive prompt). That includes the consumer's live-eval fallback on a
+# host with no Homebrew at all, which is where a lost `2>/dev/null` would put a
+# diagnostic in front of every prompt.
 #
 # e2e: real subprocesses and a real detached write, so it is timing-bound and
 # polls. Darwin-only, matching the template's `{{ if eq .chezmoi.os "darwin" }}`.
@@ -401,16 +408,73 @@ start_shell "$host"
 wait_for_invocations "$host" $((first_count + 1)) ||
   fail 'unreadable paths file: with the stamp cleared the guard did not retry, so it was never rate-limited'
 
-# --- M. a burst of new shells launches ONE regeneration ---------------------
-host="$(new_host thunderingherd)"
+# --- M. repeated shell starts launch ONE regeneration -----------------------
+# SEQUENTIAL starts, which is what the stamp actually bounds: each shell here
+# finishes before the next begins, so the second and third find the attempt on
+# disk. Shells that start at the SAME INSTANT are not collapsed (writing a file
+# is not a compare-and-swap, so they all read a stamp-free host and all launch),
+# so do not re-title this case as if it covered them.
+host="$(new_host repeatedstarts)"
 touch -t 202001010000 "$host/repo/$GENERATOR_RELATIVE"
 start_shell "$host"
 start_shell "$host"
 start_shell "$host"
-assert_shell_was_silent "$host" 'burst of shells'
-wait_for_invocations "$host" 1 || fail 'burst of shells: no regeneration ran at all'
+assert_shell_was_silent "$host" 'repeated starts'
+wait_for_invocations "$host" 1 || fail 'repeated starts: no regeneration ran at all'
 sleep "$SETTLE_SECONDS"
 [[ "$(invocation_count "$host")" == 1 ]] ||
-  fail "burst of shells: $(invocation_count "$host") regenerations ran concurrently, one per shell"
+  fail "repeated starts: $(invocation_count "$host") regenerations ran, one per shell start, so the attempt stamp bounded nothing"
 
-printf 'bashrc-brew-cache-self-heal(e2e): OK (fires on every unusable cache state, a new generator, a missing or unreadable paths file; bounded by the attempt stamp; quiet and job-free otherwise)\n'
+# --- N. a host that cannot RECORD an attempt launches nothing ---------------
+# The stamp write sits INSIDE the `if` chain rather than after it as bookkeeping,
+# and that placement is the whole fail-closed property: when the attempt cannot
+# be recorded, nothing can bound the retries, so the guard must launch nothing at
+# all instead of forking a brew at every single shell start forever. The shell
+# stays correct meanwhile, because the consumer half still falls back to a live
+# eval. A directory on the stamp path is the cheapest unwritable stamp that needs
+# no privileges to arrange.
+host="$(new_host unwritablestamp)"
+touch -t 202001010000 "$host/repo/$GENERATOR_RELATIVE"
+mkdir -p "$host/home/$STAMP_RELATIVE"
+if [[ -e $host/home/$CACHE_RELATIVE ]]; then
+  fail 'unwritable stamp fixture started with a cache, so no repair would be indicated'
+fi
+# Two shells, because the failure this pins is unbounded REPETITION: with the
+# write demoted out of the gate, each shell launches its own regeneration and
+# nothing ever records an attempt to stop the next one.
+start_shell "$host"
+assert_shell_was_silent "$host" 'unwritable stamp'
+start_shell "$host"
+assert_shell_was_silent "$host" 'unwritable stamp, second shell'
+sleep "$SETTLE_SECONDS"
+[[ "$(invocation_count "$host")" == 0 ]] ||
+  fail "unwritable stamp: $(invocation_count "$host") regenerations were launched with nothing able to rate-limit them, one per shell start"
+[[ ! -e $host/home/$LOG_RELATIVE ]] ||
+  fail "unwritable stamp: the guard launched something it had to refuse (log: $(cat "$host/home/$LOG_RELATIVE" 2>&1))"
+
+# --- O. no cache AND no Homebrew: the fallback is still silent --------------
+# The consumer's fallback runs ${HOMEBREW_PREFIX}/bin/brew directly, and
+# ~/.bashrc hardcodes that prefix to /opt/homebrew, which is Homebrew's default
+# on Apple Silicon ONLY: brew.sh defaults Linux to /home/linuxbrew/.linuxbrew and
+# everything else, an Intel Mac included, to /usr/local. Neither the consumer
+# block nor .chezmoiignore is OS-gated for ~/.bashrc (only the writer is ignored
+# on Linux), so on either of those hosts every shell runs the fallback against a
+# path with no brew in it, and without the `2>/dev/null` every one of them prints
+# "No such file or directory" in front of the prompt. Case F covers a missing
+# Homebrew for the SELF-HEAL slice; this is the CONSUMER slice, the half that
+# would print.
+host="$(new_host nobrewconsumer)"
+rm "$host/prefix/bin/brew"
+if [[ -e $host/home/$CACHE_RELATIVE ]]; then
+  fail 'no-Homebrew consumer fixture started with a cache, so the fallback would not be reached'
+fi
+start_shell_over "$host" "$consumer"
+if [[ -s $host/terminal ]]; then
+  fail "Homebrew absent: the consumer block printed to the terminal: $(cat "$host/terminal")"
+fi
+[[ -s $host/brew-env ]] ||
+  fail 'Homebrew absent: the consumer block did not run to completion'
+[[ "$(sed -n 1p "$host/brew-env")" == unset ]] ||
+  fail 'Homebrew absent: the shell picked up an environment anyway, so this case no longer exercises the missing-brew fallback'
+
+printf 'bashrc-brew-cache-self-heal(e2e): OK (fires on every unusable cache state, a new generator, a missing or unreadable paths file; bounded by the attempt stamp and silent when it cannot record one; quiet and job-free otherwise, Homebrew present or not)\n'
