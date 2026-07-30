@@ -1,42 +1,40 @@
 #!/usr/bin/env bash
-# macos-defaults-count-guard.sh, defaults_records_declared_count must refuse
-# every count it cannot use, and must still answer for a file it can.
+# macos-defaults-count-guard.sh, the record count must refuse every value it
+# cannot use, and defaults_records_declared_count must still answer for a file
+# it can.
 #
-# The function holds two independent checks, a numeric-count check and a
-# list-shape check. This file pins the NUMERIC check on an input where it is the
-# only one that fires, so it cannot be dropped on the strength of the other.
+# The numeric check is `declared_record_count_is_usable`, a pure predicate over
+# yq's answer. Cases 4 to 9 call it DIRECTLY, which is the only way left to pin
+# its digit ceiling at both boundaries and the only way that names it as the
+# guard under test.
 #
-# It does NOT pin the shape check's refusal, and does not claim to. Deleting the
-# shape check outright leaves every case in this file green (verified by
-# mutation); what catches that is
-# test/integration/macos-defaults-shape-agreement.sh, which feeds a MAP-valued
-# .macos.defaults to this library and to the runner template together. What this
-# file does hold on the shape check is the false-positive direction: inverting it
-# so that it refuses a list dies at case 2.
+# It used to be pinned through the whole function, on a data file whose
+# .macos.defaults was a SCALAR carrying an explicit `!!seq` tag: the tag
+# satisfied the old shape check while yq's `length` reported the scalar's length
+# in BYTES, so a ten-megabyte fixture arrived at the numeric check with a count
+# of 10000000 and a clean shape. That fixture WAS the vulnerability, not a way
+# of reaching past it. The shape check now asks yq for the node's `kind`, which
+# a document author cannot overrule, so it refuses a tagged scalar before the
+# count is ever computed (test/unit/macos-defaults-shape-guard.sh) and no cheap
+# data file reaches the ceiling any more. Calling the predicate directly pins
+# the boundary exactly rather than through a fixture whose byte count has to be
+# taken on trust, it keeps the ceiling pinned at both ends, and it retires the
+# ten-megabyte fixture the old form needed: measured three runs each on the same
+# machine, the old file cost 0.71 to 1.04 s and this one costs 0.08 to 0.22 s.
 #
-# NEITHER check owns the multi-document case (case 1) on its own. yq answers
-# once per document and separates the answers, so a two-document file makes the
-# count arrive as $'1\n---\n0' and the shape as $'!!seq\n---\n!!seq', and each
-# check refuses that independently: disabling either one leaves case 1 green,
-# disabling both fails it. Case 1 therefore asserts the BEHAVIOUR rather than
-# claiming to pin one guard.
+# Cases 1 to 3 stay end-to-end, on the function. They assert what an operator
+# sees for a whole data file, which no predicate call can stand in for:
 #
-# The NUMERIC check owns the digit ceiling (cases 4 and 5), and there it is the
-# only barrier. `!!seq` is a tag, not a proof: an explicit `!!seq` on a scalar
-# makes the shape check answer a clean `!!seq` while yq's `length` reports the
-# SCALAR's length in BYTES (measured, yq v4.53.3: three two-byte runes answer 6).
-# A count of 10000000 therefore reaches the numeric check with the shape check
-# fully satisfied, and nothing else in the function refuses it. Both boundary
-# cases are required: the refusal on its own still passes against a guard whose
-# ceiling has been LOWERED, because no other fixture in this file produces a
-# count of more than one digit.
+#   Case 1, a MULTI-DOCUMENT file. yq answers once per document and separates
+#   the answers, so a two-document file makes the shape arrive as
+#   $'seq !!seq\n---\nseq !!seq' and the count as $'1\n---\n0'. Both the shape
+#   classifier (which refuses any answer that is not one line) and the numeric
+#   predicate refuse that independently, so the case asserts the BEHAVIOUR
+#   rather than claiming to pin one guard. Case 6 holds the numeric half of it
+#   directly.
 #
-# Bytes is also why this file costs about 0.6 s (608 to 670 ms over four runs),
-# over the unit suite's 200 ms warn threshold, alongside a dozen other unit
-# tests already there: the count IS the scalar's byte length, so pinning a
-# seven-digit ceiling against real yq needs a ten-megabyte scalar, and no
-# smaller fixture reaches the bound. Shrinking the fixtures does not make this
-# test faster, it makes it stop testing the ceiling.
+#   Cases 2 and 3 are the false-positive direction and carry the file: a guard
+#   that refuses everything passes every refusal case here and nothing else.
 set -euo pipefail
 
 # The guard admits at most seven digits, so these are the largest count it
@@ -52,32 +50,25 @@ fail() {
   exit 1
 }
 
-# write_seq_tagged_scalar <path> <byte-count>, write a data file whose
-# .macos.defaults is a SCALAR carrying an explicit !!seq tag. yq then reports the
-# shape as a clean !!seq while `length` answers with the scalar's length in
-# BYTES, which is what lets the boundary cases below vary the count while
-# holding the shape check satisfied. The body is ASCII spaces from a single
-# printf, so the byte count and the requested count are the same number, and
-# even a ten-megabyte fixture costs no second process.
-write_seq_tagged_scalar() { # <path> <byte-count>
-  local path="$1" byte_count="$2"
-  {
-    printf 'macos:\n  defaults: !!seq "'
-    printf '%*s' "$byte_count" ''
-    printf '"\n'
-  } >"$path"
+# require_count_accepted <count> <description>, the false-positive direction for
+# the numeric predicate: this value must be USABLE.
+require_count_accepted() { # <count> <description>
+  local count="$1" description="$2"
+  declared_record_count_is_usable "$count" ||
+    fail "$description must be accepted as a record count, and was refused: $(printf '%q' "$count")"
 }
 
-# require_clean_seq_shape <path>, fail unless this fixture SATISFIES the shape
-# check inside defaults_records_declared_count. Asserted before each boundary
-# case: without it the case would pass no matter which of the two checks did the
-# refusing, which is exactly the ambiguity these cases exist to remove.
-require_clean_seq_shape() { # <path>
-  local path="$1" shape
-  shape="$(yq eval -r '(.macos.defaults // []) | tag' "$path")" ||
-    fail "could not read the record shape of $path"
-  [[ $shape == '!!seq' ]] ||
-    fail "fixture $path does not satisfy the shape check (tag $shape), so a refusal would not isolate the count check"
+# refute_count_accepted <count> <description>, require the numeric predicate to
+# refuse this value.
+#
+# A named helper rather than an inline `! declared_record_count_is_usable ...`:
+# under `set -e` an inverted command only decides the test in final position, so
+# a bare negation between other statements is a position lottery.
+refute_count_accepted() { # <count> <description>
+  local count="$1" description="$2"
+  if declared_record_count_is_usable "$count"; then
+    fail "$description must be refused as a record count, and was accepted: $(printf '%q' "$count")"
+  fi
 }
 
 [[ -f $LIB ]] || fail "missing library: $LIB"
@@ -103,9 +94,11 @@ output="$(defaults_records_declared_count "$work/multi.yaml" 2>&1)" || status=$?
 [[ $status -eq 2 ]] ||
   fail "a multi-document data file must be refused with status 2, got $status (output: $output)"
 # The message must carry the offending value. Without it an operator sees only
-# "unusable" and has nothing to search the file for.
+# "unusable" and has nothing to search the file for. `---` is the document
+# separator yq puts between its per-document answers, so its presence is what
+# tells the operator that the file has more than one document in it.
 printf '%s' "$output" | grep -q -- '---' ||
-  fail "the refusal does not show the unusable count, so it does not say what is wrong: $output"
+  fail "the refusal does not show yq's unusable per-document answer, so it does not say what is wrong: $output"
 
 # ---- 2: a well-formed file still answers -----------------------------------
 # The guard must reject a shape, not everything. Without this the test would
@@ -131,38 +124,48 @@ count="$(defaults_records_declared_count "$work/empty.yaml" 2>&1)" || status=$?
 [[ $status -eq 0 && $count == 0 ]] ||
   fail "an empty record list must count as 0 and be accepted, got status $status ($count)"
 
-# ---- 4: a count past the digit ceiling is refused, SHAPE CHECK CLEAN --------
-# The case that pins the numeric check specifically. The shape assertion is what
-# makes it a pin rather than an observation: it establishes that the other check
-# in the function is satisfied, so the refusal can only have come from the count.
-write_seq_tagged_scalar "$work/over-ceiling.yaml" "$SMALLEST_REFUSED_RECORD_COUNT"
-require_clean_seq_shape "$work/over-ceiling.yaml"
-status=0
-output="$(defaults_records_declared_count "$work/over-ceiling.yaml" 2>&1)" || status=$?
-[[ $status -eq 2 ]] ||
-  fail "a record count of $SMALLEST_REFUSED_RECORD_COUNT must be refused with status 2, got $status (output: $output)"
-printf '%s' "$output" | grep -q -- "count $SMALLEST_REFUSED_RECORD_COUNT" ||
-  fail "the refusal does not name the offending count $SMALLEST_REFUSED_RECORD_COUNT: $output"
+# ---- 4: the smallest count past the digit ceiling is refused ----------------
+refute_count_accepted "$SMALLEST_REFUSED_RECORD_COUNT" "the smallest eight-digit count"
 
 # ---- 5: the largest in-range count is still accepted ------------------------
 # The other side of the ceiling, and the ONLY case that catches a bound the next
-# reader lowers. Every case above stays green as the bound drops: no other
-# fixture here produces a count of more than one digit, and case 4 only gets
-# stricter. Verified by mutation, `{0,6}` to `{0,5}` and to `{0,0}` both die
-# here and nowhere else.
-#
-# The shape assertion is kept even though acceptance already implies it (the
-# function returns 2 when the shape is not !!seq), because it holds
-# independently of the library: it reads the fixture's tag with yq directly, so
-# it still reports an untagged fixture if the shape check itself is ever removed.
-write_seq_tagged_scalar "$work/at-ceiling.yaml" "$LARGEST_ACCEPTED_RECORD_COUNT"
-require_clean_seq_shape "$work/at-ceiling.yaml"
-status=0
-count="$(defaults_records_declared_count "$work/at-ceiling.yaml" 2>&1)" || status=$?
-[[ $status -eq 0 ]] ||
-  fail "a record count of $LARGEST_ACCEPTED_RECORD_COUNT must be accepted, got status $status ($count)"
-[[ $count == "$LARGEST_ACCEPTED_RECORD_COUNT" ]] ||
-  fail "expected a count of $LARGEST_ACCEPTED_RECORD_COUNT, got: $count"
+# reader lowers. Every other case here stays green as the bound drops: no other
+# accepted value has more than one digit, and case 4 only gets stricter.
+require_count_accepted "$LARGEST_ACCEPTED_RECORD_COUNT" "the largest seven-digit count"
 
-printf 'macos-defaults-count-guard: OK (a multi-document count is refused and named; the digit ceiling refuses %s and accepts %s with the shape check clean; single and empty files still answer)\n' \
+# ---- 6: a multi-line count is refused ---------------------------------------
+# The numeric half of case 1, held directly. Bash raises no syntax error on this
+# value: it reads the whole thing as ONE arithmetic expression and the `---`
+# separator as a run of unary minus signs, so $'1\n---\n0' evaluates to 1
+# (measured, bash 5.3.15) and the equality check that catches a forged record
+# would silently compare against the DIFFERENCE of the per-document counts.
+refute_count_accepted $'1\n---\n0' "a two-document count"
+
+# ---- 7: a leading zero is refused -------------------------------------------
+# Bash reads a leading zero as octal, so $((0010)) is 8. A count that means one
+# thing to the guard and another to the arithmetic is not usable.
+refute_count_accepted '0010' "a count with a leading zero"
+
+# ---- 8: a value bash arithmetic would WRAP is refused ------------------------
+# The reason the bound lives in the digit quantifier rather than in a `-gt`
+# comparison: a comparison has to evaluate the value to reject it, and this one
+# evaluates to 0 (measured), so `^[0-9]+$` plus `-gt` would accept it.
+refute_count_accepted '18446744073709551616' "a count past the 64-bit range"
+
+# ---- 9: non-numeric and empty counts are refused -----------------------------
+# yq answers with an integer node for a sequence, so neither shape reaches the
+# predicate from today's producer. Both are pinned anyway: the predicate is the
+# barrier if a future producer ever answers something else.
+refute_count_accepted 'abc' "a non-numeric count"
+refute_count_accepted '' "an empty count"
+refute_count_accepted ' 1' "a count with leading whitespace"
+refute_count_accepted '-1' "a negative count"
+
+# ---- 10: the smallest counts are still accepted ------------------------------
+# The floor of the false-positive direction. Without them the predicate could be
+# inverted to refuse everything and cases 4 and 6 to 9 would all stay green.
+require_count_accepted '0' "a count of zero"
+require_count_accepted '1' "a count of one"
+
+printf 'macos-defaults-count-guard: OK (a multi-document file is refused and its unusable answer shown; the digit ceiling refuses %s and accepts %s; single and empty files still answer)\n' \
   "$SMALLEST_REFUSED_RECORD_COUNT" "$LARGEST_ACCEPTED_RECORD_COUNT"

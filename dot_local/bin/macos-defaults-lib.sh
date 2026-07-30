@@ -188,86 +188,149 @@ defaults_records_locate_malformed() { # <path> <declared-count>
 # offending record, and emits NOTHING: a caller must not act on part of a stream
 # it has just been told is malformed. A legitimate multi-line preference value is
 # therefore refused loudly rather than silently corrupted.
+# The yq answers this reader keys on. They are protocol with another program,
+# not free text, which is why they are named here rather than spelled inline at
+# the one site that compares them: a yq release that renamed a node kind would
+# be a one-line change, and the name says which question is being asked.
+#
+# `kind` reports what a node IS after parsing. `tag` reports its
+# REPRESENTATION, which the document author writes, so an explicit `!!seq` sets
+# the tag on a node of ANY shape while leaving the node a map or a scalar
+# (measured, yq v4.53.3). Only `kind` answers the question this guard needs.
+#
+# Plain assignment, not readonly, for the same reason as SYSTEM_READ_* further
+# down: this file is a library, and sourcing it twice must be a no-op.
+DEFAULTS_RECORDS_LIST_KIND='seq'
+DEFAULTS_RECORDS_MAP_KIND='map'
+
+# The two yq expressions this reader asks the data file, named so the pair
+# always describes the SAME node, and the shape one kept beside the classifier
+# that parses it so their separator cannot drift apart.
+DEFAULTS_RECORDS_SHAPE_EXPRESSION='(.macos.defaults // []) | [kind, tag] | join(" ")'
+DEFAULTS_RECORDS_COUNT_EXPRESSION='(.macos.defaults // []) | length'
+
+# records_declaration_verdict <shape-answer>, classify what the data file
+# declares at .macos.defaults. PURE: one string in, one verdict out, no file
+# access and no globals beyond the two kind names above.
+#
+#   list   a real YAML sequence, the declared schema. The only accepted verdict.
+#   map    a mapping, in any spelling, including one wearing a `!!seq` tag.
+#   other  anything else, including a scalar, an empty answer (yq found no node
+#          at all, which happens when `.macos` is not a mapping), and an answer
+#          yq spread over several lines (one per document in a multi-document
+#          file). Unrecognized resolves to a REFUSED verdict, never an accepted
+#          one, so a shape nobody anticipated cannot arrive as "list".
+records_declaration_verdict() { # <shape-answer>
+  local shape_answer="$1" node_kind
+  # Exactly one line of two space-separated fields is the only answer this
+  # classifier can read. Anything else, including yq's per-document answers
+  # separated by `---`, falls through to "other" rather than letting the first
+  # document answer for the whole file.
+  if [[ ! $shape_answer =~ ^([[:alpha:]]+)' '[^[:space:]]+$ ]]; then
+    printf 'other\n'
+    return 0
+  fi
+  node_kind="${BASH_REMATCH[1]}"
+  case $node_kind in
+    "$DEFAULTS_RECORDS_LIST_KIND") printf 'list\n' ;;
+    "$DEFAULTS_RECORDS_MAP_KIND") printf 'map\n' ;;
+    *) printf 'other\n' ;;
+  esac
+}
+
+# declared_record_count_is_usable <count>, a PURE predicate: 0 when yq's answer
+# is a single plain non-negative integer this library can safely do arithmetic
+# on, 1 otherwise.
+#
+# The count drives both `((...))` loop bounds and the `-ne` comparison that
+# catches a forged record, so three separate shapes have to be refused, and the
+# comment matters because only one of them is reachable from today's producer.
+#
+# A NON-NUMERIC count and a LEADING ZERO (which bash reads as octal: $((0010))
+# is 8) are defence in depth. `length` on a sequence answers with an integer
+# node, and this predicate now runs only after the shape verdict is `list`, so
+# neither shape reaches it from this producer.
+#
+# What a MULTI-LINE count would do if it got past here is worth recording
+# correctly, because the obvious guess is wrong and an earlier version of this
+# comment asserted it: bash raises no syntax error. It reads the whole value as
+# ONE arithmetic expression and the `---` separator as a run of unary minus
+# signs, so $'1\n---\n0' evaluates to 1 and $'0\n---\n9' to -9 (measured, bash
+# 5.3.15). The `-ne` comparison would then answer on the DIFFERENCE of the
+# per-document counts, silently, and on $'1\n---\n0' it answers "no mismatch"
+# and emits the very stream it exists to reject. The shape check refuses a
+# multi-document file first, so this predicate is the second barrier there, not
+# the first.
+#
+# The SEVEN-DIGIT CEILING bounds a count no other check bounds. It is defence in
+# depth against this producer as well, and honestly so: a sequence's `length` is
+# its element count, so reaching eight digits needs ten million real records.
+# The route that made it cheap is closed, and closing it is why the ceiling now
+# has to be pinned by calling this predicate directly. An explicit `!!seq` on a
+# SCALAR used to satisfy the old tag-based shape check while yq's `length`
+# reported the scalar's length in BYTES, so a 10 MB file published a count of
+# 10000000 (measured, yq v4.53.3) and a 1 GB file a billion. That count is the
+# upper bound of the `defaults_records_locate_malformed` loop, which forks yq
+# per iteration (measured at about 11 ms each).
+#
+# Bounding by DIGIT COUNT rather than by comparison is deliberate: it refuses an
+# oversized value BEFORE any arithmetic touches it. A comparison has to evaluate
+# the value in order to reject it, and bash's integer arithmetic WRAPS without
+# complaint, so `^[0-9]+$` plus `-gt` ACCEPTS 18446744073709551616, which
+# evaluates to 0 (measured). The bound stays in the quantifier rather than in a
+# named constant because `^(0|[1-9][0-9]{0,N})$` is the form four other guards
+# in this repo already use, and naming it at this one site alone would leave
+# five spellings of one idiom.
+#
+# test/unit/macos-defaults-count-guard.sh pins both boundaries of the ceiling.
+declared_record_count_is_usable() { # <count>
+  [[ $1 =~ ^(0|[1-9][0-9]{0,6})$ ]]
+}
+
 defaults_records_declared_count() { # <path>, print the validated record count
   local data_file="$1"
-  local declared_record_count records_kind
-  if ! declared_record_count="$(yq eval -r '(.macos.defaults // []) | length' "$data_file")"; then
-    printf 'error: cannot count the records in %s\n' "$data_file" >&2
-    return 2
-  fi
-  # The count is a STRING from yq, and it is about to drive both `((...))` loop
-  # bounds and the `-ne` comparison that catches a forged record. The pattern
-  # below does THREE things, and only one of them is uniquely reachable. Saying
-  # which is which is the point of this comment: a check that reads as
-  # load-bearing when it is not gets "simplified" away by the next reader.
-  #
-  # Rejecting a NON-NUMERIC count and rejecting a LEADING ZERO (which bash would
-  # read as octal: $((0010)) is 8) are both defence in depth. `length` answers
-  # with an integer node, so neither shape reaches here from this producer.
-  # Neither is expected to: this expression and the shape expression below share
-  # the producer `(.macos.defaults // [])`, so they always emit the same NUMBER
-  # of lines, and a single-result `!!seq` always has an integer length. A
-  # multi-document file, the one input observed to produce a multi-line count,
-  # therefore trips the shape check as well; removing this pattern leaves that
-  # file refused.
-  #
-  # What a multi-line count WOULD do if it got past here is worth recording
-  # correctly, because the obvious guess is wrong and an earlier version of this
-  # comment asserted it: bash raises no syntax error. It reads the whole value
-  # as ONE arithmetic expression and the `---` separator as a run of unary minus
-  # signs, so $'1\n---\n0' evaluates to 1 and $'0\n---\n9' to -9 (measured, bash
-  # 5.3.15). The `-ne` comparison below would answer on the DIFFERENCE of the
-  # per-document counts, silently, and on $'1\n---\n0' it answers "no mismatch"
-  # and emits the very stream it exists to reject.
-  #
-  # The SEVEN-DIGIT CEILING is the half nothing else enforces, so this check
-  # stays. `!!seq` is a tag, not a proof: an explicit `!!seq` on a scalar makes
-  # the shape check below answer `!!seq` while yq's `length` reports the
-  # SCALAR's length in BYTES, so a count of 10000000 reaches here with the shape
-  # check fully satisfied (measured, yq v4.53.3). Bytes is what makes the
-  # ceiling worth having: without it the only bound on the count this function
-  # publishes is the SIZE OF THE DATA FILE, so a 10 MB file would publish
-  # 10000000 and a 1 GB file a billion. That count is the upper bound of the
-  # `defaults_records_locate_malformed` loop, which forks yq per iteration
-  # (measured at about 11 ms each). The loop returns at the FIRST record that
-  # does not render as one eight-field line, so on the tagged-scalar input above
-  # it returns at index 0; a file whose records all render cleanly is the one
-  # that walks the whole range.
-  #
-  # Bounding by DIGIT COUNT rather than by comparison is deliberate: it refuses
-  # an oversized value BEFORE any arithmetic touches it. A comparison has to
-  # evaluate the value in order to reject it, and bash's integer arithmetic
-  # WRAPS without complaint, so `^[0-9]+$` plus `-gt` ACCEPTS
-  # 18446744073709551616, which evaluates to 0 (measured). The bound stays in
-  # the quantifier rather than in a named constant because
-  # `^(0|[1-9][0-9]{0,N})$` is the form four other guards in this repo already
-  # use, and naming it at this one site alone would leave five spellings of one
-  # idiom.
-  #
-  # test/unit/macos-defaults-count-guard.sh pins both boundaries of the ceiling
-  # and the multi-document behaviour.
-  if [[ ! $declared_record_count =~ ^(0|[1-9][0-9]{0,6})$ ]]; then
-    printf 'error: %s produced an unusable record count %q; refusing to emit a stream that cannot be checked\n' \
-      "$data_file" "$declared_record_count" >&2
-    return 2
-  fi
-  # The SHAPE, before the content. `.macos.defaults[]` yields values from a map
-  # just as happily as from a list, and `length` counts a map's keys, so every
-  # check above passes on a map and the stream comes out in document order. The
-  # runner template reads the same file with Go's `range`, which iterates a map
-  # in sorted KEY order. Two readers, two orders, neither complaining, and order
-  # decides which write lands last when records share a domain and key.
+  local shape_answer declaration_verdict declared_record_count
+  # The SHAPE, before the count. `.macos.defaults[]` yields values from a map
+  # just as happily as from a list, and `length` counts a map's keys, so a map
+  # answers the count question without complaint and the stream comes out in
+  # document order. The runner template reads the same file with Go's `range`,
+  # which iterates a map in sorted KEY order. Two readers, two orders, neither
+  # complaining, and order decides which write lands last when records share a
+  # domain and key.
   #
   # Refused rather than reconciled: a map is not the declared schema, and
   # standardizing on one order would leave the other reader's agreement a
   # coincidence instead of a guarantee. The template refuses the same shape.
-  if ! records_kind="$(yq eval -r '(.macos.defaults // []) | tag' "$data_file")"; then
+  #
+  # Asking the shape FIRST is what lets the count check stop carrying shapes it
+  # was never the right guard for. A count is only meaningful once the node is
+  # known to be a list, and "declares .macos.defaults as a scalar" is a better
+  # thing to tell an operator than "unusable record count 10000000".
+  if ! shape_answer="$(yq eval -r "$DEFAULTS_RECORDS_SHAPE_EXPRESSION" "$data_file")"; then
     printf 'error: cannot determine the shape of .macos.defaults in %s\n' "$data_file" >&2
     return 2
   fi
-  if [[ $records_kind != '!!seq' ]]; then
-    printf 'error: %s declares .macos.defaults as %s, but it must be a LIST of records; a map is read in sorted key order by the runner template and in document order here, so the two would apply records in different orders\n' \
-      "$data_file" "$records_kind" >&2
+  declaration_verdict="$(records_declaration_verdict "$shape_answer")"
+  case $declaration_verdict in
+    list) ;;
+    map)
+      printf 'error: %s declares .macos.defaults as a map, but it must be a LIST of records; a map is read in sorted key order by the runner template and in document order here, so the two would apply records in different orders\n' \
+        "$data_file" >&2
+      return 2
+      ;;
+    *)
+      printf 'error: %s does not declare .macos.defaults as a LIST of records; yq answered %q for its kind and tag\n' \
+        "$data_file" "$shape_answer" >&2
+      return 2
+      ;;
+  esac
+  if ! declared_record_count="$(yq eval -r "$DEFAULTS_RECORDS_COUNT_EXPRESSION" "$data_file")"; then
+    printf 'error: cannot count the records in %s\n' "$data_file" >&2
+    return 2
+  fi
+  if ! declared_record_count_is_usable "$declared_record_count"; then
+    printf 'error: %s produced an unusable record count %q; refusing to emit a stream that cannot be checked\n' \
+      "$data_file" "$declared_record_count" >&2
     return 2
   fi
   printf '%s\n' "$declared_record_count"
