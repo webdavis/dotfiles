@@ -31,10 +31,16 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 GITCONFIG_TEMPLATE="$REPO_ROOT/dot_gitconfig.tmpl"
-# git's documented default for core.excludesFile is $XDG_CONFIG_HOME/git/ignore,
-# and dot_bashrc.tmpl / dot_profile both export XDG_CONFIG_HOME=$HOME/.config.
-XDG_IGNORE_TARGET="$HOME/.config/git/ignore"
-XDG_IGNORE_SOURCE="dot_config/git/ignore"
+GIT_DEFAULT_EXCLUDES_SOURCE="dot_config/git/ignore"
+# Where git looks when core.excludesFile is unset. git consults XDG_CONFIG_HOME
+# only when it is set AND non-empty, and uses $HOME/.config otherwise, which is
+# precisely what bash's `:-` does (measured on git 2.55.0 with `git check-ignore`
+# for all three states of the variable: pointed elsewhere, set empty, unset).
+# Deriving the path instead of hardcoding $HOME/.config is what lets this test
+# notice an environment in which the file this repo deploys is not the file git
+# would read. dot_bashrc.tmpl and dot_profile both export $HOME/.config, so on a
+# machine this repo has deployed the two agree.
+GIT_DEFAULT_EXCLUDES_TARGET="${XDG_CONFIG_HOME:-$HOME/.config}/git/ignore"
 # The chezmoi entry types that put a readable file at a target path. Symlinks
 # count: git follows a symlinked ignore file (measured), so a symlink_ source
 # satisfies invariant 3 exactly as a plain file does. Directories and scripts do
@@ -47,7 +53,9 @@ PLACEHOLDER="CHEZMOI_TEMPLATE_PLACEHOLDER"
 CONTROL_FLOW_ACTIONS='{{-?[[:space:]]*(if|else|end|range|with|block|define|template)\b'
 
 # Bug class 11: git exports GIT_DIR and friends into every hook, and a stale one
-# would redirect the config reads below at the wrong repository. chezmoi needs no
+# would redirect the config reads below at the wrong repository. XDG_CONFIG_HOME
+# is deliberately NOT scrubbed: it is an input to the answer rather than a
+# redirection of it, and is read above through git's own rule. chezmoi needs no
 # equivalent scrub: it has no environment override for sourceDir or destDir
 # (measured: CHEZMOI_SOURCE_DIR is ignored), and both are passed explicitly
 # below, so the only environment input left is where its own config file is
@@ -136,8 +144,8 @@ if [[ -n $excludes ]]; then
   chezmoi_delivers_target_path "${excludes/#\~/$HOME}" ||
     fail "core.excludesfile = '$excludes' names a path chezmoi does not deliver, so git would load no global ignores at all"
 else
-  chezmoi_delivers_target_path "$XDG_IGNORE_TARGET" ||
-    fail "core.excludesfile is unset, so git falls back to $XDG_IGNORE_TARGET, but chezmoi does not deliver that path from $XDG_IGNORE_SOURCE (present in the source tree is not enough; check .chezmoiignore); global ignores would be empty on a fresh machine"
+  chezmoi_delivers_target_path "$GIT_DEFAULT_EXCLUDES_TARGET" ||
+    fail "core.excludesfile is unset, so git falls back to $GIT_DEFAULT_EXCLUDES_TARGET, but chezmoi does not deliver that path from $GIT_DEFAULT_EXCLUDES_SOURCE (present in the source tree is not enough; check .chezmoiignore); global ignores would be empty on a fresh machine"
 fi
 
 printf 'gitconfig-tool-and-url-hygiene: OK (diff.tool/merge.tool resolve, no git:// rewrite target, global ignores are deployed)\n'
