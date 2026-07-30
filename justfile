@@ -51,11 +51,19 @@ lint-json:
 lint-yaml:
   nix develop .#run --command treefmt --formatters yq-validate
 
-# GitHub Actions hygiene: actionlint (syntax/semantics, also part of `just l`)
-# plus zizmor (static security analysis; --offline skips the audits that need
-# the GitHub API, so the result is deterministic). CI runs this too.
-lint-actions:
+# GitHub Actions hygiene: actionlint (syntax/semantics) plus zizmor (static
+# security analysis). Split into two recipes because CI runs only the zizmor
+# half as a gate of its own, and `ship` reuses that recipe rather than repeating
+# its command line.
+lint-actions: lint-actions-syntax lint-actions-security
+
+# actionlint through treefmt, so it uses the same config `just l` uses.
+lint-actions-syntax:
   nix develop .#run --command treefmt --formatters actionlint
+
+# CI's third gate, verbatim. --offline skips the audits that need the GitHub
+# API, so the result is deterministic.
+lint-actions-security:
   nix develop .#run --command zizmor --offline .github/workflows
 
 diff:
@@ -64,8 +72,15 @@ diff:
 apply-no-auth:
   nix develop .#run --command chezmoi apply --exclude=templates --force
 
+# CI's first gate, verbatim. --all-systems EVALUATES every system the flake
+# declares (x86_64-linux and aarch64-darwin), so an output that only breaks on
+# the other platform is caught here; it still BUILDS only the checks this host
+# can build, so the treefmt drift derivation actually runs for aarch64-darwin
+# alone. CI is macOS too, so its coverage is the same. Host nix, no devshell
+# wrapper, because CI runs it that way: a broken flake has to fail HERE rather
+# than while building the shell that would have run the check.
 check:
-  nix develop .#run --command nix flake check --all-systems
+  nix flake check --all-systems
 
 # Tests live in suites by DESIGN: test/unit (single component, stub-driven, no
 # flows, no sleeps; FAST is the admission rule), test/integration
@@ -110,12 +125,24 @@ validate-tests:
 # so no separate bats backstop is needed here.
 test: test-unit test-integration test-e2e test-system
 
-# The explicit ship step: everything CI will run, run here first. Use it before
-# opening a PR you care about. Pre-push deliberately does NOT run this, because
-# doing so cost 6m30s on every push to rehearse what CI runs 11 minutes later;
-# see the comment in .githooks/pre-push. Note this checks the WORKING TREE,
-# while CI checks the commit, so a green ship is not a promise about CI.
-ship: lint-check test
+# CI's second gate, verbatim: every suite inside the flake's `run` shell, so the
+# tools are the pinned ones CI has rather than whatever the host happens to
+# carry. bats and GNU parallel are not on this host at all, so a bare `just
+# test` re-enters this same shell once per suite that has a .bats file; entering
+# it once up front is both faster and closer to what CI does.
+test-devshell:
+  nix develop .#run --command just test
+
+# The pre-PR sweep: the three gates .github/workflows/lint.yml runs, in CI's
+# order, each through the recipe that holds that gate's command line, so the two
+# cannot describe different work. test/unit/ship-ci-gate-parity.sh re-reads the
+# workflow and this recipe and fails when they disagree.
+#
+# What a green run still does NOT promise: it checks the WORKING TREE while CI
+# checks the pushed commit, so an unstaged edit can make ship green and CI red.
+# Pre-push deliberately runs none of this, because rehearsing what CI runs 11
+# minutes later cost 6m30s on every push; see the comment in .githooks/pre-push.
+ship: check test-devshell lint-actions-security
 
 # Run the weekly Homebrew upgrade by hand (formulae + casks + Mac App Store +
 # cleanup). Same job the Monday-noon com.webdavis.homebrew-weekly-upgrade
