@@ -111,9 +111,10 @@ Ordered hardest-first. "Hard parts" flagged 🔴.
 1. **carapace / starship / zoxide / direnv re-init.** Mechanical (C3/C4). Lowest risk.
 
 **Not migrated (stays bash, this is the containment win):** `dot_bashrc.tmpl` non-interactive PATH/env
-half, `dot_profile`, `dot_bash_profile`, brew-shellenv cache (`run_after_44` + self-heal + test),
-`~/.bash_functions`, all non-interactive login doors, herdr `/bin/sh -lc` gate. `SHELL` stays brew bash;
-nu is an interactive child only.
+half, `dot_profile`, `dot_bash_profile`, brew-shellenv cache (the deployed writer
+`dot_local/bin/executable_brew-shellenv-cache-refresh.sh` + self-heal + test), `~/.bash_functions`, all
+non-interactive login doors, herdr `/bin/sh -lc` gate. `SHELL` stays brew bash; nu is an interactive
+child only.
 
 ______________________________________________________________________
 

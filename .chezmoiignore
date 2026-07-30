@@ -59,4 +59,5 @@ Library
 .local/bin/macos-defaults-lib.sh
 # Rotation is driven by a launchd agent and reads sizes with BSD `stat -f`.
 .local/bin/rotate-logs.sh
+.local/bin/brew-shellenv-cache-refresh.sh
 {{- end -}}

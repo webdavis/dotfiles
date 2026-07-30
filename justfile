@@ -174,6 +174,31 @@ ship: check test-devshell lint-actions-security
 brew-upgrade:
   ~/.local/bin/homebrew-weekly-upgrade.sh
 
+# Run only the brew shellenv cache drift test (a subset of `just test`).
+test-brew-cache:
+  ./test/e2e/brew-shellenv-cache-drift.sh
+
+# Regenerate the brew shellenv cache (~/.cache/brew-shellenv.sh) from the current
+# `brew shellenv`, now, instead of waiting for the next interactive shell to
+# self-heal it. Use it after a Homebrew update if `just test` reports cache
+# drift, and to seed the cache on a host nobody logs into interactively (the
+# ~/.bashrc self-heal only runs in interactive shells). Runs the DEPLOYED writer,
+# the same artifact ~/.bashrc's self-heal runs, so the atomic write (mktemp in
+# the cache dir, brew success-gated, then rename) has exactly one implementation
+# and this recipe cannot drift from it. The writer reaches ~/.local/bin only via
+# `chezmoi apply`, so say that plainly instead of letting the shell report a bare
+# "No such file or directory" from a path the reader has no reason to recognize.
+brew-cache-refresh:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  deployed_writer="$HOME/.local/bin/brew-shellenv-cache-refresh.sh"
+  if [[ ! -x $deployed_writer ]]; then
+    printf 'brew-cache-refresh: %s is not deployed.\n' "$deployed_writer" >&2
+    printf '  Run `chezmoi apply` (it is a plain file, not a template), then retry.\n' >&2
+    exit 1
+  fi
+  "$deployed_writer"
+
 # macOS Defaults: drift, apply, capture
 
 defaults-drift:
