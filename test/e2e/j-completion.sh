@@ -29,7 +29,10 @@ command -v just >/dev/null 2>&1 || {
 }
 
 render="$(CI=1 chezmoi --source "$REPO_ROOT" execute-template --no-tty <"$REPO_ROOT/dot_bashrc.tmpl")" ||
-  { printf 'j-completion: FAIL -- render failed\n' >&2; exit 1; }
+  {
+    printf 'j-completion: FAIL -- render failed\n' >&2
+    exit 1
+  }
 
 # Drive both `j` and just completion for the same prefix in one interactive
 # shell (carapace only registers under `-i`), from the repo root so just sees a
@@ -54,8 +57,14 @@ just_n="$(sed -n 's/^just=//p' <<<"$counts")"
   exit 0
 }
 [[ ${j_n:-0} -gt 0 ]] ||
-  { printf 'j-completion: FAIL -- j t yielded 0 completions (wrapper not delegating to just)\n' >&2; exit 1; }
+  {
+    printf 'j-completion: FAIL -- j t yielded 0 completions (wrapper not delegating to just)\n' >&2
+    exit 1
+  }
 [[ ${j_n:-0} -eq ${just_n:-0} ]] ||
-  { printf 'j-completion: FAIL -- j (%s) != just (%s) completions\n' "$j_n" "$just_n" >&2; exit 1; }
+  {
+    printf 'j-completion: FAIL -- j (%s) != just (%s) completions\n' "$j_n" "$just_n" >&2
+    exit 1
+  }
 
 printf 'j-completion: OK -- j completes identically to just (%s candidates for prefix "t")\n' "$j_n"
