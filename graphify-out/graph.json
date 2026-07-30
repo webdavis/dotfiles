@@ -13885,7 +13885,7 @@
       "label": "fail()",
       "file_type": "code",
       "source_file": "test/integration/ssh-config-github-keepalive.sh",
-      "source_location": "L37",
+      "source_location": "L38",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -13899,7 +13899,7 @@
       "label": "resolved()",
       "file_type": "code",
       "source_file": "test/integration/ssh-config-github-keepalive.sh",
-      "source_location": "L48",
+      "source_location": "L49",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -22677,7 +22677,7 @@
       "label": "fail()",
       "file_type": "code",
       "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L79",
+      "source_location": "L92",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -22691,7 +22691,7 @@
       "label": "is_member()",
       "file_type": "code",
       "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L85",
+      "source_location": "L98",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -22705,7 +22705,7 @@
       "label": "is_readable_inline_command()",
       "file_type": "code",
       "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L96",
+      "source_location": "L109",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -22719,7 +22719,7 @@
       "label": "strip_trailing_whitespace()",
       "file_type": "code",
       "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L103",
+      "source_location": "L116",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -22733,7 +22733,7 @@
       "label": "action_reference_name()",
       "file_type": "code",
       "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L111",
+      "source_location": "L124",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -22744,10 +22744,24 @@
       "norm_label": "action_reference_name()"
     },
     {
+      "label": "workflow_file_names()",
+      "file_type": "code",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L139",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_ship_ci_gate_parity_workflow_file_names",
+      "community": 354,
+      "norm_label": "workflow_file_names()"
+    },
+    {
       "label": "assert_every_workflow_is_classified()",
       "file_type": "code",
       "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L119",
+      "source_location": "L154",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -22761,7 +22775,7 @@
       "label": "assert_gate_workflow_steps_are_comparable()",
       "file_type": "code",
       "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L133",
+      "source_location": "L166",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -22775,7 +22789,7 @@
       "label": "extract_gate_trigger_block()",
       "file_type": "code",
       "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L156",
+      "source_location": "L189",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -22789,7 +22803,7 @@
       "label": "assert_recipe_is_comparable()",
       "file_type": "code",
       "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L191",
+      "source_location": "L224",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -22803,7 +22817,7 @@
       "label": "recipe_dependencies()",
       "file_type": "code",
       "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L207",
+      "source_location": "L240",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -22817,7 +22831,7 @@
       "label": "recipe_prior_dependency_count()",
       "file_type": "code",
       "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L216",
+      "source_location": "L249",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -22831,7 +22845,7 @@
       "label": "recipe_body_lines()",
       "file_type": "code",
       "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L221",
+      "source_location": "L254",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -22845,7 +22859,7 @@
       "label": "recipe_command_lines()",
       "file_type": "code",
       "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L233",
+      "source_location": "L278",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -22859,7 +22873,7 @@
       "label": "workflow_step_commands()",
       "file_type": "code",
       "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L264",
+      "source_location": "L309",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -22873,7 +22887,7 @@
       "label": "report_lists_and_fail()",
       "file_type": "code",
       "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L279",
+      "source_location": "L324",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -23526,336 +23540,6 @@
       "id": "test_validate_tests_main",
       "community": 304,
       "norm_label": "main()"
-    },
-    {
-      "label": "AGENTS.md",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L1",
-      "_origin": "ast",
-      "id": "agents",
-      "community": 323,
-      "norm_label": "agents.md"
-    },
-    {
-      "label": "CLAUDE.md",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L7",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_claude_md",
-      "community": 323,
-      "norm_label": "claude.md"
-    },
-    {
-      "label": "What This Is",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L11",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_what_this_is",
-      "community": 323,
-      "norm_label": "what this is"
-    },
-    {
-      "label": "Key Commands",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L18",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_key_commands",
-      "community": 323,
-      "norm_label": "key commands"
-    },
-    {
-      "label": "Linting & Formatting",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L20",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_linting_formatting",
-      "community": 323,
-      "norm_label": "linting & formatting"
-    },
-    {
-      "label": "Testing",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L46",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_testing",
-      "community": 323,
-      "norm_label": "testing"
-    },
-    {
-      "label": "Chezmoi Operations",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L86",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_chezmoi_operations",
-      "community": 323,
-      "norm_label": "chezmoi operations"
-    },
-    {
-      "label": "Claude Code Settings",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L114",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_claude_code_settings",
-      "community": 323,
-      "norm_label": "claude code settings"
-    },
-    {
-      "label": "Git Hooks",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L147",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_git_hooks",
-      "community": 323,
-      "norm_label": "git hooks"
-    },
-    {
-      "label": "Architecture",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L214",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_architecture",
-      "community": 323,
-      "norm_label": "architecture"
-    },
-    {
-      "label": "Source-Only Files",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L216",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_source_only_files",
-      "community": 323,
-      "norm_label": "source-only files"
-    },
-    {
-      "label": "Minimum Chezmoi Version",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L224",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_minimum_chezmoi_version",
-      "community": 323,
-      "norm_label": "minimum chezmoi version"
-    },
-    {
-      "label": "Secrets Management",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L228",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_secrets_management",
-      "community": 323,
-      "norm_label": "secrets management"
-    },
-    {
-      "label": "System Package Management",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L235",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_system_package_management",
-      "community": 323,
-      "norm_label": "system package management"
-    },
-    {
-      "label": "macOS Defaults Management",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L260",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_macos_defaults_management",
-      "community": 323,
-      "norm_label": "macos defaults management"
-    },
-    {
-      "label": "Template Files",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L305",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_template_files",
-      "community": 323,
-      "norm_label": "template files"
-    },
-    {
-      "label": "Template Shellcheck Workaround",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L311",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_template_shellcheck_workaround",
-      "community": 323,
-      "norm_label": "template shellcheck workaround"
-    },
-    {
-      "label": "OS Targeting",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L332",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_os_targeting",
-      "community": 323,
-      "norm_label": "os targeting"
-    },
-    {
-      "label": "Dev Environment (Nix Flake)",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L337",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_dev_environment_nix_flake",
-      "community": 323,
-      "norm_label": "dev environment (nix flake)"
-    },
-    {
-      "label": "CI",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L348",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_ci",
-      "community": 323,
-      "norm_label": "ci"
-    },
-    {
-      "label": "Agent Skills (cross-harness store)",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L358",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_agent_skills_cross_harness_store",
-      "community": 323,
-      "norm_label": "agent skills (cross-harness store)"
-    },
-    {
-      "label": "Herdr Workspace Management",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L528",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_herdr_workspace_management",
-      "community": 323,
-      "norm_label": "herdr workspace management"
-    },
-    {
-      "label": "Git Worktrees (Worktrunk)",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L548",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_git_worktrees_worktrunk",
-      "community": 323,
-      "norm_label": "git worktrees (worktrunk)"
-    },
-    {
-      "label": "Bashrc Init Ordering",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L555",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_bashrc_init_ordering",
-      "community": 323,
-      "norm_label": "bashrc init ordering"
-    },
-    {
-      "label": "Shell History (Atuin)",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L563",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_shell_history_atuin",
-      "community": 323,
-      "norm_label": "shell history (atuin)"
-    },
-    {
-      "label": "Happy Daemon (Remote Agent Control)",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L592",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_happy_daemon_remote_agent_control",
-      "community": 323,
-      "norm_label": "happy daemon (remote agent control)"
-    },
-    {
-      "label": "Tailscale (headless daemon)",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L619",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_tailscale_headless_daemon",
-      "community": 323,
-      "norm_label": "tailscale (headless daemon)"
-    },
-    {
-      "label": "AI Commit Messages",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L656",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_ai_commit_messages",
-      "community": 323,
-      "norm_label": "ai commit messages"
-    },
-    {
-      "label": "Long-running Command Notifier",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L669",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_long_running_command_notifier",
-      "community": 323,
-      "norm_label": "long-running command notifier"
-    },
-    {
-      "label": "Herdr Native Status",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L675",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_herdr_native_status",
-      "community": 323,
-      "norm_label": "herdr native status"
-    },
-    {
-      "label": "Code Style",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L681",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_code_style",
-      "community": 323,
-      "norm_label": "code style"
-    },
-    {
-      "label": "Git Commits",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L707",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_git_commits",
-      "community": 323,
-      "norm_label": "git commits"
-    },
-    {
-      "label": "Security",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L714",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_security",
-      "community": 323,
-      "norm_label": "security"
     },
     {
       "label": "CLAUDE.md",
@@ -59340,7 +59024,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/ssh-config-github-keepalive.sh",
-      "source_location": "L37",
+      "source_location": "L38",
       "weight": 1.0,
       "source": "test_integration_ssh_config_github_keepalive",
       "target": "test_integration_ssh_config_github_keepalive_fail",
@@ -59350,7 +59034,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/ssh-config-github-keepalive.sh",
-      "source_location": "L48",
+      "source_location": "L49",
       "weight": 1.0,
       "source": "test_integration_ssh_config_github_keepalive",
       "target": "test_integration_ssh_config_github_keepalive_resolved",
@@ -59370,7 +59054,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/ssh-config-github-keepalive.sh",
-      "source_location": "L42",
+      "source_location": "L43",
       "weight": 1.0,
       "context": "call",
       "source": "test_integration_ssh_config_github_keepalive_sh__entry",
@@ -68412,7 +68096,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L111",
+      "source_location": "L124",
       "weight": 1.0,
       "source": "test_unit_ship_ci_gate_parity",
       "target": "test_unit_ship_ci_gate_parity_action_reference_name",
@@ -68422,7 +68106,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L119",
+      "source_location": "L154",
       "weight": 1.0,
       "source": "test_unit_ship_ci_gate_parity",
       "target": "test_unit_ship_ci_gate_parity_assert_every_workflow_is_classified",
@@ -68432,7 +68116,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L133",
+      "source_location": "L166",
       "weight": 1.0,
       "source": "test_unit_ship_ci_gate_parity",
       "target": "test_unit_ship_ci_gate_parity_assert_gate_workflow_steps_are_comparable",
@@ -68442,7 +68126,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L191",
+      "source_location": "L224",
       "weight": 1.0,
       "source": "test_unit_ship_ci_gate_parity",
       "target": "test_unit_ship_ci_gate_parity_assert_recipe_is_comparable",
@@ -68452,7 +68136,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L156",
+      "source_location": "L189",
       "weight": 1.0,
       "source": "test_unit_ship_ci_gate_parity",
       "target": "test_unit_ship_ci_gate_parity_extract_gate_trigger_block",
@@ -68462,7 +68146,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L79",
+      "source_location": "L92",
       "weight": 1.0,
       "source": "test_unit_ship_ci_gate_parity",
       "target": "test_unit_ship_ci_gate_parity_fail",
@@ -68472,7 +68156,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L85",
+      "source_location": "L98",
       "weight": 1.0,
       "source": "test_unit_ship_ci_gate_parity",
       "target": "test_unit_ship_ci_gate_parity_is_member",
@@ -68482,7 +68166,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L96",
+      "source_location": "L109",
       "weight": 1.0,
       "source": "test_unit_ship_ci_gate_parity",
       "target": "test_unit_ship_ci_gate_parity_is_readable_inline_command",
@@ -68492,7 +68176,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L221",
+      "source_location": "L254",
       "weight": 1.0,
       "source": "test_unit_ship_ci_gate_parity",
       "target": "test_unit_ship_ci_gate_parity_recipe_body_lines",
@@ -68502,7 +68186,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L233",
+      "source_location": "L278",
       "weight": 1.0,
       "source": "test_unit_ship_ci_gate_parity",
       "target": "test_unit_ship_ci_gate_parity_recipe_command_lines",
@@ -68512,7 +68196,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L207",
+      "source_location": "L240",
       "weight": 1.0,
       "source": "test_unit_ship_ci_gate_parity",
       "target": "test_unit_ship_ci_gate_parity_recipe_dependencies",
@@ -68522,7 +68206,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L216",
+      "source_location": "L249",
       "weight": 1.0,
       "source": "test_unit_ship_ci_gate_parity",
       "target": "test_unit_ship_ci_gate_parity_recipe_prior_dependency_count",
@@ -68532,7 +68216,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L279",
+      "source_location": "L324",
       "weight": 1.0,
       "source": "test_unit_ship_ci_gate_parity",
       "target": "test_unit_ship_ci_gate_parity_report_lists_and_fail",
@@ -68552,7 +68236,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L103",
+      "source_location": "L116",
       "weight": 1.0,
       "source": "test_unit_ship_ci_gate_parity",
       "target": "test_unit_ship_ci_gate_parity_strip_trailing_whitespace",
@@ -68562,7 +68246,17 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L264",
+      "source_location": "L139",
+      "weight": 1.0,
+      "source": "test_unit_ship_ci_gate_parity",
+      "target": "test_unit_ship_ci_gate_parity_workflow_file_names",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L309",
       "weight": 1.0,
       "source": "test_unit_ship_ci_gate_parity",
       "target": "test_unit_ship_ci_gate_parity_workflow_step_commands",
@@ -68572,7 +68266,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L295",
+      "source_location": "L340",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_ship_ci_gate_parity_sh__entry",
@@ -68583,7 +68277,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L309",
+      "source_location": "L354",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_ship_ci_gate_parity_sh__entry",
@@ -68594,7 +68288,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L310",
+      "source_location": "L355",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_ship_ci_gate_parity_sh__entry",
@@ -68605,7 +68299,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L288",
+      "source_location": "L333",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_ship_ci_gate_parity_sh__entry",
@@ -68616,7 +68310,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L315",
+      "source_location": "L360",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_ship_ci_gate_parity_sh__entry",
@@ -68627,7 +68321,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L325",
+      "source_location": "L370",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_ship_ci_gate_parity_sh__entry",
@@ -68638,7 +68332,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L313",
+      "source_location": "L358",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_ship_ci_gate_parity_sh__entry",
@@ -68649,7 +68343,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L126",
+      "source_location": "L159",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_ship_ci_gate_parity_assert_every_workflow_is_classified",
@@ -68660,7 +68354,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L140",
+      "source_location": "L173",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_ship_ci_gate_parity_assert_gate_workflow_steps_are_comparable",
@@ -68671,7 +68365,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L198",
+      "source_location": "L231",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_ship_ci_gate_parity_assert_recipe_is_comparable",
@@ -68682,7 +68376,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L164",
+      "source_location": "L197",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_ship_ci_gate_parity_extract_gate_trigger_block",
@@ -68693,7 +68387,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L238",
+      "source_location": "L283",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_ship_ci_gate_parity_recipe_command_lines",
@@ -68704,7 +68398,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L284",
+      "source_location": "L329",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_ship_ci_gate_parity_report_lists_and_fail",
@@ -68715,7 +68409,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L266",
+      "source_location": "L311",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_ship_ci_gate_parity_workflow_step_commands",
@@ -68726,7 +68420,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L124",
+      "source_location": "L157",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_ship_ci_gate_parity_assert_every_workflow_is_classified",
@@ -68737,7 +68431,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L139",
+      "source_location": "L172",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_ship_ci_gate_parity_assert_gate_workflow_steps_are_comparable",
@@ -68748,7 +68442,18 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L270",
+      "source_location": "L146",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_ship_ci_gate_parity_workflow_file_names",
+      "target": "test_unit_ship_ci_gate_parity_is_member",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L315",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_ship_ci_gate_parity_workflow_step_commands",
@@ -68759,7 +68464,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L236",
+      "source_location": "L281",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_ship_ci_gate_parity_recipe_command_lines",
@@ -69518,326 +69223,6 @@
       "context": "call",
       "source": "test_validate_tests_main",
       "target": "test_validate_tests_check_stat_order",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L7",
-      "weight": 1.0,
-      "source": "agents",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_claude_md",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L214",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_claude_md",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_architecture",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L681",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_claude_md",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_code_style",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L707",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_claude_md",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_git_commits",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L18",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_claude_md",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_key_commands",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L714",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_claude_md",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_security",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L11",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_claude_md",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_what_this_is",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L86",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_key_commands",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_chezmoi_operations",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L114",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_key_commands",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_claude_code_settings",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L147",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_key_commands",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_git_hooks",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L20",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_key_commands",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_linting_formatting",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L46",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_key_commands",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_testing",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L358",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_agent_skills_cross_harness_store",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L656",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_ai_commit_messages",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L555",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_bashrc_init_ordering",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L348",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_ci",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L337",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_dev_environment_nix_flake",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L548",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_git_worktrees_worktrunk",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L592",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_happy_daemon_remote_agent_control",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L675",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_herdr_native_status",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L528",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_herdr_workspace_management",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L669",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_long_running_command_notifier",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L260",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_macos_defaults_management",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L224",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_minimum_chezmoi_version",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L332",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_os_targeting",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L228",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_secrets_management",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L563",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_shell_history_atuin",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L216",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_source_only_files",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L235",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_system_package_management",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L619",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_tailscale_headless_daemon",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L305",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_template_files",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L311",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_ship_parity_agents_template_shellcheck_workaround",
       "confidence_score": 1.0
     },
     {
@@ -88372,5 +87757,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "57b4d1a3d6e74e5d78c1f0bcff6cc2eea5f16e91"
+  "built_at_commit": "277d856272b47bad47d8278618ae6bbb06f95f3f"
 }
