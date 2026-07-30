@@ -72,8 +72,10 @@ deliberately does NOT run any suite (see Git Hooks). Each suite's runner execute
 `.bats` once (bats via `nix develop .#run --command bats --jobs 4` when the host lacks bats, and the
 checker's placement rules keep any bats from hiding outside a suite). So a commit can briefly carry an
 integration or e2e regression, and so can a push: **CI is the only gate that runs the suite**, and it
-runs on pull requests and on pushes to `main` only. A push to a topic branch with no open pull request
-runs the suite nowhere; `just ship` is how you cover that window deliberately.
+runs on pull requests and on pushes to `main` only (that trigger scope is asserted by
+`test/unit/ship-ci-gate-parity.sh`, which fails if the workflow stops matching it). A push to a topic
+branch with no open pull request runs the suite nowhere; `just ship` is how you cover that window
+deliberately.
 
 `just validate-tests` (`test/validate-tests.sh`, a dependency of every test recipe) fails if a `*.sh` or
 `*.bats` sits outside a recognized suite. Only `validate-tests.sh` and `run-test-suite.sh` may sit at
@@ -164,24 +166,28 @@ All four hooks live in the **user-wide** hooks dir (`core.hooksPath = ~/.config/
 - **`pre-push`: per-repo lint gate only, via a dispatcher.** `dot_config/git/hooks/executable_pre-push`
   mirrors the pre-commit dispatcher (user-wide, exec's the repo's executable `.githooks/pre-push` when
   present, no-op otherwise). This repo's `.githooks/pre-push` runs `just lint-check` (the treefmt drift
-  gate, 21s) and nothing else. **CI is the authority on the test suite.** Run the suite locally on demand
-  with `just ship`.
+  gate, roughly 20s whenever nix has to build the check derivation, which is every push that changed a
+  tracked file) and nothing else. **CI is the authority on the test suite.** Run the suite locally on
+  demand with `just ship`.
 
-  It used to run `just test` as well. Measured 2026-07-29, that made a push cost 7m20s to 7m37s, of which
-  about 6m30s was integration + e2e + test-system (integration alone is 216s across 103 files: 92 `.sh`
-  run one at a time, then 11 `.bats` under `bats --jobs 4`). CI then ran the identical recipe 10 to 12
-  minutes later and the commit hook had already run the unit camp, so one suite ran three times per push
-  and every round of rework paid for all three. It also could not do the job it was there for: this hook
-  tests the WORKING TREE while CI tests the COMMIT, and on PR #116 the local gate passed while CI failed,
-  on an edit that was never staged.
+  It used to run `just test` as well. Measured once, on 2026-07-29, a push cost 7m20s to 7m37s, of which
+  about 6m30s was integration + e2e + test-system; integration alone took 216s of that. It runs its `.sh`
+  tests one at a time and its `.bats` files under `bats --jobs 4`. Those seconds are one reading on one
+  day, not a tracked figure: no test pins them, and the suite keeps growing. CI then ran the identical
+  recipe 10 to 12 minutes later and the commit hook had already run the unit camp, so one suite ran three
+  times per push and every round of rework paid for all three. It also could not do the job it was there
+  for: this hook tests the WORKING TREE while CI tests the COMMIT, and on PR #116 the local gate passed
+  while CI failed, on an edit that was never staged.
 
   **What this narrowed:** every push used to run the whole suite locally, whatever the branch. CI runs on
   pull requests and on pushes to `main`, so a push to a topic branch with no open pull request now runs
-  the suite nowhere. Merge safety is unchanged: `lint` is the required status check on `main`, so a pull
-  request cannot merge until CI is green. Widening the workflow's `push` trigger to every branch was
-  weighed and rejected: `push` and `pull_request` both fire once a branch has a pull request, so it would
-  run two identical macOS jobs per push for the whole life of every branch, to cover the window before a
-  pull request exists. `just ship` covers that window on demand instead.
+  the suite nowhere. None of this touches branch protection, which is weaker than "cannot merge red"
+  anyway: `lint` is a required status check on `main`, so a red pull request is blocked there, but
+  `enforce_admins` is off, so a repository administrator can merge one red regardless. Widening the
+  workflow's `push` trigger to every branch was weighed and rejected: `push` and `pull_request` both fire
+  once a branch has a pull request, so it would run two identical macOS jobs per push for the whole life
+  of every branch, to cover the window before a pull request exists. `just ship` covers that window on
+  demand instead.
 
 - **`post-commit`: per-repo hooks, via a dispatcher.** `dot_config/git/hooks/executable_post-commit`
   mirrors the pre-commit dispatcher (user-wide, exec's the repo's executable `.githooks/post-commit` when
