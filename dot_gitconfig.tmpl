@@ -36,8 +36,32 @@
 [status]
   submodulesummary = true
 
+# diff.tool and merge.tool take a tool NAME, never a command. Measured on git
+# 2.55.0: with a command string in merge.tool, `git mergetool` prints
+#     git config option merge.tool set to unknown tool: <the whole string>
+#     Resetting to default...
+# then guesses a tool and offers `vimdiff`, so conflicts open in Vim rather than
+# Neovim. A command belongs in <difftool|mergetool>.<name>.cmd instead.
+#
+# `nvimdiff` is a git built-in name (`git mergetool --tool-help`), used below for
+# both modes. Git resolves the two modes from separate keys, so the difftool cmd
+# here governs `git difftool` alone and merges never see it:
+#   diff mode : difftool.<name>.cmd, else mergetool.<name>.cmd, else the built-in
+#   merge mode: mergetool.<name>.cmd, else the built-in
+# There is deliberately NO mergetool.nvimdiff.cmd. A cmd key replaces the
+# built-in outright, and the built-in is what opens all four buffers
+# (LOCAL BASE REMOTE MERGED) and lets git read the resolution back out of
+# MERGED. A two-file `nvim -d "$LOCAL" "$REMOTE"` never opens MERGED, so nothing
+# done in it would reach the conflicted file.
 [difftool "nvimdiff"]
+  # Shadows the built-in nvimdiff diff command, for `git difftool` only.
   cmd = /opt/homebrew/bin/nvim -d -u ~/.config/nvim/init.lua \"$LOCAL\" \"$REMOTE\"
+
+[mergetool "nvimdiff"]
+  # The built-in resolves its binary as a bare `nvim` on $PATH and aborts with
+  # "The merge tool nvimdiff is not available as 'nvim'" when that misses. Pin
+  # the same absolute path the difftool command above spells out.
+  path = /opt/homebrew/bin/nvim
 
 [diff]
   submodule = log
@@ -47,7 +71,7 @@
 
 [merge]
   conflictstyle = zdiff3
-  tool = /opt/homebrew/bin/nvim -d -u ~/.config/nvim/init.lua \"$LOCAL\" \"$REMOTE\"
+  tool = nvimdiff
 
 # Union-merges the committed graphify map (wired via .gitattributes in the
 # dotfiles repo: graphify-out/graph.json merge=graphify-union).
