@@ -28,6 +28,8 @@
 #                          out of the printf format.
 #   P6 convergence       - exactly one claiming line AND that line exact.
 #   P7 symlink chains    - absolute and relative hops, and a bounded refusal.
+#   P8 metadata readers  - mode and owner describe the file a path NAMES, not a
+#                          symlink standing in front of it.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -213,8 +215,29 @@ if resolve_symlink_chain "$work/loop-a" >/dev/null 2>&1; then
   fail "p7-loop: a symlink loop must refuse, not resolve"
 fi
 
+# ---------- P8: metadata describes the referent, never the link --------------
+# The install copies the target's mode and owner onto the replacement. Read
+# through a symlink and you get the LINK's own metadata, which on macOS is a
+# meaningless 0755, so a 0640 hosts file came back as a world-readable 0755 one.
+# These readers answer for the file the path NAMES, whatever stands in front of
+# it, which is a property of the readers rather than of any one call site.
+chmod 640 "$work/real"
+assert_equal 640 "$(read_file_mode "$work/real")" p8-mode-plain-file
+assert_equal 640 "$(read_file_mode "$work/absolute-link")" p8-mode-through-link
+assert_equal 640 "$(read_file_mode "$work/chained-link")" p8-mode-through-chain
+assert_equal "$(read_file_owner "$work/real")" \
+  "$(read_file_owner "$work/absolute-link")" p8-owner-through-link
+# A symlink carries its OWN mode (0755 on macOS), so if it ever started
+# reporting the referent's the assertions above would pass for the wrong reason.
+# GNU stat (-c) first: without -L both forms report the link itself, and GNU's
+# -f means "filesystem status" and would succeed with garbage if tried first.
+link_own_mode="$(stat -c '%a' "$work/absolute-link" 2>/dev/null ||
+  stat -f '%Lp' "$work/absolute-link")"
+[[ $link_own_mode != 640 ]] ||
+  fail "p8-link-mode-differs: the fixture link happens to carry the referent's mode, so P8 proves nothing"
+
 if ((failures > 0)); then
   printf 'tailnet-pin-hosts-predicates: %d assertion(s) failed\n' "$failures" >&2
   exit 1
 fi
-echo "tailnet-pin-hosts-predicates: OK (loopback validity, name claims, pin ownership, column shape, record rendering, convergence, symlink chains)"
+echo "tailnet-pin-hosts-predicates: OK (loopback validity, name claims, pin ownership, column shape, record rendering, convergence, symlink chains, referent metadata)"

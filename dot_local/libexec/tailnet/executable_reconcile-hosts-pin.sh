@@ -62,10 +62,10 @@
 # is the one that changes; metadata is read from the referent too, because a
 # symlink's own mode is 0755 on macOS and means nothing.
 #
-# Every failure path exits nonzero, and an EXIT/HUP/INT/TERM trap removes the
-# temporary file on every one of them, signals included. Under the runner's
-# `set -e` a pin that cannot converge therefore fails the whole apply loudly
-# instead of reporting success.
+# Every failure path exits nonzero, and one EXIT trap removes the temporary file
+# on every one of them, signals included (bash runs the EXIT trap before dying
+# from a fatal signal). Under the runner's `set -e` a pin that cannot converge
+# therefore fails the whole apply loudly instead of reporting success.
 #
 # bash 3.2 is the deployed interpreter (/bin/bash on macOS, and sudo's
 # secure_path resolves `bash` there): no associative arrays, no mapfile.
@@ -125,16 +125,6 @@ readonly MAXIMUM_SYMLINK_HOPS=8
 readonly EXIT_STATUS_OK=0
 readonly EXIT_STATUS_REFUSED=1
 readonly EXIT_STATUS_USAGE=2
-
-# Shells report a signal-terminated command as 128 + the signal number, and the
-# trap handlers below keep that convention rather than inventing a status.
-readonly SIGNAL_EXIT_STATUS_BASE=128
-readonly SIGNAL_NUMBER_HUP=1
-readonly SIGNAL_NUMBER_INT=2
-readonly SIGNAL_NUMBER_TERM=15
-readonly EXIT_STATUS_ON_HUP=$((SIGNAL_EXIT_STATUS_BASE + SIGNAL_NUMBER_HUP))
-readonly EXIT_STATUS_ON_INT=$((SIGNAL_EXIT_STATUS_BASE + SIGNAL_NUMBER_INT))
-readonly EXIT_STATUS_ON_TERM=$((SIGNAL_EXIT_STATUS_BASE + SIGNAL_NUMBER_TERM))
 
 readonly EXPECTED_ARGUMENT_COUNT=3
 
@@ -344,9 +334,15 @@ remove_temporary_hosts_file() {
   fi
 }
 
-# Clearing the traps first is what keeps `exit` from re-entering this handler.
+# ONE trap covers every exit, signals included. bash runs the EXIT trap before
+# dying from a fatal signal and still reports 128 + the signal number, verified
+# on bash 3.2.57 (the deployed interpreter: sudo's secure_path resolves `bash`
+# to /bin/bash) for HUP, INT and TERM. Separate per-signal handlers would add
+# nothing here, and an untested defence is worse than none.
+#
+# Clearing the trap first is what keeps `exit` from re-entering this handler.
 finish() { # <exit-status>
-  trap - EXIT HUP INT TERM
+  trap - EXIT
   local status=$1
   remove_temporary_hosts_file || status=$EXIT_STATUS_REFUSED
   exit "$status"
@@ -355,16 +351,7 @@ finish() { # <exit-status>
 # ---------------------------------------------------------------------------
 
 main() {
-  # The EXIT handler needs the status at trap time, so its body stays unexpanded.
   trap 'finish "$?"' EXIT
-  # shellcheck disable=SC2064  # expanding NOW is the intent: these are readonly
-  # constants, and naming them here keeps the status the handler exits with
-  # visible at the trap rather than buried in an unexpanded string.
-  trap "finish $EXIT_STATUS_ON_HUP" HUP
-  # shellcheck disable=SC2064
-  trap "finish $EXIT_STATUS_ON_INT" INT
-  # shellcheck disable=SC2064
-  trap "finish $EXIT_STATUS_ON_TERM" TERM
 
   # Belt and braces for the mutating path: nothing here expands unquoted, and
   # the predicates split with `read -r -a` rather than the shell's splitting, so
