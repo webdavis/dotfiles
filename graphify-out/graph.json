@@ -26947,7 +26947,7 @@
       "label": "survey_of()",
       "file_type": "code",
       "source_file": "test/unit/tailnet-pin-hosts-predicates.sh",
-      "source_location": "L499",
+      "source_location": "L510",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -77042,7 +77042,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/tailnet-pin-hosts-predicates.sh",
-      "source_location": "L499",
+      "source_location": "L510",
       "weight": 1.0,
       "source": "test_unit_tailnet_pin_hosts_predicates",
       "target": "test_unit_tailnet_pin_hosts_predicates_survey_of",
@@ -77074,7 +77074,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/tailnet-pin-hosts-predicates.sh",
-      "source_location": "L401",
+      "source_location": "L412",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_tailnet_pin_hosts_predicates_sh__entry",
@@ -96012,5 +96012,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "d78f9f9c62e3e3ce93fe7803f0b06aa4fb356bf0"
+  "built_at_commit": "877243837a32ede93ffa7ef8f38283260698ac1e"
 }
