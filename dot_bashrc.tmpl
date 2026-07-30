@@ -37,7 +37,9 @@ function path_prepend() {
 # all, so those commands inherit PATH from the long-lived herdr server, not this
 # file. Everything genuinely interactive-only (prompt, completions, history,
 # PROMPT_COMMAND/preexec hooks) lives under the `[[ $- == *i* ]]` guard farther
-# down, so the two non-interactive doors above skip ~85ms of pointless init.
+# down, so the two non-interactive doors above skip that init entirely, which is
+# where almost all of a shell start's cost lives. No committed artifact
+# regenerates a figure for it, so none is quoted here.
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 # ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
@@ -163,7 +165,8 @@ export PATH
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # INTERACTIVE-ONLY init: prompt, completions, history, and PROMPT_COMMAND/preexec
-# hooks, useless to non-interactive shells and ~85ms of cost. This single guard
+# hooks, useless to non-interactive shells and by far the most expensive part of
+# a shell start (an order of magnitude more than everything above). This guard
 # is the heart of the keypress-latency fix: herdr keybindings, `bash -lc`, and
 # `ssh host cmd` are all non-interactive ($- has no `i`) and skip everything here.
 # Dependency order is load-bearing: bash-preexec BEFORE atuin/notifier; the
