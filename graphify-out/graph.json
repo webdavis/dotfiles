@@ -45132,6 +45132,258 @@
       "community": 323,
       "norm_label": "security",
       "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_pin_loopback_agents_security"
+    },
+    {
+      "label": "ship-ci-gate-parity.sh",
+      "file_type": "code",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "community": 354,
+      "norm_label": "ship-ci-gate-parity.sh",
+      "id": "test_unit_ship_ci_gate_parity"
+    },
+    {
+      "label": "ship-ci-gate-parity.sh script",
+      "file_type": "code",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "community": 354,
+      "norm_label": "ship-ci-gate-parity.sh script",
+      "id": "test_unit_ship_ci_gate_parity_sh__entry"
+    },
+    {
+      "label": "fail()",
+      "file_type": "code",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L92",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 354,
+      "norm_label": "fail()",
+      "id": "test_unit_ship_ci_gate_parity_fail"
+    },
+    {
+      "label": "is_member()",
+      "file_type": "code",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L98",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 354,
+      "norm_label": "is_member()",
+      "id": "test_unit_ship_ci_gate_parity_is_member"
+    },
+    {
+      "label": "is_readable_inline_command()",
+      "file_type": "code",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L109",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 354,
+      "norm_label": "is_readable_inline_command()",
+      "id": "test_unit_ship_ci_gate_parity_is_readable_inline_command"
+    },
+    {
+      "label": "strip_trailing_whitespace()",
+      "file_type": "code",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L116",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 354,
+      "norm_label": "strip_trailing_whitespace()",
+      "id": "test_unit_ship_ci_gate_parity_strip_trailing_whitespace"
+    },
+    {
+      "label": "action_reference_name()",
+      "file_type": "code",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L124",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 354,
+      "norm_label": "action_reference_name()",
+      "id": "test_unit_ship_ci_gate_parity_action_reference_name"
+    },
+    {
+      "label": "workflow_file_names()",
+      "file_type": "code",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L139",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 354,
+      "norm_label": "workflow_file_names()",
+      "id": "test_unit_ship_ci_gate_parity_workflow_file_names"
+    },
+    {
+      "label": "assert_every_workflow_is_classified()",
+      "file_type": "code",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L154",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 354,
+      "norm_label": "assert_every_workflow_is_classified()",
+      "id": "test_unit_ship_ci_gate_parity_assert_every_workflow_is_classified"
+    },
+    {
+      "label": "assert_gate_workflow_steps_are_comparable()",
+      "file_type": "code",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L166",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 354,
+      "norm_label": "assert_gate_workflow_steps_are_comparable()",
+      "id": "test_unit_ship_ci_gate_parity_assert_gate_workflow_steps_are_comparable"
+    },
+    {
+      "label": "extract_gate_trigger_block()",
+      "file_type": "code",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L189",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 354,
+      "norm_label": "extract_gate_trigger_block()",
+      "id": "test_unit_ship_ci_gate_parity_extract_gate_trigger_block"
+    },
+    {
+      "label": "assert_recipe_is_comparable()",
+      "file_type": "code",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L224",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 354,
+      "norm_label": "assert_recipe_is_comparable()",
+      "id": "test_unit_ship_ci_gate_parity_assert_recipe_is_comparable"
+    },
+    {
+      "label": "recipe_dependencies()",
+      "file_type": "code",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L240",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 354,
+      "norm_label": "recipe_dependencies()",
+      "id": "test_unit_ship_ci_gate_parity_recipe_dependencies"
+    },
+    {
+      "label": "recipe_prior_dependency_count()",
+      "file_type": "code",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L249",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 354,
+      "norm_label": "recipe_prior_dependency_count()",
+      "id": "test_unit_ship_ci_gate_parity_recipe_prior_dependency_count"
+    },
+    {
+      "label": "recipe_body_lines()",
+      "file_type": "code",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L254",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 354,
+      "norm_label": "recipe_body_lines()",
+      "id": "test_unit_ship_ci_gate_parity_recipe_body_lines"
+    },
+    {
+      "label": "recipe_command_lines()",
+      "file_type": "code",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L278",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 354,
+      "norm_label": "recipe_command_lines()",
+      "id": "test_unit_ship_ci_gate_parity_recipe_command_lines"
+    },
+    {
+      "label": "workflow_step_commands()",
+      "file_type": "code",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L309",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 354,
+      "norm_label": "workflow_step_commands()",
+      "id": "test_unit_ship_ci_gate_parity_workflow_step_commands"
+    },
+    {
+      "label": "report_lists_and_fail()",
+      "file_type": "code",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L324",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 354,
+      "norm_label": "report_lists_and_fail()",
+      "id": "test_unit_ship_ci_gate_parity_report_lists_and_fail"
     }
   ],
   "links": [
@@ -92656,6 +92908,385 @@
       "confidence_score": 1.0,
       "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_pin_loopback_agents_architecture",
       "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_pin_loopback_agents_template_shellcheck_workaround"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L124",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_ship_ci_gate_parity",
+      "target": "test_unit_ship_ci_gate_parity_action_reference_name"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L154",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_ship_ci_gate_parity",
+      "target": "test_unit_ship_ci_gate_parity_assert_every_workflow_is_classified"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L166",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_ship_ci_gate_parity",
+      "target": "test_unit_ship_ci_gate_parity_assert_gate_workflow_steps_are_comparable"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L224",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_ship_ci_gate_parity",
+      "target": "test_unit_ship_ci_gate_parity_assert_recipe_is_comparable"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L189",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_ship_ci_gate_parity",
+      "target": "test_unit_ship_ci_gate_parity_extract_gate_trigger_block"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L92",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_ship_ci_gate_parity",
+      "target": "test_unit_ship_ci_gate_parity_fail"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L98",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_ship_ci_gate_parity",
+      "target": "test_unit_ship_ci_gate_parity_is_member"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L109",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_ship_ci_gate_parity",
+      "target": "test_unit_ship_ci_gate_parity_is_readable_inline_command"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L254",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_ship_ci_gate_parity",
+      "target": "test_unit_ship_ci_gate_parity_recipe_body_lines"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L278",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_ship_ci_gate_parity",
+      "target": "test_unit_ship_ci_gate_parity_recipe_command_lines"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L240",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_ship_ci_gate_parity",
+      "target": "test_unit_ship_ci_gate_parity_recipe_dependencies"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L249",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_ship_ci_gate_parity",
+      "target": "test_unit_ship_ci_gate_parity_recipe_prior_dependency_count"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L324",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_ship_ci_gate_parity",
+      "target": "test_unit_ship_ci_gate_parity_report_lists_and_fail"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_ship_ci_gate_parity",
+      "target": "test_unit_ship_ci_gate_parity_sh__entry"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L116",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_ship_ci_gate_parity",
+      "target": "test_unit_ship_ci_gate_parity_strip_trailing_whitespace"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L139",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_ship_ci_gate_parity",
+      "target": "test_unit_ship_ci_gate_parity_workflow_file_names"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L309",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_ship_ci_gate_parity",
+      "target": "test_unit_ship_ci_gate_parity_workflow_step_commands"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L340",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_ship_ci_gate_parity_sh__entry",
+      "target": "test_unit_ship_ci_gate_parity_assert_every_workflow_is_classified"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L354",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_ship_ci_gate_parity_sh__entry",
+      "target": "test_unit_ship_ci_gate_parity_assert_gate_workflow_steps_are_comparable"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L355",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_ship_ci_gate_parity_sh__entry",
+      "target": "test_unit_ship_ci_gate_parity_extract_gate_trigger_block"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L333",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_ship_ci_gate_parity_sh__entry",
+      "target": "test_unit_ship_ci_gate_parity_fail"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L360",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_ship_ci_gate_parity_sh__entry",
+      "target": "test_unit_ship_ci_gate_parity_recipe_command_lines"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L370",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_ship_ci_gate_parity_sh__entry",
+      "target": "test_unit_ship_ci_gate_parity_report_lists_and_fail"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L358",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_ship_ci_gate_parity_sh__entry",
+      "target": "test_unit_ship_ci_gate_parity_workflow_step_commands"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L159",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_ship_ci_gate_parity_fail",
+      "target": "test_unit_ship_ci_gate_parity_assert_every_workflow_is_classified"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L173",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_ship_ci_gate_parity_fail",
+      "target": "test_unit_ship_ci_gate_parity_assert_gate_workflow_steps_are_comparable"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L231",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_ship_ci_gate_parity_fail",
+      "target": "test_unit_ship_ci_gate_parity_assert_recipe_is_comparable"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L197",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_ship_ci_gate_parity_fail",
+      "target": "test_unit_ship_ci_gate_parity_extract_gate_trigger_block"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L283",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_ship_ci_gate_parity_fail",
+      "target": "test_unit_ship_ci_gate_parity_recipe_command_lines"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L329",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_ship_ci_gate_parity_fail",
+      "target": "test_unit_ship_ci_gate_parity_report_lists_and_fail"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L311",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_ship_ci_gate_parity_fail",
+      "target": "test_unit_ship_ci_gate_parity_workflow_step_commands"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L157",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_ship_ci_gate_parity_is_member",
+      "target": "test_unit_ship_ci_gate_parity_assert_every_workflow_is_classified"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L172",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_ship_ci_gate_parity_is_member",
+      "target": "test_unit_ship_ci_gate_parity_assert_gate_workflow_steps_are_comparable"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L146",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_ship_ci_gate_parity_is_member",
+      "target": "test_unit_ship_ci_gate_parity_workflow_file_names"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L315",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_ship_ci_gate_parity_is_readable_inline_command",
+      "target": "test_unit_ship_ci_gate_parity_workflow_step_commands"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L281",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_ship_ci_gate_parity_assert_recipe_is_comparable",
+      "target": "test_unit_ship_ci_gate_parity_recipe_command_lines"
     }
   ]
 }

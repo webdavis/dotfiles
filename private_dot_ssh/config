@@ -2,12 +2,29 @@
 # git@github.com:..., which ssh matches against github.com, so a block naming
 # only the alias never applies to a push.
 #
-# The keepalive is load-bearing, not tuning. Git opens the connection to GitHub
-# BEFORE it runs the pre-push hook, and this repo's hook runs lint plus the whole
-# test suite, several minutes. GitHub closes the idle connection in the meantime,
-# so when the hook finally returns git writes into a dead socket and exits 141
-# with no error text and no branch pushed. Traffic every 20s keeps the connection
-# from going idle while the hook works.
+# The keepalive is load-bearing, not tuning. Git starts the remote helper and
+# reads the ref advertisement BEFORE it runs the pre-push hook (verified with
+# GIT_TRACE: receive-pack starts, then the hook runs), so the connection sits
+# idle for exactly as long as the hook takes. Let it idle long enough and GitHub
+# closes it, and when the hook finally returns git writes into a dead socket and
+# exits 141 with no error text and no branch pushed. Traffic every 20s keeps the
+# connection from ever being idle.
+#
+# KEPT DELIBERATELY, reviewed 2026-07-29, when the dotfiles pre-push hook went
+# from about six and a half minutes to seconds and this rationale looked spent.
+# (That hook carries its own measured runtime. This file does not restate it,
+# because a second copy of a number is a second thing to go stale.) It is not
+# spent, because one repo's hook runtime was never the scope of this setting:
+# the file is machine-wide, and every repository on the machine picks its own
+# pre-push hook through the user-wide dispatcher, so one slow hook anywhere
+# reopens the window with no warning. The cost is one packet every 20 seconds
+# on a connection that would otherwise be silent. Do not re-litigate this from
+# a single repository's hook timing.
+#
+# ServerAliveCountMax does a different job and is NOT what defeats the idle
+# close: it is how many unanswered keepalives ssh sends before declaring the
+# connection dead, so 20s x 30 is about 600s of tolerated server silence. The
+# interval is the protection, this is the patience.
 Host github github.com
   HostName github.com
   User git
