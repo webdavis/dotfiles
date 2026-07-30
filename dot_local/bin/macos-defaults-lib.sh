@@ -146,7 +146,15 @@ defaults_records_locate_malformed() { # <path> <declared-count>
   printf 'a record this locator could not identify'
 }
 
-# defaults_records_unit_separated <path>, emit each tracked record as one line
+# THE RECORD STREAM. Four functions below share this contract, split so each has
+# one job: defaults_records_declared_count validates the file's shape and size,
+# defaults_records_raw_stream reads it, defaults_records_validate_stream is a
+# PREDICATE over what was read, and defaults_records_unit_separated emits. They
+# were one function, in which the validation loop accumulated the very lines it
+# was checking and then printed them, so asking "is this file usable" was
+# inseparable from producing its output.
+#
+# The contract: emit each tracked record as one line
 # of EIGHT fields joined by the ASCII unit separator (0x1f):
 #   domain, key, type, value, host, scope, plist_path, tier
 # host, plist_path, and (on manual records) type and value are empty when
@@ -180,9 +188,9 @@ defaults_records_locate_malformed() { # <path> <declared-count>
 # offending record, and emits NOTHING: a caller must not act on part of a stream
 # it has just been told is malformed. A legitimate multi-line preference value is
 # therefore refused loudly rather than silently corrupted.
-defaults_records_unit_separated() { # <path>
+defaults_records_declared_count() { # <path>, print the validated record count
   local data_file="$1"
-  local declared_record_count raw_records
+  local declared_record_count records_kind
   if ! declared_record_count="$(yq eval -r '(.macos.defaults // []) | length' "$data_file")"; then
     printf 'error: cannot count the records in %s\n' "$data_file" >&2
     return 2
@@ -200,14 +208,52 @@ defaults_records_unit_separated() { # <path>
       "$data_file" "$declared_record_count" >&2
     return 2
   fi
-  if ! raw_records="$(yq eval -r "$(defaults_records_join_expression '.macos.defaults[]')" "$data_file")"; then
+  # The SHAPE, before the content. `.macos.defaults[]` yields values from a map
+  # just as happily as from a list, and `length` counts a map's keys, so every
+  # check above passes on a map and the stream comes out in document order. The
+  # runner template reads the same file with Go's `range`, which iterates a map
+  # in sorted KEY order. Two readers, two orders, neither complaining, and order
+  # decides which write lands last when records share a domain and key.
+  #
+  # Refused rather than reconciled: a map is not the declared schema, and
+  # standardizing on one order would leave the other reader's agreement a
+  # coincidence instead of a guarantee. The template refuses the same shape.
+  if ! records_kind="$(yq eval -r '(.macos.defaults // []) | tag' "$data_file")"; then
+    printf 'error: cannot determine the shape of .macos.defaults in %s\n' "$data_file" >&2
+    return 2
+  fi
+  if [[ $records_kind != '!!seq' ]]; then
+    printf 'error: %s declares .macos.defaults as %s, but it must be a LIST of records; a map is read in sorted key order by the runner template and in document order here, so the two would apply records in different orders\n' \
+      "$data_file" "$records_kind" >&2
+    return 2
+  fi
+  printf '%s\n' "$declared_record_count"
+}
+
+# defaults_records_raw_stream <path>, the unvalidated joined records from yq.
+# Separated so the reader can fail on its own terms; every check that follows
+# assumes it has the whole stream, and a partial read must never reach them.
+defaults_records_raw_stream() { # <path>
+  local data_file="$1"
+  if ! yq eval -r "$(defaults_records_join_expression '.macos.defaults[]')" "$data_file"; then
     printf 'error: cannot read the records in %s\n' "$data_file" >&2
     return 2
   fi
+}
 
-  local line field_count emitted_line_count=0
+# defaults_records_validate_stream <path> <declared-count> <raw-stream>, a
+# PREDICATE: 0 when every line is well-formed and the line count matches what the
+# file declares, 2 otherwise, naming the offending record on stderr.
+#
+# It emits no records, deliberately. Validation used to accumulate the very lines
+# it was checking and then print them, which meant the only way to ask "is this
+# file usable" was to also produce its output. A caller that just wants to know
+# now asks a question instead of running a producer, and the emission below has
+# one job.
+defaults_records_validate_stream() { # <path> <declared-count> <raw-stream>
+  local data_file="$1" declared_record_count="$2" raw_records="$3"
+  local line field_count checked_line_count=0
   local record_domain record_key record_tier
-  local -a validated_lines=()
   while IFS= read -r line; do
     # yq prints a single empty line for an empty array; that is not a record.
     [[ -z $line ]] && continue
@@ -221,8 +267,8 @@ defaults_records_unit_separated() { # <path>
     # The tier gate. Only the three declared tiers pass; a record whose tier
     # is missing or blank arrives here as the empty string and lands in the
     # same refusal, so absent, blank, and unrecognized all fail closed. The
-    # refusal covers the WHOLE file (nothing has been emitted yet), because a
-    # caller must not act on the records beside one it cannot classify.
+    # refusal covers the WHOLE file, because a caller must not act on the
+    # records beside one it cannot classify.
     IFS=$'\x1f' read -r record_domain record_key _ _ _ _ _ record_tier <<<"$line"
     case "$record_tier" in
       enforce | verify | manual) ;;
@@ -232,20 +278,30 @@ defaults_records_unit_separated() { # <path>
         return 2
         ;;
     esac
-    validated_lines+=("$line")
-    emitted_line_count=$((emitted_line_count + 1))
+    checked_line_count=$((checked_line_count + 1))
   done <<<"$raw_records"
 
-  if [[ $emitted_line_count -ne $declared_record_count ]]; then
+  if [[ $checked_line_count -ne $declared_record_count ]]; then
     printf 'error: %s declares %s record(s) but the record stream has %s line(s); %s contains a newline\n' \
-      "$data_file" "$declared_record_count" "$emitted_line_count" \
+      "$data_file" "$declared_record_count" "$checked_line_count" \
       "$(defaults_records_locate_malformed "$data_file" "$declared_record_count")" >&2
     return 2
   fi
+}
 
-  if [[ ${#validated_lines[@]} -gt 0 ]]; then
-    printf '%s\n' "${validated_lines[@]}"
-  fi
+defaults_records_unit_separated() { # <path>
+  local data_file="$1"
+  local declared_record_count raw_records line
+  declared_record_count="$(defaults_records_declared_count "$data_file")" || return 2
+  raw_records="$(defaults_records_raw_stream "$data_file")" || return 2
+  defaults_records_validate_stream "$data_file" "$declared_record_count" "$raw_records" || return 2
+  # Emission, and only emission, and only once the WHOLE file has passed. A
+  # caller must never act on part of a stream it is about to be told is
+  # malformed, which is why nothing is printed before the predicate returns.
+  while IFS= read -r line; do
+    [[ -z $line ]] && continue
+    printf '%s\n' "$line"
+  done <<<"$raw_records"
 }
 
 # validate_record_scope <scope> <host> <plist_path>, print the validated scope.
@@ -284,8 +340,16 @@ validate_record_scope() { # <scope> <host> <plist_path>
 # the default, /Library/Preferences/<domain>. A declared path must be
 # ABSOLUTE: a relative path would resolve against whatever directory the tool
 # happens to run from, so it is rejected, never resolved.
-resolve_system_plist_path() { # <domain> <plist_path>
-  local domain="$1" plist_path="$2"
+# validate_system_domain <domain>, a PREDICATE over the domain alone: 0 when it
+# can name a plist under /Library/Preferences, 1 with a message otherwise.
+#
+# Separated from resolution because the two rules below are properties of the
+# RECORD, true or false before anything is resolved, and they apply to every
+# system-scope record whether or not it declares an explicit plist_path. Folded
+# into the resolver they sat above an early return, which is the shape that once
+# let them apply to only one of the two branches.
+validate_system_domain() { # <domain>
+  local domain="$1"
   # A defaults domain is reverse-DNS and never legitimately contains a slash.
   # Rejecting one keeps the default construction inside /Library/Preferences BY
   # CONSTRUCTION: without it, a domain of ../../tmp/owned resolves to
@@ -311,10 +375,14 @@ resolve_system_plist_path() { # <domain> <plist_path>
       "$domain" >&2
     return 1
   fi
-  if [[ -z $plist_path ]]; then
-    printf '/Library/Preferences/%s\n' "$domain"
-    return 0
-  fi
+}
+
+# validate_explicit_plist_path <plist_path> <domain>, a PREDICATE over a declared
+# path: 0 when it names an absolute plist that cannot climb out of where it
+# appears to sit, 1 with a message otherwise. The domain is carried for the
+# messages only; it is validated separately, by validate_system_domain.
+validate_explicit_plist_path() { # <plist_path> <domain>
+  local plist_path="$1" domain="$2"
   if [[ $plist_path == / ]]; then
     printf 'error: plist_path %q (domain %s) is the filesystem root; it names no plist\n' \
       "$plist_path" "$domain" >&2
@@ -335,6 +403,24 @@ resolve_system_plist_path() { # <domain> <plist_path>
       "$plist_path" "$domain" >&2
     return 1
   fi
+}
+
+# resolve_system_plist_path <domain> <plist_path>, print the plist a system-scope
+# record writes to, or fail with a message.
+#
+# Resolution only. Each input is put to its own predicate first, and what remains
+# here is the one decision this function actually makes: an absent plist_path
+# means the default under /Library/Preferences, and a declared one is used as
+# given. Previously those two lines sat among five validation blocks, with the
+# default-path branch returning from the middle of them.
+resolve_system_plist_path() { # <domain> <plist_path>
+  local domain="$1" plist_path="$2"
+  validate_system_domain "$domain" || return 1
+  if [[ -z $plist_path ]]; then
+    printf '/Library/Preferences/%s\n' "$domain"
+    return 0
+  fi
+  validate_explicit_plist_path "$plist_path" "$domain" || return 1
   printf '%s\n' "$plist_path"
 }
 

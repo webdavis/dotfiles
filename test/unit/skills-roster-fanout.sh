@@ -34,8 +34,9 @@
 #   7. The hermes symlink declarations equal the non-empty hermesProfiles map
 #      exactly: each store-symlinked skill is declared in exactly its mapped
 #      skills dirs ("default" = dot_hermes/skills, any other profile =
-#      dot_hermes/profiles/<name>/skills) with the correct relative target for
-#      that dir's depth, no stray declarations.
+#      dot_hermes/profiles/<name>/skills, where the source dir may carry a
+#      private_ prefix) with the correct relative target for that dir's depth,
+#      no stray declarations.
 #   8. Collision-named skills (humanizer, hyperframes, hermes's catalog wins
 #      those names) are never declared in any hermes skills dir and never
 #      carry a non-empty hermesProfiles mapping, regardless of what the other
@@ -258,7 +259,17 @@ actual_hermes="$(
       target="$(<"$entry")"
       [[ $target == "${expected_prefix}${skill}" ]] ||
         fail "declaration ${dir#"$REPO_ROOT"/}/$base points at '$target' (expected '${expected_prefix}${skill}')"
-      printf '%s/%s\n' "${dir#"$REPO_ROOT"/}" "$skill"
+      # A profile source dir may carry a private_ prefix, which is a chezmoi mode
+      # attribute and not part of the target identity this rule pins. Compare on
+      # the target spelling so the rule stays about which skill reaches which
+      # profile. Failure messages above keep the source spelling, so they still
+      # name a file that exists.
+      compared_dir="${dir#"$REPO_ROOT"/}"
+      if [[ $compared_dir == dot_hermes/profiles/*/skills ]]; then
+        profile_source="${compared_dir#dot_hermes/profiles/}"
+        compared_dir="dot_hermes/profiles/$(target_name "${profile_source%/skills}")/skills"
+      fi
+      printf '%s/%s\n' "$compared_dir" "$skill"
     done
   done < <(hermes_declaration_dirs) | sort
 )"

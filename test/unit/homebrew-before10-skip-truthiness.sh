@@ -48,6 +48,13 @@ render() {
 # subshell exit that leaves an assertion comparing SKIP text against "yes".
 probe="$(render __unset__)" || fail 'chezmoi failed to render before_10'
 if [[ -z ${probe//[[:space:]]/} ]]; then
+  # An empty render is only legitimate OFF darwin. On darwin this template
+  # must produce output, so empty means the template broke, and skipping
+  # would report a broken render as a pass. Assert the host, do not infer it.
+  if [[ $(uname -s) == Darwin ]]; then
+    printf 'FAIL: the render came back EMPTY on darwin, where this template must produce output; a broken darwin render must not pass as a skip\n' >&2
+    exit 1
+  fi
   printf 'SKIP: empty render (non-darwin host); nothing to exercise\n'
   exit 0
 fi
