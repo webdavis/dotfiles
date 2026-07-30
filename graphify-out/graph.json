@@ -6149,7 +6149,7 @@
       "label": "PROGRAM_NAME",
       "file_type": "code",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L226",
+      "source_location": "L265",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -6163,7 +6163,7 @@
       "label": "DEFAULT_HOSTS_FILE",
       "file_type": "code",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L237",
+      "source_location": "L276",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -6177,7 +6177,7 @@
       "label": "HOSTS_FILE_SEAM_VARIABLE_NAME",
       "file_type": "code",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L238",
+      "source_location": "L277",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -6191,7 +6191,7 @@
       "label": "HOSTS_FILE_SEAM_ABSENT",
       "file_type": "code",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L245",
+      "source_location": "L284",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -6205,7 +6205,7 @@
       "label": "HOSTS_FILE_SEAM_EMPTY",
       "file_type": "code",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L246",
+      "source_location": "L285",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -6219,7 +6219,7 @@
       "label": "HOSTS_FILE_SEAM_PATH",
       "file_type": "code",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L247",
+      "source_location": "L286",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -6233,7 +6233,7 @@
       "label": "HOSTS_COMMENT_CHARACTER",
       "file_type": "code",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L254",
+      "source_location": "L293",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -6247,7 +6247,7 @@
       "label": "HOSTS_RECORD_MINIMUM_FIELD_COUNT",
       "file_type": "code",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L260",
+      "source_location": "L299",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -6261,7 +6261,7 @@
       "label": "HOSTS_ITEM_SEPARATOR_CHARACTERS",
       "file_type": "code",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L268",
+      "source_location": "L307",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -6275,7 +6275,7 @@
       "label": "LOOPBACK_ADDRESS",
       "file_type": "code",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L272",
+      "source_location": "L311",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -6289,7 +6289,7 @@
       "label": "HOSTS_FIELD_SEPARATOR",
       "file_type": "code",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L276",
+      "source_location": "L315",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -6303,7 +6303,7 @@
       "label": "HOSTS_COLUMN_FORBIDDEN_CHARACTERS",
       "file_type": "code",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L290",
+      "source_location": "L329",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -6317,7 +6317,7 @@
       "label": "CONVERGED_CLAIMING_LINE_COUNT",
       "file_type": "code",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L293",
+      "source_location": "L332",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -6331,7 +6331,7 @@
       "label": "BOOLEAN_TRUE",
       "file_type": "code",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L295",
+      "source_location": "L334",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -6345,7 +6345,7 @@
       "label": "BOOLEAN_FALSE",
       "file_type": "code",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L296",
+      "source_location": "L335",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -6359,7 +6359,7 @@
       "label": "MAXIMUM_SYMLINK_HOPS",
       "file_type": "code",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L300",
+      "source_location": "L339",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -6373,7 +6373,7 @@
       "label": "EXIT_STATUS_OK",
       "file_type": "code",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L302",
+      "source_location": "L341",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -6387,7 +6387,7 @@
       "label": "EXIT_STATUS_REFUSED",
       "file_type": "code",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L303",
+      "source_location": "L342",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -6401,7 +6401,7 @@
       "label": "EXIT_STATUS_USAGE",
       "file_type": "code",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L304",
+      "source_location": "L343",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -6415,7 +6415,7 @@
       "label": "SIGNAL_EXIT_STATUS_BASE",
       "file_type": "code",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L308",
+      "source_location": "L347",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -6429,7 +6429,7 @@
       "label": "EXPECTED_ARGUMENT_COUNT",
       "file_type": "code",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L322",
+      "source_location": "L361",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -6443,7 +6443,7 @@
       "label": "report()",
       "file_type": "code",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L328",
+      "source_location": "L367",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -6457,7 +6457,7 @@
       "label": "refuse()",
       "file_type": "code",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L332",
+      "source_location": "L371",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -6471,7 +6471,7 @@
       "label": "hosts_file_description()",
       "file_type": "code",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L341",
+      "source_location": "L380",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -6485,7 +6485,7 @@
       "label": "hosts_line_record_text()",
       "file_type": "code",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L364",
+      "source_location": "L403",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -6499,7 +6499,7 @@
       "label": "hosts_line_is_record_for_address()",
       "file_type": "code",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L381",
+      "source_location": "L420",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -6513,7 +6513,7 @@
       "label": "hosts_line_is_valid_loopback_record()",
       "file_type": "code",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L396",
+      "source_location": "L435",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -6527,7 +6527,7 @@
       "label": "hosts_line_claims_name()",
       "file_type": "code",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L409",
+      "source_location": "L448",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -6541,7 +6541,7 @@
       "label": "hosts_line_is_claimed_by_pin()",
       "file_type": "code",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L426",
+      "source_location": "L465",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -6555,7 +6555,7 @@
       "label": "is_single_hosts_column()",
       "file_type": "code",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L432",
+      "source_location": "L471",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -6569,7 +6569,7 @@
       "label": "pin_record_line()",
       "file_type": "code",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L440",
+      "source_location": "L479",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -6583,7 +6583,7 @@
       "label": "pin_is_converged()",
       "file_type": "code",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L452",
+      "source_location": "L491",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -6597,7 +6597,7 @@
       "label": "classify_hosts_file_seam()",
       "file_type": "code",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L467",
+      "source_location": "L506",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -6611,7 +6611,7 @@
       "label": "configured_hosts_file_path()",
       "file_type": "code",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L479",
+      "source_location": "L518",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -6625,7 +6625,7 @@
       "label": "resolve_symlink_chain()",
       "file_type": "code",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L493",
+      "source_location": "L532",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -6639,7 +6639,7 @@
       "label": "read_file_mode()",
       "file_type": "code",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L515",
+      "source_location": "L554",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -6653,7 +6653,7 @@
       "label": "read_file_owner()",
       "file_type": "code",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L519",
+      "source_location": "L558",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -6667,7 +6667,7 @@
       "label": "survey_hosts_file()",
       "file_type": "code",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L532",
+      "source_location": "L571",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -6681,7 +6681,7 @@
       "label": "hosts_file_has_valid_loopback_record()",
       "file_type": "code",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L564",
+      "source_location": "L603",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -6695,7 +6695,7 @@
       "label": "write_kept_hosts_lines()",
       "file_type": "code",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L585",
+      "source_location": "L624",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -6709,7 +6709,7 @@
       "label": "append_hosts_record()",
       "file_type": "code",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L599",
+      "source_location": "L638",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -6723,7 +6723,7 @@
       "label": "install_hosts_file_atomically()",
       "file_type": "code",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L606",
+      "source_location": "L645",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -6737,7 +6737,7 @@
       "label": "remove_temporary_hosts_file()",
       "file_type": "code",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L624",
+      "source_location": "L663",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -6751,7 +6751,7 @@
       "label": "finish()",
       "file_type": "code",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L638",
+      "source_location": "L677",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -6765,7 +6765,7 @@
       "label": "finish_after_signal()",
       "file_type": "code",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L652",
+      "source_location": "L691",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -6779,7 +6779,7 @@
       "label": "install_temporary_file_traps()",
       "file_type": "code",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L661",
+      "source_location": "L700",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -6793,7 +6793,7 @@
       "label": "main()",
       "file_type": "code",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L673",
+      "source_location": "L712",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -27264,336 +27264,6 @@
       "id": "test_validate_tests_main",
       "community": 304,
       "norm_label": "main()"
-    },
-    {
-      "label": "AGENTS.md",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L1",
-      "_origin": "ast",
-      "id": "agents",
-      "community": 323,
-      "norm_label": "agents.md"
-    },
-    {
-      "label": "CLAUDE.md",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L7",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_claude_md",
-      "community": 323,
-      "norm_label": "claude.md"
-    },
-    {
-      "label": "What This Is",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L11",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_what_this_is",
-      "community": 323,
-      "norm_label": "what this is"
-    },
-    {
-      "label": "Key Commands",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L18",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_key_commands",
-      "community": 323,
-      "norm_label": "key commands"
-    },
-    {
-      "label": "Linting & Formatting",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L20",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_linting_formatting",
-      "community": 323,
-      "norm_label": "linting & formatting"
-    },
-    {
-      "label": "Testing",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L46",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_testing",
-      "community": 323,
-      "norm_label": "testing"
-    },
-    {
-      "label": "Chezmoi Operations",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L86",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_chezmoi_operations",
-      "community": 323,
-      "norm_label": "chezmoi operations"
-    },
-    {
-      "label": "Claude Code Settings",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L114",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_claude_code_settings",
-      "community": 323,
-      "norm_label": "claude code settings"
-    },
-    {
-      "label": "Git Hooks",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L147",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_git_hooks",
-      "community": 323,
-      "norm_label": "git hooks"
-    },
-    {
-      "label": "Architecture",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L214",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_architecture",
-      "community": 323,
-      "norm_label": "architecture"
-    },
-    {
-      "label": "Source-Only Files",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L216",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_source_only_files",
-      "community": 323,
-      "norm_label": "source-only files"
-    },
-    {
-      "label": "Minimum Chezmoi Version",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L224",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_minimum_chezmoi_version",
-      "community": 323,
-      "norm_label": "minimum chezmoi version"
-    },
-    {
-      "label": "Secrets Management",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L228",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_secrets_management",
-      "community": 323,
-      "norm_label": "secrets management"
-    },
-    {
-      "label": "System Package Management",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L235",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_system_package_management",
-      "community": 323,
-      "norm_label": "system package management"
-    },
-    {
-      "label": "macOS Defaults Management",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L260",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_macos_defaults_management",
-      "community": 323,
-      "norm_label": "macos defaults management"
-    },
-    {
-      "label": "Template Files",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L305",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_template_files",
-      "community": 323,
-      "norm_label": "template files"
-    },
-    {
-      "label": "Template Shellcheck Workaround",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L311",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_template_shellcheck_workaround",
-      "community": 323,
-      "norm_label": "template shellcheck workaround"
-    },
-    {
-      "label": "OS Targeting",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L332",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_os_targeting",
-      "community": 323,
-      "norm_label": "os targeting"
-    },
-    {
-      "label": "Dev Environment (Nix Flake)",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L337",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_dev_environment_nix_flake",
-      "community": 323,
-      "norm_label": "dev environment (nix flake)"
-    },
-    {
-      "label": "CI",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L348",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_ci",
-      "community": 323,
-      "norm_label": "ci"
-    },
-    {
-      "label": "Agent Skills (cross-harness store)",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L358",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_agent_skills_cross_harness_store",
-      "community": 323,
-      "norm_label": "agent skills (cross-harness store)"
-    },
-    {
-      "label": "Herdr Workspace Management",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L528",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_herdr_workspace_management",
-      "community": 323,
-      "norm_label": "herdr workspace management"
-    },
-    {
-      "label": "Git Worktrees (Worktrunk)",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L548",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_git_worktrees_worktrunk",
-      "community": 323,
-      "norm_label": "git worktrees (worktrunk)"
-    },
-    {
-      "label": "Bashrc Init Ordering",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L555",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_bashrc_init_ordering",
-      "community": 323,
-      "norm_label": "bashrc init ordering"
-    },
-    {
-      "label": "Shell History (Atuin)",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L563",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_shell_history_atuin",
-      "community": 323,
-      "norm_label": "shell history (atuin)"
-    },
-    {
-      "label": "Happy Daemon (Remote Agent Control)",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L592",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_happy_daemon_remote_agent_control",
-      "community": 323,
-      "norm_label": "happy daemon (remote agent control)"
-    },
-    {
-      "label": "Tailscale (headless daemon)",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L619",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_tailscale_headless_daemon",
-      "community": 323,
-      "norm_label": "tailscale (headless daemon)"
-    },
-    {
-      "label": "AI Commit Messages",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L656",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_ai_commit_messages",
-      "community": 323,
-      "norm_label": "ai commit messages"
-    },
-    {
-      "label": "Long-running Command Notifier",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L669",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_long_running_command_notifier",
-      "community": 323,
-      "norm_label": "long-running command notifier"
-    },
-    {
-      "label": "Herdr Native Status",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L675",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_herdr_native_status",
-      "community": 323,
-      "norm_label": "herdr native status"
-    },
-    {
-      "label": "Code Style",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L681",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_code_style",
-      "community": 323,
-      "norm_label": "code style"
-    },
-    {
-      "label": "Git Commits",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L707",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_git_commits",
-      "community": 323,
-      "norm_label": "git commits"
-    },
-    {
-      "label": "Security",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L714",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_security",
-      "community": 323,
-      "norm_label": "security"
     },
     {
       "label": "CLAUDE.md",
@@ -55191,7 +54861,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L599",
+      "source_location": "L638",
       "weight": 1.0,
       "source": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin",
       "target": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_append_hosts_record",
@@ -55201,7 +54871,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L296",
+      "source_location": "L335",
       "weight": 1.0,
       "source": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin",
       "target": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_boolean_false",
@@ -55211,7 +54881,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L295",
+      "source_location": "L334",
       "weight": 1.0,
       "source": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin",
       "target": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_boolean_true",
@@ -55221,7 +54891,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L467",
+      "source_location": "L506",
       "weight": 1.0,
       "source": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin",
       "target": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_classify_hosts_file_seam",
@@ -55231,7 +54901,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L479",
+      "source_location": "L518",
       "weight": 1.0,
       "source": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin",
       "target": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_configured_hosts_file_path",
@@ -55241,7 +54911,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L293",
+      "source_location": "L332",
       "weight": 1.0,
       "source": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin",
       "target": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_converged_claiming_line_count",
@@ -55251,7 +54921,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L237",
+      "source_location": "L276",
       "weight": 1.0,
       "source": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin",
       "target": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_default_hosts_file",
@@ -55261,7 +54931,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L302",
+      "source_location": "L341",
       "weight": 1.0,
       "source": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin",
       "target": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_exit_status_ok",
@@ -55271,7 +54941,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L303",
+      "source_location": "L342",
       "weight": 1.0,
       "source": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin",
       "target": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_exit_status_refused",
@@ -55281,7 +54951,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L304",
+      "source_location": "L343",
       "weight": 1.0,
       "source": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin",
       "target": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_exit_status_usage",
@@ -55291,7 +54961,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L322",
+      "source_location": "L361",
       "weight": 1.0,
       "source": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin",
       "target": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_expected_argument_count",
@@ -55301,7 +54971,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L638",
+      "source_location": "L677",
       "weight": 1.0,
       "source": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin",
       "target": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_finish",
@@ -55311,7 +54981,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L652",
+      "source_location": "L691",
       "weight": 1.0,
       "source": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin",
       "target": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_finish_after_signal",
@@ -55321,7 +54991,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L290",
+      "source_location": "L329",
       "weight": 1.0,
       "source": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin",
       "target": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_hosts_column_forbidden_characters",
@@ -55331,7 +55001,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L254",
+      "source_location": "L293",
       "weight": 1.0,
       "source": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin",
       "target": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_hosts_comment_character",
@@ -55341,7 +55011,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L276",
+      "source_location": "L315",
       "weight": 1.0,
       "source": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin",
       "target": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_hosts_field_separator",
@@ -55351,7 +55021,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L341",
+      "source_location": "L380",
       "weight": 1.0,
       "source": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin",
       "target": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_hosts_file_description",
@@ -55361,7 +55031,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L564",
+      "source_location": "L603",
       "weight": 1.0,
       "source": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin",
       "target": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_hosts_file_has_valid_loopback_record",
@@ -55371,7 +55041,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L245",
+      "source_location": "L284",
       "weight": 1.0,
       "source": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin",
       "target": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_hosts_file_seam_absent",
@@ -55381,7 +55051,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L246",
+      "source_location": "L285",
       "weight": 1.0,
       "source": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin",
       "target": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_hosts_file_seam_empty",
@@ -55391,7 +55061,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L247",
+      "source_location": "L286",
       "weight": 1.0,
       "source": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin",
       "target": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_hosts_file_seam_path",
@@ -55401,7 +55071,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L238",
+      "source_location": "L277",
       "weight": 1.0,
       "source": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin",
       "target": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_hosts_file_seam_variable_name",
@@ -55411,7 +55081,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L268",
+      "source_location": "L307",
       "weight": 1.0,
       "source": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin",
       "target": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_hosts_item_separator_characters",
@@ -55421,7 +55091,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L409",
+      "source_location": "L448",
       "weight": 1.0,
       "source": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin",
       "target": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_hosts_line_claims_name",
@@ -55431,7 +55101,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L426",
+      "source_location": "L465",
       "weight": 1.0,
       "source": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin",
       "target": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_hosts_line_is_claimed_by_pin",
@@ -55441,7 +55111,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L381",
+      "source_location": "L420",
       "weight": 1.0,
       "source": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin",
       "target": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_hosts_line_is_record_for_address",
@@ -55451,7 +55121,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L396",
+      "source_location": "L435",
       "weight": 1.0,
       "source": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin",
       "target": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_hosts_line_is_valid_loopback_record",
@@ -55461,7 +55131,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L364",
+      "source_location": "L403",
       "weight": 1.0,
       "source": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin",
       "target": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_hosts_line_record_text",
@@ -55471,7 +55141,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L260",
+      "source_location": "L299",
       "weight": 1.0,
       "source": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin",
       "target": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_hosts_record_minimum_field_count",
@@ -55481,7 +55151,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L606",
+      "source_location": "L645",
       "weight": 1.0,
       "source": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin",
       "target": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_install_hosts_file_atomically",
@@ -55491,7 +55161,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L661",
+      "source_location": "L700",
       "weight": 1.0,
       "source": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin",
       "target": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_install_temporary_file_traps",
@@ -55501,7 +55171,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L432",
+      "source_location": "L471",
       "weight": 1.0,
       "source": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin",
       "target": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_is_single_hosts_column",
@@ -55511,7 +55181,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L272",
+      "source_location": "L311",
       "weight": 1.0,
       "source": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin",
       "target": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_loopback_address",
@@ -55521,7 +55191,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L673",
+      "source_location": "L712",
       "weight": 1.0,
       "source": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin",
       "target": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_main",
@@ -55531,7 +55201,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L300",
+      "source_location": "L339",
       "weight": 1.0,
       "source": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin",
       "target": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_maximum_symlink_hops",
@@ -55541,7 +55211,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L452",
+      "source_location": "L491",
       "weight": 1.0,
       "source": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin",
       "target": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_pin_is_converged",
@@ -55551,7 +55221,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L440",
+      "source_location": "L479",
       "weight": 1.0,
       "source": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin",
       "target": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_pin_record_line",
@@ -55561,7 +55231,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L226",
+      "source_location": "L265",
       "weight": 1.0,
       "source": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin",
       "target": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_program_name",
@@ -55571,7 +55241,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L515",
+      "source_location": "L554",
       "weight": 1.0,
       "source": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin",
       "target": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_read_file_mode",
@@ -55581,7 +55251,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L519",
+      "source_location": "L558",
       "weight": 1.0,
       "source": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin",
       "target": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_read_file_owner",
@@ -55591,7 +55261,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L332",
+      "source_location": "L371",
       "weight": 1.0,
       "source": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin",
       "target": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_refuse",
@@ -55601,7 +55271,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L624",
+      "source_location": "L663",
       "weight": 1.0,
       "source": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin",
       "target": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_remove_temporary_hosts_file",
@@ -55611,7 +55281,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L328",
+      "source_location": "L367",
       "weight": 1.0,
       "source": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin",
       "target": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_report",
@@ -55621,7 +55291,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L493",
+      "source_location": "L532",
       "weight": 1.0,
       "source": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin",
       "target": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_resolve_symlink_chain",
@@ -55641,7 +55311,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L308",
+      "source_location": "L347",
       "weight": 1.0,
       "source": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin",
       "target": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_signal_exit_status_base",
@@ -55651,7 +55321,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L532",
+      "source_location": "L571",
       "weight": 1.0,
       "source": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin",
       "target": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_survey_hosts_file",
@@ -55661,7 +55331,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L585",
+      "source_location": "L624",
       "weight": 1.0,
       "source": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin",
       "target": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_write_kept_hosts_lines",
@@ -55671,7 +55341,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L765",
+      "source_location": "L804",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_sh__entry",
@@ -55682,7 +55352,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L736",
+      "source_location": "L775",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_main",
@@ -55693,7 +55363,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L691",
+      "source_location": "L730",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_main",
@@ -55704,7 +55374,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L411",
+      "source_location": "L450",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_hosts_line_claims_name",
@@ -55715,7 +55385,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L383",
+      "source_location": "L422",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_hosts_line_is_record_for_address",
@@ -55726,7 +55396,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L397",
+      "source_location": "L436",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_hosts_line_is_valid_loopback_record",
@@ -55737,7 +55407,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L568",
+      "source_location": "L607",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_hosts_file_has_valid_loopback_record",
@@ -55748,7 +55418,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L428",
+      "source_location": "L467",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_hosts_line_is_claimed_by_pin",
@@ -55759,7 +55429,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L548",
+      "source_location": "L587",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_survey_hosts_file",
@@ -55770,7 +55440,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L590",
+      "source_location": "L629",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_write_kept_hosts_lines",
@@ -55781,7 +55451,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L707",
+      "source_location": "L746",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_main",
@@ -55792,7 +55462,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L734",
+      "source_location": "L773",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_main",
@@ -55803,7 +55473,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L749",
+      "source_location": "L788",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_main",
@@ -55814,7 +55484,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L743",
+      "source_location": "L782",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_main",
@@ -55825,7 +55495,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L753",
+      "source_location": "L792",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_main",
@@ -55836,7 +55506,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L757",
+      "source_location": "L796",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_main",
@@ -55847,7 +55517,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L641",
+      "source_location": "L680",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_finish",
@@ -55858,7 +55528,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L658",
+      "source_location": "L697",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_finish_after_signal",
@@ -55869,7 +55539,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
-      "source_location": "L674",
+      "source_location": "L713",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_main",
@@ -77813,326 +77483,6 @@
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L7",
-      "weight": 1.0,
-      "source": "agents",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_claude_md",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L214",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_claude_md",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_architecture",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L681",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_claude_md",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_code_style",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L707",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_claude_md",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_git_commits",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L18",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_claude_md",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_key_commands",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L714",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_claude_md",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_security",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L11",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_claude_md",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_what_this_is",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L86",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_key_commands",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_chezmoi_operations",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L114",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_key_commands",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_claude_code_settings",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L147",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_key_commands",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_git_hooks",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L20",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_key_commands",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_linting_formatting",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L46",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_key_commands",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_testing",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L358",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_agent_skills_cross_harness_store",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L656",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_ai_commit_messages",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L555",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_bashrc_init_ordering",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L348",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_ci",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L337",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_dev_environment_nix_flake",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L548",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_git_worktrees_worktrunk",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L592",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_happy_daemon_remote_agent_control",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L675",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_herdr_native_status",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L528",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_herdr_workspace_management",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L669",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_long_running_command_notifier",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L260",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_macos_defaults_management",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L224",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_minimum_chezmoi_version",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L332",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_os_targeting",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L228",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_secrets_management",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L563",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_shell_history_atuin",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L216",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_source_only_files",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L235",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_system_package_management",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L619",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_tailscale_headless_daemon",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L305",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_template_files",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L311",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu74_agents_template_shellcheck_workaround",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
       "source_file": "CLAUDE.md",
       "source_location": "L7",
       "weight": 1.0,
@@ -96662,5 +96012,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "13d260fc35fd282c21a7290093c4b7e2ba733077"
+  "built_at_commit": "8815183529bdd4294f48ab44a2e3baffe943b4f6"
 }

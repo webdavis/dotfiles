@@ -32,6 +32,12 @@
 #     STRING (a bare YAML number or boolean) REFUSES to render;
 #   - two pins claiming the SAME name refuse to render, because a pin owns both
 #     of its names and the second would delete the first's record forever;
+#   - the FALSE-POSITIVE direction of all of the above: uppercase, trailing-dot,
+#     underscored and IPv6 pins still render and still apply byte-exact, and the
+#     REAL data still renders one helper invocation per declared pin. Every
+#     refusal fixture stays green under a validation tightened until it refuses
+#     everything, and what that costs is an aborted apply and a machine with no
+#     fallback, not a red test;
 #   - the helper path the render names is a path chezmoi actually deploys, and
 #     the runner GATES on the helper's sha256 rather than only embedding it.
 #
@@ -1210,6 +1216,84 @@ run_pin_capture "$crlf_unterminated" crlf-unterminated-again
 grep -qF 'already converged' "$work/crlf-unterminated-again.out" ||
   fail "the run after the unterminated-CRLF repair did not report converged: $(cat "$work/crlf-unterminated-again.out")"
 
+# ---------- LAYER 2p: LEGITIMATE pin shapes still render AND apply -----------
+# The false-positive direction for every refusal in this suite. Twelve fixtures
+# above assert that malformed pin data is refused, and each of them stays green
+# if the validation is tightened until it refuses everything. What that costs is
+# not a failed test: the render aborts, so `chezmoi apply` aborts, and the
+# machine ends up with no MagicDNS fallback at all, which is the failure the
+# whole subsystem exists to prevent.
+#
+# The shapes are chosen to be the ones a tightening would plausibly take out.
+# The refusal set is Go's \s class plus #, and the reconciler's matching set is
+# $' \t\n\r\f#'; narrow either to something like "letters, digits, dots and
+# dashes" and every pin below stops rendering while every refusal fixture stays
+# green. Uppercase (hosts names are case-insensitive to the resolver but the
+# file carries the bytes given), a FULLY QUALIFIED trailing dot, an underscore
+# (illegal in a hostname per RFC 1123, legal in a hosts file and common in
+# local names), and an IPv6 address, whose COLONS are the most likely casualty
+# of an address-shaped tightening. Each pin's fields are checked byte for byte
+# in the file, not merely present, so a shape that survives the render but is
+# mangled on the way through is caught here rather than by a resolver.
+render_fixture legitimate-shapes <<'EOF'
+macos:
+  system_setup: []
+  tailnet_pins:
+    - fqdn: "Upper.Example.Test"
+      ip: "192.0.2.11"
+      short: "Upper"
+    - fqdn: "trailing.example.test."
+      ip: "192.0.2.12"
+      short: "trailing"
+    - fqdn: "under_score.example.test"
+      ip: "192.0.2.13"
+      short: "under_score"
+    - fqdn: "v6.example.test"
+      ip: "2001:db8::7"
+      short: "v6"
+EOF
+# The per-pin invocation, and NOT the `sudo -v` prelude, which takes no helper
+# and would fail every apply assertion below if it were swept up with them.
+# shellcheck disable=SC2016  # $tailnet_pin_helper is the literal text of the
+# RENDERED script, matched here, never a variable of this suite's to expand.
+PIN_INVOCATION_PATTERN='^sudo "\$tailnet_pin_helper" '
+legitimate_rendered="$work/legitimate-shapes.rendered"
+legitimate_hosts="$work/legitimate-shapes-hosts"
+# Seeded with loopback because installing any rebuild is gated on it.
+printf '127.0.0.1\tlocalhost\n' >"$legitimate_hosts"
+# Run the RENDERED commands rather than calling the reconciler directly, so the
+# render and the apply are covered as one path. Read on a dedicated fd: the loop
+# body runs a shell that may consume stdin.
+while IFS= read -r -u3 line; do
+  legitimate_command="${line#sudo }"
+  legitimate_command="${legitimate_command/\"\$tailnet_pin_helper\"/\"$RECONCILER\"}"
+  TAILNET_PIN_HOSTS_FILE="$legitimate_hosts" bash -c "$legitimate_command" \
+    >/dev/null ||
+    fail "a legitimate pin shape failed to apply: $line"
+done 3< <(grep -E "$PIN_INVOCATION_PATTERN" "$legitimate_rendered")
+while IFS='|' read -r legitimate_ip legitimate_fqdn legitimate_short; do
+  grep -qxF -- \
+    "$(printf '%s\t%s\t%s' "$legitimate_ip" "$legitimate_fqdn" "$legitimate_short")" \
+    "$legitimate_hosts" ||
+    fail "a legitimate pin shape did not arrive byte-exact in the hosts file: wanted $(printf '%q' "$(printf '%s\t%s\t%s' "$legitimate_ip" "$legitimate_fqdn" "$legitimate_short")"), file holds: $(cat "$legitimate_hosts")"
+done <<'EOF'
+192.0.2.11|Upper.Example.Test|Upper
+192.0.2.12|trailing.example.test.|trailing
+192.0.2.13|under_score.example.test|under_score
+2001:db8::7|v6.example.test|v6
+EOF
+grep -qxF $'127.0.0.1\tlocalhost' "$legitimate_hosts" ||
+  fail "applying the legitimate pin shapes clobbered the loopback record"
+
+# THE REAL DATA must render too, and it is the one pin whose refusal would abort
+# this machine's own apply. Rendered only: this suite never applies real tailnet
+# addresses to a fixture, and rendering is where a tightened validation bites.
+render_fixture real-data <"$YAML"
+real_data_sudo_lines="$(grep -cE "$PIN_INVOCATION_PATTERN" "$work/real-data.rendered" || true)"
+real_data_pin_count="$(yq '.macos.tailnet_pins | length' "$YAML")"
+[[ $real_data_sudo_lines -eq $real_data_pin_count ]] ||
+  fail "the real data rendered $real_data_sudo_lines helper invocation(s) for $real_data_pin_count declared pin(s); too few means a tightened validation would abort this machine's own apply, too many means /etc/hosts is rewritten more than once per pin"
+
 # ---------- LAYER 2m: the temporary file is created BESIDE the target --------
 # The reconciler's atomicity rests on `mv` never crossing a filesystem, which
 # rests on mktemp creating the temp in the TARGET's directory. Every "no temp
@@ -1409,4 +1493,4 @@ while IFS=$'\t' read -r fqdn ip short; do
     fail "pin short name '$short' is not the first label of '$fqdn'"
 done < <(yq eval '.macos.tailnet_pins[] | [.fqdn, .ip, .short] | @tsv' "$YAML")
 
-echo "tailnet-pins: OK (exact render per pin against the deployed reconciler, gated on its sha256; malformed, non-string and name-colliding pins refuse to render; the real reconciler converges, repairs an unterminated final line rather than reporting it converged, leaves CRLF records alone and converges over them while repairing the unterminated one, refuses loudly, refuses an unreadable source and a self-satisfied loopback gate, accepts an indented loopback record and one that does not name localhost while still refusing an indented decoy, creates its temp beside the target, preserves the target's mode and owner, leaves no temp after any of the ${#actual_cleaned_up_signal_names[@]} signals it declares for cleanup under ${#INTERPRETERS[@]} interpreter(s), survives symlinks; hostile fields stay inert; $pin_count real pin(s) well-formed)"
+echo "tailnet-pins: OK (exact render per pin against the deployed reconciler, gated on its sha256; malformed, non-string and name-colliding pins refuse to render; the real reconciler converges, repairs an unterminated final line rather than reporting it converged, leaves CRLF records alone and converges over them while repairing the unterminated one, refuses loudly, refuses an unreadable source and a self-satisfied loopback gate, accepts an indented loopback record and one that does not name localhost while still refusing an indented decoy, creates its temp beside the target, preserves the target's mode and owner, leaves no temp after any of the ${#actual_cleaned_up_signal_names[@]} signals it declares for cleanup under ${#INTERPRETERS[@]} interpreter(s), survives symlinks; uppercase, trailing-dot, underscored and IPv6 pins still render AND apply byte-exact, and the real data still renders one invocation per pin; hostile fields stay inert; $pin_count real pin(s) well-formed)"
