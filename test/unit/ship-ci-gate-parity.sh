@@ -36,6 +36,13 @@
 #   3. A change to when the workflow runs at all. That scope is asserted as text
 #      against GATE_TRIGGER_BLOCK_LINES; see the comment on that constant.
 #
+# A fourth shape is named here rather than guarded: `set shell` on the justfile's
+# first line decides whether a failing command fails the recipe at all. Neuter it
+# and every command line still matches, while `just ship` reports success on a
+# red gate. `just --dump` does report it (settings.shell), this reader ignores
+# it, and nothing in this repo would change it by accident, so this is a
+# documented limit rather than a guard.
+#
 # Scope limit, stated plainly: only the workflows named in CI_GATE_WORKFLOWS are
 # treated as gates. A NEW gate workflow must be added there, and the
 # classification guard below fails on any workflow file that is in neither list
@@ -252,10 +259,22 @@ recipe_body_lines() {
       else join("") end' <<<"$just_dump"
 }
 
-# recipe_command_lines <recipe-name>, every command the recipe runs, in execution
-# order: prior dependencies in full, then the recipe body, then any dependency
-# declared after `&&`. just rejects a circular dependency at parse time, so this
-# recursion terminates.
+# recipe_command_lines <recipe-name>, the recipe's commands in the order just
+# runs them: prior dependencies in full, then the recipe body, then any
+# dependency declared after `&&`. Matched line for line against `just --dry-run`
+# on a recipe carrying both dependency kinds and a body, and again with a nested
+# `&&`. just rejects a circular dependency at parse time, so this recursion
+# terminates.
+#
+# ONE SHAPE IS NOT MODELLED, and `ship` does not have it today: a dependency
+# reached by more than one path. just runs such a recipe ONCE per invocation;
+# this reader walks the tree and emits it once per path. Measured on `top: p q`
+# with `p: shared` and `q: shared`, just runs shared once and this reader emits
+# it twice, and the same for a literal `dup: alpha alpha`. The divergence is
+# always over-emission, so it can produce a false FAIL and never a false PASS: a
+# list that equals CI's has no duplicates in it, so no deduplication was owed.
+# Give `ship` a shared dependency and this reader has to learn just's
+# deduplication before its failure message can be believed.
 recipe_command_lines() {
   local recipe="$1" dependency_list prior_count body_lines dependency index
   local dependencies=()
