@@ -27,6 +27,21 @@ function path_prepend() {
   fi
 }
 
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# NON-INTERACTIVE-SAFE setup (PATH, env, functions). This block runs for every
+# shell that actually sources ~/.bashrc, which includes two NON-interactive login
+# paths: `bash -lc` (via ~/.bash_profile) and `ssh host cmd` (Apple /bin/bash
+# sources ~/.bashrc when SSH_CLIENT is set). Keep it CHEAP. NOTE herdr keybinding
+# commands run via `/bin/sh -lc`, which is DELIBERATELY EXCLUDED: ~/.profile's
+# interactive gate (see dot_profile) stops /bin/sh -lc from reaching ~/.bashrc at
+# all, so those commands inherit PATH from the long-lived herdr server, not this
+# file. Everything genuinely interactive-only (prompt, completions, history,
+# PROMPT_COMMAND/preexec hooks) lives under the `[[ $- == *i* ]]` guard farther
+# down, so the two non-interactive doors above skip that init entirely, which is
+# where almost all of a shell start's cost lives. No committed artifact
+# regenerates a figure for it, so none is quoted here.
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 # ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 # ┃  Global Environment Variables & Settings  ┃
 # ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
@@ -44,45 +59,63 @@ export USER="${USER:-$(whoami)}"
 # history flags (HISTFILE, HISTSIZE, histappend, HISTCONTROL, HISTIGNORE) were
 # removed to eliminate race conditions across herdr panes and redundant writes.
 
-[[ -f "$HOME/.atuin/bin/env" ]] && . "$HOME/.atuin/bin/env"
-
 # ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 # ┃  Homebrew: https://brew.sh/ ┃
 # ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 HOMEBREW_PREFIX='/opt/homebrew'
 
-# Configure homebrew_prefix/bin tools.
-eval "$(${HOMEBREW_PREFIX}/bin/brew shellenv)"
-
-# Configure Homebrew system administrator tools.
-path_prepend "${HOMEBREW_PREFIX}/sbin"
+# Brew PATH/env, sourced from a cache that ~/.local/bin/brew-shellenv-cache-refresh.sh
+# generates from the real `brew shellenv`. The self-heal block in the interactive
+# half of this file is what runs it automatically, whenever the cache is missing
+# or unusable or stale; `just brew-cache-refresh` runs it on demand. The
+# non-interactive login doors that reach ~/.bashrc (bash -lc via ~/.bash_profile,
+# `ssh host cmd` via Apple /bin/bash's SSH_SOURCE_BASHRC) need brew on PATH
+# (/etc/paths lacks /opt/homebrew/bin). A live `eval "$(brew shellenv)"` costs
+# tens of milliseconds on each of them; sourcing the pre-generated cache costs
+# roughly an order of magnitude less, and what remains is the /usr/libexec/
+# path_helper fork the CACHED TEXT ITSELF performs, not the file read. No
+# committed artifact regenerates those figures, so no absolute number is quoted
+# here; the measurements behind the design live in the commit that introduced it.
+# Regenerating from the real generator (rather than hardcoding its output) keeps
+# us in sync with upstream Homebrew's shellenv abstraction and recreates
+# ${HOMEBREW_PREFIX}/etc/paths when it is missing. Fall back to a live eval
+# whenever the cache is not usable, which on a fresh host is the FIRST shell
+# only: that shell pays the live cost once and launches the regeneration, and
+# every later shell sources the cache.
+#
+# KNOWN AND DELIBERATE GAP: only INTERACTIVE shells self-heal (the writer launch
+# lives under the `[[ $- == *i* ]]` guard below), so a host driven ONLY through
+# `ssh host cmd` and `bash -lc` never writes the cache and pays the live cost on
+# every shell, forever. Closing that would mean either a second, non-atomic copy
+# of the write inlined here (the branch just consolidated the write into ONE
+# atomic implementation) or launching a detached background process out of every
+# `ssh host cmd`, which is the classic way to leave an ssh channel hanging. The
+# supported answer for a headless host is to run the writer once from
+# provisioning: ~/.local/bin/brew-shellenv-cache-refresh.sh (it is idempotent),
+# or `just brew-cache-refresh`.
+__brew_shellenv="${XDG_CACHE_HOME:-$HOME/.cache}/brew-shellenv.sh"
+# USABLE means all three: a regular file (-f, so a directory named like the cache
+# is rejected), readable (-r), and non-empty (-s). Any one of them alone lets a
+# broken cache through, and two of those failures are LOUD: `.` on an unreadable
+# file or on a directory prints a bash diagnostic to the terminal on EVERY shell
+# start. An empty cache is silent but sources nothing, which would leave brew off
+# PATH. All three cases fall through to the live eval instead, and the self-heal
+# guard below asks this SAME question so the reader and the writer cannot
+# disagree about what "usable" means.
+if [[ -f $__brew_shellenv && -r $__brew_shellenv && -s $__brew_shellenv ]]; then
+  . "$__brew_shellenv"
+else
+  eval "$("${HOMEBREW_PREFIX}/bin/brew" shellenv 2>/dev/null)"
+fi
+unset __brew_shellenv
+# NB: the brew shellenv path_helper line above already places both
+# /opt/homebrew/bin AND /opt/homebrew/sbin on PATH, so there is deliberately no
+# `path_prepend "${HOMEBREW_PREFIX}/sbin"` here. Adding one duplicates
+# /opt/homebrew/sbin in PATH.
 
 export SHELL="${HOMEBREW_PREFIX}/bin/bash"
 
-# General Homebrew-Bash completions.
-#
-# BASH_COMPLETION_COMPAT_IGNORE skips a compat file by basename. himalaya 2.0.0
-# ships a broken one: its `completion bash` subcommand WRITES the script to a
-# file in the working directory and prints a status line to stdout, so the
-# formula's `himalaya completion bash > .../himalaya` captured the status line
-# instead. The installed file is two lines of prose, and bash reports a syntax
-# error on the `(` in "1 completion script(s) successfully generated" in every
-# new shell. bash-completion sources that directory eagerly, so shadowing the
-# file from the XDG completions directory is not enough on its own.
-#
-# The working completion is generated into the XDG directory by
-# run_onchange_after_20-himalaya-completion.sh.tmpl, which takes the file the
-# subcommand actually writes rather than its stdout.
-export BASH_COMPLETION_COMPAT_IGNORE='himalaya'
-bash_completion="${HOMEBREW_PREFIX}/opt/bash-completion@2/etc/profile.d/bash_completion.sh"
-[[ -r $bash_completion ]] && . "$bash_completion"
-
-# bash-preexec: provides preexec_functions/precmd_functions arrays that atuin
-# and the long-running command notifier depend on. Must load BEFORE atuin init
-# so atuin's hooks register with it. Newer atuin (>= 18.x) no longer bundles it.
-# Ref: https://github.com/rcaloras/bash-preexec
-bash_preexec="${HOMEBREW_PREFIX}/etc/profile.d/bash-preexec.sh"
-[[ -r $bash_preexec ]] && . "$bash_preexec"
+export MANPATH="${HOMEBREW_PREFIX}/share/man:${MANPATH}"
 
 # Configure updated curl.
 path_prepend "${HOMEBREW_PREFIX}/opt/curl/bin"
@@ -92,97 +125,132 @@ path_prepend "${HOMEBREW_PREFIX}/opt/trash-cli/bin/"
 
 path_prepend "${HOMEBREW_PREFIX}/opt/gnu-getopt/bin/"
 
-export MANPATH="${HOMEBREW_PREFIX}/share/man:${MANPATH}"
-
-# ┏━━━━━━━━━━━━━━━━━━━━━┓
-# ┃  3rd Party Tooling  ┃
-# ┗━━━━━━━━━━━━━━━━━━━━━┛
-
-# git and gh completions are provided by carapace (below) and, for git, the
-# completion bundled with Homebrew's git formula, both lazy-loaded, so nothing
-# to source here.
-
-# Direnv: https://github.com/direnv/direnv
-eval "$(direnv hook bash)" # Sets the Direnv hook.
-
-# Carapace: universal shell completion engine (v2 §16.3).
-# Ref: https://github.com/carapace-sh/carapace-bin
-# CARAPACE_MATCH=1 enables case-insensitive matching. Carapace registers
-# `complete -F _carapace_completer` for ~700 commands (ls, cat, vim, git, …)
-# and writes COMPREPLY directly, so readline's `completion-ignore-case` does
-# NOT apply to those commands. Without this env var, lowercase prefixes won't
-# match uppercase filenames despite inputrc settings.
-# Docs: https://carapace-sh.github.io/carapace-bin/setup/environment.html
-export CARAPACE_MATCH=1
-command -v carapace &>/dev/null && source <(carapace _carapace bash) 2>/dev/null
-
-# Composio CLI
+# Composio CLI, PATH only (the CLI must resolve in non-interactive shells too).
 # Ref: https://docs.composio.dev/docs/cli
 export COMPOSIO_INSTALL_DIR="$HOME/.composio"
 export PATH="$COMPOSIO_INSTALL_DIR:$PATH"
 
-# Starship: https://starship.rs/
-# Use simplified ASCII config when connecting via Mosh or SSH.
-if [[ -n ${MOSH_KEY:-} || -n ${SSH_CONNECTION:-} ]]; then
-  export STARSHIP_CONFIG="$HOME/.config/starship-mosh.toml"
-fi
-eval "$(starship init bash)"
-
 # Cargo: https://github.com/rust-lang/cargo
-# Direct PATH add instead of sourcing .cargo/env (avoids file read on every shell start).
+# Direct PATH add instead of sourcing .cargo/env (avoids a file read every start).
 [[ -d "$HOME/.cargo/bin" ]] && path_prepend "$HOME/.cargo/bin"
 
 # Volta: https://volta.sh/
 # Append (not prepend) so Volta's node/npm shims do NOT win over Homebrew's
-# `node`. Volta-installed CLI tools (e.g. qmd) still resolve here because
-# nothing earlier in PATH provides those binaries, and their shims dispatch to
-# their pinned Node version internally, independent of PATH order.
+# `node`. Volta-installed CLI tools (e.g. qmd) still resolve here because nothing
+# earlier in PATH provides those binaries, and their shims dispatch to their
+# pinned Node version internally, independent of PATH order.
 export VOLTA_HOME="$HOME/.volta"
 [[ -d "$VOLTA_HOME/bin" ]] && PATH="$PATH:$VOLTA_HOME/bin"
 
-# Just: https://github.com/casey/just
-[[ -s "$HOME/.bash_just_completions" ]] && . "$HOME/.bash_just_completions"
-# Ref: https://github.com/casey/just?tab=readme-ov-file#shell-alias
-alias j='just'
-complete -F _just -o bashdefault -o default j
-
-# Worktrunk: https://worktrunk.dev/
-# Defines a `wt` shell function wrapping the binary so `wt switch`/`wt merge`
-# can change the parent shell's directory (a subprocess can't cd its caller,
-# the function reads a directive temp file and runs the cd itself). Without it,
-# `wt switch` finds the worktree but cannot move you there. The init output is
-# self-guarding (`if command -v wt`) and uses `builtin cd`, so it is inert when
-# wt is absent and unaffected by zoxide's later `cd` alias. No PROMPT_COMMAND
-# mutation, so placement here (before zoxide/atuin) is safe.
-eval "$(wt config shell init bash)"
-
 # Nix: https://github.com/NixOS/nix-installer
+# Sets PATH/env for nix; needed by non-interactive shells too.
 nix_daemon='/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh'
 [[ -e $nix_daemon ]] && . "$nix_daemon"
 
 # ┏━━━━━━━━━━━━━━━━━━━━━┓
 # ┃  Utility functions  ┃
 # ┗━━━━━━━━━━━━━━━━━━━━━┛
-# Sourced from ~/.bash_functions for organization. Loaded outside the
-# interactive guard so functions are available to non-interactive
-# sub-shells too (e.g. `bash -c 'mkd /tmp/foo'`).
+# Sourced from ~/.bash_functions for organization. Kept OUTSIDE the interactive
+# guard so functions are available to non-interactive login sub-shells too
+# (e.g. `bash -lc 'mkd /tmp/foo'`).
 [[ -s "$HOME/.bash_functions" ]] && . "$HOME/.bash_functions"
 
-# Per-command Bash completions live in ~/.local/share/bash-completion/completions/
-# and are lazy-loaded by bash-completion@2's dynamic loader (sourced above) on
-# first tab, nothing to source here. Add a file named after the command (e.g.
-# `whisply`), no extension.
+# Order matters! These local (user-level) tools should always take precedence in
+# my environment.
+path_prepend "$HOME/.local/bin"
+path_prepend "$HOME/.bun/bin"
 
-# Fzf: ~/.fzf_bindings (sourced later in the interactive block) loads only
-# key-bindings.bash, NOT completion.bash. Sourcing ~/.fzf.bash here would
-# pull in completion.bash, which registers `complete -F _fzf_path_completion`
-# for ~50 commands and breaks readline's `completion-ignore-case` for them.
-# See https://github.com/junegunn/fzf/tree/master/shell.
+# ⚠️ Writes the updated PATH to the Bash env. Must follow every path_prepend above.
+export PATH
 
-# ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-# ┃  Interactive-only features  ┃
-# ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# INTERACTIVE-ONLY init: prompt, completions, history, and PROMPT_COMMAND/preexec
+# hooks, useless to non-interactive shells and by far the most expensive part of
+# a shell start (an order of magnitude more than everything above). This guard
+# is the heart of the keypress-latency fix: herdr keybindings, `bash -lc`, and
+# `ssh host cmd` are all non-interactive ($- has no `i`) and skip everything here.
+# Dependency order is load-bearing: bash-preexec BEFORE atuin/notifier; the
+# PROMPT_COMMAND writers in the order direnv -> starship -> zoxide -> atuin.
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 if [[ $- == *i* ]]; then
+  # General Homebrew-Bash completions.
+  #
+  # BASH_COMPLETION_COMPAT_IGNORE skips a compat file by basename, and must be
+  # set BEFORE the source below: bash-completion reads it while walking the
+  # compat dir at load time, not lazily. himalaya 2.0.0 ships a broken compat
+  # file: its `completion bash` subcommand WRITES the script to a file in the
+  # working directory and prints a status line to stdout, so the formula's
+  # `himalaya completion bash > .../himalaya` captured the status line instead.
+  # The installed file is two lines of prose, and bash reports a syntax error on
+  # the `(` in "1 completion script(s) successfully generated" in every new
+  # shell. bash-completion sources that directory eagerly, so shadowing the file
+  # from the XDG completions directory is not enough on its own.
+  #
+  # The working completion is generated into the XDG directory by
+  # run_onchange_after_20-himalaya-completion.sh.tmpl, which takes the file the
+  # subcommand actually writes rather than its stdout.
+  export BASH_COMPLETION_COMPAT_IGNORE='himalaya'
+  bash_completion="${HOMEBREW_PREFIX}/opt/bash-completion@2/etc/profile.d/bash_completion.sh"
+  [[ -r $bash_completion ]] && . "$bash_completion"
+
+  # bash-preexec: provides preexec_functions/precmd_functions arrays that atuin
+  # and the long-running command notifier depend on. Must load BEFORE atuin init
+  # so atuin's hooks register with it. Newer atuin (>= 18.x) no longer bundles it.
+  # Ref: https://github.com/rcaloras/bash-preexec
+  bash_preexec="${HOMEBREW_PREFIX}/etc/profile.d/bash-preexec.sh"
+  [[ -r $bash_preexec ]] && . "$bash_preexec"
+
+  # git and gh completions are provided by carapace (below) and, for git, the
+  # completion bundled with Homebrew's git formula, both lazy-loaded.
+
+  # Direnv: https://github.com/direnv/direnv (PROMPT_COMMAND hook; before starship).
+  eval "$(direnv hook bash)"
+
+  # Carapace: universal shell completion engine (v2 §16.3).
+  # Ref: https://github.com/carapace-sh/carapace-bin
+  # CARAPACE_MATCH=1 enables case-insensitive matching. Carapace registers
+  # `complete -F _carapace_completer` for ~700 commands and writes COMPREPLY
+  # directly, so readline's `completion-ignore-case` does NOT apply to those;
+  # without this env var, lowercase prefixes won't match uppercase filenames.
+  # Docs: https://carapace-sh.github.io/carapace-bin/setup/environment.html
+  export CARAPACE_MATCH=1
+  command -v carapace &>/dev/null && source <(carapace _carapace bash) 2>/dev/null
+
+  # Starship: https://starship.rs/
+  # Use simplified ASCII config when connecting via Mosh or SSH.
+  if [[ -n ${MOSH_KEY:-} || -n ${SSH_CONNECTION:-} ]]; then
+    export STARSHIP_CONFIG="$HOME/.config/starship-mosh.toml"
+  fi
+  eval "$(starship init bash)"
+
+  # Just: https://github.com/casey/just
+  # Completion comes from carapace (registered above for the `just` command); the
+  # old ~/.bash_just_completions snapshot was unmanaged and absent on fresh machines.
+  # Ref: https://github.com/casey/just?tab=readme-ov-file#shell-alias
+  alias j='just'
+  # carapace keys its completer on COMP_WORDS[0], and it has a spec for `just`, not
+  # the `j` alias, so binding `_carapace_completer` to `j` directly yields ZERO
+  # completions (progcomp_alias is off). Wrap it: rewrite the completion context
+  # from `j` to `just` (just is 4 chars vs j 1, so COMP_POINT shifts +3), then
+  # delegate. Guarded on the function existing so a carapace-less fresh machine
+  # does not error.
+  if declare -F _carapace_completer &>/dev/null; then
+    _j_carapace_complete() {
+      COMP_WORDS[0]=just
+      COMP_LINE="just${COMP_LINE#j}"
+      ((COMP_POINT += 3))
+      _carapace_completer
+    }
+    complete -F _j_carapace_complete j
+  fi
+
+  # Worktrunk: https://worktrunk.dev/
+  # Defines a `wt` shell function wrapping the binary so `wt switch`/`wt merge`
+  # can change the parent shell's directory. Self-guarding (`if command -v wt`),
+  # uses `builtin cd`, no PROMPT_COMMAND mutation.
+  eval "$(wt config shell init bash)"
+
+  # ── Aliases ──
   # Zoxide alias.
   alias cd='z'
 
@@ -231,73 +299,174 @@ if [[ $- == *i* ]]; then
   # Custom Bash Bindings:
   [[ -s "$HOME/.bash_bindings" ]] && . "$HOME/.bash_bindings"
   [[ -s "$HOME/.fzf_bindings" ]] && . "$HOME/.fzf_bindings"
-fi
 
-# Zoxide: https://github.com/ajeetdsouza/zoxide
-# ⚠️ Must initialize after all other tools that modify PROMPT_COMMAND (especially starship).
-eval "$(zoxide init bash)"
+  # Zoxide: https://github.com/ajeetdsouza/zoxide
+  # ⚠️ Must initialize after all other tools that modify PROMPT_COMMAND (especially starship).
+  eval "$(zoxide init bash)"
 
-# Atuin: https://atuin.sh/
-# SQLite-backed shell history via daemon. atuin init registers its own
-# __atuin_preexec/__atuin_precmd with bash-preexec (sourced earlier).
-# ⚠️ Must initialize after zoxide (both modify PROMPT_COMMAND; atuin last).
-eval "$(atuin init bash --disable-up-arrow)"
+  # Atuin: https://atuin.sh/
+  # SQLite-backed shell history via daemon. atuin init registers its own
+  # __atuin_preexec/__atuin_precmd with bash-preexec (sourced earlier).
+  # ⚠️ Must initialize after zoxide (both modify PROMPT_COMMAND; atuin last).
+  eval "$(atuin init bash --disable-up-arrow)"
 
-# ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-# ┃  Atuin daemon drift self-heal                  ┃
-# ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-# If /opt/homebrew/bin/atuin is newer than the daemon's PID file, brew
-# autoupdate (or `chezmoi apply`) replaced the binary while the daemon kept
-# running stale code. Bounce the LaunchAgent in the background. Layered with
-# .chezmoiscripts/run_after_45-bounce-atuin-daemon-on-upgrade.sh.tmpl, which
-# uses version-string comparison at chezmoi-apply time.
-{{ if eq .chezmoi.os "darwin" -}}
-if [[ -f $HOME/.local/share/atuin/atuin-daemon.pid && /opt/homebrew/bin/atuin -nt $HOME/.local/share/atuin/atuin-daemon.pid ]]; then
-  launchctl kickstart -k "gui/$(id -u)/com.webdavis.atuin-daemon" >/dev/null 2>&1 &
-fi
-{{- end }}
-
-# ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-# ┃  Long-running command notifier (v2 §7.1)      ┃
-# ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-# Uses bash-preexec (sourced via Homebrew earlier) instead of a naked DEBUG
-# trap, which would clobber atuin's recording.
-__cmd_notify_start=""
-__cmd_notify_name=""
-
-__cmd_notify_preexec() {
-  __cmd_notify_start=$SECONDS
-  __cmd_notify_name="$1"
-}
-
-__cmd_notify_precmd() {
-  local exit_code=$?
-  [[ -z $__cmd_notify_start ]] && return
-  local elapsed=$((SECONDS - __cmd_notify_start))
-  __cmd_notify_start=""
-  # Skip known interactive TUIs.
-  [[ $__cmd_notify_name =~ ^(vim|nvim|less|man|top|btop|ssh|herdr|claude|hermes|codex|fzf) ]] && return
-  # Wrap each background call in a subshell so jobs aren't attached to this
-  # interactive shell (otherwise `fg`/`jobs` would grab them).
-  if ((elapsed >= 300)); then
-    (alerter --timeout 10 --title "Command finished" --message "${__cmd_notify_name%% *} (${elapsed}s)" --sound default >/dev/null 2>&1 &)
-    ("$HOME/.local/bin/hue-pulse.sh" "$exit_code" >/dev/null 2>&1 &)
-  elif ((elapsed >= 30)); then
-    (alerter --timeout 10 --title "Command finished" --message "${__cmd_notify_name%% *} (${elapsed}s)" --sound default >/dev/null 2>&1 &)
+  {{ if eq .chezmoi.os "darwin" -}}
+  # Atuin daemon drift self-heal: if /opt/homebrew/bin/atuin is newer than the
+  # daemon's PID file, brew autoupdate (or `chezmoi apply`) replaced the binary
+  # while the daemon kept running stale code. Bounce the LaunchAgent. Layered with
+  # .chezmoiscripts/run_after_45-bounce-atuin-daemon-on-upgrade.sh.tmpl.
+  if [[ -f $HOME/.local/share/atuin/atuin-daemon.pid && /opt/homebrew/bin/atuin -nt $HOME/.local/share/atuin/atuin-daemon.pid ]]; then
+    launchctl kickstart -k "gui/$(id -u)/com.webdavis.atuin-daemon" >/dev/null 2>&1 &
   fi
-}
+  {{- end }}
 
-# shellcheck disable=SC2034  # preexec_functions/precmd_functions consumed by bash-preexec
-preexec_functions+=(__cmd_notify_preexec)
-# shellcheck disable=SC2034
-precmd_functions+=(__cmd_notify_precmd)
+  {{ if eq .chezmoi.os "darwin" -}}
+  # Brew shellenv cache self-heal. THIS IS THE ONLY AUTOMATIC WRITER of the cache
+  # sourced above: `chezmoi apply --exclude=templates` (what `just a` runs, and
+  # what CLAUDE.md requires of automation) does not run templated scripts, so the
+  # apply-time regen script only ever fired on a rare full interactive apply and
+  # was deleted. Two named predicates below answer the two separate questions:
+  # does anything need repairing, and are we allowed to try again yet.
+  #
+  # WHAT COUNTS AS NEEDING REPAIR (__brew_shellenv_cache_needs_repair):
+  #   - the cache is not USABLE: absent, a directory, unreadable, or empty. This
+  #     is the same three-part question the consumer half of this file asks
+  #     before sourcing it, so the two cannot disagree about what "usable" means.
+  #     A staleness-only guard left every one of those states stuck forever, and
+  #     two of them (unreadable, directory) make `.` print a bash diagnostic to
+  #     the terminal on every single shell start.
+  #   - the cache is STALE: Homebrew shipped a new shellenv generator (e.g.
+  #     `brew autoupdate` ran `brew update`), so the generator is newer than the
+  #     cache.
+  #   - ${HOMEBREW_PREFIX}/etc/paths is not READABLE. The path_helper line in the
+  #     cached output reads that file at runtime, so without it
+  #     ${HOMEBREW_PREFIX}/bin and /sbin drop out of PATH and no Homebrew tool
+  #     resolves, `brew` included. The test is -r and NOT -f on purpose: a paths
+  #     file that exists but cannot be read collapses PATH exactly like a missing
+  #     one (path_helper prints "Permission denied", exits 0, and returns a PATH
+  #     with the Homebrew entries gone), and -f reports such a file as fine.
+  #     Losing or locking the file does not touch the generator's mtime, so this
+  #     needs a term of its own.
+  #
+  # WHY ATTEMPTS ARE RATE-LIMITED (__brew_shellenv_repair_is_due):
+  #   regenerating the cache fixes the first two conditions directly, but it
+  #   fixes the paths file only as a SIDE EFFECT of `brew shellenv`, and upstream
+  #   gates that side effect: Homebrew's Library/Homebrew/cmd/shellenv.sh writes
+  #   the file only on macOS 14 or newer, only when /usr/libexec/path_helper is
+  #   present, only when the file is MISSING rather than merely unreadable, and
+  #   it discards any write error. Whenever the side effect cannot happen (an
+  #   unreadable paths file, a read-only ${HOMEBREW_PREFIX}/etc, an older macOS),
+  #   an unconditional guard forks a brew and appends a log line on EVERY
+  #   interactive shell, forever, with nothing to converge on. The stamp bounds
+  #   that to one attempt per interval per host, for EVERY repair reason, from
+  #   the moment one shell has recorded an attempt. It is an ordering, NOT a
+  #   lock: writing a file is not a compare-and-swap, so panes opened at the
+  #   same instant all read a stamp-free host and can each still launch a
+  #   regeneration. What it does guarantee is that every shell arriving after an
+  #   attempt is on disk stays quiet until the interval passes, and that a host
+  #   which cannot record one at all launches nothing (the write is a term of
+  #   the gate below, not a statement inside it). Nothing here is on the hot
+  #   path: the stamp is only read once a repair is already indicated.
+  #
+  # Regeneration runs the DEPLOYED writer, the same artifact
+  # `just brew-cache-refresh` runs, so the atomic mktemp + success-gated mv has
+  # exactly one implementation and no caller can truncate the live cache. It is
+  # launched in a detached subshell (the `( ... & )` idiom the notifier below
+  # uses) so it never enters this interactive shell's job table: no `[N] pid`
+  # start line and no failed-job notice at the prompt. `just test` is the drift
+  # backstop.
+  __brew_shellenv_cache="${XDG_CACHE_HOME:-$HOME/.cache}/brew-shellenv.sh"
+  __brew_shellenv_generator="${HOMEBREW_REPOSITORY:-/opt/homebrew/Homebrew}/Library/Homebrew/cmd/shellenv.sh"
+  __brew_shellenv_paths_file="${HOMEBREW_PREFIX:-/opt/homebrew}/etc/paths"
+  __brew_shellenv_writer="$HOME/.local/bin/brew-shellenv-cache-refresh.sh"
+  __brew_shellenv_log="$HOME/.local/log/brew-shellenv-selfheal.log"
+  __brew_shellenv_attempt_stamp="$HOME/.local/log/brew-shellenv-selfheal.attempt"
+  __brew_shellenv_retry_interval_seconds=3600
 
-# Order matters! These local (user-level) tools should always take precedence in my environment.
-path_prepend "$HOME/.local/bin"
-path_prepend "$HOME/.bun/bin"
+  # Is the cache unusable, stale, or is the paths file it depends on unreadable?
+  # Stat tests only: this runs on every interactive shell and must not fork.
+  __brew_shellenv_cache_needs_repair() {
+    [[ -f $__brew_shellenv_cache && -r $__brew_shellenv_cache && -s $__brew_shellenv_cache ]] ||
+      return 0
+    [[ $__brew_shellenv_generator -nt $__brew_shellenv_cache ]] && return 0
+    [[ ! -r $__brew_shellenv_paths_file ]]
+  }
 
-# ⚠️ Keep this as the last line. Writes the updated PATH to the Bash `env`.
-export PATH
+  # Has enough time passed since the last repair attempt to try another one?
+  # Only reached once a repair is indicated, so its file read is off the hot path.
+  __brew_shellenv_repair_is_due() {
+    local last_attempt_epoch
+    # No clock, no bound. EPOCHSECONDS arrived in bash 5.0, and an interactive
+    # Apple /bin/bash (3.2) would compare against 0 and never repair anyway.
+    # Refusing is the safe direction: the consumer half still falls back to a
+    # live eval, and `just brew-cache-refresh` still repairs on demand.
+    [[ -n ${EPOCHSECONDS:-} ]] || return 1
+    [[ -f $__brew_shellenv_attempt_stamp && -r $__brew_shellenv_attempt_stamp ]] || return 0
+    read -r last_attempt_epoch 2>/dev/null <"$__brew_shellenv_attempt_stamp" || return 0
+    # Anything but a plain unpadded epoch re-arms the repair: a leading zero
+    # parses as octal and a longer digit run overflows the arithmetic below.
+    [[ $last_attempt_epoch =~ ^(0|[1-9][0-9]{0,9})$ ]] || return 0
+    # Bound BOTH sides. A stamp dated in the future (clock jump, restored
+    # backup) would otherwise block every repair from here on.
+    ((last_attempt_epoch > EPOCHSECONDS)) && return 0
+    ((EPOCHSECONDS - last_attempt_epoch >= __brew_shellenv_retry_interval_seconds))
+  }
+
+  # Gate the launch on the log mkdir AND the stamp write succeeding. If the log
+  # dir is not creatable the outer subshell's `>>$log` open would fail straight
+  # to the interactive terminal before its own 2>&1 applies; if the stamp is not
+  # writable the rate limit above cannot bound anything, so launching would be
+  # the unbounded loop this block exists to avoid. Both redirect stderr BEFORE
+  # the failing redirection, so a refusal is silent. The writer creates the cache
+  # dir itself.
+  if __brew_shellenv_cache_needs_repair &&
+    [[ -f $__brew_shellenv_generator && -x $__brew_shellenv_writer ]] &&
+    __brew_shellenv_repair_is_due &&
+    mkdir -p "${__brew_shellenv_log%/*}" 2>/dev/null &&
+    printf '%s\n' "$EPOCHSECONDS" 2>/dev/null >"$__brew_shellenv_attempt_stamp"; then
+    ("$__brew_shellenv_writer" >>"$__brew_shellenv_log" 2>&1 &)
+  fi
+  unset __brew_shellenv_cache __brew_shellenv_generator __brew_shellenv_paths_file
+  unset __brew_shellenv_writer __brew_shellenv_log __brew_shellenv_attempt_stamp
+  unset __brew_shellenv_retry_interval_seconds
+  unset -f __brew_shellenv_cache_needs_repair __brew_shellenv_repair_is_due
+  {{- end }}
+
+  # ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+  # ┃  Long-running command notifier (v2 §7.1)      ┃
+  # ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+  # Uses bash-preexec (sourced above) instead of a naked DEBUG trap, which would
+  # clobber atuin's recording.
+  __cmd_notify_start=""
+  __cmd_notify_name=""
+
+  __cmd_notify_preexec() {
+    __cmd_notify_start=$SECONDS
+    __cmd_notify_name="$1"
+  }
+
+  __cmd_notify_precmd() {
+    local exit_code=$?
+    [[ -z $__cmd_notify_start ]] && return
+    local elapsed=$((SECONDS - __cmd_notify_start))
+    __cmd_notify_start=""
+    # Skip known interactive TUIs.
+    [[ $__cmd_notify_name =~ ^(vim|nvim|less|man|top|btop|ssh|herdr|claude|hermes|codex|fzf) ]] && return
+    # Wrap each background call in a subshell so jobs aren't attached to this
+    # interactive shell (otherwise `fg`/`jobs` would grab them).
+    if ((elapsed >= 300)); then
+      (alerter --timeout 10 --title "Command finished" --message "${__cmd_notify_name%% *} (${elapsed}s)" --sound default >/dev/null 2>&1 &)
+      ("$HOME/.local/bin/hue-pulse.sh" "$exit_code" >/dev/null 2>&1 &)
+    elif ((elapsed >= 30)); then
+      (alerter --timeout 10 --title "Command finished" --message "${__cmd_notify_name%% *} (${elapsed}s)" --sound default >/dev/null 2>&1 &)
+    fi
+  }
+
+  # shellcheck disable=SC2034  # preexec_functions/precmd_functions consumed by bash-preexec
+  preexec_functions+=(__cmd_notify_preexec)
+  # shellcheck disable=SC2034
+  precmd_functions+=(__cmd_notify_precmd)
+fi
 
 # ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 # ┃         Herdr: Auto-attach Session       ┃

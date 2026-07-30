@@ -812,6 +812,202 @@
       "id": "dot_local_bin_executable_assert_hermes_superpowers_routing_rewrite"
     },
     {
+      "label": "executable_brew-shellenv-cache-refresh.sh",
+      "file_type": "code",
+      "source_file": "dot_local/bin/executable_brew-shellenv-cache-refresh.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "community": 12,
+      "norm_label": "executable_brew-shellenv-cache-refresh.sh",
+      "id": "dot_local_bin_executable_brew_shellenv_cache_refresh"
+    },
+    {
+      "label": "executable_brew-shellenv-cache-refresh.sh script",
+      "file_type": "code",
+      "source_file": "dot_local/bin/executable_brew-shellenv-cache-refresh.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "community": 12,
+      "norm_label": "executable_brew-shellenv-cache-refresh.sh script",
+      "id": "dot_local_bin_executable_brew_shellenv_cache_refresh_sh__entry"
+    },
+    {
+      "label": "DEFAULT_HOMEBREW_PREFIX",
+      "file_type": "code",
+      "source_file": "dot_local/bin/executable_brew-shellenv-cache-refresh.sh",
+      "source_location": "L34",
+      "metadata": {
+        "language": "bash",
+        "kind": "code"
+      },
+      "_origin": "ast",
+      "community": 12,
+      "norm_label": "default_homebrew_prefix",
+      "id": "dot_local_bin_executable_brew_shellenv_cache_refresh_default_homebrew_prefix"
+    },
+    {
+      "label": "CACHE_FILE_NAME",
+      "file_type": "code",
+      "source_file": "dot_local/bin/executable_brew-shellenv-cache-refresh.sh",
+      "source_location": "L35",
+      "metadata": {
+        "language": "bash",
+        "kind": "code"
+      },
+      "_origin": "ast",
+      "community": 12,
+      "norm_label": "cache_file_name",
+      "id": "dot_local_bin_executable_brew_shellenv_cache_refresh_cache_file_name"
+    },
+    {
+      "label": "EXIT_USAGE",
+      "file_type": "code",
+      "source_file": "dot_local/bin/executable_brew-shellenv-cache-refresh.sh",
+      "source_location": "L36",
+      "metadata": {
+        "language": "bash",
+        "kind": "code"
+      },
+      "_origin": "ast",
+      "community": 12,
+      "norm_label": "exit_usage",
+      "id": "dot_local_bin_executable_brew_shellenv_cache_refresh_exit_usage"
+    },
+    {
+      "label": "usage()",
+      "file_type": "code",
+      "source_file": "dot_local/bin/executable_brew-shellenv-cache-refresh.sh",
+      "source_location": "L55",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 12,
+      "norm_label": "usage()",
+      "id": "dot_local_bin_executable_brew_shellenv_cache_refresh_usage"
+    },
+    {
+      "label": "fail()",
+      "file_type": "code",
+      "source_file": "dot_local/bin/executable_brew-shellenv-cache-refresh.sh",
+      "source_location": "L62",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 12,
+      "norm_label": "fail()",
+      "id": "dot_local_bin_executable_brew_shellenv_cache_refresh_fail"
+    },
+    {
+      "label": "remove_temporary_cache_file()",
+      "file_type": "code",
+      "source_file": "dot_local/bin/executable_brew-shellenv-cache-refresh.sh",
+      "source_location": "L67",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 12,
+      "norm_label": "remove_temporary_cache_file()",
+      "id": "dot_local_bin_executable_brew_shellenv_cache_refresh_remove_temporary_cache_file"
+    },
+    {
+      "label": "homebrew_is_installed()",
+      "file_type": "code",
+      "source_file": "dot_local/bin/executable_brew-shellenv-cache-refresh.sh",
+      "source_location": "L75",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 12,
+      "norm_label": "homebrew_is_installed()",
+      "id": "dot_local_bin_executable_brew_shellenv_cache_refresh_homebrew_is_installed"
+    },
+    {
+      "label": "cache_path_is_replaceable()",
+      "file_type": "code",
+      "source_file": "dot_local/bin/executable_brew-shellenv-cache-refresh.sh",
+      "source_location": "L85",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 12,
+      "norm_label": "cache_path_is_replaceable()",
+      "id": "dot_local_bin_executable_brew_shellenv_cache_refresh_cache_path_is_replaceable"
+    },
+    {
+      "label": "brew_emitted_an_environment()",
+      "file_type": "code",
+      "source_file": "dot_local/bin/executable_brew-shellenv-cache-refresh.sh",
+      "source_location": "L100",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 12,
+      "norm_label": "brew_emitted_an_environment()",
+      "id": "dot_local_bin_executable_brew_shellenv_cache_refresh_brew_emitted_an_environment"
+    },
+    {
+      "label": "write_cache_atomically()",
+      "file_type": "code",
+      "source_file": "dot_local/bin/executable_brew-shellenv-cache-refresh.sh",
+      "source_location": "L110",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 12,
+      "norm_label": "write_cache_atomically()",
+      "id": "dot_local_bin_executable_brew_shellenv_cache_refresh_write_cache_atomically"
+    },
+    {
+      "label": "reject_unknown_arguments()",
+      "file_type": "code",
+      "source_file": "dot_local/bin/executable_brew-shellenv-cache-refresh.sh",
+      "source_location": "L121",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 12,
+      "norm_label": "reject_unknown_arguments()",
+      "id": "dot_local_bin_executable_brew_shellenv_cache_refresh_reject_unknown_arguments"
+    },
+    {
+      "label": "main()",
+      "file_type": "code",
+      "source_file": "dot_local/bin/executable_brew-shellenv-cache-refresh.sh",
+      "source_location": "L138",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 12,
+      "norm_label": "main()",
+      "id": "dot_local_bin_executable_brew_shellenv_cache_refresh_main"
+    },
+    {
       "label": "executable_claude-audit.sh",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_claude-audit.sh",
@@ -6336,6 +6532,216 @@
       "id": "test_e2e_age_rotation_drill_sha256"
     },
     {
+      "label": "bashrc-brew-cache-self-heal.sh",
+      "file_type": "code",
+      "source_file": "test/e2e/bashrc-brew-cache-self-heal.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "community": 401,
+      "norm_label": "bashrc-brew-cache-self-heal.sh",
+      "id": "test_e2e_bashrc_brew_cache_self_heal"
+    },
+    {
+      "label": "bashrc-brew-cache-self-heal.sh script",
+      "file_type": "code",
+      "source_file": "test/e2e/bashrc-brew-cache-self-heal.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "community": 401,
+      "norm_label": "bashrc-brew-cache-self-heal.sh script",
+      "id": "test_e2e_bashrc_brew_cache_self_heal_sh__entry"
+    },
+    {
+      "label": "fail()",
+      "file_type": "code",
+      "source_file": "test/e2e/bashrc-brew-cache-self-heal.sh",
+      "source_location": "L60",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 401,
+      "norm_label": "fail()",
+      "id": "test_e2e_bashrc_brew_cache_self_heal_fail"
+    },
+    {
+      "label": "new_host()",
+      "file_type": "code",
+      "source_file": "test/e2e/bashrc-brew-cache-self-heal.sh",
+      "source_location": "L116",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 401,
+      "norm_label": "new_host()",
+      "id": "test_e2e_bashrc_brew_cache_self_heal_new_host"
+    },
+    {
+      "label": "seed_current_cache()",
+      "file_type": "code",
+      "source_file": "test/e2e/bashrc-brew-cache-self-heal.sh",
+      "source_location": "L143",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 401,
+      "norm_label": "seed_current_cache()",
+      "id": "test_e2e_bashrc_brew_cache_self_heal_seed_current_cache"
+    },
+    {
+      "label": "clear_attempt_stamp()",
+      "file_type": "code",
+      "source_file": "test/e2e/bashrc-brew-cache-self-heal.sh",
+      "source_location": "L153",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 401,
+      "norm_label": "clear_attempt_stamp()",
+      "id": "test_e2e_bashrc_brew_cache_self_heal_clear_attempt_stamp"
+    },
+    {
+      "label": "start_shell_over()",
+      "file_type": "code",
+      "source_file": "test/e2e/bashrc-brew-cache-self-heal.sh",
+      "source_location": "L159",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 401,
+      "norm_label": "start_shell_over()",
+      "id": "test_e2e_bashrc_brew_cache_self_heal_start_shell_over"
+    },
+    {
+      "label": "start_shell()",
+      "file_type": "code",
+      "source_file": "test/e2e/bashrc-brew-cache-self-heal.sh",
+      "source_location": "L172",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 401,
+      "norm_label": "start_shell()",
+      "id": "test_e2e_bashrc_brew_cache_self_heal_start_shell"
+    },
+    {
+      "label": "assert_shell_was_silent()",
+      "file_type": "code",
+      "source_file": "test/e2e/bashrc-brew-cache-self-heal.sh",
+      "source_location": "L176",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 401,
+      "norm_label": "assert_shell_was_silent()",
+      "id": "test_e2e_bashrc_brew_cache_self_heal_assert_shell_was_silent"
+    },
+    {
+      "label": "invocation_count()",
+      "file_type": "code",
+      "source_file": "test/e2e/bashrc-brew-cache-self-heal.sh",
+      "source_location": "L188",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 401,
+      "norm_label": "invocation_count()",
+      "id": "test_e2e_bashrc_brew_cache_self_heal_invocation_count"
+    },
+    {
+      "label": "wait_for_invocations()",
+      "file_type": "code",
+      "source_file": "test/e2e/bashrc-brew-cache-self-heal.sh",
+      "source_location": "L197",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 401,
+      "norm_label": "wait_for_invocations()",
+      "id": "test_e2e_bashrc_brew_cache_self_heal_wait_for_invocations"
+    },
+    {
+      "label": "assert_regenerated()",
+      "file_type": "code",
+      "source_file": "test/e2e/bashrc-brew-cache-self-heal.sh",
+      "source_location": "L206",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 401,
+      "norm_label": "assert_regenerated()",
+      "id": "test_e2e_bashrc_brew_cache_self_heal_assert_regenerated"
+    },
+    {
+      "label": "assert_did_not_regenerate()",
+      "file_type": "code",
+      "source_file": "test/e2e/bashrc-brew-cache-self-heal.sh",
+      "source_location": "L217",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 401,
+      "norm_label": "assert_did_not_regenerate()",
+      "id": "test_e2e_bashrc_brew_cache_self_heal_assert_did_not_regenerate"
+    },
+    {
+      "label": "brew-shellenv-cache-drift.sh",
+      "file_type": "code",
+      "source_file": "test/e2e/brew-shellenv-cache-drift.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "community": 398,
+      "norm_label": "brew-shellenv-cache-drift.sh",
+      "id": "test_e2e_brew_shellenv_cache_drift"
+    },
+    {
+      "label": "brew-shellenv-cache-drift.sh script",
+      "file_type": "code",
+      "source_file": "test/e2e/brew-shellenv-cache-drift.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "community": 398,
+      "norm_label": "brew-shellenv-cache-drift.sh script",
+      "id": "test_e2e_brew_shellenv_cache_drift_sh__entry"
+    },
+    {
       "label": "herdr-health-check-timeout.sh",
       "file_type": "code",
       "source_file": "test/e2e/herdr-health-check-timeout.sh",
@@ -6572,6 +6978,34 @@
       "community": 283,
       "norm_label": "hue-pulse-lock.sh script",
       "id": "test_e2e_hue_pulse_lock_sh__entry"
+    },
+    {
+      "label": "j-completion.sh",
+      "file_type": "code",
+      "source_file": "test/e2e/j-completion.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "community": 399,
+      "norm_label": "j-completion.sh",
+      "id": "test_e2e_j_completion"
+    },
+    {
+      "label": "j-completion.sh script",
+      "file_type": "code",
+      "source_file": "test/e2e/j-completion.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "community": 399,
+      "norm_label": "j-completion.sh script",
+      "id": "test_e2e_j_completion_sh__entry"
     },
     {
       "label": "relay.sh",
@@ -19524,6 +19958,342 @@
       "id": "test_unit_bash_bindings_unique_duplicates"
     },
     {
+      "label": "bashrc-brew-cache-self-heal.sh",
+      "file_type": "code",
+      "source_file": "test/unit/bashrc-brew-cache-self-heal.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "community": 403,
+      "norm_label": "bashrc-brew-cache-self-heal.sh",
+      "id": "test_unit_bashrc_brew_cache_self_heal"
+    },
+    {
+      "label": "bashrc-brew-cache-self-heal.sh script",
+      "file_type": "code",
+      "source_file": "test/unit/bashrc-brew-cache-self-heal.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "community": 403,
+      "norm_label": "bashrc-brew-cache-self-heal.sh script",
+      "id": "test_unit_bashrc_brew_cache_self_heal_sh__entry"
+    },
+    {
+      "label": "fail()",
+      "file_type": "code",
+      "source_file": "test/unit/bashrc-brew-cache-self-heal.sh",
+      "source_location": "L55",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 403,
+      "norm_label": "fail()",
+      "id": "test_unit_bashrc_brew_cache_self_heal_fail"
+    },
+    {
+      "label": "assert_contains()",
+      "file_type": "code",
+      "source_file": "test/unit/bashrc-brew-cache-self-heal.sh",
+      "source_location": "L60",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 403,
+      "norm_label": "assert_contains()",
+      "id": "test_unit_bashrc_brew_cache_self_heal_assert_contains"
+    },
+    {
+      "label": "refute_contains()",
+      "file_type": "code",
+      "source_file": "test/unit/bashrc-brew-cache-self-heal.sh",
+      "source_location": "L67",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 403,
+      "norm_label": "refute_contains()",
+      "id": "test_unit_bashrc_brew_cache_self_heal_refute_contains"
+    },
+    {
+      "label": "usability_operators_for()",
+      "file_type": "code",
+      "source_file": "test/unit/bashrc-brew-cache-self-heal.sh",
+      "source_location": "L78",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 403,
+      "norm_label": "usability_operators_for()",
+      "id": "test_unit_bashrc_brew_cache_self_heal_usability_operators_for"
+    },
+    {
+      "label": "assert_predicate()",
+      "file_type": "code",
+      "source_file": "test/unit/bashrc-brew-cache-self-heal.sh",
+      "source_location": "L229",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 403,
+      "norm_label": "assert_predicate()",
+      "id": "test_unit_bashrc_brew_cache_self_heal_assert_predicate"
+    },
+    {
+      "label": "bashrc-shell-foundation.sh",
+      "file_type": "code",
+      "source_file": "test/unit/bashrc-shell-foundation.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "community": 394,
+      "norm_label": "bashrc-shell-foundation.sh",
+      "id": "test_unit_bashrc_shell_foundation"
+    },
+    {
+      "label": "bashrc-shell-foundation.sh script",
+      "file_type": "code",
+      "source_file": "test/unit/bashrc-shell-foundation.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "community": 394,
+      "norm_label": "bashrc-shell-foundation.sh script",
+      "id": "test_unit_bashrc_shell_foundation_sh__entry"
+    },
+    {
+      "label": "fail()",
+      "file_type": "code",
+      "source_file": "test/unit/bashrc-shell-foundation.sh",
+      "source_location": "L25",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 394,
+      "norm_label": "fail()",
+      "id": "test_unit_bashrc_shell_foundation_fail"
+    },
+    {
+      "label": "brew-cache-refresh-recipe.sh",
+      "file_type": "code",
+      "source_file": "test/unit/brew-cache-refresh-recipe.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "community": 404,
+      "norm_label": "brew-cache-refresh-recipe.sh",
+      "id": "test_unit_brew_cache_refresh_recipe"
+    },
+    {
+      "label": "brew-cache-refresh-recipe.sh script",
+      "file_type": "code",
+      "source_file": "test/unit/brew-cache-refresh-recipe.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "community": 404,
+      "norm_label": "brew-cache-refresh-recipe.sh script",
+      "id": "test_unit_brew_cache_refresh_recipe_sh__entry"
+    },
+    {
+      "label": "fail()",
+      "file_type": "code",
+      "source_file": "test/unit/brew-cache-refresh-recipe.sh",
+      "source_location": "L21",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 404,
+      "norm_label": "fail()",
+      "id": "test_unit_brew_cache_refresh_recipe_fail"
+    },
+    {
+      "label": "refute_contains()",
+      "file_type": "code",
+      "source_file": "test/unit/brew-cache-refresh-recipe.sh",
+      "source_location": "L28",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 404,
+      "norm_label": "refute_contains()",
+      "id": "test_unit_brew_cache_refresh_recipe_refute_contains"
+    },
+    {
+      "label": "brew-shellenv-cache-writer.sh",
+      "file_type": "code",
+      "source_file": "test/unit/brew-shellenv-cache-writer.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "community": 402,
+      "norm_label": "brew-shellenv-cache-writer.sh",
+      "id": "test_unit_brew_shellenv_cache_writer"
+    },
+    {
+      "label": "brew-shellenv-cache-writer.sh script",
+      "file_type": "code",
+      "source_file": "test/unit/brew-shellenv-cache-writer.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "community": 402,
+      "norm_label": "brew-shellenv-cache-writer.sh script",
+      "id": "test_unit_brew_shellenv_cache_writer_sh__entry"
+    },
+    {
+      "label": "fail()",
+      "file_type": "code",
+      "source_file": "test/unit/brew-shellenv-cache-writer.sh",
+      "source_location": "L42",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 402,
+      "norm_label": "fail()",
+      "id": "test_unit_brew_shellenv_cache_writer_fail"
+    },
+    {
+      "label": "refute_contains()",
+      "file_type": "code",
+      "source_file": "test/unit/brew-shellenv-cache-writer.sh",
+      "source_location": "L49",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 402,
+      "norm_label": "refute_contains()",
+      "id": "test_unit_brew_shellenv_cache_writer_refute_contains"
+    },
+    {
+      "label": "assert_contains()",
+      "file_type": "code",
+      "source_file": "test/unit/brew-shellenv-cache-writer.sh",
+      "source_location": "L56",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 402,
+      "norm_label": "assert_contains()",
+      "id": "test_unit_brew_shellenv_cache_writer_assert_contains"
+    },
+    {
+      "label": "make_stub_brew()",
+      "file_type": "code",
+      "source_file": "test/unit/brew-shellenv-cache-writer.sh",
+      "source_location": "L76",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 402,
+      "norm_label": "make_stub_brew()",
+      "id": "test_unit_brew_shellenv_cache_writer_make_stub_brew"
+    },
+    {
+      "label": "inode_of()",
+      "file_type": "code",
+      "source_file": "test/unit/brew-shellenv-cache-writer.sh",
+      "source_location": "L103",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 402,
+      "norm_label": "inode_of()",
+      "id": "test_unit_brew_shellenv_cache_writer_inode_of"
+    },
+    {
+      "label": "new_case_dir()",
+      "file_type": "code",
+      "source_file": "test/unit/brew-shellenv-cache-writer.sh",
+      "source_location": "L108",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 402,
+      "norm_label": "new_case_dir()",
+      "id": "test_unit_brew_shellenv_cache_writer_new_case_dir"
+    },
+    {
+      "label": "run_writer()",
+      "file_type": "code",
+      "source_file": "test/unit/brew-shellenv-cache-writer.sh",
+      "source_location": "L119",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 402,
+      "norm_label": "run_writer()",
+      "id": "test_unit_brew_shellenv_cache_writer_run_writer"
+    },
+    {
+      "label": "temp_siblings()",
+      "file_type": "code",
+      "source_file": "test/unit/brew-shellenv-cache-writer.sh",
+      "source_location": "L130",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 402,
+      "norm_label": "temp_siblings()",
+      "id": "test_unit_brew_shellenv_cache_writer_temp_siblings"
+    },
+    {
       "label": "claude-retirement-ordering.sh",
       "file_type": "code",
       "source_file": "test/unit/claude-retirement-ordering.sh",
@@ -22646,258 +23416,6 @@
       "id": "test_unit_restore_age_key_secret_free_fail"
     },
     {
-      "label": "ship-ci-gate-parity.sh",
-      "file_type": "code",
-      "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L1",
-      "metadata": {
-        "language": "bash",
-        "kind": "file"
-      },
-      "_origin": "ast",
-      "community": 354,
-      "norm_label": "ship-ci-gate-parity.sh",
-      "id": "test_unit_ship_ci_gate_parity"
-    },
-    {
-      "label": "ship-ci-gate-parity.sh script",
-      "file_type": "code",
-      "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L1",
-      "metadata": {
-        "language": "bash",
-        "kind": "bash_entrypoint"
-      },
-      "_origin": "ast",
-      "community": 354,
-      "norm_label": "ship-ci-gate-parity.sh script",
-      "id": "test_unit_ship_ci_gate_parity_sh__entry"
-    },
-    {
-      "label": "fail()",
-      "file_type": "code",
-      "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L92",
-      "metadata": {
-        "language": "bash",
-        "kind": "bash_function"
-      },
-      "_origin": "ast",
-      "community": 354,
-      "norm_label": "fail()",
-      "id": "test_unit_ship_ci_gate_parity_fail"
-    },
-    {
-      "label": "is_member()",
-      "file_type": "code",
-      "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L98",
-      "metadata": {
-        "language": "bash",
-        "kind": "bash_function"
-      },
-      "_origin": "ast",
-      "community": 354,
-      "norm_label": "is_member()",
-      "id": "test_unit_ship_ci_gate_parity_is_member"
-    },
-    {
-      "label": "is_readable_inline_command()",
-      "file_type": "code",
-      "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L109",
-      "metadata": {
-        "language": "bash",
-        "kind": "bash_function"
-      },
-      "_origin": "ast",
-      "community": 354,
-      "norm_label": "is_readable_inline_command()",
-      "id": "test_unit_ship_ci_gate_parity_is_readable_inline_command"
-    },
-    {
-      "label": "strip_trailing_whitespace()",
-      "file_type": "code",
-      "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L116",
-      "metadata": {
-        "language": "bash",
-        "kind": "bash_function"
-      },
-      "_origin": "ast",
-      "community": 354,
-      "norm_label": "strip_trailing_whitespace()",
-      "id": "test_unit_ship_ci_gate_parity_strip_trailing_whitespace"
-    },
-    {
-      "label": "action_reference_name()",
-      "file_type": "code",
-      "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L124",
-      "metadata": {
-        "language": "bash",
-        "kind": "bash_function"
-      },
-      "_origin": "ast",
-      "community": 354,
-      "norm_label": "action_reference_name()",
-      "id": "test_unit_ship_ci_gate_parity_action_reference_name"
-    },
-    {
-      "label": "workflow_file_names()",
-      "file_type": "code",
-      "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L139",
-      "metadata": {
-        "language": "bash",
-        "kind": "bash_function"
-      },
-      "_origin": "ast",
-      "community": 354,
-      "norm_label": "workflow_file_names()",
-      "id": "test_unit_ship_ci_gate_parity_workflow_file_names"
-    },
-    {
-      "label": "assert_every_workflow_is_classified()",
-      "file_type": "code",
-      "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L154",
-      "metadata": {
-        "language": "bash",
-        "kind": "bash_function"
-      },
-      "_origin": "ast",
-      "community": 354,
-      "norm_label": "assert_every_workflow_is_classified()",
-      "id": "test_unit_ship_ci_gate_parity_assert_every_workflow_is_classified"
-    },
-    {
-      "label": "assert_gate_workflow_steps_are_comparable()",
-      "file_type": "code",
-      "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L166",
-      "metadata": {
-        "language": "bash",
-        "kind": "bash_function"
-      },
-      "_origin": "ast",
-      "community": 354,
-      "norm_label": "assert_gate_workflow_steps_are_comparable()",
-      "id": "test_unit_ship_ci_gate_parity_assert_gate_workflow_steps_are_comparable"
-    },
-    {
-      "label": "extract_gate_trigger_block()",
-      "file_type": "code",
-      "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L189",
-      "metadata": {
-        "language": "bash",
-        "kind": "bash_function"
-      },
-      "_origin": "ast",
-      "community": 354,
-      "norm_label": "extract_gate_trigger_block()",
-      "id": "test_unit_ship_ci_gate_parity_extract_gate_trigger_block"
-    },
-    {
-      "label": "assert_recipe_is_comparable()",
-      "file_type": "code",
-      "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L224",
-      "metadata": {
-        "language": "bash",
-        "kind": "bash_function"
-      },
-      "_origin": "ast",
-      "community": 354,
-      "norm_label": "assert_recipe_is_comparable()",
-      "id": "test_unit_ship_ci_gate_parity_assert_recipe_is_comparable"
-    },
-    {
-      "label": "recipe_dependencies()",
-      "file_type": "code",
-      "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L240",
-      "metadata": {
-        "language": "bash",
-        "kind": "bash_function"
-      },
-      "_origin": "ast",
-      "community": 354,
-      "norm_label": "recipe_dependencies()",
-      "id": "test_unit_ship_ci_gate_parity_recipe_dependencies"
-    },
-    {
-      "label": "recipe_prior_dependency_count()",
-      "file_type": "code",
-      "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L249",
-      "metadata": {
-        "language": "bash",
-        "kind": "bash_function"
-      },
-      "_origin": "ast",
-      "community": 354,
-      "norm_label": "recipe_prior_dependency_count()",
-      "id": "test_unit_ship_ci_gate_parity_recipe_prior_dependency_count"
-    },
-    {
-      "label": "recipe_body_lines()",
-      "file_type": "code",
-      "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L254",
-      "metadata": {
-        "language": "bash",
-        "kind": "bash_function"
-      },
-      "_origin": "ast",
-      "community": 354,
-      "norm_label": "recipe_body_lines()",
-      "id": "test_unit_ship_ci_gate_parity_recipe_body_lines"
-    },
-    {
-      "label": "recipe_command_lines()",
-      "file_type": "code",
-      "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L278",
-      "metadata": {
-        "language": "bash",
-        "kind": "bash_function"
-      },
-      "_origin": "ast",
-      "community": 354,
-      "norm_label": "recipe_command_lines()",
-      "id": "test_unit_ship_ci_gate_parity_recipe_command_lines"
-    },
-    {
-      "label": "workflow_step_commands()",
-      "file_type": "code",
-      "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L309",
-      "metadata": {
-        "language": "bash",
-        "kind": "bash_function"
-      },
-      "_origin": "ast",
-      "community": 354,
-      "norm_label": "workflow_step_commands()",
-      "id": "test_unit_ship_ci_gate_parity_workflow_step_commands"
-    },
-    {
-      "label": "report_lists_and_fail()",
-      "file_type": "code",
-      "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L324",
-      "metadata": {
-        "language": "bash",
-        "kind": "bash_function"
-      },
-      "_origin": "ast",
-      "community": 354,
-      "norm_label": "report_lists_and_fail()",
-      "id": "test_unit_ship_ci_gate_parity_report_lists_and_fail"
-    },
-    {
       "label": "skills-roster-fanout.sh",
       "file_type": "code",
       "source_file": "test/unit/skills-roster-fanout.sh",
@@ -23542,334 +24060,334 @@
       "id": "test_validate_tests_main"
     },
     {
-      "label": "CLAUDE.md",
+      "label": "AGENTS.md",
       "file_type": "document",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L1",
       "_origin": "ast",
-      "community": 12,
-      "norm_label": "claude.md",
-      "id": "claude"
+      "community": 323,
+      "norm_label": "agents.md",
+      "id": "agents"
     },
     {
       "label": "CLAUDE.md",
       "file_type": "document",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L7",
       "_origin": "ast",
-      "community": 12,
+      "community": 303,
       "norm_label": "claude.md",
-      "id": "claude_claude_md"
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_claude_md"
     },
     {
       "label": "What This Is",
       "file_type": "document",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L11",
       "_origin": "ast",
-      "community": 12,
+      "community": 303,
       "norm_label": "what this is",
-      "id": "claude_what_this_is"
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_what_this_is"
     },
     {
       "label": "Key Commands",
       "file_type": "document",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L18",
       "_origin": "ast",
-      "community": 12,
+      "community": 303,
       "norm_label": "key commands",
-      "id": "claude_key_commands"
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_key_commands"
     },
     {
       "label": "Linting & Formatting",
       "file_type": "document",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L20",
       "_origin": "ast",
-      "community": 12,
+      "community": 303,
       "norm_label": "linting & formatting",
-      "id": "claude_linting_formatting"
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_linting_formatting"
     },
     {
       "label": "Testing",
       "file_type": "document",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L46",
       "_origin": "ast",
-      "community": 12,
+      "community": 303,
       "norm_label": "testing",
-      "id": "claude_testing"
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_testing"
     },
     {
       "label": "Chezmoi Operations",
       "file_type": "document",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L80",
       "_origin": "ast",
-      "community": 12,
+      "community": 303,
       "norm_label": "chezmoi operations",
-      "id": "claude_chezmoi_operations"
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_chezmoi_operations"
     },
     {
       "label": "Claude Code Settings",
       "file_type": "document",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L108",
       "_origin": "ast",
-      "community": 12,
+      "community": 303,
       "norm_label": "claude code settings",
-      "id": "claude_claude_code_settings"
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_claude_code_settings"
     },
     {
       "label": "Git Hooks",
       "file_type": "document",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L141",
       "_origin": "ast",
-      "community": 12,
+      "community": 303,
       "norm_label": "git hooks",
-      "id": "claude_git_hooks"
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_git_hooks"
     },
     {
       "label": "Architecture",
       "file_type": "document",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L195",
       "_origin": "ast",
-      "community": 12,
+      "community": 303,
       "norm_label": "architecture",
-      "id": "claude_architecture"
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_architecture"
     },
     {
       "label": "Source-Only Files",
       "file_type": "document",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L197",
       "_origin": "ast",
-      "community": 12,
+      "community": 303,
       "norm_label": "source-only files",
-      "id": "claude_source_only_files"
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_source_only_files"
     },
     {
       "label": "Minimum Chezmoi Version",
       "file_type": "document",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L205",
       "_origin": "ast",
-      "community": 12,
+      "community": 303,
       "norm_label": "minimum chezmoi version",
-      "id": "claude_minimum_chezmoi_version"
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_minimum_chezmoi_version"
     },
     {
       "label": "Secrets Management",
       "file_type": "document",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L209",
       "_origin": "ast",
-      "community": 12,
+      "community": 303,
       "norm_label": "secrets management",
-      "id": "claude_secrets_management"
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_secrets_management"
     },
     {
       "label": "System Package Management",
       "file_type": "document",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L216",
       "_origin": "ast",
-      "community": 12,
+      "community": 303,
       "norm_label": "system package management",
-      "id": "claude_system_package_management"
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_system_package_management"
     },
     {
       "label": "macOS Defaults Management",
       "file_type": "document",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L241",
       "_origin": "ast",
-      "community": 12,
+      "community": 303,
       "norm_label": "macos defaults management",
-      "id": "claude_macos_defaults_management"
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_macos_defaults_management"
     },
     {
       "label": "Template Files",
       "file_type": "document",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L286",
       "_origin": "ast",
-      "community": 12,
+      "community": 303,
       "norm_label": "template files",
-      "id": "claude_template_files"
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_template_files"
     },
     {
       "label": "Template Shellcheck Workaround",
       "file_type": "document",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L292",
       "_origin": "ast",
-      "community": 12,
+      "community": 303,
       "norm_label": "template shellcheck workaround",
-      "id": "claude_template_shellcheck_workaround"
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_template_shellcheck_workaround"
     },
     {
       "label": "OS Targeting",
       "file_type": "document",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L313",
       "_origin": "ast",
-      "community": 12,
+      "community": 303,
       "norm_label": "os targeting",
-      "id": "claude_os_targeting"
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_os_targeting"
     },
     {
       "label": "Dev Environment (Nix Flake)",
       "file_type": "document",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L318",
       "_origin": "ast",
-      "community": 12,
+      "community": 303,
       "norm_label": "dev environment (nix flake)",
-      "id": "claude_dev_environment_nix_flake"
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_dev_environment_nix_flake"
     },
     {
       "label": "CI",
       "file_type": "document",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L329",
       "_origin": "ast",
-      "community": 12,
+      "community": 303,
       "norm_label": "ci",
-      "id": "claude_ci"
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_ci"
     },
     {
       "label": "Agent Skills (cross-harness store)",
       "file_type": "document",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L339",
       "_origin": "ast",
-      "community": 12,
+      "community": 303,
       "norm_label": "agent skills (cross-harness store)",
-      "id": "claude_agent_skills_cross_harness_store"
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_agent_skills_cross_harness_store"
     },
     {
       "label": "Herdr Workspace Management",
       "file_type": "document",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L509",
       "_origin": "ast",
-      "community": 12,
+      "community": 303,
       "norm_label": "herdr workspace management",
-      "id": "claude_herdr_workspace_management"
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_herdr_workspace_management"
     },
     {
       "label": "Git Worktrees (Worktrunk)",
       "file_type": "document",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L529",
       "_origin": "ast",
-      "community": 12,
+      "community": 303,
       "norm_label": "git worktrees (worktrunk)",
-      "id": "claude_git_worktrees_worktrunk"
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_git_worktrees_worktrunk"
     },
     {
       "label": "Bashrc Init Ordering",
       "file_type": "document",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L536",
       "_origin": "ast",
-      "community": 12,
+      "community": 303,
       "norm_label": "bashrc init ordering",
-      "id": "claude_bashrc_init_ordering"
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_bashrc_init_ordering"
     },
     {
       "label": "Shell History (Atuin)",
       "file_type": "document",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L544",
       "_origin": "ast",
-      "community": 12,
+      "community": 303,
       "norm_label": "shell history (atuin)",
-      "id": "claude_shell_history_atuin"
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_shell_history_atuin"
     },
     {
       "label": "Happy Daemon (Remote Agent Control)",
       "file_type": "document",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L573",
       "_origin": "ast",
-      "community": 12,
+      "community": 303,
       "norm_label": "happy daemon (remote agent control)",
-      "id": "claude_happy_daemon_remote_agent_control"
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_happy_daemon_remote_agent_control"
     },
     {
       "label": "Tailscale (headless daemon)",
       "file_type": "document",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L600",
       "_origin": "ast",
-      "community": 12,
+      "community": 303,
       "norm_label": "tailscale (headless daemon)",
-      "id": "claude_tailscale_headless_daemon"
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_tailscale_headless_daemon"
     },
     {
       "label": "AI Commit Messages",
       "file_type": "document",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L637",
       "_origin": "ast",
-      "community": 12,
+      "community": 303,
       "norm_label": "ai commit messages",
-      "id": "claude_ai_commit_messages"
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_ai_commit_messages"
     },
     {
       "label": "Long-running Command Notifier",
       "file_type": "document",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L650",
       "_origin": "ast",
-      "community": 12,
+      "community": 303,
       "norm_label": "long-running command notifier",
-      "id": "claude_long_running_command_notifier"
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_long_running_command_notifier"
     },
     {
       "label": "Herdr Native Status",
       "file_type": "document",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L656",
       "_origin": "ast",
-      "community": 12,
+      "community": 303,
       "norm_label": "herdr native status",
-      "id": "claude_herdr_native_status"
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_herdr_native_status"
     },
     {
       "label": "Code Style",
       "file_type": "document",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L662",
       "_origin": "ast",
-      "community": 12,
+      "community": 303,
       "norm_label": "code style",
-      "id": "claude_code_style"
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_code_style"
     },
     {
       "label": "Git Commits",
       "file_type": "document",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L688",
       "_origin": "ast",
-      "community": 12,
+      "community": 303,
       "norm_label": "git commits",
-      "id": "claude_git_commits"
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_git_commits"
     },
     {
       "label": "Security",
       "file_type": "document",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L695",
       "_origin": "ast",
-      "community": 12,
+      "community": 303,
       "norm_label": "security",
-      "id": "claude_security"
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_security"
     },
     {
       "label": "README.md",
@@ -43014,6 +43532,336 @@
       "id": "test_unit_gitconfig_tool_and_url_hygiene_assert_guard_verdict"
     },
     {
+      "label": "CLAUDE.md",
+      "file_type": "document",
+      "source_file": "CLAUDE.md",
+      "source_location": "L1",
+      "_origin": "ast",
+      "community": 12,
+      "norm_label": "claude.md",
+      "id": "claude"
+    },
+    {
+      "label": "CLAUDE.md",
+      "file_type": "document",
+      "source_file": "CLAUDE.md",
+      "source_location": "L7",
+      "_origin": "ast",
+      "community": 12,
+      "norm_label": "claude.md",
+      "id": "claude_claude_md"
+    },
+    {
+      "label": "What This Is",
+      "file_type": "document",
+      "source_file": "CLAUDE.md",
+      "source_location": "L11",
+      "_origin": "ast",
+      "community": 12,
+      "norm_label": "what this is",
+      "id": "claude_what_this_is"
+    },
+    {
+      "label": "Key Commands",
+      "file_type": "document",
+      "source_file": "CLAUDE.md",
+      "source_location": "L18",
+      "_origin": "ast",
+      "community": 12,
+      "norm_label": "key commands",
+      "id": "claude_key_commands"
+    },
+    {
+      "label": "Linting & Formatting",
+      "file_type": "document",
+      "source_file": "CLAUDE.md",
+      "source_location": "L20",
+      "_origin": "ast",
+      "community": 12,
+      "norm_label": "linting & formatting",
+      "id": "claude_linting_formatting"
+    },
+    {
+      "label": "Testing",
+      "file_type": "document",
+      "source_file": "CLAUDE.md",
+      "source_location": "L46",
+      "_origin": "ast",
+      "community": 12,
+      "norm_label": "testing",
+      "id": "claude_testing"
+    },
+    {
+      "label": "Chezmoi Operations",
+      "file_type": "document",
+      "source_file": "CLAUDE.md",
+      "source_location": "L80",
+      "_origin": "ast",
+      "community": 12,
+      "norm_label": "chezmoi operations",
+      "id": "claude_chezmoi_operations"
+    },
+    {
+      "label": "Claude Code Settings",
+      "file_type": "document",
+      "source_file": "CLAUDE.md",
+      "source_location": "L108",
+      "_origin": "ast",
+      "community": 12,
+      "norm_label": "claude code settings",
+      "id": "claude_claude_code_settings"
+    },
+    {
+      "label": "Git Hooks",
+      "file_type": "document",
+      "source_file": "CLAUDE.md",
+      "source_location": "L141",
+      "_origin": "ast",
+      "community": 12,
+      "norm_label": "git hooks",
+      "id": "claude_git_hooks"
+    },
+    {
+      "label": "Architecture",
+      "file_type": "document",
+      "source_file": "CLAUDE.md",
+      "source_location": "L195",
+      "_origin": "ast",
+      "community": 12,
+      "norm_label": "architecture",
+      "id": "claude_architecture"
+    },
+    {
+      "label": "Source-Only Files",
+      "file_type": "document",
+      "source_file": "CLAUDE.md",
+      "source_location": "L197",
+      "_origin": "ast",
+      "community": 12,
+      "norm_label": "source-only files",
+      "id": "claude_source_only_files"
+    },
+    {
+      "label": "Minimum Chezmoi Version",
+      "file_type": "document",
+      "source_file": "CLAUDE.md",
+      "source_location": "L205",
+      "_origin": "ast",
+      "community": 12,
+      "norm_label": "minimum chezmoi version",
+      "id": "claude_minimum_chezmoi_version"
+    },
+    {
+      "label": "Secrets Management",
+      "file_type": "document",
+      "source_file": "CLAUDE.md",
+      "source_location": "L209",
+      "_origin": "ast",
+      "community": 12,
+      "norm_label": "secrets management",
+      "id": "claude_secrets_management"
+    },
+    {
+      "label": "System Package Management",
+      "file_type": "document",
+      "source_file": "CLAUDE.md",
+      "source_location": "L216",
+      "_origin": "ast",
+      "community": 12,
+      "norm_label": "system package management",
+      "id": "claude_system_package_management"
+    },
+    {
+      "label": "macOS Defaults Management",
+      "file_type": "document",
+      "source_file": "CLAUDE.md",
+      "source_location": "L241",
+      "_origin": "ast",
+      "community": 12,
+      "norm_label": "macos defaults management",
+      "id": "claude_macos_defaults_management"
+    },
+    {
+      "label": "Template Files",
+      "file_type": "document",
+      "source_file": "CLAUDE.md",
+      "source_location": "L286",
+      "_origin": "ast",
+      "community": 12,
+      "norm_label": "template files",
+      "id": "claude_template_files"
+    },
+    {
+      "label": "Template Shellcheck Workaround",
+      "file_type": "document",
+      "source_file": "CLAUDE.md",
+      "source_location": "L292",
+      "_origin": "ast",
+      "community": 12,
+      "norm_label": "template shellcheck workaround",
+      "id": "claude_template_shellcheck_workaround"
+    },
+    {
+      "label": "OS Targeting",
+      "file_type": "document",
+      "source_file": "CLAUDE.md",
+      "source_location": "L313",
+      "_origin": "ast",
+      "community": 12,
+      "norm_label": "os targeting",
+      "id": "claude_os_targeting"
+    },
+    {
+      "label": "Dev Environment (Nix Flake)",
+      "file_type": "document",
+      "source_file": "CLAUDE.md",
+      "source_location": "L318",
+      "_origin": "ast",
+      "community": 12,
+      "norm_label": "dev environment (nix flake)",
+      "id": "claude_dev_environment_nix_flake"
+    },
+    {
+      "label": "CI",
+      "file_type": "document",
+      "source_file": "CLAUDE.md",
+      "source_location": "L329",
+      "_origin": "ast",
+      "community": 12,
+      "norm_label": "ci",
+      "id": "claude_ci"
+    },
+    {
+      "label": "Agent Skills (cross-harness store)",
+      "file_type": "document",
+      "source_file": "CLAUDE.md",
+      "source_location": "L339",
+      "_origin": "ast",
+      "community": 12,
+      "norm_label": "agent skills (cross-harness store)",
+      "id": "claude_agent_skills_cross_harness_store"
+    },
+    {
+      "label": "Herdr Workspace Management",
+      "file_type": "document",
+      "source_file": "CLAUDE.md",
+      "source_location": "L509",
+      "_origin": "ast",
+      "community": 12,
+      "norm_label": "herdr workspace management",
+      "id": "claude_herdr_workspace_management"
+    },
+    {
+      "label": "Git Worktrees (Worktrunk)",
+      "file_type": "document",
+      "source_file": "CLAUDE.md",
+      "source_location": "L529",
+      "_origin": "ast",
+      "community": 12,
+      "norm_label": "git worktrees (worktrunk)",
+      "id": "claude_git_worktrees_worktrunk"
+    },
+    {
+      "label": "Bashrc Init Ordering",
+      "file_type": "document",
+      "source_file": "CLAUDE.md",
+      "source_location": "L536",
+      "_origin": "ast",
+      "community": 12,
+      "norm_label": "bashrc init ordering",
+      "id": "claude_bashrc_init_ordering"
+    },
+    {
+      "label": "Shell History (Atuin)",
+      "file_type": "document",
+      "source_file": "CLAUDE.md",
+      "source_location": "L544",
+      "_origin": "ast",
+      "community": 12,
+      "norm_label": "shell history (atuin)",
+      "id": "claude_shell_history_atuin"
+    },
+    {
+      "label": "Happy Daemon (Remote Agent Control)",
+      "file_type": "document",
+      "source_file": "CLAUDE.md",
+      "source_location": "L573",
+      "_origin": "ast",
+      "community": 12,
+      "norm_label": "happy daemon (remote agent control)",
+      "id": "claude_happy_daemon_remote_agent_control"
+    },
+    {
+      "label": "Tailscale (headless daemon)",
+      "file_type": "document",
+      "source_file": "CLAUDE.md",
+      "source_location": "L600",
+      "_origin": "ast",
+      "community": 12,
+      "norm_label": "tailscale (headless daemon)",
+      "id": "claude_tailscale_headless_daemon"
+    },
+    {
+      "label": "AI Commit Messages",
+      "file_type": "document",
+      "source_file": "CLAUDE.md",
+      "source_location": "L637",
+      "_origin": "ast",
+      "community": 12,
+      "norm_label": "ai commit messages",
+      "id": "claude_ai_commit_messages"
+    },
+    {
+      "label": "Long-running Command Notifier",
+      "file_type": "document",
+      "source_file": "CLAUDE.md",
+      "source_location": "L650",
+      "_origin": "ast",
+      "community": 12,
+      "norm_label": "long-running command notifier",
+      "id": "claude_long_running_command_notifier"
+    },
+    {
+      "label": "Herdr Native Status",
+      "file_type": "document",
+      "source_file": "CLAUDE.md",
+      "source_location": "L656",
+      "_origin": "ast",
+      "community": 12,
+      "norm_label": "herdr native status",
+      "id": "claude_herdr_native_status"
+    },
+    {
+      "label": "Code Style",
+      "file_type": "document",
+      "source_file": "CLAUDE.md",
+      "source_location": "L662",
+      "_origin": "ast",
+      "community": 12,
+      "norm_label": "code style",
+      "id": "claude_code_style"
+    },
+    {
+      "label": "Git Commits",
+      "file_type": "document",
+      "source_file": "CLAUDE.md",
+      "source_location": "L688",
+      "_origin": "ast",
+      "community": 12,
+      "norm_label": "git commits",
+      "id": "claude_git_commits"
+    },
+    {
+      "label": "Security",
+      "file_type": "document",
+      "source_file": "CLAUDE.md",
+      "source_location": "L695",
+      "_origin": "ast",
+      "community": 12,
+      "norm_label": "security",
+      "id": "claude_security"
+    },
+    {
       "label": "executable_reconcile-hosts-pin.sh",
       "file_type": "code",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
@@ -43966,16 +44814,6 @@
       "id": "test_unit_tailnet_pin_hosts_predicates_survey_of"
     },
     {
-      "label": "AGENTS.md",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L1",
-      "_origin": "ast",
-      "community": 323,
-      "norm_label": "agents.md",
-      "id": "agents"
-    },
-    {
       "label": "CLAUDE.md",
       "file_type": "document",
       "source_file": "AGENTS.md",
@@ -44294,6 +45132,258 @@
       "community": 323,
       "norm_label": "security",
       "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_pin_loopback_agents_security"
+    },
+    {
+      "label": "ship-ci-gate-parity.sh",
+      "file_type": "code",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "community": 354,
+      "norm_label": "ship-ci-gate-parity.sh",
+      "id": "test_unit_ship_ci_gate_parity"
+    },
+    {
+      "label": "ship-ci-gate-parity.sh script",
+      "file_type": "code",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "community": 354,
+      "norm_label": "ship-ci-gate-parity.sh script",
+      "id": "test_unit_ship_ci_gate_parity_sh__entry"
+    },
+    {
+      "label": "fail()",
+      "file_type": "code",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L92",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 354,
+      "norm_label": "fail()",
+      "id": "test_unit_ship_ci_gate_parity_fail"
+    },
+    {
+      "label": "is_member()",
+      "file_type": "code",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L98",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 354,
+      "norm_label": "is_member()",
+      "id": "test_unit_ship_ci_gate_parity_is_member"
+    },
+    {
+      "label": "is_readable_inline_command()",
+      "file_type": "code",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L109",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 354,
+      "norm_label": "is_readable_inline_command()",
+      "id": "test_unit_ship_ci_gate_parity_is_readable_inline_command"
+    },
+    {
+      "label": "strip_trailing_whitespace()",
+      "file_type": "code",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L116",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 354,
+      "norm_label": "strip_trailing_whitespace()",
+      "id": "test_unit_ship_ci_gate_parity_strip_trailing_whitespace"
+    },
+    {
+      "label": "action_reference_name()",
+      "file_type": "code",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L124",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 354,
+      "norm_label": "action_reference_name()",
+      "id": "test_unit_ship_ci_gate_parity_action_reference_name"
+    },
+    {
+      "label": "workflow_file_names()",
+      "file_type": "code",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L139",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 354,
+      "norm_label": "workflow_file_names()",
+      "id": "test_unit_ship_ci_gate_parity_workflow_file_names"
+    },
+    {
+      "label": "assert_every_workflow_is_classified()",
+      "file_type": "code",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L154",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 354,
+      "norm_label": "assert_every_workflow_is_classified()",
+      "id": "test_unit_ship_ci_gate_parity_assert_every_workflow_is_classified"
+    },
+    {
+      "label": "assert_gate_workflow_steps_are_comparable()",
+      "file_type": "code",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L166",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 354,
+      "norm_label": "assert_gate_workflow_steps_are_comparable()",
+      "id": "test_unit_ship_ci_gate_parity_assert_gate_workflow_steps_are_comparable"
+    },
+    {
+      "label": "extract_gate_trigger_block()",
+      "file_type": "code",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L189",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 354,
+      "norm_label": "extract_gate_trigger_block()",
+      "id": "test_unit_ship_ci_gate_parity_extract_gate_trigger_block"
+    },
+    {
+      "label": "assert_recipe_is_comparable()",
+      "file_type": "code",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L224",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 354,
+      "norm_label": "assert_recipe_is_comparable()",
+      "id": "test_unit_ship_ci_gate_parity_assert_recipe_is_comparable"
+    },
+    {
+      "label": "recipe_dependencies()",
+      "file_type": "code",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L240",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 354,
+      "norm_label": "recipe_dependencies()",
+      "id": "test_unit_ship_ci_gate_parity_recipe_dependencies"
+    },
+    {
+      "label": "recipe_prior_dependency_count()",
+      "file_type": "code",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L249",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 354,
+      "norm_label": "recipe_prior_dependency_count()",
+      "id": "test_unit_ship_ci_gate_parity_recipe_prior_dependency_count"
+    },
+    {
+      "label": "recipe_body_lines()",
+      "file_type": "code",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L254",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 354,
+      "norm_label": "recipe_body_lines()",
+      "id": "test_unit_ship_ci_gate_parity_recipe_body_lines"
+    },
+    {
+      "label": "recipe_command_lines()",
+      "file_type": "code",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L278",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 354,
+      "norm_label": "recipe_command_lines()",
+      "id": "test_unit_ship_ci_gate_parity_recipe_command_lines"
+    },
+    {
+      "label": "workflow_step_commands()",
+      "file_type": "code",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L309",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 354,
+      "norm_label": "workflow_step_commands()",
+      "id": "test_unit_ship_ci_gate_parity_workflow_step_commands"
+    },
+    {
+      "label": "report_lists_and_fail()",
+      "file_type": "code",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L324",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 354,
+      "norm_label": "report_lists_and_fail()",
+      "id": "test_unit_ship_ci_gate_parity_report_lists_and_fail"
     }
   ],
   "links": [
@@ -45264,6 +46354,235 @@
       "confidence_score": 1.0,
       "source": "dot_local_bin_executable_assert_hermes_superpowers_routing_sh__entry",
       "target": "dot_local_bin_executable_assert_hermes_superpowers_routing_usage"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_brew-shellenv-cache-refresh.sh",
+      "source_location": "L100",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "dot_local_bin_executable_brew_shellenv_cache_refresh",
+      "target": "dot_local_bin_executable_brew_shellenv_cache_refresh_brew_emitted_an_environment"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_brew-shellenv-cache-refresh.sh",
+      "source_location": "L35",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "dot_local_bin_executable_brew_shellenv_cache_refresh",
+      "target": "dot_local_bin_executable_brew_shellenv_cache_refresh_cache_file_name"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_brew-shellenv-cache-refresh.sh",
+      "source_location": "L85",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "dot_local_bin_executable_brew_shellenv_cache_refresh",
+      "target": "dot_local_bin_executable_brew_shellenv_cache_refresh_cache_path_is_replaceable"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_brew-shellenv-cache-refresh.sh",
+      "source_location": "L34",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "dot_local_bin_executable_brew_shellenv_cache_refresh",
+      "target": "dot_local_bin_executable_brew_shellenv_cache_refresh_default_homebrew_prefix"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_brew-shellenv-cache-refresh.sh",
+      "source_location": "L36",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "dot_local_bin_executable_brew_shellenv_cache_refresh",
+      "target": "dot_local_bin_executable_brew_shellenv_cache_refresh_exit_usage"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_brew-shellenv-cache-refresh.sh",
+      "source_location": "L62",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "dot_local_bin_executable_brew_shellenv_cache_refresh",
+      "target": "dot_local_bin_executable_brew_shellenv_cache_refresh_fail"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_brew-shellenv-cache-refresh.sh",
+      "source_location": "L75",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "dot_local_bin_executable_brew_shellenv_cache_refresh",
+      "target": "dot_local_bin_executable_brew_shellenv_cache_refresh_homebrew_is_installed"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_brew-shellenv-cache-refresh.sh",
+      "source_location": "L138",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "dot_local_bin_executable_brew_shellenv_cache_refresh",
+      "target": "dot_local_bin_executable_brew_shellenv_cache_refresh_main"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_brew-shellenv-cache-refresh.sh",
+      "source_location": "L121",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "dot_local_bin_executable_brew_shellenv_cache_refresh",
+      "target": "dot_local_bin_executable_brew_shellenv_cache_refresh_reject_unknown_arguments"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_brew-shellenv-cache-refresh.sh",
+      "source_location": "L67",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "dot_local_bin_executable_brew_shellenv_cache_refresh",
+      "target": "dot_local_bin_executable_brew_shellenv_cache_refresh_remove_temporary_cache_file"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_brew-shellenv-cache-refresh.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "dot_local_bin_executable_brew_shellenv_cache_refresh",
+      "target": "dot_local_bin_executable_brew_shellenv_cache_refresh_sh__entry"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_brew-shellenv-cache-refresh.sh",
+      "source_location": "L55",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "dot_local_bin_executable_brew_shellenv_cache_refresh",
+      "target": "dot_local_bin_executable_brew_shellenv_cache_refresh_usage"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_brew-shellenv-cache-refresh.sh",
+      "source_location": "L110",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "dot_local_bin_executable_brew_shellenv_cache_refresh",
+      "target": "dot_local_bin_executable_brew_shellenv_cache_refresh_write_cache_atomically"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_brew-shellenv-cache-refresh.sh",
+      "source_location": "L149",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "dot_local_bin_executable_brew_shellenv_cache_refresh_sh__entry",
+      "target": "dot_local_bin_executable_brew_shellenv_cache_refresh_main"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_brew-shellenv-cache-refresh.sh",
+      "source_location": "L126",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "dot_local_bin_executable_brew_shellenv_cache_refresh_usage",
+      "target": "dot_local_bin_executable_brew_shellenv_cache_refresh_reject_unknown_arguments"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_brew-shellenv-cache-refresh.sh",
+      "source_location": "L141",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "dot_local_bin_executable_brew_shellenv_cache_refresh_fail",
+      "target": "dot_local_bin_executable_brew_shellenv_cache_refresh_main"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_brew-shellenv-cache-refresh.sh",
+      "source_location": "L115",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "dot_local_bin_executable_brew_shellenv_cache_refresh_fail",
+      "target": "dot_local_bin_executable_brew_shellenv_cache_refresh_write_cache_atomically"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_brew-shellenv-cache-refresh.sh",
+      "source_location": "L140",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "dot_local_bin_executable_brew_shellenv_cache_refresh_homebrew_is_installed",
+      "target": "dot_local_bin_executable_brew_shellenv_cache_refresh_main"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_brew-shellenv-cache-refresh.sh",
+      "source_location": "L142",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "dot_local_bin_executable_brew_shellenv_cache_refresh_cache_path_is_replaceable",
+      "target": "dot_local_bin_executable_brew_shellenv_cache_refresh_main"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_brew-shellenv-cache-refresh.sh",
+      "source_location": "L114",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "dot_local_bin_executable_brew_shellenv_cache_refresh_brew_emitted_an_environment",
+      "target": "dot_local_bin_executable_brew_shellenv_cache_refresh_write_cache_atomically"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_brew-shellenv-cache-refresh.sh",
+      "source_location": "L144",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "dot_local_bin_executable_brew_shellenv_cache_refresh_write_cache_atomically",
+      "target": "dot_local_bin_executable_brew_shellenv_cache_refresh_main"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_brew-shellenv-cache-refresh.sh",
+      "source_location": "L139",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "dot_local_bin_executable_brew_shellenv_cache_refresh_reject_unknown_arguments",
+      "target": "dot_local_bin_executable_brew_shellenv_cache_refresh_main"
     },
     {
       "relation": "contains",
@@ -53186,6 +54505,290 @@
     {
       "relation": "defines",
       "confidence": "EXTRACTED",
+      "source_file": "test/e2e/bashrc-brew-cache-self-heal.sh",
+      "source_location": "L217",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_e2e_bashrc_brew_cache_self_heal",
+      "target": "test_e2e_bashrc_brew_cache_self_heal_assert_did_not_regenerate"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/e2e/bashrc-brew-cache-self-heal.sh",
+      "source_location": "L206",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_e2e_bashrc_brew_cache_self_heal",
+      "target": "test_e2e_bashrc_brew_cache_self_heal_assert_regenerated"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/e2e/bashrc-brew-cache-self-heal.sh",
+      "source_location": "L176",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_e2e_bashrc_brew_cache_self_heal",
+      "target": "test_e2e_bashrc_brew_cache_self_heal_assert_shell_was_silent"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/e2e/bashrc-brew-cache-self-heal.sh",
+      "source_location": "L153",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_e2e_bashrc_brew_cache_self_heal",
+      "target": "test_e2e_bashrc_brew_cache_self_heal_clear_attempt_stamp"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/e2e/bashrc-brew-cache-self-heal.sh",
+      "source_location": "L60",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_e2e_bashrc_brew_cache_self_heal",
+      "target": "test_e2e_bashrc_brew_cache_self_heal_fail"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/e2e/bashrc-brew-cache-self-heal.sh",
+      "source_location": "L188",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_e2e_bashrc_brew_cache_self_heal",
+      "target": "test_e2e_bashrc_brew_cache_self_heal_invocation_count"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/e2e/bashrc-brew-cache-self-heal.sh",
+      "source_location": "L116",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_e2e_bashrc_brew_cache_self_heal",
+      "target": "test_e2e_bashrc_brew_cache_self_heal_new_host"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/e2e/bashrc-brew-cache-self-heal.sh",
+      "source_location": "L143",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_e2e_bashrc_brew_cache_self_heal",
+      "target": "test_e2e_bashrc_brew_cache_self_heal_seed_current_cache"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "test/e2e/bashrc-brew-cache-self-heal.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_e2e_bashrc_brew_cache_self_heal",
+      "target": "test_e2e_bashrc_brew_cache_self_heal_sh__entry"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/e2e/bashrc-brew-cache-self-heal.sh",
+      "source_location": "L172",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_e2e_bashrc_brew_cache_self_heal",
+      "target": "test_e2e_bashrc_brew_cache_self_heal_start_shell"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/e2e/bashrc-brew-cache-self-heal.sh",
+      "source_location": "L159",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_e2e_bashrc_brew_cache_self_heal",
+      "target": "test_e2e_bashrc_brew_cache_self_heal_start_shell_over"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/e2e/bashrc-brew-cache-self-heal.sh",
+      "source_location": "L197",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_e2e_bashrc_brew_cache_self_heal",
+      "target": "test_e2e_bashrc_brew_cache_self_heal_wait_for_invocations"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/e2e/bashrc-brew-cache-self-heal.sh",
+      "source_location": "L237",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_e2e_bashrc_brew_cache_self_heal_sh__entry",
+      "target": "test_e2e_bashrc_brew_cache_self_heal_assert_did_not_regenerate"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/e2e/bashrc-brew-cache-self-heal.sh",
+      "source_location": "L249",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_e2e_bashrc_brew_cache_self_heal_sh__entry",
+      "target": "test_e2e_bashrc_brew_cache_self_heal_assert_regenerated"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/e2e/bashrc-brew-cache-self-heal.sh",
+      "source_location": "L236",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_e2e_bashrc_brew_cache_self_heal_sh__entry",
+      "target": "test_e2e_bashrc_brew_cache_self_heal_assert_shell_was_silent"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/e2e/bashrc-brew-cache-self-heal.sh",
+      "source_location": "L276",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_e2e_bashrc_brew_cache_self_heal_sh__entry",
+      "target": "test_e2e_bashrc_brew_cache_self_heal_clear_attempt_stamp"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/e2e/bashrc-brew-cache-self-heal.sh",
+      "source_location": "L73",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_e2e_bashrc_brew_cache_self_heal_sh__entry",
+      "target": "test_e2e_bashrc_brew_cache_self_heal_fail"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/e2e/bashrc-brew-cache-self-heal.sh",
+      "source_location": "L234",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_e2e_bashrc_brew_cache_self_heal_sh__entry",
+      "target": "test_e2e_bashrc_brew_cache_self_heal_seed_current_cache"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/e2e/bashrc-brew-cache-self-heal.sh",
+      "source_location": "L235",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_e2e_bashrc_brew_cache_self_heal_sh__entry",
+      "target": "test_e2e_bashrc_brew_cache_self_heal_start_shell"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/e2e/bashrc-brew-cache-self-heal.sh",
+      "source_location": "L303",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_e2e_bashrc_brew_cache_self_heal_sh__entry",
+      "target": "test_e2e_bashrc_brew_cache_self_heal_start_shell_over"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/e2e/bashrc-brew-cache-self-heal.sh",
+      "source_location": "L356",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_e2e_bashrc_brew_cache_self_heal_sh__entry",
+      "target": "test_e2e_bashrc_brew_cache_self_heal_wait_for_invocations"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/e2e/bashrc-brew-cache-self-heal.sh",
+      "source_location": "L221",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_e2e_bashrc_brew_cache_self_heal_fail",
+      "target": "test_e2e_bashrc_brew_cache_self_heal_assert_did_not_regenerate"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/e2e/bashrc-brew-cache-self-heal.sh",
+      "source_location": "L209",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_e2e_bashrc_brew_cache_self_heal_fail",
+      "target": "test_e2e_bashrc_brew_cache_self_heal_assert_regenerated"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/e2e/bashrc-brew-cache-self-heal.sh",
+      "source_location": "L180",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_e2e_bashrc_brew_cache_self_heal_fail",
+      "target": "test_e2e_bashrc_brew_cache_self_heal_assert_shell_was_silent"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/e2e/bashrc-brew-cache-self-heal.sh",
+      "source_location": "L173",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_e2e_bashrc_brew_cache_self_heal_start_shell_over",
+      "target": "test_e2e_bashrc_brew_cache_self_heal_start_shell"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/e2e/bashrc-brew-cache-self-heal.sh",
+      "source_location": "L208",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_e2e_bashrc_brew_cache_self_heal_wait_for_invocations",
+      "target": "test_e2e_bashrc_brew_cache_self_heal_assert_regenerated"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "test/e2e/brew-shellenv-cache-drift.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_e2e_brew_shellenv_cache_drift",
+      "target": "test_e2e_brew_shellenv_cache_drift_sh__entry"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
       "source_file": "test/e2e/herdr-health-check-timeout.sh",
       "source_location": "L22",
       "weight": 1.0,
@@ -53400,6 +55003,16 @@
       "confidence_score": 1.0,
       "source": "test_e2e_hue_pulse_lock",
       "target": "test_e2e_hue_pulse_lock_sh__entry"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "test/e2e/j-completion.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_e2e_j_completion",
+      "target": "test_e2e_j_completion_sh__entry"
     },
     {
       "relation": "defines",
@@ -66674,6 +68287,404 @@
     {
       "relation": "defines",
       "confidence": "EXTRACTED",
+      "source_file": "test/unit/bashrc-brew-cache-self-heal.sh",
+      "source_location": "L60",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_bashrc_brew_cache_self_heal",
+      "target": "test_unit_bashrc_brew_cache_self_heal_assert_contains"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/bashrc-brew-cache-self-heal.sh",
+      "source_location": "L229",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_bashrc_brew_cache_self_heal",
+      "target": "test_unit_bashrc_brew_cache_self_heal_assert_predicate"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/bashrc-brew-cache-self-heal.sh",
+      "source_location": "L55",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_bashrc_brew_cache_self_heal",
+      "target": "test_unit_bashrc_brew_cache_self_heal_fail"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/bashrc-brew-cache-self-heal.sh",
+      "source_location": "L67",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_bashrc_brew_cache_self_heal",
+      "target": "test_unit_bashrc_brew_cache_self_heal_refute_contains"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/bashrc-brew-cache-self-heal.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_bashrc_brew_cache_self_heal",
+      "target": "test_unit_bashrc_brew_cache_self_heal_sh__entry"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/bashrc-brew-cache-self-heal.sh",
+      "source_location": "L78",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_bashrc_brew_cache_self_heal",
+      "target": "test_unit_bashrc_brew_cache_self_heal_usability_operators_for"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/bashrc-brew-cache-self-heal.sh",
+      "source_location": "L303",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_bashrc_brew_cache_self_heal_sh__entry",
+      "target": "test_unit_bashrc_brew_cache_self_heal_assert_contains"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/bashrc-brew-cache-self-heal.sh",
+      "source_location": "L240",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_bashrc_brew_cache_self_heal_sh__entry",
+      "target": "test_unit_bashrc_brew_cache_self_heal_assert_predicate"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/bashrc-brew-cache-self-heal.sh",
+      "source_location": "L95",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_bashrc_brew_cache_self_heal_sh__entry",
+      "target": "test_unit_bashrc_brew_cache_self_heal_fail"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/bashrc-brew-cache-self-heal.sh",
+      "source_location": "L313",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_bashrc_brew_cache_self_heal_sh__entry",
+      "target": "test_unit_bashrc_brew_cache_self_heal_refute_contains"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/bashrc-brew-cache-self-heal.sh",
+      "source_location": "L62",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_bashrc_brew_cache_self_heal_fail",
+      "target": "test_unit_bashrc_brew_cache_self_heal_assert_contains"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/bashrc-brew-cache-self-heal.sh",
+      "source_location": "L234",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_bashrc_brew_cache_self_heal_fail",
+      "target": "test_unit_bashrc_brew_cache_self_heal_assert_predicate"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/bashrc-brew-cache-self-heal.sh",
+      "source_location": "L70",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_bashrc_brew_cache_self_heal_fail",
+      "target": "test_unit_bashrc_brew_cache_self_heal_refute_contains"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/bashrc-shell-foundation.sh",
+      "source_location": "L25",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_bashrc_shell_foundation",
+      "target": "test_unit_bashrc_shell_foundation_fail"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/bashrc-shell-foundation.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_bashrc_shell_foundation",
+      "target": "test_unit_bashrc_shell_foundation_sh__entry"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/bashrc-shell-foundation.sh",
+      "source_location": "L34",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_bashrc_shell_foundation_sh__entry",
+      "target": "test_unit_bashrc_shell_foundation_fail"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/brew-cache-refresh-recipe.sh",
+      "source_location": "L21",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_brew_cache_refresh_recipe",
+      "target": "test_unit_brew_cache_refresh_recipe_fail"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/brew-cache-refresh-recipe.sh",
+      "source_location": "L28",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_brew_cache_refresh_recipe",
+      "target": "test_unit_brew_cache_refresh_recipe_refute_contains"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/brew-cache-refresh-recipe.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_brew_cache_refresh_recipe",
+      "target": "test_unit_brew_cache_refresh_recipe_sh__entry"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/brew-cache-refresh-recipe.sh",
+      "source_location": "L42",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_brew_cache_refresh_recipe_sh__entry",
+      "target": "test_unit_brew_cache_refresh_recipe_fail"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/brew-cache-refresh-recipe.sh",
+      "source_location": "L47",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_brew_cache_refresh_recipe_sh__entry",
+      "target": "test_unit_brew_cache_refresh_recipe_refute_contains"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/brew-cache-refresh-recipe.sh",
+      "source_location": "L32",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_brew_cache_refresh_recipe_fail",
+      "target": "test_unit_brew_cache_refresh_recipe_refute_contains"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/brew-shellenv-cache-writer.sh",
+      "source_location": "L56",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_brew_shellenv_cache_writer",
+      "target": "test_unit_brew_shellenv_cache_writer_assert_contains"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/brew-shellenv-cache-writer.sh",
+      "source_location": "L42",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_brew_shellenv_cache_writer",
+      "target": "test_unit_brew_shellenv_cache_writer_fail"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/brew-shellenv-cache-writer.sh",
+      "source_location": "L103",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_brew_shellenv_cache_writer",
+      "target": "test_unit_brew_shellenv_cache_writer_inode_of"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/brew-shellenv-cache-writer.sh",
+      "source_location": "L76",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_brew_shellenv_cache_writer",
+      "target": "test_unit_brew_shellenv_cache_writer_make_stub_brew"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/brew-shellenv-cache-writer.sh",
+      "source_location": "L108",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_brew_shellenv_cache_writer",
+      "target": "test_unit_brew_shellenv_cache_writer_new_case_dir"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/brew-shellenv-cache-writer.sh",
+      "source_location": "L49",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_brew_shellenv_cache_writer",
+      "target": "test_unit_brew_shellenv_cache_writer_refute_contains"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/brew-shellenv-cache-writer.sh",
+      "source_location": "L119",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_brew_shellenv_cache_writer",
+      "target": "test_unit_brew_shellenv_cache_writer_run_writer"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/brew-shellenv-cache-writer.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_brew_shellenv_cache_writer",
+      "target": "test_unit_brew_shellenv_cache_writer_sh__entry"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/brew-shellenv-cache-writer.sh",
+      "source_location": "L130",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_brew_shellenv_cache_writer",
+      "target": "test_unit_brew_shellenv_cache_writer_temp_siblings"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/brew-shellenv-cache-writer.sh",
+      "source_location": "L166",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_brew_shellenv_cache_writer_sh__entry",
+      "target": "test_unit_brew_shellenv_cache_writer_assert_contains"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/brew-shellenv-cache-writer.sh",
+      "source_location": "L61",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_brew_shellenv_cache_writer_sh__entry",
+      "target": "test_unit_brew_shellenv_cache_writer_fail"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/brew-shellenv-cache-writer.sh",
+      "source_location": "L140",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_brew_shellenv_cache_writer_sh__entry",
+      "target": "test_unit_brew_shellenv_cache_writer_make_stub_brew"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/brew-shellenv-cache-writer.sh",
+      "source_location": "L168",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_brew_shellenv_cache_writer_sh__entry",
+      "target": "test_unit_brew_shellenv_cache_writer_refute_contains"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/brew-shellenv-cache-writer.sh",
+      "source_location": "L142",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_brew_shellenv_cache_writer_sh__entry",
+      "target": "test_unit_brew_shellenv_cache_writer_run_writer"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/brew-shellenv-cache-writer.sh",
+      "source_location": "L58",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_brew_shellenv_cache_writer_fail",
+      "target": "test_unit_brew_shellenv_cache_writer_assert_contains"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/brew-shellenv-cache-writer.sh",
+      "source_location": "L52",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_brew_shellenv_cache_writer_fail",
+      "target": "test_unit_brew_shellenv_cache_writer_refute_contains"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
       "source_file": "test/unit/claude-retirement-ordering.sh",
       "source_location": "L27",
       "weight": 1.0,
@@ -69817,385 +71828,6 @@
     {
       "relation": "defines",
       "confidence": "EXTRACTED",
-      "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L124",
-      "weight": 1.0,
-      "confidence_score": 1.0,
-      "source": "test_unit_ship_ci_gate_parity",
-      "target": "test_unit_ship_ci_gate_parity_action_reference_name"
-    },
-    {
-      "relation": "defines",
-      "confidence": "EXTRACTED",
-      "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L154",
-      "weight": 1.0,
-      "confidence_score": 1.0,
-      "source": "test_unit_ship_ci_gate_parity",
-      "target": "test_unit_ship_ci_gate_parity_assert_every_workflow_is_classified"
-    },
-    {
-      "relation": "defines",
-      "confidence": "EXTRACTED",
-      "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L166",
-      "weight": 1.0,
-      "confidence_score": 1.0,
-      "source": "test_unit_ship_ci_gate_parity",
-      "target": "test_unit_ship_ci_gate_parity_assert_gate_workflow_steps_are_comparable"
-    },
-    {
-      "relation": "defines",
-      "confidence": "EXTRACTED",
-      "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L224",
-      "weight": 1.0,
-      "confidence_score": 1.0,
-      "source": "test_unit_ship_ci_gate_parity",
-      "target": "test_unit_ship_ci_gate_parity_assert_recipe_is_comparable"
-    },
-    {
-      "relation": "defines",
-      "confidence": "EXTRACTED",
-      "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L189",
-      "weight": 1.0,
-      "confidence_score": 1.0,
-      "source": "test_unit_ship_ci_gate_parity",
-      "target": "test_unit_ship_ci_gate_parity_extract_gate_trigger_block"
-    },
-    {
-      "relation": "defines",
-      "confidence": "EXTRACTED",
-      "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L92",
-      "weight": 1.0,
-      "confidence_score": 1.0,
-      "source": "test_unit_ship_ci_gate_parity",
-      "target": "test_unit_ship_ci_gate_parity_fail"
-    },
-    {
-      "relation": "defines",
-      "confidence": "EXTRACTED",
-      "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L98",
-      "weight": 1.0,
-      "confidence_score": 1.0,
-      "source": "test_unit_ship_ci_gate_parity",
-      "target": "test_unit_ship_ci_gate_parity_is_member"
-    },
-    {
-      "relation": "defines",
-      "confidence": "EXTRACTED",
-      "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L109",
-      "weight": 1.0,
-      "confidence_score": 1.0,
-      "source": "test_unit_ship_ci_gate_parity",
-      "target": "test_unit_ship_ci_gate_parity_is_readable_inline_command"
-    },
-    {
-      "relation": "defines",
-      "confidence": "EXTRACTED",
-      "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L254",
-      "weight": 1.0,
-      "confidence_score": 1.0,
-      "source": "test_unit_ship_ci_gate_parity",
-      "target": "test_unit_ship_ci_gate_parity_recipe_body_lines"
-    },
-    {
-      "relation": "defines",
-      "confidence": "EXTRACTED",
-      "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L278",
-      "weight": 1.0,
-      "confidence_score": 1.0,
-      "source": "test_unit_ship_ci_gate_parity",
-      "target": "test_unit_ship_ci_gate_parity_recipe_command_lines"
-    },
-    {
-      "relation": "defines",
-      "confidence": "EXTRACTED",
-      "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L240",
-      "weight": 1.0,
-      "confidence_score": 1.0,
-      "source": "test_unit_ship_ci_gate_parity",
-      "target": "test_unit_ship_ci_gate_parity_recipe_dependencies"
-    },
-    {
-      "relation": "defines",
-      "confidence": "EXTRACTED",
-      "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L249",
-      "weight": 1.0,
-      "confidence_score": 1.0,
-      "source": "test_unit_ship_ci_gate_parity",
-      "target": "test_unit_ship_ci_gate_parity_recipe_prior_dependency_count"
-    },
-    {
-      "relation": "defines",
-      "confidence": "EXTRACTED",
-      "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L324",
-      "weight": 1.0,
-      "confidence_score": 1.0,
-      "source": "test_unit_ship_ci_gate_parity",
-      "target": "test_unit_ship_ci_gate_parity_report_lists_and_fail"
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L1",
-      "weight": 1.0,
-      "confidence_score": 1.0,
-      "source": "test_unit_ship_ci_gate_parity",
-      "target": "test_unit_ship_ci_gate_parity_sh__entry"
-    },
-    {
-      "relation": "defines",
-      "confidence": "EXTRACTED",
-      "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L116",
-      "weight": 1.0,
-      "confidence_score": 1.0,
-      "source": "test_unit_ship_ci_gate_parity",
-      "target": "test_unit_ship_ci_gate_parity_strip_trailing_whitespace"
-    },
-    {
-      "relation": "defines",
-      "confidence": "EXTRACTED",
-      "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L139",
-      "weight": 1.0,
-      "confidence_score": 1.0,
-      "source": "test_unit_ship_ci_gate_parity",
-      "target": "test_unit_ship_ci_gate_parity_workflow_file_names"
-    },
-    {
-      "relation": "defines",
-      "confidence": "EXTRACTED",
-      "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L309",
-      "weight": 1.0,
-      "confidence_score": 1.0,
-      "source": "test_unit_ship_ci_gate_parity",
-      "target": "test_unit_ship_ci_gate_parity_workflow_step_commands"
-    },
-    {
-      "relation": "calls",
-      "confidence": "EXTRACTED",
-      "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L340",
-      "weight": 1.0,
-      "context": "call",
-      "confidence_score": 1.0,
-      "source": "test_unit_ship_ci_gate_parity_sh__entry",
-      "target": "test_unit_ship_ci_gate_parity_assert_every_workflow_is_classified"
-    },
-    {
-      "relation": "calls",
-      "confidence": "EXTRACTED",
-      "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L354",
-      "weight": 1.0,
-      "context": "call",
-      "confidence_score": 1.0,
-      "source": "test_unit_ship_ci_gate_parity_sh__entry",
-      "target": "test_unit_ship_ci_gate_parity_assert_gate_workflow_steps_are_comparable"
-    },
-    {
-      "relation": "calls",
-      "confidence": "EXTRACTED",
-      "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L355",
-      "weight": 1.0,
-      "context": "call",
-      "confidence_score": 1.0,
-      "source": "test_unit_ship_ci_gate_parity_sh__entry",
-      "target": "test_unit_ship_ci_gate_parity_extract_gate_trigger_block"
-    },
-    {
-      "relation": "calls",
-      "confidence": "EXTRACTED",
-      "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L333",
-      "weight": 1.0,
-      "context": "call",
-      "confidence_score": 1.0,
-      "source": "test_unit_ship_ci_gate_parity_sh__entry",
-      "target": "test_unit_ship_ci_gate_parity_fail"
-    },
-    {
-      "relation": "calls",
-      "confidence": "EXTRACTED",
-      "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L360",
-      "weight": 1.0,
-      "context": "call",
-      "confidence_score": 1.0,
-      "source": "test_unit_ship_ci_gate_parity_sh__entry",
-      "target": "test_unit_ship_ci_gate_parity_recipe_command_lines"
-    },
-    {
-      "relation": "calls",
-      "confidence": "EXTRACTED",
-      "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L370",
-      "weight": 1.0,
-      "context": "call",
-      "confidence_score": 1.0,
-      "source": "test_unit_ship_ci_gate_parity_sh__entry",
-      "target": "test_unit_ship_ci_gate_parity_report_lists_and_fail"
-    },
-    {
-      "relation": "calls",
-      "confidence": "EXTRACTED",
-      "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L358",
-      "weight": 1.0,
-      "context": "call",
-      "confidence_score": 1.0,
-      "source": "test_unit_ship_ci_gate_parity_sh__entry",
-      "target": "test_unit_ship_ci_gate_parity_workflow_step_commands"
-    },
-    {
-      "relation": "calls",
-      "confidence": "EXTRACTED",
-      "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L159",
-      "weight": 1.0,
-      "context": "call",
-      "confidence_score": 1.0,
-      "source": "test_unit_ship_ci_gate_parity_fail",
-      "target": "test_unit_ship_ci_gate_parity_assert_every_workflow_is_classified"
-    },
-    {
-      "relation": "calls",
-      "confidence": "EXTRACTED",
-      "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L173",
-      "weight": 1.0,
-      "context": "call",
-      "confidence_score": 1.0,
-      "source": "test_unit_ship_ci_gate_parity_fail",
-      "target": "test_unit_ship_ci_gate_parity_assert_gate_workflow_steps_are_comparable"
-    },
-    {
-      "relation": "calls",
-      "confidence": "EXTRACTED",
-      "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L231",
-      "weight": 1.0,
-      "context": "call",
-      "confidence_score": 1.0,
-      "source": "test_unit_ship_ci_gate_parity_fail",
-      "target": "test_unit_ship_ci_gate_parity_assert_recipe_is_comparable"
-    },
-    {
-      "relation": "calls",
-      "confidence": "EXTRACTED",
-      "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L197",
-      "weight": 1.0,
-      "context": "call",
-      "confidence_score": 1.0,
-      "source": "test_unit_ship_ci_gate_parity_fail",
-      "target": "test_unit_ship_ci_gate_parity_extract_gate_trigger_block"
-    },
-    {
-      "relation": "calls",
-      "confidence": "EXTRACTED",
-      "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L283",
-      "weight": 1.0,
-      "context": "call",
-      "confidence_score": 1.0,
-      "source": "test_unit_ship_ci_gate_parity_fail",
-      "target": "test_unit_ship_ci_gate_parity_recipe_command_lines"
-    },
-    {
-      "relation": "calls",
-      "confidence": "EXTRACTED",
-      "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L329",
-      "weight": 1.0,
-      "context": "call",
-      "confidence_score": 1.0,
-      "source": "test_unit_ship_ci_gate_parity_fail",
-      "target": "test_unit_ship_ci_gate_parity_report_lists_and_fail"
-    },
-    {
-      "relation": "calls",
-      "confidence": "EXTRACTED",
-      "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L311",
-      "weight": 1.0,
-      "context": "call",
-      "confidence_score": 1.0,
-      "source": "test_unit_ship_ci_gate_parity_fail",
-      "target": "test_unit_ship_ci_gate_parity_workflow_step_commands"
-    },
-    {
-      "relation": "calls",
-      "confidence": "EXTRACTED",
-      "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L157",
-      "weight": 1.0,
-      "context": "call",
-      "confidence_score": 1.0,
-      "source": "test_unit_ship_ci_gate_parity_is_member",
-      "target": "test_unit_ship_ci_gate_parity_assert_every_workflow_is_classified"
-    },
-    {
-      "relation": "calls",
-      "confidence": "EXTRACTED",
-      "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L172",
-      "weight": 1.0,
-      "context": "call",
-      "confidence_score": 1.0,
-      "source": "test_unit_ship_ci_gate_parity_is_member",
-      "target": "test_unit_ship_ci_gate_parity_assert_gate_workflow_steps_are_comparable"
-    },
-    {
-      "relation": "calls",
-      "confidence": "EXTRACTED",
-      "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L146",
-      "weight": 1.0,
-      "context": "call",
-      "confidence_score": 1.0,
-      "source": "test_unit_ship_ci_gate_parity_is_member",
-      "target": "test_unit_ship_ci_gate_parity_workflow_file_names"
-    },
-    {
-      "relation": "calls",
-      "confidence": "EXTRACTED",
-      "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L315",
-      "weight": 1.0,
-      "context": "call",
-      "confidence_score": 1.0,
-      "source": "test_unit_ship_ci_gate_parity_is_readable_inline_command",
-      "target": "test_unit_ship_ci_gate_parity_workflow_step_commands"
-    },
-    {
-      "relation": "calls",
-      "confidence": "EXTRACTED",
-      "source_file": "test/unit/ship-ci-gate-parity.sh",
-      "source_location": "L281",
-      "weight": 1.0,
-      "context": "call",
-      "confidence_score": 1.0,
-      "source": "test_unit_ship_ci_gate_parity_assert_recipe_is_comparable",
-      "target": "test_unit_ship_ci_gate_parity_recipe_command_lines"
-    },
-    {
-      "relation": "defines",
-      "confidence": "EXTRACTED",
       "source_file": "test/unit/skills-roster-fanout.sh",
       "source_location": "L93",
       "weight": 1.0,
@@ -70950,322 +72582,332 @@
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L7",
       "weight": 1.0,
       "confidence_score": 1.0,
-      "source": "claude",
-      "target": "claude_claude_md"
+      "source": "agents",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_claude_md"
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
+      "source_location": "L7",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "agents",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_pin_loopback_agents_claude_md"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "AGENTS.md",
       "source_location": "L195",
       "weight": 1.0,
       "confidence_score": 1.0,
-      "source": "claude_claude_md",
-      "target": "claude_architecture"
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_claude_md",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_architecture"
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L662",
       "weight": 1.0,
       "confidence_score": 1.0,
-      "source": "claude_claude_md",
-      "target": "claude_code_style"
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_claude_md",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_code_style"
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L688",
       "weight": 1.0,
       "confidence_score": 1.0,
-      "source": "claude_claude_md",
-      "target": "claude_git_commits"
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_claude_md",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_git_commits"
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L18",
       "weight": 1.0,
       "confidence_score": 1.0,
-      "source": "claude_claude_md",
-      "target": "claude_key_commands"
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_claude_md",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_key_commands"
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L695",
       "weight": 1.0,
       "confidence_score": 1.0,
-      "source": "claude_claude_md",
-      "target": "claude_security"
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_claude_md",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_security"
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L11",
       "weight": 1.0,
       "confidence_score": 1.0,
-      "source": "claude_claude_md",
-      "target": "claude_what_this_is"
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_claude_md",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_what_this_is"
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L80",
       "weight": 1.0,
       "confidence_score": 1.0,
-      "source": "claude_key_commands",
-      "target": "claude_chezmoi_operations"
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_key_commands",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_chezmoi_operations"
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L108",
       "weight": 1.0,
       "confidence_score": 1.0,
-      "source": "claude_key_commands",
-      "target": "claude_claude_code_settings"
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_key_commands",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_claude_code_settings"
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L141",
       "weight": 1.0,
       "confidence_score": 1.0,
-      "source": "claude_key_commands",
-      "target": "claude_git_hooks"
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_key_commands",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_git_hooks"
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L20",
       "weight": 1.0,
       "confidence_score": 1.0,
-      "source": "claude_key_commands",
-      "target": "claude_linting_formatting"
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_key_commands",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_linting_formatting"
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L46",
       "weight": 1.0,
       "confidence_score": 1.0,
-      "source": "claude_key_commands",
-      "target": "claude_testing"
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_key_commands",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_testing"
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L339",
       "weight": 1.0,
       "confidence_score": 1.0,
-      "source": "claude_architecture",
-      "target": "claude_agent_skills_cross_harness_store"
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_agent_skills_cross_harness_store"
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L637",
       "weight": 1.0,
       "confidence_score": 1.0,
-      "source": "claude_architecture",
-      "target": "claude_ai_commit_messages"
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_ai_commit_messages"
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L536",
       "weight": 1.0,
       "confidence_score": 1.0,
-      "source": "claude_architecture",
-      "target": "claude_bashrc_init_ordering"
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_bashrc_init_ordering"
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L329",
       "weight": 1.0,
       "confidence_score": 1.0,
-      "source": "claude_architecture",
-      "target": "claude_ci"
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_ci"
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L318",
       "weight": 1.0,
       "confidence_score": 1.0,
-      "source": "claude_architecture",
-      "target": "claude_dev_environment_nix_flake"
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_dev_environment_nix_flake"
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L529",
       "weight": 1.0,
       "confidence_score": 1.0,
-      "source": "claude_architecture",
-      "target": "claude_git_worktrees_worktrunk"
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_git_worktrees_worktrunk"
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L573",
       "weight": 1.0,
       "confidence_score": 1.0,
-      "source": "claude_architecture",
-      "target": "claude_happy_daemon_remote_agent_control"
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_happy_daemon_remote_agent_control"
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L656",
       "weight": 1.0,
       "confidence_score": 1.0,
-      "source": "claude_architecture",
-      "target": "claude_herdr_native_status"
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_herdr_native_status"
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L509",
       "weight": 1.0,
       "confidence_score": 1.0,
-      "source": "claude_architecture",
-      "target": "claude_herdr_workspace_management"
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_herdr_workspace_management"
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L650",
       "weight": 1.0,
       "confidence_score": 1.0,
-      "source": "claude_architecture",
-      "target": "claude_long_running_command_notifier"
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_long_running_command_notifier"
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L241",
       "weight": 1.0,
       "confidence_score": 1.0,
-      "source": "claude_architecture",
-      "target": "claude_macos_defaults_management"
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_macos_defaults_management"
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L205",
       "weight": 1.0,
       "confidence_score": 1.0,
-      "source": "claude_architecture",
-      "target": "claude_minimum_chezmoi_version"
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_minimum_chezmoi_version"
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L313",
       "weight": 1.0,
       "confidence_score": 1.0,
-      "source": "claude_architecture",
-      "target": "claude_os_targeting"
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_os_targeting"
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L209",
       "weight": 1.0,
       "confidence_score": 1.0,
-      "source": "claude_architecture",
-      "target": "claude_secrets_management"
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_secrets_management"
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L544",
       "weight": 1.0,
       "confidence_score": 1.0,
-      "source": "claude_architecture",
-      "target": "claude_shell_history_atuin"
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_shell_history_atuin"
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L197",
       "weight": 1.0,
       "confidence_score": 1.0,
-      "source": "claude_architecture",
-      "target": "claude_source_only_files"
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_source_only_files"
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L216",
       "weight": 1.0,
       "confidence_score": 1.0,
-      "source": "claude_architecture",
-      "target": "claude_system_package_management"
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_system_package_management"
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L600",
       "weight": 1.0,
       "confidence_score": 1.0,
-      "source": "claude_architecture",
-      "target": "claude_tailscale_headless_daemon"
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_tailscale_headless_daemon"
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L286",
       "weight": 1.0,
       "confidence_score": 1.0,
-      "source": "claude_architecture",
-      "target": "claude_template_files"
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_template_files"
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
+      "source_file": "AGENTS.md",
       "source_location": "L292",
       "weight": 1.0,
       "confidence_score": 1.0,
-      "source": "claude_architecture",
-      "target": "claude_template_shellcheck_workaround"
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_s11_pr1_agents_template_shellcheck_workaround"
     },
     {
       "relation": "contains",
@@ -89802,6 +91444,326 @@
       "target": "test_unit_gitconfig_tool_and_url_hygiene_assert_guard_verdict"
     },
     {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "CLAUDE.md",
+      "source_location": "L7",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "claude",
+      "target": "claude_claude_md"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "CLAUDE.md",
+      "source_location": "L195",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "claude_claude_md",
+      "target": "claude_architecture"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "CLAUDE.md",
+      "source_location": "L662",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "claude_claude_md",
+      "target": "claude_code_style"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "CLAUDE.md",
+      "source_location": "L688",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "claude_claude_md",
+      "target": "claude_git_commits"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "CLAUDE.md",
+      "source_location": "L18",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "claude_claude_md",
+      "target": "claude_key_commands"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "CLAUDE.md",
+      "source_location": "L695",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "claude_claude_md",
+      "target": "claude_security"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "CLAUDE.md",
+      "source_location": "L11",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "claude_claude_md",
+      "target": "claude_what_this_is"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "CLAUDE.md",
+      "source_location": "L80",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "claude_key_commands",
+      "target": "claude_chezmoi_operations"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "CLAUDE.md",
+      "source_location": "L108",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "claude_key_commands",
+      "target": "claude_claude_code_settings"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "CLAUDE.md",
+      "source_location": "L141",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "claude_key_commands",
+      "target": "claude_git_hooks"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "CLAUDE.md",
+      "source_location": "L20",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "claude_key_commands",
+      "target": "claude_linting_formatting"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "CLAUDE.md",
+      "source_location": "L46",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "claude_key_commands",
+      "target": "claude_testing"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "CLAUDE.md",
+      "source_location": "L339",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "claude_architecture",
+      "target": "claude_agent_skills_cross_harness_store"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "CLAUDE.md",
+      "source_location": "L637",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "claude_architecture",
+      "target": "claude_ai_commit_messages"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "CLAUDE.md",
+      "source_location": "L536",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "claude_architecture",
+      "target": "claude_bashrc_init_ordering"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "CLAUDE.md",
+      "source_location": "L329",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "claude_architecture",
+      "target": "claude_ci"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "CLAUDE.md",
+      "source_location": "L318",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "claude_architecture",
+      "target": "claude_dev_environment_nix_flake"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "CLAUDE.md",
+      "source_location": "L529",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "claude_architecture",
+      "target": "claude_git_worktrees_worktrunk"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "CLAUDE.md",
+      "source_location": "L573",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "claude_architecture",
+      "target": "claude_happy_daemon_remote_agent_control"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "CLAUDE.md",
+      "source_location": "L656",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "claude_architecture",
+      "target": "claude_herdr_native_status"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "CLAUDE.md",
+      "source_location": "L509",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "claude_architecture",
+      "target": "claude_herdr_workspace_management"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "CLAUDE.md",
+      "source_location": "L650",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "claude_architecture",
+      "target": "claude_long_running_command_notifier"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "CLAUDE.md",
+      "source_location": "L241",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "claude_architecture",
+      "target": "claude_macos_defaults_management"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "CLAUDE.md",
+      "source_location": "L205",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "claude_architecture",
+      "target": "claude_minimum_chezmoi_version"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "CLAUDE.md",
+      "source_location": "L313",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "claude_architecture",
+      "target": "claude_os_targeting"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "CLAUDE.md",
+      "source_location": "L209",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "claude_architecture",
+      "target": "claude_secrets_management"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "CLAUDE.md",
+      "source_location": "L544",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "claude_architecture",
+      "target": "claude_shell_history_atuin"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "CLAUDE.md",
+      "source_location": "L197",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "claude_architecture",
+      "target": "claude_source_only_files"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "CLAUDE.md",
+      "source_location": "L216",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "claude_architecture",
+      "target": "claude_system_package_management"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "CLAUDE.md",
+      "source_location": "L600",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "claude_architecture",
+      "target": "claude_tailscale_headless_daemon"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "CLAUDE.md",
+      "source_location": "L286",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "claude_architecture",
+      "target": "claude_template_files"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "CLAUDE.md",
+      "source_location": "L292",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "claude_architecture",
+      "target": "claude_template_shellcheck_workaround"
+    },
+    {
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
@@ -90641,16 +92603,6 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "AGENTS.md",
-      "source_location": "L7",
-      "weight": 1.0,
-      "confidence_score": 1.0,
-      "source": "agents",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_pin_loopback_agents_claude_md"
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
       "source_location": "L195",
       "weight": 1.0,
       "confidence_score": 1.0,
@@ -90956,6 +92908,385 @@
       "confidence_score": 1.0,
       "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_pin_loopback_agents_architecture",
       "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_pin_loopback_agents_template_shellcheck_workaround"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L124",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_ship_ci_gate_parity",
+      "target": "test_unit_ship_ci_gate_parity_action_reference_name"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L154",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_ship_ci_gate_parity",
+      "target": "test_unit_ship_ci_gate_parity_assert_every_workflow_is_classified"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L166",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_ship_ci_gate_parity",
+      "target": "test_unit_ship_ci_gate_parity_assert_gate_workflow_steps_are_comparable"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L224",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_ship_ci_gate_parity",
+      "target": "test_unit_ship_ci_gate_parity_assert_recipe_is_comparable"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L189",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_ship_ci_gate_parity",
+      "target": "test_unit_ship_ci_gate_parity_extract_gate_trigger_block"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L92",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_ship_ci_gate_parity",
+      "target": "test_unit_ship_ci_gate_parity_fail"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L98",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_ship_ci_gate_parity",
+      "target": "test_unit_ship_ci_gate_parity_is_member"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L109",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_ship_ci_gate_parity",
+      "target": "test_unit_ship_ci_gate_parity_is_readable_inline_command"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L254",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_ship_ci_gate_parity",
+      "target": "test_unit_ship_ci_gate_parity_recipe_body_lines"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L278",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_ship_ci_gate_parity",
+      "target": "test_unit_ship_ci_gate_parity_recipe_command_lines"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L240",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_ship_ci_gate_parity",
+      "target": "test_unit_ship_ci_gate_parity_recipe_dependencies"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L249",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_ship_ci_gate_parity",
+      "target": "test_unit_ship_ci_gate_parity_recipe_prior_dependency_count"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L324",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_ship_ci_gate_parity",
+      "target": "test_unit_ship_ci_gate_parity_report_lists_and_fail"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_ship_ci_gate_parity",
+      "target": "test_unit_ship_ci_gate_parity_sh__entry"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L116",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_ship_ci_gate_parity",
+      "target": "test_unit_ship_ci_gate_parity_strip_trailing_whitespace"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L139",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_ship_ci_gate_parity",
+      "target": "test_unit_ship_ci_gate_parity_workflow_file_names"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L309",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_ship_ci_gate_parity",
+      "target": "test_unit_ship_ci_gate_parity_workflow_step_commands"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L340",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_ship_ci_gate_parity_sh__entry",
+      "target": "test_unit_ship_ci_gate_parity_assert_every_workflow_is_classified"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L354",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_ship_ci_gate_parity_sh__entry",
+      "target": "test_unit_ship_ci_gate_parity_assert_gate_workflow_steps_are_comparable"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L355",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_ship_ci_gate_parity_sh__entry",
+      "target": "test_unit_ship_ci_gate_parity_extract_gate_trigger_block"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L333",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_ship_ci_gate_parity_sh__entry",
+      "target": "test_unit_ship_ci_gate_parity_fail"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L360",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_ship_ci_gate_parity_sh__entry",
+      "target": "test_unit_ship_ci_gate_parity_recipe_command_lines"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L370",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_ship_ci_gate_parity_sh__entry",
+      "target": "test_unit_ship_ci_gate_parity_report_lists_and_fail"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L358",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_ship_ci_gate_parity_sh__entry",
+      "target": "test_unit_ship_ci_gate_parity_workflow_step_commands"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L159",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_ship_ci_gate_parity_fail",
+      "target": "test_unit_ship_ci_gate_parity_assert_every_workflow_is_classified"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L173",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_ship_ci_gate_parity_fail",
+      "target": "test_unit_ship_ci_gate_parity_assert_gate_workflow_steps_are_comparable"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L231",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_ship_ci_gate_parity_fail",
+      "target": "test_unit_ship_ci_gate_parity_assert_recipe_is_comparable"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L197",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_ship_ci_gate_parity_fail",
+      "target": "test_unit_ship_ci_gate_parity_extract_gate_trigger_block"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L283",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_ship_ci_gate_parity_fail",
+      "target": "test_unit_ship_ci_gate_parity_recipe_command_lines"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L329",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_ship_ci_gate_parity_fail",
+      "target": "test_unit_ship_ci_gate_parity_report_lists_and_fail"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L311",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_ship_ci_gate_parity_fail",
+      "target": "test_unit_ship_ci_gate_parity_workflow_step_commands"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L157",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_ship_ci_gate_parity_is_member",
+      "target": "test_unit_ship_ci_gate_parity_assert_every_workflow_is_classified"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L172",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_ship_ci_gate_parity_is_member",
+      "target": "test_unit_ship_ci_gate_parity_assert_gate_workflow_steps_are_comparable"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L146",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_ship_ci_gate_parity_is_member",
+      "target": "test_unit_ship_ci_gate_parity_workflow_file_names"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L315",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_ship_ci_gate_parity_is_readable_inline_command",
+      "target": "test_unit_ship_ci_gate_parity_workflow_step_commands"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/ship-ci-gate-parity.sh",
+      "source_location": "L281",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_ship_ci_gate_parity_assert_recipe_is_comparable",
+      "target": "test_unit_ship_ci_gate_parity_recipe_command_lines"
     }
   ]
 }
