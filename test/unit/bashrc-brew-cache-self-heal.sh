@@ -51,6 +51,11 @@ CONSUMER_CACHE_VARIABLE='__brew_shellenv'
 SELF_HEAL_CACHE_VARIABLE='__brew_shellenv_cache'
 USABILITY_OPERATORS='-f -r -s'
 INTERACTIVE_GATE='if [[ $- == *i* ]]; then'
+# The rate-limit fixtures are clock-relative and the predicate reads the clock
+# itself, so each such observation is bracketed by two clock reads and retried
+# while they disagree. See the bracket in the harness below for why.
+CLOCK_STABLE_OBSERVATION_ATTEMPTS=8
+CLOCK_UNSTABLE_RESULT='CLOCK-UNSTABLE'
 
 fail() {
   printf 'bashrc-brew-cache-self-heal: FAIL -- %s\n' "$*" >&2
@@ -137,6 +142,8 @@ grep -qF '__brew_shellenv_repair_is_due()' "$definitions" ||
 predicate_report="$sandbox/predicate-report"
 env -i PATH="${BASH%/*}:/usr/bin:/bin" HOME="$sandbox/predicate-home" \
   DEFINITIONS="$definitions" FIXTURES="$sandbox/fixtures" \
+  CLOCK_STABLE_OBSERVATION_ATTEMPTS="$CLOCK_STABLE_OBSERVATION_ATTEMPTS" \
+  CLOCK_UNSTABLE_RESULT="$CLOCK_UNSTABLE_RESULT" \
   "$BASH" --noprofile --norc -s >"$predicate_report" 2>&1 <<'HARNESS' || true
 set -uo pipefail
 # shellcheck disable=SC1090
@@ -191,14 +198,44 @@ needs_repair_case paths-unreadable unreadable_paths
 needs_repair_case generator-absent remove_generator
 
 # --- __brew_shellenv_repair_is_due -----------------------------------------
+# The predicate reads EPOCHSECONDS ITSELF, so a stamp written as an absolute
+# epoch computed EARLIER is not the age it claims to be: whatever wall clock
+# passes between the fixture's read and the predicate's is added to the age the
+# predicate measures. That gap spans a fixture rebuild and averaged 8.8ms when
+# measured on this tree, which crosses an integer-second boundary about one run
+# in a hundred, and the case one second INSIDE the retry interval then answers
+# DUE. Green here, red on a slower runner, with nothing wrong in the predicate.
+#
+# So a clock-relative fixture declares an AGE and its observation is BRACKETED
+# by two clock reads: the answer counts only when both land in the same second,
+# which makes the age the predicate saw exactly the age the case asked for. A
+# clock that will not hold still for a stamp write and a function call is
+# REPORTED as such, never asserted through. Fixtures whose stamp is a literal
+# do not depend on the clock and need none of this.
 interval="$__brew_shellenv_retry_interval_seconds"
 stamp_root="$FIXTURES/stamps"
 mkdir -p "$stamp_root"
+
+reset_stamp() {
+  local stamp="$1"
+  chmod -R u+rwX "$stamp" 2>/dev/null
+  rm -rf "$stamp"
+}
+
+# Answers into a global rather than through a command substitution: a
+# substitution forks, and that fork would sit INSIDE the clock bracket below,
+# widening the very window the bracket exists to keep shut.
+predicate_answer=''
+observe_is_due() {
+  __brew_shellenv_attempt_stamp="$1"
+  if __brew_shellenv_repair_is_due; then predicate_answer=DUE; else predicate_answer=BLOCKED; fi
+}
+
+# A stamp holding a literal, for the cases that ask what NON-EPOCH content does.
 is_due_case() {
   local name="$1" kind="$2" value="${3:-}"
   local stamp="$stamp_root/$name"
-  chmod -R u+rwX "$stamp" 2>/dev/null
-  rm -rf "$stamp"
+  reset_stamp "$stamp"
   case "$kind" in
     absent) : ;;
     directory) mkdir "$stamp" ;;
@@ -207,17 +244,41 @@ is_due_case() {
       chmod 000 "$stamp"
       ;;
     empty) : >"$stamp" ;;
-    *) printf '%s\n' "$value" >"$stamp" ;;
+    value) printf '%s\n' "$value" >"$stamp" ;;
+    *)
+      report "$name" "UNKNOWN-KIND-$kind"
+      return
+      ;;
   esac
-  __brew_shellenv_attempt_stamp="$stamp"
-  if __brew_shellenv_repair_is_due; then report "$name" DUE; else report "$name" BLOCKED; fi
+  observe_is_due "$stamp"
+  report "$name" "$predicate_answer"
+}
+
+# A stamp `age_seconds` old, observed under a clock proven not to have ticked
+# across the observation. A NEGATIVE age is a stamp dated that many seconds in
+# the FUTURE.
+is_due_age_case() {
+  local name="$1" age_seconds="$2"
+  local stamp="$stamp_root/$name" attempt clock_before clock_after
+  for ((attempt = 0; attempt < CLOCK_STABLE_OBSERVATION_ATTEMPTS; attempt++)); do
+    reset_stamp "$stamp"
+    clock_before="$EPOCHSECONDS"
+    printf '%s\n' "$((clock_before - age_seconds))" >"$stamp"
+    observe_is_due "$stamp"
+    clock_after="$EPOCHSECONDS"
+    if [[ $clock_before == "$clock_after" ]]; then
+      report "$name" "$predicate_answer"
+      return
+    fi
+  done
+  report "$name" "$CLOCK_UNSTABLE_RESULT"
 }
 
 is_due_case stamp-absent absent
-is_due_case stamp-now value "$EPOCHSECONDS"
-is_due_case stamp-just-under-interval value "$((EPOCHSECONDS - interval + 1))"
-is_due_case stamp-at-interval value "$((EPOCHSECONDS - interval))"
-is_due_case stamp-in-the-future value "$((EPOCHSECONDS + interval))"
+is_due_age_case stamp-now 0
+is_due_age_case stamp-just-under-interval "$((interval - 1))"
+is_due_age_case stamp-at-interval "$interval"
+is_due_age_case stamp-in-the-future "-$interval"
 is_due_case stamp-empty empty
 is_due_case stamp-not-a-number value 'not-a-number'
 is_due_case stamp-leading-zero value '0123456789'
@@ -233,6 +294,11 @@ assert_predicate() {
     printf 'predicate harness output was:\n%s\n' "$(cat "$predicate_report")" >&2
     fail "no result for predicate case '$case_name'"
   }
+  # A clock that ticked on every attempt is a HOST condition, not a verdict on
+  # the predicate. Say so, rather than letting the case description below blame
+  # the code for a fixture that was never the age it declared.
+  [[ $actual != "$CLOCK_UNSTABLE_RESULT" ]] ||
+    fail "case '$case_name' never observed a stable clock: the wall clock crossed a second boundary on all $CLOCK_STABLE_OBSERVATION_ATTEMPTS attempts, so the stamp was never the age the case asked for"
   [[ $actual == "$expected" ]] ||
     fail "$description (case '$case_name' answered $actual, wanted $expected)"
 }
