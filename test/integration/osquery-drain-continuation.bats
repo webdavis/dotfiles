@@ -58,7 +58,10 @@ dead_letter_count() {
   retry_undelivered_alerts
 
   grep -qF 'X-Request-ID: osquery-b' "$CURL_LOG"       # behind the poison, still delivered
-  ! grep -qF 'X-Request-ID: osquery-corrupt' "$CURL_LOG" # never POSTed
+  if grep -qF 'X-Request-ID: osquery-corrupt' "$CURL_LOG"; then
+    echo "never POSTed"
+    false
+  fi
   assert_pending_alert_count 1                         # corrupt retained, a and b delivered
   [[ "$(sqlite3_query 'SELECT request_id FROM pending_alerts;')" == "osquery-corrupt" ]]
   grep -q 'MALFORMED-ROW' "$OSQUERY_DELIVERY_LOG"      # logged, not silently swallowed
@@ -93,7 +96,10 @@ dead_letter_count() {
   [[ "$(sqlite3_query "SELECT attempts FROM pending_alerts WHERE request_id='osquery-transient';")" == "1" ]]
   [[ -n "$(sqlite3_query "SELECT 1 FROM dead_letter_alerts WHERE request_id='osquery-permanent';")" ]]
   [[ -n "$(sqlite3_query "SELECT 1 FROM dead_letter_alerts WHERE request_id='osquery-threshold';")" ]]
-  ! grep -qF 'X-Request-ID: osquery-threshold' "$CURL_LOG" # pre-send give-up, never POSTed
+  if grep -qF 'X-Request-ID: osquery-threshold' "$CURL_LOG"; then
+    echo "pre-send give-up, never POSTed"
+    false
+  fi
   # Final tallies: only the transient remains pending; two dead-lettered.
   assert_pending_alert_count 1
   [[ "$(sqlite3_query 'SELECT request_id FROM pending_alerts;')" == "osquery-transient" ]]
