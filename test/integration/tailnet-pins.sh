@@ -43,8 +43,11 @@
 # stderr, a failed install never truncates the target and leaves no temp, EVERY
 # trappable signal leaves no temp either, an UNREADABLE source is refused rather
 # than read as an empty file, the loopback gate cannot be satisfied by the
-# record the reconciler itself just appended, a set-but-empty seam never falls
-# back to the real /etc/hosts, the installed file keeps the target's mode, a
+# record the reconciler itself just appended, the gate HONOURS an indented
+# loopback record because the resolver does while still refusing an indented
+# comment-only one and a line whose NAME is the loopback address, a
+# set-but-empty seam never falls back to the real /etc/hosts, the installed file
+# keeps the target's mode, a
 # symlinked target keeps its indirection and its referent's metadata, a missing
 # trailing newline never produces a joined line, and a field that is not one
 # hosts column is refused at the entry point too.
@@ -638,6 +641,42 @@ run_expect_refusal "$address_only" "lost its loopback entry" address-only
 cmp -s "$address_only" "$work/address-only.before" ||
   fail "a rebuild whose only 127.0.0.1 line has NO host name was installed instead of refused: $(cat "$address_only")"
 
+# THE OTHER DIRECTION, which a safety gate gets no credit for passing by
+# accident: the gate must not refuse a file the machine resolves perfectly well.
+# The resolver skips leading blanks before the FIRST token of a hosts line
+# (Libinfo `_fsi_tokenize`), so an INDENTED localhost record works, and the
+# predicate refusing one would have blocked every pin on such a file, loudly and
+# for no reason. That refusal used to be deliberate, on the stated grounds that
+# the question was unmeasured. It is measured now. The indented line must
+# survive the rebuild BYTE-EXACT as well: it is not the pin's to normalize.
+indented="$work/indented-hosts"
+printf '  \t127.0.0.1   localhost   broadcasthost\n198.51.100.1\tpin.example.test\tpin\n' >"$indented"
+run_pin1 "$indented"
+indented_expected="$work/indented-expected"
+printf '  \t127.0.0.1   localhost   broadcasthost\n%s\n' "$want1" >"$indented_expected"
+cmp -s "$indented" "$indented_expected" ||
+  fail "an indented localhost record must satisfy the gate and survive byte-exact; got: $(diff "$indented_expected" "$indented" | head -5)"
+
+# Indentation is not what made the decoy invalid, so an indented one is still
+# refused. Without this, relaxing the anchor could have been over-relaxed into
+# accepting any line CONTAINING the address and nothing here would have noticed.
+indented_decoy="$work/indented-decoy-hosts"
+printf '127.0.0.1\tlocalhost\tpin\n  127.0.0.1\t# comment-only decoy\n' >"$indented_decoy"
+cp "$indented_decoy" "$work/indented-decoy.before"
+run_expect_refusal "$indented_decoy" "lost its loopback entry" indented-decoy
+cmp -s "$indented_decoy" "$work/indented-decoy.before" ||
+  fail "an indented comment-only 127.0.0.1 line satisfied the gate: $(cat "$indented_decoy")"
+
+# An address sitting in a NAME column is not a loopback record either, indented
+# or not: the gate wants the FIRST FIELD, which is what the old line-anchor was
+# really buying. The resolver reads this as 10.0.0.1 named "127.0.0.1".
+name_position="$work/name-position-hosts"
+printf '127.0.0.1\tlocalhost\tpin\n  10.0.0.1\t127.0.0.1\n' >"$name_position"
+cp "$name_position" "$work/name-position.before"
+run_expect_refusal "$name_position" "lost its loopback entry" name-position
+cmp -s "$name_position" "$work/name-position.before" ||
+  fail "a line whose NAME is 127.0.0.1 satisfied the loopback gate: $(cat "$name_position")"
+
 # A missing hosts file is refused the same way: nothing safe exists to rewrite,
 # and seeding a pin-only /etc/hosts with no loopback would break the machine.
 absent="$work/absent-hosts"
@@ -1023,4 +1062,4 @@ while IFS=$'\t' read -r fqdn ip short; do
     fail "pin short name '$short' is not the first label of '$fqdn'"
 done < <(yq eval '.macos.tailnet_pins[] | [.fqdn, .ip, .short] | @tsv' "$YAML")
 
-echo "tailnet-pins: OK (exact render per pin against the deployed reconciler, gated on its sha256; malformed, non-string and name-colliding pins refuse to render; the real reconciler converges, refuses loudly, refuses an unreadable source and a self-satisfied loopback gate, leaves no temp after any trappable signal under ${#INTERPRETERS[@]} interpreter(s), survives symlinks; hostile fields stay inert; $pin_count real pin(s) well-formed)"
+echo "tailnet-pins: OK (exact render per pin against the deployed reconciler, gated on its sha256; malformed, non-string and name-colliding pins refuse to render; the real reconciler converges, refuses loudly, refuses an unreadable source and a self-satisfied loopback gate, accepts an indented loopback record while still refusing an indented decoy, leaves no temp after any trappable signal under ${#INTERPRETERS[@]} interpreter(s), survives symlinks; hostile fields stay inert; $pin_count real pin(s) well-formed)"

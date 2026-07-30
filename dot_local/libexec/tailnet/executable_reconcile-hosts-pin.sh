@@ -59,6 +59,23 @@
 # read the intent of would be a guess in the unsafe direction. A missing hosts
 # file is refused the same way rather than seeded pin-only.
 #
+# READING A HOSTS LINE, measured against the resolver instead of assumed. The
+# source is Apple's own hosts reader, lookup.subproj/file_module.c in
+# apple-oss-distributions/Libinfo, and the fact below was re-verified by
+# compiling its `_fsi_tokenize` verbatim and running fixtures through it rather
+# than by reading it. hosts(5) is silent on the question, so the man page is not
+# the authority.
+#
+#   1. LEADING BLANKS ARE SKIPPED, so AN INDENTED RECORD WORKS. `_fsi_tokenize`
+#      runs "skip leading white space" over ' ', '\t' and '\n' at the top of its
+#      token loop, which puts the skip before the FIRST token too, and
+#      `_fsi_parse_host` tokenizes hosts lines with the separator set " \t".
+#      Measured: "  <tab>127.0.0.1   localhost   broadcasthost" parses exactly
+#      like the unindented line. The predicates here accept one. They still
+#      require the address to be the FIRST FIELD, which is a different question
+#      from it starting the line: "  10.0.0.1<tab>127.0.0.1" maps the NAME
+#      "127.0.0.1" and is refused.
+#
 # INSTALL is atomic: chmod/chown the temp file to the target's own mode and
 # owner, then rename it INTO the target path. mktemp creates the temp beside the
 # target so the rename never crosses filesystems. The old `cat "$tmp" > target`
@@ -155,6 +172,14 @@ readonly HOSTS_COMMENT_CHARACTER='#'
 # what the old gate accepted.
 readonly HOSTS_RECORD_MINIMUM_FIELD_COUNT=2
 
+# What separates one hosts item from the next, taken from the resolver rather
+# than from the man page: `_fsi_parse_host` tokenizes with " \t", and
+# `_fsi_tokenize` additionally skips ' ', '\t' and '\n' before EVERY token,
+# including the first. Used as IFS so this script splits a record into the same
+# fields the resolver does, and so a leading run of blanks is skipped here for
+# the same reason it is skipped there.
+readonly HOSTS_ITEM_SEPARATOR_CHARACTERS=$' \t\n'
+
 # The address a working localhost record must map. See THE LOOPBACK GATE above
 # for why the whole 127.0.0.0/8 block does not qualify.
 readonly LOOPBACK_ADDRESS='127.0.0.1'
@@ -239,26 +264,30 @@ hosts_file_description() { # <configured-path> <resolved-path>
 
 # Is this line a record mapping exactly <address> to at least one name?
 #
-# Two conditions, and both matter. The line must carry at least an address and
-# one name after comment stripping (the old gate skipped this, so a
+# Two conditions, and both matter. Once comment text is removed the line must
+# carry at least an address and one name (the old gate skipped this, so a
 # comment-only "127.0.0.1  # decoy" passed as a loopback record), and the
-# address must START the line. hosts(5) permits blanks between items but says
-# nothing about indenting a record, and whether mDNSResponder honours an
-# indented one has not been measured here. A safety gate that guesses wrong
-# installs a hosts file with no working localhost, so it under-accepts by
-# design: refusing an indented record is loud and recoverable, vouching for one
-# that the resolver ignores is not.
+# address must be the FIRST FIELD.
+#
+# First field, NOT first character. The resolver skips leading blanks before the
+# first token, so "  127.0.0.1 localhost" is a working localhost record and a
+# gate refusing it would refuse a file the machine resolves fine; this predicate
+# used to refuse one, on the stated grounds that the question was unmeasured. It
+# is measured now (READING A HOSTS LINE, fact 1). The first-FIELD half is
+# what still refuses "10.0.0.1<tab>127.0.0.1", where the address is a NAME.
 hosts_line_is_record_for_address() { # <line> <address>
   local line=$1 address=$2
   # The part of the line a resolver actually reads: comment text removed.
   local record_text=${line%%"${HOSTS_COMMENT_CHARACTER}"*}
   local -a fields=()
-  # read -r -a splits on IFS WITHOUT globbing, so a '*' in a hosts file stays
-  # literal text with no reliance on the shell's noglob state.
+  # Split on the separators the resolver uses, so `fields[0]` is the first field
+  # here for the same reason it is there, and a leading run of blanks is skipped
+  # in both. `read -r -a` splits WITHOUT globbing, so a '*' in a hosts file
+  # stays literal text with no reliance on the shell's noglob state.
+  local IFS=$HOSTS_ITEM_SEPARATOR_CHARACTERS
   read -r -a fields <<<"$record_text"
   ((${#fields[@]} >= HOSTS_RECORD_MINIMUM_FIELD_COUNT)) || return 1
-  [[ ${fields[0]} == "$address" ]] || return 1
-  [[ $line == "$address"* ]]
+  [[ ${fields[0]} == "$address" ]]
 }
 
 # Is this line a record a machine can resolve localhost through?
@@ -268,11 +297,13 @@ hosts_line_is_valid_loopback_record() { # <line>
 
 # Does this line claim <name> as one of its host names? Name fields are the
 # columns AFTER the address, with comment text stripped. Field equality, so a
-# different host whose name merely contains this one is not a claim.
+# different host whose name merely contains this one is not a claim. Leading
+# blanks do not hide a claim, for the same reason they do not hide a record.
 hosts_line_claims_name() { # <line> <name>
   local line=$1 name=$2
   local record_text=${line%%"${HOSTS_COMMENT_CHARACTER}"*}
   local -a fields=()
+  local IFS=$HOSTS_ITEM_SEPARATOR_CHARACTERS
   read -r -a fields <<<"$record_text"
   ((${#fields[@]} >= HOSTS_RECORD_MINIMUM_FIELD_COUNT)) || return 1
   local index

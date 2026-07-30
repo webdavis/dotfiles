@@ -12,11 +12,19 @@
 # valid loopback record?" could not be tested, because it had no name and no
 # call site. It does now, and this suite pins it directly.
 #
+# WHERE THE INDENTATION EXPECTATIONS COME FROM. Not hosts(5), which is silent
+# on it, but the resolver's own parser, lookup.subproj/file_module.c in
+# apple-oss-distributions/Libinfo, whose `_fsi_tokenize` was compiled verbatim
+# and run over these fixtures. The reconciler's READING A HOSTS LINE header
+# section records the measurement; this suite is where it bites.
+#
 # Behaviors pinned:
 #   P1 loopback validity - address plus at least one NAME, address exactly
-#                          127.0.0.1, address starting the line; comment-only,
-#                          address-only, commented-out, other-address and
-#                          other-family lines are NOT valid records.
+#                          127.0.0.1, address as the FIRST FIELD (leading
+#                          blanks allowed, because the resolver skips them);
+#                          comment-only, address-only, commented-out,
+#                          other-address and other-family lines are NOT valid
+#                          records.
 #   P2 name claims       - whole-field equality after comment stripping, name
 #                          fields only (an address is not a name), so a
 #                          different host that merely contains the name is not
@@ -133,11 +141,32 @@ assert_predicate expect-false p1-address-in-name-position \
 assert_predicate expect-false p1-blank-line \
   hosts_line_is_valid_loopback_record ""
 
-# Indented records are refused deliberately, not by accident: a safety gate
-# that vouches for a record the resolver might ignore installs a hosts file
-# with no working localhost, so it under-accepts.
-assert_predicate expect-false p1-indented \
+# INDENTED RECORDS ARE HONOURED, and this suite used to pin the opposite on the
+# stated grounds that the question was unmeasured. It is measured now:
+# `_fsi_tokenize` skips ' ', '\t' and '\n' at the top of its token loop, so the
+# skip lands before the FIRST token, and "  <tab>127.0.0.1 localhost" resolves
+# exactly like the unindented line. A gate refusing one would block every pin on
+# a file whose localhost works perfectly.
+assert_predicate expect-true p1-indented-space \
   hosts_line_is_valid_loopback_record " 127.0.0.1${tab}localhost"
+assert_predicate expect-true p1-indented-tab \
+  hosts_line_is_valid_loopback_record "${tab}127.0.0.1 localhost"
+assert_predicate expect-true p1-indented-mixed-run \
+  hosts_line_is_valid_loopback_record "  ${tab} 127.0.0.1   localhost   broadcasthost"
+
+# Indentation does not turn a NAME column into an address column: FIRST FIELD is
+# still the rule, and it is the half of the old anchor worth keeping. The
+# resolver agrees, reading this as 10.0.0.1 named "127.0.0.1".
+assert_predicate expect-false p1-indented-address-in-name-position \
+  hosts_line_is_valid_loopback_record "  10.0.0.1${tab}127.0.0.1"
+# Nor does indentation rescue a comment-only line or a commented-out record.
+assert_predicate expect-false p1-indented-comment-only \
+  hosts_line_is_valid_loopback_record "  127.0.0.1${tab}# comment-only decoy"
+assert_predicate expect-false p1-indented-commented-out \
+  hosts_line_is_valid_loopback_record "  #127.0.0.1${tab}localhost"
+# Whitespace alone is not a record.
+assert_predicate expect-false p1-blanks-only \
+  hosts_line_is_valid_loopback_record "  ${tab} "
 
 # ---------- P2: does this line claim this name? ------------------------------
 assert_predicate expect-true p2-official-name \
@@ -160,9 +189,16 @@ assert_predicate expect-false p2-substring-short \
 assert_predicate expect-false p2-address-column \
   hosts_line_claims_name "pin${tab}something" "pin"
 
-# Commented-out and comment text claim nothing.
+# An indented line does not hide its claim, for the same reason it does not hide
+# its record.
+assert_predicate expect-true p2-indented \
+  hosts_line_claims_name " ${tab}192.0.2.7${tab}pin.example.test${tab}pin" "pin"
+
+# Commented-out lines claim nothing.
 assert_predicate expect-false p2-commented-out \
   hosts_line_claims_name "#192.0.2.7${tab}pin.example.test${tab}pin" "pin"
+
+# Comment text claims nothing either.
 assert_predicate expect-false p2-name-only-in-comment \
   hosts_line_claims_name "127.0.0.1${tab}localhost # pin" "pin"
 
@@ -356,4 +392,4 @@ if ((failures > 0)); then
   printf 'tailnet-pin-hosts-predicates: %d assertion(s) failed\n' "$failures" >&2
   exit 1
 fi
-echo "tailnet-pin-hosts-predicates: OK (loopback validity, name claims, pin ownership, column shape, record rendering, convergence, symlink chains, referent metadata, seam states, unreadable sources, source-time shell-option isolation, message paths)"
+echo "tailnet-pin-hosts-predicates: OK (loopback validity including indented records, name claims, pin ownership, column shape, record rendering, convergence, symlink chains, referent metadata, seam states, unreadable sources, source-time shell-option isolation, message paths)"
