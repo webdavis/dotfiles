@@ -50,7 +50,8 @@ just test-unit          # Unit suite only (fast commit gate, ~2s)
 just test-integration   # Integration suite only
 just test-e2e           # End-to-end suite only
 just test-system        # The suite that tests the checker and runner themselves
-just test               # All four suites (pre-push and CI run this)
+just test               # All four suites (CI runs this)
+just ship               # lint-check + all four suites, the explicit pre-PR sweep
 ```
 
 Tests live in suites by DESIGN: `test/unit/` (single component, stub/fixture driven, no flows, no sleeps,
@@ -63,8 +64,9 @@ The **commit** gate runs `just test-unit` only, kept fast on purpose: it runs th
 (`test/run-test-suite.sh`) with `--shuffle --warn-slow-ms 200`, so order is seed-shuffled each run
 (replay a failure with `TEST_SEED=<seed>`, printed every run, since Bats 1.11 has no native shuffle) and
 a WARN-ONLY performance summary lists any test over the threshold as a refactor-or-move-suite candidate;
-warnings never fail the run. The **pre-push** hook and **CI** run `just test`, which is exactly the four
-suite recipes; each suite's runner executes its own `.sh` and `.bats` once (bats via
+warnings never fail the run. **CI** runs `just test`, which is exactly the four suite recipes, and
+`just ship` runs the same thing plus the lint gate on demand. The pre-push hook deliberately does NOT run
+it (see Git Hooks). Each suite's runner executes its own `.sh` and `.bats` once (bats via
 `nix develop .#run --command bats --jobs 4` when the host lacks bats, and the checker's placement rules
 keep any bats from hiding outside a suite). So a commit can briefly carry an integration or e2e
 regression; push and CI block it before `main`.
@@ -144,19 +146,30 @@ All four hooks live in the **user-wide** hooks dir (`core.hooksPath = ~/.config/
 - **`prepare-commit-msg`: user-wide AI commit messages.** Prepopulates a Conventional Commits message via
   Claude Sonnet (internals under **AI Commit Messages** below). Bails on `-m`/merge/rebase; bypass with
   `SKIP_AI_COMMIT=1`.
+
 - **`pre-commit`: per-repo FAST gate (unit tests + secret scan), via a dispatcher.**
   `dot_config/git/hooks/executable_pre-commit` runs in every repo but only acts when the repository
   tracks an executable `.githooks/pre-commit`, which it then `exec`s. This repo's `.githooks/pre-commit`
   runs `just test-unit` (the unit suite only, see Testing) then `gitleaks git --staged --redact` (blocks
   any staged plaintext secret; gitleaks is provisioned as a Homebrew formula, and the stage is skipped
   when the binary is absent). Both must pass; a failure blocks the commit. Lint drift, the integration
-  and e2e suites, and the full flake check moved to pre-push (below) to keep the commit loop fast. No
-  install step: the dispatcher is user-wide and the repo hook is committed with its executable bit.
-- **`pre-push`: per-repo full gate, via a dispatcher.** `dot_config/git/hooks/executable_pre-push`
+  and e2e suites, and the full flake check moved out of the commit loop to keep it fast: the flake check
+  runs at pre-push, the integration and e2e suites at CI or via `just ship`. No install step: the
+  dispatcher is user-wide and the repo hook is committed with its executable bit.
+
+- **`pre-push`: per-repo lint gate only, via a dispatcher.** `dot_config/git/hooks/executable_pre-push`
   mirrors the pre-commit dispatcher (user-wide, exec's the repo's executable `.githooks/pre-push` when
   present, no-op otherwise). This repo's `.githooks/pre-push` runs `just lint-check` (the treefmt drift
-  gate) then `just test` (all suites), so everything the commit gate skips runs before anything leaves
-  the machine; CI runs the same as the final backstop.
+  gate, 21s) and nothing else. **CI is the authority on the test suite.** Run the suite locally on demand
+  with `just ship`.
+
+  It used to run `just test` as well. Measured 2026-07-29, that made a push cost 7m20s to 7m37s, of which
+  about 6m30s was integration + e2e + test-system (integration alone is 216s across 102 files, run
+  serially). CI then ran the identical recipe 10 to 12 minutes later and the commit hook had already run
+  the unit camp, so one suite ran three times per push and every round of rework paid for all three. It
+  also could not do the job it was there for: this hook tests the WORKING TREE while CI tests the COMMIT,
+  and on PR #116 the local gate passed while CI failed, on an edit that was never staged.
+
 - **`post-commit`: per-repo hooks, via a dispatcher.** `dot_config/git/hooks/executable_post-commit`
   mirrors the pre-commit dispatcher (user-wide, exec's the repo's executable `.githooks/post-commit` when
   present, no-op otherwise). Nothing global runs graphify anymore; a repo that wants a knowledge-graph

@@ -854,6 +854,140 @@ assert_bounded_hang_gaps() { # <control-id> <started-seconds>
   assert_bounded_hang_gaps guest "$started"
 }
 
+# The two process-table controls, declared SEPARATELY from
+# declare_posture_controls on purpose: adding them there would change the
+# control set every other test's $healthy_seed was written against, so a
+# coverage addition would have rewritten unrelated expectations.
+#
+# These exist because the fixture ships a wedge hook for every probe tool and
+# the suite only ever set half of them. An unused hook is an unpinned bound: the
+# per-probe timeout on these readers could be deleted and nothing would fail.
+declare_process_controls() {
+  set_posture_controls '[
+    {"id":"oversight","description":"The OverSight monitor process","tier":"verify","reader":"pgrep_oversight","expect":"running","remedy":"Launch OverSight"},
+    {"id":"lulu_extension","description":"The LuLu system extension process","tier":"verify","reader":"pgrep_lulu_extension","expect":"running","remedy":"Reinstall LuLu and approve its system extension"}
+  ]'
+}
+
+process_healthy_seed='{"firewall":"1","gatekeeper":"1","screenlock":"1","oversight":"running","oversight:expect":"running","lulu_extension":"running","lulu_extension:expect":"running"}'
+
+@test "T-PCTL-pgrep-oversight-hang-pages-gap: a wedged pgrep is killed at the bound and gaps the OverSight control" {
+  seed_baseline "$process_healthy_seed"
+  declare_process_controls
+  snapshot_baseline
+  set_posture '[{"firewall":"1","gatekeeper":"1","screenlock":"1"}]'
+  export OSQUERY_POSTURE_TIMEOUT=1
+  export POLLER_PGREP_SLEEP=30
+
+  local started=$SECONDS
+  run run_poller
+  [[ $status -eq 0 ]] || {
+    echo "status $status: $output"
+    false
+  }
+  assert_bounded_hang_gaps oversight "$started"
+}
+
+@test "T-PCTL-pgrep-lulu-hang-pages-gap: a wedged pgrep for the LuLu extension is killed at the bound and gaps that control" {
+  seed_baseline "$process_healthy_seed"
+  declare_process_controls
+  snapshot_baseline
+  set_posture '[{"firewall":"1","gatekeeper":"1","screenlock":"1"}]'
+  export OSQUERY_POSTURE_TIMEOUT=1
+  export POLLER_PGREP_LULU_SLEEP=30
+
+  local started=$SECONDS
+  run run_poller
+  [[ $status -eq 0 ]] || {
+    echo "status $status: $output"
+    false
+  }
+  assert_bounded_hang_gaps lulu_extension "$started"
+}
+
+# The two rule-archive controls. Both need a `target`, the absolute binary path
+# whose rule must exist, which is REQUIRED by these readers and forbidden on
+# every other one.
+#
+# Reaching the archive read at all depends on the preferences read first:
+# lulu_base_rules_authoritative returns true only for "no_profile", and the
+# fixture's default preferences plist carries no currentProfile key, so the
+# default path is authoritative and the archive IS read. That is what makes the
+# archive and readlink wedges reachable without any extra fixture.
+lulu_rule_target='/usr/bin/curl'
+declare_rule_controls() {
+  set_posture_controls '[
+    {"id":"lulu_rule","description":"A LuLu rule mentioning the tracked binary","tier":"verify","reader":"lulu_rule_present","expect":"present","target":"/usr/bin/curl","remedy":"Recreate the rule in LuLu"},
+    {"id":"lulu_rule_resolved","description":"A LuLu rule mentioning the resolved launcher","tier":"verify","reader":"lulu_rule_resolved_present","expect":"present","target":"/usr/bin/curl","remedy":"Recreate the rule in LuLu"}
+  ]'
+}
+
+rule_healthy_seed='{"firewall":"1","gatekeeper":"1","screenlock":"1","lulu_rule":"present","lulu_rule:expect":"present","lulu_rule:target":"/usr/bin/curl","lulu_rule_resolved":"present","lulu_rule_resolved:expect":"present","lulu_rule_resolved:target":"/usr/bin/curl"}'
+
+@test "T-PCTL-plutil-prefs-hang-pages-gap: a wedged preferences read is killed at the bound and gaps the rule controls" {
+  seed_baseline "$rule_healthy_seed"
+  declare_rule_controls
+  snapshot_baseline
+  set_posture '[{"firewall":"1","gatekeeper":"1","screenlock":"1"}]'
+  export OSQUERY_POSTURE_TIMEOUT=1
+  export POLLER_PLUTIL_PREFS_SLEEP=30
+
+  local started=$SECONDS
+  run run_poller
+  [[ $status -eq 0 ]] || {
+    echo "status $status: $output"
+    false
+  }
+  assert_bounded_hang_gaps lulu_rule "$started"
+}
+
+@test "T-PCTL-plutil-archive-hang-pages-gap: a wedged rules-archive read is killed at the bound and gaps the rule control" {
+  seed_baseline "$rule_healthy_seed"
+  declare_rule_controls
+  snapshot_baseline
+  set_posture '[{"firewall":"1","gatekeeper":"1","screenlock":"1"}]'
+  export OSQUERY_POSTURE_TIMEOUT=1
+  export POLLER_PLUTIL_SLEEP=30
+
+  local started=$SECONDS
+  run run_poller
+  [[ $status -eq 0 ]] || {
+    echo "status $status: $output"
+    false
+  }
+  assert_bounded_hang_gaps lulu_rule "$started"
+}
+
+# Only the resolved control, because readlink is the one probe the OTHER rule
+# reader never touches. With both declared, the plain lulu_rule control still
+# completes its archive read, correctly finds no rule for the target, and pages
+# that as a real divergence, so the tick emits two pages and the count assertion
+# fails on a second page that is not a defect.
+declare_resolved_rule_control_only() {
+  set_posture_controls '[
+    {"id":"lulu_rule_resolved","description":"A LuLu rule mentioning the resolved launcher","tier":"verify","reader":"lulu_rule_resolved_present","expect":"present","target":"/usr/bin/curl","remedy":"Recreate the rule in LuLu"}
+  ]'
+}
+
+resolved_only_seed='{"firewall":"1","gatekeeper":"1","screenlock":"1","lulu_rule_resolved":"present","lulu_rule_resolved:expect":"present","lulu_rule_resolved:target":"/usr/bin/curl"}'
+
+@test "T-PCTL-readlink-hang-pages-gap: a wedged readlink is killed at the bound and gaps the resolved-rule control" {
+  seed_baseline "$resolved_only_seed"
+  declare_resolved_rule_control_only
+  snapshot_baseline
+  set_posture '[{"firewall":"1","gatekeeper":"1","screenlock":"1"}]'
+  export OSQUERY_POSTURE_TIMEOUT=1
+  export POLLER_READLINK_SLEEP=30
+
+  local started=$SECONDS
+  run run_poller
+  [[ $status -eq 0 ]] || {
+    echo "status $status: $output"
+    false
+  }
+  assert_bounded_hang_gaps lulu_rule_resolved "$started"
+}
+
 @test "T-PCTL-defaults-hang-pages-gap: a wedged defaults read is killed at the bound and gaps the autologin control" {
   seed_baseline "$healthy_seed"
   declare_posture_controls

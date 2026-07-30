@@ -105,10 +105,17 @@ test-system: validate-tests
 validate-tests:
   ./test/validate-tests.sh
 
-# All suites: what pre-push and CI run. Each suite recipe runs its own *.sh
-# and *.bats via the runner, and the checker's placement rules reject any bats
-# outside a suite, so no separate bats backstop is needed here.
+# All suites: what CI runs. Each suite recipe runs its own *.sh and *.bats via
+# the runner, and the checker's placement rules reject any bats outside a suite,
+# so no separate bats backstop is needed here.
 test: test-unit test-integration test-e2e test-system
+
+# The explicit ship step: everything CI will run, run here first. Use it before
+# opening a PR you care about. Pre-push deliberately does NOT run this, because
+# doing so cost 6m30s on every push to rehearse what CI runs 11 minutes later;
+# see the comment in .githooks/pre-push. Note this checks the WORKING TREE,
+# while CI checks the commit, so a green ship is not a promise about CI.
+ship: lint-check test
 
 # Run the weekly Homebrew upgrade by hand (formulae + casks + Mac App Store +
 # cleanup). Same job the Monday-noon com.webdavis.homebrew-weekly-upgrade
