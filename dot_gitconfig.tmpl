@@ -133,28 +133,36 @@
   helper =
   helper = !/opt/homebrew/bin/gh auth git-credential
 
-# Reference: https://github.com/jessfraz/dotfiles/blob/30c4d026bfc71df60f7b05d0bdbb3cc34049c017/.gitconfig#L159
-[url "git@github.com:github"]
-  insteadOf = "https://github.com/github"
-  insteadOf = "github:github"
-  insteadOf = "git://github.com/github"
-
+# Shorthand and legacy-URL rewrites. Every one of them lands on SSH, because SSH
+# and HTTPS are the only transports GitHub still answers. GitHub permanently
+# disabled the unauthenticated git:// protocol on 2022-03-15: "The deprecated
+# MACs, ciphers, and unencrypted Git protocol will be permanently disabled"
+# (https://github.blog/security/application-security/improving-git-protocol-security-github/).
+#
+# What this replaces, traced with `git remote -v` and `git ls-remote --get-url`
+# over every input the old sections matched:
+#   - `github:` and `gist:` rewrote to git:// on FETCH while pushing over SSH, so
+#     both shorthands could push to a repository they could never clone.
+#   - A literal git:// URL was rewritten on PUSH only, which is the one direction
+#     git:// never supported; the fetch that actually breaks was left alone.
+#   - A separate [url "git@github.com:github"] section mapped the github org
+#     specially. Under the generic rules below each of its three inputs resolves
+#     to the identical URL, so it was doing nothing.
+#
+# insteadOf rewrites BOTH directions, and each base here accepts pushes, so the
+# pushInsteadOf lines these replace are unnecessary: measured over all nine
+# inputs, the resulting push URLs are unchanged. insteadOf also still applies
+# when a remote sets an explicit pushurl, which pushInsteadOf is documented to
+# skip.
 [url "git@github.com:"]
-  pushInsteadOf = "https://github.com/"
-  pushInsteadOf = "github:"
-  pushInsteadOf = "git://github.com/"
   insteadOf = https://github.com/
-
-[url "git://github.com/"]
   insteadOf = "github:"
+  insteadOf = "git://github.com/"
 
 [url "git@gist.github.com:"]
-  insteadOf = "gst:"
-  pushInsteadOf = "gist:"
-  pushInsteadOf = "git://gist.github.com/"
-
-[url "git://gist.github.com/"]
   insteadOf = "gist:"
+  insteadOf = "gst:"
+  insteadOf = "git://gist.github.com/"
 
 [include]
   path = ~/.config/delta/themes.gitconfig
