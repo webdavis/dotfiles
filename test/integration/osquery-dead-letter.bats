@@ -153,7 +153,10 @@ dead_letter_count() {
 
   assert_pending_alert_count 0
   [[ "$(dead_letter_count)" == "1" ]]
-  ! grep -qF 'X-Request-ID: osquery-maxed' "$CURL_LOG" # never POSTed again
+  if grep -qF 'X-Request-ID: osquery-maxed' "$CURL_LOG"; then
+    echo "never POSTed again"
+    false
+  fi
   local reason
   reason="$(sqlite3_query "SELECT reason FROM dead_letter_alerts WHERE request_id='osquery-maxed';")"
   [[ $reason == *attempt* ]] # the reason names the attempts threshold it crossed
@@ -182,7 +185,10 @@ dead_letter_count() {
 
   assert_pending_alert_count 0
   [[ "$(dead_letter_count)" == "1" ]]
-  ! grep -qF 'X-Request-ID: osquery-stale' "$CURL_LOG" # never POSTed again
+  if grep -qF 'X-Request-ID: osquery-stale' "$CURL_LOG"; then
+    echo "never POSTed again"
+    false
+  fi
   local reason
   reason="$(sqlite3_query "SELECT reason FROM dead_letter_alerts WHERE request_id='osquery-stale';")"
   [[ $reason == *age* ]] # the reason names the age threshold it crossed
