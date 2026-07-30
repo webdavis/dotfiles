@@ -1,0 +1,15 @@
+# Global git ignores.
+#
+# git reads this path by default: core.excludesFile defaults to
+# $XDG_CONFIG_HOME/git/ignore, and both dot_bashrc.tmpl and dot_profile export
+# XDG_CONFIG_HOME=$HOME/.config. dot_gitconfig.tmpl therefore sets no
+# core.excludesfile key; setting one would shadow this file.
+#
+# What belongs here: artifacts of THIS machine and of the tools run on it, which
+# turn up in every repository and are nobody's project content. What does not:
+# anything a project should carry for every contributor. That goes in the
+# project's own .gitignore.
+
+# Per-machine Claude Code overrides. A session writes this into whichever
+# repository it runs in, including repositories owned by other people.
+**/.claude/settings.local.json

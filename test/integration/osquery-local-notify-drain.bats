@@ -116,7 +116,10 @@ wait_for_local_row_count() { # <expected>
   grep -qF 'X-Request-ID: osquery-deliverable' "$CURL_LOG" # the alert still delivered
   assert_pending_alert_count 0
   [[ "$(local_row_count)" == "1" ]] # the local row is retained for the next tick
-  ! grep -qi 'pipeline degraded' "$ALERTER_LOG" # no CRIT for a local-channel failure
+  if grep -qi 'pipeline degraded' "$ALERTER_LOG"; then
+    echo "no CRIT for a local-channel failure"
+    false
+  fi
   grep -q 'LOCAL-NOTIFY-RETRY-FAILED' "$OSQUERY_DELIVERY_LOG"
 }
 
@@ -204,7 +207,10 @@ iso8601_of_epoch() {
   : >"$ALERTER_LOG"
   _osquery_notify_local_durable "fresh title" "fresh message" "seed-fresh"
   [[ "$(grep -c . "$ALERTER_LOG")" == "1" ]]
-  ! grep -qF -- '--subtitle' "$ALERTER_LOG"
+  if grep -qF -- '--subtitle' "$ALERTER_LOG"; then
+    echo "the pattern must be absent"
+    false
+  fi
   ! grep -qF 'occurred' "$ALERTER_LOG"
 }
 
@@ -269,8 +275,14 @@ iso8601_of_epoch() {
 
   wait_for_local_row_count 0 # ancient expired, fresh shown-confirmed-deleted
   grep -qF 'fresh behind title' "$ALERTER_LOG" # the row behind the expiry still bannered
-  ! grep -qF 'doomed title' "$ALERTER_LOG"     # the expired one never did
-  ! grep -qi 'pipeline degraded' "$ALERTER_LOG" # expiry is not a dead-letter; no CRIT
+  if grep -qF 'doomed title' "$ALERTER_LOG"; then
+    echo "the expired one never did"
+    false
+  fi
+  if grep -qi 'pipeline degraded' "$ALERTER_LOG"; then
+    echo "expiry is not a dead-letter; no CRIT"
+    false
+  fi
   grep -q 'LOCAL-NOTIFY-EXPIRED' "$OSQUERY_DELIVERY_LOG"
 }
 
