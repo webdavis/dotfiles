@@ -2,7 +2,7 @@
 # ssh-hardening-harness-wallclock.sh -- run_ssh_hardening (the runner every
 # ssh-hardening suite drives the script through) must FAIL the suite when the
 # script under test spins, never hang it. A hang is strictly worse than a
-# failure: it blocks the pre-push gate with no diagnosis, and on CI it burns
+# failure: it blocks the pre-commit gate with no diagnosis, and on CI it burns
 # the job's whole time budget before being killed. run_ssh_reload already
 # carries a wall clock; this suite pins the same property onto the base
 # runner, because every tokenizer and verify test reaches the script through
@@ -17,7 +17,7 @@
 set -euo pipefail
 
 # Scrubbed at SCRIPT scope. Git exports GIT_DIR to every hook it runs and this
-# suite runs from the pre-push hook.
+# suite runs from the pre-commit hook.
 unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_INDEX_FILE
 
 # shellcheck source=../fixtures/ssh-hardening-lib.bash

@@ -120,7 +120,7 @@ ssh_sandbox_teardown() {
 # run_ssh_hardening_bounded below with a wall clock of
 # SSH_HARDENING_TIME_LIMIT seconds (default 30), and exceeding it ABORTS the
 # suite naming the run that spun. A hang is strictly worse than a failure: it
-# blocks the pre-push gate with no diagnosis, and on CI it burns the job's
+# blocks the pre-commit gate with no diagnosis, and on CI it burns the job's
 # whole time budget before being killed. Observed, not hypothetical: under a
 # tokenizer mutation the --verify child spun and the whole suite hung here.
 run_ssh_hardening() {

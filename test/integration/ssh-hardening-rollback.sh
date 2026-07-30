@@ -36,7 +36,7 @@
 set -euo pipefail
 
 # Scrubbed at SCRIPT scope. Git exports GIT_DIR to every hook it runs and this
-# suite runs from the pre-push hook.
+# suite can still inherit one from its caller.
 unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_INDEX_FILE
 
 # shellcheck source=../fixtures/ssh-reload-lib.bash

@@ -28,7 +28,7 @@
 set -euo pipefail
 
 # Scrubbed at SCRIPT scope, before any chezmoi call. Git exports GIT_DIR to
-# every hook it runs and this suite runs from the pre-push hook.
+# every hook it runs and this suite can still inherit one from its caller.
 unset MACOS_DEFAULTS_SOURCE_DIR GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_INDEX_FILE
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
