@@ -10,9 +10,9 @@ set -euo pipefail
 #
 # KNOW THE GAP THIS LEAVES: CI runs on pull requests and on pushes to `main`, so
 # pushing a topic branch that has no open pull request runs the suite NOWHERE.
-# Nothing unverified can reach `main` (the `lint` check is required there), but
-# do not read a clean push as a tested branch. Run `just ship` when you want the
-# suite, before a PR you care about.
+# A pull request still cannot merge until CI is green (`lint` is the required
+# status check on `main`), but do not read a clean push as a tested branch. Run
+# `just ship` when you want the suite, before a PR you care about.
 #
 # Invoked by the user-wide pre-push dispatcher
 # (dot_config/git/hooks/executable_pre-push) with git's ref list on stdin;

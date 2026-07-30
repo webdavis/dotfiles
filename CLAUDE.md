@@ -177,11 +177,11 @@ All four hooks live in the **user-wide** hooks dir (`core.hooksPath = ~/.config/
 
   **What this narrowed:** every push used to run the whole suite locally, whatever the branch. CI runs on
   pull requests and on pushes to `main`, so a push to a topic branch with no open pull request now runs
-  the suite nowhere. Merge safety is unchanged, `lint` is still a required status check on `main`, so
-  nothing reaches `main` unverified. Widening the workflow's `push` trigger to every branch was weighed
-  and rejected: `push` and `pull_request` both fire once a branch has a pull request, so it would run two
-  identical macOS jobs per push for the whole life of every branch, to cover the window before a pull
-  request exists. `just ship` covers that window on demand instead.
+  the suite nowhere. Merge safety is unchanged: `lint` is the required status check on `main`, so a pull
+  request cannot merge until CI is green. Widening the workflow's `push` trigger to every branch was
+  weighed and rejected: `push` and `pull_request` both fire once a branch has a pull request, so it would
+  run two identical macOS jobs per push for the whole life of every branch, to cover the window before a
+  pull request exists. `just ship` covers that window on demand instead.
 
 - **`post-commit`: per-repo hooks, via a dispatcher.** `dot_config/git/hooks/executable_post-commit`
   mirrors the pre-commit dispatcher (user-wide, exec's the repo's executable `.githooks/post-commit` when
