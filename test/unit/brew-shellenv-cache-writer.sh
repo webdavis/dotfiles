@@ -14,8 +14,12 @@
 #      brew-shellenv-cache-drift.sh asserts that same byte-identity against the
 #      live generator, and it only holds if the writer copies verbatim)
 #   2. creates the cache directory itself, so a fresh host with no ~/.cache works
-#   3. writes ATOMICALLY: a failing `brew shellenv` leaves the previous cache
-#      intact instead of a truncated file that ~/.bashrc would source
+#   3. writes ATOMICALLY, which is two properties, pinned separately:
+#      a. a failing `brew shellenv` leaves the previous cache intact instead of
+#         a truncated file that ~/.bashrc would source
+#      b. the publish is a RENAME of the file brew wrote, never a copy into the
+#         live cache. A copy passes (a) while writing the destination in place,
+#         where a shell starting mid-write sources a half-written cache
 #   4. leaves no temp file behind, on success or on failure
 #   5. refuses to run when Homebrew is absent, instead of writing an empty cache
 #   6. rejects unknown arguments loudly
@@ -64,8 +68,13 @@ trap 'rm -rf "$sandbox"' EXIT
 # a known fixture) and records each invocation, so a test can tell "regenerated"
 # from "left alone". Any subcommand other than `shellenv` is an error, which pins
 # what the writer asks Homebrew for.
+#
+# With a fourth argument, the stub also records the INODE of the file its own
+# stdout is connected to. The writer runs it as `brew shellenv >$temp`, so that
+# is the temp file, and comparing the recording with the published cache
+# afterwards is how the publish is held to a rename (see case 3b).
 make_stub_brew() {
-  local stub_path="$1" payload_file="$2" exit_code="${3:-0}"
+  local stub_path="$1" payload_file="$2" exit_code="${3:-0}" stdout_inode_record="${4:-}"
   cat >"$stub_path" <<STUB
 #!/usr/bin/env bash
 if [[ \${1:-} != shellenv ]]; then
@@ -73,10 +82,26 @@ if [[ \${1:-} != shellenv ]]; then
   exit 64
 fi
 printf 'x' >>"\${0%/*}/invocations"
+stdout_inode_record='$stdout_inode_record'
+if [[ -n \$stdout_inode_record ]]; then
+  # fd 3 keeps hold of this stub's stdout while stat writes to the record file,
+  # so /dev/fd/3 still names the writer's temp; /dev/fd/1 would name the record.
+  # GNU form first, BSD form as the fallback, per the suite's stat-order guard.
+  exec 3>&1
+  stat -c '%i' /dev/fd/3 >"\$stdout_inode_record" 2>/dev/null ||
+    stat -f '%i' /dev/fd/3 >"\$stdout_inode_record"
+  exec 3>&-
+fi
 cat "$payload_file"
 exit $exit_code
 STUB
   chmod +x "$stub_path"
+}
+
+# The inode of a path. GNU form first, BSD form as the fallback (macOS), per the
+# suite's stat-order guard.
+inode_of() {
+  stat -c '%i' "$1" 2>/dev/null || stat -f '%i' "$1"
 }
 
 # Each case gets its own HOME so nothing leaks between them.
@@ -144,6 +169,36 @@ refute_contains "$(cat "$cache")" 'HALF_WRITTEN' \
   'a failing brew leaked partial output into the live cache'
 litter="$(temp_siblings "$case_dir/home/.cache")"
 [[ -z $litter ]] || fail "writer left a temp file behind after a brew failure: $litter"
+
+# --- 3b: the publish is a RENAME of the file brew wrote ----------------------
+# The case above pins the SUCCESS GATE, not the rename: `cp "$temp" "$cache"`
+# followed by `rm -f "$temp"` passes it, since a failing brew still never reaches
+# the copy. It fails the property that matters at shell startup, though. A copy
+# writes the destination IN PLACE, so a shell that sources the cache mid-write
+# gets a truncated file, which is the same prompt-noise class ~/.bashrc's
+# usability guard exists to prevent, and this writer is now the only
+# implementation of the write, so nothing else would catch it. Ask the property
+# directly: after a rename the published cache IS the file brew wrote into;
+# after any copy-then-delete it is a different file. The destination is seeded
+# first, both because that is the shape the real cache has after its first run
+# and because it gives a copy an existing inode to write through.
+case_dir="$(new_case_dir atomicpublish)"
+mkdir -p "$case_dir/home/.cache"
+cache="$case_dir/home/.cache/$CACHE_FILE_NAME"
+printf 'export PREVIOUS_GOOD_CACHE=1\n' >"$cache"
+printf 'export REGENERATED=1\n' >"$case_dir/payload"
+make_stub_brew "$case_dir/bin/brew" "$case_dir/payload" 0 "$case_dir/generated-inode"
+run_writer "$case_dir" >"$case_dir/stdout" 2>"$case_dir/stderr" ||
+  fail "writer failed while replacing an existing cache: $(cat "$case_dir/stderr")"
+
+generated_inode="$(cat "$case_dir/generated-inode")"
+[[ -n $generated_inode ]] ||
+  fail 'the stub could not record which file brew shellenv wrote into, so the publish was never observed'
+published_inode="$(inode_of "$cache")"
+[[ $published_inode == "$generated_inode" ]] ||
+  fail "the cache was published by copying into the destination (brew wrote inode $generated_inode, the published cache is inode $published_inode), so a shell can source it half-written; the publish must be a rename"
+cmp -s "$case_dir/payload" "$cache" ||
+  fail 'the renamed cache does not carry the regenerated output'
 
 # --- 5a: Homebrew absent, existing cache survives ----------------------------
 case_dir="$(new_case_dir nobrew)"
@@ -253,4 +308,4 @@ env -i PATH="${BASH%/*}:/usr/bin:/bin" HOME="$case_dir/home" \
 [[ -f $case_dir/home/.cache/$CACHE_FILE_NAME ]] ||
   fail 'with XDG_CACHE_HOME unset the writer did not fall back to the HOME cache dir'
 
-printf 'brew-shellenv-cache-writer: OK (verbatim copy; creates its dir; atomic; no litter; refuses empty output, a non-regular destination, a missing brew and bad args)\n'
+printf 'brew-shellenv-cache-writer: OK (verbatim copy; creates its dir; publishes by rename, success-gated; no litter; refuses empty output, a non-regular destination, a missing brew and bad args)\n'
