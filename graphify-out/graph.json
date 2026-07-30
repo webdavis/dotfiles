@@ -19611,7 +19611,7 @@
       "label": "GIT_CONFIG_NOSYSTEM",
       "file_type": "code",
       "source_file": "test/unit/gitconfig-tool-and-url-hygiene.sh",
-      "source_location": "L52",
+      "source_location": "L78",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -19625,7 +19625,7 @@
       "label": "GIT_PAGER",
       "file_type": "code",
       "source_file": "test/unit/gitconfig-tool-and-url-hygiene.sh",
-      "source_location": "L52",
+      "source_location": "L78",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -19639,7 +19639,7 @@
       "label": "PAGER",
       "file_type": "code",
       "source_file": "test/unit/gitconfig-tool-and-url-hygiene.sh",
-      "source_location": "L52",
+      "source_location": "L78",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -19653,7 +19653,7 @@
       "label": "fail()",
       "file_type": "code",
       "source_file": "test/unit/gitconfig-tool-and-url-hygiene.sh",
-      "source_location": "L54",
+      "source_location": "L80",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -19667,7 +19667,7 @@
       "label": "list_chezmoi_delivered_target_paths()",
       "file_type": "code",
       "source_file": "test/unit/gitconfig-tool-and-url-hygiene.sh",
-      "source_location": "L64",
+      "source_location": "L90",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -19681,7 +19681,7 @@
       "label": "chezmoi_delivers_target_path()",
       "file_type": "code",
       "source_file": "test/unit/gitconfig-tool-and-url-hygiene.sh",
-      "source_location": "L73",
+      "source_location": "L99",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -19692,10 +19692,38 @@
       "norm_label": "chezmoi_delivers_target_path()"
     },
     {
+      "label": "is_tool_binary_path_key()",
+      "file_type": "code",
+      "source_file": "test/unit/gitconfig-tool-and-url-hygiene.sh",
+      "source_location": "L106",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_gitconfig_tool_and_url_hygiene_is_tool_binary_path_key",
+      "community": 365,
+      "norm_label": "is_tool_binary_path_key()"
+    },
+    {
+      "label": "classify_core_excludesfile()",
+      "file_type": "code",
+      "source_file": "test/unit/gitconfig-tool-and-url-hygiene.sh",
+      "source_location": "L114",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_gitconfig_tool_and_url_hygiene_classify_core_excludesfile",
+      "community": 365,
+      "norm_label": "classify_core_excludesfile()"
+    },
+    {
       "label": "git_resolves_tool_name()",
       "file_type": "code",
       "source_file": "test/unit/gitconfig-tool-and-url-hygiene.sh",
-      "source_location": "L79",
+      "source_location": "L129",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -64868,7 +64896,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/gitconfig-tool-and-url-hygiene.sh",
-      "source_location": "L73",
+      "source_location": "L99",
       "weight": 1.0,
       "source": "test_unit_gitconfig_tool_and_url_hygiene",
       "target": "test_unit_gitconfig_tool_and_url_hygiene_chezmoi_delivers_target_path",
@@ -64878,7 +64906,17 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/gitconfig-tool-and-url-hygiene.sh",
-      "source_location": "L54",
+      "source_location": "L114",
+      "weight": 1.0,
+      "source": "test_unit_gitconfig_tool_and_url_hygiene",
+      "target": "test_unit_gitconfig_tool_and_url_hygiene_classify_core_excludesfile",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/gitconfig-tool-and-url-hygiene.sh",
+      "source_location": "L80",
       "weight": 1.0,
       "source": "test_unit_gitconfig_tool_and_url_hygiene",
       "target": "test_unit_gitconfig_tool_and_url_hygiene_fail",
@@ -64888,7 +64926,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/gitconfig-tool-and-url-hygiene.sh",
-      "source_location": "L52",
+      "source_location": "L78",
       "weight": 1.0,
       "source": "test_unit_gitconfig_tool_and_url_hygiene",
       "target": "test_unit_gitconfig_tool_and_url_hygiene_git_config_nosystem",
@@ -64898,7 +64936,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/gitconfig-tool-and-url-hygiene.sh",
-      "source_location": "L52",
+      "source_location": "L78",
       "weight": 1.0,
       "source": "test_unit_gitconfig_tool_and_url_hygiene",
       "target": "test_unit_gitconfig_tool_and_url_hygiene_git_pager",
@@ -64908,7 +64946,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/gitconfig-tool-and-url-hygiene.sh",
-      "source_location": "L79",
+      "source_location": "L129",
       "weight": 1.0,
       "source": "test_unit_gitconfig_tool_and_url_hygiene",
       "target": "test_unit_gitconfig_tool_and_url_hygiene_git_resolves_tool_name",
@@ -64918,7 +64956,17 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/gitconfig-tool-and-url-hygiene.sh",
-      "source_location": "L64",
+      "source_location": "L106",
+      "weight": 1.0,
+      "source": "test_unit_gitconfig_tool_and_url_hygiene",
+      "target": "test_unit_gitconfig_tool_and_url_hygiene_is_tool_binary_path_key",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/gitconfig-tool-and-url-hygiene.sh",
+      "source_location": "L90",
       "weight": 1.0,
       "source": "test_unit_gitconfig_tool_and_url_hygiene",
       "target": "test_unit_gitconfig_tool_and_url_hygiene_list_chezmoi_delivered_target_paths",
@@ -64928,7 +64976,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/gitconfig-tool-and-url-hygiene.sh",
-      "source_location": "L52",
+      "source_location": "L78",
       "weight": 1.0,
       "source": "test_unit_gitconfig_tool_and_url_hygiene",
       "target": "test_unit_gitconfig_tool_and_url_hygiene_pager",
@@ -64948,7 +64996,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/gitconfig-tool-and-url-hygiene.sh",
-      "source_location": "L131",
+      "source_location": "L184",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_gitconfig_tool_and_url_hygiene_sh__entry",
@@ -64959,7 +65007,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/gitconfig-tool-and-url-hygiene.sh",
-      "source_location": "L88",
+      "source_location": "L138",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_gitconfig_tool_and_url_hygiene_sh__entry",
@@ -64970,11 +65018,22 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/gitconfig-tool-and-url-hygiene.sh",
-      "source_location": "L118",
+      "source_location": "L168",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_gitconfig_tool_and_url_hygiene_sh__entry",
       "target": "test_unit_gitconfig_tool_and_url_hygiene_git_resolves_tool_name",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/gitconfig-tool-and-url-hygiene.sh",
+      "source_location": "L174",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_gitconfig_tool_and_url_hygiene_sh__entry",
+      "target": "test_unit_gitconfig_tool_and_url_hygiene_is_tool_binary_path_key",
       "confidence_score": 1.0
     },
     {
@@ -87365,5 +87424,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "ecfbf88b44f09f5e0141845a4fc03a9838c1a2ec"
+  "built_at_commit": "aee33ef48b99feb72caee0282381c9b16e397f53"
 }
