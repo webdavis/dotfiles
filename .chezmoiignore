@@ -57,4 +57,5 @@ Library
 .local/bin/macos-defaults-apply.sh
 .local/bin/macos-defaults-capture.sh
 .local/bin/macos-defaults-lib.sh
+.local/bin/brew-shellenv-cache-refresh.sh
 {{- end -}}
