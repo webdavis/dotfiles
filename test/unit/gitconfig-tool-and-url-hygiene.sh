@@ -20,13 +20,14 @@
 #      it on 2022-03-15, so a `[url "git://..."]` base sends fetches at a port
 #      that no longer answers. A git:// prefix on the insteadOf VALUE side is
 #      fine and deliberate: that rescues a legacy remote by rewriting it away.
-#   3. Global ignores resolve to a file this repo actually deploys. Either
-#      core.excludesfile names a deployed path, or the key is absent and the
-#      repo deploys git's documented default, dot_config/git/ignore. Deployment
-#      is decided by `chezmoi managed`, not by the source file's presence on
-#      disk: a source file hidden behind .chezmoiignore is present but never
-#      delivered, and git would then load no global ignores at all, which is the
-#      failure this invariant exists to catch.
+#   3. Global ignores resolve to a file this repo actually deploys. git reads
+#      THREE states out of core.excludesfile, not two, and this invariant covers
+#      all three: ABSENT loads git's documented default, SET loads exactly that
+#      path, and PRESENT-BUT-EMPTY loads nothing at all, reproducing the original
+#      defect this file dropped the key to fix. Deployment is decided by `chezmoi
+#      managed`, not by the source file's presence on disk: a source file hidden
+#      behind .chezmoiignore is present but never delivered, and git would then
+#      load no global ignores either.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -46,6 +47,11 @@ GIT_DEFAULT_EXCLUDES_TARGET="${XDG_CONFIG_HOME:-$HOME/.config}/git/ignore"
 # satisfies invariant 3 exactly as a plain file does. Directories and scripts do
 # not, which is why this is not simply `all`.
 CHEZMOI_FILE_DELIVERING_ENTRY_TYPES="files,symlinks"
+# `git config --get` exits 1 when the key is ABSENT and 0 when it is present,
+# including when its value is the empty string (measured). Both print nothing on
+# stdout, so this exit code is the only signal separating two states that mean
+# opposite things to git.
+GIT_CONFIG_KEY_ABSENT_EXIT_CODE=1
 PLACEHOLDER="CHEZMOI_TEMPLATE_PLACEHOLDER"
 # Go template actions that produce control flow rather than a value. A literal
 # placeholder cannot stand in for one, so their presence means this test's
@@ -88,6 +94,23 @@ chezmoi_delivers_target_path() {
   printf '%s\n' "$DELIVERED_TARGET_PATHS" | grep -Fxq -- "$target"
 }
 
+# Answers "which of git's three core.excludesfile states does this config hold?",
+# printing one of: absent, set, empty, unreadable. Separating absent from empty
+# is the point: they read identically on stdout and mean opposite things to git.
+classify_core_excludesfile() {
+  local config="$1" value exit_code=0
+  value="$(git config --file "$config" --get core.excludesfile)" || exit_code=$?
+  if ((exit_code == GIT_CONFIG_KEY_ABSENT_EXIT_CODE)); then
+    printf 'absent\n'
+  elif ((exit_code != 0)); then
+    printf 'unreadable\n'
+  elif [[ -z $value ]]; then
+    printf 'empty\n'
+  else
+    printf 'set\n'
+  fi
+}
+
 # Answers "can git resolve this tool name?" for the given mode, by asking git.
 git_resolves_tool_name() {
   local mode="$1" name="$2" config="$3" first
@@ -104,7 +127,7 @@ command -v chezmoi >/dev/null 2>&1 ||
   fail "chezmoi is not on PATH; invariant 3 cannot tell which target paths this repo delivers"
 
 # Fail closed: an unreadable or empty listing must not read as "nothing is
-# missing". Collected once, since both branches of invariant 3 consult it.
+# missing". Collected once, since every branch of invariant 3 consults it.
 DELIVERED_TARGET_PATHS="$(list_chezmoi_delivered_target_paths)" ||
   fail "chezmoi managed failed against source $REPO_ROOT; invariant 3 cannot be decided"
 [[ -n $DELIVERED_TARGET_PATHS ]] ||
@@ -139,13 +162,22 @@ while IFS= read -r key; do
 done < <(git config --file "$parsed" --name-only --list)
 
 # ---- 3: global ignores resolve to a file this repo deploys ----------------
-excludes="$(git config --file "$parsed" --get core.excludesfile || true)"
-if [[ -n $excludes ]]; then
-  chezmoi_delivers_target_path "${excludes/#\~/$HOME}" ||
-    fail "core.excludesfile = '$excludes' names a path chezmoi does not deliver, so git would load no global ignores at all"
-else
-  chezmoi_delivers_target_path "$GIT_DEFAULT_EXCLUDES_TARGET" ||
-    fail "core.excludesfile is unset, so git falls back to $GIT_DEFAULT_EXCLUDES_TARGET, but chezmoi does not deliver that path from $GIT_DEFAULT_EXCLUDES_SOURCE (present in the source tree is not enough; check .chezmoiignore); global ignores would be empty on a fresh machine"
-fi
+case "$(classify_core_excludesfile "$parsed")" in
+  set)
+    excludes="$(git config --file "$parsed" --get core.excludesfile)"
+    chezmoi_delivers_target_path "${excludes/#\~/$HOME}" ||
+      fail "core.excludesfile = '$excludes' names a path chezmoi does not deliver, so git would load no global ignores at all"
+    ;;
+  empty)
+    fail "core.excludesfile is present with an empty value, which git does not treat as absent: it loads no global ignores at all rather than falling back to $GIT_DEFAULT_EXCLUDES_TARGET (measured with git check-ignore), which is the exact defect this file dropped the key to fix. Remove the key, do not blank it"
+    ;;
+  absent)
+    chezmoi_delivers_target_path "$GIT_DEFAULT_EXCLUDES_TARGET" ||
+      fail "core.excludesfile is unset, so git falls back to $GIT_DEFAULT_EXCLUDES_TARGET, but chezmoi does not deliver that path from $GIT_DEFAULT_EXCLUDES_SOURCE (present in the source tree is not enough; check .chezmoiignore); global ignores would be empty on a fresh machine"
+    ;;
+  *)
+    fail "core.excludesfile could not be read out of $parsed; invariant 3 cannot be decided"
+    ;;
+esac
 
 printf 'gitconfig-tool-and-url-hygiene: OK (diff.tool/merge.tool resolve, no git:// rewrite target, global ignores are deployed)\n'
