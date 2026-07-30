@@ -168,6 +168,9 @@ GOLDEN_EOF
 # echo each and no command).
 # No manual logging record: firewall logging on this macOS version is on by
 # default and cannot be enabled by hand, so nothing renders for it.
+# The tailnet pin command line was re-derived by the pin-hardening fix
+# (exactly-one-line convergence, hosts field-structure filtering, loud
+# nonzero refusals, atomic mode-preserving install).
 tier2_golden="$work/tier2.golden"
 cat >"$tier2_golden" <<'GOLDEN_EOF'
 #!/bin/bash
@@ -197,7 +200,7 @@ echo '→ MANUAL OverSight: allow its Notification Center alerts (its only outpu
 echo '→ MANUAL LuLu: approve its system extension (a one-time macOS security consent): see the runbook section LuLu system extension approval'
 echo '→ MANUAL LuLu: create the required outbound allow rules by answering its prompts: see the runbook section LuLu rule creation'
 echo '→ MagicDNS fallback pin: mister.tail2f2430.ts.net (per CLAUDE.md Tailscale DNS section)'
-sudo sh -c 'want=$(printf "%s\t%s\t%s" "$2" "$1" "$3"); grep -qxF "$want" /etc/hosts && exit 0; tmp=$(mktemp) || exit 1; grep -vwF "$1" /etc/hosts >"$tmp"; printf "%s\n" "$want" >>"$tmp"; if grep -qE "^127\.0\.0\.1[[:space:]]" "$tmp"; then cat "$tmp" >/etc/hosts; else echo "refusing to rewrite /etc/hosts for $1: the filtered result lost its loopback entry" >&2; fi; rm -f "$tmp"' sh 'mister.tail2f2430.ts.net' '100.109.58.54' 'mister'
+sudo sh -c 'f=$1; s=$3; tmp=; bail(){ [ -n "$tmp" ] && rm -f "$tmp"; exit 1; }; w=$(printf "%s\t%s\t%s" "$2" "$1" "$3"); [ -f /etc/hosts ] || { echo "refusing to edit /etc/hosts for $f: the file is missing" >&2; exit 1; }; tmp=$(mktemp /etc/hosts.XXXXXXXX) || exit 1; mc=0; ex=0; set -f; while IFS= read -r l || [ -n "$l" ]; do hit=0; set -- ${l%%#*}; if [ $# -gt 1 ]; then shift; for n in "$@"; do if [ "$n" = "$f" ] || [ "$n" = "$s" ]; then hit=1; fi; done; fi; if [ "$hit" = 1 ]; then mc=$((mc+1)); if [ "$l" = "$w" ]; then ex=1; fi; else printf "%s\n" "$l" || bail; fi; done </etc/hosts >"$tmp" || bail; if [ "$mc" = 1 ] && [ "$ex" = 1 ]; then rm -f "$tmp"; exit 0; fi; printf "%s\n" "$w" >>"$tmp" || bail; grep -qE "^127\.0\.0\.1[[:space:]]" "$tmp" || { echo "refusing to rewrite /etc/hosts for $f: the filtered result lost its loopback entry" >&2; bail; }; m=$(stat -c "%a" /etc/hosts 2>/dev/null) || m=$(stat -f "%Lp" /etc/hosts) || bail; o=$(stat -c "%u:%g" /etc/hosts 2>/dev/null) || o=$(stat -f "%u:%g" /etc/hosts) || bail; chmod "$m" "$tmp" || bail; chown "$o" "$tmp" || bail; mv -f "$tmp" /etc/hosts || bail' sh 'mister.tail2f2430.ts.net' '100.109.58.54' 'mister'
 
 GOLDEN_EOF
 
