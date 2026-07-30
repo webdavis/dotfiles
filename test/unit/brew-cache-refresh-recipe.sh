@@ -53,4 +53,22 @@ for inlined in 'mktemp' 'shellenv >' 'shellenv >>'; do
     'recipe still reimplements the cache write instead of delegating to the writer'
 done
 
-printf 'brew-cache-refresh-recipe: OK (delegates to the deployed ~/%s)\n' "$DEPLOYED_WRITER"
+# The writer only reaches ~/.local/bin through `chezmoi apply`, so on any host
+# that has not applied yet (a fresh machine, or this very branch before its first
+# apply) the recipe runs a path that does not exist. Say so, instead of letting
+# the shell report a bare "No such file or directory" for a path the reader has
+# no reason to recognize. Driven with a HOME that deliberately has no writer.
+undeployed_home="$(mktemp -d)"
+trap 'rm -rf "$undeployed_home"' EXIT
+recipe_status=0
+recipe_output="$(HOME="$undeployed_home" just --justfile "$REPO_ROOT/justfile" \
+  --working-directory "$REPO_ROOT" "$RECIPE" 2>&1)" || recipe_status=$?
+((recipe_status != 0)) ||
+  fail "$RECIPE exited 0 on a host where the writer is not deployed"
+grep -qF 'is not deployed' <<<"$recipe_output" ||
+  fail "$RECIPE did not report that the writer is missing (output: $recipe_output)"
+grep -qF 'chezmoi apply' <<<"$recipe_output" ||
+  fail "$RECIPE did not name the step that deploys the writer (output: $recipe_output)"
+
+printf 'brew-cache-refresh-recipe: OK (delegates to the deployed ~/%s; names chezmoi apply when it is missing)\n' \
+  "$DEPLOYED_WRITER"
