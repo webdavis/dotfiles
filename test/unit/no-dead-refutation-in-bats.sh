@@ -89,10 +89,26 @@
 #     so a bats body in a helper `load`ed under another suffix is not seen.
 #
 # (b) REFUSED -- input this scan cannot read correctly, reported with exit 2 and
-#     a diagnostic naming the file, never a green pass:
+#     a diagnostic naming the file, never a green pass. The list is exhaustive
+#     on purpose: every refusal the code can raise is named here and pinned by
+#     its own fixture, because a refusal set that is documented in part makes
+#     the "these lists describe one contract" diff a partial one:
 #   - [heredoc-in-substitution] a heredoc body inside a command substitution is
 #     swallowed as substitution text, so an apostrophe or an unbalanced paren
-#     in it aborts the scan.
+#     in it aborts the scan;
+#   - [unterminated-quote] a quote the lexer never sees closed, which would
+#     otherwise swallow the rest of the file as quoted text;
+#   - [unbalanced-parens] a $(...), ${...}, <(...) or [[ ... ]] the lexer never
+#     sees closed, for the same reason;
+#   - [unclosed-body] a bats-executed body whose braces never balance, which
+#     would otherwise swallow every body after it;
+#   - [unterminated-case] a case...esac opened inside a bats-executed body and
+#     never closed, which would otherwise freeze the region tracker;
+#   - [unreadable-file] a source file that cannot be opened;
+#   - [non-utf8-source] a source file that is not valid UTF-8, so its text
+#     cannot be read at all;
+#   - [unlistable-directory] a directory the walk cannot list, which would
+#     otherwise turn a tree holding a dead refutation into a green pass.
 #
 # Why a guard and not just the fix: a dead assertion is invisible in a green
 # run. It reads as coverage, it costs a reviewer real attention to spot, and

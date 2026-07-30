@@ -16,15 +16,22 @@
 # to desync the scan. JUDGEMENT: inside an analyzed body, only a status that
 # genuinely reaches a consumer is left alone.
 #
-# The flagged tree plants one fixture per dead shape; the clean tree holds
-# every live spelling the guard must leave alone plus the lexing hazards
-# (heredocs, quotes, parameter expansions, escaped semicolons, a file with no
-# trailing newline) that must not confuse the scan into a false positive; the
-# boundary tree pins the shapes the static scan is KNOWN to presume live, one
-# fixture per bracketed limit identifier in the guard's header, and
-# assert_documented_limits_are_all_pinned diffs those two lists so neither can
-# drift. This drives the guard against scratch fixture trees via its optional
-# scan-root argument.
+# The flagged tree plants one fixture per dead shape, each pinned at its exact
+# path, line AND reason; the clean tree holds every live spelling the guard
+# must leave alone plus the lexing hazards (heredocs, quotes, parameter
+# expansions, escaped semicolons, a file with no trailing newline) that must
+# not confuse the scan into a false positive; the boundary tree pins the shapes
+# the static scan is KNOWN to presume live; and the refusal table pins the
+# input it refuses to read at all. The last two are keyed by the bracketed
+# limit identifiers in the guard's header, and
+# assert_documented_limits_are_all_pinned diffs the union against that header
+# so no limit can be documented without a fixture or pinned without being
+# documented. This drives the guard against scratch fixture trees via its
+# optional scan-root argument.
+#
+# Every fixture here was checked against the defect it exists to catch: a
+# fixture that passes identically with and without the fix pins nothing, which
+# is exactly what a balanced case...esac fixture did here before.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -38,11 +45,14 @@ source "$here/helpers/report-test-failures.sh"
 REPO_ROOT="$(find_repo_root)" || exit 1
 GUARD="$REPO_ROOT/test/unit/no-dead-refutation-in-bats.sh"
 
-# Limits the guard REFUSES (exit 2 with a diagnostic) rather than presumes
-# live, so they are pinned by their own assertion instead of by a
-# boundary-tree fixture. Named here because assert_documented_limits_are_all_
-# pinned diffs the union of both kinds against the guard's header.
-REFUSED_LIMIT_IDENTIFIERS=(heredoc-in-substitution)
+# The guard's three rejection reasons, mirrored so every flagged-shape
+# expectation pins WHICH one the guard printed. Location alone is not enough: a
+# guard that reports the right line under the wrong reason has stopped telling
+# the reader why the status vanished, and an expectation of `path:line` is
+# satisfied by any reason at all.
+REASON_BACKGROUNDED='backgrounded'
+REASON_DISCARDED='status discarded'
+REASON_DISCARDED_IN_CONDITION='discarded in condition list'
 
 # The spellings the guard's failure message tells people to use. Each was
 # measured live under bats with a violated refutation (the guard header records
@@ -61,14 +71,14 @@ RECOMMENDED_ADVICE_FIXTURE_LINES=(
   '  refute_absent() { ! grep -q zzz /etc/hosts; }; refute_absent'
   '  ! grep -q zzz /etc/hosts || { echo why; false; }'
 )
-
 # Set in main; global so the EXIT trap can still see them after main returns.
+# The refusal fixtures do not appear here: each is built into a private root
+# that its own loop iteration creates and removes, because several of them are
+# deliberately unreadable and must not outlive the check that uses them.
 flagged_root=""
 clean_root=""
 boundary_root=""
 empty_root=""
-refusal_root=""
-unreadable_root=""
 symlink_root=""
 
 # write_scan_fixture <root> <scan-relative-path> <line>... -- write
@@ -129,6 +139,13 @@ run_guard() {
   capture_output "$output_variable_name" "$status_variable_name" bash "$GUARD" "$3"
 }
 
+# expect_finding <scan-relative-path> <line> <reason> -- the exact prefix the
+# guard prints for one finding, location AND reason. Pinning both is what makes
+# the expectation fail when two reasons are collapsed into one string.
+expect_finding() {
+  printf '%s:%s  [%s]' "$1" "$2" "$3"
+}
+
 # Build the flagged tree's fixtures under $flagged_root and record each
 # expected "path:line" in the caller-named associative array, keyed by fixture
 # name. Every fixture holds exactly one dead inversion; the two decoys hold
@@ -139,121 +156,121 @@ create_flagged_tree_fixtures() {
 
   # Shape 1 of the confirmed defect: the inversion is on the FINAL line but
   # another command follows it on that line, so its status is discarded.
-  flagged_expected_destination["shape1_final_line"]="$(write_test_body "$flagged_root" shape1-final-line \
+  flagged_expected_destination["shape1_final_line"]="$(expect_finding "$(write_test_body "$flagged_root" shape1-final-line \
     '  touch "$BATS_TEST_TMPDIR/f"' \
-    '  ! test -e "$BATS_TEST_TMPDIR/f"; true'):3"
+    '  ! test -e "$BATS_TEST_TMPDIR/f"; true')" 3 "$REASON_DISCARDED")"
 
   # Shape 2 of the confirmed defect: the inversion is last on its line but the
   # line is not final.
-  flagged_expected_destination["shape2_tail_nonfinal"]="$(write_test_body "$flagged_root" shape2-tail-nonfinal \
+  flagged_expected_destination["shape2_tail_nonfinal"]="$(expect_finding "$(write_test_body "$flagged_root" shape2-tail-nonfinal \
     '  true; ! test -e /nope' \
-    '  true'):2"
+    '  true')" 2 "$REASON_DISCARDED")"
 
   # The shape the old guard already caught, kept as a regression fixture.
-  flagged_expected_destination["own_line_mid"]="$(write_test_body "$flagged_root" own-line-mid \
+  flagged_expected_destination["own_line_mid"]="$(expect_finding "$(write_test_body "$flagged_root" own-line-mid \
     '  ! test -e /nope' \
-    '  true'):2"
+    '  true')" 2 "$REASON_DISCARDED")"
 
   # Backgrounding discards the status even in final position (measured: a
   # following `wait` does not recover it either).
-  flagged_expected_destination["background_final"]="$(write_test_body "$flagged_root" background-final \
-    '  ! test -e /nope &'):2"
-  flagged_expected_destination["background_mid"]="$(write_test_body "$flagged_root" background-mid \
+  flagged_expected_destination["background_final"]="$(expect_finding "$(write_test_body "$flagged_root" background-final \
+    '  ! test -e /nope &')" 2 "$REASON_BACKGROUNDED")"
+  flagged_expected_destination["background_mid"]="$(expect_finding "$(write_test_body "$flagged_root" background-mid \
     '  ! test -e /nope &' \
-    '  true'):2"
+    '  true')" 2 "$REASON_BACKGROUNDED")"
 
   # An inversion as the TAIL of an and-or list, mid-body: the list returns the
   # inverted status and the `!` exemption still applies.
-  flagged_expected_destination["and_tail_mid"]="$(write_test_body "$flagged_root" and-tail-mid \
+  flagged_expected_destination["and_tail_mid"]="$(expect_finding "$(write_test_body "$flagged_root" and-tail-mid \
     '  true && ! test -e /nope' \
-    '  true'):2"
-  flagged_expected_destination["or_tail_mid"]="$(write_test_body "$flagged_root" or-tail-mid \
+    '  true')" 2 "$REASON_DISCARDED")"
+  flagged_expected_destination["or_tail_mid"]="$(expect_finding "$(write_test_body "$flagged_root" or-tail-mid \
     '  false || ! test -e /nope' \
-    '  true'):2"
+    '  true')" 2 "$REASON_DISCARDED")"
 
   # An inversion on the LEFT of `&&` with no `||` after it: on violation the
   # list short-circuits to the discarded inverted status, so nothing can fail.
-  flagged_expected_destination["and_left_mid"]="$(write_test_body "$flagged_root" and-left-mid \
+  flagged_expected_destination["and_left_mid"]="$(expect_finding "$(write_test_body "$flagged_root" and-left-mid \
     '  ! test -e /nope && echo why' \
-    '  true'):2"
+    '  true')" 2 "$REASON_DISCARDED")"
 
   # The `!` exemption propagates through brace groups and if/loop BODIES
   # (measured), so a mid-body compound cannot rescue the status.
-  flagged_expected_destination["brace_group_mid"]="$(write_test_body "$flagged_root" brace-group-mid \
+  flagged_expected_destination["brace_group_mid"]="$(expect_finding "$(write_test_body "$flagged_root" brace-group-mid \
     '  { ! test -e /nope; }' \
-    '  true'):2"
-  flagged_expected_destination["if_body_mid_oneline"]="$(write_test_body "$flagged_root" if-body-mid-oneline \
+    '  true')" 2 "$REASON_DISCARDED")"
+  flagged_expected_destination["if_body_mid_oneline"]="$(expect_finding "$(write_test_body "$flagged_root" if-body-mid-oneline \
     '  if true; then ! test -e /nope; fi' \
-    '  true'):2"
-  flagged_expected_destination["if_body_mid_multiline"]="$(write_test_body "$flagged_root" if-body-mid-multiline \
+    '  true')" 2 "$REASON_DISCARDED")"
+  flagged_expected_destination["if_body_mid_multiline"]="$(expect_finding "$(write_test_body "$flagged_root" if-body-mid-multiline \
     '  if true; then' \
     '    ! test -e /nope' \
     '  fi' \
-    '  true'):3"
-  flagged_expected_destination["loop_body_mid"]="$(write_test_body "$flagged_root" loop-body-mid \
+    '  true')" 3 "$REASON_DISCARDED")"
+  flagged_expected_destination["loop_body_mid"]="$(expect_finding "$(write_test_body "$flagged_root" loop-body-mid \
     '  for i in 1; do ! test -e /nope; done' \
-    '  true'):2"
+    '  true')" 2 "$REASON_DISCARDED")"
 
   # Only the LAST command of an if/while/until condition list decides the
   # compound, so an inversion in any earlier command of that list is discarded
   # (measured: both of these pass under bats with the refutation violated).
-  flagged_expected_destination["condition_nonfinal_if"]="$(write_test_body "$flagged_root" condition-nonfinal-if \
+  flagged_expected_destination["condition_nonfinal_if"]="$(expect_finding "$(write_test_body "$flagged_root" condition-nonfinal-if \
     '  if ! test -e /nope; true; then :; fi' \
-    '  true'):2"
-  flagged_expected_destination["condition_nonfinal_while"]="$(write_test_body "$flagged_root" condition-nonfinal-while \
+    '  true')" 2 "$REASON_DISCARDED_IN_CONDITION")"
+  flagged_expected_destination["condition_nonfinal_while"]="$(expect_finding "$(write_test_body "$flagged_root" condition-nonfinal-while \
     '  while ! test -e /nope; false; do break; done' \
-    '  true'):2"
-  flagged_expected_destination["condition_nonfinal_multiline"]="$(write_test_body "$flagged_root" condition-nonfinal-multiline \
+    '  true')" 2 "$REASON_DISCARDED_IN_CONDITION")"
+  flagged_expected_destination["condition_nonfinal_multiline"]="$(expect_finding "$(write_test_body "$flagged_root" condition-nonfinal-multiline \
     '  if ! test -e /nope' \
     '     true' \
     '  then' \
     '    :' \
     '  fi' \
-    '  true'):2"
+    '  true')" 2 "$REASON_DISCARDED_IN_CONDITION")"
 
   # `time` is pipeline syntax, so `time ! cmd` mid-body is the same dead shape.
-  flagged_expected_destination["time_prefix_mid"]="$(write_test_body "$flagged_root" time-prefix-mid \
+  flagged_expected_destination["time_prefix_mid"]="$(expect_finding "$(write_test_body "$flagged_root" time-prefix-mid \
     '  time ! test -e /nope' \
-    '  true'):2"
+    '  true')" 2 "$REASON_DISCARDED")"
 
   # The `!` inverts the WHOLE pipeline; mid-body it is still exempt.
-  flagged_expected_destination["pipeline_mid"]="$(write_test_body "$flagged_root" pipeline-mid \
+  flagged_expected_destination["pipeline_mid"]="$(expect_finding "$(write_test_body "$flagged_root" pipeline-mid \
     '  ! grep -q x /etc/hosts | cat' \
-    '  true'):2"
+    '  true')" 2 "$REASON_DISCARDED")"
 
   # An inverted brace group is a `!` pipeline too.
-  flagged_expected_destination["inverted_group_mid"]="$(write_test_body "$flagged_root" inverted-group-mid \
+  flagged_expected_destination["inverted_group_mid"]="$(expect_finding "$(write_test_body "$flagged_root" inverted-group-mid \
     '  ! { grep -q x /etc/hosts; }' \
-    '  true'):2"
+    '  true')" 2 "$REASON_DISCARDED")"
 
   # A backslash continuation is one statement, reported at its first line.
   # shellcheck disable=SC1003 # the trailing backslash is literal fixture text, not quote escaping
-  flagged_expected_destination["continuation_mid"]="$(write_test_body "$flagged_root" continuation-mid \
+  flagged_expected_destination["continuation_mid"]="$(expect_finding "$(write_test_body "$flagged_root" continuation-mid \
     '  ! grep -q x \' \
     '    /etc/hosts' \
-    '  true'):2"
+    '  true')" 2 "$REASON_DISCARDED")"
 
   # `! [[ ... ]]` (bang OUTSIDE the brackets) is an inverted pipeline; only
   # `[[ ! ... ]]` fails via the [[ compound itself.
-  flagged_expected_destination["negated_dbracket_mid"]="$(write_test_body "$flagged_root" negated-dbracket-mid \
+  flagged_expected_destination["negated_dbracket_mid"]="$(expect_finding "$(write_test_body "$flagged_root" negated-dbracket-mid \
     '  ! [[ -e /nope ]]' \
-    '  true'):2"
+    '  true')" 2 "$REASON_DISCARDED")"
 
   # setup() runs under the same mechanism, so a dead inversion there is the
   # same defect; the guard scans setup/teardown bodies too.
-  flagged_expected_destination["setup_body_mid"]="$(write_bats_file "$flagged_root" setup-body-mid \
+  flagged_expected_destination["setup_body_mid"]="$(expect_finding "$(write_bats_file "$flagged_root" setup-body-mid \
     'setup() {' \
     '  ! test -e /nope' \
     '  true' \
     '}' \
     '@test "t" {' \
     '  true' \
-    '}'):2"
+    '}')" 2 "$REASON_DISCARDED")"
 
   # Every spelling of a body definition bash and bats accept reaches the same
   # analysis. A brace on the next line, the `function` keyword, and the spaced
   # parens are all ordinary bash; skipping any of them skips a whole body.
-  flagged_expected_destination["setup_brace_next_line"]="$(write_bats_file "$flagged_root" setup-brace-next-line \
+  flagged_expected_destination["setup_brace_next_line"]="$(expect_finding "$(write_bats_file "$flagged_root" setup-brace-next-line \
     'setup()' \
     '{' \
     '  ! test -e /nope' \
@@ -261,16 +278,16 @@ create_flagged_tree_fixtures() {
     '}' \
     '@test "t" {' \
     '  true' \
-    '}'):3"
-  flagged_expected_destination["setup_function_keyword"]="$(write_bats_file "$flagged_root" setup-function-keyword \
+    '}')" 3 "$REASON_DISCARDED")"
+  flagged_expected_destination["setup_function_keyword"]="$(expect_finding "$(write_bats_file "$flagged_root" setup-function-keyword \
     'function teardown {' \
     '  ! test -e /nope' \
     '  true' \
     '}' \
     '@test "t" {' \
     '  true' \
-    '}'):2"
-  flagged_expected_destination["setup_spaced_parens"]="$(write_bats_file "$flagged_root" setup-spaced-parens \
+    '}')" 2 "$REASON_DISCARDED")"
+  flagged_expected_destination["setup_spaced_parens"]="$(expect_finding "$(write_bats_file "$flagged_root" setup-spaced-parens \
     'setup_file ()' \
     '{' \
     '  ! test -e /nope' \
@@ -278,44 +295,62 @@ create_flagged_tree_fixtures() {
     '}' \
     '@test "t" {' \
     '  true' \
-    '}'):3"
+    '}')" 3 "$REASON_DISCARDED")"
 
   # bats' SECOND documented test syntax (bats-preprocess BATS_TEST_PATTERN_
   # COMMENT): the declaration is a comment, which the lexer strips, so it has
   # to be recognized from the raw line.
-  flagged_expected_destination["comment_syntax_test"]="$(write_bats_file "$flagged_root" comment-syntax-test \
+  flagged_expected_destination["comment_syntax_test"]="$(expect_finding "$(write_bats_file "$flagged_root" comment-syntax-test \
     'refutes_the_thing() { # @test' \
     '  ! test -e /nope' \
     '  true' \
-    '}'):2"
+    '}')" 2 "$REASON_DISCARDED")"
 
   # setup_suite/teardown_suite live in setup_suite.bash by bats' own design, so
   # a scan restricted to *.bats would never see them.
-  flagged_expected_destination["setup_suite_bash_file"]="$(write_scan_fixture "$flagged_root" integration/setup_suite.bash \
+  flagged_expected_destination["setup_suite_bash_file"]="$(expect_finding "$(write_scan_fixture "$flagged_root" integration/setup_suite.bash \
     'setup_suite() {' \
     '  ! test -e /nope' \
     '  true' \
-    '}'):2"
+    '}')" 2 "$REASON_DISCARDED")"
 
-  # A `case` or `esac` used as an ARGUMENT must not move the case tracker. It
-  # once did, and the desync froze brace counting, so every remaining body in
-  # the file went unanalyzed with no diagnostic. The dead inversion here sits
-  # AFTER the case, and is only reachable if the region closed correctly.
-  flagged_expected_destination["case_argument_resync"]="$(write_test_body "$flagged_root" case-argument-resync \
+  # A `case` used as an ARGUMENT must not move the case tracker. It once did,
+  # and the desync froze brace counting, so every remaining body in the file
+  # went unanalyzed with no diagnostic. The dead inversion here sits AFTER the
+  # case, and is only reachable if the region closed correctly.
+  #
+  # KEEP THE KEYWORD-SHAPED WORDS UNBALANCED. This fixture used to carry one
+  # stray `case` and one stray `esac`, which a word counter that cannot tell a
+  # keyword from an argument gets RIGHT by cancellation: the fixture passed
+  # identically against the tracker and against the defect it exists to catch,
+  # so it pinned nothing. With a lone stray `case`, the naive count never
+  # returns to zero, the region never closes, and this expectation fails.
+  flagged_expected_destination["case_argument_resync"]="$(expect_finding "$(write_test_body "$flagged_root" case-argument-resync \
     '  case x in' \
     '    x) grep -q case /etc/hosts || true ;;' \
-    '    y) echo esac ;;' \
     '  esac' \
     '  ! test -e /nope' \
-    '  true'):6"
+    '  true')" 5 "$REASON_DISCARDED")"
+
+  # A brace-shaped case PATTERN is a pattern, not a brace (`case "}" in }) ...`
+  # matches, measured). Counting it would close the body inside the region and
+  # leave the rest of it unscanned, so the dead inversion after `esac` is
+  # reachable only while the region stays opaque to the brace count.
+  flagged_expected_destination["case_brace_pattern"]="$(expect_finding "$(write_test_body "$flagged_root" case-brace-pattern \
+    '  case x in' \
+    '    }) : ;;' \
+    '    *) : ;;' \
+    '  esac' \
+    '  ! test -e /nope' \
+    '  true')" 6 "$REASON_DISCARDED")"
 
   # A file that stops mid-token used to abort the entire scan.
-  flagged_expected_destination["no_trailing_newline"]="$(write_fixture_without_trailing_newline "$flagged_root" no-trailing-newline \
+  flagged_expected_destination["no_trailing_newline"]="$(expect_finding "$(write_fixture_without_trailing_newline "$flagged_root" no-trailing-newline \
     '@test "t" {' \
     '  ! test -e /nope' \
     '  true' \
     '}' \
-    'true;'):2"
+    'true;')" 2 "$REASON_DISCARDED")"
 
   # Live decoys inside the flagged tree: final-position inversions that must
   # stay OUT of the rejection report.
@@ -442,25 +477,42 @@ create_clean_tree_fixtures() {
   fixture_path="$(write_test_body "$clean_root" case-branch-final \
     '  true' \
     '  case x in x) ! true ;; esac')"
-  # A case PATTERN spelled `case` or `esac` is not a keyword, and neither is a
-  # `case` word in argument position; the region must still close, leaving the
-  # final inversion visible and unreported.
-  # The dead inversion sits in the branch guarded by the keyword-shaped
-  # PATTERN, so closing the region there would expose it as an ordinary
-  # non-final statement and report it: the fixture is clean only while the
-  # pattern is read as a pattern.
+  # A case PATTERN spelled `case` is not a keyword; the region must still
+  # close, leaving the final `true` as the body's last statement. The dead
+  # inversion sits in the branch guarded by that keyword-shaped PATTERN, so
+  # closing the region there would expose it as an ordinary non-final statement
+  # and report it: the fixture is clean only while the pattern is read as a
+  # pattern.
+  #
+  # KEEP THE KEYWORD-SHAPED WORDS UNBALANCED, for the reason recorded on the
+  # flagged tree's case-argument-resync fixture: a stray `case` paired with a
+  # stray `esac` cancels out, and a word counter that cannot tell a keyword
+  # from a pattern then reaches the same verdict as the tracker.
   fixture_path="$(write_test_body "$clean_root" case-pattern-shaped-like-keywords \
     '  case x in' \
     '    case) ! test -e /nope ;;' \
-    '    *) grep -q esac /etc/hosts || true ;;' \
+    '    *) : ;;' \
+    '  esac' \
+    '  true')"
+  # An `esac` in ARGUMENT position must not close the region either. The
+  # inversion after it is still inside the branch, so it stays unreported
+  # (limit [case-body]); a tracker that closed at the argument would read it as
+  # an ordinary non-final statement and report it.
+  fixture_path="$(write_test_body "$clean_root" case-esac-argument-in-branch \
+    '  case x in' \
+    '    x) echo esac >/dev/null; ! test -e /nope ;;' \
     '  esac' \
     '  true')"
   # A nested case inside a branch body must nest, not close the outer region.
+  # The inversion sits AFTER the nested esac and still inside the outer branch,
+  # so a tracker that closed the whole region at the inner `esac` would read it
+  # as an ordinary non-final statement and report it. Without that inversion
+  # the fixture passed whether the tracker nested or not.
   fixture_path="$(write_test_body "$clean_root" case-nested \
     '  case x in' \
-    '    x) case y in y) true ;; esac ;;' \
+    '    x) case y in y) true ;; esac; ! test -e /nope ;;' \
     '  esac' \
-    '  ! test -e /nope')"
+    '  true')"
   # Parameter expansion braces and separators must not corrupt the scan.
   fixture_path="$(write_test_body "$clean_root" parameter-expansion-in-final-if \
     '  if true; then' \
@@ -501,13 +553,17 @@ create_clean_tree_fixtures() {
     '}' \
     'true;')"
   # bats anchors @test to the start of a line, so a @test WORD in argument
-  # position is not a declaration. Treating it as one opens a body that never
-  # closes and swallows the real @test below it.
+  # position is not a declaration. Treating it as one opens a body at the wrong
+  # brace, which either swallows the real @test below it or, for the trailing
+  # decoy, opens a body that never closes at all. The TRAILING decoy is what
+  # makes this fixture discriminate: a decoy that only precedes a real body can
+  # be absorbed into it and still come out clean.
   fixture_path="$(write_bats_file "$clean_root" at-test-word-in-argument-position \
     'printf "%s\n" @test "x" { >/dev/null' \
     '@test "t" {' \
     '  ! test -e /nope' \
-    '}')"
+    '}' \
+    'printf "%s\n" @test "y" { >/dev/null')"
   : "$fixture_path"
 }
 
@@ -643,10 +699,10 @@ assert_documented_limits_are_all_pinned() {
   local -n boundary_limits_reference="$1"
   local documented=() pinned=() identifier
   mapfile -t documented < <(
-    sed -n 's/^#   - \[\([a-z][a-z-]*\)\].*/\1/p' "$GUARD" | LC_ALL=C sort
+    sed -n 's/^#   - \[\([a-z][a-z0-9-]*\)\].*/\1/p' "$GUARD" | LC_ALL=C sort
   )
   mapfile -t pinned < <(
-    printf '%s\n' "${!boundary_limits_reference[@]}" "${REFUSED_LIMIT_IDENTIFIERS[@]}" |
+    printf '%s\n' "${!boundary_limits_reference[@]}" "${!REFUSAL_FIXTURE_WRITERS[@]}" |
       LC_ALL=C sort
   )
   if [[ ${#documented[@]} -eq 0 ]]; then
@@ -674,9 +730,13 @@ assert_empty_tree_passes() {
 
 # Fail-closed: a python3 tool error must FAIL the guard, never yield an empty
 # report and a green pass. The exported function shadows python3 inside the
-# guard child only.
+# guard child only. The tool's OWN status is asserted, not merely a nonzero
+# one: `-ne 0` is also satisfied by a guard that swallowed the tool error and
+# then refused for some unrelated reason, which would report a fail-closed
+# guard while the propagation had already been lost.
 assert_python_failure_fails_guard() {
   local guard_output guard_status
+  local -r stub_exit_status=7
   set +e
   guard_output="$(
     # shellcheck disable=SC2329,SC2317 # invoked indirectly: exported into the guard child
@@ -686,31 +746,8 @@ assert_python_failure_fails_guard() {
   )"
   guard_status=$?
   set -e
-  [[ $guard_status -ne 0 ]] ||
-    record_failure "python3 failure (exit 7) did not fail the guard (fails open)"
-}
-
-# Fail-closed: a directory the scan cannot list must REFUSE the whole run.
-# os.walk's default swallows the error, which turned a tree holding a dead
-# refutation into a green pass after one chmod.
-assert_unreadable_directory_refuses_the_scan() {
-  local guard_output guard_status hidden="$unreadable_root/test/hidden"
-  mkdir -p "$hidden"
-  write_scan_fixture "$unreadable_root" integration/ok.bats \
-    '@test "t" {' '  true' '}' >/dev/null
-  printf '@test "t" {\n  ! true\n  true\n}\n' >"$hidden/dead.bats"
-  chmod 000 "$hidden"
-  if ls "$hidden" >/dev/null 2>&1; then
-    chmod 755 "$hidden"
-    record_failure "cannot test the unreadable-directory path: chmod 000 left $hidden listable (running as root?)"
-    return 0
-  fi
-  run_guard guard_output guard_status "$unreadable_root/test"
-  chmod 755 "$hidden"
-  [[ $guard_status -eq 2 ]] ||
-    record_failure "an unlistable directory must refuse the scan (exit 2), got $guard_status: $guard_output"
-  grep -qF 'refusing to report a partial scan' <<<"$guard_output" ||
-    record_failure "the refusal must say the scan was partial: $guard_output"
+  [[ $guard_status -eq $stub_exit_status ]] ||
+    record_failure "a python3 failure must fail the guard with the tool's own status ($stub_exit_status), got $guard_status: $guard_output"
 }
 
 # A symlinked suite directory is still a suite directory: its bodies run under
@@ -731,56 +768,142 @@ assert_symlinked_suite_directory_is_scanned() {
     record_failure "the symlink cycle produced duplicate findings: $guard_output"
 }
 
-# Structures the scan cannot resolve must be REFUSED with a diagnostic naming
-# the file, never reported clean. Each of these silently swallowed the rest of
-# the file before: an unterminated case froze brace counting, an unclosed body
-# consumed every later body, and a heredoc inside a command substitution is
-# read as substitution text (limit [heredoc-in-substitution]).
-# The diagnostic is asserted, not just the exit code: these structures overlap
-# (an unterminated case leaves the body unclosed too), so a check that only
-# looked at exit 2 would keep passing after the specific detection was removed.
-# The two arrays are keyed by the same descriptions and both are walked.
-assert_unresolvable_structures_refuse_the_scan() {
-  local guard_output guard_status relative_path single_root description
-  local -A refusal_fixtures=()
-  local -A refusal_diagnostics=()
+# --------------------------------------------------------------- refusals
+#
+# Input the scan cannot read correctly must be REFUSED (exit 2) with a
+# diagnostic naming the path, never reported clean. Each writer below plants
+# one such input in a private scan root and prints the SCAN-RELATIVE path the
+# diagnostic has to name; the loop does the rest, so registering a refusal is
+# one row in the two tables and one line in the guard's header.
+#
+# Every writer takes the root it must write into, and the fixture trees are
+# scan targets only: nothing ever executes these files, which is why they are
+# allowed to be invalid shell.
 
-  refusal_fixtures["unterminated case"]="$(write_test_body "$refusal_root" unterminated-case \
+write_unterminated_case_refusal() {
+  write_test_body "$1" unterminated-case \
     '  case x in' \
-    '    x) true ;;')"
-  refusal_diagnostics["unterminated case"]='a case...esac opened in this bats-executed body'
+    '    x) true ;;'
+}
 
-  refusal_fixtures["unclosed body"]="$(write_bats_file "$refusal_root" unclosed-body \
+write_unclosed_body_refusal() {
+  write_bats_file "$1" unclosed-body \
     '@test "t" {' \
     '  ! true' \
-    '  true')"
-  refusal_diagnostics["unclosed body"]='this bats-executed body is never closed'
+    '  true'
+}
 
-  refusal_fixtures["heredoc in a command substitution"]="$(write_test_body "$refusal_root" heredoc-in-substitution \
+write_heredoc_in_substitution_refusal() {
+  write_test_body "$1" heredoc-in-substitution \
     '  x="$(cat <<EOF' \
     "it is data with an apostrophe: don't" \
     'EOF' \
     ')"' \
-    '  true')"
-  refusal_diagnostics["heredoc in a command substitution"]='unterminated single quote'
+    '  true'
+}
 
-  for description in "${!refusal_fixtures[@]}"; do
-    if [[ -z ${refusal_diagnostics[$description]+set} ]]; then
-      record_failure "refusal fixture $description has no expected diagnostic"
+write_unterminated_quote_refusal() {
+  write_test_body "$1" unterminated-quote \
+    "  echo 'this quote never closes" \
+    '  true'
+}
+
+write_unbalanced_parens_refusal() {
+  write_test_body "$1" unbalanced-parens \
+    '  x=$(printf %s hi' \
+    '  true'
+}
+
+write_non_utf8_source_refusal() {
+  local path="$1/test/integration/non-utf8.bats"
+  mkdir -p "$(dirname "$path")"
+  printf '@test "t" {\n  ! grep -q \xff /etc/hosts\n  true\n}\n' >"$path"
+  printf 'integration/non-utf8.bats\n'
+}
+
+write_unreadable_file_refusal() {
+  local relative_path
+  relative_path="$(write_bats_file "$1" unreadable-file \
+    '@test "t" {' \
+    '  true' \
+    '}')"
+  chmod 000 "$1/test/$relative_path"
+  printf '%s\n' "$relative_path"
+}
+
+write_unlistable_directory_refusal() {
+  # A directory the walk cannot list. os.walk's default swallows the error,
+  # which turned a tree holding a dead refutation into a green pass after one
+  # chmod, so the scan collects walk errors and refuses instead.
+  local hidden="$1/test/hidden"
+  mkdir -p "$hidden"
+  write_bats_file "$1" ok '@test "t" {' '  true' '}' >/dev/null
+  printf '@test "t" {\n  ! true\n  true\n}\n' >"$hidden/dead.bats"
+  chmod 000 "$hidden"
+  if ls "$hidden" >/dev/null 2>&1; then
+    chmod 755 "$hidden"
+    record_failure "cannot test the unlistable-directory refusal: chmod 000 left $hidden listable (running as root?)"
+    return 1
+  fi
+  printf 'hidden\n'
+}
+
+# The refusal set, keyed by the bracketed limit identifier in the guard's
+# header. Registering a row here is what tells
+# assert_documented_limits_are_all_pinned the limit exists, so a refusal the
+# code can raise cannot stay undocumented and a documented one cannot stay
+# unpinned. The DIAGNOSTIC is asserted, not just the exit code: these inputs
+# overlap (an unterminated case leaves the body unclosed too), so a check that
+# only looked at exit 2 would keep passing after the specific detection was
+# removed.
+#
+# KEEP THE KEYS QUOTED. shfmt reads an UNQUOTED associative-array subscript as
+# an arithmetic expression and rewrites `[unterminated-case]` into
+# `[unterminated - case]`, which renames every limit on the next format run and
+# breaks the diff against the guard's header.
+declare -A REFUSAL_FIXTURE_WRITERS=(
+  ["unterminated-case"]=write_unterminated_case_refusal
+  ["unclosed-body"]=write_unclosed_body_refusal
+  ["heredoc-in-substitution"]=write_heredoc_in_substitution_refusal
+  ["unterminated-quote"]=write_unterminated_quote_refusal
+  ["unbalanced-parens"]=write_unbalanced_parens_refusal
+  ["non-utf8-source"]=write_non_utf8_source_refusal
+  ["unreadable-file"]=write_unreadable_file_refusal
+  ["unlistable-directory"]=write_unlistable_directory_refusal
+)
+declare -A REFUSAL_DIAGNOSTICS=(
+  ["unterminated-case"]='a case...esac opened in this bats-executed body'
+  ["unclosed-body"]='this bats-executed body is never closed'
+  ["heredoc-in-substitution"]='unterminated single quote'
+  ["unterminated-quote"]='unterminated single quote'
+  ["unbalanced-parens"]='unterminated (...)'
+  ["non-utf8-source"]='cannot read'
+  ["unreadable-file"]='cannot read'
+  ["unlistable-directory"]='refusing to report a partial scan'
+)
+
+assert_unresolvable_input_refuses_the_scan() {
+  local guard_output guard_status relative_path single_root identifier
+  for identifier in "${!REFUSAL_FIXTURE_WRITERS[@]}"; do
+    if [[ -z ${REFUSAL_DIAGNOSTICS[$identifier]+set} ]]; then
+      record_failure "refusal limit [$identifier] has no expected diagnostic"
       continue
     fi
-    relative_path="${refusal_fixtures[$description]}"
     single_root="$(mktemp -d)"
-    mkdir -p "$single_root/test/integration"
-    cp "$refusal_root/test/$relative_path" "$single_root/test/$relative_path"
+    if ! relative_path="$("${REFUSAL_FIXTURE_WRITERS[$identifier]}" "$single_root")"; then
+      chmod -R u+rwX "$single_root" 2>/dev/null || true
+      rm -rf "$single_root"
+      continue # the writer already recorded why it could not build the input
+    fi
     run_guard guard_output guard_status "$single_root/test"
+    chmod -R u+rwX "$single_root" 2>/dev/null || true
     rm -rf "$single_root"
     [[ $guard_status -eq 2 ]] ||
-      record_failure "$description must refuse the scan (exit 2), got $guard_status: $guard_output"
+      record_failure "limit [$identifier] must refuse the scan (exit 2), got $guard_status: $guard_output"
     grep -qF "$relative_path" <<<"$guard_output" ||
-      record_failure "the refusal for $description must name the file: $guard_output"
-    grep -qF "${refusal_diagnostics[$description]}" <<<"$guard_output" ||
-      record_failure "the refusal for $description must say why: $guard_output"
+      record_failure "the refusal for [$identifier] must name the path $relative_path: $guard_output"
+    grep -qF "${REFUSAL_DIAGNOSTICS[$identifier]}" <<<"$guard_output" ||
+      record_failure "the refusal for [$identifier] must say why: $guard_output"
   done
 }
 
@@ -823,12 +946,9 @@ main() {
   clean_root="$(mktemp -d)"
   boundary_root="$(mktemp -d)"
   empty_root="$(mktemp -d)"
-  refusal_root="$(mktemp -d)"
-  unreadable_root="$(mktemp -d)"
   symlink_root="$(mktemp -d)"
-  trap 'chmod -R u+rwX "$unreadable_root" 2>/dev/null || true
-        rm -rf "$flagged_root" "$clean_root" "$boundary_root" "$empty_root" \
-               "$refusal_root" "$unreadable_root" "$symlink_root"' EXIT
+  trap 'rm -rf "$flagged_root" "$clean_root" "$boundary_root" "$empty_root" \
+               "$symlink_root"' EXIT
 
   # shellcheck disable=SC2034 # filled and read through namerefs by name
   local -A flagged_expected=()
@@ -844,9 +964,8 @@ main() {
   assert_documented_limits_are_all_pinned boundary_limits
   assert_empty_tree_passes
   assert_python_failure_fails_guard
-  assert_unreadable_directory_refuses_the_scan
   assert_symlinked_suite_directory_is_scanned
-  assert_unresolvable_structures_refuse_the_scan
+  assert_unresolvable_input_refuses_the_scan
   assert_advice_recommends_only_accepted_spellings
 
   report_failures dead-refutation-shapes
