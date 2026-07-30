@@ -30,7 +30,12 @@
 #   P2 name claims       - whole-field equality after comment stripping, name
 #                          fields only (an address is not a name), so a
 #                          different host that merely contains the name is not
-#                          a claim.
+#                          a claim. Includes the CRLF decision: a CR is an
+#                          ordinary name character to this script AND to the
+#                          resolver, so a CRLF record claims "pin<CR>" in both
+#                          and the pin leaves it alone. Widening either
+#                          predicate to swallow the CR makes root delete
+#                          unrelated records, so both directions are pinned.
 #   P3 pin ownership     - a line claiming EITHER the fqdn or the short name is
 #                          the pin's to replace.
 #   P4 column shape      - what may be one hosts column, and what may not.
@@ -114,6 +119,10 @@ assert_equal() { # <expected> <actual> <label>
 }
 
 tab=$'\t'
+# A carriage return is an ordinary NAME character to both this script and the
+# resolver, which is what the CRLF cases below turn on. It is not a field
+# separator in either, so it is spelled out here rather than hidden in a literal.
+carriage_return=$'\r'
 
 # ---------- P1: is this line a valid loopback record? ------------------------
 # The three that must be TRUE: a plain record, a record with aliases, and a
@@ -205,6 +214,25 @@ assert_predicate expect-false p1-indented-commented-out \
 assert_predicate expect-false p1-blanks-only \
   hosts_line_is_valid_loopback_record "  ${tab} "
 
+# A CARRIAGE RETURN INSIDE THE ADDRESS FIELD DOES NOT MAKE A LOOPBACK RECORD,
+# and this case is the guard on the gate rather than on the filter. A CR is not
+# a separator here, so the first field is the 10-byte string "127.0.0.1<CR>",
+# which is not the loopback address. Measured against the resolver by compiling
+# `_fsi_tokenize` verbatim and running the fixture through it: it tokenizes on
+# " \t" only, so its first token is "127.0.0.1<CR>" too, `inet_pton` refuses
+# that, and the line is NOT A RECORD there either. A file whose only 127.0.0.1
+# line is this one gives the machine no localhost at all, and the reconciler
+# refuses to install over it.
+#
+# This is the assertion that kills the tempting CRLF "fix" of adding \r to
+# HOSTS_ITEM_SEPARATOR_CHARACTERS. That set is used by BOTH predicates, so the
+# edit does not only widen the ownership filter: it makes this line read as a
+# valid loopback record, and the gate then vouches for a hosts file the resolver
+# reads as having no localhost. Measured: with \r in the set, the reconciler
+# rewrites such a file and exits 0 where it refuses today.
+assert_predicate expect-false p1-carriage-return-in-address \
+  hosts_line_is_valid_loopback_record "127.0.0.1${carriage_return}${tab}localhost"
+
 # ---------- P2: does this line claim this name? ------------------------------
 assert_predicate expect-true p2-official-name \
   hosts_line_claims_name "192.0.2.7${tab}pin.example.test${tab}pin" "pin.example.test"
@@ -244,6 +272,32 @@ assert_predicate expect-false p2-commented-out \
 # is not being widened in the pass that measured this.
 assert_predicate expect-false p2-name-only-in-comment \
   hosts_line_claims_name "127.0.0.1${tab}localhost # pin" "pin"
+
+# THE CRLF LIMITATION, pinned so it stays the decision the reconciler documents
+# rather than something a later reader repairs. A record written with CRLF
+# endings carries the CR into its LAST name field, and a CR is not a separator
+# here, so the field is "pin<CR>" and the pin does not claim it.
+#
+# Unlike the comment case above, this one is NOT a divergence: measured by
+# compiling Apple's `_fsi_tokenize` verbatim and running the fixtures through
+# it, the resolver separates on " \t" only and reads the same field as the same
+# 4-byte name "pin<CR>", so such a line answers for nothing the pin owns. Both
+# readings agree, which is what makes leaving the line alone correct.
+#
+# These two are the false-positive guards on any future CRLF repair, and the
+# cost they price is concrete. `nas.home` below is a THIRD PARTY: the resolver
+# answers 10.0.0.5 for it, and the pin's names are not among the names it
+# answers for. Measured, both proposed repairs (stripping a trailing CR
+# per-field, and adding \r to the separator set) make this predicate TRUE, so
+# the rebuild drops the line and root DELETES an unrelated record from
+# /etc/hosts. Trading that for the removal of a line that answers nothing is the
+# wrong direction, and the reconciler's KNOWN LIMITATION, CRLF section is the
+# record of the decision.
+assert_predicate expect-false p2-crlf-third-party-short-name \
+  hosts_line_claims_name "10.0.0.5${tab}nas.home${tab}pin${carriage_return}" "pin"
+assert_predicate expect-false p2-crlf-stale-pin-fqdn \
+  hosts_line_claims_name \
+  "198.51.100.1${tab}pin.example.test${carriage_return}" "pin.example.test"
 
 # ---------- P3: is this line the pin's to replace? ---------------------------
 assert_predicate expect-true p3-claims-fqdn \
@@ -528,4 +582,4 @@ if ((failures > 0)); then
   printf 'tailnet-pin-hosts-predicates: %d assertion(s) failed\n' "$failures" >&2
   exit 1
 fi
-echo "tailnet-pin-hosts-predicates: OK (loopback validity including indented records and records that do not name localhost, record text, name claims, pin ownership, column shape, record rendering, convergence including the line terminator, survey facts, symlink chains, referent metadata, seam states, unreadable sources, source-time shell-option isolation, message paths)"
+echo "tailnet-pin-hosts-predicates: OK (loopback validity including indented records and records that do not name localhost, record text, name claims, pin ownership, the CRLF decision in both directions, column shape, record rendering, convergence including the line terminator, survey facts, symlink chains, referent metadata, seam states, unreadable sources, source-time shell-option isolation, message paths)"

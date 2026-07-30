@@ -52,8 +52,11 @@
 # installed file keeps the target's mode AND its owner, the temporary file is
 # created beside the target rather than in $TMPDIR, a symlinked target keeps its
 # indirection and its referent's metadata, a missing trailing newline never
-# produces a joined line and never reads as CONVERGED, and a field that is not
-# one hosts column is refused at the entry point too.
+# produces a joined line and never reads as CONVERGED, a CRLF record is left
+# byte-intact and converged over (both readings agree it names "pin<CR>") while
+# an UNTERMINATED CRLF record, the one shape the resolver does answer for, is
+# demoted by the same terminator repair, and a field that is not one hosts
+# column is refused at the entry point too.
 #
 # TWO INTERPRETERS. sudo on this machine has no secure_path, so the `bash` that
 # runs the deployed helper as root is whichever the invoking PATH resolves:
@@ -1122,6 +1125,91 @@ printf '127.0.0.1\tlocalhost\n%s\n' "$want1" >"$unterminated_duplicate_expected"
 cmp -s "$unterminated_duplicate" "$unterminated_duplicate_expected" ||
   fail "an unterminated final line claiming the pin survived the rebuild; got: $(diff "$unterminated_duplicate_expected" "$unterminated_duplicate" | head -5)"
 
+# ---------- LAYER 2j3: CRLF endings are a DECISION, in both directions -------
+# The reconciler's KNOWN LIMITATION, CRLF section says a CRLF record is left
+# alone, and until now nothing tested it, so the documented decision and a
+# future "obvious fix" were indistinguishable. Both halves are pinned here,
+# because only one of them is about the stale line.
+#
+# WHERE THE EXPECTATIONS COME FROM. Not from hosts(5), which says only that
+# items are separated by blanks and tabs. They come from the resolver itself:
+# `_fsi_get_line`, `_fsi_tokenize` and `_fsi_parse_host` were taken verbatim
+# from lookup.subproj/file_module.c in apple-oss-distributions/Libinfo, compiled
+# with the `_fsi_get_host` name-lookup loop around them (skip a leading '#',
+# tokenize on " \t", reject below two tokens, reject when the first token is not
+# an address, compare the name against the official name and the aliases with
+# strcmp, first match wins) and run over these exact fixtures.
+#
+# HALF ONE, the stale line. A terminated CRLF record carries the CR into its
+# last name field, so it claims "pin.example.test<CR>". Measured: a lookup for
+# "pin.example.test" walks past it and is answered by the appended record, and
+# in a file holding ONLY the CRLF line the lookup finds nothing at all. It is
+# dead litter, not a wrong answer, so the file is left carrying it and reports
+# converged from the second run on.
+#
+# HALF TWO, and this is why the fixture below has a third-party line in it. Both
+# "repairs" that suggest themselves (strip a trailing CR per field, or add \r to
+# HOSTS_ITEM_SEPARATOR_CHARACTERS) would make the pin claim `nas.home`'s last
+# field, whose bytes are "pin<CR>". Measured: the resolver answers 10.0.0.5 for
+# nas.home and answers NOTHING for the pin's names from that line, so it
+# competes with nothing; under either repair the rebuild drops it and root
+# deletes a third party's record from /etc/hosts. The unit suite pins the
+# predicate directly (p2-crlf-third-party-short-name); this pins the file.
+crlf_dir="$work/crlf"
+mkdir -p "$crlf_dir"
+crlf="$crlf_dir/hosts"
+printf '127.0.0.1\tlocalhost\n198.51.100.1\tpin.example.test\r\n10.0.0.5\tnas.home\tpin\r\n' \
+  >"$crlf"
+run_pin_capture "$crlf" crlf
+crlf_expected="$work/crlf-expected"
+printf '127.0.0.1\tlocalhost\n198.51.100.1\tpin.example.test\r\n10.0.0.5\tnas.home\tpin\r\n%s\n' \
+  "$want1" >"$crlf_expected"
+cmp -s "$crlf" "$crlf_expected" ||
+  fail "the CRLF rebuild did not leave both CRLF lines byte-intact beside the appended record; got: $(diff "$crlf_expected" "$crlf" | head -8)"
+[[ $(find "$crlf_dir" -maxdepth 1 -type f -name 'hosts.*' | wc -l) -eq 0 ]] ||
+  fail "reconciling a file with CRLF lines left temp droppings: $(ls "$crlf_dir")"
+
+# It CONVERGES, and this is the half the brief that filed this called
+# non-convergence. Measured: run 2 reports converged and rewrites nothing, so
+# the litter costs one rebuild, not one per apply forever. The inode is what
+# says no rebuild ran, since a rebuild producing identical bytes still renames.
+cp "$crlf" "$work/crlf.after1"
+crlf_inode_before="$(file_inode "$crlf")"
+run_pin_capture "$crlf" crlf-again
+grep -qF 'already converged' "$work/crlf-again.out" ||
+  fail "a file whose only extra pin line is CRLF-terminated did not report converged on the second run, so every apply would rewrite it: $(cat "$work/crlf-again.out")"
+cmp -s "$crlf" "$work/crlf.after1" ||
+  fail "the second run over a CRLF-bearing file rewrote it"
+[[ $(file_inode "$crlf") == "$crlf_inode_before" ]] ||
+  fail "the second run over a CRLF-bearing file reinstalled it (its inode changed)"
+
+# THE ONE CONFIGURATION IN WHICH A CRLF STALE LINE WAS EVER LIVE, and nothing
+# tested it. `_fsi_get_line` chops the last character of every non-comment line
+# UNCONDITIONALLY, so on an UNTERMINATED final line the character it eats is the
+# CR itself. Measured: before this run the resolver answers 198.51.100.1 for
+# pin.example.test, from a line this script does not claim. The repair is the
+# terminator normalization the rebuild already performs for a different reason:
+# the CR stops being last, the record demotes to naming "pin.example.test<CR>",
+# and the correct record is appended below it. Measured after: the resolver
+# answers 192.0.2.7. Byte-for-byte below, because "the CR gained a newline after
+# it" IS the repair and any looser assertion would pass on a file that still
+# resolves to the wrong host.
+crlf_unterminated_dir="$work/crlf-unterminated"
+mkdir -p "$crlf_unterminated_dir"
+crlf_unterminated="$crlf_unterminated_dir/hosts"
+printf '127.0.0.1\tlocalhost\n198.51.100.1\tpin.example.test\r' >"$crlf_unterminated"
+run_pin_capture "$crlf_unterminated" crlf-unterminated
+grep -qF 'written to' "$work/crlf-unterminated.out" ||
+  fail "a file whose UNTERMINATED final line is a CRLF pin record was reported converged; the resolver answers that stale record's address for the pin: $(cat "$work/crlf-unterminated.out")"
+crlf_unterminated_expected="$work/crlf-unterminated-expected"
+printf '127.0.0.1\tlocalhost\n198.51.100.1\tpin.example.test\r\n%s\n' \
+  "$want1" >"$crlf_unterminated_expected"
+cmp -s "$crlf_unterminated" "$crlf_unterminated_expected" ||
+  fail "the unterminated CRLF record was not demoted by the terminator repair, so the resolver still answers its address for the pin; got: $(diff "$crlf_unterminated_expected" "$crlf_unterminated" | head -8)"
+run_pin_capture "$crlf_unterminated" crlf-unterminated-again
+grep -qF 'already converged' "$work/crlf-unterminated-again.out" ||
+  fail "the run after the unterminated-CRLF repair did not report converged: $(cat "$work/crlf-unterminated-again.out")"
+
 # ---------- LAYER 2m: the temporary file is created BESIDE the target --------
 # The reconciler's atomicity rests on `mv` never crossing a filesystem, which
 # rests on mktemp creating the temp in the TARGET's directory. Every "no temp
@@ -1321,4 +1409,4 @@ while IFS=$'\t' read -r fqdn ip short; do
     fail "pin short name '$short' is not the first label of '$fqdn'"
 done < <(yq eval '.macos.tailnet_pins[] | [.fqdn, .ip, .short] | @tsv' "$YAML")
 
-echo "tailnet-pins: OK (exact render per pin against the deployed reconciler, gated on its sha256; malformed, non-string and name-colliding pins refuse to render; the real reconciler converges, repairs an unterminated final line rather than reporting it converged, refuses loudly, refuses an unreadable source and a self-satisfied loopback gate, accepts an indented loopback record and one that does not name localhost while still refusing an indented decoy, creates its temp beside the target, preserves the target's mode and owner, leaves no temp after any of the ${#actual_cleaned_up_signal_names[@]} signals it declares for cleanup under ${#INTERPRETERS[@]} interpreter(s), survives symlinks; hostile fields stay inert; $pin_count real pin(s) well-formed)"
+echo "tailnet-pins: OK (exact render per pin against the deployed reconciler, gated on its sha256; malformed, non-string and name-colliding pins refuse to render; the real reconciler converges, repairs an unterminated final line rather than reporting it converged, leaves CRLF records alone and converges over them while repairing the unterminated one, refuses loudly, refuses an unreadable source and a self-satisfied loopback gate, accepts an indented loopback record and one that does not name localhost while still refusing an indented decoy, creates its temp beside the target, preserves the target's mode and owner, leaves no temp after any of the ${#actual_cleaned_up_signal_names[@]} signals it declares for cleanup under ${#INTERPRETERS[@]} interpreter(s), survives symlinks; hostile fields stay inert; $pin_count real pin(s) well-formed)"
