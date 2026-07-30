@@ -118,4 +118,38 @@ printf '%s' "$lib_out" | grep -qiE 'list|sequence|map' ||
 printf '%s' "$tmpl_out" | grep -qiE 'list|sequence|map' ||
   fail "the template refused the map without naming the shape problem: $tmpl_out"
 
-printf 'macos-defaults-shape-agreement: OK (both readers take a list in declaration order and both refuse a map, naming the shape)\n'
+# ---- 3: a document-start byte order mark is refused by both -----------------
+# The two readers do not even agree on the file's first key here. yq strips a
+# UTF-8 byte order mark and reads every record; chezmoi's Go YAML reader keeps
+# it bound into the key and cannot find .macos at all. That asymmetry is why the
+# library refuses the mark instead of stripping it: stripping would leave this
+# reader accepting a file `chezmoi apply` will not read.
+#
+# The template's half of the assertion is what makes this an agreement case
+# rather than an assertion about the library alone. Without it, "refuse a BOM"
+# is a preference; with it, it is the only way the two readers can agree.
+printf '\xef\xbb\xbfmacos:\n  defaults:\n    - {domain: com.example.zebra, key: ZKey, value: "1", type: bool, tier: enforce}\n  killall: []\n' \
+  >"$work/leading-byte-order-mark.yaml"
+
+# The divergence itself, measured on this fixture rather than assumed: yq must
+# still read the marked file as a healthy one-record list. If a future yq stops
+# stripping the mark, this case is no longer pinning a disagreement and says so
+# here instead of passing for the wrong reason.
+marked_shape="$(yq eval -r '(.macos.defaults // []) | tag' "$work/leading-byte-order-mark.yaml")"
+marked_count="$(yq eval -r '(.macos.defaults // []) | length' "$work/leading-byte-order-mark.yaml")"
+[[ $marked_shape == '!!seq' && $marked_count == '1' ]] ||
+  fail "yq no longer reads the marked fixture as a healthy one-record list (shape $marked_shape, count $marked_count), so this case no longer pins a reader disagreement"
+
+if lib_out="$(library_stream "$work/leading-byte-order-mark.yaml")"; then
+  lib_domains="$(printf '%s\n' "$lib_out" | cut -d$'\037' -f1 | tr '\n' ' ')"
+  fail "the library ACCEPTED a data file carrying a byte order mark and emitted [$lib_domains]; the template cannot read that file at all, so the two readers disagree about whether the settings exist"
+fi
+
+if tmpl_out="$(render_template "$work/leading-byte-order-mark.yaml")"; then
+  fail "the template ACCEPTED a data file carrying a byte order mark and rendered [$tmpl_out]; this case exists because it does not"
+fi
+
+printf '%s' "$lib_out" | grep -qi 'byte order mark' ||
+  fail "the library refused the marked file without naming the byte order mark, so an operator cannot find three invisible bytes: $lib_out"
+
+printf 'macos-defaults-shape-agreement: OK (both readers take a list in declaration order, both refuse a map naming the shape, and both refuse a file carrying a byte order mark)\n'
