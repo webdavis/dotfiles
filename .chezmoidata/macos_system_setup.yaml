@@ -36,11 +36,20 @@
 #     runbook:     <string>   # manual: REQUIRED; verify: OPTIONAL; enforce:
 #                             # forbidden (nothing consumes it there)
 #
-# `tailnet_pins` is structured data, not commands: the runner template generates
-# an idempotent guard-then-append /etc/hosts command per entry (MagicDNS
-# registration-layer fallback pins, per CLAUDE.md's Tailscale DNS section).
+# `tailnet_pins` is structured data, not commands (MagicDNS registration-layer
+# fallback pins, per CLAUDE.md's Tailscale DNS section). The runner template
+# renders one `sudo` call per entry into
+# ~/.local/libexec/tailnet/reconcile-hosts-pin.sh, which CONVERGES the record:
+# exactly one line names the pin and that line is exactly ip<TAB>fqdn<TAB>short.
+# It is not guard-then-append. Guard-then-append only asked whether the name
+# appeared anywhere, so a pin whose address had changed kept its stale line
+# forever, and that is worse than no pin at all: the pin exists to be the
+# fallback when MagicDNS is down, and a stale fallback answers confidently with
+# the wrong host.
 #
-# Schema:
+# Schema (each field is ONE /etc/hosts column; the render REFUSES a field that
+# is not a string, is empty, or carries whitespace or a #, so quote any value
+# YAML would otherwise read as a number or a boolean):
 #   - fqdn:  <string>   # MagicDNS name, ends .ts.net
 #     ip:    <string>   # the node's Tailscale CGNAT address (100.64.0.0/10)
 #     short: <string>   # the fqdn's first label
