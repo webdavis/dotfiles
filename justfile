@@ -130,20 +130,13 @@ test-brew-cache:
   ./test/e2e/brew-shellenv-cache-drift.sh
 
 # Regenerate the brew shellenv cache (~/.cache/brew-shellenv.sh) from the current
-# `brew shellenv`, without a full `chezmoi apply`. Use after a Homebrew update if
-# `just test` reports cache drift. Atomic write (mktemp in the cache dir, brew
-# success-gated, then mv) mirrors run_after_44 and the bashrc self-heal: no writer
-# may truncate the live cache or leave a partial file behind on a failed brew run.
+# `brew shellenv`, now, instead of waiting for the next interactive shell to
+# self-heal it. Use it after a Homebrew update if `just test` reports cache
+# drift. Runs the DEPLOYED writer, the same artifact ~/.bashrc's self-heal runs,
+# so the atomic write (mktemp in the cache dir, brew success-gated, then rename)
+# has exactly one implementation and this recipe cannot drift from it.
 brew-cache-refresh:
-  #!/usr/bin/env bash
-  set -euo pipefail
-  cache="${XDG_CACHE_HOME:-$HOME/.cache}/brew-shellenv.sh"
-  mkdir -p "$(dirname "$cache")"
-  tmp="$(mktemp "${cache}.XXXXXX")"
-  trap 'rm -f "$tmp"' EXIT
-  /opt/homebrew/bin/brew shellenv >"$tmp"
-  mv "$tmp" "$cache"
-  echo "Regenerated brew shellenv cache; run 'just test' to confirm."
+  ~/.local/bin/brew-shellenv-cache-refresh.sh
 
 # macOS Defaults: drift, apply, capture
 

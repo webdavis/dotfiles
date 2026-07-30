@@ -62,16 +62,19 @@ export USER="${USER:-$(whoami)}"
 # ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 HOMEBREW_PREFIX='/opt/homebrew'
 
-# Brew PATH/env, sourced from a cache that
-# .chezmoiscripts/run_after_44-cache-brew-shellenv.sh.tmpl regenerates from the
-# real `brew shellenv` on every `chezmoi apply`. The non-interactive login doors
-# that reach ~/.bashrc (bash -lc via ~/.bash_profile, `ssh host cmd` via Apple
-# /bin/bash's SSH_SOURCE_BASHRC) need brew on PATH (/etc/paths lacks
-# /opt/homebrew/bin). `eval "$(brew shellenv)"` would spawn brew (~27ms) on each;
+# Brew PATH/env, sourced from a cache that ~/.local/bin/brew-shellenv-cache-refresh.sh
+# generates from the real `brew shellenv`. The self-heal block in the interactive
+# half of this file is what runs it automatically, whenever the cache is missing
+# or stale; `just brew-cache-refresh` runs it on demand. The non-interactive login
+# doors that reach ~/.bashrc (bash -lc via ~/.bash_profile, `ssh host cmd` via
+# Apple /bin/bash's SSH_SOURCE_BASHRC) need brew on PATH (/etc/paths lacks
+# /opt/homebrew/bin). `eval "$(brew shellenv)"` would spawn brew (~50ms) on each;
 # sourcing the pre-generated cache is ~1ms. Regenerating from the real generator
-# at apply time (rather than hardcoding its output) keeps us in sync with
-# upstream Homebrew's shellenv abstraction and self-heals
-# ${HOMEBREW_PREFIX}/etc/paths. Fall back to a live eval before the first apply.
+# (rather than hardcoding its output) keeps us in sync with upstream Homebrew's
+# shellenv abstraction and recreates ${HOMEBREW_PREFIX}/etc/paths when it is
+# missing. Fall back to a live eval whenever the cache is not usable, which on a
+# fresh host is the FIRST shell only: that shell pays ~50ms once and launches the
+# regeneration, and every later shell sources the cache.
 __brew_shellenv="${XDG_CACHE_HOME:-$HOME/.cache}/brew-shellenv.sh"
 # Guard on -s (non-empty), NOT -r: an EMPTY cache is readable, so -r would source
 # nothing and skip the live fallback, leaving brew off PATH with no self-recovery
@@ -295,35 +298,40 @@ if [[ $- == *i* ]]; then
   {{- end }}
 
   {{ if eq .chezmoi.os "darwin" -}}
-  # Brew shellenv cache self-heal: if Homebrew updated its shellenv generator
-  # since the cache was built (e.g. `brew autoupdate` ran `brew update`),
-  # regenerate the cache so the next shell sources fresh output. Mirrors the atuin
-  # drift self-heal above; `just test` is the backstop. The regeneration runs in a
-  # detached subshell (the `( ... & )` idiom the notifier below uses) so it never
-  # enters this interactive shell's job table: no `[N] pid` start line and no
-  # failed-job notice at the prompt. mkdir the cache and log dirs FIRST, because a
-  # fresh host has no cache dir (mktemp would fail to the terminal) and the log
-  # redirect needs its dir too; send all output to a log rather than the terminal,
-  # and trap-clean the temp on any exit. The atomic mktemp + success-gated mv
-  # matches run_after_44 and `just brew-cache-refresh`, so no writer can truncate
-  # the live cache.
+  # Brew shellenv cache self-heal. THIS IS THE ONLY AUTOMATIC WRITER of the cache
+  # sourced above: `chezmoi apply --exclude=templates` (what `just a` runs, and
+  # what CLAUDE.md requires of automation) does not run templated scripts, so the
+  # apply-time regen script only ever fired on a rare full interactive apply and
+  # was deleted. Every case that needs a rewrite makes this guard true:
+  #   - no cache yet, on a fresh host or after someone deletes it: `-nt` is TRUE
+  #     when its right-hand operand does not exist.
+  #   - Homebrew shipped a new shellenv generator (e.g. `brew autoupdate` ran
+  #     `brew update`): the generator is newer than the cache.
+  # Term order is a measured cost decision, not style: the staleness test settles
+  # the common path in three stat calls (~3.4us, the same as the two-term guard it
+  # replaces) and short-circuits before the installed-and-deployed test. No fork
+  # here on any shell; only the rare regeneration branch forks.
+  # Regeneration runs the DEPLOYED writer, the same artifact
+  # `just brew-cache-refresh` runs, so the atomic mktemp + success-gated mv has
+  # exactly one implementation and no caller can truncate the live cache. It is
+  # launched in a detached subshell (the `( ... & )` idiom the notifier below
+  # uses) so it never enters this interactive shell's job table: no `[N] pid`
+  # start line and no failed-job notice at the prompt. `just test` is the drift
+  # backstop.
   __be_cache="${XDG_CACHE_HOME:-$HOME/.cache}/brew-shellenv.sh"
   __be_gen="${HOMEBREW_REPOSITORY:-/opt/homebrew/Homebrew}/Library/Homebrew/cmd/shellenv.sh"
+  __be_writer="$HOME/.local/bin/brew-shellenv-cache-refresh.sh"
   __be_log="$HOME/.local/log/brew-shellenv-selfheal.log"
-  # Gate the whole detached launch on mkdir SUCCEEDING: if the cache/log dir is
-  # not creatable, launch nothing and print nothing (otherwise the outer
-  # subshell's `>>$log` open would fail straight to the interactive terminal
-  # before its own 2>&1 applies).
-  if [[ -f $__be_gen && $__be_gen -nt $__be_cache ]] &&
-    mkdir -p "${__be_cache%/*}" "${__be_log%/*}" 2>/dev/null; then
-    ( {
-        tmp="$(mktemp "${__be_cache}.XXXXXX")" || exit
-        trap 'rm -f "$tmp"' EXIT
-        "${HOMEBREW_PREFIX:-/opt/homebrew}/bin/brew" shellenv >"$tmp" &&
-          command mv "$tmp" "$__be_cache" # `command` bypasses the `mv -i` alias
-      } >>"$__be_log" 2>&1 & )
+  # Gate the whole detached launch on the log mkdir SUCCEEDING: if that dir is not
+  # creatable, launch nothing and print nothing (otherwise the outer subshell's
+  # `>>$log` open would fail straight to the interactive terminal before its own
+  # 2>&1 applies). The writer creates the cache dir itself.
+  if [[ $__be_gen -nt $__be_cache ]] &&
+    [[ -f $__be_gen && -x $__be_writer ]] &&
+    mkdir -p "${__be_log%/*}" 2>/dev/null; then
+    ("$__be_writer" >>"$__be_log" 2>&1 &)
   fi
-  unset __be_cache __be_gen __be_log
+  unset __be_cache __be_gen __be_writer __be_log
   {{- end }}
 
   # ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
