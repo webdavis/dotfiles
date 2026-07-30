@@ -19,6 +19,13 @@
 #   4. leaves no temp file behind, on success or on failure
 #   5. refuses to run when Homebrew is absent, instead of writing an empty cache
 #   6. rejects unknown arguments loudly
+#   7. refuses an EMPTY `brew shellenv` that exited 0. Homebrew's shellenv
+#      returns early and prints nothing when PATH already begins with its bin and
+#      sbin pair, and an empty cache is the one state ~/.bashrc's self-heal
+#      cannot detect as stale, so it would stick
+#   8. refuses to write when something that is not a regular file occupies the
+#      cache path, because `mv file dir` moves the file INSIDE the directory
+#      instead of replacing it
 #
 # Unit test: the real script against a STUB brew in a sandbox HOME. No flows, no
 # sleeps.
@@ -180,7 +187,62 @@ if [[ -e $case_dir/home/.cache/$CACHE_FILE_NAME ]]; then
   fail 'writer wrote a cache while rejecting an unknown argument'
 fi
 
-# --- 7: destination follows HOME when XDG_CACHE_HOME is unset ----------------
+# --- 7a: brew exits 0 but prints nothing, previous cache survives ------------
+# Homebrew's cmd/shellenv.sh returns early and prints NOTHING (exit 0) when PATH
+# already starts with "${HOMEBREW_PREFIX}/bin:${HOMEBREW_PREFIX}/sbin". Caching
+# that would publish a cache that sets no environment, and ~/.bashrc's self-heal
+# reads such a cache as current, so it would never regenerate it.
+case_dir="$(new_case_dir emptyshellenv)"
+mkdir -p "$case_dir/home/.cache"
+cache="$case_dir/home/.cache/$CACHE_FILE_NAME"
+printf 'export PREVIOUS_GOOD_CACHE=1\n' >"$cache"
+: >"$case_dir/payload"
+make_stub_brew "$case_dir/bin/brew" "$case_dir/payload"
+
+if run_writer "$case_dir" >"$case_dir/stdout" 2>"$case_dir/stderr"; then
+  fail 'writer exited 0 after brew shellenv printed nothing'
+fi
+assert_contains "$(cat "$cache")" 'PREVIOUS_GOOD_CACHE' \
+  'an empty brew shellenv replaced the previous good cache with an empty one'
+assert_contains "$(cat "$case_dir/stderr")" 'printed nothing' \
+  'writer did not say that brew shellenv produced no output'
+litter="$(temp_siblings "$case_dir/home/.cache")"
+[[ -z $litter ]] || fail "writer left a temp file behind after an empty brew shellenv: $litter"
+
+# --- 7b: an empty brew shellenv on a fresh host leaves NO cache --------------
+case_dir="$(new_case_dir emptyshellenvfresh)"
+: >"$case_dir/payload"
+make_stub_brew "$case_dir/bin/brew" "$case_dir/payload"
+if run_writer "$case_dir" >"$case_dir/stdout" 2>"$case_dir/stderr"; then
+  fail 'writer exited 0 after brew shellenv printed nothing on a fresh host'
+fi
+if [[ -e $case_dir/home/.cache/$CACHE_FILE_NAME ]]; then
+  fail 'writer published an empty cache on a fresh host'
+fi
+
+# --- 8: a directory sitting on the cache path is refused, not filled ---------
+# `mv "$temp" "$cache"` where $cache is a directory moves the temp file INSIDE
+# it. The writer must notice before generating anything, and must not delete a
+# directory it did not create.
+case_dir="$(new_case_dir cacheisdirectory)"
+mkdir -p "$case_dir/home/.cache/$CACHE_FILE_NAME"
+printf 'export STUB=1\n' >"$case_dir/payload"
+make_stub_brew "$case_dir/bin/brew" "$case_dir/payload"
+
+if run_writer "$case_dir" >"$case_dir/stdout" 2>"$case_dir/stderr"; then
+  fail 'writer exited 0 with a directory sitting on the cache path'
+fi
+assert_contains "$(cat "$case_dir/stderr")" 'not a regular file' \
+  'writer did not report what is occupying the cache path'
+[[ -d $case_dir/home/.cache/$CACHE_FILE_NAME ]] ||
+  fail 'writer removed a directory it did not create'
+swallowed="$(find "$case_dir/home/.cache/$CACHE_FILE_NAME" -mindepth 1 -print)"
+[[ -z $swallowed ]] || fail "writer moved its temp file inside the directory: $swallowed"
+if [[ -e $case_dir/bin/invocations ]]; then
+  fail 'writer spawned brew before checking that the destination is replaceable'
+fi
+
+# --- 9: destination follows HOME when XDG_CACHE_HOME is unset ----------------
 case_dir="$(new_case_dir noxdg)"
 printf 'export STUB=1\n' >"$case_dir/payload"
 make_stub_brew "$case_dir/bin/brew" "$case_dir/payload"
@@ -191,4 +253,4 @@ env -i PATH="${BASH%/*}:/usr/bin:/bin" HOME="$case_dir/home" \
 [[ -f $case_dir/home/.cache/$CACHE_FILE_NAME ]] ||
   fail 'with XDG_CACHE_HOME unset the writer did not fall back to the HOME cache dir'
 
-printf 'brew-shellenv-cache-writer: OK (verbatim copy; creates its dir; atomic; no litter; guards brew and args)\n'
+printf 'brew-shellenv-cache-writer: OK (verbatim copy; creates its dir; atomic; no litter; refuses empty output, a non-regular destination, a missing brew and bad args)\n'
