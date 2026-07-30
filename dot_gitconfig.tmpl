@@ -72,8 +72,12 @@
 #     there is no fallback, so a different Homebrew prefix aborts the merge with
 #     "The merge tool nvimdiff is not available as '<path>'" even when a working
 #     nvim is on $PATH, leaving the file conflicted.
-# The key changes nothing in diff mode: difftool.nvimdiff.cmd below is non-empty,
-# which is what makes git skip the availability check there entirely.
+# A difftool.<name>.path key is inert here only for as long as the
+# difftool.nvimdiff.cmd below stays non-empty, since a non-empty cmd is what
+# makes git skip the availability check in diff mode. Remove the cmd and the same
+# abort appears on that side too (measured: git difftool exits 128 with "The diff
+# tool nvimdiff is not available as '<path>'"), so neither key is safe to add.
+# test/unit/gitconfig-tool-and-url-hygiene.sh asserts that both stay absent.
 [difftool "nvimdiff"]
   # Shadows the built-in nvimdiff diff command, for `git difftool` only.
   cmd = /opt/homebrew/bin/nvim -d -u ~/.config/nvim/init.lua \"$LOCAL\" \"$REMOTE\"

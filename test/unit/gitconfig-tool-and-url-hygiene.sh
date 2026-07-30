@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# gitconfig-tool-and-url-hygiene.sh, three invariants of dot_gitconfig.tmpl that
+# gitconfig-tool-and-url-hygiene.sh, four invariants of dot_gitconfig.tmpl that
 # git itself can answer, asserted by handing the file to git rather than by
 # grepping it.
 #
@@ -16,11 +16,18 @@
 #      --tool-help` is the authority on the answer, and it lists built-ins
 #      (available or not) as `<name>` and user-defined tools as `<name>.cmd`,
 #      so one lookup covers both ways of being resolvable.
-#   2. No url rewrite TARGETS the git:// protocol. GitHub permanently disabled
+#   2. No tool is PINNED to a literal binary path. A <diff|merge>tool.<name>.path
+#      key drops git's $PATH lookup for a filesystem path that has no fallback,
+#      so any machine with a different install prefix loses the tool even with a
+#      working one on $PATH. This is a key-shape question, exactly like invariant
+#      3, and is answered from the same key listing: the regression is the
+#      PRESENCE of the key, so nothing here touches the filesystem and the answer
+#      cannot differ between this machine, CI, and the flake's x86_64-linux.
+#   3. No url rewrite TARGETS the git:// protocol. GitHub permanently disabled
 #      it on 2022-03-15, so a `[url "git://..."]` base sends fetches at a port
 #      that no longer answers. A git:// prefix on the insteadOf VALUE side is
 #      fine and deliberate: that rescues a legacy remote by rewriting it away.
-#   3. Global ignores resolve to a file this repo actually deploys. git reads
+#   4. Global ignores resolve to a file this repo actually deploys. git reads
 #      THREE states out of core.excludesfile, not two, and this invariant covers
 #      all three: ABSENT loads git's documented default, SET loads exactly that
 #      path, and PRESENT-BUT-EMPTY loads nothing at all, reproducing the original
@@ -44,7 +51,7 @@ GIT_DEFAULT_EXCLUDES_SOURCE="dot_config/git/ignore"
 GIT_DEFAULT_EXCLUDES_TARGET="${XDG_CONFIG_HOME:-$HOME/.config}/git/ignore"
 # The chezmoi entry types that put a readable file at a target path. Symlinks
 # count: git follows a symlinked ignore file (measured), so a symlink_ source
-# satisfies invariant 3 exactly as a plain file does. Directories and scripts do
+# satisfies invariant 4 exactly as a plain file does. Directories and scripts do
 # not, which is why this is not simply `all`.
 CHEZMOI_FILE_DELIVERING_ENTRY_TYPES="files,symlinks"
 # `git config --get` exits 1 when the key is ABSENT and 0 when it is present,
@@ -94,6 +101,13 @@ chezmoi_delivers_target_path() {
   printf '%s\n' "$DELIVERED_TARGET_PATHS" | grep -Fxq -- "$target"
 }
 
+# Answers "does this config key pin a diff or merge tool to a literal binary
+# path?". Key shape alone decides it, so the verdict is the same everywhere.
+is_tool_binary_path_key() {
+  local key="$1"
+  [[ $key == difftool.*.path || $key == mergetool.*.path ]]
+}
+
 # Answers "which of git's three core.excludesfile states does this config hold?",
 # printing one of: absent, set, empty, unreadable. Separating absent from empty
 # is the point: they read identically on stdout and mean opposite things to git.
@@ -124,14 +138,14 @@ git_resolves_tool_name() {
 [[ -f $GITCONFIG_TEMPLATE ]] || fail "missing template: $GITCONFIG_TEMPLATE"
 command -v git >/dev/null 2>&1 || fail "git is not on PATH"
 command -v chezmoi >/dev/null 2>&1 ||
-  fail "chezmoi is not on PATH; invariant 3 cannot tell which target paths this repo delivers"
+  fail "chezmoi is not on PATH; invariant 4 cannot tell which target paths this repo delivers"
 
 # Fail closed: an unreadable or empty listing must not read as "nothing is
-# missing". Collected once, since every branch of invariant 3 consults it.
+# missing". Collected once, since every branch of invariant 4 consults it.
 DELIVERED_TARGET_PATHS="$(list_chezmoi_delivered_target_paths)" ||
-  fail "chezmoi managed failed against source $REPO_ROOT; invariant 3 cannot be decided"
+  fail "chezmoi managed failed against source $REPO_ROOT; invariant 4 cannot be decided"
 [[ -n $DELIVERED_TARGET_PATHS ]] ||
-  fail "chezmoi managed listed no entries at all for source $REPO_ROOT; invariant 3 cannot be decided"
+  fail "chezmoi managed listed no entries at all for source $REPO_ROOT; invariant 4 cannot be decided"
 
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
@@ -155,13 +169,15 @@ for mode in diff merge; do
     fail "$mode.tool = '$tool' is not a tool git can resolve; git ${mode}tool would report an unknown tool and guess a different editor. Use a built-in name, or add ${mode}tool.<name>.cmd"
 done
 
-# ---- 2: no url rewrite targets the dead git:// protocol --------------------
+# ---- 2 and 3: key-shape prohibitions, decided from one key listing ---------
 while IFS= read -r key; do
+  is_tool_binary_path_key "$key" &&
+    fail "$key pins a tool to a literal binary path, dropping git's \$PATH lookup for a path with no fallback. Measured on git 2.55.0 against a nonexistent path, with a working nvim on \$PATH the whole time: git mergetool exits 1 and leaves the file conflicted, git difftool exits 128, both reporting 'is not available as'. Let git resolve the tool name through \$PATH instead"
   [[ $key == url.git://* ]] &&
     fail "a url rewrite targets the git:// protocol ($key); GitHub permanently disabled it on 2022-03-15, so fetches through this base cannot connect"
 done < <(git config --file "$parsed" --name-only --list)
 
-# ---- 3: global ignores resolve to a file this repo deploys ----------------
+# ---- 4: global ignores resolve to a file this repo deploys ----------------
 case "$(classify_core_excludesfile "$parsed")" in
   set)
     excludes="$(git config --file "$parsed" --get core.excludesfile)"
@@ -176,8 +192,8 @@ case "$(classify_core_excludesfile "$parsed")" in
       fail "core.excludesfile is unset, so git falls back to $GIT_DEFAULT_EXCLUDES_TARGET, but chezmoi does not deliver that path from $GIT_DEFAULT_EXCLUDES_SOURCE (present in the source tree is not enough; check .chezmoiignore); global ignores would be empty on a fresh machine"
     ;;
   *)
-    fail "core.excludesfile could not be read out of $parsed; invariant 3 cannot be decided"
+    fail "core.excludesfile could not be read out of $parsed; invariant 4 cannot be decided"
     ;;
 esac
 
-printf 'gitconfig-tool-and-url-hygiene: OK (diff.tool/merge.tool resolve, no git:// rewrite target, global ignores are deployed)\n'
+printf 'gitconfig-tool-and-url-hygiene: OK (diff.tool/merge.tool resolve, no tool pinned to a binary path, no git:// rewrite target, global ignores are deployed)\n'
