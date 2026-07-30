@@ -30,18 +30,33 @@
 #   - a pin field that is not a single hosts column (whitespace including
 #     newlines, a # that starts a hosts comment, empty, or missing) or is not a
 #     STRING (a bare YAML number or boolean) REFUSES to render;
-#   - the helper path the render names is a path chezmoi actually deploys.
+#   - two pins claiming the SAME name refuse to render, because a pin owns both
+#     of its names and the second would delete the first's record forever;
+#   - the helper path the render names is a path chezmoi actually deploys, and
+#     the runner GATES on the helper's sha256 rather than only embedding it.
 #
 # LAYER 2, BEHAVIOR (the real reconciler against temp hosts files): idempotence,
 # stale-IP correction, an exact line PLUS a stale duplicate collapses to exactly
 # one line, the filter keys on hosts FIELD STRUCTURE (grep word-boundary victims
 # like pin.example.test.evil survive), the pin owns its short name, comments and
 # blank lines survive a rebuild, every refusal exits NONZERO and says why on
-# stderr, a failed install never truncates the target and leaves no temp, a
-# SIGNAL leaves no temp either, the installed file keeps the target's mode, a
+# stderr, a failed install never truncates the target and leaves no temp, EVERY
+# trappable signal leaves no temp either, an UNREADABLE source is refused rather
+# than read as an empty file, the loopback gate cannot be satisfied by the
+# record the reconciler itself just appended, a set-but-empty seam never falls
+# back to the real /etc/hosts, the installed file keeps the target's mode, a
 # symlinked target keeps its indirection and its referent's metadata, a missing
 # trailing newline never produces a joined line, and a field that is not one
 # hosts column is refused at the entry point too.
+#
+# TWO INTERPRETERS. sudo on this machine has no secure_path, so the `bash` that
+# runs the deployed helper as root is whichever the invoking PATH resolves:
+# /opt/homebrew/bin/bash 5.3 with Homebrew ahead of the system paths, /bin/bash
+# 3.2 without it. The two disagree about when a failed redirect aborts a
+# function and about which fatal signals let an EXIT trap run, and both
+# disagreements have produced live defects here, so the cases that turn on them
+# run under EVERY interpreter this host has rather than under the one that
+# happens to be first on PATH.
 #
 # LAYER 2d, INERTNESS: hostile pin data (command substitution, backticks, a %s
 # printf directive, and single quotes, the one character shellSingleQuoted
@@ -180,9 +195,18 @@ fi
 # not. Single-quoted so $tailnet_pin_helper stays literal: it must reach the
 # rendered script as a shell variable reference, not as text the template
 # expanded at render time.
-# shellcheck disable=SC2016  # the literal $tailnet_pin_helper IS the property
-# under test; expanding it here would assert the opposite.
-helper_assignment='tailnet_pin_helper="$HOME/'"$RECONCILER_TARGET_SUFFIX"'"'
+#
+# CHEZMOI_DEST_DIR, never $HOME: under `chezmoi apply --destination X` with an
+# unchanged $HOME the two differ, and a $HOME-derived path would look for the
+# helper where nothing was deployed and abort the apply. The `:?` makes running
+# the rendered body outside chezmoi fail loudly instead of resolving to
+# /.local/libexec/... . That CHEZMOI_DEST_DIR really does name the destination
+# is executed in tailnet-pin-helper-deploy-order.sh; here the property is that
+# the runner asks for it.
+# shellcheck disable=SC2016  # the literal $tailnet_pin_helper and the literal
+# ${CHEZMOI_DEST_DIR:?...} ARE the property under test; expanding either here
+# would assert the opposite.
+helper_assignment='tailnet_pin_helper="${CHEZMOI_DEST_DIR:?chezmoi exports this to every script it runs}/'"$RECONCILER_TARGET_SUFFIX"'"'
 # shellcheck disable=SC2016
 expected_1='sudo "$tailnet_pin_helper" '"'pin.example.test' '192.0.2.7' 'pin'"
 # shellcheck disable=SC2016
@@ -202,6 +226,40 @@ grep -qF 'is missing or not executable' "$rendered" ||
 reconciler_hash="$(shasum -a 256 "$RECONCILER" | cut -d' ' -f1)"
 grep -qF "$reconciler_hash" "$rendered" ||
   fail "the rendered body does not carry the reconciler's sha256, so editing the reconciliation logic would never re-run the pins"
+# ... and the hash is CHECKED, not merely carried. `[[ -x ]]` alone let a
+# locally modified helper run as root: `chezmoi apply` without --force prompts
+# rather than overwriting a modified target, and answering "skip" leaves the
+# modified copy in place with no signal. An embedded-but-unverified hash is a
+# re-trigger token; these two lines are what make it a gate.
+grep -qxF "tailnet_pin_helper_expected_sha256='$reconciler_hash'" "$rendered" ||
+  fail "the runner does not bind the reconciler's sha256 to a variable it can compare against; expected exactly: tailnet_pin_helper_expected_sha256='$reconciler_hash'"
+grep -qF 'is not the helper this run was rendered for' "$rendered" ||
+  fail "the runner embeds the reconciler's sha256 but never refuses on a mismatch, so root would execute a locally modified helper with no signal"
+# Executed, not just grepped: the emitted gate must actually refuse a helper
+# whose bytes differ, and must pass the one it was rendered for.
+gate_block="$work/hash-gate.sh"
+{
+  printf '#!/usr/bin/env bash\nset -euo pipefail\n'
+  # Everything the runner emits between the helper assignment and the first
+  # generated pin command: both guards, not just the first `fi`.
+  awk '/^tailnet_pin_helper=/ {inside = 1} /^echo /  {inside = 0} inside' "$rendered"
+  printf 'echo GATE-PASSED\n'
+} >"$gate_block"
+grep -qF 'tailnet_pin_helper_actual_sha256' "$gate_block" ||
+  fail "the extracted guard block does not contain the hash check, so exercising it proves nothing: $(cat "$gate_block")"
+gate_dest="$work/gate-dest"
+mkdir -p "$gate_dest/$(dirname "$RECONCILER_TARGET_SUFFIX")"
+cp "$RECONCILER" "$gate_dest/$RECONCILER_TARGET_SUFFIX"
+chmod +x "$gate_dest/$RECONCILER_TARGET_SUFFIX"
+CHEZMOI_DEST_DIR="$gate_dest" bash "$gate_block" 2>"$work/hash-gate.err" |
+  grep -qxF 'GATE-PASSED' ||
+  fail "the rendered hash gate refused the very helper it was rendered for: $(cat "$work/hash-gate.err")"
+printf '\n# locally modified\n' >>"$gate_dest/$RECONCILER_TARGET_SUFFIX"
+if CHEZMOI_DEST_DIR="$gate_dest" bash "$gate_block" >/dev/null 2>"$work/hash-gate-modified.err"; then
+  fail "the rendered hash gate accepted a MODIFIED helper; root would execute it"
+fi
+grep -qF 'is not the helper this run was rendered for' "$work/hash-gate-modified.err" ||
+  fail "the hash gate refused a modified helper without saying why: $(cat "$work/hash-gate-modified.err")"
 grep -qxF 'sudo -v' "$rendered" ||
   fail "sudo -v not emitted with an empty commands list, the upfront timestamp must cover pin commands"
 if grep -qxF 'exit 0' "$rendered"; then
@@ -309,6 +367,80 @@ macos:
       ip: "192.0.2.7"
       short: 7
 EOF
+
+# ---------- LAYER 1b2b: two pins may not claim the same NAME -----------------
+# A pin OWNS both of its names: the reconciler drops every line claiming either
+# one before writing its own record. Two pins sharing a name therefore delete
+# each other's record on every apply, forever. Measured before this refusal
+# existed: pin a reported "written", pin b deleted it and reported "written",
+# and after two full apply rounds the file held only b's record while both
+# commands exited 0. Nothing downstream can detect that, so it is refused here.
+render_fixture_must_fail duplicate-short "claimed by two different pins" <<'EOF'
+macos:
+  system_setup: []
+  tailnet_pins:
+    - fqdn: a.example.test
+      ip: "192.0.2.7"
+      short: nas
+    - fqdn: b.example.test
+      ip: "192.0.2.8"
+      short: nas
+EOF
+render_fixture_must_fail duplicate-fqdn "claimed by two different pins" <<'EOF'
+macos:
+  system_setup: []
+  tailnet_pins:
+    - fqdn: a.example.test
+      ip: "192.0.2.7"
+      short: aa
+    - fqdn: a.example.test
+      ip: "192.0.2.8"
+      short: bb
+EOF
+# A short name colliding with a DIFFERENT pin's fqdn is the same collision.
+render_fixture_must_fail short-collides-with-fqdn "claimed by two different pins" <<'EOF'
+macos:
+  system_setup: []
+  tailnet_pins:
+    - fqdn: nas
+      ip: "192.0.2.7"
+      short: nx
+    - fqdn: b.example.test
+      ip: "192.0.2.8"
+      short: nas
+EOF
+# The false-positive direction, twice: distinct pins must still render, and a
+# single pin whose fqdn EQUALS its own short is not a collision (one owner, both
+# names). Without these the uniqueness rule could be "refuse every second pin"
+# and every assertion above would still pass.
+render_fixture distinct-pins <<'EOF'
+macos:
+  system_setup: []
+  tailnet_pins:
+    - fqdn: a.example.test
+      ip: "192.0.2.7"
+      short: aa
+    - fqdn: b.example.test
+      ip: "192.0.2.8"
+      short: bb
+EOF
+# shellcheck disable=SC2016
+grep -qxF 'sudo "$tailnet_pin_helper" '"'a.example.test' '192.0.2.7' 'aa'" "$work/distinct-pins.rendered" ||
+  fail "two pins with distinct names must both render; the uniqueness rule is refusing legitimate data"
+# shellcheck disable=SC2016
+grep -qxF 'sudo "$tailnet_pin_helper" '"'b.example.test' '192.0.2.8' 'bb'" "$work/distinct-pins.rendered" ||
+  fail "the second of two distinct pins did not render; the uniqueness rule is refusing legitimate data"
+render_fixture self-named-pin <<'EOF'
+macos:
+  system_setup: []
+  tailnet_pins:
+    - fqdn: nas
+      ip: "192.0.2.7"
+      short: nas
+EOF
+# shellcheck disable=SC2016
+grep -qxF 'sudo "$tailnet_pin_helper" '"'nas' '192.0.2.7' 'nas'" "$work/self-named-pin.rendered" ||
+  fail "a single pin whose fqdn equals its own short is one owner claiming one name, not a collision"
 
 # ---------- LAYER 1b3: the rendered path is a path chezmoi deploys -----------
 # The render can only name the reconciler correctly by accident unless the two
@@ -891,4 +1023,4 @@ while IFS=$'\t' read -r fqdn ip short; do
     fail "pin short name '$short' is not the first label of '$fqdn'"
 done < <(yq eval '.macos.tailnet_pins[] | [.fqdn, .ip, .short] | @tsv' "$YAML")
 
-echo "tailnet-pins: OK (exact render per pin against the deployed reconciler; malformed and non-string pin fields refuse to render; the real reconciler converges, refuses loudly, survives signals and symlinks; hostile fields stay inert; $pin_count real pin(s) well-formed)"
+echo "tailnet-pins: OK (exact render per pin against the deployed reconciler, gated on its sha256; malformed, non-string and name-colliding pins refuse to render; the real reconciler converges, refuses loudly, refuses an unreadable source and a self-satisfied loopback gate, leaves no temp after any trappable signal under ${#INTERPRETERS[@]} interpreter(s), survives symlinks; hostile fields stay inert; $pin_count real pin(s) well-formed)"

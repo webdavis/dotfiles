@@ -184,6 +184,9 @@ reconciler_hash="$(shasum -a 256 \
   "$REPO_ROOT/dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh" |
   cut -d' ' -f1)"
 [[ -n $reconciler_hash ]] || fail "could not hash the tailnet pin reconciler"
+# The hash is bound to a shell variable the runner compares the DEPLOYED helper
+# against, rather than sitting in a comment: `[[ -x ]]` alone let a locally
+# modified helper run as root.
 tier2_golden="$work/tier2.golden"
 cat >"$tier2_golden" <<'GOLDEN_EOF'
 #!/bin/bash
@@ -213,11 +216,21 @@ echo '→ MANUAL OverSight: allow its Notification Center alerts (its only outpu
 echo '→ MANUAL LuLu: approve its system extension (a one-time macOS security consent): see the runbook section LuLu system extension approval'
 echo '→ MANUAL LuLu: create the required outbound allow rules by answering its prompts: see the runbook section LuLu rule creation'
 GOLDEN_EOF
-printf '# reconcile-hosts-pin.sh hash: %s\n' "$reconciler_hash" >>"$tier2_golden"
-cat >>"$tier2_golden" <<'GOLDEN_EOF'
-tailnet_pin_helper="$HOME/.local/libexec/tailnet/reconcile-hosts-pin.sh"
+# One append, so the DERIVED hash line sits between two authored blocks without
+# three separate redirects at the same file.
+{
+  cat <<'GOLDEN_EOF'
+tailnet_pin_helper="${CHEZMOI_DEST_DIR:?chezmoi exports this to every script it runs}/.local/libexec/tailnet/reconcile-hosts-pin.sh"
+GOLDEN_EOF
+  printf "tailnet_pin_helper_expected_sha256='%s'\n" "$reconciler_hash"
+  cat <<'GOLDEN_EOF'
 if [[ ! -x $tailnet_pin_helper ]]; then
   echo "refusing to apply MagicDNS fallback pins: $tailnet_pin_helper is missing or not executable" >&2
+  exit 1
+fi
+tailnet_pin_helper_actual_sha256="$(shasum -a 256 "$tailnet_pin_helper" | cut -d ' ' -f 1)"
+if [[ $tailnet_pin_helper_actual_sha256 != "$tailnet_pin_helper_expected_sha256" ]]; then
+  echo "refusing to apply MagicDNS fallback pins: $tailnet_pin_helper is not the helper this run was rendered for (found sha256 $tailnet_pin_helper_actual_sha256, expected $tailnet_pin_helper_expected_sha256); re-run chezmoi apply so the deployed helper matches" >&2
   exit 1
 fi
 
@@ -225,6 +238,7 @@ echo '→ MagicDNS fallback pin: mister.tail2f2430.ts.net (per CLAUDE.md Tailsca
 sudo "$tailnet_pin_helper" 'mister.tail2f2430.ts.net' '100.109.58.54' 'mister'
 
 GOLDEN_EOF
+} >>"$tier2_golden"
 
 render_home="$work/render-home"
 mkdir -p "$render_home"

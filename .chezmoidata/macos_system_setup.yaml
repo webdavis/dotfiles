@@ -47,12 +47,26 @@
 # fallback when MagicDNS is down, and a stale fallback answers confidently with
 # the wrong host.
 #
-# Schema (each field is ONE /etc/hosts column; the render REFUSES a field that
-# is not a string, is empty, or carries whitespace or a #, so quote any value
-# YAML would otherwise read as a number or a boolean):
+# Schema (each field is ONE /etc/hosts column, so quote any value YAML would
+# otherwise read as a number or a boolean):
 #   - fqdn:  <string>   # MagicDNS name, ends .ts.net
 #     ip:    <string>   # the node's Tailscale CGNAT address (100.64.0.0/10)
 #     short: <string>   # the fqdn's first label
+#
+# What the render actually REFUSES, stated exactly, because "carries
+# whitespace" was written here once and was not true: a field that is not a
+# string, a field that is empty or absent, and a field matching Go's \s class
+# (space, tab, newline, carriage return, form feed) or containing #. Those are
+# the characters that split a hosts record into extra columns or extra LINES,
+# plus the one that truncates it. It is deliberately NOT any whitespace: a
+# vertical tab, U+00A0 or U+2003 splits no hosts record, so none is refused
+# here or in the helper, and the two checks agree by construction.
+#
+# NAMES ARE UNIQUE ACROSS PINS, and the render refuses a collision. A pin OWNS
+# both of its names: the helper drops every line claiming either one before
+# writing its own record. Two pins sharing a name would delete each other's
+# record on every apply, forever, each reporting success. Addresses may repeat;
+# two names mapping to one address is a valid hosts file.
 
 macos:
   system_setup:

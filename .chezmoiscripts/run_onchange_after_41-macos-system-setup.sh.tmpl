@@ -34,7 +34,20 @@ scalar (a bare `false`, or an unquoted number) silently stringifies into the
 record instead of being caught, which is why the kind is checked rather than
 documented. Same contract as the system_setup validation below: any violation
 aborts the render, so chezmoi refuses the whole apply. */ -}}
-{{ range $pin := $pins -}}
+{{- /* NAME OWNERSHIP is exclusive, so the names must be UNIQUE across pins.
+The reconciler drops every line claiming either of a pin's two names and then
+writes its own, by decision (the fallback answers for both names, so an
+unrelated line claiming one is not left to compete). Two pins sharing a name
+therefore delete each other's record on every apply, forever: the first pin
+reports "written", the second deletes it and reports "written", /etc/hosts is
+rewritten twice per apply, one declared pin never exists, and nothing is ever
+nonzero. Only NAME fields are checked, not ip: two names mapping to one address
+is a valid hosts file and destroys nothing. `$pinNameOwners` maps each name to
+the INDEX of the pin that claimed it, so a pin whose fqdn equals its own short
+is not refused (same owner) while two pins sharing a name, or two pins with the
+same fqdn, are. */ -}}
+{{ $pinNameOwners := dict -}}
+{{ range $pinIndex, $pin := $pins -}}
 {{ range $field := list "fqdn" "ip" "short" -}}
 {{ if or (not (hasKey $pin $field)) (kindIs "invalid" (index $pin $field)) (eq (toString (index $pin $field)) "") -}}
 {{ fail (printf "macos_system_setup.yaml: a tailnet pin is missing %s (or has it empty); every pin declares fqdn, ip and short" $field) -}}
@@ -45,6 +58,13 @@ aborts the render, so chezmoi refuses the whole apply. */ -}}
 {{ if regexMatch "[\\s#]" (toString (index $pin $field)) -}}
 {{ fail (printf "macos_system_setup.yaml: tailnet pin %s %q is not a single hosts column (whitespace splits the record, # truncates it)" $field (toString (index $pin $field))) -}}
 {{ end -}}
+{{ end -}}
+{{ range $nameField := list "fqdn" "short" -}}
+{{ $pinName := toString (index $pin $nameField) -}}
+{{ if and (hasKey $pinNameOwners $pinName) (ne (index $pinNameOwners $pinName) $pinIndex) -}}
+{{ fail (printf "macos_system_setup.yaml: tailnet pin %s %q is claimed by two different pins; a pin OWNS both of its names, so the second would delete the first's record on every apply and one declared pin would never exist" $nameField $pinName) -}}
+{{ end -}}
+{{ $_ := set $pinNameOwners $pinName $pinIndex -}}
 {{ end -}}
 {{ end -}}
 {{- /* Validation pass: every record must declare which control tier it
@@ -169,18 +189,34 @@ echo {{ template "shellSingleQuoted" (printf "→ MANUAL %s: see the runbook sec
      contracts; this template's only job is to hand it one pin per line.
 
      ORDERING: chezmoi writes the entire target state before ANY after-phase
-     script runs (confirmed by experiment against chezmoi 2.62.3, and the same
-     property run_after_05-osquery-known-good-manifests.sh already relies on),
-     so the helper is present and executable by the time this runner executes,
-     including on a first apply to an empty home. The guard below still checks,
-     because a partial or hand-driven apply is not the same as a full one and
-     the failure must name the missing file rather than surface as sudo's
-     "command not found".
+     script runs, so the helper is present and executable by the time this
+     runner executes, including on a first apply to an empty home. That is a
+     property of chezmoi rather than of this repo and the installed version
+     moves, so it is not asserted from memory here: it is EXECUTED against the
+     installed chezmoi on every run of
+     test/integration/tailnet-pin-helper-deploy-order.sh, which applies a
+     minimal source tree into an empty destination and fails if a before-phase
+     control does not see the helper absent and an after-phase probe in this
+     runner's own slot does not see it deployed and executable.
+     run_after_05-osquery-known-good-manifests.sh relies on the same property.
+     The guard below still checks, because a partial or hand-driven apply is not
+     the same as a full one and the failure must name the missing file rather
+     than surface as sudo's "command not found".
 
-     The helper hash is embedded in this rendered body on purpose: chezmoi
+     DEST DIR, not $HOME: chezmoi exports CHEZMOI_DEST_DIR to every script it
+     runs, and under `chezmoi apply --destination X` it is X while $HOME is
+     still the operator's home. Deriving the helper path from $HOME would look
+     for it somewhere nothing was deployed and abort every such apply.
+
+     The helper hash is embedded in this rendered body for two jobs. chezmoi
      hash-gates run_onchange_ scripts on the body alone, so without it a change
-     to the reconciliation logic would not re-run the pins. Same idiom as the
-     `plist hash:` lines in the LaunchAgent loaders.
+     to the reconciliation logic would not re-run the pins (same idiom as the
+     `plist hash:` lines in the LaunchAgent loaders). It is also CHECKED against
+     the deployed file before anything is sudo-executed: `chezmoi apply` without
+     --force prompts rather than overwriting a locally modified target, and
+     answering "skip" would otherwise leave root running a helper this render
+     never saw. An unverified hash is a re-trigger token; a verified one is a
+     gate on what runs as root.
 
      Pin data still travels as POSITIONAL ARGUMENTS and never as script text.
      Earlier versions made the fields safe in the shell and then let them
@@ -188,10 +224,15 @@ echo {{ template "shellSingleQuoted" (printf "→ MANUAL %s: see the runbook sec
      OPTION and a newline turned a -xF pattern into a pattern LIST. The helper
      compares fields only with [[ = ]], uses no grep at all, and keeps every
      printf format constant, so a % in the data is not a directive. */ -}}
-# reconcile-hosts-pin.sh hash: {{ include "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh" | sha256sum }}
-tailnet_pin_helper="$HOME/.local/libexec/tailnet/reconcile-hosts-pin.sh"
+tailnet_pin_helper="${CHEZMOI_DEST_DIR:?chezmoi exports this to every script it runs}/.local/libexec/tailnet/reconcile-hosts-pin.sh"
+tailnet_pin_helper_expected_sha256='{{ include "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh" | sha256sum }}'
 if [[ ! -x $tailnet_pin_helper ]]; then
   echo "refusing to apply MagicDNS fallback pins: $tailnet_pin_helper is missing or not executable" >&2
+  exit 1
+fi
+tailnet_pin_helper_actual_sha256="$(shasum -a 256 "$tailnet_pin_helper" | cut -d ' ' -f 1)"
+if [[ $tailnet_pin_helper_actual_sha256 != "$tailnet_pin_helper_expected_sha256" ]]; then
+  echo "refusing to apply MagicDNS fallback pins: $tailnet_pin_helper is not the helper this run was rendered for (found sha256 $tailnet_pin_helper_actual_sha256, expected $tailnet_pin_helper_expected_sha256); re-run chezmoi apply so the deployed helper matches" >&2
   exit 1
 fi
 
