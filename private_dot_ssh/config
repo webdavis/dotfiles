@@ -11,13 +11,15 @@
 # connection from ever being idle.
 #
 # KEPT DELIBERATELY, reviewed 2026-07-29, when the dotfiles pre-push hook went
-# from about six and a half minutes to 21 seconds and this rationale looked
-# spent. It is not, because one repo's hook runtime was never the scope of this
-# setting: the file is machine-wide, and every repository on the machine picks
-# its own pre-push hook through the user-wide dispatcher, so one slow hook
-# anywhere reopens the window with no warning. The cost is one packet every 20
-# seconds on a connection that would otherwise be silent. Do not re-litigate
-# this from a single repository's hook timing.
+# from about six and a half minutes to seconds and this rationale looked spent.
+# (That hook carries its own measured runtime. This file does not restate it,
+# because a second copy of a number is a second thing to go stale.) It is not
+# spent, because one repo's hook runtime was never the scope of this setting:
+# the file is machine-wide, and every repository on the machine picks its own
+# pre-push hook through the user-wide dispatcher, so one slow hook anywhere
+# reopens the window with no warning. The cost is one packet every 20 seconds
+# on a connection that would otherwise be silent. Do not re-litigate this from
+# a single repository's hook timing.
 #
 # ServerAliveCountMax does a different job and is NOT what defeats the idle
 # close: it is how many unanswered keepalives ssh sends before declaring the

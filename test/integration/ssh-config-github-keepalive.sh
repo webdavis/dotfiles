@@ -12,8 +12,9 @@
 # This config is MACHINE-WIDE while the hook is per-repository: the user-wide
 # pre-push dispatcher runs whatever hook a repository ships. So this asserts a
 # machine-wide property and is deliberately not sized to any one repository's
-# hook (the dotfiles hook is 21s today; that is not what these numbers protect).
-# The reasoning is recorded in private_dot_ssh/config, next to the setting.
+# hook (the dotfiles hook takes seconds today, and its own header carries that
+# measurement; either way it is not what these numbers protect). The reasoning
+# is recorded in private_dot_ssh/config, next to the setting.
 #
 # Asserted through ssh's OWN parser (`ssh -G`), never by grepping the file: the
 # question is what ssh RESOLVES for the name git actually connects to, and a
