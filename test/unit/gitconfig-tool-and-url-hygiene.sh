@@ -35,6 +35,11 @@ GITCONFIG_TEMPLATE="$REPO_ROOT/dot_gitconfig.tmpl"
 # and dot_bashrc.tmpl / dot_profile both export XDG_CONFIG_HOME=$HOME/.config.
 XDG_IGNORE_TARGET="$HOME/.config/git/ignore"
 XDG_IGNORE_SOURCE="dot_config/git/ignore"
+# The chezmoi entry types that put a readable file at a target path. Symlinks
+# count: git follows a symlinked ignore file (measured), so a symlink_ source
+# satisfies invariant 3 exactly as a plain file does. Directories and scripts do
+# not, which is why this is not simply `all`.
+CHEZMOI_FILE_DELIVERING_ENTRY_TYPES="files,symlinks"
 PLACEHOLDER="CHEZMOI_TEMPLATE_PLACEHOLDER"
 # Go template actions that produce control flow rather than a value. A literal
 # placeholder cannot stand in for one, so their presence means this test's
@@ -56,16 +61,16 @@ fail() {
   exit 1
 }
 
-# Answers "which absolute target paths does chezmoi deliver as files from this
-# source tree?". This is the authority on deployment: it applies .chezmoiignore
-# and every source-name prefix, neither of which a source-path existence test
-# can see. Read-only, and it lists the target state without rendering file
-# contents, so the keepassxc templates in this repo are never unlocked.
+# Answers "which absolute target paths does chezmoi deliver a readable file to
+# from this source tree?". This is the authority on deployment: it applies
+# .chezmoiignore and every source-name prefix, neither of which a source-path
+# existence test can see. Read-only, and it lists the target state without
+# rendering file contents, so the keepassxc templates here are never unlocked.
 list_chezmoi_delivered_target_paths() {
   chezmoi managed \
     --source "$REPO_ROOT" \
     --destination "$HOME" \
-    --include=files \
+    --include="$CHEZMOI_FILE_DELIVERING_ENTRY_TYPES" \
     --path-style=absolute
 }
 
@@ -95,7 +100,7 @@ command -v chezmoi >/dev/null 2>&1 ||
 DELIVERED_TARGET_PATHS="$(list_chezmoi_delivered_target_paths)" ||
   fail "chezmoi managed failed against source $REPO_ROOT; invariant 3 cannot be decided"
 [[ -n $DELIVERED_TARGET_PATHS ]] ||
-  fail "chezmoi managed listed no files at all for source $REPO_ROOT; invariant 3 cannot be decided"
+  fail "chezmoi managed listed no entries at all for source $REPO_ROOT; invariant 3 cannot be decided"
 
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
