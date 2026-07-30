@@ -60,15 +60,23 @@
 # (LOCAL BASE REMOTE MERGED) and lets git read the resolution back out of
 # MERGED. A two-file `nvim -d "$LOCAL" "$REMOTE"` never opens MERGED, so nothing
 # done in it would reach the conflicted file.
+#
+# There is deliberately no mergetool.nvimdiff.path either, and adding one is a
+# regression, not hardening. Read from git-mergetool--lib (get_merge_tool_path)
+# and mergetools/vimdiff (translate_merge_tool_path) on git 2.55.0, then
+# measured on a real conflict:
+#   without the key, git translates the tool name nvimdiff to a bare `nvim` and
+#     resolves it with `type`, i.e. a $PATH lookup, which is the same assumption
+#     core.editor = nvim above already makes;
+#   with the key, that $PATH lookup is replaced by a literal filesystem path and
+#     there is no fallback, so a different Homebrew prefix aborts the merge with
+#     "The merge tool nvimdiff is not available as '<path>'" even when a working
+#     nvim is on $PATH, leaving the file conflicted.
+# The key changes nothing in diff mode: difftool.nvimdiff.cmd below is non-empty,
+# which is what makes git skip the availability check there entirely.
 [difftool "nvimdiff"]
   # Shadows the built-in nvimdiff diff command, for `git difftool` only.
   cmd = /opt/homebrew/bin/nvim -d -u ~/.config/nvim/init.lua \"$LOCAL\" \"$REMOTE\"
-
-[mergetool "nvimdiff"]
-  # The built-in resolves its binary as a bare `nvim` on $PATH and aborts with
-  # "The merge tool nvimdiff is not available as 'nvim'" when that misses. Pin
-  # the same absolute path the difftool command above spells out.
-  path = /opt/homebrew/bin/nvim
 
 [diff]
   submodule = log
