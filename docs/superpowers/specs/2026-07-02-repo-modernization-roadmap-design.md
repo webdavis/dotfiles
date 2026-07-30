@@ -344,8 +344,9 @@ tailscaled re-copy); `just brew-upgrade`.
 
 **D. Shell environment (bash).** `dot_bashrc.tmpl` non-interactive-safe PATH half + interactive guard
 half; **login-shell carrier files** `dot_profile` (interactive-gated bashrc source, blocks herdr's
-`/bin/sh -lc` from ~90ms init) + `dot_bash_profile`; brew shellenv cache (regen `after_44` + drift
-self-heal + test); atuin daemon (LaunchAgent + `--force` + upgrade bounce `after_45` + mtime self-heal);
+`/bin/sh -lc` from ~90ms init) + `dot_bash_profile`; brew shellenv cache (bashrc self-heal guard, the one
+deployed writer `brew-shellenv-cache-refresh.sh`, and the drift test); atuin daemon (LaunchAgent +
+`--force` + upgrade bounce `after_45` + mtime self-heal);
 bash-preexec before atuin; direnv→starship→zoxide→atuin ordering; carapace; herdr auto-attach tail;
 `SHELL`→brew bash + `MANPAGER="nvim +Man!"`; starship dual config (full/mosh ASCII); ~500 readline
 bindings (`.bash_bindings` vi+emacs) + fzf widgets (`.fzf_bindings`); aliases (`.bash_aliases` + more in
@@ -529,8 +530,12 @@ section), so the retag does not remove them from SP3's scope, it just forbids me
 
 ### Consolidations
 
-- brew-shellenv regen implemented **3×** (`after_44` atomic, bashrc self-heal atomic, `justfile:73`
-  **non-atomic** truncate-race) + prefix/path constants dup in the drift test → one deployed helper [SP7].
+- ~~brew-shellenv regen implemented **3×** (`after_44` atomic, bashrc self-heal atomic, `justfile:73`
+  **non-atomic** truncate-race) + prefix/path constants dup in the drift test → one deployed
+  helper~~ **DONE (S11).** `after_44` is deleted (a templated script never runs under
+  `chezmoi apply --exclude=templates`, which is what automation uses); the bashrc self-heal is the one
+  automatic writer, and it and `just brew-cache-refresh` both run the deployed
+  `~/.local/bin/brew-shellenv-cache-refresh.sh`.
 - macos-defaults trio dup the hardcoded repo path + yq record expr + bool normalize; worktree runs hit
   the **primary** checkout's YAML → shared lib + `chezmoi source-path` [SP7].
 - Two herdr plugin build/link scripts ~85% copy-paste (+ unanchored `grep -q "$plugin_id"` link check) →
