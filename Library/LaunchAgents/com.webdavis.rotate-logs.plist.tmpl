@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.webdavis.rotate-logs</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/opt/homebrew/bin/bash</string>
+    <string>{{ .chezmoi.homeDir }}/.local/bin/rotate-logs.sh</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>HOME</key>
+    <string>{{ .chezmoi.homeDir }}</string>
+  </dict>
+  <!-- RunAtLoad false: `chezmoi apply` loads this agent, and the first pass
+       archives and truncates whatever is already oversized. Deferring that to
+       the next scheduled tick keeps an apply from reshaping ~/.local/log the
+       instant it runs. -->
+  <key>RunAtLoad</key>
+  <false/>
+  <!-- A Minute with no Hour means every hour at :15. Hourly bounds each log at
+       roughly the threshold plus one hour of growth. :15 deliberately avoids
+       :30, when the system's own newsyslog job runs. -->
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Minute</key>
+    <integer>15</integer>
+  </dict>
+  <!-- This log lives under the scanned root, so the rotator bounds its own
+       output the same way it bounds everything else. -->
+  <key>StandardOutPath</key>
+  <string>{{ .chezmoi.homeDir }}/.local/log/rotate-logs.log</string>
+  <key>StandardErrorPath</key>
+  <string>{{ .chezmoi.homeDir }}/.local/log/rotate-logs.log</string>
+</dict>
+</plist>

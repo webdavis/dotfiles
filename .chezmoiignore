@@ -57,4 +57,6 @@ Library
 .local/bin/macos-defaults-apply.sh
 .local/bin/macos-defaults-capture.sh
 .local/bin/macos-defaults-lib.sh
+# Rotation is driven by a launchd agent and reads sizes with BSD `stat -f`.
+.local/bin/rotate-logs.sh
 {{- end -}}
