@@ -47,7 +47,7 @@ galiases() {
 }
 
 # Add, amend the previous commit, force-push with lease.
-# Destructive — rewrites pushed history. --force-with-lease is the safer
+# Destructive, rewrites pushed history. --force-with-lease is the safer
 # variant of --force; still risky if collaborators have pulled.
 gacp() {
   git add "$@" && git commit --amend --no-edit && git push --force-with-lease
@@ -91,7 +91,7 @@ gp() {
 }
 
 # Push current branch to origin and set upstream tracking.
-# The original git alias hardcoded 'main' as the target — the same
+# The original git alias hardcoded 'main' as the target, the same
 # footgun pattern as the deleted `git u` alias. Fixed to use the
 # current branch name.
 gpu() {

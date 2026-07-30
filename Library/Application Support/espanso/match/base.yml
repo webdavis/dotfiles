@@ -2,7 +2,7 @@
 #
 # espanso auto-creates `match/base.yml` on first run with example triggers
 # (`:espanso`, `:date`, `:shell`). chezmoi-managing it as an empty file
-# keeps the auto-bootstrap from re-introducing those examples — and from
+# keeps the auto-bootstrap from re-introducing those examples, and from
 # becoming a kitchen-sink dumping ground that accumulates duplicates with
 # the dedicated files (autocorrect-spelling.yml, snippets.yml, _pqi.yml,
 # identity.yml).

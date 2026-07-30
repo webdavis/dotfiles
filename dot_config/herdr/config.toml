@@ -15,7 +15,7 @@ shell_mode = "auto"
 # one-dark, solarized, kanagawa, rose-pine, vesper).
 name = "catppuccin"
 
-# [ui] scalar keys must precede the [ui.*] subtables below — TOML forbids
+# [ui] scalar keys must precede the [ui.*] subtables below, TOML forbids
 # reopening a table once a subtable has started.
 [ui]
 # Show detected/reported agent labels in split-pane borders when no manual pane
@@ -49,7 +49,7 @@ switch_ascii_input_source_in_prefix = true
 [keys]
 prefix = "ctrl+d"
 
-# Workspace picker (already the herdr default — set explicitly for documentation).
+# Workspace picker (already the herdr default, set explicitly for documentation).
 goto = "prefix+g"
 
 # Rename current tab.
@@ -58,14 +58,14 @@ rename_tab = "prefix+comma"
 # Agent-pane navigation, on the alt modifier so it stays clear of tab nav
 # (herdr's plain prefix+n/prefix+p + prefix+1..9) and the prefix+ctrl+<letter>
 # workspace chords. Three nav axes, three modifier tiers. prefix+alt may depend
-# on terminal handling — Ghostty is fine; verify if a chord misfires.
+# on terminal handling, Ghostty is fine; verify if a chord misfires.
 next_agent = "prefix+alt+n"
 previous_agent = "prefix+alt+p"
 focus_agent = "prefix+alt+1..9"
 
-# Splits — deliberately crossed against herdr's defaults to preserve tmux muscle memory.
+# Splits, deliberately crossed against herdr's defaults to preserve tmux muscle memory.
 # herdr names splits by divider orientation; tmux by motion direction. Opposite words,
-# same physical result. DO NOT "fix" the cross — it is the intended mapping.
+# same physical result. DO NOT "fix" the cross, it is the intended mapping.
 #   prefix+" → top/bottom stack (tmux: split horizontally with `-`)
 #   prefix+% → side-by-side    (tmux: split vertically with `|`)
 split_horizontal = "prefix+\""
@@ -74,7 +74,7 @@ split_vertical = "prefix+%"
 # Workspace sidebar navigation in herdr's built-in navigate mode (entered via
 # prefix+w). ctrl+p/ctrl+n (up/down) instead of plain k/j so they don't collide
 # with navigate_pane's k/j (a plain-key clash there disables pane up/down in
-# navigate mode). Not a custom key table — built-in mode, so it coexists with
+# navigate mode). Not a custom key table, built-in mode, so it coexists with
 # the no-multi-step-bindings constraint.
 navigate_workspace_up = "ctrl+p"
 navigate_workspace_down = "ctrl+n"
@@ -98,8 +98,8 @@ swap_pane_right = "prefix+alt+l"
 # 8 workspaces in a namespace empty in herdr defaults and structurally unlikely
 # to be claimed upstream. Each calls herdr-jump.sh <label> <cwd>, which focuses
 # the existing workspace with that label or creates it if absent. The helper is
-# required because `herdr workspace create` is NOT idempotent — it spawns a new
-# workspace on every invocation — and `herdr workspace focus` takes an id, not a
+# required because `herdr workspace create` is NOT idempotent, it spawns a new
+# workspace on every invocation, and `herdr workspace focus` takes an id, not a
 # label, so there is no single built-in create-or-focus command.
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -158,8 +158,8 @@ command = "$HOME/.local/bin/herdr-jump.sh plantpulse $HOME/workspaces/Ivy/hobbie
 description = "jump to plantpulse workspace"
 
 # Workspace-level back-and-forth (a true "last_workspace" MRU toggle). herdr has
-# no builtin for this — last_pane (prefix+\) is pane-level, previous_workspace is
-# positional — so the herdr-last-workspace plugin tracks workspace focus via
+# no builtin for this, last_pane (prefix+\) is pane-level, previous_workspace is
+# positional, so the herdr-last-workspace plugin tracks workspace focus via
 # the workspace.focused event and its `last_workspace` action focuses the previous
 # one. Unlike a key-bound script, the plugin sees mouse/picker switches too. The
 # key is the user's choice; prefix+ctrl+\ is the default. Pairs with last_pane:
@@ -171,7 +171,7 @@ command = "herdr-last-workspace.last_workspace"
 description = "last workspace (MRU toggle, via plugin)"
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# Pane / split focus — raw Ctrl-h/j/k/l navigate seamlessly across Neovim splits
+# Pane / split focus, raw Ctrl-h/j/k/l navigate seamlessly across Neovim splits
 # AND herdr panes. herdr-smart-nav is the conditional herdr lacks: if the
 # focused pane runs Neovim it forwards the keystroke into nvim (smart-splits.nvim
 # moves the split, or at a split edge calls `herdr pane focus` to cross into the
@@ -206,7 +206,7 @@ command = "herdr-smart-nav.nav_right"
 description = "nav right: Neovim split or herdr pane"
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# Clear screen — raw Ctrl-l is taken by pane-focus-right above, so prefix+shift+l
+# Clear screen, raw Ctrl-l is taken by pane-focus-right above, so prefix+shift+l
 # sends a literal Ctrl-l to the focused pane, giving back bash's clear-screen
 # (readline clear-screen: no command, no history entry). prefix+shift+l was
 # herdr's default swap_pane_right, relocated to prefix+alt+l above to free it.

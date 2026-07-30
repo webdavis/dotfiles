@@ -209,7 +209,7 @@ blacklist = ["popup", "scratch"]
 
 ### 4.2 Default session
 
-Smart startup script — no auto-open editor/IDE. The `startup_command` calls
+Smart startup script, no auto-open editor/IDE. The `startup_command` calls
 `~/.config/sesh/scripts/smart-startup.sh {}` which:
 
 - Shows `git status -sb` under a styled "Git" header
@@ -661,7 +661,7 @@ pushing workflow changes.
 
 ### 10.4 act configuration and isolation
 
-No global `~/.actrc` — different projects need different runner configurations. Each project that uses
+No global `~/.actrc`: different projects need different runner configurations. Each project that uses
 `act` gets its own `.actrc` in the repo root (which `act` reads automatically). For this chezmoi dotfiles
 project, add:
 
@@ -866,7 +866,7 @@ Add `gh auth git-credential` as the HTTPS credential helper for github.com and g
     helper = !/opt/homebrew/bin/gh auth git-credential
 ```
 
-Complements the existing SSH URL rewrites — provides clean HTTPS auth for `gh` operations and any HTTPS
+Complements the existing SSH URL rewrites, provides clean HTTPS auth for `gh` operations and any HTTPS
 git interactions.
 
 ______________________________________________________________________

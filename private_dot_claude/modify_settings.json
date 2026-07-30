@@ -121,7 +121,7 @@
 
 {{- /* --- stable: skill tiering (on-demand skills load only when the user
        invokes them). Source of truth: the tiers table in
-       dot_agents/custom-skill-lock.json — every on-demand skill gets exactly
+       dot_agents/custom-skill-lock.json, every on-demand skill gets exactly
        one entry here, core skills get none, and test/unit/skills-roster-fanout.sh
        fails the build when the two sets diverge. Per-key setValueAtPath (not
        one whole-dict overwrite) so overrides the user sets for other skills

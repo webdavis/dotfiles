@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# skills-roster-fanout.sh — the committed skills roster, the lock's tier /
+# skills-roster-fanout.sh, the committed skills roster, the lock's tier /
 # hermes-profile / hermes-registry / npx-provenance tables, and the per-harness
 # declarations must agree, forever.
 #
@@ -9,7 +9,7 @@
 # skills (the lock's clawhubTracked table; their store copies are installed by
 # the `clawhub` CLI, not vendored). Rules:
 #   1. Claude (private_dot_claude/skills) declares exactly one store symlink
-#      per roster skill — the full roster reaches Claude regardless of
+#      per roster skill, the full roster reaches Claude regardless of
 #      provenance.
 #   2. The lock's tiers table covers exactly the roster; every value is
 #      "core" or "on-demand".
@@ -34,9 +34,10 @@
 #   7. The hermes symlink declarations equal the non-empty hermesProfiles map
 #      exactly: each store-symlinked skill is declared in exactly its mapped
 #      skills dirs ("default" = dot_hermes/skills, any other profile =
-#      dot_hermes/profiles/<name>/skills) with the correct relative target for
-#      that dir's depth, no stray declarations.
-#   8. Collision-named skills (humanizer, hyperframes — hermes's catalog wins
+#      dot_hermes/profiles/<name>/skills, where the source dir may carry a
+#      private_ prefix) with the correct relative target for that dir's depth,
+#      no stray declarations.
+#   8. Collision-named skills (humanizer, hyperframes, hermes's catalog wins
 #      those names) are never declared in any hermes skills dir and never
 #      carry a non-empty hermesProfiles mapping, regardless of what the other
 #      tables say. summarize-pro and todoist-cli left this set: their only
@@ -186,7 +187,7 @@ bad_registry="$(jq -r '.hermesRegistry // {} | to_entries[]
 store_symlinked="$(jq -r '.hermesProfiles | to_entries[] | select((.value | length) > 0) | .key' "$LOCK" | sort)"
 both="$(comm -12 <(printf '%s\n' "$registry_keys") <(printf '%s\n' "$store_symlinked"))"
 [[ -z $both ]] ||
-  fail "a skill is BOTH hermes-owned (hermesRegistry) and store-symlinked (hermesProfiles) — reconcile: $both"
+  fail "a skill is BOTH hermes-owned (hermesRegistry) and store-symlinked (hermesProfiles), reconcile: $both"
 
 # --- Rule 6b: every profile the lock names is a real hermes profile ----------
 # A typo like "nicodemas" passes the non-empty check but is then silently never
@@ -203,7 +204,7 @@ stray_profile="$(comm -23 <(printf '%s\n' "$lock_profiles") <(printf '%s\n' "$kn
 # the updater to compute the set from the lock so a new specialist is walked
 # automatically. Default's un-entanglement is DONE (2026-07-09): no registry
 # entry has a store-symlinked install path anymore, so the old
-# `grep -vx default` exclusion is retired and must not creep back — default is
+# `grep -vx default` exclusion is retired and must not creep back, default is
 # walked exactly like any other profile. (The derivation's correctness and
 # per-profile failure isolation are exercised against a fixture lock in
 # test/update-skills-hermes-phase.sh.)
@@ -212,10 +213,10 @@ if ! grep -q 'hermesRegistry.*profiles' "$updater"; then
   fail "update-skills.sh must derive the hermes-update profiles from the lock (hermesRegistry)"
 fi
 if grep -q 'grep -vx default' "$updater"; then
-  fail "update-skills.sh still excludes the default profile — its un-entanglement is done; walk it like any other"
+  fail "update-skills.sh still excludes the default profile, its un-entanglement is done; walk it like any other"
 fi
 if grep -q 'HERMES_UPDATE_PROFILES=(' "$updater"; then
-  fail "update-skills.sh still hardcodes HERMES_UPDATE_PROFILES — derive it from the lock instead"
+  fail "update-skills.sh still hardcodes HERMES_UPDATE_PROFILES, derive it from the lock instead"
 fi
 
 # --- Rule 7: hermes declarations == the non-empty hermesProfiles map --------
@@ -258,7 +259,17 @@ actual_hermes="$(
       target="$(<"$entry")"
       [[ $target == "${expected_prefix}${skill}" ]] ||
         fail "declaration ${dir#"$REPO_ROOT"/}/$base points at '$target' (expected '${expected_prefix}${skill}')"
-      printf '%s/%s\n' "${dir#"$REPO_ROOT"/}" "$skill"
+      # A profile source dir may carry a private_ prefix, which is a chezmoi mode
+      # attribute and not part of the target identity this rule pins. Compare on
+      # the target spelling so the rule stays about which skill reaches which
+      # profile. Failure messages above keep the source spelling, so they still
+      # name a file that exists.
+      compared_dir="${dir#"$REPO_ROOT"/}"
+      if [[ $compared_dir == dot_hermes/profiles/*/skills ]]; then
+        profile_source="${compared_dir#dot_hermes/profiles/}"
+        compared_dir="dot_hermes/profiles/$(target_name "${profile_source%/skills}")/skills"
+      fi
+      printf '%s/%s\n' "$compared_dir" "$skill"
     done
   done < <(hermes_declaration_dirs) | sort
 )"
@@ -276,11 +287,11 @@ fi
 collision_names=(humanizer hyperframes)
 for collision in "${collision_names[@]}"; do
   if [[ -n $actual_hermes ]] && printf '%s\n' "$actual_hermes" | grep -q "/${collision}$"; then
-    fail "collision-named skill '$collision' is declared in a hermes skills dir (catalog wins — never declare it)"
+    fail "collision-named skill '$collision' is declared in a hermes skills dir (catalog wins, never declare it)"
   fi
   collision_profiles="$(jq -r --arg s "$collision" '.hermesProfiles[$s] // [] | length' "$LOCK")"
   [[ $collision_profiles == "0" ]] ||
-    fail "collision-named skill '$collision' has a non-empty hermesProfiles mapping (catalog wins — must be [])"
+    fail "collision-named skill '$collision' has a non-empty hermesProfiles mapping (catalog wins, must be [])"
 done
 
 roster_count="$(printf '%s\n' "$roster_sorted" | wc -l | tr -d ' ')"

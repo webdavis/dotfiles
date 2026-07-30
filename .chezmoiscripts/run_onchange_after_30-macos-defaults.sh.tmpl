@@ -1,6 +1,19 @@
+{{- /* shellSingleQuoted, the one place a data field becomes a shell word. It
+wraps the value in POSIX single quotes and rewrites every embedded single quote
+as the four characters '\'' (close, escaped quote, reopen). Bash performs NO
+expansion of any kind inside single quotes, so a field carrying $(...), a
+backtick or $VAR arrives at `defaults` as literal text.
+Two near-misses this deliberately avoids. sprig's `quote` emits a Go %q
+DOUBLE-quoted string: it escapes " and \, so nothing can break OUT of the
+quotes, but bash still expands $(...), backticks and $VAR INSIDE them, so a
+value of $(id -un) executed. sprig's `squote` wraps in single quotes WITHOUT
+escaping embedded ones, so a value containing an apostrophe breaks out.
+Defined at file scope because Go's text/template only accepts {{ define }} at
+the top level of a file, never nested inside an action. */ -}}
+{{- define "shellSingleQuoted" }}{{ printf "'%s'" (replace "'" "'\\''" (toString .)) }}{{ end -}}
 {{ if eq .chezmoi.os "darwin" -}}
 #!/bin/bash
-# Tier 1 — macOS user defaults runner.
+# Tier 1, macOS user defaults runner.
 # chezmoi hash-gates on the rendered template body; this script re-runs only
 # when .chezmoidata/macos_defaults.yaml changes.
 
@@ -10,14 +23,263 @@ set -euo pipefail
 # Settings and writes them back on close, silently overwriting our writes.
 osascript -e 'tell application "System Settings" to quit' 2>/dev/null || true
 
-# Main loop: one `defaults write` per record.
+{{ $hasSystemScopeRecord := false -}}
+{{- /* The directories an EXPLICIT plist_path may name, grown deliberately,
+one product at a time. An explicit path bypasses the domain construction that
+keeps default system records inside /Library/Preferences, so without this
+list a single record could aim the sudo write at any absolute path on the
+disk. Containment first (the .. checks below), then membership here.
+/Library/Preferences/ is permitted because an explicit path there names
+nothing the default construction could not already reach. */ -}}
+{{ $plistPathAllowedDirectories := list "/Library/Objective-See/LuLu/" "/Library/Preferences/" -}}
+{{- /* Validation pass: every record must declare which control tier it
+belongs to, and its payload must MATCH the declared tier, before anything
+renders. The tier decides what the record IS; the payload never does
+(identity is not presence). Every optional field is read through
+hasKey/index, NEVER the bare dotted-field form: Go's text/template errors
+with `map has no entry for key "scope"` on that form when a record omits the
+key, which turns a loud, specific refusal into an opaque template panic. Any
+violation ABORTS the render via fail, so chezmoi refuses the whole apply:
+no warning, no skipped record, no partial best-effort script. */ -}}
+{{- /* The SHAPE, before any record. `range` accepts a map as readily as a list
+and iterates it in sorted KEY order, while macos-defaults-lib.sh reads the same
+file through yq in DOCUMENT order. Both would accept a map, silently, and apply
+the records in different orders; order is what decides which write lands last
+when two records share a domain and key. Refused rather than reconciled, because
+a map is not the declared schema and standardizing on one order would leave the
+other reader's agreement a coincidence. The library refuses the same shape. */ -}}
+{{ if ne (kindOf .macos.defaults) "slice" -}}
+{{ fail (printf "macos_defaults.yaml: .macos.defaults is a %s, but it must be a LIST of records; a map is iterated in sorted key order here and in document order by macos-defaults-lib.sh, so the two would apply records in different orders" (kindOf .macos.defaults)) -}}
+{{ end -}}
 {{ range .macos.defaults -}}
-defaults {{ if index . "host" }}-currentHost {{ end }}write {{ .domain | quote }} {{ .key | quote }} -{{ .type }} {{ .value | quote }}
+{{ $record := . -}}
+{{- /* Identity first. The domain and key name the record in every error
+below, and a blank one (an absent key and a blank scalar are both nil) would
+otherwise surface as the stringified literal <nil>. */ -}}
+{{ range $identityField := list "domain" "key" -}}
+{{ if kindIs "invalid" (index $record $identityField) -}}
+{{ fail (printf "macos_defaults.yaml: record %v %v has a blank %s; give it a value or remove the field" (index $record "domain") (index $record "key") $identityField) -}}
+{{ end -}}
+{{ end -}}
+{{- /* The control tier is REQUIRED: enforce (settable, render the write),
+verify (readable but not settable, drift detection only, render NO write), or
+manual (interactive or profile-managed, render a runbook pointer only). Three
+distinct refusals so the error names what is actually wrong: a missing field,
+a blank scalar (nil, which would otherwise stringify to the literal text
+<nil>), or a value outside the closed set. A set-but-empty tier is rejected
+as an unrecognized VALUE, never conflated with an absent field. */ -}}
+{{ if not (hasKey . "tier") -}}
+{{ fail (printf "macos_defaults.yaml: record %s %s has no tier; declare tier: enforce, verify, or manual" .domain .key) -}}
+{{ end -}}
+{{ if kindIs "invalid" (index . "tier") -}}
+{{ fail (printf "macos_defaults.yaml: record %s %s has a blank tier; declare tier: enforce, verify, or manual" .domain .key) -}}
+{{ end -}}
+{{ $tier := toString (index . "tier") -}}
+{{ if not (has $tier (list "enforce" "verify" "manual")) -}}
+{{ fail (printf "macos_defaults.yaml: unrecognized tier %q on record %s %s (expected enforce, verify, or manual)" $tier .domain .key) -}}
+{{ end -}}
+{{- /* The shared library refuses a whole data file whose record stream would be
+ambiguous, because a newline or a unit separator inside a field can forge a
+second record. Without the same rule here, one file would RENDER cleanly and
+then make every tool refuse it, and the operator would learn about it from a
+broken `just D` rather than at apply time. Reject at the same boundary. */ -}}
+{{ range $streamField := list "domain" "key" "value" "plist_path" -}}
+{{ $streamValue := toString (index $record $streamField | default "") -}}
+{{ if or (contains "\n" $streamValue) (contains "\x1f" $streamValue) -}}
+{{ fail (printf "macos_defaults.yaml: record %v %v has a %s containing a newline or a unit separator, which the record stream cannot represent unambiguously" (index $record "domain") (index $record "key") $streamField) -}}
+{{ end -}}
+{{ end -}}
+{{ if eq $tier "manual" -}}
+{{- /* A manual control is an identity plus a runbook pointer, nothing else.
+The runbook section name is REQUIRED, and absent, blank, and empty are three
+ways of pointing nowhere, each refused by name. Every write and read
+qualifier is refused too: a payload on a control the runner must never touch
+means the declared tier is wrong, and catching the lie here is the whole
+point of declaring tiers in data. */ -}}
+{{ if not (hasKey . "runbook") -}}
+{{ fail (printf "macos_defaults.yaml: manual record %s %s has no runbook; a manual control must name its runbook section" .domain .key) -}}
+{{ end -}}
+{{ if kindIs "invalid" (index . "runbook") -}}
+{{ fail (printf "macos_defaults.yaml: manual record %s %s has a blank runbook; name the runbook section" .domain .key) -}}
+{{ end -}}
+{{ if eq (toString (index . "runbook")) "" -}}
+{{ fail (printf "macos_defaults.yaml: manual record %s %s has an empty runbook; name the runbook section" .domain .key) -}}
+{{ end -}}
+{{ range $forbiddenField := list "type" "value" "host" "scope" "plist_path" -}}
+{{ if hasKey $record $forbiddenField -}}
+{{ fail (printf "macos_defaults.yaml: manual record %v %v carries %s; a manual control renders no write, so a write payload means the declared tier is wrong" (index $record "domain") (index $record "key") $forbiddenField) -}}
+{{ end -}}
+{{ end -}}
+{{ else -}}
+{{- /* enforce and verify records carry the full read/write payload: for
+enforce it is the write, for verify it is the read the drift checker compares
+and the value it must hold. The same validation covers both, so a control
+moving between the two tiers is a one-line data change. An absent scope means
+user; a present one must be exactly user or system, and system cannot pair
+with host (ByHost storage is per-user). */ -}}
+{{ $scope := "user" -}}
+{{ if hasKey . "scope" }}{{ $scope = index . "scope" }}{{ end -}}
+{{ if and (ne $scope "user") (ne $scope "system") -}}
+{{ fail (printf "macos_defaults.yaml: unknown scope %q on record %s %s (expected user or system)" $scope .domain .key) -}}
+{{ end -}}
+{{ if and (eq $scope "system") (index . "host") -}}
+{{ fail (printf "macos_defaults.yaml: record %s %s combines scope system with host; ByHost storage is per-user" .domain .key) -}}
+{{ end -}}
+{{- /* The type is the ONE field rendered into shell source unquoted, because it
+becomes an option word (-bool, -int). Unquoted interpolation of data into shell
+syntax is command injection: a type of `bool true; some-command #` renders a
+valid write followed by an attacker's command, and on a system record that runs
+under the sudo credential the prelude just cached. Quoting is not the fix, since
+`defaults` needs a bare option word, so the type is constrained to a closed set
+instead. Every OTHER field goes through the shellSingleQuoted template defined
+at the top of this file, which stops bash from expanding anything inside it.
+What that does NOT promise: the field still reaches `defaults` as an argument,
+so it must still be a value `defaults` accepts, and the closed set above remains
+the only thing guarding the type. */ -}}
+{{ if not (has .type (list "array" "bool" "data" "date" "dict" "float" "int" "string")) -}}
+{{ fail (printf "macos_defaults.yaml: unsupported type %q on record %s %s; expected one of array bool data date dict float int string" .type .domain .key) -}}
+{{ end -}}
+{{- /* A blank YAML scalar parses as nil, and `toString nil` is the literal text
+"<nil>". Left alone, a mistyped `value:` would be WRITTEN, as root on a system
+record, as the four characters <nil>. The previous quoting happened to render
+nothing there, which made `defaults` reject the line and abort the run, so
+silently accepting it now would be a fail-open regression rather than a new
+convenience. Reject it instead, which is louder than either behavior and says
+which field is at fault. An empty STRING is still legitimate and unaffected: it
+is a value, not a missing one. */ -}}
+{{ if kindIs "invalid" (index $record "value") -}}
+{{ fail (printf "macos_defaults.yaml: record %v %v has a blank value; give it a value or remove the field" (index $record "domain") (index $record "key")) -}}
+{{ end -}}
+{{- /* A plist_path is meaningful only for a system record. The shared tools
+reject the pairing already; without this the template would silently IGNORE the
+declared path and write the user domain, which is a malformed record producing a
+plausible-looking result. */ -}}
+{{ if and (ne $scope "system") (index . "plist_path") -}}
+{{ fail (printf "macos_defaults.yaml: record %s %s declares plist_path outside scope system" .domain .key) -}}
+{{ end -}}
+{{- /* Containment. `hasPrefix "/"` answers "does this start with a slash", which
+is a PROXY for the real question, "does this resolve where I intend to write".
+They diverge exactly where it matters: /Library/Preferences/../../etc/x starts
+with a slash and resolves to /etc/x, written as root. A defaults domain is
+reverse-DNS and never legitimately contains a slash, so rejecting one keeps the
+default construction contained by construction rather than by a later check. */ -}}
+{{ if eq $scope "system" -}}
+{{ if contains "/" .domain -}}
+{{ fail (printf "macos_defaults.yaml: system-scope domain %q on record %s contains a slash; it would escape the default plist directory" .domain .key) -}}
+{{ end -}}
+{{- /* Degenerate targets. A domain that is empty or nothing but dots resolves
+to /Library/Preferences/, /Library/Preferences/. or /Library/Preferences/..,
+none of which escape the directory (`defaults` appends .plist) and none of which
+name a file anybody meant to write. Hygiene, not containment, but the stated
+rule is "does this resolve where I intend to write" and these do not. */ -}}
+{{ if eq (trimAll "." .domain) "" -}}
+{{ fail (printf "macos_defaults.yaml: system-scope domain %q on record %s is empty or nothing but dots; it names no plist" .domain .key) -}}
+{{ end -}}
+{{ $declaredPath := index . "plist_path" | default "" -}}
+{{ if or (hasPrefix "../" $declaredPath) (contains "/../" $declaredPath) (hasSuffix "/.." $declaredPath) -}}
+{{ fail (printf "macos_defaults.yaml: system-scope plist_path %q on record %s %s contains a parent-directory component" $declaredPath .domain .key) -}}
+{{ end -}}
+{{ if eq $declaredPath "/" -}}
+{{ fail (printf "macos_defaults.yaml: system-scope plist_path %q on record %s %s is the filesystem root; it names no plist" $declaredPath .domain .key) -}}
+{{ end -}}
+{{- /* Membership: an explicit path must sit under one of the permitted plist
+directories above. The .. checks keep the path from ESCAPING what it names;
+this keeps what it names inside the directories that were granted on
+purpose. */ -}}
+{{ if ne $declaredPath "" -}}
+{{ $plistPathPermitted := false -}}
+{{ range $allowedDirectory := $plistPathAllowedDirectories -}}
+{{ if hasPrefix $allowedDirectory $declaredPath }}{{ $plistPathPermitted = true }}{{ end -}}
+{{ end -}}
+{{ if not $plistPathPermitted -}}
+{{ fail (printf "macos_defaults.yaml: plist_path %q on record %s %s is outside every permitted plist directory (%s); grant the directory deliberately in the template or use the default /Library/Preferences form" $declaredPath .domain .key (join ", " $plistPathAllowedDirectories)) -}}
+{{ end -}}
+{{ end -}}
+{{ end -}}
+{{ if eq $tier "enforce" -}}
+{{- /* Nothing consumes a runbook on an enforced control, and silently
+ignored data is how a mislabeled tier hides; refuse it. On a verify record a
+runbook is allowed: the posture check that consumes verify records can point
+the operator at the fix for a detected drift. */ -}}
+{{ if hasKey . "runbook" -}}
+{{ fail (printf "macos_defaults.yaml: enforce record %s %s carries runbook; either drop the field or declare the tier that consumes it" .domain .key) -}}
+{{ end -}}
+{{- /* Only an ENFORCED system record needs the sudo prelude: a verify record
+never writes, so it must never cost a credential prompt either. */ -}}
+{{ if eq $scope "system" }}{{ $hasSystemScopeRecord = true }}{{ end -}}
+{{ end -}}
+{{ end -}}
+{{ end -}}
+{{ if $hasSystemScopeRecord -}}
+# Sudo prelude: at least one record targets a root-owned system plist, so
+# validate sudo once, up front, before any write.
+sudo -v
+# system_defaults_write <plist_path> <key> <-type> <value>: one system-scope
+# write, then a root:wheel 0644 repair of the file `defaults` just replaced.
+# `defaults write` recreates its target as a root-owned 0600 binary plist
+# (verified on a copy, 2026-07-27), and an unreadable plist blinds the
+# unprivileged drift reader (`just D`) on every later run, so an unrepaired
+# write defeats the very drift check that verifies it. The repair is PER
+# WRITE, never a trailing chmod: under set -e a failed later write ends this
+# run before any trailing cleanup, leaving the writes that DID land
+# unreadable. The write's own failure is re-raised AFTER the repair; a failed
+# write that left no file behind skips the repair rather than failing on the
+# missing path. Mirrors system_defaults_write in macos-defaults-lib.sh, which
+# repairs the apply tool's writes the same way.
+system_defaults_write() {
+  local plist_path="$1" key="$2" type_option="$3" value="$4"
+  local write_status=0 written_file="$plist_path"
+  [[ $written_file == *.plist ]] || written_file="$written_file.plist"
+  sudo defaults write "$plist_path" "$key" "$type_option" "$value" || write_status=$?
+  if [[ $write_status -eq 0 || -e $written_file ]]; then
+    sudo chown root:wheel "$written_file"
+    sudo chmod 644 "$written_file"
+  fi
+  return "$write_status"
+}
+{{ end -}}
+# Main loop: one `defaults write` per record.
+{{- /* Per ENFORCE record, that is. The branch below decides by the DECLARED
+tier: verify renders nothing at all (the write branch is not taken, so this
+runner physically cannot set a verify control; the drift checker reads the
+record straight from the data file), and manual renders only a pointer at the
+runbook section that sets it by hand, through the same single-quoting helper
+as every other data field. The trailing refusal is unreachable while the
+validation pass above holds, and stays so this loop can never fail open into
+a write if the two passes ever drift apart. Its message deliberately differs
+from the validation pass's, naming this loop as the site that caught the
+record: with byte-identical messages either copy could vanish and every test
+would stay green on the other's output, so the distinct marker is what lets
+each site be pinned alone. Do not quote the marker text in this comment; the
+source-form pin greps for it and a comment copy would satisfy the grep with
+the refusal gone. */}}
+{{ range .macos.defaults -}}
+{{ $tier := toString (index . "tier") -}}
+{{ if eq $tier "enforce" -}}
+{{ $scope := "user" -}}
+{{ if hasKey . "scope" }}{{ $scope = index . "scope" }}{{ end -}}
+{{ if eq $scope "system" -}}
+{{- /* An absent or empty plist_path means the default system location; a
+declared path must be absolute, never resolved against a working directory. */ -}}
+{{ $plistPath := index . "plist_path" | default (printf "/Library/Preferences/%s" .domain) -}}
+{{ if not (hasPrefix "/" $plistPath) -}}
+{{ fail (printf "macos_defaults.yaml: relative plist_path %q on record %s %s; an absolute path is required" $plistPath .domain .key) -}}
+{{ end -}}
+system_defaults_write {{ template "shellSingleQuoted" $plistPath }} {{ template "shellSingleQuoted" .key }} -{{ .type }} {{ template "shellSingleQuoted" .value }}
+{{ else -}}
+defaults {{ if index . "host" }}-currentHost {{ end }}write {{ template "shellSingleQuoted" .domain }} {{ template "shellSingleQuoted" .key }} -{{ .type }} {{ template "shellSingleQuoted" .value }}
+{{ end -}}
+{{ else if eq $tier "verify" -}}
+{{ else if eq $tier "manual" -}}
+echo {{ template "shellSingleQuoted" (printf "manual control %s %s: not settable here; see the runbook section %s" .domain .key (toString (index . "runbook"))) }}
+{{ else -}}
+{{ fail (printf "macos_defaults.yaml: unrecognized tier %q on record %s %s reached the render loop; the validation pass no longer rejects it" $tier .domain .key) -}}
+{{ end -}}
 {{ end -}}
 
 # Post-loop: restart user-facing processes so changes take effect immediately.
 # cfprefsd kill is non-negotiable (caches plist values in memory).
 {{ range .macos.killall -}}
-killall {{ . | quote }} 2>/dev/null || true
+killall {{ template "shellSingleQuoted" . }} 2>/dev/null || true
 {{ end }}
 {{- end }}

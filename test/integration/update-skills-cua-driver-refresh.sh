@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# update-skills-cua-driver-refresh.sh — proves the weekly app-owned skill-pack
+# update-skills-cua-driver-refresh.sh, proves the weekly app-owned skill-pack
 # refresh: cua-driver's store entry is a symlink into the app's own dir, and
 # the ONLY sanctioned refresh is the app's own updater (`cua-driver skills
 # update`, which re-fetches the pack from GitHub Releases). The real script
@@ -9,10 +9,10 @@
 #   2. --install-only never invokes it (network-dependent pass).
 #   3. --dry-run reports a would-run line and invokes it zero times.
 #   4. No store symlink for cua-driver => zero invocations (the refresh is
-#      gated on the roster actually delivering the app-owned entry — this is
+#      gated on the roster actually delivering the app-owned entry, this is
 #      also what keeps other sandboxed tests off the REAL binary).
 #   5. cua-driver off PATH => graceful skip (exit 0, skip line), never a
-#      failure — half-provisioned machines must survive the weekly run.
+#      failure, half-provisioned machines must survive the weekly run.
 #   6. Failure isolation: the stub exits non-zero, the run logs a WARN and
 #      still exits 0 (one broken pass must never kill the weekly run).
 set -euo pipefail
@@ -111,7 +111,7 @@ printf '%s\n' "$dry_output" | grep -q "would run: cua-driver skills update" ||
 rm "$HOME/.agents/skills/cua-driver"
 UPDATE_SKILLS_FORCE=1 bash "$SCRIPT" >/dev/null 2>&1 || fail "full run without the store symlink failed"
 [[ ! -s $cua_log ]] ||
-  fail "the refresh ran without a store cua-driver symlink (gating lost — sandboxed tests would hit the real binary): $(cat "$cua_log")"
+  fail "the refresh ran without a store cua-driver symlink (gating lost, sandboxed tests would hit the real binary): $(cat "$cua_log")"
 ln -s "$HOME/.cua-driver/skills/cua-driver" "$HOME/.agents/skills/cua-driver"
 
 # ── 5. cua-driver off PATH: graceful skip ──────────────────────────────────

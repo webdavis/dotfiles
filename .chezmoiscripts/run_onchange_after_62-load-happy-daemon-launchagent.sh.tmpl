@@ -12,7 +12,7 @@ TARGET="gui/$(id -u)/com.webdavis.happy-daemon"
 
 # Re-bootstrap the LaunchAgent so a changed plist takes effect. launchd's
 # user-domain registry sometimes still holds the previous registration when
-# bootstrap fires right after bootout — the call returns EIO. Retry silently
+# bootstrap fires right after bootout, the call returns EIO. Retry silently
 # up to 3 times before surfacing the real error on the final attempt. (Same
 # rationale as the atuin-daemon loader.)
 launchctl bootout "$TARGET" 2>/dev/null || true

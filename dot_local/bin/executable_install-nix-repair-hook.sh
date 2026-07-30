@@ -48,7 +48,7 @@ EOF
 
 # Skip silently when /nix/nix-installer doesn't exist yet (fresh machine pre-Nix install).
 if [[ ! -x /nix/nix-installer ]]; then
-  echo "  /nix/nix-installer not present yet — skipping nix-hook install."
+  echo "  /nix/nix-installer not present yet, skipping nix-hook install."
   exit 0
 fi
 

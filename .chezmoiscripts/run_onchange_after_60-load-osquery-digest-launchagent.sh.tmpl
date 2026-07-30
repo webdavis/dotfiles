@@ -2,8 +2,10 @@
 #!/bin/bash
 # run_onchange_after_60-load-osquery-digest-launchagent.sh
 # plist hash: {{ include "Library/LaunchAgents/com.webdavis.osquery-digest.plist.tmpl" | sha256sum }}
-# schedule: {{ .osquery.digestHour }}:{{ .osquery.digestMinute }} — re-fire on a data-only
-# StartCalendarInterval change; `include` hashes the template SOURCE, not the rendered Hour/Minute.
+# schedule: {{ .osquery.digestHour }}:{{ .osquery.digestMinute }} (rendered here so a
+# data-only osquery.yaml change re-fires this loader; the include above hashes the plist
+# template SOURCE, whose digestHour/digestMinute placeholders are literals that do not
+# change when their values do).
 
 set -euo pipefail
 

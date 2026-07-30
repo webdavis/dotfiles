@@ -11,7 +11,7 @@
 > or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax
 > for tracking.
 
-**Goal:** Implement all 21 sections of the v2 design spec — fix tooling drift, migrate tms→sesh, adopt
+**Goal:** Implement all 21 sections of the v2 design spec, fix tooling drift, migrate tms→sesh, adopt
 worktrunk, reorg espanso, harden the AI commit hook, expand the Claude Code surface, and add passive tmux
 window/pane status indicators.
 
@@ -41,7 +41,7 @@ but no longer authoritative).
 1. **Never run bare `chezmoi apply` from an agentic context.** It will fail on template files that call
    `keepassxc`. Use `chezmoi apply --exclude=templates --force` for automation, or apply specific
    non-template files by name. Template files (bashrc, gitconfig, espanso identity, settings.json.tmpl)
-   must be applied from an interactive terminal with KeePassXC unlocked — leave those for the user.
+   must be applied from an interactive terminal with KeePassXC unlocked, leave those for the user.
 1. **Respect CLAUDE.md conventions.** No `Co-Authored-By` lines in commits. Separate logically distinct
    changes into their own commits. Don't include Claude as an author.
 1. **Verify template renders.** For any `.tmpl` change, run
@@ -64,7 +64,7 @@ Phase H (Claude settings)    ──►  requires Phase E (hook scripts exist)
 Phase I (User customiz.)     ──►  (independent)
 Phase J (Lint/CI)            ──►  requires Phase A (taplo, jq, yq)
 Phase K (Cleanup)            ──►  requires C, D, F (tools no longer referenced)
-Phase L (Docs + verify)      ──►  last — after everything
+Phase L (Docs + verify)      ──►  last, after everything
 ```
 
 ## Parallelization guidance for subagent-driven-development
@@ -75,7 +75,7 @@ depend on previous output).
 
 ______________________________________________________________________
 
-## Phase A — Bootstrap + Package Manifest (foundations)
+## Phase A: Bootstrap + Package Manifest (foundations)
 
 ### Task A1: Add Homebrew install bootstrap **[S]**
 
@@ -131,7 +131,7 @@ ______________________________________________________________________
 
 ### Task A2: Update package manifest **[S, depends on A1]**
 
-**Spec:** §1.3, §11.1–§11.6, §17.1
+**Spec:** §1.3, §11.1-§11.6, §17.1
 
 **Files:**
 
@@ -243,7 +243,7 @@ interactively.**
 - [ ] **Step 1: Run the chezmoi apply for the package manifest**
 
 ```bash
-# From an interactive terminal — the run_onchange script will re-run brew bundle
+# From an interactive terminal, the run_onchange script will re-run brew bundle
 chezmoi apply ~/Library/Application\ Support/chezmoi  # or whatever triggers the onchange
 # Alternative: trigger directly
 brew bundle --file=<(chezmoi execute-template < .chezmoiscripts/run_onchange_before_10-system-packages.sh.tmpl | sed -n '/^tap/,/^$/p;/^brew/,/^$/p;/^cask/,/^$/p;/^mas/,/^$/p') --cleanup
@@ -276,7 +276,7 @@ comm -23 \
 ```
 
 Expected: last command prints nothing (no drift). If output appears, the listed formulae failed to
-install — investigate and re-run.
+install, investigate and re-run.
 
 - [ ] **Step 3: No commit needed**
 
@@ -284,7 +284,7 @@ Installation is an environmental action, not a source change. A2 already committ
 
 ______________________________________________________________________
 
-## Phase B — Independent config swaps (parallel across subagents)
+## Phase B: Independent config swaps (parallel across subagents)
 
 ### Task B1: Atuin config **[P]**
 
@@ -387,7 +387,7 @@ Use `Edit` on `dot_inputrc`:
 
 - Change `set keyseq-timeout 1000` → `set keyseq-timeout 200`
 
-- Remove the second `set show-mode-in-prompt on` line (the one NOT followed by `set emacs-mode-string` —
+- Remove the second `set show-mode-in-prompt on` line (the one NOT followed by `set emacs-mode-string`,
   find by surrounding context, e.g., the duplicate near the bottom)
 
 - [ ] **Step 3: Verify**
@@ -612,7 +612,7 @@ if ! "$HOMEBREW_BIN" autoupdate status 2>/dev/null | grep -q "running"; then
   "$HOMEBREW_BIN" autoupdate delete 2>/dev/null || true
   "$HOMEBREW_BIN" autoupdate start --upgrade --cleanup
 else
-  echo "Homebrew autoupdate already running — skipping restart."
+  echo "Homebrew autoupdate already running, skipping restart."
 fi
 ```
 
@@ -654,7 +654,7 @@ cat dot_config/private_karabiner/private_karabiner.json | head -50
 If rules have `"enabled": false` or are surrounded by comments indicating they were disabled, remove
 them. Keep the active rules: tab→hyper, capslock→escape/ctrl, sysdiagnose disable.
 
-If no commented-out rules remain after the recent sysdiagnose commit, this task is a no-op — skip to Step
+If no commented-out rules remain after the recent sysdiagnose commit, this task is a no-op, skip to Step
 4\.
 
 - [ ] **Step 3: Verify JSON parses**
@@ -674,7 +674,7 @@ If no changes, skip the commit and mark the task complete.
 
 ______________________________________________________________________
 
-## Phase C — Single-file overhauls (parallel ACROSS files; sequential steps within)
+## Phase C: Single-file overhauls (parallel ACROSS files; sequential steps within)
 
 ### Task C1: Bashrc overhaul **[P with C2, C3]**
 
@@ -1019,7 +1019,7 @@ Find the block:
 ```bash
 # Bail if Tmux server/session is already running.
 if ! sh -c 'tmux ls >/dev/null 2>&1'; then
-  # No tmux server — bootstrap sessions.
+  # No tmux server, bootstrap sessions.
   tmux_resurrect_data="$HOME/.tmux/resurrect/last"
   if [[ -f $tmux_resurrect_data ]]; then
     # Bare `tmux` starts the server; tmux-continuum auto-restores saved sessions.
@@ -1029,7 +1029,7 @@ if ! sh -c 'tmux ls >/dev/null 2>&1'; then
     tms start
   fi
 else
-  # Server already running — attach to (or switch to) the uriel session.
+  # Server already running, attach to (or switch to) the uriel session.
   if command -v tms &>/dev/null; then
     tms marks open 0
   fi
@@ -1041,7 +1041,7 @@ Replace with:
 ```bash
 # Bail if Tmux server/session is already running.
 if ! sh -c 'tmux ls >/dev/null 2>&1'; then
-  # No tmux server — bootstrap sessions.
+  # No tmux server, bootstrap sessions.
   tmux_resurrect_data="$HOME/.tmux/resurrect/last"
   if [[ -f $tmux_resurrect_data ]]; then
     # Bare `tmux` starts the server; tmux-continuum auto-restores saved sessions.
@@ -1052,7 +1052,7 @@ if ! sh -c 'tmux ls >/dev/null 2>&1'; then
     tmux attach -t uriel 2>/dev/null || tmux new -s uriel
   fi
 else
-  # Server already running — attach to (or switch to) the uriel session.
+  # Server already running, attach to (or switch to) the uriel session.
   if command -v sesh &>/dev/null; then
     sesh connect uriel
   fi
@@ -1062,7 +1062,7 @@ fi
 - [ ] **Step 19: Fix em-dash in dot_bash_bindings (§2.8)**
 
 ```bash
-grep -n "–" dot_bash_bindings   # look for en-dash or em-dash
+grep -n "-" dot_bash_bindings   # look for en-dash or em-dash
 ```
 
 Replace any U+2013 (en-dash) or U+2014 (em-dash) with `--` (two ASCII hyphens) in the eza-related
@@ -1177,7 +1177,7 @@ Delete the line:
 set-option -g @plugin 'tmux-plugins/tmux-copycat'     # https://github.com/tmux-plugins/tmux-copycat
 ```
 
-- [ ] **Step 5: Drop `tmux-fingers` plugin (§11.6 — keep the brew formula)**
+- [ ] **Step 5: Drop `tmux-fingers` plugin (§11.6, keep the brew formula)**
 
 Delete the line:
 
@@ -1216,7 +1216,7 @@ bind-key -N "Tmux Sessionizer Mode" C-o switch-client -T TMUX_SESSIONIZER
 bind-key -N "Tmux Sessionizer Mode: Switch Session (command: tms switch)" -T TMUX_SESSIONIZER C-o display-popup -E "tms switch"
 
 # Marks: 0 → 11
-# ——————————————
+# --------------
 bind-key -N "Tmux Sessionizer Mode: open uriel" -T TMUX_SESSIONIZER u display-popup -E "tms marks open 0"
 bind-key -N "Tmux Sessionizer Mode: open openclaw" -T TMUX_SESSIONIZER o display-popup -E "tms marks open 1"
 # ... through mark 11 (maeve)
@@ -1653,12 +1653,12 @@ git commit -m "feat(git): global hooks path, gh credential helper, drop dead JGi
 - core.hooksPath = ~/.config/git/hooks (global prepare-commit-msg etc.)
 - gh auth git-credential for https://github.com and https://gist.github.com
 - Delete [filesystem \"Oracle Corporation|11.0.5|/dev/mapper/volgroup-home\"]
-  JGit cache block — dead on macOS; vanilla git ignores it anyway."
+  JGit cache block, dead on macOS; vanilla git ignores it anyway."
 ```
 
 ______________________________________________________________________
 
-## Phase D — New tool configs (parallel, require Phase A tools installed)
+## Phase D: New tool configs (parallel, require Phase A tools installed)
 
 ### Task D1: Sesh config + smart-startup **[P]**
 
@@ -1673,7 +1673,7 @@ ______________________________________________________________________
 - [ ] **Step 1: Create `dot_config/sesh/sesh.toml`**
 
 ```toml
-# Sesh configuration — smart tmux session manager.
+# Sesh configuration, smart tmux session manager.
 # Docs: https://github.com/joshmedeski/sesh
 
 cache = true
@@ -1791,7 +1791,7 @@ if [[ -n "$td_output" ]]; then
   echo "$td_output"
 fi
 
-# Project info — justfile only per v2 scope.
+# Project info, justfile only per v2 scope.
 if [[ -f "$dir/justfile" ]]; then
   header "Recipes (just)"
   just --summary --justfile "$dir/justfile" 2>/dev/null \
@@ -1926,7 +1926,7 @@ ______________________________________________________________________
 Create `dot_config/worktrunk/config.toml`:
 
 ```toml
-# Worktrunk configuration — git worktree management.
+# Worktrunk configuration, git worktree management.
 # Docs: https://worktrunk.dev/
 
 worktree-path = "{{ repo_path }}/../{{ repo }}.{{ branch | sanitize }}"
@@ -1954,7 +1954,7 @@ pager = "delta --paging=never"
 copy = "wt step copy-ignored"
 
 # Pre-merge validation gate (sequential, fast checks first).
-# Array-of-tables form per worktrunk docs — [pre-merge] table form is deprecated.
+# Array-of-tables form per worktrunk docs, [pre-merge] table form is deprecated.
 [[pre-merge]]
 lint = "just l 2>/dev/null || true"
 
@@ -2058,7 +2058,7 @@ cat ~/Library/Application\ Support/espanso/match/email.yml
 cat ~/Library/Application\ Support/espanso/match/pii.yml
 ```
 
-(You'll build the new files from these inputs — don't rename/move; just read their content into the new
+(You'll build the new files from these inputs, don't rename/move; just read their content into the new
 structure.)
 
 - [ ] **Step 3: Create config/default.yml**
@@ -2069,8 +2069,8 @@ Copy `~/Library/Application Support/espanso/config/default.yml` as-is into the c
 
 Extract all entries from base.yml that are missing-apostrophe fixes: `dont→don't`, `wasnt→wasn't`,
 `cant→can't`, `didnt→didn't`, `doesnt→doesn't`, `wouldnt→wouldn't`, `couldnt→couldn't`,
-`shouldnt→shouldn't`, `its→it's` (carefully — check for context), `im→I'm`, `ive→I've`, `ill→I'll`,
-`youre→you're`, `theyre→they're`, etc. Around 40–60 entries.
+`shouldnt→shouldn't`, `its→it's` (carefully, check for context), `im→I'm`, `ive→I've`, `ill→I'll`,
+`youre→you're`, `theyre→they're`, etc. Around 40 to 60 entries.
 
 Format:
 
@@ -2341,7 +2341,7 @@ New triggers: ,,iso, ,,ts, ,,cb, ,,tu, ,,sig, ;;ty, ;;pls, ;;lgtm,
 
 ______________________________________________________________________
 
-## Phase E — Helper scripts (parallel; require Phase A)
+## Phase E: Helper scripts (parallel; require Phase A)
 
 ### Task E1: hue-pulse.sh + smart-lights --pulse **[P]**
 
@@ -2435,7 +2435,7 @@ ______________________________________________________________________
 
 **Files:**
 
-- No source files — this is a `gh alias set` command stored by gh itself in `~/.config/gh/config.yml`.
+- No source files, this is a `gh alias set` command stored by gh itself in `~/.config/gh/config.yml`.
 
 - [ ] **Step 1: Set the alias**
 
@@ -2455,7 +2455,7 @@ gh alias set --shell pushwatch '
 gh alias list | grep pushwatch
 ```
 
-- [ ] **Step 3: Optional — add the alias to chezmoi-managed gh config**
+- [ ] **Step 3: Optional, add the alias to chezmoi-managed gh config**
 
 If `dot_config/gh/private_config.yml.tmpl` or similar exists, you could add:
 
@@ -2541,7 +2541,7 @@ exit 0
 ```bash
 #!/usr/bin/env bash
 # PreToolUse hook (matcher: Bash): append one line per Bash invocation.
-# Non-blocking — always exits 0 so tool use is never held up.
+# Non-blocking, always exits 0 so tool use is never held up.
 
 input=$(cat)
 cmd=$(printf '%s' "$input" | jq -r '.tool_input.command // ""' 2>/dev/null)
@@ -2612,7 +2612,7 @@ target="${1:-}"
 cmd=$(tmux display-message -p -t "$target" '#{pane_current_command}' 2>/dev/null)
 
 case "$cmd" in
-  # Shells and interactive TUIs — silent.
+  # Shells and interactive TUIs, silent.
   bash|zsh|fish|sh|dash) ;;
   nvim|vim|vi|view|less|more|man|top|btop|htop|tmux|ssh|mosh|fzf) ;;
 
@@ -2627,7 +2627,7 @@ case "$cmd" in
   docker|nix|nix-build|nixos-rebuild|npm|pnpm|yarn|bun) printf '🔨' ;;
   gradle|mvn|ant|meson|ninja|bazel|buck|cmake) printf '🔨' ;;
 
-  # Everything else — generic long-running.
+  # Everything else, generic long-running.
   *) printf '⏳' ;;
 esac
 ```
@@ -2717,7 +2717,7 @@ Create `dot_config/git/hooks/executable_prepare-commit-msg`:
 
 ```bash
 #!/usr/bin/env bash
-# Global prepare-commit-msg hook — AI-generated conventional commit messages.
+# Global prepare-commit-msg hook, AI-generated conventional commit messages.
 # Chains to repo-local .git/hooks/prepare-commit-msg if present.
 
 # Bail early if user opted out, or commit carries a prepared message (-m/-F/merge/squash).
@@ -2772,7 +2772,7 @@ cd /tmp
 rm -rf test-commit-hook
 ```
 
-(You might want to run this interactively in a terminal; the test is optional — the hook's semantics are
+(You might want to run this interactively in a terminal; the test is optional, the hook's semantics are
 covered by its guards.)
 
 - [ ] **Step 4: Verify SKIP_AI_COMMIT**
@@ -2791,19 +2791,19 @@ git commit -m "feat(git-hooks): add hardened prepare-commit-msg via Claude haiku
 
 Hardening vs the v1 draft:
 - 5KB diff truncation (huge diffs slow haiku and hurt quality)
-- 4-second timeout (non-blocking — empty msg fallback)
+- 4-second timeout (non-blocking, empty msg fallback)
 - Skip merge/rebase/cherry-pick (MERGE_HEAD, CHERRY_PICK_HEAD,
   rebase-merge, rebase-apply)
 - SKIP_AI_COMMIT=1 env escape hatch for quick commits
 - Chains to repo-local prepare-commit-msg if present
 
-Core rule: this hook NEVER blocks a commit — worst case prepopulates
+Core rule: this hook NEVER blocks a commit, worst case prepopulates
 an empty editor and the user writes their own message."
 ```
 
 ______________________________________________________________________
 
-## Phase F — User-bin script fixes (parallel)
+## Phase F: User-bin script fixes (parallel)
 
 ### Task F1: Delete fetch-gitignore.sh **[P]**
 
@@ -2859,9 +2859,9 @@ Make these changes:
 
 1. Replace `set -e` (if present) with `set -euo pipefail`.
 1. Before the `cp` loop, add `mkdir -p "$backup_dir"`.
-1. Fix any error messages that reference empty vars — quote properly:
+1. Fix any error messages that reference empty vars, quote properly:
    - `printf "Error: '%s' is empty\n" "$JSON_OBJECT"` instead of `printf "Error: $JSON_OBJECT is empty"`.
-1. Verify `sponge` (from moreutils) is available — it should be after Phase A3. No code change needed;
+1. Verify `sponge` (from moreutils) is available, it should be after Phase A3. No code change needed;
    just confirm.
 
 - [ ] **Step 3: Shellcheck**
@@ -2908,7 +2908,7 @@ alerter --title "title" --message "msg" --sound default 2>/dev/null &
 ```
 
 Preserve existing logic otherwise. If `osascript` is also used for other interactions (prompts, dialogs),
-leave those alone — just notifications switch to alerter.
+leave those alone, just notifications switch to alerter.
 
 - [ ] **Step 3: Shellcheck**
 
@@ -3007,7 +3007,7 @@ timeout 30 bash -c '
 ```
 
 (Adjust to exact script structure. If unsure, fall back to keeping `sleep 5` but doubling to `sleep 10`
-for reliability — mark as "low priority; deferred" in the commit message.)
+for reliability, mark as "low priority; deferred" in the commit message.)
 
 - [ ] **Step 3: Shellcheck**
 
@@ -3029,7 +3029,7 @@ if the prompt never appears."
 
 ______________________________________________________________________
 
-## Phase G — Template hygiene (parallel)
+## Phase G: Template hygiene (parallel)
 
 ### Task G1: Template osquery **[P]**
 
@@ -3184,7 +3184,7 @@ Library/... paths. Ignored everywhere now."
 
 ______________________________________________________________________
 
-## Phase H — Claude Code settings (single task; depends on Phase E)
+## Phase H: Claude Code settings (single task; depends on Phase E)
 
 ### Task H1: Template Claude Code settings.json **[S, depends on E3]**
 
@@ -3327,7 +3327,7 @@ git commit -m "feat(claude-settings): template + deny list + hooks + thinking + 
 
 ______________________________________________________________________
 
-## Phase I — User-customization migration (parallel)
+## Phase I: User-customization migration (parallel)
 
 ### Task I1: Migrate custom skills **[P]**
 
@@ -3373,7 +3373,7 @@ ls -la ~/.claude/commands/ ~/.claude/agents/ ~/.claude/hooks/ 2>/dev/null
 ```
 
 If any user-authored files exist beyond plugin-provided content, copy them into
-`private_dot_claude/<subdir>/`. Currently (per earlier inspection) these are empty — if so, no action.
+`private_dot_claude/<subdir>/`. Currently (per earlier inspection) these are empty, if so, no action.
 
 - [ ] **Step 5: Commit**
 
@@ -3450,7 +3450,7 @@ Create `private_dot_claude/CLAUDE.md`:
 <!-- Keep this file evergreen. Avoid adding point-in-time content (current sprint
 goals, active branches, temporary workarounds) that wouldn't make sense if multiple
 workstreams, PRs, or branches were in progress simultaneously. Document general
-principles, workflows, and architecture — not transient project state. -->
+principles, workflows, and architecture, not transient project state. -->
 
 # Global CLAUDE.md
 
@@ -3461,14 +3461,14 @@ principles, workflows, and architecture — not transient project state. -->
 - Separate logically distinct changes into their own commits.
 - No `Co-Authored-By: Claude` lines in commits.
 
-## Toolchain (locked-in choices — do not suggest migrating)
+## Toolchain (locked-in choices, do not suggest migrating)
 
 - **Shell:** bash (10+ years). Not switching to zsh.
 - **Multiplexer:** tmux. Not switching to zellij.
 - **File manager / git TUI:** neither yazi nor lazygit wanted.
 - **Version manager:** not using mise. Nix flakes handle per-project toolchain needs.
 - **Terminal:** Ghostty. Not switching.
-- **Editor:** Neovim (overhaul is a separate sub-project — out of scope for most work here).
+- **Editor:** Neovim (overhaul is a separate sub-project, out of scope for most work here).
 
 ## Workflow defaults
 
@@ -3515,7 +3515,7 @@ triggering KeePassXC password prompts.
 2. Run `chezmoi diff --exclude=templates` and show the diff to the user.
 3. If the user approves (or in auto-apply mode), run `chezmoi apply --exclude=templates --force`.
 4. Then run `chezmoi status` (including templates) and report which template files would still
-   need applying. List them by path. Do NOT run `chezmoi apply` on them — those require the user
+   need applying. List them by path. Do NOT run `chezmoi apply` on them, those require the user
    to run interactively with KeePassXC unlocked.
 
 ## Output
@@ -3542,7 +3542,7 @@ git commit -m "feat(claude): global CLAUDE.md, /pr-merge command, chezmoi-apply 
 
 ______________________________________________________________________
 
-## Phase J — Lint/CI expansion (parallel)
+## Phase J: Lint/CI expansion (parallel)
 
 ### Task J1: Flake.nix dev shell additions **[P]**
 
@@ -3719,13 +3719,13 @@ git commit -m "feat(justfile): add diff/apply/check recipes
 
 - 'just diff' runs chezmoi diff --exclude=templates
 - 'just apply' runs chezmoi apply --exclude=templates --force (safe
-  from Claude Code — templates stay for interactive KeePassXC unlock)
+  from Claude Code, templates stay for interactive KeePassXC unlock)
 - 'just check' runs nix flake check --all-systems"
 ```
 
 ______________________________________________________________________
 
-## Phase K — Filesystem cleanup (sequential, LAST)
+## Phase K: Filesystem cleanup (sequential, LAST)
 
 ### Task K1: Remove legacy directories and binaries **[S, depends on all Phase C/D/F]**
 
@@ -3770,7 +3770,7 @@ This is environmental cleanup; no source changes.
 
 ______________________________________________________________________
 
-## Phase L — Docs + final verification (LAST)
+## Phase L: Docs + final verification (LAST)
 
 ### Task L1: Update CLAUDE.md **[S]**
 
@@ -3794,7 +3794,7 @@ Add at the very top (before `# CLAUDE.md`):
 <!-- Keep this file evergreen. Avoid adding point-in-time content (current sprint
 goals, active branches, temporary workarounds) that wouldn't make sense if multiple
 workstreams, PRs, or branches were in progress simultaneously. Document general
-principles, workflows, and architecture — not transient project state. -->
+principles, workflows, and architecture, not transient project state. -->
 ```
 
 - [ ] **Step 3: Update Tmux Session Management section**
@@ -3831,7 +3831,7 @@ Direnv hook lives near the top for early activation.
 Atuin daemon mode is enabled (`[daemon] enabled = true`); command recording is decoupled from
 `PROMPT_COMMAND` and stored in SQLite at `~/.local/share/atuin/history.db`. `filter_mode = "host"`
 restricts Ctrl-R to the current machine's history; switch to `global` if cross-machine recall
-becomes important. Bash's built-in HISTFILE/HISTSIZE/histappend has been removed — atuin handles
+becomes important. Bash's built-in HISTFILE/HISTSIZE/histappend has been removed, atuin handles
 all history.
 ```
 
@@ -3873,7 +3873,7 @@ Remove or update any mention of:
 
 ```bash
 git add CLAUDE.md
-git commit -m "docs(CLAUDE): update for v2 — sesh, worktrunk, atuin daemon, AI commits
+git commit -m "docs(CLAUDE): update for v2, sesh, worktrunk, atuin daemon, AI commits
 
 - Evergreen directive at top.
 - Tmux session management: tms → sesh (13 configured sessions).
@@ -3918,9 +3918,9 @@ Expected: `nix flake check` succeeds on all systems.
 
 Do each of these and confirm the expected result:
 
-- [ ] `atuin history list --cmd-only | head` — shows recent commands
+- [ ] `atuin history list --cmd-only | head`, shows recent commands
 
-- [ ] `sesh list -c` — shows all 13 configured sessions
+- [ ] `sesh list -c`, shows all 13 configured sessions
 
 - [ ] Open a tmux session; `prefix + o` opens sesh picker
 
@@ -3932,15 +3932,15 @@ Do each of these and confirm the expected result:
 
 - [ ] Espanso triggers: `;;ty` → "Thank you", `,,iso` → today's date
 
-- [ ] Run `sleep 31` — alerter notification fires
+- [ ] Run `sleep 31`, alerter notification fires
 
 - [ ] `git commit` on a trivial diff → editor prepopulates with AI message
 
-- [ ] `actionlint .github/workflows/lint.yml` — passes
+- [ ] `actionlint .github/workflows/lint.yml`, passes
 
-- [ ] Open a CSV file with `csvlens` — works
+- [ ] Open a CSV file with `csvlens`, works
 
-- [ ] `bat README.md` — shows line numbers, git changes, header, grid
+- [ ] `bat README.md`, shows line numbers, git changes, header, grid
 
 - [ ] tmux status bar shows `last-proc network ram` on the right
 
@@ -3960,7 +3960,7 @@ Do each of these and confirm the expected result:
 
 - [ ] Install worktrunk shell integration: `wt config shell install` (one-time, per machine).
 
-- [ ] Install gh-dash extension IF desired (cut from v2 scope — re-add if you want it):
+- [ ] Install gh-dash extension IF desired (cut from v2 scope, re-add if you want it):
   `gh extension install dlvhdr/gh-dash`.
 
 - [ ] **Step 6: Verify commit log**
@@ -4028,8 +4028,8 @@ Every spec section should be covered by at least one task. Quick map:
 | §15.3    | KeePassXC unlock guidance                  | L1 (CLAUDE.md)                                    |
 | §16      | Shell productivity additions               | C1                                                |
 | §17      | Package manifest cleanup                   | A2                                                |
-| §18      | User-bin script fixes                      | F1–F5                                             |
-| §19      | Lint/CI expansion                          | J1–J3                                             |
+| §18      | User-bin script fixes                      | F1-F5                                             |
+| §19      | Lint/CI expansion                          | J1-J3                                             |
 | §20      | `dot_claude/` surface expansion            | H1, I1, I3                                        |
 | §21      | Passive tmux window/pane status indicators | E4, C2                                            |
 

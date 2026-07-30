@@ -98,7 +98,7 @@ curl -sSfL https://artifacts.nixos.org/nix-installer | sh -s -- install
 > [!NOTE]
 >
 > Upstream Nix (rather than Determinate Nix) keeps the path to
-> [nix-darwin](https://github.com/nix-darwin/nix-darwin) clean — nix-darwin defaults to managing upstream
+> [nix-darwin](https://github.com/nix-darwin/nix-darwin) clean, nix-darwin defaults to managing upstream
 > Nix and conflicts with Determinate's auto-update daemon. Use the NixOS fork above for both
 > fresh-machine installs and CI.
 

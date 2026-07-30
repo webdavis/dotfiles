@@ -1,0 +1,558 @@
+# shellcheck shell=bash
+# macos-defaults-lib.sh, shared helpers for the macos-defaults-{apply,capture,
+# drift} tools. Sourced, never executed, so it carries no shebang and no
+# executable bit.
+#
+# Each tool sources it as
+#   source "$(dirname "${BASH_SOURCE[0]}")/macos-defaults-lib.sh"
+# which resolves in BOTH the chezmoi source tree (dot_local/bin/) and the applied
+# ~/.local/bin/ layout: this file carries no executable_ or dot_ prefix, so chezmoi
+# deploys it under the same basename its siblings are deployed beside.
+
+# resolve_source_dir, print the chezmoi source directory for the CURRENT context.
+#
+# Resolution order, most specific first:
+#   1. $MACOS_DEFAULTS_SOURCE_DIR when SET, an explicit caller override. Set but
+#      empty is a caller error, not "unset", so it is rejected rather than skipped.
+#   2. The chezmoi source tree containing the current directory, so a run from a
+#      secondary worktree targets THAT worktree rather than the primary checkout.
+#      It is routed through `chezmoi --source=<top> source-path` so chezmoi
+#      normalizes the path.
+#   3. Otherwise chezmoi's configured source directory.
+#
+# Every failure returns nonzero with a message rather than falling through to the
+# next rule: falling back after a failed chezmoi call would silently retarget a
+# different checkout, which is the class of bug this resolver exists to end.
+#
+# Two rules keep that promise, and both close a way an earlier version broke it:
+#
+#   The source tree is identified by its .chezmoiversion marker, NOT by the data
+#   file. Those are different questions. A source tree whose macos_defaults.yaml is
+#   absent is STILL this tree, and must report a missing data file for the tree the
+#   caller is standing in. Keying on the data file made an absent file look like
+#   "some unrelated directory" and silently resolved whichever other checkout did
+#   have one, reintroducing the exact bug this resolver exists to end.
+#
+#   The worktree is resolved with git's context variables SCRUBBED. `git rev-parse`
+#   honors $GIT_DIR and $GIT_WORK_TREE, so an exported value from a git hook or a
+#   wrapper made the resolver describe a checkout the caller was not in. Unsetting
+#   them inside the command substitution binds the answer to the physical directory.
+#
+# Residual, stated rather than hidden: if git fails for a reason OTHER than an
+# inherited context variable, a corrupt repository being the realistic one, the
+# tree cannot be identified and resolution falls to chezmoi's configured source.
+# That case is not reproduced here and is left as the documented limit.
+resolve_source_dir() {
+  if [[ -n ${MACOS_DEFAULTS_SOURCE_DIR+x} ]]; then
+    if [[ -z $MACOS_DEFAULTS_SOURCE_DIR ]]; then
+      printf 'error: MACOS_DEFAULTS_SOURCE_DIR is set but empty; refusing to resolve another checkout\n' >&2
+      return 1
+    fi
+    printf '%s\n' "$MACOS_DEFAULTS_SOURCE_DIR"
+    return 0
+  fi
+
+  local worktree_top resolved
+  worktree_top="$(
+    unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_INDEX_FILE
+    git rev-parse --show-toplevel 2>/dev/null
+  )"
+  if [[ -n $worktree_top && -f "$worktree_top/.chezmoiversion" ]]; then
+    if ! resolved="$(chezmoi --source="$worktree_top" source-path)"; then
+      printf 'error: chezmoi --source=%s source-path failed; refusing to fall back to another checkout\n' \
+        "$worktree_top" >&2
+      return 1
+    fi
+    printf '%s\n' "$resolved"
+    return 0
+  fi
+
+  if ! resolved="$(chezmoi source-path)"; then
+    printf 'error: chezmoi source-path failed; the chezmoi source directory is unknown\n' >&2
+    return 1
+  fi
+  printf '%s\n' "$resolved"
+}
+
+# macos_defaults_data_file, print the resolved path to macos_defaults.yaml.
+# Returns 2, the tools' shared "data file missing or unreadable" status, when the
+# source directory cannot be resolved. An empty resolution is a failure too: it
+# would otherwise compose into a plausible-looking /.chezmoidata/... path.
+macos_defaults_data_file() {
+  local source_dir
+  source_dir="$(resolve_source_dir)" || return 2
+  if [[ -z $source_dir ]]; then
+    printf 'error: resolved an empty chezmoi source directory for macos_defaults.yaml\n' >&2
+    return 2
+  fi
+  printf '%s/.chezmoidata/macos_defaults.yaml\n' "$source_dir"
+}
+
+# require_readable_data_file <path>, the shared readable-data-file guard. Returns
+# 2 with a message naming the file, so the caller's exit status matches the "data
+# file missing or unreadable" contract documented in each tool's header.
+require_readable_data_file() { # <path>
+  local data_file="$1"
+  if [[ ! -r $data_file ]]; then
+    printf 'error: cannot read %s\n' "$data_file" >&2
+    return 2
+  fi
+}
+
+# defaults_records_join_expression <record-selector>, the yq expression that
+# joins one record selection into EIGHT fields separated by the ASCII unit
+# separator (0x1f): domain, key, type, value, host, scope, plist_path, tier.
+# Shared by the stream below and by the per-record locator, so the two can
+# never drift into describing different records.
+#
+# type, value, and tier are BARE selectors, deliberately. join renders a null
+# (absent on a manual-tier record) as the empty string already, and the
+# tempting explicit spelling, `.value // ""`, is WRONG here: yq's alternative
+# operator fires on false as well as null, so a legitimate `value: false`
+# (most of the tracked records) would collapse to an empty write. The
+# defaulted fields below are safe with // only because none of them can hold
+# a legitimate false.
+defaults_records_join_expression() { # <record-selector>
+  local unit_separator=$'\x1f'
+  printf '%s | [.domain, .key, .type, .value, (.host // ""), (.scope // "user"), (.plist_path // ""), .tier] | join("%s")' \
+    "$1" "$unit_separator"
+}
+
+# defaults_records_field_count <line>, how many unit-separated fields one line
+# carries. Pure bash: the substitution keeps only the separators, so the field
+# count is one more than what is left.
+defaults_records_field_count() { # <line>
+  local unit_separator=$'\x1f'
+  local separators_only="${1//[!$unit_separator]/}"
+  printf '%s' "$((${#separators_only} + 1))"
+}
+
+# defaults_records_locate_malformed <path> <declared-count>, describe the FIRST
+# record that does not render as exactly one eight-field line. Only ever called
+# on the failure path, so its per-record yq calls cost nothing in the normal case.
+defaults_records_locate_malformed() { # <path> <declared-count>
+  local data_file="$1" declared_record_count="$2"
+  local index record_render line_count
+  for ((index = 0; index < declared_record_count; index++)); do
+    record_render="$(yq eval -r "$(defaults_records_join_expression ".macos.defaults[$index]")" "$data_file")" || continue
+    line_count="$(printf '%s\n' "$record_render" | wc -l | tr -d ' ')"
+    if [[ $line_count -ne 1 || $(defaults_records_field_count "$record_render") -ne 8 ]]; then
+      printf 'record %d (domain %s, key %s)' "$index" \
+        "$(yq eval -r ".macos.defaults[$index].domain" "$data_file" | head -1)" \
+        "$(yq eval -r ".macos.defaults[$index].key" "$data_file" | head -1)"
+      return 0
+    fi
+  done
+  printf 'a record this locator could not identify'
+}
+
+# THE RECORD STREAM. Four functions below share this contract, split so each has
+# one job: defaults_records_declared_count validates the file's shape and size,
+# defaults_records_raw_stream reads it, defaults_records_validate_stream is a
+# PREDICATE over what was read, and defaults_records_unit_separated emits. They
+# were one function, in which the validation loop accumulated the very lines it
+# was checking and then printed them, so asking "is this file usable" was
+# inseparable from producing its output.
+#
+# The contract: emit each tracked record as one line
+# of EIGHT fields joined by the ASCII unit separator (0x1f):
+#   domain, key, type, value, host, scope, plist_path, tier
+# host, plist_path, and (on manual records) type and value are empty when
+# absent; an ABSENT scope defaults to "user" here, so a scope that reaches a
+# caller empty was explicitly empty in the record (a record error, rejected by
+# validate_record_scope below). The unit separator is not IFS whitespace, so an
+# empty INTERIOR field survives `IFS=$'\x1f' read` intact, unlike a
+# tab-separated stream, whose collapse is exactly why the optional columns do
+# not extend one.
+#
+# The TIER is validated here, for the whole file, before a single record is
+# emitted: every record must declare enforce, verify, or manual, and a missing
+# or blank tier arrives as the empty string and is refused like any other
+# unrecognized value. Refusing in the stream is what makes every tool
+# fail-closed at once: no caller can act on a record whose tier is unknown,
+# because no such record ever reaches a caller.
+#
+# The stream is SELF-VALIDATING, because the separator on its own guarantees
+# nothing. A field value carrying a literal 0x1f byte, a NEWLINE, or both is not
+# a formatting nuisance, it is record forgery. One record whose value was
+#   v<0x1f><0x1f>system<0x1f><0x1f>enforce<0x1f>\nEVIL.DOMAIN<0x1f>EVILKEY<0x1f>bool<0x1f>true
+# emitted two well-formed-LOOKING lines and made apply perform TWO root writes,
+# the second fully attacker-controlled, while the template rendered only one.
+# Both halves of that payload carry exactly eight fields, so a per-line field
+# count does not catch it on its own. Two checks together do:
+#   - every line must carry exactly eight fields, which catches a separator
+#     injected without a newline;
+#   - the number of emitted lines must equal the number of DECLARED records,
+#     which catches a newline whether or not the halves are balanced.
+# A violation returns 2, the tools' shared "data file unusable" status, names the
+# offending record, and emits NOTHING: a caller must not act on part of a stream
+# it has just been told is malformed. A legitimate multi-line preference value is
+# therefore refused loudly rather than silently corrupted.
+defaults_records_declared_count() { # <path>, print the validated record count
+  local data_file="$1"
+  local declared_record_count records_kind
+  if ! declared_record_count="$(yq eval -r '(.macos.defaults // []) | length' "$data_file")"; then
+    printf 'error: cannot count the records in %s\n' "$data_file" >&2
+    return 2
+  fi
+  # The count is a STRING from yq, and it is about to drive both `((...))` loop
+  # bounds and the `-ne` comparison that catches a forged record. Bash arithmetic
+  # on a non-numeric string raises a syntax error and evaluates FALSE, so the
+  # comparison would fall through and emit the very stream it exists to reject.
+  # A multi-document file is the one input observed to produce a multi-line count,
+  # and it is caught earlier only because yq also prints a separator line that
+  # trips the field-count check. That is the guard holding by accident of another
+  # tool's output format, so bound it here by construction instead.
+  if [[ ! $declared_record_count =~ ^(0|[1-9][0-9]{0,6})$ ]]; then
+    printf 'error: %s produced an unusable record count %q; refusing to emit a stream that cannot be checked\n' \
+      "$data_file" "$declared_record_count" >&2
+    return 2
+  fi
+  # The SHAPE, before the content. `.macos.defaults[]` yields values from a map
+  # just as happily as from a list, and `length` counts a map's keys, so every
+  # check above passes on a map and the stream comes out in document order. The
+  # runner template reads the same file with Go's `range`, which iterates a map
+  # in sorted KEY order. Two readers, two orders, neither complaining, and order
+  # decides which write lands last when records share a domain and key.
+  #
+  # Refused rather than reconciled: a map is not the declared schema, and
+  # standardizing on one order would leave the other reader's agreement a
+  # coincidence instead of a guarantee. The template refuses the same shape.
+  if ! records_kind="$(yq eval -r '(.macos.defaults // []) | tag' "$data_file")"; then
+    printf 'error: cannot determine the shape of .macos.defaults in %s\n' "$data_file" >&2
+    return 2
+  fi
+  if [[ $records_kind != '!!seq' ]]; then
+    printf 'error: %s declares .macos.defaults as %s, but it must be a LIST of records; a map is read in sorted key order by the runner template and in document order here, so the two would apply records in different orders\n' \
+      "$data_file" "$records_kind" >&2
+    return 2
+  fi
+  printf '%s\n' "$declared_record_count"
+}
+
+# defaults_records_raw_stream <path>, the unvalidated joined records from yq.
+# Separated so the reader can fail on its own terms; every check that follows
+# assumes it has the whole stream, and a partial read must never reach them.
+defaults_records_raw_stream() { # <path>
+  local data_file="$1"
+  if ! yq eval -r "$(defaults_records_join_expression '.macos.defaults[]')" "$data_file"; then
+    printf 'error: cannot read the records in %s\n' "$data_file" >&2
+    return 2
+  fi
+}
+
+# defaults_records_validate_stream <path> <declared-count> <raw-stream>, a
+# PREDICATE: 0 when every line is well-formed and the line count matches what the
+# file declares, 2 otherwise, naming the offending record on stderr.
+#
+# It emits no records, deliberately. Validation used to accumulate the very lines
+# it was checking and then print them, which meant the only way to ask "is this
+# file usable" was to also produce its output. A caller that just wants to know
+# now asks a question instead of running a producer, and the emission below has
+# one job.
+defaults_records_validate_stream() { # <path> <declared-count> <raw-stream>
+  local data_file="$1" declared_record_count="$2" raw_records="$3"
+  local line field_count checked_line_count=0
+  local record_domain record_key record_tier
+  while IFS= read -r line; do
+    # yq prints a single empty line for an empty array; that is not a record.
+    [[ -z $line ]] && continue
+    field_count="$(defaults_records_field_count "$line")"
+    if [[ $field_count -ne 8 ]]; then
+      printf 'error: %s: %s renders %s fields, not 8; a field value contains a unit separator (0x1f) or a newline\n' \
+        "$data_file" "$(defaults_records_locate_malformed "$data_file" "$declared_record_count")" \
+        "$field_count" >&2
+      return 2
+    fi
+    # The tier gate. Only the three declared tiers pass; a record whose tier
+    # is missing or blank arrives here as the empty string and lands in the
+    # same refusal, so absent, blank, and unrecognized all fail closed. The
+    # refusal covers the WHOLE file, because a caller must not act on the
+    # records beside one it cannot classify.
+    IFS=$'\x1f' read -r record_domain record_key _ _ _ _ _ record_tier <<<"$line"
+    case "$record_tier" in
+      enforce | verify | manual) ;;
+      *)
+        printf 'error: %s: record (domain %s, key %s) has a missing, blank, or unrecognized tier %q; declare tier: enforce, verify, or manual\n' \
+          "$data_file" "$record_domain" "$record_key" "$record_tier" >&2
+        return 2
+        ;;
+    esac
+    checked_line_count=$((checked_line_count + 1))
+  done <<<"$raw_records"
+
+  if [[ $checked_line_count -ne $declared_record_count ]]; then
+    printf 'error: %s declares %s record(s) but the record stream has %s line(s); %s contains a newline\n' \
+      "$data_file" "$declared_record_count" "$checked_line_count" \
+      "$(defaults_records_locate_malformed "$data_file" "$declared_record_count")" >&2
+    return 2
+  fi
+}
+
+defaults_records_unit_separated() { # <path>
+  local data_file="$1"
+  local declared_record_count raw_records line
+  declared_record_count="$(defaults_records_declared_count "$data_file")" || return 2
+  raw_records="$(defaults_records_raw_stream "$data_file")" || return 2
+  defaults_records_validate_stream "$data_file" "$declared_record_count" "$raw_records" || return 2
+  # Emission, and only emission, and only once the WHOLE file has passed. A
+  # caller must never act on part of a stream it is about to be told is
+  # malformed, which is why nothing is printed before the predicate returns.
+  while IFS= read -r line; do
+    [[ -z $line ]] && continue
+    printf '%s\n' "$line"
+  done <<<"$raw_records"
+}
+
+# validate_record_scope <scope> <host> <plist_path>, print the validated scope.
+# Rejects, with a message and nonzero status, every combination that would
+# otherwise be silently misapplied:
+#   - a scope other than user/system, including the set-but-empty scope ""
+#     (defaults_records_unit_separated already turned an ABSENT field into
+#     "user", so an empty scope here was explicitly empty in the record);
+#   - scope system with a host: ByHost storage is per-user, the pair is
+#     meaningless;
+#   - scope user with a plist_path: the path is only honored on system
+#     records, and accepting it would silently write the user domain instead
+#     of the named file.
+validate_record_scope() { # <scope> <host> <plist_path>
+  local scope="$1" host="$2" plist_path="$3"
+  case "$scope" in
+    user | system) ;;
+    *)
+      printf 'error: unknown scope %q (expected user or system)\n' "$scope" >&2
+      return 1
+      ;;
+  esac
+  if [[ $scope == system && -n $host ]]; then
+    printf 'error: scope system cannot be combined with host %q; ByHost storage is per-user\n' "$host" >&2
+    return 1
+  fi
+  if [[ $scope == user && -n $plist_path ]]; then
+    printf 'error: plist_path %q is only honored on scope system records\n' "$plist_path" >&2
+    return 1
+  fi
+  printf '%s\n' "$scope"
+}
+
+# resolve_system_plist_path <domain> <plist_path>, print the plist path a
+# system-scope record writes to and reads from. An empty declared path means
+# the default, /Library/Preferences/<domain>. A declared path must be
+# ABSOLUTE: a relative path would resolve against whatever directory the tool
+# happens to run from, so it is rejected, never resolved.
+# validate_system_domain <domain>, a PREDICATE over the domain alone: 0 when it
+# can name a plist under /Library/Preferences, 1 with a message otherwise.
+#
+# Separated from resolution because the two rules below are properties of the
+# RECORD, true or false before anything is resolved, and they apply to every
+# system-scope record whether or not it declares an explicit plist_path. Folded
+# into the resolver they sat above an early return, which is the shape that once
+# let them apply to only one of the two branches.
+validate_system_domain() { # <domain>
+  local domain="$1"
+  # A defaults domain is reverse-DNS and never legitimately contains a slash.
+  # Rejecting one keeps the default construction inside /Library/Preferences BY
+  # CONSTRUCTION: without it, a domain of ../../tmp/owned resolves to
+  # /Library/Preferences/../../tmp/owned, which is /tmp/owned, written as root.
+  #
+  # Checked for EVERY system-scope record, not only the ones that omit
+  # plist_path. The domain rule is a property of the record, and the template
+  # rejects such a record outright: a library that only checked it on the
+  # default-path branch was the MORE PERMISSIVE of the two consumers, so the same
+  # YAML rendered one way and applied another.
+  if [[ $domain == */* ]]; then
+    printf 'error: system-scope domain %q contains a slash; it would escape %s\n' \
+      "$domain" '/Library/Preferences' >&2
+    return 1
+  fi
+  # Degenerate domains: "", ".", "..", and any run of nothing but dots. None of
+  # them escape a directory (`defaults` appends .plist), so this is hygiene
+  # rather than containment, but none of them name a plist anybody meant to write
+  # either, and the rule this function enforces is "does this resolve where I
+  # intend to write".
+  if [[ -z ${domain//./} ]]; then
+    printf 'error: system-scope domain %q is empty or nothing but dots; it names no plist\n' \
+      "$domain" >&2
+    return 1
+  fi
+}
+
+# validate_explicit_plist_path <plist_path> <domain>, a PREDICATE over a declared
+# path: 0 when it names an absolute plist that cannot climb out of where it
+# appears to sit, 1 with a message otherwise. The domain is carried for the
+# messages only; it is validated separately, by validate_system_domain.
+validate_explicit_plist_path() { # <plist_path> <domain>
+  local plist_path="$1" domain="$2"
+  if [[ $plist_path == / ]]; then
+    printf 'error: plist_path %q (domain %s) is the filesystem root; it names no plist\n' \
+      "$plist_path" "$domain" >&2
+    return 1
+  fi
+  if [[ $plist_path != /* ]]; then
+    printf 'error: relative plist_path %q (domain %s); an absolute path is required\n' \
+      "$plist_path" "$domain" >&2
+    return 1
+  fi
+  # Leading-slash is a PROXY for "resolves where I intend", and the two diverge
+  # exactly where it matters: /Library/Preferences/../../etc/x passes the check
+  # above and resolves to /etc/x. Reject parent-directory components outright
+  # rather than canonicalizing, so the rejection does not depend on the path
+  # existing yet.
+  if [[ $plist_path == *"/../"* || $plist_path == *"/.." ]]; then
+    printf 'error: plist_path %q (domain %s) contains a parent-directory component\n' \
+      "$plist_path" "$domain" >&2
+    return 1
+  fi
+}
+
+# resolve_system_plist_path <domain> <plist_path>, print the plist a system-scope
+# record writes to, or fail with a message.
+#
+# Resolution only. Each input is put to its own predicate first, and what remains
+# here is the one decision this function actually makes: an absent plist_path
+# means the default under /Library/Preferences, and a declared one is used as
+# given. Previously those two lines sat among five validation blocks, with the
+# default-path branch returning from the middle of them.
+resolve_system_plist_path() { # <domain> <plist_path>
+  local domain="$1" plist_path="$2"
+  validate_system_domain "$domain" || return 1
+  if [[ -z $plist_path ]]; then
+    printf '/Library/Preferences/%s\n' "$domain"
+    return 0
+  fi
+  validate_explicit_plist_path "$plist_path" "$domain" || return 1
+  printf '%s\n' "$plist_path"
+}
+
+# The directories an EXPLICIT plist_path may name at WRITE time, grown
+# deliberately, one product at a time. The render-time gate in
+# run_onchange_after_30-macos-defaults.sh.tmpl carries the same list
+# ($plistPathAllowedDirectories) and refuses the record before anything
+# renders; this list closes the path AROUND the render: `just defaults-apply`
+# reads the YAML directly, so without it a record the render would refuse was
+# still handed to `sudo defaults write` (verified against
+# /etc/example.evil.plist before the fix). The system-scope suite pins the
+# two lists identical. Plain assignment, not readonly, for the same
+# re-source reason as the read-status constants below.
+MACOS_DEFAULTS_PLIST_PATH_ALLOWED_DIRECTORIES=("/Library/Objective-See/LuLu/" "/Library/Preferences/")
+
+# require_system_plist_path_permitted <plist_path>, refuse (status 1, with a
+# message naming the path and the rule) any WRITE target outside the
+# permitted directories above. Called by apply for every system-scope record
+# before anything is written. Reads are deliberately NOT gated: drift
+# consulting an odd path mutates nothing, and refusing it would only hide
+# the row from the report.
+require_system_plist_path_permitted() { # <plist_path>
+  local plist_path="$1" allowed_directory
+  for allowed_directory in "${MACOS_DEFAULTS_PLIST_PATH_ALLOWED_DIRECTORIES[@]}"; do
+    if [[ $plist_path == "$allowed_directory"* ]]; then
+      return 0
+    fi
+  done
+  printf 'error: plist_path %q is outside every permitted plist directory (%s); grant the directory deliberately in BOTH the Tier 1 template and macos-defaults-lib.sh, or use the default /Library/Preferences form\n' \
+    "$plist_path" "${MACOS_DEFAULTS_PLIST_PATH_ALLOWED_DIRECTORIES[*]}" >&2
+  return 1
+}
+
+# The three outcomes of reading a system-scope setting, carried as an exit STATUS
+# rather than a marker string. A string sentinel is representable as a real value:
+# a tracked setting whose live value happened to be the marker would be reported
+# indeterminate, hiding both a match and a genuine drift. A status cannot be
+# impersonated by any value, so the two channels stay separate.
+#
+# NOT readonly, deliberately. This file is a library: sourcing it twice must be a
+# no-op, and `readonly` makes the second source's assignment fail. Every tool
+# runs under `set -euo pipefail`, so that failure does not just skip the
+# assignment, it kills the CALLER. Plain assignment also beats `readonly` on the
+# other axis that matters here: it OVERWRITES an inherited value, so a hostile
+# environment cannot hand the tools a different set of status codes.
+SYSTEM_READ_OK=0
+SYSTEM_READ_UNSET=1
+SYSTEM_READ_UNREADABLE=2
+
+# system_defaults_write <plist_path> <key> <type> <value>, one system-scope
+# write. /Library plists are root-owned, so the write goes through sudo;
+# keeping it here keeps apply and any future caller on one code path.
+#
+# After the write, the written file's ownership and mode are repaired to
+# root:wheel 0644 IN THE SAME CALL: `defaults write` recreates its target as
+# a root-owned 0600 binary plist (verified on a copy, 2026-07-27), and a 0600
+# plist reads back SYSTEM_READ_UNREADABLE for the unprivileged drift checker
+# on every later run, so an unrepaired write defeats the very drift gate that
+# verifies it. The repair is PER WRITE, never a trailing cleanup in a caller:
+# under set -e a failed later write ends the caller at that record, and a
+# trailing cleanup would never run for the writes that DID land. The write's
+# own failure is captured and re-raised AFTER the repair; a failed write that
+# left no file behind skips the repair rather than failing on the missing
+# path. The file repaired is the one `defaults` actually writes: the declared
+# path when it already ends in .plist, the .plist beside it otherwise (an
+# extensionless absolute path gets .plist appended by `defaults`, verified on
+# a copy, 2026-07-27). The rendered Tier 1 runner carries the same function
+# for the same reason; the render tests and the apply test pin both.
+system_defaults_write() { # <plist_path> <key> <type> <value>
+  local plist_path="$1" key="$2" value_type="$3" value="$4"
+  local write_status=0 written_file="$plist_path"
+  [[ $written_file == *.plist ]] || written_file="$written_file.plist"
+  sudo defaults write "$plist_path" "$key" "-$value_type" "$value" || write_status=$?
+  if [[ $write_status -eq 0 || -e $written_file ]]; then
+    sudo chown root:wheel "$written_file"
+    sudo chmod 644 "$written_file"
+  fi
+  return "$write_status"
+}
+
+# system_defaults_read_actual <plist_path> <key>, the three-outcome system-scope
+# read for drift. The outcome is the EXIT STATUS, named by the constants above,
+# and only ONE of the three prints anything:
+#   - SYSTEM_READ_OK (0): `defaults read` succeeded. The live value is printed on
+#     stdout, with no trailing newline.
+#   - SYSTEM_READ_UNSET (1): `defaults` itself reported the domain/default pair
+#     does not exist, the one failure that genuinely means "not set". Prints
+#     nothing.
+#   - SYSTEM_READ_UNREADABLE (2): indeterminate. Returned up front when the plist
+#     file exists but this user cannot read it (defaults would answer from a
+#     stale cache or misreport), when the temp file that captures defaults'
+#     stderr cannot be created, and for every OTHER read failure. Unknown
+#     failures land here, never in unset: collapsing them would report drift
+#     against a value nobody read, and skipping them would hide the record
+#     entirely. Prints nothing.
+# Turning the outcome into a display marker is the caller's job; that is the
+# whole point of using a status. Documented limit: a plist whose PARENT directory
+# blocks traversal cannot be file-checked, so that case rides on the stderr
+# classification alone.
+system_defaults_read_actual() { # <plist_path> <key>
+  local plist_path="$1" key="$2"
+  local file_candidate
+  for file_candidate in "$plist_path" "$plist_path.plist"; do
+    if [[ -e $file_candidate && ! -r $file_candidate ]]; then
+      return "$SYSTEM_READ_UNREADABLE"
+    fi
+  done
+  local value read_error_file read_status=0
+  # A failed mktemp must not become an ambiguous redirect that silently loses the
+  # classifier's only input. Refuse toward indeterminate, the safe direction, and
+  # SAY SO: the ambiguous redirect ends at this same status by accident, so
+  # without the message the deliberate refusal and the accident are
+  # indistinguishable to a caller and to a test.
+  if ! read_error_file="$(mktemp)"; then
+    printf 'error: cannot classify the system read of %s %s; mktemp failed\n' \
+      "$plist_path" "$key" >&2
+    return "$SYSTEM_READ_UNREADABLE"
+  fi
+  value="$(defaults read "$plist_path" "$key" 2>"$read_error_file")" || read_status=$?
+  if [[ $read_status -eq 0 ]]; then
+    rm -f "$read_error_file"
+    printf '%s' "$value"
+    return "$SYSTEM_READ_OK"
+  fi
+  # Only a genuinely absent domain or key is "unset". Every other failure, an
+  # unparseable plist, a traversal-blocked parent, a `defaults` that is missing or
+  # errors, or a message this does not recognize on a future macOS, stays
+  # indeterminate rather than being reported as a known state.
+  if grep -q 'does not exist' "$read_error_file"; then
+    rm -f "$read_error_file"
+    return "$SYSTEM_READ_UNSET"
+  fi
+  rm -f "$read_error_file"
+  return "$SYSTEM_READ_UNREADABLE"
+}

@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# update-skills-launchagent-path.sh — the weekly LaunchAgent must run update-skills.sh
+# update-skills-launchagent-path.sh, the weekly LaunchAgent must run update-skills.sh
 # with a PATH that resolves every tool the script invokes by bare name.
 #
-# launchd gives a job a minimal PATH, not the interactive shell's — so a tool in
+# launchd gives a job a minimal PATH, not the interactive shell's, so a tool in
 # ~/.local/bin (hermes) is invisible unless the plist adds that dir. This test
 # renders the plist and asserts its PATH covers both tool homes the script needs:
 #   - ~/.local/bin  (hermes, invoked bare by the weekly hermes registry-update phase)
 #   - /opt/homebrew/bin  (npx, jq, git, perl under launchd)
 # It exists because a missing ~/.local/bin silently turned the whole hermes phase
-# into a logged no-op under automation — caught in review, gated here forever.
+# into a logged no-op under automation, caught in review, gated here forever.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"

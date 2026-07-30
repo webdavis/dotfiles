@@ -2,6 +2,10 @@
 #!/bin/bash
 # run_onchange_after_60-load-osquery-heartbeat-launchagent.sh
 # plist hash: {{ include "Library/LaunchAgents/com.webdavis.osquery-heartbeat.plist.tmpl" | sha256sum }}
+# schedule: {{ .osquery.heartbeatHour }}:{{ .osquery.heartbeatMinute }} (rendered here so a
+# data-only osquery.yaml change re-fires this loader; the include above hashes the plist
+# template SOURCE, whose heartbeatHour/heartbeatMinute placeholders are literals that do not
+# change when their values do).
 
 set -euo pipefail
 

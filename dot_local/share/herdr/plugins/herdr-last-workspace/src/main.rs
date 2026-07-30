@@ -1,4 +1,4 @@
-//! Last Workspace — a most-recently-used (MRU) toggle between the two
+//! Last Workspace, a most-recently-used (MRU) toggle between the two
 //! most-recently-focused herdr workspaces.
 //!
 //! herdr ships `last_pane` (pane MRU) but no `last_workspace`. A key-bound shell
@@ -8,13 +8,13 @@
 //! keeps a 2-deep MRU.
 //!
 //! Subcommands:
-//!   record  — (herdr-plugin.toml event) on each workspace.focused, shift current -> previous
-//!   bounce  — (herdr-plugin.toml action) focus the recorded previous workspace
-//!   seed    — (chezmoiscript, NOT a herdr command) one-shot warm-up of the MRU
+//!   record, (herdr-plugin.toml event) on each workspace.focused, shift current -> previous
+//!   bounce, (herdr-plugin.toml action) focus the recorded previous workspace
+//!   seed, (chezmoiscript, NOT a herdr command) one-shot warm-up of the MRU
 //!             `current` from the live focused workspace, so the first bounce
 //!             after install works before any focus event has fired. Idempotent
 //!             (no-op when state already exists) and tolerant of a down herdr
-//!             server. Owning the seed here — instead of in the build script —
+//!             server. Owning the seed here, instead of in the build script,
 //!             means it resolves the state file via the SAME `state_file()` the
 //!             reader uses, so seeder/reader path divergence is impossible.
 
@@ -148,7 +148,7 @@ fn record() {
 }
 
 /// Focus the recorded previous workspace. The resulting workspace.focused event
-/// re-enters record(), flipping current/previous — so the next invocation returns.
+/// re-enters record(), flipping current/previous, so the next invocation returns.
 fn bounce() {
     let (current, previous) = read_mru();
     if previous.is_empty() {
@@ -169,7 +169,7 @@ fn bounce() {
 
 /// One-shot warm-up of the MRU `current` with the live focused workspace, so the
 /// first `bounce` after install works before any workspace.focused event has
-/// fired. Idempotent (returns early when state already exists — matching the
+/// fired. Idempotent (returns early when state already exists, matching the
 /// build script's old `[[ ! -s $state ]]` guard, without even querying herdr)
 /// and tolerant of a down herdr server (a failed query seeds nothing and exits
 /// 0, same as the reader treating a missing state as cold start).

@@ -3,7 +3,7 @@
 #
 # The ~/.hermes/skills/hermes-superpowers mirror is hand-patched so the skills that
 # have hermes-native adaptations are referenced by their adaptation names instead of
-# superpowers:<name> — otherwise the docs route the model into the disabled legacy
+# superpowers:<name>, otherwise the docs route the model into the disabled legacy
 # duplicates. Any re-mirror stomps those patches. This script re-applies them from
 # the lock manifest (store the recipe, not the result): the superpowersRouting.map
 # table pairs each legacy skill name (superpowers-writing-plans) with its adaptation
@@ -22,7 +22,7 @@
 #      per pair (- `<adaptation>` replaces `/<legacy>`); when any is missing the
 #      canonical map section is appended once at end of file. A missing dispatcher
 #      file is skipped: no dispatcher means nothing routes wrong.
-# Prose around the references is NOT reconstructed — the recipe restores routing,
+# Prose around the references is NOT reconstructed, the recipe restores routing,
 # not hand-written wording. Idempotent by construction: rewritten text contains no
 # superpowers: prefix to re-match, and the appended section satisfies pass 3.
 #
@@ -193,7 +193,7 @@ case "$MODE" in
     ;;
   fix)
     if ((fixed_count > 0)); then
-      log "re-asserted routing in $fixed_count file(s) — something rewrote the mirror since the last run"
+      log "re-asserted routing in $fixed_count file(s), something rewrote the mirror since the last run"
     else
       log "routing clean: nothing to rewrite"
     fi

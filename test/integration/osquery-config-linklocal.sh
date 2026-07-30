@@ -1,10 +1,17 @@
 #!/usr/bin/env bash
-# osquery-config-linklocal.sh (FX9). The two off-loopback listener queries wrongly
-# excluded IPv6 link-local (fe80::) alongside real loopback. Link-local is reachable by
-# any host on the same link (RFC 4291), not loopback, so an agent bound to a link-local
-# address is a real off-box exposure that must not be filtered out. This renders each
-# pack and asserts the query's WHERE clause still excludes real loopback (127.0.0.0/8,
-# ::1) but no longer excludes fe80.
+#
+# Off-loopback listener queries treat IPv6 link-local as REAL exposure: only
+# true loopback is excluded. Link-local (fe80::) is reachable by any host on
+# the same link (RFC 4291), not loopback, so a listener bound to a link-local
+# address is a real off-box exposure that must not be filtered out of either
+# watch. Render-driven: each pack renders exactly as at apply time and the
+# query's WHERE clause is asserted to exclude real loopback (127.0.0.0/8, ::1)
+# while never mentioning fe80.
+#
+# Two queries carry the guarantee: intrusion-detection's
+# listening_ports_non_loopback (the S9 fix re-landed here) and
+# agent-attack-surface's agent_exposure_changed (landed already fixed in B1,
+# so its half is a green-at-red regression guard).
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." || exit 1 && pwd)"
@@ -25,23 +32,24 @@ fail() {
   fails=$((fails + 1))
 }
 
-# <pack-template> <query-name>
+# check_query <pack-template> <query-name> -- the query excludes only true
+# loopback and never link-local.
 check_query() {
-  local pack="$1" qname="$2" query
-  query="$(render "$pack" | jq -r --arg q "$qname" '.queries[$q].query')"
+  local pack="$1" query_name="$2" query
+  query="$(render "$pack" | jq -r --arg q "$query_name" '.queries[$q].query')"
   [[ -n $query && $query != null ]] || {
-    fail "$qname: not found in $pack"
+    fail "$query_name: not found in $pack"
     return
   }
-  # The WHERE clause must NOT exclude link-local anymore.
-  grep -qiE "fe80" <<<"$query" && fail "$qname still excludes link-local (fe80): $query"
-  # ...but real loopback exclusion must remain.
-  grep -qF "127.%" <<<"$query" || fail "$qname lost the 127.0.0.0/8 loopback exclusion"
-  grep -qF "::1" <<<"$query" || fail "$qname lost the ::1 loopback exclusion"
+  # Link-local must NOT be excluded: it is on-link reachable, a real exposure.
+  grep -qiE "fe80" <<<"$query" && fail "$query_name still excludes link-local (fe80): $query"
+  # ...while the real loopback exclusions must remain.
+  grep -qF "127.%" <<<"$query" || fail "$query_name lost the 127.0.0.0/8 loopback exclusion"
+  grep -qF "::1" <<<"$query" || fail "$query_name lost the ::1 loopback exclusion"
 }
 
-check_query ".chezmoitemplates/osquery/packs/agent-attack-surface.conf" agent_exposure_changed
 check_query ".chezmoitemplates/osquery/packs/intrusion-detection.conf" listening_ports_non_loopback
+check_query ".chezmoitemplates/osquery/packs/agent-attack-surface.conf" agent_exposure_changed
 
 if ((fails > 0)); then
   printf '%d link-local query assertion(s) failed\n' "$fails" >&2

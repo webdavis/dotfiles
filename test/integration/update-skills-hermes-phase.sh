@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# update-skills-hermes-phase.sh — proves the weekly hermes registry-update
+# update-skills-hermes-phase.sh, proves the weekly hermes registry-update
 # phase, offline. The real script runs unmodified in a sandbox: a scratch HOME
 # and PATH stubs for `hermes` and `npx` that record their argv instead of
 # touching the network (the subprocess boundary is the legitimate test double).
@@ -7,18 +7,18 @@
 # store-fallback, one default-only, plus two failure shapes. Assertions:
 #   1. Per-profile invocations come from the lock: every (registry skill,
 #      profile) pair gets exactly `hermes -p <profile> skills update
-#      <lockKey>` — keyed by the mechanism's lockKey, NOT the skill name
+#      <lockKey>`, keyed by the mechanism's lockKey, NOT the skill name
 #      (ClawHub slugs differ from frontmatter names).
 #   2. The default profile is WALKED like any other (its un-entanglement is
-#      done — no registry entry there has a store-symlinked install path
+#      done, no registry entry there has a store-symlinked install path
 #      anymore): a registry skill mapped only to default gets exactly
 #      `hermes -p default skills update <lockKey>`.
-#   3. held: true is skipped (and said so) — kubernetes-specialist's shape.
+#   3. held: true is skipped (and said so), kubernetes-specialist's shape.
 #   4. store-fallback and kind-none skills get no update invocations.
 #   5. Failure isolation: the stub exits non-zero for one skill; the run logs
 #      a WARN naming it, keeps going (a later profile's update still runs),
 #      and the whole run still exits 0.
-#   6. "Blocked" output on exit 0 is a loud warning too, not a success —
+#   6. "Blocked" output on exit 0 is a loud warning too, not a success,
 #      updates re-apply the install gate, and a block must reach the operator.
 #   7. --install-only never reaches the phase (it is network-dependent).
 #   8. --dry-run prints would-update lines and invokes hermes zero times.
@@ -51,13 +51,13 @@ mkdir -p "$HOME/.agents/skills"
 # The fixture lock. hermesRegistry shapes mirror production (profiles per
 # entry, keyed by lockKey):
 #   alpha    ClawHub slug != name (lockKey alpha-slug), concerned
-#   beta     nicodemus — runs AFTER elaine's failure (isolation)
-#   gamma    default only — walked like any other profile (un-entangled)
-#   delta    held: true, nicodemus — must be skipped, visibly
-#   epsilon  store-symlinked (hermesProfiles butters, NOT in hermesRegistry) —
+#   beta     nicodemus, runs AFTER elaine's failure (isolation)
+#   gamma    default only, walked like any other profile (un-entangled)
+#   delta    held: true, nicodemus, must be skipped, visibly
+#   epsilon  store-symlinked (hermesProfiles butters, NOT in hermesRegistry),
 #            never a hermes update
-#   failer   elaine — the stub exits 1 for its lockKey
-#   blocked  concerned — the stub prints "Blocked" and exits 0
+#   failer   elaine, the stub exits 1 for its lockKey
+#   blocked  concerned, the stub prints "Blocked" and exits 0
 cat >"$HOME/.agents/custom-skill-lock.json" <<'EOF'
 {
   "version": 2,

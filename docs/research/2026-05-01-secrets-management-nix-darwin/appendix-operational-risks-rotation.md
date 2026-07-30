@@ -1,4 +1,4 @@
-# Research: sops-nix vs HashiCorp Vault — Operational Risk and Rotation
+# Research: sops-nix vs HashiCorp Vault, Operational Risk and Rotation
 
 Audience: senior power user, single-user nix-darwin workstation + homelab. Failure modes, not enthusiasm.
 
@@ -8,12 +8,12 @@ Audience: senior power user, single-user nix-darwin workstation + homelab. Failu
 
 From the upstream sops README (https://github.com/getsops/sops):
 
-- `sops rotate example.yaml` — "generates a new data encryption key and reencrypt[s] all values with the
+- `sops rotate example.yaml`: "generates a new data encryption key and reencrypt[s] all values with the
   new key." Use `-i` to write in place.
-- `sops updatekeys test.enc.yaml` — "Uses the `.sops.yaml` configuration file to update (add or remove)
+- `sops updatekeys test.enc.yaml`: "Uses the `.sops.yaml` configuration file to update (add or remove)
   the corresponding secrets in the encrypted file." Does *not* rotate the data key. "Use `updatekeys` if
   you want to add a key without rotating the data key."
-- `sops edit example.yaml` — opens `$EDITOR` on the decrypted plaintext and re-encrypts on save.
+- `sops edit example.yaml`: opens `$EDITOR` on the decrypted plaintext and re-encrypts on save.
 
 The two commands answer different questions. `updatekeys` is for changing recipients (added a new host,
 removed a compromised key). `rotate` is for changing the data encryption key itself. When *removing* a
@@ -22,7 +22,7 @@ using `-r`, otherwise, owners of the removed key may have add access to the data
 previous holder of the removed age key still possesses the old DEK from prior git history; without
 `rotate`, old commits remain readable to them.
 
-**Concrete rotation workflow for a credential** (the (a)–(e) you outlined):
+**Concrete rotation workflow for a credential** (the (a) to (e) you outlined):
 
 ```bash
 sops edit secrets/foo.yaml         # decrypt, edit value, re-encrypt on save
@@ -30,11 +30,11 @@ git add secrets/foo.yaml && git commit -m "rotate foo credential"
 darwin-rebuild switch --flake .
 ```
 
-Per credential: ~30–90 seconds for the edit, plus whatever `darwin-rebuild switch` takes on your system
-(typically 10–60s for a no-op closure rebuild when only `/run/secrets.d/` content changed). The rebuild
-is required because sops-nix decrypts at NixOS activation time, not evaluation: "Secrets are decrypted
-from sops files during activation time." No service-level reload primitive exists in sops-nix itself;
-downstream services reload via systemd `restartTriggers` if you wired them.
+Per credential: ~30 to 90 seconds for the edit, plus whatever `darwin-rebuild switch` takes on your
+system (typically 10 to 60s for a no-op closure rebuild when only `/run/secrets.d/` content changed). The
+rebuild is required because sops-nix decrypts at NixOS activation time, not evaluation: "Secrets are
+decrypted from sops files during activation time." No service-level reload primitive exists in sops-nix
+itself; downstream services reload via systemd `restartTriggers` if you wired them.
 
 ### F2. sops-nix README is silent on rotation strategy
 
@@ -46,7 +46,7 @@ impose on yourself.
 
 ### F3. Vault dynamic secrets cover most major databases but require Vault to broker every connection
 
-From https://developer.hashicorp.com/vault/docs/secrets/databases — supported plugins: PostgreSQL,
+From https://developer.hashicorp.com/vault/docs/secrets/databases, supported plugins: PostgreSQL,
 MySQL/MariaDB, MongoDB, MongoDB Atlas, Oracle, Cassandra, Couchbase, Elasticsearch, HanaDB, InfluxDB,
 MSSQL, Redis, Redshift, Snowflake, plus custom plugins. Two distinct models:
 
@@ -58,7 +58,7 @@ MSSQL, Redis, Redshift, Snowflake, plus custom plugins. Two distinct models:
   rotates passwords for the associated database user based on a configurable period." Default 24h.
 
 The two are orthogonal. Dynamic = ephemeral identity. Static = persistent identity, rotating credential.
-For a homelab Postgres, dynamic mode is the strongest case for Vault — sops-nix simply can't replicate
+For a homelab Postgres, dynamic mode is the strongest case for Vault. sops-nix simply can't replicate
 this.
 
 ### F4. Vault cannot rotate arbitrary static API tokens (GitHub PAT, OAuth client secrets)
@@ -66,7 +66,7 @@ this.
 The Key Management secrets engine (https://developer.hashicorp.com/vault/docs/secrets/key-management)
 handles **cryptographic key material** distributed to KMS providers (AWS, Azure, GCP, OCI). It does not
 rotate GitHub PATs, OAuth client secrets, Slack webhook URLs, or arbitrary third-party tokens. The KV v2
-engine versions secrets so you can roll back, but Vault doesn't *generate* a new GitHub PAT for you — you
+engine versions secrets so you can roll back, but Vault doesn't *generate* a new GitHub PAT for you. You
 still go to github.com, create a new token, and write it to KV. There are vendor-specific dynamic-secret
 engines (GitHub App, AWS, Azure AD, Consul, RabbitMQ, etc.), but classic GitHub user PATs and most
 OAuth-app client secrets are outside that scope. Practical answer: **for the bulk of personal SaaS
@@ -81,7 +81,7 @@ make automating a Vault installation difficult." HashiCorp's recommendation: "Fo
 provides a better experience."
 
 Implication for a homelab: every reboot of the Vault host (kernel update, power blip, scheduled
-maintenance) is a manual unseal ceremony unless you configure auto-unseal — which means another keystore.
+maintenance) is a manual unseal ceremony unless you configure auto-unseal, which means another keystore.
 
 ### F6. Auto-unseal options and their homelab fit
 
@@ -95,7 +95,7 @@ For homelab self-hosting, the realistic options are:
   Vault to use Vault's Transit Secret Engine as the autoseal mechanism." Requires `address` and `token`
   to a *second* Vault cluster. Caveats: token must be "an orphan token, otherwise when the parent token
   expires or gets revoked the seal will break"; should also be periodic. This creates a circular
-  dependency — the unsealing Vault must itself stay unsealed (by Shamir, typically), which means you've
+  dependency: the unsealing Vault must itself stay unsealed (by Shamir, typically), which means you've
   moved the manual-unseal problem to the second box rather than eliminating it. For a single-user homelab
   this is overkill.
 - **PKCS11 / HSM**: enterprise, hardware investment, not homelab.
@@ -112,18 +112,18 @@ activation."
 From https://developer.hashicorp.com/vault/docs/agent-and-proxy/agent/template: when Vault is
 unreachable, "On failure, it will back off for a short while (including some randomness to help prevent
 thundering herd scenarios) and retry." The `exit_on_retry_failure` flag in `template_config` controls
-termination — default is `false` (retry indefinitely). With `exit_on_retry_failure = true` plus
+termination, default is `false` (retry indefinitely). With `exit_on_retry_failure = true` plus
 `error_on_missing_key = true`, Agent exits on failure.
 
 Persistent cache: from https://developer.hashicorp.com/vault/docs/agent-and-proxy/agent/caching, Agent
 supports a persistent cache, but the documented `type` is `kubernetes` only. The docs are explicit:
 "Agent performs all operations in memory and does not persist anything to storage. This means that when
 the agent is shut down, all the renewal operations are immediately terminated." A previous Agent
-process's cache can be restored on startup — but renewals are not resumed.
+process's cache can be restored on startup, but renewals are not resumed.
 
 GitHub issue #28305 confirms a real gap: "Vault Proxy with persistent static secrets cache & auto-auth
 enabled is unable to start up offline without trying to connect to Vault Server to renew its token." So
-the "fail-cached" mental model does not hold reliably — a restart while Vault is unreachable can leave
+the "fail-cached" mental model does not hold reliably: a restart while Vault is unreachable can leave
 Agent unable to serve cached secrets.
 
 **Verdict for the offline-laptop scenario:** if you `darwin-rebuild switch` while Vault is unreachable,
@@ -146,11 +146,11 @@ KeePassXC-stored age key), or escrow the age key in your password manager.
 ### F9. Vault token TTL while offline
 
 From https://developer.hashicorp.com/vault/docs/concepts/tokens: system max TTL defaults to 32 days,
-configurable per mount. "After the current TTL is up, the token will no longer function — it, and its
+configurable per mount. "After the current TTL is up, the token will no longer function: it, and its
 associated leases, are revoked." The docs do *not* address offline behavior specifically. Practical
 inference: if your laptop is offline longer than the token TTL and Agent cannot reach Vault to renew, the
 token expires server-side. On reconnect, Agent must re-auth (which for AppRole means a usable secret_id).
-For OIDC auth, default token TTLs are typically 1–24h depending on role config — not directly stated on
+For OIDC auth, default token TTLs are typically 1 to 24h depending on role config, not directly stated on
 the OIDC providers index page. Periodic tokens are the recommended pattern for long-running services
 because they "reset their TTL to the configured period on each successful renewal."
 
@@ -166,7 +166,7 @@ Mitigation parameters: `secret_id_ttl` (e.g., `10m`), `secret_id_num_uses` (e.g.
 blocks").
 
 What the docs *don't* explicitly say but follows from the model: a leaked unwrapped secret_id with a long
-TTL and unbound CIDR is full Vault access at the role's policy. Lost secret_id has no recovery — you
+TTL and unbound CIDR is full Vault access at the role's policy. Lost secret_id has no recovery: you
 generate a new one via `vault write auth/approle/role/<name>/secret-id`. The bootstrapping problem is
 real: *something* on disk has to authenticate to Vault, and that something is itself an unrotated
 long-lived credential. The chain has to terminate somewhere.
@@ -179,7 +179,7 @@ using existing tools." Send `SIGHUP` to Vault after rotation: "configure your lo
 send the `vault` process a signal hang up / `SIGHUP` after each rotation of the log file."
 
 On macOS, this means newsyslog or a launchd-driven script. If you ignore this, the audit log grows
-unbounded — and Vault refuses operations if all configured audit devices fail to write. That last detail
+unbounded, and Vault refuses operations if all configured audit devices fail to write. That last detail
 is the operational footgun: a full disk because of an unrotated audit log will halt Vault.
 
 ### F12. Real-world incident search: thin
@@ -189,7 +189,7 @@ threads, no concrete "I lost my key and lost everything" post-mortems with verif
 documented operational-pain artifact is the Vault Proxy offline-startup bug
 (https://github.com/hashicorp/vault/issues/28305), filed Sept 2024, confirming the
 cache-doesn't-survive-offline-restart problem in practice. Absence of post-mortems is not evidence of
-safety — it's likely selection bias (people who lose their age key don't post about it; sysadmins who
+safety: it's likely selection bias (people who lose their age key don't post about it; sysadmins who
 endured a Vault unseal cascade tend to write internal docs, not HN threads). A separate signal: the
 August 2025 Vault zero-day cluster (HN 44821434) speaks to attack surface, not personal-scale operational
 risk, and isn't directly relevant.
@@ -198,7 +198,7 @@ risk, and isn't directly relevant.
 
 sops-nix decrypts once, at NixOS/nix-darwin activation, and writes plaintext to `/run/secrets.d/<n>/`.
 After activation, secrets are static files on tmpfs until the next rebuild. Vault Agent decrypts
-continuously — leases renew, templates re-render, files change without a rebuild. This has two
+continuously: leases renew, templates re-render, files change without a rebuild. This has two
 consequences:
 
 - **sops-nix:** rotation requires rebuild. Forgotten rotations are silent; nothing nags you.
@@ -213,11 +213,11 @@ factor.
 
 Vault's bootstrap credential is the AppRole secret_id (or root token, or AWS IAM identity). Loss =
 re-issue. Theft = role-policy access until revocation. Better blast-radius story, worse
-single-point-of-failure story for the *server's* unseal keys (F5–F6).
+single-point-of-failure story for the *server's* unseal keys (F5-F6).
 
 Both systems terminate in "something on disk that can decrypt." The difference is what you can do *after*
-compromise. sops-nix offers no revocation — you rotate every secret in the repo, push, rebuild every
-host. Vault offers `vault token revoke` and can invalidate the AppRole.
+compromise. sops-nix offers no revocation: you rotate every secret in the repo, push, rebuild every host.
+Vault offers `vault token revoke` and can invalidate the AppRole.
 
 ### F15. Operational footprint at single-user scale
 
@@ -233,14 +233,14 @@ one user, this is a non-trivial fraction of total ops time.
 
 Both systems push their failure modes onto different parts of the lifecycle. **sops-nix concentrates risk
 at key-loss and rotation discipline.** The age private key is a single point of failure with zero
-recovery — lose it, lose everything in the repo. The mitigation is multi-recipient encryption (a backup
+recovery: lose it, lose everything in the repo. The mitigation is multi-recipient encryption (a backup
 age identity in your password manager, a YubiKey-bound identity), and that mitigation is your
 responsibility because nothing in the toolchain enforces it. Rotation is a manual `sops edit` + commit +
-`darwin-rebuild switch` loop, ~1–2 minutes per credential, with no expiry tracking. The system never
+`darwin-rebuild switch` loop, ~1 to 2 minutes per credential, with no expiry tracking. The system never
 nags. Forgotten rotations stay forgotten until something else surfaces them. Trade-off: zero runtime
 infrastructure, no daemon to keep alive, full offline operation, deterministic activation.
 
-**Vault concentrates risk at availability and bootstrap.** A reboot needs an unseal — manual Shamir or
+**Vault concentrates risk at availability and bootstrap.** A reboot needs an unseal: manual Shamir or
 auto-unseal that adds a second-keystore dependency (Transit seal recurses, cloud KMS introduces SaaS
 coupling). Vault Agent's persistent cache does not reliably survive a restart while Vault is unreachable
 (issue #28305), so an offline `darwin-rebuild switch` can fail-closed. The AppRole secret_id is a

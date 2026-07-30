@@ -84,7 +84,7 @@ chmod +x "$stub/npx" "$stub/alerter"
 # the updater's capability probe runs `mv --version` and the exchange runs
 # `mv --exchange ...` through this stub. With a /bin/mv passthrough (BSD mv on
 # macOS, no GNU version line, no --exchange), the probe fails and the exchange
-# never lands — which is exactly the CI failure this comment guards against.
+# never lands, which is exactly the CI failure this comment guards against.
 # On a Homebrew host the resolved tool is `gmv` (unshadowed), which is why the
 # bug only showed under CI's clean PATH.
 GMV_REAL="$(command -v "$GMV_BIN")" ||

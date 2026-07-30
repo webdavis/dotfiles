@@ -1,4 +1,4 @@
-# 2026-05-15 Dotfiles Tasks — Implementation Plan
+# 2026-05-15 Dotfiles Tasks: Implementation Plan
 
 > **SUPERSEDED (2026-07-10, operator ruling R3).** OpenClaw was removed from the fleet and replaced by
 > Hermes. The OpenClaw tasks in this plan (B1 create the mouse agent, B2 wire the Discord bot, P10 notify
@@ -8,9 +8,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:subagent-driven-development` (recommended) or `superpowers:executing-plans` to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Execute the 13-phase audit cycle defined in `docs/superpowers/specs/2026-05-15-dotfiles-tasks-design.md`, plus the setup/cleanup phases (S1–S5) and Mouse-blocker phases (B1–B3), marking each Todoist task complete on phase closeout.
+**Goal:** Execute the 13-phase audit cycle defined in `docs/superpowers/specs/2026-05-15-dotfiles-tasks-design.md`, plus the setup/cleanup phases (S1-S5) and Mouse-blocker phases (B1-B3), marking each Todoist task complete on phase closeout.
 
-**Architecture:** Each phase corresponds to one Todoist task in the `#dotfiles` project. Per-phase implementation details live in the Todoist task description (single source of truth — fetched at phase start via `td task view`). The plan provides the phase ordering, dependencies, verification gates, and closeout steps. Setup phases (S0–S4) and Mouse-blocker phases (B1–B3) are detailed inline since they don't have Todoist tasks. **Closeout housekeeping** for completed docs uses `git rm` (history retains the originals); the audit-outcomes index from S2 is the durable lookup point.
+**Architecture:** Each phase corresponds to one Todoist task in the `#dotfiles` project. Per-phase implementation details live in the Todoist task description (single source of truth, fetched at phase start via `td task view`). The plan provides the phase ordering, dependencies, verification gates, and closeout steps. Setup phases (S0-S4) and Mouse-blocker phases (B1-B3) are detailed inline since they don't have Todoist tasks. **Closeout housekeeping** for completed docs uses `git rm` (history retains the originals); the audit-outcomes index from S2 is the durable lookup point.
 
 **Tech Stack:** chezmoi 2.62.3+, bash 5.3, Nix (upstream via NixOS/nix-installer), Tailscale (already installed), Todoist `td` CLI, GitHub `gh` CLI, OpenClaw (local gateway, future Pi migration).
 
@@ -22,19 +22,19 @@
 
 ```
 S0 → S1 → S2 → S3              (setup: rebase + amend, archive, CLAUDE.md rule, GH closes)
-                  → B1 → B2     (Mouse agent, Mouse Discord bot — gates P10, P11)
-                  → B3          (rescue gateway decommission — independent)
-                  → P1          (commit-msg generator — improves all downstream commits)
-                  → P2          (PostgreSQL — time-sensitive)
+                  → B1 → B2     (Mouse agent, Mouse Discord bot, gates P10, P11)
+                  → B3          (rescue gateway decommission, independent)
+                  → P1          (commit-msg generator, improves all downstream commits)
+                  → P2          (PostgreSQL, time-sensitive)
                   → P3 → P4     (package audit, gitleaks)
-                  → P6          (CLI tools — bandwhich/doggo/ouch)
-                  → P7          (hue-pulse improvements — depends on P6)
+                  → P6          (CLI tools: bandwhich/doggo/ouch)
+                  → P7          (hue-pulse improvements, depends on P6)
                   → P8 → P9     (quick wins, actionlint)
                   → P10 → P11   (Mouse OpenClaw notif → gh-notify reuses plumbing)
                   → P12 → P13   (autocorrect, Tart image)
 ```
 
-**P5 (Determinate Nix migration) is already shipped and closed in Todoist as of 2026-05-17** (commits `58bbb7d` + `6a3da6f` on `main`). It is retained in the plan only as a placeholder for the `Closes #10` trailer that lands once HEAD is pushed; no implementation work remains. **P2 (PostgreSQL) is postponed** per user — likely to land when agents migrate to the NUC server.
+**P5 (Determinate Nix migration) is already shipped and closed in Todoist as of 2026-05-17** (commits `58bbb7d` + `6a3da6f` on `main`). It is retained in the plan only as a placeholder for the `Closes #10` trailer that lands once HEAD is pushed; no implementation work remains. **P2 (PostgreSQL) is postponed** per user, likely to land when agents migrate to the NUC server.
 
 ---
 
@@ -180,7 +180,7 @@ when auditing docs/ for actionable items."
 ### S2: Add CLAUDE.md rule to skip `docs/archive/` when auditing
 
 **Files:**
-- Modify: `CLAUDE.md` — add a new subsection under `## Architecture` titled `### Auditing docs/`.
+- Modify: `CLAUDE.md`, add a new subsection under `## Architecture` titled `### Auditing docs/`.
 
 **Steps:**
 
@@ -199,7 +199,7 @@ Add this block:
 ```markdown
 ### Auditing docs/
 
-When asked to audit `docs/` for actionable items, **skip `docs/archive/` entirely** — files there have already been audited; treat the archive as out-of-scope. Open follow-ups live in Todoist (`#dotfiles` project). The audit-target directories are `docs/research/` (excluding tied-to-task subdirectories like `2026-05-01-secrets-management-nix-darwin/`) and the active `docs/superpowers/{plans,specs,audits}/`.
+When asked to audit `docs/` for actionable items, **skip `docs/archive/` entirely**, files there have already been audited; treat the archive as out-of-scope. Open follow-ups live in Todoist (`#dotfiles` project). The audit-target directories are `docs/research/` (excluding tied-to-task subdirectories like `2026-05-01-secrets-management-nix-darwin/`) and the active `docs/superpowers/{plans,specs,audits}/`.
 ```
 
 - [ ] **Step 3: Verify lint passes**
@@ -252,7 +252,7 @@ Expected: both output `CLOSED`.
 
 ---
 
-## Mouse-Blocker Phases (B1–B3)
+## Mouse-Blocker Phases (B1-B3)
 
 These three blockers are prerequisites for P10 and P11. B3 is independent housekeeping and can run anywhere in the sequence after S3.
 
@@ -260,7 +260,7 @@ These three blockers are prerequisites for P10 and P11. B3 is independent housek
 
 **Todoist:** `6gfcXjFrG6q3Pm3v`
 
-**Files:** Depend on OpenClaw's agent-definition layout (likely `~/.openclaw/agents/mouse/` or similar — verify against bob's existing layout at `~/workspaces/webdavis/uriel/agents/bob/`).
+**Files:** Depend on OpenClaw's agent-definition layout (likely `~/.openclaw/agents/mouse/` or similar, verify against bob's existing layout at `~/workspaces/webdavis/uriel/agents/bob/`).
 
 **Steps:**
 
@@ -326,7 +326,7 @@ Create a new bot application. Capture: bot token, application ID, intent flags. 
 
 - [ ] **Step 3: Bind the bot to mouse**
 
-Configure OpenClaw to associate the bot with the `mouse` agent. If OpenClaw has a `channels.discord` config block, populate it with the bot token (pulled from KeePassXC via chezmoi template at apply time, NOT committed in plain text). Pattern: `dot_openclaw/channels/discord.yaml.tmpl` or equivalent — mirror existing OpenClaw config templating.
+Configure OpenClaw to associate the bot with the `mouse` agent. If OpenClaw has a `channels.discord` config block, populate it with the bot token (pulled from KeePassXC via chezmoi template at apply time, NOT committed in plain text). Pattern: `dot_openclaw/channels/discord.yaml.tmpl` or equivalent, mirror existing OpenClaw config templating.
 
 - [ ] **Step 4: Smoke test**
 
@@ -414,7 +414,7 @@ td task complete id:6gfcXm9XfvqjV9Fv
 
 ---
 
-## Implementation Phases (P1–P13)
+## Implementation Phases (P1-P13)
 
 Each phase below ends with `td task complete id:<id>`. Detailed implementation steps live in the Todoist task description, fetched at phase start via `td task view`. The plan shows the phase scaffolding (fetch description, verification gate, closeout).
 
@@ -447,7 +447,7 @@ Inline highlights from the description:
 
 - [ ] **Step 3: Verification gate**
 
-Make 3–5 representative commits (could be the subsequent setup commits from this plan!) and inspect the generated messages. Confirm conventional-commits format with multi-paragraph body + `Fixes #N` trailer support.
+Make 3 to 5 representative commits (could be the subsequent setup commits from this plan!) and inspect the generated messages. Confirm conventional-commits format with multi-paragraph body + `Fixes #N` trailer support.
 
 - [ ] **Step 4: Commit the hook change**
 
@@ -468,7 +468,7 @@ td task complete id:6gfVJH5P4g4vQ4FM
 
 **Todoist:** `6gfVJFgXvG9mJ96M`
 
-**Status:** POSTPONED per user (2026-05-17) — likely to land when agents migrate to the NUC server. Detailed steps retained below for when work resumes; do not execute during this cycle unless user re-prioritizes.
+**Status:** POSTPONED per user (2026-05-17), likely to land when agents migrate to the NUC server. Detailed steps retained below for when work resumes; do not execute during this cycle unless user re-prioritizes.
 
 **Why second (when active):** time-sensitive for workstation daily use.
 
@@ -587,7 +587,7 @@ td task complete id:6gfVJ6W9xxjh9FPM
 
 ---
 
-### P5: Determinate Nix migration — DONE (closed 2026-05-17)
+### P5: Determinate Nix migration, DONE (closed 2026-05-17)
 
 **Todoist:** `6gfVJ9rXQ85xr7qM` (closed 2026-05-17; closes #10 on push)
 
@@ -596,7 +596,7 @@ td task complete id:6gfVJ6W9xxjh9FPM
 - `6a3da6f feat(nix): add self-healing nix-installer repair LaunchDaemon`
 - `3426adc feat(nix): track user-level nix.conf with flakes + nix-command enabled`
 
-**Residual work (one-shot, after S0 push):** confirm GH #10 auto-closes when the `Closes #10` trailer (added in S0) reaches `main`. If the trailer didn't get added during S0, fall back to `gh issue close 10 --comment "Closed by 58bbb7d + 6a3da6f + 3426adc on main."`. No Todoist closeout needed — task already closed.
+**Residual work (one-shot, after S0 push):** confirm GH #10 auto-closes when the `Closes #10` trailer (added in S0) reaches `main`. If the trailer didn't get added during S0, fall back to `gh issue close 10 --comment "Closed by 58bbb7d + 6a3da6f + 3426adc on main."`. No Todoist closeout needed, task already closed.
 
 ---
 
@@ -661,7 +661,7 @@ td task view id:6gfVJGJCfjwCVXQv --json | jq -r '.description'
 
 User-subjective approval that pulse behavior feels right + skip-list covers actual usage.
 
-- [ ] **Step 4: Commit (likely multiple — separate commits for skip-list vs pulse-tuning).**
+- [ ] **Step 4: Commit (likely multiple, separate commits for skip-list vs pulse-tuning).**
 
 - [ ] **Step 5: Mark Todoist task complete**
 
@@ -688,7 +688,7 @@ td task view id:6gfVJ8Rfh8ppwpqv --json | jq -r '.description'
 - bat-extras → switch `MANPAGER` in bashrc to `batman`.
 - `fd` as FZF_DEFAULT_COMMAND in bashrc.
 - starship `git_metrics` in `dot_config/starship.toml`.
-- (hyperfine already in yaml — just confirm.)
+- (hyperfine already in yaml, just confirm.)
 
 - [ ] **Step 3: Verification gate**
 
@@ -825,7 +825,7 @@ td task complete id:6gfVJ9P5vpX64JhM
 **Todoist:** `6gfVJ7mrm2259mwM`
 
 **Files:**
-- Modify: `dot_gitconfig.tmpl` — add `[help]` section.
+- Modify: `dot_gitconfig.tmpl`, add `[help]` section.
 
 **Steps:**
 
@@ -846,7 +846,7 @@ Add:
 - [ ] **Step 3: Verification gate**
 
 ```bash
-chezmoi apply ~/.gitconfig    # interactive — KeePassXC unlock needed
+chezmoi apply ~/.gitconfig    # interactive, KeePassXC unlock needed
 git stauts                     # → auto-corrects to `git status` after ~0.1s
 ```
 

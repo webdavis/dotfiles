@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Global pre-commit dispatcher — runs a repository's own pre-commit checks.
+# Global pre-commit dispatcher, runs a repository's own pre-commit checks.
 # Activated by core.hooksPath in dot_gitconfig.tmpl, so it runs in every repo.
 #
 # The user-wide hooks dir must stay authoritative so the global

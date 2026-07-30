@@ -48,7 +48,7 @@ mkdir -p "$HOME/.agents/skills"
 # skip it (present), and the refresh is the npx update pass's job. Two
 # clawhub-tracked skills, also present: tracked-claw updates cleanly (its
 # .DS_Store must be scrubbed first); refused-claw carries the repo-asserted
-# Codex overlay, which makes the real CLI refuse with "local changes" — the
+# Codex overlay, which makes the real CLI refuse with "local changes", the
 # updater must set exactly that file aside and retry once.
 mkdir -p "$HOME/.agents/skills/tracked-skill"
 printf -- '---\nname: tracked-skill\ndescription: present\n---\n' >"$HOME/.agents/skills/tracked-skill/SKILL.md"
@@ -107,7 +107,7 @@ chmod +x "$shim_dir/git" "$shim_dir/npx"
 
 # The clawhub shim: logs every invocation; `update refused-claw` refuses with
 # the real CLI's "local changes" line for as long as the overlay file exists
-# (mirroring the real fingerprint mismatch — verified live on v0.23.1), and
+# (mirroring the real fingerprint mismatch, verified live on v0.23.1), and
 # succeeds once the updater has set the overlay aside. Refusal exits 0, like
 # the real CLI.
 cat >"$shim_dir/clawhub" <<EOF
@@ -136,7 +136,7 @@ if grep -qE 'skills@latest update' "$scratch_dir/npx.log" 2>/dev/null; then
 fi
 
 # 2) The install pass never git-clones (the git-pin machinery is gone), and
-#    with no forks entries the drift-check clones nothing either — so git is
+#    with no forks entries the drift-check clones nothing either, so git is
 #    never invoked at all.
 if [[ -s "$scratch_dir/git.log" ]]; then
   fail "full run invoked git despite the npx-native model and no forks: $(cat "$scratch_dir/git.log")"
@@ -152,7 +152,7 @@ done
 
 # 4) The clawhub update pass refreshes each tracked skill IN the store: bare
 #    store name, --workdir $HOME/.agents --dir skills, per-skill (never --all),
-#    and — both skills being present — never an install.
+#    and, both skills being present, never an install.
 grep -qE -- "--workdir [^ ]+/.agents --dir skills update tracked-claw" "$scratch_dir/clawhub.log" 2>/dev/null ||
   fail "full run never invoked 'clawhub update tracked-claw' against a store-shaped workdir: $(cat "$scratch_dir/clawhub.log" 2>/dev/null)"
 # ... and never against the REAL store: the update must run inside the candidate.
@@ -170,8 +170,8 @@ fi
   fail "tracked-claw's .DS_Store survived the update lane (it breaks clawhub's fingerprint match)"
 
 # 6) The refusal ladder: the repo-asserted overlay makes the CLI refuse with
-#    "local changes"; the pass sets exactly that file aside and retries once —
-#    two update invocations for refused-claw, never --force — and the overlay
+#    "local changes"; the pass sets exactly that file aside and retries once,
+#    two update invocations for refused-claw, never --force, and the overlay
 #    is back afterwards (re-asserted from the tiers table later in the run).
 refused_updates="$(grep -c 'update refused-claw' "$scratch_dir/clawhub.log" || true)"
 [[ $refused_updates -eq 2 ]] ||

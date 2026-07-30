@@ -7,7 +7,7 @@
   <string>com.webdavis.yt-dlp-pot-provider</string>
   <!-- Run the Node.js build, not the Deno script. Deno + macOS + the npm
        canvas native module crashes (SIGSEGV in Backend::setCanvas) on
-       every few requests — confirmed by ~4 deno-*.ips DiagnosticReports
+       every few requests, confirmed by ~4 deno-*.ips DiagnosticReports
        per day. Canvas was originally written for Node's NAPI and is
        stable there; upstream is also migrating jsdom→happy-dom (issues
        #208/#219) which will eventually drop the canvas dep entirely.

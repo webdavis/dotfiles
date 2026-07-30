@@ -1,4 +1,4 @@
-# herdr last-workspace plugin — Implementation Plan
+# herdr last-workspace plugin: Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended)
 > or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax
@@ -21,7 +21,7 @@ and the user's herdr config binds a key to the action.
 
 - Plugin id: `herdr-last-workspace`; action id: `last_workspace` (mirrors herdr's `last_pane`).
 - `min_herdr_version = "0.7.0"`.
-- `workspace.focused` event payload is `{"event":"workspace_focused","data":{"type":"workspace_focused","workspace_id":"<id>"}}` — the new id is `.data.workspace_id`.
+- `workspace.focused` event payload is `{"event":"workspace_focused","data":{"type":"workspace_focused","workspace_id":"<id>"}}`, the new id is `.data.workspace_id`.
 - herdr provides `HERDR_PLUGIN_EVENT_JSON`, `HERDR_PLUGIN_STATE_DIR`, `HERDR_BIN_PATH` to plugin processes.
 - `herdr workspace list` emits JSON on stdout (no `--json` flag); `herdr workspace focus <id>` exits 0 even on a missing id.
 - State: two lines (`current`, `previous`) in `$HERDR_PLUGIN_STATE_DIR/mru`.
@@ -60,7 +60,7 @@ serde_json = "1"
 Write the whole file, but the testable core is the `#[cfg(test)]` module. Full file:
 
 ```rust
-//! Last Workspace — a most-recently-used (MRU) toggle between the two
+//! Last Workspace, a most-recently-used (MRU) toggle between the two
 //! most-recently-focused herdr workspaces.
 //!
 //! herdr ships `last_pane` (pane MRU) but no `last_workspace`. A key-bound shell
@@ -70,8 +70,8 @@ Write the whole file, but the testable core is the `#[cfg(test)]` module. Full f
 //! keeps a 2-deep MRU.
 //!
 //! Subcommands (declared in herdr-plugin.toml):
-//!   record  — on each workspace.focused event, shift current -> previous
-//!   bounce  — focus the recorded previous workspace (backs the last_workspace action)
+//!   record: on each workspace.focused event, shift current -> previous
+//!   bounce: focus the recorded previous workspace (backs the last_workspace action)
 
 use std::env;
 use std::fs;
@@ -154,7 +154,7 @@ fn record() {
 }
 
 /// Focus the recorded previous workspace. The resulting workspace.focused event
-/// re-enters record(), flipping current/previous — so the next invocation returns.
+/// re-enters record(), flipping current/previous, so the next invocation returns.
 fn bounce() {
     let (current, previous) = read_mru();
     if previous.is_empty() {
@@ -237,7 +237,7 @@ Expected: the source is in the chezmoi tree, so build/test from the repo copy he
 Run: `cargo fmt && cargo clippy --release && cargo build --release --locked`
 Expected: fmt clean, clippy no warnings, release build succeeds, `target/release/last-workspace` exists, `Cargo.lock` generated.
 
-- [ ] **Step 5: Commit (source only — no `target/`)**
+- [ ] **Step 5: Commit (source only, no `target/`)**
 
 ```bash
 cd /Users/stephen/workspaces/Ivy/webdavis/dotfiles
@@ -273,7 +273,7 @@ platforms = ["macos", "linux"]
 [[build]]
 command = ["cargo", "build", "--release", "--locked"]
 
-# Fires on EVERY workspace focus change — mouse, picker, or chord alike — which
+# Fires on EVERY workspace focus change (mouse, picker, or chord alike) which
 # is why this is correct where a key-bound shell script was not.
 [[events]]
 on = "workspace.focused"
@@ -308,7 +308,7 @@ git commit -m "feat(herdr): last-workspace plugin manifest (workspace.focused ho
 - Modify: `scripts/lint.sh` (add the new template to the shellcheck enumeration, after the `run_onchange_after_50-install-herdr-navigator.sh.tmpl` line)
 
 **Interfaces:**
-- Consumes: the plugin source (Tasks 1–2) at `~/.local/share/herdr/plugins/herdr-last-workspace/`.
+- Consumes: the plugin source (Tasks 1-2) at `~/.local/share/herdr/plugins/herdr-last-workspace/`.
 - Produces: on `chezmoi apply`, the plugin is built, linked into herdr, and its MRU state seeded.
 
 - [ ] **Step 1: Write the chezmoiscript**
@@ -342,7 +342,7 @@ fi
 (cd "$plugin_dir" && cargo build --release --locked)
 
 # Link with herdr if not already linked. Linking talks to the running herdr
-# server; if it is not up (e.g. a headless apply), skip with a hint — an
+# server; if it is not up (e.g. a headless apply), skip with a hint, an
 # interactive session can link later. The link persists once registered.
 if herdr plugin list 2>/dev/null | grep -q "$plugin_id"; then
   echo "herdr plugin $plugin_id already linked"
@@ -406,8 +406,8 @@ Replace the existing `prefix+ctrl+\` workspace-bounce `[[keys.command]]` block (
 
 ```toml
 # Workspace-level back-and-forth (a true "last_workspace" MRU toggle). herdr has
-# no builtin for this — last_pane (prefix+\) is pane-level, previous_workspace is
-# positional — so the herdr-last-workspace plugin tracks workspace focus via
+# no builtin for this, last_pane (prefix+\) is pane-level, previous_workspace is
+# positional, so the herdr-last-workspace plugin tracks workspace focus via
 # the workspace.focused event and its `last_workspace` action focuses the previous
 # one. Unlike a key-bound script, the plugin sees mouse/picker switches too. The
 # key is the user's choice; prefix+ctrl+\ is the default. Pairs with last_pane:
@@ -427,12 +427,12 @@ Replace the entire file with:
 #!/usr/bin/env bash
 # Create-or-focus a herdr workspace by label.
 #
-# `herdr workspace create` is NOT idempotent — it spawns a new workspace every
-# invocation — and `herdr workspace focus` takes a workspace id, not a label, so
+# `herdr workspace create` is NOT idempotent, it spawns a new workspace every
+# invocation, and `herdr workspace focus` takes a workspace id, not a label, so
 # there is no single built-in create-or-focus command; hence this helper.
 #
 # (Workspace MRU "last workspace" tracking lives in the herdr-last-workspace
-# herdr plugin, which hooks the workspace.focused event — this helper just jumps.)
+# herdr plugin, which hooks the workspace.focused event, this helper just jumps.)
 #
 # Usage: herdr-jump.sh <label> <cwd>
 set -euo pipefail
@@ -480,7 +480,7 @@ git commit -m "feat(herdr): bind prefix+ctrl+\\ to the last-workspace plugin act
 **Files:** none (verification only).
 
 **Interfaces:**
-- Consumes: everything above. This is the acceptance test from the spec — it must pass before the work is done.
+- Consumes: everything above. This is the acceptance test from the spec, it must pass before the work is done.
 
 - [ ] **Step 1: Apply the plugin source + run the build/link/seed script**
 
@@ -497,7 +497,7 @@ Expected: build succeeds; "linked herdr plugin herdr-last-workspace" (or "alread
 - [ ] **Step 2: Reload herdr config and confirm the binding is accepted**
 
 Run: `herdr server reload-config`
-Expected: `{"result":{"diagnostics":[],"status":"applied",...}}` — no diagnostics.
+Expected: `{"result":{"diagnostics":[],"status":"applied",...}}`, no diagnostics.
 
 - [ ] **Step 3: Run the bug-scenario acceptance test**
 
@@ -511,17 +511,17 @@ herdr workspace focus <A> >/dev/null 2>&1; sleep 0.5   # warm up
 herdr workspace focus <B> >/dev/null 2>&1; sleep 0.5
 herdr workspace focus <C> >/dev/null 2>&1; sleep 0.5   # the "manual third" switch
 echo "focused: $(foc)  (expect C)"
-inv; sleep 0.5; echo "bounce: $(foc)  (expect B — the true previous, NOT a stale one)"
+inv; sleep 0.5; echo "bounce: $(foc)  (expect B, the true previous, NOT a stale one)"
 inv; sleep 0.5; echo "bounce: $(foc)  (expect C)"
 ```
 Expected: after focusing C, the first bounce returns to **B** (the workspace focused immediately before C),
-and the second bounce returns to **C** — the symmetric toggle. This is the exact scenario the old shell
+and the second bounce returns to **C**, the symmetric toggle. This is the exact scenario the old shell
 script got wrong.
 
 - [ ] **Step 4: Confirm `cargo test` still green and the tree is clean**
 
 Run: `(cd dot_local/share/herdr/plugins/herdr-last-workspace && cargo test) && just l && git status --short`
-Expected: tests pass, lint ✅, no uncommitted tracked changes (the spike is fully committed by Tasks 1–4).
+Expected: tests pass, lint ✅, no uncommitted tracked changes (the spike is fully committed by Tasks 1-4).
 
 ---
 
@@ -531,4 +531,4 @@ Expected: tests pass, lint ✅, no uncommitted tracked changes (the spike is ful
   plan re-derives it with proper unit tests for the pure logic.
 - If the herdr server is not running during Task 5, start a session (`herdr`) first so the plugin can be
   linked and events fire.
-- Keep `last_pane` on `prefix+\` untouched — it is unrelated and already correct.
+- Keep `last_pane` on `prefix+\` untouched, it is unrelated and already correct.

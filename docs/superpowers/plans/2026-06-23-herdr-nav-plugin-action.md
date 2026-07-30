@@ -13,7 +13,7 @@
 ## Global Constraints
 
 - Pure core (`direction_to_chord` / `is_nvim_foreground` / `decide`) and its 8 tests **unchanged**.
-- herdr plugin actions get `HERDR_PANE_ID`, **not** `HERDR_ACTIVE_PANE_ID` — the binary must read the former.
+- herdr plugin actions get `HERDR_PANE_ID`, **not** `HERDR_ACTIVE_PANE_ID`, the binary must read the former.
 - Action commands are static argv arrays (no args/templating) → **4 actions**, one per direction.
 - Cargo: `edition = "2021"`, dep `serde_json = "1"`, `Cargo.lock` vendored, build `--locked`.
 - Connection-safe (cargo build + `herdr plugin link` + a nav-keybinding swap; no network/SSH/Tailscale). Every commit passes the pre-commit hook (`just lint-check` + `just test`); `cargo test` must pass.
@@ -22,7 +22,7 @@
 
 ---
 
-### Task 1: Relocate as a plugin — `resolve_pane` (TDD), manifest, build/link plumbing
+### Task 1: Relocate as a plugin, `resolve_pane` (TDD), manifest, build/link plumbing
 
 **Files:**
 - Move: `dot_local/share/herdr/herdr-smart-nav/{Cargo.toml,Cargo.lock,src/main.rs}` → `dot_local/share/herdr/plugins/herdr-smart-nav/…`
@@ -80,7 +80,7 @@ Add these tests inside `mod tests`:
 - [ ] **Step 3: Run tests, verify the new ones fail**
 
 Run: `cd dot_local/share/herdr/plugins/herdr-smart-nav && cargo test`
-Expected: FAIL — `resolve_pane_prefers_pane_id` (got `None`), `resolve_pane_falls_back_…` (got `None`). The other 8 still pass.
+Expected: FAIL, `resolve_pane_prefers_pane_id` (got `None`), `resolve_pane_falls_back_…` (got `None`). The other 8 still pass.
 
 - [ ] **Step 4: Implement `resolve_pane`** (replace the stub)
 
@@ -93,7 +93,7 @@ fn resolve_pane(pane_id: Option<String>, active: Option<String>) -> Option<Strin
 }
 ```
 
-- [ ] **Step 5: Wire `main` to use it** — replace the current pane line
+- [ ] **Step 5: Wire `main` to use it**, replace the current pane line
 
 Old:
 ```rust
@@ -113,7 +113,7 @@ New:
 
 Run: `cargo test` → Expected: PASS (11 tests). Then `cargo build --release --locked` → Expected: builds clean (binary at `target/release/herdr-smart-nav`).
 
-- [ ] **Step 7: Add the plugin manifest** — `herdr-plugin.toml`
+- [ ] **Step 7: Add the plugin manifest**, `herdr-plugin.toml`
 
 ```toml
 id = "herdr-smart-nav"
@@ -152,7 +152,7 @@ title = "Nav right (Neovim split or herdr pane)"
 command = ["./target/release/herdr-smart-nav", "right"]
 ```
 
-- [ ] **Step 8: Create the build/link script** — `.chezmoiscripts/run_onchange_after_57-build-herdr-smart-nav-plugin.sh.tmpl`
+- [ ] **Step 8: Create the build/link script**, `.chezmoiscripts/run_onchange_after_57-build-herdr-smart-nav-plugin.sh.tmpl`
 
 ```text
 {{ if eq .chezmoi.os "darwin" -}}
@@ -181,7 +181,7 @@ fi
 (cd "$plugin_dir" && cargo build --release --locked)
 
 # Link with herdr if not already linked. Linking talks to the running herdr
-# server; if it is down (headless apply), skip with a hint — link later.
+# server; if it is down (headless apply), skip with a hint, link later.
 if herdr plugin list 2>/dev/null | grep -q "$plugin_id"; then
   echo "herdr plugin $plugin_id already linked"
 elif herdr plugin link "$plugin_dir" >/dev/null 2>&1; then
@@ -201,7 +201,7 @@ rm -f "$HOME/.local/bin/herdr-smart-nav"
 git rm .chezmoiscripts/run_onchange_after_56-build-herdr-smart-nav.sh.tmpl
 ```
 
-- [ ] **Step 10: Update lint's template list** — `scripts/lint.sh`
+- [ ] **Step 10: Update lint's template list**, `scripts/lint.sh`
 
 Replace the line:
 ```bash
@@ -233,9 +233,9 @@ git commit -m "feat(herdr): make herdr-smart-nav a plugin (plugin_action); HERDR
 - Modify: `dot_config/herdr/config.toml` (4 nav blocks: `shell` → `plugin_action`)
 - Modify: `CLAUDE.md` (herdr nav note)
 
-- [ ] **Step 1: Repoint the 4 bindings** — `dot_config/herdr/config.toml`
+- [ ] **Step 1: Repoint the 4 bindings**, `dot_config/herdr/config.toml`
 
-`ctrl+h` block — replace:
+`ctrl+h` block, replace:
 ```toml
 type = "shell"
 command = "$HOME/.local/bin/herdr-smart-nav left"
@@ -246,31 +246,31 @@ type = "plugin_action"
 command = "herdr-smart-nav.nav_left"
 ```
 
-`ctrl+j` block — replace `type = "shell"` / `command = "$HOME/.local/bin/herdr-smart-nav down"` with `type = "plugin_action"` / `command = "herdr-smart-nav.nav_down"`.
+`ctrl+j` block, replace `type = "shell"` / `command = "$HOME/.local/bin/herdr-smart-nav down"` with `type = "plugin_action"` / `command = "herdr-smart-nav.nav_down"`.
 
-`ctrl+k` block — replace `type = "shell"` / `command = "$HOME/.local/bin/herdr-smart-nav up"` with `type = "plugin_action"` / `command = "herdr-smart-nav.nav_up"`.
+`ctrl+k` block, replace `type = "shell"` / `command = "$HOME/.local/bin/herdr-smart-nav up"` with `type = "plugin_action"` / `command = "herdr-smart-nav.nav_up"`.
 
-`ctrl+l` block — replace `type = "shell"` / `command = "$HOME/.local/bin/herdr-smart-nav right"` with `type = "plugin_action"` / `command = "herdr-smart-nav.nav_right"`.
+`ctrl+l` block, replace `type = "shell"` / `command = "$HOME/.local/bin/herdr-smart-nav right"` with `type = "plugin_action"` / `command = "herdr-smart-nav.nav_right"`.
 
 (Keep each block's `key` and `description`.)
 
-- [ ] **Step 2: Update the CLAUDE.md note** — under "### Herdr Workspace Management"
+- [ ] **Step 2: Update the CLAUDE.md note**, under "### Herdr Workspace Management"
 
 Replace the existing paragraph that begins `Ctrl-h/j/k/l "seamless nav across Neovim splits and herdr panes" is a compiled Rust binary` with:
 
 ```markdown
 Ctrl-h/j/k/l "seamless nav across Neovim splits and herdr panes" is a herdr **plugin**
 (`dot_local/share/herdr/plugins/herdr-smart-nav/`, a Rust binary), bound via four `type = "plugin_action"`
-keybindings (`herdr-smart-nav.nav_<dir>`) — so herdr execs it directly as argv, with no `/bin/sh -lc`
+keybindings (`herdr-smart-nav.nav_<dir>`), so herdr execs it directly as argv, with no `/bin/sh -lc`
 wrapper. Built + linked by `run_onchange_after_57` (mirrors the `last-workspace` plugin). It shells the
 `herdr` CLI (no Rust SDK); the gain over the old shell-keybinding binary is ~5 ms (the wrapper) and is
-imperceptible — the value is the idiomatic plugin integration. Plugin actions get `HERDR_PANE_ID` (not
+imperceptible, the value is the idiomatic plugin integration. Plugin actions get `HERDR_PANE_ID` (not
 `HERDR_ACTIVE_PANE_ID`).
 ```
 
 - [ ] **Step 3: Validate + commit**
 
-Run: `just t` (taplo — config.toml clean) and `just m` (mdformat — CLAUDE.md) → ✅.
+Run: `just t` (taplo, config.toml clean) and `just m` (mdformat, CLAUDE.md) → ✅.
 
 ```bash
 git add dot_config/herdr/config.toml CLAUDE.md
@@ -305,7 +305,7 @@ grep -c 'herdr-smart-nav left\|/.local/bin/herdr-smart-nav' "$HOME/.config/herdr
 ```
 Expected: reload `applied`, no diagnostics; 4 plugin_action bindings; 0 stale shell refs.
 
-- [ ] **Step 3: e2e correctness — action invoke + recording fake-herdr**
+- [ ] **Step 3: e2e correctness, action invoke + recording fake-herdr**
 
 ```bash
 herdr plugin action invoke herdr-smart-nav.nav_left 2>&1 | tail -2 && echo "invoke ok"
@@ -346,7 +346,7 @@ Then the operator presses **ctrl-h** in a multi-pane workspace to confirm real n
 
 **Spec coverage:** relocate → T1 S1; manifest (4 actions) → T1 S7; `resolve_pane` TDD + main → T1 S2-6; build/link script (+ rm old binary) → T1 S8; delete after_56 + lint → T1 S9-10; rebind config → T2 S1; CLAUDE.md → T2 S2; activate/verify + perf gate → T3; pure core unchanged (only `resolve_pane` added) ✓. No gaps.
 
-**Placeholder scan:** none — full `resolve_pane` + tests, full manifest, full build script, exact config/CLAUDE.md edits, exact commands.
+**Placeholder scan:** none, full `resolve_pane` + tests, full manifest, full build script, exact config/CLAUDE.md edits, exact commands.
 
 **Type/name consistency:** `resolve_pane(Option<String>, Option<String>) -> Option<String>` identical in stub (T1 S2), impl (T1 S4), and call site (T1 S5). Action ids `nav_left/nav_down/nav_up/nav_right` identical in the manifest (T1 S7) and the bindings (T2 S1). Plugin id `herdr-smart-nav` identical in manifest, build script, bindings, and T3. Binary path `…/plugins/herdr-smart-nav/target/release/herdr-smart-nav` consistent in T3.
 

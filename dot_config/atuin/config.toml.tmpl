@@ -11,7 +11,7 @@ secrets_filter = true
 
 ## Custom regex patterns that prevent matching commands from being recorded.
 ## history_filter is the atuin equivalent of bash's HISTIGNORE.
-## Regex lives in KeePassXC — same entry that previously populated HISTIGNORE.
+## Regex lives in KeePassXC, same entry that previously populated HISTIGNORE.
 ## Ref: https://docs.atuin.sh/configuration/config/#history_filter
 history_filter = [
   {{ (keepassxc "Dotfiles (bashrc) :: HISTIGNORE Regex").Password | quote }},
@@ -22,7 +22,12 @@ auto_sync = false
 records = true
 
 [ai]
-enabled = true
+# enabled=false: with this on, `atuin init bash` wires an `atuin ai inline --hook`
+# call, and that hook prompts for Atuin Hub authentication on every new shell when
+# no Hub session exists. The features it gates (natural-language command generation
+# on the `?` key) are not in use. Revisit via issue #91, which records what the
+# feature does and the self-hosted-endpoint option.
+enabled = false
 
 [daemon]
 enabled = true

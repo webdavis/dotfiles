@@ -12,6 +12,8 @@ packages:
         - openhue/cli
         - oven-sh/bun
         - owenthereal/upterm
+        - silverstein/tap
+        - rjyo/moshi
         - steipete/tap
         - vjeantet/tap
         - xdevplatform/tap
@@ -21,7 +23,7 @@ packages:
       # gate. The pre-bundle loop in run_onchange_before_10-system-packages.sh.tmpl
       # runs `brew trust --tap` for each (covers command taps too). The gate is a
       # load-time check, so an untrusted tap only fails when brew must (re)load it
-      # — on a fresh install or an upgrade — which is why trusting all of them up
+      #, on a fresh install or an upgrade, which is why trusting all of them up
       # front is what keeps `brew bundle` from tripping. Keep in sync with `taps:`.
       trusted_taps:
         - antoniorodr/memo
@@ -34,6 +36,8 @@ packages:
         - openhue/cli
         - oven-sh/bun
         - owenthereal/upterm
+        - silverstein/tap
+        - rjyo/moshi
         - steipete/tap
         - vjeantet/tap
         - xdevplatform/tap
@@ -110,6 +114,7 @@ packages:
         - nmap
         - node
         - obsidian-cli
+        - ollama
         - onefetch
         - openai-whisper
         - openhue/cli/openhue-cli
@@ -126,6 +131,7 @@ packages:
         - pv
         - restic
         - ripgrep
+        - rjyo/moshi/moshi-hook
         - ruff
         - sd
         - sevenzip
@@ -156,6 +162,7 @@ packages:
         - xcode-build-server
         - xcodegen
         - xz
+        - yakitrak/yakitrak/notesmd-cli
         - yq
         - zoxide
       casks:
@@ -168,11 +175,14 @@ packages:
         - chatgpt
         - claude
         - claude-code@latest
+        - codex
+        - codex-app
         - discord
         - docker-desktop
         - espanso
         - fantastical
         - firefox
+        - fluidvoice
         - font-fira-code
         - font-fira-code-nerd-font
         - font-symbols-only-nerd-font
@@ -181,16 +191,20 @@ packages:
         - google-chrome
         - karabiner-elements
         - keepassxc
+        - lulu
         - lunar
         - mediosz/tap/swipeaerospace
         - microsoft-auto-update
         - microsoft-office
+        - minutes
         - mitmproxy
         - nikitabobko/tap/aerospace
         - obs
         - obsidian
         - openemu
         - osquery
+        - oversight
+        - paseo
         - proton-drive
         - proton-mail
         - proton-mail-bridge

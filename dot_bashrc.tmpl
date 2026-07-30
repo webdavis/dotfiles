@@ -112,7 +112,8 @@ export PATH="$COMPOSIO_INSTALL_DIR:$PATH"
 # Volta: https://volta.sh/
 # Append (not prepend) so Volta's node/npm shims do NOT win over Homebrew's
 # `node`. Volta-installed CLI tools (e.g. qmd) still resolve here because nothing
-# earlier in PATH provides those binaries, and their shims dispatch internally.
+# earlier in PATH provides those binaries, and their shims dispatch to their
+# pinned Node version internally, independent of PATH order.
 export VOLTA_HOME="$HOME/.volta"
 [[ -d "$VOLTA_HOME/bin" ]] && PATH="$PATH:$VOLTA_HOME/bin"
 
@@ -147,6 +148,22 @@ export PATH
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 if [[ $- == *i* ]]; then
   # General Homebrew-Bash completions.
+  #
+  # BASH_COMPLETION_COMPAT_IGNORE skips a compat file by basename, and must be
+  # set BEFORE the source below: bash-completion reads it while walking the
+  # compat dir at load time, not lazily. himalaya 2.0.0 ships a broken compat
+  # file: its `completion bash` subcommand WRITES the script to a file in the
+  # working directory and prints a status line to stdout, so the formula's
+  # `himalaya completion bash > .../himalaya` captured the status line instead.
+  # The installed file is two lines of prose, and bash reports a syntax error on
+  # the `(` in "1 completion script(s) successfully generated" in every new
+  # shell. bash-completion sources that directory eagerly, so shadowing the file
+  # from the XDG completions directory is not enough on its own.
+  #
+  # The working completion is generated into the XDG directory by
+  # run_onchange_after_20-himalaya-completion.sh.tmpl, which takes the file the
+  # subcommand actually writes rather than its stdout.
+  export BASH_COMPLETION_COMPAT_IGNORE='himalaya'
   bash_completion="${HOMEBREW_PREFIX}/opt/bash-completion@2/etc/profile.d/bash_completion.sh"
   [[ -r $bash_completion ]] && . "$bash_completion"
 

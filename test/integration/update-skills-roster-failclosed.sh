@@ -80,6 +80,17 @@ for s in "${skills[@]}"; do
 done
 EOF
 chmod +x "$stub/npx"
+# alerter stub: the broken-roster cases below reach update-skills' loud-alert
+# path, which shells the real `alerter --timeout 30`. Stub it so a dev machine
+# with Homebrew alerter installed does not fire a real 30-second macOS
+# notification per case (blocking the suite; the continuous-integration runner
+# has no alerter, so this stayed hidden there). No case asserts the alert, so a
+# no-op suffices; asserting siblings record $ALERTER_LOG.
+cat >"$stub/alerter" <<'EOF'
+#!/usr/bin/env bash
+exit 0
+EOF
+chmod +x "$stub/alerter"
 export PATH="$stub:$PATH"
 
 run_full() { UPDATE_SKILLS_FORCE=1 bash "$SCRIPT" 2>&1; }

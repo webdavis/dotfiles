@@ -19,7 +19,7 @@ set -euo pipefail
 # `bounce` does, so seeder/reader path divergence is structurally impossible
 # (previously this was hand-aligned bash + jq that could drift from src/main.rs).
 # `seed` is idempotent (no-op when state already exists) and tolerant of a down
-# herdr server (a failed query seeds nothing and exits 0) — so this call cannot
+# herdr server (a failed query seeds nothing and exits 0), so this call cannot
 # abort the apply. Only run it when the build above actually produced a binary
 # (the build partial exits 0 early when cargo is absent).
 #

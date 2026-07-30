@@ -1,7 +1,7 @@
 {{ if eq .chezmoi.os "darwin" -}}
 #!/bin/bash
 # When brew upgrades atuin in-place, the running daemon keeps executing its
-# old in-memory image — KeepAlive doesn't catch this since the daemon hasn't
+# old in-memory image, KeepAlive doesn't catch this since the daemon hasn't
 # crashed. New shells use the new client; gRPC schema drift silently breaks
 # command recording. Bounce the LaunchAgent if the daemon's recorded version
 # (from its PID file) differs from `atuin --version` on disk.

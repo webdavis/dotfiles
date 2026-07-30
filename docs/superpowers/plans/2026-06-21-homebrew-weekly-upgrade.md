@@ -12,10 +12,10 @@
 
 ## Global Constraints
 
-- Operator is REMOTE until ~Monday noon: **never run the real `brew upgrade`/`mas upgrade` as a test** — the first real run is the scheduled Monday-noon one. All verification is plumbing-only (render+shellcheck, `plutil -lint`, mock-based test, `launchctl print`, `brew autoupdate status`).
-- `RunAtLoad=false` on the LaunchAgent — loading it must never trigger an upgrade.
+- Operator is REMOTE until ~Monday noon: **never run the real `brew upgrade`/`mas upgrade` as a test**. The first real run is the scheduled Monday-noon one. All verification is plumbing-only (render+shellcheck, `plutil -lint`, mock-based test, `launchctl print`, `brew autoupdate status`).
+- `RunAtLoad=false` on the LaunchAgent: loading it must never trigger an upgrade.
 - `Weekday 1 = Monday` in launchd (`man launchd.plist`: "0 and 7 are Sunday").
-- Shell style: `#!/usr/bin/env bash` for helpers/tests, `#!/bin/bash` for chezmoiscripts; `set -euo pipefail` (helper uses `set -uo pipefail` — see Task 1); 2-space indent, `shfmt -i 2 -ci -s`.
+- Shell style: `#!/usr/bin/env bash` for helpers/tests, `#!/bin/bash` for chezmoiscripts; `set -euo pipefail` (helper uses `set -uo pipefail`, see Task 1); 2-space indent, `shfmt -i 2 -ci -s`.
 - Every commit passes the pre-commit hook (`just lint-check` + `just test`).
 - Branch: `feat/cli-agent-tracking-workflow`.
 
@@ -31,7 +31,7 @@
 **Interfaces:**
 - Produces: helper at `~/.local/bin/homebrew-weekly-upgrade.sh`; prints sectioned report to stdout with markers `== brew update ==`, `== brew outdated ==`, `== mas outdated ==`, `== brew upgrade ==`, `== mas upgrade ==`, `== brew cleanup ==`, `=== done …`. Honors `HOMEBREW_WEEKLY_BREW` / `HOMEBREW_WEEKLY_MAS` overrides (default `/opt/homebrew/bin/brew`, `/opt/homebrew/bin/mas`) for test injection. Consumed by the plist (Task 2) and `just brew-upgrade`.
 
-- [ ] **Step 1: Write the failing test** — `test/homebrew-weekly-upgrade.sh`
+- [ ] **Step 1: Write the failing test**, `test/homebrew-weekly-upgrade.sh`
 
 ```bash
 #!/usr/bin/env bash
@@ -93,9 +93,9 @@ echo "homebrew-weekly-upgrade: OK -- resilient (continued past failure; all sect
 - [ ] **Step 2: Run the test, verify it fails**
 
 Run: `bash test/homebrew-weekly-upgrade.sh`
-Expected: FAIL — "helper not found/executable" (the helper does not exist yet).
+Expected: FAIL, "helper not found/executable" (the helper does not exist yet).
 
-- [ ] **Step 3: Write the helper** — `dot_local/bin/executable_homebrew-weekly-upgrade.sh`
+- [ ] **Step 3: Write the helper**, `dot_local/bin/executable_homebrew-weekly-upgrade.sh`
 
 ```bash
 #!/usr/bin/env bash
@@ -143,9 +143,9 @@ printf '=== done %s ===\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 - [ ] **Step 4: Run the test, verify it passes**
 
 Run: `bash test/homebrew-weekly-upgrade.sh`
-Expected: PASS — "OK -- resilient …". (Confirms `brew upgrade` failing did not stop `mas upgrade`/`brew cleanup`/done.)
+Expected: PASS, "OK -- resilient …". (Confirms `brew upgrade` failing did not stop `mas upgrade`/`brew cleanup`/done.)
 
-- [ ] **Step 5: Add the `just brew-upgrade` recipe** — `justfile`, immediately after the `test-brew-cache` recipe
+- [ ] **Step 5: Add the `just brew-upgrade` recipe**, `justfile`, immediately after the `test-brew-cache` recipe
 
 ```text
 # Run the weekly Homebrew upgrade by hand (formulae + casks + Mac App Store +
@@ -275,7 +275,7 @@ launchctl bootstrap "gui/$(id -u)" "$PLIST"
 {{- end }}
 ```
 
-- [ ] **Step 2: Add the loader to `find_shell_templates`** — `scripts/lint.sh`, in the `-o -name` list (after the brew-shellenv line)
+- [ ] **Step 2: Add the loader to `find_shell_templates`**, `scripts/lint.sh`, in the `-o -name` list (after the brew-shellenv line)
 
 ```bash
     -o -name "run_after_44-cache-brew-shellenv.sh.tmpl" \
@@ -309,7 +309,7 @@ git commit -m "feat(brew): loader for the weekly-upgrade LaunchAgent + lint wiri
 
 **Interfaces:** none consumed/produced by other tasks.
 
-- [ ] **Step 1: Insert the teardown at the top of the darwin block** — after `set -euo pipefail` (line 4), before the `# Pre-trust taps` comment (line 6)
+- [ ] **Step 1: Insert the teardown at the top of the darwin block**, after `set -euo pipefail` (line 4), before the `# Pre-trust taps` comment (line 6)
 
 ```bash
 # Tear down the old domt4/autoupdate daily auto-upgrader (replaced by the
@@ -323,10 +323,10 @@ if /opt/homebrew/bin/brew tap | grep -q '^domt4/autoupdate$'; then
 fi
 ```
 
-- [ ] **Step 2: Delete the old autoupdate block** — remove these lines (the `# Configure Homebrew autoupdate …` block):
+- [ ] **Step 2: Delete the old autoupdate block**, remove these lines (the `# Configure Homebrew autoupdate …` block):
 
 ```bash
-# Configure Homebrew autoupdate (idempotent — only restart if not already running).
+# Configure Homebrew autoupdate (idempotent, only restart if not already running).
 HOMEBREW_BIN="${HOMEBREW_PREFIX:-/opt/homebrew}/bin/brew"
 
 if ! "$HOMEBREW_BIN" autoupdate status 2>/dev/null | grep -q "running"; then
@@ -335,11 +335,11 @@ if ! "$HOMEBREW_BIN" autoupdate status 2>/dev/null | grep -q "running"; then
   "$HOMEBREW_BIN" autoupdate delete 2>/dev/null || true
   "$HOMEBREW_BIN" autoupdate start 86400 --upgrade --cleanup --immediate --sudo
 else
-  echo "Homebrew autoupdate already running — skipping restart."
+  echo "Homebrew autoupdate already running, skipping restart."
 fi
 ```
 
-- [ ] **Step 3: Remove `domt4/autoupdate` from the package data** — `.chezmoidata/system_packages_autoinstall.yaml`
+- [ ] **Step 3: Remove `domt4/autoupdate` from the package data**, `.chezmoidata/system_packages_autoinstall.yaml`
 
 Delete line 8 (`        - domt4/autoupdate # Automatic Upgrades.`) under `taps:` and line 32 (`        - domt4/autoupdate`) under `trusted_taps:`.
 
@@ -364,19 +364,19 @@ git commit -m "feat(brew): remove domt4/autoupdate daily auto-upgrader (teardown
 **Files:**
 - Modify: `CLAUDE.md` (a subsection under "System Package Management")
 
-- [ ] **Step 1: Add the subsection** — after the existing System Package Management content
+- [ ] **Step 1: Add the subsection**, after the existing System Package Management content
 
 ```markdown
 **Weekly upgrades (not daily).** The `domt4/autoupdate` daily auto-upgrader has been removed in favor of
 a chezmoi-managed user LaunchAgent, `com.webdavis.homebrew-weekly-upgrade`, that runs
 `~/.local/bin/homebrew-weekly-upgrade.sh` every **Monday 12:00** (launchd `Weekday 1 = Monday`;
-`man launchd.plist`: "0 and 7 are Sunday"), when the operator is present — so app restarts/prompts never
+`man launchd.plist`: "0 and 7 are Sunday"), when the operator is present, so app restarts/prompts never
 happen unattended. The helper does `brew update` → log `brew outdated`/`mas outdated` → `brew upgrade` →
 `mas upgrade` → `brew cleanup`, is resilient (a failing step is logged but does not abort the run), and
 does **no** Gatekeeper/quarantine stripping. `RunAtLoad=false` so loading the agent never triggers an
 upgrade. Run it on demand with `just brew-upgrade`; logs at `~/.local/log/homebrew/weekly-upgrade.log`.
 The `run_onchange_before_10-system-packages` script tears down any old autoupdate **before**
-`brew bundle --cleanup` untaps it (ordering is load-bearing — do not reorder).
+`brew bundle --cleanup` untaps it (ordering is load-bearing, do not reorder).
 ```
 
 - [ ] **Step 2: Format + verify**
@@ -395,7 +395,7 @@ git commit -m "docs: document the weekly Homebrew upgrade LaunchAgent"
 
 ### Task 6: Activate now + verify (rollout)
 
-**Files:** none (live actions on this machine; connection-safe — no upgrade runs).
+**Files:** none (live actions on this machine; connection-safe, no upgrade runs).
 
 - [ ] **Step 1: Tear down the old autoupdater + untap** (mirrors Task 4's committed logic, applied to this machine now)
 
@@ -405,7 +405,7 @@ git commit -m "docs: document the weekly Homebrew upgrade LaunchAgent"
 /opt/homebrew/bin/brew untap domt4/autoupdate 2>/dev/null || true
 ```
 
-- [ ] **Step 2: Place + load the LaunchAgent** (specific non-KeePassXC targets — no full `chezmoi apply`)
+- [ ] **Step 2: Place + load the LaunchAgent** (specific non-KeePassXC targets, no full `chezmoi apply`)
 
 ```bash
 chezmoi apply --force "$HOME/Library/LaunchAgents/com.webdavis.homebrew-weekly-upgrade.plist"
@@ -434,7 +434,7 @@ If `mas outdated` errors on macOS 26.2: drop the `mas upgrade` line from the hel
 - [ ] **Step 5: Final suite + status**
 
 Run: `just l && just test`
-Expected: all ✅. Then `git status` clean (everything committed in Tasks 1–5).
+Expected: all ✅. Then `git status` clean (everything committed in Tasks 1 to 5).
 
 ---
 
@@ -442,7 +442,7 @@ Expected: all ✅. Then `git status` clean (everything committed in Tasks 1–5)
 
 **Spec coverage:** remove daily autoupdate → Task 4 + Task 6 step 1; weekly LaunchAgent → Task 2; helper (update/outdated/upgrade/mas/cleanup, resilient, log, no-strip) → Task 1; loader → Task 3; lint + docs → Task 3/Task 5; MAS included → Task 1 (`mas upgrade`) + Task 6 step 4 caveat; outdated-only/scoped → inherent in `brew upgrade` (documented); rollout activate-now → Task 6; verification plumbing-only → all tasks. No gaps.
 
-**Placeholder scan:** none — every file's full content and every command is inline.
+**Placeholder scan:** none, every file's full content and every command is inline.
 
 **Type/name consistency:** label `com.webdavis.homebrew-weekly-upgrade` and helper path `~/.local/bin/homebrew-weekly-upgrade.sh` and log path `~/.local/log/homebrew/weekly-upgrade.log` are identical across the plist (Task 2), loader (Task 3), helper (Task 1), and activation (Task 6). Section markers asserted in the test (Task 1 step 1) match those printed by the helper (Task 1 step 3). The override env vars `HOMEBREW_WEEKLY_BREW`/`HOMEBREW_WEEKLY_MAS` match between test and helper.
 

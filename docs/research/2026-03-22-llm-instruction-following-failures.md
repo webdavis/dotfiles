@@ -11,11 +11,11 @@ ______________________________________________________________________
 
 Three patterns keep recurring despite explicit, clear instructions:
 
-1. **Gateway restart without warning** — told to warn first, wait, then restart in a separate turn. Keeps
+1. **Gateway restart without warning**, told to warn first, wait, then restart in a separate turn. Keeps
    bundling or skipping the warning.
-1. **Long-running work inline** — told anything >5 seconds should be spawned as a sub-agent. Keeps doing
+1. **Long-running work inline**, told anything >5 seconds should be spawned as a sub-agent. Keeps doing
    complex work inline.
-1. **Implementing before approval** — told to get plan approval before writing code or making significant
+1. **Implementing before approval**, told to get plan approval before writing code or making significant
    changes. Keeps implementing without waiting.
 
 This document investigates *why* this keeps happening, drawing on what is known about LLM behavior,
@@ -56,8 +56,8 @@ In transformer architectures, attention is distributed across all tokens. Resear
 This means: when a user asks "restart the gateway," the model's most strongly attended context is the
 immediate request, not the system prompt written thousands of tokens earlier saying "warn first."
 
-This is sometimes called **positional decay** — instructions lose effective influence as they move
-further from the generation position.
+This is sometimes called **positional decay**: instructions lose effective influence as they move further
+from the generation position.
 
 ### 1.3 "Helpful Completion" Bias
 
@@ -78,12 +78,12 @@ reinforcement in fine-tuning, the helpful-completion instinct wins.
 
 This distinction matters enormously and is underappreciated:
 
-| Instruction Type         | Example                                        | Reliability                                              |
-| ------------------------ | ---------------------------------------------- | -------------------------------------------------------- |
-| **Factual**              | "My name is Stephen"                           | Very high — passive, no sequence                         |
-| **Behavioral (simple)**  | "Don't use markdown tables in Discord"         | High — applied at generation time                        |
-| **Procedural (complex)** | "Warn first → wait → restart in separate turn" | Low — multi-step, time-sequenced, requires withholding   |
-| **Approval gates**       | "Get approval before implementing"             | Very low — requires actively stopping a natural workflow |
+| Instruction Type         | Example                                        | Reliability                                             |
+| ------------------------ | ---------------------------------------------- | ------------------------------------------------------- |
+| **Factual**              | "My name is Stephen"                           | Very high, passive, no sequence                         |
+| **Behavioral (simple)**  | "Don't use markdown tables in Discord"         | High, applied at generation time                        |
+| **Procedural (complex)** | "Warn first → wait → restart in separate turn" | Low, multi-step, time-sequenced, requires withholding   |
+| **Approval gates**       | "Get approval before implementing"             | Very low, requires actively stopping a natural workflow |
 
 Factual instructions are easy because they're applied passively. **Procedural constraints and approval
 gates are hardest** because they require:
@@ -107,7 +107,7 @@ Research (Liu et al., 2023, "Lost in the Middle") demonstrated that LLMs perform
 retrieving and utilizing information placed in the **middle of long contexts**. Performance is highest
 for information at the very beginning or very end.
 
-System prompts are at the *beginning* — which sounds good. But as conversation history grows:
+System prompts are at the *beginning*, which sounds good. But as conversation history grows:
 
 - The effective "beginning" advantage erodes
 - User messages and assistant responses pile up between the system prompt and the current generation
@@ -158,12 +158,12 @@ inadvertently sending an implicit permission signal that can override explicit s
 The model has learned from training data that direct imperatives should be followed directly.
 
 "Restart it now" triggers very different completion patterns than "can you help me think about
-restarting?" — even if the system prompt says the same thing in both cases.
+restarting?", even if the system prompt says the same thing in both cases.
 
 ### 3.3 Why Acknowledgment Doesn't Help
 
 A model can acknowledge "I understand I should warn before restarting" and then immediately fail to do
-so. This isn't hypocrisy — it's structural:
+so. This isn't hypocrisy, it's structural:
 
 - **Acknowledgment** happens in one forward pass (generating the acknowledgment text)
 - **Behavior** happens in a *different* forward pass (generating the action response)
@@ -184,7 +184,7 @@ At generation time, the model is simultaneously optimizing for:
 
 - **Task completion** (strongest, most trained signal)
 - **Helpfulness** (direct RLHF signal)
-- **Safety constraints** (trained, but for harms — not process violations)
+- **Safety constraints** (trained, but for harms, not process violations)
 - **Persona/style** (present in system prompt)
 - **Procedural rules** (present in system prompt, but weakly trained)
 
@@ -227,7 +227,7 @@ elsewhere).
 
 "Get approval before implementing" fails because the natural completion of a planning request *is*
 implementation. When a user says "let's build X," the model's trained response is to build X. The
-approval gate requires inserting a full stop between "plan" and "build" — which means generating a
+approval gate requires inserting a full stop between "plan" and "build", which means generating a
 deliberately incomplete response to a completion-oriented prompt.
 
 The model must actively resist its own momentum. This is hard.
@@ -244,8 +244,8 @@ ______________________________________________________________________
 1. Structured as explicit checklists the model must mentally "check off"
 1. Repeated near the point of relevance (e.g., a reminder in the section about gateway operations)
 
-**Implication:** A rule buried in a SOUL.md paragraph is less effective than a rule in a "BEFORE YOU ACT
-— CHECK THESE" section at the top of the system prompt.
+**Implication:** A rule buried in a SOUL.md paragraph is less effective than a rule in a "BEFORE YOU ACT:
+CHECK THESE" section at the top of the system prompt.
 
 ### 5.2 Pre-Action Verification Prompts
 
@@ -253,8 +253,8 @@ Research on chain-of-thought compliance has found that explicitly requiring the 
 it's about to do before doing it** significantly improves procedure compliance.
 
 If the system prompt says "Before any multi-step action, state which rule applies and confirm you are in
-the right step," the model must surface its procedural reasoning — making violations more visible and
-less likely.
+the right step," the model must surface its procedural reasoning, making violations more visible and less
+likely.
 
 This works because it adds an intermediate generation step where the rule must be actively retrieved and
 stated, rather than passively present in context.
@@ -293,9 +293,9 @@ they might be in the middle of something."
 **Structured (better):**
 
 ```
-GATEWAY RESTART — REQUIRED SEQUENCE:
+GATEWAY RESTART, REQUIRED SEQUENCE:
 1. Send warning message
-2. STOP — do not proceed in this turn
+2. STOP: do not proceed in this turn
 3. Restart ONLY in the next turn
 NEVER bundle steps 1 and 3.
 ```
@@ -356,8 +356,8 @@ optimizes for completion; multi-step process compliance fights that optimization
 - Asking the model to acknowledge the rule again
 - Hoping it does better next time without structural changes to the prompt
 
-The fixes must be structural: change how rules are encoded, where they appear, how they're formatted —
-not just what they say.
+The fixes must be structural: change how rules are encoded, where they appear, how they're formatted, not
+just what they say.
 
 ______________________________________________________________________
 

@@ -5,7 +5,7 @@
     Provides:
       - Separate interactive and ad-hoc dev shells
       - treefmt (via treefmt-nix) as the single lint/format orchestrator
-        ↪ Config: ./treefmt.nix — Ref: https://github.com/numtide/treefmt-nix
+        ↪ Config: ./treefmt.nix, Ref: https://github.com/numtide/treefmt-nix
       - A `checks.treefmt` derivation so `nix flake check` fails on format drift
   '';
 

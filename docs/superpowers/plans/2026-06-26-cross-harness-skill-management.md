@@ -1,4 +1,4 @@
-# Cross-Harness Skill Management — Implementation Plan
+# Cross-Harness Skill Management: Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -15,7 +15,7 @@
 - **Back up** (tar to `~/workspaces/backups/<UTC>.<name>.backup.tar.gz`) before any deletion/overwrite.
 - **Atomic swap** for any in-place content overwrite (temp dir on same FS → `mv -Tf`). Never `rm`-then-recreate a live skill dir.
 - **Skip-list** (never updated/overwritten by tooling): `video-transcript-downloader` + any user-edited copy.
-- **code-review:** REMOVE the existing clawhub copy; the Anthropic KW engineering `code-review` keeps the canonical `code-review` name (not namespaced) — per user decision.
+- **code-review:** REMOVE the existing clawhub copy; the Anthropic KW engineering `code-review` keeps the canonical `code-review` name (not namespaced), per user decision.
 - **Collisions** kept both, category-namespaced (4): `marketing-competitive-brief`, `product-management-competitive-brief`, `legal-review-contract`, `small-business-review-contract`.
 - Commits on `feat/cli-agent-tracking-workflow`, conventional-commits style, **no Co-Authored-By / no AI trailer**, `SKIP_AI_COMMIT=1` to bypass the haiku hook.
 - "Tests" here = state-verification commands (`ls`/`readlink`/`jq`/`find`), not unit tests.
@@ -66,7 +66,7 @@ echo "adhd in hub lock: $(grep -c adhd-assistant "$HOME/.hermes/skills/.hub/lock
 ```
 Expected: `paseo left: 0`, `adhd in hub lock: 0`.
 
-- [ ] **Step 5: Commit** (after Task 8 chezmoi-add; lock/store changes are chezmoi targets — see Task 8). Mark this task's state verified.
+- [ ] **Step 5: Commit** (after Task 8 chezmoi-add; lock/store changes are chezmoi targets, see Task 8). Mark this task's state verified.
 
 ---
 
@@ -74,7 +74,7 @@ Expected: `paseo left: 0`, `adhd in hub lock: 0`.
 
 **Files:** `~/.agents/skills/<kw-skill>/`, `~/.agents/.skill-lock.json`, symlinks in `$C` and `$H`.
 
-**Interfaces — Produces:** 129 KW skills in the store (14 categories per spec), 5 renamed (namespaced), each symlinked into Claude + Hermes.
+**Interfaces, Produces:** 129 KW skills in the store (14 categories per spec), 5 renamed (namespaced), each symlinked into Claude + Hermes.
 
 - [ ] **Step 1: Install each included category** (excludes customer-support, productivity, pdf-viewer, partner-built)
 ```bash
@@ -94,7 +94,7 @@ ren competitive-brief marketing-competitive-brief     # if both marketing+pm ins
 ren review-contract  legal-review-contract
 ```
 
-- [ ] **Step 2b: Resolve the same-name-across-category installs** (npx flat-installs by skill name, so marketing & PM competitive-brief, and legal & SB review-contract, collide during Step 1 — only one survived each). Reinstall each missing twin into a temp store and place it namespaced:
+- [ ] **Step 2b: Resolve the same-name-across-category installs** (npx flat-installs by skill name, so marketing & PM competitive-brief, and legal & SB review-contract, collide during Step 1, only one survived each). Reinstall each missing twin into a temp store and place it namespaced:
 ```bash
 set -uo pipefail; S=$HOME/.agents/skills; tmp=$(mktemp -d)
 fetch() { # $1=category/skills/skill  $2=dest-name
@@ -136,7 +136,7 @@ Expected: all 5 namespaced + `code-review` present; `analyze` symlinks resolve t
 
 **Files:** store + `$C`/`$H` symlinks; remove Hermes hub copies of these.
 
-- [ ] **Step 1: Install/refresh the skills.sh portables** (skip vtd — keep your fork)
+- [ ] **Step 1: Install/refresh the skills.sh portables** (skip vtd, keep your fork)
 ```bash
 set -uo pipefail
 for src in anthropics/skills/frontend-design jeffallan/claude-skills/kubernetes-specialist steipete/agent-scripts/peekaboo vercel-labs/agent-skills/web-design-guidelines doist/todoist-cli/todoist-cli sickn33/antigravity-awesome-skills/senior-architect; do
@@ -154,7 +154,7 @@ for n in frontend-design kubernetes-specialist peekaboo web-design-guidelines to
 done
 ```
 
-- [ ] **Step 3: Verify** — each present in store, symlinked in Claude + Hermes, vtd unchanged
+- [ ] **Step 3: Verify**: each present in store, symlinked in Claude + Hermes, vtd unchanged
 ```bash
 S=$HOME/.agents/skills
 for n in frontend-design kubernetes-specialist peekaboo web-design-guidelines lobster; do [ -d "$S/$n" ] && echo "OK $n" || echo "MISS $n"; done
@@ -177,7 +177,7 @@ for n in $(jq -r '.skills|to_entries[]|select((.value.source//"")|test("mattpoco
   [ -e "$H/$n" ] || ln -s "../../.agents/skills/$n" "$H/$n"
 done
 ```
-- [ ] **Step 3: Verify** — `jq '[.skills|to_entries[]|select((.value.source//"")|test("mattpocock"))]|length' $lock` → 35; spot-check `readlink ~/.hermes/skills/grill-me`.
+- [ ] **Step 3: Verify**: `jq '[.skills|to_entries[]|select((.value.source//"")|test("mattpocock"))]|length' $lock` → 35; spot-check `readlink ~/.hermes/skills/grill-me`.
 
 ---
 
@@ -194,8 +194,8 @@ for n in moshi herdr; do
   [ -e "$H/$n" ] || ln -s "../../.agents/skills/$n" "$H/$n"
 done
 ```
-- [ ] **Step 2: Stop the justfile vendoring** — edit `$DF/justfile`, delete the `update-agent-skills` recipe's `curl ... private_dot_claude/skills/{herdr,moshi}/private_SKILL.md` lines; `git -C "$DF" rm -r --cached private_dot_claude/skills/herdr private_dot_claude/skills/moshi` and delete those source dirs.
-- [ ] **Step 3: Verify** — `readlink $C/herdr $C/moshi` resolve to store; `grep -c update-agent-skills $DF/justfile` reflects the edit.
+- [ ] **Step 2: Stop the justfile vendoring**: edit `$DF/justfile`, delete the `update-agent-skills` recipe's `curl ... private_dot_claude/skills/{herdr,moshi}/private_SKILL.md` lines; `git -C "$DF" rm -r --cached private_dot_claude/skills/herdr private_dot_claude/skills/moshi` and delete those source dirs.
+- [ ] **Step 3: Verify**: `readlink $C/herdr $C/moshi` resolve to store; `grep -c update-agent-skills $DF/justfile` reflects the edit.
 
 ---
 
@@ -218,16 +218,16 @@ done
 ], "skip": ["video-transcript-downloader"] }
 ```
 
-- [ ] **Step 2: Write `scripts/update-skills`** — `set -euo pipefail`; flock lockfile; if any `claude|codex|hermes` process running → exit 0 (idle-gate); then: (a) `npx skills update --global -y`; (b) `clawhub update` per clawhub-managed skill NOT in skip-list, each into a temp dir then atomic `mv -Tf` swap into `$S/<name>`; (c) for each manifest `vendored` entry: sparse-clone `repo@ref` path → temp → atomic swap into `$S/<name>`; never touch `skip` entries. (Full script body: see Step 2 code block — write it complete, no placeholders.)
-- [ ] **Step 3: Dry-run** — `bash $DF/scripts/update-skills --dry-run` prints planned swaps, makes no changes. Verify skip-list honored (vtd not listed).
-- [ ] **Step 4: launchd plist** — weekly schedule calling the script; `launchctl load` (or document the chezmoi-applied path). Verify `launchctl list | grep update-skills`.
+- [ ] **Step 2: Write `scripts/update-skills`**: `set -euo pipefail`; flock lockfile; if any `claude|codex|hermes` process running → exit 0 (idle-gate); then: (a) `npx skills update --global -y`; (b) `clawhub update` per clawhub-managed skill NOT in skip-list, each into a temp dir then atomic `mv -Tf` swap into `$S/<name>`; (c) for each manifest `vendored` entry: sparse-clone `repo@ref` path → temp → atomic swap into `$S/<name>`; never touch `skip` entries. (Full script body: see Step 2 code block, write it complete, no placeholders.)
+- [ ] **Step 3: Dry-run**: `bash $DF/scripts/update-skills --dry-run` prints planned swaps, makes no changes. Verify skip-list honored (vtd not listed).
+- [ ] **Step 4: launchd plist**: weekly schedule calling the script; `launchctl load` (or document the chezmoi-applied path). Verify `launchctl list | grep update-skills`.
 - [ ] **Step 5: Commit** the script + manifest + plist + justfile recipe on feat.
 
 ---
 
 ### Task 7: Audits (Hermes-native + Claude)
 
-- [ ] **Step 1: Hermes-native audit** — for each `$H` entry that is NOT a store symlink, confirm tracked in `.bundled_manifest`, hub `lock.json`, or `.usage.json` `created_by:agent`. Output a list of any **orphans** (untracked) and any still carrying a `skills.sh` source.
+- [ ] **Step 1: Hermes-native audit**: for each `$H` entry that is NOT a store symlink, confirm tracked in `.bundled_manifest`, hub `lock.json`, or `.usage.json` `created_by:agent`. Output a list of any **orphans** (untracked) and any still carrying a `skills.sh` source.
 ```bash
 set -uo pipefail; H=$HOME/.hermes/skills
 for d in "$H"/*/; do n=$(basename "$d"); [ -L "${d%/}" ] && continue
@@ -237,7 +237,7 @@ for d in "$H"/*/; do n=$(basename "$d"); [ -L "${d%/}" ] && continue
   echo "ORPHAN (untracked): $n"
 done
 ```
-- [ ] **Step 2: Claude-skills audit** — every `$C` entry is a store symlink or an intentional real dir; report dangling links + non-store real dirs.
+- [ ] **Step 2: Claude-skills audit**: every `$C` entry is a store symlink or an intentional real dir; report dangling links + non-store real dirs.
 ```bash
 C=$HOME/.claude/skills
 find "$C" -maxdepth 1 -type l ! -exec test -e {} \; -print | sed 's/^/DANGLING: /'
@@ -260,7 +260,7 @@ git -C "$DF" status -s
 ```bash
 SKIP_AI_COMMIT=1 git -C "$DF" add -A && SKIP_AI_COMMIT=1 git -C "$DF" commit -m "feat(skills): consolidate portable skills into ~/.agents/skills, add safe updater, remove paseo/adhd"
 ```
-- [ ] **Step 3: Final verification (triple-check vs spec)** — run the audit twice:
+- [ ] **Step 3: Final verification (triple-check vs spec)**: run the audit twice:
 ```bash
 S=$HOME/.agents/skills
 echo "store skills: $(find "$S" -maxdepth 1 -mindepth 1 -type d|wc -l|tr -d ' ')"
@@ -268,10 +268,10 @@ echo "dangling symlinks (claude/hermes): $(for d in "$HOME/.claude/skills" "$HOM
 echo "name collisions resolved: $(ls "$S" | grep -cE '^(competitive-brief|review-contract)$')"  # expect 0
 echo "vtd in skip-list + intact: $(jq -r '.skip[]' "$A/.skills-vendor.json" 2>/dev/null | grep -c video-transcript-downloader)"  # expect 1
 ```
-- [ ] **Step 4: Produce the report** — per-skill table (name | class | store | claude link | hermes link | codex-native | source | update-path | status), counts, the 5 renamed, orphans flagged, updater dry-run result, and the commit SHA on `feat/cli-agent-tracking-workflow`.
+- [ ] **Step 4: Produce the report**: per-skill table (name | class | store | claude link | hermes link | codex-native | source | update-path | status), counts, the 5 renamed, orphans flagged, updater dry-run result, and the commit SHA on `feat/cli-agent-tracking-workflow`.
 
 ---
 
 ## Self-review notes
-- Spec coverage: Actions A–H all mapped (Task2=A, Task3=B+C, Task4=D, Task5=E, Task1=F, Task6=updater, Task7=G+H, Task8=tracking/verify/report). adhd-assistant already removed (Task1 step3 purges hub lock).
-- Known sharp edges flagged inline: same-name-across-category KW installs (Task 2b), code-review-vs-existing collision (Task 2b), Hermes re-seed of removed hub copies (re-verify in Task 7), chezmoi `re-add` diff review (Task 8 Step 1 — review before commit).
+- Spec coverage: Actions A to H all mapped (Task2=A, Task3=B+C, Task4=D, Task5=E, Task1=F, Task6=updater, Task7=G+H, Task8=tracking/verify/report). adhd-assistant already removed (Task1 step3 purges hub lock).
+- Known sharp edges flagged inline: same-name-across-category KW installs (Task 2b), code-review-vs-existing collision (Task 2b), Hermes re-seed of removed hub copies (re-verify in Task 7), chezmoi `re-add` diff review (Task 8 Step 1, review before commit).

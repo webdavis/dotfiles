@@ -8,7 +8,7 @@
 chezmoi-managed dotfiles with fixed tooling, new tools (sesh, worktrunk, csvlens), reorganized configs,
 notifications, AI commit messages, and Claude Code enhancements.
 
-**Architecture:** Changes are grouped by file dependency — packages install first (tools must exist
+**Architecture:** Changes are grouped by file dependency, packages install first (tools must exist
 before configuring), then config files are modified in dependency order. Each task produces one logical
 commit.
 
@@ -25,7 +25,7 @@ fzf, openhue, terminal-notifier, Claude Code CLI, actionlint, act, tart
 **Spec:** `docs/superpowers/specs/2026-04-14-dotfiles-improvements-design.md`
 
 **CRITICAL:** Read the spec before starting ANY task. Read the CLAUDE.md for repo conventions. Never run
-bare `chezmoi apply` — it will fail on template files requiring KeePassXC. Use
+bare `chezmoi apply`, it will fail on template files requiring KeePassXC. Use
 `chezmoi apply --exclude=templates --force` or apply specific non-template files.
 
 ______________________________________________________________________
@@ -129,7 +129,7 @@ atuin history list --cmd-only | head -20
 ```
 
 Check if recent commands exist in the DB (filter issue) or are missing entirely (hook issue). Note the
-result for reference — the daemon will fix hook issues regardless.
+result for reference, the daemon will fix hook issues regardless.
 
 - [ ] **Step 2: Update atuin config**
 
@@ -185,7 +185,7 @@ git commit -m "fix(atuin): enable daemon mode, fix filter and search modes"
 
 ______________________________________________________________________
 
-## Task 3: Bashrc cleanup — removals
+## Task 3: Bashrc cleanup: removals
 
 **Spec sections:** 2.1, 2.2, 2.4, 2.5
 
@@ -238,7 +238,7 @@ Remove:
 - Any `HISTIGNORE` setting
 - Any PROMPT_COMMAND history flush/reload cycle
 
-Do NOT remove the `HISTIGNORE` KeePassXC template call if it exists in the CI=1 branch — check whether
+Do NOT remove the `HISTIGNORE` KeePassXC template call if it exists in the CI=1 branch, check whether
 the CI rendering path still needs it for shellcheck. If the CI branch only uses HISTIGNORE for the fake
 value, remove the whole block.
 
@@ -247,7 +247,7 @@ value, remove the whole block.
 Before `eval "$(atuin init bash)"` (line 186), add:
 
 ```bash
-# IMPORTANT: atuin init must come AFTER zoxide init — both modify shell
+# IMPORTANT: atuin init must come AFTER zoxide init, both modify shell
 # bindings. This ordering is for keybinding registration only; the atuin
 # daemon handles command recording independently.
 ```
@@ -267,7 +267,7 @@ git commit -m "refactor(bashrc): remove SDKMan, bash history, fix SSH detection"
 
 ______________________________________________________________________
 
-## Task 4: Bashrc additions — QoL functions, lazy loading, notifications
+## Task 4: Bashrc additions: QoL functions, lazy loading, notifications
 
 **Spec sections:** 2.6, 2.9, 7.1, 7.2, 8.1, 8.2
 
@@ -326,7 +326,7 @@ gitsetoriginnopush() {
 Replace `eval "$(rbenv init -)"` (line 109) with:
 
 ```bash
-# Lazy-load rbenv — only pays init cost when Ruby is actually used.
+# Lazy-load rbenv, only pays init cost when Ruby is actually used.
 ruby()  { unset -f ruby gem rbenv; eval "$(rbenv init -)"; ruby "$@"; }
 gem()   { unset -f ruby gem rbenv; eval "$(rbenv init -)"; gem "$@"; }
 rbenv() { unset -f ruby gem rbenv; eval "$(rbenv init -)"; rbenv "$@"; }
@@ -423,14 +423,14 @@ fi
 
 - [ ] **Step 2: Fix em-dash bug in bash bindings**
 
-Read `dot_bash_bindings` around line 96. Replace any em-dash (`–`) or en-dash characters with standard
+Read `dot_bash_bindings` around line 96. Replace any em-dash (`-`) or en-dash characters with standard
 double-dash (`--`) in the eza commands. The affected lines are around 96-97.
 
 Use a find-and-replace for the Unicode characters:
 
-- Replace `–-` (en-dash + hyphen) with `--` (two hyphens)
+- Replace `--` (en-dash + hyphen) with `--` (two hyphens)
 
-- Replace `–` (en-dash) with `--` (two hyphens)
+- Replace `-` (en-dash) with `--` (two hyphens)
 
 - [ ] **Step 3: Verify**
 
@@ -519,7 +519,7 @@ Read `dot_gitconfig.tmpl` (173 lines). Identify sections to modify:
 
 - `core.pager` at line 22 (diff-so-fancy)
 
-- `[merge]` section — `conflictstyle = diff3` at line 48
+- `[merge]` section, `conflictstyle = diff3` at line 48
 
 - `[delta]` section at lines 87-94
 
@@ -710,7 +710,7 @@ git commit -m "refactor(configs): improve inputrc, starship, ghostty, and bat se
 
 ______________________________________________________________________
 
-## Task 9: Tmux modernization — terminal, keys, plugins, bug fix
+## Task 9: Tmux modernization: terminal, keys, plugins, bug fix
 
 **Spec sections:** 3.1, 3.4, 3.5, 3.6, 3.7, 3.8
 
@@ -832,7 +832,7 @@ ______________________________________________________________________
 - [ ] **Step 1: Create sesh.toml**
 
 ```toml
-# Sesh configuration — smart tmux session manager.
+# Sesh configuration: smart tmux session manager.
 # Docs: https://github.com/joshmedeski/sesh
 
 cache = true
@@ -1171,7 +1171,7 @@ ______________________________________________________________________
 - [ ] **Step 1: Create worktrunk config**
 
 ```toml
-# Worktrunk configuration — git worktree management.
+# Worktrunk configuration: git worktree management.
 # Docs: https://worktrunk.dev/
 
 worktree-path = "{{ repo_path }}/../{{ repo }}.{{ branch | sanitize }}"
@@ -1343,7 +1343,7 @@ Create directory structure and hook file at `dot_config/git/hooks/executable_pre
 
 ```bash
 #!/usr/bin/env bash
-# Global prepare-commit-msg hook — generates conventional commit messages
+# Global prepare-commit-msg hook: generates conventional commit messages
 # via Claude Code CLI (haiku). Prepopulates the editor; user approves or edits.
 
 # Skip for merge commits, amends, squashes, or messages passed via -m.
@@ -1440,7 +1440,7 @@ Copy `config/default.yml` as-is (it's the global Espanso config, keep `search_sh
 
 - [ ] **Step 4: Create autocorrect.yml**
 
-Extract all bare-word typo corrections from `base.yml` (entries without `;;` or `,,` prefixes — e.g.,
+Extract all bare-word typo corrections from `base.yml` (entries without `;;` or `,,` prefixes, e.g.,
 `doesnt` → `doesn't`, `thier` → `their`). Remove duplicates. Remove the duplicate `thye` entry.
 
 - [ ] **Step 5: Create abbreviations.yml**
@@ -1576,7 +1576,7 @@ matches:
     replace: "{{ keepassxcAttribute "Personal :: Phone" "Formatted" }}"
 ```
 
-NOTE: The implementer must check the actual KeePassXC entry names — the template calls above use
+NOTE: The implementer must check the actual KeePassXC entry names, the template calls above use
 placeholder entry names. Verify against the user's KeePassXC database.
 
 - [ ] **Step 9: Create prompts.yml**
@@ -1740,7 +1740,7 @@ Add at the very top of `CLAUDE.md`, before the `# CLAUDE.md` heading:
 <!-- Keep this file evergreen. Avoid adding point-in-time content (current sprint
 goals, active branches, temporary workarounds) that wouldn't make sense if multiple
 workstreams, PRs, or branches were in progress simultaneously. Document general
-principles, workflows, and architecture — not transient project state. -->
+principles, workflows, and architecture, not transient project state. -->
 ```
 
 - [ ] **Step 6: Create Claude Code Review GitHub Action**
@@ -1955,4 +1955,4 @@ The following require manual action:
    freeing disk space.
 1. **GitHub secret:** Add `CLAUDE_CODE_OAUTH_TOKEN` to the dotfiles repo secrets for the Claude Code
    Review GitHub Action.
-1. **gh pushwatch:** The `gh alias` was set in Task 13 step 2 — verify it persists across shell restarts.
+1. **gh pushwatch:** The `gh alias` was set in Task 13 step 2, verify it persists across shell restarts.

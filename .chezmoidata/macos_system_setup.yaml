@@ -1,23 +1,44 @@
-# macOS sudo-required system settings — declarative source of truth.
+# macOS sudo-required system settings, declarative source of truth.
 #
-# Each record under `system_setup:` is a command run by the Tier 2 runner
-# (run_onchange_after_41-macos-system-setup) at `chezmoi apply` time. The
-# runner does `sudo -v` once upfront, then prefixes commands with `sudo` only
-# when `sudo: true`.
+# Each record under `system_setup:` is one declared control, consumed by the
+# Tier 2 runner (run_onchange_after_41-macos-system-setup) at `chezmoi apply`
+# time. What the runner renders for a record is decided by its REQUIRED
+# `tier`:
 #
-# All commands MUST be idempotent — the runner re-runs the entire list every
-# time the YAML changes (chezmoi hash gate). For non-idempotent commands,
-# put them in the runbook (docs/runbooks/macos-fresh-machine-quickstart.md)
-# instead of here.
+#   tier: enforce   settable from the command line; renders the declared
+#                   command (with a `sudo` prefix when `sudo: true`). The
+#                   only tier the runner ever runs a command for.
+#   tier: verify    readable but NOT settable on this macOS version; drift
+#                   detection only (the posture check consumes it). Renders
+#                   NO command, and must not declare `command` or `sudo`.
+#   tier: manual    needs an interactive step or a device-management profile.
+#                   Renders a runbook pointer line and no command. Carries a
+#                   REQUIRED `runbook` field naming the runbook section, and
+#                   must not declare `command` or `sudo`.
+#
+# The tier is a property of the control on this OS version, not a preference:
+# when Apple removes a flag, the control moves enforce -> verify as a
+# one-line data change. A record with a missing or unrecognized tier, or a
+# payload that does not match its tier, ABORTS the render.
+#
+# All enforce commands MUST be idempotent, the runner re-runs the entire list
+# every time the YAML changes (chezmoi hash gate). For non-idempotent
+# commands, use tier: manual and the runbook
+# (docs/runbooks/macos-fresh-machine-quickstart.md) instead.
 #
 # Schema:
-#   - description: <string>   # echoed before execution; trace output
-#     command:     <string>   # bash, NO `sudo` prefix
-#     sudo:        <bool>
+#   - description: <string>   # REQUIRED on every record; echoed before
+#                             # execution, and the record's identity in every
+#                             # render error
+#     tier:        enforce|verify|manual
+#     command:     <string>   # enforce only: bash, NO `sudo` prefix
+#     sudo:        <bool>     # enforce only, OPTIONAL
+#     runbook:     <string>   # manual: REQUIRED; verify: OPTIONAL; enforce:
+#                             # forbidden (nothing consumes it there)
 #
 # `tailnet_pins` is structured data, not commands: the runner template generates
 # an idempotent guard-then-append /etc/hosts command per entry (MagicDNS
-# registration-layer fallback pins — per CLAUDE.md's Tailscale DNS section).
+# registration-layer fallback pins, per CLAUDE.md's Tailscale DNS section).
 #
 # Schema:
 #   - fqdn:  <string>   # MagicDNS name, ends .ts.net
@@ -29,6 +50,81 @@ macos:
     - description: "Install self-healing nix-installer repair LaunchDaemon (NixOS fork)"
       command: '"$HOME/.local/bin/install-nix-repair-hook.sh"'
       sudo: true
+      tier: enforce
+    # Application firewall baseline. ORDER IS LOAD-BEARING for
+    # partial-execution safety, not for the final state: the subordinate
+    # setters store their configuration independently and enabling the global
+    # state consumes it, so a run that completes lands identically in any
+    # order. A run that dies partway does not: global-first leaves the
+    # firewall ON (at worst missing a subordinate policy), while any other
+    # order can stop with subordinate policies stored and the firewall still
+    # OFF.
+    - description: "Firewall: enable the application firewall (must stay before the records below so a partial run leaves the firewall on, never policies stored with the firewall off)"
+      command: "/usr/libexec/ApplicationFirewall/socketfilterfw --setglobalstate on"
+      sudo: true
+      tier: enforce
+    - description: "Firewall: enable stealth mode (drop unsolicited probes silently)"
+      command: "/usr/libexec/ApplicationFirewall/socketfilterfw --setstealthmode on"
+      sudo: true
+      tier: enforce
+    # Two independent signed-software policies, both declared so neither is
+    # left at whatever the machine happens to carry: --setallowsigned governs
+    # BUILT-IN signed software, --setallowsignedapp governs DOWNLOADED signed
+    # software.
+    - description: "Firewall: auto-allow incoming connections for built-in signed software"
+      command: "/usr/libexec/ApplicationFirewall/socketfilterfw --setallowsigned on"
+      sudo: true
+      tier: enforce
+    # There is no --getallowsignedapp getter; BOTH signed-software states read
+    # back through the single --getallowsigned getter, one per output line, so
+    # a drift check must parse two lines rather than expect one per flag.
+    - description: "Firewall: auto-allow incoming connections for downloaded signed software"
+      command: "/usr/libexec/ApplicationFirewall/socketfilterfw --setallowsignedapp on"
+      sudo: true
+      tier: enforce
+    # Firewall logging is deliberately NOT declared, in any tier: on this
+    # macOS version there is nothing to enable. socketfilterfw has no logging
+    # flag, and firewall activity already flows to the unified log by default
+    # (see the runbook section "Firewall log diagnostics" for viewing it).
+    #
+    # SSH: the drop-in write is enforce-tier because it is INERT for a running
+    # sshd (the configuration is re-read only on restart); the disruptive
+    # reload is a separate control and is deliberately not declared here. No
+    # sudo prefix: the script escalates per operation itself (covered by the
+    # runner's upfront sudo -v), and its verification runs unprivileged.
+    - description: "SSH: install the public-key-only sshd drop-in (000-ssh-hardening.conf) and verify the effective configuration"
+      command: '"$HOME/.local/bin/ssh-hardening.sh"'
+      tier: enforce
+    # OverSight (the microphone and camera activation monitor) needs NO
+    # privacy permission: the installed 2.4.0 bundle declares no
+    # NS*UsageDescription keys and no entitlements, so macOS never presents a
+    # Microphone or Camera grant for it, and it never asks for one. It
+    # observes device ACTIVATION EVENTS through CoreMediaIO property
+    # listeners, never device content. What IS interactive-only is
+    # Notification Center delivery, its single output channel: with delivery
+    # denied the monitor observes correctly and tells nobody, a dead alert
+    # channel that reads as healthy. No supported command line writes that
+    # authorization, so the runbook owns the steps; whether the monitor
+    # process is RUNNING is a separate verify control in
+    # macos_posture_controls.yaml.
+    - description: "OverSight: allow its Notification Center alerts (its only output channel)"
+      tier: manual
+      runbook: "OverSight notification delivery"
+    # LuLu (the outbound firewall, slice 10): both of its interactive-only
+    # surfaces. The system-extension approval is a macOS security consent
+    # (System Settings, no supported command line writes it), and rule
+    # creation is interactive BY CONSTRUCTION: rules.plist is an
+    # NSKeyedArchiver archive of LuLu's private Rule class, so rules cannot
+    # be pre-seeded by any supported interface, only created by answering
+    # LuLu's prompts or through its Rules window. Whether the extension is
+    # RUNNING and whether the required rules EXIST are separate verify
+    # records in macos_posture_controls.yaml.
+    - description: "LuLu: approve its system extension (a one-time macOS security consent)"
+      tier: manual
+      runbook: "LuLu system extension approval"
+    - description: "LuLu: create the required outbound allow rules by answering its prompts"
+      tier: manual
+      runbook: "LuLu rule creation"
   tailnet_pins:
     - fqdn: mister.tail2f2430.ts.net
       ip: "100.109.58.54"

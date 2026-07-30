@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# herdr-jump.sh — the workspace create-or-focus helper must validate its args
+# herdr-jump.sh, the workspace create-or-focus helper must validate its args
 # (house rule: unknown/missing CLI args -> usage to stderr, exit non-zero) and
 # guard its `herdr | jq` pipeline so a down/erroring server fails cleanly rather
 # than dying under set -e with no message or spewing jq errors.

@@ -1,6 +1,6 @@
 # Headless tailscaled system daemon Implementation Plan
 
-> **Execution note (2026-07-10) — the `brew services` daemon decision below was superseded during PR #31 execution.** Running `sudo brew services` root-owned the Tailscale Cellar/`opt`/linked-keg/`bin`/`sbin` paths, which broke the user-owned unattended weekly Homebrew upgrade. Commit `01d15ad` switched to `sudo tailscaled install-system-daemon` — a root-owned daemon copy in `/usr/local/bin` with the formula left user-owned. The current canonical model is documented in CLAUDE.md's Tailscale section. The `brew services` wording below is kept as historical record.
+> **Execution note (2026-07-10), the `brew services` daemon decision below was superseded during PR #31 execution.** Running `sudo brew services` root-owned the Tailscale Cellar/`opt`/linked-keg/`bin`/`sbin` paths, which broke the user-owned unattended weekly Homebrew upgrade. Commit `01d15ad` switched to `sudo tailscaled install-system-daemon`, a root-owned daemon copy in `/usr/local/bin` with the formula left user-owned. The current canonical model is documented in CLAUDE.md's Tailscale section. The `brew services` wording below is kept as historical record.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -17,16 +17,16 @@
 - Daemon = `sudo brew services start tailscale` (system LaunchDaemon, brew binary). NOT `tailscaled install-system-daemon` (stale-on-upgrade copy).
 - Auth = Option A: one-time interactive `sudo tailscale up --accept-dns=true` + admin-console **Disable Key Expiry**. No auth keys, no KeePassXC.
 - DNS = `--accept-dns=true` ONLY. **Never** a static `100.100.100.100` resolver (breaks off-tailnet; dresden roams).
-- Commits: **stage specific paths only** (never `git add -A` / `git commit -a`). The working tree holds unrelated uncommitted codex + moshi changes — Task 1 commits those first so the shared files (`system_packages_autoinstall.yaml`, `CLAUDE.md`) are clean for the tailscaled commit.
+- Commits: **stage specific paths only** (never `git add -A` / `git commit -a`). The working tree holds unrelated uncommitted codex + moshi changes, Task 1 commits those first so the shared files (`system_packages_autoinstall.yaml`, `CLAUDE.md`) are clean for the tailscaled commit.
 - Every commit passes the pre-commit hook (`just lint-check` + `just test`).
-- The cutover is interactive (sudo, browser login, admin console) — the operator runs those; the chezmoiscript stays sudo-free and never authenticates.
+- The cutover is interactive (sudo, browser login, admin console), the operator runs those; the chezmoiscript stays sudo-free and never authenticates.
 - Don't patch tailscale/brew; supported commands only.
 
 ---
 
-### Task 1: Prerequisite — commit the pending codex + moshi changes (un-entangle shared files)
+### Task 1: Prerequisite: commit the pending codex + moshi changes (un-entangle shared files)
 
-**Why:** the working tree has two finished-but-uncommitted changes that share files the tailscaled task edits — codex lives in `system_packages_autoinstall.yaml`, moshi touches `CLAUDE.md` (+ its own files). Committing them first (each its own commit) keeps the tailscaled commit clean.
+**Why:** the working tree has two finished-but-uncommitted changes that share files the tailscaled task edits, codex lives in `system_packages_autoinstall.yaml`, moshi touches `CLAUDE.md` (+ its own files). Committing them first (each its own commit) keeps the tailscaled commit clean.
 
 **Files:** `.chezmoidata/system_packages_autoinstall.yaml` (codex), `dot_config/moshi/private_auth.json.tmpl` + `dot_local/bin/executable_claude-moshi-notify.sh` + `CLAUDE.md` + `AGENTS.md` (moshi).
 
@@ -46,7 +46,7 @@ Expected: pre-commit passes; one commit, one file.
 
 ```bash
 git add dot_config/moshi/private_auth.json.tmpl dot_local/bin/executable_claude-moshi-notify.sh CLAUDE.md AGENTS.md
-git status --short   # the old private_setting.json.tmpl shows as deleted (rename) — included via the add above? if shown as ' D', also: git add -A dot_config/moshi/
+git status --short   # the old private_setting.json.tmpl shows as deleted (rename), included via the add above? if shown as ' D', also: git add -A dot_config/moshi/
 git commit -m "fix(moshi): read webhook secret from auth.json; rename template + script path"
 ```
 Expected: pre-commit passes; the template rename (`private_setting.json.tmpl` → `private_auth.json.tmpl`) is recorded. After this, `git status` shows a clean tree except for pre-existing untracked `.agents/` / `skills-lock.json`.
@@ -54,7 +54,7 @@ Expected: pre-commit passes; the template rename (`private_setting.json.tmpl` �
 - [ ] **Step 4: Verify clean base**
 
 Run: `git status --short | grep -v '^??'`
-Expected: empty (no tracked-file changes left) — the tailscaled work now starts from a clean tree.
+Expected: empty (no tracked-file changes left), the tailscaled work now starts from a clean tree.
 
 ---
 
@@ -66,7 +66,7 @@ Expected: empty (no tracked-file changes left) — the tailscaled work now start
 - Modify: `scripts/lint.sh` (`find_shell_templates`)
 - Modify: `CLAUDE.md` (new "Tailscale (headless daemon)" subsection)
 
-- [ ] **Step 1: Swap the package** — `.chezmoidata/system_packages_autoinstall.yaml`
+- [ ] **Step 1: Swap the package**, `.chezmoidata/system_packages_autoinstall.yaml`
 
 Remove from `casks:`:
 ```yaml
@@ -77,7 +77,7 @@ Add to `formulae:` (alphabetical, between `tart` and `tealdeer`):
         - tailscale
 ```
 
-- [ ] **Step 2: Create the status/reminder script** — `.chezmoiscripts/run_onchange_after_66-tailscaled-status.sh.tmpl`
+- [ ] **Step 2: Create the status/reminder script**, `.chezmoiscripts/run_onchange_after_66-tailscaled-status.sh.tmpl`
 
 ```text
 {{ if eq .chezmoi.os "darwin" -}}
@@ -110,39 +110,39 @@ fi
 {{ end -}}
 ```
 
-- [ ] **Step 3: Add the script to lint** — `scripts/lint.sh`, in `find_shell_templates`, after the herdr-smart-nav line:
+- [ ] **Step 3: Add the script to lint**, `scripts/lint.sh`, in `find_shell_templates`, after the herdr-smart-nav line:
 
 ```bash
     -o -name "run_onchange_after_57-build-herdr-smart-nav-plugin.sh.tmpl" \
     -o -name "run_onchange_after_66-tailscaled-status.sh.tmpl" \
 ```
 
-- [ ] **Step 4: Document** — `CLAUDE.md`, add a new subsection immediately after the "### Happy Daemon (Remote Agent Control)" section:
+- [ ] **Step 4: Document**, `CLAUDE.md`, add a new subsection immediately after the "### Happy Daemon (Remote Agent Control)" section:
 
 ```markdown
 ### Tailscale (headless daemon)
 
 Tailscale runs as the open-source `tailscale` **formula** (not the `tailscale-app` GUI cask) as a launchd
-**system daemon** via `sudo brew services start tailscale` — it boots before login and uses the `utun`
+**system daemon** via `sudo brew services start tailscale`, it boots before login and uses the `utun`
 interface, so there is no Network/System Extension to re-approve after updates (the GUI variants' weakness
 on a headless host). State persists at `/Library/Tailscale` across reboots. Auth is a one-time manual
 `sudo tailscale up --accept-dns=true` plus flipping **Disable Key Expiry** on the node in the admin
-console — after that it never re-authenticates (no auth keys, no rotation, no KeePassXC).
+console, after that it never re-authenticates (no auth keys, no rotation, no KeePassXC).
 `run_onchange_after_66-tailscaled-status.sh.tmpl` is a sudo-free reminder that prints those one-time steps
 when the daemon is down or unauthenticated; it never runs sudo or authenticates.
 
-**DNS:** always `--accept-dns=true` (dynamic, roaming-safe) — never a static `100.100.100.100` resolver
+**DNS:** always `--accept-dns=true` (dynamic, roaming-safe), never a static `100.100.100.100` resolver
 (that breaks off-tailnet). The OSS macOS DNS path is the known weak spot (`tailscale/tailscale#13461`,
 `#14746`): normal DNS keeps working while roaming, but resolving *other* tailnet hostnames *from* this
-machine may be flaky on a foreign network — pin the few needed tailnet hosts in `/etc/hosts` if so.
+machine may be flaky on a foreign network, pin the few needed tailnet hosts in `/etc/hosts` if so.
 
 **Updates:** the weekly brew-upgrade updates the formula; the running daemon picks up the new binary on
-the next reboot (`sudo brew services restart tailscale` for an immediate bounce — the unattended weekly
+the next reboot (`sudo brew services restart tailscale` for an immediate bounce, the unattended weekly
 job can't sudo).
 
 **Future (new home Mac, ~3-6 months out):** when an always-home Mac takes over the daemon-host role, this
 machine (dresden, which is carried) cuts back to the GUI `tailscale-app` cask (better roaming DNS) and the
-new Mac runs this daemon — make the chezmoi config machine-conditional then.
+new Mac runs this daemon, make the chezmoi config machine-conditional then.
 ```
 
 - [ ] **Step 5: Verify + commit (specific paths only)**
@@ -160,7 +160,7 @@ Expected: render + shellcheck clean; pre-commit passes; 4 files committed.
 
 ---
 
-### Task 3: Live interactive cutover (operator present — sudo + browser + admin console)
+### Task 3: Live interactive cutover (operator present: sudo + browser + admin console)
 
 **Files:** none (live system actions). The GUI app and tailscaled cannot coexist (both own the tunnel), so the GUI must stop before the daemon starts. A brief Tailscale gap is fine (operator is home / local).
 
@@ -231,7 +231,7 @@ When a reboot is convenient: reboot, then **without logging in / without any int
 
 - [ ] **Step 4: DEFERRED roaming DNS check (operator, when next traveling)**
 
-Cannot be tested at home. When you next take dresden to another network: confirm normal DNS works (browse the web) and try resolving a tailnet hostname (`tailscale status` peer name). If tailnet-name resolution fails while roaming, pin the few hosts you need in `/etc/hosts` (e.g. `100.x.y.z hostname`) — static entries also work offline. Report back and we'll codify the `/etc/hosts` pins if needed.
+Cannot be tested at home. When you next take dresden to another network: confirm normal DNS works (browse the web) and try resolving a tailnet hostname (`tailscale status` peer name). If tailnet-name resolution fails while roaming, pin the few hosts you need in `/etc/hosts` (e.g. `100.x.y.z hostname`), static entries also work offline. Report back and we'll codify the `/etc/hosts` pins if needed.
 
 ---
 
@@ -239,7 +239,7 @@ Cannot be tested at home. When you next take dresden to another network: confirm
 
 **Spec coverage:** package swap → T2.S1; sudo-free status reminder → T2.S2; lint wiring → T2.S3; CLAUDE.md doc → T2.S4; `sudo brew services` daemon → T3.S2; Option A auth + Disable Key Expiry → T3.S3-4; `--accept-dns=true` (no static) → T3.S3 + the doc; MagicDNS verify + `/etc/hosts` mitigation → T3.S5 + T4.S4; updates/reboot-refresh → T4.S2-3; future GUI cutback → CLAUDE.md doc; codex/moshi un-entangle → T1. No gaps.
 
-**Placeholder scan:** none — full script, exact YAML/lint/CLAUDE.md edits, exact cutover commands. (T3.S5 uses a real `jq` to pick a tailnet name rather than a literal placeholder hostname.)
+**Placeholder scan:** none, full script, exact YAML/lint/CLAUDE.md edits, exact cutover commands. (T3.S5 uses a real `jq` to pick a tailnet name rather than a literal placeholder hostname.)
 
 **Consistency:** the script name `run_onchange_after_66-tailscaled-status.sh.tmpl` is identical in T2.S2/S3/S5 and the CLAUDE.md doc; `--accept-dns=true` is identical in the script, T3.S3, and the doc; `sudo brew services start tailscale` identical across T2 script, T3.S2, and the doc.
 

@@ -13,4 +13,4 @@ Squash-merge the current PR, delete the remote branch, switch back to main, and 
 
 - Bail if there's no PR associated with the current branch.
 - Bail if working tree isn't clean (report what's uncommitted).
-- Do not force-merge over failing checks — report them and wait for user direction.
+- Do not force-merge over failing checks, report them and wait for user direction.
