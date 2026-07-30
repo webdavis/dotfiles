@@ -18,11 +18,14 @@
 #      so one lookup covers both ways of being resolvable.
 #   2. No tool is PINNED to a literal binary path. A <diff|merge>tool.<name>.path
 #      key drops git's $PATH lookup for a filesystem path that has no fallback,
-#      so any machine with a different install prefix loses the tool even with a
-#      working one on $PATH. This is a key-shape question, exactly like invariant
-#      3, and is answered from the same key listing: the regression is the
-#      PRESENCE of the key, so nothing here touches the filesystem and the answer
-#      cannot differ between this machine, CI, and the flake's x86_64-linux.
+#      so a machine with a different install prefix loses the tool even with a
+#      working one on $PATH, in whichever mode has no <mode>tool.<name>.cmd to
+#      make git skip the availability check. In the other mode the pin is
+#      dormant rather than harmless: deleting that cmd arms it. This is a
+#      key-shape question, exactly like invariant 3, and is answered from the
+#      same key listing: the regression is the PRESENCE of the key, so nothing
+#      here touches the filesystem and the answer cannot differ between this
+#      machine, CI, and the flake's x86_64-linux.
 #   3. No url rewrite TARGETS the git:// protocol. GitHub permanently disabled
 #      it on 2022-03-15, so a `[url "git://..."]` base sends fetches at a port
 #      that no longer answers. A git:// prefix on the insteadOf VALUE side is
@@ -276,7 +279,7 @@ done
 # ---- 2 and 3: key-shape prohibitions, decided from one key listing ---------
 while IFS= read -r key; do
   is_tool_binary_path_key "$key" &&
-    fail "$key pins a tool to a literal binary path, dropping git's \$PATH lookup for a path with no fallback. Measured on git 2.55.0 against a nonexistent path, with a working nvim on \$PATH the whole time: git mergetool exits 1 and leaves the file conflicted, git difftool exits 128, both reporting 'is not available as'. Let git resolve the tool name through \$PATH instead"
+    fail "$key pins a tool to a literal binary path, dropping git's \$PATH lookup for a path with no fallback. What it costs depends on the matching cmd key, because git skips the availability check whenever <mode>tool.<name>.cmd is non-empty (get_merge_tool_path in git-mergetool--lib). Measured on git 2.55.0 against a nonexistent path, with a working nvim on \$PATH the whole time: with no mergetool.<name>.cmd, git mergetool exits 1, reports 'is not available as', and leaves the file conflicted; with no difftool.<name>.cmd, git difftool exits 128 with the same report; with a non-empty cmd on either side, that mode skips the check, runs the cmd, and exits 0, so the pin is dormant there rather than harmless and deleting the cmd arms it. Let git resolve the tool name through \$PATH instead"
   [[ $key == url.git://* ]] &&
     fail "a url rewrite targets the git:// protocol ($key); GitHub permanently disabled it on 2022-03-15, so fetches through this base cannot connect"
 done < <(git config --file "$parsed" --name-only --list)
