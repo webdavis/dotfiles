@@ -2156,10 +2156,24 @@
       "norm_label": "unescape_include_pattern()"
     },
     {
+      "label": "resolve_include_paths()",
+      "file_type": "code",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L841",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_bin_executable_ssh_hardening_resolve_include_paths",
+      "community": 263,
+      "norm_label": "resolve_include_paths()"
+    },
+    {
       "label": "scan_included_files()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L827",
+      "source_location": "L899",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -2173,7 +2187,7 @@
       "label": "scan_config_file()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L884",
+      "source_location": "L921",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -2184,10 +2198,24 @@
       "norm_label": "scan_config_file()"
     },
     {
+      "label": "config_tree_roots()",
+      "file_type": "code",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L998",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_bin_executable_ssh_hardening_config_tree_roots",
+      "community": 263,
+      "norm_label": "config_tree_roots()"
+    },
+    {
       "label": "check_match_scan()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L940",
+      "source_location": "L1033",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -2201,7 +2229,7 @@
       "label": "check_connection_specs()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L985",
+      "source_location": "L1049",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -2215,7 +2243,7 @@
       "label": "verify()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1014",
+      "source_location": "L1078",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -2229,7 +2257,7 @@
       "label": "rollback_install()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1064",
+      "source_location": "L1128",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -2243,7 +2271,7 @@
       "label": "install_dropin()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1087",
+      "source_location": "L1151",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -2257,7 +2285,7 @@
       "label": "recovery_instructions()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1181",
+      "source_location": "L1245",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -2271,7 +2299,7 @@
       "label": "probe_sshd_service()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1200",
+      "source_location": "L1264",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -2285,7 +2313,7 @@
       "label": "validate_readiness_knobs()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1230",
+      "source_location": "L1294",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -2299,7 +2327,7 @@
       "label": "resolve_probe_ports()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1278",
+      "source_location": "L1342",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -2313,7 +2341,7 @@
       "label": "banner_output_names_host_key()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1332",
+      "source_location": "L1396",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -2327,7 +2355,7 @@
       "label": "wait_for_ssh_banner()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1347",
+      "source_location": "L1411",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -2341,7 +2369,7 @@
       "label": "reload_sshd()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1373",
+      "source_location": "L1437",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -2355,7 +2383,7 @@
       "label": "check_password_channel()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1500",
+      "source_location": "L1564",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -2369,7 +2397,7 @@
       "label": "confirm_password_access_restored()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1542",
+      "source_location": "L1606",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -2383,7 +2411,7 @@
       "label": "rollback_dropin()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1581",
+      "source_location": "L1645",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -2397,7 +2425,7 @@
       "label": "usage()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1599",
+      "source_location": "L1663",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -2411,7 +2439,7 @@
       "label": "main()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1622",
+      "source_location": "L1686",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -15954,6 +15982,118 @@
       "norm_label": "ssh_hardening_ready_interval"
     },
     {
+      "label": "ssh-hardening-reload-tree-drift.sh",
+      "file_type": "code",
+      "source_file": "test/integration/ssh-hardening-reload-tree-drift.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "test_integration_ssh_hardening_reload_tree_drift",
+      "community": 422,
+      "norm_label": "ssh-hardening-reload-tree-drift.sh"
+    },
+    {
+      "label": "ssh-hardening-reload-tree-drift.sh script",
+      "file_type": "code",
+      "source_file": "test/integration/ssh-hardening-reload-tree-drift.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "test_integration_ssh_hardening_reload_tree_drift_sh__entry",
+      "community": 422,
+      "norm_label": "ssh-hardening-reload-tree-drift.sh script"
+    },
+    {
+      "label": "SSH_HARDENING_READY_ATTEMPTS",
+      "file_type": "code",
+      "source_file": "test/integration/ssh-hardening-reload-tree-drift.sh",
+      "source_location": "L41",
+      "metadata": {
+        "language": "bash",
+        "kind": "code"
+      },
+      "_origin": "ast",
+      "id": "test_integration_ssh_hardening_reload_tree_drift_ssh_hardening_ready_attempts",
+      "community": 422,
+      "norm_label": "ssh_hardening_ready_attempts"
+    },
+    {
+      "label": "SSH_HARDENING_READY_INTERVAL",
+      "file_type": "code",
+      "source_file": "test/integration/ssh-hardening-reload-tree-drift.sh",
+      "source_location": "L42",
+      "metadata": {
+        "language": "bash",
+        "kind": "code"
+      },
+      "_origin": "ast",
+      "id": "test_integration_ssh_hardening_reload_tree_drift_ssh_hardening_ready_interval",
+      "community": 422,
+      "norm_label": "ssh_hardening_ready_interval"
+    },
+    {
+      "label": "run_reload_with_mutation()",
+      "file_type": "code",
+      "source_file": "test/integration/ssh-hardening-reload-tree-drift.sh",
+      "source_location": "L128",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_integration_ssh_hardening_reload_tree_drift_run_reload_with_mutation",
+      "community": 422,
+      "norm_label": "run_reload_with_mutation()"
+    },
+    {
+      "label": "assert_mutation_fired()",
+      "file_type": "code",
+      "source_file": "test/integration/ssh-hardening-reload-tree-drift.sh",
+      "source_location": "L138",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_integration_ssh_hardening_reload_tree_drift_assert_mutation_fired",
+      "community": 422,
+      "norm_label": "assert_mutation_fired()"
+    },
+    {
+      "label": "assert_drift_refused_before_kickstart()",
+      "file_type": "code",
+      "source_file": "test/integration/ssh-hardening-reload-tree-drift.sh",
+      "source_location": "L146",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_integration_ssh_hardening_reload_tree_drift_assert_drift_refused_before_kickstart",
+      "community": 422,
+      "norm_label": "assert_drift_refused_before_kickstart()"
+    },
+    {
+      "label": "assert_drift_refuses_the_success_claim()",
+      "file_type": "code",
+      "source_file": "test/integration/ssh-hardening-reload-tree-drift.sh",
+      "source_location": "L166",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_integration_ssh_hardening_reload_tree_drift_assert_drift_refuses_the_success_claim",
+      "community": 422,
+      "norm_label": "assert_drift_refuses_the_success_claim()"
+    },
+    {
       "label": "ssh-hardening-rollback.sh",
       "file_type": "code",
       "source_file": "test/integration/ssh-hardening-rollback.sh",
@@ -27281,7 +27421,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L7",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_claude_md",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_claude_md",
       "community": 323,
       "norm_label": "claude.md"
     },
@@ -27291,7 +27431,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L11",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_what_this_is",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_what_this_is",
       "community": 323,
       "norm_label": "what this is"
     },
@@ -27301,7 +27441,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L18",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_key_commands",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_key_commands",
       "community": 323,
       "norm_label": "key commands"
     },
@@ -27311,7 +27451,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L20",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_linting_formatting",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_linting_formatting",
       "community": 323,
       "norm_label": "linting & formatting"
     },
@@ -27321,7 +27461,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L46",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_testing",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_testing",
       "community": 323,
       "norm_label": "testing"
     },
@@ -27331,7 +27471,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L86",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_chezmoi_operations",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_chezmoi_operations",
       "community": 323,
       "norm_label": "chezmoi operations"
     },
@@ -27341,7 +27481,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L114",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_claude_code_settings",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_claude_code_settings",
       "community": 323,
       "norm_label": "claude code settings"
     },
@@ -27351,7 +27491,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L147",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_git_hooks",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_git_hooks",
       "community": 323,
       "norm_label": "git hooks"
     },
@@ -27361,7 +27501,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L214",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_architecture",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_architecture",
       "community": 323,
       "norm_label": "architecture"
     },
@@ -27371,7 +27511,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L216",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_source_only_files",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_source_only_files",
       "community": 323,
       "norm_label": "source-only files"
     },
@@ -27381,7 +27521,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L224",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_minimum_chezmoi_version",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_minimum_chezmoi_version",
       "community": 323,
       "norm_label": "minimum chezmoi version"
     },
@@ -27391,7 +27531,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L228",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_secrets_management",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_secrets_management",
       "community": 323,
       "norm_label": "secrets management"
     },
@@ -27401,7 +27541,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L235",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_system_package_management",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_system_package_management",
       "community": 323,
       "norm_label": "system package management"
     },
@@ -27411,7 +27551,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L260",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_macos_defaults_management",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_macos_defaults_management",
       "community": 323,
       "norm_label": "macos defaults management"
     },
@@ -27421,7 +27561,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L305",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_template_files",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_template_files",
       "community": 323,
       "norm_label": "template files"
     },
@@ -27431,7 +27571,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L311",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_template_shellcheck_workaround",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_template_shellcheck_workaround",
       "community": 323,
       "norm_label": "template shellcheck workaround"
     },
@@ -27441,7 +27581,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L332",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_os_targeting",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_os_targeting",
       "community": 323,
       "norm_label": "os targeting"
     },
@@ -27451,7 +27591,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L337",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_dev_environment_nix_flake",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_dev_environment_nix_flake",
       "community": 323,
       "norm_label": "dev environment (nix flake)"
     },
@@ -27461,7 +27601,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L348",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_ci",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_ci",
       "community": 323,
       "norm_label": "ci"
     },
@@ -27471,7 +27611,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L358",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_agent_skills_cross_harness_store",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_agent_skills_cross_harness_store",
       "community": 323,
       "norm_label": "agent skills (cross-harness store)"
     },
@@ -27481,7 +27621,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L528",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_herdr_workspace_management",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_herdr_workspace_management",
       "community": 323,
       "norm_label": "herdr workspace management"
     },
@@ -27491,7 +27631,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L548",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_git_worktrees_worktrunk",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_git_worktrees_worktrunk",
       "community": 323,
       "norm_label": "git worktrees (worktrunk)"
     },
@@ -27501,7 +27641,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L555",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_bashrc_init_ordering",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_bashrc_init_ordering",
       "community": 323,
       "norm_label": "bashrc init ordering"
     },
@@ -27511,7 +27651,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L563",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_shell_history_atuin",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_shell_history_atuin",
       "community": 323,
       "norm_label": "shell history (atuin)"
     },
@@ -27521,7 +27661,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L592",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_happy_daemon_remote_agent_control",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_happy_daemon_remote_agent_control",
       "community": 323,
       "norm_label": "happy daemon (remote agent control)"
     },
@@ -27531,7 +27671,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L619",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_tailscale_headless_daemon",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_tailscale_headless_daemon",
       "community": 323,
       "norm_label": "tailscale (headless daemon)"
     },
@@ -27541,7 +27681,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L656",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_ai_commit_messages",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_ai_commit_messages",
       "community": 323,
       "norm_label": "ai commit messages"
     },
@@ -27551,7 +27691,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L669",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_long_running_command_notifier",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_long_running_command_notifier",
       "community": 323,
       "norm_label": "long-running command notifier"
     },
@@ -27561,7 +27701,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L675",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_herdr_native_status",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_herdr_native_status",
       "community": 323,
       "norm_label": "herdr native status"
     },
@@ -27571,7 +27711,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L681",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_code_style",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_code_style",
       "community": 323,
       "norm_label": "code style"
     },
@@ -27581,7 +27721,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L707",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_git_commits",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_git_commits",
       "community": 323,
       "norm_label": "git commits"
     },
@@ -27591,7 +27731,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L714",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_security",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_security",
       "community": 323,
       "norm_label": "security"
     },
@@ -48778,7 +48918,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1332",
+      "source_location": "L1396",
       "weight": 1.0,
       "source": "dot_local_bin_executable_ssh_hardening",
       "target": "dot_local_bin_executable_ssh_hardening_banner_output_names_host_key",
@@ -48798,7 +48938,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L985",
+      "source_location": "L1049",
       "weight": 1.0,
       "source": "dot_local_bin_executable_ssh_hardening",
       "target": "dot_local_bin_executable_ssh_hardening_check_connection_specs",
@@ -48818,7 +48958,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L940",
+      "source_location": "L1033",
       "weight": 1.0,
       "source": "dot_local_bin_executable_ssh_hardening",
       "target": "dot_local_bin_executable_ssh_hardening_check_match_scan",
@@ -48828,7 +48968,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1500",
+      "source_location": "L1564",
       "weight": 1.0,
       "source": "dot_local_bin_executable_ssh_hardening",
       "target": "dot_local_bin_executable_ssh_hardening_check_password_channel",
@@ -48838,7 +48978,17 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1542",
+      "source_location": "L998",
+      "weight": 1.0,
+      "source": "dot_local_bin_executable_ssh_hardening",
+      "target": "dot_local_bin_executable_ssh_hardening_config_tree_roots",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L1606",
       "weight": 1.0,
       "source": "dot_local_bin_executable_ssh_hardening",
       "target": "dot_local_bin_executable_ssh_hardening_confirm_password_access_restored",
@@ -48888,7 +49038,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1087",
+      "source_location": "L1151",
       "weight": 1.0,
       "source": "dot_local_bin_executable_ssh_hardening",
       "target": "dot_local_bin_executable_ssh_hardening_install_dropin",
@@ -48898,7 +49048,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1622",
+      "source_location": "L1686",
       "weight": 1.0,
       "source": "dot_local_bin_executable_ssh_hardening",
       "target": "dot_local_bin_executable_ssh_hardening_main",
@@ -48948,7 +49098,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1200",
+      "source_location": "L1264",
       "weight": 1.0,
       "source": "dot_local_bin_executable_ssh_hardening",
       "target": "dot_local_bin_executable_ssh_hardening_probe_sshd_service",
@@ -48988,7 +49138,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1181",
+      "source_location": "L1245",
       "weight": 1.0,
       "source": "dot_local_bin_executable_ssh_hardening",
       "target": "dot_local_bin_executable_ssh_hardening_recovery_instructions",
@@ -48998,7 +49148,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1373",
+      "source_location": "L1437",
       "weight": 1.0,
       "source": "dot_local_bin_executable_ssh_hardening",
       "target": "dot_local_bin_executable_ssh_hardening_reload_sshd",
@@ -49018,7 +49168,17 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1278",
+      "source_location": "L841",
+      "weight": 1.0,
+      "source": "dot_local_bin_executable_ssh_hardening",
+      "target": "dot_local_bin_executable_ssh_hardening_resolve_include_paths",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L1342",
       "weight": 1.0,
       "source": "dot_local_bin_executable_ssh_hardening",
       "target": "dot_local_bin_executable_ssh_hardening_resolve_probe_ports",
@@ -49028,7 +49188,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1581",
+      "source_location": "L1645",
       "weight": 1.0,
       "source": "dot_local_bin_executable_ssh_hardening",
       "target": "dot_local_bin_executable_ssh_hardening_rollback_dropin",
@@ -49038,7 +49198,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1064",
+      "source_location": "L1128",
       "weight": 1.0,
       "source": "dot_local_bin_executable_ssh_hardening",
       "target": "dot_local_bin_executable_ssh_hardening_rollback_install",
@@ -49068,7 +49228,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L884",
+      "source_location": "L921",
       "weight": 1.0,
       "source": "dot_local_bin_executable_ssh_hardening",
       "target": "dot_local_bin_executable_ssh_hardening_scan_config_file",
@@ -49078,7 +49238,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L827",
+      "source_location": "L899",
       "weight": 1.0,
       "source": "dot_local_bin_executable_ssh_hardening",
       "target": "dot_local_bin_executable_ssh_hardening_scan_included_files",
@@ -49138,7 +49298,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1599",
+      "source_location": "L1663",
       "weight": 1.0,
       "source": "dot_local_bin_executable_ssh_hardening",
       "target": "dot_local_bin_executable_ssh_hardening_usage",
@@ -49148,7 +49308,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1230",
+      "source_location": "L1294",
       "weight": 1.0,
       "source": "dot_local_bin_executable_ssh_hardening",
       "target": "dot_local_bin_executable_ssh_hardening_validate_readiness_knobs",
@@ -49158,7 +49318,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1014",
+      "source_location": "L1078",
       "weight": 1.0,
       "source": "dot_local_bin_executable_ssh_hardening",
       "target": "dot_local_bin_executable_ssh_hardening_verify",
@@ -49178,7 +49338,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1347",
+      "source_location": "L1411",
       "weight": 1.0,
       "source": "dot_local_bin_executable_ssh_hardening",
       "target": "dot_local_bin_executable_ssh_hardening_wait_for_ssh_banner",
@@ -49198,7 +49358,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1656",
+      "source_location": "L1720",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_ssh_hardening_sh__entry",
@@ -49209,7 +49369,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1549",
+      "source_location": "L1613",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_ssh_hardening_confirm_password_access_restored",
@@ -49220,7 +49380,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1102",
+      "source_location": "L1166",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_ssh_hardening_install_dropin",
@@ -49231,7 +49391,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1388",
+      "source_location": "L1452",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_ssh_hardening_reload_sshd",
@@ -49242,7 +49402,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1283",
+      "source_location": "L1347",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_ssh_hardening_resolve_probe_ports",
@@ -49253,7 +49413,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1590",
+      "source_location": "L1654",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_ssh_hardening_rollback_dropin",
@@ -49264,7 +49424,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1233",
+      "source_location": "L1297",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_ssh_hardening_validate_readiness_knobs",
@@ -49275,7 +49435,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1365",
+      "source_location": "L1429",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_ssh_hardening_wait_for_ssh_banner",
@@ -49286,7 +49446,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1163",
+      "source_location": "L1227",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_ssh_hardening_install_dropin",
@@ -49297,7 +49457,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1067",
+      "source_location": "L1131",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_ssh_hardening_rollback_install",
@@ -49308,7 +49468,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1103",
+      "source_location": "L1167",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_ssh_hardening_install_dropin",
@@ -49319,7 +49479,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1589",
+      "source_location": "L1653",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_ssh_hardening_rollback_dropin",
@@ -49330,7 +49490,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1066",
+      "source_location": "L1130",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_ssh_hardening_rollback_install",
@@ -49341,7 +49501,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1643",
+      "source_location": "L1707",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_ssh_hardening_main",
@@ -49352,7 +49512,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1111",
+      "source_location": "L1175",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_ssh_hardening_install_dropin",
@@ -49363,7 +49523,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1642",
+      "source_location": "L1706",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_ssh_hardening_main",
@@ -49374,7 +49534,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1157",
+      "source_location": "L1221",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_ssh_hardening_install_dropin",
@@ -49385,7 +49545,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1415",
+      "source_location": "L1479",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_ssh_hardening_reload_sshd",
@@ -49396,7 +49556,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1545",
+      "source_location": "L1609",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_ssh_hardening_confirm_password_access_restored",
@@ -49407,7 +49567,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1168",
+      "source_location": "L1232",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_ssh_hardening_install_dropin",
@@ -49418,7 +49578,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1017",
+      "source_location": "L1081",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_ssh_hardening_verify",
@@ -49440,7 +49600,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L991",
+      "source_location": "L1055",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_ssh_hardening_check_connection_specs",
@@ -49462,7 +49622,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L961",
+      "source_location": "L1037",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_ssh_hardening_check_match_scan",
@@ -49473,7 +49633,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L888",
+      "source_location": "L925",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_ssh_hardening_scan_config_file",
@@ -49484,7 +49644,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L836",
+      "source_location": "L904",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_ssh_hardening_scan_included_files",
@@ -49495,7 +49655,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L930",
+      "source_location": "L967",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_ssh_hardening_scan_config_file",
@@ -49506,7 +49666,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L931",
+      "source_location": "L968",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_ssh_hardening_scan_config_file",
@@ -49517,7 +49677,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1010",
+      "source_location": "L1074",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_ssh_hardening_check_connection_specs",
@@ -49539,7 +49699,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1024",
+      "source_location": "L1088",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_ssh_hardening_verify",
@@ -49649,7 +49809,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L910",
+      "source_location": "L947",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_ssh_hardening_scan_config_file",
@@ -49671,10 +49831,10 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L848",
+      "source_location": "L861",
       "weight": 1.0,
       "context": "call",
-      "source": "dot_local_bin_executable_ssh_hardening_scan_included_files",
+      "source": "dot_local_bin_executable_ssh_hardening_resolve_include_paths",
       "target": "dot_local_bin_executable_ssh_hardening_unescape_include_pattern",
       "confidence_score": 1.0
     },
@@ -49682,7 +49842,18 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L919",
+      "source_location": "L903",
+      "weight": 1.0,
+      "context": "call",
+      "source": "dot_local_bin_executable_ssh_hardening_scan_included_files",
+      "target": "dot_local_bin_executable_ssh_hardening_resolve_include_paths",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L956",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_ssh_hardening_scan_config_file",
@@ -49693,7 +49864,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L981",
+      "source_location": "L1045",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_ssh_hardening_check_match_scan",
@@ -49704,7 +49875,18 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1025",
+      "source_location": "L1036",
+      "weight": 1.0,
+      "context": "call",
+      "source": "dot_local_bin_executable_ssh_hardening_check_match_scan",
+      "target": "dot_local_bin_executable_ssh_hardening_config_tree_roots",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_ssh-hardening.sh",
+      "source_location": "L1089",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_ssh_hardening_verify",
@@ -49715,7 +49897,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1026",
+      "source_location": "L1090",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_ssh_hardening_verify",
@@ -49726,7 +49908,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1644",
+      "source_location": "L1708",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_ssh_hardening_main",
@@ -49737,7 +49919,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1112",
+      "source_location": "L1176",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_ssh_hardening_install_dropin",
@@ -49748,7 +49930,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1647",
+      "source_location": "L1711",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_ssh_hardening_main",
@@ -49759,7 +49941,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1425",
+      "source_location": "L1489",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_ssh_hardening_reload_sshd",
@@ -49770,7 +49952,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1376",
+      "source_location": "L1440",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_ssh_hardening_reload_sshd",
@@ -49781,7 +49963,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1422",
+      "source_location": "L1486",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_ssh_hardening_reload_sshd",
@@ -49792,7 +49974,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1356",
+      "source_location": "L1420",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_ssh_hardening_wait_for_ssh_banner",
@@ -49803,7 +49985,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1467",
+      "source_location": "L1531",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_ssh_hardening_reload_sshd",
@@ -49814,7 +49996,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1645",
+      "source_location": "L1709",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_ssh_hardening_main",
@@ -49825,7 +50007,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1551",
+      "source_location": "L1615",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_ssh_hardening_confirm_password_access_restored",
@@ -49836,7 +50018,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1586",
+      "source_location": "L1650",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_ssh_hardening_rollback_dropin",
@@ -49847,7 +50029,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1646",
+      "source_location": "L1710",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_ssh_hardening_main",
@@ -49858,7 +50040,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_ssh-hardening.sh",
-      "source_location": "L1624",
+      "source_location": "L1688",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_ssh_hardening_main",
@@ -65604,6 +65786,142 @@
     {
       "relation": "defines",
       "confidence": "EXTRACTED",
+      "source_file": "test/integration/ssh-hardening-reload-tree-drift.sh",
+      "source_location": "L146",
+      "weight": 1.0,
+      "source": "test_integration_ssh_hardening_reload_tree_drift",
+      "target": "test_integration_ssh_hardening_reload_tree_drift_assert_drift_refused_before_kickstart",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/ssh-hardening-reload-tree-drift.sh",
+      "source_location": "L166",
+      "weight": 1.0,
+      "source": "test_integration_ssh_hardening_reload_tree_drift",
+      "target": "test_integration_ssh_hardening_reload_tree_drift_assert_drift_refuses_the_success_claim",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/ssh-hardening-reload-tree-drift.sh",
+      "source_location": "L138",
+      "weight": 1.0,
+      "source": "test_integration_ssh_hardening_reload_tree_drift",
+      "target": "test_integration_ssh_hardening_reload_tree_drift_assert_mutation_fired",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/ssh-hardening-reload-tree-drift.sh",
+      "source_location": "L128",
+      "weight": 1.0,
+      "source": "test_integration_ssh_hardening_reload_tree_drift",
+      "target": "test_integration_ssh_hardening_reload_tree_drift_run_reload_with_mutation",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/ssh-hardening-reload-tree-drift.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "test_integration_ssh_hardening_reload_tree_drift",
+      "target": "test_integration_ssh_hardening_reload_tree_drift_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/ssh-hardening-reload-tree-drift.sh",
+      "source_location": "L41",
+      "weight": 1.0,
+      "source": "test_integration_ssh_hardening_reload_tree_drift",
+      "target": "test_integration_ssh_hardening_reload_tree_drift_ssh_hardening_ready_attempts",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/ssh-hardening-reload-tree-drift.sh",
+      "source_location": "L42",
+      "weight": 1.0,
+      "source": "test_integration_ssh_hardening_reload_tree_drift",
+      "target": "test_integration_ssh_hardening_reload_tree_drift_ssh_hardening_ready_interval",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/ssh-hardening-reload-tree-drift.sh",
+      "source_location": "L246",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_integration_ssh_hardening_reload_tree_drift_sh__entry",
+      "target": "test_integration_ssh_hardening_reload_tree_drift_assert_drift_refused_before_kickstart",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/ssh-hardening-reload-tree-drift.sh",
+      "source_location": "L326",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_integration_ssh_hardening_reload_tree_drift_sh__entry",
+      "target": "test_integration_ssh_hardening_reload_tree_drift_assert_drift_refuses_the_success_claim",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/ssh-hardening-reload-tree-drift.sh",
+      "source_location": "L223",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_integration_ssh_hardening_reload_tree_drift_sh__entry",
+      "target": "test_integration_ssh_hardening_reload_tree_drift_assert_mutation_fired",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/ssh-hardening-reload-tree-drift.sh",
+      "source_location": "L221",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_integration_ssh_hardening_reload_tree_drift_sh__entry",
+      "target": "test_integration_ssh_hardening_reload_tree_drift_run_reload_with_mutation",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/ssh-hardening-reload-tree-drift.sh",
+      "source_location": "L148",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_integration_ssh_hardening_reload_tree_drift_assert_drift_refused_before_kickstart",
+      "target": "test_integration_ssh_hardening_reload_tree_drift_assert_mutation_fired",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/ssh-hardening-reload-tree-drift.sh",
+      "source_location": "L168",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_integration_ssh_hardening_reload_tree_drift_assert_drift_refuses_the_success_claim",
+      "target": "test_integration_ssh_hardening_reload_tree_drift_assert_mutation_fired",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
       "source_file": "test/integration/ssh-hardening-rollback.sh",
       "source_location": "L48",
       "weight": 1.0,
@@ -77817,7 +78135,7 @@
       "source_location": "L7",
       "weight": 1.0,
       "source": "agents",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_claude_md",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_claude_md",
       "confidence_score": 1.0
     },
     {
@@ -77826,8 +78144,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L214",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_claude_md",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_architecture",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_claude_md",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_architecture",
       "confidence_score": 1.0
     },
     {
@@ -77836,8 +78154,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L681",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_claude_md",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_code_style",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_claude_md",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_code_style",
       "confidence_score": 1.0
     },
     {
@@ -77846,8 +78164,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L707",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_claude_md",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_git_commits",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_claude_md",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_git_commits",
       "confidence_score": 1.0
     },
     {
@@ -77856,8 +78174,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L18",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_claude_md",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_key_commands",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_claude_md",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_key_commands",
       "confidence_score": 1.0
     },
     {
@@ -77866,8 +78184,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L714",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_claude_md",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_security",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_claude_md",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_security",
       "confidence_score": 1.0
     },
     {
@@ -77876,8 +78194,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L11",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_claude_md",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_what_this_is",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_claude_md",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_what_this_is",
       "confidence_score": 1.0
     },
     {
@@ -77886,8 +78204,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L86",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_key_commands",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_chezmoi_operations",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_key_commands",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_chezmoi_operations",
       "confidence_score": 1.0
     },
     {
@@ -77896,8 +78214,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L114",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_key_commands",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_claude_code_settings",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_key_commands",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_claude_code_settings",
       "confidence_score": 1.0
     },
     {
@@ -77906,8 +78224,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L147",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_key_commands",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_git_hooks",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_key_commands",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_git_hooks",
       "confidence_score": 1.0
     },
     {
@@ -77916,8 +78234,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L20",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_key_commands",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_linting_formatting",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_key_commands",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_linting_formatting",
       "confidence_score": 1.0
     },
     {
@@ -77926,8 +78244,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L46",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_key_commands",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_testing",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_key_commands",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_testing",
       "confidence_score": 1.0
     },
     {
@@ -77936,8 +78254,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L358",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_agent_skills_cross_harness_store",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_agent_skills_cross_harness_store",
       "confidence_score": 1.0
     },
     {
@@ -77946,8 +78264,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L656",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_ai_commit_messages",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_ai_commit_messages",
       "confidence_score": 1.0
     },
     {
@@ -77956,8 +78274,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L555",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_bashrc_init_ordering",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_bashrc_init_ordering",
       "confidence_score": 1.0
     },
     {
@@ -77966,8 +78284,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L348",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_ci",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_ci",
       "confidence_score": 1.0
     },
     {
@@ -77976,8 +78294,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L337",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_dev_environment_nix_flake",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_dev_environment_nix_flake",
       "confidence_score": 1.0
     },
     {
@@ -77986,8 +78304,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L548",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_git_worktrees_worktrunk",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_git_worktrees_worktrunk",
       "confidence_score": 1.0
     },
     {
@@ -77996,8 +78314,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L592",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_happy_daemon_remote_agent_control",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_happy_daemon_remote_agent_control",
       "confidence_score": 1.0
     },
     {
@@ -78006,8 +78324,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L675",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_herdr_native_status",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_herdr_native_status",
       "confidence_score": 1.0
     },
     {
@@ -78016,8 +78334,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L528",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_herdr_workspace_management",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_herdr_workspace_management",
       "confidence_score": 1.0
     },
     {
@@ -78026,8 +78344,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L669",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_long_running_command_notifier",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_long_running_command_notifier",
       "confidence_score": 1.0
     },
     {
@@ -78036,8 +78354,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L260",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_macos_defaults_management",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_macos_defaults_management",
       "confidence_score": 1.0
     },
     {
@@ -78046,8 +78364,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L224",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_minimum_chezmoi_version",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_minimum_chezmoi_version",
       "confidence_score": 1.0
     },
     {
@@ -78056,8 +78374,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L332",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_os_targeting",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_os_targeting",
       "confidence_score": 1.0
     },
     {
@@ -78066,8 +78384,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L228",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_secrets_management",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_secrets_management",
       "confidence_score": 1.0
     },
     {
@@ -78076,8 +78394,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L563",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_shell_history_atuin",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_shell_history_atuin",
       "confidence_score": 1.0
     },
     {
@@ -78086,8 +78404,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L216",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_source_only_files",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_source_only_files",
       "confidence_score": 1.0
     },
     {
@@ -78096,8 +78414,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L235",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_system_package_management",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_system_package_management",
       "confidence_score": 1.0
     },
     {
@@ -78106,8 +78424,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L619",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_tailscale_headless_daemon",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_tailscale_headless_daemon",
       "confidence_score": 1.0
     },
     {
@@ -78116,8 +78434,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L305",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_template_files",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_template_files",
       "confidence_score": 1.0
     },
     {
@@ -78126,8 +78444,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L311",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_template_shellcheck_workaround",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu57_agents_template_shellcheck_workaround",
       "confidence_score": 1.0
     },
     {
@@ -96662,5 +96980,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "708205ea8aeb320d73f6feffa1b7093e0700c938"
+  "built_at_commit": "a7c4eb62903301f0afdb35fadcd0c6032b731811"
 }

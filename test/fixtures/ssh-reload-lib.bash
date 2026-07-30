@@ -93,6 +93,23 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/ssh-hardening-lib.bash"
 #                                    (a real record but a nonzero status)
 #   KEYSCAN_STUB_ANSWER_PORT         banner mode only: refuse every requested
 #                                    port except this one (empty: answer any)
+#   SSH_TREE_MUTATION_HOOK           absolute path to an executable the
+#                                    controlled stubs run, as
+#                                    `<hook> <tool> <argv...>`, immediately
+#                                    after logging the call and BEFORE doing
+#                                    the tool's own work. Empty (the default)
+#                                    means no hook runs at all, so every
+#                                    existing case is unaffected. This is the
+#                                    ONLY way a test can change the sandbox
+#                                    tree at a precise point INSIDE one run of
+#                                    the script, which is what a race between
+#                                    two of the script's own steps requires.
+#                                    The hook's exit status is ignored: it is
+#                                    an observer that mutates, never a way to
+#                                    fail a stub (the stub knobs above own
+#                                    that). The POLICY (which call, what
+#                                    change) lives in the test, not here, so
+#                                    this library stays one generic seam.
 #
 # The sshd stub keys its -G output off the PRESENCE of the sandbox drop-in, so
 # --verify (which the reload and rollback paths re-run in a child) tracks what
@@ -145,6 +162,9 @@ STUB
 set -euo pipefail
 printf '%s\n' "$*" >>"${SSHD_SPY_LOG:?}"
 printf 'sshd %s\n' "$*" >>"${SSH_SEAM_CALL_LOG:?}"
+if [[ -n ${SSH_TREE_MUTATION_HOOK:-} ]]; then
+  "$SSH_TREE_MUTATION_HOOK" sshd "$@" || :
+fi
 case " $* " in
   *' -t '*)
     if [[ ${SSHD_STUB_SYNTAX_STATUS:-0} -ne 0 ]]; then
@@ -224,6 +244,9 @@ STUB
 set -euo pipefail
 printf '%s\n' "$*" >>"${LAUNCHCTL_SPY_LOG:?}"
 printf 'launchctl %s\n' "$*" >>"${SSH_SEAM_CALL_LOG:?}"
+if [[ -n ${SSH_TREE_MUTATION_HOOK:-} ]]; then
+  "$SSH_TREE_MUTATION_HOOK" launchctl "$@" || :
+fi
 case "${1:-}" in
   print)
     count_file="${SSH_STUB_STATE:?}/launchctl-print-count"
@@ -280,6 +303,9 @@ STUB
 set -euo pipefail
 printf '%s\n' "$*" >>"${KEYSCAN_SPY_LOG:?}"
 printf 'ssh-keyscan %s\n' "$*" >>"${SSH_SEAM_CALL_LOG:?}"
+if [[ -n ${SSH_TREE_MUTATION_HOOK:-} ]]; then
+  "$SSH_TREE_MUTATION_HOOK" ssh-keyscan "$@" || :
+fi
 requested_port=''
 previous=''
 for argument in "$@"; do
@@ -334,10 +360,16 @@ STUB
 
   # Passthrough sudo: logs, handles the -v priming call, then executes the
   # wrapped command directly (the sandbox is user-owned, so no privilege is
-  # needed or taken).
+  # needed or taken). The mutation hook fires BEFORE the exec, which is the
+  # only place a test can change the tree strictly between the script's last
+  # pre-kickstart read and the kickstart itself: the launchctl stub's own hook
+  # runs one process later, after the kickstart has already been handed over.
   cat >"$SSH_STUB_DIR/sudo-ok" <<'STUB'
 #!/bin/bash
 printf '%s\n' "$*" >>"${SUDO_OK_SPY_LOG:?}"
+if [[ -n ${SSH_TREE_MUTATION_HOOK:-} ]]; then
+  "$SSH_TREE_MUTATION_HOOK" sudo "$@" || :
+fi
 if [[ ${1:-} == '-v' ]]; then
   exit 0
 fi
@@ -408,6 +440,7 @@ STUB
   LAUNCHCTL_STUB_KICKSTART_STATUS=0
   KEYSCAN_STUB_MODE=banner
   KEYSCAN_STUB_ANSWER_PORT=""
+  SSH_TREE_MUTATION_HOOK=""
   export SSH_STUB_DIR SSH_STUB_STATE SSH_SUDO_DENY_STUB \
     SSH_SUDO_LAUNCHCTL_113_STUB SSH_SUDO_SWALLOW_RM_STUB \
     SSHD_SPY_LOG LAUNCHCTL_SPY_LOG KEYSCAN_SPY_LOG SLEEP_SPY_LOG \
@@ -418,7 +451,7 @@ STUB
     SSHD_STUB_FORCE_HARDENED SSHD_STUB_PARTIAL_HARDENED \
     SSHD_STUB_BLOCKED_ADDRESSES \
     LAUNCHCTL_STUB_PRINT_STATUSES LAUNCHCTL_STUB_KICKSTART_STATUS \
-    KEYSCAN_STUB_MODE KEYSCAN_STUB_ANSWER_PORT
+    KEYSCAN_STUB_MODE KEYSCAN_STUB_ANSWER_PORT SSH_TREE_MUTATION_HOOK
 }
 
 # run_ssh_reload <args...>: run_ssh_hardening_bounded with fresh per-run spy
@@ -436,7 +469,8 @@ run_ssh_reload() {
   : >"$SUDO_DENY_SPY_LOG"
   : >"$SSH_SEAM_CALL_LOG"
   rm -f "$SSH_STUB_STATE/launchctl-print-count" "$SSH_STUB_STATE/sshd-resolve-count" \
-    "$SSH_STUB_STATE/stdout-at-kickstart" "$SSH_STUB_STATE/stderr-at-kickstart"
+    "$SSH_STUB_STATE/stdout-at-kickstart" "$SSH_STUB_STATE/stderr-at-kickstart" \
+    "$SSH_STUB_STATE/tree-mutation-count"
   run_ssh_hardening_bounded "${SSH_RELOAD_TIME_LIMIT:-30}" "$@"
   if [[ ${SSH_RUN_TIMED_OUT:-0} -eq 1 ]]; then
     printf 'FAIL: run_ssh_reload %s exceeded its %ss wall clock; a reload that can hang is itself a regression\n' \
