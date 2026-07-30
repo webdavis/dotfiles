@@ -174,8 +174,23 @@ FUNCTION_KEYWORD = "function"
 
 # `name()` arrives glued into one word by the lexer; `name ()` and
 # `function name` arrive as a bare name.
-GLUED_FUNCTION_DEFINITION_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*\(\)$")
-FUNCTION_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+#
+# A definition is recognized by its SHAPE, not by guessing which names are
+# legal. bash's function names are far wider than a POSIX identifier
+# (`refute-x`, `refute.x`, `refute:x`, `2fa`, `a+b`, `a[b]` and `::` all define
+# functions, measured with `bash -c '<name>() { :; }'`), and every name the
+# scan fails to recognize costs twice: the definition's `{` stops being read as
+# an opener, so the helper's body is analyzed as ordinary code and its
+# inversion reported dead while the call that consumes it is live. Matching on
+# shape has no such gap, because bash has no construct other than a function
+# definition in which a word ends in `()`. The one word that does and is NOT a
+# definition is an empty array assignment (`x=()`), and `=` is exactly what
+# bash rejects inside a function name, so an `=` disqualifies the word and the
+# brace group after an assignment stays an ordinary group.
+ASSIGNMENT_CHARACTER = "="
+GLUED_FUNCTION_DEFINITION_RE = re.compile(
+    r"^[^%s]+\(\)$" % ASSIGNMENT_CHARACTER)
+FUNCTION_NAME_RE = re.compile(r"^[^%s]+$" % ASSIGNMENT_CHARACTER)
 
 REASON_BACKGROUNDED = "backgrounded"
 REASON_DISCARDED = "status discarded"

@@ -343,6 +343,31 @@ create_flagged_tree_fixtures() {
     '  ! test -e /nope' \
     '  true')" 3 "$REASON_DISCARDED")"
 
+  # An empty array assignment is NOT a function definition, so the brace group
+  # after it is an ordinary group and the dead inversion inside it must still
+  # be reported. This is the shape rule's other side: a rule loose enough to
+  # read `x=()` as a definition would exempt every group that follows one.
+  flagged_expected_destination["empty_array_assignment"]="$(expect_finding "$(write_test_body "$flagged_root" empty-array-assignment \
+    '  x=()' \
+    '  { ! grep -q x /etc/hosts; }' \
+    '  true')" 3 "$REASON_DISCARDED")"
+
+  # A helper whose name is legal in bash but not a POSIX identifier must still
+  # be recognized as a DEFINITION, or its opening `{` stops being an opener
+  # while its closing `}` still closes something -- and what it closes is the
+  # BODY, so everything after it goes unscanned with no diagnostic. The dead
+  # inversion below sits after the call, where only a correctly recognized
+  # definition leaves it visible. This is the coverage half of the same defect
+  # whose judgement half (a false positive on the helper's own inversion) the
+  # clean tree pins.
+  flagged_expected_destination["helper_with_bash_legal_name"]="$(expect_finding "$(write_test_body "$flagged_root" helper-with-bash-legal-name \
+    '  refute-x() {' \
+    '    ! grep -q x /etc/hosts' \
+    '  }' \
+    '  refute-x' \
+    '  ! test -e /nope' \
+    '  true')" 6 "$REASON_DISCARDED")"
+
   # A brace-shaped case PATTERN is a pattern, not a brace (`case "}" in }) ...`
   # matches, measured). Counting it would close the body inside the region and
   # leave the rest of it unscanned, so the dead inversion after `esac` is
@@ -482,6 +507,32 @@ create_clean_tree_fixtures() {
     '    ! grep -q x /etc/hosts' \
     '  }' \
     '  refute_x')"
+  # bash's function names are much wider than a POSIX identifier: each of these
+  # defines a function and each call is live (measured with
+  # `bash -c "<name>() { :; }"`). A scan that recognizes only
+  # [A-Za-z_][A-Za-z0-9_]* reads these bodies as bare brace groups and reports
+  # their inversions dead, a FALSE POSITIVE against working code that also
+  # contradicts the header's [function-body] limit.
+  fixture_path="$(write_test_body "$clean_root" refute-helper-hyphenated-name \
+    '  refute-x() {' \
+    '    ! grep -q x /etc/hosts' \
+    '  }' \
+    '  refute-x')"
+  fixture_path="$(write_test_body "$clean_root" refute-helper-dotted-name \
+    '  refute.x() {' \
+    '    ! grep -q x /etc/hosts' \
+    '  }' \
+    '  refute.x')"
+  fixture_path="$(write_test_body "$clean_root" refute-helper-colon-name \
+    '  refute:x() {' \
+    '    ! grep -q x /etc/hosts' \
+    '  }' \
+    '  refute:x')"
+  fixture_path="$(write_test_body "$clean_root" refute-helper-leading-digit-name \
+    '  2fa() {' \
+    '    ! grep -q x /etc/hosts' \
+    '  }' \
+    '  2fa')"
   # A `{` in ARGUMENT position is a literal brace, not a group opener, so it
   # must neither open a frame nor make the body look unclosed. Refusing here
   # was the fail-open's mirror image: same misreading, louder outcome.
