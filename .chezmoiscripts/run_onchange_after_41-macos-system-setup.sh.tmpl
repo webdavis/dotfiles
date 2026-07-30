@@ -20,20 +20,51 @@ set -euo pipefail
      repo's documented Tier-1 runner gotcha. */ -}}
 {{ $pins := index .macos "tailnet_pins" -}}
 {{- /* Tailnet-pin field validation: fqdn, ip and short must each be exactly
-one /etc/hosts column. Any whitespace would split one pin into extra columns
-or, for a newline, extra LINES in the file the generated command rewrites as
-root; a # starts a hosts comment and silently truncates the record; an empty
-or absent field renders a malformed line. Same contract as the system_setup
-validation below: any violation aborts the render, so chezmoi refuses the
-whole apply. */ -}}
-{{ range $pin := $pins -}}
+one /etc/hosts column, and each must be a STRING, which is what the schema in
+the data file documents. The refused character set is Go's \s class (space,
+tab, newline, carriage return, form feed) plus #: those are the characters
+that split one pin into extra columns or, for a newline, extra LINES in the
+file the generated command rewrites as root, and the # that starts a hosts
+comment and silently truncates the record. It is deliberately NOT "any
+whitespace": a vertical tab, U+00A0 or U+2003 splits no hosts record, so none
+of them can smuggle a column and none is refused. The same set is re-checked
+inside the helper script, which is a standalone component with its own
+contract. An empty or absent field renders a malformed line, and a non-string
+scalar (a bare `false`, or an unquoted number) silently stringifies into the
+record instead of being caught, which is why the kind is checked rather than
+documented. Same contract as the system_setup validation below: any violation
+aborts the render, so chezmoi refuses the whole apply. */ -}}
+{{- /* NAME OWNERSHIP is exclusive, so the names must be UNIQUE across pins.
+The reconciler drops every line claiming either of a pin's two names and then
+writes its own, by decision (the fallback answers for both names, so an
+unrelated line claiming one is not left to compete). Two pins sharing a name
+therefore delete each other's record on every apply, forever: the first pin
+reports "written", the second deletes it and reports "written", /etc/hosts is
+rewritten twice per apply, one declared pin never exists, and nothing is ever
+nonzero. Only NAME fields are checked, not ip: two names mapping to one address
+is a valid hosts file and destroys nothing. `$pinNameOwners` maps each name to
+the INDEX of the pin that claimed it, so a pin whose fqdn equals its own short
+is not refused (same owner) while two pins sharing a name, or two pins with the
+same fqdn, are. */ -}}
+{{ $pinNameOwners := dict -}}
+{{ range $pinIndex, $pin := $pins -}}
 {{ range $field := list "fqdn" "ip" "short" -}}
 {{ if or (not (hasKey $pin $field)) (kindIs "invalid" (index $pin $field)) (eq (toString (index $pin $field)) "") -}}
 {{ fail (printf "macos_system_setup.yaml: a tailnet pin is missing %s (or has it empty); every pin declares fqdn, ip and short" $field) -}}
 {{ end -}}
+{{ if not (kindIs "string" (index $pin $field)) -}}
+{{ fail (printf "macos_system_setup.yaml: tailnet pin %s is a %s, not a string; every pin field is one hosts column, so quote it in YAML" $field (kindOf (index $pin $field))) -}}
+{{ end -}}
 {{ if regexMatch "[\\s#]" (toString (index $pin $field)) -}}
 {{ fail (printf "macos_system_setup.yaml: tailnet pin %s %q is not a single hosts column (whitespace splits the record, # truncates it)" $field (toString (index $pin $field))) -}}
 {{ end -}}
+{{ end -}}
+{{ range $nameField := list "fqdn" "short" -}}
+{{ $pinName := toString (index $pin $nameField) -}}
+{{ if and (hasKey $pinNameOwners $pinName) (ne (index $pinNameOwners $pinName) $pinIndex) -}}
+{{ fail (printf "macos_system_setup.yaml: tailnet pin %s %q is claimed by two different pins; a pin OWNS both of its names, so the second would delete the first's record on every apply and one declared pin would never exist" $nameField $pinName) -}}
+{{ end -}}
+{{ $_ := set $pinNameOwners $pinName $pinIndex -}}
 {{ end -}}
 {{ end -}}
 {{- /* Validation pass: every record must declare which control tier it
@@ -138,60 +169,78 @@ echo {{ template "shellSingleQuoted" (printf "→ MANUAL %s: see the runbook sec
 {{ fail (printf "macos_system_setup.yaml: unrecognized tier %q on record %q reached the render loop; the validation pass no longer rejects it" $tier .description) -}}
 {{ end -}}
 {{ end -}}
+{{ if $pins -}}
 {{/* Generated MagicDNS /etc/hosts fallback pins (structured tailnet_pins data).
-     The sh -c wrapper is load-bearing: this script inlines the command after
-     `sudo`, so a bare >/etc/hosts redirect would run in the outer USER shell
-     and be denied; `sudo sh -c '...'` puts the whole edit inside the root shell.
 
-     Convergence is "exactly one line names this pin, and that line is exactly
-     ip<TAB>fqdn<TAB>short". Testing only that a correct line EXISTS let a
-     correct line plus a stale duplicate read as converged, leaving two lines
-     naming the pin. When not converged, the file is rebuilt: every line whose
-     NAME FIELDS (whitespace-split columns after the address, comment text
-     stripped) claim the fqdn OR the short name is dropped, every other line,
-     comments and blanks included, is kept byte-for-byte, and the one correct
-     line is appended. Field equality, not grep word boundaries: to grep, `.`
-     and `-` end a word, so a -w filter also deleted pin.example.test.evil and
-     other-pin.example.test, DIFFERENT hosts that merely contain the name. The
-     pin owns the short name too, by decision: the fallback exists to answer
-     for both names, so an unrelated line claiming the short name is dropped
-     rather than left to compete (macOS resolution order between two such
-     lines was not measured; ownership makes the ordering question moot).
+     The reconciliation itself is NOT inlined here. It used to be a ~1KB
+     single-line `sudo sh -c` body with one-letter variable names, and a
+     fail-open loopback gate survived three review passes inside it: the gate
+     grepped ^127\.0\.0\.1[[:space:]], which a COMMENT-ONLY line satisfies
+     while naming nothing a machine could resolve localhost through, so a
+     rebuild that filtered away the real localhost record installed a hosts
+     file where nothing named localhost and exited 0.
+     Patching that regex in place would have left the next one just as
+     invisible. The logic now lives in a deployed script with named constants
+     and pure, individually testable predicates:
 
-     Install: chmod/chown the temp file to the target's own mode and owner,
-     then mv (rename) it INTO the target path; mktemp creates it next to the
-     target so the rename never crosses filesystems and is atomic. The old
-     `cat "$tmp" > target` kept the inode but TRUNCATED first, so a failure or
-     interrupt mid-write left an EMPTY /etc/hosts and still exited 0. The
-     rename trades the inode away (a watcher pinning the vnode must re-open,
-     and a symlinked target would be replaced by a regular file) for never
-     exposing a partial or empty file. Every write and the install itself are
-     status-checked and every failure path exits nonzero via bail (which also
-     removes the temp file), so under this script's set -e a pin that cannot
-     converge fails the whole apply loudly instead of reporting success. The
-     loopback gate refuses (stderr + nonzero) to install a rebuild that lost
-     its anchored 127.0.0.1 line, 127.0.0.100 is not loopback; a missing
-     /etc/hosts is refused the same way rather than seeded pin-only. GNU stat
-     (-c) is tried before BSD stat (-f) because GNU's -f means "filesystem
-     status" and would SUCCEED with useless output, hiding the fallback.
+       dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh
+         -> ~/.local/libexec/tailnet/reconcile-hosts-pin.sh
 
-     The wrapper means TWO shells see this line, and pin data must be inert in
-     both, and in every parser downstream: inert in one interpreter is not
-     inert. Earlier versions made the fields safe in the shell and then let
-     them become grep PATTERNS, where a leading dash turned a field into a
-     grep OPTION and a newline turned a -xF pattern into a pattern LIST. Now
-     the sh -c script text is a FIXED constant with no interpolation at all,
-     every field travels as a positional argument ($1/$2/$3; the literal `sh`
-     is the conventional $0, without which the first field would be swallowed
-     as the program name), fields are only ever compared with [ = ] inside the
-     script, the one grep keeps a CONSTANT pattern, and the printf format is
-     constant, so a % in the data is not a directive. Render-time validation
-     above guarantees the fields are single hosts columns, so set -f plus the
-     unquoted $IFS split in `set -- ${l%%#*}` only ever splits FILE lines,
-     never pin data. */ -}}
+     Read that file for the convergence, ownership, install and gate
+     contracts; this template's only job is to hand it one pin per line.
+
+     ORDERING: chezmoi writes the entire target state before ANY after-phase
+     script runs, so the helper is present and executable by the time this
+     runner executes, including on a first apply to an empty home. That is a
+     property of chezmoi rather than of this repo and the installed version
+     moves, so it is not asserted from memory here: it is EXECUTED against the
+     installed chezmoi on every run of
+     test/integration/tailnet-pin-helper-deploy-order.sh, which applies a
+     minimal source tree into an empty destination and fails if a before-phase
+     control does not see the helper absent and an after-phase probe in this
+     runner's own slot does not see it deployed and executable.
+     run_after_05-osquery-known-good-manifests.sh relies on the same property.
+     The guard below still checks, because a partial or hand-driven apply is not
+     the same as a full one and the failure must name the missing file rather
+     than surface as sudo's "command not found".
+
+     DEST DIR, not $HOME: chezmoi exports CHEZMOI_DEST_DIR to every script it
+     runs, and under `chezmoi apply --destination X` it is X while $HOME is
+     still the operator's home. Deriving the helper path from $HOME would look
+     for it somewhere nothing was deployed and abort every such apply.
+
+     The helper hash is embedded in this rendered body for two jobs. chezmoi
+     hash-gates run_onchange_ scripts on the body alone, so without it a change
+     to the reconciliation logic would not re-run the pins (same idiom as the
+     `plist hash:` lines in the LaunchAgent loaders). It is also CHECKED against
+     the deployed file before anything is sudo-executed: `chezmoi apply` without
+     --force prompts rather than overwriting a locally modified target, and
+     answering "skip" would otherwise leave root running a helper this render
+     never saw. An unverified hash is a re-trigger token; a verified one is a
+     gate on what runs as root.
+
+     Pin data still travels as POSITIONAL ARGUMENTS and never as script text.
+     Earlier versions made the fields safe in the shell and then let them
+     become grep PATTERNS, where a leading dash turned a field into a grep
+     OPTION and a newline turned a -xF pattern into a pattern LIST. The helper
+     compares fields only with [[ = ]], uses no grep at all, and keeps every
+     printf format constant, so a % in the data is not a directive. */ -}}
+tailnet_pin_helper="${CHEZMOI_DEST_DIR:?chezmoi exports this to every script it runs}/.local/libexec/tailnet/reconcile-hosts-pin.sh"
+tailnet_pin_helper_expected_sha256='{{ include "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh" | sha256sum }}'
+if [[ ! -x $tailnet_pin_helper ]]; then
+  echo "refusing to apply MagicDNS fallback pins: $tailnet_pin_helper is missing or not executable" >&2
+  exit 1
+fi
+tailnet_pin_helper_actual_sha256="$(shasum -a 256 "$tailnet_pin_helper" | cut -d ' ' -f 1)"
+if [[ $tailnet_pin_helper_actual_sha256 != "$tailnet_pin_helper_expected_sha256" ]]; then
+  echo "refusing to apply MagicDNS fallback pins: $tailnet_pin_helper is not the helper this run was rendered for (found sha256 $tailnet_pin_helper_actual_sha256, expected $tailnet_pin_helper_expected_sha256); re-run chezmoi apply so the deployed helper matches" >&2
+  exit 1
+fi
+
 {{ range $pins -}}
 echo {{ template "shellSingleQuoted" (printf "→ MagicDNS fallback pin: %s (per CLAUDE.md Tailscale DNS section)" (toString .fqdn)) }}
-sudo sh -c 'f=$1; s=$3; tmp=; bail(){ [ -n "$tmp" ] && rm -f "$tmp"; exit 1; }; w=$(printf "%s\t%s\t%s" "$2" "$1" "$3"); [ -f /etc/hosts ] || { echo "refusing to edit /etc/hosts for $f: the file is missing" >&2; exit 1; }; tmp=$(mktemp /etc/hosts.XXXXXXXX) || exit 1; mc=0; ex=0; set -f; while IFS= read -r l || [ -n "$l" ]; do hit=0; set -- ${l%%#*}; if [ $# -gt 1 ]; then shift; for n in "$@"; do if [ "$n" = "$f" ] || [ "$n" = "$s" ]; then hit=1; fi; done; fi; if [ "$hit" = 1 ]; then mc=$((mc+1)); if [ "$l" = "$w" ]; then ex=1; fi; else printf "%s\n" "$l" || bail; fi; done </etc/hosts >"$tmp" || bail; if [ "$mc" = 1 ] && [ "$ex" = 1 ]; then rm -f "$tmp"; exit 0; fi; printf "%s\n" "$w" >>"$tmp" || bail; grep -qE "^127\.0\.0\.1[[:space:]]" "$tmp" || { echo "refusing to rewrite /etc/hosts for $f: the filtered result lost its loopback entry" >&2; bail; }; m=$(stat -c "%a" /etc/hosts 2>/dev/null) || m=$(stat -f "%Lp" /etc/hosts) || bail; o=$(stat -c "%u:%g" /etc/hosts 2>/dev/null) || o=$(stat -f "%u:%g" /etc/hosts) || bail; chmod "$m" "$tmp" || bail; chown "$o" "$tmp" || bail; mv -f "$tmp" /etc/hosts || bail' sh {{ template "shellSingleQuoted" .fqdn }} {{ template "shellSingleQuoted" .ip }} {{ template "shellSingleQuoted" .short }}
+sudo "$tailnet_pin_helper" {{ template "shellSingleQuoted" .fqdn }} {{ template "shellSingleQuoted" .ip }} {{ template "shellSingleQuoted" .short }}
+{{ end -}}
 {{ end -}}
 {{ end -}}
 {{- end }}

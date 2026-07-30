@@ -168,9 +168,25 @@ GOLDEN_EOF
 # echo each and no command).
 # No manual logging record: firewall logging on this macOS version is on by
 # default and cannot be enabled by hand, so nothing renders for it.
-# The tailnet pin command line was re-derived by the pin-hardening fix
-# (exactly-one-line convergence, hosts field-structure filtering, loud
-# nonzero refusals, atomic mode-preserving install).
+# The tailnet pin block was re-derived by the loopback-gate fix, which moved the
+# reconciliation out of a ~1KB inline `sudo sh -c` body and into a deployed
+# script: the runner now names that script once and hands it one pin per line.
+#
+# ONE line of this golden is DERIVED rather than authored: the sha256 of
+# dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh, which the runner
+# embeds so a change to the reconciliation logic re-triggers the hash-gated
+# script. A hash is a function of a file this repo owns, not an authored
+# constant; pinning the literal here would fail every reconciler edit with an
+# opaque hex diff and teach maintainers to paste over it without reading. That
+# the rendered body carries the CORRECT hash of that exact file is asserted in
+# test/integration/tailnet-pins.sh, which is where the property belongs.
+reconciler_hash="$(shasum -a 256 \
+  "$REPO_ROOT/dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh" |
+  cut -d' ' -f1)"
+[[ -n $reconciler_hash ]] || fail "could not hash the tailnet pin reconciler"
+# The hash is bound to a shell variable the runner compares the DEPLOYED helper
+# against, rather than sitting in a comment: `[[ -x ]]` alone let a locally
+# modified helper run as root.
 tier2_golden="$work/tier2.golden"
 cat >"$tier2_golden" <<'GOLDEN_EOF'
 #!/bin/bash
@@ -199,10 +215,30 @@ echo "→ SSH: install the public-key-only sshd drop-in (000-ssh-hardening.conf)
 echo '→ MANUAL OverSight: allow its Notification Center alerts (its only output channel): see the runbook section OverSight notification delivery'
 echo '→ MANUAL LuLu: approve its system extension (a one-time macOS security consent): see the runbook section LuLu system extension approval'
 echo '→ MANUAL LuLu: create the required outbound allow rules by answering its prompts: see the runbook section LuLu rule creation'
+GOLDEN_EOF
+# One append, so the DERIVED hash line sits between two authored blocks without
+# three separate redirects at the same file.
+{
+  cat <<'GOLDEN_EOF'
+tailnet_pin_helper="${CHEZMOI_DEST_DIR:?chezmoi exports this to every script it runs}/.local/libexec/tailnet/reconcile-hosts-pin.sh"
+GOLDEN_EOF
+  printf "tailnet_pin_helper_expected_sha256='%s'\n" "$reconciler_hash"
+  cat <<'GOLDEN_EOF'
+if [[ ! -x $tailnet_pin_helper ]]; then
+  echo "refusing to apply MagicDNS fallback pins: $tailnet_pin_helper is missing or not executable" >&2
+  exit 1
+fi
+tailnet_pin_helper_actual_sha256="$(shasum -a 256 "$tailnet_pin_helper" | cut -d ' ' -f 1)"
+if [[ $tailnet_pin_helper_actual_sha256 != "$tailnet_pin_helper_expected_sha256" ]]; then
+  echo "refusing to apply MagicDNS fallback pins: $tailnet_pin_helper is not the helper this run was rendered for (found sha256 $tailnet_pin_helper_actual_sha256, expected $tailnet_pin_helper_expected_sha256); re-run chezmoi apply so the deployed helper matches" >&2
+  exit 1
+fi
+
 echo '→ MagicDNS fallback pin: mister.tail2f2430.ts.net (per CLAUDE.md Tailscale DNS section)'
-sudo sh -c 'f=$1; s=$3; tmp=; bail(){ [ -n "$tmp" ] && rm -f "$tmp"; exit 1; }; w=$(printf "%s\t%s\t%s" "$2" "$1" "$3"); [ -f /etc/hosts ] || { echo "refusing to edit /etc/hosts for $f: the file is missing" >&2; exit 1; }; tmp=$(mktemp /etc/hosts.XXXXXXXX) || exit 1; mc=0; ex=0; set -f; while IFS= read -r l || [ -n "$l" ]; do hit=0; set -- ${l%%#*}; if [ $# -gt 1 ]; then shift; for n in "$@"; do if [ "$n" = "$f" ] || [ "$n" = "$s" ]; then hit=1; fi; done; fi; if [ "$hit" = 1 ]; then mc=$((mc+1)); if [ "$l" = "$w" ]; then ex=1; fi; else printf "%s\n" "$l" || bail; fi; done </etc/hosts >"$tmp" || bail; if [ "$mc" = 1 ] && [ "$ex" = 1 ]; then rm -f "$tmp"; exit 0; fi; printf "%s\n" "$w" >>"$tmp" || bail; grep -qE "^127\.0\.0\.1[[:space:]]" "$tmp" || { echo "refusing to rewrite /etc/hosts for $f: the filtered result lost its loopback entry" >&2; bail; }; m=$(stat -c "%a" /etc/hosts 2>/dev/null) || m=$(stat -f "%Lp" /etc/hosts) || bail; o=$(stat -c "%u:%g" /etc/hosts 2>/dev/null) || o=$(stat -f "%u:%g" /etc/hosts) || bail; chmod "$m" "$tmp" || bail; chown "$o" "$tmp" || bail; mv -f "$tmp" /etc/hosts || bail' sh 'mister.tail2f2430.ts.net' '100.109.58.54' 'mister'
+sudo "$tailnet_pin_helper" 'mister.tail2f2430.ts.net' '100.109.58.54' 'mister'
 
 GOLDEN_EOF
+} >>"$tier2_golden"
 
 render_home="$work/render-home"
 mkdir -p "$render_home"
