@@ -23,10 +23,15 @@ alias D := defaults-drift
 lint:
   nix develop .#run --command treefmt
 
-# Check-only drift gate: builds the flake's treefmt check derivation, which
-# runs treefmt on a sandboxed copy of the tree, reports drift, never mutates
-# the working tree or index (treefmt itself has no dry-run mode, so the
-# sandbox copy is what makes this check-only). Same gate CI runs.
+# Check-only drift gate, and the whole of what the pre-push hook runs: builds
+# the flake's treefmt check derivation, which runs treefmt on a sandboxed copy
+# of the tree, reports drift, never mutates the working tree or index (treefmt
+# itself has no dry-run mode, so the sandbox copy is what makes this
+# check-only). NOT CI's command: CI runs `just check`, which adds
+# --all-systems. Both build the same drift derivation for this host (measured:
+# the same .drv path from either recipe on one tree), but without the flag nix
+# evaluates only this host's flake outputs and says so: "the check omitted
+# these incompatible systems: x86_64-linux".
 lint-check:
   nix flake check
 
@@ -79,6 +84,13 @@ apply-no-auth:
 # alone. CI is macOS too, so its coverage is the same. Host nix, no devshell
 # wrapper, because CI runs it that way: a broken flake has to fail HERE rather
 # than while building the shell that would have run the check.
+#
+# What it reads is the GIT TREE, not the directory. Nix copies tracked files at
+# their working-tree content and skips untracked ones, so a new file is
+# invisible to this gate until it is at least `git add`ed. Measured 2026-07-30
+# on one badly formatted file, byte-identical on disk both times: under
+# `git add -N` this gate failed on it (SC2050), untracked it reported "all
+# checks passed". The other two gates walk the filesystem and do see it.
 check:
   nix flake check --all-systems
 
@@ -128,21 +140,29 @@ test: test-unit test-integration test-e2e test-system
 
 # CI's second gate, verbatim: every suite inside the flake's `run` shell, so the
 # tools are the pinned ones CI has rather than whatever the host happens to
-# carry. bats and GNU parallel are not on this host at all, so a bare `just
-# test` re-enters this same shell once per suite that has a .bats file; entering
-# it once up front is both faster and closer to what CI does.
+# carry. bats is one of those tools and is not installed on this host, so a bare
+# `just test` makes test/run-test-suite.sh re-enter this same shell once per
+# suite that has a .bats file (integration, e2e and test-system today). Entering
+# it once up front is what CI does; it also saves two shell entries, but those
+# measured about 0.4s each warm, so do this for the fidelity, not the speed.
 test-devshell:
   nix develop .#run --command just test
 
 # The pre-PR sweep: the three gates .github/workflows/lint.yml runs, in CI's
-# order, each through the recipe that holds that gate's command line, so the two
-# cannot describe different work. test/unit/ship-ci-gate-parity.sh re-reads the
-# workflow and this recipe and fails when they disagree.
+# order, each through the recipe that holds that gate's command line. Nothing
+# about that arrangement stops the two files being edited apart;
+# test/unit/ship-ci-gate-parity.sh is what stops it landing, by re-reading both
+# and failing when they disagree.
 #
-# What a green run still does NOT promise: it checks the WORKING TREE while CI
-# checks the pushed commit, so an unstaged edit can make ship green and CI red.
-# Pre-push deliberately runs none of this, because rehearsing what CI runs 11
-# minutes later cost 6m30s on every push; see the comment in .githooks/pre-push.
+# Two things a green run does NOT promise:
+#   - It reads the working tree; CI reads the pushed commit. An edit you never
+#     staged can make ship green and CI red; that is the PR #116 failure
+#     CLAUDE.md records under Git Hooks.
+#   - A file you have not `git add`ed is invisible to the first gate (see the
+#     note on `check`). Commit it and CI checks it, having never been checked
+#     here. The other two gates read the filesystem and do see it.
+# Pre-push deliberately runs none of this. The measurements behind that call,
+# and the rest of the history, are in CLAUDE.md under Git Hooks.
 ship: check test-devshell lint-actions-security
 
 # Run the weekly Homebrew upgrade by hand (formulae + casks + Mac App Store +
