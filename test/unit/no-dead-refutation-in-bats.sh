@@ -125,6 +125,19 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SCAN_ROOT="${1:-$REPO_ROOT/test}"
 
+# The advice printed with a rejection, in three separately named lines because
+# the three say different things and a test has to be able to tell them apart.
+# The mechanism explains why the status vanished; the RECOMMENDATION lists the
+# spellings that were measured to fail when the refutation is violated; the
+# WARNING names the near-miss spelling that reads like a fix and cannot fail.
+# Keeping them on one line let a swap of the last two keep every substring of
+# the original, so a message that recommended the dead `|| echo` spelling and
+# warned about the live one still satisfied its pin. The line split is what
+# gives test/test-system/dead-refutation-shapes.sh a region to check.
+ADVICE_MECHANISM_LINE='An inverted command only decides the test as the LAST command the body executes; backgrounding, a following command, a non-final statement, a non-final command of an if/while condition, or an enclosing brace/if/loop compound all discard its status.'
+ADVICE_RECOMMENDATION_LINE='Give the status somewhere to go, and make that somewhere FAIL: if cmd; then echo "why this is wrong"; false; fi, or call a single-command refute helper, or add a handler that fails: || { echo "why this is wrong"; false; }.'
+ADVICE_WARNING_LINE='A bare || echo handler cannot fail the test: it reports the violation and returns success.'
+
 fail() {
   printf 'FAIL: %s\n' "$*" >&2
   exit 1
@@ -1151,7 +1164,8 @@ if [[ -n $report ]]; then
   printf 'FAIL: %s bats assertion(s) invert a command where the status cannot fail the test:\n' \
     "$(printf '%s\n' "$report" | wc -l | tr -d ' ')" >&2
   printf '%s\n' "$report" | sed 's/^/  /' >&2
-  printf 'An inverted command only decides the test as the LAST command the body executes; backgrounding, a following command, a non-final statement, a non-final command of an if/while condition, or an enclosing brace/if/loop compound all discard its status. Give the status somewhere to go, and make that somewhere FAIL: if cmd; then echo "why this is wrong"; false; fi, or call a single-command refute helper, or add a handler that fails: || { echo "why this is wrong"; false; }. A bare || echo handler cannot fail the test.\n' >&2
+  printf '%s\n%s\n%s\n' \
+    "$ADVICE_MECHANISM_LINE" "$ADVICE_RECOMMENDATION_LINE" "$ADVICE_WARNING_LINE" >&2
   exit 1
 fi
 

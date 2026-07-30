@@ -29,9 +29,13 @@
 # documented. This drives the guard against scratch fixture trees via its
 # optional scan-root argument.
 #
-# Every fixture here was checked against the defect it exists to catch: a
-# fixture that passes identically with and without the fix pins nothing, which
-# is exactly what a balanced case...esac fixture did here before.
+# Two things here are MEASURED rather than asserted from wording, because a
+# pin that restates the code cannot fail with it: the liveness of every
+# spelling the guard's failure message recommends (run under a bats-faithful
+# harness with the refutation violated), and the fixture shapes themselves,
+# each of which was checked against the defect it exists to catch. A fixture
+# that passes identically with and without the fix pins nothing, which is
+# exactly what a balanced case...esac fixture did here before.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -54,13 +58,15 @@ REASON_BACKGROUNDED='backgrounded'
 REASON_DISCARDED='status discarded'
 REASON_DISCARDED_IN_CONDITION='discarded in condition list'
 
-# The spellings the guard's failure message tells people to use. Each was
-# measured live under bats with a violated refutation (the guard header records
-# the measurements), and each must also PASS the guard. A guard that recommends
-# a shape it would flag, or a shape the shell discards, trains people to switch
-# it off: that is exactly how `|| echo ...` came to be recommended by a guard
-# whose whole purpose is catching refutations that cannot fail. The two arrays
-# are index-aligned and their lengths are asserted.
+# The spellings the guard's failure message tells people to use, and the
+# near-miss it must warn about. Liveness is MEASURED here rather than taken
+# from the message's wording: each runnable line is the spelling with its
+# refutation VIOLATED, so running it answers the only question that matters,
+# can this spelling fail. A guard that recommends a shape the shell discards
+# trains people to switch it off, which is exactly how `|| echo ...` came to be
+# recommended by a guard whose whole purpose is catching refutations that
+# cannot fail. The three recommendation arrays are index-aligned and their
+# lengths are asserted, as are the two discouraged ones.
 RECOMMENDED_ADVICE_MARKERS=(
   'if cmd; then echo "why this is wrong"; false; fi'
   'call a single-command refute helper'
@@ -71,6 +77,27 @@ RECOMMENDED_ADVICE_FIXTURE_LINES=(
   '  refute_absent() { ! grep -q zzz /etc/hosts; }; refute_absent'
   '  ! grep -q zzz /etc/hosts || { echo why; false; }'
 )
+RECOMMENDED_ADVICE_RUNNABLE_LINES=(
+  'if true; then echo why; false; fi'
+  'refute_absent() { ! true; }; refute_absent'
+  '! true || { echo why; false; }'
+)
+
+# The spelling the message must name as unable to fail, in marker and runnable
+# form. `|| echo ` is the substring that separates it from the recommended
+# `|| { echo ...; false; }`, which is what lets the recommendation region be
+# checked for its ABSENCE.
+DISCOURAGED_ADVICE_MARKERS=('|| echo ')
+DISCOURAGED_ADVICE_RUNNABLE_LINES=('! true || echo why')
+
+# Where the guard's advice splits into regions. The recommendation and the
+# warning are separate lines so that trading their contents cannot be hidden: a
+# message recommending `|| echo` and warning about the handler that fails still
+# contains every substring of the honest one, so a whole-output substring
+# search cannot tell the two apart.
+ADVICE_RECOMMENDATION_LEAD_IN='Give the status somewhere to go, and make that somewhere FAIL:'
+ADVICE_WARNING_LEAD_IN='cannot fail the test'
+
 # Set in main; global so the EXIT trap can still see them after main returns.
 # The refusal fixtures do not appear here: each is built into a private root
 # that its own loop iteration creates and removes, because several of them are
@@ -144,6 +171,24 @@ run_guard() {
 # the expectation fail when two reasons are collapsed into one string.
 expect_finding() {
   printf '%s:%s  [%s]' "$1" "$2" "$3"
+}
+
+# measure_refutation_liveness <body-line>... -- run the lines the way bats runs
+# a test body (a function under errexit whose return status is the verdict) and
+# print live when that status can fail the test, dead when it cannot. This is
+# the ground truth the advice assertions rest on, so the message's honesty is
+# measured instead of pattern-matched. The model was validated against the
+# repo's bats 1.11.1 over a 98-shape corpus with zero disagreements, and
+# assert_liveness_measurement_discriminates re-checks it against a known-live
+# and a known-dead control on every run.
+measure_refutation_liveness() {
+  local script
+  script="$(printf '%s\n' 'set -eET -o pipefail' 'bats_test_body() {' "$@" '}' 'bats_test_body')"
+  if bash -c "$script" >/dev/null 2>&1; then
+    printf 'dead\n'
+  else
+    printf 'live\n'
+  fi
 }
 
 # Build the flagged tree's fixtures under $flagged_root and record each
@@ -987,15 +1032,61 @@ assert_unresolvable_input_refuses_the_scan() {
   done
 }
 
-# The failure message's advice and the shapes the guard accepts are two
-# statements of one contract. Every recommended spelling must pass the guard,
-# and every recommended spelling must appear in the message that recommends it.
+# The liveness measurement is the ground truth every advice assertion rests
+# on, so run the control first: a harness that answers the same way for
+# everything makes each advice check pass for no reason at all.
+assert_liveness_measurement_discriminates() {
+  local measured
+  measured="$(measure_refutation_liveness 'false')"
+  [[ $measured == live ]] ||
+    record_failure "the liveness measurement calls a failing body $measured, so it cannot discriminate"
+  measured="$(measure_refutation_liveness 'true')"
+  [[ $measured == dead ]] ||
+    record_failure "the liveness measurement calls a passing body $measured, so it cannot discriminate"
+}
+
+# The failure message's advice, the shapes the guard accepts, and what the
+# shell actually does are three statements of ONE contract, so all three are
+# checked against each other rather than against the message's own wording:
+#
+#   1. every recommended spelling, with its refutation violated, must FAIL
+#      (measured, not asserted);
+#   2. the spelling the message warns about must PASS, or the warning is wrong;
+#   3. the recommendation region must name every recommended spelling and NONE
+#      of the discouraged ones, and the warning region the reverse.
+#
+# Checking (3) against the whole message instead of its regions is what let the
+# highest-severity defect this guard exists to prevent come back: trading the
+# recommendation and the warning leaves every substring of the honest message
+# in place, so a message recommending the dead `|| echo` spelling satisfied a
+# whole-output search word for word.
 assert_advice_recommends_only_accepted_spellings() {
-  local guard_output guard_status index marker
-  if [[ ${#RECOMMENDED_ADVICE_MARKERS[@]} -ne ${#RECOMMENDED_ADVICE_FIXTURE_LINES[@]} ]]; then
-    record_failure "the advice marker and fixture-line arrays must be index-aligned"
+  local guard_output guard_status index marker measured
+  local recommendation_region warning_region
+  if [[ ${#RECOMMENDED_ADVICE_MARKERS[@]} -ne ${#RECOMMENDED_ADVICE_FIXTURE_LINES[@]} ]] ||
+    [[ ${#RECOMMENDED_ADVICE_MARKERS[@]} -ne ${#RECOMMENDED_ADVICE_RUNNABLE_LINES[@]} ]]; then
+    record_failure "the advice marker, fixture-line and runnable-line arrays must be index-aligned"
     return 0
   fi
+  if [[ ${#DISCOURAGED_ADVICE_MARKERS[@]} -ne ${#DISCOURAGED_ADVICE_RUNNABLE_LINES[@]} ]]; then
+    record_failure "the discouraged marker and runnable-line arrays must be index-aligned"
+    return 0
+  fi
+
+  # (1) and (2): what the shell does with each spelling.
+  for index in "${!RECOMMENDED_ADVICE_RUNNABLE_LINES[@]}"; do
+    measured="$(measure_refutation_liveness "${RECOMMENDED_ADVICE_RUNNABLE_LINES[$index]}")"
+    [[ $measured == live ]] ||
+      record_failure "the message recommends a spelling that cannot fail the test: ${RECOMMENDED_ADVICE_MARKERS[$index]}"
+  done
+  for index in "${!DISCOURAGED_ADVICE_RUNNABLE_LINES[@]}"; do
+    measured="$(measure_refutation_liveness "${DISCOURAGED_ADVICE_RUNNABLE_LINES[$index]}")"
+    [[ $measured == dead ]] ||
+      record_failure "the message warns about a spelling that CAN fail the test: ${DISCOURAGED_ADVICE_MARKERS[$index]}"
+  done
+
+  # Every recommended spelling must also pass the guard: a guard that flags the
+  # shape it tells people to write trains them to switch it off.
   local advice_root
   advice_root="$(mktemp -d)"
   write_test_body "$advice_root" advice-spellings \
@@ -1006,14 +1097,33 @@ assert_advice_recommends_only_accepted_spellings() {
   [[ $guard_status -eq 0 ]] ||
     record_failure "the guard flags a spelling its own failure message recommends: $guard_output"
 
+  # (3): the regions of the message that rejects the flagged tree.
   run_guard guard_output guard_status "$flagged_root/test"
+  recommendation_region="$(grep -F "$ADVICE_RECOMMENDATION_LEAD_IN" <<<"$guard_output" || true)"
+  warning_region="$(grep -F "$ADVICE_WARNING_LEAD_IN" <<<"$guard_output" || true)"
+  if [[ -z $recommendation_region ]]; then
+    record_failure "the failure message has no recommendation line ($ADVICE_RECOMMENDATION_LEAD_IN): $guard_output"
+    return 0
+  fi
+  if [[ -z $warning_region ]]; then
+    record_failure "the failure message has no warning line ($ADVICE_WARNING_LEAD_IN): $guard_output"
+    return 0
+  fi
+  [[ $recommendation_region != "$warning_region" ]] ||
+    record_failure "the recommendation and the warning must be separate lines, or trading them cannot be detected: $recommendation_region"
+
   for index in "${!RECOMMENDED_ADVICE_MARKERS[@]}"; do
     marker="${RECOMMENDED_ADVICE_MARKERS[$index]}"
-    grep -qF "$marker" <<<"$guard_output" ||
+    grep -qF "$marker" <<<"$recommendation_region" ||
       record_failure "the failure message no longer recommends: $marker"
   done
-  grep -qF '|| echo' <<<"$guard_output" ||
-    record_failure "the failure message must warn that a bare || echo handler cannot fail the test"
+  for marker in "${DISCOURAGED_ADVICE_MARKERS[@]}"; do
+    if grep -qF "$marker" <<<"$recommendation_region"; then
+      record_failure "the failure message recommends a spelling measured unable to fail: $marker"
+    fi
+    grep -qF "$marker" <<<"$warning_region" ||
+      record_failure "the failure message must warn that $marker cannot fail the test: $warning_region"
+  done
 }
 
 main() {
@@ -1038,6 +1148,7 @@ main() {
   create_clean_tree_fixtures
   create_boundary_tree_fixtures boundary_limits
 
+  assert_liveness_measurement_discriminates
   assert_flagged_tree_rejected flagged_expected
   assert_clean_tree_passes
   assert_boundary_tree_passes
