@@ -41,16 +41,19 @@
 # like pin.example.test.evil survive), the pin owns its short name, comments and
 # blank lines survive a rebuild, every refusal exits NONZERO and says why on
 # stderr, a failed install never truncates the target and leaves no temp, EVERY
-# trappable signal leaves no temp either, an UNREADABLE source is refused rather
-# than read as an empty file, the loopback gate cannot be satisfied by the
-# record the reconciler itself just appended, the gate HONOURS an indented
-# loopback record because the resolver does while still refusing an indented
-# comment-only one and a line whose NAME is the loopback address, a
-# set-but-empty seam never falls back to the real /etc/hosts, the installed file
-# keeps the target's mode, a
-# symlinked target keeps its indirection and its referent's metadata, a missing
-# trailing newline never produces a joined line and never reads as CONVERGED,
-# and a field that is not one hosts column is refused at the entry point too.
+# signal the reconciler declares for cleanup leaves no temp either (the declared
+# list and this suite's own copy are enumerated and diffed, and the cases are
+# driven by the reconciler's), an UNREADABLE source is refused rather than read
+# as an empty file, the loopback gate cannot be satisfied by the record the
+# reconciler itself just appended, the gate HONOURS an indented loopback record
+# because the resolver does, and one that does not name `localhost`, while still
+# refusing an indented comment-only one and a line whose NAME is the loopback
+# address, a set-but-empty seam never falls back to the real /etc/hosts, the
+# installed file keeps the target's mode AND its owner, the temporary file is
+# created beside the target rather than in $TMPDIR, a symlinked target keeps its
+# indirection and its referent's metadata, a missing trailing newline never
+# produces a joined line and never reads as CONVERGED, and a field that is not
+# one hosts column is refused at the entry point too.
 #
 # TWO INTERPRETERS. sudo on this machine has no secure_path, so the `bash` that
 # runs the deployed helper as root is whichever the invoking PATH resolves:
@@ -508,6 +511,10 @@ file_mode() { # <file>
   stat -L -c '%a' "$1" 2>/dev/null || stat -L -f '%Lp' "$1"
 }
 
+file_owner() { # <file> -> uid:gid
+  stat -L -c '%u:%g' "$1" 2>/dev/null || stat -L -f '%u:%g' "$1"
+}
+
 # The inode is how "was this file replaced?" is asked without reading it: an
 # install that happened to produce identical bytes still renamed a new file into
 # place, so bytes alone cannot tell a converged run from a rebuilt one.
@@ -763,8 +770,54 @@ cmp -s "$atomic_hosts" "$work/atomic.before" ||
 # the list must leave no temp, exit nonzero, and preserve the target.
 # SIGKILL and SIGSTOP are absent because no process can trap them; the helper's
 # header says so rather than claiming otherwise.
+#
+# TWO LISTS THAT MUST DESCRIBE THE SAME SET, ENUMERATED AND DIFFED. This suite
+# used to iterate a literal of its own and never look at the constant, so three
+# of the six members could be deleted from the reconciler, and members could be
+# added to it, with every assertion below still passing: the loop simply stopped
+# visiting them. The expectation stays declared HERE, so the suite can disagree
+# with the implementation, but the disagreement is now reported by name and the
+# cases are driven by the constant the reconciler actually traps on.
+EXPECTED_CLEANED_UP_SIGNAL_NAMES=(HUP INT QUIT TERM PIPE XFSZ)
+
+# The reconciler's own list. Sourcing it defines functions and constants and
+# reconciles nothing (its entry point is guarded on BASH_SOURCE; the unit suite
+# pins that guard), and the subshell keeps its readonly declarations out of this
+# shell.
+reconciler_cleaned_up_signal_names() {
+  (
+    # shellcheck source=/dev/null
+    source "$RECONCILER"
+    printf '%s\n' "${CLEANED_UP_SIGNAL_NAMES[@]}"
+  )
+}
+
+actual_cleaned_up_signal_names=()
+while IFS= read -r signal_name; do
+  actual_cleaned_up_signal_names+=("$signal_name")
+done < <(reconciler_cleaned_up_signal_names)
+[[ ${#actual_cleaned_up_signal_names[@]} -gt 0 ]] ||
+  fail "could not read CLEANED_UP_SIGNAL_NAMES out of the reconciler; the per-signal cases below would then exercise nothing"
+
+signal_list_contains() { # <needle> <haystack...>
+  local needle="$1" candidate
+  shift
+  for candidate in "$@"; do
+    [[ $candidate == "$needle" ]] && return 0
+  done
+  return 1
+}
+for signal_name in "${EXPECTED_CLEANED_UP_SIGNAL_NAMES[@]}"; do
+  signal_list_contains "$signal_name" "${actual_cleaned_up_signal_names[@]}" ||
+    fail "SIG$signal_name is in this suite's expected cleanup set but NOT in the reconciler's CLEANED_UP_SIGNAL_NAMES (it declares: ${actual_cleaned_up_signal_names[*]}); a signal nothing handles leaves a mode-0600 temp beside the target"
+done
+for signal_name in "${actual_cleaned_up_signal_names[@]}"; do
+  signal_list_contains "$signal_name" "${EXPECTED_CLEANED_UP_SIGNAL_NAMES[@]}" ||
+    fail "the reconciler traps SIG$signal_name for cleanup but this suite does not expect it (it declares: ${actual_cleaned_up_signal_names[*]}); either the new member is deliberate and belongs in EXPECTED_CLEANED_UP_SIGNAL_NAMES, or a handler was added that nothing exercises"
+done
+
 signal_case_number=0
-for signal_name in HUP INT QUIT TERM PIPE; do
+for signal_name in "${actual_cleaned_up_signal_names[@]}"; do
   for interpreter in "${INTERPRETERS[@]}"; do
     signal_case_number=$((signal_case_number + 1))
     signal_dir="$work/signal-$signal_case_number"
@@ -792,10 +845,14 @@ for signal_name in HUP INT QUIT TERM PIPE; do
   done
 done
 
-# SIGXFSZ is the write-triggered one, so it needs no shim: `ulimit -f 0` stands
-# in for a full filesystem and the kernel raises it from inside the rebuild's
-# own write. Measured leaking 3 runs out of 3 under bash 5.3 with only an EXIT
-# trap installed.
+# SIGXFSZ a second way, and the way that matters. The loop above delivers it
+# with `kill`, where the handler turns out to be inert on both interpreters;
+# `ulimit -f 0` stands in for a full filesystem so the kernel raises it from
+# inside the rebuild's OWN write, which is where the handler earns its place:
+# with the per-signal traps removed, bash 5.3 leaves a mode-0600 hosts.XXXXXXXX
+# beside the target here (measured), while bash 3.2 surfaces the failed write
+# through the normal refusal path and exits 1. Both are nonzero, so this asserts
+# only that.
 for interpreter in "${INTERPRETERS[@]}"; do
   xfsz_dir="$work/xfsz-$(basename "$(dirname "$interpreter")")"
   mkdir -p "$xfsz_dir"
@@ -1065,6 +1122,99 @@ printf '127.0.0.1\tlocalhost\n%s\n' "$want1" >"$unterminated_duplicate_expected"
 cmp -s "$unterminated_duplicate" "$unterminated_duplicate_expected" ||
   fail "an unterminated final line claiming the pin survived the rebuild; got: $(diff "$unterminated_duplicate_expected" "$unterminated_duplicate" | head -5)"
 
+# ---------- LAYER 2m: the temporary file is created BESIDE the target --------
+# The reconciler's atomicity rests on `mv` never crossing a filesystem, which
+# rests on mktemp creating the temp in the TARGET's directory. Every "no temp
+# droppings" assertion in this suite looks only next to the target, so moving
+# the temp into $TMPDIR passed all of them while a real mode-0600 leak sat
+# somewhere nobody counted, and a cross-device rename would silently degrade to
+# copy-then-unlink on a root rewrite of /etc/hosts.
+#
+# This pins the LOCATION directly and without timing: point the seam at a
+# readable but NON-WRITABLE directory. Creating the temp beside the target is
+# then impossible and the refusal must say exactly that. A temp created anywhere
+# else succeeds, gets as far as the install, and fails with the install's
+# message instead (measured), so the two are never confusable.
+if [[ $(id -u) -eq 0 ]]; then
+  printf 'NOTE: skipping the temp-location case; uid 0 writes a mode-555 directory regardless\n'
+else
+  unwritable_dir="$work/unwritable-dir"
+  mkdir -p "$unwritable_dir"
+  unwritable_hosts="$unwritable_dir/hosts"
+  printf '127.0.0.1\tlocalhost\n198.51.100.1\tpin.example.test\tpin\n' >"$unwritable_hosts"
+  cp "$unwritable_hosts" "$work/unwritable.before"
+  # The mode is restored BEFORE any assertion runs: a `fail` while the directory
+  # is still 0555 would abort the suite with a temp tree its own EXIT trap
+  # cannot remove.
+  chmod 555 "$unwritable_dir"
+  temp_location_status=0
+  temp_location_error="$work/temp-beside-target.err"
+  TAILNET_PIN_HOSTS_FILE="$unwritable_hosts" "$RECONCILER" \
+    pin.example.test 192.0.2.7 pin >/dev/null 2>"$temp_location_error" ||
+    temp_location_status=$?
+  chmod 755 "$unwritable_dir"
+  [[ $temp_location_status -ne 0 ]] ||
+    fail "a hosts file in a directory the process cannot write was reconciled 'successfully'"
+  grep -qF 'no temporary file could be created beside it' "$temp_location_error" ||
+    fail "the temp file was not created beside the target: creating it there is impossible in a 0555 directory, so this run should have refused with 'no temporary file could be created beside it' and instead said: $(cat "$temp_location_error")"
+  cmp -s "$unwritable_hosts" "$work/unwritable.before" ||
+    fail "the temp-location refusal still altered the target hosts file: $(cat "$unwritable_hosts")"
+fi
+
+# ---------- LAYER 2n: the install preserves the target's OWNER ---------------
+# `chmod` and `chown` are separate steps and only the mode half was covered, so
+# deleting the chown line outright left this suite green. As a non-root test the
+# uid cannot change, but the GROUP can and it is the half that actually moves:
+# macOS gives a new file its DIRECTORY's group, so the temp file never inherits
+# the target's group and only the chown puts it back.
+owner_group_ids=()
+read -r -a owner_group_ids <<<"$(id -G)"
+owner_dir_group=""
+owner_file_group=""
+for candidate_group_id in "${owner_group_ids[@]}"; do
+  if [[ -z $owner_dir_group ]]; then
+    owner_dir_group="$candidate_group_id"
+  elif [[ $candidate_group_id != "$owner_dir_group" ]]; then
+    owner_file_group="$candidate_group_id"
+    break
+  fi
+done
+[[ -n $owner_file_group ]] ||
+  fail "this user belongs to only one group (${owner_group_ids[*]}), so the owner-preservation fixture cannot distinguish the temp file's group from the target's"
+owner_dir="$work/owner"
+mkdir -p "$owner_dir"
+chgrp "$owner_dir_group" "$owner_dir" ||
+  fail "could not set the fixture directory's group to $owner_dir_group"
+owner_hosts="$owner_dir/hosts"
+printf '127.0.0.1\tlocalhost\n198.51.100.1\tpin.example.test\tpin\n' >"$owner_hosts"
+chgrp "$owner_file_group" "$owner_hosts" ||
+  fail "could not set the fixture hosts file's group to $owner_file_group"
+# The fixture only proves something while these two differ.
+[[ "$(file_owner "$owner_dir")" != "$(file_owner "$owner_hosts")" ]] ||
+  fail "the owner fixture's directory and hosts file ended up in the same group, so a deleted chown would be invisible"
+owner_before="$(file_owner "$owner_hosts")"
+run_pin1 "$owner_hosts"
+grep -qxF "$want1" "$owner_hosts" || fail "the owner-preservation run did not converge the pin"
+owner_after="$(file_owner "$owner_hosts")"
+[[ $owner_after == "$owner_before" ]] ||
+  fail "the install changed the hosts file's owner from $owner_before to $owner_after; the temp file's own owner (it takes the DIRECTORY's group) leaked through, so /etc/hosts would come back owned by whoever ran the apply"
+
+# ---------- LAYER 2o: the loopback record need not be named localhost --------
+# The gate refuses a rebuild that leaves 127.0.0.1 mapping NOTHING. It
+# deliberately does not demand the name `localhost`, because nothing here knows
+# which name a given machine resolves localhost through. That latitude had no
+# coverage: every fixture that must SATISFY the gate happened to name localhost,
+# so narrowing it to require that literal name passed the whole suite while
+# refusing every pin on a machine whose loopback record reads
+# "127.0.0.1 loopback my-mac", which aborts `chezmoi apply` outright.
+other_name="$work/other-loopback-name-hosts"
+printf '127.0.0.1\tloopback\tmy-mac\n198.51.100.1\tpin.example.test\tpin\n' >"$other_name"
+run_pin1 "$other_name"
+other_name_expected="$work/other-loopback-name-expected"
+printf '127.0.0.1\tloopback\tmy-mac\n%s\n' "$want1" >"$other_name_expected"
+cmp -s "$other_name" "$other_name_expected" ||
+  fail "a loopback record that does not name localhost must satisfy the gate and survive byte-exact; got: $(diff "$other_name_expected" "$other_name" | head -5)"
+
 # ---------- LAYER 2k: a leading-dash field stays DATA in every parser --------
 # Shell-inert is not enough: a field that reached grep unbound became an OPTION
 # (-eunrelated.ts.net turned into `-e unrelated.ts.net` and deleted the REAL
@@ -1171,4 +1321,4 @@ while IFS=$'\t' read -r fqdn ip short; do
     fail "pin short name '$short' is not the first label of '$fqdn'"
 done < <(yq eval '.macos.tailnet_pins[] | [.fqdn, .ip, .short] | @tsv' "$YAML")
 
-echo "tailnet-pins: OK (exact render per pin against the deployed reconciler, gated on its sha256; malformed, non-string and name-colliding pins refuse to render; the real reconciler converges, repairs an unterminated final line rather than reporting it converged, refuses loudly, refuses an unreadable source and a self-satisfied loopback gate, accepts an indented loopback record while still refusing an indented decoy, leaves no temp after any trappable signal under ${#INTERPRETERS[@]} interpreter(s), survives symlinks; hostile fields stay inert; $pin_count real pin(s) well-formed)"
+echo "tailnet-pins: OK (exact render per pin against the deployed reconciler, gated on its sha256; malformed, non-string and name-colliding pins refuse to render; the real reconciler converges, repairs an unterminated final line rather than reporting it converged, refuses loudly, refuses an unreadable source and a self-satisfied loopback gate, accepts an indented loopback record and one that does not name localhost while still refusing an indented decoy, creates its temp beside the target, preserves the target's mode and owner, leaves no temp after any of the ${#actual_cleaned_up_signal_names[@]} signals it declares for cleanup under ${#INTERPRETERS[@]} interpreter(s), survives symlinks; hostile fields stay inert; $pin_count real pin(s) well-formed)"

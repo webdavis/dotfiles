@@ -128,6 +128,19 @@ assert_predicate expect-true p1-with-aliases \
 assert_predicate expect-true p1-trailing-comment \
   hosts_line_is_valid_loopback_record "127.0.0.1${tab}localhost # the usual one"
 
+# THE NAME IS NOT REQUIRED TO BE `localhost`, and this is the assertion that
+# says so. The gate exists to refuse a rebuild that leaves 127.0.0.1 mapping
+# NOTHING; which name a given machine resolves localhost through is not
+# knowable from here. Narrow this predicate to demand the literal name and every
+# other P1 fixture still passes (they all happen to name localhost) while every
+# pin on a machine whose loopback record reads "127.0.0.1 loopback my-mac" is
+# refused, aborting the apply. The reconciler's THE LOOPBACK GATE section spends
+# a paragraph on this; without these two cases nothing enforced it.
+assert_predicate expect-true p1-name-is-not-localhost \
+  hosts_line_is_valid_loopback_record "127.0.0.1${tab}loopback${tab}my-mac"
+assert_predicate expect-true p1-name-is-not-localhost-indented \
+  hosts_line_is_valid_loopback_record "  127.0.0.1 loopback"
+
 # THE LIVE DEFECT. A comment-only line names nothing a machine could resolve
 # localhost through. The old gate accepted it, which is how /etc/hosts could be
 # installed with no working localhost at all.
@@ -515,4 +528,4 @@ if ((failures > 0)); then
   printf 'tailnet-pin-hosts-predicates: %d assertion(s) failed\n' "$failures" >&2
   exit 1
 fi
-echo "tailnet-pin-hosts-predicates: OK (loopback validity including indented records, record text, name claims, pin ownership, column shape, record rendering, convergence including the line terminator, survey facts, symlink chains, referent metadata, seam states, unreadable sources, source-time shell-option isolation, message paths)"
+echo "tailnet-pin-hosts-predicates: OK (loopback validity including indented records and records that do not name localhost, record text, name claims, pin ownership, column shape, record rendering, convergence including the line terminator, survey facts, symlink chains, referent metadata, seam states, unreadable sources, source-time shell-option isolation, message paths)"

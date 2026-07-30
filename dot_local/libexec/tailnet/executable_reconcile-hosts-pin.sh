@@ -68,9 +68,15 @@
 # comment, and does not require the name to be `localhost`: this script has no
 # way to know which name a given machine resolves localhost through, and
 # refusing to vouch for a file it cannot read the intent of would be a guess in
-# the unsafe direction. The "before any comment" half is stricter than the
-# resolver itself, deliberately; see READING A HOSTS LINE. A missing hosts
-# file is refused the same way rather than seeded pin-only.
+# the unsafe direction. That latitude is load-bearing rather than decorative, so
+# it is pinned twice: the unit suite asserts the predicate accepts a record that
+# names something else, and the integration suite reconciles a hosts file whose
+# ONLY loopback record does. Narrowing the gate to demand `localhost` refuses
+# every pin on such a machine, which is an aborted `chezmoi apply`, not a near
+# miss, and until those two cases existed nothing here noticed. The
+# "before any comment" half is stricter than the resolver itself, deliberately;
+# see READING A HOSTS LINE. A missing hosts file is refused the same way rather
+# than seeded pin-only.
 #
 # READING A HOSTS LINE, measured against the resolver instead of assumed. The
 # source is Apple's own hosts reader, lookup.subproj/file_module.c in
@@ -125,14 +131,19 @@
 #
 # INSTALL is atomic: chmod/chown the temp file to the target's own mode and
 # owner, then rename it INTO the target path. mktemp creates the temp beside the
-# target so the rename never crosses filesystems. The old `cat "$tmp" > target`
-# kept the inode but TRUNCATED first, so a failure mid-write left an EMPTY
-# /etc/hosts and still exited 0. The rename trades the inode away (a watcher
-# pinning the vnode must re-open) for never exposing a partial file. A SYMLINKED
-# target is followed to its referent and the referent is what gets replaced, so
-# the operator's indirection survives and the file the resolver actually reads
-# is the one that changes; metadata is read from the referent too, because a
-# symlink's own mode is 0755 on macOS and means nothing.
+# target so the rename never crosses filesystems, and that LOCATION is pinned by
+# pointing the seam at a directory the test cannot write: the refusal must be
+# "no temporary file could be created beside it", which a temp made anywhere
+# else never produces. Both halves of the metadata copy are pinned too, the mode
+# directly and the owner through the target's GROUP, which the temp does not
+# inherit because a new file takes its DIRECTORY's group on macOS. The old
+# `cat "$tmp" > target` kept the inode but TRUNCATED first, so a failure
+# mid-write left an EMPTY /etc/hosts and still exited 0. The rename trades the
+# inode away (a watcher pinning the vnode must re-open) for never exposing a
+# partial file. A SYMLINKED target is followed to its referent and the referent
+# is what gets replaced, so the operator's indirection survives and the file the
+# resolver actually reads is the one that changes; metadata is read from the
+# referent too, because a symlink's own mode is 0755 on macOS and means nothing.
 #
 # FAILURE IS CHECKED, NEVER INFERRED. Every step that can fail has its status
 # tested at the call site rather than left to `set -e`, because the interpreter
@@ -151,13 +162,23 @@
 # anyone noticing. That is the exact accident being fixed here, one edit later.
 #
 # THE TEMPORARY FILE is removed by an EXIT trap plus one explicit handler per
-# signal in CLEANED_UP_SIGNAL_NAMES, and every member of that list is exercised
-# by test/integration/tailnet-pins.sh under both interpreters. The EXIT trap
-# alone is NOT enough, which is what this comment used to claim: bash 3.2 dies
-# from SIGQUIT, and bash 5.3 dies from a write-triggered SIGXFSZ, without
-# running it, each leaving a mode-0600 hosts.XXXXXXXX beside the target. SIGKILL
-# and SIGSTOP cannot be trapped by any process, so those two can still leave the
-# temporary file behind; nothing here prevents that.
+# signal in CLEANED_UP_SIGNAL_NAMES. test/integration/tailnet-pins.sh keeps its
+# OWN copy of that list, diffs the two and names any member that appears in one
+# and not the other, then drives its per-signal cases from the list this file
+# declares rather than from a literal of its own, so a member cannot be added or
+# dropped here without the suite saying which one. What the list is NOT is six
+# load-bearing handlers, and the previous wording ("every member is exercised")
+# implied more than the suite could show. Measured on this host, deleting the
+# per-signal handlers changes the outcome for three: INT (both interpreters exit
+# 0 and the target is rewritten), QUIT (bash 3.2 leaves a temporary file behind,
+# bash 5.3 exits 0 and rewrites the target) and a write-triggered XFSZ (bash 5.3
+# leaves a temporary file behind). HUP, TERM and PIPE behave identically with
+# and without a handler here; they stay in the list because WHICH fatal signals
+# let the EXIT trap run first is a property of the interpreter, and sudo picks
+# the interpreter by PATH. The EXIT trap alone is NOT enough, which is what this
+# comment used to claim: the QUIT and XFSZ leaks above are what that claim cost.
+# SIGKILL and SIGSTOP cannot be trapped by any process, so those two can still
+# leave the temporary file behind; nothing here prevents that.
 #
 # INTERPRETER. Both bash 3.2 and bash 5.3 run this, so neither is assumed. sudo
 # on this machine sets no secure_path and passes the invoking PATH through, so
@@ -286,11 +307,15 @@ readonly EXIT_STATUS_USAGE=2
 # what this script reports for one it cleaned up after. See finish_after_signal.
 readonly SIGNAL_EXIT_STATUS_BASE=128
 
-# Signals after which the temporary file must not survive. Every member is
-# exercised in test/integration/tailnet-pins.sh under both interpreters, because
-# WHICH fatal signals let the EXIT trap run first differs between them and an
-# assumed one is how the leak this list exists for went unnoticed. SIGKILL and
-# SIGSTOP are absent because no process can trap them.
+# Signals after which the temporary file must not survive. This list IS the
+# contract: test/integration/tailnet-pins.sh diffs it against its own copy and
+# then drives its per-signal cases from it, so editing this line changes what
+# runs and the suite reports the edit. Three of the six handlers are what change
+# the outcome on this host; the rest are here because WHICH fatal signals let
+# the EXIT trap run first differs between the two interpreters sudo may pick,
+# and an assumed answer is how the leak this list exists for went unnoticed. See
+# THE TEMPORARY FILE in the header for the measured per-signal breakdown.
+# SIGKILL and SIGSTOP are absent because no process can trap them.
 CLEANED_UP_SIGNAL_NAMES=(HUP INT QUIT TERM PIPE XFSZ)
 readonly CLEANED_UP_SIGNAL_NAMES
 
