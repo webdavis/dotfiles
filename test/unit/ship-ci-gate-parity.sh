@@ -52,6 +52,12 @@ CI_GATE_WORKFLOWS=("lint.yml")
 # Workflows that automate the repository rather than gate its code: `ship` must
 # not run them (dependabot-automerge only merges an already-green bot PR).
 NON_GATE_WORKFLOWS=("dependabot-automerge.yml")
+# Extensions GitHub will load a workflow from. Its documented rule is the
+# directory plus the extension: workflow files "must have either a .yml or .yaml
+# file extension". A file in that directory with any other extension cannot run,
+# so demanding a classification for it would only be noise, and .DS_Store is
+# gitignored here and so can sit in that directory unnoticed.
+WORKFLOW_FILE_EXTENSIONS=("yml" "yaml")
 # First character of a step command this reader can compare literally. A YAML
 # block scalar (| or >) or a quoted scalar would need a real YAML parser, and
 # comparing the raw text would silently compare the wrong string.
@@ -114,17 +120,37 @@ action_reference_name() {
   printf '%s' "${value%%@*}"
 }
 
-# Every workflow file has to be classified as a gate or not a gate. A file in
-# neither list is an unanswered question, not a pass.
+# workflow_file_names, the name of every file in the workflow directory that
+# GitHub could load as a workflow, one per line. DOT-NAMED FILES COUNT: a
+# leading dot hides a file from bash's default glob but not from GitHub, which
+# registers and runs `.github/workflows/.name.yml` exactly like any other
+# workflow. Verified 2026-07-30 against a live public repository rather than
+# inferred: bcgov/nr-rec-resources ships `.github/workflows/.codeql.yml`, the
+# Actions API lists it `active`, and it has 58 completed runs on the `schedule`
+# event. Enumerated in a subshell so dotglob cannot leak into the rest of this
+# script; the subshell only prints, so no `fail` is stranded inside it.
+workflow_file_names() {
+  (
+    shopt -s dotglob nullglob
+    local path name
+    for path in "$WORKFLOW_DIRECTORY"/*; do
+      [[ -f $path ]] || continue
+      name="${path##*/}"
+      is_member "${name##*.}" "${WORKFLOW_FILE_EXTENSIONS[@]}" || continue
+      printf '%s\n' "$name"
+    done
+  )
+}
+
+# Every file GitHub could load as a workflow has to be classified as a gate or
+# not a gate. A file in neither list is an unanswered question, not a pass.
 assert_every_workflow_is_classified() {
-  local path name
-  for path in "$WORKFLOW_DIRECTORY"/*; do
-    [[ -f $path ]] || continue
-    name="${path##*/}"
+  local name
+  while IFS= read -r name; do
     is_member "$name" "${CI_GATE_WORKFLOWS[@]}" && continue
     is_member "$name" "${NON_GATE_WORKFLOWS[@]}" && continue
     fail "$name is in neither CI_GATE_WORKFLOWS nor NON_GATE_WORKFLOWS; decide whether ship must run its steps and list it"
-  done
+  done < <(workflow_file_names)
 }
 
 # assert_gate_workflow_steps_are_comparable <workflow-file>, refuse any step
