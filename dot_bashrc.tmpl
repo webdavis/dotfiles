@@ -358,10 +358,15 @@ if [[ $- == *i* ]]; then
   #   unreadable paths file, a read-only ${HOMEBREW_PREFIX}/etc, an older macOS),
   #   an unconditional guard forks a brew and appends a log line on EVERY
   #   interactive shell, forever, with nothing to converge on. The stamp bounds
-  #   that to one attempt per interval per host for EVERY repair reason, and it
-  #   also collapses the thundering herd: opening ten panes on a fresh host used
-  #   to launch ten concurrent regenerations. Nothing here is on the hot path:
-  #   the stamp is only read once a repair is already indicated.
+  #   that to one attempt per interval per host, for EVERY repair reason, from
+  #   the moment one shell has recorded an attempt. It is an ordering, NOT a
+  #   lock: writing a file is not a compare-and-swap, so panes opened at the
+  #   same instant all read a stamp-free host and can each still launch a
+  #   regeneration. What it does guarantee is that every shell arriving after an
+  #   attempt is on disk stays quiet until the interval passes, and that a host
+  #   which cannot record one at all launches nothing (the write is a term of
+  #   the gate below, not a statement inside it). Nothing here is on the hot
+  #   path: the stamp is only read once a repair is already indicated.
   #
   # Regeneration runs the DEPLOYED writer, the same artifact
   # `just brew-cache-refresh` runs, so the atomic mktemp + success-gated mv has

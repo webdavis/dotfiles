@@ -343,10 +343,10 @@ tailscaled re-copy); `just brew-upgrade`.
 `shopt -s lastpipe`.
 
 **D. Shell environment (bash).** `dot_bashrc.tmpl` non-interactive-safe PATH half + interactive guard
-half; **login-shell carrier files** `dot_profile` (interactive-gated bashrc source, blocks herdr's
-`/bin/sh -lc` from ~90ms init) + `dot_bash_profile`; brew shellenv cache (bashrc self-heal guard, the one
-deployed writer `brew-shellenv-cache-refresh.sh`, and the drift test); atuin daemon (LaunchAgent +
-`--force` + upgrade bounce `after_45` + mtime self-heal);
+half; **login-shell carrier files** `dot_profile` (interactive-gated bashrc source, so herdr's
+`/bin/sh -lc` never sources `~/.bashrc` at all) + `dot_bash_profile`; brew shellenv cache (bashrc
+self-heal guard, the one deployed writer `brew-shellenv-cache-refresh.sh`, and the drift test); atuin
+daemon (LaunchAgent + `--force` + upgrade bounce `after_45` + mtime self-heal);
 bash-preexec before atuin; direnv→starship→zoxide→atuin ordering; carapace; herdr auto-attach tail;
 `SHELL`→brew bash + `MANPAGER="nvim +Man!"`; starship dual config (full/mosh ASCII); ~500 readline
 bindings (`.bash_bindings` vi+emacs) + fzf widgets (`.fzf_bindings`); aliases (`.bash_aliases` + more in
