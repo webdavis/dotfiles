@@ -196,13 +196,38 @@ defaults_records_declared_count() { # <path>, print the validated record count
     return 2
   fi
   # The count is a STRING from yq, and it is about to drive both `((...))` loop
-  # bounds and the `-ne` comparison that catches a forged record. Bash arithmetic
-  # on a non-numeric string raises a syntax error and evaluates FALSE, so the
+  # bounds and the `-ne` comparison that catches a forged record. The pattern
+  # below does TWO jobs, and only one of them is unique to it. Saying which is
+  # which is the point of this comment: a check that reads as load-bearing when
+  # it is not gets "simplified" away by the next reader.
+  #
+  # Rejecting a NON-NUMERIC count is defence in depth. Bash arithmetic on a
+  # non-numeric string raises a syntax error and evaluates FALSE, so the
   # comparison would fall through and emit the very stream it exists to reject.
-  # A multi-document file is the one input observed to produce a multi-line count,
-  # and it is caught earlier only because yq also prints a separator line that
-  # trips the field-count check. That is the guard holding by accident of another
-  # tool's output format, so bound it here by construction instead.
+  # No input is known that arrives here non-numeric with an otherwise clean
+  # shape, and none is expected: this expression and the shape expression below
+  # share the producer `(.macos.defaults // [])`, so they always emit the same
+  # NUMBER of lines, and a single-result `!!seq` always has an integer length.
+  # A multi-document file, the one input observed to produce a multi-line count,
+  # therefore trips the shape check as well; removing this pattern leaves that
+  # file refused.
+  #
+  # The SEVEN-DIGIT CEILING is the half nothing else enforces, so this check
+  # stays. `!!seq` is a tag, not a proof: an explicit `!!seq` on a scalar makes
+  # the shape check below answer `!!seq` while yq's `length` reports the
+  # SCALAR's character count, so a count of 10000000 reaches here with the shape
+  # check fully satisfied (measured, yq v4.53.3). The ceiling caps what this
+  # function publishes as a validated count, and with it the
+  # `defaults_records_locate_malformed` loop, which runs `declared_record_count`
+  # times and forks yq per iteration (measured at about 13 ms each).
+  #
+  # Bounding by DIGIT COUNT rather than by comparison is deliberate: it refuses
+  # an oversized value BEFORE any arithmetic touches it, so a value past bash's
+  # integer range is never evaluated. `^[0-9]+$` plus a numeric comparison would
+  # have to evaluate the value in order to reject it.
+  #
+  # test/unit/macos-defaults-count-guard.sh pins both boundaries of the ceiling
+  # and the multi-document behaviour.
   if [[ ! $declared_record_count =~ ^(0|[1-9][0-9]{0,6})$ ]]; then
     printf 'error: %s produced an unusable record count %q; refusing to emit a stream that cannot be checked\n' \
       "$data_file" "$declared_record_count" >&2

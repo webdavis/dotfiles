@@ -1,27 +1,32 @@
 #!/usr/bin/env bash
-# macos-defaults-count-guard.sh, a multi-document data file must be REFUSED, and
-# a well-formed one must still answer.
+# macos-defaults-count-guard.sh, defaults_records_declared_count must refuse
+# every count it cannot use, and must still answer for a file it can.
 #
-# yq answers once per document and separates the answers, so on a two-document
-# file the record "count" arrives as $'1\n---\n0' and the shape as
-# $'!!seq\n---\n!!seq'. Neither is usable, and the count in particular is about
-# to drive `((...))` loop bounds and the `-ne` comparison that catches a forged
-# record; bash arithmetic on a non-numeric string raises a syntax error and
-# evaluates FALSE, so the forgery check would fall through.
+# The function holds two independent checks, a numeric-count check and a
+# list-shape check. This file pins each on an input where it is the ONLY one
+# that fires, so neither can be dropped on the strength of the other.
 #
-# This asserts the BEHAVIOUR, not one guard. `defaults_records_declared_count`
-# holds two checks that both reject a multi-document file, the numeric-count
-# check and the list-shape check, and either is sufficient on this input.
-# Measured: removing the numeric check alone leaves this test green, because the
-# shape check refuses the same file. So the numeric check is defence in depth
-# here rather than the sole barrier, and a test claiming to pin it specifically
-# would be claiming a guarantee it does not provide.
+# NEITHER check owns the multi-document case (case 1) on its own. yq answers
+# once per document and separates the answers, so a two-document file makes the
+# count arrive as $'1\n---\n0' and the shape as $'!!seq\n---\n!!seq', and each
+# check refuses that independently: disabling either one leaves case 1 green,
+# disabling both fails it. Case 1 therefore asserts the BEHAVIOUR rather than
+# claiming to pin one guard.
 #
-# What that leaves open is recorded in the follow-up: whether an input exists
-# that yields a non-numeric count with a clean !!seq shape. If none does, the
-# numeric check is redundant and should be kept or dropped deliberately rather
-# than left looking load-bearing.
+# The NUMERIC check owns the digit ceiling (cases 4 and 5), and there it is the
+# only barrier. `!!seq` is a tag, not a proof: an explicit `!!seq` on a scalar
+# makes the shape check answer a clean `!!seq` while yq's `length` reports the
+# SCALAR's character count (measured, yq v4.53.3). A count of 10000000 therefore
+# reaches the numeric check with the shape check fully satisfied, and nothing
+# else in the function refuses it. Both boundary cases are required: the refusal
+# on its own still passes against a guard whose ceiling has been LOWERED,
+# because every other fixture in this file counts 0, 1, or 2.
 set -euo pipefail
+
+# The guard admits at most seven digits, so these are the largest count it
+# accepts and the smallest it refuses.
+readonly LARGEST_ACCEPTED_RECORD_COUNT=9999999
+readonly SMALLEST_REFUSED_RECORD_COUNT=10000000
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 LIB="$REPO_ROOT/dot_local/bin/macos-defaults-lib.sh"
@@ -29,6 +34,33 @@ LIB="$REPO_ROOT/dot_local/bin/macos-defaults-lib.sh"
 fail() {
   printf 'FAIL: %s\n' "$*" >&2
   exit 1
+}
+
+# write_seq_tagged_scalar <path> <character-count>, write a data file whose
+# .macos.defaults is a SCALAR carrying an explicit !!seq tag. yq then reports the
+# shape as a clean !!seq while `length` answers with the scalar's character
+# count, which is what lets the boundary cases below vary the count while
+# holding the shape check satisfied. The body is spaces from a single printf, so
+# even a ten-megabyte fixture costs no second process.
+write_seq_tagged_scalar() { # <path> <character-count>
+  local path="$1" character_count="$2"
+  {
+    printf 'macos:\n  defaults: !!seq "'
+    printf '%*s' "$character_count" ''
+    printf '"\n'
+  } >"$path"
+}
+
+# require_clean_seq_shape <path>, fail unless this fixture SATISFIES the shape
+# check inside defaults_records_declared_count. Asserted before each boundary
+# case: without it the case would pass no matter which of the two checks did the
+# refusing, which is exactly the ambiguity these cases exist to remove.
+require_clean_seq_shape() { # <path>
+  local path="$1" shape
+  shape="$(yq eval -r '(.macos.defaults // []) | tag' "$path")" ||
+    fail "could not read the record shape of $path"
+  [[ $shape == '!!seq' ]] ||
+    fail "fixture $path does not satisfy the shape check (tag $shape), so a refusal would not isolate the count check"
 }
 
 [[ -f $LIB ]] || fail "missing library: $LIB"
@@ -82,4 +114,31 @@ count="$(defaults_records_declared_count "$work/empty.yaml" 2>&1)" || status=$?
 [[ $status -eq 0 && $count == 0 ]] ||
   fail "an empty record list must count as 0 and be accepted, got status $status ($count)"
 
-printf 'macos-defaults-count-guard: OK (a multi-document count is refused and named; single and empty files still answer)\n'
+# ---- 4: a count past the digit ceiling is refused, SHAPE CHECK CLEAN --------
+# The case that pins the numeric check specifically. The shape assertion is what
+# makes it a pin rather than an observation: it establishes that the other check
+# in the function is satisfied, so the refusal can only have come from the count.
+write_seq_tagged_scalar "$work/over-ceiling.yaml" "$SMALLEST_REFUSED_RECORD_COUNT"
+require_clean_seq_shape "$work/over-ceiling.yaml"
+status=0
+output="$(defaults_records_declared_count "$work/over-ceiling.yaml" 2>&1)" || status=$?
+[[ $status -eq 2 ]] ||
+  fail "a record count of $SMALLEST_REFUSED_RECORD_COUNT must be refused with status 2, got $status (output: $output)"
+printf '%s' "$output" | grep -q -- "count $SMALLEST_REFUSED_RECORD_COUNT" ||
+  fail "the refusal does not name the offending count $SMALLEST_REFUSED_RECORD_COUNT: $output"
+
+# ---- 5: the largest in-range count is still accepted ------------------------
+# The other side of the ceiling. Without it, lowering the guard's digit bound
+# would leave every case above green: the fixtures elsewhere in this file count
+# 0, 1, and 2, and case 4 only gets stricter as the bound drops.
+write_seq_tagged_scalar "$work/at-ceiling.yaml" "$LARGEST_ACCEPTED_RECORD_COUNT"
+require_clean_seq_shape "$work/at-ceiling.yaml"
+status=0
+count="$(defaults_records_declared_count "$work/at-ceiling.yaml" 2>&1)" || status=$?
+[[ $status -eq 0 ]] ||
+  fail "a record count of $LARGEST_ACCEPTED_RECORD_COUNT must be accepted, got status $status ($count)"
+[[ $count == "$LARGEST_ACCEPTED_RECORD_COUNT" ]] ||
+  fail "expected a count of $LARGEST_ACCEPTED_RECORD_COUNT, got: $count"
+
+printf 'macos-defaults-count-guard: OK (a multi-document count is refused and named; the digit ceiling refuses %s and accepts %s with the shape check clean; single and empty files still answer)\n' \
+  "$SMALLEST_REFUSED_RECORD_COUNT" "$LARGEST_ACCEPTED_RECORD_COUNT"
