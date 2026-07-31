@@ -326,6 +326,38 @@ UTF8_BYTE_ORDER_MARK_BYTE_COUNT=3
 # anywhere but the first three bytes: one inside a record value survives into
 # that value, so there is no safe general strip to fall back on.
 #
+# WHY THE FIRST THREE BYTES ARE THE WHOLE OF THIS GUARD'S JOB, since "byte 0
+# only" reads like an arbitrary narrowing and is not one. The question this
+# predicate answers is not "does the file contain a mark", it is "is there a
+# mark the two readers TREAT DIFFERENTLY", and byte 0 is the only position where
+# they do. Measured on this yq and this chezmoi, dumping each reader's key list
+# rather than inferring it from whether the file was accepted:
+#
+#   at byte 0            yq strips it and answers the key `macos`; chezmoi keeps
+#                        it and cannot find `macos` at all. DIVERGENT, refused
+#                        here.
+#   anywhere else        NEITHER reader strips it. A mark before a key binds
+#                        into that key in BOTH, so yq answers the key
+#                        "<mark>killall" exactly as chezmoi does. The readers
+#                        AGREE, so there is nothing for this guard to close, and
+#                        the file is judged on the keys it actually has: a mark
+#                        that lands on `defaults` makes the record list absent
+#                        and is refused by the declaration verdict below, and
+#                        one inside a record value is legitimate content and is
+#                        preserved byte for byte.
+#
+# test/unit/macos-defaults-declaration-guard.sh pins that table from the reader
+# side, so a future yq that starts stripping a mid-file mark reopens a real
+# divergence and fails there instead of passing silently here.
+#
+# The limit this predicate does NOT cover, stated because it is adjacent enough
+# to look covered: it reads only `.macos.defaults`, so a mark bound into a
+# DIFFERENT key the runner template needs (`.macos.killall`) leaves this reader
+# accepting a file chezmoi refuses. That gap is not about marks at all, it is
+# the general one that any malformed sibling key produces, it predates this
+# guard, and it belongs to the two readers' disagreement over schema-invalid
+# shapes rather than here.
+#
 # An unreadable or absent file answers 1 here, the same as a clean one, because
 # a predicate that cannot read the bytes cannot claim to have found a mark. That
 # answer is NOT this guard's last word on such a file: measured on a mode-000

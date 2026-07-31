@@ -133,6 +133,51 @@ refute_byte_order_mark_detected() { # <path> <description>
   fi
 }
 
+# require_unreadable_path_refused <path> <description>, the OTHER half of the
+# predicate's answer for a path whose bytes cannot be read. The predicate says
+# "no mark", which read on its own is a fail-open; it is safe only because the
+# shape read that follows refuses the same path with status 2 and names it. Both
+# halves are asserted together, because it is the PAIRING that is the guarantee
+# and either half alone can be broken without the other noticing.
+require_unreadable_path_refused() { # <path> <description>
+  local path="$1" description="$2" status=0 output
+  output="$(defaults_records_declared_count "$path" 2>&1)" || status=$?
+  [[ $status -eq 2 ]] ||
+    fail "$description must be refused with status 2, got $status (output: $output)"
+  printf '%s' "$output" | grep -qF -- "$path" ||
+    fail "$description was refused without naming the path, so an operator cannot tell which file the tools could not read: $output"
+}
+
+# require_yq_strips_byte_order_mark / refutes, the measurement the byte-0-only
+# scope RESTS on, asserted against yq rather than assumed. This guard exists to
+# close positions where the two readers treat a mark DIFFERENTLY, and byte 0 is
+# the only such position: elsewhere neither reader strips it, so both bind it
+# into the following key and agree. If a future yq starts stripping a mark
+# further into the file, that agreement ends and a byte-0 check is no longer
+# complete; these two helpers are what say so.
+require_yq_strips_byte_order_mark() { # <path> <description>
+  local keys
+  keys="$(yq eval -r 'keys | join(",")' "$1")" ||
+    fail "could not read the top-level keys of $1"
+  case $keys in
+    *"$UTF8_BYTE_ORDER_MARK"*)
+      fail "$2: yq no longer strips it, so this file is no longer a position where the two readers disagree and the guard's scope needs remeasuring (keys: $(printf '%q' "$keys"))"
+      ;;
+  esac
+}
+
+refute_yq_strips_byte_order_mark() { # <path> <description>
+  local keys
+  keys="$(yq eval -r 'keys | join(",")' "$1")" ||
+    fail "could not read the top-level keys of $1"
+  case $keys in
+    *"$UTF8_BYTE_ORDER_MARK"*) ;;
+    *)
+      fail "$2: yq stripped it, so a mark in this position is now a reader DIVERGENCE that a byte-0 check does not catch (keys: $(printf '%q' "$keys"))"
+      ;;
+  esac
+}
+
 [[ -f $LIB ]] || fail "missing library: $LIB"
 command -v yq >/dev/null 2>&1 || fail "yq is not on PATH; run inside the nix dev shell"
 
@@ -243,4 +288,52 @@ refute_byte_order_mark_detected "$work/first-byte-collision.yaml" "a file starti
 printf '\xef\xbb' >"$work/truncated-mark.yaml"
 refute_byte_order_mark_detected "$work/truncated-mark.yaml" "a file holding only the first two bytes of the mark"
 
-printf 'macos-defaults-declaration-guard: OK (an explicitly empty list still answers 0; a file that declares no record list is refused and pointed at an explicitly empty one; a byte order mark is refused whether it hides the defaults key or breaks the runner template)\n'
+# ---- 12: the predicate's READ-FAILURE branch, and what makes it safe ---------
+# A path whose bytes cannot be read answers "no mark", the same as a clean file,
+# because a predicate that cannot read the bytes cannot claim to have found one.
+# Read alone that is a fail-open, and nothing pinned either the answer or the
+# refusal that redeems it: flipping the branch to answer "mark found" would have
+# misdiagnosed every missing or unreadable data file as a marked one, told the
+# operator to delete three bytes that are not there, and left every case above
+# green.
+#
+# A missing path and a directory both fail the read for every user. A mode-000
+# file does not fail it for root, so that fixture is skipped there rather than
+# asserted falsely.
+mkdir -p "$work/a-directory"
+printf 'macos:\n  defaults: []\n' >"$work/unreadable.yaml"
+chmod 000 "$work/unreadable.yaml"
+
+refute_byte_order_mark_detected "$work/missing.yaml" "a path that does not exist"
+require_unreadable_path_refused "$work/missing.yaml" "a path that does not exist"
+refute_byte_order_mark_detected "$work/a-directory" "a path that is a directory"
+require_unreadable_path_refused "$work/a-directory" "a path that is a directory"
+if [[ $EUID -ne 0 ]]; then
+  refute_byte_order_mark_detected "$work/unreadable.yaml" "a file this user cannot read"
+  require_unreadable_path_refused "$work/unreadable.yaml" "a file this user cannot read"
+fi
+chmod 644 "$work/unreadable.yaml"
+
+# ---- 13: byte 0 is the whole of the divergence this guard closes -------------
+# The scope claim, measured rather than assumed. The guard looks at the first
+# three bytes only, which reads like an arbitrary narrowing; it is not one,
+# because byte 0 is the only position where the two readers treat a mark
+# differently. yq strips it there and chezmoi does not (case 8 above holds that
+# half). ANYWHERE ELSE yq does not strip it either: it binds into the following
+# key exactly as chezmoi's reader does, so the two agree and there is no
+# divergence for a byte-level guard to close.
+#
+# Pinned from the yq side because that is the half that can change under us. A
+# yq release that started stripping a mid-file mark would reopen a real
+# divergence that a byte-0 check cannot see, and it would do it silently.
+require_yq_strips_byte_order_mark "$work/leading-byte-order-mark.yaml" \
+  "a mark at byte 0"
+printf 'macos:\n  defaults: []\n\xef\xbb\xbfother: 1\n' >"$work/mark-before-later-key.yaml"
+refute_yq_strips_byte_order_mark "$work/mark-before-later-key.yaml" \
+  "a mark at the start of a later line"
+printf 'macos:\n  defaults: []\n  \xef\xbb\xbfkillall: []\n' >"$work/mark-after-indent.yaml"
+yq eval -r '.macos | keys | join(",")' "$work/mark-after-indent.yaml" |
+  grep -qF "$UTF8_BYTE_ORDER_MARK" ||
+  fail "yq now strips a mark that follows the indent of a nested key, so a mark in that position is a reader divergence a byte-0 check does not catch"
+
+printf 'macos-defaults-declaration-guard: OK (an explicitly empty list still answers 0; a file that declares no record list is refused and pointed at an explicitly empty one; a byte order mark is refused whether it hides the defaults key or breaks the runner template; an unreadable path answers no-mark and is still refused by name; byte 0 is still the only position the two readers treat differently)\n'
