@@ -83,6 +83,15 @@ KEYSCAN_BIN="${KEYSCAN_BIN:-/usr/bin/ssh-keyscan}"
 # kills the script mid-loop with no output at all -- the one failure mode
 # where the operator most needs the recovery text printed none.
 SLEEP_BIN="${SLEEP_BIN:-/bin/sleep}"
+# The two tools --reload's drift observation drives, ABSOLUTE for the same
+# reason as the seams above and for one of their own: `stat -f '<format>'` is
+# BSD syntax, and GNU stat reads -f as "print the FILE SYSTEM information",
+# takes the format string for a file name and exits 1 ("cannot read file system
+# information for '%Lp %u %g'"). A Homebrew coreutils gnubin ahead of /usr/bin
+# would therefore turn every reload on the machine into a refusal it could not
+# explain. Naming the tool is what makes the syntax and the tool agree.
+STAT_BIN="${STAT_BIN:-/usr/bin/stat}"
+CKSUM_BIN="${CKSUM_BIN:-/usr/bin/cksum}"
 # `-` not `:-` for the three readiness knobs, matching SSH_HARDENING_SUDO
 # above: unset means "use the default", but SET-BUT-EMPTY is an operator
 # statement and validate_readiness_knobs REFUSES it rather than silently
@@ -129,27 +138,52 @@ LEGACY_DROPIN_NAME="50-no-password-auth.conf"
 MAX_INCLUDE_DEPTH=15
 
 # --reload's drift guard reads every file in the resolved configuration tree,
-# and the last of its passes runs with the daemon already restarted.
-# MAX_INCLUDE_DEPTH bounds how DEEP the include graph goes; nothing bounds how
-# WIDE it goes, and one `Include <dir>/*` over a directory holding a hundred
-# thousand files is perfectly legal. This bounds the work instead: past it the
-# tree is not fingerprinted at all, which the reload reports as a stability it
-# could not establish and refuses.
+# and the last of its passes runs with the daemon already restarted, so a pass
+# that runs long stalls exactly where the operator is watching for a lockout.
+# MAX_INCLUDE_DEPTH bounds how DEEP the include graph goes; these two bound how
+# WIDE and how BIG it is allowed to be. Past either, the tree is not observed at
+# all, which the reload reports as a stability it could not establish, and
+# refuses.
 #
-# It counts VISITS, not distinct files, so a drop-in reached both through the
-# main config's Include and as a root of its own counts twice; the effective
-# headroom is therefore about half this number in drop-ins. Measured on this
-# machine the live tree is three files and five visits. Reading one file costs
-# two forks, so the bound also caps one pass at roughly a thousand forks, which
-# is where the guard would start to cost real time on the reload path.
+# MAX_CONFIG_TREE_FILES counts VISITS, not distinct files, so a drop-in reached
+# both through the main config's Include and as a root of its own counts twice;
+# the effective headroom is therefore about half this number in drop-ins.
+# Measured on this machine the live tree is three files and five visits.
+#
+# MAX_CONFIG_TREE_BYTES bounds the total the walk READS, because the file count
+# is the wrong axis on its own: the dominant cost is the per-character tokenizer
+# running over every line, and nothing bounds how long a line or how large a
+# file is. Measured on this machine: a single 1.0 MB file matched by the stock
+# `Include <dir>/*` cost 4.3 s for ONE observation, and a reload takes three,
+# the last of them after the restart. A stray backup or a log left in the
+# drop-in directory is enough; it does not take an adversary. The live tree here
+# is 5128 bytes, so this bound is about fifty times the real thing.
+#
+# What these bounds do NOT cover, stated rather than implied: the glob
+# expansions that produce the candidates run first and are not bounded by
+# anything here (bash materializes the whole match list before this walk sees
+# it), and the same is true of the Match scan --verify runs, which shares the
+# resolver. The bounds stop the WALK from processing an oversized tree; they do
+# not stop the shell from expanding one.
 MAX_CONFIG_TREE_FILES=512
+MAX_CONFIG_TREE_BYTES=262144
 
-# The field separator inside one fingerprint record: ASCII unit separator,
-# picked because it cannot occur in a path, a mode, a numeric id or a checksum.
-# A space would be ambiguous in a path that contains one, and a field that can
-# be mistaken for a boundary is how a comparison silently reads the wrong
-# value.
+# The field separator inside one observation record: ASCII unit separator.
+# Nothing but NUL and '/' is excluded from a POSIX file name, so this is NOT a
+# byte a path cannot contain -- it is one that no mode, numeric id or checksum
+# can contain, and that a path is REFUSED for containing (see
+# config_tree_path_is_recordable). A space would be ambiguous in a path that
+# holds one, and a field that can be mistaken for a boundary is how a comparison
+# silently reads the wrong value: measured, two files named `<prefix>\037b.conf`
+# and `<prefix>\037c.conf` parsed to the same path and made an untouched tree
+# compare unequal to itself.
 CONFIG_TREE_FIELD_SEPARATOR=$'\037'
+
+# `stat`'s word for a regular file (`%HT`), measured on macOS 26.2: "Regular
+# File", against "Fifo File", "Directory" and the rest. The observation reads
+# only files the enumeration already tested with -f, so anything else means the
+# tree changed type under the walk, which is drift and not something to read.
+CONFIG_TREE_REGULAR_FILE_TYPE='Regular File'
 
 # The protected directives and their required values, lowercase exactly as
 # `sshd -G` prints them. Parallel arrays because the deployed interpreter is
@@ -792,12 +826,26 @@ include_bracket_opens_a_set() {
 # The case patterns below are QUOTED on purpose: unquoted, `*` and `?` in a
 # case pattern match any character and every byte of every path would look
 # live.
+#
+# INCLUDE_PATTERN_DIVERGES_FROM_GLOB says whether the pattern contains the one
+# construct where BASH's pathname expansion and glob(3) resolve to different
+# files. Bash negates a bracket introduced by either '!' or '^'; glob(3) negates
+# on '!' only and treats a leading '^' as an ordinary member. Measured on macOS
+# 26.2 against OpenSSH 10.0p2: with a.conf and b.conf present,
+# `Include <dir>/[^a].conf` makes sshd read a.conf, and bash expands the same
+# pattern to b.conf. Disjoint sets, and every walk in this file uses bash's.
+#
+# `[!^a]` does NOT diverge (both negate the same three-member set), and neither
+# does `[\^a]` (the backslash makes '^' a literal member for both), so the test
+# is exactly "the character after '[' is an unescaped '^'".
 INCLUDE_UNESCAPED_PATH=''
 INCLUDE_HAS_METACHARACTER=0
+INCLUDE_PATTERN_DIVERGES_FROM_GLOB=0
 unescape_include_pattern() {
   local rest="$1" character
   INCLUDE_UNESCAPED_PATH=''
   INCLUDE_HAS_METACHARACTER=0
+  INCLUDE_PATTERN_DIVERGES_FROM_GLOB=0
   while [[ -n $rest ]]; do
     character="${rest:0:1}"
     if [[ $character == "$CONFIG_BACKSLASH" ]]; then
@@ -818,6 +866,9 @@ unescape_include_pattern() {
       '[')
         if include_bracket_opens_a_set "${rest:1}"; then
           INCLUDE_HAS_METACHARACTER=1
+          case ${rest:1} in
+            '^'*) INCLUDE_PATTERN_DIVERGES_FROM_GLOB=1 ;;
+          esac
         fi
         ;;
     esac
@@ -855,22 +906,38 @@ unescape_include_pattern() {
 # divergent resolver would quietly judge a different one.
 
 # resolve_include_paths: the concrete REGULAR FILES the Include whose arguments
-# are sitting in PARSED_ARGS names, into INCLUDE_RESOLVED_PATHS. Returns 1 for
-# an Include carrying no path at all, so each caller reports that in its own
-# words.
+# are sitting in PARSED_ARGS names, into INCLUDE_RESOLVED_PATHS. Returns 1 with
+# INCLUDE_RESOLVE_ERROR holding the reason, as a clause each caller prefixes
+# with the file it was reading, so the two report it in their own words.
+#
+# Two reasons, both fail-closed:
+#
+#   no path at all      there is nothing to resolve and guessing is worse than
+#                       refusing.
+#   a divergent pattern the bracket construct where bash and glob(3) resolve to
+#                       DIFFERENT files (see unescape_include_pattern for the
+#                       measurement). This walk cannot faithfully model sshd's
+#                       for such a pattern, and a walk that silently watches
+#                       different files than the daemon reads is exactly the
+#                       bypass this one resolver exists to prevent. Emulating
+#                       glob(3) in bash would be the other answer; refusing is
+#                       the one whose failure mode is a loud message.
 #
 # The caller must COPY the result before recursing: this is a global, and a
 # recursive walk overwrites it.
 INCLUDE_RESOLVED_PATHS=()
+INCLUDE_RESOLVE_ERROR=''
 resolve_include_paths() {
   local pattern resolved old_ifs
   local -a patterns matches
   INCLUDE_RESOLVED_PATHS=()
+  INCLUDE_RESOLVE_ERROR=''
   patterns=()
   if [[ ${#PARSED_ARGS[@]} -gt 0 ]]; then
     patterns=("${PARSED_ARGS[@]}")
   fi
   if [[ ${#patterns[@]} -eq 0 ]]; then
+    INCLUDE_RESOLVE_ERROR='has an Include with no path'
     return 1
   fi
   for pattern in "${patterns[@]}"; do
@@ -883,6 +950,10 @@ resolve_include_paths() {
       *) pattern="$SSHD_CONFIG_DIR/$pattern" ;;
     esac
     unescape_include_pattern "$pattern"
+    if [[ $INCLUDE_PATTERN_DIVERGES_FROM_GLOB -eq 1 ]]; then
+      INCLUDE_RESOLVE_ERROR="has an Include pattern ('$pattern') whose bracket begins with '^', which bash expands to a different set of files than the glob(3) sshd uses"
+      return 1
+    fi
     matches=()
     if [[ $INCLUDE_HAS_METACHARACTER -eq 0 ]]; then
       # Nothing live in the pattern, so glob(3) matches nothing: it stats the
@@ -925,7 +996,7 @@ scan_included_files() {
   local resolved
   local -a resolved_paths
   if ! resolve_include_paths; then
-    add_failure "match scan: '$from' has an Include with no path; failing closed rather than guessing what it pulls in"
+    add_failure "match scan: '$from' $INCLUDE_RESOLVE_ERROR; failing closed rather than guessing what it pulls in"
     return 0
   fi
   if [[ ${#INCLUDE_RESOLVED_PATHS[@]} -eq 0 ]]; then
@@ -1271,13 +1342,20 @@ install_dropin() {
 # What the functions below produce is an OBSERVATION of the tree: one record
 # per file in the resolved include graph, carrying the path, the mode, the
 # owning uid and gid, and a content checksum. Two observations that compare
-# equal mean every conclusion the preflight drew still describes the tree on
-# disk -- not only "it still verifies hardened", but also that the syntax check
-# read these bytes and that the ports resolved from them are the ports this
-# configuration declares. That is why the guard compares observations rather
-# than simply re-running the verify: a second verify re-establishes exactly one
-# of those three conclusions and would leave a stale port resolution looking
-# fine.
+# equal mean every file was byte-identical and attribute-identical at the two
+# moments IT was read, which is what carries every conclusion the preflight drew
+# forward -- not only "it still verifies hardened", but also that the syntax
+# check read these bytes and that the ports resolved from them are the ports
+# this configuration declares. That is why the guard compares observations
+# rather than simply re-running the verify: a second verify re-establishes
+# exactly one of those three conclusions and would leave a stale port resolution
+# looking fine.
+#
+# What it does NOT establish, said here because the wording above is the kind
+# that drifts into a guarantee: an observation reads the files one after
+# another, so two equal observations do not establish that the tree was ever, at
+# any single instant, the thing the preflight judged. See the limits at the
+# comparison site in reload_sshd.
 #
 # What is in a record, and why:
 #
@@ -1297,6 +1375,17 @@ install_dropin() {
 # rename, so republishing identical content changes the inode, and an inode in
 # the record would read that as drift.
 #
+# ONE HAZARD THIS CANNOT FULLY CLOSE, so that nobody removes the parts that
+# narrow it. Reading a named pipe never returns: bash blocks in open(2) and
+# there is no non-blocking open to reach from a shell. A hang after the kickstart
+# is strictly worse than the drift this guard exists to catch, because a refusal
+# is recoverable and a hang is not. Two things narrow it, and neither closes it:
+# the walk admits regular files only (-f is false for a pipe and for a symlink
+# to one), and the observation re-checks the type in the same stat call that
+# reads the mode, immediately before opening the file. What is left is the gap
+# between that stat and that open, which is microseconds and needs a writer
+# aiming at it. It is not the enumeration-wide window it replaced.
+#
 # Every read here is UNPRIVILEGED, on purpose. The post-restart pass runs after
 # a readiness loop that may have burned its whole attempt budget, by which time
 # a primed sudo timestamp can have expired -- and a password prompt on a machine
@@ -1307,6 +1396,22 @@ install_dropin() {
 
 CONFIG_TREE_FILES=()
 CONFIG_TREE_ERROR=''
+CONFIG_TREE_BYTES_READ=0
+
+# config_tree_would_exceed_width <files about to be added>: 1 when adding that
+# many more files would take the walk past MAX_CONFIG_TREE_FILES, with
+# CONFIG_TREE_ERROR set. Asked BEFORE a resolved match list is walked, not once
+# per file inside it: a glob over a directory of a hundred thousand files was
+# expanded, sorted and then looped over in full before the count check at the
+# top of the recursion refused, which is the work the bound exists to avoid.
+config_tree_would_exceed_width() {
+  local incoming="$1"
+  if [[ $((${#CONFIG_TREE_FILES[@]} + incoming)) -le $MAX_CONFIG_TREE_FILES ]]; then
+    return 1
+  fi
+  CONFIG_TREE_ERROR="the configuration tree names more than $MAX_CONFIG_TREE_FILES files"
+  return 0
+}
 
 # collect_config_tree_from_file <file> <depth> <chain>: append this file and
 # every file reachable from it through Include to CONFIG_TREE_FILES. Bounded,
@@ -1321,8 +1426,7 @@ collect_config_tree_from_file() {
   local file="$1" depth="$2" chain="$3"
   local line status=0 resolved
   local -a resolved_paths
-  if [[ ${#CONFIG_TREE_FILES[@]} -ge $MAX_CONFIG_TREE_FILES ]]; then
-    CONFIG_TREE_ERROR="the configuration tree names more than $MAX_CONFIG_TREE_FILES files"
+  if config_tree_would_exceed_width 1; then
     return 0
   fi
   if [[ $depth -gt $MAX_INCLUDE_DEPTH ]]; then
@@ -1350,6 +1454,15 @@ collect_config_tree_from_file() {
   # shellcheck disable=SC2094  # $file is passed to the recursive call for the
   # message it may print; this walk never opens a config file for writing.
   while IFS= read -r line || [[ -n $line ]]; do
+    # Counted and checked BEFORE the line is parsed. parse_config_line walks the
+    # line one character at a time in pure bash, which is where the whole cost
+    # of this walk lives, so a bound applied after it would bound nothing. The
+    # +1 is the newline `read` stripped.
+    CONFIG_TREE_BYTES_READ=$((CONFIG_TREE_BYTES_READ + ${#line} + 1))
+    if [[ $CONFIG_TREE_BYTES_READ -gt $MAX_CONFIG_TREE_BYTES ]]; then
+      CONFIG_TREE_ERROR="the configuration tree holds more than $MAX_CONFIG_TREE_BYTES bytes to read (reached while reading '$file')"
+      return 0
+    fi
     if ! parse_config_line "$line"; then
       continue
     fi
@@ -1357,7 +1470,7 @@ collect_config_tree_from_file() {
       continue
     fi
     if ! resolve_include_paths; then
-      CONFIG_TREE_ERROR="'$file' has an Include with no path"
+      CONFIG_TREE_ERROR="'$file' $INCLUDE_RESOLVE_ERROR"
       return 0
     fi
     if [[ ${#INCLUDE_RESOLVED_PATHS[@]} -eq 0 ]]; then
@@ -1365,6 +1478,9 @@ collect_config_tree_from_file() {
     fi
     # Copied before the recursive call below overwrites the global.
     resolved_paths=("${INCLUDE_RESOLVED_PATHS[@]}")
+    if config_tree_would_exceed_width "${#resolved_paths[@]}"; then
+      return 0
+    fi
     for resolved in "${resolved_paths[@]}"; do
       collect_config_tree_from_file "$resolved" "$((depth + 1))" "$chain"
       if [[ -n $CONFIG_TREE_ERROR ]]; then
@@ -1385,6 +1501,7 @@ collect_config_tree_files() {
   local -a roots
   CONFIG_TREE_FILES=()
   CONFIG_TREE_ERROR=''
+  CONFIG_TREE_BYTES_READ=0
   if ! config_tree_roots; then
     CONFIG_TREE_ERROR="$CONFIG_TREE_ROOTS_ERROR"
     return 1
@@ -1394,12 +1511,39 @@ collect_config_tree_files() {
     return 1
   fi
   roots=("${CONFIG_TREE_ROOTS[@]}")
+  if config_tree_would_exceed_width "${#roots[@]}"; then
+    return 1
+  fi
   for root in "${roots[@]}"; do
     collect_config_tree_from_file "$root" 0 '|'
     if [[ -n $CONFIG_TREE_ERROR ]]; then
       return 1
     fi
   done
+  return 0
+}
+
+# config_tree_path_is_recordable <path>: 0 when a record built from this path
+# can be split back into its three fields unambiguously, 1 when it cannot.
+#
+# Only NUL and '/' are excluded from a POSIX file name, so both bytes this
+# rejects are legal on macOS and reachable through a plain `Include <dir>/*`.
+# Neither can be carried, and neither fails in a way anyone would notice:
+#
+#   the field separator  two files named `<prefix>\037b.conf` and
+#                        `<prefix>\037c.conf` parse to the SAME path, so an
+#                        untouched tree compares unequal to itself and the
+#                        reload refuses saying the tree CHANGED. That is not a
+#                        fail-closed outcome, it is a false accusation.
+#   a newline            the listing is one path per line, so one path becomes
+#                        two, and each half then fails to stat.
+#
+# Refusing by name is the fail-closed answer that also tells the operator what
+# to fix. Pure: one input, a boolean answer, no globals.
+config_tree_path_is_recordable() {
+  case $1 in
+    *"$CONFIG_TREE_FIELD_SEPARATOR"* | *$'\n'*) return 1 ;;
+  esac
   return 0
 }
 
@@ -1413,7 +1557,7 @@ collect_config_tree_files() {
 # file reached from both roots appears once.
 CONFIG_TREE_OBSERVATION=''
 observe_config_tree() {
-  local listing status=0 file attributes checksum old_ifs
+  local listing status=0 file attributes file_type checksum old_ifs
   local -a unique_files
   CONFIG_TREE_OBSERVATION=''
   if ! collect_config_tree_files; then
@@ -1426,6 +1570,14 @@ observe_config_tree() {
     CONFIG_TREE_ERROR='the configuration tree walk produced no file at all'
     return 1
   fi
+  # Checked BEFORE the listing is built, because the listing is itself
+  # newline-framed and would lose such a path on the way in.
+  for file in "${CONFIG_TREE_FILES[@]}"; do
+    if ! config_tree_path_is_recordable "$file"; then
+      CONFIG_TREE_ERROR="the name of '$file' holds a newline or an ASCII unit separator, so its record cannot be recorded unambiguously; rename it and re-run"
+      return 1
+    fi
+  done
   listing="$(printf '%s\n' "${CONFIG_TREE_FILES[@]}" | LC_ALL=C sort -u)" || status=$?
   if [[ $status -ne 0 ]]; then
     CONFIG_TREE_ERROR="could not order the configuration file listing (exit $status)"
@@ -1444,15 +1596,32 @@ observe_config_tree() {
   fi
   for file in "${unique_files[@]}"; do
     status=0
-    attributes="$(stat -f '%Lp %u %g' -- "$file" 2>&1)" || status=$?
+    # -L, so the record describes the file that is actually OPENED. BSD stat
+    # lstat()s by default, while both `[[ -f ]]` and the read below follow a
+    # symlink: without -L a symlinked include paired the target's content with
+    # the LINK's mode and owner (a constant 0755 on macOS), which silently voids
+    # the whole mode-and-owner dimension for that file.
+    #
+    # The type comes from the same call because it costs nothing extra there and
+    # because it is the last chance to notice that a path the walk tested with
+    # -f is no longer a regular file. Reading a named pipe never returns, and a
+    # read that hangs after the kickstart is strictly worse than the drift this
+    # guard exists to catch.
+    attributes="$("$STAT_BIN" -Lf "%HT$CONFIG_TREE_FIELD_SEPARATOR%Lp %u %g" -- "$file" 2>&1)" || status=$?
     if [[ $status -ne 0 ]]; then
-      CONFIG_TREE_ERROR="could not read the mode and owner of '$file' (stat exited $status: $attributes)"
+      CONFIG_TREE_ERROR="could not read the mode and owner of '$file' ($STAT_BIN exited $status: $attributes)"
+      return 1
+    fi
+    file_type="${attributes%%"$CONFIG_TREE_FIELD_SEPARATOR"*}"
+    attributes="${attributes#*"$CONFIG_TREE_FIELD_SEPARATOR"}"
+    if [[ $file_type != "$CONFIG_TREE_REGULAR_FILE_TYPE" ]]; then
+      CONFIG_TREE_ERROR="'$file' was a regular file when the tree was walked and is a $file_type now, so the tree changed type under this observation and reading it could block"
       return 1
     fi
     status=0
-    checksum="$(cksum <"$file")" || status=$?
+    checksum="$("$CKSUM_BIN" <"$file")" || status=$?
     if [[ $status -ne 0 ]]; then
-      CONFIG_TREE_ERROR="could not checksum '$file' (cksum exited $status)"
+      CONFIG_TREE_ERROR="could not checksum '$file' ($CKSUM_BIN exited $status)"
       return 1
     fi
     CONFIG_TREE_OBSERVATION="$CONFIG_TREE_OBSERVATION$file$CONFIG_TREE_FIELD_SEPARATOR$attributes$CONFIG_TREE_FIELD_SEPARATOR$checksum"$'\n'
@@ -1463,7 +1632,8 @@ observe_config_tree() {
 # config_tree_record_fields <record>: split one observation record into
 # CONFIG_TREE_RECORD_PATH, CONFIG_TREE_RECORD_ATTRIBUTES and
 # CONFIG_TREE_RECORD_CHECKSUM. Pure, no forks, and it never splits on
-# whitespace: a path may contain spaces, and the separator cannot.
+# whitespace: a path may contain spaces, and a path carrying the separator is
+# refused at observation time (see config_tree_path_is_recordable).
 CONFIG_TREE_RECORD_PATH=''
 CONFIG_TREE_RECORD_ATTRIBUTES=''
 CONFIG_TREE_RECORD_CHECKSUM=''
@@ -1473,6 +1643,38 @@ config_tree_record_fields() {
   rest="${1#*"$CONFIG_TREE_FIELD_SEPARATOR"}"
   CONFIG_TREE_RECORD_ATTRIBUTES="${rest%%"$CONFIG_TREE_FIELD_SEPARATOR"*}"
   CONFIG_TREE_RECORD_CHECKSUM="${rest#*"$CONFIG_TREE_FIELD_SEPARATOR"}"
+}
+
+# config_tree_find_record <path> [record...]: 0 when one of the records names
+# that path, with CONFIG_TREE_FOUND_ATTRIBUTES and CONFIG_TREE_FOUND_CHECKSUM
+# holding its other two fields; 1 when none does.
+#
+# The one lookup both directions of the comparison need. Written out twice it
+# was forty lines of near-identical loop, and a fix to one copy would have left
+# the other answering differently.
+#
+# The caller MUST have nocasematch off: the path test below is what decides
+# whether a rename that changes only the case of a file name counts as a
+# change, and it does. Linear, so the comparison is quadratic in the file
+# count; bash 3.2 has no associative arrays to make it anything else, and
+# MAX_CONFIG_TREE_FILES is what keeps the square small.
+CONFIG_TREE_FOUND_ATTRIBUTES=''
+CONFIG_TREE_FOUND_CHECKSUM=''
+config_tree_find_record() {
+  local wanted="$1" record
+  CONFIG_TREE_FOUND_ATTRIBUTES=''
+  CONFIG_TREE_FOUND_CHECKSUM=''
+  shift
+  for record in "$@"; do
+    config_tree_record_fields "$record"
+    if [[ $CONFIG_TREE_RECORD_PATH != "$wanted" ]]; then
+      continue
+    fi
+    CONFIG_TREE_FOUND_ATTRIBUTES="$CONFIG_TREE_RECORD_ATTRIBUTES"
+    CONFIG_TREE_FOUND_CHECKSUM="$CONFIG_TREE_RECORD_CHECKSUM"
+    return 0
+  done
+  return 1
 }
 
 # config_tree_is_unchanged <earlier observation> <later observation>: 0 when
@@ -1511,17 +1713,12 @@ config_tree_is_unchanged() {
       found=0
       other_attributes=''
       other_checksum=''
-      if [[ ${#later_records[@]} -gt 0 ]]; then
-        for other in "${later_records[@]}"; do
-          config_tree_record_fields "$other"
-          if [[ $CONFIG_TREE_RECORD_PATH != "$path" ]]; then
-            continue
-          fi
-          found=1
-          other_attributes="$CONFIG_TREE_RECORD_ATTRIBUTES"
-          other_checksum="$CONFIG_TREE_RECORD_CHECKSUM"
-          break
-        done
+      # Guarded: bash 3.2 aborts under `set -u` on an empty array expansion.
+      if [[ ${#later_records[@]} -gt 0 ]] &&
+        config_tree_find_record "$path" "${later_records[@]}"; then
+        found=1
+        other_attributes="$CONFIG_TREE_FOUND_ATTRIBUTES"
+        other_checksum="$CONFIG_TREE_FOUND_CHECKSUM"
       fi
       if [[ $found -eq 0 ]]; then
         CONFIG_TREE_CHANGE_DESCRIPTION="$CONFIG_TREE_CHANGE_DESCRIPTION$separator'$path' disappeared"
@@ -1545,21 +1742,13 @@ config_tree_is_unchanged() {
     for other in "${later_records[@]}"; do
       config_tree_record_fields "$other"
       path="$CONFIG_TREE_RECORD_PATH"
-      found=0
-      if [[ ${#earlier_records[@]} -gt 0 ]]; then
-        for record in "${earlier_records[@]}"; do
-          config_tree_record_fields "$record"
-          if [[ $CONFIG_TREE_RECORD_PATH == "$path" ]]; then
-            found=1
-            break
-          fi
-        done
+      if [[ ${#earlier_records[@]} -gt 0 ]] &&
+        config_tree_find_record "$path" "${earlier_records[@]}"; then
+        continue
       fi
-      if [[ $found -eq 0 ]]; then
-        CONFIG_TREE_CHANGE_DESCRIPTION="$CONFIG_TREE_CHANGE_DESCRIPTION$separator'$path' appeared"
-        separator='; '
-        changed=1
-      fi
+      CONFIG_TREE_CHANGE_DESCRIPTION="$CONFIG_TREE_CHANGE_DESCRIPTION$separator'$path' appeared"
+      separator='; '
+      changed=1
     done
   fi
   shopt -s nocasematch
@@ -1567,6 +1756,34 @@ config_tree_is_unchanged() {
 }
 
 # --- reload ------------------------------------------------------------------
+
+# report_absent_service_outcome <the observation the preflight judged>: what
+# --reload says when `launchctl print` confirms the service is absent, which is
+# what Remote Login being off looks like.
+#
+# Nothing is restarted on this path and the exit status is 0 either way; that
+# is the mode's spec and a moved tree is not a reason to change it, because
+# there is no daemon to restart onto anything. The SENTENCE is a different
+# matter. "The installed drop-in applies when Remote Login is next enabled" is
+# a claim about the tree on disk, and the only thing that judged that tree is a
+# preflight that ran before this moment. Making it anyway over a tree that has
+# since moved is a success claim over validation known to be stale -- the same
+# defect the pre-kickstart guard exists to prevent, arriving on the one path
+# that never reaches the guard.
+report_absent_service_outcome() {
+  local earlier="$1" tree_changed=0
+  printf '[ssh-hardening] reload: the sshd launchd service is confirmed absent, which is what Remote Login being off looks like, so there is no daemon to restart and nothing was restarted.\n'
+  if ! observe_config_tree; then
+    warn "the sshd configuration tree could not be re-read after the checks above ($CONFIG_TREE_ERROR), so nothing is claimed about what the tree on disk does when Remote Login is next enabled. Check it with 'ssh-hardening.sh --verify'."
+    return 0
+  fi
+  config_tree_is_unchanged "$earlier" "$CONFIG_TREE_OBSERVATION" || tree_changed=$?
+  if [[ $tree_changed -ne 0 ]]; then
+    warn "the sshd configuration tree CHANGED while this reload was validating it, so the checks above judged a tree that is no longer on disk and nothing is claimed about what the tree does when Remote Login is next enabled. What moved: $CONFIG_TREE_CHANGE_DESCRIPTION. Re-run 'ssh-hardening.sh --verify' once the tree has settled."
+    return 0
+  fi
+  printf '[ssh-hardening] reload: the installed drop-in applies when Remote Login is next enabled.\n'
+}
 
 # recovery_instructions: the way back in, in one sentence, printed verbatim in
 # every failure after the disruptive step. The exact wording is pinned by a
@@ -1828,7 +2045,7 @@ reload_sshd() {
   # 7. Probe the service, separating THREE outcomes, not two.
   probe_sshd_service
   if [[ $SERVICE_PROBE_STATUS -eq $LAUNCHCTL_STATUS_SERVICE_ABSENT ]]; then
-    printf '[ssh-hardening] reload: the sshd launchd service is confirmed absent, which is what Remote Login being off looks like, so there is no daemon to restart. The installed drop-in applies when Remote Login is next enabled.\n'
+    report_absent_service_outcome "$tree_before_preflight"
     return 0
   fi
   if [[ $SERVICE_PROBE_STATUS -ne 0 ]]; then
@@ -1836,10 +2053,10 @@ reload_sshd() {
   fi
 
   # 8. The LAST observation before the disruptive step. Steps 4, 5 and 6 each
-  # opened the tree separately; this re-reads it and refuses if anything moved,
-  # so the daemon is never restarted onto a configuration the preflight did not
-  # judge, and so a port resolved from bytes that are now gone never becomes
-  # the readiness target.
+  # opened the tree separately; this re-reads it and refuses if anything it can
+  # see moved, so a change that lands anywhere across the preflight and is still
+  # there now stops the restart instead of being carried into it -- including a
+  # change that would make the port this run is about to probe the wrong one.
   #
   # It sits AFTER the confirmed-absent early return on purpose. With Remote
   # Login off nothing is restarted and nothing is claimed about a daemon, and
@@ -1864,7 +2081,8 @@ reload_sshd() {
   # directory, who simply writes after the last observation; no amount of
   # re-reading from inside this process changes that.
   #
-  # Three limits, stated rather than implied:
+  # Four limits, stated rather than implied, because the sentence above is the
+  # kind that hardens into a guarantee on re-reading:
   #
   #   - The window between the observation above and the kickstart below cannot
   #     be closed from here. Nothing makes an observation and a launchctl call
@@ -1872,8 +2090,20 @@ reload_sshd() {
   #     to CLAIM success, not by preventing the restart.
   #   - A change made and reverted between two observations compares equal and
   #     is invisible. Polling sees states, never transitions.
-  #   - An observation is not itself an instant: reading N files takes time, so
-  #     each one is a smear across that interval.
+  #   - An observation is NOT AN INSTANT. The files are enumerated and then read
+  #     one after another, so what two equal observations establish is that
+  #     every file was byte- and attribute-identical at the two moments IT was
+  #     read. They do not establish that the tree was ever, at one instant, the
+  #     thing the preflight judged: a writer that replaces a file after this
+  #     pass has already read it leaves both observations equal and the restart
+  #     goes ahead. That is the same class of window as the one above, and step
+  #     12 is the same answer to it -- a refusal to claim, not a prevention.
+  #   - The graph walked here is this script's MODEL of sshd's, not sshd's own.
+  #     It is the one resolver the Match scan also uses, deliberately, but bash's
+  #     pathname expansion is not glob(3). The one known divergence is refused
+  #     rather than mis-walked (see resolve_include_paths), which converts it
+  #     from a silent bypass into a message; it does not prove the model is
+  #     complete, and the tokenizer-differential suite is what keeps looking.
   #
   # 9. The disruptive step. The keep-open warning and the COMPLETE recovery
   # command are printed FIRST: the kickstart is the step that can kill the
@@ -1924,7 +2154,7 @@ reload_sshd() {
     die "sshd RESTARTED and answered on port $READY_PORT, but the configuration tree CHANGED after the last pre-restart check, so what the daemon actually read is unknown and no claim is made that it serves the hardened policy. Nothing was rolled back. What moved: $CONFIG_TREE_CHANGE_DESCRIPTION. Check the tree with 'ssh-hardening.sh --verify', and reload again once it has settled. $(recovery_instructions)"
   fi
 
-  printf '[ssh-hardening] reload complete: sshd restarted and is accepting connections on port %s (SSH banner exchange completed), and the configuration tree is byte-for-byte and mode-for-mode what the preflight validated, both before the restart and after it.\n' "$READY_PORT"
+  printf '[ssh-hardening] reload complete: sshd restarted and is accepting connections on port %s (SSH banner exchange completed), and every file in the configuration tree read back byte-for-byte and mode-for-mode identical each time this run read it, before the restart and after it. What the daemon read at its own instant is not observable from here, so that is a check that found nothing, not a guarantee.\n' "$READY_PORT"
 }
 
 # --- rollback ----------------------------------------------------------------

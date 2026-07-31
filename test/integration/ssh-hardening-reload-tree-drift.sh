@@ -54,17 +54,47 @@ write_hardened_dropin
 #     000-ssh-hardening.conf                            the policy
 #     010-include-outside.conf   Include <outside>/extra.conf
 #       extra.conf                                      OUTSIDE the drop-in dir
+#     011-include-glob.conf      Include <globbed>/*.conf
+#       first.conf                                      first glob match
+#       second.conf                                     SECOND glob match
 #     020-inert.conf                                    a removable sibling
 #
 # extra.conf is what proves the fingerprint follows the graph sshd follows
 # rather than listing the two directories the script was pointed at.
+#
+# The globbed directory is separate from the outside one on purpose. One
+# Include pattern must resolve to MORE THAN ONE file, so an implementation that
+# records only the first match of a pattern is caught (drift 12); and control C
+# needs a directory the graph does NOT reach, which a `*.conf` pattern over the
+# outside directory would have destroyed.
 OUTSIDE_DIR="$SSH_SANDBOX/outside"
-mkdir -p "$OUTSIDE_DIR"
+GLOBBED_DIR="$SSH_SANDBOX/globbed"
+mkdir -p "$OUTSIDE_DIR" "$GLOBBED_DIR"
 OUTSIDE_INCLUDE="$OUTSIDE_DIR/extra.conf"
+GLOBBED_FIRST="$GLOBBED_DIR/first.conf"
+GLOBBED_SECOND="$GLOBBED_DIR/second.conf"
 INERT_DROPIN="$SSHD_CONFIG_D/020-inert.conf"
 printf '# inert file pulled in from outside the drop-in directory\n' >"$OUTSIDE_INCLUDE"
 printf 'Include %s\n' "$OUTSIDE_INCLUDE" >"$SSHD_CONFIG_D/010-include-outside.conf"
+printf '# first file matched by the globbed Include\n' >"$GLOBBED_FIRST"
+printf '# second file matched by the globbed Include\n' >"$GLOBBED_SECOND"
+printf 'Include %s/*.conf\n' "$GLOBBED_DIR" >"$SSHD_CONFIG_D/011-include-glob.conf"
 printf '# inert sibling drop-in\n' >"$INERT_DROPIN"
+
+# observed_tree_fingerprint: every regular file the reload's own walk can
+# reach, with its path, mode, owner and checksum. The shared
+# config_tree_fingerprint covers the drop-in directory only, so a reload that
+# appended to the main config or to an out-of-tree Include target passed its
+# "this mode writes nothing" assertion untouched.
+observed_tree_fingerprint() {
+  local file
+  find "$SSHD_CONFIG_D" "$OUTSIDE_DIR" "$GLOBBED_DIR" "$SSHD_MAIN_CONFIG" \
+    -type f -print0 | LC_ALL=C sort -z |
+    while IFS= read -r -d '' file; do
+      printf '%s %s ' "$file" "$(/usr/bin/stat -Lf '%Lp %u %g' -- "$file")"
+      /usr/bin/cksum <"$file"
+    done
+}
 
 # --- the mutation hook -------------------------------------------------------
 # Fires once, at the SSH_TREE_MUTATION_OCCURRENCE-th call whose "<tool> <argv>"
@@ -112,6 +142,26 @@ case "${SSH_TREE_MUTATION_ACTION:?}" in
     # `--` BEFORE the mode: BSD chmod reads a `--` after the mode as a file
     # operand and fails.
     chmod -- 0666 "$target"
+    ;;
+  make-unreadable)
+    chmod -- 0000 "$target"
+    ;;
+  rewrite-same-length)
+    # Different bytes, IDENTICAL byte count. An observation that kept only the
+    # byte-count half of `cksum`'s output would call this unchanged, and every
+    # other content mutation here appends, so nothing else catches it.
+    # The `printf X`/strip pair preserves trailing newlines that command
+    # substitution would otherwise eat, and the write is IN PLACE so the mode
+    # and the owner stay exactly what they were.
+    rewritten="$(LC_ALL=C tr 'ie' 'oa' <"$target"; printf 'X')"
+    printf '%s' "${rewritten%X}" >"$target"
+    ;;
+  rename-to-uppercase)
+    # A rename that differs from the original ONLY in case. The comparison
+    # turns nocasematch off for exactly this: left on (it is on at the script's
+    # file scope), the two paths compare equal and the rename reads as no
+    # change at all.
+    mv -- "$target" "${target%/*}/$(printf '%s' "${target##*/}" | LC_ALL=C tr 'a-z' 'A-Z')"
     ;;
   *)
     printf 'tree-mutation-hook: unknown action %s\n' "$SSH_TREE_MUTATION_ACTION" >&2
@@ -195,7 +245,18 @@ run_ssh_reload --reload
 assert_kickstart_attempted 'control A'
 grep -qi 'accepting connections' <<<"$SSH_RUN_OUT" ||
   fail "control A: the success line must survive (stdout: $SSH_RUN_OUT)"
+# The success line states what was MEASURED, and says so. Two observations that
+# compare equal establish that each file read identically at the two moments it
+# was read; they do not establish that the tree was ever, at one instant, the
+# thing the preflight judged, and they cannot see the instant the daemon read
+# it. A sentence that claims the tree IS what was validated claims an
+# unobservable, which is the difference between a check and a guarantee.
+grep -qi 'each time this run read it' <<<"$SSH_RUN_OUT" ||
+  fail "control A: the success line must say what was measured, not assert the tree IS what was validated (stdout: $SSH_RUN_OUT)"
+grep -qi 'not observable from here' <<<"$SSH_RUN_OUT" ||
+  fail "control A: the success line must state that what the daemon read is unobservable (stdout: $SSH_RUN_OUT)"
 baseline_fingerprint="$(config_tree_fingerprint)"
+baseline_observed_fingerprint="$(observed_tree_fingerprint)"
 
 # --- control B: the confirmed-absent service is still a clean no-op -----------
 # The drift recheck must sit AFTER the service probe's early return: put it
@@ -226,7 +287,30 @@ assert_mutation_fired 'control D'
 assert_no_kickstart 'control D'
 grep -qi 'Remote Login' <<<"$SSH_RUN_OUT" ||
   fail "control D: the no-op must still explain the service follows Remote Login (stdout: $SSH_RUN_OUT)"
+# The exit status and the silence toward launchd are the spec. The SENTENCE is
+# not: "the installed drop-in applies when Remote Login is next enabled" is a
+# claim about the tree on disk, and the checks that judged that tree ran before
+# the mutation landed. Claiming it anyway is a success claim over validation
+# that is known to be stale, which is the same defect the pre-kickstart guard
+# exists to prevent, arriving on the one path that does not kickstart.
+refute_contains "$SSH_RUN_OUT$SSH_RUN_ERR" 'applies when Remote Login is next enabled' \
+  'control D: with the tree moved, nothing may be claimed about what the drop-in on disk will do later'
+grep -qF -- "$dropin" <<<"$SSH_RUN_ERR" ||
+  fail "control D: the operator must still be told WHICH file moved (stderr: $SSH_RUN_ERR)"
 write_hardened_dropin
+
+# --- control E: the confirmed-absent path still makes its claim when nothing --
+# --- moved --------------------------------------------------------------------
+# The other half of control D. Withholding the sentence must be caused by the
+# DRIFT, not by the code path: an implementation that simply deleted the claim
+# would pass control D and lose the one thing this exit tells the operator.
+
+LAUNCHCTL_STUB_PRINT_STATUSES=113 run_ssh_reload --reload
+[[ $SSH_RUN_STATUS -eq 0 ]] ||
+  fail "control E: a confirmed-absent service must stay a clean no-op (stderr: $SSH_RUN_ERR)"
+assert_no_kickstart 'control E'
+grep -qF -- 'applies when Remote Login is next enabled' <<<"$SSH_RUN_OUT" ||
+  fail "control E: with an unchanged tree the no-op must still say the installed drop-in applies later (stdout: $SSH_RUN_OUT)"
 
 # --- control C: a write OUTSIDE the resolved graph is not drift ---------------
 # The guard's subject is the tree sshd reads, not the filesystem. A new file in
@@ -291,7 +375,11 @@ printf '# inert file pulled in from outside the drop-in directory\n' >"$OUTSIDE_
 
 # --- drift 8: the SET grows while every surviving file is byte-identical ------
 
-new_dropin="$SSHD_CONFIG_D/030-appeared.conf"
+# The file name deliberately carries NO form of the word this case greps for.
+# Named 030-appeared.conf, the refusal's own interpolation of the path satisfied
+# `grep -i appeared` whatever verb the message used, and an implementation that
+# reported a new file as merely "moved" passed.
+new_dropin="$SSHD_CONFIG_D/030-new.conf"
 run_reload_with_mutation 'launchctl print *' 1 create-file "$new_dropin"
 assert_drift_refused_before_kickstart 'drift 8 (a file appeared)' "$new_dropin"
 grep -qi 'appeared' <<<"$SSH_RUN_ERR" ||
@@ -316,6 +404,67 @@ assert_drift_refused_before_kickstart 'drift 10 (mode changed, content identical
 grep -qi 'mode or owner' <<<"$SSH_RUN_ERR" ||
   fail "drift 10: the refusal must name the dimension that moved, so an operator diffing the bytes is not left confused (stderr: $SSH_RUN_ERR)"
 chmod -- 0644 "$INERT_DROPIN"
+
+# --- drift 11: the content changes without the LENGTH changing ----------------
+# Every other content case here appends, so an observation that recorded only
+# the byte-count half of `cksum`'s output would pass all of them. This one
+# rewrites the same number of bytes.
+
+run_reload_with_mutation 'launchctl print *' 1 rewrite-same-length "$INERT_DROPIN"
+assert_drift_refused_before_kickstart 'drift 11 (same length, different bytes)' "$INERT_DROPIN"
+grep -qi 'content' <<<"$SSH_RUN_ERR" ||
+  fail "drift 11: the refusal must name content as the dimension that moved (stderr: $SSH_RUN_ERR)"
+printf '# inert sibling drop-in\n' >"$INERT_DROPIN"
+
+# --- drift 12: the SECOND file one Include pattern resolves to moves ----------
+# One Include line can name a pattern that matches several files, and sshd
+# reads all of them. An observation that recorded only the first match of each
+# pattern would watch first.conf and never see second.conf move.
+
+run_reload_with_mutation 'launchctl print *' 1 append-comment "$GLOBBED_SECOND"
+assert_drift_refused_before_kickstart 'drift 12 (the second match of a globbed Include)' "$GLOBBED_SECOND"
+printf '# second file matched by the globbed Include\n' >"$GLOBBED_SECOND"
+
+# --- drift 13: a SYMLINKED include changes mode at its target -----------------
+# `[[ -f ]]` and the content read both follow a symlink, so the file sshd opens
+# is the target. An observation that stat()s the link instead of the target
+# records the link's own mode (a constant 0755 on macOS) and the whole
+# mode-and-owner dimension silently stops meaning anything.
+
+LINKED_TARGET="$OUTSIDE_DIR/linked-target.conf"
+LINKED_DROPIN="$SSHD_CONFIG_D/012-link.conf"
+printf '# a drop-in reached through a symlink\n' >"$LINKED_TARGET"
+chmod -- 0644 "$LINKED_TARGET"
+ln -s "$LINKED_TARGET" "$LINKED_DROPIN"
+# False-positive direction FIRST: a symlinked include that has not moved must
+# still reload. Reading the LINK's own metadata instead of the target's is one
+# way to get drift 13 wrong; refusing every symlink is the other, and it would
+# make the guard unusable on a tree that uses one.
+run_ssh_reload --reload
+[[ $SSH_RUN_STATUS -eq 0 ]] ||
+  fail "drift 13: an unchanged tree containing a symlinked include must still reload (stderr: $SSH_RUN_ERR)"
+assert_kickstart_attempted 'drift 13 (unchanged symlink)'
+run_reload_with_mutation 'launchctl print *' 1 make-world-writable "$LINKED_TARGET"
+assert_drift_refused_before_kickstart 'drift 13 (mode of a symlinked include target)' "$LINKED_DROPIN"
+grep -qi 'mode or owner' <<<"$SSH_RUN_ERR" ||
+  fail "drift 13: the refusal must name the mode dimension, which means the observation followed the link (stderr: $SSH_RUN_ERR)"
+rm -f "$LINKED_DROPIN" "$LINKED_TARGET"
+
+# --- drift 14: a rename that differs only in CASE -----------------------------
+# The comparison turns nocasematch off deliberately (it is on at the script's
+# file scope so keyword matching mirrors sshd). Left on, the old and new paths
+# compare equal and a rename reads as no change at all. On this filesystem the
+# rename keeps the same inode and the same bytes, so the case of the path is
+# the ONLY thing that moved.
+
+run_reload_with_mutation 'launchctl print *' 1 rename-to-uppercase "$INERT_DROPIN"
+assert_mutation_fired 'drift 14'
+[[ $SSH_RUN_STATUS -ne 0 ]] ||
+  fail "drift 14: a path that changed only in case must still count as drift (stdout: $SSH_RUN_OUT)"
+assert_no_kickstart 'drift 14'
+grep -qi 'configuration tree CHANGED' <<<"$SSH_RUN_ERR" ||
+  fail "drift 14: the refusal must say the configuration tree changed (stderr: $SSH_RUN_ERR)"
+mv -- "$SSHD_CONFIG_D/020-INERT.CONF" "$INERT_DROPIN"
 
 # --- window: the one gap that cannot be closed from inside this process -------
 # A mutation handed to the privilege wrapper along with the kickstart lands
@@ -366,25 +515,258 @@ run_ssh_reload --reload
 assert_kickstart_attempted 'fifo'
 rm -f "$fifo_path"
 
-# --- tooling: an unusable checksum tool refuses BEFORE the kickstart ----------
-# The fingerprint is the last gate before the disruptive step. If it cannot be
-# taken at all, the answer is a refusal with nothing disturbed, never a silent
-# skip of the check.
+# --- unreadable mid-run, before the kickstart ---------------------------------
+# The drift comparison is only ever reached when an observation succeeded. The
+# branch that fires when one FAILS is a separate refusal, and it is the one
+# that decides whether an unobservable tree reads as a refusal or as "no
+# change". This drives it at the last pre-restart observation.
+
+run_reload_with_mutation 'launchctl print *' 1 make-unreadable "$INERT_DROPIN"
+assert_mutation_fired 'observe fails before the kickstart'
+[[ $SSH_RUN_STATUS -ne 0 ]] ||
+  fail "observe fails before the kickstart: an unobservable tree must refuse, not pass as unchanged (stdout: $SSH_RUN_OUT)"
+assert_no_kickstart 'observe fails before the kickstart'
+grep -qi 'could not be re-read before the restart' <<<"$SSH_RUN_ERR" ||
+  fail "observe fails before the kickstart: the refusal must name the failed re-read (stderr: $SSH_RUN_ERR)"
+grep -qi 'sshd was not touched' <<<"$SSH_RUN_ERR" ||
+  fail "observe fails before the kickstart: the refusal must say sshd was not touched (stderr: $SSH_RUN_ERR)"
+chmod -- 0644 "$INERT_DROPIN"
+
+# --- unreadable mid-run, after the kickstart ----------------------------------
+# Same branch at step 12, where the restart has already happened. The refusal
+# must therefore refuse the SUCCESS CLAIM, keep the recovery path, and never
+# claim sshd was left alone.
+
+run_reload_with_mutation 'ssh-keyscan *' 1 make-unreadable "$INERT_DROPIN"
+assert_mutation_fired 'observe fails after the kickstart'
+[[ $SSH_RUN_STATUS -ne 0 ]] ||
+  fail "observe fails after the kickstart: an unobservable tree must not produce a success (stdout: $SSH_RUN_OUT)"
+assert_kickstart_attempted 'observe fails after the kickstart'
+grep -qi 'could not be re-read afterwards' <<<"$SSH_RUN_ERR" ||
+  fail "observe fails after the kickstart: the failure must name the failed re-read (stderr: $SSH_RUN_ERR)"
+grep -qi 'nothing was rolled back' <<<"$SSH_RUN_ERR" ||
+  fail "observe fails after the kickstart: the failure must state that nothing was rolled back (stderr: $SSH_RUN_ERR)"
+refute_contains "$SSH_RUN_OUT" 'reload complete' \
+  'observe fails after the kickstart: no success line may be printed'
+refute_contains "$SSH_RUN_ERR" 'sshd was not touched' \
+  'observe fails after the kickstart: the kickstart already ran, so sshd was touched'
+chmod -- 0644 "$INERT_DROPIN"
+
+# --- an Include cycle refuses BEFORE anything is judged -----------------------
+# The walk's cycle guard is what stops a self-including tree from spinning. It
+# is reached at the FIRST observation, before the syntax check, so it must
+# refuse there with nothing disturbed.
+
+# The file name carries NO form of the word this case greps for: the refusal
+# interpolates the full path, so a fixture called 050-cycle.conf would satisfy
+# `grep -i cycle` whatever the message said.
+cycle_dropin="$SSHD_CONFIG_D/050-self.conf"
+printf 'Include %s\n' "$cycle_dropin" >"$cycle_dropin"
+run_ssh_reload --reload
+[[ $SSH_RUN_STATUS -ne 0 ]] ||
+  fail 'cycle: a self-including tree must refuse, not be walked forever or judged partially'
+assert_no_kickstart 'cycle'
+grep -qi 'cycle' <<<"$SSH_RUN_ERR" ||
+  fail "cycle: the refusal must name the cycle (stderr: $SSH_RUN_ERR)"
+rm -f "$cycle_dropin"
+
+# --- a tree wider than the bound refuses, and says so -------------------------
+# The width bound is the only observation failure with no second gate behind
+# it: an unreadable file and a cycle both fail the verify independently, a tree
+# of 100000 files does not. Raise the constant and nothing else in the suite
+# notices.
+
+bulk_dir_marker="$SSHD_CONFIG_D/900-bulk"
+bulk_index=0
+while [[ $bulk_index -lt 300 ]]; do
+  printf '# bulk %s\n' "$bulk_index" >"$bulk_dir_marker-$bulk_index.conf"
+  bulk_index=$((bulk_index + 1))
+done
+run_ssh_reload --reload
+[[ $SSH_RUN_STATUS -ne 0 ]] ||
+  fail 'width bound: a tree naming more files than the bound must refuse, not be walked in full'
+assert_no_kickstart 'width bound'
+grep -qi 'more than 512 files' <<<"$SSH_RUN_ERR" ||
+  fail "width bound: the refusal must name the bound it hit (stderr: $SSH_RUN_ERR)"
+grep -qi 'sshd was not touched' <<<"$SSH_RUN_ERR" ||
+  fail "width bound: the refusal must say sshd was not touched (stderr: $SSH_RUN_ERR)"
+bulk_index=0
+while [[ $bulk_index -lt 300 ]]; do
+  rm -f "$bulk_dir_marker-$bulk_index.conf"
+  bulk_index=$((bulk_index + 1))
+done
+
+# --- a tree bigger than the byte bound refuses, and says so -------------------
+# The file COUNT is the wrong axis on its own: the walk's cost is a per-
+# character bash tokenizer over every line, and one oversized file matched by
+# the stock `Include <dir>/*` is enough. Review measured 6.0 s per observation
+# at 1.1 MB and 45.8 s at 9.1 MB, three observations per reload, one of them
+# after the restart -- a silent stall exactly where the operator is watching for
+# a lockout. This file is a little over the bound, so the walk refuses partway
+# through it rather than reading it all.
+
+oversized_dropin="$SSHD_CONFIG_D/910-oversized.conf"
+: >"$oversized_dropin"
+oversized_line=0
+while [[ $oversized_line -lt 4200 ]]; do
+  printf '# %064d padding to take the tree past the byte bound\n' "$oversized_line" \
+    >>"$oversized_dropin"
+  oversized_line=$((oversized_line + 1))
+done
+run_ssh_reload --reload
+[[ $SSH_RUN_STATUS -ne 0 ]] ||
+  fail 'byte bound: a tree holding more bytes than the bound must refuse, not be read in full'
+assert_no_kickstart 'byte bound'
+grep -qi 'more than 262144 bytes' <<<"$SSH_RUN_ERR" ||
+  fail "byte bound: the refusal must name the bound it hit (stderr: $SSH_RUN_ERR)"
+grep -qi 'sshd was not touched' <<<"$SSH_RUN_ERR" ||
+  fail "byte bound: the refusal must say sshd was not touched (stderr: $SSH_RUN_ERR)"
+rm -f "$oversized_dropin"
+
+# --- a path the record format cannot carry refuses, by name -------------------
+# The record packs three fields into one line with a separator between them. A
+# file name containing that separator is legal on macOS, and it does not make
+# the record unreadable in a way anyone notices: it makes two DIFFERENT files
+# parse to the SAME path, so an untouched tree compares unequal to itself and
+# the reload refuses claiming the tree CHANGED. A false accusation is not a
+# fail-closed outcome, it is a wrong one; the honest answer names the file and
+# the reason.
+
+separator_a="$(printf '%s/013-a\037b.conf' "$SSHD_CONFIG_D")"
+separator_b="$(printf '%s/013-a\037c.conf' "$SSHD_CONFIG_D")"
+printf '# a path the record format cannot carry\n' >"$separator_a"
+printf '# a path the record format cannot carry\n' >"$separator_b"
+run_ssh_reload --reload
+[[ $SSH_RUN_STATUS -ne 0 ]] ||
+  fail 'separator: a path the record format cannot carry must refuse, not be silently mis-parsed'
+assert_no_kickstart 'separator'
+grep -qi 'cannot be recorded' <<<"$SSH_RUN_ERR" ||
+  fail "separator: the refusal must name the record format as the reason (stderr: $SSH_RUN_ERR)"
+refute_contains "$SSH_RUN_ERR" 'configuration tree CHANGED' \
+  'separator: an untouched tree must never be reported as changed'
+rm -f "$separator_a" "$separator_b"
+
+# The refusal above must be NARROW. A space is the character a naive record
+# format would have split on, it is legal and ordinary in a path, and refusing
+# it would block a tree nothing is wrong with.
+spaced_dropin="$SSHD_CONFIG_D/015 spaced name.conf"
+printf '# a drop-in whose name contains spaces\n' >"$spaced_dropin"
+run_ssh_reload --reload
+[[ $SSH_RUN_STATUS -eq 0 ]] ||
+  fail "spaced path: a path containing spaces is recordable and must still reload (stderr: $SSH_RUN_ERR)"
+assert_kickstart_attempted 'spaced path'
+rm -f "$spaced_dropin"
+
+# --- an Include pattern bash and sshd resolve differently refuses -------------
+# Bash negates a bracket introduced by '!' OR '^'; glob(3), which is what sshd
+# uses, negates on '!' only and reads a leading '^' as an ordinary member.
+# Measured on macOS 26.2 with OpenSSH 10.0p2: with a.conf and b.conf present,
+# `Include <dir>/[^a].conf` makes sshd read a.conf while bash matches b.conf.
+# Disjoint. A guard that watched b.conf while the daemon read a.conf would
+# report byte-for-byte stability over files nobody reads, so the pattern is
+# refused instead. If a future change makes the walk resolve this faithfully,
+# this case is the one that will say so.
+
+divergent_dir="$SSH_SANDBOX/divergent"
+mkdir -p "$divergent_dir"
+printf '# the file sshd reads under [^a]\n' >"$divergent_dir/a.conf"
+printf '# the file bash matches under [^a]\n' >"$divergent_dir/b.conf"
+divergent_dropin="$SSHD_CONFIG_D/014-divergent.conf"
+printf 'Include %s/[^a].conf\n' "$divergent_dir" >"$divergent_dropin"
+run_ssh_reload --reload
+[[ $SSH_RUN_STATUS -ne 0 ]] ||
+  fail 'divergent glob: an Include pattern bash and glob(3) resolve differently must refuse, not be walked at the wrong files'
+assert_no_kickstart 'divergent glob'
+grep -qi "bracket begins with" <<<"$SSH_RUN_ERR" ||
+  fail "divergent glob: the refusal must name the construct it cannot model (stderr: $SSH_RUN_ERR)"
+# --verify shares the one resolver, so it must refuse the same tree for the same
+# reason. A gate on the reload path alone would leave the Match scan silently
+# scanning a different set of files than sshd reads.
+run_ssh_hardening --verify
+[[ $SSH_RUN_STATUS -ne 0 ]] ||
+  fail 'divergent glob: --verify shares the resolver and must fail closed on the same pattern'
+grep -qi "bracket begins with" <<<"$SSH_RUN_ERR" ||
+  fail "divergent glob: --verify must name the same construct (stderr: $SSH_RUN_ERR)"
+rm -f "$divergent_dropin"
+rm -rf "$divergent_dir"
+
+# The neighbouring bracket forms must keep resolving. `[!^a]` negates the same
+# three members for bash and for glob(3), and `[\^a]` makes '^' a literal member
+# for both, so refusing either would be a false alarm that blocks a legitimate
+# tree.
+for divergent_probe in '[!^a].conf' '[\^a].conf' '[ab].conf'; do
+  printf 'Include %s/%s\n' "$SSH_SANDBOX/absent-directory" "$divergent_probe" \
+    >"$divergent_dropin"
+  run_ssh_reload --reload
+  [[ $SSH_RUN_STATUS -eq 0 ]] ||
+    fail "divergent glob: '$divergent_probe' resolves the same for bash and glob(3) and must not be refused (stderr: $SSH_RUN_ERR)"
+done
+rm -f "$divergent_dropin"
+
+# --- tooling: the observation's tools are SEAMS, not PATH lookups -------------
+# `stat -f '<format>'` is BSD syntax; GNU stat reads -f as "file system", exits
+# 1 and names the format string as a missing file. A Homebrew coreutils gnubin
+# ahead of /usr/bin therefore turns every reload on the machine into a refusal.
+# The two tools are resolved through named seams for exactly that reason, and
+# the pair of cases below is what says so: a broken seam refuses, a broken PATH
+# entry of the same name changes nothing.
 
 : >"$LAUNCHCTL_SPY_LOG"
-run_ssh_hardening_without cksum --reload
+broken_tool="$SSH_SANDBOX/broken-tool"
+printf '#!/bin/bash\nprintf %%s "broken tool stub" >&2\nexit 91\n' >"$broken_tool"
+chmod +x "$broken_tool"
+
+CKSUM_BIN="$broken_tool" run_ssh_reload --reload
 [[ $SSH_RUN_STATUS -ne 0 ]] ||
-  fail 'tooling: with no checksum tool the reload must refuse, not proceed unchecked'
-assert_no_kickstart 'tooling'
+  fail 'tooling: with no usable checksum tool the reload must refuse, not proceed unchecked'
+assert_no_kickstart 'tooling (cksum)'
 grep -qi 'sshd was not touched' <<<"$SSH_RUN_ERR" ||
-  fail "tooling: the refusal must say sshd was not touched (stderr: $SSH_RUN_ERR)"
+  fail "tooling (cksum): the refusal must say sshd was not touched (stderr: $SSH_RUN_ERR)"
+
+STAT_BIN="$broken_tool" run_ssh_reload --reload
+[[ $SSH_RUN_STATUS -ne 0 ]] ||
+  fail 'tooling: with no usable stat tool the reload must refuse, not proceed unchecked'
+assert_no_kickstart 'tooling (stat)'
+grep -qi 'sshd was not touched' <<<"$SSH_RUN_ERR" ||
+  fail "tooling (stat): the refusal must say sshd was not touched (stderr: $SSH_RUN_ERR)"
+
+# A file that passed the walk's regular-file test and is something else by the
+# time it is read cannot be staged from here: the swap has to land between one
+# stat and the open that follows it, inside a single observation, and the seams
+# only reach the gaps BETWEEN observations. What this case does pin is the
+# branch itself -- that a non-regular type coming back from stat is a refusal
+# and not a file to open -- because reading a named pipe never returns and a
+# hang after the kickstart is worse than the drift the guard exists to catch.
+type_stub="$SSH_SANDBOX/stat-says-fifo"
+printf '#!/bin/bash\nprintf "Fifo File\\037644 501 20\\n"\n' >"$type_stub"
+chmod +x "$type_stub"
+STAT_BIN="$type_stub" run_ssh_reload --reload
+[[ $SSH_RUN_STATUS -ne 0 ]] ||
+  fail 'tooling: a tree file that is no longer a regular file must refuse, never be opened'
+assert_no_kickstart 'tooling (non-regular type)'
+grep -qi 'Fifo File' <<<"$SSH_RUN_ERR" ||
+  fail "tooling (non-regular type): the refusal must name the type it found (stderr: $SSH_RUN_ERR)"
+grep -qi 'sshd was not touched' <<<"$SSH_RUN_ERR" ||
+  fail "tooling (non-regular type): the refusal must say sshd was not touched (stderr: $SSH_RUN_ERR)"
+
+run_ssh_hardening_without cksum --reload
+[[ $SSH_RUN_STATUS -eq 0 ]] ||
+  fail "tooling: a broken PATH entry named cksum must not reach the reload, which resolves its own tools (stderr: $SSH_RUN_ERR)"
+run_ssh_hardening_without stat --reload
+[[ $SSH_RUN_STATUS -eq 0 ]] ||
+  fail "tooling: a broken PATH entry named stat must not reach the reload, which resolves its own tools (stderr: $SSH_RUN_ERR)"
 
 # --- the mode still writes nothing -------------------------------------------
+# Judged over the WHOLE observed tree, not the drop-in directory alone: a
+# reload that appended a byte to the main config or to an out-of-tree Include
+# target left the drop-in directory untouched and passed.
 
 run_ssh_reload --reload
 [[ $SSH_RUN_STATUS -eq 0 ]] ||
   fail "final control: the tree must be back to a reloadable state (stderr: $SSH_RUN_ERR)"
 [[ "$(config_tree_fingerprint)" == "$baseline_fingerprint" ]] ||
   fail 'final control: --reload must still write nothing under the drop-in directory'
+[[ "$(observed_tree_fingerprint)" == "$baseline_observed_fingerprint" ]] ||
+  fail 'final control: --reload must write nothing anywhere in the tree it observes, including the main config and out-of-tree Include targets'
 
 printf 'ssh-hardening-reload-tree-drift: OK (every inter-step window refuses before the kickstart, the irreducible window refuses the success claim, and an unchanged tree still reloads)\n'
