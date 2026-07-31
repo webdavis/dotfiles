@@ -655,6 +655,15 @@ GEN_ROSTER_HASH=""          # sha256 of the snapshot at run start
 # validate ENTRY schemas: every npx entry carries a non-empty string `repo`,
 # every clawhub entry a non-empty string `slug` and `registry`. A malformed
 # entry is a required failure, never a silently skipped skill.
+#
+# `forks` (the drift-watch's whole input) is held to the same rule for the same
+# reason. Its walk is `jq '.forks|keys[]?'` with stderr discarded, so every
+# non-object shape watched zero upstreams and reported nothing; an ARRAY was
+# worse still, erroring mid-walk and aborting the weekly run after the
+# generation exchange had published and before the success stamp was written.
+# check_fork_drift carries its own tolerant guard for the modes that skip this
+# gate (--check-forks-only mutates nothing and keeps its no-op contract); this
+# one refuses a MUTATING run over a roster whose fork watch is degraded.
 __gen_roster_schema_ok() {
   jq -e '
     def object_or_absent($k): (has($k) | not) or (.[$k] | type == "object");
@@ -663,11 +672,17 @@ __gen_roster_schema_ok() {
     and object_or_absent("npxTracked")
     and object_or_absent("clawhubTracked")
     and object_or_absent("tiers")
+    and object_or_absent("forks")
     and ((.npxTracked // {}) | to_entries
       | all((.value | type == "object") and nonempty_string(.value.repo)))
     and ((.clawhubTracked // {}) | to_entries
       | all((.value | type == "object")
         and nonempty_string(.value.slug) and nonempty_string(.value.registry)))
+    and ((.forks // {}) | to_entries
+      | all((.value | type == "object")
+        and nonempty_string(.value.sourceUrl)
+        and nonempty_string(.value.skillPath)
+        and nonempty_string(.value.lastComparedTreeHash)))
   ' "$1" >/dev/null 2>&1
 }
 

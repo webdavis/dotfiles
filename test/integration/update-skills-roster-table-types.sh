@@ -211,4 +211,51 @@ rcD=$?
 set -e
 assert_fail_closed "case D (malformed clawhub entry)" "$rcD" "$outD"
 
+# --- Case E: the forks table is false (same coercion class as case A) ---------
+# The gate guarded npxTracked/clawhubTracked/tiers and omitted forks, the one
+# table whose walk is `jq '.forks|keys[]?'` with stderr discarded. Every
+# non-object shape there watched zero forks and reported nothing, and an ARRAY
+# additionally errored mid-walk, which under `set -e` aborts the weekly run
+# AFTER the generation exchange has published and BEFORE the success stamp is
+# written, so every remaining Monday slot redoes the whole update and dies at
+# the same line.
+reset_stamp
+cat >"$LOCK" <<'EOF'
+{
+  "version": 2,
+  "tiers": {"alpha": "core", "gamma": "core"},
+  "hermesProfiles": {},
+  "hermesRegistry": {},
+  "npxTracked": {"alpha": {"repo": "fixture/pack"}},
+  "clawhubTracked": {"gamma": {"slug": "@o/gamma", "registry": "https://c.example"}},
+  "forks": false
+}
+EOF
+set +e
+outE="$(run_full)"
+rcE=$?
+set -e
+assert_fail_closed "case E (forks false)" "$rcE" "$outE"
+
+# --- Case F: a forks ENTRY is missing every field it is walked by -------------
+# Entry validation matches the npx/clawhub rule: an entry the walk cannot use
+# is a malformed roster, never a silently unwatched fork.
+reset_stamp
+cat >"$LOCK" <<'EOF'
+{
+  "version": 2,
+  "tiers": {"alpha": "core", "gamma": "core"},
+  "hermesProfiles": {},
+  "hermesRegistry": {},
+  "npxTracked": {"alpha": {"repo": "fixture/pack"}},
+  "clawhubTracked": {"gamma": {"slug": "@o/gamma", "registry": "https://c.example"}},
+  "forks": {"delta": {}}
+}
+EOF
+set +e
+outF="$(run_full)"
+rcF=$?
+set -e
+assert_fail_closed "case F (malformed forks entry)" "$rcF" "$outF"
+
 echo "update-skills-roster-table-types: OK"
