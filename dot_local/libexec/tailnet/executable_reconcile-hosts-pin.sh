@@ -42,13 +42,27 @@
 # dropped, every other line (comments and blanks included) is copied through,
 # and the one correct record is appended.
 #
-# WHAT "COPIED THROUGH" DOES AND DOES NOT PROMISE. One departure from byte
-# fidelity, measured, and not optional: the FINAL line of a source with no
-# terminator gains one, and if it ended with a carriage return it loses that.
-# The terminator is required or the appended record would join onto it; the
-# carriage return goes because giving it back is what would break the line. THE
-# UNREAD CARRIAGE RETURN below is the whole story, and it is not a footnote:
-# leaving it cost the machine its localhost.
+# WHAT "COPIED THROUGH" DOES AND DOES NOT PROMISE. Two departures from byte
+# fidelity, both measured, neither of them optional:
+#
+#   - The FINAL line of a source with no terminator gains one, and if it ended
+#     with a carriage return it loses that. The terminator is required or the
+#     appended record would join onto it; the carriage return goes because
+#     giving it back is what would break the line. THE UNREAD CARRIAGE RETURN
+#     below is the whole story, and it is not a footnote: leaving it cost the
+#     machine its localhost.
+#   - A line carrying a NUL byte is written back with the NUL gone and the two
+#     halves joined, and nothing here can prevent that: kept lines live in shell
+#     variables, and bash `read` drops a NUL silently because no shell variable
+#     can hold one. Measured, "10.0.0.5<TAB>nas.home<NUL>junk" comes back as
+#     "10.0.0.5<TAB>nas.homejunk". Refusing such a file outright was weighed and
+#     not taken: measured with the resolver's own parser, `strlen` stops at the
+#     NUL, so `_fsi_get_line`'s chop lands on the byte BEFORE it and the record
+#     already read as naming "nas.hom" going in. Adding an abort path to a root
+#     script to protect a name nothing could resolve is the wrong trade, so the
+#     limit is stated here and pinned in LAYER 2j5 of the integration suite
+#     instead. If kept lines ever stop passing through shell variables, that
+#     assertion is where the promise can be widened.
 #
 # An installed file therefore always ends terminated, so the repair costs at
 # most one rebuild and the next run converges.
@@ -137,6 +151,17 @@
 #      loss: when it is a CARRIAGE RETURN the chop is what makes that line read
 #      correctly, which is why handing it back is the one thing the rebuild must
 #      not do there. See THE UNREAD CARRIAGE RETURN below.
+#
+#   5. A LINE LONGER THAN 4095 BYTES IS SEVERAL LINES TO THE RESOLVER, and this
+#      script reads it as one. `_fsi_get_line` calls `fgets(s, 4096, fp)`, so a
+#      longer line arrives in chunks and fact 4's chop then eats the last byte
+#      of EVERY chunk. Measured: a 4200-byte name parses as two records there
+#      and one line here. Nothing is done about it, and nothing can be while
+#      lines are read into shell variables; it is recorded because this section
+#      is where the divergences live and an unrecorded one gets rediscovered.
+#      The pin's own fields cannot reach that length (they are single columns
+#      from the YAML), so this bounds what the FILTER may misjudge on somebody
+#      else's line, not what this script writes.
 #
 # INSTALL is atomic: chmod/chown the temp file to the target's own mode and
 # owner, then rename it INTO the target path. mktemp creates the temp beside the

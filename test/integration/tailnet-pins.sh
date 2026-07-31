@@ -63,8 +63,9 @@
 # while an UNTERMINATED CRLF final line, the one shape whose CR the resolver
 # never reads, is read the way the resolver reads it, so a stale pin record
 # there is dropped and a localhost or third-party record there survives the
-# rebuild instead of being killed by it, and a field that is not one hosts
-# column is refused at the entry point too.
+# rebuild instead of being killed by it, a NUL in a kept line is documented
+# where it is lost rather than promised to survive, and a field that is not one
+# hosts column is refused at the entry point too.
 #
 # TWO INTERPRETERS. sudo on this machine has no secure_path, so the `bash` that
 # runs the deployed helper as root is whichever the invoking PATH resolves:
@@ -1312,6 +1313,30 @@ printf '127.0.0.1\tlocalhost\r\n%s\n' "$want1" >"$crlf_terminated_loopback_expec
 cmp -s "$crlf_terminated_loopback" "$crlf_terminated_loopback_expected" ||
   fail "a TERMINATED trailing-CR loopback line was not copied through byte for byte; got: $(diff "$crlf_terminated_loopback_expected" "$crlf_terminated_loopback" | head -8)"
 
+# ---------- LAYER 2j5: what "bytes unchanged" does NOT cover -----------------
+# The rebuild copies kept lines with `read`/`printf`, and bash `read` DISCARDS a
+# NUL byte silently: it cannot appear in a shell variable at all. So a kept line
+# carrying one is written back joined, and the reconciler's header may not claim
+# byte fidelity without saying so.
+#
+# Pinned rather than repaired, and the measurement is why. With Apple's parser:
+# `strlen` stops at the NUL, so `_fsi_get_line`'s chop lands on the byte BEFORE
+# it and the resolver reads "10.0.0.5<TAB>nas.hom" beforehand, a name nothing
+# uses; afterwards it reads "nas.homejunk". Both are junk, so refusing the whole
+# file would add an abort path to a root script in order to protect a record the
+# resolver already could not answer from. A NUL cannot be preserved while lines
+# live in shell variables, so the honest move is to state the limit and pin it
+# here, where a future faithful copier would turn this assertion red.
+nul_dir="$work/nul"
+mkdir -p "$nul_dir"
+nul_hosts="$nul_dir/hosts"
+printf '127.0.0.1\tlocalhost\n10.0.0.5\tnas.home\000junk\n' >"$nul_hosts"
+run_pin_capture "$nul_hosts" nul
+nul_expected="$work/nul-expected"
+printf '127.0.0.1\tlocalhost\n10.0.0.5\tnas.homejunk\n%s\n' "$want1" >"$nul_expected"
+cmp -s "$nul_hosts" "$nul_expected" ||
+  fail "a kept line carrying a NUL did not come through the rebuild as the documented joined line; the header's byte-fidelity limit needs re-measuring: got: $(diff "$nul_expected" "$nul_hosts" | head -8)"
+
 # ---------- LAYER 2p: LEGITIMATE pin shapes still render AND apply -----------
 # The false-positive direction for every refusal in this suite. Twelve fixtures
 # above assert that malformed pin data is refused, and each of them stays green
@@ -1586,4 +1611,4 @@ while IFS=$'\t' read -r fqdn ip short; do
     fail "pin short name '$short' is not the first label of '$fqdn'"
 done < <(yq eval '.macos.tailnet_pins[] | [.fqdn, .ip, .short] | @tsv' "$YAML")
 
-echo "tailnet-pins: OK (exact render per pin against the deployed reconciler, gated on its sha256; malformed, non-string and name-colliding pins refuse to render; the real reconciler converges, repairs an unterminated final line rather than reporting it converged, leaves TERMINATED CRLF records alone and converges over them while reading an UNTERMINATED final CRLF line the way the resolver does, so it drops a stale pin record there and keeps localhost and third-party names the terminator repair used to kill, refuses loudly, refuses an unreadable source and a self-satisfied loopback gate, accepts an indented loopback record and one that does not name localhost while still refusing an indented decoy, creates its temp beside the target, preserves the target's mode and owner, leaves no temp after any of the ${#actual_cleaned_up_signal_names[@]} signals it declares for cleanup under ${#INTERPRETERS[@]} interpreter(s), survives symlinks; uppercase, trailing-dot, underscored and IPv6 pins still render AND apply byte-exact, and the real data still renders one invocation per pin; hostile fields stay inert; $pin_count real pin(s) well-formed)"
+echo "tailnet-pins: OK (exact render per pin against the deployed reconciler, gated on its sha256; malformed, non-string and name-colliding pins refuse to render; the real reconciler converges, repairs an unterminated final line rather than reporting it converged, leaves TERMINATED CRLF records alone and converges over them while reading an UNTERMINATED final CRLF line the way the resolver does, so it drops a stale pin record there and keeps localhost and third-party names the terminator repair used to kill, loses a NUL exactly where the header says it does, refuses loudly, refuses an unreadable source and a self-satisfied loopback gate, accepts an indented loopback record and one that does not name localhost while still refusing an indented decoy, creates its temp beside the target, preserves the target's mode and owner, leaves no temp after any of the ${#actual_cleaned_up_signal_names[@]} signals it declares for cleanup under ${#INTERPRETERS[@]} interpreter(s), survives symlinks; uppercase, trailing-dot, underscored and IPv6 pins still render AND apply byte-exact, and the real data still renders one invocation per pin; hostile fields stay inert; $pin_count real pin(s) well-formed)"
