@@ -35,12 +35,26 @@
 #
 #   Cases 2 and 3 are the false-positive direction and carry the file: a guard
 #   that refuses everything passes every refusal case here and nothing else.
+#
+#   Cases 11 and 12 pin the guard's CALL SITE, which is a different claim from
+#   either boundary and was pinned by nothing. Calling the predicate directly
+#   proves the predicate; it says nothing about whether
+#   defaults_records_declared_count still consults it. Deleting the
+#   `declared_record_count_is_usable` call left every other case in this file
+#   green. What retiring the ten-megabyte fixture cost was exactly this, and the
+#   fixture is not the way to get it back: it WAS the vulnerability. A STUBBED
+#   yq buys the same wiring pin for nothing, by answering a healthy shape and an
+#   oversized count for a file that is neither.
 set -euo pipefail
 
 # The guard admits at most seven digits, so these are the largest count it
 # accepts and the smallest it refuses.
 readonly LARGEST_ACCEPTED_RECORD_COUNT=9999999
 readonly SMALLEST_REFUSED_RECORD_COUNT=10000000
+
+# The shape answer a stubbed yq gives so the wiring cases reach the count check:
+# a healthy record list, which is the only verdict that does not refuse first.
+readonly HEALTHY_SHAPE_ANSWER='seq !!seq'
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 LIB="$REPO_ROOT/dot_local/bin/macos-defaults-lib.sh"
@@ -79,6 +93,60 @@ trap 'rm -rf "$work"' EXIT
 
 # shellcheck source=/dev/null
 source "$LIB" >/dev/null 2>&1
+
+# ---- the stubbed-yq harness, for the call-site cases ------------------------
+# The stub keys on the library's OWN expression constants, passed in as
+# environment. It refuses anything it was not told to answer, so a library that
+# renames or reshapes an expression makes these cases fail loudly instead of
+# quietly stubbing a call nobody makes any more.
+mkdir -p "$work/stub-bin"
+cat >"$work/stub-bin/yq" <<'STUB'
+#!/usr/bin/env bash
+# A yq that answers two known expressions and nothing else. Invoked as
+# `yq eval -r <expression> <path>`, so the expression is the argument after -r.
+set -euo pipefail
+expression=""
+previous_argument=""
+for argument in "$@"; do
+  [[ $previous_argument == '-r' ]] && expression="$argument"
+  previous_argument="$argument"
+done
+case $expression in
+  "$STUB_YQ_SHAPE_EXPRESSION") printf '%s\n' "$STUB_YQ_SHAPE_ANSWER" ;;
+  "$STUB_YQ_COUNT_EXPRESSION") printf '%s\n' "$STUB_YQ_COUNT_ANSWER" ;;
+  *)
+    printf 'stub yq: asked an expression it was not told to answer: %q\n' "$expression" >&2
+    exit 3
+    ;;
+esac
+STUB
+chmod +x "$work/stub-bin/yq"
+
+# The file the stubbed cases are asked about. Its CONTENT is irrelevant to the
+# stub, but it must exist and carry no byte order mark: the mark predicate reads
+# real bytes with `head` and is not stubbed.
+printf 'macos:\n  defaults: []\n' >"$work/stubbed.yaml"
+
+# declared_count_with_stubbed_yq <shape-answer> <count-answer>, run
+# defaults_records_declared_count in a fresh shell whose yq is the stub, and set
+# stubbed_count_status / stubbed_count_output from it.
+#
+# A separate process rather than a PATH change in this one: bash caches resolved
+# command paths, so a stub that appears on PATH after the real yq has been run
+# may never be consulted, and a wiring pin that silently tested the real yq
+# would be worse than no pin at all.
+stubbed_count_status=0
+stubbed_count_output=""
+declared_count_with_stubbed_yq() { # <shape-answer> <count-answer>
+  stubbed_count_status=0
+  stubbed_count_output="$(
+    PATH="$work/stub-bin:$PATH" \
+      STUB_YQ_SHAPE_EXPRESSION="$DEFAULTS_RECORDS_SHAPE_EXPRESSION" \
+      STUB_YQ_COUNT_EXPRESSION="$DEFAULTS_RECORDS_COUNT_EXPRESSION" \
+      STUB_YQ_SHAPE_ANSWER="$1" STUB_YQ_COUNT_ANSWER="$2" \
+      bash -c 'source "$1"; defaults_records_declared_count "$2"' _ "$LIB" "$work/stubbed.yaml" 2>&1
+  )" || stubbed_count_status=$?
+}
 
 # ---- 1: a multi-document file is REFUSED -----------------------------------
 cat >"$work/multi.yaml" <<'EOF'
@@ -167,5 +235,31 @@ refute_count_accepted '-1' "a negative count"
 require_count_accepted '0' "a count of zero"
 require_count_accepted '1' "a count of one"
 
-printf 'macos-defaults-count-guard: OK (a multi-document file is refused and its unusable answer shown; the digit ceiling refuses %s and accepts %s; single and empty files still answer)\n' \
+# ---- 11: the CONTROL for the wiring cases ------------------------------------
+# The stub must be reached and its answers must be believed, or case 12 proves
+# nothing: a harness whose stub is never consulted refuses this file for some
+# unrelated reason and looks identical to a working one. Asserting the accepted
+# side FIRST, and asserting the count comes back byte for byte, is what
+# distinguishes "the stub answered" from "something said no".
+declared_count_with_stubbed_yq "$HEALTHY_SHAPE_ANSWER" "$LARGEST_ACCEPTED_RECORD_COUNT"
+[[ $stubbed_count_status -eq 0 ]] ||
+  fail "the stubbed-yq harness is broken: a healthy shape and an in-range count must be accepted, got status $stubbed_count_status ($stubbed_count_output)"
+[[ $stubbed_count_output == "$LARGEST_ACCEPTED_RECORD_COUNT" ]] ||
+  fail "the stubbed-yq harness is broken: expected the count $LARGEST_ACCEPTED_RECORD_COUNT to come back unchanged, got: $stubbed_count_output"
+
+# ---- 12: defaults_records_declared_count still CONSULTS the numeric guard ----
+# The wiring, pinned as its own claim. yq answers a perfectly healthy shape here,
+# so every other check in the function passes and the numeric guard is the only
+# thing standing between an oversized count and a caller that will use it as a
+# loop bound. Delete the `declared_record_count_is_usable` call and this is the
+# only case in the file that notices.
+declared_count_with_stubbed_yq "$HEALTHY_SHAPE_ANSWER" "$SMALLEST_REFUSED_RECORD_COUNT"
+[[ $stubbed_count_status -eq 2 ]] ||
+  fail "a healthy shape with an oversized count $SMALLEST_REFUSED_RECORD_COUNT must be refused with status 2, so the record count is never used as a loop bound; got status $stubbed_count_status ($stubbed_count_output)"
+printf '%s' "$stubbed_count_output" | grep -qF "$SMALLEST_REFUSED_RECORD_COUNT" ||
+  fail "the refusal does not carry the offending count, so an operator has nothing to look for: $stubbed_count_output"
+printf '%s' "$stubbed_count_output" | grep -qF 'unusable record count' ||
+  fail "the oversized count was refused by some other check, so this case does not pin the numeric guard's call site: $stubbed_count_output"
+
+printf 'macos-defaults-count-guard: OK (a multi-document file is refused and its unusable answer shown; the digit ceiling refuses %s and accepts %s; the whole function still consults the numeric guard; single and empty files still answer)\n' \
   "$SMALLEST_REFUSED_RECORD_COUNT" "$LARGEST_ACCEPTED_RECORD_COUNT"
