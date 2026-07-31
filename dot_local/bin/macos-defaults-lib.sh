@@ -188,43 +188,304 @@ defaults_records_locate_malformed() { # <path> <declared-count>
 # offending record, and emits NOTHING: a caller must not act on part of a stream
 # it has just been told is malformed. A legitimate multi-line preference value is
 # therefore refused loudly rather than silently corrupted.
+# The yq answers this reader keys on. They are protocol with another program,
+# not free text, which is why they are named here rather than spelled inline at
+# the one site that compares them: a yq release that renamed a node kind would
+# be a one-line change, and the name says which question is being asked.
+#
+# yq answers TWO questions about a node and NEITHER one answers this guard's
+# question alone. `kind` reports what the node IS after parsing; `tag` reports
+# its REPRESENTATION, which the document author writes. Each is defeated by
+# exactly the input the other catches, and both halves were measured against
+# yq v4.53.3 and chezmoi v2.71.1 rather than reasoned about:
+#
+#   A LYING TAG on a wrong-shaped node defeats `tag` alone. `!!seq` on a map
+#   leaves the node a map (kind map, tag !!seq) while a tag check reads !!seq
+#   and calls it a list.
+#
+#   A TRUTHFUL SHAPE wearing a wrong tag defeats `kind` alone. `!!str` on a
+#   real sequence leaves the node a sequence (kind seq, tag !!str) while a kind
+#   check reads seq and calls it a list. The runner template's Go YAML reader
+#   REFUSES that file with a parse error, so a kind-only check made this library
+#   the MORE PERMISSIVE of the two readers on eight measured tags
+#   (!!map !!str !!int !!bool !!float !!binary !!set !!timestamp), which is the
+#   exact asymmetry test/integration/macos-defaults-shape-agreement.sh exists to
+#   end and the mirror image of the hole a tag-only check left.
+#
+# So the accepted answer is the CONJUNCTION, and it is expressed as one: the
+# node must be a sequence AND its tag must say so. Every other pairing of the
+# two answers is refused. That closes the tag space by construction rather than
+# by listing the tags anybody happened to try, which matters because the tag
+# space is open: a document may write any application-specific tag it likes.
+#
+# The measured residual, stated rather than hidden. Six tag spellings on a real
+# sequence (!!omap, !!pairs, !!merge, a local !custom, an unknown !!foo, and a
+# verbatim URI tag) are RENDERED by the runner template and REFUSED here, so on
+# those this library is the STRICTER reader. That direction is a loud refusal
+# naming the file, never a silent misapplication, and buying agreement on them
+# would mean transcribing which tags one Go YAML release happens to decode as a
+# slice, which the next release could change without notice. Refusing what
+# cannot be proven common to both readers is the fail-closed choice.
+#
+# Plain assignment, not readonly, for the same reason as SYSTEM_READ_* further
+# down: this file is a library, and sourcing it twice must be a no-op.
+DEFAULTS_RECORDS_LIST_KIND='seq'
+DEFAULTS_RECORDS_LIST_TAG='!!seq'
+DEFAULTS_RECORDS_MAP_KIND='map'
+DEFAULTS_RECORDS_ABSENT_TAG='!!null'
+
+# The two yq expressions this reader asks the data file, named so the pair
+# always describes the SAME node, and the shape one kept beside the classifier
+# that parses it so their separator cannot drift apart.
+#
+# Neither carries a `// []` fallback, and that absence is the point. The
+# fallback substituted an empty list for a MISSING node, which made "this file
+# declares no record list" and "this file declares an empty one" the same
+# answer: a clean count of zero and an exit status of 0. One of those states is
+# an operator saying they track nothing; the rest are a file that lost its
+# records while the tools applied nothing and reported success. Without the
+# fallback a missing node arrives as `!!null` and gets its own verdict.
+DEFAULTS_RECORDS_SHAPE_EXPRESSION='.macos.defaults | [kind, tag] | join(" ")'
+DEFAULTS_RECORDS_COUNT_EXPRESSION='.macos.defaults | length'
+
+# records_declaration_verdict <shape-answer>, classify what the data file
+# declares at .macos.defaults. PURE: one string in, one verdict out, no file
+# access and no globals beyond the four yq answers named above.
+#
+#   list       a plain YAML sequence: kind seq AND tag !!seq. The whole accept
+#              set, and the only accepted verdict. An untagged sequence, an
+#              explicitly `!!seq`-tagged one, and one wearing the non-specific
+#              `!` tag all answer exactly this pair (measured), so the
+#              conjunction admits every legitimate spelling and nothing else.
+#   mistagged  a real sequence carrying any OTHER tag. Its own verdict rather
+#              than a fold into "other", because the operator's fix is specific
+#              (delete the tag) and differs from every other refusal here.
+#   map        a mapping, in any spelling, including one wearing a `!!seq` tag.
+#   absent     no node at all, or an explicitly null one. yq answers `!!null` to
+#              both, and they mean the same thing to an operator: the file
+#              declares no record list, and `defaults: []` declares an empty one.
+#   other      anything else, including a scalar, an empty answer (yq found no
+#              node to describe, which happens when `.macos` is not a mapping),
+#              and an answer yq spread over several lines (one per document in a
+#              multi-document file). Unrecognized resolves to a REFUSED verdict,
+#              never an accepted one, so a shape nobody anticipated cannot arrive
+#              as "list".
+records_declaration_verdict() { # <shape-answer>
+  local shape_answer="$1" node_kind node_tag
+  # Exactly one line of two space-separated fields is the only answer this
+  # classifier can read. Anything else, including yq's per-document answers
+  # separated by `---`, falls through to "other" rather than letting the first
+  # document answer for the whole file.
+  if [[ ! $shape_answer =~ ^([[:alpha:]]+)' '([^[:space:]]+)$ ]]; then
+    printf 'other\n'
+    return 0
+  fi
+  node_kind="${BASH_REMATCH[1]}"
+  node_tag="${BASH_REMATCH[2]}"
+  case $node_kind in
+    "$DEFAULTS_RECORDS_LIST_KIND")
+      # BOTH answers, or neither. A sequence whose tag names something else is
+      # still refused, because the runner template refuses several such files
+      # outright and this reader must never be the permissive one.
+      if [[ $node_tag == "$DEFAULTS_RECORDS_LIST_TAG" ]]; then
+        printf 'list\n'
+      else
+        printf 'mistagged\n'
+      fi
+      ;;
+    "$DEFAULTS_RECORDS_MAP_KIND") printf 'map\n' ;;
+    *)
+      if [[ $node_tag == "$DEFAULTS_RECORDS_ABSENT_TAG" ]]; then
+        printf 'absent\n'
+      else
+        printf 'other\n'
+      fi
+      ;;
+  esac
+}
+
+# A UTF-8 byte order mark, and its length in BYTES. The byte count is a named
+# constant rather than `${#UTF8_BYTE_ORDER_MARK}` because that expansion counts
+# CHARACTERS: the mark is three bytes but ONE character under a UTF-8 locale
+# (measured), so the obvious spelling would compare a single byte and call any
+# file starting with 0xEF a marked one.
+UTF8_BYTE_ORDER_MARK=$'\xef\xbb\xbf'
+UTF8_BYTE_ORDER_MARK_BYTE_COUNT=3
+
+# data_file_begins_with_byte_order_mark <path>, 0 when the file's first bytes
+# are a UTF-8 byte order mark, 1 otherwise. One input, one boolean answer, no
+# parsing.
+#
+# The mark is REFUSED by the caller rather than stripped, for two reasons that
+# are about the file's two readers rather than about tidiness. yq v4.53.3 strips
+# a document-start mark and reads the file normally; chezmoi v2.71.1, whose Go
+# YAML reader the runner template goes through, does NOT, and dies with `map has
+# no entry for key "macos"` (both measured). Stripping here would leave this
+# library happily reading a file that `chezmoi apply` refuses, which is the
+# asymmetry this guard exists to close. And a mark is legitimate content
+# anywhere but the first three bytes: one inside a record value survives into
+# that value, so there is no safe general strip to fall back on.
+#
+# WHY THE FIRST THREE BYTES ARE THE WHOLE OF THIS GUARD'S JOB, since "byte 0
+# only" reads like an arbitrary narrowing and is not one. The question this
+# predicate answers is not "does the file contain a mark", it is "is there a
+# mark the two readers TREAT DIFFERENTLY", and byte 0 is the only position where
+# they do. Measured on this yq and this chezmoi, dumping each reader's key list
+# rather than inferring it from whether the file was accepted:
+#
+#   at byte 0            yq strips it and answers the key `macos`; chezmoi keeps
+#                        it and cannot find `macos` at all. DIVERGENT, refused
+#                        here.
+#   anywhere else        NEITHER reader strips it. A mark before a key binds
+#                        into that key in BOTH, so yq answers the key
+#                        "<mark>killall" exactly as chezmoi does. The readers
+#                        AGREE, so there is nothing for this guard to close, and
+#                        the file is judged on the keys it actually has: a mark
+#                        that lands on `defaults` makes the record list absent
+#                        and is refused by the declaration verdict below, and
+#                        one inside a record value is legitimate content and is
+#                        preserved byte for byte.
+#
+# test/unit/macos-defaults-declaration-guard.sh pins that table from the reader
+# side, so a future yq that starts stripping a mid-file mark reopens a real
+# divergence and fails there instead of passing silently here.
+#
+# The limit this predicate does NOT cover, stated because it is adjacent enough
+# to look covered: it reads only `.macos.defaults`, so a mark bound into a
+# DIFFERENT key the runner template needs (`.macos.killall`) leaves this reader
+# accepting a file chezmoi refuses. That gap is not about marks at all, it is
+# the general one that any malformed sibling key produces, it predates this
+# guard, and it belongs to the two readers' disagreement over schema-invalid
+# shapes rather than here.
+#
+# An unreadable or absent file answers 1 here, the same as a clean one, because
+# a predicate that cannot read the bytes cannot claim to have found a mark. That
+# answer is NOT this guard's last word on such a file: measured on a mode-000
+# file and on a missing path, the caller's next step (the yq shape read) fails
+# and the file is refused with status 2 and a message naming it. The read's own
+# diagnostic is discarded rather than relayed, because it would name `head` for
+# a failure the caller is about to report against yq.
+data_file_begins_with_byte_order_mark() { # <path>
+  local leading_bytes
+  leading_bytes="$(LC_ALL=C head -c "$UTF8_BYTE_ORDER_MARK_BYTE_COUNT" -- "$1" 2>/dev/null)" || return 1
+  [[ $leading_bytes == "$UTF8_BYTE_ORDER_MARK" ]]
+}
+
+# declared_record_count_is_usable <count>, a PURE predicate: 0 when yq's answer
+# is a single plain non-negative integer this library can safely do arithmetic
+# on, 1 otherwise.
+#
+# The count drives both `((...))` loop bounds and the `-ne` comparison that
+# catches a forged record, so three separate shapes have to be refused, and the
+# comment matters because only one of them is reachable from today's producer.
+#
+# A NON-NUMERIC count and a LEADING ZERO (which bash reads as octal: $((0010))
+# is 8) are defence in depth. `length` on a sequence answers with an integer
+# node, and this predicate now runs only after the shape verdict is `list`, so
+# neither shape reaches it from this producer.
+#
+# What a MULTI-LINE count would do if it got past here is worth recording
+# correctly, because the obvious guess is wrong and an earlier version of this
+# comment asserted it: bash raises no syntax error. It reads the whole value as
+# ONE arithmetic expression and the `---` separator as a run of unary minus
+# signs, so $'1\n---\n0' evaluates to 1 and $'0\n---\n9' to -9 (measured, bash
+# 5.3.15). The `-ne` comparison would then answer on the DIFFERENCE of the
+# per-document counts, silently, and on $'1\n---\n0' it answers "no mismatch"
+# and emits the very stream it exists to reject. The shape check refuses a
+# multi-document file first, so this predicate is the second barrier there, not
+# the first.
+#
+# The SEVEN-DIGIT CEILING bounds a count no other check bounds. It is defence in
+# depth against this producer as well, and honestly so: a sequence's `length` is
+# its element count, so reaching eight digits needs ten million real records.
+# The route that made it cheap is closed, and closing it is why the ceiling now
+# has to be pinned by calling this predicate directly. An explicit `!!seq` on a
+# SCALAR used to satisfy the old tag-based shape check while yq's `length`
+# reported the scalar's length in BYTES, so a 10 MB file published a count of
+# 10000000 (measured, yq v4.53.3) and a 1 GB file a billion. That count is the
+# upper bound of the `defaults_records_locate_malformed` loop, which forks yq
+# per iteration (measured at about 11 ms each).
+#
+# Bounding by DIGIT COUNT rather than by comparison is deliberate: it refuses an
+# oversized value BEFORE any arithmetic touches it. A comparison has to evaluate
+# the value in order to reject it, and bash's integer arithmetic WRAPS without
+# complaint, so `^[0-9]+$` plus `-gt` ACCEPTS 18446744073709551616, which
+# evaluates to 0 (measured). The bound stays in the quantifier rather than in a
+# named constant because `^(0|[1-9][0-9]{0,N})$` is the form four other guards
+# in this repo already use, and naming it at this one site alone would leave
+# five spellings of one idiom.
+#
+# test/unit/macos-defaults-count-guard.sh pins both boundaries of the ceiling.
+declared_record_count_is_usable() { # <count>
+  [[ $1 =~ ^(0|[1-9][0-9]{0,6})$ ]]
+}
+
 defaults_records_declared_count() { # <path>, print the validated record count
   local data_file="$1"
-  local declared_record_count records_kind
-  if ! declared_record_count="$(yq eval -r '(.macos.defaults // []) | length' "$data_file")"; then
-    printf 'error: cannot count the records in %s\n' "$data_file" >&2
+  local shape_answer declaration_verdict declared_record_count
+  # The BYTES, before the parse. A document-start byte order mark is the one
+  # defect in this file that neither reader reports usefully: yq strips it and
+  # answers as if the file were clean, while the runner template's Go YAML
+  # reader keeps it bound into the first key and dies naming a key the operator
+  # can see perfectly well in their editor. Three invisible bytes are not
+  # something to leave an operator to find, and a reader that accepts a file its
+  # sibling refuses is the asymmetry this whole guard exists to close.
+  if data_file_begins_with_byte_order_mark "$data_file"; then
+    printf 'error: %s begins with a UTF-8 byte order mark; yq strips it and reads the file, but the runner template does not and cannot then find .macos at all, so the two readers disagree about this file; remove the first three bytes\n' \
+      "$data_file" >&2
     return 2
   fi
-  # The count is a STRING from yq, and it is about to drive both `((...))` loop
-  # bounds and the `-ne` comparison that catches a forged record. Bash arithmetic
-  # on a non-numeric string raises a syntax error and evaluates FALSE, so the
-  # comparison would fall through and emit the very stream it exists to reject.
-  # A multi-document file is the one input observed to produce a multi-line count,
-  # and it is caught earlier only because yq also prints a separator line that
-  # trips the field-count check. That is the guard holding by accident of another
-  # tool's output format, so bound it here by construction instead.
-  if [[ ! $declared_record_count =~ ^(0|[1-9][0-9]{0,6})$ ]]; then
-    printf 'error: %s produced an unusable record count %q; refusing to emit a stream that cannot be checked\n' \
-      "$data_file" "$declared_record_count" >&2
-    return 2
-  fi
-  # The SHAPE, before the content. `.macos.defaults[]` yields values from a map
-  # just as happily as from a list, and `length` counts a map's keys, so every
-  # check above passes on a map and the stream comes out in document order. The
-  # runner template reads the same file with Go's `range`, which iterates a map
-  # in sorted KEY order. Two readers, two orders, neither complaining, and order
-  # decides which write lands last when records share a domain and key.
+  # The SHAPE, before the count. `.macos.defaults[]` yields values from a map
+  # just as happily as from a list, and `length` counts a map's keys, so a map
+  # answers the count question without complaint and the stream comes out in
+  # document order. The runner template reads the same file with Go's `range`,
+  # which iterates a map in sorted KEY order. Two readers, two orders, neither
+  # complaining, and order decides which write lands last when records share a
+  # domain and key.
   #
   # Refused rather than reconciled: a map is not the declared schema, and
   # standardizing on one order would leave the other reader's agreement a
   # coincidence instead of a guarantee. The template refuses the same shape.
-  if ! records_kind="$(yq eval -r '(.macos.defaults // []) | tag' "$data_file")"; then
+  #
+  # Asking the shape FIRST is what lets the count check stop carrying shapes it
+  # was never the right guard for. A count is only meaningful once the node is
+  # known to be a list, and "declares .macos.defaults as a scalar" is a better
+  # thing to tell an operator than "unusable record count 10000000".
+  if ! shape_answer="$(yq eval -r "$DEFAULTS_RECORDS_SHAPE_EXPRESSION" "$data_file")"; then
     printf 'error: cannot determine the shape of .macos.defaults in %s\n' "$data_file" >&2
     return 2
   fi
-  if [[ $records_kind != '!!seq' ]]; then
-    printf 'error: %s declares .macos.defaults as %s, but it must be a LIST of records; a map is read in sorted key order by the runner template and in document order here, so the two would apply records in different orders\n' \
-      "$data_file" "$records_kind" >&2
+  declaration_verdict="$(records_declaration_verdict "$shape_answer")"
+  case $declaration_verdict in
+    list) ;;
+    mistagged)
+      printf 'error: %s tags .macos.defaults as %q; the record list is a real sequence, so only its TAG is wrong, and the only tag accepted on it is %s, because the runner template refuses several of the others with a parse error while this reader would take the records, so the two readers would disagree about whether this file has any settings at all; delete the tag\n' \
+        "$data_file" "${shape_answer#* }" "$DEFAULTS_RECORDS_LIST_TAG" >&2
+      return 2
+      ;;
+    map)
+      printf 'error: %s declares .macos.defaults as a map, but it must be a LIST of records; a map is read in sorted key order by the runner template and in document order here, so the two would apply records in different orders\n' \
+        "$data_file" >&2
+      return 2
+      ;;
+    absent)
+      printf 'error: %s declares no .macos.defaults record list, so every tracked setting would be silently skipped and the run would still report success; to track no records, declare an explicitly empty list, defaults: []\n' \
+        "$data_file" >&2
+      return 2
+      ;;
+    *)
+      printf 'error: %s does not declare .macos.defaults as a LIST of records; yq answered %q for its kind and tag\n' \
+        "$data_file" "$shape_answer" >&2
+      return 2
+      ;;
+  esac
+  if ! declared_record_count="$(yq eval -r "$DEFAULTS_RECORDS_COUNT_EXPRESSION" "$data_file")"; then
+    printf 'error: cannot count the records in %s\n' "$data_file" >&2
+    return 2
+  fi
+  if ! declared_record_count_is_usable "$declared_record_count"; then
+    printf 'error: %s produced an unusable record count %q; refusing to emit a stream that cannot be checked\n' \
+      "$data_file" "$declared_record_count" >&2
     return 2
   fi
   printf '%s\n' "$declared_record_count"
