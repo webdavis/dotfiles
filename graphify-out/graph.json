@@ -3696,10 +3696,52 @@
       "norm_label": "defaults_records_locate_malformed()"
     },
     {
+      "label": "records_declaration_verdict()",
+      "file_type": "code",
+      "source_file": "dot_local/bin/macos-defaults-lib.sh",
+      "source_location": "L273",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_bin_macos_defaults_lib_records_declaration_verdict",
+      "community": 351,
+      "norm_label": "records_declaration_verdict()"
+    },
+    {
+      "label": "data_file_begins_with_byte_order_mark()",
+      "file_type": "code",
+      "source_file": "dot_local/bin/macos-defaults-lib.sh",
+      "source_location": "L368",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_bin_macos_defaults_lib_data_file_begins_with_byte_order_mark",
+      "community": 351,
+      "norm_label": "data_file_begins_with_byte_order_mark()"
+    },
+    {
+      "label": "declared_record_count_is_usable()",
+      "file_type": "code",
+      "source_file": "dot_local/bin/macos-defaults-lib.sh",
+      "source_location": "L419",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_bin_macos_defaults_lib_declared_record_count_is_usable",
+      "community": 351,
+      "norm_label": "declared_record_count_is_usable()"
+    },
+    {
       "label": "defaults_records_declared_count()",
       "file_type": "code",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L191",
+      "source_location": "L423",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -3713,7 +3755,7 @@
       "label": "defaults_records_raw_stream()",
       "file_type": "code",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L236",
+      "source_location": "L497",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -3727,7 +3769,7 @@
       "label": "defaults_records_validate_stream()",
       "file_type": "code",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L253",
+      "source_location": "L514",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -3741,7 +3783,7 @@
       "label": "defaults_records_declare_a_value()",
       "file_type": "code",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L325",
+      "source_location": "L586",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -3755,7 +3797,7 @@
       "label": "defaults_records_unit_separated()",
       "file_type": "code",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L341",
+      "source_location": "L602",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -3769,7 +3811,7 @@
       "label": "validate_record_scope()",
       "file_type": "code",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L368",
+      "source_location": "L629",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -3783,7 +3825,7 @@
       "label": "validate_record_identity()",
       "file_type": "code",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L398",
+      "source_location": "L659",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -3797,7 +3839,7 @@
       "label": "validate_record_type()",
       "file_type": "code",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L429",
+      "source_location": "L690",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -3811,7 +3853,7 @@
       "label": "print_offending_record_reference()",
       "file_type": "code",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L447",
+      "source_location": "L708",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -3825,7 +3867,7 @@
       "label": "validate_system_domain()",
       "file_type": "code",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L464",
+      "source_location": "L725",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -3839,7 +3881,7 @@
       "label": "validate_explicit_plist_path()",
       "file_type": "code",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L497",
+      "source_location": "L758",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -3853,7 +3895,7 @@
       "label": "resolve_system_plist_path()",
       "file_type": "code",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L529",
+      "source_location": "L790",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -3867,7 +3909,7 @@
       "label": "require_system_plist_path_permitted()",
       "file_type": "code",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L558",
+      "source_location": "L819",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -3881,7 +3923,7 @@
       "label": "validate_defaults_record()",
       "file_type": "code",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L604",
+      "source_location": "L865",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -3895,7 +3937,7 @@
       "label": "system_defaults_write()",
       "file_type": "code",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L672",
+      "source_location": "L933",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -3909,7 +3951,7 @@
       "label": "system_defaults_read_actual()",
       "file_type": "code",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L703",
+      "source_location": "L964",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -12970,6 +13012,20 @@
       "id": "test_integration_macos_defaults_shape_agreement_library_stream",
       "community": 376,
       "norm_label": "library_stream()"
+    },
+    {
+      "label": "tagged_sequence_fixture()",
+      "file_type": "code",
+      "source_file": "test/integration/macos-defaults-shape-agreement.sh",
+      "source_location": "L187",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_integration_macos_defaults_shape_agreement_tagged_sequence_fixture",
+      "community": 376,
+      "norm_label": "tagged_sequence_fixture()"
     },
     {
       "label": "macos-defaults-source-path.sh",
@@ -23178,10 +23234,52 @@
       "norm_label": "macos-defaults-count-guard.sh script"
     },
     {
+      "label": "LARGEST_ACCEPTED_RECORD_COUNT",
+      "file_type": "code",
+      "source_file": "test/unit/macos-defaults-count-guard.sh",
+      "source_location": "L52",
+      "metadata": {
+        "language": "bash",
+        "kind": "code"
+      },
+      "_origin": "ast",
+      "id": "test_unit_macos_defaults_count_guard_largest_accepted_record_count",
+      "community": 416,
+      "norm_label": "largest_accepted_record_count"
+    },
+    {
+      "label": "SMALLEST_REFUSED_RECORD_COUNT",
+      "file_type": "code",
+      "source_file": "test/unit/macos-defaults-count-guard.sh",
+      "source_location": "L53",
+      "metadata": {
+        "language": "bash",
+        "kind": "code"
+      },
+      "_origin": "ast",
+      "id": "test_unit_macos_defaults_count_guard_smallest_refused_record_count",
+      "community": 416,
+      "norm_label": "smallest_refused_record_count"
+    },
+    {
+      "label": "HEALTHY_SHAPE_ANSWER",
+      "file_type": "code",
+      "source_file": "test/unit/macos-defaults-count-guard.sh",
+      "source_location": "L57",
+      "metadata": {
+        "language": "bash",
+        "kind": "code"
+      },
+      "_origin": "ast",
+      "id": "test_unit_macos_defaults_count_guard_healthy_shape_answer",
+      "community": 416,
+      "norm_label": "healthy_shape_answer"
+    },
+    {
       "label": "fail()",
       "file_type": "code",
       "source_file": "test/unit/macos-defaults-count-guard.sh",
-      "source_location": "L29",
+      "source_location": "L62",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -23190,6 +23288,258 @@
       "id": "test_unit_macos_defaults_count_guard_fail",
       "community": 416,
       "norm_label": "fail()"
+    },
+    {
+      "label": "require_count_accepted()",
+      "file_type": "code",
+      "source_file": "test/unit/macos-defaults-count-guard.sh",
+      "source_location": "L69",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_macos_defaults_count_guard_require_count_accepted",
+      "community": 416,
+      "norm_label": "require_count_accepted()"
+    },
+    {
+      "label": "refute_count_accepted()",
+      "file_type": "code",
+      "source_file": "test/unit/macos-defaults-count-guard.sh",
+      "source_location": "L81",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_macos_defaults_count_guard_refute_count_accepted",
+      "community": 416,
+      "norm_label": "refute_count_accepted()"
+    },
+    {
+      "label": "declared_count_with_stubbed_yq()",
+      "file_type": "code",
+      "source_file": "test/unit/macos-defaults-count-guard.sh",
+      "source_location": "L140",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_macos_defaults_count_guard_declared_count_with_stubbed_yq",
+      "community": 416,
+      "norm_label": "declared_count_with_stubbed_yq()"
+    },
+    {
+      "label": "macos-defaults-declaration-guard.sh",
+      "file_type": "code",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "test_unit_macos_defaults_declaration_guard",
+      "community": 422,
+      "norm_label": "macos-defaults-declaration-guard.sh"
+    },
+    {
+      "label": "macos-defaults-declaration-guard.sh script",
+      "file_type": "code",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "test_unit_macos_defaults_declaration_guard_sh__entry",
+      "community": 422,
+      "norm_label": "macos-defaults-declaration-guard.sh script"
+    },
+    {
+      "label": "fail()",
+      "file_type": "code",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L49",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_macos_defaults_declaration_guard_fail",
+      "community": 422,
+      "norm_label": "fail()"
+    },
+    {
+      "label": "SUPERSEDED_SHAPE_EXPRESSION",
+      "file_type": "code",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L56",
+      "metadata": {
+        "language": "bash",
+        "kind": "code"
+      },
+      "_origin": "ast",
+      "id": "test_unit_macos_defaults_declaration_guard_superseded_shape_expression",
+      "community": 422,
+      "norm_label": "superseded_shape_expression"
+    },
+    {
+      "label": "SUPERSEDED_COUNT_EXPRESSION",
+      "file_type": "code",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L57",
+      "metadata": {
+        "language": "bash",
+        "kind": "code"
+      },
+      "_origin": "ast",
+      "id": "test_unit_macos_defaults_declaration_guard_superseded_count_expression",
+      "community": 422,
+      "norm_label": "superseded_count_expression"
+    },
+    {
+      "label": "require_superseded_read_as_zero_records()",
+      "file_type": "code",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L66",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_macos_defaults_declaration_guard_require_superseded_read_as_zero_records",
+      "community": 422,
+      "norm_label": "require_superseded_read_as_zero_records()"
+    },
+    {
+      "label": "refute_declaration_accepted()",
+      "file_type": "code",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L83",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_macos_defaults_declaration_guard_refute_declaration_accepted",
+      "community": 422,
+      "norm_label": "refute_declaration_accepted()"
+    },
+    {
+      "label": "require_names_the_empty_list_spelling()",
+      "file_type": "code",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L94",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_macos_defaults_declaration_guard_require_names_the_empty_list_spelling",
+      "community": 422,
+      "norm_label": "require_names_the_empty_list_spelling()"
+    },
+    {
+      "label": "require_declaration_accepted()",
+      "file_type": "code",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L102",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_macos_defaults_declaration_guard_require_declaration_accepted",
+      "community": 422,
+      "norm_label": "require_declaration_accepted()"
+    },
+    {
+      "label": "require_verdict()",
+      "file_type": "code",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L113",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_macos_defaults_declaration_guard_require_verdict",
+      "community": 422,
+      "norm_label": "require_verdict()"
+    },
+    {
+      "label": "require_byte_order_mark_detected()",
+      "file_type": "code",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L125",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_macos_defaults_declaration_guard_require_byte_order_mark_detected",
+      "community": 422,
+      "norm_label": "require_byte_order_mark_detected()"
+    },
+    {
+      "label": "refute_byte_order_mark_detected()",
+      "file_type": "code",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L130",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_macos_defaults_declaration_guard_refute_byte_order_mark_detected",
+      "community": 422,
+      "norm_label": "refute_byte_order_mark_detected()"
+    },
+    {
+      "label": "require_unreadable_path_refused()",
+      "file_type": "code",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L142",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_macos_defaults_declaration_guard_require_unreadable_path_refused",
+      "community": 422,
+      "norm_label": "require_unreadable_path_refused()"
+    },
+    {
+      "label": "require_yq_strips_byte_order_mark()",
+      "file_type": "code",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L158",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_macos_defaults_declaration_guard_require_yq_strips_byte_order_mark",
+      "community": 422,
+      "norm_label": "require_yq_strips_byte_order_mark()"
+    },
+    {
+      "label": "refute_yq_strips_byte_order_mark()",
+      "file_type": "code",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L169",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_macos_defaults_declaration_guard_refute_yq_strips_byte_order_mark",
+      "community": 422,
+      "norm_label": "refute_yq_strips_byte_order_mark()"
     },
     {
       "label": "macos-defaults-record-validation.sh",
@@ -23372,6 +23722,202 @@
       "id": "test_unit_macos_defaults_scope_read_write_defaults_read_stub",
       "community": 373,
       "norm_label": "write_defaults_read_stub()"
+    },
+    {
+      "label": "macos-defaults-shape-guard.sh",
+      "file_type": "code",
+      "source_file": "test/unit/macos-defaults-shape-guard.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "test_unit_macos_defaults_shape_guard",
+      "community": 419,
+      "norm_label": "macos-defaults-shape-guard.sh"
+    },
+    {
+      "label": "macos-defaults-shape-guard.sh script",
+      "file_type": "code",
+      "source_file": "test/unit/macos-defaults-shape-guard.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "test_unit_macos_defaults_shape_guard_sh__entry",
+      "community": 419,
+      "norm_label": "macos-defaults-shape-guard.sh script"
+    },
+    {
+      "label": "fail()",
+      "file_type": "code",
+      "source_file": "test/unit/macos-defaults-shape-guard.sh",
+      "source_location": "L59",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_macos_defaults_shape_guard_fail",
+      "community": 419,
+      "norm_label": "fail()"
+    },
+    {
+      "label": "SUPERSEDED_TAG_ONLY_EXPRESSION",
+      "file_type": "code",
+      "source_file": "test/unit/macos-defaults-shape-guard.sh",
+      "source_location": "L68",
+      "metadata": {
+        "language": "bash",
+        "kind": "code"
+      },
+      "_origin": "ast",
+      "id": "test_unit_macos_defaults_shape_guard_superseded_tag_only_expression",
+      "community": 419,
+      "norm_label": "superseded_tag_only_expression"
+    },
+    {
+      "label": "SUPERSEDED_KIND_ONLY_EXPRESSION",
+      "file_type": "code",
+      "source_file": "test/unit/macos-defaults-shape-guard.sh",
+      "source_location": "L69",
+      "metadata": {
+        "language": "bash",
+        "kind": "code"
+      },
+      "_origin": "ast",
+      "id": "test_unit_macos_defaults_shape_guard_superseded_kind_only_expression",
+      "community": 419,
+      "norm_label": "superseded_kind_only_expression"
+    },
+    {
+      "label": "MISTAGGED_SEQUENCE_TAGS",
+      "file_type": "code",
+      "source_file": "test/unit/macos-defaults-shape-guard.sh",
+      "source_location": "L87",
+      "metadata": {
+        "language": "bash",
+        "kind": "code"
+      },
+      "_origin": "ast",
+      "id": "test_unit_macos_defaults_shape_guard_mistagged_sequence_tags",
+      "community": 419,
+      "norm_label": "mistagged_sequence_tags"
+    },
+    {
+      "label": "PLAIN_SEQUENCE_TAGS",
+      "file_type": "code",
+      "source_file": "test/unit/macos-defaults-shape-guard.sh",
+      "source_location": "L95",
+      "metadata": {
+        "language": "bash",
+        "kind": "code"
+      },
+      "_origin": "ast",
+      "id": "test_unit_macos_defaults_shape_guard_plain_sequence_tags",
+      "community": 419,
+      "norm_label": "plain_sequence_tags"
+    },
+    {
+      "label": "require_superseded_tag_check_satisfied()",
+      "file_type": "code",
+      "source_file": "test/unit/macos-defaults-shape-guard.sh",
+      "source_location": "L99",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_macos_defaults_shape_guard_require_superseded_tag_check_satisfied",
+      "community": 419,
+      "norm_label": "require_superseded_tag_check_satisfied()"
+    },
+    {
+      "label": "require_superseded_kind_check_satisfied()",
+      "file_type": "code",
+      "source_file": "test/unit/macos-defaults-shape-guard.sh",
+      "source_location": "L111",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_macos_defaults_shape_guard_require_superseded_kind_check_satisfied",
+      "community": 419,
+      "norm_label": "require_superseded_kind_check_satisfied()"
+    },
+    {
+      "label": "refute_shape_accepted()",
+      "file_type": "code",
+      "source_file": "test/unit/macos-defaults-shape-guard.sh",
+      "source_location": "L126",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_macos_defaults_shape_guard_refute_shape_accepted",
+      "community": 419,
+      "norm_label": "refute_shape_accepted()"
+    },
+    {
+      "label": "refute_output_contains()",
+      "file_type": "code",
+      "source_file": "test/unit/macos-defaults-shape-guard.sh",
+      "source_location": "L141",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_macos_defaults_shape_guard_refute_output_contains",
+      "community": 419,
+      "norm_label": "refute_output_contains()"
+    },
+    {
+      "label": "require_shape_accepted()",
+      "file_type": "code",
+      "source_file": "test/unit/macos-defaults-shape-guard.sh",
+      "source_location": "L150",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_macos_defaults_shape_guard_require_shape_accepted",
+      "community": 419,
+      "norm_label": "require_shape_accepted()"
+    },
+    {
+      "label": "require_verdict()",
+      "file_type": "code",
+      "source_file": "test/unit/macos-defaults-shape-guard.sh",
+      "source_location": "L166",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_macos_defaults_shape_guard_require_verdict",
+      "community": 419,
+      "norm_label": "require_verdict()"
+    },
+    {
+      "label": "write_record_list()",
+      "file_type": "code",
+      "source_file": "test/unit/macos-defaults-shape-guard.sh",
+      "source_location": "L175",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_macos_defaults_shape_guard_write_record_list",
+      "community": 419,
+      "norm_label": "write_record_list()"
     },
     {
       "label": "macos-defaults-source-path-propagation.sh",
@@ -27281,7 +27827,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L7",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_claude_md",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_claude_md",
       "community": 323,
       "norm_label": "claude.md"
     },
@@ -27291,7 +27837,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L11",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_what_this_is",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_what_this_is",
       "community": 323,
       "norm_label": "what this is"
     },
@@ -27301,7 +27847,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L18",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_key_commands",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_key_commands",
       "community": 323,
       "norm_label": "key commands"
     },
@@ -27311,7 +27857,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L20",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_linting_formatting",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_linting_formatting",
       "community": 323,
       "norm_label": "linting & formatting"
     },
@@ -27321,7 +27867,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L46",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_testing",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_testing",
       "community": 323,
       "norm_label": "testing"
     },
@@ -27331,7 +27877,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L86",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_chezmoi_operations",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_chezmoi_operations",
       "community": 323,
       "norm_label": "chezmoi operations"
     },
@@ -27341,7 +27887,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L114",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_claude_code_settings",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_claude_code_settings",
       "community": 323,
       "norm_label": "claude code settings"
     },
@@ -27351,7 +27897,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L147",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_git_hooks",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_git_hooks",
       "community": 323,
       "norm_label": "git hooks"
     },
@@ -27361,7 +27907,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L214",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_architecture",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_architecture",
       "community": 323,
       "norm_label": "architecture"
     },
@@ -27371,7 +27917,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L216",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_source_only_files",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_source_only_files",
       "community": 323,
       "norm_label": "source-only files"
     },
@@ -27381,7 +27927,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L224",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_minimum_chezmoi_version",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_minimum_chezmoi_version",
       "community": 323,
       "norm_label": "minimum chezmoi version"
     },
@@ -27391,7 +27937,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L228",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_secrets_management",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_secrets_management",
       "community": 323,
       "norm_label": "secrets management"
     },
@@ -27401,7 +27947,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L235",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_system_package_management",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_system_package_management",
       "community": 323,
       "norm_label": "system package management"
     },
@@ -27411,7 +27957,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L260",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_macos_defaults_management",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_macos_defaults_management",
       "community": 323,
       "norm_label": "macos defaults management"
     },
@@ -27421,7 +27967,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L305",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_template_files",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_template_files",
       "community": 323,
       "norm_label": "template files"
     },
@@ -27431,7 +27977,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L311",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_template_shellcheck_workaround",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_template_shellcheck_workaround",
       "community": 323,
       "norm_label": "template shellcheck workaround"
     },
@@ -27441,7 +27987,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L332",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_os_targeting",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_os_targeting",
       "community": 323,
       "norm_label": "os targeting"
     },
@@ -27451,7 +27997,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L337",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_dev_environment_nix_flake",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_dev_environment_nix_flake",
       "community": 323,
       "norm_label": "dev environment (nix flake)"
     },
@@ -27461,7 +28007,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L348",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_ci",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_ci",
       "community": 323,
       "norm_label": "ci"
     },
@@ -27471,7 +28017,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L358",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_agent_skills_cross_harness_store",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_agent_skills_cross_harness_store",
       "community": 323,
       "norm_label": "agent skills (cross-harness store)"
     },
@@ -27481,7 +28027,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L528",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_herdr_workspace_management",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_herdr_workspace_management",
       "community": 323,
       "norm_label": "herdr workspace management"
     },
@@ -27491,7 +28037,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L548",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_git_worktrees_worktrunk",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_git_worktrees_worktrunk",
       "community": 323,
       "norm_label": "git worktrees (worktrunk)"
     },
@@ -27501,7 +28047,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L555",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_bashrc_init_ordering",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_bashrc_init_ordering",
       "community": 323,
       "norm_label": "bashrc init ordering"
     },
@@ -27511,7 +28057,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L563",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_shell_history_atuin",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_shell_history_atuin",
       "community": 323,
       "norm_label": "shell history (atuin)"
     },
@@ -27521,7 +28067,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L592",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_happy_daemon_remote_agent_control",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_happy_daemon_remote_agent_control",
       "community": 323,
       "norm_label": "happy daemon (remote agent control)"
     },
@@ -27531,7 +28077,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L619",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_tailscale_headless_daemon",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_tailscale_headless_daemon",
       "community": 323,
       "norm_label": "tailscale (headless daemon)"
     },
@@ -27541,7 +28087,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L656",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_ai_commit_messages",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_ai_commit_messages",
       "community": 323,
       "norm_label": "ai commit messages"
     },
@@ -27551,7 +28097,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L669",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_long_running_command_notifier",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_long_running_command_notifier",
       "community": 323,
       "norm_label": "long-running command notifier"
     },
@@ -27561,7 +28107,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L675",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_herdr_native_status",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_herdr_native_status",
       "community": 323,
       "norm_label": "herdr native status"
     },
@@ -27571,7 +28117,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L681",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_code_style",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_code_style",
       "community": 323,
       "norm_label": "code style"
     },
@@ -27581,7 +28127,7 @@
       "source_file": "AGENTS.md",
       "source_location": "L707",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_git_commits",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_git_commits",
       "community": 323,
       "norm_label": "git commits"
     },
@@ -27591,338 +28137,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L714",
       "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_security",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_security",
       "community": 323,
-      "norm_label": "security"
-    },
-    {
-      "label": "CLAUDE.md",
-      "file_type": "document",
-      "source_file": "CLAUDE.md",
-      "source_location": "L1",
-      "_origin": "ast",
-      "id": "claude",
-      "community": 419,
-      "norm_label": "claude.md"
-    },
-    {
-      "label": "CLAUDE.md",
-      "file_type": "document",
-      "source_file": "CLAUDE.md",
-      "source_location": "L7",
-      "_origin": "ast",
-      "id": "claude_claude_md",
-      "community": 419,
-      "norm_label": "claude.md"
-    },
-    {
-      "label": "What This Is",
-      "file_type": "document",
-      "source_file": "CLAUDE.md",
-      "source_location": "L11",
-      "_origin": "ast",
-      "id": "claude_what_this_is",
-      "community": 419,
-      "norm_label": "what this is"
-    },
-    {
-      "label": "Key Commands",
-      "file_type": "document",
-      "source_file": "CLAUDE.md",
-      "source_location": "L18",
-      "_origin": "ast",
-      "id": "claude_key_commands",
-      "community": 419,
-      "norm_label": "key commands"
-    },
-    {
-      "label": "Linting & Formatting",
-      "file_type": "document",
-      "source_file": "CLAUDE.md",
-      "source_location": "L20",
-      "_origin": "ast",
-      "id": "claude_linting_formatting",
-      "community": 419,
-      "norm_label": "linting & formatting"
-    },
-    {
-      "label": "Testing",
-      "file_type": "document",
-      "source_file": "CLAUDE.md",
-      "source_location": "L46",
-      "_origin": "ast",
-      "id": "claude_testing",
-      "community": 419,
-      "norm_label": "testing"
-    },
-    {
-      "label": "Chezmoi Operations",
-      "file_type": "document",
-      "source_file": "CLAUDE.md",
-      "source_location": "L86",
-      "_origin": "ast",
-      "id": "claude_chezmoi_operations",
-      "community": 419,
-      "norm_label": "chezmoi operations"
-    },
-    {
-      "label": "Claude Code Settings",
-      "file_type": "document",
-      "source_file": "CLAUDE.md",
-      "source_location": "L114",
-      "_origin": "ast",
-      "id": "claude_claude_code_settings",
-      "community": 419,
-      "norm_label": "claude code settings"
-    },
-    {
-      "label": "Git Hooks",
-      "file_type": "document",
-      "source_file": "CLAUDE.md",
-      "source_location": "L147",
-      "_origin": "ast",
-      "id": "claude_git_hooks",
-      "community": 419,
-      "norm_label": "git hooks"
-    },
-    {
-      "label": "Architecture",
-      "file_type": "document",
-      "source_file": "CLAUDE.md",
-      "source_location": "L214",
-      "_origin": "ast",
-      "id": "claude_architecture",
-      "community": 419,
-      "norm_label": "architecture"
-    },
-    {
-      "label": "Source-Only Files",
-      "file_type": "document",
-      "source_file": "CLAUDE.md",
-      "source_location": "L216",
-      "_origin": "ast",
-      "id": "claude_source_only_files",
-      "community": 419,
-      "norm_label": "source-only files"
-    },
-    {
-      "label": "Minimum Chezmoi Version",
-      "file_type": "document",
-      "source_file": "CLAUDE.md",
-      "source_location": "L224",
-      "_origin": "ast",
-      "id": "claude_minimum_chezmoi_version",
-      "community": 419,
-      "norm_label": "minimum chezmoi version"
-    },
-    {
-      "label": "Secrets Management",
-      "file_type": "document",
-      "source_file": "CLAUDE.md",
-      "source_location": "L228",
-      "_origin": "ast",
-      "id": "claude_secrets_management",
-      "community": 419,
-      "norm_label": "secrets management"
-    },
-    {
-      "label": "System Package Management",
-      "file_type": "document",
-      "source_file": "CLAUDE.md",
-      "source_location": "L235",
-      "_origin": "ast",
-      "id": "claude_system_package_management",
-      "community": 419,
-      "norm_label": "system package management"
-    },
-    {
-      "label": "macOS Defaults Management",
-      "file_type": "document",
-      "source_file": "CLAUDE.md",
-      "source_location": "L260",
-      "_origin": "ast",
-      "id": "claude_macos_defaults_management",
-      "community": 419,
-      "norm_label": "macos defaults management"
-    },
-    {
-      "label": "Template Files",
-      "file_type": "document",
-      "source_file": "CLAUDE.md",
-      "source_location": "L305",
-      "_origin": "ast",
-      "id": "claude_template_files",
-      "community": 419,
-      "norm_label": "template files"
-    },
-    {
-      "label": "Template Shellcheck Workaround",
-      "file_type": "document",
-      "source_file": "CLAUDE.md",
-      "source_location": "L311",
-      "_origin": "ast",
-      "id": "claude_template_shellcheck_workaround",
-      "community": 419,
-      "norm_label": "template shellcheck workaround"
-    },
-    {
-      "label": "OS Targeting",
-      "file_type": "document",
-      "source_file": "CLAUDE.md",
-      "source_location": "L332",
-      "_origin": "ast",
-      "id": "claude_os_targeting",
-      "community": 419,
-      "norm_label": "os targeting"
-    },
-    {
-      "label": "Dev Environment (Nix Flake)",
-      "file_type": "document",
-      "source_file": "CLAUDE.md",
-      "source_location": "L337",
-      "_origin": "ast",
-      "id": "claude_dev_environment_nix_flake",
-      "community": 419,
-      "norm_label": "dev environment (nix flake)"
-    },
-    {
-      "label": "CI",
-      "file_type": "document",
-      "source_file": "CLAUDE.md",
-      "source_location": "L348",
-      "_origin": "ast",
-      "id": "claude_ci",
-      "community": 419,
-      "norm_label": "ci"
-    },
-    {
-      "label": "Agent Skills (cross-harness store)",
-      "file_type": "document",
-      "source_file": "CLAUDE.md",
-      "source_location": "L358",
-      "_origin": "ast",
-      "id": "claude_agent_skills_cross_harness_store",
-      "community": 419,
-      "norm_label": "agent skills (cross-harness store)"
-    },
-    {
-      "label": "Herdr Workspace Management",
-      "file_type": "document",
-      "source_file": "CLAUDE.md",
-      "source_location": "L528",
-      "_origin": "ast",
-      "id": "claude_herdr_workspace_management",
-      "community": 419,
-      "norm_label": "herdr workspace management"
-    },
-    {
-      "label": "Git Worktrees (Worktrunk)",
-      "file_type": "document",
-      "source_file": "CLAUDE.md",
-      "source_location": "L548",
-      "_origin": "ast",
-      "id": "claude_git_worktrees_worktrunk",
-      "community": 419,
-      "norm_label": "git worktrees (worktrunk)"
-    },
-    {
-      "label": "Bashrc Init Ordering",
-      "file_type": "document",
-      "source_file": "CLAUDE.md",
-      "source_location": "L555",
-      "_origin": "ast",
-      "id": "claude_bashrc_init_ordering",
-      "community": 419,
-      "norm_label": "bashrc init ordering"
-    },
-    {
-      "label": "Shell History (Atuin)",
-      "file_type": "document",
-      "source_file": "CLAUDE.md",
-      "source_location": "L563",
-      "_origin": "ast",
-      "id": "claude_shell_history_atuin",
-      "community": 419,
-      "norm_label": "shell history (atuin)"
-    },
-    {
-      "label": "Happy Daemon (Remote Agent Control)",
-      "file_type": "document",
-      "source_file": "CLAUDE.md",
-      "source_location": "L592",
-      "_origin": "ast",
-      "id": "claude_happy_daemon_remote_agent_control",
-      "community": 419,
-      "norm_label": "happy daemon (remote agent control)"
-    },
-    {
-      "label": "Tailscale (headless daemon)",
-      "file_type": "document",
-      "source_file": "CLAUDE.md",
-      "source_location": "L619",
-      "_origin": "ast",
-      "id": "claude_tailscale_headless_daemon",
-      "community": 419,
-      "norm_label": "tailscale (headless daemon)"
-    },
-    {
-      "label": "AI Commit Messages",
-      "file_type": "document",
-      "source_file": "CLAUDE.md",
-      "source_location": "L656",
-      "_origin": "ast",
-      "id": "claude_ai_commit_messages",
-      "community": 419,
-      "norm_label": "ai commit messages"
-    },
-    {
-      "label": "Long-running Command Notifier",
-      "file_type": "document",
-      "source_file": "CLAUDE.md",
-      "source_location": "L669",
-      "_origin": "ast",
-      "id": "claude_long_running_command_notifier",
-      "community": 419,
-      "norm_label": "long-running command notifier"
-    },
-    {
-      "label": "Herdr Native Status",
-      "file_type": "document",
-      "source_file": "CLAUDE.md",
-      "source_location": "L675",
-      "_origin": "ast",
-      "id": "claude_herdr_native_status",
-      "community": 419,
-      "norm_label": "herdr native status"
-    },
-    {
-      "label": "Code Style",
-      "file_type": "document",
-      "source_file": "CLAUDE.md",
-      "source_location": "L681",
-      "_origin": "ast",
-      "id": "claude_code_style",
-      "community": 419,
-      "norm_label": "code style"
-    },
-    {
-      "label": "Git Commits",
-      "file_type": "document",
-      "source_file": "CLAUDE.md",
-      "source_location": "L707",
-      "_origin": "ast",
-      "id": "claude_git_commits",
-      "community": 419,
-      "norm_label": "git commits"
-    },
-    {
-      "label": "Security",
-      "file_type": "document",
-      "source_file": "CLAUDE.md",
-      "source_location": "L714",
-      "_origin": "ast",
-      "id": "claude_security",
-      "community": 419,
       "norm_label": "security"
     },
     {
@@ -52405,7 +52621,27 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L325",
+      "source_location": "L368",
+      "weight": 1.0,
+      "source": "dot_local_bin_macos_defaults_lib",
+      "target": "dot_local_bin_macos_defaults_lib_data_file_begins_with_byte_order_mark",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/macos-defaults-lib.sh",
+      "source_location": "L419",
+      "weight": 1.0,
+      "source": "dot_local_bin_macos_defaults_lib",
+      "target": "dot_local_bin_macos_defaults_lib_declared_record_count_is_usable",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/macos-defaults-lib.sh",
+      "source_location": "L586",
       "weight": 1.0,
       "source": "dot_local_bin_macos_defaults_lib",
       "target": "dot_local_bin_macos_defaults_lib_defaults_records_declare_a_value",
@@ -52415,7 +52651,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L191",
+      "source_location": "L423",
       "weight": 1.0,
       "source": "dot_local_bin_macos_defaults_lib",
       "target": "dot_local_bin_macos_defaults_lib_defaults_records_declared_count",
@@ -52455,7 +52691,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L236",
+      "source_location": "L497",
       "weight": 1.0,
       "source": "dot_local_bin_macos_defaults_lib",
       "target": "dot_local_bin_macos_defaults_lib_defaults_records_raw_stream",
@@ -52465,7 +52701,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L341",
+      "source_location": "L602",
       "weight": 1.0,
       "source": "dot_local_bin_macos_defaults_lib",
       "target": "dot_local_bin_macos_defaults_lib_defaults_records_unit_separated",
@@ -52475,7 +52711,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L253",
+      "source_location": "L514",
       "weight": 1.0,
       "source": "dot_local_bin_macos_defaults_lib",
       "target": "dot_local_bin_macos_defaults_lib_defaults_records_validate_stream",
@@ -52495,10 +52731,20 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L447",
+      "source_location": "L708",
       "weight": 1.0,
       "source": "dot_local_bin_macos_defaults_lib",
       "target": "dot_local_bin_macos_defaults_lib_print_offending_record_reference",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/macos-defaults-lib.sh",
+      "source_location": "L273",
+      "weight": 1.0,
+      "source": "dot_local_bin_macos_defaults_lib",
+      "target": "dot_local_bin_macos_defaults_lib_records_declaration_verdict",
       "confidence_score": 1.0
     },
     {
@@ -52515,7 +52761,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L558",
+      "source_location": "L819",
       "weight": 1.0,
       "source": "dot_local_bin_macos_defaults_lib",
       "target": "dot_local_bin_macos_defaults_lib_require_system_plist_path_permitted",
@@ -52535,7 +52781,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L529",
+      "source_location": "L790",
       "weight": 1.0,
       "source": "dot_local_bin_macos_defaults_lib",
       "target": "dot_local_bin_macos_defaults_lib_resolve_system_plist_path",
@@ -52555,7 +52801,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L703",
+      "source_location": "L964",
       "weight": 1.0,
       "source": "dot_local_bin_macos_defaults_lib",
       "target": "dot_local_bin_macos_defaults_lib_system_defaults_read_actual",
@@ -52565,7 +52811,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L672",
+      "source_location": "L933",
       "weight": 1.0,
       "source": "dot_local_bin_macos_defaults_lib",
       "target": "dot_local_bin_macos_defaults_lib_system_defaults_write",
@@ -52575,7 +52821,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L604",
+      "source_location": "L865",
       "weight": 1.0,
       "source": "dot_local_bin_macos_defaults_lib",
       "target": "dot_local_bin_macos_defaults_lib_validate_defaults_record",
@@ -52585,7 +52831,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L497",
+      "source_location": "L758",
       "weight": 1.0,
       "source": "dot_local_bin_macos_defaults_lib",
       "target": "dot_local_bin_macos_defaults_lib_validate_explicit_plist_path",
@@ -52595,7 +52841,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L398",
+      "source_location": "L659",
       "weight": 1.0,
       "source": "dot_local_bin_macos_defaults_lib",
       "target": "dot_local_bin_macos_defaults_lib_validate_record_identity",
@@ -52605,7 +52851,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L368",
+      "source_location": "L629",
       "weight": 1.0,
       "source": "dot_local_bin_macos_defaults_lib",
       "target": "dot_local_bin_macos_defaults_lib_validate_record_scope",
@@ -52615,7 +52861,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L429",
+      "source_location": "L690",
       "weight": 1.0,
       "source": "dot_local_bin_macos_defaults_lib",
       "target": "dot_local_bin_macos_defaults_lib_validate_record_type",
@@ -52625,7 +52871,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L464",
+      "source_location": "L725",
       "weight": 1.0,
       "source": "dot_local_bin_macos_defaults_lib",
       "target": "dot_local_bin_macos_defaults_lib_validate_system_domain",
@@ -52635,7 +52881,29 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L346",
+      "source_location": "L433",
+      "weight": 1.0,
+      "context": "call",
+      "source": "dot_local_bin_macos_defaults_lib_defaults_records_declared_count",
+      "target": "dot_local_bin_macos_defaults_lib_data_file_begins_with_byte_order_mark",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/macos-defaults-lib.sh",
+      "source_location": "L486",
+      "weight": 1.0,
+      "context": "call",
+      "source": "dot_local_bin_macos_defaults_lib_defaults_records_declared_count",
+      "target": "dot_local_bin_macos_defaults_lib_declared_record_count_is_usable",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/macos-defaults-lib.sh",
+      "source_location": "L607",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_macos_defaults_lib_defaults_records_unit_separated",
@@ -52646,7 +52914,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L290",
+      "source_location": "L551",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_macos_defaults_lib_defaults_records_validate_stream",
@@ -52657,7 +52925,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L347",
+      "source_location": "L608",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_macos_defaults_lib_defaults_records_unit_separated",
@@ -52668,7 +52936,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L625",
+      "source_location": "L886",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_macos_defaults_lib_validate_defaults_record",
@@ -52679,7 +52947,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L611",
+      "source_location": "L872",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_macos_defaults_lib_validate_defaults_record",
@@ -52690,7 +52958,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L624",
+      "source_location": "L885",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_macos_defaults_lib_validate_defaults_record",
@@ -52701,7 +52969,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L626",
+      "source_location": "L887",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_macos_defaults_lib_validate_defaults_record",
@@ -52712,7 +52980,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L531",
+      "source_location": "L792",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_macos_defaults_lib_resolve_system_plist_path",
@@ -52723,7 +52991,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L536",
+      "source_location": "L797",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_macos_defaults_lib_resolve_system_plist_path",
@@ -52734,7 +53002,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/macos-defaults-lib.sh",
-      "source_location": "L630",
+      "source_location": "L891",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_macos_defaults_lib_validate_defaults_record",
@@ -62229,6 +62497,16 @@
       "confidence_score": 1.0
     },
     {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/macos-defaults-shape-agreement.sh",
+      "source_location": "L187",
+      "weight": 1.0,
+      "source": "test_integration_macos_defaults_shape_agreement",
+      "target": "test_integration_macos_defaults_shape_agreement_tagged_sequence_fixture",
+      "confidence_score": 1.0
+    },
+    {
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/macos-defaults-shape-agreement.sh",
@@ -62236,6 +62514,28 @@
       "weight": 1.0,
       "context": "call",
       "source": "test_integration_macos_defaults_shape_agreement_sh__entry",
+      "target": "test_integration_macos_defaults_shape_agreement_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/macos-defaults-shape-agreement.sh",
+      "source_location": "L199",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_integration_macos_defaults_shape_agreement_sh__entry",
+      "target": "test_integration_macos_defaults_shape_agreement_tagged_sequence_fixture",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/macos-defaults-shape-agreement.sh",
+      "source_location": "L195",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_integration_macos_defaults_shape_agreement_tagged_sequence_fixture",
       "target": "test_integration_macos_defaults_shape_agreement_fail",
       "confidence_score": 1.0
     },
@@ -73303,10 +73603,60 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/macos-defaults-count-guard.sh",
-      "source_location": "L29",
+      "source_location": "L140",
+      "weight": 1.0,
+      "source": "test_unit_macos_defaults_count_guard",
+      "target": "test_unit_macos_defaults_count_guard_declared_count_with_stubbed_yq",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-count-guard.sh",
+      "source_location": "L62",
       "weight": 1.0,
       "source": "test_unit_macos_defaults_count_guard",
       "target": "test_unit_macos_defaults_count_guard_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-count-guard.sh",
+      "source_location": "L57",
+      "weight": 1.0,
+      "source": "test_unit_macos_defaults_count_guard",
+      "target": "test_unit_macos_defaults_count_guard_healthy_shape_answer",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-count-guard.sh",
+      "source_location": "L52",
+      "weight": 1.0,
+      "source": "test_unit_macos_defaults_count_guard",
+      "target": "test_unit_macos_defaults_count_guard_largest_accepted_record_count",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-count-guard.sh",
+      "source_location": "L81",
+      "weight": 1.0,
+      "source": "test_unit_macos_defaults_count_guard",
+      "target": "test_unit_macos_defaults_count_guard_refute_count_accepted",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-count-guard.sh",
+      "source_location": "L69",
+      "weight": 1.0,
+      "source": "test_unit_macos_defaults_count_guard",
+      "target": "test_unit_macos_defaults_count_guard_require_count_accepted",
       "confidence_score": 1.0
     },
     {
@@ -73320,14 +73670,439 @@
       "confidence_score": 1.0
     },
     {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-count-guard.sh",
+      "source_location": "L53",
+      "weight": 1.0,
+      "source": "test_unit_macos_defaults_count_guard",
+      "target": "test_unit_macos_defaults_count_guard_smallest_refused_record_count",
+      "confidence_score": 1.0
+    },
+    {
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/macos-defaults-count-guard.sh",
-      "source_location": "L34",
+      "source_location": "L244",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_defaults_count_guard_sh__entry",
+      "target": "test_unit_macos_defaults_count_guard_declared_count_with_stubbed_yq",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-count-guard.sh",
+      "source_location": "L88",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_macos_defaults_count_guard_sh__entry",
       "target": "test_unit_macos_defaults_count_guard_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-count-guard.sh",
+      "source_location": "L196",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_defaults_count_guard_sh__entry",
+      "target": "test_unit_macos_defaults_count_guard_refute_count_accepted",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-count-guard.sh",
+      "source_location": "L202",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_defaults_count_guard_sh__entry",
+      "target": "test_unit_macos_defaults_count_guard_require_count_accepted",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-count-guard.sh",
+      "source_location": "L84",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_defaults_count_guard_refute_count_accepted",
+      "target": "test_unit_macos_defaults_count_guard_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-count-guard.sh",
+      "source_location": "L72",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_defaults_count_guard_require_count_accepted",
+      "target": "test_unit_macos_defaults_count_guard_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L49",
+      "weight": 1.0,
+      "source": "test_unit_macos_defaults_declaration_guard",
+      "target": "test_unit_macos_defaults_declaration_guard_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L130",
+      "weight": 1.0,
+      "source": "test_unit_macos_defaults_declaration_guard",
+      "target": "test_unit_macos_defaults_declaration_guard_refute_byte_order_mark_detected",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L83",
+      "weight": 1.0,
+      "source": "test_unit_macos_defaults_declaration_guard",
+      "target": "test_unit_macos_defaults_declaration_guard_refute_declaration_accepted",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L169",
+      "weight": 1.0,
+      "source": "test_unit_macos_defaults_declaration_guard",
+      "target": "test_unit_macos_defaults_declaration_guard_refute_yq_strips_byte_order_mark",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L125",
+      "weight": 1.0,
+      "source": "test_unit_macos_defaults_declaration_guard",
+      "target": "test_unit_macos_defaults_declaration_guard_require_byte_order_mark_detected",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L102",
+      "weight": 1.0,
+      "source": "test_unit_macos_defaults_declaration_guard",
+      "target": "test_unit_macos_defaults_declaration_guard_require_declaration_accepted",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L94",
+      "weight": 1.0,
+      "source": "test_unit_macos_defaults_declaration_guard",
+      "target": "test_unit_macos_defaults_declaration_guard_require_names_the_empty_list_spelling",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L66",
+      "weight": 1.0,
+      "source": "test_unit_macos_defaults_declaration_guard",
+      "target": "test_unit_macos_defaults_declaration_guard_require_superseded_read_as_zero_records",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L142",
+      "weight": 1.0,
+      "source": "test_unit_macos_defaults_declaration_guard",
+      "target": "test_unit_macos_defaults_declaration_guard_require_unreadable_path_refused",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L113",
+      "weight": 1.0,
+      "source": "test_unit_macos_defaults_declaration_guard",
+      "target": "test_unit_macos_defaults_declaration_guard_require_verdict",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L158",
+      "weight": 1.0,
+      "source": "test_unit_macos_defaults_declaration_guard",
+      "target": "test_unit_macos_defaults_declaration_guard_require_yq_strips_byte_order_mark",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "test_unit_macos_defaults_declaration_guard",
+      "target": "test_unit_macos_defaults_declaration_guard_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L57",
+      "weight": 1.0,
+      "source": "test_unit_macos_defaults_declaration_guard",
+      "target": "test_unit_macos_defaults_declaration_guard_superseded_count_expression",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L56",
+      "weight": 1.0,
+      "source": "test_unit_macos_defaults_declaration_guard",
+      "target": "test_unit_macos_defaults_declaration_guard_superseded_shape_expression",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L181",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_defaults_declaration_guard_sh__entry",
+      "target": "test_unit_macos_defaults_declaration_guard_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L279",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_defaults_declaration_guard_sh__entry",
+      "target": "test_unit_macos_defaults_declaration_guard_refute_byte_order_mark_detected",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L332",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_defaults_declaration_guard_sh__entry",
+      "target": "test_unit_macos_defaults_declaration_guard_refute_yq_strips_byte_order_mark",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L278",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_defaults_declaration_guard_sh__entry",
+      "target": "test_unit_macos_defaults_declaration_guard_require_byte_order_mark_detected",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L199",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_defaults_declaration_guard_sh__entry",
+      "target": "test_unit_macos_defaults_declaration_guard_require_declaration_accepted",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L224",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_defaults_declaration_guard_sh__entry",
+      "target": "test_unit_macos_defaults_declaration_guard_require_names_the_empty_list_spelling",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L220",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_defaults_declaration_guard_sh__entry",
+      "target": "test_unit_macos_defaults_declaration_guard_require_superseded_read_as_zero_records",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L308",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_defaults_declaration_guard_sh__entry",
+      "target": "test_unit_macos_defaults_declaration_guard_require_unreadable_path_refused",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L269",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_defaults_declaration_guard_sh__entry",
+      "target": "test_unit_macos_defaults_declaration_guard_require_verdict",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L329",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_defaults_declaration_guard_sh__entry",
+      "target": "test_unit_macos_defaults_declaration_guard_require_yq_strips_byte_order_mark",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L132",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_defaults_declaration_guard_refute_byte_order_mark_detected",
+      "target": "test_unit_macos_defaults_declaration_guard_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L87",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_defaults_declaration_guard_refute_declaration_accepted",
+      "target": "test_unit_macos_defaults_declaration_guard_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L172",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_defaults_declaration_guard_refute_yq_strips_byte_order_mark",
+      "target": "test_unit_macos_defaults_declaration_guard_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L127",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_defaults_declaration_guard_require_byte_order_mark_detected",
+      "target": "test_unit_macos_defaults_declaration_guard_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L106",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_defaults_declaration_guard_require_declaration_accepted",
+      "target": "test_unit_macos_defaults_declaration_guard_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L97",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_defaults_declaration_guard_require_names_the_empty_list_spelling",
+      "target": "test_unit_macos_defaults_declaration_guard_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L69",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_defaults_declaration_guard_require_superseded_read_as_zero_records",
+      "target": "test_unit_macos_defaults_declaration_guard_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L146",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_defaults_declaration_guard_require_unreadable_path_refused",
+      "target": "test_unit_macos_defaults_declaration_guard_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L117",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_defaults_declaration_guard_require_verdict",
+      "target": "test_unit_macos_defaults_declaration_guard_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-declaration-guard.sh",
+      "source_location": "L161",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_defaults_declaration_guard_require_yq_strips_byte_order_mark",
+      "target": "test_unit_macos_defaults_declaration_guard_fail",
       "confidence_score": 1.0
     },
     {
@@ -73559,6 +74334,279 @@
       "context": "call",
       "source": "test_unit_macos_defaults_scope_read_reject_resolved_path",
       "target": "test_unit_macos_defaults_scope_read_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-shape-guard.sh",
+      "source_location": "L59",
+      "weight": 1.0,
+      "source": "test_unit_macos_defaults_shape_guard",
+      "target": "test_unit_macos_defaults_shape_guard_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-shape-guard.sh",
+      "source_location": "L87",
+      "weight": 1.0,
+      "source": "test_unit_macos_defaults_shape_guard",
+      "target": "test_unit_macos_defaults_shape_guard_mistagged_sequence_tags",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-shape-guard.sh",
+      "source_location": "L95",
+      "weight": 1.0,
+      "source": "test_unit_macos_defaults_shape_guard",
+      "target": "test_unit_macos_defaults_shape_guard_plain_sequence_tags",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-shape-guard.sh",
+      "source_location": "L141",
+      "weight": 1.0,
+      "source": "test_unit_macos_defaults_shape_guard",
+      "target": "test_unit_macos_defaults_shape_guard_refute_output_contains",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-shape-guard.sh",
+      "source_location": "L126",
+      "weight": 1.0,
+      "source": "test_unit_macos_defaults_shape_guard",
+      "target": "test_unit_macos_defaults_shape_guard_refute_shape_accepted",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-shape-guard.sh",
+      "source_location": "L150",
+      "weight": 1.0,
+      "source": "test_unit_macos_defaults_shape_guard",
+      "target": "test_unit_macos_defaults_shape_guard_require_shape_accepted",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-shape-guard.sh",
+      "source_location": "L111",
+      "weight": 1.0,
+      "source": "test_unit_macos_defaults_shape_guard",
+      "target": "test_unit_macos_defaults_shape_guard_require_superseded_kind_check_satisfied",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-shape-guard.sh",
+      "source_location": "L99",
+      "weight": 1.0,
+      "source": "test_unit_macos_defaults_shape_guard",
+      "target": "test_unit_macos_defaults_shape_guard_require_superseded_tag_check_satisfied",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-shape-guard.sh",
+      "source_location": "L166",
+      "weight": 1.0,
+      "source": "test_unit_macos_defaults_shape_guard",
+      "target": "test_unit_macos_defaults_shape_guard_require_verdict",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-shape-guard.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "test_unit_macos_defaults_shape_guard",
+      "target": "test_unit_macos_defaults_shape_guard_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-shape-guard.sh",
+      "source_location": "L69",
+      "weight": 1.0,
+      "source": "test_unit_macos_defaults_shape_guard",
+      "target": "test_unit_macos_defaults_shape_guard_superseded_kind_only_expression",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-shape-guard.sh",
+      "source_location": "L68",
+      "weight": 1.0,
+      "source": "test_unit_macos_defaults_shape_guard",
+      "target": "test_unit_macos_defaults_shape_guard_superseded_tag_only_expression",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-shape-guard.sh",
+      "source_location": "L175",
+      "weight": 1.0,
+      "source": "test_unit_macos_defaults_shape_guard",
+      "target": "test_unit_macos_defaults_shape_guard_write_record_list",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-shape-guard.sh",
+      "source_location": "L180",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_defaults_shape_guard_sh__entry",
+      "target": "test_unit_macos_defaults_shape_guard_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-shape-guard.sh",
+      "source_location": "L250",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_defaults_shape_guard_sh__entry",
+      "target": "test_unit_macos_defaults_shape_guard_refute_output_contains",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-shape-guard.sh",
+      "source_location": "L194",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_defaults_shape_guard_sh__entry",
+      "target": "test_unit_macos_defaults_shape_guard_require_shape_accepted",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-shape-guard.sh",
+      "source_location": "L261",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_defaults_shape_guard_sh__entry",
+      "target": "test_unit_macos_defaults_shape_guard_require_superseded_kind_check_satisfied",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-shape-guard.sh",
+      "source_location": "L216",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_defaults_shape_guard_sh__entry",
+      "target": "test_unit_macos_defaults_shape_guard_require_superseded_tag_check_satisfied",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-shape-guard.sh",
+      "source_location": "L275",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_defaults_shape_guard_sh__entry",
+      "target": "test_unit_macos_defaults_shape_guard_require_verdict",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-shape-guard.sh",
+      "source_location": "L193",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_defaults_shape_guard_sh__entry",
+      "target": "test_unit_macos_defaults_shape_guard_write_record_list",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-shape-guard.sh",
+      "source_location": "L144",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_defaults_shape_guard_refute_output_contains",
+      "target": "test_unit_macos_defaults_shape_guard_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-shape-guard.sh",
+      "source_location": "L130",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_defaults_shape_guard_refute_shape_accepted",
+      "target": "test_unit_macos_defaults_shape_guard_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-shape-guard.sh",
+      "source_location": "L154",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_defaults_shape_guard_require_shape_accepted",
+      "target": "test_unit_macos_defaults_shape_guard_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-shape-guard.sh",
+      "source_location": "L114",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_defaults_shape_guard_require_superseded_kind_check_satisfied",
+      "target": "test_unit_macos_defaults_shape_guard_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-shape-guard.sh",
+      "source_location": "L102",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_defaults_shape_guard_require_superseded_tag_check_satisfied",
+      "target": "test_unit_macos_defaults_shape_guard_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/macos-defaults-shape-guard.sh",
+      "source_location": "L170",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_macos_defaults_shape_guard_require_verdict",
+      "target": "test_unit_macos_defaults_shape_guard_fail",
       "confidence_score": 1.0
     },
     {
@@ -77817,7 +78865,7 @@
       "source_location": "L7",
       "weight": 1.0,
       "source": "agents",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_claude_md",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_claude_md",
       "confidence_score": 1.0
     },
     {
@@ -77826,8 +78874,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L214",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_claude_md",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_architecture",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_claude_md",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_architecture",
       "confidence_score": 1.0
     },
     {
@@ -77836,8 +78884,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L681",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_claude_md",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_code_style",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_claude_md",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_code_style",
       "confidence_score": 1.0
     },
     {
@@ -77846,8 +78894,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L707",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_claude_md",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_git_commits",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_claude_md",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_git_commits",
       "confidence_score": 1.0
     },
     {
@@ -77856,8 +78904,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L18",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_claude_md",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_key_commands",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_claude_md",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_key_commands",
       "confidence_score": 1.0
     },
     {
@@ -77866,8 +78914,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L714",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_claude_md",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_security",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_claude_md",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_security",
       "confidence_score": 1.0
     },
     {
@@ -77876,8 +78924,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L11",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_claude_md",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_what_this_is",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_claude_md",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_what_this_is",
       "confidence_score": 1.0
     },
     {
@@ -77886,8 +78934,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L86",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_key_commands",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_chezmoi_operations",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_key_commands",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_chezmoi_operations",
       "confidence_score": 1.0
     },
     {
@@ -77896,8 +78944,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L114",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_key_commands",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_claude_code_settings",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_key_commands",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_claude_code_settings",
       "confidence_score": 1.0
     },
     {
@@ -77906,8 +78954,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L147",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_key_commands",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_git_hooks",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_key_commands",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_git_hooks",
       "confidence_score": 1.0
     },
     {
@@ -77916,8 +78964,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L20",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_key_commands",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_linting_formatting",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_key_commands",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_linting_formatting",
       "confidence_score": 1.0
     },
     {
@@ -77926,8 +78974,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L46",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_key_commands",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_testing",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_key_commands",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_testing",
       "confidence_score": 1.0
     },
     {
@@ -77936,8 +78984,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L358",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_agent_skills_cross_harness_store",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_agent_skills_cross_harness_store",
       "confidence_score": 1.0
     },
     {
@@ -77946,8 +78994,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L656",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_ai_commit_messages",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_ai_commit_messages",
       "confidence_score": 1.0
     },
     {
@@ -77956,8 +79004,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L555",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_bashrc_init_ordering",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_bashrc_init_ordering",
       "confidence_score": 1.0
     },
     {
@@ -77966,8 +79014,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L348",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_ci",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_ci",
       "confidence_score": 1.0
     },
     {
@@ -77976,8 +79024,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L337",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_dev_environment_nix_flake",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_dev_environment_nix_flake",
       "confidence_score": 1.0
     },
     {
@@ -77986,8 +79034,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L548",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_git_worktrees_worktrunk",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_git_worktrees_worktrunk",
       "confidence_score": 1.0
     },
     {
@@ -77996,8 +79044,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L592",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_happy_daemon_remote_agent_control",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_happy_daemon_remote_agent_control",
       "confidence_score": 1.0
     },
     {
@@ -78006,8 +79054,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L675",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_herdr_native_status",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_herdr_native_status",
       "confidence_score": 1.0
     },
     {
@@ -78016,8 +79064,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L528",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_herdr_workspace_management",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_herdr_workspace_management",
       "confidence_score": 1.0
     },
     {
@@ -78026,8 +79074,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L669",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_long_running_command_notifier",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_long_running_command_notifier",
       "confidence_score": 1.0
     },
     {
@@ -78036,8 +79084,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L260",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_macos_defaults_management",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_macos_defaults_management",
       "confidence_score": 1.0
     },
     {
@@ -78046,8 +79094,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L224",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_minimum_chezmoi_version",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_minimum_chezmoi_version",
       "confidence_score": 1.0
     },
     {
@@ -78056,8 +79104,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L332",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_os_targeting",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_os_targeting",
       "confidence_score": 1.0
     },
     {
@@ -78066,8 +79114,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L228",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_secrets_management",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_secrets_management",
       "confidence_score": 1.0
     },
     {
@@ -78076,8 +79124,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L563",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_shell_history_atuin",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_shell_history_atuin",
       "confidence_score": 1.0
     },
     {
@@ -78086,8 +79134,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L216",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_source_only_files",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_source_only_files",
       "confidence_score": 1.0
     },
     {
@@ -78096,8 +79144,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L235",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_system_package_management",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_system_package_management",
       "confidence_score": 1.0
     },
     {
@@ -78106,8 +79154,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L619",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_tailscale_headless_daemon",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_tailscale_headless_daemon",
       "confidence_score": 1.0
     },
     {
@@ -78116,8 +79164,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L305",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_template_files",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_template_files",
       "confidence_score": 1.0
     },
     {
@@ -78126,328 +79174,8 @@
       "source_file": "AGENTS.md",
       "source_location": "L311",
       "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu72_agents_template_shellcheck_workaround",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
-      "source_location": "L7",
-      "weight": 1.0,
-      "source": "claude",
-      "target": "claude_claude_md",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
-      "source_location": "L214",
-      "weight": 1.0,
-      "source": "claude_claude_md",
-      "target": "claude_architecture",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
-      "source_location": "L681",
-      "weight": 1.0,
-      "source": "claude_claude_md",
-      "target": "claude_code_style",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
-      "source_location": "L707",
-      "weight": 1.0,
-      "source": "claude_claude_md",
-      "target": "claude_git_commits",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
-      "source_location": "L18",
-      "weight": 1.0,
-      "source": "claude_claude_md",
-      "target": "claude_key_commands",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
-      "source_location": "L714",
-      "weight": 1.0,
-      "source": "claude_claude_md",
-      "target": "claude_security",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
-      "source_location": "L11",
-      "weight": 1.0,
-      "source": "claude_claude_md",
-      "target": "claude_what_this_is",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
-      "source_location": "L86",
-      "weight": 1.0,
-      "source": "claude_key_commands",
-      "target": "claude_chezmoi_operations",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
-      "source_location": "L114",
-      "weight": 1.0,
-      "source": "claude_key_commands",
-      "target": "claude_claude_code_settings",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
-      "source_location": "L147",
-      "weight": 1.0,
-      "source": "claude_key_commands",
-      "target": "claude_git_hooks",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
-      "source_location": "L20",
-      "weight": 1.0,
-      "source": "claude_key_commands",
-      "target": "claude_linting_formatting",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
-      "source_location": "L46",
-      "weight": 1.0,
-      "source": "claude_key_commands",
-      "target": "claude_testing",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
-      "source_location": "L358",
-      "weight": 1.0,
-      "source": "claude_architecture",
-      "target": "claude_agent_skills_cross_harness_store",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
-      "source_location": "L656",
-      "weight": 1.0,
-      "source": "claude_architecture",
-      "target": "claude_ai_commit_messages",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
-      "source_location": "L555",
-      "weight": 1.0,
-      "source": "claude_architecture",
-      "target": "claude_bashrc_init_ordering",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
-      "source_location": "L348",
-      "weight": 1.0,
-      "source": "claude_architecture",
-      "target": "claude_ci",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
-      "source_location": "L337",
-      "weight": 1.0,
-      "source": "claude_architecture",
-      "target": "claude_dev_environment_nix_flake",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
-      "source_location": "L548",
-      "weight": 1.0,
-      "source": "claude_architecture",
-      "target": "claude_git_worktrees_worktrunk",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
-      "source_location": "L592",
-      "weight": 1.0,
-      "source": "claude_architecture",
-      "target": "claude_happy_daemon_remote_agent_control",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
-      "source_location": "L675",
-      "weight": 1.0,
-      "source": "claude_architecture",
-      "target": "claude_herdr_native_status",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
-      "source_location": "L528",
-      "weight": 1.0,
-      "source": "claude_architecture",
-      "target": "claude_herdr_workspace_management",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
-      "source_location": "L669",
-      "weight": 1.0,
-      "source": "claude_architecture",
-      "target": "claude_long_running_command_notifier",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
-      "source_location": "L260",
-      "weight": 1.0,
-      "source": "claude_architecture",
-      "target": "claude_macos_defaults_management",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
-      "source_location": "L224",
-      "weight": 1.0,
-      "source": "claude_architecture",
-      "target": "claude_minimum_chezmoi_version",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
-      "source_location": "L332",
-      "weight": 1.0,
-      "source": "claude_architecture",
-      "target": "claude_os_targeting",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
-      "source_location": "L228",
-      "weight": 1.0,
-      "source": "claude_architecture",
-      "target": "claude_secrets_management",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
-      "source_location": "L563",
-      "weight": 1.0,
-      "source": "claude_architecture",
-      "target": "claude_shell_history_atuin",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
-      "source_location": "L216",
-      "weight": 1.0,
-      "source": "claude_architecture",
-      "target": "claude_source_only_files",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
-      "source_location": "L235",
-      "weight": 1.0,
-      "source": "claude_architecture",
-      "target": "claude_system_package_management",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
-      "source_location": "L619",
-      "weight": 1.0,
-      "source": "claude_architecture",
-      "target": "claude_tailscale_headless_daemon",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
-      "source_location": "L305",
-      "weight": 1.0,
-      "source": "claude_architecture",
-      "target": "claude_template_files",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "CLAUDE.md",
-      "source_location": "L311",
-      "weight": 1.0,
-      "source": "claude_architecture",
-      "target": "claude_template_shellcheck_workaround",
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_template_shellcheck_workaround",
       "confidence_score": 1.0
     },
     {
@@ -96662,5 +97390,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "708205ea8aeb320d73f6feffa1b7093e0700c938"
+  "built_at_commit": "c5b9aa8526533f9813edeb40edd4b09e4214695b"
 }
