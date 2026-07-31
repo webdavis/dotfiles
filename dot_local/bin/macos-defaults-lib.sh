@@ -193,14 +193,44 @@ defaults_records_locate_malformed() { # <path> <declared-count>
 # the one site that compares them: a yq release that renamed a node kind would
 # be a one-line change, and the name says which question is being asked.
 #
-# `kind` reports what a node IS after parsing. `tag` reports its
-# REPRESENTATION, which the document author writes, so an explicit `!!seq` sets
-# the tag on a node of ANY shape while leaving the node a map or a scalar
-# (measured, yq v4.53.3). Only `kind` answers the question this guard needs.
+# yq answers TWO questions about a node and NEITHER one answers this guard's
+# question alone. `kind` reports what the node IS after parsing; `tag` reports
+# its REPRESENTATION, which the document author writes. Each is defeated by
+# exactly the input the other catches, and both halves were measured against
+# yq v4.53.3 and chezmoi v2.71.1 rather than reasoned about:
+#
+#   A LYING TAG on a wrong-shaped node defeats `tag` alone. `!!seq` on a map
+#   leaves the node a map (kind map, tag !!seq) while a tag check reads !!seq
+#   and calls it a list.
+#
+#   A TRUTHFUL SHAPE wearing a wrong tag defeats `kind` alone. `!!str` on a
+#   real sequence leaves the node a sequence (kind seq, tag !!str) while a kind
+#   check reads seq and calls it a list. The runner template's Go YAML reader
+#   REFUSES that file with a parse error, so a kind-only check made this library
+#   the MORE PERMISSIVE of the two readers on eight measured tags
+#   (!!map !!str !!int !!bool !!float !!binary !!set !!timestamp), which is the
+#   exact asymmetry test/integration/macos-defaults-shape-agreement.sh exists to
+#   end and the mirror image of the hole a tag-only check left.
+#
+# So the accepted answer is the CONJUNCTION, and it is expressed as one: the
+# node must be a sequence AND its tag must say so. Every other pairing of the
+# two answers is refused. That closes the tag space by construction rather than
+# by listing the tags anybody happened to try, which matters because the tag
+# space is open: a document may write any application-specific tag it likes.
+#
+# The measured residual, stated rather than hidden. Six tag spellings on a real
+# sequence (!!omap, !!pairs, !!merge, a local !custom, an unknown !!foo, and a
+# verbatim URI tag) are RENDERED by the runner template and REFUSED here, so on
+# those this library is the STRICTER reader. That direction is a loud refusal
+# naming the file, never a silent misapplication, and buying agreement on them
+# would mean transcribing which tags one Go YAML release happens to decode as a
+# slice, which the next release could change without notice. Refusing what
+# cannot be proven common to both readers is the fail-closed choice.
 #
 # Plain assignment, not readonly, for the same reason as SYSTEM_READ_* further
 # down: this file is a library, and sourcing it twice must be a no-op.
 DEFAULTS_RECORDS_LIST_KIND='seq'
+DEFAULTS_RECORDS_LIST_TAG='!!seq'
 DEFAULTS_RECORDS_MAP_KIND='map'
 DEFAULTS_RECORDS_ABSENT_TAG='!!null'
 
@@ -220,19 +250,26 @@ DEFAULTS_RECORDS_COUNT_EXPRESSION='.macos.defaults | length'
 
 # records_declaration_verdict <shape-answer>, classify what the data file
 # declares at .macos.defaults. PURE: one string in, one verdict out, no file
-# access and no globals beyond the three yq answers named above.
+# access and no globals beyond the four yq answers named above.
 #
-#   list    a real YAML sequence, the declared schema. The only accepted verdict.
-#   map     a mapping, in any spelling, including one wearing a `!!seq` tag.
-#   absent  no node at all, or an explicitly null one. yq answers `!!null` to
-#           both, and they mean the same thing to an operator: the file declares
-#           no record list, and `defaults: []` is how to declare an empty one.
-#   other   anything else, including a scalar, an empty answer (yq found no node
-#           to describe, which happens when `.macos` is not a mapping), and an
-#           answer yq spread over several lines (one per document in a
-#           multi-document file). Unrecognized resolves to a REFUSED verdict,
-#           never an accepted one, so a shape nobody anticipated cannot arrive
-#           as "list".
+#   list       a plain YAML sequence: kind seq AND tag !!seq. The whole accept
+#              set, and the only accepted verdict. An untagged sequence, an
+#              explicitly `!!seq`-tagged one, and one wearing the non-specific
+#              `!` tag all answer exactly this pair (measured), so the
+#              conjunction admits every legitimate spelling and nothing else.
+#   mistagged  a real sequence carrying any OTHER tag. Its own verdict rather
+#              than a fold into "other", because the operator's fix is specific
+#              (delete the tag) and differs from every other refusal here.
+#   map        a mapping, in any spelling, including one wearing a `!!seq` tag.
+#   absent     no node at all, or an explicitly null one. yq answers `!!null` to
+#              both, and they mean the same thing to an operator: the file
+#              declares no record list, and `defaults: []` declares an empty one.
+#   other      anything else, including a scalar, an empty answer (yq found no
+#              node to describe, which happens when `.macos` is not a mapping),
+#              and an answer yq spread over several lines (one per document in a
+#              multi-document file). Unrecognized resolves to a REFUSED verdict,
+#              never an accepted one, so a shape nobody anticipated cannot arrive
+#              as "list".
 records_declaration_verdict() { # <shape-answer>
   local shape_answer="$1" node_kind node_tag
   # Exactly one line of two space-separated fields is the only answer this
@@ -246,7 +283,16 @@ records_declaration_verdict() { # <shape-answer>
   node_kind="${BASH_REMATCH[1]}"
   node_tag="${BASH_REMATCH[2]}"
   case $node_kind in
-    "$DEFAULTS_RECORDS_LIST_KIND") printf 'list\n' ;;
+    "$DEFAULTS_RECORDS_LIST_KIND")
+      # BOTH answers, or neither. A sequence whose tag names something else is
+      # still refused, because the runner template refuses several such files
+      # outright and this reader must never be the permissive one.
+      if [[ $node_tag == "$DEFAULTS_RECORDS_LIST_TAG" ]]; then
+        printf 'list\n'
+      else
+        printf 'mistagged\n'
+      fi
+      ;;
     "$DEFAULTS_RECORDS_MAP_KIND") printf 'map\n' ;;
     *)
       if [[ $node_tag == "$DEFAULTS_RECORDS_ABSENT_TAG" ]]; then
@@ -380,6 +426,11 @@ defaults_records_declared_count() { # <path>, print the validated record count
   declaration_verdict="$(records_declaration_verdict "$shape_answer")"
   case $declaration_verdict in
     list) ;;
+    mistagged)
+      printf 'error: %s tags .macos.defaults as %q; the record list is a real sequence, so only its TAG is wrong, and the only tag accepted on it is %s, because the runner template refuses several of the others with a parse error while this reader would take the records, so the two readers would disagree about whether this file has any settings at all; delete the tag\n' \
+        "$data_file" "${shape_answer#* }" "$DEFAULTS_RECORDS_LIST_TAG" >&2
+      return 2
+      ;;
     map)
       printf 'error: %s declares .macos.defaults as a map, but it must be a LIST of records; a map is read in sorted key order by the runner template and in document order here, so the two would apply records in different orders\n' \
         "$data_file" >&2

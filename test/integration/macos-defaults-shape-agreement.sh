@@ -152,4 +152,69 @@ fi
 printf '%s' "$lib_out" | grep -qi 'byte order mark' ||
   fail "the library refused the marked file without naming the byte order mark, so an operator cannot find three invisible bytes: $lib_out"
 
-printf 'macos-defaults-shape-agreement: OK (both readers take a list in declaration order, both refuse a map naming the shape, and both refuse a file carrying a byte order mark)\n'
+# ---- 4: the library is never the MORE PERMISSIVE reader on a tagged list ----
+# The invariant this whole file exists for, asserted directly instead of through
+# one hand-picked fixture, and the one a kind-only shape check broke.
+#
+# A tag is written by the document author and is independent of what the node
+# actually is, so a REAL sequence can wear any tag at all. The template's Go YAML
+# reader refuses several of those files with a parse error while yq reads the
+# records happily, so a library that judged shape by `kind` alone streamed
+# records out of a file `chezmoi apply` cannot read at all.
+#
+# The assertion is one-directional on purpose: the library may refuse what the
+# template renders (a loud refusal naming the file, and the direction this guard
+# deliberately errs in, since matching the template exactly would mean
+# transcribing which tags one Go YAML release happens to decode as a slice), but
+# it must NEVER accept what the template refuses. Written this way the case stays
+# green when the template gets stricter and fails only when the library drifts
+# back toward permissive.
+#
+# Case 1 above is the control that keeps this from passing vacuously: a library
+# that refuses everything satisfies the invariant and fails case 1.
+TAGS_ON_A_REAL_SEQUENCE=(
+  '!!map' '!!str' '!!int' '!!bool' '!!float' '!!binary' '!!set' '!!timestamp'
+  '!!omap' '!!pairs' '!!merge' '!custom' '!!foo' '!<tag:example.com,2026:thing>'
+)
+
+# The subset the template is measured to refuse today. Named so the case carries
+# a POSITIVE pin as well as an invariant: without it, both readers turning
+# permissive at once would satisfy the one-directional assertion.
+TAGS_BOTH_READERS_REFUSE=(
+  '!!map' '!!str' '!!int' '!!bool' '!!float' '!!binary' '!!set' '!!timestamp'
+)
+
+tagged_sequence_fixture() { # <tag>
+  printf 'macos:\n  defaults: %s\n    - {domain: com.example.zebra, key: ZKey, value: "1", type: bool, tier: enforce}\n  killall: []\n' \
+    "$1" >"$work/tagged-sequence.yaml"
+  # The fixture only pins anything while it stays a genuine sequence: that is
+  # what makes a kind-only check accept it.
+  local node_kind
+  node_kind="$(yq eval -r '.macos.defaults | kind' "$work/tagged-sequence.yaml")"
+  [[ $node_kind == seq ]] ||
+    fail "the fixture tagged $1 parses as $node_kind, not a sequence, so it no longer reproduces the hole this case exists to pin"
+}
+
+for sequence_tag in "${TAGS_ON_A_REAL_SEQUENCE[@]}"; do
+  tagged_sequence_fixture "$sequence_tag"
+  library_accepted=1
+  lib_out="$(library_stream "$work/tagged-sequence.yaml")" || library_accepted=0
+  template_accepted=1
+  tmpl_out="$(render_template "$work/tagged-sequence.yaml")" || template_accepted=0
+  if [[ $library_accepted -eq 1 && $template_accepted -eq 0 ]]; then
+    fail "the library ACCEPTED a real sequence tagged $sequence_tag and emitted [$lib_out] while the template refused the same file [$tmpl_out]; the library must never be the more permissive of the two readers"
+  fi
+done
+
+for sequence_tag in "${TAGS_BOTH_READERS_REFUSE[@]}"; do
+  tagged_sequence_fixture "$sequence_tag"
+  if lib_out="$(library_stream "$work/tagged-sequence.yaml")"; then
+    fail "the library ACCEPTED a real sequence tagged $sequence_tag and emitted [$lib_out]; the template refuses that file outright"
+  fi
+  if tmpl_out="$(render_template "$work/tagged-sequence.yaml")"; then
+    fail "the template ACCEPTED a real sequence tagged $sequence_tag and rendered [$tmpl_out]; this tag is in the both-refuse table because it was measured to refuse it, so the table needs remeasuring"
+  fi
+done
+
+printf 'macos-defaults-shape-agreement: OK (both readers take a list in declaration order, both refuse a map naming the shape, both refuse a file carrying a byte order mark, and across %d tags on a real sequence the library never accepts a file the template refuses)\n' \
+  "${#TAGS_ON_A_REAL_SEQUENCE[@]}"
