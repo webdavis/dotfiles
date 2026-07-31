@@ -13,6 +13,8 @@ matches:
 
   - trigger: ";;con"
     replace: "conscientious"
+    # right_word keeps this from firing until the word ends, so ;;continue stays typeable.
+    right_word: true
   # Note: ';;con' (convenient) was the colliding entry, removed; use full word 'convenient'.
 
   - trigger: ";;ao"
@@ -40,6 +42,8 @@ matches:
 
   - trigger: ";;exp"
     replace: "experience"
+    # right_word keeps this from firing until the word ends, so ;;explain stays typeable.
+    right_word: true
 
   - trigger: ";;fe"
     replace: "For example,"
@@ -107,6 +111,8 @@ matches:
   - trigger: ";;com"
     replace: "communication"
     propagate_case: true
+    # right_word keeps this from firing until the word ends, so ;;commits / ;;comprehensive stays typeable.
+    right_word: true
 
   - trigger: ";;sr"
     replace: "strategies"
@@ -129,12 +135,16 @@ matches:
 
   - trigger: ";;re"
     replace: "return"
+    # right_word keeps this from firing until the word ends, so ;;review / ;;reviewproject stays typeable.
+    right_word: true
 
   - trigger: ";;fu"
     replace: "function"
 
   - trigger: ";;t"
     replace: "#task"
+    # right_word keeps this from firing until the word ends, so ;;ty stays typeable.
+    right_word: true
 
   - trigger: ";;#"
     replace: "#### 6pm: \n#### 7pm: \n#### 8pm: \n#### 9pm: \n"
@@ -360,6 +370,8 @@ matches:
 
   - trigger: ",,cc"
     replace: "casually-concerned"
+    # right_word keeps this from firing until the word ends, so ,,ccs / ,,cci stays typeable.
+    right_word: true
 
   - trigger: ",,ja"
     replace: "justdavis-ansible"

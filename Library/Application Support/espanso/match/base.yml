@@ -15,4 +15,13 @@
 #   - snippets.yml                    abbreviations, dates, symbols, URLs
 #   - _pqi.yml                        PCI/work-specific phrases
 
+# espanso auto-loads every file in this directory EXCEPT those whose name starts
+# with an underscore, which it reserves for sets you include deliberately:
+# https://espanso.org/docs/matches/organizing-matches/. _pqi.yml carries that
+# prefix, so it sat in the directory loading nothing at all. Importing it here
+# is what puts its matches in the set, and keeps the prefix meaning what espanso
+# says it means (included on purpose) instead of meaning nothing.
+imports:
+  - "./_pqi.yml"
+
 matches: []
