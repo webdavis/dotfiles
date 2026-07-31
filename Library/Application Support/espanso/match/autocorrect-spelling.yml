@@ -2,501 +2,732 @@ matches:
   # ── Transpositions ────────────────────────────────────────────────────────
   - trigger: "htat"
     replace: "that"
+    word: true
   - trigger: "tey"
     replace: "they"
+    word: true
   - trigger: "thye"
     replace: "they"
     propagate_case: true
+    word: true
   # Note: duplicate 'thye' entry removed (§6.4)
   - trigger: "wsa"
     replace: "was"
+    word: true
   - trigger: "adn"
     replace: "and"
     word: true
   - trigger: "andd"
     replace: "and"
+    word: true
   - trigger: "aand"
     replace: "and"
+    word: true
   - trigger: "anad"
     replace: "and"
+    word: true
   - trigger: "nad"
     replace: "and"
     word: true
   - trigger: "thme"
     replace: "them"
+    word: true
   - trigger: "tiem"
     replace: "time"
+    word: true
   - trigger: "tihnk"
     replace: "think"
+    word: true
   - trigger: "thikn"
     replace: "think"
+    word: true
   - trigger: "tlak"
     replace: "talk"
+    word: true
   - trigger: "throught"
     replace: "through"
     word: true
   - trigger: "thougth"
     replace: "thought"
+    word: true
   - trigger: "thigns"
     replace: "things"
+    word: true
   - trigger: "thhere"
     replace: "there"
     propagate_case: true
+    word: true
   - trigger: "thre"
     replace: "there"
     word: true
   - trigger: "ther eto "
     replace: "there to"
+    left_word: true
   - trigger: "there eto "
     replace: "there to"
+    left_word: true
   - trigger: "the yare"
     replace: "they are"
+    word: true
   - trigger: "tyring"
     replace: "trying"
+    word: true
   - trigger: "treid"
     replace: "tried"
+    word: true
   - trigger: "ver"
     replace: "very"
     word: true
   - trigger: "celan"
     replace: "clean"
+    word: true
   - trigger: "clena"
     replace: "clean"
+    word: true
   - trigger: "crare"
     replace: "care"
+    word: true
   - trigger: "swtich"
     replace: "switch"
+    word: true
   - trigger: "anwer"
     replace: "answer"
+    word: true
   - trigger: "answr"
     replace: "answer"
+    word: true
   - trigger: "anser"
     replace: "answer"
+    word: true
   - trigger: "motehr"
     replace: "mother"
+    word: true
   - trigger: "palce"
     replace: "place"
+    word: true
   - trigger: "peole"
     replace: "people"
     propagate_case: true
+    word: true
   - trigger: "peple"
     replace: "people"
+    word: true
   - trigger: "railes"
     replace: "rails"
+    word: true
   - trigger: "sfathey"
     replace: "safety"
+    word: true
   - trigger: "showes"
     replace: "shows"
+    word: true
   - trigger: "seemto"
     replace: "seem to"
+    word: true
   - trigger: "soonre"
     replace: "sooner"
+    word: true
   - trigger: "rehba"
     replace: "rehab"
+    word: true
   - trigger: "hada"
     replace: "had a"
+    word: true
   - trigger: "machien"
     replace: "machine"
+    word: true
   # ── Doubled / merged letters ──────────────────────────────────────────────
   - trigger: "alot"
     replace: "a lot"
     propagate_case: true
+    word: true
   - trigger: "everytime"
     replace: "every time"
     propagate_case: true
+    word: true
   - trigger: "inbetween"
     replace: "in between"
+    word: true
   - trigger: "anyplace"
     replace: "any place"
+    word: true
   - trigger: "enoug hstaff"
     replace: "enough staff"
+    word: true
   - trigger: "mouthtape"
     replace: "mouth tape"
+    word: true
   - trigger: "safet there"
     replace: "safe there"
+    word: true
   - trigger: "friendl yand"
     replace: "friendly and"
+    word: true
   - trigger: "with hyou."
     replace: "with you."
+    left_word: true
   - trigger: "dignit y"
     replace: "dignity"
+    word: true
   - trigger: "salone"
     replace: "salon"
+    word: true
   # ── Typos / transposed letters ────────────────────────────────────────────
   - trigger: "epxerience"
     replace: "experience"
+    word: true
   - trigger: "experienence"
     replace: "experience"
+    word: true
   - trigger: "expeirience"
     replace: "experience"
+    word: true
   - trigger: "expeirence"
     replace: "experience"
+    word: true
   - trigger: "iexperience"
     replace: "experience"
+    word: true
   - trigger: "eveything"
     replace: "everything"
     propagate_case: true
+    word: true
   - trigger: "eveyrthing"
     replace: "everything"
+    word: true
   - trigger: "everythign"
     replace: "everything"
+    word: true
   - trigger: "everday"
     replace: "everyday"
+    word: true
   - trigger: "anythign"
     replace: "anything"
+    word: true
   - trigger: "anyboyd"
     replace: "anybody"
+    word: true
   - trigger: "noboyd"
     replace: "nobody"
+    word: true
   - trigger: "hyiene"
     replace: "hygiene"
+    word: true
   - trigger: "hygenics"
     replace: "hygienics"
+    word: true
   - trigger: "embarassing"
     replace: "embarrassing"
+    word: true
   - trigger: "recieve"
     replace: "receive"
+    word: true
   - trigger: "recieving"
     replace: "receiving"
+    word: true
   - trigger: "recomment"
     replace: "recommend"
+    word: true
   - trigger: "referal"
     replace: "referral"
+    word: true
   - trigger: "referrence"
     replace: "reference"
+    word: true
   - trigger: "residetns"
     replace: "residents"
+    word: true
   - trigger: "emaculate"
     replace: "immaculate"
+    word: true
   - trigger: "imagineative"
     replace: "imaginative"
+    word: true
   - trigger: "occuring"
     replace: "occurring"
+    word: true
   - trigger: "ocassion"
     replace: "occasion"
+    word: true
   - trigger: "occassion"
     replace: "occasion"
+    word: true
   - trigger: "occasionaly"
     replace: "occasionally"
+    word: true
   - trigger: "convienent"
     replace: "convenient"
+    word: true
   - trigger: "consistenty"
     replace: "consistently"
+    word: true
   - trigger: "unfortuneately"
     replace: "unfortunately"
     propagate_case: true
+    word: true
   - trigger: "uunfortunately"
     replace: "unfortunately"
     propagate_case: true
+    word: true
   - trigger: "definetly"
     replace: "definitely"
+    word: true
   - trigger: "digestable"
     replace: "digestible"
+    word: true
   - trigger: "comparible"
     replace: "comparable"
+    word: true
   - trigger: "irrelavant"
     replace: "irrelevant"
+    word: true
   - trigger: "adventagous"
     replace: "advantageous"
+    word: true
   - trigger: "aprehensive"
     replace: "apprehensive"
+    word: true
   - trigger: "persistant"
     replace: "persistent"
+    word: true
   - trigger: "competant"
     replace: "competent"
+    word: true
   - trigger: "conciderate"
     replace: "considerate"
+    word: true
   - trigger: "curteous"
     replace: "courteous"
+    word: true
   - trigger: "knowledgable"
     replace: "knowledgeable"
+    word: true
   - trigger: "partici"
     replace: "participate"
+    word: true
   - trigger: "particu"
     replace: "particular"
+    word: true
   - trigger: "leiason"
     replace: "liaison"
+    word: true
   - trigger: "liekwise"
     replace: "likewise"
+    word: true
   - trigger: "mannored"
     replace: "mannered"
+    word: true
   - trigger: "personnable"
     replace: "personable"
+    word: true
   - trigger: "paletable"
     replace: "palatable"
+    word: true
   - trigger: "commity"
     replace: "committee"
+    word: true
   - trigger: "committy"
     replace: "committee"
+    word: true
   - trigger: "committes"
     replace: "committees"
+    word: true
   - trigger: "committies"
     replace: "committees"
+    word: true
   - trigger: "lable"
     replace: "label"
     word: true
   - trigger: "freindly"
     replace: "friendly"
+    word: true
   - trigger: "frendly"
     replace: "friendly"
+    word: true
   - trigger: "freind"
     replace: "friend"
+    word: true
   - trigger: "galbladder"
     replace: "gallbladder"
+    word: true
   - trigger: "grandaughter"
     replace: "granddaughter"
+    word: true
   - trigger: "duaghter"
     replace: "daughter"
     propagate_case: true
+    word: true
   - trigger: "dauhgter"
     replace: "daughter"
     propagate_case: true
+    word: true
   - trigger: "duahgter"
     replace: "daughter"
     propagate_case: true
+    word: true
   - trigger: "concenrs"
     replace: "concerns"
+    word: true
   - trigger: "transporation"
     replace: "transportation"
+    word: true
   - trigger: "yesterdya"
     replace: "yesterday"
+    word: true
   - trigger: "assissted"
     replace: "assisted"
+    word: true
   - trigger: "unattentive"
     replace: "inattentive"
+    word: true
   - trigger: "invovled"
     replace: "involved"
+    word: true
   - trigger: "ingaged"
     replace: "engaged"
+    word: true
   - trigger: "postivie"
     replace: "positive"
+    word: true
   - trigger: "satisified"
     replace: "satisfied"
+    word: true
   - trigger: "understaning"
     replace: "understanding"
+    word: true
   - trigger: "genuien"
     replace: "genuine"
+    word: true
   - trigger: "wondeful"
     replace: "wonderful"
+    word: true
   - trigger: "visistors"
     replace: "visitors"
+    word: true
   - trigger: "attendents"
     replace: "attendants"
+    word: true
   - trigger: "attendent"
     replace: "attendant"
+    word: true
   - trigger: "attendies"
     replace: "attendees"
+    word: true
   - trigger: "instraments"
     replace: "instruments"
+    word: true
   - trigger: "employes"
     replace: "employees"
+    word: true
   - trigger: "cleanign"
     replace: "cleaning"
+    word: true
   - trigger: "clothign"
     replace: "clothing"
+    word: true
   - trigger: "nruse"
     replace: "nurse"
+    word: true
   - trigger: "nrusing"
     replace: "nursing"
+    word: true
   - trigger: "nruses"
     replace: "nurses"
+    word: true
   - trigger: "patietns"
     replace: "patients"
+    word: true
   - trigger: "hosue"
     replace: "house"
+    word: true
   - trigger: "hosptial"
     replace: "hospital"
+    word: true
   - trigger: "treatement"
     replace: "treatment"
+    word: true
   - trigger: "refridgerator"
     replace: "refrigerator"
+    word: true
   - trigger: "pnuemonia"
     replace: "pneumonia"
+    word: true
   - trigger: "nausiating"
     replace: "nauseating"
+    word: true
   - trigger: "nausious"
     replace: "nauseous"
+    word: true
   - trigger: "dimentia"
     replace: "dementia"
+    word: true
   - trigger: "quadrapaligec"
     replace: "quadriplegic"
+    word: true
   - trigger: "theraputic"
     replace: "therapeutic"
+    word: true
   - trigger: "therpay"
     replace: "therapy"
+    word: true
   - trigger: "manuver"
     replace: "maneuver"
+    word: true
   - trigger: "rehabilatation"
     replace: "rehabilitation"
+    word: true
   - trigger: "recareational"
     replace: "recreational"
+    word: true
   - trigger: "recareation"
     replace: "recreation"
+    word: true
   - trigger: "realy"
     replace: "really"
+    word: true
   - trigger: "rediculous"
     replace: "ridiculous"
+    word: true
   - trigger: "pressue"
     replace: "pressure"
+    word: true
   - trigger: "thereford"
     replace: "therefore"
+    word: true
   - trigger: "availabel"
     replace: "available"
+    word: true
   - trigger: "seemless"
     replace: "seamless"
+    word: true
   - trigger: "inqueries"
     replace: "inquiries"
+    word: true
   - trigger: "greating"
     replace: "greeting"
+    word: true
   - trigger: "outting"
     replace: "outing"
+    word: true
   - trigger: "outtings"
     replace: "outings"
+    word: true
   - trigger: "appply"
     replace: "apply"
+    word: true
   - trigger: "whenver"
     replace: "whenever"
+    word: true
   - trigger: "whereever"
     replace: "wherever"
+    word: true
   - trigger: "scrammbled"
     replace: "scrambled"
+    word: true
   - trigger: "rennovate"
     replace: "renovate"
+    word: true
   - trigger: "tendancy"
     replace: "tendency"
+    word: true
   - trigger: "comission"
     replace: "commission"
+    word: true
   - trigger: "communiion"
     replace: "communion"
+    word: true
   - trigger: "defecits"
     replace: "deficits"
+    word: true
   - trigger: "disasterouse"
     replace: "disastrous"
+    word: true
   - trigger: "abismal"
     replace: "abysmal"
+    word: true
   - trigger: "condusive"
     replace: "conducive"
+    word: true
   - trigger: "wellfare"
     replace: "welfare"
+    word: true
   - trigger: "aggrevates"
     replace: "aggravates"
+    word: true
   - trigger: "aggrevating"
     replace: "aggravating"
+    word: true
   - trigger: "aggainst"
     replace: "against"
+    word: true
   - trigger: "aggrivated"
     replace: "aggravated"
+    word: true
   - trigger: "aggitated"
     replace: "agitated"
+    word: true
   - trigger: "enterance"
     replace: "entrance"
+    word: true
   - trigger: "ceptic"
     replace: "sceptic"
+    word: true
   - trigger: "cetner"
     replace: "center"
+    word: true
   - trigger: "beter"
     replace: "better"
+    word: true
   - trigger: "punny"
     replace: "puny"
+    word: true
   - trigger: "puttle"
     replace: "puddle"
+    word: true
   - trigger: "otehers"
     replace: "others"
+    word: true
   - trigger: "thier"
     replace: "their"
+    word: true
   - trigger: "prety"
     replace: "pretty"
+    word: true
   - trigger: "woried"
     replace: "worried"
+    word: true
   - trigger: "problesm"
     replace: "problems"
+    word: true
   - trigger: "scenary"
     replace: "scenery"
+    word: true
   - trigger: "gourney"
     replace: "gurney"
+    word: true
   - trigger: "futre"
     replace: "future"
     propagate_case: true
+    word: true
   - trigger: "comprae"
     replace: "compare"
+    word: true
   - trigger: "locaition"
     replace: "location"
+    word: true
   - trigger: "locaiton"
     replace: "location"
+    word: true
   - trigger: "atrocius"
     replace: "atrocious"
+    word: true
   - trigger: "tecnique"
     replace: "technique"
+    word: true
   - trigger: "abnoxius"
     replace: "obnoxious"
+    word: true
   - trigger: "needded"
     replace: "needed"
+    word: true
   - trigger: "signalling"
     replace: "signaling"
+    word: true
   - trigger: "faclty"
     replace: "facility"
+    word: true
   - trigger: "facilties"
     replace: "facilities"
+    word: true
   - trigger: "facilty"
     replace: "facility"
+    word: true
   - trigger: "faciltiy"
     replace: "facility"
+    word: true
   - trigger: "faciliy"
     replace: "facility"
+    word: true
   - trigger: "oursevles"
     replace: "ourselves"
+    word: true
   - trigger: "environement"
     replace: "environment"
+    word: true
   - trigger: "eenvironment"
     replace: "environment"
+    word: true
   - trigger: "catepillar"
     replace: "caterpillar"
+    word: true
   - trigger: "bipass"
     replace: "bypass"
+    word: true
   - trigger: "unedible"
     replace: "inedible"
+    word: true
   - trigger: "psychiatrict"
     replace: "psychiatric"
+    word: true
   - trigger: "adminstration"
     replace: "administration"
+    word: true
   - trigger: "councelor"
     replace: "councilor"
+    word: true
   - trigger: "resepct"
     replace: "respect"
+    word: true
   - trigger: "Chaplincy"
     replace: "Chaplaincy"
+    word: true
   - trigger: "Virtigo"
     replace: "Vertigo"
+    word: true
   - trigger: "Gerriatric"
     replace: "Geriatric"
+    word: true
   - trigger: "Michale"
     replace: "Michael"
+    word: true
   - trigger: "Kathlene"
     replace: "Kathleen"
+    word: true
   - trigger: "Filapino"
     replace: "Filipino"
+    word: true
   - trigger: "Juen"
     replace: "June"
+    word: true
   - trigger: "Hiasin"
     replace: "Hiaasen"
+    word: true
   - trigger: "Massachusets"
     replace: "Massachusetts"
+    word: true
   - trigger: "thibido"
     replace: "Thibodeau"
     propagate_case: true
+    word: true
   - trigger: "Medicade"
     replace: "Medicaid"
+    word: true
   - trigger: "wifi"
     replace: "WiFi"
     word: true
   - trigger: "covid"
     replace: "COVID"
+    word: true
   # ── Migrated from local base.yml (§6.5) ───────────────────────────────────
   - trigger: "comfrotable"
     replace: "comfortable"
+    word: true
   - trigger: "sufering"
     replace: "suffering"
+    word: true
   - trigger: "infromative"
     replace: "informative"
+    word: true
   - trigger: "aweful"
     replace: "awful"
+    word: true

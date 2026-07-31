@@ -9,61 +9,78 @@ matches:
   - trigger: "idk"
     replace: "I don't know"
     propagate_case: true
+    word: true
 
   # don't / doesn't / didn't / can't / couldn't / wouldn't / shouldn't
   - trigger: "dont"
     replace: "don't"
     propagate_case: true
+    word: true
 
   - trigger: "doesnt"
     replace: "doesn't"
     propagate_case: true
+    word: true
 
   - trigger: "doent"
     replace: "doesn't"
+    word: true
 
   - trigger: "did't"
     replace: "didn't"
+    word: true
 
   - trigger: "cna't"
     replace: "can't"
+    word: true
 
   - trigger: "couldnt"
     replace: "couldn't"
+    word: true
 
   - trigger: "coulnd't"
     replace: "couldn't"
+    word: true
 
   - trigger: "coulndt"
     replace: "couldn't"
+    word: true
 
   - trigger: "wouldnt"
     replace: "wouldn't"
     propagate_case: true
+    word: true
 
   - trigger: "shouldnt"
     replace: "shouldn't"
     propagate_case: true
+    word: true
 
   # haven't / weren't / wasn't / isn't / won't
   - trigger: "havent"
     replace: "haven't"
+    word: true
 
   - trigger: "havne't"
     replace: "haven't"
+    word: true
 
   - trigger: "werent"
     replace: "weren't"
+    word: true
 
   - trigger: "wasnt"
     replace: "wasn't"
     propagate_case: true
+    word: true
 
   - trigger: "isnt"
     replace: "isn't"
+    word: true
 
   - trigger: "wont"
     replace: "won't"
+    word: true
 
   # she's / he's / it's / they're / that's
   - trigger: "shes"
@@ -78,19 +95,24 @@ matches:
 
   - trigger: "I'ts"
     replace: "It's"
+    word: true
 
   - trigger: "IT's"
     replace: "It's"
+    word: true
 
   - trigger: "theyre"
     replace: "they're"
     propagate_case: true
+    word: true
 
   - trigger: "thats"
     replace: "that's"
+    word: true
 
   - trigger: "htats"
     replace: "that's"
+    word: true
 
   # I don't think / I'm not sure
   - trigger: ";;idt"
