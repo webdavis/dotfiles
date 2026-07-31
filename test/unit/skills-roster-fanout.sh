@@ -294,6 +294,53 @@ for collision in "${collision_names[@]}"; do
     fail "collision-named skill '$collision' has a non-empty hermesProfiles mapping (catalog wins, must be [])"
 done
 
+# --- Rule 9: the forks drift-watch table covers exactly the vendored dirs ---
+# The forks table is the weekly drift-watch's whole input: an upstream absent
+# from it is an upstream nobody is watching, silently. It is keyed by VENDORED
+# CONTENT, not by the roster, because only a vendored copy can drift from an
+# upstream (npx- and clawhub-tracked store copies are replaced wholesale each
+# run, and the app-owned cua-driver symlink is not content this repo holds).
+# Note the table is not only content FORKS: elevenlabs is vendored-not-forked
+# (npx cannot install it full-tree) and is watched for exactly the same reason,
+# which is why the coverage rule is "vendored", not "carries fork: true".
+FORKS_UNWATCHED_VENDORED=(tiktok-crawling) # documented at CLAUDE.md, Agent Skills
+
+# Real directories only: dot_agents/skills also holds symlink_*.tmpl chezmoi
+# declarations for app-owned packs, which hold no content of ours to drift.
+vendored_content_dirs() {
+  local entry
+  for entry in "$REPO_ROOT/dot_agents/skills"/*; do
+    [[ -d $entry ]] || continue
+    target_name "$(basename "$entry")"
+  done
+}
+
+forks_keys="$(jq -r '.forks // {} | keys[]' "$LOCK" | sort)"
+vendored_content_sorted="$(vendored_content_dirs | sort -u)"
+watched_expected="$(comm -23 <(printf '%s\n' "$vendored_content_sorted") \
+  <(printf '%s\n' "${FORKS_UNWATCHED_VENDORED[@]}" | sort))"
+if [[ $forks_keys != "$watched_expected" ]]; then
+  printf "FAIL: the lock's forks table does not cover exactly the watched vendored skills (left: expected, right: forks keys):\n" >&2
+  diff <(printf '%s\n' "$watched_expected") <(printf '%s\n' "$forks_keys") >&2 || true
+  exit 1
+fi
+# Every exemption must name a real vendored dir, so a renamed or deleted skill
+# cannot leave a dead exemption quietly widening the hole.
+for exempt_skill in "${FORKS_UNWATCHED_VENDORED[@]}"; do
+  printf '%s\n' "$vendored_content_sorted" | grep -qx "$exempt_skill" ||
+    fail "FORKS_UNWATCHED_VENDORED names '$exempt_skill', which is not a vendored skill dir (stale exemption)"
+done
+# Entry schema: the three fields the drift-watch walks, each a non-empty
+# string. A null skillPath used to resolve as the literal path "null".
+bad_forks="$(jq -r '.forks // {} | to_entries[]
+  | select(((.value | type) != "object")
+      or ((.value.sourceUrl // "") == "")
+      or ((.value.skillPath // "") == "")
+      or ((.value.lastComparedTreeHash // "") == ""))
+  | .key' "$LOCK")"
+[[ -z $bad_forks ]] ||
+  fail "forks entries need a non-empty sourceUrl, skillPath and lastComparedTreeHash: $bad_forks"
+
 roster_count="$(printf '%s\n' "$roster_sorted" | wc -l | tr -d ' ')"
 npx_count="$(printf '%s\n' "$npx_keys" | wc -l | tr -d ' ')"
 clawhub_count=0
@@ -302,5 +349,7 @@ registry_count=0
 [[ -n $registry_keys ]] && registry_count="$(printf '%s\n' "$registry_keys" | wc -l | tr -d ' ')"
 hermes_count=0
 [[ -n $actual_hermes ]] && hermes_count="$(printf '%s\n' "$actual_hermes" | wc -l | tr -d ' ')"
-printf 'skills-roster-fanout: OK (%s skills; %s npx-tracked; %s clawhub-tracked; %s hermes-owned; %s store->hermes symlinks)\n' \
-  "$roster_count" "$npx_count" "$clawhub_count" "$registry_count" "$hermes_count"
+forks_count=0
+[[ -n $forks_keys ]] && forks_count="$(printf '%s\n' "$forks_keys" | wc -l | tr -d ' ')"
+printf 'skills-roster-fanout: OK (%s skills; %s npx-tracked; %s clawhub-tracked; %s hermes-owned; %s store->hermes symlinks; %s drift-watched upstreams)\n' \
+  "$roster_count" "$npx_count" "$clawhub_count" "$registry_count" "$hermes_count" "$forks_count"
