@@ -97,6 +97,23 @@ RECONCILER_TARGET_SUFFIX=".local/libexec/tailnet/reconcile-hosts-pin.sh"
 # disagree with the implementation, which is the whole reason the old suite's
 # copy-of-the-body approach was thrown away.
 LOOPBACK_ADDRESS_UNDER_TEST="127.0.0.1"
+# The per-pin invocation the runner template renders, and NOT the `sudo -v`
+# prelude, which takes no helper and would fail every apply assertion in LAYER
+# 2p if it were swept up with them.
+# shellcheck disable=SC2016  # $tailnet_pin_helper is the literal text of the
+# RENDERED script, matched here, never a variable of this suite's to expand.
+PIN_INVOCATION_PATTERN='^sudo "\$tailnet_pin_helper" '
+# What LAYER 2p substitutes for that helper reference before running a rendered
+# line. `$0` is what `bash -c <program> <name> ...` sets from its next argument,
+# so the reconciler's path travels as an ARGUMENT and never as text inside the
+# program. Interpolating the path into the program instead would let a repo
+# checked out under a directory containing `$`, a backtick or a quote expand or
+# break the case. Measured: under a directory literally named
+# 're$po `whoami` "q"', the interpolating form dropped `$po`, RAN `whoami`, and
+# then failed to find the helper; this form applies the pin byte-exact.
+# shellcheck disable=SC2016  # $0 must reach the inner shell UNEXPANDED; that is
+# the entire mechanism, and expanding it here would restore the defect.
+RENDERED_HELPER_ARGUMENT_REFERENCE='"$0"'
 
 fail() {
   printf 'FAIL: %s\n' "$*" >&2
@@ -1252,23 +1269,20 @@ macos:
       ip: "2001:db8::7"
       short: "v6"
 EOF
-# The per-pin invocation, and NOT the `sudo -v` prelude, which takes no helper
-# and would fail every apply assertion below if it were swept up with them.
-# shellcheck disable=SC2016  # $tailnet_pin_helper is the literal text of the
-# RENDERED script, matched here, never a variable of this suite's to expand.
-PIN_INVOCATION_PATTERN='^sudo "\$tailnet_pin_helper" '
 legitimate_rendered="$work/legitimate-shapes.rendered"
 legitimate_hosts="$work/legitimate-shapes-hosts"
 # Seeded with loopback because installing any rebuild is gated on it.
 printf '127.0.0.1\tlocalhost\n' >"$legitimate_hosts"
 # Run the RENDERED commands rather than calling the reconciler directly, so the
-# render and the apply are covered as one path. Read on a dedicated fd: the loop
-# body runs a shell that may consume stdin.
+# render and the apply are covered as one path. The rendered line keeps its own
+# quoting; only the helper reference is swapped, for `$0`, and the real path is
+# passed as the argument `$0` takes its value from. Read on a dedicated fd: the
+# loop body runs a shell that may consume stdin.
 while IFS= read -r -u3 line; do
   legitimate_command="${line#sudo }"
-  legitimate_command="${legitimate_command/\"\$tailnet_pin_helper\"/\"$RECONCILER\"}"
-  TAILNET_PIN_HOSTS_FILE="$legitimate_hosts" bash -c "$legitimate_command" \
-    >/dev/null ||
+  legitimate_command="${legitimate_command/\"\$tailnet_pin_helper\"/$RENDERED_HELPER_ARGUMENT_REFERENCE}"
+  TAILNET_PIN_HOSTS_FILE="$legitimate_hosts" \
+    bash -c "$legitimate_command" "$RECONCILER" >/dev/null ||
     fail "a legitimate pin shape failed to apply: $line"
 done 3< <(grep -E "$PIN_INVOCATION_PATTERN" "$legitimate_rendered")
 while IFS='|' read -r legitimate_ip legitimate_fqdn legitimate_short; do
