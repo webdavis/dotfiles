@@ -47570,6 +47570,48 @@
       "community": 323,
       "norm_label": "security",
       "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_fu67_agents_security"
+    },
+    {
+      "label": "CARRIAGE_RETURN",
+      "file_type": "code",
+      "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
+      "source_location": "L388",
+      "metadata": {
+        "language": "bash",
+        "kind": "code"
+      },
+      "_origin": "ast",
+      "community": 12,
+      "norm_label": "carriage_return",
+      "id": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_carriage_return"
+    },
+    {
+      "label": "hosts_line_without_unread_carriage_return()",
+      "file_type": "code",
+      "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
+      "source_location": "L518",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 12,
+      "norm_label": "hosts_line_without_unread_carriage_return()",
+      "id": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_hosts_line_without_unread_carriage_return"
+    },
+    {
+      "label": "assert_unread_carriage_return_removed()",
+      "file_type": "code",
+      "source_file": "test/unit/tailnet-pin-hosts-predicates.sh",
+      "source_location": "L384",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 380,
+      "norm_label": "assert_unread_carriage_return_removed()",
+      "id": "test_unit_tailnet_pin_hosts_predicates_assert_unread_carriage_return_removed"
     }
   ],
   "links": [
@@ -56667,6 +56709,26 @@
       "target": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_write_kept_hosts_lines"
     },
     {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
+      "source_location": "L388",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin",
+      "target": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_carriage_return"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
+      "source_location": "L518",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin",
+      "target": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_hosts_line_without_unread_carriage_return"
+    },
+    {
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
@@ -56802,6 +56864,17 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
+      "source_location": "L716",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_survey_hosts_file",
+      "target": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_hosts_line_without_unread_carriage_return"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
       "source_location": "L749",
       "weight": 1.0,
       "context": "call",
@@ -56819,6 +56892,17 @@
       "confidence_score": 1.0,
       "source": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_write_kept_hosts_lines",
       "target": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_main"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/libexec/tailnet/executable_reconcile-hosts-pin.sh",
+      "source_location": "L773",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_write_kept_hosts_lines",
+      "target": "dot_local_libexec_tailnet_executable_reconcile_hosts_pin_hosts_line_without_unread_carriage_return"
     },
     {
       "relation": "calls",
@@ -78661,6 +78745,16 @@
       "target": "test_unit_tailnet_pin_hosts_predicates_survey_of"
     },
     {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/tailnet-pin-hosts-predicates.sh",
+      "source_location": "L384",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_tailnet_pin_hosts_predicates",
+      "target": "test_unit_tailnet_pin_hosts_predicates_assert_unread_carriage_return_removed"
+    },
+    {
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/tailnet-pin-hosts-predicates.sh",
@@ -78697,6 +78791,17 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/tailnet-pin-hosts-predicates.sh",
+      "source_location": "L390",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_tailnet_pin_hosts_predicates_sh__entry",
+      "target": "test_unit_tailnet_pin_hosts_predicates_assert_unread_carriage_return_removed"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/tailnet-pin-hosts-predicates.sh",
       "source_location": "L113",
       "weight": 1.0,
       "context": "call",
@@ -78714,6 +78819,17 @@
       "confidence_score": 1.0,
       "source": "test_unit_tailnet_pin_hosts_predicates_fail",
       "target": "test_unit_tailnet_pin_hosts_predicates_assert_predicate"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/tailnet-pin-hosts-predicates.sh",
+      "source_location": "L387",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_tailnet_pin_hosts_predicates_assert_equal",
+      "target": "test_unit_tailnet_pin_hosts_predicates_assert_unread_carriage_return_removed"
     },
     {
       "relation": "defines",
