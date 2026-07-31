@@ -78,6 +78,14 @@
 #                          its own, including whether the file ends with a line
 #                          terminator. A whole-tuple assertion over one fixture
 #                          would let two of the three drift.
+#   P15 the unread CR    - the resolver chops the last byte of a final line with
+#                          no terminator, so a CR sitting there was never read.
+#                          Handing it back while adding the terminator is what
+#                          turned a working "127.0.0.1<TAB>localhost<CR>" into a
+#                          machine with no localhost. Only that byte qualifies:
+#                          any other final byte is record content the chop was
+#                          wrongly eating, and a final COMMENT line is exempt
+#                          from the chop in the resolver and here.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -233,6 +241,28 @@ assert_predicate expect-false p1-blanks-only \
 assert_predicate expect-false p1-carriage-return-in-address \
   hosts_line_is_valid_loopback_record "127.0.0.1${carriage_return}${tab}localhost"
 
+# A TRAILING CARRIAGE RETURN ON THE LOOPBACK LINE IS ACCEPTED, and this is the
+# gate's REAL carriage-return latitude. The case above is about a CR before the
+# separator, which both this gate and the resolver already refuse; this is the
+# shape a CRLF file actually produces, and it reads as a record here today.
+#
+# Measured against the resolver: the line tokenizes to "127.0.0.1" plus the name
+# "localhost<CR>", which IS a record mapping 127.0.0.1 to a name, so the gate's
+# stated question ("does 127.0.0.1 map to at least one name written before a
+# #?") is answered YES honestly. The name is one no machine resolves localhost
+# through, so such a file has no working localhost, and it has none whether or
+# not the reconciler ever runs.
+#
+# Accepted rather than refused, deliberately. The gate does not require the name
+# to be `localhost` (THE LOOPBACK GATE in the reconciler says why: it cannot
+# know which name a given machine uses), and refusing every name carrying a CR
+# would abort `chezmoi apply` on a file the reconciler neither creates nor
+# worsens. What it must not do is CREATE that state, which is a different
+# predicate's job and is pinned in P15 below and in LAYER 2j4 of the integration
+# suite.
+assert_predicate expect-true p1-trailing-carriage-return-loopback \
+  hosts_line_is_valid_loopback_record "127.0.0.1${tab}localhost${carriage_return}"
+
 # ---------- P2: does this line claim this name? ------------------------------
 assert_predicate expect-true p2-official-name \
   hosts_line_claims_name "192.0.2.7${tab}pin.example.test${tab}pin" "pin.example.test"
@@ -336,6 +366,78 @@ assert_equal "10.0.0.5${tab}nas.home " "$record_text" p13-comment-borne-name-cut
 # Only the FIRST # cuts; there is no second pass over what is left.
 hosts_line_record_text record_text "10.0.0.5${tab}nas.home # a # b"
 assert_equal "10.0.0.5${tab}nas.home " "$record_text" p13-cuts-at-first-hash
+
+# ---------- P15: the carriage return the resolver never read ------------------
+# THE DEFECT THIS SECTION EXISTS FOR. `_fsi_get_line` chops the last character of
+# every non-comment line whether or not there is a newline to chop (fact 4), so
+# on a file's FINAL line with no terminator the resolver reads one byte less than
+# the file holds. The rebuild's terminator normalization hands that byte back,
+# which is a REPAIR when the byte is record content ("localhos" becomes
+# "localhost") and DAMAGE when it is a CR: a file ending "127.0.0.1<TAB>
+# localhost<CR>" resolves localhost fine before the run and, once the CR is no
+# longer last, names "localhost<CR>" and the machine has no localhost at all.
+# Measured both ways with Apple's own parser compiled verbatim.
+#
+# This is where that byte is decided. Only a TRAILING CR on a final unterminated
+# line qualifies as unread, and the callers are the two file walkers, which are
+# the only places that know a line is that line.
+assert_unread_carriage_return_removed() { # <expected> <line> <label>
+  local actual
+  hosts_line_without_unread_carriage_return actual "$2"
+  assert_equal "$1" "$actual" "$3"
+}
+
+assert_unread_carriage_return_removed \
+  "127.0.0.1${tab}localhost" "127.0.0.1${tab}localhost${carriage_return}" \
+  p15-trailing-carriage-return-removed
+
+# EXACTLY ONE byte, because the resolver ate exactly one. Removing both would
+# claim a reading the resolver never had: it reads "localhost<CR>" here, dead
+# either way, and this function's whole contract is to reproduce that reading
+# rather than to improve on it.
+assert_unread_carriage_return_removed \
+  "127.0.0.1${tab}localhost${carriage_return}" \
+  "127.0.0.1${tab}localhost${carriage_return}${carriage_return}" \
+  p15-only-the-unread-carriage-return-removed
+
+# The repair direction, and the reason this is not "always chop the last byte":
+# the byte the resolver ate here is the "t" of localhost, and handing it back is
+# the whole point of the terminator normalization.
+assert_unread_carriage_return_removed \
+  "127.0.0.1${tab}localhos" "127.0.0.1${tab}localhos" \
+  p15-non-carriage-return-final-byte-kept
+
+# A CR that is not last was never unread: the resolver's chop only ever reaches
+# the final byte, and this line is refused as a record by both readings anyway
+# (p1-carriage-return-in-address).
+assert_unread_carriage_return_removed \
+  "127.0.0.1${carriage_return}${tab}localhost" \
+  "127.0.0.1${carriage_return}${tab}localhost" \
+  p15-interior-carriage-return-kept
+
+# A line whose first character is '#' is EXEMPT from the resolver's chop
+# (`if (s[0] != '#')`), so its trailing CR was read, not unread, and removing it
+# would be an unjustified edit to a line the rebuild promises to copy through.
+assert_unread_carriage_return_removed \
+  "# note${carriage_return}" "# note${carriage_return}" \
+  p15-final-comment-line-untouched
+
+assert_unread_carriage_return_removed "" "" p15-empty-line-untouched
+assert_unread_carriage_return_removed \
+  "" "${carriage_return}" p15-bare-carriage-return-becomes-empty
+
+# THE DESTINATION VARIABLE MAY BE CALLED `line`, and this assertion is here
+# because the first version of the function failed exactly here. `local` is
+# dynamically scoped in bash, so a local named `line` inside the function
+# shadows a caller's `line` and `printf -v line` then writes to the shadow: the
+# caller sees its own value unchanged and the function reads as a silent no-op.
+# Both file walkers pass a variable named `line`, so this is the real call
+# shape, not a contrived one. The helper above uses `actual`, which would never
+# have caught it.
+line="127.0.0.1${tab}localhost${carriage_return}"
+hosts_line_without_unread_carriage_return line "$line"
+assert_equal "127.0.0.1${tab}localhost" "$line" p15-destination-named-line
+unset -v line
 
 # ---------- P4: is this value one hosts column? ------------------------------
 assert_predicate expect-true p4-plain is_single_hosts_column "pin.example.test"
@@ -558,6 +660,28 @@ assert_equal "0 0 1" "$(survey_of "$work/sv-empty")" p14-empty-file
 printf '127.0.0.1\tlocalhost' >"$work/sv-only-unterminated"
 assert_equal "0 0 0" "$(survey_of "$work/sv-only-unterminated")" p14-single-unterminated-line
 
+# THE SURVEY AND THE REBUILD MUST READ THE FINAL UNTERMINATED LINE THE SAME WAY.
+# The rebuild drops the carriage return the resolver never read (P15), so the
+# survey does too, and a CRLF pin record that is the file's unterminated final
+# line COUNTS as claiming the pin. Count it raw instead and the two walkers
+# describe different files, which is the drift the convergence contract exists
+# to prevent.
+printf '127.0.0.1\tlocalhost\n198.51.100.1\tpin.example.test\r' \
+  >"$work/sv-unterminated-crlf-pin"
+assert_equal "1 0 0" "$(survey_of "$work/sv-unterminated-crlf-pin")" \
+  p14-unterminated-crlf-line-claims-the-pin
+
+# The false-positive direction, and the assertion that keeps the CR removal
+# scoped: a TERMINATED CRLF record's carriage return WAS read by the resolver,
+# which names it "pin.example.test<CR>", so it claims nothing the pin owns and
+# the count stays 0. Widen the removal past the final unterminated line and this
+# goes to 1, the rebuild drops the line, and root deletes a record the resolver
+# still answers from.
+printf '127.0.0.1\tlocalhost\n198.51.100.1\tpin.example.test\r\n' \
+  >"$work/sv-terminated-crlf-pin"
+assert_equal "0 0 1" "$(survey_of "$work/sv-terminated-crlf-pin")" \
+  p14-terminated-crlf-line-claims-nothing
+
 # ---------- P12: sourcing changes nothing about the caller's shell ------------
 # `set -euo pipefail` at file scope turned errexit, nounset and pipefail on in
 # whatever sourced this file. A test that sources a library to reach its
@@ -593,4 +717,4 @@ if ((failures > 0)); then
   printf 'tailnet-pin-hosts-predicates: %d assertion(s) failed\n' "$failures" >&2
   exit 1
 fi
-echo "tailnet-pin-hosts-predicates: OK (loopback validity including indented records and records that do not name localhost, record text, name claims, pin ownership, the CRLF decision in both directions, column shape, record rendering, convergence including the line terminator, survey facts, symlink chains, referent metadata, seam states, unreadable sources, source-time shell-option isolation, message paths)"
+echo "tailnet-pin-hosts-predicates: OK (loopback validity including indented records, records that do not name localhost and an accepted trailing-CR loopback line, record text, name claims, pin ownership, the CRLF decision in both directions, the carriage return the resolver never read, column shape, record rendering, convergence including the line terminator, survey facts, symlink chains, referent metadata, seam states, unreadable sources, source-time shell-option isolation, message paths)"

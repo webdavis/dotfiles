@@ -39,13 +39,19 @@
 # the same fail-quiet this script exists to close, one door over, so a file is
 # not converged until the terminator is there. When not converged the file is
 # rebuilt: every line whose NAME FIELDS claim the fqdn OR the short name is
-# dropped, every other line (comments and blanks included) is copied through
-# with its bytes unchanged, and the one correct record is appended. The single
-# difference the rebuild can make to a kept line is that a final line with NO
-# terminator gains one; that normalization is required, or the appended record
-# would join onto it, and it is what REPAIRS the line the resolver was
-# mis-reading. An installed file therefore always ends terminated, so the
-# repair costs at most one rebuild and the next run converges.
+# dropped, every other line (comments and blanks included) is copied through,
+# and the one correct record is appended.
+#
+# WHAT "COPIED THROUGH" DOES AND DOES NOT PROMISE. One departure from byte
+# fidelity, measured, and not optional: the FINAL line of a source with no
+# terminator gains one, and if it ended with a carriage return it loses that.
+# The terminator is required or the appended record would join onto it; the
+# carriage return goes because giving it back is what would break the line. THE
+# UNREAD CARRIAGE RETURN below is the whole story, and it is not a footnote:
+# leaving it cost the machine its localhost.
+#
+# An installed file therefore always ends terminated, so the repair costs at
+# most one rebuild and the next run converges.
 #
 # Field equality, never grep word boundaries: to grep, `.` and `-` end a word,
 # so a -w filter also deleted pin.example.test.evil and other-pin.example.test,
@@ -127,7 +133,10 @@
 #      final COMMENT is read whole and harms nothing; convergence still requires
 #      the terminator there, because "the file ends terminated" is one property
 #      a rebuild can guarantee and "the file ends terminated unless the last
-#      line happens to be a comment" is not.
+#      line happens to be a comment" is not. The eaten character is not always a
+#      loss: when it is a CARRIAGE RETURN the chop is what makes that line read
+#      correctly, which is why handing it back is the one thing the rebuild must
+#      not do there. See THE UNREAD CARRIAGE RETURN below.
 #
 # INSTALL is atomic: chmod/chown the temp file to the target's own mode and
 # owner, then rename it INTO the target path. mktemp creates the temp beside the
@@ -206,40 +215,80 @@
 # rather than one per apply. Convert such a file to LF endings if you want the
 # record gone.
 #
-# THE ONE CRLF RECORD THAT IS NOT DEAD is an UNTERMINATED FINAL one, and this
-# paragraph exists because the sentence above used to be written as an
-# unconditional "it does not answer on either reading", which is false here.
-# `_fsi_get_line` chops the last character of every non-comment line whether or
-# not there is a newline to chop (fact 4), so on a final line that ends
-# "...pin<CR>" with no newline the character it eats is the CR ITSELF and the
-# resolver reads a CLEAN "pin". Measured: such a file answers the STALE address
-# for the pin's name, which is the confidently-wrong fallback this script
-# exists to prevent.
-# Nothing extra is needed to repair it, and that is worth stating rather than
-# leaving to be rediscovered: the missing terminator already makes the file
-# unconverged, so the rebuild runs, the normalization gives that line its
-# newline, the CR stops being last, the record demotes to naming "pin<CR>", and
-# the correct record is appended below it. Measured after: the lookup answers
-# the pin's own address.
+# THE UNREAD CARRIAGE RETURN is the one on a FINAL line with no terminator, and
+# it is not covered by the paragraph above. `_fsi_get_line` chops the last
+# character of every non-comment line whether or not there is a newline to chop
+# (fact 4), so there the character it eats is the CR ITSELF: the resolver reads
+# "...localhost<CR>" as a clean "localhost" and "...pin<CR>" as a clean "pin".
+# Such a CR is not litter. It is invisible, and every name on that line answers.
 #
-# WHY THE OBVIOUS REPAIR IS REFUSED. Two present themselves, and both were
-# measured rather than argued. Stripping a trailing CR per field inside
-# `hosts_line_claims_name`, and adding \r to HOSTS_ITEM_SEPARATOR_CHARACTERS,
-# each make this script claim a THIRD PARTY's CRLF record: "10.0.0.5 nas.home
-# pin<CR>" belongs to nas.home, the resolver answers 10.0.0.5 for that name and
-# answers nothing for the pin's names from that line, and under either repair
-# the rebuild drops it, so root deletes an unrelated record from /etc/hosts.
-# That is the same trade refused for comment-borne names below, and refused for
-# the same reason: a divergence-free filter is worth more than the removal of a
-# line that answers nothing. The separator-set version is worse still, because
-# both predicates read that set: "127.0.0.1<CR><TAB>localhost" would read as a
-# valid loopback record here while `inet_pton` refuses that first token in the
-# resolver, so THE LOOPBACK GATE would vouch for a file the machine has no
-# localhost in. Measured: with \r in the set, a run over such a file rewrites it
-# and exits 0 where it refuses today. Both directions are pinned, in
-# test/unit/tailnet-pin-hosts-predicates.sh (p1-carriage-return-in-address,
-# p2-crlf-third-party-short-name, p2-crlf-stale-pin-fqdn) and in LAYER 2j3 of
-# test/integration/tailnet-pins.sh.
+# WHICH MAKES THE TERMINATOR NORMALIZATION DANGEROUS ON EXACTLY THAT LINE, and
+# an earlier pass shipped that danger. Adding the newline stops the chop landing
+# on a real byte, which is the whole point when the byte is record content
+# ("localhos" becomes "localhost" again). When the byte is a CR it is the
+# reverse. Measured, both directions, with Apple's parser compiled verbatim:
+# a file ending "127.0.0.1<TAB>localhost<CR>" answers localhost before the run
+# and, with the CR handed back, answers NOTHING for localhost afterwards. The
+# machine loses localhost, the loopback gate does not notice (it reads the
+# ADDRESS field, and the address is still 127.0.0.1), the run reports success,
+# and the next run reports "already converged", so the file is never revisited.
+# It generalizes past localhost: "10.0.0.5<TAB>nas.home<CR>" as the final
+# unterminated line answers 10.0.0.5 for nas.home before and nothing after.
+#
+# SO THAT LINE IS READ THE WAY THE RESOLVER READS IT. Both file walkers hand it
+# to `hosts_line_without_unread_carriage_return` before anything else looks at
+# it, which drops exactly the byte the resolver had already discarded, and the
+# ordinary rules then apply to what is left. Three consequences, all measured:
+# localhost and third-party names survive the rebuild; a STALE pin record
+# sitting on that line now claims the pin's name and is DROPPED rather than
+# left in the file; and after the run, EVERY NAME resolves the same as it does
+# from the LF-terminated file with the same records, so the CR stops being a
+# special case for what the machine reads.
+#
+# Not the same BYTES as that file, and the difference is worth naming so nobody
+# reads more into the sentence above than was measured: the LF-terminated file
+# may already be converged, in which case nothing is rewritten and its records
+# keep their original order, while the unterminated one is rebuilt and its
+# surviving records end up above the appended pin. That is the terminator
+# condition doing its job, not the carriage return doing anything. Pinned in
+# LAYER 2j4 of test/integration/tailnet-pins.sh and in P15 of
+# test/unit/tailnet-pin-hosts-predicates.sh.
+#
+# WHY THE WIDER REPAIRS ARE STILL REFUSED. Two present themselves for the
+# TERMINATED CRLF record above, and both were measured rather than argued.
+# Stripping a trailing CR per field inside `hosts_line_claims_name`, and adding
+# \r to HOSTS_ITEM_SEPARATOR_CHARACTERS, each make this script claim a THIRD
+# PARTY's CRLF record: "10.0.0.5 nas.home pin<CR>" belongs to nas.home, the
+# resolver answers 10.0.0.5 for that name and answers nothing for the pin's
+# names from that line, and under either repair the rebuild drops it, so root
+# deletes an unrelated record from /etc/hosts. That is the same trade refused
+# for comment-borne names below, and refused for the same reason: a
+# divergence-free filter is worth more than the removal of a line that answers
+# nothing. Note what separates these from the unread CR above, because it is the
+# whole distinction: there the resolver had ALREADY discarded the byte, so
+# matching it changes no reading; here the resolver reads the CR, so discarding
+# it invents a reading nothing has.
+#
+# The separator-set version is worse still, because both predicates read that
+# set: "127.0.0.1<CR><TAB>localhost" would read as a valid loopback record here
+# while `inet_pton` refuses that first token in the resolver, so THE LOOPBACK
+# GATE would vouch for a file the machine has no localhost in. Measured: with \r
+# in the set, a run over such a file rewrites it and exits 0 where it refuses
+# today.
+#
+# WHAT THE GATE DOES ACCEPT, stated because the paragraph above used to read as
+# though a CR could only ever reach the gate through one of those repairs. A
+# TERMINATED "127.0.0.1<TAB>localhost<CR>" passes the gate TODAY, and honestly:
+# the gate asks whether 127.0.0.1 maps to at least one name, the resolver reads
+# that name as "localhost<CR>", and a name it is. That machine has no working
+# localhost, before this script runs and after, and refusing to install would
+# abort `chezmoi apply` over a file this script neither created nor worsened.
+# The gate's latitude about WHICH name serves localhost (see THE LOOPBACK GATE)
+# is the same latitude here. Both shapes are pinned, the refused one and the
+# accepted one, in test/unit/tailnet-pin-hosts-predicates.sh
+# (p1-carriage-return-in-address, p1-trailing-carriage-return-loopback,
+# p2-crlf-third-party-short-name, p2-crlf-stale-pin-fqdn) and in LAYERS 2j3 and
+# 2j4 of test/integration/tailnet-pins.sh.
 #
 # KNOWN LIMITATION, A NAME INSIDE COMMENT TEXT. This one is a real divergence,
 # measured. Because every predicate reads `hosts_line_record_text`, a line like
@@ -305,6 +354,13 @@ readonly HOSTS_RECORD_MINIMUM_FIELD_COUNT=2
 # fields the resolver does, and so a leading run of blanks is skipped here for
 # the same reason it is skipped there.
 readonly HOSTS_ITEM_SEPARATOR_CHARACTERS=$' \t\n'
+
+# The byte a CRLF file leaves at the end of every line. Named because it is read
+# three different ways here: it is an ordinary NAME character to both this script
+# and the resolver (KNOWN LIMITATION, CRLF), it is refused inside a pin's own
+# fields, and on a final line with no terminator the resolver never reads it at
+# all (THE UNREAD CARRIAGE RETURN).
+readonly CARRIAGE_RETURN=$'\r'
 
 # The address a working localhost record must map. See THE LOOPBACK GATE above
 # for why the whole 127.0.0.0/8 block does not qualify.
@@ -402,6 +458,44 @@ hosts_file_description() { # <configured-path> <resolved-path>
 # walk, and this runs as root over the whole of /etc/hosts.
 hosts_line_record_text() { # <destination-variable> <line>
   printf -v "$1" '%s' "${2%%"${HOSTS_COMMENT_CHARACTER}"*}"
+}
+
+# The line, minus the carriage return the resolver never read. ONLY ever called
+# on a file's FINAL line when that file has no terminator, which is the only
+# place such a byte exists; the two file walkers are the only callers, because
+# they are the only code that knows a line is that line.
+#
+# `_fsi_get_line` chops the last byte of every non-comment line whether or not
+# there is a newline to chop (READING A HOSTS LINE, fact 4), so on that one line
+# the resolver reads one byte less than the file holds. The rebuild gives that
+# byte back when it writes the terminator. Giving back a byte of the RECORD is
+# the repair fact 4 exists for ("localhos" becomes "localhost" again). Giving
+# back a CR is not: it is a line-ending artifact the resolver had already
+# discarded, and handing it back turns a name the machine resolves into one it
+# cannot. So exactly that byte, and only when it is a CR, is dropped here, and
+# the rest of the line is passed through untouched. See THE UNREAD CARRIAGE
+# RETURN in the header for the measurement and for what the two alternatives
+# cost.
+#
+# The '#' exemption mirrors `_fsi_get_line`'s own (`if (s[0] != '#')`): a final
+# unterminated COMMENT is not chopped there, so its CR was read, not unread, and
+# removing it would be an edit to a line this rebuild promises to copy through.
+#
+# Writes into the caller's <destination-variable> for the same reason
+# hosts_line_record_text does: printing would fork a subshell per line.
+#
+# NO LOCALS, and that is a correctness requirement rather than brevity. `local`
+# is DYNAMICALLY scoped in bash, so a local named for what this holds would
+# shadow the caller's variable of the same name and `printf -v` would then write
+# to the shadow. Both callers pass a variable named `line`, so a `local line`
+# here silently made this function a no-op from their side. Same reason
+# hosts_line_record_text declares none.
+hosts_line_without_unread_carriage_return() { # <destination-variable> <line>
+  if [[ $2 != "$HOSTS_COMMENT_CHARACTER"* && $2 == *"$CARRIAGE_RETURN" ]]; then
+    printf -v "$1" '%s' "${2%"$CARRIAGE_RETURN"}"
+  else
+    printf -v "$1" '%s' "$2"
+  fi
 }
 
 # Is this line a record mapping exactly <address> to at least one name?
@@ -572,6 +666,7 @@ survey_hosts_file() { # <path> <fqdn> <short> <desired-record>
   local path=$1 fqdn=$2 short=$3 desired_record=$4
   local claiming_line_count=0 desired_record_present=$BOOLEAN_FALSE
   local file_ends_with_terminator=$BOOLEAN_TRUE line
+  local line_is_the_unterminated_final_one=$BOOLEAN_FALSE
   # The `|| return 1` on the group is what refuses an unopenable source. The
   # trailing `:` pins the group's status to the REDIRECT rather than to whatever
   # the loop body last returned; see FAILURE IS CHECKED in the header for why it
@@ -580,10 +675,21 @@ survey_hosts_file() { # <path> <fqdn> <short> <desired-record>
   # The `|| [[ -n $line ]]` half of the condition is what feeds an UNTERMINATED
   # final line to the body at all, and it is the ONLY place that fact can be
   # observed: one more `read` runs before the loop exits and clears `line`, so a
-  # check after `done` always sees an empty one. Hence the assignment here.
+  # check after `done` always sees an empty one. Hence the assignment here. The
+  # flag needs no reset per iteration: `read` fails only at end of file, so the
+  # branch runs at most once and on the last line the body ever sees.
+  #
+  # That line is then read the way write_kept_hosts_lines will write it, which
+  # is the way the RESOLVER reads it. Two walkers disagreeing about what the
+  # last line of one file says is exactly the drift the convergence contract
+  # exists to close.
   {
     while IFS= read -r line ||
-      { [[ -n $line ]] && file_ends_with_terminator=$BOOLEAN_FALSE; }; do
+      { [[ -n $line ]] && line_is_the_unterminated_final_one=$BOOLEAN_TRUE; }; do
+      if ((line_is_the_unterminated_final_one == BOOLEAN_TRUE)); then
+        file_ends_with_terminator=$BOOLEAN_FALSE
+        hosts_line_without_unread_carriage_return line "$line"
+      fi
       if hosts_line_is_claimed_by_pin "$line" "$fqdn" "$short"; then
         claiming_line_count=$((claiming_line_count + 1))
         if [[ $line == "$desired_record" ]]; then
@@ -600,6 +706,12 @@ survey_hosts_file() { # <path> <fqdn> <short> <desired-record>
 # VALIDATION. Does this file carry a record a machine can resolve localhost
 # through? A file that cannot be opened answers NO, which is the safe direction
 # for every caller (they refuse), and is stated here rather than accidental.
+#
+# The other two file walkers read a final unterminated line the way the resolver
+# does (THE UNREAD CARRIAGE RETURN); this one does not, and does not need to.
+# It is only ever pointed at the REBUILD, which terminates every line it writes,
+# so there is no unterminated final line here to read either way. Point it at a
+# source file and that stops being true.
 hosts_file_has_valid_loopback_record() { # <path>
   local path=$1 line
   {
@@ -621,11 +733,20 @@ hosts_file_has_valid_loopback_record() { # <path>
 # cannot be opened, or when any single line fails to write: a half-copied
 # rebuild is not a rebuild, and the gate that runs on the result would then be
 # vouching for a truncated file.
+#
+# The final line of an UNTERMINATED source is the one exception to "unchanged",
+# and it is deliberate in both halves: it gains the terminator (without which
+# the appended record would join onto it), and it loses the carriage return the
+# resolver never read there. See THE UNREAD CARRIAGE RETURN in the header.
 write_kept_hosts_lines() { # <source> <destination> <fqdn> <short>
   local source_path=$1 destination_path=$2 fqdn=$3 short=$4
-  local line
+  local line line_is_the_unterminated_final_one=$BOOLEAN_FALSE
   {
-    while IFS= read -r line || [[ -n $line ]]; do
+    while IFS= read -r line ||
+      { [[ -n $line ]] && line_is_the_unterminated_final_one=$BOOLEAN_TRUE; }; do
+      if ((line_is_the_unterminated_final_one == BOOLEAN_TRUE)); then
+        hosts_line_without_unread_carriage_return line "$line"
+      fi
       if ! hosts_line_is_claimed_by_pin "$line" "$fqdn" "$short"; then
         printf '%s\n' "$line" || return 1
       fi
