@@ -2813,49 +2813,165 @@ fi
 
 # fork/vendored upstream drift-check: for each lock forks entry, fetch the
 # upstream and compare the recorded skill path's current git hash (tree hash for
-# a folder, blob hash for a single-file skill like herdr's root SKILL.md)
-# against lastComparedTreeHash, the hash at the last HUMAN comparison. Drift
-# means the upstream shipped changes nobody has reviewed against the local copy
-# yet: alert and move on. This pass only ever reads; the vendored store content
-# is untouchable here by construction (nothing below writes to $STORE). An
-# unreachable upstream is a logged warning, never a failure, the weekly run
-# must survive a dead network.
+# a folder, blob hash for a single-file skill) against lastComparedTreeHash, the
+# hash at the last HUMAN comparison. Drift means the upstream shipped changes
+# nobody has reviewed against the local copy yet: alert and move on. This pass
+# only ever reads; the vendored store content is untouchable here by
+# construction (nothing below writes to $STORE). An unreachable upstream is a
+# logged warning, never a failure, the weekly run must survive a dead network.
+#
+# Everything this phase can go wrong with is ADVISORY: it warns loudly and
+# returns 0. It must never fail the weekly run, which by the time it reaches
+# here has already published a generation and has yet to write its success
+# stamp.
+
+# The skillPath value meaning "the whole repository", where the comparison is
+# against HEAD's root tree rather than a path inside it.
+FORK_SKILL_PATH_WHOLE_REPO="."
+
+# Relay states this phase can report. Each is a distinct operator remedy, so
+# they must stay distinguishable downstream, not collapse into one alert.
+FORK_RELAY_STATE_DRIFT="fork-drift"                # upstream content moved; compare and port by hand
+FORK_RELAY_STATE_PATH_MISSING="fork-path-missing"  # upstream still there; our recorded path is not
+FORK_RELAY_STATE_LOCK_MALFORMED="fork-lock-broken" # the lock itself cannot be walked
+
+# Path git reads instead of the file-based global and system config while
+# cloning a drift upstream. WHY: the recorded sourceUrl is an anonymous public
+# HTTPS URL, and this repo deliberately ships
+# `url."git@github.com:".insteadOf = https://github.com/` (dot_gitconfig.tmpl),
+# which silently converts that fetch to SSH; every SSH failure then degrades to
+# "upstream unreachable", a permanently silent skip. HONEST SCOPE, measured on
+# git 2.55.0: GIT_CONFIG_GLOBAL covers BOTH ~/.gitconfig and
+# $XDG_CONFIG_HOME/git/config, GIT_CONFIG_SYSTEM covers /etc/gitconfig, and
+# NEITHER covers config injected via GIT_CONFIG_COUNT/GIT_CONFIG_KEY_n, which
+# still applies. What these clones give up along with the rewrite: globally
+# configured proxies, custom CA bundles and credential helpers. That is the
+# intent, an anonymous public clone needs none of them.
+GIT_CONFIG_NEUTRALIZED_PATH="/dev/null"
+
+# Soft-gate on relay.sh, exactly like the pre-commit hook's gitleaks stage: its
+# absence is a silent skip, not an error. `|| true` because an advisory
+# notification must never decide the run's exit status. A relay push reaches
+# the operator's phone, so it is a side effect --dry-run must not have: the dry
+# preview still LOGS every finding, it just does not notify anyone about it.
+relay_fork_advisory() {
+  local state="$1" fork="$2" detail="$3"
+  local relay_script="$HOME/.local/bin/relay.sh"
+  if [[ $DRYRUN == "--dry-run" ]]; then
+    return 0
+  fi
+  [[ -x $relay_script ]] || return 0
+  "$relay_script" --agent update-skills --state "$state" --project "$fork" \
+    --detail "$detail" || true
+}
+
 notify_fork_drift() {
   local fork="$1" source_url="$2"
-  local relay_script="$HOME/.local/bin/relay.sh"
   log "FORK DRIFT: $fork, upstream $source_url has changed since the last comparison"
   log "FORK DRIFT: compare upstream and port wanted changes into the vendored copy by hand (see CLAUDE.md, Agent Skills), then set forks[\"$fork\"].lastComparedTreeHash to the new upstream hash; the vendored copy itself was not modified"
-  # Soft-gate on relay.sh, exactly like the pre-commit hook's gitleaks stage:
-  # relay lands in a later slice, so its absence is a silent skip, not an error.
-  if [[ -x $relay_script ]]; then
-    "$relay_script" --agent update-skills --state fork-drift --project "$fork" \
-      --detail "upstream $source_url changed since the last comparison; compare and port wanted changes by hand, then bump lastComparedTreeHash" || true
+  relay_fork_advisory "$FORK_RELAY_STATE_DRIFT" "$fork" \
+    "upstream $source_url changed since the last comparison; compare and port wanted changes by hand, then bump lastComparedTreeHash"
+}
+
+# The upstream is reachable and the recorded path is not in it: upstream moved
+# or deleted it. Distinct from drift because the remedies are opposite. Drift
+# says "bump the hash once you have compared"; here there IS no hash to bump
+# under the recorded path, and bumping one would silence a comparison that has
+# never happened.
+notify_fork_path_missing() {
+  local fork="$1" source_url="$2" skill_path="$3"
+  log "FORK PATH MISSING: $fork, the recorded skillPath \"$skill_path\" no longer exists in upstream $source_url"
+  log "FORK PATH MISSING: re-point forks[\"$fork\"].skillPath at the path upstream moved the skill to, and LEAVE lastComparedTreeHash alone; bumping it would silence a drift nobody has reviewed"
+  relay_fork_advisory "$FORK_RELAY_STATE_PATH_MISSING" "$fork" \
+    "the recorded skillPath \"$skill_path\" is gone from upstream $source_url; re-point skillPath, do not bump lastComparedTreeHash"
+}
+
+# Is the lock's forks table a shape the drift-watch can walk? Absent is legal
+# and means there is nothing to watch. Present-but-not-an-object is corruption,
+# and both of its outcomes were wrong before this gate: false/null/a string/[]
+# walked zero entries and reported a silent all-clear over an unwatched fork
+# set, and an ARRAY made the per-entry jq index error out, which under
+# `set -euo pipefail` aborted the whole run.
+fork_table_walkable() {
+  local lock_file="$1"
+  jq -e '
+    def object_or_absent($k): (has($k) | not) or (.[$k] | type == "object");
+    (type == "object") and object_or_absent("forks")
+  ' "$lock_file" >/dev/null 2>&1
+}
+
+# Does this entry carry the three fields the walk reads, each a non-empty
+# string? Answered per entry so one broken entry cannot silence the others.
+# Without it a null sourceUrl reported "upstream unreachable (null)", which
+# sends the operator to check their network when the lock is what is broken,
+# and a null skillPath resolved as the literal path "null".
+fork_entry_walkable() {
+  local source_url="$1" skill_path="$2" last_compared_tree_hash="$3"
+  [[ -n $source_url && $source_url != "null" ]] || return 1
+  [[ -n $skill_path && $skill_path != "null" ]] || return 1
+  [[ -n $last_compared_tree_hash && $last_compared_tree_hash != "null" ]] || return 1
+}
+
+# Clone a public upstream anonymously at the URL exactly as recorded. Single
+# responsibility: fetch. --depth 1 suffices, only HEAD's tree is ever compared.
+clone_fork_upstream() {
+  local source_url="$1" destination="$2"
+  GIT_CONFIG_GLOBAL="$GIT_CONFIG_NEUTRALIZED_PATH" \
+    GIT_CONFIG_SYSTEM="$GIT_CONFIG_NEUTRALIZED_PATH" \
+    git clone --quiet --depth 1 "$source_url" "$destination" 2>/dev/null
+}
+
+# Print the current git hash of the recorded skill path in a cloned upstream
+# and return 0; print nothing and return 1 when that path is not in HEAD.
+# Detection is by git's EXIT STATUS, never by matching its output against a
+# sentinel: `git rev-parse` ECHOES an unresolvable argument to stdout before
+# failing (measured, git 2.55.0), so the old `|| echo missing-path` produced
+# "HEAD:SKILL.md\nmissing-path", which compares equal to neither the sentinel
+# nor any hash, and therefore reported content drift forever.
+resolve_fork_upstream_hash() {
+  local repo_dir="$1" skill_path="$2" revision
+  if [[ $skill_path == "$FORK_SKILL_PATH_WHOLE_REPO" ]]; then
+    revision='HEAD^{tree}'
+  else
+    revision="HEAD:$skill_path"
   fi
+  git -C "$repo_dir" rev-parse --verify --quiet "$revision" 2>/dev/null
 }
 
 check_fork_drift() {
   [[ -f $CUSTOM_SKILL_LOCK ]] || return 0
+  if ! fork_table_walkable "$CUSTOM_SKILL_LOCK"; then
+    log "fork drift-check: the forks table in $CUSTOM_SKILL_LOCK is present but not an object; NO fork upstream is being watched this run, fix the lock"
+    relay_fork_advisory "$FORK_RELAY_STATE_LOCK_MALFORMED" "forks" \
+      "the forks table in $CUSTOM_SKILL_LOCK is present but not an object; no fork upstream was drift-checked"
+    return 0
+  fi
   local fork source_url skill_path last_compared_tree_hash current_tree_hash clone_dir
   # read on fd 3: the loop body runs git, which may consume stdin
   while IFS= read -r -u3 fork; do
-    source_url="$(jq -r ".forks[\"$fork\"].sourceUrl" "$CUSTOM_SKILL_LOCK")"
-    skill_path="$(jq -r ".forks[\"$fork\"].skillPath" "$CUSTOM_SKILL_LOCK")"
-    last_compared_tree_hash="$(jq -r ".forks[\"$fork\"].lastComparedTreeHash" "$CUSTOM_SKILL_LOCK")"
+    source_url="$(jq -r --arg fork "$fork" '.forks[$fork].sourceUrl // ""' "$CUSTOM_SKILL_LOCK")"
+    skill_path="$(jq -r --arg fork "$fork" '.forks[$fork].skillPath // ""' "$CUSTOM_SKILL_LOCK")"
+    last_compared_tree_hash="$(jq -r --arg fork "$fork" '.forks[$fork].lastComparedTreeHash // ""' "$CUSTOM_SKILL_LOCK")"
+    if ! fork_entry_walkable "$source_url" "$skill_path" "$last_compared_tree_hash"; then
+      log "fork drift-check $fork: the lock entry is malformed (sourceUrl, skillPath and lastComparedTreeHash must all be non-empty); this upstream is NOT being watched, fix the lock"
+      relay_fork_advisory "$FORK_RELAY_STATE_LOCK_MALFORMED" "$fork" \
+        "the forks entry for $fork is malformed (sourceUrl, skillPath and lastComparedTreeHash must all be non-empty); it was not drift-checked"
+      continue
+    fi
     if [[ $DRYRUN == "--dry-run" ]]; then
       log "would drift-check fork: $fork against $source_url"
       continue
     fi
     clone_dir="$(mktemp -d)"
-    # --depth 1 suffices: only HEAD's tree is compared, never history
-    if ! git clone --quiet --depth 1 "$source_url" "$clone_dir/repo" 2>/dev/null; then
+    if ! clone_fork_upstream "$source_url" "$clone_dir/repo"; then
       log "fork drift-check $fork: upstream unreachable ($source_url); skipping"
       rm -rf "$clone_dir"
       continue
     fi
-    if [[ $skill_path == "." ]]; then
-      current_tree_hash="$(git -C "$clone_dir/repo" rev-parse 'HEAD^{tree}')"
-    else
-      current_tree_hash="$(git -C "$clone_dir/repo" rev-parse "HEAD:$skill_path" 2>/dev/null || echo missing-path)"
+    if ! current_tree_hash="$(resolve_fork_upstream_hash "$clone_dir/repo" "$skill_path")"; then
+      rm -rf "$clone_dir"
+      notify_fork_path_missing "$fork" "$source_url" "$skill_path"
+      continue
     fi
     rm -rf "$clone_dir"
     if [[ $current_tree_hash == "$last_compared_tree_hash" ]]; then
@@ -2863,7 +2979,7 @@ check_fork_drift() {
     else
       notify_fork_drift "$fork" "$source_url"
     fi
-  done 3< <(jq -r '.forks|keys[]?' "$CUSTOM_SKILL_LOCK" 2>/dev/null)
+  done 3< <(jq -r '.forks // {} | keys[]?' "$CUSTOM_SKILL_LOCK" 2>/dev/null)
 }
 
 if [[ -n $CHECK_FORKS_ONLY ]]; then
