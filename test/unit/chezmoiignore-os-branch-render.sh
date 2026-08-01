@@ -30,10 +30,12 @@
 #      reads as though some file were handled. `chezmoi managed` is the authority
 #      on what this repo delivers, not the presence of a source file, because it
 #      applies .chezmoiignore and every source-name attribute prefix. This arm is
-#      decidable only from the OTHER OS (on the gated OS those very paths are
-#      suppressed, so their absence proves nothing), which is why the host OS is
-#      checked first and a run on the gated OS is a hard failure rather than a
-#      skip.
+#      decidable only from the OTHER OS: on the gated OS those very paths are
+#      suppressed, so their absence proves nothing. It therefore reports itself
+#      SKIPPED there, by name, rather than failing. Invariant 1 is
+#      OS-independent and runs everywhere, so the gated OS still gets the
+#      assertion that found the defect this file was written for, and CI runs on
+#      macOS, where the branch is inactive and invariant 2 does run.
 #
 # Glob patterns are exempt from invariant 2 on purpose: `.local/share/herdr/**/
 # target` and `.agents/skills/*/.git` name build output and vendored subtrees
@@ -201,10 +203,15 @@ for gate_literal in true false; do
 done
 
 # ---- 2: every path the OS branch suppresses is one this repo delivers ------
+# Undecidable on the gated OS itself, where the branch suppresses the very paths
+# being asked about, so this arm names itself skipped there instead of failing a
+# tree that is correct. Invariant 1 has already run on both branches by then.
 host_os="$(chezmoi execute-template --no-tty '{{ .chezmoi.os }}')" ||
   fail "could not ask chezmoi for the host OS; invariant 2 cannot be decided"
-[[ $host_os != "$GATED_OS" ]] ||
-  fail "this suite is running on $GATED_OS, the very OS the branch gates, so every path in it is suppressed here and 'chezmoi managed' cannot say whether the repo delivers it. Invariant 2 is decidable only from another OS"
+if [[ $host_os == "$GATED_OS" ]]; then
+  printf 'chezmoiignore-os-branch-render: OK (no welded lines in either branch, both end in a newline); SKIP invariant 2 (host OS is %s, the OS this branch gates, where every path in it is suppressed and "chezmoi managed" cannot say whether the repo delivers it)\n' "$host_os"
+  exit 0
+fi
 
 # The branch's own lines are the difference between the two renders, so nothing
 # has to be kept in step with the template by hand.
