@@ -22408,24 +22408,66 @@
       "norm_label": "claude-enabled-plugins.sh script"
     },
     {
-      "label": "MODIFY_TEMPLATE",
+      "label": "SETTINGS_TARGET_RELATIVE_PATH",
       "file_type": "code",
       "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L26",
+      "source_location": "L50",
       "metadata": {
         "language": "bash",
         "kind": "code"
       },
       "_origin": "ast",
-      "id": "test_unit_claude_enabled_plugins_modify_template",
+      "id": "test_unit_claude_enabled_plugins_settings_target_relative_path",
       "community": 424,
-      "norm_label": "modify_template"
+      "norm_label": "settings_target_relative_path"
+    },
+    {
+      "label": "SANDBOX_SOURCE_FILES",
+      "file_type": "code",
+      "source_file": "test/unit/claude-enabled-plugins.sh",
+      "source_location": "L57",
+      "metadata": {
+        "language": "bash",
+        "kind": "code"
+      },
+      "_origin": "ast",
+      "id": "test_unit_claude_enabled_plugins_sandbox_source_files",
+      "community": 424,
+      "norm_label": "sandbox_source_files"
+    },
+    {
+      "label": "PASSTHROUGH_SETTING_KEY",
+      "file_type": "code",
+      "source_file": "test/unit/claude-enabled-plugins.sh",
+      "source_location": "L74",
+      "metadata": {
+        "language": "bash",
+        "kind": "code"
+      },
+      "_origin": "ast",
+      "id": "test_unit_claude_enabled_plugins_passthrough_setting_key",
+      "community": 424,
+      "norm_label": "passthrough_setting_key"
+    },
+    {
+      "label": "LIVE_BUT_UNDECLARED_PLUGIN",
+      "file_type": "code",
+      "source_file": "test/unit/claude-enabled-plugins.sh",
+      "source_location": "L75",
+      "metadata": {
+        "language": "bash",
+        "kind": "code"
+      },
+      "_origin": "ast",
+      "id": "test_unit_claude_enabled_plugins_live_but_undeclared_plugin",
+      "community": 424,
+      "norm_label": "live_but_undeclared_plugin"
     },
     {
       "label": "EXPECTED_ENABLED_PLUGINS",
       "file_type": "code",
       "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L30",
+      "source_location": "L79",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -22436,10 +22478,80 @@
       "norm_label": "expected_enabled_plugins"
     },
     {
+      "label": "REPORT_FIELD_DELIMITER",
+      "file_type": "code",
+      "source_file": "test/unit/claude-enabled-plugins.sh",
+      "source_location": "L95",
+      "metadata": {
+        "language": "bash",
+        "kind": "code"
+      },
+      "_origin": "ast",
+      "id": "test_unit_claude_enabled_plugins_report_field_delimiter",
+      "community": 424,
+      "norm_label": "report_field_delimiter"
+    },
+    {
+      "label": "PLUGIN_RECORD",
+      "file_type": "code",
+      "source_file": "test/unit/claude-enabled-plugins.sh",
+      "source_location": "L96",
+      "metadata": {
+        "language": "bash",
+        "kind": "code"
+      },
+      "_origin": "ast",
+      "id": "test_unit_claude_enabled_plugins_plugin_record",
+      "community": 424,
+      "norm_label": "plugin_record"
+    },
+    {
+      "label": "PASSTHROUGH_RECORD",
+      "file_type": "code",
+      "source_file": "test/unit/claude-enabled-plugins.sh",
+      "source_location": "L97",
+      "metadata": {
+        "language": "bash",
+        "kind": "code"
+      },
+      "_origin": "ast",
+      "id": "test_unit_claude_enabled_plugins_passthrough_record",
+      "community": 424,
+      "norm_label": "passthrough_record"
+    },
+    {
+      "label": "FIXTURE_SETTINGS_TEMPLATE",
+      "file_type": "code",
+      "source_file": "test/unit/claude-enabled-plugins.sh",
+      "source_location": "L106",
+      "metadata": {
+        "language": "bash",
+        "kind": "code"
+      },
+      "_origin": "ast",
+      "id": "test_unit_claude_enabled_plugins_fixture_settings_template",
+      "community": 424,
+      "norm_label": "fixture_settings_template"
+    },
+    {
+      "label": "SETTINGS_REPORT_TEMPLATE",
+      "file_type": "code",
+      "source_file": "test/unit/claude-enabled-plugins.sh",
+      "source_location": "L117",
+      "metadata": {
+        "language": "bash",
+        "kind": "code"
+      },
+      "_origin": "ast",
+      "id": "test_unit_claude_enabled_plugins_settings_report_template",
+      "community": 424,
+      "norm_label": "settings_report_template"
+    },
+    {
       "label": "fail()",
       "file_type": "code",
       "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L43",
+      "source_location": "L129",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -22450,18 +22562,186 @@
       "norm_label": "fail()"
     },
     {
-      "label": "plugin_block()",
+      "label": "finish()",
       "file_type": "code",
       "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L56",
+      "source_location": "L134",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
       },
       "_origin": "ast",
-      "id": "test_unit_claude_enabled_plugins_plugin_block",
+      "id": "test_unit_claude_enabled_plugins_finish",
       "community": 424,
-      "norm_label": "plugin_block()"
+      "norm_label": "finish()"
+    },
+    {
+      "label": "SANDBOX_SOURCE",
+      "file_type": "code",
+      "source_file": "test/unit/claude-enabled-plugins.sh",
+      "source_location": "L156",
+      "metadata": {
+        "language": "bash",
+        "kind": "code"
+      },
+      "_origin": "ast",
+      "id": "test_unit_claude_enabled_plugins_sandbox_source",
+      "community": 424,
+      "norm_label": "sandbox_source"
+    },
+    {
+      "label": "SANDBOX_DESTINATION",
+      "file_type": "code",
+      "source_file": "test/unit/claude-enabled-plugins.sh",
+      "source_location": "L157",
+      "metadata": {
+        "language": "bash",
+        "kind": "code"
+      },
+      "_origin": "ast",
+      "id": "test_unit_claude_enabled_plugins_sandbox_destination",
+      "community": 424,
+      "norm_label": "sandbox_destination"
+    },
+    {
+      "label": "SANDBOX_SETTINGS",
+      "file_type": "code",
+      "source_file": "test/unit/claude-enabled-plugins.sh",
+      "source_location": "L158",
+      "metadata": {
+        "language": "bash",
+        "kind": "code"
+      },
+      "_origin": "ast",
+      "id": "test_unit_claude_enabled_plugins_sandbox_settings",
+      "community": 424,
+      "norm_label": "sandbox_settings"
+    },
+    {
+      "label": "SANDBOX_CONFIG",
+      "file_type": "code",
+      "source_file": "test/unit/claude-enabled-plugins.sh",
+      "source_location": "L159",
+      "metadata": {
+        "language": "bash",
+        "kind": "code"
+      },
+      "_origin": "ast",
+      "id": "test_unit_claude_enabled_plugins_sandbox_config",
+      "community": 424,
+      "norm_label": "sandbox_config"
+    },
+    {
+      "label": "SANDBOX_PERSISTENT_STATE",
+      "file_type": "code",
+      "source_file": "test/unit/claude-enabled-plugins.sh",
+      "source_location": "L160",
+      "metadata": {
+        "language": "bash",
+        "kind": "code"
+      },
+      "_origin": "ast",
+      "id": "test_unit_claude_enabled_plugins_sandbox_persistent_state",
+      "community": 424,
+      "norm_label": "sandbox_persistent_state"
+    },
+    {
+      "label": "SANDBOX_CACHE",
+      "file_type": "code",
+      "source_file": "test/unit/claude-enabled-plugins.sh",
+      "source_location": "L161",
+      "metadata": {
+        "language": "bash",
+        "kind": "code"
+      },
+      "_origin": "ast",
+      "id": "test_unit_claude_enabled_plugins_sandbox_cache",
+      "community": 424,
+      "norm_label": "sandbox_cache"
+    },
+    {
+      "label": "chezmoi_isolated()",
+      "file_type": "code",
+      "source_file": "test/unit/claude-enabled-plugins.sh",
+      "source_location": "L181",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_claude_enabled_plugins_chezmoi_isolated",
+      "community": 424,
+      "norm_label": "chezmoi_isolated()"
+    },
+    {
+      "label": "render_template()",
+      "file_type": "code",
+      "source_file": "test/unit/claude-enabled-plugins.sh",
+      "source_location": "L194",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_claude_enabled_plugins_render_template",
+      "community": 424,
+      "norm_label": "render_template()"
+    },
+    {
+      "label": "populate_sandbox_source()",
+      "file_type": "code",
+      "source_file": "test/unit/claude-enabled-plugins.sh",
+      "source_location": "L202",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_claude_enabled_plugins_populate_sandbox_source",
+      "community": 424,
+      "norm_label": "populate_sandbox_source()"
+    },
+    {
+      "label": "write_fixture_settings()",
+      "file_type": "code",
+      "source_file": "test/unit/claude-enabled-plugins.sh",
+      "source_location": "L215",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_claude_enabled_plugins_write_fixture_settings",
+      "community": 424,
+      "norm_label": "write_fixture_settings()"
+    },
+    {
+      "label": "apply_settings_target()",
+      "file_type": "code",
+      "source_file": "test/unit/claude-enabled-plugins.sh",
+      "source_location": "L228",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_claude_enabled_plugins_apply_settings_target",
+      "community": 424,
+      "norm_label": "apply_settings_target()"
+    },
+    {
+      "label": "settings_report()",
+      "file_type": "code",
+      "source_file": "test/unit/claude-enabled-plugins.sh",
+      "source_location": "L238",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_claude_enabled_plugins_settings_report",
+      "community": 424,
+      "norm_label": "settings_report()"
     },
     {
       "label": "claude-retirement-ordering.sh",
@@ -72931,7 +73211,27 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L30",
+      "source_location": "L228",
+      "weight": 1.0,
+      "source": "test_unit_claude_enabled_plugins",
+      "target": "test_unit_claude_enabled_plugins_apply_settings_target",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/claude-enabled-plugins.sh",
+      "source_location": "L181",
+      "weight": 1.0,
+      "source": "test_unit_claude_enabled_plugins",
+      "target": "test_unit_claude_enabled_plugins_chezmoi_isolated",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/claude-enabled-plugins.sh",
+      "source_location": "L79",
       "weight": 1.0,
       "source": "test_unit_claude_enabled_plugins",
       "target": "test_unit_claude_enabled_plugins_expected_enabled_plugins",
@@ -72941,7 +73241,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L43",
+      "source_location": "L129",
       "weight": 1.0,
       "source": "test_unit_claude_enabled_plugins",
       "target": "test_unit_claude_enabled_plugins_fail",
@@ -72951,20 +73251,190 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L26",
+      "source_location": "L134",
       "weight": 1.0,
       "source": "test_unit_claude_enabled_plugins",
-      "target": "test_unit_claude_enabled_plugins_modify_template",
+      "target": "test_unit_claude_enabled_plugins_finish",
       "confidence_score": 1.0
     },
     {
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L56",
+      "source_location": "L106",
       "weight": 1.0,
       "source": "test_unit_claude_enabled_plugins",
-      "target": "test_unit_claude_enabled_plugins_plugin_block",
+      "target": "test_unit_claude_enabled_plugins_fixture_settings_template",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/claude-enabled-plugins.sh",
+      "source_location": "L75",
+      "weight": 1.0,
+      "source": "test_unit_claude_enabled_plugins",
+      "target": "test_unit_claude_enabled_plugins_live_but_undeclared_plugin",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/claude-enabled-plugins.sh",
+      "source_location": "L97",
+      "weight": 1.0,
+      "source": "test_unit_claude_enabled_plugins",
+      "target": "test_unit_claude_enabled_plugins_passthrough_record",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/claude-enabled-plugins.sh",
+      "source_location": "L74",
+      "weight": 1.0,
+      "source": "test_unit_claude_enabled_plugins",
+      "target": "test_unit_claude_enabled_plugins_passthrough_setting_key",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/claude-enabled-plugins.sh",
+      "source_location": "L96",
+      "weight": 1.0,
+      "source": "test_unit_claude_enabled_plugins",
+      "target": "test_unit_claude_enabled_plugins_plugin_record",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/claude-enabled-plugins.sh",
+      "source_location": "L202",
+      "weight": 1.0,
+      "source": "test_unit_claude_enabled_plugins",
+      "target": "test_unit_claude_enabled_plugins_populate_sandbox_source",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/claude-enabled-plugins.sh",
+      "source_location": "L194",
+      "weight": 1.0,
+      "source": "test_unit_claude_enabled_plugins",
+      "target": "test_unit_claude_enabled_plugins_render_template",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/claude-enabled-plugins.sh",
+      "source_location": "L95",
+      "weight": 1.0,
+      "source": "test_unit_claude_enabled_plugins",
+      "target": "test_unit_claude_enabled_plugins_report_field_delimiter",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/claude-enabled-plugins.sh",
+      "source_location": "L161",
+      "weight": 1.0,
+      "source": "test_unit_claude_enabled_plugins",
+      "target": "test_unit_claude_enabled_plugins_sandbox_cache",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/claude-enabled-plugins.sh",
+      "source_location": "L159",
+      "weight": 1.0,
+      "source": "test_unit_claude_enabled_plugins",
+      "target": "test_unit_claude_enabled_plugins_sandbox_config",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/claude-enabled-plugins.sh",
+      "source_location": "L157",
+      "weight": 1.0,
+      "source": "test_unit_claude_enabled_plugins",
+      "target": "test_unit_claude_enabled_plugins_sandbox_destination",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/claude-enabled-plugins.sh",
+      "source_location": "L160",
+      "weight": 1.0,
+      "source": "test_unit_claude_enabled_plugins",
+      "target": "test_unit_claude_enabled_plugins_sandbox_persistent_state",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/claude-enabled-plugins.sh",
+      "source_location": "L158",
+      "weight": 1.0,
+      "source": "test_unit_claude_enabled_plugins",
+      "target": "test_unit_claude_enabled_plugins_sandbox_settings",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/claude-enabled-plugins.sh",
+      "source_location": "L156",
+      "weight": 1.0,
+      "source": "test_unit_claude_enabled_plugins",
+      "target": "test_unit_claude_enabled_plugins_sandbox_source",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/claude-enabled-plugins.sh",
+      "source_location": "L57",
+      "weight": 1.0,
+      "source": "test_unit_claude_enabled_plugins",
+      "target": "test_unit_claude_enabled_plugins_sandbox_source_files",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/claude-enabled-plugins.sh",
+      "source_location": "L238",
+      "weight": 1.0,
+      "source": "test_unit_claude_enabled_plugins",
+      "target": "test_unit_claude_enabled_plugins_settings_report",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/claude-enabled-plugins.sh",
+      "source_location": "L117",
+      "weight": 1.0,
+      "source": "test_unit_claude_enabled_plugins",
+      "target": "test_unit_claude_enabled_plugins_settings_report_template",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/claude-enabled-plugins.sh",
+      "source_location": "L50",
+      "weight": 1.0,
+      "source": "test_unit_claude_enabled_plugins",
+      "target": "test_unit_claude_enabled_plugins_settings_target_relative_path",
       "confidence_score": 1.0
     },
     {
@@ -72978,14 +73448,112 @@
       "confidence_score": 1.0
     },
     {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/claude-enabled-plugins.sh",
+      "source_location": "L215",
+      "weight": 1.0,
+      "source": "test_unit_claude_enabled_plugins",
+      "target": "test_unit_claude_enabled_plugins_write_fixture_settings",
+      "confidence_score": 1.0
+    },
+    {
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L65",
+      "source_location": "L256",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_claude_enabled_plugins_sh__entry",
+      "target": "test_unit_claude_enabled_plugins_apply_settings_target",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/claude-enabled-plugins.sh",
+      "source_location": "L257",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_claude_enabled_plugins_sh__entry",
       "target": "test_unit_claude_enabled_plugins_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/claude-enabled-plugins.sh",
+      "source_location": "L258",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_claude_enabled_plugins_sh__entry",
+      "target": "test_unit_claude_enabled_plugins_finish",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/claude-enabled-plugins.sh",
+      "source_location": "L248",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_claude_enabled_plugins_sh__entry",
+      "target": "test_unit_claude_enabled_plugins_populate_sandbox_source",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/claude-enabled-plugins.sh",
+      "source_location": "L249",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_claude_enabled_plugins_sh__entry",
+      "target": "test_unit_claude_enabled_plugins_write_fixture_settings",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/claude-enabled-plugins.sh",
+      "source_location": "L229",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_claude_enabled_plugins_apply_settings_target",
+      "target": "test_unit_claude_enabled_plugins_chezmoi_isolated",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/claude-enabled-plugins.sh",
+      "source_location": "L195",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_claude_enabled_plugins_render_template",
+      "target": "test_unit_claude_enabled_plugins_chezmoi_isolated",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/claude-enabled-plugins.sh",
+      "source_location": "L239",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_claude_enabled_plugins_settings_report",
+      "target": "test_unit_claude_enabled_plugins_render_template",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/claude-enabled-plugins.sh",
+      "source_location": "L217",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_claude_enabled_plugins_write_fixture_settings",
+      "target": "test_unit_claude_enabled_plugins_render_template",
       "confidence_score": 1.0
     },
     {
@@ -97651,5 +98219,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "a3d84b0ae3c6b723dae7a7e6b32ceea60bb88b1d"
+  "built_at_commit": "51dfc62271f0fd865a6e01cdcd999e80c35f6c1e"
 }
