@@ -2850,6 +2850,12 @@ FORK_RELAY_STATE_DRIFT="fork-drift"                # upstream content moved; com
 FORK_RELAY_STATE_PATH_MISSING="fork-path-missing"  # upstream still there; our recorded path is not
 FORK_RELAY_STATE_LOCK_MALFORMED="fork-lock-broken" # the lock itself cannot be walked
 
+# --project labels for the two advisories that are about the lock itself rather
+# than about one named fork, so a downstream consumer can tell "the file does
+# not parse" from "the forks table is the wrong shape" without reading prose.
+FORK_RELAY_PROJECT_LOCK_FILE="lock"
+FORK_RELAY_PROJECT_FORKS_TABLE="forks"
+
 # Path git reads instead of the file-based global and system config while
 # cloning a drift upstream. WHY: the recorded sourceUrl is an anonymous public
 # HTTPS URL, and this repo deliberately ships
@@ -2901,18 +2907,35 @@ notify_fork_path_missing() {
     "the recorded skillPath \"$skill_path\" is gone from upstream $source_url; re-point skillPath, do not bump lastComparedTreeHash"
 }
 
+# Does the lock parse as a JSON object at all? Asked separately from the forks
+# table's shape because the two need different remedies: a file that does not
+# parse is not a malformed `forks` table, and reporting it as one sends the
+# operator to the wrong line of an otherwise healthy table.
+lock_is_readable_json_object() {
+  local lock_file="$1"
+  jq -e 'type == "object"' "$lock_file" >/dev/null 2>&1
+}
+
 # Is the lock's forks table a shape the drift-watch can walk? Absent is legal
 # and means there is nothing to watch. Present-but-not-an-object is corruption,
 # and both of its outcomes were wrong before this gate: false/null/a string/[]
 # walked zero entries and reported a silent all-clear over an unwatched fork
 # set, and an ARRAY made the per-entry jq index error out, which under
 # `set -euo pipefail` aborted the whole run.
-fork_table_walkable() {
+fork_table_is_object() {
   local lock_file="$1"
-  jq -e '
-    def object_or_absent($k): (has($k) | not) or (.[$k] | type == "object");
-    (type == "object") and object_or_absent("forks")
-  ' "$lock_file" >/dev/null 2>&1
+  jq -e '(has("forks") | not) or (.forks | type == "object")' "$lock_file" >/dev/null 2>&1
+}
+
+# Is this ENTRY an object, so the per-field reads below cannot error? Same
+# failure shape as the array table, one level down: a string, array or number
+# entry made `jq '.forks[$fork].sourceUrl'` fail with "Cannot index string with
+# string", and a failing command substitution in an assignment aborts the whole
+# run under `set -euo pipefail`. In the weekly flow that abort lands after the
+# generation exchange has published and before the success stamp is written.
+fork_entry_is_object() {
+  local lock_file="$1" fork="$2"
+  jq -e --arg fork "$fork" '.forks[$fork] | type == "object"' "$lock_file" >/dev/null 2>&1
 }
 
 # Does this entry carry the three fields the walk reads, each a non-empty
@@ -2925,6 +2948,16 @@ fork_entry_walkable() {
   [[ -n $source_url && $source_url != "null" ]] || return 1
   [[ -n $skill_path && $skill_path != "null" ]] || return 1
   [[ -n $last_compared_tree_hash && $last_compared_tree_hash != "null" ]] || return 1
+}
+
+# One report for both ways an entry can be unusable (not an object at all, or
+# missing one of the three fields the walk reads), so the two cannot drift into
+# different remedies for what is one operator action: fix that lock entry.
+notify_fork_entry_malformed() {
+  local fork="$1"
+  log "fork drift-check $fork: the lock entry is malformed (it must be an object carrying a non-empty sourceUrl, skillPath and lastComparedTreeHash); this upstream is NOT being watched, fix the lock"
+  relay_fork_advisory "$FORK_RELAY_STATE_LOCK_MALFORMED" "$fork" \
+    "the forks entry for $fork is malformed (it must be an object carrying a non-empty sourceUrl, skillPath and lastComparedTreeHash); it was not drift-checked"
 }
 
 # Clone a public upstream anonymously at the URL exactly as recorded. Single
@@ -2955,22 +2988,33 @@ resolve_fork_upstream_hash() {
 
 check_fork_drift() {
   [[ -f $CUSTOM_SKILL_LOCK ]] || return 0
-  if ! fork_table_walkable "$CUSTOM_SKILL_LOCK"; then
+  if ! lock_is_readable_json_object "$CUSTOM_SKILL_LOCK"; then
+    log "fork drift-check: $CUSTOM_SKILL_LOCK does not parse as a JSON object; NO fork upstream is being watched this run, fix the lock"
+    relay_fork_advisory "$FORK_RELAY_STATE_LOCK_MALFORMED" "$FORK_RELAY_PROJECT_LOCK_FILE" \
+      "$CUSTOM_SKILL_LOCK does not parse as a JSON object; no fork upstream was drift-checked"
+    return 0
+  fi
+  if ! fork_table_is_object "$CUSTOM_SKILL_LOCK"; then
     log "fork drift-check: the forks table in $CUSTOM_SKILL_LOCK is present but not an object; NO fork upstream is being watched this run, fix the lock"
-    relay_fork_advisory "$FORK_RELAY_STATE_LOCK_MALFORMED" "forks" \
+    relay_fork_advisory "$FORK_RELAY_STATE_LOCK_MALFORMED" "$FORK_RELAY_PROJECT_FORKS_TABLE" \
       "the forks table in $CUSTOM_SKILL_LOCK is present but not an object; no fork upstream was drift-checked"
     return 0
   fi
   local fork source_url skill_path last_compared_tree_hash current_tree_hash clone_dir
   # read on fd 3: the loop body runs git, which may consume stdin
   while IFS= read -r -u3 fork; do
+    # Type-check the entry BEFORE reading fields out of it: a non-object entry
+    # makes each of the three reads below a failing command substitution, and
+    # an assignment from one aborts the run under `set -euo pipefail`.
+    if ! fork_entry_is_object "$CUSTOM_SKILL_LOCK" "$fork"; then
+      notify_fork_entry_malformed "$fork"
+      continue
+    fi
     source_url="$(jq -r --arg fork "$fork" '.forks[$fork].sourceUrl // ""' "$CUSTOM_SKILL_LOCK")"
     skill_path="$(jq -r --arg fork "$fork" '.forks[$fork].skillPath // ""' "$CUSTOM_SKILL_LOCK")"
     last_compared_tree_hash="$(jq -r --arg fork "$fork" '.forks[$fork].lastComparedTreeHash // ""' "$CUSTOM_SKILL_LOCK")"
     if ! fork_entry_walkable "$source_url" "$skill_path" "$last_compared_tree_hash"; then
-      log "fork drift-check $fork: the lock entry is malformed (sourceUrl, skillPath and lastComparedTreeHash must all be non-empty); this upstream is NOT being watched, fix the lock"
-      relay_fork_advisory "$FORK_RELAY_STATE_LOCK_MALFORMED" "$fork" \
-        "the forks entry for $fork is malformed (sourceUrl, skillPath and lastComparedTreeHash must all be non-empty); it was not drift-checked"
+      notify_fork_entry_malformed "$fork"
       continue
     fi
     if [[ $DRYRUN == "--dry-run" ]]; then
