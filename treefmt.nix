@@ -101,6 +101,41 @@ let
     '';
   };
 
+  # The espanso match set reaches $HOME as YAML, but one of its files is a
+  # chezmoi template (identity.yml.tmpl) and so is Go-template text on disk that
+  # the plain yq validator below cannot read. That is the file most likely to
+  # break structurally, since it is the only one with directives in it, and a
+  # structurally broken match file makes espanso drop the whole file at load
+  # time with the damage sitting on the live machine. Render it the way
+  # osquery-config-render renders its configs, then validate the result.
+  #
+  # CI=1 is load-bearing, not decoration: the template's vault reads sit behind
+  # `{{ if (env "CI") }}` placeholders, so this renders without KeePassXC. A
+  # future espanso template without that guard fails here in 0.15s with
+  # `error calling keepassxc: EOF` (measured, `--no-tty` refuses rather than
+  # waits), which is the right answer: add the CI branch, or the file cannot be
+  # gated at all.
+  espansoMatchRender = pkgs.writeShellApplication {
+    name = "espanso-match-render";
+    runtimeInputs = [
+      pkgs.chezmoi
+      pkgs.yq-go
+    ];
+    text = ''
+      HOME="$(mktemp -d)"
+      export HOME
+      status=0
+      for file do
+        CI=1 chezmoi --source "$PWD" execute-template --no-tty <"$file" |
+          yq eval '.' - >/dev/null || {
+          echo "espanso-match-render: rendered match file is not valid YAML: $file" >&2
+          status=1
+        }
+      done
+      exit "$status"
+    '';
+  };
+
   # Programmatic discovery of the safely renderable shell templates handed to the
   # shellcheck-rendered-template formatter below. The 2026-07-10 audit found the
   # old hand-list covered 6 of ~20 shell templates, hiding four render failures.
@@ -254,9 +289,10 @@ in
   # covered by actionlint above). The espanso tree is here because it is
   # hand-edited YAML that reaches $HOME: espanso reads it at load time and a
   # structurally broken file is a config that silently stops applying, with the
-  # damage sitting on the live machine rather than in a gate. Templates are out
-  # of scope by construction: the glob matches .yml/.yaml, and a .yml.tmpl is
-  # Go-template text that no YAML parser can read before chezmoi renders it.
+  # damage sitting on the live machine rather than in a gate. A .yml.tmpl is
+  # Go-template text that no YAML parser can read before chezmoi renders it, so
+  # this glob cannot cover one; espanso-match-render below is what gates those,
+  # and between them every file the match set ships is validated.
   settings.formatter.yq-validate = {
     command = yqValidate;
     includes = [
@@ -264,6 +300,13 @@ in
       ".chezmoidata/*.yml"
       "Library/Application Support/espanso/**/*.yaml"
       "Library/Application Support/espanso/**/*.yml"
+    ];
+  };
+  settings.formatter.espanso-match-render = {
+    command = espansoMatchRender;
+    includes = [
+      "Library/Application Support/espanso/**/*.yaml.tmpl"
+      "Library/Application Support/espanso/**/*.yml.tmpl"
     ];
   };
 
