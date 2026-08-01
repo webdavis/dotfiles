@@ -3559,7 +3559,7 @@
       "label": "relay_fork_advisory()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_update-skills.sh",
-      "source_location": "L2872",
+      "source_location": "L2889",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -3573,7 +3573,7 @@
       "label": "notify_fork_drift()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_update-skills.sh",
-      "source_location": "L2883",
+      "source_location": "L2900",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -3587,7 +3587,7 @@
       "label": "notify_fork_path_missing()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_update-skills.sh",
-      "source_location": "L2896",
+      "source_location": "L2913",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -3598,24 +3598,52 @@
       "norm_label": "notify_fork_path_missing()"
     },
     {
-      "label": "fork_table_walkable()",
+      "label": "lock_is_readable_json_object()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_update-skills.sh",
-      "source_location": "L2910",
+      "source_location": "L2925",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
       },
       "_origin": "ast",
-      "id": "dot_local_bin_executable_update_skills_fork_table_walkable",
+      "id": "dot_local_bin_executable_update_skills_lock_is_readable_json_object",
       "community": 0,
-      "norm_label": "fork_table_walkable()"
+      "norm_label": "lock_is_readable_json_object()"
+    },
+    {
+      "label": "fork_table_is_object()",
+      "file_type": "code",
+      "source_file": "dot_local/bin/executable_update-skills.sh",
+      "source_location": "L2936",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_bin_executable_update_skills_fork_table_is_object",
+      "community": 0,
+      "norm_label": "fork_table_is_object()"
+    },
+    {
+      "label": "fork_entry_is_object()",
+      "file_type": "code",
+      "source_file": "dot_local/bin/executable_update-skills.sh",
+      "source_location": "L2947",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_bin_executable_update_skills_fork_entry_is_object",
+      "community": 0,
+      "norm_label": "fork_entry_is_object()"
     },
     {
       "label": "fork_entry_walkable()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_update-skills.sh",
-      "source_location": "L2923",
+      "source_location": "L2957",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -3626,10 +3654,24 @@
       "norm_label": "fork_entry_walkable()"
     },
     {
+      "label": "notify_fork_entry_malformed()",
+      "file_type": "code",
+      "source_file": "dot_local/bin/executable_update-skills.sh",
+      "source_location": "L2967",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_bin_executable_update_skills_notify_fork_entry_malformed",
+      "community": 0,
+      "norm_label": "notify_fork_entry_malformed()"
+    },
+    {
       "label": "clone_fork_upstream()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_update-skills.sh",
-      "source_location": "L2932",
+      "source_location": "L2976",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -3643,7 +3685,7 @@
       "label": "resolve_fork_upstream_hash()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_update-skills.sh",
-      "source_location": "L2946",
+      "source_location": "L2990",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -3657,7 +3699,7 @@
       "label": "check_fork_drift()",
       "file_type": "code",
       "source_file": "dot_local/bin/executable_update-skills.sh",
-      "source_location": "L2956",
+      "source_location": "L3000",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -17693,7 +17735,7 @@
       "label": "fail()",
       "file_type": "code",
       "source_file": "test/integration/update-skills-fork-drift.sh",
-      "source_location": "L52",
+      "source_location": "L69",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -17704,10 +17746,24 @@
       "norm_label": "fail()"
     },
     {
+      "label": "install_relay_shim()",
+      "file_type": "code",
+      "source_file": "test/integration/update-skills-fork-drift.sh",
+      "source_location": "L104",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_integration_update_skills_fork_drift_install_relay_shim",
+      "community": 253,
+      "norm_label": "install_relay_shim()"
+    },
+    {
       "label": "refute_match()",
       "file_type": "code",
       "source_file": "test/integration/update-skills-fork-drift.sh",
-      "source_location": "L163",
+      "source_location": "L186",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -17721,7 +17777,7 @@
       "label": "write_forks_lock()",
       "file_type": "code",
       "source_file": "test/integration/update-skills-fork-drift.sh",
-      "source_location": "L173",
+      "source_location": "L196",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -17735,7 +17791,7 @@
       "label": "run_fork_check()",
       "file_type": "code",
       "source_file": "test/integration/update-skills-fork-drift.sh",
-      "source_location": "L186",
+      "source_location": "L212",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -17746,10 +17802,66 @@
       "norm_label": "run_fork_check()"
     },
     {
+      "label": "assert_relay_line()",
+      "file_type": "code",
+      "source_file": "test/integration/update-skills-fork-drift.sh",
+      "source_location": "L227",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_integration_update_skills_fork_drift_assert_relay_line",
+      "community": 253,
+      "norm_label": "assert_relay_line()"
+    },
+    {
+      "label": "assert_relay_state()",
+      "file_type": "code",
+      "source_file": "test/integration/update-skills-fork-drift.sh",
+      "source_location": "L235",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_integration_update_skills_fork_drift_assert_relay_state",
+      "community": 253,
+      "norm_label": "assert_relay_state()"
+    },
+    {
+      "label": "assert_log_line_has()",
+      "file_type": "code",
+      "source_file": "test/integration/update-skills-fork-drift.sh",
+      "source_location": "L243",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_integration_update_skills_fork_drift_assert_log_line_has",
+      "community": 253,
+      "norm_label": "assert_log_line_has()"
+    },
+    {
+      "label": "assert_clone_dir_removed()",
+      "file_type": "code",
+      "source_file": "test/integration/update-skills-fork-drift.sh",
+      "source_location": "L254",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_integration_update_skills_fork_drift_assert_clone_dir_removed",
+      "community": 253,
+      "norm_label": "assert_clone_dir_removed()"
+    },
+    {
       "label": "XDG_CONFIG_HOME",
       "file_type": "code",
       "source_file": "test/integration/update-skills-fork-drift.sh",
-      "source_location": "L205",
+      "source_location": "L271",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -17758,6 +17870,20 @@
       "id": "test_integration_update_skills_fork_drift_xdg_config_home",
       "community": 253,
       "norm_label": "xdg_config_home"
+    },
+    {
+      "label": "hostile_rewrite_config()",
+      "file_type": "code",
+      "source_file": "test/integration/update-skills-fork-drift.sh",
+      "source_location": "L273",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_integration_update_skills_fork_drift_hostile_rewrite_config",
+      "community": 253,
+      "norm_label": "hostile_rewrite_config()"
     },
     {
       "label": "update-skills-generation-lanes.sh",
@@ -28006,336 +28132,6 @@
       "id": "test_validate_tests_main",
       "community": 304,
       "norm_label": "main()"
-    },
-    {
-      "label": "AGENTS.md",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L1",
-      "_origin": "ast",
-      "id": "agents",
-      "community": 323,
-      "norm_label": "agents.md"
-    },
-    {
-      "label": "CLAUDE.md",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L7",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_claude_md",
-      "community": 323,
-      "norm_label": "claude.md"
-    },
-    {
-      "label": "What This Is",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L11",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_what_this_is",
-      "community": 323,
-      "norm_label": "what this is"
-    },
-    {
-      "label": "Key Commands",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L18",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_key_commands",
-      "community": 323,
-      "norm_label": "key commands"
-    },
-    {
-      "label": "Linting & Formatting",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L20",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_linting_formatting",
-      "community": 323,
-      "norm_label": "linting & formatting"
-    },
-    {
-      "label": "Testing",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L46",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_testing",
-      "community": 323,
-      "norm_label": "testing"
-    },
-    {
-      "label": "Chezmoi Operations",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L86",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_chezmoi_operations",
-      "community": 323,
-      "norm_label": "chezmoi operations"
-    },
-    {
-      "label": "Claude Code Settings",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L114",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_claude_code_settings",
-      "community": 323,
-      "norm_label": "claude code settings"
-    },
-    {
-      "label": "Git Hooks",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L147",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_git_hooks",
-      "community": 323,
-      "norm_label": "git hooks"
-    },
-    {
-      "label": "Architecture",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L214",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_architecture",
-      "community": 323,
-      "norm_label": "architecture"
-    },
-    {
-      "label": "Source-Only Files",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L216",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_source_only_files",
-      "community": 323,
-      "norm_label": "source-only files"
-    },
-    {
-      "label": "Minimum Chezmoi Version",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L224",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_minimum_chezmoi_version",
-      "community": 323,
-      "norm_label": "minimum chezmoi version"
-    },
-    {
-      "label": "Secrets Management",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L228",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_secrets_management",
-      "community": 323,
-      "norm_label": "secrets management"
-    },
-    {
-      "label": "System Package Management",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L235",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_system_package_management",
-      "community": 323,
-      "norm_label": "system package management"
-    },
-    {
-      "label": "macOS Defaults Management",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L260",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_macos_defaults_management",
-      "community": 323,
-      "norm_label": "macos defaults management"
-    },
-    {
-      "label": "Template Files",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L305",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_template_files",
-      "community": 323,
-      "norm_label": "template files"
-    },
-    {
-      "label": "Template Shellcheck Workaround",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L311",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_template_shellcheck_workaround",
-      "community": 323,
-      "norm_label": "template shellcheck workaround"
-    },
-    {
-      "label": "OS Targeting",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L332",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_os_targeting",
-      "community": 323,
-      "norm_label": "os targeting"
-    },
-    {
-      "label": "Dev Environment (Nix Flake)",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L337",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_dev_environment_nix_flake",
-      "community": 323,
-      "norm_label": "dev environment (nix flake)"
-    },
-    {
-      "label": "CI",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L348",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_ci",
-      "community": 323,
-      "norm_label": "ci"
-    },
-    {
-      "label": "Agent Skills (cross-harness store)",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L358",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_agent_skills_cross_harness_store",
-      "community": 323,
-      "norm_label": "agent skills (cross-harness store)"
-    },
-    {
-      "label": "Herdr Workspace Management",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L544",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_herdr_workspace_management",
-      "community": 323,
-      "norm_label": "herdr workspace management"
-    },
-    {
-      "label": "Git Worktrees (Worktrunk)",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L564",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_git_worktrees_worktrunk",
-      "community": 323,
-      "norm_label": "git worktrees (worktrunk)"
-    },
-    {
-      "label": "Bashrc Init Ordering",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L571",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_bashrc_init_ordering",
-      "community": 323,
-      "norm_label": "bashrc init ordering"
-    },
-    {
-      "label": "Shell History (Atuin)",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L579",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_shell_history_atuin",
-      "community": 323,
-      "norm_label": "shell history (atuin)"
-    },
-    {
-      "label": "Happy Daemon (Remote Agent Control)",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L608",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_happy_daemon_remote_agent_control",
-      "community": 323,
-      "norm_label": "happy daemon (remote agent control)"
-    },
-    {
-      "label": "Tailscale (headless daemon)",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L635",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_tailscale_headless_daemon",
-      "community": 323,
-      "norm_label": "tailscale (headless daemon)"
-    },
-    {
-      "label": "AI Commit Messages",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L672",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_ai_commit_messages",
-      "community": 323,
-      "norm_label": "ai commit messages"
-    },
-    {
-      "label": "Long-running Command Notifier",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L685",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_long_running_command_notifier",
-      "community": 323,
-      "norm_label": "long-running command notifier"
-    },
-    {
-      "label": "Herdr Native Status",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L691",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_herdr_native_status",
-      "community": 323,
-      "norm_label": "herdr native status"
-    },
-    {
-      "label": "Code Style",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L697",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_code_style",
-      "community": 323,
-      "norm_label": "code style"
-    },
-    {
-      "label": "Git Commits",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L723",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_git_commits",
-      "community": 323,
-      "norm_label": "git commits"
-    },
-    {
-      "label": "Security",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "source_location": "L730",
-      "_origin": "ast",
-      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_security",
-      "community": 323,
-      "norm_label": "security"
     },
     {
       "label": "CLAUDE.md",
@@ -50621,7 +50417,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_update-skills.sh",
-      "source_location": "L2956",
+      "source_location": "L3000",
       "weight": 1.0,
       "source": "dot_local_bin_executable_update_skills",
       "target": "dot_local_bin_executable_update_skills_check_fork_drift",
@@ -50631,7 +50427,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_update-skills.sh",
-      "source_location": "L2932",
+      "source_location": "L2976",
       "weight": 1.0,
       "source": "dot_local_bin_executable_update_skills",
       "target": "dot_local_bin_executable_update_skills_clone_fork_upstream",
@@ -50681,7 +50477,17 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_update-skills.sh",
-      "source_location": "L2923",
+      "source_location": "L2947",
+      "weight": 1.0,
+      "source": "dot_local_bin_executable_update_skills",
+      "target": "dot_local_bin_executable_update_skills_fork_entry_is_object",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_update-skills.sh",
+      "source_location": "L2957",
       "weight": 1.0,
       "source": "dot_local_bin_executable_update_skills",
       "target": "dot_local_bin_executable_update_skills_fork_entry_walkable",
@@ -50691,10 +50497,10 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_update-skills.sh",
-      "source_location": "L2910",
+      "source_location": "L2936",
       "weight": 1.0,
       "source": "dot_local_bin_executable_update_skills",
-      "target": "dot_local_bin_executable_update_skills_fork_table_walkable",
+      "target": "dot_local_bin_executable_update_skills_fork_table_is_object",
       "confidence_score": 1.0
     },
     {
@@ -51221,6 +51027,16 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_update-skills.sh",
+      "source_location": "L2925",
+      "weight": 1.0,
+      "source": "dot_local_bin_executable_update_skills",
+      "target": "dot_local_bin_executable_update_skills_lock_is_readable_json_object",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_update-skills.sh",
       "source_location": "L212",
       "weight": 1.0,
       "source": "dot_local_bin_executable_update_skills",
@@ -51231,7 +51047,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_update-skills.sh",
-      "source_location": "L2883",
+      "source_location": "L2900",
       "weight": 1.0,
       "source": "dot_local_bin_executable_update_skills",
       "target": "dot_local_bin_executable_update_skills_notify_fork_drift",
@@ -51241,7 +51057,17 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_update-skills.sh",
-      "source_location": "L2896",
+      "source_location": "L2967",
+      "weight": 1.0,
+      "source": "dot_local_bin_executable_update_skills",
+      "target": "dot_local_bin_executable_update_skills_notify_fork_entry_malformed",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_update-skills.sh",
+      "source_location": "L2913",
       "weight": 1.0,
       "source": "dot_local_bin_executable_update_skills",
       "target": "dot_local_bin_executable_update_skills_notify_fork_path_missing",
@@ -51291,7 +51117,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_update-skills.sh",
-      "source_location": "L2872",
+      "source_location": "L2889",
       "weight": 1.0,
       "source": "dot_local_bin_executable_update_skills",
       "target": "dot_local_bin_executable_update_skills_relay_fork_advisory",
@@ -51301,7 +51127,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_update-skills.sh",
-      "source_location": "L2946",
+      "source_location": "L2990",
       "weight": 1.0,
       "source": "dot_local_bin_executable_update_skills",
       "target": "dot_local_bin_executable_update_skills_resolve_fork_upstream_hash",
@@ -51491,7 +51317,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_update-skills.sh",
-      "source_location": "L3017",
+      "source_location": "L3081",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_update_skills_sh__entry",
@@ -51502,7 +51328,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_update-skills.sh",
-      "source_location": "L3002",
+      "source_location": "L3066",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_update_skills_sh__entry",
@@ -51513,7 +51339,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_update-skills.sh",
-      "source_location": "L3014",
+      "source_location": "L3078",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_update_skills_sh__entry",
@@ -51524,7 +51350,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_update-skills.sh",
-      "source_location": "L3015",
+      "source_location": "L3079",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_update_skills_sh__entry",
@@ -51546,7 +51372,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_update-skills.sh",
-      "source_location": "L3013",
+      "source_location": "L3077",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_update_skills_sh__entry",
@@ -51557,7 +51383,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_update-skills.sh",
-      "source_location": "L3033",
+      "source_location": "L3097",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_update_skills_sh__entry",
@@ -51568,7 +51394,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_update-skills.sh",
-      "source_location": "L3063",
+      "source_location": "L3127",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_update_skills_sh__entry",
@@ -51579,7 +51405,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_update-skills.sh",
-      "source_location": "L3061",
+      "source_location": "L3125",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_update_skills_sh__entry",
@@ -51601,7 +51427,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_update-skills.sh",
-      "source_location": "L3135",
+      "source_location": "L3199",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_update_skills_sh__entry",
@@ -51612,7 +51438,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_update-skills.sh",
-      "source_location": "L3125",
+      "source_location": "L3189",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_update_skills_sh__entry",
@@ -51634,7 +51460,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_update-skills.sh",
-      "source_location": "L3141",
+      "source_location": "L3205",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_update_skills_sh__entry",
@@ -51645,7 +51471,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_update-skills.sh",
-      "source_location": "L3036",
+      "source_location": "L3100",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_update_skills_sh__entry",
@@ -51656,7 +51482,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_update-skills.sh",
-      "source_location": "L3074",
+      "source_location": "L3138",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_update_skills_sh__entry",
@@ -51689,7 +51515,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_update-skills.sh",
-      "source_location": "L3016",
+      "source_location": "L3080",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_update_skills_sh__entry",
@@ -51700,7 +51526,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_update-skills.sh",
-      "source_location": "L3018",
+      "source_location": "L3082",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_update_skills_sh__entry",
@@ -51766,7 +51592,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_update-skills.sh",
-      "source_location": "L3133",
+      "source_location": "L3197",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_update_skills_sh__entry",
@@ -51788,7 +51614,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_update-skills.sh",
-      "source_location": "L2959",
+      "source_location": "L3003",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_update_skills_check_fork_drift",
@@ -52008,7 +51834,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_update-skills.sh",
-      "source_location": "L2885",
+      "source_location": "L2902",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_update_skills_notify_fork_drift",
@@ -52019,7 +51845,18 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_update-skills.sh",
-      "source_location": "L2898",
+      "source_location": "L2969",
+      "weight": 1.0,
+      "context": "call",
+      "source": "dot_local_bin_executable_update_skills_notify_fork_entry_malformed",
+      "target": "dot_local_bin_executable_update_skills_log",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_update-skills.sh",
+      "source_location": "L2915",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_update_skills_notify_fork_path_missing",
@@ -53207,7 +53044,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_update-skills.sh",
-      "source_location": "L2960",
+      "source_location": "L3004",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_update_skills_check_fork_drift",
@@ -53218,7 +53055,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_update-skills.sh",
-      "source_location": "L2887",
+      "source_location": "L2904",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_update_skills_notify_fork_drift",
@@ -53229,7 +53066,18 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_update-skills.sh",
-      "source_location": "L2900",
+      "source_location": "L2970",
+      "weight": 1.0,
+      "context": "call",
+      "source": "dot_local_bin_executable_update_skills_notify_fork_entry_malformed",
+      "target": "dot_local_bin_executable_update_skills_relay_fork_advisory",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_update-skills.sh",
+      "source_location": "L2917",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_update_skills_notify_fork_path_missing",
@@ -53240,7 +53088,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_update-skills.sh",
-      "source_location": "L2995",
+      "source_location": "L3059",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_update_skills_check_fork_drift",
@@ -53251,7 +53099,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_update-skills.sh",
-      "source_location": "L2988",
+      "source_location": "L3052",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_update_skills_check_fork_drift",
@@ -53262,18 +53110,40 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_update-skills.sh",
-      "source_location": "L2958",
+      "source_location": "L3002",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_update_skills_check_fork_drift",
-      "target": "dot_local_bin_executable_update_skills_fork_table_walkable",
+      "target": "dot_local_bin_executable_update_skills_lock_is_readable_json_object",
       "confidence_score": 1.0
     },
     {
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_update-skills.sh",
-      "source_location": "L2970",
+      "source_location": "L3008",
+      "weight": 1.0,
+      "context": "call",
+      "source": "dot_local_bin_executable_update_skills_check_fork_drift",
+      "target": "dot_local_bin_executable_update_skills_fork_table_is_object",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_update-skills.sh",
+      "source_location": "L3021",
+      "weight": 1.0,
+      "context": "call",
+      "source": "dot_local_bin_executable_update_skills_check_fork_drift",
+      "target": "dot_local_bin_executable_update_skills_fork_entry_is_object",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_update-skills.sh",
+      "source_location": "L3028",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_update_skills_check_fork_drift",
@@ -53284,7 +53154,18 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "dot_local/bin/executable_update-skills.sh",
-      "source_location": "L2981",
+      "source_location": "L3022",
+      "weight": 1.0,
+      "context": "call",
+      "source": "dot_local_bin_executable_update_skills_check_fork_drift",
+      "target": "dot_local_bin_executable_update_skills_notify_fork_entry_malformed",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/executable_update-skills.sh",
+      "source_location": "L3045",
       "weight": 1.0,
       "context": "call",
       "source": "dot_local_bin_executable_update_skills_check_fork_drift",
@@ -68047,7 +67928,47 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/update-skills-fork-drift.sh",
-      "source_location": "L52",
+      "source_location": "L254",
+      "weight": 1.0,
+      "source": "test_integration_update_skills_fork_drift",
+      "target": "test_integration_update_skills_fork_drift_assert_clone_dir_removed",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/update-skills-fork-drift.sh",
+      "source_location": "L243",
+      "weight": 1.0,
+      "source": "test_integration_update_skills_fork_drift",
+      "target": "test_integration_update_skills_fork_drift_assert_log_line_has",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/update-skills-fork-drift.sh",
+      "source_location": "L227",
+      "weight": 1.0,
+      "source": "test_integration_update_skills_fork_drift",
+      "target": "test_integration_update_skills_fork_drift_assert_relay_line",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/update-skills-fork-drift.sh",
+      "source_location": "L235",
+      "weight": 1.0,
+      "source": "test_integration_update_skills_fork_drift",
+      "target": "test_integration_update_skills_fork_drift_assert_relay_state",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/update-skills-fork-drift.sh",
+      "source_location": "L69",
       "weight": 1.0,
       "source": "test_integration_update_skills_fork_drift",
       "target": "test_integration_update_skills_fork_drift_fail",
@@ -68057,7 +67978,27 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/update-skills-fork-drift.sh",
-      "source_location": "L163",
+      "source_location": "L273",
+      "weight": 1.0,
+      "source": "test_integration_update_skills_fork_drift",
+      "target": "test_integration_update_skills_fork_drift_hostile_rewrite_config",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/update-skills-fork-drift.sh",
+      "source_location": "L104",
+      "weight": 1.0,
+      "source": "test_integration_update_skills_fork_drift",
+      "target": "test_integration_update_skills_fork_drift_install_relay_shim",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/update-skills-fork-drift.sh",
+      "source_location": "L186",
       "weight": 1.0,
       "source": "test_integration_update_skills_fork_drift",
       "target": "test_integration_update_skills_fork_drift_refute_match",
@@ -68067,7 +68008,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/update-skills-fork-drift.sh",
-      "source_location": "L186",
+      "source_location": "L212",
       "weight": 1.0,
       "source": "test_integration_update_skills_fork_drift",
       "target": "test_integration_update_skills_fork_drift_run_fork_check",
@@ -68087,7 +68028,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/update-skills-fork-drift.sh",
-      "source_location": "L173",
+      "source_location": "L196",
       "weight": 1.0,
       "source": "test_integration_update_skills_fork_drift",
       "target": "test_integration_update_skills_fork_drift_write_forks_lock",
@@ -68097,7 +68038,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/update-skills-fork-drift.sh",
-      "source_location": "L205",
+      "source_location": "L271",
       "weight": 1.0,
       "source": "test_integration_update_skills_fork_drift",
       "target": "test_integration_update_skills_fork_drift_xdg_config_home",
@@ -68107,7 +68048,51 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/update-skills-fork-drift.sh",
-      "source_location": "L121",
+      "source_location": "L372",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_integration_update_skills_fork_drift_sh__entry",
+      "target": "test_integration_update_skills_fork_drift_assert_clone_dir_removed",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/update-skills-fork-drift.sh",
+      "source_location": "L360",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_integration_update_skills_fork_drift_sh__entry",
+      "target": "test_integration_update_skills_fork_drift_assert_log_line_has",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/update-skills-fork-drift.sh",
+      "source_location": "L364",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_integration_update_skills_fork_drift_sh__entry",
+      "target": "test_integration_update_skills_fork_drift_assert_relay_line",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/update-skills-fork-drift.sh",
+      "source_location": "L413",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_integration_update_skills_fork_drift_sh__entry",
+      "target": "test_integration_update_skills_fork_drift_assert_relay_state",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/update-skills-fork-drift.sh",
+      "source_location": "L144",
       "weight": 1.0,
       "context": "call",
       "source": "test_integration_update_skills_fork_drift_sh__entry",
@@ -68118,7 +68103,29 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/update-skills-fork-drift.sh",
-      "source_location": "L217",
+      "source_location": "L279",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_integration_update_skills_fork_drift_sh__entry",
+      "target": "test_integration_update_skills_fork_drift_hostile_rewrite_config",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/update-skills-fork-drift.sh",
+      "source_location": "L113",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_integration_update_skills_fork_drift_sh__entry",
+      "target": "test_integration_update_skills_fork_drift_install_relay_shim",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/update-skills-fork-drift.sh",
+      "source_location": "L297",
       "weight": 1.0,
       "context": "call",
       "source": "test_integration_update_skills_fork_drift_sh__entry",
@@ -68129,7 +68136,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/update-skills-fork-drift.sh",
-      "source_location": "L212",
+      "source_location": "L292",
       "weight": 1.0,
       "context": "call",
       "source": "test_integration_update_skills_fork_drift_sh__entry",
@@ -68140,7 +68147,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/update-skills-fork-drift.sh",
-      "source_location": "L229",
+      "source_location": "L343",
       "weight": 1.0,
       "context": "call",
       "source": "test_integration_update_skills_fork_drift_sh__entry",
@@ -68151,11 +68158,55 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/update-skills-fork-drift.sh",
-      "source_location": "L167",
+      "source_location": "L257",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_integration_update_skills_fork_drift_assert_clone_dir_removed",
+      "target": "test_integration_update_skills_fork_drift_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/update-skills-fork-drift.sh",
+      "source_location": "L246",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_integration_update_skills_fork_drift_assert_log_line_has",
+      "target": "test_integration_update_skills_fork_drift_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/update-skills-fork-drift.sh",
+      "source_location": "L230",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_integration_update_skills_fork_drift_assert_relay_line",
+      "target": "test_integration_update_skills_fork_drift_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/update-skills-fork-drift.sh",
+      "source_location": "L190",
       "weight": 1.0,
       "context": "call",
       "source": "test_integration_update_skills_fork_drift_refute_match",
       "target": "test_integration_update_skills_fork_drift_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/update-skills-fork-drift.sh",
+      "source_location": "L236",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_integration_update_skills_fork_drift_assert_relay_state",
+      "target": "test_integration_update_skills_fork_drift_assert_relay_line",
       "confidence_score": 1.0
     },
     {
@@ -79709,326 +79760,6 @@
       "context": "call",
       "source": "test_validate_tests_main",
       "target": "test_validate_tests_check_stat_order",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L7",
-      "weight": 1.0,
-      "source": "agents",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_claude_md",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L214",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_claude_md",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_architecture",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L697",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_claude_md",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_code_style",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L723",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_claude_md",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_git_commits",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L18",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_claude_md",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_key_commands",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L730",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_claude_md",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_security",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L11",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_claude_md",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_what_this_is",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L86",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_key_commands",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_chezmoi_operations",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L114",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_key_commands",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_claude_code_settings",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L147",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_key_commands",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_git_hooks",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L20",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_key_commands",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_linting_formatting",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L46",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_key_commands",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_testing",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L358",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_agent_skills_cross_harness_store",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L672",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_ai_commit_messages",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L571",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_bashrc_init_ordering",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L348",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_ci",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L337",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_dev_environment_nix_flake",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L564",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_git_worktrees_worktrunk",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L608",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_happy_daemon_remote_agent_control",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L691",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_herdr_native_status",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L544",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_herdr_workspace_management",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L685",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_long_running_command_notifier",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L260",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_macos_defaults_management",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L224",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_minimum_chezmoi_version",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L332",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_os_targeting",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L228",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_secrets_management",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L579",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_shell_history_atuin",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L216",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_source_only_files",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L235",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_system_package_management",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L635",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_tailscale_headless_daemon",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L305",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_template_files",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "source_location": "L311",
-      "weight": 1.0,
-      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_architecture",
-      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore6_agents_template_shellcheck_workaround",
       "confidence_score": 1.0
     },
     {
@@ -98563,5 +98294,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "23e087e1d2d3316f5593440271ace6286d4b5631"
+  "built_at_commit": "c38d78d9c8324cea8d2f722e28ceacea77ac7b4d"
 }
