@@ -258,4 +258,48 @@ rcF=$?
 set -e
 assert_fail_closed "case F (malformed forks entry)" "$rcF" "$outF"
 
+# --- Case G: a VALID non-empty forks table must be ACCEPTED -------------------
+# Every other case here is a refusal, and every happy-path fixture in the suite
+# carries `"forks": {}`, so nothing proved the gate lets a real forks table
+# through. An over-strict clause (one extra required field, say) would then
+# refuse the roster on every Monday slot, after publishing nothing and stamping
+# nothing, with the whole suite green. The entry's upstream deliberately does
+# not exist: an unreachable upstream is advisory, so the run must sail past it,
+# and it names the fork in the log, which proves the table was WALKED rather
+# than merely tolerated.
+reset_stamp
+cat >"$LOCK" <<EOF
+{
+  "version": 2,
+  "tiers": {"alpha": "core", "gamma": "core"},
+  "hermesProfiles": {},
+  "hermesRegistry": {},
+  "npxTracked": {"alpha": {"repo": "fixture/pack"}},
+  "clawhubTracked": {"gamma": {"slug": "@o/gamma", "registry": "https://c.example"}},
+  "forks": {
+    "omega": {
+      "source": "fixture/omega",
+      "sourceUrl": "$tmp/no-such-upstream",
+      "skillPath": "skills/omega",
+      "lastComparedTreeHash": "0000000000000000000000000000000000000000"
+    }
+  }
+}
+EOF
+set +e
+outG="$(run_full)"
+rcG=$?
+set -e
+[[ $rcG -eq 0 ]] ||
+  fail "case G (valid forks table): the run refused a well-formed roster (rc=$rcG): $outG"
+# An explicit refute branch: `grep ... && fail` is a positional lottery under
+# `set -e`, so the negative assertion is written as a real if.
+if grep -qi 'REQUIRED-FAILURE' <<<"$outG"; then
+  fail "case G (valid forks table): a well-formed roster recorded a required failure: $outG"
+fi
+[[ -f $STAMP ]] ||
+  fail "case G (valid forks table): a well-formed roster did not stamp success: $outG"
+grep -q 'omega' <<<"$outG" ||
+  fail "case G (valid forks table): the forks table was accepted but never walked, so the drift-watch reported nothing about omega: $outG"
+
 echo "update-skills-roster-table-types: OK"
