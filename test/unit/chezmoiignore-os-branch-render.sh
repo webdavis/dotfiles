@@ -65,6 +65,10 @@ CHEZMOI_DELIVERING_ENTRY_TYPES='files,dirs'
 # Appended to a render so command substitution cannot silently eat the trailing
 # newline this test asks about. Any non-newline byte works.
 RENDER_SENTINEL='X'
+# Lines of filler the delivery-lookup probe below builds. Each is about 27
+# bytes, so this clears a 64 KiB pipe buffer several times over, which is what
+# the probe needs in order to reproduce the SIGPIPE it exists to rule out.
+PIPE_BUFFER_OVERRUN_LINE_COUNT=20000
 
 fail() {
   printf 'FAIL: %s\n' "$*" >&2
@@ -124,6 +128,18 @@ render_ends_with_newline() {
   [[ $rendered == *$'\n' ]]
 }
 
+# Answers "does this repo deliver this target path?". Reads the managed list
+# from a here-string rather than through a pipe on purpose: `printf ... | grep
+# -q` makes printf die of SIGPIPE the moment grep finds an early match in a list
+# longer than the pipe buffer, and under `set -o pipefail` that 141 reads as "no
+# match" and fails a path the repo does in fact deliver. Reproduced at 2.8 MB
+# with the match on line 1; today's list is under 10 kB, so the defect is latent
+# rather than live, and a here-string cannot have it at any size.
+delivers_target_path() {
+  local managed_target_paths="$1" target_path="$2"
+  grep -Fxq -- "$target_path" <<<"$managed_target_paths"
+}
+
 command -v chezmoi >/dev/null 2>&1 ||
   fail "chezmoi is not on PATH; neither branch of $IGNORE_TEMPLATE can be rendered"
 [[ -f $IGNORE_TEMPLATE ]] || fail "missing template: $IGNORE_TEMPLATE"
@@ -153,6 +169,22 @@ assert_predicate is_significant_ignore_line '   ' no
 assert_predicate render_ends_with_newline 'Library
 ' yes
 assert_predicate render_ends_with_newline 'Library' no
+
+# The delivery lookup, against a list longer than a pipe buffer (64 KiB on this
+# platform), with the match deliberately on the FIRST line: that is what makes
+# grep exit while the writer still has the rest to push, which is the shape a
+# pipe-based lookup loses to SIGPIPE. Both directions, so the probe cannot pass
+# by answering yes to everything.
+LONG_MANAGED_LIST_PROBE="$(
+  printf '%s\n' '.config/probe-target'
+  seq 1 "$PIPE_BUFFER_OVERRUN_LINE_COUNT" | sed 's|^|.local/share/filler/|'
+)"
+delivers_target_path "$LONG_MANAGED_LIST_PROBE" '.config/probe-target' ||
+  fail "the managed-path lookup lost a path that is on line 1 of a ${#LONG_MANAGED_LIST_PROBE}-byte list; a pipe into 'grep -q' does that, because grep exits on the match, the writer dies of SIGPIPE and 'set -o pipefail' turns 141 into 'not found'"
+if delivers_target_path "$LONG_MANAGED_LIST_PROBE" '.config/absent-target'; then
+  fail "the managed-path lookup claimed a path that is not in the list; invariant 2 would pass for an entry the repo does not deliver"
+fi
+unset LONG_MANAGED_LIST_PROBE
 
 # ---- the template must still be one this test models -----------------------
 gate_occurrences="$(grep -Fc -- "$OS_GATE_PREDICATE" "$IGNORE_TEMPLATE" || true)"
@@ -233,7 +265,7 @@ managed_target_paths="$(chezmoi managed \
 while IFS= read -r pattern; do
   is_significant_ignore_line "$pattern" || continue
   is_glob_pattern "$pattern" && continue
-  printf '%s\n' "$managed_target_paths" | grep -Fxq -- "$pattern" ||
+  delivers_target_path "$managed_target_paths" "$pattern" ||
     fail "the $GATED_OS branch of $IGNORE_TEMPLATE suppresses '$pattern', but this repo delivers nothing to that target path (checked with 'chezmoi managed' on $host_os, where the branch is inactive). The entry suppresses nothing and only reads as though that path were handled; delete it, or add the source entry it was meant to gate"
 done <<<"$os_branch_lines"
 
