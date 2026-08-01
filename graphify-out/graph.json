@@ -22537,7 +22537,7 @@
       "label": "JSON_BOOLEAN_KIND",
       "file_type": "code",
       "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L141",
+      "source_location": "L144",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -22551,7 +22551,7 @@
       "label": "JSON_TRUE_VALUE",
       "file_type": "code",
       "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L142",
+      "source_location": "L145",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -22565,7 +22565,7 @@
       "label": "FIXTURE_SETTINGS_TEMPLATE",
       "file_type": "code",
       "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L151",
+      "source_location": "L154",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -22579,7 +22579,7 @@
       "label": "SANDBOX_CONFIG_TEMPLATE",
       "file_type": "code",
       "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L163",
+      "source_location": "L166",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -22593,7 +22593,7 @@
       "label": "SETTINGS_REPORT_TEMPLATE",
       "file_type": "code",
       "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L174",
+      "source_location": "L177",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -22607,7 +22607,7 @@
       "label": "fail()",
       "file_type": "code",
       "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L189",
+      "source_location": "L192",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -22621,7 +22621,7 @@
       "label": "finish()",
       "file_type": "code",
       "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L194",
+      "source_location": "L197",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -22635,7 +22635,7 @@
       "label": "SANDBOX_SOURCE",
       "file_type": "code",
       "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L216",
+      "source_location": "L219",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -22649,7 +22649,7 @@
       "label": "SANDBOX_PERSISTENT_STATE",
       "file_type": "code",
       "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L217",
+      "source_location": "L220",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -22663,7 +22663,7 @@
       "label": "SANDBOX_CACHE",
       "file_type": "code",
       "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L218",
+      "source_location": "L221",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -22677,7 +22677,7 @@
       "label": "BOOTSTRAP_CONFIG",
       "file_type": "code",
       "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L224",
+      "source_location": "L227",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -22691,7 +22691,7 @@
       "label": "os_config_path()",
       "file_type": "code",
       "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L228",
+      "source_location": "L231",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -22705,7 +22705,7 @@
       "label": "os_destination_directory()",
       "file_type": "code",
       "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L232",
+      "source_location": "L235",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -22719,7 +22719,7 @@
       "label": "os_settings_path()",
       "file_type": "code",
       "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L236",
+      "source_location": "L239",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -22733,7 +22733,7 @@
       "label": "os_apply_stderr_path()",
       "file_type": "code",
       "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L240",
+      "source_location": "L243",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -22747,7 +22747,7 @@
       "label": "chezmoi_isolated()",
       "file_type": "code",
       "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L263",
+      "source_location": "L266",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -22761,7 +22761,7 @@
       "label": "render_template()",
       "file_type": "code",
       "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L278",
+      "source_location": "L281",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -22775,7 +22775,7 @@
       "label": "populate_sandbox_source()",
       "file_type": "code",
       "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L286",
+      "source_location": "L289",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -22789,7 +22789,7 @@
       "label": "write_sandbox_config()",
       "file_type": "code",
       "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L300",
+      "source_location": "L303",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -22803,7 +22803,7 @@
       "label": "write_fixture_settings()",
       "file_type": "code",
       "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L310",
+      "source_location": "L313",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -22817,7 +22817,7 @@
       "label": "apply_settings_target()",
       "file_type": "code",
       "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L325",
+      "source_location": "L328",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -22831,7 +22831,7 @@
       "label": "settings_report()",
       "file_type": "code",
       "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L338",
+      "source_location": "L341",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -22845,7 +22845,7 @@
       "label": "parse_settings_report()",
       "file_type": "code",
       "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L356",
+      "source_location": "L359",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -22859,7 +22859,7 @@
       "label": "assert_passthrough_field()",
       "file_type": "code",
       "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L385",
+      "source_location": "L388",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -22873,7 +22873,7 @@
       "label": "assert_fixture_precondition()",
       "file_type": "code",
       "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L401",
+      "source_location": "L404",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -22887,7 +22887,7 @@
       "label": "assert_rendered_enabled_plugins()",
       "file_type": "code",
       "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L417",
+      "source_location": "L420",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -22901,7 +22901,7 @@
       "label": "verify_render_for_operating_system()",
       "file_type": "code",
       "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L464",
+      "source_location": "L467",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -73379,7 +73379,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L325",
+      "source_location": "L328",
       "weight": 1.0,
       "source": "test_unit_claude_enabled_plugins",
       "target": "test_unit_claude_enabled_plugins_apply_settings_target",
@@ -73389,7 +73389,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L401",
+      "source_location": "L404",
       "weight": 1.0,
       "source": "test_unit_claude_enabled_plugins",
       "target": "test_unit_claude_enabled_plugins_assert_fixture_precondition",
@@ -73399,7 +73399,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L385",
+      "source_location": "L388",
       "weight": 1.0,
       "source": "test_unit_claude_enabled_plugins",
       "target": "test_unit_claude_enabled_plugins_assert_passthrough_field",
@@ -73409,7 +73409,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L417",
+      "source_location": "L420",
       "weight": 1.0,
       "source": "test_unit_claude_enabled_plugins",
       "target": "test_unit_claude_enabled_plugins_assert_rendered_enabled_plugins",
@@ -73419,7 +73419,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L224",
+      "source_location": "L227",
       "weight": 1.0,
       "source": "test_unit_claude_enabled_plugins",
       "target": "test_unit_claude_enabled_plugins_bootstrap_config",
@@ -73429,7 +73429,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L263",
+      "source_location": "L266",
       "weight": 1.0,
       "source": "test_unit_claude_enabled_plugins",
       "target": "test_unit_claude_enabled_plugins_chezmoi_isolated",
@@ -73449,7 +73449,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L189",
+      "source_location": "L192",
       "weight": 1.0,
       "source": "test_unit_claude_enabled_plugins",
       "target": "test_unit_claude_enabled_plugins_fail",
@@ -73459,7 +73459,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L194",
+      "source_location": "L197",
       "weight": 1.0,
       "source": "test_unit_claude_enabled_plugins",
       "target": "test_unit_claude_enabled_plugins_finish",
@@ -73469,7 +73469,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L151",
+      "source_location": "L154",
       "weight": 1.0,
       "source": "test_unit_claude_enabled_plugins",
       "target": "test_unit_claude_enabled_plugins_fixture_settings_template",
@@ -73479,7 +73479,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L141",
+      "source_location": "L144",
       "weight": 1.0,
       "source": "test_unit_claude_enabled_plugins",
       "target": "test_unit_claude_enabled_plugins_json_boolean_kind",
@@ -73489,7 +73489,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L142",
+      "source_location": "L145",
       "weight": 1.0,
       "source": "test_unit_claude_enabled_plugins",
       "target": "test_unit_claude_enabled_plugins_json_true_value",
@@ -73509,7 +73509,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L240",
+      "source_location": "L243",
       "weight": 1.0,
       "source": "test_unit_claude_enabled_plugins",
       "target": "test_unit_claude_enabled_plugins_os_apply_stderr_path",
@@ -73519,7 +73519,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L228",
+      "source_location": "L231",
       "weight": 1.0,
       "source": "test_unit_claude_enabled_plugins",
       "target": "test_unit_claude_enabled_plugins_os_config_path",
@@ -73529,7 +73529,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L232",
+      "source_location": "L235",
       "weight": 1.0,
       "source": "test_unit_claude_enabled_plugins",
       "target": "test_unit_claude_enabled_plugins_os_destination_directory",
@@ -73539,7 +73539,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L236",
+      "source_location": "L239",
       "weight": 1.0,
       "source": "test_unit_claude_enabled_plugins",
       "target": "test_unit_claude_enabled_plugins_os_settings_path",
@@ -73549,7 +73549,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L356",
+      "source_location": "L359",
       "weight": 1.0,
       "source": "test_unit_claude_enabled_plugins",
       "target": "test_unit_claude_enabled_plugins_parse_settings_report",
@@ -73589,7 +73589,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L286",
+      "source_location": "L289",
       "weight": 1.0,
       "source": "test_unit_claude_enabled_plugins",
       "target": "test_unit_claude_enabled_plugins_populate_sandbox_source",
@@ -73599,7 +73599,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L278",
+      "source_location": "L281",
       "weight": 1.0,
       "source": "test_unit_claude_enabled_plugins",
       "target": "test_unit_claude_enabled_plugins_render_template",
@@ -73619,7 +73619,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L218",
+      "source_location": "L221",
       "weight": 1.0,
       "source": "test_unit_claude_enabled_plugins",
       "target": "test_unit_claude_enabled_plugins_sandbox_cache",
@@ -73629,7 +73629,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L163",
+      "source_location": "L166",
       "weight": 1.0,
       "source": "test_unit_claude_enabled_plugins",
       "target": "test_unit_claude_enabled_plugins_sandbox_config_template",
@@ -73639,7 +73639,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L217",
+      "source_location": "L220",
       "weight": 1.0,
       "source": "test_unit_claude_enabled_plugins",
       "target": "test_unit_claude_enabled_plugins_sandbox_persistent_state",
@@ -73649,7 +73649,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L216",
+      "source_location": "L219",
       "weight": 1.0,
       "source": "test_unit_claude_enabled_plugins",
       "target": "test_unit_claude_enabled_plugins_sandbox_source",
@@ -73669,7 +73669,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L338",
+      "source_location": "L341",
       "weight": 1.0,
       "source": "test_unit_claude_enabled_plugins",
       "target": "test_unit_claude_enabled_plugins_settings_report",
@@ -73679,7 +73679,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L174",
+      "source_location": "L177",
       "weight": 1.0,
       "source": "test_unit_claude_enabled_plugins",
       "target": "test_unit_claude_enabled_plugins_settings_report_template",
@@ -73719,7 +73719,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L464",
+      "source_location": "L467",
       "weight": 1.0,
       "source": "test_unit_claude_enabled_plugins",
       "target": "test_unit_claude_enabled_plugins_verify_render_for_operating_system",
@@ -73729,7 +73729,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L310",
+      "source_location": "L313",
       "weight": 1.0,
       "source": "test_unit_claude_enabled_plugins",
       "target": "test_unit_claude_enabled_plugins_write_fixture_settings",
@@ -73739,7 +73739,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L300",
+      "source_location": "L303",
       "weight": 1.0,
       "source": "test_unit_claude_enabled_plugins",
       "target": "test_unit_claude_enabled_plugins_write_sandbox_config",
@@ -73749,22 +73749,11 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L503",
+      "source_location": "L506",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_claude_enabled_plugins_sh__entry",
       "target": "test_unit_claude_enabled_plugins_finish",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "calls",
-      "confidence": "EXTRACTED",
-      "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L497",
-      "weight": 1.0,
-      "context": "call",
-      "source": "test_unit_claude_enabled_plugins_sh__entry",
-      "target": "test_unit_claude_enabled_plugins_populate_sandbox_source",
       "confidence_score": 1.0
     },
     {
@@ -73775,6 +73764,17 @@
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_claude_enabled_plugins_sh__entry",
+      "target": "test_unit_claude_enabled_plugins_populate_sandbox_source",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/claude-enabled-plugins.sh",
+      "source_location": "L503",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_claude_enabled_plugins_sh__entry",
       "target": "test_unit_claude_enabled_plugins_verify_render_for_operating_system",
       "confidence_score": 1.0
     },
@@ -73782,7 +73782,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L407",
+      "source_location": "L410",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_claude_enabled_plugins_assert_fixture_precondition",
@@ -73793,7 +73793,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L388",
+      "source_location": "L391",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_claude_enabled_plugins_assert_passthrough_field",
@@ -73804,7 +73804,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L427",
+      "source_location": "L430",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_claude_enabled_plugins_assert_rendered_enabled_plugins",
@@ -73815,7 +73815,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L376",
+      "source_location": "L379",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_claude_enabled_plugins_parse_settings_report",
@@ -73826,7 +73826,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L472",
+      "source_location": "L475",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_claude_enabled_plugins_verify_render_for_operating_system",
@@ -73837,7 +73837,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L408",
+      "source_location": "L411",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_claude_enabled_plugins_assert_fixture_precondition",
@@ -73848,7 +73848,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L389",
+      "source_location": "L392",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_claude_enabled_plugins_assert_passthrough_field",
@@ -73859,143 +73859,11 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L428",
+      "source_location": "L431",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_claude_enabled_plugins_assert_rendered_enabled_plugins",
       "target": "test_unit_claude_enabled_plugins_finish",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "calls",
-      "confidence": "EXTRACTED",
-      "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L473",
-      "weight": 1.0,
-      "context": "call",
-      "source": "test_unit_claude_enabled_plugins_verify_render_for_operating_system",
-      "target": "test_unit_claude_enabled_plugins_finish",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "calls",
-      "confidence": "EXTRACTED",
-      "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L327",
-      "weight": 1.0,
-      "context": "call",
-      "source": "test_unit_claude_enabled_plugins_apply_settings_target",
-      "target": "test_unit_claude_enabled_plugins_chezmoi_isolated",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "calls",
-      "confidence": "EXTRACTED",
-      "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L279",
-      "weight": 1.0,
-      "context": "call",
-      "source": "test_unit_claude_enabled_plugins_render_template",
-      "target": "test_unit_claude_enabled_plugins_chezmoi_isolated",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "calls",
-      "confidence": "EXTRACTED",
-      "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L339",
-      "weight": 1.0,
-      "context": "call",
-      "source": "test_unit_claude_enabled_plugins_settings_report",
-      "target": "test_unit_claude_enabled_plugins_render_template",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "calls",
-      "confidence": "EXTRACTED",
-      "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L314",
-      "weight": 1.0,
-      "context": "call",
-      "source": "test_unit_claude_enabled_plugins_write_fixture_settings",
-      "target": "test_unit_claude_enabled_plugins_render_template",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "calls",
-      "confidence": "EXTRACTED",
-      "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L304",
-      "weight": 1.0,
-      "context": "call",
-      "source": "test_unit_claude_enabled_plugins_write_sandbox_config",
-      "target": "test_unit_claude_enabled_plugins_render_template",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "calls",
-      "confidence": "EXTRACTED",
-      "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L468",
-      "weight": 1.0,
-      "context": "call",
-      "source": "test_unit_claude_enabled_plugins_verify_render_for_operating_system",
-      "target": "test_unit_claude_enabled_plugins_write_sandbox_config",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "calls",
-      "confidence": "EXTRACTED",
-      "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L469",
-      "weight": 1.0,
-      "context": "call",
-      "source": "test_unit_claude_enabled_plugins_verify_render_for_operating_system",
-      "target": "test_unit_claude_enabled_plugins_write_fixture_settings",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "calls",
-      "confidence": "EXTRACTED",
-      "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L483",
-      "weight": 1.0,
-      "context": "call",
-      "source": "test_unit_claude_enabled_plugins_verify_render_for_operating_system",
-      "target": "test_unit_claude_enabled_plugins_apply_settings_target",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "calls",
-      "confidence": "EXTRACTED",
-      "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L475",
-      "weight": 1.0,
-      "context": "call",
-      "source": "test_unit_claude_enabled_plugins_verify_render_for_operating_system",
-      "target": "test_unit_claude_enabled_plugins_parse_settings_report",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "calls",
-      "confidence": "EXTRACTED",
-      "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L403",
-      "weight": 1.0,
-      "context": "call",
-      "source": "test_unit_claude_enabled_plugins_assert_fixture_precondition",
-      "target": "test_unit_claude_enabled_plugins_assert_passthrough_field",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "calls",
-      "confidence": "EXTRACTED",
-      "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L421",
-      "weight": 1.0,
-      "context": "call",
-      "source": "test_unit_claude_enabled_plugins_assert_rendered_enabled_plugins",
-      "target": "test_unit_claude_enabled_plugins_assert_passthrough_field",
       "confidence_score": 1.0
     },
     {
@@ -74006,6 +73874,138 @@
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_claude_enabled_plugins_verify_render_for_operating_system",
+      "target": "test_unit_claude_enabled_plugins_finish",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/claude-enabled-plugins.sh",
+      "source_location": "L330",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_claude_enabled_plugins_apply_settings_target",
+      "target": "test_unit_claude_enabled_plugins_chezmoi_isolated",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/claude-enabled-plugins.sh",
+      "source_location": "L282",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_claude_enabled_plugins_render_template",
+      "target": "test_unit_claude_enabled_plugins_chezmoi_isolated",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/claude-enabled-plugins.sh",
+      "source_location": "L342",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_claude_enabled_plugins_settings_report",
+      "target": "test_unit_claude_enabled_plugins_render_template",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/claude-enabled-plugins.sh",
+      "source_location": "L317",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_claude_enabled_plugins_write_fixture_settings",
+      "target": "test_unit_claude_enabled_plugins_render_template",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/claude-enabled-plugins.sh",
+      "source_location": "L307",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_claude_enabled_plugins_write_sandbox_config",
+      "target": "test_unit_claude_enabled_plugins_render_template",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/claude-enabled-plugins.sh",
+      "source_location": "L471",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_claude_enabled_plugins_verify_render_for_operating_system",
+      "target": "test_unit_claude_enabled_plugins_write_sandbox_config",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/claude-enabled-plugins.sh",
+      "source_location": "L472",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_claude_enabled_plugins_verify_render_for_operating_system",
+      "target": "test_unit_claude_enabled_plugins_write_fixture_settings",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/claude-enabled-plugins.sh",
+      "source_location": "L486",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_claude_enabled_plugins_verify_render_for_operating_system",
+      "target": "test_unit_claude_enabled_plugins_apply_settings_target",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/claude-enabled-plugins.sh",
+      "source_location": "L478",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_claude_enabled_plugins_verify_render_for_operating_system",
+      "target": "test_unit_claude_enabled_plugins_parse_settings_report",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/claude-enabled-plugins.sh",
+      "source_location": "L406",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_claude_enabled_plugins_assert_fixture_precondition",
+      "target": "test_unit_claude_enabled_plugins_assert_passthrough_field",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/claude-enabled-plugins.sh",
+      "source_location": "L424",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_claude_enabled_plugins_assert_rendered_enabled_plugins",
+      "target": "test_unit_claude_enabled_plugins_assert_passthrough_field",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/claude-enabled-plugins.sh",
+      "source_location": "L479",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_claude_enabled_plugins_verify_render_for_operating_system",
       "target": "test_unit_claude_enabled_plugins_assert_fixture_precondition",
       "confidence_score": 1.0
     },
@@ -74013,7 +74013,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/claude-enabled-plugins.sh",
-      "source_location": "L493",
+      "source_location": "L496",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_claude_enabled_plugins_verify_render_for_operating_system",
@@ -98683,5 +98683,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "e31c061b3e87cd72b47a46f495004a719861482f"
+  "built_at_commit": "62e523ceb023d92d4f60fa82d68c8d1fc30086de"
 }
