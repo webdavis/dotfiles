@@ -43,12 +43,16 @@
 # one: `;;re` no longer expands the instant its last character is typed, it
 # expands on the next word separator. espanso's default separator set is space,
 # TAB, CR, LF, form feed, non-breaking space and , ; : . ? ! ( ) { } [ ] < > ' "
-# (espanso-config/src/config/resolve.rs, `word_separators`), so a space, a
-# punctuation mark or Enter all fire it, and the separator survives into the
-# result (espanso-engine/src/process/middleware/render.rs formats the body as
-# `{body}{right_separator}`). That is the same keystroke shape the bare-word
-# corrections in this repo already have, and it is a real behaviour change
-# rather than a free one.
+# (espanso-config/src/config/resolve.rs, `word_separators`), so a space or a
+# punctuation mark fires it, and the separator survives into the result
+# (espanso-engine/src/process/middleware/render.rs formats the body as
+# `{body}{right_separator}`). Those are CHARACTER separators: the worker builds
+# the matcher with `char_word_separators` only and leaves `key_word_separators`
+# at its empty default (espanso/src/cli/worker/engine/mod.rs), so whether a
+# given KEY fires the boundary depends on the character its keypress reports,
+# which is not something this comment has measured. That is the same keystroke
+# shape the bare-word corrections in this repo already have, and it is a real
+# behaviour change rather than a free one.
 #
 # The same mechanism is what stops `wont` expanding inside `wonton`, which is
 # the mid-word defect invariant 4 covers.
@@ -363,7 +367,9 @@ assert_predicate folded_relation_is_reachable no '' ''
 # Every regular file under the match tree is then classified: a match file this
 # test reads, or a name on the exempt list. Nothing may be silently neither,
 # which is what stops discovery quietly narrowing (a flat glob, a dropped
-# extension) and taking triggers out of every invariant's reach with it.
+# extension) and taking triggers out of every invariant's reach with it. Sorted
+# so that which of two duplicate declarations is named "first" is a property of
+# the tree and not of directory order.
 MATCH_FILES=()
 while IFS= read -r -d '' found_file; do
   found_name="$(basename "$found_file")"
@@ -372,7 +378,7 @@ while IFS= read -r -d '' found_file; do
   elif ! is_exempt_non_match_file_name "$found_name"; then
     fail "$found_file sits in the espanso match tree but is neither a match file (a name ending ${MATCH_FILE_EXTENSIONS[*]}, optionally with chezmoi's $CHEZMOI_TEMPLATE_SUFFIX suffix) nor an exempt name. espanso reads that tree recursively; a file this test cannot classify is one it cannot say anything about"
   fi
-done < <(find "$MATCH_DIR" -type f -print0)
+done < <(find "$MATCH_DIR" -type f -print0 | LC_ALL=C sort -z)
 ((${#MATCH_FILES[@]} > 0)) || fail "no match files found under $MATCH_DIR; every invariant would pass vacuously"
 
 # ---- import-resolution self-tests, on a fixture ----------------------------
