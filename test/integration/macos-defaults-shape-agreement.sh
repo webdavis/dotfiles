@@ -634,6 +634,67 @@ if printf '%s' "$killall_absent_render" | grep -qE '^killall '; then
   fail "the template rendered a killall command for a file that declares none: $killall_absent_render"
 fi
 
+# The TAG question, asked of the killall node the way case 4 asks it of the
+# record list. yq reports what a node IS after parsing, so a real container
+# wearing a lying tag answers a container KIND, and a verdict that read the kind
+# alone called every spelling below iterable while chezmoi's loader refused six
+# of them outright (`unexpected scalar value type`). Same hole as case 4, one
+# node over, and the same one-directional invariant closes it.
+KILLALL_CONTAINER_SPELLINGS=(
+  '[Dock]' '!!seq [Dock]' '!!str [Dock]' '!!map [Dock]' '!!set [Dock]' '!!omap [Dock]'
+  '{first: Dock}' '!!map {first: Dock}' '!!str {first: Dock}' '!!seq {first: Dock}'
+  '!!omap {first: Dock}'
+)
+
+# The subset the template is measured to refuse today, so the case carries a
+# POSITIVE pin as well as the invariant: without it, both readers turning
+# permissive at once would satisfy the invariant.
+KILLALL_SPELLINGS_BOTH_READERS_REFUSE=(
+  '!!str [Dock]' '!!map [Dock]' '!!set [Dock]' '!!str {first: Dock}' '!!seq {first: Dock}'
+  '!!omap {first: Dock}'
+)
+
+killall_spelling_fixture() { # <spelling>
+  printf 'macos:\n  defaults:\n%s  killall: %s\n' "$VALID_RECORD" "$1" >"$work/killall-spelling.yaml"
+  # The fixture only pins anything while the node stays a genuine container:
+  # that is what makes a kind-only check accept it.
+  local node_kind
+  node_kind="$(yq eval -r '.macos.killall | kind' "$work/killall-spelling.yaml")"
+  [[ $node_kind == seq || $node_kind == map ]] ||
+    fail "the killall fixture spelled $1 parses as $node_kind, not a container, so it no longer reproduces the hole this case exists to pin"
+}
+
+for killall_spelling in "${KILLALL_CONTAINER_SPELLINGS[@]}"; do
+  killall_spelling_fixture "$killall_spelling"
+  killall_library_accepted=1
+  killall_lib_out="$(library_stream "$work/killall-spelling.yaml")" || killall_library_accepted=0
+  killall_template_accepted=1
+  killall_tmpl_out="$(render_template "$work/killall-spelling.yaml")" || killall_template_accepted=0
+  if [[ $killall_library_accepted -eq 1 && $killall_template_accepted -eq 0 ]]; then
+    fail "the library ACCEPTED a killall spelled $killall_spelling and emitted [$killall_lib_out] while the template refused the same file [$killall_tmpl_out]; the library must never be the more permissive of the two readers"
+  fi
+done
+
+for killall_spelling in "${KILLALL_SPELLINGS_BOTH_READERS_REFUSE[@]}"; do
+  killall_spelling_fixture "$killall_spelling"
+  if killall_lib_out="$(library_stream "$work/killall-spelling.yaml")"; then
+    fail "the library ACCEPTED a killall spelled $killall_spelling and emitted [$killall_lib_out]; the template refuses that file outright"
+  fi
+  if killall_tmpl_out="$(render_template "$work/killall-spelling.yaml")"; then
+    fail "the template ACCEPTED a killall spelled $killall_spelling and rendered [$killall_tmpl_out]; this spelling is in the both-refuse table because it was measured to refuse it, so the table needs remeasuring"
+  fi
+  grep -qi 'killall' <<<"$(refusal_text_without_file_names "$killall_lib_out")" ||
+    fail "the library refused a killall spelled $killall_spelling without naming the node: $killall_lib_out"
+done
+
+# The control that keeps the two loops above from passing vacuously: a verdict
+# that refuses every container satisfies both, and only a legitimate spelling
+# that must still render can catch it.
+printf 'macos:\n  defaults:\n%s  killall: [Dock]\n' "$VALID_RECORD" >"$work/killall-plain-list.yaml"
+require_both_readers_accept "$work/killall-plain-list.yaml" "com.example.zebra " "a plain untagged killall list"
+printf 'macos:\n  defaults:\n%s  killall: {first: Dock}\n' "$VALID_RECORD" >"$work/killall-plain-map.yaml"
+require_both_readers_accept "$work/killall-plain-map.yaml" "com.example.zebra " "a plain untagged killall mapping"
+
 # ---- 12: both readers must WRITE the same thing, not merely accept ----------
 # Every accept row above compares domain NAMES, which two measured divergences
 # walk straight through: `host: 0` sent this library to -currentHost and the
@@ -680,5 +741,41 @@ value_sequence_library_output="$(library_stream "$work/value-sequence.yaml")" &&
 grep -qi 'value' <<<"$(refusal_text_without_file_names "$value_sequence_library_output")" ||
   fail "the library refused a sequence value without naming the value field: $value_sequence_library_output"
 
-printf 'macos-defaults-shape-agreement: OK (both readers take a list in declaration order, both refuse a map naming the shape, both refuse a file carrying a byte order mark, and across %d tags on a real sequence the library never accepts a file the template refuses; both refuse a duplicate or complex mapping key, an empty leading document, a killall neither can walk, every tier/payload mismatch, and a record with no type, while still reading every legitimate record and writing it identically from both readers; the multi-document and alias asymmetries are pinned from both sides)\n' \
-  "${#TAGS_ON_A_REAL_SEQUENCE[@]}"
+# The same container, wearing a tag that LIES about it. The rule above judged a
+# field by its TAG alone, and yq reports what a node IS separately from what the
+# document CALLS it, so `host: !!str [a, b]` answered !!str while remaining a
+# sequence: the library read it as a plain string and streamed the record (join
+# renders a container as the empty string) while chezmoi's loader refused the
+# whole file. One row per schema field that can hold a container, so a fix that
+# closed only one of them fails here.
+LYING_TAG_RECORD_BODIES=(
+  'domain: com.example.zebra, key: ZKey, value: "1", type: bool, tier: enforce, host: !!str [a, b]|host'
+  'domain: com.example.zebra, key: ZKey, value: "1", type: bool, tier: enforce, scope: system, plist_path: !!str [/Library/Preferences/x.plist]|plist_path'
+  'domain: com.example.zebra, key: ZKey, value: !!str [a, b], type: array, tier: enforce|value'
+  'domain: com.example.zebra, key: ZKey, value: !!str {a: 1}, type: dict, tier: enforce|value'
+)
+for lying_tag_row in "${LYING_TAG_RECORD_BODIES[@]}"; do
+  lying_tag_body="${lying_tag_row%|*}"
+  lying_tag_field="${lying_tag_row##*|}"
+  printf 'macos:\n  defaults:\n    - {%s}\n  killall: []\n' "$lying_tag_body" >"$work/lying-tag.yaml"
+  require_yq_reads_a_healthy_record_list "$work/lying-tag.yaml" 1 "lying-tag-$lying_tag_field"
+  lying_tag_library_output="$(library_stream "$work/lying-tag.yaml")" && {
+    lying_tag_render="$(render_template "$work/lying-tag.yaml")" || true
+    fail "the library ACCEPTED a $lying_tag_field written as a container wearing a !!str tag and streamed [$lying_tag_library_output] while the template rendered [$lying_tag_render]; the library must never be the more permissive of the two readers"
+  }
+  if lying_tag_render="$(render_template "$work/lying-tag.yaml")"; then
+    fail "the template ACCEPTED a $lying_tag_field written as a container wearing a !!str tag and rendered [$lying_tag_render]; this row exists because chezmoi's loader refuses that file, so it needs remeasuring"
+  fi
+  lying_tag_refusal="$(refusal_text_without_file_names "$lying_tag_library_output")"
+  grep -qi "$lying_tag_field" <<<"$lying_tag_refusal" ||
+    fail "the library refused the lying-tag row without naming the $lying_tag_field field: $lying_tag_library_output"
+  # The word "value" appears in this refusal's closing advice whatever the row
+  # is about, so the field assertion alone cannot tell a value row from any
+  # other. Naming the CONTAINER is what distinguishes the lying-tag refusal from
+  # the plain wrong-type one, and it is the half the fix added.
+  grep -qF 'tagged' <<<"$lying_tag_refusal" ||
+    fail "the library refused the lying-tag row without describing the container it wears the tag on: $lying_tag_library_output"
+done
+
+printf 'macos-defaults-shape-agreement: OK (both readers take a list in declaration order, both refuse a map naming the shape, both refuse a file carrying a byte order mark, and across %d tags on a real sequence and %d killall spellings the library never accepts a file the template refuses; both refuse a duplicate or complex mapping key, an empty leading document, a killall neither can walk, a record field written as a container wearing a lying tag, every tier/payload mismatch, and a record with no type, while still reading every legitimate record and writing it identically from both readers; the multi-document and alias asymmetries are pinned from both sides)\n' \
+  "${#TAGS_ON_A_REAL_SEQUENCE[@]}" "${#KILLALL_CONTAINER_SPELLINGS[@]}"

@@ -323,6 +323,28 @@ refute_field_spelling "$VALID_ENFORCE_FIELDS, scope: system, plist_path: {a: 1}"
 refute_field_spelling 'domain: 0.10, key: ZKey, type: bool, value: "1", tier: enforce' domain "a domain written as an unquoted decimal"
 refute_field_spelling 'domain: com.example.zebra, key: 0, type: bool, value: "1", tier: enforce' key "a key written as an unquoted zero"
 
+# A LYING TAG on a real container, which a TAG-only rule cannot see. yq reports
+# what a node IS after parsing separately from what the document CALLS it, so
+# `host: !!str [a, b]` answers tag !!str while remaining a sequence. Measured (yq
+# v4.53.3, chezmoi v2.71.1): the tag-only rule read all four of these as plain
+# strings and STREAMED the record, with join rendering the container as the empty
+# string, while chezmoi's loader refused the whole file with `unexpected scalar
+# value type`. Every schema field must be a SCALAR before its tag is judged.
+refute_field_spelling "$VALID_ENFORCE_FIELDS, host: !!str [a, b]" host "a host written as a sequence wearing a string tag"
+refute_field_spelling "$VALID_ENFORCE_FIELDS, scope: system, plist_path: !!str [/Library/Preferences/x.plist]" plist_path "a plist_path written as a sequence wearing a string tag"
+refute_field_spelling 'domain: com.example.zebra, key: ZKey, type: array, value: !!str [a, b], tier: enforce' value "a value written as a sequence wearing a string tag"
+refute_field_spelling 'domain: com.example.zebra, key: ZKey, type: dict, value: !!str {a: 1}, tier: enforce' value "a value written as a mapping wearing a string tag"
+# The refusal has to describe the CONTAINER, not repeat the tag the file lies
+# with: "declares host as !!str" is what the file says rather than what is wrong
+# with it, and an operator told that would go looking for a quoting problem.
+lying_tag_status=0
+printf 'macos:\n  defaults:\n    - {%s, host: !!str [a, b]}\n  killall: []\n' "$VALID_ENFORCE_FIELDS" >"$work/field-types.yaml"
+defaults_records_declare_agreeing_field_types "$work/field-types.yaml" >"$work/out" 2>"$work/err" || lying_tag_status=$?
+[[ $lying_tag_status -eq 2 ]] ||
+  fail "a sequence wearing a string tag must be refused with status 2, got $lying_tag_status"
+grep -qF 'seq tagged !!str' "$work/err" ||
+  fail "the refusal must name the container as well as the tag it wears (stderr: $(cat "$work/err"))"
+
 # The VALUE field, which genuinely holds non-strings. A container never agrees,
 # and a scalar agrees only in the canonical spelling Go renders back unchanged.
 refute_field_spelling 'domain: com.example.zebra, key: ZKey, type: array, value: [a, b], tier: enforce' value "a value written as a sequence"
@@ -387,6 +409,36 @@ require_field_spelling 'domain: com.example.zebra, key: ZKey, type: bool, value:
 require_field_spelling 'domain: com.example.zebra, key: ZKey, tier: manual, runbook: 0' \
   "a runbook written as a number, which both readers read the same way"
 
+# The CLEAN path must survive being called as a BARE statement under
+# `set -euo pipefail`, which is what all three tools that source this library
+# run under. The rule used to end in `grep -v '^$' | head -1`, and grep exits 1
+# when it matches NOTHING, which here is the clean case: errexit then killed the
+# caller silently, with no message, on a file with nothing wrong with it. Every
+# call site today sits to the left of a `||`, which suspends errexit, so the
+# failure was latent rather than live, and every accept row above therefore
+# passes with the defect present. Only a bare call reproduces it, which is why
+# this row spawns its own shell rather than calling the function here.
+printf 'macos:\n  defaults:\n    - {%s}\n  killall: []\n' "$VALID_ENFORCE_FIELDS" >"$work/field-types.yaml"
+bare_call_status=0
+bash -euo pipefail -c '
+  # shellcheck source=/dev/null
+  source "$1"
+  defaults_records_declare_agreeing_field_types "$2"
+' _ "$LIB" "$work/field-types.yaml" >"$work/out" 2>"$work/err" || bare_call_status=$?
+[[ $bare_call_status -eq 0 ]] ||
+  fail "a clean file must leave the field-type rule callable as a bare statement under set -euo pipefail, got status $bare_call_status ($(cat "$work/err"))"
+
+# The two pure helpers the rule is built from, pinned directly so each fails on
+# its own rather than only through a data file that happens to reach it.
+[[ "$(first_non_blank_line $'\n\nsecond\nthird')" == second ]] ||
+  fail "first_non_blank_line must skip leading blank lines and return the first line with content"
+[[ -z "$(first_non_blank_line $'\n\n')" ]] ||
+  fail "first_non_blank_line must answer the empty string when no line carries content"
+[[ "$(record_field_node_description scalar '!!int')" == '!!int' ]] ||
+  fail "record_field_node_description must name a scalar by its tag alone"
+[[ "$(record_field_node_description seq '!!str')" == 'seq tagged !!str' ]] ||
+  fail "record_field_node_description must name a container by BOTH its kind and the tag it wears"
+
 # The real tracked data file, which declares a !!bool value on every one of its
 # records. The control that says this rule admits the schema as it is actually
 # written, rather than as a rule about strings alone would have it.
@@ -413,4 +465,4 @@ require_system_plist_path_permitted /etc/example.evil.plist 2>"$work/err" || all
 [[ $allowlist_status -ne 0 ]] ||
   fail 'the write-time allowlist must still refuse /etc/example.evil.plist'
 
-printf 'macos-defaults-record-validation: OK (identity is required on every tier; enforce and verify records need a supported type; the value rule is asked of the file and keeps "" false and 0 while refusing an absent value; the field-type rule refuses every MEASURED spelling the two readers render differently, including a float wider than the digit bound, while admitting the tracked file and every canonical one; scope, host and plist_path rules answer through the same gate; an unknown tier fails closed; the write-time allowlist stays outside it)\n'
+printf 'macos-defaults-record-validation: OK (identity is required on every tier; enforce and verify records need a supported type; the value rule is asked of the file and keeps "" false and 0 while refusing an absent value; the field-type rule refuses every MEASURED spelling the two readers render differently, including a float wider than the digit bound and a container wearing a lying !!str tag, while admitting the tracked file and every canonical one; scope, host and plist_path rules answer through the same gate; an unknown tier fails closed; the write-time allowlist stays outside it)\n'

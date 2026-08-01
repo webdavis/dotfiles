@@ -465,6 +465,10 @@ write_killall_file "$work/killall-list.yaml" '  killall: [Dock]
 '
 write_killall_file "$work/killall-map.yaml" '  killall: {first: Dock}
 '
+write_killall_file "$work/killall-mistagged-list.yaml" '  killall: !!str [Dock]
+'
+write_killall_file "$work/killall-mistagged-map.yaml" '  killall: !!str {first: Dock}
+'
 killall_scalar_status=0
 killall_scalar_refusal="$(defaults_records_unit_separated "$work/killall-scalar.yaml" 2>&1 >/dev/null)" ||
   killall_scalar_status=$?
@@ -480,6 +484,25 @@ for killall_accepted_case in killall-absent killall-nil killall-list killall-map
     fail "$killall_accepted_case must still stream, got status $killall_accepted_status ($killall_accepted_output); the runner template reads all four of these without complaint"
 done
 
+# A LYING TAG on a real container, the half a KIND-only verdict cannot see. yq
+# reports what a node IS after parsing, so `killall: !!str [Dock]` is still a
+# sequence and a kind-only check called it iterable, while chezmoi's loader
+# refuses the whole file (`unexpected scalar value type`) and every tool here
+# reported the records as fine. Both spellings are measured, on a container of
+# each shape, so a fix that closed only the sequence half fails here.
+for killall_mistagged_case in killall-mistagged-list killall-mistagged-map; do
+  killall_mistagged_kind="$(yq eval -r '.macos.killall | kind' "$work/$killall_mistagged_case.yaml")"
+  [[ $killall_mistagged_kind == seq || $killall_mistagged_kind == map ]] ||
+    fail "the $killall_mistagged_case fixture parses as $killall_mistagged_kind, not a container, so it no longer reproduces the hole this case pins"
+  killall_mistagged_status=0
+  killall_mistagged_refusal="$(defaults_records_unit_separated "$work/$killall_mistagged_case.yaml" 2>&1 >/dev/null)" ||
+    killall_mistagged_status=$?
+  [[ $killall_mistagged_status -eq 2 ]] ||
+    fail "$killall_mistagged_case must be refused with status 2, got $killall_mistagged_status; the runner template refuses that file outright while a kind-only verdict here calls it iterable"
+  require_refusal_names "$killall_mistagged_refusal" 'killall' "$killall_mistagged_case"
+  require_refusal_names "$killall_mistagged_refusal" 'tag' "$killall_mistagged_case (the thing to delete)"
+done
+
 # The killall verdict, called directly, so each branch fails on its own.
 require_killall_verdict() { # <shape-answer> <expected> <description>
   local answer="$1" expected="$2" description="$3" verdict
@@ -492,6 +515,13 @@ require_killall_verdict 'map !!map' iterable "a mapping the template walks by va
 require_killall_verdict 'scalar !!null' undeclared "an absent or nil killall"
 require_killall_verdict 'scalar !!str' scalar "a single process name written as a scalar"
 require_killall_verdict 'scalar !!int' scalar "a number written where the list belongs"
+# The CONJUNCTION, cell by cell. Each row below answers a container KIND, so a
+# verdict that read the kind alone called every one of them iterable.
+require_killall_verdict 'seq !!str' mistagged "a real sequence wearing a string tag"
+require_killall_verdict 'seq !!map' mistagged "a real sequence wearing a mapping tag"
+require_killall_verdict 'seq !!set' mistagged "a real sequence wearing a set tag"
+require_killall_verdict 'map !!str' mistagged "a real mapping wearing a string tag"
+require_killall_verdict 'map !!seq' mistagged "a real mapping wearing a sequence tag"
 require_killall_verdict '' unclassifiable "the empty answer"
 require_killall_verdict $'seq !!seq\nseq !!seq' unclassifiable "one answer per document"
 require_killall_verdict 'alias ' unclassifiable "an answer this classifier does not know"
@@ -621,4 +651,4 @@ unparseable_refusal="$(refute_data_file_accepted "$work/unparseable.yaml" "a fil
 require_refusal_names "$unparseable_refusal" 'cannot determine the shape' "a file yq cannot parse"
 require_refusal_names_the_data_file "$unparseable_refusal" "$work/unparseable.yaml" "a file yq cannot parse"
 
-printf 'macos-defaults-data-file-rules-guard: OK (a clean file and the real tracked file are accepted; a duplicate mapping key is refused in all four positions and a complex key in both; an alias is refused wherever it appears while an unreferenced anchor is not; multiple documents are refused by name, including the empty leading document yq elides, while a leading ---, a trailing ..., a comment and a directive are not; a killall the template cannot walk is refused while all four it can are streamed; both classifiers answer every shape directly and fail closed on the rest)\n'
+printf 'macos-defaults-data-file-rules-guard: OK (a clean file and the real tracked file are accepted; a duplicate mapping key is refused in all four positions and a complex key in both; an alias is refused wherever it appears while an unreferenced anchor is not; multiple documents are refused by name, including the empty leading document yq elides, while a leading ---, a trailing ..., a comment and a directive are not; a killall the template cannot walk is refused, including a real container wearing a lying tag, while all four it can are streamed; both classifiers answer every shape directly and fail closed on the rest)\n'

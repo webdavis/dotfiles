@@ -142,6 +142,27 @@ defaults_records_field_count() { # <line>
   printf '%s' "$((${#separators_only} + 1))"
 }
 
+# first_non_blank_line <text>, the first line of <text> that carries something,
+# or the empty string when none does. PURE: one string in, one string out.
+#
+# Pure bash rather than the obvious `grep -v '^$' | head -1`, and that is the
+# whole reason it has a name. `grep` exits 1 when it matches NOTHING, which here
+# is the CLEAN case, so under `set -euo pipefail` the pipeline's status became
+# the enclosing function's and errexit killed the caller, silently and with no
+# message, on a file with nothing wrong with it. Every call site today happens to
+# suspend errexit (each one sits to the left of a `||`), so the failure was
+# latent rather than live; a helper that cannot fail at all is one fewer thing
+# for the next call site to get right.
+first_non_blank_line() { # <text>
+  local line
+  while IFS= read -r line; do
+    if [[ -n $line ]]; then
+      printf '%s' "$line"
+      return 0
+    fi
+  done <<<"$1"
+}
+
 # defaults_records_locate_malformed <path> <declared-count>, describe the FIRST
 # record that does not render as exactly one eight-field line. Only ever called
 # on the failure path, so its per-record yq calls cost nothing in the normal case.
@@ -247,6 +268,8 @@ defaults_records_locate_malformed() { # <path> <declared-count>
 DEFAULTS_RECORDS_LIST_KIND='seq'
 DEFAULTS_RECORDS_LIST_TAG='!!seq'
 DEFAULTS_RECORDS_MAP_KIND='map'
+DEFAULTS_RECORDS_MAP_TAG='!!map'
+DEFAULTS_RECORDS_SCALAR_KIND='scalar'
 DEFAULTS_RECORDS_ABSENT_TAG='!!null'
 
 # The two yq expressions this reader asks the data file, named so the pair
@@ -931,30 +954,71 @@ defaults_records_validate_stream() { # <path> <declared-count> <raw-stream>
 # `killall:` is accepted by both as "nothing to restart", now that the template
 # reads the key through hasKey.
 MACOS_DEFAULTS_KILLALL_SHAPE_EXPRESSION='[(.macos.killall | kind), (.macos.killall | tag)] | join(" ")'
-MACOS_DEFAULTS_NULL_TAG='!!null'
 
 # killall_list_verdict <shape-answer>, classify what the killall node is. PURE:
 # one string in, one verdict out, no file access.
 #
-#   iterable       a sequence or a mapping; the template's `range` walks it.
+#   iterable       a sequence tagged !!seq, or a mapping tagged !!map; the
+#                  template's `range` walks it.
+#   mistagged      a real sequence or mapping wearing any OTHER tag. Its own
+#                  verdict rather than a fold into "unclassifiable", because the
+#                  operator's fix is specific: delete the tag.
 #   undeclared     absent or nil. yq answers the same for both, and so does the
 #                  template now, so they do not need telling apart.
 #   scalar         a plain scalar. The template cannot iterate it.
 #   unclassifiable anything else, including an empty or multi-line answer. An
 #                  unrecognized answer resolves to a REFUSED verdict, never an
 #                  accepted one.
+#
+# BOTH answers are read, and the CONJUNCTION is what decides, for exactly the
+# reason records_declaration_verdict above reads both: a kind-only check is
+# defeated by a truthful shape wearing a wrong tag. Measured on this yq and this
+# chezmoi, `killall: !!str [Dock]`, `!!map [Dock]`, `!!set [Dock]`,
+# `!!str {a: Dock}`, `!!seq {a: Dock}` and `!!omap {a: Dock}` all answer a
+# container KIND while chezmoi's loader refuses the whole file (`unexpected
+# scalar value type`), so a kind-only verdict made this library the permissive
+# reader on six spellings, which is the one direction this guard exists to close.
+#
+# The same measured residual the record list carries applies here and is accepted
+# for the same reason: four tag spellings on a real sequence (!!omap, !!pairs, a
+# local !custom and an unknown !!foo) are RENDERED by the template and refused
+# here, so on those this library is the STRICTER reader. That direction is a loud
+# refusal naming the file, and buying agreement on it would mean transcribing
+# which tags one Go YAML release happens to decode as a slice.
 killall_list_verdict() { # <shape-answer>
-  local shape_answer="$1"
-  # A multi-line answer is one line per document and cannot describe one node, so
-  # it is refused before any prefix match can read the first line as the whole.
-  if [[ $shape_answer == *$'\n'* ]]; then
+  local shape_answer="$1" node_kind node_tag
+  # Exactly one line of two space-separated fields is the only answer this
+  # classifier can read. Anything else, including yq's per-document answers for a
+  # multi-document file, falls through to "unclassifiable" rather than letting
+  # the first document answer for the whole file.
+  if [[ ! $shape_answer =~ ^([[:alpha:]]+)' '([^[:space:]]+)$ ]]; then
     printf 'unclassifiable\n'
     return 0
   fi
-  case $shape_answer in
-    'seq '* | 'map '*) printf 'iterable\n' ;;
-    "scalar $MACOS_DEFAULTS_NULL_TAG") printf 'undeclared\n' ;;
-    'scalar '*) printf 'scalar\n' ;;
+  node_kind="${BASH_REMATCH[1]}"
+  node_tag="${BASH_REMATCH[2]}"
+  case $node_kind in
+    "$DEFAULTS_RECORDS_LIST_KIND")
+      if [[ $node_tag == "$DEFAULTS_RECORDS_LIST_TAG" ]]; then
+        printf 'iterable\n'
+      else
+        printf 'mistagged\n'
+      fi
+      ;;
+    "$DEFAULTS_RECORDS_MAP_KIND")
+      if [[ $node_tag == "$DEFAULTS_RECORDS_MAP_TAG" ]]; then
+        printf 'iterable\n'
+      else
+        printf 'mistagged\n'
+      fi
+      ;;
+    "$DEFAULTS_RECORDS_SCALAR_KIND")
+      if [[ $node_tag == "$DEFAULTS_RECORDS_ABSENT_TAG" ]]; then
+        printf 'undeclared\n'
+      else
+        printf 'scalar\n'
+      fi
+      ;;
     *) printf 'unclassifiable\n' ;;
   esac
 }
@@ -970,6 +1034,10 @@ require_data_file_killall_is_iterable() { # <path>
   killall_verdict="$(killall_list_verdict "$shape_answer")"
   case $killall_verdict in
     iterable | undeclared) return 0 ;;
+    mistagged)
+      printf 'error: %s tags .macos.killall as %q; the list of process names is a real container, so only its TAG is wrong, and the only tags accepted on it are %s on a list and %s on a mapping, because the runner template refuses several of the others with a parse error while this reader would call the file usable, so the two readers would disagree about whether this file can be applied at all; delete the tag\n' \
+        "$data_file" "${shape_answer#* }" "$DEFAULTS_RECORDS_LIST_TAG" "$DEFAULTS_RECORDS_MAP_TAG" >&2
+      ;;
     scalar)
       printf 'error: %s declares .macos.killall as a plain scalar, but it must be a LIST of process names; the runner template walks it and dies with "range can%st iterate over" that value, refusing the whole apply, while every tool here would read the file as usable; write it as a list, killall: [Dock]\n' \
         "$data_file" "'" >&2
@@ -1137,36 +1205,76 @@ MACOS_DEFAULTS_CANONICAL_FLOAT_PATTERN='^-?(0|[1-9][0-9]*)[.][0-9]*[1-9]$'
 # decimal point, and the optional sign is matched outside the bound.
 MACOS_DEFAULTS_CANONICAL_FLOAT_DIGIT_BOUND_PATTERN='^-?[0-9.]{1,16}$'
 
+# record_field_node_description <kind> <tag>, name one YAML node the way a
+# refusal about it should read. PURE: two strings in, one string out.
+#
+# A scalar is named by its TAG alone, which is the whole of what is wrong with
+# `host: 0`. A container is named by BOTH, because a lying tag makes the tag the
+# least useful thing to print on its own: "declares host as !!str" is what the
+# file says rather than what is wrong with it, while "declares host as seq tagged
+# !!str" names the container the operator has to replace.
+#
+# Bash rather than yq, deliberately. yq (mikefarah v4) has no if/then/else, so
+# expressing the choice there means a second expression or a select/alternative
+# pair, and building a SENTENCE is presentation work that belongs beside the
+# message it feeds, not inside the query that gathers the facts.
+record_field_node_description() { # <kind> <tag>
+  local node_kind="$1" node_tag="$2"
+  if [[ $node_kind == "$DEFAULTS_RECORDS_SCALAR_KIND" ]]; then
+    printf '%s' "$node_tag"
+    return 0
+  fi
+  printf '%s tagged %s' "$node_kind" "$node_tag"
+}
+
 # defaults_records_field_type_expression, the yq expression that reports every
 # DECLARED field whose type or spelling the two readers would not agree on, one
-# per line, as <record-index>US<field-name>US<yaml-tag>.
+# per line, as <record-index>US<field-name>US<node-kind>US<node-tag>.
 #
 # Built from the tables above rather than spelled inline, so the field sets and
 # the canonical patterns each have one definition. PURE: no arguments, no file
 # access, one string out.
 #
+# THE KIND IS READ AS WELL AS THE TAG, and the pair decides, for exactly the
+# reason records_declaration_verdict reads both about the record list: a TAG
+# check on its own is defeated by a truthful shape wearing a lying tag. Measured
+# (yq v4.53.3, chezmoi v2.71.1), `host: !!str [a, b]`, `plist_path: !!str [x]`
+# and `value: !!str [a, b]` all answer tag !!str while remaining containers, so a
+# tag-only rule read them as plain strings and STREAMED the record (join renders
+# a container as the empty string, so the library wrote the user domain with an
+# empty value) while chezmoi's loader refused the whole file with `unexpected
+# scalar value type`. Every schema field this rule judges must therefore be a
+# SCALAR first; the tag question is asked of it second.
+#
 # Nothing hostile can reach its output, which is why this stream needs no
 # anti-forgery line count the way the declared-fields stream does. The record
 # index is yq's own, the field name is one of the six literals this expression
-# selected on, and the tag is yq's; the record's own text never appears.
+# selected on, and the kind and tag are yq's; the record's own text never
+# appears.
 #
-# shellcheck disable=SC2016  # deliberate: $entry, $field, $fieldTag and
-# $fieldText are yq's own variables and must reach yq unexpanded, which is
+# The kind and the tag are reported SEPARATELY and the sentence is built in bash,
+# by record_field_node_description above. yq has no if/then/else, and a query
+# that gathers facts is a different job from a message that reads well.
+#
+# shellcheck disable=SC2016  # deliberate: $entry, $field, $fieldKind, $fieldTag
+# and $fieldText are yq's own variables and must reach yq unexpanded, which is
 # exactly what single quotes do.
 defaults_records_field_type_expression() {
   local unit_separator=$'\x1f'
-  local string_only_field string_only_selection=''
+  local string_only_field string_only_selection='' schema_field_selection
   for string_only_field in "${MACOS_DEFAULTS_STRING_ONLY_RECORD_FIELDS[@]}"; do
     [[ -n $string_only_selection ]] && string_only_selection+=' or '
     string_only_selection+="(\$field.key == \"$string_only_field\")"
   done
+  schema_field_selection="$string_only_selection or (\$field.key == \"$MACOS_DEFAULTS_VALUE_RECORD_FIELD\")"
   local canonical_value_spellings
   canonical_value_spellings="$(printf '((%s == "!!bool") and (%s | test("%s"))) or ((%s == "!!int") and (%s | test("%s"))) or ((%s == "!!float") and (%s | test("%s")) and (%s | test("%s")))' \
     '$fieldTag' '$fieldText' "$MACOS_DEFAULTS_CANONICAL_BOOL_PATTERN" \
     '$fieldTag' '$fieldText' "$MACOS_DEFAULTS_CANONICAL_INT_PATTERN" \
     '$fieldTag' '$fieldText' "$MACOS_DEFAULTS_CANONICAL_FLOAT_PATTERN" \
     '$fieldText' "$MACOS_DEFAULTS_CANONICAL_FLOAT_DIGIT_BOUND_PATTERN")"
-  printf '[.macos.defaults | to_entries | .[] | . as $entry | ($entry.value | to_entries | .[]) as $field | ($field.value | tag) as $fieldTag | ($field.value | tostring) as $fieldText | select(((%s) and ($fieldTag != "%s")) or (($field.key == "%s") and ($fieldTag != "%s") and ((%s) | not))) | [($entry.key | tostring), ($field.key | tostring), $fieldTag] | join("%s")] | .[]' \
+  printf '[.macos.defaults | to_entries | .[] | . as $entry | ($entry.value | to_entries | .[]) as $field | ($field.value | kind) as $fieldKind | ($field.value | tag) as $fieldTag | ($field.value | tostring) as $fieldText | select(((%s) and ($fieldKind != "%s")) or ((%s) and ($fieldTag != "%s")) or (($field.key == "%s") and ($fieldTag != "%s") and ((%s) | not))) | [($entry.key | tostring), ($field.key | tostring), $fieldKind, $fieldTag] | join("%s")] | .[]' \
+    "$schema_field_selection" "$DEFAULTS_RECORDS_SCALAR_KIND" \
     "$string_only_selection" "$MACOS_DEFAULTS_PLAIN_STRING_TAG" \
     "$MACOS_DEFAULTS_VALUE_RECORD_FIELD" "$MACOS_DEFAULTS_PLAIN_STRING_TAG" \
     "$canonical_value_spellings" "$unit_separator"
@@ -1184,17 +1292,17 @@ defaults_records_field_type_expression() {
 defaults_records_declare_agreeing_field_types() { # <path>
   local data_file="$1"
   local field_types first_offender
-  local record_index offending_field offending_tag
+  local record_index offending_field offending_kind offending_tag
   if ! field_types="$(yq eval -r "$(defaults_records_field_type_expression)" "$data_file")"; then
     printf 'error: cannot check the field types of the records in %s\n' "$data_file" >&2
     return 2
   fi
-  first_offender="$(printf '%s\n' "$field_types" | grep -v '^$' | head -1)"
+  first_offender="$(first_non_blank_line "$field_types")"
   [[ -z $first_offender ]] && return 0
-  IFS=$'\x1f' read -r record_index offending_field offending_tag <<<"$first_offender"
+  IFS=$'\x1f' read -r record_index offending_field offending_kind offending_tag <<<"$first_offender"
   printf 'error: %s: record %s (%s) declares %s as %s; this reader renders a scalar as the text the file spells it with and the runner template renders it as Go formats the parsed value, so the two would not write the same thing out of this record; quote the value\n' \
     "$data_file" "$record_index" "$(defaults_record_reference "$data_file" "$record_index")" \
-    "$offending_field" "$offending_tag" >&2
+    "$offending_field" "$(record_field_node_description "$offending_kind" "$offending_tag")" >&2
   return 2
 }
 
