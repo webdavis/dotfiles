@@ -133,11 +133,14 @@ readonly REPORT_FIELD_DELIMITER=':'
 readonly PLUGIN_RECORD='plugin'
 readonly PASSTHROUGH_RECORD='passthrough'
 
-# An entry must be the JSON boolean true. Claude Code rejects any other value,
-# and `%v` prints the string "true" and the boolean true identically, so the
-# render's TYPE is reported alongside the value and asserted with it. Measured
-# 2026-08-01 on Claude Code 2.1.220: a quoted "true" is an invalid setting, and
-# a value-only check accepts it.
+# An entry must be the JSON boolean true, and `%v` prints the string "true" and
+# the boolean true identically, so the render's TYPE is reported alongside the
+# value and asserted with it. Read 2026-08-01 out of the shipped Claude Code
+# 2.1.220 binary, whose settings schema declares
+# `enabledPlugins: record(string, union([array(string), boolean, undefined]))`:
+# a quoted "true" is not in that union, so it enables nothing, and a value-only
+# check accepts it anyway. This repository declares booleans, so `bool` is what
+# is pinned here rather than the schema's whole union.
 readonly JSON_BOOLEAN_KIND='bool'
 readonly JSON_TRUE_VALUE='true'
 
