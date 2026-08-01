@@ -123,6 +123,34 @@ TRIGGER_CAUSE_KEY_PATTERN='^[[:space:]]*-?[[:space:]]*triggers?:'
 # The one trigger-line shape parse_match_records understands, as it appears in
 # `grep -n` output.
 PARSEABLE_TRIGGER_LINE_PATTERN=':[0-9]+:  - trigger: "[^"\\]*"$'
+# The match options this test reads, all of them booleans to espanso. Built from
+# the option lists above rather than restated, so a new option name cannot be
+# added to one and forgotten in the other. `word` appears on both the left and
+# the right list, so the union is taken rather than the concatenation.
+mapfile -t BOOLEAN_MATCH_OPTIONS < <(printf '%s\n' \
+  "${LEFT_BOUNDARY_OPTIONS[@]}" \
+  "${RIGHT_BOUNDARY_OPTIONS[@]}" \
+  "${CASE_INSENSITIVE_OPTIONS[@]}" | LC_ALL=C sort -u)
+BOOLEAN_MATCH_OPTION_ALTERNATION="$(printf '%s|' "${BOOLEAN_MATCH_OPTIONS[@]}")"
+BOOLEAN_MATCH_OPTION_ALTERNATION="${BOOLEAN_MATCH_OPTION_ALTERNATION%|}"
+# Where an option line sits: the four-space indent YAML reserves for a match's
+# own keys.
+BOOLEAN_OPTION_LINE_PATTERN="^    ($BOOLEAN_MATCH_OPTION_ALTERNATION):"
+# The one option-line shape parse_match_records understands, as it appears in
+# `grep -n` output. A trailing comment is part of the shape: espanso reads
+# `propagate_case: true # keep the case` as true, and a parser that only matched
+# `true` at end of line read it as unset, which silently turned a duplicate
+# trigger back into two "unique" ones.
+PARSEABLE_BOOLEAN_OPTION_LINE_PATTERN=":[0-9]+:    ($BOOLEAN_MATCH_OPTION_ALTERNATION):[[:space:]]*(true|false)[[:space:]]*(#.*)?$"
+# Emitted by parse_import_paths in place of an import list written in a shape it
+# cannot read, so the caller refuses the file instead of reporting that it has
+# no imports. Leads with a byte no path of espanso's can start with.
+UNREADABLE_IMPORT_LIST_MARKER=$'\x01unreadable-import-list:'
+# Emitted after the match-tree walk, carrying the exit status of the walk
+# itself. A process substitution reports its command's status nowhere, so a
+# `find` that fails partway would otherwise hand the loop a short file list and
+# every invariant would answer for a tree smaller than the real one.
+DISCOVERY_STATUS_MARKER=$'\x01discovery-status:'
 
 fail() {
   printf 'FAIL: %s\n' "$*" >&2
@@ -285,7 +313,7 @@ parse_match_records() {
         key = $0
         sub(/^    /, "", key)
         sub(/:.*$/, "", key)
-        if ($0 ~ /: *true *$/) options = options " " key
+        if ($0 ~ /: *true *(#.*)?$/) options = options " " key
       }
     }
     END { flush() }
@@ -297,13 +325,45 @@ parse_match_records() {
 # exactly what decides whether espanso can resolve the import at all: a wrong
 # directory leaves the file unloaded and every trigger in it inert, which is the
 # defect this suite exists to catch.
+#
+# BOTH YAML sequence spellings are read. A block list under `imports:` and a
+# flow list on the same line (`imports: ["./_pqi.yml"]`) are one document to any
+# YAML reader, so espanso resolves both; a parser that read only the block form
+# reported "all imports resolved" for a flow-form import pointing at nothing.
+# Any third spelling (a flow list broken across lines) emits
+# UNREADABLE_IMPORT_LIST_MARKER instead of nothing, so it is refused rather than
+# silently counted as an empty import list.
 parse_import_paths() {
-  awk '
-    /^imports:/ { in_imports = 1; next }
+  awk -v unreadable_marker="$UNREADABLE_IMPORT_LIST_MARKER" '
+    function emit_flow_entries(list,   count, entries, index_, path) {
+      count = split(list, entries, ",")
+      for (index_ = 1; index_ <= count; index_++) {
+        path = entries[index_]
+        gsub(/^[[:space:]]+|[[:space:]]+$/, "", path)
+        gsub(/["\x27]/, "", path)
+        if (path != "") print path
+      }
+    }
+    /^imports:/ {
+      in_imports = 0
+      remainder = $0
+      sub(/^imports:[[:space:]]*/, "", remainder)
+      sub(/[[:space:]]*#.*$/, "", remainder)
+      if (remainder == "") { in_imports = 1; next }
+      if (remainder ~ /^\[.*\]$/) {
+        sub(/^\[/, "", remainder)
+        sub(/\]$/, "", remainder)
+        emit_flow_entries(remainder)
+        next
+      }
+      print unreadable_marker $0
+      next
+    }
     /^[^ #]/    { in_imports = 0 }
     in_imports && /^[[:space:]]*-[[:space:]]*/ {
       path = $0
       sub(/^[[:space:]]*-[[:space:]]*/, "", path)
+      sub(/[[:space:]]*#.*$/, "", path)
       gsub(/["\x27]/, "", path)
       if (path != "") print path
     }
@@ -370,15 +430,36 @@ assert_predicate folded_relation_is_reachable no '' ''
 # extension) and taking triggers out of every invariant's reach with it. Sorted
 # so that which of two duplicate declarations is named "first" is a property of
 # the tree and not of directory order.
+#
+# The walk's own exit status rides back as a final record, because a process
+# substitution discards it: a `find` that listed part of the tree and then
+# failed would leave every invariant below answering for the part it did list,
+# with nothing said about the rest.
 MATCH_FILES=()
+discovery_status=''
 while IFS= read -r -d '' found_file; do
+  if [[ $found_file == "$DISCOVERY_STATUS_MARKER"* ]]; then
+    discovery_status="${found_file#"$DISCOVERY_STATUS_MARKER"}"
+    continue
+  fi
   found_name="$(basename "$found_file")"
   if is_match_file_name "$found_name"; then
     MATCH_FILES+=("$found_file")
   elif ! is_exempt_non_match_file_name "$found_name"; then
     fail "$found_file sits in the espanso match tree but is neither a match file (a name ending ${MATCH_FILE_EXTENSIONS[*]}, optionally with chezmoi's $CHEZMOI_TEMPLATE_SUFFIX suffix) nor an exempt name. espanso reads that tree recursively; a file this test cannot classify is one it cannot say anything about"
   fi
-done < <(find "$MATCH_DIR" -type f -print0 | LC_ALL=C sort -z)
+done < <(
+  # `|| status=$?` rather than a bare pipeline: under `set -e` a failing walk
+  # would end this subshell before the marker was written, and the caller would
+  # then only know that no status arrived, not what the status was.
+  discovery_exit_status=0
+  find "$MATCH_DIR" -type f -print0 | LC_ALL=C sort -z || discovery_exit_status=$?
+  printf '%s%s\0' "$DISCOVERY_STATUS_MARKER" "$discovery_exit_status"
+)
+[[ -n $discovery_status ]] ||
+  fail "the walk of $MATCH_DIR reported no exit status at all; its result cannot be trusted and every invariant below would answer for whatever part of the tree happened to arrive"
+[[ $discovery_status == 0 ]] ||
+  fail "the walk of $MATCH_DIR exited $discovery_status. Whatever it did list is a part of the tree, not the tree; every invariant below would answer for that part and say nothing about the rest"
 ((${#MATCH_FILES[@]} > 0)) || fail "no match files found under $MATCH_DIR; every invariant would pass vacuously"
 
 # ---- import-resolution self-tests, on a fixture ----------------------------
@@ -413,6 +494,38 @@ assert_predicate import_target_path no "$import_fixture/importer.yml" ./no-such-
 assert_predicate discovered_match_file yes "${MATCH_FILES[0]}"
 assert_predicate discovered_match_file yes "$(dirname "${MATCH_FILES[0]}")/./$(basename "${MATCH_FILES[0]}")"
 assert_predicate discovered_match_file no "$import_fixture/sibling.yml"
+
+# Both sequence spellings, and the refusal for anything else. YAML makes the
+# block and flow forms the same document, so a parser blind to one reports "all
+# imports resolved" for a file whose imports it never looked at.
+printf 'imports:\n  - "./sibling.yml"\n  - ./nested/deep.yml\nmatches: []\n' \
+  >"$import_fixture/block.yml"
+printf 'imports: ["./sibling.yml", ./nested/deep.yml]\nmatches: []\n' \
+  >"$import_fixture/flow.yml"
+printf 'imports: []\nmatches: []\n' >"$import_fixture/empty-flow.yml"
+printf 'imports: [\n  "./sibling.yml"\n]\nmatches: []\n' >"$import_fixture/split-flow.yml"
+assert_equals "parse_import_paths on a block list" \
+  "$(parse_import_paths "$import_fixture/block.yml" | paste -sd, -)" './sibling.yml,./nested/deep.yml'
+assert_equals "parse_import_paths on a flow list" \
+  "$(parse_import_paths "$import_fixture/flow.yml" | paste -sd, -)" './sibling.yml,./nested/deep.yml'
+assert_equals "parse_import_paths on an empty flow list" \
+  "$(parse_import_paths "$import_fixture/empty-flow.yml")" ''
+assert_equals "parse_import_paths on a flow list split across lines" \
+  "$(parse_import_paths "$import_fixture/split-flow.yml")" "${UNREADABLE_IMPORT_LIST_MARKER}imports: ["
+
+# An option's value carries a comment as often as not, and espanso reads the
+# boolean either way. A parser that reads only one of the two spellings answers
+# "unset", which is the permissive answer everywhere it is consulted.
+printf '%s\n' \
+  'matches:' \
+  '  - trigger: "dont"' \
+  '    replace: "don-t"' \
+  '    propagate_case: true # preserve replacement case' \
+  '    word: true' >"$import_fixture/options.yml"
+assert_equals "parse_match_records reads an option carrying a trailing comment" \
+  "$(parse_match_records "$import_fixture/options.yml" | sed "s|^$import_fixture/||")" \
+  "options.yml${RECORD_SEPARATOR}2${RECORD_SEPARATOR} propagate_case word${RECORD_SEPARATOR}dont"
+
 rm -rf "$import_fixture"
 trap - EXIT
 
@@ -426,6 +539,17 @@ while IFS= read -r offender; do
     fail "a trigger is declared in a shape this test cannot parse: $offender. Every trigger must be written as '  - trigger: \"...\"' on one line, one trigger per match. espanso also accepts the plural '  - triggers: [a, b]' form, which this parser does not read, so a match written that way would drop out of every invariant here without a word; split it into one match per trigger"
 done < <(grep -HnE "$TRIGGER_CAUSE_KEY_PATTERN" "${MATCH_FILES[@]}" |
   grep -vE "$PARSEABLE_TRIGGER_LINE_PATTERN" || true)
+
+# The same rule for the match OPTIONS this test reads. They decide reachability
+# and mid-word firing, so an option written in a shape the parser skips is read
+# as unset, and unset is the permissive answer in both invariants that consult
+# it: a `propagate_case: true # keep the case` was invisible, and the duplicate
+# trigger it should have exposed passed as unique.
+while IFS= read -r offender; do
+  [[ -n $offender ]] &&
+    fail "a match option this test reads is written in a shape it cannot parse: $offender. Every one of ${BOOLEAN_MATCH_OPTIONS[*]} must be written as '    <option>: true' or '    <option>: false' at the four-space match-key indent, optionally followed by a comment. espanso reads any YAML boolean spelling; this parser reads one, and an option it skips is read as unset, which is the answer that lets a shadowed or mid-word trigger through"
+done < <(grep -HnE "$BOOLEAN_OPTION_LINE_PATTERN" "${MATCH_FILES[@]}" |
+  grep -vE "$PARSEABLE_BOOLEAN_OPTION_LINE_PATTERN" || true)
 
 # ---- gather every trigger --------------------------------------------------
 declare -A TRIGGER_OPTIONS=()
@@ -459,6 +583,8 @@ while :; do
     [[ -n ${LOADED_FILE[$match_file]+set} ]] || continue
     while IFS= read -r import_path; do
       [[ -n $import_path ]] || continue
+      [[ $import_path != "$UNREADABLE_IMPORT_LIST_MARKER"* ]] ||
+        fail "$match_file declares its imports on the line '${import_path#"$UNREADABLE_IMPORT_LIST_MARKER"}', a shape this test cannot read. It reads a block list under 'imports:' and a flow list written on that same line ('imports: [\"./_pqi.yml\"]'). Any other spelling is refused rather than read as no imports at all, because an import list this test skips is one whose files it would then report as never loaded, or never notice pointing at nothing"
       imported_target="$(import_target_path "$match_file" "$import_path")" ||
         fail "$match_file imports '$import_path', and nothing is at that path. espanso resolves a relative import against the IMPORTING file's own directory, and treats one it cannot resolve as a non-fatal error: it logs, carries on, and every trigger in the file you meant to import stays inert. A right file name behind a wrong directory reads as correct in the source and loads nothing"
       imported_file="$(discovered_match_file "$imported_target")" ||
