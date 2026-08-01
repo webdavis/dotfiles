@@ -250,13 +250,20 @@ in
     ];
   };
 
-  # YAML validation, parity with lint.sh: only .chezmoidata is validated
-  # (workflow YAML is covered by actionlint above).
+  # YAML validation. .chezmoidata is parity with lint.sh (workflow YAML is
+  # covered by actionlint above). The espanso tree is here because it is
+  # hand-edited YAML that reaches $HOME: espanso reads it at load time and a
+  # structurally broken file is a config that silently stops applying, with the
+  # damage sitting on the live machine rather than in a gate. Templates are out
+  # of scope by construction: the glob matches .yml/.yaml, and a .yml.tmpl is
+  # Go-template text that no YAML parser can read before chezmoi renders it.
   settings.formatter.yq-validate = {
     command = yqValidate;
     includes = [
       ".chezmoidata/*.yaml"
       ".chezmoidata/*.yml"
+      "Library/Application Support/espanso/**/*.yaml"
+      "Library/Application Support/espanso/**/*.yml"
     ];
   };
 
