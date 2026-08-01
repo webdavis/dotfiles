@@ -75,8 +75,43 @@ require_stream_accepted() { # <path> <expected-records> <description>
     fail "$description must stream $expected_records record(s), got $line_count: $(printf '%q' "$emitted")"
 }
 
+# refusal_text_without_file_names <text>, the refusal with every FIXTURE PATH
+# removed, WHOLE, so the assertion below cannot be satisfied by the name of the
+# file the refusal is about.
+#
+# Every refusal the library prints begins with the data file's path, and every
+# fixture here is named after the rule it breaks, so `grep runbook` over the raw
+# text matched `.../manual-no-runbook.yaml`. Mutation-proved on the tree that
+# lacked this: replacing both new refusal messages with `this record is not
+# usable` left the whole suite green.
+#
+# The BASENAME goes too, and that is the half worth spelling out: an earlier
+# version removed only the fixture directory and the `.yaml` suffix, which leaves
+# `manual-no-runbook` sitting in the text and satisfies /runbook/ on its own.
+# Measured, on that version: the same generic-message mutation was killed only by
+# the `com\.example\.zebra` assertion, never by the rule-name assertions this
+# helper exists to make honest.
+#
+# Literal substitution rather than a regex or a `sed` program. The fixture
+# directory is a mktemp path carrying `.`, which a regex reads as "any
+# character", and a substitution that matches text literally needs no escaping at
+# all. The token is taken as everything from the fixture directory up to the next
+# whitespace, so trailing punctuation goes with it; no assertion here turns on
+# punctuation.
+refusal_text_without_file_names() { # <text>
+  local text="$1" path_token
+  [[ -n $work ]] ||
+    fail 'refusal_text_without_file_names was called before the fixture directory existed, so it would strip nothing and every message assertion below would be satisfiable by a file name'
+  while [[ $text == *"$work/"* ]]; do
+    path_token="${text#*"$work/"}"
+    path_token="$work/${path_token%%[[:space:]]*}"
+    text="${text//"$path_token"/}"
+  done
+  printf '%s' "$text"
+}
+
 # require_refusal_names <refusal> <pattern> <description>, the refusal must name
-# the rule that was broken.
+# the rule that was broken, in its MESSAGE and not in the file name it opens with.
 #
 # Load-bearing here rather than decorative. Every fixture below is a complete,
 # well-formed record apart from the one rule it breaks, and several of them are
@@ -84,8 +119,8 @@ require_stream_accepted() { # <path> <expected-records> <description>
 # assertion goes green while the operator is told to fix a field that is fine.
 require_refusal_names() { # <refusal> <pattern> <description>
   local refusal="$1" pattern="$2" description="$3"
-  printf '%s' "$refusal" | grep -qiE -- "$pattern" ||
-    fail "$description was refused without naming the rule (expected to match /$pattern/): $refusal"
+  grep -qiE -- "$pattern" <<<"$(refusal_text_without_file_names "$refusal")" ||
+    fail "$description was refused without naming the rule (expected to match /$pattern/ outside the file name): $refusal"
 }
 
 # require_field_forbidden / refute_field_forbidden, the pure predicate, called
@@ -172,15 +207,11 @@ tracked_tiers="$(printf '%s\n' "$tracked_stream" | cut -d$'\037' -f8 | sort -u |
 [[ $tracked_tiers == "enforce verify " ]] ||
   fail "the tracked data file now carries tiers [$tracked_tiers] rather than [enforce verify ]; remeasure which tiers this control exercises"
 
-# Every streamed record declares one of the three tiers. A completeness guard
-# over the whole file, not a count: it is satisfied only when EVERY record
-# passes, so a single record slipping through with an unrecognized tier fails it.
-while IFS= read -r streamed_tier; do
-  case $streamed_tier in
-    enforce | verify | manual) ;;
-    *) fail "the tracked data file streamed a record whose tier is $(printf '%q' "$streamed_tier"), which is not one of the three declared tiers" ;;
-  esac
-done < <(printf '%s\n' "$tracked_stream" | cut -d$'\037' -f8)
+# There was a loop here walking every streamed tier and failing on one outside
+# the three. It could not fail: the assertion above pins the tier SET to exactly
+# `enforce verify `, so by the time the loop ran, every member of that set had
+# already been compared against a literal. Deleted rather than kept as belt and
+# braces, because an assertion that cannot fail reads like coverage and is not.
 
 # ---- 2: a manual record must NAME a runbook ---------------------------------
 # Absent, blank (a nil scalar) and empty are three ways of pointing nowhere, and
@@ -315,6 +346,45 @@ for hostile_field_name_case in newline-field-name unit-separator-field-name; do
   require_refusal_names "$hostile_refusal" 'field name' "$hostile_field_name_case"
 done
 
+# ---- 8b: a field name that forges a COMPLETE line ---------------------------
+# The case the per-line field count cannot catch, and the reason this stream
+# needs a per-FILE line count beside it. A field name carrying a newline AND
+# three unit separators splits into two lines that BOTH hold exactly four fields,
+# so every one of them passes the per-line guard while the second is a fabricated
+# record fact.
+#
+# Measured on the tree that had only the per-line count: the file below, a manual
+# record with NO runbook plus one field named `x`, newline, `0`, US, `manual`,
+# US, `true`, US, `z`, streamed with status 0 here while the runner template
+# refused it with `manual record com.example.zebra ZKey has no runbook`. The
+# forged line claimed the record's runbook was usable and, being last, won.
+printf 'macos:\n  defaults:\n    - {domain: com.example.zebra, key: ZKey, tier: manual, "x\\n0\\x1fmanual\\x1ftrue\\x1fz": 1}\n  killall: []\n' \
+  >"$work/forged-runbook-fact.yaml"
+# The forgery has to still BE a forgery: both halves must survive into the parsed
+# key, and the record list must still be the healthy one-record list that makes
+# the forged fact the only reason the file is refused.
+forged_field_name="$(yq eval -r '.macos.defaults[0] | keys | .[] | select(. != "domain" and . != "key" and . != "tier")' "$work/forged-runbook-fact.yaml")"
+[[ $forged_field_name == *$'\n'* && $forged_field_name == *$'\x1f'* ]] ||
+  fail "the forged-runbook-fact fixture no longer parses to a field name carrying BOTH a newline and a unit separator, so it no longer forges a complete line"
+forged_record_count="$(yq eval -r '.macos.defaults | length' "$work/forged-runbook-fact.yaml")"
+[[ $forged_record_count == 1 ]] ||
+  fail "the forged-runbook-fact fixture no longer holds one record (yq answered $forged_record_count), so it does not reach the rules stream"
+forged_refusal="$(refute_stream_accepted "$work/forged-runbook-fact.yaml" "a record whose field name forges a complete rules line")"
+require_refusal_names "$forged_refusal" 'field' "a forged rules line"
+
+# The same forgery aimed at the record INDEX rather than at the runbook fact, on
+# an otherwise legitimate ENFORCE record. Its point is the MESSAGE: before the
+# line count ran first, the reader believed the forged index and refused a
+# perfectly good file while naming `record 99`, a record the file does not have,
+# and then asked yq about that index and printed the `null` artifact back.
+printf 'macos:\n  defaults:\n    - {domain: com.example.zebra, key: ZKey, value: "1", type: bool, tier: enforce, "x\\n99\\x1fmanual\\x1ffalse\\x1fz": 1}\n  killall: []\n' \
+  >"$work/forged-record-index.yaml"
+forged_index_refusal="$(refute_stream_accepted "$work/forged-record-index.yaml" "a record whose field name forges a record index")"
+require_refusal_names "$forged_index_refusal" 'field' "a forged record index"
+if printf '%s' "$forged_index_refusal" | grep -qE 'record 99|domain null'; then
+  fail "the refusal describes a record the file does not have, so the forged index was believed: $forged_index_refusal"
+fi
+
 # The false-positive direction for case 7, and the one that keeps the field-count
 # guard from being written as "refuse any record with an unfamiliar field". An
 # EXTRA field with an ordinary name is not this defect: neither reader minds it,
@@ -322,4 +392,18 @@ done
 write_record_file "$work/extra-plain-field.yaml" '{domain: com.example.zebra, key: ZKey, value: "1", type: bool, tier: enforce, note: "a comment field"}'
 require_stream_accepted "$work/extra-plain-field.yaml" 1 "a record carrying an extra plainly-named field"
 
-printf 'macos-defaults-tier-payload-guard: OK (every tier legitimate record and the real tracked file still stream; a manual record with an absent, blank or empty runbook is refused by name; each of the five fields forbidden on a manual record is refused on its own; an enforce record carrying a runbook is refused; both predicate tables are pinned cell by cell in both directions)\n'
+# The line-count invariant's own false-positive direction: a file with SEVERAL
+# records, each declaring a different number of fields, must still stream. A
+# count written per record rather than over the file, or one that assumed every
+# record declares the same fields, breaks exactly here.
+cat >"$work/uneven-field-counts.yaml" <<'EOF'
+macos:
+  defaults:
+    - {domain: com.example.aaa, key: AKey, value: "1", type: bool, tier: enforce}
+    - {domain: com.example.bbb, key: BKey, value: "1", type: bool, tier: enforce, host: "mac1"}
+    - {domain: com.example.ccc, key: CKey, tier: manual, runbook: "Section 1"}
+EOF
+printf '  killall: []\n' >>"$work/uneven-field-counts.yaml"
+require_stream_accepted "$work/uneven-field-counts.yaml" 3 "three records declaring five, six and four fields"
+
+printf 'macos-defaults-tier-payload-guard: OK (every tier legitimate record and the real tracked file still stream; a manual record with an absent, blank or empty runbook is refused by name; each of the five fields forbidden on a manual record is refused on its own; an enforce record carrying a runbook is refused; a field name that forges a complete four-field rules line is refused rather than believed; both predicate tables are pinned cell by cell in both directions)\n'

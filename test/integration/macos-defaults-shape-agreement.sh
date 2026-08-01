@@ -223,6 +223,47 @@ done
 # with a green test from the day it was written. A row asserted against one
 # reader is not a row about agreement.
 
+# DATA_FILE_NAME_IN_TEMPLATE_MESSAGES, the file name the runner template's own
+# refusals open with. Named because it is a literal in another file, and the
+# strip below has to know it to keep a message assertion honest.
+DATA_FILE_NAME_IN_TEMPLATE_MESSAGES='macos_defaults.yaml'
+
+# refusal_text_without_file_names <text>, the refusal with every FIXTURE PATH
+# removed, WHOLE, and the template's own data-file name with it. Every message
+# assertion below is made against this, never against the raw refusal.
+#
+# Load-bearing, not tidiness. Every refusal the library prints begins with the
+# data file's path, and every fixture here is named after the defect it carries,
+# so `grep runbook` over the raw text matched `.../manual-no-runbook.yaml` and
+# went green whatever the message said. Mutation-proved: replacing the runbook
+# and forbidden-field refusals with the text `this record is not usable` left
+# this whole suite green without this strip, and is caught by the /runbook/
+# assertion with it.
+#
+# It takes no fixture argument, deliberately. A helper handed the ONE path the
+# caller happened to think of strips that path and leaves any other, so a row
+# whose refusal names a second fixture keeps a free pass; taking every token that
+# starts with the fixture directory needs nothing from the caller and cannot be
+# passed the wrong file.
+#
+# Literal substitution rather than a regex or a `sed` program. The fixture
+# directory is a mktemp path carrying `.`, which a regex reads as "any
+# character", and a substitution that matches text literally needs no escaping at
+# all. The token is taken as everything from the fixture directory up to the next
+# whitespace, so trailing punctuation goes with it; no assertion here turns on
+# punctuation.
+refusal_text_without_file_names() { # <text>
+  local text="$1" path_token
+  [[ -n $work ]] ||
+    fail 'refusal_text_without_file_names was called before the fixture directory existed, so it would strip nothing and every message assertion below would be satisfiable by a file name'
+  while [[ $text == *"$work/"* ]]; do
+    path_token="${text#*"$work/"}"
+    path_token="$work/${path_token%%[[:space:]]*}"
+    text="${text//"$path_token"/}"
+  done
+  printf '%s' "${text//"$DATA_FILE_NAME_IN_TEMPLATE_MESSAGES"/}"
+}
+
 # require_both_readers_refuse <fixture> <library-pattern> <template-pattern> <description>
 # Both readers must refuse, and each refusal must name the defect. The message
 # assertions are what stop the case passing for the wrong reason: most of these
@@ -237,10 +278,10 @@ require_both_readers_refuse() { # <fixture> <library-pattern> <template-pattern>
   if template_output="$(render_template "$fixture")"; then
     fail "the template ACCEPTED $description and rendered [$template_output]; this row exists because it does not"
   fi
-  printf '%s' "$library_output" | grep -qiE -- "$library_pattern" ||
-    fail "the library refused $description without naming the defect (expected /$library_pattern/): $library_output"
-  printf '%s' "$template_output" | grep -qiE -- "$template_pattern" ||
-    fail "the template refused $description without naming the defect (expected /$template_pattern/): $template_output"
+  grep -qiE -- "$library_pattern" <<<"$(refusal_text_without_file_names "$library_output")" ||
+    fail "the library refused $description without naming the defect (expected /$library_pattern/ outside the file name): $library_output"
+  grep -qiE -- "$template_pattern" <<<"$(refusal_text_without_file_names "$template_output")" ||
+    fail "the template refused $description without naming the defect (expected /$template_pattern/ outside the file name): $template_output"
 }
 
 # require_both_readers_accept <fixture> <expected-domains> <description>, the
@@ -260,6 +301,49 @@ require_both_readers_accept() { # <fixture> <expected-domains> <description>
   template_domains="$(printf '%s\n' "$template_output" | grep -oE 'com\.example\.[a-zA-Z]+' | tr '\n' ' ')"
   [[ $template_domains == "$expected_domains" ]] ||
     fail "the template read $description as [$template_domains], expected [$expected_domains]"
+}
+
+# require_both_readers_write_the_same <fixture> <description>, the assertion the
+# domain comparison above cannot make: for a ONE-record fixture, everything the
+# two readers would actually write has to match, field by field.
+#
+# Comparing domain NAMES was measured to be too weak in both of the ways that
+# matter, on files BOTH readers accept:
+#
+#   host: 0     the library streamed host "0", which sends `just defaults-apply`
+#               to `defaults -currentHost write`; the template read Go's numeric
+#               zero, which is falsy there, and rendered an ordinary `defaults
+#               write`. Same record, same domain, two different STORES.
+#   value: [a, b]
+#               the library streamed an EMPTY value; the template rendered
+#               `[a b]`. Same record, same domain, two different VALUES.
+#
+# So the target (whether -currentHost is selected), the key, the type option and
+# the value are each compared. Both are refused now, and this helper is what
+# would notice if either rule were relaxed into accepting them again.
+require_both_readers_write_the_same() { # <fixture> <description>
+  local fixture="$1" description="$2"
+  local library_output template_output write_line
+  local library_domain library_key library_type library_value library_host
+  local expected_target expected_write
+  library_output="$(library_stream "$fixture")" ||
+    fail "the library refused $description: $library_output"
+  template_output="$(render_template "$fixture")" ||
+    fail "the template refused $description: $template_output"
+  [[ $(printf '%s\n' "$library_output" | grep -c .) -eq 1 ]] ||
+    fail "$description must be a one-record fixture for this helper; the library streamed [$library_output]"
+  IFS=$'\037' read -r library_domain library_key library_type library_value library_host _ _ _ \
+    <<<"$library_output"
+  # The one place the two readers describe the same choice differently: the
+  # library carries the host NAME, the template turns a present host into the
+  # `-currentHost` word. Comparing the rendered target is what makes them
+  # comparable at all.
+  expected_target='defaults write'
+  [[ -n $library_host ]] && expected_target='defaults -currentHost write'
+  expected_write="$expected_target '$library_domain' '$library_key' -$library_type '$library_value'"
+  write_line="$(printf '%s\n' "$template_output" | grep -E "^ *(sudo )?defaults( -currentHost)? write " | head -1)"
+  [[ ${write_line# } == "$expected_write" ]] ||
+    fail "the two readers would not write the same thing for $description: the library says [$expected_write], the template renders [$write_line]"
 }
 
 # require_yq_reads_a_healthy_record_list <fixture> <expected-count> <description>,
@@ -415,14 +499,17 @@ done
 # the rest. That is not a divergence anyone chose, and it is not one the template
 # can close: chezmoi has already parsed the file by the time a template action
 # runs and keeps only document 1, so the only evidence left is the raw bytes,
-# which `include` does return. Every scan of those bytes is a hand-rolled YAML
-# document lexer written in Go template actions. The naive form,
-# `regexMatch "(?m)^(---|\.\.\.)[ \t]*$"`, was measured against the four shapes
-# below and answers TRUE for a leading `---` and for a trailing `...`, both of
-# which are single documents that both readers read correctly today. Refusing
-# those would break legitimate files to guard a path that is already refused
-# everywhere except `chezmoi apply`, where it applies a strict SUBSET of the
-# declared records and never a wrong value.
+# which `include` does return, and every scan of those bytes is a hand-rolled
+# YAML document lexer written in Go template actions. The library counts the
+# documents in those bytes instead, which is why the naive form,
+# `regexMatch "(?m)^(---|\.\.\.)[ \t]*$"`, is not what it uses: that form answers
+# TRUE for a leading `---` and for a trailing `...`, both of which are single
+# documents that both readers read correctly today, and case 10 below adds the
+# shapes it answers FALSE for.
+#
+# This row is the direction where the template is the more permissive reader: it
+# applies a strict SUBSET of the declared records and never a wrong value. Case
+# 10 is the other direction, where the template refuses outright.
 #
 # So the asymmetry is pinned rather than closed, and pinned from BOTH sides. The
 # template half asserts what it ACTUALLY does, record for record: if a future
@@ -492,5 +579,106 @@ for alias_case in alias-list merge-key; do
     fail "the template rendered $alias_case as [$tmpl_out]; this row asserts that it resolves the alias into the same write, so remeasure it"
 done
 
-printf 'macos-defaults-shape-agreement: OK (both readers take a list in declaration order, both refuse a map naming the shape, both refuse a file carrying a byte order mark, and across %d tags on a real sequence the library never accepts a file the template refuses; both refuse a duplicate or complex mapping key, every tier/payload mismatch, and a record with no type, while still reading every legitimate record; the multi-document and alias asymmetries are pinned from both sides)\n' \
+# ---- 10: a file whose FIRST document is empty -------------------------------
+# The half of case 8 that runs the other way, and the reason the library counts
+# documents from the bytes instead of from yq's answer. yq ELIDES an empty
+# document, so all three spellings below look like ordinary one-document files to
+# every yq expression; chezmoi's loader keeps the empty first document, cannot
+# find `macos` in it, and fails the whole apply. Measured, before the byte
+# counter: the library STREAMED the record while the template refused the file.
+#
+# The consequence is worse than case 8's, and the library's comment says so: a
+# multi-document file whose FIRST document holds the records costs a subset of
+# the writes, while this one costs the entire `chezmoi apply`, not merely this
+# script.
+for empty_leading_case in empty-first-document comment-first-document blank-first-document; do
+  # ANSI-C quoting, so the leading documents are real newlines in a VALUE rather
+  # than escapes in a printf FORMAT. A caller-supplied format string is the SC2059
+  # hazard, and here it would also be a live one: the comment spelling carries a
+  # `%` away from being read as a conversion.
+  case $empty_leading_case in
+    empty-first-document) leading_documents=$'---\n---\n' ;;
+    comment-first-document) leading_documents=$'---\n# nothing but a comment\n---\n' ;;
+    blank-first-document) leading_documents=$'---\n\n---\n' ;;
+  esac
+  printf '%smacos:\n  defaults:\n    - {domain: com.example.first, key: FKey, value: "1", type: bool, tier: enforce}\n  killall: []\n' \
+    "$leading_documents" >"$work/$empty_leading_case.yaml"
+  # The supplier-behaviour guard: the row is about a document yq cannot see, so
+  # it stops being about anything the moment yq starts seeing it.
+  elided_document_count="$(yq eval-all -r '[.] | length' "$work/$empty_leading_case.yaml")"
+  [[ $elided_document_count == 1 ]] ||
+    fail "yq now answers $elided_document_count documents for $empty_leading_case, so it no longer elides the empty document and this row no longer reproduces the divergence it exists to close"
+  require_both_readers_refuse "$work/$empty_leading_case.yaml" \
+    'document' 'macos' "a file whose first document is empty ($empty_leading_case)"
+done
+
+# ---- 11: .macos.killall, the other node the template reads ------------------
+# The library reads no killall at all, which is exactly how a file the template
+# refuses came to be streamed as usable. Two shapes, one per direction of the
+# fix: an ABSENT key was a template panic (`map has no entry for key "killall"`,
+# refusing the whole apply) and is now "nothing to restart" in both readers; a
+# SCALAR key is refused by both, because `range` cannot iterate it.
+printf 'macos:\n  defaults:\n%s  killall: Finder\n' "$VALID_RECORD" >"$work/killall-scalar.yaml"
+require_yq_reads_a_healthy_record_list "$work/killall-scalar.yaml" 1 "killall-scalar"
+require_both_readers_refuse "$work/killall-scalar.yaml" \
+  'killall' 'killall' "a data file whose killall is a plain scalar"
+
+printf 'macos:\n  defaults:\n%s' "$VALID_RECORD" >"$work/killall-absent.yaml"
+require_both_readers_accept "$work/killall-absent.yaml" "com.example.zebra " "a data file with no killall key at all"
+killall_absent_render="$(render_template "$work/killall-absent.yaml")" ||
+  fail "the template refused a data file with no killall key"
+if printf '%s' "$killall_absent_render" | grep -qF 'map has no entry for key'; then
+  fail "the template panics on an absent killall instead of rendering nothing to restart; the bare dotted-field form is back: $killall_absent_render"
+fi
+if printf '%s' "$killall_absent_render" | grep -qE '^killall '; then
+  fail "the template rendered a killall command for a file that declares none: $killall_absent_render"
+fi
+
+# ---- 12: both readers must WRITE the same thing, not merely accept ----------
+# Every accept row above compares domain NAMES, which two measured divergences
+# walk straight through: `host: 0` sent this library to -currentHost and the
+# template to the ordinary domain, and `value: [a, b]` gave the library an empty
+# value and the template `[a b]`. Both files were ACCEPTED by both readers, with
+# matching domains, and wrote different things.
+#
+# The two are refused now, by the library's field-type rule, so the rows below do
+# two jobs: the accept rows assert that the legitimate spellings still produce
+# one identical write from both readers, and the refuse rows assert the divergent
+# spellings stay out.
+write_data_file "$work/write-plain.yaml" \
+  '    - {domain: com.example.zebra, key: ZKey, value: "1", type: bool, tier: enforce}
+'
+require_both_readers_write_the_same "$work/write-plain.yaml" "an ordinary enforce record"
+write_data_file "$work/write-bool-value.yaml" \
+  '    - {domain: com.example.zebra, key: ZKey, value: false, type: bool, tier: enforce}
+'
+require_both_readers_write_the_same "$work/write-bool-value.yaml" "a record whose value is YAML's own false, the tracked file's own spelling"
+write_data_file "$work/write-host.yaml" \
+  '    - {domain: com.example.zebra, key: ZKey, value: "1", type: bool, tier: enforce, host: "mac-one"}
+'
+require_both_readers_write_the_same "$work/write-host.yaml" "a record naming a host, which both readers must send to -currentHost"
+
+write_data_file "$work/host-zero.yaml" \
+  '    - {domain: com.example.zebra, key: ZKey, value: "1", type: bool, tier: enforce, host: 0}
+'
+require_yq_reads_a_healthy_record_list "$work/host-zero.yaml" 1 "host-zero"
+host_zero_library_output="$(library_stream "$work/host-zero.yaml")" && {
+  host_zero_render="$(render_template "$work/host-zero.yaml")" || true
+  fail "the library ACCEPTED an unquoted host: 0 and streamed [$host_zero_library_output] while the template rendered [$host_zero_render]; the library sends that to defaults -currentHost and the template to the ordinary domain, so one file writes to two different stores"
+}
+grep -qi 'host' <<<"$(refusal_text_without_file_names "$host_zero_library_output")" ||
+  fail "the library refused host: 0 without naming the host field: $host_zero_library_output"
+
+write_data_file "$work/value-sequence.yaml" \
+  '    - {domain: com.example.zebra, key: ZKey, value: [a, b], type: array, tier: enforce}
+'
+require_yq_reads_a_healthy_record_list "$work/value-sequence.yaml" 1 "value-sequence"
+value_sequence_library_output="$(library_stream "$work/value-sequence.yaml")" && {
+  value_sequence_render="$(render_template "$work/value-sequence.yaml")" || true
+  fail "the library ACCEPTED a sequence value and streamed [$value_sequence_library_output] while the template rendered [$value_sequence_render]; the library writes an empty value there and the template writes the joined sequence, so one file writes two different values"
+}
+grep -qi 'value' <<<"$(refusal_text_without_file_names "$value_sequence_library_output")" ||
+  fail "the library refused a sequence value without naming the value field: $value_sequence_library_output"
+
+printf 'macos-defaults-shape-agreement: OK (both readers take a list in declaration order, both refuse a map naming the shape, both refuse a file carrying a byte order mark, and across %d tags on a real sequence the library never accepts a file the template refuses; both refuse a duplicate or complex mapping key, an empty leading document, a killall neither can walk, every tier/payload mismatch, and a record with no type, while still reading every legitimate record and writing it identically from both readers; the multi-document and alias asymmetries are pinned from both sides)\n' \
   "${#TAGS_ON_A_REAL_SEQUENCE[@]}"

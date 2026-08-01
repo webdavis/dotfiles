@@ -257,6 +257,149 @@ reject_record 'system-scope parent-directory plist_path' 'parent-directory compo
 reject_record 'unrecognized tier' 'tier' \
   com.example.mystery MysteryKey bool true '' user '' mystery
 
+# ---- the field-TYPE rule, also asked of the file -------------------------------
+
+# Beside the value rule and for the same reason the value rule exists: the joined
+# record line cannot answer this question, because join already turned every
+# field into a string by the time the line exists.
+#
+# What the rule is about is the pair of READERS. This library renders a scalar as
+# the TEXT the file spells it with; the runner template renders the same scalar as
+# Go formats the value chezmoi's loader parsed. Wherever those differ, one file
+# produces two different writes. Measured, and each row below is one of the
+# measurements: `scope:` was read here as `user` and PERFORMED while the template
+# refused the file; `host: 0` sent this library to -currentHost and the template
+# to the ordinary domain, so both readers accepted and wrote to different stores;
+# `value: 010` wrote `010` here and `8` there.
+#
+# write_field_type_fixture / field_type_status mirror the value-rule helpers next
+# door, so both rules are exercised through the same shape.
+write_field_type_fixture() { # (fixture on stdin)
+  cat >"$work/field-types.yaml"
+}
+
+field_type_status() {
+  local status=0
+  defaults_records_declare_agreeing_field_types "$work/field-types.yaml" >"$work/out" 2>"$work/err" || status=$?
+  printf '%s' "$status"
+}
+
+# refute_field_spelling <record-body> <expected-named-field> <description>, one
+# record written the way the row is about; the rule must refuse it AND name the
+# field, so an operator is not left to guess which of eight fields to quote.
+refute_field_spelling() { # <record-body> <expected-named-field> <description>
+  local record_body="$1" named_field="$2" description="$3" status
+  printf 'macos:\n  defaults:\n    - {%s}\n  killall: []\n' "$record_body" >"$work/field-types.yaml"
+  status="$(field_type_status)"
+  [[ $status -eq 2 ]] ||
+    fail "$description must be refused with status 2 (got $status, stderr: $(cat "$work/err"))"
+  grep -qF "$named_field" "$work/err" ||
+    fail "$description was refused without naming the $named_field field (stderr: $(cat "$work/err"))"
+  [[ ! -s $work/out ]] ||
+    fail "$description printed to stdout; this rule is a predicate and must emit nothing"
+}
+
+# require_field_spelling <record-body> <description>, the false-positive
+# direction. Every legitimate spelling the tracked file and `just
+# defaults-capture` can produce has to keep streaming, or this rule takes the
+# machine's settings out rather than keeping the two readers honest.
+require_field_spelling() { # <record-body> <description>
+  local record_body="$1" description="$2" status
+  printf 'macos:\n  defaults:\n    - {%s}\n  killall: []\n' "$record_body" >"$work/field-types.yaml"
+  status="$(field_type_status)"
+  [[ $status -eq 0 ]] ||
+    fail "$description must be accepted (got $status, stderr: $(cat "$work/err"))"
+}
+
+VALID_ENFORCE_FIELDS='domain: com.example.zebra, key: ZKey, type: bool, value: "1", tier: enforce'
+
+# The five STRING fields. Anything but a plain string is refused, whichever way
+# the two readers happen to disagree about that particular type.
+refute_field_spelling "$VALID_ENFORCE_FIELDS, scope: " scope "a scope key typed with its value deleted"
+refute_field_spelling "$VALID_ENFORCE_FIELDS, scope: false" scope "a scope written as YAML's own false"
+refute_field_spelling "$VALID_ENFORCE_FIELDS, host: 0" host "a host written as an unquoted zero"
+refute_field_spelling "$VALID_ENFORCE_FIELDS, host: [a, b]" host "a host written as a sequence"
+refute_field_spelling "$VALID_ENFORCE_FIELDS, scope: system, plist_path: {a: 1}" plist_path "a plist_path written as a mapping"
+refute_field_spelling 'domain: 0.10, key: ZKey, type: bool, value: "1", tier: enforce' domain "a domain written as an unquoted decimal"
+refute_field_spelling 'domain: com.example.zebra, key: 0, type: bool, value: "1", tier: enforce' key "a key written as an unquoted zero"
+
+# The VALUE field, which genuinely holds non-strings. A container never agrees,
+# and a scalar agrees only in the canonical spelling Go renders back unchanged.
+refute_field_spelling 'domain: com.example.zebra, key: ZKey, type: array, value: [a, b], tier: enforce' value "a value written as a sequence"
+refute_field_spelling 'domain: com.example.zebra, key: ZKey, type: dict, value: {a: 1}, tier: enforce' value "a value written as a mapping"
+for non_canonical_value in 010 0x1f 1_000 +1 True 1.0 0.10 1.5e10; do
+  refute_field_spelling "domain: com.example.zebra, key: ZKey, type: string, value: $non_canonical_value, tier: enforce" \
+    value "a value spelled $non_canonical_value, which the two readers render differently"
+done
+
+# The accepted half, which is the half that decides whether the rule is
+# shippable. A rule that refuses everything satisfies every row above.
+require_field_spelling "$VALID_ENFORCE_FIELDS" "a record declaring none of the optional fields"
+require_field_spelling "$VALID_ENFORCE_FIELDS, host: \"mac-one\"" "a host written as a quoted string"
+require_field_spelling "$VALID_ENFORCE_FIELDS, host: \"0\"" "a host written as a QUOTED zero, which is a string in both readers"
+require_field_spelling "$VALID_ENFORCE_FIELDS, scope: user" "a scope written as a plain string"
+require_field_spelling 'domain: com.example.zebra, key: ZKey, type: bool, value: "1", tier: enforce, scope: system, plist_path: /Library/Preferences/x.plist' \
+  "a plist_path written as an unquoted path, which YAML reads as a string"
+for canonical_value in true false 0 42 -7 0.5 -0.5 100.25 '""'; do
+  require_field_spelling "domain: com.example.zebra, key: ZKey, type: string, value: $canonical_value, tier: enforce" \
+    "a value spelled $canonical_value, which both readers render identically"
+done
+
+# The float DIGIT BOUND, both sides of it, because the shape pattern alone lets a
+# 17-digit decimal through and `defaults read` prints exactly that for a
+# slider-set float control. The runner template renders the shortest decimal that
+# reaches the same float64, so the long spelling is written two different ways by
+# the two readers while the short one is written the same way by both.
+#
+# The bound is asserted by SPELLING rather than by digit count so it fails on the
+# thing an operator would actually write. `0.34999999999999998` is the measured
+# divergence itself; the rows at the bound are what keep it from being tightened
+# into refusing an ordinary decimal unnoticed.
+refute_field_spelling 'domain: com.example.zebra, key: ZKey, type: float, value: 0.34999999999999998, tier: enforce' \
+  value "a float spelled with the 17 digits an IEEE double needs, which the template shortens to 0.35"
+refute_field_spelling 'domain: com.example.zebra, key: ZKey, type: float, value: 1234567890123456.7, tier: enforce' \
+  value "a float carrying 17 digits either side of the point"
+require_field_spelling 'domain: com.example.zebra, key: ZKey, type: float, value: 0.12345678901234, tier: enforce' \
+  "a float sitting exactly on the 15-digit bound"
+require_field_spelling 'domain: com.example.zebra, key: ZKey, type: float, value: -9999999999999.9, tier: enforce' \
+  "a negative float at the digit bound, whose sign is matched outside it"
+# One digit past the bound, and pinned as REFUSED on purpose rather than left
+# unmentioned. Both readers do render this one identically, so the refusal is the
+# bound erring strict: it counts the leading zero of `0.` as a digit, which no
+# regular expression can avoid while also counting across the decimal point. The
+# cost is a pair of quotes on a 16-digit decimal; pinning it is what stops the
+# next reader mistaking the over-strictness for a measurement.
+refute_field_spelling 'domain: com.example.zebra, key: ZKey, type: float, value: 0.123456789012345, tier: enforce' \
+  value "a float one digit past the bound, which both readers agree on and the bound refuses anyway"
+# The INT half of the same question, measured rather than assumed symmetric: an
+# integer is rendered back digit for digit past int64, so no width bound belongs
+# on it and a rule that grew one would refuse a record both readers agree about.
+require_field_spelling 'domain: com.example.zebra, key: ZKey, type: int, value: 9223372036854775808, tier: enforce' \
+  "an integer one past int64, which both readers render digit for digit"
+
+# Fields the rule deliberately does NOT judge. `type` and `tier` each sit in a
+# closed set of string literals that both readers refuse every non-member of, so
+# a type rule here would only take the message away from the check that names the
+# set. A field the schema does not know decides nothing, because neither reader
+# reads it.
+require_field_spelling 'domain: com.example.zebra, key: ZKey, type: bool, value: "1", tier: enforce, notes: [a, b]' \
+  "an unknown field carrying a sequence"
+require_field_spelling 'domain: com.example.zebra, key: ZKey, tier: manual, runbook: 0' \
+  "a runbook written as a number, which both readers read the same way"
+
+# The real tracked data file, which declares a !!bool value on every one of its
+# records. The control that says this rule admits the schema as it is actually
+# written, rather than as a rule about strings alone would have it.
+TRACKED_DATA_FILE="$REPO_ROOT/.chezmoidata/macos_defaults.yaml"
+[[ -f $TRACKED_DATA_FILE ]] || fail "missing tracked data file: $TRACKED_DATA_FILE"
+tracked_value_tags="$(yq eval -r '[.macos.defaults[].value | tag] | unique | join(" ")' "$TRACKED_DATA_FILE")"
+[[ $tracked_value_tags == '!!bool' ]] ||
+  fail "the tracked file's values are now tagged [$tracked_value_tags] rather than !!bool alone, so remeasure which spellings this control exercises"
+tracked_field_type_status=0
+defaults_records_declare_agreeing_field_types "$TRACKED_DATA_FILE" >/dev/null 2>"$work/err" || tracked_field_type_status=$?
+[[ $tracked_field_type_status -eq 0 ]] ||
+  fail "the tracked data file must pass the field-type rule, got status $tracked_field_type_status ($(cat "$work/err"))"
+
 # ---- the write-time allowlist is deliberately NOT part of this gate -----------
 
 # drift reads records it must never write, and refusing an odd path in the shared
@@ -270,4 +413,4 @@ require_system_plist_path_permitted /etc/example.evil.plist 2>"$work/err" || all
 [[ $allowlist_status -ne 0 ]] ||
   fail 'the write-time allowlist must still refuse /etc/example.evil.plist'
 
-printf 'macos-defaults-record-validation: OK (identity is required on every tier; enforce and verify records need a supported type; the value rule is asked of the file and keeps "" false and 0 while refusing an absent value; scope, host and plist_path rules answer through the same gate; an unknown tier fails closed; the write-time allowlist stays outside it)\n'
+printf 'macos-defaults-record-validation: OK (identity is required on every tier; enforce and verify records need a supported type; the value rule is asked of the file and keeps "" false and 0 while refusing an absent value; the field-type rule refuses every MEASURED spelling the two readers render differently, including a float wider than the digit bound, while admitting the tracked file and every canonical one; scope, host and plist_path rules answer through the same gate; an unknown tier fails closed; the write-time allowlist stays outside it)\n'

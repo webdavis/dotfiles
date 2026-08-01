@@ -300,9 +300,21 @@ echo {{ template "shellSingleQuoted" (printf "manual control %s %s: not settable
 {{ end -}}
 {{ end -}}
 
+{{- /* Read through hasKey, never the bare .macos.killall form, per the rule at
+the top of this file. A data file with no `killall:` key at all is a real input:
+the bare form made Go's text/template die with `map has no entry for key
+"killall"`, which refused the WHOLE apply, while macos-defaults-lib.sh read the
+same file happily. Absent means there is nothing to restart, which is what the
+range below renders for an empty list too, so both readers now agree on it. A
+killall declared as a plain SCALAR is a different input and is not made legal
+here: `range` cannot iterate it, and macos-defaults-lib.sh refuses it by name so
+the two readers refuse it together. */ -}}
+
 # Post-loop: restart user-facing processes so changes take effect immediately.
 # cfprefsd kill is non-negotiable (caches plist values in memory).
+{{ if hasKey .macos "killall" -}}
 {{ range .macos.killall -}}
 killall {{ template "shellSingleQuoted" . }} 2>/dev/null || true
 {{ end }}
+{{- end }}
 {{- end }}
