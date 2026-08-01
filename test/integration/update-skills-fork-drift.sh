@@ -32,7 +32,11 @@
 #   6. A REACHABLE upstream that no longer holds the recorded skillPath is
 #      reported as a path problem with its own relay state, not as content
 #      drift. The old code told the operator to bump lastComparedTreeHash, a
-#      remedy that cannot work when the path itself is gone.
+#      remedy that cannot work when the path itself is gone. The same run walks
+#      every branch that stages a clone, and none of them may leak it.
+#  6b. A temp dir that cannot be created is advisory too, and the run says which
+#      directory it could not use. This is also what proves the clone is staged
+#      under TMPDIR, without which case 6's cleanup check would be vacuous.
 #   7. A forks table that is present but not an object watches NO forks, and
 #      says so out loud instead of reporting a silent all-clear.
 #   8. The same for an ARRAY forks table, which used to abort the run outright
@@ -213,14 +217,44 @@ run_fork_check() {
   set -e
 }
 
-# assert_relay_state <state> <message> -- the relay notification carries this
-# exact --state. The states are the operator-facing vocabulary CLAUDE.md
-# documents, and each maps to a different remedy, so an arbitrary third string
-# is a regression even when the log text still reads correctly.
-assert_relay_state() {
-  local state="$1" message="$2"
-  grep -qF -- "--state $state " "$relay_call_log" 2>/dev/null ||
+# assert_relay_line <state> <substring> <message> -- ONE relay push carries both
+# this exact --state and this substring. Asserted together, on one line, because
+# two independent greps over the whole log also pass when the state rides one
+# push and the detail rides another, which is exactly what a mislabelled alert
+# looks like. The states are the operator-facing vocabulary CLAUDE.md documents
+# and each maps to a different remedy, so an arbitrary third string is a
+# regression even when the log text still reads correctly.
+assert_relay_line() {
+  local state="$1" substring="$2" message="$3"
+  grep -F -- "--state $state " "$relay_call_log" 2>/dev/null | grep -qF -- "$substring" ||
     fail "$message (relay log: $(cat "$relay_call_log"))"
+}
+
+# assert_relay_state <state> <message> -- the state alone, for the advisories
+# whose payload is the lock rather than a value worth co-locating.
+assert_relay_state() {
+  assert_relay_line "$1" "" "$2"
+}
+
+# assert_log_line_has <output> <marker> <substring> <message> -- the line
+# carrying <marker> also carries <substring>. Same reason as assert_relay_line:
+# an operator scanning for the heading has to find the detail ON it, and two
+# whole-output greps pass with the two on unrelated lines.
+assert_log_line_has() {
+  local output="$1" marker="$2" substring="$3" message="$4"
+  printf '%s\n' "$output" | grep -F -- "$marker" | grep -qF -- "$substring" ||
+    fail "$message ($output)"
+}
+
+# assert_clone_dir_removed <dir> <message> -- nothing this phase creates under
+# its own private TMPDIR outlives the run. Only meaningful once something has
+# proved the script honours TMPDIR at all: case 6b is that proof, and without it
+# this would pass against a script that staged its clones somewhere else
+# entirely (measured: a bare `mktemp -d` on macOS does exactly that).
+assert_clone_dir_removed() {
+  local tmpdir="$1" message="$2" residue
+  residue="$(find "$tmpdir" -mindepth 1 -maxdepth 1 2>/dev/null)"
+  [[ -z $residue ]] || fail "$message (left behind: $residue)"
 }
 
 # --- Case 5: the clone resolves the recorded URL as recorded ------------------
@@ -299,26 +333,66 @@ refute_match "$fork_check_output" 'unreachable.*forkskill|forkskill.*unreachable
 # which never matched (rev-parse ECHOES the unresolvable argument to stdout
 # before failing), so this reported content drift and told the operator to bump
 # a hash under a path that no longer exists.
+#
+# The lock carries one fork per outcome, so this single run walks ALL THREE
+# branches that stage a clone and then have to remove it (path missing,
+# unreachable upstream, hash compared): a leak on any of them fills the temp
+# dir with upstream copies week after week.
 missing_skill_path="skills/moved-away"
+current_forkskill_hash="$(git -C "$fixture_repo" rev-parse "HEAD:skills/forkskill")"
 write_forks_lock "$(jq -n --arg url "$fixture_repo" --arg path "$missing_skill_path" \
+  --arg ghost "$scratch_dir/no-such-repo" --arg hash "$current_forkskill_hash" \
   '{pathfork: {source: "fixture/pathfork", sourceUrl: $url, skillPath: $path,
-    lastComparedTreeHash: "0000000000000000000000000000000000000000"}}')"
+      lastComparedTreeHash: "0000000000000000000000000000000000000000"},
+    reachedfork: {source: "fixture/reachedfork", sourceUrl: $url,
+      skillPath: "skills/forkskill", lastComparedTreeHash: $hash},
+    unreachedfork: {source: "fixture/unreachedfork", sourceUrl: $ghost,
+      skillPath: ".", lastComparedTreeHash: "0000000000000000000000000000000000000000"}}')"
 
-run_fork_check
+# A private TMPDIR for this run: the drift clones are the only thing this phase
+# creates there, so what is left afterwards says whether each branch cleaned up
+# after itself. Case 6b is what makes this discriminating rather than vacuous.
+case6_tmpdir="$scratch_dir/case6-tmp"
+mkdir -p "$case6_tmpdir"
+run_fork_check TMPDIR="$case6_tmpdir"
 [[ $fork_check_rc -eq 0 ]] ||
   fail "case 6: --check-forks-only exited $fork_check_rc on a stale skillPath: $fork_check_output"
-printf '%s\n' "$fork_check_output" | grep -qF "$missing_skill_path" ||
-  fail "case 6: the report never names the skillPath that no longer exists upstream: $fork_check_output"
-printf '%s\n' "$fork_check_output" | grep -q 'FORK PATH MISSING' ||
-  fail "case 6: the report is not filed under the FORK PATH MISSING heading CLAUDE.md documents, so a log reader cannot tell it from any other warning: $fork_check_output"
+assert_log_line_has "$fork_check_output" 'FORK PATH MISSING' "$missing_skill_path" \
+  "case 6: no FORK PATH MISSING line names the skillPath that no longer exists upstream, so the heading CLAUDE.md documents and the detail an operator acts on are not on the same line"
 refute_match "$fork_check_output" 'FORK DRIFT' \
   "case 6: a stale skillPath is still reported as content drift, whose remedy (bump lastComparedTreeHash) cannot be executed: $fork_check_output"
-grep -qF "$missing_skill_path" "$relay_call_log" 2>/dev/null ||
-  fail "case 6: the relay notification does not name the missing skillPath: $(cat "$relay_call_log")"
-assert_relay_state fork-path-missing \
-  "case 6: a stale skillPath does not relay the fork-path-missing state, so downstream cannot route it to its own remedy"
+assert_relay_line fork-path-missing "$missing_skill_path" \
+  "case 6: no single relay push carries both the fork-path-missing state and the missing skillPath, so downstream cannot route it to its own remedy with the detail attached"
 refute_match "$(cat "$relay_call_log")" '--state fork-drift( |$)' \
   "case 6: a stale skillPath relays the fork-drift state, so it is indistinguishable from real drift downstream: $(cat "$relay_call_log")"
+printf '%s\n' "$fork_check_output" | grep -q 'reachedfork: upstream unchanged' ||
+  fail "case 6: the reachable, unchanged fork was not walked, so the hash-compared branch never staged a clone and the cleanup assertion below covers less than it claims: $fork_check_output"
+printf '%s\n' "$fork_check_output" | grep -q 'unreachedfork: upstream unreachable' ||
+  fail "case 6: the unreachable fork was not walked, so the unreachable branch never staged a clone and the cleanup assertion below covers less than it claims: $fork_check_output"
+assert_clone_dir_removed "$case6_tmpdir" \
+  "case 6: a branch left its clone behind, so a weekly run fills the temp dir with upstream copies"
+
+# --- Case 6b: a temp dir that cannot be created is advisory, not fatal --------
+# Two jobs. It pins the branch itself: staging a clone is the one step of this
+# phase that can fail before any network call, and a failing `mktemp` assignment
+# under `set -euo pipefail` would kill the weekly run after the generation
+# exchange has published and before the success stamp is written. And it is what
+# makes case 6's residue check mean anything, by proving the script stages its
+# clones under TMPDIR at all: a script that ignored TMPDIR would clone happily
+# here and report the same findings as case 6 (measured on macOS 26.2: a bare
+# `mktemp -d` ignores TMPDIR, with and without -t).
+case6b_tmpdir="$scratch_dir/case6b-tmp-absent"
+[[ ! -e $case6b_tmpdir ]] ||
+  fail "case 6b: the fixture directory must NOT exist for this case to test anything"
+run_fork_check TMPDIR="$case6b_tmpdir"
+[[ $fork_check_rc -eq 0 ]] ||
+  fail "case 6b: an uncreatable temp dir took the drift-watch down with it (rc=$fork_check_rc): $fork_check_output"
+assert_log_line_has "$fork_check_output" 'could not create a temp dir' "$case6b_tmpdir" \
+  "case 6b: the run does not say which directory it failed to stage a clone under: $fork_check_output"
+refute_match "$fork_check_output" 'FORK PATH MISSING|FORK DRIFT|upstream unchanged' \
+  "case 6b: the run reported a per-fork finding although no clone could be staged, so it is not reading TMPDIR and case 6's cleanup assertion is vacuous: $fork_check_output"
+[[ ! -e $case6b_tmpdir ]] ||
+  fail "case 6b: the run created the temp parent directory instead of reporting that it could not"
 
 # --- Cases 7 and 8: a forks table that is present but not an object -----------
 # Absent is legal (nothing to watch). Present-but-not-an-object is corruption,
@@ -466,4 +540,4 @@ refute_match "$fork_check_output" 'forks table' \
 assert_relay_state fork-lock-broken \
   "case 13: an unparseable lock was logged but never relayed"
 
-echo "update-skills-fork-drift: OK (4 baseline assertions + rewrite immunity (global and system), stale skillPath, 4 malformed tables, malformed entries, dry-run notifies nobody, whole-repo skillPath, failing relay, unparseable lock)"
+echo "update-skills-fork-drift: OK (4 baseline assertions + rewrite immunity (global and system), stale skillPath, clone staging and cleanup, 4 malformed tables, malformed entries, dry-run notifies nobody, whole-repo skillPath, failing relay, unparseable lock)"

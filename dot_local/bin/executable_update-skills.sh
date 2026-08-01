@@ -2856,6 +2856,17 @@ FORK_RELAY_STATE_LOCK_MALFORMED="fork-lock-broken" # the lock itself cannot be w
 FORK_RELAY_PROJECT_LOCK_FILE="lock"
 FORK_RELAY_PROJECT_FORKS_TABLE="forks"
 
+# Where a drift clone is staged, and under what name. The template is spelled
+# out rather than left to a bare `mktemp -d` for two reasons. It makes the
+# location honour TMPDIR (measured on macOS 26.2 / Darwin 25.2: `mktemp -d`
+# ignores TMPDIR entirely, with and without -t, and always lands in the
+# per-user Darwin temp dir, so a bare form is untestable and unredirectable),
+# and it puts this script's name on anything it ever fails to clean up. A
+# TMPDIR that is set but EMPTY is not a usable directory, so `:-` treating it
+# like unset is the wanted reading here.
+FORK_CLONE_FALLBACK_TMPDIR="/tmp"
+FORK_CLONE_DIR_TEMPLATE="update-skills-fork-drift.XXXXXX"
+
 # Path git reads instead of the file-based global and system config while
 # cloning a drift upstream. WHY: the recorded sourceUrl is an anonymous public
 # HTTPS URL, and this repo deliberately ships
@@ -3000,7 +3011,8 @@ check_fork_drift() {
       "the forks table in $CUSTOM_SKILL_LOCK is present but not an object; no fork upstream was drift-checked"
     return 0
   fi
-  local fork source_url skill_path last_compared_tree_hash current_tree_hash clone_dir
+  local fork source_url skill_path last_compared_tree_hash current_tree_hash
+  local clone_parent_dir clone_dir
   # read on fd 3: the loop body runs git, which may consume stdin
   while IFS= read -r -u3 fork; do
     # Type-check the entry BEFORE reading fields out of it: a non-object entry
@@ -3021,7 +3033,15 @@ check_fork_drift() {
       log "would drift-check fork: $fork against $source_url"
       continue
     fi
-    clone_dir="$(mktemp -d)"
+    # A temp dir this phase cannot create is one more ADVISORY failure: without
+    # this branch the assignment fails and `set -euo pipefail` takes the whole
+    # weekly run down, after the generation exchange has published and before
+    # the success stamp is written.
+    clone_parent_dir="${TMPDIR:-$FORK_CLONE_FALLBACK_TMPDIR}"
+    if ! clone_dir="$(mktemp -d "$clone_parent_dir/$FORK_CLONE_DIR_TEMPLATE" 2>/dev/null)"; then
+      log "fork drift-check $fork: could not create a temp dir under $clone_parent_dir to clone the upstream into; this upstream was NOT checked this run"
+      continue
+    fi
     if ! clone_fork_upstream "$source_url" "$clone_dir/repo"; then
       log "fork drift-check $fork: upstream unreachable ($source_url); skipping"
       rm -rf "$clone_dir"
