@@ -21,16 +21,27 @@
 # WHAT IT DOES AND DOES NOT PROMISE. It answers one question honestly: does
 # every source file that reads the secret vault, or that ships an encrypted
 # payload, declare 0600? It keys on the MECHANISM, not on whether a file holds
-# sensitive data. Three mechanisms are recognized, each a named constant:
+# sensitive data. Four mechanisms are recognized, each a named constant:
 #   * a chezmoi secret template function called from a live `{{ }}` action, in
-#     the file itself or in any `includeTemplate` partial it reaches;
+#     the file itself or in any partial it reaches, through `includeTemplate`
+#     or through the `template` action (chezmoi registers every
+#     `.chezmoitemplates` entry as a NAMED TEMPLATE, so both spellings reach the
+#     same partial; measured against v2.71.1);
+#   * a chezmoi template function that EXECUTES a command line (`output`,
+#     `outputList`) whose action names a known vault CLI;
 #   * the `encrypted_` source-state attribute;
 #   * a vault command line run by a `modify_` entry that chezmoi EXECUTES
 #     (a `modify_` entry without the modify-template directive is a script, so
 #     its output, not its text, becomes the target).
 # A hand-written home address, an inline literal, or a value read from the
-# environment is invisible to it. The mechanism rule is what can be enforced
-# without judgement.
+# environment is invisible to it. So is a command line this scanner cannot read
+# as a vault CLI: `{{ output "cat" "/path/to/a/secret" }}` names no vault, and
+# `{{ output "sh" "-c" $computed }}` hides the name in a variable. Deciding
+# whether an arbitrary command yields a secret is not decidable from the text,
+# and refusing every `output` would refuse the three this repo already writes
+# (a version string and two cache reads; all three sit outside this walk today,
+# but the next one need not). The mechanism rule is what can be enforced without
+# judgement.
 #
 # Behaviors pinned:
 #   S1 attribute chain   - which source basenames DECLARE private, parsed in
@@ -43,36 +54,47 @@
 #                          a membership test vouches for the second.
 #   S2 vault calls       - a call inside a live `{{ }}` action counts; the same
 #                          name inside a Go-template comment, inside a string
-#                          literal, or in ordinary prose does not. That
+#                          literal, or in ordinary prose does not, UNLESS the
+#                          action hands that literal to a function that runs it
+#                          (see mechanism 2, where the string IS the call). That
 #                          exemption is the guard's brake against its own mirror
 #                          defect (a check so strict it demands `private_` on an
 #                          ordinary 0644 template). The scanner is quote-aware
 #                          in both directions: a `}}` inside a string literal
 #                          does not end an action, so a call written after one
-#                          cannot hide.
+#                          cannot hide. Go's three literal forms all count as
+#                          literals, including the rune literal `'"'`, whose
+#                          inner quote desynchronizes a scanner that knows only
+#                          `"` and a backtick.
 #   S3 the grammar       - S1 encodes chezmoi's parsing rules, so chezmoi is
 #                          asked to confirm every row of them on every run
 #                          rather than once by hand. Without this the rules rot
 #                          silently on the next chezmoi upgrade, in the
 #                          fail-open direction.
 #   S4 the tree          - the actual guard, over chezmoi's own list of source
-#                          files that become target FILES, plus the two things
+#                          files that become target FILES, plus the three things
 #                          that list cannot tell you: that the universe did not
-#                          SHRINK under it, and that a rename did not MOVE a
-#                          target. Its classify step and its report step are
-#                          exercised over a synthetic tree first, so neither can
-#                          be disabled while the fast gate stays green.
+#                          SHRINK under it, that a rename did not MOVE a target,
+#                          and that every source the walk finds secret-bearing
+#                          is pinned (so the pin table cannot silently lose a
+#                          row). The WHOLE enforcement step, not just its
+#                          predicates, is exercised over a synthetic tree
+#                          engineered to trip every check, so no check can be
+#                          disabled while the fast gate stays green.
 #   S5 the allowlist     - each exemption names a specific CALL, not a file, and
 #                          must still be live. A file allowlisted for fetching
 #                          one public value cannot quietly grow a second call.
 #
-# RUNTIME. Measured 0.51 to 0.56 s on the authoring machine, over the unit
-# suite's 200ms WARN threshold. Four chezmoi invocations are most of it and they
+# RUNTIME. Measured 0.77 to 0.83 s on the authoring machine, over the unit
+# suite's 200ms WARN threshold. Five chezmoi invocations are most of it and they
 # are the ground truth this guard is built on, not incidental work: one applies
-# a probe tree to confirm which basenames render 0600, one resolves a probe
-# tree's target NAMES to confirm the whole attribute-sequence grammar, one asks
-# which source files become target files, and one asks where the protected
-# sources land. The warning is advisory and never fails a run.
+# a probe tree to confirm which basenames render 0600, which OS chezmoi targets,
+# that every listed vault function name is a real chezmoi function, and that
+# both include spellings reach a `.chezmoitemplates` partial; one resolves a
+# probe tree's target NAMES to confirm the whole attribute-sequence grammar; one
+# asks which source files become target files; and two resolve target paths, one
+# for the synthetic self-test tree and one for the protected sources. The
+# warning is advisory and never fails a run.
 #
 # RELATIONSHIP TO scripts/render-coverage-classifier.nix. That classifier also
 # detects keepassxc calls to decide which templates the rendered-shellcheck
@@ -116,18 +138,35 @@ SECRET_VAULT_TEMPLATE_FUNCTIONS=(
   gopass gopassRaw
   keepassxc keepassxcAttachment keepassxcAttribute
   keeper keeperDataFields keeperFindPassword
+  keyring
   lastpass lastpassRaw
   onepassword onepasswordDetailsFields onepasswordDocument
   onepasswordItemFields onepasswordRead
   pass passFields passRaw passhole
+  protonPass protonPassJSON
   rbw rbwFields
   secret secretJSON vault
 )
 
-# MECHANISM 3: vault command lines. Only ever consulted for a `modify_` entry
-# that chezmoi EXECUTES rather than renders, where the secret arrives through a
-# subprocess instead of a template function.
-SECRET_VAULT_COMMANDS=(keepassxc-cli)
+# MECHANISM 2: chezmoi template functions that RUN a command line and render its
+# output. They turn any vault CLI into a template call, and the command name
+# then sits inside a string literal where the vault-FUNCTION search cannot see
+# it. Measured present in chezmoi v2.71.1.
+COMMAND_EXECUTING_TEMPLATE_FUNCTIONS=(output outputList)
+
+# MECHANISM 2 and 4: vault command lines. Consulted for an action that calls one
+# of the command-executing functions above, and for a `modify_` entry that
+# chezmoi EXECUTES rather than renders, where the secret arrives through a
+# subprocess instead of a template function. Listed by the same argument as the
+# function list: a guard that only knows the vault of the day fails open the day
+# someone adopts another one. Every name here is a CLI whose purpose is reading
+# a secret; deliberately absent are general-purpose tools that merely CAN carry
+# one (`aws`, `curl`, `ssh`), because in command position they would refuse
+# ordinary scripts.
+SECRET_VAULT_COMMANDS=(
+  age bw dashlane doppler ejson gopass keeper keepassxc-cli lpass op pass
+  passhole rbw secret-tool security sops vault
+)
 
 # chezmoi source-state attribute tokens, from `chezmoi help chattr` (v2.71.1)
 # plus the script attributes that command does not list. Used only to decide
@@ -179,6 +218,23 @@ CHEZMOI_TEMPLATE_SUFFIX=.tmpl
 CHEZMOI_MODIFY_TEMPLATE_DIRECTIVE='chezmoi:modify-template'
 CHEZMOI_TEMPLATES_DIRECTORY=.chezmoitemplates
 INCLUDE_TEMPLATE_FUNCTION=includeTemplate
+
+# Go's own way to execute a named template. chezmoi registers every
+# `.chezmoitemplates` entry under its relative path, so
+# `{{ template "p.tmpl" . }}` and `{{ includeTemplate "p.tmpl" . }}` render the
+# same partial (measured, v2.71.1, including a nested `dir/p.tmpl` name). Unlike
+# `includeTemplate` it ALSO resolves a name defined in the same file, which is
+# how this repo already writes `{{ template "shellSingleQuoted" . }}`; such a
+# name reaches no new file, because the defining body is scanned as part of the
+# file it sits in.
+NAMED_TEMPLATE_ACTION=template
+TEMPLATE_DEFINITION_ACTIONS=(define block)
+
+# chezmoi's `.chezmoiignore` excludes `Library` on every OS but darwin, so the
+# two protected sources under it are legitimately unmanaged elsewhere and their
+# absence from the walk is not a shrunken universe.
+DARWIN_ONLY_SOURCE_PREFIX='Library/'
+CHEZMOI_DARWIN_OPERATING_SYSTEM=darwin
 
 # Source files whose declared mode this guard exists to protect, each mapped to
 # the target path it must keep. The pins answer the two questions chezmoi's file
@@ -258,6 +314,11 @@ work="$(mktemp -d)"
 # to run on a bare CI runner, where only coreutils exist.
 trap 'rm -rf "$work"' EXIT
 
+# An EMPTY chezmoi config, so every chezmoi question this guard asks is answered
+# independently of the authoring machine's own chezmoi configuration.
+empty_chezmoi_config="$work/empty-chezmoi-config.toml"
+: >"$empty_chezmoi_config"
+
 # ---------- pure predicates --------------------------------------------------
 
 is_chezmoi_source_attribute() { # <token>
@@ -334,21 +395,24 @@ source_file_is_chezmoi_template() { # <absolute-path> <basename>
 
 # Every live `{{ }}` action of a template, classified. Prints one tagged line
 # per finding, tag and payload separated by a single space:
-#   C <action>   the action names a secret vault function
-#   I <name>     the action includes the named `.chezmoitemplates` partial
-#   U <action>   the action includes a partial this scanner cannot name
+#   C <action>   the action names a secret vault function, or executes a
+#                command line naming a vault CLI
+#   I <name>     the action reaches the named `.chezmoitemplates` partial
+#   U <action>   the action reaches a partial this scanner cannot name
 #
-# Two things make the classification honest rather than approximate. Comment
+# Three things make the classification honest rather than approximate. Comment
 # actions are skipped whole, including their contents, so a `}}` written inside
-# a comment cannot end an action early and hide what follows it. And string
-# literals are transparent to the closing-delimiter search but opaque to the
-# name search, so `{{ printf "}}" (keepassxc "E") }}` is one action holding a
-# real call, while `{{ "keepassxc" | quote }}` is no call at all. A name
-# preceded by `$` or `.` is a variable or a field, not a call.
+# a comment cannot end an action early and hide what follows it, and a comment
+# NOT closed by its own delimiter (Go requires `*/}}` or `*/ -}}` with nothing
+# between) is malformed rather than a licence to swallow the next action. String
+# and rune literals are transparent to the closing-delimiter search but opaque
+# to the name search, so `{{ printf "}}" (keepassxc "E") }}` is one action
+# holding a real call, while `{{ "keepassxc" | quote }}` is no call at all. A
+# name preceded by `$` or `.` is a variable or a field, not a call.
 #
 # Unterminated constructs fail CLOSED: the remainder of the file is searched for
-# vault names with no quote awareness at all, so a malformed template cannot
-# swallow a call.
+# vault names and vault command names with no quote awareness at all, so a
+# malformed template cannot swallow a call.
 # shellcheck disable=SC2016  # the awk program is a literal, not a shell expression
 LIVE_ACTION_SCANNER_PROGRAM='
 function is_boundary_before(character) {
@@ -356,6 +420,12 @@ function is_boundary_before(character) {
 }
 function is_boundary_after(character) {
   return character !~ /^[A-Za-z0-9_]$/
+}
+# A command name may contain the characters a function name may not, so its
+# boundaries are wider: `keepassxc-cli` inside `my-keepassxc-cli-wrapper` is a
+# different command.
+function is_command_boundary(character) {
+  return character !~ /^[A-Za-z0-9_.-]$/
 }
 function next_function_position(haystack, function_name, from,   position, before, after) {
   while (1) {
@@ -368,24 +438,53 @@ function next_function_position(haystack, function_name, from,   position, befor
     if (is_boundary_before(before) && is_boundary_after(after)) return from
   }
 }
-function names_any_vault_function(haystack,   i) {
-  for (i in vault_functions) {
-    if (vault_functions[i] == "") continue
-    if (next_function_position(haystack, vault_functions[i], 1) > 0) return 1
+function next_command_position(haystack, command_name, from,   position, before, after) {
+  while (1) {
+    position = index(substr(haystack, from), command_name)
+    if (position == 0) return 0
+    position = from + position - 1
+    before = (position == 1) ? "" : substr(haystack, position - 1, 1)
+    after = substr(haystack, position + length(command_name), 1)
+    from = position + length(command_name)
+    if (is_command_boundary(before) && is_command_boundary(after)) return from
+  }
+}
+function names_any_function_from(names, haystack,   i) {
+  for (i in names) {
+    if (names[i] == "") continue
+    if (next_function_position(haystack, names[i], 1) > 0) return 1
   }
   return 0
 }
+function names_any_command_from(names, haystack,   i) {
+  for (i in names) {
+    if (names[i] == "") continue
+    if (next_command_position(haystack, names[i], 1) > 0) return 1
+  }
+  return 0
+}
+function runs_a_vault_command(body, code) {
+  return names_any_function_from(command_executing_functions, code) &&
+    names_any_command_from(vault_commands, body)
+}
+function is_literal_delimiter(character) {
+  return character == "\"" || character == "`" || character == RUNE_DELIMITER
+}
+# The value of the first string or rune literal after `from`, skipping over
+# whitespace and grouping parentheses so `f ("x")` reads like `f "x"`. Anything
+# else in between (a variable, a nested call) means the argument is computed and
+# this scanner cannot name it, which is reported rather than assumed harmless.
 function first_string_literal_after(body, from,   i, character, quote, literal) {
   i = from
   while (i <= length(body)) {
     character = substr(body, i, 1)
-    if (character == "\"" || character == "`") {
+    if (is_literal_delimiter(character)) {
       quote = character
       i++
       literal = ""
       while (i <= length(body)) {
         character = substr(body, i, 1)
-        if (quote == "\"" && character == "\\") {
+        if (quote != "`" && character == "\\") {
           literal = literal substr(body, i + 1, 1)
           i += 2
           continue
@@ -396,16 +495,50 @@ function first_string_literal_after(body, from,   i, character, quote, literal) 
       }
       return ""
     }
-    if (character ~ /^[ \t\r\n]$/) { i++; continue }
+    if (character ~ /^[ \t\r\n(]$/) { i++; continue }
     return ""
   }
   return ""
 }
-function normalize(body,   normalized) {
-  normalized = body
-  gsub(/^[- \t\r\n]+|[- \t\r\n]+$/, "", normalized)
-  gsub(/[ \t\r\n]+/, " ", normalized)
-  return normalized
+# The action text as one line, whitespace collapsed OUTSIDE literals only. The
+# text is compared against an allowlist entry, so collapsing runs inside a
+# literal would make two different vault entry names normalize to one string,
+# and a second entry would inherit the exemption written for the first.
+function normalize(body,   i, character, quote, out, pending_space, trimmed) {
+  trimmed = body
+  sub(/^-/, "", trimmed)
+  sub(/-[ \t\r\n]*$/, "", trimmed)
+  out = ""
+  quote = ""
+  pending_space = 0
+  i = 1
+  while (i <= length(trimmed)) {
+    character = substr(trimmed, i, 1)
+    if (quote != "") {
+      out = out character
+      if (quote != "`" && character == "\\") {
+        out = out substr(trimmed, i + 1, 1)
+        i += 2
+        continue
+      }
+      if (character == quote) quote = ""
+      i++
+      continue
+    }
+    if (character ~ /^[ \t\r\n]$/) {
+      if (out != "") pending_space = 1
+      i++
+      continue
+    }
+    if (pending_space) {
+      out = out " "
+      pending_space = 0
+    }
+    if (is_literal_delimiter(character)) quote = character
+    out = out character
+    i++
+  }
+  return out
 }
 function scan_action(start,   i, character, quote) {
   ACTION_BODY = ""
@@ -416,7 +549,7 @@ function scan_action(start,   i, character, quote) {
   while (i <= total) {
     character = substr(text, i, 1)
     if (quote != "") {
-      if (quote == "\"" && character == "\\") {
+      if (quote != "`" && character == "\\") {
         ACTION_BODY = ACTION_BODY character substr(text, i + 1, 1)
         ACTION_CODE = ACTION_CODE "  "
         i += 2
@@ -428,7 +561,7 @@ function scan_action(start,   i, character, quote) {
       i++
       continue
     }
-    if (character == "\"" || character == "`") {
+    if (is_literal_delimiter(character)) {
       quote = character
       ACTION_BODY = ACTION_BODY character
       ACTION_CODE = ACTION_CODE " "
@@ -445,28 +578,49 @@ function scan_action(start,   i, character, quote) {
   }
 }
 function emit_unterminated(raw) {
-  if (names_any_vault_function(raw)) print "C " normalize(raw)
+  if (names_any_function_from(vault_functions, raw) ||
+      names_any_command_from(vault_commands, raw)) print "C " normalize(raw)
 }
-function emit(body, code,   normalized, after_name, literal) {
-  normalized = normalize(body)
-  if (names_any_vault_function(code)) print "C " normalized
-  after_name = 1
-  while (1) {
-    after_name = next_function_position(code, include_function, after_name)
-    if (after_name == 0) break
+# Names this action defines. A defined name is reachable by the `template`
+# action from this file only (measured: a name defined in another source file is
+# not in scope and chezmoi refuses the render), and its body is ordinary text of
+# this same file, so it is already scanned.
+function record_definitions(body, code,   i, after_name, literal) {
+  for (i in definition_actions) {
+    if (definition_actions[i] == "") continue
+    after_name = next_function_position(code, definition_actions[i], 1)
+    if (after_name == 0) continue
     literal = first_string_literal_after(body, after_name)
-    if (literal == "") print "U " normalized
-    else print "I " literal
+    if (literal != "") defined_template_names[literal] = 1
   }
 }
-BEGIN { split(vault_function_names, vault_functions, " ") }
-{ text = text $0 "\n" }
-END {
-  total = length(text)
+function emit_partial_references(body, code, reference_name, honour_definitions,
+                                 after_name, literal) {
+  if (reference_name == "") return
+  after_name = 1
+  while (1) {
+    after_name = next_function_position(code, reference_name, after_name)
+    if (after_name == 0) return
+    literal = first_string_literal_after(body, after_name)
+    if (literal == "") print "U " normalize(body)
+    else if (!(honour_definitions && (literal in defined_template_names))) print "I " literal
+  }
+}
+function emit(body, code,   normalized) {
+  normalized = normalize(body)
+  if (names_any_function_from(vault_functions, code) || runs_a_vault_command(body, code))
+    print "C " normalized
+  emit_partial_references(body, code, include_function, 0)
+  emit_partial_references(body, code, named_template_action, 1)
+}
+# One pass over every live action. `collect_only` gathers the names this file
+# defines, which the emitting pass needs BEFORE it reads the first `template`
+# reference, because Go resolves a name defined later in the same file.
+function walk_actions(collect_only,   pos, opening, body_start, probe, comment_end, after_comment) {
   pos = 1
   while (pos <= total) {
     opening = index(substr(text, pos), "{{")
-    if (opening == 0) break
+    if (opening == 0) return
     opening = pos + opening - 1
     body_start = opening + 2
 
@@ -477,33 +631,56 @@ END {
     if (substr(text, probe, 2) == "/*") {
       comment_end = index(substr(text, probe + 2), "*/")
       if (comment_end == 0) {
-        emit_unterminated(substr(text, body_start))
-        break
+        if (!collect_only) emit_unterminated(substr(text, body_start))
+        return
       }
       after_comment = probe + 2 + comment_end + 1
-      closing = index(substr(text, after_comment), "}}")
-      if (closing == 0) {
-        emit_unterminated(substr(text, after_comment))
-        break
+      if (substr(text, after_comment, 2) == "}}") {
+        pos = after_comment + 2
+        continue
       }
-      pos = after_comment + closing + 1
-      continue
+      if (substr(text, after_comment, 4) == " -}}") {
+        pos = after_comment + 4
+        continue
+      }
+      if (!collect_only) emit_unterminated(substr(text, after_comment))
+      return
     }
 
     scan_action(body_start)
     if (ACTION_END == 0) {
-      emit_unterminated(substr(text, body_start))
-      break
+      if (!collect_only) emit_unterminated(substr(text, body_start))
+      return
     }
-    emit(ACTION_BODY, ACTION_CODE)
+    if (collect_only) record_definitions(ACTION_BODY, ACTION_CODE)
+    else emit(ACTION_BODY, ACTION_CODE)
     pos = ACTION_END + 2
   }
+}
+BEGIN {
+  # Written as a code point so this program stays one shell-single-quoted
+  # literal: a rune literal delimiter is an apostrophe.
+  RUNE_DELIMITER = sprintf("%c", 39)
+  split(vault_function_names, vault_functions, " ")
+  split(vault_command_names, vault_commands, " ")
+  split(command_executing_function_names, command_executing_functions, " ")
+  split(definition_action_names, definition_actions, " ")
+}
+{ text = text $0 "\n" }
+END {
+  total = length(text)
+  walk_actions(1)
+  walk_actions(0)
 }
 '
 
 scan_live_actions() { # <path>
   awk -v vault_function_names="${SECRET_VAULT_TEMPLATE_FUNCTIONS[*]}" \
+    -v vault_command_names="${SECRET_VAULT_COMMANDS[*]}" \
+    -v command_executing_function_names="${COMMAND_EXECUTING_TEMPLATE_FUNCTIONS[*]}" \
+    -v definition_action_names="${TEMPLATE_DEFINITION_ACTIONS[*]}" \
     -v include_function="$INCLUDE_TEMPLATE_FUNCTION" \
+    -v named_template_action="$NAMED_TEMPLATE_ACTION" \
     "$LIVE_ACTION_SCANNER_PROGRAM" "$1"
 }
 
@@ -518,16 +695,25 @@ template_vault_calls() { # <path>
   done < <(scan_live_actions "$1")
 }
 
-# Every vault call reachable from a template, following `includeTemplate` into
-# `.chezmoitemplates`, published in REACHABLE_VAULT_CALLS. A reference this
+# Every vault call reachable from a template, following both include spellings
+# into `.chezmoitemplates`, published in REACHABLE_VAULT_CALLS. A reference this
 # scanner cannot follow (a computed argument, or a name with no file behind it)
 # is recorded in UNFOLLOWABLE_INCLUDE_REFERENCES rather than skipped, so the
 # blind spot is reported instead of assumed harmless. Cycles terminate: a
 # partial is scanned at most once per call.
+#
+# A file the scanner could not READ is neither a call nor a blind spot but a
+# failed scan, and a failed scan is not an all-clear: it is recorded as a
+# reachable call in its own right, so the file classifies as secret-bearing and
+# has to declare 0600 (or be made readable). The scanner runs in a command
+# substitution rather than a process substitution for exactly this reason: a
+# process substitution discards awk's exit status and the loop then reads zero
+# lines, which is indistinguishable from a clean file.
+UNSCANNABLE_SOURCE_MARKER='<unscannable source file>'
 declare -a REACHABLE_VAULT_CALLS=()
 declare -a UNFOLLOWABLE_INCLUDE_REFERENCES=()
 read_reachable_vault_calls() { # <source-root> <absolute-path>
-  local root=$1 current line partial
+  local root=$1 current line partial scan_output
   local -a queue=("$2")
   declare -A visited=()
   REACHABLE_VAULT_CALLS=()
@@ -537,6 +723,10 @@ read_reachable_vault_calls() { # <source-root> <absolute-path>
     queue=("${queue[@]:1}")
     [[ -n ${visited[$current]+set} ]] && continue
     visited[$current]=1
+    if ! scan_output=$(scan_live_actions "$current" 2>&1); then
+      REACHABLE_VAULT_CALLS+=("$UNSCANNABLE_SOURCE_MARKER ${current#"$root/"}")
+      continue
+    fi
     while IFS= read -r line; do
       case ${line:0:1} in
         C) REACHABLE_VAULT_CALLS+=("${line:2}") ;;
@@ -549,28 +739,45 @@ read_reachable_vault_calls() { # <source-root> <absolute-path>
           fi
           ;;
         U)
-          UNFOLLOWABLE_INCLUDE_REFERENCES+=("${current#"$root/"} computes its $INCLUDE_TEMPLATE_FUNCTION argument in '${line:2}', which this scanner cannot follow")
+          UNFOLLOWABLE_INCLUDE_REFERENCES+=("${current#"$root/"} computes a partial name in '${line:2}', which this scanner cannot follow")
           ;;
       esac
-    done < <(scan_live_actions "$current")
+    done <<<"$scan_output"
   done
+}
+
+# Does this text RUN one of the vault CLIs? Backslash, double-quote and
+# apostrophe are removed first, because the shell removes them too:
+# `keepassxc\-cli` and `"keepassxc-cli"` both execute keepassxc-cli, and a
+# fixed-string search for the plain spelling sees neither. The name then has to
+# stand in COMMAND POSITION, at the start of the text or after a shell
+# separator, which is what keeps a name inside a comment or inside an argument
+# from counting: `# see keepassxc-cli` and `printf keepassxc-cli` are not
+# invocations. It is deliberately a heuristic over shell text, not a shell
+# parser, and it errs toward reporting.
+SHELL_COMMAND_POSITION_PREFIX='(^|[;&|(){}`]|\$\()[[:space:]]*'
+SHELL_COMMAND_POSITION_SUFFIX='([[:space:]]|[;&|)]|$)'
+text_invokes_vault_command() { # <text>
+  local unquoted=$1 alternation
+  unquoted=${unquoted//\\/}
+  unquoted=${unquoted//\"/}
+  unquoted=${unquoted//\'/}
+  alternation=$(
+    IFS='|'
+    printf '%s' "${SECRET_VAULT_COMMANDS[*]}"
+  )
+  grep -qE -- \
+    "$SHELL_COMMAND_POSITION_PREFIX($alternation)$SHELL_COMMAND_POSITION_SUFFIX" \
+    <<<"$unquoted"
 }
 
 # A `modify_` entry without the modify-template directive is executed, so its
 # secret arrives through a command line rather than a template function. A read
 # failure counts as a hit: an unreadable file is not an all-clear.
 executed_entry_invokes_vault_command() { # <absolute-path>
-  local command_name status
-  for command_name in "${SECRET_VAULT_COMMANDS[@]}"; do
-    status=0
-    grep -qF -e "$command_name" -- "$1" || status=$?
-    if ((status == 0)); then
-      return 0
-    elif ((status != 1)); then
-      return 0
-    fi
-  done
-  return 1
+  local contents
+  contents=$(<"$1") || return 0
+  text_invokes_vault_command "$contents"
 }
 
 # Does this source file pull a secret by any mechanism this guard knows? Sets
@@ -688,6 +895,15 @@ vault_call_fixture live-attachment-call 1 'blob = {{ keepassxcAttachment "E" "a.
 '
 vault_call_fixture live-other-vault-call 1 'token = {{ onepasswordItemFields "item" }}
 '
+# The three names this list was missing. All three are real functions of the
+# installed chezmoi (S3 re-measures that on every run), so a template using one
+# renders a secret into whatever mode its basename declares.
+vault_call_fixture keyring-call 1 'token = {{ keyring "service" "user" }}
+'
+vault_call_fixture proton-pass-call 1 'token = {{ protonPass "item" }}
+'
+vault_call_fixture proton-pass-json-call 1 'token = {{ protonPassJSON "item" }}
+'
 vault_call_fixture two-live-calls 2 'a = {{ (keepassxc "E").UserName }}
 b = {{ (keepassxc "E").Password }}
 '
@@ -746,14 +962,56 @@ vault_call_fixture variable-and-field-names 0 'x = {{ $pass }}{{ $secret }}{{ .v
 '
 vault_call_fixture generic-function-name-called 1 'x = {{ pass "aws/secret" }}
 '
+# RUNE LITERALS. Go has three literal forms and the third one is a quote
+# delimiter that carries a quote: `{{ printf "%c" (a rune holding a double
+# quote) }}` renders one `"` (measured). A scanner that knows only `"` and the
+# backtick reads that inner quote as the START of a string, and the NEXT rune
+# literal ends it, so everything between two of them is blanked out of the code
+# view. One occurrence alone runs to end of file and fails closed; the pair is
+# what hides a call, so the pair is the fixture.
+vault_call_fixture rune-literal-pair-around-a-call 1 "x = {{ printf \"%c\" '\"' }}
+key = {{ (keepassxc \"E\").Password }}
+z = {{ printf \"%c\" '\"' }}
+"
 # Unterminated constructs fail CLOSED.
 vault_call_fixture unterminated-action 1 'x = {{ (keepassxc "E").Password
 '
 vault_call_fixture unterminated-comment 1 'x = {{/* keepassxc
 '
+# A Go comment must be closed by its OWN delimiter: chezmoi refuses
+# `{{/* c */ }}` with "comment ends before closing delimiter" (measured), so a
+# `*/` followed by anything other than `}}` or ` -}}` is malformed, and the next
+# `}}` in the file belongs to a LATER action. A scanner that consumes it anyway
+# swallows that action whole.
+vault_call_fixture comment-not-closed-by-its-own-delimiter 1 '{{/* benign */
+key = {{ keepassxc "E" }}
+'
+# COMMAND-EXECUTING FUNCTIONS. `output` runs its argument and renders the
+# result, so the vault CLI name sits in a string literal where the vault
+# FUNCTION search cannot see it. Measured: with a stub `keepassxc-cli` on PATH,
+# chezmoi renders the fixture below into a 0644 target holding its output.
+vault_call_fixture output-runs-a-vault-command 1 'aws_secret_access_key = {{ output "keepassxc-cli" "show" "-a" "Password" "/db.kdbx" "AWS" | trim }}
+'
+vault_call_fixture output-runs-a-vault-command-through-a-shell 1 'x = {{ output "sh" "-c" "op read op://vault/item/field" }}
+'
+vault_call_fixture output-list-runs-a-vault-command 1 'x = {{ outputList "keepassxc-cli" "show" }}
+'
+# The mirror: naming a command without running one is not a call, which is why
+# the existing `lookPath` fixture above stays at zero, and running a command
+# that is not a vault CLI is not a call either.
+vault_call_fixture output-runs-an-ordinary-command 0 'stamp = {{ output "date" "+%s" | trim }}
+'
+vault_call_fixture vault-command-inside-a-word 0 'x = {{ output "my-keepassxc-cli-wrapper" }}
+'
 printf 'k = {{ keepassxcAttribute "E" "A" }}\n' >"$work/fixture-call-text"
 assert_equal 'keepassxcAttribute "E" "A"' \
   "$(template_vault_calls "$work/fixture-call-text")" s2-call-text-normalized
+# Whitespace INSIDE a literal is part of the value. The call text is what the
+# allowlist matches on, so collapsing runs inside a literal would make a
+# different vault entry normalize onto an existing exemption and inherit it.
+printf 'k = {{ keepassxcAttribute "E  n" "A  t" }}\n' >"$work/fixture-inner-spacing"
+assert_equal 'keepassxcAttribute "E  n" "A  t"' \
+  "$(template_vault_calls "$work/fixture-inner-spacing")" s2-inner-literal-spacing-kept
 
 # ---------- S2b: which entries chezmoi templates, and transitive reach -------
 
@@ -795,7 +1053,7 @@ printf 'plain-bytes\n' >"$work/reach-root/dot_probe-plain"
 assert_predicate expect-false s2b-plain-file-pulls-nothing \
   source_file_pulls_secrets "$work/reach-root" "$work/reach-root/dot_probe-plain" dot_probe-plain
 
-# MECHANISM 3, an executed `modify_` entry that shells out to the vault.
+# MECHANISM 4, an executed `modify_` entry that shells out to the vault.
 # shellcheck disable=SC2016  # the literal fixture script body is the point
 printf '#!/bin/bash\nkeepassxc-cli show -a Password "$KDBX" AWS\n' \
   >"$work/reach-root/modify_dot_probe-script"
@@ -806,6 +1064,31 @@ printf '#!/bin/bash\nprintf "%%s" "no secret here"\n' >"$work/reach-root/modify_
 assert_predicate expect-false s2b-executed-entry-without-a-vault-command \
   source_file_pulls_secrets "$work/reach-root" "$work/reach-root/modify_dot_probe-harmless" \
   modify_dot_probe-harmless
+
+# The shell removes quoting before it resolves a command name, so a search for
+# the plain spelling has to remove it too. Each of these executes the same
+# binary; a fixed-string search for `keepassxc-cli` finds none of them.
+assert_predicate expect-true s2c-backslash-escaped-command-name \
+  text_invokes_vault_command 'keepassxc\-cli show -a Password db.kdbx AWS'
+assert_predicate expect-true s2c-quoted-command-name \
+  text_invokes_vault_command '"keepassxc-cli" show'
+# shellcheck disable=SC2016  # the shell substitution is the fixture text
+assert_predicate expect-true s2c-command-name-in-a-substitution \
+  text_invokes_vault_command 'secret=$(keepassxc-cli show)'
+assert_predicate expect-true s2c-command-name-after-a-pipe \
+  text_invokes_vault_command 'printf x | op read op://vault/item/field'
+assert_predicate expect-true s2c-indented-command-name \
+  text_invokes_vault_command '  security find-generic-password -w'
+# And the mirror. Naming a vault CLI is not running one, which is the whole
+# difference between a comment or an argument and an invocation.
+assert_predicate expect-false s2c-command-name-in-a-comment \
+  text_invokes_vault_command '# see keepassxc-cli show for the manual step'
+assert_predicate expect-false s2c-command-name-as-an-argument \
+  text_invokes_vault_command 'printf "%s" keepassxc-cli'
+assert_predicate expect-false s2c-command-name-inside-a-word \
+  text_invokes_vault_command 'my-keepassxc-cli-wrapper show'
+assert_predicate expect-false s2c-no-vault-command-at-all \
+  text_invokes_vault_command 'printf "%s" "no secret here"'
 
 # TRANSITIVE REACH. A call inside an included partial belongs to its includer,
 # which is the file that carries the mode.
@@ -835,6 +1118,32 @@ assert_predicate expect-true s2b-cyclic-include-terminates-and-reaches \
   source_file_pulls_secrets "$work/reach-root" "$work/reach-root/dot_probe-cyclic.tmpl" \
   dot_probe-cyclic.tmpl
 
+# The OTHER include spelling. chezmoi registers every `.chezmoitemplates` entry
+# as a NAMED template, so Go's own `template` action reaches the same partial as
+# `includeTemplate` (measured, and S3 re-measures it on every run). Following
+# only one spelling means one word between a caught secret and a missed one.
+printf '{{ template "secret-partial.tmpl" . }}\n' \
+  >"$work/reach-root/dot_probe-named-template.tmpl"
+assert_predicate expect-true s2b-named-template-action-reaches-a-vault-call \
+  source_file_pulls_secrets "$work/reach-root" \
+  "$work/reach-root/dot_probe-named-template.tmpl" dot_probe-named-template.tmpl
+# A name the file DEFINES itself reaches no other file: the defining body is
+# ordinary text of this same file and is already scanned. Treating it as a
+# partial reference would report an unfollowable include for every one of the
+# eight `{{ template "shellSingleQuoted" . }}` calls this repo already writes.
+printf '{{- define "local-helper" }}{{ upper . }}{{ end -}}\nx = {{ template "local-helper" .name }}\n' \
+  >"$work/reach-root/dot_probe-local-define.tmpl"
+assert_predicate expect-false s2b-locally-defined-name-is-not-a-partial \
+  source_file_pulls_secrets "$work/reach-root" \
+  "$work/reach-root/dot_probe-local-define.tmpl" dot_probe-local-define.tmpl
+assert_equal "" "${UNFOLLOWABLE_INCLUDE_REFERENCES[*]-}" s2b-local-define-is-not-unfollowable
+# ... and a local definition does not hide a call written inside it.
+printf '{{- define "local-secret" }}{{ (keepassxc "E").Password }}{{ end -}}\nx = {{ template "local-secret" . }}\n' \
+  >"$work/reach-root/dot_probe-local-define-secret.tmpl"
+assert_predicate expect-true s2b-call-inside-a-local-define-still-counts \
+  source_file_pulls_secrets "$work/reach-root" \
+  "$work/reach-root/dot_probe-local-define-secret.tmpl" dot_probe-local-define-secret.tmpl
+
 # References this scanner cannot follow are RECORDED, never assumed harmless.
 # shellcheck disable=SC2016  # a Go-template variable reference, not a shell one
 printf '{{ includeTemplate (printf "%%s.tmpl" $name) . }}\n' \
@@ -847,6 +1156,38 @@ printf '{{ includeTemplate "no-such-partial.tmpl" . }}\n' \
 source_file_pulls_secrets "$work/reach-root" \
   "$work/reach-root/dot_probe-missing-include.tmpl" dot_probe-missing-include.tmpl || true
 assert_equal 1 "${#UNFOLLOWABLE_INCLUDE_REFERENCES[@]}" s2b-missing-include-is-recorded
+# A parenthesized literal is still a literal: `includeTemplate ("p.tmpl")`
+# renders exactly like `includeTemplate "p.tmpl"`, so reporting it as
+# unfollowable is a false refusal of a legitimate template.
+printf '{{ includeTemplate ("secret-partial.tmpl") . }}\n' \
+  >"$work/reach-root/dot_probe-parenthesized-include.tmpl"
+assert_predicate expect-true s2b-parenthesized-include-literal-is-followed \
+  source_file_pulls_secrets "$work/reach-root" \
+  "$work/reach-root/dot_probe-parenthesized-include.tmpl" dot_probe-parenthesized-include.tmpl
+assert_equal "" "${UNFOLLOWABLE_INCLUDE_REFERENCES[*]-}" \
+  s2b-parenthesized-include-is-not-unfollowable
+
+# A file the scanner cannot READ is not a clean file. awk reports the failure on
+# stderr and exits non-zero; read through a process substitution that status is
+# discarded and the loop reads zero lines, which looks exactly like a template
+# with no calls in it.
+unreadable_root="$work/unreadable-source"
+mkdir -p "$unreadable_root"
+printf 'key = {{ (keepassxc "E").Password }}\n' >"$unreadable_root/dot_probe-unreadable.tmpl"
+chmod 000 "$unreadable_root/dot_probe-unreadable.tmpl"
+# Running as a user that ignores the mode bits (root, or a filesystem without
+# them) would make the assertions pass for the wrong reason, so record whether
+# the fixture is meaningful instead of asserting on no evidence. S4a asks the
+# same question of the WALK, and reads this same flag.
+unreadable_probe_is_meaningful=1
+if [[ -r "$unreadable_root/dot_probe-unreadable.tmpl" ]]; then
+  unreadable_probe_is_meaningful=0
+  printf 'secret-source-files-declare-private-mode: NOTE -- skipping the unreadable-source assertions, this user can read a 000 file\n' >&2
+else
+  assert_predicate expect-true s2b-unreadable-source-is-not-an-all-clear \
+    source_file_pulls_secrets "$unreadable_root" \
+    "$unreadable_root/dot_probe-unreadable.tmpl" dot_probe-unreadable.tmpl
+fi
 
 # ---------- S3: chezmoi confirms the grammar S1 encodes ----------------------
 # S1's ordering rules came from measurement, so they are re-measured here rather
@@ -870,8 +1211,11 @@ private_probe_basename() { # <space-separated-prefix> <suffix>
   printf '%s%s_%s' "$prefix" "$PRIVATE_ATTRIBUTE" "$2"
 }
 
-probe_config="$work/probe-config.toml"
-: >"$probe_config"
+PROBE_PARTIAL_RENDERED_TEXT='partial-body-reached'
+# Which OS chezmoi targets. Defaulted to darwin, the value under which EVERY
+# protected source is expected in the walk, so a probe that could not answer
+# leaves the strictest reading in place rather than excusing an absence.
+chezmoi_operating_system=$CHEZMOI_DARWIN_OPERATING_SYSTEM
 
 if ! command -v chezmoi >/dev/null 2>&1; then
   fail "chezmoi is not on PATH; this guard cannot confirm its own grammar"
@@ -893,8 +1237,32 @@ else
     >"$mode_source/modify_dot_probe-late-directive"
   # The mirror: no directive at all, so chezmoi EXECUTES it.
   printf '#!/bin/sh\nprintf "executed\\n"\n' >"$mode_source/modify_dot_probe-no-directive"
+  # Which OS chezmoi is targeting, asked of chezmoi rather than of `uname`,
+  # because it is chezmoi's answer that decides which sources are managed.
+  printf '{{ .chezmoi.os }}' >"$mode_source/dot_probe-operating-system.tmpl"
+  # Both include spellings, against a partial in the directory the constants
+  # NAME, so CHEZMOI_TEMPLATES_DIRECTORY, INCLUDE_TEMPLATE_FUNCTION and
+  # NAMED_TEMPLATE_ACTION stop being their own oracle. chezmoi is what resolves
+  # these: point any of the three at a name chezmoi does not use and the apply
+  # below fails, where before the tree walk would simply stop following
+  # partials and report nothing.
+  mkdir -p "$mode_source/$CHEZMOI_TEMPLATES_DIRECTORY"
+  printf '%s' "$PROBE_PARTIAL_RENDERED_TEXT" \
+    >"$mode_source/$CHEZMOI_TEMPLATES_DIRECTORY/probe-partial.tmpl"
+  printf '{{ %s "probe-partial.tmpl" . }}' "$INCLUDE_TEMPLATE_FUNCTION" \
+    >"$mode_source/dot_probe-include-spelling.tmpl"
+  printf '{{ %s "probe-partial.tmpl" . }}' "$NAMED_TEMPLATE_ACTION" \
+    >"$mode_source/dot_probe-named-template-spelling.tmpl"
+  # Every vault function name, referenced but never executed. Go resolves
+  # function names at PARSE time, so an apply that succeeds proves each name is
+  # a real chezmoi function; one that has been retired upstream names itself in
+  # the failure. (This direction only: no probe can prove the list is
+  # COMPLETE.)
+  printf '{{ if false }}%s{{ end }}' \
+    "$(printf '{{ %s }}' "${SECRET_VAULT_TEMPLATE_FUNCTIONS[@]}" "${COMMAND_EXECUTING_TEMPLATE_FUNCTIONS[@]}")" \
+    >"$mode_source/dot_probe-vault-function-names.tmpl"
 
-  if ! chezmoi --config "$probe_config" --source "$mode_source" \
+  if ! chezmoi --config "$empty_chezmoi_config" --source "$mode_source" \
     --destination "$mode_dest" --no-tty apply --force >"$work/probe-apply.log" 2>&1; then
     fail "the chezmoi mode probe could not apply: $(cat "$work/probe-apply.log")"
   else
@@ -915,6 +1283,15 @@ else
       s3-modify-directive-is-not-line-one-only
     assert_equal executed "$(cat "$mode_dest/.probe-no-directive")" \
       s3-modify-without-the-directive-is-executed
+    assert_equal "$PROBE_PARTIAL_RENDERED_TEXT" \
+      "$(cat "$mode_dest/.probe-include-spelling")" \
+      s3-includeTemplate-reaches-the-templates-directory
+    assert_equal "$PROBE_PARTIAL_RENDERED_TEXT" \
+      "$(cat "$mode_dest/.probe-named-template-spelling")" \
+      s3-template-action-reaches-the-templates-directory
+    chezmoi_operating_system="$(cat "$mode_dest/.probe-operating-system")"
+    [[ -n $chezmoi_operating_system ]] ||
+      fail "s3-operating-system-answered: chezmoi rendered an empty .chezmoi.os"
   fi
 
   # The mode probe cannot answer for chains that need a real age blob, or for
@@ -943,22 +1320,38 @@ else
     name_probe_expect_private+=(retained)
   done
 
-  if ! chezmoi --config "$probe_config" --source "$name_source" \
-    --destination "$work/probe-name-dest" --no-tty target-path \
+  # A destination whose PATH contains the word `private`, deliberately. Every
+  # row below asks whether chezmoi consumed the `private` attribute, and the
+  # answer is only in the target BASENAME; a check that reads the whole path
+  # answers "retained" for all 15 rows, which is six false failures and nine
+  # silent passes. A real TMPDIR of `/private/tmp` does exactly this, so the
+  # hazard is built into the fixture rather than left to the environment.
+  name_probe_destination="$work/probe-name-dest/private-parent"
+  if ! chezmoi --config "$empty_chezmoi_config" --source "$name_source" \
+    --destination "$name_probe_destination" --no-tty target-path \
     "${name_probe_arguments[@]}" >"$work/probe-names.txt" 2>"$work/probe-names.err"; then
     fail "the chezmoi name probe failed: $(cat "$work/probe-names.err")"
   else
     probe_index=0
+    # The BASENAME, never the whole path: the probe tree sits under a temporary
+    # directory whose name this guard does not choose, and a TMPDIR of
+    # `/private/tmp` (the default under the flake's coreutils mktemp when TMPDIR
+    # is set to it) puts the word `private` in every path. That reads as
+    # "chezmoi kept the attribute" for the consumed rows, six false failures,
+    # and as "chezmoi kept the attribute" for the retained rows too, where it is
+    # the silent direction: every negative row would pass without measuring
+    # anything.
     while IFS= read -r probe_target; do
       probe_index=$((probe_index + 1))
       probe_source=${name_probe_arguments[$((probe_index - 1))]}
+      probe_target_basename=${probe_target##*/}
       case ${name_probe_expect_private[$((probe_index - 1))]} in
         consumed)
-          [[ $probe_target != *"$PRIVATE_ATTRIBUTE"* ]] ||
-            fail "s3-sequence-declares-private: chezmoi left '$PRIVATE_ATTRIBUTE' in the target of ${probe_source##*/} ('${probe_target##*/}'), so that sequence no longer declares 0600 and CHEZMOI_ATTRIBUTE_PREFIXES_DECLARING_PRIVATE has a stale row"
+          [[ $probe_target_basename != *"$PRIVATE_ATTRIBUTE"* ]] ||
+            fail "s3-sequence-declares-private: chezmoi left '$PRIVATE_ATTRIBUTE' in the target of ${probe_source##*/} ('$probe_target_basename'), so that sequence no longer declares 0600 and CHEZMOI_ATTRIBUTE_PREFIXES_DECLARING_PRIVATE has a stale row"
           ;;
         retained)
-          [[ $probe_target == *"$PRIVATE_ATTRIBUTE"* ]] ||
+          [[ $probe_target_basename == *"$PRIVATE_ATTRIBUTE"* ]] ||
             fail "s3-sequence-does-not-declare-private: chezmoi consumed '$PRIVATE_ATTRIBUTE' out of ${probe_source##*/}, so that sequence IS private now and CHEZMOI_ATTRIBUTE_PREFIXES_DECLARING_PRIVATE is missing a row"
           ;;
       esac
@@ -978,6 +1371,7 @@ fi
 declare -a WIDENED_SOURCE_FILES=()
 declare -a REACHED_ALLOWLIST_ENTRIES=()
 declare -a REACHED_TARGET_PIN_KEYS=()
+declare -a SECRET_BEARING_SOURCE_FILES=()
 declare -a CLASSIFIER_UNFOLLOWABLE_INCLUDES=()
 MANAGED_FILE_COUNT=0
 
@@ -991,6 +1385,7 @@ classify_managed_source_files() { # <source-root> <nul-separated-list-file>
   WIDENED_SOURCE_FILES=()
   REACHED_ALLOWLIST_ENTRIES=()
   REACHED_TARGET_PIN_KEYS=()
+  SECRET_BEARING_SOURCE_FILES=()
   CLASSIFIER_UNFOLLOWABLE_INCLUDES=()
   MANAGED_FILE_COUNT=0
   while IFS= read -r -d '' source_relative; do
@@ -1000,20 +1395,31 @@ classify_managed_source_files() { # <source-root> <nul-separated-list-file>
     if [[ -n ${SECRET_SOURCE_TARGET_PINS[$source_relative]+set} ]]; then
       REACHED_TARGET_PIN_KEYS+=("$source_relative")
     fi
-    [[ -f $absolute ]] || {
+    # READABLE, not merely present: a file the walk cannot open is one the walk
+    # cannot clear, and every classification below would answer "no secret" for
+    # it on no evidence.
+    if [[ ! -f $absolute || ! -r $absolute ]]; then
       fail "chezmoi lists $source_relative but it is not a readable file"
       continue
-    }
+    fi
     pulls_secrets=0
     if source_file_pulls_secrets "$root" "$absolute" "$source_basename"; then
       pulls_secrets=1
+      SECRET_BEARING_SOURCE_FILES+=("$source_relative")
     fi
     # Recorded whatever the verdict was. A file whose ONLY vault reach is an
     # include this scanner cannot follow answers "no secret" above, so checking
     # this after a `continue` would drop exactly the case it exists for.
-    for reference in ${UNFOLLOWABLE_INCLUDE_REFERENCES[@]+"${UNFOLLOWABLE_INCLUDE_REFERENCES[@]}"}; do
-      CLASSIFIER_UNFOLLOWABLE_INCLUDES+=("$reference")
-    done
+    #
+    # A source that already declares 0600 is exempt: whatever the partial holds,
+    # its target is not world-readable, so an unnameable reach out of it is not
+    # a widening and refusing it would be a false demand for a rename that has
+    # already happened.
+    if ! source_basename_declares_private_mode "$source_basename"; then
+      for reference in ${UNFOLLOWABLE_INCLUDE_REFERENCES[@]+"${UNFOLLOWABLE_INCLUDE_REFERENCES[@]}"}; do
+        CLASSIFIER_UNFOLLOWABLE_INCLUDES+=("$reference")
+      done
+    fi
     ((pulls_secrets == 1)) || continue
 
     if [[ -n ${PUBLIC_VALUE_VAULT_CALL_ALLOWLIST[$source_relative]+set} ]]; then
@@ -1044,11 +1450,104 @@ report_widened_source_files() { # <source-relative>...
   return 1
 }
 
-# ---------- S4a: the classifier and the report, over a synthetic tree --------
+# Is a pinned source expected in the walk at all on this operating system?
+# `.chezmoiignore` drops `Library` everywhere but darwin, so on linux those
+# sources are legitimately unmanaged and their absence is not a shrunken
+# universe. Every other source, and every source on darwin, must be reached.
+secret_source_is_managed_on_operating_system() { # <operating-system> <source-relative>
+  [[ $1 == "$CHEZMOI_DARWIN_OPERATING_SYSTEM" ]] && return 0
+  [[ $2 != "$DARWIN_ONLY_SOURCE_PREFIX"* ]]
+}
+
+# The whole enforcement step over one source tree: classify, then ask the four
+# questions the classification alone cannot answer. It reports through `fail`,
+# so a caller cannot drop its status, and it takes its tree as arguments, so the
+# S4a self-test runs THIS function rather than a copy of its loops. Without
+# that, disabling any one of these loops leaves a healthy repo green forever.
+enforce_managed_source_tree() { # <source-root> <list-file> <operating-system> <target-path-destination>
+  local root=$1 list=$2 operating_system=$3 destination=$4
+  local unfollowable secret_bearing pinned_source reached pin_reached allowlisted
+  local entry resolved_target pin_index
+  local -a pin_keys=() pin_sources=() pin_expected_targets=()
+
+  classify_managed_source_files "$root" "$list"
+  report_widened_source_files ${WIDENED_SOURCE_FILES[@]+"${WIDENED_SOURCE_FILES[@]}"} ||
+    failures=$((failures + 1))
+
+  # A reach this scanner cannot follow is a hole in the walk, not a clean bill.
+  for unfollowable in ${CLASSIFIER_UNFOLLOWABLE_INCLUDES[@]+"${CLASSIFIER_UNFOLLOWABLE_INCLUDES[@]}"}; do
+    fail "s4-unfollowable-include: $unfollowable"
+  done
+
+  # Every source the walk finds secret-bearing must be pinned. The pins are the
+  # only thing that notices a shrunken universe or a moved target, so a table
+  # that quietly lost a row would leave that source unwatched while the run
+  # still says OK. Derived from the walk, not from the table, so the table
+  # cannot be its own oracle.
+  for secret_bearing in ${SECRET_BEARING_SOURCE_FILES[@]+"${SECRET_BEARING_SOURCE_FILES[@]}"}; do
+    [[ -n ${SECRET_SOURCE_TARGET_PINS[$secret_bearing]+set} ]] ||
+      fail "s4-unpinned-secret-source: $secret_bearing pulls from the secret vault but has no SECRET_SOURCE_TARGET_PINS row, so nothing would notice it leaving the walk or its target moving; add one naming its target path"
+  done
+
+  # The universe must not shrink under the walk. A `.chezmoiignore` pattern that
+  # covers a protected subtree removes those files from the list, and the run
+  # then reports OK on a smaller count with the violation still on disk.
+  for pinned_source in "${!SECRET_SOURCE_TARGET_PINS[@]}"; do
+    secret_source_is_managed_on_operating_system "$operating_system" "$pinned_source" ||
+      continue
+    pin_reached=0
+    for reached in ${REACHED_TARGET_PIN_KEYS[@]+"${REACHED_TARGET_PIN_KEYS[@]}"}; do
+      [[ $reached == "$pinned_source" ]] && pin_reached=1
+    done
+    ((pin_reached == 1)) ||
+      fail "s4-universe-shrank: $pinned_source holds a secret but the walk never reached it (deleted, renamed, or newly covered by a .chezmoiignore pattern); restore it or delete its SECRET_SOURCE_TARGET_PINS row deliberately"
+  done
+
+  # And a rename must not move a target. `chezmoi target-path` exits non-zero on
+  # a source path it cannot find, so a deleted or renamed pin is caught here
+  # too, on every OS: it reads the source tree and never the ignore rules.
+  for pinned_source in "${!SECRET_SOURCE_TARGET_PINS[@]}"; do
+    pin_keys+=("$pinned_source")
+    pin_sources+=("$root/$pinned_source")
+    pin_expected_targets+=("${SECRET_SOURCE_TARGET_PINS[$pinned_source]}")
+  done
+  if ((${#pin_sources[@]} > 0)); then
+    if ! chezmoi --config "$empty_chezmoi_config" --source "$root" \
+      --destination "$destination" --no-tty target-path "${pin_sources[@]}" \
+      >"$work/pin-targets.txt" 2>"$work/pin-targets.err"; then
+      fail "s4-target-pins-unresolvable: chezmoi could not resolve a protected source path: $(cat "$work/pin-targets.err")"
+    else
+      pin_index=0
+      while IFS= read -r resolved_target; do
+        pin_index=$((pin_index + 1))
+        assert_equal "${pin_expected_targets[$((pin_index - 1))]}" \
+          "${resolved_target#"$destination/"}" \
+          "s4-target-pinned-${pin_keys[$((pin_index - 1))]}"
+      done <"$work/pin-targets.txt"
+      assert_equal "${#pin_sources[@]}" "$pin_index" s4-every-target-pin-answered
+    fi
+  fi
+
+  # S5: no unreachable exemptions. An exemption whose file the walk never
+  # reaches has stopped being reviewed, so it must be deleted rather than left
+  # to vouch for a path that no longer exists.
+  for allowlisted in "${!PUBLIC_VALUE_VAULT_CALL_ALLOWLIST[@]}"; do
+    reached=0
+    for entry in ${REACHED_ALLOWLIST_ENTRIES[@]+"${REACHED_ALLOWLIST_ENTRIES[@]}"}; do
+      [[ $entry == "$allowlisted" ]] && reached=1
+    done
+    ((reached == 1)) ||
+      fail "s5-unreachable-exemption: $allowlisted is allowlisted but the walk never reached it (moved, no longer managed, or no longer calling the vault); delete the entry"
+  done
+}
+
+# ---------- S4a: the whole enforcement step, over a synthetic tree -----------
 # Every predicate above is pinned individually, but their COMPOSITION was not:
-# with only per-predicate tests, `if false` around the report, or a classify
-# step that never appends, leaves the fast gate green forever because a healthy
-# repo has no violation to notice. So run both steps over a tree that does.
+# with only per-predicate tests, `if false` around the report, a classify step
+# that never appends, or any one of the four enforcement loops deleted, leaves
+# the fast gate green forever because a healthy repo has no violation to notice.
+# So run the REAL enforcement function over a tree engineered to trip every
+# check at once, and count the reports.
 
 self_test_root="$work/self-test-source"
 mkdir -p "$self_test_root"
@@ -1064,6 +1563,15 @@ printf 'plain\n' >"$self_test_root/private_dot_probe-quiet"
 # shellcheck disable=SC2016  # a Go-template variable reference, not a shell one
 printf '{{ includeTemplate (printf "%%s.tmpl" $name) . }}\n' \
   >"$self_test_root/dot_probe-unfollowable.tmpl"
+# The mirror of that file: the same unnameable reach out of a source that
+# ALREADY declares 0600, where there is no widening to report and a report
+# would be a demand to rename a file that is correctly named.
+# shellcheck disable=SC2016  # a Go-template variable reference, not a shell one
+printf '{{ includeTemplate (printf "%%s.tmpl" $name) . }}\n' \
+  >"$self_test_root/private_dot_probe-unfollowable-but-private.tmpl"
+# On disk and pinned, but absent from the list: the shape a `.chezmoiignore`
+# pattern produces, and the one thing the list cannot report about itself.
+printf 'key = {{ (keepassxc "E").Password }}\n' >"$self_test_root/private_dot_probe-unlisted.tmpl"
 self_test_list="$work/self-test-list"
 printf '%s\0' \
   dot_probe-clean.tmpl \
@@ -1071,14 +1579,17 @@ printf '%s\0' \
   private_dot_probe-declared.tmpl \
   encrypted_probe-widened.age \
   private_dot_probe-quiet \
-  dot_probe-unfollowable.tmpl >"$self_test_list"
+  dot_probe-unfollowable.tmpl \
+  private_dot_probe-unfollowable-but-private.tmpl >"$self_test_list"
 
 classify_managed_source_files "$self_test_root" "$self_test_list"
-assert_equal 6 "$MANAGED_FILE_COUNT" s4a-classifier-walks-every-entry
+assert_equal 7 "$MANAGED_FILE_COUNT" s4a-classifier-walks-every-entry
 assert_equal "dot_probe-widened.tmpl encrypted_probe-widened.age" \
   "${WIDENED_SOURCE_FILES[*]-}" s4a-classifier-names-exactly-the-violations
+assert_equal "dot_probe-widened.tmpl private_dot_probe-declared.tmpl encrypted_probe-widened.age" \
+  "${SECRET_BEARING_SOURCE_FILES[*]-}" s4a-classifier-names-every-secret-bearing-source
 assert_equal 1 "${#CLASSIFIER_UNFOLLOWABLE_INCLUDES[@]}" \
-  s4a-classifier-records-an-unfollowable-include
+  s4a-classifier-records-an-unfollowable-include-of-a-widened-source
 case ${CLASSIFIER_UNFOLLOWABLE_INCLUDES[0]-} in
   dot_probe-unfollowable.tmpl*) ;;
   *) fail "s4a-classifier-names-the-unfollowable-include: got '${CLASSIFIER_UNFOLLOWABLE_INCLUDES[0]-}'" ;;
@@ -1095,11 +1606,91 @@ if ! report_widened_source_files 2>"$work/self-test-clean-report"; then
   fail "s4a-report-passes-a-clean-tree: report_widened_source_files returned non-zero with nothing widened"
 fi
 
+# The walk REFUSES an entry it cannot read rather than skipping it. Presence is
+# not readability: a 000 file is a regular file, so a `-f` test clears it and
+# every classification then answers "no secret" without having read a byte.
+if ((unreadable_probe_is_meaningful == 1)); then
+  printf '%s\0' dot_probe-unreadable.tmpl >"$work/unreadable-list"
+  failures_before_unreadable_walk=$failures
+  classify_managed_source_files "$unreadable_root" "$work/unreadable-list" \
+    2>"$work/unreadable-report"
+  unreadable_walk_findings=$((failures - failures_before_unreadable_walk))
+  failures=$failures_before_unreadable_walk
+  assert_equal 1 "$unreadable_walk_findings" s4a-walk-refuses-an-unreadable-entry
+  grep -q 'not a readable file' "$work/unreadable-report" ||
+    fail "s4a-walk-names-the-unreadable-entry: got '$(tr '\n' '|' <"$work/unreadable-report")'"
+fi
+chmod 600 "$unreadable_root/dot_probe-unreadable.tmpl"
+
+assert_predicate expect-true s4a-darwin-expects-every-pinned-source \
+  secret_source_is_managed_on_operating_system "$CHEZMOI_DARWIN_OPERATING_SYSTEM" \
+  "${DARWIN_ONLY_SOURCE_PREFIX}Application Support/probe"
+assert_predicate expect-false s4a-linux-does-not-expect-a-darwin-only-source \
+  secret_source_is_managed_on_operating_system linux \
+  "${DARWIN_ONLY_SOURCE_PREFIX}Application Support/probe"
+assert_predicate expect-true s4a-linux-still-expects-every-other-source \
+  secret_source_is_managed_on_operating_system linux dot_aws/private_credentials.tmpl
+
+# Now the enforcement step itself, over the same tree, with the policy tables
+# swapped for synthetic ones so each of the four loops has exactly one thing to
+# report. `failures` is restored afterwards: these findings are the fixtures,
+# not the repository's.
+saved_policy_tables="$(declare -p SECRET_SOURCE_TARGET_PINS PUBLIC_VALUE_VAULT_CALL_ALLOWLIST)"
+SECRET_SOURCE_TARGET_PINS=(
+  ["dot_probe-widened.tmpl"]=".probe-widened"
+  ["private_dot_probe-declared.tmpl"]=".probe-declared-MOVED"
+  ["private_dot_probe-unlisted.tmpl"]=".probe-unlisted"
+)
+PUBLIC_VALUE_VAULT_CALL_ALLOWLIST=(
+  ["dot_probe-never-walked.tmpl"]='keepassxc "Nowhere"'
+)
+failures_before_self_test=$failures
+enforce_managed_source_tree "$self_test_root" "$self_test_list" \
+  "$CHEZMOI_DARWIN_OPERATING_SYSTEM" "$work/self-test-pin-destination" \
+  2>"$work/self-test-enforcement-report"
+self_test_findings=$((failures - failures_before_self_test))
+failures=$failures_before_self_test
+eval "$saved_policy_tables"
+
+# One report per check: widened, unfollowable, unpinned secret-bearing source,
+# shrunken universe, moved target, unreachable exemption.
+assert_equal 6 "$self_test_findings" s4a-enforcement-reports-every-defect
+for expected_report in \
+  'declare target mode 0644' \
+  's4-unfollowable-include: dot_probe-unfollowable.tmpl' \
+  's4-unpinned-secret-source: encrypted_probe-widened.age' \
+  's4-universe-shrank: private_dot_probe-unlisted.tmpl' \
+  's4-target-pinned-private_dot_probe-declared.tmpl' \
+  's5-unreachable-exemption: dot_probe-never-walked.tmpl'; do
+  grep -qF -e "$expected_report" "$work/self-test-enforcement-report" ||
+    fail "s4a-enforcement-names-its-finding: no report matching '$expected_report' in $(tr '\n' '|' <"$work/self-test-enforcement-report")"
+done
+
+# The false-positive control. Without it every assertion above would also pass
+# against an enforcement step that reports on everything it is handed.
+clean_test_root="$work/clean-test-source"
+mkdir -p "$clean_test_root"
+printf 'key = {{ (keepassxc "E").Password }}\n' >"$clean_test_root/private_dot_probe-clean.tmpl"
+printf 'plain = 1\n' >"$clean_test_root/dot_probe-plain"
+clean_test_list="$work/clean-test-list"
+printf '%s\0' private_dot_probe-clean.tmpl dot_probe-plain >"$clean_test_list"
+saved_policy_tables="$(declare -p SECRET_SOURCE_TARGET_PINS PUBLIC_VALUE_VAULT_CALL_ALLOWLIST)"
+SECRET_SOURCE_TARGET_PINS=(["private_dot_probe-clean.tmpl"]=".probe-clean")
+PUBLIC_VALUE_VAULT_CALL_ALLOWLIST=()
+failures_before_clean_test=$failures
+enforce_managed_source_tree "$clean_test_root" "$clean_test_list" \
+  "$CHEZMOI_DARWIN_OPERATING_SYSTEM" "$work/clean-test-pin-destination" \
+  2>"$work/clean-test-enforcement-report"
+clean_test_findings=$((failures - failures_before_clean_test))
+failures=$failures_before_clean_test
+eval "$saved_policy_tables"
+assert_equal 0 "$clean_test_findings" s4a-enforcement-passes-a-clean-tree
+assert_equal 2 "$MANAGED_FILE_COUNT" s4a-enforcement-walked-the-clean-tree
+
 # ---------- S4b: the repository ----------------------------------------------
 
 managed_list="$work/managed-source-files"
-: >"$work/managed-config.toml"
-if ! chezmoi --config "$work/managed-config.toml" --source "$REPO_ROOT" \
+if ! chezmoi --config "$empty_chezmoi_config" --source "$REPO_ROOT" \
   --destination "$work/unused-destination" --no-tty managed --include=files \
   --nul-path-separator --path-style=source-relative >"$managed_list" \
   2>"$work/managed.err"; then
@@ -1110,67 +1701,20 @@ fi
 [[ -s $managed_list ]] ||
   fail "chezmoi managed listed no target files at all, so the guard would have nothing to check"
 
-classify_managed_source_files "$REPO_ROOT" "$managed_list"
-report_widened_source_files ${WIDENED_SOURCE_FILES[@]+"${WIDENED_SOURCE_FILES[@]}"} ||
-  failures=$((failures + 1))
+enforce_managed_source_tree "$REPO_ROOT" "$managed_list" \
+  "$chezmoi_operating_system" "$work/pin-destination"
 
-# A reach this scanner cannot follow is a hole in the walk, not a clean bill.
-for unfollowable in ${CLASSIFIER_UNFOLLOWABLE_INCLUDES[@]+"${CLASSIFIER_UNFOLLOWABLE_INCLUDES[@]}"}; do
-  fail "s4-unfollowable-include: $unfollowable"
-done
-
-# The universe must not shrink under the walk. A `.chezmoiignore` pattern that
-# covers a protected subtree removes those files from the list, and the run then
-# reports OK on a smaller count with the violation still on disk.
-for pinned_source in "${!SECRET_SOURCE_TARGET_PINS[@]}"; do
-  pin_reached=0
-  for reached in ${REACHED_TARGET_PIN_KEYS[@]+"${REACHED_TARGET_PIN_KEYS[@]}"}; do
-    [[ $reached == "$pinned_source" ]] && pin_reached=1
-  done
-  ((pin_reached == 1)) ||
-    fail "s4-universe-shrank: $pinned_source holds a secret but the walk never reached it (deleted, renamed, or newly covered by a .chezmoiignore pattern); restore it or delete its SECRET_SOURCE_TARGET_PINS row deliberately"
-done
-
-# And a rename must not move a target. `chezmoi target-path` exits non-zero on a
-# source path it cannot find, so a deleted or renamed pin is caught here too.
-declare -a pin_keys=()
-declare -a pin_sources=()
-declare -a pin_expected_targets=()
-for pinned_source in "${!SECRET_SOURCE_TARGET_PINS[@]}"; do
-  pin_keys+=("$pinned_source")
-  pin_sources+=("$REPO_ROOT/$pinned_source")
-  pin_expected_targets+=("${SECRET_SOURCE_TARGET_PINS[$pinned_source]}")
-done
-pin_destination="$work/pin-destination"
-if ! chezmoi --config "$work/managed-config.toml" --source "$REPO_ROOT" \
-  --destination "$pin_destination" --no-tty target-path "${pin_sources[@]}" \
-  >"$work/pin-targets.txt" 2>"$work/pin-targets.err"; then
-  fail "s4-target-pins-unresolvable: chezmoi could not resolve a protected source path: $(cat "$work/pin-targets.err")"
-else
-  pin_index=0
-  while IFS= read -r resolved_target; do
-    pin_index=$((pin_index + 1))
-    assert_equal "${pin_expected_targets[$((pin_index - 1))]}" \
-      "${resolved_target#"$pin_destination/"}" \
-      "s4-target-pinned-${pin_keys[$((pin_index - 1))]}"
-  done <"$work/pin-targets.txt"
-  assert_equal "${#pin_sources[@]}" "$pin_index" s4-every-target-pin-answered
-fi
-
-# ---------- S5: no unreachable exemptions ------------------------------------
-for allowlisted in "${!PUBLIC_VALUE_VAULT_CALL_ALLOWLIST[@]}"; do
-  reached=0
-  for entry in ${REACHED_ALLOWLIST_ENTRIES[@]+"${REACHED_ALLOWLIST_ENTRIES[@]}"}; do
-    [[ $entry == "$allowlisted" ]] && reached=1
-  done
-  ((reached == 1)) ||
-    fail "s5-unreachable-exemption: $allowlisted is allowlisted but the walk never reached it (moved, no longer managed, or no longer calling the vault); delete the entry"
-done
+# The walk must have consumed the repository's list and not some earlier one.
+# Deleting the call above is the only mutation the self-test cannot see, and
+# this is what sees it: the count would still be the synthetic tree's.
+managed_list_entry_count="$(tr -cd '\0' <"$managed_list" | wc -c | tr -d ' ')"
+assert_equal "$managed_list_entry_count" "$MANAGED_FILE_COUNT" \
+  s4-walk-consumed-the-whole-managed-list
 
 if ((failures > 0)); then
   printf 'secret-source-files-declare-private-mode: %d assertion(s) failed\n' "$failures" >&2
   exit 1
 fi
-printf 'secret-source-files-declare-private-mode: OK (attribute-sequence grammar re-measured, quote-aware live-action vault calls followed through includeTemplate, classifier and report self-tested, %d managed source files walked, %d protected sources pinned to their targets, %d call-level exemption(s))\n' \
-  "$MANAGED_FILE_COUNT" "${#SECRET_SOURCE_TARGET_PINS[@]}" \
+printf 'secret-source-files-declare-private-mode: OK (attribute-sequence grammar re-measured, quote-aware live-action vault calls followed through both include spellings, whole enforcement step self-tested against a tripping tree and a clean one, %d managed source files walked on %s, %d protected sources pinned to their targets, %d call-level exemption(s))\n' \
+  "$MANAGED_FILE_COUNT" "$chezmoi_operating_system" "${#SECRET_SOURCE_TARGET_PINS[@]}" \
   "${#PUBLIC_VALUE_VAULT_CALL_ALLOWLIST[@]}"
