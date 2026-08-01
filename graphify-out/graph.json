@@ -21960,62 +21960,6 @@
       "norm_label": "aerospace-binding-targets.sh script"
     },
     {
-      "label": "fail()",
-      "file_type": "code",
-      "source_file": "test/unit/aerospace-binding-targets.sh",
-      "source_location": "L85",
-      "metadata": {
-        "language": "bash",
-        "kind": "bash_function"
-      },
-      "_origin": "ast",
-      "id": "test_unit_aerospace_binding_targets_fail",
-      "community": 426,
-      "norm_label": "fail()"
-    },
-    {
-      "label": "list_contains()",
-      "file_type": "code",
-      "source_file": "test/unit/aerospace-binding-targets.sh",
-      "source_location": "L98",
-      "metadata": {
-        "language": "bash",
-        "kind": "bash_function"
-      },
-      "_origin": "ast",
-      "id": "test_unit_aerospace_binding_targets_list_contains",
-      "community": 426,
-      "norm_label": "list_contains()"
-    },
-    {
-      "label": "package_name_for_application()",
-      "file_type": "code",
-      "source_file": "test/unit/aerospace-binding-targets.sh",
-      "source_location": "L111",
-      "metadata": {
-        "language": "bash",
-        "kind": "bash_function"
-      },
-      "_origin": "ast",
-      "id": "test_unit_aerospace_binding_targets_package_name_for_application",
-      "community": 426,
-      "norm_label": "package_name_for_application()"
-    },
-    {
-      "label": "unqualified_package_name()",
-      "file_type": "code",
-      "source_file": "test/unit/aerospace-binding-targets.sh",
-      "source_location": "L118",
-      "metadata": {
-        "language": "bash",
-        "kind": "bash_function"
-      },
-      "_origin": "ast",
-      "id": "test_unit_aerospace_binding_targets_unqualified_package_name",
-      "community": 426,
-      "norm_label": "unqualified_package_name()"
-    },
-    {
       "label": "age-tripwire-pq.sh",
       "file_type": "code",
       "source_file": "test/unit/age-tripwire-pq.sh",
@@ -22495,7 +22439,7 @@
       "label": "fail()",
       "file_type": "code",
       "source_file": "test/unit/chezmoiignore-os-branch-render.sh",
-      "source_location": "L67",
+      "source_location": "L69",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -22509,7 +22453,7 @@
       "label": "GIT_PAGER",
       "file_type": "code",
       "source_file": "test/unit/chezmoiignore-os-branch-render.sh",
-      "source_location": "L76",
+      "source_location": "L78",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -22523,7 +22467,7 @@
       "label": "PAGER",
       "file_type": "code",
       "source_file": "test/unit/chezmoiignore-os-branch-render.sh",
-      "source_location": "L76",
+      "source_location": "L78",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -22537,7 +22481,7 @@
       "label": "is_template_directive_line()",
       "file_type": "code",
       "source_file": "test/unit/chezmoiignore-os-branch-render.sh",
-      "source_location": "L80",
+      "source_location": "L82",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -22551,7 +22495,7 @@
       "label": "is_glob_pattern()",
       "file_type": "code",
       "source_file": "test/unit/chezmoiignore-os-branch-render.sh",
-      "source_location": "L86",
+      "source_location": "L88",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -22565,7 +22509,7 @@
       "label": "is_significant_ignore_line()",
       "file_type": "code",
       "source_file": "test/unit/chezmoiignore-os-branch-render.sh",
-      "source_location": "L97",
+      "source_location": "L99",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -22579,7 +22523,7 @@
       "label": "render_ignore_with_gate()",
       "file_type": "code",
       "source_file": "test/unit/chezmoiignore-os-branch-render.sh",
-      "source_location": "L111",
+      "source_location": "L113",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -22593,7 +22537,7 @@
       "label": "render_ends_with_newline()",
       "file_type": "code",
       "source_file": "test/unit/chezmoiignore-os-branch-render.sh",
-      "source_location": "L120",
+      "source_location": "L122",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -22607,7 +22551,7 @@
       "label": "assert_predicate()",
       "file_type": "code",
       "source_file": "test/unit/chezmoiignore-os-branch-render.sh",
-      "source_location": "L133",
+      "source_location": "L135",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -22621,7 +22565,7 @@
       "label": "RENDERED_BRANCH",
       "file_type": "code",
       "source_file": "test/unit/chezmoiignore-os-branch-render.sh",
-      "source_location": "L175",
+      "source_location": "L177",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -22719,7 +22663,7 @@
       "label": "fail()",
       "file_type": "code",
       "source_file": "test/unit/espanso-trigger-reachability.sh",
-      "source_location": "L69",
+      "source_location": "L123",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -22733,7 +22677,7 @@
       "label": "target_file_name()",
       "file_type": "code",
       "source_file": "test/unit/espanso-trigger-reachability.sh",
-      "source_location": "L76",
+      "source_location": "L130",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -22747,7 +22691,7 @@
       "label": "is_auto_loaded_match_file()",
       "file_type": "code",
       "source_file": "test/unit/espanso-trigger-reachability.sh",
-      "source_location": "L82",
+      "source_location": "L136",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -22758,10 +22702,38 @@
       "norm_label": "is_auto_loaded_match_file()"
     },
     {
+      "label": "is_match_file_name()",
+      "file_type": "code",
+      "source_file": "test/unit/espanso-trigger-reachability.sh",
+      "source_location": "L144",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_espanso_trigger_reachability_is_match_file_name",
+      "community": 423,
+      "norm_label": "is_match_file_name()"
+    },
+    {
+      "label": "is_exempt_non_match_file_name()",
+      "file_type": "code",
+      "source_file": "test/unit/espanso-trigger-reachability.sh",
+      "source_location": "L155",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_espanso_trigger_reachability_is_exempt_non_match_file_name",
+      "community": 423,
+      "norm_label": "is_exempt_non_match_file_name()"
+    },
+    {
       "label": "is_word_character()",
       "file_type": "code",
       "source_file": "test/unit/espanso-trigger-reachability.sh",
-      "source_location": "L91",
+      "source_location": "L166",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -22775,7 +22747,7 @@
       "label": "options_require_boundary()",
       "file_type": "code",
       "source_file": "test/unit/espanso-trigger-reachability.sh",
-      "source_location": "L99",
+      "source_location": "L174",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -22786,10 +22758,80 @@
       "norm_label": "options_require_boundary()"
     },
     {
+      "label": "options_ignore_case()",
+      "file_type": "code",
+      "source_file": "test/unit/espanso-trigger-reachability.sh",
+      "source_location": "L190",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_espanso_trigger_reachability_options_ignore_case",
+      "community": 423,
+      "norm_label": "options_ignore_case()"
+    },
+    {
+      "label": "case_folded_trigger()",
+      "file_type": "code",
+      "source_file": "test/unit/espanso-trigger-reachability.sh",
+      "source_location": "L202",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_espanso_trigger_reachability_case_folded_trigger",
+      "community": 423,
+      "norm_label": "case_folded_trigger()"
+    },
+    {
+      "label": "folded_relation_is_reachable()",
+      "file_type": "code",
+      "source_file": "test/unit/espanso-trigger-reachability.sh",
+      "source_location": "L213",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_espanso_trigger_reachability_folded_relation_is_reachable",
+      "community": 423,
+      "norm_label": "folded_relation_is_reachable()"
+    },
+    {
+      "label": "import_target_path()",
+      "file_type": "code",
+      "source_file": "test/unit/espanso-trigger-reachability.sh",
+      "source_location": "L228",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_espanso_trigger_reachability_import_target_path",
+      "community": 423,
+      "norm_label": "import_target_path()"
+    },
+    {
+      "label": "discovered_match_file()",
+      "file_type": "code",
+      "source_file": "test/unit/espanso-trigger-reachability.sh",
+      "source_location": "L247",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_espanso_trigger_reachability_discovered_match_file",
+      "community": 423,
+      "norm_label": "discovered_match_file()"
+    },
+    {
       "label": "parse_match_records()",
       "file_type": "code",
       "source_file": "test/unit/espanso-trigger-reachability.sh",
-      "source_location": "L117",
+      "source_location": "L262",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -22800,24 +22842,24 @@
       "norm_label": "parse_match_records()"
     },
     {
-      "label": "parse_imported_file_names()",
+      "label": "parse_import_paths()",
       "file_type": "code",
       "source_file": "test/unit/espanso-trigger-reachability.sh",
-      "source_location": "L149",
+      "source_location": "L296",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
       },
       "_origin": "ast",
-      "id": "test_unit_espanso_trigger_reachability_parse_imported_file_names",
+      "id": "test_unit_espanso_trigger_reachability_parse_import_paths",
       "community": 423,
-      "norm_label": "parse_imported_file_names()"
+      "norm_label": "parse_import_paths()"
     },
     {
       "label": "assert_equals()",
       "file_type": "code",
       "source_file": "test/unit/espanso-trigger-reachability.sh",
-      "source_location": "L166",
+      "source_location": "L312",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -22831,7 +22873,7 @@
       "label": "assert_predicate()",
       "file_type": "code",
       "source_file": "test/unit/espanso-trigger-reachability.sh",
-      "source_location": "L171",
+      "source_location": "L317",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -22845,7 +22887,7 @@
       "label": "TRIGGER_OPTIONS",
       "file_type": "code",
       "source_file": "test/unit/espanso-trigger-reachability.sh",
-      "source_location": "L212",
+      "source_location": "L425",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -22859,7 +22901,7 @@
       "label": "TRIGGER_LOCATION",
       "file_type": "code",
       "source_file": "test/unit/espanso-trigger-reachability.sh",
-      "source_location": "L213",
+      "source_location": "L426",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -22873,7 +22915,7 @@
       "label": "LOADED_FILE",
       "file_type": "code",
       "source_file": "test/unit/espanso-trigger-reachability.sh",
-      "source_location": "L228",
+      "source_location": "L444",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -72812,36 +72854,6 @@
       "confidence_score": 1.0
     },
     {
-      "relation": "defines",
-      "confidence": "EXTRACTED",
-      "source_file": "test/unit/aerospace-binding-targets.sh",
-      "source_location": "L85",
-      "weight": 1.0,
-      "source": "test_unit_aerospace_binding_targets",
-      "target": "test_unit_aerospace_binding_targets_fail",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "defines",
-      "confidence": "EXTRACTED",
-      "source_file": "test/unit/aerospace-binding-targets.sh",
-      "source_location": "L98",
-      "weight": 1.0,
-      "source": "test_unit_aerospace_binding_targets",
-      "target": "test_unit_aerospace_binding_targets_list_contains",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "defines",
-      "confidence": "EXTRACTED",
-      "source_file": "test/unit/aerospace-binding-targets.sh",
-      "source_location": "L111",
-      "weight": 1.0,
-      "source": "test_unit_aerospace_binding_targets",
-      "target": "test_unit_aerospace_binding_targets_package_name_for_application",
-      "confidence_score": 1.0
-    },
-    {
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/aerospace-binding-targets.sh",
@@ -72849,16 +72861,6 @@
       "weight": 1.0,
       "source": "test_unit_aerospace_binding_targets",
       "target": "test_unit_aerospace_binding_targets_sh__entry",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "defines",
-      "confidence": "EXTRACTED",
-      "source_file": "test/unit/aerospace-binding-targets.sh",
-      "source_location": "L118",
-      "weight": 1.0,
-      "source": "test_unit_aerospace_binding_targets",
-      "target": "test_unit_aerospace_binding_targets_unqualified_package_name",
       "confidence_score": 1.0
     },
     {
@@ -73345,7 +73347,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/chezmoiignore-os-branch-render.sh",
-      "source_location": "L133",
+      "source_location": "L135",
       "weight": 1.0,
       "source": "test_unit_chezmoiignore_os_branch_render",
       "target": "test_unit_chezmoiignore_os_branch_render_assert_predicate",
@@ -73355,7 +73357,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/chezmoiignore-os-branch-render.sh",
-      "source_location": "L67",
+      "source_location": "L69",
       "weight": 1.0,
       "source": "test_unit_chezmoiignore_os_branch_render",
       "target": "test_unit_chezmoiignore_os_branch_render_fail",
@@ -73365,7 +73367,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/chezmoiignore-os-branch-render.sh",
-      "source_location": "L76",
+      "source_location": "L78",
       "weight": 1.0,
       "source": "test_unit_chezmoiignore_os_branch_render",
       "target": "test_unit_chezmoiignore_os_branch_render_git_pager",
@@ -73375,7 +73377,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/chezmoiignore-os-branch-render.sh",
-      "source_location": "L86",
+      "source_location": "L88",
       "weight": 1.0,
       "source": "test_unit_chezmoiignore_os_branch_render",
       "target": "test_unit_chezmoiignore_os_branch_render_is_glob_pattern",
@@ -73385,7 +73387,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/chezmoiignore-os-branch-render.sh",
-      "source_location": "L97",
+      "source_location": "L99",
       "weight": 1.0,
       "source": "test_unit_chezmoiignore_os_branch_render",
       "target": "test_unit_chezmoiignore_os_branch_render_is_significant_ignore_line",
@@ -73395,7 +73397,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/chezmoiignore-os-branch-render.sh",
-      "source_location": "L80",
+      "source_location": "L82",
       "weight": 1.0,
       "source": "test_unit_chezmoiignore_os_branch_render",
       "target": "test_unit_chezmoiignore_os_branch_render_is_template_directive_line",
@@ -73405,7 +73407,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/chezmoiignore-os-branch-render.sh",
-      "source_location": "L76",
+      "source_location": "L78",
       "weight": 1.0,
       "source": "test_unit_chezmoiignore_os_branch_render",
       "target": "test_unit_chezmoiignore_os_branch_render_pager",
@@ -73415,7 +73417,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/chezmoiignore-os-branch-render.sh",
-      "source_location": "L120",
+      "source_location": "L122",
       "weight": 1.0,
       "source": "test_unit_chezmoiignore_os_branch_render",
       "target": "test_unit_chezmoiignore_os_branch_render_render_ends_with_newline",
@@ -73425,7 +73427,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/chezmoiignore-os-branch-render.sh",
-      "source_location": "L111",
+      "source_location": "L113",
       "weight": 1.0,
       "source": "test_unit_chezmoiignore_os_branch_render",
       "target": "test_unit_chezmoiignore_os_branch_render_render_ignore_with_gate",
@@ -73435,7 +73437,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/chezmoiignore-os-branch-render.sh",
-      "source_location": "L175",
+      "source_location": "L177",
       "weight": 1.0,
       "source": "test_unit_chezmoiignore_os_branch_render",
       "target": "test_unit_chezmoiignore_os_branch_render_rendered_branch",
@@ -73455,7 +73457,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/chezmoiignore-os-branch-render.sh",
-      "source_location": "L139",
+      "source_location": "L141",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_chezmoiignore_os_branch_render_sh__entry",
@@ -73466,7 +73468,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/chezmoiignore-os-branch-render.sh",
-      "source_location": "L126",
+      "source_location": "L128",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_chezmoiignore_os_branch_render_sh__entry",
@@ -73477,7 +73479,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/chezmoiignore-os-branch-render.sh",
-      "source_location": "L228",
+      "source_location": "L235",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_chezmoiignore_os_branch_render_sh__entry",
@@ -73488,7 +73490,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/chezmoiignore-os-branch-render.sh",
-      "source_location": "L227",
+      "source_location": "L234",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_chezmoiignore_os_branch_render_sh__entry",
@@ -73499,7 +73501,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/chezmoiignore-os-branch-render.sh",
-      "source_location": "L162",
+      "source_location": "L164",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_chezmoiignore_os_branch_render_sh__entry",
@@ -73510,7 +73512,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/chezmoiignore-os-branch-render.sh",
-      "source_location": "L199",
+      "source_location": "L201",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_chezmoiignore_os_branch_render_sh__entry",
@@ -73521,7 +73523,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/chezmoiignore-os-branch-render.sh",
-      "source_location": "L137",
+      "source_location": "L139",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_chezmoiignore_os_branch_render_assert_predicate",
@@ -73573,7 +73575,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/espanso-trigger-reachability.sh",
-      "source_location": "L166",
+      "source_location": "L312",
       "weight": 1.0,
       "source": "test_unit_espanso_trigger_reachability",
       "target": "test_unit_espanso_trigger_reachability_assert_equals",
@@ -73583,7 +73585,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/espanso-trigger-reachability.sh",
-      "source_location": "L171",
+      "source_location": "L317",
       "weight": 1.0,
       "source": "test_unit_espanso_trigger_reachability",
       "target": "test_unit_espanso_trigger_reachability_assert_predicate",
@@ -73593,7 +73595,27 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/espanso-trigger-reachability.sh",
-      "source_location": "L69",
+      "source_location": "L202",
+      "weight": 1.0,
+      "source": "test_unit_espanso_trigger_reachability",
+      "target": "test_unit_espanso_trigger_reachability_case_folded_trigger",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/espanso-trigger-reachability.sh",
+      "source_location": "L247",
+      "weight": 1.0,
+      "source": "test_unit_espanso_trigger_reachability",
+      "target": "test_unit_espanso_trigger_reachability_discovered_match_file",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/espanso-trigger-reachability.sh",
+      "source_location": "L123",
       "weight": 1.0,
       "source": "test_unit_espanso_trigger_reachability",
       "target": "test_unit_espanso_trigger_reachability_fail",
@@ -73603,20 +73625,10 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/espanso-trigger-reachability.sh",
-      "source_location": "L82",
+      "source_location": "L213",
       "weight": 1.0,
       "source": "test_unit_espanso_trigger_reachability",
-      "target": "test_unit_espanso_trigger_reachability_is_auto_loaded_match_file",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "defines",
-      "confidence": "EXTRACTED",
-      "source_file": "test/unit/espanso-trigger-reachability.sh",
-      "source_location": "L91",
-      "weight": 1.0,
-      "source": "test_unit_espanso_trigger_reachability",
-      "target": "test_unit_espanso_trigger_reachability_is_word_character",
+      "target": "test_unit_espanso_trigger_reachability_folded_relation_is_reachable",
       "confidence_score": 1.0
     },
     {
@@ -73626,6 +73638,56 @@
       "source_location": "L228",
       "weight": 1.0,
       "source": "test_unit_espanso_trigger_reachability",
+      "target": "test_unit_espanso_trigger_reachability_import_target_path",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/espanso-trigger-reachability.sh",
+      "source_location": "L136",
+      "weight": 1.0,
+      "source": "test_unit_espanso_trigger_reachability",
+      "target": "test_unit_espanso_trigger_reachability_is_auto_loaded_match_file",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/espanso-trigger-reachability.sh",
+      "source_location": "L155",
+      "weight": 1.0,
+      "source": "test_unit_espanso_trigger_reachability",
+      "target": "test_unit_espanso_trigger_reachability_is_exempt_non_match_file_name",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/espanso-trigger-reachability.sh",
+      "source_location": "L144",
+      "weight": 1.0,
+      "source": "test_unit_espanso_trigger_reachability",
+      "target": "test_unit_espanso_trigger_reachability_is_match_file_name",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/espanso-trigger-reachability.sh",
+      "source_location": "L166",
+      "weight": 1.0,
+      "source": "test_unit_espanso_trigger_reachability",
+      "target": "test_unit_espanso_trigger_reachability_is_word_character",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/espanso-trigger-reachability.sh",
+      "source_location": "L444",
+      "weight": 1.0,
+      "source": "test_unit_espanso_trigger_reachability",
       "target": "test_unit_espanso_trigger_reachability_loaded_file",
       "confidence_score": 1.0
     },
@@ -73633,7 +73695,17 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/espanso-trigger-reachability.sh",
-      "source_location": "L99",
+      "source_location": "L190",
+      "weight": 1.0,
+      "source": "test_unit_espanso_trigger_reachability",
+      "target": "test_unit_espanso_trigger_reachability_options_ignore_case",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/espanso-trigger-reachability.sh",
+      "source_location": "L174",
       "weight": 1.0,
       "source": "test_unit_espanso_trigger_reachability",
       "target": "test_unit_espanso_trigger_reachability_options_require_boundary",
@@ -73643,17 +73715,17 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/espanso-trigger-reachability.sh",
-      "source_location": "L149",
+      "source_location": "L296",
       "weight": 1.0,
       "source": "test_unit_espanso_trigger_reachability",
-      "target": "test_unit_espanso_trigger_reachability_parse_imported_file_names",
+      "target": "test_unit_espanso_trigger_reachability_parse_import_paths",
       "confidence_score": 1.0
     },
     {
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/espanso-trigger-reachability.sh",
-      "source_location": "L117",
+      "source_location": "L262",
       "weight": 1.0,
       "source": "test_unit_espanso_trigger_reachability",
       "target": "test_unit_espanso_trigger_reachability_parse_match_records",
@@ -73673,7 +73745,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/espanso-trigger-reachability.sh",
-      "source_location": "L76",
+      "source_location": "L130",
       "weight": 1.0,
       "source": "test_unit_espanso_trigger_reachability",
       "target": "test_unit_espanso_trigger_reachability_target_file_name",
@@ -73683,7 +73755,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/espanso-trigger-reachability.sh",
-      "source_location": "L213",
+      "source_location": "L426",
       "weight": 1.0,
       "source": "test_unit_espanso_trigger_reachability",
       "target": "test_unit_espanso_trigger_reachability_trigger_location",
@@ -73693,7 +73765,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/espanso-trigger-reachability.sh",
-      "source_location": "L212",
+      "source_location": "L425",
       "weight": 1.0,
       "source": "test_unit_espanso_trigger_reachability",
       "target": "test_unit_espanso_trigger_reachability_trigger_options",
@@ -73703,7 +73775,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/espanso-trigger-reachability.sh",
-      "source_location": "L178",
+      "source_location": "L326",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_espanso_trigger_reachability_sh__entry",
@@ -73714,7 +73786,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/espanso-trigger-reachability.sh",
-      "source_location": "L180",
+      "source_location": "L328",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_espanso_trigger_reachability_sh__entry",
@@ -73725,7 +73797,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/espanso-trigger-reachability.sh",
-      "source_location": "L163",
+      "source_location": "L309",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_espanso_trigger_reachability_sh__entry",
@@ -73736,7 +73808,18 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/espanso-trigger-reachability.sh",
-      "source_location": "L231",
+      "source_location": "L520",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_espanso_trigger_reachability_sh__entry",
+      "target": "test_unit_espanso_trigger_reachability_folded_relation_is_reachable",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/espanso-trigger-reachability.sh",
+      "source_location": "L446",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_espanso_trigger_reachability_sh__entry",
@@ -73747,7 +73830,29 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/espanso-trigger-reachability.sh",
-      "source_location": "L278",
+      "source_location": "L372",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_espanso_trigger_reachability_sh__entry",
+      "target": "test_unit_espanso_trigger_reachability_is_exempt_non_match_file_name",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/espanso-trigger-reachability.sh",
+      "source_location": "L370",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_espanso_trigger_reachability_sh__entry",
+      "target": "test_unit_espanso_trigger_reachability_is_match_file_name",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/espanso-trigger-reachability.sh",
+      "source_location": "L535",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_espanso_trigger_reachability_sh__entry",
@@ -73758,7 +73863,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/espanso-trigger-reachability.sh",
-      "source_location": "L265",
+      "source_location": "L482",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_espanso_trigger_reachability_sh__entry",
@@ -73769,7 +73874,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/espanso-trigger-reachability.sh",
-      "source_location": "L169",
+      "source_location": "L315",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_espanso_trigger_reachability_assert_equals",
@@ -73780,7 +73885,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/espanso-trigger-reachability.sh",
-      "source_location": "L176",
+      "source_location": "L324",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_espanso_trigger_reachability_assert_predicate",
@@ -73791,11 +73896,22 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/unit/espanso-trigger-reachability.sh",
-      "source_location": "L105",
+      "source_location": "L180",
       "weight": 1.0,
       "context": "call",
       "source": "test_unit_espanso_trigger_reachability_options_require_boundary",
       "target": "test_unit_espanso_trigger_reachability_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/espanso-trigger-reachability.sh",
+      "source_location": "L215",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_espanso_trigger_reachability_folded_relation_is_reachable",
+      "target": "test_unit_espanso_trigger_reachability_options_ignore_case",
       "confidence_score": 1.0
     },
     {
@@ -98420,5 +98536,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "f7349eddcf95d0fd3e8acceba82701946a2d9fff"
+  "built_at_commit": "6277ba2c3e184e7b16a7f545813d9c0632d6a4d7"
 }
