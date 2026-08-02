@@ -226,6 +226,18 @@ case "${SSH_TREE_MUTATION_ACTION:?}" in
     uppercased="${target%/*}/$(printf '%s' "${target##*/}" | LC_ALL=C tr '[:lower:]' '[:upper:]')"
     staged="$target${CASE_ONLY_RENAME_STAGING_SUFFIX:?}"
     { mv -- "$target" "$staged" && mv -- "$staged" "$uppercased"; } || action_status=$?
+    # Two successful renames are not the same as a re-spelled directory entry.
+    # A volume that FOLDS case rather than preserving it hands back the old
+    # spelling with both renames reporting success, and this action would then
+    # log a mutation over a tree no observer can tell apart from the one before
+    # it. That reads as "the drift guard missed a case-only rename", which is
+    # the same wrong verdict this hook used to give for a refused rename, so
+    # the entry is re-read and disagreement is reported as a failed injection.
+    if [[ $action_status -eq 0 ]] &&
+      [[ -z $(/usr/bin/find "${uppercased%/*}" -maxdepth 1 -name "${uppercased##*/}" -print -quit) ]]; then
+      action_status=1
+      action_failure_detail=', because both renames reported success and the directory still does not hold that spelling: this volume folds case instead of preserving it, so a case-only rename is not observable here'
+    fi
     ;;
   *)
     printf 'tree-mutation-hook: unknown action %s\n' "$SSH_TREE_MUTATION_ACTION" >&2
@@ -233,10 +245,10 @@ case "${SSH_TREE_MUTATION_ACTION:?}" in
     ;;
 esac
 if [[ $action_status -ne 0 ]]; then
-  printf 'tree-mutation-hook: %s on %s exited %s, so the tree was NOT mutated\n' \
-    "$SSH_TREE_MUTATION_ACTION" "$target" "$action_status" >&2
-  printf '%s on %s exited %s\n' \
-    "$SSH_TREE_MUTATION_ACTION" "$target" "$action_status" \
+  printf 'tree-mutation-hook: %s on %s exited %s, so the tree was NOT mutated%s\n' \
+    "$SSH_TREE_MUTATION_ACTION" "$target" "$action_status" "$action_failure_detail" >&2
+  printf '%s on %s exited %s%s\n' \
+    "$SSH_TREE_MUTATION_ACTION" "$target" "$action_status" "$action_failure_detail" \
     >>"${SSH_TREE_MUTATION_FAILURE_LOG:?}"
   exit "$action_status"
 fi
