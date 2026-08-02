@@ -99,6 +99,11 @@ grep -qi 'not fully hardened' <<<"$SSH_RUN_ERR" ||
 write_hardened_dropin
 
 # --- 4: service confirmed absent (113): exit 0, no kickstart, explained -------
+# What the no-op SAYS about the later enabling is pinned by controls D and E in
+# ssh-hardening-reload-tree-drift.sh, which drive the moved and unmoved trees
+# that decide it. Here the subject is the mode's outcome contract: exit 0,
+# nothing sent to launchd, and stdout that names the two things the operator
+# needs to place this exit, the service state and the moment it is about.
 
 LAUNCHCTL_STUB_PRINT_STATUSES=113 run_ssh_reload --reload
 [[ $SSH_RUN_STATUS -eq 0 ]] ||
@@ -107,7 +112,7 @@ assert_no_kickstart '4'
 grep -qi 'Remote Login' <<<"$SSH_RUN_OUT" ||
   fail "4: stdout must explain the service follows Remote Login (stdout: $SSH_RUN_OUT)"
 grep -qi 'next enabled' <<<"$SSH_RUN_OUT" ||
-  fail "4: stdout must explain the drop-in applies when Remote Login is next enabled (stdout: $SSH_RUN_OUT)"
+  fail "4: stdout must name the moment this exit is about, Remote Login being next enabled (stdout: $SSH_RUN_OUT)"
 
 # --- 5: probe error (neither 0 nor 113): nonzero, no kickstart ----------------
 
