@@ -348,6 +348,25 @@ bad_forks="$(jq -r '
 [[ -z $bad_forks ]] ||
   fail "forks entries need a non-empty string sourceUrl, skillPath and lastComparedTreeHash: $bad_forks"
 
+# The drift-watch relays a fork's NAME as its --project, except for the two
+# advisories about the lock itself, which use reserved labels. A fork claiming
+# one of those labels would be indistinguishable from the lock file downstream.
+# The labels are READ OUT of the updater rather than restated here: a copy would
+# drift the moment either side is renamed, and the guard would then reserve a
+# label nothing uses while the live one collided freely.
+UPDATER="$REPO_ROOT/dot_local/bin/executable_update-skills.sh"
+reserved_relay_projects="$(sed -n 's/^FORK_RELAY_PROJECT_[A-Z_]*="\(.*\)"$/\1/p' "$UPDATER")"
+[[ -n $reserved_relay_projects ]] ||
+  fail "found no FORK_RELAY_PROJECT_* labels in $UPDATER; this guard would silently reserve nothing"
+# An explicit if, not `grep && fail`: as the last command of a loop body, a
+# grep that finds nothing makes the whole while loop exit non-zero, and under
+# `set -e` a clean roster would then kill this test with no message at all.
+while IFS= read -r reserved_project; do
+  if printf '%s\n' "$forks_keys" | grep -qx -- "$reserved_project"; then
+    fail "the forks table has a key '$reserved_project', which is a reserved lock-level relay --project label; downstream cannot tell that fork's advisory from the lock file's"
+  fi
+done <<<"$reserved_relay_projects"
+
 roster_count="$(printf '%s\n' "$roster_sorted" | wc -l | tr -d ' ')"
 npx_count="$(printf '%s\n' "$npx_keys" | wc -l | tr -d ' ')"
 clawhub_count=0

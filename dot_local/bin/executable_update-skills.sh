@@ -2868,8 +2868,11 @@ FORK_RELAY_STATE_WALK_INCOMPLETE="fork-walk-incomplete"           # fewer entrie
 # not parse" from "the forks table is the wrong shape" without reading prose.
 # The `lock:` prefix keeps them OUT of the fork name space: every other push
 # from this phase carries a fork name as its project, and a fork literally
-# named `lock` or `forks` would otherwise be indistinguishable downstream. A
-# colon cannot occur in a skill directory name, so the namespaces cannot meet.
+# named `lock` or `forks` would otherwise be indistinguishable downstream.
+# Nothing about a colon makes that structural on its own (measured: APFS
+# accepts a directory named `a:b`), so these two labels are RESERVED at build
+# time instead: test/unit/skills-roster-fanout.sh reads them out of this file
+# and fails when a forks key claims either.
 FORK_RELAY_PROJECT_LOCK_FILE="lock:file"
 FORK_RELAY_PROJECT_FORKS_TABLE="lock:forks-table"
 
