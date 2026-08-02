@@ -27,11 +27,17 @@
 #
 #   Case 1, a MULTI-DOCUMENT file. yq answers once per document and separates
 #   the answers, so a two-document file makes the shape arrive as
-#   $'seq !!seq\n---\nseq !!seq' and the count as $'1\n---\n0'. Both the shape
-#   classifier (which refuses any answer that is not one line) and the numeric
-#   predicate refuse that independently, so the case asserts the BEHAVIOUR
-#   rather than claiming to pin one guard. Case 6 holds the numeric half of it
-#   directly.
+#   $'seq !!seq\n---\nseq !!seq' and the count as $'1\n---\n0'. THREE guards
+#   refuse that independently now: the whole-file rules gate, which reads the
+#   multi-line answer as the document count and owns the message an operator
+#   sees; the shape classifier, which refuses any answer that is not one line;
+#   and the numeric predicate. So the case asserts the BEHAVIOUR rather than
+#   claiming to pin one guard, and it is deliberately NOT the place the
+#   multi-document refusal is pinned: that lives in
+#   test/unit/macos-defaults-data-file-rules-guard.sh with its message, and in
+#   test/integration/macos-defaults-shape-agreement.sh with the OTHER reader,
+#   which renders the first document and drops the rest. Case 6 holds the
+#   numeric half of it directly.
 #
 #   Cases 2 and 3 are the false-positive direction and carry the file: a guard
 #   that refuses everything passes every refusal case here and nothing else.
@@ -55,6 +61,10 @@ readonly SMALLEST_REFUSED_RECORD_COUNT=10000000
 # The shape answer a stubbed yq gives so the wiring cases reach the count check:
 # a healthy record list, which is the only verdict that does not refuse first.
 readonly HEALTHY_SHAPE_ANSWER='seq !!seq'
+
+# The whole-file rules answer that lets a stubbed case through to the count: no
+# duplicate mapping key, no complex mapping key, no alias.
+readonly WHOLE_FILE_RULES_SATISFIED_ANSWER='0 0 0'
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 LIB="$REPO_ROOT/dot_local/bin/macos-defaults-lib.sh"
@@ -102,7 +112,7 @@ source "$LIB" >/dev/null 2>&1
 mkdir -p "$work/stub-bin"
 cat >"$work/stub-bin/yq" <<'STUB'
 #!/usr/bin/env bash
-# A yq that answers two known expressions and nothing else. Invoked as
+# A yq that answers three known expressions and nothing else. Invoked as
 # `yq eval -r <expression> <path>`, so the expression is the argument after -r.
 set -euo pipefail
 expression=""
@@ -114,6 +124,14 @@ done
 case $expression in
   "$STUB_YQ_SHAPE_EXPRESSION") printf '%s\n' "$STUB_YQ_SHAPE_ANSWER" ;;
   "$STUB_YQ_COUNT_EXPRESSION") printf '%s\n' "$STUB_YQ_COUNT_ANSWER" ;;
+  # The whole-file rules gate sits between the shape read and the count read, so
+  # every stubbed case has to get past it to reach the count. It is answered
+  # SATISFIED and never varied: this file is about the numeric guard and its call
+  # site, and the rules gate has its own suite. Answered rather than skipped
+  # because the stub refuses what it was not told about, which is what made this
+  # constant have to be added here when the gate was introduced instead of the
+  # gate silently going unexercised.
+  "$STUB_YQ_RULES_EXPRESSION") printf '%s\n' "$STUB_YQ_RULES_ANSWER" ;;
   *)
     printf 'stub yq: asked an expression it was not told to answer: %q\n' "$expression" >&2
     exit 3
@@ -143,7 +161,9 @@ declared_count_with_stubbed_yq() { # <shape-answer> <count-answer>
     PATH="$work/stub-bin:$PATH" \
       STUB_YQ_SHAPE_EXPRESSION="$DEFAULTS_RECORDS_SHAPE_EXPRESSION" \
       STUB_YQ_COUNT_EXPRESSION="$DEFAULTS_RECORDS_COUNT_EXPRESSION" \
+      STUB_YQ_RULES_EXPRESSION="$DEFAULTS_DATA_FILE_RULES_EXPRESSION" \
       STUB_YQ_SHAPE_ANSWER="$1" STUB_YQ_COUNT_ANSWER="$2" \
+      STUB_YQ_RULES_ANSWER="$WHOLE_FILE_RULES_SATISFIED_ANSWER" \
       bash -c 'source "$1"; defaults_records_declared_count "$2"' _ "$LIB" "$work/stubbed.yaml" 2>&1
   )" || stubbed_count_status=$?
 }
@@ -161,12 +181,14 @@ status=0
 output="$(defaults_records_declared_count "$work/multi.yaml" 2>&1)" || status=$?
 [[ $status -eq 2 ]] ||
   fail "a multi-document data file must be refused with status 2, got $status (output: $output)"
-# The message must carry the offending value. Without it an operator sees only
-# "unusable" and has nothing to search the file for. `---` is the document
-# separator yq puts between its per-document answers, so its presence is what
-# tells the operator that the file has more than one document in it.
-printf '%s' "$output" | grep -q -- '---' ||
-  fail "the refusal does not show yq's unusable per-document answer, so it does not say what is wrong: $output"
+# The message must say what is wrong in the operator's terms. It used to be
+# asserted by grepping for `---`, the separator yq puts between its per-document
+# answers, because the refusal showed that raw answer and nothing else. Showing a
+# reader's internal output is not telling an operator their file has two
+# documents in it, so the refusal now says so and this asserts the words rather
+# than the artefact.
+printf '%s' "$output" | grep -qi 'document' ||
+  fail "the refusal does not say the file contains more than one document: $output"
 
 # ---- 2: a well-formed file still answers -----------------------------------
 # The guard must reject a shape, not everything. Without this the test would
@@ -261,5 +283,5 @@ printf '%s' "$stubbed_count_output" | grep -qF "$SMALLEST_REFUSED_RECORD_COUNT" 
 printf '%s' "$stubbed_count_output" | grep -qF 'unusable record count' ||
   fail "the oversized count was refused by some other check, so this case does not pin the numeric guard's call site: $stubbed_count_output"
 
-printf 'macos-defaults-count-guard: OK (a multi-document file is refused and its unusable answer shown; the digit ceiling refuses %s and accepts %s; the whole function still consults the numeric guard; single and empty files still answer)\n' \
+printf 'macos-defaults-count-guard: OK (a multi-document file is refused and told it has more than one document; the digit ceiling refuses %s and accepts %s; the whole function still consults the numeric guard; single and empty files still answer)\n' \
   "$SMALLEST_REFUSED_RECORD_COUNT" "$LARGEST_ACCEPTED_RECORD_COUNT"
