@@ -618,8 +618,11 @@ grep -qi 'configuration tree CHANGED' <<<"$SSH_RUN_ERR" ||
   fail "drift 14: the refusal must say the configuration tree changed (stderr: $SSH_RUN_ERR)"
 # Case-SENSITIVE on purpose (no -i): naming the new spelling is what proves the
 # second observation re-read the directory and saw the entry the rename wrote,
-# rather than reusing the listing the first one took.
-grep -q -- "${INERT_DROPIN_UPPERCASED##*/}" <<<"$SSH_RUN_ERR" ||
+# rather than reusing the listing the first one took. Fixed-string (-F) for the
+# same reason the assertion exists at all: unanchored, the '.' in the name is a
+# regex any-character and the pin would accept a spelling it was written to
+# reject.
+grep -qF -- "${INERT_DROPIN_UPPERCASED##*/}" <<<"$SSH_RUN_ERR" ||
   fail "drift 14: the refusal must name the new spelling '${INERT_DROPIN_UPPERCASED##*/}' (stderr: $SSH_RUN_ERR)"
 restore_inert_dropin_spelling ||
   fail "drift 14: the drop-in spelling must be restorable; every later case addresses it by its lowercase path"
