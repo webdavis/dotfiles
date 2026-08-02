@@ -656,14 +656,19 @@ GEN_ROSTER_HASH=""          # sha256 of the snapshot at run start
 # every clawhub entry a non-empty string `slug` and `registry`. A malformed
 # entry is a required failure, never a silently skipped skill.
 #
-# `forks` (the drift-watch's whole input) is held to the same rule for the same
-# reason. Its walk is `jq '.forks|keys[]?'` with stderr discarded, so every
-# non-object shape watched zero upstreams and reported nothing; an ARRAY was
-# worse still, erroring mid-walk and aborting the weekly run after the
-# generation exchange had published and before the success stamp was written.
-# check_fork_drift carries its own tolerant guard for the modes that skip this
-# gate (--check-forks-only mutates nothing and keeps its no-op contract); this
-# one refuses a MUTATING run over a roster whose fork watch is degraded.
+# `forks` (the drift-watch's whole input) is deliberately NOT gated here, and
+# that omission is the design, not an oversight. NOTHING in the mutating path
+# reads it: a typo there can only degrade an ADVISORY report, and this script
+# already classifies the drift-watch as advisory (see record_required_failure).
+# Gating it turned a hand-edit typo in the one field an operator edits by hand
+# every time they clear a drift (an unquoted lastComparedTreeHash) into a total
+# refusal of the weekly update: no build, no publish, no prune, no stamp, on
+# every remaining slot, under an alert that blames the DEPLOYED lock when the
+# committed source is what is wrong. The shape is enforced where it costs
+# nothing instead: test/unit/skills-roster-fanout.sh fails the BUILD on a
+# malformed committed forks entry, and check_fork_drift validates the table and
+# every entry at RUN time, reporting each failure loudly and per entry without
+# refusing the run that publishes and prunes.
 __gen_roster_schema_ok() {
   jq -e '
     def object_or_absent($k): (has($k) | not) or (.[$k] | type == "object");
@@ -672,17 +677,11 @@ __gen_roster_schema_ok() {
     and object_or_absent("npxTracked")
     and object_or_absent("clawhubTracked")
     and object_or_absent("tiers")
-    and object_or_absent("forks")
     and ((.npxTracked // {}) | to_entries
       | all((.value | type == "object") and nonempty_string(.value.repo)))
     and ((.clawhubTracked // {}) | to_entries
       | all((.value | type == "object")
         and nonempty_string(.value.slug) and nonempty_string(.value.registry)))
-    and ((.forks // {}) | to_entries
-      | all((.value | type == "object")
-        and nonempty_string(.value.sourceUrl)
-        and nonempty_string(.value.skillPath)
-        and nonempty_string(.value.lastComparedTreeHash)))
   ' "$1" >/dev/null 2>&1
 }
 

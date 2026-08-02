@@ -9,6 +9,10 @@
 # `repo`; a clawhub entry has non-empty `slug` + `registry`) BEFORE any mutation.
 # A malformed table is a required failure, never an empty table.
 #
+# Cases A-D pin that refusal. Cases E-G pin its BOUNDARY: `forks` is advisory
+# data no mutating step reads, so a typo there must be reported, never escalated
+# into a refusal of the whole weekly update.
+#
 # Each case keeps the tracked UNION non-empty (a valid clawhub skill `gamma`) so
 # the F3 empty-union guard cannot mask the table-type bug: the run must refuse
 # specifically because a table/entry is malformed.
@@ -211,14 +215,37 @@ rcD=$?
 set -e
 assert_fail_closed "case D (malformed clawhub entry)" "$rcD" "$outD"
 
-# --- Case E: the forks table is false (same coercion class as case A) ---------
-# The gate guarded npxTracked/clawhubTracked/tiers and omitted forks, the one
-# table whose walk is `jq '.forks|keys[]?'` with stderr discarded. Every
-# non-object shape there watched zero forks and reported nothing, and an ARRAY
-# additionally errored mid-walk, which under `set -e` aborts the weekly run
-# AFTER the generation exchange has published and BEFORE the success stamp is
-# written, so every remaining Monday slot redoes the whole update and dies at
-# the same line.
+# --- Cases E and F: a malformed forks table must NOT refuse the weekly run ----
+# The opposite of every case above, and deliberately so. `forks` is the fork
+# drift-watch's input and NOTHING in the mutating path reads it, so a typo
+# there can only degrade an ADVISORY report. Holding it to the fail-closed rule
+# meant a hand-edit typo in the one field an operator edits every time they
+# clear a drift (an unquoted lastComparedTreeHash) refused the entire weekly
+# update: no build, no publish, no prune, no stamp, on every remaining Monday
+# slot, under an alert naming the DEPLOYED lock when the committed source is
+# what is wrong.
+#
+# So the wanted behaviour is: the run completes, publishes and stamps, and the
+# drift-watch reports the corruption by name. Asserting only "rc 0" would pass
+# against a gate that silently ignored the table, so each case also demands the
+# named advisory, and case F demands the FIELD be named.
+assert_advisory_not_refusal() { # $1 label, $2 rc, $3 out, $4 expected substring
+  local label="$1" rc="$2" out="$3" expected="$4"
+  [[ $rc -eq 0 ]] ||
+    fail "$label: a malformed ADVISORY table refused the whole run (rc=$rc): $out"
+  if grep -qi 'REQUIRED-FAILURE' <<<"$out"; then
+    fail "$label: a malformed ADVISORY table recorded a required failure: $out"
+  fi
+  [[ -f $STAMP ]] ||
+    fail "$label: the run withheld the weekly success stamp over advisory data: $out"
+  grep -qF "$expected" <<<"$out" ||
+    fail "$label: the corruption was tolerated silently instead of reported ('$expected' absent): $out"
+  # alpha (an npx skill) must still be live: tolerating the forks table must not
+  # mean tolerating a degraded generation.
+  [[ -L "$AGENTS/skills/alpha" && -f "$AGENTS/skills/alpha/SKILL.md" ]] ||
+    fail "$label: npx skill alpha was dropped"
+}
+
 reset_stamp
 cat >"$LOCK" <<'EOF'
 {
@@ -235,11 +262,13 @@ set +e
 outE="$(run_full)"
 rcE=$?
 set -e
-assert_fail_closed "case E (forks false)" "$rcE" "$outE"
+assert_advisory_not_refusal "case E (forks false)" "$rcE" "$outE" \
+  'the forks table in'
 
-# --- Case F: a forks ENTRY is missing every field it is walked by -------------
-# Entry validation matches the npx/clawhub rule: an entry the walk cannot use
-# is a malformed roster, never a silently unwatched fork.
+# --- Case F: a forks ENTRY the walk cannot use --------------------------------
+# The hand-edit typo itself: lastComparedTreeHash written without quotes. Under
+# the old gate this exact lock refused the run; now the entry is reported with
+# the offending FIELD named, and everything else still updates.
 reset_stamp
 cat >"$LOCK" <<'EOF'
 {
@@ -249,24 +278,25 @@ cat >"$LOCK" <<'EOF'
   "hermesRegistry": {},
   "npxTracked": {"alpha": {"repo": "fixture/pack"}},
   "clawhubTracked": {"gamma": {"slug": "@o/gamma", "registry": "https://c.example"}},
-  "forks": {"delta": {}}
+  "forks": {"delta": {"sourceUrl": "https://example.invalid/d.git", "skillPath": "skills/d", "lastComparedTreeHash": 12345}}
 }
 EOF
 set +e
 outF="$(run_full)"
 rcF=$?
 set -e
-assert_fail_closed "case F (malformed forks entry)" "$rcF" "$outF"
+assert_advisory_not_refusal "case F (mis-typed forks field)" "$rcF" "$outF" \
+  'lastComparedTreeHash'
+grep -qF 'delta' <<<"$outF" ||
+  fail "case F: the advisory does not name the broken fork: $outF"
 
-# --- Case G: a VALID non-empty forks table must be ACCEPTED -------------------
-# Every other case here is a refusal, and every happy-path fixture in the suite
-# carries `"forks": {}`, so nothing proved the gate lets a real forks table
-# through. An over-strict clause (one extra required field, say) would then
-# refuse the roster on every Monday slot, after publishing nothing and stamping
-# nothing, with the whole suite green. The entry's upstream deliberately does
-# not exist: an unreachable upstream is advisory, so the run must sail past it,
-# and it names the fork in the log, which proves the table was WALKED rather
-# than merely tolerated.
+# --- Case G: a VALID non-empty forks table sails through and is WALKED --------
+# Every happy-path fixture in this suite carries `"forks": {}`, so without this
+# nothing proved a real forks table reaches the drift-watch at all: cases E and
+# F would pass just as well against a run that ignored the table outright. The
+# entry's upstream deliberately does not exist: an unreachable upstream is
+# advisory, so the run must sail past it, and it names the fork in the log,
+# which proves the table was WALKED rather than merely tolerated.
 reset_stamp
 cat >"$LOCK" <<EOF
 {
