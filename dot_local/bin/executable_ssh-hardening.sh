@@ -1019,6 +1019,29 @@ resolve_include_paths() {
 # again here does not CLOSE the window, nothing reachable from a shell does; it
 # narrows it to the same stat-then-open microseconds the observation's own type
 # re-check leaves.
+#
+# NO TEST REACHES EITHER CALLER OF THIS, and the commit that added them
+# (aa31f42f) implied otherwise. Both callers sit behind a -f filter that runs
+# earlier on every route in: config_tree_roots filters a root, and
+# resolve_include_paths filters an Include match. A pipe already sitting in the
+# tree is therefore dropped before it can reach either guarded open, and the
+# only state these two catch is a path whose TYPE CHANGES inside the
+# resolve-to-open window. Producing that state on demand needs a seam inside
+# that window and there is none: it is pure bash from the resolver's -f test to
+# the `read`, so the drift suite's mutation hook, which fires inside a stubbed
+# tool, has nowhere to land. Measured 2026-08-01: deleting either guard on its
+# own leaves the whole drift suite green, and deleting BOTH still leaves the
+# fifo case green, failing 230 lines later at the STAT_BIN case, which
+# exercises the observation's checksum-side type re-check and neither guard
+# here. aa31f42f's "with every regular-file guard removed it hangs into the
+# suite's wall clock" is true only if "every regular-file guard" is read to
+# include those PRE-EXISTING filters, which is not what it says.
+#
+# They stay, unpinned, because the window they narrow is real in production and
+# is not microseconds everywhere: for the second root the resolver's -f test
+# ran before the entire walk of the first. So do not delete them because a
+# mutation survives, and do not add a case that appears to pin them; a suite
+# that cannot reach a guard should say so rather than stage the reachability.
 path_is_a_regular_file() {
   [[ -f $1 ]]
 }
