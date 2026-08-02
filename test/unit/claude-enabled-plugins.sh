@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
 # claude-enabled-plugins.sh, the settings modify-template must RENDER the whole
-# declared plugin roster, must PRESERVE a live disable, and must never fail the
-# render, whatever shape the live settings file arrives in, on every operating
-# system this repository targets.
+# declared plugin roster, must PRESERVE the per-plugin state the live file
+# already holds, and must apply cleanly for every live settings file that parses
+# as JSON or is empty once trimmed, on every operating system this repository
+# targets. The shapes it CANNOT survive are named and pinned here too, in
+# UNPARSEABLE_LIVE_FILE_CASES, because leaving them unstated is what let an
+# earlier version of this comment claim the render never fails.
 #
 # WHY THIS EXISTS, PART ONE: THE ROSTER MUST BE COMPLETE. modify_settings.json
 # writes enabledPlugins with setValueAtPath, which REPLACES the value at that
@@ -32,6 +35,23 @@
 # permissions.deny, every hook, statusLine and every skillOverrides entry, not
 # just the plugin list. Hence one case per realistic live-file shape, an apply
 # that must SUCCEED in each, and the stable-field assertions below.
+#
+# WHERE THAT STOPS, AND WHY THIS FILE SAYS SO. A failed modify-template does not
+# fail one target, it aborts the APPLY: every later target and every run_after_
+# script is skipped, and the file that caused it is left exactly as it was, so
+# permissions.deny is not restored either. The render survives every live file
+# that PARSES, and every one that is empty once trimmed. It does not survive a
+# live file that is non-empty and is not JSON, and no version of this template
+# can: chezmoi's three JSON readers (fromJson, fromJsonc, fromYaml) all fail the
+# template on bad input, and Go's text/template has no recover, so there is
+# nothing to fall back FROM (measured 2026-08-02 on chezmoi 2.62.3 and 2.71.1;
+# `try`, `catch` and every lenient-parse name probed are undefined). Repairing
+# that needs something outside this template that runs BEFORE it. So the shapes
+# that abort are not left unmentioned: UNPARSEABLE_LIVE_FILE_CASES applies each
+# one, requires the failure, requires the apply's error to NAME the template so
+# the operator is not left guessing, and requires the live file to come back
+# byte-identical so the failure is inert rather than destructive. If someone
+# fixes the limitation, those cases fail and say where to move them.
 #
 # WHY THE STABLE FIELDS ARE ASSERTED HERE AT ALL. The version of this file that
 # shipped before 2026-08-02 asserted only enabledPlugins, and measured green at
@@ -232,6 +252,31 @@ readonly -a LIVE_FILE_CASES=(
   'declared-plugin-disabled'
   'non-boolean-plugin-values'
 )
+
+# The live-file shapes that are non-empty and are NOT JSON. Each one aborts the
+# whole apply, and each is pinned rather than omitted, because the cost of one
+# of these is paid by every OTHER target and every run_after_ script in the same
+# run, not by this file alone.
+#
+#   truncated-json-live-file   a write that stopped mid-object: a crash, a full
+#                              disk, a killed process. The bytes are a prefix of
+#                              a valid file.
+#   trailing-garbage-live-file a complete JSON object with extra characters
+#                              after it, what a bad merge or a double write
+#                              leaves.
+#   not-json-live-file         not JSON at any point, what a hand edit into the
+#                              wrong file leaves.
+readonly -a UNPARSEABLE_LIVE_FILE_CASES=(
+  'truncated-json-live-file'
+  'trailing-garbage-live-file'
+  'not-json-live-file'
+)
+
+# The apply's error must name the source template that could not read the file.
+# Without this the case would pass for ANY apply failure, including a broken
+# sandbox, and the operator facing a real one would get a message that does not
+# say which file to look at.
+readonly UNPARSEABLE_APPLY_ERROR_FRAGMENT='modify_settings.json'
 
 # Reports are `<record>:<kind>:<value>:<name>`, name LAST so that a name
 # containing the delimiter lands whole in the final field and every earlier
@@ -528,6 +573,7 @@ readonly SETTINGS_REPORT_TEMPLATE='
 
 failures=0
 verified_case_count=0
+verified_unparseable_case_count=0
 fail() {
   printf 'FAIL: %s\n' "$1" >&2
   failures=$((failures + 1))
@@ -535,15 +581,20 @@ fail() {
 
 finish() {
   local expected_case_count=$((${#LIVE_FILE_CASES[@]} * ${#TARGET_OPERATING_SYSTEMS[@]}))
+  local expected_unparseable_count=$((${#UNPARSEABLE_LIVE_FILE_CASES[@]} * ${#TARGET_OPERATING_SYSTEMS[@]}))
   if ((failures == 0 && verified_case_count != expected_case_count)); then
     fail "only $verified_case_count of $expected_case_count case runs reached their assertions, so some case was skipped without a verdict"
+  fi
+  if ((failures == 0 && verified_unparseable_case_count != expected_unparseable_count)); then
+    fail "only $verified_unparseable_case_count of $expected_unparseable_count unparseable-shape runs reached their assertions, so a shape that aborts the whole apply went unmeasured"
   fi
   if ((failures > 0)); then
     printf '\nclaude-enabled-plugins: %d failure(s)\n' "$failures" >&2
     exit 1
   fi
-  printf 'claude-enabled-plugins: OK, %d declared plugins verified across %d live-file cases for each target OS (%s)\n' \
-    "${#DECLARED_PLUGINS[@]}" "${#LIVE_FILE_CASES[@]}" "${TARGET_OPERATING_SYSTEMS[*]}"
+  printf 'claude-enabled-plugins: OK, %d declared plugins verified across %d live-file cases and %d unparseable shapes for each target OS (%s)\n' \
+    "${#DECLARED_PLUGINS[@]}" "${#LIVE_FILE_CASES[@]}" \
+    "${#UNPARSEABLE_LIVE_FILE_CASES[@]}" "${TARGET_OPERATING_SYSTEMS[*]}"
   exit 0
 }
 
@@ -679,6 +730,9 @@ case_literal_fixture() {
     'empty-json-object') printf '{}\n' ;;
     'whole-file-json-null') printf 'null\n' ;;
     'whole-file-json-array') printf '[1, 2]\n' ;;
+    'truncated-json-live-file') printf '{"voiceEnabled": true, "enabledPlugins": {' ;;
+    'trailing-garbage-live-file') printf '{"voiceEnabled": true}}}\n' ;;
+    'not-json-live-file') printf 'this file is not json\n' ;;
     *) return 1 ;;
   esac
 }
@@ -1202,6 +1256,52 @@ verify_case() {
   verified_case_count=$((verified_case_count + 1))
 }
 
+# file_bytes <path> -- a file's contents with a sentinel appended, so that a
+# comparison sees trailing newlines. Command substitution strips them, and
+# "the failed apply appended a newline" is exactly the kind of partial write
+# this is here to catch.
+file_bytes() {
+  cat "$1"
+  printf 'X'
+}
+
+# verify_unparseable_case <case> <operating-system> -- one live-file shape the
+# render cannot survive. The apply MUST fail, its error MUST name the template
+# so an operator can act on it, and the live file MUST come back byte-identical,
+# because these bytes may be the only copy of settings the operator wants back.
+# A PASS here is a pinned limitation, not an endorsement.
+verify_unparseable_case() {
+  local requested_case="$1" operating_system="$2"
+  local settings_path apply_stderr bytes_before bytes_after
+
+  write_case_fixture "$requested_case" "$operating_system"
+  assert_fixture_precondition "$requested_case" "$operating_system"
+
+  settings_path="$(case_settings_path "$requested_case" "$operating_system")"
+  bytes_before="$(file_bytes "$settings_path")"
+
+  apply_stderr="$(case_apply_stderr_path "$requested_case" "$operating_system")"
+  if apply_settings_target "$requested_case" "$operating_system" 2>"$apply_stderr"; then
+    fail "[$operating_system/$requested_case] the apply SUCCEEDED against a live settings file that is not JSON. Nothing is broken, the template got BETTER than what this case pins: move this case into LIVE_FILE_CASES with the records it should render, and correct the KNOWN LIMIT comment in private_dot_claude/modify_settings.json and the matching paragraph in CLAUDE.md"
+    return 0
+  fi
+
+  grep -qF -- "$UNPARSEABLE_APPLY_ERROR_FRAGMENT" "$apply_stderr" ||
+    fail "[$operating_system/$requested_case] the apply failed without naming $UNPARSEABLE_APPLY_ERROR_FRAGMENT anywhere in its error, so this case cannot tell a live file it could not read from a sandbox it could not build, and an operator hitting the real thing is told nothing about which file to fix: $(tr '\n' ' ' <"$apply_stderr")"
+
+  if [[ ! -f $settings_path ]]; then
+    fail "[$operating_system/$requested_case] the failed apply REMOVED the live settings file; the failure is meant to be inert, and those bytes were the only copy of whatever the operator had"
+    verified_unparseable_case_count=$((verified_unparseable_case_count + 1))
+    return 0
+  fi
+
+  bytes_after="$(file_bytes "$settings_path")"
+  [[ $bytes_before == "$bytes_after" ]] ||
+    fail "[$operating_system/$requested_case] the failed apply CHANGED the live settings file; a partial write here destroys the only copy of whatever the operator had"
+
+  verified_unparseable_case_count=$((verified_unparseable_case_count + 1))
+}
+
 : >"$BOOTSTRAP_CONFIG"
 assert_test_constants
 populate_sandbox_source
@@ -1210,6 +1310,9 @@ for target_operating_system in "${TARGET_OPERATING_SYSTEMS[@]}"; do
   write_sandbox_config "$target_operating_system"
   for live_file_case in "${LIVE_FILE_CASES[@]}"; do
     verify_case "$live_file_case" "$target_operating_system"
+  done
+  for unparseable_live_file_case in "${UNPARSEABLE_LIVE_FILE_CASES[@]}"; do
+    verify_unparseable_case "$unparseable_live_file_case" "$target_operating_system"
   done
 done
 
