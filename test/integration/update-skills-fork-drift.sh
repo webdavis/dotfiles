@@ -894,6 +894,36 @@ assert_log_line_has "$fork_check_output" 'does not exist' 'custom-skill-lock.jso
 assert_relay_state fork-lock-missing \
   "case 20: an absent lock was logged but never relayed"
 
+# --- Case 25: an upstream whose HEAD does not resolve -------------------------
+# A clone can succeed and still land nothing to compare. An upstream whose HEAD
+# names a branch it no longer has clones without error and warns that it looks
+# like an empty repository (measured, git 2.55.0), and then every path lookup
+# under HEAD fails. Reported as a missing skillPath, that sends the operator to
+# re-point a path which is exactly where it has always been, on a branch the
+# repository still has, and the real defect (a renamed default branch, an
+# unborn HEAD) goes unmentioned. The remedies are opposite, so the reports are.
+case25_repo="$scratch_dir/case25-headless.git"
+# The test's OWN clone has to ignore the rewrite case 5 planted in this
+# sandbox's ~/.gitconfig, which is aimed at the fixture path.
+GIT_CONFIG_GLOBAL=/dev/null git clone -q --bare "$fixture_repo" "$case25_repo"
+git -C "$case25_repo" symbolic-ref HEAD refs/heads/no-such-branch
+case25_branch="$(git -C "$case25_repo" for-each-ref --format='%(refname)' 'refs/heads/*' | head -1)"
+git -C "$case25_repo" rev-parse --verify --quiet "$case25_branch:skills/forkskill" >/dev/null ||
+  fail "case 25 control: the recorded skillPath is not on the branch this upstream still has, so the case cannot show that the PATH is fine and the HEAD is not"
+write_forks_lock "$(jq -n --arg url "$case25_repo" \
+  '{headlessfork: {source: "fixture/headlessfork", sourceUrl: $url,
+    skillPath: "skills/forkskill",
+    lastComparedTreeHash: "0000000000000000000000000000000000000000"}}')"
+run_fork_check
+[[ $fork_check_rc -eq 0 ]] ||
+  fail "case 25: the drift-watch exited $fork_check_rc on an upstream with no usable HEAD: $fork_check_output"
+refute_match "$fork_check_output" 'FORK PATH MISSING' \
+  "case 25: an upstream whose HEAD does not resolve is reported as a missing skillPath, whose remedy (re-point skillPath) repairs a path that is not broken: $fork_check_output"
+assert_log_line_has "$fork_check_output" 'headlessfork' 'HEAD' \
+  "case 25: the report does not name HEAD, so the operator cannot tell which end of the comparison is missing: $fork_check_output"
+assert_relay_line fork-upstream-headless headlessfork \
+  "case 25: an upstream with no usable HEAD was logged but never relayed, or was relayed under a state whose remedy cannot be executed"
+
 # --- Case 21: an upstream that never answers is stopped at a deadline ---------
 # The worst thing this phase can do is not a wrong report, it is not returning.
 # It runs in the weekly flow AFTER the generation exchange has published and

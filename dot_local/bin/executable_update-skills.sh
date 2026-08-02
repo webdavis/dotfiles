@@ -2861,6 +2861,7 @@ FORK_RELAY_STATE_LOCK_MALFORMED="fork-lock-broken"                # the lock its
 FORK_RELAY_STATE_LOCK_MISSING="fork-lock-missing"                 # there is no lock file to walk at all
 FORK_RELAY_STATE_FORKS_TABLE_ABSENT="fork-table-absent"           # the lock parses but carries no forks table
 FORK_RELAY_STATE_UPSTREAM_UNREACHABLE="fork-upstream-unreachable" # the fetch failed; nothing was compared
+FORK_RELAY_STATE_UPSTREAM_HEADLESS="fork-upstream-headless"       # the fetch worked; the clone has no HEAD to compare against
 FORK_RELAY_STATE_CLONE_UNSTAGEABLE="fork-clone-unstageable"       # no temp dir to fetch into; nothing was compared
 FORK_RELAY_STATE_CLONE_TIMEOUT="fork-clone-timeout"               # the fetch never answered and was stopped; nothing was compared
 FORK_RELAY_STATE_WALK_INCOMPLETE="fork-walk-incomplete"           # fewer entries reached the walk than the table holds
@@ -3007,6 +3008,21 @@ notify_fork_upstream_unreachable() {
   done <<<"$clone_error"
   relay_fork_advisory "$FORK_RELAY_STATE_UPSTREAM_UNREACHABLE" "$fork" \
     "upstream $source_url could not be fetched, so $fork was not drift-checked; check the recorded sourceUrl and this host's network"
+}
+
+# The fetch worked and there is still nothing to compare against: the clone has
+# no HEAD that resolves to a commit. Upstream renamed its default branch and
+# left the symbolic ref pointing at the old name, or the repository is empty. A
+# clone of one succeeds and merely warns that it looks empty (measured, git
+# 2.55.0), after which every path lookup under HEAD fails, which is why this
+# used to be reported as a missing skillPath: the remedy there is to re-point
+# skillPath, and the path is not what is missing.
+notify_fork_upstream_headless() {
+  local fork="$1" source_url="$2"
+  log "FORK NO UPSTREAM HEAD: $fork, upstream $source_url was cloned but its HEAD does not resolve to a commit; it was NOT drift-checked this run"
+  log "FORK NO UPSTREAM HEAD: check the upstream's default branch (a rename leaves HEAD pointing at a branch that is gone, and an empty repository has no commit at all), and LEAVE forks[\"$fork\"].skillPath and lastComparedTreeHash alone; the recorded path is not what is missing"
+  relay_fork_advisory "$FORK_RELAY_STATE_UPSTREAM_HEADLESS" "$fork" \
+    "upstream $source_url cloned but its HEAD does not resolve to a commit, so $fork was not drift-checked; check the upstream's default branch, the recorded skillPath is not what is missing"
 }
 
 # The fetch was still running at its deadline and was stopped, so nothing about
@@ -3253,6 +3269,14 @@ discard_fork_clone() {
 # failing (measured, git 2.55.0), so the old `|| echo missing-path` produced
 # "HEAD:SKILL.md\nmissing-path", which compares equal to neither the sentinel
 # nor any hash, and therefore reported content drift forever.
+# Does this clone have a HEAD to compare against at all? Asked before the path
+# lookup, because a clone with no resolvable HEAD fails EVERY path lookup, and
+# "the path is gone" is then a report about the wrong end of the comparison.
+fork_clone_head_resolves() {
+  local repo_dir="$1"
+  git -C "$repo_dir" rev-parse --verify --quiet 'HEAD^{commit}' >/dev/null 2>&1
+}
+
 resolve_fork_upstream_hash() {
   local repo_dir="$1" skill_path="$2" revision
   if [[ $skill_path == "$FORK_SKILL_PATH_WHOLE_REPO" ]]; then
@@ -3355,6 +3379,11 @@ check_fork_drift() {
       clone_error="$(cat "$clone_dir/clone-output.log" 2>/dev/null)"
       discard_fork_clone "$clone_dir"
       notify_fork_upstream_unreachable "$fork" "$source_url" "$clone_error"
+      continue
+    fi
+    if ! fork_clone_head_resolves "$clone_dir/repo"; then
+      discard_fork_clone "$clone_dir"
+      notify_fork_upstream_headless "$fork" "$source_url"
       continue
     fi
     if ! current_tree_hash="$(resolve_fork_upstream_hash "$clone_dir/repo" "$skill_path")"; then

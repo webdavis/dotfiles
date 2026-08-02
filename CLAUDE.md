@@ -488,15 +488,18 @@ Each outcome gets its own relay state, because the remedies differ. **Drift** (`
 gone, so re-point `skillPath` and leave `lastComparedTreeHash` alone: bumping it would silence a
 comparison nobody has made. **An unreachable upstream** (`FORK UNREACHABLE`, `fork-upstream-unreachable`)
 means the fetch failed, and the log carries git's own message so a renamed, deleted or newly private
-upstream is not filed under "check your network" forever. **An unstageable clone**
-(`fork-clone-unstageable`) means there was no temp dir to fetch into, so nothing was compared. **A clone
-that never answered** (`FORK CLONE TIMED OUT`, `fork-clone-timeout`) means the fetch was still running at
-its deadline (5 minutes, `UPDATE_SKILLS_FORK_CLONE_DEADLINE` overrides it) and was stopped. **A broken
-lock** (`fork-lock-broken`, `fork-lock-missing`, `fork-walk-incomplete`) means the `forks` table, one of
-its entries, or the walk itself could not be used, so some or every upstream went unwatched. **A lock
-with no `forks` table at all** (`fork-table-absent`) is reported rather than read as a clean zero-entry
-watch: an empty `{}` is how a lock says there is deliberately nothing to watch, while an absent key is
-what a typo or a dropped table leaves behind, and that used to print what a healthy run prints.
+upstream is not filed under "check your network" forever. **An upstream with no usable HEAD**
+(`FORK NO UPSTREAM HEAD`, `fork-upstream-headless`) cloned fine and has no commit to compare against, so
+the default branch was renamed or the repository is empty, and the recorded `skillPath` is not what is
+missing. **An unstageable clone** (`fork-clone-unstageable`) means there was no temp dir to fetch into,
+so nothing was compared. **A clone that never answered** (`FORK CLONE TIMED OUT`, `fork-clone-timeout`)
+means the fetch was still running at its deadline (5 minutes, `UPDATE_SKILLS_FORK_CLONE_DEADLINE`
+overrides it) and was stopped. **A broken lock** (`fork-lock-broken`, `fork-lock-missing`,
+`fork-walk-incomplete`) means the `forks` table, one of its entries, or the walk itself could not be
+used, so some or every upstream went unwatched. **A lock with no `forks` table at all**
+(`fork-table-absent`) is reported rather than read as a clean zero-entry watch: an empty `{}` is how a
+lock says there is deliberately nothing to watch, while an absent key is what a typo or a dropped table
+leaves behind, and that used to print what a healthy run prints.
 
 The deadline is what keeps "advisory" literal. The watch runs after the generation exchange has published
 and before the success stamp is written, so a fetch that never answers parks the whole weekly update
