@@ -258,9 +258,9 @@ grep -qF -- '--state completed' <<<"$entries" || fail "a clean run posted no ent
 # "(added)" ("1 of 1"); a missing AFTER snapshot makes the total zero and every
 # skill read as "(removed)" ("1 of 0"). Only both snapshots taken at the right
 # moments produce "0 of 1".
-grep -qE 'npx lane: 0 of 1 tracked skills changed' <<<"$entries" ||
+grep -qF 'npx-tracked skills: 0 of 1 tracked entries changed' <<<"$entries" ||
   fail "a run that changed nothing did not report 0 of 1 npx changes: $entries"
-grep -qE 'clawhub lane: 0 of 1 tracked skills changed' <<<"$entries" ||
+grep -qF 'clawhub-tracked skills: 0 of 1 tracked entries changed' <<<"$entries" ||
   fail "a run that changed nothing did not report 0 of 1 clawhub changes: $entries"
 # And it must say what it CANNOT know. The npx lane installs latest from main
 # unpinned and its lock entries carry no version field, so a version number is

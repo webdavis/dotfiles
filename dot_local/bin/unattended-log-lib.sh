@@ -182,6 +182,67 @@ unattended_log_claim_week() {
   return 0
 }
 
+# How many changed names an entry lists before it summarizes the rest. Discord
+# caps a message at 2000 characters, and a whole-store or whole-Cellar move would
+# otherwise blow past it, taking the gap figure with it.
+UNATTENDED_LOG_NAME_CAP=12
+
+# unattended_log_change_line <before-file> <after-file> <label> <caveat> <style>
+#
+# One sentence describing what moved between two snapshots. Both files hold
+# "<name><TAB><fingerprint>" lines. It lives here rather than in either producer
+# because the two weekly jobs must report in the SAME shape; two copies of this
+# would drift and the channel would read as two different logs.
+#
+# `style` decides whether the fingerprint is worth printing:
+#   versions  the fingerprint is a human-meaningful version, so a change renders
+#             as "name old -> new" (Homebrew formulae, clawhub-installed skills).
+#   opaque    the fingerprint is a content hash that tells a reader nothing, so a
+#             change renders as the bare name (the npx skills lane).
+#
+# `caveat` is what this subject CANNOT tell you, restated on every entry rather
+# than assumed known. A record implying a completeness it does not have is worse
+# than no record.
+#
+# Added and removed names count as changes and are marked as such. A removal is
+# the single most worth-seeing line here: something left without being asked to.
+unattended_log_change_line() {
+  local before="$1" after="$2" label="$3" caveat="$4" style="$5"
+  local total=0 name fingerprint_after fingerprint_before shown
+  local -a changed=()
+  while IFS=$'\t' read -r name fingerprint_after; do
+    [[ -n $name ]] || continue
+    total=$((total + 1))
+    fingerprint_before="$(awk -F'\t' -v want="$name" '$1 == want { print $2; exit }' "$before" 2>/dev/null || true)"
+    if [[ -z $fingerprint_before ]]; then
+      changed+=("$name (added)")
+    elif [[ $fingerprint_before != "$fingerprint_after" ]]; then
+      if [[ $style == "versions" ]]; then
+        changed+=("$name $fingerprint_before -> $fingerprint_after")
+      else
+        changed+=("$name")
+      fi
+    fi
+  done <"$after"
+  while IFS=$'\t' read -r name fingerprint_before; do
+    [[ -n $name ]] || continue
+    awk -F'\t' -v want="$name" '$1 == want { found = 1 } END { exit !found }' "$after" 2>/dev/null ||
+      changed+=("$name (removed)")
+  done <"$before"
+
+  if [[ ${#changed[@]} -eq 0 ]]; then
+    printf '%s: 0 of %d tracked entries changed. %s' "$label" "$total" "$caveat"
+    return 0
+  fi
+  shown="$(printf '%s, ' "${changed[@]:0:UNATTENDED_LOG_NAME_CAP}")"
+  shown="${shown%, }"
+  if [[ ${#changed[@]} -gt $UNATTENDED_LOG_NAME_CAP ]]; then
+    shown="$shown, and $((${#changed[@]} - UNATTENDED_LOG_NAME_CAP)) more"
+  fi
+  printf '%s: %d of %d tracked entries changed (%s). %s' \
+    "$label" "${#changed[@]}" "$total" "$shown" "$caveat"
+}
+
 # unattended_log_post <agent> <state> <project> <detail> -- deliver one entry.
 #
 # --remote-only is not optional here. An unattended Monday-slot run is idle past

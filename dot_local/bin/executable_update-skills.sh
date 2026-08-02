@@ -283,73 +283,41 @@ __update_skills_record() {
 # number exists anywhere in the store, so those skills get a real
 # old -> new transition. Reading the marker rather than the roster also makes the
 # lane self-describing: a skill IS clawhub-tracked exactly when it carries one.
+#
+# The RENDERING lives in unattended-log-lib.sh, shared with
+# homebrew-weekly-upgrade.sh: the two weekly jobs must report in the same shape,
+# and two copies of that logic would drift into two different-looking logs.
 
-# __update_skills_change_snapshot -- one "<name>\t<lane>\t<fingerprint>" line per
-# tracked skill. Taken before the weekly attempt and again after it; the
-# difference is what the entry reports. Always exits 0: a record that cannot be
-# computed must not fail the run it is recording.
+# __update_skills_change_snapshot <lane> -- one "<name><TAB><fingerprint>" line
+# per tracked skill in that lane, the input shape unattended_log_change_line
+# reads. Taken before the weekly attempt and again after it; the difference is
+# what the entry reports. Always exits 0 for a known lane: a record that cannot
+# be computed must not fail the run it is recording. An UNKNOWN lane is an error,
+# because an empty snapshot would render as "0 of 0 changed", which reads as a
+# clean week.
 __update_skills_change_snapshot() {
-  local lock="$SKILLS_CURRENT/.skill-lock.json" origin name
-  if [[ -r $lock ]]; then
-    jq -r '(.skills // {}) | to_entries[] | [.key, "npx", (.value.skillFolderHash // "-")] | @tsv' \
-      "$lock" 2>/dev/null || true
-  fi
-  for origin in "$STORE"/*/.clawhub/origin.json; do
-    [[ -r $origin ]] || continue
-    name="${origin#"$STORE"/}"
-    name="${name%%/*}"
-    printf '%s\tclawhub\t%s\n' "$name" "$(jq -r '.installedVersion // "-"' "$origin" 2>/dev/null || printf -- '-')"
-  done
-  return 0
-}
-
-# How many changed skills an entry names before it summarizes the rest. Discord
-# caps a message at 2000 characters and a whole-store move would otherwise blow
-# past it, taking the gap figure with it.
-readonly LOG_CHANGE_NAME_CAP=12
-
-# __update_skills_lane_line <before-file> <after-file> <lane> <caveat> -- one
-# sentence per lane. `caveat` is what the lane CANNOT tell you, stated every
-# time; a record implying a completeness it does not have is worse than none.
-__update_skills_lane_line() {
-  local before="$1" after="$2" lane="$3" caveat="$4"
-  local total=0 name entry_lane fingerprint_after fingerprint_before shown
-  local -a changed=()
-  while IFS=$'\t' read -r name entry_lane fingerprint_after; do
-    [[ $entry_lane == "$lane" ]] || continue
-    total=$((total + 1))
-    fingerprint_before="$(awk -F'\t' -v want_name="$name" -v want_lane="$lane" \
-      '$1 == want_name && $2 == want_lane { print $3; exit }' "$before" 2>/dev/null || true)"
-    if [[ -z $fingerprint_before ]]; then
-      changed+=("$name (added)")
-    elif [[ $fingerprint_before != "$fingerprint_after" ]]; then
-      if [[ $lane == "clawhub" ]]; then
-        changed+=("$name $fingerprint_before -> $fingerprint_after")
-      else
-        changed+=("$name")
+  local lane="$1" lock="$SKILLS_CURRENT/.skill-lock.json" origin name
+  case "$lane" in
+    npx)
+      if [[ -r $lock ]]; then
+        jq -r '(.skills // {}) | to_entries[] | [.key, (.value.skillFolderHash // "-")] | @tsv' \
+          "$lock" 2>/dev/null || true
       fi
-    fi
-  done <"$after"
-  # A name present before and gone after was delisted or dropped; that is a
-  # change too, and the one most worth seeing.
-  while IFS=$'\t' read -r name entry_lane fingerprint_before; do
-    [[ $entry_lane == "$lane" ]] || continue
-    awk -F'\t' -v want_name="$name" -v want_lane="$lane" \
-      '$1 == want_name && $2 == want_lane { found = 1 } END { exit !found }' "$after" 2>/dev/null ||
-      changed+=("$name (removed)")
-  done <"$before"
-
-  if [[ ${#changed[@]} -eq 0 ]]; then
-    printf '%s lane: 0 of %d tracked skills changed. %s' "$lane" "$total" "$caveat"
-    return 0
-  fi
-  shown="$(printf '%s, ' "${changed[@]:0:LOG_CHANGE_NAME_CAP}")"
-  shown="${shown%, }"
-  if [[ ${#changed[@]} -gt $LOG_CHANGE_NAME_CAP ]]; then
-    shown="$shown, and $((${#changed[@]} - LOG_CHANGE_NAME_CAP)) more"
-  fi
-  printf '%s lane: %d of %d tracked skills changed (%s). %s' \
-    "$lane" "${#changed[@]}" "$total" "$shown" "$caveat"
+      ;;
+    clawhub)
+      for origin in "$STORE"/*/.clawhub/origin.json; do
+        [[ -r $origin ]] || continue
+        name="${origin#"$STORE"/}"
+        name="${name%%/*}"
+        printf '%s\t%s\n' "$name" "$(jq -r '.installedVersion // "-"' "$origin" 2>/dev/null || printf -- '-')"
+      done
+      ;;
+    *)
+      printf 'update-skills: unknown change-snapshot lane: %s\n' "$lane" >&2
+      return 1
+      ;;
+  esac
+  return 0
 }
 
 # Required-phase failure accounting. REQUIRED phases (npx/clawhub installs and
@@ -3691,23 +3659,22 @@ fi
 # list is the difference between this and the same reading afterwards, and it has
 # to be taken here because a published generation replaces the previous
 # fingerprints in place.
-LOG_CHANGE_BEFORE=""
-LOG_CHANGE_AFTER=""
+LOG_CHANGE_DIR=""
 if [[ -n $UNATTENDED_LOG_AVAILABLE ]]; then
-  LOG_CHANGE_BEFORE="$(mktemp)"
-  LOG_CHANGE_AFTER="$(mktemp)"
-  # Fold the snapshot temp files into the roster-snapshot cleanup trap already
-  # installed above (same shape: guard each name, then a trailing `true` so the
-  # trap can never alter the exit status), so no exit path leaks them.
+  LOG_CHANGE_DIR="$(mktemp -d)"
+  # Fold the snapshot dir into the roster-snapshot cleanup trap already installed
+  # above (same shape: guard each name, then a trailing `true` so the trap can
+  # never alter the exit status), so no exit path leaks it.
   __update_skills_cleanup() {
-    local leftover
-    for leftover in "${GEN_ROSTER_SNAPSHOT_FILE:-}" "${LOG_CHANGE_BEFORE:-}" "${LOG_CHANGE_AFTER:-}"; do
-      [[ -n $leftover ]] && rm -f "$leftover"
-    done
+    [[ -n ${GEN_ROSTER_SNAPSHOT_FILE:-} ]] && rm -f "$GEN_ROSTER_SNAPSHOT_FILE"
+    [[ -n ${LOG_CHANGE_DIR:-} ]] && rm -rf "$LOG_CHANGE_DIR"
     true
   }
   trap '__update_skills_cleanup' EXIT
-  __update_skills_change_snapshot >"$LOG_CHANGE_BEFORE" 2>/dev/null || true
+  for __update_skills_lane in npx clawhub; do
+    __update_skills_change_snapshot "$__update_skills_lane" \
+      >"$LOG_CHANGE_DIR/$__update_skills_lane.before" 2>/dev/null || true
+  done
 fi
 
 # 2-5) Build the candidate generation (a fake HOME under .skills-generations),
@@ -3803,13 +3770,20 @@ fi
 # throws away the main reason the channel exists. Required-phase failures also
 # reach here (they alert separately to the priority channel), so the entry states
 # the count rather than implying a clean week.
-if [[ -n $UNATTENDED_LOG_AVAILABLE && -n $LOG_CHANGE_AFTER ]]; then
-  __update_skills_change_snapshot >"$LOG_CHANGE_AFTER" 2>/dev/null || true
+if [[ -n $UNATTENDED_LOG_AVAILABLE && -n $LOG_CHANGE_DIR ]]; then
+  for __update_skills_lane in npx clawhub; do
+    __update_skills_change_snapshot "$__update_skills_lane" \
+      >"$LOG_CHANGE_DIR/$__update_skills_lane.after" 2>/dev/null || true
+  done
   __update_skills_record completed "$(printf '%s\n%s\n%s\nrequired-phase failures: %d' \
-    "$(__update_skills_lane_line "$LOG_CHANGE_BEFORE" "$LOG_CHANGE_AFTER" npx \
-      'The change unit is the skill folder hash: this lane installs the latest commit from main with no pin and its lock records no version field, so NO VERSION NUMBER IS KNOWABLE for these skills.')" \
-    "$(__update_skills_lane_line "$LOG_CHANGE_BEFORE" "$LOG_CHANGE_AFTER" clawhub \
-      'This lane records an installed version, so a version number is knowable here.')" \
+    "$(unattended_log_change_line "$LOG_CHANGE_DIR/npx.before" "$LOG_CHANGE_DIR/npx.after" \
+      'npx-tracked skills' \
+      'The change unit is the skill folder hash: this lane installs the latest commit from main with no pin and its lock records no version field, so NO VERSION NUMBER IS KNOWABLE for these skills.' \
+      opaque)" \
+    "$(unattended_log_change_line "$LOG_CHANGE_DIR/clawhub.before" "$LOG_CHANGE_DIR/clawhub.after" \
+      'clawhub-tracked skills' \
+      'This lane records an installed version, so a version number is knowable here.' \
+      versions)" \
     "$LOG_STAMP_NOTE" \
     "$REQUIRED_FAILURES")"
 fi

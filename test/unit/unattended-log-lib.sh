@@ -212,6 +212,83 @@ grep -qiE 'relay|not delivered|not executable' <<<"$out" ||
   fail "a missing relay.sh produced NO line; silence reads as a delivered entry: '$out'"
 [[ ! -s $RELAY_CALL_LOG ]] || fail "a missing relay.sh somehow logged a call"
 
+# ── 4c. The CHANGE SUMMARY. Both weekly jobs render through this one function,
+#       so the channel reads as one log rather than two. Fixture snapshots are
+#       built through printf '\t' rather than embedded literal tabs, so a
+#       whitespace-mangling edit cannot silently turn these into rows nothing
+#       matches. ─────────────────────────────────────────────────────────────
+row() { printf '%s\t%s' "$1" "$2"; }
+write_snapshot() { # <file> <name:fingerprint>...
+  local file="$1"
+  shift
+  : >"$file"
+  local spec name fingerprint
+  for spec in "$@"; do
+    name="${spec%%:*}"
+    fingerprint="${spec#*:}"
+    printf '%s\n' "$(row "$name" "$fingerprint")" >>"$file"
+  done
+}
+before="$tmp/change-before"
+after="$tmp/change-after"
+CAVEAT='no version number is knowable'
+
+# NOTHING CHANGED. The count AND the total must both be right: "0 of 0" would
+# read as a clean week on an empty subject, which is the "looks like success when
+# nothing happened" shape this whole record exists to end.
+write_snapshot "$before" "alpha:aaa1" "beta:bbb1"
+write_snapshot "$after" "alpha:aaa1" "beta:bbb1"
+line="$(unattended_log_change_line "$before" "$after" "npx-tracked skills" "$CAVEAT" opaque)"
+[[ $line == "npx-tracked skills: 0 of 2 tracked entries changed. $CAVEAT" ]] ||
+  fail "an unchanged subject rendered as: '$line'"
+
+# OPAQUE style names the subject and prints no fingerprint: a 64-character
+# content hash tells a reader nothing.
+write_snapshot "$after" "alpha:aaa2" "beta:bbb1"
+line="$(unattended_log_change_line "$before" "$after" "npx-tracked skills" "$CAVEAT" opaque)"
+grep -qF 'npx-tracked skills: 1 of 2 tracked entries changed (alpha).' <<<"$line" ||
+  fail "an opaque change did not name the subject: '$line'"
+refute 'aaa1|aaa2' "$line" "the opaque style printed a fingerprint, which tells the reader nothing"
+grep -qF "$CAVEAT" <<<"$line" || fail "the change line dropped its caveat: '$line'"
+
+# VERSIONS style prints the transition, which is the whole value on a subject
+# that actually has version numbers.
+write_snapshot "$before" "jq:1.7.1" "yq:4.53.3"
+write_snapshot "$after" "jq:1.8.0" "yq:4.53.3"
+line="$(unattended_log_change_line "$before" "$after" "formulae" "brew reports these" versions)"
+grep -qF 'formulae: 1 of 2 tracked entries changed (jq 1.7.1 -> 1.8.0).' <<<"$line" ||
+  fail "the versions style did not render the transition: '$line'"
+
+# ADDED and REMOVED are changes too. The removal is the single most worth-seeing
+# line: something left without being asked to.
+write_snapshot "$before" "alpha:aaa1"
+write_snapshot "$after" "alpha:aaa1" "delta:ddd1"
+grep -qF '1 of 2 tracked entries changed (delta (added)).' \
+  <<<"$(unattended_log_change_line "$before" "$after" subject "$CAVEAT" opaque)" ||
+  fail "an added entry was not reported"
+write_snapshot "$before" "alpha:aaa1" "beta:bbb1"
+write_snapshot "$after" "alpha:aaa1"
+grep -qF 'beta (removed)' \
+  <<<"$(unattended_log_change_line "$before" "$after" subject "$CAVEAT" opaque)" ||
+  fail "a removed entry was not reported"
+
+# A whole-subject move must not blow past Discord's 2000-character message cap
+# and take the gap figure with it. Names are capped, the remainder is counted,
+# and the true totals survive.
+: >"$before"
+: >"$after"
+for i in $(seq 1 40); do
+  printf '%s\n' "$(row "$(printf 'item%02d' "$i")" old)" >>"$before"
+  printf '%s\n' "$(row "$(printf 'item%02d' "$i")" new)" >>"$after"
+done
+line="$(unattended_log_change_line "$before" "$after" subject "$CAVEAT" opaque)"
+grep -qF 'subject: 40 of 40 tracked entries changed' <<<"$line" ||
+  fail "the capped line lost the true totals: '$line'"
+grep -qE 'and 28 more' <<<"$line" ||
+  fail "the capped line did not count the names it withheld: '$line'"
+[[ ${#line} -lt 800 ]] ||
+  fail "a whole-subject move rendered ${#line} characters; Discord caps a message at 2000"
+
 # ── 5. The route name the library posts to is the one the config declares and
 #      the apply-time status check probes. A rename in one place and not the
 #      others is a 404 on every entry, which relay reports but nobody reads. ──
