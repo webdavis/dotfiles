@@ -9027,7 +9027,7 @@
       "label": "run_helper()",
       "file_type": "code",
       "source_file": "test/e2e/homebrew-weekly-record.sh",
-      "source_location": "L99",
+      "source_location": "L98",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -9041,7 +9041,7 @@
       "label": "log_entries()",
       "file_type": "code",
       "source_file": "test/e2e/homebrew-weekly-record.sh",
-      "source_location": "L110",
+      "source_location": "L109",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -9055,7 +9055,7 @@
       "label": "alert_entries()",
       "file_type": "code",
       "source_file": "test/e2e/homebrew-weekly-record.sh",
-      "source_location": "L111",
+      "source_location": "L110",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -9069,7 +9069,7 @@
       "label": "log_entry_count()",
       "file_type": "code",
       "source_file": "test/e2e/homebrew-weekly-record.sh",
-      "source_location": "L112",
+      "source_location": "L111",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -9083,7 +9083,7 @@
       "label": "BREW_FAIL",
       "file_type": "code",
       "source_file": "test/e2e/homebrew-weekly-record.sh",
-      "source_location": "L114",
+      "source_location": "L113",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -9097,7 +9097,7 @@
       "label": "BREW_VERSIONS",
       "file_type": "code",
       "source_file": "test/e2e/homebrew-weekly-record.sh",
-      "source_location": "L115",
+      "source_location": "L114",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -9111,7 +9111,7 @@
       "label": "MAS_VERSIONS",
       "file_type": "code",
       "source_file": "test/e2e/homebrew-weekly-record.sh",
-      "source_location": "L117",
+      "source_location": "L116",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -9125,7 +9125,7 @@
       "label": "UPGRADE_MARKER",
       "file_type": "code",
       "source_file": "test/e2e/homebrew-weekly-record.sh",
-      "source_location": "L163",
+      "source_location": "L162",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -9139,7 +9139,7 @@
       "label": "BREW_BEFORE",
       "file_type": "code",
       "source_file": "test/e2e/homebrew-weekly-record.sh",
-      "source_location": "L164",
+      "source_location": "L163",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -9153,7 +9153,7 @@
       "label": "BREW_AFTER",
       "file_type": "code",
       "source_file": "test/e2e/homebrew-weekly-record.sh",
-      "source_location": "L166",
+      "source_location": "L165",
       "metadata": {
         "language": "bash",
         "kind": "code"
@@ -13418,6 +13418,90 @@
       "id": "test_integration_hermes_age_captures_assert_route_predicate",
       "community": 285,
       "norm_label": "assert_route_predicate()"
+    },
+    {
+      "label": "hermes-route-status.sh",
+      "file_type": "code",
+      "source_file": "test/integration/hermes-route-status.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "test_integration_hermes_route_status",
+      "community": 440,
+      "norm_label": "hermes-route-status.sh"
+    },
+    {
+      "label": "hermes-route-status.sh script",
+      "file_type": "code",
+      "source_file": "test/integration/hermes-route-status.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "test_integration_hermes_route_status_sh__entry",
+      "community": 440,
+      "norm_label": "hermes-route-status.sh script"
+    },
+    {
+      "label": "fail()",
+      "file_type": "code",
+      "source_file": "test/integration/hermes-route-status.sh",
+      "source_location": "L31",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_integration_hermes_route_status_fail",
+      "community": 440,
+      "norm_label": "fail()"
+    },
+    {
+      "label": "refute()",
+      "file_type": "code",
+      "source_file": "test/integration/hermes-route-status.sh",
+      "source_location": "L36",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_integration_hermes_route_status_refute",
+      "community": 440,
+      "norm_label": "refute()"
+    },
+    {
+      "label": "write_config()",
+      "file_type": "code",
+      "source_file": "test/integration/hermes-route-status.sh",
+      "source_location": "L104",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_integration_hermes_route_status_write_config",
+      "community": 440,
+      "norm_label": "write_config()"
+    },
+    {
+      "label": "run_status()",
+      "file_type": "code",
+      "source_file": "test/integration/hermes-route-status.sh",
+      "source_location": "L116",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_integration_hermes_route_status_run_status",
+      "community": 440,
+      "norm_label": "run_status()"
     },
     {
       "label": "hermes-superpowers-routing.sh",
@@ -64724,7 +64808,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/e2e/homebrew-weekly-record.sh",
-      "source_location": "L111",
+      "source_location": "L110",
       "weight": 1.0,
       "source": "test_e2e_homebrew_weekly_record",
       "target": "test_e2e_homebrew_weekly_record_alert_entries",
@@ -64734,7 +64818,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/e2e/homebrew-weekly-record.sh",
-      "source_location": "L166",
+      "source_location": "L165",
       "weight": 1.0,
       "source": "test_e2e_homebrew_weekly_record",
       "target": "test_e2e_homebrew_weekly_record_brew_after",
@@ -64744,7 +64828,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/e2e/homebrew-weekly-record.sh",
-      "source_location": "L164",
+      "source_location": "L163",
       "weight": 1.0,
       "source": "test_e2e_homebrew_weekly_record",
       "target": "test_e2e_homebrew_weekly_record_brew_before",
@@ -64754,7 +64838,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/e2e/homebrew-weekly-record.sh",
-      "source_location": "L114",
+      "source_location": "L113",
       "weight": 1.0,
       "source": "test_e2e_homebrew_weekly_record",
       "target": "test_e2e_homebrew_weekly_record_brew_fail",
@@ -64764,7 +64848,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/e2e/homebrew-weekly-record.sh",
-      "source_location": "L115",
+      "source_location": "L114",
       "weight": 1.0,
       "source": "test_e2e_homebrew_weekly_record",
       "target": "test_e2e_homebrew_weekly_record_brew_versions",
@@ -64784,7 +64868,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/e2e/homebrew-weekly-record.sh",
-      "source_location": "L110",
+      "source_location": "L109",
       "weight": 1.0,
       "source": "test_e2e_homebrew_weekly_record",
       "target": "test_e2e_homebrew_weekly_record_log_entries",
@@ -64794,7 +64878,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/e2e/homebrew-weekly-record.sh",
-      "source_location": "L112",
+      "source_location": "L111",
       "weight": 1.0,
       "source": "test_e2e_homebrew_weekly_record",
       "target": "test_e2e_homebrew_weekly_record_log_entry_count",
@@ -64804,7 +64888,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/e2e/homebrew-weekly-record.sh",
-      "source_location": "L117",
+      "source_location": "L116",
       "weight": 1.0,
       "source": "test_e2e_homebrew_weekly_record",
       "target": "test_e2e_homebrew_weekly_record_mas_versions",
@@ -64824,7 +64908,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/e2e/homebrew-weekly-record.sh",
-      "source_location": "L99",
+      "source_location": "L98",
       "weight": 1.0,
       "source": "test_e2e_homebrew_weekly_record",
       "target": "test_e2e_homebrew_weekly_record_run_helper",
@@ -64854,7 +64938,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/e2e/homebrew-weekly-record.sh",
-      "source_location": "L163",
+      "source_location": "L162",
       "weight": 1.0,
       "source": "test_e2e_homebrew_weekly_record",
       "target": "test_e2e_homebrew_weekly_record_upgrade_marker",
@@ -64875,7 +64959,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/e2e/homebrew-weekly-record.sh",
-      "source_location": "L136",
+      "source_location": "L135",
       "weight": 1.0,
       "context": "call",
       "source": "test_e2e_homebrew_weekly_record_sh__entry",
@@ -64886,7 +64970,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/e2e/homebrew-weekly-record.sh",
-      "source_location": "L122",
+      "source_location": "L121",
       "weight": 1.0,
       "context": "call",
       "source": "test_e2e_homebrew_weekly_record_sh__entry",
@@ -64908,7 +64992,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/e2e/homebrew-weekly-record.sh",
-      "source_location": "L112",
+      "source_location": "L111",
       "weight": 1.0,
       "context": "call",
       "source": "test_e2e_homebrew_weekly_record_log_entry_count",
@@ -68564,6 +68648,111 @@
       "context": "call",
       "source": "test_integration_hermes_age_captures_assert_route_predicate",
       "target": "test_integration_hermes_age_captures_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/hermes-route-status.sh",
+      "source_location": "L31",
+      "weight": 1.0,
+      "source": "test_integration_hermes_route_status",
+      "target": "test_integration_hermes_route_status_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/hermes-route-status.sh",
+      "source_location": "L36",
+      "weight": 1.0,
+      "source": "test_integration_hermes_route_status",
+      "target": "test_integration_hermes_route_status_refute",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/hermes-route-status.sh",
+      "source_location": "L116",
+      "weight": 1.0,
+      "source": "test_integration_hermes_route_status",
+      "target": "test_integration_hermes_route_status_run_status",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/hermes-route-status.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "test_integration_hermes_route_status",
+      "target": "test_integration_hermes_route_status_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/hermes-route-status.sh",
+      "source_location": "L104",
+      "weight": 1.0,
+      "source": "test_integration_hermes_route_status",
+      "target": "test_integration_hermes_route_status_write_config",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/hermes-route-status.sh",
+      "source_location": "L44",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_integration_hermes_route_status_sh__entry",
+      "target": "test_integration_hermes_route_status_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/hermes-route-status.sh",
+      "source_location": "L66",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_integration_hermes_route_status_sh__entry",
+      "target": "test_integration_hermes_route_status_refute",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/hermes-route-status.sh",
+      "source_location": "L126",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_integration_hermes_route_status_sh__entry",
+      "target": "test_integration_hermes_route_status_run_status",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/hermes-route-status.sh",
+      "source_location": "L125",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_integration_hermes_route_status_sh__entry",
+      "target": "test_integration_hermes_route_status_write_config",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/integration/hermes-route-status.sh",
+      "source_location": "L40",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_integration_hermes_route_status_refute",
+      "target": "test_integration_hermes_route_status_fail",
       "confidence_score": 1.0
     },
     {
@@ -109661,5 +109850,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "9b20593f093b20445f978ad5c7cef6d5aac20944"
+  "built_at_commit": "0710ae98ade96aa14ca9865adb5ae415695c0323"
 }
