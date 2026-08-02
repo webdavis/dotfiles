@@ -192,6 +192,13 @@ readonly NULL_VALUED_DECLARED_PLUGIN='frontend-design@claude-plugins-official'
 #
 #   no-live-file               a fresh machine, ~/.claude/settings.json absent.
 #   empty-live-file            a zero-byte file, what a truncated write leaves.
+#   blank-live-file            a file holding nothing but whitespace, which is
+#                              what an editor that saves an emptied buffer
+#                              leaves and what `printf '\n' >` leaves. It is a
+#                              SEPARATE shape from a zero-byte file: an empty
+#                              string is falsy in a template and a whitespace
+#                              one is not, so the zero-byte case alone leaves
+#                              this reaching the JSON parser.
 #   empty-json-object          `{}`, what a reset leaves.
 #   null-enabled-plugins       the key present and JSON null.
 #   array-enabled-plugins      the key present and holding a JSON ARRAY, so the
@@ -215,6 +222,7 @@ readonly NULL_VALUED_DECLARED_PLUGIN='frontend-design@claude-plugins-official'
 readonly -a LIVE_FILE_CASES=(
   'no-live-file'
   'empty-live-file'
+  'blank-live-file'
   'empty-json-object'
   'null-enabled-plugins'
   'array-enabled-plugins'
@@ -650,6 +658,10 @@ write_sandbox_config() {
 case_literal_fixture() {
   case "$1" in
     'empty-live-file') printf '' ;;
+    # A space, a tab, a carriage return and two newlines: every character the
+    # render's whitespace trim has to cover, in the one fixture, so a trim
+    # narrowed to newlines alone fails here.
+    'blank-live-file') printf ' \t\r\n \n' ;;
     'empty-json-object') printf '{}\n' ;;
     'whole-file-json-null') printf 'null\n' ;;
     'whole-file-json-array') printf '[1, 2]\n' ;;

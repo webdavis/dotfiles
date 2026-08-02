@@ -31,8 +31,33 @@
 */ -}}
 {{- /* .chezmoi.stdin is only set when chezmoi runs the modify template
        with a real target file. Use safe access so the template still
-       renders cleanly under `chezmoi execute-template` for ad-hoc testing. */ -}}
-{{- $stdin := index .chezmoi "stdin" | default "" -}}
+       renders cleanly under `chezmoi execute-template` for ad-hoc testing.
+
+       TRIMMED before the emptiness test, and that is a correctness
+       requirement rather than tidiness. An empty string is falsy and a string
+       of whitespace is not, so an untrimmed read sends a blank file to
+       fromJson, which HARD ERRORS on it (`error calling fromJson: EOF`,
+       measured 2026-08-02 on chezmoi 2.62.3 and 2.71.1). A modify-template
+       that errors aborts the WHOLE apply, not just this target: every later
+       target and every run_after_ script is skipped, and the corrupt file is
+       left in place, so permissions.deny is not restored either. A file
+       holding one newline is what an editor leaves after saving an emptied
+       buffer, so this is the cheapest shape to produce.
+
+       KNOWN LIMIT, deliberately not worked around here. Trimming only fixes
+       the shapes that are EMPTY once trimmed. A live file that is non-empty
+       and does not parse (a write truncated mid-object, a hand edit with a
+       stray character) still aborts the apply, and no template can catch it:
+       chezmoi's three JSON readers (fromJson, fromJsonc, fromYaml) all fail
+       the template on bad input, and Go's text/template has no recover, so
+       there is nothing to fall back FROM (measured 2026-08-02, and
+       test/unit/claude-enabled-plugins.sh pins the boundary with a case per
+       shape). Repairing that needs something outside this template that runs
+       BEFORE it. Until then the apply's own error names this file, and
+       deleting ~/.claude/settings.json is a safe recovery: every field this
+       template manages is rebuilt from here on the next apply, and only
+       free-drift keys are lost. */ -}}
+{{- $stdin := index .chezmoi "stdin" | default "" | trim -}}
 {{- $merged := dict -}}
 {{- if $stdin -}}
 {{-   $merged = fromJson $stdin -}}
