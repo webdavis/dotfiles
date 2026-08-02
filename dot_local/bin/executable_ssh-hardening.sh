@@ -978,10 +978,21 @@ resolve_include_paths() {
     fi
     for resolved in "${matches[@]}"; do
       # Regular files only. A path that is not one is skipped rather than
-      # opened, which is also what keeps a named pipe out of every reader
-      # downstream: `cksum < fifo` and `read < fifo` both block forever, and a
+      # opened, which is what keeps a named pipe out of the opens THIS FILE
+      # makes: `cksum < fifo` and `read < fifo` both block forever, and a
       # verifier or a reload that HANGS reports nothing at all. -f is false for
       # a symlink to a pipe too, so the guard holds through a link.
+      #
+      # WHAT IT DOES NOT COVER, named because the wording here used to claim
+      # "every reader downstream". sshd is a reader downstream and this filter
+      # does not reach it: every mode hands sshd `-f "$SSHD_MAIN_CONFIG"` and
+      # sshd resolves its own Include globs with no type filter at all.
+      # Measured 2026-08-01 against OpenSSH 10.0p2 on macOS 26.2, one fifo in
+      # the drop-in directory makes `sshd -G` and `sshd -t` each block forever
+      # where the same tree without it exits 0, which is `--verify` hanging
+      # with an EMPTY stdout and an empty stderr. That is sshd's own behaviour,
+      # it predates this filter, and nothing reachable from here changes it;
+      # the subject of the filter is the readers in this file.
       if [[ ! -f $resolved ]]; then
         continue
       fi
@@ -1144,7 +1155,9 @@ config_tree_roots() {
   fi
   for file in "${candidates[@]}"; do
     # Regular files only, for the reason spelled out in resolve_include_paths:
-    # a named pipe here would block every reader downstream forever.
+    # a named pipe here would block every open THIS FILE makes, forever. sshd
+    # is not covered by it, cannot be, and hangs on such a tree; the
+    # measurement and the reason are recorded at that filter.
     if [[ -z $file || ! -f $file ]]; then
       continue
     fi
@@ -1228,6 +1241,27 @@ verify() {
 # deleting it, and only then verifies. If any step fails the tree goes back
 # exactly as it was found, because refusing to CLAIM success is not the same
 # as refusing to CAUSE harm and the previous version did only the first.
+#
+# WHERE THAT PROPERTY STOPS, because "if any step fails" reads wider than it
+# is. The rollback runs when a step RETURNS a failure. A step that never
+# returns is a different thing, and the child verify can be one: sshd blocks
+# forever on a named pipe reached through its Include glob (measured, see
+# resolve_include_paths). Measured 2026-08-01 on such a tree, the install stops
+# after printing "wrote <target>" and "removed legacy drop-in <legacy>",
+# rollback_install is never reached, and both the published drop-in and the
+# dot-prefixed .<legacy>.saved copy stay. Killing it does not recover either:
+# SIGINT and SIGTERM reach the whole process group, which is what Ctrl-C sends,
+# so they kill this shell before any trap could run, and SIGKILL cannot be
+# trapped at all.
+#
+# That residue is deliberately left alone rather than defended against. What it
+# IS: the new policy published and the legacy file preserved under a name
+# sshd's Include glob does not match (verified: a dot-prefixed file holding an
+# invalid directive leaves `sshd -G` at exit 0, the same file undotted takes it
+# to 255), so the tree is hardened and the leftovers are inert. A wall clock
+# over the child verify is NOT the answer: stock macOS ships no `timeout`
+# binary, and a verify killed for being slow would roll the hardening back OFF
+# a machine that was fine, which is a worse outcome than an inert dot-file.
 #
 # The working files are DOT-PREFIXED deliberately: sshd's Include glob does not
 # match a leading dot (glob(3) semantics, verified), so a half-written staging
