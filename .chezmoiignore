@@ -50,8 +50,7 @@ tmp.*
 # Rust build artifacts for vendored herdr projects (rebuilt in-place at apply; never deploy).
 .local/share/herdr/**/target
 
-{{- if eq .chezmoi.os "linux" -}}
-.config/yabai
+{{- if eq .chezmoi.os "linux" }}
 Library
 .local/bin/macos-defaults-drift.sh
 .local/bin/macos-defaults-apply.sh
@@ -60,4 +59,4 @@ Library
 # Rotation is driven by a launchd agent and reads sizes with BSD `stat -f`.
 .local/bin/rotate-logs.sh
 .local/bin/brew-shellenv-cache-refresh.sh
-{{- end -}}
+{{- end }}

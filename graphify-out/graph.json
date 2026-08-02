@@ -48410,6 +48410,1040 @@
       "community": 419,
       "norm_label": "security",
       "id": "claude_security"
+    },
+    {
+      "label": "aerospace-binding-targets.sh",
+      "file_type": "code",
+      "source_file": "test/unit/aerospace-binding-targets.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "community": 426,
+      "norm_label": "aerospace-binding-targets.sh",
+      "id": "test_unit_aerospace_binding_targets"
+    },
+    {
+      "label": "aerospace-binding-targets.sh script",
+      "file_type": "code",
+      "source_file": "test/unit/aerospace-binding-targets.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "community": 426,
+      "norm_label": "aerospace-binding-targets.sh script",
+      "id": "test_unit_aerospace_binding_targets_sh__entry"
+    },
+    {
+      "label": "fail()",
+      "file_type": "code",
+      "source_file": "test/unit/aerospace-binding-targets.sh",
+      "source_location": "L164",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 426,
+      "norm_label": "fail()",
+      "id": "test_unit_aerospace_binding_targets_fail"
+    },
+    {
+      "label": "list_contains()",
+      "file_type": "code",
+      "source_file": "test/unit/aerospace-binding-targets.sh",
+      "source_location": "L177",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 426,
+      "norm_label": "list_contains()",
+      "id": "test_unit_aerospace_binding_targets_list_contains"
+    },
+    {
+      "label": "scan_toml_line()",
+      "file_type": "code",
+      "source_file": "test/unit/aerospace-binding-targets.sh",
+      "source_location": "L200",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 426,
+      "norm_label": "scan_toml_line()",
+      "id": "test_unit_aerospace_binding_targets_scan_toml_line"
+    },
+    {
+      "label": "toml_line_without_comment()",
+      "file_type": "code",
+      "source_file": "test/unit/aerospace-binding-targets.sh",
+      "source_location": "L251",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 426,
+      "norm_label": "toml_line_without_comment()",
+      "id": "test_unit_aerospace_binding_targets_toml_line_without_comment"
+    },
+    {
+      "label": "toml_line_structure()",
+      "file_type": "code",
+      "source_file": "test/unit/aerospace-binding-targets.sh",
+      "source_location": "L258",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 426,
+      "norm_label": "toml_line_structure()",
+      "id": "test_unit_aerospace_binding_targets_toml_line_structure"
+    },
+    {
+      "label": "names_multiline_string()",
+      "file_type": "code",
+      "source_file": "test/unit/aerospace-binding-targets.sh",
+      "source_location": "L263",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 426,
+      "norm_label": "names_multiline_string()",
+      "id": "test_unit_aerospace_binding_targets_names_multiline_string"
+    },
+    {
+      "label": "toml_strings_in_value()",
+      "file_type": "code",
+      "source_file": "test/unit/aerospace-binding-targets.sh",
+      "source_location": "L277",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 426,
+      "norm_label": "toml_strings_in_value()",
+      "id": "test_unit_aerospace_binding_targets_toml_strings_in_value"
+    },
+    {
+      "label": "shell_words_of_command_line()",
+      "file_type": "code",
+      "source_file": "test/unit/aerospace-binding-targets.sh",
+      "source_location": "L330",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 426,
+      "norm_label": "shell_words_of_command_line()",
+      "id": "test_unit_aerospace_binding_targets_shell_words_of_command_line"
+    },
+    {
+      "label": "application_of_open_arguments()",
+      "file_type": "code",
+      "source_file": "test/unit/aerospace-binding-targets.sh",
+      "source_location": "L399",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 426,
+      "norm_label": "application_of_open_arguments()",
+      "id": "test_unit_aerospace_binding_targets_application_of_open_arguments"
+    },
+    {
+      "label": "package_name_for_application()",
+      "file_type": "code",
+      "source_file": "test/unit/aerospace-binding-targets.sh",
+      "source_location": "L418",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 426,
+      "norm_label": "package_name_for_application()",
+      "id": "test_unit_aerospace_binding_targets_package_name_for_application"
+    },
+    {
+      "label": "unqualified_package_name()",
+      "file_type": "code",
+      "source_file": "test/unit/aerospace-binding-targets.sh",
+      "source_location": "L425",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 426,
+      "norm_label": "unqualified_package_name()",
+      "id": "test_unit_aerospace_binding_targets_unqualified_package_name"
+    },
+    {
+      "label": "delivers_target_path()",
+      "file_type": "code",
+      "source_file": "test/unit/aerospace-binding-targets.sh",
+      "source_location": "L497",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 426,
+      "norm_label": "delivers_target_path()",
+      "id": "test_unit_aerospace_binding_targets_delivers_target_path"
+    },
+    {
+      "label": "hjkl_letter_of_binding_key()",
+      "file_type": "code",
+      "source_file": "test/unit/aerospace-binding-targets.sh",
+      "source_location": "L506",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 426,
+      "norm_label": "hjkl_letter_of_binding_key()",
+      "id": "test_unit_aerospace_binding_targets_hjkl_letter_of_binding_key"
+    },
+    {
+      "label": "assert_equals()",
+      "file_type": "code",
+      "source_file": "test/unit/aerospace-binding-targets.sh",
+      "source_location": "L518",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 426,
+      "norm_label": "assert_equals()",
+      "id": "test_unit_aerospace_binding_targets_assert_equals"
+    },
+    {
+      "label": "assert_predicate()",
+      "file_type": "code",
+      "source_file": "test/unit/aerospace-binding-targets.sh",
+      "source_location": "L523",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 426,
+      "norm_label": "assert_predicate()",
+      "id": "test_unit_aerospace_binding_targets_assert_predicate"
+    },
+    {
+      "label": "chezmoiignore-os-branch-render.sh",
+      "file_type": "code",
+      "source_file": "test/unit/chezmoiignore-os-branch-render.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "community": 425,
+      "norm_label": "chezmoiignore-os-branch-render.sh",
+      "id": "test_unit_chezmoiignore_os_branch_render"
+    },
+    {
+      "label": "chezmoiignore-os-branch-render.sh script",
+      "file_type": "code",
+      "source_file": "test/unit/chezmoiignore-os-branch-render.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "community": 425,
+      "norm_label": "chezmoiignore-os-branch-render.sh script",
+      "id": "test_unit_chezmoiignore_os_branch_render_sh__entry"
+    },
+    {
+      "label": "fail()",
+      "file_type": "code",
+      "source_file": "test/unit/chezmoiignore-os-branch-render.sh",
+      "source_location": "L73",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 425,
+      "norm_label": "fail()",
+      "id": "test_unit_chezmoiignore_os_branch_render_fail"
+    },
+    {
+      "label": "GIT_PAGER",
+      "file_type": "code",
+      "source_file": "test/unit/chezmoiignore-os-branch-render.sh",
+      "source_location": "L82",
+      "metadata": {
+        "language": "bash",
+        "kind": "code"
+      },
+      "_origin": "ast",
+      "community": 425,
+      "norm_label": "git_pager",
+      "id": "test_unit_chezmoiignore_os_branch_render_git_pager"
+    },
+    {
+      "label": "PAGER",
+      "file_type": "code",
+      "source_file": "test/unit/chezmoiignore-os-branch-render.sh",
+      "source_location": "L82",
+      "metadata": {
+        "language": "bash",
+        "kind": "code"
+      },
+      "_origin": "ast",
+      "community": 425,
+      "norm_label": "pager",
+      "id": "test_unit_chezmoiignore_os_branch_render_pager"
+    },
+    {
+      "label": "is_template_directive_line()",
+      "file_type": "code",
+      "source_file": "test/unit/chezmoiignore-os-branch-render.sh",
+      "source_location": "L86",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 425,
+      "norm_label": "is_template_directive_line()",
+      "id": "test_unit_chezmoiignore_os_branch_render_is_template_directive_line"
+    },
+    {
+      "label": "is_glob_pattern()",
+      "file_type": "code",
+      "source_file": "test/unit/chezmoiignore-os-branch-render.sh",
+      "source_location": "L92",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 425,
+      "norm_label": "is_glob_pattern()",
+      "id": "test_unit_chezmoiignore_os_branch_render_is_glob_pattern"
+    },
+    {
+      "label": "is_significant_ignore_line()",
+      "file_type": "code",
+      "source_file": "test/unit/chezmoiignore-os-branch-render.sh",
+      "source_location": "L103",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 425,
+      "norm_label": "is_significant_ignore_line()",
+      "id": "test_unit_chezmoiignore_os_branch_render_is_significant_ignore_line"
+    },
+    {
+      "label": "render_ignore_with_gate()",
+      "file_type": "code",
+      "source_file": "test/unit/chezmoiignore-os-branch-render.sh",
+      "source_location": "L117",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 425,
+      "norm_label": "render_ignore_with_gate()",
+      "id": "test_unit_chezmoiignore_os_branch_render_render_ignore_with_gate"
+    },
+    {
+      "label": "render_ends_with_newline()",
+      "file_type": "code",
+      "source_file": "test/unit/chezmoiignore-os-branch-render.sh",
+      "source_location": "L126",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 425,
+      "norm_label": "render_ends_with_newline()",
+      "id": "test_unit_chezmoiignore_os_branch_render_render_ends_with_newline"
+    },
+    {
+      "label": "delivers_target_path()",
+      "file_type": "code",
+      "source_file": "test/unit/chezmoiignore-os-branch-render.sh",
+      "source_location": "L138",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 425,
+      "norm_label": "delivers_target_path()",
+      "id": "test_unit_chezmoiignore_os_branch_render_delivers_target_path"
+    },
+    {
+      "label": "assert_predicate()",
+      "file_type": "code",
+      "source_file": "test/unit/chezmoiignore-os-branch-render.sh",
+      "source_location": "L151",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 425,
+      "norm_label": "assert_predicate()",
+      "id": "test_unit_chezmoiignore_os_branch_render_assert_predicate"
+    },
+    {
+      "label": "RENDERED_BRANCH",
+      "file_type": "code",
+      "source_file": "test/unit/chezmoiignore-os-branch-render.sh",
+      "source_location": "L209",
+      "metadata": {
+        "language": "bash",
+        "kind": "code"
+      },
+      "_origin": "ast",
+      "community": 425,
+      "norm_label": "rendered_branch",
+      "id": "test_unit_chezmoiignore_os_branch_render_rendered_branch"
+    },
+    {
+      "label": "espanso-trigger-reachability.sh",
+      "file_type": "code",
+      "source_file": "test/unit/espanso-trigger-reachability.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "community": 423,
+      "norm_label": "espanso-trigger-reachability.sh",
+      "id": "test_unit_espanso_trigger_reachability"
+    },
+    {
+      "label": "espanso-trigger-reachability.sh script",
+      "file_type": "code",
+      "source_file": "test/unit/espanso-trigger-reachability.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "community": 423,
+      "norm_label": "espanso-trigger-reachability.sh script",
+      "id": "test_unit_espanso_trigger_reachability_sh__entry"
+    },
+    {
+      "label": "fail()",
+      "file_type": "code",
+      "source_file": "test/unit/espanso-trigger-reachability.sh",
+      "source_location": "L155",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 423,
+      "norm_label": "fail()",
+      "id": "test_unit_espanso_trigger_reachability_fail"
+    },
+    {
+      "label": "target_file_name()",
+      "file_type": "code",
+      "source_file": "test/unit/espanso-trigger-reachability.sh",
+      "source_location": "L162",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 423,
+      "norm_label": "target_file_name()",
+      "id": "test_unit_espanso_trigger_reachability_target_file_name"
+    },
+    {
+      "label": "is_auto_loaded_match_file()",
+      "file_type": "code",
+      "source_file": "test/unit/espanso-trigger-reachability.sh",
+      "source_location": "L168",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 423,
+      "norm_label": "is_auto_loaded_match_file()",
+      "id": "test_unit_espanso_trigger_reachability_is_auto_loaded_match_file"
+    },
+    {
+      "label": "is_match_file_name()",
+      "file_type": "code",
+      "source_file": "test/unit/espanso-trigger-reachability.sh",
+      "source_location": "L176",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 423,
+      "norm_label": "is_match_file_name()",
+      "id": "test_unit_espanso_trigger_reachability_is_match_file_name"
+    },
+    {
+      "label": "is_exempt_non_match_file_name()",
+      "file_type": "code",
+      "source_file": "test/unit/espanso-trigger-reachability.sh",
+      "source_location": "L187",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 423,
+      "norm_label": "is_exempt_non_match_file_name()",
+      "id": "test_unit_espanso_trigger_reachability_is_exempt_non_match_file_name"
+    },
+    {
+      "label": "is_word_character()",
+      "file_type": "code",
+      "source_file": "test/unit/espanso-trigger-reachability.sh",
+      "source_location": "L198",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 423,
+      "norm_label": "is_word_character()",
+      "id": "test_unit_espanso_trigger_reachability_is_word_character"
+    },
+    {
+      "label": "options_require_boundary()",
+      "file_type": "code",
+      "source_file": "test/unit/espanso-trigger-reachability.sh",
+      "source_location": "L206",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 423,
+      "norm_label": "options_require_boundary()",
+      "id": "test_unit_espanso_trigger_reachability_options_require_boundary"
+    },
+    {
+      "label": "options_ignore_case()",
+      "file_type": "code",
+      "source_file": "test/unit/espanso-trigger-reachability.sh",
+      "source_location": "L222",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 423,
+      "norm_label": "options_ignore_case()",
+      "id": "test_unit_espanso_trigger_reachability_options_ignore_case"
+    },
+    {
+      "label": "case_folded_trigger()",
+      "file_type": "code",
+      "source_file": "test/unit/espanso-trigger-reachability.sh",
+      "source_location": "L234",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 423,
+      "norm_label": "case_folded_trigger()",
+      "id": "test_unit_espanso_trigger_reachability_case_folded_trigger"
+    },
+    {
+      "label": "folded_relation_is_reachable()",
+      "file_type": "code",
+      "source_file": "test/unit/espanso-trigger-reachability.sh",
+      "source_location": "L245",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 423,
+      "norm_label": "folded_relation_is_reachable()",
+      "id": "test_unit_espanso_trigger_reachability_folded_relation_is_reachable"
+    },
+    {
+      "label": "import_target_path()",
+      "file_type": "code",
+      "source_file": "test/unit/espanso-trigger-reachability.sh",
+      "source_location": "L260",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 423,
+      "norm_label": "import_target_path()",
+      "id": "test_unit_espanso_trigger_reachability_import_target_path"
+    },
+    {
+      "label": "discovered_match_file()",
+      "file_type": "code",
+      "source_file": "test/unit/espanso-trigger-reachability.sh",
+      "source_location": "L279",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 423,
+      "norm_label": "discovered_match_file()",
+      "id": "test_unit_espanso_trigger_reachability_discovered_match_file"
+    },
+    {
+      "label": "parse_match_records()",
+      "file_type": "code",
+      "source_file": "test/unit/espanso-trigger-reachability.sh",
+      "source_location": "L294",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 423,
+      "norm_label": "parse_match_records()",
+      "id": "test_unit_espanso_trigger_reachability_parse_match_records"
+    },
+    {
+      "label": "parse_import_paths()",
+      "file_type": "code",
+      "source_file": "test/unit/espanso-trigger-reachability.sh",
+      "source_location": "L336",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 423,
+      "norm_label": "parse_import_paths()",
+      "id": "test_unit_espanso_trigger_reachability_parse_import_paths"
+    },
+    {
+      "label": "assert_equals()",
+      "file_type": "code",
+      "source_file": "test/unit/espanso-trigger-reachability.sh",
+      "source_location": "L376",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 423,
+      "norm_label": "assert_equals()",
+      "id": "test_unit_espanso_trigger_reachability_assert_equals"
+    },
+    {
+      "label": "assert_predicate()",
+      "file_type": "code",
+      "source_file": "test/unit/espanso-trigger-reachability.sh",
+      "source_location": "L381",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "community": 423,
+      "norm_label": "assert_predicate()",
+      "id": "test_unit_espanso_trigger_reachability_assert_predicate"
+    },
+    {
+      "label": "TRIGGER_OPTIONS",
+      "file_type": "code",
+      "source_file": "test/unit/espanso-trigger-reachability.sh",
+      "source_location": "L555",
+      "metadata": {
+        "language": "bash",
+        "kind": "code"
+      },
+      "_origin": "ast",
+      "community": 423,
+      "norm_label": "trigger_options",
+      "id": "test_unit_espanso_trigger_reachability_trigger_options"
+    },
+    {
+      "label": "TRIGGER_LOCATION",
+      "file_type": "code",
+      "source_file": "test/unit/espanso-trigger-reachability.sh",
+      "source_location": "L556",
+      "metadata": {
+        "language": "bash",
+        "kind": "code"
+      },
+      "_origin": "ast",
+      "community": 423,
+      "norm_label": "trigger_location",
+      "id": "test_unit_espanso_trigger_reachability_trigger_location"
+    },
+    {
+      "label": "LOADED_FILE",
+      "file_type": "code",
+      "source_file": "test/unit/espanso-trigger-reachability.sh",
+      "source_location": "L574",
+      "metadata": {
+        "language": "bash",
+        "kind": "code"
+      },
+      "_origin": "ast",
+      "community": 423,
+      "norm_label": "loaded_file",
+      "id": "test_unit_espanso_trigger_reachability_loaded_file"
+    },
+    {
+      "label": "CLAUDE.md",
+      "file_type": "document",
+      "source_file": "AGENTS.md",
+      "source_location": "L7",
+      "_origin": "ast",
+      "community": 323,
+      "norm_label": "claude.md",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_claude_md"
+    },
+    {
+      "label": "What This Is",
+      "file_type": "document",
+      "source_file": "AGENTS.md",
+      "source_location": "L11",
+      "_origin": "ast",
+      "community": 323,
+      "norm_label": "what this is",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_what_this_is"
+    },
+    {
+      "label": "Key Commands",
+      "file_type": "document",
+      "source_file": "AGENTS.md",
+      "source_location": "L18",
+      "_origin": "ast",
+      "community": 323,
+      "norm_label": "key commands",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_key_commands"
+    },
+    {
+      "label": "Linting & Formatting",
+      "file_type": "document",
+      "source_file": "AGENTS.md",
+      "source_location": "L20",
+      "_origin": "ast",
+      "community": 323,
+      "norm_label": "linting & formatting",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_linting_formatting"
+    },
+    {
+      "label": "Testing",
+      "file_type": "document",
+      "source_file": "AGENTS.md",
+      "source_location": "L46",
+      "_origin": "ast",
+      "community": 323,
+      "norm_label": "testing",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_testing"
+    },
+    {
+      "label": "Chezmoi Operations",
+      "file_type": "document",
+      "source_file": "AGENTS.md",
+      "source_location": "L86",
+      "_origin": "ast",
+      "community": 323,
+      "norm_label": "chezmoi operations",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_chezmoi_operations"
+    },
+    {
+      "label": "Claude Code Settings",
+      "file_type": "document",
+      "source_file": "AGENTS.md",
+      "source_location": "L114",
+      "_origin": "ast",
+      "community": 323,
+      "norm_label": "claude code settings",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_claude_code_settings"
+    },
+    {
+      "label": "Git Hooks",
+      "file_type": "document",
+      "source_file": "AGENTS.md",
+      "source_location": "L147",
+      "_origin": "ast",
+      "community": 323,
+      "norm_label": "git hooks",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_git_hooks"
+    },
+    {
+      "label": "Architecture",
+      "file_type": "document",
+      "source_file": "AGENTS.md",
+      "source_location": "L214",
+      "_origin": "ast",
+      "community": 323,
+      "norm_label": "architecture",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_architecture"
+    },
+    {
+      "label": "Source-Only Files",
+      "file_type": "document",
+      "source_file": "AGENTS.md",
+      "source_location": "L216",
+      "_origin": "ast",
+      "community": 323,
+      "norm_label": "source-only files",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_source_only_files"
+    },
+    {
+      "label": "Minimum Chezmoi Version",
+      "file_type": "document",
+      "source_file": "AGENTS.md",
+      "source_location": "L224",
+      "_origin": "ast",
+      "community": 323,
+      "norm_label": "minimum chezmoi version",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_minimum_chezmoi_version"
+    },
+    {
+      "label": "Secrets Management",
+      "file_type": "document",
+      "source_file": "AGENTS.md",
+      "source_location": "L228",
+      "_origin": "ast",
+      "community": 323,
+      "norm_label": "secrets management",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_secrets_management"
+    },
+    {
+      "label": "System Package Management",
+      "file_type": "document",
+      "source_file": "AGENTS.md",
+      "source_location": "L235",
+      "_origin": "ast",
+      "community": 323,
+      "norm_label": "system package management",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_system_package_management"
+    },
+    {
+      "label": "macOS Defaults Management",
+      "file_type": "document",
+      "source_file": "AGENTS.md",
+      "source_location": "L260",
+      "_origin": "ast",
+      "community": 323,
+      "norm_label": "macos defaults management",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_macos_defaults_management"
+    },
+    {
+      "label": "Template Files",
+      "file_type": "document",
+      "source_file": "AGENTS.md",
+      "source_location": "L305",
+      "_origin": "ast",
+      "community": 323,
+      "norm_label": "template files",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_template_files"
+    },
+    {
+      "label": "Template Shellcheck Workaround",
+      "file_type": "document",
+      "source_file": "AGENTS.md",
+      "source_location": "L311",
+      "_origin": "ast",
+      "community": 323,
+      "norm_label": "template shellcheck workaround",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_template_shellcheck_workaround"
+    },
+    {
+      "label": "OS Targeting",
+      "file_type": "document",
+      "source_file": "AGENTS.md",
+      "source_location": "L332",
+      "_origin": "ast",
+      "community": 323,
+      "norm_label": "os targeting",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_os_targeting"
+    },
+    {
+      "label": "Dev Environment (Nix Flake)",
+      "file_type": "document",
+      "source_file": "AGENTS.md",
+      "source_location": "L337",
+      "_origin": "ast",
+      "community": 323,
+      "norm_label": "dev environment (nix flake)",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_dev_environment_nix_flake"
+    },
+    {
+      "label": "CI",
+      "file_type": "document",
+      "source_file": "AGENTS.md",
+      "source_location": "L348",
+      "_origin": "ast",
+      "community": 323,
+      "norm_label": "ci",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_ci"
+    },
+    {
+      "label": "Agent Skills (cross-harness store)",
+      "file_type": "document",
+      "source_file": "AGENTS.md",
+      "source_location": "L358",
+      "_origin": "ast",
+      "community": 323,
+      "norm_label": "agent skills (cross-harness store)",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_agent_skills_cross_harness_store"
+    },
+    {
+      "label": "Herdr Workspace Management",
+      "file_type": "document",
+      "source_file": "AGENTS.md",
+      "source_location": "L528",
+      "_origin": "ast",
+      "community": 323,
+      "norm_label": "herdr workspace management",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_herdr_workspace_management"
+    },
+    {
+      "label": "Git Worktrees (Worktrunk)",
+      "file_type": "document",
+      "source_file": "AGENTS.md",
+      "source_location": "L548",
+      "_origin": "ast",
+      "community": 323,
+      "norm_label": "git worktrees (worktrunk)",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_git_worktrees_worktrunk"
+    },
+    {
+      "label": "Bashrc Init Ordering",
+      "file_type": "document",
+      "source_file": "AGENTS.md",
+      "source_location": "L555",
+      "_origin": "ast",
+      "community": 323,
+      "norm_label": "bashrc init ordering",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_bashrc_init_ordering"
+    },
+    {
+      "label": "Shell History (Atuin)",
+      "file_type": "document",
+      "source_file": "AGENTS.md",
+      "source_location": "L563",
+      "_origin": "ast",
+      "community": 323,
+      "norm_label": "shell history (atuin)",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_shell_history_atuin"
+    },
+    {
+      "label": "Happy Daemon (Remote Agent Control)",
+      "file_type": "document",
+      "source_file": "AGENTS.md",
+      "source_location": "L592",
+      "_origin": "ast",
+      "community": 323,
+      "norm_label": "happy daemon (remote agent control)",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_happy_daemon_remote_agent_control"
+    },
+    {
+      "label": "Tailscale (headless daemon)",
+      "file_type": "document",
+      "source_file": "AGENTS.md",
+      "source_location": "L619",
+      "_origin": "ast",
+      "community": 323,
+      "norm_label": "tailscale (headless daemon)",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_tailscale_headless_daemon"
+    },
+    {
+      "label": "AI Commit Messages",
+      "file_type": "document",
+      "source_file": "AGENTS.md",
+      "source_location": "L656",
+      "_origin": "ast",
+      "community": 323,
+      "norm_label": "ai commit messages",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_ai_commit_messages"
+    },
+    {
+      "label": "Long-running Command Notifier",
+      "file_type": "document",
+      "source_file": "AGENTS.md",
+      "source_location": "L669",
+      "_origin": "ast",
+      "community": 323,
+      "norm_label": "long-running command notifier",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_long_running_command_notifier"
+    },
+    {
+      "label": "Herdr Native Status",
+      "file_type": "document",
+      "source_file": "AGENTS.md",
+      "source_location": "L675",
+      "_origin": "ast",
+      "community": 323,
+      "norm_label": "herdr native status",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_herdr_native_status"
+    },
+    {
+      "label": "Code Style",
+      "file_type": "document",
+      "source_file": "AGENTS.md",
+      "source_location": "L681",
+      "_origin": "ast",
+      "community": 323,
+      "norm_label": "code style",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_code_style"
+    },
+    {
+      "label": "Git Commits",
+      "file_type": "document",
+      "source_file": "AGENTS.md",
+      "source_location": "L707",
+      "_origin": "ast",
+      "community": 323,
+      "norm_label": "git commits",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_git_commits"
+    },
+    {
+      "label": "Security",
+      "file_type": "document",
+      "source_file": "AGENTS.md",
+      "source_location": "L714",
+      "_origin": "ast",
+      "community": 323,
+      "norm_label": "security",
+      "id": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_security"
     }
   ],
   "links": [
@@ -80986,6 +82020,16 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "AGENTS.md",
+      "source_location": "L7",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "agents",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_claude_md"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "AGENTS.md",
       "source_location": "L214",
       "weight": 1.0,
       "confidence_score": 1.0,
@@ -100466,6 +101510,1148 @@
       "confidence_score": 1.0,
       "source": "claude_architecture",
       "target": "claude_template_shellcheck_workaround"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/aerospace-binding-targets.sh",
+      "source_location": "L399",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_aerospace_binding_targets",
+      "target": "test_unit_aerospace_binding_targets_application_of_open_arguments"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/aerospace-binding-targets.sh",
+      "source_location": "L518",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_aerospace_binding_targets",
+      "target": "test_unit_aerospace_binding_targets_assert_equals"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/aerospace-binding-targets.sh",
+      "source_location": "L523",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_aerospace_binding_targets",
+      "target": "test_unit_aerospace_binding_targets_assert_predicate"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/aerospace-binding-targets.sh",
+      "source_location": "L497",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_aerospace_binding_targets",
+      "target": "test_unit_aerospace_binding_targets_delivers_target_path"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/aerospace-binding-targets.sh",
+      "source_location": "L164",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_aerospace_binding_targets",
+      "target": "test_unit_aerospace_binding_targets_fail"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/aerospace-binding-targets.sh",
+      "source_location": "L506",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_aerospace_binding_targets",
+      "target": "test_unit_aerospace_binding_targets_hjkl_letter_of_binding_key"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/aerospace-binding-targets.sh",
+      "source_location": "L177",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_aerospace_binding_targets",
+      "target": "test_unit_aerospace_binding_targets_list_contains"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/aerospace-binding-targets.sh",
+      "source_location": "L263",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_aerospace_binding_targets",
+      "target": "test_unit_aerospace_binding_targets_names_multiline_string"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/aerospace-binding-targets.sh",
+      "source_location": "L418",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_aerospace_binding_targets",
+      "target": "test_unit_aerospace_binding_targets_package_name_for_application"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/aerospace-binding-targets.sh",
+      "source_location": "L200",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_aerospace_binding_targets",
+      "target": "test_unit_aerospace_binding_targets_scan_toml_line"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/aerospace-binding-targets.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_aerospace_binding_targets",
+      "target": "test_unit_aerospace_binding_targets_sh__entry"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/aerospace-binding-targets.sh",
+      "source_location": "L330",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_aerospace_binding_targets",
+      "target": "test_unit_aerospace_binding_targets_shell_words_of_command_line"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/aerospace-binding-targets.sh",
+      "source_location": "L258",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_aerospace_binding_targets",
+      "target": "test_unit_aerospace_binding_targets_toml_line_structure"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/aerospace-binding-targets.sh",
+      "source_location": "L251",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_aerospace_binding_targets",
+      "target": "test_unit_aerospace_binding_targets_toml_line_without_comment"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/aerospace-binding-targets.sh",
+      "source_location": "L277",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_aerospace_binding_targets",
+      "target": "test_unit_aerospace_binding_targets_toml_strings_in_value"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/aerospace-binding-targets.sh",
+      "source_location": "L425",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_aerospace_binding_targets",
+      "target": "test_unit_aerospace_binding_targets_unqualified_package_name"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/aerospace-binding-targets.sh",
+      "source_location": "L530",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_aerospace_binding_targets_sh__entry",
+      "target": "test_unit_aerospace_binding_targets_assert_equals"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/aerospace-binding-targets.sh",
+      "source_location": "L560",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_aerospace_binding_targets_sh__entry",
+      "target": "test_unit_aerospace_binding_targets_assert_predicate"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/aerospace-binding-targets.sh",
+      "source_location": "L625",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_aerospace_binding_targets_sh__entry",
+      "target": "test_unit_aerospace_binding_targets_delivers_target_path"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/aerospace-binding-targets.sh",
+      "source_location": "L512",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_aerospace_binding_targets_sh__entry",
+      "target": "test_unit_aerospace_binding_targets_fail"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/aerospace-binding-targets.sh",
+      "source_location": "L808",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_aerospace_binding_targets_sh__entry",
+      "target": "test_unit_aerospace_binding_targets_list_contains"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/aerospace-binding-targets.sh",
+      "source_location": "L723",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_aerospace_binding_targets_sh__entry",
+      "target": "test_unit_aerospace_binding_targets_names_multiline_string"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/aerospace-binding-targets.sh",
+      "source_location": "L521",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_aerospace_binding_targets_fail",
+      "target": "test_unit_aerospace_binding_targets_assert_equals"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/aerospace-binding-targets.sh",
+      "source_location": "L528",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_aerospace_binding_targets_fail",
+      "target": "test_unit_aerospace_binding_targets_assert_predicate"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/aerospace-binding-targets.sh",
+      "source_location": "L205",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_aerospace_binding_targets_fail",
+      "target": "test_unit_aerospace_binding_targets_scan_toml_line"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/aerospace-binding-targets.sh",
+      "source_location": "L259",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_aerospace_binding_targets_scan_toml_line",
+      "target": "test_unit_aerospace_binding_targets_toml_line_structure"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/aerospace-binding-targets.sh",
+      "source_location": "L252",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_aerospace_binding_targets_scan_toml_line",
+      "target": "test_unit_aerospace_binding_targets_toml_line_without_comment"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/chezmoiignore-os-branch-render.sh",
+      "source_location": "L151",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_chezmoiignore_os_branch_render",
+      "target": "test_unit_chezmoiignore_os_branch_render_assert_predicate"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/chezmoiignore-os-branch-render.sh",
+      "source_location": "L138",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_chezmoiignore_os_branch_render",
+      "target": "test_unit_chezmoiignore_os_branch_render_delivers_target_path"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/chezmoiignore-os-branch-render.sh",
+      "source_location": "L73",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_chezmoiignore_os_branch_render",
+      "target": "test_unit_chezmoiignore_os_branch_render_fail"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/chezmoiignore-os-branch-render.sh",
+      "source_location": "L82",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_chezmoiignore_os_branch_render",
+      "target": "test_unit_chezmoiignore_os_branch_render_git_pager"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/chezmoiignore-os-branch-render.sh",
+      "source_location": "L92",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_chezmoiignore_os_branch_render",
+      "target": "test_unit_chezmoiignore_os_branch_render_is_glob_pattern"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/chezmoiignore-os-branch-render.sh",
+      "source_location": "L103",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_chezmoiignore_os_branch_render",
+      "target": "test_unit_chezmoiignore_os_branch_render_is_significant_ignore_line"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/chezmoiignore-os-branch-render.sh",
+      "source_location": "L86",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_chezmoiignore_os_branch_render",
+      "target": "test_unit_chezmoiignore_os_branch_render_is_template_directive_line"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/chezmoiignore-os-branch-render.sh",
+      "source_location": "L82",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_chezmoiignore_os_branch_render",
+      "target": "test_unit_chezmoiignore_os_branch_render_pager"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/chezmoiignore-os-branch-render.sh",
+      "source_location": "L126",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_chezmoiignore_os_branch_render",
+      "target": "test_unit_chezmoiignore_os_branch_render_render_ends_with_newline"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/chezmoiignore-os-branch-render.sh",
+      "source_location": "L117",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_chezmoiignore_os_branch_render",
+      "target": "test_unit_chezmoiignore_os_branch_render_render_ignore_with_gate"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/chezmoiignore-os-branch-render.sh",
+      "source_location": "L209",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_chezmoiignore_os_branch_render",
+      "target": "test_unit_chezmoiignore_os_branch_render_rendered_branch"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/chezmoiignore-os-branch-render.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_chezmoiignore_os_branch_render",
+      "target": "test_unit_chezmoiignore_os_branch_render_sh__entry"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/chezmoiignore-os-branch-render.sh",
+      "source_location": "L157",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_chezmoiignore_os_branch_render_sh__entry",
+      "target": "test_unit_chezmoiignore_os_branch_render_assert_predicate"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/chezmoiignore-os-branch-render.sh",
+      "source_location": "L182",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_chezmoiignore_os_branch_render_sh__entry",
+      "target": "test_unit_chezmoiignore_os_branch_render_delivers_target_path"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/chezmoiignore-os-branch-render.sh",
+      "source_location": "L144",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_chezmoiignore_os_branch_render_sh__entry",
+      "target": "test_unit_chezmoiignore_os_branch_render_fail"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/chezmoiignore-os-branch-render.sh",
+      "source_location": "L267",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_chezmoiignore_os_branch_render_sh__entry",
+      "target": "test_unit_chezmoiignore_os_branch_render_is_glob_pattern"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/chezmoiignore-os-branch-render.sh",
+      "source_location": "L266",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_chezmoiignore_os_branch_render_sh__entry",
+      "target": "test_unit_chezmoiignore_os_branch_render_is_significant_ignore_line"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/chezmoiignore-os-branch-render.sh",
+      "source_location": "L196",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_chezmoiignore_os_branch_render_sh__entry",
+      "target": "test_unit_chezmoiignore_os_branch_render_is_template_directive_line"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/chezmoiignore-os-branch-render.sh",
+      "source_location": "L233",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_chezmoiignore_os_branch_render_sh__entry",
+      "target": "test_unit_chezmoiignore_os_branch_render_render_ends_with_newline"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/chezmoiignore-os-branch-render.sh",
+      "source_location": "L155",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_chezmoiignore_os_branch_render_fail",
+      "target": "test_unit_chezmoiignore_os_branch_render_assert_predicate"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/espanso-trigger-reachability.sh",
+      "source_location": "L376",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_espanso_trigger_reachability",
+      "target": "test_unit_espanso_trigger_reachability_assert_equals"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/espanso-trigger-reachability.sh",
+      "source_location": "L381",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_espanso_trigger_reachability",
+      "target": "test_unit_espanso_trigger_reachability_assert_predicate"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/espanso-trigger-reachability.sh",
+      "source_location": "L234",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_espanso_trigger_reachability",
+      "target": "test_unit_espanso_trigger_reachability_case_folded_trigger"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/espanso-trigger-reachability.sh",
+      "source_location": "L279",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_espanso_trigger_reachability",
+      "target": "test_unit_espanso_trigger_reachability_discovered_match_file"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/espanso-trigger-reachability.sh",
+      "source_location": "L155",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_espanso_trigger_reachability",
+      "target": "test_unit_espanso_trigger_reachability_fail"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/espanso-trigger-reachability.sh",
+      "source_location": "L245",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_espanso_trigger_reachability",
+      "target": "test_unit_espanso_trigger_reachability_folded_relation_is_reachable"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/espanso-trigger-reachability.sh",
+      "source_location": "L260",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_espanso_trigger_reachability",
+      "target": "test_unit_espanso_trigger_reachability_import_target_path"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/espanso-trigger-reachability.sh",
+      "source_location": "L168",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_espanso_trigger_reachability",
+      "target": "test_unit_espanso_trigger_reachability_is_auto_loaded_match_file"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/espanso-trigger-reachability.sh",
+      "source_location": "L187",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_espanso_trigger_reachability",
+      "target": "test_unit_espanso_trigger_reachability_is_exempt_non_match_file_name"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/espanso-trigger-reachability.sh",
+      "source_location": "L176",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_espanso_trigger_reachability",
+      "target": "test_unit_espanso_trigger_reachability_is_match_file_name"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/espanso-trigger-reachability.sh",
+      "source_location": "L198",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_espanso_trigger_reachability",
+      "target": "test_unit_espanso_trigger_reachability_is_word_character"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/espanso-trigger-reachability.sh",
+      "source_location": "L574",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_espanso_trigger_reachability",
+      "target": "test_unit_espanso_trigger_reachability_loaded_file"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/espanso-trigger-reachability.sh",
+      "source_location": "L222",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_espanso_trigger_reachability",
+      "target": "test_unit_espanso_trigger_reachability_options_ignore_case"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/espanso-trigger-reachability.sh",
+      "source_location": "L206",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_espanso_trigger_reachability",
+      "target": "test_unit_espanso_trigger_reachability_options_require_boundary"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/espanso-trigger-reachability.sh",
+      "source_location": "L336",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_espanso_trigger_reachability",
+      "target": "test_unit_espanso_trigger_reachability_parse_import_paths"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/espanso-trigger-reachability.sh",
+      "source_location": "L294",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_espanso_trigger_reachability",
+      "target": "test_unit_espanso_trigger_reachability_parse_match_records"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/espanso-trigger-reachability.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_espanso_trigger_reachability",
+      "target": "test_unit_espanso_trigger_reachability_sh__entry"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/espanso-trigger-reachability.sh",
+      "source_location": "L162",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_espanso_trigger_reachability",
+      "target": "test_unit_espanso_trigger_reachability_target_file_name"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/espanso-trigger-reachability.sh",
+      "source_location": "L556",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_espanso_trigger_reachability",
+      "target": "test_unit_espanso_trigger_reachability_trigger_location"
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/espanso-trigger-reachability.sh",
+      "source_location": "L555",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "test_unit_espanso_trigger_reachability",
+      "target": "test_unit_espanso_trigger_reachability_trigger_options"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/espanso-trigger-reachability.sh",
+      "source_location": "L390",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_espanso_trigger_reachability_sh__entry",
+      "target": "test_unit_espanso_trigger_reachability_assert_equals"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/espanso-trigger-reachability.sh",
+      "source_location": "L392",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_espanso_trigger_reachability_sh__entry",
+      "target": "test_unit_espanso_trigger_reachability_assert_predicate"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/espanso-trigger-reachability.sh",
+      "source_location": "L373",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_espanso_trigger_reachability_sh__entry",
+      "target": "test_unit_espanso_trigger_reachability_fail"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/espanso-trigger-reachability.sh",
+      "source_location": "L652",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_espanso_trigger_reachability_sh__entry",
+      "target": "test_unit_espanso_trigger_reachability_folded_relation_is_reachable"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/espanso-trigger-reachability.sh",
+      "source_location": "L576",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_espanso_trigger_reachability_sh__entry",
+      "target": "test_unit_espanso_trigger_reachability_is_auto_loaded_match_file"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/espanso-trigger-reachability.sh",
+      "source_location": "L448",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_espanso_trigger_reachability_sh__entry",
+      "target": "test_unit_espanso_trigger_reachability_is_exempt_non_match_file_name"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/espanso-trigger-reachability.sh",
+      "source_location": "L446",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_espanso_trigger_reachability_sh__entry",
+      "target": "test_unit_espanso_trigger_reachability_is_match_file_name"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/espanso-trigger-reachability.sh",
+      "source_location": "L667",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_espanso_trigger_reachability_sh__entry",
+      "target": "test_unit_espanso_trigger_reachability_is_word_character"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/espanso-trigger-reachability.sh",
+      "source_location": "L614",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_espanso_trigger_reachability_sh__entry",
+      "target": "test_unit_espanso_trigger_reachability_options_require_boundary"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/espanso-trigger-reachability.sh",
+      "source_location": "L379",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_espanso_trigger_reachability_fail",
+      "target": "test_unit_espanso_trigger_reachability_assert_equals"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/espanso-trigger-reachability.sh",
+      "source_location": "L388",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_espanso_trigger_reachability_fail",
+      "target": "test_unit_espanso_trigger_reachability_assert_predicate"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/espanso-trigger-reachability.sh",
+      "source_location": "L212",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_espanso_trigger_reachability_fail",
+      "target": "test_unit_espanso_trigger_reachability_options_require_boundary"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/espanso-trigger-reachability.sh",
+      "source_location": "L247",
+      "weight": 1.0,
+      "context": "call",
+      "confidence_score": 1.0,
+      "source": "test_unit_espanso_trigger_reachability_options_ignore_case",
+      "target": "test_unit_espanso_trigger_reachability_folded_relation_is_reachable"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "AGENTS.md",
+      "source_location": "L214",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_claude_md",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_architecture"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "AGENTS.md",
+      "source_location": "L681",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_claude_md",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_code_style"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "AGENTS.md",
+      "source_location": "L707",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_claude_md",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_git_commits"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "AGENTS.md",
+      "source_location": "L18",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_claude_md",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_key_commands"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "AGENTS.md",
+      "source_location": "L714",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_claude_md",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_security"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "AGENTS.md",
+      "source_location": "L11",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_claude_md",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_what_this_is"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "AGENTS.md",
+      "source_location": "L86",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_key_commands",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_chezmoi_operations"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "AGENTS.md",
+      "source_location": "L114",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_key_commands",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_claude_code_settings"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "AGENTS.md",
+      "source_location": "L147",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_key_commands",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_git_hooks"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "AGENTS.md",
+      "source_location": "L20",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_key_commands",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_linting_formatting"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "AGENTS.md",
+      "source_location": "L46",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_key_commands",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_testing"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "AGENTS.md",
+      "source_location": "L358",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_agent_skills_cross_harness_store"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "AGENTS.md",
+      "source_location": "L656",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_ai_commit_messages"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "AGENTS.md",
+      "source_location": "L555",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_bashrc_init_ordering"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "AGENTS.md",
+      "source_location": "L348",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_ci"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "AGENTS.md",
+      "source_location": "L337",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_dev_environment_nix_flake"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "AGENTS.md",
+      "source_location": "L548",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_git_worktrees_worktrunk"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "AGENTS.md",
+      "source_location": "L592",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_happy_daemon_remote_agent_control"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "AGENTS.md",
+      "source_location": "L675",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_herdr_native_status"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "AGENTS.md",
+      "source_location": "L528",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_herdr_workspace_management"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "AGENTS.md",
+      "source_location": "L669",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_long_running_command_notifier"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "AGENTS.md",
+      "source_location": "L260",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_macos_defaults_management"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "AGENTS.md",
+      "source_location": "L224",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_minimum_chezmoi_version"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "AGENTS.md",
+      "source_location": "L332",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_os_targeting"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "AGENTS.md",
+      "source_location": "L228",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_secrets_management"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "AGENTS.md",
+      "source_location": "L563",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_shell_history_atuin"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "AGENTS.md",
+      "source_location": "L216",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_source_only_files"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "AGENTS.md",
+      "source_location": "L235",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_system_package_management"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "AGENTS.md",
+      "source_location": "L619",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_tailscale_headless_daemon"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "AGENTS.md",
+      "source_location": "L305",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_template_files"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "AGENTS.md",
+      "source_location": "L311",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_architecture",
+      "target": "users_stephen_workspaces_ivy_webdavis_dotfiles_worktrees_chore4_agents_template_shellcheck_workaround"
     }
   ]
 }
