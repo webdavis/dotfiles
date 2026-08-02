@@ -136,25 +136,53 @@ file holds:
 `skipDangerousModePermissionPrompt`, and any future setting `/config` adds.
 
 **3. `enabledPlugins`, which is neither.** The **roster** is chezmoi-controlled and the per-plugin
-**on/off state** is not. The template declares nine plugin ids (keys are `<name>@<marketplace>`, which is
-the form Claude Code writes, not the bare name the CLI prints on success) and the write is whole-value,
-so a plugin enabled live but missing from the declaration is turned OFF by the next apply. Within that
-roster, a plugin the live file disables with the JSON boolean `false` keeps its `false` across applies;
-every other shape renders `true`, including an absent key, a JSON null, a string, a number and the array
-Claude Code's own schema union permits.
+**state** is not. The template declares nine plugin ids (keys are `<name>@<marketplace>`, which is the
+form Claude Code writes, not the bare name the CLI prints on success) and the write is whole-value, so a
+plugin enabled live but missing from the declaration is turned OFF by the next apply. Within that roster,
+both members of Claude Code's own union for this key are the machine's to set and are carried through
+unchanged: the JSON boolean `false` that `claude plugin disable` writes, and the JSON array of version
+constraints that its schema calls the extended format (a plugin held at a reviewed release). Every other
+shape renders `true`: an absent key, a JSON null, a string and a number.
 
-So `claude plugin disable <id>` STICKS. An apply does not re-enable it, and applying is not the way to
-turn a plugin back on: use `claude plugin enable <id>`. The trade was taken deliberately, because a
-containment verb a scheduled apply can silently revoke is not containment. Its cost:
-`claude plugin disable --all` is one command and there is no `enable --all`, so recovering from a mass
-disable means nine separate `claude plugin enable` calls.
+So `claude plugin disable <id>` STICKS across applies, and applying is not the way to turn a plugin back
+on: use `claude plugin enable <id>`. The trade was taken deliberately, because a containment verb a
+scheduled apply can silently revoke is not containment.
+
+**Read the price before relying on this.** It is not the recovery ergonomics (though those are real:
+`claude plugin disable --all` is one command, there is no `enable --all`, so undoing a mass disable is
+one `claude plugin enable` per declared plugin). The price is that **this repo no longer re-asserts
+plugin state at all.** The old whole-value write forced every declared plugin back to `true` on every
+apply, which incidentally remediated tampering. Now a live `false` is carried forward for as long as it
+sits in the file, and because the render reproduces it byte for byte, `chezmoi status` and `chezmoi diff`
+print nothing for it (measured 2026-08-02), which includes `just d`. Stated plainly: any process running
+as this user, which is every agent with Bash under `permissions.defaultMode = bypassPermissions`,
+permanently disables `security-guidance` or `superpowers` by writing one boolean, and nothing in this
+repo detects it or restores it. Auditing that key means reading `~/.claude/settings.json` or running
+`claude plugin list`; drift tooling will not raise it.
+
+**And "sticks" means "against an apply", not "cannot load".** Settings precedence runs user < project \<
+local < flag < policy, so a repo whose project settings enable the plugin loads it there whatever
+`~/.claude/settings.json` says. Claude Code ships an `ineffective-disable` diagnostic for exactly that
+case (the diagnostic id and all five source names are in the shipped 2.1.220 binary, read 2026-08-02).
 
 `--exclude=templates` does not skip a modify-template (measured 2026-08-02), so this path runs on every
 `just a`, not only on a full apply.
 
+**When the live file is not JSON, the whole apply dies.** Reading the live file is what makes preserving
+its state possible, and a modify-template that cannot read it fails the entire run: every later target
+and every `run_after_` script is skipped, and the unreadable file is left in place, so `permissions.deny`
+is not restored either. Whitespace-only and empty files are handled (the read is trimmed first), and so
+is anything that parses. A file that is non-empty and is not JSON, such as a write truncated by a crash
+or a full disk, is not, and no template can fix it: chezmoi's JSON readers all fail the template on bad
+input and Go templates have no error recovery, so there is nothing to fall back from. **Recovery:** the
+apply's own error names `modify_settings.json`; delete or repair `~/.claude/settings.json` and apply
+again. Deleting is safe, every field this repo manages is rebuilt from the template, and only free-drift
+keys are lost. Repairing this automatically needs something that runs before the template, which does not
+exist yet.
+
 `test/unit/claude-enabled-plugins.sh` applies the template into a throwaway destination once per
-live-file shape per target OS and pins all of the above, including that the stable fields survive shapes
-that used to make the render fail outright.
+live-file shape per target OS and pins all of the above, including the three unparseable shapes, which it
+requires to fail, to name the template in the error, and to leave the live file byte-identical.
 
 **Promote a `/config` toggle to stable** by adding a `setValueAtPath` call for that key in
 `private_dot_claude/modify_settings.json` and committing.
