@@ -42,6 +42,24 @@
 # kind is pinned, and the whole stable block must come out identical whatever
 # the live file looked like.
 #
+# WHY THAT ASSERTION REACHES INSIDE THE STABLE FIELDS. Kind, non-emptiness and
+# cross-case invariance together see a field that VANISHED and a field that
+# varies with the live file, and they see neither of those one level down.
+# Measured by mutation 2026-08-02, against the version of this file that first
+# added them: deleting permissions.allow, deleting permissions.defaultMode,
+# deleting the whole PreToolUse audit hook, dropping statusLine.command,
+# repointing statusLine.command at another script, setting cleanupPeriodDays to
+# 1, switching autoUpdatesChannel to `latest` and flipping
+# remoteControlAtStartup to false ALL passed, eight for eight. Every one leaves
+# the top-level field present, a map, and non-empty, and every one leaves it
+# identical across the ten cases, so nothing above can see any of them. The
+# named sub-paths, the exact scalar values and the required hook commands below
+# are what make those eight fail. skillOverrides is the one stable field whose
+# contents genuinely are owned elsewhere (test/unit/skills-roster-fanout.sh
+# pins them against dot_agents/custom-skill-lock.json, verified 2026-08-02 by
+# mutating an entry away and again by changing one's verdict: that guard failed
+# on both), so its entries are still counted here rather than named.
+#
 # WHY IT RENDERS INSTEAD OF READING THE SOURCE TEXT. The first version of this
 # test matched the declaration in the template's SOURCE, which approves a
 # template that does not render the set it appears to declare. Two shapes, both
@@ -210,16 +228,20 @@ readonly -a LIVE_FILE_CASES=(
 # Reports are `<record>:<kind>:<value>:<name>`, name LAST so that a name
 # containing the delimiter lands whole in the final field and every earlier
 # field still holds its own column. Splitting these on whitespace would collapse
-# an empty value and shift the name left. A value can only carry the delimiter
-# when its kind is not `bool`, which already fails the plugin assertions below,
-# and no permissions.deny entry contains one; a value that did would truncate
-# and shift its own record, which fails an assertion rather than passing one.
+# an empty value and shift the name left. A value CAN carry the delimiter, since
+# statusLine.command and every hook command are absolute paths built from
+# .chezmoi.homeDir and a home directory may contain anything: `read` puts the
+# overflow into the trailing name field, so such a record loses its own name and
+# is looked up by nobody, which FAILS the assertion that names the path rather
+# than passing it. That is the reason the assertions below are written as
+# lookups by name and not as counts of records seen.
 readonly REPORT_FIELD_DELIMITER=':'
 readonly PLUGIN_RECORD='plugin'
 readonly PLUGIN_CONTAINER_RECORD='plugincontainer'
 readonly PASSTHROUGH_RECORD='passthrough'
 readonly STABLE_RECORD='stable'
 readonly DENY_RECORD='deny'
+readonly HOOK_COMMAND_RECORD='hookcommand'
 
 # A plugin entry must be a JSON boolean, and `%v` prints the string "true" and
 # the boolean true identically, so the render's TYPE is reported alongside the
@@ -237,6 +259,11 @@ readonly JSON_FALSE_VALUE='false'
 # An absent field reports kind `invalid`, so this table is also the presence
 # check: it is what catches a render that failed and wrote nothing, which is the
 # failure mode the naive version of the fix produced on five of ten cases here.
+# A DOTTED path names a field inside another one, walked one segment at a time
+# with a map guard per segment, so a path whose parent is missing or is not a
+# map reports `invalid` here rather than dying inside the report template. This
+# table is also the report's own path list, read by settings_report, so the two
+# cannot drift apart.
 #
 # Each stable record also carries a DETAIL: the entry count for a container, the
 # value itself for a scalar. A container's count is deliberately not compared
@@ -246,8 +273,13 @@ readonly JSON_FALSE_VALUE='false'
 # instead of their value let exactly that mutation live through a whole run.
 readonly -a STABLE_FIELD_KINDS=(
   'permissions=map'
+  'permissions.allow=slice'
+  'permissions.deny=slice'
+  'permissions.defaultMode=string'
   'hooks=map'
   'statusLine=map'
+  'statusLine.type=string'
+  'statusLine.command=string'
   'skillOverrides=map'
   'cleanupPeriodDays=int64'
   'autoUpdatesChannel=string'
@@ -255,16 +287,39 @@ readonly -a STABLE_FIELD_KINDS=(
 )
 
 # Stable fields that must additionally be NON-EMPTY. Emptiness is asserted, and
-# not an exact entry count, because the exact contents of these fields are owned
-# by other guards (test/unit/skills-roster-fanout.sh pins skillOverrides against
-# dot_agents/custom-skill-lock.json) and duplicating a count here would make
-# this file a second source of truth that every unrelated edit has to update.
+# not an exact entry count, because a count would make this file a second source
+# of truth for a list that grows on unrelated work. What replaces the count is
+# not the emptiness check on its own: it is the named sub-paths above, the exact
+# values below and the named deny and hook entries, each of which pins the part
+# of the field that has a reason to be pinned.
 readonly -a STABLE_CONTAINER_FIELDS=(
   'permissions'
+  'permissions.allow'
+  'permissions.deny'
   'hooks'
   'statusLine'
   'skillOverrides'
 )
+
+# The stable fields whose exact VALUE is the policy, so kind and presence say
+# nothing on their own. `cleanupPeriodDays` at 36525 is what stops Claude Code
+# deleting session history, `defaultMode` is the permission posture, and each of
+# the others is a documented setting in CLAUDE.md whose whole content is one
+# scalar. Split on the FIRST `=`, so a value may contain one.
+readonly -a STABLE_FIELD_VALUES=(
+  'permissions.defaultMode=bypassPermissions'
+  'statusLine.type=command'
+  'cleanupPeriodDays=36525'
+  'autoUpdatesChannel=stable'
+  'remoteControlAtStartup=true'
+)
+
+# statusLine.command holds an absolute path built from .chezmoi.homeDir, which
+# differs between this machine and a CI runner, so the SUFFIX is what is pinned.
+# It still fails when the command is repointed at another script, which is the
+# mutation an exact-value table cannot be written for.
+readonly STATUS_LINE_COMMAND_PATH='statusLine.command'
+readonly STATUS_LINE_COMMAND_SUFFIX='/.claude/statusline-command.sh'
 
 # The permissions.deny entries whose loss is the reason this file asserts
 # anything outside enabledPlugins at all. These are named rather than counted,
@@ -273,6 +328,20 @@ readonly -a REQUIRED_DENY_ENTRIES=(
   'Read(.env)'
   'Read(secrets/**)'
   'Read(.ssh/id_*)'
+)
+
+# The hook commands whose loss this file has to see, named by a distinctive
+# fragment rather than by the whole command, because the commands carry an
+# absolute home path and some carry flags that are not this file's business.
+# These are the four hooks CLAUDE.md declares chezmoi-controlled: the session
+# start marker, the Hue pulse, the permission-prompt alert and the Bash audit
+# log. A count would not do: `hooks` keeps five event keys and a non-zero entry
+# count when any single one of them is deleted.
+readonly -a REQUIRED_HOOK_COMMAND_FRAGMENTS=(
+  'claude-user-prompt-start.sh'
+  'claude-stop-pulse.sh'
+  'alerter '
+  'claude-audit.sh'
 )
 
 # Build structured inputs through the template engine rather than by pasting
@@ -338,7 +407,11 @@ readonly SANDBOX_CONFIG_TEMPLATE='
     (dict "os" (env "CLAUDE_TARGET_OPERATING_SYSTEM"))) | toJson -}}'
 
 # One line per enabledPlugins entry, one for the passthrough field, one per
-# stable field and one per permissions.deny entry.
+# stable field path, one per permissions.deny entry and one per command found
+# anywhere under hooks. The hook walk descends event -> matcher -> hook entry,
+# kind-guarding each level, so a hooks map the render mangled produces fewer
+# records instead of an error, and the assertion that names the missing command
+# is what reports it.
 #
 # `index` rather than `.field` because chezmoi errors on a missing key with the
 # field form, and an absent key must reach the assertions below (which name it)
@@ -380,9 +453,16 @@ readonly SETTINGS_REPORT_TEMPLATE='
 {{ printf "%s%s%s%s%v%s%s\n" (env "CLAUDE_PASSTHROUGH_RECORD") $delimiter
    (kindOf $passthroughValue) $delimiter $passthroughValue $delimiter
    $passthroughKey -}}
-{{- range $path := list "permissions" "hooks" "statusLine" "skillOverrides"
-    "cleanupPeriodDays" "autoUpdatesChannel" "remoteControlAtStartup" -}}
-{{-   $value := index $settings $path -}}
+{{- $absent := index dict "no-such-key" -}}
+{{- range $path := splitList "\n" (env "CLAUDE_STABLE_FIELD_PATHS") -}}
+{{-   $value := $settings -}}
+{{-   range $segment := splitList "." $path -}}
+{{-     if eq (kindOf $value) "map" -}}
+{{-       $value = index $value $segment -}}
+{{-     else -}}
+{{-       $value = $absent -}}
+{{-     end -}}
+{{-   end -}}
 {{-   $detail := printf "%v" $value -}}
 {{-   if or (eq (kindOf $value) "map") (eq (kindOf $value) "slice") -}}
 {{-     $detail = printf "%d" (len $value) -}}
@@ -401,7 +481,29 @@ readonly SETTINGS_REPORT_TEMPLATE='
 {{- range $index, $entry := $deny -}}
 {{ printf "%s%s%s%s%v%s%d\n" (env "CLAUDE_DENY_RECORD") $delimiter
    (kindOf $entry) $delimiter $entry $delimiter $index -}}
-{{ end -}}'
+{{ end -}}
+{{- $hooks := index $settings "hooks" -}}
+{{- if ne (kindOf $hooks) "map" -}}
+{{-   $hooks = dict -}}
+{{- end -}}
+{{- range $eventName, $matchers := $hooks -}}
+{{-   if eq (kindOf $matchers) "slice" -}}
+{{-     range $matcher := $matchers -}}
+{{-       if eq (kindOf $matcher) "map" -}}
+{{-         $entries := index $matcher "hooks" -}}
+{{-         if eq (kindOf $entries) "slice" -}}
+{{-           range $entry := $entries -}}
+{{-             if eq (kindOf $entry) "map" -}}
+{{-               printf "%s%s%s%s%v%s%s\n" (env "CLAUDE_HOOK_COMMAND_RECORD")
+                    $delimiter (kindOf (index $entry "command")) $delimiter
+                    (index $entry "command") $delimiter $eventName -}}
+{{-             end -}}
+{{-           end -}}
+{{-         end -}}
+{{-       end -}}
+{{-     end -}}
+{{-   end -}}
+{{- end -}}'
 
 failures=0
 verified_case_count=0
@@ -657,10 +759,22 @@ write_case_fixture() {
   render_fixture_template "$fixture_template" >"$settings_path"
 }
 
+# stable_field_paths -- the paths out of STABLE_FIELD_KINDS, one per line. The
+# report template reads exactly this list, so a path added to the table is
+# reported without a second edit, and a path can no longer be reported without
+# being asserted or asserted without being reported.
+stable_field_paths() {
+  local field_kind
+  for field_kind in "${STABLE_FIELD_KINDS[@]}"; do
+    printf '%s\n' "${field_kind%%=*}"
+  done
+}
+
 # settings_report <case> <operating-system> -- the enabledPlugins entries, the
-# passthrough field, the stable fields and the permissions.deny entries of that
-# case's settings file, one delimited record per line. Called on the fixture and
-# again on the applied result, because the same questions are asked of both.
+# passthrough field, the stable field paths, the permissions.deny entries and
+# the hook commands of that case's settings file, one delimited record per line.
+# Called on the fixture and again on the applied result, because the same
+# questions are asked of both.
 settings_report() {
   CLAUDE_RENDERED_SETTINGS_JSON="$(cat "$(case_settings_path "$1" "$2")")" \
   CLAUDE_REPORT_FIELD_DELIMITER="$REPORT_FIELD_DELIMITER" \
@@ -669,6 +783,8 @@ settings_report() {
   CLAUDE_PASSTHROUGH_RECORD="$PASSTHROUGH_RECORD" \
   CLAUDE_STABLE_RECORD="$STABLE_RECORD" \
   CLAUDE_DENY_RECORD="$DENY_RECORD" \
+  CLAUDE_HOOK_COMMAND_RECORD="$HOOK_COMMAND_RECORD" \
+  CLAUDE_STABLE_FIELD_PATHS="$(stable_field_paths)" \
   CLAUDE_PASSTHROUGH_SETTING_KEY="$PASSTHROUGH_SETTING_KEY" \
     render_template "$SETTINGS_REPORT_TEMPLATE"
 }
@@ -684,6 +800,7 @@ parsed_passthrough_value=''
 parsed_passthrough_record_count=0
 parsed_stable_records=()
 parsed_deny_values=()
+parsed_hook_commands=()
 
 # parse_settings_report <report> -- split one report into the findings above.
 parse_settings_report() {
@@ -697,6 +814,7 @@ parse_settings_report() {
   parsed_passthrough_record_count=0
   parsed_stable_records=()
   parsed_deny_values=()
+  parsed_hook_commands=()
   while IFS="$REPORT_FIELD_DELIMITER" read -r record kind value name; do
     [[ -n $record ]] || continue
     case "$record" in
@@ -719,6 +837,9 @@ parse_settings_report() {
       "$DENY_RECORD")
         parsed_deny_values+=("$value")
         ;;
+      "$HOOK_COMMAND_RECORD")
+        parsed_hook_commands+=("$name$REPORT_FIELD_DELIMITER$value")
+        ;;
       *) fail "unrecognised report record '$record'; the extraction template and this parser disagree" ;;
     esac
   done <<<"$1"
@@ -733,6 +854,18 @@ stable_field_record() {
     printf '%s\n' "$record"
     return 0
   done
+  return 1
+}
+
+# stable_field_detail <path> -- the DETAIL column of one stable field's record:
+# the entry count for a container, the value itself for a scalar. Non-zero when
+# the report never mentioned the path, so a caller cannot read a missing field
+# as an empty value.
+stable_field_detail() {
+  local record
+  record="$(stable_field_record "$1")" || return 1
+  record="${record#*"$REPORT_FIELD_DELIMITER"}"
+  printf '%s\n' "${record#*"$REPORT_FIELD_DELIMITER"}"
 }
 
 # sorted_lines <line>... -- the arguments as a sorted newline-joined block, or
@@ -904,19 +1037,22 @@ assert_rendered_enabled_plugins() {
 # assert_stable_fields_survived <case> <operating-system> -- everything the
 # modify-template manages OUTSIDE enabledPlugins. This is the assertion whose
 # absence let a template that writes NO FILE AT ALL on five of these nine cases
-# measure green, so it is deliberately about presence and non-degeneracy rather
-# than about exact contents, which other guards own.
+# measure green. Presence and non-degeneracy are the first layer; the named
+# sub-paths, the exact scalar values, the named deny entries and the named hook
+# commands are the second, because eight separate one-level-down deletions and
+# value changes measured green against the first layer alone.
 assert_stable_fields_survived() {
   local requested_case="$1" operating_system="$2"
   local field_kind path expected_kind record actual_kind actual_detail
-  local required_entry deny_values
+  local field_value expected_value
+  local required_entry deny_values required_fragment hook_commands
 
   for field_kind in "${STABLE_FIELD_KINDS[@]}"; do
     path="${field_kind%%=*}"
     expected_kind="${field_kind#*=}"
-    record="$(stable_field_record "$path")"
+    record="$(stable_field_record "$path")" || record=''
     if [[ -z $record ]]; then
-      fail "[$operating_system/$requested_case] the applied settings report no record for the stable field $path; the extraction template and STABLE_FIELD_KINDS disagree"
+      fail "[$operating_system/$requested_case] the applied settings report no record for the stable field $path; either the extraction template and STABLE_FIELD_KINDS disagree, or the field's value contains a '$REPORT_FIELD_DELIMITER' and shifted its own record out of reach (measured 2026-08-02 with a home directory containing one: it fails here rather than passing)"
       continue
     fi
     actual_kind="${record#*"$REPORT_FIELD_DELIMITER"}"
@@ -938,10 +1074,40 @@ assert_stable_fields_survived() {
     fi
   done
 
+  # The stable fields that are one scalar each. Kind and presence pass unchanged
+  # when the value itself is wrong, and a wrong value here is the whole setting:
+  # cleanupPeriodDays at anything but 36525 puts session cleanup back on.
+  for field_value in "${STABLE_FIELD_VALUES[@]}"; do
+    path="${field_value%%=*}"
+    expected_value="${field_value#*=}"
+    actual_detail="$(stable_field_detail "$path")" || {
+      fail "[$operating_system/$requested_case] the applied settings report no record for the stable field $path, so its value cannot be checked; STABLE_FIELD_VALUES names a path that STABLE_FIELD_KINDS does not"
+      continue
+    }
+    [[ $actual_detail == "$expected_value" ]] ||
+      fail "[$operating_system/$requested_case] the stable field $path holds '$actual_detail' and not '$expected_value'; this field's whole content is that value, so a render that keeps the key and changes the value has changed the policy"
+  done
+
+  actual_detail="$(stable_field_detail "$STATUS_LINE_COMMAND_PATH")" || {
+    fail "[$operating_system/$requested_case] the applied settings report no record for $STATUS_LINE_COMMAND_PATH"
+    actual_detail=''
+  }
+  [[ $actual_detail == *"$STATUS_LINE_COMMAND_SUFFIX" ]] ||
+    fail "[$operating_system/$requested_case] $STATUS_LINE_COMMAND_PATH is '$actual_detail', which does not end in $STATUS_LINE_COMMAND_SUFFIX; the status line still has a command and it is no longer this repo's"
+
   deny_values="$(sorted_lines ${parsed_deny_values[@]+"${parsed_deny_values[@]}"})"
   for required_entry in "${REQUIRED_DENY_ENTRIES[@]}"; do
     grep -qxF "$required_entry" <<<"$deny_values" ||
       fail "[$operating_system/$requested_case] permissions.deny no longer holds $required_entry; that list is the deny policy that applies even under bypassPermissions, and losing it is the worst outcome of a render this test exists to prevent"
+  done
+
+  # Every command under hooks, whatever event it hangs off. A hook that is gone
+  # runs nothing, and `hooks` stays a non-empty map of five event keys when any
+  # one of them is deleted, so nothing above this line can see the loss.
+  hook_commands="$(sorted_lines ${parsed_hook_commands[@]+"${parsed_hook_commands[@]}"})"
+  for required_fragment in "${REQUIRED_HOOK_COMMAND_FRAGMENTS[@]}"; do
+    grep -qF -- "$required_fragment" <<<"$hook_commands" ||
+      fail "[$operating_system/$requested_case] no hook command holds '$required_fragment'; that hook is one CLAUDE.md declares chezmoi-controlled, and the apply either dropped its event or repointed it"
   done
 }
 
@@ -956,6 +1122,7 @@ assert_stable_block_is_invariant() {
   stable_block="$(
     sorted_lines ${parsed_stable_records[@]+"${parsed_stable_records[@]}"}
     sorted_lines ${parsed_deny_values[@]+"${parsed_deny_values[@]}"}
+    sorted_lines ${parsed_hook_commands[@]+"${parsed_hook_commands[@]}"}
   )"
   if [[ -z $reference_stable_block_source ]]; then
     reference_stable_block="$stable_block"
