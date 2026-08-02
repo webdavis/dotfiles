@@ -3288,26 +3288,36 @@ resolve_fork_upstream_hash() {
 }
 
 check_fork_drift() {
+  # WHAT THE PHASE READS vs WHAT IT NAMES. Every read below goes to
+  # CUSTOM_SKILL_LOCK, which in the weekly flow is the roster SNAPSHOT taken for
+  # the transaction, a temp file deleted when the process exits. Every message
+  # names the DEPLOYED lock instead, because a remedy that points at a path the
+  # operator cannot open is not a remedy: they were told to fix
+  # /var/folders/.../update-skills-roster.XXXXXX while the deployed file (and
+  # the committed source behind it) kept the typo and every later slot repeated
+  # the alert. GEN_ROSTER_SOURCE is empty in the read-only modes, which never
+  # snapshot, so there the two are the same file.
+  local lock_name="${GEN_ROSTER_SOURCE:-$CUSTOM_SKILL_LOCK}"
   if [[ ! -f $CUSTOM_SKILL_LOCK ]]; then
-    notify_fork_lock_missing "$CUSTOM_SKILL_LOCK"
+    notify_fork_lock_missing "$lock_name"
     return 0
   fi
   if ! lock_is_readable_json_object "$CUSTOM_SKILL_LOCK"; then
-    log "fork drift-check: $CUSTOM_SKILL_LOCK does not parse as a JSON object; NO fork upstream is being watched this run, fix the lock"
+    log "fork drift-check: $lock_name does not parse as a JSON object (a lock holds exactly one); NO fork upstream is being watched this run, fix the lock"
     relay_fork_advisory "$FORK_RELAY_STATE_LOCK_MALFORMED" "$FORK_RELAY_PROJECT_LOCK_FILE" \
-      "$CUSTOM_SKILL_LOCK does not parse as a JSON object; no fork upstream was drift-checked"
+      "$lock_name does not parse as a JSON object; no fork upstream was drift-checked"
     return 0
   fi
   if ! fork_table_is_present "$CUSTOM_SKILL_LOCK"; then
-    log "fork drift-check: $CUSTOM_SKILL_LOCK carries no forks table; NO fork upstream is being watched this run, restore the table (a lock with deliberately nothing to watch says so with an empty one)"
+    log "fork drift-check: $lock_name carries no forks table; NO fork upstream is being watched this run, restore the table (a lock with deliberately nothing to watch says so with an empty one)"
     relay_fork_advisory "$FORK_RELAY_STATE_FORKS_TABLE_ABSENT" "$FORK_RELAY_PROJECT_FORKS_TABLE" \
-      "$CUSTOM_SKILL_LOCK has no forks table at all; no fork upstream was drift-checked"
+      "$lock_name has no forks table at all; no fork upstream was drift-checked"
     return 0
   fi
   if ! fork_table_is_object "$CUSTOM_SKILL_LOCK"; then
-    log "fork drift-check: the forks table in $CUSTOM_SKILL_LOCK is present but not an object; NO fork upstream is being watched this run, fix the lock"
+    log "fork drift-check: the forks table in $lock_name is present but not an object; NO fork upstream is being watched this run, fix the lock"
     relay_fork_advisory "$FORK_RELAY_STATE_LOCK_MALFORMED" "$FORK_RELAY_PROJECT_FORKS_TABLE" \
-      "the forks table in $CUSTOM_SKILL_LOCK is present but not an object; no fork upstream was drift-checked"
+      "the forks table in $lock_name is present but not an object; no fork upstream was drift-checked"
     return 0
   fi
   local fork source_url skill_path last_compared_tree_hash current_tree_hash
@@ -3333,9 +3343,9 @@ check_fork_drift() {
   if ! IFS= read -r -d '' -u3 expected_entries ||
     [[ ! $expected_entries =~ ^[0-9]+$ ]]; then
     exec 3<&-
-    log "fork drift-check: the forks table in $CUSTOM_SKILL_LOCK could not be read; NO fork upstream is being watched this run, fix the lock"
+    log "fork drift-check: the forks table in $lock_name could not be read; NO fork upstream is being watched this run, fix the lock"
     relay_fork_advisory "$FORK_RELAY_STATE_LOCK_MALFORMED" "$FORK_RELAY_PROJECT_FORKS_TABLE" \
-      "the forks table in $CUSTOM_SKILL_LOCK could not be read; no fork upstream was drift-checked"
+      "the forks table in $lock_name could not be read; no fork upstream was drift-checked"
     return 0
   fi
   while IFS= read -r -d '' -u3 fork; do

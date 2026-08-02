@@ -229,6 +229,22 @@ assert_fail_closed "case D (malformed clawhub entry)" "$rcD" "$outD"
 # drift-watch reports the corruption by name. Asserting only "rc 0" would pass
 # against a gate that silently ignored the table, so each case also demands the
 # named advisory, and case F demands the FIELD be named.
+# assert_lock_level_advisory_names_deployed_lock <label> <output> -- an advisory
+# about the forks TABLE has to name the file an operator can open. In the weekly
+# flow the phase reads a snapshot of the roster taken for the transaction, a
+# temp file deleted when the process exits, so naming what it read sent the
+# operator to repair a path that no longer exists by the time they read the
+# alert, while the deployed lock (and the committed source behind it) kept the
+# typo and every later slot repeated the alert.
+assert_lock_level_advisory_names_deployed_lock() { # $1 label, $2 out
+  local label="$1" out="$2" advisory
+  advisory="$(grep -F 'forks table' <<<"$out" || true)"
+  [[ -n $advisory ]] ||
+    fail "$label: no lock-level forks advisory in the run, so there is no path to check: $out"
+  grep -qF "$LOCK" <<<"$advisory" ||
+    fail "$label: the advisory names something other than the deployed lock ($LOCK), so its remedy points at a file the operator cannot edit: $advisory"
+}
+
 assert_advisory_not_refusal() { # $1 label, $2 rc, $3 out, $4 expected substring
   local label="$1" rc="$2" out="$3" expected="$4"
   [[ $rc -eq 0 ]] ||
@@ -264,6 +280,7 @@ rcE=$?
 set -e
 assert_advisory_not_refusal "case E (forks false)" "$rcE" "$outE" \
   'the forks table in'
+assert_lock_level_advisory_names_deployed_lock "case E (forks false)" "$outE"
 
 # --- Case F: a forks ENTRY the walk cannot use --------------------------------
 # The hand-edit typo itself: lastComparedTreeHash written without quotes. Under
@@ -316,6 +333,7 @@ rcH=$?
 set -e
 assert_advisory_not_refusal "case H (no forks table at all)" "$rcH" "$outH" \
   'carries no forks table'
+assert_lock_level_advisory_names_deployed_lock "case H (no forks table at all)" "$outH"
 
 # --- Case G: a VALID non-empty forks table sails through and is WALKED --------
 # Every happy-path fixture in this suite carries `"forks": {}`, so without this
