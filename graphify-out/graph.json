@@ -4648,6 +4648,146 @@
       "norm_label": "system_defaults_read_actual()"
     },
     {
+      "label": "unattended-log-lib.sh",
+      "file_type": "code",
+      "source_file": "dot_local/bin/unattended-log-lib.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "dot_local_bin_unattended_log_lib",
+      "community": 419,
+      "norm_label": "unattended-log-lib.sh"
+    },
+    {
+      "label": "unattended-log-lib.sh script",
+      "file_type": "code",
+      "source_file": "dot_local/bin/unattended-log-lib.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "dot_local_bin_unattended_log_lib_sh__entry",
+      "community": 419,
+      "norm_label": "unattended-log-lib.sh script"
+    },
+    {
+      "label": "unattended_log_url()",
+      "file_type": "code",
+      "source_file": "dot_local/bin/unattended-log-lib.sh",
+      "source_location": "L59",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_bin_unattended_log_lib_unattended_log_url",
+      "community": 419,
+      "norm_label": "unattended_log_url()"
+    },
+    {
+      "label": "unattended_log_host()",
+      "file_type": "code",
+      "source_file": "dot_local/bin/unattended-log-lib.sh",
+      "source_location": "L66",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_bin_unattended_log_lib_unattended_log_host",
+      "community": 419,
+      "norm_label": "unattended_log_host()"
+    },
+    {
+      "label": "unattended_log_now_iso()",
+      "file_type": "code",
+      "source_file": "dot_local/bin/unattended-log-lib.sh",
+      "source_location": "L75",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_bin_unattended_log_lib_unattended_log_now_iso",
+      "community": 419,
+      "norm_label": "unattended_log_now_iso()"
+    },
+    {
+      "label": "unattended_log_elapsed()",
+      "file_type": "code",
+      "source_file": "dot_local/bin/unattended-log-lib.sh",
+      "source_location": "L85",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_bin_unattended_log_lib_unattended_log_elapsed",
+      "community": 419,
+      "norm_label": "unattended_log_elapsed()"
+    },
+    {
+      "label": "unattended_log_mark_success()",
+      "file_type": "code",
+      "source_file": "dot_local/bin/unattended-log-lib.sh",
+      "source_location": "L110",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_bin_unattended_log_lib_unattended_log_mark_success",
+      "community": 419,
+      "norm_label": "unattended_log_mark_success()"
+    },
+    {
+      "label": "unattended_log_gap_line()",
+      "file_type": "code",
+      "source_file": "dot_local/bin/unattended-log-lib.sh",
+      "source_location": "L122",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_bin_unattended_log_lib_unattended_log_gap_line",
+      "community": 419,
+      "norm_label": "unattended_log_gap_line()"
+    },
+    {
+      "label": "unattended_log_claim_week()",
+      "file_type": "code",
+      "source_file": "dot_local/bin/unattended-log-lib.sh",
+      "source_location": "L162",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_bin_unattended_log_lib_unattended_log_claim_week",
+      "community": 419,
+      "norm_label": "unattended_log_claim_week()"
+    },
+    {
+      "label": "unattended_log_post()",
+      "file_type": "code",
+      "source_file": "dot_local/bin/unattended-log-lib.sh",
+      "source_location": "L205",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "dot_local_bin_unattended_log_lib_unattended_log_post",
+      "community": 419,
+      "norm_label": "unattended_log_post()"
+    },
+    {
       "label": "executable_alert-dispatch.sh",
       "file_type": "code",
       "source_file": "dot_local/libexec/osquery/executable_alert-dispatch.sh",
@@ -31858,6 +31998,90 @@
       "norm_label": "asilent()"
     },
     {
+      "label": "unattended-log-lib.sh",
+      "file_type": "code",
+      "source_file": "test/unit/unattended-log-lib.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "test_unit_unattended_log_lib",
+      "community": 436,
+      "norm_label": "unattended-log-lib.sh"
+    },
+    {
+      "label": "unattended-log-lib.sh script",
+      "file_type": "code",
+      "source_file": "test/unit/unattended-log-lib.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "test_unit_unattended_log_lib_sh__entry",
+      "community": 436,
+      "norm_label": "unattended-log-lib.sh script"
+    },
+    {
+      "label": "fail()",
+      "file_type": "code",
+      "source_file": "test/unit/unattended-log-lib.sh",
+      "source_location": "L32",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_unattended_log_lib_fail",
+      "community": 436,
+      "norm_label": "fail()"
+    },
+    {
+      "label": "refute()",
+      "file_type": "code",
+      "source_file": "test/unit/unattended-log-lib.sh",
+      "source_location": "L39",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_unattended_log_lib_refute",
+      "community": 436,
+      "norm_label": "refute()"
+    },
+    {
+      "label": "PATH",
+      "file_type": "code",
+      "source_file": "test/unit/unattended-log-lib.sh",
+      "source_location": "L73",
+      "metadata": {
+        "language": "bash",
+        "kind": "code"
+      },
+      "_origin": "ast",
+      "id": "test_unit_unattended_log_lib_path",
+      "community": 436,
+      "norm_label": "path"
+    },
+    {
+      "label": "check_elapsed()",
+      "file_type": "code",
+      "source_file": "test/unit/unattended-log-lib.sh",
+      "source_location": "L81",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "test_unit_unattended_log_lib_check_elapsed",
+      "community": 436,
+      "norm_label": "check_elapsed()"
+    },
+    {
       "label": "update-skills-lock-symlink.sh",
       "file_type": "code",
       "source_file": "test/unit/update-skills-lock-symlink.sh",
@@ -58481,6 +58705,96 @@
       "context": "call",
       "source": "dot_local_bin_macos_defaults_lib_validate_defaults_record",
       "target": "dot_local_bin_macos_defaults_lib_resolve_system_plist_path",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/unattended-log-lib.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "dot_local_bin_unattended_log_lib",
+      "target": "dot_local_bin_unattended_log_lib_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/unattended-log-lib.sh",
+      "source_location": "L162",
+      "weight": 1.0,
+      "source": "dot_local_bin_unattended_log_lib",
+      "target": "dot_local_bin_unattended_log_lib_unattended_log_claim_week",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/unattended-log-lib.sh",
+      "source_location": "L85",
+      "weight": 1.0,
+      "source": "dot_local_bin_unattended_log_lib",
+      "target": "dot_local_bin_unattended_log_lib_unattended_log_elapsed",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/unattended-log-lib.sh",
+      "source_location": "L122",
+      "weight": 1.0,
+      "source": "dot_local_bin_unattended_log_lib",
+      "target": "dot_local_bin_unattended_log_lib_unattended_log_gap_line",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/unattended-log-lib.sh",
+      "source_location": "L66",
+      "weight": 1.0,
+      "source": "dot_local_bin_unattended_log_lib",
+      "target": "dot_local_bin_unattended_log_lib_unattended_log_host",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/unattended-log-lib.sh",
+      "source_location": "L110",
+      "weight": 1.0,
+      "source": "dot_local_bin_unattended_log_lib",
+      "target": "dot_local_bin_unattended_log_lib_unattended_log_mark_success",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/unattended-log-lib.sh",
+      "source_location": "L75",
+      "weight": 1.0,
+      "source": "dot_local_bin_unattended_log_lib",
+      "target": "dot_local_bin_unattended_log_lib_unattended_log_now_iso",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/unattended-log-lib.sh",
+      "source_location": "L205",
+      "weight": 1.0,
+      "source": "dot_local_bin_unattended_log_lib",
+      "target": "dot_local_bin_unattended_log_lib_unattended_log_post",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "dot_local/bin/unattended-log-lib.sh",
+      "source_location": "L59",
+      "weight": 1.0,
+      "source": "dot_local_bin_unattended_log_lib",
+      "target": "dot_local_bin_unattended_log_lib_unattended_log_url",
       "confidence_score": 1.0
     },
     {
@@ -88887,6 +89201,111 @@
     {
       "relation": "defines",
       "confidence": "EXTRACTED",
+      "source_file": "test/unit/unattended-log-lib.sh",
+      "source_location": "L81",
+      "weight": 1.0,
+      "source": "test_unit_unattended_log_lib",
+      "target": "test_unit_unattended_log_lib_check_elapsed",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/unattended-log-lib.sh",
+      "source_location": "L32",
+      "weight": 1.0,
+      "source": "test_unit_unattended_log_lib",
+      "target": "test_unit_unattended_log_lib_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/unattended-log-lib.sh",
+      "source_location": "L73",
+      "weight": 1.0,
+      "source": "test_unit_unattended_log_lib",
+      "target": "test_unit_unattended_log_lib_path",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/unattended-log-lib.sh",
+      "source_location": "L39",
+      "weight": 1.0,
+      "source": "test_unit_unattended_log_lib",
+      "target": "test_unit_unattended_log_lib_refute",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/unattended-log-lib.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "test_unit_unattended_log_lib",
+      "target": "test_unit_unattended_log_lib_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/unattended-log-lib.sh",
+      "source_location": "L86",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_unattended_log_lib_sh__entry",
+      "target": "test_unit_unattended_log_lib_check_elapsed",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/unattended-log-lib.sh",
+      "source_location": "L47",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_unattended_log_lib_sh__entry",
+      "target": "test_unit_unattended_log_lib_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/unattended-log-lib.sh",
+      "source_location": "L111",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_unattended_log_lib_sh__entry",
+      "target": "test_unit_unattended_log_lib_refute",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/unattended-log-lib.sh",
+      "source_location": "L84",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_unattended_log_lib_check_elapsed",
+      "target": "test_unit_unattended_log_lib_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "test/unit/unattended-log-lib.sh",
+      "source_location": "L43",
+      "weight": 1.0,
+      "context": "call",
+      "source": "test_unit_unattended_log_lib_refute",
+      "target": "test_unit_unattended_log_lib_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
       "source_file": "test/unit/update-skills-lock-symlink.sh",
       "source_location": "L13",
       "weight": 1.0,
@@ -107582,5 +108001,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "7678d61929e9a98baefd1ca8ad99a661e09b99a9"
+  "built_at_commit": "588ac80b88f7475f587f0ff82bb07a4fd5a85713"
 }

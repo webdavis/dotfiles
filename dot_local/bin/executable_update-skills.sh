@@ -125,6 +125,13 @@ LOCKFILE="$AGENTS/.update-skills.lock"
 STATE_DIR="$HOME/.local/state/update-skills"
 SUCCESS_STAMP="$STATE_DIR/last-success"               # ISO year-week (%G-%V) of the last fully successful weekly run
 SCHEDULED_WEEK_STAMP="$STATE_DIR/last-scheduled-week" # ISO week of the last SCHEDULED attempt (item 6)
+# The weekly RECORD posted to the #unattended-upgrades channel (see
+# unattended-log-lib.sh for the entry shape and why it exists). The success
+# STAMP above records only an ISO week plus two hashes, with no wall-clock time
+# in it, so the gap figure needs its own marker; last-log-week is the guard that
+# keeps 24 hourly Monday slots from becoming 24 messages.
+LOG_SUCCESS_MARKER="$STATE_DIR/last-success-at"
+LOG_WEEK_GUARD="$STATE_DIR/last-log-week"
 
 # Generation-exchange store model (Wave 3a fix4). The LIVE generation is a REAL
 # directory .skills-current holding skills/<name> real dirs, the npx CLI lock
@@ -211,6 +218,140 @@ done
 
 log() { printf '[update-skills] %s\n' "$*"; }
 
+# ── The weekly RECORD (task #89). Sourced, not duplicated: homebrew-weekly-upgrade.sh
+# posts the same entry shape and the two must not drift. A missing library is
+# LOUD and never fatal -- this job's work matters more than its bookkeeping, but
+# a silently absent record is exactly the invisibility the record exists to end.
+UNATTENDED_LOG_LIB="$(dirname "${BASH_SOURCE[0]}")/unattended-log-lib.sh"
+UNATTENDED_LOG_AVAILABLE=""
+if [[ -r $UNATTENDED_LOG_LIB ]]; then
+  # shellcheck source=dot_local/bin/unattended-log-lib.sh
+  source "$UNATTENDED_LOG_LIB"
+  UNATTENDED_LOG_AVAILABLE=1
+else
+  printf '[update-skills] WARNING: %s is missing; no weekly record will be posted (run chezmoi apply)\n' \
+    "$UNATTENDED_LOG_LIB" >&2
+fi
+
+# The gap sentence, captured ONCE at start-up. It must be read BEFORE this run
+# can overwrite the marker, or a successful run would report its own timestamp
+# and every entry would say the gap was zero.
+LOG_GAP_LINE=""
+if [[ -n $UNATTENDED_LOG_AVAILABLE ]]; then
+  LOG_GAP_LINE="$(unattended_log_gap_line "$LOG_SUCCESS_MARKER")"
+fi
+
+# __update_skills_record <class> <body> -- post ONE weekly record entry.
+#
+# `class` is `completed` (the run reached the end) or `deferred` (nothing was
+# attempted: a deferral or a refusal). FAILURES are not a class here: they keep
+# going to the existing alert route via __update_skills_alert so they land in the
+# priority channel. Act on one, record the other.
+#
+# Gated on --scheduled, which only the LaunchAgent passes. A manual run must
+# never post, because an operator running this by hand on a Wednesday would make
+# a dead LaunchAgent look alive, which inverts the one signal the record carries.
+# --dry-run is gated out for the same reason it never relays anywhere else: a
+# preview must have no side effects, and a push reaches a channel. Do not "fix"
+# either gate.
+__update_skills_record() {
+  local class="$1" body="$2" detail
+  [[ -n $SCHEDULED ]] || return 0
+  [[ $DRYRUN == "--dry-run" ]] && return 0
+  [[ -n $UNATTENDED_LOG_AVAILABLE ]] || return 0
+  if ! unattended_log_claim_week "$LOG_WEEK_GUARD" "$class"; then
+    log "weekly record: this ISO week already has a '$class'-or-better entry; not posting again"
+    return 0
+  fi
+  detail="$(printf 'run at %s\n%s\n%s' "$(unattended_log_now_iso)" "$LOG_GAP_LINE" "$body")"
+  unattended_log_post update-skills "$class" "$(unattended_log_host)" "$detail"
+  return 0
+}
+
+# ── What "changed" can honestly mean here.
+#
+# The obvious answer, "skill, old version, new version", does not exist for most
+# of the store. The npx CLI's lock entry schema is source, sourceType, sourceUrl,
+# skillPath, skillFolderHash, installedAt, updatedAt: no version, no commit, and
+# the lane installs the latest commit from main with NO pin. Measured against the
+# live lock, not one of its entries carries a version field. So for that lane the
+# honest change unit is the skillFolderHash moving, and the entry says outright
+# that a version number is not knowable there.
+#
+# The clawhub lane is different: its CLI drops .clawhub/origin.json into each
+# skill it installs, carrying installedVersion. That is the only place a version
+# number exists anywhere in the store, so those skills get a real
+# old -> new transition. Reading the marker rather than the roster also makes the
+# lane self-describing: a skill IS clawhub-tracked exactly when it carries one.
+
+# __update_skills_change_snapshot -- one "<name>\t<lane>\t<fingerprint>" line per
+# tracked skill. Taken before the weekly attempt and again after it; the
+# difference is what the entry reports. Always exits 0: a record that cannot be
+# computed must not fail the run it is recording.
+__update_skills_change_snapshot() {
+  local lock="$SKILLS_CURRENT/.skill-lock.json" origin name
+  if [[ -r $lock ]]; then
+    jq -r '(.skills // {}) | to_entries[] | [.key, "npx", (.value.skillFolderHash // "-")] | @tsv' \
+      "$lock" 2>/dev/null || true
+  fi
+  for origin in "$STORE"/*/.clawhub/origin.json; do
+    [[ -r $origin ]] || continue
+    name="${origin#"$STORE"/}"
+    name="${name%%/*}"
+    printf '%s\tclawhub\t%s\n' "$name" "$(jq -r '.installedVersion // "-"' "$origin" 2>/dev/null || printf -- '-')"
+  done
+  return 0
+}
+
+# How many changed skills an entry names before it summarizes the rest. Discord
+# caps a message at 2000 characters and a whole-store move would otherwise blow
+# past it, taking the gap figure with it.
+readonly LOG_CHANGE_NAME_CAP=12
+
+# __update_skills_lane_line <before-file> <after-file> <lane> <caveat> -- one
+# sentence per lane. `caveat` is what the lane CANNOT tell you, stated every
+# time; a record implying a completeness it does not have is worse than none.
+__update_skills_lane_line() {
+  local before="$1" after="$2" lane="$3" caveat="$4"
+  local total=0 name entry_lane fingerprint_after fingerprint_before shown
+  local -a changed=()
+  while IFS=$'\t' read -r name entry_lane fingerprint_after; do
+    [[ $entry_lane == "$lane" ]] || continue
+    total=$((total + 1))
+    fingerprint_before="$(awk -F'\t' -v want_name="$name" -v want_lane="$lane" \
+      '$1 == want_name && $2 == want_lane { print $3; exit }' "$before" 2>/dev/null || true)"
+    if [[ -z $fingerprint_before ]]; then
+      changed+=("$name (added)")
+    elif [[ $fingerprint_before != "$fingerprint_after" ]]; then
+      if [[ $lane == "clawhub" ]]; then
+        changed+=("$name $fingerprint_before -> $fingerprint_after")
+      else
+        changed+=("$name")
+      fi
+    fi
+  done <"$after"
+  # A name present before and gone after was delisted or dropped; that is a
+  # change too, and the one most worth seeing.
+  while IFS=$'\t' read -r name entry_lane fingerprint_before; do
+    [[ $entry_lane == "$lane" ]] || continue
+    awk -F'\t' -v want_name="$name" -v want_lane="$lane" \
+      '$1 == want_name && $2 == want_lane { found = 1 } END { exit !found }' "$after" 2>/dev/null ||
+      changed+=("$name (removed)")
+  done <"$before"
+
+  if [[ ${#changed[@]} -eq 0 ]]; then
+    printf '%s lane: 0 of %d tracked skills changed. %s' "$lane" "$total" "$caveat"
+    return 0
+  fi
+  shown="$(printf '%s, ' "${changed[@]:0:LOG_CHANGE_NAME_CAP}")"
+  shown="${shown%, }"
+  if [[ ${#changed[@]} -gt $LOG_CHANGE_NAME_CAP ]]; then
+    shown="$shown, and $((${#changed[@]} - LOG_CHANGE_NAME_CAP)) more"
+  fi
+  printf '%s lane: %d of %d tracked skills changed (%s). %s' \
+    "$lane" "${#changed[@]}" "$total" "$shown" "$caveat"
+}
+
 # Required-phase failure accounting. REQUIRED phases (npx/clawhub installs and
 # updates, hermes registry updates, Codex overlay re-assert, fan-out
 # convergence, superpowers routing assert) keep continue-on-failure behavior
@@ -272,7 +413,13 @@ __update_skills_alert() {
   fi
   local relay_script="$HOME/.local/bin/relay.sh"
   if [[ -x $relay_script ]]; then
-    "$relay_script" --agent update-skills --state exhausted --project skills --detail "$detail" || true
+    # 9>&- for the same reason relay_fork_advisory carries it: relay DETACHES
+    # channels that outlive this run, a kernel flock on fd 9 is held until the
+    # LAST copy of the fd closes, and an inherited copy in a detached curl keeps
+    # the lock held after the updater exits, so the next slot defers over a
+    # competing run that does not exist. This wrapper is reached from under that
+    # same lock (the lock-failure, roster-refusal and exhaustion paths).
+    "$relay_script" --agent update-skills --state exhausted --project skills --detail "$detail" 9>&- || true
   fi
 }
 
@@ -2732,10 +2879,12 @@ else
   __update_skills_acquire_lock || __update_skills_lock_rc=$?
   if [[ $__update_skills_lock_rc -eq 75 ]]; then
     log "another run holds the lock; deferring (retryable, exit 75)"
+    __update_skills_record deferred "nothing was attempted: another update-skills run already holds the serialize lock, so this slot deferred (exit 75). A later slot retries."
     exit 75
   elif [[ $__update_skills_lock_rc -ne 0 ]]; then
     record_required_failure "could not acquire the serialize lock (rc $__update_skills_lock_rc; e.g. ~/.agents is not writable); no build, no publish, no stamp"
     __update_skills_alert "update-skills could not acquire its serialize lock (rc $__update_skills_lock_rc). Check that ~/.agents is writable, then re-run ~/.local/bin/update-skills.sh."
+    __update_skills_record deferred "nothing was attempted: the serialize lock could not be acquired (rc $__update_skills_lock_rc), so the run refused. An alert also went to the priority channel."
     exit 1
   fi
   # No release path: the kernel drops the lock when this process exits, however
@@ -2755,6 +2904,7 @@ else
     if ! __gen_snapshot_roster; then
       record_required_failure "roster lock validation failed (missing, unparseable, or schema-broken); no build, no publish, no prune, no stamp"
       __update_skills_alert "update-skills refused to run: the roster lock at $GEN_ROSTER_SOURCE is missing or broken. Fix the deployed custom-skill-lock.json (chezmoi apply) and re-run."
+      __update_skills_record deferred "nothing was attempted: the run REFUSED because the roster lock at $GEN_ROSTER_SOURCE is missing, unparseable or schema-broken. An alert also went to the priority channel."
       exit 1
     fi
     # F9: the snapshot succeeded, so GEN_ROSTER_SNAPSHOT_FILE is a live temp
@@ -2775,6 +2925,7 @@ else
     if [[ $__update_skills_tracked_count -eq 0 ]]; then
       record_required_failure "the roster tracks ZERO skills (empty npx+clawhub union); refusing any mutation (there is no legitimate empty roster; a zero union is corruption or a broken deploy, not intent)"
       __update_skills_alert "update-skills refused to run: the roster lock tracks no skills. If delisting everything is truly intended, remove the generation by hand; otherwise restore the roster (chezmoi apply) and re-run."
+      __update_skills_record deferred "nothing was attempted: the run REFUSED because the roster lock tracks ZERO skills, which is corruption or a broken deploy rather than intent. An alert also went to the priority channel."
       exit 1
     fi
   fi
@@ -2798,6 +2949,10 @@ if [[ -z $INSTALL_ONLY ]] && [[ -z $CHECK_FORKS_ONLY ]] && [[ $DRYRUN != "--dry-
   [[ ${UPDATE_SKILLS_FORCE:-} != "1" ]] &&
   [[ -f $SUCCESS_STAMP && "$(cat "$SUCCESS_STAMP" 2>/dev/null)" == "$(__update_skills_stamp_value)" ]]; then
   log "weekly skills update already succeeded this week for the current roster; nothing to do"
+  # The completed entry for this week already claimed the guard, so this is
+  # normally a no-op. It is here so a week whose completed entry failed to write
+  # its guard still leaves one message rather than none.
+  __update_skills_record deferred "nothing was attempted: this ISO week already completed successfully for the current roster and updater, so this slot was a no-op."
   exit 0
 fi
 
@@ -2822,6 +2977,7 @@ if [[ -z $INSTALL_ONLY ]] && [[ ${UPDATE_SKILLS_FORCE:-} != "1" ]] && [[ $DRYRUN
     log "EXHAUSTED: the last scheduled retry slot for this week still deferred; the weekly skills update did not run this week"
     __update_skills_alert "Weekly skills update deferred on every scheduled slot (the machine had agent activity at every Monday slot). Run it by hand when idle (~/.local/bin/update-skills.sh)."
   fi
+  __update_skills_record deferred "nothing was attempted: a harness showed activity within the idle threshold, or the process table could not be read (fail-closed), so this slot deferred. A later slot retries."
   exit 0
 fi
 
@@ -3531,6 +3687,29 @@ if __gen_migration_needed; then
   __gen_recover
 fi
 
+# Snapshot what the store holds BEFORE the exchange. The weekly record's change
+# list is the difference between this and the same reading afterwards, and it has
+# to be taken here because a published generation replaces the previous
+# fingerprints in place.
+LOG_CHANGE_BEFORE=""
+LOG_CHANGE_AFTER=""
+if [[ -n $UNATTENDED_LOG_AVAILABLE ]]; then
+  LOG_CHANGE_BEFORE="$(mktemp)"
+  LOG_CHANGE_AFTER="$(mktemp)"
+  # Fold the snapshot temp files into the roster-snapshot cleanup trap already
+  # installed above (same shape: guard each name, then a trailing `true` so the
+  # trap can never alter the exit status), so no exit path leaks them.
+  __update_skills_cleanup() {
+    local leftover
+    for leftover in "${GEN_ROSTER_SNAPSHOT_FILE:-}" "${LOG_CHANGE_BEFORE:-}" "${LOG_CHANGE_AFTER:-}"; do
+      [[ -n $leftover ]] && rm -f "$leftover"
+    done
+    true
+  }
+  trap '__update_skills_cleanup' EXIT
+  __update_skills_change_snapshot >"$LOG_CHANGE_BEFORE" 2>/dev/null || true
+fi
+
 # 2-5) Build the candidate generation (a fake HOME under .skills-generations),
 #      run the npx + clawhub + overlay lanes against it under env -i, validate
 #      the WHOLE candidate, and publish with ONE atomic exchange. Any failure
@@ -3548,6 +3727,7 @@ if [[ -n $GEN_EXCHANGE_DEFERRED ]]; then
     log "EXHAUSTED: the last scheduled slot deferred the exchange on harness activity; the weekly skills update did not run this week"
     __update_skills_alert "Weekly skills update deferred the generation exchange on every scheduled slot (a harness was active at each Monday slot). Run it by hand when idle (~/.local/bin/update-skills.sh)."
   fi
+  __update_skills_record deferred "nothing was published: a harness turned active during the build, so the generation exchange deferred (exit 75) and the live generation is unchanged. A later slot retries."
   exit 75
 fi
 
@@ -3585,6 +3765,7 @@ run_fork_drift_watch
 # slot rebuilds. When a required phase failed we WITHHOLD the stamp, so a later
 # scheduled slot retries; and for a scheduled run with no slot remaining this
 # week we alert (the retry budget is spent). A dry run records nothing.
+LOG_STAMP_NOTE="the weekly success stamp was written"
 if [[ $DRYRUN != "--dry-run" ]]; then
   if [[ $REQUIRED_FAILURES -eq 0 ]] && ! __gen_roster_unchanged; then
     # R2-2 stamp-time re-check: the roster changed AFTER the publish re-check
@@ -3592,12 +3773,18 @@ if [[ $DRYRUN != "--dry-run" ]]; then
     # live state is consistent; but stamping would mark THIS week done for a
     # roster that no longer matches, so withhold and let the next slot rebuild.
     log "WITHHOLDING the weekly success stamp: the roster lock changed after this run's snapshot; the next slot rebuilds against the new roster"
+    LOG_STAMP_NOTE="the weekly success stamp was WITHHELD: the roster lock changed after this run's snapshot, so a later slot rebuilds against the new roster"
   elif [[ $REQUIRED_FAILURES -eq 0 ]]; then
     mkdir -p "$STATE_DIR"
     __update_skills_stamp_value >"$SUCCESS_STAMP"
+    # The record's own marker: the ISO week stamp above carries no wall-clock
+    # time, so the gap figure in the next entry needs this. Written only for a
+    # fully successful run, which is what "last successful run" has to mean.
+    [[ -n $UNATTENDED_LOG_AVAILABLE ]] && unattended_log_mark_success "$LOG_SUCCESS_MARKER"
     # A verified success resets every per-skill failure streak.
     __gen_reset_failure_streaks
   else
+    LOG_STAMP_NOTE="the weekly success stamp was WITHHELD: $REQUIRED_FAILURES required-phase failure(s) this run, so a later scheduled slot retries"
     log "WITHHOLDING the weekly success stamp: $REQUIRED_FAILURES required-phase failure(s) this run; a later scheduled slot will retry"
     # Per-skill failure streaks: incremented at most once per ISO week (not per
     # hourly slot); a skill at 2+ consecutive failed weeks escalates the alert
@@ -3608,6 +3795,23 @@ if [[ $DRYRUN != "--dry-run" ]]; then
       __update_skills_alert "Weekly skills update finished with $REQUIRED_FAILURES required-phase failure(s) and no scheduled slot remains this week. Check ~/.local/log/skills/."
     fi
   fi
+fi
+
+# The weekly RECORD for a run that reached the end. It posts whether or not
+# anything changed: a run that changed nothing is precisely where the gap figure
+# is the only information the entry carries, and suppressing the empty entry
+# throws away the main reason the channel exists. Required-phase failures also
+# reach here (they alert separately to the priority channel), so the entry states
+# the count rather than implying a clean week.
+if [[ -n $UNATTENDED_LOG_AVAILABLE && -n $LOG_CHANGE_AFTER ]]; then
+  __update_skills_change_snapshot >"$LOG_CHANGE_AFTER" 2>/dev/null || true
+  __update_skills_record completed "$(printf '%s\n%s\n%s\nrequired-phase failures: %d' \
+    "$(__update_skills_lane_line "$LOG_CHANGE_BEFORE" "$LOG_CHANGE_AFTER" npx \
+      'The change unit is the skill folder hash: this lane installs the latest commit from main with no pin and its lock records no version field, so NO VERSION NUMBER IS KNOWABLE for these skills.')" \
+    "$(__update_skills_lane_line "$LOG_CHANGE_BEFORE" "$LOG_CHANGE_AFTER" clawhub \
+      'This lane records an installed version, so a version number is knowable here.')" \
+    "$LOG_STAMP_NOTE" \
+    "$REQUIRED_FAILURES")"
 fi
 
 log "done${DRYRUN:+ (dry-run)}"
