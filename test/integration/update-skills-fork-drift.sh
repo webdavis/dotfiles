@@ -1143,6 +1143,10 @@ write_forks_lock '{}'
 run_fork_check
 [[ $fork_check_rc -eq 0 ]] ||
   fail "case 23: the drift-watch exited $fork_check_rc on an empty forks table: $fork_check_output"
+# The two assertions below are about SILENCE, which a run that never reached the
+# phase would also produce, so first prove the phase ran.
+printf '%s\n' "$fork_check_output" | grep -q 'fork drift-check' ||
+  fail "case 23: the drift-watch never ran, so the silence assertions below would pass over a phase that did nothing: $fork_check_output"
 refute_match "$fork_check_output" 'forks table' \
   "case 23: an explicitly EMPTY forks table is reported like a missing one, so the deliberate statement and the mistake are indistinguishable: $fork_check_output"
 [[ ! -s $relay_call_log ]] ||
