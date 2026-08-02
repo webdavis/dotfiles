@@ -666,16 +666,28 @@ grep -qi 'possible lockout' <<<"$SSH_RUN_ERR" ||
   fail "post ordering: the lockout must be reported, not displaced by the drift message (stderr: $SSH_RUN_ERR)"
 write_hardened_dropin
 
-# --- fifo: a named pipe in the drop-in directory must never be read -----------
+# --- fifo: THIS SCRIPT's own walk skips a named pipe and still terminates -----
 # `cksum < fifo` never returns, and a fingerprint that hangs AFTER the kickstart
 # is strictly worse than the race it was added to close. Termination is
 # asserted by run_ssh_reload's wall clock, which aborts the suite on a hang.
+#
+# WHAT THE EXIT STATUS BELOW DOES NOT SAY, spelled out because this case used to
+# read as "a pipe in the drop-in directory is handled". SSHD_BIN here is the
+# stub, and the stub never opens the configuration tree. The real sshd does,
+# and it applies no type filter of its own: measured 2026-08-01 against OpenSSH
+# 10.0p2 on macOS 26.2, this exact tree makes `sshd -G` and `sshd -t` each hit
+# a 10s timeout where the same tree without the pipe exits 0. A production
+# --reload over it therefore hangs at its syntax check, and a production
+# --verify hangs with an empty stdout AND an empty stderr. That is sshd's
+# behaviour, it predates this branch, and no filter in the script reaches it.
+# What this case judges is only the narrower property the script does own: its
+# own walk neither opens the pipe nor stops on it.
 
 fifo_path="$SSHD_CONFIG_D/040-fifo.conf"
 mkfifo "$fifo_path"
 run_ssh_reload --reload
 [[ $SSH_RUN_STATUS -eq 0 ]] ||
-  fail "fifo: a named pipe is not a regular file and must simply be skipped, got exit $SSH_RUN_STATUS (stderr: $SSH_RUN_ERR)"
+  fail "fifo: the script's own walk must skip a path that is not a regular file and run to completion against the stub daemon, got exit $SSH_RUN_STATUS (stderr: $SSH_RUN_ERR)"
 assert_kickstart_attempted 'fifo'
 rm -f "$fifo_path"
 
