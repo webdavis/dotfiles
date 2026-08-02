@@ -991,6 +991,27 @@ resolve_include_paths() {
   return 0
 }
 
+# path_is_a_regular_file <path>: 0 when the path is a regular file right now.
+# Pure: one input, a boolean answer, no globals.
+#
+# Asked a second time immediately BEFORE each open, not only where the walk
+# resolved the path. Reading a named pipe never returns (bash blocks in open(2)
+# and there is no non-blocking open to reach from a shell), and `-r` is TRUE for
+# one, so the readability test in front of each open is not the guard here:
+# measured on macOS 26.2, `[[ -r fifo ]]` succeeds and `[[ -f fifo ]]` does not.
+# A walk that hangs reports nothing at all, and after the kickstart that is
+# strictly worse than the drift the reload's guard exists to catch, because a
+# refusal is recoverable and a hang is not.
+#
+# The resolution's own -f test is too far from the open to be the guard on its
+# own: for the second root it sits before the entire walk of the first. Asking
+# again here does not CLOSE the window, nothing reachable from a shell does; it
+# narrows it to the same stat-then-open microseconds the observation's own type
+# re-check leaves.
+path_is_a_regular_file() {
+  [[ -f $1 ]]
+}
+
 scan_included_files() {
   local from="$1" in_match="$2" depth="$3" chain="$4"
   local resolved
@@ -1029,6 +1050,13 @@ scan_config_file() {
   chain="$chain$file|"
   if [[ ! -r $file ]]; then
     add_failure "match scan: cannot read '$file'; failing closed rather than treating it as clean"
+    return 0
+  fi
+  # Re-asked here, next to the open it protects, and not left to the -f test
+  # the resolver already ran: see path_is_a_regular_file for why the distance
+  # between those two moments is the whole point.
+  if ! path_is_a_regular_file "$file"; then
+    add_failure "match scan: '$file' was a regular file when this scan resolved it and is not one now; failing closed rather than opening something that can block forever"
     return 0
   fi
   # Read the file directly. No here-string: bash materializes one in a
@@ -1379,12 +1407,18 @@ install_dropin() {
 # narrow it. Reading a named pipe never returns: bash blocks in open(2) and
 # there is no non-blocking open to reach from a shell. A hang after the kickstart
 # is strictly worse than the drift this guard exists to catch, because a refusal
-# is recoverable and a hang is not. Two things narrow it, and neither closes it:
-# the walk admits regular files only (-f is false for a pipe and for a symlink
-# to one), and the observation re-checks the type in the same stat call that
-# reads the mode, immediately before opening the file. What is left is the gap
-# between that stat and that open, which is microseconds and needs a writer
-# aiming at it. It is not the enumeration-wide window it replaced.
+# is recoverable and a hang is not.
+#
+# ONE OBSERVATION OPENS EACH FILE TWICE, and both opens are guarded. The
+# enumeration reads the file to follow its Include lines; the record's checksum
+# reads it again afterwards. The resolution's own -f test guards neither on its
+# own, because it is not adjacent to either: for the second root it runs before
+# the whole walk of the first. So each open re-asks the question immediately in
+# front of itself, the enumeration with -f (see path_is_a_regular_file) and the
+# checksum with the type field of the same stat call that reads the mode. What
+# is left is the gap between each of those tests and the open it protects, which
+# is microseconds and needs a writer aiming at it. It is not the
+# enumeration-wide window it replaced, and no open is left unguarded.
 #
 # Every read here is UNPRIVILEGED, on purpose. The post-restart pass runs after
 # a readiness loop that may have burned its whole attempt budget, by which time
@@ -1442,6 +1476,13 @@ collect_config_tree_from_file() {
   chain="$chain$file|"
   if [[ ! -r $file ]]; then
     CONFIG_TREE_ERROR="cannot read '$file'"
+    return 0
+  fi
+  # Re-asked here, next to the open it protects. This is the FIRST of the two
+  # opens one observation makes of each file, and the only one the stat that
+  # records the type does not stand in front of; see path_is_a_regular_file.
+  if ! path_is_a_regular_file "$file"; then
+    CONFIG_TREE_ERROR="'$file' was a regular file when this walk resolved it and is not one now, so reading it here could block"
     return 0
   fi
   CONFIG_TREE_FILES+=("$file")

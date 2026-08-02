@@ -198,6 +198,15 @@ case "${SSH_TREE_MUTATION_ACTION:?}" in
   make-unreadable)
     chmod -- 0000 "$target" || action_status=$?
     ;;
+  replace-with-fifo)
+    # A file the walk already resolved as a regular one, turned into a NAMED
+    # PIPE while the run is in flight. Both of an observation's opens block
+    # forever on a pipe, and `[[ -r ]]` is true for one, so the only thing that
+    # keeps the walk out of it is a type test. What this drives is therefore
+    # whether the walk opens it at all; run_ssh_reload's wall clock is what
+    # turns a hang into a failure instead of a stuck suite.
+    { rm -f -- "$target" && mkfifo -- "$target"; } || action_status=$?
+    ;;
   rewrite-same-length)
     # Different bytes, IDENTICAL byte count. An observation that kept only the
     # byte-count half of `cksum`'s output would call this unchanged, and every
@@ -666,6 +675,25 @@ run_ssh_reload --reload
   fail "fifo: a named pipe is not a regular file and must simply be skipped, got exit $SSH_RUN_STATUS (stderr: $SSH_RUN_ERR)"
 assert_kickstart_attempted 'fifo'
 rm -f "$fifo_path"
+
+# --- fifo swap: a resolved file BECOMES a named pipe after the kickstart ------
+# The case above starts with the pipe already sitting in the directory, so the
+# walk never resolved it as a regular file and never had to change its mind.
+# This one turns a file the walk DID resolve into a pipe at the one seam that
+# fires after the restart, which is where a hang is unrecoverable: the operator
+# is watching for a lockout and the reload simply stops speaking.
+#
+# One observation opens each file twice, and the -f test the resolver ran is
+# adjacent to neither open, so what this asserts is the PROPERTY rather than
+# which of the guards caught it: the run ENDS (run_ssh_reload's wall clock
+# aborts the suite otherwise), and it refuses to call the reload a success.
+
+run_reload_with_mutation 'ssh-keyscan *' 1 replace-with-fifo "$INERT_DROPIN"
+assert_drift_refuses_the_success_claim 'fifo swap after the kickstart' "$INERT_DROPIN"
+grep -qi 'disappeared' <<<"$SSH_RUN_ERR" ||
+  fail "fifo swap after the kickstart: a path the walk can no longer read as a regular file has left the tree sshd reads, and the failure must say so (stderr: $SSH_RUN_ERR)"
+rm -f "$INERT_DROPIN"
+printf '# inert sibling drop-in\n' >"$INERT_DROPIN"
 
 # --- unreadable mid-run, before the kickstart ---------------------------------
 # The drift comparison is only ever reached when an observation succeeded. The
