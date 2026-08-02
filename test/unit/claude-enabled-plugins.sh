@@ -263,6 +263,19 @@ readonly JSON_BOOLEAN_KIND='bool'
 readonly JSON_TRUE_VALUE='true'
 readonly JSON_FALSE_VALUE='false'
 
+# The OTHER member of that union. Claude Code 2.1.220's schema calls the array
+# form the "extended format with version constraints", so an array-valued entry
+# is a plugin pinned to a reviewed release rather than a malformed boolean.
+# Collapsing it to `true` would keep the plugin enabled and drop the pin, which
+# returns it to unconstrained: for a plugin that ships lifecycle hooks (ponytail
+# ships JavaScript ones) that widens what may execute, and it fails in the
+# direction that runs MORE code. So the render carries it through the same way
+# it carries a `false`, and this test pins the array's contents rather than only
+# its kind. `%v` prints a Go slice as `[a b c]`, hence the rendered form below.
+readonly JSON_ARRAY_KIND='slice'
+readonly LIVE_VERSION_CONSTRAINT_ENTRY='1.4.2'
+readonly LIVE_VERSION_CONSTRAINT_RENDERED='[1.4.2]'
+
 # The stable fields that must survive every case, and the kind each must have.
 # An absent field reports kind `invalid`, so this table is also the presence
 # check: it is what catches a render that failed and wrote nothing, which is the
@@ -398,7 +411,7 @@ readonly FIXTURE_NON_BOOLEAN_PLUGIN_VALUES_TEMPLATE='
 {{- $fixture := dict
     (env "CLAUDE_PASSTHROUGH_SETTING_KEY") true
     "enabledPlugins" (dict
-      (env "CLAUDE_ARRAY_VALUED_DECLARED_PLUGIN") (list "read")
+      (env "CLAUDE_ARRAY_VALUED_DECLARED_PLUGIN") (list (env "CLAUDE_LIVE_VERSION_CONSTRAINT_ENTRY"))
       (env "CLAUDE_STRING_VALUED_DECLARED_PLUGIN") "false"
       (env "CLAUDE_NUMBER_VALUED_DECLARED_PLUGIN") 0
       (env "CLAUDE_NULL_VALUED_DECLARED_PLUGIN") (fromJson "null")) -}}
@@ -623,6 +636,7 @@ render_fixture_template() {
     CLAUDE_STRING_VALUED_DECLARED_PLUGIN="$STRING_VALUED_DECLARED_PLUGIN" \
     CLAUDE_NUMBER_VALUED_DECLARED_PLUGIN="$NUMBER_VALUED_DECLARED_PLUGIN" \
     CLAUDE_NULL_VALUED_DECLARED_PLUGIN="$NULL_VALUED_DECLARED_PLUGIN" \
+    CLAUDE_LIVE_VERSION_CONSTRAINT_ENTRY="$LIVE_VERSION_CONSTRAINT_ENTRY" \
     render_template "$1"
 }
 
@@ -717,8 +731,9 @@ case_expected_fixture_plugin_records() {
         "$JSON_TRUE_VALUE" "$REPORT_FIELD_DELIMITER" "$LIVE_UNDECLARED_ENABLED_PLUGIN"
       ;;
     'non-boolean-plugin-values')
-      printf 'slice%s[read]%s%s\n' "$REPORT_FIELD_DELIMITER" \
-        "$REPORT_FIELD_DELIMITER" "$ARRAY_VALUED_DECLARED_PLUGIN"
+      printf '%s%s%s%s%s\n' "$JSON_ARRAY_KIND" "$REPORT_FIELD_DELIMITER" \
+        "$LIVE_VERSION_CONSTRAINT_RENDERED" "$REPORT_FIELD_DELIMITER" \
+        "$ARRAY_VALUED_DECLARED_PLUGIN"
       printf 'string%s%s%s%s\n' "$REPORT_FIELD_DELIMITER" "$JSON_FALSE_VALUE" \
         "$REPORT_FIELD_DELIMITER" "$STRING_VALUED_DECLARED_PLUGIN"
       printf 'int64%s0%s%s\n' "$REPORT_FIELD_DELIMITER" \
@@ -731,20 +746,26 @@ case_expected_fixture_plugin_records() {
 }
 
 # case_expected_rendered_plugin_records <case> -- what the APPLIED file must
-# hold, as the same `<kind>:<value>:<name>` records. Every declared plugin
-# renders the JSON boolean true, except a declared plugin the live file disabled
-# with a JSON boolean false, which is preserved. Nothing else is a disable: an
-# array, a string, a number, a null and an absent key all render true, and an
-# undeclared plugin is not in this set at all, so a survivor shows up as an
-# extra record.
+# hold, as the same `<kind>:<value>:<name>` records. A declared plugin renders
+# the JSON boolean true unless the live file already held a value that is INSIDE
+# Claude Code's union for this key, in which case that value is carried through
+# unchanged: a boolean false (the disable) and an array (the version
+# constraint). Nothing else is a value: a string, a number, a null and an absent
+# key all render true, and an undeclared plugin is not in this set at all, so a
+# survivor shows up as an extra record.
 case_expected_rendered_plugin_records() {
-  local requested_case="$1" plugin value
+  local requested_case="$1" plugin kind value
   for plugin in "${DECLARED_PLUGINS[@]}"; do
+    kind="$JSON_BOOLEAN_KIND"
     value="$JSON_TRUE_VALUE"
     if [[ $requested_case == 'declared-plugin-disabled' && $plugin == "$DISABLED_DECLARED_PLUGIN" ]]; then
       value="$JSON_FALSE_VALUE"
     fi
-    printf '%s%s%s%s%s\n' "$JSON_BOOLEAN_KIND" "$REPORT_FIELD_DELIMITER" \
+    if [[ $requested_case == 'non-boolean-plugin-values' && $plugin == "$ARRAY_VALUED_DECLARED_PLUGIN" ]]; then
+      kind="$JSON_ARRAY_KIND"
+      value="$LIVE_VERSION_CONSTRAINT_RENDERED"
+    fi
+    printf '%s%s%s%s%s\n' "$kind" "$REPORT_FIELD_DELIMITER" \
       "$value" "$REPORT_FIELD_DELIMITER" "$plugin"
   done
 }

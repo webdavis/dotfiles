@@ -21,10 +21,13 @@
                  cleanupPeriodDays, autoUpdatesChannel, remoteControlAtStartup.
     FREE-DRIFT   passed through untouched: alwaysThinkingEnabled, voiceEnabled,
                  useAutoModeDuringPlan and anything else /config adds.
-    enabledPlugins  the ROSTER is fixed here and the per-plugin ON/OFF state is
-                 not. Membership of the declared list is stable; a plugin the
-                 live file disables with a JSON boolean false stays disabled
-                 across applies. See the plugin block below for why.
+    enabledPlugins  the ROSTER is fixed here and the per-plugin STATE is not.
+                 Membership of the declared list is stable; a plugin the live
+                 file disables (JSON boolean false) or pins (JSON array of
+                 version constraints) keeps that across applies. The price is
+                 that this repo no longer re-asserts plugin state at all, and
+                 that a live disable is invisible to `chezmoi status`,
+                 `chezmoi diff` and `just d`. See the plugin block below.
 
   Promote a /config toggle to STABLE by adding it to one of the setValueAtPath
   calls below.
@@ -169,8 +172,8 @@
     "command" (printf "bash %s/.claude/statusline-command.sh" $home) -}}
 {{- $merged = setValueAtPath "statusLine" $statusLine $merged -}}
 
-{{- /* --- stable: the declared plugin roster, ON by default, with a live
-       DISABLE preserved.
+{{- /* --- the declared plugin ROSTER, ON by default, with the machine's own
+       per-plugin STATE preserved. The roster is stable; the state is not.
 
        This block REPLACES enabledPlugins wholesale, it does not merge into it,
        because setValueAtPath writes the value at the path. So a plugin enabled
@@ -180,25 +183,50 @@
        disagree.
 
        The list is names only, not name-to-value pairs: membership means "this
-       repo manages this plugin, and it is ON unless the machine says otherwise".
-       The only thing that turns one off is `claude plugin disable <id>`, which
-       is the only supported way to stop a plugin's code running and which
-       writes `"<id>": false` into a settings file. A live JSON boolean false
-       for a declared plugin is carried through here; every other shape renders
-       true, including absent, a JSON null, a string, a number, and the array
-       that Claude Code's own schema union allows
-       (`union([array(string), boolean, undefined])`). Establishing the type
-       before comparing is what keeps that safe: `eq X false` ERRORS whenever X
-       is not a bool, measured 2026-08-02, and the error loses the whole file.
+       repo manages this plugin, and it is ON unless the machine already says
+       something else". Claude Code 2.1.220's settings schema declares this key
+       as `record(string, union([array(string), boolean, undefined]))`, and BOTH
+       members of that union are the machine's to set, so both are carried
+       through: a boolean (what `claude plugin disable <id>` writes, and the
+       only supported way to stop a plugin's code running) and an array (what
+       that schema calls the extended format with version constraints, a plugin
+       held at a reviewed release). Every OTHER shape renders true, including
+       absent, a JSON null, a string and a number, none of which enables
+       anything on its own. Establishing the KIND before using the value is what
+       keeps that safe: `eq X false` ERRORS whenever X is not a bool, measured
+       2026-08-02, and a template error loses the whole file.
 
-       So an apply no longer re-enables a plugin you turned off, on any branch
-       of the machine's state, and it does not need `--exclude=templates` to
-       behave (that flag does NOT skip a modify-template, measured 2026-08-02).
-       The cost, accepted deliberately: `claude plugin disable --all` is one
-       command and there is no `enable --all`, so recovering from a mass disable
-       is nine separate `claude plugin enable` commands. A containment verb a
-       scheduled apply can silently revoke is not containment, which is why this
-       trade goes this way.
+       Collapsing the array form to `true` would keep the plugin on and drop its
+       pin, returning it to unconstrained. That fails in the direction that runs
+       MORE code (ponytail ships JavaScript lifecycle hooks), so it is not the
+       safe default it looks like. No CLI path is known to write the array form,
+       so this branch may be unreachable in practice; it is written this way
+       because the cost of being wrong is asymmetric.
+
+       WHAT THIS GIVES UP, and it is more than the disable itself. Before this,
+       the whole-value write forced every declared plugin back to `true` on
+       every apply, so it incidentally RE-ASSERTED plugin state and remediated
+       tampering. It no longer does. A live `false` is carried forward for as
+       long as it sits in the file, and because the render reproduces it byte
+       for byte, `chezmoi status` and `chezmoi diff` print NOTHING for it
+       (measured 2026-08-02), which includes `just d`. So any process running as
+       this user, which is every agent with Bash under
+       `permissions.defaultMode = bypassPermissions`, permanently disables
+       `security-guidance` or `superpowers` by writing one boolean, and nothing
+       in this repo detects it or restores it. Re-enabling is a deliberate act
+       too: `claude plugin enable <id>`, per plugin, and `claude plugin disable
+       --all` has no `enable --all` counterpart, so recovering from a mass
+       disable is one command per declared plugin. The trade goes this way
+       because a containment verb a scheduled apply can silently revoke is not
+       containment. It is a real cost, not a formality.
+
+       The disable that sticks is against an APPLY, which is not the same as
+       "the plugin cannot load". Settings precedence runs user < project <
+       local < flag < policy, so a repo whose project settings enable the plugin
+       loads it there regardless of this file; Claude Code has a dedicated
+       `ineffective-disable` diagnostic for exactly that (both the diagnostic id
+       and all five source names are in the shipped 2.1.220 binary, read
+       2026-08-02).
 
        ponytail is a marketplace plugin rather than an official one: its
        marketplace is added separately (`claude plugin marketplace add
@@ -215,14 +243,19 @@
     "rust-analyzer-lsp@claude-plugins-official"
     "codex@openai-codex"
     "ponytail@ponytail" -}}
+{{- /* No hasKey test: $livePlugins is a map by the guard above, so `index` on
+       an absent key returns an untyped nil, whose kind is neither `bool` nor
+       `slice`, so the value test below already covers absence. Measured
+       2026-08-02 by replacing the hasKey call with a literal `true`: no case in
+       test/unit/claude-enabled-plugins.sh changed verdict, which is what makes
+       it dead rather than defensive. */ -}}
 {{- $enabledPlugins := dict -}}
 {{- range $pluginName := $declaredPlugins -}}
 {{-   $pluginEnabled := true -}}
-{{-   if hasKey $livePlugins $pluginName -}}
-{{-     $liveValue := index $livePlugins $pluginName -}}
-{{-     if eq (kindOf $liveValue) "bool" -}}
-{{-       $pluginEnabled = $liveValue -}}
-{{-     end -}}
+{{-   $liveValue := index $livePlugins $pluginName -}}
+{{-   $liveValueKind := kindOf $liveValue -}}
+{{-   if or (eq $liveValueKind "bool") (eq $liveValueKind "slice") -}}
+{{-     $pluginEnabled = $liveValue -}}
 {{-   end -}}
 {{-   $enabledPlugins = set $enabledPlugins $pluginName $pluginEnabled -}}
 {{- end -}}
