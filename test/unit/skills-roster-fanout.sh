@@ -10,7 +10,9 @@
 # the `clawhub` CLI, not vendored). Rules:
 #   1. Claude (private_dot_claude/skills) declares exactly one store symlink
 #      per roster skill, the full roster reaches Claude regardless of
-#      provenance.
+#      provenance, and each declaration's TARGET is the store path for its own
+#      name (same shape rule 7 pins hermes-side; a typo there plants a dangling
+#      ~/.claude/skills link and the skill silently never loads).
 #   2. The lock's tiers table covers exactly the roster; every value is
 #      "core" or "on-demand".
 #   3. The Claude settings modify-template demotes exactly the on-demand set:
@@ -91,13 +93,24 @@ roster_sorted="$(roster | sort -u)"
 
 # --- Rule 1: Claude declares the full roster -------------------------------
 claude_declarations() {
-  local entry base
+  local entry base skill target
+  # The target chezmoi writes and update-skills.sh converges to, relative to
+  # ~/.claude/skills. Kept literal here rather than derived: this rule exists to
+  # catch a hand-typed target, so it must compare against a constant.
+  local claude_prefix="../../.agents/skills"
   for entry in "$REPO_ROOT/private_dot_claude/skills"/*; do
     base="$(basename "$entry")"
     case "$base" in
-      symlink_*) target_name "$base" ;;
+      symlink_*) ;;
       *) fail "non-symlink entry '$base' in private_dot_claude/skills (harness skill dirs hold only store symlinks)" ;;
     esac
+    skill="$(target_name "$base")"
+    # $(<file) strips trailing newlines, so both committed spellings (with and
+    # without a final newline) compare equal, exactly as chezmoi reads them.
+    target="$(<"$entry")"
+    [[ $target == "$claude_prefix/$skill" ]] ||
+      fail "declaration private_dot_claude/skills/$base points at '$target' (expected '$claude_prefix/$skill')"
+    printf '%s\n' "$skill"
   done
 }
 
