@@ -5,6 +5,7 @@
     "chrome-devtools-axi": "core",
     "conventional-commits": "core",
     "cua-driver": "on-demand",
+    "defuddle": "on-demand",
     "elevenlabs": "on-demand",
     "embedded-captions": "on-demand",
     "faceless-explainer": "on-demand",
@@ -21,12 +22,16 @@
     "hyperframes-creative": "on-demand",
     "hyperframes-keyframes": "on-demand",
     "hyperframes-registry": "on-demand",
+    "json-canvas": "on-demand",
     "kubernetes-specialist": "on-demand",
     "last30days": "on-demand",
     "lobster": "on-demand",
     "media-use": "on-demand",
     "moshi": "core",
     "motion-graphics": "on-demand",
+    "obsidian-bases": "on-demand",
+    "obsidian-cli": "on-demand",
+    "obsidian-markdown": "on-demand",
     "sql-toolkit": "core",
     "summarize-pro": "on-demand",
     "tiktok-crawling": "on-demand",
@@ -40,6 +45,7 @@
     ],
     "conventional-commits": [],
     "cua-driver": [],
+    "defuddle": [],
     "elevenlabs": [
       "concerned"
     ],
@@ -64,6 +70,7 @@
     "hyperframes-creative": [],
     "hyperframes-keyframes": [],
     "hyperframes-registry": [],
+    "json-canvas": [],
     "kubernetes-specialist": [
       "nicodemus"
     ],
@@ -79,6 +86,9 @@
       "default"
     ],
     "motion-graphics": [],
+    "obsidian-bases": [],
+    "obsidian-cli": [],
+    "obsidian-markdown": [],
     "sql-toolkit": [
       "nicodemus"
     ],
@@ -185,6 +195,9 @@
     "conventional-commits": {
       "repo": "bastos/skills"
     },
+    "defuddle": {
+      "repo": "kepano/obsidian-skills"
+    },
     "embedded-captions": {
       "repo": "heygen-com/hyperframes"
     },
@@ -224,6 +237,9 @@
     "hyperframes-registry": {
       "repo": "heygen-com/hyperframes"
     },
+    "json-canvas": {
+      "repo": "kepano/obsidian-skills"
+    },
     "kubernetes-specialist": {
       "repo": "jeffallan/claude-skills"
     },
@@ -238,6 +254,15 @@
     },
     "motion-graphics": {
       "repo": "heygen-com/hyperframes"
+    },
+    "obsidian-bases": {
+      "repo": "kepano/obsidian-skills"
+    },
+    "obsidian-cli": {
+      "repo": "kepano/obsidian-skills"
+    },
+    "obsidian-markdown": {
+      "repo": "kepano/obsidian-skills"
     },
     "todoist-cli": {
       "repo": "Doist/todoist-cli"
