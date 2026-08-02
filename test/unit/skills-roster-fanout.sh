@@ -294,6 +294,85 @@ for collision in "${collision_names[@]}"; do
     fail "collision-named skill '$collision' has a non-empty hermesProfiles mapping (catalog wins, must be [])"
 done
 
+# --- Rule 9: the forks drift-watch table covers exactly the vendored dirs ---
+# The forks table is the weekly drift-watch's whole input: an upstream absent
+# from it is an upstream nobody is watching, silently. It is keyed by VENDORED
+# CONTENT, not by the roster, because only a vendored copy can drift from an
+# upstream (npx- and clawhub-tracked store copies are replaced wholesale each
+# run, and the app-owned cua-driver symlink is not content this repo holds).
+# Note the table is not only content FORKS: elevenlabs is vendored-not-forked
+# (npx cannot install it full-tree) and is watched for exactly the same reason,
+# which is why the coverage rule is "vendored", not "carries fork: true".
+FORKS_UNWATCHED_VENDORED=(tiktok-crawling) # documented at CLAUDE.md, Agent Skills
+
+# Real directories only: dot_agents/skills also holds symlink_*.tmpl chezmoi
+# declarations for app-owned packs, which hold no content of ours to drift.
+vendored_content_dirs() {
+  local entry
+  for entry in "$REPO_ROOT/dot_agents/skills"/*; do
+    [[ -d $entry ]] || continue
+    target_name "$(basename "$entry")"
+  done
+}
+
+forks_keys="$(jq -r '.forks // {} | keys[]' "$LOCK" | sort)"
+vendored_content_sorted="$(vendored_content_dirs | sort -u)"
+watched_expected="$(comm -23 <(printf '%s\n' "$vendored_content_sorted") \
+  <(printf '%s\n' "${FORKS_UNWATCHED_VENDORED[@]}" | sort))"
+if [[ $forks_keys != "$watched_expected" ]]; then
+  printf "FAIL: the lock's forks table does not cover exactly the watched vendored skills (left: expected, right: forks keys):\n" >&2
+  diff <(printf '%s\n' "$watched_expected") <(printf '%s\n' "$forks_keys") >&2 || true
+  exit 1
+fi
+# Every exemption must name a real vendored dir, so a renamed or deleted skill
+# cannot leave a dead exemption quietly widening the hole.
+for exempt_skill in "${FORKS_UNWATCHED_VENDORED[@]}"; do
+  printf '%s\n' "$vendored_content_sorted" | grep -qx "$exempt_skill" ||
+    fail "FORKS_UNWATCHED_VENDORED names '$exempt_skill', which is not a vendored skill dir (stale exemption)"
+done
+# Entry schema: the three fields the drift-watch walks, each a non-empty STRING
+# carrying no control characters. The type half is what a `// ""` test cannot
+# do: `12345 // ""` is 12345, so an unquoted lastComparedTreeHash (the one field
+# a maintainer hand-edits after comparing a fork) passed the old check, and at
+# run time `jq -r` read it back as "12345", matched no hash, and cried FORK
+# DRIFT every week forever. The control-character half is the invisible one: a
+# NUL or a trailing newline in any of the three is dropped or stripped by the
+# shell that reads it, so the recorded value silently becomes a different, valid
+# one and the watch compares THAT and reports it unchanged. The roster gate no
+# longer refuses a run over this table, so this build-time check is where a
+# committed typo has to be caught.
+bad_forks="$(jq -r '
+  def unusable($v): ($v | type) != "string"
+    or $v == ""
+    or ($v | explode | any(. < 32 or . == 127));
+  .forks // {} | to_entries[]
+  | select(((.value | type) != "object")
+      or unusable(.value.sourceUrl)
+      or unusable(.value.skillPath)
+      or unusable(.value.lastComparedTreeHash))
+  | .key' "$LOCK")"
+[[ -z $bad_forks ]] ||
+  fail "forks entries need a non-empty, control-character-free string sourceUrl, skillPath and lastComparedTreeHash: $bad_forks"
+
+# The drift-watch relays a fork's NAME as its --project, except for the two
+# advisories about the lock itself, which use reserved labels. A fork claiming
+# one of those labels would be indistinguishable from the lock file downstream.
+# The labels are READ OUT of the updater rather than restated here: a copy would
+# drift the moment either side is renamed, and the guard would then reserve a
+# label nothing uses while the live one collided freely.
+UPDATER="$REPO_ROOT/dot_local/bin/executable_update-skills.sh"
+reserved_relay_projects="$(sed -n 's/^FORK_RELAY_PROJECT_[A-Z_]*="\(.*\)"$/\1/p' "$UPDATER")"
+[[ -n $reserved_relay_projects ]] ||
+  fail "found no FORK_RELAY_PROJECT_* labels in $UPDATER; this guard would silently reserve nothing"
+# An explicit if, not `grep && fail`: as the last command of a loop body, a
+# grep that finds nothing makes the whole while loop exit non-zero, and under
+# `set -e` a clean roster would then kill this test with no message at all.
+while IFS= read -r reserved_project; do
+  if printf '%s\n' "$forks_keys" | grep -qx -- "$reserved_project"; then
+    fail "the forks table has a key '$reserved_project', which is a reserved lock-level relay --project label; downstream cannot tell that fork's advisory from the lock file's"
+  fi
+done <<<"$reserved_relay_projects"
+
 roster_count="$(printf '%s\n' "$roster_sorted" | wc -l | tr -d ' ')"
 npx_count="$(printf '%s\n' "$npx_keys" | wc -l | tr -d ' ')"
 clawhub_count=0
@@ -302,5 +381,7 @@ registry_count=0
 [[ -n $registry_keys ]] && registry_count="$(printf '%s\n' "$registry_keys" | wc -l | tr -d ' ')"
 hermes_count=0
 [[ -n $actual_hermes ]] && hermes_count="$(printf '%s\n' "$actual_hermes" | wc -l | tr -d ' ')"
-printf 'skills-roster-fanout: OK (%s skills; %s npx-tracked; %s clawhub-tracked; %s hermes-owned; %s store->hermes symlinks)\n' \
-  "$roster_count" "$npx_count" "$clawhub_count" "$registry_count" "$hermes_count"
+forks_count=0
+[[ -n $forks_keys ]] && forks_count="$(printf '%s\n' "$forks_keys" | wc -l | tr -d ' ')"
+printf 'skills-roster-fanout: OK (%s skills; %s npx-tracked; %s clawhub-tracked; %s hermes-owned; %s store->hermes symlinks; %s drift-watched upstreams)\n' \
+  "$roster_count" "$npx_count" "$clawhub_count" "$registry_count" "$hermes_count" "$forks_count"

@@ -475,10 +475,55 @@ changes nothing. Scope is the hermes mirror ONLY. Claude Code's superpowers plug
 **Local forks (`moshi`, `herdr`), updating:** they deliberately diverge from upstream, so
 `update-skills.sh` never touches them. When updating them, or when their upstreams ship new features,
 first compare against upstream (https://herdr.dev/docs/preview/agent-skill/ and
-https://getmoshi.app/skill), then port wanted changes into the vendored copy by hand; the divergences are
-documented in the lock's `forks` notes. The weekly run drift-checks the `forks` upstreams and, when one
-changed, alerts in the run log (`~/.local/log/skills/`) and via `relay.sh` when that exists. After the
-hand comparison, bump that fork's `lastComparedTreeHash` to the new upstream hash.
+https://getmoshi.app/skill), then port wanted changes into the vendored copy by hand. A `note` on a
+`forks` entry records anything a future maintainer would otherwise have to re-derive (why `elevenlabs` is
+vendored without being a content fork; why `herdr`'s recorded hash deliberately lags its `skillPath`);
+the entries carry no line-by-line divergence log. The weekly run drift-checks the `forks` upstreams and,
+when one changed, alerts in the run log (`~/.local/log/skills/`) and via `relay.sh` when that exists.
+After the hand comparison, bump that fork's `lastComparedTreeHash` to the new upstream hash.
+
+Each outcome gets its own relay state, because the remedies differ. **Drift** (`FORK DRIFT`,
+`fork-drift`) means upstream content moved, so compare and port, then bump the hash. **A missing path**
+(`FORK PATH MISSING`, `fork-path-missing`) means the upstream is fine but the recorded `skillPath` is
+gone, so re-point `skillPath` and leave `lastComparedTreeHash` alone: bumping it would silence a
+comparison nobody has made. **An unreachable upstream** (`FORK UNREACHABLE`, `fork-upstream-unreachable`)
+means the fetch failed, and the log carries git's own message so a renamed, deleted or newly private
+upstream is not filed under "check your network" forever. **An upstream with no usable HEAD**
+(`FORK NO UPSTREAM HEAD`, `fork-upstream-headless`) cloned fine and has no commit to compare against, so
+the default branch was renamed or the repository is empty, and the recorded `skillPath` is not what is
+missing. **An unstageable clone** (`fork-clone-unstageable`) means there was no temp dir to fetch into,
+so nothing was compared. **A clone that never answered** (`FORK CLONE TIMED OUT`, `fork-clone-timeout`)
+means the fetch was still running at its deadline (5 minutes, `UPDATE_SKILLS_FORK_CLONE_DEADLINE`
+overrides it) and was stopped. **A broken lock** (`fork-lock-broken`, `fork-lock-missing`,
+`fork-walk-incomplete`) means the `forks` table, one of its entries, or the walk itself could not be
+used, so some or every upstream went unwatched. **A lock with no `forks` table at all**
+(`fork-table-absent`) is reported rather than read as a clean zero-entry watch: an empty `{}` is how a
+lock says there is deliberately nothing to watch, while an absent key is what a typo or a dropped table
+leaves behind, and that used to print what a healthy run prints.
+
+The deadline is what keeps "advisory" literal. The watch runs after the generation exchange has published
+and before the success stamp is written, so a fetch that never answers parks the whole weekly update
+rather than skipping one fork, and every later slot stalls at the same line. The clone also runs with the
+run's serialize-lock file descriptor closed: killing git does not reap a transport helper that never
+reads its stdin, and an inherited copy of that descriptor keeps the kernel lock held, which defers every
+later slot over a fork nobody could clone.
+
+Everything the phase finds is relayed, not just logged: an upstream nobody compared is exactly the
+failure this watch exists to prevent, and a line in `~/.local/log/skills/` that nobody reads is how that
+happens quietly. The two lock-level pushes carry a namespaced `--project` (`lock:file`,
+`lock:forks-table`) so they cannot collide with a fork's own name. The drift clone ignores every git
+config channel that can rewrite a URL, the two file-based ones (global and system) plus the two
+command-scope ones (`GIT_CONFIG_COUNT`/`GIT_CONFIG_KEY_n` and `GIT_CONFIG_PARAMETERS`, which is how
+`git -c` reaches subprocesses and hooks). The repo's own `https://github.com/` to `git@github.com:`
+rewrite would otherwise turn an anonymous public fetch into an SSH fetch whose failures look like an
+unreachable upstream, and a rewrite through the command-scope channels would compare a different
+repository while naming the recorded URL.
+
+The `forks` table is ADVISORY data: nothing in the mutating path reads it, so a malformed table or entry
+is reported by the watch and never refuses the weekly update (an unquoted `lastComparedTreeHash`, the one
+field edited by hand after clearing a drift, used to refuse every slot). Its shape is enforced at build
+time instead, by `test/unit/skills-roster-fanout.sh`, which also fails when the table stops covering
+every vendored skill dir. `tiktok-crawling` is the one deliberate exemption, named in that test.
 
 **Generation-exchange updates:** every npx- and clawhub-tracked skill lives inside ONE live generation
 directory, `~/.agents/.skills-current` (real dirs under `skills/`, the npx CLI lock, and

@@ -279,9 +279,10 @@
       "source": "ogulcancelik/herdr",
       "sourceType": "github",
       "sourceUrl": "https://github.com/ogulcancelik/herdr.git",
-      "skillPath": "SKILL.md",
+      "skillPath": "skills/herdr",
       "lastComparedTreeHash": "ac6cffc27e5a60624b1173ecf01613e7600c6812",
-      "fork": true
+      "fork": true,
+      "note": "content fork. Upstream commit f6060cf (2026-07-29) deleted the root SKILL.md and moved the skill to skills/herdr, so skillPath is re-pointed at that directory (a sibling file added upstream then registers too). lastComparedTreeHash is deliberately NOT bumped with it: it is the blob of the old root SKILL.md, and the current upstream is a near-total rewrite (195 lines against our vendored 300, 297 changed lines) that no human has compared. The drift alert this raises is a TRUE positive with an executable remedy. Clear it by porting wanted changes by hand, then set this to the skills/herdr tree hash."
     },
     "moshi": {
       "source": "rjyo/moshi-skill",
