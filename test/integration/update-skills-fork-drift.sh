@@ -77,6 +77,36 @@
 #      literally named `lock` stays distinguishable from the lock file.
 #  19. The malformed-entry advisory says WHICH way the entry was broken.
 #  20. An absent lock is named. Silence made "no lock" and "no drift" identical.
+#
+# Cases 21-26 and the lettered cases beside them come from a correctness review
+# of the branch that wrote everything above. Their common subject is what the
+# phase does when it CANNOT compare, since every one of those paths used to end
+# in silence, in a wrong remedy, or in a run that never returned:
+#  5c. A url rewrite arriving through git's COMMAND-scope channels
+#      (GIT_CONFIG_COUNT/KEY_n, and GIT_CONFIG_PARAMETERS, which is how `git -c`
+#      reaches every subprocess) redirected the clone to a different repository
+#      while every report still named the recorded URL.
+# 10b. A dry run of a VALID entry previews and fetches nothing. Case 10 goes
+#      through a malformed table, so nothing exercised the guard that stops a
+#      preview before it clones.
+# 13b. A lock holding SEVERAL top-level JSON values. jq answers for the last
+#      one, so two objects passed every gate and each field was read twice.
+# 15b. A field carrying a control character. The shell drops NUL bytes and
+#      strips trailing newlines, so the recorded value silently became a
+#      different valid one and was compared and reported as unchanged.
+#  21. A clone that never answers is stopped at a deadline and reported. Nothing
+#      bounded the fetch, so a stalled remote parked the whole weekly update.
+# 21b. What that stopped clone leaves behind holds no serialize lock, or the
+#      next slot defers over a fork nobody could clone.
+#  22. A deadline override that is not a positive number falls back to the
+#      default instead of stopping every clone at once.
+#  23. A lock with NO forks table is reported; an empty one stays silent.
+#  24. A forks table the walk cannot READ is reported, and 24b, a feed that
+#      stops early is reported as the short walk it is.
+#  25. An upstream whose HEAD does not resolve is its own finding, not a
+#      missing skillPath whose remedy repairs a path that is not broken.
+#  26. The clone suppresses terminal prompting, so an upstream that has gone
+#      private cannot park an unattended run on a credential prompt.
 set -euo pipefail
 
 # When git runs a hook such as pre-commit (this test runs under one via
@@ -248,6 +278,20 @@ assert_relay_state() {
   assert_relay_line "$1" "" "$2"
 }
 
+# assert_relay_project <state> <project> <message> -- ONE push carries this
+# state and this exact --project. The state alone is not the whole identity of a
+# lock-level advisory: "this file does not parse" and "this file's forks table
+# is the wrong shape" share the fork-lock-broken state and are different
+# repairs, which is why they carry different reserved labels. Nothing asserted
+# the labels, so the two could collapse into one downstream identity with every
+# test still green (measured), and downstream would route both to whichever
+# remedy the label named.
+assert_relay_project() {
+  local state="$1" project="$2" message="$3"
+  grep -F -- "--state $state " "$relay_call_log" 2>/dev/null | grep -qF -- "--project $project " ||
+    fail "$message (relay log: $(cat "$relay_call_log"))"
+}
+
 # assert_log_line_has <output> <marker> <substring> <message> -- the line
 # carrying <marker> also carries <substring>. Same reason as assert_relay_line:
 # an operator scanning for the heading has to find the detail ON it, and two
@@ -256,6 +300,25 @@ assert_log_line_has() {
   local output="$1" marker="$2" substring="$3" message="$4"
   printf '%s\n' "$output" | grep -F -- "$marker" | grep -qF -- "$substring" ||
     fail "$message ($output)"
+}
+
+# install_recording_git <bin-dir> <log> -- a `git` on PATH that records the
+# arguments and the prompt setting of every invocation and then runs the real
+# one. Two cases need to see HOW git was called rather than what it produced:
+# whether a dry run fetched at all, and whether the clone suppressed terminal
+# prompting. Both are invisible in the output of a run that behaves correctly,
+# which is exactly why they went untested.
+install_recording_git() {
+  local bin_dir="$1" log="$2" real_git
+  real_git="$(command -v git)"
+  mkdir -p "$bin_dir"
+  cat >"$bin_dir/git" <<EOF
+#!/usr/bin/env bash
+printf 'GIT_TERMINAL_PROMPT=%s :: %s\n' "\${GIT_TERMINAL_PROMPT-<unset>}" "\$*" >>"$log"
+exec "$real_git" "\$@"
+EOF
+  chmod +x "$bin_dir/git"
+  : >"$log"
 }
 
 # assert_clone_dir_removed <dir> <message> -- nothing this phase creates under
@@ -524,6 +587,8 @@ for malformed_forks in 'false' '[]' '["forkskill"]' '"forkskill"'; do
     "case 7/8 (forks=$malformed_forks): a raw jq error reached the operator instead of a named warning: $fork_check_output"
   assert_relay_state fork-lock-broken \
     "case 7/8 (forks=$malformed_forks): a corrupt forks table was logged but never relayed, so it reaches nobody who is not reading the run log"
+  assert_relay_project fork-lock-broken lock:forks-table \
+    "case 7/8 (forks=$malformed_forks): the advisory about the TABLE does not carry the table's reserved label, so downstream cannot tell it from a lock that does not parse at all, whose repair is a different one"
 done
 
 # --- Case 9: a forks entry missing its sourceUrl -----------------------------
@@ -586,6 +651,42 @@ printf '%s\n' "$dryrun_output" | grep -q 'forks table' ||
   fail "case 10: the dry run hid a finding the real run reports: $dryrun_output"
 [[ ! -s $relay_call_log ]] ||
   fail "case 10: the dry run sent a relay notification: $(cat "$relay_call_log")"
+
+# --- Case 10b: a dry run previews a VALID entry and fetches nothing -----------
+# Case 10 drives the dry run through a malformed table, the one finding this
+# phase reaches without cloning anything, so nothing exercised the guard that
+# stops a preview before it fetches. Measured: deleting that guard left case 10
+# AND the dry-run read-only suite green while every weekly preview cloned every
+# upstream for real, which is a network fetch per fork in the mode documented as
+# making no writes and no side effects.
+#
+# "Nothing was left in TMPDIR" cannot show this, since a clone that cleaned up
+# after itself leaves the same nothing. Whether git was ASKED to clone is the
+# question, so the run happens under a git that records how it was called.
+case10b_git_log="$scratch_dir/case10b-git.log"
+install_recording_git "$scratch_dir/case10b-bin" "$case10b_git_log"
+# Read live: the cases above commit to the fixture repo, so the hash that means
+# "no drift" is whatever upstream holds right now.
+case10b_hash="$(git -C "$fixture_repo" rev-parse "HEAD:skills/forkskill")"
+write_forks_lock "$(jq -n --arg url "$fixture_repo" --arg hash "$case10b_hash" \
+  '{previewfork: {source: "fixture/previewfork", sourceUrl: $url,
+    skillPath: "skills/forkskill", lastComparedTreeHash: $hash}}')"
+: >"$relay_call_log"
+set +e
+dryrun_output="$(UPDATE_SKILLS_FORCE=1 env "PATH=$scratch_dir/case10b-bin:$PATH" \
+  bash "$SCRIPT" --check-forks-only --dry-run 2>&1)"
+dryrun_rc=$?
+set -e
+[[ $dryrun_rc -eq 0 ]] ||
+  fail "case 10b: the dry-run drift-watch exited $dryrun_rc on a valid forks entry: $dryrun_output"
+assert_log_line_has "$dryrun_output" 'would drift-check' 'previewfork' \
+  "case 10b: the dry run did not preview the entry it would have checked: $dryrun_output"
+refute_match "$(cat "$case10b_git_log")" ':: clone' \
+  "case 10b: the dry run fetched an upstream for real, so a preview of the weekly update clones every watched repository: $(cat "$case10b_git_log")"
+refute_match "$dryrun_output" 'upstream unchanged|FORK DRIFT|FORK PATH MISSING' \
+  "case 10b: the dry run reported a comparison verdict, which it can only have from a fetch it must not make: $dryrun_output"
+[[ ! -s $relay_call_log ]] ||
+  fail "case 10b: the dry run sent a relay notification: $(cat "$relay_call_log")"
 
 # --- Case 11: skillPath "." means the whole repository ------------------------
 # The committed lock uses it for elevenlabs, whose upstream ships its SKILL.md at
@@ -651,6 +752,8 @@ refute_match "$fork_check_output" 'forks table' \
   "case 13: an unparseable lock is blamed on its forks table, which sends the operator to the wrong line: $fork_check_output"
 assert_relay_state fork-lock-broken \
   "case 13: an unparseable lock was logged but never relayed"
+assert_relay_project fork-lock-broken lock:file \
+  "case 13: the unparseable-lock advisory does not carry the lock FILE's reserved label, so it is indistinguishable from an advisory about the forks table inside an otherwise healthy lock"
 
 # --- Case 13b: a lock that is a STREAM of JSON values -------------------------
 # jq reads a file as a sequence of values and reports the status of the LAST
@@ -894,6 +997,27 @@ assert_log_line_has "$fork_check_output" 'does not exist' 'custom-skill-lock.jso
 assert_relay_state fork-lock-missing \
   "case 20: an absent lock was logged but never relayed"
 
+# --- Case 26: the clone never prompts for credentials -------------------------
+# The weekly run is unattended. A sourceUrl that has gone private makes git ask
+# for a username on a terminal nobody is watching, and the phase then waits for
+# an answer that never comes, after the generation exchange has published and
+# before the success stamp is written. GIT_TERMINAL_PROMPT=0 is what makes git
+# fail fast with a message this phase can report instead, and nothing observed
+# it: removing it left the whole suite green (measured), because a fixture that
+# never prompts behaves identically either way. So the assertion is on the call.
+case26_git_log="$scratch_dir/case26-git.log"
+install_recording_git "$scratch_dir/case26-bin" "$case26_git_log"
+write_forks_lock "$(jq -n --arg url "$fixture_repo" --arg hash "$current_fixture_hash" \
+  '{promptfork: {source: "fixture/promptfork", sourceUrl: $url,
+    skillPath: "skills/forkskill", lastComparedTreeHash: $hash}}')"
+run_fork_check "PATH=$scratch_dir/case26-bin:$PATH"
+[[ $fork_check_rc -eq 0 ]] ||
+  fail "case 26: the drift-watch exited $fork_check_rc under a recording git: $fork_check_output"
+grep -F ':: clone' "$case26_git_log" >/dev/null ||
+  fail "case 26: no clone was recorded, so this case proves nothing about how it was called: $(cat "$case26_git_log")"
+grep -F ':: clone' "$case26_git_log" | grep -q '^GIT_TERMINAL_PROMPT=0 ' ||
+  fail "case 26: the drift clone runs without GIT_TERMINAL_PROMPT=0, so an upstream that has gone private parks the unattended weekly run on a credential prompt nobody can answer: $(cat "$case26_git_log")"
+
 # --- Case 25: an upstream whose HEAD does not resolve -------------------------
 # A clone can succeed and still land nothing to compare. An upstream whose HEAD
 # names a branch it no longer has clones without error and warns that it looks
@@ -1007,6 +1131,8 @@ assert_log_line_has "$fork_check_output" 'forks table' 'NO fork upstream is bein
   "case 23: a lock with no forks table watched nothing and reported nothing, which is byte-for-byte what a healthy run with no drift prints: $fork_check_output"
 assert_relay_line fork-table-absent 'no forks table' \
   "case 23: a lock with no forks table was not relayed, so a dropped table reaches nobody who is not reading the run log"
+assert_relay_project fork-table-absent lock:forks-table \
+  "case 23: the absent-table advisory does not carry the table's reserved label"
 refute_match "$fork_check_output" 'does not parse as a JSON object' \
   "case 23: a lock that parses fine is blamed on its JSON, which sends the operator to the wrong repair: $fork_check_output"
 
@@ -1063,6 +1189,8 @@ refute_match "$fork_check_output" 'upstream unchanged' \
   "case 24: a fork was reported clean although the table feeding the walk could not be read: $fork_check_output"
 assert_relay_line fork-lock-broken 'could not be read' \
   "case 24: a forks table the walk could not read was logged but never relayed, so every upstream went unwatched and only the run log says so"
+assert_relay_project fork-lock-broken lock:forks-table \
+  "case 24: the unreadable-table advisory does not carry the table's reserved label"
 
 # --- Case 24b: a feed that stops early is a SHORT walk, and says so -----------
 # The other half of the same invariant, and the reason the walk counts at all: a
@@ -1106,5 +1234,7 @@ assert_log_line_has "$fork_check_output" 'reached the walk' 'of 2' \
   "case 24b: a feed that delivered fewer entries than the table holds reported a complete walk, so the entries it never reached are unwatched and nothing says so: $fork_check_output"
 assert_relay_line fork-walk-incomplete 'not drift-checked' \
   "case 24b: a short walk was logged but never relayed"
+assert_relay_project fork-walk-incomplete lock:forks-table \
+  "case 24b: the short-walk advisory does not carry the table's reserved label"
 
 echo "update-skills-fork-drift: OK (4 baseline assertions + rewrite immunity (global and system), stale skillPath, clone staging and cleanup, 4 malformed tables, malformed entries, dry-run notifies nobody, whole-repo skillPath, failing relay, unparseable lock, unreachable upstream relayed with git's message, 21 mis-typed fields, unstageable clone relayed, newline key, namespaced lock project, distinguishable malformed-entry reasons, absent lock, stalled clone stopped at its deadline, unusable deadline override, absent vs empty forks table, unreadable and truncated table feeds)"
