@@ -56,6 +56,27 @@
 #      before stamping success.
 #  13. A lock that does not parse at all is named as such, not mis-reported as
 #      a malformed forks table in an otherwise healthy lock.
+#
+# Cases 14-20 hold the phase to one rule: an upstream this run did not compare
+# has to be REPORTED, not merely logged. Everything that reaches only
+# ~/.local/log/skills/ is how a fork stops being watched without anyone finding
+# out, which is the failure this phase exists to prevent:
+#  14. An unreachable upstream is RELAYED, carrying git's own message, so a
+#      renamed, deleted or newly private upstream is not filed under "check
+#      your network" forever.
+#  15. A field that is not a JSON string is a malformed entry, per field and per
+#      type. `jq -r` renders any scalar as text, so an unquoted hash cried FORK
+#      DRIFT every week, a numeric sourceUrl was blamed on the network, and a
+#      boolean skillPath was reported as a path upstream had deleted.
+#  16. A temp dir that cannot be created is relayed too: it means EVERY fork
+#      goes unchecked, the widest silent outage this phase has.
+#  17. A forks key with an embedded newline is ONE key. Line-delimited, it split
+#      into two phantom entries, each relayed as a broken fork, while the real
+#      entry was never walked.
+#  18. The two lock-level advisories carry a namespaced --project, so a fork
+#      literally named `lock` stays distinguishable from the lock file.
+#  19. The malformed-entry advisory says WHICH way the entry was broken.
+#  20. An absent lock is named. Silence made "no lock" and "no drift" identical.
 set -euo pipefail
 
 # When git runs a hook such as pre-commit (this test runs under one via
@@ -134,46 +155,6 @@ cat >"$HOME/.agents/custom-skill-lock.json" <<EOF
   }
 }
 EOF
-
-# Byte-level snapshot of the fork before any run (assertion 4 compares later).
-fork_snapshot_before="$(cd "$fork_store_dir" && find . -type f -print0 | sort -z | xargs -0 shasum -a 256)"
-
-# Run 1: upstream unchanged. FORCE bypasses the idle-gate (a harness is by
-# definition running this test).
-output="$(UPDATE_SKILLS_FORCE=1 bash "$SCRIPT" --check-forks-only 2>&1)" ||
-  fail "--check-forks-only exited non-zero with an unreachable upstream in the lock: $output"
-
-# 1) No drift -> no alert, no relay call.
-printf '%s\n' "$output" | grep -qi 'drift.*forkskill\|forkskill.*drift' &&
-  fail "run alerted drift for forkskill although upstream is unchanged"
-[[ ! -s $relay_call_log ]] || fail "relay was called although no fork drifted"
-
-# 2) The unreachable upstream is reported as a warning, by name.
-printf '%s\n' "$output" | grep -q 'ghostfork' ||
-  fail "unreachable upstream produced no logged warning naming ghostfork: $output"
-
-# The upstream moves: a commit changes the skill folder.
-printf -- '\n## New upstream feature\n' >>"$fixture_repo/skills/forkskill/SKILL.md"
-git -C "$fixture_repo" -c user.email=test@test -c user.name=test add -A
-git -C "$fixture_repo" -c user.email=test@test -c user.name=test commit -qm 'upstream feature'
-
-# Run 2: drift must be alerted, run must still exit 0.
-output="$(UPDATE_SKILLS_FORCE=1 bash "$SCRIPT" --check-forks-only 2>&1)" ||
-  fail "--check-forks-only exited non-zero on drift: $output"
-
-# 3) The alert names the fork and its upstream, and relay got the fork's name.
-printf '%s\n' "$output" | grep -q 'FORK DRIFT.*forkskill' ||
-  fail "no drift alert naming forkskill: $output"
-printf '%s\n' "$output" | grep -qF "$fixture_repo" ||
-  fail "drift alert does not name the upstream: $output"
-grep -q 'forkskill' "$relay_call_log" 2>/dev/null ||
-  fail "relay notification does not carry the fork's name"
-
-# 4) The fork's store content is byte-identical to the pre-run snapshot.
-fork_snapshot_after="$(cd "$fork_store_dir" && find . -type f -print0 | sort -z | xargs -0 shasum -a 256)"
-[[ $fork_snapshot_before == "$fork_snapshot_after" ]] ||
-  fail "the drift check modified the fork's store content"
-[[ -f "$fork_store_dir/local-edit.marker" ]] || fail "the fork's marker file is gone"
 
 # ---------------------------------------------------------------------------
 # Cases 5-10. Shared helpers, so each case states only what it is pinning.
@@ -256,6 +237,54 @@ assert_clone_dir_removed() {
   residue="$(find "$tmpdir" -mindepth 1 -maxdepth 1 2>/dev/null)"
   [[ -z $residue ]] || fail "$message (left behind: $residue)"
 }
+
+# Byte-level snapshot of the fork before any run (assertion 4 compares later).
+fork_snapshot_before="$(cd "$fork_store_dir" && find . -type f -print0 | sort -z | xargs -0 shasum -a 256)"
+
+# Run 1: upstream unchanged. FORCE bypasses the idle-gate (a harness is by
+# definition running this test).
+output="$(UPDATE_SKILLS_FORCE=1 bash "$SCRIPT" --check-forks-only 2>&1)" ||
+  fail "--check-forks-only exited non-zero with an unreachable upstream in the lock: $output"
+
+# 1) No drift -> no drift alert and no drift push. Scoped to the DRIFT state
+# rather than to an empty relay log: the same fixture carries an unreachable
+# upstream on purpose, and an upstream nobody could compare is itself a
+# reportable finding (case 14), so "the log is empty" would pin the opposite of
+# what this phase is for.
+refute_match "$output" 'drift.*forkskill|forkskill.*drift' \
+  "run alerted drift for forkskill although upstream is unchanged: $output"
+refute_match "$(cat "$relay_call_log")" '--state fork-drift( |$)' \
+  "a drift push went out although no fork drifted: $(cat "$relay_call_log")"
+
+# 2) The unreachable upstream is reported as a warning, by name.
+printf '%s\n' "$output" | grep -q 'ghostfork' ||
+  fail "unreachable upstream produced no logged warning naming ghostfork: $output"
+
+# The upstream moves: a commit changes the skill folder.
+printf -- '\n## New upstream feature\n' >>"$fixture_repo/skills/forkskill/SKILL.md"
+git -C "$fixture_repo" -c user.email=test@test -c user.name=test add -A
+git -C "$fixture_repo" -c user.email=test@test -c user.name=test commit -qm 'upstream feature'
+
+# Run 2: drift must be alerted, run must still exit 0.
+: >"$relay_call_log"
+output="$(UPDATE_SKILLS_FORCE=1 bash "$SCRIPT" --check-forks-only 2>&1)" ||
+  fail "--check-forks-only exited non-zero on drift: $output"
+
+# 3) The alert names the fork and its upstream, and the DRIFT push carries the
+# fork's name (the same run also relays the unreachable ghostfork, so a bare
+# name grep over the whole log no longer says which push it landed on).
+printf '%s\n' "$output" | grep -q 'FORK DRIFT.*forkskill' ||
+  fail "no drift alert naming forkskill: $output"
+printf '%s\n' "$output" | grep -qF "$fixture_repo" ||
+  fail "drift alert does not name the upstream: $output"
+assert_relay_line fork-drift forkskill \
+  "the drift push does not carry the fork's name"
+
+# 4) The fork's store content is byte-identical to the pre-run snapshot.
+fork_snapshot_after="$(cd "$fork_store_dir" && find . -type f -print0 | sort -z | xargs -0 shasum -a 256)"
+[[ $fork_snapshot_before == "$fork_snapshot_after" ]] ||
+  fail "the drift check modified the fork's store content"
+[[ -f "$fork_store_dir/local-edit.marker" ]] || fail "the fork's marker file is gone"
 
 # --- Case 5: the clone resolves the recorded URL as recorded ------------------
 # A url.<base>.insteadOf rewrite in the caller's git config must not reroute
@@ -367,8 +396,8 @@ refute_match "$(cat "$relay_call_log")" '--state fork-drift( |$)' \
   "case 6: a stale skillPath relays the fork-drift state, so it is indistinguishable from real drift downstream: $(cat "$relay_call_log")"
 printf '%s\n' "$fork_check_output" | grep -q 'reachedfork: upstream unchanged' ||
   fail "case 6: the reachable, unchanged fork was not walked, so the hash-compared branch never staged a clone and the cleanup assertion below covers less than it claims: $fork_check_output"
-printf '%s\n' "$fork_check_output" | grep -q 'unreachedfork: upstream unreachable' ||
-  fail "case 6: the unreachable fork was not walked, so the unreachable branch never staged a clone and the cleanup assertion below covers less than it claims: $fork_check_output"
+assert_log_line_has "$fork_check_output" 'FORK UNREACHABLE' 'unreachedfork' \
+  "case 6: the unreachable fork was not walked, so the unreachable branch never staged a clone and the cleanup assertion below covers less than it claims"
 assert_clone_dir_removed "$case6_tmpdir" \
   "case 6: a branch left its clone behind, so a weekly run fills the temp dir with upstream copies"
 
@@ -540,4 +569,166 @@ refute_match "$fork_check_output" 'forks table' \
 assert_relay_state fork-lock-broken \
   "case 13: an unparseable lock was logged but never relayed"
 
-echo "update-skills-fork-drift: OK (4 baseline assertions + rewrite immunity (global and system), stale skillPath, clone staging and cleanup, 4 malformed tables, malformed entries, dry-run notifies nobody, whole-repo skillPath, failing relay, unparseable lock)"
+# ---------------------------------------------------------------------------
+# Cases 14-20. The rule they share: an upstream this run did not compare has to
+# be REPORTED, not merely logged. A line in ~/.local/log/skills/ that nobody
+# reads is how a fork stops being watched without anyone finding out, which is
+# the failure the whole phase exists to prevent.
+#
+# Read LIVE, not carried down from the setup block: the cases above commit to
+# the fixture repo, so the hash that means "no drift" is whatever upstream holds
+# right now. Shared by several cases below, and computed here rather than inside
+# one of them so each case can be run on its own.
+# ---------------------------------------------------------------------------
+current_fixture_hash="$(git -C "$fixture_repo" rev-parse "HEAD:skills/forkskill")"
+
+# --- Case 14: an unreachable upstream is relayed, and says what git said ------
+# The url-rewrite defect was one CAUSE of a permanently silent skip. This is the
+# REPORTING: every other cause of a durable clone failure (an upstream renamed,
+# deleted or made private, a proxy, DNS, a rewrite arriving through
+# GIT_CONFIG_COUNT, which this phase documents as still applying) put the fork
+# back into "unwatched forever, one log line nobody reads". git's own message
+# rides along because "unreachable" alone cannot tell a dead network from a
+# dead URL, and those have opposite remedies.
+write_forks_lock "$(jq -n --arg ghost "$scratch_dir/no-such-repo" \
+  '{goneupstream: {source: "fixture/goneupstream", sourceUrl: $ghost, skillPath: ".",
+    lastComparedTreeHash: "0000000000000000000000000000000000000000"}}')"
+run_fork_check
+[[ $fork_check_rc -eq 0 ]] ||
+  fail "case 14: the drift-watch exited $fork_check_rc on an unreachable upstream: $fork_check_output"
+assert_relay_line fork-upstream-unreachable goneupstream \
+  "case 14: an upstream that could not be fetched was logged and never relayed, so the fork is unwatched and nobody outside the run log is told"
+assert_log_line_has "$fork_check_output" 'git said' 'does not exist' \
+  "case 14: git's own diagnosis is discarded, so the log cannot tell a dead network from a dead URL"
+refute_match "$(cat "$relay_call_log")" '--state fork-drift( |$)' \
+  "case 14: an unreachable upstream relays the fork-drift state, whose remedy (compare and bump) cannot be executed: $(cat "$relay_call_log")"
+
+# --- Case 15: a field that is not a STRING is a malformed entry ---------------
+# `jq -r` renders any scalar as text, so the entry-level object check let every
+# non-string field through. Each one is PERMANENT and points somewhere the
+# defect is not: an unquoted hash matched nothing and cried FORK DRIFT every
+# week; a numeric sourceUrl was reported as an unreachable NETWORK; a boolean
+# skillPath resolved as the literal path "true" and was reported as a path
+# upstream had deleted. Per FIELD and per TYPE, because a whole-entry check
+# still passes when only one field is wrong.
+write_typed_fork_lock() { # $1 field, $2 JSON value
+  write_forks_lock "$(jq -n --arg url "$fixture_repo" --arg hash "$current_fixture_hash" \
+    --arg field "$1" --argjson value "$2" \
+    '{typedfork: ({source: "fixture/typedfork", sourceUrl: $url,
+        skillPath: "skills/forkskill", lastComparedTreeHash: $hash}
+      | .[$field] = $value)}')"
+}
+# FALSE-POSITIVE DIRECTION FIRST: the untouched fixture must be walked and
+# reported clean, or every assertion below passes for the wrong reason.
+write_typed_fork_lock source '"fixture/typedfork"'
+run_fork_check
+printf '%s\n' "$fork_check_output" | grep -q 'typedfork: upstream unchanged' ||
+  fail "case 15 control: the well-formed fixture was not walked clean, so the malformed variants below prove nothing: $fork_check_output"
+[[ ! -s $relay_call_log ]] ||
+  fail "case 15 control: a well-formed entry paged the operator: $(cat "$relay_call_log")"
+for case15_field in sourceUrl skillPath lastComparedTreeHash; do
+  for case15_value in '12345' 'true' 'false' 'null' '["x"]' '{"a":1}' '""'; do
+    write_typed_fork_lock "$case15_field" "$case15_value"
+    run_fork_check
+    [[ $fork_check_rc -eq 0 ]] ||
+      fail "case 15 ($case15_field=$case15_value): the drift-watch exited $fork_check_rc: $fork_check_output"
+    assert_log_line_has "$fork_check_output" 'typedfork' "$case15_field" \
+      "case 15 ($case15_field=$case15_value): the advisory does not name the field the operator has to fix"
+    refute_match "$fork_check_output" 'FORK DRIFT|FORK PATH MISSING|FORK UNREACHABLE|upstream unchanged' \
+      "case 15 ($case15_field=$case15_value): a broken lock entry was reported as an upstream finding, which sends the operator to the upstream when the lock is what is wrong: $fork_check_output"
+    assert_relay_line fork-lock-broken "$case15_field" \
+      "case 15 ($case15_field=$case15_value): no relay push carries both the fork-lock-broken state and the offending field"
+  done
+done
+
+# --- Case 16: a temp dir that cannot be created is relayed too ----------------
+# Case 6b pins that it does not kill the run. This pins that anyone is told: if
+# the temp dir is unusable then EVERY fork goes unchecked, which is the widest
+# possible silent outage of this phase.
+write_forks_lock "$(jq -n --arg url "$fixture_repo" --arg hash "$current_fixture_hash" \
+  '{stagedfork: {source: "fixture/stagedfork", sourceUrl: $url,
+    skillPath: "skills/forkskill", lastComparedTreeHash: $hash}}')"
+case16_tmpdir="$scratch_dir/case16-not-a-dir"
+: >"$case16_tmpdir"
+run_fork_check TMPDIR="$case16_tmpdir"
+[[ $fork_check_rc -eq 0 ]] ||
+  fail "case 16: an unusable temp dir took the drift-watch down with it (rc=$fork_check_rc): $fork_check_output"
+assert_relay_line fork-clone-unstageable stagedfork \
+  "case 16: no clone could be staged, so nothing was drift-checked, and the only trace is a log line nobody reads"
+
+# --- Case 17: a forks key with an embedded newline is ONE key -----------------
+# A forks key is a JSON string and may hold anything a JSON string may. Under a
+# line-delimited feed, `bad\nname` split into two phantom entries, each relayed
+# as its own broken fork, while the real entry was never walked at all: two
+# false alarms and one silent hole, from one key.
+case17_key=$'bad\nname'
+write_forks_lock "$(jq -n --arg url "$fixture_repo" --arg hash "$current_fixture_hash" \
+  --arg key "$case17_key" \
+  '{($key): {source: "fixture/newlinefork", sourceUrl: $url,
+      skillPath: "skills/forkskill", lastComparedTreeHash: $hash},
+    zsiblingfork: {source: "fixture/zsiblingfork", sourceUrl: $url,
+      skillPath: "skills/forkskill", lastComparedTreeHash: $hash}}')"
+run_fork_check
+[[ $fork_check_rc -eq 0 ]] ||
+  fail "case 17: the drift-watch exited $fork_check_rc on a forks key with a newline: $fork_check_output"
+refute_match "$fork_check_output" 'fork drift-check (bad|name): the lock entry is malformed' \
+  "case 17: a key with an embedded newline split into phantom entries, each reported as its own broken fork: $fork_check_output"
+[[ "$(printf '%s\n' "$fork_check_output" | grep -c 'upstream unchanged')" -eq 2 ]] ||
+  fail "case 17: both entries must be walked and reported clean (the newline key and its sibling): $fork_check_output"
+[[ ! -s $relay_call_log ]] ||
+  fail "case 17: two healthy forks paged the operator: $(cat "$relay_call_log")"
+
+# --- Case 18: the lock-level advisories cannot collide with a fork name -------
+# Every per-fork push carries a fork name as its --project. The two pushes that
+# are about the LOCK carry a namespaced label instead, so a fork literally named
+# `lock` stays distinguishable from the lock file itself downstream. A colon
+# cannot occur in a skill directory name, which is what makes the namespaces
+# disjoint rather than merely unlikely to meet.
+first_relay_project() {
+  grep -o -- '--project [^ ]*' "$relay_call_log" | head -1
+}
+printf 'this is not json\n' >"$HOME/.agents/custom-skill-lock.json"
+run_fork_check
+case18_file_project="$(first_relay_project)"
+[[ $case18_file_project == "--project lock:file" ]] ||
+  fail "case 18: the unparseable-lock advisory is labelled '$case18_file_project', which sits in the fork name space"
+write_forks_lock '{"lock": {}}'
+run_fork_check
+case18_fork_project="$(first_relay_project)"
+[[ $case18_fork_project == "--project lock" ]] ||
+  fail "case 18: a fork named 'lock' relayed as '$case18_fork_project', so this case cannot show the two are distinguishable"
+[[ $case18_file_project != "$case18_fork_project" ]] ||
+  fail "case 18: a fork named 'lock' and the lock file itself relay the same --project, so downstream cannot tell them apart"
+
+# --- Case 19: the malformed-entry advisory says WHICH way it was broken -------
+# One remedy (fix that lock entry), two causes. Collapsing them into one message
+# leaves the operator to re-derive which, on a file they have to hand-edit.
+write_forks_lock '{"scalarfork": "not-an-object"}'
+run_fork_check
+case19_scalar_line="$(printf '%s\n' "$fork_check_output" | grep 'scalarfork')"
+printf '%s\n' "$case19_scalar_line" | grep -qF 'must be a JSON object' ||
+  fail "case 19: a scalar entry does not say that an object is what was expected: $fork_check_output"
+write_forks_lock "$(jq -n --arg url "$fixture_repo" \
+  '{fieldfork: {source: "fixture/fieldfork", sourceUrl: $url,
+    lastComparedTreeHash: "0000000000000000000000000000000000000000"}}')"
+run_fork_check
+case19_field_line="$(printf '%s\n' "$fork_check_output" | grep 'fieldfork')"
+printf '%s\n' "$case19_field_line" | grep -qF 'skillPath' ||
+  fail "case 19: an entry missing one field does not name that field: $fork_check_output"
+refute_match "$case19_field_line" 'must be a JSON object' \
+  "case 19: an entry that IS an object is told it is not one, which sends the operator to the wrong repair: $case19_field_line"
+
+# --- Case 20: an ABSENT lock is named, not silently treated as nothing to do --
+# The weekly flow cannot reach this (it walks a validated snapshot), so this is
+# the health probe's own finding, and silence is the one answer a probe must not
+# give: "no lock" and "no drift" printed exactly the same thing.
+rm -f "$HOME/.agents/custom-skill-lock.json"
+run_fork_check
+[[ $fork_check_rc -eq 0 ]] ||
+  fail "case 20: the drift-watch exited $fork_check_rc with no lock file: $fork_check_output"
+assert_log_line_has "$fork_check_output" 'does not exist' 'custom-skill-lock.json' \
+  "case 20: an absent lock produced no warning naming it, so no upstream is watched and nothing says so"
+assert_relay_state fork-lock-missing \
+  "case 20: an absent lock was logged but never relayed"
+
+echo "update-skills-fork-drift: OK (4 baseline assertions + rewrite immunity (global and system), stale skillPath, clone staging and cleanup, 4 malformed tables, malformed entries, dry-run notifies nobody, whole-repo skillPath, failing relay, unparseable lock, unreachable upstream relayed with git's message, 21 mis-typed fields, unstageable clone relayed, newline key, namespaced lock project, distinguishable malformed-entry reasons, absent lock)"

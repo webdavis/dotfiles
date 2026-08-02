@@ -2832,28 +2832,46 @@ fi
 # nobody has reviewed against the local copy yet: alert and move on. This pass
 # only ever reads; the vendored store content is untouchable here by
 # construction (nothing below writes to $STORE). An unreachable upstream is a
-# logged warning, never a failure, the weekly run must survive a dead network.
+# reported warning, never a failure, the weekly run must survive a dead network.
 #
-# Everything this phase can go wrong with is ADVISORY: it warns loudly and
-# returns 0. It must never fail the weekly run, which by the time it reaches
-# here has already published a generation and has yet to write its success
-# stamp.
+# Everything this phase can go wrong with is ADVISORY: every outcome is a
+# LOUD report (log line plus a relay push carrying its own state) and the phase
+# still returns 0. It must never fail the weekly run, which by the time it
+# reaches here has already published a generation and has yet to write its
+# success stamp. run_fork_drift_watch is what makes that structural.
+#
+# The rule the reporting follows: an upstream this run did not compare is
+# something the operator has to be TOLD about, whatever the reason. A skip that
+# only reaches ~/.local/log/skills/ is a fork nobody is watching and nobody
+# knows is unwatched, which is the failure this whole phase exists to prevent.
 
 # The skillPath value meaning "the whole repository", where the comparison is
 # against HEAD's root tree rather than a path inside it.
 FORK_SKILL_PATH_WHOLE_REPO="."
 
+# The fields the walk reads out of a forks entry. Named once so the validator,
+# the reads and the operator-facing message cannot drift apart.
+FORK_ENTRY_REQUIRED_FIELDS=(sourceUrl skillPath lastComparedTreeHash)
+
 # Relay states this phase can report. Each is a distinct operator remedy, so
 # they must stay distinguishable downstream, not collapse into one alert.
-FORK_RELAY_STATE_DRIFT="fork-drift"                # upstream content moved; compare and port by hand
-FORK_RELAY_STATE_PATH_MISSING="fork-path-missing"  # upstream still there; our recorded path is not
-FORK_RELAY_STATE_LOCK_MALFORMED="fork-lock-broken" # the lock itself cannot be walked
+FORK_RELAY_STATE_DRIFT="fork-drift"                               # upstream content moved; compare and port by hand
+FORK_RELAY_STATE_PATH_MISSING="fork-path-missing"                 # upstream still there; our recorded path is not
+FORK_RELAY_STATE_LOCK_MALFORMED="fork-lock-broken"                # the lock itself cannot be walked
+FORK_RELAY_STATE_LOCK_MISSING="fork-lock-missing"                 # there is no lock file to walk at all
+FORK_RELAY_STATE_UPSTREAM_UNREACHABLE="fork-upstream-unreachable" # the fetch failed; nothing was compared
+FORK_RELAY_STATE_CLONE_UNSTAGEABLE="fork-clone-unstageable"       # no temp dir to fetch into; nothing was compared
+FORK_RELAY_STATE_WALK_INCOMPLETE="fork-walk-incomplete"           # fewer entries reached the walk than the table holds
 
-# --project labels for the two advisories that are about the lock itself rather
+# --project labels for the advisories that are about the lock itself rather
 # than about one named fork, so a downstream consumer can tell "the file does
 # not parse" from "the forks table is the wrong shape" without reading prose.
-FORK_RELAY_PROJECT_LOCK_FILE="lock"
-FORK_RELAY_PROJECT_FORKS_TABLE="forks"
+# The `lock:` prefix keeps them OUT of the fork name space: every other push
+# from this phase carries a fork name as its project, and a fork literally
+# named `lock` or `forks` would otherwise be indistinguishable downstream. A
+# colon cannot occur in a skill directory name, so the namespaces cannot meet.
+FORK_RELAY_PROJECT_LOCK_FILE="lock:file"
+FORK_RELAY_PROJECT_FORKS_TABLE="lock:forks-table"
 
 # Where a drift clone is staged, and under what name. The template is spelled
 # out rather than left to a bare `mktemp -d` for two reasons. It makes the
@@ -2865,6 +2883,14 @@ FORK_RELAY_PROJECT_FORKS_TABLE="forks"
 # like unset is the wanted reading here.
 FORK_CLONE_FALLBACK_TMPDIR="/tmp"
 FORK_CLONE_DIR_TEMPLATE="update-skills-fork-drift.XXXXXX"
+
+# git 2.55.0, `man git`: "If this Boolean environment variable is set to false,
+# git will not prompt on the terminal (e.g., when asking for HTTP
+# authentication)." That is what this phase wants. The weekly run is
+# unattended, and a sourceUrl that has gone private would otherwise park the
+# whole update on a prompt nobody can see; false makes git fail fast with a
+# message, which this phase then reports.
+GIT_TERMINAL_PROMPT_FALSE="0"
 
 # Path git reads instead of the file-based global and system config while
 # cloning a drift upstream. WHY: the recorded sourceUrl is an anonymous public
@@ -2917,6 +2943,61 @@ notify_fork_path_missing() {
     "the recorded skillPath \"$skill_path\" is gone from upstream $source_url; re-point skillPath, do not bump lastComparedTreeHash"
 }
 
+# The fetch failed, so NOTHING about this upstream was compared. Reported like
+# every other outcome rather than logged and forgotten: the url-rewrite defect
+# was one CAUSE of a permanently silent skip, and every other cause of a
+# durable clone failure (an upstream renamed, deleted or made private, a proxy,
+# DNS, a rewrite arriving through GIT_CONFIG_COUNT, which this phase documents
+# as still applying) leaves the same fork unwatched forever. git's own message
+# rides along because "unreachable" alone cannot tell a dead network from a
+# dead URL, and those have opposite remedies.
+notify_fork_upstream_unreachable() {
+  local fork="$1" source_url="$2" clone_error="$3" error_line
+  log "FORK UNREACHABLE: $fork, upstream $source_url could not be fetched; it was NOT drift-checked this run"
+  while IFS= read -r error_line; do
+    [[ -n $error_line ]] || continue
+    log "FORK UNREACHABLE: $fork, git said: $error_line"
+  done <<<"$clone_error"
+  relay_fork_advisory "$FORK_RELAY_STATE_UPSTREAM_UNREACHABLE" "$fork" \
+    "upstream $source_url could not be fetched, so $fork was not drift-checked; check the recorded sourceUrl and this host's network"
+}
+
+# No temp dir means no clone, which means this upstream went unchecked for a
+# reason that has nothing to do with the upstream. Same reporting rule: an
+# unchecked fork is reported, never merely logged.
+notify_fork_clone_unstageable() {
+  local fork="$1" clone_parent_dir="$2"
+  log "FORK NOT CHECKED: $fork, could not create a temp dir under $clone_parent_dir to clone the upstream into; it was NOT drift-checked this run"
+  relay_fork_advisory "$FORK_RELAY_STATE_CLONE_UNSTAGEABLE" "$fork" \
+    "could not create a temp dir under $clone_parent_dir to stage a drift clone, so $fork was not drift-checked; check TMPDIR and free space"
+}
+
+# There is no lock, so there is no watch. Distinct from an unparseable lock:
+# the remedy is to deploy the file (chezmoi apply), not to repair its JSON.
+# Only the two read-only modes can reach it, since the mutating flows read a
+# validated snapshot that exists by construction, and silence was exactly the
+# wrong answer for the modes you run to find out whether the watch is healthy:
+# "no lock" and "no drift" printed the same nothing.
+notify_fork_lock_missing() {
+  local lock_file="$1"
+  log "fork drift-check: $lock_file does not exist; NO fork upstream is being watched this run, deploy the lock (chezmoi apply)"
+  relay_fork_advisory "$FORK_RELAY_STATE_LOCK_MISSING" "$FORK_RELAY_PROJECT_LOCK_FILE" \
+    "$lock_file does not exist; no fork upstream was drift-checked"
+}
+
+# Fewer keys reached the walk than the forks table holds. Nothing in this
+# script can currently do that, which is the point: a feed that silently
+# truncates (a jq too old for --raw-output0, a read that stops early) unwatches
+# upstreams while every walked entry still reports clean, and a clean report
+# over a short walk is indistinguishable from a healthy run. Counting is the
+# only thing that can tell them apart.
+notify_fork_walk_incomplete() {
+  local walked="$1" expected="$2"
+  log "fork drift-check: only $walked of $expected forks entries reached the walk; the rest were NOT drift-checked this run"
+  relay_fork_advisory "$FORK_RELAY_STATE_WALK_INCOMPLETE" "$FORK_RELAY_PROJECT_FORKS_TABLE" \
+    "only $walked of $expected forks entries were walked; the rest were not drift-checked"
+}
+
 # Does the lock parse as a JSON object at all? Asked separately from the forks
 # table's shape because the two need different remedies: a file that does not
 # parse is not a malformed `forks` table, and reporting it as one sends the
@@ -2931,7 +3012,11 @@ lock_is_readable_json_object() {
 # and both of its outcomes were wrong before this gate: false/null/a string/[]
 # walked zero entries and reported a silent all-clear over an unwatched fork
 # set, and an ARRAY made the per-entry jq index error out, which under
-# `set -euo pipefail` aborted the whole run.
+# `set -euo pipefail` aborted the whole run. Since the roster gate no longer
+# refuses a mutating run over a malformed forks table (it is advisory data,
+# see __gen_roster_schema_ok), this guard is the ONLY thing standing between a
+# corrupt table and every mode of this script, not a tolerant backstop for two
+# read-only modes.
 fork_table_is_object() {
   local lock_file="$1"
   jq -e '(has("forks") | not) or (.forks | type == "object")' "$lock_file" >/dev/null 2>&1
@@ -2941,42 +3026,71 @@ fork_table_is_object() {
 # failure shape as the array table, one level down: a string, array or number
 # entry made `jq '.forks[$fork].sourceUrl'` fail with "Cannot index string with
 # string", and a failing command substitution in an assignment aborts the whole
-# run under `set -euo pipefail`. In the weekly flow that abort lands after the
-# generation exchange has published and before the success stamp is written.
+# run under `set -euo pipefail`. Like fork_table_is_object, this is the only
+# validation a malformed entry now meets in ANY mode.
 fork_entry_is_object() {
   local lock_file="$1" fork="$2"
   jq -e --arg fork "$fork" '.forks[$fork] | type == "object"' "$lock_file" >/dev/null 2>&1
 }
 
-# Does this entry carry the three fields the walk reads, each a non-empty
-# string? Answered per entry so one broken entry cannot silence the others.
-# Without it a null sourceUrl reported "upstream unreachable (null)", which
-# sends the operator to check their network when the lock is what is broken,
-# and a null skillPath resolved as the literal path "null".
-fork_entry_walkable() {
-  local source_url="$1" skill_path="$2" last_compared_tree_hash="$3"
-  [[ -n $source_url && $source_url != "null" ]] || return 1
-  [[ -n $skill_path && $skill_path != "null" ]] || return 1
-  [[ -n $last_compared_tree_hash && $last_compared_tree_hash != "null" ]] || return 1
+# Which of the fields the walk reads are NOT a non-empty STRING, as a
+# comma-separated list; empty output means the entry is walkable. Answered per
+# entry so one broken entry cannot silence the others, and it names the FIELD
+# because "this entry is malformed" is not a remedy anyone can execute.
+#
+# The TYPE half is load-bearing, not decoration. `jq -r` renders any scalar as
+# text, so a hash written unquoted (12345) read back as the string "12345",
+# matched no real hash, and cried FORK DRIFT every week forever; a numeric
+# sourceUrl read back as "42" and was reported as an unreachable NETWORK for
+# what is a broken lock; a boolean skillPath resolved as the literal path
+# "true" and was reported as a path upstream had deleted. All three are
+# permanent, and all three send the operator somewhere the defect is not.
+#
+# The caller must have established the entry is an OBJECT first: indexing a
+# scalar is a jq error, not a false.
+fork_entry_unusable_fields() {
+  local lock_file="$1" fork="$2"
+  jq -r --arg fork "$fork" '
+    .forks[$fork] as $entry
+    | $ARGS.positional
+    | map(select(($entry[.] | type) != "string" or $entry[.] == ""))
+    | join(", ")
+  ' "$lock_file" --args "${FORK_ENTRY_REQUIRED_FIELDS[@]}" 2>/dev/null
 }
 
-# One report for both ways an entry can be unusable (not an object at all, or
-# missing one of the three fields the walk reads), so the two cannot drift into
-# different remedies for what is one operator action: fix that lock entry.
+# One report for every way an entry can be unusable, because they are one
+# operator action (fix that lock entry), with the REASON carried through so the
+# log can say which way it was broken. Without the reason the two callers
+# produce byte-identical lines for "this is not an object at all" and "this
+# field is the wrong type", and the operator has to re-derive which.
 notify_fork_entry_malformed() {
-  local fork="$1"
-  log "fork drift-check $fork: the lock entry is malformed (it must be an object carrying a non-empty sourceUrl, skillPath and lastComparedTreeHash); this upstream is NOT being watched, fix the lock"
+  local fork="$1" reason="$2"
+  log "fork drift-check $fork: the lock entry is malformed ($reason); this upstream is NOT being watched, fix the lock"
   relay_fork_advisory "$FORK_RELAY_STATE_LOCK_MALFORMED" "$fork" \
-    "the forks entry for $fork is malformed (it must be an object carrying a non-empty sourceUrl, skillPath and lastComparedTreeHash); it was not drift-checked"
+    "the forks entry for $fork is malformed ($reason); it was not drift-checked"
 }
 
 # Clone a public upstream anonymously at the URL exactly as recorded. Single
 # responsibility: fetch. --depth 1 suffices, only HEAD's tree is ever compared.
+# git's own diagnostics are RETURNED rather than discarded: a mute failure
+# cannot tell a dead network from a renamed upstream from a config channel
+# still rewriting the URL, and telling those apart is this branch's whole
+# subject. Callers report what comes back; nothing here decides anything.
 clone_fork_upstream() {
   local source_url="$1" destination="$2"
   GIT_CONFIG_GLOBAL="$GIT_CONFIG_NEUTRALIZED_PATH" \
     GIT_CONFIG_SYSTEM="$GIT_CONFIG_NEUTRALIZED_PATH" \
-    git clone --quiet --depth 1 "$source_url" "$destination" 2>/dev/null
+    GIT_TERMINAL_PROMPT="$GIT_TERMINAL_PROMPT_FALSE" \
+    git clone --quiet --depth 1 "$source_url" "$destination" 2>&1
+}
+
+# Remove a staged clone. Fail-safe and LOUD: residue in the temp dir is worth a
+# warning and is never a reason to abort an advisory phase.
+discard_fork_clone() {
+  local clone_dir="$1"
+  rm -rf "$clone_dir" 2>/dev/null && return 0
+  log "WARN: fork drift-check could not remove the staged clone at $clone_dir; it is left behind"
+  return 0
 }
 
 # Print the current git hash of the recorded skill path in a cloned upstream
@@ -2997,7 +3111,10 @@ resolve_fork_upstream_hash() {
 }
 
 check_fork_drift() {
-  [[ -f $CUSTOM_SKILL_LOCK ]] || return 0
+  if [[ ! -f $CUSTOM_SKILL_LOCK ]]; then
+    notify_fork_lock_missing "$CUSTOM_SKILL_LOCK"
+    return 0
+  fi
   if ! lock_is_readable_json_object "$CUSTOM_SKILL_LOCK"; then
     log "fork drift-check: $CUSTOM_SKILL_LOCK does not parse as a JSON object; NO fork upstream is being watched this run, fix the lock"
     relay_fork_advisory "$FORK_RELAY_STATE_LOCK_MALFORMED" "$FORK_RELAY_PROJECT_LOCK_FILE" \
@@ -3011,58 +3128,98 @@ check_fork_drift() {
     return 0
   fi
   local fork source_url skill_path last_compared_tree_hash current_tree_hash
-  local clone_parent_dir clone_dir
-  # read on fd 3: the loop body runs git, which may consume stdin
-  while IFS= read -r -u3 fork; do
+  local clone_parent_dir clone_dir clone_error unusable_fields
+  local expected_entries walked_entries=0
+  # How many entries the walk below OWES a verdict. Range-bounded before it is
+  # compared: the guards above make jq's answer a count, but an unreadable
+  # answer must not decide the comparison, and 0 is the direction that reports
+  # rather than the one that stays quiet.
+  expected_entries="$(jq -r '(.forks // {}) | length' "$CUSTOM_SKILL_LOCK" 2>/dev/null)"
+  [[ $expected_entries =~ ^[0-9]+$ ]] || expected_entries=0
+  # NUL-delimited keys, read on fd 3. NUL because a forks key is a JSON string
+  # and may hold anything a JSON string may: a key with an embedded newline
+  # split into two phantom entries under a line-delimited feed, each relayed as
+  # its own broken fork, while the real entry was never walked at all. fd 3
+  # because the loop body runs git, which may consume stdin.
+  while IFS= read -r -d '' -u3 fork; do
+    walked_entries=$((walked_entries + 1))
     # Type-check the entry BEFORE reading fields out of it: a non-object entry
-    # makes each of the three reads below a failing command substitution, and
-    # an assignment from one aborts the run under `set -euo pipefail`.
+    # makes each of the reads below a failing command substitution, and an
+    # assignment from one aborts the run under `set -euo pipefail`.
     if ! fork_entry_is_object "$CUSTOM_SKILL_LOCK" "$fork"; then
-      notify_fork_entry_malformed "$fork"
+      notify_fork_entry_malformed "$fork" "it must be a JSON object, and it is not"
       continue
     fi
-    source_url="$(jq -r --arg fork "$fork" '.forks[$fork].sourceUrl // ""' "$CUSTOM_SKILL_LOCK")"
-    skill_path="$(jq -r --arg fork "$fork" '.forks[$fork].skillPath // ""' "$CUSTOM_SKILL_LOCK")"
-    last_compared_tree_hash="$(jq -r --arg fork "$fork" '.forks[$fork].lastComparedTreeHash // ""' "$CUSTOM_SKILL_LOCK")"
-    if ! fork_entry_walkable "$source_url" "$skill_path" "$last_compared_tree_hash"; then
-      notify_fork_entry_malformed "$fork"
+    unusable_fields="$(fork_entry_unusable_fields "$CUSTOM_SKILL_LOCK" "$fork")"
+    if [[ -n $unusable_fields ]]; then
+      notify_fork_entry_malformed "$fork" \
+        "these fields must each be a non-empty JSON string: $unusable_fields"
       continue
     fi
+    source_url="$(jq -r --arg fork "$fork" '.forks[$fork].sourceUrl' "$CUSTOM_SKILL_LOCK")"
+    skill_path="$(jq -r --arg fork "$fork" '.forks[$fork].skillPath' "$CUSTOM_SKILL_LOCK")"
+    last_compared_tree_hash="$(jq -r --arg fork "$fork" '.forks[$fork].lastComparedTreeHash' "$CUSTOM_SKILL_LOCK")"
     if [[ $DRYRUN == "--dry-run" ]]; then
       log "would drift-check fork: $fork against $source_url"
       continue
     fi
-    # A temp dir this phase cannot create is one more ADVISORY failure: without
-    # this branch the assignment fails and `set -euo pipefail` takes the whole
-    # weekly run down, after the generation exchange has published and before
-    # the success stamp is written.
+    # A temp dir this phase cannot create is one more upstream nobody compared,
+    # so it is reported like any other. Without this branch the assignment
+    # fails and `set -euo pipefail` takes the run down at this line.
     clone_parent_dir="${TMPDIR:-$FORK_CLONE_FALLBACK_TMPDIR}"
     if ! clone_dir="$(mktemp -d "$clone_parent_dir/$FORK_CLONE_DIR_TEMPLATE" 2>/dev/null)"; then
-      log "fork drift-check $fork: could not create a temp dir under $clone_parent_dir to clone the upstream into; this upstream was NOT checked this run"
+      notify_fork_clone_unstageable "$fork" "$clone_parent_dir"
       continue
     fi
-    if ! clone_fork_upstream "$source_url" "$clone_dir/repo"; then
-      log "fork drift-check $fork: upstream unreachable ($source_url); skipping"
-      rm -rf "$clone_dir"
+    if ! clone_error="$(clone_fork_upstream "$source_url" "$clone_dir/repo")"; then
+      discard_fork_clone "$clone_dir"
+      notify_fork_upstream_unreachable "$fork" "$source_url" "$clone_error"
       continue
     fi
     if ! current_tree_hash="$(resolve_fork_upstream_hash "$clone_dir/repo" "$skill_path")"; then
-      rm -rf "$clone_dir"
+      discard_fork_clone "$clone_dir"
       notify_fork_path_missing "$fork" "$source_url" "$skill_path"
       continue
     fi
-    rm -rf "$clone_dir"
+    discard_fork_clone "$clone_dir"
     if [[ $current_tree_hash == "$last_compared_tree_hash" ]]; then
       log "fork $fork: upstream unchanged since the last comparison"
     else
       notify_fork_drift "$fork" "$source_url"
     fi
-  done 3< <(jq -r '.forks // {} | keys[]?' "$CUSTOM_SKILL_LOCK" 2>/dev/null)
+  done 3< <(jq --raw-output0 '(.forks // {}) | keys[]?' "$CUSTOM_SKILL_LOCK" 2>/dev/null)
+  [[ $walked_entries -eq $expected_entries ]] ||
+    notify_fork_walk_incomplete "$walked_entries" "$expected_entries"
+  # The phase's contract is that it always succeeds; say so rather than leaving
+  # it to whatever the last statement above happened to return.
+  return 0
+}
+
+# The phase BOUNDARY, and the only way this script calls the drift-watch.
+# Calling check_fork_drift as the left side of an OR list is what makes
+# "advisory, never fails the run" structural instead of a promise every
+# statement inside has to keep one at a time: bash ignores errexit for the
+# whole body of a function invoked there, so nothing inside (nor anything added
+# later) can abort a weekly run that has already published a generation and has
+# yet to write its success stamp. Measured on the pre-fix bytes: deleting the
+# single `|| true` inside relay_fork_advisory killed the run with rc 3 at this
+# phase; with this boundary the same deletion finishes the run.
+#
+# What the WARN is for, honestly: check_fork_drift ends in `return 0`, so with
+# errexit suspended there is no path left that reaches this branch. It is here
+# so a future explicit non-zero return cannot pass unnoticed, which is the one
+# way this could go quiet again.
+run_fork_drift_watch() {
+  local watch_rc=0
+  log "fork drift-check"
+  check_fork_drift || watch_rc=$?
+  [[ $watch_rc -eq 0 ]] ||
+    log "WARN: the fork drift-watch exited $watch_rc; upstreams past that point were NOT checked this run (this phase is advisory and never fails the run)"
+  return 0
 }
 
 if [[ -n $CHECK_FORKS_ONLY ]]; then
-  log "fork drift-check"
-  check_fork_drift
+  run_fork_drift_watch
   log "done (check-forks-only)${DRYRUN:+ (dry-run)}"
   exit 0
 fi
@@ -3079,7 +3236,7 @@ if [[ $DRYRUN == "--dry-run" ]]; then
   refresh_app_owned_cua_pack    # its dry branch logs the would-run line only
   assert_superpowers_routing    # --dry-run probe of the routing script (read-only)
   update_hermes_registry_skills # its dry branch logs would-update lines only
-  check_fork_drift              # its dry branch logs would-drift-check lines only
+  run_fork_drift_watch          # its dry branch logs would-drift-check lines only
   log "done (dry-run)"
   exit 0
 fi
@@ -3170,8 +3327,7 @@ log "hermes registry updates"
 update_hermes_registry_skills
 
 # watch the vendored/fork upstreams (alert-only)
-log "fork drift-check"
-check_fork_drift
+run_fork_drift_watch
 
 # Record this week's success ONLY when zero required phases failed. The stamp is
 # the ISO year-week key (date +%G-%V) PLUS the custom-lock and updater hashes
