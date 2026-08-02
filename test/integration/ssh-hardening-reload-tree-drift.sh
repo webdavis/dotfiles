@@ -747,6 +747,42 @@ refute_contains "$SSH_RUN_ERR" 'sshd was not touched' \
   'observe fails after the kickstart: the kickstart already ran, so sshd was touched'
 chmod -- 0644 "$INERT_DROPIN"
 
+# --- unreadable mid-run, on the confirmed-absent path -------------------------
+# The THIRD branch of the same guard, and the one nothing reached. Controls D
+# and E cover the confirmed-absent path with a tree the run can still read: D
+# drives it with the tree MOVED, E with the tree UNCHANGED. Neither makes the
+# tree UNOBSERVABLE, and that is a different answer, because the two above are
+# a comparison between two observations while this is the branch that fires
+# when there is no second observation to compare.
+#
+# The state is reachable by the same concurrent writer the guard exists for: an
+# include chmodded unreadable, a file that takes the tree past the byte bound,
+# a path carrying the record separator. Each of those is a durable defect in
+# the tree, not a transient one, and each makes the run unable to say anything
+# at all about the drop-in it just validated.
+#
+# Measured before this case existed: with the branch returning 0, a mutation
+# that replaced its whole body with the mode's strongest success sentence
+# ("the installed drop-in applies when Remote Login is next enabled", printed
+# over a tree the run could not read) left BOTH this suite and
+# ssh-hardening-reload-failclosed.sh green.
+
+LAUNCHCTL_STUB_PRINT_STATUSES=113 \
+  run_reload_with_mutation 'launchctl print *' 1 make-unreadable "$INERT_DROPIN"
+assert_mutation_fired 'observe fails on the confirmed-absent path'
+[[ $SSH_RUN_STATUS -ne 0 ]] ||
+  fail "observe fails on the confirmed-absent path: a run that could not read the tree at all must refuse, not exit 0 like the two branches that DID read it (stdout: $SSH_RUN_OUT, stderr: $SSH_RUN_ERR)"
+assert_no_kickstart 'observe fails on the confirmed-absent path'
+grep -qi 'could not be re-read' <<<"$SSH_RUN_ERR" ||
+  fail "observe fails on the confirmed-absent path: the refusal must name the failed re-read (stderr: $SSH_RUN_ERR)"
+grep -qF -- "$INERT_DROPIN" <<<"$SSH_RUN_ERR" ||
+  fail "observe fails on the confirmed-absent path: the refusal must name the file it could not read (stderr: $SSH_RUN_ERR)"
+grep -qi 'sshd was not touched' <<<"$SSH_RUN_ERR" ||
+  fail "observe fails on the confirmed-absent path: nothing was restarted here, and the refusal must say so (stderr: $SSH_RUN_ERR)"
+refute_contains "$SSH_RUN_OUT$SSH_RUN_ERR" 'applies when Remote Login is next enabled' \
+  'observe fails on the confirmed-absent path: a tree the run could not read carries no claim about what the drop-in on disk will do later'
+chmod -- 0644 "$INERT_DROPIN"
+
 # --- an Include cycle refuses BEFORE anything is judged -----------------------
 # The walk's cycle guard is what stops a self-including tree from spinning. It
 # is reached at the FIRST observation, before the syntax check, so it must

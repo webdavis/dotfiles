@@ -1859,21 +1859,36 @@ config_tree_is_unchanged() {
 # --reload says when `launchctl print` confirms the service is absent, which is
 # what Remote Login being off looks like.
 #
-# Nothing is restarted on this path and the exit status is 0 either way; that
-# is the mode's spec and a moved tree is not a reason to change it, because
-# there is no daemon to restart onto anything. The SENTENCE is a different
-# matter. "The installed drop-in applies when Remote Login is next enabled" is
-# a claim about the tree on disk, and the only thing that judged that tree is a
-# preflight that ran before this moment. Making it anyway over a tree that has
-# since moved is a success claim over validation known to be stale -- the same
-# defect the pre-kickstart guard exists to prevent, arriving on the one path
-# that never reaches the guard.
+# Nothing is restarted on this path, and when the tree can still be READ the
+# exit status is 0 whether or not it moved; that is the mode's spec and a moved
+# tree is not a reason to change it, because there is no daemon to restart onto
+# anything. The SENTENCE is a different matter. "The installed drop-in applies
+# when Remote Login is next enabled" is a claim about the tree on disk, and the
+# only thing that judged that tree is a preflight that ran before this moment.
+# Making it anyway over a tree that has since moved is a success claim over
+# validation known to be stale -- the same defect the pre-kickstart guard
+# exists to prevent, arriving on the one path that never reaches the guard.
+#
+# A FAILED OBSERVATION IS NOT THE SAME AS A MOVED TREE, and it used to end the
+# same way: a warning and exit 0. The two branches below differ in what the run
+# can say. Drift is a state this run can still see and describe in full, so the
+# operator is told which file moved and the only thing withheld is a
+# forward-looking claim. An observation that FAILS is this run's evidence
+# source going away: it cannot say whether the drop-in it validated a moment
+# ago is even still on disk. Every other place that reads this tree treats that
+# as a refusal (step 3 before the preflight, step 8 before the kickstart, step
+# 12 after it), and the states that produce it are durable defects rather than
+# a writer passing through -- an include chmodded unreadable, a file that takes
+# the tree past MAX_CONFIG_TREE_BYTES, a path carrying the record separator --
+# each of which --verify refuses too. Exit 0 there put the mode's only
+# machine-readable signal at "fine" for a run that could not read the
+# configuration at all, which is the caller-facing half of the same fail-open
+# the withheld sentence closes.
 report_absent_service_outcome() {
   local earlier="$1" tree_changed=0
   printf '[ssh-hardening] reload: the sshd launchd service is confirmed absent, which is what Remote Login being off looks like, so there is no daemon to restart and nothing was restarted.\n'
   if ! observe_config_tree; then
-    warn "the sshd configuration tree could not be re-read after the checks above ($CONFIG_TREE_ERROR), so nothing is claimed about what the tree on disk does when Remote Login is next enabled. Check it with 'ssh-hardening.sh --verify'."
-    return 0
+    die "the sshd launchd service is confirmed absent and nothing was restarted, but the sshd configuration tree could not be re-read after the checks above ($CONFIG_TREE_ERROR), so nothing is claimed about what the tree on disk does when Remote Login is next enabled. sshd was not touched. Check the tree with 'ssh-hardening.sh --verify'."
   fi
   config_tree_is_unchanged "$earlier" "$CONFIG_TREE_OBSERVATION" || tree_changed=$?
   if [[ $tree_changed -ne 0 ]]; then
