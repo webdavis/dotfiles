@@ -2859,6 +2859,7 @@ FORK_RELAY_STATE_DRIFT="fork-drift"                               # upstream con
 FORK_RELAY_STATE_PATH_MISSING="fork-path-missing"                 # upstream still there; our recorded path is not
 FORK_RELAY_STATE_LOCK_MALFORMED="fork-lock-broken"                # the lock itself cannot be walked
 FORK_RELAY_STATE_LOCK_MISSING="fork-lock-missing"                 # there is no lock file to walk at all
+FORK_RELAY_STATE_FORKS_TABLE_ABSENT="fork-table-absent"           # the lock parses but carries no forks table
 FORK_RELAY_STATE_UPSTREAM_UNREACHABLE="fork-upstream-unreachable" # the fetch failed; nothing was compared
 FORK_RELAY_STATE_CLONE_UNSTAGEABLE="fork-clone-unstageable"       # no temp dir to fetch into; nothing was compared
 FORK_RELAY_STATE_CLONE_TIMEOUT="fork-clone-timeout"               # the fetch never answered and was stopped; nothing was compared
@@ -3055,19 +3056,33 @@ lock_is_readable_json_object() {
   jq -e 'type == "object"' "$lock_file" >/dev/null 2>&1
 }
 
-# Is the lock's forks table a shape the drift-watch can walk? Absent is legal
-# and means there is nothing to watch. Present-but-not-an-object is corruption,
-# and both of its outcomes were wrong before this gate: false/null/a string/[]
-# walked zero entries and reported a silent all-clear over an unwatched fork
-# set, and an ARRAY made the per-entry jq index error out, which under
-# `set -euo pipefail` aborted the whole run. Since the roster gate no longer
-# refuses a mutating run over a malformed forks table (it is advisory data,
-# see __gen_roster_schema_ok), this guard is the ONLY thing standing between a
-# corrupt table and every mode of this script, not a tolerant backstop for two
-# read-only modes.
+# Is there a forks table at all? Asked before its shape, because absence is NOT
+# "nothing to watch". An empty OBJECT is how a lock says that deliberately; an
+# absent key is what a typo (`forkss`, `Forks`) or a hand-edit that dropped the
+# table leaves behind, and treating it as legal printed exactly what a healthy
+# zero-drift run prints. The weekly run then published a generation, stamped the
+# week a success, compared no vendored upstream, and nothing anywhere said so,
+# which is the silence this whole phase exists to prevent. The committed lock
+# always carries the table, and test/unit/skills-roster-fanout.sh fails when it
+# stops covering every vendored skill, so an absent one on a live machine means
+# the deployed file is not the committed one.
+fork_table_is_present() {
+  local lock_file="$1"
+  jq -e 'has("forks")' "$lock_file" >/dev/null 2>&1
+}
+
+# Is the lock's forks table a shape the drift-watch can walk?
+# Present-but-not-an-object is corruption, and both of its outcomes were wrong
+# before this gate: false/null/a string/[] walked zero entries and reported a
+# silent all-clear over an unwatched fork set, and an ARRAY made the per-entry
+# jq index error out, which under `set -euo pipefail` aborted the whole run.
+# Since the roster gate no longer refuses a mutating run over a malformed forks
+# table (it is advisory data, see __gen_roster_schema_ok), this guard is the
+# ONLY thing standing between a corrupt table and every mode of this script, not
+# a tolerant backstop for two read-only modes.
 fork_table_is_object() {
   local lock_file="$1"
-  jq -e '(has("forks") | not) or (.forks | type == "object")' "$lock_file" >/dev/null 2>&1
+  jq -e '.forks | type == "object"' "$lock_file" >/dev/null 2>&1
 }
 
 # Is this ENTRY an object, so the per-field reads below cannot error? Same
@@ -3222,6 +3237,12 @@ check_fork_drift() {
     log "fork drift-check: $CUSTOM_SKILL_LOCK does not parse as a JSON object; NO fork upstream is being watched this run, fix the lock"
     relay_fork_advisory "$FORK_RELAY_STATE_LOCK_MALFORMED" "$FORK_RELAY_PROJECT_LOCK_FILE" \
       "$CUSTOM_SKILL_LOCK does not parse as a JSON object; no fork upstream was drift-checked"
+    return 0
+  fi
+  if ! fork_table_is_present "$CUSTOM_SKILL_LOCK"; then
+    log "fork drift-check: $CUSTOM_SKILL_LOCK carries no forks table; NO fork upstream is being watched this run, restore the table (a lock with deliberately nothing to watch says so with an empty one)"
+    relay_fork_advisory "$FORK_RELAY_STATE_FORKS_TABLE_ABSENT" "$FORK_RELAY_PROJECT_FORKS_TABLE" \
+      "$CUSTOM_SKILL_LOCK has no forks table at all; no fork upstream was drift-checked"
     return 0
   fi
   if ! fork_table_is_object "$CUSTOM_SKILL_LOCK"; then

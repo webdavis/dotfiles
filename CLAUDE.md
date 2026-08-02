@@ -493,7 +493,10 @@ upstream is not filed under "check your network" forever. **An unstageable clone
 that never answered** (`FORK CLONE TIMED OUT`, `fork-clone-timeout`) means the fetch was still running at
 its deadline (5 minutes, `UPDATE_SKILLS_FORK_CLONE_DEADLINE` overrides it) and was stopped. **A broken
 lock** (`fork-lock-broken`, `fork-lock-missing`, `fork-walk-incomplete`) means the `forks` table, one of
-its entries, or the walk itself could not be used, so some or every upstream went unwatched.
+its entries, or the walk itself could not be used, so some or every upstream went unwatched. **A lock
+with no `forks` table at all** (`fork-table-absent`) is reported rather than read as a clean zero-entry
+watch: an empty `{}` is how a lock says there is deliberately nothing to watch, while an absent key is
+what a typo or a dropped table leaves behind, and that used to print what a healthy run prints.
 
 The deadline is what keeps "advisory" literal. The watch runs after the generation exchange has published
 and before the success stamp is written, so a fetch that never answers parks the whole weekly update

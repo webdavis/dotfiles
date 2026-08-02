@@ -829,4 +829,35 @@ for case22_deadline in 'not-a-number' '' '0' '-5' '3.5'; do
     fail "case 22 (deadline='$case22_deadline'): an unusable deadline override was taken at face value instead of falling back to the default, so a reachable upstream went uncompared: $fork_check_output"
 done
 
-echo "update-skills-fork-drift: OK (4 baseline assertions + rewrite immunity (global and system), stale skillPath, clone staging and cleanup, 4 malformed tables, malformed entries, dry-run notifies nobody, whole-repo skillPath, failing relay, unparseable lock, unreachable upstream relayed with git's message, 21 mis-typed fields, unstageable clone relayed, newline key, namespaced lock project, distinguishable malformed-entry reasons, absent lock, stalled clone stopped at its deadline, unusable deadline override)"
+# --- Case 23: a lock with NO forks table is not a clean zero-entry watch ------
+# `"forks": {}` is a lock SAYING there is deliberately nothing to watch. An
+# absent table says nothing at all, and it is what a typo'd key (`forkss`,
+# `Forks`) or a hand-edit that dropped the table leaves behind. Treated as legal
+# it printed exactly what a healthy zero-drift run prints, so the weekly run
+# published a generation, stamped the week a success, compared no vendored
+# upstream, and nothing anywhere said so. The two shapes must be told apart:
+# absent is reported, empty stays quiet.
+jq -n '{version: 1, skills: {}}' >"$HOME/.agents/custom-skill-lock.json"
+run_fork_check
+[[ $fork_check_rc -eq 0 ]] ||
+  fail "case 23: the drift-watch exited $fork_check_rc on a lock with no forks table: $fork_check_output"
+assert_log_line_has "$fork_check_output" 'forks table' 'NO fork upstream is being watched' \
+  "case 23: a lock with no forks table watched nothing and reported nothing, which is byte-for-byte what a healthy run with no drift prints: $fork_check_output"
+assert_relay_line fork-table-absent 'no forks table' \
+  "case 23: a lock with no forks table was not relayed, so a dropped table reaches nobody who is not reading the run log"
+refute_match "$fork_check_output" 'does not parse as a JSON object' \
+  "case 23: a lock that parses fine is blamed on its JSON, which sends the operator to the wrong repair: $fork_check_output"
+
+# The neighbouring shape, which must stay silent: a table that is PRESENT and
+# empty is the deliberate statement, and reporting it would cry wolf every week
+# on a machine that watches nothing on purpose.
+write_forks_lock '{}'
+run_fork_check
+[[ $fork_check_rc -eq 0 ]] ||
+  fail "case 23: the drift-watch exited $fork_check_rc on an empty forks table: $fork_check_output"
+refute_match "$fork_check_output" 'forks table' \
+  "case 23: an explicitly EMPTY forks table is reported like a missing one, so the deliberate statement and the mistake are indistinguishable: $fork_check_output"
+[[ ! -s $relay_call_log ]] ||
+  fail "case 23: an explicitly empty forks table paged the operator: $(cat "$relay_call_log")"
+
+echo "update-skills-fork-drift: OK (4 baseline assertions + rewrite immunity (global and system), stale skillPath, clone staging and cleanup, 4 malformed tables, malformed entries, dry-run notifies nobody, whole-repo skillPath, failing relay, unparseable lock, unreachable upstream relayed with git's message, 21 mis-typed fields, unstageable clone relayed, newline key, namespaced lock project, distinguishable malformed-entry reasons, absent lock, stalled clone stopped at its deadline, unusable deadline override, absent vs empty forks table)"

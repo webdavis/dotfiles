@@ -290,6 +290,33 @@ assert_advisory_not_refusal "case F (mis-typed forks field)" "$rcF" "$outF" \
 grep -qF 'delta' <<<"$outF" ||
   fail "case F: the advisory does not name the broken fork: $outF"
 
+# --- Case H: a lock with NO forks table completes, and still reports ----------
+# Cases E and F cover a table that is present and unusable. An ABSENT one is the
+# quieter failure: a mistyped key (`forkss`, `Forks`) or a hand-edit that
+# dropped the table produced exactly the output of a healthy zero-drift run, so
+# the run published a generation, stamped the week a success, compared no
+# vendored upstream, and nothing anywhere said so. Both halves are asserted
+# here, because they pull in opposite directions: advisory data still may not
+# refuse the weekly run, and a silent all-clear over an unwatched fork set is
+# what this phase exists to prevent.
+reset_stamp
+cat >"$LOCK" <<'EOF'
+{
+  "version": 2,
+  "tiers": {"alpha": "core", "gamma": "core"},
+  "hermesProfiles": {},
+  "hermesRegistry": {},
+  "npxTracked": {"alpha": {"repo": "fixture/pack"}},
+  "clawhubTracked": {"gamma": {"slug": "@o/gamma", "registry": "https://c.example"}}
+}
+EOF
+set +e
+outH="$(run_full)"
+rcH=$?
+set -e
+assert_advisory_not_refusal "case H (no forks table at all)" "$rcH" "$outH" \
+  'carries no forks table'
+
 # --- Case G: a VALID non-empty forks table sails through and is WALKED --------
 # Every happy-path fixture in this suite carries `"forks": {}`, so without this
 # nothing proved a real forks table reaches the drift-watch at all: cases E and
