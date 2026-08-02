@@ -173,8 +173,11 @@ and verifies it, but never restarts sshd. The running daemon picks the drop-in u
 deliberately disruptive `ssh-hardening.sh --reload`, which validates the complete configuration first,
 restarts the launchd service, and refuses to report a restart as successful until an SSH banner exchange
 completes on the resolved port. One documented exception: when Remote Login is off (the launchd service
-is confirmed absent), `--reload` exits 0 as a clean no-op, with no restart and no banner; the drop-in
-applies when Remote Login is next enabled.
+is confirmed absent), `--reload` exits 0 as a clean no-op, with no restart and no banner, reporting that
+the tree it just checked is still the one on disk. It claims nothing past that point. Whether the drop-in
+is still what sshd reads when Remote Login is next enabled is not checked at that moment, which may be
+weeks later, so run `ssh-hardening.sh --verify` once Remote Login is on. A no-op run that cannot re-read
+the configuration tree at all refuses instead of exiting 0, because it cannot say even that much.
 
 Before running `--reload` on a machine you are not sitting at:
 

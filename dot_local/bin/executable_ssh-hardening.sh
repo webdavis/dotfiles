@@ -1862,12 +1862,23 @@ config_tree_is_unchanged() {
 # Nothing is restarted on this path, and when the tree can still be READ the
 # exit status is 0 whether or not it moved; that is the mode's spec and a moved
 # tree is not a reason to change it, because there is no daemon to restart onto
-# anything. The SENTENCE is a different matter. "The installed drop-in applies
-# when Remote Login is next enabled" is a claim about the tree on disk, and the
-# only thing that judged that tree is a preflight that ran before this moment.
-# Making it anyway over a tree that has since moved is a success claim over
-# validation known to be stale -- the same defect the pre-kickstart guard
-# exists to prevent, arriving on the one path that never reaches the guard.
+# anything. The SENTENCE is a different matter. A claim about the tree on disk
+# rests on a preflight that ran before this moment, and making it anyway over a
+# tree that has since moved is a success claim over validation known to be
+# stale -- the same defect the pre-kickstart guard exists to prevent, arriving
+# on the one path that never reaches the guard.
+#
+# WHY THE SENTENCE IS HEDGED HARDER THAN THE RELOAD'S OWN. It used to read "the
+# installed drop-in applies when Remote Login is next enabled", flat, while the
+# reload-complete line was qualified down to "a check that found nothing, not a
+# guarantee" for exactly this kind of evidence. That had it backwards: the
+# reload's unobservable gap is the milliseconds between its last observation
+# and the daemon's own read, while the event THIS line predicts is an operator
+# turning Remote Login on, which may be weeks away, over whatever the tree
+# holds at that moment, with nothing re-reading it then. The weaker evidence
+# carried the stronger sentence. It now says what this run measured and names
+# the gap it cannot see across, and control E in the drift suite pins both
+# halves so a future round cannot quietly widen it back.
 #
 # A FAILED OBSERVATION IS NOT THE SAME AS A MOVED TREE, and it used to end the
 # same way: a warning and exit 0. The two branches below differ in what the run
@@ -1895,7 +1906,7 @@ report_absent_service_outcome() {
     warn "the sshd configuration tree CHANGED while this reload was validating it, so the checks above judged a tree that is no longer on disk and nothing is claimed about what the tree does when Remote Login is next enabled. What moved: $CONFIG_TREE_CHANGE_DESCRIPTION. Re-run 'ssh-hardening.sh --verify' once the tree has settled."
     return 0
   fi
-  printf '[ssh-hardening] reload: the installed drop-in applies when Remote Login is next enabled.\n'
+  printf '[ssh-hardening] reload: the configuration tree these checks passed is still the one on disk, with every file reading back byte-for-byte and mode-for-mode identical each time this run read it. Whether it is still what sshd reads when Remote Login is next enabled is NOT checked here: that happens later, possibly much later, over whatever the tree holds at that moment, and nothing re-validates it then, so re-run ssh-hardening.sh --verify once Remote Login is on.\n'
 }
 
 # recovery_instructions: the way back in, in one sentence, printed verbatim in

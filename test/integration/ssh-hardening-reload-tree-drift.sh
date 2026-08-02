@@ -395,12 +395,12 @@ assert_no_kickstart 'control D'
 grep -qi 'Remote Login' <<<"$SSH_RUN_OUT" ||
   fail "control D: the no-op must still explain the service follows Remote Login (stdout: $SSH_RUN_OUT)"
 # The exit status and the silence toward launchd are the spec. The SENTENCE is
-# not: "the installed drop-in applies when Remote Login is next enabled" is a
-# claim about the tree on disk, and the checks that judged that tree ran before
-# the mutation landed. Claiming it anyway is a success claim over validation
-# that is known to be stale, which is the same defect the pre-kickstart guard
-# exists to prevent, arriving on the one path that does not kickstart.
-refute_contains "$SSH_RUN_OUT$SSH_RUN_ERR" 'applies when Remote Login is next enabled' \
+# not: "the configuration tree these checks passed is still the one on disk" is
+# a claim about the tree, and the checks that judged that tree ran before the
+# mutation landed. Making it anyway is a success claim over validation that is
+# known to be stale, which is the same defect the pre-kickstart guard exists to
+# prevent, arriving on the one path that does not kickstart.
+refute_contains "$SSH_RUN_OUT$SSH_RUN_ERR" 'is still the one on disk' \
   'control D: with the tree moved, nothing may be claimed about what the drop-in on disk will do later'
 grep -qF -- "$dropin" <<<"$SSH_RUN_ERR" ||
   fail "control D: the operator must still be told WHICH file moved (stderr: $SSH_RUN_ERR)"
@@ -411,13 +411,27 @@ write_hardened_dropin
 # The other half of control D. Withholding the sentence must be caused by the
 # DRIFT, not by the code path: an implementation that simply deleted the claim
 # would pass control D and lose the one thing this exit tells the operator.
+#
+# WHAT THE SENTENCE MAY CLAIM, pinned here so a future round cannot quietly
+# widen it back. This path's evidence is WEAKER than the reload's, not
+# stronger. Control A's success line was qualified because the gap between the
+# last observation and the daemon's own read is unobservable, and that gap is
+# milliseconds. Here the event being predicted is Remote Login being turned on,
+# which may be weeks away, over whatever the tree holds then, with nothing
+# re-checking it at that moment. So the sentence states what this run measured
+# and names the gap, exactly as control A's does, and the three greps below
+# pin each half: an un-hedged rewrite fails here rather than passing quietly.
 
 LAUNCHCTL_STUB_PRINT_STATUSES=113 run_ssh_reload --reload
 [[ $SSH_RUN_STATUS -eq 0 ]] ||
   fail "control E: a confirmed-absent service must stay a clean no-op (stderr: $SSH_RUN_ERR)"
 assert_no_kickstart 'control E'
-grep -qF -- 'applies when Remote Login is next enabled' <<<"$SSH_RUN_OUT" ||
-  fail "control E: with an unchanged tree the no-op must still say the installed drop-in applies later (stdout: $SSH_RUN_OUT)"
+grep -qF -- 'is still the one on disk' <<<"$SSH_RUN_OUT" ||
+  fail "control E: with an unchanged tree the no-op must still say the tree it checked is the tree on disk (stdout: $SSH_RUN_OUT)"
+grep -qF -- 'each time this run read it' <<<"$SSH_RUN_OUT" ||
+  fail "control E: the claim must say what was MEASURED, the same qualification control A pins on the reload's own success line (stdout: $SSH_RUN_OUT)"
+grep -qF -- 'nothing re-validates it' <<<"$SSH_RUN_OUT" ||
+  fail "control E: the claim must name the gap it cannot see across, that Remote Login is enabled later over a tree nothing re-checks (stdout: $SSH_RUN_OUT)"
 
 # --- control C: a write OUTSIDE the resolved graph is not drift ---------------
 # The guard's subject is the tree sshd reads, not the filesystem. A new file in
@@ -762,9 +776,8 @@ chmod -- 0644 "$INERT_DROPIN"
 # at all about the drop-in it just validated.
 #
 # Measured before this case existed: with the branch returning 0, a mutation
-# that replaced its whole body with the mode's strongest success sentence
-# ("the installed drop-in applies when Remote Login is next enabled", printed
-# over a tree the run could not read) left BOTH this suite and
+# that replaced its whole body with the mode's strongest success sentence,
+# printed over a tree the run could not read, left BOTH this suite and
 # ssh-hardening-reload-failclosed.sh green.
 
 LAUNCHCTL_STUB_PRINT_STATUSES=113 \
@@ -779,7 +792,7 @@ grep -qF -- "$INERT_DROPIN" <<<"$SSH_RUN_ERR" ||
   fail "observe fails on the confirmed-absent path: the refusal must name the file it could not read (stderr: $SSH_RUN_ERR)"
 grep -qi 'sshd was not touched' <<<"$SSH_RUN_ERR" ||
   fail "observe fails on the confirmed-absent path: nothing was restarted here, and the refusal must say so (stderr: $SSH_RUN_ERR)"
-refute_contains "$SSH_RUN_OUT$SSH_RUN_ERR" 'applies when Remote Login is next enabled' \
+refute_contains "$SSH_RUN_OUT$SSH_RUN_ERR" 'is still the one on disk' \
   'observe fails on the confirmed-absent path: a tree the run could not read carries no claim about what the drop-in on disk will do later'
 chmod -- 0644 "$INERT_DROPIN"
 
