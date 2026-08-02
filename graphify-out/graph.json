@@ -18057,7 +18057,7 @@
       "label": "first_relay_project()",
       "file_type": "code",
       "source_file": "test/integration/update-skills-fork-drift.sh",
-      "source_location": "L813",
+      "source_location": "L814",
       "metadata": {
         "language": "bash",
         "kind": "bash_function"
@@ -69016,7 +69016,7 @@
       "relation": "defines",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/update-skills-fork-drift.sh",
-      "source_location": "L813",
+      "source_location": "L814",
       "weight": 1.0,
       "source": "test_integration_update_skills_fork_drift",
       "target": "test_integration_update_skills_fork_drift_first_relay_project",
@@ -69225,7 +69225,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/update-skills-fork-drift.sh",
-      "source_location": "L881",
+      "source_location": "L882",
       "weight": 1.0,
       "context": "call",
       "source": "test_integration_update_skills_fork_drift_sh__entry",
@@ -69236,7 +69236,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "test/integration/update-skills-fork-drift.sh",
-      "source_location": "L751",
+      "source_location": "L752",
       "weight": 1.0,
       "context": "call",
       "source": "test_integration_update_skills_fork_drift_sh__entry",
@@ -100093,5 +100093,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "a1796bc1a9e68416ef16a15af080e13c16f54c0b"
+  "built_at_commit": "f68366b6b57cf3438999a3baf0e1624979daa7bc"
 }

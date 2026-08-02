@@ -652,6 +652,42 @@ refute_match "$fork_check_output" 'forks table' \
 assert_relay_state fork-lock-broken \
   "case 13: an unparseable lock was logged but never relayed"
 
+# --- Case 13b: a lock that is a STREAM of JSON values -------------------------
+# jq reads a file as a sequence of values and reports the status of the LAST
+# one, so every predicate here passed a file holding two objects. Two empty ones
+# walked nothing and printed a clean all-clear. Two populated ones read every
+# field TWICE and joined the answers: the sourceUrl became both paths separated
+# by a newline, so a reachable upstream was reported UNREACHABLE, each entry was
+# walked twice, and the run finished by announcing that "only 2 of 0" entries
+# had reached the walk. A lock is ONE object, and a file that is not one is a
+# file nobody can act on.
+printf '{}\n{}\n' >"$HOME/.agents/custom-skill-lock.json"
+run_fork_check
+[[ $fork_check_rc -eq 0 ]] ||
+  fail "case 13b: the drift-watch exited $fork_check_rc on a lock holding two JSON objects: $fork_check_output"
+printf '%s\n' "$fork_check_output" | grep -q 'does not parse as a JSON object' ||
+  fail "case 13b: a lock holding two JSON objects was accepted, so a file nobody can act on reported a clean all-clear over an unwatched fork set: $fork_check_output"
+assert_relay_state fork-lock-broken \
+  "case 13b: a lock holding two JSON objects was logged but never relayed"
+
+{
+  jq -n --arg url "$fixture_repo" \
+    '{version: 1, skills: {}, forks: {streamfork: {source: "fixture/streamfork",
+      sourceUrl: $url, skillPath: "skills/forkskill",
+      lastComparedTreeHash: "0000000000000000000000000000000000000000"}}}'
+  jq -n --arg url "$fixture_repo" \
+    '{version: 1, skills: {}, forks: {streamfork: {source: "fixture/streamfork",
+      sourceUrl: $url, skillPath: "skills/forkskill",
+      lastComparedTreeHash: "0000000000000000000000000000000000000000"}}}'
+} >"$HOME/.agents/custom-skill-lock.json"
+run_fork_check
+[[ $fork_check_rc -eq 0 ]] ||
+  fail "case 13b: the drift-watch exited $fork_check_rc on a populated two-object lock: $fork_check_output"
+printf '%s\n' "$fork_check_output" | grep -q 'does not parse as a JSON object' ||
+  fail "case 13b: a populated two-object lock was walked instead of reported, so every field was read twice and every verdict came from the two answers concatenated: $fork_check_output"
+refute_match "$fork_check_output" 'FORK UNREACHABLE|FORK DRIFT|upstream unchanged|reached the walk' \
+  "case 13b: a populated two-object lock produced per-fork verdicts, which are answers about a value no entry holds: $fork_check_output"
+
 # ---------------------------------------------------------------------------
 # Cases 14-20. The rule they share: an upstream this run did not compare has to
 # be REPORTED, not merely logged. A line in ~/.local/log/skills/ that nobody

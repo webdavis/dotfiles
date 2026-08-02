@@ -3058,13 +3058,22 @@ notify_fork_walk_incomplete() {
     "only $walked of $expected forks entries were walked; the rest were not drift-checked"
 }
 
-# Does the lock parse as a JSON object at all? Asked separately from the forks
-# table's shape because the two need different remedies: a file that does not
-# parse is not a malformed `forks` table, and reporting it as one sends the
+# Does the lock parse as EXACTLY ONE JSON object? Asked separately from the
+# forks table's shape because the two need different remedies: a file that does
+# not parse is not a malformed `forks` table, and reporting it as one sends the
 # operator to the wrong line of an otherwise healthy table.
+#
+# The count is half the question, not pedantry. jq reads a file as a SEQUENCE of
+# values and a predicate reports the status of the LAST one, so `{}{}` passed
+# the old `type == "object"` test and every read below then ran once per value:
+# two empty objects walked nothing and printed a clean all-clear, and two
+# populated ones joined each field's two answers into one string, which reported
+# a reachable upstream as unreachable, walked every entry twice, and announced
+# that "only 2 of 0" entries had reached the walk. Slurping is what makes the
+# count askable; the lock is a few kilobytes, so reading it whole costs nothing.
 lock_is_readable_json_object() {
   local lock_file="$1"
-  jq -e 'type == "object"' "$lock_file" >/dev/null 2>&1
+  jq -e -s 'length == 1 and (.[0] | type == "object")' "$lock_file" >/dev/null 2>&1
 }
 
 # Is there a forks table at all? Asked before its shape, because absence is NOT
