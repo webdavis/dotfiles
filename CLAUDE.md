@@ -116,23 +116,45 @@ those from an interactive terminal with KeePassXC unlocked. Non-KeePassXC templa
 `private_dot_claude/modify_settings.json` is a chezmoi **modify-template** (no `.tmpl` extension by
 chezmoi convention) that selectively enforces a fixed set of stable fields in `~/.claude/settings.json`.
 On every `chezmoi apply`, the script reads the current target file, overlays the stable fields below via
-`setValueAtPath`, and writes the merged result back. Anything not in the stable list passes through
-untouched, so `/config` toggles (e.g., `voiceEnabled`, `useAutoModeDuringPlan`, `alwaysThinkingEnabled`)
-drift freely without forcing a chezmoi resync.
+`setValueAtPath`, and writes the merged result back.
 
-**Chezmoi-controlled stable fields:**
+Fields fall into **three** categories, not two.
+
+**1. Chezmoi-controlled stable fields.** Overwritten from the template on every apply, whatever the live
+file holds:
 
 - `permissions.allow` (read-only tools), `permissions.deny` (`.env`, `secrets/**`, `.ssh/id_*`, etc.),
   `permissions.defaultMode` = `bypassPermissions`.
 - `hooks`: `UserPromptSubmit` marks session start, `Stop` pulses Hue lights, `Notification`
   (`permission_prompt` matcher) fires alerter, `PreToolUse` (`Bash` matcher) writes to
   `~/.claude/audit.log`.
-- `statusLine`, `enabledPlugins`, `cleanupPeriodDays` (= 36525, effectively disables session cleanup),
-  `autoUpdatesChannel` (= `stable`, pins the release channel so updates lag `latest`),
-  `remoteControlAtStartup` (= `true`, starts the Remote Control bridge every session).
+- `statusLine`, `cleanupPeriodDays` (= 36525, effectively disables session cleanup), `autoUpdatesChannel`
+  (= `stable`, pins the release channel so updates lag `latest`), `remoteControlAtStartup` (= `true`,
+  starts the Remote Control bridge every session).
 
-**Free-drift (Claude Code owns):** `alwaysThinkingEnabled`, `useAutoModeDuringPlan`, `voiceEnabled`,
+**2. Free-drift (Claude Code owns):** `alwaysThinkingEnabled`, `useAutoModeDuringPlan`, `voiceEnabled`,
 `skipDangerousModePermissionPrompt`, and any future setting `/config` adds.
+
+**3. `enabledPlugins`, which is neither.** The **roster** is chezmoi-controlled and the per-plugin
+**on/off state** is not. The template declares nine plugin ids (keys are `<name>@<marketplace>`, which is
+the form Claude Code writes, not the bare name the CLI prints on success) and the write is whole-value,
+so a plugin enabled live but missing from the declaration is turned OFF by the next apply. Within that
+roster, a plugin the live file disables with the JSON boolean `false` keeps its `false` across applies;
+every other shape renders `true`, including an absent key, a JSON null, a string, a number and the array
+Claude Code's own schema union permits.
+
+So `claude plugin disable <id>` STICKS. An apply does not re-enable it, and applying is not the way to
+turn a plugin back on: use `claude plugin enable <id>`. The trade was taken deliberately, because a
+containment verb a scheduled apply can silently revoke is not containment. Its cost:
+`claude plugin disable --all` is one command and there is no `enable --all`, so recovering from a mass
+disable means nine separate `claude plugin enable` calls.
+
+`--exclude=templates` does not skip a modify-template (measured 2026-08-02), so this path runs on every
+`just a`, not only on a full apply.
+
+`test/unit/claude-enabled-plugins.sh` applies the template into a throwaway destination once per
+live-file shape per target OS and pins all of the above, including that the stable fields survive shapes
+that used to make the render fail outright.
 
 **Promote a `/config` toggle to stable** by adding a `setValueAtPath` call for that key in
 `private_dot_claude/modify_settings.json` and committing.

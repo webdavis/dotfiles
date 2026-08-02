@@ -12,11 +12,22 @@
   How: this is a chezmoi modify-template (https://www.chezmoi.io/user-guide/
   manage-different-types-of-file/#modify-templates). It receives the current
   ~/.claude/settings.json on .chezmoi.stdin, overlays the stable fields below
-  via setValueAtPath, and writes the merged result back. Ergonomic toggles
-  (anything not in the stable list) are passed through untouched.
+  via setValueAtPath, and writes the merged result back.
 
-  Promote a /config toggle to "managed" by adding it to one of the
-  setValueAtPath calls below.
+  Three categories of field, not two:
+
+    STABLE       overwritten from here on every apply, whatever the live file
+                 says: permissions, hooks, statusLine, skillOverrides,
+                 cleanupPeriodDays, autoUpdatesChannel, remoteControlAtStartup.
+    FREE-DRIFT   passed through untouched: alwaysThinkingEnabled, voiceEnabled,
+                 useAutoModeDuringPlan and anything else /config adds.
+    enabledPlugins  the ROSTER is fixed here and the per-plugin ON/OFF state is
+                 not. Membership of the declared list is stable; a plugin the
+                 live file disables with a JSON boolean false stays disabled
+                 across applies. See the plugin block below for why.
+
+  Promote a /config toggle to STABLE by adding it to one of the setValueAtPath
+  calls below.
 */ -}}
 {{- /* .chezmoi.stdin is only set when chezmoi runs the modify template
        with a real target file. Use safe access so the template still
@@ -25,6 +36,30 @@
 {{- $merged := dict -}}
 {{- if $stdin -}}
 {{-   $merged = fromJson $stdin -}}
+{{- end -}}
+
+{{- /* The live file's own enabledPlugins, read HERE so no setValueAtPath call
+       below can overwrite it before the plugin block consumes it.
+
+       Both containers are kind-guarded to a MAP before they are indexed, and
+       that is a correctness requirement rather than caution. Measured
+       2026-08-02 on chezmoi 2.62.3 and 2.71.1, which agreed on every idiom:
+       `index` on an untyped nil is a HARD error, and `hasKey` is nil-safe but
+       is a HARD error on a non-map (`wrong type for value; expected
+       map[string]interface {}`). An unguarded read kills the WHOLE render, and
+       chezmoi then writes no settings.json at all, taking permissions.deny,
+       every hook, statusLine and every skillOverrides entry with it. Both
+       containers legitimately arrive as something other than a map: the live
+       file is absent or empty on a fresh machine, and enabledPlugins is JSON
+       null once anything writes the key without entries. A nil check alone is
+       not enough, which is why the guard tests for `map` rather than for
+       presence. */ -}}
+{{- $livePlugins := dict -}}
+{{- if eq (kindOf $merged) "map" -}}
+{{-   $liveEnabledPlugins := index $merged "enabledPlugins" -}}
+{{-   if eq (kindOf $liveEnabledPlugins) "map" -}}
+{{-     $livePlugins = $liveEnabledPlugins -}}
+{{-   end -}}
 {{- end -}}
 
 {{- /* --- stable: scalars and policy --- */ -}}
@@ -109,29 +144,63 @@
     "command" (printf "bash %s/.claude/statusline-command.sh" $home) -}}
 {{- $merged = setValueAtPath "statusLine" $statusLine $merged -}}
 
-{{- /* --- stable: plugins enabled by default.
+{{- /* --- stable: the declared plugin roster, ON by default, with a live
+       DISABLE preserved.
 
-       This dict REPLACES enabledPlugins wholesale, it does not merge into it,
+       This block REPLACES enabledPlugins wholesale, it does not merge into it,
        because setValueAtPath writes the value at the path. So a plugin enabled
-       live but missing here is DISABLED on the next apply, silently. Every
-       plugin meant to stay on must be listed. test/unit/claude-enabled-plugins.sh
-       fails when this set and the roster disagree.
+       live but missing from the list below is DISABLED on the next apply,
+       silently. Every plugin meant to stay on must be listed.
+       test/unit/claude-enabled-plugins.sh fails when this set and the roster
+       disagree.
+
+       The list is names only, not name-to-value pairs: membership means "this
+       repo manages this plugin, and it is ON unless the machine says otherwise".
+       The only thing that turns one off is `claude plugin disable <id>`, which
+       is the only supported way to stop a plugin's code running and which
+       writes `"<id>": false` into a settings file. A live JSON boolean false
+       for a declared plugin is carried through here; every other shape renders
+       true, including absent, a JSON null, a string, a number, and the array
+       that Claude Code's own schema union allows
+       (`union([array(string), boolean, undefined])`). Establishing the type
+       before comparing is what keeps that safe: `eq X false` ERRORS whenever X
+       is not a bool, measured 2026-08-02, and the error loses the whole file.
+
+       So an apply no longer re-enables a plugin you turned off, on any branch
+       of the machine's state, and it does not need `--exclude=templates` to
+       behave (that flag does NOT skip a modify-template, measured 2026-08-02).
+       The cost, accepted deliberately: `claude plugin disable --all` is one
+       command and there is no `enable --all`, so recovering from a mass disable
+       is nine separate `claude plugin enable` commands. A containment verb a
+       scheduled apply can silently revoke is not containment, which is why this
+       trade goes this way.
 
        ponytail is a marketplace plugin rather than an official one: its
        marketplace is added separately (`claude plugin marketplace add
-       DietrichGebert/ponytail`) and this entry only records that it should be
+       DietrichGebert/ponytail`) and its entry only records that it should be
        ENABLED once installed. Enabling a plugin that is not installed is inert,
        so the declaration is safe on a fresh machine. --- */ -}}
-{{- $enabledPlugins := dict
-    "superpowers@claude-plugins-official" true
-    "document-skills@anthropic-agent-skills" true
-    "frontend-design@claude-plugins-official" true
-    "playwright@claude-plugins-official" true
-    "security-guidance@claude-plugins-official" true
-    "swift-lsp@claude-plugins-official" true
-    "rust-analyzer-lsp@claude-plugins-official" true
-    "codex@openai-codex" true
-    "ponytail@ponytail" true -}}
+{{- $declaredPlugins := list
+    "superpowers@claude-plugins-official"
+    "document-skills@anthropic-agent-skills"
+    "frontend-design@claude-plugins-official"
+    "playwright@claude-plugins-official"
+    "security-guidance@claude-plugins-official"
+    "swift-lsp@claude-plugins-official"
+    "rust-analyzer-lsp@claude-plugins-official"
+    "codex@openai-codex"
+    "ponytail@ponytail" -}}
+{{- $enabledPlugins := dict -}}
+{{- range $pluginName := $declaredPlugins -}}
+{{-   $pluginEnabled := true -}}
+{{-   if hasKey $livePlugins $pluginName -}}
+{{-     $liveValue := index $livePlugins $pluginName -}}
+{{-     if eq (kindOf $liveValue) "bool" -}}
+{{-       $pluginEnabled = $liveValue -}}
+{{-     end -}}
+{{-   end -}}
+{{-   $enabledPlugins = set $enabledPlugins $pluginName $pluginEnabled -}}
+{{- end -}}
 {{- $merged = setValueAtPath "enabledPlugins" $enabledPlugins $merged -}}
 
 {{- /* --- stable: skill tiering (on-demand skills load only when the user
