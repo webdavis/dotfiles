@@ -121,14 +121,19 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 # ---------- named constants --------------------------------------------------
 
 # MECHANISM 1: chezmoi template functions that read a secret manager at apply
-# time. Every name here was probed against the installed chezmoi (v2.71.1) with
+# time. Every name here was probed against a real chezmoi with
 # `printf '{{ NAME }}' | chezmoi execute-template`, which answers
 # `function "NAME" not defined` for a name chezmoi does not provide. Two names
 # from chezmoi's documentation, `hcpVaultSecret` and `hcpVaultSecretJson`, are
-# absent from that build and are therefore absent here. Repo policy makes
-# KeePassXC the only vault actually in use; the rest are listed because a guard
-# that only knows the vault of the day fails open the day someone adopts
-# another one.
+# absent from both builds measured below and are therefore absent here. Repo
+# policy makes KeePassXC the only vault actually in use; the rest are listed
+# because a guard that only knows the vault of the day fails open the day
+# someone adopts another one.
+#
+# This list is the SEARCH vocabulary and is used in full no matter which
+# chezmoi is running, because the scan it feeds is a text search over the
+# source tree and needs no chezmoi at all. Only the PROBE below, which asks
+# chezmoi to confirm the names are real, is version-sensitive.
 SECRET_VAULT_TEMPLATE_FUNCTIONS=(
   awsSecretsManager awsSecretsManagerRaw azureKeyVault
   bitwarden bitwardenAttachment bitwardenAttachmentByRef bitwardenFields
@@ -148,10 +153,34 @@ SECRET_VAULT_TEMPLATE_FUNCTIONS=(
   secret secretJSON vault
 )
 
+# The names above that are NEWER than the chezmoi this repo declares as its
+# floor, and so cannot be required of every build that runs this guard.
+#
+# `.chezmoiversion` pins the floor at 2.62.3 and `flake.nix` ships exactly
+# that, which is the chezmoi CI runs; a workstation on the Homebrew build runs
+# something later. Measured on 2026-08-01 by asking each of the 43 names of
+# both builds individually: 2.62.3 defines 41 and lacks these two, 2.71.1
+# defines all 43.
+#
+# Without this split the probe fails the WHOLE guard on the floor build. Go
+# resolves function names at parse time, so one name the build does not know
+# aborts the parse and every assertion behind it is skipped, which is the
+# worst outcome available to a security check: silence that reads as a
+# failure about something else entirely.
+#
+# What the exemption does and does not cost, measured rather than assumed. A
+# typo in one of these names is still caught on EVERY build, because each has
+# a committed call fixture (s2-proton-pass-call, s2-proton-pass-json-call)
+# that asserts the scanner finds a real call to it; misspell the name here and
+# that fixture drops to 0 matches and fails. What the floor build cannot tell
+# you is whether the name is a real chezmoi function at all, so if one were
+# RETIRED upstream, only a build that once defined it would report the loss.
+SECRET_VAULT_TEMPLATE_FUNCTIONS_ABOVE_FLOOR=(protonPass protonPassJSON)
+
 # MECHANISM 2: chezmoi template functions that RUN a command line and render its
 # output. They turn any vault CLI into a template call, and the command name
 # then sits inside a string literal where the vault-FUNCTION search cannot see
-# it. Measured present in chezmoi v2.71.1.
+# it. Measured present in chezmoi 2.62.3 and 2.71.1 alike.
 COMMAND_EXECUTING_TEMPLATE_FUNCTIONS=(output outputList)
 
 # MECHANISM 2 and 4: vault command lines. Consulted for an action that calls one
@@ -1199,6 +1228,18 @@ read_target_mode() { # <path>
   stat -c '%a' "$1" 2>/dev/null || stat -f '%Lp' "$1"
 }
 
+# Whether the RUNNING chezmoi defines a template function. Asked of chezmoi
+# itself rather than of a version number, so the answer stays right across the
+# range of builds this repo supports.
+#
+# `{{ if false }}` guarantees the function is never CALLED: Go resolves the
+# name at parse time and skips the body at execute time, so this question
+# reaches no vault, no keychain and no network.
+chezmoi_defines_template_function() { # <name>
+  printf '{{ if false }}{{ %s }}{{ end }}' "$1" |
+    chezmoi --config "$empty_chezmoi_config" --no-tty execute-template >/dev/null 2>&1
+}
+
 # A source basename built from an attribute SEQUENCE, e.g. "modify encrypted"
 # plus "dot_probe" gives "modify_encrypted_private_dot_probe".
 private_probe_basename() { # <space-separated-prefix> <suffix>
@@ -1255,11 +1296,37 @@ else
     >"$mode_source/dot_probe-named-template-spelling.tmpl"
   # Every vault function name, referenced but never executed. Go resolves
   # function names at PARSE time, so an apply that succeeds proves each name is
-  # a real chezmoi function; one that has been retired upstream names itself in
-  # the failure. (This direction only: no probe can prove the list is
-  # COMPLETE.)
+  # a real chezmoi function; one that has been retired upstream, or mistyped
+  # here, names itself in the failure. (This direction only: no probe can prove
+  # the list is COMPLETE.)
+  #
+  # The above-floor names are asked individually FIRST and dropped when this
+  # build does not define them. They cannot ride in the all-or-nothing template
+  # because a parse error at one name aborts the parse, taking every other name
+  # and every later assertion in this block with it.
+  declare -a probe_function_names=()
+  declare -a probe_functions_skipped=()
+  for probe_function in "${SECRET_VAULT_TEMPLATE_FUNCTIONS[@]}" \
+    "${COMMAND_EXECUTING_TEMPLATE_FUNCTIONS[@]}"; do
+    probe_function_is_above_floor=0
+    for probe_above_floor in "${SECRET_VAULT_TEMPLATE_FUNCTIONS_ABOVE_FLOOR[@]}"; do
+      [[ $probe_function == "$probe_above_floor" ]] && probe_function_is_above_floor=1
+    done
+    if ((probe_function_is_above_floor)) &&
+      ! chezmoi_defines_template_function "$probe_function"; then
+      probe_functions_skipped+=("$probe_function")
+      continue
+    fi
+    probe_function_names+=("$probe_function")
+  done
+  # Say what was proved and what was not, so a build that skipped names cannot
+  # read afterwards as a build that confirmed them.
+  if ((${#probe_functions_skipped[@]})); then
+    printf 'secret-source-files-declare-private-mode: NOTE -- %s does not define %s; those names are searched for but not probed\n' \
+      "$(chezmoi --version | head -1)" "${probe_functions_skipped[*]}" >&2
+  fi
   printf '{{ if false }}%s{{ end }}' \
-    "$(printf '{{ %s }}' "${SECRET_VAULT_TEMPLATE_FUNCTIONS[@]}" "${COMMAND_EXECUTING_TEMPLATE_FUNCTIONS[@]}")" \
+    "$(printf '{{ %s }}' "${probe_function_names[@]}")" \
     >"$mode_source/dot_probe-vault-function-names.tmpl"
 
   if ! chezmoi --config "$empty_chezmoi_config" --source "$mode_source" \
