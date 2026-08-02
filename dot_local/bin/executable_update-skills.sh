@@ -3254,17 +3254,31 @@ check_fork_drift() {
   local fork source_url skill_path last_compared_tree_hash current_tree_hash
   local clone_parent_dir clone_dir clone_error clone_rc unusable_fields
   local expected_entries walked_entries=0
-  # How many entries the walk below OWES a verdict. Range-bounded before it is
-  # compared: the guards above make jq's answer a count, but an unreadable
-  # answer must not decide the comparison, and 0 is the direction that reports
-  # rather than the one that stays quiet.
-  expected_entries="$(jq -r '(.forks // {}) | length' "$CUSTOM_SKILL_LOCK" 2>/dev/null)"
-  [[ $expected_entries =~ ^[0-9]+$ ]] || expected_entries=0
-  # NUL-delimited keys, read on fd 3. NUL because a forks key is a JSON string
-  # and may hold anything a JSON string may: a key with an embedded newline
-  # split into two phantom entries under a line-delimited feed, each relayed as
-  # its own broken fork, while the real entry was never walked at all. fd 3
-  # because the loop body runs git, which may consume stdin.
+  # ONE read sizes the walk and feeds it: the count is the FIRST record of the
+  # same stream the keys arrive on. Two reads was the defect. Their failures
+  # cancelled, because a failed count was coerced to 0 while a failed feed
+  # yielded no keys, so 0 == 0 declared a complete walk that had compared
+  # nothing, no warning fired, and the weekly run went on to stamp the week a
+  # success. With one stream a failure cannot hide: no header record means the
+  # read failed (jq writes nothing to stdout when it errors), and a stream that
+  # stops early leaves walked < expected, which the count below reports. A
+  # header that is not a count is the same finding, since nothing downstream can
+  # be trusted after it.
+  #
+  # NUL-delimited, read on fd 3. NUL because a forks key is a JSON string and
+  # may hold anything a JSON string may: a key with an embedded newline split
+  # into two phantom entries under a line-delimited feed, each relayed as its
+  # own broken fork, while the real entry was never walked at all. fd 3 because
+  # the loop body runs git, which may consume stdin.
+  exec 3< <(jq --raw-output0 '.forks | (length | tostring), keys[]?' "$CUSTOM_SKILL_LOCK" 2>/dev/null)
+  if ! IFS= read -r -d '' -u3 expected_entries ||
+    [[ ! $expected_entries =~ ^[0-9]+$ ]]; then
+    exec 3<&-
+    log "fork drift-check: the forks table in $CUSTOM_SKILL_LOCK could not be read; NO fork upstream is being watched this run, fix the lock"
+    relay_fork_advisory "$FORK_RELAY_STATE_LOCK_MALFORMED" "$FORK_RELAY_PROJECT_FORKS_TABLE" \
+      "the forks table in $CUSTOM_SKILL_LOCK could not be read; no fork upstream was drift-checked"
+    return 0
+  fi
   while IFS= read -r -d '' -u3 fork; do
     walked_entries=$((walked_entries + 1))
     # Type-check the entry BEFORE reading fields out of it: a non-object entry
@@ -3319,7 +3333,8 @@ check_fork_drift() {
     else
       notify_fork_drift "$fork" "$source_url"
     fi
-  done 3< <(jq --raw-output0 '(.forks // {}) | keys[]?' "$CUSTOM_SKILL_LOCK" 2>/dev/null)
+  done
+  exec 3<&-
   [[ $walked_entries -eq $expected_entries ]] ||
     notify_fork_walk_incomplete "$walked_entries" "$expected_entries"
   # The phase's contract is that it always succeeds; say so rather than leaving

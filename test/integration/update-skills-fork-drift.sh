@@ -860,4 +860,89 @@ refute_match "$fork_check_output" 'forks table' \
 [[ ! -s $relay_call_log ]] ||
   fail "case 23: an explicitly empty forks table paged the operator: $(cat "$relay_call_log")"
 
-echo "update-skills-fork-drift: OK (4 baseline assertions + rewrite immunity (global and system), stale skillPath, clone staging and cleanup, 4 malformed tables, malformed entries, dry-run notifies nobody, whole-repo skillPath, failing relay, unparseable lock, unreachable upstream relayed with git's message, 21 mis-typed fields, unstageable clone relayed, newline key, namespaced lock project, distinguishable malformed-entry reasons, absent lock, stalled clone stopped at its deadline, unusable deadline override, absent vs empty forks table)"
+# --- Case 24: a forks table the walk cannot READ is reported ------------------
+# The walk sizes itself and feeds itself from the table. When BOTH reads failed
+# the two failures cancelled: the size was coerced to 0, the feed yielded no
+# keys, and 0 == 0 said the walk owed nothing and finished complete. No fork was
+# compared, no incomplete-walk warning fired, and in the weekly flow the run
+# went on to stamp the week a success. The reads are simulated by a jq that
+# fails the ENUMERATION of the forks table and passes everything else through,
+# keyed on the vocabulary any such read has to use rather than on one exact
+# program text, so this case keeps its meaning if the read is rewritten.
+case24_bin="$scratch_dir/case24-bin"
+mkdir -p "$case24_bin"
+case24_real_jq="$(command -v jq)"
+cat >"$case24_bin/jq" <<EOF
+#!/usr/bin/env bash
+for case24_arg in "\$@"; do
+  case "\$case24_arg" in
+    *forks*keys*|*forks*to_entries*|*forks*length*) exit 86 ;;
+  esac
+done
+exec "$case24_real_jq" "\$@"
+EOF
+chmod +x "$case24_bin/jq"
+write_forks_lock "$(jq -n --arg url "$fixture_repo" --arg hash "$current_fixture_hash" \
+  '{unreadfork: {source: "fixture/unreadfork", sourceUrl: $url,
+    skillPath: "skills/forkskill", lastComparedTreeHash: $hash}}')"
+
+# Control FIRST: the same lock, the same run, without the shim. Without this the
+# case cannot tell a reported read failure from a table that was never walkable.
+run_fork_check
+printf '%s\n' "$fork_check_output" | grep -q 'unreadfork: upstream unchanged' ||
+  fail "case 24 control: the fixture was not walked clean without the shim, so the shimmed run below proves nothing: $fork_check_output"
+
+run_fork_check PATH="$case24_bin:$PATH"
+[[ $fork_check_rc -eq 0 ]] ||
+  fail "case 24: the drift-watch exited $fork_check_rc when the forks table could not be read: $fork_check_output"
+assert_log_line_has "$fork_check_output" 'forks table' 'could not be read' \
+  "case 24: a forks table the walk could not read produced no warning saying so, so a run that compared nothing is indistinguishable from a run that found no drift: $fork_check_output"
+refute_match "$fork_check_output" 'upstream unchanged' \
+  "case 24: a fork was reported clean although the table feeding the walk could not be read: $fork_check_output"
+assert_relay_line fork-lock-broken 'could not be read' \
+  "case 24: a forks table the walk could not read was logged but never relayed, so every upstream went unwatched and only the run log says so"
+
+# --- Case 24b: a feed that stops early is a SHORT walk, and says so -----------
+# The other half of the same invariant, and the reason the walk counts at all: a
+# feed that truncates (a jq too old for --raw-output0, a read that stops early)
+# leaves the walked entries reporting clean while the rest go unwatched, and a
+# clean report over a short walk looks exactly like a healthy run. Only the
+# count can tell them apart, so the count gets a test.
+case24b_bin="$scratch_dir/case24b-bin"
+mkdir -p "$case24b_bin"
+cat >"$case24b_bin/jq" <<EOF
+#!/usr/bin/env bash
+for case24b_arg in "\$@"; do
+  case "\$case24b_arg" in
+    *forks*keys*|*forks*to_entries*)
+      # Drop the LAST record of the enumeration, whatever the records are, so
+      # the truncation is what a short read looks like without this shim having
+      # to know how the read is spelled.
+      case24b_records=()
+      while IFS= read -r -d '' case24b_record; do
+        case24b_records+=("\$case24b_record")
+      done < <("$case24_real_jq" "\$@")
+      for ((case24b_i = 0; case24b_i < \${#case24b_records[@]} - 1; case24b_i++)); do
+        printf '%s\0' "\${case24b_records[case24b_i]}"
+      done
+      exit 0
+      ;;
+  esac
+done
+exec "$case24_real_jq" "\$@"
+EOF
+chmod +x "$case24b_bin/jq"
+write_forks_lock "$(jq -n --arg url "$fixture_repo" --arg hash "$current_fixture_hash" \
+  '{afork: {source: "fixture/afork", sourceUrl: $url, skillPath: "skills/forkskill",
+      lastComparedTreeHash: $hash},
+    zfork: {source: "fixture/zfork", sourceUrl: $url, skillPath: "skills/forkskill",
+      lastComparedTreeHash: $hash}}')"
+run_fork_check PATH="$case24b_bin:$PATH"
+[[ $fork_check_rc -eq 0 ]] ||
+  fail "case 24b: the drift-watch exited $fork_check_rc on a truncated feed: $fork_check_output"
+assert_log_line_has "$fork_check_output" 'reached the walk' 'of 2' \
+  "case 24b: a feed that delivered fewer entries than the table holds reported a complete walk, so the entries it never reached are unwatched and nothing says so: $fork_check_output"
+assert_relay_line fork-walk-incomplete 'not drift-checked' \
+  "case 24b: a short walk was logged but never relayed"
+
+echo "update-skills-fork-drift: OK (4 baseline assertions + rewrite immunity (global and system), stale skillPath, clone staging and cleanup, 4 malformed tables, malformed entries, dry-run notifies nobody, whole-repo skillPath, failing relay, unparseable lock, unreachable upstream relayed with git's message, 21 mis-typed fields, unstageable clone relayed, newline key, namespaced lock project, distinguishable malformed-entry reasons, absent lock, stalled clone stopped at its deadline, unusable deadline override, absent vs empty forks table, unreadable and truncated table feeds)"
