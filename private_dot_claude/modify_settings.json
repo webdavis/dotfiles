@@ -22,12 +22,14 @@
     FREE-DRIFT   passed through untouched: alwaysThinkingEnabled, voiceEnabled,
                  useAutoModeDuringPlan and anything else /config adds.
     enabledPlugins  the ROSTER is fixed here and the per-plugin STATE is not.
-                 Membership of the declared list is stable; a plugin the live
-                 file disables (JSON boolean false) or pins (JSON array of
-                 version constraints) keeps that across applies. The price is
-                 that this repo no longer re-asserts plugin state at all, and
-                 that a live disable is invisible to `chezmoi status`,
-                 `chezmoi diff` and `just d`. See the plugin block below.
+                 Membership of the declared list is stable; a DECLARED plugin
+                 the live file disables (JSON boolean false) or pins (JSON array
+                 of version constraints) keeps that across applies. An
+                 UNDECLARED one keeps nothing, the write is whole-value, so its
+                 entry is erased. The price is that this repo no longer
+                 re-asserts plugin state at all, and that a live disable is
+                 invisible to `chezmoi status`, `chezmoi diff` and `just d`.
+                 See the plugin block below.
 
   Promote a /config toggle to STABLE by adding it to one of the setValueAtPath
   calls below.
@@ -182,11 +184,17 @@
        per-plugin STATE preserved. The roster is stable; the state is not.
 
        This block REPLACES enabledPlugins wholesale, it does not merge into it,
-       because setValueAtPath writes the value at the path. So a plugin enabled
-       live but missing from the list below is DISABLED on the next apply,
-       silently. Every plugin meant to stay on must be listed.
-       test/unit/claude-enabled-plugins.sh fails when this set and the roster
-       disagree.
+       because setValueAtPath writes the value at the path. So every entry the
+       live file holds for an id missing from the list below is ERASED on the
+       next apply, silently. Every MARKETPLACE plugin meant to stay on must be
+       listed: Claude Code builds its marketplace-plugin load set out of these
+       keys, so erasing an id stops that plugin loading (read out of the shipped
+       2.1.220 binary on 2026-08-02). A plugin under ~/.claude/skills/ resolves
+       the other way, its manifest default (ON) applies when no entry is
+       present, so listing a skill is not what keeps it on and erasing a `false`
+       for one REVOKES that disable. Those are not in this roster and are not
+       meant to be. test/unit/claude-enabled-plugins.sh fails when this set and
+       the roster disagree.
 
        The list is names only, not name-to-value pairs: membership means "this
        repo manages this plugin, and it is ON unless the machine already says

@@ -9,11 +9,16 @@
 #
 # WHY THIS EXISTS, PART ONE: THE ROSTER MUST BE COMPLETE. modify_settings.json
 # writes enabledPlugins with setValueAtPath, which REPLACES the value at that
-# path rather than merging into it. So a plugin that is enabled live but absent
-# from the declaration is turned OFF by the next apply, with no message.
-# Measured 2026-07-30: three plugins (codex@openai-codex, ponytail@ponytail,
-# rust-analyzer-lsp@claude-plugins-official) were enabled on the machine and
-# absent from the declaration, so the next apply would have disabled all three.
+# path rather than merging into it. So a MARKETPLACE plugin that is enabled live
+# but absent from the declaration is turned OFF by the next apply, with no
+# message: Claude Code builds its marketplace-plugin load set out of these keys,
+# so an erased id is never loaded (read out of the shipped 2.1.220 binary on
+# 2026-08-02). Measured 2026-07-30: three plugins (codex@openai-codex,
+# ponytail@ponytail, rust-analyzer-lsp@claude-plugins-official) were enabled on
+# the machine and absent from the declaration, so the next apply would have
+# disabled all three. Every plugin in DECLARED_PLUGINS below is that kind. A
+# plugin under ~/.claude/skills/ resolves the other way (no entry means its
+# manifest default, which is ON), which is why none of those belongs here.
 #
 # WHY THIS EXISTS, PART TWO: A DISABLE MUST SURVIVE. `claude plugin disable` is
 # the only supported way to stop a plugin's code running, and it writes

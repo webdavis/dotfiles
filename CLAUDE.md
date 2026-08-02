@@ -138,15 +138,27 @@ file holds:
 **3. `enabledPlugins`, which is neither.** The **roster** is chezmoi-controlled and the per-plugin
 **state** is not. The template declares nine plugin ids (keys are `<name>@<marketplace>`, which is the
 form Claude Code writes, not the bare name the CLI prints on success) and the write is whole-value, so a
-plugin enabled live but missing from the declaration is turned OFF by the next apply. Within that roster,
-both members of Claude Code's own union for this key are the machine's to set and are carried through
-unchanged: the JSON boolean `false` that `claude plugin disable` writes, and the JSON array of version
-constraints that its schema calls the extended format (a plugin held at a reviewed release). Every other
-shape renders `true`: an absent key, a JSON null, a string and a number.
+marketplace plugin enabled live but missing from the declaration is turned OFF by the next apply. Within
+that roster, both members of Claude Code's own union for this key are the machine's to set and are
+carried through unchanged: the JSON boolean `false` that `claude plugin disable` writes, and the JSON
+array of version constraints that its schema calls the extended format (a plugin held at a reviewed
+release). Every other shape renders `true`: an absent key, a JSON null, a string and a number.
 
-So `claude plugin disable <id>` STICKS across applies, and applying is not the way to turn a plugin back
-on: use `claude plugin enable <id>`. The trade was taken deliberately, because a containment verb a
-scheduled apply can silently revoke is not containment.
+So `claude plugin disable <id>` STICKS across applies for the nine declared ids, and applying is not the
+way to turn one back on: use `claude plugin enable <id>`. The trade was taken deliberately, because a
+containment verb a scheduled apply can silently revoke is not containment.
+
+**The promise stops at the nine, and an erased entry costs different things depending on where the plugin
+came from.** Claude Code 2.1.220 resolves the two kinds differently (read out of the shipped binary on
+2026-08-02). A marketplace plugin is discovered THROUGH this key: the loader walks the merged settings'
+`enabledPlugins` entries and skips any whose value is undefined, so an id the file does not hold is never
+loaded. Erasing an undeclared marketplace plugin's `false` therefore leaves it off, by a different
+mechanism, though the file stops recording why. A plugin under `~/.claude/skills/` is found by scanning
+that directory instead, and its entry only adjusts state afterwards; with no entry it falls back to the
+plugin manifest's `defaultEnabled`, which defaults to true. Every skill this repo symlinks into
+`~/.claude/skills/` is that second kind, so a `claude plugin disable` on one writes a `false` that the
+next apply erases, and the skill comes back on. Nothing is drifting today, the live file holds exactly
+the nine ids, but the skills case needs one `claude plugin disable` to become real.
 
 **Read the price before relying on this.** It is not the recovery ergonomics (though those are real:
 `claude plugin disable --all` is one command, there is no `enable --all`, so undoing a mass disable is
