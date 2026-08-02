@@ -105,8 +105,15 @@ claude_declarations() {
       *) fail "non-symlink entry '$base' in private_dot_claude/skills (harness skill dirs hold only store symlinks)" ;;
     esac
     skill="$(target_name "$base")"
-    # $(<file) strips trailing newlines, so both committed spellings (with and
-    # without a final newline) compare equal, exactly as chezmoi reads them.
+    # $(<file) strips trailing NEWLINES, so both committed spellings (with and
+    # without a final newline) compare equal. chezmoi strips MORE than that:
+    # measured 2026-08-02 against both the flake's 2.62.3 and the host's 2.71.1,
+    # it drops all leading and trailing whitespace, spaces, tabs and CR
+    # included, and preserves whitespace only in the middle. So this comparison
+    # is the stricter of the two, and the asymmetry runs the safe way: it can
+    # only reject a target chezmoi would have accepted, never accept one chezmoi
+    # would plant wrong. Do not "simplify" it toward chezmoi's rule; the point of
+    # the rule is to refuse a hand-typed target, not to bless every spelling.
     target="$(<"$entry")"
     [[ $target == "$claude_prefix/$skill" ]] ||
       fail "declaration private_dot_claude/skills/$base points at '$target' (expected '$claude_prefix/$skill')"
